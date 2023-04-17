@@ -5,12 +5,13 @@ import { FaBeer, FaAddressBook } from "react-icons/fa";
 
 const P2PContainer = () => {
   const router = useRouter();
-  const slug = (router.query.slug as string[]) || [];
+  const slug = router.query;
+  console.log({ slug });
 
   const [bool, setBool] = useState(false);
   return (
     <Box>
-      <Text>{slug.join("/")}</Text>
+      <Text>{JSON.stringify(slug)}</Text>
       <Button onClick={() => setBool(!bool)}>Bool</Button>
       {bool ? <FaBeer /> : <FaAddressBook />}
     </Box>
