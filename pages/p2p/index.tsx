@@ -1,4 +1,4 @@
-import { Box, Button, Spinner, Text } from "@chakra-ui/react";
+import { Box, Button, Spinner, Text, Textarea } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/router";
 import { useState } from "react";
@@ -9,11 +9,11 @@ const P2PContainer = () => {
   const router = useRouter();
   const slug = router.query;
 
-  const [bool, setBool] = useState(false);
-
   const { data, isLoading } = useQuery(["myData"], async () => {
     try {
-      const result = await axios.get("	https://get.geojs.io/v1/ip/country.json");
+      const result = await axios.get(
+        "https://booth.innkeeper.link/api/booths/future"
+      );
       console.log({ result });
       return result;
     } catch (err) {
@@ -25,10 +25,11 @@ const P2PContainer = () => {
   return (
     <Box>
       <Text>{JSON.stringify(slug)}</Text>
-      <Button onClick={() => setBool(!bool)}>Bool</Button>
-      {bool ? <FaBeer /> : <FaAddressBook />}
       {isLoading && <Spinner />}
       {data && <Text>{JSON.stringify(data.data)}</Text>}
+      <Box pt={3}>
+        <Textarea />
+      </Box>
     </Box>
   );
 };
