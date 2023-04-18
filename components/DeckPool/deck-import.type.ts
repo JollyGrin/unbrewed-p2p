@@ -27,9 +27,9 @@ export type DeckImportDataType = {
   cards: DeckImportCardType[];
   extraCharacters: [];
   hero: DeckImportHeroType;
+  sidekick: DeckImportSidekickType;
   name: string;
   ruleCards: DeckImportRuleCardType[];
-  sidekick: DeckImportSidekickType;
 };
 
 export type DeckImportAppearanceType = {
@@ -41,17 +41,17 @@ export type DeckImportAppearanceType = {
 };
 
 export type DeckImportCardType = {
-  afterText: string;
-  basicText: string;
+  afterText: string | null;
+  basicText: string | null;
   boost: number;
   characterName: string;
-  duringText: string;
+  duringText: string | null;
   imageUrl: ValidUrlString;
-  immediateText: string;
+  immediateText: string | null;
   quantity: number;
   title: string;
   type: string;
-  value: number;
+  value: number | null;
 };
 
 export type DeckImportHeroType = {
@@ -65,7 +65,7 @@ export type DeckImportHeroType = {
 
 export type DeckImportSidekickType = Omit<
   DeckImportHeroType,
-  "specialAbility" | "move"
+  "hp" | "specialAbility" | "move"
 > & {
   hp: number | null;
   quantity: number | null;
