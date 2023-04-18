@@ -1,4 +1,6 @@
-export const mockDeck = {
+import { DeckImportType } from "@/components/DeckPool/deck-import.type";
+
+export const mockDeck: DeckImportType = {
   bgg_link: null,
   created_on: "Mon, 17 Apr 2023 03:14:18 GMT",
   deck_data: {
