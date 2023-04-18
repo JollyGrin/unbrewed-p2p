@@ -1,3 +1,4 @@
+import React from "react";
 import { DocumentHeader } from "@/components/Head";
 import "@/styles/globals.css";
 import type { AppProps } from "next/app";

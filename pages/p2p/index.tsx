@@ -37,7 +37,12 @@ const P2PContainer = () => {
         Set mock Deck
       </Button>
       <Box pt={3}>
-        <Textarea onChange={(e) => setDeckData(e.target.value)} />
+        <Textarea
+          onChange={(e) => {
+            console.log("hi");
+            setDeckData(e.target.value);
+          }}
+        />
       </Box>
       <Text>{JSON.stringify(deckDataDebounced)}</Text>
     </Box>
