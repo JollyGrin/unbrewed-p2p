@@ -39,7 +39,7 @@ const P2PContainer = () => {
       <Box pt={3}>
         <Textarea
           onChange={(e) => {
-            console.log("hi");
+            console.log("hi", e.target.value);
             setDeckData(e.target.value);
           }}
         />
