@@ -54,6 +54,8 @@ export type DeckImportCardType = {
   value: number | null;
 };
 
+export type PoolCardType = Omit<DeckImportCardType, "quantity">;
+
 export type DeckImportHeroType = {
   hp: number;
   isRanged: boolean;
@@ -69,6 +71,7 @@ export type DeckImportSidekickType = Omit<
 > & {
   hp: number | null;
   quantity: number | null;
+  quote: string;
 };
 
 export type DeckImportRuleCardType = {

@@ -20,14 +20,12 @@ const P2PContainer = () => {
       const result = await axios.get(
         "https://booth.innkeeper.link/api/booths/future"
       );
-      console.log({ result });
       return result;
     } catch (err) {
       console.error(err);
     }
   });
 
-  console.log({ data });
   return (
     <Box>
       <Text>{JSON.stringify(slug)}</Text>
@@ -39,7 +37,6 @@ const P2PContainer = () => {
       <Box pt={3}>
         <Textarea
           onChange={(e) => {
-            console.log("hi", e.target.value);
             setDeckData(e.target.value);
           }}
         />
