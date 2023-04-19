@@ -10,7 +10,6 @@ import {
   QueryClient,
   QueryClientProvider,
 } from "@tanstack/react-query";
-import Fonts from "@/components/Helmet/Fonts";
 import "@/styles/fonts.css";
 
 export default function App({ Component, pageProps }: AppProps) {
@@ -22,7 +21,6 @@ export default function App({ Component, pageProps }: AppProps) {
         <Hydrate state={pageProps.dehydratedState}>
           <DocumentHeader />
           <ChakraProvider theme={theme}>
-            <Fonts />
             <Component {...pageProps} />
           </ChakraProvider>
         </Hydrate>
