@@ -10,7 +10,8 @@ const colors = {
 
 const fonts = {
   BebasNeueRegular: `'BebasNeueRegular', sans-serif`,
-  body: `'Body Font Name', sans-serif`,
+  ArchivoNarrow: `'ArchivoNarrow', sans-serif`,
+  LeagueGothic: `'LeagueGothic', sans-serif`,
 };
 
 export const theme = extendTheme({ colors, fonts });

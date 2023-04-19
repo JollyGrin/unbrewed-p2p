@@ -128,7 +128,7 @@ export default class CardTemplate extends Component {
       const fontSize = 3.3;
       return {
         fill: "#fff",
-        font: `${fontSize}px Archivo Narrow`,
+        font: `${fontSize}px ArchivoNarrow`,
         fontSize,
       };
     },
@@ -297,7 +297,7 @@ export default class CardTemplate extends Component {
     quantityStyle: () => {
       return {
         fill: "#fff",
-        fontFamily: "League Gothic",
+        fontFamily: "LeagueGothic",
         fontSize: "1.8px",
       };
     },
@@ -385,7 +385,7 @@ export default class CardTemplate extends Component {
     };
     const quantityStyle = {
       fill: "#fff",
-      fontFamily: "League Gothic",
+      fontFamily: "LeagueGothic",
       fontSize: "1.8px",
     };
     const cardValueStyle = {

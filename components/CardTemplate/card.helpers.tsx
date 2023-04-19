@@ -98,7 +98,7 @@ export const actions = {
     const fontSize = 3.3;
     return {
       fill: "#fff",
-      font: `${fontSize}px Archivo Narrow`,
+      font: `${fontSize}px ArchivoNarrow`,
       fontSize,
     };
   },
@@ -240,12 +240,8 @@ export const actions = {
     return actions.bottomPanelWidth() - 2 * cardConstants.bottomPanelPadding;
   },
   getTextWidth: (text: string, font: string, canvas: Canvas) => {
-    // const canvas = createCanvas(200, 200);
     if (!canvas) return 10;
     const context = canvas.getContext("2d");
-    // if (typeof window === "undefined") return;
-    // const canvas = window.document.createElement("canvas");
-    // const context = canvas.getContext("2d");
     context.font = font;
     const width = context.measureText(text).width;
     return width;
@@ -274,7 +270,7 @@ export const actions = {
   quantityStyle: () => {
     return {
       fill: "#fff",
-      fontFamily: "League Gothic",
+      fontFamily: "LeagueGothic",
       fontSize: "1.8px",
     };
   },
@@ -342,7 +338,7 @@ export const cardStyles = {
   },
   quantityStyle: {
     fill: "#fff",
-    fontFamily: "League Gothic",
+    fontFamily: "LeagueGothic",
     fontSize: "1.8px",
   },
   cardValueStyle: {
