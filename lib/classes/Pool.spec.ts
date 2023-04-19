@@ -29,7 +29,7 @@ describe("Class: Pool", () => {
     pool.makeDeck();
     expect(pool.deck?.length).toBeGreaterThan(pool.cards.length); // should be longer than cards
     const card = pool?.deck?.[0];
-    expect(card && "quantity" in card).toBe(false); // expect quantity property to be removed
+    expect(card).toEqual(pool.cards?.[0]);
   });
 
   test("shuffles deck", () => {

@@ -14,16 +14,16 @@ export default class Pool {
   deckNote: string;
 
   cards: DeckImportCardType[]; // unique cards in the deck
-  deck: PoolCardType[] | null;
+  deck: DeckImportCardType[] | null;
   hero: DeckImportHeroType;
   sidekick: DeckImportSidekickType;
 
-  hand: PoolCardType[];
-  discard: PoolCardType[];
+  hand: DeckImportCardType[];
+  discard: DeckImportCardType[];
   commit: {
-    main: PoolCardType | null;
+    main: DeckImportCardType | null;
     reveal: boolean;
-    boost?: PoolCardType | null;
+    boost?: DeckImportCardType | null;
   };
 
   constructor(deckData: DeckImportType) {
@@ -68,8 +68,8 @@ export default class Pool {
    */
   makeDeck = () => {
     const cards = clone(this.cards);
-    const newDeck = cards.flatMap(({ quantity, ...rest }) =>
-      Array(quantity).fill(rest)
+    const newDeck: DeckImportCardType[] = cards.flatMap(
+      ({ quantity, ...rest }) => Array(quantity).fill({ quantity, ...rest })
     );
     this.deck = newDeck;
   };
