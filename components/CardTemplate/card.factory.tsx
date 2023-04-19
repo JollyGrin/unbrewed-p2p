@@ -20,7 +20,7 @@ export const CardFactory: React.FC<{ card: DeckImportCardType }> = ({
     }
   }, [canvas]);
 
-  if (!canvas) return <div />;
+  if (!canvas || !card) return <div />;
   const props = calculateProps(card, canvas);
 
   return (
