@@ -31,6 +31,7 @@ const CardPage = () => {
         <Flex flexWrap={"wrap"}>
           {Object.entries(card).map((value) => (
             <Flex
+              key={value[0]}
               display={value[1] ? "flex" : "none"}
               border={"1px solid black"}
               margin={1}
