@@ -13,3 +13,15 @@ This aims to recreate unbrewed.xyz but with webrtc and typescript. This will all
 1. add file to `public/fonts`
 1. update `styles/fonts.css`
 1. update `styles/styles.ts`
+
+## Journal
+
+random notes/design decisions made
+
+### 2023-4-19
+
+The import worked suprisingly well. Only had 1 issue but still requires a huge rework.
+
+Had an issue measuring the text width in the svg with node-canvas & ssg/hydration issues.
+Solution: use functional components instead of a class so that I can use hooks (useEffect)
+Buzzkill: have to refactor the entire 600+ lines
