@@ -15,7 +15,9 @@ const CardPage = () => {
         bg={"saddlebrown"}
       >
         <Box bg="sienna" w="100%" h="100%">
-          <Text fontFamily={"BebasNeueRegular"}>Testing</Text>
+          <Text fontFamily={"BebasNeueRegular"} fontSize={"30px"}>
+            Testing
+          </Text>
         </Box>
         <Flex
           bg="tan"
