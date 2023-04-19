@@ -1,10 +1,11 @@
 import { mockDeck } from "@/_mocks_/deck";
 import CardTemplate from "@/components/CardTemplate/CardTemplate";
+import { CardFactory } from "@/components/CardTemplate/card.factory";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 import { Box, Flex, Grid, Tag, Text } from "@chakra-ui/react";
 
 const CardPage = () => {
-  const card = mockDeck.deck_data.cards[4];
+  const card = mockDeck.deck_data.cards[8];
   return (
     <>
       <Grid
@@ -49,10 +50,7 @@ const CardPage = () => {
 const Card: React.FC<{ card: DeckImportCardType }> = ({ card }) => {
   return (
     <Box w="300px" h="auto">
-      {
-        //@ts-ignore
-        <CardTemplate card={card} />
-      }
+      <CardFactory card={card} />
     </Box>
   );
 };
