@@ -3,6 +3,7 @@ import {
   UnmatchedCardType,
 } from "../DeckPool/deck-import.type";
 import { CardConstantsType } from "./card.type";
+import { Canvas } from "canvas";
 
 export const cardConstants: CardConstantsType = {
   height: 88,
@@ -23,11 +24,11 @@ export const actions = {
   topPanelWidth: () => {
     return actions.innerWidth();
   },
-  topPanelHeight: (props: DeckImportCardType) => {
+  topPanelHeight: (props: DeckImportCardType, canvas: Canvas) => {
     const topHeight =
       cardConstants.height -
       2 * cardConstants.outerBorderWidth -
-      actions.bottomPanelHeight(props) -
+      actions.bottomPanelHeight(props, canvas) -
       cardConstants.hRuleThickness;
 
     return topHeight;
@@ -35,24 +36,24 @@ export const actions = {
   bottomPanelWidth: () => {
     return actions.innerWidth();
   },
-  bottomPanelY: (props: DeckImportCardType) => {
-    return actions.topPanelHeight(props) + cardConstants.hRuleThickness;
+  bottomPanelY: (props: DeckImportCardType, canvas: Canvas) => {
+    return actions.topPanelHeight(props, canvas) + cardConstants.hRuleThickness;
   },
   bottomPanelStyle: () => {
     return { fill: "#000" };
   },
-  bottomPanelHeight: (props: DeckImportCardType) => {
+  bottomPanelHeight: (props: DeckImportCardType, canvas: Canvas) => {
     const textHeight =
       actions.bodyTextStyle().fontSize * 0.8 +
-      6 * actions.wrapCardTitle(props.title).length +
+      6 * actions.wrapCardTitle(props.title, canvas).length +
       actions.bodyTextStyle().fontSize *
         1.1 *
         (actions.isScheme(props.type)
-          ? actions.wrapBasicText(props.basicText).length
-          : actions.wrapBasicText(props.basicText).length +
-            actions.wrapImmediateText(props.immediateText).length +
-            actions.wrapDuringText(props.duringText).length +
-            actions.wrapAfterText(props.afterText).length) +
+          ? actions.wrapBasicText(props.basicText, canvas).length
+          : actions.wrapBasicText(props.basicText, canvas).length +
+            actions.wrapImmediateText(props.immediateText, canvas).length +
+            actions.wrapDuringText(props.duringText, canvas).length +
+            actions.wrapAfterText(props.afterText, canvas).length) +
       5;
     return Math.max(28.8, textHeight);
   },
@@ -68,8 +69,12 @@ export const actions = {
       fontSize: "6px",
     };
   },
-  cantonAdjust: (characterName: string) => {
-    const width = actions.getTextWidth(characterName, "6px BebasNeueRegular");
+  cantonAdjust: (characterName: string, canvas: Canvas) => {
+    const width = actions.getTextWidth(
+      characterName,
+      "6px BebasNeueRegular",
+      canvas
+    );
     const adjust = width - 22.1;
     return adjust < 0 ? adjust : 0;
   },
@@ -105,7 +110,7 @@ export const actions = {
       fontSize,
     };
   },
-  wrapBasicText: (basicText: string) => {
+  wrapBasicText: (basicText: string, canvas: Canvas) => {
     if (!(basicText && basicText.trim())) {
       return [];
     }
@@ -116,18 +121,21 @@ export const actions = {
         return actions.wrapLines(
           line.split(" "),
           actions.bodyTextStyle().font,
-          actions.maxTextLength()
+          actions.maxTextLength(),
+          undefined,
+          canvas
         );
       });
     return lines.flat();
   },
-  wrapImmediateText: (immediateText: string) => {
+  wrapImmediateText: (immediateText: string, canvas: Canvas) => {
     if (!(immediateText && immediateText.trim())) {
       return [];
     }
     const indent = actions.getTextWidth(
       "IMMEDIATELY: ",
-      actions.sectionHeadingStyle().font
+      actions.sectionHeadingStyle().font,
+      canvas
     );
 
     const lines = immediateText
@@ -138,18 +146,20 @@ export const actions = {
           line.split(" "),
           actions.bodyTextStyle().font,
           actions.maxTextLength(),
-          index === 0 ? indent : 0
+          index === 0 ? indent : 0,
+          canvas
         );
       });
     return lines.flat();
   },
-  wrapDuringText: (duringText: string) => {
+  wrapDuringText: (duringText: string, canvas: Canvas) => {
     if (!(duringText && duringText.trim())) {
       return [];
     }
     const indent = actions.getTextWidth(
       "DURING COMBAT: ",
-      actions.sectionHeadingStyle().font
+      actions.sectionHeadingStyle().font,
+      canvas
     );
     const lines = duringText
       .trim()
@@ -159,18 +169,20 @@ export const actions = {
           line.split(" "),
           actions.bodyTextStyle().font,
           actions.maxTextLength(),
-          index === 0 ? indent : 0
+          index === 0 ? indent : 0,
+          canvas
         );
       });
     return lines.flat();
   },
-  wrapAfterText: (afterText: string) => {
+  wrapAfterText: (afterText: string, canvas: Canvas) => {
     if (!(afterText && afterText.trim())) {
       return [];
     }
     const indent = actions.getTextWidth(
       "AFTER COMBAT: ",
-      actions.sectionHeadingStyle().font
+      actions.sectionHeadingStyle().font,
+      canvas
     );
     const lines = afterText
       .trim()
@@ -180,52 +192,63 @@ export const actions = {
           line.split(" "),
           actions.bodyTextStyle().font,
           actions.maxTextLength(),
-          index === 0 ? indent : 0
+          index === 0 ? indent : 0,
+          canvas
         );
       });
     return lines.flat();
   },
-  wrapCardTitle: (title: string) => {
+  wrapCardTitle: (title: string, canvas: Canvas) => {
     return actions.wrapLines(
       title?.split(" "),
       actions.titleTextStyle().font,
-      actions.maxTextLength()
+      actions.maxTextLength(),
+      undefined,
+      canvas
     );
   },
   wrapLines: (
     words: string[],
     font: string,
     maxLength: number,
-    indent = 0
+    indent = 0,
+    canvas: Canvas
   ): string[] => {
     var line = "";
     var i;
     for (i = 0; i < words?.length; i++) {
       line = words.slice(0, words.length - i).join(" ");
-      if (actions.getTextWidth(line, font) <= maxLength - indent) break;
+      if (actions.getTextWidth(line, font, canvas) <= maxLength - indent) break;
     }
     const remainingWords =
       i === words?.length ? words?.slice(1) : words?.slice(words.length - i);
     if (i && remainingWords.length) {
-      return [line, ...actions.wrapLines(remainingWords, font, maxLength)];
+      return [
+        line,
+        ...actions.wrapLines(
+          remainingWords,
+          font,
+          maxLength,
+          undefined,
+          canvas
+        ),
+      ];
     }
     return [line];
   },
   maxTextLength: () => {
     return actions.bottomPanelWidth() - 2 * cardConstants.bottomPanelPadding;
   },
-  getTextWidth: (text: string, font: string) => {
+  getTextWidth: (text: string, font: string, canvas: Canvas) => {
     // const canvas = createCanvas(200, 200);
-    // const context = canvas.getContext("2d");
+    if (!canvas) return 10;
+    const context = canvas.getContext("2d");
     // if (typeof window === "undefined") return;
     // const canvas = window.document.createElement("canvas");
     // const context = canvas.getContext("2d");
-    // context.font = font;
-    // console.log({ context }, context.measureText(text).width);
-    // return context.measureText(text).width;
-    // return 10;
-    // console.log({ font });
-    return 10;
+    context.font = font;
+    const width = context.measureText(text).width;
+    return width;
   },
   boostValueStyle: () => {
     return {
@@ -268,23 +291,23 @@ export const roundNumber = (number: number, roundTo: number) => {
   return round;
 };
 
-export const calculateProps = (card: DeckImportCardType) => ({
+export const calculateProps = (card: DeckImportCardType, canvas: Canvas) => ({
   isScheme: actions.isScheme(card.type),
   topPanelWidth: actions.topPanelWidth(),
-  topPanelHeight: actions.topPanelHeight(card),
+  topPanelHeight: actions.topPanelHeight(card, canvas),
   bottomPanelWidth: actions.bottomPanelWidth(),
-  bottomPanelHeight: actions.bottomPanelHeight(card),
-  bottomPanelY: actions.bottomPanelY(card),
+  bottomPanelHeight: actions.bottomPanelHeight(card, canvas),
+  bottomPanelY: actions.bottomPanelY(card, canvas),
   innerWidth: actions.innerWidth(),
   namePanel: actions.namePanel(),
   dataUri: imageUri(card.imageUrl),
   outerBorderStyle: actions.outerBorderStyle(),
-  cantonAdjust: actions.cantonAdjust(card.characterName),
-  wrapCardTitle: actions.wrapCardTitle(card.title),
-  wrapBasicText: actions.wrapBasicText(card.basicText),
-  wrapDuringText: actions.wrapDuringText(card.duringText),
-  wrapImmediateText: actions.wrapImmediateText(card.immediateText),
-  wrapAfterText: actions.wrapAfterText(card.afterText),
+  cantonAdjust: actions.cantonAdjust(card.characterName, canvas),
+  wrapCardTitle: actions.wrapCardTitle(card.title, canvas),
+  wrapBasicText: actions.wrapBasicText(card.basicText, canvas),
+  wrapDuringText: actions.wrapDuringText(card.duringText, canvas),
+  wrapImmediateText: actions.wrapImmediateText(card.immediateText, canvas),
+  wrapAfterText: actions.wrapAfterText(card.afterText, canvas),
   bodyTextStyle: actions.bodyTextStyle(),
 });
 
