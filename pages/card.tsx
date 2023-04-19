@@ -1,11 +1,12 @@
 import { mockDeck } from "@/_mocks_/deck";
-import CardTemplate from "@/components/CardTemplate/CardTemplate";
 import { CardFactory } from "@/components/CardTemplate/card.factory";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
-import { Box, Flex, Grid, Tag, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, Grid, Tag, Text } from "@chakra-ui/react";
+import { useState } from "react";
 
 const CardPage = () => {
-  const card = mockDeck.deck_data.cards[8];
+  const [cardIndex, setCardIndex] = useState<number>(0);
+  const card = mockDeck.deck_data.cards[cardIndex];
   return (
     <>
       <Grid
@@ -19,6 +20,12 @@ const CardPage = () => {
           <Text fontFamily={"BebasNeueRegular"} fontSize={"30px"}>
             Testing
           </Text>
+          {cardIndex < mockDeck.deck_data.cards.length - 1 && (
+            <Button onClick={() => setCardIndex(cardIndex + 1)}>+</Button>
+          )}
+          {cardIndex > 0 && (
+            <Button onClick={() => setCardIndex(cardIndex - 1)}>-</Button>
+          )}
         </Box>
         <Flex
           bg="tan"
@@ -30,17 +37,18 @@ const CardPage = () => {
           <Card card={card} />
         </Flex>
         <Flex flexWrap={"wrap"}>
-          {Object.entries(card).map((value) => (
-            <Flex
-              key={value[0]}
-              display={value[1] ? "flex" : "none"}
-              border={"1px solid black"}
-              margin={1}
-            >
-              <Tag bg="gray">{value[0]}:</Tag>
-              <Tag>{value[1]}</Tag>
-            </Flex>
-          ))}
+          {card &&
+            Object.entries(card).map((value) => (
+              <Flex
+                key={value[0]}
+                display={value[1] ? "flex" : "none"}
+                border={"1px solid black"}
+                margin={1}
+              >
+                <Tag bg="gray">{value[0]}:</Tag>
+                <Tag>{value[1]}</Tag>
+              </Flex>
+            ))}
         </Flex>
       </Grid>
     </>
