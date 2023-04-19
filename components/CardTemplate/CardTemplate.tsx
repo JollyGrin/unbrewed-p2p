@@ -261,7 +261,6 @@ export default class CardTemplate extends Component {
       );
     },
     getTextWidth: (text, font) => {
-      console.log("text/font", text, font);
       // const canvas = createCanvas(200, 200);
       // const context = canvas.getContext("2d");
       // if (typeof window === "undefined") return;

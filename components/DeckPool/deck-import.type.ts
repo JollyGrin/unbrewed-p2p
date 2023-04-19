@@ -40,17 +40,18 @@ export type DeckImportAppearanceType = {
   patternName: string;
 };
 
+export type UnmatchedCardType = "scheme" | "defence" | "versatile" | "attack";
 export type DeckImportCardType = {
-  afterText: string | null;
-  basicText: string | null;
+  afterText: string;
+  basicText: string;
   boost: number;
   characterName: string;
-  duringText: string | null;
+  duringText: string;
   imageUrl: ValidUrlString;
-  immediateText: string | null;
+  immediateText: string;
   quantity: number;
   title: string;
-  type: string;
+  type: UnmatchedCardType;
   value: number | null;
 };
 
