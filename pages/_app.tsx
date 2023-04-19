@@ -1,5 +1,5 @@
 import React from "react";
-import { DocumentHeader } from "@/components/Head";
+import { DocumentHeader } from "@/components/Helmet/Head";
 import "@/styles/globals.css";
 import type { AppProps } from "next/app";
 import { ChakraProvider } from "@chakra-ui/react";
@@ -10,6 +10,8 @@ import {
   QueryClient,
   QueryClientProvider,
 } from "@tanstack/react-query";
+import Fonts from "@/components/Helmet/Fonts";
+import "@/styles/fonts.css";
 
 export default function App({ Component, pageProps }: AppProps) {
   const [queryClient] = useState(() => new QueryClient());
@@ -20,6 +22,7 @@ export default function App({ Component, pageProps }: AppProps) {
         <Hydrate state={pageProps.dehydratedState}>
           <DocumentHeader />
           <ChakraProvider theme={theme}>
+            <Fonts />
             <Component {...pageProps} />
           </ChakraProvider>
         </Hydrate>

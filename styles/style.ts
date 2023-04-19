@@ -8,4 +8,9 @@ const colors = {
   },
 };
 
-export const theme = extendTheme({ colors });
+const fonts = {
+  BebasNeueRegular: `'BebasNeueRegular', sans-serif`,
+  body: `'Body Font Name', sans-serif`,
+};
+
+export const theme = extendTheme({ colors, fonts });
