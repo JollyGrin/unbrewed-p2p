@@ -7,6 +7,7 @@ import {
   roundNumber,
 } from "./card.helpers";
 import { Canvas, createCanvas } from "canvas";
+import IconSvg from "./IconSvg";
 
 export const CardFactory: React.FC<{ card: DeckImportCardType }> = ({
   card,
@@ -101,13 +102,14 @@ export const CardFactory: React.FC<{ card: DeckImportCardType }> = ({
           ) : (
             ""
           )}
-          {/* <IconSvg
+          <IconSvg
+            //@ts-ignore
             cardType={card.type}
             width={6}
             x={5 - 6 / 2}
             y={1.5}
             fill={`#fff`}
-          /> */}
+          />
           <rect
             className="bottom-panel"
             width={props.bottomPanelWidth}
