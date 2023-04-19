@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { DeckImportCardType } from "../DeckPool/deck-import.type";
 import {
   calculateProps,
@@ -6,12 +6,21 @@ import {
   cardConstants as conprops,
   roundNumber,
 } from "./card.helpers";
+import { Canvas, createCanvas } from "canvas";
 
 export const CardFactory: React.FC<{ card: DeckImportCardType }> = ({
   card,
 }) => {
-  console.log({ card });
-  const props = calculateProps(card);
+  const [canvas, setCanvas] = useState<Canvas>();
+  useEffect(() => {
+    if (canvas) return;
+    if (typeof window !== "undefined") {
+      setCanvas(createCanvas(200, 200));
+    }
+  }, [canvas]);
+
+  if (!canvas) return <div />;
+  const props = calculateProps(card, canvas);
 
   return (
     <Fragment>
@@ -58,7 +67,7 @@ export const CardFactory: React.FC<{ card: DeckImportCardType }> = ({
           <polygon
             style={props.outerBorderStyle}
             points={`
-              0,0 10.8,0 10.8,39.6 5,42.9 0,40.1
+              0,0 10,0 10,39.6 5,42.9 0,40.1
                 `}
           />
           <polygon
