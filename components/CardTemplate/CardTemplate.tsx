@@ -1,8 +1,6 @@
 //@ts-nocheck
 import React, { Component, Fragment } from "react";
-import cardMock from "../../assets/mock/card.json";
 import IconSvg from "./IconSvg";
-import dynamic from "next/dynamic";
 
 export default class CardTemplate extends Component {
   constructor(props) {
@@ -401,7 +399,6 @@ export default class CardTemplate extends Component {
       <Fragment>
         <svg
           preserveAspectRatio="xMinYMin meet"
-          ref="svg"
           viewBox="0 0 63 88"
           shapeRendering="geometricPrecision"
         >
