@@ -6,7 +6,6 @@ import { FaBeer, FaAddressBook } from "react-icons/fa";
 import axios from "axios";
 import { useDebounce } from "use-debounce";
 import { mockDeck } from "@/_mocks_/deck";
-import Pool from "@/lib/classes/Pool";
 
 const P2PContainer = () => {
   const router = useRouter();
