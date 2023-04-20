@@ -1,5 +1,5 @@
 import { mockDeck } from "@/_mocks_/deck";
-import { CardFactory } from "@/components/CardTemplate/card.factory";
+import { CardFactory } from "@/components/CardFactory/card.factory";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 import { Box, Button, Flex, Grid, Tag, Text } from "@chakra-ui/react";
 import { useState } from "react";
