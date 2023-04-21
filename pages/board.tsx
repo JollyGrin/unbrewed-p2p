@@ -32,10 +32,17 @@ const BoardPage = () => {
     const g = d3.select(gRef.current);
 
     const data: Circle[] = [
-      { x: 50, y: 50, r: 25 },
-      { x: 150, y: 50, r: 25 },
-      { x: 100, y: 150, r: 25 },
+      { x: 500, y: 500, r: 25 },
+      { x: 500, y: 300, r: 25 },
+      { x: 500, y: 400, r: 25 },
     ];
+
+    // canvas.call(() =>
+    //   d3.xml("jpark.svg").then((data) => {
+    //     console.log(data.documentElement);
+    //     canvas.append(data.documentElement);
+    //   })
+    // );
 
     g.selectAll<SVGCircleElement, Circle>("circle")
       .data(data)
@@ -64,6 +71,7 @@ const BoardPage = () => {
         .on("zoom", ({ transform }) => {
           console.log({ transform });
           g.attr("transform", transform);
+          canvas.select("image").attr("transform", transform);
         })
     );
 
@@ -92,7 +100,9 @@ const BoardPage = () => {
   return (
     <Box w="100%" h="95vh">
       {/* <Image src="jpark.svg" alt="board" width={100} height={100} /> */}
-      <svg width="100%" height="100%" ref={canvasRef}></svg>
+      <svg width="100%" height="100%" ref={canvasRef}>
+        <image xlinkHref="jpark.svg" width="400" height="400" x="50" y="50" />
+      </svg>
     </Box>
   );
 };
