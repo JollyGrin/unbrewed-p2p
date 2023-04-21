@@ -16,6 +16,10 @@ const Homepage = () => {
       <Link href="/game">
         <Button>Game</Button>
       </Link>
+
+      <Link href="/board">
+        <Button>Board</Button>
+      </Link>
     </Flex>
   );
 };
