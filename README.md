@@ -4,15 +4,26 @@ This aims to recreate unbrewed.xyz but with webrtc and typescript. This will all
 
 - [x] setup typescript: to auto-document code
 - [x] setup jest (unit tests): to make refactoring and PRs easier
-- [ ] add [webrtc](https://michal-wrzosek.github.io/p2p-chat/)
-- [ ] add card template
+- [x] add interactive board
+- [x] add card template
+- [ ] add board state (hand, discard, deck)
 - [ ] add game actions
+- [ ] add backpack (to load decks/maps in localstorage)
+- [ ] add optional api server for loading decks from unmatched (add fallback if url breaks and ability to load a different server url)
+- [ ] add [webrtc](https://michal-wrzosek.github.io/p2p-chat/)
+
+## WebRTC Goals (for @emyrk)
+
+- make hooks for the functionality found in p2p chat
+- add tooling for reconnecting (do we need to store a key?)
+- is more than 2people possible?
 
 ## Add Fonts
 
 1. add file to `public/fonts`
 1. update `styles/fonts.css`
 1. update `styles/styles.ts`
+1. update `lib/devTools/prefixFonts.js` to add another html match for fixing production links
 
 ## Journal
 
