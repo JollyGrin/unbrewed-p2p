@@ -11,7 +11,10 @@ interface Circle {
   startY?: number;
 }
 
-export const BoardCanvas = () => {
+type BoardProps = {
+  src: `${string}.svg`;
+};
+export const BoardCanvas: React.FC<BoardProps> = ({ src = "jpark.svg" }) => {
   const canvasRef: RefObject<SVGSVGElement> = useRef(null);
   const gRef = useRef<SVGGElement | null>(null);
   const [w, setW] = useState<number>(100);
@@ -43,13 +46,6 @@ export const BoardCanvas = () => {
       { x: 200, y: 300, r: 10 },
       { x: 200, y: 400, r: 10 },
     ];
-
-    // canvas.call(() =>
-    //   d3.xml("jpark.svg").then((data) => {
-    //     console.log(data.documentElement);
-    //     canvas.append(data.documentElement);
-    //   })
-    // );
 
     g.selectAll<SVGCircleElement, Circle>("circle")
       .data(data)
@@ -111,7 +107,7 @@ export const BoardCanvas = () => {
         }}
       >
         <image
-          xlinkHref="jpark.svg"
+          xlinkHref={src}
           width={w * 0.8}
           height="400"
           x={w * 0.1}
