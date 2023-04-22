@@ -1,9 +1,6 @@
 //@ts-nocheck
 import { Box } from "@chakra-ui/react";
 import * as d3 from "d3";
-import * as d3Drag from "d3-drag";
-import Image from "next/image";
-// import { drag as d3_drag } from "d3-drag";
 import { RefObject, useEffect, useRef, useState } from "react";
 
 interface Circle {
@@ -25,7 +22,7 @@ export const BoardCanvas = () => {
     if (!window) return;
     console.log(window.innerWidth, "aaaa");
     const margin = { top: 0, right: 10, bottom: 300, left: 10 };
-    const width = window.innerWidth - 20;
+    const width = window.innerWidth - 100;
     const height = window.innerHeight - 300;
 
     setW(width);
@@ -106,14 +103,14 @@ export const BoardCanvas = () => {
 
   return (
     <Box w="100%">
-      {/* <Image src="jpark.svg" alt="board" width={100} height={100} /> */}
       <svg
-        width="100%"
-        height="100%"
         ref={canvasRef}
         style={{
           border: "1px solid red",
           margin: "0 auto",
+          boxShadow: "0 10px 20px rgba(0,0,0,0.4)",
+          borderRadius: "0.5rem",
+          backgroundColor: "ghostwhite",
         }}
       >
         <image
@@ -121,7 +118,7 @@ export const BoardCanvas = () => {
           width={w * 0.8}
           height="400"
           x={w * 0.1}
-          y="50"
+          y={h * 0.1}
         />
       </svg>
     </Box>
