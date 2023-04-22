@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && node lib/buildTools/prefixFonts.js",
     "start": "next start",
     "lint": "next lint",
     "test": "jest --coverage"
@@ -24,8 +24,10 @@
     "eslint": "8.38.0",
     "eslint-config-next": "13.3.0",
     "framer-motion": "^10.12.2",
+    "fs": "^0.0.1-security",
     "lodash": "^4.17.21",
     "next": "13.3.0",
+    "path": "^0.12.7",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-icons": "^4.8.0",
