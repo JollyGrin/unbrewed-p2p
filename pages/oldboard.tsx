@@ -1,3 +1,4 @@
+//@ts-nocheck
 import { Box } from "@chakra-ui/react";
 import * as d3 from "d3";
 import * as d3Drag from "d3-drag";

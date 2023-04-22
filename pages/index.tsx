@@ -5,10 +5,7 @@ const Homepage = () => {
   return (
     <Flex flexDir={"column"}>
       <Text fontWeight={700}>Unbrewed P2P</Text>
-      <Text>
-        Creating a pure p2p version of unbrewed so that it doesn't rely on a
-        specific server
-      </Text>
+      <Text>Creating a pure p2p version of unbrewed.</Text>
       <Link href="/card">
         <Button>Card</Button>
       </Link>
