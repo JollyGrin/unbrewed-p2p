@@ -1,11 +1,18 @@
 import { mockDeck } from "@/_mocks_/deck";
-import { BoardCanvas } from "@/components/BoardCanvas";
+import { BoardCanvas, Circle } from "@/components/BoardCanvas";
 import { CardFactory } from "@/components/CardFactory/card.factory";
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import { useState } from "react";
 
+const initData: Circle[] = [
+  { id: "hero", x: 200, y: 500, r: 10 },
+  { id: "sidekick", x: 200, y: 300, r: 10 },
+  { id: "enemey", x: 200, y: 400, r: 10 },
+];
+
 const BoardPage = () => {
   const [board, setBoard] = useState<`${string}.svg`>("jpark.svg");
+  const [dynamicData, setDynamicData] = useState<Circle[]>(initData);
   return (
     <Box bg="darkgoldenrod" h="100vh">
       <Flex
@@ -17,12 +24,27 @@ const BoardPage = () => {
         minH={"5rem"}
       >
         <Text fontSize={"2rem"}>Unbrewed New Game</Text>
-        <Flex minH={"4rem"}>
+        <Flex minH={"4rem"} gap={"10px"} p={1}>
           <Button onClick={() => setBoard("jpark.svg")}>Jurassic</Button>
           <Button onClick={() => setBoard("sarpeoon.svg")}>Sarpeoon</Button>
+          <Button
+            onClick={() =>
+              setDynamicData(
+                dynamicData.map((circle) => {
+                  if (circle.id !== "hero") return circle;
+                  return {
+                    ...circle,
+                    y: circle.y + 10,
+                  };
+                })
+              )
+            }
+          >
+            hero +10 y
+          </Button>
         </Flex>
       </Flex>
-      <BoardCanvas src={board} />
+      <BoardCanvas src={board} data={dynamicData} move={setDynamicData} />
       <Flex
         h={"20%"}
         gap={"25px"}

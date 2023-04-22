@@ -3,18 +3,30 @@ import { Box } from "@chakra-ui/react";
 import * as d3 from "d3";
 import { RefObject, useEffect, useRef, useState } from "react";
 
-interface Circle {
+export interface Circle {
   x: number;
   y: number;
   r: number;
   startX?: number;
   startY?: number;
+  id?: string;
 }
+const defaultData: Circle[] = [
+  { id: "hero", x: 200, y: 500, r: 10 },
+  { id: "sidekick", x: 200, y: 300, r: 10 },
+  { id: "enemey", x: 200, y: 400, r: 10 },
+];
 
 type BoardProps = {
   src: `${string}.svg`;
+  data?: Circle[];
+  move?: any;
 };
-export const BoardCanvas: React.FC<BoardProps> = ({ src = "jpark.svg" }) => {
+export const BoardCanvas: React.FC<BoardProps> = ({
+  src = "jpark.svg",
+  data = defaultData,
+  move,
+}) => {
   const canvasRef: RefObject<SVGSVGElement> = useRef(null);
   const gRef = useRef<SVGGElement | null>(null);
   const [w, setW] = useState<number>(100);
@@ -41,11 +53,11 @@ export const BoardCanvas: React.FC<BoardProps> = ({ src = "jpark.svg" }) => {
     }
     const g = d3.select(gRef.current);
 
-    const data: Circle[] = [
-      { x: 200, y: 500, r: 10 },
-      { x: 200, y: 300, r: 10 },
-      { x: 200, y: 400, r: 10 },
-    ];
+    // const data: Circle[] = [
+    //   { x: 200, y: 500, r: 10 },
+    //   { x: 200, y: 300, r: 10 },
+    //   { x: 200, y: 400, r: 10 },
+    // ];
 
     g.selectAll<SVGCircleElement, Circle>("circle")
       .data(data)
@@ -87,12 +99,23 @@ export const BoardCanvas: React.FC<BoardProps> = ({ src = "jpark.svg" }) => {
       d3.select<SVGCircleElement, Circle>(this)
         .attr("cx", (d.x = event.x))
         .attr("cy", (d.y = event.y));
+
+      move(
+        data.map((circle) => {
+          if (circle.id !== d.id) return circle;
+          return {
+            ...circle,
+            x: event.x,
+            y: event.y,
+          };
+        })
+      );
     }
 
     function dragended() {
       g.attr("cursor", "grab");
     }
-  }, []);
+  }, [data]);
 
   return (
     <Box w="100%">
