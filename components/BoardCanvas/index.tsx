@@ -20,7 +20,6 @@ export const BoardCanvas = () => {
   useEffect(() => {
     if (!canvasRef.current) return;
     if (!window) return;
-    console.log(window.innerWidth, "aaaa");
     const margin = { top: 0, right: 10, bottom: 300, left: 10 };
     const width = window.innerWidth - 100;
     const height = window.innerHeight - 300;
@@ -98,8 +97,6 @@ export const BoardCanvas = () => {
       g.attr("cursor", "grab");
     }
   }, []);
-
-  console.log({ w });
 
   return (
     <Box w="100%">
