@@ -12,22 +12,36 @@ This aims to recreate unbrewed.xyz but with webrtc and typescript. This will all
 - [ ] add optional api server for loading decks from unmatched (add fallback if url breaks and ability to load a different server url)
 - [ ] add [webrtc](https://michal-wrzosek.github.io/p2p-chat/)
 
+## How to add Fonts
+
+1. add file to `public/fonts`
+1. update `styles/fonts.css`
+1. update `styles/styles.ts`
+1. update `lib/devTools/prefixFonts.js` to add another html match for fixing production links. Github pages will put the repo after the url
+
+# Credits
+
+- [JonG](https://github.com/JonathanGuberman), creator of [ unmatched.cards](https://unmatched.cards/) (create your own unmatched deck), [created the styling for the card template](https://github.com/JonathanGuberman/unmatched_maker/blob/a7e96b69559461bfac7d3203d8d3899d4af36398/src/components/UnmatchedCard.vue)
+- [Michal Wrzosek](https://github.com/michal-wrzosek), creator of [pitu pitu chat](https://michal-wrzosek.github.io/p2p-chat/)
+
+# Goals
+
 ## WebRTC Goals (for @emyrk)
 
 - make hooks for the functionality found in p2p chat
 - add tooling for reconnecting (do we need to store a key?)
 - is more than 2people possible?
-
-## Add Fonts
-
-1. add file to `public/fonts`
-1. update `styles/fonts.css`
-1. update `styles/styles.ts`
-1. update `lib/devTools/prefixFonts.js` to add another html match for fixing production links
+- compile a list of STUN & TURN servers and enable ability to find your own lists
 
 ## Journal
 
-random notes/design decisions made
+### 2023-4-22
+
+Now have a fully working board.
+
+- can swap between boards (svgs)
+- can dynamically load circles
+- moving circles is handled with a callback, preparing for webrtc data to update the board state.
 
 ### 2023-4-19
 
