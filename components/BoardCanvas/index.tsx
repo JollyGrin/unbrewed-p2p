@@ -27,6 +27,7 @@ export const BoardCanvas: React.FC<BoardProps> = ({
   data = defaultData,
   move,
 }) => {
+  const parentRef: RefObject<> = useRef();
   const canvasRef: RefObject<SVGSVGElement> = useRef(null);
   const gRef = useRef<SVGGElement | null>(null);
   const [w, setW] = useState<number>(100);
@@ -35,9 +36,11 @@ export const BoardCanvas: React.FC<BoardProps> = ({
   useEffect(() => {
     if (!canvasRef.current) return;
     if (!window) return;
-    const margin = { top: 0, right: 10, bottom: 300, left: 10 };
-    const width = window.innerWidth - 100;
-    const height = window.innerHeight - 300;
+    if (!parentRef) return;
+
+    const parent = parentRef.current;
+    const width = parent.offsetWidth;
+    const height = parent.offsetHeight;
 
     setW(width);
     setH(height);
@@ -46,7 +49,7 @@ export const BoardCanvas: React.FC<BoardProps> = ({
       .attr("width", width)
       .attr("height", height);
 
-    const radius = width * 0.022;
+    const radius = height * 0.022;
 
     if (!gRef.current) {
       gRef.current = canvas.append("g").attr("cursor", "grab").node();
@@ -118,7 +121,7 @@ export const BoardCanvas: React.FC<BoardProps> = ({
   }, [data]);
 
   return (
-    <Box w="100%">
+    <Box h="100%" w="100%" ref={parentRef}>
       <svg
         ref={canvasRef}
         style={{
@@ -131,7 +134,7 @@ export const BoardCanvas: React.FC<BoardProps> = ({
       >
         <image
           xlinkHref={src}
-          width={w * 0.8}
+          width={h * 1}
           height="400"
           x={w * 0.1}
           y={h * 0.1}
