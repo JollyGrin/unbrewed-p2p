@@ -1,6 +1,7 @@
 import { BoardCanvas } from "@/components/BoardCanvas";
 import { Carousel } from "@/components/Game/game.carousel";
 import { GameLayout } from "@/components/Game/game.layout";
+import { TriangleDownIcon, TriangleUpIcon } from "@chakra-ui/icons";
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import { useRouter } from "next/router";
 import { useState } from "react";
@@ -31,16 +32,17 @@ const HeaderContainer = ({
 }) => {
   return (
     <Flex bg="purple" p={3} w="100%" justifyContent="space-between">
-      <Text fontFamily={"SpaceGrotesk"} fontSize={"3rem"} color="white">
+      <Text fontFamily={"SpaceGrotesk"} fontSize={"2rem"} color="white">
         Game
       </Text>
       {showStats && <Box h={"300px"} />}
       <Button
+        fontSize="12px"
         onClick={() => {
           setShowStats(!showStats);
         }}
       >
-        big
+        {!showStats ? <TriangleDownIcon /> : <TriangleUpIcon />}
       </Button>
     </Flex>
   );
