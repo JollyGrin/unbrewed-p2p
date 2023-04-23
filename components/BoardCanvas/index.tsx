@@ -13,9 +13,9 @@ export interface Circle {
   id?: string;
 }
 const defaultData: Circle[] = [
-  { id: "hero", x: 200, y: 500, r: 10 },
-  { id: "sidekick", x: 200, y: 300, r: 10 },
-  { id: "enemey", x: 200, y: 400, r: 10 },
+  { id: "hero", x: 25, y: 25, r: 10 },
+  { id: "sidekick", x: 75, y: 25, r: 10 },
+  { id: "enemey", x: 125, y: 25, r: 10 },
 ];
 
 type BoardProps = {
@@ -162,10 +162,10 @@ export const BoardCanvas: React.FC<BoardProps> = ({
       >
         <image
           xlinkHref={src}
-          width={h * 1}
-          height="400"
-          x={w * 0.1}
-          y={h * 0.1}
+          width={w * 1}
+          height={h * 1}
+          x={w * 0.01}
+          y={h * 0.01}
         />
       </svg>
     </Box>

@@ -2,7 +2,7 @@ import { BoardCanvas } from "@/components/BoardCanvas";
 import { Carousel } from "@/components/Game/game.carousel";
 import { GameLayout } from "@/components/Game/game.layout";
 import { TriangleDownIcon, TriangleUpIcon } from "@chakra-ui/icons";
-import { Box, Button, Flex, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, Tag, Text } from "@chakra-ui/react";
 import { useRouter } from "next/router";
 import { useState } from "react";
 
@@ -31,10 +31,16 @@ const HeaderContainer = ({
   setShowStats: (e: boolean) => void;
 }) => {
   return (
-    <Flex bg="purple" p={3} w="100%" justifyContent="space-between">
-      <Text fontFamily={"SpaceGrotesk"} fontSize={"2rem"} color="white">
+    <Flex
+      bg="purple"
+      p={3}
+      w="100%"
+      justifyContent="space-between"
+      gap={"10px"}
+    >
+      <Tag fontFamily={"SpaceGrotesk"} fontSize={"1rem"} bg="antiquewhite">
         Game
-      </Text>
+      </Tag>
       {showStats && <Box h={"300px"} />}
       <Button
         fontSize="12px"
