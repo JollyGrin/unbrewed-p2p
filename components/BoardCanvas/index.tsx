@@ -99,6 +99,12 @@ export const BoardCanvas: React.FC<BoardProps> = ({
     function dragstarted(e: { target: any }) {
       d3.select(e.target).raise();
       g.attr("cursor", "grabbing");
+      const circle = d3.select<SVGCircleElement, Circle>(this);
+      circle
+        .transition()
+        .duration(200)
+        .attr("stroke", "red")
+        .attr("stroke-width", 1);
     }
 
     function dragged(event: DragEvent, d: any) {
@@ -120,6 +126,14 @@ export const BoardCanvas: React.FC<BoardProps> = ({
 
     function dragended() {
       g.attr("cursor", "grab");
+
+      const circle = d3.select<SVGCircleElement, Circle>(this);
+      // circle.attr("stroke", "red").attr("stroke-width", 0);
+      circle
+        .transition()
+        .duration(350)
+        // change the stroke-width attribute to 5
+        .attr("stroke-width", 0);
     }
   }, [data, updateCanvas]);
 
