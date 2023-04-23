@@ -10,8 +10,9 @@ const handleDragStart = (e) => e.preventDefault();
 
 const { cards } = mockDeck.deck_data;
 
-const cardItems = cards.map((card) => (
+const cardItems = cards.map((card, index) => (
   <Flex
+    key={index + card.title}
     h={"200px"}
     w={"150px"}
     my={5}
