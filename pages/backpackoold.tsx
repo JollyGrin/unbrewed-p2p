@@ -14,14 +14,34 @@ import {
 import axios from "axios";
 import { useState } from "react";
 import { CardFactory } from "@/components/CardFactory/card.factory";
+import { useDebounce } from "use-debounce";
 import { toast } from "react-hot-toast";
 import { DECK_ID } from "@/lib/constants/unmatched-deckids";
-import { useUnmatchedDeck } from "@/lib/hooks/useUnmatchedDeck";
 
 const BackpackPage = () => {
+  const [deckId, setDeckId] = useState<string>();
+  const [deckIdDebounced] = useDebounce(deckId, 300);
+  const [apiUrl, setApiUrl] = useState<string>(
+    "https://unbrewed-api.vercel.app/api/unmatched-deck/"
+  );
   const [selectedCardIndex, setSelectedCardIndex] = useState<number>(0);
-  const { data, isLoading, error, deckId, setDeckId, apiUrl, setApiUrl } =
-    useUnmatchedDeck();
+
+  const { data, isLoading, error } = useQuery(
+    ["deck", deckIdDebounced, setApiUrl],
+    async () => {
+      try {
+        const result = await axios.get(apiUrl + deckIdDebounced);
+        return result.data;
+      } catch (err) {
+        console.error(err);
+      }
+    },
+    {
+      enabled: !!deckIdDebounced,
+      onSuccess: (e) => toast.success("Deck fetched!"),
+      onError: (e) => toast.error("Error fetching deck"),
+    }
+  );
 
   return (
     <Box p={3}>
@@ -38,7 +58,7 @@ const BackpackPage = () => {
           onChange={(e) => setDeckId(e.target.value)}
         />
         <Tag fontFamily={"monospace"} fontSize={"0.75rem"} opacity={"0.5"}>
-          {apiUrl + deckId}
+          {apiUrl + deckIdDebounced}
         </Tag>
       </Flex>
       {!!deckId && isLoading && <Spinner />}
@@ -68,9 +88,7 @@ const BackpackPage = () => {
               -
             </Button>
           </Flex>
-          <Box h={"300px"}>
-            <CardFactory card={data.deck_data.cards[selectedCardIndex]} />
-          </Box>
+          <CardFactory card={data.deck_data.cards[selectedCardIndex]} />
           <code>{JSON.stringify(data.deck_data.cards[selectedCardIndex])}</code>
         </Box>
       )}

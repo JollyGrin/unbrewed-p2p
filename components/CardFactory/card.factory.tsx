@@ -29,6 +29,8 @@ export const CardFactory: React.FC<{ card: DeckImportCardType }> = ({
         preserveAspectRatio="xMinYMin meet"
         viewBox="0 0 63 88"
         shapeRendering="geometricPrecision"
+        height="100%"
+        width="100%"
       >
         <clipPath id="innerBorder">
           <rect
