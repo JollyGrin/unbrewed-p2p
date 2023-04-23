@@ -1,6 +1,6 @@
 import { extendTheme } from "@chakra-ui/react";
 
-const colors = {
+export const colors = {
   brand: {
     900: "#1a365d",
     800: "#153e75",
@@ -8,7 +8,7 @@ const colors = {
   },
 };
 
-const fonts = {
+export const fonts = {
   BebasNeueRegular: `'BebasNeueRegular', sans-serif`,
   ArchivoNarrow: `'ArchivoNarrow', sans-serif`,
   LeagueGothic: `'LeagueGothic', sans-serif`,
