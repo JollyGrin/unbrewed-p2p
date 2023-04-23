@@ -14,7 +14,7 @@ const BoardPage = () => {
   const [board, setBoard] = useState<`${string}.svg`>("jpark.svg");
   const [dynamicData, setDynamicData] = useState<Circle[]>(initData);
   return (
-    <Box bg="darkgoldenrod" h="100vh">
+    <Box bg="darkgoldenrod" h="100vh" p={2}>
       <Flex
         flexDir={"column"}
         justifyContent="center"
@@ -44,8 +44,10 @@ const BoardPage = () => {
           </Button>
         </Flex>
       </Flex>
-      <BoardCanvas src={board} data={dynamicData} move={setDynamicData} />
-      <Flex
+      <Box h={"600px"} w={"100%"}>
+        <BoardCanvas src={board} data={dynamicData} move={setDynamicData} />
+      </Box>
+      {/* <Flex
         h={"20%"}
         gap={"25px"}
         p={"0 2rem"}
@@ -58,7 +60,7 @@ const BoardPage = () => {
         <CardFactory card={mockDeck.deck_data.cards[1]} />
         <CardFactory card={mockDeck.deck_data.cards[2]} />
         <CardFactory card={mockDeck.deck_data.cards[3]} />
-      </Flex>
+      </Flex> */}
     </Box>
   );
 };

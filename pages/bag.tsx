@@ -1,24 +1,15 @@
 //@ts-nocheck
-import { useQuery } from "@tanstack/react-query";
-import {
-  Box,
-  Button,
-  Flex,
-  Input,
-  Spinner,
-  Tag,
-  TagLabel,
-  Text,
-  Tooltip,
-} from "@chakra-ui/react";
-import axios from "axios";
+import { Box, Button, Flex, Input, Spinner, Tag, Text } from "@chakra-ui/react";
 import { useState } from "react";
 import { CardFactory } from "@/components/CardFactory/card.factory";
-import { toast } from "react-hot-toast";
 import { DECK_ID } from "@/lib/constants/unmatched-deckids";
 import { useUnmatchedDeck } from "@/lib/hooks/useUnmatchedDeck";
+import { useRouter } from "next/router";
 
-const BackpackPage = () => {
+const BagPage = () => {
+  const router = useRouter();
+  const slug = router.query;
+
   const [selectedCardIndex, setSelectedCardIndex] = useState<number>(0);
   const { data, isLoading, error, deckId, setDeckId, apiUrl, setApiUrl } =
     useUnmatchedDeck();
@@ -75,27 +66,11 @@ const BackpackPage = () => {
         </Box>
       )}
       {error && <ErrorBox error={error} />}
-
-      <Box pt={3}>
-        <Text>
-          ...or{" "}
-          <a
-            href="https://github.com/JollyGrin/unbrewed-api"
-            style={{ textDecoration: "underline" }}
-          >
-            change the url used to fetch the deck
-          </a>
-        </Text>
-        <Input
-          w="50%"
-          defaultValue={apiUrl}
-          onChange={(e) => setApiUrl(e.target.value)}
-        />
-      </Box>
+      <InputApiUrl apiUrl={apiUrl} setApiUrl={setApiUrl} />
     </Box>
   );
 };
-export default BackpackPage;
+export default BagPage;
 
 const ErrorBox = ({ error }) => {
   return (
@@ -104,3 +79,22 @@ const ErrorBox = ({ error }) => {
     </Box>
   );
 };
+
+const InputApiUrl = ({ apiUrl, setApiUrl }) => (
+  <Box pt={3}>
+    <Text>
+      ...or{" "}
+      <a
+        href="https://github.com/JollyGrin/unbrewed-api"
+        style={{ textDecoration: "underline" }}
+      >
+        change the url used to fetch the deck
+      </a>
+    </Text>
+    <Input
+      w="50%"
+      defaultValue={apiUrl}
+      onChange={(e) => setApiUrl(e.target.value)}
+    />
+  </Box>
+);
