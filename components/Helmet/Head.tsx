@@ -9,6 +9,12 @@ export const DocumentHeader = () => {
         name="viewport"
         content="width=device-width, initial-scale=1, maximum-scale=1, user-scaleable=0"
       />
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+      <link
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;700&display=swap"
+        rel="stylesheet"
+      ></link>
       <link rel="icon" href="/favicon.ico" />
     </Head>
   );

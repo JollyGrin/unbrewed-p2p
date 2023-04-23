@@ -12,6 +12,7 @@ const fonts = {
   BebasNeueRegular: `'BebasNeueRegular', sans-serif`,
   ArchivoNarrow: `'ArchivoNarrow', sans-serif`,
   LeagueGothic: `'LeagueGothic', sans-serif`,
+  SpaceGrotesk: `'Space Grotesk', sans-serif`,
 };
 
 export const theme = extendTheme({ colors, fonts });
