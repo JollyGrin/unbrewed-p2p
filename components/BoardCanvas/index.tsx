@@ -2,6 +2,7 @@
 import { Box } from "@chakra-ui/react";
 import * as d3 from "d3";
 import { RefObject, useEffect, useRef, useState } from "react";
+import { RepeatIcon } from "@chakra-ui/icons";
 
 export interface Circle {
   x: number;
@@ -32,6 +33,8 @@ export const BoardCanvas: React.FC<BoardProps> = ({
   const gRef = useRef<SVGGElement | null>(null);
   const [w, setW] = useState<number>(100);
   const [h, setH] = useState<number>(100);
+
+  const [updateCanvas, setUpdateCanvas] = useState<boolean>(false);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -118,18 +121,29 @@ export const BoardCanvas: React.FC<BoardProps> = ({
     function dragended() {
       g.attr("cursor", "grab");
     }
-  }, [data]);
+  }, [data, updateCanvas]);
 
   return (
     <Box h="100%" w="100%" ref={parentRef}>
+      <RepeatIcon
+        position={"absolute"}
+        right={0}
+        h="20px"
+        w="20px"
+        cursor="pointer"
+        onClick={(e) => {
+          e.preventDefault();
+          setUpdateCanvas(!updateCanvas);
+        }}
+      />
       <svg
         ref={canvasRef}
         style={{
-          border: "1px solid red",
-          margin: "0 auto",
-          boxShadow: "0 10px 20px rgba(0,0,0,0.4)",
-          borderRadius: "0.5rem",
-          backgroundColor: "ghostwhite",
+          borderBottom: "1px solid rgba(0,0,0,0.25)",
+          // margin: "0 auto",
+          // boxShadow: "0 10px 20px rgba(0,0,0,0.4)",
+          // borderRadius: "0.5rem",
+          // backgroundColor: "ghostwhite",
         }}
       >
         <image

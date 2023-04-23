@@ -31,6 +31,7 @@ export const CardFactory: React.FC<{ card: DeckImportCardType }> = ({
         shapeRendering="geometricPrecision"
         height="100%"
         width="100%"
+        style={{ userSelect: "none" }}
       >
         <clipPath id="innerBorder">
           <rect

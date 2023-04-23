@@ -1,48 +1,38 @@
-import { Box, Button, Spinner, Text, Textarea } from "@chakra-ui/react";
-import { useQuery } from "@tanstack/react-query";
+import { BoardCanvas } from "@/components/BoardCanvas";
+import { Carousel } from "@/components/Game/game.carousel";
+import { GameLayout } from "@/components/Game/game.layout";
+import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import { useRouter } from "next/router";
 import { useState } from "react";
-import { FaBeer, FaAddressBook } from "react-icons/fa";
-import axios from "axios";
-import { useDebounce } from "use-debounce";
-import { mockDeck } from "@/_mocks_/deck";
 
-const P2PContainer = () => {
+const GamePage = () => {
   const router = useRouter();
   const slug = router.query;
-
-  const [deckData, setDeckData] = useState<string>("");
-  const [deckDataDebounced] = useDebounce(deckData, 300);
-
-  const { data, isLoading } = useQuery(["myData"], async () => {
-    try {
-      const result = await axios.get(
-        "https://booth.innkeeper.link/api/booths/future"
-      );
-      return result;
-    } catch (err) {
-      console.error(err);
-    }
-  });
+  const [showStats, setShowStats] = useState<boolean>(false);
 
   return (
-    <Box>
-      <Text>{JSON.stringify(slug)}</Text>
-      {isLoading && <Spinner />}
-      {data && <Text>{JSON.stringify(data.data)}</Text>}
-      <Button onClick={() => setDeckData(JSON.stringify(mockDeck))}>
-        Set mock Deck
-      </Button>
-      <Box pt={3}>
-        <Textarea
-          onChange={(e) => {
-            setDeckData(e.target.value);
+    <GameLayout>
+      <Flex bg="purple" p={3} w="100%" justifyContent="space-between">
+        <Text fontFamily={"SpaceGrotesk"} fontSize={"3rem"} color="white">
+          Game
+        </Text>
+        {showStats && <Box h={"300px"} />}
+        <Button
+          onClick={() => {
+            setShowStats(!showStats);
           }}
-        />
+        >
+          big
+        </Button>
+      </Flex>
+      <Box h={"100%"}>
+        <BoardCanvas src="jpark.svg" move={() => {}} />
       </Box>
-      <Text>{JSON.stringify(deckDataDebounced)}</Text>
-    </Box>
+      <Box bg="purple" w="100%" alignItems="end">
+        <Carousel />
+      </Box>
+    </GameLayout>
   );
 };
 
-export default P2PContainer;
+export default GamePage;
