@@ -1,100 +1,254 @@
 //@ts-nocheck
-import { Box, Button, Flex, Input, Spinner, Tag, Text } from "@chakra-ui/react";
 import { useState } from "react";
+import {
+  Box,
+  Button,
+  Flex,
+  HStack,
+  Input,
+  Spinner,
+  Tag,
+  Text,
+} from "@chakra-ui/react";
 import { CardFactory } from "@/components/CardFactory/card.factory";
 import { DECK_ID } from "@/lib/constants/unmatched-deckids";
 import { useUnmatchedDeck } from "@/lib/hooks/useUnmatchedDeck";
 import { useRouter } from "next/router";
+import { Carousel } from "@/components/Game/game.carousel";
+import {
+  DeckImportDataType,
+  DeckImportType,
+} from "@/components/DeckPool/deck-import.type";
+import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
 
 const BagPage = () => {
   const router = useRouter();
   const slug = router.query;
 
-  const [selectedCardIndex, setSelectedCardIndex] = useState<number>(0);
   const { data, isLoading, error, deckId, setDeckId, apiUrl, setApiUrl } =
     useUnmatchedDeck();
 
+  const { decks, pushDeck, removeDeckbyId, totalKbLeft, setStar, star } =
+    useLocalDeckStorage();
+  const [selectedDeckId, setSelectedDeckId] = useState<string>();
+  console.log(
+    { selectedDeckId },
+    decks?.find((deck) => console.log(deck.id))
+  );
   return (
-    <Box p={3}>
-      <Text p={"1rem 0"}>
-        <a href="https://unmatched.cards/decks" target="_blank">
-          <Tag>Find</Tag>
-        </a>{" "}
-        and Load a deck
-      </Text>
-      <Flex gap={2} flexDir={"column"}>
-        <Input
-          w="50%"
-          placeholder={DECK_ID.THRALL}
-          onChange={(e) => setDeckId(e.target.value)}
+    <Flex flexDir={"column"} bg="antiquewhite" h="100svh">
+      <BagNav />
+      <DeckStats length={decks?.length} deckKb={totalKbLeft} />
+      <Flex justifyContent={"space-between"}>
+        <Carousel
+          items={decks?.map((deck, index) => (
+            <Box w="110px" key={deck.id}>
+              <DeckSlot
+                abbrev={deck?.deck_data.hero.name.substring(0, 3).toUpperCase()}
+                id={deck?.id}
+                setSelectedDeck={setSelectedDeckId}
+                star={star}
+              />
+            </Box>
+          ))}
         />
-        <Tag fontFamily={"monospace"} fontSize={"0.75rem"} opacity={"0.5"}>
-          {apiUrl + deckId}
-        </Tag>
       </Flex>
-      {!!deckId && isLoading && <Spinner />}
+      <Flex bg="purple" p={3} gap={2}>
+        {/* <Button>Load from URL</Button>
+        <Button>Load from JSON</Button> */}
+      </Flex>
 
-      {data?.deck_data && (
-        <Box w="75%" margin="5rem auto">
-          <Flex m={"2rem 0"} gap={2}>
+      <Flex bg="indigo" flexDir={"column"} p={3}>
+        {!selectedDeckId && !data && <UnmatchedInput setDeckId={setDeckId} />}
+        {!selectedDeckId && data && <DeckInfo data={data} />}
+        {selectedDeckId && (
+          <DeckInfo data={decks?.find((deck) => deck.id === selectedDeckId)} />
+        )}
+      </Flex>
+      <Flex bg="indigo" h="100%">
+        {!selectedDeckId && data && !isLoading && <DeckCarousel data={data} />}
+        {decks && selectedDeckId && (
+          <DeckCarousel
+            selectedDeck={decks?.find((deck) => deck.id === selectedDeckId)}
+          />
+        )}
+      </Flex>
+      <Flex bg="indigo" alignItems={"end"} p={3}>
+        {!selectedDeckId && data && (
+          <Button
+            onClick={(e) => {
+              e.preventDefault();
+              pushDeck(data);
+              setDeckId(undefined);
+            }}
+          >
+            Save Deck
+          </Button>
+        )}
+        {selectedDeckId && (
+          <Flex gap={2}>
+            <Button onClick={() => setSelectedDeckId(undefined)}>
+              Deselect
+            </Button>
             <Button
-              display={
-                data.deck_data.cards.length > selectedCardIndex
-                  ? "inline"
-                  : "none"
-              }
+              bg="tomato"
               onClick={() => {
-                setSelectedCardIndex(selectedCardIndex + 1);
+                setSelectedDeckId;
+                removeDeckbyId(selectedDeckId);
               }}
             >
-              +
+              Toss from Bag
             </Button>
 
             <Button
-              display={selectedCardIndex > 0 ? "inline" : "none"}
+              bg="gold"
               onClick={() => {
-                setSelectedCardIndex(selectedCardIndex - 1);
+                setStar(selectedDeckId);
               }}
             >
-              -
+              ☆ Star Deck
             </Button>
           </Flex>
-          <Box h={"300px"}>
-            <CardFactory card={data.deck_data.cards[selectedCardIndex]} />
-          </Box>
-          <code>{JSON.stringify(data.deck_data.cards[selectedCardIndex])}</code>
-        </Box>
-      )}
-      {error && <ErrorBox error={error} />}
-      <InputApiUrl apiUrl={apiUrl} setApiUrl={setApiUrl} />
-    </Box>
+        )}
+      </Flex>
+    </Flex>
   );
 };
 export default BagPage;
 
-const ErrorBox = ({ error }) => {
+const BagNav = () => {
   return (
-    <Box minH={"200px"} p={3} borderRadius={5} bg="gray">
-      <Text color="tomato">{JSON.stringify(error)}</Text>
+    <Flex justifyContent={"space-between"} alignItems={"center"} p={2}>
+      <Text fontFamily="SpaceGrotesk" fontSize="2.25rem" fontWeight="700">
+        Bag
+      </Text>
+      <Box w="2rem" h="2rem" bg="black" />
+    </Flex>
+  );
+};
+
+const DeckStats = ({ length, deckKb }) => {
+  return (
+    <Box mt={2} p={2}>
+      <Text
+        fontFamily={"ArchivoNarrow"}
+        fontSize={"3rem"}
+        fontWeight={700}
+        letterSpacing={"2px"}
+      >
+        {length > 0 ? length : 0} Decks
+      </Text>
+      <Text fontFamily={"monospace"} opacity={0.6}>
+        {deckKb}kb / {5 * 1024}kb used local storage space
+      </Text>
     </Box>
   );
 };
 
-const InputApiUrl = ({ apiUrl, setApiUrl }) => (
-  <Box pt={3}>
-    <Text>
-      ...or{" "}
-      <a
-        href="https://github.com/JollyGrin/unbrewed-api"
-        style={{ textDecoration: "underline" }}
-      >
-        change the url used to fetch the deck
-      </a>
-    </Text>
-    <Input
-      w="50%"
-      defaultValue={apiUrl}
-      onChange={(e) => setApiUrl(e.target.value)}
+const DeckSlot = ({ abbrev, id, setSelectedDeck, star }) => {
+  const isStarred = star === id;
+  return (
+    <Flex
+      m={2}
+      bg="rgba(0,0,0,0.25)"
+      w="100px"
+      height="100px"
+      borderRadius={5}
+      justifyContent={"center"}
+      alignItems={"center"}
+      userSelect={"none"}
+      cursor={"pointer"}
+    >
+      {abbrev && (
+        <Flex
+          bg="purple"
+          h="85%"
+          w="85%"
+          borderRadius={"inherit"}
+          border={isStarred && "2px solid gold"}
+          p={2}
+          color="antiquewhite"
+          justifyContent={"center"}
+          alignItems={"center"}
+          onClick={(e) => {
+            e.preventDefault();
+            console.log("hi", id);
+            setSelectedDeck(id);
+          }}
+        >
+          <Text fontWeight={700} fontSize={"1.5rem"}>
+            {abbrev}
+          </Text>
+        </Flex>
+      )}
+    </Flex>
+  );
+};
+
+const UnmatchedInput = ({ setDeckId }) => {
+  return (
+    <>
+      <Text color="antiquewhite" fontSize={"1.25rem"}>
+        Load a deck from{" "}
+        <a
+          href="https://unmatched.cards/decks"
+          style={{ textDecoration: "underline" }}
+        >
+          unmatched.cards
+        </a>
+      </Text>
+      <Input
+        bg="antiquewhite"
+        maxW="200px"
+        my="10px"
+        fontFamily={"monospace"}
+        placeholder={"Example: " + DECK_ID.THRALL}
+        letterSpacing={"2px"}
+        onChange={(e) => {
+          setDeckId(e.target.value);
+        }}
+      />
+    </>
+  );
+};
+
+const DeckCarousel = ({ data, selectedDeck }) => {
+  const deck = selectedDeck ? selectedDeck : data;
+  return (
+    <Carousel
+      items={deck.deck_data.cards.map((card, index) => (
+        <Box key={card.title + index} h="250px" w="190px">
+          <CardFactory card={card} />
+        </Box>
+      ))}
     />
-  </Box>
-);
+  );
+};
+
+const DeckInfo: DeckImportDataType = ({ data }) => {
+  if (!data) return <div />;
+  const { hero, sidekick } = data.deck_data;
+  return (
+    <Box>
+      <HStack mb={2}>
+        <Tag>❤️️{hero.hp}</Tag>
+        <Tag>👟{hero.move}</Tag>
+        <Tag>{hero.isRanged ? "🏹" : "⚔️"}</Tag>
+        <Text color="antiquewhite" fontWeight={700} letterSpacing={"1px"}>
+          {hero.name}
+        </Text>
+      </HStack>
+      <HStack display={sidekick.quantity === 0 ? "none" : "inline-flex"}>
+        <Tag>
+          {sidekick.quantity > 1
+            ? sidekick.quantity + "x"
+            : "❤️️" + sidekick.hp}
+        </Tag>
+        <Tag>{sidekick.isRanged ? "🏹" : "⚔️"}</Tag>
+        <Text color="antiquewhite" fontWeight={700} letterSpacing={"1px"}>
+          {sidekick.name}
+        </Text>
+      </HStack>
+    </Box>
+  );
+};
