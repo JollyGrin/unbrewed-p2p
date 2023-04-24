@@ -97,7 +97,7 @@ const BagPage = () => {
             <Button
               bg="tomato"
               onClick={() => {
-                setSelectedDeckId;
+                setSelectedDeckId(undefined);
                 removeDeckbyId(selectedDeckId);
               }}
             >
@@ -218,6 +218,7 @@ const UnmatchedInput = ({ setDeckId }) => {
 
 const DeckCarousel = ({ data, selectedDeck }) => {
   const deck = selectedDeck ? selectedDeck : data;
+  if (!deck) return <div />;
   return (
     <Carousel
       items={deck.deck_data.cards.map((card, index) => (
