@@ -1,9 +1,10 @@
 //@ts-nocheck
 import { BoardCanvas } from "@/components/BoardCanvas";
-import { Carousel } from "@/components/Game/game.carousel";
+import { Carousel, deckItemMapper } from "@/components/Game/game.carousel";
 import { GameLayout } from "@/components/Game/game.layout";
 import { ModalTemplate } from "@/components/Game/game.modal-template";
 import { StatTag } from "@/components/Game/game.styles";
+import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
 import { TriangleDownIcon, TriangleUpIcon } from "@chakra-ui/icons";
 import {
   Box,
@@ -83,9 +84,10 @@ const BoardContainer = () => {
 };
 
 const HandContainer = ({ onOpen, isOpen, onClose }) => {
+  const { starredDeck } = useLocalDeckStorage();
   return (
     <Box bg="purple" w="100%" alignItems="end">
-      <Carousel />
+      <Carousel items={deckItemMapper(starredDeck, { my: 3 })} />
       <Flex gap="10px" justifyContent={"end"}>
         <ModalButton onClick={() => onOpen()}>Deck</ModalButton>
         <ModalButton onClick={() => onOpen()}>Discard</ModalButton>

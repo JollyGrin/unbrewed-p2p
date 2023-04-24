@@ -5,10 +5,24 @@ import AliceCarousel from "react-alice-carousel";
 import "react-alice-carousel/lib/alice-carousel.css";
 import { CardFactory } from "../CardFactory/card.factory";
 import { Box, Flex } from "@chakra-ui/react";
+import { DeckImportType } from "../DeckPool/deck-import.type";
 
 const handleDragStart = (e) => e.preventDefault();
 
 const { cards } = mockDeck.deck_data;
+
+export const deckItemMapper = (deck: DeckImportType, props) =>
+  deck?.deck_data?.cards.map((card, index) => (
+    <Flex
+      key={index + card.title}
+      h={"200px"}
+      w={"150px"}
+      onDragStart={handleDragStart}
+      {...props}
+    >
+      <CardFactory card={card} />
+    </Flex>
+  ));
 
 const cardItems = cards.map((card, index) => (
   <Flex
@@ -23,13 +37,13 @@ const cardItems = cards.map((card, index) => (
   </Flex>
 ));
 
-export const Carousel = () => {
+export const Carousel = ({ items = cardItems }) => {
   return (
     <AliceCarousel
       mouseTracking
       disableDotsControls
       disableButtonsControls
-      items={cardItems}
+      items={items}
       autoWidth="100%"
     />
   );
