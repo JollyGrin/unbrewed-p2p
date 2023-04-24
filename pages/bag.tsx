@@ -20,6 +20,7 @@ import {
   DeckImportType,
 } from "@/components/DeckPool/deck-import.type";
 import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
+import Link from "next/link";
 
 const BagPage = () => {
   const router = useRouter();
@@ -126,7 +127,9 @@ const BagNav = () => {
       <Text fontFamily="SpaceGrotesk" fontSize="2.25rem" fontWeight="700">
         Bag
       </Text>
-      <Box w="2rem" h="2rem" bg="black" />
+      <Link href="/game">
+        <Box w="2rem" h="2rem" bg="black" />
+      </Link>
     </Flex>
   );
 };
