@@ -40,18 +40,22 @@ const BagPage = () => {
       <BagNav />
       <DeckStats length={decks?.length} deckKb={totalKbLeft} />
       <Flex justifyContent={"space-between"}>
-        <Carousel
-          items={decks?.map((deck, index) => (
-            <Box w="110px" key={deck.id}>
-              <DeckSlot
-                abbrev={deck?.deck_data.hero.name.substring(0, 3).toUpperCase()}
-                id={deck?.id}
-                setSelectedDeck={setSelectedDeckId}
-                star={star}
-              />
-            </Box>
-          ))}
-        />
+        {decks && (
+          <Carousel
+            items={decks?.map((deck, index) => (
+              <Box w="110px" key={deck.id}>
+                <DeckSlot
+                  abbrev={deck?.deck_data.hero.name
+                    .substring(0, 3)
+                    .toUpperCase()}
+                  id={deck?.id}
+                  setSelectedDeck={setSelectedDeckId}
+                  star={star}
+                />
+              </Box>
+            ))}
+          />
+        )}
       </Flex>
       <Flex bg="purple" p={3} gap={2}>
         {/* <Button>Load from URL</Button>
