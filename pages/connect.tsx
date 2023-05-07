@@ -1,57 +1,27 @@
-//@ts-nocheck
-import { BoardCanvas } from "@/components/BoardCanvas";
-import { Carousel, deckItemMapper } from "@/components/Game/game.carousel";
-import { GameLayout } from "@/components/Game/game.layout";
-import { ModalTemplate } from "@/components/Game/game.modal-template";
-import { StatTag } from "@/components/Game/game.styles";
-import { WebGameProvider } from "@/lib/contexts/WebGameProvider";
-import { initializeWebsocket } from "@/lib/gamesocket/socket";
-import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
-import { useGameState } from "@/lib/hooks/useSocket";
-import { TriangleDownIcon, TriangleUpIcon } from "@chakra-ui/icons";
 import axios from "axios";
 import {
-  Box,
   Button,
   Flex,
-  Grid,
   HStack,
   Input,
-  Tag,
   Text,
   VStack,
   useDisclosure,
 } from "@chakra-ui/react";
-import styled from "@emotion/styled";
 import { useRouter } from "next/router";
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 
 const ConnectToGamePage = () => {
-  const router = useRouter();
-  const slug = router.query;
-
-  const [showStats, setShowStats] = useState<boolean>(false);
-  const stats = { showStats, setShowStats };
-
-  const disclosure = useDisclosure();
-
-  const isConnected = !!slug?.gid;
-
-  return (
-    <>
-      <ConnectPage />
-    </>
-  );
+  return <ConnectPage />;
 };
-
 export default ConnectToGamePage;
 
 const ConnectPage = () => {
   const router = useRouter();
-  const nameRef = useRef();
-  const gidRef = useRef();
+  const nameRef = useRef<HTMLInputElement>(null);
+  const gidRef = useRef<HTMLInputElement>(null);
 
   // This serverURL should come from somewhere else.
   const serverURL = new URL("http://localhost:1111");
@@ -62,23 +32,25 @@ const ConnectPage = () => {
   // responding before we go to a connected state.
   const { isLoading, refetch } = useQuery(
     ["create-lobby"],
-      async () => {
-        const createLobbyURL = new URL(`/lobby/${gidRef.current.value}`, serverURL);
-        try {
-          const result = await axios.get(createLobbyURL.toString());
-          return result.data;
-        } catch (err) {
-          console.error(err);
-          throw err;
-        }
-      },
-      {
+    async () => {
+      if (!gidRef?.current?.value) return;
+      const createLobbyURL = new URL(`/lobby/${gidRef.current.value}`, serverURL);
+      try {
+        const result = await axios.get(createLobbyURL.toString());
+        return result.data;
+      } catch (err) {
+        console.error(err);
+        throw err;
+      }
+    },
+    {
       // We manually call refetch.
       enabled: false,
       refetchOnWindowFocus: false,
-      onSuccess: (e) => {
+      onSuccess: () => {
         // If the lobby was created, we can move to the game state and 
         // connect to the websocket.
+        if (!nameRef?.current || !gidRef?.current) return
         router.push("/game?name=" + nameRef.current.value + "&gid=" + gidRef.current.value);
       },
       // onError: (e) => toast.error("Error fetching deck"),
@@ -104,14 +76,14 @@ const ConnectPage = () => {
         <Text fontSize={"2.5rem"}>Connect</Text>
         <VStack m={"auto auto"}>
           <HStack>
-            <Input ref={nameRef} placeholder="Your name" onChange={(e) => {}} />
+            <Input ref={nameRef} placeholder="Your name" />
             <Input ref={gidRef} placeholder="room name" />
           </HStack>
           <Button
             // If we are loading a new lobby request, freeze the input values.
             disabled={isLoading}
             onClick={() => {
-              if(!nameRef.current.value || !gidRef.current.value) {
+              if (!nameRef?.current?.value || !gidRef?.current?.value) {
                 alert("I need a name and a room name");
                 return;
               }

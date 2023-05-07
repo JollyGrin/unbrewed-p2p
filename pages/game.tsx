@@ -5,27 +5,17 @@ import { GameLayout } from "@/components/Game/game.layout";
 import { ModalTemplate } from "@/components/Game/game.modal-template";
 import { StatTag } from "@/components/Game/game.styles";
 import { WebGameProvider, useWebGame } from "@/lib/contexts/WebGameProvider";
-import { initializeWebsocket } from "@/lib/gamesocket/socket";
 import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
-import { TriangleDownIcon, TriangleUpIcon } from "@chakra-ui/icons";
-import axios from "axios";
 import {
   Box,
-  Button,
   Flex,
-  Grid,
-  HStack,
-  Input,
   Tag,
   Text,
-  VStack,
   useDisclosure,
 } from "@chakra-ui/react";
 import styled from "@emotion/styled";
 import { useRouter } from "next/router";
-import { useRef, useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { set } from "lodash";
+import { useState, useEffect } from "react";
 
 const GamePage = () => {
   const router = useRouter();
@@ -62,6 +52,19 @@ const HeaderContainer = ({
   showStats: boolean;
   setShowStats: (e: boolean) => void;
 }) => {
+
+  const { gameState, setPlayerState } = useWebGame();
+
+  useEffect(() => {
+    if (!gameState) return;
+    console.log("gameState changed", JSON.parse(gameState));
+  }, [gameState]);
+
+  const parse = gameState && JSON.parse(gameState)
+  const players = parse?.content?.players
+  const thrall = players ? players?.kev?.thrall : 16
+  console.log({ thrall })
+
   return (
     <Flex
       bg="purple"
@@ -73,8 +76,12 @@ const HeaderContainer = ({
     >
       <Flex gap={2} maxHeight={"2.5rem"}>
         <StatTag>
-          <div className="number">16</div>
+          <div className="number">{thrall}</div>
           Thrall ⚔️
+          <Tag bg='green' color='white' onClick={() => setPlayerState()({
+            thrall: thrall + 1
+          })}>+</Tag>
+          <Tag bg='tomato' color='white'>-</Tag>
         </StatTag>
         <StatTag opacity={0.8}>
           <div className="number">x4</div>
@@ -96,7 +103,7 @@ const BoardContainer = () => {
       <BoardCanvas
         src="jpark.svg"
         move={(e) => {
-          console.log("move", e());
+          console.log("move", e);
         }}
       />
     </Box>
@@ -108,8 +115,8 @@ const HandContainer = ({ onOpen, isOpen, onClose }) => {
   // @Dean: These are the two hooks you need to use to read and write to the game state.
   // If this works, we can make a different state for the cursor to reduce payloads shared. 
   // This state payload is the entire game state, so it's a lot of data.
-  const { gameState, setPlayerState } = useWebGame();
- 
+
+  // const { gameState, setPlayerState } = useWebGame();
 
   // To update your state. If you uncomment this, you get into and infinite loop.
   // setPlayerState()({
@@ -117,9 +124,9 @@ const HandContainer = ({ onOpen, isOpen, onClose }) => {
   // })
 
   // To read the new game state from the server
-  useEffect(() => {
-    console.log("gameState changed", gameState);
-  }, [gameState]);
+  // useEffect(() => {
+  //   console.log("gameState changed", gameState);
+  // }, [gameState]);
 
 
   return (

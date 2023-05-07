@@ -106,16 +106,16 @@ export const BoardCanvas: React.FC<BoardProps> = ({
         .attr("cx", (d.x = event.x))
         .attr("cy", (d.y = event.y));
 
-      move(
-        data.map((circle) => {
-          if (circle.id !== d.id) return circle;
-          return {
-            ...circle,
-            x: event.x,
-            y: event.y,
-          };
-        })
-      );
+      console.log('replace with move() function callback to websocket', data.map((circle) => {
+        if (circle.id !== d.id) return circle;
+        return {
+          ...circle,
+          x: event.x,
+          y: event.y,
+        };
+      })
+      )
+
     }
 
     function dragended() {
