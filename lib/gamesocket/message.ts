@@ -13,6 +13,8 @@ export interface GameState {
   last_updated: string;
 }
 
+// PlayerState can be w/e json payload the game wants to send.
+// The golang backend just passes this to all clients.
 export interface PlayerState {}
 
 export const pingMessage = {

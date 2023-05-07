@@ -4,10 +4,11 @@ import { Carousel, deckItemMapper } from "@/components/Game/game.carousel";
 import { GameLayout } from "@/components/Game/game.layout";
 import { ModalTemplate } from "@/components/Game/game.modal-template";
 import { StatTag } from "@/components/Game/game.styles";
+import { WebGameProvider, useWebGame } from "@/lib/contexts/WebGameProvider";
 import { initializeWebsocket } from "@/lib/gamesocket/socket";
 import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
-import { useGameState } from "@/lib/hooks/useSocket";
 import { TriangleDownIcon, TriangleUpIcon } from "@chakra-ui/icons";
+import axios from "axios";
 import {
   Box,
   Button,
@@ -22,12 +23,14 @@ import {
 } from "@chakra-ui/react";
 import styled from "@emotion/styled";
 import { useRouter } from "next/router";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { set } from "lodash";
 
 const GamePage = () => {
   const router = useRouter();
   const slug = router.query;
-  console.log({ slug });
+
   const [showStats, setShowStats] = useState<boolean>(false);
   const stats = { showStats, setShowStats };
 
@@ -37,75 +40,19 @@ const GamePage = () => {
 
   return (
     <>
-      {!isConnected && <ConnectPage />}
-      {isConnected && (
+      <WebGameProvider>
         <GameLayout>
           <ModalTemplate {...disclosure} />
           <HeaderContainer {...disclosure} />
           <BoardContainer />
           <HandContainer {...disclosure} />
         </GameLayout>
-      )}
+      </WebGameProvider>
     </>
   );
 };
 
 export default GamePage;
-
-const ConnectPage = () => {
-  // const { state, setState } = useGameState("foo", "bar");
-  // const fn = () =>
-  //   initializeWebsocket({
-  //     name: "foo",
-  //     gid: "bar",
-  //     connectURL: new URL("http://localhost:1111"),
-  //     onGameState: (state: GameStateMessage) => {
-  //       console.log("new state", state);
-  //     },
-  //   });
-  const router = useRouter();
-  const nameRef = useRef();
-  const gidRef = useRef();
-
-  console.log({ nameRef, gidRef });
-
-  return (
-    <Flex
-      h={"100svh"}
-      bg="brand.800"
-      justifyContent={"center"}
-      alignItems={"center"}
-    >
-      <Flex
-        flexDir={"column"}
-        h="60%"
-        w="95%"
-        maxW="600px"
-        bg="white"
-        borderRadius={5}
-        p={3}
-      >
-        <Text fontSize={"2.5rem"}>Connect</Text>
-        <VStack m={"auto auto"}>
-          <HStack>
-            <Input ref={nameRef} placeholder="Your name" onChange={(e) => {}} />
-            <Input ref={gidRef} placeholder="room name" />
-          </HStack>
-          <Button
-            onClick={() => {
-              const name = nameRef.current.value;
-              const gid = gidRef.current.value;
-
-              router.push("?name=" + name + "&gid=" + gid);
-            }}
-          >
-            Submit
-          </Button>
-        </VStack>
-      </Flex>
-    </Flex>
-  );
-};
 
 const HeaderContainer = ({
   onOpen,
@@ -158,6 +105,23 @@ const BoardContainer = () => {
 
 const HandContainer = ({ onOpen, isOpen, onClose }) => {
   const { starredDeck } = useLocalDeckStorage();
+  // @Dean: These are the two hooks you need to use to read and write to the game state.
+  // If this works, we can make a different state for the cursor to reduce payloads shared. 
+  // This state payload is the entire game state, so it's a lot of data.
+  const { gameState, setPlayerState } = useWebGame();
+ 
+
+  // To update your state. If you uncomment this, you get into and infinite loop.
+  // setPlayerState()({
+  //   stuff: "ok",
+  // })
+
+  // To read the new game state from the server
+  useEffect(() => {
+    console.log("gameState changed", gameState);
+  }, [gameState]);
+
+
   return (
     <Box bg="purple" w="100%" alignItems="end">
       <Carousel items={deckItemMapper(starredDeck, { my: 3 })} />
