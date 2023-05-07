@@ -61,6 +61,14 @@ export const initializeWebsocket = ({
 
   return {
     updateMyPlayerState: (state: PlayerState): void => {
+      if(!state) {
+        // TODO: Idk why this happens, but some undedfined state is being passed in
+        return;
+      }
+      if (ws.readyState !== ws.OPEN) {
+        throw new Error("Websocket not open");
+      }
+      console.log("sending", state);
       ws.send(
         js({
           msgtype: "playerstate",

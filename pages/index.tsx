@@ -11,7 +11,7 @@ const Homepage = () => {
           <Button>Card</Button>
         </Link>
 
-        <Link href="/game">
+        <Link href="/connect">
           <Button>Game</Button>
         </Link>
 
