@@ -173,7 +173,6 @@ const DeckSlot = ({ abbrev, id, setSelectedDeck, star }) => {
           alignItems={"center"}
           onClick={(e) => {
             e.preventDefault();
-            console.log("hi", id);
             setSelectedDeck(id);
           }}
         >
