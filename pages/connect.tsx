@@ -1,5 +1,6 @@
 import axios from "axios";
 import {
+  Box,
   Button,
   Flex,
   HStack,
@@ -11,6 +12,7 @@ import {
 import { useRouter } from "next/router";
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
 
 
 const ConnectToGamePage = () => {
@@ -74,6 +76,7 @@ const ConnectPage = () => {
         p={3}
       >
         <Text fontSize={"2.5rem"}>Connect</Text>
+        <SelectedDeckContainer />
         <VStack m={"auto auto"}>
           <HStack>
             <Input ref={nameRef} placeholder="Your name" />
@@ -97,3 +100,17 @@ const ConnectPage = () => {
     </Flex>
   );
 };
+
+const SelectedDeckContainer = () => {
+  const { starredDeck } = useLocalDeckStorage()
+  console.log({ starredDeck })
+  return <Flex w='100%' justifyContent={'center'} alignItems={'center'} gap={3}>
+    {
+      <>
+        <Flex w='100px' h='100px' justifyContent='center' alignItems='center' bg='saddlebrown' boxShadow='inset 0 0 10px black' borderRadius={5} >
+          <Text fontSize='6xl' color='goldenrod' cursor='pointer' _hover={{ color: 'gold' }}>+</Text>
+        </Flex>
+      </>
+    }
+  </Flex>
+}
