@@ -1,6 +1,7 @@
 //@ts-nocheck
 import { BoardCanvas } from "@/components/BoardCanvas";
-import { Carousel, deckItemMapper } from "@/components/Game/game.carousel";
+import Pool from "@/components/DeckPool/Pool";
+import { Carousel, cardItemMapper, deckItemMapper } from "@/components/Game/game.carousel";
 import { GameLayout } from "@/components/Game/game.layout";
 import { ModalTemplate } from "@/components/Game/game.modal-template";
 import { StatTag } from "@/components/Game/game.styles";
@@ -9,6 +10,8 @@ import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
 import {
   Box,
   Flex,
+  Grid,
+  Skeleton,
   Tag,
   Text,
   useDisclosure,
@@ -20,13 +23,26 @@ import { useState, useEffect } from "react";
 const GamePage = () => {
   const router = useRouter();
   const slug = router.query;
-
-  const [showStats, setShowStats] = useState<boolean>(false);
-  const stats = { showStats, setShowStats };
+  const { starredDeck } = useLocalDeckStorage();
+  const [pool, setPool] = useState<Pool>();
+  console.log({ pool })
 
   const disclosure = useDisclosure();
 
-  const isConnected = !!slug?.gid;
+
+  useEffect(() => {
+    if (!starredDeck || pool) return
+
+    const _pool = starredDeck && new Pool(starredDeck)
+    _pool.makeDeck()
+    _pool.draw()
+    setPool(_pool)
+
+    console.log({ pool })
+
+  }, [starredDeck])
+
+
 
   return (
     <>
@@ -35,7 +51,7 @@ const GamePage = () => {
           <ModalTemplate {...disclosure} />
           <HeaderContainer {...disclosure} />
           <BoardContainer />
-          <HandContainer {...disclosure} />
+          <HandContainer pool={pool} {...disclosure} />
         </GameLayout>
       </WebGameProvider>
     </>
@@ -60,10 +76,6 @@ const HeaderContainer = ({
     console.log("gameState changed", JSON.parse(gameState));
   }, [gameState]);
 
-  const parse = gameState && JSON.parse(gameState)
-  const players = parse?.content?.players
-  const thrall = players ? players?.kev?.thrall : 16
-  console.log({ thrall })
 
   return (
     <Flex
@@ -76,12 +88,8 @@ const HeaderContainer = ({
     >
       <Flex gap={2} maxHeight={"2.5rem"}>
         <StatTag>
-          <div className="number">{thrall}</div>
+          <div className="number">16</div>
           Thrall ⚔️
-          <Tag bg='green' color='white' onClick={() => setPlayerState()({
-            thrall: thrall + 1
-          })}>+</Tag>
-          <Tag bg='tomato' color='white'>-</Tag>
         </StatTag>
         <StatTag opacity={0.8}>
           <div className="number">x4</div>
@@ -110,7 +118,9 @@ const BoardContainer = () => {
   );
 };
 
-const HandContainer = ({ onOpen, isOpen, onClose }) => {
+const HandContainer = ({ pool }: { pool: Pool }) => {
+  const onOpen = () => { }
+  console.log('aaaaa', pool)
   const { starredDeck } = useLocalDeckStorage();
   // @Dean: These are the two hooks you need to use to read and write to the game state.
   // If this works, we can make a different state for the cursor to reduce payloads shared. 
@@ -131,11 +141,17 @@ const HandContainer = ({ onOpen, isOpen, onClose }) => {
 
   return (
     <Box bg="purple" w="100%" alignItems="end">
-      <Carousel items={deckItemMapper(starredDeck, { my: 3 })} />
-      <Flex gap="10px" justifyContent={"end"}>
+      {
+        pool?.hand ? <Carousel items={cardItemMapper(pool.hand, { my: 3 })} /> : <Skeleton h='230px' />
+      }
+
+      <Grid gridTemplateColumns={'repeat(auto-fill, minmax(100px, 1fr))'} gap={2}>
+        <ModalButton onClick={() => pool.draw()}>
+          Draw + 1
+        </ModalButton>
         <ModalButton onClick={() => onOpen()}>Deck</ModalButton>
         <ModalButton onClick={() => onOpen()}>Discard</ModalButton>
-      </Flex>
+      </Grid>
     </Box>
   );
 };
@@ -144,7 +160,7 @@ const ModalButton = styled(Flex)`
   background-color: antiquewhite;
   justify-content: center;
   align-items: center;
-  height: 3svh;
+  height: 5svh;
   font-family: Space Grotesk;
   font-weight: 700;
   width: 100%;
