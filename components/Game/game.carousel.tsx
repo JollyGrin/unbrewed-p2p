@@ -12,13 +12,21 @@ const handleDragStart = (e) => e.preventDefault();
 const { cards } = mockDeck.deck_data;
 
 
-export const cardItemMapper = (cards: DeckImportCardType[], props) =>
+export const cardItemMapper = (cards: DeckImportCardType[], props, hasHover?: boolean) =>
   cards.map((card, index) => (
     <Flex
       key={index + card.title}
       h={"200px"}
       w={"150px"}
       onDragStart={handleDragStart}
+      transition='all 0.25s ease-in-out'
+      _hover={{
+        transform: hasHover && 'scale(1.6) translateY(-35px)',
+        position: 'relative',
+        zIndex: '200',
+        filter: 'saturate(2)'
+      }}
+
       {...props}
     >
       <CardFactory card={card} />

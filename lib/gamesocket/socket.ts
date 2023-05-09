@@ -13,7 +13,7 @@ export interface WebsocketProps {
   name: string;
   connectURL: URL;
   // Callbacks
-  onGameState: (state: GameState) => void;
+  onGameState: (state: string) => void;
 }
 
 export interface WebsocketReturn {
@@ -47,7 +47,7 @@ export const initializeWebsocket = ({
       case "pong":
         return;
       case "gamestate":
-        onGameState(event.data as GameState);
+        onGameState(event.data as string);
         return;
     }
     console.log("msg", data);
@@ -61,7 +61,7 @@ export const initializeWebsocket = ({
 
   return {
     updateMyPlayerState: (state: PlayerState): void => {
-      if(!state) {
+      if (!state) {
         // TODO: Idk why this happens, but some undedfined state is being passed in
         return;
       }
