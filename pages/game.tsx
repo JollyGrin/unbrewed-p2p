@@ -1,6 +1,8 @@
 //@ts-nocheck
 import { BoardCanvas } from "@/components/BoardCanvas";
 import Pool from "@/components/DeckPool/Pool";
+import { draw, makeDeck, shuffleDeck } from "@/components/DeckPool/PoolFns";
+import { HandContainer } from "@/components/Game/Hand/hand.container";
 import { Carousel, cardItemMapper, deckItemMapper } from "@/components/Game/game.carousel";
 import { GameLayout } from "@/components/Game/game.layout";
 import { ModalTemplate } from "@/components/Game/game.modal-template";
@@ -10,10 +12,6 @@ import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
 import {
   Box,
   Flex,
-  Grid,
-  Skeleton,
-  Tag,
-  Text,
   useDisclosure,
 } from "@chakra-ui/react";
 import styled from "@emotion/styled";
@@ -21,29 +19,7 @@ import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
 
 const GamePage = () => {
-  const router = useRouter();
-  const slug = router.query;
-  const { starredDeck } = useLocalDeckStorage();
-  const [pool, setPool] = useState<Pool>();
-  console.log({ pool })
-
   const disclosure = useDisclosure();
-
-
-  useEffect(() => {
-    if (!starredDeck || pool) return
-
-    const _pool = starredDeck && new Pool(starredDeck)
-    _pool.makeDeck()
-    _pool.draw()
-    setPool(_pool)
-
-    console.log({ pool })
-
-  }, [starredDeck])
-
-
-
   return (
     <>
       <WebGameProvider>
@@ -51,7 +27,7 @@ const GamePage = () => {
           <ModalTemplate {...disclosure} />
           <HeaderContainer {...disclosure} />
           <BoardContainer />
-          <HandContainer pool={pool} {...disclosure} />
+          <HandContainer {...disclosure} />
         </GameLayout>
       </WebGameProvider>
     </>
@@ -69,13 +45,11 @@ const HeaderContainer = ({
   setShowStats: (e: boolean) => void;
 }) => {
 
-  const { gameState, setPlayerState } = useWebGame();
-
-  useEffect(() => {
-    if (!gameState) return;
-    console.log("gameState changed", JSON.parse(gameState));
-  }, [gameState]);
-
+  // const { gameState, setPlayerState } = useWebGame();
+  // useEffect(() => {
+  //   if (!gameState) return;
+  //   // console.log("gameState changed", JSON.parse(gameState));
+  // }, [gameState]);
 
   return (
     <Flex
@@ -111,50 +85,69 @@ const BoardContainer = () => {
       <BoardCanvas
         src="jpark.svg"
         move={(e) => {
-          console.log("move", e);
+          // console.log("move", e);
         }}
       />
     </Box>
   );
 };
 
-const HandContainer = ({ pool }: { pool: Pool }) => {
-  const onOpen = () => { }
-  console.log('aaaaa', pool)
-  const { starredDeck } = useLocalDeckStorage();
-  // @Dean: These are the two hooks you need to use to read and write to the game state.
-  // If this works, we can make a different state for the cursor to reduce payloads shared. 
-  // This state payload is the entire game state, so it's a lot of data.
+// const HandContainer = () => {
+//   const onOpen = () => { }
 
-  // const { gameState, setPlayerState } = useWebGame();
+//   const router = useRouter();
+//   const slug = router.query;
+//   const player = slug?.name
 
-  // To update your state. If you uncomment this, you get into and infinite loop.
-  // setPlayerState()({
-  //   stuff: "ok",
-  // })
+//   const { starredDeck } = useLocalDeckStorage()
+//   const { gameState, setPlayerState } = useWebGame();
 
-  // To read the new game state from the server
-  // useEffect(() => {
-  //   console.log("gameState changed", gameState);
-  // }, [gameState]);
+//   const [gstate, setGState] = useState()
+//   const playerState = gstate?.content?.players[player]
+//   console.log({ playerState })
 
+//   useEffect(() => {
+//     if (!gameState) return
+//     setGState(JSON.parse(gameState))
+//   }, [gameState])
 
-  return (
-    <Box bg="purple" w="100%" alignItems="end">
-      {
-        pool?.hand ? <Carousel items={cardItemMapper(pool.hand, { my: 3 })} /> : <Skeleton h='230px' />
-      }
+//   useEffect(() => {
+//     if (!starredDeck) return;
+//     if (!gameState) return;
+//     console.log('#####', typeof setPlayerState)
+//     console.log('#####', setPlayerState)
+//     let pool = new Pool(starredDeck)
+//     console.log(1, pool)
+//     pool = makeDeck(pool)
+//     console.log(2, pool)
+//     pool = shuffleDeck(pool)
+//     setPlayerState()({
+//       pool
+//     })
+//   }, [starredDeck, setPlayerState])
 
-      <Grid gridTemplateColumns={'repeat(auto-fill, minmax(100px, 1fr))'} gap={2}>
-        <ModalButton onClick={() => pool.draw()}>
-          Draw + 1
-        </ModalButton>
-        <ModalButton onClick={() => onOpen()}>Deck</ModalButton>
-        <ModalButton onClick={() => onOpen()}>Discard</ModalButton>
-      </Grid>
-    </Box>
-  );
-};
+//   console.log('llll', playerState?.pool)
+
+//   return (
+//     <Box bg="purple" w="100%" alignItems="end">
+//       {playerState?.pool ?
+//         <Carousel items={cardItemMapper(playerState?.pool?.hand, { my: 3 })} /> : <Skeleton h='230px' />
+//       }
+//       <Grid gridTemplateColumns={'repeat(auto-fill, minmax(100px, 1fr))'} gap={2}>
+//         <ModalButton
+
+//           onClick={() => setPlayerState()({
+//             pool: draw(playerState?.pool)
+//           })}
+//         >
+//           Draw + 1
+//         </ModalButton>
+//         <ModalButton onClick={() => onOpen()}>Deck</ModalButton>
+//         <ModalButton onClick={() => onOpen()}>Discard</ModalButton>
+//       </Grid>
+//     </Box>
+//   );
+// };
 
 const ModalButton = styled(Flex)`
   background-color: antiquewhite;
@@ -171,3 +164,20 @@ const ModalButton = styled(Flex)`
     background-color: burlywood;
   }
 `;
+
+  // @Dean: These are the two hooks you need to use to read and write to the game state.
+  // If this works, we can make a different state for the cursor to reduce payloads shared.
+  // This state payload is the entire game state, so it's a lot of data.
+
+  // const { gameState, setPlayerState } = useWebGame();
+
+  // To update your state. If you uncomment this, you get into and infinite loop.
+  // setPlayerState()({
+  //   stuff: "ok",
+  // })
+
+  // To read the new game state from the server
+  // useEffect(() => {
+  //   console.log("gameState changed", gameState);
+  // }, [gameState]);
+
