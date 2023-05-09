@@ -4,44 +4,53 @@ import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
 import { Box, Flex, Grid, Skeleton } from "@chakra-ui/react";
 import { useRouter } from "next/router";
-import { SetStateAction, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Carousel, cardItemMapper } from "../game.carousel";
 import styled from "@emotion/styled";
-import { GameState } from "@/lib/gamesocket/message";
+import { flow } from "lodash";
 
 export const HandContainer = () => {
-  const router = useRouter();
-  const slug = router.query;
-  const player = Array.isArray(slug?.name) ? slug.name[0] : slug?.name
+  const localName = useRouter().query?.name;
+  const player = Array.isArray(localName) ? localName[0] : localName
 
   const { starredDeck } = useLocalDeckStorage()
   const { gameState, setPlayerState } = useWebGame();
+  const playerState = player ? gameState?.content?.players[player] : undefined
   const setGameState = (poolInput: PoolType): void => setPlayerState()({ pool: poolInput })
   console.log({ gameState })
 
+
   useEffect(() => {
-    if (!player) return;
+    if (!starredDeck || playerState?.pool) return;
+    const initDeck = flow(makeDeck, shuffleDeck, draw)
 
-    const playerState = gameState?.content?.players[player]
-    console.log(playerState)
-  }, [gameState])
+    let pool = newPool(starredDeck);
+    pool = initDeck(pool)
+    setGameState(pool)
+  }, [])
 
+  const gDraw = flow(draw, setGameState)
 
   return (
-    <Box bg="purple" w="100%" alignItems="end">
-      {starredDeck?.deck_data
-        ? <Carousel items={cardItemMapper(starredDeck.deck_data.cards, { my: 3 }, true)} />
+    <Tray>
+      {playerState?.pool?.hand
+        ? <Carousel items={cardItemMapper(playerState?.pool?.hand, { my: 3 }, true)} />
         : <Skeleton m={3} w='150px' h='200px' />
       }
       <Grid gridTemplateColumns={'repeat(auto-fill, minmax(100px, 1fr))'} gap={2}>
-        <ModalButton>Draw + 1</ModalButton>
+        <ModalButton onClick={() => playerState?.pool && gDraw(playerState?.pool)}>Draw + 1</ModalButton>
         <ModalButton >Deck</ModalButton>
         <ModalButton >Discard</ModalButton>
       </Grid>
-    </Box>
+    </Tray>
   );
 };
 
+const Tray = styled(Box)`
+  background-color: purple;
+  width: 100%;
+  align-items: end;
+`
 const ModalButton = styled(Flex)`
   background-color: antiquewhite;
   justify-content: center;

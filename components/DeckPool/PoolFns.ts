@@ -92,14 +92,13 @@ export const draw = (pool: PoolType): PoolType => {
   if (pool.deck.length === 0) {
     alert("No cards left");
   }
-  const _pool = clone(pool)
-  const card = _pool?.deck?.pop();
+  const card = pool?.deck?.pop();
   if (card) {
-    _pool.hand.push(card);
+    pool.hand.push(card);
   }
 
-  console.log('_pool', _pool.deck?.length)
-  return _pool
+  console.log('_pool', pool.deck?.length)
+  return pool
 };
 
 //   /**
