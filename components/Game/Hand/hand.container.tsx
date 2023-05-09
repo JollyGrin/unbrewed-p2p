@@ -9,14 +9,7 @@ import { Carousel, cardItemMapper } from "../game.carousel";
 import styled from "@emotion/styled";
 import { GameState } from "@/lib/gamesocket/message";
 
-type ParsedGameStateType = {
-  msgtype: string;
-  content: GameState;
-}
-
 export const HandContainer = () => {
-  const onOpen = () => { }
-
   const router = useRouter();
   const slug = router.query;
   const player = Array.isArray(slug?.name) ? slug.name[0] : slug?.name
@@ -24,16 +17,26 @@ export const HandContainer = () => {
   const { starredDeck } = useLocalDeckStorage()
   const { gameState, setPlayerState } = useWebGame();
   const setGameState = (poolInput: PoolType): void => setPlayerState()({ pool: poolInput })
+  console.log({ gameState })
+
+  useEffect(() => {
+    if (!player) return;
+
+    const playerState = gameState?.content?.players[player]
+    console.log(playerState)
+  }, [gameState])
 
 
   return (
     <Box bg="purple" w="100%" alignItems="end">
-      {/* <Carousel items={cardItemMapper(playerState?.pool?.hand, { my: 3 })} /> */}
-      <Skeleton m={3} w='150px' h='200px' />
+      {starredDeck?.deck_data
+        ? <Carousel items={cardItemMapper(starredDeck.deck_data.cards, { my: 3 }, true)} />
+        : <Skeleton m={3} w='150px' h='200px' />
+      }
       <Grid gridTemplateColumns={'repeat(auto-fill, minmax(100px, 1fr))'} gap={2}>
         <ModalButton>Draw + 1</ModalButton>
-        <ModalButton onClick={() => onOpen()}>Deck</ModalButton>
-        <ModalButton onClick={() => onOpen()}>Discard</ModalButton>
+        <ModalButton >Deck</ModalButton>
+        <ModalButton >Discard</ModalButton>
       </Grid>
     </Box>
   );
