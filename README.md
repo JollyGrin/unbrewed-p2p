@@ -12,6 +12,17 @@ This aims to recreate unbrewed.xyz but with webrtc and typescript. This will all
 - [ ] add optional api server for loading decks from unmatched (add fallback if url breaks and ability to load a different server url)
 - [ ] add [webrtc](https://michal-wrzosek.github.io/p2p-chat/)
 
+## Run Locally
+
+1. `cd gameserver && go build`
+1. `cd ../ && yarn server`
+1. then open a new terminal and run `yarn dev`
+
+_Having issues with canvas?_
+
+- run `yarn add canvas`
+- for whatever reason this sometimes just doesn't install with default yarn
+
 ## How to add Fonts
 
 1. add file to `public/fonts`
@@ -34,6 +45,20 @@ This aims to recreate unbrewed.xyz but with webrtc and typescript. This will all
 - compile a list of STUN & TURN servers and enable ability to find your own lists
 
 ## Journal
+
+### 2023-5-10
+
+Have the gameserver working now with:
+
+- deck init: when loading gameboard, it will load your deck that you added and starred in /bag
+- hand: drawing cards work and added styling to make it easier to read text
+- discard: when hovering over a card you can select to discard.
+- modal: added a modal which accepts a tag and then loads the relevant data from gameserver
+
+Had to refactor the Pool class to instead be an object that can be passed around.
+
+- refactored the functions to be isolated. They accept a `PoolType` and return a `PoolType`
+- this works well with lodash flow to chain a pool action with a gameserver update function
 
 ### 2023-4-22
 
