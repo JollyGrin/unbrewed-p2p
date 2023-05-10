@@ -1,4 +1,3 @@
-import Pool from "@/components/DeckPool/Pool";
 import {
   PoolType,
   discardCard,
@@ -11,12 +10,16 @@ import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
 import { Box, Flex, Grid, Skeleton } from "@chakra-ui/react";
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Carousel, cardItemMapper } from "../game.carousel";
 import styled from "@emotion/styled";
 import { flow } from "lodash";
 
-export const HandContainer = () => {
+export const HandContainer = ({
+  setModal,
+}: {
+  setModal: (type: "discard") => void;
+}) => {
   const localName = useRouter().query?.name;
   const player = Array.isArray(localName) ? localName[0] : localName;
 
@@ -68,7 +71,7 @@ export const HandContainer = () => {
           Draw + 1
         </ModalButton>
         <ModalButton>Deck</ModalButton>
-        <ModalButton>Discard</ModalButton>
+        <ModalButton onClick={() => setModal("discard")}>Discard</ModalButton>
       </Grid>
     </Tray>
   );

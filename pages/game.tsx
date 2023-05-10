@@ -1,33 +1,39 @@
 //@ts-nocheck
 import { BoardCanvas } from "@/components/BoardCanvas";
-import Pool from "@/components/DeckPool/Pool";
-import { draw, makeDeck, shuffleDeck } from "@/components/DeckPool/PoolFns";
 import { HandContainer } from "@/components/Game/Hand/hand.container";
-import {
-  Carousel,
-  cardItemMapper,
-  deckItemMapper,
-} from "@/components/Game/game.carousel";
 import { GameLayout } from "@/components/Game/game.layout";
 import { ModalTemplate } from "@/components/Game/game.modal-template";
 import { StatTag } from "@/components/Game/game.styles";
 import { WebGameProvider, useWebGame } from "@/lib/contexts/WebGameProvider";
-import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
 import { Box, Flex, useDisclosure } from "@chakra-ui/react";
 import styled from "@emotion/styled";
-import { useRouter } from "next/router";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 
+export type ModalType = "hand" | "discard" | false;
 const GamePage = () => {
   const disclosure = useDisclosure();
+  const [modalType, setModalType] = useState<ModalType>(false);
+
+  useEffect(() => {
+    if (modalType) {
+      disclosure.onOpen();
+    } else {
+      disclosure.onClose();
+    }
+  }, [modalType]);
+
   return (
     <>
       <WebGameProvider>
         <GameLayout>
-          <ModalTemplate {...disclosure} />
+          <ModalTemplate
+            {...disclosure}
+            modalType={modalType}
+            setModalType={setModalType}
+          />
           <HeaderContainer {...disclosure} />
           <BoardContainer />
-          <HandContainer {...disclosure} />
+          <HandContainer setModal={setModalType} />
         </GameLayout>
       </WebGameProvider>
     </>
