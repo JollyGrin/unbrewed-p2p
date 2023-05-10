@@ -1,6 +1,7 @@
 import Pool from "@/components/DeckPool/Pool";
 import {
   PoolType,
+  discardCard,
   draw,
   makeDeck,
   newPool,
@@ -37,6 +38,7 @@ export const HandContainer = () => {
   }, [gameState]);
 
   const gDraw = flow(draw, setGameState);
+  const gDiscard = flow(discardCard, setGameState);
 
   // ? <Carousel items={cardItemMapper(playerState?.pool?.hand, { my: 3 }, true)} />
 
@@ -46,6 +48,11 @@ export const HandContainer = () => {
         <Carousel
           items={cardItemMapper({
             cards: playerState?.pool?.hand,
+            functions: {
+              discardFn: (index) => {
+                playerState?.pool && gDiscard(playerState?.pool, index);
+              },
+            },
           })}
         />
       ) : (

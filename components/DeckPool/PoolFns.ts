@@ -1,8 +1,6 @@
-
 import { clone } from "lodash";
 import Pool from "./Pool";
 import { DeckImportCardType, DeckImportType } from "./deck-import.type";
-
 
 export type PoolType = {
   author: string;
@@ -11,21 +9,21 @@ export type PoolType = {
   deckNote: string;
   cards: DeckImportCardType[];
   deck: DeckImportCardType[] | null;
-  hero: PawnInfo & { move: number, specialAbility: string };
-  sidekick: PawnInfo & { quantity: number | null, quote: string };
+  hero: PawnInfo & { move: number; specialAbility: string };
+  sidekick: PawnInfo & { quantity: number | null; quote: string };
   hand: DeckImportCardType[];
   discard: DeckImportCardType[];
   commit: {
     main: DeckImportCardType | null;
     reveal: boolean;
-    boost: DeckImportCardType | null
-  }
-}
+    boost: DeckImportCardType | null;
+  };
+};
 export type PawnInfo = {
   hp: number | null;
   isRanged: boolean;
   name: string;
-}
+};
 
 export const newPool = (deckData: DeckImportType): PoolType => {
   const { user, family_id, name, note, deck_data } = deckData;
@@ -58,8 +56,8 @@ export const newPool = (deckData: DeckImportType): PoolType => {
       reveal: false,
       boost: null,
     },
-  }
-}
+  };
+};
 
 //   /**
 //    * Create a deck by expanding unique cards by their quantity number
@@ -70,7 +68,7 @@ export const makeDeck = (pool: PoolType): PoolType => {
   );
   return {
     ...pool,
-    deck: newDeck
+    deck: newDeck,
   };
 };
 
@@ -84,7 +82,7 @@ export const shuffleDeck = (pool: PoolType): PoolType => {
     const j = Math.floor(Math.random() * (i + 1));
     [pool.deck[i], pool.deck[j]] = [pool.deck[j], pool.deck[i]];
   }
-  return pool
+  return pool;
 };
 
 export const draw = (pool: PoolType): PoolType => {
@@ -97,8 +95,8 @@ export const draw = (pool: PoolType): PoolType => {
     pool.hand.push(card);
   }
 
-  console.log('_pool', pool.deck?.length)
-  return pool
+  console.log("_pool", pool.deck?.length);
+  return pool;
 };
 
 //   /**
@@ -132,10 +130,11 @@ export const draw = (pool: PoolType): PoolType => {
 //     this.hand.splice(cardIndex, 1);
 //   };
 
-//   discardCard = (cardIndex: number) => {
-//     this.discard.push(this.hand[cardIndex]);
-//     this.hand.splice(cardIndex, 1);
-//   };
+export const discardCard = (pool: PoolType, index: number): PoolType => {
+  pool.discard.push(pool.hand[index]);
+  pool.hand.splice(index, 1);
+  return pool;
+};
 
 //   discardRandomCard = (cardIndex: number) => {
 //     const handSize = this.hand.length - 1;
