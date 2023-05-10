@@ -20,8 +20,11 @@ const { cards: mockCards } = mockDeck.deck_data;
 
 type CardWrapperProps = {
   cards: DeckImportCardType[];
+  functions: {
+    discardFn: (index: number) => PoolType;
+  };
 };
-export const cardItemMapper = ({ cards }: CardWrapperProps) => {
+export const cardItemMapper = ({ cards, functions }: CardWrapperProps) => {
   return cards.map((card, index) => {
     return (
       <CardWrapper
@@ -39,7 +42,7 @@ export const cardItemMapper = ({ cards }: CardWrapperProps) => {
         <CardFactory card={card} />
         <Flex className="hoveritem">
           <Text>+</Text>
-          <Text>-</Text>
+          <Text onClick={() => functions.discardFn(index)}>-</Text>
         </Flex>
       </CardWrapper>
     );
