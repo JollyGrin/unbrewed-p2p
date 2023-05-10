@@ -3,17 +3,17 @@ import { BoardCanvas } from "@/components/BoardCanvas";
 import Pool from "@/components/DeckPool/Pool";
 import { draw, makeDeck, shuffleDeck } from "@/components/DeckPool/PoolFns";
 import { HandContainer } from "@/components/Game/Hand/hand.container";
-import { Carousel, cardItemMapper, deckItemMapper } from "@/components/Game/game.carousel";
+import {
+  Carousel,
+  cardItemMapper,
+  deckItemMapper,
+} from "@/components/Game/game.carousel";
 import { GameLayout } from "@/components/Game/game.layout";
 import { ModalTemplate } from "@/components/Game/game.modal-template";
 import { StatTag } from "@/components/Game/game.styles";
 import { WebGameProvider, useWebGame } from "@/lib/contexts/WebGameProvider";
 import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
-import {
-  Box,
-  Flex,
-  useDisclosure,
-} from "@chakra-ui/react";
+import { Box, Flex, useDisclosure } from "@chakra-ui/react";
 import styled from "@emotion/styled";
 import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
@@ -44,7 +44,6 @@ const HeaderContainer = ({
   showStats: boolean;
   setShowStats: (e: boolean) => void;
 }) => {
-
   // const { gameState, setPlayerState } = useWebGame();
   // useEffect(() => {
   //   if (!gameState) return;
@@ -59,6 +58,7 @@ const HeaderContainer = ({
       justifyContent="space-between"
       alignItems="center"
       gap={"10px"}
+      minH={"10svh"}
     >
       <Flex gap={2} maxHeight={"2.5rem"}>
         <StatTag>
@@ -165,19 +165,18 @@ const ModalButton = styled(Flex)`
   }
 `;
 
-  // @Dean: These are the two hooks you need to use to read and write to the game state.
-  // If this works, we can make a different state for the cursor to reduce payloads shared.
-  // This state payload is the entire game state, so it's a lot of data.
+// @Dean: These are the two hooks you need to use to read and write to the game state.
+// If this works, we can make a different state for the cursor to reduce payloads shared.
+// This state payload is the entire game state, so it's a lot of data.
 
-  // const { gameState, setPlayerState } = useWebGame();
+// const { gameState, setPlayerState } = useWebGame();
 
-  // To update your state. If you uncomment this, you get into and infinite loop.
-  // setPlayerState()({
-  //   stuff: "ok",
-  // })
+// To update your state. If you uncomment this, you get into and infinite loop.
+// setPlayerState()({
+//   stuff: "ok",
+// })
 
-  // To read the new game state from the server
-  // useEffect(() => {
-  //   console.log("gameState changed", gameState);
-  // }, [gameState]);
-
+// To read the new game state from the server
+// useEffect(() => {
+//   console.log("gameState changed", gameState);
+// }, [gameState]);

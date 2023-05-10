@@ -1,5 +1,11 @@
 import Pool from "@/components/DeckPool/Pool";
-import { PoolType, draw, makeDeck, newPool, shuffleDeck } from "@/components/DeckPool/PoolFns";
+import {
+  PoolType,
+  draw,
+  makeDeck,
+  newPool,
+  shuffleDeck,
+} from "@/components/DeckPool/PoolFns";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
 import { Box, Flex, Grid, Skeleton } from "@chakra-ui/react";
@@ -11,36 +17,51 @@ import { flow } from "lodash";
 
 export const HandContainer = () => {
   const localName = useRouter().query?.name;
-  const player = Array.isArray(localName) ? localName[0] : localName
+  const player = Array.isArray(localName) ? localName[0] : localName;
 
-  const { starredDeck } = useLocalDeckStorage()
+  const { starredDeck } = useLocalDeckStorage();
   const { gameState, setPlayerState } = useWebGame();
-  const playerState = player ? gameState?.content?.players[player] : undefined
-  const setGameState = (poolInput: PoolType): void => setPlayerState()({ pool: poolInput })
-  console.log({ gameState })
-
+  const playerState = player ? gameState?.content?.players[player] : undefined;
+  const setGameState = (poolInput: PoolType): void => {
+    setPlayerState()({ pool: poolInput });
+  };
+  console.log(gameState);
 
   useEffect(() => {
     if (!starredDeck || playerState?.pool) return;
-    const initDeck = flow(makeDeck, shuffleDeck, draw)
+    setTimeout(() => {
+      const initDeck = flow(newPool, makeDeck, shuffleDeck, draw);
+      const pool = initDeck(starredDeck);
+      setGameState(pool);
+    }, 500);
+  }, [gameState]);
 
-    let pool = newPool(starredDeck);
-    pool = initDeck(pool)
-    setGameState(pool)
-  }, [])
+  const gDraw = flow(draw, setGameState);
 
-  const gDraw = flow(draw, setGameState)
+  // ? <Carousel items={cardItemMapper(playerState?.pool?.hand, { my: 3 }, true)} />
 
   return (
     <Tray>
-      {playerState?.pool?.hand
-        ? <Carousel items={cardItemMapper(playerState?.pool?.hand, { my: 3 }, true)} />
-        : <Skeleton m={3} w='150px' h='200px' />
-      }
-      <Grid gridTemplateColumns={'repeat(auto-fill, minmax(100px, 1fr))'} gap={2}>
-        <ModalButton onClick={() => playerState?.pool && gDraw(playerState?.pool)}>Draw + 1</ModalButton>
-        <ModalButton >Deck</ModalButton>
-        <ModalButton >Discard</ModalButton>
+      {playerState?.pool?.hand ? (
+        <Carousel
+          items={cardItemMapper({
+            cards: playerState?.pool?.hand,
+          })}
+        />
+      ) : (
+        <Skeleton m={3} w="150px" h="200px" />
+      )}
+      <Grid
+        gridTemplateColumns={"repeat(auto-fill, minmax(100px, 1fr))"}
+        gap={2}
+      >
+        <ModalButton
+          onClick={() => playerState?.pool && gDraw(playerState?.pool)}
+        >
+          Draw + 1
+        </ModalButton>
+        <ModalButton>Deck</ModalButton>
+        <ModalButton>Discard</ModalButton>
       </Grid>
     </Tray>
   );
@@ -50,7 +71,7 @@ const Tray = styled(Box)`
   background-color: purple;
   width: 100%;
   align-items: end;
-`
+`;
 const ModalButton = styled(Flex)`
   background-color: antiquewhite;
   justify-content: center;
