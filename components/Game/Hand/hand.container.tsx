@@ -18,7 +18,7 @@ import { flow } from "lodash";
 export const HandContainer = ({
   setModal,
 }: {
-  setModal: (type: "discard") => void;
+  setModal: (type: "discard" | "deck") => void;
 }) => {
   const localName = useRouter().query?.name;
   const player = Array.isArray(localName) ? localName[0] : localName;
@@ -70,7 +70,7 @@ export const HandContainer = ({
         >
           Draw + 1
         </ModalButton>
-        <ModalButton>Deck</ModalButton>
+        <ModalButton onClick={() => setModal("deck")}>Deck</ModalButton>
         <ModalButton onClick={() => setModal("discard")}>Discard</ModalButton>
       </Grid>
     </Tray>
