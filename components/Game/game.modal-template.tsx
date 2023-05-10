@@ -18,7 +18,7 @@ type ModalTemplateType = {
   modalType: ModalType;
   setModalType: (type: ModalType) => void;
 };
-export const ModalTemplate: React.FC<ModalTemplateType> = ({
+export const ModalContainer: React.FC<ModalTemplateType> = ({
   isOpen,
   modalType,
   setModalType,
