@@ -37,16 +37,12 @@ _Having issues with canvas?_
 
 # Goals
 
-## WebRTC Goals (for @emyrk)
-
-- make hooks for the functionality found in p2p chat
-- add tooling for reconnecting (do we need to store a key?)
-- is more than 2people possible?
-- compile a list of STUN & TURN servers and enable ability to find your own lists
-
 ## Journal
 
 ### 2023-5-10
+
+-REMOVED THE P2P-
+We decided to just make a simple server that can be easily deployed. P2P ended up being too difficult.
 
 Have the gameserver working now with:
 
