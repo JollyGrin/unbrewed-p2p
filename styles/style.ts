@@ -6,6 +6,9 @@ export const colors = {
     800: "#153e75",
     700: "#2a69ac",
   },
+  purple: {
+    900: "#48284F",
+  },
 };
 
 export const fonts = {
