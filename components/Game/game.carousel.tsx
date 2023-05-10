@@ -41,7 +41,7 @@ export const cardItemMapper = ({ cards, functions }: CardWrapperProps) => {
       >
         <CardFactory card={card} />
         <Flex className="hoveritem">
-          <Text>+</Text>
+          {/* <Text>+</Text> */}
           <Text onClick={() => functions.discardFn(index)}>-</Text>
         </Flex>
       </CardWrapper>
