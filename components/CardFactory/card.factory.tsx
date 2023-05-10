@@ -30,6 +30,7 @@ export const CardFactory: React.FC<{ card: DeckImportCardType }> = ({
         viewBox="0 0 63 88"
         shapeRendering="geometricPrecision"
         height="100%"
+        // HACK: width currently used to center the offset to right
         width="88%"
         style={{ userSelect: "none" }}
       >

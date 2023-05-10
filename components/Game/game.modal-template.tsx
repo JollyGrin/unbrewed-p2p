@@ -1,20 +1,37 @@
-//@ts-nocheck
 import {
   Modal,
   ModalOverlay,
   ModalContent,
   ModalHeader,
-  ModalFooter,
   ModalBody,
   ModalCloseButton,
-  Button,
-  useDisclosure,
-  Text,
 } from "@chakra-ui/react";
 import React from "react";
 import { DeckModalContent } from "./game.modal-body";
+import { ModalType } from "@/pages/game";
+import { useWebGame } from "@/lib/contexts/WebGameProvider";
+import { PoolType } from "../DeckPool/PoolFns";
+import { useRouter } from "next/router";
 
-export const ModalTemplate = ({ isOpen, onOpen, onClose, children }) => {
+type ModalTemplateType = {
+  isOpen: boolean;
+  modalType: ModalType;
+  setModalType: (type: ModalType) => void;
+};
+export const ModalTemplate: React.FC<ModalTemplateType> = ({
+  isOpen,
+  modalType,
+  setModalType,
+}) => {
+  const localName = useRouter().query?.name;
+  const player = Array.isArray(localName) ? localName[0] : localName;
+  const { gameState, setPlayerState } = useWebGame();
+  const playerState = player ? gameState?.content?.players[player] : undefined;
+  const setGameState = (poolInput: PoolType): void => {
+    setPlayerState()({ pool: poolInput });
+  };
+  const onClose = () => setModalType(false);
+
   const OverlayOne = () => (
     <ModalOverlay
       bg="blackAlpha.300"
@@ -22,22 +39,18 @@ export const ModalTemplate = ({ isOpen, onOpen, onClose, children }) => {
     />
   );
 
-  //   const [overlay, setOverlay] = React.useState(<OverlayOne />);
-
   return (
     <>
       <Modal isOpen={isOpen} onClose={onClose}>
         <OverlayOne />
         <ModalContent maxW={"1100px"} w={"100%"}>
-          <ModalHeader>Deck</ModalHeader>
+          <ModalHeader>{modalType}</ModalHeader>
           <ModalCloseButton />
-          {/* <ModalBody>{children}</ModalBody> */}
           <ModalBody>
-            <DeckModalContent />
+            {playerState?.pool && modalType && (
+              <DeckModalContent cards={playerState?.pool[modalType]} />
+            )}
           </ModalBody>
-          {/* <ModalFooter>
-            <Button onClick={onClose}>Close</Button>
-          </ModalFooter> */}
         </ModalContent>
       </Modal>
     </>
