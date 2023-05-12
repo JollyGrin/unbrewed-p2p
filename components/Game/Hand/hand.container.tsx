@@ -11,9 +11,10 @@ import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
 import { Box, Flex, Grid, Skeleton } from "@chakra-ui/react";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
-import { Carousel, cardItemMapper } from "../game.carousel";
+import { Carousel, HandCardItems, cardItemMapper } from "../game.carousel";
 import styled from "@emotion/styled";
 import { flow } from "lodash";
+import { CarouselTray } from "../game.styles";
 
 export const HandContainer = ({
   setModal,
@@ -44,23 +45,18 @@ export const HandContainer = ({
   const gDiscard = flow(discardCard, setGameState);
 
   // ? <Carousel items={cardItemMapper(playerState?.pool?.hand, { my: 3 }, true)} />
+  //,
+  //
 
   return (
     <Tray>
-      {playerState?.pool?.hand ? (
-        <Carousel
-          items={cardItemMapper({
-            cards: playerState?.pool?.hand,
-            functions: {
-              discardFn: (index) => {
-                playerState?.pool && gDiscard(playerState?.pool, index);
-              },
-            },
-          })}
-        />
-      ) : (
-        <Skeleton m={3} w="150px" h="200px" />
-      )}
+      <HandCardItems
+        cards={playerState?.pool?.hand}
+        functions={{
+          discardFn: (discardIndex: number) =>
+            playerState?.pool && gDiscard(playerState?.pool, discardIndex),
+        }}
+      />
       <Grid
         gridTemplateColumns={"repeat(auto-fill, minmax(100px, 1fr))"}
         gap={2}
@@ -97,3 +93,33 @@ const ModalButton = styled(Flex)`
     background-color: burlywood;
   }
 `;
+
+// <Carousel
+//   items={cardItemMapper({
+//     cards: playerState?.pool?.hand,
+//     functions: {
+//       discardFn: (index) => {
+//         playerState?.pool && gDiscard(playerState?.pool, index);
+//       },
+//     },
+//   })}
+// />
+//
+//
+//
+//
+// {playerState?.pool?.hand ? (
+//   // <HandCardItems cards={playerState?.pool?.hand} functions={}/>
+//   <CarouselTray>
+//     {cardItemMapper({
+//       cards: playerState?.pool?.hand,
+//       functions: {
+//         discardFn: (index) => {
+//           playerState?.pool && gDiscard(playerState?.pool, index);
+//         },
+//       },
+//     })}
+//   </CarouselTray>
+// ) : (
+//   <Skeleton m={3} w="150px" h="200px" />
+// )}
