@@ -17,6 +17,7 @@ This aims to recreate unbrewed.xyz but with webrtc and typescript. This will all
 1. `cd gameserver && go build`
 1. `cd ../ && yarn server`
 1. then open a new terminal and run `yarn dev`
+1. open http://localhost:3000
 
 _Having issues with canvas?_
 
