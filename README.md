@@ -12,6 +12,18 @@ This aims to recreate unbrewed.xyz but with webrtc and typescript. This will all
 - [ ] add optional api server for loading decks from unmatched (add fallback if url breaks and ability to load a different server url)
 - [ ] add [webrtc](https://michal-wrzosek.github.io/p2p-chat/)
 
+## Run Locally
+
+1. `cd gameserver && go build`
+1. `cd ../ && yarn server`
+1. then open a new terminal and run `yarn dev`
+1. open http://localhost:3000
+
+_Having issues with canvas?_
+
+- run `yarn add canvas`
+- for whatever reason this sometimes just doesn't install with default yarn
+
 ## How to add Fonts
 
 1. add file to `public/fonts`
@@ -26,14 +38,31 @@ This aims to recreate unbrewed.xyz but with webrtc and typescript. This will all
 
 # Goals
 
-## WebRTC Goals (for @emyrk)
-
-- make hooks for the functionality found in p2p chat
-- add tooling for reconnecting (do we need to store a key?)
-- is more than 2people possible?
-- compile a list of STUN & TURN servers and enable ability to find your own lists
-
 ## Journal
+
+### 2023-5-12
+
+Just added the header component to react to the gameState. In doing so though I found that the AliceCarousel was not working
+because it would cause the entire row to reset (scroll back to beginning) on every update.
+
+I fixed this by using overflowY='clip' and overflowX='auto' and it's working well now. Will likely need to do some extra css to get the css more smooth.
+
+### 2023-5-10
+
+-REMOVED THE P2P-
+We decided to just make a simple server that can be easily deployed. P2P ended up being too difficult.
+
+Have the gameserver working now with:
+
+- deck init: when loading gameboard, it will load your deck that you added and starred in /bag
+- hand: drawing cards work and added styling to make it easier to read text
+- discard: when hovering over a card you can select to discard.
+- modal: added a modal which accepts a tag and then loads the relevant data from gameserver
+
+Had to refactor the Pool class to instead be an object that can be passed around.
+
+- refactored the functions to be isolated. They accept a `PoolType` and return a `PoolType`
+- this works well with lodash flow to chain a pool action with a gameserver update function
 
 ### 2023-4-22
 

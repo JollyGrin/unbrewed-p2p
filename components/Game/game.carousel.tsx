@@ -1,15 +1,186 @@
 //@ts-nocheck
 import { mockDeck } from "@/_mocks_/deck";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import AliceCarousel from "react-alice-carousel";
 import "react-alice-carousel/lib/alice-carousel.css";
 import { CardFactory } from "../CardFactory/card.factory";
-import { Box, Flex } from "@chakra-ui/react";
-import { DeckImportType } from "../DeckPool/deck-import.type";
+import { Box, Button, Flex, Skeleton, Text } from "@chakra-ui/react";
+import {
+  DeckImportCardType,
+  DeckImportType,
+} from "../DeckPool/deck-import.type";
+import styled from "@emotion/styled";
+import { CarouselTray } from "./game.styles";
 
-const handleDragStart = (e) => e.preventDefault();
+const handleDragStart = (e) => {
+  console.log({ e });
+  e.preventDefault();
+};
 
-const { cards } = mockDeck.deck_data;
+const { cards: mockCards } = mockDeck.deck_data;
+
+type CardWrapperProps = {
+  cards: DeckImportCardType[] | undefined;
+  functions: {
+    discardFn: (index: number) => PoolType;
+  };
+};
+export const cardItemMapper = ({ cards, functions }: CardWrapperProps) => {
+  return cards.map((card, index) => {
+    return (
+      <Box key={index + card.title}>
+        <CardWrapper
+          flexDir={"column"}
+          onDragStart={handleDragStart}
+          transition="all 0.25s ease-in-out"
+          _hover={{
+            transform: "scale(1.7) translateY(-35px)",
+            position: "relative",
+            zIndex: "200",
+            filter: "saturate(2)",
+          }}
+        >
+          <CardFactory card={card} />
+          <Flex className="hoveritem">
+            {/* <Text>+</Text> */}
+            <Text onClick={() => functions.discardFn(index)}>-</Text>
+          </Flex>
+        </CardWrapper>
+      </Box>
+    );
+  });
+};
+
+export const HandCardItems: React.FC<CardWrapperProps> = ({
+  cards,
+  functions,
+}) => {
+  const carouselRef = useRef();
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [startX, setStartX] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
+
+  const handleMouseDown = (e: MouseEvent<HTMLDivElement>) => {
+    setIsDragging(true);
+    setStartX(e.pageX - carouselRef.current!.offsetLeft);
+    setScrollLeft(carouselRef.current!.scrollLeft);
+  };
+
+  const handleMouseLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    e.preventDefault();
+    const x = e.pageX - carouselRef.current!.offsetLeft;
+    const walk = (x - startX) * 1; // Adjust the drag speed here
+    carouselRef.current!.scrollLeft = scrollLeft - walk;
+  };
+
+  useEffect(() => {}, []);
+  console.log({ isDragging });
+
+  return (
+    <CarouselTray
+      ref={carouselRef}
+      className="flex-container"
+      onMouseDown={handleMouseDown}
+      onMouseLeave={handleMouseLeave}
+      onMouseUp={handleMouseUp}
+      onMouseMove={handleMouseMove}
+    >
+      {cards ? (
+        cards?.map((card, index) => (
+          <Box key={index + card.title}>
+            <CardWrapper
+              flexDir={"column"}
+              onDragStart={handleDragStart}
+              transition="all 0.25s ease-in-out"
+              _hover={{
+                transform: "scale(1.7) translateY(-35px)",
+                position: "relative",
+                zIndex: "200",
+                filter: "saturate(2)",
+              }}
+            >
+              <CardFactory card={card} />
+              <Flex className="hoveritem">
+                {/* <Text>+</Text> */}
+                <Text onClick={() => functions.discardFn(index)}>-</Text>
+              </Flex>
+            </CardWrapper>
+          </Box>
+        ))
+      ) : (
+        <Skeleton h="250px" />
+      )}
+    </CarouselTray>
+  );
+};
+
+// export const cardItemMapper = ({ cards, functions }: CardWrapperProps) => {
+//   return cards.map((card, index) => {
+//     return (
+//       <CardWrapper
+//         key={index + card.title}
+//         flexDir={"column"}
+//         onDragStart={handleDragStart}
+//         transition="all 0.25s ease-in-out"
+//         _hover={{
+//           transform: "scale(1.7) translateY(-35px)",
+//           position: "relative",
+//           zIndex: "200",
+//           filter: "saturate(2)",
+//         }}
+//       >
+//         <CardFactory card={card} />
+//         <Flex className="hoveritem">
+//           {/* <Text>+</Text> */}
+//           <Text onClick={() => functions.discardFn(index)}>-</Text>
+//         </Flex>
+//       </CardWrapper>
+//     );
+//   });
+// };
+
+const CardWrapper = styled(Flex)`
+  height: 200px;
+  width: 150px;
+  margin: 0.5rem 0;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s ease-in-out;
+
+  &:hover {
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+  }
+
+  .hoveritem {
+    display: none;
+    cursor: pointer;
+    user-select: none;
+
+    & * {
+      font-size: 0.8rem;
+      margin-top: 0.1rem;
+      padding: 0.1rem 0.5rem;
+      border-radius: 10rem;
+      background-color: antiquewhite;
+      transform: translateY(-0.9rem);
+    }
+  }
+
+  &:active .hoveritem,
+  &:hover .hoveritem {
+    display: flex;
+    gap: 1rem;
+  }
+`;
 
 export const deckItemMapper = (deck: DeckImportType, props) =>
   deck?.deck_data?.cards.map((card, index) => (
@@ -24,7 +195,7 @@ export const deckItemMapper = (deck: DeckImportType, props) =>
     </Flex>
   ));
 
-const cardItems = cards.map((card, index) => (
+const defaultCardItems = mockCards.map((card, index) => (
   <Flex
     key={index + card.title}
     h={"200px"}
@@ -37,7 +208,7 @@ const cardItems = cards.map((card, index) => (
   </Flex>
 ));
 
-export const Carousel = ({ items = cardItems }) => {
+export const Carousel = ({ items = defaultCardItems }) => {
   return (
     <AliceCarousel
       mouseTracking

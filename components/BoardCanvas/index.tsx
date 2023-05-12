@@ -59,12 +59,6 @@ export const BoardCanvas: React.FC<BoardProps> = ({
     }
     const g = d3.select(gRef.current);
 
-    // const data: Circle[] = [
-    //   { x: 200, y: 500, r: 10 },
-    //   { x: 200, y: 300, r: 10 },
-    //   { x: 200, y: 400, r: 10 },
-    // ];
-
     g.selectAll<SVGCircleElement, Circle>("circle")
       .data(data)
       .join("circle")
@@ -112,16 +106,16 @@ export const BoardCanvas: React.FC<BoardProps> = ({
         .attr("cx", (d.x = event.x))
         .attr("cy", (d.y = event.y));
 
-      move(
-        data.map((circle) => {
-          if (circle.id !== d.id) return circle;
-          return {
-            ...circle,
-            x: event.x,
-            y: event.y,
-          };
-        })
-      );
+      console.log('replace with move() function callback to websocket', data.map((circle) => {
+        if (circle.id !== d.id) return circle;
+        return {
+          ...circle,
+          x: event.x,
+          y: event.y,
+        };
+      })
+      )
+
     }
 
     function dragended() {

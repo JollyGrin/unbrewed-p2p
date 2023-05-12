@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "server": "./gameserver/unbrewed-server",
     "dev": "next dev",
     "build": "next build",
     "postbuild": "node lib/buildTools/prefixFonts.js",

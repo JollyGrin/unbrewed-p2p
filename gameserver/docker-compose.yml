@@ -1,0 +1,7 @@
+version: "3"
+services:
+  unbrewed:
+    build: .
+    container_name: "unbrewed-server"
+    ports:
+      - "1111:1111"

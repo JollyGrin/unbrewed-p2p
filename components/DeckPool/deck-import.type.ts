@@ -25,11 +25,11 @@ export type DeckImportType = {
 export type DeckImportDataType = {
   appearance: DeckImportAppearanceType;
   cards: DeckImportCardType[];
-  extraCharacters: [];
   hero: DeckImportHeroType;
   sidekick: DeckImportSidekickType;
   name: string;
-  ruleCards: DeckImportRuleCardType[];
+  ruleCards?: DeckImportRuleCardType[];
+  extraCharacters?: any[];
 };
 
 export type DeckImportAppearanceType = {
