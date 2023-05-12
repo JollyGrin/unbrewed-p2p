@@ -23,19 +23,13 @@ import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
 import Link from "next/link";
 
 const BagPage = () => {
-  const router = useRouter();
-  const slug = router.query;
-
   const { data, isLoading, error, deckId, setDeckId, apiUrl, setApiUrl } =
     useUnmatchedDeck();
 
   const { decks, pushDeck, removeDeckbyId, totalKbLeft, setStar, star } =
     useLocalDeckStorage();
   const [selectedDeckId, setSelectedDeckId] = useState<string>();
-  console.log(
-    { selectedDeckId },
-    decks?.find((deck) => console.log(deck.id))
-  );
+
   return (
     <Flex flexDir={"column"} bg="antiquewhite" h="100svh">
       <BagNav />
@@ -179,7 +173,6 @@ const DeckSlot = ({ abbrev, id, setSelectedDeck, star }) => {
           alignItems={"center"}
           onClick={(e) => {
             e.preventDefault();
-            console.log("hi", id);
             setSelectedDeck(id);
           }}
         >
