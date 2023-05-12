@@ -39,6 +39,13 @@ _Having issues with canvas?_
 
 ## Journal
 
+### 2023-5-12
+
+Just added the header component to react to the gameState. In doing so though I found that the AliceCarousel was not working
+because it would cause the entire row to reset (scroll back to beginning) on every update.
+
+I fixed this by using overflowY='clip' and overflowX='auto' and it's working well now. Will likely need to do some extra css to get the css more smooth.
+
 ### 2023-5-10
 
 -REMOVED THE P2P-
