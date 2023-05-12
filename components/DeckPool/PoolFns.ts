@@ -1,6 +1,7 @@
 import { clone } from "lodash";
 import Pool from "./Pool";
 import { DeckImportCardType, DeckImportType } from "./deck-import.type";
+import { select } from "d3";
 
 export type PoolType = {
   author: string;
@@ -99,6 +100,28 @@ export const draw = (pool: PoolType): PoolType => {
   return pool;
 };
 
+export const adjustHp = (
+  pool: PoolType,
+  selectedPawn: "hero" | "sidekick",
+  adjustAmount: number
+): PoolType => {
+  if (adjustAmount === 0) return pool;
+  if (!pool[selectedPawn] || !pool[selectedPawn]?.hp === null) return pool;
+  const hp = pool[selectedPawn].hp ?? 0;
+  pool[selectedPawn].hp = hp + adjustAmount;
+  return pool;
+};
+
+export const adjustSidekickQuantity = (
+  pool: PoolType,
+  adjustAmount: number
+): PoolType => {
+  if (adjustAmount === 0) return pool;
+  if (!pool || !pool.sidekick.quantity) return pool;
+  const quantity = pool.sidekick.quantity ?? 0;
+  pool.sidekick.quantity = quantity + adjustAmount;
+  return pool;
+};
 //   /**
 //    * Draw deck[cardIndex] into your hand
 //    * @param cardIndex
