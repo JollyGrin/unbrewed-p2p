@@ -1,5 +1,5 @@
 import { fonts } from "@/styles/style";
-import { Tag } from "@chakra-ui/react";
+import { Flex, Tag } from "@chakra-ui/react";
 import styled from "@emotion/styled";
 
 export const StatTag = styled(Tag)`
@@ -11,4 +11,10 @@ export const StatTag = styled(Tag)`
     font-size: 1.25rem;
     padding-right: 10px;
   }
+`;
+
+export const CarouselTray = styled(Flex)`
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: clip;
 `;

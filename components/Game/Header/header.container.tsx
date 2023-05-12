@@ -5,14 +5,13 @@ import { PoolType } from "@/components/DeckPool/PoolFns";
 import { PlayerBox } from "./header.components";
 import { Carousel } from "../game.carousel";
 import { useMemo } from "react";
+import { CarouselTray } from "../game.styles";
 
 export const HeaderContainer = () => {
   const localName = useRouter().query?.name;
   const player = Array.isArray(localName) ? localName[0] : localName;
 
   const { gameState, setPlayerState } = useWebGame();
-
-  const playerState = player ? gameState?.content?.players[player] : undefined;
   const setGameState = (poolInput: PoolType): void => {
     setPlayerState()({ pool: poolInput });
   };
@@ -30,7 +29,7 @@ export const HeaderContainer = () => {
       gap={"10px"}
     >
       {players && playerKeys ? (
-        <Flex w="100%" overflowX={"auto"} overflowY={"clip"}>
+        <CarouselTray>
           {playerKeys?.map((playerName) => (
             <Flex key={player} width="min-content">
               <Spacer width="0.5rem" />
@@ -39,11 +38,12 @@ export const HeaderContainer = () => {
                   key={Math.random()}
                   name={playerName}
                   playerState={players[playerName] as { pool: PoolType }}
+                  setGameState={setGameState}
                 />
               )}
             </Flex>
           ))}
-        </Flex>
+        </CarouselTray>
       ) : (
         <Skeleton minHeight={"97.969px"} minWidth={"150px"} mx={2} />
       )}
