@@ -81,7 +81,7 @@ const ConnectPage = () => {
   useEffect(() => {
     router.prefetch("/game");
   }, [router]);
-  console.log({ isLoading, data });
+
   return (
     <Flex
       h={"100svh"}
