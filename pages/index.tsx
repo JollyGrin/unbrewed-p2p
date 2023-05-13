@@ -22,6 +22,10 @@ const Homepage = () => {
         <Link href="/bag">
           <Button>Bag</Button>
         </Link>
+
+        <Link href="/settings">
+          <Button>Settings</Button>
+        </Link>
       </Flex>
     </Flex>
   );

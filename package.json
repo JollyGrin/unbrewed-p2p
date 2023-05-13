@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "server": "./gameserver/unbrewed-server",
+    "grok": "ngrok http 1111",
     "dev": "next dev",
     "build": "next build",
     "postbuild": "node lib/buildTools/prefixFonts.js",
