@@ -6,12 +6,17 @@ import {
   FC,
   useContext,
 } from "react";
-import { PlayerState, GameState, WebsocketMessage } from "../gamesocket/message";
+import {
+  PlayerState,
+  GameState,
+  WebsocketMessage,
+} from "../gamesocket/message";
 import { initializeWebsocket } from "../gamesocket/socket";
 import { useRouter } from "next/router";
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { PoolType } from "@/components/DeckPool/PoolFns";
+import { useLocalServerStorage } from "../hooks";
 
 interface WebGameProviderValue {
   // gameState: GameState | undefined;
@@ -27,9 +32,13 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
   const router = useRouter();
   const slug = router.query;
 
+  const { activeServer, defaultServer } = useLocalServerStorage();
+
   // gameState is updated from the websocket return.
   const [gameState, setGameState] = useState<string>();
-  const [setPlayerState, setPlayerStatefn] = useState<() => (ps: PlayerState) => void>(() => () => { });
+  const [setPlayerState, setPlayerStatefn] = useState<
+    () => (ps: PlayerState) => void
+  >(() => () => {});
 
   // This should only happen once
   useEffect(() => {
@@ -41,12 +50,14 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
     }
 
     if (!slug?.name || !slug?.gid) {
-      throw new Error("WebGameProvider should be used inside of a page with a 'name' and 'gid' query param.");
+      throw new Error(
+        "WebGameProvider should be used inside of a page with a 'name' and 'gid' query param."
+      );
     }
 
     // This serverURL should come from somewhere else.
-    const serverURL = new URL("http://localhost:1111");
-
+    // const serverURL = new URL("http://localhost:1111");
+    const serverURL = new URL(activeServer);
     const { updateMyPlayerState } = initializeWebsocket({
       name: slug.name.toString(),
       gid: slug.gid.toString(),
@@ -55,17 +66,22 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
         setGameState(state);
       },
     });
-    setPlayerStatefn(() => () => updateMyPlayerState)
-
-  }, [router.isReady, slug.name, slug.gid]);
-
+    setPlayerStatefn(() => () => updateMyPlayerState);
+  }, [router.isReady, slug.name, slug.gid, activeServer]);
 
   return (
-    <WebGameContext.Provider value={{
-      gameState: typeof gameState === 'string' ? (JSON.parse(gameState) as WebsocketMessage) : gameState,
-      // Call setPlayerState to update the player state on the serverside.
-      setPlayerState: setPlayerState,
-    }}>{children}</WebGameContext.Provider>
+    <WebGameContext.Provider
+      value={{
+        gameState:
+          typeof gameState === "string"
+            ? (JSON.parse(gameState) as WebsocketMessage)
+            : gameState,
+        // Call setPlayerState to update the player state on the serverside.
+        setPlayerState: setPlayerState,
+      }}
+    >
+      {children}
+    </WebGameContext.Provider>
   );
 };
 
