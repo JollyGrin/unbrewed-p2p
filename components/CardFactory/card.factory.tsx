@@ -31,7 +31,7 @@ export const CardFactory: React.FC<{ card: DeckImportCardType }> = ({
         shapeRendering="geometricPrecision"
         height="100%"
         // HACK: width currently used to center the offset to right
-        width="88%"
+        width="100%"
         style={{ userSelect: "none" }}
       >
         <clipPath id="innerBorder">

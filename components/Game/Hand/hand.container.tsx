@@ -1,5 +1,6 @@
 import {
   PoolType,
+  commitCard,
   discardCard,
   draw,
   makeDeck,
@@ -15,11 +16,12 @@ import { Carousel, HandCardItems, cardItemMapper } from "../game.carousel";
 import styled from "@emotion/styled";
 import { flow } from "lodash";
 import { CarouselTray } from "../game.styles";
+import { ModalType } from "@/pages/game";
 
 export const HandContainer = ({
   setModal,
 }: {
-  setModal: (type: "discard" | "deck") => void;
+  setModal: (type: ModalType) => void;
 }) => {
   const localName = useRouter().query?.name;
   const player = Array.isArray(localName) ? localName[0] : localName;
@@ -30,7 +32,6 @@ export const HandContainer = ({
   const setGameState = (poolInput: PoolType): void => {
     setPlayerState()({ pool: poolInput });
   };
-  console.log(gameState);
 
   useEffect(() => {
     if (!starredDeck || playerState?.pool) return;
@@ -43,20 +44,15 @@ export const HandContainer = ({
 
   const gDraw = flow(draw, setGameState);
   const gDiscard = flow(discardCard, setGameState);
-
-  // ? <Carousel items={cardItemMapper(playerState?.pool?.hand, { my: 3 }, true)} />
-  //,
-  //
+  const gCommit = flow(
+    (cardIndex: number) =>
+      playerState?.pool && commitCard(playerState?.pool, cardIndex),
+    setGameState,
+    () => setModal("commit")
+  );
 
   return (
     <Tray>
-      <HandCardItems
-        cards={playerState?.pool?.hand}
-        functions={{
-          discardFn: (discardIndex: number) =>
-            playerState?.pool && gDiscard(playerState?.pool, discardIndex),
-        }}
-      />
       <Grid
         gridTemplateColumns={"repeat(auto-fill, minmax(100px, 1fr))"}
         gap={2}
@@ -69,6 +65,14 @@ export const HandContainer = ({
         <ModalButton onClick={() => setModal("deck")}>Deck</ModalButton>
         <ModalButton onClick={() => setModal("discard")}>Discard</ModalButton>
       </Grid>
+      <HandCardItems
+        cards={playerState?.pool?.hand}
+        functions={{
+          discardFn: (discardIndex: number) =>
+            playerState?.pool && gDiscard(playerState?.pool, discardIndex),
+          commitFn: (cardIndex: number) => gCommit(cardIndex),
+        }}
+      />
     </Tray>
   );
 };
@@ -79,47 +83,19 @@ const Tray = styled(Box)`
   align-items: end;
 `;
 const ModalButton = styled(Flex)`
+  user-select: none;
+  cursor: pointer;
+
   background-color: antiquewhite;
   justify-content: center;
   align-items: center;
-  height: 5svh;
   font-family: Space Grotesk;
   font-weight: 700;
+
   width: 100%;
   max-width: 250px;
-  cursor: pointer;
 
   :hover {
     background-color: burlywood;
   }
 `;
-
-// <Carousel
-//   items={cardItemMapper({
-//     cards: playerState?.pool?.hand,
-//     functions: {
-//       discardFn: (index) => {
-//         playerState?.pool && gDiscard(playerState?.pool, index);
-//       },
-//     },
-//   })}
-// />
-//
-//
-//
-//
-// {playerState?.pool?.hand ? (
-//   // <HandCardItems cards={playerState?.pool?.hand} functions={}/>
-//   <CarouselTray>
-//     {cardItemMapper({
-//       cards: playerState?.pool?.hand,
-//       functions: {
-//         discardFn: (index) => {
-//           playerState?.pool && gDiscard(playerState?.pool, index);
-//         },
-//       },
-//     })}
-//   </CarouselTray>
-// ) : (
-//   <Skeleton m={3} w="150px" h="200px" />
-// )}

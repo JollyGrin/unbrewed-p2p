@@ -1,13 +1,15 @@
 import { Box, Flex, Skeleton, Spacer } from "@chakra-ui/react";
 import { useRouter } from "next/router";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
+import { useScroll } from "@/lib/hooks";
 import { PoolType } from "@/components/DeckPool/PoolFns";
 import { PlayerBox } from "./header.components";
 import { Carousel } from "../game.carousel";
-import { useMemo } from "react";
+import { RefObject, useEffect, useMemo, useRef } from "react";
 import { CarouselTray } from "../game.styles";
 
 export const HeaderContainer = () => {
+  const carouselRef = useRef();
   const localName = useRouter().query?.name;
   const player = Array.isArray(localName) ? localName[0] : localName;
 
@@ -19,24 +21,46 @@ export const HeaderContainer = () => {
   const players = gameState?.content?.players;
   const playerKeys = players && Object.keys(players);
 
+  const {
+    setRef,
+    handleMouseLeave,
+    handleMouseUp,
+    handleMouseMove,
+    handleMouseDown,
+  } = useScroll();
+
+  useEffect(() => {
+    if (carouselRef === undefined) return;
+    if (!carouselRef?.current) return;
+    //@ts-ignore
+    setRef(carouselRef);
+  }, [carouselRef]);
+
   return (
     <Flex
       bg="purple"
-      py={3}
+      py={1}
       w="100%"
       justifyContent="space-between"
       alignItems="center"
       gap={"10px"}
     >
       {players && playerKeys ? (
-        <CarouselTray>
+        <CarouselTray
+          ref={carouselRef}
+          onMouseDown={handleMouseDown}
+          onMouseLeave={handleMouseLeave}
+          onMouseUp={handleMouseUp}
+          onMouseMove={handleMouseMove}
+        >
           {playerKeys?.map((playerName) => (
-            <Flex key={player} width="min-content">
+            <Flex key={playerName} width="min-content">
               <Spacer width="0.5rem" />
               {players && players[playerName]?.pool && (
                 <PlayerBox
                   key={Math.random()}
                   name={playerName}
+                  isLocal={player === playerName}
                   playerState={players[playerName] as { pool: PoolType }}
                   setGameState={setGameState}
                 />
@@ -50,21 +74,3 @@ export const HeaderContainer = () => {
     </Flex>
   );
 };
-
-// FIX: this causes the entire row to rerender on data updates, but the overflow method does not
-//  Update this for the hand row
-//
-// <Carousel
-//   items={playerKeys?.map((playerName) => (
-//     <Flex key={player} width="min-content">
-//       <Spacer width="0.5rem" />
-//       {players[playerName]?.pool && (
-//         <PlayerBox
-//           key={Math.random()}
-//           name={playerName}
-//           playerState={players[playerName] as { pool: PoolType }}
-//         />
-//       )}
-//     </Flex>
-//   ))}
-// />

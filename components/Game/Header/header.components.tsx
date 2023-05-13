@@ -26,11 +26,11 @@ import { fonts } from "@/styles/style";
 import { useState } from "react";
 
 export const PlayerBox: React.FC<{
+  isLocal: boolean;
   name: string;
   playerState: { pool: PoolType };
   setGameState: (pool: PoolType) => void;
-}> = ({ name, playerState, setGameState }) => {
-  console.log({ playerState });
+}> = ({ isLocal, name, playerState, setGameState }) => {
   const { hand, deck, discard, hero, sidekick } = playerState.pool;
 
   const updateHealth = (
@@ -56,14 +56,20 @@ export const PlayerBox: React.FC<{
             callback={(adjustNumber: number) =>
               updateHealth(adjustNumber, "hero")
             }
+            isLocal={isLocal}
           />
-          <Stat Icon={hero.isRanged ? IconRanged : IconMeele} />
+          <Stat
+            Icon={hero.isRanged ? IconRanged : IconMeele}
+            isLocal={isLocal}
+          />
 
           {sidekick?.quantity && sidekick.quantity > 0 ? (
             <>
               <Box bg="green" h="15px" w="15px" />
               <Stat
+                isLocal={isLocal}
                 Icon={sidekick.quantity <= 1 ? IconHeart : IconSidekicks}
+                callback={(number: number) => updateSidekickQuantity(number)}
                 number={
                   sidekick.quantity <= 1
                     ? sidekick.hp ?? 0
@@ -71,7 +77,10 @@ export const PlayerBox: React.FC<{
                 }
               />
 
-              <Stat Icon={sidekick.isRanged ? IconRanged : IconMeele} />
+              <Stat
+                isLocal={isLocal}
+                Icon={sidekick.isRanged ? IconRanged : IconMeele}
+              />
             </>
           ) : (
             <Box h="20px" />
@@ -90,9 +99,24 @@ export const PlayerBox: React.FC<{
             </Text>
           </MoveStatContainer>
           <Flex justifyContent="center" alignItems="center" flexDir="column">
-            <Stat Icon={IconHand} number={hand.length} size="20px" />
-            <Stat Icon={IconDeck} number={deck?.length ?? 0} size="20px" />
-            <Stat Icon={IconDiscard} number={discard.length} size="20px" />
+            <Stat
+              isLocal={isLocal}
+              Icon={IconHand}
+              number={hand.length}
+              size="20px"
+            />
+            <Stat
+              isLocal={isLocal}
+              Icon={IconDeck}
+              number={deck?.length ?? 0}
+              size="20px"
+            />
+            <Stat
+              isLocal={isLocal}
+              Icon={IconDiscard}
+              number={discard.length}
+              size="20px"
+            />
           </Flex>
         </Grid>
       </Grid>
@@ -105,7 +129,8 @@ export const Stat: React.FC<{
   number?: number;
   size?: `${string}px`;
   callback?: (adjustNumber: number) => void;
-}> = ({ Icon, number, size, callback }) => {
+  isLocal: boolean;
+}> = ({ Icon, number, size, callback, isLocal }) => {
   const [isHovering, setIsHovering] = useState<boolean>(false);
   const enter = () => setIsHovering(true);
   const leave = () => setIsHovering(false);
@@ -116,7 +141,7 @@ export const Stat: React.FC<{
       onMouseOver={enter}
       onMouseOut={leave}
     >
-      {!!callback && isHovering ? (
+      {isLocal && !!callback && isHovering ? (
         <Flex flexDir="column">
           <AdjustButton bg="green" onClick={() => callback(1)}>
             +
@@ -136,7 +161,7 @@ export const Stat: React.FC<{
 
 const AdjustButton = styled(Flex)`
   background-color: ${(props) => props.bg};
-  padding: 0.35rem 0.35rem;
+  padding: 0.18rem 0.35rem;
   border-radius: 4px;
   line-height: 0.4rem;
   justify-content: center;
