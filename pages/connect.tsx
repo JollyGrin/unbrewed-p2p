@@ -5,13 +5,14 @@ import {
   Flex,
   HStack,
   Input,
+  Spinner,
   Tag,
   Text,
   VStack,
   useDisclosure,
 } from "@chakra-ui/react";
 import { useRouter } from "next/router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   useLocalDeckStorage,
@@ -29,6 +30,9 @@ const ConnectPage = () => {
   const nameRef = useRef<HTMLInputElement>(null);
   const gidRef = useRef<HTMLInputElement>(null);
 
+  // the useQuery loading props not working on repeat visits
+  const [loading, setLoading] = useState<boolean>(false);
+
   const { starredDeck } = useLocalDeckStorage();
   const { activeServer } = useLocalServerStorage();
 
@@ -39,7 +43,7 @@ const ConnectPage = () => {
   // We do this on the connect, as an error from a GET request is easier
   // to handle than an error from a websocket. So make sure the server is
   // responding before we go to a connected state.
-  const { isLoading, refetch, data } = useQuery(
+  const { isLoading, refetch, data, isRefetching } = useQuery(
     ["create-lobby"],
     async () => {
       if (!gidRef?.current?.value) return;
@@ -66,10 +70,18 @@ const ConnectPage = () => {
         router.push(
           "/game?name=" + nameRef.current.value + "&gid=" + gidRef.current.value
         );
+
+        // HACK: the loading props are borked, so manually setting and resetting state
+        setTimeout(() => setLoading(false), 15000);
       },
       // onError: (e) => toast.error("Error fetching deck"),
     }
   );
+
+  useEffect(() => {
+    router.prefetch("/game");
+  }, [router]);
+  console.log({ isLoading, data });
   return (
     <Flex
       h={"100svh"}
@@ -97,15 +109,18 @@ const ConnectPage = () => {
           </HStack>
           <Button
             // If we are loading a new lobby request, freeze the input values.
-            isDisabled={(data && isLoading) || starredDeck === undefined}
+            // isDisabled={(data && isLoading) || starredDeck === undefined}
+            isDisabled={loading || starredDeck === undefined}
             onClick={() => {
               if (!nameRef?.current?.value || !gidRef?.current?.value) {
                 alert("I need a name and a room name");
                 return;
               }
+              setLoading(true);
               refetch();
             }}
           >
+            {loading && <Spinner />}
             Submit
           </Button>
         </VStack>
