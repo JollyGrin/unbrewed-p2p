@@ -70,6 +70,7 @@ export const initializeWebsocket = ({
       }
       console.log("sending", state);
       ws.send(
+        //@ts-ignore
         js({
           msgtype: "playerstate",
           content: state,
