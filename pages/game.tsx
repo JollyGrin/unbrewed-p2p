@@ -15,6 +15,12 @@ const GamePage = () => {
   const disclosure = useDisclosure();
   const [modalType, setModalType] = useState<ModalType>(false);
 
+  const [testmove, setTestmove] = useState([
+    { id: "hero", x: 25 + 100, y: 100, r: 10 },
+    { id: "sidekick", x: 75 + 100, y: 25, r: 10 },
+    { id: "enemey", x: 125 + 100, y: 25, r: 10 },
+  ]);
+
   useEffect(() => {
     if (modalType) {
       disclosure.onOpen();
@@ -22,6 +28,46 @@ const GamePage = () => {
       disclosure.onClose();
     }
   }, [modalType]);
+
+  //@ts-ignore
+  const handleKeyPress = (e) => {
+    console.log(e, e === "ArrowRight");
+    if (e === "ArrowRight") {
+      setTestmove([
+        testmove[0],
+        testmove[1],
+        { id: "enemy", x: testmove[2].x + 25, y: testmove[2].y, r: 10 },
+      ]);
+    }
+
+    if (e === "ArrowLeft") {
+      setTestmove([
+        testmove[0],
+        testmove[1],
+        { id: "enemy", x: testmove[2].x - 25, y: testmove[2].y, r: 10 },
+      ]);
+    }
+
+    if (e === "ArrowUp") {
+      setTestmove([
+        testmove[0],
+        testmove[1],
+        { id: "enemy", x: testmove[2].x, y: testmove[2].y - 25, r: 10 },
+      ]);
+    }
+
+    if (e === "ArrowDown") {
+      setTestmove([
+        testmove[0],
+        testmove[1],
+        { id: "enemy", x: testmove[2].x, y: testmove[2].y + 25, r: 10 },
+      ]);
+    }
+
+    // if (e === "Escape") {
+    //   setModalType(false);
+    // }
+  };
 
   return (
     <>
@@ -33,9 +79,11 @@ const GamePage = () => {
             setModalType={setModalType}
           />
           <HeaderContainer />
-          <BoardContainer />
+          <BoardContainer boardState={testmove} />
           <HandContainer setModal={setModalType} />
         </GameLayout>
+
+        <KeyboardListener onKeyPress={handleKeyPress} />
       </WebGameProvider>
     </>
   );
@@ -43,7 +91,12 @@ const GamePage = () => {
 
 export default GamePage;
 
-const BoardContainer = () => {
+//@ts-ignore
+const BoardContainer = ({ boardState }) => {
+  useEffect(() => {
+    if (!window) return;
+  });
+
   return (
     <Box h={"100%"}>
       <BoardCanvas
@@ -51,6 +104,12 @@ const BoardContainer = () => {
         move={(e: any) => {
           // console.log("move", e);
         }}
+        data={boardState}
+        // data={[
+        //   { id: "hero", x: 25 + 100, y: 100, r: 10 },
+        //   { id: "sidekick", x: 75 + 100, y: 25, r: 10 },
+        //   { id: "enemey", x: 125 + 100, y: 25, r: 10 },
+        // ]}
       />
     </Box>
   );
@@ -87,3 +146,24 @@ const ModalButton = styled(Flex)`
 // useEffect(() => {
 //   console.log("gameState changed", gameState);
 // }, [gameState]);
+//
+//
+type KeyboardListenerProps = {
+  onKeyPress: (key: string) => void;
+};
+
+const KeyboardListener: React.FC<KeyboardListenerProps> = ({ onKeyPress }) => {
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      onKeyPress(event.key);
+    };
+
+    window.addEventListener("keydown", handleKeyPress);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyPress);
+    };
+  }, [onKeyPress]);
+
+  return null;
+};
