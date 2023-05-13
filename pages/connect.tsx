@@ -13,7 +13,10 @@ import {
 import { useRouter } from "next/router";
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
+import {
+  useLocalDeckStorage,
+  useLocalServerStorage,
+} from "@/lib/hooks/useLocalStorage";
 import Link from "next/link";
 
 const ConnectToGamePage = () => {
@@ -27,9 +30,10 @@ const ConnectPage = () => {
   const gidRef = useRef<HTMLInputElement>(null);
 
   const { starredDeck } = useLocalDeckStorage();
+  const { activeServer } = useLocalServerStorage();
 
   // This serverURL should come from somewhere else.
-  const serverURL = new URL("http://localhost:1111");
+  const serverURL = new URL(activeServer ?? "http://localhost:1111");
 
   // We need to create the lobby before a websocket can be made.
   // We do this on the connect, as an error from a GET request is easier
