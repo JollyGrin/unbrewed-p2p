@@ -24,6 +24,15 @@ _Having issues with canvas?_
 - run `yarn add canvas`
 - for whatever reason this sometimes just doesn't install with default yarn
 
+## Run Locally but play online
+
+It's possible to run the server on your own computer and have others connect to you.
+
+1. Follow the above steps
+1. go to ngrok.com and signup for a free account
+1. open a new terminal, navigate to folder, and type `yarn grok`
+1. open /settings and paste the link provided
+
 ## How to add Fonts
 
 1. add file to `public/fonts`
