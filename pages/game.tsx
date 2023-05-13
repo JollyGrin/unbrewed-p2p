@@ -29,6 +29,7 @@ const GamePage = () => {
     }
   }, [modalType]);
 
+  //@ts-ignore
   const handleKeyPress = (e) => {
     console.log(e, e === "ArrowRight");
     if (e === "ArrowRight") {
@@ -90,6 +91,7 @@ const GamePage = () => {
 
 export default GamePage;
 
+//@ts-ignore
 const BoardContainer = ({ boardState }) => {
   useEffect(() => {
     if (!window) return;
