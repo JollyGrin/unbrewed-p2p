@@ -15,14 +15,16 @@ export const StatTag = styled(Tag)`
 
 export const CarouselTray = styled(Flex)`
   width: 100%;
+  max-height: 235px;
   overflow-x: auto;
-  overflow-y: clip;
+  overflow-x: overlay;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch; /* Enables momentum scrolling on iOS devices */
 
   /* Styles for WebKit based browsers (e.g., Chrome, Safari) */
   ::-webkit-scrollbar {
     width: 2px;
-    height: 8px;
+    height: 4px;
   }
 
   ::-webkit-scrollbar-track {
@@ -30,7 +32,7 @@ export const CarouselTray = styled(Flex)`
   }
 
   ::-webkit-scrollbar-thumb {
-    background-color: #550055;
+    background-color: #55005545;
     border-radius: 100px;
   }
 

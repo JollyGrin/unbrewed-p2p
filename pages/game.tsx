@@ -10,7 +10,7 @@ import { Box, Flex, useDisclosure } from "@chakra-ui/react";
 import styled from "@emotion/styled";
 import { useEffect, useState } from "react";
 
-export type ModalType = "hand" | "discard" | "deck" | false;
+export type ModalType = "hand" | "discard" | "deck" | "commit" | false;
 const GamePage = () => {
   const disclosure = useDisclosure();
   const [modalType, setModalType] = useState<ModalType>(false);

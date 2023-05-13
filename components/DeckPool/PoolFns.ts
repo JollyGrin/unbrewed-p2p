@@ -1,7 +1,4 @@
-import { clone } from "lodash";
-import Pool from "./Pool";
 import { DeckImportCardType, DeckImportType } from "./deck-import.type";
-import { select } from "d3";
 
 export type PoolType = {
   author: string;
@@ -96,7 +93,6 @@ export const draw = (pool: PoolType): PoolType => {
     pool.hand.push(card);
   }
 
-  console.log("_pool", pool.deck?.length);
   return pool;
 };
 
@@ -175,28 +171,32 @@ export const discardCard = (pool: PoolType, index: number): PoolType => {
 //     this.discard.splice(cardIndex, 1);
 //   };
 
-//   commitCard = (cardIndex: number) => {
-//     this.commit.main = this.hand[cardIndex];
-//     this.hand.splice(cardIndex, 1);
-//   };
+export const commitCard = (pool: PoolType, cardIndex: number): PoolType => {
+  if (!pool?.hand || pool?.commit?.main) return pool;
+  pool.commit.main = pool.hand[cardIndex];
+  pool.hand.splice(cardIndex, 1);
+  return pool;
+};
 
-//   discardCommit = () => {
-//     if (!this.commit.main) return;
-//     this.discard.push(this.commit.main);
-//     this.commit.main = null;
-//     this.commit.reveal = false;
-//   };
+export const discardCommit = (pool: PoolType): PoolType => {
+  if (!pool.commit.main) return pool;
+  pool.discard.push(pool.commit.main);
+  pool.commit.main = null;
+  pool.commit.reveal = false;
+  return pool;
+};
 
-//   cancelCommit = () => {
-//     if (!this.commit.main) return;
-//     this.hand.push(this.commit.main);
-//     this.commit.main = null;
-//     this.commit.reveal = false;
-//   };
+export const cancelCommit = (pool: PoolType): PoolType => {
+  if (!pool.commit.main) return pool;
+  pool.hand.push(pool.commit.main);
+  pool.commit.main = null;
+  pool.commit.reveal = false;
+  return pool;
+};
 
-//   revealCommit = () => {
-//     this.commit.reveal
-//       ? (this.commit.reveal = false)
-//       : (this.commit.reveal = true);
-//   };
-// }
+export const revealCommit = (pool: PoolType): PoolType => {
+  pool.commit.reveal
+    ? (pool.commit.reveal = false)
+    : (pool.commit.reveal = true);
+  return pool;
+};

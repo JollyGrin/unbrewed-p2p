@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import AliceCarousel from "react-alice-carousel";
 import "react-alice-carousel/lib/alice-carousel.css";
 import { CardFactory } from "../CardFactory/card.factory";
-import { Box, Button, Flex, Skeleton, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, Skeleton, Spacer, Text } from "@chakra-ui/react";
 import {
   DeckImportCardType,
   DeckImportType,
@@ -13,7 +13,6 @@ import styled from "@emotion/styled";
 import { CarouselTray } from "./game.styles";
 
 const handleDragStart = (e) => {
-  console.log({ e });
   e.preventDefault();
 };
 
@@ -23,6 +22,7 @@ type CardWrapperProps = {
   cards: DeckImportCardType[] | undefined;
   functions: {
     discardFn: (index: number) => PoolType;
+    commitFn: (index: number) => PoolType;
   };
 };
 export const cardItemMapper = ({ cards, functions }: CardWrapperProps) => {
@@ -82,9 +82,6 @@ export const HandCardItems: React.FC<CardWrapperProps> = ({
     carouselRef.current!.scrollLeft = scrollLeft - walk;
   };
 
-  useEffect(() => {}, []);
-  console.log({ isDragging });
-
   return (
     <CarouselTray
       ref={carouselRef}
@@ -94,6 +91,11 @@ export const HandCardItems: React.FC<CardWrapperProps> = ({
       onMouseUp={handleMouseUp}
       onMouseMove={handleMouseMove}
     >
+      <Spacer />
+      <Flex opacity={0}>
+        {/* HACK: hover makes first card go outside screen, width doesn't adjust */}
+        xxxxxxxxxxx
+      </Flex>
       {cards ? (
         cards?.map((card, index) => (
           <Box key={index + card.title}>
@@ -102,7 +104,7 @@ export const HandCardItems: React.FC<CardWrapperProps> = ({
               onDragStart={handleDragStart}
               transition="all 0.25s ease-in-out"
               _hover={{
-                transform: "scale(1.7) translateY(-35px)",
+                transform: "scale(2) translateY(-40px)",
                 position: "relative",
                 zIndex: "200",
                 filter: "saturate(2)",
@@ -110,48 +112,24 @@ export const HandCardItems: React.FC<CardWrapperProps> = ({
             >
               <CardFactory card={card} />
               <Flex className="hoveritem">
-                {/* <Text>+</Text> */}
+                <Text onClick={() => functions.commitFn(index)}>+</Text>
                 <Text onClick={() => functions.discardFn(index)}>-</Text>
               </Flex>
             </CardWrapper>
           </Box>
         ))
       ) : (
-        <Skeleton h="250px" />
+        <Skeleton h="240px" />
       )}
+      {cards?.length === 0 && <Skeleton h="240px" />}
     </CarouselTray>
   );
 };
 
-// export const cardItemMapper = ({ cards, functions }: CardWrapperProps) => {
-//   return cards.map((card, index) => {
-//     return (
-//       <CardWrapper
-//         key={index + card.title}
-//         flexDir={"column"}
-//         onDragStart={handleDragStart}
-//         transition="all 0.25s ease-in-out"
-//         _hover={{
-//           transform: "scale(1.7) translateY(-35px)",
-//           position: "relative",
-//           zIndex: "200",
-//           filter: "saturate(2)",
-//         }}
-//       >
-//         <CardFactory card={card} />
-//         <Flex className="hoveritem">
-//           {/* <Text>+</Text> */}
-//           <Text onClick={() => functions.discardFn(index)}>-</Text>
-//         </Flex>
-//       </CardWrapper>
-//     );
-//   });
-// };
-
 const CardWrapper = styled(Flex)`
   height: 200px;
   width: 150px;
-  margin: 0.5rem 0;
+  margin: 0.3rem 0;
   align-items: center;
   justify-content: center;
   transition: all 0.25s ease-in-out;
@@ -171,7 +149,7 @@ const CardWrapper = styled(Flex)`
       padding: 0.1rem 0.5rem;
       border-radius: 10rem;
       background-color: antiquewhite;
-      transform: translateY(-0.9rem);
+      transform: translateY(-0.9rem) translateX(-0.8rem);
     }
   }
 
