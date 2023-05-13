@@ -52,7 +52,7 @@ export const BoardCanvas: React.FC<BoardProps> = ({
       .attr("width", width)
       .attr("height", height);
 
-    const radius = height * 0.022;
+    const radius = 10;
 
     if (!gRef.current) {
       gRef.current = canvas.append("g").attr("cursor", "grab").node();
@@ -106,16 +106,17 @@ export const BoardCanvas: React.FC<BoardProps> = ({
         .attr("cx", (d.x = event.x))
         .attr("cy", (d.y = event.y));
 
-      console.log('replace with move() function callback to websocket', data.map((circle) => {
-        if (circle.id !== d.id) return circle;
-        return {
-          ...circle,
-          x: event.x,
-          y: event.y,
-        };
-      })
-      )
-
+      console.log(
+        "replace with move() function callback to websocket",
+        data.map((circle) => {
+          if (circle.id !== d.id) return circle;
+          return {
+            ...circle,
+            x: event.x,
+            y: event.y,
+          };
+        })
+      );
     }
 
     function dragended() {
@@ -146,13 +147,15 @@ export const BoardCanvas: React.FC<BoardProps> = ({
       />
       <svg
         ref={canvasRef}
-        style={{
-          borderBottom: "1px solid rgba(0,0,0,0.25)",
-          // margin: "0 auto",
-          // boxShadow: "0 10px 20px rgba(0,0,0,0.4)",
-          // borderRadius: "0.5rem",
-          // backgroundColor: "ghostwhite",
-        }}
+        style={
+          {
+            // borderBottom: "1px solid rgba(0,0,0,0.25)",
+            // margin: "0 auto",
+            // boxShadow: "0 10px 20px rgba(0,0,0,0.4)",
+            // borderRadius: "0.5rem",
+            // backgroundColor: "ghostwhite",
+          }
+        }
       >
         <image
           xlinkHref={src}

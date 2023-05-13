@@ -5,6 +5,55 @@ import { useEffect, useState } from "react";
 export const LS_KEY = {
   DECKS: "DECKS",
   STAR_DECK: "STAR_DECK_ID",
+  SERVER_ACTIVE: "SERVER_ACTIVE",
+  SERVER_LIST: "SERVER_LIST",
+};
+
+export const useLocalServerStorage = () => {
+  const defaultServer = "http://localhost:1111";
+  const [activeServer, setActiveServer] = useState<string>(defaultServer);
+  const [serverList, setServerList] = useState<string[]>([]);
+
+  useEffect(() => {
+    const localActiveServer: string | null = localStorage.getItem(
+      LS_KEY.SERVER_ACTIVE
+    );
+    const localServerList: string | null = localStorage.getItem(
+      LS_KEY.SERVER_LIST
+    );
+    if (localActiveServer) {
+      setActiveServer(localActiveServer);
+    }
+    if (localServerList) {
+      setServerList(JSON.parse(localServerList));
+    } else {
+      setServerList([defaultServer]);
+    }
+  }, [setServerList, activeServer]);
+
+  const setActive = (server: string) => {
+    localStorage.setItem(LS_KEY.SERVER_ACTIVE, server);
+    if (!serverList.includes(server)) {
+      localStorage.setItem(
+        LS_KEY.SERVER_LIST,
+        JSON.stringify([...serverList, server])
+      );
+    }
+    setActiveServer(server);
+  };
+
+  const setList = (servers: string[]) => {
+    localStorage.setItem(LS_KEY.SERVER_LIST, JSON.stringify(servers));
+    setServerList(servers);
+  };
+
+  return {
+    activeServer,
+    defaultServer,
+    serverList,
+    setActiveServer: setActive,
+    setServerList: setList,
+  };
 };
 
 export const useLocalDeckStorage = () => {
