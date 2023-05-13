@@ -34,6 +34,7 @@ export const BoardCanvas: React.FC<BoardProps> = ({
   const [w, setW] = useState<number>(100);
   const [h, setH] = useState<number>(100);
 
+  // HACK: toggle boolean to trigger useEffect
   const [updateCanvas, setUpdateCanvas] = useState<boolean>(false);
 
   useEffect(() => {
@@ -52,7 +53,8 @@ export const BoardCanvas: React.FC<BoardProps> = ({
       .attr("width", width)
       .attr("height", height);
 
-    const radius = 10;
+    const radius = 13;
+    // const radius = w * 0.03;
 
     if (!gRef.current) {
       gRef.current = canvas.append("g").attr("cursor", "grab").node();
@@ -83,7 +85,7 @@ export const BoardCanvas: React.FC<BoardProps> = ({
           [0, 0],
           [width, height],
         ])
-        .scaleExtent([1, 8])
+        .scaleExtent([0.5, 4])
         .on("zoom", ({ transform }) => {
           g.attr("transform", transform);
           canvas.select("image").attr("transform", transform);
@@ -106,17 +108,22 @@ export const BoardCanvas: React.FC<BoardProps> = ({
         .attr("cx", (d.x = event.x))
         .attr("cy", (d.y = event.y));
 
-      console.log(
-        "replace with move() function callback to websocket",
-        data.map((circle) => {
-          if (circle.id !== d.id) return circle;
-          return {
-            ...circle,
-            x: event.x,
-            y: event.y,
-          };
-        })
-      );
+      const scaleX = 1600 / w;
+      const scaleY = 856 / h;
+
+      console.log("event", [event.x, event.y]);
+      // // TODO: replace with websocket
+      // console.log(
+      //   "replace with move() function callback to websocket",
+      //   data.map((circle) => {
+      //     if (circle.id !== d.id) return circle;
+      //     return {
+      //       ...circle,
+      //       x: event.x,
+      //       y: event.y,
+      //     };
+      //   })
+      // );
     }
 
     function dragended() {
@@ -130,7 +137,7 @@ export const BoardCanvas: React.FC<BoardProps> = ({
         // change the stroke-width attribute to 5
         .attr("stroke-width", 0);
     }
-  }, [data, updateCanvas]);
+  }, [data, updateCanvas, parentRef]);
 
   return (
     <Box h="100%" w="100%" ref={parentRef}>
@@ -157,12 +164,18 @@ export const BoardCanvas: React.FC<BoardProps> = ({
           }
         }
       >
+        {console.log("xxxxx", [w, h])}
         <image
           xlinkHref={src}
-          width={w * 1}
-          height={h * 1}
-          x={w * 0.01}
-          y={h * 0.01}
+          // width={w * 1}
+          // height={h * 1}
+
+          width={1200}
+          height={1000}
+          x={1}
+          y={1}
+          // x={w * 0.01}
+          // y={h * 0.01}
         />
       </svg>
     </Box>
