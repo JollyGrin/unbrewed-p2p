@@ -19,6 +19,8 @@ import {
   useLocalServerStorage,
 } from "@/lib/hooks/useLocalStorage";
 import Link from "next/link";
+import { SettingsModal } from "@/components/Settings/settings.modal";
+import { toast } from "react-hot-toast";
 
 const ConnectToGamePage = () => {
   return <ConnectPage />;
@@ -29,12 +31,15 @@ const ConnectPage = () => {
   const router = useRouter();
   const nameRef = useRef<HTMLInputElement>(null);
   const gidRef = useRef<HTMLInputElement>(null);
+  const { isOpen, onClose, onOpen } = useDisclosure();
 
   // the useQuery loading props not working on repeat visits
   const [loading, setLoading] = useState<boolean>(false);
 
   const { starredDeck } = useLocalDeckStorage();
-  const { activeServer } = useLocalServerStorage();
+  const { activeServer, setActiveServer, serverList } = useLocalServerStorage();
+
+  console.log("out", activeServer.substring(0, 12));
 
   // This serverURL should come from somewhere else.
   const serverURL = new URL(activeServer ?? "http://localhost:1111");
@@ -43,7 +48,7 @@ const ConnectPage = () => {
   // We do this on the connect, as an error from a GET request is easier
   // to handle than an error from a websocket. So make sure the server is
   // responding before we go to a connected state.
-  const { isLoading, refetch, data, isRefetching } = useQuery(
+  const { refetch } = useQuery(
     ["create-lobby"],
     async () => {
       if (!gidRef?.current?.value) return;
@@ -72,9 +77,18 @@ const ConnectPage = () => {
         );
 
         // HACK: the loading props are borked, so manually setting and resetting state
-        setTimeout(() => setLoading(false), 15000);
+        setTimeout(() => {
+          setLoading(false);
+          toast.success(
+            `Successfully connected to GameServer: \n ${activeServer}`
+          );
+        }, 10000);
       },
-      // onError: (e) => toast.error("Error fetching deck"),
+      onError: () => {
+        setLoading(false);
+        onOpen();
+        toast.error(`Failed to connect to GameServer: \n ${activeServer}`);
+      },
     }
   );
 
@@ -89,6 +103,11 @@ const ConnectPage = () => {
       justifyContent={"center"}
       alignItems={"center"}
     >
+      <SettingsModal
+        isOpen={isOpen}
+        onClose={onClose}
+        serverStorage={{ activeServer, setActiveServer, serverList }}
+      />
       <Flex
         flexDir={"column"}
         h="60%"
@@ -124,6 +143,17 @@ const ConnectPage = () => {
             Submit
           </Button>
         </VStack>
+      </Flex>
+      <Flex
+        position="absolute"
+        bottom="0"
+        flexDir={"column"}
+        alignItems="center"
+        onClick={onOpen}
+        cursor="pointer"
+      >
+        <Text color="ghostwhite">Active GameServer URL:</Text>
+        <Tag p={2}>{activeServer}</Tag>
       </Flex>
     </Flex>
   );
