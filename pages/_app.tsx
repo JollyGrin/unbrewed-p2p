@@ -30,7 +30,7 @@ export default function App({ Component, pageProps }: AppProps) {
               containerStyle={{}}
               toastOptions={{
                 // Define default options
-                className: "",
+                // className: "unbrewed-",
                 duration: 5000,
                 style: {
                   background: "#363636",

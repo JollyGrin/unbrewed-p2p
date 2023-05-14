@@ -1,16 +1,22 @@
 # Unbrewed P2P
 
-This aims to recreate unbrewed.xyz but with webrtc and typescript. This will allow players to connect directly to each other without need for a server. This also makes it easier to fork and remix to your liking without relying on the unbrewed server for games.
+This aims to recreate unbrewed.xyz but with ~~webrtc~~ and typescript. ~~This will allow players to connect directly to each other without need for a server.~~ This also makes it easier to fork and remix to your liking without relying on the unbrewed server for games.
+
+Update: ditching pure p2p and now instead making the gameserver easily deployable by anyone, and be able to change gameserver in settings.
 
 - [x] setup typescript: to auto-document code
 - [x] setup jest (unit tests): to make refactoring and PRs easier
 - [x] add interactive board
 - [x] add card template
-- [ ] add board state (hand, discard, deck)
-- [ ] add game actions
-- [ ] add backpack (to load decks/maps in localstorage)
-- [ ] add optional api server for loading decks from unmatched (add fallback if url breaks and ability to load a different server url)
-- [ ] add [webrtc](https://michal-wrzosek.github.io/p2p-chat/)
+- [x] add board state (hand, discard, deck)
+- [x] add game actions
+- [x] add backpack (to load decks/maps in localstorage)
+- [x] add optional api server for loading decks from unmatched (add fallback if url breaks and ability to load a different server url)
+- [ ] add websocket for board piece movements (dragging pawns across the board)
+- [ ] add ability to add your own game board svgs
+- [ ] add landing page with instructions how to use tool, even if have never touched terminal
+- [ ] improve docs
+- [ ] ~~add [webrtc](https://michal-wrzosek.github.io/p2p-chat/)~~
 
 ## Run Locally
 
@@ -24,14 +30,19 @@ _Having issues with canvas?_
 - run `yarn add canvas`
 - for whatever reason this sometimes just doesn't install with default yarn
 
-## Run Locally but play online
+## Run Locally but play online (Run a GameServer)
 
-It's possible to run the server on your own computer and have others connect to you.
+_follow these instructions to run your own gameserver_
+
+It's possible to run the server on your own computer and have others connect to you. Completely for free and without needing Unbrewed servers (in case they go offline).
 
 1. Follow the above steps
 1. go to ngrok.com and signup for a free account
 1. open a new terminal, navigate to folder, and type `yarn grok`
-1. open /settings and paste the link provided
+1. (ensure yarn dev is running) and open https://loaclhost:3000/settings and paste the link provided
+1. You can provide the same url to others and they can connect to your server by pasting the same link.
+
+Want to deploy a gameserver that exists 24/7? Add an issue to github or PR so we can update default server lists.
 
 ## How to add Fonts
 

@@ -29,9 +29,19 @@ export const useLocalServerStorage = () => {
     } else {
       setServerList([defaultServer]);
     }
-  }, [setServerList, activeServer]);
+  }, []);
 
   const setActive = (server: string) => {
+    const urlRegexPattern = new RegExp(
+      "^https?:\\/\\/[a-z0-9-]+(\\.[a-z0-9-]+)+([/?].*)?$",
+      "i"
+    );
+    const isUrl = urlRegexPattern.test(server);
+    if (!isUrl && server !== "http://localhost:1111") {
+      alert("Not a valid url");
+      return;
+    }
+
     localStorage.setItem(LS_KEY.SERVER_ACTIVE, server);
     if (!serverList.includes(server)) {
       localStorage.setItem(
@@ -39,6 +49,7 @@ export const useLocalServerStorage = () => {
         JSON.stringify([...serverList, server])
       );
     }
+
     setActiveServer(server);
   };
 
@@ -47,8 +58,11 @@ export const useLocalServerStorage = () => {
     setServerList(servers);
   };
 
+  console.log("this changes", activeServer.substring(0, 12));
+
   return {
     activeServer,
+    getLocalActiveServer: () => activeServer,
     defaultServer,
     serverList,
     setActiveServer: setActive,
