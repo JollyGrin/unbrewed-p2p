@@ -1,25 +1,39 @@
-import { Box, Flex, Grid, Text, Skeleton, Button } from "@chakra-ui/react";
-import { Carousel } from "./game.carousel";
-import { mockDeck } from "@/_mocks_/deck";
+import { Box, Flex, Grid, Text, Skeleton, Button, Tag } from "@chakra-ui/react";
 import { CardFactory } from "../CardFactory/card.factory";
-import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
-import Link from "next/link";
-import {
-  DeckImportCardType,
-  DeckImportType,
-} from "../DeckPool/deck-import.type";
+import { DeckImportCardType } from "../DeckPool/deck-import.type";
 import { PoolType } from "../DeckPool/PoolFns";
+import { useState } from "react";
 
 export const DeckModalContent = ({
   cards,
 }: {
   cards: DeckImportCardType[];
 }) => {
+  const [isHover, setIsHover] = useState<number>();
+  const onEnter = (num: number) => setIsHover(num);
+  const onLeave = () => setIsHover(undefined);
+  console.log({ isHover });
   return (
     <Grid gridTemplateColumns={"repeat(auto-fit, minmax(250px,1fr))"} gap={1}>
-      {/* <Carousel /> */}
       {cards?.map((card, index) => (
-        <Box w="100%" maxH={"550px"} key={card.title + index}>
+        <Box
+          w="100%"
+          maxH={"550px"}
+          key={card.title + index}
+          onMouseEnter={() => onEnter(index)}
+          onMouseLeave={onLeave}
+        >
+          {isHover === index && (
+            <Flex position="absolute">
+              <Tag fontSize="1.25rem" userSelect="none">
+                +
+              </Tag>
+
+              <Tag fontSize="1.25rem" userSelect="none">
+                +
+              </Tag>
+            </Flex>
+          )}
           <CardFactory key={card.title + index} card={card} />
         </Box>
       ))}
@@ -57,7 +71,10 @@ export const CommitModalContent: React.FC<{
 };
 
 const CommitCard: React.FC<{ commit: PlayerCommit }> = ({ commit }) => {
+  const [isHover, setIsHover] = useState<boolean>();
   if (commit.commit.main === null) return <Box display="none" />;
+  const onEnter = () => setIsHover(true);
+  const onLeave = () => setIsHover(false);
   return (
     <Box minH="420px">
       {commit?.player && (
@@ -74,11 +91,13 @@ const CommitCard: React.FC<{ commit: PlayerCommit }> = ({ commit }) => {
           </Text>
         </Flex>
       )}
-      {!commit.commit.reveal ? (
-        <Skeleton w="300px" h="420px" />
-      ) : (
-        <CardFactory card={commit.commit.main} />
-      )}
+      <Box onMouseOver={onEnter} onMouseOut={onLeave}>
+        {!commit.commit.reveal ? (
+          <Skeleton w="300px" h="420px" />
+        ) : (
+          <CardFactory card={commit.commit.main} />
+        )}
+      </Box>
     </Box>
   );
 };
