@@ -118,36 +118,37 @@ export const adjustSidekickQuantity = (
   pool.sidekick.quantity = quantity + adjustAmount;
   return pool;
 };
+
 //   /**
 //    * Draw deck[cardIndex] into your hand
 //    * @param cardIndex
 //    * @returns
 //    */
-//   drawDeck = (cardIndex: number) => {
-//     if (!this.deck) return;
-//     this.hand.push(this.deck[cardIndex]);
-//     this.deck.splice(cardIndex, 1);
-//   };
+export const drawDeck = (pool: PoolType, cardIndex: number) => {
+  if (!pool.deck) return;
+  pool.hand.push(pool.deck[cardIndex]);
+  pool.deck.splice(cardIndex, 1);
+};
 
 //   /**
 //    * Place hand[cardIndex] on top of deck
 //    * @param cardIndex
 //    */
-//   deckCard = (cardIndex: number) => {
-//     if (!this.deck) return;
-//     this.deck.push(this.hand[cardIndex]);
-//     this.hand.splice(cardIndex, 1);
-//   };
+export const deckCard = (pool: PoolType, cardIndex: number) => {
+  if (!pool.deck) return;
+  pool.deck.push(pool.hand[cardIndex]);
+  pool.hand.splice(cardIndex, 1);
+};
 
 //   /**
 //    * Place hand[cardIndex] on bottom of deck
 //    * @param cardIndex
 //    */
-//   deckCardBottom = (cardIndex: number) => {
-//     if (!this.deck) return;
-//     this.deck.unshift(this.hand[cardIndex]);
-//     this.hand.splice(cardIndex, 1);
-//   };
+export const deckCardBottom = (pool: PoolType, cardIndex: number) => {
+  if (!pool.deck) return;
+  pool.deck.unshift(pool.hand[cardIndex]);
+  pool.hand.splice(cardIndex, 1);
+};
 
 export const discardCard = (pool: PoolType, index: number): PoolType => {
   pool.discard.push(pool.hand[index]);
@@ -155,21 +156,21 @@ export const discardCard = (pool: PoolType, index: number): PoolType => {
   return pool;
 };
 
-//   discardRandomCard = (cardIndex: number) => {
-//     const handSize = this.hand.length - 1;
-//     const randomNumber = Math.floor(Math.random() * handSize);
-//     this.discard.push(this.hand[randomNumber]);
-//     this.hand.splice(cardIndex, 1);
-//   };
+export const discardRandomCard = (pool: PoolType, cardIndex: number) => {
+  const handSize = pool.hand.length - 1;
+  const randomNumber = Math.floor(Math.random() * handSize);
+  pool.discard.push(pool.hand[randomNumber]);
+  pool.hand.splice(cardIndex, 1);
+};
 
 //   /**
 //    * Draw discard[cardIndex] to hand
 //    * @param cardIndex
 //    */
-//   drawDiscard = (cardIndex: number) => {
-//     this.hand.push(this.discard[cardIndex]);
-//     this.discard.splice(cardIndex, 1);
-//   };
+export const drawDiscard = (pool: PoolType, cardIndex: number) => {
+  pool.hand.push(pool.discard[cardIndex]);
+  pool.discard.splice(cardIndex, 1);
+};
 
 export const commitCard = (pool: PoolType, cardIndex: number): PoolType => {
   if (!pool?.hand || pool?.commit?.main) return pool;

@@ -22,10 +22,7 @@ import {
   revealCommit,
 } from "../DeckPool/PoolFns";
 import { useRouter } from "next/router";
-import {
-  DeckImportCardType,
-  DeckImportType,
-} from "../DeckPool/deck-import.type";
+import { DeckImportCardType } from "../DeckPool/deck-import.type";
 import { flow } from "lodash";
 
 type ModalTemplateType = {
