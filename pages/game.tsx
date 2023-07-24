@@ -98,10 +98,11 @@ const BoardContainer = ({ boardState }) => {
   });
 
   const { gamePositions, setPlayerPosition } = useWebGame();
-  console.log({ gamePositions });
+  console.log({ gamePositions, setPlayerPosition });
 
   const setGamePosition = (props: string[]) => {
     console.log("sending to gameposition", props);
+    //@ts-ignore
     setPlayerPosition()(props);
   };
 
@@ -110,7 +111,9 @@ const BoardContainer = ({ boardState }) => {
       <BoardCanvas
         src="jpark.svg"
         move={(e: any) => {
-          console.log("move", e);
+          // console.log("move", e);
+
+          console.log("lllll", { gamePositions });
           setGamePosition(e);
         }}
         data={boardState}
