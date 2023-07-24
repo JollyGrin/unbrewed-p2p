@@ -161,10 +161,12 @@ func NewGameState(gid string) *GameState {
 }
 
 type Room struct {
-	GameID     string
-	WS         *websocket.Upgrader
-	Clients    map[string]*PlayerConn
-	FieldState *GameState
+	GameID  string
+	WS      *websocket.Upgrader
+	Clients map[string]*PlayerConn
+
+	PlayerPositions map[string]json.RawMessage
+	FieldState      *GameState
 
 	mutex sync.Mutex
 
@@ -246,6 +248,15 @@ func (r *Room) HandleMessage(c *PlayerConn, mt int, msg []byte) {
 		return
 	}
 	switch gm.MessageType {
+	case MsgTypePlayerPosition:
+		r.mutex.Lock()
+		r.PlayerPositions[c.Name] = gm.Content
+		r.FieldState.LastUpdate = time.Now()
+		msg := r.GetPlayerPositions()
+		r.broadcastAll(websocket.TextMessage, msg)
+		r.mutex.Unlock()
+		log.Info("Player Position Received")
+
 	case MsgTypePlayerState:
 		// Update player state
 		r.mutex.Lock()
@@ -302,4 +313,19 @@ func (r *Room) PlayerExit(c *PlayerConn) bool {
 	delete(r.Clients, c.Name)
 
 	return ok
+}
+
+func (r *Room) GetPlayerPositions() []byte {
+	data, err := json.Marshal(r.PlayerPositions)
+	if err != nil {
+		log.WithError(err).Errorf("failed to marshal player positions")
+	}
+	msg, err := json.Marshal(GameMessage{
+		MessageType: MsgTypePlayerPosition,
+		Content:     data,
+	})
+	if err != nil {
+		log.WithError(err).Errorf("failed to marshal player positions")
+	}
+	return msg
 }
