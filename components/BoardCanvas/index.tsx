@@ -112,6 +112,7 @@ export const BoardCanvas: React.FC<BoardProps> = ({
       const scaleY = 856 / h;
 
       console.log("event", [event.x, event.y]);
+      move([event.x, event.y]);
       // // TODO: replace with websocket
       // console.log(
       //   "replace with move() function callback to websocket",

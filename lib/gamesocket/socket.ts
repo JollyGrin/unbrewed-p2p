@@ -18,6 +18,7 @@ export interface WebsocketProps {
 
 export interface WebsocketReturn {
   updateMyPlayerState: (state: PlayerState) => void;
+  updateMyPlayerPosition: (state: string[]) => void;
 }
 
 const js = (e: any) => JSON.stringify(e);
@@ -73,6 +74,23 @@ export const initializeWebsocket = ({
         //@ts-ignore
         js({
           msgtype: "playerstate",
+          content: state,
+        } as WebsocketMessage)
+      );
+    },
+    updateMyPlayerPosition: (state: string[]): void => {
+      if (!state) {
+        // TODO: Idk why this happens, but some undedfined state is being passed in
+        return;
+      }
+      if (ws.readyState !== ws.OPEN) {
+        throw new Error("Websocket not open");
+      }
+      console.log("sending", state);
+      ws.send(
+        //@ts-ignore
+        js({
+          msgtype: "playerposition",
           content: state,
         } as WebsocketMessage)
       );
