@@ -44,7 +44,7 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
 
   const [setPlayerPosition, setPlayerPositionFn] = useState<
     () => (pos: number[]) => void
-  >(() => () => [2, 2]);
+  >(() => () => {});
 
   // This should only happen once
   useEffect(() => {
