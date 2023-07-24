@@ -178,6 +178,7 @@ func NewRoom(gid string, ctx context.Context) *Room {
 	r := new(Room)
 	r.GameID = gid
 	r.FieldState = NewGameState(gid)
+	r.PlayerPositions = make(map[string]json.RawMessage)
 	r.WS = &websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
 		return true
 	}}
