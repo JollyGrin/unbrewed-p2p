@@ -5,7 +5,7 @@ import {
   ModalContainer,
 } from "@/components/Game";
 import { GameLayout } from "@/components/Game/game.layout";
-import { WebGameProvider } from "@/lib/contexts/WebGameProvider";
+import { WebGameProvider, useWebGame } from "@/lib/contexts/WebGameProvider";
 import { Box, Flex, useDisclosure } from "@chakra-ui/react";
 import styled from "@emotion/styled";
 import { useEffect, useState } from "react";
@@ -97,12 +97,21 @@ const BoardContainer = ({ boardState }) => {
     if (!window) return;
   });
 
+  const { gamePositions, setPlayerPosition } = useWebGame();
+  console.log({ gamePositions });
+
+  const setGamePosition = (props: string[]) => {
+    console.log("sending to gameposition", props);
+    setPlayerPosition()(props);
+  };
+
   return (
     <Box h={"100%"}>
       <BoardCanvas
         src="jpark.svg"
         move={(e: any) => {
-          // console.log("move", e);
+          console.log("move", e);
+          setGamePosition(e);
         }}
         data={boardState}
         // data={[
