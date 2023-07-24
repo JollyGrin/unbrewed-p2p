@@ -5,6 +5,9 @@ import {
   PropsWithChildren,
   FC,
   useContext,
+  useCallback,
+  useRef,
+  MutableRefObject,
 } from "react";
 import {
   PlayerState,
@@ -22,7 +25,7 @@ interface WebGameProviderValue {
   gameState: WebsocketMessage | undefined;
   gamePositions: WebsocketMessage | undefined;
   setPlayerState: () => ({ pool }: { pool: PoolType }) => void;
-  setPlayerPosition: () => (props: number[]) => void;
+  setPlayerPosition: MutableRefObject<(props: string[]) => void>;
 }
 
 export const WebGameContext = createContext<WebGameProviderValue | undefined>(
@@ -38,13 +41,20 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
   // gameState is updated from the websocket return.
   const [gameState, setGameState] = useState<string>();
   const [gamePositions, setGamePositions] = useState<string>();
+  // const setPlayerPosition = useCallback((props: number[]) => {
+  //   console.log("No game started yet");
+  // }, []);
+
   const [setPlayerState, setPlayerStatefn] = useState<
     () => (ps: PlayerState) => void
   >(() => () => {});
 
-  const [setPlayerPosition, setPlayerPositionFn] = useState<
-    () => (pos: number[]) => void
-  >(() => () => {});
+  // const [setPlayerPosition, setPlayerPositionFn] = useState<
+  //   () => (pos: number[]) => void
+  // >(() => () => {});
+
+  const lat = useRef(null);
+  const setPlayerPosition = useRef((props: string[]) => {});
 
   // This should only happen once
   useEffect(() => {
@@ -73,7 +83,8 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
     );
 
     setPlayerStatefn(() => () => updateMyPlayerState);
-    setPlayerPositionFn(() => () => updateMyPlayerPosition);
+    setPlayerPosition.current = updateMyPlayerPosition;
+    // setPlayerPositionFn(() => () => updateMyPlayerPosition);
   }, [router.isReady, slug.name, slug.gid, activeServer]);
 
   return (
