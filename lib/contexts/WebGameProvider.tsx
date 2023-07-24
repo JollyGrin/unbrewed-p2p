@@ -22,7 +22,7 @@ interface WebGameProviderValue {
   gameState: WebsocketMessage | undefined;
   gamePositions: WebsocketMessage | undefined;
   setPlayerState: () => ({ pool }: { pool: PoolType }) => void;
-  setPlayerPosition: () => (props: any) => void;
+  setPlayerPosition: () => (props: number[]) => void;
 }
 
 export const WebGameContext = createContext<WebGameProviderValue | undefined>(
