@@ -8,7 +8,7 @@ import { GameLayout } from "@/components/Game/game.layout";
 import { WebGameProvider, useWebGame } from "@/lib/contexts/WebGameProvider";
 import { Box, Flex, useDisclosure } from "@chakra-ui/react";
 import styled from "@emotion/styled";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export type ModalType = "hand" | "discard" | "deck" | "commit" | false;
 const GamePage = () => {
@@ -103,7 +103,7 @@ const BoardContainer = ({ boardState }) => {
   const setGamePosition = (props: string[]) => {
     console.log("sending to gameposition", props);
     //@ts-ignore
-    setPlayerPosition()(props);
+    setPlayerPosition.current(props);
   };
 
   return (
