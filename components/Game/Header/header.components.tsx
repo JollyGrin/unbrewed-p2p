@@ -45,8 +45,6 @@ export const PlayerBox: React.FC<{
     setGameState(adjustSidekickQuantity(playerState.pool, adjustAmount));
   };
 
-  console.log({ isLocal }, typeof openPositionModal);
-
   return (
     <StatContainer>
       <PlayerTitleBar>
