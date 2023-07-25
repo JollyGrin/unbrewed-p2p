@@ -15,8 +15,8 @@ import { useWebGame } from "@/lib/contexts/WebGameProvider";
 
 //@ts-ignore
 import { CirclePicker } from "react-color";
+import { Size } from "./position.type";
 
-type Sizes = "sm" | "md" | "lg";
 export const PositionModal: FC<{
   isOpen: boolean;
   onClose: () => void;
@@ -27,12 +27,16 @@ export const PositionModal: FC<{
   const color = isDark ? "antiquewhite" : "purple.900";
 
   const [selectedColor, setSelectedColor] = useState<string>("#fff");
-  const [selectedSize, setSelectedSize] = useState<Sizes>("lg");
-  const setSize = (size: Sizes) =>
+  const [selectedSize, setSelectedSize] = useState<Size>("lg");
+  const setSize = (size: Size) =>
     size === "lg" ? 2 : size === "md" ? 1.65 : 1.35;
   const handleColorChange = ({ hex }: { hex: string }) => setSelectedColor(hex);
 
   const { gamePositions, setPlayerPosition } = useWebGame();
+
+  // NOTE: grab the hero/sidekick information and have those be
+  // the starting. This should change the color in the player box
+  // for quick glace reference who is who
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
