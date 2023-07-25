@@ -15,7 +15,7 @@ export interface Circle {
 const defaultData: Circle[] = [
   { id: "hero", x: 25, y: 25, r: 10 },
   { id: "sidekick", x: 75, y: 25, r: 10 },
-  { id: "enemey", x: 125, y: 25, r: 10 },
+  // { id: "enemey", x: 125, y: 25, r: 10 },
 ];
 
 type BoardProps = {
@@ -67,7 +67,12 @@ export const BoardCanvas: React.FC<BoardProps> = ({
       .attr("cx", ({ x }) => x)
       .attr("cy", ({ y }) => y)
       .attr("r", radius)
-      // .attr("fill", (d, i) => d3.interpolateRainbow(i / 360))
+      .attr("fill", ({ color }) => color && color)
+      .attr("opacity", ({ id }) => (id === "hero" ? 1 : 0.5))
+      .filter(({ id }) => {
+        console.log("ppp", id);
+        return id === "hero";
+      })
       .call(
         d3
           .drag<SVGCircleElement, Circle>()
@@ -111,7 +116,8 @@ export const BoardCanvas: React.FC<BoardProps> = ({
       const scaleX = 1600 / w;
       const scaleY = 856 / h;
 
-      console.log("event", [event.x, event.y]);
+      console.log("event", [event.x, event.y], event.subject.id);
+      move([event.x, event.y]);
       // // TODO: replace with websocket
       // console.log(
       //   "replace with move() function callback to websocket",

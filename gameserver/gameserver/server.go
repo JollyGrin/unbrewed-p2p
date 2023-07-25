@@ -178,6 +178,7 @@ func NewRoom(gid string, ctx context.Context) *Room {
 	r := new(Room)
 	r.GameID = gid
 	r.FieldState = NewGameState(gid)
+	r.PlayerPositions = make(map[string]json.RawMessage)
 	r.WS = &websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
 		return true
 	}}
@@ -251,7 +252,6 @@ func (r *Room) HandleMessage(c *PlayerConn, mt int, msg []byte) {
 	case MsgTypePlayerPosition:
 		r.mutex.Lock()
 		r.PlayerPositions[c.Name] = gm.Content
-		r.FieldState.LastUpdate = time.Now()
 		msg := r.GetPlayerPositions()
 		r.broadcastAll(websocket.TextMessage, msg)
 		r.mutex.Unlock()

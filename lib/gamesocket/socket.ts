@@ -14,10 +14,12 @@ export interface WebsocketProps {
   connectURL: URL;
   // Callbacks
   onGameState: (state: string) => void;
+  onGamePositions: (state: string) => void;
 }
 
 export interface WebsocketReturn {
   updateMyPlayerState: (state: PlayerState) => void;
+  updateMyPlayerPosition: (state: string[]) => void;
 }
 
 const js = (e: any) => JSON.stringify(e);
@@ -28,6 +30,7 @@ export const initializeWebsocket = ({
   gid,
   connectURL,
   onGameState,
+  onGamePositions,
 }: WebsocketProps): WebsocketReturn => {
   const url = new URL(`/ws/${gid}`, connectURL);
 
@@ -48,6 +51,9 @@ export const initializeWebsocket = ({
         return;
       case "gamestate":
         onGameState(event.data as string);
+        return;
+      case "playerposition":
+        onGamePositions(event.data as string);
         return;
     }
     console.log("msg", data);
@@ -73,6 +79,23 @@ export const initializeWebsocket = ({
         //@ts-ignore
         js({
           msgtype: "playerstate",
+          content: state,
+        } as WebsocketMessage)
+      );
+    },
+    updateMyPlayerPosition: (state: string[]): void => {
+      if (!state) {
+        // TODO: Idk why this happens, but some undedfined state is being passed in
+        return;
+      }
+      if (ws.readyState !== ws.OPEN) {
+        throw new Error("Websocket not open");
+      }
+      console.log("sending", state);
+      ws.send(
+        //@ts-ignore
+        js({
+          msgtype: "playerposition",
           content: state,
         } as WebsocketMessage)
       );
