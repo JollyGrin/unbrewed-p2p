@@ -18,7 +18,7 @@ const GamePage = () => {
   const [testmove, setTestmove] = useState([
     { id: "hero", x: 25 + 100, y: 100, r: 10 },
     { id: "sidekick", x: 75 + 100, y: 25, r: 10 },
-    { id: "enemey", x: 125 + 100, y: 25, r: 10 },
+    { id: "enemey", x: 125 + 100, y: 25, r: 10, color: "blue" },
   ]);
 
   useEffect(() => {
@@ -31,42 +31,14 @@ const GamePage = () => {
 
   //@ts-ignore
   const handleKeyPress = (e) => {
-    console.log(e, e === "ArrowRight");
     if (e === "ArrowRight") {
       setTestmove([
         testmove[0],
         testmove[1],
         { id: "enemy", x: testmove[2].x + 25, y: testmove[2].y, r: 10 },
+        { id: "enemy2", x: testmove[2].x + 30, y: testmove[2].y, r: 10 },
       ]);
     }
-
-    if (e === "ArrowLeft") {
-      setTestmove([
-        testmove[0],
-        testmove[1],
-        { id: "enemy", x: testmove[2].x - 25, y: testmove[2].y, r: 10 },
-      ]);
-    }
-
-    if (e === "ArrowUp") {
-      setTestmove([
-        testmove[0],
-        testmove[1],
-        { id: "enemy", x: testmove[2].x, y: testmove[2].y - 25, r: 10 },
-      ]);
-    }
-
-    if (e === "ArrowDown") {
-      setTestmove([
-        testmove[0],
-        testmove[1],
-        { id: "enemy", x: testmove[2].x, y: testmove[2].y + 25, r: 10 },
-      ]);
-    }
-
-    // if (e === "Escape") {
-    //   setModalType(false);
-    // }
   };
 
   return (
