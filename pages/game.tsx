@@ -25,6 +25,12 @@ const GamePage = () => {
     { id: "enemey", x: 125 + 100, y: 25, tokenSize: "sm", color: "blue" },
   ]);
 
+  // NOTE: Next step is to link the boardstate to the websocket data
+  // 1. link the modal picker to your init of tokens
+  // 2. edit the operations to work with an array of PostionType[]
+  // 3. update the permissions so that respective players can move their tokens
+  // 4. link board to the game positions
+
   useEffect(() => {
     if (modalType) {
       disclosure.onOpen();
