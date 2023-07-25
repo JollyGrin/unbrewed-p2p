@@ -20,12 +20,13 @@ import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { PoolType } from "@/components/DeckPool/PoolFns";
 import { useLocalServerStorage } from "../hooks";
+import { PositionType } from "@/components/Positions/position.type";
 
 interface WebGameProviderValue {
   gameState: WebsocketMessage | undefined;
   gamePositions: WebsocketMessage | undefined;
   setPlayerState: () => ({ pool }: { pool: PoolType }) => void;
-  setPlayerPosition: MutableRefObject<(props: string[]) => void>;
+  setPlayerPosition: MutableRefObject<(props: PositionType[]) => void>;
 }
 
 export const WebGameContext = createContext<WebGameProviderValue | undefined>(
@@ -54,7 +55,7 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
   // >(() => () => {});
 
   const lat = useRef(null);
-  const setPlayerPosition = useRef((props: string[]) => {});
+  const setPlayerPosition = useRef((props: PositionType[]) => {});
 
   // This should only happen once
   useEffect(() => {
