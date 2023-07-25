@@ -14,6 +14,7 @@ export interface WebsocketProps {
   connectURL: URL;
   // Callbacks
   onGameState: (state: string) => void;
+  onGamePositions: (state: string) => void;
 }
 
 export interface WebsocketReturn {
@@ -29,6 +30,7 @@ export const initializeWebsocket = ({
   gid,
   connectURL,
   onGameState,
+  onGamePositions,
 }: WebsocketProps): WebsocketReturn => {
   const url = new URL(`/ws/${gid}`, connectURL);
 
@@ -49,6 +51,9 @@ export const initializeWebsocket = ({
         return;
       case "gamestate":
         onGameState(event.data as string);
+        return;
+      case "playerposition":
+        onGamePositions(event.data as string);
         return;
     }
     console.log("msg", data);

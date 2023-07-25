@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "server": "./gameserver/unbrewed-server",
+    "server": "cd ./gameserver && go run .",
     "grok": "ngrok http 1111",
     "dev": "next dev",
     "build": "next build",
