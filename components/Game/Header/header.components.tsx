@@ -30,7 +30,8 @@ export const PlayerBox: React.FC<{
   name: string;
   playerState: { pool: PoolType };
   setGameState: (pool: PoolType) => void;
-}> = ({ isLocal, name, playerState, setGameState }) => {
+  openPositionModal?: () => void;
+}> = ({ isLocal, name, playerState, setGameState, openPositionModal }) => {
   const { hand, deck, discard, hero, sidekick } = playerState.pool;
 
   const updateHealth = (
@@ -44,9 +45,29 @@ export const PlayerBox: React.FC<{
     setGameState(adjustSidekickQuantity(playerState.pool, adjustAmount));
   };
 
+  console.log({ isLocal }, typeof openPositionModal);
+
   return (
     <StatContainer>
-      <PlayerTitleBar>{name}</PlayerTitleBar>
+      <PlayerTitleBar>
+        <Text>{name}</Text>
+        <Flex
+          flexDir="row-reverse"
+          alignItems="center"
+          gap="0.25rem"
+          cursor="pointer"
+          onClick={() =>
+            isLocal &&
+            typeof openPositionModal === "function" &&
+            openPositionModal()
+          }
+        >
+          <Dot background="tomato" size="1rem" />
+          <Dot background="tomato" size="0.75rem" />
+          <Dot background="tomato" size="0.75rem" />
+          <Dot background="tomato" size="0.75rem" />
+        </Flex>
+      </PlayerTitleBar>
       <Grid gridTemplateColumns={"1fr 1fr"} alignItems="center">
         <PawnStatsContainer>
           <Box bg="green" borderRadius={"1000px"} h="20px" w="20px" />
@@ -171,4 +192,10 @@ const AdjustButton = styled(Flex)`
   font-family: ${fonts.SpaceGrotesk};
   user-select: none;
   cursor: pointer;
+`;
+
+const Dot = styled(Box)<{ size: string }>`
+  width: ${({ size }) => size};
+  height: ${({ size }) => size};
+  border-radius: 100%;
 `;

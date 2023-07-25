@@ -5,6 +5,7 @@ import {
   ModalContainer,
 } from "@/components/Game";
 import { GameLayout } from "@/components/Game/game.layout";
+import { PositionModal } from "@/components/Positions/position.modal";
 import { WebGameProvider, useWebGame } from "@/lib/contexts/WebGameProvider";
 import { Box, Flex, useDisclosure } from "@chakra-ui/react";
 import styled from "@emotion/styled";
@@ -18,8 +19,10 @@ export type PositionType = {
   r: number;
   color?: string;
 };
+
 const GamePage = () => {
   const disclosure = useDisclosure();
+  const positionDisclosure = useDisclosure();
   const [modalType, setModalType] = useState<ModalType>(false);
 
   const [testmove, setTestmove] = useState([
@@ -52,12 +55,13 @@ const GamePage = () => {
     <>
       <WebGameProvider>
         <GameLayout>
+          <PositionModal {...positionDisclosure} />
           <ModalContainer
             {...disclosure}
             modalType={modalType}
             setModalType={setModalType}
           />
-          <HeaderContainer />
+          <HeaderContainer openPositionModal={positionDisclosure.onOpen} />
           <BoardContainer boardState={testmove} />
           <HandContainer setModal={setModalType} />
         </GameLayout>

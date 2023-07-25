@@ -13,6 +13,8 @@ export const PlayerTitleBar = styled(Flex)`
   border-radius: 0.5rem 0.5rem 0 0;
 
   padding: 0.2rem 0.75rem;
+
+  justify-content: space-between;
 `;
 
 export const PawnStatsContainer = styled(Grid)`
