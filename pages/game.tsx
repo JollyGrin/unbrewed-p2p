@@ -11,6 +11,13 @@ import styled from "@emotion/styled";
 import { useCallback, useEffect, useState } from "react";
 
 export type ModalType = "hand" | "discard" | "deck" | "commit" | false;
+export type PositionType = {
+  id: string;
+  x: number;
+  y: number;
+  r: number;
+  color?: string;
+};
 const GamePage = () => {
   const disclosure = useDisclosure();
   const [modalType, setModalType] = useState<ModalType>(false);

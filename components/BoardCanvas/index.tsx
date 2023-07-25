@@ -68,6 +68,7 @@ export const BoardCanvas: React.FC<BoardProps> = ({
       .attr("cy", ({ y }) => y)
       .attr("r", radius)
       .attr("fill", ({ color }) => color && color)
+      .attr("opacity", ({ id }) => (id === "hero" ? 1 : 0.5))
       .filter(({ id }) => {
         console.log("ppp", id);
         return id === "hero";
@@ -115,7 +116,7 @@ export const BoardCanvas: React.FC<BoardProps> = ({
       const scaleX = 1600 / w;
       const scaleY = 856 / h;
 
-      console.log("event", [event.x, event.y], event);
+      console.log("event", [event.x, event.y], event.subject.id);
       move([event.x, event.y]);
       // // TODO: replace with websocket
       // console.log(
