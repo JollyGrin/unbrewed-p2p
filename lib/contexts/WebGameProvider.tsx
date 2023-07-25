@@ -79,6 +79,9 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
         onGameState: (state: string) => {
           setGameState(state);
         },
+        onGamePositions: (state: string) => {
+          setGamePositions(state);
+        },
       }
     );
 

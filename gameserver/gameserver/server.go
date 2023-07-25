@@ -252,7 +252,6 @@ func (r *Room) HandleMessage(c *PlayerConn, mt int, msg []byte) {
 	case MsgTypePlayerPosition:
 		r.mutex.Lock()
 		r.PlayerPositions[c.Name] = gm.Content
-		r.FieldState.LastUpdate = time.Now()
 		msg := r.GetPlayerPositions()
 		r.broadcastAll(websocket.TextMessage, msg)
 		r.mutex.Unlock()
