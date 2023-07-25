@@ -5,6 +5,9 @@ import {
   PropsWithChildren,
   FC,
   useContext,
+  useCallback,
+  useRef,
+  MutableRefObject,
 } from "react";
 import {
   PlayerState,
@@ -19,9 +22,10 @@ import { PoolType } from "@/components/DeckPool/PoolFns";
 import { useLocalServerStorage } from "../hooks";
 
 interface WebGameProviderValue {
-  // gameState: GameState | undefined;
   gameState: WebsocketMessage | undefined;
+  gamePositions: WebsocketMessage | undefined;
   setPlayerState: () => ({ pool }: { pool: PoolType }) => void;
+  setPlayerPosition: MutableRefObject<(props: string[]) => void>;
 }
 
 export const WebGameContext = createContext<WebGameProviderValue | undefined>(
@@ -36,16 +40,25 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
 
   // gameState is updated from the websocket return.
   const [gameState, setGameState] = useState<string>();
+  const [gamePositions, setGamePositions] = useState<string>();
+  // const setPlayerPosition = useCallback((props: number[]) => {
+  //   console.log("No game started yet");
+  // }, []);
+
   const [setPlayerState, setPlayerStatefn] = useState<
     () => (ps: PlayerState) => void
   >(() => () => {});
 
+  // const [setPlayerPosition, setPlayerPositionFn] = useState<
+  //   () => (pos: number[]) => void
+  // >(() => () => {});
+
+  const lat = useRef(null);
+  const setPlayerPosition = useRef((props: string[]) => {});
+
   // This should only happen once
   useEffect(() => {
     if (!router.isReady) {
-      // Wait for the router to load
-      // The query params are not ready at first render:
-      // https://nextjs.org/docs/pages/building-your-application/rendering/automatic-static-optimization#how-it-works
       return;
     }
 
@@ -58,26 +71,39 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
     // This serverURL should come from somewhere else.
     // const serverURL = new URL("http://localhost:1111");
     const serverURL = new URL(activeServer);
-    const { updateMyPlayerState } = initializeWebsocket({
-      name: slug.name.toString(),
-      gid: slug.gid.toString(),
-      connectURL: serverURL,
-      onGameState: (state: string) => {
-        setGameState(state);
-      },
-    });
+    const { updateMyPlayerState, updateMyPlayerPosition } = initializeWebsocket(
+      {
+        name: slug.name.toString(),
+        gid: slug.gid.toString(),
+        connectURL: serverURL,
+        onGameState: (state: string) => {
+          setGameState(state);
+        },
+        onGamePositions: (state: string) => {
+          setGamePositions(state);
+        },
+      }
+    );
+
     setPlayerStatefn(() => () => updateMyPlayerState);
+    setPlayerPosition.current = updateMyPlayerPosition;
+    // setPlayerPositionFn(() => () => updateMyPlayerPosition);
   }, [router.isReady, slug.name, slug.gid, activeServer]);
 
   return (
     <WebGameContext.Provider
       value={{
+        gamePositions:
+          typeof gamePositions === "string"
+            ? (JSON.parse(gamePositions) as WebsocketMessage)
+            : gamePositions,
         gameState:
           typeof gameState === "string"
             ? (JSON.parse(gameState) as WebsocketMessage)
             : gameState,
         // Call setPlayerState to update the player state on the serverside.
         setPlayerState: setPlayerState,
+        setPlayerPosition: setPlayerPosition,
       }}
     >
       {children}

@@ -5,12 +5,19 @@ import {
   ModalContainer,
 } from "@/components/Game";
 import { GameLayout } from "@/components/Game/game.layout";
-import { WebGameProvider } from "@/lib/contexts/WebGameProvider";
+import { WebGameProvider, useWebGame } from "@/lib/contexts/WebGameProvider";
 import { Box, Flex, useDisclosure } from "@chakra-ui/react";
 import styled from "@emotion/styled";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export type ModalType = "hand" | "discard" | "deck" | "commit" | false;
+export type PositionType = {
+  id: string;
+  x: number;
+  y: number;
+  r: number;
+  color?: string;
+};
 const GamePage = () => {
   const disclosure = useDisclosure();
   const [modalType, setModalType] = useState<ModalType>(false);
@@ -18,7 +25,7 @@ const GamePage = () => {
   const [testmove, setTestmove] = useState([
     { id: "hero", x: 25 + 100, y: 100, r: 10 },
     { id: "sidekick", x: 75 + 100, y: 25, r: 10 },
-    { id: "enemey", x: 125 + 100, y: 25, r: 10 },
+    { id: "enemey", x: 125 + 100, y: 25, r: 10, color: "blue" },
   ]);
 
   useEffect(() => {
@@ -31,42 +38,14 @@ const GamePage = () => {
 
   //@ts-ignore
   const handleKeyPress = (e) => {
-    console.log(e, e === "ArrowRight");
     if (e === "ArrowRight") {
       setTestmove([
         testmove[0],
         testmove[1],
         { id: "enemy", x: testmove[2].x + 25, y: testmove[2].y, r: 10 },
+        { id: "enemy2", x: testmove[2].x + 30, y: testmove[2].y, r: 10 },
       ]);
     }
-
-    if (e === "ArrowLeft") {
-      setTestmove([
-        testmove[0],
-        testmove[1],
-        { id: "enemy", x: testmove[2].x - 25, y: testmove[2].y, r: 10 },
-      ]);
-    }
-
-    if (e === "ArrowUp") {
-      setTestmove([
-        testmove[0],
-        testmove[1],
-        { id: "enemy", x: testmove[2].x, y: testmove[2].y - 25, r: 10 },
-      ]);
-    }
-
-    if (e === "ArrowDown") {
-      setTestmove([
-        testmove[0],
-        testmove[1],
-        { id: "enemy", x: testmove[2].x, y: testmove[2].y + 25, r: 10 },
-      ]);
-    }
-
-    // if (e === "Escape") {
-    //   setModalType(false);
-    // }
   };
 
   return (
@@ -97,12 +76,24 @@ const BoardContainer = ({ boardState }) => {
     if (!window) return;
   });
 
+  const { gamePositions, setPlayerPosition } = useWebGame();
+  console.log({ gamePositions, setPlayerPosition });
+
+  const setGamePosition = (props: string[]) => {
+    console.log("sending to gameposition", props);
+    //@ts-ignore
+    setPlayerPosition.current(props);
+  };
+
   return (
     <Box h={"100%"}>
       <BoardCanvas
         src="jpark.svg"
         move={(e: any) => {
           // console.log("move", e);
+
+          console.log("lllll", { gamePositions });
+          setGamePosition(e);
         }}
         data={boardState}
         // data={[
