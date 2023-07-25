@@ -1,3 +1,4 @@
+import { PositionType } from "@/components/Positions/position.type";
 import {
   WebsocketMessage,
   pingMessage,
@@ -19,7 +20,7 @@ export interface WebsocketProps {
 
 export interface WebsocketReturn {
   updateMyPlayerState: (state: PlayerState) => void;
-  updateMyPlayerPosition: (state: string[]) => void;
+  updateMyPlayerPosition: (state: PositionType[]) => void;
 }
 
 const js = (e: any) => JSON.stringify(e);
@@ -83,7 +84,7 @@ export const initializeWebsocket = ({
         } as WebsocketMessage)
       );
     },
-    updateMyPlayerPosition: (state: string[]): void => {
+    updateMyPlayerPosition: (state: PositionType[]): void => {
       if (!state) {
         // TODO: Idk why this happens, but some undedfined state is being passed in
         return;

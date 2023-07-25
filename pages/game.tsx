@@ -6,20 +6,13 @@ import {
 } from "@/components/Game";
 import { GameLayout } from "@/components/Game/game.layout";
 import { PositionModal } from "@/components/Positions/position.modal";
+import { PositionType } from "@/components/Positions/position.type";
 import { WebGameProvider, useWebGame } from "@/lib/contexts/WebGameProvider";
 import { Box, Flex, useDisclosure } from "@chakra-ui/react";
 import styled from "@emotion/styled";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 export type ModalType = "hand" | "discard" | "deck" | "commit" | false;
-export type PositionType = {
-  id: string;
-  x: number;
-  y: number;
-  r?: number;
-  tokenSize?: "sm" | "md" | "lg";
-  color?: string;
-};
 
 const GamePage = () => {
   const disclosure = useDisclosure();
@@ -84,8 +77,7 @@ const BoardContainer = ({ boardState }) => {
   const { gamePositions, setPlayerPosition } = useWebGame();
   console.log({ gamePositions, setPlayerPosition });
 
-  const setGamePosition = (props: string[]) => {
-    console.log("sending to gameposition", props);
+  const setGamePosition = (props: PositionType[]) => {
     //@ts-ignore
     setPlayerPosition.current(props);
   };
@@ -127,23 +119,6 @@ const ModalButton = styled(Flex)`
   }
 `;
 
-// @Dean: These are the two hooks you need to use to read and write to the game state.
-// If this works, we can make a different state for the cursor to reduce payloads shared.
-// This state payload is the entire game state, so it's a lot of data.
-
-// const { gameState, setPlayerState } = useWebGame();
-
-// To update your state. If you uncomment this, you get into and infinite loop.
-// setPlayerState()({
-//   stuff: "ok",
-// })
-
-// To read the new game state from the server
-// useEffect(() => {
-//   console.log("gameState changed", gameState);
-// }, [gameState]);
-//
-//
 type KeyboardListenerProps = {
   onKeyPress: (key: string) => void;
 };
