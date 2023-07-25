@@ -3,6 +3,7 @@ import { Box } from "@chakra-ui/react";
 import * as d3 from "d3";
 import { RefObject, useEffect, useRef, useState } from "react";
 import { RepeatIcon } from "@chakra-ui/icons";
+import { Size } from "../Positions/position.type";
 
 export interface Circle {
   x: number;
@@ -61,12 +62,15 @@ export const BoardCanvas: React.FC<BoardProps> = ({
     }
     const g = d3.select(gRef.current);
 
+    const getSize = (size: Size) =>
+      size === "lg" ? 30 : size === "md" ? 20 : 10;
+
     g.selectAll<SVGCircleElement, Circle>("circle")
       .data(data)
       .join("circle")
       .attr("cx", ({ x }) => x)
       .attr("cy", ({ y }) => y)
-      .attr("r", radius)
+      .attr("r", ({ tokenSize }) => (tokenSize ? getSize(tokenSize) : 15))
       .attr("fill", ({ color }) => color && color)
       .attr("opacity", ({ id }) => (id === "hero" ? 1 : 0.5))
       .filter(({ id }) => {

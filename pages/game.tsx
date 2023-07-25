@@ -19,10 +19,10 @@ const GamePage = () => {
   const positionDisclosure = useDisclosure();
   const [modalType, setModalType] = useState<ModalType>(false);
 
-  const [testmove, setTestmove] = useState([
-    { id: "hero", x: 25 + 100, y: 100, r: 10 },
-    { id: "sidekick", x: 75 + 100, y: 25, r: 10 },
-    { id: "enemey", x: 125 + 100, y: 25, r: 10, color: "blue" },
+  const [testmove, setTestmove] = useState<PositionType[]>([
+    { id: "hero", x: 25 + 100, y: 100, tokenSize: "lg" },
+    { id: "sidekick", x: 75 + 100, y: 25, tokenSize: "md" },
+    { id: "enemey", x: 125 + 100, y: 25, tokenSize: "sm", color: "blue" },
   ]);
 
   useEffect(() => {
