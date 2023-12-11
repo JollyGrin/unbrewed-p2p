@@ -4,11 +4,12 @@ import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import { useScroll } from "@/lib/hooks";
 import { PoolType } from "@/components/DeckPool/PoolFns";
 import { PlayerBox } from "./header.components";
-import { Carousel } from "../game.carousel";
-import { RefObject, useEffect, useMemo, useRef } from "react";
+import { FC, useEffect, useRef } from "react";
 import { CarouselTray } from "../game.styles";
 
-export const HeaderContainer = () => {
+export const HeaderContainer: FC<{ openPositionModal: () => void }> = ({
+  openPositionModal,
+}) => {
   const carouselRef = useRef();
   const localName = useRouter().query?.name;
   const player = Array.isArray(localName) ? localName[0] : localName;
@@ -63,6 +64,7 @@ export const HeaderContainer = () => {
                   isLocal={player === playerName}
                   playerState={players[playerName] as { pool: PoolType }}
                   setGameState={setGameState}
+                  openPositionModal={openPositionModal}
                 />
               )}
             </Flex>

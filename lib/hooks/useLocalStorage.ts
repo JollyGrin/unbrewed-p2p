@@ -58,8 +58,6 @@ export const useLocalServerStorage = () => {
     setServerList(servers);
   };
 
-  console.log("this changes", activeServer.substring(0, 12));
-
   return {
     activeServer,
     getLocalActiveServer: () => activeServer,
