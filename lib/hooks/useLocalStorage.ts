@@ -93,7 +93,6 @@ export const useLocalDeckStorage = () => {
         setDeckKb(kb);
       }
     }
-    console.log("Total = " + (_lsTotal / 1024).toFixed(2) + " KB");
     setTotalKbLeft(+(_lsTotal / 1024).toFixed(2));
   }, []);
 

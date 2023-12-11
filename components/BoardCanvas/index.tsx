@@ -74,7 +74,6 @@ export const BoardCanvas: React.FC<BoardProps> = ({
       // TODO: replace this to limit which token the user can control
       .attr("opacity", ({ id }) => (id === (self as string) ? 1 : 0.75))
       .filter(({ id }) => {
-        console.log("ppp", id);
         return id === self;
       })
       .call(
@@ -117,20 +116,7 @@ export const BoardCanvas: React.FC<BoardProps> = ({
         .attr("cx", (d.x = event.x))
         .attr("cy", (d.y = event.y));
 
-      console.log("event", [event.x, event.y], event.subject.id);
       move({ id: event.subject.id, x: event.x, y: event.y });
-      // // TODO: replace with websocket
-      // console.log(
-      //   "replace with move() function callback to websocket",
-      //   data.map((circle) => {
-      //     if (circle.id !== d.id) return circle;
-      //     return {
-      //       ...circle,
-      //       x: event.x,
-      //       y: event.y,
-      //     };
-      //   })
-      // );
     }
 
     function dragended() {

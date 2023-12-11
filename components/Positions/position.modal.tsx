@@ -40,8 +40,6 @@ export const PositionModal: FC<{
 
   const { gamePositions, setPlayerPosition } = useWebGame();
 
-  console.log({ gamePositions, name, selectedColor, selectedSize });
-
   const _setGamePosition = (props: PositionType) => {
     setPlayerPosition.current(props);
   };
