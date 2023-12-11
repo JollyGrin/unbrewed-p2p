@@ -1,13 +1,11 @@
-import { mockDeck } from "@/_mocks_/deck";
 import { BoardCanvas, Circle } from "@/components/BoardCanvas";
-import { CardFactory } from "@/components/CardFactory/card.factory";
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import { useState } from "react";
 
 const initData: Circle[] = [
-  { id: "hero", x: 200, y: 500, r: 10 },
-  { id: "sidekick", x: 200, y: 300, r: 10 },
-  { id: "enemey", x: 200, y: 400, r: 10 },
+  { id: "hero", x: 200, y: 500 },
+  { id: "sidekick", x: 200, y: 300 },
+  { id: "enemey", x: 200, y: 400 },
 ];
 
 const BoardPage = () => {
