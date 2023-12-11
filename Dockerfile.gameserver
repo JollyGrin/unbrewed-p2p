@@ -8,12 +8,13 @@ RUN apt-get update \
 WORKDIR /appserver
 
 # Populate the rest of the source
-COPY . .
+COPY gameserver .
 
 
 # Build and install unmatched-online
 RUN go build
+RUN chmod +x gameserver
 
-ENTRYPOINT ["./gameserver"]
+ENTRYPOINT ["./unbrewed-server"]
 
 EXPOSE 1111
