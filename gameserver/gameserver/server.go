@@ -29,6 +29,7 @@ func NewGameServer() *GameServer {
 	gs := new(GameServer)
 	gs.HTTPServer = &http.Server{}
 	gs.Rooms = make(map[string]*Room)
+	gs.ctx = context.Background()
 
 	return gs
 }
@@ -42,6 +43,7 @@ func (gs *GameServer) Serve(ctx context.Context) error {
 	gs.HTTPServer.Handler = handlers.CORS()(gs.Mux)
 	gs.HTTPServer.Addr = "0.0.0.0:1111"
 	go gs.GarbageCollector(ctx)
+	gs.ctx = ctx
 
 	return gs.HTTPServer.ListenAndServe()
 }
@@ -131,6 +133,7 @@ func (gs *GameServer) GarbageCollector(ctx context.Context) {
 		gs.roomLock.Lock()
 		closed := 0
 		for gid, room := range gs.Rooms {
+			room.mutex.Lock()
 			if time.Since(room.FieldState.LastUpdate) > time.Hour*12 {
 				// Close the room to kill any active go routines, all clients
 				// will be disconnected if present.
@@ -143,7 +146,7 @@ func (gs *GameServer) GarbageCollector(ctx context.Context) {
 				}).Info("room removed due to inactivity")
 				closed++
 			}
-			var _ = gid
+			room.mutex.Unlock()
 		}
 		gs.roomLock.Unlock()
 
