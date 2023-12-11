@@ -1,4 +1,4 @@
-import { Box, Flex, Skeleton, Spacer } from "@chakra-ui/react";
+import { Flex, Skeleton, Spacer } from "@chakra-ui/react";
 import { useRouter } from "next/router";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import { useScroll } from "@/lib/hooks";
@@ -35,7 +35,7 @@ export const HeaderContainer: FC<{ openPositionModal: () => void }> = ({
     if (!carouselRef?.current) return;
     //@ts-ignore
     setRef(carouselRef);
-  }, [carouselRef]);
+  }, [carouselRef, setRef]);
 
   return (
     <Flex

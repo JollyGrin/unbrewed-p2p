@@ -34,8 +34,6 @@ export const BoardCanvas: React.FC<BoardProps> = ({
   const parentRef: RefObject<> = useRef();
   const canvasRef: RefObject<SVGSVGElement> = useRef(null);
   const gRef = useRef<SVGGElement | null>(null);
-  const [w, setW] = useState<number>(100);
-  const [h, setH] = useState<number>(100);
 
   // HACK: toggle boolean to trigger useEffect
   const [updateCanvas, setUpdateCanvas] = useState<boolean>(false);
@@ -49,8 +47,6 @@ export const BoardCanvas: React.FC<BoardProps> = ({
     const width = parent.offsetWidth;
     const height = parent.offsetHeight;
 
-    setW(width);
-    setH(height);
     const canvas = d3
       .select<SVGSVGElement, Circle[]>(canvasRef.current)
       .attr("width", width)
@@ -130,7 +126,7 @@ export const BoardCanvas: React.FC<BoardProps> = ({
         // change the stroke-width attribute to 5
         .attr("stroke-width", 0);
     }
-  }, [data, updateCanvas, parentRef]);
+  }, [data, updateCanvas, parentRef, move, self]);
 
   return (
     <Box h="100%" w="100%" ref={parentRef}>
