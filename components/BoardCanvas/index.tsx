@@ -143,15 +143,12 @@ export const BoardCanvas: React.FC<BoardProps> = ({
       />
       <svg
         ref={canvasRef}
-        style={
-          {
-            // borderBottom: "1px solid rgba(0,0,0,0.25)",
-            // margin: "0 auto",
-            // boxShadow: "0 10px 20px rgba(0,0,0,0.4)",
-            // borderRadius: "0.5rem",
-            // backgroundColor: "ghostwhite",
-          }
-        }
+        style={{
+          borderBottom: "1px solid rgba(0,0,0,0.25)",
+          margin: "0 auto",
+          boxShadow: "0 10px 20px rgba(0,0,0,0.4)",
+          backgroundColor: "ghostwhite",
+        }}
       >
         <image
           xlinkHref={src}
