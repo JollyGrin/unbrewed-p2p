@@ -72,7 +72,7 @@ export const BoardCanvas: React.FC<BoardProps> = ({
       .attr("r", ({ tokenSize }) => (tokenSize ? getSize(tokenSize) : 15))
       .attr("fill", ({ color }) => color && color)
       // TODO: replace this to limit which token the user can control
-      .attr("opacity", ({ id }) => (id === (self as string) ? 1 : 0.5))
+      .attr("opacity", ({ id }) => (id === (self as string) ? 1 : 0.75))
       .filter(({ id }) => {
         console.log("ppp", id);
         return id === self;
