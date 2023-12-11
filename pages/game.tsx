@@ -57,7 +57,6 @@ const GamePage = () => {
           {isReady && <BoardContainer self={query?.name as string} />}
           <HandContainer setModal={setModalType} />
         </GameLayout>
-
         <KeyboardListener onKeyPress={handleKeyPress} />
       </WebGameProvider>
     </>
@@ -80,8 +79,6 @@ const BoardContainer = ({ self }: { self?: string }) => {
   });
 
   const _setGamePosition = (props: PositionType) => {
-    // TODO: check if the type needs to be updated to remove ts expect error
-    //@ts-expect-error: figure out why it works without Array type
     setPlayerPosition.current(props);
   };
   const setGamePosition = useCallback(_setGamePosition, [setPlayerPosition]);
