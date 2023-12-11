@@ -3,11 +3,12 @@ import { Box } from "@chakra-ui/react";
 import * as d3 from "d3";
 import { RefObject, useEffect, useRef, useState } from "react";
 import { RepeatIcon } from "@chakra-ui/icons";
+import { Size } from "../Positions/position.type";
 
 export interface Circle {
   x: number;
   y: number;
-  r: number;
+  tokenSize?: Size;
   startX?: number;
   startY?: number;
   id?: string;
@@ -15,18 +16,20 @@ export interface Circle {
 const defaultData: Circle[] = [
   { id: "hero", x: 25, y: 25, r: 10 },
   { id: "sidekick", x: 75, y: 25, r: 10 },
-  { id: "enemey", x: 125, y: 25, r: 10 },
+  // { id: "enemey", x: 125, y: 25, r: 10 },
 ];
 
 type BoardProps = {
   src: `${string}.svg`;
   data?: Circle[];
   move?: any;
+  self?: string;
 };
 export const BoardCanvas: React.FC<BoardProps> = ({
   src = "jpark.svg",
   data = defaultData,
   move,
+  self,
 }) => {
   const parentRef: RefObject<> = useRef();
   const canvasRef: RefObject<SVGSVGElement> = useRef(null);
@@ -53,21 +56,27 @@ export const BoardCanvas: React.FC<BoardProps> = ({
       .attr("width", width)
       .attr("height", height);
 
-    const radius = 13;
-    // const radius = w * 0.03;
-
     if (!gRef.current) {
       gRef.current = canvas.append("g").attr("cursor", "grab").node();
     }
     const g = d3.select(gRef.current);
+
+    const getSize = (size: Size) =>
+      size === "lg" ? 30 : size === "md" ? 20 : 10;
 
     g.selectAll<SVGCircleElement, Circle>("circle")
       .data(data)
       .join("circle")
       .attr("cx", ({ x }) => x)
       .attr("cy", ({ y }) => y)
-      .attr("r", radius)
-      // .attr("fill", (d, i) => d3.interpolateRainbow(i / 360))
+      .attr("r", ({ tokenSize }) => (tokenSize ? getSize(tokenSize) : 15))
+      .attr("fill", ({ color }) => color && color)
+      // TODO: replace this to limit which token the user can control
+      .attr("opacity", ({ id }) => (id === (self as string) ? 1 : 0.5))
+      .filter(({ id }) => {
+        console.log("ppp", id);
+        return id === self;
+      })
       .call(
         d3
           .drag<SVGCircleElement, Circle>()
@@ -108,10 +117,8 @@ export const BoardCanvas: React.FC<BoardProps> = ({
         .attr("cx", (d.x = event.x))
         .attr("cy", (d.y = event.y));
 
-      const scaleX = 1600 / w;
-      const scaleY = 856 / h;
-
-      console.log("event", [event.x, event.y]);
+      console.log("event", [event.x, event.y], event.subject.id);
+      move({ id: event.subject.id, x: event.x, y: event.y });
       // // TODO: replace with websocket
       // console.log(
       //   "replace with move() function callback to websocket",
@@ -164,7 +171,6 @@ export const BoardCanvas: React.FC<BoardProps> = ({
           }
         }
       >
-        {console.log("xxxxx", [w, h])}
         <image
           xlinkHref={src}
           // width={w * 1}

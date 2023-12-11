@@ -12,7 +12,7 @@ import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
 import { Box, Flex, Grid, Skeleton } from "@chakra-ui/react";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
-import { Carousel, HandCardItems, cardItemMapper } from "../game.carousel";
+import { HandCardItems } from "../game.carousel";
 import styled from "@emotion/styled";
 import { flow } from "lodash";
 import { CarouselTray } from "../game.styles";

@@ -1,3 +1,4 @@
+import { PositionType } from "@/components/Positions/position.type";
 import {
   WebsocketMessage,
   pingMessage,
@@ -14,10 +15,12 @@ export interface WebsocketProps {
   connectURL: URL;
   // Callbacks
   onGameState: (state: string) => void;
+  onGamePositions: (state: string) => void;
 }
 
 export interface WebsocketReturn {
   updateMyPlayerState: (state: PlayerState) => void;
+  updateMyPlayerPosition: (state: PositionType[]) => void;
 }
 
 const js = (e: any) => JSON.stringify(e);
@@ -28,6 +31,7 @@ export const initializeWebsocket = ({
   gid,
   connectURL,
   onGameState,
+  onGamePositions,
 }: WebsocketProps): WebsocketReturn => {
   const url = new URL(`/ws/${gid}`, connectURL);
 
@@ -49,14 +53,16 @@ export const initializeWebsocket = ({
       case "gamestate":
         onGameState(event.data as string);
         return;
+      case "playerposition":
+        onGamePositions(event.data as string);
+        return;
     }
-    console.log("msg", data);
   };
   ws.onerror = (event: any): void => {
-    console.log("error", js(event.data));
+    console.error("error", js(event.data));
   };
   ws.onclose = (event: any): void => {
-    console.log("close", js(event.data));
+    console.info("close", js(event.data));
   };
 
   return {
@@ -68,11 +74,26 @@ export const initializeWebsocket = ({
       if (ws.readyState !== ws.OPEN) {
         throw new Error("Websocket not open");
       }
-      console.log("sending", state);
       ws.send(
         //@ts-ignore
         js({
           msgtype: "playerstate",
+          content: state,
+        } as WebsocketMessage)
+      );
+    },
+    updateMyPlayerPosition: (state: PositionType[]): void => {
+      if (!state) {
+        // TODO: Idk why this happens, but some undedfined state is being passed in
+        return;
+      }
+      if (ws.readyState !== ws.OPEN) {
+        throw new Error("Websocket not open");
+      }
+      ws.send(
+        //@ts-ignore
+        js({
+          msgtype: "playerposition",
           content: state,
         } as WebsocketMessage)
       );
