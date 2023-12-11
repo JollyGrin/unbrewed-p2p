@@ -231,6 +231,7 @@ func (r *Room) PlayerJoin(c *websocket.Conn, name string) error {
 	r.Clients[name] = player
 	if _, ok := r.FieldState.Players[name]; !ok {
 		r.FieldState.Players[name] = []byte("{}")
+		r.FieldState.LastUpdate = time.Now()
 	}
 
 	go r.PlayerListener(player, r.ctx)
