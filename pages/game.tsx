@@ -8,6 +8,7 @@ import { GameLayout } from "@/components/Game/game.layout";
 import { PositionModal } from "@/components/Positions/position.modal";
 import { PositionType } from "@/components/Positions/position.type";
 import { WebGameProvider, useWebGame } from "@/lib/contexts/WebGameProvider";
+import useDelayedTrue from "@/lib/hooks/useDelay";
 import { Box, useDisclosure } from "@chakra-ui/react";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
@@ -19,6 +20,8 @@ const GamePage = () => {
   const disclosure = useDisclosure();
   const positionDisclosure = useDisclosure();
   const [modalType, setModalType] = useState<ModalType>(false);
+
+  const isReady = useDelayedTrue(1000);
 
   // NOTE: Next step is to link the boardstate to the websocket data
   // 1. link the modal picker to your init of tokens
@@ -51,7 +54,7 @@ const GamePage = () => {
             setModalType={setModalType}
           />
           <HeaderContainer openPositionModal={positionDisclosure.onOpen} />
-          <BoardContainer self={query?.name as string} />
+          {isReady && <BoardContainer self={query?.name as string} />}
           <HandContainer setModal={setModalType} />
         </GameLayout>
 
@@ -84,6 +87,7 @@ const BoardContainer = ({ self }: { self?: string }) => {
   const setGamePosition = useCallback(_setGamePosition, [setPlayerPosition]);
 
   useEffect(() => {
+    console.log({ gameState });
     if (!self) return;
     if (!window) return;
     if (gameState === undefined) return;
