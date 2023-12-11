@@ -5,19 +5,12 @@ import {
   PropsWithChildren,
   FC,
   useContext,
-  useCallback,
   useRef,
   MutableRefObject,
 } from "react";
-import {
-  PlayerState,
-  GameState,
-  WebsocketMessage,
-} from "../gamesocket/message";
+import { PlayerState, WebsocketMessage } from "../gamesocket/message";
 import { initializeWebsocket } from "../gamesocket/socket";
 import { useRouter } from "next/router";
-import { useQuery } from "@tanstack/react-query";
-import axios from "axios";
 import { PoolType } from "@/components/DeckPool/PoolFns";
 import { useLocalServerStorage } from "../hooks";
 import { PositionType } from "@/components/Positions/position.type";
@@ -37,24 +30,16 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
   const router = useRouter();
   const slug = router.query;
 
-  const { activeServer, defaultServer } = useLocalServerStorage();
+  const { activeServer } = useLocalServerStorage();
 
   // gameState is updated from the websocket return.
   const [gameState, setGameState] = useState<string>();
   const [gamePositions, setGamePositions] = useState<string>();
-  // const setPlayerPosition = useCallback((props: number[]) => {
-  //   console.log("No game started yet");
-  // }, []);
 
   const [setPlayerState, setPlayerStatefn] = useState<
     () => (ps: PlayerState) => void
   >(() => () => {});
 
-  // const [setPlayerPosition, setPlayerPositionFn] = useState<
-  //   () => (pos: number[]) => void
-  // >(() => () => {});
-
-  const lat = useRef(null);
   const setPlayerPosition = useRef((props: PositionType[]) => {});
 
   // This should only happen once

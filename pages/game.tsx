@@ -8,10 +8,9 @@ import { GameLayout } from "@/components/Game/game.layout";
 import { PositionModal } from "@/components/Positions/position.modal";
 import { PositionType } from "@/components/Positions/position.type";
 import { WebGameProvider, useWebGame } from "@/lib/contexts/WebGameProvider";
-import { Box, Flex, useDisclosure } from "@chakra-ui/react";
-import styled from "@emotion/styled";
+import { Box, useDisclosure } from "@chakra-ui/react";
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export type ModalType = "hand" | "discard" | "deck" | "commit" | false;
 
@@ -64,7 +63,7 @@ const GamePage = () => {
             setModalType={setModalType}
           />
           <HeaderContainer openPositionModal={positionDisclosure.onOpen} />
-          <BoardContainer boardState={testmove} self={query?.name as string} />
+          <BoardContainer self={query?.name as string} />
           <HandContainer setModal={setModalType} />
         </GameLayout>
 
@@ -76,13 +75,7 @@ const GamePage = () => {
 
 export default GamePage;
 
-const BoardContainer = ({
-  boardState,
-  self,
-}: {
-  boardState: PositionType[];
-  self?: string;
-}) => {
+const BoardContainer = ({ self }: { self?: string }) => {
   useEffect(() => {
     if (!window) return;
   });
@@ -95,9 +88,11 @@ const BoardContainer = ({
     return gamePosition as PositionType;
   });
 
-  const setGamePosition = (props: PositionType) => {
+  const _setGamePosition = (props: PositionType) => {
+    //@ts-expect-error: figure out why it works without Array type
     setPlayerPosition.current(props);
   };
+  const setGamePosition = useCallback(_setGamePosition, [setPlayerPosition]);
 
   useEffect(() => {
     if (!self) return;
@@ -125,22 +120,6 @@ const BoardContainer = ({
     </Box>
   );
 };
-
-const ModalButton = styled(Flex)`
-  background-color: antiquewhite;
-  justify-content: center;
-  align-items: center;
-  height: 5svh;
-  font-family: Space Grotesk;
-  font-weight: 700;
-  width: 100%;
-  max-width: 250px;
-  cursor: pointer;
-
-  :hover {
-    background-color: burlywood;
-  }
-`;
 
 type KeyboardListenerProps = {
   onKeyPress: (key: string) => void;
