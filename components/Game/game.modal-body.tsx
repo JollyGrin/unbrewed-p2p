@@ -12,7 +12,6 @@ export const DeckModalContent = ({
   const [isHover, setIsHover] = useState<number>();
   const onEnter = (num: number) => setIsHover(num);
   const onLeave = () => setIsHover(undefined);
-  console.log({ isHover });
   return (
     <Grid gridTemplateColumns={"repeat(auto-fit, minmax(250px,1fr))"} gap={1}>
       {cards?.map((card, index) => (
