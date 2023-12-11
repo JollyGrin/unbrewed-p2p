@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/Emyrk/unbrewed-server/gameserver"
@@ -8,5 +9,7 @@ import (
 
 func main() {
 	gs := gameserver.NewGameServer()
-	fmt.Println(gs.Serve())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	fmt.Println(gs.Serve(ctx))
 }
