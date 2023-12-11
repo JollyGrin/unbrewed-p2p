@@ -1,5 +1,4 @@
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
-import { DeckImportDataType } from "@/components/DeckPool/deck-import.type";
 import { useEffect, useState } from "react";
 
 export const LS_KEY = {

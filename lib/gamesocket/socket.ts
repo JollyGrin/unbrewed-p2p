@@ -4,7 +4,6 @@ import {
   pingMessage,
   pongMessage,
   PlayerState,
-  GameState,
 } from "./message";
 
 export interface WebsocketProps {
