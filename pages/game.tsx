@@ -8,6 +8,7 @@ import { GameLayout } from "@/components/Game/game.layout";
 import { PositionModal } from "@/components/Positions/position.modal";
 import { PositionType } from "@/components/Positions/position.type";
 import { WebGameProvider, useWebGame } from "@/lib/contexts/WebGameProvider";
+import useDelayedTrue from "@/lib/hooks/useDelay";
 import { Box, useDisclosure } from "@chakra-ui/react";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
@@ -20,11 +21,7 @@ const GamePage = () => {
   const positionDisclosure = useDisclosure();
   const [modalType, setModalType] = useState<ModalType>(false);
 
-  const [testmove, setTestmove] = useState<PositionType[]>([
-    { id: "hero", x: 25 + 100, y: 100, tokenSize: "lg" },
-    { id: "sidekick", x: 75 + 100, y: 25, tokenSize: "md" },
-    { id: "enemey", x: 125 + 100, y: 25, tokenSize: "sm", color: "blue" },
-  ]);
+  const isReady = useDelayedTrue(1000);
 
   // NOTE: Next step is to link the boardstate to the websocket data
   // 1. link the modal picker to your init of tokens
@@ -38,17 +35,11 @@ const GamePage = () => {
     } else {
       disclosure.onClose();
     }
-  }, [modalType]);
+  }, [modalType, disclosure]);
 
-  //@ts-ignore
-  const handleKeyPress = (e) => {
+  const handleKeyPress = (e: string) => {
     if (e === "ArrowRight") {
-      setTestmove([
-        testmove[0],
-        testmove[1],
-        { id: "enemy", x: testmove[2].x + 25, y: testmove[2].y, r: 10 },
-        { id: "enemy2", x: testmove[2].x + 30, y: testmove[2].y, r: 10 },
-      ]);
+      console.info("replace me");
     }
   };
 
@@ -63,7 +54,7 @@ const GamePage = () => {
             setModalType={setModalType}
           />
           <HeaderContainer openPositionModal={positionDisclosure.onOpen} />
-          <BoardContainer self={query?.name as string} />
+          {isReady && <BoardContainer self={query?.name as string} />}
           <HandContainer setModal={setModalType} />
         </GameLayout>
 
@@ -89,12 +80,14 @@ const BoardContainer = ({ self }: { self?: string }) => {
   });
 
   const _setGamePosition = (props: PositionType) => {
+    // TODO: check if the type needs to be updated to remove ts expect error
     //@ts-expect-error: figure out why it works without Array type
     setPlayerPosition.current(props);
   };
   const setGamePosition = useCallback(_setGamePosition, [setPlayerPosition]);
 
   useEffect(() => {
+    console.log({ gameState });
     if (!self) return;
     if (!window) return;
     if (gameState === undefined) return;

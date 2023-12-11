@@ -40,7 +40,7 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
     () => (ps: PlayerState) => void
   >(() => () => {});
 
-  const setPlayerPosition = useRef((props: PositionType[]) => {});
+  const setPlayerPosition = useRef((_: PositionType[]) => {});
 
   // This should only happen once
   useEffect(() => {
@@ -54,8 +54,6 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
       );
     }
 
-    // This serverURL should come from somewhere else.
-    // const serverURL = new URL("http://localhost:1111");
     const serverURL = new URL(activeServer);
     const { updateMyPlayerState, updateMyPlayerPosition } = initializeWebsocket(
       {

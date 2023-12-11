@@ -45,20 +45,6 @@ const BoardPage = () => {
       <Box h={"600px"} w={"100%"}>
         <BoardCanvas src={board} data={dynamicData} move={setDynamicData} />
       </Box>
-      {/* <Flex
-        h={"20%"}
-        gap={"25px"}
-        p={"0 2rem"}
-        marginBottom={"-100px"}
-        transform={"translateY(-100px)"}
-        justifyContent={"center"}
-        overflowX={"hidden"}
-      >
-        <CardFactory card={mockDeck.deck_data.cards[0]} />
-        <CardFactory card={mockDeck.deck_data.cards[1]} />
-        <CardFactory card={mockDeck.deck_data.cards[2]} />
-        <CardFactory card={mockDeck.deck_data.cards[3]} />
-      </Flex> */}
     </Box>
   );
 };
