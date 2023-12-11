@@ -87,6 +87,7 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
             : gameState,
         // Call setPlayerState to update the player state on the serverside.
         setPlayerState: setPlayerState,
+        //@ts-expect-error: this type needs to remain an array. Update this when you add more tokens
         setPlayerPosition: setPlayerPosition,
       }}
     >
