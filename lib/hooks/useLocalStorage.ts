@@ -10,7 +10,7 @@ export const LS_KEY = {
 };
 
 export const useLocalServerStorage = () => {
-  const defaultServer = "http://localhost:1111";
+  const defaultServer = "https://unbrewed-v2.fly.dev";
   const [activeServer, setActiveServer] = useState<string>(defaultServer);
   const [serverList, setServerList] = useState<string[]>([]);
 
