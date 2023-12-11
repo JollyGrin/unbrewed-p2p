@@ -56,9 +56,6 @@ export const BoardCanvas: React.FC<BoardProps> = ({
       .attr("width", width)
       .attr("height", height);
 
-    const radius = 13;
-    // const radius = w * 0.03;
-
     if (!gRef.current) {
       gRef.current = canvas.append("g").attr("cursor", "grab").node();
     }
@@ -119,9 +116,6 @@ export const BoardCanvas: React.FC<BoardProps> = ({
       d3.select<SVGCircleElement, Circle>(this)
         .attr("cx", (d.x = event.x))
         .attr("cy", (d.y = event.y));
-
-      const scaleX = 1600 / w;
-      const scaleY = 856 / h;
 
       console.log("event", [event.x, event.y], event.subject.id);
       move({ id: event.subject.id, x: event.x, y: event.y });
