@@ -57,13 +57,12 @@ export const initializeWebsocket = ({
         onGamePositions(event.data as string);
         return;
     }
-    console.log("msg", data);
   };
   ws.onerror = (event: any): void => {
-    console.log("error", js(event.data));
+    console.error("error", js(event.data));
   };
   ws.onclose = (event: any): void => {
-    console.log("close", js(event.data));
+    console.info("close", js(event.data));
   };
 
   return {
@@ -75,7 +74,6 @@ export const initializeWebsocket = ({
       if (ws.readyState !== ws.OPEN) {
         throw new Error("Websocket not open");
       }
-      console.log("sending", state);
       ws.send(
         //@ts-ignore
         js({
@@ -92,7 +90,6 @@ export const initializeWebsocket = ({
       if (ws.readyState !== ws.OPEN) {
         throw new Error("Websocket not open");
       }
-      console.log("sending", state);
       ws.send(
         //@ts-ignore
         js({

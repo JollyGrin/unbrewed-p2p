@@ -10,11 +10,13 @@ import { PositionType } from "@/components/Positions/position.type";
 import { WebGameProvider, useWebGame } from "@/lib/contexts/WebGameProvider";
 import { Box, Flex, useDisclosure } from "@chakra-ui/react";
 import styled from "@emotion/styled";
+import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 
 export type ModalType = "hand" | "discard" | "deck" | "commit" | false;
 
 const GamePage = () => {
+  const { query } = useRouter();
   const disclosure = useDisclosure();
   const positionDisclosure = useDisclosure();
   const [modalType, setModalType] = useState<ModalType>(false);
@@ -62,7 +64,7 @@ const GamePage = () => {
             setModalType={setModalType}
           />
           <HeaderContainer openPositionModal={positionDisclosure.onOpen} />
-          <BoardContainer boardState={testmove} />
+          <BoardContainer boardState={testmove} self={query?.name as string} />
           <HandContainer setModal={setModalType} />
         </GameLayout>
 
@@ -74,36 +76,51 @@ const GamePage = () => {
 
 export default GamePage;
 
-//@ts-ignore
-const BoardContainer = ({ boardState }) => {
+const BoardContainer = ({
+  boardState,
+  self,
+}: {
+  boardState: PositionType[];
+  self?: string;
+}) => {
   useEffect(() => {
     if (!window) return;
   });
 
-  const { gamePositions, setPlayerPosition } = useWebGame();
-  console.log({ gamePositions, setPlayerPosition });
+  const { gamePositions, setPlayerPosition, gameState } = useWebGame();
 
-  const setGamePosition = (props: PositionType[]) => {
-    //@ts-ignore
+  const positions = Object.keys(gamePositions?.content ?? {}).map((key) => {
+    //@ts-expect-error: does not know that key is a keyof gamePositions
+    const gamePosition = gamePositions?.content?.[key];
+    return gamePosition as PositionType;
+  });
+
+  const setGamePosition = (props: PositionType) => {
     setPlayerPosition.current(props);
   };
+
+  useEffect(() => {
+    if (!self) return;
+    if (!window) return;
+    if (gameState === undefined) return;
+    if (positions?.length > 0) return;
+    const defData = {
+      id: self as string,
+      x: 25 + 100,
+      y: 100,
+    };
+    setGamePosition(defData);
+  }, [positions, self, gameState, setGamePosition]);
 
   return (
     <Box h={"100%"}>
       <BoardCanvas
         src="jpark.svg"
-        move={(e: any) => {
-          // console.log("move", e);
-
-          console.log("lllll", { gamePositions });
+        move={(e: PositionType) => {
           setGamePosition(e);
         }}
-        data={boardState}
-        // data={[
-        //   { id: "hero", x: 25 + 100, y: 100, r: 10 },
-        //   { id: "sidekick", x: 75 + 100, y: 25, r: 10 },
-        //   { id: "enemey", x: 125 + 100, y: 25, r: 10 },
-        // ]}
+        data={positions}
+        self={self}
       />
     </Box>
   );
