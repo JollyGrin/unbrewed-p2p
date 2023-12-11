@@ -4,6 +4,6 @@ export type PositionType = {
   x: number;
   y: number;
   r?: number;
-  tokenSize?: Sizes;
+  tokenSize?: Size;
   color?: string;
 };
