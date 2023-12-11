@@ -255,7 +255,6 @@ func (r *Room) HandleMessage(c *PlayerConn, mt int, msg []byte) {
 		msg := r.GetPlayerPositions()
 		r.broadcastAll(websocket.TextMessage, msg)
 		r.mutex.Unlock()
-		log.Info("Player Position Received")
 
 	case MsgTypePlayerState:
 		// Update player state
@@ -265,7 +264,6 @@ func (r *Room) HandleMessage(c *PlayerConn, mt int, msg []byte) {
 		msg := r.GetGameState()
 		r.broadcastAll(websocket.TextMessage, msg)
 		r.mutex.Unlock()
-		log.Info("Player State Received")
 	case MsgTypePing:
 		msg, _ := json.Marshal(GameMessage{
 			MessageType: MsgTypePong,
