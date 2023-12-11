@@ -10,7 +10,7 @@ const useDelayedTrue = (duration = 500) => {
 
     // Cleanup the timeout to avoid potential memory leaks
     return () => clearTimeout(timeoutId);
-  }, []); // Empty dependency array ensures that the effect runs only once
+  }, [duration]); // Empty dependency array ensures that the effect runs only once
 
   return value;
 };
