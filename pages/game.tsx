@@ -20,12 +20,6 @@ const GamePage = () => {
   const positionDisclosure = useDisclosure();
   const [modalType, setModalType] = useState<ModalType>(false);
 
-  const [testmove, setTestmove] = useState<PositionType[]>([
-    { id: "hero", x: 25 + 100, y: 100, tokenSize: "lg" },
-    { id: "sidekick", x: 75 + 100, y: 25, tokenSize: "md" },
-    { id: "enemey", x: 125 + 100, y: 25, tokenSize: "sm", color: "blue" },
-  ]);
-
   // NOTE: Next step is to link the boardstate to the websocket data
   // 1. link the modal picker to your init of tokens
   // 2. edit the operations to work with an array of PostionType[]
@@ -38,17 +32,11 @@ const GamePage = () => {
     } else {
       disclosure.onClose();
     }
-  }, [modalType]);
+  }, [modalType, disclosure]);
 
-  //@ts-ignore
-  const handleKeyPress = (e) => {
+  const handleKeyPress = (e: string) => {
     if (e === "ArrowRight") {
-      setTestmove([
-        testmove[0],
-        testmove[1],
-        { id: "enemy", x: testmove[2].x + 25, y: testmove[2].y, r: 10 },
-        { id: "enemy2", x: testmove[2].x + 30, y: testmove[2].y, r: 10 },
-      ]);
+      console.info("replace me");
     }
   };
 
@@ -89,6 +77,7 @@ const BoardContainer = ({ self }: { self?: string }) => {
   });
 
   const _setGamePosition = (props: PositionType) => {
+    // TODO: check if the type needs to be updated to remove ts expect error
     //@ts-expect-error: figure out why it works without Array type
     setPlayerPosition.current(props);
   };
