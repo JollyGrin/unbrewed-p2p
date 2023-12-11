@@ -9,7 +9,7 @@ processes = []
 dockerfile = "Dockerfile.gameserver"
 
 [deploy]
-strategy = "rolling"
+strategy = "immediate"
 
 [env]
 
