@@ -19,7 +19,7 @@ interface WebGameProviderValue {
   gameState: WebsocketMessage | undefined;
   gamePositions: WebsocketMessage | undefined;
   setPlayerState: () => ({ pool }: { pool: PoolType }) => void;
-  setPlayerPosition: MutableRefObject<(props: PositionType[]) => void>;
+  setPlayerPosition: MutableRefObject<(props: PositionType) => void>;
 }
 
 export const WebGameContext = createContext<WebGameProviderValue | undefined>(
