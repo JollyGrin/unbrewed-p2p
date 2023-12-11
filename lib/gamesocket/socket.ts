@@ -4,7 +4,6 @@ import {
   pingMessage,
   pongMessage,
   PlayerState,
-  GameState,
 } from "./message";
 
 export interface WebsocketProps {
@@ -39,7 +38,7 @@ export const initializeWebsocket = ({
   url.protocol = url.protocol === "http:" ? "ws:" : "wss:";
 
   const ws = new WebSocket(url);
-  ws.onopen = (event: any): void => {
+  ws.onopen = (_: any): void => {
     ws.send(js(pingMessage));
   };
   ws.onmessage = (event: any): void => {
