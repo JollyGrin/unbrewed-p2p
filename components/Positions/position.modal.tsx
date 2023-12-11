@@ -8,19 +8,25 @@ import {
   ModalCloseButton,
   Box,
   Flex,
+  ModalFooter,
+  Button,
 } from "@chakra-ui/react";
-import { FC, useState } from "react";
+import { FC, useCallback, useState } from "react";
 import { MoonIcon, PlusSquareIcon, SunIcon } from "@chakra-ui/icons";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
 
 //@ts-ignore
 import { CirclePicker } from "react-color";
-import { Size } from "./position.type";
+import { PositionType, Size } from "./position.type";
+import { useRouter } from "next/router";
 
 export const PositionModal: FC<{
   isOpen: boolean;
   onClose: () => void;
 }> = ({ isOpen, onClose }) => {
+  const {
+    query: { name },
+  } = useRouter();
   const [isDark, setIsDark] = useState(true);
   const toggle = () => setIsDark(!isDark);
   const bg = isDark ? "purple.900" : "antiquewhite";
@@ -34,9 +40,21 @@ export const PositionModal: FC<{
 
   const { gamePositions, setPlayerPosition } = useWebGame();
 
-  // NOTE: grab the hero/sidekick information and have those be
-  // the starting. This should change the color in the player box
-  // for quick glace reference who is who
+  const _setGamePosition = (props: PositionType) => {
+    setPlayerPosition.current(props);
+  };
+  const setGamePosition = useCallback(_setGamePosition, [setPlayerPosition]);
+  function updateYourColor() {
+    //@ts-expect-error: the name is a key of the positions, but typescript is dumb and im lazy
+    const selected: PositionType = gamePositions?.content?.[name as string];
+    if (!selected) return;
+
+    setGamePosition({
+      ...selected,
+      color: selectedColor,
+      tokenSize: selectedSize,
+    });
+  }
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
@@ -61,12 +79,8 @@ export const PositionModal: FC<{
                 borderRadius="100%"
                 transition="all 0.25s ease-in-out"
                 onClick={() =>
-                  setSelectedSize(
-                    selectedSize === "lg"
-                      ? "md"
-                      : selectedSize === "md"
-                      ? "sm"
-                      : "lg"
+                  setSelectedSize((prev) =>
+                    prev === "lg" ? "md" : prev === "md" ? "sm" : "lg"
                   )
                 }
               />
@@ -82,6 +96,9 @@ export const PositionModal: FC<{
             </Box>
           </Box>
         </ModalBody>
+        <ModalFooter>
+          <Button onClick={updateYourColor}>Apply</Button>
+        </ModalFooter>
       </ModalContent>
     </Modal>
   );

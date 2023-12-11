@@ -12,7 +12,6 @@ export const DeckModalContent = ({
   const [isHover, setIsHover] = useState<number>();
   const onEnter = (num: number) => setIsHover(num);
   const onLeave = () => setIsHover(undefined);
-  console.log({ isHover });
   return (
     <Grid gridTemplateColumns={"repeat(auto-fit, minmax(250px,1fr))"} gap={1}>
       {cards?.map((card, index) => (
@@ -71,7 +70,7 @@ export const CommitModalContent: React.FC<{
 };
 
 const CommitCard: React.FC<{ commit: PlayerCommit }> = ({ commit }) => {
-  const [isHover, setIsHover] = useState<boolean>();
+  const [_, setIsHover] = useState<boolean>();
   if (commit.commit.main === null) return <Box display="none" />;
   const onEnter = () => setIsHover(true);
   const onLeave = () => setIsHover(false);

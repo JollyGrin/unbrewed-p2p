@@ -50,6 +50,7 @@ export const PlayerBox: React.FC<{
       <PlayerTitleBar>
         <Text>{name}</Text>
         <Flex
+          display={isLocal ? "flex" : "none"}
           flexDir="row-reverse"
           alignItems="center"
           gap="0.25rem"

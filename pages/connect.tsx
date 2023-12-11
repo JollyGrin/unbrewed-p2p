@@ -39,8 +39,6 @@ const ConnectPage = () => {
   const { starredDeck } = useLocalDeckStorage();
   const { activeServer, setActiveServer, serverList } = useLocalServerStorage();
 
-  console.log("out", activeServer.substring(0, 12));
-
   // This serverURL should come from somewhere else.
   const serverURL = new URL(activeServer);
 
