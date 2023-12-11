@@ -65,7 +65,7 @@ const GamePage = () => {
 
 export default GamePage;
 
-const BoardContainer = ({ self }: { self?: string }) => {
+const BoardContainer = ({ self }: { self: string }) => {
   useEffect(() => {
     if (!window) return;
   });
@@ -79,16 +79,21 @@ const BoardContainer = ({ self }: { self?: string }) => {
   });
 
   const _setGamePosition = (props: PositionType) => {
-    setPlayerPosition.current(props);
+    //@ts-expect-error: the name is a key of the positions, but typescript is dumb and im lazy
+    const selected: PositionType = gamePositions?.content?.[self as string];
+    setPlayerPosition.current({ ...selected, ...props });
   };
-  const setGamePosition = useCallback(_setGamePosition, [setPlayerPosition]);
+  const setGamePosition = useCallback(_setGamePosition, [
+    setPlayerPosition,
+    gamePositions,
+    self,
+  ]);
 
   useEffect(() => {
-    console.log({ gameState });
     if (!self) return;
     if (!window) return;
     if (gameState === undefined) return;
-    if (positions?.length > 0) return;
+    if (positions?.length !== 0) return;
     const defData = {
       id: self as string,
       x: 25 + 100,
