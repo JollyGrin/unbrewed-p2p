@@ -34,8 +34,6 @@ export const BoardCanvas: React.FC<BoardProps> = ({
   const parentRef: RefObject<> = useRef();
   const canvasRef: RefObject<SVGSVGElement> = useRef(null);
   const gRef = useRef<SVGGElement | null>(null);
-  const [w, setW] = useState<number>(100);
-  const [h, setH] = useState<number>(100);
 
   // HACK: toggle boolean to trigger useEffect
   const [updateCanvas, setUpdateCanvas] = useState<boolean>(false);
@@ -49,8 +47,6 @@ export const BoardCanvas: React.FC<BoardProps> = ({
     const width = parent.offsetWidth;
     const height = parent.offsetHeight;
 
-    setW(width);
-    setH(height);
     const canvas = d3
       .select<SVGSVGElement, Circle[]>(canvasRef.current)
       .attr("width", width)
@@ -72,9 +68,8 @@ export const BoardCanvas: React.FC<BoardProps> = ({
       .attr("r", ({ tokenSize }) => (tokenSize ? getSize(tokenSize) : 15))
       .attr("fill", ({ color }) => color && color)
       // TODO: replace this to limit which token the user can control
-      .attr("opacity", ({ id }) => (id === (self as string) ? 1 : 0.5))
+      .attr("opacity", ({ id }) => (id === (self as string) ? 1 : 0.75))
       .filter(({ id }) => {
-        console.log("ppp", id);
         return id === self;
       })
       .call(
@@ -117,20 +112,7 @@ export const BoardCanvas: React.FC<BoardProps> = ({
         .attr("cx", (d.x = event.x))
         .attr("cy", (d.y = event.y));
 
-      console.log("event", [event.x, event.y], event.subject.id);
       move({ id: event.subject.id, x: event.x, y: event.y });
-      // // TODO: replace with websocket
-      // console.log(
-      //   "replace with move() function callback to websocket",
-      //   data.map((circle) => {
-      //     if (circle.id !== d.id) return circle;
-      //     return {
-      //       ...circle,
-      //       x: event.x,
-      //       y: event.y,
-      //     };
-      //   })
-      // );
     }
 
     function dragended() {
@@ -144,7 +126,7 @@ export const BoardCanvas: React.FC<BoardProps> = ({
         // change the stroke-width attribute to 5
         .attr("stroke-width", 0);
     }
-  }, [data, updateCanvas, parentRef]);
+  }, [data, updateCanvas, parentRef, move, self]);
 
   return (
     <Box h="100%" w="100%" ref={parentRef}>
@@ -161,15 +143,12 @@ export const BoardCanvas: React.FC<BoardProps> = ({
       />
       <svg
         ref={canvasRef}
-        style={
-          {
-            // borderBottom: "1px solid rgba(0,0,0,0.25)",
-            // margin: "0 auto",
-            // boxShadow: "0 10px 20px rgba(0,0,0,0.4)",
-            // borderRadius: "0.5rem",
-            // backgroundColor: "ghostwhite",
-          }
-        }
+        style={{
+          borderBottom: "1px solid rgba(0,0,0,0.25)",
+          margin: "0 auto",
+          boxShadow: "0 10px 20px rgba(0,0,0,0.4)",
+          backgroundColor: "ghostwhite",
+        }}
       >
         <image
           xlinkHref={src}
