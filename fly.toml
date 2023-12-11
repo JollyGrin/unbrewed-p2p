@@ -40,3 +40,8 @@ port = 80
 [[services.ports]]
 handlers = ["tls", "http"]
 port = 443
+
+[[vm]]
+cpu_kind = "shared"
+cpus = 1
+memory_mb = 1024
