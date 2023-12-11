@@ -1,13 +1,11 @@
-import { mockDeck } from "@/_mocks_/deck";
 import { BoardCanvas, Circle } from "@/components/BoardCanvas";
-import { CardFactory } from "@/components/CardFactory/card.factory";
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import { useState } from "react";
 
 const initData: Circle[] = [
-  { id: "hero", x: 200, y: 500, r: 10 },
-  { id: "sidekick", x: 200, y: 300, r: 10 },
-  { id: "enemey", x: 200, y: 400, r: 10 },
+  { id: "hero", x: 200, y: 500 },
+  { id: "sidekick", x: 200, y: 300 },
+  { id: "enemey", x: 200, y: 400 },
 ];
 
 const BoardPage = () => {
@@ -47,20 +45,6 @@ const BoardPage = () => {
       <Box h={"600px"} w={"100%"}>
         <BoardCanvas src={board} data={dynamicData} move={setDynamicData} />
       </Box>
-      {/* <Flex
-        h={"20%"}
-        gap={"25px"}
-        p={"0 2rem"}
-        marginBottom={"-100px"}
-        transform={"translateY(-100px)"}
-        justifyContent={"center"}
-        overflowX={"hidden"}
-      >
-        <CardFactory card={mockDeck.deck_data.cards[0]} />
-        <CardFactory card={mockDeck.deck_data.cards[1]} />
-        <CardFactory card={mockDeck.deck_data.cards[2]} />
-        <CardFactory card={mockDeck.deck_data.cards[3]} />
-      </Flex> */}
     </Box>
   );
 };

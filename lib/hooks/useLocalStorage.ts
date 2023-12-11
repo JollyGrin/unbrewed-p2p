@@ -1,5 +1,4 @@
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
-import { DeckImportDataType } from "@/components/DeckPool/deck-import.type";
 import { useEffect, useState } from "react";
 
 export const LS_KEY = {
@@ -10,7 +9,7 @@ export const LS_KEY = {
 };
 
 export const useLocalServerStorage = () => {
-  const defaultServer = "http://localhost:1111";
+  const defaultServer = "https://unbrewed-v2.fly.dev";
   const [activeServer, setActiveServer] = useState<string>(defaultServer);
   const [serverList, setServerList] = useState<string[]>([]);
 
@@ -57,8 +56,6 @@ export const useLocalServerStorage = () => {
     localStorage.setItem(LS_KEY.SERVER_LIST, JSON.stringify(servers));
     setServerList(servers);
   };
-
-  console.log("this changes", activeServer.substring(0, 12));
 
   return {
     activeServer,

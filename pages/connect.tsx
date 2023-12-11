@@ -42,7 +42,7 @@ const ConnectPage = () => {
   console.log("out", activeServer.substring(0, 12));
 
   // This serverURL should come from somewhere else.
-  const serverURL = new URL(activeServer ?? "http://localhost:1111");
+  const serverURL = new URL(activeServer);
 
   // We need to create the lobby before a websocket can be made.
   // We do this on the connect, as an error from a GET request is easier

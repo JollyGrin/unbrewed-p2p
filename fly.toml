@@ -1,0 +1,47 @@
+app = "unbrewed-v2"
+kill_signal = "SIGINT"
+kill_timeout = 5
+mounts = []
+primary_region = "ams"
+processes = []
+
+[build]
+dockerfile = "Dockerfile.gameserver"
+
+[deploy]
+strategy = "immediate"
+
+[env]
+
+# Should set this up!
+#[[statics]]
+#  guest_path = "/app/public"
+#  url_prefix = "/public"
+
+# Might be nice to add metrics later
+#[metrics]
+#port = 9091       # default for most prometheus clients
+#path = "/metrics" # default for most prometheus clients
+
+[[services]]
+internal_port = 1111
+processes = ["app"]
+protocol = "tcp"
+#[services.concurrency]
+#hard_limit = 25
+#soft_limit = 20
+#type = "connections"
+
+[[services.ports]]
+force_https = true
+handlers = ["http"]
+port = 80
+
+[[services.ports]]
+handlers = ["tls", "http"]
+port = 443
+
+[[vm]]
+cpu_kind = "shared"
+cpus = 1
+memory_mb = 1024

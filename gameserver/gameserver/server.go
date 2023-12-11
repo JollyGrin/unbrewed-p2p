@@ -19,6 +19,7 @@ import (
 type GameServer struct {
 	HTTPServer *http.Server
 	Mux        *mux.Router
+	ctx        context.Context
 
 	roomLock sync.RWMutex
 	Rooms    map[string]*Room
@@ -28,11 +29,12 @@ func NewGameServer() *GameServer {
 	gs := new(GameServer)
 	gs.HTTPServer = &http.Server{}
 	gs.Rooms = make(map[string]*Room)
+	gs.ctx = context.Background()
 
 	return gs
 }
 
-func (gs *GameServer) Serve() error {
+func (gs *GameServer) Serve(ctx context.Context) error {
 	gs.Mux = mux.NewRouter()
 
 	gs.Mux.HandleFunc("/lobby/{gid}", gs.LobbyHandler)
@@ -40,6 +42,8 @@ func (gs *GameServer) Serve() error {
 
 	gs.HTTPServer.Handler = handlers.CORS()(gs.Mux)
 	gs.HTTPServer.Addr = "0.0.0.0:1111"
+	go gs.GarbageCollector(ctx)
+	gs.ctx = ctx
 
 	return gs.HTTPServer.ListenAndServe()
 }
@@ -111,33 +115,48 @@ func (gs *GameServer) CreateLobby(gid string) (bool, error) {
 		return false, nil
 	}
 
-	gs.Rooms[gid] = NewRoom(gid, context.Background())
+	gs.Rooms[gid] = NewRoom(gid, gs.ctx)
 
 	return true, nil
 }
 
 func (gs *GameServer) GarbageCollector(ctx context.Context) {
-	ticker := time.NewTicker(time.Minute)
+	ticker := time.NewTicker(time.Minute * 30)
 	for {
 		select {
 		case <-ctx.Done():
+			return
 		case <-ticker.C:
 		}
 
 		start := time.Now()
 		gs.roomLock.Lock()
+		closed := 0
 		for gid, room := range gs.Rooms {
-			if time.Since(room.FieldState.LastUpdate) > time.Hour {
-				// TODO: Remove room
+			room.mutex.Lock()
+			if time.Since(room.FieldState.LastUpdate) > time.Hour*12 {
+				// Close the room to kill any active go routines, all clients
+				// will be disconnected if present.
+				room.Close()
+				delete(gs.Rooms, gid)
+				log.WithFields(log.Fields{
+					"time":       start,
+					"inactivity": time.Since(room.FieldState.LastUpdate),
+					"gid":        gid,
+				}).Info("room removed due to inactivity")
+				closed++
 			}
-			var _ = gid
+			room.mutex.Unlock()
 		}
 		gs.roomLock.Unlock()
 
-		log.WithFields(log.Fields{
-			"time": time.Now(),
-			"dur":  time.Since(start),
-		}).Info("GC Run")
+		if closed > 0 {
+			log.WithFields(log.Fields{
+				"time":         start,
+				"dur":          time.Since(start),
+				"closed_count": closed,
+			}).Info("GC Run")
+		}
 	}
 }
 
@@ -156,6 +175,7 @@ func NewGameState(gid string) *GameState {
 	gs := new(GameState)
 	gs.Players = make(map[string]json.RawMessage)
 	gs.GameID = gid
+	gs.LastUpdate = time.Now()
 
 	return gs
 }
@@ -214,6 +234,7 @@ func (r *Room) PlayerJoin(c *websocket.Conn, name string) error {
 	r.Clients[name] = player
 	if _, ok := r.FieldState.Players[name]; !ok {
 		r.FieldState.Players[name] = []byte("{}")
+		r.FieldState.LastUpdate = time.Now()
 	}
 
 	go r.PlayerListener(player, r.ctx)
@@ -253,9 +274,9 @@ func (r *Room) HandleMessage(c *PlayerConn, mt int, msg []byte) {
 		r.mutex.Lock()
 		r.PlayerPositions[c.Name] = gm.Content
 		msg := r.GetPlayerPositions()
+		r.FieldState.LastUpdate = time.Now()
 		r.broadcastAll(websocket.TextMessage, msg)
 		r.mutex.Unlock()
-		log.Info("Player Position Received")
 
 	case MsgTypePlayerState:
 		// Update player state
@@ -265,7 +286,6 @@ func (r *Room) HandleMessage(c *PlayerConn, mt int, msg []byte) {
 		msg := r.GetGameState()
 		r.broadcastAll(websocket.TextMessage, msg)
 		r.mutex.Unlock()
-		log.Info("Player State Received")
 	case MsgTypePing:
 		msg, _ := json.Marshal(GameMessage{
 			MessageType: MsgTypePong,
