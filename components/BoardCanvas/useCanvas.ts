@@ -110,12 +110,7 @@ export const useCanvas = ({
 
       //@ts-expect-error: implicit any
       const circle = d3.select<SVGCircleElement, PositionType>(this);
-      // circle.attr("stroke", "red").attr("stroke-width", 0);
-      circle
-        .transition()
-        .duration(350)
-        // change the stroke-width attribute to 5
-        .attr("stroke-width", 0);
+      circle.transition().duration(350).attr("stroke-width", 0);
     }
   }, [data, updateCanvas, parentRef, move, self]);
 };
