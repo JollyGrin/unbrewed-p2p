@@ -1,28 +1,18 @@
-//@ts-nocheck
 import { Box } from "@chakra-ui/react";
 import * as d3 from "d3";
 import { RefObject, useEffect, useRef, useState } from "react";
 import { RepeatIcon } from "@chakra-ui/icons";
-import { Size } from "../Positions/position.type";
+import { PositionType, Size } from "../Positions/position.type";
 
-export interface Circle {
-  x: number;
-  y: number;
-  tokenSize?: Size;
-  startX?: number;
-  startY?: number;
-  id?: string;
-}
-const defaultData: Circle[] = [
+const defaultData: PositionType[] = [
   { id: "hero", x: 25, y: 25, r: 10 },
   { id: "sidekick", x: 75, y: 25, r: 10 },
-  // { id: "enemey", x: 125, y: 25, r: 10 },
 ];
 
 type BoardProps = {
   src: `${string}.svg`;
-  data?: Circle[];
-  move?: any;
+  data?: PositionType[];
+  move?: (e: PositionType) => void;
   self?: string;
 };
 export const BoardCanvas: React.FC<BoardProps> = ({
@@ -31,7 +21,7 @@ export const BoardCanvas: React.FC<BoardProps> = ({
   move,
   self,
 }) => {
-  const parentRef: RefObject<> = useRef();
+  const parentRef: RefObject<any> = useRef();
   const canvasRef: RefObject<SVGSVGElement> = useRef(null);
   const gRef = useRef<SVGGElement | null>(null);
 
@@ -48,7 +38,7 @@ export const BoardCanvas: React.FC<BoardProps> = ({
     const height = parent.offsetHeight;
 
     const canvas = d3
-      .select<SVGSVGElement, Circle[]>(canvasRef.current)
+      .select<SVGSVGElement, PositionType[]>(canvasRef.current)
       .attr("width", width)
       .attr("height", height);
 
@@ -57,16 +47,13 @@ export const BoardCanvas: React.FC<BoardProps> = ({
     }
     const g = d3.select(gRef.current);
 
-    const getSize = (size: Size) =>
-      size === "lg" ? 30 : size === "md" ? 20 : 10;
-
-    g.selectAll<SVGCircleElement, Circle>("circle")
+    g.selectAll<SVGCircleElement, PositionType>("circle")
       .data(data)
       .join("circle")
       .attr("cx", ({ x }) => x)
       .attr("cy", ({ y }) => y)
-      .attr("r", ({ tokenSize }) => (tokenSize ? getSize(tokenSize) : 15))
-      .attr("fill", ({ color }) => color && color)
+      .attr("r", ({ r }) => (r ? r : 15))
+      .attr("fill", ({ color }) => color ?? "black")
       // TODO: replace this to limit which token the user can control
       .attr("opacity", ({ id }) => (id === (self as string) ? 1 : 0.75))
       .filter(({ id }) => {
@@ -74,11 +61,11 @@ export const BoardCanvas: React.FC<BoardProps> = ({
       })
       .call(
         d3
-          .drag<SVGCircleElement, Circle>()
+          .drag<SVGCircleElement, PositionType>()
           .on("start", dragstarted)
           .on("drag", dragged)
           .on("end", dragended)
-          .touchable(true)
+          .touchable(true),
       );
 
     canvas.call(
@@ -93,13 +80,14 @@ export const BoardCanvas: React.FC<BoardProps> = ({
         .on("zoom", ({ transform }) => {
           g.attr("transform", transform);
           canvas.select("image").attr("transform", transform);
-        })
+        }),
     );
 
     function dragstarted(e: { target: any }) {
       d3.select(e.target).raise();
       g.attr("cursor", "grabbing");
-      const circle = d3.select<SVGCircleElement, Circle>(this);
+      //@ts-expect-error: implicit any
+      const circle = d3.select<SVGCircleElement, PositionType>(this);
       circle
         .transition()
         .duration(200)
@@ -107,18 +95,24 @@ export const BoardCanvas: React.FC<BoardProps> = ({
         .attr("stroke-width", 1);
     }
 
-    function dragged(event: DragEvent, d: any) {
-      d3.select<SVGCircleElement, Circle>(this)
+    function dragged(
+      event: DragEvent & { subject: PositionType },
+      d: PositionType,
+    ) {
+      //@ts-expect-error: implicit any
+      d3.select<SVGCircleElement, PositionType>(this)
         .attr("cx", (d.x = event.x))
         .attr("cy", (d.y = event.y));
 
+      if (!move) return;
       move({ id: event.subject.id, x: event.x, y: event.y });
     }
 
     function dragended() {
       g.attr("cursor", "grab");
 
-      const circle = d3.select<SVGCircleElement, Circle>(this);
+      //@ts-expect-error: implicit any
+      const circle = d3.select<SVGCircleElement, PositionType>(this);
       // circle.attr("stroke", "red").attr("stroke-width", 0);
       circle
         .transition()
