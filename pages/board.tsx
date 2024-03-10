@@ -1,8 +1,9 @@
-import { BoardCanvas, Circle } from "@/components/BoardCanvas";
+import { BoardCanvas } from "@/components/BoardCanvas";
+import { PositionType } from "@/components/Positions/position.type";
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import { useState } from "react";
 
-const initData: Circle[] = [
+const initData: PositionType[] = [
   { id: "hero", x: 200, y: 500 },
   { id: "sidekick", x: 200, y: 300 },
   { id: "enemey", x: 200, y: 400 },
@@ -10,7 +11,7 @@ const initData: Circle[] = [
 
 const BoardPage = () => {
   const [board, setBoard] = useState<`${string}.svg`>("jpark.svg");
-  const [dynamicData, setDynamicData] = useState<Circle[]>(initData);
+  const [dynamicData, setDynamicData] = useState<PositionType[]>(initData);
   return (
     <Box bg="darkgoldenrod" h="100vh" p={2}>
       <Flex
@@ -34,7 +35,7 @@ const BoardPage = () => {
                     ...circle,
                     y: circle.y + 10,
                   };
-                })
+                }),
               )
             }
           >
@@ -43,7 +44,8 @@ const BoardPage = () => {
         </Flex>
       </Flex>
       <Box h={"600px"} w={"100%"}>
-        <BoardCanvas src={board} data={dynamicData} move={setDynamicData} />
+        board disabled, use game
+        {/* <BoardCanvas src={board} data={dynamicData} move={setDynamicData} /> */}
       </Box>
     </Box>
   );
