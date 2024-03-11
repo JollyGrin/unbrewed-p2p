@@ -116,7 +116,7 @@ export const PositionModal: FC<{
                 <Box
                   key={kick.id}
                   boxSize="1rem"
-                  bg={kick.color}
+                  bg={selectedColor}
                   borderRadius="100%"
                 />
               ))}
