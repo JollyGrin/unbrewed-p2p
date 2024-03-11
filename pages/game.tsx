@@ -96,7 +96,7 @@ const BoardContainer = ({ self }: { self: string }) => {
     if (positions?.length !== 0) return;
     const defData = {
       id: self as string,
-      x: 25 + 100,
+      x: 50 + 100,
       y: 100,
     };
     setGamePosition(defData);
@@ -107,7 +107,25 @@ const BoardContainer = ({ self }: { self: string }) => {
       <BoardCanvas
         src="jpark.svg"
         move={(e: PositionType) => {
-          setGamePosition(e);
+          if (e.id.includes("_")) {
+            const rootId = e.id.split("_")[0];
+            const selectedPosition = positions.find((pos) => pos.id === rootId);
+            if (!selectedPosition) return;
+            const selectedSidekicks = selectedPosition?.sidekicks;
+            const newSidekicks = selectedSidekicks?.map((kick) =>
+              kick.id === e.id ? e : kick,
+            );
+
+            setGamePosition({
+              ...selectedPosition,
+              sidekicks: newSidekicks,
+            });
+            return;
+          }
+          setGamePosition({
+            ...e,
+            sidekicks: positions.find((pos) => pos.id === e.id)?.sidekicks,
+          });
         }}
         data={positions}
         self={self}

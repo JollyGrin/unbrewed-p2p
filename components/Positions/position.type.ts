@@ -6,4 +6,7 @@ export type PositionType = {
   r?: number;
   tokenSize?: Size;
   color?: string;
+  sidekicks?: Sidekick[];
 };
+
+type Sidekick = Omit<PositionType, "sidekicks">;
