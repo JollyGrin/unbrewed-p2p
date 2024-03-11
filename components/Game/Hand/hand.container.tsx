@@ -9,13 +9,12 @@ import {
 } from "@/components/DeckPool/PoolFns";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
-import { Box, Flex, Grid, Skeleton } from "@chakra-ui/react";
+import { Box, Flex, Grid } from "@chakra-ui/react";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
 import { HandCardItems } from "../game.carousel";
 import styled from "@emotion/styled";
 import { flow } from "lodash";
-import { CarouselTray } from "../game.styles";
 import { ModalType } from "@/pages/game";
 
 export const HandContainer = ({
@@ -28,7 +27,11 @@ export const HandContainer = ({
 
   const { starredDeck } = useLocalDeckStorage();
   const { gameState, setPlayerState } = useWebGame();
-  const playerState = player ? gameState?.content?.players[player] : undefined;
+  const players = gameState?.content?.players as Record<
+    string,
+    { pool?: PoolType }
+  >;
+  const playerState = player ? players[player] : undefined;
   const setGameState = (poolInput: PoolType): void => {
     setPlayerState()({ pool: poolInput });
   };
@@ -48,7 +51,7 @@ export const HandContainer = ({
     (cardIndex: number) =>
       playerState?.pool && commitCard(playerState?.pool, cardIndex),
     setGameState,
-    () => setModal("commit")
+    () => setModal("commit"),
   );
 
   return (
