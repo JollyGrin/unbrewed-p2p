@@ -33,7 +33,6 @@ export const PositionModal: FC<{
   const color = isDark ? "antiquewhite" : "purple.900";
 
   const { gamePositions, setPlayerPosition } = useWebGame();
-  console.log({ gamePositions });
   const selectedPosition = gamePositions?.content?.[
     name as keyof typeof gamePositions.content
   ] as PositionType;
@@ -114,7 +113,12 @@ export const PositionModal: FC<{
                 }
               />
               {sidekicks?.map((kick) => (
-                <Box key={kick.id} boxSize="1rem" bg="red" />
+                <Box
+                  key={kick.id}
+                  boxSize="1rem"
+                  bg={kick.color}
+                  borderRadius="100%"
+                />
               ))}
             </Flex>
             <Box
@@ -129,7 +133,9 @@ export const PositionModal: FC<{
           </Box>
         </ModalBody>
         <ModalFooter>
-          <Button onClick={updateYourColor}>Apply</Button>
+          <Button variant="outline" bg="primary" onClick={updateYourColor}>
+            Apply
+          </Button>
         </ModalFooter>
       </ModalContent>
     </Modal>
