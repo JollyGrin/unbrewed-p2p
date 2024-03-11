@@ -106,6 +106,7 @@ export const CardFactory: React.FC<{ card: DeckImportCardType }> = ({
           ) : (
             ""
           )}
+          {/* @ts-ignore */}
           <IconSvg
             //@ts-ignore
             cardType={card.type}
