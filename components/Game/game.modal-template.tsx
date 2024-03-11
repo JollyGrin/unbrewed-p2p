@@ -5,7 +5,6 @@ import {
   ModalHeader,
   ModalBody,
   ModalCloseButton,
-  Flex,
 } from "@chakra-ui/react";
 import React, { useEffect } from "react";
 import {
@@ -36,10 +35,13 @@ export const ModalContainer: React.FC<ModalTemplateType> = ({
   setModalType,
 }) => {
   const isCommit = modalType === "commit";
-  const localName = useRouter().query?.name;
-  const player = Array.isArray(localName) ? localName[0] : localName;
+  const player = useRouter().query?.name as string;
   const { gameState, setPlayerState } = useWebGame();
-  const playerState = player ? gameState?.content?.players[player] : undefined;
+  const players = gameState?.content?.players as Record<
+    string,
+    { pool?: PoolType }
+  >;
+  const playerState = player ? players[player] : undefined;
   const setGameState = (poolInput: PoolType): void => {
     setPlayerState()({ pool: poolInput });
   };
@@ -54,11 +56,11 @@ export const ModalContainer: React.FC<ModalTemplateType> = ({
 
   const gFlip = flow(
     () => playerState?.pool && revealCommit(playerState?.pool),
-    setGameState
+    setGameState,
   );
   const gDiscardCommit = flow(
     () => playerState?.pool && discardCommit(playerState?.pool),
-    setGameState
+    setGameState,
   );
 
   useEffect(() => {
@@ -84,9 +86,8 @@ export const ModalContainer: React.FC<ModalTemplateType> = ({
       : playerKeys.map(
           (playerKey): PlayerCommit => ({
             player: playerKey,
-            commit:
-              gameState.content?.players[playerKey].pool?.commit ?? emptyCommit,
-          })
+            commit: players[playerKey].pool?.commit ?? emptyCommit,
+          }),
         );
 
   return (
