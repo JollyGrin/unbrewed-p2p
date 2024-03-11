@@ -19,7 +19,10 @@ export const HeaderContainer: FC<{ openPositionModal: () => void }> = ({
     setPlayerState()({ pool: poolInput });
   };
 
-  const players = gameState?.content?.players;
+  const players = gameState?.content?.players as Record<
+    string,
+    { pool?: PoolType }
+  >;
   const playerKeys = players && Object.keys(players);
 
   const {
