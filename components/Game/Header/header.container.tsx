@@ -60,7 +60,7 @@ export const HeaderContainer: FC<{ openPositionModal: () => void }> = ({
           {playerKeys?.map((playerName) => (
             <Flex key={playerName} width="min-content">
               <Spacer width="0.5rem" />
-              {players && players[playerName]?.pool && (
+              {players && players?.[playerName]?.pool && (
                 <PlayerBox
                   key={Math.random()}
                   name={playerName}

@@ -41,7 +41,7 @@ export const ModalContainer: React.FC<ModalTemplateType> = ({
     string,
     { pool?: PoolType }
   >;
-  const playerState = player ? players[player] : undefined;
+  const playerState = player ? players?.[player] : undefined;
   const setGameState = (poolInput: PoolType): void => {
     setPlayerState()({ pool: poolInput });
   };
