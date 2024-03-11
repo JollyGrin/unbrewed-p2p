@@ -52,8 +52,10 @@ export const useCanvas = ({
       .attr("r", ({ r }) => (r ? r : 15))
       .attr("fill", ({ color }) => color ?? "black")
       // TODO: replace this to limit which token the user can control
-      .attr("opacity", ({ id }) => (id === (self as string) ? 1 : 0.75))
+      .attr("opacity", ({ id }) => (id.includes(self as string) ? 1 : 0.75))
       .filter(({ id }) => {
+        const isSidekick = id.includes("_");
+        if (isSidekick) return id.split("_")[0] === self;
         return id === self;
       })
       .call(
@@ -102,7 +104,13 @@ export const useCanvas = ({
         .attr("cy", (d.y = event.y));
 
       if (!move) return;
-      move({ id: event.subject.id, x: event.x, y: event.y });
+
+      move({
+        ...event.subject,
+        id: event.subject.id,
+        x: event.x,
+        y: event.y,
+      });
     }
 
     function dragended() {

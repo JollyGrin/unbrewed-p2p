@@ -31,7 +31,7 @@ export const BoardCanvas: React.FC<BoardProps> = ({
     gRef,
     canvasRef,
     parentRef,
-    data,
+    data: data.map((dataPoint) => [...flattenWithSidekicks(dataPoint)]).flat(),
     move,
     self,
     updateCanvas,
@@ -76,3 +76,23 @@ const Refresh = (props: { onClick: () => void }) => (
     }}
   />
 );
+
+function flattenWithSidekicks(object: PositionType) {
+  const flattened: PositionType[] = [];
+
+  function flatten(obj: PositionType) {
+    flattened.push({
+      ...obj,
+      sidekicks: undefined, // Remove sidekicks property
+    });
+
+    if (obj.sidekicks) {
+      for (const sidekick of obj.sidekicks) {
+        flatten(sidekick); // Flatten sidekicks recursively
+      }
+    }
+  }
+
+  flatten(object);
+  return flattened;
+}
