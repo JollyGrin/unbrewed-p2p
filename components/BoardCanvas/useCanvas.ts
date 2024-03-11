@@ -24,7 +24,6 @@ export const useCanvas = ({
   move,
   updateCanvas,
 }: CanvasProps) => {
-  console.log("received data", data);
   useEffect(() => {
     if (!data) return;
     if (!canvasRef.current) return;
