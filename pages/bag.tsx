@@ -1,5 +1,14 @@
 import { Dispatch, SetStateAction, useState } from "react";
-import { Box, Button, Flex, HStack, Input, Tag, Text } from "@chakra-ui/react";
+import {
+  Box,
+  Button,
+  Flex,
+  HStack,
+  Input,
+  Tag,
+  Text,
+  VStack,
+} from "@chakra-ui/react";
 import { CardFactory } from "@/components/CardFactory/card.factory";
 import { DECK_ID } from "@/lib/constants/unmatched-deckids";
 import { useUnmatchedDeck } from "@/lib/hooks/useUnmatchedDeck";
@@ -7,6 +16,7 @@ import { Carousel } from "@/components/Game/game.carousel";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
 import Link from "next/link";
+import { StarterDeckContainer } from "@/components/Bag/StarterDecks";
 
 const BagPage = () => {
   const { data, isLoading, error, deckId, setDeckId, apiUrl, setApiUrl } =
@@ -14,6 +24,7 @@ const BagPage = () => {
 
   const { decks, pushDeck, removeDeckbyId, totalKbLeft, setStar, star } =
     useLocalDeckStorage();
+
   const [selectedDeckId, setSelectedDeckId] = useState<string>();
 
   return (
@@ -31,6 +42,7 @@ const BagPage = () => {
                     .toUpperCase()}
                   id={deck?.id}
                   setSelectedDeck={setSelectedDeckId}
+                  isSelected={selectedDeckId === deck.id}
                   star={star}
                 />
               </Box>
@@ -40,7 +52,15 @@ const BagPage = () => {
       </Flex>
 
       <Flex bg="indigo" flexDir={"column"} p={3}>
-        {!selectedDeckId && !data && <UnmatchedInput setDeckId={setDeckId} />}
+        {!selectedDeckId && !data && (
+          <>
+            <UnmatchedInput setDeckId={setDeckId} />
+            <StarterDeckContainer
+              pushDeck={pushDeck}
+              deckIds={decks?.map((deck) => deck.id)}
+            />
+          </>
+        )}
         {!selectedDeckId && data && <DeckInfo data={data} />}
         {selectedDeckId && (
           <DeckInfo data={decks?.find((deck) => deck.id === selectedDeckId)} />
@@ -132,18 +152,20 @@ const DeckSlot = ({
   abbrev,
   id,
   setSelectedDeck,
+  isSelected,
   star,
 }: {
   abbrev: string;
   id: string;
   setSelectedDeck: any;
   star: string;
+  isSelected: boolean;
 }) => {
   const isStarred = star === id;
   return (
     <Flex
       m={2}
-      bg="rgba(0,0,0,0.25)"
+      bg={`rgba(0,0,0,0.${isSelected ? 50 : 25})`}
       w="100px"
       height="100px"
       borderRadius={5}
@@ -252,6 +274,9 @@ const DeckInfo = ({ data }: { data?: DeckImportType }) => {
           {sidekick.name}
         </Text>
       </HStack>
+      <Text mt="1rem" color="antiquewhite">
+        {data.deck_data.hero.specialAbility}
+      </Text>
     </Box>
   );
 };
