@@ -32,13 +32,22 @@ export const PositionModal: FC<{
   const bg = isDark ? "purple.900" : "antiquewhite";
   const color = isDark ? "antiquewhite" : "purple.900";
 
-  const [selectedColor, setSelectedColor] = useState<string>("#fff");
+  const { gamePositions, setPlayerPosition } = useWebGame();
+  console.log({ gamePositions });
+  const selectedPosition = gamePositions?.content?.[
+    name as keyof typeof gamePositions.content
+  ] as PositionType;
+
+  const [selectedColor, setSelectedColor] = useState<string>(
+    selectedPosition?.color ?? "#000",
+  );
   const [selectedSize, setSelectedSize] = useState<Size>("lg");
+  const [sidekicks, setSidekicks] = useState<
+    PositionType["sidekicks"] | undefined
+  >(selectedPosition?.sidekicks);
   const setSize = (size: Size) =>
     size === "lg" ? 2 : size === "md" ? 1.65 : 1.35;
   const handleColorChange = ({ hex }: { hex: string }) => setSelectedColor(hex);
-
-  const { gamePositions, setPlayerPosition } = useWebGame();
 
   const _setGamePosition = (props: PositionType) => {
     setPlayerPosition.current(props);
@@ -52,7 +61,11 @@ export const PositionModal: FC<{
     setGamePosition({
       ...selected,
       color: selectedColor,
-      tokenSize: selectedSize,
+      r: selectedSize === "lg" ? 20 : selectedSize === "md" ? 15 : 10,
+      sidekicks: sidekicks?.map((kick) => ({
+        ...kick,
+        color: selectedColor,
+      })),
     });
   }
 
@@ -70,7 +83,23 @@ export const PositionModal: FC<{
         <ModalBody>
           <Box position="relative">
             <Flex alignItems="center" gap="1rem" minH="2.5rem">
-              <PlusSquareIcon />
+              <PlusSquareIcon
+                onClick={() => {
+                  setSidekicks((prev) => {
+                    const amountOfSidekicks = prev?.length ?? 0;
+                    const id = `${name as string}_${amountOfSidekicks}`;
+                    return [
+                      ...(prev ?? []),
+                      {
+                        id,
+                        x: 25,
+                        y: 100,
+                        color: selectedColor,
+                      },
+                    ];
+                  });
+                }}
+              />
               <Box
                 bg={selectedColor}
                 h={setSize(selectedSize) + "rem"}
@@ -80,10 +109,13 @@ export const PositionModal: FC<{
                 transition="all 0.25s ease-in-out"
                 onClick={() =>
                   setSelectedSize((prev) =>
-                    prev === "lg" ? "md" : prev === "md" ? "sm" : "lg"
+                    prev === "lg" ? "md" : prev === "md" ? "sm" : "lg",
                   )
                 }
               />
+              {sidekicks?.map((kick) => (
+                <Box key={kick.id} boxSize="1rem" bg="red" />
+              ))}
             </Flex>
             <Box
               position="absolute"
