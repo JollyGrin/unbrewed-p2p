@@ -68,6 +68,22 @@ export const PositionModal: FC<{
     });
   }
 
+  function addSidekick() {
+    setSidekicks((prev) => {
+      const amountOfSidekicks = prev?.length ?? 0;
+      const id = `${name as string}_${amountOfSidekicks}`;
+      return [
+        ...(prev ?? []),
+        {
+          id,
+          x: 25,
+          y: 100,
+          color: selectedColor,
+        },
+      ];
+    });
+  }
+
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <ModalOverlay />
@@ -82,23 +98,7 @@ export const PositionModal: FC<{
         <ModalBody>
           <Box position="relative">
             <Flex alignItems="center" gap="1rem" minH="2.5rem">
-              <PlusSquareIcon
-                onClick={() => {
-                  setSidekicks((prev) => {
-                    const amountOfSidekicks = prev?.length ?? 0;
-                    const id = `${name as string}_${amountOfSidekicks}`;
-                    return [
-                      ...(prev ?? []),
-                      {
-                        id,
-                        x: 25,
-                        y: 100,
-                        color: selectedColor,
-                      },
-                    ];
-                  });
-                }}
-              />
+              <PlusSquareIcon onClick={addSidekick} />
               <Box
                 bg={selectedColor}
                 h={setSize(selectedSize) + "rem"}
