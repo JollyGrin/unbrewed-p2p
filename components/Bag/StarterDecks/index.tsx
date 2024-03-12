@@ -11,7 +11,7 @@ export const StarterDeckContainer = (props: {
   const hasResult = !!results.find((record) => record.status === "success");
   return (
     <Box p="1rem" mt="2rem" bg="antiquewhite" borderRadius="0.25rem">
-      <Text>Don't have any decks in mind?</Text>
+      <Text>Do not have any decks in mind?</Text>
       {!hasResult && (
         <Button mt="1rem" onClick={onOpen}>
           Load starter decks
@@ -22,6 +22,7 @@ export const StarterDeckContainer = (props: {
           (record) =>
             record.data !== undefined && (
               <Button
+                key={record.data.id}
                 borderRadius="0.25rem"
                 cursor="pointer"
                 p="0.5rem"
