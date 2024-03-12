@@ -1,4 +1,4 @@
-import { Grid, Flex, Box, Text } from "@chakra-ui/react";
+import { Grid, Flex, Box, Text, HStack, useDisclosure } from "@chakra-ui/react";
 import { IconType } from "react-icons";
 import {
   MoveStatContainer,
@@ -25,6 +25,9 @@ import styled from "@emotion/styled";
 import { fonts } from "@/styles/style";
 import { useState } from "react";
 
+import { FaMap } from "react-icons/fa";
+import { MapModal } from "./map.modal";
+
 export const PlayerBox: React.FC<{
   isLocal: boolean;
   name: string;
@@ -36,7 +39,7 @@ export const PlayerBox: React.FC<{
 
   const updateHealth = (
     adjustAmount: number,
-    selectedPawn: "hero" | "sidekick"
+    selectedPawn: "hero" | "sidekick",
   ) => {
     setGameState(adjustHp(playerState.pool, selectedPawn, adjustAmount));
   };
@@ -45,102 +48,113 @@ export const PlayerBox: React.FC<{
     setGameState(adjustSidekickQuantity(playerState.pool, adjustAmount));
   };
 
+  const mapDisclosure = useDisclosure();
+
   return (
-    <StatContainer>
-      <PlayerTitleBar>
-        <Text>{name}</Text>
-        <Flex
-          display={isLocal ? "flex" : "none"}
-          flexDir="row-reverse"
-          alignItems="center"
-          gap="0.25rem"
-          cursor="pointer"
-          onClick={() =>
-            isLocal &&
-            typeof openPositionModal === "function" &&
-            openPositionModal()
-          }
-        >
-          <Dot background="tomato" size="1rem" />
-          <Dot background="tomato" size="0.75rem" />
-          <Dot background="tomato" size="0.75rem" />
-          <Dot background="tomato" size="0.75rem" />
-        </Flex>
-      </PlayerTitleBar>
-      <Grid gridTemplateColumns={"1fr 1fr"} alignItems="center">
-        <PawnStatsContainer>
-          <Box bg="green" borderRadius={"1000px"} h="20px" w="20px" />
-          <Stat
-            Icon={IconHeart}
-            number={hero.hp ?? 0}
-            callback={(adjustNumber: number) =>
-              updateHealth(adjustNumber, "hero")
-            }
-            isLocal={isLocal}
-          />
-          <Stat
-            Icon={hero.isRanged ? IconRanged : IconMeele}
-            isLocal={isLocal}
-          />
-
-          {sidekick?.quantity && sidekick.quantity > 0 ? (
-            <>
-              <Box bg="green" h="15px" w="15px" />
-              <Stat
-                isLocal={isLocal}
-                Icon={sidekick.quantity <= 1 ? IconHeart : IconSidekicks}
-                callback={(number: number) => updateSidekickQuantity(number)}
-                number={
-                  sidekick.quantity <= 1
-                    ? sidekick.hp ?? 0
-                    : sidekick.quantity ?? 0
-                }
-              />
-
-              <Stat
-                isLocal={isLocal}
-                Icon={sidekick.isRanged ? IconRanged : IconMeele}
-              />
-            </>
-          ) : (
-            <Box h="20px" />
-          )}
-        </PawnStatsContainer>
-        <Grid gridTemplateColumns="1fr 1fr">
-          <MoveStatContainer>
-            <IconMove />
-            <Text
-              fontSize={"3rem"}
-              my={-2}
-              fontFamily="SpaceGrotesk"
-              lineHeight="normal"
+    <>
+      <MapModal {...mapDisclosure} />
+      <StatContainer>
+        <PlayerTitleBar>
+          <Text>{name}</Text>
+          <HStack gap="1rem">
+            <FaMap
+              style={{ cursor: "pointer" }}
+              onClick={mapDisclosure.onOpen}
+            />
+            <Flex
+              display={isLocal ? "flex" : "none"}
+              flexDir="row-reverse"
+              alignItems="center"
+              gap="0.25rem"
+              cursor="pointer"
+              onClick={() =>
+                isLocal &&
+                typeof openPositionModal === "function" &&
+                openPositionModal()
+              }
             >
-              {hero.move}
-            </Text>
-          </MoveStatContainer>
-          <Flex justifyContent="center" alignItems="center" flexDir="column">
+              <Dot background="tomato" size="1rem" />
+              <Dot background="tomato" size="0.75rem" />
+              <Dot background="tomato" size="0.75rem" />
+              <Dot background="tomato" size="0.75rem" />
+            </Flex>
+          </HStack>
+        </PlayerTitleBar>
+        <Grid gridTemplateColumns={"1fr 1fr"} alignItems="center">
+          <PawnStatsContainer>
+            <Box bg="green" borderRadius={"1000px"} h="20px" w="20px" />
             <Stat
+              Icon={IconHeart}
+              number={hero.hp ?? 0}
+              callback={(adjustNumber: number) =>
+                updateHealth(adjustNumber, "hero")
+              }
               isLocal={isLocal}
-              Icon={IconHand}
-              number={hand.length}
-              size="20px"
             />
             <Stat
+              Icon={hero.isRanged ? IconRanged : IconMeele}
               isLocal={isLocal}
-              Icon={IconDeck}
-              number={deck?.length ?? 0}
-              size="20px"
             />
-            <Stat
-              isLocal={isLocal}
-              Icon={IconDiscard}
-              number={discard.length}
-              size="20px"
-            />
-          </Flex>
+
+            {sidekick?.quantity && sidekick.quantity > 0 ? (
+              <>
+                <Box bg="green" h="15px" w="15px" />
+                <Stat
+                  isLocal={isLocal}
+                  Icon={sidekick.quantity <= 1 ? IconHeart : IconSidekicks}
+                  callback={(number: number) => updateSidekickQuantity(number)}
+                  number={
+                    sidekick.quantity <= 1
+                      ? sidekick.hp ?? 0
+                      : sidekick.quantity ?? 0
+                  }
+                />
+
+                <Stat
+                  isLocal={isLocal}
+                  Icon={sidekick.isRanged ? IconRanged : IconMeele}
+                />
+              </>
+            ) : (
+              <Box h="20px" />
+            )}
+          </PawnStatsContainer>
+          <Grid gridTemplateColumns="1fr 1fr">
+            <MoveStatContainer>
+              <IconMove />
+              <Text
+                fontSize={"3rem"}
+                my={-2}
+                fontFamily="SpaceGrotesk"
+                lineHeight="normal"
+              >
+                {hero.move}
+              </Text>
+            </MoveStatContainer>
+            <Flex justifyContent="center" alignItems="center" flexDir="column">
+              <Stat
+                isLocal={isLocal}
+                Icon={IconHand}
+                number={hand.length}
+                size="20px"
+              />
+              <Stat
+                isLocal={isLocal}
+                Icon={IconDeck}
+                number={deck?.length ?? 0}
+                size="20px"
+              />
+              <Stat
+                isLocal={isLocal}
+                Icon={IconDiscard}
+                number={discard.length}
+                size="20px"
+              />
+            </Flex>
+          </Grid>
         </Grid>
-      </Grid>
-    </StatContainer>
+      </StatContainer>
+    </>
   );
 };
 
