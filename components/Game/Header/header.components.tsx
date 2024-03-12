@@ -209,7 +209,6 @@ export const Stat: React.FC<{
 
 const TipBody = (props: { pool: PoolType }) => {
   const { deckName, hero, sidekick } = props.pool;
-  const sidekickName = sidekick?.name;
   return (
     <Box minW="300px">
       <Text fontWeight="bold">{deckName}</Text>
