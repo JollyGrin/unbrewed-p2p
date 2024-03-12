@@ -1,3 +1,4 @@
+import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { useState } from "react";
@@ -8,14 +9,16 @@ export const useUnmatchedDeck = () => {
   const [deckId, setDeckId] = useState<string>();
   const [deckIdDebounced] = useDebounce(deckId, 300);
   const [apiUrl, setApiUrl] = useState<string>(
-    "https://unbrewed-api.vercel.app/api/unmatched-deck/"
+    "https://unbrewed-api.vercel.app/api/unmatched-deck/",
   );
 
   const { data, isLoading, error } = useQuery(
     ["deck", deckIdDebounced, apiUrl],
     async () => {
       try {
-        const result = await axios.get(apiUrl + deckIdDebounced);
+        const result = await axios.get<DeckImportType>(
+          apiUrl + deckIdDebounced,
+        );
         return result.data;
       } catch (err) {
         console.error(err);
@@ -25,7 +28,7 @@ export const useUnmatchedDeck = () => {
       enabled: !!deckIdDebounced,
       onSuccess: (e) => toast.success("Deck fetched!"),
       onError: (e) => toast.error("Error fetching deck"),
-    }
+    },
   );
 
   return {
