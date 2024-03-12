@@ -18,11 +18,15 @@ import {
   PoolType,
   cancelCommit,
   discardCommit,
+  drawDeck,
+  drawDiscard,
   revealCommit,
+  shuffleDeck,
 } from "../DeckPool/PoolFns";
 import { useRouter } from "next/router";
 import { DeckImportCardType } from "../DeckPool/deck-import.type";
 import { flow } from "lodash";
+import { toast } from "react-hot-toast";
 
 type ModalTemplateType = {
   isOpen: boolean;
@@ -46,7 +50,19 @@ export const ModalContainer: React.FC<ModalTemplateType> = ({
     setPlayerState()({ pool: poolInput });
   };
 
-  const onClose = () => setModalType(false);
+  const gShuffleDeck = flow(
+    () => playerState?.pool && shuffleDeck(playerState?.pool),
+    setGameState,
+  );
+
+  const onClose = () => {
+    if (modalType === "deck") {
+      gShuffleDeck();
+      toast.success("Deck successfully shuffled after closing");
+    }
+    setModalType(false);
+  };
+
   const gCancelCommit = flow(cancelCommit, setGameState);
   const onCommitCancelClose = () => {
     if (!playerState?.pool) return;
@@ -62,6 +78,17 @@ export const ModalContainer: React.FC<ModalTemplateType> = ({
     () => playerState?.pool && discardCommit(playerState?.pool),
     setGameState,
   );
+  const gDrawDiscard = (discardIndex: number) =>
+    flow(
+      () => playerState?.pool && drawDiscard(playerState?.pool, discardIndex),
+      setGameState,
+    );
+
+  const gDrawDeck = (discardIndex: number) =>
+    flow(
+      () => playerState?.pool && drawDeck(playerState?.pool, discardIndex),
+      setGameState,
+    );
 
   useEffect(() => {
     const playerCommit = playerState?.pool?.commit;
@@ -101,6 +128,7 @@ export const ModalContainer: React.FC<ModalTemplateType> = ({
             {playerState?.pool && modalType && !isCommit && (
               <DeckModalContent
                 cards={playerState.pool[modalType] as DeckImportCardType[]}
+                add={modalType === "discard" ? gDrawDiscard : gDrawDeck}
               />
             )}
             {playerState?.pool && isCommit && commits.length > 0 && (

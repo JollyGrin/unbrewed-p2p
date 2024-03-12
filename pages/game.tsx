@@ -105,8 +105,6 @@ const BoardContainer = ({ self }: { self: string }) => {
     setGamePosition(defData);
   }, [positions, self, gameState, setGamePosition]);
 
-  console.log({ mapUrl });
-
   return (
     <Box h={"100%"}>
       <BoardCanvas
