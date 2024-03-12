@@ -1,4 +1,13 @@
-import { Grid, Flex, Box, Text, HStack, useDisclosure } from "@chakra-ui/react";
+import {
+  Grid,
+  Flex,
+  Box,
+  Text,
+  HStack,
+  useDisclosure,
+  Tooltip,
+  Divider,
+} from "@chakra-ui/react";
 import { IconType } from "react-icons";
 import {
   MoveStatContainer,
@@ -55,7 +64,9 @@ export const PlayerBox: React.FC<{
       <MapModal {...mapDisclosure} />
       <StatContainer>
         <PlayerTitleBar>
-          <Text>{name}</Text>
+          <Tooltip label={<TipBody pool={playerState?.pool} />}>
+            <Text>{name}</Text>
+          </Tooltip>
           <HStack gap="1rem">
             <FaMap
               style={{
@@ -193,6 +204,25 @@ export const Stat: React.FC<{
 
       <Text alignSelf={"center"}> {number ?? ""}</Text>
     </Flex>
+  );
+};
+
+const TipBody = (props: { pool: PoolType }) => {
+  const { deckName, hero, sidekick } = props.pool;
+  return (
+    <Box minW="300px">
+      <Text fontWeight="bold">{deckName}</Text>
+      <Divider />
+      <Text>
+        {hero.name}: {hero.isRanged ? "Ranged" : "Meele"}
+      </Text>
+      <Text>{hero.specialAbility}</Text>
+      <Divider />
+      <Text>
+        {sidekick.name}: {sidekick.isRanged ? "Ranged" : "Meele"}
+      </Text>
+      <Text>{sidekick.quote}</Text>
+    </Box>
   );
 };
 
