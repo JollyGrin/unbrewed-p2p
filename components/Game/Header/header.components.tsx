@@ -58,7 +58,10 @@ export const PlayerBox: React.FC<{
           <Text>{name}</Text>
           <HStack gap="1rem">
             <FaMap
-              style={{ cursor: "pointer" }}
+              style={{
+                display: isLocal ? "block" : "none",
+                cursor: "pointer",
+              }}
               onClick={mapDisclosure.onOpen}
             />
             <Flex
