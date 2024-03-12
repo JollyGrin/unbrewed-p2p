@@ -1,26 +1,22 @@
-//@ts-nocheck
-import { useState } from "react";
+import { Dispatch, SetStateAction, useState } from "react";
 import {
   Box,
   Button,
   Flex,
   HStack,
   Input,
-  Spinner,
   Tag,
   Text,
+  VStack,
 } from "@chakra-ui/react";
 import { CardFactory } from "@/components/CardFactory/card.factory";
 import { DECK_ID } from "@/lib/constants/unmatched-deckids";
 import { useUnmatchedDeck } from "@/lib/hooks/useUnmatchedDeck";
-import { useRouter } from "next/router";
 import { Carousel } from "@/components/Game/game.carousel";
-import {
-  DeckImportDataType,
-  DeckImportType,
-} from "@/components/DeckPool/deck-import.type";
+import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
 import Link from "next/link";
+import { StarterDeckContainer } from "@/components/Bag/StarterDecks";
 
 const BagPage = () => {
   const { data, isLoading, error, deckId, setDeckId, apiUrl, setApiUrl } =
@@ -28,12 +24,13 @@ const BagPage = () => {
 
   const { decks, pushDeck, removeDeckbyId, totalKbLeft, setStar, star } =
     useLocalDeckStorage();
+
   const [selectedDeckId, setSelectedDeckId] = useState<string>();
 
   return (
     <Flex flexDir={"column"} bg="antiquewhite" h="100svh">
       <BagNav />
-      <DeckStats length={decks?.length} deckKb={totalKbLeft} />
+      <DeckStats length={decks?.length ?? 0} deckKb={totalKbLeft ?? 0} />
       <Flex justifyContent={"space-between"}>
         {decks && (
           <Carousel
@@ -45,6 +42,7 @@ const BagPage = () => {
                     .toUpperCase()}
                   id={deck?.id}
                   setSelectedDeck={setSelectedDeckId}
+                  isSelected={selectedDeckId === deck.id}
                   star={star}
                 />
               </Box>
@@ -52,13 +50,17 @@ const BagPage = () => {
           />
         )}
       </Flex>
-      <Flex bg="purple" p={3} gap={2}>
-        {/* <Button>Load from URL</Button>
-        <Button>Load from JSON</Button> */}
-      </Flex>
 
       <Flex bg="indigo" flexDir={"column"} p={3}>
-        {!selectedDeckId && !data && <UnmatchedInput setDeckId={setDeckId} />}
+        {!selectedDeckId && !data && (
+          <>
+            <UnmatchedInput setDeckId={setDeckId} />
+            <StarterDeckContainer
+              pushDeck={pushDeck}
+              deckIds={decks?.map((deck) => deck.id)}
+            />
+          </>
+        )}
         {!selectedDeckId && data && <DeckInfo data={data} />}
         {selectedDeckId && (
           <DeckInfo data={decks?.find((deck) => deck.id === selectedDeckId)} />
@@ -128,7 +130,7 @@ const BagNav = () => {
   );
 };
 
-const DeckStats = ({ length, deckKb }) => {
+const DeckStats = ({ length, deckKb }: { length: number; deckKb: number }) => {
   return (
     <Box mt={2} p={2}>
       <Text
@@ -146,12 +148,24 @@ const DeckStats = ({ length, deckKb }) => {
   );
 };
 
-const DeckSlot = ({ abbrev, id, setSelectedDeck, star }) => {
+const DeckSlot = ({
+  abbrev,
+  id,
+  setSelectedDeck,
+  isSelected,
+  star,
+}: {
+  abbrev: string;
+  id: string;
+  setSelectedDeck: any;
+  star: string;
+  isSelected: boolean;
+}) => {
   const isStarred = star === id;
   return (
     <Flex
       m={2}
-      bg="rgba(0,0,0,0.25)"
+      bg={`rgba(0,0,0,0.${isSelected ? 50 : 25})`}
       w="100px"
       height="100px"
       borderRadius={5}
@@ -166,7 +180,7 @@ const DeckSlot = ({ abbrev, id, setSelectedDeck, star }) => {
           h="85%"
           w="85%"
           borderRadius={"inherit"}
-          border={isStarred && "2px solid gold"}
+          border={isStarred ? "2px solid gold" : ""}
           p={2}
           color="antiquewhite"
           justifyContent={"center"}
@@ -185,7 +199,11 @@ const DeckSlot = ({ abbrev, id, setSelectedDeck, star }) => {
   );
 };
 
-const UnmatchedInput = ({ setDeckId }) => {
+const UnmatchedInput = ({
+  setDeckId,
+}: {
+  setDeckId: Dispatch<SetStateAction<string | undefined>>;
+}) => {
   return (
     <>
       <Text color="antiquewhite" fontSize={"1.25rem"}>
@@ -212,7 +230,13 @@ const UnmatchedInput = ({ setDeckId }) => {
   );
 };
 
-const DeckCarousel = ({ data, selectedDeck }) => {
+const DeckCarousel = ({
+  data,
+  selectedDeck,
+}: {
+  data?: DeckImportType;
+  selectedDeck?: DeckImportType;
+}) => {
   const deck = selectedDeck ? selectedDeck : data;
   if (!deck) return <div />;
   return (
@@ -226,7 +250,7 @@ const DeckCarousel = ({ data, selectedDeck }) => {
   );
 };
 
-const DeckInfo: DeckImportDataType = ({ data }) => {
+const DeckInfo = ({ data }: { data?: DeckImportType }) => {
   if (!data) return <div />;
   const { hero, sidekick } = data.deck_data;
   return (
@@ -241,7 +265,7 @@ const DeckInfo: DeckImportDataType = ({ data }) => {
       </HStack>
       <HStack display={sidekick.quantity === 0 ? "none" : "inline-flex"}>
         <Tag>
-          {sidekick.quantity > 1
+          {sidekick.quantity !== null && sidekick.quantity > 1
             ? sidekick.quantity + "x"
             : "❤️️" + sidekick.hp}
         </Tag>
@@ -250,6 +274,9 @@ const DeckInfo: DeckImportDataType = ({ data }) => {
           {sidekick.name}
         </Text>
       </HStack>
+      <Text mt="1rem" color="antiquewhite">
+        {data.deck_data.hero.specialAbility}
+      </Text>
     </Box>
   );
 };
