@@ -10,7 +10,7 @@ const defaultData: PositionType[] = [
 ];
 
 type BoardProps = {
-  src: `${string}.svg`;
+  src: string;
   data?: PositionType[];
   move?: (e: PositionType) => void;
   self?: string;
