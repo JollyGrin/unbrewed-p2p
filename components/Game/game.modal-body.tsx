@@ -6,12 +6,15 @@ import { useState } from "react";
 
 export const DeckModalContent = ({
   cards,
+  add,
 }: {
   cards: DeckImportCardType[];
+  add: (index: number) => () => void;
 }) => {
   const [isHover, setIsHover] = useState<number>();
   const onEnter = (num: number) => setIsHover(num);
   const onLeave = () => setIsHover(undefined);
+
   return (
     <Grid gridTemplateColumns={"repeat(auto-fit, minmax(250px,1fr))"} gap={1}>
       {cards?.map((card, index) => (
@@ -24,11 +27,12 @@ export const DeckModalContent = ({
         >
           {isHover === index && (
             <Flex position="absolute">
-              <Tag fontSize="1.25rem" userSelect="none">
-                +
-              </Tag>
-
-              <Tag fontSize="1.25rem" userSelect="none">
+              <Tag
+                fontSize="1.25rem"
+                userSelect="none"
+                cursor="pointer"
+                onClick={() => add(index)()}
+              >
                 +
               </Tag>
             </Flex>
