@@ -66,6 +66,9 @@ const GamePage = () => {
 export default GamePage;
 
 const BoardContainer = ({ self }: { self: string }) => {
+  const { query } = useRouter();
+  const mapUrl = query.mapUrl as string | undefined;
+
   useEffect(() => {
     if (!window) return;
   });
@@ -102,10 +105,12 @@ const BoardContainer = ({ self }: { self: string }) => {
     setGamePosition(defData);
   }, [positions, self, gameState, setGamePosition]);
 
+  console.log({ mapUrl });
+
   return (
     <Box h={"100%"}>
       <BoardCanvas
-        src="jpark.svg"
+        src={mapUrl ?? "jpark.svg"}
         move={(e: PositionType) => {
           if (e.id.includes("_")) {
             const rootId = e.id.split("_")[0];
