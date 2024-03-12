@@ -62,7 +62,7 @@ export const newPool = (deckData: DeckImportType): PoolType => {
 //    */
 export const makeDeck = (pool: PoolType): PoolType => {
   const newDeck: DeckImportCardType[] = pool.cards.flatMap(
-    ({ quantity, ...rest }) => Array(quantity).fill({ quantity, ...rest })
+    ({ quantity, ...rest }) => Array(quantity).fill({ quantity, ...rest }),
   );
   return {
     ...pool,
@@ -99,7 +99,7 @@ export const draw = (pool: PoolType): PoolType => {
 export const adjustHp = (
   pool: PoolType,
   selectedPawn: "hero" | "sidekick",
-  adjustAmount: number
+  adjustAmount: number,
 ): PoolType => {
   if (adjustAmount === 0) return pool;
   if (!pool[selectedPawn] || !pool[selectedPawn]?.hp === null) return pool;
@@ -110,7 +110,7 @@ export const adjustHp = (
 
 export const adjustSidekickQuantity = (
   pool: PoolType,
-  adjustAmount: number
+  adjustAmount: number,
 ): PoolType => {
   if (adjustAmount === 0) return pool;
   if (!pool || !pool.sidekick.quantity) return pool;
@@ -128,6 +128,7 @@ export const drawDeck = (pool: PoolType, cardIndex: number) => {
   if (!pool.deck) return;
   pool.hand.push(pool.deck[cardIndex]);
   pool.deck.splice(cardIndex, 1);
+  return pool;
 };
 
 //   /**
@@ -170,6 +171,7 @@ export const discardRandomCard = (pool: PoolType, cardIndex: number) => {
 export const drawDiscard = (pool: PoolType, cardIndex: number) => {
   pool.hand.push(pool.discard[cardIndex]);
   pool.discard.splice(cardIndex, 1);
+  return pool;
 };
 
 export const commitCard = (pool: PoolType, cardIndex: number): PoolType => {
