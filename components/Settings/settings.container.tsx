@@ -1,5 +1,6 @@
 import { useLocalServerStorage } from "@/lib/hooks";
-import { Flex, Text, Tag, Button, Input } from "@chakra-ui/react";
+import { Flex, Text, Tag, Button, Input, Divider } from "@chakra-ui/react";
+import Link from "next/link";
 import { useState } from "react";
 
 export const SettingsContainer = ({
@@ -38,6 +39,17 @@ export const SettingsContainer = ({
           <Text overflowX={"hidden"}>{server}</Text>
         </Button>
       ))}
+      <Divider />
+      <Text>Wish to run your own server?</Text>
+      <Text>If our default server isn't working, you can run it yourself:</Text>
+      <Text
+        color="blue"
+        textDecor="underline"
+        as={Link}
+        href="http://github.com/jollygrin/unbrewed-p2p/"
+      >
+        Checkout our Github
+      </Text>
     </Flex>
   );
 };
