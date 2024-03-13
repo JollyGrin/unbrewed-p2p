@@ -12,11 +12,10 @@ Update: ditching pure p2p and now instead making the gameserver easily deployabl
 - [x] add game actions
 - [x] add backpack (to load decks/maps in localstorage)
 - [x] add optional api server for loading decks from unmatched (add fallback if url breaks and ability to load a different server url)
-- [ ] add websocket for board piece movements (dragging pawns across the board)
-- [ ] add ability to add your own game board svgs
+- [x] add websocket for board piece movements (dragging pawns across the board)
+- [x] add ability to add your own game board svgs
 - [ ] add landing page with instructions how to use tool, even if have never touched terminal
 - [ ] improve docs
-- [ ] ~~add [webrtc](https://michal-wrzosek.github.io/p2p-chat/)~~
 
 ## Run Locally
 
@@ -59,6 +58,19 @@ Want to deploy a gameserver that exists 24/7? Add an issue to github or PR so we
 # Goals
 
 ## Journal
+
+### 2024-03-13
+
+Finally have everything mostly functional. 
+- Token movement over websocket
+- ability to create more tokens (and color them)
+- added simple operations for discard/deck modal so you can draw them to your hand
+- add a custom map (local only, both players need to load the same map)
+- added some default decks that you can load into the bag
+
+We have a default server live, so for the majority of players they can just create a new room and play
+
+Next step will be to improve the landing page so it's understandable how to use the tool
 
 ### 2023-5-12
 
