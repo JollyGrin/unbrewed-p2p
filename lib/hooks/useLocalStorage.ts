@@ -6,6 +6,7 @@ export const LS_KEY = {
   STAR_DECK: "STAR_DECK_ID",
   SERVER_ACTIVE: "SERVER_ACTIVE",
   SERVER_LIST: "SERVER_LIST",
+  MAP_LIST: "MAP_LIST",
 };
 
 export const useLocalServerStorage = () => {
@@ -15,10 +16,10 @@ export const useLocalServerStorage = () => {
 
   useEffect(() => {
     const localActiveServer: string | null = localStorage.getItem(
-      LS_KEY.SERVER_ACTIVE
+      LS_KEY.SERVER_ACTIVE,
     );
     const localServerList: string | null = localStorage.getItem(
-      LS_KEY.SERVER_LIST
+      LS_KEY.SERVER_LIST,
     );
     if (localActiveServer) {
       setActiveServer(localActiveServer);
@@ -33,7 +34,7 @@ export const useLocalServerStorage = () => {
   const setActive = (server: string) => {
     const urlRegexPattern = new RegExp(
       "^https?:\\/\\/[a-z0-9-]+(\\.[a-z0-9-]+)+([/?].*)?$",
-      "i"
+      "i",
     );
     const isUrl = urlRegexPattern.test(server);
     if (!isUrl && server !== "http://localhost:1111") {
@@ -45,7 +46,7 @@ export const useLocalServerStorage = () => {
     if (!serverList.includes(server)) {
       localStorage.setItem(
         LS_KEY.SERVER_LIST,
-        JSON.stringify([...serverList, server])
+        JSON.stringify([...serverList, server]),
       );
     }
 
@@ -133,5 +134,44 @@ export const useLocalDeckStorage = () => {
     setStar,
     pushDeck,
     removeDeckbyId,
+  };
+};
+
+export type MapData = {
+  isStarred?: boolean;
+  imgUrl: string;
+  meta?: {
+    author?: string;
+    url?: string;
+    title: string;
+  };
+};
+export const useLocalMapStorage = () => {
+  const [mapList, setMapList] = useState<MapData[]>([]);
+
+  useEffect(() => {
+    const localMapList = localStorage.getItem(LS_KEY.MAP_LIST);
+
+    if (localMapList) {
+      setMapList(JSON.parse(localMapList));
+    } else {
+      setMapList([]);
+    }
+  }, []);
+
+  const setList = (maps: MapData[]) => {
+    localStorage.setItem(LS_KEY.MAP_LIST, JSON.stringify(maps));
+    setMapList(maps);
+  };
+
+  function clearList() {
+    localStorage.removeItem(LS_KEY.MAP_LIST);
+    setMapList([]);
+  }
+
+  return {
+    data: mapList,
+    set: setList,
+    clear: clearList,
   };
 };

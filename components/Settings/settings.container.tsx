@@ -41,7 +41,9 @@ export const SettingsContainer = ({
       ))}
       <Divider />
       <Text>Wish to run your own server?</Text>
-      <Text>If our default server isn't working, you can run it yourself:</Text>
+      <Text>
+        If our default server is not working, you can run it yourself:
+      </Text>
       <Text
         color="blue"
         textDecor="underline"
