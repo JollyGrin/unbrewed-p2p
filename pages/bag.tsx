@@ -28,7 +28,7 @@ const BagPage = () => {
       <Flex justifyContent={"space-between"}>
         {decks && (
           <Carousel
-            items={decks?.map((deck, index) => (
+            items={decks?.map((deck) => (
               <Box w="110px" key={deck.id}>
                 <DeckSlot
                   abbrev={deck?.deck_data.hero.name
@@ -110,19 +110,6 @@ const BagPage = () => {
   );
 };
 export default BagPage;
-
-const BagNav = () => {
-  return (
-    <Flex justifyContent={"space-between"} alignItems={"center"} p={2}>
-      <Text fontFamily="SpaceGrotesk" fontSize="2.25rem" fontWeight="700">
-        Bag
-      </Text>
-      <Link href="/game">
-        <Box w="2rem" h="2rem" bg="black" />
-      </Link>
-    </Flex>
-  );
-};
 
 const DeckStats = ({ length, deckKb }: { length: number; deckKb: number }) => {
   return (
