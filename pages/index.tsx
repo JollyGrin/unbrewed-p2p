@@ -1,26 +1,7 @@
-import { Button, Flex, Text } from "@chakra-ui/react";
-import Link from "next/link";
+import { LandingPage } from "@/components/LandingPage";
 
 const Homepage = () => {
-  return (
-    <Flex flexDir={"column"} p={3}>
-      <Text fontWeight={700}>Unbrewed P2P</Text>
-      <Text>Creating a pure p2p version of unbrewed.</Text>
-      <Flex flexDir={"column"} gap="10px">
-        <Link href="/connect">
-          <Button>Game</Button>
-        </Link>
-
-        <Link href="/bag">
-          <Button>Bag</Button>
-        </Link>
-
-        <Link href="/settings">
-          <Button>Settings</Button>
-        </Link>
-      </Flex>
-    </Flex>
-  );
+  return <LandingPage />;
 };
 
 export default Homepage;
