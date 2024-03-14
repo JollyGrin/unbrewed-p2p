@@ -1,14 +1,5 @@
 import { Dispatch, SetStateAction, useState } from "react";
-import {
-  Box,
-  Button,
-  Flex,
-  HStack,
-  Input,
-  Tag,
-  Text,
-  VStack,
-} from "@chakra-ui/react";
+import { Box, Button, Flex, HStack, Input, Tag, Text } from "@chakra-ui/react";
 import { CardFactory } from "@/components/CardFactory/card.factory";
 import { DECK_ID } from "@/lib/constants/unmatched-deckids";
 import { useUnmatchedDeck } from "@/lib/hooks/useUnmatchedDeck";
@@ -17,6 +8,7 @@ import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
 import Link from "next/link";
 import { StarterDeckContainer } from "@/components/Bag/StarterDecks";
+import { Navbar } from "@/components/Navbar";
 
 const BagPage = () => {
   const { data, isLoading, error, deckId, setDeckId, apiUrl, setApiUrl } =
@@ -29,7 +21,10 @@ const BagPage = () => {
 
   return (
     <Flex flexDir={"column"} bg="antiquewhite" h="100svh">
-      <BagNav />
+      {/* <BagNav /> */}
+      <Box color="brand.secondary">
+        <Navbar />
+      </Box>
       <DeckStats length={decks?.length ?? 0} deckKb={totalKbLeft ?? 0} />
       <Flex justifyContent={"space-between"}>
         {decks && (
