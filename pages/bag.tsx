@@ -10,6 +10,7 @@ import {
 
 import { Navbar } from "@/components/Navbar";
 import { BagDecks } from "@/components/Bag/Deck";
+import { BagMap } from "@/components/Bag/Map";
 
 const BagPage = () => {
   return (
@@ -20,7 +21,7 @@ const BagPage = () => {
       <Tabs h="100%">
         <TabList>
           <Tab>Decks</Tab>
-          <Tab>Maps</Tab>
+          <Tab isDisabled>Maps</Tab>
         </TabList>
 
         <TabPanels h="100%">
@@ -33,8 +34,8 @@ const BagPage = () => {
           >
             <BagDecks />
           </TabPanel>
-          <TabPanel>
-            <p>two!</p>
+          <TabPanel p={0} h="100%">
+            <BagMap />
           </TabPanel>
         </TabPanels>
       </Tabs>

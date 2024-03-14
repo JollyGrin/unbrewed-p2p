@@ -137,7 +137,7 @@ export const useLocalDeckStorage = () => {
   };
 };
 
-type MapData = {
+export type MapData = {
   isStarred?: boolean;
   imgUrl: string;
   meta?: {
