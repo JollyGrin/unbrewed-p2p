@@ -170,11 +170,11 @@ const DeckSlot = ({
     >
       {abbrev && (
         <Flex
-          bg="purple"
+          bg="brand.secondary"
           h="85%"
           w="85%"
           borderRadius={"inherit"}
-          border={isStarred ? "2px solid gold" : ""}
+          border={isStarred ? "5px solid gold" : ""}
           p={2}
           color="antiquewhite"
           justifyContent={"center"}
