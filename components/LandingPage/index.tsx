@@ -2,6 +2,9 @@ import { Box, Button, Flex, Grid, HStack, Text } from "@chakra-ui/react";
 import { Hero } from "./Hero";
 import Link from "next/link";
 import { IconCards } from "../Icons/IconCards";
+import { IconCardDraw } from "../Icons/IconCardDraw";
+import { IconMap } from "../Icons/IconMap";
+import { IconLogo } from "../Icons/IconLogo";
 
 export const LandingPage = () => {
   return (
@@ -32,7 +35,7 @@ export const LandingPage = () => {
 
             <InfoBox
               number="2"
-              Icon={IconCards}
+              Icon={IconCardDraw}
               text={
                 "Take the deck code and load your bag with your deck(s) that you wish to play with"
               }
@@ -44,7 +47,7 @@ export const LandingPage = () => {
 
             <InfoBox
               number="3"
-              Icon={IconCards}
+              Icon={IconMap}
               text={
                 "Find a custom map that you wish to play on. Browse your favorite communities or make your own. You'll just need a picture URL."
               }
@@ -56,7 +59,7 @@ export const LandingPage = () => {
 
             <InfoBox
               number="4"
-              Icon={IconCards}
+              Icon={IconLogo}
               text={
                 "Create or join an existing game. Share the lobby name with a friend to join the same game!"
               }
