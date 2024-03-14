@@ -2,9 +2,9 @@ import { extendTheme } from "@chakra-ui/react";
 
 export const colors = {
   brand: {
-    900: "#1a365d",
-    800: "#153e75",
-    700: "#2a69ac",
+    primary: "#E7CC98",
+    secondary: "#48284F",
+    highlight: "#F1E0C1",
   },
   purple: {
     900: "#48284F",

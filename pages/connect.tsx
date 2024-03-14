@@ -52,7 +52,7 @@ const ConnectPage = () => {
       if (!gidRef?.current?.value) return;
       const createLobbyURL = new URL(
         `/lobby/${gidRef.current.value}`,
-        serverURL
+        serverURL,
       );
       try {
         const result = await axios.get(createLobbyURL.toString());
@@ -71,14 +71,17 @@ const ConnectPage = () => {
         // connect to the websocket.
         if (!nameRef?.current || !gidRef?.current) return;
         router.push(
-          "/game?name=" + nameRef.current.value + "&gid=" + gidRef.current.value
+          "/game?name=" +
+            nameRef.current.value +
+            "&gid=" +
+            gidRef.current.value,
         );
 
         // HACK: the loading props are borked, so manually setting and resetting state
         setTimeout(() => {
           setLoading(false);
           toast.success(
-            `Successfully connected to GameServer: \n ${activeServer}`
+            `Successfully connected to GameServer: \n ${activeServer}`,
           );
         }, 10000);
       },
@@ -87,7 +90,7 @@ const ConnectPage = () => {
         onOpen();
         toast.error(`Failed to connect to GameServer: \n ${activeServer}`);
       },
-    }
+    },
   );
 
   useEffect(() => {
@@ -97,7 +100,7 @@ const ConnectPage = () => {
   return (
     <Flex
       h={"100svh"}
-      bg="brand.800"
+      bg="slategray"
       justifyContent={"center"}
       alignItems={"center"}
     >
