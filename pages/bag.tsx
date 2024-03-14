@@ -20,8 +20,7 @@ const BagPage = () => {
   const [selectedDeckId, setSelectedDeckId] = useState<string>();
 
   return (
-    <Flex flexDir={"column"} bg="antiquewhite" h="100svh">
-      {/* <BagNav /> */}
+    <Flex flexDir={"column"} bg="brand.highlight" h="100svh">
       <Box color="brand.secondary">
         <Navbar />
       </Box>
@@ -46,7 +45,7 @@ const BagPage = () => {
         )}
       </Flex>
 
-      <Flex bg="indigo" flexDir={"column"} p={3}>
+      <Flex bg="brand.secondary" flexDir={"column"} p={3}>
         {!selectedDeckId && !data && (
           <>
             <UnmatchedInput setDeckId={setDeckId} />
@@ -61,7 +60,7 @@ const BagPage = () => {
           <DeckInfo data={decks?.find((deck) => deck.id === selectedDeckId)} />
         )}
       </Flex>
-      <Flex bg="indigo" h="100%">
+      <Flex bg="brand.secondary" h="100%">
         {!selectedDeckId && data && !isLoading && <DeckCarousel data={data} />}
         {decks && selectedDeckId && (
           <DeckCarousel
@@ -69,7 +68,7 @@ const BagPage = () => {
           />
         )}
       </Flex>
-      <Flex bg="indigo" alignItems={"end"} p={3}>
+      <Flex bg="brand.secondary" alignItems={"end"} p={3}>
         {!selectedDeckId && data && (
           <Button
             onClick={(e) => {

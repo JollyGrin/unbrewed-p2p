@@ -5,8 +5,8 @@ import Link from "next/link";
 
 import { FaDiscord } from "react-icons/fa";
 import { GiSwapBag } from "react-icons/gi";
+import { FaGithub } from "react-icons/fa";
 import { IconType } from "react-icons";
-import { colors } from "@/styles/style";
 
 export const Navbar = () => {
   return (
@@ -16,11 +16,14 @@ export const Navbar = () => {
       </Link>
 
       <HStack>
+        <Link href="/bag">
+          <BagIcon />
+        </Link>
         <Link href="https://discord.gg/qPxHFjwkNN">
           <DiscordIcon />
         </Link>
-        <Link href="/bag">
-          <BagIcon />
+        <Link href="https://github.com/jollygrin/unbrewed-p2p/">
+          <GithubIcon />
         </Link>
       </HStack>
     </HStack>
@@ -44,3 +47,4 @@ function i(icon: IconType) {
 }
 const BagIcon = i(GiSwapBag);
 const DiscordIcon = i(FaDiscord);
+const GithubIcon = i(FaGithub);
