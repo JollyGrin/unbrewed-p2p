@@ -21,7 +21,7 @@ const BagPage = () => {
       <Tabs h="100%">
         <TabList>
           <Tab>Decks</Tab>
-          <Tab isDisabled>Maps</Tab>
+          <Tab>Maps</Tab>
         </TabList>
 
         <TabPanels h="100%">
