@@ -44,6 +44,7 @@ export const MapModal = () => {
             <VStack alignItems="start">
               {data?.map((map) => (
                 <MapTitle
+                  key={map.imgUrl}
                   map={map}
                   onClick={() =>
                     push({ query: { ...query, mapUrl: map.imgUrl } })
@@ -56,6 +57,7 @@ export const MapModal = () => {
               </Text>
               {DEFAULT_MAPS?.map((map) => (
                 <MapTitle
+                  key={map.imgUrl}
                   map={map}
                   onClick={() =>
                     push({ query: { ...query, mapUrl: map.imgUrl } })
