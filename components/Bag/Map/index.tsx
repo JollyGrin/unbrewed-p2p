@@ -1,5 +1,14 @@
 import { MapData, useLocalMapStorage } from "@/lib/hooks";
-import { Text, Box, Flex, Grid, Image, HStack, Button } from "@chakra-ui/react";
+import {
+  Text,
+  Box,
+  Flex,
+  Grid,
+  Image,
+  HStack,
+  Button,
+  Skeleton,
+} from "@chakra-ui/react";
 import { useState } from "react";
 import { AddNewFields } from "./AddNewMapFields";
 import { LinkIcon } from "@chakra-ui/icons";
@@ -20,10 +29,14 @@ export const BagMap = () => {
     }));
   }
   return (
-    <Box>
+    <Box bg="brand.primary">
       <Grid templateColumns="1fr 1fr" bg="brand.secondary">
         <AddNewFields {...{ newMap, enterMapUrl, setNewMap }} />
-        <Image alt="map-preview" src={newMap?.imgUrl} />
+        {newMap?.imgUrl ? (
+          <Image alt="map-preview" src={newMap?.imgUrl} />
+        ) : (
+          <Skeleton w="300px" h="5rem" mt="0.5rem" />
+        )}
       </Grid>
       {data?.map((map) => <MapCard key={map.imgUrl} {...map} />)}
       <Button onClick={clear} ml="1rem">
