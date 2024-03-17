@@ -164,6 +164,12 @@ export const useLocalMapStorage = () => {
     setMapList(maps);
   };
 
+  const addMap = (map: MapData) => {
+    const newMapsList = [...mapList, map];
+    localStorage.setItem(LS_KEY.MAP_LIST, JSON.stringify(newMapsList));
+    setMapList(newMapsList);
+  };
+
   function clearList() {
     localStorage.removeItem(LS_KEY.MAP_LIST);
     setMapList([]);
@@ -172,6 +178,7 @@ export const useLocalMapStorage = () => {
   return {
     data: mapList,
     set: setList,
+    add: addMap,
     clear: clearList,
   };
 };
