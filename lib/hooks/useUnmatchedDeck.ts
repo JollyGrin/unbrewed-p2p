@@ -55,24 +55,30 @@ export const useLoadRouterDeck = () => {
   const deckId = query.deckId as string | undefined;
 
   const { data, setDeckId } = useUnmatchedDeck();
-  const { decks, pushDeck, removeDeckbyId, totalKbLeft, setStar, star } =
-    useLocalDeckStorage();
+  const { decks, pushDeck, setStar, star } = useLocalDeckStorage();
 
   useEffect(() => {
     if (!deckId) return;
 
+    // check if query.deckId is one of the existing local decks
     const deckIdsInStorage = decks
       ?.map((deck) => [deck.id, deck.version_id])
       .flat();
     if (deckIdsInStorage?.includes(deckId)) {
-      const localDeckId = decks?.find(
+      // if it is, check the local decks for a matching id
+      const localDeck = decks?.find(
         (deck) => deck.version_id === deckId || deck.id === deckId,
-      )?.id;
-      if (localDeckId) setStar(localDeckId);
-      toast.success("Refresh the page if you do not see your new deck");
+      );
+
+      if (localDeck?.version_id !== deckId) {
+        toast.success("Refresh the page if you do not see your new deck");
+      }
+      // star the local deck
+      if (localDeck) setStar(localDeck.id);
       return;
     }
 
+    // if there's no local deck, set the deckId to fetch from api
     setDeckId(deckId);
   }, [deckId]);
 
@@ -81,6 +87,7 @@ export const useLoadRouterDeck = () => {
     if (!deckId) return;
     console.log({ data, deckId });
 
+    // once api data is available, push the deck to local storage and star it
     pushDeck(data);
     setStar(data.id);
     toast.success("Refresh the page if you do not see your new deck");
