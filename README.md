@@ -4,18 +4,6 @@ This aims to recreate unbrewed.xyz but with ~~webrtc~~ and typescript. ~~This wi
 
 Update: ditching pure p2p and now instead making the gameserver easily deployable by anyone, and be able to change gameserver in settings.
 
-- [x] setup typescript: to auto-document code
-- [x] setup jest (unit tests): to make refactoring and PRs easier
-- [x] add interactive board
-- [x] add card template
-- [x] add board state (hand, discard, deck)
-- [x] add game actions
-- [x] add backpack (to load decks/maps in localstorage)
-- [x] add optional api server for loading decks from unmatched (add fallback if url breaks and ability to load a different server url)
-- [x] add websocket for board piece movements (dragging pawns across the board)
-- [x] add ability to add your own game board svgs
-- [ ] add landing page with instructions how to use tool, even if have never touched terminal
-- [ ] improve docs
 
 ## Run Locally
 
@@ -55,9 +43,9 @@ Want to deploy a gameserver that exists 24/7? Add an issue to github or PR so we
 - [JonG](https://github.com/JonathanGuberman), creator of [ unmatched.cards](https://unmatched.cards/) (create your own unmatched deck), [created the styling for the card template](https://github.com/JonathanGuberman/unmatched_maker/blob/a7e96b69559461bfac7d3203d8d3899d4af36398/src/components/UnmatchedCard.vue)
 - [Michal Wrzosek](https://github.com/michal-wrzosek), creator of [pitu pitu chat](https://michal-wrzosek.github.io/p2p-chat/)
 
-# Goals
+---
 
-## Journal
+# Journal
 
 ### 2024-03-13
 
