@@ -31,7 +31,7 @@ export default function Custom404() {
         <Text fontFamily="heading" fontSize="3rem" fontWeight={700}>
           Whoops!
         </Text>
-        <Text>This page doesn't exist!</Text>
+        <Text>This page does not exist!</Text>
       </VStack>
     </Grid>
   );
