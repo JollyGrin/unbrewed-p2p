@@ -21,6 +21,7 @@ import {
 import Link from "next/link";
 import { SettingsModal } from "@/components/Settings/settings.modal";
 import { toast } from "react-hot-toast";
+import { useLoadRouterDeck } from "@/lib/hooks";
 
 const ConnectToGamePage = () => {
   return <ConnectPage />;
@@ -32,6 +33,8 @@ const ConnectPage = () => {
   const nameRef = useRef<HTMLInputElement>(null);
   const gidRef = useRef<HTMLInputElement>(null);
   const { isOpen, onClose, onOpen } = useDisclosure();
+
+  useLoadRouterDeck();
 
   // the useQuery loading props not working on repeat visits
   const [loading, setLoading] = useState<boolean>(false);
