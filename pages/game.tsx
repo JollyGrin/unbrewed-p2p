@@ -108,7 +108,7 @@ const BoardContainer = ({ self }: { self: string }) => {
   return (
     <Box h={"100%"}>
       <BoardCanvas
-        src={mapUrl ?? "jpark.svg"}
+        src={mapUrl ?? "basraport.webp"}
         move={(e: PositionType) => {
           if (e.id.includes("_")) {
             const rootId = e.id.split("_")[0];
