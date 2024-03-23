@@ -124,8 +124,16 @@ const ConnectPage = () => {
         <SelectedDeckContainer />
         <VStack m={"2rem auto"}>
           <HStack>
-            <Input ref={nameRef} placeholder="Your name" />
-            <Input ref={gidRef} placeholder="room name" />
+            <Input
+              ref={nameRef}
+              defaultValue={router.query.username as string | undefined}
+              placeholder="Your name"
+            />
+            <Input
+              ref={gidRef}
+              defaultValue={router.query.lobby as string | undefined}
+              placeholder="room name"
+            />
           </HStack>
           <Button
             // If we are loading a new lobby request, freeze the input values.
