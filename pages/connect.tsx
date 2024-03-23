@@ -21,6 +21,7 @@ import {
 import Link from "next/link";
 import { SettingsModal } from "@/components/Settings/settings.modal";
 import { toast } from "react-hot-toast";
+import { useLoadRouterDeck } from "@/lib/hooks";
 
 const ConnectToGamePage = () => {
   return <ConnectPage />;
@@ -32,6 +33,8 @@ const ConnectPage = () => {
   const nameRef = useRef<HTMLInputElement>(null);
   const gidRef = useRef<HTMLInputElement>(null);
   const { isOpen, onClose, onOpen } = useDisclosure();
+
+  useLoadRouterDeck();
 
   // the useQuery loading props not working on repeat visits
   const [loading, setLoading] = useState<boolean>(false);
@@ -124,8 +127,16 @@ const ConnectPage = () => {
         <SelectedDeckContainer />
         <VStack m={"2rem auto"}>
           <HStack>
-            <Input ref={nameRef} placeholder="Your name" />
-            <Input ref={gidRef} placeholder="room name" />
+            <Input
+              ref={nameRef}
+              defaultValue={router.query.username as string | undefined}
+              placeholder="Your name"
+            />
+            <Input
+              ref={gidRef}
+              defaultValue={router.query.lobby as string | undefined}
+              placeholder="room name"
+            />
           </HStack>
           <Button
             // If we are loading a new lobby request, freeze the input values.
