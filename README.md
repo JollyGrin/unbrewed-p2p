@@ -47,6 +47,11 @@ Want to deploy a gameserver that exists 24/7? Add an issue to github or PR so we
 
 # Journal
 
+### 2024-03-24
+Updated the website to use unbrewed.xyz. This was important to finally redirect traffic from unmatched.cards which has a built in "Test in unbrewed" button.
+
+When navigating from unmatched.cards, will be redirected to the `/connect` page with the details loaded in. One caveat is that you'll need to refresh to show your loaded deck.
+
 ### 2024-03-13
 
 Finally have everything mostly functional. 
