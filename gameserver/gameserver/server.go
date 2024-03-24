@@ -63,7 +63,7 @@ func (gs *GameServer) LobbyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// fmt.Fprintf(w, "Game ID: %v\n", vars["gid"])
-	homeTemplate.Execute(w, "ws://api.unbrewed.xyz/ws/"+gid)
+	homeTemplate.Execute(w, "ws://unbrewed-api.vercel.app/ws/"+gid)
 
 }
 
