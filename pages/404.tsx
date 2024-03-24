@@ -13,12 +13,26 @@ export const getStaticProps: GetStaticProps<Props> = () => {
 
 export default function Custom404() {
   const router = useRouter();
-  console.log({ router }, router.asPath);
 
   // Handles the redirect from the old unbrewed online router
   useEffect(() => {
     const [_, online, lobby, user] = router.asPath.split("/");
+    if (online === "offline") {
+      const deckId = lobby;
+
+      router.push({
+        pathname: "connect",
+        query: {
+          lobby: "offline-" + Date.now(),
+          username: "offline-" + Date.now(),
+          deckId,
+        },
+      });
+      return;
+    }
+
     if (online !== "online") return;
+
     const [username, deckId] = user?.split("?deck=");
     router.push({
       pathname: "connect",
