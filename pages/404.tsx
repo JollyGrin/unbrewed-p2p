@@ -36,4 +36,3 @@ export default function Custom404() {
     </Grid>
   );
 }
-// online/fds/fds?deck=B4ZIGdn
