@@ -1,9 +1,12 @@
-# Unbrewed P2P
+# Unbrewed 
+Unbrewed: play your favorite Unmatched fan decks online with friends! All that's needed is a web-browser.
+- uses unmatched.cards to load decks
+- upload any map with just an image url
+- play with friends by connecting to the same lobby/room
 
-This aims to recreate unbrewed.xyz but with ~~webrtc~~ and typescript. ~~This will allow players to connect directly to each other without need for a server.~~ This also makes it easier to fork and remix to your liking without relying on the unbrewed server for games.
+A combined web-app and go-server to play Unmatched fan-decks online. Designed to make it easy for anyone to run the sever through a few terminal commands and let others connect to it.
 
-Update: ditching pure p2p and now instead making the gameserver easily deployable by anyone, and be able to change gameserver in settings.
-
+Feel free to submit PRs/Fork/or request features through the issue tracker.
 
 ## Run Locally
 
@@ -17,16 +20,17 @@ _Having issues with canvas?_
 - run `yarn add canvas`
 - for whatever reason this sometimes just doesn't install with default yarn
 
-## Run Locally but play online (Run a GameServer)
+## Run a GameServer
 
 _follow these instructions to run your own gameserver_
 
 It's possible to run the server on your own computer and have others connect to you. Completely for free and without needing Unbrewed servers (in case they go offline).
 
-1. Follow the above steps
+1. `cd gameserver && go build`
+1. `cd ../ && yarn server` (will be running a server on localhost:1111)
 1. go to ngrok.com and signup for a free account
 1. open a new terminal, navigate to folder, and type `yarn grok`
-1. (ensure yarn dev is running) and open https://loaclhost:3000/settings and paste the link provided
+1. open `https://unbrewed.xyz/settings` and paste the link provided
 1. You can provide the same url to others and they can connect to your server by pasting the same link.
 
 Want to deploy a gameserver that exists 24/7? Add an issue to github or PR so we can update default server lists.
@@ -41,7 +45,6 @@ Want to deploy a gameserver that exists 24/7? Add an issue to github or PR so we
 # Credits
 
 - [JonG](https://github.com/JonathanGuberman), creator of [ unmatched.cards](https://unmatched.cards/) (create your own unmatched deck), [created the styling for the card template](https://github.com/JonathanGuberman/unmatched_maker/blob/a7e96b69559461bfac7d3203d8d3899d4af36398/src/components/UnmatchedCard.vue)
-- [Michal Wrzosek](https://github.com/michal-wrzosek), creator of [pitu pitu chat](https://michal-wrzosek.github.io/p2p-chat/)
 
 ---
 
