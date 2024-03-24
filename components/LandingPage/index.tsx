@@ -69,6 +69,32 @@ export const LandingPage = () => {
               }}
             />
           </Flex>
+
+          <Text
+            mt="2rem"
+            fontFamily="SpaceGrotesk"
+            fontSize="2rem"
+            fontWeight={700}
+          >
+            Request a feature/report a bug
+          </Text>
+          <Text>
+            Unbrewed is an opensourced project made by JollyGrin. If you would
+            like to request a feature or report a bug, you can submit an issue
+            on our github*.
+          </Text>
+          <Text opacity={0.35}>
+            *Requires a Github account (create one for free)
+          </Text>
+          <Button
+            mt="0.5rem"
+            as={Link}
+            bg="brand.secondary"
+            color="brand.primary"
+            href={"https://github.com/JollyGrin/unbrewed-p2p/issues/new"}
+          >
+            Create a ticket
+          </Button>
         </Box>
       </Box>
     </Flex>

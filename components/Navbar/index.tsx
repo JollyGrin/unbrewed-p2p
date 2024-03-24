@@ -6,6 +6,7 @@ import Link from "next/link";
 import { FaDiscord } from "react-icons/fa";
 import { GiSwapBag } from "react-icons/gi";
 import { FaGithub } from "react-icons/fa";
+import { FaYoutube } from "react-icons/fa";
 import { IconType } from "react-icons";
 
 export const Navbar = () => {
@@ -21,6 +22,9 @@ export const Navbar = () => {
         </Link>
         <Link href="https://discord.gg/qPxHFjwkNN">
           <DiscordIcon />
+        </Link>
+        <Link href="https://youtube.com/playlist?list=PLjsjwAfJTj3a2NMDzOENFMwOYUzsFQn_C&si=Wi-MwpmS6loyBpB3">
+          <YoutubeIcon />
         </Link>
         <Link href="https://github.com/jollygrin/unbrewed-p2p/">
           <GithubIcon />
@@ -48,3 +52,4 @@ function i(icon: IconType) {
 const BagIcon = i(GiSwapBag);
 const DiscordIcon = i(FaDiscord);
 const GithubIcon = i(FaGithub);
+const YoutubeIcon = i(FaYoutube);

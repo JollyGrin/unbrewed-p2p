@@ -22,6 +22,7 @@ import Link from "next/link";
 import { SettingsModal } from "@/components/Settings/settings.modal";
 import { toast } from "react-hot-toast";
 import { useLoadRouterDeck } from "@/lib/hooks";
+import { Navbar } from "@/components/Navbar";
 
 const ConnectToGamePage = () => {
   return <ConnectPage />;
@@ -106,12 +107,16 @@ const ConnectPage = () => {
       bg="slategray"
       justifyContent={"center"}
       alignItems={"center"}
+      position="relative"
     >
       <SettingsModal
         isOpen={isOpen}
         onClose={onClose}
         serverStorage={{ activeServer, setActiveServer, serverList }}
       />
+      <Box position="absolute" top="0" w="100%" color="brand.primary">
+        <Navbar />
+      </Box>
       <Flex
         flexDir={"column"}
         h="60%"
