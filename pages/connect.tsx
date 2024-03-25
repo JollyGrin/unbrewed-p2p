@@ -105,6 +105,10 @@ const ConnectPage = () => {
     <Flex
       h={"100svh"}
       bg="slategray"
+      bgImage="background/choosefighter.png"
+      bgPosition="center"
+      bgSize="cover"
+      bgBlendMode="multiply"
       justifyContent={"center"}
       alignItems={"center"}
       position="relative"
@@ -122,8 +126,9 @@ const ConnectPage = () => {
         h="60%"
         w="95%"
         maxW="600px"
-        bg="white"
-        borderRadius={5}
+        bg="rgba(255,255,255,0.9)"
+        backdropFilter="blur(5px)"
+        borderRadius={9}
         p={3}
         justifyContent={"space-evenly"}
         alignItems={"center"}
@@ -136,17 +141,20 @@ const ConnectPage = () => {
               ref={nameRef}
               defaultValue={router.query.username as string | undefined}
               placeholder="Your name"
+              bg="white"
             />
             <Input
               ref={gidRef}
               defaultValue={router.query.lobby as string | undefined}
               placeholder="room name"
+              bg="white"
             />
           </HStack>
           <Button
             // If we are loading a new lobby request, freeze the input values.
             // isDisabled={(data && isLoading) || starredDeck === undefined}
             isDisabled={loading || starredDeck === undefined}
+            bg="brand.primary"
             onClick={() => {
               if (!nameRef?.current?.value || !gidRef?.current?.value) {
                 alert("I need a name and a room name");
@@ -157,13 +165,13 @@ const ConnectPage = () => {
             }}
           >
             {loading && <Spinner />}
-            Submit
+            Connect to Game
           </Button>
         </VStack>
       </Flex>
       <Flex
         position="absolute"
-        bottom="0"
+        bottom="0.5rem"
         flexDir={"column"}
         alignItems="center"
         onClick={onOpen}
