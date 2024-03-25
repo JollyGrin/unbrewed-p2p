@@ -13,23 +13,69 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	log "github.com/sirupsen/logrus"
 )
+
+type gameServerMetrics struct {
+	GCRoomsCloseCounter  prometheus.Counter
+	GCRoomLifetime       prometheus.Histogram
+	OpenRooms            prometheus.Gauge
+	PlayerJoinEventCount prometheus.Gauge
+}
 
 type GameServer struct {
 	HTTPServer *http.Server
 	Mux        *mux.Router
 	ctx        context.Context
+	registry   prometheus.Registerer
+	metrics    *gameServerMetrics
 
 	roomLock sync.RWMutex
 	Rooms    map[string]*Room
 }
 
-func NewGameServer() *GameServer {
+func NewGameServer(reg prometheus.Registerer) *GameServer {
 	gs := new(GameServer)
 	gs.HTTPServer = &http.Server{}
 	gs.Rooms = make(map[string]*Room)
 	gs.ctx = context.Background()
+	gs.registry = reg
+
+	fact := promauto.With(gs.registry)
+	gs.metrics = &gameServerMetrics{
+		GCRoomsCloseCounter: fact.NewCounter(prometheus.CounterOpts{
+			Namespace:   "unbrewed",
+			Subsystem:   "gameserver",
+			Name:        "gc_rooms_closed",
+			Help:        "Total count of rooms closed",
+			ConstLabels: nil,
+		}),
+
+		GCRoomLifetime: fact.NewHistogram(prometheus.HistogramOpts{
+			Namespace: "unbrewed",
+			Subsystem: "gameserver",
+			Name:      "gc_room_lifetime",
+			Help:      "Lifetime of a room before it is closed due to inactivity",
+			// 24hrs, 12hrs, 6hrs, 1hr, 40m, 20m, 10m, 5m, 1m
+			Buckets: []float64{60, 5 * 60, 10 * 60, 20 * 60, 40 * 60, 60 * 60, 60 * 60 * 12, 60 * 60 * 24},
+		}),
+
+		OpenRooms: fact.NewGauge(prometheus.GaugeOpts{
+			Namespace: "unbrewed",
+			Subsystem: "gameserver",
+			Name:      "open_rooms_count",
+			Help:      "Total count of open rooms",
+		}),
+
+		PlayerJoinEventCount: fact.NewGauge(prometheus.GaugeOpts{
+			Namespace: "unbrewed",
+			Subsystem: "gameserver",
+			Name:      "player_join_event_count",
+			Help:      "Total count of player join events",
+		}),
+	}
 
 	return gs
 }
@@ -96,6 +142,7 @@ func (gs *GameServer) WSHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	name := strings.Join(values["name"], " ")
 
+	gs.metrics.PlayerJoinEventCount.Inc()
 	err = room.PlayerJoin(c, name)
 	if err != nil {
 		_, _ = fmt.Fprintf(w, "player failed to join: %s", err.Error())
@@ -116,6 +163,7 @@ func (gs *GameServer) CreateLobby(gid string) (bool, error) {
 	}
 
 	gs.Rooms[gid] = NewRoom(gid, gs.ctx)
+	gs.metrics.OpenRooms.Set(float64(len(gs.Rooms)))
 
 	return true, nil
 }
@@ -138,6 +186,8 @@ func (gs *GameServer) GarbageCollector(ctx context.Context) {
 				// Close the room to kill any active go routines, all clients
 				// will be disconnected if present.
 				room.Close()
+				gs.metrics.GCRoomsCloseCounter.Inc()
+				gs.metrics.GCRoomLifetime.Observe(room.FieldState.LastUpdate.Sub(room.openedAt).Seconds())
 				delete(gs.Rooms, gid)
 				log.WithFields(log.Fields{
 					"time":       start,
@@ -157,6 +207,7 @@ func (gs *GameServer) GarbageCollector(ctx context.Context) {
 				"closed_count": closed,
 			}).Info("GC Run")
 		}
+		gs.metrics.OpenRooms.Set(float64(len(gs.Rooms)))
 	}
 }
 
@@ -190,8 +241,9 @@ type Room struct {
 
 	mutex sync.Mutex
 
-	ctx  context.Context
-	stop context.CancelFunc
+	openedAt time.Time
+	ctx      context.Context
+	stop     context.CancelFunc
 }
 
 func NewRoom(gid string, ctx context.Context) *Room {
@@ -204,6 +256,7 @@ func NewRoom(gid string, ctx context.Context) *Room {
 	}}
 	r.ctx, r.stop = context.WithCancel(ctx)
 	r.Clients = make(map[string]*PlayerConn)
+	r.openedAt = time.Now()
 
 	return r
 }
