@@ -227,6 +227,9 @@ const SelectedDeckContainer = () => {
             w="100px"
             h="100px"
             bg={starredDeck.deck_data.appearance.highlightColour}
+            bgImage={starredDeck.deck_data?.appearance?.cardbackUrl}
+            bgSize="125%"
+            bgPosition="center"
             border={`0.5rem solid ${starredDeck.deck_data.appearance.borderColour}`}
             justifyContent="center"
             alignItems="center"
@@ -238,6 +241,11 @@ const SelectedDeckContainer = () => {
             cursor="pointer"
           >
             <Text
+              display={
+                starredDeck?.deck_data?.appearance?.cardbackUrl
+                  ? "none"
+                  : "inline"
+              }
               fontSize="4xl"
               fontFamily={"monospace"}
               color={starredDeck.deck_data.appearance.borderColour}
