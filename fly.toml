@@ -45,3 +45,8 @@ port = 443
 cpu_kind = "shared"
 cpus = 1
 memory_mb = 1024
+
+[[metrics]]
+port = 9999
+path = "/metrics"
+
