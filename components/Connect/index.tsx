@@ -1,4 +1,3 @@
-import axios from "axios";
 import {
   Box,
   Button,
@@ -9,88 +8,35 @@ import {
   Tag,
   Text,
   VStack,
-  useDisclosure,
 } from "@chakra-ui/react";
 import { useRouter } from "next/router";
-import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import {
   useLocalDeckStorage,
   useLocalServerStorage,
 } from "@/lib/hooks/useLocalStorage";
 import { SettingsModal } from "@/components/Settings/settings.modal";
-import { toast } from "react-hot-toast";
 import { useLoadRouterDeck } from "@/lib/hooks";
 import { Navbar } from "@/components/Navbar";
 import { SelectedDeckContainer } from "./SelectedDeck";
+import { useCreateLobby } from "./useCreateLobby";
 
 export const ConnectPage = () => {
   const router = useRouter();
   const nameRef = useRef<HTMLInputElement>(null);
   const gidRef = useRef<HTMLInputElement>(null);
-  const { isOpen, onClose, onOpen } = useDisclosure();
 
+  // uses router props to load new decks
   useLoadRouterDeck();
-
-  // the useQuery loading props not working on repeat visits
-  const [loading, setLoading] = useState<boolean>(false);
 
   const { starredDeck } = useLocalDeckStorage();
   const { activeServer, setActiveServer, serverList } = useLocalServerStorage();
 
-  // This serverURL should come from somewhere else.
-  const serverURL = new URL(activeServer);
-
-  // We need to create the lobby before a websocket can be made.
-  // We do this on the connect, as an error from a GET request is easier
-  // to handle than an error from a websocket. So make sure the server is
-  // responding before we go to a connected state.
-  const { refetch } = useQuery(
-    ["create-lobby"],
-    async () => {
-      if (!gidRef?.current?.value) return;
-      const createLobbyURL = new URL(
-        `/lobby/${gidRef.current.value}`,
-        serverURL,
-      );
-      try {
-        const result = await axios.get(createLobbyURL.toString());
-        return result.data;
-      } catch (err) {
-        console.error(err);
-        throw err;
-      }
-    },
-    {
-      // We manually call refetch.
-      enabled: false,
-      refetchOnWindowFocus: false,
-      onSuccess: () => {
-        // If the lobby was created, we can move to the game state and
-        // connect to the websocket.
-        if (!nameRef?.current || !gidRef?.current) return;
-        router.push(
-          "/game?name=" +
-            nameRef.current.value +
-            "&gid=" +
-            gidRef.current.value,
-        );
-
-        // HACK: the loading props are borked, so manually setting and resetting state
-        setTimeout(() => {
-          setLoading(false);
-          toast.success(
-            `Successfully connected to GameServer: \n ${activeServer}`,
-          );
-        }, 10000);
-      },
-      onError: () => {
-        setLoading(false);
-        onOpen();
-        toast.error(`Failed to connect to GameServer: \n ${activeServer}`);
-      },
-    },
-  );
+  // create the lobby and connect to it
+  const { refetch, loading, setLoading, disclosure } = useCreateLobby({
+    gidRef,
+    nameRef,
+  });
 
   useEffect(() => {
     router.prefetch("/game");
@@ -109,8 +55,8 @@ export const ConnectPage = () => {
       position="relative"
     >
       <SettingsModal
-        isOpen={isOpen}
-        onClose={onClose}
+        isOpen={disclosure.isOpen}
+        onClose={disclosure.onClose}
         serverStorage={{ activeServer, setActiveServer, serverList }}
       />
       <Box position="absolute" top="0" w="100%" color="brand.primary">
@@ -169,7 +115,7 @@ export const ConnectPage = () => {
         bottom="0.5rem"
         flexDir={"column"}
         alignItems="center"
-        onClick={onOpen}
+        onClick={disclosure.onOpen}
         cursor="pointer"
       >
         <Text color="ghostwhite">Active GameServer URL:</Text>
