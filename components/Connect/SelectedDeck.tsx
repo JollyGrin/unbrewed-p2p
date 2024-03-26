@@ -43,20 +43,25 @@ export const SelectedDeckContainer = () => {
       ) : (
         <>
           <Flex
-            w="100px"
-            h="100px"
+            as={Link}
+            href="/bag"
+            w="200px"
+            h="300px"
             bg={starredDeck.deck_data.appearance.highlightColour}
             bgImage={starredDeck.deck_data?.appearance?.cardbackUrl}
-            bgSize="125%"
+            bgSize="cover"
             bgPosition="center"
-            border={`0.5rem solid ${starredDeck.deck_data.appearance.borderColour}`}
+            border={`0.25rem solid ${starredDeck.deck_data.appearance.borderColour}`}
             justifyContent="center"
             alignItems="center"
-            boxShadow="0 0 10px rgba(0,0,0,0.5)"
+            boxShadow="0 0 5px rgba(0,0,0,0.5)"
             borderRadius={5}
             flexDir={"column"}
-            transition="all 0.25s ease-in-out"
-            _hover={{ boxShadow: "0 0 20px rgba(0,0,0,0.55)" }}
+            transition="all 0.35s ease-in-out"
+            _hover={{
+              boxShadow: "0 0 10px rgba(0,0,0,0.55)",
+              filter: "saturate(1.1)",
+            }}
             cursor="pointer"
           >
             <Text
