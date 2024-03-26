@@ -54,7 +54,9 @@ export const ConnectPage = () => {
         <Navbar />
       </Box>
       <ConnectContainer backdropFilter="blur(5px)">
-        <Text fontSize={"2.5rem"}>Connect</Text>
+        <Text fontSize={"2.5rem"} fontFamily="SpaceGrotesk">
+          Connect
+        </Text>
         <SelectedDeckContainer />
         <VStack m={"2rem auto"}>
           <HStack>
