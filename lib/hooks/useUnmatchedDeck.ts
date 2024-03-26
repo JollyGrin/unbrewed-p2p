@@ -72,6 +72,7 @@ export const useLoadRouterDeck = () => {
 
       if (localDeck?.version_id !== deckId) {
         toast.success("Refresh the page if you do not see your new deck");
+        reload()
       }
       // star the local deck
       if (localDeck) setStar(localDeck.id);
