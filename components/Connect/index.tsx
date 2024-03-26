@@ -20,6 +20,7 @@ import { useLoadRouterDeck } from "@/lib/hooks";
 import { Navbar } from "@/components/Navbar";
 import { SelectedDeckContainer } from "./SelectedDeck";
 import { useCreateLobby } from "./useCreateLobby";
+import styled from "@emotion/styled";
 
 export const ConnectPage = () => {
   const router = useRouter();
@@ -43,17 +44,7 @@ export const ConnectPage = () => {
   }, [router]);
 
   return (
-    <Flex
-      h={"100svh"}
-      bg="slategray"
-      bgImage="background/choosefighter.png"
-      bgPosition="center"
-      bgSize="cover"
-      bgBlendMode="multiply"
-      justifyContent={"center"}
-      alignItems={"center"}
-      position="relative"
-    >
+    <Wrapper bgImage="background/choosefighter.png" bgBlendMode="multiply">
       <SettingsModal
         isOpen={disclosure.isOpen}
         onClose={disclosure.onClose}
@@ -62,18 +53,7 @@ export const ConnectPage = () => {
       <Box position="absolute" top="0" w="100%" color="brand.primary">
         <Navbar />
       </Box>
-      <Flex
-        flexDir={"column"}
-        h="60%"
-        w="95%"
-        maxW="600px"
-        bg="rgba(255,255,255,0.9)"
-        backdropFilter="blur(5px)"
-        borderRadius={9}
-        p={3}
-        justifyContent={"space-evenly"}
-        alignItems={"center"}
-      >
+      <ConnectContainer backdropFilter="blur(5px)">
         <Text fontSize={"2.5rem"}>Connect</Text>
         <SelectedDeckContainer />
         <VStack m={"2rem auto"}>
@@ -109,7 +89,7 @@ export const ConnectPage = () => {
             Connect to Game
           </Button>
         </VStack>
-      </Flex>
+      </ConnectContainer>
       <Flex
         position="absolute"
         bottom="0.5rem"
@@ -121,6 +101,28 @@ export const ConnectPage = () => {
         <Text color="ghostwhite">Active GameServer URL:</Text>
         <Tag p={2}>{activeServer}</Tag>
       </Flex>
-    </Flex>
+    </Wrapper>
   );
 };
+
+const Wrapper = styled(Flex)`
+  height: 100svh;
+  background-color: slategray;
+  background-position: center;
+  background-size: cover;
+  justify-content: center;
+  align-items: center;
+  position: center;
+`;
+
+const ConnectContainer = styled(Flex)`
+  flex-direction: column;
+  height: 50%;
+  width: 95%;
+  max-width: 600px;
+  background-color: rgba(255, 255, 255, 0.9);
+  border-radius: 1rem;
+  padding: 2rem;
+  justify-content: space-evenly;
+  align-items: center;
+`;
