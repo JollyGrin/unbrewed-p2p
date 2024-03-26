@@ -33,6 +33,7 @@ export const ConnectPage = () => {
   const nameRef = useRef<HTMLInputElement>(null);
   const gidRef = useRef<HTMLInputElement>(null);
 
+  const [lobby, setLobby] = useState(gidRef?.current?.value ?? "");
   const [sharedDeckId, setSharedDeckId] = useState<string | undefined>();
 
   // uses router props to load new decks
@@ -84,6 +85,10 @@ export const ConnectPage = () => {
             <Input
               ref={gidRef}
               defaultValue={router.query.lobby as string | undefined}
+              onChange={(e) => {
+                setLobby(e.target.value);
+                if (e.target.value === "") setSharedDeckId(undefined);
+              }}
               placeholder="lobby name"
               bg="white"
             />
@@ -108,10 +113,16 @@ export const ConnectPage = () => {
           </VStack>
           {sharedDeckId === undefined && (
             <PlusSquareIcon
+              opacity={lobby !== "" ? 1 : 0}
+              transition="all 0.25s ease-in-out"
               onClick={() => setSharedDeckId("")}
               fontSize="2rem"
               alignSelf="center"
               justifySelf="center"
+              cursor="pointer"
+              _hover={{
+                transform: "scale(1.2)",
+              }}
             />
           )}
 
