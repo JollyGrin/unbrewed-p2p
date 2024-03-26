@@ -51,11 +51,11 @@ export const useUnmatchedDeck = () => {
  * and manipulates localstorage
  * */
 export const useLoadRouterDeck = () => {
-  const { query } = useRouter();
+  const { query, reload } = useRouter();
   const deckId = query.deckId as string | undefined;
 
   const { data, setDeckId } = useUnmatchedDeck();
-  const { decks, pushDeck, setStar, star } = useLocalDeckStorage();
+  const { decks, pushDeck, setStar } = useLocalDeckStorage();
 
   useEffect(() => {
     if (!deckId) return;
@@ -72,6 +72,7 @@ export const useLoadRouterDeck = () => {
 
       if (localDeck?.version_id !== deckId) {
         toast.success("Refresh the page if you do not see your new deck");
+        reload()
       }
       // star the local deck
       if (localDeck) setStar(localDeck.id);
@@ -85,11 +86,11 @@ export const useLoadRouterDeck = () => {
   useEffect(() => {
     if (!data) return;
     if (!deckId) return;
-    console.log({ data, deckId });
 
     // once api data is available, push the deck to local storage and star it
     pushDeck(data);
     setStar(data.id);
-    toast.success("Refresh the page if you do not see your new deck");
+    toast.success("Success! Refreshing page to load new deck");
+    reload();
   }, [data]);
 };
