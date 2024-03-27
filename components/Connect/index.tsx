@@ -70,6 +70,7 @@ export const ConnectPage = () => {
         </Text>
         <SelectedDeckContainer />
         <Grid
+          my="1rem"
           templateColumns={`1fr ${sharedDeckId === undefined ? "auto" : ""} 1fr`}
           w="100%"
           gap="0.5rem"
@@ -181,7 +182,7 @@ const Wrapper = styled(Flex)`
 
 const ConnectContainer = styled(Flex)`
   flex-direction: column;
-  height: 50%;
+  /* height: 50%; */
   width: 95%;
   max-width: 600px;
   min-height: 600px;
