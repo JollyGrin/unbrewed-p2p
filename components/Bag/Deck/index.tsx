@@ -1,18 +1,21 @@
 import { Dispatch, SetStateAction, useState } from "react";
-import { Box, Button, Flex, Input, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, Grid, HStack, Input, Text } from "@chakra-ui/react";
 import { CardFactory } from "@/components/CardFactory/card.factory";
 import { DECK_ID } from "@/lib/constants/unmatched-deckids";
 import { useUnmatchedDeck } from "@/lib/hooks/useUnmatchedDeck";
-import { Carousel } from "@/components/Game/game.carousel";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
+
+import { FaStar } from "react-icons/fa";
+
 import { StarterDeckContainer } from "@/components/Bag/StarterDecks";
-import { DeckSlot } from "./Slot";
 import { DeckStats } from "./Stats";
-import { DeckInfo } from "./Info";
+import { AddJson } from "./AddJson";
+import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
+import { toast } from "react-hot-toast";
 
 export const BagDecks = () => {
-  const { data, isLoading, setDeckId } = useUnmatchedDeck();
+  const { data, setDeckId } = useUnmatchedDeck();
 
   const { decks, pushDeck, removeDeckbyId, totalKbLeft, setStar, star } =
     useLocalDeckStorage();
@@ -23,89 +26,179 @@ export const BagDecks = () => {
     <>
       <Box bg="brand.primary">
         <DeckStats length={decks?.length ?? 0} deckKb={totalKbLeft ?? 0} />
-        <Flex justifyContent={"space-between"}>
-          {decks && (
-            <Carousel
-              items={decks?.map((deck) => (
-                <Box w="110px" key={deck.id}>
-                  <DeckSlot
-                    abbrev={deck?.deck_data.hero.name
-                      .substring(0, 3)
-                      .toUpperCase()}
-                    id={deck?.id}
-                    setSelectedDeck={setSelectedDeckId}
-                    isSelected={selectedDeckId === deck.id}
-                    star={star}
-                  />
-                </Box>
-              ))}
-            />
-          )}
-        </Flex>
       </Box>
-
-      <Flex bg="brand.secondary" flexDir={"column"} p={3}>
-        {!selectedDeckId && !data && (
-          <>
-            <UnmatchedInput setDeckId={setDeckId} />
-            <StarterDeckContainer
-              pushDeck={pushDeck}
-              deckIds={decks?.map((deck) => deck.id)}
+      <Grid templateColumns="1fr 4fr" h="100%">
+        <Box bg="white">
+          {decks?.map((deck) => (
+            <DeckListItem
+              key={deck.id + deck.version_id}
+              {...{ deck, star, selectedDeckId, setSelectedDeckId }}
             />
-          </>
-        )}
-        {!selectedDeckId && data && <DeckInfo data={data} />}
+          ))}
+        </Box>
         {selectedDeckId && (
-          <DeckInfo data={decks?.find((deck) => deck.id === selectedDeckId)} />
+          <Box h="100%" bg="brand.secondary">
+            <Buttons
+              deck={decks?.find((deck) => deck.id === selectedDeckId)}
+              {...{
+                setSelectedDeckId,
+                selectedDeckId,
+                star,
+                setStar,
+                removeDeckbyId,
+              }}
+            />
+            <DeckCards {...{ decks, selectedDeckId }} />
+          </Box>
         )}
-      </Flex>
-      <Flex bg="brand.secondary" h="100%">
-        {!selectedDeckId && data && !isLoading && <DeckCarousel data={data} />}
-        {decks && selectedDeckId && (
-          <DeckCarousel
-            selectedDeck={decks?.find((deck) => deck.id === selectedDeckId)}
-          />
+
+        {!selectedDeckId && (
+          <Box p="0.5rem">
+            {!data && (
+              <Flex direction="column">
+                <Box>
+                  <UnmatchedInput setDeckId={setDeckId} />
+                </Box>
+                <AddJson />
+                <StarterDeckContainer
+                  deckIds={decks?.map((deck) => deck.id)}
+                  {...{ pushDeck }}
+                />
+              </Flex>
+            )}
+            {data && (
+              <HStack ml="0.5rem" mb="0.5rem" gap="0.5rem">
+                <Button onClick={() => pushDeck(data)}>Save Deck</Button>
+                <Button onClick={() => setDeckId(undefined)}>Clear</Button>
+              </HStack>
+            )}
+
+            {/* If data exists, show the cards */}
+            {data && <DeckCards decks={[data]} selectedDeckId={data.id} />}
+          </Box>
         )}
-      </Flex>
-      <Flex bg="brand.secondary" alignItems={"end"} p={3}>
-        {!selectedDeckId && data && (
+      </Grid>
+    </>
+  );
+};
+
+const DeckListItem = ({
+  deck,
+  star,
+  setSelectedDeckId,
+  selectedDeckId,
+}: {
+  deck: DeckImportType;
+  star?: string;
+  selectedDeckId?: string;
+  setSelectedDeckId: (id: string) => void;
+}) => {
+  return (
+    <HStack
+      key={deck.id + deck.version_id}
+      p="0.5rem"
+      bg={selectedDeckId === deck.id ? "rgba(0,0,0,0.15)" : ""}
+      cursor="pointer"
+      onClick={() => setSelectedDeckId(deck.id)}
+    >
+      <Box
+        h="2rem"
+        w="1.5rem"
+        borderRadius="0.25rem"
+        bg={deck.deck_data.appearance.highlightColour}
+        bgImg={deck.deck_data.appearance.cardbackUrl}
+        bgPos="center"
+        bgSize="cover"
+        transition="all 0.25s ease-in-out"
+        _hover={{
+          transform: "scale(1.8)",
+        }}
+      />
+      {star === deck.id && (
+        <FaStar
+          color="gold"
+          style={{ filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.25))" }}
+        />
+      )}
+      <Text>{deck.name}</Text>
+    </HStack>
+  );
+};
+
+const Buttons = ({
+  deck,
+  selectedDeckId,
+  setSelectedDeckId,
+  removeDeckbyId,
+  setStar,
+}: {
+  deck?: DeckImportType;
+  selectedDeckId?: string;
+  setSelectedDeckId: (id?: string) => void;
+  removeDeckbyId: (id: string) => void;
+  setStar: (id: string) => void;
+}) => {
+  const [_, copy] = useCopyToClipboard();
+  return (
+    <HStack p="0.5rem" justifyContent="end">
+      {selectedDeckId && (
+        <Flex gap={2}>
+          <Button onClick={() => setSelectedDeckId(undefined)}>Deselect</Button>
           <Button
-            onClick={(e) => {
-              e.preventDefault();
-              pushDeck(data);
-              setDeckId(undefined);
+            bg="tomato"
+            onClick={() => {
+              setSelectedDeckId(undefined);
+              removeDeckbyId(selectedDeckId);
             }}
           >
-            Save Deck
+            Toss from Bag
           </Button>
-        )}
-        {selectedDeckId && (
-          <Flex gap={2}>
-            <Button onClick={() => setSelectedDeckId(undefined)}>
-              Deselect
-            </Button>
-            <Button
-              bg="tomato"
-              onClick={() => {
-                setSelectedDeckId(undefined);
-                removeDeckbyId(selectedDeckId);
-              }}
-            >
-              Toss from Bag
-            </Button>
 
-            <Button
-              bg="gold"
-              onClick={() => {
-                setStar(selectedDeckId);
-              }}
-            >
-              ☆ Star Deck
-            </Button>
-          </Flex>
-        )}
-      </Flex>
-    </>
+          <Button
+            bg="gold"
+            onClick={() => {
+              setStar(selectedDeckId);
+            }}
+          >
+            ☆ Star Deck
+          </Button>
+
+          <Button
+            onClick={() => {
+              copy(JSON.stringify(deck));
+              toast.success("Copied JSON for: " + deck?.name);
+            }}
+          >
+            Copy JSON
+          </Button>
+        </Flex>
+      )}
+    </HStack>
+  );
+};
+
+const DeckCards = ({
+  decks,
+  selectedDeckId,
+}: {
+  decks?: DeckImportType[];
+  selectedDeckId?: string;
+}) => {
+  return (
+    <Flex flexWrap="wrap" gap="0.5rem" mx="0.5rem">
+      {decks
+        ?.find((deck) => deck.id === selectedDeckId)
+        ?.deck_data?.cards?.map((card) => (
+          <Box
+            key={card.title}
+            maxW="200px"
+            transition="all 0.25s ease-in-out"
+            _hover={{ transform: "scale(2)" }}
+          >
+            <CardFactory card={card} />
+          </Box>
+        ))}
+    </Flex>
   );
 };
 
@@ -137,25 +230,5 @@ const UnmatchedInput = ({
         }}
       />
     </>
-  );
-};
-
-const DeckCarousel = ({
-  data,
-  selectedDeck,
-}: {
-  data?: DeckImportType;
-  selectedDeck?: DeckImportType;
-}) => {
-  const deck = selectedDeck ? selectedDeck : data;
-  if (!deck) return <div />;
-  return (
-    <Carousel
-      items={deck.deck_data.cards.map((card, index) => (
-        <Box key={card.title + index} h="250px" w="190px">
-          <CardFactory card={card} />
-        </Box>
-      ))}
-    />
   );
 };
