@@ -10,6 +10,9 @@ import { FaStar } from "react-icons/fa";
 
 import { StarterDeckContainer } from "@/components/Bag/StarterDecks";
 import { DeckStats } from "./Stats";
+import { AddJson } from "./AddJson";
+import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
+import { toast } from "react-hot-toast";
 
 export const BagDecks = () => {
   const { data, setDeckId } = useUnmatchedDeck();
@@ -36,6 +39,7 @@ export const BagDecks = () => {
         {selectedDeckId && (
           <Box h="100%" bg="brand.secondary">
             <Buttons
+              deck={decks?.find((deck) => deck.id === selectedDeckId)}
               {...{
                 setSelectedDeckId,
                 selectedDeckId,
@@ -55,6 +59,7 @@ export const BagDecks = () => {
                 <Box>
                   <UnmatchedInput setDeckId={setDeckId} />
                 </Box>
+                <AddJson />
                 <StarterDeckContainer
                   deckIds={decks?.map((deck) => deck.id)}
                   {...{ pushDeck }}
@@ -121,16 +126,19 @@ const DeckListItem = ({
 };
 
 const Buttons = ({
+  deck,
   selectedDeckId,
   setSelectedDeckId,
   removeDeckbyId,
   setStar,
 }: {
+  deck?: DeckImportType;
   selectedDeckId?: string;
   setSelectedDeckId: (id?: string) => void;
   removeDeckbyId: (id: string) => void;
   setStar: (id: string) => void;
 }) => {
+  const [_, copy] = useCopyToClipboard();
   return (
     <HStack p="0.5rem" justifyContent="end">
       {selectedDeckId && (
@@ -153,6 +161,15 @@ const Buttons = ({
             }}
           >
             ☆ Star Deck
+          </Button>
+
+          <Button
+            onClick={() => {
+              copy(JSON.stringify(deck));
+              toast.success("Copied JSON for: " + deck?.name);
+            }}
+          >
+            Copy JSON
           </Button>
         </Flex>
       )}
