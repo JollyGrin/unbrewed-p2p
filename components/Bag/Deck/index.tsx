@@ -13,6 +13,7 @@ import { DeckStats } from "./Stats";
 import { AddJson } from "./AddJson";
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
 import { toast } from "react-hot-toast";
+import { DeckCards } from "./DeckCards";
 
 export const BagDecks = () => {
   const { data, setDeckId } = useUnmatchedDeck();
@@ -174,31 +175,6 @@ const Buttons = ({
         </Flex>
       )}
     </HStack>
-  );
-};
-
-const DeckCards = ({
-  decks,
-  selectedDeckId,
-}: {
-  decks?: DeckImportType[];
-  selectedDeckId?: string;
-}) => {
-  return (
-    <Flex flexWrap="wrap" gap="0.5rem" mx="0.5rem">
-      {decks
-        ?.find((deck) => deck.id === selectedDeckId)
-        ?.deck_data?.cards?.map((card) => (
-          <Box
-            key={card.title}
-            maxW="200px"
-            transition="all 0.25s ease-in-out"
-            _hover={{ transform: "scale(2)" }}
-          >
-            <CardFactory card={card} />
-          </Box>
-        ))}
-    </Flex>
   );
 };
 
