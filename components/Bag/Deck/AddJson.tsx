@@ -30,7 +30,8 @@ export const AddJson = () => {
     >
       <Text fontWeight={700}>Load a Deck from a JSON</Text>
       <Text>
-        Don't have a deck uploaded to Unmatched? You can import the raw JSON
+        Don&apos;t have a deck uploaded to Unmatched? You can import the raw
+        JSON
       </Text>
       <Options />
     </Flex>
@@ -73,8 +74,8 @@ const Options = () => {
             <Box w="50%">
               <StatusText isValid={isJsonValid ?? false} text="is JSON?" />
               <FormLabel fontSize="0.75rem">
-                Heads up! This won't check the JSON contents, just if it's a
-                valid json
+                Heads up! This won&apos;t check the JSON contents, just if
+                it&apos;s a valid json
               </FormLabel>
 
               {isJsonValid && (
