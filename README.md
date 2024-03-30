@@ -59,6 +59,8 @@ Improved bag handling.
 
 At the moment neither of these have any validation checking. So if you upload a broken JSON, it can break your app. You can fix this by clearing localStorage from your browser (Inspect > Application > Local Storage)
 
+Later will be adding a list of URLs with decks and maps to ensure they can always be played, as long as a static HTML & Go server can run.
+
 ### 2024-03-24
 Updated the website to use unbrewed.xyz. This was important to finally redirect traffic from unmatched.cards which has a built in "Test in unbrewed" button.
 When navigating from unmatched.cards, will be redirected to the `/connect` page with the details loaded in. One caveat is that you'll need to refresh to show your loaded deck.
