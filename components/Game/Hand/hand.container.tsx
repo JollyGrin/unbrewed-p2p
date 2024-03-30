@@ -9,7 +9,6 @@ import {
   newPool,
   shuffleDeck,
 } from "@/components/DeckPool/PoolFns";
-import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
 import { Box, Flex, Grid } from "@chakra-ui/react";
 import { useRouter } from "next/router";
@@ -19,17 +18,26 @@ import styled from "@emotion/styled";
 import { flow } from "lodash";
 import { ModalType } from "@/pages/game";
 import { CloseIcon } from "@chakra-ui/icons";
+import { WebsocketMessage } from "@/lib/gamesocket/message";
+
+type GameData = {
+  gameState: WebsocketMessage | undefined;
+  setPlayerState: () => (props: { pool: PoolType }) => void;
+};
 
 export const HandContainer = ({
   setModal,
+  gameState,
+  setPlayerState,
 }: {
   setModal: (type: ModalType) => void;
+  gameState: GameData["gameState"];
+  setPlayerState: GameData["setPlayerState"];
 }) => {
   const localName = useRouter().query?.name;
   const player = Array.isArray(localName) ? localName[0] : localName;
 
   const { starredDeck } = useLocalDeckStorage();
-  const { gameState, setPlayerState } = useWebGame();
   const players = gameState?.content?.players as Record<
     string,
     { pool?: PoolType }

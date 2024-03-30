@@ -27,6 +27,7 @@ import styled from "@emotion/styled";
 import { PlusSquareIcon } from "@chakra-ui/icons";
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
 import { toast } from "react-hot-toast";
+import Link from "next/link";
 
 export const ConnectPage = () => {
   const router = useRouter();
@@ -110,6 +111,9 @@ export const ConnectPage = () => {
             >
               {loading && <Spinner />}
               Connect to Game
+            </Button>
+            <Button as={Link} href={{ pathname: "/offline" }}>
+              Play Offline without Map
             </Button>
           </VStack>
           {sharedDeckId === undefined && (

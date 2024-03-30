@@ -11,7 +11,13 @@ import { WebGameProvider, useWebGame } from "@/lib/contexts/WebGameProvider";
 import useDelayedTrue from "@/lib/hooks/useDelay";
 import { Box, useDisclosure } from "@chakra-ui/react";
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useState } from "react";
+import {
+  Dispatch,
+  SetStateAction,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 
 export type ModalType = "hand" | "discard" | "deck" | "commit" | false;
 
@@ -48,18 +54,47 @@ const GamePage = () => {
       <WebGameProvider>
         <GameLayout>
           <PositionModal {...positionDisclosure} />
-          <ModalContainer
+          <ModalWrapper
             {...disclosure}
             modalType={modalType}
             setModalType={setModalType}
           />
           <HeaderContainer openPositionModal={positionDisclosure.onOpen} />
           {isReady && <BoardContainer self={query?.name as string} />}
-          <HandContainer setModal={setModalType} />
+          <HandWrapper {...{ setModalType }} />
         </GameLayout>
         <KeyboardListener onKeyPress={handleKeyPress} />
       </WebGameProvider>
     </>
+  );
+};
+
+/**
+ * Quick hack to reuse hand-container for offline
+ * */
+const HandWrapper = ({
+  setModalType,
+}: {
+  setModalType: Dispatch<SetStateAction<ModalType>>;
+}) => {
+  const { gameState, setPlayerState } = useWebGame();
+  return (
+    <HandContainer setModal={setModalType} {...{ gameState, setPlayerState }} />
+  );
+};
+
+const ModalWrapper = (props: {
+  isOpen: boolean;
+  modalType: ModalType;
+  setModalType: (type: ModalType) => void;
+}) => {
+  const { gameState, setPlayerState } = useWebGame();
+  return (
+    <ModalContainer
+      {...props}
+      gameState={gameState}
+      setPlayerState={setPlayerState}
+    />
   );
 };
 
