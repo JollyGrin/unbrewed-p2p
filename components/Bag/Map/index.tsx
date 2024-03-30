@@ -29,7 +29,7 @@ export const BagMap = () => {
     }));
   }
   return (
-    <Box bg="brand.primary" h="100%">
+    <Box bg="brand.primary">
       <Grid templateColumns="1fr 1fr" bg="brand.secondary">
         <AddNewFields {...{ newMap, enterMapUrl, setNewMap }} />
         {newMap?.imgUrl ? (
@@ -81,58 +81,7 @@ export const BagMap = () => {
         ))}
       </Flex>
 
-      {/* {data?.map((map) => <MapCard key={map.imgUrl} {...map} />)} */}
-      {/* <Button onClick={clear} ml="1rem"> */}
-      {/*   Clear your saved Maps */}
-      {/* </Button> */}
-
-      {/* <Text */}
-      {/*   m="0 auto" */}
-      {/*   w="fit-content" */}
-      {/*   fontSize="2rem" */}
-      {/*   fontFamily="SpaceGrotesk" */}
-      {/* > */}
-      {/*   Default Homebrewed Maps */}
-      {/* </Text> */}
-      {/* {DEFAULT_MAPS?.map((map) => <MapCard key={map.imgUrl} {...map} />)} */}
-
       <MapModal />
     </Box>
-  );
-};
-
-const MapCard = (map: MapData) => {
-  const { query, push } = useRouter();
-  return (
-    <Flex
-      maxW="500px"
-      m="1rem auto"
-      bg="brand.secondary"
-      color="brand.primary"
-      justifyContent="space-between"
-      alignItems="center"
-      borderRadius="0.5rem"
-    >
-      <HStack p="1rem">
-        <Text fontSize="2rem">{map.meta?.title}</Text>
-        {map.meta?.author && <Text>by {map.meta.author}</Text>}
-        {map.meta?.url && (
-          <Link href={map.meta.url}>
-            <LinkIcon fontSize="2rem" />
-          </Link>
-        )}
-      </HStack>
-      <Box
-        cursor="pointer"
-        boxSize="10rem"
-        bgImage={map.imgUrl}
-        bgPosition="center"
-        bgSize="cover"
-        borderRightRadius="inherit"
-        onClick={() => {
-          push({ query: { ...query, mapUrl: map.imgUrl, editMapUrl: true } });
-        }}
-      />
-    </Flex>
   );
 };
