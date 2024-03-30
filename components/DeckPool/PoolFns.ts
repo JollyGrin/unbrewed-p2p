@@ -181,10 +181,31 @@ export const commitCard = (pool: PoolType, cardIndex: number): PoolType => {
   return pool;
 };
 
+export const boostCard = (pool: PoolType, cardIndex: number): PoolType => {
+  if (!pool?.hand) return pool;
+  if (pool.commit.boost) return pool;
+  pool.commit.boost = pool.hand[cardIndex];
+  pool.hand.splice(cardIndex, 1);
+  return pool;
+};
+
+export const cancelBoost = (pool: PoolType): PoolType => {
+  if (!pool?.commit.boost) return pool;
+  pool.hand.unshift(pool.commit.boost);
+  pool.commit.boost = null;
+  return pool;
+};
+
 export const discardCommit = (pool: PoolType): PoolType => {
   if (!pool.commit.main) return pool;
-  pool.discard.push(pool.commit.main);
+  pool.discard.unshift(pool.commit.main);
   pool.commit.main = null;
+
+  if (pool.commit.boost) {
+    pool.discard.unshift(pool.commit.boost);
+    pool.commit.boost = null;
+  }
+
   pool.commit.reveal = false;
   return pool;
 };
@@ -194,6 +215,12 @@ export const cancelCommit = (pool: PoolType): PoolType => {
   pool.hand.push(pool.commit.main);
   pool.commit.main = null;
   pool.commit.reveal = false;
+
+  if (pool.commit.boost) {
+    pool.hand.push(pool.commit.boost);
+    pool.commit.boost = null;
+  }
+
   return pool;
 };
 
