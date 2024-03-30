@@ -50,6 +50,15 @@ Want to deploy a gameserver that exists 24/7? Add an issue to github or PR so we
 
 # Journal
 
+### 2024-03-30
+The purpose of this refactor was to evergreen this app, and make it always possible to play unmatched fan decks in the browser. In this theme I added more ways to add data/decks/maps so it's less reliant on unmatched.cards (in case it becomes unavailable in the future)
+
+Improved bag handling.
+- Add deck with JSON or URL: instead of only being able to add a deck with unmatched.cards, I added two MVP inputs so you can add a deck by pasting JSON text, or a URL that contains a JSON download
+- Add decks/maps in bulk: shows your entire decks/maps so you can copy/paste to store. Can also use a URL that downloads a JSON 
+
+At the moment neither of these have any validation checking. So if you upload a broken JSON, it can break your app. You can fix this by clearing localStorage from your browser (Inspect > Application > Local Storage)
+
 ### 2024-03-24
 Updated the website to use unbrewed.xyz. This was important to finally redirect traffic from unmatched.cards which has a built in "Test in unbrewed" button.
 When navigating from unmatched.cards, will be redirected to the `/connect` page with the details loaded in. One caveat is that you'll need to refresh to show your loaded deck.
