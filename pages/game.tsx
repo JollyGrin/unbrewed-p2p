@@ -54,7 +54,7 @@ const GamePage = () => {
       <WebGameProvider>
         <GameLayout>
           <PositionModal {...positionDisclosure} />
-          <ModalContainer
+          <ModalWrapper
             {...disclosure}
             modalType={modalType}
             setModalType={setModalType}
@@ -80,6 +80,21 @@ const HandWrapper = ({
   const { gameState, setPlayerState } = useWebGame();
   return (
     <HandContainer setModal={setModalType} {...{ gameState, setPlayerState }} />
+  );
+};
+
+const ModalWrapper = (props: {
+  isOpen: boolean;
+  modalType: ModalType;
+  setModalType: (type: ModalType) => void;
+}) => {
+  const { gameState, setPlayerState } = useWebGame();
+  return (
+    <ModalContainer
+      {...props}
+      gameState={gameState}
+      setPlayerState={setPlayerState}
+    />
   );
 };
 

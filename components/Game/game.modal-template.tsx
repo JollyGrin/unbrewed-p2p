@@ -27,20 +27,24 @@ import { useRouter } from "next/router";
 import { DeckImportCardType } from "../DeckPool/deck-import.type";
 import { flow } from "lodash";
 import { toast } from "react-hot-toast";
+import { WebsocketMessage } from "@/lib/gamesocket/message";
 
 type ModalTemplateType = {
   isOpen: boolean;
   modalType: ModalType;
   setModalType: (type: ModalType) => void;
+  gameState: WebsocketMessage | undefined;
+  setPlayerState: () => (props: { pool: PoolType }) => void;
 };
 export const ModalContainer: React.FC<ModalTemplateType> = ({
   isOpen,
   modalType,
   setModalType,
+  gameState,
+  setPlayerState,
 }) => {
   const isCommit = modalType === "commit";
   const player = useRouter().query?.name as string;
-  const { gameState, setPlayerState } = useWebGame();
   const players = gameState?.content?.players as Record<
     string,
     { pool?: PoolType }
@@ -117,6 +121,7 @@ export const ModalContainer: React.FC<ModalTemplateType> = ({
           }),
         );
 
+  console.log({ modalType, isOpen });
   return (
     <>
       <Modal isOpen={isOpen} onClose={() => !isCommit && onClose()}>
