@@ -18,6 +18,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocalDeckStorage } from "@/lib/hooks";
 import { useRouter } from "next/router";
 import axios from "axios";
+import { jsonCheck } from "@/lib/hooks/helpers";
+import { useJsonCheck } from "@/lib/hooks/useJsonCheck";
 
 export const AddJson = () => {
   return (
@@ -44,11 +46,7 @@ const Options = () => {
 
   const [json, setJson] = useState<string>("");
   const [url, setUrl] = useState<string>();
-
-  const { data: isJsonValid } = useQuery(
-    ["json-check", json.length, json.substring(0, 5)],
-    async () => await jsonCheck(json),
-  );
+  const { data: isJsonValid } = useJsonCheck(json);
 
   const { data: urlData } = useQuery(
     ["urlData"],
@@ -151,13 +149,3 @@ const StatusText = (props: { text: string; isValid: boolean }) => {
     </HStack>
   );
 };
-
-async function jsonCheck(value: string) {
-  console.log(value);
-  try {
-    JSON.parse(value);
-    return true;
-  } catch (err) {
-    return false;
-  }
-}
