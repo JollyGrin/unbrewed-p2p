@@ -235,6 +235,7 @@ const BulkGrid = ({
         ))}
       </Box>
       <Box h="100%" overflowY="auto" bg="white">
+        {/* @ts-ignore: weird github actions build difference */}
         <DynamicReactJson src={bulk} />
       </Box>
     </Grid>
