@@ -6,7 +6,6 @@ import {
   Grid,
   Image,
   HStack,
-  Button,
   Skeleton,
 } from "@chakra-ui/react";
 import { useState } from "react";
@@ -15,9 +14,10 @@ import { LinkIcon } from "@chakra-ui/icons";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { MapModal } from "./MapModal";
-import { DEFAULT_MAPS } from "./MapModal/defaultMaps";
+import DEFAULT_MAPS from "./MapModal/defaultMaps.json";
 
 export const BagMap = () => {
+  const { query, push } = useRouter();
   const { data, clear } = useLocalMapStorage();
   const [newMap, setNewMap] = useState<MapData>();
 
@@ -29,7 +29,7 @@ export const BagMap = () => {
     }));
   }
   return (
-    <Box bg="brand.primary">
+    <Box bg="brand.primary" h="100%">
       <Grid templateColumns="1fr 1fr" bg="brand.secondary">
         <AddNewFields {...{ newMap, enterMapUrl, setNewMap }} />
         {newMap?.imgUrl ? (
@@ -38,20 +38,63 @@ export const BagMap = () => {
           <Skeleton w="300px" h="5rem" mt="0.5rem" />
         )}
       </Grid>
-      {data?.map((map) => <MapCard key={map.imgUrl} {...map} />)}
-      <Button onClick={clear} ml="1rem">
-        Clear your saved Maps
-      </Button>
+      <Flex flexWrap="wrap" gap="0.5rem" p="0.5rem">
+        {[...data, ...DEFAULT_MAPS]?.map((map) => (
+          <Box
+            key={map?.imgUrl}
+            minW="250px"
+            minH="200px"
+            bg="brand.highlight"
+            bgImg={map?.imgUrl}
+            bgPos="center"
+            bgSize="cover"
+            borderRadius="0.5rem"
+            position="relative"
+            onClick={() => {
+              push({
+                query: { ...query, mapUrl: map.imgUrl, editMapUrl: true },
+              });
+            }}
+          >
+            <Text
+              position="absolute"
+              bg="rgba(255,255,255,0.7)"
+              p="0.25rem"
+              borderRadius="0.5rem 0 0.25rem 0"
+            >
+              {map?.meta?.author}
+            </Text>
 
-      <Text
-        m="0 auto"
-        w="fit-content"
-        fontSize="2rem"
-        fontFamily="SpaceGrotesk"
-      >
-        Default Homebrewed Maps
-      </Text>
-      {DEFAULT_MAPS?.map((map) => <MapCard key={map.imgUrl} {...map} />)}
+            {map?.meta?.url && (
+              <Box
+                position="absolute"
+                bottom="0"
+                bg="rgba(255,255,255,0.7)"
+                p="0.25rem"
+              >
+                <Link href={map?.meta?.url}>
+                  <LinkIcon fontSize="2rem" />
+                </Link>
+              </Box>
+            )}
+          </Box>
+        ))}
+      </Flex>
+
+      {/* {data?.map((map) => <MapCard key={map.imgUrl} {...map} />)} */}
+      {/* <Button onClick={clear} ml="1rem"> */}
+      {/*   Clear your saved Maps */}
+      {/* </Button> */}
+
+      {/* <Text */}
+      {/*   m="0 auto" */}
+      {/*   w="fit-content" */}
+      {/*   fontSize="2rem" */}
+      {/*   fontFamily="SpaceGrotesk" */}
+      {/* > */}
+      {/*   Default Homebrewed Maps */}
+      {/* </Text> */}
+      {/* {DEFAULT_MAPS?.map((map) => <MapCard key={map.imgUrl} {...map} />)} */}
 
       <MapModal />
     </Box>
