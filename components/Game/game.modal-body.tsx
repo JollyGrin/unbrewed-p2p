@@ -4,6 +4,8 @@ import { DeckImportCardType } from "../DeckPool/deck-import.type";
 import { PoolType } from "../DeckPool/PoolFns";
 import { useState } from "react";
 
+import { GiUpgrade as IconBoost } from "react-icons/gi";
+
 export const DeckModalContent = ({
   cards,
   add,
@@ -78,16 +80,22 @@ const CommitCard: React.FC<{ commit: PlayerCommit }> = ({ commit }) => {
   if (commit.commit.main === null) return <Box display="none" />;
   const onEnter = () => setIsHover(true);
   const onLeave = () => setIsHover(false);
+  const hasBoost = commit.commit.boost !== null;
   return (
     <Box minH="420px">
       {commit?.player && (
-        <Flex transform={"translate(0,2.35rem)"} justifyContent="end">
+        <Flex
+          transform={"translate(0,2.35rem)"}
+          alignItems="center"
+          justifyContent="space-between"
+          p="0.25rem 1rem"
+        >
+          {hasBoost ? <IconBoost size="1.2rem" /> : <div />}
           <Text
             fontFamily="SpaceGrotesk"
             fontWeight="700"
             fontSize="1.25rem"
             bg={commit.commit.reveal ? "antiquewhite" : ""}
-            p="0.25rem 1rem"
             borderRadius={"1rem"}
           >
             {commit.player}
@@ -98,7 +106,34 @@ const CommitCard: React.FC<{ commit: PlayerCommit }> = ({ commit }) => {
         {!commit.commit.reveal ? (
           <Skeleton w="300px" h="420px" />
         ) : (
-          <CardFactory card={commit.commit.main} />
+          <Box position="relative">
+            <CardFactory card={commit.commit.main} />
+            <Box
+              position="absolute"
+              w="3rem"
+              top="0.5rem"
+              right="0.5rem"
+              transition="all 0.25s ease-in-out"
+              _hover={{
+                transform: "scale(4) translateX(-1rem)",
+              }}
+            >
+              {commit.commit.boost && (
+                <>
+                  <Text
+                    bg="brand.secondary"
+                    color="brand.primary"
+                    textAlign="center"
+                    borderTopRadius="100%"
+                    fontWeight={700}
+                  >
+                    {commit.commit.boost.boost}
+                  </Text>
+                  <CardFactory card={commit.commit.boost} />
+                </>
+              )}
+            </Box>
+          </Box>
         )}
       </Box>
     </Box>
