@@ -1,5 +1,6 @@
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { MapData, useLocalDeckStorage, useLocalMapStorage } from "@/lib/hooks";
+import { useGenericImport } from "@/lib/hooks/useGenericImport";
 import { useJsonCheck } from "@/lib/hooks/useJsonCheck";
 import {
   Box,
@@ -15,6 +16,7 @@ import {
 } from "@chakra-ui/react";
 import dynamic from "next/dynamic";
 import { useState } from "react";
+import { useDebounce } from "use-debounce";
 const DynamicReactJson = dynamic(import("react-json-view"), { ssr: false });
 
 export const BagBulkContainer = () => {
@@ -22,7 +24,10 @@ export const BagBulkContainer = () => {
   const { data: maps, clear } = useLocalMapStorage();
 
   const [rawText, setRawText] = useState<string>();
-  const [url, setUrl] = useState<string>();
+  const [_url, setUrl] = useState<string>();
+  const [url] = useDebounce(_url, 300);
+
+  const { data: dataGeneric } = useGenericImport(url);
 
   const urlDisclosure = useDisclosure();
 
@@ -44,7 +49,21 @@ export const BagBulkContainer = () => {
                 <Text my="0.5rem">Viewing Local Storage</Text>
               )}
             </HStack>
-            {urlDisclosure.isOpen && <Input maxW="200px" bg="white" />}
+            {urlDisclosure.isOpen && (
+              <Input
+                maxW="200px"
+                bg="white"
+                value={url}
+                onChange={(e) => {
+                  if (rawText) setRawText(undefined);
+                  if (e.target.value === "") {
+                    setUrl(undefined);
+                    return;
+                  }
+                  setUrl(e.target.value);
+                }}
+              />
+            )}
           </Box>
           {urlDisclosure.isOpen && (
             <Box>
@@ -52,7 +71,9 @@ export const BagBulkContainer = () => {
               <Textarea
                 h="50px"
                 fontSize="0.35rem"
+                value={rawText}
                 onChange={(e) => {
+                  if (url) setUrl(undefined);
                   if (e.target.value === "") {
                     setRawText(undefined);
                     return;
@@ -66,6 +87,9 @@ export const BagBulkContainer = () => {
       </Box>
       {!urlDisclosure.isOpen && <BulkGrid bulk={localBulk} />}
       {urlDisclosure.isOpen && rawText && <GridTextWrapper text={rawText} />}
+      {urlDisclosure.isOpen && dataGeneric?.data && (
+        <GridTextWrapper text={JSON.stringify(dataGeneric?.data)} />
+      )}
     </Box>
   );
 };

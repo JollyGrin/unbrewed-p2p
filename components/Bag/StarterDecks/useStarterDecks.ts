@@ -1,11 +1,9 @@
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
-import { useQuery, useQueries } from "@tanstack/react-query";
+import { useQueries } from "@tanstack/react-query";
 import axios from "axios";
-import toast from "react-hot-toast";
 
 export const useStarterDecks = (props: { enabled: boolean }) => {
   const deckKeys = Object.keys(BACKUP_DECKS);
-  console.log({ deckKeys });
 
   const queries = useQueries({
     queries: deckKeys.map((id) => ({
