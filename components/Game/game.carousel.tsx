@@ -12,6 +12,7 @@ import {
 import styled from "@emotion/styled";
 import { CarouselTray } from "./game.styles";
 import { PoolType } from "../DeckPool/PoolFns";
+import { GiUpgrade as IconBoost } from "react-icons/gi";
 
 const handleDragStart = (e) => {
   e.preventDefault();
@@ -115,7 +116,13 @@ export const HandCardItems: React.FC<CardWrapperProps> = ({
               <Flex className="hoveritem">
                 <Text onClick={() => functions.commitFn(index)}>+</Text>
                 <Text onClick={() => functions.discardFn(index)}>-</Text>
-                <Text onClick={() => functions.boostFn(index)}>B</Text>
+                <Text
+                  fontSize="8px !important"
+                  p="4px 8px !important"
+                  onClick={() => functions.boostFn(index)}
+                >
+                  Boost
+                </Text>
               </Flex>
             </CardWrapper>
           </Box>
