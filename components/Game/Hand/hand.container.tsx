@@ -1,5 +1,7 @@
 import {
   PoolType,
+  boostCard,
+  cancelBoost,
   commitCard,
   discardCard,
   draw,
@@ -16,6 +18,7 @@ import { HandCardItems } from "../game.carousel";
 import styled from "@emotion/styled";
 import { flow } from "lodash";
 import { ModalType } from "@/pages/game";
+import { CloseIcon } from "@chakra-ui/icons";
 
 export const HandContainer = ({
   setModal,
@@ -47,6 +50,12 @@ export const HandContainer = ({
 
   const gDraw = flow(draw, setGameState);
   const gDiscard = flow(discardCard, setGameState);
+  const gBoost = flow(
+    (cardIndex: number) =>
+      playerState?.pool && boostCard(playerState.pool, cardIndex),
+    setGameState,
+  );
+  const gCancelBoost = flow(cancelBoost, setGameState);
   const gCommit = flow(
     (cardIndex: number) =>
       playerState?.pool && commitCard(playerState?.pool, cardIndex),
@@ -67,13 +76,29 @@ export const HandContainer = ({
         </ModalButton>
         <ModalButton onClick={() => setModal("deck")}>Deck</ModalButton>
         <ModalButton onClick={() => setModal("discard")}>Discard</ModalButton>
+        {playerState?.pool?.commit?.boost && (
+          <ModalButton
+            onClick={() => gCancelBoost(playerState?.pool as PoolType)}
+          >
+            Boost: {playerState?.pool?.commit?.boost?.boost}
+            <CloseIcon
+              fontSize="1rem"
+              ml="6px"
+              bg="brand.primary"
+              color="black"
+              p="0.25rem"
+              borderRadius="100%"
+            />
+          </ModalButton>
+        )}
       </Grid>
       <HandCardItems
         cards={playerState?.pool?.hand}
         functions={{
           discardFn: (discardIndex: number) =>
-            playerState?.pool && gDiscard(playerState?.pool, discardIndex),
+            gDiscard(playerState?.pool as PoolType, discardIndex),
           commitFn: (cardIndex: number) => gCommit(cardIndex),
+          boostFn: (cardIndex: number) => gBoost(cardIndex),
         }}
       />
     </Tray>
