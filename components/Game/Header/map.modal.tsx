@@ -1,5 +1,5 @@
 import { MapModal as MapSelectorModal } from "@/components/Bag/Map/MapModal";
-import { DEFAULT_MAPS } from "@/components/Bag/Map/MapModal/defaultMaps";
+import DEFAULT_MAPS from "@/components/Bag/Map/MapModal/defaultMaps.json";
 import {
   Text,
   Modal,
