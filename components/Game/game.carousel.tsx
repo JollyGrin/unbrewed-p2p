@@ -11,6 +11,7 @@ import {
 } from "../DeckPool/deck-import.type";
 import styled from "@emotion/styled";
 import { CarouselTray } from "./game.styles";
+import { PoolType } from "../DeckPool/PoolFns";
 
 const handleDragStart = (e) => {
   e.preventDefault();
@@ -21,8 +22,9 @@ const { cards: mockCards } = mockDeck.deck_data;
 type CardWrapperProps = {
   cards: DeckImportCardType[] | undefined;
   functions: {
-    discardFn: (index: number) => PoolType;
+    discardFn: (index: number) => void;
     commitFn: (index: number) => PoolType;
+    boostFn: (index: number) => PoolType;
   };
 };
 export const cardItemMapper = ({ cards, functions }: CardWrapperProps) => {
@@ -42,7 +44,6 @@ export const cardItemMapper = ({ cards, functions }: CardWrapperProps) => {
         >
           <CardFactory card={card} />
           <Flex className="hoveritem">
-            {/* <Text>+</Text> */}
             <Text onClick={() => functions.discardFn(index)}>-</Text>
           </Flex>
         </CardWrapper>
@@ -114,6 +115,7 @@ export const HandCardItems: React.FC<CardWrapperProps> = ({
               <Flex className="hoveritem">
                 <Text onClick={() => functions.commitFn(index)}>+</Text>
                 <Text onClick={() => functions.discardFn(index)}>-</Text>
+                <Text onClick={() => functions.boostFn(index)}>B</Text>
               </Flex>
             </CardWrapper>
           </Box>
