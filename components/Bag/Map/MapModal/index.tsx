@@ -15,7 +15,7 @@ import {
   Box,
 } from "@chakra-ui/react";
 import { useRouter } from "next/router";
-import { DEFAULT_MAPS } from "./defaultMaps";
+import DEFAULT_MAPS from "./defaultMaps.json";
 import Link from "next/link";
 
 export const MapModal = () => {
