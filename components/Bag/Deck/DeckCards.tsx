@@ -40,7 +40,6 @@ export const DeckCards = ({
 };
 
 const HeroCard = ({ deck }: { deck: DeckImportType }) => {
-  console.log({ deck });
   const hero = deck?.deck_data?.hero;
   const sidekick = deck?.deck_data?.sidekick;
   const isSidekick =
