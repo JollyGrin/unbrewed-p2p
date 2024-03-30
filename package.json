@@ -38,6 +38,7 @@
     "react-dom": "18.2.0",
     "react-hot-toast": "^2.4.0",
     "react-icons": "^4.8.0",
+    "react-json-view": "^1.21.3",
     "typescript": "5.0.4",
     "use-debounce": "^9.0.4"
   },
