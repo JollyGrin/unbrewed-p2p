@@ -3,6 +3,8 @@ import {
   boostCard,
   cancelBoost,
   commitCard,
+  deckCard,
+  deckCardBottom,
   discardCard,
   draw,
   makeDeck,
@@ -57,6 +59,15 @@ export const HandContainer = ({
   }, [gameState]);
 
   const gDraw = flow(draw, setGameState);
+  const gDeckCard = flow(
+    (cardIndex: number) => deckCard(playerState?.pool as PoolType, cardIndex),
+    setGameState,
+  );
+  const gDeckCardBottom = flow(
+    (cardIndex: number) =>
+      deckCardBottom(playerState?.pool as PoolType, cardIndex),
+    setGameState,
+  );
   const gDiscard = flow(discardCard, setGameState);
   const gBoost = flow(
     (cardIndex: number) =>
@@ -107,6 +118,8 @@ export const HandContainer = ({
             gDiscard(playerState?.pool as PoolType, discardIndex),
           commitFn: (cardIndex: number) => gCommit(cardIndex),
           boostFn: (cardIndex: number) => gBoost(cardIndex),
+          deckCardFn: (cardIndex: number) => gDeckCard(cardIndex),
+          deckCardBottomFn: (cardIndex: number) => gDeckCardBottom(cardIndex),
         }}
       />
     </Tray>
