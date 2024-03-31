@@ -139,6 +139,7 @@ export const deckCard = (pool: PoolType, cardIndex: number) => {
   if (!pool.deck) return;
   pool.deck.push(pool.hand[cardIndex]);
   pool.hand.splice(cardIndex, 1);
+  return pool;
 };
 
 //   /**
@@ -149,6 +150,7 @@ export const deckCardBottom = (pool: PoolType, cardIndex: number) => {
   if (!pool.deck) return;
   pool.deck.unshift(pool.hand[cardIndex]);
   pool.hand.splice(cardIndex, 1);
+  return pool;
 };
 
 export const discardCard = (pool: PoolType, index: number): PoolType => {
