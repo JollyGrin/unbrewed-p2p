@@ -4,7 +4,16 @@ import React, { useEffect, useRef, useState } from "react";
 import AliceCarousel from "react-alice-carousel";
 import "react-alice-carousel/lib/alice-carousel.css";
 import { CardFactory } from "../CardFactory/card.factory";
-import { Box, Button, Flex, Skeleton, Spacer, Text } from "@chakra-ui/react";
+import {
+  Box,
+  Button,
+  Flex,
+  Popover,
+  Select,
+  Skeleton,
+  Spacer,
+  Text,
+} from "@chakra-ui/react";
 import {
   DeckImportCardType,
   DeckImportType,
@@ -13,6 +22,7 @@ import styled from "@emotion/styled";
 import { CarouselTray } from "./game.styles";
 import { PoolType } from "../DeckPool/PoolFns";
 import { GiUpgrade as IconBoost } from "react-icons/gi";
+import { PopoverCardActions } from "./card-actions.popover";
 
 const handleDragStart = (e) => {
   e.preventDefault();
@@ -116,13 +126,21 @@ export const HandCardItems: React.FC<CardWrapperProps> = ({
               <Flex className="hoveritem">
                 <Text onClick={() => functions.commitFn(index)}>+</Text>
                 <Text onClick={() => functions.discardFn(index)}>-</Text>
-                <Text
-                  fontSize="8px !important"
-                  p="4px 8px !important"
-                  onClick={() => functions.boostFn(index)}
-                >
-                  Boost
-                </Text>
+                <PopoverCardActions
+                  actions={[
+                    {
+                      text: "Boost",
+                      fn: () => functions.boostFn(index),
+                    },
+                  ]}
+                />
+                {/* <Text */}
+                {/*   fontSize="8px !important" */}
+                {/*   p="4px 8px !important" */}
+                {/*   onClick={() => functions.boostFn(index)} */}
+                {/* > */}
+                {/*   Boost */}
+                {/* </Text> */}
               </Flex>
             </CardWrapper>
           </Box>
@@ -130,6 +148,7 @@ export const HandCardItems: React.FC<CardWrapperProps> = ({
       ) : (
         <Skeleton h="240px" />
       )}
+      <Box w="2rem" />
       {cards?.length === 0 && <Skeleton h="240px" />}
     </CarouselTray>
   );
@@ -152,7 +171,7 @@ const CardWrapper = styled(Flex)`
     cursor: pointer;
     user-select: none;
 
-    & * {
+    > p {
       font-size: 0.8rem;
       margin-top: 0.1rem;
       padding: 0.1rem 0.5rem;
