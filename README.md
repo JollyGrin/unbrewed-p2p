@@ -35,6 +35,17 @@ It's possible to run the server on your own computer and have others connect to 
 
 Want to deploy a gameserver that exists 24/7? Add an issue to github or PR so we can update default server lists.
 
+## Fork Unbrewed and run off github pages
+Unbrewed is made using Nextjs Static Site Export so that it can run on github pages. Recently some updates were made to run off https://unbrewed.xyz/ yet when running from github pages the url structure changes to https://username.github.io/repo/
+
+If you wish to fork Unbrewed and deploy it to github pages yourself, you'll need to update some of the build steps to acommodate the url change:
+
+Sharing some of the files before the URL change
+- https://github.com/JollyGrin/unbrewed-p2p/blob/895a3ec785a386a0f1fa344b0837e3ed8345cfc0/lib/buildTools/prefixFonts.js
+- replace unbrewed-p2p with your repo name of the fork
+- https://github.com/JollyGrin/unbrewed-p2p/blob/317cdc216d8680e2e088ede43cfecd2b480d3a84/next.config.js
+- use the node.env to check if running on development mode or production. If production, update baseurl (change unbrewed-p2p with your repo)
+
 ## How to add Fonts
 
 1. add file to `public/fonts`
