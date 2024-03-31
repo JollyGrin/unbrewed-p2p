@@ -21,7 +21,6 @@ import {
 import styled from "@emotion/styled";
 import { CarouselTray } from "./game.styles";
 import { PoolType } from "../DeckPool/PoolFns";
-import { GiUpgrade as IconBoost } from "react-icons/gi";
 import { PopoverCardActions } from "./card-actions.popover";
 
 const handleDragStart = (e) => {
@@ -36,8 +35,11 @@ type CardWrapperProps = {
     discardFn: (index: number) => void;
     commitFn: (index: number) => PoolType;
     boostFn: (index: number) => PoolType;
+    deckCardFn: (index: number) => PoolType;
+    deckCardBottomFn: (index: number) => PoolType;
   };
 };
+
 export const cardItemMapper = ({ cards, functions }: CardWrapperProps) => {
   return cards.map((card, index) => {
     return (
@@ -132,15 +134,16 @@ export const HandCardItems: React.FC<CardWrapperProps> = ({
                       text: "Boost",
                       fn: () => functions.boostFn(index),
                     },
+                    {
+                      text: "Place top of deck",
+                      fn: () => functions.deckCardFn(index),
+                    },
+                    {
+                      text: "Place bottom of deck",
+                      fn: () => functions.deckCardBottomFn(index),
+                    },
                   ]}
                 />
-                {/* <Text */}
-                {/*   fontSize="8px !important" */}
-                {/*   p="4px 8px !important" */}
-                {/*   onClick={() => functions.boostFn(index)} */}
-                {/* > */}
-                {/*   Boost */}
-                {/* </Text> */}
               </Flex>
             </CardWrapper>
           </Box>
