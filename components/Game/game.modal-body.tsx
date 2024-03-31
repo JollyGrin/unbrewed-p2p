@@ -19,29 +19,31 @@ export const DeckModalContent = ({
 
   return (
     <Grid gridTemplateColumns={"repeat(auto-fit, minmax(250px,1fr))"} gap={1}>
-      {cards?.map((card, index) => (
-        <Box
-          w="100%"
-          maxH={"550px"}
-          key={card.title + index}
-          onMouseEnter={() => onEnter(index)}
-          onMouseLeave={onLeave}
-        >
-          {isHover === index && (
-            <Flex position="absolute">
-              <Tag
-                fontSize="1.25rem"
-                userSelect="none"
-                cursor="pointer"
-                onClick={() => add(index)()}
-              >
-                +
-              </Tag>
-            </Flex>
-          )}
-          <CardFactory key={card.title + index} card={card} />
-        </Box>
-      ))}
+      {cards
+        ?.map((card, index) => (
+          <Box
+            w="100%"
+            maxH={"550px"}
+            key={card.title + index}
+            onMouseEnter={() => onEnter(index)}
+            onMouseLeave={onLeave}
+          >
+            {isHover === index && (
+              <Flex position="absolute">
+                <Tag
+                  fontSize="1.25rem"
+                  userSelect="none"
+                  cursor="pointer"
+                  onClick={() => add(index)()}
+                >
+                  +
+                </Tag>
+              </Flex>
+            )}
+            <CardFactory key={card.title + index} card={card} />
+          </Box>
+        ))
+        ?.reverse()}
     </Grid>
   );
 };
