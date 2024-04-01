@@ -1,6 +1,7 @@
 import * as d3 from "d3";
 import { MutableRefObject, RefObject, useEffect } from "react";
 import { PositionType } from "../Positions/position.type";
+import { TokenIcon } from "./Tokens";
 
 type CanvasProps = {
   canvasRef: RefObject<SVGSVGElement>;
@@ -44,14 +45,16 @@ export const useCanvas = ({
     }
     const g = d3.select(gRef.current);
 
-    g.selectAll<SVGCircleElement, PositionType>("circle")
+    g.selectAll<SVGCircleElement, PositionType>("g")
       .data(data)
-      .join("circle")
-      .attr("cx", ({ x }) => x)
-      .attr("cy", ({ y }) => y)
-      .attr("r", ({ r }) => (r ? r : 15))
-      .attr("fill", ({ color }) => color ?? "black")
-      // TODO: replace this to limit which token the user can control
+      .join((enter) => enter.append("g"))
+      .attr("transform", (d) => `translate(${d.x}, ${d.y})`)
+      .html((props) =>
+        props?.imageUrl
+          ? TokenIcon.Image({ imageUrl: props.imageUrl })
+          : TokenIcon.Circle({ color: props.color, size: props.r }),
+      )
+      // NOTE: Bellow attr & filter shows and limits user to moving their own tokens
       .attr("opacity", ({ id }) => (id.includes(self as string) ? 1 : 0.75))
       .filter(({ id }) => {
         const isSidekick = id.includes("_");
@@ -60,7 +63,7 @@ export const useCanvas = ({
       })
       .call(
         d3
-          .drag<SVGCircleElement, PositionType>()
+          .drag<SVGGElement, PositionType>()
           .on("start", dragstarted)
           .on("drag", dragged)
           .on("end", dragended)
@@ -82,7 +85,13 @@ export const useCanvas = ({
         }),
     );
 
-    function dragstarted(e: { target: any }) {
+    function dragstarted(e: any, d: PositionType) {
+      const isSelf = d?.id === self;
+      const isSidekick = d?.id.includes("_");
+      const isSidekickSelf = d?.id.split("_")[0] === self;
+      if (isSidekick && !isSidekickSelf) return;
+      if (!isSelf) return;
+
       d3.select(e.target).raise();
       g.attr("cursor", "grabbing");
       //@ts-expect-error: implicit any
@@ -98,11 +107,6 @@ export const useCanvas = ({
       event: DragEvent & { subject: PositionType },
       d: PositionType,
     ) {
-      //@ts-expect-error: implicit any
-      d3.select<SVGCircleElement, PositionType>(this)
-        .attr("cx", (d.x = event.x))
-        .attr("cy", (d.y = event.y));
-
       if (!move) return;
 
       move({
