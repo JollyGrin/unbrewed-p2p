@@ -10,15 +10,30 @@ import {
   Flex,
   ModalFooter,
   Button,
+  VStack,
+  Divider,
+  Grid,
+  Input,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
+  Image,
+  FormLabel,
+  HStack,
 } from "@chakra-ui/react";
-import { FC, useCallback, useState } from "react";
+import { Dispatch, FC, SetStateAction, useCallback, useState } from "react";
 import { MoonIcon, PlusSquareIcon, SunIcon } from "@chakra-ui/icons";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
 
+import { MdUpload as IconUpload } from "react-icons/md";
+
 //@ts-ignore
 import { CirclePicker } from "react-color";
-import { PositionType, Size } from "./position.type";
+import { PositionType } from "./position.type";
 import { useRouter } from "next/router";
+import { toast } from "react-hot-toast";
+import { DEFAULT_TOKEN_IMAGES } from "../BoardCanvas/defaultTokenImages";
 
 export const PositionModal: FC<{
   isOpen: boolean;
@@ -37,15 +52,15 @@ export const PositionModal: FC<{
     name as keyof typeof gamePositions.content
   ] as PositionType;
 
+  const [images, setImages] = useState<{ id: string; url: string }[]>([]);
+
   const [selectedColor, setSelectedColor] = useState<string>(
     selectedPosition?.color ?? "#000",
   );
-  const [selectedSize, setSelectedSize] = useState<Size>("lg");
   const [sidekicks, setSidekicks] = useState<
     PositionType["sidekicks"] | undefined
   >(selectedPosition?.sidekicks);
-  const setSize = (size: Size) =>
-    size === "lg" ? 2 : size === "md" ? 1.65 : 1.35;
+
   const handleColorChange = ({ hex }: { hex: string }) => setSelectedColor(hex);
 
   const _setGamePosition = (props: PositionType) => {
@@ -60,10 +75,18 @@ export const PositionModal: FC<{
     setGamePosition({
       ...selected,
       color: selectedColor,
-      r: selectedSize === "lg" ? 20 : selectedSize === "md" ? 15 : 10,
+      imageUrl:
+        images?.find((img) => img.id === selected?.id)?.url ??
+        selected?.imageUrl ??
+        undefined,
       sidekicks: sidekicks?.map((kick) => ({
         ...kick,
         color: selectedColor,
+        r: kick?.r ?? 50,
+        imageUrl:
+          images?.find((img) => img.id === kick?.id)?.url ??
+          kick?.imageUrl ??
+          undefined,
       })),
     });
   }
@@ -82,10 +105,21 @@ export const PositionModal: FC<{
         },
       ];
     });
+
+    toast.success("Preparing new token. Click apply to confirm changes");
   }
 
+  const gameKickIds = selectedPosition?.sidekicks?.map((kick) => kick.id);
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <Modal
+      isOpen={isOpen}
+      onClose={() => {
+        setSidekicks(selectedPosition?.sidekicks);
+        setImages([]);
+        onClose();
+      }}
+    >
       <ModalOverlay />
       <ModalContent bg={bg} color={color} transition="all 0.25s ease-in-out">
         <ModalHeader as={Flex} gap="1rem">
@@ -98,46 +132,117 @@ export const PositionModal: FC<{
         <ModalBody>
           <Box position="relative">
             <Flex alignItems="center" gap="1rem" minH="2.5rem">
-              <PlusSquareIcon onClick={addSidekick} />
-              <Box
-                bg={selectedColor}
-                h={setSize(selectedSize) + "rem"}
-                w={setSize(selectedSize) + "rem"}
-                cursor="pointer"
-                borderRadius="100%"
-                transition="all 0.25s ease-in-out"
-                onClick={() =>
-                  setSelectedSize((prev) =>
-                    prev === "lg" ? "md" : prev === "md" ? "sm" : "lg",
-                  )
-                }
-              />
-              {sidekicks?.map((kick) => (
-                <Box
-                  key={kick.id}
-                  boxSize="1rem"
-                  bg={selectedColor}
-                  borderRadius="100%"
+              <VStack alignItems="start">
+                <CirclePicker onChangeComplete={handleColorChange} />
+                <Divider />
+                <TokenPreview
+                  token={selectedPosition}
+                  selectedColor={selectedColor}
+                  setImages={setImages}
                 />
-              ))}
+                {selectedPosition?.sidekicks?.map((kick) => (
+                  <TokenPreview
+                    key={kick.id}
+                    token={kick}
+                    selectedColor={selectedColor}
+                    setImages={setImages}
+                  />
+                ))}
+                <Divider />
+                {sidekicks
+                  ?.filter((kick) => !gameKickIds?.includes(kick.id))
+                  .map((kick) => (
+                    <TokenPreview
+                      key={kick.id}
+                      token={kick}
+                      selectedColor={selectedColor}
+                      setImages={setImages}
+                    />
+                  ))}
+
+                <PlusSquareIcon onClick={addSidekick} />
+              </VStack>
             </Flex>
-            <Box
-              position="absolute"
-              bg={bg}
-              p="0.5rem"
-              borderRadius="1rem"
-              filter="drop-shadow(0 5px 3px rgba(0,0,0,0.5))"
-            >
-              <CirclePicker onChangeComplete={handleColorChange} />
-            </Box>
           </Box>
         </ModalBody>
-        <ModalFooter>
-          <Button variant="outline" bg="primary" onClick={updateYourColor}>
+        <ModalFooter flexDirection="column" alignItems="end">
+          <Button
+            variant="outline"
+            bg="brand.primary"
+            onClick={updateYourColor}
+          >
             Apply
           </Button>
+          <FormLabel fontSize="0.75rem">
+            Clicking apply will reset token positions
+          </FormLabel>
         </ModalFooter>
       </ModalContent>
     </Modal>
+  );
+};
+
+const TokenPreview = ({
+  token,
+  selectedColor,
+  setImages,
+}: {
+  token: PositionType;
+  selectedColor: string;
+  setImages: Dispatch<SetStateAction<{ id: string; url: string }[]>>;
+}) => {
+  const setImage = (url: string) => {
+    setImages((prev) => {
+      return [...prev?.filter((p) => p.id !== token.id), { id: token.id, url }];
+    });
+    toast.success("New Image Prepared. Click Apply to confirm changes");
+  };
+
+  const [imageUrl, setImageUrl] = useState("");
+
+  return (
+    <Grid templateColumns="1fr 2fr" w="100%" gap="1rem" alignItems="center">
+      {token?.imageUrl ? (
+        <Image src={token.imageUrl} />
+      ) : (
+        <Box
+          bg={selectedColor}
+          w="5rem"
+          h="5rem"
+          cursor="pointer"
+          borderRadius="100%"
+          transition="all 0.25s ease-in-out"
+        />
+      )}
+
+      <Menu>
+        <MenuButton as={Button}>Tokens</MenuButton>
+        <MenuList maxH="400px" overflowY="auto">
+          <FormLabel fontSize="0.75rem" pl="0.75rem" color="black">
+            Add Token (via url)
+          </FormLabel>
+          {imageUrl && <Image src={imageUrl} w="3rem" />}
+          <HStack mb="0.5rem" px="0.5rem">
+            <Input
+              placeholder="image url (.svg, .png, .jpeg)"
+              value={imageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
+            />
+            <Button onClick={() => setImage(imageUrl)}>
+              <IconUpload />
+            </Button>
+          </HStack>
+          <Divider />
+          <FormLabel fontSize="0.75rem" pl="0.75rem" color="black">
+            Default Tokens
+          </FormLabel>
+          {DEFAULT_TOKEN_IMAGES.map((img) => (
+            <MenuItem key={img} onClick={() => setImage(img)}>
+              <Image src={img} fill="red" color="red" w="100px" />
+            </MenuItem>
+          ))}
+        </MenuList>
+      </Menu>
+    </Grid>
   );
 };

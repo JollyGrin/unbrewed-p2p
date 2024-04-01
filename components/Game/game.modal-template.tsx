@@ -121,7 +121,6 @@ export const ModalContainer: React.FC<ModalTemplateType> = ({
           }),
         );
 
-  console.log({ modalType, isOpen });
   return (
     <>
       <Modal isOpen={isOpen} onClose={() => !isCommit && onClose()}>
