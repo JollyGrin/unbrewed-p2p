@@ -5,9 +5,11 @@ const Image = ({ imageUrl }: { imageUrl: string }) =>
 
 const Circle = ({
   color,
+  size,
 }: {
   color?: string;
-}) => `<svg fill="${color ?? "black"}" stroke="2" viewBox="0 0 100 100" width="72" height="72" xmlns="http://www.w3.org/2000/svg">
+  size?: number;
+}) => `<svg fill="${color ?? "black"}" stroke="2" viewBox="0 0 100 100" width="${size ?? 72}" height="${size ?? 72}" xmlns="http://www.w3.org/2000/svg">
   <circle cx="50" cy="50" r="50" />
 </svg>`;
 

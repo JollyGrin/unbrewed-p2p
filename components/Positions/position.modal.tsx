@@ -26,9 +26,11 @@ import { Dispatch, FC, SetStateAction, useCallback, useState } from "react";
 import { MoonIcon, PlusSquareIcon, SunIcon } from "@chakra-ui/icons";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
 
+import { MdUpload as IconUpload } from "react-icons/md";
+
 //@ts-ignore
 import { CirclePicker } from "react-color";
-import { PositionType, Size } from "./position.type";
+import { PositionType } from "./position.type";
 import { useRouter } from "next/router";
 import { toast } from "react-hot-toast";
 
@@ -54,7 +56,6 @@ export const PositionModal: FC<{
   const [selectedColor, setSelectedColor] = useState<string>(
     selectedPosition?.color ?? "#000",
   );
-  const [selectedSize, setSelectedSize] = useState<Size>("lg");
   const [sidekicks, setSidekicks] = useState<
     PositionType["sidekicks"] | undefined
   >(selectedPosition?.sidekicks);
@@ -73,7 +74,6 @@ export const PositionModal: FC<{
     setGamePosition({
       ...selected,
       color: selectedColor,
-      r: selectedSize === "lg" ? 20 : selectedSize === "md" ? 15 : 10,
       imageUrl:
         images?.find((img) => img.id === selected?.id)?.url ??
         selected?.imageUrl ??
@@ -81,6 +81,7 @@ export const PositionModal: FC<{
       sidekicks: sidekicks?.map((kick) => ({
         ...kick,
         color: selectedColor,
+        r: kick?.r ?? 50,
         imageUrl:
           images?.find((img) => img.id === kick?.id)?.url ??
           kick?.imageUrl ??
@@ -103,7 +104,11 @@ export const PositionModal: FC<{
         },
       ];
     });
+
+    toast.success("Preparing new token. Click apply to confirm changes");
   }
+
+  const gameKickIds = selectedPosition?.sidekicks?.map((kick) => kick.id);
 
   return (
     <Modal
@@ -142,13 +147,24 @@ export const PositionModal: FC<{
                     setImages={setImages}
                   />
                 ))}
+                <Divider />
+                {sidekicks
+                  ?.filter((kick) => !gameKickIds?.includes(kick.id))
+                  .map((kick) => (
+                    <TokenPreview
+                      key={kick.id}
+                      token={kick}
+                      selectedColor={selectedColor}
+                      setImages={setImages}
+                    />
+                  ))}
 
                 <PlusSquareIcon onClick={addSidekick} />
               </VStack>
             </Flex>
           </Box>
         </ModalBody>
-        <ModalFooter>
+        <ModalFooter flexDirection="column" alignItems="end">
           <Button
             variant="outline"
             bg="brand.primary"
@@ -156,6 +172,9 @@ export const PositionModal: FC<{
           >
             Apply
           </Button>
+          <FormLabel fontSize="0.75rem">
+            Clicking apply will reset token positions
+          </FormLabel>
         </ModalFooter>
       </ModalContent>
     </Modal>
@@ -199,15 +218,18 @@ const TokenPreview = ({
         <MenuButton as={Button}>Tokens</MenuButton>
         <MenuList>
           <FormLabel fontSize="0.75rem" pl="0.75rem" color="black">
-            Your Tokens (via your bag)
+            Add Token (via url)
           </FormLabel>
           {imageUrl && <Image src={imageUrl} w="3rem" />}
           <HStack mb="0.5rem" px="0.5rem">
             <Input
+              placeholder="image url"
               value={imageUrl}
               onChange={(e) => setImageUrl(e.target.value)}
             />
-            <Button onClick={() => setImage(imageUrl)}>X</Button>
+            <Button onClick={() => setImage(imageUrl)}>
+              <IconUpload />
+            </Button>
           </HStack>
           <Divider />
           <FormLabel fontSize="0.75rem" pl="0.75rem" color="black">
