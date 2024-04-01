@@ -53,7 +53,6 @@ export const PositionModal: FC<{
   ] as PositionType;
 
   const [images, setImages] = useState<{ id: string; url: string }[]>([]);
-  console.log({ selectedPosition });
 
   const [selectedColor, setSelectedColor] = useState<string>(
     selectedPosition?.color ?? "#000",
@@ -63,7 +62,7 @@ export const PositionModal: FC<{
     PositionType["sidekicks"] | undefined
   >(selectedPosition?.sidekicks);
 
-  console.log({ sidekicks });
+  console.log("xxxxxxxxxxxx", selectedPosition?.sidekicks, sidekicks);
 
   const handleColorChange = ({ hex }: { hex: string }) => setSelectedColor(hex);
 
@@ -128,6 +127,15 @@ export const PositionModal: FC<{
                   selectedColor={selectedColor}
                   setImages={setImages}
                 />
+                {selectedPosition?.sidekicks?.map((kick) => (
+                  <TokenPreview
+                    key={kick.id}
+                    token={kick}
+                    selectedColor={selectedColor}
+                    setImages={setImages}
+                  />
+                ))}
+
                 {sidekicks?.map((kick) => (
                   <TokenPreview
                     key={kick.id}
