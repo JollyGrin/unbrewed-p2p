@@ -49,7 +49,11 @@ export const useCanvas = ({
       .data(data)
       .join((enter) => enter.append("g"))
       .attr("transform", (d) => `translate(${d.x}, ${d.y})`)
-      .html((props) => TokenIcon.User({ fill: props.color }))
+      .html((props) =>
+        props?.imageUrl
+          ? TokenIcon.Image({ imageUrl: props.imageUrl })
+          : TokenIcon.Circle({ color: props.color }),
+      )
       // NOTE: Bellow attr & filter shows and limits user to moving their own tokens
       .attr("opacity", ({ id }) => (id.includes(self as string) ? 1 : 0.75))
       .filter(({ id }) => {
