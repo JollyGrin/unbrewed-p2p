@@ -7,6 +7,7 @@ export type PositionType = {
   tokenSize?: Size;
   color?: string;
   sidekicks?: Sidekick[];
+  imageUrl?: string;
 };
 
 type Sidekick = Omit<PositionType, "sidekicks">;
