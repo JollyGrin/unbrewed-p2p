@@ -34,6 +34,7 @@ import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import { CirclePicker } from "react-color";
 import { PositionType, Size } from "./position.type";
 import { useRouter } from "next/router";
+import { toast } from "react-hot-toast";
 
 export const PositionModal: FC<{
   isOpen: boolean;
@@ -62,8 +63,6 @@ export const PositionModal: FC<{
     PositionType["sidekicks"] | undefined
   >(selectedPosition?.sidekicks);
 
-  console.log("xxxxxxxxxxxx", selectedPosition?.sidekicks, sidekicks);
-
   const handleColorChange = ({ hex }: { hex: string }) => setSelectedColor(hex);
 
   const _setGamePosition = (props: PositionType) => {
@@ -80,11 +79,16 @@ export const PositionModal: FC<{
       color: selectedColor,
       r: selectedSize === "lg" ? 20 : selectedSize === "md" ? 15 : 10,
       imageUrl:
-        images?.find((img) => img.id === selected?.id)?.url ?? undefined,
+        images?.find((img) => img.id === selected?.id)?.url ??
+        selected?.imageUrl ??
+        undefined,
       sidekicks: sidekicks?.map((kick) => ({
         ...kick,
         color: selectedColor,
-        imageUrl: images?.find((img) => img.id === kick?.id)?.url ?? undefined,
+        imageUrl:
+          images?.find((img) => img.id === kick?.id)?.url ??
+          kick?.imageUrl ??
+          undefined,
       })),
     });
   }
@@ -106,7 +110,14 @@ export const PositionModal: FC<{
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <Modal
+      isOpen={isOpen}
+      onClose={() => {
+        setSidekicks(selectedPosition?.sidekicks);
+        setImages([]);
+        onClose();
+      }}
+    >
       <ModalOverlay />
       <ModalContent bg={bg} color={color} transition="all 0.25s ease-in-out">
         <ModalHeader as={Flex} gap="1rem">
@@ -128,15 +139,6 @@ export const PositionModal: FC<{
                   setImages={setImages}
                 />
                 {selectedPosition?.sidekicks?.map((kick) => (
-                  <TokenPreview
-                    key={kick.id}
-                    token={kick}
-                    selectedColor={selectedColor}
-                    setImages={setImages}
-                  />
-                ))}
-
-                {sidekicks?.map((kick) => (
                   <TokenPreview
                     key={kick.id}
                     token={kick}
@@ -177,20 +179,20 @@ const TokenPreview = ({
     setImages((prev) => {
       return [...prev?.filter((p) => p.id !== token.id), { id: token.id, url }];
     });
+    toast.success("New Image Prepared. Click Apply to confirm changes");
   };
 
   const [imageUrl, setImageUrl] = useState("");
 
-  console.log({ token });
-
   return (
-    <Grid templateColumns="1fr 2fr">
+    <Grid templateColumns="1fr 2fr" w="100%" gap="1rem" alignItems="center">
       {token?.imageUrl ? (
         <Image src={token.imageUrl} />
       ) : (
         <Box
           bg={selectedColor}
-          boxSize="2rem"
+          w="5rem"
+          h="5rem"
           cursor="pointer"
           borderRadius="100%"
           transition="all 0.25s ease-in-out"
@@ -203,6 +205,7 @@ const TokenPreview = ({
           <FormLabel fontSize="0.75rem" pl="0.75rem" color="black">
             Your Tokens (via your bag)
           </FormLabel>
+          {imageUrl && <Image src={imageUrl} w="3rem" />}
           <HStack mb="0.5rem" px="0.5rem">
             <Input
               value={imageUrl}
