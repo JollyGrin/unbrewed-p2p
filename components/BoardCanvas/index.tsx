@@ -53,7 +53,14 @@ export const BoardCanvas: React.FC<BoardProps> = ({
           backgroundColor: "ghostwhite",
         }}
       >
-        <image xlinkHref={src} width={1200} height={1000} x={1} y={1} />
+        <image
+          className="background"
+          xlinkHref={src}
+          width={1200}
+          height={1000}
+          x={1}
+          y={1}
+        />
       </svg>
     </Box>
   );
