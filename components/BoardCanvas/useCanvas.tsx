@@ -1,6 +1,7 @@
 import * as d3 from "d3";
-import { MutableRefObject, RefObject, useEffect } from "react";
+import { MutableRefObject, RefObject, cloneElement, useEffect } from "react";
 import { PositionType } from "../Positions/position.type";
+import { FaBan } from "react-icons/fa";
 
 type CanvasProps = {
   canvasRef: RefObject<SVGSVGElement>;
@@ -11,6 +12,12 @@ type CanvasProps = {
   updateCanvas: boolean;
   move?: (e: PositionType) => void;
 };
+
+const Cir = () => (
+  <svg width="100" height="100">
+    <circle cx="50" cy="50" r="40" fill="blue" />
+  </svg>
+);
 
 /**
  * Handles the Canvas, placing and moving the circles with the incoming data
@@ -44,12 +51,15 @@ export const useCanvas = ({
     }
     const g = d3.select(gRef.current);
 
-    g.selectAll<SVGCircleElement, PositionType>("circle")
+    g.selectAll<SVGCircleElement, PositionType>("g")
       .data(data)
-      .join("circle")
-      .attr("cx", ({ x }) => x)
-      .attr("cy", ({ y }) => y)
-      .attr("r", ({ r }) => (r ? r : 15))
+      .join((enter) => enter.append("g"))
+      .attr("transform", (d) => `translate(${d.x}, ${d.y})`)
+      .html(
+        `<svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+  <path fill-rule="evenodd" d="M7 2a2 2 0 0 0-2 2v1a1 1 0 0 0 0 2v1a1 1 0 0 0 0 2v1a1 1 0 1 0 0 2v1a1 1 0 1 0 0 2v1a1 1 0 1 0 0 2v1a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H7Zm3 8a3 3 0 1 1 6 0 3 3 0 0 1-6 0Zm-1 7a3 3 0 0 1 3-3h2a3 3 0 0 1 3 3 1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1Z" clip-rule="evenodd"/>
+</svg>`,
+      )
       .attr("fill", ({ color }) => color ?? "black")
       // TODO: replace this to limit which token the user can control
       .attr("opacity", ({ id }) => (id.includes(self as string) ? 1 : 0.75))
