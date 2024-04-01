@@ -133,7 +133,11 @@ export const PositionModal: FC<{
           </Box>
         </ModalBody>
         <ModalFooter>
-          <Button variant="outline" bg="primary" onClick={updateYourColor}>
+          <Button
+            variant="outline"
+            bg="brand.primary"
+            onClick={updateYourColor}
+          >
             Apply
           </Button>
         </ModalFooter>
