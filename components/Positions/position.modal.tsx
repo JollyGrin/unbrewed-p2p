@@ -24,6 +24,7 @@ import {
   MenuOptionGroup,
   MenuDivider,
   FormLabel,
+  HStack,
 } from "@chakra-ui/react";
 import { Dispatch, FC, SetStateAction, useCallback, useState } from "react";
 import { MoonIcon, PlusSquareIcon, SunIcon } from "@chakra-ui/icons";
@@ -52,7 +53,7 @@ export const PositionModal: FC<{
   ] as PositionType;
 
   const [images, setImages] = useState<{ id: string; url: string }[]>([]);
-  console.log({ images });
+  console.log({ selectedPosition });
 
   const [selectedColor, setSelectedColor] = useState<string>(
     selectedPosition?.color ?? "#000",
@@ -61,8 +62,9 @@ export const PositionModal: FC<{
   const [sidekicks, setSidekicks] = useState<
     PositionType["sidekicks"] | undefined
   >(selectedPosition?.sidekicks);
-  const setSize = (size: Size) =>
-    size === "lg" ? 2 : size === "md" ? 1.65 : 1.35;
+
+  console.log({ sidekicks });
+
   const handleColorChange = ({ hex }: { hex: string }) => setSelectedColor(hex);
 
   const _setGamePosition = (props: PositionType) => {
@@ -169,6 +171,10 @@ const TokenPreview = ({
     });
   };
 
+  const [imageUrl, setImageUrl] = useState("");
+
+  console.log({ token });
+
   return (
     <Grid templateColumns="1fr 2fr">
       {token?.imageUrl ? (
@@ -189,6 +195,13 @@ const TokenPreview = ({
           <FormLabel fontSize="0.75rem" pl="0.75rem" color="black">
             Your Tokens (via your bag)
           </FormLabel>
+          <HStack mb="0.5rem" px="0.5rem">
+            <Input
+              value={imageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
+            />
+            <Button onClick={() => setImage(imageUrl)}>X</Button>
+          </HStack>
           <Divider />
           <FormLabel fontSize="0.75rem" pl="0.75rem" color="black">
             Default Tokens
