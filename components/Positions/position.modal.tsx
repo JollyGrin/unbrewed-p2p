@@ -52,6 +52,7 @@ export const PositionModal: FC<{
   ] as PositionType;
 
   const [images, setImages] = useState<{ id: string; url: string }[]>([]);
+  console.log({ images });
 
   const [selectedColor, setSelectedColor] = useState<string>(
     selectedPosition?.color ?? "#000",
@@ -82,6 +83,7 @@ export const PositionModal: FC<{
       sidekicks: sidekicks?.map((kick) => ({
         ...kick,
         color: selectedColor,
+        imageUrl: images?.find((img) => img.id === kick?.id)?.url ?? undefined,
       })),
     });
   }
