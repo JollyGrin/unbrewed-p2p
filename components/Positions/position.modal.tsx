@@ -10,8 +10,22 @@ import {
   Flex,
   ModalFooter,
   Button,
+  VStack,
+  Divider,
+  Grid,
+  Input,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
+  Image,
+  MenuItemOption,
+  MenuGroup,
+  MenuOptionGroup,
+  MenuDivider,
+  FormLabel,
 } from "@chakra-ui/react";
-import { FC, useCallback, useState } from "react";
+import { Dispatch, FC, SetStateAction, useCallback, useState } from "react";
 import { MoonIcon, PlusSquareIcon, SunIcon } from "@chakra-ui/icons";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
 
@@ -37,6 +51,8 @@ export const PositionModal: FC<{
     name as keyof typeof gamePositions.content
   ] as PositionType;
 
+  const [images, setImages] = useState<{ id: string; url: string }[]>([]);
+
   const [selectedColor, setSelectedColor] = useState<string>(
     selectedPosition?.color ?? "#000",
   );
@@ -61,6 +77,8 @@ export const PositionModal: FC<{
       ...selected,
       color: selectedColor,
       r: selectedSize === "lg" ? 20 : selectedSize === "md" ? 15 : 10,
+      imageUrl:
+        images?.find((img) => img.id === selected?.id)?.url ?? undefined,
       sidekicks: sidekicks?.map((kick) => ({
         ...kick,
         color: selectedColor,
@@ -98,38 +116,26 @@ export const PositionModal: FC<{
         <ModalBody>
           <Box position="relative">
             <Flex alignItems="center" gap="1rem" minH="2.5rem">
-              <PlusSquareIcon onClick={addSidekick} />
-              <Box
-                bg={selectedColor}
-                h={setSize(selectedSize) + "rem"}
-                w={setSize(selectedSize) + "rem"}
-                cursor="pointer"
-                borderRadius="100%"
-                transition="all 0.25s ease-in-out"
-                onClick={() =>
-                  setSelectedSize((prev) =>
-                    prev === "lg" ? "md" : prev === "md" ? "sm" : "lg",
-                  )
-                }
-              />
-              {sidekicks?.map((kick) => (
-                <Box
-                  key={kick.id}
-                  boxSize="1rem"
-                  bg={selectedColor}
-                  borderRadius="100%"
+              <VStack alignItems="start">
+                <CirclePicker onChangeComplete={handleColorChange} />
+                <Divider />
+                <TokenPreview
+                  token={selectedPosition}
+                  selectedColor={selectedColor}
+                  setImages={setImages}
                 />
-              ))}
+                {sidekicks?.map((kick) => (
+                  <TokenPreview
+                    key={kick.id}
+                    token={kick}
+                    selectedColor={selectedColor}
+                    setImages={setImages}
+                  />
+                ))}
+
+                <PlusSquareIcon onClick={addSidekick} />
+              </VStack>
             </Flex>
-            <Box
-              position="absolute"
-              bg={bg}
-              p="0.5rem"
-              borderRadius="1rem"
-              filter="drop-shadow(0 5px 3px rgba(0,0,0,0.5))"
-            >
-              <CirclePicker onChangeComplete={handleColorChange} />
-            </Box>
           </Box>
         </ModalBody>
         <ModalFooter>
@@ -143,5 +149,53 @@ export const PositionModal: FC<{
         </ModalFooter>
       </ModalContent>
     </Modal>
+  );
+};
+
+const TokenPreview = ({
+  token,
+  selectedColor,
+  setImages,
+}: {
+  token: PositionType;
+  selectedColor: string;
+  setImages: Dispatch<SetStateAction<{ id: string; url: string }[]>>;
+}) => {
+  const setImage = (url: string) => {
+    setImages((prev) => {
+      return [...prev?.filter((p) => p.id !== token.id), { id: token.id, url }];
+    });
+  };
+
+  return (
+    <Grid templateColumns="1fr 2fr">
+      {token?.imageUrl ? (
+        <Image src={token.imageUrl} />
+      ) : (
+        <Box
+          bg={selectedColor}
+          boxSize="2rem"
+          cursor="pointer"
+          borderRadius="100%"
+          transition="all 0.25s ease-in-out"
+        />
+      )}
+
+      <Menu>
+        <MenuButton as={Button}>Tokens</MenuButton>
+        <MenuList>
+          <FormLabel fontSize="0.75rem" pl="0.75rem" color="black">
+            Your Tokens (via your bag)
+          </FormLabel>
+          <Divider />
+          <FormLabel fontSize="0.75rem" pl="0.75rem" color="black">
+            Default Tokens
+          </FormLabel>
+          <MenuItem onClick={() => setImage("https://picsum.photos/200")}>
+            <Image src="https://picsum.photos/200" w="100px" />
+          </MenuItem>
+        </MenuList>
+      </Menu>
+    </Grid>
   );
 };
