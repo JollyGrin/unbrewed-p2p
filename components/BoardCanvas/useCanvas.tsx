@@ -1,7 +1,6 @@
 import * as d3 from "d3";
-import { MutableRefObject, RefObject, cloneElement, useEffect } from "react";
+import { MutableRefObject, RefObject, useEffect } from "react";
 import { PositionType } from "../Positions/position.type";
-import { FaBan } from "react-icons/fa";
 import { TokenIcon } from "./Tokens";
 
 type CanvasProps = {
