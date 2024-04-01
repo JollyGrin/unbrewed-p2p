@@ -85,7 +85,13 @@ export const useCanvas = ({
         }),
     );
 
-    function dragstarted(e: { target: any }) {
+    function dragstarted(e: any, d: PositionType) {
+      const isSelf = d?.id === self;
+      const isSidekick = d?.id.includes("_");
+      const isSidekickSelf = d?.id.split("_")[0] === self;
+      if (isSidekick && !isSidekickSelf) return;
+      if (!isSelf) return;
+
       d3.select(e.target).raise();
       g.attr("cursor", "grabbing");
       //@ts-expect-error: implicit any
@@ -101,11 +107,6 @@ export const useCanvas = ({
       event: DragEvent & { subject: PositionType },
       d: PositionType,
     ) {
-      //@ts-expect-error: implicit any
-      d3.select<SVGCircleElement, PositionType>(this)
-        .attr("cx", (d.x = event.x))
-        .attr("cy", (d.y = event.y));
-
       if (!move) return;
 
       move({
