@@ -1,5 +1,5 @@
 const Image = ({ imageUrl }: { imageUrl: string }) =>
-  `<svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 24 24">
+  `<svg aria-hidden="true"  xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 24 24">
 <image href="${imageUrl}" height='100%' >
 </svg>`;
 

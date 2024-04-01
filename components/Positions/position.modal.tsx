@@ -33,6 +33,7 @@ import { CirclePicker } from "react-color";
 import { PositionType } from "./position.type";
 import { useRouter } from "next/router";
 import { toast } from "react-hot-toast";
+import { DEFAULT_TOKEN_IMAGES } from "../BoardCanvas/defaultTokenImages";
 
 export const PositionModal: FC<{
   isOpen: boolean;
@@ -216,14 +217,14 @@ const TokenPreview = ({
 
       <Menu>
         <MenuButton as={Button}>Tokens</MenuButton>
-        <MenuList>
+        <MenuList maxH="400px" overflowY="auto">
           <FormLabel fontSize="0.75rem" pl="0.75rem" color="black">
             Add Token (via url)
           </FormLabel>
           {imageUrl && <Image src={imageUrl} w="3rem" />}
           <HStack mb="0.5rem" px="0.5rem">
             <Input
-              placeholder="image url"
+              placeholder="image url (.svg, .png, .jpeg)"
               value={imageUrl}
               onChange={(e) => setImageUrl(e.target.value)}
             />
@@ -235,9 +236,11 @@ const TokenPreview = ({
           <FormLabel fontSize="0.75rem" pl="0.75rem" color="black">
             Default Tokens
           </FormLabel>
-          <MenuItem onClick={() => setImage("https://picsum.photos/200")}>
-            <Image src="https://picsum.photos/200" w="100px" />
-          </MenuItem>
+          {DEFAULT_TOKEN_IMAGES.map((img) => (
+            <MenuItem key={img} onClick={() => setImage(img)}>
+              <Image src={img} fill="red" color="red" w="100px" />
+            </MenuItem>
+          ))}
         </MenuList>
       </Menu>
     </Grid>
