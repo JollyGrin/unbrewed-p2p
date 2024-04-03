@@ -116,7 +116,13 @@ export const PlayerBox: React.FC<{
                 <Stat
                   isLocal={isLocal}
                   Icon={sidekick.quantity <= 1 ? IconHeart : IconSidekicks}
-                  callback={(number: number) => updateSidekickQuantity(number)}
+                  callback={(number: number) => {
+                    if (sidekick?.quantity && sidekick?.quantity <= 1) {
+                      updateHealth(number, "sidekick");
+                    } else {
+                      updateSidekickQuantity(number);
+                    }
+                  }}
                   number={
                     sidekick.quantity <= 1
                       ? sidekick.hp ?? 0
