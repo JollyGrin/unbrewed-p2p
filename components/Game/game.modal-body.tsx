@@ -20,6 +20,7 @@ export const DeckModalContent = ({
   return (
     <Grid gridTemplateColumns={"repeat(auto-fit, minmax(250px,1fr))"} gap={1}>
       {cards
+        ?.filter((card) => !!card?.title)
         ?.map((card, index) => (
           <Box
             w="100%"
@@ -40,7 +41,7 @@ export const DeckModalContent = ({
                 </Tag>
               </Flex>
             )}
-            <CardFactory key={card.title + index} card={card} />
+            <CardFactory key={card?.title + index} card={card} />
           </Box>
         ))
         ?.reverse()}

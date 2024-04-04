@@ -111,43 +111,45 @@ export const HandCardItems: React.FC<CardWrapperProps> = ({
         xxxxxxxxxxx
       </Flex>
       {cards ? (
-        cards?.map((card, index) => (
-          <Box key={index + card.title}>
-            <CardWrapper
-              flexDir={"column"}
-              onDragStart={handleDragStart}
-              transition="all 0.25s ease-in-out"
-              _hover={{
-                transform: "scale(2) translateY(-40px)",
-                position: "relative",
-                zIndex: "200",
-                filter: "saturate(2)",
-              }}
-            >
-              <CardFactory card={card} />
-              <Flex className="hoveritem">
-                <Text onClick={() => functions.commitFn(index)}>+</Text>
-                <Text onClick={() => functions.discardFn(index)}>-</Text>
-                <PopoverCardActions
-                  actions={[
-                    {
-                      text: "Boost",
-                      fn: () => functions.boostFn(index),
-                    },
-                    {
-                      text: "Place top of deck",
-                      fn: () => functions.deckCardFn(index),
-                    },
-                    {
-                      text: "Place bottom of deck",
-                      fn: () => functions.deckCardBottomFn(index),
-                    },
-                  ]}
-                />
-              </Flex>
-            </CardWrapper>
-          </Box>
-        ))
+        cards
+          ?.filter((card) => !!card?.title)
+          ?.map((card, index) => (
+            <Box key={index + card.title}>
+              <CardWrapper
+                flexDir={"column"}
+                onDragStart={handleDragStart}
+                transition="all 0.25s ease-in-out"
+                _hover={{
+                  transform: "scale(2) translateY(-40px)",
+                  position: "relative",
+                  zIndex: "200",
+                  filter: "saturate(2)",
+                }}
+              >
+                <CardFactory card={card} />
+                <Flex className="hoveritem">
+                  <Text onClick={() => functions.commitFn(index)}>+</Text>
+                  <Text onClick={() => functions.discardFn(index)}>-</Text>
+                  <PopoverCardActions
+                    actions={[
+                      {
+                        text: "Boost",
+                        fn: () => functions.boostFn(index),
+                      },
+                      {
+                        text: "Place top of deck",
+                        fn: () => functions.deckCardFn(index),
+                      },
+                      {
+                        text: "Place bottom of deck",
+                        fn: () => functions.deckCardBottomFn(index),
+                      },
+                    ]}
+                  />
+                </Flex>
+              </CardWrapper>
+            </Box>
+          ))
       ) : (
         <Skeleton h="240px" />
       )}
