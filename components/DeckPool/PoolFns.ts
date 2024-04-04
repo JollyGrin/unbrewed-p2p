@@ -171,6 +171,7 @@ export const discardRandomCard = (pool: PoolType, cardIndex: number) => {
 //    * @param cardIndex
 //    */
 export const drawDiscard = (pool: PoolType, cardIndex: number) => {
+  if (!pool.discard[cardIndex]) return pool;
   pool.hand.push(pool.discard[cardIndex]);
   pool.discard.splice(cardIndex, 1);
   return pool;
