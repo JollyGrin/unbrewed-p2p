@@ -125,7 +125,8 @@ export const adjustSidekickQuantity = (
 //    * @returns
 //    */
 export const drawDeck = (pool: PoolType, cardIndex: number) => {
-  if (!pool.deck) return;
+  if (!pool.deck) return pool;
+  if (!pool.deck[cardIndex]) return pool;
   pool.hand.push(pool.deck[cardIndex]);
   pool.deck.splice(cardIndex, 1);
   return pool;
