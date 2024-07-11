@@ -93,7 +93,9 @@ export const HandContainer = ({
         >
           Draw + 1
         </ModalButton>
-        <ModalButton onClick={() => setModal("deck")}>Deck</ModalButton>
+        <ModalButton onClick={() => setModal("deck")}>
+          Deck ({playerState?.pool?.deck?.length})
+        </ModalButton>
         <ModalButton onClick={() => setModal("discard")}>Discard</ModalButton>
         {playerState?.pool?.commit?.boost && (
           <ModalButton
