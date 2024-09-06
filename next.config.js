@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 
-const pathPrefix = process.env.NODE_ENV === "production" ? "" : "";
+const pathPrefix =
+  process.env.NODE_ENV === "production" ? "/sorcery-tcg-playtest" : "";
 
 console.log("Environment:", process.env.NODE_ENV);
 const nextConfig = {
