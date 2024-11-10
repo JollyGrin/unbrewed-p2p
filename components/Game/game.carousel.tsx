@@ -1,19 +1,10 @@
 //@ts-nocheck
 import { mockDeck } from "@/_mocks_/deck";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import AliceCarousel from "react-alice-carousel";
 import "react-alice-carousel/lib/alice-carousel.css";
 import { CardFactory } from "../CardFactory/card.factory";
-import {
-  Box,
-  Button,
-  Flex,
-  Popover,
-  Select,
-  Skeleton,
-  Spacer,
-  Text,
-} from "@chakra-ui/react";
+import { Box, Flex, Skeleton, Spacer, Text } from "@chakra-ui/react";
 import {
   DeckImportCardType,
   DeckImportType,
