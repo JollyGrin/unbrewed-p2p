@@ -13,7 +13,6 @@ import {
   PlayerCommit,
 } from "./game.modal-body";
 import { ModalType } from "@/pages/game";
-import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import {
   PoolType,
   boostFromTopDeck,
