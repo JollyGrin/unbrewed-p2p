@@ -16,6 +16,7 @@ import { ModalType } from "@/pages/game";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import {
   PoolType,
+  boostFromTopDeck,
   cancelCommit,
   discardCommit,
   drawDeck,
@@ -88,6 +89,11 @@ export const ModalContainer: React.FC<ModalTemplateType> = ({
       setGameState,
     );
 
+  const gBoostTopDeck = flow(
+    () => playerState?.pool && boostFromTopDeck(playerState?.pool),
+    setGameState,
+  );
+
   const gDrawDeck = (discardIndex: number) =>
     flow(
       () => playerState?.pool && drawDeck(playerState?.pool, discardIndex),
@@ -141,6 +147,7 @@ export const ModalContainer: React.FC<ModalTemplateType> = ({
                 commits={commits}
                 onFlip={gFlip}
                 onDiscard={gDiscardCommit}
+                onBoostTopDeck={gBoostTopDeck}
               />
             )}
           </ModalBody>
