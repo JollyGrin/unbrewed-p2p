@@ -5,6 +5,7 @@ import { PoolType } from "../DeckPool/PoolFns";
 import { useState } from "react";
 
 import { GiUpgrade as IconBoost } from "react-icons/gi";
+import { PopoverCardActions } from "./card-actions.popover";
 
 export const DeckModalContent = ({
   cards,
@@ -55,7 +56,8 @@ export const CommitModalContent: React.FC<{
   onClose: () => void;
   onFlip: () => void;
   onDiscard: () => void;
-}> = ({ commits, onClose, onFlip, onDiscard }) => {
+  onBoostTopDeck: () => void;
+}> = ({ commits, onClose, onFlip, onDiscard, onBoostTopDeck }) => {
   return (
     <Flex flexDir="column" justifyContent="space-evenly" gap={3} minH={"40svh"}>
       <Flex
@@ -72,6 +74,17 @@ export const CommitModalContent: React.FC<{
         <Button onClick={onClose}>Cancel</Button>
         <Button onClick={onFlip}>Flip</Button>
         <Button onClick={onDiscard}>Discard</Button>
+
+        <div style={{ fontSize: "2rem" }}>
+          <PopoverCardActions
+            actions={[
+              {
+                text: "Boost from top of deck",
+                fn: onBoostTopDeck,
+              },
+            ]}
+          />
+        </div>
       </Flex>
     </Flex>
   );
