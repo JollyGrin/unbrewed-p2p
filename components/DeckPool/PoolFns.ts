@@ -193,6 +193,22 @@ export const boostCard = (pool: PoolType, cardIndex: number): PoolType => {
   return pool;
 };
 
+export const boostFromTopDeck = (pool: PoolType): PoolType => {
+  if (!pool?.deck) return pool;
+  if (!pool?.hand) return pool;
+  if (pool.commit.boost) return pool;
+
+  if (pool.deck.length === 0) {
+    alert("No cards left");
+  }
+  const card = pool?.deck?.pop();
+  if (card) {
+    pool.commit.boost = card;
+  }
+
+  return pool;
+};
+
 export const cancelBoost = (pool: PoolType): PoolType => {
   if (!pool?.commit.boost) return pool;
   pool.hand.unshift(pool.commit.boost);
