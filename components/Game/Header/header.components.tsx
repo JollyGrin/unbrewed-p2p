@@ -36,6 +36,7 @@ import { useState } from "react";
 
 import { FaMap } from "react-icons/fa";
 import { MapModal } from "./map.modal";
+import { DiscardModalReadOnly } from "./discard.modal";
 
 export const PlayerBox: React.FC<{
   isLocal: boolean;
@@ -58,10 +59,12 @@ export const PlayerBox: React.FC<{
   };
 
   const mapDisclosure = useDisclosure();
+  const discardDisclosure = useDisclosure();
 
   return (
     <>
       <MapModal {...mapDisclosure} />
+      <DiscardModalReadOnly {...discardDisclosure} cards={discard} />
       <StatContainer>
         <PlayerTitleBar>
           <Tooltip label={<TipBody pool={playerState?.pool} />}>
@@ -125,8 +128,8 @@ export const PlayerBox: React.FC<{
                   }}
                   number={
                     sidekick.quantity <= 1
-                      ? sidekick.hp ?? 0
-                      : sidekick.quantity ?? 0
+                      ? (sidekick.hp ?? 0)
+                      : (sidekick.quantity ?? 0)
                   }
                 />
 
@@ -169,6 +172,7 @@ export const PlayerBox: React.FC<{
                 Icon={IconDiscard}
                 number={discard.length}
                 size="20px"
+                onClick={discardDisclosure.onOpen}
               />
             </Flex>
           </Grid>
@@ -184,7 +188,8 @@ export const Stat: React.FC<{
   size?: `${string}px`;
   callback?: (adjustNumber: number) => void;
   isLocal: boolean;
-}> = ({ Icon, number, size, callback, isLocal }) => {
+  onClick?: () => void;
+}> = ({ Icon, number, size, callback, isLocal, onClick }) => {
   const [isHovering, setIsHovering] = useState<boolean>(false);
   const enter = () => setIsHovering(true);
   const leave = () => setIsHovering(false);
@@ -194,6 +199,7 @@ export const Stat: React.FC<{
       position="relative"
       onMouseOver={enter}
       onMouseOut={leave}
+      onClick={onClick}
     >
       {isLocal && !!callback && isHovering ? (
         <Flex flexDir="column">
