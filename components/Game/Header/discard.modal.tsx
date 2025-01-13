@@ -25,7 +25,9 @@ export const DiscardModalReadOnly = (props: {
           <ModalCloseButton />
           <ModalBody>
             <Grid gridTemplateColumns="1fr 1fr 1fr">
-              {props.cards?.map((card) => <CardFactory card={card} />)}
+              {props.cards?.map((card, i) => (
+                <CardFactory key={card.title + i} card={card} />
+              ))}
             </Grid>
           </ModalBody>
         </ModalContent>
