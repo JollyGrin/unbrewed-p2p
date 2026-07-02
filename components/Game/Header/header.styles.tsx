@@ -1,5 +1,5 @@
 import { colors, fonts } from "@/styles/style";
-import { Box, Flex, Grid } from "@chakra-ui/react";
+import { Box, Flex } from "@chakra-ui/react";
 import styled from "@emotion/styled";
 
 export const PlayerTitleBar = styled(Flex)`
@@ -16,12 +16,6 @@ export const PlayerTitleBar = styled(Flex)`
   padding: 0.2rem 0.75rem;
 
   justify-content: space-between;
-`;
-
-export const PawnStatsContainer = styled(Grid)`
-  grid-template-columns: 1fr 1fr 1fr;
-  place-items: center;
-  gap: 1rem;
 `;
 
 export const MoveStatContainer = styled(Flex)`
