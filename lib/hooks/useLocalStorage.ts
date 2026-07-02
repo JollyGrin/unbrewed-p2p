@@ -117,6 +117,10 @@ export const useLocalDeckStorage = () => {
     }
     setDecks(newArray);
     localStorage.setItem(LS_KEY.DECKS, JSON.stringify(newArray));
+    // a deck you add should be ready to play: star it if nothing is starred
+    if (!star && !localStorage.getItem(LS_KEY.STAR_DECK)) {
+      setStar(data.id);
+    }
   };
 
   const removeDeckbyId = (id: string) => {

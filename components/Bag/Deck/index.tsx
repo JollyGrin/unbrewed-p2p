@@ -1,6 +1,5 @@
 import { Dispatch, SetStateAction, useState } from "react";
 import { Box, Button, Flex, Grid, HStack, Input, Text } from "@chakra-ui/react";
-import { CardFactory } from "@/components/CardFactory/card.factory";
 import { DECK_ID } from "@/lib/constants/unmatched-deckids";
 import { useUnmatchedDeck } from "@/lib/hooks/useUnmatchedDeck";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
@@ -9,6 +8,7 @@ import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
 import { FaStar } from "react-icons/fa";
 
 import { StarterDeckContainer } from "@/components/Bag/StarterDecks";
+import { PopularDecks } from "@/components/Bag/PopularDecks";
 import { DeckStats } from "./Stats";
 import { AddJson } from "./AddJson";
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
@@ -54,11 +54,22 @@ export const BagDecks = () => {
         )}
 
         {!selectedDeckId && (
-          <Box p="0.5rem">
+          <Box p="0.75rem" overflowY="auto">
             {!data && (
-              <Flex direction="column">
-                <Box>
-                  <UnmatchedInput setDeckId={setDeckId} />
+              <Flex direction="column" gap="1rem">
+                <Box
+                  bg="brand.parchment"
+                  borderRadius="0.5rem"
+                  p="0.75rem"
+                  boxShadow="0 2px 8px rgba(20, 8, 24, 0.25)"
+                >
+                  <PopularDecks
+                    deckIds={decks?.map((deck) => deck.id)}
+                    {...{ pushDeck, setStar, star }}
+                  />
+                  <Box mt="0.5rem">
+                    <UnmatchedInput setDeckId={setDeckId} />
+                  </Box>
                 </Box>
                 <AddJson />
                 <StarterDeckContainer
@@ -69,7 +80,17 @@ export const BagDecks = () => {
             )}
             {data && (
               <HStack ml="0.5rem" mb="0.5rem" gap="0.5rem">
-                <Button onClick={() => pushDeck(data)}>Save Deck</Button>
+                <Button
+                  bg="gold"
+                  onClick={() => {
+                    pushDeck(data);
+                    setStar(data.id);
+                    setDeckId(undefined);
+                    toast.success(`${data.name} saved & ready to play`);
+                  }}
+                >
+                  ★ Save & use this deck
+                </Button>
                 <Button onClick={() => setDeckId(undefined)}>Clear</Button>
               </HStack>
             )}
@@ -159,9 +180,10 @@ const Buttons = ({
             bg="gold"
             onClick={() => {
               setStar(selectedDeckId);
+              toast.success(`${deck?.name} is now your active deck`);
             }}
           >
-            ☆ Star Deck
+            ★ Use this deck
           </Button>
 
           <Button
@@ -185,19 +207,11 @@ const UnmatchedInput = ({
 }) => {
   return (
     <>
-      <Text color="antiquewhite" fontSize={"1.25rem"}>
-        Load a deck from{" "}
-        <a
-          href="https://unmatched.cards/decks"
-          style={{ textDecoration: "underline" }}
-        >
-          unmatched.cards
-        </a>
-      </Text>
+      <Text fontWeight={700}>Have a deck code?</Text>
       <Input
-        bg="antiquewhite"
+        bg="white"
         maxW="200px"
-        my="10px"
+        my="0.5rem"
         fontFamily={"monospace"}
         placeholder={"Example: " + DECK_ID.THRALL}
         letterSpacing={"2px"}

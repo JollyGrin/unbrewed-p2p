@@ -3,7 +3,19 @@ import {
   UnmatchedCardType,
 } from "../DeckPool/deck-import.type";
 import { CardConstantsType } from "./card.type";
-import { Canvas } from "canvas";
+
+/**
+ * A plain browser canvas used only for measureText during layout.
+ * Kept behind a singleton so every card shares one canvas.
+ */
+export type MeasureCanvas = HTMLCanvasElement;
+
+let measureCanvas: MeasureCanvas | undefined;
+export const getMeasureCanvas = (): MeasureCanvas | undefined => {
+  if (typeof document === "undefined") return undefined;
+  if (!measureCanvas) measureCanvas = document.createElement("canvas");
+  return measureCanvas;
+};
 
 export const cardConstants: CardConstantsType = {
   height: 88,
@@ -24,7 +36,7 @@ export const actions = {
   topPanelWidth: () => {
     return actions.innerWidth();
   },
-  topPanelHeight: (props: DeckImportCardType, canvas: Canvas) => {
+  topPanelHeight: (props: DeckImportCardType, canvas: MeasureCanvas) => {
     const topHeight =
       cardConstants.height -
       2 * cardConstants.outerBorderWidth -
@@ -36,13 +48,13 @@ export const actions = {
   bottomPanelWidth: () => {
     return actions.innerWidth();
   },
-  bottomPanelY: (props: DeckImportCardType, canvas: Canvas) => {
+  bottomPanelY: (props: DeckImportCardType, canvas: MeasureCanvas) => {
     return actions.topPanelHeight(props, canvas) + cardConstants.hRuleThickness;
   },
   bottomPanelStyle: () => {
     return { fill: "#000" };
   },
-  bottomPanelHeight: (props: DeckImportCardType, canvas: Canvas) => {
+  bottomPanelHeight: (props: DeckImportCardType, canvas: MeasureCanvas) => {
     const textHeight =
       actions.bodyTextStyle().fontSize * 0.8 +
       6 * actions.wrapCardTitle(props.title, canvas).length +
@@ -69,7 +81,7 @@ export const actions = {
       fontSize: "6px",
     };
   },
-  cantonAdjust: (characterName: string, canvas: Canvas) => {
+  cantonAdjust: (characterName: string, canvas: MeasureCanvas) => {
     const width = actions.getTextWidth(
       characterName,
       "6px BebasNeueRegular",
@@ -110,7 +122,7 @@ export const actions = {
       fontSize,
     };
   },
-  wrapBasicText: (basicText: string, canvas: Canvas) => {
+  wrapBasicText: (basicText: string, canvas: MeasureCanvas) => {
     if (!(basicText && basicText.trim())) {
       return [];
     }
@@ -128,7 +140,7 @@ export const actions = {
       });
     return lines.flat();
   },
-  wrapImmediateText: (immediateText: string, canvas: Canvas) => {
+  wrapImmediateText: (immediateText: string, canvas: MeasureCanvas) => {
     if (!(immediateText && immediateText.trim())) {
       return [];
     }
@@ -152,7 +164,7 @@ export const actions = {
       });
     return lines.flat();
   },
-  wrapDuringText: (duringText: string, canvas: Canvas) => {
+  wrapDuringText: (duringText: string, canvas: MeasureCanvas) => {
     if (!(duringText && duringText.trim())) {
       return [];
     }
@@ -175,7 +187,7 @@ export const actions = {
       });
     return lines.flat();
   },
-  wrapAfterText: (afterText: string, canvas: Canvas) => {
+  wrapAfterText: (afterText: string, canvas: MeasureCanvas) => {
     if (!(afterText && afterText.trim())) {
       return [];
     }
@@ -198,7 +210,7 @@ export const actions = {
       });
     return lines.flat();
   },
-  wrapCardTitle: (title: string, canvas: Canvas) => {
+  wrapCardTitle: (title: string, canvas: MeasureCanvas) => {
     return actions.wrapLines(
       title?.split(" "),
       actions.titleTextStyle().font,
@@ -212,7 +224,7 @@ export const actions = {
     font: string,
     maxLength: number,
     indent = 0,
-    canvas: Canvas
+    canvas: MeasureCanvas
   ): string[] => {
     var line = "";
     var i;
@@ -239,9 +251,10 @@ export const actions = {
   maxTextLength: () => {
     return actions.bottomPanelWidth() - 2 * cardConstants.bottomPanelPadding;
   },
-  getTextWidth: (text: string, font: string, canvas: Canvas) => {
+  getTextWidth: (text: string, font: string, canvas: MeasureCanvas) => {
     if (!canvas) return 10;
     const context = canvas.getContext("2d");
+    if (!context) return 10;
     context.font = font;
     const width = context.measureText(text).width;
     return width;
@@ -287,7 +300,7 @@ export const roundNumber = (number: number, roundTo: number) => {
   return round;
 };
 
-export const calculateProps = (card: DeckImportCardType, canvas: Canvas) => ({
+export const calculateProps = (card: DeckImportCardType, canvas: MeasureCanvas) => ({
   isScheme: actions.isScheme(card.type),
   topPanelWidth: actions.topPanelWidth(),
   topPanelHeight: actions.topPanelHeight(card, canvas),

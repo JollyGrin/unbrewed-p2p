@@ -31,7 +31,7 @@ import {
   adjustSidekickQuantity,
 } from "@/components/DeckPool/PoolFns";
 import styled from "@emotion/styled";
-import { fonts } from "@/styles/style";
+import { colors, fonts } from "@/styles/style";
 import { useState } from "react";
 
 import { FaMap } from "react-icons/fa";
@@ -65,7 +65,7 @@ export const PlayerBox: React.FC<{
     <>
       <MapModal {...mapDisclosure} />
       <DiscardModalReadOnly {...discardDisclosure} cards={discard} />
-      <StatContainer>
+      <StatContainer isLocal={isLocal}>
         <PlayerTitleBar>
           <Tooltip label={<TipBody pool={playerState?.pool} />}>
             <Text>{name}</Text>
@@ -90,16 +90,23 @@ export const PlayerBox: React.FC<{
                 openPositionModal()
               }
             >
-              <Dot background="tomato" size="1rem" />
-              <Dot background="tomato" size="0.75rem" />
-              <Dot background="tomato" size="0.75rem" />
-              <Dot background="tomato" size="0.75rem" />
+              <Dot background="brand.primary" size="1rem" />
+              <Dot background="brand.primary" size="0.75rem" />
+              <Dot background="brand.primary" size="0.75rem" />
+              <Dot background="brand.primary" size="0.75rem" />
             </Flex>
           </HStack>
         </PlayerTitleBar>
         <Grid gridTemplateColumns={"1fr 1fr"} alignItems="center">
           <PawnStatsContainer>
-            <Box bg="green" borderRadius={"1000px"} h="20px" w="20px" />
+            <Box
+              bg="brand.secondary"
+              border="2px solid"
+              borderColor="brand.primary"
+              borderRadius={"1000px"}
+              h="20px"
+              w="20px"
+            />
             <Stat
               Icon={IconHeart}
               number={hero.hp ?? 0}
@@ -115,7 +122,14 @@ export const PlayerBox: React.FC<{
 
             {sidekick?.quantity && sidekick.quantity > 0 ? (
               <>
-                <Box bg="green" h="15px" w="15px" />
+                <Box
+                  bg="brand.secondary"
+                  border="2px solid"
+                  borderColor="brand.primary"
+                  borderRadius="3px"
+                  h="15px"
+                  w="15px"
+                />
                 <Stat
                   isLocal={isLocal}
                   Icon={sidekick.quantity <= 1 ? IconHeart : IconSidekicks}
@@ -203,10 +217,10 @@ export const Stat: React.FC<{
     >
       {isLocal && !!callback && isHovering ? (
         <Flex flexDir="column">
-          <AdjustButton bg="green" onClick={() => callback(1)}>
+          <AdjustButton bg={colors.brand.positive} onClick={() => callback(1)}>
             +
           </AdjustButton>
-          <AdjustButton bg="tomato" onClick={() => callback(-1)}>
+          <AdjustButton bg={colors.brand.danger} onClick={() => callback(-1)}>
             -
           </AdjustButton>
         </Flex>

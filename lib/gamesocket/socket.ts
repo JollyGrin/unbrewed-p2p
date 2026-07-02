@@ -6,6 +6,8 @@ import {
   PlayerState,
 } from "./message";
 
+export type ConnectionStatus = "connecting" | "open" | "closed";
+
 export interface WebsocketProps {
   // Game lobby id
   gid: string;
@@ -15,15 +17,19 @@ export interface WebsocketProps {
   // Callbacks
   onGameState: (state: string) => void;
   onGamePositions: (state: string) => void;
+  onStatus?: (status: ConnectionStatus) => void;
 }
 
 export interface WebsocketReturn {
   updateMyPlayerState: (state: PlayerState) => void;
   updateMyPlayerPosition: (state: PositionType[]) => void;
+  close: () => void;
 }
 
 const js = (e: any) => JSON.stringify(e);
 const jp = (e: string) => JSON.parse(e);
+
+const MAX_RETRY_DELAY_MS = 10_000;
 
 export const initializeWebsocket = ({
   name,
@@ -31,37 +37,62 @@ export const initializeWebsocket = ({
   connectURL,
   onGameState,
   onGamePositions,
+  onStatus,
 }: WebsocketProps): WebsocketReturn => {
   const url = new URL(`/ws/${gid}`, connectURL);
 
   url.searchParams.append("name", name);
   url.protocol = url.protocol === "http:" ? "ws:" : "wss:";
 
-  const ws = new WebSocket(url);
-  ws.onopen = (_: any): void => {
-    ws.send(js(pingMessage));
+  let ws: WebSocket;
+  let retries = 0;
+  let closedByClient = false;
+  let retryTimeout: ReturnType<typeof setTimeout> | undefined;
+
+  const connect = () => {
+    onStatus?.("connecting");
+    ws = new WebSocket(url);
+    ws.onopen = (_: any): void => {
+      retries = 0;
+      onStatus?.("open");
+      ws.send(js(pingMessage));
+    };
+    ws.onmessage = (event: any): void => {
+      const data: WebsocketMessage = jp(event.data);
+      switch (data.msgtype) {
+        case "ping":
+          ws.send(js(pongMessage));
+          return;
+        case "pong":
+          return;
+        case "gamestate":
+          onGameState(event.data as string);
+          return;
+        case "playerposition":
+          onGamePositions(event.data as string);
+          return;
+      }
+    };
+    ws.onerror = (event: any): void => {
+      console.error("websocket error", event);
+    };
+    ws.onclose = (): void => {
+      onStatus?.("closed");
+      if (closedByClient) return;
+      // reconnect with capped exponential backoff
+      const delay = Math.min(1000 * 2 ** retries, MAX_RETRY_DELAY_MS);
+      retries += 1;
+      retryTimeout = setTimeout(connect, delay);
+    };
   };
-  ws.onmessage = (event: any): void => {
-    const data: WebsocketMessage = jp(event.data);
-    switch (data.msgtype) {
-      case "ping":
-        ws.send(js(pongMessage));
-        return;
-      case "pong":
-        return;
-      case "gamestate":
-        onGameState(event.data as string);
-        return;
-      case "playerposition":
-        onGamePositions(event.data as string);
-        return;
+  connect();
+
+  const send = (message: WebsocketMessage): void => {
+    if (ws.readyState !== WebSocket.OPEN) {
+      console.warn("websocket not open, message dropped", message.msgtype);
+      return;
     }
-  };
-  ws.onerror = (event: any): void => {
-    console.error("error", js(event.data));
-  };
-  ws.onclose = (event: any): void => {
-    console.info("close", js(event.data));
+    ws.send(js(message));
   };
 
   return {
@@ -70,32 +101,21 @@ export const initializeWebsocket = ({
         // TODO: Idk why this happens, but some undedfined state is being passed in
         return;
       }
-      if (ws.readyState !== ws.OPEN) {
-        throw new Error("Websocket not open");
-      }
-      ws.send(
-        //@ts-ignore
-        js({
-          msgtype: "playerstate",
-          content: state,
-        } as WebsocketMessage)
-      );
+      //@ts-ignore
+      send({ msgtype: "playerstate", content: state } as WebsocketMessage);
     },
     updateMyPlayerPosition: (state: PositionType[]): void => {
       if (!state) {
         // TODO: Idk why this happens, but some undedfined state is being passed in
         return;
       }
-      if (ws.readyState !== ws.OPEN) {
-        throw new Error("Websocket not open");
-      }
-      ws.send(
-        //@ts-ignore
-        js({
-          msgtype: "playerposition",
-          content: state,
-        } as WebsocketMessage)
-      );
+      //@ts-ignore
+      send({ msgtype: "playerposition", content: state } as WebsocketMessage);
+    },
+    close: (): void => {
+      closedByClient = true;
+      if (retryTimeout) clearTimeout(retryTimeout);
+      ws.close();
     },
   };
 };

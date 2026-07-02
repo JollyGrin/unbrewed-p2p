@@ -1,11 +1,24 @@
-import { Box, Flex, Grid, Text, Skeleton, Button, Tag } from "@chakra-ui/react";
+import { Box, Flex, Grid, Text, Button, Tag } from "@chakra-ui/react";
 import { CardFactory } from "../CardFactory/card.factory";
+import { CardBack } from "../CardFactory/card.back";
 import { DeckImportCardType } from "../DeckPool/deck-import.type";
 import { PoolType } from "../DeckPool/PoolFns";
 import { useState } from "react";
 
 import { GiUpgrade as IconBoost } from "react-icons/gi";
 import { PopoverCardActions } from "./card-actions.popover";
+
+const TableButton = (props: React.ComponentProps<typeof Button>) => (
+  <Button
+    bg="brand.secondary"
+    color="brand.primary"
+    fontFamily="SpaceGrotesk"
+    boxShadow="0 2px 6px rgba(20, 8, 24, 0.35)"
+    _hover={{ bg: "#5A3263", transform: "translateY(-1px)" }}
+    _active={{ transform: "translateY(0)" }}
+    {...props}
+  />
+);
 
 export const DeckModalContent = ({
   cards,
@@ -71,9 +84,9 @@ export const CommitModalContent: React.FC<{
         ))}
       </Flex>
       <Flex justifyContent="space-evenly" w="100%" maxW="600px" m="0 auto">
-        <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={onFlip}>Flip</Button>
-        <Button onClick={onDiscard}>Discard</Button>
+        <TableButton onClick={onClose}>Cancel</TableButton>
+        <TableButton onClick={onFlip}>Flip</TableButton>
+        <TableButton onClick={onDiscard}>Discard</TableButton>
 
         <div style={{ fontSize: "2rem" }}>
           <PopoverCardActions
@@ -110,7 +123,7 @@ const CommitCard: React.FC<{ commit: PlayerCommit }> = ({ commit }) => {
             fontFamily="SpaceGrotesk"
             fontWeight="700"
             fontSize="1.25rem"
-            bg={commit.commit.reveal ? "antiquewhite" : ""}
+            bg={commit.commit.reveal ? "brand.parchment" : ""}
             borderRadius={"1rem"}
           >
             {commit.player}
@@ -119,7 +132,7 @@ const CommitCard: React.FC<{ commit: PlayerCommit }> = ({ commit }) => {
       )}
       <Box onMouseOver={onEnter} onMouseOut={onLeave}>
         {!commit.commit.reveal ? (
-          <Skeleton w="300px" h="420px" />
+          <CardBack />
         ) : (
           <Box position="relative">
             <CardFactory card={commit.commit.main} />

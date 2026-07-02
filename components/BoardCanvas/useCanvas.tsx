@@ -9,7 +9,7 @@ type CanvasProps = {
   parentRef?: RefObject<any>;
   data?: PositionType[];
   self?: string;
-  updateCanvas: boolean;
+  size: { width: number; height: number };
   move?: (e: PositionType) => void;
 };
 
@@ -23,23 +23,23 @@ export const useCanvas = ({
   data,
   self,
   move,
-  updateCanvas,
+  size,
 }: CanvasProps) => {
   useEffect(() => {
     if (!data) return;
     if (!canvasRef.current) return;
     if (!window) return;
     if (!parentRef) return;
+    if (!size.width || !size.height) return;
 
-    const parent = parentRef.current;
-    const width = parent.offsetWidth;
-    const height = parent.offsetHeight;
+    const { width, height } = size;
 
     const canvas = d3
       .select<SVGSVGElement, PositionType[]>(canvasRef.current)
       .attr("width", width)
       .attr("height", height);
 
+    const isFirstRender = !gRef.current;
     if (!gRef.current) {
       gRef.current = canvas.append("g").attr("cursor", "grab").node();
     }
@@ -70,20 +70,33 @@ export const useCanvas = ({
           .touchable(true),
       );
 
-    canvas.call(
-      //@ts-ignore
-      d3
-        .zoom()
-        .extent([
-          [0, 0],
-          [width, height],
-        ])
-        .scaleExtent([0.5, 4])
-        .on("zoom", ({ transform }) => {
-          g.attr("transform", transform);
-          canvas.select("image").attr("transform", transform);
-        }),
-    );
+    const zoom = d3
+      .zoom()
+      .extent([
+        [0, 0],
+        [width, height],
+      ])
+      .scaleExtent([0.25, 4])
+      .on("zoom", ({ transform }) => {
+        g.attr("transform", transform);
+        canvas.select("image").attr("transform", transform);
+      });
+    //@ts-ignore
+    canvas.call(zoom);
+
+    // fit + center the map on first render (moves map and tokens together)
+    if (isFirstRender) {
+      const MAP_W = 1200;
+      const MAP_H = 1000;
+      const scale = Math.min(width / MAP_W, height / MAP_H, 1);
+      const tx = (width - MAP_W * scale) / 2;
+      const ty = (height - MAP_H * scale) / 2;
+      canvas.call(
+        //@ts-ignore
+        zoom.transform,
+        d3.zoomIdentity.translate(tx, ty).scale(scale),
+      );
+    }
 
     function dragstarted(e: any, d: PositionType) {
       const isSelf = d?.id === self;
@@ -124,5 +137,5 @@ export const useCanvas = ({
       const circle = d3.select<SVGCircleElement, PositionType>(this);
       circle.transition().duration(350).attr("stroke-width", 0);
     }
-  }, [data, updateCanvas, parentRef, move, self]);
+  }, [data, size, parentRef, move, self]);
 };

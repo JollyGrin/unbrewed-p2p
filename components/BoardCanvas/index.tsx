@@ -1,6 +1,5 @@
 import { Box } from "@chakra-ui/react";
-import { RefObject, useRef, useState } from "react";
-import { RepeatIcon } from "@chakra-ui/icons";
+import { RefObject, useEffect, useRef, useState } from "react";
 import { PositionType } from "../Positions/position.type";
 import { useCanvas } from "./useCanvas";
 
@@ -25,8 +24,22 @@ export const BoardCanvas: React.FC<BoardProps> = ({
   const canvasRef: RefObject<SVGSVGElement> = useRef(null);
   const gRef = useRef<SVGGElement | null>(null);
 
-  // HACK: toggle boolean to trigger useEffect
-  const [updateCanvas, setUpdateCanvas] = useState<boolean>(false);
+  // Track the parent size so the svg resizes with the window/layout
+  const [size, setSize] = useState<{ width: number; height: number }>({
+    width: 0,
+    height: 0,
+  });
+  useEffect(() => {
+    const parent = parentRef.current;
+    if (!parent) return;
+    const observer = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      setSize({ width, height });
+    });
+    observer.observe(parent);
+    return () => observer.disconnect();
+  }, []);
+
   useCanvas({
     gRef,
     canvasRef,
@@ -34,25 +47,12 @@ export const BoardCanvas: React.FC<BoardProps> = ({
     data: data.map((dataPoint) => [...flattenWithSidekicks(dataPoint)]).flat(),
     move,
     self,
-    updateCanvas,
+    size,
   });
 
   return (
     <Box h="100%" w="100%" ref={parentRef}>
-      <Refresh
-        onClick={() => {
-          setUpdateCanvas(!updateCanvas);
-        }}
-      />
-      <svg
-        ref={canvasRef}
-        style={{
-          borderBottom: "1px solid rgba(0,0,0,0.25)",
-          margin: "0 auto",
-          boxShadow: "0 10px 20px rgba(0,0,0,0.4)",
-          backgroundColor: "ghostwhite",
-        }}
-      >
+      <svg ref={canvasRef} style={{ margin: "0 auto", display: "block" }}>
         <image
           className="background"
           xlinkHref={src}
@@ -60,29 +60,12 @@ export const BoardCanvas: React.FC<BoardProps> = ({
           height={1000}
           x={1}
           y={1}
+          style={{ filter: "drop-shadow(0 12px 28px rgba(0, 0, 0, 0.45))" }}
         />
       </svg>
     </Box>
   );
 };
-
-const Refresh = (props: { onClick: () => void }) => (
-  <RepeatIcon
-    position={"absolute"}
-    right={0}
-    h="20px"
-    w="20px"
-    cursor="pointer"
-    onClick={props.onClick}
-    transition="all 0.25s ease-in-out"
-    _hover={{
-      transform: "rotate(60deg)",
-    }}
-    _active={{
-      transform: "rotate(-90deg)",
-    }}
-  />
-);
 
 function flattenWithSidekicks(object: PositionType) {
   const flattened: PositionType[] = [];

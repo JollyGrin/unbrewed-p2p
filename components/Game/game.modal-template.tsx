@@ -130,8 +130,24 @@ export const ModalContainer: React.FC<ModalTemplateType> = ({
     <>
       <Modal isOpen={isOpen} onClose={() => !isCommit && onClose()}>
         <OverlayOne />
-        <ModalContent maxW={"1100px"} w={"100%"}>
-          <ModalHeader>{modalType}</ModalHeader>
+        <ModalContent
+          maxW={"1100px"}
+          w={"100%"}
+          bg="brand.parchment"
+          borderRadius="1rem"
+          border="1px solid rgba(72, 40, 79, 0.35)"
+          boxShadow="0 18px 48px rgba(20, 8, 24, 0.55)"
+        >
+          <ModalHeader
+            fontFamily="BebasNeueRegular"
+            fontSize="1.75rem"
+            letterSpacing="0.05em"
+            textTransform="uppercase"
+            color="brand.secondary"
+            pb="0.25rem"
+          >
+            {modalType}
+          </ModalHeader>
           {!isCommit && <ModalCloseButton />}
           <ModalBody>
             {playerState?.pool && modalType && !isCommit && (
@@ -157,8 +173,5 @@ export const ModalContainer: React.FC<ModalTemplateType> = ({
 };
 
 const OverlayOne = () => (
-  <ModalOverlay
-    bg="blackAlpha.300"
-    backdropFilter="blur(10px) hue-rotate(10deg)"
-  />
+  <ModalOverlay bg="rgba(20, 8, 24, 0.55)" backdropFilter="blur(8px)" />
 );

@@ -15,11 +15,6 @@ Feel free to submit PRs/Fork/or request features through the issue tracker.
 1. then open a new terminal and run `yarn dev`
 1. open http://localhost:3000
 
-_Having issues with canvas?_
-
-- run `yarn add canvas`
-- for whatever reason this sometimes just doesn't install with default yarn
-
 ## Run a GameServer
 
 _follow these instructions to run your own gameserver_

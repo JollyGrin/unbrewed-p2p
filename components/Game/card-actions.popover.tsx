@@ -21,18 +21,36 @@ export const PopoverCardActions = (props: {
         <Button
           p="0"
           m="0"
-          minW="1rem"
-          fontSize="0.5rem"
-          h="1rem"
-          transform="translateY(-6px) translateX(-10px) rotate(90deg)"
-          bg="antiquewhite"
+          minW="1.3rem"
+          fontSize="0.7rem"
+          h="1.3rem"
+          borderRadius="10rem"
+          transform="rotate(90deg)"
+          bg="brand.primary"
+          color="brand.surfaceDim"
+          boxShadow="0 1px 3px rgba(20, 8, 24, 0.4)"
+          _hover={{ bg: "brand.highlight" }}
         >
           <IconKebab />
         </Button>
       </PopoverTrigger>
-      <PopoverContent fontSize="0.35rem" w="fit-content" maxW="100px">
-        <PopoverArrow />
-        <PopoverHeader py="0.25rem" textTransform="uppercase" fontWeight={700}>
+      <PopoverContent
+        fontSize="0.7rem"
+        w="fit-content"
+        maxW="180px"
+        bg="brand.parchment"
+        border="1px solid rgba(72, 40, 79, 0.35)"
+        boxShadow="0 8px 20px rgba(20, 8, 24, 0.45)"
+      >
+        <PopoverArrow bg="brand.parchment" />
+        <PopoverHeader
+          py="0.25rem"
+          textTransform="uppercase"
+          fontWeight={700}
+          fontFamily="SpaceGrotesk"
+          letterSpacing="0.04em"
+          border="none"
+        >
           Card Actions
         </PopoverHeader>
         <PopoverBody p="0.25rem">
