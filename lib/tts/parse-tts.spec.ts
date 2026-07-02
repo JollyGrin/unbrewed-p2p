@@ -106,6 +106,31 @@ describe("buildImageDeck", () => {
     expect(total).toBe(4);
   });
 
+  it("carries hero name and minion/sidekick stats into the deck", () => {
+    const parsed = parseTtsDeck(ttsSavedObject);
+    const deck = buildImageDeck({
+      name: "Boba Fett (Club)",
+      heroName: "Boba Fett",
+      cards: parsed.cards,
+      sidekickName: "Stormtrooper",
+      sidekickQuantity: 3,
+      sidekickIsRanged: true,
+    });
+
+    expect(deck.deck_data.hero.name).toBe("Boba Fett");
+    expect(deck.deck_data.sidekick).toMatchObject({
+      name: "Stormtrooper",
+      quantity: 3,
+      hp: 1,
+      isRanged: true,
+    });
+
+    // no sidekick when count is 0
+    const solo = buildImageDeck({ name: "Solo", cards: parsed.cards });
+    expect(solo.deck_data.sidekick.quantity).toBeNull();
+    expect(solo.deck_data.sidekick.hp).toBeNull();
+  });
+
   it("keeps standalone hero cards out of the shuffled draw deck", () => {
     const parsed = parseTtsDeck({
       ObjectStates: [

@@ -174,6 +174,11 @@ export type ImageDeckInput = {
   hp?: number;
   move?: number;
   isRanged?: boolean;
+  /** minions/sidekick: quantity 0 or undefined = none */
+  sidekickName?: string;
+  sidekickQuantity?: number;
+  sidekickHp?: number;
+  sidekickIsRanged?: boolean;
   cardbackUrl?: string;
   cards: ParsedTtsCard[];
 };
@@ -187,6 +192,7 @@ export type ImageDeckInput = {
 export const buildImageDeck = (input: ImageDeckInput): DeckImportType => {
   const id = `img-${Math.random().toString(36).slice(2, 8)}`;
   const heroName = input.heroName?.trim() || input.name;
+  const hasSidekick = !!input.sidekickQuantity && input.sidekickQuantity > 0;
   const now = new Date().toUTCString();
 
   const cards: DeckImportCardType[] = input.cards.map((card) => ({
@@ -243,13 +249,22 @@ export const buildImageDeck = (input: ImageDeckInput): DeckImportType => {
         isRanged: input.isRanged ?? false,
         specialAbility: "See hero card",
       },
-      sidekick: {
-        name: "Sidekick",
-        hp: null,
-        quantity: null,
-        isRanged: false,
-        quote: "",
-      },
+      sidekick: hasSidekick
+        ? {
+            name: input.sidekickName?.trim() || "Sidekick",
+            quantity: input.sidekickQuantity!,
+            // multiple minions are 1hp each by convention
+            hp: input.sidekickHp ?? 1,
+            isRanged: input.sidekickIsRanged ?? false,
+            quote: "",
+          }
+        : {
+            name: "Sidekick",
+            hp: null,
+            quantity: null,
+            isRanged: false,
+            quote: "",
+          },
     },
   };
 };
