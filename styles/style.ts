@@ -12,6 +12,8 @@ export const colors = {
     surfaceDim: "#2C1831", // darker purple (modals, trays)
     danger: "#FF6347", // damage / remove (was `tomato`)
     positive: "#2F9E68", // heal / add (was `green`)
+    accent: "#E0A82E", // antique gold — primary CTAs, starred/active (was `gold`)
+    accentDeep: "#C48F1E", // hover/pressed gold
   },
   purple: {
     900: "#48284F",
