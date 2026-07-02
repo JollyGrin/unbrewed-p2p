@@ -12,11 +12,12 @@ import {
   shuffleDeck,
 } from "@/components/DeckPool/PoolFns";
 import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
-import { Box, Flex, Grid } from "@chakra-ui/react";
+import { Flex } from "@chakra-ui/react";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
-import { HandCardItems } from "../game.carousel";
+import { HandFan } from "../game.carousel";
 import styled from "@emotion/styled";
+import { colors, fonts } from "@/styles/style";
 import { flow } from "lodash";
 import { ModalType } from "@/pages/game";
 import { CloseIcon } from "@chakra-ui/icons";
@@ -83,22 +84,21 @@ export const HandContainer = ({
   );
 
   return (
-    <Tray>
-      <Grid
-        gridTemplateColumns={"repeat(auto-fill, minmax(100px, 1fr))"}
-        gap={2}
-      >
-        <ModalButton
+    <>
+      <ActionCluster>
+        <PileButton
           onClick={() => playerState?.pool && gDraw(playerState?.pool)}
         >
-          Draw + 1
-        </ModalButton>
-        <ModalButton onClick={() => setModal("deck")}>
-          Deck ({playerState?.pool?.deck?.length})
-        </ModalButton>
-        <ModalButton onClick={() => setModal("discard")}>Discard</ModalButton>
+          Draw +1
+        </PileButton>
+        <PileButton onClick={() => setModal("deck")}>
+          Deck ({playerState?.pool?.deck?.length ?? 0})
+        </PileButton>
+        <PileButton onClick={() => setModal("discard")}>
+          Discard ({playerState?.pool?.discard?.length ?? 0})
+        </PileButton>
         {playerState?.pool?.commit?.boost && (
-          <ModalButton
+          <PileButton
             onClick={() => gCancelBoost(playerState?.pool as PoolType)}
           >
             Boost: {playerState?.pool?.commit?.boost?.boost}
@@ -110,10 +110,10 @@ export const HandContainer = ({
               p="0.25rem"
               borderRadius="100%"
             />
-          </ModalButton>
+          </PileButton>
         )}
-      </Grid>
-      <HandCardItems
+      </ActionCluster>
+      <HandFan
         cards={playerState?.pool?.hand}
         functions={{
           discardFn: (discardIndex: number) =>
@@ -124,29 +124,45 @@ export const HandContainer = ({
           deckCardBottomFn: (cardIndex: number) => gDeckCardBottom(cardIndex),
         }}
       />
-    </Tray>
+    </>
   );
 };
 
-const Tray = styled(Box)`
-  background-color: purple;
-  width: 100%;
-  align-items: end;
+/** floating pile controls, bottom-left over the board */
+const ActionCluster = styled(Flex)`
+  position: fixed;
+  bottom: 1rem;
+  left: 1rem;
+  flex-direction: column;
+  gap: 0.4rem;
+  z-index: 250;
 `;
-const ModalButton = styled(Flex)`
+
+const PileButton = styled(Flex)`
   user-select: none;
   cursor: pointer;
 
-  background-color: antiquewhite;
+  background-color: ${colors.brand.parchment};
+  color: ${colors.brand.surfaceDim};
   justify-content: center;
   align-items: center;
-  font-family: Space Grotesk;
+  font-family: ${fonts.SpaceGrotesk};
   font-weight: 700;
-
-  width: 100%;
-  max-width: 250px;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 10rem;
+  border: 1px solid rgba(72, 40, 79, 0.25);
+  box-shadow: 0 2px 6px rgba(20, 8, 24, 0.35);
+  transition: all 0.15s ease-in-out;
 
   :hover {
-    background-color: burlywood;
+    background-color: ${colors.brand.highlight};
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(20, 8, 24, 0.4);
+  }
+
+  :active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(20, 8, 24, 0.4);
   }
 `;

@@ -5,11 +5,15 @@ import {
   PropsWithChildren,
   FC,
   useContext,
+  useMemo,
   useRef,
   MutableRefObject,
 } from "react";
 import { PlayerState, WebsocketMessage } from "../gamesocket/message";
-import { initializeWebsocket } from "../gamesocket/socket";
+import {
+  ConnectionStatus,
+  initializeWebsocket,
+} from "../gamesocket/socket";
 import { useRouter } from "next/router";
 import { PoolType } from "@/components/DeckPool/PoolFns";
 import { useLocalServerStorage } from "../hooks";
@@ -20,6 +24,7 @@ interface WebGameProviderValue {
   gamePositions: WebsocketMessage | undefined;
   setPlayerState: () => ({ pool }: { pool: PoolType }) => void;
   setPlayerPosition: MutableRefObject<(props: PositionType) => void>;
+  connectionStatus: ConnectionStatus;
 }
 
 export const WebGameContext = createContext<WebGameProviderValue | undefined>(
@@ -35,6 +40,8 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
   // gameState is updated from the websocket return.
   const [gameState, setGameState] = useState<string>();
   const [gamePositions, setGamePositions] = useState<string>();
+  const [connectionStatus, setConnectionStatus] =
+    useState<ConnectionStatus>("connecting");
 
   const [setPlayerState, setPlayerStatefn] = useState<
     () => (ps: PlayerState) => void
@@ -55,8 +62,8 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
     }
 
     const serverURL = new URL(activeServer);
-    const { updateMyPlayerState, updateMyPlayerPosition } = initializeWebsocket(
-      {
+    const { updateMyPlayerState, updateMyPlayerPosition, close } =
+      initializeWebsocket({
         name: slug.name.toString(),
         gid: slug.gid.toString(),
         connectURL: serverURL,
@@ -66,25 +73,36 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
         onGamePositions: (state: string) => {
           setGamePositions(state);
         },
-      }
-    );
+        onStatus: setConnectionStatus,
+      });
 
     setPlayerStatefn(() => () => updateMyPlayerState);
     setPlayerPosition.current = updateMyPlayerPosition;
-    // setPlayerPositionFn(() => () => updateMyPlayerPosition);
+
+    return () => close();
   }, [router.isReady, slug.name, slug.gid, activeServer]);
+
+  const parsedGamePositions = useMemo(
+    () =>
+      typeof gamePositions === "string"
+        ? (JSON.parse(gamePositions) as WebsocketMessage)
+        : gamePositions,
+    [gamePositions],
+  );
+  const parsedGameState = useMemo(
+    () =>
+      typeof gameState === "string"
+        ? (JSON.parse(gameState) as WebsocketMessage)
+        : gameState,
+    [gameState],
+  );
 
   return (
     <WebGameContext.Provider
       value={{
-        gamePositions:
-          typeof gamePositions === "string"
-            ? (JSON.parse(gamePositions) as WebsocketMessage)
-            : gamePositions,
-        gameState:
-          typeof gameState === "string"
-            ? (JSON.parse(gameState) as WebsocketMessage)
-            : gameState,
+        gamePositions: parsedGamePositions,
+        gameState: parsedGameState,
+        connectionStatus,
         // Call setPlayerState to update the player state on the serverside.
         setPlayerState: setPlayerState,
         //@ts-expect-error: this type needs to remain an array. Update this when you add more tokens

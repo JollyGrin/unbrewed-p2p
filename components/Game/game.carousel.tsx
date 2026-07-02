@@ -1,130 +1,87 @@
-//@ts-nocheck
-import { mockDeck } from "@/_mocks_/deck";
-import React, { useRef, useState } from "react";
-import AliceCarousel from "react-alice-carousel";
-import "react-alice-carousel/lib/alice-carousel.css";
+import React, { useState } from "react";
+import { Box, Flex, Text } from "@chakra-ui/react";
 import { CardFactory } from "../CardFactory/card.factory";
-import { Box, Flex, Skeleton, Spacer, Text } from "@chakra-ui/react";
-import {
-  DeckImportCardType,
-  DeckImportType,
-} from "../DeckPool/deck-import.type";
+import { DeckImportCardType } from "../DeckPool/deck-import.type";
 import styled from "@emotion/styled";
-import { CarouselTray } from "./game.styles";
-import { PoolType } from "../DeckPool/PoolFns";
+import { colors, fonts } from "@/styles/style";
 import { PopoverCardActions } from "./card-actions.popover";
 
-const handleDragStart = (e) => {
+const CARD_WIDTH = 150;
+const CARD_HEIGHT = 200;
+/** widest the fan is allowed to spread before cards overlap tighter */
+const MAX_FAN_WIDTH = 950;
+
+const handleDragStart = (e: React.DragEvent) => {
   e.preventDefault();
 };
-
-const { cards: mockCards } = mockDeck.deck_data;
 
 type CardWrapperProps = {
   cards: DeckImportCardType[] | undefined;
   functions: {
     discardFn: (index: number) => void;
-    commitFn: (index: number) => PoolType;
-    boostFn: (index: number) => PoolType;
-    deckCardFn: (index: number) => PoolType;
-    deckCardBottomFn: (index: number) => PoolType;
+    commitFn: (index: number) => void;
+    boostFn: (index: number) => void;
+    deckCardFn: (index: number) => void;
+    deckCardBottomFn: (index: number) => void;
   };
 };
 
-export const cardItemMapper = ({ cards, functions }: CardWrapperProps) => {
-  return cards.map((card, index) => {
-    return (
-      <Box key={index + card.title}>
-        <CardWrapper
-          flexDir={"column"}
-          onDragStart={handleDragStart}
-          transition="all 0.25s ease-in-out"
-          _hover={{
-            transform: "scale(1.7) translateY(-35px)",
-            position: "relative",
-            zIndex: "200",
-            filter: "saturate(2)",
-          }}
-        >
-          <CardFactory card={card} />
-          <Flex className="hoveritem">
-            <Text onClick={() => functions.discardFn(index)}>-</Text>
-          </Flex>
-        </CardWrapper>
-      </Box>
-    );
-  });
-};
+/**
+ * Hand of cards fanned in an arc, floating over the board like a
+ * physical hand held at the table edge.
+ */
+export const HandFan: React.FC<CardWrapperProps> = ({ cards, functions }) => {
+  const [hovered, setHovered] = useState<number>();
 
-export const HandCardItems: React.FC<CardWrapperProps> = ({
-  cards,
-  functions,
-}) => {
-  const carouselRef = useRef();
-  const [isDragging, setIsDragging] = useState<boolean>(false);
-  const [startX, setStartX] = useState(0);
-  const [scrollLeft, setScrollLeft] = useState(0);
+  if (!cards) return null;
+  if (cards.length === 0) return <EmptyHandHint />;
 
-  const handleMouseDown = (e: MouseEvent<HTMLDivElement>) => {
-    setIsDragging(true);
-    setStartX(e.pageX - carouselRef.current!.offsetLeft);
-    setScrollLeft(carouselRef.current!.scrollLeft);
-  };
-
-  const handleMouseLeave = () => {
-    setIsDragging(false);
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
-
-  const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {
-    if (!isDragging) return;
-    e.preventDefault();
-    const x = e.pageX - carouselRef.current!.offsetLeft;
-    const walk = (x - startX) * 1; // Adjust the drag speed here
-    carouselRef.current!.scrollLeft = scrollLeft - walk;
-  };
+  const count = cards.length;
+  const mid = (count - 1) / 2;
+  const spacing =
+    count > 1
+      ? Math.min(CARD_WIDTH * 0.72, (MAX_FAN_WIDTH - CARD_WIDTH) / (count - 1))
+      : 0;
+  const fanWidth = spacing * (count - 1) + CARD_WIDTH;
+  const tiltPerCard = Math.min(4, 26 / count);
 
   return (
-    <CarouselTray
-      ref={carouselRef}
-      className="flex-container"
-      onMouseDown={handleMouseDown}
-      onMouseLeave={handleMouseLeave}
-      onMouseUp={handleMouseUp}
-      onMouseMove={handleMouseMove}
-    >
-      <Spacer />
-      <Flex opacity={0}>
-        {/* HACK: hover makes first card go outside screen, width doesn't adjust */}
-        xxxxxxxxxxx
-      </Flex>
-      {cards ? (
-        cards?.map((card, index) => (
-          <Box key={index + card.title}>
-            <CardWrapper
-              flexDir={"column"}
-              onDragStart={handleDragStart}
-              transition="all 0.25s ease-in-out"
-              _hover={{
-                transform: "scale(2) translateY(-40px)",
-                position: "relative",
-                zIndex: "200",
-                filter: "saturate(2)",
-              }}
-            >
-              <CardFactory card={card} />
-              <Flex className="hoveritem">
-                <Text onClick={() => functions.commitFn(index)}>+</Text>
-                <Text onClick={() => functions.discardFn(index)}>-</Text>
+    <FanContainer style={{ width: `${fanWidth}px` }}>
+      {cards.map((card, index) => {
+        const offset = index - mid;
+        const isHovered = hovered === index;
+        const droop = Math.abs(offset) ** 2 * spacing * 0.045;
+        const transform = isHovered
+          ? `translateY(-${CARD_HEIGHT * 0.55}px) scale(1.85)`
+          : `rotate(${offset * tiltPerCard}deg)`;
+        return (
+          <FanCard
+            key={index + card.title}
+            onDragStart={handleDragStart}
+            onMouseEnter={() => setHovered(index)}
+            onMouseLeave={() => setHovered(undefined)}
+            style={{
+              left: `${index * spacing}px`,
+              bottom: `${isHovered ? 0 : -droop}px`,
+              zIndex: isHovered ? 300 : index,
+              transform,
+            }}
+          >
+            <CardFactory card={card} />
+            {isHovered && (
+              <Flex className="actions">
+                <Text title="Commit" onClick={() => functions.commitFn(index)}>
+                  +
+                </Text>
+                <Text
+                  title="Discard"
+                  onClick={() => functions.discardFn(index)}
+                >
+                  –
+                </Text>
                 <PopoverCardActions
                   actions={[
-                    {
-                      text: "Boost",
-                      fn: () => functions.boostFn(index),
-                    },
+                    { text: "Boost", fn: () => functions.boostFn(index) },
                     {
                       text: "Place top of deck",
                       fn: () => functions.deckCardFn(index),
@@ -136,86 +93,85 @@ export const HandCardItems: React.FC<CardWrapperProps> = ({
                   ]}
                 />
               </Flex>
-            </CardWrapper>
-          </Box>
-        ))
-      ) : (
-        <Skeleton h="240px" />
-      )}
-      <Box w="2rem" />
-      {cards?.length === 0 && <Skeleton h="240px" />}
-    </CarouselTray>
+            )}
+          </FanCard>
+        );
+      })}
+    </FanContainer>
   );
 };
 
-const CardWrapper = styled(Flex)`
-  height: 200px;
-  width: 150px;
-  margin: 0.3rem 0;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.25s ease-in-out;
+const EmptyHandHint = () => (
+  <Flex
+    position="fixed"
+    bottom="1.25rem"
+    left="50%"
+    transform="translateX(-50%)"
+    px="1.25rem"
+    py="0.4rem"
+    alignItems="center"
+    border="1px dashed rgba(231, 204, 152, 0.45)"
+    borderRadius="10rem"
+    color="rgba(231, 204, 152, 0.75)"
+    bg="rgba(44, 24, 49, 0.6)"
+    fontFamily={fonts.SpaceGrotesk}
+    fontSize="0.85rem"
+    userSelect="none"
+    zIndex={200}
+  >
+    No cards in hand — draw one
+  </Flex>
+);
+
+const FanContainer = styled(Box)`
+  position: fixed;
+  bottom: -${CARD_HEIGHT * 0.18}px;
+  left: 50%;
+  transform: translateX(-50%);
+  height: ${CARD_HEIGHT}px;
+  pointer-events: none;
+  z-index: 200;
+`;
+
+const FanCard = styled(Box)`
+  position: absolute;
+  width: ${CARD_WIDTH}px;
+  height: ${CARD_HEIGHT}px;
+  pointer-events: auto;
+  transform-origin: bottom center;
+  transition:
+    transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.15),
+    bottom 0.18s ease;
+  filter: drop-shadow(0 4px 8px rgba(20, 8, 24, 0.45));
 
   &:hover {
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+    filter: drop-shadow(0 18px 24px rgba(20, 8, 24, 0.55));
   }
 
-  .hoveritem {
-    display: none;
+  .actions {
+    position: absolute;
+    bottom: -0.55rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 0.5rem;
     cursor: pointer;
     user-select: none;
 
     > p {
       font-size: 0.8rem;
-      margin-top: 0.1rem;
-      padding: 0.1rem 0.5rem;
+      line-height: 1;
+      padding: 0.2rem 0.55rem;
       border-radius: 10rem;
-      background-color: antiquewhite;
-      transform: translateY(-0.9rem) translateX(-0.8rem);
+      background-color: ${colors.brand.primary};
+      color: ${colors.brand.surfaceDim};
+      font-weight: 700;
+      box-shadow: 0 1px 3px rgba(20, 8, 24, 0.4);
+      transition: background-color 0.15s;
+
+      &:hover {
+        background-color: ${colors.brand.highlight};
+      }
     }
   }
-
-  &:active .hoveritem,
-  &:hover .hoveritem {
-    display: flex;
-    gap: 1rem;
-  }
 `;
-
-export const deckItemMapper = (deck: DeckImportType, props) =>
-  deck?.deck_data?.cards.map((card, index) => (
-    <Flex
-      key={index + card.title}
-      h={"200px"}
-      w={"150px"}
-      onDragStart={handleDragStart}
-      {...props}
-    >
-      <CardFactory card={card} />
-    </Flex>
-  ));
-
-const defaultCardItems = mockCards.map((card, index) => (
-  <Flex
-    key={index + card.title}
-    h={"200px"}
-    w={"150px"}
-    my={5}
-    onDragStart={handleDragStart}
-    // justifyContent={"center"}
-  >
-    <CardFactory card={card} />
-  </Flex>
-));
-
-export const Carousel = ({ items = defaultCardItems }) => {
-  return (
-    <AliceCarousel
-      mouseTracking
-      disableDotsControls
-      disableButtonsControls
-      items={items}
-      autoWidth="100%"
-    />
-  );
-};

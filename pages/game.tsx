@@ -8,7 +8,6 @@ import { GameLayout } from "@/components/Game/game.layout";
 import { PositionModal } from "@/components/Positions/position.modal";
 import { PositionType } from "@/components/Positions/position.type";
 import { WebGameProvider, useWebGame } from "@/lib/contexts/WebGameProvider";
-import useDelayedTrue from "@/lib/hooks/useDelay";
 import { Box, useDisclosure } from "@chakra-ui/react";
 import { useRouter } from "next/router";
 import {
@@ -27,8 +26,6 @@ const GamePage = () => {
   const positionDisclosure = useDisclosure();
   const [modalType, setModalType] = useState<ModalType>(false);
 
-  const isReady = useDelayedTrue(1000);
-
   // NOTE: Next step is to link the boardstate to the websocket data
   // 1. link the modal picker to your init of tokens
   // 2. edit the operations to work with an array of PostionType[]
@@ -43,12 +40,6 @@ const GamePage = () => {
     }
   }, [modalType, disclosure]);
 
-  const handleKeyPress = (e: string) => {
-    if (e === "ArrowRight") {
-      console.info("replace me");
-    }
-  };
-
   return (
     <>
       <WebGameProvider>
@@ -60,10 +51,9 @@ const GamePage = () => {
             setModalType={setModalType}
           />
           <HeaderContainer openPositionModal={positionDisclosure.onOpen} />
-          {isReady && <BoardContainer self={query?.name as string} />}
+          <BoardContainer self={query?.name as string} />
           <HandWrapper {...{ setModalType }} />
         </GameLayout>
-        <KeyboardListener onKeyPress={handleKeyPress} />
       </WebGameProvider>
     </>
   );
@@ -104,10 +94,6 @@ const BoardContainer = ({ self }: { self: string }) => {
   const { query } = useRouter();
   const mapUrl = query.mapUrl as string | undefined;
 
-  useEffect(() => {
-    if (!window) return;
-  });
-
   const { gamePositions, setPlayerPosition, gameState } = useWebGame();
 
   const positions = Object.keys(gamePositions?.content ?? {}).map((key) => {
@@ -141,7 +127,7 @@ const BoardContainer = ({ self }: { self: string }) => {
   }, [positions, self, gameState, setGamePosition]);
 
   return (
-    <Box h={"100%"}>
+    <Box h={"100%"} minH={0} overflow="hidden">
       <BoardCanvas
         src={mapUrl ?? "basraport.webp"}
         move={(e: PositionType) => {
@@ -170,24 +156,4 @@ const BoardContainer = ({ self }: { self: string }) => {
       />
     </Box>
   );
-};
-
-type KeyboardListenerProps = {
-  onKeyPress: (key: string) => void;
-};
-
-const KeyboardListener: React.FC<KeyboardListenerProps> = ({ onKeyPress }) => {
-  useEffect(() => {
-    const handleKeyPress = (event: KeyboardEvent) => {
-      onKeyPress(event.key);
-    };
-
-    window.addEventListener("keydown", handleKeyPress);
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyPress);
-    };
-  }, [onKeyPress]);
-
-  return null;
 };

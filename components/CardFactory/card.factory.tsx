@@ -4,20 +4,20 @@ import {
   calculateProps,
   cardStyles,
   cardConstants as conprops,
+  getMeasureCanvas,
+  MeasureCanvas,
   roundNumber,
 } from "./card.helpers";
-import { Canvas, createCanvas } from "canvas";
 import IconSvg from "./IconSvg";
 
 export const CardFactory: React.FC<{ card: DeckImportCardType }> = ({
   card,
 }) => {
-  const [canvas, setCanvas] = useState<Canvas>();
+  // set after mount so server render and first client render match
+  const [canvas, setCanvas] = useState<MeasureCanvas>();
   useEffect(() => {
     if (canvas) return;
-    if (typeof window !== "undefined") {
-      setCanvas(createCanvas(200, 200));
-    }
+    setCanvas(getMeasureCanvas());
   }, [canvas]);
 
   if (!canvas || !card) return <div />;
