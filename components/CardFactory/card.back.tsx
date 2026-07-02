@@ -1,15 +1,28 @@
 import { FC } from "react";
-import { Flex } from "@chakra-ui/react";
+import { Box, Flex } from "@chakra-ui/react";
 import { IconLogo } from "../Icons/IconLogo";
+import { ImageFace } from "./Card";
 
 /**
- * Generic face-down card. The pool synced over the websocket doesn't
- * carry the deck's cardbackUrl, so every hidden card gets the house back.
+ * Face-down card. Cards can carry their own back art (cardBackUrl,
+ * e.g. from a Tabletop Simulator import); otherwise the house back.
  */
-export const CardBack: FC<{ width?: string; height?: string }> = ({
-  width = "300px",
-  height = "420px",
-}) => {
+export const CardBack: FC<{
+  width?: string;
+  height?: string;
+  imageUrl?: string;
+}> = ({ width = "300px", height = "420px", imageUrl }) => {
+  if (imageUrl) {
+    return (
+      <Box
+        w={width}
+        h={height}
+        filter="drop-shadow(0 6px 18px rgba(20, 8, 24, 0.45))"
+      >
+        <ImageFace image={{ url: imageUrl }} title="card back" />
+      </Box>
+    );
+  }
   return (
     <Flex
       w={width}

@@ -129,6 +129,15 @@ export const useLocalDeckStorage = () => {
     setDecks(newArray);
   };
 
+  /** replace a stored deck in place (same id) */
+  const updateDeck = (updated: DeckImportType) => {
+    const newArray = (decks ?? []).map((deck) =>
+      deck.id === updated.id ? updated : deck,
+    );
+    localStorage.setItem(LS_KEY.DECKS, JSON.stringify(newArray));
+    setDecks(newArray);
+  };
+
   /**
    * Merge decks into the bag, skipping ids already present.
    * Returns how many were actually added.
@@ -156,6 +165,7 @@ export const useLocalDeckStorage = () => {
     setStar,
     pushDeck,
     removeDeckbyId,
+    updateDeck,
     importDecks,
   };
 };

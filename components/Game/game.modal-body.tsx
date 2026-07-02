@@ -123,7 +123,7 @@ const CommitCard: React.FC<{ commit: PlayerCommit }> = ({ commit }) => {
       )}
       <Box>
         {!commit.commit.reveal ? (
-          <CardBack />
+          <CardBack imageUrl={commit.commit.main?.cardBackUrl} />
         ) : (
           <Box position="relative">
             <Card card={commit.commit.main} />
