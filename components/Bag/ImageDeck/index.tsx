@@ -54,9 +54,14 @@ export const AddImageDeck = () => {
 
 type DeckMeta = {
   name: string;
+  heroName: string;
   hp: string;
   move: string;
   isRanged: boolean;
+  sidekickName: string;
+  sidekickQuantity: string;
+  sidekickHp: string;
+  sidekickIsRanged: boolean;
 };
 
 const Builder = () => {
@@ -68,9 +73,14 @@ const Builder = () => {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [meta, setMeta] = useState<DeckMeta>({
     name: "",
+    heroName: "",
     hp: "15",
     move: "2",
     isRanged: false,
+    sidekickName: "",
+    sidekickQuantity: "0",
+    sidekickHp: "1",
+    sidekickIsRanged: false,
   });
 
   const loadTtsJson = (text: string) => {
@@ -117,9 +127,14 @@ const Builder = () => {
     }
     const deck = buildImageDeck({
       name: meta.name.trim(),
+      heroName: meta.heroName,
       hp: parseInt(meta.hp) || 15,
       move: parseInt(meta.move) || 2,
       isRanged: meta.isRanged,
+      sidekickName: meta.sidekickName,
+      sidekickQuantity: parseInt(meta.sidekickQuantity) || 0,
+      sidekickHp: parseInt(meta.sidekickHp) || 1,
+      sidekickIsRanged: meta.sidekickIsRanged,
       cardbackUrl,
       cards,
     });
@@ -264,22 +279,29 @@ const Builder = () => {
             ))}
           </Grid>
 
-          <Grid templateColumns="2fr 1fr 1fr auto" gap="0.5rem" alignItems="end">
-            <Box>
-              <FormLabel fontSize="0.75rem" mb="0">
-                Deck name
-              </FormLabel>
+          <Grid
+            templateColumns="2fr 2fr 1fr 1fr auto"
+            gap="0.5rem"
+            alignItems="end"
+          >
+            <MetaField label="Deck name">
               <Input
                 bg="white"
                 size="sm"
                 value={meta.name}
                 onChange={(e) => setMeta({ ...meta, name: e.target.value })}
               />
-            </Box>
-            <Box>
-              <FormLabel fontSize="0.75rem" mb="0">
-                Hero HP
-              </FormLabel>
+            </MetaField>
+            <MetaField label="Hero name">
+              <Input
+                bg="white"
+                size="sm"
+                placeholder={meta.name || "same as deck"}
+                value={meta.heroName}
+                onChange={(e) => setMeta({ ...meta, heroName: e.target.value })}
+              />
+            </MetaField>
+            <MetaField label="Hero HP">
               <Input
                 bg="white"
                 size="sm"
@@ -287,11 +309,8 @@ const Builder = () => {
                 value={meta.hp}
                 onChange={(e) => setMeta({ ...meta, hp: e.target.value })}
               />
-            </Box>
-            <Box>
-              <FormLabel fontSize="0.75rem" mb="0">
-                Move
-              </FormLabel>
+            </MetaField>
+            <MetaField label="Move">
               <Input
                 bg="white"
                 size="sm"
@@ -299,10 +318,68 @@ const Builder = () => {
                 value={meta.move}
                 onChange={(e) => setMeta({ ...meta, move: e.target.value })}
               />
-            </Box>
+            </MetaField>
             <Checkbox
               isChecked={meta.isRanged}
               onChange={(e) => setMeta({ ...meta, isRanged: e.target.checked })}
+            >
+              <Text fontSize="0.8rem">Ranged</Text>
+            </Checkbox>
+          </Grid>
+
+          <Grid
+            templateColumns="2fr 2fr 1fr 1fr auto"
+            gap="0.5rem"
+            alignItems="end"
+            mt="0.5rem"
+          >
+            <Text fontSize="0.8rem" fontWeight={700} alignSelf="center">
+              Minions / sidekick
+              <Text as="span" fontWeight={400} opacity={0.7}>
+                {" "}
+                (count 0 = none)
+              </Text>
+            </Text>
+            <MetaField label="Name">
+              <Input
+                bg="white"
+                size="sm"
+                placeholder="e.g. Stormtrooper"
+                value={meta.sidekickName}
+                onChange={(e) =>
+                  setMeta({ ...meta, sidekickName: e.target.value })
+                }
+              />
+            </MetaField>
+            <MetaField label="Count">
+              <Input
+                bg="white"
+                size="sm"
+                type="number"
+                min={0}
+                value={meta.sidekickQuantity}
+                onChange={(e) =>
+                  setMeta({ ...meta, sidekickQuantity: e.target.value })
+                }
+              />
+            </MetaField>
+            <MetaField label="HP each">
+              <Input
+                bg="white"
+                size="sm"
+                type="number"
+                min={1}
+                value={meta.sidekickHp}
+                onChange={(e) =>
+                  setMeta({ ...meta, sidekickHp: e.target.value })
+                }
+              />
+            </MetaField>
+            <Checkbox
+              isChecked={meta.sidekickIsRanged}
+              onChange={(e) =>
+                setMeta({ ...meta, sidekickIsRanged: e.target.checked })
+              }
             >
               <Text fontSize="0.8rem">Ranged</Text>
             </Checkbox>
@@ -315,6 +392,21 @@ const Builder = () => {
     </>
   );
 };
+
+const MetaField = ({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) => (
+  <Box>
+    <FormLabel fontSize="0.75rem" mb="0">
+      {label}
+    </FormLabel>
+    {children}
+  </Box>
+);
 
 const UrlListInput = ({
   onCards,
