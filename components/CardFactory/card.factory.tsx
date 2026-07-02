@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, memo, useEffect, useMemo, useState } from "react";
 import { DeckImportCardType } from "../DeckPool/deck-import.type";
 import {
   calculateProps,
@@ -10,9 +10,12 @@ import {
 } from "./card.helpers";
 import IconSvg from "./IconSvg";
 
-export const CardFactory: React.FC<{ card: DeckImportCardType }> = ({
-  card,
-}) => {
+/**
+ * Memoized: layout (text measurement + wrapping) is expensive, and
+ * hands/grids render dozens of these — parent re-renders must not
+ * re-layout every card.
+ */
+const CardFactoryBase: React.FC<{ card: DeckImportCardType }> = ({ card }) => {
   // set after mount so server render and first client render match
   const [canvas, setCanvas] = useState<MeasureCanvas>();
   useEffect(() => {
@@ -20,8 +23,12 @@ export const CardFactory: React.FC<{ card: DeckImportCardType }> = ({
     setCanvas(getMeasureCanvas());
   }, [canvas]);
 
-  if (!canvas || !card) return <div />;
-  const props = calculateProps(card, canvas);
+  const props = useMemo(
+    () => (canvas && card ? calculateProps(card, canvas) : undefined),
+    [card, canvas],
+  );
+
+  if (!props || !card) return <div />;
 
   return (
     <Fragment>
@@ -316,3 +323,5 @@ export const CardFactory: React.FC<{ card: DeckImportCardType }> = ({
     </Fragment>
   );
 };
+
+export const CardFactory = memo(CardFactoryBase);

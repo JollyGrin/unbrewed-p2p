@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { CSSProperties } from "react";
 import { Box, Flex, Text } from "@chakra-ui/react";
 import { CardFactory } from "../CardFactory/card.factory";
 import { DeckImportCardType } from "../DeckPool/deck-import.type";
@@ -31,8 +31,6 @@ type CardWrapperProps = {
  * physical hand held at the table edge.
  */
 export const HandFan: React.FC<CardWrapperProps> = ({ cards, functions }) => {
-  const [hovered, setHovered] = useState<number>();
-
   if (!cards) return null;
   if (cards.length === 0) return <EmptyHandHint />;
 
@@ -49,51 +47,43 @@ export const HandFan: React.FC<CardWrapperProps> = ({ cards, functions }) => {
     <FanContainer style={{ width: `${fanWidth}px` }}>
       {cards.map((card, index) => {
         const offset = index - mid;
-        const isHovered = hovered === index;
         const droop = Math.abs(offset) ** 2 * spacing * 0.045;
-        const transform = isHovered
-          ? `translateY(-${CARD_HEIGHT * 0.55}px) scale(1.85)`
-          : `rotate(${offset * tiltPerCard}deg)`;
+        // hover styling is pure CSS (see FanCard) so pointing at a card
+        // never re-renders the fan
+        const fanVars = {
+          left: `${index * spacing}px`,
+          "--rot": `${offset * tiltPerCard}deg`,
+          "--droop": `${-droop}px`,
+          "--z": index,
+        } as CSSProperties;
         return (
           <FanCard
             key={index + card.title}
             onDragStart={handleDragStart}
-            onMouseEnter={() => setHovered(index)}
-            onMouseLeave={() => setHovered(undefined)}
-            style={{
-              left: `${index * spacing}px`,
-              bottom: `${isHovered ? 0 : -droop}px`,
-              zIndex: isHovered ? 300 : index,
-              transform,
-            }}
+            style={fanVars}
           >
             <CardFactory card={card} />
-            {isHovered && (
-              <Flex className="actions">
-                <Text title="Commit" onClick={() => functions.commitFn(index)}>
-                  +
-                </Text>
-                <Text
-                  title="Discard"
-                  onClick={() => functions.discardFn(index)}
-                >
-                  –
-                </Text>
-                <PopoverCardActions
-                  actions={[
-                    { text: "Boost", fn: () => functions.boostFn(index) },
-                    {
-                      text: "Place top of deck",
-                      fn: () => functions.deckCardFn(index),
-                    },
-                    {
-                      text: "Place bottom of deck",
-                      fn: () => functions.deckCardBottomFn(index),
-                    },
-                  ]}
-                />
-              </Flex>
-            )}
+            <Flex className="actions">
+              <Text title="Commit" onClick={() => functions.commitFn(index)}>
+                +
+              </Text>
+              <Text title="Discard" onClick={() => functions.discardFn(index)}>
+                –
+              </Text>
+              <PopoverCardActions
+                actions={[
+                  { text: "Boost", fn: () => functions.boostFn(index) },
+                  {
+                    text: "Place top of deck",
+                    fn: () => functions.deckCardFn(index),
+                  },
+                  {
+                    text: "Place bottom of deck",
+                    fn: () => functions.deckCardBottomFn(index),
+                  },
+                ]}
+              />
+            </Flex>
           </FanCard>
         );
       })}
@@ -139,21 +129,27 @@ const FanCard = styled(Box)`
   height: ${CARD_HEIGHT}px;
   pointer-events: auto;
   transform-origin: bottom center;
+  bottom: var(--droop);
+  z-index: var(--z);
+  transform: rotate(var(--rot));
+  will-change: transform;
   transition:
-    transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.15),
-    bottom 0.18s ease;
+    transform 0.15s cubic-bezier(0.2, 0.9, 0.3, 1.15),
+    bottom 0.15s ease;
   filter: drop-shadow(0 4px 8px rgba(20, 8, 24, 0.45));
 
   &:hover {
-    filter: drop-shadow(0 18px 24px rgba(20, 8, 24, 0.55));
+    bottom: 0;
+    z-index: 300;
+    transform: translateY(-${CARD_HEIGHT * 0.55}px) scale(1.85);
   }
 
   .actions {
+    display: none;
     position: absolute;
     bottom: -0.55rem;
     left: 50%;
     transform: translateX(-50%);
-    display: flex;
     gap: 0.5rem;
     cursor: pointer;
     user-select: none;
@@ -173,5 +169,9 @@ const FanCard = styled(Box)`
         background-color: ${colors.brand.highlight};
       }
     }
+  }
+
+  &:hover .actions {
+    display: flex;
   }
 `;

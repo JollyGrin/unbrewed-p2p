@@ -3,7 +3,6 @@ import { CardFactory } from "../CardFactory/card.factory";
 import { CardBack } from "../CardFactory/card.back";
 import { DeckImportCardType } from "../DeckPool/deck-import.type";
 import { PoolType } from "../DeckPool/PoolFns";
-import { useState } from "react";
 
 import { GiUpgrade as IconBoost } from "react-icons/gi";
 import { PopoverCardActions } from "./card-actions.popover";
@@ -27,10 +26,6 @@ export const DeckModalContent = ({
   cards: DeckImportCardType[];
   add: (index: number) => () => void;
 }) => {
-  const [isHover, setIsHover] = useState<number>();
-  const onEnter = (num: number) => setIsHover(num);
-  const onLeave = () => setIsHover(undefined);
-
   return (
     <Grid gridTemplateColumns={"repeat(auto-fit, minmax(250px,1fr))"} gap={1}>
       {cards
@@ -39,22 +34,21 @@ export const DeckModalContent = ({
             w="100%"
             maxH={"550px"}
             key={card.title + index}
-            onMouseEnter={() => onEnter(index)}
-            onMouseLeave={onLeave}
+            // CSS-only hover reveal: pointing at a card must not
+            // re-render the whole grid
+            sx={{ ".drawtag": { opacity: 0 }, ":hover .drawtag": { opacity: 1 } }}
           >
-            {isHover === index && (
-              <Flex position="absolute">
-                <Tag
-                  fontSize="1.25rem"
-                  userSelect="none"
-                  cursor="pointer"
-                  onClick={() => add(index)()}
-                >
-                  +
-                </Tag>
-              </Flex>
-            )}
-            <CardFactory key={card.title + index} card={card} />
+            <Flex position="absolute" zIndex={1} className="drawtag">
+              <Tag
+                fontSize="1.25rem"
+                userSelect="none"
+                cursor="pointer"
+                onClick={() => add(index)()}
+              >
+                +
+              </Tag>
+            </Flex>
+            <CardFactory card={card} />
           </Box>
         ))
         ?.reverse()}
@@ -104,10 +98,7 @@ export const CommitModalContent: React.FC<{
 };
 
 const CommitCard: React.FC<{ commit: PlayerCommit }> = ({ commit }) => {
-  const [_, setIsHover] = useState<boolean>();
   if (commit.commit.main === null) return <Box display="none" />;
-  const onEnter = () => setIsHover(true);
-  const onLeave = () => setIsHover(false);
   const hasBoost = commit.commit.boost !== null;
   return (
     <Box minH="420px">
@@ -130,7 +121,7 @@ const CommitCard: React.FC<{ commit: PlayerCommit }> = ({ commit }) => {
           </Text>
         </Flex>
       )}
-      <Box onMouseOver={onEnter} onMouseOut={onLeave}>
+      <Box>
         {!commit.commit.reveal ? (
           <CardBack />
         ) : (

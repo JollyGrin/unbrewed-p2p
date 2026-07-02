@@ -1,9 +1,5 @@
 import { CardFactory } from "@/components/CardFactory/card.factory";
-import {
-  DeckImportType,
-  DeckImportHeroType,
-  DeckImportSidekickType,
-} from "@/components/DeckPool/deck-import.type";
+import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { Flex, Box, Text, HStack, Tooltip } from "@chakra-ui/react";
 
 import { FaHeart } from "react-icons/fa";
@@ -29,8 +25,8 @@ export const DeckCards = ({
         <Box
           key={card.title}
           maxW="200px"
-          transition="all 0.25s ease-in-out"
-          _hover={{ transform: "scale(2)" }}
+          transition="transform 0.15s ease-out"
+          _hover={{ transform: "scale(2)", zIndex: 10, position: "relative" }}
         >
           <CardFactory card={card} />
         </Box>
