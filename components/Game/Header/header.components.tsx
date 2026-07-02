@@ -11,7 +11,6 @@ import {
 import { IconType } from "react-icons";
 import {
   MoveStatContainer,
-  PawnStatsContainer,
   PlayerTitleBar,
   StatContainer,
 } from "./header.styles";
@@ -25,6 +24,7 @@ import {
 import { GiFootprint as IconMove, GiHearts as IconHeart } from "react-icons/gi";
 import { IoPeople as IconSidekicks } from "react-icons/io5";
 import { IoMdHand as IconHand } from "react-icons/io";
+import { FaChessPawn as IconToken } from "react-icons/fa";
 import {
   PoolType,
   adjustHp,
@@ -70,66 +70,61 @@ export const PlayerBox: React.FC<{
           <Tooltip label={<TipBody pool={playerState?.pool} />}>
             <Text>{name}</Text>
           </Tooltip>
-          <HStack gap="1rem">
-            <FaMap
-              style={{
-                display: isLocal ? "block" : "none",
-                cursor: "pointer",
-              }}
-              onClick={mapDisclosure.onOpen}
-            />
-            <Flex
-              display={isLocal ? "flex" : "none"}
-              flexDir="row-reverse"
-              alignItems="center"
-              gap="0.25rem"
-              cursor="pointer"
-              onClick={() =>
-                isLocal &&
-                typeof openPositionModal === "function" &&
-                openPositionModal()
-              }
-            >
-              <Dot background="brand.primary" size="1rem" />
-              <Dot background="brand.primary" size="0.75rem" />
-              <Dot background="brand.primary" size="0.75rem" />
-              <Dot background="brand.primary" size="0.75rem" />
-            </Flex>
-          </HStack>
-        </PlayerTitleBar>
-        <Grid gridTemplateColumns={"1fr 1fr"} alignItems="center">
-          <PawnStatsContainer>
-            <Box
-              bg="brand.secondary"
-              border="2px solid"
-              borderColor="brand.primary"
-              borderRadius={"1000px"}
-              h="20px"
-              w="20px"
-            />
-            <Stat
-              Icon={IconHeart}
-              number={hero.hp ?? 0}
-              callback={(adjustNumber: number) =>
-                updateHealth(adjustNumber, "hero")
-              }
-              isLocal={isLocal}
-            />
-            <Stat
-              Icon={hero.isRanged ? IconRanged : IconMeele}
-              isLocal={isLocal}
-            />
-
-            {sidekick?.quantity && sidekick.quantity > 0 ? (
-              <>
+          {isLocal && (
+            <HStack gap="0.9rem">
+              <Tooltip label="Change map">
                 <Box
-                  bg="brand.secondary"
-                  border="2px solid"
-                  borderColor="brand.primary"
-                  borderRadius="3px"
-                  h="15px"
-                  w="15px"
-                />
+                  as="button"
+                  aria-label="Change map"
+                  cursor="pointer"
+                  onClick={mapDisclosure.onOpen}
+                >
+                  <FaMap />
+                </Box>
+              </Tooltip>
+              <Tooltip label="Edit your board tokens">
+                <Box
+                  as="button"
+                  aria-label="Edit your board tokens"
+                  cursor="pointer"
+                  onClick={() =>
+                    typeof openPositionModal === "function" &&
+                    openPositionModal()
+                  }
+                >
+                  <IconToken />
+                </Box>
+              </Tooltip>
+            </HStack>
+          )}
+        </PlayerTitleBar>
+        <Grid
+          gridTemplateColumns={"1fr auto auto"}
+          alignItems="center"
+          gap="0.75rem"
+          p="0.25rem 0.75rem 0.35rem"
+        >
+          <Flex flexDir="column" gap="0.25rem">
+            <StatRow label="Hero">
+              <Stat
+                Icon={IconHeart}
+                number={hero.hp ?? 0}
+                callback={(adjustNumber: number) =>
+                  updateHealth(adjustNumber, "hero")
+                }
+                isLocal={isLocal}
+              />
+              <Tooltip label={hero.isRanged ? "Ranged" : "Melee"}>
+                <span>
+                  <Stat
+                    Icon={hero.isRanged ? IconRanged : IconMeele}
+                    isLocal={isLocal}
+                  />
+                </span>
+              </Tooltip>
+            </StatRow>
+            {sidekick?.quantity && sidekick.quantity > 0 ? (
+              <StatRow label="Sidekick">
                 <Stat
                   isLocal={isLocal}
                   Icon={sidekick.quantity <= 1 ? IconHeart : IconSidekicks}
@@ -146,50 +141,69 @@ export const PlayerBox: React.FC<{
                       : (sidekick.quantity ?? 0)
                   }
                 />
-
-                <Stat
-                  isLocal={isLocal}
-                  Icon={sidekick.isRanged ? IconRanged : IconMeele}
-                />
-              </>
+                <Tooltip label={sidekick.isRanged ? "Ranged" : "Melee"}>
+                  <span>
+                    <Stat
+                      isLocal={isLocal}
+                      Icon={sidekick.isRanged ? IconRanged : IconMeele}
+                    />
+                  </span>
+                </Tooltip>
+              </StatRow>
             ) : (
               <Box h="20px" />
             )}
-          </PawnStatsContainer>
-          <Grid gridTemplateColumns="1fr 1fr">
-            <MoveStatContainer>
-              <IconMove />
-              <Text
-                fontSize={"3rem"}
-                my={-2}
-                fontFamily="SpaceGrotesk"
-                lineHeight="normal"
-              >
-                {hero.move}
-              </Text>
-            </MoveStatContainer>
-            <Flex justifyContent="center" alignItems="center" flexDir="column">
-              <Stat
-                isLocal={isLocal}
-                Icon={IconHand}
-                number={hand.length}
-                size="20px"
-              />
-              <Stat
-                isLocal={isLocal}
-                Icon={IconDeck}
-                number={deck?.length ?? 0}
-                size="20px"
-              />
-              <Stat
-                isLocal={isLocal}
-                Icon={IconDiscard}
-                number={discard.length}
-                size="20px"
+          </Flex>
+          <MoveStatContainer>
+            <Text
+              fontSize={"2.25rem"}
+              my={-1}
+              fontFamily="SpaceGrotesk"
+              lineHeight="normal"
+            >
+              {hero.move}
+            </Text>
+            <StatLabel>
+              <IconMove style={{ display: "inline" }} /> move
+            </StatLabel>
+          </MoveStatContainer>
+          <Flex justifyContent="center" flexDir="column" gap="0.1rem">
+            <Tooltip label="Cards in hand" placement="right">
+              <span>
+                <Stat
+                  isLocal={isLocal}
+                  Icon={IconHand}
+                  number={hand.length}
+                  size="18px"
+                />
+              </span>
+            </Tooltip>
+            <Tooltip label="Cards left in deck" placement="right">
+              <span>
+                <Stat
+                  isLocal={isLocal}
+                  Icon={IconDeck}
+                  number={deck?.length ?? 0}
+                  size="18px"
+                />
+              </span>
+            </Tooltip>
+            <Tooltip label="Discard pile — click to view" placement="right">
+              <Box
+                cursor="pointer"
+                borderRadius="0.25rem"
+                _hover={{ bg: "rgba(72, 40, 79, 0.15)" }}
                 onClick={discardDisclosure.onOpen}
-              />
-            </Flex>
-          </Grid>
+              >
+                <Stat
+                  isLocal={isLocal}
+                  Icon={IconDiscard}
+                  number={discard.length}
+                  size="18px"
+                />
+              </Box>
+            </Tooltip>
+          </Flex>
         </Grid>
       </StatContainer>
     </>
@@ -252,6 +266,30 @@ const TipBody = (props: { pool: PoolType }) => {
   );
 };
 
+/** small uppercase caption used to label stat clusters */
+const StatLabel = styled(Text)`
+  font-family: ${fonts.SpaceGrotesk};
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  user-select: none;
+`;
+
+const StatRow = ({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) => (
+  <Grid gridTemplateColumns="3.6rem auto auto" alignItems="center" gap="0.5rem">
+    <StatLabel>{label}</StatLabel>
+    {children}
+  </Grid>
+);
+
 const AdjustButton = styled(Flex)`
   background-color: ${(props) => props.bg};
   padding: 0.18rem 0.35rem;
@@ -264,10 +302,4 @@ const AdjustButton = styled(Flex)`
   font-family: ${fonts.SpaceGrotesk};
   user-select: none;
   cursor: pointer;
-`;
-
-const Dot = styled(Box)<{ size: string }>`
-  width: ${({ size }) => size};
-  height: ${({ size }) => size};
-  border-radius: 100%;
 `;

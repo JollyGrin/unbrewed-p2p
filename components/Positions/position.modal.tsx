@@ -7,7 +7,6 @@ import {
   ModalBody,
   ModalCloseButton,
   Box,
-  Flex,
   ModalFooter,
   Button,
   VStack,
@@ -23,7 +22,7 @@ import {
   HStack,
 } from "@chakra-ui/react";
 import { Dispatch, FC, SetStateAction, useCallback, useState } from "react";
-import { MoonIcon, PlusSquareIcon, SunIcon } from "@chakra-ui/icons";
+import { PlusSquareIcon } from "@chakra-ui/icons";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
 
 import { MdUpload as IconUpload } from "react-icons/md";
@@ -42,10 +41,6 @@ export const PositionModal: FC<{
   const {
     query: { name },
   } = useRouter();
-  const [isDark, setIsDark] = useState(true);
-  const toggle = () => setIsDark(!isDark);
-  const bg = isDark ? "purple.900" : "antiquewhite";
-  const color = isDark ? "antiquewhite" : "purple.900";
 
   const { gamePositions, setPlayerPosition } = useWebGame();
   const selectedPosition = gamePositions?.content?.[
@@ -120,61 +115,84 @@ export const PositionModal: FC<{
         onClose();
       }}
     >
-      <ModalOverlay />
-      <ModalContent bg={bg} color={color} transition="all 0.25s ease-in-out">
-        <ModalHeader as={Flex} gap="1rem">
-          <Box onClick={toggle} cursor="pointer" userSelect="none">
-            {isDark ? <SunIcon /> : <MoonIcon />}
-          </Box>
-          <Text>Your Board Tokens</Text>
+      <ModalOverlay bg="rgba(20, 8, 24, 0.55)" backdropFilter="blur(8px)" />
+      <ModalContent
+        bg="brand.parchment"
+        color="brand.surfaceDim"
+        borderRadius="1rem"
+        border="1px solid rgba(72, 40, 79, 0.35)"
+      >
+        <ModalHeader
+          fontFamily="BebasNeueRegular"
+          fontSize="1.5rem"
+          letterSpacing="0.05em"
+          textTransform="uppercase"
+          color="brand.secondary"
+          pb="0.25rem"
+        >
+          Your Board Tokens
         </ModalHeader>
         <ModalCloseButton />
         <ModalBody>
-          <Box position="relative">
-            <Flex alignItems="center" gap="1rem" minH="2.5rem">
-              <VStack alignItems="start">
-                <CirclePicker onChangeComplete={handleColorChange} />
-                <Divider />
+          <VStack alignItems="start" gap="0.75rem">
+            <Box>
+              <SectionLabel>Token color</SectionLabel>
+              <CirclePicker onChangeComplete={handleColorChange} />
+            </Box>
+            <Divider borderColor="rgba(72, 40, 79, 0.3)" />
+            <Box w="100%">
+              <SectionLabel>
+                Your tokens — pick an image or keep the color disc
+              </SectionLabel>
+              <VStack alignItems="start" w="100%" mt="0.5rem">
                 <TokenPreview
+                  label={`Hero — ${name}`}
                   token={selectedPosition}
                   selectedColor={selectedColor}
                   setImages={setImages}
                 />
-                {selectedPosition?.sidekicks?.map((kick) => (
+                {selectedPosition?.sidekicks?.map((kick, i) => (
                   <TokenPreview
                     key={kick.id}
+                    label={`Sidekick ${i + 1}`}
                     token={kick}
                     selectedColor={selectedColor}
                     setImages={setImages}
                   />
                 ))}
-                <Divider />
                 {sidekicks
                   ?.filter((kick) => !gameKickIds?.includes(kick.id))
-                  .map((kick) => (
+                  .map((kick, i) => (
                     <TokenPreview
                       key={kick.id}
+                      label={`New sidekick ${i + 1}`}
                       token={kick}
                       selectedColor={selectedColor}
                       setImages={setImages}
                     />
                   ))}
-
-                <PlusSquareIcon onClick={addSidekick} />
               </VStack>
-            </Flex>
-          </Box>
+              <Button
+                mt="0.75rem"
+                size="sm"
+                leftIcon={<PlusSquareIcon />}
+                onClick={addSidekick}
+              >
+                Add sidekick token
+              </Button>
+            </Box>
+          </VStack>
         </ModalBody>
         <ModalFooter flexDirection="column" alignItems="end">
           <Button
-            variant="outline"
-            bg="brand.primary"
+            bg="gold"
+            boxShadow="0 2px 6px rgba(20, 8, 24, 0.25)"
             onClick={updateYourColor}
           >
-            Apply
+            Apply changes
           </Button>
-          <FormLabel fontSize="0.75rem">
-            Clicking apply will reset token positions
+          <FormLabel fontSize="0.75rem" opacity={0.7} mt="0.25rem">
+            Applying moves your tokens back to their starting corner
           </FormLabel>
         </ModalFooter>
       </ModalContent>
@@ -182,11 +200,25 @@ export const PositionModal: FC<{
   );
 };
 
+const SectionLabel = (props: React.ComponentProps<typeof Text>) => (
+  <Text
+    fontFamily="SpaceGrotesk"
+    fontWeight={700}
+    fontSize="0.8rem"
+    textTransform="uppercase"
+    letterSpacing="0.06em"
+    opacity={0.75}
+    {...props}
+  />
+);
+
 const TokenPreview = ({
+  label,
   token,
   selectedColor,
   setImages,
 }: {
+  label: string;
   token: PositionType;
   selectedColor: string;
   setImages: Dispatch<SetStateAction<{ id: string; url: string }[]>>;
@@ -201,22 +233,32 @@ const TokenPreview = ({
   const [imageUrl, setImageUrl] = useState("");
 
   return (
-    <Grid templateColumns="1fr 2fr" w="100%" gap="1rem" alignItems="center">
+    <Grid
+      templateColumns="3.5rem 1fr auto"
+      w="100%"
+      gap="0.75rem"
+      alignItems="center"
+    >
       {token?.imageUrl ? (
-        <Image src={token.imageUrl} />
+        <Image src={token.imageUrl} alt={label} w="3.5rem" />
       ) : (
         <Box
           bg={selectedColor}
-          w="5rem"
-          h="5rem"
-          cursor="pointer"
+          w="3.5rem"
+          h="3.5rem"
           borderRadius="100%"
-          transition="all 0.25s ease-in-out"
+          border="2px solid rgba(72, 40, 79, 0.35)"
+          transition="background-color 0.15s"
         />
       )}
+      <Text fontWeight={700} fontSize="0.9rem">
+        {label}
+      </Text>
 
       <Menu>
-        <MenuButton as={Button}>Tokens</MenuButton>
+        <MenuButton as={Button} size="sm">
+          Change image
+        </MenuButton>
         <MenuList maxH="400px" overflowY="auto">
           <FormLabel fontSize="0.75rem" pl="0.75rem" color="black">
             Add Token (via url)

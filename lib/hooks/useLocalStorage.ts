@@ -129,6 +129,24 @@ export const useLocalDeckStorage = () => {
     setDecks(newArray);
   };
 
+  /**
+   * Merge decks into the bag, skipping ids already present.
+   * Returns how many were actually added.
+   */
+  const importDecks = (incoming: DeckImportType[]): number => {
+    const existing = decks ?? [];
+    const existingIds = new Set(existing.map((deck) => deck.id));
+    const fresh = incoming.filter((deck) => deck?.id && !existingIds.has(deck.id));
+    if (fresh.length === 0) return 0;
+    const newArray = [...existing, ...fresh];
+    localStorage.setItem(LS_KEY.DECKS, JSON.stringify(newArray));
+    setDecks(newArray);
+    if (!star && !localStorage.getItem(LS_KEY.STAR_DECK)) {
+      setStar(fresh[0].id);
+    }
+    return fresh.length;
+  };
+
   return {
     decks,
     deckKb,
@@ -138,6 +156,7 @@ export const useLocalDeckStorage = () => {
     setStar,
     pushDeck,
     removeDeckbyId,
+    importDecks,
   };
 };
 
@@ -179,10 +198,27 @@ export const useLocalMapStorage = () => {
     setMapList([]);
   }
 
+  const removeMap = (imgUrl: string) => {
+    setList(mapList.filter((map) => map.imgUrl !== imgUrl));
+  };
+
+  /** Merge maps in, skipping image urls already present. Returns count added. */
+  const importMaps = (incoming: MapData[]): number => {
+    const existingUrls = new Set(mapList.map((map) => map.imgUrl));
+    const fresh = incoming.filter(
+      (map) => map?.imgUrl && !existingUrls.has(map.imgUrl),
+    );
+    if (fresh.length === 0) return 0;
+    setList([...mapList, ...fresh]);
+    return fresh.length;
+  };
+
   return {
     data: mapList,
     set: setList,
     add: addMap,
     clear: clearList,
+    remove: removeMap,
+    importMaps,
   };
 };

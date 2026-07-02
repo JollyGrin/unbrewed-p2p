@@ -30,10 +30,16 @@ const BagPage = () => {
           push({ query: { ...query, tab: e.toString() } });
         }}
       >
-        <TabList>
-          <Tab>Decks</Tab>
-          <Tab>Maps</Tab>
-          <Tab>Bulk Backup/Upload</Tab>
+        <TabList borderColor="rgba(72, 40, 79, 0.25)">
+          <Tab fontFamily="SpaceGrotesk" fontWeight={700}>
+            Decks
+          </Tab>
+          <Tab fontFamily="SpaceGrotesk" fontWeight={700}>
+            Maps
+          </Tab>
+          <Tab fontFamily="SpaceGrotesk" fontWeight={700}>
+            Backup &amp; Share
+          </Tab>
         </TabList>
 
         <TabPanels h="100%">
@@ -49,7 +55,7 @@ const BagPage = () => {
           <TabPanel p={0} h="100%">
             <BagMap />
           </TabPanel>
-          <TabPanel p={0} h="100%" bg="brand.primary">
+          <TabPanel p={0} h="100%" bg="brand.highlight">
             <BagBulkContainer />
           </TabPanel>
         </TabPanels>
