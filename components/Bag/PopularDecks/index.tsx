@@ -20,6 +20,22 @@ import {
 const DECK_API = "https://unbrewed-api.vercel.app/api/unmatched-deck/";
 
 /**
+ * Live API first (latest deck version), bundled snapshot from
+ * /public/top-decks as fallback so picking a deck works even if
+ * unmatched.cards or the proxy is down.
+ */
+const fetchPopularDeck = async (id: string): Promise<DeckImportType> => {
+  try {
+    const result = await axios.get<DeckImportType>(DECK_API + id);
+    return result.data;
+  } catch (err) {
+    console.warn("deck api failed, using bundled snapshot", err);
+    const result = await axios.get<DeckImportType>(`/top-decks/${id}.json`);
+    return result.data;
+  }
+};
+
+/**
  * One-click deck picker: the most-liked community decks on
  * unmatched.cards. Clicking a tile downloads the deck, saves it to the
  * bag and stars it, ready to play.
@@ -42,9 +58,9 @@ export const PopularDecks = (props: {
     }
     setLoadingId(meta.id);
     try {
-      const result = await axios.get<DeckImportType>(DECK_API + meta.id);
-      props.pushDeck(result.data);
-      props.setStar(result.data.id);
+      const deck = await fetchPopularDeck(meta.id);
+      props.pushDeck(deck);
+      props.setStar(deck.id);
       toast.success(`${meta.name} saved & ready to play`);
     } catch (err) {
       console.error(err);
