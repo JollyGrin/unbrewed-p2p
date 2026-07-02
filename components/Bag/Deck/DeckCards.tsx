@@ -1,4 +1,4 @@
-import { CardFactory } from "@/components/CardFactory/card.factory";
+import { Card } from "@/components/CardFactory/Card";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { Flex, Box, Text, HStack, Tooltip } from "@chakra-ui/react";
 
@@ -28,7 +28,7 @@ export const DeckCards = ({
           transition="transform 0.15s ease-out"
           _hover={{ transform: "scale(2)", zIndex: 10, position: "relative" }}
         >
-          <CardFactory card={card} />
+          <Card card={card} />
         </Box>
       ))}
     </Flex>
