@@ -7,9 +7,10 @@ import {
   useContext,
   useMemo,
   useRef,
+  useCallback,
   MutableRefObject,
 } from "react";
-import { PlayerState, WebsocketMessage } from "../gamesocket/message";
+import { GameState, PlayerState, WebsocketMessage } from "../gamesocket/message";
 import {
   ConnectionStatus,
   initializeWebsocket,
@@ -43,11 +44,55 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>("connecting");
 
-  const [setPlayerState, setPlayerStatefn] = useState<
-    () => (ps: PlayerState) => void
-  >(() => () => {});
-
+  // Raw senders, populated once the socket connects. Held in refs so the
+  // map-sync effects below can reach them without re-subscribing on reconnect.
+  const updatePlayerStateRef = useRef((_: PlayerState) => {});
   const setPlayerPosition = useRef((_: PositionType[]) => {});
+
+  // Shared-map state. `mapUpdatedAt` is a logical clock: it tracks the highest
+  // timestamp we've seen across the room, so a local change (seen + 1) always
+  // beats anything we've observed. mapUrl === "" means "explicitly cleared".
+  const mapSyncRef = useRef<{ url: string; updatedAt: number }>({
+    url: "",
+    updatedAt: 0,
+  });
+
+  const parsedGamePositions = useMemo(
+    () =>
+      typeof gamePositions === "string"
+        ? (JSON.parse(gamePositions) as WebsocketMessage)
+        : gamePositions,
+    [gamePositions],
+  );
+  const parsedGameState = useMemo(
+    () =>
+      typeof gameState === "string"
+        ? (JSON.parse(gameState) as WebsocketMessage)
+        : gameState,
+    [gameState],
+  );
+
+  // Keep the freshest parsed state reachable from effects that shouldn't
+  // re-run every time it changes (e.g. reading the local player's pool when
+  // broadcasting a map change).
+  const latestGameStateRef = useRef<WebsocketMessage | undefined>();
+  latestGameStateRef.current = parsedGameState;
+
+  // Stamp every outgoing player blob with our current view of the shared map,
+  // so the map survives normal pool updates and is present for late joiners.
+  const stampMap = useCallback((state: PlayerState): PlayerState => {
+    const { url, updatedAt } = mapSyncRef.current;
+    if (updatedAt <= 0) return state;
+    return { ...state, mapUrl: url, mapUpdatedAt: updatedAt };
+  }, []);
+
+  const readLocalPool = useCallback((): PoolType | undefined => {
+    const name = slug?.name?.toString();
+    if (!name) return undefined;
+    const players = (latestGameStateRef.current?.content as GameState | undefined)
+      ?.players;
+    return players?.[name]?.pool;
+  }, [slug?.name]);
 
   // This should only happen once
   useEffect(() => {
@@ -76,26 +121,92 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
         onStatus: setConnectionStatus,
       });
 
-    setPlayerStatefn(() => () => updateMyPlayerState);
+    updatePlayerStateRef.current = updateMyPlayerState;
     setPlayerPosition.current = updateMyPlayerPosition;
 
     return () => close();
   }, [router.isReady, slug.name, slug.gid, activeServer]);
 
-  const parsedGamePositions = useMemo(
-    () =>
-      typeof gamePositions === "string"
-        ? (JSON.parse(gamePositions) as WebsocketMessage)
-        : gamePositions,
-    [gamePositions],
+  // Exposed player-state setter. Stable identity; always stamps the map.
+  const setPlayerState = useCallback(
+    () => (state: PlayerState) => {
+      updatePlayerStateRef.current(stampMap(state));
+    },
+    [stampMap],
   );
-  const parsedGameState = useMemo(
-    () =>
-      typeof gameState === "string"
-        ? (JSON.parse(gameState) as WebsocketMessage)
-        : gameState,
-    [gameState],
-  );
+
+  // Inbound: adopt the newest shared map from the broadcast game state and
+  // reflect it into the URL (`mapUrl`), which is what the board renders from.
+  useEffect(() => {
+    const players = (parsedGameState?.content as GameState | undefined)?.players;
+    if (!players) return;
+
+    let winner: { url: string; updatedAt: number; name: string } | null = null;
+    for (const [name, player] of Object.entries(players)) {
+      const updatedAt = player?.mapUpdatedAt;
+      const url = player?.mapUrl;
+      if (typeof updatedAt !== "number" || typeof url !== "string") continue;
+      if (
+        !winner ||
+        updatedAt > winner.updatedAt ||
+        (updatedAt === winner.updatedAt && name > winner.name)
+      ) {
+        winner = { url, updatedAt, name };
+      }
+    }
+    if (!winner) return;
+
+    // Only move forward. Our own echoed change lands here as an equal value and
+    // is ignored, so there is no feedback loop.
+    if (winner.updatedAt <= mapSyncRef.current.updatedAt) return;
+
+    mapSyncRef.current = { url: winner.url, updatedAt: winner.updatedAt };
+
+    const currentUrl = (router.query.mapUrl as string | undefined) ?? "";
+    if (currentUrl === winner.url) return;
+
+    const query = { ...router.query };
+    if (winner.url === "") {
+      delete query.mapUrl;
+    } else {
+      query.mapUrl = winner.url;
+    }
+    router.replace({ query }, undefined, { shallow: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parsedGameState]);
+
+  // Outbound: any UI that changes `mapUrl` in the URL (the in-game map modal,
+  // the saved-maps picker, or a shared link) flows through here and broadcasts
+  // the change to the room. Driving off the URL means we don't have to wire
+  // every individual button.
+  useEffect(() => {
+    if (!router.isReady) return;
+    const url = (router.query.mapUrl as string | undefined) ?? "";
+    // Already in sync — either unchanged or we just adopted a remote value.
+    if (url === mapSyncRef.current.url) return;
+
+    const updatedAt = mapSyncRef.current.updatedAt + 1;
+    mapSyncRef.current = { url, updatedAt };
+    updatePlayerStateRef.current({
+      pool: readLocalPool(),
+      mapUrl: url,
+      mapUpdatedAt: updatedAt,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.query.mapUrl, router.isReady]);
+
+  // Re-broadcast our map when the socket (re)connects, covering players who set
+  // a map before joining or who never send a pool update.
+  useEffect(() => {
+    if (connectionStatus !== "open") return;
+    if (mapSyncRef.current.updatedAt <= 0) return;
+    updatePlayerStateRef.current({
+      pool: readLocalPool(),
+      mapUrl: mapSyncRef.current.url,
+      mapUpdatedAt: mapSyncRef.current.updatedAt,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connectionStatus]);
 
   return (
     <WebGameContext.Provider
