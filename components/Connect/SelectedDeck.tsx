@@ -16,28 +16,43 @@ export const SelectedDeckContainer = () => {
       {starredDeck === undefined ? (
         <>
           <Flex
-            w="100px"
-            h="100px"
+            as={Link}
+            href={"/bag"}
+            role="group"
+            w="200px"
+            h="300px"
             justifyContent="center"
             alignItems="center"
-            bg="saddlebrown"
-            boxShadow="inset 0 0 10px black"
-            borderRadius={5}
+            bg="brand.secondary"
+            border="0.25rem dashed"
+            borderColor="brand.primary"
+            boxShadow="inset 0 0 20px rgba(0,0,0,0.35)"
+            borderRadius="0.5rem"
             flexDir={"column"}
+            gap={2}
+            cursor="pointer"
+            transition="all 0.25s ease-in-out"
+            _hover={{ borderColor: "brand.highlight", transform: "translateY(-2px)" }}
           >
-            <Link href={"/bag"}>
-              <Text
-                fontSize="6xl"
-                color="goldenrod"
-                cursor="pointer"
-                _hover={{ color: "gold" }}
-              >
-                +
-              </Text>
-            </Link>
+            <Text
+              fontSize="5xl"
+              lineHeight="1"
+              color="brand.primary"
+              _groupHover={{ color: "brand.highlight" }}
+            >
+              +
+            </Text>
+            <Text
+              color="brand.primary"
+              fontSize="0.85rem"
+              px={4}
+              textAlign="center"
+            >
+              Star a deck in your bag
+            </Text>
           </Flex>
-          <Text>
-            No deck selected! <br /> Star a deck from your bag
+          <Text color="brand.secondary" fontSize="0.85rem" opacity={0.7}>
+            No deck selected yet
           </Text>
         </>
       ) : (
@@ -78,7 +93,13 @@ export const SelectedDeckContainer = () => {
               {starredDeck.name.substring(0, 2)}
             </Text>
           </Flex>
-          <Tag p={2} fontFamily={"monospace"} fontSize={"1.1rem"}>
+          <Tag
+            p={2}
+            fontFamily={"monospace"}
+            fontSize={"1.1rem"}
+            bg="brand.secondary"
+            color="brand.primary"
+          >
             {starredDeck.name}
           </Tag>
         </>

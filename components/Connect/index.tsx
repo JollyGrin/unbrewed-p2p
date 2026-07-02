@@ -1,9 +1,11 @@
 import {
   Box,
   Button,
+  Circle,
+  Collapse,
+  Divider,
   Flex,
   FormLabel,
-  Grid,
   HStack,
   Input,
   Select,
@@ -24,7 +26,7 @@ import { Navbar } from "@/components/Navbar";
 import { SelectedDeckContainer } from "./SelectedDeck";
 import { useCreateLobby } from "./useCreateLobby";
 import styled from "@emotion/styled";
-import { PlusSquareIcon } from "@chakra-ui/icons";
+import { SettingsIcon } from "@chakra-ui/icons";
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
 import { toast } from "react-hot-toast";
 import Link from "next/link";
@@ -55,6 +57,8 @@ export const ConnectPage = () => {
     router.prefetch("/game");
   }, [router]);
 
+  const hasDeck = starredDeck !== undefined;
+
   return (
     <Wrapper bgImage="background/choosefighter.png" bgBlendMode="multiply">
       <SettingsModal
@@ -65,26 +69,48 @@ export const ConnectPage = () => {
       <Box position="absolute" top="0" w="100%" color="brand.primary">
         <Navbar />
       </Box>
-      <ConnectContainer backdropFilter="blur(5px)">
-        <Text fontSize={"2.5rem"} fontWeight={700} fontFamily="SpaceGrotesk">
-          Connect to a Lobby
-        </Text>
-        <SelectedDeckContainer />
-        <Grid
-          my="1rem"
-          templateColumns={`1fr ${sharedDeckId === undefined ? "auto" : ""} 1fr`}
-          w="100%"
-          gap="0.5rem"
-        >
-          {sharedDeckId === undefined && <div />}
-          <VStack>
+      <ConnectContainer backdropFilter="blur(6px)">
+        <VStack spacing={1} textAlign="center">
+          <Text
+            fontSize={"2.5rem"}
+            fontWeight={700}
+            fontFamily="SpaceGrotesk"
+            color="brand.secondary"
+            lineHeight="1.1"
+          >
+            Connect to a Lobby
+          </Text>
+          <Text color="brand.secondary" opacity={0.7} fontSize="0.95rem">
+            Set up your table in three quick steps
+          </Text>
+        </VStack>
+
+        {/* Step 1 — deck */}
+        <VStack w="100%" spacing={2}>
+          <StepLabel number="1" label="Choose your deck" />
+          <SelectedDeckContainer />
+        </VStack>
+
+        {/* Steps 2 & 3 — name + lobby */}
+        <VStack w="100%" maxW="380px" spacing="1rem">
+          <Box w="100%">
+            <StepLabel number="2" label="Enter your name" />
             <Input
+              mt={2}
+              id="player-name"
               ref={nameRef}
               defaultValue={router.query.username as string | undefined}
               placeholder="Your name"
               bg="white"
+              focusBorderColor="brand.secondary"
             />
+          </Box>
+
+          <Box w="100%">
+            <StepLabel number="3" label="Name a lobby" />
             <Input
+              mt={2}
+              id="lobby-name"
               ref={gidRef}
               defaultValue={router.query.lobby as string | undefined}
               onChange={(e) => {
@@ -93,86 +119,155 @@ export const ConnectPage = () => {
               }}
               placeholder="lobby name"
               bg="white"
+              focusBorderColor="brand.secondary"
             />
-            <Button
-              // If we are loading a new lobby request, freeze the input values.
-              // isDisabled={(data && isLoading) || starredDeck === undefined}
-              w="100%"
-              isDisabled={loading || starredDeck === undefined}
-              bg="brand.primary"
-              onClick={() => {
-                if (!nameRef?.current?.value || !gidRef?.current?.value) {
-                  alert("I need a name and a room name");
-                  return;
-                }
-                setLoading(true);
-                refetch();
-              }}
-            >
-              {loading && <Spinner />}
-              Connect to Game
-            </Button>
-            <Button as={Link} href={{ pathname: "/offline" }}>
-              Play Offline without Map
-            </Button>
-          </VStack>
-          {sharedDeckId === undefined && (
-            <PlusSquareIcon
-              opacity={lobby !== "" ? 1 : 0}
-              transition="all 0.25s ease-in-out"
-              onClick={() => setSharedDeckId("")}
-              fontSize="2rem"
-              alignSelf="center"
-              justifySelf="center"
-              cursor="pointer"
-              _hover={{
-                transform: "scale(1.2)",
-              }}
-            />
+            <Text mt={1} fontSize="0.8rem" color="brand.secondary" opacity={0.65}>
+              Create a new lobby, or type a friend&apos;s lobby name to join them.
+            </Text>
+          </Box>
+
+          <Button
+            w="100%"
+            isDisabled={loading || !hasDeck}
+            bg="brand.secondary"
+            color="brand.primary"
+            _hover={{ bg: "brand.surfaceDim" }}
+            _disabled={{ opacity: 0.5, cursor: "not-allowed" }}
+            onClick={() => {
+              if (!nameRef?.current?.value || !gidRef?.current?.value) {
+                toast.error("Enter your name and a lobby name to connect");
+                return;
+              }
+              setLoading(true);
+              refetch();
+            }}
+          >
+            {loading && <Spinner size="sm" mr={2} />}
+            Connect to Game
+          </Button>
+          {!hasDeck && (
+            <Text fontSize="0.8rem" color="brand.secondary" opacity={0.7} textAlign="center">
+              Star a deck in your bag to enable connecting
+            </Text>
           )}
 
-          {sharedDeckId !== undefined && (
-            <VStack>
-              <FormLabel mt="7px">Share a link with the deck:</FormLabel>
-              <Select
-                bg="white"
-                onChange={(e) => setSharedDeckId(e.target.value)}
-              >
-                {decks?.map((deck) => (
-                  <option key={deck.id} value={deck.version_id ?? deck.id}>
-                    {deck.name}
-                  </option>
-                ))}
-              </Select>
-              <Button
-                w="100%"
-                onClick={() => {
-                  const baseUrl = "https://unbrewed.xyz/connect";
-                  const sharableUrl = `${baseUrl}?lobby=${gidRef?.current?.value}&deckId=${sharedDeckId}`;
-                  copy(sharableUrl);
-                  toast.success("Copied to clipboard: " + sharableUrl);
-                }}
-              >
-                Copy Sharable Link
-              </Button>
-            </VStack>
+          <Button
+            w="100%"
+            variant="outline"
+            color="brand.secondary"
+            borderColor="brand.secondary"
+            _hover={{ bg: "brand.secondary", color: "brand.primary" }}
+            as={Link}
+            href={{ pathname: "/offline" }}
+          >
+            Play Offline without Map
+          </Button>
+        </VStack>
+
+        {/* Optional — share a deck link with a friend */}
+        <Box w="100%" maxW="380px">
+          <Divider borderColor="brand.secondary" opacity={0.25} />
+          {sharedDeckId === undefined ? (
+            <Button
+              mt="0.75rem"
+              variant="ghost"
+              size="sm"
+              w="100%"
+              color="brand.secondary"
+              _hover={{ bg: "blackAlpha.50" }}
+              isDisabled={lobby === ""}
+              onClick={() => setSharedDeckId("")}
+            >
+              {lobby === ""
+                ? "Name a lobby above to share a deck link"
+                : "＋ Share a deck link with a friend"}
+            </Button>
+          ) : (
+            <Collapse in={sharedDeckId !== undefined} animateOpacity>
+              <VStack mt="0.75rem" spacing={2} align="stretch">
+                <FormLabel m={0} color="brand.secondary" fontSize="0.85rem">
+                  Pick a deck to bundle into a shareable link:
+                </FormLabel>
+                <Select
+                  bg="white"
+                  focusBorderColor="brand.secondary"
+                  onChange={(e) => setSharedDeckId(e.target.value)}
+                >
+                  {decks?.map((deck) => (
+                    <option key={deck.id} value={deck.version_id ?? deck.id}>
+                      {deck.name}
+                    </option>
+                  ))}
+                </Select>
+                <Button
+                  w="100%"
+                  bg="brand.secondary"
+                  color="brand.primary"
+                  _hover={{ bg: "brand.surfaceDim" }}
+                  onClick={() => {
+                    const baseUrl = "https://unbrewed.xyz/connect";
+                    const sharableUrl = `${baseUrl}?lobby=${gidRef?.current?.value}&deckId=${sharedDeckId}`;
+                    copy(sharableUrl);
+                    toast.success("Copied link to clipboard!");
+                  }}
+                >
+                  Copy Sharable Link
+                </Button>
+              </VStack>
+            </Collapse>
           )}
-        </Grid>
+        </Box>
       </ConnectContainer>
+
       <Flex
         position="absolute"
-        bottom="0.5rem"
-        flexDir={"column"}
+        bottom="0.75rem"
+        flexDir={"row"}
         alignItems="center"
+        gap={2}
         onClick={disclosure.onOpen}
         cursor="pointer"
+        bg="blackAlpha.400"
+        color="ghostwhite"
+        borderRadius="full"
+        px={3}
+        py={1}
+        fontSize="0.8rem"
+        transition="all 0.2s ease"
+        _hover={{ bg: "blackAlpha.600" }}
       >
-        <Text color="ghostwhite">Active GameServer URL:</Text>
-        <Tag p={2}>{activeServer}</Tag>
+        <SettingsIcon />
+        <Text>GameServer:</Text>
+        <Tag size="sm" bg="brand.secondary" color="brand.primary">
+          {activeServer}
+        </Tag>
       </Flex>
     </Wrapper>
   );
 };
+
+const StepLabel = (props: { number: string; label: string }) => (
+  <HStack w="100%" spacing={2} justify="flex-start">
+    <Circle
+      size="1.5rem"
+      bg="brand.secondary"
+      color="brand.primary"
+      fontFamily="SpaceGrotesk"
+      fontWeight={700}
+      fontSize="0.85rem"
+    >
+      {props.number}
+    </Circle>
+    <Text
+      fontFamily="SpaceGrotesk"
+      fontWeight={600}
+      color="brand.secondary"
+      fontSize="0.95rem"
+    >
+      {props.label}
+    </Text>
+  </HStack>
+);
 
 const Wrapper = styled(Flex)`
   height: 100svh;
@@ -186,13 +281,14 @@ const Wrapper = styled(Flex)`
 
 const ConnectContainer = styled(Flex)`
   flex-direction: column;
-  /* height: 50%; */
   width: 95%;
   max-width: 600px;
   min-height: 600px;
-  background-color: rgba(255, 255, 255, 0.8);
+  background-color: rgba(241, 224, 193, 0.92);
   border-radius: 1rem;
   padding: 2rem;
-  justify-content: space-evenly;
+  gap: 1.5rem;
+  justify-content: flex-start;
   align-items: center;
+  box-shadow: 0 12px 40px rgba(44, 24, 49, 0.45);
 `;
