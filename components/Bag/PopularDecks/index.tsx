@@ -72,14 +72,6 @@ export const PopularDecks = (props: {
 
   return (
     <Box>
-      <Text
-        fontFamily="BebasNeueRegular"
-        fontSize="1.5rem"
-        letterSpacing="0.04em"
-        color="brand.secondary"
-      >
-        Popular decks
-      </Text>
       <Text fontSize="0.85rem" mb="0.75rem" opacity={0.8}>
         The community&apos;s most-liked decks — pick one and you&apos;re ready
         to play.
@@ -143,7 +135,7 @@ const DeckTile = ({
       p="0.5rem"
       borderRadius="0.5rem"
       border="2px solid"
-      borderColor={isStarred ? "gold" : "rgba(72, 40, 79, 0.25)"}
+      borderColor={isStarred ? "brand.accent" : "rgba(72, 40, 79, 0.25)"}
       cursor="pointer"
       userSelect="none"
       position="relative"
@@ -179,7 +171,7 @@ const DeckTile = ({
           {isLoading ? (
             <Spinner size="xs" />
           ) : isStarred ? (
-            <FaStar color="gold" size="0.8rem" />
+            <FaStar color="#E0A82E" size="0.8rem" />
           ) : (
             <>
               <FaHeart size="0.6rem" />

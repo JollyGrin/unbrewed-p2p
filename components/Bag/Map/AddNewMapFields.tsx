@@ -1,7 +1,7 @@
 import { MapData, useLocalMapStorage } from "@/lib/hooks";
-import { Box, Button, FormLabel, HStack, Input, Fade } from "@chakra-ui/react";
-import { useRouter } from "next/router";
+import { Box, Button, FormLabel, HStack, Input, Fade, Text } from "@chakra-ui/react";
 import { Dispatch, SetStateAction } from "react";
+import { toast } from "react-hot-toast";
 
 export const AddNewFields = ({
   newMap,
@@ -12,24 +12,33 @@ export const AddNewFields = ({
   enterMapUrl: (value: string) => void;
   setNewMap: Dispatch<SetStateAction<MapData | undefined>>;
 }) => {
-  const { reload } = useRouter();
   const { add } = useLocalMapStorage();
   return (
     <Box p="1rem" color="brand.primary">
-      <FormLabel>Add new map</FormLabel>
+      <FormLabel fontFamily="SpaceGrotesk" fontWeight={700} mb="0.15rem">
+        Add a map
+      </FormLabel>
+      <Text fontSize="0.78rem" opacity={0.8} mb="0.5rem">
+        Paste an image URL, give it a title, and it&apos;s added to your bag.
+      </Text>
       <HStack>
         <Input
+          bg="white"
+          color="brand.secondary"
           value={newMap?.imgUrl}
           onChange={(e) => enterMapUrl(e.target.value)}
           placeholder="https://i.imgur.com/image.png"
           maxW="300px"
         />
         <Button
+          bg="brand.accent"
+          color="brand.surfaceDim"
+          _hover={{ bg: "brand.accentDeep" }}
           isDisabled={!newMap || !newMap.meta?.title}
           onClick={() => {
             add(newMap as MapData);
             setNewMap(undefined);
-            reload();
+            toast.success(`${newMap?.meta?.title ?? "Map"} added to your bag`);
           }}
         >
           Add map
@@ -39,10 +48,12 @@ export const AddNewFields = ({
         {!!newMap?.imgUrl && (
           <Box maxW="500px">
             <Input
-              borderColor={newMap.meta?.title ? "white" : "tomato"}
+              bg="white"
+              color="brand.secondary"
+              borderColor={newMap.meta?.title ? "white" : "brand.danger"}
               my="0.5rem"
               maxW="500px"
-              placeholder="Map title"
+              placeholder="Map title (required)"
               onChange={(e) =>
                 setNewMap((prev) => ({
                   ...prev,
@@ -57,8 +68,10 @@ export const AddNewFields = ({
             />
 
             <Input
+              bg="white"
+              color="brand.secondary"
               my="0.5rem"
-              placeholder="Author"
+              placeholder="Author (optional)"
               onChange={(e) =>
                 setNewMap((prev) => ({
                   ...prev,
@@ -73,9 +86,11 @@ export const AddNewFields = ({
             />
 
             <Input
+              bg="white"
+              color="brand.secondary"
               my="0.5rem"
               maxW="500px"
-              placeholder="Source URL https://www.reddit.com/r/Unmatched/comments/1alrt42/forest_castle_custom_map/"
+              placeholder="Source URL (optional) — e.g. the reddit post"
               onChange={(e) =>
                 setNewMap((prev) => ({
                   ...prev,

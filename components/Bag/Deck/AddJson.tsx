@@ -2,11 +2,6 @@ import {
   Box,
   Flex,
   Text,
-  Accordion,
-  AccordionItem,
-  AccordionButton,
-  AccordionPanel,
-  AccordionIcon,
   Textarea,
   HStack,
   Button,
@@ -16,136 +11,121 @@ import {
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocalDeckStorage } from "@/lib/hooks";
-import { useRouter } from "next/router";
 import axios from "axios";
-import { jsonCheck } from "@/lib/hooks/helpers";
+import { toast } from "react-hot-toast";
 import { useJsonCheck } from "@/lib/hooks/useJsonCheck";
+import { SubToggle } from "@/components/Bag/AddDeckHub/SubToggle";
 
-export const AddJson = () => {
-  return (
-    <Flex
-      direction="column"
-      bg="brand.highlight"
-      color="brand.secondary"
-      p="0.5rem"
-      borderRadius="0.25rem"
-    >
-      <Text fontWeight={700}>Load a Deck from a JSON</Text>
-      <Text>
-        Don&apos;t have a deck uploaded to Unmatched? You can import the raw
-        JSON
-      </Text>
-      <Options />
-    </Flex>
-  );
-};
-
-const Options = () => {
-  const { reload } = useRouter();
+/**
+ * Import a raw deck JSON, either pasted as text or fetched from a URL.
+ * Rendered bare inside AddDeckHub's focused view.
+ */
+export const AddJson = ({
+  onAdded,
+}: {
+  onAdded?: (deckId: string) => void;
+}) => {
   const { pushDeck } = useLocalDeckStorage();
+  const [mode, setMode] = useState<"text" | "url">("text");
 
   const [json, setJson] = useState<string>("");
   const [url, setUrl] = useState<string>();
   const { data: isJsonValid } = useJsonCheck(json);
 
-  const { data: urlData } = useQuery(
-    ["urlData"],
+  const { data: urlData, isFetching } = useQuery(
+    ["urlData", url],
     async () => await axios.get(url ?? ""),
-    {
-      enabled: !!url,
-    },
+    { enabled: !!url },
   );
 
+  const addDeck = (raw: unknown) => {
+    try {
+      const deck = typeof raw === "string" ? JSON.parse(raw) : raw;
+      if (!deck?.id || !deck?.deck_data) {
+        toast.error("That JSON isn't a deck (needs an id and deck_data)");
+        return;
+      }
+      pushDeck(deck);
+      toast.success(`${deck.name ?? "Deck"} added to your bag`);
+      onAdded?.(deck.id);
+    } catch {
+      toast.error("Couldn't read that JSON");
+    }
+  };
+
   return (
-    <Accordion>
-      <AccordionItem>
-        <h2>
-          <AccordionButton>
-            <Box as="span" flex="1" textAlign="left">
-              Input via Text
-            </Box>
-            <AccordionIcon />
-          </AccordionButton>
-        </h2>
-        <AccordionPanel pb={4}>
-          <HStack>
-            <Box w="50%">
-              <StatusText isValid={isJsonValid ?? false} text="is JSON?" />
-              <FormLabel fontSize="0.75rem">
-                Heads up! This won&apos;t check the JSON contents, just if
-                it&apos;s a valid json
-              </FormLabel>
+    <Flex direction="column" color="brand.secondary">
+      <Text fontSize="0.9rem" opacity={0.85} mb="0.75rem">
+        Already have a deck&apos;s raw JSON? Paste it in, or point us at a URL
+        that returns it.
+      </Text>
 
-              {isJsonValid && (
-                <Button
-                  mt="0.5rem"
-                  onClick={() => {
-                    pushDeck(JSON.parse(json));
-                    reload();
-                  }}
-                >
-                  Add Deck
-                </Button>
-              )}
-            </Box>
-            <Textarea
-              fontSize="0.5rem"
-              bg="white"
-              onChange={(e) => setJson(e.target.value)}
-              value={json}
-            />
-          </HStack>
-        </AccordionPanel>
-      </AccordionItem>
-
-      <AccordionItem>
-        <h2>
-          <AccordionButton>
-            <Box as="span" flex="1" textAlign="left">
-              Input via URL
-            </Box>
-            <AccordionIcon />
-          </AccordionButton>
-        </h2>
-        <AccordionPanel pb={4}>
-          {urlData?.data && (
-            <Button
-              my="0.5rem"
-              onClick={() => {
-                pushDeck(urlData?.data);
-                reload();
-              }}
-            >
-              Add Deck
-            </Button>
-          )}
-          <HStack alignItems="start">
-            <Input
-              minW="10rem"
-              bg="white"
-              maxW="12rem"
-              onChange={(e) => setUrl(e.target.value)}
-              value={url}
-            />
-            <code style={{ fontSize: "0.5rem" }}>
-              {JSON.stringify(urlData?.data)}
-            </code>
-          </HStack>
-        </AccordionPanel>
-      </AccordionItem>
-    </Accordion>
-  );
-};
-
-const StatusText = (props: { text: string; isValid: boolean }) => {
-  return (
-    <HStack>
-      <Box
-        bg={props.isValid ? "green" : "red"}
-        boxSize="1rem"
-        borderRadius="100%"
+      <SubToggle
+        value={mode}
+        onChange={(v) => setMode(v as "text" | "url")}
+        options={[
+          { value: "text", label: "Paste text" },
+          { value: "url", label: "From URL" },
+        ]}
       />
-      <Text>{props.text}</Text>
-    </HStack>
+
+      <Box mt="0.75rem">
+        {mode === "text" ? (
+          <>
+            <HStack mb="0.5rem" fontSize="0.85rem">
+              <Box
+                boxSize="0.85rem"
+                borderRadius="full"
+                bg={isJsonValid ? "brand.positive" : "brand.danger"}
+              />
+              <Text>{isJsonValid ? "Valid JSON" : "Not valid JSON yet"}</Text>
+            </HStack>
+            <Textarea
+              bg="white"
+              fontSize="0.65rem"
+              h="120px"
+              placeholder="Paste the deck JSON here…"
+              value={json}
+              onChange={(e) => setJson(e.target.value)}
+            />
+            <FormLabel fontSize="0.7rem" mt="0.35rem" opacity={0.7}>
+              We only check that it&apos;s valid JSON, not that the contents
+              are a real deck.
+            </FormLabel>
+            <Button
+              mt="0.25rem"
+              bg="brand.accent"
+              color="brand.surfaceDim"
+              _hover={{ bg: "brand.accentDeep" }}
+              isDisabled={!isJsonValid}
+              onClick={() => addDeck(json)}
+            >
+              Add deck
+            </Button>
+          </>
+        ) : (
+          <>
+            <Input
+              bg="white"
+              size="sm"
+              placeholder="https://example.com/my-deck.json"
+              onChange={(e) => setUrl(e.target.value)}
+              value={url ?? ""}
+            />
+            <Button
+              mt="0.6rem"
+              bg="brand.accent"
+              color="brand.surfaceDim"
+              _hover={{ bg: "brand.accentDeep" }}
+              isLoading={isFetching}
+              isDisabled={!urlData?.data}
+              onClick={() => addDeck(urlData?.data)}
+            >
+              Add deck from URL
+            </Button>
+          </>
+        )}
+      </Box>
+    </Flex>
   );
 };
