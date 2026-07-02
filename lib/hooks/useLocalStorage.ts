@@ -156,6 +156,14 @@ export const useLocalDeckStorage = () => {
     return fresh.length;
   };
 
+  /** wipe every deck from the bag (state-driven, no page reload needed) */
+  const clearDecks = () => {
+    localStorage.removeItem(LS_KEY.DECKS);
+    localStorage.removeItem(LS_KEY.STAR_DECK);
+    setDecks([]);
+    setStar("");
+  };
+
   return {
     decks,
     deckKb,
@@ -167,6 +175,7 @@ export const useLocalDeckStorage = () => {
     removeDeckbyId,
     updateDeck,
     importDecks,
+    clearDecks,
   };
 };
 
