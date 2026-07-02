@@ -18,6 +18,8 @@ export type ParsedTtsCard = {
   title: string;
   quantity: number;
   image: CardImageRef;
+  /** standalone cards in a TTS export are usually hero/rule cards */
+  isCharacterCard?: boolean;
 };
 
 export type TtsParseResult = {
@@ -102,7 +104,8 @@ export const parseTtsDeck = (input: unknown): TtsParseResult => {
       }
     }
 
-    const entries: { id: number; title?: string }[] = [];
+    const entries: { id: number; title?: string; isCharacterCard?: boolean }[] =
+      [];
     if (deck.ContainedObjects?.length) {
       for (const card of deck.ContainedObjects) {
         if (typeof card?.CardID === "number")
@@ -111,7 +114,13 @@ export const parseTtsDeck = (input: unknown): TtsParseResult => {
     } else if (deck.DeckIDs?.length) {
       for (const id of deck.DeckIDs) entries.push({ id });
     } else if (typeof deck.CardID === "number") {
-      entries.push({ id: deck.CardID, title: deck.Nickname || undefined });
+      // a card sitting loose on the table (not inside a deck) is almost
+      // always the hero/rule card — flag it so it stays out of the deck
+      entries.push({
+        id: deck.CardID,
+        title: deck.Nickname || undefined,
+        isCharacterCard: true,
+      });
     }
 
     for (const entry of entries) {
@@ -141,6 +150,7 @@ export const parseTtsDeck = (input: unknown): TtsParseResult => {
       byCardId.set(entry.id, {
         title: entry.title ?? `Card ${fallbackTitleCount}`,
         quantity: 1,
+        isCharacterCard: entry.isCharacterCard,
         image: {
           url,
           cols: sheet.NumWidth ?? 10,
@@ -183,6 +193,8 @@ export const buildImageDeck = (input: ImageDeckInput): DeckImportType => {
     title: card.title,
     quantity: card.quantity,
     cardImage: card.image,
+    cardBackUrl: input.cardbackUrl,
+    isCharacterCard: card.isCharacterCard,
     // template fields, unused while cardImage renders
     afterText: "",
     basicText: "",

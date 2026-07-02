@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@jest/globals";
 import { buildImageDeck, parseTtsDeck } from "./parse-tts";
+import { makeDeck, newPool } from "@/components/DeckPool/PoolFns";
 
 const SHEET = {
   FaceURL: "http://cloud-3.steamusercontent.com/ugc/123/FACE/",
@@ -96,10 +97,38 @@ describe("buildImageDeck", () => {
 
     expect(deck.deck_data.cards).toHaveLength(3);
     expect(deck.deck_data.cards[0].cardImage?.url).toContain("https://");
+    // per-card back art so face-down commits survive the pool sync
+    expect(deck.deck_data.cards[0].cardBackUrl).toContain("BACK");
     expect(deck.deck_data.hero.hp).toBe(16);
     expect(deck.deck_data.appearance.cardbackUrl).toContain("BACK");
     // quantity survives so makeDeck expands correctly
     const total = deck.deck_data.cards.reduce((n, c) => n + c.quantity, 0);
     expect(total).toBe(4);
+  });
+
+  it("keeps standalone hero cards out of the shuffled draw deck", () => {
+    const parsed = parseTtsDeck({
+      ObjectStates: [
+        ttsSavedObject.ObjectStates[0],
+        // hero card sitting loose on the TTS table
+        {
+          Name: "CardCustom",
+          Nickname: "Boba Fett (Hero)",
+          CardID: 104,
+          CustomDeck: { "1": SHEET },
+        },
+      ],
+    });
+
+    const hero = parsed.cards.find((c) => c.title === "Boba Fett (Hero)");
+    expect(hero?.isCharacterCard).toBe(true);
+
+    const deck = buildImageDeck({ name: "Boba", cards: parsed.cards });
+    const pool = makeDeck(newPool(deck));
+    // 4 playable cards expanded; hero card excluded from the pile
+    expect(pool.deck).toHaveLength(4);
+    expect(pool.deck?.some((c) => c.title === "Boba Fett (Hero)")).toBe(false);
+    // but it stays visible in the deck's card list
+    expect(deck.deck_data.cards.some((c) => c.isCharacterCard)).toBe(true);
   });
 });

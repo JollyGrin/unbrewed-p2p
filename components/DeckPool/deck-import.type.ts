@@ -70,6 +70,16 @@ export type DeckImportCardType = {
   type: UnmatchedCardType;
   value: number | null;
   cardImage?: CardImageRef;
+  /**
+   * Face-down art for this card. Card-level (not deck-level) because
+   * pooled cards detach from deck_data and sync whole over the websocket.
+   */
+  cardBackUrl?: string;
+  /**
+   * Hero/rule cards ride along in TTS imports but must not be shuffled
+   * into the draw deck. makeDeck skips cards with this flag.
+   */
+  isCharacterCard?: boolean;
 };
 
 export type PoolCardType = Omit<DeckImportCardType, "quantity">;

@@ -19,10 +19,28 @@ import { DeckCards } from "./DeckCards";
 export const BagDecks = () => {
   const { data, setDeckId } = useUnmatchedDeck();
 
-  const { decks, pushDeck, removeDeckbyId, totalKbLeft, setStar, star } =
-    useLocalDeckStorage();
+  const {
+    decks,
+    pushDeck,
+    removeDeckbyId,
+    updateDeck,
+    totalKbLeft,
+    setStar,
+    star,
+  } = useLocalDeckStorage();
 
   const [selectedDeckId, setSelectedDeckId] = useState<string>();
+
+  const toggleCharacterCard = (cardIndex: number) => {
+    const deck = decks?.find((d) => d.id === selectedDeckId);
+    if (!deck) return;
+    const cards = deck.deck_data.cards.map((card, i) =>
+      i === cardIndex
+        ? { ...card, isCharacterCard: !card.isCharacterCard }
+        : card,
+    );
+    updateDeck({ ...deck, deck_data: { ...deck.deck_data, cards } });
+  };
 
   return (
     <>
@@ -50,7 +68,10 @@ export const BagDecks = () => {
                 removeDeckbyId,
               }}
             />
-            <DeckCards {...{ decks, selectedDeckId }} />
+            <DeckCards
+              {...{ decks, selectedDeckId }}
+              onToggleCharacterCard={toggleCharacterCard}
+            />
           </Box>
         )}
 

@@ -1,5 +1,4 @@
-import { FC, memo, useEffect, useState } from "react";
-import { Box, Flex } from "@chakra-ui/react";
+import { FC, memo, useEffect, useId, useState } from "react";
 import {
   CardImageRef,
   DeckImportCardType,
@@ -23,7 +22,7 @@ const CardBase: FC<{ card: DeckImportCardType }> = ({ card }) => {
 
 export const Card = memo(CardBase);
 
-/** preload the url once so sprite cells (css backgrounds) can also detect failure */
+/** preload the url once so sprite cells can also detect failure */
 const useImageFailed = (url?: string) => {
   const [failed, setFailed] = useState(false);
   useEffect(() => {
@@ -39,56 +38,60 @@ const useImageFailed = (url?: string) => {
   return failed;
 };
 
-const ImageFace = ({
+/**
+ * Rendered as an SVG with the template's 63x88 viewBox so image cards
+ * get the exact same sizing behavior as generated cards in every
+ * container (fixed-height hand fan, auto-height modal grids, etc.).
+ */
+export const ImageFace = ({
   image,
   title,
 }: {
   image: CardImageRef;
   title: string;
 }) => {
+  const clipId = useId();
   const isSheet = !!image.cols && !!image.rows;
-  if (!isSheet) {
-    return (
-      <Flex h="100%" w="100%" alignItems="center" justifyContent="center">
-        <img
-          src={image.url}
-          alt={title}
-          draggable={false}
-          style={{
-            height: "100%",
-            maxWidth: "100%",
-            objectFit: "contain",
-            userSelect: "none",
-            borderRadius: "4.5% / 3.2%",
-          }}
-        />
-      </Flex>
-    );
-  }
-
-  const cols = image.cols as number;
-  const rows = image.rows as number;
+  const cols = image.cols ?? 1;
+  const rows = image.rows ?? 1;
   const index = image.index ?? 0;
   const col = index % cols;
   const row = Math.floor(index / cols);
-  // percentage background positioning: 0..100% across (cells - 1) steps
-  const posX = cols > 1 ? (col / (cols - 1)) * 100 : 0;
-  const posY = rows > 1 ? (row / (rows - 1)) * 100 : 0;
 
   return (
-    <Flex h="100%" w="100%" alignItems="center" justifyContent="center">
-      <Box
-        role="img"
-        aria-label={title}
-        h="100%"
-        maxW="100%"
-        style={{ aspectRatio: "63 / 88" }}
-        borderRadius="4.5% / 3.2%"
-        backgroundImage={`url(${image.url})`}
-        backgroundSize={`${cols * 100}% ${rows * 100}%`}
-        backgroundPosition={`${posX}% ${posY}%`}
-        userSelect="none"
-      />
-    </Flex>
+    <svg
+      viewBox="0 0 63 88"
+      preserveAspectRatio="xMidYMid meet"
+      height="100%"
+      width="100%"
+      style={{ userSelect: "none" }}
+      role="img"
+      aria-label={title}
+    >
+      <clipPath id={clipId}>
+        <rect width={63} height={88} rx={2.5} />
+      </clipPath>
+      <g clipPath={`url(#${clipId})`}>
+        {isSheet ? (
+          // draw the whole sheet scaled so each cell is 63x88, shifted
+          // to put the wanted cell in the viewBox
+          <image
+            href={image.url}
+            x={-col * 63}
+            y={-row * 88}
+            width={63 * cols}
+            height={88 * rows}
+            preserveAspectRatio="none"
+          />
+        ) : (
+          <image
+            href={image.url}
+            width={63}
+            height={88}
+            preserveAspectRatio="xMidYMid meet"
+          />
+        )}
+      </g>
+    </svg>
   );
 };

@@ -99,7 +99,14 @@ const Builder = () => {
   };
 
   const totalCards = useMemo(
-    () => cards.reduce((n, c) => n + c.quantity, 0),
+    () =>
+      cards
+        .filter((c) => !c.isCharacterCard)
+        .reduce((n, c) => n + c.quantity, 0),
+    [cards],
+  );
+  const characterCount = useMemo(
+    () => cards.filter((c) => c.isCharacterCard).length,
     [cards],
   );
 
@@ -202,7 +209,12 @@ const Builder = () => {
       {cards.length > 0 && (
         <Box mt="0.75rem">
           <Text fontWeight={700} fontSize="0.9rem">
-            {cards.length} unique cards ({totalCards} total)
+            {cards.length} unique cards ({totalCards} in the draw deck
+            {characterCount > 0 && `, ${characterCount} kept out`})
+          </Text>
+          <Text fontSize="0.75rem" opacity={0.8}>
+            Click any hero or rule card to keep it out of the shuffled draw
+            deck — imports often include the character card.
           </Text>
           <Grid
             templateColumns="repeat(auto-fill, minmax(90px, 1fr))"
@@ -215,10 +227,39 @@ const Builder = () => {
             borderRadius="0.4rem"
           >
             {cards.map((card, i) => (
-              <Box key={i} h="120px" title={`${card.title} ×${card.quantity}`}>
+              <Box
+                key={i}
+                h="120px"
+                position="relative"
+                cursor="pointer"
+                title={`${card.title} ×${card.quantity} — click to toggle hero/rule card`}
+                outline={card.isCharacterCard ? "3px solid gold" : "none"}
+                borderRadius="0.3rem"
+                onClick={() =>
+                  setCards((prev) =>
+                    prev.map((c, j) =>
+                      j === i ? { ...c, isCharacterCard: !c.isCharacterCard } : c,
+                    ),
+                  )
+                }
+              >
                 <Card
                   card={buildImageDeck({ name: "p", cards: [card] }).deck_data.cards[0]}
                 />
+                {card.isCharacterCard && (
+                  <Text
+                    position="absolute"
+                    bottom="0"
+                    w="100%"
+                    textAlign="center"
+                    fontSize="0.55rem"
+                    fontWeight={700}
+                    bg="gold"
+                    borderBottomRadius="0.3rem"
+                  >
+                    HERO/RULE — NOT SHUFFLED
+                  </Text>
+                )}
               </Box>
             ))}
           </Grid>

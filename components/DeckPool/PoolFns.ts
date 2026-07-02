@@ -61,9 +61,10 @@ export const newPool = (deckData: DeckImportType): PoolType => {
 //    * Create a deck by expanding unique cards by their quantity number
 //    */
 export const makeDeck = (pool: PoolType): PoolType => {
-  const newDeck: DeckImportCardType[] = pool.cards.flatMap(
-    ({ quantity, ...rest }) => Array(quantity).fill({ quantity, ...rest }),
-  );
+  const newDeck: DeckImportCardType[] = pool.cards
+    // hero/rule cards (e.g. from TTS imports) stay out of the draw deck
+    .filter((card) => !card.isCharacterCard)
+    .flatMap(({ quantity, ...rest }) => Array(quantity).fill({ quantity, ...rest }));
   return {
     ...pool,
     deck: newDeck,
