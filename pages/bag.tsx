@@ -24,13 +24,16 @@ const BagPage = () => {
         <Navbar />
       </Box>
       <Tabs
-        h="100%"
+        flex="1"
+        minH={0}
+        display="flex"
+        flexDirection="column"
         index={tab ? +tab : 0}
         onChange={(e) => {
           push({ query: { ...query, tab: e.toString() } });
         }}
       >
-        <TabList borderColor="rgba(72, 40, 79, 0.25)">
+        <TabList borderColor="rgba(72, 40, 79, 0.25)" flexShrink={0}>
           <Tab fontFamily="SpaceGrotesk" fontWeight={700}>
             Decks
           </Tab>
@@ -42,7 +45,7 @@ const BagPage = () => {
           </Tab>
         </TabList>
 
-        <TabPanels h="100%">
+        <TabPanels flex="1" minH={0} overflow="hidden">
           <TabPanel
             h="100%"
             p={0}
@@ -52,10 +55,10 @@ const BagPage = () => {
           >
             <BagDecks />
           </TabPanel>
-          <TabPanel p={0} h="100%">
+          <TabPanel p={0} h="100%" overflow="hidden">
             <BagMap />
           </TabPanel>
-          <TabPanel p={0} h="100%" bg="brand.highlight">
+          <TabPanel p={0} h="100%" bg="brand.highlight" overflowY="auto">
             <BagBulkContainer />
           </TabPanel>
         </TabPanels>
