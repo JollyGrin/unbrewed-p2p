@@ -140,7 +140,13 @@ const ExportPanel = ({
         </Tag>
       </HStack>
       <Flex gap="0.5rem" flexWrap="wrap">
-        <Button leftIcon={<FaDownload />} bg="gold" onClick={download}>
+        <Button
+          leftIcon={<FaDownload />}
+          bg="brand.accent"
+          color="brand.surfaceDim"
+          _hover={{ bg: "brand.accentDeep" }}
+          onClick={download}
+        >
           Download backup file
         </Button>
         <Button
@@ -290,7 +296,9 @@ const ImportPanel = ({
             </Flex>
             <HStack mt="0.6rem">
               <Button
-                bg="gold"
+                bg="brand.accent"
+                color="brand.surfaceDim"
+                _hover={{ bg: "brand.accentDeep" }}
                 size="sm"
                 isDisabled={newDecks.length + newMaps.length === 0}
                 onClick={runImport}

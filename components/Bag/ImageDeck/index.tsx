@@ -1,10 +1,5 @@
 import { ChangeEvent, useMemo, useState } from "react";
 import {
-  Accordion,
-  AccordionButton,
-  AccordionIcon,
-  AccordionItem,
-  AccordionPanel,
   Box,
   Button,
   Checkbox,
@@ -17,7 +12,6 @@ import {
   Textarea,
 } from "@chakra-ui/react";
 import { toast } from "react-hot-toast";
-import { useRouter } from "next/router";
 import { FaFileImport } from "react-icons/fa";
 import { Card } from "@/components/CardFactory/Card";
 import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
@@ -26,61 +20,50 @@ import {
   buildImageDeck,
   parseTtsDeck,
 } from "@/lib/tts/parse-tts";
+import { SubToggle } from "@/components/Bag/AddDeckHub/SubToggle";
 
 /**
  * "Bring any deck": build a deck from whole-card images. Two paths —
  * import a Tabletop Simulator export (the format the-unmatched.club
  * and unmatched.cards both produce), or paste one image URL per line.
+ *
+ * Rendered bare inside AddDeckHub's focused view — no own surface box.
  */
-export const AddImageDeck = () => {
+export const AddImageDeck = ({
+  onAdded,
+}: {
+  onAdded?: (deckId: string) => void;
+}) => {
   return (
-    <Flex
-      direction="column"
-      bg="brand.highlight"
-      color="brand.secondary"
-      p="0.5rem"
-      borderRadius="0.25rem"
-      mt="1rem"
-    >
-      <Text fontWeight={700}>Bring any deck with card images</Text>
-      <Text fontSize="0.9rem">
+    <Flex direction="column" color="brand.secondary">
+      <Text fontSize="0.9rem" opacity={0.85} mb="0.75rem">
         For decks the card generator can&apos;t express — like The Unmatched
         Club&apos;s. Import a Tabletop Simulator export, or list image URLs.
       </Text>
-      <Builder />
+      <Builder onAdded={onAdded} />
     </Flex>
   );
 };
 
 type DeckMeta = {
   name: string;
-  heroName: string;
   hp: string;
   move: string;
   isRanged: boolean;
-  sidekickName: string;
-  sidekickQuantity: string;
-  sidekickHp: string;
-  sidekickIsRanged: boolean;
 };
 
-const Builder = () => {
-  const { reload } = useRouter();
+const Builder = ({ onAdded }: { onAdded?: (deckId: string) => void }) => {
   const { pushDeck, setStar } = useLocalDeckStorage();
 
+  const [source, setSource] = useState<"tts" | "urls">("tts");
   const [cards, setCards] = useState<ParsedTtsCard[]>([]);
   const [cardbackUrl, setCardbackUrl] = useState<string>();
   const [warnings, setWarnings] = useState<string[]>([]);
   const [meta, setMeta] = useState<DeckMeta>({
     name: "",
-    heroName: "",
     hp: "15",
     move: "2",
     isRanged: false,
-    sidekickName: "",
-    sidekickQuantity: "0",
-    sidekickHp: "1",
-    sidekickIsRanged: false,
   });
 
   const loadTtsJson = (text: string) => {
@@ -88,9 +71,7 @@ const Builder = () => {
       const parsed = parseTtsDeck(JSON.parse(text));
       setWarnings(parsed.warnings);
       if (parsed.cards.length === 0) {
-        toast.error(
-          parsed.warnings[0] ?? "No cards found in that file",
-        );
+        toast.error(parsed.warnings[0] ?? "No cards found in that file");
         return;
       }
       setCards(parsed.cards);
@@ -127,36 +108,32 @@ const Builder = () => {
     }
     const deck = buildImageDeck({
       name: meta.name.trim(),
-      heroName: meta.heroName,
       hp: parseInt(meta.hp) || 15,
       move: parseInt(meta.move) || 2,
       isRanged: meta.isRanged,
-      sidekickName: meta.sidekickName,
-      sidekickQuantity: parseInt(meta.sidekickQuantity) || 0,
-      sidekickHp: parseInt(meta.sidekickHp) || 1,
-      sidekickIsRanged: meta.sidekickIsRanged,
       cardbackUrl,
       cards,
     });
     pushDeck(deck);
     setStar(deck.id);
     toast.success(`${deck.name} saved & ready to play`);
-    reload();
+    onAdded?.(deck.id);
   };
 
   return (
     <>
-      <Accordion allowToggle>
-        <AccordionItem>
-          <h2>
-            <AccordionButton>
-              <Box as="span" flex="1" textAlign="left">
-                Import from Tabletop Simulator / The Unmatched Club
-              </Box>
-              <AccordionIcon />
-            </AccordionButton>
-          </h2>
-          <AccordionPanel pb={4}>
+      <SubToggle
+        value={source}
+        onChange={(v) => setSource(v as "tts" | "urls")}
+        options={[
+          { value: "tts", label: "Tabletop Simulator export" },
+          { value: "urls", label: "Image URLs" },
+        ]}
+      />
+
+      <Box mt="0.75rem">
+        {source === "tts" ? (
+          <>
             <Text fontSize="0.8rem" mb="0.5rem">
               On the-unmatched.club, export the deck for Tabletop Simulator,
               then drop the exported <code>.json</code> file here (TTS saves
@@ -188,28 +165,18 @@ const Builder = () => {
                 }}
               />
             </HStack>
-          </AccordionPanel>
-        </AccordionItem>
-
-        <AccordionItem>
-          <h2>
-            <AccordionButton>
-              <Box as="span" flex="1" textAlign="left">
-                Build from image URLs
-              </Box>
-              <AccordionIcon />
-            </AccordionButton>
-          </h2>
-          <AccordionPanel pb={4}>
+          </>
+        ) : (
+          <>
             <Text fontSize="0.8rem" mb="0.5rem">
               One card per line: <code>image-url, quantity, title</code>{" "}
-              (quantity and title optional). Use direct image links — GitHub
-              or catbox.moe hold up better than imgur.
+              (quantity and title optional). Use direct image links — GitHub or
+              catbox.moe hold up better than imgur.
             </Text>
             <UrlListInput onCards={setCards} />
-          </AccordionPanel>
-        </AccordionItem>
-      </Accordion>
+          </>
+        )}
+      </Box>
 
       {warnings.length > 0 && (
         <Box mt="0.5rem">
@@ -248,18 +215,24 @@ const Builder = () => {
                 position="relative"
                 cursor="pointer"
                 title={`${card.title} ×${card.quantity} — click to toggle hero/rule card`}
-                outline={card.isCharacterCard ? "3px solid gold" : "none"}
+                outline={card.isCharacterCard ? "3px solid" : "none"}
+                outlineColor="brand.accent"
                 borderRadius="0.3rem"
                 onClick={() =>
                   setCards((prev) =>
                     prev.map((c, j) =>
-                      j === i ? { ...c, isCharacterCard: !c.isCharacterCard } : c,
+                      j === i
+                        ? { ...c, isCharacterCard: !c.isCharacterCard }
+                        : c,
                     ),
                   )
                 }
               >
                 <Card
-                  card={buildImageDeck({ name: "p", cards: [card] }).deck_data.cards[0]}
+                  card={
+                    buildImageDeck({ name: "p", cards: [card] }).deck_data
+                      .cards[0]
+                  }
                 />
                 {card.isCharacterCard && (
                   <Text
@@ -269,7 +242,7 @@ const Builder = () => {
                     textAlign="center"
                     fontSize="0.55rem"
                     fontWeight={700}
-                    bg="gold"
+                    bg="brand.accent"
                     borderBottomRadius="0.3rem"
                   >
                     HERO/RULE — NOT SHUFFLED
@@ -279,29 +252,22 @@ const Builder = () => {
             ))}
           </Grid>
 
-          <Grid
-            templateColumns="2fr 2fr 1fr 1fr auto"
-            gap="0.5rem"
-            alignItems="end"
-          >
-            <MetaField label="Deck name">
+          <Grid templateColumns="2fr 1fr 1fr auto" gap="0.5rem" alignItems="end">
+            <Box>
+              <FormLabel fontSize="0.75rem" mb="0">
+                Deck name
+              </FormLabel>
               <Input
                 bg="white"
                 size="sm"
                 value={meta.name}
                 onChange={(e) => setMeta({ ...meta, name: e.target.value })}
               />
-            </MetaField>
-            <MetaField label="Hero name">
-              <Input
-                bg="white"
-                size="sm"
-                placeholder={meta.name || "same as deck"}
-                value={meta.heroName}
-                onChange={(e) => setMeta({ ...meta, heroName: e.target.value })}
-              />
-            </MetaField>
-            <MetaField label="Hero HP">
+            </Box>
+            <Box>
+              <FormLabel fontSize="0.75rem" mb="0">
+                Hero HP
+              </FormLabel>
               <Input
                 bg="white"
                 size="sm"
@@ -309,8 +275,11 @@ const Builder = () => {
                 value={meta.hp}
                 onChange={(e) => setMeta({ ...meta, hp: e.target.value })}
               />
-            </MetaField>
-            <MetaField label="Move">
+            </Box>
+            <Box>
+              <FormLabel fontSize="0.75rem" mb="0">
+                Move
+              </FormLabel>
               <Input
                 bg="white"
                 size="sm"
@@ -318,7 +287,7 @@ const Builder = () => {
                 value={meta.move}
                 onChange={(e) => setMeta({ ...meta, move: e.target.value })}
               />
-            </MetaField>
+            </Box>
             <Checkbox
               isChecked={meta.isRanged}
               onChange={(e) => setMeta({ ...meta, isRanged: e.target.checked })}
@@ -326,65 +295,13 @@ const Builder = () => {
               <Text fontSize="0.8rem">Ranged</Text>
             </Checkbox>
           </Grid>
-
-          <Grid
-            templateColumns="2fr 2fr 1fr 1fr auto"
-            gap="0.5rem"
-            alignItems="end"
-            mt="0.5rem"
+          <Button
+            mt="0.75rem"
+            bg="brand.accent"
+            color="brand.surfaceDim"
+            _hover={{ bg: "brand.accentDeep" }}
+            onClick={save}
           >
-            <Text fontSize="0.8rem" fontWeight={700} alignSelf="center">
-              Minions / sidekick
-              <Text as="span" fontWeight={400} opacity={0.7}>
-                {" "}
-                (count 0 = none)
-              </Text>
-            </Text>
-            <MetaField label="Name">
-              <Input
-                bg="white"
-                size="sm"
-                placeholder="e.g. Stormtrooper"
-                value={meta.sidekickName}
-                onChange={(e) =>
-                  setMeta({ ...meta, sidekickName: e.target.value })
-                }
-              />
-            </MetaField>
-            <MetaField label="Count">
-              <Input
-                bg="white"
-                size="sm"
-                type="number"
-                min={0}
-                value={meta.sidekickQuantity}
-                onChange={(e) =>
-                  setMeta({ ...meta, sidekickQuantity: e.target.value })
-                }
-              />
-            </MetaField>
-            <MetaField label="HP each">
-              <Input
-                bg="white"
-                size="sm"
-                type="number"
-                min={1}
-                value={meta.sidekickHp}
-                onChange={(e) =>
-                  setMeta({ ...meta, sidekickHp: e.target.value })
-                }
-              />
-            </MetaField>
-            <Checkbox
-              isChecked={meta.sidekickIsRanged}
-              onChange={(e) =>
-                setMeta({ ...meta, sidekickIsRanged: e.target.checked })
-              }
-            >
-              <Text fontSize="0.8rem">Ranged</Text>
-            </Checkbox>
-          </Grid>
-          <Button mt="0.75rem" bg="gold" onClick={save}>
             ★ Save &amp; use this deck
           </Button>
         </Box>
@@ -392,21 +309,6 @@ const Builder = () => {
     </>
   );
 };
-
-const MetaField = ({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) => (
-  <Box>
-    <FormLabel fontSize="0.75rem" mb="0">
-      {label}
-    </FormLabel>
-    {children}
-  </Box>
-);
 
 const UrlListInput = ({
   onCards,
@@ -419,7 +321,9 @@ const UrlListInput = ({
     setText(value);
     const cards: ParsedTtsCard[] = [];
     for (const line of value.split("\n")) {
-      const [url, quantity, ...titleParts] = line.split(",").map((s) => s.trim());
+      const [url, quantity, ...titleParts] = line
+        .split(",")
+        .map((s) => s.trim());
       if (!url || !/^https?:\/\//i.test(url)) continue;
       cards.push({
         title: titleParts.join(", ") || `Card ${cards.length + 1}`,

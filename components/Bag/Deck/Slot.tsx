@@ -32,9 +32,10 @@ export const DeckSlot = ({
           h="85%"
           w="85%"
           borderRadius={"inherit"}
-          border={isStarred ? "5px solid gold" : ""}
+          border={isStarred ? "5px solid" : ""}
+          borderColor="brand.accent"
           p={2}
-          color="antiquewhite"
+          color="brand.parchment"
           justifyContent={"center"}
           alignItems={"center"}
           onClick={(e) => {

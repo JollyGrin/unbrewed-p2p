@@ -29,7 +29,7 @@ export const DeckCards = ({
           mx="0.5rem"
           mb="0.5rem"
           p="0.4rem 0.75rem"
-          bg="gold"
+          bg="brand.accent"
           borderRadius="0.4rem"
           fontSize="0.85rem"
           fontWeight={600}
@@ -47,7 +47,8 @@ export const DeckCards = ({
             position="relative"
             transition="transform 0.15s ease-out"
             cursor={onToggleCharacterCard ? "pointer" : undefined}
-            outline={card.isCharacterCard ? "3px solid gold" : "none"}
+            outline={card.isCharacterCard ? "3px solid" : "none"}
+            outlineColor="brand.accent"
             borderRadius="0.4rem"
             _hover={{ transform: "scale(2)", zIndex: 10, position: "relative" }}
             onClick={() => onToggleCharacterCard?.(index)}
@@ -61,7 +62,7 @@ export const DeckCards = ({
                 textAlign="center"
                 fontSize="0.6rem"
                 fontWeight={700}
-                bg="gold"
+                bg="brand.accent"
                 borderBottomRadius="0.4rem"
               >
                 HERO/RULE — NOT SHUFFLED

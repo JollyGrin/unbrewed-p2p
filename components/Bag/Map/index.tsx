@@ -41,7 +41,7 @@ export const BagMap = () => {
   };
 
   return (
-    <Box bg="brand.primary" minH="100%">
+    <Box bg="brand.primary" h="100%" overflowY="auto">
       <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} bg="brand.secondary">
         <AddNewFields {...{ newMap, enterMapUrl, setNewMap }} />
         {newMap?.imgUrl ? (
@@ -57,9 +57,27 @@ export const BagMap = () => {
           <Skeleton w="300px" h="5rem" mt="0.5rem" />
         )}
       </Grid>
-      <Text px="0.75rem" pt="0.75rem" fontSize="0.85rem" opacity={0.8}>
-        Click a map to use it in your next game.
-      </Text>
+      <Flex
+        px="0.75rem"
+        pt="0.9rem"
+        pb="0.1rem"
+        align="baseline"
+        justify="space-between"
+        flexWrap="wrap"
+        gap="0.5rem"
+      >
+        <Text
+          fontFamily="SpaceGrotesk"
+          fontWeight={700}
+          fontSize="1.05rem"
+          color="brand.secondary"
+        >
+          Maps
+        </Text>
+        <Text fontSize="0.82rem" opacity={0.8} color="brand.secondary">
+          Click a map to use it in your next game.
+        </Text>
+      </Flex>
       <Flex flexWrap="wrap" gap="0.5rem" p="0.75rem">
         {[...data, ...(DEFAULT_MAPS as MapData[])]?.map((map) => {
           const isCustom = data.some((m) => m.imgUrl === map.imgUrl);
@@ -75,7 +93,7 @@ export const BagMap = () => {
               bgSize="cover"
               borderRadius="0.5rem"
               border="3px solid"
-              borderColor={isSelected ? "gold" : "transparent"}
+              borderColor={isSelected ? "brand.accent" : "transparent"}
               boxShadow="0 2px 8px rgba(20, 8, 24, 0.3)"
               position="relative"
               cursor="pointer"
@@ -121,7 +139,8 @@ export const BagMap = () => {
                   top="0.35rem"
                   left="0.35rem"
                   size="sm"
-                  bg="gold"
+                  bg="brand.accent"
+                  color="brand.surfaceDim"
                 >
                   Selected
                 </Tag>

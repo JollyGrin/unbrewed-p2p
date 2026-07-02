@@ -1,54 +1,66 @@
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
-import { Box, Button, Flex, Text, useDisclosure } from "@chakra-ui/react";
+import { Box, Button, Flex, Spinner, Text } from "@chakra-ui/react";
 import { useStarterDecks } from "./useStarterDecks";
-import { toast } from "react-hot-toast";
 
+/**
+ * A handful of bundled, ready-to-play decks for people who don't have a
+ * deck in mind yet. Rendered bare inside AddDeckHub's focused view.
+ */
 export const StarterDeckContainer = (props: {
   pushDeck: (data: DeckImportType) => void;
   deckIds?: string[];
 }) => {
-  const { isOpen, onOpen } = useDisclosure();
-  const results = useStarterDecks({ enabled: isOpen });
-  const hasResult = !!results.find((record) => record.status === "success");
-  return (
-    <>
-      <Box p="1rem" mt="2rem" bg="antiquewhite" borderRadius="0.25rem">
-        <Text>Do not have any decks in mind?</Text>
-        {!hasResult && (
-          <Button mt="1rem" onClick={onOpen}>
-            Load starter decks
-          </Button>
-        )}
-        <Flex flexWrap="wrap" gap="0.5rem" mt="1rem">
-          {results?.map(
-            (record) =>
-              record.data !== undefined && (
-                <Button
-                  key={record.data.id}
-                  borderRadius="0.25rem"
-                  cursor="pointer"
-                  p="0.5rem"
-                  bg="rgba(0,0,0,0.15)"
-                  isDisabled={props.deckIds?.includes(record.data.id)}
-                  onClick={() => props.pushDeck(record.data as DeckImportType)}
-                >
-                  {record.data.name}
-                </Button>
-              ),
-          )}
-        </Flex>
-      </Box>
+  const results = useStarterDecks({ enabled: true });
+  const loading = results.some((record) => record.status === "loading");
 
-      <Text
-        onClick={() => {
-          localStorage.removeItem("DECKS");
-          toast.success("Removed all decks, refresh to view changes");
-        }}
-        cursor="pointer"
-        mt="3rem"
-      >
-        Clear All Decks
+  return (
+    <Flex direction="column" color="brand.secondary">
+      <Text fontSize="0.9rem" opacity={0.85} mb="0.75rem">
+        New here, or just want to jump in? Pick one of these ready-made decks
+        and it&apos;s added to your bag.
       </Text>
-    </>
+
+      {loading && (
+        <Flex align="center" gap="0.5rem" opacity={0.7}>
+          <Spinner size="sm" />
+          <Text fontSize="0.85rem">Loading starter decks…</Text>
+        </Flex>
+      )}
+
+      <Flex flexWrap="wrap" gap="0.5rem">
+        {results?.map((record) => {
+          if (record.data === undefined) return null;
+          const added = props.deckIds?.includes(record.data.id);
+          return (
+            <Button
+              key={record.data.id}
+              size="sm"
+              variant="outline"
+              borderColor="rgba(72, 40, 79, 0.3)"
+              bg={added ? "rgba(72, 40, 79, 0.12)" : "white"}
+              isDisabled={added}
+              onClick={() => props.pushDeck(record.data as DeckImportType)}
+            >
+              {added ? "✓ " : "+ "}
+              {record.data.name}
+            </Button>
+          );
+        })}
+      </Flex>
+
+      {!loading && results.every((r) => r.data === undefined) && (
+        <Box
+          mt="0.5rem"
+          p="0.6rem"
+          borderRadius="0.4rem"
+          bg="rgba(72, 40, 79, 0.06)"
+        >
+          <Text fontSize="0.8rem" opacity={0.75}>
+            Couldn&apos;t reach the starter deck source right now — try another
+            method, or check back in a moment.
+          </Text>
+        </Box>
+      )}
+    </Flex>
   );
 };
