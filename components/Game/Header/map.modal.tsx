@@ -41,8 +41,7 @@ export const MapModal = (props: { isOpen: boolean; onClose: () => void }) => {
             />
 
             <Text mt="4px" fontSize="0.75rem">
-              Changes local only. Share map link with friends you are playing
-              with.
+              Changing the map updates it for everyone in the game.
             </Text>
             <Text mt="4px" fontSize="0.75rem">
               Recommended 1200x1000
