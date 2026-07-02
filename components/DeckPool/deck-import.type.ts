@@ -41,6 +41,22 @@ export type DeckImportAppearanceType = {
 };
 
 export type UnmatchedCardType = "scheme" | "defence" | "versatile" | "attack";
+
+/**
+ * Whole-card image reference. When present on a card, the face IS this
+ * image (rendered by Card instead of the generated SVG template).
+ * URLs only — never base64: the whole pool is rebroadcast over the
+ * websocket on every action, and localStorage is capped at ~5MB.
+ */
+export type CardImageRef = {
+  url: string;
+  /** sprite-sheet support (Tabletop Simulator exports): omit for single-card images */
+  cols?: number;
+  rows?: number;
+  /** 0-based cell index within the sheet */
+  index?: number;
+};
+
 export type DeckImportCardType = {
   afterText: string;
   basicText: string;
@@ -53,6 +69,7 @@ export type DeckImportCardType = {
   title: string;
   type: UnmatchedCardType;
   value: number | null;
+  cardImage?: CardImageRef;
 };
 
 export type PoolCardType = Omit<DeckImportCardType, "quantity">;

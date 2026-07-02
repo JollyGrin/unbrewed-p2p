@@ -1,6 +1,6 @@
 import React, { CSSProperties } from "react";
 import { Box, Flex, Text } from "@chakra-ui/react";
-import { CardFactory } from "../CardFactory/card.factory";
+import { Card } from "../CardFactory/Card";
 import { DeckImportCardType } from "../DeckPool/deck-import.type";
 import styled from "@emotion/styled";
 import { colors, fonts } from "@/styles/style";
@@ -62,7 +62,7 @@ export const HandFan: React.FC<CardWrapperProps> = ({ cards, functions }) => {
             onDragStart={handleDragStart}
             style={fanVars}
           >
-            <CardFactory card={card} />
+            <Card card={card} />
             <Flex className="actions">
               <Text title="Commit" onClick={() => functions.commitFn(index)}>
                 +

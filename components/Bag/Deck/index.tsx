@@ -9,6 +9,7 @@ import { FaStar } from "react-icons/fa";
 
 import { StarterDeckContainer } from "@/components/Bag/StarterDecks";
 import { PopularDecks } from "@/components/Bag/PopularDecks";
+import { AddImageDeck } from "@/components/Bag/ImageDeck";
 import { DeckStats } from "./Stats";
 import { AddJson } from "./AddJson";
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
@@ -72,6 +73,7 @@ export const BagDecks = () => {
                   </Box>
                 </Box>
                 <AddJson />
+                <AddImageDeck />
                 <StarterDeckContainer
                   deckIds={decks?.map((deck) => deck.id)}
                   {...{ pushDeck }}

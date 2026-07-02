@@ -1,5 +1,5 @@
 import { Box, Flex, Grid, Text, Button, Tag } from "@chakra-ui/react";
-import { CardFactory } from "../CardFactory/card.factory";
+import { Card } from "../CardFactory/Card";
 import { CardBack } from "../CardFactory/card.back";
 import { DeckImportCardType } from "../DeckPool/deck-import.type";
 import { PoolType } from "../DeckPool/PoolFns";
@@ -48,7 +48,7 @@ export const DeckModalContent = ({
                 +
               </Tag>
             </Flex>
-            <CardFactory card={card} />
+            <Card card={card} />
           </Box>
         ))
         ?.reverse()}
@@ -126,7 +126,7 @@ const CommitCard: React.FC<{ commit: PlayerCommit }> = ({ commit }) => {
           <CardBack />
         ) : (
           <Box position="relative">
-            <CardFactory card={commit.commit.main} />
+            <Card card={commit.commit.main} />
             <Box
               position="absolute"
               w="3rem"
@@ -148,7 +148,7 @@ const CommitCard: React.FC<{ commit: PlayerCommit }> = ({ commit }) => {
                   >
                     {commit.commit.boost.boost}
                   </Text>
-                  <CardFactory card={commit.commit.boost} />
+                  <Card card={commit.commit.boost} />
                 </>
               )}
             </Box>

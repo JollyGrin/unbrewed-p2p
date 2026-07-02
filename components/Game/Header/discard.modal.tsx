@@ -1,4 +1,4 @@
-import { CardFactory } from "@/components/CardFactory/card.factory";
+import { Card } from "@/components/CardFactory/Card";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 import {
   Modal,
@@ -43,7 +43,7 @@ export const DiscardModalReadOnly = (props: {
             )}
             <Grid gridTemplateColumns="1fr 1fr 1fr" gap="0.5rem">
               {props.cards?.map((card, i) => (
-                <CardFactory key={card.title + i} card={card} />
+                <Card key={card.title + i} card={card} />
               ))}
             </Grid>
           </ModalBody>
