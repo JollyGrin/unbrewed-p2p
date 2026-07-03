@@ -7,6 +7,7 @@ import {
   HStack,
   SlideFade,
   Text,
+  VisuallyHidden,
   VStack,
 } from "@chakra-ui/react";
 import Link from "next/link";
@@ -34,6 +35,11 @@ export const Hero = () => {
         pointerEvents="none"
       />
       <Navbar />
+      <VisuallyHidden>
+        <h1>
+          Unbrewed — play Unmatched fan decks online in your browser
+        </h1>
+      </VisuallyHidden>
       <SlideFade in offsetY="16px">
         <VStack
           flexGrow="1"

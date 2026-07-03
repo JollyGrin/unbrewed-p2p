@@ -8,6 +8,7 @@ import { GameLayout } from "@/components/Game/game.layout";
 import { PositionModal } from "@/components/Positions/position.modal";
 import { PositionType } from "@/components/Positions/position.type";
 import { WebGameProvider, useWebGame } from "@/lib/contexts/WebGameProvider";
+import { PageSeo } from "@/components/Helmet/Head";
 import { Box, useDisclosure } from "@chakra-ui/react";
 import { useRouter } from "next/router";
 import {
@@ -42,6 +43,7 @@ const GamePage = () => {
 
   return (
     <>
+      <PageSeo path="/game" title="Game — Unbrewed" noindex />
       <WebGameProvider>
         <GameLayout>
           <PositionModal {...positionDisclosure} />
