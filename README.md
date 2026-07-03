@@ -3,8 +3,9 @@
 # Unbrewed 
 Unbrewed: play your favorite Unmatched fan decks online with friends! All that's needed is a web-browser.
 - uses unmatched.cards to load decks
+- can also load any TTS.json deck (like from the-unmatched.club)
 - upload any map with just an image url
-- play with friends by connecting to the same lobby/room
+- play with friends by connecting to the same lobby/room (no accounts/logins)
 
 A combined web-app and go-server to play Unmatched fan-decks online. Designed to make it easy for anyone to run the sever through a few terminal commands and let others connect to it.
 
