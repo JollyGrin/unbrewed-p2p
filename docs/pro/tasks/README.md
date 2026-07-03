@@ -32,16 +32,16 @@ Statuses: `ready` · `blocked` (dependency not done) · `needs-info` ·
 | T-005 | Engine: effect interpreter (DSL v0.1) | pro-server | blocked | T-004 |
 | T-006 | Content: King Kong (hand-authored) | pro-server | blocked | T-005 |
 | T-007 | Engine: random-playout fuzz driver | pro-server | blocked | T-004 |
-| T-008 | Maps: Marmoreal geometry seed script | pro-server | needs-info | — |
-| T-009 | Maps: dev-only annotation editor page | unbrewed-p2p | ready | — |
-| T-010 | Maps: authored Marmoreal map file | pro-server | blocked | T-008, T-009 |
+| T-008 | Maps: v1 map selection (Huntsman's Lodge) | pro-server | done | — |
+| T-009 | Maps: dev-only annotation editor page | unbrewed-p2p | done | — |
+| T-010 | Maps: authored Huntsman's Lodge map file | pro-server | ready | T-008, T-009 |
 | T-011 | Content: Baba Yaga | pro-server | blocked | T-006 |
 | T-012 | Content: The Flash | pro-server | blocked | T-006 |
 | T-013 | Content: stress-test stubs (Pinocchio, Schrödinger) | pro-server | blocked | T-005 |
 | T-014 | Tooling: card-conversion skill | pro-server | blocked | T-006 |
 | T-015 | Protocol v1 (wire types + handshake) | both | blocked | T-004, T-005 |
 | T-016 | Server: rooms, redaction, reconnect | pro-server | blocked | T-015 |
-| T-017 | Server: Railway deployment | pro-server | needs-info | T-016 |
+| T-017 | Server: Railway deployment | pro-server | blocked | T-016 |
 | T-018 | UI: /pro landing & roster page | unbrewed-p2p | done | — |
 | T-019 | UI: /pro game page (board, prompts, socket) | unbrewed-p2p | blocked | T-015, T-016 |
 | T-020 | Tooling: DSL coverage sweep | pro-server | blocked | T-014 |

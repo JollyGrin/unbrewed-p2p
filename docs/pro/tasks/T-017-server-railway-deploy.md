@@ -1,14 +1,14 @@
 # T-017 — Server: Railway deployment
 
-- **Status:** needs-info
+- **Status:** blocked
 - **Repo:** unbrewed-pro-server
 - **Depends on:** T-016
-- **More info needed:** ⚠️ YES — ask the user before building:
-  1. Railway account/project to deploy into (and who creates it).
-  2. Public endpoint: Railway-generated domain, or a custom domain (e.g.
-     `pro.unbrewed.xyz` / `pro-ws.unbrewed.xyz`)? DNS access needed if custom.
-  3. Monthly spend comfort level (drives instance size/sleep settings —
-     "hobby project, keep this cheap" is the standing directive).
+- **More info needed:** NONE — answered 2026-07-04:
+  1. The user's own Railway account; **the user creates the project himself**
+     (agent supplies config + instructions, does not provision).
+  2. Domain: not yet chosen — default to the Railway-generated domain; ask
+     again only when wiring `NEXT_PUBLIC_PRO_WS_URL` for production.
+  3. Budget: **$5–10/month** — smallest instance, no autoscaling, one process.
 
 ## Context
 Single Node process, in-memory state — the simplest possible deploy. Accept

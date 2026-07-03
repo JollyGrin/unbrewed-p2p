@@ -25,8 +25,9 @@ fighters locked out.
 - Typecheck clean (pre-existing `Pool.spec.ts` errors are unrelated).
 
 ## Follow-ups (fold into future tickets)
-- ⚠️ Needs a user decision: should the landing page/nav link to /pro yet, or
-  stay unlisted until the server exists? (Currently unlisted.)
+- ~~Needs a user decision: link /pro from nav?~~ **Answered 2026-07-04: stays
+  unlisted until Pro is actually playable.** Add the nav/landing link as part
+  of T-019's launch checklist.
 - When T-016/T-017 land: replace the announcer bar with a real
   create/join-lobby flow (that's T-019 territory).
 - When a supported deck ships, flip its copy from "READY SOON" to playable.
