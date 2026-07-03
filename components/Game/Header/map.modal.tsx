@@ -14,15 +14,21 @@ import {
   FormLabel,
   Image,
   Skeleton,
+  Box,
 } from "@chakra-ui/react";
 import { useRouter } from "next/router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useDebounce } from "use-debounce";
 
 export const MapModal = (props: { isOpen: boolean; onClose: () => void }) => {
   const { query, push } = useRouter();
   const [_url, setUrl] = useState(query.mapUrl as string | undefined);
   const [url] = useDebounce(_url, 300);
+  const [loaded, setLoaded] = useState(false);
+
+  // Show the loading skeleton again each time the previewed URL changes so the
+  // prior map image doesn't linger while the new one loads.
+  useEffect(() => setLoaded(false), [url]);
 
   return (
     <>
@@ -47,7 +53,27 @@ export const MapModal = (props: { isOpen: boolean; onClose: () => void }) => {
               Recommended 1200x1000
             </Text>
             {!url && <Skeleton h="250px" w="300px" borderRadius="0.5rem" />}
-            {url && <Image alt="map" src={url} h="250px" />}
+            {url && (
+              <Box position="relative" h="250px" mt="0.5rem">
+                {!loaded && (
+                  <Skeleton
+                    position="absolute"
+                    inset="0"
+                    borderRadius="0.5rem"
+                  />
+                )}
+                <Image
+                  key={url}
+                  alt="map"
+                  src={url}
+                  h="250px"
+                  opacity={loaded ? 1 : 0}
+                  transition="opacity 0.2s ease-in"
+                  onLoad={() => setLoaded(true)}
+                  onError={() => setLoaded(true)}
+                />
+              </Box>
+            )}
           </ModalBody>
 
           <ModalFooter gap="1rem">
