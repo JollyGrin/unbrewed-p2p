@@ -1,128 +1,127 @@
-<img width="2596" height="1680" alt="image" src="https://github.com/user-attachments/assets/5f6e8ca1-d6b0-4e1f-9dec-0b1d08efb69c" />
+<div align="center">
 
-# Unbrewed 
-Unbrewed: play your favorite Unmatched fan decks online with friends! All that's needed is a web-browser.
-- uses unmatched.cards to load decks
-- can also load any TTS.json deck (like from the-unmatched.club)
-- upload any map with just an image url
-- play with friends by connecting to the same lobby/room (no accounts/logins)
+# 🐰 Unbrewed
 
-A combined web-app and go-server to play Unmatched fan-decks online. Designed to make it easy for anyone to run the sever through a few terminal commands and let others connect to it.
+**Play your favorite [Unmatched](https://unmatched.cards) fan decks online with friends — all you need is a browser.**
 
-Feel free to submit PRs/Fork/or request features through the issue tracker.
+[**▶ Play now at unbrewed.xyz**](https://unbrewed.xyz)
 
-## Run Locally
+[![Website](https://img.shields.io/badge/play-unbrewed.xyz-4b2a52?style=flat-square)](https://unbrewed.xyz)
+[![Discord](https://img.shields.io/badge/chat-discord-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/qPxHFjwkNN)
+[![YouTube](https://img.shields.io/badge/guides-youtube-FF0000?style=flat-square&logo=youtube&logoColor=white)](https://youtube.com/playlist?list=PLjsjwAfJTj3a2NMDzOENFMwOYUzsFQn_C&si=Wi-MwpmS6loyBpB3)
+[![Next.js](https://img.shields.io/badge/next.js-13-black?style=flat-square&logo=nextdotjs)](https://nextjs.org)
+[![Go](https://img.shields.io/badge/gameserver-go-00ADD8?style=flat-square&logo=go&logoColor=white)](gameserver/)
 
-1. `cd gameserver && go build`
-1. `cd ../ && yarn server`
-1. then open a new terminal and run `yarn dev`
-1. open http://localhost:3000
+<img src="docs/media/game-hand.jpg" alt="A live Unbrewed game: John Wick vs King Kong on Sinbad's Port — hovering a card lifts it out of your hand fan" width="850" />
 
-## Run a GameServer
+*John Wick vs King Kong, live over websocket. Hover a card to read it, drag tokens around any map.*
 
-_follow these instructions to run your own gameserver_
-
-It's possible to run the server on your own computer and have others connect to you. Completely for free and without needing Unbrewed servers (in case they go offline).
-
-1. `cd gameserver && go build`
-1. `cd ../ && yarn server` (will be running a server on localhost:1111)
-1. go to ngrok.com and signup for a free account
-1. open a new terminal, navigate to folder, and type `yarn grok`
-1. open `https://unbrewed.xyz/settings` and paste the link provided
-1. You can provide the same url to others and they can connect to your server by pasting the same link.
-
-Want to deploy a gameserver that exists 24/7? Add an issue to github or PR so we can update default server lists.
-
-## Fork Unbrewed and run off github pages
-Unbrewed is made using Nextjs Static Site Export so that it can run on github pages. Recently some updates were made to run off https://unbrewed.xyz/ yet when running from github pages the url structure changes to https://username.github.io/repo/
-
-If you wish to fork Unbrewed and deploy it to github pages yourself, you'll need to update some of the build steps to acommodate the url change:
-
-Sharing some of the files before the URL change
-- https://github.com/JollyGrin/unbrewed-p2p/blob/895a3ec785a386a0f1fa344b0837e3ed8345cfc0/lib/buildTools/prefixFonts.js
-- replace unbrewed-p2p with your repo name of the fork
-- https://github.com/JollyGrin/unbrewed-p2p/blob/317cdc216d8680e2e088ede43cfecd2b480d3a84/next.config.js
-- use the node.env to check if running on development mode or production. If production, update baseurl (change unbrewed-p2p with your repo)
-
-## How to add Fonts
-
-1. add file to `public/fonts`
-1. update `styles/fonts.css`
-1. update `styles/styles.ts`
-1. update `lib/devTools/prefixFonts.js` to add another html match for fixing production links. Github pages will put the repo after the url
-
-# Credits
-
-- [JonG](https://github.com/JonathanGuberman), creator of [ unmatched.cards](https://unmatched.cards/) (create your own unmatched deck), [created the styling for the card template](https://github.com/JonathanGuberman/unmatched_maker/blob/a7e96b69559461bfac7d3203d8d3899d4af36398/src/components/UnmatchedCard.vue)
+</div>
 
 ---
 
-# Journal
+## ✨ What is Unbrewed?
 
-### 2024-03-30
-The purpose of this refactor was to evergreen this app, and make it always possible to play unmatched fan decks in the browser. In this theme I added more ways to add data/decks/maps so it's less reliant on unmatched.cards (in case it becomes unavailable in the future)
+[Unmatched](https://boardgamegeek.com/boardgame/274637/unmatched-game-system) has a thriving homebrew community designing custom decks on [unmatched.cards](https://unmatched.cards) — but playtesting them used to mean printing cards or wrestling with Tabletop Simulator. **Unbrewed is a free, open-source virtual tabletop built just for that:**
 
-Improved bag handling.
-- Add deck with JSON or URL: instead of only being able to add a deck with unmatched.cards, I added two MVP inputs so you can add a deck by pasting JSON text, or a URL that contains a JSON download
-- Add decks/maps in bulk: shows your entire decks/maps so you can copy/paste to store. Can also use a URL that downloads a JSON 
+- 🎴 **Bring any deck** — import from unmatched.cards with one code, paste raw JSON, or load from card image URLs
+- 🗺️ **Play on any map** — drop in any image URL and it syncs to everyone at the table
+- 🌐 **No accounts, no installs** — share a lobby name with a friend and you're dueling
+- ♻️ **Evergreen by design** — decks & maps live in your browser's localStorage, the client is a static site, and anyone can host the tiny Go gameserver
 
-At the moment neither of these have any validation checking. So if you upload a broken JSON, it can break your app. You can fix this by clearing localStorage from your browser (Inspect > Application > Local Storage)
+> Unbrewed is a fan-made hobby project and is not owned by or associated with Restoration Games, LLC.
 
-Later will be adding a list of URLs with decks and maps to ensure they can always be played, as long as a static HTML & Go server can run.
+## 📸 Tour
 
-### 2024-03-24
-Updated the website to use unbrewed.xyz. This was important to finally redirect traffic from unmatched.cards which has a built in "Test in unbrewed" button.
-When navigating from unmatched.cards, will be redirected to the `/connect` page with the details loaded in. One caveat is that you'll need to refresh to show your loaded deck.
+| Load up your bag | Connect in three steps |
+| :---: | :---: |
+| <img src="docs/media/bag.jpg" alt="The bag: manage decks and maps" /> | <img src="docs/media/connect.jpg" alt="Connect to a lobby in three steps" /> |
+| **The Bag** — collect decks & maps, star your favorites | **Connect** — pick a deck, name a lobby, share it with a friend |
 
-### 2024-03-13
+<div align="center">
+  <img src="docs/media/game-table.jpg" alt="The virtual table: shared map, draggable tokens, hands and life totals" width="850" />
+  <p><em>The table — shared map, color-codable tokens, life/hand/deck counters for every player.</em></p>
+</div>
 
-Finally have everything mostly functional. 
-- Token movement over websocket
-- ability to create more tokens (and color them)
-- added simple operations for discard/deck modal so you can draw them to your hand
-- add a custom map (local only, both players need to load the same map)
-- added some default decks that you can load into the bag
+## 🚀 Play online (easiest)
 
-We have a default server live, so for the majority of players they can just create a new room and play
+1. Find or build a deck on [unmatched.cards](https://unmatched.cards)
+2. Add it to your bag at [unbrewed.xyz/bag](https://unbrewed.xyz/bag)
+3. Create a lobby on [unbrewed.xyz/connect](https://unbrewed.xyz/connect)
+4. Send the lobby name to a friend — that's it 🎉
 
-Next step will be to improve the landing page so it's understandable how to use the tool
+A default gameserver is already live, so most players never need to run anything.
 
-### 2023-5-12
+## 🛠️ Run locally
 
-Just added the header component to react to the gameState. In doing so though I found that the AliceCarousel was not working
-because it would cause the entire row to reset (scroll back to beginning) on every update.
+```bash
+# 1. build the Go gameserver
+cd gameserver && go build && cd ..
 
-I fixed this by using overflowY='clip' and overflowX='auto' and it's working well now. Will likely need to do some extra css to get the css more smooth.
+# 2. start the gameserver (ws relay on :1111)
+yarn server
 
-### 2023-5-10
+# 3. in another terminal, start the web app
+yarn install
+yarn dev
+```
 
--REMOVED THE P2P-
-We decided to just make a simple server that can be easily deployed. P2P ended up being too difficult.
+Open http://localhost:3000, then point the app at your local server on the settings page (`http://localhost:1111`).
 
-Have the gameserver working now with:
+## 🌍 Host a gameserver for friends
 
-- deck init: when loading gameboard, it will load your deck that you added and starred in /bag
-- hand: drawing cards work and added styling to make it easier to read text
-- discard: when hovering over a card you can select to discard.
-- modal: added a modal which accepts a tag and then loads the relevant data from gameserver
+You can run the server on your own machine — free, and independent of Unbrewed's servers ever going offline:
 
-Had to refactor the Pool class to instead be an object that can be passed around.
+1. `cd gameserver && go build`
+2. `cd ../ && yarn server` — relay now running on `localhost:1111`
+3. Sign up for a free [ngrok](https://ngrok.com) account
+4. In a new terminal: `yarn grok` and copy the public URL it prints
+5. Paste that URL at [unbrewed.xyz/settings](https://unbrewed.xyz/settings) — and share it with your friends so they connect to the same server
 
-- refactored the functions to be isolated. They accept a `PoolType` and return a `PoolType`
-- this works well with lodash flow to chain a pool action with a gameserver update function
+Want to run a 24/7 public server for the community? Open an issue or PR so we can add it to the default server list. (`fly.toml` and `Dockerfile.gameserver` are included if you like [Fly.io](https://fly.io) or containers.)
 
-### 2023-4-22
+## 🏗️ How it works
 
-Now have a fully working board.
+```mermaid
+flowchart LR
+    subgraph "Player A's browser"
+        A["Next.js static app<br/>decks & maps in localStorage"]
+    end
+    subgraph "Player B's browser"
+        B["Next.js static app<br/>decks & maps in localStorage"]
+    end
+    S["Go gameserver<br/>(tiny websocket relay,<br/>rooms in memory)"]
+    A <-- "playerstate / playerposition" --> S
+    S <-- "playerstate / playerposition" --> B
+```
 
-- can swap between boards (svgs)
-- can dynamically load circles
-- moving circles is handled with a callback, preparing for webrtc data to update the board state.
+The server holds no game logic and no database — it just relays each player's state to everyone in the room. All deck data stays in the browser, and the client exports as a fully static site (it runs on GitHub Pages). If unmatched.cards or the default server ever disappear, any static host + one Go binary keeps the game alive.
 
-### 2023-4-19
+## 🍴 Fork it & deploy on GitHub Pages
 
-The import worked suprisingly well. Only had 1 issue but still requires a huge rework.
+Unbrewed uses Next.js static export, so your fork can run on GitHub Pages. Since Pages serves from `https://username.github.io/repo/`, update the repo name in the build steps:
 
-Had an issue measuring the text width in the svg with node-canvas & ssg/hydration issues.
-Solution: use functional components instead of a class so that I can use hooks (useEffect)
-Buzzkill: have to refactor the entire 600+ lines
+- [`lib/buildTools/prefixFonts.js`](lib/buildTools/prefixFonts.js) — replace `unbrewed-p2p` with your fork's repo name
+- [`next.config.js`](next.config.js) — use `NODE_ENV` to set the production `basePath` to your repo name
+
+## 🤝 Contributing
+
+PRs, forks, and feature requests through the [issue tracker](https://github.com/JollyGrin/unbrewed-p2p/issues) are all welcome! Come say hi on [Discord](https://discord.gg/qPxHFjwkNN).
+
+- 📓 Curious how the project evolved? Read the [dev journal](docs/JOURNAL.md)
+- 🧪 Run tests with `yarn test`
+
+<details>
+<summary><strong>How to add fonts</strong></summary>
+
+1. Add the file to `public/fonts`
+2. Update `styles/fonts.css`
+3. Update `styles/styles.ts`
+4. Update `lib/buildTools/prefixFonts.js` to add another HTML match for fixing production links (GitHub Pages puts the repo name in the URL)
+
+</details>
+
+## 🙏 Credits
+
+- [JonG](https://github.com/JonathanGuberman) — creator of [unmatched.cards](https://unmatched.cards) (build your own Unmatched deck) and the [card template styling](https://github.com/JonathanGuberman/unmatched_maker/blob/a7e96b69559461bfac7d3203d8d3899d4af36398/src/components/UnmatchedCard.vue) Unbrewed's card renderer is based on
+- The Unmatched homebrew community for the decks and maps that make this fun ❤️
