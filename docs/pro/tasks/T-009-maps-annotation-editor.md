@@ -1,9 +1,20 @@
 # T-009 — Maps: dev-only annotation editor page
 
-- **Status:** ready
+- **Status:** done (2026-07-04)
 - **Repo:** unbrewed-p2p (this repo)
-- **Depends on:** — (T-008's draft JSON is an input when available, not a blocker)
+- **Depends on:** —
 - **More info needed:** NONE
+
+## Result
+`pages/dev/map-editor.tsx` — client-only, hard 404 in production via
+`getServerSideProps`. Modes: space (click add / drag move / click select),
+connect (click A→B toggles a symmetric edge, chains), zone paint (palette with
+editable labels; spaces hold multiple zones, rendered as conic segments), start
+(cycles 1→2→3→4→none), delete (cleans edges). Live warnings (zoneless,
+isolated, asymmetric, missing starts/meta), edge/space counts, export/import
+JSON textarea, localStorage draft autosave. Note: the community-maps decision
+(T-008) removed the seed-import use case — authoring is fully manual, which
+this covers. Original spec below for reference.
 
 ## Context
 Humans draw the adjacency edges — the visually hard part LLM-vision gets wrong
