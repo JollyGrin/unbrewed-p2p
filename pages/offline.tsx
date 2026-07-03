@@ -17,6 +17,9 @@ import { GameState, WebsocketMessage } from "@/lib/gamesocket/message";
 import { PageSeo } from "@/components/Helmet/Head";
 import { useRouter } from "next/router";
 
+// Offline has no opponents to broadcast to, so the action feed is a no-op.
+const noop = () => {};
+
 const initGamestate: GameState = {
   last_updated: "foobar",
   gid: "offline",
@@ -87,12 +90,14 @@ const Offline = () => {
         setModalType={setModalType}
         setPlayerState={setPlayerState}
         gameState={gameState}
+        logAction={noop}
       />
       <Box h="100vh" bg="brand.primary">
         <HandContainer
           setModal={setModalType}
           setPlayerState={setPlayerState}
           gameState={gameState}
+          logAction={noop}
         />
         <Box p="0.5rem">
           <HStack gap="0.5rem">

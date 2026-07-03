@@ -26,16 +26,19 @@ import { WebsocketMessage } from "@/lib/gamesocket/message";
 type GameData = {
   gameState: WebsocketMessage | undefined;
   setPlayerState: () => (props: { pool: PoolType }) => void;
+  logAction: (text: string) => void;
 };
 
 export const HandContainer = ({
   setModal,
   gameState,
   setPlayerState,
+  logAction,
 }: {
   setModal: (type: ModalType) => void;
   gameState: GameData["gameState"];
   setPlayerState: GameData["setPlayerState"];
+  logAction: GameData["logAction"];
 }) => {
   const localName = useRouter().query?.name;
   const player = Array.isArray(localName) ? localName[0] : localName;
@@ -59,17 +62,21 @@ export const HandContainer = ({
     }, 500);
   }, [gameState]);
 
-  const gDraw = flow(draw, setGameState);
+  const gDraw = flow(draw, setGameState, () => logAction("Drew a card"));
   const gDeckCard = flow(
     (cardIndex: number) => deckCard(playerState?.pool as PoolType, cardIndex),
     setGameState,
+    () => logAction("Placed a card on top of deck"),
   );
   const gDeckCardBottom = flow(
     (cardIndex: number) =>
       deckCardBottom(playerState?.pool as PoolType, cardIndex),
     setGameState,
+    () => logAction("Placed a card on bottom of deck"),
   );
-  const gDiscard = flow(discardCard, setGameState);
+  const gDiscard = flow(discardCard, setGameState, () =>
+    logAction("Discarded a card"),
+  );
   const gBoost = flow(
     (cardIndex: number) =>
       playerState?.pool && boostCard(playerState.pool, cardIndex),
@@ -81,6 +88,7 @@ export const HandContainer = ({
       playerState?.pool && commitCard(playerState?.pool, cardIndex),
     setGameState,
     () => setModal("commit"),
+    () => logAction("Committed a card"),
   );
 
   return (

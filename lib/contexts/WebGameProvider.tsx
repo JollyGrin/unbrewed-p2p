@@ -10,7 +10,12 @@ import {
   useCallback,
   MutableRefObject,
 } from "react";
-import { GameState, PlayerState, WebsocketMessage } from "../gamesocket/message";
+import {
+  ActionLogEntry,
+  GameState,
+  PlayerState,
+  WebsocketMessage,
+} from "../gamesocket/message";
 import {
   ConnectionStatus,
   initializeWebsocket,
@@ -26,7 +31,12 @@ interface WebGameProviderValue {
   setPlayerState: () => ({ pool }: { pool: PoolType }) => void;
   setPlayerPosition: MutableRefObject<(props: PositionType) => void>;
   connectionStatus: ConnectionStatus;
+  // Append a human-readable line to the local player's synced action feed.
+  logAction: (text: string) => void;
 }
+
+// How many recent actions each player keeps on their blob.
+const ACTION_LOG_LIMIT = 25;
 
 export const WebGameContext = createContext<WebGameProviderValue | undefined>(
   undefined
@@ -57,6 +67,12 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
     updatedAt: 0,
   });
 
+  // Local player's action feed. Like the map, it rides on every outgoing blob
+  // so it persists across pool updates and reaches late joiners. seq is a
+  // per-player monotonic counter.
+  const actionLogRef = useRef<ActionLogEntry[]>([]);
+  const actionSeqRef = useRef(0);
+
   const parsedGamePositions = useMemo(
     () =>
       typeof gamePositions === "string"
@@ -84,6 +100,13 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
     const { url, updatedAt } = mapSyncRef.current;
     if (updatedAt <= 0) return state;
     return { ...state, mapUrl: url, mapUpdatedAt: updatedAt };
+  }, []);
+
+  // Stamp the current action feed onto an outgoing blob, so it survives every
+  // pool update the same way the map does.
+  const stampLog = useCallback((state: PlayerState): PlayerState => {
+    if (actionLogRef.current.length === 0) return state;
+    return { ...state, actionLog: actionLogRef.current };
   }, []);
 
   const readLocalPool = useCallback((): PoolType | undefined => {
@@ -127,12 +150,33 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
     return () => close();
   }, [router.isReady, slug.name, slug.gid, activeServer]);
 
-  // Exposed player-state setter. Stable identity; always stamps the map.
+  // Exposed player-state setter. Stable identity; always stamps the map and
+  // the action feed so neither is lost on a normal pool update.
   const setPlayerState = useCallback(
     () => (state: PlayerState) => {
-      updatePlayerStateRef.current(stampMap(state));
+      updatePlayerStateRef.current(stampLog(stampMap(state)));
     },
-    [stampMap],
+    [stampMap, stampLog],
+  );
+
+  // Append a line to the local feed and broadcast it (carried alongside the
+  // current pool so a lone log entry doesn't clobber deck state).
+  const logAction = useCallback(
+    (text: string) => {
+      actionSeqRef.current += 1;
+      const entry: ActionLogEntry = {
+        seq: actionSeqRef.current,
+        at: Date.now(),
+        text,
+      };
+      actionLogRef.current = [...actionLogRef.current, entry].slice(
+        -ACTION_LOG_LIMIT,
+      );
+      updatePlayerStateRef.current(
+        stampLog(stampMap({ pool: readLocalPool() })),
+      );
+    },
+    [stampLog, stampMap, readLocalPool],
   );
 
   // Inbound: adopt the newest shared map from the broadcast game state and
@@ -216,6 +260,7 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
         connectionStatus,
         // Call setPlayerState to update the player state on the serverside.
         setPlayerState: setPlayerState,
+        logAction,
         //@ts-expect-error: this type needs to remain an array. Update this when you add more tokens
         setPlayerPosition: setPlayerPosition,
       }}
