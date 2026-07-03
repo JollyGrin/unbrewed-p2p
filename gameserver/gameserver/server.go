@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -87,7 +88,11 @@ func (gs *GameServer) Serve(ctx context.Context) error {
 	gs.Mux.HandleFunc("/ws/{gid}", gs.WSHandler)
 
 	gs.HTTPServer.Handler = handlers.CORS()(gs.Mux)
-	gs.HTTPServer.Addr = "0.0.0.0:1111"
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "1111"
+	}
+	gs.HTTPServer.Addr = "0.0.0.0:" + port
 	go gs.GarbageCollector(ctx)
 	gs.ctx = ctx
 
@@ -214,6 +219,20 @@ func (gs *GameServer) GarbageCollector(ctx context.Context) {
 type PlayerConn struct {
 	Name string
 	*websocket.Conn
+	// Serializes writes: gorilla conns forbid concurrent WriteMessage, and
+	// with permessage-deflate a racing write corrupts the flate stream for
+	// the receiver instead of panicking. Broadcasts and direct replies
+	// (pong) share connections, so every write must go through Send.
+	writeMu sync.Mutex
+}
+
+func (c *PlayerConn) Send(mt int, msg []byte) error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	// A dead-but-not-closed socket must error out instead of blocking the
+	// room forever — broadcastAll runs under the room mutex.
+	_ = c.SetWriteDeadline(time.Now().Add(10 * time.Second))
+	return c.WriteMessage(mt, msg)
 }
 
 type GameState struct {
@@ -251,9 +270,16 @@ func NewRoom(gid string, ctx context.Context) *Room {
 	r.GameID = gid
 	r.FieldState = NewGameState(gid)
 	r.PlayerPositions = make(map[string]json.RawMessage)
-	r.WS = &websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
-		return true
-	}}
+	r.WS = &websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+		// permessage-deflate: game state / position JSON is extremely
+		// repetitive (same keys and card text on every drag tick), so this
+		// shrinks broadcasts ~5-10x. Browsers negotiate it automatically;
+		// clients that don't offer it just get uncompressed frames.
+		EnableCompression: true,
+	}
 	r.ctx, r.stop = context.WithCancel(ctx)
 	r.Clients = make(map[string]*PlayerConn)
 	r.openedAt = time.Now()
@@ -278,6 +304,12 @@ func (r *Room) PlayerJoin(c *websocket.Conn, name string) error {
 		return fmt.Errorf("must provide a player name")
 	}
 
+	// Largest legit message is a full pool (~15KB); 256KB is ample headroom.
+	// Without a limit, permessage-deflate turns one tiny hostile frame into a
+	// decompression bomb (the limit is checked against decompressed bytes as
+	// they stream out, so this also caps bomb inflation).
+	c.SetReadLimit(256 * 1024)
+
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	_, ok := r.Clients[name]
@@ -292,6 +324,10 @@ func (r *Room) PlayerJoin(c *websocket.Conn, name string) error {
 
 	go r.PlayerListener(player, r.ctx)
 	r.broadcastAll(websocket.TextMessage, r.GetGameState())
+	// Replay board positions too — without this a rejoining player sees an
+	// empty board until someone moves a token, and their client's
+	// starter-token fallback then overwrites (destroys) their real blob.
+	r.broadcastAll(websocket.TextMessage, r.GetPlayerPositions())
 
 	return nil
 }
@@ -343,7 +379,7 @@ func (r *Room) HandleMessage(c *PlayerConn, mt int, msg []byte) {
 		msg, _ := json.Marshal(GameMessage{
 			MessageType: MsgTypePong,
 		})
-		_ = c.WriteMessage(websocket.TextMessage, msg)
+		_ = c.Send(websocket.TextMessage, msg)
 	default:
 		log.Errorf("msg type '%s' is undefined", gm.MessageType)
 	}
@@ -372,7 +408,7 @@ func (r *Room) BroadcastAll(mt int, msg []byte) {
 
 func (r *Room) broadcastAll(mt int, msg []byte) {
 	for _, c := range r.Clients {
-		err := c.WriteMessage(mt, msg)
+		err := c.Send(mt, msg)
 		if err != nil {
 			log.WithError(err).Error("write failed")
 		}
@@ -382,10 +418,17 @@ func (r *Room) broadcastAll(mt int, msg []byte) {
 func (r *Room) PlayerExit(c *PlayerConn) bool {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
-	_, ok := r.Clients[c.Name]
-	delete(r.Clients, c.Name)
+	cur, ok := r.Clients[c.Name]
+	// Only remove the map entry if it is still THIS connection. On a page
+	// refresh the new connection can join before the old one's read loop
+	// notices the close — deleting by name alone would evict the fresh
+	// connection from all future broadcasts.
+	if ok && cur == c {
+		delete(r.Clients, c.Name)
+		return true
+	}
 
-	return ok
+	return false
 }
 
 func (r *Room) GetPlayerPositions() []byte {

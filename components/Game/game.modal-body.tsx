@@ -58,6 +58,13 @@ export const DeckModalContent = ({
 
 type CommitType = Pick<PoolType, "commit">;
 export type PlayerCommit = { player: string; commit: CommitType["commit"] };
+/**
+ * @deprecated The commit modal — superseded by playing cards to the table
+ * (face-down card tokens + flip + opponent pickup). No current UI initiates
+ * a commit (the fan's "+" is hidden); this only renders if a commit lands in
+ * a pool some other way. Delete alongside the PoolFns commit family once
+ * table cards fully replace it.
+ */
 export const CommitModalContent: React.FC<{
   commits: PlayerCommit[];
   onClose: () => void;

@@ -1,15 +1,18 @@
-import React, { CSSProperties } from "react";
-import { Box, Flex, Text } from "@chakra-ui/react";
+import React, { CSSProperties, useRef, useState } from "react";
+import { Box, Flex } from "@chakra-ui/react";
 import { Card } from "../CardFactory/Card";
 import { DeckImportCardType } from "../DeckPool/deck-import.type";
 import styled from "@emotion/styled";
 import { colors, fonts } from "@/styles/style";
 import { PopoverCardActions } from "./card-actions.popover";
+import { getBoardSvg } from "../BoardCanvas/boardTransform";
 
 const CARD_WIDTH = 150;
 const CARD_HEIGHT = 200;
 /** widest the fan is allowed to spread before cards overlap tighter */
 const MAX_FAN_WIDTH = 950;
+/** pointer travel (px) before a press on a card becomes a drag-to-table */
+const DRAG_THRESHOLD = 12;
 
 const handleDragStart = (e: React.DragEvent) => {
   e.preventDefault();
@@ -19,18 +22,101 @@ type CardWrapperProps = {
   cards: DeckImportCardType[] | undefined;
   functions: {
     discardFn: (index: number) => void;
+    /**
+     * @deprecated Commit-modal flow — superseded by dragging cards to the
+     * table (face-down by default). Kept wired so the modal machinery still
+     * works, but no UI triggers it since the fan's "+" button was hidden.
+     */
     commitFn: (index: number) => void;
     boostFn: (index: number) => void;
     deckCardFn: (index: number) => void;
     deckCardBottomFn: (index: number) => void;
+    /** Play hand[index] onto the table — absent offline (no board). */
+    playFn?: (
+      index: number,
+      opts?: { faceDown?: boolean; screenPos?: { x: number; y: number } },
+    ) => void;
+    /** Give hand[index] to another player (escrow transfer). */
+    giveFn?: (index: number, to: string) => void;
   };
+  /** Other players in the room, for the "Give card to…" actions. */
+  opponents?: string[];
 };
 
 /**
  * Hand of cards fanned in an arc, floating over the board like a
  * physical hand held at the table edge.
+ *
+ * Cards can be dragged out of the fan and dropped on the board to play
+ * them to the table: a fixed-position ghost follows the pointer, and the
+ * drop lands only if it releases over the board svg (checked with
+ * elementFromPoint, so drops onto other UI just cancel).
  */
-export const HandFan: React.FC<CardWrapperProps> = ({ cards, functions }) => {
+export const HandFan: React.FC<CardWrapperProps> = ({
+  cards,
+  functions,
+  opponents,
+}) => {
+  const ghostRef = useRef<HTMLDivElement | null>(null);
+  const lastPointer = useRef<{ x: number; y: number } | null>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+
+  const positionGhost = (el: HTMLDivElement | null, x: number, y: number) => {
+    if (!el) return;
+    el.style.transform = `translate(${x - CARD_WIDTH / 2}px, ${
+      y - CARD_HEIGHT / 2
+    }px)`;
+  };
+
+  const onCardPointerDown = (e: React.PointerEvent, index: number) => {
+    if (!functions.playFn) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    // presses on the hover action buttons stay clicks, never drags
+    if ((e.target as Element).closest?.(".actions")) return;
+
+    const start = { x: e.clientX, y: e.clientY };
+    let active = false;
+
+    const onMove = (ev: PointerEvent) => {
+      lastPointer.current = { x: ev.clientX, y: ev.clientY };
+      if (
+        !active &&
+        Math.hypot(ev.clientX - start.x, ev.clientY - start.y) > DRAG_THRESHOLD
+      ) {
+        active = true;
+        setDragIndex(index);
+      }
+      if (active) positionGhost(ghostRef.current, ev.clientX, ev.clientY);
+    };
+
+    const cleanup = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
+      lastPointer.current = null;
+      setDragIndex(null);
+    };
+
+    const onUp = (ev: PointerEvent) => {
+      const wasActive = active;
+      cleanup();
+      if (!wasActive) return;
+      // ghost is pointer-events:none, so this hits whatever is underneath
+      const el = document.elementFromPoint(ev.clientX, ev.clientY);
+      const svg = getBoardSvg();
+      if (svg && el && svg.contains(el)) {
+        functions.playFn?.(index, {
+          screenPos: { x: ev.clientX, y: ev.clientY },
+        });
+      }
+    };
+    const onCancel = () => cleanup();
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
+  };
+
   if (!cards) return null;
   if (cards.length === 0) return <EmptyHandHint />;
 
@@ -44,54 +130,89 @@ export const HandFan: React.FC<CardWrapperProps> = ({ cards, functions }) => {
   const tiltPerCard = Math.min(4, 26 / count);
 
   return (
-    <FanContainer style={{ width: `${fanWidth}px` }}>
-      {cards.map((card, index) => {
-        const offset = index - mid;
-        // outer cards droop DOWN for a natural fan; hover fully compensates
-        // (see FanCard .lift) so drooped cards still lift into full view
-        const droop = Math.abs(offset) ** 2 * spacing * 0.045;
-        // hover styling is pure CSS (see FanCard) so pointing at a card
-        // never re-renders the fan
-        const fanVars = {
-          left: `${index * spacing}px`,
-          "--rot": `${offset * tiltPerCard}deg`,
-          "--droop": `${-droop}px`,
-          "--z": index,
-        } as CSSProperties;
-        return (
-          <FanCard
-            key={index + card.title}
-            onDragStart={handleDragStart}
-            style={fanVars}
-          >
-            <Box className="lift">
-              <Card card={card} />
-            </Box>
-            <Flex className="actions">
-              <Text title="Commit" onClick={() => functions.commitFn(index)}>
-                +
-              </Text>
-              <Text title="Discard" onClick={() => functions.discardFn(index)}>
-                –
-              </Text>
-              <PopoverCardActions
-                actions={[
-                  { text: "Boost", fn: () => functions.boostFn(index) },
-                  {
-                    text: "Place top of deck",
-                    fn: () => functions.deckCardFn(index),
-                  },
-                  {
-                    text: "Place bottom of deck",
-                    fn: () => functions.deckCardBottomFn(index),
-                  },
-                ]}
-              />
-            </Flex>
-          </FanCard>
-        );
-      })}
-    </FanContainer>
+    <>
+      <FanContainer style={{ width: `${fanWidth}px` }}>
+        {cards.map((card, index) => {
+          const offset = index - mid;
+          // outer cards droop DOWN for a natural fan; hover fully compensates
+          // (see FanCard .lift) so drooped cards still lift into full view
+          const droop = Math.abs(offset) ** 2 * spacing * 0.045;
+          // hover styling is pure CSS (see FanCard) so pointing at a card
+          // never re-renders the fan
+          const fanVars = {
+            left: `${index * spacing}px`,
+            "--rot": `${offset * tiltPerCard}deg`,
+            "--droop": `${-droop}px`,
+            "--z": index,
+          } as CSSProperties;
+          return (
+            <FanCard
+              key={index + card.title}
+              onDragStart={handleDragStart}
+              onPointerDown={(e: React.PointerEvent) =>
+                onCardPointerDown(e, index)
+              }
+              data-dragging={dragIndex != null}
+              data-drag-source={dragIndex === index}
+              style={fanVars}
+            >
+              <Box className="lift">
+                <Card card={card} />
+              </Box>
+              {/* The +(commit) / –(discard) buttons are hidden: playing a
+                  card is now drag-to-table, and discard lives in the menu.
+                  commitFn stays wired (deprecated) for the commit modal. */}
+              <Flex className="actions">
+                <PopoverCardActions
+                  actions={[
+                    { text: "Discard", fn: () => functions.discardFn(index) },
+                    { text: "Boost", fn: () => functions.boostFn(index) },
+                    ...(functions.playFn
+                      ? [
+                          {
+                            text: "Place on table",
+                            fn: () => functions.playFn?.(index),
+                          },
+                          {
+                            text: "Place face-up on table",
+                            fn: () =>
+                              functions.playFn?.(index, { faceDown: false }),
+                          },
+                        ]
+                      : []),
+                    ...(functions.giveFn
+                      ? (opponents ?? []).map((name) => ({
+                          text: `Give card to ${name}`,
+                          fn: () => functions.giveFn?.(index, name),
+                        }))
+                      : []),
+                    {
+                      text: "Place top of deck",
+                      fn: () => functions.deckCardFn(index),
+                    },
+                    {
+                      text: "Place bottom of deck",
+                      fn: () => functions.deckCardBottomFn(index),
+                    },
+                  ]}
+                />
+              </Flex>
+            </FanCard>
+          );
+        })}
+      </FanContainer>
+      {dragIndex != null && cards[dragIndex] && (
+        <DragGhost
+          ref={(el: HTMLDivElement | null) => {
+            ghostRef.current = el;
+            if (el && lastPointer.current)
+              positionGhost(el, lastPointer.current.x, lastPointer.current.y);
+          }}
+        >
+          <Card card={cards[dragIndex]} />
+        </DragGhost>
+      )}
+    </>
   );
 };
 
@@ -127,11 +248,28 @@ const FanContainer = styled(Box)`
   z-index: 200;
 `;
 
+/** Card following the pointer during a drag-to-table. Positioned via
+ * transform from pointer events; fixed + pointer-events:none so
+ * elementFromPoint at drop sees the board underneath it. */
+const DragGhost = styled(Box)`
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: ${CARD_WIDTH}px;
+  height: ${CARD_HEIGHT}px;
+  pointer-events: none;
+  z-index: 400;
+  opacity: 0.85;
+  filter: drop-shadow(0 10px 18px rgba(20, 8, 24, 0.55));
+`;
+
 const FanCard = styled(Box)`
   position: absolute;
   width: ${CARD_WIDTH}px;
   height: ${CARD_HEIGHT}px;
   pointer-events: auto;
+  /* the fan never scrolls — let pointer drags own touch gestures too */
+  touch-action: none;
   transform-origin: bottom center;
   bottom: var(--droop);
   z-index: var(--z);
@@ -201,5 +339,17 @@ const FanCard = styled(Box)`
        counter-rotate too so they sit level under the upright card */
     transform: rotate(calc(-1 * var(--rot))) translateX(-50%)
       translateY(calc(var(--droop) - ${CARD_HEIGHT * 0.55}px));
+  }
+
+  /* while any card is being dragged to the table the fan goes quiet: no
+     hover lift or action buttons fighting the ghost for attention */
+  &[data-dragging="true"]:hover .lift {
+    transform: none;
+  }
+  &[data-dragging="true"]:hover .actions {
+    display: none;
+  }
+  &[data-drag-source="true"] {
+    opacity: 0.35;
   }
 `;
