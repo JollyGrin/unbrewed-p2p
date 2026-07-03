@@ -45,7 +45,7 @@
 
 ## 🚀 Play online (easiest)
 
-1. Find or build a deck on [unmatched.cards](https://unmatched.cards)
+1. Find or build a deck on [unmatched.cards](https://unmatched.cards) or any TTS deck maker like [the-unmatched.club](https://www.the-unmatched.club/c/heroes)
 2. Add it to your bag at [unbrewed.xyz/bag](https://unbrewed.xyz/bag)
 3. Create a lobby on [unbrewed.xyz/connect](https://unbrewed.xyz/connect)
 4. Send the lobby name to a friend — that's it 🎉
