@@ -2,7 +2,7 @@
  * SVG string builders for board tokens. These get injected into the d3 canvas
  * via selection.html(), so every value interpolated into markup is escaped.
  */
-const escapeAttr = (value: string) =>
+export const escapeAttr = (value: string) =>
   value
     .replace(/&/g, "&amp;")
     .replace(/"/g, "&quot;")

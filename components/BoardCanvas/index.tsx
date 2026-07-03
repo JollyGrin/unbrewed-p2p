@@ -11,11 +11,15 @@ type BoardProps = {
   selectedId?: string | null;
   onSelect?: (id: string | null) => void;
   onCounterAdjust?: (t: OwnedToken, delta: number) => void;
+  onCardPeek?: (t: OwnedToken | null, rect?: DOMRect) => void;
   iconSvg: (
     name: string,
     opts: { color?: string; size: number; cutout?: boolean; maskId?: string },
   ) => string | null;
   centerRef?: MutableRefObject<() => { x: number; y: number }>;
+  screenToBoardRef?: MutableRefObject<
+    (sx: number, sy: number) => { x: number; y: number }
+  >;
 };
 
 export const BoardCanvas: React.FC<BoardProps> = ({
@@ -26,8 +30,10 @@ export const BoardCanvas: React.FC<BoardProps> = ({
   selectedId,
   onSelect,
   onCounterAdjust,
+  onCardPeek,
   iconSvg,
   centerRef,
+  screenToBoardRef,
 }) => {
   const parentRef: RefObject<any> = useRef();
   const canvasRef: RefObject<SVGSVGElement> = useRef(null);
@@ -60,8 +66,10 @@ export const BoardCanvas: React.FC<BoardProps> = ({
     selectedId,
     onSelect,
     onCounterAdjust,
+    onCardPeek,
     iconSvg,
     centerRef,
+    screenToBoardRef,
   });
 
   return (
