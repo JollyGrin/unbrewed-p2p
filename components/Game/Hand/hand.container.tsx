@@ -9,8 +9,12 @@ import {
   draw,
   makeDeck,
   newPool,
+  removeHandCard,
   shuffleDeck,
 } from "@/components/DeckPool/PoolFns";
+import { PlayCardToTable } from "@/components/Positions/position.type";
+import { TransferZone } from "@/lib/gamesocket/message";
+import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
 import { Flex } from "@chakra-ui/react";
 import { useRouter } from "next/router";
@@ -34,11 +38,22 @@ export const HandContainer = ({
   gameState,
   setPlayerState,
   logAction,
+  playToTable,
+  offerCardTransfer,
 }: {
   setModal: (type: ModalType) => void;
   gameState: GameData["gameState"];
   setPlayerState: GameData["setPlayerState"];
   logAction: GameData["logAction"];
+  /** Spawns the card as a board token — absent offline (no board). */
+  playToTable?: PlayCardToTable;
+  /** Escrows a card for another player — absent offline (no opponents). */
+  offerCardTransfer?: (
+    to: string,
+    zone: TransferZone,
+    card: DeckImportCardType,
+    pool: PoolType,
+  ) => void;
 }) => {
   const localName = useRouter().query?.name;
   const player = Array.isArray(localName) ? localName[0] : localName;
@@ -55,11 +70,16 @@ export const HandContainer = ({
 
   useEffect(() => {
     if (!starredDeck || playerState?.pool) return;
-    setTimeout(() => {
+    // The timer must cancel when a gameState update lands: on rejoin the
+    // server replays the existing pool ~instantly, and letting a stale
+    // timer fire would re-init the deck over it (hand/deck reset, and any
+    // cards out on the table would be duplicated back into the deck).
+    const timer = setTimeout(() => {
       const initDeck = flow(newPool, makeDeck, shuffleDeck, draw);
       const pool = initDeck(starredDeck);
       setGameState(pool);
     }, 500);
+    return () => clearTimeout(timer);
   }, [gameState]);
 
   const gDraw = flow(draw, setGameState, () => logAction("Drew a card"));
@@ -83,6 +103,12 @@ export const HandContainer = ({
     setGameState,
   );
   const gCancelBoost = flow(cancelBoost, setGameState);
+  /**
+   * @deprecated Commit-modal flow — superseded by playing cards to the table
+   * (drag or "Place on table", face-down by default). No UI reaches this
+   * since the fan's "+" button was hidden; kept until table cards fully
+   * replace the modal and the commit machinery can be deleted.
+   */
   const gCommit = flow(
     (cardIndex: number) =>
       playerState?.pool && commitCard(playerState?.pool, cardIndex),
@@ -90,6 +116,40 @@ export const HandContainer = ({
     () => setModal("commit"),
     () => logAction("Committed a card"),
   );
+
+  // Escrow a hand card for another player (docs/card-transfer-plan.md): one
+  // broadcast removes it from our pool and posts the transfer.
+  const opponents = offerCardTransfer
+    ? Object.keys(players ?? {}).filter((n) => n !== player)
+    : [];
+  const gGiveCard = (cardIndex: number, to: string) => {
+    const pool = playerState?.pool;
+    const card = pool?.hand?.[cardIndex];
+    if (!pool || !card || !offerCardTransfer) return;
+    offerCardTransfer(to, "hand", card, removeHandCard(pool, cardIndex));
+    logAction(`Gave a card to ${to}`);
+  };
+
+  // Two-channel move: splice the card out of the pool (playerstate), then
+  // hand it to the board to spawn as a card token (playerposition).
+  const gPlayToTable: Parameters<typeof HandFan>[0]["functions"]["playFn"] =
+    playToTable
+      ? (cardIndex, opts) => {
+          const pool = playerState?.pool;
+          const card = pool?.hand?.[cardIndex];
+          if (!pool || !card) return;
+          // face-down unless explicitly played face-up — like committing,
+          // playing a card shouldn't reveal it until the owner flips it
+          const faceDown = opts?.faceDown ?? true;
+          setGameState(removeHandCard(pool, cardIndex));
+          playToTable(card, { ...opts, faceDown });
+          logAction(
+            faceDown
+              ? "Placed a card face-down on the table"
+              : "Placed a card face-up on the table",
+          );
+        }
+      : undefined;
 
   return (
     <>
@@ -130,7 +190,10 @@ export const HandContainer = ({
           boostFn: (cardIndex: number) => gBoost(cardIndex),
           deckCardFn: (cardIndex: number) => gDeckCard(cardIndex),
           deckCardBottomFn: (cardIndex: number) => gDeckCardBottom(cardIndex),
+          playFn: gPlayToTable,
+          giveFn: gGiveCard,
         }}
+        opponents={opponents}
       />
     </>
   );

@@ -46,11 +46,20 @@ const useImageFailed = (url?: string) => {
 export const ImageFace = ({
   image,
   title,
+  width = "100%",
+  height = "100%",
+  clipId: clipIdProp,
 }: {
   image: CardImageRef;
   title: string;
+  /** Explicit sizing + clip id for string-rendered board tokens, where
+   * percentages resolve against the board svg and useId can't be unique. */
+  width?: string | number;
+  height?: string | number;
+  clipId?: string;
 }) => {
-  const clipId = useId();
+  const autoId = useId();
+  const clipId = clipIdProp ?? autoId;
   const isSheet = !!image.cols && !!image.rows;
   const cols = image.cols ?? 1;
   const rows = image.rows ?? 1;
@@ -62,11 +71,12 @@ export const ImageFace = ({
     <svg
       viewBox="0 0 63 88"
       preserveAspectRatio="xMidYMid meet"
-      height="100%"
-      width="100%"
+      height={height}
+      width={width}
       style={{ userSelect: "none" }}
       role="img"
       aria-label={title}
+      xmlns="http://www.w3.org/2000/svg"
     >
       <clipPath id={clipId}>
         <rect width={63} height={88} rx={2.5} />

@@ -1,3 +1,5 @@
+import { DeckImportCardType } from "../DeckPool/deck-import.type";
+
 /**
  * Board token model.
  *
@@ -25,6 +27,14 @@ export type BoardToken = {
   locked?: boolean;
   /** Number badge pinned to the token's top-right corner. */
   counter?: TokenCounter;
+  /**
+   * A card played from the owner's hand onto the table. The whole card rides
+   * in the token (URLs only, never base64) so it can return to hand/deck/
+   * discard intact — a card token is the card while it sits on the board.
+   */
+  card?: DeckImportCardType;
+  /** Card tokens: render the back instead of the face (everyone sees the back). */
+  faceDown?: boolean;
 };
 
 export type TokenCounter = {
@@ -46,6 +56,8 @@ export type OwnedToken = BoardToken & {
   color?: string;
   /** Resolved badge number; null = linked but the owner has no pool yet. */
   counterDisplay?: number | null;
+  /** Card tokens: name of the player who has asked to pick this card up. */
+  claimedBy?: string;
 };
 
 export const DEFAULT_PLAYER_COLOR = "#48284F";
@@ -65,6 +77,24 @@ export type LegacyPositionType = {
 };
 
 export const DEFAULT_TOKEN_SIZE = 72;
+
+/** Card tokens keep the 63x88 card aspect; size = width in board px.
+ * Cards land at full size (the resize slider's max) — readable first,
+ * shrink later if the table gets crowded. */
+export const DEFAULT_CARD_TOKEN_WIDTH = 260;
+
+export const cardTokenHeight = (width: number) =>
+  Math.round((width * 88) / 63);
+
+/**
+ * Bridge from the hand (playerstate channel) to the board (playerposition
+ * channel): the hand splices the card out of the pool, then hands it here to
+ * be spawned as a card token — at screenPos (drag-drop) or viewport center.
+ */
+export type PlayCardToTable = (
+  card: DeckImportCardType,
+  opts?: { faceDown?: boolean; screenPos?: { x: number; y: number } },
+) => void;
 
 /**
  * Normalize whatever shape is stored on the relay into a PositionBlob.

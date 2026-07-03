@@ -275,6 +275,62 @@ export const drawDiscard = (pool: PoolType, cardIndex: number) => {
   return pool;
 };
 
+//   /**
+//    * Remove hand[cardIndex] without sending it to another pile — the caller
+//    * is moving the card somewhere outside the pool (e.g. onto the table as a
+//    * board token). Grab the card before calling this.
+//    */
+export const removeHandCard = (pool: PoolType, cardIndex: number): PoolType => {
+  if (!pool?.hand?.[cardIndex]) return pool;
+  pool.hand.splice(cardIndex, 1);
+  return pool;
+};
+
+//   /**
+//    * Add a card object back into a pool zone — the reverse of removeHandCard,
+//    * used when a card token leaves the table. Top of deck = end of array.
+//    */
+export const addCardToHand = (
+  pool: PoolType,
+  card: DeckImportCardType,
+): PoolType => {
+  pool.hand.push(card);
+  return pool;
+};
+
+export const addCardToDiscard = (
+  pool: PoolType,
+  card: DeckImportCardType,
+): PoolType => {
+  pool.discard.push(card);
+  return pool;
+};
+
+export const addCardToDeckTop = (
+  pool: PoolType,
+  card: DeckImportCardType,
+): PoolType => {
+  if (!pool.deck) return pool;
+  pool.deck.push(card);
+  return pool;
+};
+
+export const addCardToDeckBottom = (
+  pool: PoolType,
+  card: DeckImportCardType,
+): PoolType => {
+  if (!pool.deck) return pool;
+  pool.deck.unshift(card);
+  return pool;
+};
+
+/**
+ * @deprecated The pool.commit zone (commitCard / boostCard / boostFromTopDeck /
+ * cancelBoost / revealCommit / discardCommit / cancelCommit) backs the commit
+ * modal, which is superseded by playing cards to the table (face-down card
+ * tokens). Kept functional while the modal still exists for stray commits;
+ * delete the family together when the modal goes.
+ */
 export const commitCard = (pool: PoolType, cardIndex: number): PoolType => {
   if (!pool?.hand || pool?.commit?.main) return pool;
   pool.commit.main = pool.hand[cardIndex];
