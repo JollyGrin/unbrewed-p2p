@@ -86,6 +86,11 @@ combat is a prompt flow. Shares rendering components, not interaction model.
 | Rules fidelity | **strict rules-as-written + auto-skip** | full enforcement; server silently skips prompts with no legal choice (MTG Arena style) |
 | v1 content | 3–4 supported decks, 1 vanilla official map | template first, scale later |
 | Analysis decks | 3 simple + 2 complex stress-tests from unmatched.cards top 30 | stress-test the DSL before freezing it; simple ones become launch decks |
+| Launch decks (from research) | **King Kong, Baba Yaga, The Flash** (fallback swap: Voldemort) | simple, popular, archetype-diverse — see 04 |
+| DSL stress-test decks | **Pinocchio** (token subsystem, mid-effect opponent prompts), **Schrödinger's Cat** (third combat outcome UNKNOWN) | maximize DSL + combat-core coverage before freezing — see 04 |
+| v1 map | **Marmoreal** (fallback: Sarpedon) | vanilla rules, iconic, geometry seedable from the-unmatched.club — see 05 |
+| Effect representation | **typed serializable TS data over ~a dozen effect primitives** + named-function escape hatch; no text DSL, no classes | unanimous prior-art conclusion — see 03 |
+| Engine core | immutable state, pure reducer `(state, action) → {state, events}`, seeded RNG in state, authoritative `legalActions()` enumeration | replay/undo/determinism/AI-readiness fall out for free — see 03 |
 | Accounts | none — jump right in | but reconnect tokens + room TTL from day one |
 | Backend cost | hobby budget | Node + `ws`, in-memory rooms, no DB until accounts; Railway |
 | Personal/custom decks in Pro | not yet | each deck needs hand-authored rules; sandbox remains the home for custom decks |
@@ -117,6 +122,38 @@ combat is a prompt flow. Shares rendering components, not interaction model.
 | `03-prior-art-rules-engines.md` | How did MTG/Hearthstone/Netrunner/boardgame.io solve scripted rules? What do we steal? |
 | `04-deck-analysis.md` | What does the top-30 deck corpus look like statistically; which effect primitives cover it; which 5 decks do we build against? |
 | `05-scripted-maps.md` | How do we encode spaces/adjacency/zones; how do we author map files; which map is v1? |
+
+## Research outcomes (synthesis, 2026-07-04)
+
+All four research tracks completed. Headline findings and how they interlock:
+
+- **Green field confirmed** (03): no open-source Unmatched engine exists; the game
+  is not on Board Game Arena; the only rules-enforced implementation is Acram's
+  closed-source Digital Edition.
+- **The corpus validates the "small primitive library" bet** (04): across 480
+  effect-text units in the top-30 decks, ~8 primitives + three predicate families
+  (combat outcome, zone/distance, count) cover the large majority. 53% of effect
+  units are conditionals; ~45% of all card logic hangs off the after-combat
+  window — so the combat pipeline in 02 §5 is where correctness effort pays most.
+- **Stress tests were well chosen** (04 × 02): Schrödinger's Cat requires the
+  combat resolver to support a *third outcome* (tie → UNKNOWN, "do both"
+  branches) — the combat state machine must treat outcome as an extensible enum,
+  not a boolean, from day one. Pinocchio requires mid-effect opponent prompts —
+  which the serializable PendingPrompt pattern from 03 §6 already covers.
+- **02's open questions route to 04's corpus**: the unresolved "cancel" scoping
+  questions (single-window vs whole-card, printed-value immunity) get answered
+  during DSL spec by reviewing the actual cancel-wording cards in the corpus;
+  simultaneous-hero-death tiebreak (active player wins) is a community ruling we
+  adopt explicitly.
+- **Maps are seedable, not greenfield** (05): the-unmatched.club's data blob has
+  space coordinates + zone membership for ~28 maps (no adjacency, no starts).
+  Authoring = extraction script seeds a dev-only in-browser annotation page
+  (`/dev/map-editor` here); human draws adjacency edges and marks starts, exports
+  validated JSON. Note: `public/maps` in this worktree is empty and
+  defaultMaps.json is community maps — the Marmoreal image must be sourced.
+- **Supported decks are community decks** from unmatched.cards (same source the
+  sandbox imports from), fetched by the same deck ids the client already uses —
+  display data stays on the existing public pipeline.
 
 ## Roadmap after research
 
