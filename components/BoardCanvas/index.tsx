@@ -1,24 +1,33 @@
 import { Box } from "@chakra-ui/react";
-import { RefObject, useEffect, useRef, useState } from "react";
-import { PositionType } from "../Positions/position.type";
+import { MutableRefObject, RefObject, useEffect, useRef, useState } from "react";
+import { OwnedToken } from "../Positions/position.type";
 import { useCanvas } from "./useCanvas";
-
-const defaultData: PositionType[] = [
-  { id: "hero", x: 25, y: 25, r: 10 },
-  { id: "sidekick", x: 75, y: 25, r: 10 },
-];
 
 type BoardProps = {
   src: string;
-  data?: PositionType[];
-  move?: (e: PositionType) => void;
+  tokens: OwnedToken[];
   self?: string;
+  move?: (t: OwnedToken) => void;
+  selectedId?: string | null;
+  onSelect?: (id: string | null) => void;
+  onCounterAdjust?: (t: OwnedToken, delta: number) => void;
+  iconSvg: (
+    name: string,
+    opts: { color?: string; size: number; cutout?: boolean; maskId?: string },
+  ) => string | null;
+  centerRef?: MutableRefObject<() => { x: number; y: number }>;
 };
+
 export const BoardCanvas: React.FC<BoardProps> = ({
   src = "jpark.svg",
-  data = defaultData,
+  tokens,
   move,
   self,
+  selectedId,
+  onSelect,
+  onCounterAdjust,
+  iconSvg,
+  centerRef,
 }) => {
   const parentRef: RefObject<any> = useRef();
   const canvasRef: RefObject<SVGSVGElement> = useRef(null);
@@ -44,10 +53,15 @@ export const BoardCanvas: React.FC<BoardProps> = ({
     gRef,
     canvasRef,
     parentRef,
-    data: data.map((dataPoint) => [...flattenWithSidekicks(dataPoint)]).flat(),
+    tokens,
     move,
     self,
     size,
+    selectedId,
+    onSelect,
+    onCounterAdjust,
+    iconSvg,
+    centerRef,
   });
 
   return (
@@ -66,23 +80,3 @@ export const BoardCanvas: React.FC<BoardProps> = ({
     </Box>
   );
 };
-
-function flattenWithSidekicks(object: PositionType) {
-  const flattened: PositionType[] = [];
-
-  function flatten(obj: PositionType) {
-    flattened.push({
-      ...obj,
-      sidekicks: undefined, // Remove sidekicks property
-    });
-
-    if (obj.sidekicks) {
-      for (const sidekick of obj.sidekicks) {
-        flatten(sidekick); // Flatten sidekicks recursively
-      }
-    }
-  }
-
-  flatten(object);
-  return flattened;
-}
