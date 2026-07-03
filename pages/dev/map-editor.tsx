@@ -34,6 +34,8 @@ type MapDoc = {
     players: number[];
     source: string;
     license: string;
+    /** space circle diameter as a fraction of image WIDTH (renderers reuse this) */
+    spaceDiameter?: number;
   };
   zones: Zone[];
   spaces: Space[];
@@ -64,8 +66,14 @@ const BTN_ON = {
   _active: { bg: "brand.accentDeep" },
 };
 
+const DEFAULT_DIAMETER = 0.021;
+
 const emptyDoc = (): MapDoc => ({
-  meta: { title: "", imageUrl: "", players: [1, 2], source: "", license: "community map — credit the author" },
+  meta: {
+    title: "", imageUrl: "", players: [1, 2], source: "",
+    license: "community map — credit the author",
+    spaceDiameter: DEFAULT_DIAMETER,
+  },
   zones: [],
   spaces: [],
 });
@@ -296,6 +304,24 @@ const MapEditor = () => {
           <Button {...BTN} onClick={addZone}>+ zone</Button>
         </Flex>
 
+        <Flex alignItems="center" gap="0.5rem">
+          <Text fontSize="0.75rem" whiteSpace="nowrap">circle size</Text>
+          <input
+            type="range"
+            min={0.008}
+            max={0.09}
+            step={0.001}
+            value={doc.meta.spaceDiameter ?? DEFAULT_DIAMETER}
+            onChange={(e) =>
+              setDoc({ ...doc, meta: { ...doc.meta, spaceDiameter: Number(e.target.value) } })
+            }
+            style={{ flex: 1, accentColor: "#E0A82E" }}
+          />
+          <Text fontSize="0.7rem" opacity={0.6} w="2.6rem" textAlign="right">
+            {((doc.meta.spaceDiameter ?? DEFAULT_DIAMETER) * 100).toFixed(1)}%
+          </Text>
+        </Flex>
+
         <Text fontSize="0.75rem">spaces: {doc.spaces.length} · edges:{" "}
           {doc.spaces.reduce((n, s) => n + s.adjacentTo.length, 0) / 2} · one-way:{" "}
           {doc.spaces.reduce((n, s) => n + (s.oneWayTo?.length ?? 0), 0)}</Text>
@@ -369,12 +395,13 @@ const MapEditor = () => {
                   onClick={(e) => { e.stopPropagation(); onSpaceClick(s.id); }}
                   position="absolute" left={`${s.x * 100}%`} top={`${s.y * 100}%`}
                   transform="translate(-50%, -50%)"
-                  w="30px" h="30px" borderRadius="50%"
+                  w={`${(doc.meta.spaceDiameter ?? DEFAULT_DIAMETER) * 100}%`}
+                  borderRadius="50%"
                   border="3px solid"
                   borderColor={selected === s.id ? "#00e5ff" : "rgba(0,0,0,0.85)"}
                   boxShadow={selected === s.id ? "0 0 10px #00e5ff" : "0 0 4px rgba(0,0,0,0.6)"}
                   cursor={mode === "space" ? "grab" : "pointer"}
-                  sx={{ background: bg }}
+                  sx={{ background: bg, aspectRatio: "1" }}
                   title={`${s.id} zones:[${s.zones.join(",")}]`}
                 >
                   {s.start && (
