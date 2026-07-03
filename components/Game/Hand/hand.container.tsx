@@ -13,6 +13,8 @@ import {
   shuffleDeck,
 } from "@/components/DeckPool/PoolFns";
 import { PlayCardToTable } from "@/components/Positions/position.type";
+import { TransferZone } from "@/lib/gamesocket/message";
+import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
 import { Flex } from "@chakra-ui/react";
 import { useRouter } from "next/router";
@@ -37,6 +39,7 @@ export const HandContainer = ({
   setPlayerState,
   logAction,
   playToTable,
+  offerCardTransfer,
 }: {
   setModal: (type: ModalType) => void;
   gameState: GameData["gameState"];
@@ -44,6 +47,13 @@ export const HandContainer = ({
   logAction: GameData["logAction"];
   /** Spawns the card as a board token — absent offline (no board). */
   playToTable?: PlayCardToTable;
+  /** Escrows a card for another player — absent offline (no opponents). */
+  offerCardTransfer?: (
+    to: string,
+    zone: TransferZone,
+    card: DeckImportCardType,
+    pool: PoolType,
+  ) => void;
 }) => {
   const localName = useRouter().query?.name;
   const player = Array.isArray(localName) ? localName[0] : localName;
@@ -100,6 +110,19 @@ export const HandContainer = ({
     () => setModal("commit"),
     () => logAction("Committed a card"),
   );
+
+  // Escrow a hand card for another player (docs/card-transfer-plan.md): one
+  // broadcast removes it from our pool and posts the transfer.
+  const opponents = offerCardTransfer
+    ? Object.keys(players ?? {}).filter((n) => n !== player)
+    : [];
+  const gGiveCard = (cardIndex: number, to: string) => {
+    const pool = playerState?.pool;
+    const card = pool?.hand?.[cardIndex];
+    if (!pool || !card || !offerCardTransfer) return;
+    offerCardTransfer(to, "hand", card, removeHandCard(pool, cardIndex));
+    logAction(`Gave a card to ${to}`);
+  };
 
   // Two-channel move: splice the card out of the pool (playerstate), then
   // hand it to the board to spawn as a card token (playerposition).
@@ -162,7 +185,9 @@ export const HandContainer = ({
           deckCardFn: (cardIndex: number) => gDeckCard(cardIndex),
           deckCardBottomFn: (cardIndex: number) => gDeckCardBottom(cardIndex),
           playFn: gPlayToTable,
+          giveFn: gGiveCard,
         }}
+        opponents={opponents}
       />
     </>
   );

@@ -10,6 +10,7 @@ import { ActionLog } from "@/components/Game/ActionLog/action-log";
 import { TokenLibraryModal } from "@/components/Positions/token-library.modal";
 import { TokenEditPanel } from "@/components/Positions/token-edit.panel";
 import { CardTokenPanel } from "@/components/Positions/card-token.panel";
+import { CardPickupPanel } from "@/components/Positions/card-pickup.panel";
 import { CardPeek, PeekAnchor } from "@/components/Positions/card-peek";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 import {
@@ -114,11 +115,13 @@ const HandWrapper = ({
   setModalType: Dispatch<SetStateAction<ModalType>>;
   playToTableRef: MutableRefObject<PlayCardToTable>;
 }) => {
-  const { gameState, setPlayerState, logAction } = useWebGame();
+  const { gameState, setPlayerState, logAction, offerCardTransfer } =
+    useWebGame();
   return (
     <HandContainer
       setModal={setModalType}
       playToTable={(card, opts) => playToTableRef.current(card, opts)}
+      offerCardTransfer={offerCardTransfer}
       {...{ gameState, setPlayerState, logAction }}
     />
   );
@@ -160,6 +163,7 @@ const BoardContainer = ({
     setPlayerState,
     gameState,
     logAction,
+    claimTableCard,
   } = useWebGame();
   const icons = useGameIcons();
 
@@ -175,6 +179,16 @@ const BoardContainer = ({
   const myTokens = myBlob.tokens;
   const myColor = myBlob.color ?? DEFAULT_PLAYER_COLOR;
 
+  // Outstanding pickup requests, from every player's synced claims — drawn
+  // as a pulsing ring and used to disable double-claims in the pickup panel.
+  const claimByTokenId = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const [name, ps] of Object.entries(players ?? {})) {
+      for (const c of ps?.tokenClaims ?? []) map[c.tokenId] = name;
+    }
+    return map;
+  }, [players]);
+
   const allTokens: OwnedToken[] = useMemo(
     () =>
       Object.entries(blobs).flatMap(([owner, raw]) => {
@@ -183,6 +197,7 @@ const BoardContainer = ({
           ...t,
           owner,
           color: blob.color,
+          claimedBy: claimByTokenId[t.id],
           counterDisplay: t.counter
             ? t.counter.link
               ? players?.[owner]?.pool?.[t.counter.link]?.hp ?? null
@@ -190,10 +205,13 @@ const BoardContainer = ({
             : undefined,
         }));
       }),
-    [blobs, players],
+    [blobs, players, claimByTokenId],
   );
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Foreign card token whose pickup panel is open (id only — the live token
+  // is re-derived so the panel tracks claim state and closes on grant).
+  const [pickupId, setPickupId] = useState<string | null>(null);
   const centerRef = useRef<() => { x: number; y: number }>(() => ({
     x: 600,
     y: 500,
@@ -392,6 +410,32 @@ const BoardContainer = ({
     [myTokens, selectedId],
   );
 
+  // Live view of the foreign card under the pickup panel; the token
+  // disappearing (owner granted a claim) closes the panel by itself.
+  const pickupToken = useMemo(
+    () => allTokens.find((t) => t.id === pickupId && t.owner !== self) ?? null,
+    [allTokens, pickupId, self],
+  );
+
+  const openPickup = useCallback((t: OwnedToken) => {
+    setSelectedId(null);
+    setPickupId(t.id);
+  }, []);
+
+  // Stable identity — this lands in the canvas effect's deps, and an inline
+  // arrow would re-run the whole d3 render/re-wire on every render (e.g. the
+  // peek showing), replacing token markup mid-click and eating the click.
+  const selectToken = useCallback((id: string | null) => {
+    setPickupId(null);
+    setSelectedId(id);
+  }, []);
+
+  const requestPickup = useCallback(() => {
+    if (!pickupToken) return;
+    claimTableCard(pickupToken.id, pickupToken.owner);
+    logAction(`Asked to pick up ${pickupToken.owner}'s card`);
+  }, [pickupToken, claimTableCard, logAction]);
+
   return (
     <Box h={"100%"} minH={0} overflow="hidden" position="relative">
       <BoardCanvas
@@ -400,9 +444,10 @@ const BoardContainer = ({
         move={moveTokenThrottled}
         self={self}
         selectedId={selectedId}
-        onSelect={setSelectedId}
+        onSelect={selectToken}
         onCounterAdjust={adjustCounter}
         onCardPeek={handleCardPeek}
+        onForeignCardClick={openPickup}
         iconSvg={iconSvg}
         centerRef={centerRef}
         screenToBoardRef={screenToBoardRef}
@@ -427,7 +472,15 @@ const BoardContainer = ({
       >
         Tokens
       </Button>
-      {selected?.card ? (
+      {pickupToken?.card ? (
+        <CardPickupPanel
+          token={pickupToken}
+          claimedBy={pickupToken.claimedBy}
+          self={self}
+          onPickup={requestPickup}
+          onClose={() => setPickupId(null)}
+        />
+      ) : selected?.card ? (
         <CardTokenPanel
           token={selected}
           onFlip={() => flipTableCard(selected)}

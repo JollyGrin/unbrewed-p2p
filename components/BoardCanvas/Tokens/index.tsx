@@ -23,6 +23,13 @@ const image = ({ url, w, h }: { url: string; w: number; h: number }) =>
 const selectionRing = ({ w, h }: { w: number; h: number }) =>
   `<rect x="-4" y="-4" width="${w + 8}" height="${h + 8}" rx="8" fill="none" stroke="#E7CC98" stroke-width="2" stroke-dasharray="7 5" pointer-events="none" />`;
 
+/** Pulsing halo on a card token another player has asked to pick up.
+ * Visible to everyone so the owner sees the request too. */
+const claimRing = ({ w, h }: { w: number; h: number }) =>
+  `<rect x="-5" y="-5" width="${w + 10}" height="${h + 10}" rx="9" fill="none" stroke="#E7CC98" stroke-width="3" pointer-events="none">
+  <animate attributeName="opacity" values="1;0.25;1" dur="1.1s" repeatCount="indefinite" />
+</rect>`;
+
 /**
  * Number badge pinned to the token's top-right corner. Lives inside the token
  * group so it follows every drag. `title` becomes the hover tooltip.
@@ -46,5 +53,6 @@ export const TokenMarkup = {
   circle,
   image,
   selectionRing,
+  claimRing,
   counterBadge,
 };

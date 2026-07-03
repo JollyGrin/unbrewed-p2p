@@ -31,7 +31,11 @@ type CardWrapperProps = {
       index: number,
       opts?: { faceDown?: boolean; screenPos?: { x: number; y: number } },
     ) => void;
+    /** Give hand[index] to another player (escrow transfer). */
+    giveFn?: (index: number, to: string) => void;
   };
+  /** Other players in the room, for the "Give card to…" actions. */
+  opponents?: string[];
 };
 
 /**
@@ -43,7 +47,11 @@ type CardWrapperProps = {
  * drop lands only if it releases over the board svg (checked with
  * elementFromPoint, so drops onto other UI just cancel).
  */
-export const HandFan: React.FC<CardWrapperProps> = ({ cards, functions }) => {
+export const HandFan: React.FC<CardWrapperProps> = ({
+  cards,
+  functions,
+  opponents,
+}) => {
   const ghostRef = useRef<HTMLDivElement | null>(null);
   const lastPointer = useRef<{ x: number; y: number } | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -171,6 +179,12 @@ export const HandFan: React.FC<CardWrapperProps> = ({ cards, functions }) => {
                               functions.playFn?.(index, { faceDown: false }),
                           },
                         ]
+                      : []),
+                    ...(functions.giveFn
+                      ? (opponents ?? []).map((name) => ({
+                          text: `Give card to ${name}`,
+                          fn: () => functions.giveFn?.(index, name),
+                        }))
                       : []),
                     {
                       text: "Place top of deck",
