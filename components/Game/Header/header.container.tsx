@@ -1,7 +1,12 @@
 import { Box, Flex, Skeleton, Spacer, Text, Tooltip } from "@chakra-ui/react";
+import { LinkIcon } from "@chakra-ui/icons";
 import { useRouter } from "next/router";
+import { toast } from "react-hot-toast";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import { useScroll } from "@/lib/hooks";
+import { useLocalServerStorage } from "@/lib/hooks/useLocalStorage";
+import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
+import { buildInviteUrl } from "@/lib/invite";
 import { PoolType } from "@/components/DeckPool/PoolFns";
 import { PlayerBox } from "./header.components";
 import { FC, useEffect, useRef } from "react";
@@ -79,8 +84,61 @@ export const HeaderContainer: FC<{ openPositionModal: () => void }> = ({
       ) : (
         <Skeleton minHeight={"97.969px"} minWidth={"150px"} mx={2} />
       )}
-      <ConnectionChip status={connectionStatus} />
+      <Flex
+        position="absolute"
+        top="0.35rem"
+        right="0.35rem"
+        alignItems="center"
+        gap="0.3rem"
+      >
+        <InviteChip />
+        <ConnectionChip status={connectionStatus} />
+      </Flex>
     </Flex>
+  );
+};
+
+/**
+ * One-click invite: copies a /join link carrying this lobby + gameserver so
+ * a friend can jump straight into the game.
+ */
+const InviteChip = () => {
+  const { query } = useRouter();
+  const { activeServer } = useLocalServerStorage();
+  const [, copy] = useCopyToClipboard();
+
+  const rawGid = query?.gid;
+  const gid = Array.isArray(rawGid) ? rawGid[0] : rawGid;
+  if (!gid) return null;
+
+  return (
+    <Tooltip label="Copy an invite link — anyone who clicks it jumps straight into this game">
+      <Flex
+        onClick={() => {
+          copy(buildInviteUrl({ gid, server: activeServer }));
+          toast.success("Invite link copied — send it to a friend!");
+        }}
+        alignItems="center"
+        gap="0.3rem"
+        px="0.5rem"
+        py="0.15rem"
+        borderRadius="1rem"
+        bg="rgba(20, 8, 24, 0.55)"
+        cursor="pointer"
+        transition="background 0.15s ease"
+        _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+      >
+        <LinkIcon color="brand.highlight" boxSize="0.65rem" />
+        <Text
+          fontSize="0.65rem"
+          color="brand.highlight"
+          fontFamily="SpaceGrotesk"
+          whiteSpace="nowrap"
+        >
+          Invite
+        </Text>
+      </Flex>
+    </Tooltip>
   );
 };
 
@@ -98,9 +156,6 @@ const ConnectionChip = ({ status }: { status: ConnectionStatus }) => {
   return (
     <Tooltip label={display.label}>
       <Flex
-        position="absolute"
-        top="0.35rem"
-        right="0.35rem"
         alignItems="center"
         gap="0.3rem"
         px="0.4rem"

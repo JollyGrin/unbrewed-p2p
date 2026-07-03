@@ -28,6 +28,7 @@ import { useCreateLobby } from "./useCreateLobby";
 import styled from "@emotion/styled";
 import { SettingsIcon } from "@chakra-ui/icons";
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
+import { buildInviteUrl } from "@/lib/invite";
 import { toast } from "react-hot-toast";
 import Link from "next/link";
 
@@ -37,7 +38,8 @@ export const ConnectPage = () => {
   const gidRef = useRef<HTMLInputElement>(null);
 
   const [lobby, setLobby] = useState(gidRef?.current?.value ?? "");
-  const [sharedDeckId, setSharedDeckId] = useState<string | undefined>();
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteDeckId, setInviteDeckId] = useState("");
 
   // uses router props to load new decks
   useLoadRouterDeck();
@@ -115,7 +117,7 @@ export const ConnectPage = () => {
               defaultValue={router.query.lobby as string | undefined}
               onChange={(e) => {
                 setLobby(e.target.value);
-                if (e.target.value === "") setSharedDeckId(undefined);
+                if (e.target.value === "") setShowInvite(false);
               }}
               placeholder="lobby name"
               bg="white"
@@ -164,10 +166,10 @@ export const ConnectPage = () => {
           </Button>
         </VStack>
 
-        {/* Optional — share a deck link with a friend */}
+        {/* Optional — invite a friend with a one-click join link */}
         <Box w="100%" maxW="380px">
           <Divider borderColor="brand.secondary" opacity={0.25} />
-          {sharedDeckId === undefined ? (
+          {!showInvite ? (
             <Button
               mt="0.75rem"
               variant="ghost"
@@ -176,23 +178,27 @@ export const ConnectPage = () => {
               color="brand.secondary"
               _hover={{ bg: "blackAlpha.50" }}
               isDisabled={lobby === ""}
-              onClick={() => setSharedDeckId("")}
+              onClick={() => setShowInvite(true)}
             >
               {lobby === ""
-                ? "Name a lobby above to share a deck link"
-                : "＋ Share a deck link with a friend"}
+                ? "Name a lobby above to invite a friend"
+                : "＋ Invite a friend with a link"}
             </Button>
           ) : (
-            <Collapse in={sharedDeckId !== undefined} animateOpacity>
+            <Collapse in={showInvite} animateOpacity>
               <VStack mt="0.75rem" spacing={2} align="stretch">
                 <FormLabel m={0} color="brand.secondary" fontSize="0.85rem">
-                  Pick a deck to bundle into a shareable link:
+                  Bundle a deck for them (optional):
                 </FormLabel>
                 <Select
                   bg="white"
                   focusBorderColor="brand.secondary"
-                  onChange={(e) => setSharedDeckId(e.target.value)}
+                  value={inviteDeckId}
+                  onChange={(e) => setInviteDeckId(e.target.value)}
                 >
+                  <option value="">
+                    Let them choose — or get a popular deck
+                  </option>
                   {decks?.map((deck) => (
                     <option key={deck.id} value={deck.version_id ?? deck.id}>
                       {deck.name}
@@ -205,13 +211,21 @@ export const ConnectPage = () => {
                   color="brand.primary"
                   _hover={{ bg: "brand.surfaceDim" }}
                   onClick={() => {
-                    const baseUrl = "https://unbrewed.xyz/connect";
-                    const sharableUrl = `${baseUrl}?lobby=${gidRef?.current?.value}&deckId=${sharedDeckId}`;
-                    copy(sharableUrl);
-                    toast.success("Copied link to clipboard!");
+                    const gid = gidRef?.current?.value;
+                    if (!gid) return;
+                    copy(
+                      buildInviteUrl({
+                        gid,
+                        server: activeServer,
+                        deckId: inviteDeckId || undefined,
+                      }),
+                    );
+                    toast.success(
+                      "Invite link copied — anyone who clicks it jumps straight in!",
+                    );
                   }}
                 >
-                  Copy Sharable Link
+                  Copy Invite Link
                 </Button>
               </VStack>
             </Collapse>

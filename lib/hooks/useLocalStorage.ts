@@ -9,8 +9,10 @@ export const LS_KEY = {
   MAP_LIST: "MAP_LIST",
 };
 
+export const DEFAULT_SERVER = "https://unbrewed-v2.fly.dev";
+
 export const useLocalServerStorage = () => {
-  const defaultServer = "https://unbrewed-v2.fly.dev";
+  const defaultServer = DEFAULT_SERVER;
   const [activeServer, setActiveServer] = useState<string>(defaultServer);
   const [serverList, setServerList] = useState<string[]>([]);
 
