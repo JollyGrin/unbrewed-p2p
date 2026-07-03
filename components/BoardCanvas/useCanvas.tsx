@@ -46,7 +46,9 @@ export const useCanvas = ({
     const g = d3.select(gRef.current);
 
     g.selectAll<SVGCircleElement, PositionType>("g")
-      .data(data)
+      // Key by id so reordering the DOM (raise, below) doesn't scramble which
+      // datum binds to which node on the next re-render.
+      .data(data, (d) => (d as PositionType).id)
       .join((enter) => enter.append("g"))
       .attr("transform", (d) => `translate(${d.x}, ${d.y})`)
       .html((props) =>
@@ -68,7 +70,10 @@ export const useCanvas = ({
           .on("drag", dragged)
           .on("end", dragended)
           .touchable(true),
-      );
+      )
+      // Keep the local player's own tokens painted last (on top) so they can
+      // always be grabbed, even when other players' tokens overlap them.
+      .raise();
 
     const zoom = d3
       .zoom()
