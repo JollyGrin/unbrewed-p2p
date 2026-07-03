@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ModalType } from "./game";
 import { PoolType, newPool } from "@/components/DeckPool/PoolFns";
 import { GameState, WebsocketMessage } from "@/lib/gamesocket/message";
+import { PageSeo } from "@/components/Helmet/Head";
 import { useRouter } from "next/router";
 
 const initGamestate: GameState = {
@@ -79,6 +80,7 @@ const Offline = () => {
 
   return (
     <>
+      <PageSeo path="/offline" title="Offline — Unbrewed" noindex />
       <ModalContainer
         {...disclosure}
         modalType={modalType}
