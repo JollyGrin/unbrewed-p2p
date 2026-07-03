@@ -47,6 +47,8 @@ export const HandFan: React.FC<CardWrapperProps> = ({ cards, functions }) => {
     <FanContainer style={{ width: `${fanWidth}px` }}>
       {cards.map((card, index) => {
         const offset = index - mid;
+        // outer cards droop DOWN for a natural fan; hover fully compensates
+        // (see FanCard .lift) so drooped cards still lift into full view
         const droop = Math.abs(offset) ** 2 * spacing * 0.045;
         // hover styling is pure CSS (see FanCard) so pointing at a card
         // never re-renders the fan
@@ -62,7 +64,9 @@ export const HandFan: React.FC<CardWrapperProps> = ({ cards, functions }) => {
             onDragStart={handleDragStart}
             style={fanVars}
           >
-            <Card card={card} />
+            <Box className="lift">
+              <Card card={card} />
+            </Box>
             <Flex className="actions">
               <Text title="Commit" onClick={() => functions.commitFn(index)}>
                 +
@@ -131,17 +135,36 @@ const FanCard = styled(Box)`
   transform-origin: bottom center;
   bottom: var(--droop);
   z-index: var(--z);
+  /* FanCard only rotates and never changes position/size — it is the
+     stationary hover hit-target, so it never moves out from under the
+     pointer (which is what caused the scale/lift twitch). */
   transform: rotate(var(--rot));
-  will-change: transform;
-  transition:
-    transform 0.15s cubic-bezier(0.2, 0.9, 0.3, 1.15),
-    bottom 0.15s ease;
   filter: drop-shadow(0 4px 8px rgba(20, 8, 24, 0.45));
 
+  /* The visual lift/scale lives on an inner layer that ignores the
+     pointer, so growing it never changes what is being hovered. */
+  .lift {
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    transform-origin: bottom center;
+    will-change: transform;
+    transition: transform 0.15s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+  }
+
   &:hover {
-    bottom: 0;
     z-index: 300;
-    transform: translateY(-${CARD_HEIGHT * 0.55}px) scale(1.85);
+  }
+
+  &:hover .lift {
+    /* Counter-rotate first so the card straightens to upright (edge cards
+       no longer pop up tilted/cropped); with the parent rotation cancelled
+       the translate/scale act in screen space, so it rises straight up.
+       Adding var(--droop) makes every card converge to the SAME lifted
+       height regardless of how far it droops at rest. */
+    transform: rotate(calc(-1 * var(--rot)))
+      translateY(calc(var(--droop) - ${CARD_HEIGHT * 0.55}px))
+      scale(1.85);
   }
 
   .actions {
@@ -173,5 +196,10 @@ const FanCard = styled(Box)`
 
   &:hover .actions {
     display: flex;
+    /* ride up with the lifted card so the buttons land just below its
+       bottom edge and stay on-screen + clickable (no scale, full size);
+       counter-rotate too so they sit level under the upright card */
+    transform: rotate(calc(-1 * var(--rot))) translateX(-50%)
+      translateY(calc(var(--droop) - ${CARD_HEIGHT * 0.55}px));
   }
 `;
