@@ -15,6 +15,11 @@ import { IconCards } from "../Icons/IconCards";
 import { IconCardDraw } from "../Icons/IconCardDraw";
 import { IconMap } from "../Icons/IconMap";
 import { IconLogo } from "../Icons/IconLogo";
+import {
+  DEFAULT_DESCRIPTION,
+  DEFAULT_IMAGE,
+  SITE_URL,
+} from "@/components/Helmet/Head";
 
 const STEPS = [
   {
@@ -59,9 +64,101 @@ const STEPS = [
   },
 ];
 
+const FAQS: { q: string; a: string }[] = [
+  {
+    q: "Is Unbrewed free?",
+    a: "Yes. Unbrewed is completely free and open-source. There are no accounts, subscriptions, or paywalls — you play straight from your web browser.",
+  },
+  {
+    q: "Do I need to create an account?",
+    a: "No. Unbrewed requires no sign-up or login. Load your decks, share a lobby name with a friend, and start playing.",
+  },
+  {
+    q: "Can I play official Unmatched decks?",
+    a: "Unbrewed is built for homebrew and fan-made decks. It is an unofficial hobby project and is not affiliated with or endorsed by Restoration Games, the publisher of Unmatched.",
+  },
+  {
+    q: "How do I import a deck from unmatched.cards?",
+    a: "Open your bag, paste the deck's unmatched.cards code or URL, and it loads instantly. You can also paste raw deck JSON, or a URL that downloads JSON.",
+  },
+  {
+    q: "Can I import decks from the-unmatched.club?",
+    a: "Yes. Unbrewed imports decks published on the-unmatched.club, including image-only decks, directly from their URL.",
+  },
+  {
+    q: "Does Unbrewed support Tabletop Simulator (TTS) decks?",
+    a: "Yes. You can import Unmatched decks exported from Tabletop Simulator, so collections you already built for TTS work in the browser.",
+  },
+  {
+    q: "How is this different from Tabletop Simulator?",
+    a: "Unbrewed runs entirely in your web browser with nothing to install and no cost. Both players just open a shared lobby — no game client, no Steam account, and no purchase required.",
+  },
+  {
+    q: "Can I use my own map?",
+    a: "Yes. Any image URL can become a battle map. Browse community maps on r/Unmatched or drop in your own.",
+  },
+];
+
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebApplication",
+      name: "Unbrewed",
+      url: `${SITE_URL}/`,
+      applicationCategory: "GameApplication",
+      operatingSystem: "Web browser",
+      browserRequirements: "Requires a modern web browser with JavaScript.",
+      description: DEFAULT_DESCRIPTION,
+      image: `${SITE_URL}${DEFAULT_IMAGE}`,
+      isAccessibleForFree: true,
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD",
+      },
+      author: {
+        "@type": "Person",
+        name: "JollyGrin",
+        url: "https://github.com/JollyGrin",
+      },
+      about: { "@type": "Game", name: "Unmatched" },
+    },
+    {
+      "@type": "HowTo",
+      name: "How to play Unmatched fan decks online in your browser",
+      description:
+        "Four steps to your first online Unmatched game with Unbrewed.",
+      step: STEPS.map((step, i) => ({
+        "@type": "HowToStep",
+        position: i + 1,
+        name: step.title,
+        text: step.text,
+        url: `${SITE_URL}/#get-started`,
+      })),
+    },
+    {
+      "@type": "FAQPage",
+      mainEntity: FAQS.map((faq) => ({
+        "@type": "Question",
+        name: faq.q,
+        acceptedAnswer: { "@type": "Answer", text: faq.a },
+      })),
+    },
+  ],
+};
+
+const JsonLd = () => (
+  <script
+    type="application/ld+json"
+    dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+  />
+);
+
 export const LandingPage = () => {
   return (
     <Flex direction="column" minH="100svh">
+      <JsonLd />
       <Hero />
       <Disclaimer />
       <Box bg="brand.highlight" flexGrow="1" p="2.5rem 1.5rem">
@@ -77,6 +174,7 @@ export const LandingPage = () => {
             Getting started
           </Text>
           <Text
+            as="h2"
             fontFamily="SpaceGrotesk"
             fontSize="2.25rem"
             fontWeight={700}
@@ -86,9 +184,11 @@ export const LandingPage = () => {
             Four steps to your first game
           </Text>
           <Text mt="0.5rem" maxW="46rem" color="brand.secondary" opacity={0.85}>
-            Play homebrewed Unmatched variants online. All you need to bring is a
-            deck and a board — follow along below and you&apos;ll be dueling in a
-            few minutes.
+            Unbrewed is a free, open-source simulator for playing Unmatched fan
+            decks online. It runs entirely in your browser — no account, no
+            download. Import decks from Unmatched.cards, the-unmatched.club, or
+            Tabletop Simulator, drop them onto any map from an image URL, and
+            play head-to-head with a friend.
           </Text>
 
           <SimpleGrid mt="1.75rem" columns={{ base: 1, md: 2 }} spacing="1rem">
@@ -99,6 +199,8 @@ export const LandingPage = () => {
             ))}
           </SimpleGrid>
 
+          <Faq />
+
           <Box
             mt="2.5rem"
             bg="brand.primary"
@@ -107,6 +209,7 @@ export const LandingPage = () => {
             boxShadow="card"
           >
             <Text
+              as="h2"
               fontFamily="SpaceGrotesk"
               fontSize="1.5rem"
               fontWeight={700}
@@ -185,6 +288,7 @@ const StepCard = (props: {
           </Circle>
           <props.Icon fontSize="2rem" color="brand.primary" />
           <Text
+            as="h3"
             fontFamily="SpaceGrotesk"
             fontWeight={700}
             fontSize="1.15rem"
@@ -214,6 +318,45 @@ const StepCard = (props: {
     </Flex>
   );
 };
+
+const Faq = () => (
+  <Box mt="2.5rem" as="section" aria-labelledby="faq-heading">
+    <Text
+      as="h2"
+      id="faq-heading"
+      fontFamily="SpaceGrotesk"
+      fontSize="1.75rem"
+      fontWeight={700}
+      color="brand.secondary"
+    >
+      Frequently asked questions
+    </Text>
+    <VStack mt="1rem" spacing="1rem" align="stretch">
+      {FAQS.map((faq) => (
+        <Box
+          key={faq.q}
+          bg="brand.secondary"
+          borderRadius="0.75rem"
+          p="1.25rem"
+          boxShadow="card"
+        >
+          <Text
+            as="h3"
+            fontFamily="SpaceGrotesk"
+            fontWeight={700}
+            fontSize="1.05rem"
+            color="brand.primary"
+          >
+            {faq.q}
+          </Text>
+          <Text mt="0.4rem" color="brand.primary" opacity={0.85} fontSize="0.95rem">
+            {faq.a}
+          </Text>
+        </Box>
+      ))}
+    </VStack>
+  </Box>
+);
 
 const Disclaimer = () => (
   <VStack
