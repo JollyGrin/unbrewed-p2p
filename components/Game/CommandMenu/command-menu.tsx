@@ -28,6 +28,7 @@ import {
 } from "@/components/DeckPool/PoolFns";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 import { ScryModal } from "./scry.modal";
+import { rollDice } from "@/components/Game/Dice/rollDice";
 
 type Command = {
   id: string;
@@ -50,7 +51,7 @@ export const CommandMenu: React.FC<{
 
   const localName = useRouter().query?.name;
   const player = Array.isArray(localName) ? localName[0] : localName;
-  const { gameState, logAction } = useWebGame();
+  const { gameState, logAction, publishRoll } = useWebGame();
   const players = gameState?.content?.players as
     | Record<string, { pool?: PoolType }>
     | undefined;
@@ -87,6 +88,21 @@ export const CommandMenu: React.FC<{
     close();
   };
 
+  // Roll dice: publishRoll shows the shared 3D roll + banner to the whole room;
+  // we also log it so there's a persistent record in the action feed.
+  const roll = (sides: number, qty: number) => () => {
+    if (!player) return;
+    const result = rollDice(player, sides, qty);
+    publishRoll(result);
+    const disp = qty > 1 ? `${qty}d${sides}` : `d${sides}`;
+    const detail =
+      result.values.length > 1
+        ? `${result.values.join(", ")} = ${result.total}`
+        : `${result.values[0]}`;
+    logAction(`Rolled ${disp} → ${detail}`);
+    close();
+  };
+
   const applyScry = (
     topCards: DeckImportCardType[],
     bottomCards: DeckImportCardType[],
@@ -102,7 +118,71 @@ export const CommandMenu: React.FC<{
   const handLen = pool?.hand?.length ?? 0;
 
   const commands: Command[] = useMemo(
-    () => [
+    (): Command[] => [
+      {
+        id: "rolld20",
+        group: "Dice",
+        label: "Roll d20",
+        keywords: "dice die roll random d20",
+        enabled: () => true,
+        run: roll(20, 1),
+      },
+      {
+        id: "rolld6",
+        group: "Dice",
+        label: "Roll d6",
+        keywords: "dice die roll random d6",
+        enabled: () => true,
+        run: roll(6, 1),
+      },
+      {
+        id: "roll2d6",
+        group: "Dice",
+        label: "Roll 2d6",
+        keywords: "dice die roll random 2d6 two",
+        enabled: () => true,
+        run: roll(6, 2),
+      },
+      {
+        id: "rolld100",
+        group: "Dice",
+        label: "Roll d100 (percentile)",
+        keywords: "dice die roll random d100 percent",
+        enabled: () => true,
+        run: roll(100, 1),
+      },
+      {
+        id: "rolld4",
+        group: "Dice",
+        label: "Roll d4",
+        keywords: "dice die roll random d4",
+        enabled: () => true,
+        run: roll(4, 1),
+      },
+      {
+        id: "rolld8",
+        group: "Dice",
+        label: "Roll d8",
+        keywords: "dice die roll random d8",
+        enabled: () => true,
+        run: roll(8, 1),
+      },
+      {
+        id: "rolld10",
+        group: "Dice",
+        label: "Roll d10",
+        keywords: "dice die roll random d10",
+        enabled: () => true,
+        run: roll(10, 1),
+      },
+      {
+        id: "rolld12",
+        group: "Dice",
+        label: "Roll d12",
+        keywords: "dice die roll random d12",
+        enabled: () => true,
+        run: roll(12, 1),
+      },
       {
         id: "scry",
         group: "Deck",
