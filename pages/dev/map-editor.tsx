@@ -23,7 +23,8 @@ type Space = {
   x: number; // normalized 0-1 of image width
   y: number; // normalized 0-1 of image height
   zones: string[];
-  adjacentTo: string[];
+  adjacentTo: string[]; // symmetric edges
+  oneWayTo?: string[]; // directed edges (e.g. Mended Drum's stairs drop)
   start?: number; // player slot 1-4
 };
 type MapDoc = {
@@ -103,20 +104,50 @@ const MapEditor = () => {
         ...doc,
         spaces: doc.spaces
           .filter((s) => s.id !== id)
-          .map((s) => ({ ...s, adjacentTo: s.adjacentTo.filter((a) => a !== id) })),
+          .map((s) => ({
+            ...s,
+            adjacentTo: s.adjacentTo.filter((a) => a !== id),
+            oneWayTo: (s.oneWayTo ?? []).filter((a) => a !== id),
+          })),
       });
       if (selected === id) setSelected(undefined);
     }
     if (mode === "connect") {
       if (!selected || selected === id) return setSelected(id);
-      // toggle symmetric edge selected <-> id
+      // cycle A->B: none -> two-way -> one-way A->B -> one-way B->A -> none
+      const a = selected;
+      const b = id;
+      const A = spaceById(a)!;
+      const B = spaceById(b)!;
+      const twoWay = A.adjacentTo.includes(b);
+      const aToB = (A.oneWayTo ?? []).includes(b);
+      const bToA = (B.oneWayTo ?? []).includes(a);
+      const strip = (s: Space): Space => {
+        const other = s.id === a ? b : a;
+        return {
+          ...s,
+          adjacentTo: s.adjacentTo.filter((x) => x !== other),
+          oneWayTo: (s.oneWayTo ?? []).filter((x) => x !== other),
+        };
+      };
       setDoc({
         ...doc,
         spaces: doc.spaces.map((s) => {
-          if (s.id !== selected && s.id !== id) return s;
-          const other = s.id === selected ? id : selected;
-          const has = s.adjacentTo.includes(other);
-          return { ...s, adjacentTo: has ? s.adjacentTo.filter((a) => a !== other) : [...s.adjacentTo, other] };
+          if (s.id !== a && s.id !== b) return s;
+          const base = strip(s);
+          if (!twoWay && !aToB && !bToA) {
+            // none -> two-way
+            return { ...base, adjacentTo: [...base.adjacentTo, s.id === a ? b : a] };
+          }
+          if (twoWay) {
+            // two-way -> one-way a->b
+            return s.id === a ? { ...base, oneWayTo: [...base.oneWayTo!, b] } : base;
+          }
+          if (aToB) {
+            // one-way a->b -> one-way b->a
+            return s.id === b ? { ...base, oneWayTo: [...base.oneWayTo!, a] } : base;
+          }
+          return base; // one-way b->a -> none
         }),
       });
       setSelected(id); // chain: next click connects from here
@@ -173,11 +204,16 @@ const MapEditor = () => {
     if (!starts.includes(1) || !starts.includes(2)) w.push("start spaces 1 and 2 not both marked");
     doc.spaces.forEach((s) => {
       if (s.zones.length === 0) w.push(`${s.id} has no zone`);
-      if (s.adjacentTo.length === 0) w.push(`${s.id} is isolated (no adjacency)`);
+      if (s.adjacentTo.length === 0 && (s.oneWayTo ?? []).length === 0)
+        w.push(`${s.id} is isolated (no adjacency)`);
       s.adjacentTo.forEach((a) => {
         const other = spaceById(a);
         if (!other) w.push(`${s.id} points at missing space ${a}`);
         else if (!other.adjacentTo.includes(s.id)) w.push(`asymmetric edge ${s.id}->${a}`);
+      });
+      (s.oneWayTo ?? []).forEach((a) => {
+        if (!spaceById(a)) w.push(`${s.id} one-way to missing space ${a}`);
+        if (s.adjacentTo.includes(a)) w.push(`${s.id}->${a} is BOTH two-way and one-way`);
       });
     });
     return w;
@@ -205,7 +241,7 @@ const MapEditor = () => {
         </Flex>
         <Text opacity={0.7} fontSize="0.75rem">
           {mode === "space" && "click canvas = add · click space = select · drag = move"}
-          {mode === "connect" && "click space A then B to toggle an edge (chains from B)"}
+          {mode === "connect" && "click A then B, repeat to cycle: two-way → one-way A→B (orange dot = destination) → one-way B→A → none"}
           {mode === "zone" && "pick a zone below, then click spaces to toggle membership"}
           {mode === "start" && "click a space to cycle start slot 1→2→3→4→none"}
           {mode === "delete" && "click a space to remove it"}
@@ -225,7 +261,8 @@ const MapEditor = () => {
         </Flex>
 
         <Text fontSize="0.75rem">spaces: {doc.spaces.length} · edges:{" "}
-          {doc.spaces.reduce((n, s) => n + s.adjacentTo.length, 0) / 2}</Text>
+          {doc.spaces.reduce((n, s) => n + s.adjacentTo.length, 0) / 2} · one-way:{" "}
+          {doc.spaces.reduce((n, s) => n + (s.oneWayTo?.length ?? 0), 0)}</Text>
 
         {warnings.length > 0 && (
           <Box bg="rgba(255,99,71,0.15)" borderRadius="0.3rem" p="0.5rem" fontSize="0.7rem">
@@ -265,6 +302,22 @@ const MapEditor = () => {
                         stroke="#00e5ff" strokeWidth={3} vectorEffect="non-scaling-stroke" opacity={0.9} />
                     ) : null;
                   })
+              )}
+              {/* one-way edges: orange, dot marks the DESTINATION end */}
+              {doc.spaces.flatMap((s) =>
+                (s.oneWayTo ?? []).map((a) => {
+                  const o = spaceById(a);
+                  if (!o) return null;
+                  const dx = s.x + (o.x - s.x) * 0.78;
+                  const dy = s.y + (o.y - s.y) * 0.78;
+                  return (
+                    <g key={`ow-${s.id}-${a}`}>
+                      <line x1={s.x * 100} y1={s.y * 100} x2={o.x * 100} y2={o.y * 100}
+                        stroke="#ff9f1c" strokeWidth={3} vectorEffect="non-scaling-stroke" opacity={0.95} strokeDasharray="6 3" />
+                      <circle cx={dx * 100} cy={dy * 100} r={0.55} fill="#ff9f1c" />
+                    </g>
+                  );
+                })
               )}
             </svg>
             {/* spaces */}

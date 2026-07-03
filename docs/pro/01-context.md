@@ -89,7 +89,7 @@ combat is a prompt flow. Shares rendering components, not interaction model.
 | Launch decks (from research) | **King Kong, Baba Yaga, The Flash** (fallback swap: Voldemort) | simple, popular, archetype-diverse — see 04 |
 | DSL stress-test decks | **Pinocchio** (token subsystem, mid-effect opponent prompts), **Schrödinger's Cat** (third combat outcome UNKNOWN) | maximize DSL + combat-core coverage before freezing — see 04 |
 | Official content | **NONE in Pro** — community decks AND community maps only (2026-07-04) | consistent IP posture; the roster source (unmatched.cards) is already community content |
-| v1 map | **Huntsman's Lodge** by Taytertots (runner-up: The Mended Drum) | community map, fully vanilla (no one-way arrows/special markers), crisp 5000px lines, starts 1–4; supersedes the Marmoreal pick in 05 §6 — see tasks/T-008 |
+| v1 map | **The Mended Drum** by ANDSUSHI (map #2: Huntsman's Lodge) | community map, right-sized for 1v1 (~33 spaces, starts 1+2); its one-way stairs edge is modeled via `oneWayTo` directed edges in schema+editor; supersedes the Marmoreal pick in 05 §6 — see tasks/T-008 |
 | Effect representation | **typed serializable TS data over ~a dozen effect primitives** + named-function escape hatch; no text DSL, no classes | unanimous prior-art conclusion — see 03 |
 | Engine core | immutable state, pure reducer `(state, action) → {state, events}`, seeded RNG in state, authoritative `legalActions()` enumeration | replay/undo/determinism/AI-readiness fall out for free — see 03 |
 | Accounts | none — jump right in | but reconnect tokens + room TTL from day one |
