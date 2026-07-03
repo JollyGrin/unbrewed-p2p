@@ -34,3 +34,12 @@ Olympus, Huntsman's Lodge (Taytertots), Basra Port.
 
 ## Follow-on
 T-010 (retargeted to Huntsman's Lodge) is now unblocked once T-009 ships.
+
+## Amendment (2026-07-04, later same day)
+User overrode toward the smaller board: **v1 map = The Mended Drum** (~33
+spaces, starts 1+2). Its one-way stairs arrow is accepted into scope — the
+schema/editor now support `oneWayTo` directed edges, removing the original
+disqualifier. **Huntsman's Lodge becomes map #2.** Also: the four "dead"
+arweave links (Rose Garden, Weathertop, Island of Despair, Pharoh's Tomb)
+turned out to be transient — user confirms they load now; no catalog fix
+needed.

@@ -12,7 +12,10 @@ rules doc §3 (movement) and §4 (zones/range).
 
 ## Scope
 - `engine/map.ts`: `MapDef` types matching 05 §3 (spaces with normalized x/y,
-  `adjacentTo[]`, `zones` as a set, start slots; zone color metadata).
+  `adjacentTo[]`, `zones` as a set, start slots; zone color metadata) PLUS
+  optional `oneWayTo[]` directed edges (added 2026-07-04 for the Mended Drum's
+  stairs drop — movement out-edges are `adjacentTo ∪ oneWayTo`; validator
+  checks `oneWayTo` targets exist and don't duplicate a symmetric edge).
 - Queries: `areAdjacent`, `sharesZone` (set intersection), `inAttackRange`
   (melee = adjacent; ranged = adjacent OR shares any zone),
   `movementRange(state, fighter, maxSteps)` — BFS where friendly fighters are
