@@ -1,5 +1,8 @@
 import { PoolType } from "@/components/DeckPool/PoolFns";
-import { PositionType } from "@/components/Positions/position.type";
+import {
+  LegacyPositionType,
+  PositionBlob,
+} from "@/components/Positions/position.type";
 
 export interface WebsocketMessage {
   msgtype: string;
@@ -59,7 +62,9 @@ export interface DiceRoll {
   at: number; // Date.now(); newest-wins ordering + late-join seeding
 }
 
-export type PositionState = Record<string, PositionType>;
+// Blobs from current clients are PositionBlob; rooms with stale state may
+// still carry the legacy hero+sidekicks shape (see migrateBlob).
+export type PositionState = Record<string, PositionBlob | LegacyPositionType>;
 
 export const pingMessage = {
   msgtype: "ping",

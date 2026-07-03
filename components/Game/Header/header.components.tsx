@@ -104,10 +104,10 @@ export const PlayerBox: React.FC<{
                   <FaMap size="15px" />
                 </ControlButton>
               </Tooltip>
-              <Tooltip label="Edit your board tokens" hasArrow>
+              <Tooltip label="Add tokens to the board" hasArrow>
                 <ControlButton
                   as="button"
-                  aria-label="Edit your board tokens"
+                  aria-label="Add tokens to the board"
                   onClick={() =>
                     typeof openPositionModal === "function" &&
                     openPositionModal()

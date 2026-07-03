@@ -24,13 +24,13 @@ import {
 import { useRouter } from "next/router";
 import { PoolType } from "@/components/DeckPool/PoolFns";
 import { useLocalServerStorage } from "../hooks";
-import { PositionType } from "@/components/Positions/position.type";
+import { PositionBlob } from "@/components/Positions/position.type";
 
 interface WebGameProviderValue {
   gameState: WebsocketMessage | undefined;
   gamePositions: WebsocketMessage | undefined;
   setPlayerState: () => ({ pool }: { pool: PoolType }) => void;
-  setPlayerPosition: MutableRefObject<(props: PositionType) => void>;
+  setPlayerPosition: MutableRefObject<(props: PositionBlob) => void>;
   connectionStatus: ConnectionStatus;
   // Append a human-readable line to the local player's synced action feed.
   logAction: (text: string) => void;
@@ -63,7 +63,7 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
   // Raw senders, populated once the socket connects. Held in refs so the
   // map-sync effects below can reach them without re-subscribing on reconnect.
   const updatePlayerStateRef = useRef((_: PlayerState) => {});
-  const setPlayerPosition = useRef((_: PositionType[]) => {});
+  const setPlayerPosition = useRef((_: PositionBlob) => {});
 
   // Shared-map state. `mapUpdatedAt` is a logical clock: it tracks the highest
   // timestamp we've seen across the room, so a local change (seen + 1) always
@@ -332,7 +332,6 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
         logAction,
         latestRoll,
         publishRoll,
-        //@ts-expect-error: this type needs to remain an array. Update this when you add more tokens
         setPlayerPosition: setPlayerPosition,
       }}
     >
