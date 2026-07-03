@@ -25,14 +25,21 @@ const MAX_QTY = 12;
 
 export const DiceModal = (props: { isOpen: boolean; onClose: () => void }) => {
   const { query } = useRouter();
-  const { publishRoll } = useWebGame();
+  const { publishRoll, logAction } = useWebGame();
   const name = (query.name as string | undefined) ?? "Player";
 
   const [sides, setSides] = useState(20);
   const [qty, setQty] = useState(1);
 
   const roll = () => {
-    publishRoll(rollDice(name, sides, qty));
+    const result = rollDice(name, sides, qty);
+    publishRoll(result);
+    const disp = qty > 1 ? `${qty}d${sides}` : `d${sides}`;
+    const detail =
+      result.values.length > 1
+        ? `${result.values.join(", ")} = ${result.total}`
+        : `${result.values[0]}`;
+    logAction(`Rolled ${disp} → ${detail}`);
     props.onClose();
   };
 

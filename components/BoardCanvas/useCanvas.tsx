@@ -2,6 +2,10 @@ import * as d3 from "d3";
 import { MutableRefObject, RefObject, useEffect } from "react";
 import { PositionType } from "../Positions/position.type";
 import { TokenIcon } from "./Tokens";
+import {
+  publishBoardTransform,
+  setBoardSvg,
+} from "./boardTransform";
 
 type CanvasProps = {
   canvasRef: RefObject<SVGSVGElement>;
@@ -85,9 +89,14 @@ export const useCanvas = ({
       .on("zoom", ({ transform }) => {
         g.attr("transform", transform);
         canvas.select("image").attr("transform", transform);
+        // Broadcast so the dice overlay can ride the map.
+        publishBoardTransform({ x: transform.x, y: transform.y, k: transform.k });
       });
     //@ts-ignore
     canvas.call(zoom);
+
+    // Expose the <svg> so overlays can align to its on-screen rect.
+    setBoardSvg(canvasRef.current);
 
     // fit + center the map on first render (moves map and tokens together)
     if (isFirstRender) {
@@ -102,6 +111,11 @@ export const useCanvas = ({
         d3.zoomIdentity.translate(tx, ty).scale(scale),
       );
     }
+
+    // Publish the live transform (covers the initial fit and any resize/re-run)
+    // so a freshly-mounted overlay gets the current value without a zoom event.
+    const t0 = d3.zoomTransform(canvasRef.current);
+    publishBoardTransform({ x: t0.x, y: t0.y, k: t0.k });
 
     function dragstarted(e: any, d: PositionType) {
       const isSelf = d?.id === self;
@@ -143,4 +157,7 @@ export const useCanvas = ({
       circle.transition().duration(350).attr("stroke-width", 0);
     }
   }, [data, size, parentRef, move, self]);
+
+  // Clear the shared svg reference when the board unmounts.
+  useEffect(() => () => setBoardSvg(null), []);
 };

@@ -6,12 +6,24 @@ import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import { DiceRoll } from "@/lib/gamesocket/message";
 import { colors, fonts, shadows } from "@/styles/style";
 import { toPredeterminedNotation } from "./rollDice";
+import {
+  getBoardSvg,
+  getBoardTransform,
+  subscribeBoardTransform,
+} from "@/components/BoardCanvas/boardTransform";
 
-// Full-viewport, click-through canvas that renders the shared 3D dice, plus a
-// result banner. Everything is client-only — the dice-box-threejs module is
-// dynamically imported in an effect (it touches window/document), and the whole
-// component is mounted via next/dynamic({ ssr: false }) in the game page.
+// A dice canvas that "rides" the map, plus a result banner. Everything is
+// client-only — the dice-box-threejs module is dynamically imported in an
+// effect (it touches window/document), and the whole component is mounted via
+// next/dynamic({ ssr: false }) in the game page.
+//
+// The canvas is sized to the map's intrinsic space (MAP_W×MAP_H, matching
+// useCanvas.tsx) so dice tumble across the map (not the whole viewport), then we
+// apply the board's live `translate(x,y) scale(k)` (plus the board <svg>'s
+// screen offset) so the dice pan/zoom exactly with the map.
 const CONTAINER_ID = "unbrewed-dice-box";
+const MAP_W = 1200;
+const MAP_H = 1000;
 
 export const DiceOverlay = () => {
   const { latestRoll } = useWebGame();
@@ -26,6 +38,8 @@ export const DiceOverlay = () => {
   const animatedIdRef = useRef<string | null>(null);
   // A roll that arrived before the box finished initializing.
   const pendingNotationRef = useRef<string | null>(null);
+  // The dice canvas container (transformed to ride the map).
+  const containerElRef = useRef<HTMLDivElement | null>(null);
 
   const [banner, setBanner] = useState<DiceRoll | undefined>();
 
@@ -34,6 +48,29 @@ export const DiceOverlay = () => {
     setBanner(undefined);
     boxRef.current?.clearDice();
   }, []);
+
+  // Mirror the board's pan/zoom onto the dice canvas so the dice ride the map.
+  // The container's local space is the map's intrinsic MAP_W×MAP_H, anchored at
+  // the viewport origin, so `translate(svgLeft+x, svgTop+y) scale(k)` places
+  // container point (cx,cy) at the same screen pixel as map pixel (cx,cy).
+  const applyBoardTransform = useCallback(() => {
+    const el = containerElRef.current;
+    const svg = getBoardSvg();
+    if (!el || !svg) return;
+    const rect = svg.getBoundingClientRect();
+    const { x, y, k } = getBoardTransform();
+    el.style.transform = `translate(${rect.left + x}px, ${rect.top + y}px) scale(${k})`;
+  }, []);
+
+  useEffect(() => {
+    applyBoardTransform();
+    const unsub = subscribeBoardTransform(applyBoardTransform);
+    window.addEventListener("resize", applyBoardTransform);
+    return () => {
+      unsub();
+      window.removeEventListener("resize", applyBoardTransform);
+    };
+  }, [applyBoardTransform]);
 
   // Initialize the dice box once, on mount.
   useEffect(() => {
@@ -106,11 +143,18 @@ export const DiceOverlay = () => {
 
   return (
     <>
-      {/* dice-box-threejs appends its <canvas> here */}
+      {/* dice-box-threejs appends its <canvas> here. Sized to the map's
+          intrinsic space and anchored at the viewport origin; the effect above
+          transforms it to ride the map. */}
       <Box
+        ref={containerElRef}
         id={CONTAINER_ID}
         position="fixed"
-        inset={0}
+        top="0"
+        left="0"
+        w={`${MAP_W}px`}
+        h={`${MAP_H}px`}
+        transformOrigin="0 0"
         zIndex={1400}
         pointerEvents="none"
         sx={{ "& canvas": { pointerEvents: "none" } }}
