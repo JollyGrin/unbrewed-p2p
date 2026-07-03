@@ -10,6 +10,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { Hero } from "./Hero";
+import { FindMatch } from "@/components/Discord";
 import Link from "next/link";
 import { IconCards } from "../Icons/IconCards";
 import { IconCardDraw } from "../Icons/IconCardDraw";
@@ -198,6 +199,8 @@ export const LandingPage = () => {
               </SlideFade>
             ))}
           </SimpleGrid>
+
+          <FindMatch />
 
           <Faq />
 
