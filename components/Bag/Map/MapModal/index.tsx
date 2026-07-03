@@ -13,8 +13,10 @@ import {
   Text,
   Divider,
   Box,
+  Skeleton,
 } from "@chakra-ui/react";
 import { useRouter } from "next/router";
+import { useEffect, useState } from "react";
 import DEFAULT_MAPS from "./defaultMaps.json";
 import Link from "next/link";
 
@@ -22,6 +24,11 @@ export const MapModal = () => {
   const { query, push } = useRouter();
   const queryUrl = query.mapUrl as string | undefined;
   const { data } = useLocalMapStorage();
+  const [loaded, setLoaded] = useState(false);
+
+  // Reset to the loading state whenever a different map is selected so we never
+  // flash the previously-selected map while the new image is still fetching.
+  useEffect(() => setLoaded(false), [queryUrl]);
 
   const selectedMap = [...data, ...DEFAULT_MAPS].find(
     (map) => map.imgUrl === queryUrl,
@@ -86,12 +93,26 @@ export const MapModal = () => {
                   <Text>by {selectedMap?.meta?.author}</Text>
                 )}
               </Box>
-              <Image
-                src={queryUrl}
-                alt="mappreview"
-                borderRadius="1rem"
-                w="100%"
-              />
+              <Box position="relative" minH="300px">
+                {queryUrl && !loaded && (
+                  <Skeleton
+                    position="absolute"
+                    inset="0"
+                    borderRadius="1rem"
+                  />
+                )}
+                <Image
+                  key={queryUrl}
+                  src={queryUrl}
+                  alt="mappreview"
+                  borderRadius="1rem"
+                  w="100%"
+                  opacity={loaded ? 1 : 0}
+                  transition="opacity 0.2s ease-in"
+                  onLoad={() => setLoaded(true)}
+                  onError={() => setLoaded(true)}
+                />
+              </Box>
             </Box>
           </Grid>
         </ModalBody>

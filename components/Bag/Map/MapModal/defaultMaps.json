@@ -1,122 +1,913 @@
 [
   {
-    "imgUrl": "https://i.imgur.com/UP7EC0p.jpeg",
+    "imgUrl": "/maps/legacy-the-chalk.webp",
+    "thumbUrl": "/maps/thumb/legacy-the-chalk.webp",
     "meta": {
       "title": "The Chalk",
       "author": "ANDSUSHI",
       "url": "https://www.reddit.com/r/Unmatched/comments/141l9dk/i_made_3_new_custom_maps_the_mended_drum_the/"
-    }
+    },
+    "source": "legacy"
   },
   {
-    "imgUrl": "https://i.imgur.com/Jiul7zg.jpeg",
-    "meta": {
-      "title": "Opera House",
-      "author": "ANDSUSHI",
-      "url": "https://www.reddit.com/r/Unmatched/comments/141l9dk/i_made_3_new_custom_maps_the_mended_drum_the/"
-    }
-  },
-  {
-    "imgUrl": "https://i.imgur.com/NXBcIZN.jpeg",
-    "meta": {
-      "title": "The Mended Drum",
-      "author": "ANDSUSHI",
-      "url": "https://www.reddit.com/r/Unmatched/comments/141l9dk/i_made_3_new_custom_maps_the_mended_drum_the/"
-    }
-  },
-  {
-    "imgUrl": "https://arweave.net/krw7LMQOBj2U0Zvw8HQllZYmKd21LH71tQAQ-1eiKX0",
-    "meta": {
-      "title": "Basra Port",
-      "author": "wandering__caretaker",
-      "url": "https://www.reddit.com/r/Unmatched/comments/k377lm/basra_port_custom_mapwork_in_progress/"
-    }
-  },
-  {
-    "imgUrl": "https://preview.redd.it/custom-map-apeprture-labs-v0-ho2occy3xncc1.png?width=1057&format=png&auto=webp&s=3bfd644a097d7685178993d8252315deafb7e6d2",
+    "imgUrl": "/maps/legacy-aperature-labs.webp",
+    "thumbUrl": "/maps/thumb/legacy-aperature-labs.webp",
     "meta": {
       "title": "Aperature Labs",
       "author": "Vediano",
       "url": "https://www.reddit.com/r/Unmatched/comments/197ipt6/custom_map_apeprture_labs/"
-    }
+    },
+    "source": "legacy"
   },
   {
-    "imgUrl": "https://arweave.net/3S2Rt2w8tlDRcI61UZntOiM2ZjKNRMF-78YB21JJkVI",
+    "imgUrl": "/maps/legacy-opera-house.webp",
+    "thumbUrl": "/maps/thumb/legacy-opera-house.webp",
+    "meta": {
+      "title": "Opera House",
+      "author": "ANDSUSHI",
+      "url": "https://www.reddit.com/r/Unmatched/comments/141l9dk/i_made_3_new_custom_maps_the_mended_drum_the/"
+    },
+    "source": "legacy"
+  },
+  {
+    "imgUrl": "/maps/legacy-the-mended-drum.webp",
+    "thumbUrl": "/maps/thumb/legacy-the-mended-drum.webp",
+    "meta": {
+      "title": "The Mended Drum",
+      "author": "ANDSUSHI",
+      "url": "https://www.reddit.com/r/Unmatched/comments/141l9dk/i_made_3_new_custom_maps_the_mended_drum_the/"
+    },
+    "source": "legacy"
+  },
+  {
+    "imgUrl": "/maps/legacy-basra-port.webp",
+    "thumbUrl": "/maps/thumb/legacy-basra-port.webp",
+    "meta": {
+      "title": "Basra Port",
+      "author": "wandering__caretaker",
+      "url": "https://www.reddit.com/r/Unmatched/comments/k377lm/basra_port_custom_mapwork_in_progress/"
+    },
+    "source": "legacy"
+  },
+  {
+    "imgUrl": "/maps/legacy-olympus.webp",
+    "thumbUrl": "/maps/thumb/legacy-olympus.webp",
     "meta": {
       "title": "Olympus",
       "author": "Taytertot",
       "url": "https://www.youtube.com/watch?app=desktop&v=fsIgAV93_ko"
-    }
+    },
+    "source": "legacy"
   },
   {
-    "imgUrl": "https://arweave.net/YM5YObdZvYvQMAY47mY_7wA9RvFwesCFK8VnbLP2jkY",
+    "imgUrl": "/maps/legacy-counts-castle.webp",
+    "thumbUrl": "/maps/thumb/legacy-counts-castle.webp",
     "meta": {
       "title": "Counts Castle",
       "author": "Taytertot",
       "url": "https://www.youtube.com/watch?app=desktop&v=fsIgAV93_ko"
-    }
+    },
+    "source": "legacy"
   },
   {
-    "imgUrl": "https://arweave.net/fSXTqIw2GSC3o16dozS1zP4JD4fJo-oAEvRweBv3iIg",
-    "meta": {
-      "title": "Huntsman's Lodge",
-      "author": "Taytertot",
-      "url": "https://www.youtube.com/watch?app=desktop&v=fsIgAV93_ko"
-    }
-  },
-  {
-    "imgUrl": "https://arweave.net/CS20h6J48E4BjKWUerxmyl7_-G95rZJEcCJTpey6FSw",
-    "meta": {
-      "title": "Rose Garden",
-      "author": "Taytertot",
-      "url": "https://www.youtube.com/watch?app=desktop&v=fsIgAV93_ko"
-    }
-  },
-  {
-    "imgUrl": "https://arweave.net/hGJt4WxpYw4xYX3Vd3wavu57MKaJXdk3Nz2cDdv8tEU",
-    "meta": {
-      "title": "Verde Jungle",
-      "author": "Taytertot",
-      "url": "https://www.youtube.com/watch?app=desktop&v=fsIgAV93_ko"
-    }
-  },
-  {
-    "imgUrl": "https://arweave.net/kA3ey8ZWooYkocZbWM_Rpf-jA735d78-kdHrEa13UrQ",
-    "meta": {
-      "title": "Pharoh's Tomb",
-      "author": "Taytertot",
-      "url": "https://www.youtube.com/watch?app=desktop&v=fsIgAV93_ko"
-    }
-  },
-  {
-    "imgUrl": "https://arweave.net/UPdVYAbA-he65zuvoWHmUKXL6rZH6TYdbtwh7ukbtWM",
+    "imgUrl": "/maps/legacy-great-wall.webp",
+    "thumbUrl": "/maps/thumb/legacy-great-wall.webp",
     "meta": {
       "title": "Great Wall",
       "author": "Taytertot",
       "url": "https://www.youtube.com/watch?app=desktop&v=fsIgAV93_ko"
-    }
+    },
+    "source": "legacy"
   },
   {
-    "imgUrl": "https://arweave.net/dweQ7_dscGVv22DF4OjXCvAnWTJjuFmuS2Dtrsb8zP8",
+    "imgUrl": "/maps/legacy-huntsmans-lodge.webp",
+    "thumbUrl": "/maps/thumb/legacy-huntsmans-lodge.webp",
     "meta": {
-      "title": "Island of Despair",
+      "title": "Huntsman's Lodge",
       "author": "Taytertot",
       "url": "https://www.youtube.com/watch?app=desktop&v=fsIgAV93_ko"
-    }
+    },
+    "source": "legacy"
   },
   {
-    "imgUrl": "https://arweave.net/Td_Hx_ZmDBOqfRrK1mdhFTqF1vEhRoX7IIx_ehmvNNU",
+    "imgUrl": "/maps/legacy-verde-jungle.webp",
+    "thumbUrl": "/maps/thumb/legacy-verde-jungle.webp",
     "meta": {
-      "title": "Turtle Sewers",
+      "title": "Verde Jungle",
       "author": "Taytertot",
       "url": "https://www.youtube.com/watch?app=desktop&v=fsIgAV93_ko"
-    }
+    },
+    "source": "legacy"
   },
   {
-    "imgUrl": "https://arweave.net/cq3gG4uqlP3NXrr2ngipylDr8V9Ti1uuL33BfZ0Wy2I",
+    "imgUrl": "/maps/legacy-pharohs-tomb.webp",
+    "thumbUrl": "/maps/thumb/legacy-pharohs-tomb.webp",
+    "meta": {
+      "title": "Pharoh's Tomb",
+      "author": "Taytertot",
+      "url": "https://www.youtube.com/watch?app=desktop&v=fsIgAV93_ko"
+    },
+    "source": "legacy"
+  },
+  {
+    "imgUrl": "/maps/legacy-rose-garden.webp",
+    "thumbUrl": "/maps/thumb/legacy-rose-garden.webp",
+    "meta": {
+      "title": "Rose Garden",
+      "author": "Taytertot",
+      "url": "https://www.youtube.com/watch?app=desktop&v=fsIgAV93_ko"
+    },
+    "source": "legacy"
+  },
+  {
+    "imgUrl": "/maps/legacy-weathertop.webp",
+    "thumbUrl": "/maps/thumb/legacy-weathertop.webp",
     "meta": {
       "title": "Weathertop",
       "author": "Taytertot",
       "url": "https://www.youtube.com/watch?app=desktop&v=fsIgAV93_ko"
-    }
+    },
+    "source": "legacy"
+  },
+  {
+    "imgUrl": "/maps/legacy-turtle-sewers.webp",
+    "thumbUrl": "/maps/thumb/legacy-turtle-sewers.webp",
+    "meta": {
+      "title": "Turtle Sewers",
+      "author": "Taytertot",
+      "url": "https://www.youtube.com/watch?app=desktop&v=fsIgAV93_ko"
+    },
+    "source": "legacy"
+  },
+  {
+    "imgUrl": "/maps/legacy-island-of-despair.webp",
+    "thumbUrl": "/maps/thumb/legacy-island-of-despair.webp",
+    "meta": {
+      "title": "Island of Despair",
+      "author": "Taytertot",
+      "url": "https://www.youtube.com/watch?app=desktop&v=fsIgAV93_ko"
+    },
+    "source": "legacy"
+  },
+  {
+    "imgUrl": "/maps/official-baskerville-manor.webp",
+    "thumbUrl": "/maps/thumb/official-baskerville-manor.webp",
+    "meta": {
+      "title": "Baskerville Manor",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "md",
+    "minPlayers": 2,
+    "maxPlayers": 4
+  },
+  {
+    "imgUrl": "/maps/official-mcminnville-or.webp",
+    "thumbUrl": "/maps/thumb/official-mcminnville-or.webp",
+    "meta": {
+      "title": "McMinnville OR",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "lg",
+    "minPlayers": 2,
+    "maxPlayers": 4
+  },
+  {
+    "imgUrl": "/maps/official-point-pleasant.webp",
+    "thumbUrl": "/maps/thumb/official-point-pleasant.webp",
+    "meta": {
+      "title": "Point Pleasant",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "lg",
+    "minPlayers": 2,
+    "maxPlayers": 4
+  },
+  {
+    "imgUrl": "/maps/official-fayrlund-forest.webp",
+    "thumbUrl": "/maps/thumb/official-fayrlund-forest.webp",
+    "meta": {
+      "title": "Fayrlund Forest",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "md",
+    "minPlayers": 2,
+    "maxPlayers": 4
+  },
+  {
+    "imgUrl": "/maps/official-globe-theatre.webp",
+    "thumbUrl": "/maps/thumb/official-globe-theatre.webp",
+    "meta": {
+      "title": "Globe Theatre",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "md",
+    "minPlayers": 2,
+    "maxPlayers": 4
+  },
+  {
+    "imgUrl": "/maps/official-hells-kitchen.webp",
+    "thumbUrl": "/maps/thumb/official-hells-kitchen.webp",
+    "meta": {
+      "title": "Hell's Kitchen",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "md",
+    "minPlayers": 2,
+    "maxPlayers": 4
+  },
+  {
+    "imgUrl": "/maps/official-kaer-morhen.webp",
+    "thumbUrl": "/maps/thumb/official-kaer-morhen.webp",
+    "meta": {
+      "title": "Kaer Morhen",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "md",
+    "minPlayers": 2,
+    "maxPlayers": 4
+  },
+  {
+    "imgUrl": "/maps/official-hanging-gardens.webp",
+    "thumbUrl": "/maps/thumb/official-hanging-gardens.webp",
+    "meta": {
+      "title": "Hanging Gardens",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "md",
+    "minPlayers": 2,
+    "maxPlayers": 4
+  },
+  {
+    "imgUrl": "/maps/official-helicarrier.webp",
+    "thumbUrl": "/maps/thumb/official-helicarrier.webp",
+    "meta": {
+      "title": "Helicarrier",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "md",
+    "minPlayers": 2,
+    "maxPlayers": 4
+  },
+  {
+    "imgUrl": "/maps/official-naglfar.webp",
+    "thumbUrl": "/maps/thumb/official-naglfar.webp",
+    "meta": {
+      "title": "Naglfar",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "md",
+    "minPlayers": 2,
+    "maxPlayers": 4
+  },
+  {
+    "imgUrl": "/maps/official-marmoreal.webp",
+    "thumbUrl": "/maps/thumb/official-marmoreal.webp",
+    "meta": {
+      "title": "Marmoreal",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "md",
+    "minPlayers": 2,
+    "maxPlayers": 4
+  },
+  {
+    "imgUrl": "/maps/official-sanctum-sanctorum.webp",
+    "thumbUrl": "/maps/thumb/official-sanctum-sanctorum.webp",
+    "meta": {
+      "title": "Sanctum Sanctorum",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "md",
+    "minPlayers": 2,
+    "maxPlayers": 4
+  },
+  {
+    "imgUrl": "/maps/official-navy-pier.webp",
+    "thumbUrl": "/maps/thumb/official-navy-pier.webp",
+    "meta": {
+      "title": "Navy Pier",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "md",
+    "minPlayers": 2,
+    "maxPlayers": 4
+  },
+  {
+    "imgUrl": "/maps/official-sarpedon.webp",
+    "thumbUrl": "/maps/thumb/official-sarpedon.webp",
+    "meta": {
+      "title": "Sarpedon",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "md",
+    "minPlayers": 2,
+    "maxPlayers": 4
+  },
+  {
+    "imgUrl": "/maps/official-santas-workshop.webp",
+    "thumbUrl": "/maps/thumb/official-santas-workshop.webp",
+    "meta": {
+      "title": "Santa's Workshop",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "md",
+    "minPlayers": 2,
+    "maxPlayers": 4
+  },
+  {
+    "imgUrl": "/maps/official-the-bronze.webp",
+    "thumbUrl": "/maps/thumb/official-the-bronze.webp",
+    "meta": {
+      "title": "The Bronze",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "md",
+    "minPlayers": 2,
+    "maxPlayers": 4
+  },
+  {
+    "imgUrl": "/maps/official-streets-of-novigrad.webp",
+    "thumbUrl": "/maps/thumb/official-streets-of-novigrad.webp",
+    "meta": {
+      "title": "Streets of Novigrad",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "md",
+    "minPlayers": 2,
+    "maxPlayers": 4
+  },
+  {
+    "imgUrl": "/maps/official-soho.webp",
+    "thumbUrl": "/maps/thumb/official-soho.webp",
+    "meta": {
+      "title": "Soho",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "md",
+    "minPlayers": 2,
+    "maxPlayers": 4
+  },
+  {
+    "imgUrl": "/maps/official-venice.webp",
+    "thumbUrl": "/maps/thumb/official-venice.webp",
+    "meta": {
+      "title": "Venice",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "md",
+    "minPlayers": 2,
+    "maxPlayers": 4
+  },
+  {
+    "imgUrl": "/maps/official-the-raft.webp",
+    "thumbUrl": "/maps/thumb/official-the-raft.webp",
+    "meta": {
+      "title": "The Raft",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "md",
+    "minPlayers": 2,
+    "maxPlayers": 4
+  },
+  {
+    "imgUrl": "/maps/official-sunnydale-high.webp",
+    "thumbUrl": "/maps/thumb/official-sunnydale-high.webp",
+    "meta": {
+      "title": "Sunnydale High",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "md",
+    "minPlayers": 2,
+    "maxPlayers": 4
+  },
+  {
+    "imgUrl": "/maps/official-t-rex-paddock.webp",
+    "thumbUrl": "/maps/thumb/official-t-rex-paddock.webp",
+    "meta": {
+      "title": "T. Rex Paddock",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "sm",
+    "minPlayers": 2,
+    "maxPlayers": 2
+  },
+  {
+    "imgUrl": "/maps/official-king-solomons-mine.webp",
+    "thumbUrl": "/maps/thumb/official-king-solomons-mine.webp",
+    "meta": {
+      "title": "King Solomon's Mine",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "sm",
+    "minPlayers": 2,
+    "maxPlayers": 2
+  },
+  {
+    "imgUrl": "/maps/official-heorot.webp",
+    "thumbUrl": "/maps/thumb/official-heorot.webp",
+    "meta": {
+      "title": "Heorot",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "sm",
+    "minPlayers": 2,
+    "maxPlayers": 2
+  },
+  {
+    "imgUrl": "/maps/official-raptor-paddock.webp",
+    "thumbUrl": "/maps/thumb/official-raptor-paddock.webp",
+    "meta": {
+      "title": "Raptor Paddock",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "sm",
+    "minPlayers": 2,
+    "maxPlayers": 2
+  },
+  {
+    "imgUrl": "/maps/official-azuchi-castle.webp",
+    "thumbUrl": "/maps/thumb/official-azuchi-castle.webp",
+    "meta": {
+      "title": "Azuchi Castle",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "sm",
+    "minPlayers": 2,
+    "maxPlayers": 2
+  },
+  {
+    "imgUrl": "/maps/official-sherwood-forest.webp",
+    "thumbUrl": "/maps/thumb/official-sherwood-forest.webp",
+    "meta": {
+      "title": "Sherwood Forest",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "sm",
+    "minPlayers": 2,
+    "maxPlayers": 2
+  },
+  {
+    "imgUrl": "/maps/official-yukon-1900.webp",
+    "thumbUrl": "/maps/thumb/official-yukon-1900.webp",
+    "meta": {
+      "title": "Yukon 1900",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "sm",
+    "minPlayers": 2,
+    "maxPlayers": 2
+  },
+  {
+    "imgUrl": "/maps/official-yukon.webp",
+    "thumbUrl": "/maps/thumb/official-yukon.webp",
+    "meta": {
+      "title": "Yukon",
+      "author": "Unmatched (official)",
+      "url": "https://www.the-unmatched.club/maps"
+    },
+    "source": "official",
+    "size": "sm",
+    "minPlayers": 2,
+    "maxPlayers": 2
+  },
+  {
+    "imgUrl": "/maps/community-cuartel-moncada-161.webp",
+    "thumbUrl": "/maps/thumb/community-cuartel-moncada-161.webp",
+    "meta": {
+      "title": "Cuartel Moncada",
+      "author": "KinGFer_Cuba",
+      "url": "https://www.the-unmatched.club/c/maps/cuartel-moncada.161"
+    },
+    "source": "community",
+    "size": "md",
+    "upvotes": 2
+  },
+  {
+    "imgUrl": "/maps/community-hyrule-castle-136.webp",
+    "thumbUrl": "/maps/thumb/community-hyrule-castle-136.webp",
+    "meta": {
+      "title": "Hyrule Castle",
+      "author": "Boschma",
+      "url": "https://www.the-unmatched.club/c/maps/hyrule-castle.136"
+    },
+    "source": "community",
+    "size": "lg",
+    "upvotes": 2
+  },
+  {
+    "imgUrl": "/maps/community-crazy-daves-backyard-158.webp",
+    "thumbUrl": "/maps/thumb/community-crazy-daves-backyard-158.webp",
+    "meta": {
+      "title": "Crazy Dave's Backyard",
+      "author": "Yuki_FO",
+      "url": "https://www.the-unmatched.club/c/maps/crazy-daves-backyard.158"
+    },
+    "source": "community",
+    "size": "lg",
+    "upvotes": 3
+  },
+  {
+    "imgUrl": "/maps/community-cackling-chasm-163.webp",
+    "thumbUrl": "/maps/thumb/community-cackling-chasm-163.webp",
+    "meta": {
+      "title": "Cackling Chasm",
+      "author": "KingNerd7",
+      "url": "https://www.the-unmatched.club/c/maps/cackling-chasm.163"
+    },
+    "source": "community",
+    "size": "md",
+    "upvotes": 0
+  },
+  {
+    "imgUrl": "/maps/community-polus-96.webp",
+    "thumbUrl": "/maps/thumb/community-polus-96.webp",
+    "meta": {
+      "title": "Polus",
+      "author": "Elisey",
+      "url": "https://www.the-unmatched.club/c/maps/polus.96"
+    },
+    "source": "community",
+    "size": "lg",
+    "upvotes": 6
+  },
+  {
+    "imgUrl": "/maps/community-ileifa-118.webp",
+    "thumbUrl": "/maps/thumb/community-ileifa-118.webp",
+    "meta": {
+      "title": "Ilé-Ifá",
+      "author": "KinGFer_Cuba",
+      "url": "https://www.the-unmatched.club/c/maps/iléifá.118"
+    },
+    "source": "community",
+    "size": "md",
+    "upvotes": 2
+  },
+  {
+    "imgUrl": "/maps/community-altar-119.webp",
+    "thumbUrl": "/maps/thumb/community-altar-119.webp",
+    "meta": {
+      "title": "Altar",
+      "author": "KinGFer_Cuba",
+      "url": "https://www.the-unmatched.club/c/maps/altar.119"
+    },
+    "source": "community",
+    "size": "md",
+    "upvotes": 5
+  },
+  {
+    "imgUrl": "/maps/community-town-square-130.webp",
+    "thumbUrl": "/maps/thumb/community-town-square-130.webp",
+    "meta": {
+      "title": "town square",
+      "author": "spideyk",
+      "url": "https://www.the-unmatched.club/c/maps/town-square.130"
+    },
+    "source": "community",
+    "size": "md",
+    "upvotes": 4
+  },
+  {
+    "imgUrl": "/maps/community-yugoslavia-109.webp",
+    "thumbUrl": "/maps/thumb/community-yugoslavia-109.webp",
+    "meta": {
+      "title": "Yugoslavia",
+      "author": "Clubber",
+      "url": "https://www.the-unmatched.club/c/maps/yugoslavia.109"
+    },
+    "source": "community",
+    "size": "md",
+    "upvotes": 4
+  },
+  {
+    "imgUrl": "/maps/community-8bit-pokemon-battle-133.webp",
+    "thumbUrl": "/maps/thumb/community-8bit-pokemon-battle-133.webp",
+    "meta": {
+      "title": "8-bit Pokémon battle",
+      "author": "Rogue13",
+      "url": "https://www.the-unmatched.club/c/maps/8bit-pokémon-battle.133"
+    },
+    "source": "community",
+    "size": "lg",
+    "upvotes": 2
+  },
+  {
+    "imgUrl": "/maps/community-commencement-66.webp",
+    "thumbUrl": "/maps/thumb/community-commencement-66.webp",
+    "meta": {
+      "title": "Commencement",
+      "author": "Retinoid",
+      "url": "https://www.the-unmatched.club/c/maps/commencement.66"
+    },
+    "source": "community",
+    "size": "adventure",
+    "upvotes": 6
+  },
+  {
+    "imgUrl": "/maps/community-mirahq-211.webp",
+    "thumbUrl": "/maps/thumb/community-mirahq-211.webp",
+    "meta": {
+      "title": "MiraHQ",
+      "author": "Llama572",
+      "url": "https://www.the-unmatched.club/c/maps/mirahq.211"
+    },
+    "source": "community",
+    "size": "adventure",
+    "upvotes": -1
+  },
+  {
+    "imgUrl": "/maps/community-summoners-rift-229.webp",
+    "thumbUrl": "/maps/thumb/community-summoners-rift-229.webp",
+    "meta": {
+      "title": "Summoner's Rift",
+      "author": "JigiMoNd",
+      "url": "https://www.the-unmatched.club/c/maps/summoners-rift.229"
+    },
+    "source": "community",
+    "size": "adventure",
+    "upvotes": 3
+  },
+  {
+    "imgUrl": "/maps/community-vengeance-69.webp",
+    "thumbUrl": "/maps/thumb/community-vengeance-69.webp",
+    "meta": {
+      "title": "Vengeance",
+      "author": "hanigol",
+      "url": "https://www.the-unmatched.club/c/maps/vengeance.69"
+    },
+    "source": "community",
+    "size": "md",
+    "upvotes": 1
+  },
+  {
+    "imgUrl": "/maps/community-ai-arena-126.webp",
+    "thumbUrl": "/maps/thumb/community-ai-arena-126.webp",
+    "meta": {
+      "title": "Ai Arena",
+      "author": "Rogue13",
+      "url": "https://www.the-unmatched.club/c/maps/ai-arena.126"
+    },
+    "source": "community",
+    "size": "md",
+    "upvotes": -4
+  },
+  {
+    "imgUrl": "/maps/community-city-docks-85.webp",
+    "thumbUrl": "/maps/thumb/community-city-docks-85.webp",
+    "meta": {
+      "title": "City Docks",
+      "author": "Inforce",
+      "url": "https://www.the-unmatched.club/c/maps/city-docks.85"
+    },
+    "source": "community",
+    "size": "lg",
+    "upvotes": 6
+  },
+  {
+    "imgUrl": "/maps/community-the-origin-38.webp",
+    "thumbUrl": "/maps/thumb/community-the-origin-38.webp",
+    "meta": {
+      "title": "The Origin",
+      "author": "Глебушек",
+      "url": "https://www.the-unmatched.club/c/maps/the-origin.38"
+    },
+    "source": "community",
+    "size": "lg",
+    "upvotes": 2
+  },
+  {
+    "imgUrl": "/maps/community-untitled-battlefield-223.webp",
+    "thumbUrl": "/maps/thumb/community-untitled-battlefield-223.webp",
+    "meta": {
+      "title": "Untitled Battlefield",
+      "author": "Влад228",
+      "url": "https://www.the-unmatched.club/c/maps/untitled-battlefield.223"
+    },
+    "source": "community",
+    "size": "sm",
+    "upvotes": 0
+  },
+  {
+    "imgUrl": "/maps/community-castle-town-34.webp",
+    "thumbUrl": "/maps/thumb/community-castle-town-34.webp",
+    "meta": {
+      "title": "Castle town",
+      "author": "SirFurso",
+      "url": "https://www.the-unmatched.club/c/maps/castle-town.34"
+    },
+    "source": "community",
+    "size": "lg",
+    "upvotes": 2
+  },
+  {
+    "imgUrl": "/maps/community-gigs-and-shittles-32.webp",
+    "thumbUrl": "/maps/thumb/community-gigs-and-shittles-32.webp",
+    "meta": {
+      "title": "gigs and shittles",
+      "author": "FlurpDerp123",
+      "url": "https://www.the-unmatched.club/c/maps/gigs-and-shittles.32"
+    },
+    "source": "community",
+    "size": "adventure",
+    "upvotes": -3
+  },
+  {
+    "imgUrl": "/maps/community-shibuya-incident-29.webp",
+    "thumbUrl": "/maps/thumb/community-shibuya-incident-29.webp",
+    "meta": {
+      "title": "Shibuya incident",
+      "author": "Modest",
+      "url": "https://www.the-unmatched.club/c/maps/shibuya-incident.29"
+    },
+    "source": "community",
+    "size": "md",
+    "upvotes": 2
+  },
+  {
+    "imgUrl": "/maps/community-untitled-battlefield-230.webp",
+    "thumbUrl": "/maps/thumb/community-untitled-battlefield-230.webp",
+    "meta": {
+      "title": "Untitled Battlefield",
+      "author": "Влад228",
+      "url": "https://www.the-unmatched.club/c/maps/untitled-battlefield.230"
+    },
+    "source": "community",
+    "size": "sm",
+    "upvotes": 1
+  },
+  {
+    "imgUrl": "/maps/community-boxing-ring-duel-battlefield-8.webp",
+    "thumbUrl": "/maps/thumb/community-boxing-ring-duel-battlefield-8.webp",
+    "meta": {
+      "title": " Boxing ring | Duel Battlefield",
+      "author": "Глебушек",
+      "url": "https://www.the-unmatched.club/c/maps/boxing-ring-duel-battlefield.8"
+    },
+    "source": "community",
+    "size": "sm",
+    "upvotes": 6
+  },
+  {
+    "imgUrl": "/maps/community-bedwars-18.webp",
+    "thumbUrl": "/maps/thumb/community-bedwars-18.webp",
+    "meta": {
+      "title": "bedwars",
+      "author": "FlurpDerp123",
+      "url": "https://www.the-unmatched.club/c/maps/bedwars.18"
+    },
+    "source": "community",
+    "size": "md",
+    "upvotes": 2
+  },
+  {
+    "imgUrl": "/maps/community-europe-at-war-6.webp",
+    "thumbUrl": "/maps/thumb/community-europe-at-war-6.webp",
+    "meta": {
+      "title": "Europe at war",
+      "author": "SirKirby",
+      "url": "https://www.the-unmatched.club/c/maps/europe-at-war.6"
+    },
+    "source": "community",
+    "size": "adventure",
+    "upvotes": 1
+  },
+  {
+    "imgUrl": "/maps/community-cubism-btd6-4.webp",
+    "thumbUrl": "/maps/thumb/community-cubism-btd6-4.webp",
+    "meta": {
+      "title": "cubism BTD6",
+      "author": "FlurpDerp123",
+      "url": "https://www.the-unmatched.club/c/maps/cubism-btd6.4"
+    },
+    "source": "community",
+    "size": "md",
+    "upvotes": 1
+  },
+  {
+    "imgUrl": "/maps/community-road-to-dream-9.webp",
+    "thumbUrl": "/maps/thumb/community-road-to-dream-9.webp",
+    "meta": {
+      "title": "Road to dream",
+      "author": "aCastor",
+      "url": "https://www.the-unmatched.club/c/maps/road-to-dream.9"
+    },
+    "source": "community",
+    "size": "lg",
+    "upvotes": 7
+  },
+  {
+    "imgUrl": "/maps/community-maple-lodge-campsite-25.webp",
+    "thumbUrl": "/maps/thumb/community-maple-lodge-campsite-25.webp",
+    "meta": {
+      "title": "Maple lodge campsite",
+      "author": "FlurpDerp123",
+      "url": "https://www.the-unmatched.club/c/maps/maple-lodge-campsite.25"
+    },
+    "source": "community",
+    "size": "lg",
+    "upvotes": 0
+  },
+  {
+    "imgUrl": "/maps/community-forrestofrandomtrashtotestthingsandotherstuff-5.webp",
+    "thumbUrl": "/maps/thumb/community-forrestofrandomtrashtotestthingsandotherstuff-5.webp",
+    "meta": {
+      "title": "forrestofrandomtrashtotestthingsandotherstuff////////////////////////////////////////////////////////////////////////////////////////////////",
+      "author": "Ignisterra",
+      "url": "https://www.the-unmatched.club/c/maps/forrestofrandomtrashtotestthingsandotherstuff.5"
+    },
+    "source": "community",
+    "size": "md",
+    "upvotes": -1
+  },
+  {
+    "imgUrl": "/maps/community-push-it-hlm-7.webp",
+    "thumbUrl": "/maps/thumb/community-push-it-hlm-7.webp",
+    "meta": {
+      "title": "Push It HLM",
+      "author": "Podyanka",
+      "url": "https://www.the-unmatched.club/c/maps/push-it-hlm.7"
+    },
+    "source": "community",
+    "size": "md",
+    "upvotes": 0
+  },
+  {
+    "imgUrl": "/maps/community-hanamura-22.webp",
+    "thumbUrl": "/maps/thumb/community-hanamura-22.webp",
+    "meta": {
+      "title": "Hanamura",
+      "author": "Icefloor",
+      "url": "https://www.the-unmatched.club/c/maps/hanamura.22"
+    },
+    "source": "community",
+    "size": "md",
+    "upvotes": -1
+  },
+  {
+    "imgUrl": "/maps/community-lanes-16.webp",
+    "thumbUrl": "/maps/thumb/community-lanes-16.webp",
+    "meta": {
+      "title": "Lanes",
+      "author": "FlurpDerp123",
+      "url": "https://www.the-unmatched.club/c/maps/lanes.16"
+    },
+    "source": "community",
+    "size": "md",
+    "upvotes": 0
   }
 ]
