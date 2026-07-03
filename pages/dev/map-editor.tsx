@@ -48,6 +48,22 @@ const ZONE_PRESETS = [
 
 const STORAGE_KEY = "unbrewed-map-editor-draft";
 
+// dark-sidebar button styling (Chakra's default gray is unreadable here)
+const BTN = {
+  size: "xs" as const,
+  bg: "whiteAlpha.200",
+  color: "brand.parchment",
+  _hover: { bg: "whiteAlpha.400" },
+  _active: { bg: "whiteAlpha.500" },
+};
+const BTN_ON = {
+  ...BTN,
+  bg: "brand.accent",
+  color: "brand.surfaceDim",
+  _hover: { bg: "brand.accentDeep" },
+  _active: { bg: "brand.accentDeep" },
+};
+
 const emptyDoc = (): MapDoc => ({
   meta: { title: "", imageUrl: "", players: [1, 2], source: "", license: "community map — credit the author" },
   zones: [],
@@ -235,8 +251,8 @@ const MapEditor = () => {
 
         <Flex gap="0.25rem" flexWrap="wrap">
           {(["space", "connect", "zone", "start", "delete"] as Mode[]).map((m) => (
-            <Button key={m} size="xs" onClick={() => { setMode(m); setSelected(undefined); }}
-              colorScheme={mode === m ? "yellow" : undefined}>{m}</Button>
+            <Button key={m} {...(mode === m ? BTN_ON : BTN)}
+              onClick={() => { setMode(m); setSelected(undefined); }}>{m}</Button>
           ))}
         </Flex>
         <Text opacity={0.7} fontSize="0.75rem">
@@ -257,7 +273,7 @@ const MapEditor = () => {
                 onChange={(e) => setDoc({ ...doc, zones: doc.zones.map((zz) => zz.id === z.id ? { ...zz, label: e.target.value } : zz) })} />
             </Flex>
           ))}
-          <Button size="xs" onClick={addZone}>+ zone</Button>
+          <Button {...BTN} onClick={addZone}>+ zone</Button>
         </Flex>
 
         <Text fontSize="0.75rem">spaces: {doc.spaces.length} · edges:{" "}
@@ -272,8 +288,8 @@ const MapEditor = () => {
         )}
 
         <Flex gap="0.3rem">
-          <Button size="xs" onClick={() => setIo(JSON.stringify(doc, null, 2))}>export → box</Button>
-          <Button size="xs" onClick={() => { try { setDoc(JSON.parse(io)); } catch { alert("invalid JSON"); } }}>import ← box</Button>
+          <Button {...BTN} onClick={() => setIo(JSON.stringify(doc, null, 2))}>export → box</Button>
+          <Button {...BTN} onClick={() => { try { setDoc(JSON.parse(io)); } catch { alert("invalid JSON"); } }}>import ← box</Button>
           <Button size="xs" colorScheme="red" variant="outline"
             onClick={() => { if (confirm("clear draft?")) { setDoc(emptyDoc()); setIo(""); } }}>reset</Button>
         </Flex>
