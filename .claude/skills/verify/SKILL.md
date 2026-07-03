@@ -21,6 +21,11 @@ description: Build, run, and drive the Unbrewed game board end-to-end to verify 
 - Starter disc spawns ~1.5s after connect if the player has no blob — wait ≥4s after goto before counting tokens.
 - Token drag: mouse down/move/up on the token's boundingRect center. Zoom-pan: same gesture on empty board space. Verify separation via the `transform` attr of `svg g[cursor]` (zoom) vs each `g.tok` (token).
 
+## Screenshots
+
+- Save every screenshot to `screenshots/` at the repo root (gitignored — the user reviews them there). Create it with `mkdir -p screenshots` if missing.
+- Name files `<timestamp>-<what>.png` (e.g. `1432-token-drag.png`) so runs stay ordered and distinguishable. Don't write PNGs anywhere else (repo root, /tmp, scratchpad).
+
 ## Gotchas
 
 - puppeteer `waitUntil: "networkidle2"` never settles on /game (live websocket) — use `"domcontentloaded"` plus a `waitForFunction` that a known button exists AND has a non-zero boundingRect (hydration + lazy icon chunk can lag several seconds on first compile).
