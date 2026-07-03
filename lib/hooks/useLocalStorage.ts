@@ -184,6 +184,14 @@ export const useLocalDeckStorage = () => {
 export type MapData = {
   isStarred?: boolean;
   imgUrl: string;
+  /** Lightweight snapshot for grid cards; falls back to imgUrl when absent. */
+  thumbUrl?: string;
+  /** Provenance of a built-in snapshot: "legacy" | "official" | "community". */
+  source?: string;
+  size?: string;
+  minPlayers?: number;
+  maxPlayers?: number;
+  upvotes?: number;
   meta?: {
     author?: string;
     url?: string;

@@ -88,7 +88,7 @@ export const BagMap = () => {
               w="250px"
               h="200px"
               bg="brand.highlight"
-              bgImg={map?.imgUrl}
+              bgImg={map?.thumbUrl ?? map?.imgUrl}
               bgPos="center"
               bgSize="cover"
               borderRadius="0.5rem"
