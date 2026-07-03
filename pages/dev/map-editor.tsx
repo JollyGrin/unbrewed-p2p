@@ -268,7 +268,27 @@ const MapEditor = () => {
             <Flex key={z.id} alignItems="center" gap="0.2rem"
               border={activeZone === z.id ? "2px solid white" : "2px solid transparent"}
               borderRadius="0.3rem" p="0.15rem" cursor="pointer" onClick={() => setActiveZone(z.id)}>
-              <Box w="1rem" h="1rem" borderRadius="50%" bg={z.color} />
+              <Box
+                as="input"
+                type="color"
+                value={z.color}
+                title="change zone color"
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setDoc({ ...doc, zones: doc.zones.map((zz) => zz.id === z.id ? { ...zz, color: e.target.value } : zz) })
+                }
+                w="1.1rem"
+                h="1.1rem"
+                p="0"
+                border="none"
+                borderRadius="50%"
+                bg={z.color}
+                cursor="pointer"
+                sx={{
+                  WebkitAppearance: "none",
+                  "::-webkit-color-swatch-wrapper": { padding: 0 },
+                  "::-webkit-color-swatch": { border: "none", borderRadius: "50%" },
+                }}
+              />
               <Input size="xs" w="4.5rem" variant="unstyled" value={z.label}
                 onChange={(e) => setDoc({ ...doc, zones: doc.zones.map((zz) => zz.id === z.id ? { ...zz, label: e.target.value } : zz) })} />
             </Flex>
