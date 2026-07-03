@@ -42,7 +42,8 @@ type Command = {
 
 export const CommandMenu: React.FC<{
   openModal: (type: ModalType) => void;
-}> = ({ openModal }) => {
+  openTokenLibrary?: () => void;
+}> = ({ openModal, openTokenLibrary }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [scryOpen, setScryOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -292,6 +293,17 @@ export const CommandMenu: React.FC<{
         run: () => {
           close();
           openModal("discard");
+        },
+      },
+      {
+        id: "addToken",
+        group: "Board",
+        label: "Add a board token (icons, images, overlays)",
+        keywords: "pawn marker map overlay icon image",
+        enabled: () => typeof openTokenLibrary === "function",
+        run: () => {
+          close();
+          openTokenLibrary?.();
         },
       },
     ],
