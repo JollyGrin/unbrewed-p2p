@@ -1,5 +1,5 @@
 import React, { CSSProperties, useRef, useState } from "react";
-import { Box, Flex, Text } from "@chakra-ui/react";
+import { Box, Flex } from "@chakra-ui/react";
 import { Card } from "../CardFactory/Card";
 import { DeckImportCardType } from "../DeckPool/deck-import.type";
 import styled from "@emotion/styled";
@@ -22,6 +22,11 @@ type CardWrapperProps = {
   cards: DeckImportCardType[] | undefined;
   functions: {
     discardFn: (index: number) => void;
+    /**
+     * @deprecated Commit-modal flow — superseded by dragging cards to the
+     * table (face-down by default). Kept wired so the modal machinery still
+     * works, but no UI triggers it since the fan's "+" button was hidden.
+     */
     commitFn: (index: number) => void;
     boostFn: (index: number) => void;
     deckCardFn: (index: number) => void;
@@ -154,18 +159,13 @@ export const HandFan: React.FC<CardWrapperProps> = ({
               <Box className="lift">
                 <Card card={card} />
               </Box>
+              {/* The +(commit) / –(discard) buttons are hidden: playing a
+                  card is now drag-to-table, and discard lives in the menu.
+                  commitFn stays wired (deprecated) for the commit modal. */}
               <Flex className="actions">
-                <Text title="Commit" onClick={() => functions.commitFn(index)}>
-                  +
-                </Text>
-                <Text
-                  title="Discard"
-                  onClick={() => functions.discardFn(index)}
-                >
-                  –
-                </Text>
                 <PopoverCardActions
                   actions={[
+                    { text: "Discard", fn: () => functions.discardFn(index) },
                     { text: "Boost", fn: () => functions.boostFn(index) },
                     ...(functions.playFn
                       ? [

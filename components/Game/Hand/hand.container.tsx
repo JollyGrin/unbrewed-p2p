@@ -103,6 +103,12 @@ export const HandContainer = ({
     setGameState,
   );
   const gCancelBoost = flow(cancelBoost, setGameState);
+  /**
+   * @deprecated Commit-modal flow — superseded by playing cards to the table
+   * (drag or "Place on table", face-down by default). No UI reaches this
+   * since the fan's "+" button was hidden; kept until table cards fully
+   * replace the modal and the commit machinery can be deleted.
+   */
   const gCommit = flow(
     (cardIndex: number) =>
       playerState?.pool && commitCard(playerState?.pool, cardIndex),

@@ -109,6 +109,12 @@ export const ModalContainer: React.FC<ModalTemplateType> = ({
       () => logAction("Drew a card from deck"),
     );
 
+  /**
+   * @deprecated Commit-modal auto-open — superseded by playing cards to the
+   * table (face-down card tokens + flip). Still functional so a commit made
+   * by an older client (or a stray pool.commit.main) resolves cleanly, but
+   * no current UI initiates a commit; delete alongside the commit machinery.
+   */
   useEffect(() => {
     const playerCommit = playerState?.pool?.commit;
     if (modalType === "commit" && !playerCommit?.main) {
