@@ -11,6 +11,7 @@ import {
   Select,
   Spinner,
   Tag,
+  TagLabel,
   Text,
   VStack,
 } from "@chakra-ui/react";
@@ -31,6 +32,7 @@ import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
 import { buildInviteUrl } from "@/lib/invite";
 import { toast } from "react-hot-toast";
 import Link from "next/link";
+import { DiscordPresence } from "@/components/Discord";
 
 export const ConnectPage = () => {
   const router = useRouter();
@@ -164,6 +166,14 @@ export const ConnectPage = () => {
           >
             Play Offline without Map
           </Button>
+
+          {/* No friend to invite? Point them to the live Discord to find one. */}
+          <VStack w="100%" spacing="0.4rem" pt="0.25rem">
+            <Text fontSize="0.8rem" color="brand.secondary" opacity={0.65}>
+              No one to play with yet?
+            </Text>
+            <DiscordPresence tone="dark" />
+          </VStack>
         </VStack>
 
         {/* Optional — invite a friend with a one-click join link */}
@@ -236,6 +246,7 @@ export const ConnectPage = () => {
       <Flex
         position="absolute"
         bottom="0.75rem"
+        right="0.75rem"
         flexDir={"row"}
         alignItems="center"
         gap={2}
@@ -251,9 +262,14 @@ export const ConnectPage = () => {
         _hover={{ bg: "blackAlpha.600" }}
       >
         <SettingsIcon />
-        <Text>GameServer:</Text>
-        <Tag size="sm" bg="brand.secondary" color="brand.primary">
-          {activeServer}
+        <Text display={{ base: "none", md: "block" }}>GameServer:</Text>
+        <Tag
+          size="sm"
+          bg="brand.secondary"
+          color="brand.primary"
+          display={{ base: "none", md: "inline-flex" }}
+        >
+          <TagLabel maxW={{ base: "38vw", md: "none" }}>{activeServer}</TagLabel>
         </Tag>
       </Flex>
     </Wrapper>
