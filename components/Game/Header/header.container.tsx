@@ -1,22 +1,20 @@
-import { Box, Flex, Skeleton, Spacer, Text, Tooltip } from "@chakra-ui/react";
+import { Box, Flex, Skeleton, Text, Tooltip } from "@chakra-ui/react";
 import { LinkIcon } from "@chakra-ui/icons";
 import { useRouter } from "next/router";
 import { toast } from "react-hot-toast";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
-import { useScroll } from "@/lib/hooks";
 import { useLocalServerStorage } from "@/lib/hooks/useLocalStorage";
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
 import { buildInviteUrl } from "@/lib/invite";
 import { PoolType } from "@/components/DeckPool/PoolFns";
 import { PlayerBox } from "./header.components";
-import { FC, useEffect, useRef } from "react";
-import { CarouselTray } from "../game.styles";
+import { FC } from "react";
+import { ChipCluster, HudOverlay } from "./header.styles";
 import { ConnectionStatus } from "@/lib/gamesocket/socket";
 
 export const HeaderContainer: FC<{ openPositionModal: () => void }> = ({
   openPositionModal,
 }) => {
-  const carouselRef = useRef();
   const localName = useRouter().query?.name;
   const player = Array.isArray(localName) ? localName[0] : localName;
 
@@ -31,70 +29,36 @@ export const HeaderContainer: FC<{ openPositionModal: () => void }> = ({
   >;
   const playerKeys = players && Object.keys(players);
 
-  const {
-    setRef,
-    handleMouseLeave,
-    handleMouseUp,
-    handleMouseMove,
-    handleMouseDown,
-  } = useScroll();
-
-  useEffect(() => {
-    if (carouselRef === undefined) return;
-    if (!carouselRef?.current) return;
-    //@ts-ignore
-    setRef(carouselRef);
-  }, [carouselRef, setRef]);
-
   return (
-    <Flex
-      bg="rgba(44, 24, 49, 0.9)"
-      borderBottom="1px solid rgba(231, 204, 152, 0.35)"
-      boxShadow="0 6px 18px rgba(20, 8, 24, 0.35)"
-      py={1}
-      w="100%"
-      justifyContent="space-between"
-      alignItems="center"
-      gap={"10px"}
-      position="relative"
-    >
-      {players && playerKeys ? (
-        <CarouselTray
-          ref={carouselRef}
-          onMouseDown={handleMouseDown}
-          onMouseLeave={handleMouseLeave}
-          onMouseUp={handleMouseUp}
-          onMouseMove={handleMouseMove}
-        >
-          {playerKeys?.map((playerName) => (
-            <Flex key={playerName} width="min-content">
-              <Spacer width="0.5rem" />
-              {players && players?.[playerName]?.pool && (
+    <>
+      <HudOverlay>
+        {players && playerKeys ? (
+          playerKeys.map(
+            (playerName) =>
+              players?.[playerName]?.pool && (
                 <PlayerBox
+                  key={playerName}
                   name={playerName}
                   isLocal={player === playerName}
                   playerState={players[playerName] as { pool: PoolType }}
                   setGameState={setGameState}
                   openPositionModal={openPositionModal}
                 />
-              )}
-            </Flex>
-          ))}
-        </CarouselTray>
-      ) : (
-        <Skeleton minHeight={"97.969px"} minWidth={"150px"} mx={2} />
-      )}
-      <Flex
-        position="absolute"
-        top="0.35rem"
-        right="0.35rem"
-        alignItems="center"
-        gap="0.3rem"
-      >
+              ),
+          )
+        ) : (
+          <Skeleton
+            minHeight={"88px"}
+            minWidth={"240px"}
+            borderRadius="0.85rem"
+          />
+        )}
+      </HudOverlay>
+      <ChipCluster>
         <InviteChip />
         <ConnectionChip status={connectionStatus} />
-      </Flex>
-    </Flex>
+      </ChipCluster>
+    </>
   );
 };
 

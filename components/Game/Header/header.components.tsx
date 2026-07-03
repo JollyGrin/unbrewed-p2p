@@ -1,7 +1,6 @@
 import {
-  Grid,
-  Flex,
   Box,
+  Flex,
   Text,
   HStack,
   useDisclosure,
@@ -10,9 +9,16 @@ import {
 } from "@chakra-ui/react";
 import { IconType } from "react-icons";
 import {
-  MoveStatContainer,
+  ControlButton,
+  HeroName,
+  MoveChip,
+  PipFooter,
+  Pip,
+  PlayerName,
   PlayerTitleBar,
   StatContainer,
+  StatLine,
+  StatsPanel,
 } from "./header.styles";
 
 import {
@@ -67,6 +73,9 @@ export const PlayerBox: React.FC<{
   const diceDisclosure = useDisclosure();
   const discardDisclosure = useDisclosure();
 
+  const sidekickQty = sidekick?.quantity ?? 0;
+  const hasSidekick = sidekickQty > 0;
+
   return (
     <>
       <MapModal {...mapDisclosure} />
@@ -74,154 +83,143 @@ export const PlayerBox: React.FC<{
       <DiscardModalReadOnly {...discardDisclosure} cards={discard} />
       <StatContainer isLocal={isLocal}>
         <PlayerTitleBar>
-          <Tooltip label={<TipBody pool={playerState?.pool} />}>
-            <Text>{name}</Text>
-          </Tooltip>
+          <Box minW={0}>
+            <Tooltip
+              label={<TipBody pool={playerState?.pool} />}
+              placement="bottom-start"
+              hasArrow
+            >
+              <PlayerName>{name}</PlayerName>
+            </Tooltip>
+            {hero?.name && <HeroName>{hero.name}</HeroName>}
+          </Box>
           {isLocal && (
-            <HStack gap="0.9rem">
-              <Tooltip label="Change map">
-                <Box
+            <HStack gap="0.25rem" flexShrink={0}>
+              <Tooltip label="Change map" hasArrow>
+                <ControlButton
                   as="button"
                   aria-label="Change map"
-                  cursor="pointer"
                   onClick={mapDisclosure.onOpen}
                 >
-                  <FaMap />
-                </Box>
+                  <FaMap size="15px" />
+                </ControlButton>
               </Tooltip>
-              <Tooltip label="Edit your board tokens">
-                <Box
+              <Tooltip label="Edit your board tokens" hasArrow>
+                <ControlButton
                   as="button"
                   aria-label="Edit your board tokens"
-                  cursor="pointer"
                   onClick={() =>
                     typeof openPositionModal === "function" &&
                     openPositionModal()
                   }
                 >
-                  <IconToken />
-                </Box>
+                  <IconToken size="14px" />
+                </ControlButton>
               </Tooltip>
-              <Tooltip label="Roll dice">
-                <Box
+              <Tooltip label="Roll dice" hasArrow>
+                <ControlButton
                   as="button"
                   aria-label="Roll dice"
-                  cursor="pointer"
                   onClick={diceDisclosure.onOpen}
                 >
-                  <IconDice />
-                </Box>
+                  <IconDice size="15px" />
+                </ControlButton>
               </Tooltip>
             </HStack>
           )}
         </PlayerTitleBar>
-        <Grid
-          gridTemplateColumns={"1fr auto auto"}
-          alignItems="center"
-          gap="0.75rem"
-          p="0.25rem 0.75rem 0.35rem"
-        >
-          <Flex flexDir="column" gap="0.25rem">
-            <StatRow label="Hero">
+
+        <StatsPanel>
+          <Box>
+            <StatLine>
               <Stat
                 Icon={IconHeart}
+                iconColor={colors.brand.danger}
                 number={hero.hp ?? 0}
                 callback={(adjustNumber: number) =>
                   updateHealth(adjustNumber, "hero")
                 }
                 isLocal={isLocal}
+                emphasize
+                size="22px"
               />
-              <Tooltip label={hero.isRanged ? "Ranged" : "Melee"}>
+              <Tooltip label={hero.isRanged ? "Ranged" : "Melee"} hasArrow>
                 <span>
                   <Stat
                     Icon={hero.isRanged ? IconRanged : IconMeele}
                     isLocal={isLocal}
+                    size="18px"
                   />
                 </span>
               </Tooltip>
-            </StatRow>
-            {sidekick?.quantity && sidekick.quantity > 0 ? (
-              <StatRow label="Sidekick">
+            </StatLine>
+            {hasSidekick && (
+              <StatLine mt="0.3rem">
                 <Stat
                   isLocal={isLocal}
-                  Icon={sidekick.quantity <= 1 ? IconHeart : IconSidekicks}
+                  Icon={sidekickQty <= 1 ? IconHeart : IconSidekicks}
+                  iconColor={
+                    sidekickQty <= 1
+                      ? colors.brand.danger
+                      : colors.brand.secondary
+                  }
                   callback={(number: number) => {
-                    if (sidekick?.quantity && sidekick?.quantity <= 1) {
+                    if (sidekickQty <= 1) {
                       updateHealth(number, "sidekick");
                     } else {
                       updateSidekickQuantity(number);
                     }
                   }}
-                  number={
-                    sidekick.quantity <= 1
-                      ? (sidekick.hp ?? 0)
-                      : (sidekick.quantity ?? 0)
-                  }
+                  number={sidekickQty <= 1 ? (sidekick.hp ?? 0) : sidekickQty}
+                  size="18px"
                 />
-                <Tooltip label={sidekick.isRanged ? "Ranged" : "Melee"}>
+                <Tooltip label={sidekick.isRanged ? "Ranged" : "Melee"} hasArrow>
                   <span>
                     <Stat
                       isLocal={isLocal}
                       Icon={sidekick.isRanged ? IconRanged : IconMeele}
+                      size="16px"
                     />
                   </span>
                 </Tooltip>
-              </StatRow>
-            ) : (
-              <Box h="20px" />
+              </StatLine>
             )}
-          </Flex>
-          <MoveStatContainer>
+          </Box>
+
+          <MoveChip>
+            <IconMove size="16px" />
             <Text
-              fontSize={"2.25rem"}
-              my={-1}
               fontFamily="SpaceGrotesk"
-              lineHeight="normal"
+              fontWeight={700}
+              fontSize="1.2rem"
+              lineHeight="1"
             >
               {hero.move}
             </Text>
-            <StatLabel>
-              <IconMove style={{ display: "inline" }} /> move
-            </StatLabel>
-          </MoveStatContainer>
-          <Flex justifyContent="center" flexDir="column" gap="0.1rem">
-            <Tooltip label="Cards in hand" placement="right">
-              <span>
-                <Stat
-                  isLocal={isLocal}
-                  Icon={IconHand}
-                  number={hand.length}
-                  size="18px"
-                />
-              </span>
-            </Tooltip>
-            <Tooltip label="Cards left in deck" placement="right">
-              <span>
-                <Stat
-                  isLocal={isLocal}
-                  Icon={IconDeck}
-                  number={deck?.length ?? 0}
-                  size="18px"
-                />
-              </span>
-            </Tooltip>
-            <Tooltip label="Discard pile — click to view" placement="right">
-              <Box
-                cursor="pointer"
-                borderRadius="0.25rem"
-                _hover={{ bg: "rgba(72, 40, 79, 0.15)" }}
-                onClick={discardDisclosure.onOpen}
-              >
-                <Stat
-                  isLocal={isLocal}
-                  Icon={IconDiscard}
-                  number={discard.length}
-                  size="18px"
-                />
-              </Box>
-            </Tooltip>
-          </Flex>
-        </Grid>
+            <StatLabel>move</StatLabel>
+          </MoveChip>
+        </StatsPanel>
+
+        <PipFooter>
+          <Tooltip label="Cards in hand" placement="bottom" hasArrow>
+            <Pip>
+              <IconHand size="14px" />
+              {hand.length}
+            </Pip>
+          </Tooltip>
+          <Tooltip label="Cards left in deck" placement="bottom" hasArrow>
+            <Pip>
+              <IconDeck size="14px" />
+              {deck?.length ?? 0}
+            </Pip>
+          </Tooltip>
+          <Tooltip label="Discard pile — click to view" placement="bottom" hasArrow>
+            <Pip clickable onClick={discardDisclosure.onOpen}>
+              <IconDiscard size="14px" />
+              {discard.length}
+            </Pip>
+          </Tooltip>
+        </PipFooter>
       </StatContainer>
     </>
   );
@@ -234,13 +232,25 @@ export const Stat: React.FC<{
   callback?: (adjustNumber: number) => void;
   isLocal: boolean;
   onClick?: () => void;
-}> = ({ Icon, number, size, callback, isLocal, onClick }) => {
+  iconColor?: string;
+  emphasize?: boolean;
+}> = ({
+  Icon,
+  number,
+  size,
+  callback,
+  isLocal,
+  onClick,
+  iconColor,
+  emphasize,
+}) => {
   const [isHovering, setIsHovering] = useState<boolean>(false);
   const enter = () => setIsHovering(true);
   const leave = () => setIsHovering(false);
   return (
     <Flex
       alignItems="center"
+      gap="0.15rem"
       position="relative"
       onMouseOver={enter}
       onMouseOut={leave}
@@ -256,10 +266,20 @@ export const Stat: React.FC<{
           </AdjustButton>
         </Flex>
       ) : (
-        <Icon size={size ?? "25px"} />
+        <Box as="span" color={iconColor} display="grid" placeItems="center">
+          <Icon size={size ?? "25px"} />
+        </Box>
       )}
 
-      <Text alignSelf={"center"}> {number ?? ""}</Text>
+      <Text
+        alignSelf="center"
+        fontFamily={emphasize ? fonts.SpaceGrotesk : undefined}
+        fontWeight={emphasize ? 700 : undefined}
+        fontSize={emphasize ? "1.2rem" : undefined}
+        lineHeight="1"
+      >
+        {number ?? ""}
+      </Text>
     </Flex>
   );
 };
@@ -293,19 +313,6 @@ const StatLabel = styled(Text)`
   opacity: 0.65;
   user-select: none;
 `;
-
-const StatRow = ({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) => (
-  <Grid gridTemplateColumns="3.6rem auto auto" alignItems="center" gap="0.5rem">
-    <StatLabel>{label}</StatLabel>
-    {children}
-  </Grid>
-);
 
 const AdjustButton = styled(Flex)`
   background-color: ${(props) => props.bg};
