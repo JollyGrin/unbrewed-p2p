@@ -161,12 +161,25 @@ All four research tracks completed. Headline findings and how they interlock:
    model from 02, representation pattern from 03.
 2. **Engine, headless** — types → map/movement → turn state machine → combat
    timeline → effect interpreter. Golden replay tests throughout. No server, no UI.
-3. **Deck data** for the 3 launch decks (LLM-assisted conversion, human-reviewed,
-   replay-tested). Stress-test decks only need to *typecheck against the DSL*,
-   not ship.
+3. **Deck data** for the 3 launch decks. Deck #1 is hand-authored (to shake out
+   the DSL); the lessons become a **card-conversion skill** in the private repo
+   that dispatchable agents run for every subsequent deck: fetch deck JSON →
+   decompose card text → emit typed effect data → typecheck → scenario test per
+   card → review report with original text vs. plain-English readback of the
+   encoded DSL, side by side. Cards that don't fit are flagged
+   `NEEDS-PRIMITIVE`/`ESCAPE-HATCH`, never force-fit; cheap model by default,
+   escalate flagged cards. Stress-test decks only need to *typecheck against the
+   DSL*, not ship.
 4. **Room server** — ws transport, rooms, redaction, legalActions, reconnect
    tokens, room TTL, protocol version handshake. Deploy to Railway.
 5. **`/pro` UI** in this repo — lobby + game page against the live server.
-6. Later, in rough order: more decks, matchmaking queue, AI opponent, accounts.
+6. **DSL coverage sweep** (after DSL v0 + engine skeleton) — automated script:
+   fetch the next 50–100 popular unmatched.cards decks, LLM-classify every
+   effect text against the frozen primitive list, output coverage % + uncovered
+   effects verbatim. Decision per gap: new primitive / escape hatch / don't
+   support that deck yet. Re-run whenever choosing the next deck to add — this
+   replaces doing wider manual analysis up front (the corpus showed a power-law:
+   more decks add tail one-offs, not core primitives).
+7. Later, in rough order: more decks, matchmaking queue, AI opponent, accounts.
 
 Each step gates the next; nothing in 1–3 requires touching this repo at all.
