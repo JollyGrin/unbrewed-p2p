@@ -1,4 +1,5 @@
 import { Navbar } from "@/components/Navbar";
+import { PageSeo } from "@/components/Helmet/Head";
 import { LS_KEY } from "@/lib/hooks";
 import { Box, Button, HStack, Text, VStack } from "@chakra-ui/react";
 import { toast } from "react-hot-toast";
@@ -15,6 +16,7 @@ export default function DebugPage() {
   }
   return (
     <Box h="100vh" bg="brand.secondary" color="brand.primary">
+      <PageSeo path="/debug" title="Debug — Unbrewed" noindex />
       <Navbar />
       <VStack pt="3rem">
         <Text fontSize="2rem" fontWeight={700}>

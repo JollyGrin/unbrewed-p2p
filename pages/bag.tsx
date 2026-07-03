@@ -12,6 +12,7 @@ import { Navbar } from "@/components/Navbar";
 import { BagDecks } from "@/components/Bag/Deck";
 import { BagMap } from "@/components/Bag/Map";
 import { BagBulkContainer } from "@/components/Bag/Bulk";
+import { PageSeo } from "@/components/Helmet/Head";
 import { useRouter } from "next/router";
 
 const BagPage = () => {
@@ -20,6 +21,11 @@ const BagPage = () => {
 
   return (
     <Flex flexDir={"column"} bg="brand.highlight" h="100svh">
+      <PageSeo
+        path="/bag"
+        title="Deck Bag — Import Unmatched Decks & Maps | Unbrewed"
+        description="Load Unmatched decks from unmatched.cards, the-unmatched.club, Tabletop Simulator exports, JSON, or image URLs. Manage your fan decks and custom maps in one place."
+      />
       <Box color="brand.secondary">
         <Navbar />
       </Box>

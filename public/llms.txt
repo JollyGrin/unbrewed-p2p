@@ -1,0 +1,25 @@
+# Unbrewed
+
+> Unbrewed is a free, open-source, browser-based simulator for playing Unmatched
+> board game fan decks online. No accounts, no installs, no cost. It imports decks
+> from unmatched.cards and the-unmatched.club, as well as Tabletop Simulator (TTS)
+> exports, and turns any image URL into a custom battle map. Two players connect to
+> a shared lobby and play head-to-head. It is an unofficial hobby project and is not
+> affiliated with Restoration Games, the publisher of Unmatched.
+
+## Pages
+- [Home](https://unbrewed.xyz/): overview and a four-step getting-started guide
+- [Deck bag](https://unbrewed.xyz/bag): import and manage decks and custom maps
+- [Connect](https://unbrewed.xyz/connect): create or join a game lobby to play
+
+## Key facts
+- Price: Free (open-source, MIT-licensed)
+- Account required: No
+- Runs in: Any modern web browser (desktop or mobile)
+- Deck sources: unmatched.cards, the-unmatched.club, Tabletop Simulator exports, raw JSON, image URLs
+- Maps: any image URL
+- Multiplayer: two players share a lobby name
+
+## Source
+- [GitHub](https://github.com/JollyGrin/unbrewed-p2p): source code and issue tracker
+- [Discord](https://discord.gg/qPxHFjwkNN): community and support
