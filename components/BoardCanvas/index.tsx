@@ -12,6 +12,7 @@ type BoardProps = {
   onSelect?: (id: string | null) => void;
   onCounterAdjust?: (t: OwnedToken, delta: number) => void;
   onCardPeek?: (t: OwnedToken | null, rect?: DOMRect) => void;
+  onForeignCardClick?: (t: OwnedToken) => void;
   iconSvg: (
     name: string,
     opts: { color?: string; size: number; cutout?: boolean; maskId?: string },
@@ -31,6 +32,7 @@ export const BoardCanvas: React.FC<BoardProps> = ({
   onSelect,
   onCounterAdjust,
   onCardPeek,
+  onForeignCardClick,
   iconSvg,
   centerRef,
   screenToBoardRef,
@@ -67,6 +69,7 @@ export const BoardCanvas: React.FC<BoardProps> = ({
     onSelect,
     onCounterAdjust,
     onCardPeek,
+    onForeignCardClick,
     iconSvg,
     centerRef,
     screenToBoardRef,

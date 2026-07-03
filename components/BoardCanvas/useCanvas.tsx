@@ -25,6 +25,8 @@ type CanvasProps = {
   onCounterAdjust?: (t: OwnedToken, delta: number) => void;
   /** Hovering your own face-down card peeks at its face (null = peek off). */
   onCardPeek?: (t: OwnedToken | null, rect?: DOMRect) => void;
+  /** Click on ANOTHER player's card token — opens the pickup panel. */
+  onForeignCardClick?: (t: OwnedToken) => void;
   /** Resolve a bundled icon name to an SVG string; null until the set loads. */
   iconSvg: (
     name: string,
@@ -55,6 +57,7 @@ export const useCanvas = ({
   onSelect,
   onCounterAdjust,
   onCardPeek,
+  onForeignCardClick,
   iconSvg,
   centerRef,
   screenToBoardRef,
@@ -125,6 +128,9 @@ export const useCanvas = ({
       if (d.id === selectedId && isOwn(d)) {
         inner += TokenMarkup.selectionRing({ w, h });
       }
+      if (d.card && d.claimedBy) {
+        inner += TokenMarkup.claimRing({ w, h });
+      }
       if (d.counter) {
         const linked = d.counter.link;
         inner += TokenMarkup.counterBadge({
@@ -183,10 +189,12 @@ export const useCanvas = ({
         .attr("opacity", (d) => (isOwn(d) ? 1 : 0.8));
 
       // Locked overlays and other players' tokens are inert to the pointer so
-      // they never block grabbing what's on top of them.
-      sel.attr("pointer-events", (d) =>
-        !isOwn(d) || (d.overlay && d.locked) ? "none" : "all",
-      );
+      // they never block grabbing what's on top of them. Exception: foreign
+      // CARD tokens take clicks (pickup requests) — but never drags.
+      sel.attr("pointer-events", (d) => {
+        if (!isOwn(d)) return d.card ? "all" : "none";
+        return d.overlay && d.locked ? "none" : "all";
+      });
 
       // Clear stale handlers, then wire drag on our movable tokens.
       sel
@@ -208,6 +216,15 @@ export const useCanvas = ({
         .on("click", (event: MouseEvent, d) => {
           event.stopPropagation();
           onSelect?.(d.id);
+        });
+
+      // Foreign card tokens: click opens the pickup panel (no drag, no peek).
+      sel
+        .filter((d) => !isOwn(d) && Boolean(d.card))
+        .attr("cursor", "pointer")
+        .on("click", (event: MouseEvent, d) => {
+          event.stopPropagation();
+          onForeignCardClick?.(d);
         });
 
       // Peek: hovering your own face-down card previews its face — only for
@@ -309,6 +326,7 @@ export const useCanvas = ({
     onSelect,
     onCounterAdjust,
     onCardPeek,
+    onForeignCardClick,
     iconSvg,
     canvasRef,
     gRef,

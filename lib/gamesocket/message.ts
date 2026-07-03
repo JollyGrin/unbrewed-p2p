@@ -1,4 +1,5 @@
 import { PoolType } from "@/components/DeckPool/PoolFns";
+import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 import {
   LegacyPositionType,
   PositionBlob,
@@ -47,6 +48,39 @@ export interface PlayerState {
   // Latest dice roll from this player, stamped onto every outgoing blob so it
   // survives pool updates and reaches late joiners. Deduped by id on inbound.
   lastRoll?: DiceRoll;
+  // Cross-player card handoff (docs/card-transfer-plan.md +
+  // docs/card-pickup-plan.md). All three ride every outgoing blob like the
+  // log: the relay is write-your-own-blob-only, so a card moves between
+  // players via escrow on the SENDER's blob, applied and acked by the
+  // recipient. The card travels as a full object — always in exactly one
+  // place (a pool, a token, or an escrow entry).
+  pendingTransfers?: CardTransfer[]; // sender's escrow, pruned once acked
+  appliedTransfers?: string[]; // recipient's consumed ids (dedup under rebroadcast)
+  tokenClaims?: TokenClaim[]; // claimant's "I want that table card" requests
+}
+
+export type TransferZone = "hand" | "deckTop" | "deckBottom" | "discard";
+
+// A card in flight from one player's zone to another's. Pickups use the
+// deterministic id `take-<tokenId>` so a re-run of the granting reconcile is
+// idempotent; gives use a per-sender unique id.
+export interface CardTransfer {
+  id: string;
+  from: string;
+  to: string;
+  card: DeckImportCardType;
+  zone: TransferZone;
+  createdAt: number;
+}
+
+// A request to pick up someone else's card token off the table. Lives on the
+// CLAIMANT's blob; the token owner's client answers by escrowing a
+// CardTransfer and deleting the token (never the server — a server-side
+// mutation of the owner's blob would be clobbered by their next send).
+export interface TokenClaim {
+  tokenId: string;
+  owner: string;
+  claimedAt: number; // arbitration (earliest wins) + staleness TTL
 }
 
 // A single dice roll event. Carried on the player blob like the map/actionLog,

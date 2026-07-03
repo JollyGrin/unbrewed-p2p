@@ -56,6 +56,8 @@ export type OwnedToken = BoardToken & {
   color?: string;
   /** Resolved badge number; null = linked but the owner has no pool yet. */
   counterDisplay?: number | null;
+  /** Card tokens: name of the player who has asked to pick this card up. */
+  claimedBy?: string;
 };
 
 export const DEFAULT_PLAYER_COLOR = "#48284F";
