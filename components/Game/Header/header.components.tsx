@@ -21,7 +21,11 @@ import {
   TbCards as IconDeck,
   TbGrave2 as IconDiscard,
 } from "react-icons/tb";
-import { GiFootprint as IconMove, GiHearts as IconHeart } from "react-icons/gi";
+import {
+  GiFootprint as IconMove,
+  GiHearts as IconHeart,
+  GiRollingDices as IconDice,
+} from "react-icons/gi";
 import { IoPeople as IconSidekicks } from "react-icons/io5";
 import { IoMdHand as IconHand } from "react-icons/io";
 import { FaChessPawn as IconToken } from "react-icons/fa";
@@ -36,6 +40,7 @@ import { useState } from "react";
 
 import { FaMap } from "react-icons/fa";
 import { MapModal } from "./map.modal";
+import { DiceModal } from "./dice.modal";
 import { DiscardModalReadOnly } from "./discard.modal";
 
 export const PlayerBox: React.FC<{
@@ -59,11 +64,13 @@ export const PlayerBox: React.FC<{
   };
 
   const mapDisclosure = useDisclosure();
+  const diceDisclosure = useDisclosure();
   const discardDisclosure = useDisclosure();
 
   return (
     <>
       <MapModal {...mapDisclosure} />
+      <DiceModal {...diceDisclosure} />
       <DiscardModalReadOnly {...discardDisclosure} cards={discard} />
       <StatContainer isLocal={isLocal}>
         <PlayerTitleBar>
@@ -93,6 +100,16 @@ export const PlayerBox: React.FC<{
                   }
                 >
                   <IconToken />
+                </Box>
+              </Tooltip>
+              <Tooltip label="Roll dice">
+                <Box
+                  as="button"
+                  aria-label="Roll dice"
+                  cursor="pointer"
+                  onClick={diceDisclosure.onOpen}
+                >
+                  <IconDice />
                 </Box>
               </Tooltip>
             </HStack>

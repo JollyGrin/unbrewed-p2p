@@ -41,6 +41,22 @@ export interface PlayerState {
   // every outgoing blob (see WebGameProvider.stampLog), so it survives normal
   // pool updates and reaches late joiners.
   actionLog?: ActionLogEntry[];
+  // Latest dice roll from this player, stamped onto every outgoing blob so it
+  // survives pool updates and reaches late joiners. Deduped by id on inbound.
+  lastRoll?: DiceRoll;
+}
+
+// A single dice roll event. Carried on the player blob like the map/actionLog,
+// but treated as an event (played once) rather than convergent state: clients
+// dedupe by `id` and render the newest by `at`. Every client renders the same
+// predetermined `values`, so all screens land on the same faces.
+export interface DiceRoll {
+  id: string; // unique per roll (crypto.randomUUID()); used for dedupe
+  by: string; // player name who rolled (slug.name)
+  notation: string; // base notation, e.g. "2d20"
+  values: number[]; // per-die results, e.g. [15, 3]
+  total: number; // sum of values + modifier
+  at: number; // Date.now(); newest-wins ordering + late-join seeding
 }
 
 export type PositionState = Record<string, PositionType>;

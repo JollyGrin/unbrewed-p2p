@@ -13,6 +13,13 @@ import { WebGameProvider, useWebGame } from "@/lib/contexts/WebGameProvider";
 import { PageSeo } from "@/components/Helmet/Head";
 import { Box, useDisclosure } from "@chakra-ui/react";
 import { useRouter } from "next/router";
+import dynamic from "next/dynamic";
+
+// dice-box-threejs touches window/document on load, so render it client-only.
+const DiceOverlay = dynamic(
+  () => import("@/components/Game/Dice/DiceOverlay"),
+  { ssr: false },
+);
 import {
   Dispatch,
   SetStateAction,
@@ -57,6 +64,7 @@ const GamePage = () => {
           <HeaderContainer openPositionModal={positionDisclosure.onOpen} />
           <BoardContainer self={query?.name as string} />
           <HandWrapper {...{ setModalType }} />
+          <DiceOverlay />
           <ActionLog />
           <CommandMenu openModal={setModalType} />
         </GameLayout>
