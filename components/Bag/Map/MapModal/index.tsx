@@ -47,8 +47,11 @@ export const MapModal = () => {
         <ModalHeader>Browse your saved Maps</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
-          <Grid templateColumns="1fr 5fr">
-            <VStack alignItems="start">
+          <Grid
+            templateColumns={{ base: "1fr", md: "220px minmax(0, 1fr)" }}
+            gap="1rem"
+          >
+            <VStack alignItems="start" overflowY="auto" maxH="72vh">
               {data?.map((map) => (
                 <MapTitle
                   key={map.imgUrl}
@@ -72,10 +75,11 @@ export const MapModal = () => {
                 />
               ))}
             </VStack>
-            <Box position="relative">
+            <Box position="relative" minW={0}>
               <Box
                 as={Link}
                 href={selectedMap?.meta?.url ?? ""}
+                zIndex={1}
                 target="_blank"
                 opacity={0.8}
                 position="absolute"
@@ -93,7 +97,14 @@ export const MapModal = () => {
                   <Text>by {selectedMap?.meta?.author}</Text>
                 )}
               </Box>
-              <Box position="relative" minH="300px">
+              <Box
+                position="relative"
+                w="100%"
+                minH="300px"
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+              >
                 {queryUrl && !loaded && (
                   <Skeleton
                     position="absolute"
@@ -107,6 +118,8 @@ export const MapModal = () => {
                   alt="mappreview"
                   borderRadius="1rem"
                   w="100%"
+                  maxH="72vh"
+                  objectFit="contain"
                   opacity={loaded ? 1 : 0}
                   transition="opacity 0.2s ease-in"
                   onLoad={() => setLoaded(true)}
