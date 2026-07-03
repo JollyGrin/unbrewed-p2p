@@ -11,6 +11,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import Link from "next/link";
+import { DiscordPresence } from "@/components/Discord";
 
 export const Hero = () => {
   return (
@@ -86,6 +87,7 @@ export const Hero = () => {
               Connect &amp; Play
             </Button>
           </HStack>
+          <DiscordPresence tone="light" mt="0.5rem" />
           <Text
             as={Link}
             href="#get-started"
