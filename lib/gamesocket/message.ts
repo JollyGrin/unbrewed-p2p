@@ -16,6 +16,16 @@ export interface GameState {
   last_updated: string;
 }
 
+// A single entry in a player's action feed. Carries no player name — the name
+// is the key of the PlayerState it rides on. `at` is a wall-clock stamp used
+// only for cross-player ordering in the feed; `seq` is a per-player monotonic
+// counter that disambiguates same-millisecond entries.
+export interface ActionLogEntry {
+  seq: number;
+  at: number;
+  text: string;
+}
+
 // PlayerState can be w/e json payload the game wants to send.
 // The golang backend just passes this to all clients.
 export interface PlayerState {
@@ -26,6 +36,11 @@ export interface PlayerState {
   // means the map was explicitly cleared.
   mapUrl?: string;
   mapUpdatedAt?: number;
+  // Recent actions this player took, so opponents can see otherwise-hidden
+  // deck moves (scry, mill, shuffle…). A bounded ring buffer stamped onto
+  // every outgoing blob (see WebGameProvider.stampLog), so it survives normal
+  // pool updates and reaches late joiners.
+  actionLog?: ActionLogEntry[];
 }
 
 export type PositionState = Record<string, PositionType>;

@@ -35,6 +35,7 @@ type ModalTemplateType = {
   setModalType: (type: ModalType) => void;
   gameState: WebsocketMessage | undefined;
   setPlayerState: () => (props: { pool: PoolType }) => void;
+  logAction: (text: string) => void;
 };
 export const ModalContainer: React.FC<ModalTemplateType> = ({
   isOpen,
@@ -42,6 +43,7 @@ export const ModalContainer: React.FC<ModalTemplateType> = ({
   setModalType,
   gameState,
   setPlayerState,
+  logAction,
 }) => {
   const isCommit = modalType === "commit";
   const player = useRouter().query?.name as string;
@@ -62,12 +64,15 @@ export const ModalContainer: React.FC<ModalTemplateType> = ({
   const onClose = () => {
     if (modalType === "deck") {
       gShuffleDeck();
+      logAction("Searched and shuffled their deck");
       toast.success("Deck successfully shuffled after closing");
     }
     setModalType(false);
   };
 
-  const gCancelCommit = flow(cancelCommit, setGameState);
+  const gCancelCommit = flow(cancelCommit, setGameState, () =>
+    logAction("Returned committed card to hand"),
+  );
   const onCommitCancelClose = () => {
     if (!playerState?.pool) return;
     gCancelCommit(playerState.pool);
@@ -77,26 +82,31 @@ export const ModalContainer: React.FC<ModalTemplateType> = ({
   const gFlip = flow(
     () => playerState?.pool && revealCommit(playerState?.pool),
     setGameState,
+    () => logAction("Flipped their committed card"),
   );
   const gDiscardCommit = flow(
     () => playerState?.pool && discardCommit(playerState?.pool),
     setGameState,
+    () => logAction("Resolved commit to discard"),
   );
   const gDrawDiscard = (discardIndex: number) =>
     flow(
       () => playerState?.pool && drawDiscard(playerState?.pool, discardIndex),
       setGameState,
+      () => logAction("Returned a card from discard to hand"),
     );
 
   const gBoostTopDeck = flow(
     () => playerState?.pool && boostFromTopDeck(playerState?.pool),
     setGameState,
+    () => logAction("Boosted from top of deck"),
   );
 
   const gDrawDeck = (discardIndex: number) =>
     flow(
       () => playerState?.pool && drawDeck(playerState?.pool, discardIndex),
       setGameState,
+      () => logAction("Drew a card from deck"),
     );
 
   useEffect(() => {

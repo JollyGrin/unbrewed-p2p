@@ -161,11 +161,107 @@ export const discardCard = (pool: PoolType, index: number): PoolType => {
   return pool;
 };
 
-export const discardRandomCard = (pool: PoolType, cardIndex: number) => {
-  const handSize = pool.hand.length - 1;
-  const randomNumber = Math.floor(Math.random() * handSize);
-  pool.discard.push(pool.hand[randomNumber]);
-  pool.hand.splice(cardIndex, 1);
+//   /**
+//    * Discard one random card from hand (e.g. Robin Hood's "Ambush").
+//    * The same random index is discarded and spliced, unlike the old buggy
+//    * version which spliced a different index than it discarded.
+//    */
+export const discardRandomCard = (pool: PoolType): PoolType => {
+  if (!pool.hand || pool.hand.length === 0) return pool;
+  const randomIndex = Math.floor(Math.random() * pool.hand.length);
+  pool.discard.push(pool.hand[randomIndex]);
+  pool.hand.splice(randomIndex, 1);
+  return pool;
+};
+
+//   /**
+//    * Draw the top `count` cards of the deck into hand. Top = end of array.
+//    */
+export const drawMultiple = (pool: PoolType, count: number): PoolType => {
+  if (!pool?.deck || !pool?.hand) return pool;
+  for (let i = 0; i < count; i++) {
+    const card = pool.deck.pop();
+    if (!card) break;
+    pool.hand.push(card);
+  }
+  return pool;
+};
+
+//   /**
+//    * Mill: move the top `count` cards of the deck to the discard pile,
+//    * topmost first. Unmatched never reshuffles discard back in, so a milled
+//    * card is effectively spent.
+//    */
+export const mill = (pool: PoolType, count: number): PoolType => {
+  if (!pool?.deck) return pool;
+  for (let i = 0; i < count; i++) {
+    const card = pool.deck.pop();
+    if (!card) break;
+    pool.discard.push(card);
+  }
+  return pool;
+};
+
+//   /**
+//    * Scry / reorder the top of the deck without shuffling. The caller peeked
+//    * at the top N cards and split them into two ordered groups:
+//    *   - topCards:    index 0 = the next card to be drawn (topmost)
+//    *   - bottomCards: index 0 = the card that ends up closest to the bottom
+//    * Everything below the peeked window is untouched.
+//    */
+export const reorderTop = (
+  pool: PoolType,
+  topCards: DeckImportCardType[],
+  bottomCards: DeckImportCardType[],
+): PoolType => {
+  if (!pool.deck) return pool;
+  const n = topCards.length + bottomCards.length;
+  const rest = pool.deck.slice(0, pool.deck.length - n);
+  // Front of the array is the bottom of the deck; end of the array is the top.
+  // topCards[0] must be drawn first, so it goes last in the array.
+  pool.deck = [...bottomCards, ...rest, ...[...topCards].reverse()];
+  return pool;
+};
+
+//   /**
+//    * Move discard[cardIndex] to the top of the deck (e.g. Houdini returning a
+//    * Trick). Top = end of array.
+//    */
+export const discardToDeckTop = (
+  pool: PoolType,
+  cardIndex: number,
+): PoolType => {
+  if (!pool.deck) return pool;
+  if (!pool.discard[cardIndex]) return pool;
+  pool.deck.push(pool.discard[cardIndex]);
+  pool.discard.splice(cardIndex, 1);
+  return pool;
+};
+
+//   /**
+//    * Move discard[cardIndex] to the bottom of the deck. Bottom = front of array.
+//    */
+export const discardToDeckBottom = (
+  pool: PoolType,
+  cardIndex: number,
+): PoolType => {
+  if (!pool.deck) return pool;
+  if (!pool.discard[cardIndex]) return pool;
+  pool.deck.unshift(pool.discard[cardIndex]);
+  pool.discard.splice(cardIndex, 1);
+  return pool;
+};
+
+//   /**
+//    * Shuffle the entire discard pile back into the deck. Not a real Unmatched
+//    * rule (decks never reshuffle on exhaustion) but useful for sandbox setups,
+//    * house rules, and TTS parity.
+//    */
+export const shuffleDiscardIntoDeck = (pool: PoolType): PoolType => {
+  if (!pool.deck) return pool;
+  pool.deck = pool.deck.concat(pool.discard);
+  pool.discard = [];
+  return shuffleDeck(pool);
 };
 
 //   /**

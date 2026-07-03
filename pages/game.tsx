@@ -5,6 +5,8 @@ import {
   ModalContainer,
 } from "@/components/Game";
 import { GameLayout } from "@/components/Game/game.layout";
+import { CommandMenu } from "@/components/Game/CommandMenu/command-menu";
+import { ActionLog } from "@/components/Game/ActionLog/action-log";
 import { PositionModal } from "@/components/Positions/position.modal";
 import { PositionType } from "@/components/Positions/position.type";
 import { WebGameProvider, useWebGame } from "@/lib/contexts/WebGameProvider";
@@ -55,6 +57,8 @@ const GamePage = () => {
           <HeaderContainer openPositionModal={positionDisclosure.onOpen} />
           <BoardContainer self={query?.name as string} />
           <HandWrapper {...{ setModalType }} />
+          <ActionLog />
+          <CommandMenu openModal={setModalType} />
         </GameLayout>
       </WebGameProvider>
     </>
@@ -69,9 +73,12 @@ const HandWrapper = ({
 }: {
   setModalType: Dispatch<SetStateAction<ModalType>>;
 }) => {
-  const { gameState, setPlayerState } = useWebGame();
+  const { gameState, setPlayerState, logAction } = useWebGame();
   return (
-    <HandContainer setModal={setModalType} {...{ gameState, setPlayerState }} />
+    <HandContainer
+      setModal={setModalType}
+      {...{ gameState, setPlayerState, logAction }}
+    />
   );
 };
 
@@ -80,12 +87,13 @@ const ModalWrapper = (props: {
   modalType: ModalType;
   setModalType: (type: ModalType) => void;
 }) => {
-  const { gameState, setPlayerState } = useWebGame();
+  const { gameState, setPlayerState, logAction } = useWebGame();
   return (
     <ModalContainer
       {...props}
       gameState={gameState}
       setPlayerState={setPlayerState}
+      logAction={logAction}
     />
   );
 };
