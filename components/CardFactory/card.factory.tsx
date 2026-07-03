@@ -30,25 +30,43 @@ const CardFactoryBase: React.FC<{ card: DeckImportCardType }> = ({ card }) => {
 
   if (!props || !card) return <div />;
 
+  return <CardSvg card={card} props={props} />;
+};
+
+/**
+ * The generated card face, layout pre-computed. Pure so it can also be
+ * string-rendered (renderToStaticMarkup) into the d3 board canvas. Board
+ * tokens pass idPrefix to keep clip-path ids unique inside the shared board
+ * <svg> document, plus explicit width/height (percentages resolve against
+ * the outer board viewport there, not the token group).
+ */
+export const CardSvg: React.FC<{
+  card: DeckImportCardType;
+  props: ReturnType<typeof calculateProps>;
+  width?: string | number;
+  height?: string | number;
+  idPrefix?: string;
+}> = ({ card, props, width = "100%", height = "100%", idPrefix = "" }) => {
   return (
     <Fragment>
       <svg
         preserveAspectRatio="xMinYMin meet"
         viewBox="0 0 63 88"
         shapeRendering="geometricPrecision"
-        height="100%"
+        height={height}
         // HACK: width currently used to center the offset to right
-        width="100%"
+        width={width}
         style={{ userSelect: "none" }}
+        xmlns="http://www.w3.org/2000/svg"
       >
-        <clipPath id="innerBorder">
+        <clipPath id={`${idPrefix}innerBorder`}>
           <rect
             width={props.innerWidth}
             height={conprops.height - 2 * conprops.outerBorderWidth}
             rx={conprops.innerCornerRadius}
           />
         </clipPath>
-        <clipPath id="topPanel">
+        <clipPath id={`${idPrefix}topPanel`}>
           <rect
             width={props.topPanelWidth}
             height={roundNumber(props.topPanelHeight, 2)}
@@ -62,7 +80,7 @@ const CardFactoryBase: React.FC<{ card: DeckImportCardType }> = ({ card }) => {
         />
         <g
           transform={`translate(${conprops.outerBorderWidth} ${conprops.outerBorderWidth})`}
-          clipPath={`url(#innerBorder)`}
+          clipPath={`url(#${idPrefix}innerBorder)`}
         >
           <rect
             className="top-panel"
@@ -73,7 +91,7 @@ const CardFactoryBase: React.FC<{ card: DeckImportCardType }> = ({ card }) => {
           <image
             width={props.topPanelWidth}
             href={props.dataUri}
-            clipPath="url(#topPanel)"
+            clipPath={`url(#${idPrefix}topPanel)`}
             preserveAspectRatio="xMidYMid meet"
           />
           <polygon

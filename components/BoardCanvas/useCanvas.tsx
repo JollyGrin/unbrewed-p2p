@@ -1,7 +1,12 @@
 import * as d3 from "d3";
-import { MutableRefObject, RefObject, useEffect } from "react";
-import { DEFAULT_TOKEN_SIZE, OwnedToken } from "../Positions/position.type";
+import { MutableRefObject, RefObject, useEffect, useRef } from "react";
+import {
+  DEFAULT_TOKEN_SIZE,
+  OwnedToken,
+  cardTokenHeight,
+} from "../Positions/position.type";
 import { TokenMarkup } from "./Tokens";
+import { cardTokenMarkup } from "./Tokens/cardFace";
 import { publishBoardTransform, setBoardSvg } from "./boardTransform";
 
 type CanvasProps = {
@@ -11,11 +16,15 @@ type CanvasProps = {
   tokens: OwnedToken[];
   self?: string;
   size: { width: number; height: number };
-  move?: (t: OwnedToken) => void;
+  /** Position sender. May be throttled — if it carries a lodash `.flush`,
+   * drag-end calls it so the final position always lands. */
+  move?: ((t: OwnedToken) => void) & { flush?: () => void };
   selectedId?: string | null;
   onSelect?: (id: string | null) => void;
   /** Click (+1) / right-click (−1) on a token's counter badge. */
   onCounterAdjust?: (t: OwnedToken, delta: number) => void;
+  /** Hovering your own face-down card peeks at its face (null = peek off). */
+  onCardPeek?: (t: OwnedToken | null, rect?: DOMRect) => void;
   /** Resolve a bundled icon name to an SVG string; null until the set loads. */
   iconSvg: (
     name: string,
@@ -23,6 +32,10 @@ type CanvasProps = {
   ) => string | null;
   /** Filled with a fn returning the board coords at the viewport center. */
   centerRef?: MutableRefObject<() => { x: number; y: number }>;
+  /** Filled with a fn converting client (screen) coords to board coords. */
+  screenToBoardRef?: MutableRefObject<
+    (sx: number, sy: number) => { x: number; y: number }
+  >;
 };
 
 /**
@@ -41,9 +54,16 @@ export const useCanvas = ({
   selectedId,
   onSelect,
   onCounterAdjust,
+  onCardPeek,
   iconSvg,
   centerRef,
+  screenToBoardRef,
 }: CanvasProps) => {
+  // Token being dragged right now: it follows the pointer locally, so echo
+  // re-renders must not snap it back to the (throttled, ≤50ms stale) wire
+  // position mid-drag.
+  const draggingIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!canvasRef.current) return;
     if (!parentRef) return;
@@ -71,9 +91,23 @@ export const useCanvas = ({
 
     const markup = (d: OwnedToken): string => {
       const w = d.size ?? DEFAULT_TOKEN_SIZE;
-      const h = d.imageUrl ? d.h ?? w : w;
+      const h = d.card
+        ? d.h ?? cardTokenHeight(w)
+        : d.imageUrl
+          ? d.h ?? w
+          : w;
       let inner: string;
-      if (d.imageUrl) {
+      if (d.card) {
+        inner = cardTokenMarkup({
+          id: d.id,
+          card: d.card,
+          faceDown: d.faceDown,
+          w,
+          h,
+          owner: d.owner,
+          color: d.color,
+        });
+      } else if (d.imageUrl) {
         inner = TokenMarkup.image({ url: d.imageUrl, w, h });
       } else if (d.icon) {
         inner =
@@ -108,14 +142,26 @@ export const useCanvas = ({
 
     const drag = d3
       .drag<SVGGElement, OwnedToken>()
-      .on("start", function () {
+      .on("start", function (_event, d) {
+        draggingIdRef.current = d.id;
         d3.select(this).raise();
         g.attr("cursor", "grabbing");
+        onCardPeek?.(null);
       })
-      .on("drag", (event: { x: number; y: number }, d) => {
+      .on("drag", function (event: { x: number; y: number }, d) {
+        // Local echo: the dragged token tracks the pointer at frame rate;
+        // the network send may be throttled and lag a tick behind.
+        d3.select(this).attr(
+          "transform",
+          `translate(${event.x}, ${event.y})`,
+        );
         move?.({ ...d, x: event.x, y: event.y });
       })
-      .on("end", () => g.attr("cursor", "grab"))
+      .on("end", () => {
+        draggingIdRef.current = null;
+        g.attr("cursor", "grab");
+        move?.flush?.();
+      })
       .touchable(true);
 
     const renderGroup = (
@@ -127,7 +173,12 @@ export const useCanvas = ({
         // Key by id so DOM reordering (raise) doesn't scramble datum binding.
         .data(items, (d) => (d as OwnedToken).id)
         .join((enter) => enter.append("g").attr("class", "tok"))
-        .attr("transform", (d) => `translate(${d.x}, ${d.y})`)
+        .each(function (d) {
+          // wire position — except for the actively dragged token, whose
+          // transform the drag handler owns until the pointer releases
+          if (d.id === draggingIdRef.current) return;
+          d3.select(this).attr("transform", `translate(${d.x}, ${d.y})`);
+        })
         .html(markup)
         .attr("opacity", (d) => (isOwn(d) ? 1 : 0.8));
 
@@ -138,7 +189,11 @@ export const useCanvas = ({
       );
 
       // Clear stale handlers, then wire drag on our movable tokens.
-      sel.on(".drag", null).on("click", null);
+      sel
+        .on(".drag", null)
+        .on("click", null)
+        .on("pointerenter", null)
+        .on("pointerleave", null);
       const own = sel
         .filter((d) => isOwn(d) && !(d.overlay && d.locked))
         .call(drag)
@@ -146,14 +201,28 @@ export const useCanvas = ({
         // layer so they can always be grabbed under overlapping tokens.
         .raise();
 
-      // Only image pieces open the on-board styling panel; discs and icons
+      // Only image pieces and cards open the on-board panel; discs and icons
       // are managed from the token menu instead.
       own
-        .filter((d) => Boolean(d.imageUrl))
+        .filter((d) => Boolean(d.imageUrl || d.card))
         .on("click", (event: MouseEvent, d) => {
           event.stopPropagation();
           onSelect?.(d.id);
         });
+
+      // Peek: hovering your own face-down card previews its face — only for
+      // you; everyone else keeps seeing the back. Leave is wired on every
+      // own card so a peek never sticks after a flip re-renders the token.
+      const ownCards = own.filter((d) => Boolean(d.card));
+      ownCards.on("pointerleave", () => onCardPeek?.(null));
+      ownCards
+        .filter((d) => Boolean(d.faceDown))
+        .on(
+          "pointerenter",
+          function (this: SVGGElement, _e: unknown, d: OwnedToken) {
+            onCardPeek?.(d, this.getBoundingClientRect());
+          },
+        );
 
       // Counter badge: click +1, right-click −1 (own tokens only).
       own
@@ -203,6 +272,16 @@ export const useCanvas = ({
       };
     }
 
+    if (screenToBoardRef) {
+      screenToBoardRef.current = (sx: number, sy: number) => {
+        const svg = canvasRef.current as SVGSVGElement;
+        const rect = svg.getBoundingClientRect();
+        const t = d3.zoomTransform(svg);
+        const [x, y] = t.invert([sx - rect.left, sy - rect.top]);
+        return { x, y };
+      };
+    }
+
     // fit + center the map on first render (moves map and tokens together)
     if (isFirstRender) {
       const MAP_W = 1200;
@@ -229,10 +308,12 @@ export const useCanvas = ({
     selectedId,
     onSelect,
     onCounterAdjust,
+    onCardPeek,
     iconSvg,
     canvasRef,
     gRef,
     centerRef,
+    screenToBoardRef,
   ]);
 
   // Clear the shared svg reference when the board unmounts.
