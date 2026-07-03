@@ -324,6 +324,13 @@ export const addCardToDeckBottom = (
   return pool;
 };
 
+/**
+ * @deprecated The pool.commit zone (commitCard / boostCard / boostFromTopDeck /
+ * cancelBoost / revealCommit / discardCommit / cancelCommit) backs the commit
+ * modal, which is superseded by playing cards to the table (face-down card
+ * tokens). Kept functional while the modal still exists for stray commits;
+ * delete the family together when the modal goes.
+ */
 export const commitCard = (pool: PoolType, cardIndex: number): PoolType => {
   if (!pool?.hand || pool?.commit?.main) return pool;
   pool.commit.main = pool.hand[cardIndex];
