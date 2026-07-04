@@ -1,9 +1,12 @@
 /**
  * Card ART for Pro games. The server's catalog is the mechanical truth
- * (title/type/value/boost); display art comes from the same public
- * unbrewed-api deck JSON the sandbox imports, matched by title. If a deck
- * fetch fails or a title doesn't match, callers fall back to text chips —
- * art is a nicety, never a dependency.
+ * (title/type/value/boost); display art comes from the community deck JSON,
+ * matched by title. Snapshot-first: the committed copy in public/pro/decks/
+ * (refresh via `npm run pro:decks:snapshot`) is read before the live
+ * unbrewed-api — Pro rules are frozen at conversion time, so upstream deck
+ * edits shouldn't change the table either. If both fetches fail or a title
+ * doesn't match, callers fall back to text chips — art is a nicety, never a
+ * dependency.
  */
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
@@ -58,7 +61,11 @@ export function useProCardArt(
         ids.map(async (heroId) => {
           const deckId = HERO_DECK_IDS[heroId];
           if (!deckId) return;
-          const { data: deck } = await axios.get<DeckImportType>(API + deckId);
+          const local = await axios
+            .get<DeckImportType>(`/pro/decks/${deckId}.json`)
+            .catch(() => null);
+          const deck =
+            local?.data ?? (await axios.get<DeckImportType>(API + deckId)).data;
           const byTitle: Record<string, DeckImportCardType> = {};
           for (const card of deck.deck_data.cards) byTitle[norm(card.title)] = card;
           byHero[heroId] = { cards: byTitle, hero: deck.deck_data.hero };
