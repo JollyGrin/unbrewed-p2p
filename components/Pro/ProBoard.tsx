@@ -39,6 +39,11 @@ const PLAYER_COLOR: Record<string, string> = {
   p2: "#3B8BEB", // blue
 };
 
+/** Token initials: leading "The " is noise ("The Mandalorian"/"The Child"/
+ * "Thrall" all rendered as TH), so strip it and take three letters. */
+const tokenInitials = (name: string) =>
+  name.replace(/^the\s+/i, "").slice(0, 3).toUpperCase();
+
 export const ProBoard = ({
   map,
   fighters,
@@ -165,12 +170,13 @@ export const ProBoard = ({
                 title={`${f.name} — ${f.hp}/${f.maxHp} HP`}
               >
                 <Text
-                  fontSize="min(1.4vw, 0.85rem)"
+                  fontSize="min(1.1vw, 0.68rem)"
                   fontWeight="bold"
+                  letterSpacing="-0.02em"
                   color={f.kind === "HERO" ? "brand.surfaceDim" : "brand.parchment"}
                   lineHeight={1}
                 >
-                  {f.name.slice(0, 2).toUpperCase()}
+                  {tokenInitials(f.name)}
                 </Text>
                 <Flex
                   position="absolute"
