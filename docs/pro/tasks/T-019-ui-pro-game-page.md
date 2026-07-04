@@ -1,9 +1,29 @@
 # T-019 — UI: /pro game page (board, prompts, socket)
 
-- **Status:** blocked
+- **Status:** in progress — scaffolding landed 2026-07-04 (overnight prep); wiring blocked on T-015/T-016
 - **Repo:** unbrewed-p2p
 - **Depends on:** T-015, T-016 (needs a live protocol to render)
 - **More info needed:** NONE
+
+## Progress (2026-07-04, overnight)
+Landed ahead of the backend so the two can be connected the moment the server
+is up:
+- `lib/pro/protocol.ts` — **DRAFT** client protocol mirroring the engine's
+  committed types (Action union, PendingPrompt, MapDef) + a proposed room
+  envelope (CREATE/JOIN/RECONNECT/ACTION/PROMPT_RESPONSE ↔
+  ROOM_CREATED/JOINED/STATE/OPPONENT_STATUS/ERROR). ⚠ First wiring task:
+  diff against `unbrewed-pro-server/protocol/protocol.ts` (didn't exist yet)
+  and make the client file an exact copy. `PROTOCOL_VERSION = 0` until synced.
+- `lib/pro/useProSocket.ts` — reconnect w/ sessionStorage token, exp backoff,
+  queued hello. Endpoint from `NEXT_PUBLIC_PRO_WS_URL`.
+- `components/Pro/ProBoard.tsx` — presentational board: map image, spaces at
+  normalized coords sized by `meta.spaceDiameter`, fighter tokens w/ HP badges,
+  gold pulse on caller-supplied highlight lists. Zero rules logic.
+- `pages/pro/game.tsx` — LIVE mode (when WS URL set) + DEV PREVIEW mode
+  (no WS URL: renders `lib/pro/fixtures/mended-drum.map.json`, verified in
+  browser). 404s in prod while WS URL is unset.
+- Still open from Scope: lobby wiring on /pro, CardFactory hand, reveal beat,
+  action log, mobile pass, reconnect acceptance test.
 
 ## Context
 The dumb renderer (context doc): everything it shows comes from
