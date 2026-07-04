@@ -665,15 +665,15 @@ const PreviewGame = () => {
       />
       <Flex direction="column" gap="0.75rem">
         <Tag colorScheme="orange" w="fit-content">
-          DEV PREVIEW — no server
+          BOARD DEMO — no server connected
         </Tag>
         <Text fontSize="0.9rem" opacity={0.8}>
-          {PREVIEW_MAP.meta.title} fixture. Click a fighter, then a highlighted space to slide it one step
-          (out-edges = adjacentTo ∪ oneWayTo, straight off the map graph — try the stairs at s12: one-way down
-          to s13, no way back).
+          A feel for the rules-enforced table on {PREVIEW_MAP.meta.title}: click a fighter, then a gold
+          space to slide it one step along the printed paths (the stairs by s12 only go one way — the
+          board knows). In a real match the referee server decides what lights up.
         </Text>
         <Text fontSize="0.8rem" opacity={0.6}>
-          Live mode activates when NEXT_PUBLIC_PRO_WS_URL is set.
+          Live matches activate when a game server is configured (NEXT_PUBLIC_PRO_WS_URL at build time).
         </Text>
         {selected && (
           <Button {...BTN} onClick={() => setSelected(null)} w="fit-content">
@@ -700,10 +700,9 @@ const ProGamePage = () => {
 
 export default ProGamePage;
 
-// Preview mode must not ship: without a WS URL in prod, 404 the page.
-export const getServerSideProps = async () => {
-  if (!process.env.NEXT_PUBLIC_PRO_WS_URL && process.env.NODE_ENV === "production") {
-    return { notFound: true };
-  }
-  return { props: {} };
-};
+// No getServerSideProps: the GitHub Pages deploy is a static `next export`,
+// which has no server and no runtime env. NEXT_PUBLIC_PRO_WS_URL is baked in
+// at build time; when it's absent the page falls back to the self-contained
+// board demo above, so a Pages build with no backend still shows something
+// honest instead of a broken table. Setting the variable in the Pages build
+// (or any host) flips the same page to live mode.
