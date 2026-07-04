@@ -31,6 +31,14 @@
  * (sessionStorage), replayed via RECONNECT after a drop; the server re-binds
  * the socket to the seat and re-sends STATE. Tokens do not rotate in v1 and
  * die with the room (in-memory, TTL ~2h after last activity).
+ *
+ * ## v3 — public lobbies (2 → 3)
+ * Rooms carry a `public` flag (default false: invite-link rooms stay unlisted).
+ * SET_VISIBILITY (from a ws bound to a seat in that room) toggles it and is acked
+ * with VISIBILITY. LIST_LOBBIES returns the public, one-seat, game-not-started,
+ * recently-active rooms as LobbyListing[] (client polls; no server push — a room
+ * drops out the moment its second seat fills or it goes stale). `ageMs` is
+ * wait-time since room creation and does NOT reset on a visibility toggle.
  */
 
 export const PROTOCOL_VERSION = 3;
@@ -258,31 +266,31 @@ export interface HeroListing {
   reach: "MELEE" | "RANGED";
 }
 
-/** A public room waiting for an opponent, as shown in the lobby browser. */
+// A public room waiting for a second player (LIST_LOBBIES result row).
 export interface LobbyListing {
   roomId: string;
   heroId: string;
   heroName: string;
-  ageMs: number; // how long the lobby has been waiting (server clock)
+  ageMs: number; // time the lobby has been waiting (now − room creation); NOT reset by a visibility toggle
 }
 
 export type ClientMsg =
   | { v: number; type: "LIST_HEROES" }
+  | { v: number; type: "LIST_LOBBIES" }
   | { v: number; type: "CREATE_ROOM"; heroId: string }
   | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string }
+  | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }
-  | { v: number; type: "ACTION"; roomId: string; action: Action }
-  | { v: number; type: "LIST_LOBBIES" }
-  | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean };
+  | { v: number; type: "ACTION"; roomId: string; action: Action };
 
 export type ServerMsg =
   | { v: number; type: "HEROES"; heroes: HeroListing[] }
+  | { v: number; type: "LOBBIES"; lobbies: LobbyListing[] }
   | { v: number; type: "ROOM_CREATED"; roomId: string; token: string; you: PlayerId }
   | { v: number; type: "ROOM_JOINED"; roomId: string; token: string; you: PlayerId }
+  | { v: number; type: "VISIBILITY"; roomId: string; public: boolean } // ack to SET_VISIBILITY
   | { v: number; type: "STATE"; view: PlayerView; legalActions: Action[] }
   | { v: number; type: "OPPONENT_STATUS"; connected: boolean }
-  | { v: number; type: "LOBBIES"; lobbies: LobbyListing[] }
-  | { v: number; type: "VISIBILITY"; roomId: string; public: boolean } // ack to the setter
   | { v: number; type: "ERROR"; code: ErrorCode; message: string };
 
 export type ErrorCode =
