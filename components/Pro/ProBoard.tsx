@@ -80,8 +80,8 @@ export const ProBoard = ({
             w={`${diameter}%`}
             sx={{ aspectRatio: "1" }}
             borderRadius="50%"
-            border={isHighlighted ? "none" : "1px solid rgba(255,255,255,0.15)"}
-            bg={isHighlighted ? "rgba(224,168,46,0.25)" : "transparent"}
+            border={isHighlighted ? "2px solid #E0A82E" : "1px solid rgba(255,255,255,0.15)"}
+            bg={isHighlighted ? "rgba(224,168,46,0.45)" : "transparent"}
             animation={isHighlighted ? `${highlightPulse} 1.4s ease-in-out infinite` : undefined}
             cursor={isHighlighted && onSpaceClick ? "pointer" : "default"}
             onClick={isHighlighted && onSpaceClick ? () => onSpaceClick(s.id) : undefined}
