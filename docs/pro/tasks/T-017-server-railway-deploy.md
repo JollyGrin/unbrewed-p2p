@@ -1,6 +1,6 @@
 # T-017 — Server: Railway deployment
 
-- **Status:** blocked
+- **Status:** done
 - **Repo:** unbrewed-pro-server
 - **Depends on:** T-016
 - **More info needed:** NONE — answered 2026-07-04:
@@ -34,3 +34,13 @@ etiquette beats infrastructure.
 
 ## Out of scope
 CI/CD automation, autoscaling, persistence, custom metrics.
+
+## Result (2026-07-04)
+
+Deployed from GitHub (JollyGrin/unbrewed-engine, main) via Nixpacks;
+railway.json supplies `npm start` + `/healthz` healthcheck; Railway injects
+PORT. Domain: `unbrewed-engine-production.up.railway.app` — client endpoint
+`wss://unbrewed-engine-production.up.railway.app` (NEXT_PUBLIC_PRO_WS_URL).
+Verified against production: healthz 200, scripted two-client game (251
+random legal actions to GAME_OVER, no secret leakage), reconnect-by-token OK.
+Note: rooms are in-memory by design — each deploy/restart drops live games.
