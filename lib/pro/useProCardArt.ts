@@ -21,6 +21,15 @@ export const HERO_DECK_IDS: Record<string, string> = {
   "the-flash": "p1Ew",
 };
 
+/**
+ * Inverse of HERO_DECK_IDS: unmatched.cards deck id -> server hero id. The ONE
+ * place the landing (which speaks deck ids) crosses over to the game page (which
+ * speaks server hero ids). Derived here so the mapping is never duplicated.
+ */
+export const DECK_HERO_IDS: Record<string, string> = Object.fromEntries(
+  Object.entries(HERO_DECK_IDS).map(([heroId, deckId]) => [deckId, heroId])
+);
+
 const API = "https://unbrewed-api.vercel.app/api/unmatched-deck/";
 
 const norm = (s: string) => s.trim().toLowerCase();

@@ -1,6 +1,6 @@
 # T-021 — UI: /pro lobby wiring with hero select
 
-- **Status:** ready (spec written 2026-07-04, hand-off to an implementing agent)
+- **Status:** done (implemented 2026-07-04)
 - **Repo:** unbrewed-p2p (this repo only — NO server changes needed or allowed)
 - **Depends on:** T-019 scaffolding (done — game page, socket hook, protocol v1 synced)
 - **More info needed:** NONE — every open question below has a decided answer.
@@ -111,3 +111,21 @@ opponent…").
 Matchmaking, spectating, hero portraits/art polish, mobile pass (separate),
 any change to `docs/pro/tasks/README.md` other than flipping this ticket's
 status row, anything in unbrewed-pro-server.
+
+## Result (2026-07-04)
+Implemented exactly as specced. Landed in `pages/pro/game.tsx`,
+`lib/pro/useProSocket.ts`, `lib/pro/useProCardArt.ts`, `components/Pro/ProLanding.tsx`.
+- `useProCardArt.ts`: added `DECK_HERO_IDS` (inverse of `HERO_DECK_IDS`).
+- `useProSocket.ts`: added `heroes: HeroListing[] | null`, sends `LIST_HEROES`
+  on every socket open, stores the `HEROES` reply; also clears `error` at the
+  start of each `createRoom`/`joinRoom` so a retry after ROOM_NOT_FOUND/ROOM_FULL
+  works cleanly.
+- `ProLanding.tsx`: ready tiles with a known server hero id link to
+  `/pro/game?hero=<serverHeroId>` (via `DECK_HERO_IDS`); lab/locked tiles stay
+  inspect-only; added a subtle "Start a match →" CTA → `/pro/game`.
+- `game.tsx`: removed the hardcoded `heroId`; the `!joined` branch is now a
+  `HeroSelectLobby` (server-fed tiles with hp/move/reach pips + cardback art,
+  skeletons while the roster loads, `?hero=` preselect, single-hero auto-select).
+  Reconnect tokens skip the picker; ROOM_NOT_FOUND/ROOM_FULL show a friendly
+  create-new fallback; UNKNOWN_HERO reopens the picker. Post-create lobby shows
+  "You are &lt;hero&gt;". `npx tsc --noEmit` clean (excl. pre-existing Pool.spec).

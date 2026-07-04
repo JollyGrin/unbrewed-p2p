@@ -14,6 +14,7 @@ import {
   POPULAR_DECKS,
   PopularDeckMeta,
 } from "@/lib/constants/top-decks";
+import { DECK_HERO_IDS } from "@/lib/pro/useProCardArt";
 
 /**
  * Pro roster status. Supported = rules hand-authored in the engine
@@ -155,22 +156,32 @@ export const ProLanding = () => {
             templateColumns="repeat(auto-fill, minmax(150px, 1fr))"
             gap="0.5rem"
           >
-            {POPULAR_DECKS.map((deck, i) => (
-              <RosterTile
-                key={deck.id}
-                deck={deck}
-                index={i}
-                status={
-                  SUPPORTED[deck.id]
-                    ? "ready"
-                    : IN_THE_LAB[deck.id]
-                    ? "lab"
-                    : "locked"
-                }
-                isPicked={picked?.id === deck.id}
-                onPick={() => setPicked(deck)}
-              />
-            ))}
+            {POPULAR_DECKS.map((deck, i) => {
+              const status = SUPPORTED[deck.id]
+                ? "ready"
+                : IN_THE_LAB[deck.id]
+                ? "lab"
+                : "locked";
+              // Ready tiles the game page can actually launch (a server hero id
+              // exists) navigate straight into create-a-room with that hero
+              // preselected. Everything else stays an inspect-only tile.
+              const serverHeroId = DECK_HERO_IDS[deck.id];
+              const href =
+                status === "ready" && serverHeroId
+                  ? `/pro/game?hero=${serverHeroId}`
+                  : undefined;
+              return (
+                <RosterTile
+                  key={deck.id}
+                  deck={deck}
+                  index={i}
+                  status={status}
+                  href={href}
+                  isPicked={picked?.id === deck.id}
+                  onPick={() => setPicked(deck)}
+                />
+              );
+            })}
           </Grid>
 
           {/* announcer bar */}
@@ -205,6 +216,32 @@ export const ProLanding = () => {
                 !IN_THE_LAB[picked.id] &&
                 `${picked.hero} awaits conversion — rules support comes deck by deck`}
             </Text>
+          </Flex>
+
+          {/* Primary entry point: pick a hero on the game page (or skip straight
+              to create-a-room with no preselection). Subtle — /pro is unlisted. */}
+          <Flex justifyContent="center" mt="0.25rem">
+            <ChakraLink
+              as={Link}
+              href="/pro/game"
+              display="inline-flex"
+              alignItems="center"
+              gap="0.4rem"
+              fontFamily="SpaceGrotesk"
+              fontSize="0.8rem"
+              letterSpacing="0.08em"
+              textTransform="uppercase"
+              px="1.1rem"
+              py="0.5rem"
+              borderRadius="999px"
+              border="1px solid"
+              borderColor="brand.accent"
+              color="brand.accent"
+              _hover={{ bg: "brand.accent", color: "brand.surfaceDim", textDecoration: "none" }}
+              transition="background 0.15s, color 0.15s"
+            >
+              Start a match →
+            </ChakraLink>
           </Flex>
         </Flex>
 
@@ -276,28 +313,22 @@ const RosterTile = ({
   deck,
   index,
   status,
+  href,
   isPicked,
   onPick,
 }: {
   deck: PopularDeckMeta;
   index: number;
   status: "ready" | "lab" | "locked";
+  /** when set, the tile navigates into the game instead of inspect-only picking */
+  href?: string;
   isPicked: boolean;
   onPick: () => void;
 }) => {
   const locked = status === "locked";
-  return (
-    <Tooltip
-      label={
-        status === "ready"
-          ? `${deck.hero} — fully rules-converted, playable at launch`
-          : status === "lab"
-          ? `${deck.hero} — stress-testing the engine's rule language`
-          : `${deck.hero} — not yet converted (every deck's rules are hand-tuned)`
-      }
-    >
+  const tile = (
       <Flex
-        onClick={onPick}
+        onClick={href ? undefined : onPick}
         flexDir="column"
         justifyContent="flex-end"
         h="5.5rem"
@@ -383,6 +414,27 @@ const RosterTile = ({
           </Flex>
         </Flex>
       </Flex>
+  );
+  const inspectHint =
+    status === "ready"
+      ? `${deck.hero} — playable now, click to enter the arena`
+      : status === "lab"
+      ? `${deck.hero} — stress-testing the engine's rule language`
+      : `${deck.hero} — not yet converted (every deck's rules are hand-tuned)`;
+  return (
+    <Tooltip label={inspectHint}>
+      {href ? (
+        <ChakraLink
+          as={Link}
+          href={href}
+          display="block"
+          _hover={{ textDecoration: "none" }}
+        >
+          {tile}
+        </ChakraLink>
+      ) : (
+        tile
+      )}
     </Tooltip>
   );
 };

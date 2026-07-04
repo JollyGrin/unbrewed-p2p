@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Action,
   ClientMsg,
+  HeroListing,
   PlayerView,
   PROTOCOL_VERSION,
   ServerMsg,
@@ -38,6 +39,8 @@ export interface UseProSocketReturn {
   snapshot: ProGameSnapshot | null;
   opponentConnected: boolean;
   error: { code: string; message: string } | null;
+  /** server-fed roster; null until the first HEROES reply arrives */
+  heroes: HeroListing[] | null;
   createRoom: (heroId: string) => void;
   joinRoom: (roomId: string, heroId: string) => void;
   sendAction: (action: Action) => void;
@@ -61,6 +64,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
   const [snapshot, setSnapshot] = useState<ProGameSnapshot | null>(null);
   const [opponentConnected, setOpponentConnected] = useState(true);
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
+  const [heroes, setHeroes] = useState<HeroListing[] | null>(null);
 
   const send = useCallback((msg: ClientMsg) => {
     const ws = wsRef.current;
@@ -76,6 +80,9 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
     ws.onopen = () => {
       retryRef.current.attempts = 0;
       setStatus("open");
+      // Ask for the roster on every open (incl. reconnects) — one tiny message,
+      // idempotent; the reply feeds the game page's hero picker.
+      send({ v: PROTOCOL_VERSION, type: "LIST_HEROES" });
       const room = roomRef.current;
       const token = room ? sessionStorage.getItem(tokenKey(room)) : null;
       if (room && token) {
@@ -94,6 +101,9 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
         return;
       }
       switch (msg.type) {
+        case "HEROES":
+          setHeroes(msg.heroes);
+          break;
         case "ROOM_CREATED":
         case "ROOM_JOINED":
           roomRef.current = msg.roomId;
@@ -139,6 +149,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
 
   const createRoom = useCallback(
     (heroId: string) => {
+      setError(null); // clear any prior room/hero error on a fresh attempt
       const msg: ClientMsg = { v: PROTOCOL_VERSION, type: "CREATE_ROOM", heroId };
       if (wsRef.current?.readyState === WebSocket.OPEN) send(msg);
       else pendingHelloRef.current = msg;
@@ -148,6 +159,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
 
   const joinRoom = useCallback(
     (room: string, heroId: string) => {
+      setError(null); // clear any prior room/hero error on a fresh attempt
       roomRef.current = room;
       setRoomId(room);
       const hasToken = !!sessionStorage.getItem(tokenKey(room));
@@ -189,6 +201,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
     snapshot,
     opponentConnected,
     error,
+    heroes,
     createRoom,
     joinRoom,
     sendAction,

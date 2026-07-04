@@ -11,7 +11,7 @@
  *   verified without the backend. Clicking a fighter shows its movement
  *   out-edges (adjacentTo ∪ oneWayTo) — reading MAP data for display, not rules.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { Box, Button, Flex, Grid, Tag, Text, keyframes } from "@chakra-ui/react";
 import { ProBoard } from "@/components/Pro/ProBoard";
@@ -20,6 +20,7 @@ import {
   CardInstanceId,
   CardMeta,
   FighterId,
+  HeroListing,
   PlayerView,
   ProMapDef,
   SpaceId,
@@ -27,8 +28,11 @@ import {
   ViewFighter,
   ViewPrompt,
 } from "@/lib/pro/protocol";
-import { useProSocket } from "@/lib/pro/useProSocket";
-import { ResolveCard, useProCardArt } from "@/lib/pro/useProCardArt";
+import { ProConnectionStatus, useProSocket } from "@/lib/pro/useProSocket";
+import { HERO_DECK_IDS, ResolveCard, useProCardArt } from "@/lib/pro/useProCardArt";
+import { POPULAR_DECKS } from "@/lib/constants/top-decks";
+import { GiFootprint, GiHearts } from "react-icons/gi";
+import { TbBow, TbSword } from "react-icons/tb";
 import { CardFace, ProHand } from "@/components/Pro/ProHand";
 import { ProHud } from "@/components/Pro/ProHud";
 import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
@@ -285,13 +289,216 @@ const CombatPanel = ({
 };
 
 // ---------------------------------------------------------------------------
+// Pre-join lobby — hero select (T-021)
+// ---------------------------------------------------------------------------
+
+const sessionTokenKey = (roomId: string) => `unbrewed-pro-token-${roomId}`;
+
+/** server hero id -> pretty display fallback ('king-kong' -> 'King Kong') */
+const prettyHeroId = (heroId: string) =>
+  heroId
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+
+const heroNameOf = (heroes: HeroListing[] | null, heroId: string | null) => {
+  if (!heroId) return null;
+  return heroes?.find((h) => h.heroId === heroId)?.name ?? prettyHeroId(heroId);
+};
+
+/** cardback art for a server hero via the deck-id bridge (a nicety; may be undefined) */
+const heroCardback = (heroId: string): string | undefined => {
+  const deckId = HERO_DECK_IDS[heroId];
+  return POPULAR_DECKS.find((d) => d.id === deckId)?.cardbackUrl;
+};
+
+const skeletonPulse = keyframes`
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 0.7; }
+`;
+
+const StatPip = ({ icon, label }: { icon: ReactNode; label: string }) => (
+  <Flex align="center" gap="0.25rem" fontSize="0.8rem" fontWeight="bold">
+    {icon}
+    <Text sx={{ fontVariantNumeric: "tabular-nums" }}>{label}</Text>
+  </Flex>
+);
+
+/** One selectable hero card in the lobby picker. */
+const HeroTile = ({
+  hero,
+  selected,
+  onSelect,
+}: {
+  hero: HeroListing;
+  selected: boolean;
+  onSelect: () => void;
+}) => {
+  const cardback = heroCardback(hero.heroId);
+  return (
+    <Flex
+      as="button"
+      type="button"
+      direction="column"
+      onClick={onSelect}
+      w="10rem"
+      minH="8rem"
+      p="0.75rem"
+      borderRadius="0.6rem"
+      border="2px solid"
+      borderColor={selected ? "brand.accent" : "whiteAlpha.300"}
+      bg={cardback ? undefined : "rgba(20, 8, 24, 0.55)"}
+      bgImage={cardback ? `url(${cardback})` : undefined}
+      bgSize="cover"
+      bgPos="center"
+      position="relative"
+      overflow="hidden"
+      textAlign="left"
+      transition="border-color 0.15s, transform 0.15s, box-shadow 0.15s"
+      transform={selected ? "translateY(-2px)" : undefined}
+      boxShadow={selected ? "0 0 0 2px #E0A82E, 0 6px 16px rgba(0,0,0,0.5)" : "0 2px 8px rgba(0,0,0,0.4)"}
+      _hover={{ borderColor: "brand.accent" }}
+    >
+      <Box
+        position="absolute"
+        inset="0"
+        bg="linear-gradient(180deg, rgba(20,8,24,0.15) 0%, rgba(20,8,24,0.85) 100%)"
+      />
+      <Flex direction="column" position="relative" gap="0.5rem" flex="1" justify="flex-end">
+        <Text
+          fontFamily="BebasNeueRegular"
+          fontSize="1.35rem"
+          letterSpacing="0.03em"
+          lineHeight="1.05"
+          textShadow="0 1px 3px rgba(0,0,0,0.9)"
+        >
+          {hero.name}
+        </Text>
+        <Flex gap="0.75rem" color="brand.parchment" textShadow="0 1px 2px rgba(0,0,0,0.9)">
+          <StatPip icon={<GiHearts color="#C0392B" size="15px" />} label={String(hero.hp)} />
+          <StatPip icon={<GiFootprint size="14px" />} label={String(hero.move)} />
+          <StatPip
+            icon={hero.reach === "RANGED" ? <TbBow size="15px" /> : <TbSword size="15px" />}
+            label={hero.reach === "RANGED" ? "rng" : "mel"}
+          />
+        </Flex>
+      </Flex>
+    </Flex>
+  );
+};
+
+const SkeletonTile = () => (
+  <Box
+    w="10rem"
+    minH="8rem"
+    borderRadius="0.6rem"
+    border="2px solid"
+    borderColor="whiteAlpha.200"
+    bg="whiteAlpha.100"
+    animation={`${skeletonPulse} 1.3s ease-in-out infinite`}
+  />
+);
+
+/**
+ * The create/join screen. Renders one tile per server-fed hero. While the
+ * roster hasn't arrived (`heroes === null`) it shows skeletons — or, if the
+ * creator arrived with a valid `?hero=`, that hero as preselected text so they
+ * can Create the instant the socket opens (the server validates the hero id).
+ */
+const HeroSelectLobby = ({
+  room,
+  status,
+  heroes,
+  heroParam,
+  selectedHeroId,
+  onSelectHero,
+  onConfirm,
+}: {
+  room: string | null;
+  status: ProConnectionStatus;
+  heroes: HeroListing[] | null;
+  heroParam: string | null;
+  selectedHeroId: string | null;
+  onSelectHero: (heroId: string) => void;
+  onConfirm: () => void;
+}) => {
+  // While the list is loading, a valid-looking `?hero=` stands in so the
+  // creator isn't blocked; once the list arrives the real selection takes over.
+  const effective = selectedHeroId ?? (heroes === null ? heroParam : null);
+  const canConfirm = status === "open" && !!effective;
+
+  return (
+    <Flex direction="column" alignItems="center" gap="1.25rem" pt="3.5rem" px="1rem" pb="3rem">
+      <Text fontFamily="LeagueGothic" fontSize="2.5rem" letterSpacing="0.05em" textAlign="center">
+        {room ? `JOIN ROOM ${room}` : "CREATE A ROOM"}
+      </Text>
+      <Text fontFamily="BebasNeueRegular" fontSize="1.1rem" letterSpacing="0.08em" opacity={0.75}>
+        Choose your fighter
+      </Text>
+
+      <Flex gap="0.75rem" flexWrap="wrap" justifyContent="center" maxW="42rem">
+        {heroes === null ? (
+          heroParam ? (
+            <Flex
+              direction="column"
+              align="center"
+              gap="0.4rem"
+              w="10rem"
+              minH="8rem"
+              justify="center"
+              borderRadius="0.6rem"
+              border="2px solid"
+              borderColor="brand.accent"
+              bg="rgba(20, 8, 24, 0.55)"
+              p="0.75rem"
+            >
+              <Text fontFamily="BebasNeueRegular" fontSize="1.35rem" textAlign="center">
+                {prettyHeroId(heroParam)}
+              </Text>
+              <Text fontSize="0.7rem" opacity={0.6}>
+                loading roster…
+              </Text>
+            </Flex>
+          ) : (
+            <>
+              <SkeletonTile />
+              <SkeletonTile />
+              <SkeletonTile />
+            </>
+          )
+        ) : heroes.length === 0 ? (
+          <Text opacity={0.7}>no heroes available — try again shortly</Text>
+        ) : (
+          heroes.map((h) => (
+            <HeroTile
+              key={h.heroId}
+              hero={h}
+              selected={effective === h.heroId}
+              onSelect={() => onSelectHero(h.heroId)}
+            />
+          ))
+        )}
+      </Flex>
+
+      <Button {...BTN_GOLD} isDisabled={!canConfirm} onClick={onConfirm}>
+        {room ? "Join" : "Create"}
+      </Button>
+      <Text fontSize="0.8rem" opacity={0.55}>
+        server: {status === "open" ? "connected" : status}
+      </Text>
+    </Flex>
+  );
+};
+
+// ---------------------------------------------------------------------------
 // LIVE mode
 // ---------------------------------------------------------------------------
 
-const LiveGame = ({ room }: { room: string | null }) => {
-  const { status, roomId, snapshot, opponentConnected, error, createRoom, joinRoom, sendAction, respondToPrompt } =
+const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string | null }) => {
+  const { status, roomId, snapshot, opponentConnected, error, heroes, createRoom, joinRoom, sendAction, respondToPrompt } =
     useProSocket(WS_URL);
   const [joined, setJoined] = useState(false);
+  const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
   const [selectedFighter, setSelectedFighter] = useState<FighterId | null>(null);
   // Art fetch (unbrewed-api, matched by title against the server catalog) —
   // must run unconditionally; no-ops until the first STATE arrives.
@@ -315,26 +522,73 @@ const LiveGame = ({ room }: { room: string | null }) => {
     );
   }, [snapshot]);
 
-  // v1: single shipped hero. Hero select moves to /pro with LIST_HEROES when
-  // deck #2 lands (T-019 follow-up). Server hero ids, not unbrewed-api deck ids.
-  const heroId = "king-kong";
+  // Returning player: a saved reconnect token for this room means we skip the
+  // hero picker entirely and RECONNECT straight into the same seat (joinRoom
+  // replays the token when one exists). Runs once when a `?room=` has a token.
+  const reconnectedRef = useRef(false);
+  useEffect(() => {
+    if (joined || !room || reconnectedRef.current || typeof window === "undefined") return;
+    if (sessionStorage.getItem(sessionTokenKey(room))) {
+      reconnectedRef.current = true;
+      joinRoom(room, ""); // heroId ignored on the RECONNECT path
+      setJoined(true);
+    }
+  }, [joined, room, joinRoom]);
+
+  // Preselect a hero once the server roster arrives: honor a valid `?hero=`
+  // (invalid ids are ignored → manual pick), and auto-select when only one
+  // hero ships so the picker reads as a confirmation.
+  useEffect(() => {
+    if (selectedHeroId || !heroes) return;
+    if (heroParam && heroes.some((h) => h.heroId === heroParam)) {
+      setSelectedHeroId(heroParam);
+    } else if (heroes.length === 1) {
+      setSelectedHeroId(heroes[0].heroId);
+    }
+  }, [heroes, heroParam, selectedHeroId]);
+
+  // UNKNOWN_HERO shouldn't happen when picking from the server list, but if the
+  // server rejects the hero, drop back to the picker instead of a dead end.
+  useEffect(() => {
+    if (error?.code === "UNKNOWN_HERO") {
+      setJoined(false);
+      setSelectedHeroId(null);
+    }
+  }, [error]);
 
   if (!joined) {
+    const effectiveHeroId = selectedHeroId ?? (heroes === null ? heroParam : null);
     return (
-      <Flex direction="column" alignItems="center" gap="1rem" pt="4rem">
-        <Text fontFamily="LeagueGothic" fontSize="2.5rem" letterSpacing="0.05em">
-          {room ? `JOIN ROOM ${room}` : "CREATE A ROOM"}
+      <HeroSelectLobby
+        room={room}
+        status={status}
+        heroes={heroes}
+        heroParam={heroParam}
+        selectedHeroId={selectedHeroId}
+        onSelectHero={setSelectedHeroId}
+        onConfirm={() => {
+          if (!effectiveHeroId) return;
+          room ? joinRoom(room, effectiveHeroId) : createRoom(effectiveHeroId);
+          setSelectedHeroId(effectiveHeroId); // lock it for the lobby label
+          setJoined(true);
+        }}
+      />
+    );
+  }
+
+  // Room-level errors surface on a friendly screen with a create-new fallback.
+  if (error && (error.code === "ROOM_NOT_FOUND" || error.code === "ROOM_FULL")) {
+    const msg =
+      error.code === "ROOM_NOT_FOUND"
+        ? "This room expired or never existed."
+        : "This room is already full.";
+    return (
+      <Flex direction="column" alignItems="center" gap="1rem" pt="4rem" px="1rem" textAlign="center">
+        <Text fontFamily="LeagueGothic" fontSize="2rem" letterSpacing="0.05em" color="red.300">
+          {msg}
         </Text>
-        <Text opacity={0.7}>server: {status}</Text>
-        <Button
-          {...BTN_GOLD}
-          isDisabled={status !== "open"}
-          onClick={() => {
-            room ? joinRoom(room, heroId) : createRoom(heroId);
-            setJoined(true);
-          }}
-        >
-          {room ? "Join" : "Create"}
+        <Button {...BTN_GOLD} onClick={() => (window.location.href = "/pro/game")}>
+          Create a new room instead
         </Button>
       </Flex>
     );
@@ -357,6 +611,11 @@ const LiveGame = ({ room }: { room: string | null }) => {
           <Text fontFamily="LeagueGothic" fontSize="2.5rem" letterSpacing="0.05em">
             ROOM {roomId}
           </Text>
+          {heroNameOf(heroes, selectedHeroId) && (
+            <Text fontFamily="BebasNeueRegular" fontSize="1.3rem" letterSpacing="0.05em" color="brand.accent">
+              You are {heroNameOf(heroes, selectedHeroId)}
+            </Text>
+          )}
           <Text opacity={0.8}>Waiting for an opponent — the game starts the moment they join.</Text>
           <Flex gap="0.5rem" alignItems="center" flexWrap="wrap" justifyContent="center">
             <Tag fontFamily="mono" px="0.75rem" py="0.4rem">
@@ -697,10 +956,11 @@ const PreviewGame = () => {
 const ProGamePage = () => {
   const router = useRouter();
   const room = typeof router.query.room === "string" ? router.query.room : null;
+  const heroParam = typeof router.query.hero === "string" ? router.query.hero : null;
 
   return (
     <Box minH="100svh" bg={TABLE_BG} color="brand.parchment">
-      {WS_URL ? <LiveGame room={room} /> : <PreviewGame />}
+      {WS_URL ? <LiveGame room={room} heroParam={heroParam} /> : <PreviewGame />}
     </Box>
   );
 };
