@@ -2,8 +2,8 @@
  * Thin WebSocket client for the Pro server. No rules logic — it ships
  * ClientMsg out and hands ServerMsg payloads to React state.
  *
- * Endpoint comes from NEXT_PUBLIC_PRO_WS_URL (unset until the Railway deploy
- * exists — the game page shows a "backend not connected" panel in that case).
+ * Endpoint comes from NEXT_PUBLIC_PRO_WS_URL, defaulting to the live Railway
+ * server (see WS_URL in pages/pro/game.tsx).
  *
  * Reconnect: on ROOM_CREATED/ROOM_JOINED the server issues a token; we keep it
  * in sessionStorage (per-tab, survives refresh, dies with the tab) and replay

@@ -3,12 +3,13 @@
  * prompts. Contains ZERO rules logic (docs/pro/01-context.md).
  *
  * Modes:
- * - LIVE: NEXT_PUBLIC_PRO_WS_URL is set → connects via useProSocket.
- *   `?room=<id>` joins; no room param creates one.
- * - PREVIEW (dev only): no WS URL configured → renders the Mended Drum
- *   fixture with placeholder fighters so board rendering can be verified
- *   without the backend. Clicking a fighter shows its movement out-edges
- *   (adjacentTo ∪ oneWayTo) — that's reading MAP data for display, not rules.
+ * - LIVE (default): WS_URL resolves to the Railway server → connects via
+ *   useProSocket. `?room=<id>` joins; no room param creates one. This is what
+ *   a plain GitHub Pages build ships, so /pro/game is playable with no env.
+ * - PREVIEW (fallback): only reached if WS_URL is somehow empty → renders the
+ *   Mended Drum fixture with placeholder fighters so board rendering can be
+ *   verified without the backend. Clicking a fighter shows its movement
+ *   out-edges (adjacentTo ∪ oneWayTo) — reading MAP data for display, not rules.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
@@ -37,7 +38,13 @@ import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 /** same table felt the sandbox game uses (game.layout.tsx) */
 const TABLE_BG = "radial-gradient(ellipse at 50% 20%, #5A3263 0%, #48284F 50%, #2C1831 100%)";
 
-const WS_URL = process.env.NEXT_PUBLIC_PRO_WS_URL;
+// Live Pro server (Railway). Hardcoded as the default so a plain GitHub Pages
+// build with no env still connects to a real backend and is playable. Override
+// via NEXT_PUBLIC_PRO_WS_URL (e.g. ws://localhost:8787 in .env for local dev).
+// `||` not `??`: CI expands an unset repo variable to "" — an empty string must
+// also fall through to this default, and only `||` treats "" as absent.
+const DEFAULT_PRO_WS_URL = "wss://unbrewed-engine-production.up.railway.app";
+const WS_URL = process.env.NEXT_PUBLIC_PRO_WS_URL || DEFAULT_PRO_WS_URL;
 
 const BTN = {
   size: "sm" as const,

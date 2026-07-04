@@ -74,11 +74,12 @@ jobs:
       - name: Install dependencies
         run: ${{ steps.detect-package-manager.outputs.manager }} ${{ steps.detect-package-manager.outputs.command }}
       - name: Build with Next.js
-        # NEXT_PUBLIC_PRO_WS_URL is baked in at build time. Unset (the default)
-        # → /pro/game renders the self-contained board demo. To enable live
-        # Pro matches, set a repository variable of that name to the deployed
-        # game server's wss:// URL (Settings → Secrets and variables → Actions
-        # → Variables).
+        # NEXT_PUBLIC_PRO_WS_URL is baked in at build time. When the repo
+        # variable is unset it expands to "" and /pro/game falls back to its
+        # hardcoded Railway default (wss://unbrewed-engine-production.up.railway.app),
+        # so the deployed page is playable with zero config. To point Pages at a
+        # different backend, set a repository variable of that name to the new
+        # wss:// URL (Settings → Secrets and variables → Actions → Variables).
         env:
           NEXT_PUBLIC_PRO_WS_URL: ${{ vars.NEXT_PUBLIC_PRO_WS_URL }}
         run: ${{ steps.detect-package-manager.outputs.runner }} next build
