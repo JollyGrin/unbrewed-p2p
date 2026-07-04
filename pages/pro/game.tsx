@@ -206,13 +206,39 @@ const LiveGame = ({ room }: { room: string | null }) => {
         {error.code}: {error.message}
       </Text>
     );
-  if (!snapshot)
+  // The server sends the first STATE only once BOTH seats are filled — a
+  // created room sits here (correctly) until the opponent joins.
+  if (!snapshot) {
+    if (roomId && !room) {
+      const joinUrl =
+        typeof window !== "undefined" ? `${window.location.origin}/pro/game?room=${roomId}` : "";
+      return (
+        <Flex direction="column" alignItems="center" gap="1rem" pt="4rem" px="1rem">
+          <Text fontFamily="LeagueGothic" fontSize="2.5rem" letterSpacing="0.05em">
+            ROOM {roomId}
+          </Text>
+          <Text opacity={0.8}>Waiting for an opponent — the game starts the moment they join.</Text>
+          <Flex gap="0.5rem" alignItems="center" flexWrap="wrap" justifyContent="center">
+            <Tag fontFamily="mono" px="0.75rem" py="0.4rem">
+              {joinUrl}
+            </Tag>
+            <Button {...BTN_GOLD} onClick={() => navigator.clipboard?.writeText(joinUrl)}>
+              copy link
+            </Button>
+          </Flex>
+          <Text fontSize="0.8rem" opacity={0.5}>
+            (testing solo? open that link in a second browser tab)
+          </Text>
+        </Flex>
+      );
+    }
     return (
       <Text pt="4rem" textAlign="center" opacity={0.7}>
         waiting for game state… ({status}
         {roomId ? `, room ${roomId}` : ""})
       </Text>
     );
+  }
 
   const { view, legalActions, prompt } = snapshot;
   const myTurn = view.activePlayer === view.you;
