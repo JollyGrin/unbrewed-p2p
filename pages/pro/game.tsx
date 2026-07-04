@@ -174,6 +174,7 @@ const LiveGame = ({ room }: { room: string | null }) => {
   const { status, roomId, snapshot, opponentConnected, error, createRoom, joinRoom, sendAction, respondToPrompt } =
     useProSocket(WS_URL);
   const [joined, setJoined] = useState(false);
+  const [selectedFighter, setSelectedFighter] = useState<FighterId | null>(null);
 
   // v1: single shipped hero. Hero select moves to /pro with LIST_HEROES when
   // deck #2 lands (T-019 follow-up). Server hero ids, not unbrewed-api deck ids.
@@ -245,11 +246,47 @@ const LiveGame = ({ room }: { room: string | null }) => {
   // RESPOND_PROMPT actions render through the PromptPanel, not the action list.
   const listActions = legalActions.filter((a) => a.type !== "RESPOND_PROMPT");
 
-  // Board affordances derive ONLY from what the server offered.
-  const highlightedSpaces = legalActions.flatMap((a) =>
-    a.type === "PLACE_SIDEKICK" ? [a.space] : a.type === "MOVE_FIGHTER" ? [a.path[a.path.length - 1]] : []
+  // Board affordances derive ONLY from what the server offered. Each
+  // highlighted space maps back to the exact server-offered action so a click
+  // sends it verbatim (incl. the enumerated MOVE_FIGHTER path).
+  const spaceActions = new Map<SpaceId, Action[]>();
+  for (const a of legalActions) {
+    const dest =
+      a.type === "PLACE_SIDEKICK" ? a.space : a.type === "MOVE_FIGHTER" ? a.path[a.path.length - 1] : null;
+    if (dest) spaceActions.set(dest, [...(spaceActions.get(dest) ?? []), a]);
+  }
+  const attackActions = new Map<FighterId, Action>();
+  for (const a of legalActions) if (a.type === "DECLARE_ATTACK") attackActions.set(a.target, a);
+  const movableFighters = new Set(
+    legalActions.flatMap((a) => (a.type === "MOVE_FIGHTER" ? [a.fighter] : []))
   );
-  const highlightedFighters = legalActions.flatMap((a) => (a.type === "DECLARE_ATTACK" ? [a.target] : []));
+
+  // Optional filter: click one of your movable fighters to see only ITS moves
+  // (matters once a deck has sidekicks; harmless in the Kong mirror).
+  const spaceMatches = (actions: Action[]) =>
+    selectedFighter
+      ? actions.filter((a) => a.type !== "MOVE_FIGHTER" || a.fighter === selectedFighter)
+      : actions;
+  const highlightedSpaces = [...spaceActions.entries()]
+    .filter(([, actions]) => spaceMatches(actions).length > 0)
+    .map(([space]) => space);
+  const highlightedFighters = [...attackActions.keys(), ...movableFighters];
+
+  const onSpaceClick = (space: SpaceId) => {
+    const candidates = spaceMatches(spaceActions.get(space) ?? []);
+    if (candidates.length === 0) return;
+    sendAction(candidates[0]);
+    setSelectedFighter(null);
+  };
+  const onFighterClick = (id: FighterId) => {
+    const attack = attackActions.get(id);
+    if (attack) {
+      sendAction(attack);
+      setSelectedFighter(null);
+    } else if (movableFighters.has(id)) {
+      setSelectedFighter((cur) => (cur === id ? null : id));
+    }
+  };
 
   return (
     <Grid templateColumns={{ base: "1fr", lg: "1fr 22rem" }} gap="1rem" p="1rem" maxW="90rem" mx="auto">
@@ -258,6 +295,9 @@ const LiveGame = ({ room }: { room: string | null }) => {
         fighters={view.fighters}
         highlightedSpaces={[...new Set(highlightedSpaces)]}
         highlightedFighters={[...new Set(highlightedFighters)]}
+        selectedFighter={selectedFighter}
+        onSpaceClick={onSpaceClick}
+        onFighterClick={onFighterClick}
       />
       <Flex direction="column" gap="0.75rem">
         <Flex gap="0.5rem" alignItems="center" flexWrap="wrap">
@@ -267,6 +307,18 @@ const LiveGame = ({ room }: { room: string | null }) => {
           {!opponentConnected && <Tag colorScheme="red">opponent disconnected</Tag>}
           {roomId && <Tag>room {roomId}</Tag>}
         </Flex>
+        {(highlightedSpaces.length > 0 || attackActions.size > 0) && (
+          <Text fontSize="0.8rem" color="brand.accent" opacity={0.9}>
+            {selectedFighter
+              ? `showing moves for ${selectedFighter.split("/")[1]} — click a gold space (click the fighter again to unselect)`
+              : [
+                  highlightedSpaces.length > 0 && "click a gold space to move there",
+                  attackActions.size > 0 && "click a pulsing enemy to attack",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+          </Text>
+        )}
         {view.combat && <CombatPanel combat={view.combat} catalog={view.catalog} />}
         {prompt && <PromptPanel prompt={prompt} you={view.you} onRespond={respondToPrompt} />}
         <Flex direction="column" gap="0.4rem">
