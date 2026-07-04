@@ -19,6 +19,8 @@ export const HERO_DECK_IDS: Record<string, string> = {
   "king-kong": "kdKM",
   "baba-yaga": "yAJ-",
   "the-flash": "p1Ew",
+  "the-mandalorian": "lDOM",
+  thrall: "pk1x",
 };
 
 /**

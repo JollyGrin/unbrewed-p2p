@@ -33,7 +33,7 @@
  * die with the room (in-memory, TTL ~2h after last activity).
  */
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 // ---------------------------------------------------------------------------
 // Shared primitives (mirror engine/types.ts — keep in lockstep)
@@ -167,6 +167,16 @@ export interface ViewFighter {
   defeated: boolean;
 }
 
+// Neutral board tokens (totems). Nothing about a totem is hidden — the full list
+// is sent to both players; the client renders a non-interactive sprite at
+// `space` and diffs appearances/disappearances (TOKEN_PLACED/TOKEN_DESTROYED).
+export interface ViewToken {
+  id: string;
+  kind: "totem";
+  owner: PlayerId;
+  space: SpaceId;
+}
+
 export interface ViewSelf {
   id: PlayerId;
   heroId: string;
@@ -227,6 +237,7 @@ export interface PlayerView {
   map: ProMapDef;
   catalog: Record<CardDefId, CardMeta>;
   fighters: ViewFighter[];
+  tokens: ViewToken[]; // neutral board tokens (totems); public to both players
   self: ViewSelf;
   opponent: ViewOpponent;
   combat: ViewCombat | null;

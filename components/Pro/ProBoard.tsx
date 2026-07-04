@@ -8,7 +8,7 @@
  * from legalActions — the board never computes legality itself).
  */
 import { Box, Flex, Text, keyframes } from "@chakra-ui/react";
-import { FighterId, ProMapDef, SpaceId, ViewFighter } from "@/lib/pro/protocol";
+import { FighterId, ProMapDef, SpaceId, ViewFighter, ViewToken } from "@/lib/pro/protocol";
 
 const DEFAULT_DIAMETER = 0.021;
 
@@ -20,6 +20,8 @@ const highlightPulse = keyframes`
 export interface ProBoardProps {
   map: ProMapDef;
   fighters: ViewFighter[];
+  /** Neutral board tokens (totems) — non-interactive sprites, public to both players */
+  tokens?: ViewToken[];
   /** Spaces the current player can act on right now (move targets, placements…) */
   highlightedSpaces?: SpaceId[];
   /** Fighters the current player can act on right now (attack targets, movable…) */
@@ -40,6 +42,7 @@ const PLAYER_COLOR: Record<string, string> = {
 export const ProBoard = ({
   map,
   fighters,
+  tokens = [],
   highlightedSpaces = [],
   highlightedFighters = [],
   selectedFighter = null,
@@ -98,6 +101,31 @@ export const ProBoard = ({
           />
         );
       })}
+
+      {/* neutral board tokens (totems) — below fighters, never clickable */}
+      {map.spaces
+        .filter((s) => tokens.some((t) => t.space === s.id))
+        .flatMap((s) =>
+          tokens
+            .filter((t) => t.space === s.id)
+            .map((t) => (
+              <Box
+                key={t.id}
+                position="absolute"
+                left={`${s.x * 100}%`}
+                top={`${s.y * 100}%`}
+                transform="translate(-50%, -50%) rotate(45deg)"
+                w={`${diameter * 0.55}%`}
+                sx={{ aspectRatio: "1", pointerEvents: "none" }}
+                bg="brand.surfaceDim"
+                border={`2px solid ${PLAYER_COLOR[t.owner] ?? "#999"}`}
+                borderRadius="20%"
+                boxShadow="0 1px 4px rgba(0,0,0,0.5)"
+                zIndex={2}
+                title={`Totem (${t.owner})`}
+              />
+            ))
+        )}
 
       {/* fighter tokens */}
       {map.spaces
