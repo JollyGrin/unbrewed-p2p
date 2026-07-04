@@ -93,6 +93,7 @@ const SeatPlate = ({
   label,
   hero,
   heroFighter,
+  sidekicks,
   isLocal,
   isActive,
   hand,
@@ -104,6 +105,7 @@ const SeatPlate = ({
   label: string;
   hero: DeckImportHeroType | null;
   heroFighter: ViewFighter | undefined;
+  sidekicks: ViewFighter[];
   isLocal: boolean;
   isActive: boolean;
   /** own hand instances, or a count for the opponent */
@@ -143,6 +145,16 @@ const SeatPlate = ({
                       {heroName}
                     </Text>
                     {hero.specialAbility.trim()}
+                    {sidekicks.map((s) => (
+                      <Text key={s.id} mt="0.4rem" opacity={s.defeated ? 0.6 : 1}>
+                        <Text as="span" fontWeight="bold" color="brand.accent">
+                          Sidekick:
+                        </Text>{" "}
+                        {s.name} — {s.hp}/{s.maxHp} HP,{" "}
+                        {s.reach === "RANGED" ? "ranged" : "melee"}
+                        {s.defeated ? " (defeated)" : ""}
+                      </Text>
+                    ))}
                   </Box>
                 ) : (
                   "hero rules loading…"
@@ -174,6 +186,36 @@ const SeatPlate = ({
             </Text>
           </MoveChip>
         </StatsPanel>
+        {sidekicks.map((s) => (
+          <Flex
+            key={s.id}
+            alignItems="center"
+            gap="0.35rem"
+            px="0.85rem"
+            py="0.2rem"
+            bg="rgba(44, 24, 49, 0.35)"
+            opacity={s.defeated ? 0.45 : 1}
+          >
+            <Text
+              fontSize="0.68rem"
+              fontFamily="SpaceGrotesk"
+              letterSpacing="0.04em"
+              noOfLines={1}
+              textDecoration={s.defeated ? "line-through" : undefined}
+            >
+              {s.name}
+            </Text>
+            <GiHearts color="#C0392B" size="11px" />
+            <Text
+              fontSize="0.72rem"
+              fontWeight="bold"
+              sx={{ fontVariantNumeric: "tabular-nums" }}
+            >
+              {s.hp}/{s.maxHp}
+            </Text>
+            {s.reach === "RANGED" ? <TbBow size="11px" /> : <TbSword size="11px" />}
+          </Flex>
+        ))}
         <PipFooter>
           <Pip>
             <IoMdHand size="12px" />
@@ -230,6 +272,8 @@ export interface ProHudProps {
 export const ProHud = ({ view, status, roomId, resolveCard, resolveHero, labelFor }: ProHudProps) => {
   const heroOf = (player: PlayerView["you"]) =>
     view.fighters.find((f) => f.owner === player && f.kind === "HERO");
+  const sidekicksOf = (player: PlayerView["you"]) =>
+    view.fighters.filter((f) => f.owner === player && f.kind === "SIDEKICK");
   const display = STATUS_DISPLAY[status] ?? STATUS_DISPLAY.connecting;
 
   return (
@@ -239,6 +283,7 @@ export const ProHud = ({ view, status, roomId, resolveCard, resolveHero, labelFo
           label="You"
           hero={resolveHero(view.self.heroId)}
           heroFighter={heroOf(view.you)}
+          sidekicks={sidekicksOf(view.you)}
           isLocal
           isActive={view.activePlayer === view.you}
           hand={view.self.hand}
@@ -251,6 +296,7 @@ export const ProHud = ({ view, status, roomId, resolveCard, resolveHero, labelFo
           label="Opponent"
           hero={resolveHero(view.opponent.heroId)}
           heroFighter={heroOf(view.opponent.id)}
+          sidekicks={sidekicksOf(view.opponent.id)}
           isLocal={false}
           isActive={view.activePlayer === view.opponent.id}
           hand={view.opponent.handCount}
