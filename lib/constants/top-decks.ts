@@ -285,5 +285,15 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     likes: 41,
     highlightColour: "#121212",
     cardbackUrl: "https://i.imgur.com/xEKFZSN.png"
+  },
+  {
+    // Not a top-40 deck — included because it's Pro-playable (unbrewed-p2p #76)
+    id: "pk1x",
+    name: "Thrall",
+    hero: "Thrall",
+    author: "JollyGrin",
+    likes: 2,
+    highlightColour: "#296888"
+    // no cardbackUrl in the deck's appearance — tile falls back to the highlight colour
   }
 ];

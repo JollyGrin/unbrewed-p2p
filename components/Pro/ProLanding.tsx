@@ -17,19 +17,23 @@ import {
 import { DECK_HERO_IDS } from "@/lib/pro/useProCardArt";
 
 /**
- * Pro roster status. Supported = rules hand-authored in the engine
- * (docs/pro/01-context.md decisions log). Lab = DSL stress-test decks:
- * they shape the engine but aren't launch content.
+ * Pro roster status. Supported = decks the live server actually serves
+ * (mirror of the engine repo's server/content.ts HEROES registry — update
+ * this map when a deck merges there). Lab = DSL stress-test decks: they
+ * shape the engine but aren't launch content.
  */
 const SUPPORTED: Record<string, string> = {
   kdKM: "King Kong",
-  "yAJ-": "Baba Yaga",
-  p1Ew: "The Flash",
+  lDOM: "The Mandalorian",
+  pk1x: "Thrall",
 };
 const IN_THE_LAB: Record<string, string> = {
   "72Dz": "Pinocchio",
   G_nr: "Schrödinger's Cat",
 };
+
+const rosterRank = (deckId: string) =>
+  SUPPORTED[deckId] ? 0 : IN_THE_LAB[deckId] ? 1 : 2;
 
 const tileIn = keyframes`
   from { opacity: 0; transform: translateY(10px) scale(0.96); }
@@ -156,7 +160,10 @@ export const ProLanding = () => {
             templateColumns="repeat(auto-fill, minmax(150px, 1fr))"
             gap="0.5rem"
           >
-            {POPULAR_DECKS.map((deck, i) => {
+            {/* playable first, then lab, then locked — within each group keep like-order */}
+            {[...POPULAR_DECKS]
+              .sort((a, b) => rosterRank(a.id) - rosterRank(b.id))
+              .map((deck, i) => {
               const status = SUPPORTED[deck.id]
                 ? "ready"
                 : IN_THE_LAB[deck.id]
@@ -207,7 +214,7 @@ export const ProLanding = () => {
               {!picked && "Select a fighter to inspect the roster"}
               {picked &&
                 SUPPORTED[picked.id] &&
-                `${picked.hero} enters the arena in the first release`}
+                `${picked.hero} is live — click the tile to enter the arena`}
               {picked &&
                 IN_THE_LAB[picked.id] &&
                 `${picked.hero} is in the lab — its weird mechanics are stress-testing the rules engine`}
@@ -387,7 +394,7 @@ const RosterTile = ({
             bg={status === "ready" ? "brand.accent" : "rgba(224,168,46,0.25)"}
             color={status === "ready" ? "brand.surfaceDim" : "brand.accent"}
           >
-            {status === "ready" ? "READY SOON" : "IN THE LAB"}
+            {status === "ready" ? "PLAY NOW" : "IN THE LAB"}
           </Text>
         )}
         <Flex position="relative" justifyContent="space-between" alignItems="end">
