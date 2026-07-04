@@ -23,18 +23,29 @@ const MAX_AGE_MS = 24 * 60 * 60 * 1000; // in-memory server rooms never outlive 
 
 const canStore = () => typeof window !== "undefined";
 
+/**
+ * THIS TAB's seat token (sessionStorage). Tabs must not share seats: with a
+ * shared token, a second tab opening the join link would RECONNECT into the
+ * host's seat instead of joining as the opponent (the two-tab solo test).
+ */
+export function getTabToken(roomId: string): string | null {
+  if (!canStore()) return null;
+  return sessionStorage.getItem(TOKEN_PREFIX + roomId);
+}
+
+/** Any seat token this browser holds — tab's own seat first. */
 export function getToken(roomId: string): string | null {
   if (!canStore()) return null;
-  // sessionStorage fallback covers tabs from before the localStorage move
   return (
-    localStorage.getItem(TOKEN_PREFIX + roomId) ??
-    sessionStorage.getItem(TOKEN_PREFIX + roomId)
+    sessionStorage.getItem(TOKEN_PREFIX + roomId) ??
+    localStorage.getItem(TOKEN_PREFIX + roomId)
   );
 }
 
 export function setToken(roomId: string, token: string): void {
   if (!canStore()) return;
-  localStorage.setItem(TOKEN_PREFIX + roomId, token);
+  sessionStorage.setItem(TOKEN_PREFIX + roomId, token); // this tab's seat
+  localStorage.setItem(TOKEN_PREFIX + roomId, token); // browser-wide resume
 }
 
 export function listRecentRooms(): RecentRoom[] {
