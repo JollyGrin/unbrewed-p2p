@@ -21,6 +21,7 @@ import {
   CardMeta,
   FighterId,
   HeroListing,
+  LegalOption,
   PlayerView,
   ProMapDef,
   SpaceId,
@@ -705,21 +706,35 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
     legalActions.flatMap((a) => (a.type === "MOVE_FIGHTER" ? [a.fighter] : []))
   );
 
-  // Prompts answer via the board too: CHOOSE_SPACE options carry a space id
-  // as option.id (plus e.g. 'decline'), CHOOSE_TARGET options a fighter id.
+  // Prompts answer via the board too: a CHOOSE_SPACE option names its space in
+  // option.id (place ops), option.data.space, or option.label (token ops label
+  // a token's space, e.g. destroy-totem); CHOOSE_TARGET options a fighter id.
   // Board-answerable options become highlights; the rest stay panel buttons.
   const promptForMe = prompt && prompt.player === view.you ? prompt : null;
   const mapSpaceIds = new Set(view.map.spaces.map((s) => s.id));
   const fighterIds = new Set(view.fighters.map((f) => f.id));
-  const promptSpaceIds =
+  const optionSpace = (o: LegalOption): SpaceId | null => {
+    if (mapSpaceIds.has(o.id)) return o.id;
+    const dataSpace = (o.data as { space?: string } | undefined)?.space;
+    if (dataSpace && mapSpaceIds.has(dataSpace)) return dataSpace;
+    if (mapSpaceIds.has(o.label)) return o.label;
+    return null;
+  };
+  // space -> optionId (tokens never share a space, so this can't collide)
+  const promptSpaceOptions = new Map<SpaceId, string>(
     promptForMe?.kind === "CHOOSE_SPACE"
-      ? promptForMe.options.map((o) => o.id).filter((id) => mapSpaceIds.has(id))
-      : [];
+      ? promptForMe.options.flatMap((o) => {
+          const space = optionSpace(o);
+          return space ? [[space, o.id] as const] : [];
+        })
+      : []
+  );
+  const promptSpaceIds = [...promptSpaceOptions.keys()];
   const promptTargetIds =
     promptForMe?.kind === "CHOOSE_TARGET"
       ? promptForMe.options.map((o) => o.id).filter((id) => fighterIds.has(id))
       : [];
-  const promptBoardIds = new Set([...promptSpaceIds, ...promptTargetIds]);
+  const promptBoardIds = new Set([...promptSpaceOptions.values(), ...promptTargetIds]);
   const promptButtonOptions = promptForMe
     ? promptForMe.options.filter((o) => !promptBoardIds.has(o.id))
     : [];
@@ -756,8 +771,9 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
 
   const onSpaceClick = (space: SpaceId) => {
     // an open prompt owns the board — answer it first
-    if (promptForMe && promptSpaceIds.includes(space)) {
-      respondToPrompt(promptForMe.promptId, space);
+    const promptOption = promptForMe ? promptSpaceOptions.get(space) : undefined;
+    if (promptForMe && promptOption) {
+      respondToPrompt(promptForMe.promptId, promptOption);
       setSelectedFighter(null);
       return;
     }
