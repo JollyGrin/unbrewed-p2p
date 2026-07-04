@@ -15,6 +15,7 @@ import {
   Action,
   ClientMsg,
   HeroListing,
+  LobbyListing,
   PlayerView,
   PROTOCOL_VERSION,
   ServerMsg,
@@ -42,10 +43,18 @@ export interface UseProSocketReturn {
   error: { code: string; message: string } | null;
   /** server-fed roster; null until the first HEROES reply arrives */
   heroes: HeroListing[] | null;
+  /** open public lobbies; null until the first LOBBIES reply arrives */
+  lobbies: LobbyListing[] | null;
+  /** whether OUR current room is publicly listed (server-acked) */
+  roomPublic: boolean;
   createRoom: (heroId: string) => void;
   joinRoom: (roomId: string, heroId: string) => void;
   sendAction: (action: Action) => void;
   respondToPrompt: (promptId: string, optionId: string) => void;
+  /** ask the server for the current public-lobby list (poll while browsing) */
+  requestLobbies: () => void;
+  /** list/unlist our current room in the public lobby browser */
+  setVisibility: (isPublic: boolean) => void;
 }
 
 const MAX_RETRY_DELAY_MS = 10_000;
@@ -64,6 +73,8 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
   const [opponentConnected, setOpponentConnected] = useState(true);
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
   const [heroes, setHeroes] = useState<HeroListing[] | null>(null);
+  const [lobbies, setLobbies] = useState<LobbyListing[] | null>(null);
+  const [roomPublic, setRoomPublic] = useState(false);
 
   const send = useCallback((msg: ClientMsg) => {
     const ws = wsRef.current;
@@ -103,10 +114,17 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
         case "HEROES":
           setHeroes(msg.heroes);
           break;
+        case "LOBBIES":
+          setLobbies(msg.lobbies);
+          break;
+        case "VISIBILITY":
+          if (msg.roomId === roomRef.current) setRoomPublic(msg.public);
+          break;
         case "ROOM_CREATED":
         case "ROOM_JOINED":
           roomRef.current = msg.roomId;
           setRoomId(msg.roomId);
+          setRoomPublic(false); // fresh rooms are private until acked otherwise
           setToken(msg.roomId, msg.token);
           rememberRoom(msg.roomId);
           break;
@@ -201,6 +219,18 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
     [send]
   );
 
+  const requestLobbies = useCallback(() => {
+    send({ v: PROTOCOL_VERSION, type: "LIST_LOBBIES" });
+  }, [send]);
+
+  const setVisibility = useCallback(
+    (isPublic: boolean) => {
+      if (roomRef.current)
+        send({ v: PROTOCOL_VERSION, type: "SET_VISIBILITY", roomId: roomRef.current, public: isPublic });
+    },
+    [send]
+  );
+
   return {
     status,
     roomId,
@@ -208,9 +238,13 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
     opponentConnected,
     error,
     heroes,
+    lobbies,
+    roomPublic,
     createRoom,
     joinRoom,
     sendAction,
     respondToPrompt,
+    requestLobbies,
+    setVisibility,
   };
 }

@@ -13,7 +13,7 @@
  */
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
-import { Box, Button, Flex, Grid, Tag, Text, keyframes } from "@chakra-ui/react";
+import { Box, Button, Flex, Grid, Tag, Text, Tooltip, keyframes } from "@chakra-ui/react";
 import { ProBoard } from "@/components/Pro/ProBoard";
 import {
   Action,
@@ -543,7 +543,7 @@ const HeroSelectLobby = ({
 // ---------------------------------------------------------------------------
 
 const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string | null }) => {
-  const { status, roomId, snapshot, opponentConnected, error, heroes, createRoom, joinRoom, sendAction, respondToPrompt } =
+  const { status, roomId, snapshot, opponentConnected, error, heroes, lobbies, roomPublic, createRoom, joinRoom, sendAction, respondToPrompt, requestLobbies, setVisibility } =
     useProSocket(WS_URL);
   const [joined, setJoined] = useState(false);
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
@@ -609,6 +609,15 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   useEffect(() => {
     if (!joined) setRecentRooms(listRecentRooms());
   }, [joined, room]);
+
+  // Public-lobby browser: poll while sitting in the pre-join picker (cheap —
+  // one tiny message every 5s against the already-open socket).
+  useEffect(() => {
+    if (joined || room || status !== "open") return;
+    requestLobbies();
+    const timer = setInterval(requestLobbies, 5_000);
+    return () => clearInterval(timer);
+  }, [joined, room, status, requestLobbies]);
 
   // Preselect a hero once the server roster arrives: honor a valid `?hero=`
   // (invalid ids are ignored → manual pick), and auto-select when only one
@@ -676,6 +685,37 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
             setJoined(true);
           }}
         />
+        {/* public lobbies waiting for an opponent — joining one routes through
+            the normal ?room= flow (hero picker included) */}
+        {!room && lobbies && lobbies.length > 0 && (
+          <Flex direction="column" alignItems="center" gap="0.6rem" pb="3rem" px="1rem">
+            <Text
+              fontFamily="BebasNeueRegular"
+              fontSize="1.1rem"
+              letterSpacing="0.08em"
+              opacity={0.75}
+            >
+              Open lobbies — join someone waiting
+            </Text>
+            <Flex gap="0.5rem" flexWrap="wrap" justifyContent="center" maxW="42rem">
+              {lobbies.map((l) => (
+                <Button
+                  key={l.roomId}
+                  {...BTN_GOLD}
+                  onClick={() =>
+                    router.replace(
+                      { pathname: router.pathname, query: { ...router.query, room: l.roomId } },
+                      undefined,
+                      { shallow: true }
+                    )
+                  }
+                >
+                  vs {l.heroName} · room {l.roomId} · {agoLabel(Date.now() - l.ageMs)}
+                </Button>
+              ))}
+            </Flex>
+          </Flex>
+        )}
       </>
     );
   }
@@ -723,6 +763,8 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
             </Text>
           )}
           <Text opacity={0.8}>Waiting for an opponent — the game starts the moment they join.</Text>
+
+          {/* discoverability: invite privately, list publicly, or (soon) fight a bot */}
           <Flex gap="0.5rem" alignItems="center" flexWrap="wrap" justifyContent="center">
             <Tag fontFamily="mono" px="0.75rem" py="0.4rem">
               {joinUrl}
@@ -730,6 +772,19 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
             <Button {...BTN_GOLD} onClick={() => navigator.clipboard?.writeText(joinUrl)}>
               copy link
             </Button>
+          </Flex>
+          <Flex gap="0.5rem" alignItems="center" flexWrap="wrap" justifyContent="center">
+            <Button
+              {...(roomPublic ? BTN_GOLD : BTN)}
+              onClick={() => setVisibility(!roomPublic)}
+            >
+              {roomPublic ? "✓ public — listed in the lobby browser" : "make lobby public"}
+            </Button>
+            <Tooltip label="A referee-trained sparring bot is on the roadmap" hasArrow>
+              <Button {...BTN} isDisabled>
+                play vs bot — coming soon
+              </Button>
+            </Tooltip>
           </Flex>
           <Text fontSize="0.8rem" opacity={0.5}>
             (testing solo? open that link in a second browser tab)
