@@ -33,7 +33,7 @@
  * die with the room (in-memory, TTL ~2h after last activity).
  */
 
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 // ---------------------------------------------------------------------------
 // Shared primitives (mirror engine/types.ts — keep in lockstep)
@@ -258,12 +258,22 @@ export interface HeroListing {
   reach: "MELEE" | "RANGED";
 }
 
+/** A public room waiting for an opponent, as shown in the lobby browser. */
+export interface LobbyListing {
+  roomId: string;
+  heroId: string;
+  heroName: string;
+  ageMs: number; // how long the lobby has been waiting (server clock)
+}
+
 export type ClientMsg =
   | { v: number; type: "LIST_HEROES" }
   | { v: number; type: "CREATE_ROOM"; heroId: string }
   | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }
-  | { v: number; type: "ACTION"; roomId: string; action: Action };
+  | { v: number; type: "ACTION"; roomId: string; action: Action }
+  | { v: number; type: "LIST_LOBBIES" }
+  | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean };
 
 export type ServerMsg =
   | { v: number; type: "HEROES"; heroes: HeroListing[] }
@@ -271,6 +281,8 @@ export type ServerMsg =
   | { v: number; type: "ROOM_JOINED"; roomId: string; token: string; you: PlayerId }
   | { v: number; type: "STATE"; view: PlayerView; legalActions: Action[] }
   | { v: number; type: "OPPONENT_STATUS"; connected: boolean }
+  | { v: number; type: "LOBBIES"; lobbies: LobbyListing[] }
+  | { v: number; type: "VISIBILITY"; roomId: string; public: boolean } // ack to the setter
   | { v: number; type: "ERROR"; code: ErrorCode; message: string };
 
 export type ErrorCode =
