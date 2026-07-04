@@ -10,7 +10,7 @@
  * replay RECONNECT on the next socket open for the same room.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { forgetRoom, getToken, rememberRoom, setToken } from "./recentRooms";
+import { forgetRoom, getTabToken, getToken, rememberRoom, setToken } from "./recentRooms";
 import {
   Action,
   ClientMsg,
@@ -164,7 +164,11 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
       setError(null); // clear any prior room/hero error on a fresh attempt
       roomRef.current = room;
       setRoomId(room);
-      const token = getToken(room);
+      // heroId === "" is an explicit resume (refresh flow / recent-rooms strip)
+      // and may use any token this browser holds. A join WITH a hero only
+      // reclaims THIS TAB's seat — never a token another tab wrote, or the
+      // second tab of a two-tab solo test would steal the host's seat.
+      const token = heroId === "" ? getToken(room) : getTabToken(room);
       const msg: ClientMsg = token
         ? { v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token }
         : { v: PROTOCOL_VERSION, type: "JOIN_ROOM", roomId: room, heroId };

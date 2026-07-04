@@ -30,7 +30,7 @@ import {
   ViewPrompt,
 } from "@/lib/pro/protocol";
 import { ProConnectionStatus, useProSocket } from "@/lib/pro/useProSocket";
-import { RecentRoom, getToken, listRecentRooms } from "@/lib/pro/recentRooms";
+import { RecentRoom, getTabToken, listRecentRooms } from "@/lib/pro/recentRooms";
 import { HERO_DECK_IDS, ResolveCard, useProCardArt } from "@/lib/pro/useProCardArt";
 import { POPULAR_DECKS } from "@/lib/constants/top-decks";
 import { GiFootprint, GiHearts } from "react-icons/gi";
@@ -577,7 +577,10 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   const reconnectedRef = useRef(false);
   useEffect(() => {
     if (joined || !room || reconnectedRef.current || typeof window === "undefined") return;
-    if (getToken(room)) {
+    // Only THIS TAB's own seat auto-reconnects (refresh). A fresh tab with a
+    // ?room= link goes to the picker and JOINs — even if another tab of this
+    // browser is the host — or resumes explicitly via the recent-rooms strip.
+    if (getTabToken(room)) {
       reconnectedRef.current = true;
       joinRoom(room, ""); // heroId ignored on the RECONNECT path
       setJoined(true);
@@ -599,10 +602,12 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   }, [roomId, router]);
 
   // Recent matches this browser was seated in (client-only; loaded after mount
-  // so the static export hydrates cleanly).
+  // so the static export hydrates cleanly). Also offered when a ?room= link is
+  // open — a returning host in a brand-new tab resumes from here instead of
+  // hitting ROOM_FULL by re-joining.
   const [recentRooms, setRecentRooms] = useState<RecentRoom[]>([]);
   useEffect(() => {
-    if (!joined && !room) setRecentRooms(listRecentRooms());
+    if (!joined) setRecentRooms(listRecentRooms());
   }, [joined, room]);
 
   // Preselect a hero once the server roster arrives: honor a valid `?hero=`
@@ -700,9 +705,11 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
       </Text>
     );
   // The server sends the first STATE only once BOTH seats are filled — a
-  // created room sits here (correctly) until the opponent joins.
+  // created room sits here (correctly) until the opponent joins. (Any room
+  // with no state yet shows this; the room id is also in the URL now, so
+  // don't gate on its absence.)
   if (!snapshot) {
-    if (roomId && !room) {
+    if (roomId) {
       const joinUrl =
         typeof window !== "undefined" ? `${window.location.origin}/pro/game?room=${roomId}` : "";
       return (
