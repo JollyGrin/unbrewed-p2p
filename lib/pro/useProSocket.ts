@@ -13,10 +13,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Action,
   ClientMsg,
-  PendingPrompt,
   PlayerView,
   PROTOCOL_VERSION,
   ServerMsg,
+  ViewPrompt,
 } from "./protocol";
 
 export type ProConnectionStatus =
@@ -29,7 +29,7 @@ export type ProConnectionStatus =
 export interface ProGameSnapshot {
   view: PlayerView;
   legalActions: Action[];
-  prompt: PendingPrompt | null;
+  prompt: ViewPrompt | null; // convenience alias of view.prompt
 }
 
 export interface UseProSocketReturn {
@@ -52,6 +52,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const retryRef = useRef({ attempts: 0, timer: 0 as unknown as ReturnType<typeof setTimeout> | 0 });
   const roomRef = useRef<string | null>(null);
+  const youRef = useRef<PlayerView["you"] | null>(null);
   // Message we replay when a fresh socket opens (join intent or reconnect).
   const pendingHelloRef = useRef<ClientMsg | null>(null);
 
@@ -100,7 +101,8 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
           sessionStorage.setItem(tokenKey(msg.roomId), msg.token);
           break;
         case "STATE":
-          setSnapshot({ view: msg.view, legalActions: msg.legalActions, prompt: msg.prompt });
+          youRef.current = msg.view.you;
+          setSnapshot({ view: msg.view, legalActions: msg.legalActions, prompt: msg.view.prompt });
           break;
         case "OPPONENT_STATUS":
           setOpponentConnected(msg.connected);
@@ -166,10 +168,17 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
     [send]
   );
 
+  // Protocol v1: prompt answers are a regular action through the single ACTION
+  // path (the server enumerates them in legalActions too).
   const respondToPrompt = useCallback(
     (promptId: string, optionId: string) => {
-      if (roomRef.current)
-        send({ v: PROTOCOL_VERSION, type: "PROMPT_RESPONSE", roomId: roomRef.current, promptId, optionId });
+      if (roomRef.current && youRef.current)
+        send({
+          v: PROTOCOL_VERSION,
+          type: "ACTION",
+          roomId: roomRef.current,
+          action: { type: "RESPOND_PROMPT", player: youRef.current, promptId, optionId },
+        });
     },
     [send]
   );
