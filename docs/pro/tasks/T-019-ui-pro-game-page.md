@@ -25,6 +25,17 @@ is up:
 - Still open from Scope: lobby wiring on /pro, CardFactory hand, reveal beat,
   action log, mobile pass, reconnect acceptance test.
 
+## Progress (2026-07-04, after first live playtest)
+First full rules-enforced Kong mirror played end-to-end by the user (move,
+boost, attack, defend all confirmed live). Landed since: protocol v1 synced
+(RESPOND_PROMPT action model), room lobby screen w/ join link, click-to-act
+board (gold spaces / pulsing targets), CardFactory hand fan + combat reveal
+slots (art via unbrewed-api title-match), overlay-shift fix (grid stretch),
+full-viewport sandbox-style table (100svh, radial felt), ProHud plates reusing
+header.styles (HP/move/reach, hand/deck pips, discard card-face modals,
+hero-ability tooltip, room + connection chips). Still open: reveal-beat
+animation, action log, /pro lobby wiring, mobile pass, reconnect test.
+
 ## Context
 The dumb renderer (context doc): everything it shows comes from
 `gameView{view, legalActions, prompt}`; everything it sends is an action from
