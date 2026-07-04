@@ -323,8 +323,12 @@ const LiveGame = ({ room }: { room: string | null }) => {
 
   const { view, legalActions, prompt } = snapshot;
   const myTurn = view.activePlayer === view.you;
-  // RESPOND_PROMPT actions render through the PromptPanel, not the action list.
-  const listActions = legalActions.filter((a) => a.type !== "RESPOND_PROMPT");
+  // RESPOND_PROMPT renders through the PromptPanel; MOVE_FIGHTER and
+  // PLACE_SIDEKICK render as clickable board spaces — listing one button per
+  // destination just floods the sidebar (and card actions live on the hand).
+  const listActions = legalActions.filter(
+    (a) => !["RESPOND_PROMPT", "MOVE_FIGHTER", "PLACE_SIDEKICK"].includes(a.type)
+  );
 
   // Board affordances derive ONLY from what the server offered. Each
   // highlighted space maps back to the exact server-offered action so a click
@@ -410,7 +414,10 @@ const LiveGame = ({ room }: { room: string | null }) => {
             {selectedFighter
               ? `showing moves for ${selectedFighter.split("/")[1]} — click a gold space (click the fighter again to unselect)`
               : [
-                  highlightedSpaces.length > 0 && "click a gold space to move there",
+                  highlightedSpaces.length > 0 &&
+                    `click a gold space to move there (${highlightedSpaces.length} option${
+                      highlightedSpaces.length === 1 ? "" : "s"
+                    })`,
                   attackActions.size > 0 && "click a pulsing enemy to attack",
                 ]
                   .filter(Boolean)

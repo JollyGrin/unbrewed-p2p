@@ -56,7 +56,11 @@ export const ProBoard = ({
   }
 
   return (
-    <Box position="relative" w="100%" userSelect="none">
+    // Outer box may be stretched by a parent grid/flex row; the INNER box is
+    // the positioning context, so its height always equals the image's and
+    // the %-positioned overlays stay glued to the art.
+    <Box w="100%">
+      <Box position="relative" w="100%" userSelect="none">
       <Box
         as="img"
         src={map.meta.imageUrl}
@@ -154,6 +158,7 @@ export const ProBoard = ({
             );
           })
         )}
+      </Box>
     </Box>
   );
 };
