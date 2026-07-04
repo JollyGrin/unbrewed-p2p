@@ -8,7 +8,6 @@ import {
   Text,
   Tooltip,
 } from "@chakra-ui/react";
-import axios from "axios";
 import { toast } from "react-hot-toast";
 import { FaHeart, FaStar } from "react-icons/fa";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
@@ -16,24 +15,9 @@ import {
   POPULAR_DECKS,
   PopularDeckMeta,
 } from "@/lib/constants/top-decks";
-
-const DECK_API = "https://unbrewed-api.vercel.app/api/unmatched-deck/";
-
-/**
- * Live API first (latest deck version), bundled snapshot from
- * /public/top-decks as fallback so picking a deck works even if
- * unmatched.cards or the proxy is down.
- */
-const fetchPopularDeck = async (id: string): Promise<DeckImportType> => {
-  try {
-    const result = await axios.get<DeckImportType>(DECK_API + id);
-    return result.data;
-  } catch (err) {
-    console.warn("deck api failed, using bundled snapshot", err);
-    const result = await axios.get<DeckImportType>(`/top-decks/${id}.json`);
-    return result.data;
-  }
-};
+// evergreen (Pro rule-enforced) decks resolve from the committed snapshot
+// first; everything else stays live-API-first with snapshot fallback
+import { fetchDeckById } from "@/lib/evergreenDecks";
 
 /**
  * One-click deck picker: the most-liked community decks on
@@ -58,7 +42,7 @@ export const PopularDecks = (props: {
     }
     setLoadingId(meta.id);
     try {
-      const deck = await fetchPopularDeck(meta.id);
+      const deck = await fetchDeckById(meta.id);
       props.pushDeck(deck);
       props.setStar(deck.id);
       toast.success(`${meta.name} saved & ready to play`);
