@@ -814,6 +814,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
         <ProBoard
           map={view.map}
           fighters={view.fighters}
+          tokens={view.tokens}
           highlightedSpaces={[...new Set(highlightedSpaces)]}
           highlightedFighters={[...new Set(highlightedFighters)]}
           selectedFighter={selectedFighter}

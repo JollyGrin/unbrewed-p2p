@@ -99,6 +99,21 @@ export function diffViews(
     }
   }
 
+  // tokens (totems): appearances and disappearances
+  const prevTokens = new Map((prev.tokens ?? []).map((t) => [t.id, t]));
+  const nextTokens = new Map((next.tokens ?? []).map((t) => [t.id, t]));
+  for (const t of nextTokens.values()) {
+    if (!prevTokens.has(t.id)) {
+      lines.push({ text: `${seat(t.owner)} placed a totem`, who: whoOf(t.owner) });
+    }
+  }
+  for (const t of prevTokens.values()) {
+    if (!nextTokens.has(t.id)) {
+      const owner = t.owner === next.you ? "Your" : "Opponent's";
+      lines.push({ text: `${owner} totem was destroyed`, who: whoOf(t.owner) });
+    }
+  }
+
   if (next.winner && !prev.winner) {
     lines.push({
       text: next.winner === next.you ? "VICTORY — you win!" : "Defeat — opponent wins",
