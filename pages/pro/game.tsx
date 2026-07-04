@@ -27,6 +27,8 @@ import {
   ViewPrompt,
 } from "@/lib/pro/protocol";
 import { useProSocket } from "@/lib/pro/useProSocket";
+import { ResolveCard, useProCardArt } from "@/lib/pro/useProCardArt";
+import { CardFace, ProHand } from "@/components/Pro/ProHand";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 
 const WS_URL = process.env.NEXT_PUBLIC_PRO_WS_URL;
@@ -113,58 +115,130 @@ const PromptPanel = ({
   </Box>
 );
 
-/** The reveal beat + running combat math, straight from the server view. */
-const CombatPanel = ({ combat, catalog }: { combat: ViewCombat; catalog: Record<string, CardMeta> }) => (
-  <Box bg="brand.surface" border="1px solid" borderColor="whiteAlpha.300" borderRadius="0.5rem" p="0.75rem">
-    <Flex gap="0.5rem" alignItems="center" mb="0.4rem">
-      <Tag colorScheme="red" size="sm">
-        COMBAT
-      </Tag>
-      <Text fontSize="0.8rem" opacity={0.7}>
-        {combat.stage.replace(/_/g, " ").toLowerCase()}
-      </Text>
-    </Flex>
-    <Flex gap="1rem" fontSize="0.9rem">
-      <Box>
-        <Text opacity={0.6} fontSize="0.75rem">
-          attack
-        </Text>
-        <Text>
-          {combat.attackerCard
-            ? `${cardLabel(catalog, combat.attackerCard.instance)} → ${combat.attackerCard.effectiveValue}${
-                combat.attackerCard.boosts.length ? ` (+${combat.attackerCard.boosts.length} boost)` : ""
-              }`
-            : "face-down"}
-        </Text>
-      </Box>
-      <Box>
-        <Text opacity={0.6} fontSize="0.75rem">
-          defense
-        </Text>
-        <Text>
-          {combat.defenderCard
-            ? `${cardLabel(catalog, combat.defenderCard.instance)} → ${combat.defenderCard.effectiveValue}${
-                combat.defenderCard.boosts.length ? ` (+${combat.defenderCard.boosts.length} boost)` : ""
-              }`
-            : combat.stage === "COMMIT_DEFENSE"
-              ? "deciding…"
-              : "none"}
-        </Text>
-      </Box>
-      {combat.outcome && (
-        <Box>
-          <Text opacity={0.6} fontSize="0.75rem">
-            outcome
-          </Text>
-          <Text>
-            {combat.outcome.replace(/_/g, " ").toLowerCase()}
-            {combat.attackDamageDealt !== null ? ` · ${combat.attackDamageDealt} dmg` : ""}
-          </Text>
+/** One combat slot: revealed card face, own face-down commit, or a card back. */
+const CombatSlot = ({
+  label,
+  card,
+  detail,
+  resolveCard,
+  facedownInstance,
+  facedownState,
+  catalog,
+}: {
+  label: string;
+  card: ViewCombat["attackerCard"];
+  detail?: string;
+  resolveCard: ResolveCard;
+  /** own committed instance when this slot is mine and unrevealed */
+  facedownInstance: CardInstanceId | null;
+  facedownState: "committed" | "deciding" | "none";
+  catalog: Record<string, CardMeta>;
+}) => (
+  <Box textAlign="center">
+    <Text opacity={0.6} fontSize="0.75rem" mb="0.25rem">
+      {label}
+    </Text>
+    <Box w="6.5rem" sx={{ aspectRatio: "63 / 88" }} mx="auto" position="relative">
+      {card ? (
+        <CardFace card={resolveCard(card.instance)} fallback={cardLabel(catalog, card.instance)} />
+      ) : facedownInstance ? (
+        <Box position="relative" w="100%" h="100%">
+          <CardFace
+            card={resolveCard(facedownInstance)}
+            fallback={cardLabel(catalog, facedownInstance)}
+          />
+          <Tag position="absolute" top="-0.4rem" left="50%" transform="translateX(-50%)" size="sm">
+            face-down
+          </Tag>
         </Box>
+      ) : (
+        <Flex
+          w="100%"
+          h="100%"
+          bg={facedownState === "committed" ? "brand.surface" : "transparent"}
+          border="1px dashed"
+          borderColor="whiteAlpha.400"
+          borderRadius="0.5rem"
+          alignItems="center"
+          justifyContent="center"
+        >
+          <Text fontSize="0.7rem" opacity={0.6}>
+            {facedownState === "committed" ? "face-down" : facedownState === "deciding" ? "deciding…" : "no card"}
+          </Text>
+        </Flex>
       )}
-    </Flex>
+    </Box>
+    {card && (
+      <Text fontSize="0.95rem" fontWeight="bold" color="brand.accent">
+        {card.effectiveValue}
+        {card.boosts.length ? ` (+${card.boosts.length} boost)` : ""}
+      </Text>
+    )}
+    {detail && (
+      <Text fontSize="0.75rem" opacity={0.7}>
+        {detail}
+      </Text>
+    )}
   </Box>
 );
+
+/** The reveal beat + running combat math, straight from the server view. */
+const CombatPanel = ({
+  combat,
+  catalog,
+  resolveCard,
+  you,
+  selfCommitted,
+}: {
+  combat: ViewCombat;
+  catalog: Record<string, CardMeta>;
+  resolveCard: ResolveCard;
+  you: PlayerView["you"];
+  selfCommitted: CardInstanceId | null;
+}) => {
+  const attackerCommitted = combat.stage !== "COMMIT_ATTACK";
+  const pastReveal = !["COMMIT_ATTACK", "COMMIT_DEFENSE"].includes(combat.stage);
+  return (
+    <Box bg="brand.surface" border="1px solid" borderColor="whiteAlpha.300" borderRadius="0.5rem" p="0.75rem">
+      <Flex gap="0.5rem" alignItems="center" mb="0.5rem">
+        <Tag colorScheme="red" size="sm">
+          COMBAT
+        </Tag>
+        <Text fontSize="0.8rem" opacity={0.7}>
+          {combat.stage.replace(/_/g, " ").toLowerCase()}
+        </Text>
+      </Flex>
+      <Flex gap="1rem" justifyContent="center">
+        <CombatSlot
+          label="attack"
+          card={combat.attackerCard}
+          resolveCard={resolveCard}
+          facedownInstance={
+            !combat.attackerCard && combat.attackerPlayer === you ? selfCommitted : null
+          }
+          facedownState={attackerCommitted ? "committed" : "deciding"}
+          catalog={catalog}
+        />
+        <CombatSlot
+          label="defense"
+          card={combat.defenderCard}
+          resolveCard={resolveCard}
+          facedownInstance={
+            !combat.defenderCard && combat.defenderPlayer === you && !pastReveal ? selfCommitted : null
+          }
+          facedownState={combat.stage === "COMMIT_DEFENSE" ? "deciding" : pastReveal ? "none" : "committed"}
+          catalog={catalog}
+        />
+      </Flex>
+      {combat.outcome && (
+        <Text textAlign="center" mt="0.5rem" fontWeight="bold">
+          {combat.outcome.replace(/_/g, " ").toLowerCase()}
+          {combat.attackDamageDealt !== null ? ` · ${combat.attackDamageDealt} dmg` : ""}
+        </Text>
+      )}
+    </Box>
+  );
+};
 
 // ---------------------------------------------------------------------------
 // LIVE mode
@@ -175,6 +249,12 @@ const LiveGame = ({ room }: { room: string | null }) => {
     useProSocket(WS_URL);
   const [joined, setJoined] = useState(false);
   const [selectedFighter, setSelectedFighter] = useState<FighterId | null>(null);
+  // Art fetch (unbrewed-api, matched by title against the server catalog) —
+  // must run unconditionally; no-ops until the first STATE arrives.
+  const { resolveCard } = useProCardArt(
+    snapshot ? [snapshot.view.self.heroId, snapshot.view.opponent.heroId] : [],
+    snapshot?.view.catalog ?? {}
+  );
 
   // v1: single shipped hero. Hero select moves to /pro with LIST_HEROES when
   // deck #2 lands (T-019 follow-up). Server hero ids, not unbrewed-api deck ids.
@@ -288,6 +368,24 @@ const LiveGame = ({ room }: { room: string | null }) => {
     }
   };
 
+  // Hand affordances: a card is playable iff a server-offered action carries
+  // its instance id. Short verb labels; the full sentence stays in the sidebar.
+  const actionsForCard = (instance: CardInstanceId) =>
+    legalActions.flatMap((a) => {
+      if (!("card" in a) || a.card !== instance) return [];
+      const label =
+        a.type === "SCHEME"
+          ? "Scheme"
+          : a.type === "BOOST_MOVE"
+            ? "Boost move"
+            : a.type === "COMMIT_ATTACK_CARD"
+              ? "Attack with"
+              : a.type === "COMMIT_DEFENSE_CARD"
+                ? "Defend with"
+                : "Discard"; // DISCARD_TO_LIMIT — the only remaining card-carrying type
+      return [{ action: a, label }];
+    });
+
   return (
     <Grid templateColumns={{ base: "1fr", lg: "1fr 22rem" }} gap="1rem" p="1rem" maxW="90rem" mx="auto">
       <ProBoard
@@ -319,7 +417,15 @@ const LiveGame = ({ room }: { room: string | null }) => {
                   .join(" · ")}
           </Text>
         )}
-        {view.combat && <CombatPanel combat={view.combat} catalog={view.catalog} />}
+        {view.combat && (
+          <CombatPanel
+            combat={view.combat}
+            catalog={view.catalog}
+            resolveCard={resolveCard}
+            you={view.you}
+            selfCommitted={view.self.committedCard}
+          />
+        )}
         {prompt && <PromptPanel prompt={prompt} you={view.you} onRespond={respondToPrompt} />}
         <Flex direction="column" gap="0.4rem">
           {listActions.map((a, i) => (
@@ -333,25 +439,28 @@ const LiveGame = ({ room }: { room: string | null }) => {
             </Text>
           )}
         </Flex>
-        <Box>
-          <Text fontSize="0.8rem" opacity={0.6} mb="0.25rem">
-            your hand ({view.self.hand.length}) · deck {view.self.deckCount} · opponent hand {view.opponent.handCount}
-            {view.opponent.hasCommitted ? " · opponent committed a card" : ""}
-          </Text>
-          <Flex gap="0.3rem" flexWrap="wrap">
-            {view.self.hand.map((c) => (
-              <Tag key={c} size="sm">
-                {cardLabel(view.catalog, c)}
-              </Tag>
-            ))}
-          </Flex>
-        </Box>
         {view.winner && (
           <Text fontFamily="LeagueGothic" fontSize="2rem" color="brand.accent">
             {view.winner === view.you ? "VICTORY!" : "DEFEAT"}
           </Text>
         )}
       </Flex>
+
+      {/* hand strip — real card faces, spans the full grid width */}
+      <Box gridColumn="1 / -1">
+        <Text fontSize="0.8rem" opacity={0.6} mb="0.25rem" textAlign="center">
+          your hand ({view.self.hand.length}) · deck {view.self.deckCount} · discard {view.self.discard.length} ·
+          opponent hand {view.opponent.handCount}
+          {view.opponent.hasCommitted ? " · opponent committed a card" : ""}
+        </Text>
+        <ProHand
+          hand={view.self.hand}
+          resolveCard={resolveCard}
+          labelFor={(c) => cardLabel(view.catalog, c)}
+          actionsFor={actionsForCard}
+          onAction={sendAction}
+        />
+      </Box>
     </Grid>
   );
 };
