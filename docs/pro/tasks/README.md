@@ -45,6 +45,7 @@ Statuses: `ready` · `blocked` (dependency not done) · `needs-info` ·
 | T-018 | UI: /pro landing & roster page | unbrewed-p2p | done | — |
 | T-019 | UI: /pro game page (board, prompts, socket) | unbrewed-p2p | in progress | T-015, T-016 |
 | T-020 | Tooling: DSL coverage sweep | pro-server | blocked | T-014 |
+| T-021 | UI: /pro lobby wiring with hero select | unbrewed-p2p | ready | T-019 |
 
 ## Dependency shape
 
