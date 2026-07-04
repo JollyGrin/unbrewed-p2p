@@ -30,8 +30,8 @@ Statuses: `ready` · `blocked` (dependency not done) · `needs-info` ·
 | T-003 | Engine: turn state machine & legalActions | pro-server | done | T-001, T-002 |
 | T-004 | Engine: combat pipeline | pro-server | done | T-003 |
 | T-005 | Engine: effect interpreter (DSL v0.1) | pro-server | done | T-004 |
-| T-006 | Content: King Kong (hand-authored) | pro-server | in-progress | T-005 |
-| T-007 | Engine: random-playout fuzz driver | pro-server | in-progress | T-004 |
+| T-006 | Content: King Kong (hand-authored) | pro-server | done | T-005 |
+| T-007 | Engine: random-playout fuzz driver | pro-server | done | T-004 |
 | T-008 | Maps: v1 map selection (Huntsman's Lodge) | pro-server | done | — |
 | T-009 | Maps: dev-only annotation editor page | unbrewed-p2p | done | — |
 | T-010 | Maps: authored Mended Drum map file (v1) | pro-server | done | T-008, T-009 |
