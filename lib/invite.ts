@@ -1,9 +1,10 @@
-import axios from "axios";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { POPULAR_DECKS, PopularDeckMeta } from "@/lib/constants/top-decks";
 import { DEFAULT_SERVER, LS_KEY } from "@/lib/hooks/useLocalStorage";
 
-const DECK_API = "https://unbrewed-api.vercel.app/api/unmatched-deck/";
+// re-exported so existing callers keep their import path; evergreen decks
+// (rule-enforced in Pro) resolve from the committed snapshot first
+export { fetchDeckById } from "@/lib/evergreenDecks";
 
 /**
  * Build a one-click invite link for the /join page. Carries everything a
@@ -81,21 +82,6 @@ export const randomPlayerName = (): string => {
 /** One of the community's 30 most-liked decks, at random. */
 export const randomPopularDeck = (): PopularDeckMeta =>
   POPULAR_DECKS[Math.floor(Math.random() * POPULAR_DECKS.length)];
-
-/**
- * Fetch a deck by id or version_id: live API first (latest version),
- * bundled /public/top-decks snapshot as fallback (top-30 only).
- */
-export const fetchDeckById = async (id: string): Promise<DeckImportType> => {
-  try {
-    const result = await axios.get<DeckImportType>(DECK_API + id);
-    return result.data;
-  } catch (err) {
-    console.warn("deck api failed, trying bundled snapshot", err);
-    const result = await axios.get<DeckImportType>(`/top-decks/${id}.json`);
-    return result.data;
-  }
-};
 
 /**
  * Save a deck to the bag and star it, writing localStorage synchronously so

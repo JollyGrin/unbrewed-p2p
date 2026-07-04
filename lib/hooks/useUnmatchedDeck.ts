@@ -6,18 +6,22 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useDebounce } from "use-debounce";
 import { useLocalDeckStorage } from "./useLocalStorage";
+import { DEFAULT_DECK_API, fetchDeckById } from "@/lib/evergreenDecks";
 
 export const useUnmatchedDeck = () => {
   const [deckId, setDeckId] = useState<string>();
   const [deckIdDebounced] = useDebounce(deckId, 300);
-  const [apiUrl, setApiUrl] = useState<string>(
-    "https://unbrewed-api.vercel.app/api/unmatched-deck/",
-  );
+  const [apiUrl, setApiUrl] = useState<string>(DEFAULT_DECK_API);
 
   const { data, isLoading, error } = useQuery(
     ["deck", deckIdDebounced, apiUrl],
     async () => {
       try {
+        // Default API → evergreen-aware fetch (Pro rule-enforced decks pin to
+        // the committed snapshot). A custom apiUrl bypasses it deliberately.
+        if (apiUrl === DEFAULT_DECK_API) {
+          return await fetchDeckById(deckIdDebounced!);
+        }
         const result = await axios.get<DeckImportType>(
           apiUrl + deckIdDebounced,
         );
