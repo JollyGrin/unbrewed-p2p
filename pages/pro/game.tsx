@@ -10,9 +10,9 @@
  *   without the backend. Clicking a fighter shows its movement out-edges
  *   (adjacentTo ∪ oneWayTo) — that's reading MAP data for display, not rules.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
-import { Box, Button, Flex, Grid, Tag, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, Grid, Tag, Text, keyframes } from "@chakra-ui/react";
 import { ProBoard } from "@/components/Pro/ProBoard";
 import {
   Action,
@@ -30,6 +30,8 @@ import { useProSocket } from "@/lib/pro/useProSocket";
 import { ResolveCard, useProCardArt } from "@/lib/pro/useProCardArt";
 import { CardFace, ProHand } from "@/components/Pro/ProHand";
 import { ProHud } from "@/components/Pro/ProHud";
+import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
+import { diffViews } from "@/lib/pro/gameLog";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 
 /** same table felt the sandbox game uses (game.layout.tsx) */
@@ -94,23 +96,36 @@ const PromptPanel = ({
   prompt,
   you,
   onRespond,
+  buttonOptions,
+  boardHint,
 }: {
   prompt: ViewPrompt;
   you: PlayerView["you"];
   onRespond: (promptId: string, optionId: string) => void;
+  /** options NOT answerable via the board (e.g. "Decline move") */
+  buttonOptions: ViewPrompt["options"];
+  /** set when some options are answered by clicking the board */
+  boardHint: string | null;
 }) => (
   <Box bg="brand.surface" border="2px solid" borderColor="brand.accent" borderRadius="0.5rem" p="1rem">
     <Text fontFamily="ArchivoNarrow" fontWeight="bold" mb="0.5rem" color="brand.accent">
       {prompt.kind.replace(/_/g, " ")}
     </Text>
     {prompt.player === you ? (
-      <Flex gap="0.5rem" flexWrap="wrap">
-        {prompt.options.map((o) => (
-          <Button key={o.id} {...BTN_GOLD} onClick={() => onRespond(prompt.promptId, o.id)}>
-            {o.label}
-          </Button>
-        ))}
-      </Flex>
+      <>
+        {boardHint && (
+          <Text fontSize="0.85rem" mb={buttonOptions.length ? "0.5rem" : 0} color="brand.parchment">
+            {boardHint}
+          </Text>
+        )}
+        <Flex gap="0.5rem" flexWrap="wrap">
+          {buttonOptions.map((o) => (
+            <Button key={o.id} {...BTN_GOLD} onClick={() => onRespond(prompt.promptId, o.id)}>
+              {o.label}
+            </Button>
+          ))}
+        </Flex>
+      </>
     ) : (
       <Text opacity={0.7} fontSize="0.9rem">
         opponent is deciding…
@@ -118,6 +133,13 @@ const PromptPanel = ({
     )}
   </Box>
 );
+
+/** The reveal beat: cards flip in from edge-on, defender a breath later. */
+const flipIn = keyframes`
+  from { transform: perspective(600px) rotateY(88deg) scale(1.12); opacity: 0.4; }
+  60%  { transform: perspective(600px) rotateY(-8deg) scale(1.06); opacity: 1; }
+  to   { transform: perspective(600px) rotateY(0) scale(1); opacity: 1; }
+`;
 
 /** One combat slot: revealed card face, own face-down commit, or a card back. */
 const CombatSlot = ({
@@ -128,6 +150,7 @@ const CombatSlot = ({
   facedownInstance,
   facedownState,
   catalog,
+  revealDelay = "0s",
 }: {
   label: string;
   card: ViewCombat["attackerCard"];
@@ -137,6 +160,7 @@ const CombatSlot = ({
   facedownInstance: CardInstanceId | null;
   facedownState: "committed" | "deciding" | "none";
   catalog: Record<string, CardMeta>;
+  revealDelay?: string;
 }) => (
   <Box textAlign="center">
     <Text opacity={0.6} fontSize="0.75rem" mb="0.25rem">
@@ -144,7 +168,15 @@ const CombatSlot = ({
     </Text>
     <Box w="6.5rem" sx={{ aspectRatio: "63 / 88" }} mx="auto" position="relative">
       {card ? (
-        <CardFace card={resolveCard(card.instance)} fallback={cardLabel(catalog, card.instance)} />
+        // keyed by instance: mounts fresh at reveal, so the flip plays exactly once
+        <Box
+          key={card.instance}
+          w="100%"
+          h="100%"
+          animation={`${flipIn} 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.1) ${revealDelay} both`}
+        >
+          <CardFace card={resolveCard(card.instance)} fallback={cardLabel(catalog, card.instance)} />
+        </Box>
       ) : facedownInstance ? (
         <Box position="relative" w="100%" h="100%">
           <CardFace
@@ -226,6 +258,7 @@ const CombatPanel = ({
         <CombatSlot
           label="defense"
           card={combat.defenderCard}
+          revealDelay="0.18s"
           resolveCard={resolveCard}
           facedownInstance={
             !combat.defenderCard && combat.defenderPlayer === you && !pastReveal ? selfCommitted : null
@@ -259,6 +292,21 @@ const LiveGame = ({ room }: { room: string | null }) => {
     snapshot ? [snapshot.view.self.heroId, snapshot.view.opponent.heroId] : [],
     snapshot?.view.catalog ?? {}
   );
+
+  // Activity feed: diff each view against the previous one (see gameLog.ts).
+  const [logEntries, setLogEntries] = useState<ProLogEntry[]>([]);
+  const prevViewRef = useRef<PlayerView | null>(null);
+  const logSeqRef = useRef(0);
+  useEffect(() => {
+    if (!snapshot) return;
+    const next = snapshot.view;
+    const lines = diffViews(prevViewRef.current, next, (c) => cardLabel(next.catalog, c));
+    prevViewRef.current = next;
+    if (lines.length === 0) return;
+    setLogEntries((cur) =>
+      [...lines.map((l) => ({ ...l, key: `log-${logSeqRef.current++}` })).reverse(), ...cur].slice(0, 120)
+    );
+  }, [snapshot]);
 
   // v1: single shipped hero. Hero select moves to /pro with LIST_HEROES when
   // deck #2 lands (T-019 follow-up). Server hero ids, not unbrewed-api deck ids.
@@ -349,24 +397,61 @@ const LiveGame = ({ room }: { room: string | null }) => {
     legalActions.flatMap((a) => (a.type === "MOVE_FIGHTER" ? [a.fighter] : []))
   );
 
+  // Prompts answer via the board too: CHOOSE_SPACE options carry a space id
+  // as option.id (plus e.g. 'decline'), CHOOSE_TARGET options a fighter id.
+  // Board-answerable options become highlights; the rest stay panel buttons.
+  const promptForMe = prompt && prompt.player === view.you ? prompt : null;
+  const mapSpaceIds = new Set(view.map.spaces.map((s) => s.id));
+  const fighterIds = new Set(view.fighters.map((f) => f.id));
+  const promptSpaceIds =
+    promptForMe?.kind === "CHOOSE_SPACE"
+      ? promptForMe.options.map((o) => o.id).filter((id) => mapSpaceIds.has(id))
+      : [];
+  const promptTargetIds =
+    promptForMe?.kind === "CHOOSE_TARGET"
+      ? promptForMe.options.map((o) => o.id).filter((id) => fighterIds.has(id))
+      : [];
+  const promptBoardIds = new Set([...promptSpaceIds, ...promptTargetIds]);
+  const promptButtonOptions = promptForMe
+    ? promptForMe.options.filter((o) => !promptBoardIds.has(o.id))
+    : [];
+  const promptBoardHint =
+    promptSpaceIds.length > 0
+      ? `click a gold space on the board (${promptSpaceIds.length} option${promptSpaceIds.length === 1 ? "" : "s"})`
+      : promptTargetIds.length > 0
+        ? "click a pulsing fighter on the board"
+        : null;
+
   // Optional filter: click one of your movable fighters to see only ITS moves
   // (matters once a deck has sidekicks; harmless in the Kong mirror).
   const spaceMatches = (actions: Action[]) =>
     selectedFighter
       ? actions.filter((a) => a.type !== "MOVE_FIGHTER" || a.fighter === selectedFighter)
       : actions;
-  const highlightedSpaces = [...spaceActions.entries()]
-    .filter(([, actions]) => spaceMatches(actions).length > 0)
-    .map(([space]) => space);
-  const highlightedFighters = [...attackActions.keys(), ...movableFighters];
+  const highlightedSpaces = [
+    ...[...spaceActions.entries()].filter(([, actions]) => spaceMatches(actions).length > 0).map(([space]) => space),
+    ...promptSpaceIds,
+  ];
+  const highlightedFighters = [...attackActions.keys(), ...movableFighters, ...promptTargetIds];
 
   const onSpaceClick = (space: SpaceId) => {
+    // an open prompt owns the board — answer it first
+    if (promptForMe && promptSpaceIds.includes(space)) {
+      respondToPrompt(promptForMe.promptId, space);
+      setSelectedFighter(null);
+      return;
+    }
     const candidates = spaceMatches(spaceActions.get(space) ?? []);
     if (candidates.length === 0) return;
     sendAction(candidates[0]);
     setSelectedFighter(null);
   };
   const onFighterClick = (id: FighterId) => {
+    if (promptForMe && promptTargetIds.includes(id)) {
+      respondToPrompt(promptForMe.promptId, id);
+      setSelectedFighter(null);
+      return;
+    }
     const attack = attackActions.get(id);
     if (attack) {
       sendAction(attack);
@@ -483,7 +568,15 @@ const LiveGame = ({ room }: { room: string | null }) => {
               selfCommitted={view.self.committedCard}
             />
           )}
-          {prompt && <PromptPanel prompt={prompt} you={view.you} onRespond={respondToPrompt} />}
+          {prompt && (
+            <PromptPanel
+              prompt={prompt}
+              you={view.you}
+              onRespond={respondToPrompt}
+              buttonOptions={promptButtonOptions}
+              boardHint={promptBoardHint}
+            />
+          )}
           <Flex direction="column" gap="0.4rem">
             {listActions.map((a, i) => (
               <Button key={i} {...BTN} bg="rgba(20, 8, 24, 0.65)" justifyContent="flex-start" onClick={() => sendAction(a)}>
@@ -508,6 +601,9 @@ const LiveGame = ({ room }: { room: string | null }) => {
           )}
         </Flex>
       </Flex>
+
+      {/* activity feed — bottom-left parchment panel, sandbox style */}
+      <ProLog entries={logEntries} />
 
       {/* hand — docked fan over the bottom edge, sandbox style */}
       <Flex position="fixed" bottom="-0.75rem" left="0" right="0" justifyContent="center" zIndex={160} pointerEvents="none">
