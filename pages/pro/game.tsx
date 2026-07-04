@@ -30,6 +30,7 @@ import {
   ViewPrompt,
 } from "@/lib/pro/protocol";
 import { ProConnectionStatus, useProSocket } from "@/lib/pro/useProSocket";
+import { RecentRoom, getToken, listRecentRooms } from "@/lib/pro/recentRooms";
 import { HERO_DECK_IDS, ResolveCard, useProCardArt } from "@/lib/pro/useProCardArt";
 import { POPULAR_DECKS } from "@/lib/constants/top-decks";
 import { GiFootprint, GiHearts } from "react-icons/gi";
@@ -335,7 +336,11 @@ const CombatPanel = ({
 // Pre-join lobby — hero select (T-021)
 // ---------------------------------------------------------------------------
 
-const sessionTokenKey = (roomId: string) => `unbrewed-pro-token-${roomId}`;
+const agoLabel = (ts: number) => {
+  const mins = Math.max(1, Math.round((Date.now() - ts) / 60_000));
+  if (mins < 60) return `${mins}m ago`;
+  return `${Math.round(mins / 60)}h ago`;
+};
 
 /** server hero id -> pretty display fallback ('king-kong' -> 'King Kong') */
 const prettyHeroId = (heroId: string) =>
@@ -560,8 +565,9 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
     const lines = diffViews(prevViewRef.current, next, (c) => cardLabel(next.catalog, c));
     prevViewRef.current = next;
     if (lines.length === 0) return;
+    const ts = Date.now();
     setLogEntries((cur) =>
-      [...lines.map((l) => ({ ...l, key: `log-${logSeqRef.current++}` })).reverse(), ...cur].slice(0, 120)
+      [...lines.map((l) => ({ ...l, key: `log-${logSeqRef.current++}`, ts })).reverse(), ...cur].slice(0, 120)
     );
   }, [snapshot]);
 
@@ -571,12 +577,33 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   const reconnectedRef = useRef(false);
   useEffect(() => {
     if (joined || !room || reconnectedRef.current || typeof window === "undefined") return;
-    if (sessionStorage.getItem(sessionTokenKey(room))) {
+    if (getToken(room)) {
       reconnectedRef.current = true;
       joinRoom(room, ""); // heroId ignored on the RECONNECT path
       setJoined(true);
     }
   }, [joined, room, joinRoom]);
+
+  // Keep the room id in the URL: the joiner arrives with ?room= but the HOST's
+  // URL never had it, so a refresh dumped them to the lobby with no way back
+  // (playtest feedback). With the id in the URL + the localStorage token, a
+  // refresh reconnects either seat.
+  const router = useRouter();
+  useEffect(() => {
+    if (!roomId || router.query.room === roomId) return;
+    router.replace(
+      { pathname: router.pathname, query: { ...router.query, room: roomId } },
+      undefined,
+      { shallow: true }
+    );
+  }, [roomId, router]);
+
+  // Recent matches this browser was seated in (client-only; loaded after mount
+  // so the static export hydrates cleanly).
+  const [recentRooms, setRecentRooms] = useState<RecentRoom[]>([]);
+  useEffect(() => {
+    if (!joined && !room) setRecentRooms(listRecentRooms());
+  }, [joined, room]);
 
   // Preselect a hero once the server roster arrives: honor a valid `?hero=`
   // (invalid ids are ignored → manual pick), and auto-select when only one
@@ -602,20 +629,49 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   if (!joined) {
     const effectiveHeroId = selectedHeroId ?? (heroes === null ? heroParam : null);
     return (
-      <HeroSelectLobby
-        room={room}
-        status={status}
-        heroes={heroes}
-        heroParam={heroParam}
-        selectedHeroId={selectedHeroId}
-        onSelectHero={setSelectedHeroId}
-        onConfirm={() => {
-          if (!effectiveHeroId) return;
-          room ? joinRoom(room, effectiveHeroId) : createRoom(effectiveHeroId);
-          setSelectedHeroId(effectiveHeroId); // lock it for the lobby label
-          setJoined(true);
-        }}
-      />
+      <>
+        {recentRooms.length > 0 && (
+          <Flex direction="column" alignItems="center" gap="0.5rem" pt="1.5rem" mb="-2rem">
+            <Text
+              fontFamily="BebasNeueRegular"
+              fontSize="1rem"
+              letterSpacing="0.08em"
+              opacity={0.75}
+            >
+              Resume a recent match
+            </Text>
+            <Flex gap="0.5rem" flexWrap="wrap" justifyContent="center">
+              {recentRooms.map((r) => (
+                <Button
+                  key={r.roomId}
+                  {...BTN}
+                  size="sm"
+                  onClick={() => {
+                    joinRoom(r.roomId, ""); // token path — heroId ignored
+                    setJoined(true);
+                  }}
+                >
+                  room {r.roomId} · {agoLabel(r.ts)}
+                </Button>
+              ))}
+            </Flex>
+          </Flex>
+        )}
+        <HeroSelectLobby
+          room={room}
+          status={status}
+          heroes={heroes}
+          heroParam={heroParam}
+          selectedHeroId={selectedHeroId}
+          onSelectHero={setSelectedHeroId}
+          onConfirm={() => {
+            if (!effectiveHeroId) return;
+            room ? joinRoom(room, effectiveHeroId) : createRoom(effectiveHeroId);
+            setSelectedHeroId(effectiveHeroId); // lock it for the lobby label
+            setJoined(true);
+          }}
+        />
+      </>
     );
   }
 
@@ -954,7 +1010,11 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
       </Flex>
 
       {/* activity feed — bottom-left parchment panel, sandbox style */}
-      <ProLog entries={logEntries} />
+      <ProLog
+        entries={logEntries}
+        resolveCard={resolveCard}
+        labelFor={(c) => cardLabel(view.catalog, c)}
+      />
 
       {/* hand — docked fan over the bottom edge, sandbox style */}
       <Flex position="fixed" bottom="-0.75rem" left="0" right="0" justifyContent="center" zIndex={160} pointerEvents="none">

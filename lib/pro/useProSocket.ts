@@ -6,10 +6,11 @@
  * server (see WS_URL in pages/pro/game.tsx).
  *
  * Reconnect: on ROOM_CREATED/ROOM_JOINED the server issues a token; we keep it
- * in sessionStorage (per-tab, survives refresh, dies with the tab) and replay
- * RECONNECT on the next socket open for the same room.
+ * in localStorage (plus a recent-rooms index — see lib/pro/recentRooms.ts) and
+ * replay RECONNECT on the next socket open for the same room.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { forgetRoom, getToken, rememberRoom, setToken } from "./recentRooms";
 import {
   Action,
   ClientMsg,
@@ -47,8 +48,6 @@ export interface UseProSocketReturn {
   respondToPrompt: (promptId: string, optionId: string) => void;
 }
 
-const tokenKey = (roomId: string) => `unbrewed-pro-token-${roomId}`;
-
 const MAX_RETRY_DELAY_MS = 10_000;
 
 export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
@@ -84,7 +83,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
       // idempotent; the reply feeds the game page's hero picker.
       send({ v: PROTOCOL_VERSION, type: "LIST_HEROES" });
       const room = roomRef.current;
-      const token = room ? sessionStorage.getItem(tokenKey(room)) : null;
+      const token = room ? getToken(room) : null;
       if (room && token) {
         send({ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token });
       } else if (pendingHelloRef.current) {
@@ -108,7 +107,8 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
         case "ROOM_JOINED":
           roomRef.current = msg.roomId;
           setRoomId(msg.roomId);
-          sessionStorage.setItem(tokenKey(msg.roomId), msg.token);
+          setToken(msg.roomId, msg.token);
+          rememberRoom(msg.roomId);
           break;
         case "STATE":
           youRef.current = msg.view.you;
@@ -118,6 +118,8 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
           setOpponentConnected(msg.connected);
           break;
         case "ERROR":
+          // a dead room can't be resumed — drop it from the recent list
+          if (msg.code === "ROOM_NOT_FOUND" && roomRef.current) forgetRoom(roomRef.current);
           setError({ code: msg.code, message: msg.message });
           break;
       }
@@ -162,9 +164,9 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
       setError(null); // clear any prior room/hero error on a fresh attempt
       roomRef.current = room;
       setRoomId(room);
-      const hasToken = !!sessionStorage.getItem(tokenKey(room));
-      const msg: ClientMsg = hasToken
-        ? { v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token: sessionStorage.getItem(tokenKey(room))! }
+      const token = getToken(room);
+      const msg: ClientMsg = token
+        ? { v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token }
         : { v: PROTOCOL_VERSION, type: "JOIN_ROOM", roomId: room, heroId };
       if (wsRef.current?.readyState === WebSocket.OPEN) send(msg);
       else pendingHelloRef.current = msg;
