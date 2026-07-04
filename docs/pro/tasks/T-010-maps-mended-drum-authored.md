@@ -1,6 +1,18 @@
 # T-010 — Maps: authored Mended Drum map file (v1)
 
-- **Status:** ready
+- **Status:** in progress — authored + validated; promotion/tests running in pro-server
+
+## Result so far (2026-07-04)
+- User authored the full map in /dev/map-editor → `docs/pro/maps-drafts/mended_drum.json`
+  (commit 1f44b96). **29 spaces** (not ~33 — author's read of the board), 6 zones,
+  starts s28=1 / s20=2, one one-way edge **s12→s13** (the stairs), spaceDiameter 0.09.
+- Validator green (this repo, scripted check): symmetric adjacency, no dupes, all
+  spaces zoned, no isolated/unreachable spaces, one-way edge has no reverse.
+- Backend session converted it to engine MapDef format (`start: {slot}`, meta
+  min/maxPlayers) at `unbrewed-pro-server/data/maps/mended-drum.json` — the
+  5 spot-check tests + T-006 replay re-point remain on that side.
+- Client fixture copy: `lib/pro/fixtures/mended-drum.map.json` (renders in
+  /pro/game dev preview — see T-019).
 - **Repo:** unbrewed-pro-server (file lands there; authoring happens in this repo's /dev/map-editor)
 - **Depends on:** T-008 (done), T-009 (done)
 - **More info needed:** NONE
