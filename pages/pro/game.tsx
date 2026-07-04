@@ -103,12 +103,32 @@ const describeAction = (catalog: Record<string, CardMeta>, a: Action): string =>
   }
 };
 
+/**
+ * Best-effort source card for a prompt (issue #72 fix #2). ViewPrompt has no
+ * source-card field, so we only trust an explicit `option.data.card` instance
+ * id the server chose to attach — never a fabricated mapping. Returns null when
+ * no option carries one (caller then falls back to combat context).
+ */
+const optionCardInstance = (options: ViewPrompt["options"]): CardInstanceId | null => {
+  for (const o of options) {
+    const d = o.data;
+    if (d && typeof d === "object" && !Array.isArray(d)) {
+      const card = (d as { card?: unknown }).card;
+      if (typeof card === "string") return card;
+    }
+  }
+  return null;
+};
+
 const PromptPanel = ({
   prompt,
   you,
   onRespond,
   buttonOptions,
   boardHint,
+  previewInstance,
+  resolveCard,
+  catalog,
 }: {
   prompt: ViewPrompt;
   you: PlayerView["you"];
@@ -117,6 +137,14 @@ const PromptPanel = ({
   buttonOptions: ViewPrompt["options"];
   /** set when some options are answered by clicking the board */
   boardHint: string | null;
+  /**
+   * Best-effort card behind this prompt (issue #72 fix #2). ViewPrompt carries
+   * NO source-card field, so the caller approximates it from `option.data.card`
+   * or the live combat card; null = no reliable signal, render header-only.
+   */
+  previewInstance: CardInstanceId | null;
+  resolveCard: ResolveCard;
+  catalog: Record<string, CardMeta>;
 }) => (
   <Box bg="brand.surface" border="2px solid" borderColor="brand.accent" borderRadius="0.5rem" p="1rem">
     <Text fontFamily="ArchivoNarrow" fontWeight="bold" mb="0.5rem" color="brand.accent">
@@ -124,6 +152,11 @@ const PromptPanel = ({
     </Text>
     {prompt.player === you ? (
       <>
+        {previewInstance && (
+          <Box w="6.5rem" sx={{ aspectRatio: "63 / 88" }} mb="0.5rem">
+            <CardFace card={resolveCard(previewInstance)} fallback={cardLabel(catalog, previewInstance)} />
+          </Box>
+        )}
         {boardHint && (
           <Text fontSize="0.85rem" mb={buttonOptions.length ? "0.5rem" : 0} color="brand.parchment">
             {boardHint}
@@ -131,7 +164,16 @@ const PromptPanel = ({
         )}
         <Flex gap="0.5rem" flexWrap="wrap">
           {buttonOptions.map((o) => (
-            <Button key={o.id} {...BTN_GOLD} onClick={() => onRespond(prompt.promptId, o.id)}>
+            <Button
+              key={o.id}
+              {...BTN_GOLD}
+              whiteSpace="normal"
+              height="auto"
+              minH="2rem"
+              py="0.35rem"
+              textAlign="left"
+              onClick={() => onRespond(prompt.promptId, o.id)}
+            >
               {o.label}
             </Button>
           ))}
@@ -688,6 +730,18 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
         ? "click a pulsing fighter on the board"
         : null;
 
+  // Card behind the current prompt (issue #72 fix #2), best-effort: trust an
+  // explicit option.data.card first, else show the live combat card as the most
+  // likely cause. DOCUMENTED GAP: the protocol's ViewPrompt has no source-card
+  // field, so a non-combat effect prompt whose server never attaches option.data
+  // still degrades to the header-only panel — we never guess a mapping.
+  const promptCardInstance = promptForMe
+    ? optionCardInstance(promptForMe.options) ??
+      view.combat?.attackerCard?.instance ??
+      view.combat?.defenderCard?.instance ??
+      null
+    : null;
+
   // Optional filter: click one of your movable fighters to see only ITS moves
   // (matters once a deck has sidekicks; harmless in the Kong mirror).
   const spaceMatches = (actions: Action[]) =>
@@ -841,11 +895,25 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
               onRespond={respondToPrompt}
               buttonOptions={promptButtonOptions}
               boardHint={promptBoardHint}
+              previewInstance={promptCardInstance}
+              resolveCard={resolveCard}
+              catalog={view.catalog}
             />
           )}
           <Flex direction="column" gap="0.4rem">
             {listActions.map((a, i) => (
-              <Button key={i} {...BTN} bg="rgba(20, 8, 24, 0.65)" justifyContent="flex-start" onClick={() => sendAction(a)}>
+              <Button
+                key={i}
+                {...BTN}
+                bg="rgba(20, 8, 24, 0.65)"
+                justifyContent="flex-start"
+                whiteSpace="normal"
+                height="auto"
+                minH="2rem"
+                py="0.4rem"
+                textAlign="left"
+                onClick={() => sendAction(a)}
+              >
                 {describeAction(view.catalog, a)}
               </Button>
             ))}
