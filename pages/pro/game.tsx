@@ -29,7 +29,11 @@ import {
 import { useProSocket } from "@/lib/pro/useProSocket";
 import { ResolveCard, useProCardArt } from "@/lib/pro/useProCardArt";
 import { CardFace, ProHand } from "@/components/Pro/ProHand";
+import { ProHud } from "@/components/Pro/ProHud";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
+
+/** same table felt the sandbox game uses (game.layout.tsx) */
+const TABLE_BG = "radial-gradient(ellipse at 50% 20%, #5A3263 0%, #48284F 50%, #2C1831 100%)";
 
 const WS_URL = process.env.NEXT_PUBLIC_PRO_WS_URL;
 
@@ -251,7 +255,7 @@ const LiveGame = ({ room }: { room: string | null }) => {
   const [selectedFighter, setSelectedFighter] = useState<FighterId | null>(null);
   // Art fetch (unbrewed-api, matched by title against the server catalog) —
   // must run unconditionally; no-ops until the first STATE arrives.
-  const { resolveCard } = useProCardArt(
+  const { resolveCard, resolveHero } = useProCardArt(
     snapshot ? [snapshot.view.self.heroId, snapshot.view.opponent.heroId] : [],
     snapshot?.view.catalog ?? {}
   );
@@ -391,84 +395,133 @@ const LiveGame = ({ room }: { room: string | null }) => {
     });
 
   return (
-    <Grid templateColumns={{ base: "1fr", lg: "1fr 22rem" }} gap="1rem" p="1rem" maxW="90rem" mx="auto">
-      <ProBoard
-        map={view.map}
-        fighters={view.fighters}
-        highlightedSpaces={[...new Set(highlightedSpaces)]}
-        highlightedFighters={[...new Set(highlightedFighters)]}
-        selectedFighter={selectedFighter}
-        onSpaceClick={onSpaceClick}
-        onFighterClick={onFighterClick}
+    <Box h="100svh" overflow="hidden" bg={TABLE_BG} position="relative">
+      {/* board — fills the stage, capped so the whole field stays in view */}
+      <Flex
+        h="100%"
+        alignItems="center"
+        justifyContent="center"
+        p="1rem"
+        pt="7.5rem"
+        pb="8.5rem"
+        pr={{ base: "1rem", lg: "20rem" }}
+      >
+        <ProBoard
+          map={view.map}
+          fighters={view.fighters}
+          highlightedSpaces={[...new Set(highlightedSpaces)]}
+          highlightedFighters={[...new Set(highlightedFighters)]}
+          selectedFighter={selectedFighter}
+          onSpaceClick={onSpaceClick}
+          onFighterClick={onFighterClick}
+          imgMaxH="calc(100svh - 16rem)"
+        />
+      </Flex>
+
+      {/* floating player plates + room/connection chips (sandbox HUD DNA) */}
+      <ProHud
+        view={view}
+        status={status}
+        roomId={roomId}
+        resolveCard={resolveCard}
+        resolveHero={resolveHero}
+        labelFor={(c) => cardLabel(view.catalog, c)}
       />
-      <Flex direction="column" gap="0.75rem">
-        <Flex gap="0.5rem" alignItems="center" flexWrap="wrap">
-          <Tag colorScheme={myTurn ? "yellow" : "gray"}>{myTurn ? "YOUR TURN" : "OPPONENT'S TURN"}</Tag>
-          <Tag>turn {view.turnNumber}</Tag>
-          <Tag>{view.actionsRemaining} actions left</Tag>
-          {!opponentConnected && <Tag colorScheme="red">opponent disconnected</Tag>}
-          {roomId && <Tag>room {roomId}</Tag>}
-        </Flex>
-        {(highlightedSpaces.length > 0 || attackActions.size > 0) && (
-          <Text fontSize="0.8rem" color="brand.accent" opacity={0.9}>
-            {selectedFighter
-              ? `showing moves for ${selectedFighter.split("/")[1]} — click a gold space (click the fighter again to unselect)`
-              : [
-                  highlightedSpaces.length > 0 &&
-                    `click a gold space to move there (${highlightedSpaces.length} option${
-                      highlightedSpaces.length === 1 ? "" : "s"
-                    })`,
-                  attackActions.size > 0 && "click a pulsing enemy to attack",
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-          </Text>
-        )}
-        {view.combat && (
-          <CombatPanel
-            combat={view.combat}
-            catalog={view.catalog}
-            resolveCard={resolveCard}
-            you={view.you}
-            selfCommitted={view.self.committedCard}
-          />
-        )}
-        {prompt && <PromptPanel prompt={prompt} you={view.you} onRespond={respondToPrompt} />}
-        <Flex direction="column" gap="0.4rem">
-          {listActions.map((a, i) => (
-            <Button key={i} {...BTN} justifyContent="flex-start" onClick={() => sendAction(a)}>
-              {describeAction(view.catalog, a)}
-            </Button>
-          ))}
-          {legalActions.length === 0 && !prompt && (
-            <Text opacity={0.6} fontSize="0.9rem">
-              waiting on opponent…
+
+      {/* right control dock — turn state, combat, prompts, actions */}
+      <Flex
+        position="fixed"
+        right="0.75rem"
+        top="7.5rem"
+        bottom="1rem"
+        w="18.5rem"
+        direction="column"
+        gap="0.6rem"
+        zIndex={140}
+        overflowY="auto"
+        sx={{ "::-webkit-scrollbar": { display: "none" } }}
+        pointerEvents="none"
+      >
+        <Flex direction="column" gap="0.6rem" sx={{ "& > *": { pointerEvents: "auto" } }}>
+          <Flex gap="0.4rem" alignItems="center" flexWrap="wrap">
+            <Tag size="sm" bg={myTurn ? "brand.accent" : "whiteAlpha.300"} color={myTurn ? "brand.surfaceDim" : "brand.parchment"}>
+              {myTurn ? "YOUR TURN" : "OPPONENT'S TURN"}
+            </Tag>
+            <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
+              turn {view.turnNumber}
+            </Tag>
+            <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
+              {view.actionsRemaining} actions left
+            </Tag>
+            {!opponentConnected && (
+              <Tag size="sm" colorScheme="red">
+                opponent disconnected
+              </Tag>
+            )}
+          </Flex>
+          {(highlightedSpaces.length > 0 || attackActions.size > 0) && (
+            <Text fontSize="0.8rem" color="brand.accent" textShadow="0 1px 3px rgba(0,0,0,0.6)">
+              {selectedFighter
+                ? `showing moves for ${selectedFighter.split("/")[1]} — click a gold space (click the fighter again to unselect)`
+                : [
+                    highlightedSpaces.length > 0 &&
+                      `click a gold space to move there (${highlightedSpaces.length} option${
+                        highlightedSpaces.length === 1 ? "" : "s"
+                      })`,
+                    attackActions.size > 0 && "click a pulsing enemy to attack",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+            </Text>
+          )}
+          {view.combat && (
+            <CombatPanel
+              combat={view.combat}
+              catalog={view.catalog}
+              resolveCard={resolveCard}
+              you={view.you}
+              selfCommitted={view.self.committedCard}
+            />
+          )}
+          {prompt && <PromptPanel prompt={prompt} you={view.you} onRespond={respondToPrompt} />}
+          <Flex direction="column" gap="0.4rem">
+            {listActions.map((a, i) => (
+              <Button key={i} {...BTN} bg="rgba(20, 8, 24, 0.65)" justifyContent="flex-start" onClick={() => sendAction(a)}>
+                {describeAction(view.catalog, a)}
+              </Button>
+            ))}
+            {legalActions.length === 0 && !prompt && (
+              <Text opacity={0.7} fontSize="0.9rem" color="brand.parchment">
+                waiting on opponent…
+              </Text>
+            )}
+          </Flex>
+          {view.winner && (
+            <Text
+              fontFamily="LeagueGothic"
+              fontSize="3rem"
+              color="brand.accent"
+              textShadow="0 2px 12px rgba(224,168,46,0.5)"
+            >
+              {view.winner === view.you ? "VICTORY!" : "DEFEAT"}
             </Text>
           )}
         </Flex>
-        {view.winner && (
-          <Text fontFamily="LeagueGothic" fontSize="2rem" color="brand.accent">
-            {view.winner === view.you ? "VICTORY!" : "DEFEAT"}
-          </Text>
-        )}
       </Flex>
 
-      {/* hand strip — real card faces, spans the full grid width */}
-      <Box gridColumn="1 / -1">
-        <Text fontSize="0.8rem" opacity={0.6} mb="0.25rem" textAlign="center">
-          your hand ({view.self.hand.length}) · deck {view.self.deckCount} · discard {view.self.discard.length} ·
-          opponent hand {view.opponent.handCount}
-          {view.opponent.hasCommitted ? " · opponent committed a card" : ""}
-        </Text>
-        <ProHand
-          hand={view.self.hand}
-          resolveCard={resolveCard}
-          labelFor={(c) => cardLabel(view.catalog, c)}
-          actionsFor={actionsForCard}
-          onAction={sendAction}
-        />
-      </Box>
-    </Grid>
+      {/* hand — docked fan over the bottom edge, sandbox style */}
+      <Flex position="fixed" bottom="-0.75rem" left="0" right="0" justifyContent="center" zIndex={160} pointerEvents="none">
+        <Box pointerEvents="auto">
+          <ProHand
+            hand={view.self.hand}
+            resolveCard={resolveCard}
+            labelFor={(c) => cardLabel(view.catalog, c)}
+            actionsFor={actionsForCard}
+            onAction={sendAction}
+          />
+        </Box>
+      </Flex>
+    </Box>
   );
 };
 
@@ -543,7 +596,7 @@ const ProGamePage = () => {
   const room = typeof router.query.room === "string" ? router.query.room : null;
 
   return (
-    <Box minH="100svh" bg="brand.surfaceDim" color="brand.parchment">
+    <Box minH="100svh" bg={TABLE_BG} color="brand.parchment">
       {WS_URL ? <LiveGame room={room} /> : <PreviewGame />}
     </Box>
   );
