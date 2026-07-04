@@ -1,6 +1,6 @@
 # T-015 — Protocol v1 (wire types + version handshake)
 
-- **Status:** blocked
+- **Status:** done
 - **Repo:** both (source of truth in pro-server `protocol/protocol.ts`; synced copy in this repo `lib/pro/protocol.ts`)
 - **Depends on:** T-004, T-005 (view/action shapes must be stable first)
 - **More info needed:** NONE
@@ -35,3 +35,22 @@ sends actions. Keep it small, JSON, boring.
 
 ## Out of scope
 The socket implementation (T-016 server, T-019 client).
+
+## Result (2026-07-04)
+
+Protocol v1 authored in pro-server `protocol/protocol.ts` (source of truth,
+PROTOCOL_VERSION = 1) and synced verbatim to `lib/pro/protocol.ts` here.
+Deviations from this repo's v0 draft:
+- Prompt answers are a regular `RESPOND_PROMPT` **action** through the single
+  ACTION path — the draft's `PROMPT_RESPONSE` client message is gone.
+- `PlayerView` gained `counters`, `maneuver`, `catalog` (CardDefId → printed
+  card metadata), `prompt` (full options for the chooser, `options: []` for
+  the waiting player), and `ViewCombatCard { instance, role, boosts,
+  effectiveValue }` for revealed combat cards.
+- `LIST_HEROES`/`HEROES` messages added for the lobby roster.
+- No hello message: every ClientMsg carries `v`; mismatch → ERROR{VERSION}.
+- No event stream in v1 — the client diffs consecutive views (reveal beat =
+  `combat.attackerCard` flipping null → card).
+Acceptance held: file compiles standalone in both repos; type-level no-leak
+test in pro-server `test/protocol.test.ts` — actually `test/server.test.ts`
+(OpponentHasNoHand / ViewHasNoSecret assertions).

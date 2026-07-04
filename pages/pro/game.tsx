@@ -16,11 +16,15 @@ import { Box, Button, Flex, Grid, Tag, Text } from "@chakra-ui/react";
 import { ProBoard } from "@/components/Pro/ProBoard";
 import {
   Action,
+  CardInstanceId,
+  CardMeta,
   FighterId,
-  PendingPrompt,
+  PlayerView,
   ProMapDef,
   SpaceId,
+  ViewCombat,
   ViewFighter,
+  ViewPrompt,
 } from "@/lib/pro/protocol";
 import { useProSocket } from "@/lib/pro/useProSocket";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
@@ -42,51 +46,122 @@ const BTN_GOLD = {
   _active: { bg: "brand.accentDeep" },
 };
 
+/** Printed-card label via the server catalog ('king-kong/clobber#2' -> 'clobber (3/2)'). */
+const cardLabel = (catalog: Record<string, CardMeta>, instance: CardInstanceId): string => {
+  const meta = catalog[instance.split("#")[0]];
+  if (!meta) return instance.split("#")[0].split("/").pop() ?? instance;
+  const stats = meta.type === "scheme" ? "scheme" : `${meta.value ?? "–"}/${meta.boost ?? "–"}`;
+  return `${meta.title} (${stats})`;
+};
+
 /** Presentational label for a server-offered action. */
-const describeAction = (a: Action): string => {
+const describeAction = (catalog: Record<string, CardMeta>, a: Action): string => {
   switch (a.type) {
     case "MANEUVER":
       return "Maneuver";
     case "BOOST_MOVE":
-      return `Boost move (discard ${a.card.split("#")[0]})`;
+      return `Boost move (discard ${cardLabel(catalog, a.card)})`;
     case "MOVE_FIGHTER":
       return `Move ${a.fighter.split("/")[1]}`;
     case "END_MANEUVER":
       return "End maneuver";
     case "SCHEME":
-      return `Scheme: ${a.card.split("#")[0]}`;
+      return `Scheme: ${cardLabel(catalog, a.card)}`;
     case "DECLARE_ATTACK":
       return `Attack ${a.target.split("/")[1]} with ${a.attacker.split("/")[1]}`;
     case "COMMIT_ATTACK_CARD":
-      return `Commit ${a.card.split("#")[0]}`;
+      return `Commit ${cardLabel(catalog, a.card)}`;
     case "COMMIT_DEFENSE_CARD":
-      return `Defend with ${a.card.split("#")[0]}`;
+      return `Defend with ${cardLabel(catalog, a.card)}`;
     case "DECLINE_DEFENSE":
       return "Don't defend";
     case "DISCARD_TO_LIMIT":
-      return `Discard ${a.card.split("#")[0]}`;
+      return `Discard ${cardLabel(catalog, a.card)}`;
     case "PLACE_SIDEKICK":
       return `Place ${a.fighter.split("/")[1]} on ${a.space}`;
+    case "RESPOND_PROMPT":
+      return "Answer prompt"; // rendered by PromptPanel instead — filtered out of the list
   }
 };
 
 const PromptPanel = ({
   prompt,
+  you,
   onRespond,
 }: {
-  prompt: PendingPrompt;
+  prompt: ViewPrompt;
+  you: PlayerView["you"];
   onRespond: (promptId: string, optionId: string) => void;
 }) => (
   <Box bg="brand.surface" border="2px solid" borderColor="brand.accent" borderRadius="0.5rem" p="1rem">
     <Text fontFamily="ArchivoNarrow" fontWeight="bold" mb="0.5rem" color="brand.accent">
       {prompt.kind.replace(/_/g, " ")}
     </Text>
-    <Flex gap="0.5rem" flexWrap="wrap">
-      {prompt.options.map((o) => (
-        <Button key={o.id} {...BTN_GOLD} onClick={() => onRespond(prompt.promptId, o.id)}>
-          {o.label}
-        </Button>
-      ))}
+    {prompt.player === you ? (
+      <Flex gap="0.5rem" flexWrap="wrap">
+        {prompt.options.map((o) => (
+          <Button key={o.id} {...BTN_GOLD} onClick={() => onRespond(prompt.promptId, o.id)}>
+            {o.label}
+          </Button>
+        ))}
+      </Flex>
+    ) : (
+      <Text opacity={0.7} fontSize="0.9rem">
+        opponent is deciding…
+      </Text>
+    )}
+  </Box>
+);
+
+/** The reveal beat + running combat math, straight from the server view. */
+const CombatPanel = ({ combat, catalog }: { combat: ViewCombat; catalog: Record<string, CardMeta> }) => (
+  <Box bg="brand.surface" border="1px solid" borderColor="whiteAlpha.300" borderRadius="0.5rem" p="0.75rem">
+    <Flex gap="0.5rem" alignItems="center" mb="0.4rem">
+      <Tag colorScheme="red" size="sm">
+        COMBAT
+      </Tag>
+      <Text fontSize="0.8rem" opacity={0.7}>
+        {combat.stage.replace(/_/g, " ").toLowerCase()}
+      </Text>
+    </Flex>
+    <Flex gap="1rem" fontSize="0.9rem">
+      <Box>
+        <Text opacity={0.6} fontSize="0.75rem">
+          attack
+        </Text>
+        <Text>
+          {combat.attackerCard
+            ? `${cardLabel(catalog, combat.attackerCard.instance)} → ${combat.attackerCard.effectiveValue}${
+                combat.attackerCard.boosts.length ? ` (+${combat.attackerCard.boosts.length} boost)` : ""
+              }`
+            : "face-down"}
+        </Text>
+      </Box>
+      <Box>
+        <Text opacity={0.6} fontSize="0.75rem">
+          defense
+        </Text>
+        <Text>
+          {combat.defenderCard
+            ? `${cardLabel(catalog, combat.defenderCard.instance)} → ${combat.defenderCard.effectiveValue}${
+                combat.defenderCard.boosts.length ? ` (+${combat.defenderCard.boosts.length} boost)` : ""
+              }`
+            : combat.stage === "COMMIT_DEFENSE"
+              ? "deciding…"
+              : "none"}
+        </Text>
+      </Box>
+      {combat.outcome && (
+        <Box>
+          <Text opacity={0.6} fontSize="0.75rem">
+            outcome
+          </Text>
+          <Text>
+            {combat.outcome.replace(/_/g, " ").toLowerCase()}
+            {combat.attackDamageDealt !== null ? ` · ${combat.attackDamageDealt} dmg` : ""}
+          </Text>
+        </Box>
+      )}
     </Flex>
   </Box>
 );
@@ -100,9 +175,9 @@ const LiveGame = ({ room }: { room: string | null }) => {
     useProSocket(WS_URL);
   const [joined, setJoined] = useState(false);
 
-  // v1: hero select happens on /pro; carry heroId via query later. Placeholder
-  // until the lobby flow lands (T-019 follow-up).
-  const heroId = "kdKM";
+  // v1: single shipped hero. Hero select moves to /pro with LIST_HEROES when
+  // deck #2 lands (T-019 follow-up). Server hero ids, not unbrewed-api deck ids.
+  const heroId = "king-kong";
 
   if (!joined) {
     return (
@@ -141,6 +216,8 @@ const LiveGame = ({ room }: { room: string | null }) => {
 
   const { view, legalActions, prompt } = snapshot;
   const myTurn = view.activePlayer === view.you;
+  // RESPOND_PROMPT actions render through the PromptPanel, not the action list.
+  const listActions = legalActions.filter((a) => a.type !== "RESPOND_PROMPT");
 
   // Board affordances derive ONLY from what the server offered.
   const highlightedSpaces = legalActions.flatMap((a) =>
@@ -164,11 +241,12 @@ const LiveGame = ({ room }: { room: string | null }) => {
           {!opponentConnected && <Tag colorScheme="red">opponent disconnected</Tag>}
           {roomId && <Tag>room {roomId}</Tag>}
         </Flex>
-        {prompt && <PromptPanel prompt={prompt} onRespond={respondToPrompt} />}
+        {view.combat && <CombatPanel combat={view.combat} catalog={view.catalog} />}
+        {prompt && <PromptPanel prompt={prompt} you={view.you} onRespond={respondToPrompt} />}
         <Flex direction="column" gap="0.4rem">
-          {legalActions.map((a, i) => (
+          {listActions.map((a, i) => (
             <Button key={i} {...BTN} justifyContent="flex-start" onClick={() => sendAction(a)}>
-              {describeAction(a)}
+              {describeAction(view.catalog, a)}
             </Button>
           ))}
           {legalActions.length === 0 && !prompt && (
@@ -180,11 +258,12 @@ const LiveGame = ({ room }: { room: string | null }) => {
         <Box>
           <Text fontSize="0.8rem" opacity={0.6} mb="0.25rem">
             your hand ({view.self.hand.length}) · deck {view.self.deckCount} · opponent hand {view.opponent.handCount}
+            {view.opponent.hasCommitted ? " · opponent committed a card" : ""}
           </Text>
           <Flex gap="0.3rem" flexWrap="wrap">
             {view.self.hand.map((c) => (
               <Tag key={c} size="sm">
-                {c.split("#")[0]}
+                {cardLabel(view.catalog, c)}
               </Tag>
             ))}
           </Flex>

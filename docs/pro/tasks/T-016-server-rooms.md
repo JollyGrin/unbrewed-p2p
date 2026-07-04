@@ -1,6 +1,6 @@
 # T-016 — Server: rooms, redaction, reconnect
 
-- **Status:** blocked
+- **Status:** done
 - **Repo:** unbrewed-pro-server
 - **Depends on:** T-015
 - **More info needed:** NONE
@@ -38,3 +38,14 @@ boundary (prior-art doc §5).
 
 ## Out of scope
 Deployment (T-017), matchmaking, spectators, accounts, persistence.
+
+## Result (2026-07-04)
+
+Landed in pro-server (commit 5aead71): `server/redact.ts` (redactFor — own
+secrets in full, opponent as counts, face-down commits hidden until reveal,
+prompt options only to the chooser), `server/rooms.ts` (transport-agnostic
+RoomManager: create/join/reconnect-by-token/TTL sweep; crypto entropy for
+codes/tokens/seeds lives here, engine stays pure) and `server/index.ts`
+(ws binding, `npm run server`, PORT env, default 8787). 11 unit tests +
+scripted two-client ws game (243 random legal actions to GAME_OVER on
+Mended Drum, no secret leakage, reconnect OK). Railway deploy is T-017.
