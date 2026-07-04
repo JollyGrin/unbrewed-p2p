@@ -27,6 +27,9 @@ export interface ProBoardProps {
   selectedFighter?: FighterId | null;
   onSpaceClick?: (id: SpaceId) => void;
   onFighterClick?: (id: FighterId) => void;
+  /** cap the board image height (e.g. "calc(100svh - 2rem)") so the whole
+   * field fits the viewport; width shrinks to keep the aspect ratio */
+  imgMaxH?: string;
 }
 
 const PLAYER_COLOR: Record<string, string> = {
@@ -42,6 +45,7 @@ export const ProBoard = ({
   selectedFighter = null,
   onSpaceClick,
   onFighterClick,
+  imgMaxH,
 }: ProBoardProps) => {
   const diameter = (map.meta.spaceDiameter ?? DEFAULT_DIAMETER) * 100; // % of width
   const highlightSet = new Set(highlightedSpaces);
@@ -57,15 +61,16 @@ export const ProBoard = ({
 
   return (
     // Outer box may be stretched by a parent grid/flex row; the INNER box is
-    // the positioning context, so its height always equals the image's and
-    // the %-positioned overlays stay glued to the art.
-    <Box w="100%">
-      <Box position="relative" w="100%" userSelect="none">
+    // the positioning context: it shrink-wraps the image exactly, so the
+    // %-positioned overlays stay glued to the art at any size.
+    <Box maxW="100%">
+      <Box position="relative" w="fit-content" maxW="100%" mx="auto" userSelect="none">
       <Box
         as="img"
         src={map.meta.imageUrl}
         alt={map.meta.title}
-        w="100%"
+        maxW="100%"
+        maxH={imgMaxH}
         display="block"
         draggable={false}
         borderRadius="0.5rem"

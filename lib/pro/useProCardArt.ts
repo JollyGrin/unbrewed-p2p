@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import {
   DeckImportCardType,
+  DeckImportHeroType,
   DeckImportType,
 } from "@/components/DeckPool/deck-import.type";
 import { CardDefId, CardInstanceId, CardMeta } from "./protocol";
@@ -25,17 +26,23 @@ const API = "https://unbrewed-api.vercel.app/api/unmatched-deck/";
 const norm = (s: string) => s.trim().toLowerCase();
 
 export type ResolveCard = (instance: CardInstanceId) => DeckImportCardType | null;
+export type ResolveHero = (heroId: string) => DeckImportHeroType | null;
+
+interface HeroArt {
+  cards: Record<string, DeckImportCardType>;
+  hero: DeckImportHeroType;
+}
 
 export function useProCardArt(
   heroIds: string[],
   catalog: Record<CardDefId, CardMeta>
-): { resolveCard: ResolveCard; isLoading: boolean } {
+): { resolveCard: ResolveCard; resolveHero: ResolveHero; isLoading: boolean } {
   const ids = [...new Set(heroIds)].sort();
 
   const { data, isLoading } = useQuery(
     ["pro-card-art", ids.join(",")],
     async () => {
-      const byHero: Record<string, Record<string, DeckImportCardType>> = {};
+      const byHero: Record<string, HeroArt> = {};
       await Promise.all(
         ids.map(async (heroId) => {
           const deckId = HERO_DECK_IDS[heroId];
@@ -43,7 +50,7 @@ export function useProCardArt(
           const { data: deck } = await axios.get<DeckImportType>(API + deckId);
           const byTitle: Record<string, DeckImportCardType> = {};
           for (const card of deck.deck_data.cards) byTitle[norm(card.title)] = card;
-          byHero[heroId] = byTitle;
+          byHero[heroId] = { cards: byTitle, hero: deck.deck_data.hero };
         })
       );
       return byHero;
@@ -56,8 +63,10 @@ export function useProCardArt(
     const heroId = defId.split("/")[0];
     const meta = catalog[defId];
     if (!meta || !data?.[heroId]) return null;
-    return data[heroId][norm(meta.title)] ?? null;
+    return data[heroId].cards[norm(meta.title)] ?? null;
   };
 
-  return { resolveCard, isLoading };
+  const resolveHero: ResolveHero = (heroId) => data?.[heroId]?.hero ?? null;
+
+  return { resolveCard, resolveHero, isLoading };
 }
