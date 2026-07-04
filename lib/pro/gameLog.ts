@@ -10,6 +10,8 @@ import { CardInstanceId, PlayerView } from "./protocol";
 export interface ProLogLine {
   text: string;
   who: "you" | "opp" | "game";
+  /** card instances named in the line — the log panel shows them on hover */
+  cards?: CardInstanceId[];
 }
 
 const short = (name: string) => name.split("/").pop() ?? name;
@@ -70,6 +72,7 @@ export function diffViews(
     lines.push({
       text: `Reveal: ${label(next.combat.attackerCard.instance)} vs ${def ? label(def.instance) : "no defense"}`,
       who: "game",
+      cards: [next.combat.attackerCard.instance, ...(def ? [def.instance] : [])],
     });
   }
   if (next.combat?.outcome && !prev.combat?.outcome) {
@@ -95,7 +98,7 @@ export function diffViews(
   ] as const) {
     const added = nextPile.slice(prevPile.length);
     for (const c of added) {
-      lines.push({ text: `${seat(seatKey)} → discard: ${label(c)}`, who: whoOf(seatKey) });
+      lines.push({ text: `${seat(seatKey)} → discard: ${label(c)}`, who: whoOf(seatKey), cards: [c] });
     }
   }
 
