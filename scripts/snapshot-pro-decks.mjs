@@ -27,6 +27,14 @@ const OUT_DIR = join(ROOT, "public", "pro", "decks");
 const IDS_SOURCE = join(ROOT, "lib", "pro", "useProCardArt.ts");
 const API = "https://unbrewed-api.vercel.app/api/unmatched-deck/";
 
+// Local patches applied on top of the fetched JSON — self-hosted art the
+// upstream deck doesn't carry. Without this, a re-run would silently drop it.
+const OVERRIDES = {
+  pk1x: (deck) => {
+    deck.deck_data.appearance.cardbackUrl = "https://unbrewed.xyz/cardbacks/thrall.webp";
+  },
+};
+
 const src = await readFile(IDS_SOURCE, "utf8");
 const block = src.match(/HERO_DECK_IDS[^=]*=\s*\{([^}]*)\}/)?.[1];
 if (!block) {
@@ -52,6 +60,7 @@ for (const { heroId, deckId } of entries) {
     if (!Array.isArray(cards) || cards.length === 0) {
       throw new Error("response has no .deck_data.cards — API shape changed?");
     }
+    OVERRIDES[deckId]?.(deck);
     await writeFile(join(OUT_DIR, `${deckId}.json`), JSON.stringify(deck, null, 2));
     console.log(`✓ ${heroId} (${deckId}): ${cards.length} cards, hero "${deck.deck_data.hero?.name}"`);
   } catch (err) {

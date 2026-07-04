@@ -293,7 +293,8 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     hero: "Thrall",
     author: "JollyGrin",
     likes: 2,
-    highlightColour: "#296888"
-    // no cardbackUrl in the deck's appearance — tile falls back to the highlight colour
+    highlightColour: "#296888",
+    // self-hosted (upstream deck has none); also patched into both snapshots
+    cardbackUrl: "https://unbrewed.xyz/cardbacks/thrall.webp"
   }
 ];
