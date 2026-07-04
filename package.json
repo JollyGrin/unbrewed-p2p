@@ -11,7 +11,8 @@
     "start": "next start",
     "lint": "next lint",
     "test": "jest --coverage",
-    "maps:snapshot": "node scripts/snapshot-maps.mjs"
+    "maps:snapshot": "node scripts/snapshot-maps.mjs",
+    "pro:decks:snapshot": "node scripts/snapshot-pro-decks.mjs"
   },
   "dependencies": {
     "@3d-dice/dice-box-threejs": "^0.0.12",
