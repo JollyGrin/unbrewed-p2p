@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { GetServerSideProps } from "next";
+import NextError from "next/error";
 import {
   Box,
   Button,
@@ -79,6 +79,17 @@ const emptyDoc = (): MapDoc => ({
 });
 
 const MapEditor = () => {
+  // Dev-only guard, static-export compatible (the GitHub Pages deploy uses
+  // `next export`, which forbids getServerSideProps). NODE_ENV is inlined at
+  // build time, so production builds compile this page down to a plain 404.
+  if (process.env.NODE_ENV === "production") {
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- returns before any hook, and the branch is fixed for the lifetime of the build
+    return <NextError statusCode={404} />;
+  }
+  return <MapEditorInner />;
+};
+
+const MapEditorInner = () => {
   const [doc, setDoc] = useState<MapDoc>(emptyDoc);
   const [mode, setMode] = useState<Mode>("space");
   const [selected, setSelected] = useState<string>(); // space id (also the connect-from anchor)
@@ -426,9 +437,4 @@ const MapEditor = () => {
 };
 
 // hard 404 in production builds — this page is an internal tool
-export const getServerSideProps: GetServerSideProps = async () => {
-  if (process.env.NODE_ENV === "production") return { notFound: true };
-  return { props: {} };
-};
-
 export default MapEditor;
