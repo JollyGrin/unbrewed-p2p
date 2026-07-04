@@ -39,6 +39,7 @@ import { CardFace, ProHand } from "@/components/Pro/ProHand";
 import { ProHud } from "@/components/Pro/ProHud";
 import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
 import { diffViews } from "@/lib/pro/gameLog";
+import { useGameFx } from "@/lib/pro/useGameFx";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 
 /** same table felt the sandbox game uses (game.layout.tsx) */
@@ -188,6 +189,13 @@ const PromptPanel = ({
     )}
   </Box>
 );
+
+/** red edge-vignette when YOUR hero takes damage (keyed remount replays it) */
+const hurtVignette = keyframes`
+  0%   { opacity: 0; }
+  12%  { opacity: 1; }
+  100% { opacity: 0; }
+`;
 
 /** The reveal beat: cards flip in from edge-on, defender a breath later. */
 const flipIn = keyframes`
@@ -555,6 +563,9 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
     snapshot?.view.catalog ?? {}
   );
 
+  // Sounds + transient board visuals, derived by diffing snapshots (useGameFx).
+  const { boardFx, hurtKey, soundOn, visualOn, toggleSound, toggleVisual } = useGameFx(snapshot);
+
   // Activity feed: diff each view against the previous one (see gameLog.ts).
   const [logEntries, setLogEntries] = useState<ProLogEntry[]>([]);
   const prevViewRef = useRef<PlayerView | null>(null);
@@ -897,11 +908,25 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
           highlightedSpaces={[...new Set(highlightedSpaces)]}
           highlightedFighters={[...new Set(highlightedFighters)]}
           selectedFighter={selectedFighter}
+          fx={boardFx}
           onSpaceClick={onSpaceClick}
           onFighterClick={onFighterClick}
           imgMaxH="calc(100svh - 16rem)"
         />
       </Flex>
+
+      {/* red vignette flash when your hero takes damage (useGameFx) */}
+      {visualOn && hurtKey > 0 && (
+        <Box
+          key={hurtKey}
+          position="fixed"
+          inset="0"
+          zIndex={200}
+          pointerEvents="none"
+          bg="radial-gradient(ellipse at center, transparent 55%, rgba(192, 57, 43, 0.5) 100%)"
+          animation={`${hurtVignette} 0.7s ease-out both`}
+        />
+      )}
 
       {/* floating player plates + room/connection chips (sandbox HUD DNA) */}
       <ProHud
@@ -911,6 +936,10 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
         resolveCard={resolveCard}
         resolveHero={resolveHero}
         labelFor={(c) => cardLabel(view.catalog, c)}
+        soundOn={soundOn}
+        visualFxOn={visualOn}
+        onToggleSound={toggleSound}
+        onToggleVisualFx={toggleVisual}
       />
 
       {/* right control dock — turn state, combat, prompts, actions */}

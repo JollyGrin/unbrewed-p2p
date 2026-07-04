@@ -20,9 +20,9 @@ import {
 } from "@chakra-ui/react";
 import { toast } from "react-hot-toast";
 import { LinkIcon } from "@chakra-ui/icons";
-import { TbSword, TbBow, TbCards, TbGrave2 } from "react-icons/tb";
+import { TbSword, TbBow, TbCards, TbGrave2, TbWand, TbWandOff } from "react-icons/tb";
 import { GiFootprint, GiHearts } from "react-icons/gi";
-import { IoMdHand } from "react-icons/io";
+import { IoMdHand, IoMdVolumeHigh, IoMdVolumeOff } from "react-icons/io";
 import {
   ChipCluster,
   HeroName,
@@ -267,9 +267,25 @@ export interface ProHudProps {
   resolveCard: ResolveCard;
   resolveHero: ResolveHero;
   labelFor: (instance: CardInstanceId) => string;
+  /** sound / visual effect toggles (useGameFx) — chips hidden when omitted */
+  soundOn?: boolean;
+  visualFxOn?: boolean;
+  onToggleSound?: () => void;
+  onToggleVisualFx?: () => void;
 }
 
-export const ProHud = ({ view, status, roomId, resolveCard, resolveHero, labelFor }: ProHudProps) => {
+export const ProHud = ({
+  view,
+  status,
+  roomId,
+  resolveCard,
+  resolveHero,
+  labelFor,
+  soundOn,
+  visualFxOn,
+  onToggleSound,
+  onToggleVisualFx,
+}: ProHudProps) => {
   const heroOf = (player: PlayerView["you"]) =>
     view.fighters.find((f) => f.owner === player && f.kind === "HERO");
   const sidekicksOf = (player: PlayerView["you"]) =>
@@ -307,6 +323,41 @@ export const ProHud = ({ view, status, roomId, resolveCard, resolveHero, labelFo
         />
       </HudOverlay>
       <ChipCluster>
+        {onToggleSound && (
+          <Tooltip label={soundOn ? "Mute sound effects" : "Unmute sound effects"} hasArrow>
+            <Flex
+              {...chipStyles}
+              as="button"
+              cursor="pointer"
+              _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+              color="brand.highlight"
+              opacity={soundOn ? 1 : 0.55}
+              onClick={onToggleSound}
+              aria-label={soundOn ? "Mute sound effects" : "Unmute sound effects"}
+            >
+              {soundOn ? <IoMdVolumeHigh size="0.85rem" /> : <IoMdVolumeOff size="0.85rem" />}
+            </Flex>
+          </Tooltip>
+        )}
+        {onToggleVisualFx && (
+          <Tooltip
+            label={visualFxOn ? "Hide visual effects" : "Show visual effects"}
+            hasArrow
+          >
+            <Flex
+              {...chipStyles}
+              as="button"
+              cursor="pointer"
+              _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+              color="brand.highlight"
+              opacity={visualFxOn ? 1 : 0.55}
+              onClick={onToggleVisualFx}
+              aria-label={visualFxOn ? "Hide visual effects" : "Show visual effects"}
+            >
+              {visualFxOn ? <TbWand size="0.85rem" /> : <TbWandOff size="0.85rem" />}
+            </Flex>
+          </Tooltip>
+        )}
         {roomId && (
           <Tooltip label="Copy the join link for this room" hasArrow>
             <Flex
