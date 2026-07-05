@@ -1,5 +1,7 @@
 import { HandContainer, ModalContainer } from "@/components/Game";
 import { useLocalDeckStorage } from "@/lib/hooks";
+import { useDeckOpenWarning } from "@/components/Game/useDeckOpenWarning";
+import { DeckOpenWarningDialog } from "@/components/Game/deck-open-warning.modal";
 import {
   Box,
   Button,
@@ -48,6 +50,8 @@ const Offline = () => {
 
   const [modalType, setModalType] = useState<ModalType>(false);
   const disclosure = useDisclosure();
+  const { requestModal, pendingWarning, confirmOpen, cancelOpen } =
+    useDeckOpenWarning(setModalType);
 
   function setPlayerState() {
     return (props: { pool: PoolType }) => {
@@ -92,9 +96,14 @@ const Offline = () => {
         gameState={gameState}
         logAction={noop}
       />
+      <DeckOpenWarningDialog
+        isOpen={pendingWarning}
+        onCancel={cancelOpen}
+        onConfirm={confirmOpen}
+      />
       <Box h="100vh" bg="brand.primary">
         <HandContainer
-          setModal={setModalType}
+          setModal={requestModal}
           setPlayerState={setPlayerState}
           gameState={gameState}
           logAction={noop}
