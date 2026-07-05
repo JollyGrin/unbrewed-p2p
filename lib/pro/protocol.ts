@@ -39,9 +39,15 @@
  * among supported heroes. The bot plays through the same action pipeline as a
  * human; the client needs NO new message types — the opponent just acts.
  * OPPONENT_STATUS is never sent for a bot seat (it is always "connected").
+ *
+ * ## v4 (2026-07-05): custom-map playtest
+ * `CREATE_ROOM` gained optional `customMap` — a full `ProMapDef` the creator
+ * supplies to playtest an unpublished board without shipping it to the server
+ * repo. The server validates it (validateMap) and, if clean, uses it for that
+ * room only; a bad map answers ERROR{BAD_MAP}. Composes with `bot`.
  */
 
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 /** Scripted-AI strength preset (server-side budgets; client treats as opaque). */
 export type BotDifficulty = "easy" | "medium" | "hard";
@@ -271,7 +277,9 @@ export interface HeroListing {
 
 export type ClientMsg =
   | { v: number; type: "LIST_HEROES" }
-  | { v: number; type: "CREATE_ROOM"; heroId: string; bot?: { difficulty: BotDifficulty; heroId?: string } }
+  // `customMap` (v4): playtest an unpublished board — the server validates it
+  // and uses it for this room only. Composes with `bot`. Omit for the default map.
+  | { v: number; type: "CREATE_ROOM"; heroId: string; bot?: { difficulty: BotDifficulty; heroId?: string }; customMap?: ProMapDef }
   | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }
   | { v: number; type: "ACTION"; roomId: string; action: Action };
@@ -293,4 +301,5 @@ export type ErrorCode =
   | "NOT_YOUR_SEAT" // action.player !== your seat
   | "ILLEGAL_ACTION" // reducer rejected it (client bug or stale view)
   | "UNKNOWN_HERO"
+  | "BAD_MAP" // CREATE_ROOM.customMap failed validation (message lists violations)
   | "SERVER_ERROR";
