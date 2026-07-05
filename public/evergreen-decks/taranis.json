@@ -4,7 +4,7 @@
   "deck_data": {
     "appearance": {
       "borderColour": "#3b4a5e",
-      "cardbackUrl": "",
+      "cardbackUrl": "https://unbrewed.xyz/cardbacks/taranis.webp",
       "highlightColour": "#c9962b",
       "isPNP": false,
       "patternName": "Lightning"

@@ -4,7 +4,7 @@
   "deck_data": {
     "appearance": {
       "borderColour": "#1c3a4d",
-      "cardbackUrl": "",
+      "cardbackUrl": "https://unbrewed.xyz/cardbacks/thetis.webp",
       "highlightColour": "#2ec4b6",
       "isPNP": false,
       "patternName": "Waves"
