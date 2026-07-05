@@ -35,6 +35,7 @@ import { normalizeMap } from "@/lib/pro/normalizeMap";
 import { mapSubmissionIssueUrl } from "@/lib/pro/mapIssue";
 import { RecentRoom, getTabToken, listRecentRooms } from "@/lib/pro/recentRooms";
 import { HERO_DECK_IDS, ResolveCard, useProCardArt } from "@/lib/pro/useProCardArt";
+import { frozenAtForHero } from "@/lib/pro/evergreenManifest";
 import { POPULAR_DECKS, PopularDeckMeta } from "@/lib/constants/top-decks";
 import { GiFootprint, GiHearts } from "react-icons/gi";
 import { TbBow, TbExternalLink, TbSword } from "react-icons/tb";
@@ -399,6 +400,7 @@ const HeroTile = ({
 }) => {
   const deck = heroDeckMeta(hero.heroId);
   const cardback = deck?.cardbackUrl;
+  const frozenAt = frozenAtForHero(hero.heroId);
   return (
     <Box position="relative" w="10rem">
       <Flex
@@ -449,6 +451,16 @@ const HeroTile = ({
                 textShadow="0 1px 2px rgba(0,0,0,0.9)"
               >
                 by {deck.author}
+              </Text>
+            )}
+            {frozenAt && (
+              <Text
+                fontSize="0.62rem"
+                color="brand.parchment"
+                opacity={0.7}
+                textShadow="0 1px 2px rgba(0,0,0,0.9)"
+              >
+                rules version frozen {frozenAt}
               </Text>
             )}
           </Box>

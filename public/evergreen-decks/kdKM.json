@@ -189,8 +189,6 @@
   "deck_published": true,
   "family_id": "kdKM",
   "id": "kdKM",
-  "liked": false,
-  "likes": 63,
   "name": "King Kong",
   "note": "2.6 = Updated the text on Smash & Grab. (Fighters may still boost their movement).\n\n2.5 = UPDATED ART\n\nLarge fighters have an extended base that can occupy up to two spaces. Large fighters may start moving from any space they are in. When they do, rotate them so that the head of the base is moving into the new space. The tail of the base always follows behind the head, entering the space the left. Large fighters also ignore one-way arrows on maps and cannot use secret passages.\nLarge fighters can attack up to 2 spaces away, even over fighters that occupy one of those spaces.",
   "published": true,
@@ -244,15 +242,5 @@
   "updated_on": "Thu, 28 Nov 2024 00:13:25 GMT",
   "user": "Blakpantha",
   "version_id": "5GmXFw3n",
-  "version_name": "2.6",
-  "versions": [
-    {
-      "created_on": "Mon, 03 Jan 2022 08:12:06 GMT",
-      "id": "5GmXFw3n",
-      "name": "King Kong",
-      "published": true,
-      "updated_on": "Thu, 28 Nov 2024 00:13:25 GMT",
-      "version_name": "2.6"
-    }
-  ]
+  "version_name": "2.6"
 }

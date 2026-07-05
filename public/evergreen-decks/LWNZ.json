@@ -202,8 +202,6 @@
   "deck_published": true,
   "family_id": "LWNZ",
   "id": "LWNZ",
-  "liked": false,
-  "likes": 75,
   "name": " Gingerbread man",
   "note": "If you like this deck check out my Raven deck. \nIt also have custom art and is finished, balanced, and flow as I wanted.\n\nGingerbread man has a movement of 4 so it can be really hard to catch him. (Go figure) 😁 With Gingerbread man you have to be careful about where you place the Fox. At the end of your turn if you are adjacent to Fox you will end up taking damage but sometimes for Fox to be used at full potential you have to be next to Gingerbread man. Is Fox going to help you win, or will he only aid in your demise? Don't be fooled by his cute card art though because Gingerbread man is one tough cookie!",
   "published": true,
@@ -249,23 +247,5 @@
   "updated_on": "Fri, 27 Mar 2026 16:18:52 GMT",
   "user": "TAYTERTOTS",
   "version_id": "j8ktZzP",
-  "version_name": "Gingerbread",
-  "versions": [
-    {
-      "created_on": "Wed, 30 Mar 2022 02:32:08 GMT",
-      "id": "j8ktZzP",
-      "name": " Gingerbread man",
-      "published": true,
-      "updated_on": "Fri, 27 Mar 2026 16:18:52 GMT",
-      "version_name": "Gingerbread"
-    },
-    {
-      "created_on": "Wed, 07 Oct 2020 02:40:02 GMT",
-      "id": "AErFk4",
-      "name": " Gingerbread man",
-      "published": true,
-      "updated_on": "Mon, 28 Mar 2022 20:57:42 GMT",
-      "version_name": "Gingerbread"
-    }
-  ]
+  "version_name": "Gingerbread"
 }

@@ -1,0 +1,124 @@
+{
+  "decks": [
+    {
+      "heroId": "king-kong",
+      "deckId": "kdKM",
+      "version_id": "5GmXFw3n",
+      "frozenAt": "2026-07-05",
+      "digest": "sha256:936b10d45a3700f0d061a007aa440d481f90986301fb6ed9f3597b560eef2adb",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/king-kong.rules.ts",
+        "commit": "787ced0"
+      }
+    },
+    {
+      "heroId": "the-mandalorian",
+      "deckId": "lDOM",
+      "version_id": "B4ZIGdn",
+      "frozenAt": "2026-07-05",
+      "digest": "sha256:c50b29a26f26dafb752e2a1095605599f3360b22cf273d7e3bf6fc8bf6b7a3f7",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/the-mandalorian.rules.ts",
+        "commit": "787ced0"
+      }
+    },
+    {
+      "heroId": "thrall",
+      "deckId": "pk1x",
+      "version_id": "y8Eado",
+      "frozenAt": "2026-07-05",
+      "digest": "sha256:c96eb6907d43bf2a1079ba47777f5d6fc6479cb1d831d5247d67ffd728da8b6d",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/thrall.rules.ts",
+        "commit": "787ced0"
+      }
+    },
+    {
+      "heroId": "r2-d2",
+      "deckId": "3jgd",
+      "version_id": "BPbQCV_31",
+      "frozenAt": "2026-07-05",
+      "digest": "sha256:2abc9697b6e922332cf7d6c7e515c5d9a563847f2777cdf92ecd4c0ac61d2e23",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/r2-d2.rules.ts",
+        "commit": "787ced0"
+      }
+    },
+    {
+      "heroId": "gingerbread-man",
+      "deckId": "LWNZ",
+      "version_id": "j8ktZzP",
+      "frozenAt": "2026-07-05",
+      "digest": "sha256:9eb2370780c3cc1e403c82dab6e99673634fa4160ce9f80dc3bb92da7539f45c",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/gingerbread-man.rules.ts",
+        "commit": "787ced0"
+      }
+    },
+    {
+      "heroId": "triceratops",
+      "deckId": "1Y5J",
+      "version_id": "kxgnu4QMm",
+      "frozenAt": "2026-07-05",
+      "digest": "sha256:281446c9e8097b168fd50b3ae18c4ef91f8992f69d247e7d2d60b4e571486b53",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/triceratops.rules.ts",
+        "commit": "787ced0"
+      }
+    },
+    {
+      "heroId": "king-taranis",
+      "deckId": "taranis",
+      "version_id": "evergreen-1",
+      "frozenAt": "2026-07-05",
+      "digest": "sha256:9fa641ae456508ac93a05d659101ca2e12449ee91c3bada775c714926df45e99",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/king-taranis.rules.ts",
+        "commit": "787ced0"
+      }
+    },
+    {
+      "heroId": "thetis",
+      "deckId": "thetis",
+      "version_id": "evergreen-1",
+      "frozenAt": "2026-07-05",
+      "digest": "sha256:6a18f1042920b7131df1538b0b1941c13ed913a9526304b83211706661593090",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/thetis.rules.ts",
+        "commit": "787ced0"
+      }
+    },
+    {
+      "heroId": "piper-of-the-underroads",
+      "deckId": "piper",
+      "version_id": "evergreen-1",
+      "frozenAt": "2026-07-05",
+      "digest": "sha256:af6a71b5fd6dedb18154f0a210ae24a95906b57c4dd3019140e7d2cd4066f5df",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/piper-of-the-underroads.rules.ts",
+        "commit": "787ced0"
+      }
+    },
+    {
+      "heroId": "hollow-oak",
+      "deckId": "hollow-oak",
+      "version_id": "evergreen-1",
+      "frozenAt": "2026-07-05",
+      "digest": "sha256:7d988182bd16f1b92e31715cf21b0ea3180be4d13490f027d3acb73fd42da98d",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/hollow-oak.rules.ts",
+        "commit": "787ced0"
+      }
+    }
+  ]
+}
