@@ -29,6 +29,8 @@ import { PRO_WS_URL } from "@/lib/pro/wsUrl";
  */
 const FALLBACK_READY: Record<string, string> = {
   kdKM: "King Kong",
+  taranis: "King Taranis",
+  thetis: "Thetis",
   lDOM: "The Mandalorian",
   pk1x: "Thrall",
 };
