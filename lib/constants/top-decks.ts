@@ -296,5 +296,24 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     highlightColour: "#296888",
     // self-hosted (upstream deck has none); also patched into both snapshots
     cardbackUrl: "https://unbrewed.xyz/cardbacks/thrall.webp"
+  },
+  {
+    // Evergreen original (no unmatched.cards page): King Taranis, the
+    // Stormquenched — server hero king-taranis. Art pending; snapshot-only.
+    id: "taranis",
+    name: "King Taranis",
+    hero: "King Taranis",
+    author: "unbrewed",
+    likes: 0,
+    highlightColour: "#c9962b"
+  },
+  {
+    // Evergreen original: Thetis, the Ebb-and-Flow — server hero thetis.
+    id: "thetis",
+    name: "Thetis",
+    hero: "Thetis",
+    author: "unbrewed",
+    likes: 0,
+    highlightColour: "#2ec4b6"
   }
 ];
