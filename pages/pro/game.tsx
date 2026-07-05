@@ -13,7 +13,7 @@
  */
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
-import { Box, Button, Flex, Grid, Link, Tag, Text, Tooltip, keyframes } from "@chakra-ui/react";
+import { Box, Button, Flex, Grid, Link, Tag, Text, Textarea, Tooltip, keyframes } from "@chakra-ui/react";
 import { ProBoard } from "@/components/Pro/ProBoard";
 import {
   Action,
@@ -31,6 +31,8 @@ import {
   ViewPrompt,
 } from "@/lib/pro/protocol";
 import { ProConnectionStatus, useProSocket } from "@/lib/pro/useProSocket";
+import { normalizeMap } from "@/lib/pro/normalizeMap";
+import { mapSubmissionIssueUrl } from "@/lib/pro/mapIssue";
 import { RecentRoom, getTabToken, listRecentRooms } from "@/lib/pro/recentRooms";
 import { HERO_DECK_IDS, ResolveCard, useProCardArt } from "@/lib/pro/useProCardArt";
 import { POPULAR_DECKS, PopularDeckMeta } from "@/lib/constants/top-decks";
@@ -529,6 +531,11 @@ const HeroSelectLobby = ({
   onSelectOpponent,
   onSelectHero,
   onConfirm,
+  customMapJson,
+  onCustomMapJsonChange,
+  showMapInput,
+  onToggleMapInput,
+  mapError,
 }: {
   room: string | null;
   status: ProConnectionStatus;
@@ -539,6 +546,13 @@ const HeroSelectLobby = ({
   onSelectOpponent: (o: OpponentChoice) => void;
   onSelectHero: (heroId: string) => void;
   onConfirm: () => void;
+  /** raw custom-map JSON (create flow only) — persisted in the parent */
+  customMapJson: string;
+  onCustomMapJsonChange: (json: string) => void;
+  showMapInput: boolean;
+  onToggleMapInput: () => void;
+  /** local parse error or the server's BAD_MAP message, shown inline */
+  mapError: string | null;
 }) => {
   // While the list is loading, a valid-looking `?hero=` stands in so the
   // creator isn't blocked; once the list arrives the real selection takes over.
@@ -628,6 +642,56 @@ const HeroSelectLobby = ({
       <Button {...BTN_GOLD} isDisabled={!canConfirm} onClick={onConfirm}>
         {room ? "Join" : opponent === "human" ? "Create" : "Play vs AI"}
       </Button>
+
+      {/* Power-user affordance (create flow only): playtest an unpublished board
+          by pasting its JSON. Kept near-invisible so it doesn't compete for a
+          normal player's attention. Composes with a human or AI opponent. */}
+      {!room && (
+        <Box maxW="28rem" w="100%">
+          {!showMapInput ? (
+            <Text
+              as="button"
+              onClick={onToggleMapInput}
+              display="block"
+              mx="auto"
+              fontFamily="SpaceGrotesk"
+              fontSize="0.7rem"
+              letterSpacing="0.08em"
+              opacity={0.35}
+              _hover={{ opacity: 0.75 }}
+              transition="opacity 0.15s"
+            >
+              playtest a custom map
+            </Text>
+          ) : (
+            <Flex direction="column" gap="0.4rem">
+              <Textarea
+                value={customMapJson}
+                onChange={(e) => onCustomMapJsonChange(e.target.value)}
+                placeholder="paste map JSON exported from /dev/map-editor — leave blank for the default board"
+                rows={4}
+                fontFamily="monospace"
+                fontSize="0.65rem"
+                bg="rgba(0,0,0,0.3)"
+                borderColor="whiteAlpha.200"
+                _hover={{ borderColor: "whiteAlpha.300" }}
+                _focus={{ borderColor: "brand.accent" }}
+                color="brand.parchment"
+              />
+              {mapError ? (
+                <Text color="#E06A5E" fontSize="0.65rem" fontFamily="SpaceGrotesk">
+                  {mapError}
+                </Text>
+              ) : (
+                <Text fontSize="0.6rem" opacity={0.4} fontFamily="SpaceGrotesk">
+                  only you set this up · your opponent (or the AI) just plays on it
+                </Text>
+              )}
+            </Flex>
+          )}
+        </Box>
+      )}
+
       <Text fontSize="0.8rem" opacity={0.55}>
         server: {status === "open" ? "connected" : status}
       </Text>
@@ -646,6 +710,22 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
   const [opponent, setOpponent] = useState<OpponentChoice>("human");
   const [selectedFighter, setSelectedFighter] = useState<FighterId | null>(null);
+  // Custom-map playtest (create flow): raw JSON persists across a BAD_MAP bounce
+  // so a power user can fix the board and retry without re-pasting.
+  const [customMapJson, setCustomMapJson] = useState("");
+  const [showMapInput, setShowMapInput] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
+  // Prefilled "submit this map" GitHub issue URL — only when THIS player created
+  // the room with a (server-accepted) custom board. null otherwise.
+  const mapSubmitUrl = useMemo(() => {
+    const t = customMapJson.trim();
+    if (!t) return null;
+    try {
+      return mapSubmissionIssueUrl(normalizeMap(JSON.parse(t)), t);
+    } catch {
+      return null;
+    }
+  }, [customMapJson]);
   // Art fetch (unbrewed-api, matched by title against the server catalog) —
   // must run unconditionally; no-ops until the first STATE arrives.
   const { resolveCard, resolveHero } = useProCardArt(
@@ -725,10 +805,17 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
 
   // UNKNOWN_HERO shouldn't happen when picking from the server list, but if the
   // server rejects the hero, drop back to the picker instead of a dead end.
+  // BAD_MAP similarly bounces back to the lobby (hero kept) with the server's
+  // validation message shown against the still-populated map box.
   useEffect(() => {
     if (error?.code === "UNKNOWN_HERO") {
       setJoined(false);
       setSelectedHeroId(null);
+    }
+    if (error?.code === "BAD_MAP") {
+      setJoined(false);
+      setShowMapInput(true);
+      setMapError(error.message);
     }
   }, [error]);
 
@@ -772,11 +859,39 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
           opponent={opponent}
           onSelectOpponent={setOpponent}
           onSelectHero={setSelectedHeroId}
+          customMapJson={customMapJson}
+          onCustomMapJsonChange={(json) => {
+            setCustomMapJson(json);
+            if (mapError) setMapError(null); // clear stale error as they edit
+          }}
+          showMapInput={showMapInput}
+          onToggleMapInput={() => setShowMapInput((v) => !v)}
+          mapError={mapError}
           onConfirm={() => {
             if (!effectiveHeroId) return;
-            if (room) joinRoom(room, effectiveHeroId);
-            else if (opponent === "human") createRoom(effectiveHeroId);
-            else createRoom(effectiveHeroId, { difficulty: opponent });
+            if (room) {
+              joinRoom(room, effectiveHeroId);
+              setSelectedHeroId(effectiveHeroId);
+              setJoined(true);
+              return;
+            }
+            // Create flow: parse the optional custom board just-in-time. Local
+            // structural errors stay in the lobby; the server re-validates the
+            // graph and answers BAD_MAP (handled by the error effect above).
+            let customMap: ProMapDef | undefined;
+            const trimmed = customMapJson.trim();
+            if (trimmed) {
+              try {
+                customMap = normalizeMap(JSON.parse(trimmed));
+              } catch (e) {
+                setMapError(e instanceof Error ? e.message : "invalid JSON");
+                setShowMapInput(true);
+                return;
+              }
+            }
+            setMapError(null);
+            const bot = opponent === "human" ? undefined : { difficulty: opponent };
+            createRoom(effectiveHeroId, bot, customMap);
             setSelectedHeroId(effectiveHeroId); // lock it for the lobby label
             setJoined(true);
           }}
@@ -839,6 +954,22 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
           <Text fontSize="0.8rem" opacity={0.5}>
             (testing solo? open that link in a second browser tab)
           </Text>
+          {mapSubmitUrl && (
+            <Link
+              href={mapSubmitUrl}
+              isExternal
+              fontFamily="SpaceGrotesk"
+              fontSize="0.75rem"
+              letterSpacing="0.06em"
+              opacity={0.55}
+              _hover={{ opacity: 1, color: "brand.accent" }}
+              display="inline-flex"
+              alignItems="center"
+              gap="0.3rem"
+            >
+              happy with this board? submit it to unbrewed <TbExternalLink size="0.8rem" />
+            </Link>
+          )}
         </Flex>
       );
     }
@@ -985,6 +1116,31 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
 
   return (
     <Box h="100svh" overflow="hidden" bg={TABLE_BG} position="relative">
+      {/* Playtesting a custom board (this player created it): a near-invisible
+          link to submit it to unbrewed. Covers the AI case, where the pre-game
+          waiting screen — which also offers this — is never shown. */}
+      {mapSubmitUrl && (
+        <Link
+          href={mapSubmitUrl}
+          isExternal
+          position="fixed"
+          top="0.5rem"
+          left="50%"
+          transform="translateX(-50%)"
+          zIndex={150}
+          fontFamily="SpaceGrotesk"
+          fontSize="0.65rem"
+          letterSpacing="0.06em"
+          opacity={0.4}
+          _hover={{ opacity: 1, color: "brand.accent" }}
+          display="inline-flex"
+          alignItems="center"
+          gap="0.3rem"
+        >
+          submit this map to unbrewed <TbExternalLink size="0.7rem" />
+        </Link>
+      )}
+
       {/* board — fills the stage, capped so the whole field stays in view */}
       <Flex
         h="100%"

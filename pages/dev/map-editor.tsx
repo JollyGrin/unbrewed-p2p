@@ -9,6 +9,8 @@ import {
   Text,
   Textarea,
 } from "@chakra-ui/react";
+import type { ProMapDef } from "@/lib/pro/protocol";
+import { mapSubmissionIssueUrl } from "@/lib/pro/mapIssue";
 
 /**
  * DEV-ONLY map annotation editor (docs/pro/tasks/T-009).
@@ -77,6 +79,81 @@ const emptyDoc = (): MapDoc => ({
   zones: [],
   spaces: [],
 });
+
+const slugify = (s: string): string =>
+  s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "custom";
+
+/**
+ * Editor draft (`MapDoc`) -> engine-native `ProMapDef` (== server MapDef). This
+ * is the shipped export shape: the pro-server ingests it directly and community
+ * members paste it straight into /pro/game's custom-map box. minPlayers/maxPlayers
+ * derive from the start slots actually placed (min 2 — Unmatched is 1v1+).
+ */
+const toMapDef = (doc: MapDoc): ProMapDef => {
+  const slots = doc.spaces
+    .map((s) => s.start)
+    .filter((n): n is number => typeof n === "number");
+  const maxPlayers = slots.length ? Math.max(2, ...slots) : 2;
+  return {
+    schemaVersion: "1.0",
+    id: slugify(doc.meta.title),
+    meta: {
+      title: doc.meta.title || "Custom Map",
+      minPlayers: 2,
+      maxPlayers,
+      specialRules: false,
+      ...(doc.meta.imageUrl ? { imageUrl: doc.meta.imageUrl } : {}),
+      ...(doc.meta.spaceDiameter != null ? { spaceDiameter: doc.meta.spaceDiameter } : {}),
+      ...(doc.meta.source ? { source: doc.meta.source } : {}),
+      ...(doc.meta.license ? { license: doc.meta.license } : {}),
+    },
+    zones: doc.zones,
+    spaces: doc.spaces.map((s) => ({
+      id: s.id,
+      x: s.x,
+      y: s.y,
+      zones: s.zones,
+      adjacentTo: s.adjacentTo,
+      ...(s.oneWayTo && s.oneWayTo.length ? { oneWayTo: s.oneWayTo } : {}),
+      ...(typeof s.start === "number" ? { start: { slot: s.start } } : {}),
+    })),
+  };
+};
+
+/**
+ * Import shim: accept EITHER a native `ProMapDef` (schemaVersion present — the
+ * new export, round-trips) or a legacy `MapDoc` (older copies people saved),
+ * coercing both back into the editor's internal `MapDoc`.
+ */
+const toMapDoc = (raw: unknown): MapDoc => {
+  const r = raw as Record<string, unknown>;
+  const meta = (r.meta ?? {}) as Record<string, unknown>;
+  if (typeof r.schemaVersion === "string") {
+    const min = typeof meta.minPlayers === "number" ? meta.minPlayers : 2;
+    const max = typeof meta.maxPlayers === "number" ? meta.maxPlayers : min;
+    const players: number[] = [];
+    for (let p = min; p <= max; p++) players.push(p);
+    return {
+      meta: {
+        title: (meta.title as string) ?? "",
+        imageUrl: (meta.imageUrl as string) ?? "",
+        players: players.length ? players : [1, 2],
+        source: (meta.source as string) ?? "",
+        license: (meta.license as string) ?? "",
+        ...(typeof meta.spaceDiameter === "number" ? { spaceDiameter: meta.spaceDiameter } : {}),
+      },
+      zones: (r.zones as Zone[]) ?? [],
+      spaces: ((r.spaces as Record<string, unknown>[]) ?? []).map((s) => ({
+        ...(s as unknown as Space),
+        start:
+          s.start && typeof s.start === "object"
+            ? (s.start as { slot: number }).slot
+            : (s.start as number | undefined),
+      })),
+    };
+  }
+  return raw as MapDoc; // already a legacy MapDoc
+};
 
 const MapEditor = () => {
   // Dev-only guard, static-export compatible (the GitHub Pages deploy uses
@@ -345,13 +422,26 @@ const MapEditorInner = () => {
         )}
 
         <Flex gap="0.3rem">
-          <Button {...BTN} onClick={() => setIo(JSON.stringify(doc, null, 2))}>export → box</Button>
-          <Button {...BTN} onClick={() => { try { setDoc(JSON.parse(io)); } catch { alert("invalid JSON"); } }}>import ← box</Button>
+          <Button {...BTN} onClick={() => setIo(JSON.stringify(toMapDef(doc), null, 2))}>export → box</Button>
+          <Button {...BTN} onClick={() => { try { setDoc(toMapDoc(JSON.parse(io))); } catch { alert("invalid JSON"); } }}>import ← box</Button>
           <Button size="xs" colorScheme="red" variant="outline"
             onClick={() => { if (confirm("clear draft?")) { setDoc(emptyDoc()); setIo(""); } }}>reset</Button>
         </Flex>
         <Textarea value={io} onChange={(e) => setIo(e.target.value)} fontSize="0.65rem"
           fontFamily="monospace" rows={12} placeholder="export/import JSON" bg="rgba(0,0,0,0.25)" />
+
+        {/* Submit the finished board to unbrewed-p2p as a prefilled GitHub issue.
+            Opens with the exported JSON embedded (or a paste prompt if too big). */}
+        <Button
+          {...BTN}
+          as="a"
+          href={mapSubmissionIssueUrl(toMapDef(doc), JSON.stringify(toMapDef(doc), null, 2))}
+          target="_blank"
+          rel="noopener noreferrer"
+          isDisabled={doc.spaces.length === 0}
+        >
+          submit map to unbrewed →
+        </Button>
       </Flex>
 
       {/* canvas */}
