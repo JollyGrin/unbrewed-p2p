@@ -313,7 +313,9 @@ const ConnectContainer = styled(Flex)`
   flex-direction: column;
   width: 95%;
   max-width: 600px;
-  min-height: 600px;
+  min-height: min(600px, calc(100svh - 4rem));
+  max-height: calc(100svh - 2rem);
+  overflow-y: auto;
   background-color: rgba(241, 224, 193, 0.92);
   border-radius: 1rem;
   padding: 2rem;
