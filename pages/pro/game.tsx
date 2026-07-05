@@ -17,6 +17,7 @@ import { Box, Button, Flex, Grid, Tag, Text, keyframes } from "@chakra-ui/react"
 import { ProBoard } from "@/components/Pro/ProBoard";
 import {
   Action,
+  BotDifficulty,
   CardInstanceId,
   CardMeta,
   FighterId,
@@ -453,12 +454,24 @@ const SkeletonTile = () => (
  * creator arrived with a valid `?hero=`, that hero as preselected text so they
  * can Create the instant the socket opens (the server validates the hero id).
  */
+/** Opponent choice in the create flow: a human via link, or the server AI. */
+type OpponentChoice = "human" | BotDifficulty;
+
+const OPPONENT_CHOICES: { id: OpponentChoice; label: string }[] = [
+  { id: "human", label: "Human" },
+  { id: "easy", label: "AI · easy" },
+  { id: "medium", label: "AI · medium" },
+  { id: "hard", label: "AI · hard" },
+];
+
 const HeroSelectLobby = ({
   room,
   status,
   heroes,
   heroParam,
   selectedHeroId,
+  opponent,
+  onSelectOpponent,
   onSelectHero,
   onConfirm,
 }: {
@@ -467,6 +480,8 @@ const HeroSelectLobby = ({
   heroes: HeroListing[] | null;
   heroParam: string | null;
   selectedHeroId: string | null;
+  opponent: OpponentChoice;
+  onSelectOpponent: (o: OpponentChoice) => void;
   onSelectHero: (heroId: string) => void;
   onConfirm: () => void;
 }) => {
@@ -528,8 +543,35 @@ const HeroSelectLobby = ({
         )}
       </Flex>
 
+      {!room && (
+        <Flex direction="column" alignItems="center" gap="0.4rem">
+          <Text fontFamily="BebasNeueRegular" fontSize="1.1rem" letterSpacing="0.08em" opacity={0.75}>
+            Opponent
+          </Text>
+          <Flex gap="0.5rem" flexWrap="wrap" justifyContent="center">
+            {OPPONENT_CHOICES.map((o) => (
+              <Button
+                key={o.id}
+                {...BTN}
+                size="sm"
+                border="2px solid"
+                borderColor={opponent === o.id ? "brand.accent" : "transparent"}
+                onClick={() => onSelectOpponent(o.id)}
+              >
+                {o.label}
+              </Button>
+            ))}
+          </Flex>
+          {opponent !== "human" && (
+            <Text fontSize="0.7rem" opacity={0.55}>
+              the server picks the AI&apos;s deck at random — the game starts instantly
+            </Text>
+          )}
+        </Flex>
+      )}
+
       <Button {...BTN_GOLD} isDisabled={!canConfirm} onClick={onConfirm}>
-        {room ? "Join" : "Create"}
+        {room ? "Join" : opponent === "human" ? "Create" : "Play vs AI"}
       </Button>
       <Text fontSize="0.8rem" opacity={0.55}>
         server: {status === "open" ? "connected" : status}
@@ -547,6 +589,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
     useProSocket(WS_URL);
   const [joined, setJoined] = useState(false);
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
+  const [opponent, setOpponent] = useState<OpponentChoice>("human");
   const [selectedFighter, setSelectedFighter] = useState<FighterId | null>(null);
   // Art fetch (unbrewed-api, matched by title against the server catalog) —
   // must run unconditionally; no-ops until the first STATE arrives.
@@ -668,10 +711,14 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
           heroes={heroes}
           heroParam={heroParam}
           selectedHeroId={selectedHeroId}
+          opponent={opponent}
+          onSelectOpponent={setOpponent}
           onSelectHero={setSelectedHeroId}
           onConfirm={() => {
             if (!effectiveHeroId) return;
-            room ? joinRoom(room, effectiveHeroId) : createRoom(effectiveHeroId);
+            if (room) joinRoom(room, effectiveHeroId);
+            else if (opponent === "human") createRoom(effectiveHeroId);
+            else createRoom(effectiveHeroId, { difficulty: opponent });
             setSelectedHeroId(effectiveHeroId); // lock it for the lobby label
             setJoined(true);
           }}

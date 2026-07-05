@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { forgetRoom, getTabToken, getToken, rememberRoom, setToken } from "./recentRooms";
 import {
   Action,
+  BotDifficulty,
   ClientMsg,
   HeroListing,
   PlayerView,
@@ -42,7 +43,8 @@ export interface UseProSocketReturn {
   error: { code: string; message: string } | null;
   /** server-fed roster; null until the first HEROES reply arrives */
   heroes: HeroListing[] | null;
-  createRoom: (heroId: string) => void;
+  /** Pass `bot` to play vs the server's scripted AI (protocol v3). */
+  createRoom: (heroId: string, bot?: { difficulty: BotDifficulty; heroId?: string }) => void;
   joinRoom: (roomId: string, heroId: string) => void;
   sendAction: (action: Action) => void;
   respondToPrompt: (promptId: string, optionId: string) => void;
@@ -150,9 +152,11 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
   }, [wsUrl, connect]);
 
   const createRoom = useCallback(
-    (heroId: string) => {
+    (heroId: string, bot?: { difficulty: BotDifficulty; heroId?: string }) => {
       setError(null); // clear any prior room/hero error on a fresh attempt
-      const msg: ClientMsg = { v: PROTOCOL_VERSION, type: "CREATE_ROOM", heroId };
+      const msg: ClientMsg = bot
+        ? { v: PROTOCOL_VERSION, type: "CREATE_ROOM", heroId, bot }
+        : { v: PROTOCOL_VERSION, type: "CREATE_ROOM", heroId };
       if (wsRef.current?.readyState === WebSocket.OPEN) send(msg);
       else pendingHelloRef.current = msg;
     },
