@@ -10,6 +10,7 @@ import {
 } from "@chakra-ui/react";
 import Link from "next/link";
 import { FaArrowLeft, FaHeart, FaLock } from "react-icons/fa";
+import { TbInfoCircle } from "react-icons/tb";
 import {
   POPULAR_DECKS,
   PopularDeckMeta,
@@ -18,6 +19,7 @@ import { DECK_HERO_IDS } from "@/lib/pro/useProCardArt";
 import { frozenAtForDeck } from "@/lib/pro/evergreenManifest";
 import { useProLiveRoster } from "@/lib/pro/useProLiveRoster";
 import { PRO_WS_URL } from "@/lib/pro/wsUrl";
+import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 
 /**
  * Pro roster status. Ready = decks the live server actually serves right
@@ -57,6 +59,7 @@ const readyPulse = keyframes`
 
 export const ProLanding = () => {
   const [picked, setPicked] = useState<PopularDeckMeta>();
+  const [previewDeck, setPreviewDeck] = useState<PopularDeckMeta>();
   const liveHeroes = useProLiveRoster(PRO_WS_URL);
   // Once the server has replied, its roster is authoritative: a deck's
   // server hero id being present is what "ready" means. Until then (or if
@@ -209,6 +212,7 @@ export const ProLanding = () => {
                   href={href}
                   isPicked={picked?.id === deck.id}
                   onPick={() => setPicked(deck)}
+                  onPreview={() => setPreviewDeck(deck)}
                 />
               );
             })}
@@ -320,6 +324,14 @@ export const ProLanding = () => {
           </Text>
         </Box>
       </Box>
+
+      <HeroPreviewModal
+        isOpen={!!previewDeck}
+        onClose={() => setPreviewDeck(undefined)}
+        deckId={previewDeck?.id ?? null}
+        heroName={previewDeck?.hero ?? ""}
+        heroId={previewDeck ? DECK_HERO_IDS[previewDeck.id] : undefined}
+      />
     </Box>
   );
 };
@@ -346,6 +358,7 @@ const RosterTile = ({
   href,
   isPicked,
   onPick,
+  onPreview,
 }: {
   deck: PopularDeckMeta;
   index: number;
@@ -354,6 +367,7 @@ const RosterTile = ({
   href?: string;
   isPicked: boolean;
   onPick: () => void;
+  onPreview: () => void;
 }) => {
   const locked = status === "locked";
   const tile = (
@@ -420,6 +434,29 @@ const RosterTile = ({
             {status === "ready" ? "PLAY NOW" : "IN THE LAB"}
           </Text>
         )}
+        <Flex
+          as="button"
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onPreview();
+          }}
+          aria-label={`Preview ${deck.hero}`}
+          position="absolute"
+          top="0.35rem"
+          right="0.4rem"
+          alignItems="center"
+          justifyContent="center"
+          w="1.2rem"
+          h="1.2rem"
+          borderRadius="0.3rem"
+          bg="rgba(20, 8, 24, 0.55)"
+          color="#FAEBD7"
+          _hover={{ color: "brand.accent", bg: "rgba(20, 8, 24, 0.85)" }}
+        >
+          <TbInfoCircle size="0.85rem" />
+        </Flex>
         <Flex position="relative" justifyContent="space-between" alignItems="end">
           <Text
             color="#FAEBD7"
