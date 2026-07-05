@@ -54,9 +54,20 @@
  * drops out the moment its second seat fills or it goes stale). `ageMs` is
  * wait-time since room creation and does NOT reset on a visibility toggle.
  * Composes with `bot` and `customMap` (a bot/custom-map room can still be public).
+ *
+ * ## v6 (2026-07-05): two-space large fighters
+ * `ViewFighter` gained `tailSpace: SpaceId | null` — a LARGE fighter's body
+ * occupies TWO adjacent spaces (`space` = head, `tailSpace` = tail); render two
+ * linked tokens with a stretch-band between them ("one fighter"). NORMAL
+ * fighters always send `null` — the shape is additive and normal fighters are
+ * untouched. No new prompt kinds: head/tail placement reuses CHOOSE_SPACE, the
+ * tail prompt's options carry `data: { space, head }` so the pending head can
+ * be rendered. `MOVE_FIGHTER.path` for a large fighter is the LEADING end's
+ * path and may start from either body space; the final pose is
+ * (path[n], path[n-1]) — animate each end along the lead/trail paths.
  */
 
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 
 /** Scripted-AI strength preset (server-side budgets; client treats as opaque). */
 export type BotDifficulty = "easy" | "medium" | "hard";
@@ -187,6 +198,9 @@ export interface ViewFighter {
   kind: "HERO" | "SIDEKICK";
   name: string;
   space: SpaceId | null;
+  // v6: the second body space of a LARGE fighter (adjacent to `space`), or null
+  // for NORMAL fighters / off-board. Render as two linked tokens + stretch-band.
+  tailSpace: SpaceId | null;
   hp: number;
   maxHp: number;
   reach: "MELEE" | "RANGED";
