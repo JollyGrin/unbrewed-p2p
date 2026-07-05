@@ -31,9 +31,20 @@
  * (sessionStorage), replayed via RECONNECT after a drop; the server re-binds
  * the socket to the seat and re-sends STATE. Tokens do not rotate in v1 and
  * die with the room (in-memory, TTL ~2h after last activity).
+ *
+ * ## v3 (2026-07-05): bot rooms
+ * `CREATE_ROOM` gained optional `bot` — when present the server fills p2 with
+ * a scripted AI seat and the game starts immediately (ROOM_CREATED is followed
+ * by STATE; there is no JOIN). `bot.heroId` omitted = server picks randomly
+ * among supported heroes. The bot plays through the same action pipeline as a
+ * human; the client needs NO new message types — the opponent just acts.
+ * OPPONENT_STATUS is never sent for a bot seat (it is always "connected").
  */
 
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
+
+/** Scripted-AI strength preset (server-side budgets; client treats as opaque). */
+export type BotDifficulty = "easy" | "medium" | "hard";
 
 // ---------------------------------------------------------------------------
 // Shared primitives (mirror engine/types.ts — keep in lockstep)
@@ -260,7 +271,7 @@ export interface HeroListing {
 
 export type ClientMsg =
   | { v: number; type: "LIST_HEROES" }
-  | { v: number; type: "CREATE_ROOM"; heroId: string }
+  | { v: number; type: "CREATE_ROOM"; heroId: string; bot?: { difficulty: BotDifficulty; heroId?: string } }
   | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }
   | { v: number; type: "ACTION"; roomId: string; action: Action };
