@@ -13,7 +13,7 @@
  */
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
-import { Box, Button, Flex, Grid, Link, Tag, Text, Textarea, Tooltip, keyframes } from "@chakra-ui/react";
+import { Box, Button, Flex, Grid, Link, Menu, MenuButton, MenuItem, MenuList, Tag, Text, Textarea, Tooltip, keyframes } from "@chakra-ui/react";
 import { ProBoard } from "@/components/Pro/ProBoard";
 import {
   Action,
@@ -38,7 +38,7 @@ import { HERO_DECK_IDS, ResolveCard, useProCardArt } from "@/lib/pro/useProCardA
 import { frozenAtForHero } from "@/lib/pro/evergreenManifest";
 import { POPULAR_DECKS, PopularDeckMeta } from "@/lib/constants/top-decks";
 import { GiFootprint, GiHearts } from "react-icons/gi";
-import { TbBow, TbExternalLink, TbInfoCircle, TbSword } from "react-icons/tb";
+import { TbBow, TbChevronDown, TbExternalLink, TbInfoCircle, TbSword } from "react-icons/tb";
 import { CardFace, ProHand } from "@/components/Pro/ProHand";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { ProHud } from "@/components/Pro/ProHud";
@@ -570,6 +570,8 @@ const HeroSelectLobby = ({
   opponent,
   onSelectOpponent,
   onSelectHero,
+  aiHeroId,
+  onSelectAiHero,
   onConfirm,
   customMapJson,
   onCustomMapJsonChange,
@@ -585,6 +587,9 @@ const HeroSelectLobby = ({
   opponent: OpponentChoice;
   onSelectOpponent: (o: OpponentChoice) => void;
   onSelectHero: (heroId: string) => void;
+  /** the specific hero the AI should play, or null to let the server pick at random */
+  aiHeroId: string | null;
+  onSelectAiHero: (heroId: string | null) => void;
   onConfirm: () => void;
   /** raw custom-map JSON (create flow only) — persisted in the parent */
   customMapJson: string;
@@ -694,9 +699,39 @@ const HeroSelectLobby = ({
             ))}
           </Flex>
           {opponent !== "human" && (
-            <Text fontSize="0.7rem" opacity={0.55}>
-              the server picks the AI&apos;s deck at random — the game starts instantly
-            </Text>
+            <Flex direction="column" alignItems="center" gap="0.3rem">
+              <Menu placement="bottom">
+                <MenuButton
+                  as={Button}
+                  {...BTN}
+                  size="sm"
+                  rightIcon={<TbChevronDown />}
+                  isDisabled={heroes === null}
+                >
+                  AI hero: {aiHeroId ? heroNameOf(heroes, aiHeroId) : "Random"}
+                </MenuButton>
+                <MenuList bg="brand.surface" borderColor="whiteAlpha.300" maxH="16rem" overflowY="auto">
+                  <MenuItem onClick={() => onSelectAiHero(null)} bg="transparent" _hover={{ bg: "whiteAlpha.100" }}>
+                    Random
+                  </MenuItem>
+                  {(heroes ?? []).map((h) => (
+                    <MenuItem
+                      key={h.heroId}
+                      onClick={() => onSelectAiHero(h.heroId)}
+                      bg="transparent"
+                      _hover={{ bg: "whiteAlpha.100" }}
+                    >
+                      {h.name}
+                    </MenuItem>
+                  ))}
+                </MenuList>
+              </Menu>
+              <Text fontSize="0.7rem" opacity={0.55}>
+                {aiHeroId
+                  ? "the AI plays this hero — the game starts instantly"
+                  : "the server picks the AI's deck at random — the game starts instantly"}
+              </Text>
+            </Flex>
           )}
         </Flex>
       )}
@@ -771,6 +806,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   const [joined, setJoined] = useState(false);
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
   const [opponent, setOpponent] = useState<OpponentChoice>("human");
+  const [aiHeroId, setAiHeroId] = useState<string | null>(null);
   const [selectedFighter, setSelectedFighter] = useState<FighterId | null>(null);
   // Custom-map playtest (create flow): raw JSON persists across a BAD_MAP bounce
   // so a power user can fix the board and retry without re-pasting.
@@ -930,6 +966,8 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
           opponent={opponent}
           onSelectOpponent={setOpponent}
           onSelectHero={setSelectedHeroId}
+          aiHeroId={aiHeroId}
+          onSelectAiHero={setAiHeroId}
           customMapJson={customMapJson}
           onCustomMapJsonChange={(json) => {
             setCustomMapJson(json);
@@ -961,7 +999,10 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
               }
             }
             setMapError(null);
-            const bot = opponent === "human" ? undefined : { difficulty: opponent };
+            const bot =
+              opponent === "human"
+                ? undefined
+                : { difficulty: opponent, ...(aiHeroId ? { heroId: aiHeroId } : {}) };
             createRoom(effectiveHeroId, bot, customMap);
             setSelectedHeroId(effectiveHeroId); // lock it for the lobby label
             setJoined(true);
