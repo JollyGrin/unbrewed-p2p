@@ -82,6 +82,8 @@ jobs:
         # wss:// URL (Settings → Secrets and variables → Actions → Variables).
         env:
           NEXT_PUBLIC_PRO_WS_URL: ${{ vars.NEXT_PUBLIC_PRO_WS_URL }}
+          # Short commit hash surfaced in in-game bug reports (issue #87).
+          NEXT_PUBLIC_COMMIT_SHA: ${{ github.sha }}
         run: ${{ steps.detect-package-manager.outputs.runner }} next build
       - name: Run postbuild
         run: ${{ steps.detect-package-manager.outputs.runner }} node lib/buildTools/prefixFonts.js

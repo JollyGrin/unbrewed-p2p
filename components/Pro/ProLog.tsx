@@ -9,19 +9,16 @@
  */
 import { Box, Flex, Text, Tooltip } from "@chakra-ui/react";
 import { ChevronDownIcon, ChevronUpIcon, DownloadIcon } from "@chakra-ui/icons";
+import { TbBug } from "react-icons/tb";
 import styled from "@emotion/styled";
-import { useEffect, useRef, useState } from "react";
+import { MouseEvent, useEffect, useRef, useState } from "react";
 import { colors, fonts } from "@/styles/style";
-import { ProLogLine } from "@/lib/pro/gameLog";
+import { ProLogEntry, logEntriesToCsv } from "@/lib/pro/gameLog";
 import { CardInstanceId } from "@/lib/pro/protocol";
 import { ResolveCard } from "@/lib/pro/useProCardArt";
 import { CardFace } from "./ProHand";
 
-export interface ProLogEntry extends ProLogLine {
-  key: string;
-  /** ms epoch when the line was appended (client clock; used for CSV export) */
-  ts?: number;
-}
+export type { ProLogEntry };
 
 const Panel = styled(Box)`
   position: fixed;
@@ -58,19 +55,9 @@ const WHO_COLOR: Record<ProLogEntry["who"], string> = {
   game: colors.brand.surfaceDim,
 };
 
-const csvCell = (value: string) => `"${value.replace(/"/g, '""')}"`;
-
 /** Oldest-first CSV of the feed (entries arrive newest-first). */
 const downloadCsv = (entries: ProLogEntry[]) => {
-  const rows = [
-    "time,who,text",
-    ...[...entries]
-      .reverse()
-      .map((e) =>
-        [e.ts ? new Date(e.ts).toISOString() : "", e.who, csvCell(e.text)].join(",")
-      ),
-  ];
-  const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8" });
+  const blob = new Blob([logEntriesToCsv(entries)], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -84,11 +71,14 @@ export const ProLog = ({
   entries,
   resolveCard,
   labelFor,
+  onReportBug,
 }: {
   entries: ProLogEntry[];
   /** when provided, lines that name cards preview them on hover */
   resolveCard?: ResolveCard;
   labelFor?: (instance: CardInstanceId) => string;
+  /** when provided, a small bug icon in the header opens the report dialog (#87) */
+  onReportBug?: () => void;
 }) => {
   const [open, setOpen] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -119,7 +109,25 @@ export const ProLog = ({
         >
           Activity
         </Text>
-        <Flex alignItems="center" gap="0.45rem">
+        <Flex alignItems="center" gap="0.55rem">
+          {onReportBug && (
+            <Tooltip label="Report a bug (attaches this log + game state)" hasArrow>
+              <Box
+                as="button"
+                type="button"
+                display="flex"
+                aria-label="Report a bug"
+                opacity={0.7}
+                _hover={{ opacity: 1, color: colors.brand.secondary }}
+                onClick={(e: MouseEvent) => {
+                  e.stopPropagation(); // don't collapse the panel
+                  onReportBug();
+                }}
+              >
+                <TbBug size="0.9rem" />
+              </Box>
+            </Tooltip>
+          )}
           {entries.length > 0 && (
             <Tooltip label="Download the full log as CSV" hasArrow>
               <DownloadIcon

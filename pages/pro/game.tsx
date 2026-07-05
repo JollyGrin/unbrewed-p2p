@@ -43,6 +43,7 @@ import { CardFace, ProHand } from "@/components/Pro/ProHand";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { ProHud } from "@/components/Pro/ProHud";
 import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
+import { ReportBugDialog } from "@/components/Pro/ReportBugDialog";
 import { diffViews } from "@/lib/pro/gameLog";
 import { maneuverBoostHint } from "@/lib/pro/maneuverHint";
 import { useGameFx } from "@/lib/pro/useGameFx";
@@ -808,6 +809,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   const [opponent, setOpponent] = useState<OpponentChoice>("human");
   const [aiHeroId, setAiHeroId] = useState<string | null>(null);
   const [selectedFighter, setSelectedFighter] = useState<FighterId | null>(null);
+  const [reportBugOpen, setReportBugOpen] = useState(false);
   // Custom-map playtest (create flow): raw JSON persists across a BAD_MAP bounce
   // so a power user can fix the board and retry without re-pasting.
   const [customMapJson, setCustomMapJson] = useState("");
@@ -845,8 +847,9 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
     prevViewRef.current = next;
     if (lines.length === 0) return;
     const ts = Date.now();
+    const turn = next.turnNumber;
     setLogEntries((cur) =>
-      [...lines.map((l) => ({ ...l, key: `log-${logSeqRef.current++}`, ts })).reverse(), ...cur].slice(0, 120)
+      [...lines.map((l) => ({ ...l, key: `log-${logSeqRef.current++}`, ts, turn })).reverse(), ...cur].slice(0, 120)
     );
   }, [snapshot]);
 
@@ -1472,6 +1475,16 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
         entries={logEntries}
         resolveCard={resolveCard}
         labelFor={(c) => cardLabel(view.catalog, c)}
+        onReportBug={() => setReportBugOpen(true)}
+      />
+
+      {/* prefilled-GitHub-issue bug report with auto-captured game context (#87) */}
+      <ReportBugDialog
+        isOpen={reportBugOpen}
+        onClose={() => setReportBugOpen(false)}
+        view={view}
+        roomId={roomId}
+        entries={logEntries}
       />
 
       {/* hand — docked fan over the bottom edge, sandbox style */}
