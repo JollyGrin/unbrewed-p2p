@@ -13,7 +13,7 @@
  */
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
-import { Box, Button, Flex, Grid, Tag, Text, keyframes } from "@chakra-ui/react";
+import { Box, Button, Flex, Grid, Link, Tag, Text, Tooltip, keyframes } from "@chakra-ui/react";
 import { ProBoard } from "@/components/Pro/ProBoard";
 import {
   Action,
@@ -33,9 +33,9 @@ import {
 import { ProConnectionStatus, useProSocket } from "@/lib/pro/useProSocket";
 import { RecentRoom, getTabToken, listRecentRooms } from "@/lib/pro/recentRooms";
 import { HERO_DECK_IDS, ResolveCard, useProCardArt } from "@/lib/pro/useProCardArt";
-import { POPULAR_DECKS } from "@/lib/constants/top-decks";
+import { POPULAR_DECKS, PopularDeckMeta } from "@/lib/constants/top-decks";
 import { GiFootprint, GiHearts } from "react-icons/gi";
-import { TbBow, TbSword } from "react-icons/tb";
+import { TbBow, TbExternalLink, TbSword } from "react-icons/tb";
 import { CardFace, ProHand } from "@/components/Pro/ProHand";
 import { ProHud } from "@/components/Pro/ProHud";
 import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
@@ -363,10 +363,14 @@ const heroNameOf = (heroes: HeroListing[] | null, heroId: string | null) => {
   return heroes?.find((h) => h.heroId === heroId)?.name ?? prettyHeroId(heroId);
 };
 
-/** cardback art for a server hero via the deck-id bridge (a nicety; may be undefined) */
-const heroCardback = (heroId: string): string | undefined => {
+/**
+ * Community-deck metadata (author, likes, cardback) for a server hero via the
+ * deck-id bridge. Every /pro hero originates as a fan deck on unmatched.cards —
+ * the tile credits its author and links back to the source listing.
+ */
+const heroDeckMeta = (heroId: string): PopularDeckMeta | undefined => {
   const deckId = HERO_DECK_IDS[heroId];
-  return POPULAR_DECKS.find((d) => d.id === deckId)?.cardbackUrl;
+  return POPULAR_DECKS.find((d) => d.id === deckId);
 };
 
 const skeletonPulse = keyframes`
@@ -381,7 +385,13 @@ const StatPip = ({ icon, label }: { icon: ReactNode; label: string }) => (
   </Flex>
 );
 
-/** One selectable hero card in the lobby picker. */
+/**
+ * One selectable hero card in the lobby picker. Every hero is a community fan
+ * deck, so the tile always credits the author ("by …") and carries a corner
+ * link to the original unmatched.cards listing. The link is a SIBLING of the
+ * select button (overlaid on the same box) — nesting <a> in <button> is
+ * invalid HTML and would make the whole tile navigate.
+ */
 const HeroTile = ({
   hero,
   selected,
@@ -391,56 +401,100 @@ const HeroTile = ({
   selected: boolean;
   onSelect: () => void;
 }) => {
-  const cardback = heroCardback(hero.heroId);
+  const deck = heroDeckMeta(hero.heroId);
+  const cardback = deck?.cardbackUrl;
   return (
-    <Flex
-      as="button"
-      type="button"
-      direction="column"
-      onClick={onSelect}
-      w="10rem"
-      minH="8rem"
-      p="0.75rem"
-      borderRadius="0.6rem"
-      border="2px solid"
-      borderColor={selected ? "brand.accent" : "whiteAlpha.300"}
-      bg={cardback ? undefined : "rgba(20, 8, 24, 0.55)"}
-      bgImage={cardback ? `url(${cardback})` : undefined}
-      bgSize="cover"
-      bgPos="center"
-      position="relative"
-      overflow="hidden"
-      textAlign="left"
-      transition="border-color 0.15s, transform 0.15s, box-shadow 0.15s"
-      transform={selected ? "translateY(-2px)" : undefined}
-      boxShadow={selected ? "0 0 0 2px #E0A82E, 0 6px 16px rgba(0,0,0,0.5)" : "0 2px 8px rgba(0,0,0,0.4)"}
-      _hover={{ borderColor: "brand.accent" }}
-    >
-      <Box
-        position="absolute"
-        inset="0"
-        bg="linear-gradient(180deg, rgba(20,8,24,0.15) 0%, rgba(20,8,24,0.85) 100%)"
-      />
-      <Flex direction="column" position="relative" gap="0.5rem" flex="1" justify="flex-end">
-        <Text
-          fontFamily="BebasNeueRegular"
-          fontSize="1.35rem"
-          letterSpacing="0.03em"
-          lineHeight="1.05"
-          textShadow="0 1px 3px rgba(0,0,0,0.9)"
-        >
-          {hero.name}
-        </Text>
-        <Flex gap="0.75rem" color="brand.parchment" textShadow="0 1px 2px rgba(0,0,0,0.9)">
-          <StatPip icon={<GiHearts color="#C0392B" size="15px" />} label={String(hero.hp)} />
-          <StatPip icon={<GiFootprint size="14px" />} label={String(hero.move)} />
-          <StatPip
-            icon={hero.reach === "RANGED" ? <TbBow size="15px" /> : <TbSword size="15px" />}
-            label={hero.reach === "RANGED" ? "rng" : "mel"}
-          />
+    <Box position="relative" w="10rem">
+      <Flex
+        as="button"
+        type="button"
+        direction="column"
+        onClick={onSelect}
+        w="100%"
+        minH="8rem"
+        p="0.75rem"
+        borderRadius="0.6rem"
+        border="2px solid"
+        borderColor={selected ? "brand.accent" : "whiteAlpha.300"}
+        bg={cardback ? undefined : "rgba(20, 8, 24, 0.55)"}
+        bgImage={cardback ? `url(${cardback})` : undefined}
+        bgSize="cover"
+        bgPos="center"
+        position="relative"
+        overflow="hidden"
+        textAlign="left"
+        transition="border-color 0.15s, transform 0.15s, box-shadow 0.15s"
+        transform={selected ? "translateY(-2px)" : undefined}
+        boxShadow={selected ? "0 0 0 2px #E0A82E, 0 6px 16px rgba(0,0,0,0.5)" : "0 2px 8px rgba(0,0,0,0.4)"}
+        _hover={{ borderColor: "brand.accent" }}
+      >
+        <Box
+          position="absolute"
+          inset="0"
+          bg="linear-gradient(180deg, rgba(20,8,24,0.15) 0%, rgba(20,8,24,0.85) 100%)"
+        />
+        <Flex direction="column" position="relative" gap="0.5rem" flex="1" justify="flex-end">
+          <Box>
+            <Text
+              fontFamily="BebasNeueRegular"
+              fontSize="1.35rem"
+              letterSpacing="0.03em"
+              lineHeight="1.05"
+              textShadow="0 1px 3px rgba(0,0,0,0.9)"
+            >
+              {hero.name}
+            </Text>
+            {deck && (
+              <Text
+                fontSize="0.68rem"
+                fontStyle="italic"
+                color="brand.parchment"
+                opacity={0.85}
+                textShadow="0 1px 2px rgba(0,0,0,0.9)"
+              >
+                by {deck.author}
+              </Text>
+            )}
+          </Box>
+          <Flex gap="0.75rem" color="brand.parchment" textShadow="0 1px 2px rgba(0,0,0,0.9)">
+            <StatPip icon={<GiHearts color="#C0392B" size="15px" />} label={String(hero.hp)} />
+            <StatPip icon={<GiFootprint size="14px" />} label={String(hero.move)} />
+            <StatPip
+              icon={hero.reach === "RANGED" ? <TbBow size="15px" /> : <TbSword size="15px" />}
+              label={hero.reach === "RANGED" ? "rng" : "mel"}
+            />
+          </Flex>
         </Flex>
       </Flex>
-    </Flex>
+      {deck && (
+        <Tooltip
+          label={`Community deck by ${deck.author} — view the original on unmatched.cards`}
+          hasArrow
+          placement="top"
+        >
+          <Link
+            href={`https://unmatched.cards/decks/${deck.id}`}
+            isExternal
+            aria-label={`View ${hero.name} by ${deck.author} on unmatched.cards`}
+            position="absolute"
+            top="0.4rem"
+            right="0.4rem"
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            w="1.35rem"
+            h="1.35rem"
+            borderRadius="0.35rem"
+            bg="rgba(20, 8, 24, 0.55)"
+            color="whiteAlpha.800"
+            transition="color 0.15s, background 0.15s"
+            _hover={{ color: "brand.accent", bg: "rgba(20, 8, 24, 0.85)" }}
+          >
+            <TbExternalLink size="0.9rem" />
+          </Link>
+        </Tooltip>
+      )}
+    </Box>
   );
 };
 
