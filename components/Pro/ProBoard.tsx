@@ -9,6 +9,7 @@
  */
 import { Box, Flex, Text, keyframes } from "@chakra-ui/react";
 import { FighterId, ProMapDef, SpaceId, ViewFighter, ViewToken } from "@/lib/pro/protocol";
+import { BoardFxItem } from "@/lib/pro/useGameFx";
 
 const DEFAULT_DIAMETER = 0.021;
 
@@ -16,6 +17,25 @@ const highlightPulse = keyframes`
   0%, 100% { box-shadow: 0 0 0 2px #e0a82e, 0 0 12px 2px rgba(224,168,46,0.8); }
   50% { box-shadow: 0 0 0 3px #e0a82e, 0 0 22px 6px rgba(224,168,46,0.5); }
 `;
+
+// transient board effects (damage numbers etc.) — pop in, drift up, fade out
+const fxFloat = keyframes`
+  0%   { transform: translate(-50%, -40%) scale(0.7); opacity: 0; }
+  12%  { transform: translate(-50%, -60%) scale(1.25); opacity: 1; }
+  30%  { transform: translate(-50%, -75%) scale(1); opacity: 1; }
+  100% { transform: translate(-50%, -220%) scale(0.95); opacity: 0; }
+`;
+const fxRing = keyframes`
+  0%   { transform: translate(-50%, -50%) scale(0.35); opacity: 0.9; }
+  100% { transform: translate(-50%, -50%) scale(2.6); opacity: 0; }
+`;
+
+const FX_COLOR: Record<BoardFxItem["kind"], string> = {
+  damage: "#FF5C5C",
+  heal: "#58D68D",
+  blocked: "#B8C4CE",
+  defeat: "#E0A82E",
+};
 
 export interface ProBoardProps {
   map: ProMapDef;
@@ -27,6 +47,8 @@ export interface ProBoardProps {
   /** Fighters the current player can act on right now (attack targets, movable…) */
   highlightedFighters?: FighterId[];
   selectedFighter?: FighterId | null;
+  /** transient effect overlays (floating damage numbers…) — keyed, caller-expired */
+  fx?: BoardFxItem[];
   onSpaceClick?: (id: SpaceId) => void;
   onFighterClick?: (id: FighterId) => void;
   /** cap the board image height (e.g. "calc(100svh - 2rem)") so the whole
@@ -51,6 +73,7 @@ export const ProBoard = ({
   highlightedSpaces = [],
   highlightedFighters = [],
   selectedFighter = null,
+  fx = [],
   onSpaceClick,
   onFighterClick,
   imgMaxH,
@@ -197,6 +220,45 @@ export const ProBoard = ({
             );
           })
         )}
+
+      {/* transient effects — impact ring + floating label, above everything */}
+      {fx.flatMap((item) => {
+        const s = map.spaces.find((sp) => sp.id === item.space);
+        if (!s) return [];
+        const color = FX_COLOR[item.kind];
+        return [
+          <Box
+            key={`${item.key}-ring`}
+            position="absolute"
+            left={`${s.x * 100}%`}
+            top={`${s.y * 100}%`}
+            w={`${diameter * 1.5}%`}
+            sx={{ aspectRatio: "1", pointerEvents: "none" }}
+            border={`3px solid ${color}`}
+            borderRadius="50%"
+            animation={`${fxRing} 0.7s ease-out both`}
+            zIndex={5}
+          />,
+          <Text
+            key={item.key}
+            position="absolute"
+            left={`${s.x * 100}%`}
+            top={`${s.y * 100}%`}
+            fontFamily="BebasNeueRegular"
+            fontSize={item.kind === "damage" || item.kind === "heal" ? "min(3vw, 1.6rem)" : "min(2.2vw, 1.1rem)"}
+            fontWeight="bold"
+            letterSpacing="0.04em"
+            color={color}
+            textShadow="0 1px 2px rgba(0,0,0,0.9), 0 0 10px rgba(0,0,0,0.6)"
+            animation={`${fxFloat} 1.5s ease-out both`}
+            sx={{ pointerEvents: "none" }}
+            zIndex={6}
+            whiteSpace="nowrap"
+          >
+            {item.label}
+          </Text>,
+        ];
+      })}
       </Box>
     </Box>
   );
