@@ -1,0 +1,246 @@
+{
+  "bgg_link": null,
+  "created_on": "Sun, 17 May 2026 15:06:53 GMT",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#bf99d5",
+      "cardbackUrl": "https://i.imgur.com/9qP1I2P.png",
+      "highlightColour": "#297bff",
+      "isPNP": false,
+      "patternName": "Death Star"
+    },
+    "cards": [
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "R2-D2",
+        "duringText": "You may BOOST this card.",
+        "imageUrl": "https://i.imgur.com/CR7DDrW.jpeg",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Power Surge",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 4,
+        "characterName": "R2-D2",
+        "duringText": "If R2-D2 has more health than the opposing fighter, the value of this card is 9 instead.",
+        "imageUrl": "https://comicon.com/wp-content/uploads/2023/06/FzUZXurWAAEX1uB.jpg",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Hero of the rebellion",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": "Deal 1 damage to the opposing fighter. \nDraw 1 card and gain 1 action.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "R2-D2",
+        "duringText": "",
+        "imageUrl": "https://i.pinimg.com/736x/c5/20/da/c520dad7d635b37c635c61ac0b0e0976.jpg",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Shock Prod",
+        "type": "attack",
+        "value": 1
+      },
+      {
+        "afterText": "",
+        "basicText": "This card's effects cannot be cancelled.",
+        "boost": 3,
+        "characterName": "R2-D2",
+        "duringText": "The value of this card is decreased by the amount of health R2-D2 currently has.",
+        "imageUrl": "https://i.pinimg.com/736x/05/7d/53/057d53d3ceb25896d67aa3281bd9a9d9.jpg",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Not just a droid",
+        "type": "attack",
+        "value": 8
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "R2-D2",
+        "duringText": "",
+        "imageUrl": "https://i.pinimg.com/736x/f1/00/4a/f1004ac2ed04cae6f684dd510b3b9312.jpg",
+        "immediateText": "The value of this card is equal to the amount of health R2-D2 currently has.",
+        "quantity": 3,
+        "title": "Holographic Message",
+        "type": "versatile",
+        "value": 0
+      },
+      {
+        "afterText": "Draw 1 card.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "R2-D2",
+        "duringText": "",
+        "imageUrl": "https://i.pinimg.com/736x/d9/18/e7/d918e761527fd482606652f00ee4136a.jpg",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Scomp Link",
+        "type": "versatile",
+        "value": 5
+      },
+      {
+        "afterText": "If you won the combat, choose one of the fighters in the combat and move them up to 4 spaces.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "R2-D2",
+        "duringText": "",
+        "imageUrl": "https://pbs.twimg.com/media/GbOEDElXMAA3n4z?format=jpg&name=large",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Rocket Boosters",
+        "type": "versatile",
+        "value": 4
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "R2-D2",
+        "duringText": "",
+        "imageUrl": "https://i.imgur.com/iQzSAFb.png",
+        "immediateText": "Cancel all effects on your opponent's card.",
+        "quantity": 3,
+        "title": "Feint",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "You may place R2-D2 in any space.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "R2-D2",
+        "duringText": "Prevent all damage.",
+        "imageUrl": "https://i.pinimg.com/1200x/75/ed/08/75ed0878d51bd449c1353efe834ca054.jpg",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Bewilderment",
+        "type": "defence",
+        "value": 0
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "R2-D2",
+        "duringText": "",
+        "imageUrl": "https://i.pinimg.com/736x/2c/23/4c/2c234ce649a3687857a26b3c491677fc.jpg",
+        "immediateText": "Damage cannot reduce \nR2-D2's health below 1 this turn.",
+        "quantity": 3,
+        "title": "You're my only hope",
+        "type": "defence",
+        "value": 2
+      },
+      {
+        "afterText": null,
+        "basicText": "Place R2-D2 in a starting space.\n\nDraw 1 card. Gain 1 action.",
+        "boost": 3,
+        "characterName": "R2-D2",
+        "duringText": null,
+        "imageUrl": "https://i.imgur.com/rUmuy7p.jpeg",
+        "immediateText": null,
+        "quantity": 2,
+        "title": "Stay With the Ship",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": null,
+        "basicText": "Set R2-D2's health to any value.\n\nGain 1 action.",
+        "boost": 3,
+        "characterName": "R2-D2",
+        "duringText": null,
+        "imageUrl": "https://i.pinimg.com/736x/c1/03/f1/c103f1d389defb3d74426e9afc9fcee9.jpg",
+        "immediateText": null,
+        "quantity": 2,
+        "title": "It Deserves Our graditute",
+        "type": "scheme",
+        "value": null
+      }
+    ],
+    "extraCharacters": [],
+    "hero": {
+      "hp": 6,
+      "isRanged": false,
+      "move": 3,
+      "name": "R2-D2",
+      "specialAbility": "SELF REPAIR\nImmediately after you attack, recover 2 health.\n"
+    },
+    "name": "",
+    "ruleCards": [],
+    "sidekick": {
+      "hp": null,
+      "isRanged": false,
+      "name": "Sidekick",
+      "quantity": 0,
+      "quote": "\"Bleep, Bloop, Bleep!\"\n- R2-D2\n"
+    }
+  },
+  "deck_first_published_on": "Wed, 22 Oct 2025 21:29:30 GMT",
+  "deck_published": true,
+  "family_id": "3jgd",
+  "id": "3jgd",
+  "liked": false,
+  "likes": 6,
+  "name": "R2-D2",
+  "note": "R2-D2 is Not Just A Droid, he's a Shock Prod weilding, Scomp Link bearing, Rocket Booster flying Astromech Database on a Power Surge! Hit hard and good, or he'll self-repair with every attack. He's not the kind of droid to Stay With The Ship!",
+  "published": true,
+  "published_on": "Mon, 18 May 2026 13:28:30 GMT",
+  "tags": [
+    {
+      "name": "Galactic Rumble",
+      "slug": "galactic-rumble"
+    },
+    {
+      "name": "Melee Hero",
+      "slug": "melee-hero"
+    },
+    {
+      "name": "Star Wars",
+      "slug": "star-wars"
+    },
+    {
+      "name": "Glass Cannon",
+      "slug": "glass-cannon"
+    },
+    {
+      "name": "Low hp",
+      "slug": "low-hp"
+    },
+    {
+      "name": "Tested",
+      "slug": "tested"
+    }
+  ],
+  "updated_on": "Mon, 18 May 2026 13:28:30 GMT",
+  "user": "Inforce",
+  "version_id": "BPbQCV_31",
+  "version_name": "Galactic Rumble",
+  "versions": [
+    {
+      "created_on": "Sun, 17 May 2026 15:06:53 GMT",
+      "id": "BPbQCV_31",
+      "name": "R2-D2",
+      "published": true,
+      "updated_on": "Mon, 18 May 2026 13:28:30 GMT",
+      "version_name": "Galactic Rumble"
+    },
+    {
+      "created_on": "Sun, 19 Oct 2025 03:43:11 GMT",
+      "id": "e4yDfrMdG",
+      "name": "R2-D2",
+      "published": true,
+      "updated_on": "Sun, 10 May 2026 15:47:30 GMT",
+      "version_name": "R2D2 version"
+    }
+  ]
+}

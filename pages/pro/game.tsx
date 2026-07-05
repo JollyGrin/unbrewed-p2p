@@ -42,17 +42,10 @@ import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
 import { diffViews } from "@/lib/pro/gameLog";
 import { useGameFx } from "@/lib/pro/useGameFx";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
+import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
 
 /** same table felt the sandbox game uses (game.layout.tsx) */
 const TABLE_BG = "radial-gradient(ellipse at 50% 20%, #5A3263 0%, #48284F 50%, #2C1831 100%)";
-
-// Live Pro server (Railway). Hardcoded as the default so a plain GitHub Pages
-// build with no env still connects to a real backend and is playable. Override
-// via NEXT_PUBLIC_PRO_WS_URL (e.g. ws://localhost:8787 in .env for local dev).
-// `||` not `??`: CI expands an unset repo variable to "" — an empty string must
-// also fall through to this default, and only `||` treats "" as absent.
-const DEFAULT_PRO_WS_URL = "wss://unbrewed-engine-production.up.railway.app";
-const WS_URL = process.env.NEXT_PUBLIC_PRO_WS_URL || DEFAULT_PRO_WS_URL;
 
 const BTN = {
   size: "sm" as const,

@@ -296,5 +296,15 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     highlightColour: "#296888",
     // self-hosted (upstream deck has none); also patched into both snapshots
     cardbackUrl: "https://unbrewed.xyz/cardbacks/thrall.webp"
+  },
+  {
+    // Not a top-40 deck — included because it's Pro-playable (server hero r2-d2)
+    id: "3jgd",
+    name: "R2-D2",
+    hero: "R2-D2",
+    author: "Inforce",
+    likes: 6,
+    highlightColour: "#297bff",
+    cardbackUrl: "https://i.imgur.com/9qP1I2P.png"
   }
 ];
