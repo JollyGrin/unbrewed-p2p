@@ -7,6 +7,7 @@ import {
   Flex,
   FormLabel,
   HStack,
+  IconButton,
   Input,
   Select,
   Spinner,
@@ -26,8 +27,10 @@ import { useLoadRouterDeck } from "@/lib/hooks";
 import { Navbar } from "@/components/Navbar";
 import { SelectedDeckContainer } from "./SelectedDeck";
 import { useCreateLobby } from "./useCreateLobby";
+import { generateRandomName } from "./randomName";
 import styled from "@emotion/styled";
 import { SettingsIcon } from "@chakra-ui/icons";
+import { GiRollingDices } from "react-icons/gi";
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
 import { buildInviteUrl } from "@/lib/invite";
 import { toast } from "react-hot-toast";
@@ -60,6 +63,43 @@ export const ConnectPage = () => {
   useEffect(() => {
     router.prefetch("/game");
   }, [router]);
+
+  // Fill in randomized readable defaults, but never override an invite link's
+  // query params (?username=, ?lobby=) — those must take priority.
+  useEffect(() => {
+    if (nameRef.current && !nameRef.current.value) {
+      nameRef.current.value = generateRandomName();
+    }
+    if (gidRef.current && !gidRef.current.value) {
+      const randomLobby = generateRandomName();
+      gidRef.current.value = randomLobby;
+      setLobby(randomLobby);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleRerollName = () => {
+    if (nameRef.current) {
+      nameRef.current.value = generateRandomName();
+    }
+  };
+
+  const handleRerollLobby = () => {
+    const randomLobby = generateRandomName();
+    if (gidRef.current) {
+      gidRef.current.value = randomLobby;
+    }
+    setLobby(randomLobby);
+  };
+
+  const handleJoinSomeoneElse = () => {
+    if (gidRef.current) {
+      gidRef.current.value = "";
+      gidRef.current.focus();
+    }
+    setLobby("");
+    setShowInvite(false);
+  };
 
   const hasDeck = starredDeck !== undefined;
 
@@ -99,34 +139,61 @@ export const ConnectPage = () => {
         <VStack w="100%" maxW="380px" spacing="1rem">
           <Box w="100%">
             <StepLabel number="2" label="Enter your name" />
-            <Input
-              mt={2}
-              id="player-name"
-              ref={nameRef}
-              defaultValue={router.query.username as string | undefined}
-              placeholder="Your name"
-              bg="white"
-              focusBorderColor="brand.secondary"
-            />
+            <HStack mt={2} spacing={2}>
+              <Input
+                id="player-name"
+                ref={nameRef}
+                defaultValue={router.query.username as string | undefined}
+                placeholder="Your name"
+                bg="white"
+                focusBorderColor="brand.secondary"
+              />
+              <IconButton
+                aria-label="Reroll name"
+                icon={<GiRollingDices />}
+                onClick={handleRerollName}
+                variant="ghost"
+                color="brand.secondary"
+                _hover={{ bg: "blackAlpha.50" }}
+              />
+            </HStack>
           </Box>
 
           <Box w="100%">
             <StepLabel number="3" label="Name a lobby" />
-            <Input
-              mt={2}
-              id="lobby-name"
-              ref={gidRef}
-              defaultValue={router.query.lobby as string | undefined}
-              onChange={(e) => {
-                setLobby(e.target.value);
-                if (e.target.value === "") setShowInvite(false);
-              }}
-              placeholder="lobby name"
-              bg="white"
-              focusBorderColor="brand.secondary"
-            />
+            <HStack mt={2} spacing={2}>
+              <Input
+                id="lobby-name"
+                ref={gidRef}
+                defaultValue={router.query.lobby as string | undefined}
+                onChange={(e) => {
+                  setLobby(e.target.value);
+                  if (e.target.value === "") setShowInvite(false);
+                }}
+                placeholder="lobby name"
+                bg="white"
+                focusBorderColor="brand.secondary"
+              />
+              <IconButton
+                aria-label="Reroll lobby name"
+                icon={<GiRollingDices />}
+                onClick={handleRerollLobby}
+                variant="ghost"
+                color="brand.secondary"
+                _hover={{ bg: "blackAlpha.50" }}
+              />
+            </HStack>
             <Text mt={1} fontSize="0.8rem" color="brand.secondary" opacity={0.65}>
-              Create a new lobby, or type a friend&apos;s lobby name to join them.
+              Create a new lobby, or type a friend&apos;s lobby name to join
+              them.{" "}
+              <Text
+                as="span"
+                textDecoration="underline"
+                cursor="pointer"
+                onClick={handleJoinSomeoneElse}
+              >
+                Join someone else&apos;s game
+              </Text>
             </Text>
           </Box>
 
