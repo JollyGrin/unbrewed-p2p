@@ -31,8 +31,13 @@ const FALLBACK_READY: Record<string, string> = {
   kdKM: "King Kong",
   taranis: "King Taranis",
   thetis: "Thetis",
+  piper: "The Piper of the Underroads",
+  "hollow-oak": "The Hollow Oak",
   lDOM: "The Mandalorian",
   pk1x: "Thrall",
+  "3jgd": "R2-D2",
+  LWNZ: "Gingerbread man",
+  "1Y5J": "Triceratops",
 };
 const IN_THE_LAB: Record<string, string> = {
   "72Dz": "Pinocchio",

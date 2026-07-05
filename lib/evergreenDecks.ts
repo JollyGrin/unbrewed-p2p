@@ -16,6 +16,13 @@ import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 
 export const EVERGREEN_DECK_IDS = new Set<string>([
   "pk1x", // Thrall
+  "1Y5J", // Triceratops
+  // Evergreen originals — no unmatched.cards page exists, so the snapshot is
+  // not just preferred but the ONLY source (the API fetch 404s by design).
+  "taranis", // King Taranis
+  "thetis", // Thetis
+  "piper", // The Piper of the Underroads
+  "hollow-oak", // The Hollow Oak
 ]);
 
 export const DEFAULT_DECK_API = "https://unbrewed-api.vercel.app/api/unmatched-deck/";

@@ -1,0 +1,261 @@
+{
+  "bgg_link": null,
+  "created_on": "Sun, 06 Jul 2026 00:00:00 GMT",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#1c3a4d",
+      "cardbackUrl": "",
+      "highlightColour": "#2ec4b6",
+      "isPNP": false,
+      "patternName": "Waves"
+    },
+    "name": "Thetis",
+    "hero": {
+      "hp": 13,
+      "isRanged": false,
+      "move": 2,
+      "name": "Thetis",
+      "specialAbility": "EBB AND FLOW\nWhen you place Thetis, choose whether she starts at HIGH TIDE or LOW TIDE.\nAt HIGH TIDE, add 2 to the value of her attack cards. At LOW TIDE, add 1 to the value of her defense cards.\nTurn the tide: switch between HIGH TIDE and LOW TIDE."
+    },
+    "sidekick": {
+      "hp": 8,
+      "isRanged": false,
+      "name": "The Abyssal Maw",
+      "quantity": 1,
+      "quote": null
+    },
+    "extraCharacters": [],
+    "ruleCards": [],
+    "cards": [
+      {
+        "afterText": "If you won the combat, look at your opponent's hand and choose 1 card for them to discard.",
+        "basicText": "",
+        "boost": 4,
+        "characterName": "THETIS",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Riptide",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": "Turn the tide.",
+        "basicText": "",
+        "boost": 4,
+        "characterName": "THETIS",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "The Tide Turns!",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "Move Thetis up to 3 spaces. Turn the tide.",
+        "basicText": "",
+        "boost": 4,
+        "characterName": "THETIS",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Crash and Recede",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": "Choose 2 different options: draw 2 cards; Thetis recovers 3 health; place Thetis in any other space.",
+        "basicText": "",
+        "boost": 4,
+        "characterName": "THETIS",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Tidepool Mirror",
+        "type": "defence",
+        "value": 2
+      },
+      {
+        "afterText": "Move each of your fighters up to 2 spaces. Turn the tide.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "THETIS",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Moonstruck",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "Move Thetis up to 5 spaces. Turn the tide.",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "THETIS",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "The Tide Waits for None",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "",
+        "basicText": "Move Thetis up to 3 spaces. Turn the tide.",
+        "boost": 3,
+        "characterName": "THETIS",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Flood Surge",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "",
+        "basicText": "Draw 2 cards. Turn the tide.",
+        "boost": 2,
+        "characterName": "THETIS",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Deep Draught",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "Deal 2 damage to one fighter adjacent to the Abyssal Maw.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "MAW",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Crushing Coils",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "MAW",
+        "duringText": "If the opposing fighter is a hero, this card's value is 5 instead.",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Hunger of the Deep",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "Discard the top card of your deck and add its BOOST value to this card's value.",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Surge from Below",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "If you won the combat, choose one of the fighters in the combat and move them up to 2 spaces.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Skirmish",
+        "type": "versatile",
+        "value": 4
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "If your fighter started this turn in a different space, this card's value is 5 instead.",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Momentous Shift",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "Cancel all effects on your opponent's card.",
+        "quantity": 3,
+        "title": "Feint",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "Draw 1 card. If you won the combat, draw 2 cards instead.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Regroup",
+        "type": "versatile",
+        "value": 1
+      }
+    ]
+  },
+  "deck_first_published_on": null,
+  "deck_published": true,
+  "family_id": "thetis",
+  "id": "thetis",
+  "liked": false,
+  "likes": 0,
+  "name": "Thetis",
+  "note": "Unbrewed evergreen deck: original flavor over professionally playtested mechanics. Art pending.",
+  "published": true,
+  "published_on": null,
+  "tags": [
+    {
+      "name": "Evergreen",
+      "slug": "evergreen"
+    },
+    {
+      "name": "Public Domain",
+      "slug": "public-domain"
+    }
+  ],
+  "updated_on": "Sun, 06 Jul 2026 00:00:00 GMT",
+  "user": "unbrewed",
+  "version_id": "evergreen-1",
+  "version_name": "1.0",
+  "versions": [
+    {
+      "created_on": "Sun, 06 Jul 2026 00:00:00 GMT",
+      "id": "evergreen-1",
+      "name": "Thetis",
+      "published": true,
+      "updated_on": "Sun, 06 Jul 2026 00:00:00 GMT",
+      "version_name": "1.0"
+    }
+  ]
+}

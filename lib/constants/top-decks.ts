@@ -8,6 +8,11 @@ export type PopularDeckMeta = {
   likes: number;
   highlightColour: HexColorString;
   cardbackUrl?: string;
+  /**
+   * Unbrewed evergreen original: the deck id is ours, no unmatched.cards page
+   * exists (don't link there), and the committed snapshot is the only source.
+   */
+  original?: boolean;
 };
 
 /**
@@ -308,6 +313,17 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl: "https://i.imgur.com/9qP1I2P.png"
   },
   {
+    // Not a top-40 deck — included because it's Pro-playable (server hero
+    // triceratops, the first LARGE fighter: melee reach 2 both ways).
+    id: "1Y5J",
+    name: "Triceratops (Jurassic)",
+    hero: "Triceratops",
+    author: "Nitetrio",
+    likes: 9,
+    highlightColour: "#ec6a13",
+    cardbackUrl: "https://i.imgur.com/5ucSw85.png"
+  },
+  {
     // Evergreen original (no unmatched.cards page): King Taranis, the
     // Stormquenched — server hero king-taranis. Art pending; snapshot-only.
     id: "taranis",
@@ -315,7 +331,8 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     hero: "King Taranis",
     author: "unbrewed",
     likes: 0,
-    highlightColour: "#c9962b"
+    highlightColour: "#c9962b",
+    original: true
   },
   {
     // Evergreen original: Thetis, the Ebb-and-Flow — server hero thetis.
@@ -324,6 +341,28 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     hero: "Thetis",
     author: "unbrewed",
     likes: 0,
-    highlightColour: "#2ec4b6"
+    highlightColour: "#2ec4b6",
+    original: true
+  },
+  {
+    // Evergreen original: The Piper of the Underroads — server hero
+    // piper-of-the-underroads. Art pending; snapshot-only.
+    id: "piper",
+    name: "The Piper of the Underroads",
+    hero: "The Piper of the Underroads",
+    author: "unbrewed",
+    likes: 0,
+    highlightColour: "#b06f2e",
+    original: true
+  },
+  {
+    // Evergreen original: The Hollow Oak — server hero hollow-oak.
+    id: "hollow-oak",
+    name: "The Hollow Oak",
+    hero: "The Hollow Oak",
+    author: "unbrewed",
+    likes: 0,
+    highlightColour: "#5f7d3b",
+    original: true
   }
 ];
