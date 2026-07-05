@@ -24,6 +24,7 @@ export const HERO_DECK_IDS: Record<string, string> = {
   "the-flash": "p1Ew",
   "the-mandalorian": "lDOM",
   thrall: "pk1x",
+  "r2-d2": "3jgd",
 };
 
 /**

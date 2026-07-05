@@ -15,14 +15,19 @@ import {
   PopularDeckMeta,
 } from "@/lib/constants/top-decks";
 import { DECK_HERO_IDS } from "@/lib/pro/useProCardArt";
+import { useProLiveRoster } from "@/lib/pro/useProLiveRoster";
+import { PRO_WS_URL } from "@/lib/pro/wsUrl";
 
 /**
- * Pro roster status. Supported = decks the live server actually serves
- * (mirror of the engine repo's server/content.ts HEROES registry — update
- * this map when a deck merges there). Lab = DSL stress-test decks: they
- * shape the engine but aren't launch content.
+ * Pro roster status. Ready = decks the live server actually serves right
+ * now — fetched over the same LIST_HEROES protocol the game page uses
+ * (see useProLiveRoster), so a deck merging into the engine repo shows up
+ * here with no frontend edit required. FALLBACK_READY only covers the gap
+ * before that first reply lands (or if the socket never connects). Lab =
+ * DSL stress-test decks: they shape the engine but aren't launch content,
+ * and the server never lists them, so this stays a manual set.
  */
-const SUPPORTED: Record<string, string> = {
+const FALLBACK_READY: Record<string, string> = {
   kdKM: "King Kong",
   lDOM: "The Mandalorian",
   pk1x: "Thrall",
@@ -31,9 +36,6 @@ const IN_THE_LAB: Record<string, string> = {
   "72Dz": "Pinocchio",
   G_nr: "Schrödinger's Cat",
 };
-
-const rosterRank = (deckId: string) =>
-  SUPPORTED[deckId] ? 0 : IN_THE_LAB[deckId] ? 1 : 2;
 
 const tileIn = keyframes`
   from { opacity: 0; transform: translateY(10px) scale(0.96); }
@@ -47,6 +49,19 @@ const readyPulse = keyframes`
 
 export const ProLanding = () => {
   const [picked, setPicked] = useState<PopularDeckMeta>();
+  const liveHeroes = useProLiveRoster(PRO_WS_URL);
+  // Once the server has replied, its roster is authoritative: a deck's
+  // server hero id being present is what "ready" means. Until then (or if
+  // the socket never connects), fall back to the last-known-good set below.
+  const SUPPORTED: Record<string, string> = liveHeroes
+    ? Object.fromEntries(
+        POPULAR_DECKS.filter((d) =>
+          liveHeroes.some((h) => h.heroId === DECK_HERO_IDS[d.id])
+        ).map((d) => [d.id, d.hero])
+      )
+    : FALLBACK_READY;
+  const rosterRank = (deckId: string) =>
+    SUPPORTED[deckId] ? 0 : IN_THE_LAB[deckId] ? 1 : 2;
   const readyCount = Object.keys(SUPPORTED).length;
 
   return (
