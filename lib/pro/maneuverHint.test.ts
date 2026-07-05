@@ -7,6 +7,7 @@ const fighter = (over: Partial<ViewFighter>): ViewFighter => ({
   kind: "HERO",
   name: "Thrall",
   space: "s1",
+  tailSpace: null,
   hp: 15,
   maxHp: 15,
   reach: "MELEE",
