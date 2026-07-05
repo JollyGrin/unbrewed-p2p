@@ -35,6 +35,11 @@ const OVERRIDES = {
   },
 };
 
+// Evergreen ORIGINALS: hand-authored snapshots with no upstream deck at all
+// (unbrewed-api 404s for these ids by design). Skipped, never fetched —
+// editing them means editing public/pro/decks/<id>.json directly.
+const HAND_AUTHORED = new Set(["taranis", "thetis", "piper", "hollow-oak"]);
+
 const src = await readFile(IDS_SOURCE, "utf8");
 const block = src.match(/HERO_DECK_IDS[^=]*=\s*\{([^}]*)\}/)?.[1];
 if (!block) {
@@ -51,7 +56,12 @@ if (entries.length === 0) {
 
 await mkdir(OUT_DIR, { recursive: true });
 let failures = 0;
+let fetched = 0;
 for (const { heroId, deckId } of entries) {
+  if (HAND_AUTHORED.has(deckId)) {
+    console.log(`- ${heroId} (${deckId}): hand-authored original, not fetched`);
+    continue;
+  }
   try {
     const res = await fetch(API + deckId);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -62,6 +72,7 @@ for (const { heroId, deckId } of entries) {
     }
     OVERRIDES[deckId]?.(deck);
     await writeFile(join(OUT_DIR, `${deckId}.json`), JSON.stringify(deck, null, 2));
+    fetched += 1;
     console.log(`✓ ${heroId} (${deckId}): ${cards.length} cards, hero "${deck.deck_data.hero?.name}"`);
   } catch (err) {
     failures += 1;
@@ -72,4 +83,4 @@ if (failures > 0) {
   console.error(`\n${failures} deck(s) failed — existing snapshots for them are left untouched.`);
   process.exit(1);
 }
-console.log(`\nSnapshotted ${entries.length} decks to public/pro/decks/`);
+console.log(`\nSnapshotted ${fetched} decks to public/pro/decks/ (${entries.length - fetched} hand-authored originals untouched)`);
