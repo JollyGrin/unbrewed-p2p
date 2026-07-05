@@ -325,13 +325,15 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
   },
   {
     // Evergreen original (no unmatched.cards page): King Taranis, the
-    // Stormquenched — server hero king-taranis. Art pending; snapshot-only.
+    // Stormquenched — server hero king-taranis.
     id: "taranis",
     name: "King Taranis",
     hero: "King Taranis",
     author: "unbrewed",
     likes: 0,
     highlightColour: "#c9962b",
+    // self-hosted; also patched into the evergreen snapshot appearance
+    cardbackUrl: "https://unbrewed.xyz/cardbacks/taranis.webp",
     original: true
   },
   {
@@ -342,17 +344,21 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "unbrewed",
     likes: 0,
     highlightColour: "#2ec4b6",
+    // self-hosted; also patched into the evergreen snapshot appearance
+    cardbackUrl: "https://unbrewed.xyz/cardbacks/thetis.webp",
     original: true
   },
   {
     // Evergreen original: The Piper of the Underroads — server hero
-    // piper-of-the-underroads. Art pending; snapshot-only.
+    // piper-of-the-underroads.
     id: "piper",
     name: "The Piper of the Underroads",
     hero: "The Piper of the Underroads",
     author: "unbrewed",
     likes: 0,
     highlightColour: "#b06f2e",
+    // self-hosted; also patched into the evergreen snapshot appearance
+    cardbackUrl: "https://unbrewed.xyz/cardbacks/piper.webp",
     original: true
   },
   {
@@ -363,6 +369,8 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "unbrewed",
     likes: 0,
     highlightColour: "#5f7d3b",
+    // self-hosted; also patched into the evergreen snapshot appearance
+    cardbackUrl: "https://unbrewed.xyz/cardbacks/hollowoak.webp",
     original: true
   }
 ];

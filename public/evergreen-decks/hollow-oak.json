@@ -4,7 +4,7 @@
   "deck_data": {
     "appearance": {
       "borderColour": "#2c3b22",
-      "cardbackUrl": "",
+      "cardbackUrl": "https://unbrewed.xyz/cardbacks/hollowoak.webp",
       "highlightColour": "#5f7d3b",
       "isPNP": false,
       "patternName": "Leaf"
