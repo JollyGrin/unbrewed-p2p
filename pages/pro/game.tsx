@@ -42,6 +42,7 @@ import { CardFace, ProHand } from "@/components/Pro/ProHand";
 import { ProHud } from "@/components/Pro/ProHud";
 import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
 import { diffViews } from "@/lib/pro/gameLog";
+import { maneuverBoostHint } from "@/lib/pro/maneuverHint";
 import { useGameFx } from "@/lib/pro/useGameFx";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
@@ -1123,6 +1124,10 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   ];
   const highlightedFighters = [...attackActions.keys(), ...movableFighters, ...promptTargetIds];
 
+  // Issue #85: say out loud why boost is (or is no longer) available, instead
+  // of letting the affordance silently vanish once the fighters have moved.
+  const boostHint = maneuverBoostHint(view, legalActions);
+
   const onSpaceClick = (space: SpaceId) => {
     // an open prompt owns the board — answer it first
     const promptOption = promptForMe ? promptSpaceOptions.get(space) : undefined;
@@ -1291,6 +1296,16 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
                   ]
                     .filter(Boolean)
                     .join(" · ")}
+            </Text>
+          )}
+          {boostHint && (
+            <Text
+              fontSize="0.75rem"
+              color="brand.parchment"
+              opacity={0.85}
+              textShadow="0 1px 3px rgba(0,0,0,0.6)"
+            >
+              {boostHint}
             </Text>
           )}
           {view.combat && (
