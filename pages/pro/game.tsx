@@ -1397,8 +1397,8 @@ const PREVIEW_MAP = mendedDrum as ProMapDef;
 const previewFighters = (map: ProMapDef): ViewFighter[] => {
   const start = (slot: number) => map.spaces.find((s) => s.start?.slot === slot)?.id ?? null;
   return [
-    { id: "p1/hero", owner: "p1", kind: "HERO", name: "King Kong", space: start(1), hp: 18, maxHp: 18, reach: "MELEE", defeated: false },
-    { id: "p2/hero", owner: "p2", kind: "HERO", name: "Baba Yaga", space: start(2), hp: 14, maxHp: 14, reach: "RANGED", defeated: false },
+    { id: "p1/hero", owner: "p1", kind: "HERO", name: "King Kong", space: start(1), tailSpace: null, hp: 18, maxHp: 18, reach: "MELEE", defeated: false },
+    { id: "p2/hero", owner: "p2", kind: "HERO", name: "Baba Yaga", space: start(2), tailSpace: null, hp: 14, maxHp: 14, reach: "RANGED", defeated: false },
   ];
 };
 
