@@ -1,34 +1,29 @@
 /**
  * Evergreen decks: ids with rule enforcement in Unbrewed Pro. For these, the
- * committed snapshot in /public/top-decks is the source of truth EVERYWHERE —
- * sandbox included. Pro's engine froze the deck's rules at conversion time,
- * so upstream edits on unmatched.cards must not change what the sandbox
- * deals either; sandbox and pro stay in parity by construction.
+ * rules-locked snapshot in /public/evergreen-decks is the source of truth
+ * EVERYWHERE — sandbox included. Pro's engine froze the deck's rules at
+ * conversion time, so upstream edits on unmatched.cards must not change what
+ * the sandbox deals either; sandbox and pro stay in parity by construction.
  *
  * Everything else keeps the old behavior: live API first (latest deck
  * version), snapshot as an availability fallback.
  *
- * Expand EVERGREEN_DECK_IDS as more decks convert (and snapshot them via
- * `npm run pro:decks:snapshot` + a copy in /public/top-decks).
+ * Derived from HERO_DECK_IDS (lib/pro/useProCardArt.ts) — the one hero<->deck
+ * mapping for every hero with rules in unbrewed-pro-server — so this set
+ * never drifts out of sync with the Pro roster. Add a hero there (plus its
+ * snapshot + manifest entry in /public/evergreen-decks) and it shows up here
+ * automatically.
  */
 import axios from "axios";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
+import { HERO_DECK_IDS } from "@/lib/pro/useProCardArt";
 
-export const EVERGREEN_DECK_IDS = new Set<string>([
-  "pk1x", // Thrall
-  "1Y5J", // Triceratops
-  // Evergreen originals — no unmatched.cards page exists, so the snapshot is
-  // not just preferred but the ONLY source (the API fetch 404s by design).
-  "taranis", // King Taranis
-  "thetis", // Thetis
-  "piper", // The Piper of the Underroads
-  "hollow-oak", // The Hollow Oak
-]);
+export const EVERGREEN_DECK_IDS = new Set<string>(Object.values(HERO_DECK_IDS));
 
 export const DEFAULT_DECK_API = "https://unbrewed-api.vercel.app/api/unmatched-deck/";
 
 const fromSnapshot = (id: string) =>
-  axios.get<DeckImportType>(`/top-decks/${id}.json`).then((r) => r.data);
+  axios.get<DeckImportType>(`/evergreen-decks/${id}.json`).then((r) => r.data);
 const fromApi = (id: string) =>
   axios.get<DeckImportType>(DEFAULT_DECK_API + id).then((r) => r.data);
 

@@ -189,8 +189,6 @@
   "deck_published": true,
   "family_id": "3jgd",
   "id": "3jgd",
-  "liked": false,
-  "likes": 7,
   "name": "R2-D2",
   "note": "R2-D2 is Not Just A Droid, he's a Shock Prod weilding, Scomp Link bearing, Rocket Booster flying Astromech Database on a Power Surge! Hit hard and good, or he'll self-repair with every attack. He's not the kind of droid to Stay With The Ship!",
   "published": true,
@@ -224,23 +222,5 @@
   "updated_on": "Mon, 18 May 2026 13:28:30 GMT",
   "user": "Inforce",
   "version_id": "BPbQCV_31",
-  "version_name": "Galactic Rumble",
-  "versions": [
-    {
-      "created_on": "Sun, 17 May 2026 15:06:53 GMT",
-      "id": "BPbQCV_31",
-      "name": "R2-D2",
-      "published": true,
-      "updated_on": "Mon, 18 May 2026 13:28:30 GMT",
-      "version_name": "Galactic Rumble"
-    },
-    {
-      "created_on": "Sun, 19 Oct 2025 03:43:11 GMT",
-      "id": "e4yDfrMdG",
-      "name": "R2-D2",
-      "published": true,
-      "updated_on": "Sun, 10 May 2026 15:47:30 GMT",
-      "version_name": "R2D2 version"
-    }
-  ]
+  "version_name": "Galactic Rumble"
 }

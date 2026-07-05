@@ -241,8 +241,6 @@
   "deck_published": true,
   "family_id": "taranis",
   "id": "taranis",
-  "liked": false,
-  "likes": 0,
   "name": "King Taranis",
   "note": "Unbrewed evergreen deck: original flavor over professionally playtested mechanics. Art pending.",
   "published": true,
@@ -260,15 +258,5 @@
   "updated_on": "Sun, 06 Jul 2026 00:00:00 GMT",
   "user": "unbrewed",
   "version_id": "evergreen-1",
-  "version_name": "1.0",
-  "versions": [
-    {
-      "created_on": "Sun, 06 Jul 2026 00:00:00 GMT",
-      "id": "evergreen-1",
-      "name": "King Taranis",
-      "published": true,
-      "updated_on": "Sun, 06 Jul 2026 00:00:00 GMT",
-      "version_name": "1.0"
-    }
-  ]
+  "version_name": "1.0"
 }
