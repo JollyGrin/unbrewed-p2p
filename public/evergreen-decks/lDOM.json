@@ -228,8 +228,6 @@
   "deck_published": true,
   "family_id": "lDOM",
   "id": "lDOM",
-  "liked": false,
-  "likes": 144,
   "name": "The Mandalorian",
   "note": "Partial credit for this fan deck goes to BGG user @RomanFarraday, whose original ideas and willingness to collaborate inspired my first foray into the world of Unmatched variants. This is my favorite version of the many Mando decks created and debated on BGG.\n\nVersion 1.1 - added card back URL on 2/1/2021.\nVersion 1.2 - minor clarifying language added to special ability and FORCE POWERS effect (\"up to 1 space\") on 2/27/2021.",
   "published": true,
@@ -267,23 +265,5 @@
   "updated_on": "Sat, 27 Feb 2021 15:15:01 GMT",
   "user": "msw7c",
   "version_id": "B4ZIGdn",
-  "version_name": "Version 1.2",
-  "versions": [
-    {
-      "created_on": "Sat, 27 Feb 2021 15:14:25 GMT",
-      "id": "B4ZIGdn",
-      "name": "The Mandalorian",
-      "published": true,
-      "updated_on": "Sat, 27 Feb 2021 15:15:01 GMT",
-      "version_name": "Version 1.2"
-    },
-    {
-      "created_on": "Sat, 15 Aug 2020 23:44:24 GMT",
-      "id": "42MIJM",
-      "name": "The Mandalorian",
-      "published": true,
-      "updated_on": "Sat, 27 Feb 2021 14:27:09 GMT",
-      "version_name": "Version 1.1"
-    }
-  ]
+  "version_name": "Version 1.2"
 }

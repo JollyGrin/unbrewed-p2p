@@ -1,11 +1,12 @@
 /**
  * Card ART for Pro games. The server's catalog is the mechanical truth
- * (title/type/value/boost); display art comes from the community deck JSON,
- * matched by title. Snapshot-first: the committed copy in public/pro/decks/
- * (refresh via `npm run pro:decks:snapshot`) is read before the live
- * unbrewed-api — Pro rules are frozen at conversion time, so upstream deck
- * edits shouldn't change the table either. If both fetches fail or a title
- * doesn't match, callers fall back to text chips — art is a nicety, never a
+ * (title/type/value/boost); display art comes from the rules-locked deck
+ * snapshot in public/evergreen-decks/ (see public/evergreen-decks/manifest.json
+ * and lib/pro/evergreenManifest.ts) — the ONLY source, no live-API fallback.
+ * Every /pro hero has rules frozen server-side, so its deck art must be
+ * equally frozen; a `npm run pro:decks:bump-rules` is required to move the
+ * lock forward deliberately. If a snapshot fetch fails or a title doesn't
+ * match, callers fall back to text chips — art is a nicety, never a
  * dependency.
  */
 import { useQuery } from "@tanstack/react-query";
@@ -17,19 +18,24 @@ import {
 } from "@/components/DeckPool/deck-import.type";
 import { CardDefId, CardInstanceId, CardMeta } from "./protocol";
 
-/** server hero id -> unmatched.cards deck id (the /pro roster source) */
+/**
+ * server hero id -> unmatched.cards deck id, for every hero with rules in
+ * unbrewed-pro-server (data/heroes/*.rules.ts). This is the ONE hero<->deck
+ * mapping for Pro — lib/evergreenDecks.ts derives its sandbox-parity set from
+ * this same map instead of hand-keeping a second list. Only add an entry here
+ * once the hero has a rules.ts on the server; a deck id with no rules has no
+ * business being in the Pro roster.
+ */
 export const HERO_DECK_IDS: Record<string, string> = {
   "king-kong": "kdKM",
-  "baba-yaga": "yAJ-",
-  "the-flash": "p1Ew",
   "the-mandalorian": "lDOM",
   thrall: "pk1x",
   "r2-d2": "3jgd",
   "gingerbread-man": "LWNZ",
   triceratops: "1Y5J",
   // Evergreen originals: no unmatched.cards page exists — the ids are ours, and
-  // the snapshot in public/pro/decks/ is the ONLY source (the live-API fetch
-  // 404s by design; snapshot-first means it is never consulted).
+  // the snapshot in public/evergreen-decks/ is the ONLY source (the live-API
+  // fetch 404s by design; snapshot-only means it is never consulted).
   "king-taranis": "taranis",
   thetis: "thetis",
   "piper-of-the-underroads": "piper",
@@ -44,8 +50,6 @@ export const HERO_DECK_IDS: Record<string, string> = {
 export const DECK_HERO_IDS: Record<string, string> = Object.fromEntries(
   Object.entries(HERO_DECK_IDS).map(([heroId, deckId]) => [deckId, heroId])
 );
-
-const API = "https://unbrewed-api.vercel.app/api/unmatched-deck/";
 
 const norm = (s: string) => s.trim().toLowerCase();
 
@@ -71,11 +75,14 @@ export function useProCardArt(
         ids.map(async (heroId) => {
           const deckId = HERO_DECK_IDS[heroId];
           if (!deckId) return;
-          const local = await axios
-            .get<DeckImportType>(`/pro/decks/${deckId}.json`)
+          // Snapshot only — no live-API fallback. A rules-locked hero's deck
+          // art must be equally locked; a missing file is a build problem to
+          // fix, not something to paper over with a live fetch.
+          const res = await axios
+            .get<DeckImportType>(`/evergreen-decks/${deckId}.json`)
             .catch(() => null);
-          const deck =
-            local?.data ?? (await axios.get<DeckImportType>(API + deckId)).data;
+          if (!res) return;
+          const deck = res.data;
           const byTitle: Record<string, DeckImportCardType> = {};
           for (const card of deck.deck_data.cards) byTitle[norm(card.title)] = card;
           byHero[heroId] = { cards: byTitle, hero: deck.deck_data.hero };
