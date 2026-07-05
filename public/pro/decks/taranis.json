@@ -1,0 +1,274 @@
+{
+  "bgg_link": null,
+  "created_on": "Sun, 06 Jul 2026 00:00:00 GMT",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#3b4a5e",
+      "cardbackUrl": "",
+      "highlightColour": "#c9962b",
+      "isPNP": false,
+      "patternName": "Lightning"
+    },
+    "name": "King Taranis",
+    "hero": {
+      "hp": 18,
+      "isRanged": false,
+      "move": 2,
+      "name": "King Taranis",
+      "specialAbility": "STORMCHANNEL\nWhen King Taranis attacks, you may BOOST that attack, playing the BOOST card face down alongside it. If the effects of your attack card are cancelled, discard the BOOST without using it."
+    },
+    "sidekick": {
+      "hp": 7,
+      "isRanged": true,
+      "name": "Veyra the Tempest Whisper",
+      "quantity": 1,
+      "quote": null
+    },
+    "extraCharacters": [],
+    "ruleCards": [],
+    "cards": [
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "TARANIS",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Gromnir",
+        "type": "attack",
+        "value": 6
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "TARANIS",
+        "duringText": "You may BOOST this attack. (This stacks with STORMCHANNEL's boost.)",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Storm's Toll",
+        "type": "attack",
+        "value": 2
+      },
+      {
+        "afterText": "Draw 2 cards.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "TARANIS",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Skyfather's Boon",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "Move King Taranis up to 5 spaces.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "TARANIS",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Thunderstep",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "If King Taranis has 4 or less health and was not defeated, set his health to 8.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "TARANIS",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Eye of the Storm",
+        "type": "defence",
+        "value": 1
+      },
+      {
+        "afterText": "",
+        "basicText": "Search your deck and discard pile for GROMNIR and put it into your hand. Shuffle your deck if you searched it.",
+        "boost": 2,
+        "characterName": "TARANIS",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "The Hammer Answers",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "",
+        "basicText": "Look at the top 4 cards of your deck. Take 2 into your hand; return the rest to the top in any order.",
+        "boost": 2,
+        "characterName": "VEYRA",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Storm Augury",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "You may place Veyra in any space.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "VEYRA",
+        "duringText": "Prevent all damage.",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Scatter on the Wind",
+        "type": "defence",
+        "value": 0
+      },
+      {
+        "afterText": "If you won the combat, draw 2 cards.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "VEYRA",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Tempest's Blessing",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "",
+        "basicText": "Choose a space in Veyra's zone. Deal 2 damage to each opposing fighter there and in one adjacent space. Draw a card if this defeats at least one fighter.",
+        "boost": 2,
+        "characterName": "VEYRA",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Chain Lightning",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "",
+        "basicText": "Move each fighter — yours and your opponent's — up to 3 spaces.",
+        "boost": 2,
+        "characterName": "VEYRA",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Howling Gale",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "Move your fighter up to 4 spaces.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Swift Strike",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": "If you won the combat, choose one of the fighters in the combat and move them up to 2 spaces.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Skirmish",
+        "type": "versatile",
+        "value": 4
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "If your fighter started this turn in a different space, this card's value is 5 instead.",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Momentous Shift",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "Cancel all effects on your opponent's card.",
+        "quantity": 3,
+        "title": "Feint",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "Draw 1 card. If you won the combat, draw 2 cards instead.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Regroup",
+        "type": "versatile",
+        "value": 1
+      }
+    ]
+  },
+  "deck_first_published_on": null,
+  "deck_published": true,
+  "family_id": "taranis",
+  "id": "taranis",
+  "liked": false,
+  "likes": 0,
+  "name": "King Taranis",
+  "note": "Unbrewed evergreen deck: original flavor over professionally playtested mechanics. Art pending.",
+  "published": true,
+  "published_on": null,
+  "tags": [
+    {
+      "name": "Evergreen",
+      "slug": "evergreen"
+    },
+    {
+      "name": "Public Domain",
+      "slug": "public-domain"
+    }
+  ],
+  "updated_on": "Sun, 06 Jul 2026 00:00:00 GMT",
+  "user": "unbrewed",
+  "version_id": "evergreen-1",
+  "version_name": "1.0",
+  "versions": [
+    {
+      "created_on": "Sun, 06 Jul 2026 00:00:00 GMT",
+      "id": "evergreen-1",
+      "name": "King Taranis",
+      "published": true,
+      "updated_on": "Sun, 06 Jul 2026 00:00:00 GMT",
+      "version_name": "1.0"
+    }
+  ]
+}

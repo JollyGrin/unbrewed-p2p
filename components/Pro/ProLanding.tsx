@@ -24,6 +24,8 @@ import { DECK_HERO_IDS } from "@/lib/pro/useProCardArt";
  */
 const SUPPORTED: Record<string, string> = {
   kdKM: "King Kong",
+  taranis: "King Taranis",
+  thetis: "Thetis",
   lDOM: "The Mandalorian",
   pk1x: "Thrall",
 };
