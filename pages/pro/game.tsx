@@ -38,8 +38,9 @@ import { HERO_DECK_IDS, ResolveCard, useProCardArt } from "@/lib/pro/useProCardA
 import { frozenAtForHero } from "@/lib/pro/evergreenManifest";
 import { POPULAR_DECKS, PopularDeckMeta } from "@/lib/constants/top-decks";
 import { GiFootprint, GiHearts } from "react-icons/gi";
-import { TbBow, TbExternalLink, TbSword } from "react-icons/tb";
+import { TbBow, TbExternalLink, TbInfoCircle, TbSword } from "react-icons/tb";
 import { CardFace, ProHand } from "@/components/Pro/ProHand";
+import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { ProHud } from "@/components/Pro/ProHud";
 import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
 import { diffViews } from "@/lib/pro/gameLog";
@@ -393,10 +394,12 @@ const HeroTile = ({
   hero,
   selected,
   onSelect,
+  onPreview,
 }: {
   hero: HeroListing;
   selected: boolean;
   onSelect: () => void;
+  onPreview: () => void;
 }) => {
   const deck = heroDeckMeta(hero.heroId);
   const cardback = deck?.cardbackUrl;
@@ -502,6 +505,30 @@ const HeroTile = ({
           </Link>
         </Tooltip>
       )}
+      {/* sibling of the select button, same reason as the external-link icon
+          above: nesting a <button> in a <button> is invalid HTML */}
+      <Tooltip label={`Preview ${hero.name}`} hasArrow placement="top">
+        <Flex
+          as="button"
+          type="button"
+          onClick={onPreview}
+          aria-label={`Preview ${hero.name}`}
+          position="absolute"
+          top="0.4rem"
+          left="0.4rem"
+          alignItems="center"
+          justifyContent="center"
+          w="1.35rem"
+          h="1.35rem"
+          borderRadius="0.35rem"
+          bg="rgba(20, 8, 24, 0.55)"
+          color="whiteAlpha.800"
+          transition="color 0.15s, background 0.15s"
+          _hover={{ color: "brand.accent", bg: "rgba(20, 8, 24, 0.85)" }}
+        >
+          <TbInfoCircle size="0.9rem" />
+        </Flex>
+      </Tooltip>
     </Box>
   );
 };
@@ -571,6 +598,7 @@ const HeroSelectLobby = ({
   // creator isn't blocked; once the list arrives the real selection takes over.
   const effective = selectedHeroId ?? (heroes === null ? heroParam : null);
   const canConfirm = status === "open" && !!effective;
+  const [previewHero, setPreviewHero] = useState<HeroListing>();
 
   return (
     <Flex direction="column" alignItems="center" gap="1.25rem" pt="3.5rem" px="1rem" pb="3rem">
@@ -620,10 +648,24 @@ const HeroSelectLobby = ({
               hero={h}
               selected={effective === h.heroId}
               onSelect={() => onSelectHero(h.heroId)}
+              onPreview={() => setPreviewHero(h)}
             />
           ))
         )}
       </Flex>
+
+      <HeroPreviewModal
+        isOpen={!!previewHero}
+        onClose={() => setPreviewHero(undefined)}
+        deckId={previewHero ? HERO_DECK_IDS[previewHero.heroId] ?? null : null}
+        heroName={previewHero?.name ?? ""}
+        heroId={previewHero?.heroId}
+        quickStats={
+          previewHero
+            ? { hp: previewHero.hp, move: previewHero.move, reach: previewHero.reach }
+            : undefined
+        }
+      />
 
       {!room && (
         <Flex direction="column" alignItems="center" gap="0.4rem">
