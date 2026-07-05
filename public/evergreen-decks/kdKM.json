@@ -173,7 +173,8 @@
       "isRanged": false,
       "move": 1,
       "name": "King Kong",
-      "specialAbility": "King Kong is a large fighter. \n\nAt the start of your turn, you may deal 1 damage to King Kong. If you do, choose an adjacent opponent to discard a card.\n"
+      "specialAbility": "King Kong is a large fighter. \n\nAt the start of your turn, you may deal 1 damage to King Kong. If you do, choose an adjacent opponent to discard a card.\n",
+      "quote": "The great ape at his terrible scale — a LARGE bruiser who trades his own blood for pressure, rattling cards out of enemy hands just by looming close."
     },
     "name": "",
     "ruleCards": [],

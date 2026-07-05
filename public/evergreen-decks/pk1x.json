@@ -198,7 +198,8 @@
       "isRanged": true,
       "move": 2,
       "name": "Thrall",
-      "specialAbility": "At end of turn, place 1 totem in any space unoccupied by opposing fighters and in Thrall's range (max 4 in play at any time). \nWhen an opposing fighter occupies a totem's space, destroy that totem."
+      "specialAbility": "At end of turn, place 1 totem in any space unoccupied by opposing fighters and in Thrall's range (max 4 in play at any time). \nWhen an opposing fighter occupies a totem's space, destroy that totem.",
+      "quote": "An orc shaman who claims the battlefield one totem at a time, bending its spaces to his will and calling the spirits down on anyone who trespasses."
     },
     "sidekick": {
       "hp": 6,
