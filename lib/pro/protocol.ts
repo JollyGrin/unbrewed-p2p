@@ -39,9 +39,24 @@
  * among supported heroes. The bot plays through the same action pipeline as a
  * human; the client needs NO new message types — the opponent just acts.
  * OPPONENT_STATUS is never sent for a bot seat (it is always "connected").
+ *
+ * ## v4 (2026-07-05): custom-map playtest
+ * `CREATE_ROOM` gained optional `customMap` — a full `ProMapDef` the creator
+ * supplies to playtest an unpublished board without shipping it to the server
+ * repo. The server validates it (validateMap) and, if clean, uses it for that
+ * room only; a bad map answers ERROR{BAD_MAP}. Composes with `bot`.
+ *
+ * ## v5 (2026-07-05): public lobbies
+ * Rooms carry a `public` flag (default false: invite-link rooms stay unlisted).
+ * SET_VISIBILITY (from a ws bound to a seat in that room) toggles it and is acked
+ * with VISIBILITY. LIST_LOBBIES returns the public, one-seat, game-not-started,
+ * recently-active rooms as LobbyListing[] (client polls; no server push — a room
+ * drops out the moment its second seat fills or it goes stale). `ageMs` is
+ * wait-time since room creation and does NOT reset on a visibility toggle.
+ * Composes with `bot` and `customMap` (a bot/custom-map room can still be public).
  */
 
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 5;
 
 /** Scripted-AI strength preset (server-side budgets; client treats as opaque). */
 export type BotDifficulty = "easy" | "medium" | "hard";
@@ -269,17 +284,31 @@ export interface HeroListing {
   reach: "MELEE" | "RANGED";
 }
 
+// A public room waiting for a second player (LIST_LOBBIES result row).
+export interface LobbyListing {
+  roomId: string;
+  heroId: string;
+  heroName: string;
+  ageMs: number; // time the lobby has been waiting (now − room creation); NOT reset by a visibility toggle
+}
+
 export type ClientMsg =
   | { v: number; type: "LIST_HEROES" }
-  | { v: number; type: "CREATE_ROOM"; heroId: string; bot?: { difficulty: BotDifficulty; heroId?: string } }
+  | { v: number; type: "LIST_LOBBIES" }
+  // `customMap` (v4): playtest an unpublished board — the server validates it
+  // and uses it for this room only. Composes with `bot`. Omit for the default map.
+  | { v: number; type: "CREATE_ROOM"; heroId: string; bot?: { difficulty: BotDifficulty; heroId?: string }; customMap?: ProMapDef }
   | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string }
+  | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }
   | { v: number; type: "ACTION"; roomId: string; action: Action };
 
 export type ServerMsg =
   | { v: number; type: "HEROES"; heroes: HeroListing[] }
+  | { v: number; type: "LOBBIES"; lobbies: LobbyListing[] }
   | { v: number; type: "ROOM_CREATED"; roomId: string; token: string; you: PlayerId }
   | { v: number; type: "ROOM_JOINED"; roomId: string; token: string; you: PlayerId }
+  | { v: number; type: "VISIBILITY"; roomId: string; public: boolean } // ack to SET_VISIBILITY
   | { v: number; type: "STATE"; view: PlayerView; legalActions: Action[] }
   | { v: number; type: "OPPONENT_STATUS"; connected: boolean }
   | { v: number; type: "ERROR"; code: ErrorCode; message: string };
@@ -293,4 +322,5 @@ export type ErrorCode =
   | "NOT_YOUR_SEAT" // action.player !== your seat
   | "ILLEGAL_ACTION" // reducer rejected it (client bug or stale view)
   | "UNKNOWN_HERO"
+  | "BAD_MAP" // CREATE_ROOM.customMap failed validation (message lists violations)
   | "SERVER_ERROR";
