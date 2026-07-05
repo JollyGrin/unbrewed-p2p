@@ -14,6 +14,32 @@ export interface ProLogLine {
   cards?: CardInstanceId[];
 }
 
+/** A log line as stored in the page (feed + CSV/bug-report export). */
+export interface ProLogEntry extends ProLogLine {
+  key: string;
+  /** ms epoch when the line was appended (client clock; used for CSV export) */
+  ts?: number;
+  /** turn number the line belongs to — lets the bug-report dialog window by turn */
+  turn?: number;
+}
+
+const csvCell = (value: string) => `"${value.replace(/"/g, '""')}"`;
+
+/**
+ * Oldest-first CSV of the whole feed (entries are stored newest-first). Single
+ * source for both the activity-panel download and the bug-report attachment.
+ */
+export function logEntriesToCsv(entries: ProLogEntry[]): string {
+  return [
+    "time,turn,who,text",
+    ...[...entries]
+      .reverse()
+      .map((e) =>
+        [e.ts ? new Date(e.ts).toISOString() : "", e.turn ?? "", e.who, csvCell(e.text)].join(",")
+      ),
+  ].join("\n");
+}
+
 const short = (name: string) => name.split("/").pop() ?? name;
 
 export function diffViews(
