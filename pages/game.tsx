@@ -47,15 +47,15 @@ const DiceOverlay = dynamic(
   { ssr: false },
 );
 import {
-  Dispatch,
   MutableRefObject,
-  SetStateAction,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { useDeckOpenWarning } from "@/components/Game/useDeckOpenWarning";
+import { DeckOpenWarningDialog } from "@/components/Game/deck-open-warning.modal";
 
 export type ModalType = "hand" | "discard" | "deck" | "commit" | false;
 
@@ -64,6 +64,8 @@ const GamePage = () => {
   const disclosure = useDisclosure();
   const tokenLibraryDisclosure = useDisclosure();
   const [modalType, setModalType] = useState<ModalType>(false);
+  const { requestModal, pendingWarning, confirmOpen, cancelOpen } =
+    useDeckOpenWarning(setModalType);
 
   // Hand → board bridge: BoardContainer fills it, HandContainer calls it.
   const playToTableRef = useRef<PlayCardToTable>(() => {});
@@ -86,17 +88,22 @@ const GamePage = () => {
             modalType={modalType}
             setModalType={setModalType}
           />
+          <DeckOpenWarningDialog
+            isOpen={pendingWarning}
+            onCancel={cancelOpen}
+            onConfirm={confirmOpen}
+          />
           <HeaderContainer openPositionModal={tokenLibraryDisclosure.onOpen} />
           <BoardContainer
             self={query?.name as string}
             tokenLibrary={tokenLibraryDisclosure}
             playToTableRef={playToTableRef}
           />
-          <HandWrapper {...{ setModalType, playToTableRef }} />
+          <HandWrapper setModalType={requestModal} {...{ playToTableRef }} />
           <DiceOverlay />
           <ActionLog />
           <CommandMenu
-            openModal={setModalType}
+            openModal={requestModal}
             openTokenLibrary={tokenLibraryDisclosure.onOpen}
           />
         </GameLayout>
@@ -112,7 +119,7 @@ const HandWrapper = ({
   setModalType,
   playToTableRef,
 }: {
-  setModalType: Dispatch<SetStateAction<ModalType>>;
+  setModalType: (type: ModalType) => void;
   playToTableRef: MutableRefObject<PlayCardToTable>;
 }) => {
   const { gameState, setPlayerState, logAction, offerCardTransfer } =
