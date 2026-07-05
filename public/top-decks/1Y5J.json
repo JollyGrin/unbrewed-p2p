@@ -1,0 +1,361 @@
+{
+  "bgg_link": null,
+  "created_on": "Wed, 28 Aug 2024 05:25:56 GMT",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#f67a82",
+      "cardbackUrl": "https://i.imgur.com/5ucSw85.png",
+      "highlightColour": "#ec6a13",
+      "isPNP": false,
+      "patternName": "Leaf"
+    },
+    "cards": [
+      {
+        "afterText": "Deal damage to Triceratops equal to the damage dealt.",
+        "basicText": "This card's effects cannot be canceled.",
+        "boost": 3,
+        "characterName": "TRICERATOPS",
+        "duringText": "Add +1 to this card's value for every space Triceratops moved this turn.",
+        "imageUrl": "https://i.imgur.com/2CKFFHK.png",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "UNSTOPPABLE CHARGE",
+        "type": "attack",
+        "value": 2
+      },
+      {
+        "afterText": "Take 2 damage.",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "TRICERATOPS",
+        "duringText": "Ignore the value of your opponent's card.",
+        "imageUrl": "https://i.imgur.com/0bcF8Z2.png",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "15,000 POUNDS OF MUSCLE",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": "If you won the combat, draw 2 cards. If you lost the combat, your opponent draws 2 cards.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "TRICERATOPS",
+        "duringText": "",
+        "imageUrl": "https://i.imgur.com/IkUPRYH.png",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "FATAL STRUGGLE",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 4,
+        "characterName": "TRICERATOPS",
+        "duringText": "Add the BOOST value of the top card of your discard pile to this card's value.\n",
+        "imageUrl": "https://i.imgur.com/6MBxgTX.png",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "PROTECTION OF THE HERD",
+        "type": "defence",
+        "value": 2
+      },
+      {
+        "afterText": "Deal 2 damage to the opposing fighter if they are within range of the Triceratops.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "TRICERATOPS",
+        "duringText": "",
+        "imageUrl": "https://i.imgur.com/JzXWH7E.png",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "PREY VERSUS PREDATOR",
+        "type": "defence",
+        "value": 2
+      },
+      {
+        "afterText": null,
+        "basicText": "Move Triceratops up to 4 spaces. You may move through opposing fighters. Move each fighter you moved through up to 1 space and deal them 1 damage.",
+        "boost": 3,
+        "characterName": "TRICERATOPS",
+        "duringText": null,
+        "imageUrl": "https://i.imgur.com/hEccPDy.png",
+        "immediateText": null,
+        "quantity": 2,
+        "title": "STAMPEDE",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": null,
+        "basicText": "Choose 1. If there are no opposing fighters in Triceratops' zone, you may do both.\n> Triceratops recovers 3 health.\n> Draw 2 cards.",
+        "boost": 3,
+        "characterName": "TRICERATOPS",
+        "duringText": null,
+        "imageUrl": "https://i.imgur.com/vOHlkgQ.png",
+        "immediateText": null,
+        "quantity": 2,
+        "title": "HERBIVOROUS DINOSAURS",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "If you won the combat, deal 1 damage to each opposing fighter in Triceratops' zone.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "TRICERATOPS",
+        "duringText": "You may BOOST this card.",
+        "imageUrl": "https://i.imgur.com/T3dLXJq.png",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "THRASH",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "Move your fighter up to 3 spaces.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "TRICERATOPS",
+        "duringText": "",
+        "imageUrl": "https://i.imgur.com/2TfIomi.png",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "DASH",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "TRICERATOPS",
+        "duringText": "If your fighter started this turn in a different space, this card's value is 5 instead.",
+        "imageUrl": "https://i.imgur.com/MFXHoXw.png",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "MOMENTOUS SHIFT",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "If you attacked, gain 1 action.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "TRICERATOPS",
+        "duringText": "",
+        "imageUrl": "https://i.imgur.com/3WXp964.png",
+        "immediateText": "If you are adjacent to the opposing fighter, they cannot leave their space for the rest of the turn.",
+        "quantity": 3,
+        "title": "IMPALED BY THE HORNS",
+        "type": "versatile",
+        "value": 3
+      }
+    ],
+    "extraCharacters": [],
+    "hero": {
+      "hp": 23,
+      "isRanged": false,
+      "move": 1,
+      "name": "TRICERATOPS",
+      "specialAbility": "Triceratops is a large fighter. She can attack up to 2 spaces away.\n\nIf Triceratops is adjacent to the opposing fighter, add +1 to the value of all Triceratops' attacks.\n\n\n\n"
+    },
+    "name": "",
+    "ruleCards": [],
+    "sidekick": {
+      "hp": null,
+      "isRanged": false,
+      "name": "Sidekick",
+      "quantity": 0,
+      "quote": "\"She was my favorite when I was a kid. Now I see her, she's the most beautiful thing I ever saw.\"                 \n                                               —Alan Grant"
+    }
+  },
+  "deck_first_published_on": "Fri, 26 Apr 2024 11:35:01 GMT",
+  "deck_published": true,
+  "family_id": "1Y5J",
+  "id": "1Y5J",
+  "liked": false,
+  "likes": 9,
+  "name": "Triceratops (Jurassic)",
+  "note": "Triceratops is a Large Fighter. (She can attack up to 2 spaces away.)\n--------------------\nVersion 2.3 - Remove the scheme card \"Closer than the she appears\" as observed not thematic to the hero; Change the Stampede atk card to a scheme card; Added the Fatal Struggle atk card as a new attack card with 3 copies for drawing power and also thematic to the Trike. Increase the BOOST value of Momentous Shift versatile card from 1 to 2. Wording update on special ability just added She can attack up to 2 spaces away and the removed ability name. Slight buff on Herbivorous Dinosaurs scheme, adding optional choice in doing both draw card and health recovery effect. Change image address of the card back art and card arts.\n--------------------\nMy First custom character. Inspired on Jurassic Universe's Triceratops. Disclaimer on the fanart and images not my property, just edited them at photopea.com\n--------------------\nSpecial thanks to the Discord community: @Retinoid ; @ComeFrank; @Basedana ; @Fracture; @DoubleCrunch; @Cviko5691; @MrR3dstoneGhost002\n--------------------\nTTS json file: https://drive.google.com/drive/u/0/folders/1hn7mEOl5XGeojF6CC6DREJu6YeoIJWRV",
+  "published": true,
+  "published_on": "Thu, 29 Aug 2024 04:53:48 GMT",
+  "tags": [
+    {
+      "name": "Solo Fighter",
+      "slug": "solo-fighter"
+    },
+    {
+      "name": "Movie",
+      "slug": "movie"
+    },
+    {
+      "name": "Melee Hero",
+      "slug": "melee-hero"
+    },
+    {
+      "name": "Dinosaur",
+      "slug": "dinosaur"
+    },
+    {
+      "name": "Large Hero",
+      "slug": "large-hero"
+    },
+    {
+      "name": "Feedback wanted",
+      "slug": "feedback-wanted"
+    },
+    {
+      "name": "Large Fighter",
+      "slug": "large-fighter"
+    },
+    {
+      "name": "Fully-arted",
+      "slug": "fully-arted"
+    },
+    {
+      "name": "Jurassic Park",
+      "slug": "jurassic-park"
+    },
+    {
+      "name": "Jurassic World",
+      "slug": "jurassic-world"
+    },
+    {
+      "name": "TTS JSON included",
+      "slug": "tts-json-included"
+    },
+    {
+      "name": "Tested",
+      "slug": "tested"
+    }
+  ],
+  "updated_on": "Fri, 14 Feb 2025 11:12:42 GMT",
+  "user": "Nitetrio",
+  "version_id": "kxgnu4QMm",
+  "version_name": "Version 2.3 (FINISHED)",
+  "versions": [
+    {
+      "created_on": "Wed, 28 Aug 2024 05:25:56 GMT",
+      "id": "kxgnu4QMm",
+      "name": "Triceratops (Jurassic)",
+      "published": true,
+      "updated_on": "Fri, 14 Feb 2025 11:12:42 GMT",
+      "version_name": "Version 2.3 (FINISHED)"
+    },
+    {
+      "created_on": "Sun, 16 Jun 2024 06:19:00 GMT",
+      "id": "EnqJCGEPB",
+      "name": "Triceratops (Jurassic)",
+      "published": true,
+      "updated_on": "Sun, 28 Jul 2024 23:27:47 GMT",
+      "version_name": "Version 2.2"
+    },
+    {
+      "created_on": "Sat, 08 Jun 2024 12:38:58 GMT",
+      "id": "zZ43uK2Dw",
+      "name": "Triceratops (Jurassic)",
+      "published": true,
+      "updated_on": "Sat, 08 Jun 2024 13:12:13 GMT",
+      "version_name": "Version 2.1"
+    },
+    {
+      "created_on": "Wed, 05 Jun 2024 02:38:31 GMT",
+      "id": "_5mNSZ9Yk",
+      "name": "Triceratops (Jurassic)",
+      "published": true,
+      "updated_on": "Wed, 05 Jun 2024 15:49:15 GMT",
+      "version_name": "Version 2.0"
+    },
+    {
+      "created_on": "Wed, 29 May 2024 09:09:00 GMT",
+      "id": "NdqJSgdZM",
+      "name": "Triceratops (Jurassic)",
+      "published": true,
+      "updated_on": "Thu, 30 May 2024 09:14:09 GMT",
+      "version_name": "Version 1.9"
+    },
+    {
+      "created_on": "Tue, 28 May 2024 15:02:14 GMT",
+      "id": "KnqJCwV3V",
+      "name": "Triceratops (Jurassic)",
+      "published": true,
+      "updated_on": "Tue, 28 May 2024 16:56:10 GMT",
+      "version_name": "Version 1.8"
+    },
+    {
+      "created_on": "Sat, 18 May 2024 02:50:51 GMT",
+      "id": "EnqJCG4bZ",
+      "name": "Triceratops (Jurassic)",
+      "published": true,
+      "updated_on": "Tue, 28 May 2024 16:15:59 GMT",
+      "version_name": "Version 1.7"
+    },
+    {
+      "created_on": "Sun, 12 May 2024 05:09:06 GMT",
+      "id": "JnqJCqQe4",
+      "name": "Triceratops (Jurassic)",
+      "published": true,
+      "updated_on": "Tue, 21 May 2024 07:23:21 GMT",
+      "version_name": "Version 1.6"
+    },
+    {
+      "created_on": "Sun, 05 May 2024 14:23:12 GMT",
+      "id": "PKqJuE5k-",
+      "name": "Triceratops (Jurassic)",
+      "published": true,
+      "updated_on": "Tue, 21 May 2024 07:23:39 GMT",
+      "version_name": "Version 1.5 (Playtest revisions-ongoing)"
+    },
+    {
+      "created_on": "Thu, 02 May 2024 11:31:24 GMT",
+      "id": "kxgnu4W-k",
+      "name": "Triceratops (Jurassic)",
+      "published": true,
+      "updated_on": "Tue, 21 May 2024 07:24:03 GMT",
+      "version_name": "Version 1.4 (Revisions base on feedback)"
+    },
+    {
+      "created_on": "Wed, 01 May 2024 23:35:06 GMT",
+      "id": "2NeqhrzXy",
+      "name": "Triceratops (Jurassic)",
+      "published": true,
+      "updated_on": "Tue, 21 May 2024 07:24:16 GMT",
+      "version_name": "Version 1.3 (for balancing)"
+    },
+    {
+      "created_on": "Mon, 29 Apr 2024 00:50:54 GMT",
+      "id": "-1VqSJymv",
+      "name": "Triceratops (Jurassic)",
+      "published": true,
+      "updated_on": "Tue, 21 May 2024 07:24:34 GMT",
+      "version_name": "Version 1.2"
+    },
+    {
+      "created_on": "Sun, 28 Apr 2024 23:30:35 GMT",
+      "id": "OAqJCQdZ2",
+      "name": "Triceratops (Jurassic)",
+      "published": true,
+      "updated_on": "Tue, 21 May 2024 07:24:46 GMT",
+      "version_name": "Version 1.1"
+    },
+    {
+      "created_on": "Sat, 27 Apr 2024 03:00:04 GMT",
+      "id": "jDNGfdjQW",
+      "name": "Triceratops (Jurassic)",
+      "published": true,
+      "updated_on": "Sun, 28 Apr 2024 23:34:01 GMT",
+      "version_name": "Version 1"
+    },
+    {
+      "created_on": "Fri, 26 Apr 2024 11:32:31 GMT",
+      "id": "AnqJCQ5oo",
+      "name": "Triceratops (Jurassic)",
+      "published": true,
+      "updated_on": "Sat, 27 Apr 2024 02:44:50 GMT",
+      "version_name": "Initial version"
+    }
+  ]
+}

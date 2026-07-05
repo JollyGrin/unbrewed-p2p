@@ -462,7 +462,7 @@ const HeroTile = ({
           </Flex>
         </Flex>
       </Flex>
-      {deck && (
+      {deck && !deck.original && (
         <Tooltip
           label={`Community deck by ${deck.author} — view the original on unmatched.cards`}
           hasArrow
