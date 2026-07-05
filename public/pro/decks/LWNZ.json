@@ -1,0 +1,271 @@
+{
+  "bgg_link": null,
+  "created_on": "Wed, 30 Mar 2022 02:32:08 GMT",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#c21187",
+      "cardbackUrl": "https://imgur.com/uiwaAGu.jpeg",
+      "highlightColour": "#ab224b",
+      "isPNP": false,
+      "patternName": "Diagonal Stripes"
+    },
+    "cards": [
+      {
+        "afterText": null,
+        "basicText": "Discard 1 card from the top of your deck. All opposing heroes in your zone take damage equal to the BOOST value of that card. Gingerbread man recovers health equal to the BOOST value.\n",
+        "boost": 3,
+        "characterName": "GINGERBREAD MAN",
+        "duringText": null,
+        "imageUrl": "https://imgur.com/Mozu9H1.jpeg",
+        "immediateText": null,
+        "quantity": 2,
+        "title": "the way the cookie crumbles",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": null,
+        "basicText": "Choose 2 cards from your discard pile and place them back in your deck. Shuffle your deck. \n(You may not choose scheme cards.)",
+        "boost": 4,
+        "characterName": "GINGERBREAD MAN",
+        "duringText": null,
+        "imageUrl": "https://imgur.com/pPIgwoo.jpeg",
+        "immediateText": null,
+        "quantity": 1,
+        "title": "Changing the recipe ",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "Your opponent may discard any ammount of cards. For each card they have in their hand, they take 1 damage.\n",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "GINGERBREAD MAN",
+        "duringText": "",
+        "imageUrl": "https://imgur.com/0Cdm9Nn.jpeg",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "350°",
+        "type": "attack",
+        "value": 5
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "GINGERBREAD MAN",
+        "duringText": "Decrease your opponent's card value in half rounded down.",
+        "imageUrl": "https://imgur.com/LZ51xEl.jpeg",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Cookie cutter ",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": "If you won the combat, you may draw 1 card. ",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "GINGERBREAD MAN",
+        "duringText": "",
+        "imageUrl": "https://imgur.com/l39CVXC.jpeg",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Gingerbread house ",
+        "type": "defence",
+        "value": 5
+      },
+      {
+        "afterText": "If Gingerbread man is not adjacent to Fox, draw 1 card and Gingerbread man recovers 1 health. ",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "GINGERBREAD MAN",
+        "duringText": "",
+        "imageUrl": "https://imgur.com/wIUuJ6F.jpeg",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Ginger snap ",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "Move Gingerbread man up to 2 spaces. ",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "GINGERBREAD MAN",
+        "duringText": "",
+        "imageUrl": "https://imgur.com/5lbaVdn.jpeg",
+        "immediateText": "Cancel all effects on your opponent's card. \n",
+        "quantity": 3,
+        "title": "Can't catch me...",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "If Fox started this turn adjacent to Gingerbread man, deal 2 damage to the opposing fighter. ",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "FOX",
+        "duringText": "",
+        "imageUrl": "https://imgur.com/1EW8HFd.jpeg",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Sweet tooth ",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "FOX",
+        "duringText": "If you are adjacent to Gingerbread man, you may BOOST this card.  ",
+        "imageUrl": "https://imgur.com/L5I8WkX.jpeg",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Snatch and Devour ",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "Move any fighter 1 space.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "FOX",
+        "duringText": "",
+        "imageUrl": "https://imgur.com/zMKzLqc.jpeg",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Sly and shifty ",
+        "type": "versatile",
+        "value": 4
+      },
+      {
+        "afterText": "Move your fighter up to 4 spaces.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://imgur.com/7sH3nHW.jpg",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Swift Strike",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": "If Gingerbread man and Fox are adjacent, gain 1 action. ",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://imgur.com/1J6GVOR.jpeg",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Working together ",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": "If you won the combat, choose one of the fighters in the combat and move them up to 4 spaces. ",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://imgur.com/XNtq0gb.jpeg",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Leap away ",
+        "type": "versatile",
+        "value": 4
+      }
+    ],
+    "extraCharacters": [],
+    "hero": {
+      "hp": 13,
+      "isRanged": false,
+      "move": 4,
+      "name": "gingerbread man ",
+      "specialAbility": "           FRESH OUT OF THE OVEN\nGingerbread man may maneuver through spaces containing opposing fighters.\nAt the end of your turn, if Fox is adjacent to Gingerbread man, Gingerbread man takes 1 damage. \n"
+    },
+    "name": "",
+    "ruleCards": [],
+    "sidekick": {
+      "hp": 8,
+      "isRanged": false,
+      "name": "Fox",
+      "quantity": 1,
+      "quote": null
+    }
+  },
+  "deck_first_published_on": null,
+  "deck_published": true,
+  "family_id": "LWNZ",
+  "id": "LWNZ",
+  "liked": false,
+  "likes": 75,
+  "name": " Gingerbread man",
+  "note": "If you like this deck check out my Raven deck. \nIt also have custom art and is finished, balanced, and flow as I wanted.\n\nGingerbread man has a movement of 4 so it can be really hard to catch him. (Go figure) 😁 With Gingerbread man you have to be careful about where you place the Fox. At the end of your turn if you are adjacent to Fox you will end up taking damage but sometimes for Fox to be used at full potential you have to be next to Gingerbread man. Is Fox going to help you win, or will he only aid in your demise? Don't be fooled by his cute card art though because Gingerbread man is one tough cookie!",
+  "published": true,
+  "published_on": "Thu, 19 May 2022 12:30:38 GMT",
+  "tags": [
+    {
+      "name": "Fully-arted",
+      "slug": "fully-arted"
+    },
+    {
+      "name": "Movement of 4",
+      "slug": "movement-of-4"
+    },
+    {
+      "name": "Fairytale",
+      "slug": "fairytale"
+    },
+    {
+      "name": "Contest Entry 2020",
+      "slug": "contest-entry-2020"
+    },
+    {
+      "name": "Public Domain",
+      "slug": "public-domain"
+    },
+    {
+      "name": "Tested",
+      "slug": "tested"
+    },
+    {
+      "name": "Battle of Unofficial Legends",
+      "slug": "battle-of-unofficial-legends"
+    },
+    {
+      "name": "customart",
+      "slug": "customart"
+    },
+    {
+      "name": "Custom Art",
+      "slug": "custom-art"
+    }
+  ],
+  "updated_on": "Fri, 27 Mar 2026 16:18:52 GMT",
+  "user": "TAYTERTOTS",
+  "version_id": "j8ktZzP",
+  "version_name": "Gingerbread",
+  "versions": [
+    {
+      "created_on": "Wed, 30 Mar 2022 02:32:08 GMT",
+      "id": "j8ktZzP",
+      "name": " Gingerbread man",
+      "published": true,
+      "updated_on": "Fri, 27 Mar 2026 16:18:52 GMT",
+      "version_name": "Gingerbread"
+    },
+    {
+      "created_on": "Wed, 07 Oct 2020 02:40:02 GMT",
+      "id": "AErFk4",
+      "name": " Gingerbread man",
+      "published": true,
+      "updated_on": "Mon, 28 Mar 2022 20:57:42 GMT",
+      "version_name": "Gingerbread"
+    }
+  ]
+}

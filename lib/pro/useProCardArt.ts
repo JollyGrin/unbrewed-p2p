@@ -25,6 +25,7 @@ export const HERO_DECK_IDS: Record<string, string> = {
   "the-mandalorian": "lDOM",
   thrall: "pk1x",
   "r2-d2": "3jgd",
+  "gingerbread-man": "LWNZ",
   // Evergreen originals: no unmatched.cards page exists — the ids are ours, and
   // the snapshot in public/pro/decks/ is the ONLY source (the live-API fetch
   // 404s by design; snapshot-first means it is never consulted).
