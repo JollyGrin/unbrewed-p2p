@@ -405,14 +405,14 @@ const HeroTile = ({
   const cardback = deck?.cardbackUrl;
   const frozenAt = frozenAtForHero(hero.heroId);
   return (
-    <Box position="relative" w="10rem">
+    <Box position="relative" w="100%">
       <Flex
         as="button"
         type="button"
         direction="column"
         onClick={onSelect}
         w="100%"
-        minH="8rem"
+        sx={{ aspectRatio: "63 / 88" }}
         p="0.75rem"
         borderRadius="0.6rem"
         border="2px solid"
@@ -535,8 +535,8 @@ const HeroTile = ({
 
 const SkeletonTile = () => (
   <Box
-    w="10rem"
-    minH="8rem"
+    w="100%"
+    sx={{ aspectRatio: "63 / 88" }}
     borderRadius="0.6rem"
     border="2px solid"
     borderColor="whiteAlpha.200"
@@ -609,15 +609,20 @@ const HeroSelectLobby = ({
         Choose your fighter
       </Text>
 
-      <Flex gap="0.75rem" flexWrap="wrap" justifyContent="center" maxW="42rem">
+      <Grid
+        w="100%"
+        maxW="34rem"
+        templateColumns={{ base: "repeat(2, 1fr)", sm: "repeat(3, 1fr)", md: "repeat(4, 1fr)" }}
+        gap="0.75rem"
+      >
         {heroes === null ? (
           heroParam ? (
             <Flex
               direction="column"
               align="center"
               gap="0.4rem"
-              w="10rem"
-              minH="8rem"
+              w="100%"
+              sx={{ aspectRatio: "63 / 88" }}
               justify="center"
               borderRadius="0.6rem"
               border="2px solid"
@@ -640,7 +645,9 @@ const HeroSelectLobby = ({
             </>
           )
         ) : heroes.length === 0 ? (
-          <Text opacity={0.7}>no heroes available — try again shortly</Text>
+          <Text gridColumn="1 / -1" textAlign="center" opacity={0.7}>
+            no heroes available — try again shortly
+          </Text>
         ) : (
           heroes.map((h) => (
             <HeroTile
@@ -652,7 +659,7 @@ const HeroSelectLobby = ({
             />
           ))
         )}
-      </Flex>
+      </Grid>
 
       <HeroPreviewModal
         isOpen={!!previewHero}
