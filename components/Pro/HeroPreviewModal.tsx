@@ -1,7 +1,7 @@
 /**
  * Hero-preview modal — an info affordance on hero-select tiles (both /pro
  * and /pro/game) opens this instead of committing to a pick. Shows the
- * stats line, sidekick, special ability, and the full card list from the
+ * stats line, flavor blurb, sidekick, special ability, and the full card list from the
  * same deck JSON the picker already fetches (snapshot-first, live-API
  * fallback — see useDeckPreview). Works even for not-yet-converted decks:
  * the community JSON exists on unmatched.cards long before Pro rules do.
@@ -119,6 +119,12 @@ export const HeroPreviewModal = ({
             </Flex>
           )}
 
+          {deck?.hero.quote?.trim() && (
+            <Text mt="0.9rem" fontSize="0.85rem" fontStyle="italic" opacity={0.75} whiteSpace="pre-wrap">
+              {deck.hero.quote.trim()}
+            </Text>
+          )}
+
           {hasSidekick && (
             <>
               <SectionHeading>Sidekick</SectionHeading>
@@ -136,6 +142,11 @@ export const HeroPreviewModal = ({
                 )}
                 {sidekick!.isRanged ? <TbBow size="13px" /> : <TbSword size="13px" />}
               </Flex>
+              {sidekick!.quote?.trim() && (
+                <Text mt="0.3rem" fontSize="0.8rem" fontStyle="italic" opacity={0.7} whiteSpace="pre-wrap">
+                  {sidekick!.quote.trim()}
+                </Text>
+              )}
             </>
           )}
 

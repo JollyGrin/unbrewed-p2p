@@ -212,7 +212,8 @@
       "isRanged": true,
       "move": 2,
       "name": "The Mandalorian",
-      "specialAbility": "When the Mandalorian plays a card to defend, add 1 to that card's value for each BESKAR ARMOR card in your discard pile. \nIf you draw any BESKAR ARMOR cards to start the game, reshuffle and draw again."
+      "specialAbility": "When the Mandalorian plays a card to defend, add 1 to that card's value for each BESKAR ARMOR card in your discard pile. \nIf you draw any BESKAR ARMOR cards to start the game, reshuffle and draw again.",
+      "quote": "A lone bounty hunter who only gets harder to kill — every beskar card in the discard pile hardens his defense as the fight drags on. This is the way."
     },
     "name": "",
     "ruleCards": [],
@@ -221,7 +222,7 @@
       "isRanged": true,
       "name": "The Child",
       "quantity": 1,
-      "quote": null
+      "quote": "Small, quiet, and worth more than every bounty in the guild — the whole reason to keep fighting."
     }
   },
   "deck_first_published_on": null,
