@@ -17,7 +17,8 @@ import {
 } from "@/lib/constants/top-decks";
 // evergreen (Pro rule-enforced) decks resolve from the committed snapshot
 // first; everything else stays live-API-first with snapshot fallback
-import { fetchDeckById } from "@/lib/evergreenDecks";
+import { EVERGREEN_DECK_IDS, fetchDeckById } from "@/lib/evergreenDecks";
+import { frozenAtForDeck } from "@/lib/pro/evergreenManifest";
 
 /**
  * One-click deck picker: the most-liked community decks on
@@ -103,67 +104,70 @@ const DeckTile = ({
   isSaved: boolean;
   isStarred: boolean;
   onClick: () => void;
-}) => (
-  <Tooltip
-    label={
-      isStarred
-        ? "Your active deck"
-        : `by ${deck.author} — click to ${isSaved ? "play" : "add & play"}`
-    }
-  >
-    <Flex
-      onClick={onClick}
-      flexDir="column"
-      justifyContent="flex-end"
-      h="5.5rem"
-      p="0.5rem"
-      borderRadius="0.5rem"
-      border="2px solid"
-      borderColor={isStarred ? "brand.accent" : "rgba(72, 40, 79, 0.25)"}
-      cursor="pointer"
-      userSelect="none"
-      position="relative"
-      overflow="hidden"
-      transition="all 0.15s ease-in-out"
-      _hover={{
-        transform: "translateY(-2px)",
-        boxShadow: "0 6px 14px rgba(20, 8, 24, 0.35)",
-      }}
-      bg={deck.highlightColour}
-      bgImage={deck.cardbackUrl ? `url(${deck.cardbackUrl})` : undefined}
-      bgSize="cover"
-      bgPos="center"
-    >
-      <Box
-        position="absolute"
-        inset="0"
-        bg="linear-gradient(180deg, rgba(20,8,24,0) 20%, rgba(20,8,24,0.85) 100%)"
-      />
-      <Flex position="relative" justifyContent="space-between" alignItems="end">
-        <Text
-          color="#FAEBD7"
-          fontFamily="SpaceGrotesk"
-          fontWeight={700}
-          fontSize="0.8rem"
-          lineHeight="1.15"
-          noOfLines={2}
-          textShadow="0 1px 2px rgba(0,0,0,0.8)"
-        >
-          {deck.name}
-        </Text>
-        <Flex alignItems="center" gap="0.25rem" color="#FAEBD7" pl="0.25rem">
-          {isLoading ? (
-            <Spinner size="xs" />
-          ) : isStarred ? (
-            <FaStar color="#E0A82E" size="0.8rem" />
-          ) : (
-            <>
-              <FaHeart size="0.6rem" />
-              <Text fontSize="0.7rem">{deck.likes}</Text>
-            </>
-          )}
+}) => {
+  const frozenAt = EVERGREEN_DECK_IDS.has(deck.id) ? frozenAtForDeck(deck.id) : null;
+  const baseLabel = isStarred
+    ? "Your active deck"
+    : `by ${deck.author} — click to ${isSaved ? "play" : "add & play"}`;
+  const label = frozenAt
+    ? `${baseLabel} — rules version frozen ${frozenAt}`
+    : baseLabel;
+  return (
+    <Tooltip label={label}>
+      <Flex
+        onClick={onClick}
+        flexDir="column"
+        justifyContent="flex-end"
+        h="5.5rem"
+        p="0.5rem"
+        borderRadius="0.5rem"
+        border="2px solid"
+        borderColor={isStarred ? "brand.accent" : "rgba(72, 40, 79, 0.25)"}
+        cursor="pointer"
+        userSelect="none"
+        position="relative"
+        overflow="hidden"
+        transition="all 0.15s ease-in-out"
+        _hover={{
+          transform: "translateY(-2px)",
+          boxShadow: "0 6px 14px rgba(20, 8, 24, 0.35)",
+        }}
+        bg={deck.highlightColour}
+        bgImage={deck.cardbackUrl ? `url(${deck.cardbackUrl})` : undefined}
+        bgSize="cover"
+        bgPos="center"
+      >
+        <Box
+          position="absolute"
+          inset="0"
+          bg="linear-gradient(180deg, rgba(20,8,24,0) 20%, rgba(20,8,24,0.85) 100%)"
+        />
+        <Flex position="relative" justifyContent="space-between" alignItems="end">
+          <Text
+            color="#FAEBD7"
+            fontFamily="SpaceGrotesk"
+            fontWeight={700}
+            fontSize="0.8rem"
+            lineHeight="1.15"
+            noOfLines={2}
+            textShadow="0 1px 2px rgba(0,0,0,0.8)"
+          >
+            {deck.name}
+          </Text>
+          <Flex alignItems="center" gap="0.25rem" color="#FAEBD7" pl="0.25rem">
+            {isLoading ? (
+              <Spinner size="xs" />
+            ) : isStarred ? (
+              <FaStar color="#E0A82E" size="0.8rem" />
+            ) : (
+              <>
+                <FaHeart size="0.6rem" />
+                <Text fontSize="0.7rem">{deck.likes}</Text>
+              </>
+            )}
+          </Flex>
         </Flex>
       </Flex>
-    </Flex>
-  </Tooltip>
-);
+    </Tooltip>
+  );
+};

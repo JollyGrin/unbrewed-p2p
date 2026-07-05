@@ -15,6 +15,7 @@ import {
   PopularDeckMeta,
 } from "@/lib/constants/top-decks";
 import { DECK_HERO_IDS } from "@/lib/pro/useProCardArt";
+import { frozenAtForDeck } from "@/lib/pro/evergreenManifest";
 import { useProLiveRoster } from "@/lib/pro/useProLiveRoster";
 import { PRO_WS_URL } from "@/lib/pro/wsUrl";
 
@@ -444,9 +445,12 @@ const RosterTile = ({
         </Flex>
       </Flex>
   );
+  const frozenAt = status === "ready" ? frozenAtForDeck(deck.id) : null;
   const inspectHint =
     status === "ready"
-      ? `${deck.hero} — playable now, click to enter the arena`
+      ? `${deck.hero} — playable now, click to enter the arena${
+          frozenAt ? ` (rules version frozen ${frozenAt})` : ""
+        }`
       : status === "lab"
       ? `${deck.hero} — stress-testing the engine's rule language`
       : `${deck.hero} — not yet converted (every deck's rules are hand-tuned)`;

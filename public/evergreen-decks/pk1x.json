@@ -212,8 +212,6 @@
   "deck_published": true,
   "family_id": "pk1x",
   "id": "pk1x",
-  "liked": false,
-  "likes": 2,
   "name": "Thrall, son of Durotan",
   "note": "As a shaman, Thrall wields the power of the elements and channels them through totems. With proper totem placement, Thrall has many utilities available to deal damage and get out of situations. Yet enemies can bait you outside their range or destroy them easily.",
   "published": true,
@@ -222,47 +220,5 @@
   "updated_on": "Mon, 07 Sep 2020 20:33:06 GMT",
   "user": "JollyGrin",
   "version_id": "y8Eado",
-  "version_name": "v2.4",
-  "versions": [
-    {
-      "created_on": "Mon, 07 Sep 2020 20:31:54 GMT",
-      "id": "y8Eado",
-      "name": "Thrall, son of Durotan",
-      "published": true,
-      "updated_on": "Mon, 07 Sep 2020 20:33:06 GMT",
-      "version_name": "v2.4"
-    },
-    {
-      "created_on": "Mon, 07 Sep 2020 20:12:55 GMT",
-      "id": "q8NaAZ",
-      "name": "Thrall, son of Durotan",
-      "published": true,
-      "updated_on": "Mon, 07 Sep 2020 20:30:11 GMT",
-      "version_name": "v2.3"
-    },
-    {
-      "created_on": "Mon, 07 Sep 2020 16:35:04 GMT",
-      "id": "ZZKuDP",
-      "name": "Thrall, son of Durotan",
-      "published": true,
-      "updated_on": "Mon, 07 Sep 2020 16:36:42 GMT",
-      "version_name": "v2.1"
-    },
-    {
-      "created_on": "Sun, 06 Sep 2020 18:28:46 GMT",
-      "id": "7GwUr1",
-      "name": "Thrall, son of Durotan",
-      "published": true,
-      "updated_on": "Sun, 06 Sep 2020 18:29:16 GMT",
-      "version_name": "v2.1"
-    },
-    {
-      "created_on": "Sun, 06 Sep 2020 18:22:40 GMT",
-      "id": "wJ7Ibq",
-      "name": "Thrall, son of Durotan",
-      "published": true,
-      "updated_on": "Sun, 06 Sep 2020 18:22:57 GMT",
-      "version_name": "v2"
-    }
-  ]
+  "version_name": "v2.4"
 }
