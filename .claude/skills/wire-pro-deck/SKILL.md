@@ -79,6 +79,12 @@ connect.
 (precedent: Thrall, commit `82f30c3`) or a community imgur URL in
 `POPULAR_DECKS.cardbackUrl`.
 
+No step needed for the hero-preview modal (`components/Pro/HeroPreviewModal.tsx`,
+added PR #92/unbrewed-p2p-84): `lib/pro/useDeckPreview.ts` reads the same
+`HERO_DECK_IDS`/`DECK_HERO_IDS` map and the same `/evergreen-decks/<deckId>.json`
+snapshot as steps 1–2, so it lights up automatically once those are done —
+just check it in Verification below.
+
 ## New-mechanic UX (conditional)
 
 If the conversion report's mechanic scan has any YES, this ticket includes
@@ -121,6 +127,9 @@ bespoke rendering work, not just data wiring:
 - `/pro/game` picker shows the hero; originals carry no unmatched.cards link.
 - A seat renders the full hand as card faces (template fallback OK if art
   pending); art resolves by title where art exists.
+- The info icon on the hero tile opens `HeroPreviewModal` with the new
+  hero's HP/move/reach, sidekick, special ability, and full card list, on
+  both `/pro` and `/pro/game`.
 - Sandbox `/bag` → Popular decks: the tile fetches and saves the snapshot
   (served from `/evergreen-decks/<deckId>.json`, per `lib/evergreenDecks.ts`).
 - `npm run pro:decks:verify`, `npm run lint`, `npm run build`, `npm test` all
