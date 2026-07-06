@@ -33,6 +33,7 @@ export const HERO_DECK_IDS: Record<string, string> = {
   "r2-d2": "3jgd",
   "gingerbread-man": "LWNZ",
   triceratops: "1Y5J",
+  "baba-yaga": "yAJ-",
   // Evergreen originals: no unmatched.cards page exists — the ids are ours, and
   // the snapshot in public/evergreen-decks/ is the ONLY source (the live-API
   // fetch 404s by design; snapshot-only means it is never consulted).
@@ -51,7 +52,11 @@ export const DECK_HERO_IDS: Record<string, string> = Object.fromEntries(
   Object.entries(HERO_DECK_IDS).map(([heroId, deckId]) => [deckId, heroId])
 );
 
-const norm = (s: string) => s.trim().toLowerCase();
+/** Art-matching title normalization. Exported for the evergreen-manifest test
+ * proving a title with exotic whitespace (Baba Yaga's " Iron Teeth" begins
+ * with a NON-BREAKING SPACE in both the API snapshot and the engine rules.ts)
+ * still matches: JS trim() strips U+00A0 on both sides. */
+export const norm = (s: string) => s.trim().toLowerCase();
 
 export type ResolveCard = (instance: CardInstanceId) => DeckImportCardType | null;
 export type ResolveHero = (heroId: string) => DeckImportHeroType | null;

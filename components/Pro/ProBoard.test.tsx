@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { ProBoard } from "./ProBoard";
 import { ProMapDef, ViewFighter } from "@/lib/pro/protocol";
@@ -98,16 +98,58 @@ describe("ProBoard regions", () => {
     expect(screen.getByTitle("The Hut")).not.toContainElement(screen.getByTitle(/The Mandalorian/));
   });
 
-  it("greys out and disables a closed region's panel", () => {
+  it("greys out a closed region's panel and disables its art, but keeps the header live", () => {
     render(
       <ChakraProvider>
         <ProBoard map={REGION_MAP} fighters={[fighter({})]} closedRegions={["HUT"]} />
       </ChakraProvider>
     );
     const panel = screen.getByTitle("The Hut");
-    const style = getComputedStyle(panel);
-    expect(style.pointerEvents).toBe("none");
-    expect(style.filter).toContain("grayscale");
-    expect(screen.getByText(/The Hut — CLOSED/i)).toBeInTheDocument();
+    expect(getComputedStyle(panel).filter).toContain("grayscale");
+    // the art frame stops taking clicks…
+    const artFrame = screen.getByAltText("The Hut").parentElement as HTMLElement;
+    expect(getComputedStyle(artFrame).pointerEvents).toBe("none");
+    // …but the header still works, so a dead panel can be collapsed/dragged away
+    expect(getComputedStyle(panel).pointerEvents).toBe("auto");
+    // case-sensitive: the overlay says "CLOSED"; the header chip says "closed"
+    expect(screen.getByText(/The Hut — CLOSED/)).toBeInTheDocument();
+  });
+
+  it("collapses to just the header bar via the toggle, and re-expands", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={REGION_MAP} fighters={[fighter({ space: "hut-1" })]} />
+      </ChakraProvider>
+    );
+    const toggle = screen.getByLabelText("toggle The Hut");
+    fireEvent.click(toggle);
+    expect(screen.queryByAltText("The Hut")).not.toBeInTheDocument(); // art gone, bar stays
+    expect(screen.getByTitle("The Hut")).toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(screen.getByAltText("The Hut")).toBeInTheDocument();
+  });
+
+  it("auto-expands a collapsed panel while a space inside the region is highlighted", () => {
+    const { rerender } = render(
+      <ChakraProvider>
+        <ProBoard map={REGION_MAP} fighters={[fighter({})]} />
+      </ChakraProvider>
+    );
+    fireEvent.click(screen.getByLabelText("toggle The Hut"));
+    expect(screen.queryByAltText("The Hut")).not.toBeInTheDocument();
+    // legalActions now offer an interior destination -> the panel must open
+    rerender(
+      <ChakraProvider>
+        <ProBoard map={REGION_MAP} fighters={[fighter({})]} highlightedSpaces={["hut-1"]} />
+      </ChakraProvider>
+    );
+    expect(screen.getByAltText("The Hut")).toBeInTheDocument();
+    // highlight gone -> the player's collapse preference comes back
+    rerender(
+      <ChakraProvider>
+        <ProBoard map={REGION_MAP} fighters={[fighter({})]} />
+      </ChakraProvider>
+    );
+    expect(screen.queryByAltText("The Hut")).not.toBeInTheDocument();
   });
 });
