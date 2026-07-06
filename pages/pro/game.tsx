@@ -41,7 +41,7 @@ import { HERO_DECK_IDS, ResolveCard, useProCardArt } from "@/lib/pro/useProCardA
 import { frozenAtForHero } from "@/lib/pro/evergreenManifest";
 import { POPULAR_DECKS, PopularDeckMeta } from "@/lib/constants/top-decks";
 import { GiFootprint, GiHearts } from "react-icons/gi";
-import { TbBow, TbChevronDown, TbExternalLink, TbInfoCircle, TbSword } from "react-icons/tb";
+import { TbBow, TbBug, TbChevronDown, TbExternalLink, TbInfoCircle, TbSword } from "react-icons/tb";
 import { CardFace, ProHand } from "@/components/Pro/ProHand";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { ProHud } from "@/components/Pro/ProHud";
@@ -1449,6 +1449,45 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
         onToggleSound={toggleSound}
         onToggleVisualFx={toggleVisual}
       />
+
+      {/* top-right: second, more-discoverable report-bug entry point (issue
+          #125) — beta badge distinguishes it from the activity-log icon
+          (#87); both open the same ReportBugDialog. */}
+      <Tooltip
+        label="Pro is in beta — you may hit bugs. Click to report one with your game context attached."
+        hasArrow
+        placement="bottom-end"
+      >
+        <Button
+          position="fixed"
+          top="0.75rem"
+          right="0.75rem"
+          zIndex={170}
+          size="sm"
+          bg="brand.accent"
+          color="brand.surfaceDim"
+          _hover={{ bg: "brand.accentDeep" }}
+          _active={{ bg: "brand.accentDeep" }}
+          leftIcon={<TbBug size="0.9rem" />}
+          onClick={() => setReportBugOpen(true)}
+          fontFamily="SpaceGrotesk"
+          fontSize="0.75rem"
+          gap="0.35rem"
+        >
+          Report bug
+          <Tag
+            size="sm"
+            ml="0.4rem"
+            bg="whiteAlpha.400"
+            color="brand.surfaceDim"
+            fontSize="0.6rem"
+            fontWeight="bold"
+            letterSpacing="0.04em"
+          >
+            BETA
+          </Tag>
+        </Button>
+      </Tooltip>
 
       {/* right control dock — turn state, combat, prompts, actions */}
       <Flex
