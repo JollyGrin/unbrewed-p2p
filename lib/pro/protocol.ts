@@ -107,7 +107,7 @@
  *   construction, and a schema/dsl-version mismatch refuses rather than render a
  *   subtly-wrong game.
  */
-export const PROTOCOL_VERSION = 8;
+export const PROTOCOL_VERSION = 9;
 
 /** Scripted-AI strength preset (server-side budgets; client treats as opaque). */
 export type BotDifficulty = "easy" | "medium" | "hard";
@@ -183,6 +183,15 @@ export interface ProMapZone {
   label: string;
 }
 
+// A board region (v0.12.0 — Baba Yaga's Hut): a partition rendered as an inset
+// minimap panel. See engine docs/plans/baba-yaga-hut-design.md D11.
+export interface ProMapRegion {
+  id: string;
+  label: string;
+  imageUrl?: string; // region inset background
+  spaceDiameter?: number; // pawn size inside the region frame
+}
+
 export interface ProMapSpace {
   id: SpaceId;
   x: number; // normalized 0–1 fraction of image width
@@ -190,6 +199,7 @@ export interface ProMapSpace {
   zones: string[]; // SET semantics — multi-zone spaces list every zone
   adjacentTo: SpaceId[]; // undirected, stored symmetrically
   oneWayTo?: SpaceId[]; // directed MOVEMENT-ONLY edges (e.g. Drum stairs)
+  region?: string; // region id (absent = main board) — v0.12.0
   start?: { slot: number };
 }
 
@@ -210,6 +220,7 @@ export interface ProMapDef {
     license?: string;
   };
   zones: ProMapZone[];
+  regions?: ProMapRegion[]; // v0.12.0 — board regions (absent on ordinary maps)
   spaces: ProMapSpace[];
 }
 
@@ -322,6 +333,9 @@ export interface PlayerView {
   opponent: ViewOpponent;
   combat: ViewCombat | null;
   prompt: ViewPrompt | null;
+  // Regions currently OUT OF PLAY (v0.12.0 — a closed Hut). Public info (no
+  // redaction); the client greys out the region's inset panel. Absent/[] = none.
+  closedRegions?: string[];
   winner: PlayerId | null;
 }
 

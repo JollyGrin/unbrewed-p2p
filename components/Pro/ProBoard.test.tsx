@@ -63,3 +63,51 @@ describe("ProBoard fighter token", () => {
     expect(screen.getByText("MAN")).toBeInTheDocument();
   });
 });
+
+// v9 board regions (Baba Yaga's Hut): region spaces render inside an inset
+// panel with its own positioning frame; a closed region greys out and stops
+// taking pointer events.
+const REGION_MAP: ProMapDef = {
+  ...MAP,
+  regions: [{ id: "HUT", label: "The Hut", imageUrl: "/pro/regions/baba-yaga-hut.webp", spaceDiameter: 0.18 }],
+  spaces: [
+    ...MAP.spaces,
+    { id: "hut-1", x: 0.28, y: 0.47, zones: [], adjacentTo: ["hut-2"], region: "HUT" },
+    { id: "hut-2", x: 0.51, y: 0.33, zones: [], adjacentTo: ["hut-1"], region: "HUT" },
+  ],
+};
+
+describe("ProBoard regions", () => {
+  it("renders a region as an inset panel and puts a region-space fighter inside it", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={REGION_MAP} fighters={[fighter({ space: "hut-1" })]} />
+      </ChakraProvider>
+    );
+    const panel = screen.getByTitle("The Hut");
+    expect(panel).toContainElement(screen.getByAltText("The Hut")); // inset background art
+    expect(panel).toContainElement(screen.getByTitle(/The Mandalorian/));
+  });
+
+  it("keeps main-board fighters out of the inset panel", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={REGION_MAP} fighters={[fighter({ space: "s1" })]} />
+      </ChakraProvider>
+    );
+    expect(screen.getByTitle("The Hut")).not.toContainElement(screen.getByTitle(/The Mandalorian/));
+  });
+
+  it("greys out and disables a closed region's panel", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={REGION_MAP} fighters={[fighter({})]} closedRegions={["HUT"]} />
+      </ChakraProvider>
+    );
+    const panel = screen.getByTitle("The Hut");
+    const style = getComputedStyle(panel);
+    expect(style.pointerEvents).toBe("none");
+    expect(style.filter).toContain("grayscale");
+    expect(screen.getByText(/The Hut — CLOSED/i)).toBeInTheDocument();
+  });
+});
