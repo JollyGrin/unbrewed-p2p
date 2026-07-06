@@ -12,6 +12,18 @@ import { FC } from "react";
 import { ChipCluster, HudOverlay } from "./header.styles";
 import { ConnectionStatus } from "@/lib/gamesocket/socket";
 
+/**
+ * Popper modifiers shared by the corner-pinned chip tooltips. `preventOverflow`
+ * against the viewport keeps a tooltip from ever spilling past the screen edge
+ * (which would widen the document and pop scrollbars on hover).
+ */
+const CHIP_TOOLTIP_MODIFIERS = [
+  {
+    name: "preventOverflow",
+    options: { rootBoundary: "viewport", altAxis: true, tether: false, padding: 8 },
+  },
+];
+
 export const HeaderContainer: FC<{ openPositionModal: () => void }> = ({
   openPositionModal,
 }) => {
@@ -76,7 +88,12 @@ const InviteChip = () => {
   if (!gid) return null;
 
   return (
-    <Tooltip label="Copy an invite link — anyone who clicks it jumps straight into this game">
+    <Tooltip
+      label="Copy an invite link — anyone who clicks it jumps straight into this game"
+      placement="bottom-end"
+      maxW="220px"
+      modifiers={CHIP_TOOLTIP_MODIFIERS}
+    >
       <Flex
         onClick={() => {
           copy(buildInviteUrl({ gid, server: activeServer }));
@@ -118,7 +135,12 @@ const STATUS_DISPLAY: Record<
 const ConnectionChip = ({ status }: { status: ConnectionStatus }) => {
   const display = STATUS_DISPLAY[status] ?? STATUS_DISPLAY.connecting;
   return (
-    <Tooltip label={display.label}>
+    <Tooltip
+      label={display.label}
+      placement="bottom-end"
+      maxW="220px"
+      modifiers={CHIP_TOOLTIP_MODIFIERS}
+    >
       <Flex
         alignItems="center"
         gap="0.3rem"
