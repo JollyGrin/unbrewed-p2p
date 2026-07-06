@@ -90,7 +90,24 @@
  *   ERROR{RESUME_FAILED}.
  */
 
-export const PROTOCOL_VERSION = 7;
+/**
+ * ## v8 (2026-07-06): full-match replay bundles (issue #122)
+ * The engine is deterministic (seeded PRNG in GameState, no wall-clock/Math.random),
+ * so a whole match is reproducible from `{ config, actionLog }`. Two additions:
+ * - `REPLAY_BUNDLE` (server → both seats at GAME_OVER): the unredacted,
+ *   self-contained `ReplayBundle` — nothing is secret once the game is over. The
+ *   client saves it locally for the /pro/replays scrubber; it is never required to
+ *   render a live game.
+ * - `ReplayExpansion` / `ReplayError`: the shape returned by the STATELESS HTTP
+ *   `POST /replay` endpoint (NOT a ws message). It re-runs a bundle's actionLog
+ *   through the authoritative reducer and returns the God-view step sequence
+ *   (both hands/decks/discards/tokens at every step) so the browser renders a
+ *   full-information replay without shipping the rules engine. The same endpoint
+ *   validates imported/shared bundles: an illegal actionLog is rejected by
+ *   construction, and a schema/dsl-version mismatch refuses rather than render a
+ *   subtly-wrong game.
+ */
+export const PROTOCOL_VERSION = 8;
 
 /** Scripted-AI strength preset (server-side budgets; client treats as opaque). */
 export type BotDifficulty = "easy" | "medium" | "hard";
@@ -309,6 +326,108 @@ export interface PlayerView {
 }
 
 // ---------------------------------------------------------------------------
+// Replay bundles (v7) — a portable, self-contained artifact for the /pro/replays
+// scrubber. Because the engine is deterministic, storing DECISIONS (config +
+// actionLog) re-derives every board state; we never ship board snapshots.
+//
+// `config.players[pid].hero`/`cards` are the engine's HeroDef/CardDef, opaque to
+// the client (typed `Json` so protocol.ts stays import-free) — the client stores
+// and forwards them verbatim; only the server (which owns the engine) reads them.
+// ---------------------------------------------------------------------------
+
+export interface ReplayPlayerSetup {
+  heroId: string;
+  hero: Json; // engine HeroDef — opaque to the client
+  cards: Json; // engine CardDef[] — opaque to the client
+}
+
+// A complete engine InitConfig plus the resolved board graph, so a bundle
+// reproduces anywhere without a server-side content lookup.
+export interface ReplayConfig {
+  seed: number;
+  mapId?: string;
+  options?: { allowNonstandardDeck?: boolean; startingHandSize?: number };
+  players: { p1: ReplayPlayerSetup; p2: ReplayPlayerSetup };
+  map: ProMapDef;
+}
+
+// Denormalized summary for the list UI + a Discord preview — readable without
+// expanding the whole log.
+export interface ReplayMeta {
+  winner: PlayerId | null;
+  heroes: [string, string]; // [p1 heroId, p2 heroId]
+  turns: number;
+  endedAt: number; // epoch ms
+  mapTitle: string;
+}
+
+export interface ReplayBundle {
+  v: 1;
+  engine: { schemaVersion: number; dslVersion: string };
+  config: ReplayConfig;
+  actionLog: Action[];
+  meta: ReplayMeta;
+}
+
+// One player's full (unredacted) per-step state in a God-view replay.
+export interface ReplayStepPlayer {
+  heroId: string;
+  hand: CardInstanceId[];
+  deckCount: number;
+  discard: CardInstanceId[];
+  committedCard: CardInstanceId | null;
+  counters: Record<string, number>;
+}
+
+// One scrubber frame: the board plus BOTH players face-up. `index` 0 is the
+// initial state (post-startGame, before any action); index k is the state after
+// applying actionLog[k-1], so steps.length === actionLog.length + 1.
+export interface ReplayStep {
+  index: number;
+  phase: "SETUP" | "PLAY" | "GAME_OVER";
+  turnNumber: number;
+  activePlayer: PlayerId;
+  actionsRemaining: number;
+  turnPhase: "ACTION_SELECT" | "MANEUVER_MOVE" | "DISCARD_TO_LIMIT" | null;
+  maneuver: { boostApplied: number; boosted: boolean; moved: FighterId[] } | null;
+  fighters: ViewFighter[];
+  tokens: ViewToken[];
+  combat: ViewCombat | null;
+  // The choosing player's full option set (God-view sees every option); null when
+  // no prompt is open.
+  prompt: ViewPrompt | null;
+  winner: PlayerId | null;
+  players: { p1: ReplayStepPlayer; p2: ReplayStepPlayer };
+}
+
+// `POST /replay` success — map + catalog + heroes are hoisted (static across the
+// match) so the per-step frames stay small.
+export interface ReplayExpansion {
+  ok: true;
+  engine: { schemaVersion: number; dslVersion: string };
+  meta: ReplayMeta;
+  map: ProMapDef;
+  catalog: Record<CardDefId, CardMeta>;
+  heroes: { p1: string; p2: string };
+  steps: ReplayStep[];
+  finalHash: string; // FNV-1a of the final state — pins the exact game
+}
+
+export type ReplayErrorCode =
+  | "BAD_BUNDLE" // malformed JSON / missing required fields
+  | "TOO_LARGE" // actionLog exceeds the server cap
+  | "VERSION_MISMATCH" // schemaVersion/dslVersion differs from this engine
+  | "ILLEGAL_ACTION"; // the reducer rejected an action in the log
+
+export interface ReplayError {
+  ok: false;
+  code: ReplayErrorCode;
+  message: string;
+}
+
+export type ReplayResponse = ReplayExpansion | ReplayError;
+
+// ---------------------------------------------------------------------------
 // Wire envelope. Every message carries `v`; on mismatch the server answers
 // ERROR{code:'VERSION'} and the client shows "refresh".
 // ---------------------------------------------------------------------------
@@ -350,6 +469,9 @@ export type ServerMsg =
   | { v: number; type: "ROOM_JOINED"; roomId: string; token: string; you: PlayerId }
   | { v: number; type: "VISIBILITY"; roomId: string; public: boolean } // ack to SET_VISIBILITY
   | { v: number; type: "STATE"; view: PlayerView; legalActions: Action[] }
+  // Sent to BOTH seats once the game reaches GAME_OVER (v7). Unredacted +
+  // self-contained; the client saves it for the /pro/replays scrubber.
+  | { v: number; type: "REPLAY_BUNDLE"; bundle: ReplayBundle }
   | { v: number; type: "OPPONENT_STATUS"; connected: boolean }
   // v7: the old instance is about to stop (SIGTERM). Show "server updating" and
   // let the reconnect loop take over — a valid RESUME_TOKEN revives the game.
