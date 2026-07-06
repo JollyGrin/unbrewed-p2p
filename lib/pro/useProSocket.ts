@@ -10,7 +10,15 @@
  * replay RECONNECT on the next socket open for the same room.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { forgetRoom, getTabToken, getToken, rememberRoom, setToken } from "./recentRooms";
+import {
+  forgetRoom,
+  getResumeToken,
+  getTabToken,
+  getToken,
+  rememberRoom,
+  setResumeToken,
+  setToken,
+} from "./recentRooms";
 import {
   Action,
   BotDifficulty,
@@ -65,6 +73,12 @@ export interface UseProSocketReturn {
   requestLobbies: () => void;
   /** list/unlist our current room in the public lobby browser */
   setVisibility: (isPublic: boolean) => void;
+  /**
+   * True between a `SERVER_RESTARTING` warning (the server is redeploying) and
+   * the next `STATE` (the game resumed on the new instance). The UI shows a
+   * "server updating — reconnecting…" toast while it's true.
+   */
+  serverRestarting: boolean;
 }
 
 const MAX_RETRY_DELAY_MS = 10_000;
@@ -76,6 +90,9 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
   const youRef = useRef<PlayerView["you"] | null>(null);
   // Message we replay when a fresh socket opens (join intent or reconnect).
   const pendingHelloRef = useRef<ClientMsg | null>(null);
+  // True while a RESUME_ROOM is in flight — so a resume that itself fails (bad
+  // blob / diverged game) surfaces the error instead of looping back into resume.
+  const resumingRef = useRef(false);
 
   const [status, setStatus] = useState<ProConnectionStatus>("idle");
   const [roomId, setRoomId] = useState<string | null>(null);
@@ -85,6 +102,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
   const [heroes, setHeroes] = useState<HeroListing[] | null>(null);
   const [lobbies, setLobbies] = useState<LobbyListing[] | null>(null);
   const [roomPublic, setRoomPublic] = useState(false);
+  const [serverRestarting, setServerRestarting] = useState(false);
 
   const send = useCallback((msg: ClientMsg) => {
     const ws = wsRef.current;
@@ -135,21 +153,50 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
           roomRef.current = msg.roomId;
           setRoomId(msg.roomId);
           setRoomPublic(false); // fresh rooms are private until acked otherwise
-          setToken(msg.roomId, msg.token);
+          setToken(msg.roomId, msg.token); // fresh reconnect token (revive rotates it)
           rememberRoom(msg.roomId);
+          resumingRef.current = false; // a revive that reached ROOM_JOINED succeeded
+          setServerRestarting(false);
           break;
         case "STATE":
           youRef.current = msg.view.you;
           setSnapshot({ view: msg.view, legalActions: msg.legalActions, prompt: msg.view.prompt });
+          setServerRestarting(false); // a STATE means we're live again (resume done)
+          break;
+        case "RESUME_TOKEN":
+          // Opaque, encrypted resume blob for our seat — stash it so a redeploy or
+          // crash can revive this exact game via RESUME_ROOM. Never inspected.
+          setResumeToken(msg.roomId, msg.token);
+          break;
+        case "SERVER_RESTARTING":
+          // The old instance is shutting down (redeploy). Flag it for the toast;
+          // the socket will close and the backoff loop reconnects to the new
+          // instance, where RECONNECT/RESUME_ROOM revives the game.
+          setServerRestarting(true);
           break;
         case "OPPONENT_STATUS":
           setOpponentConnected(msg.connected);
           break;
-        case "ERROR":
-          // a dead room can't be resumed — drop it from the recent list
-          if (msg.code === "ROOM_NOT_FOUND" && roomRef.current) forgetRoom(roomRef.current);
+        case "ERROR": {
+          // A room lost to a redeploy answers ROOM_NOT_FOUND (room gone) or
+          // BAD_TOKEN (already revived by the other client, our old seat token no
+          // longer matches). If we hold a resume blob for it, revive rather than
+          // give up — unless the in-flight message WAS a resume (then it truly failed).
+          const room = roomRef.current;
+          const blob = room ? getResumeToken(room) : null;
+          const recoverable = msg.code === "ROOM_NOT_FOUND" || msg.code === "BAD_TOKEN";
+          if (recoverable && blob && !resumingRef.current) {
+            resumingRef.current = true;
+            send({ v: PROTOCOL_VERSION, type: "RESUME_ROOM", token: blob });
+            break; // don't surface an error — a resume attempt is underway
+          }
+          // Resume genuinely failed, or nothing to resume: forget a dead room and show it.
+          resumingRef.current = false;
+          setServerRestarting(false);
+          if ((msg.code === "ROOM_NOT_FOUND" || msg.code === "RESUME_FAILED") && room) forgetRoom(room);
           setError({ code: msg.code, message: msg.message });
           break;
+        }
       }
     };
 
@@ -262,5 +309,6 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
     respondToPrompt,
     requestLobbies,
     setVisibility,
+    serverRestarting,
   };
 }
