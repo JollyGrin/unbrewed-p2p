@@ -9,7 +9,8 @@
  */
 import { Box, Flex, Text, chakra, keyframes, shouldForwardProp } from "@chakra-ui/react";
 import { isValidMotionProp, motion } from "framer-motion";
-import { FighterId, ProMapDef, ProMapSpace, SpaceId, ViewFighter, ViewToken } from "@/lib/pro/protocol";
+import { PointerEvent as ReactPointerEvent, useRef, useState } from "react";
+import { FighterId, ProMapDef, ProMapRegion, ProMapSpace, SpaceId, ViewFighter, ViewToken } from "@/lib/pro/protocol";
 import { BoardFxItem } from "@/lib/pro/useGameFx";
 
 const DEFAULT_DIAMETER = 0.021;
@@ -73,6 +74,9 @@ export interface ProBoardProps {
   pendingMove?: PendingMove | null;
   /** fired once the tween finishes — caller clears its pendingMove state */
   onPendingMoveSettled?: () => void;
+  /** Region ids currently out of play (view.closedRegions) — their inset
+   * panels grey out and stop taking clicks */
+  closedRegions?: string[];
   onSpaceClick?: (id: SpaceId) => void;
   onFighterClick?: (id: FighterId) => void;
   /** cap the board image height (e.g. "calc(100svh - 2rem)") so the whole
@@ -106,6 +110,7 @@ export const ProBoard = ({
   fx = [],
   pendingMove = null,
   onPendingMoveSettled,
+  closedRegions = [],
   onSpaceClick,
   onFighterClick,
   imgMaxH,
@@ -113,6 +118,71 @@ export const ProBoard = ({
   const diameter = (map.meta.spaceDiameter ?? DEFAULT_DIAMETER) * 100; // % of width
   const highlightSet = new Set(highlightedSpaces);
   const highlightFighterSet = new Set(highlightedFighters);
+  const closedSet = new Set(closedRegions);
+
+  // v9 regions (Baba Yaga's Hut): a region's spaces carry x/y normalized to the
+  // REGION image, not the main board — each region renders as its own inset
+  // panel with its own positioning frame. A space naming an unknown region id
+  // falls back to the main frame rather than vanishing.
+  const regions = map.regions ?? [];
+  const regionIds = new Set(regions.map((r) => r.id));
+  const frameOf = (s: ProMapSpace): string =>
+    s.region && regionIds.has(s.region) ? s.region : "main";
+  const mainSpaces = regions.length ? map.spaces.filter((s) => frameOf(s) === "main") : map.spaces;
+
+  // Inset-panel UX (the panel covers main-board spaces otherwise): per-region
+  // collapse + drag, both component-state only. `panelPos` is the dragged
+  // top-left as a % of the board frame (null/absent = default bottom-right
+  // stack) so a window resize keeps the panel glued to the same board spot.
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [panelPos, setPanelPos] = useState<Record<string, { x: number; y: number }>>({});
+
+  // A collapsed panel must never hide a required choice: any highlighted space
+  // or targetable fighter INSIDE the region forces it open for the duration.
+  const regionActive = (regionId: string) =>
+    map.spaces.some(
+      (s) =>
+        s.region === regionId &&
+        (highlightSet.has(s.id) ||
+          fighters.some((f) => f.space === s.id && highlightFighterSet.has(f.id)))
+    );
+
+  // Drag via the panel's header bar: pointer events (touch-friendly), clamped
+  // to the board frame. Rects are captured once at pointerdown — the grab
+  // offset keeps the panel from jumping under the pointer.
+  const onHeaderPointerDown = (regionId: string) => (e: ReactPointerEvent<HTMLDivElement>) => {
+    const frame = frameRef.current;
+    const panel = e.currentTarget.parentElement;
+    if (!frame || !panel) return;
+    const frameRect = frame.getBoundingClientRect();
+    const panelRect = panel.getBoundingClientRect();
+    if (!frameRect.width || !frameRect.height) return;
+    const offsetX = e.clientX - panelRect.left;
+    const offsetY = e.clientY - panelRect.top;
+    const move = (ev: PointerEvent) => {
+      const left = Math.min(
+        Math.max(ev.clientX - frameRect.left - offsetX, 0),
+        frameRect.width - panelRect.width
+      );
+      const top = Math.min(
+        Math.max(ev.clientY - frameRect.top - offsetY, 0),
+        frameRect.height - panelRect.height
+      );
+      setPanelPos((p) => ({
+        ...p,
+        [regionId]: { x: (left / frameRect.width) * 100, y: (top / frameRect.height) * 100 },
+      }));
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  };
 
   const fightersOnBoard = fighters.filter((f) => f.space && !f.defeated);
   const bySpace = new Map<SpaceId, ViewFighter[]>();
@@ -135,9 +205,19 @@ export const ProBoard = ({
   // so the token never jumps to wherever the server says it ended up.
   const pendingAnim = (() => {
     if (!pendingMove) return null;
-    const coords = pendingMove.path
+    const nodes = pendingMove.path
       .map((id) => spaceById.get(id))
       .filter((s): s is ProMapSpace => !!s);
+    if (nodes.length < 2) return null;
+    // A portal move can cross frames (main board <-> region inset), whose %
+    // coordinate systems are unrelated — tween only the leg inside the
+    // DESTINATION frame and let the token snap across the boundary. A
+    // single-node leg returns null (plain snap; the caller's pendingMove
+    // timeout still clears the state).
+    const destFrame = frameOf(nodes[nodes.length - 1]);
+    let legStart = nodes.length - 1;
+    while (legStart > 0 && frameOf(nodes[legStart - 1]) === destFrame) legStart--;
+    const coords = nodes.slice(legStart);
     if (coords.length < 2) return null;
     return {
       fighterId: pendingMove.fighterId,
@@ -154,6 +234,7 @@ export const ProBoard = ({
     s: ProMapSpace,
     nudge: number,
     segment: "head" | "tail",
+    diam: number,
     anim?: { xs: number[]; ys: number[] }
   ) => {
     const color = PLAYER_COLOR[f.owner] ?? "#999";
@@ -219,7 +300,7 @@ export const ProBoard = ({
         transition={{ duration, ease: "easeInOut", times } as any}
         onAnimationComplete={anim ? () => onPendingMoveSettled?.() : undefined}
         transform={`translate(calc(-50% + ${nudge}rem), calc(-50% + ${nudge}rem))`}
-        w={`${diameter * 0.82}%`}
+        w={`${diam * 0.82}%`}
         sx={{ aspectRatio: "1" }}
         borderRadius="50%"
         bg={f.kind === "HERO" ? color : "brand.surfaceDim"}
@@ -246,25 +327,23 @@ export const ProBoard = ({
     );
   };
 
-  return (
-    // Outer box may be stretched by a parent grid/flex row; the INNER box is
-    // the positioning context: it shrink-wraps the image exactly, so the
-    // %-positioned overlays stay glued to the art at any size.
-    <Box maxW="100%">
-      <Box position="relative" w="fit-content" maxW="100%" mx="auto" userSelect="none">
-      <Box
-        as="img"
-        src={map.meta.imageUrl}
-        alt={map.meta.title}
-        maxW="100%"
-        maxH={imgMaxH}
-        display="block"
-        draggable={false}
-        borderRadius="0.5rem"
-      />
-
+  // All per-space overlays for ONE positioning frame — the main board or a
+  // region inset panel. `spaces` are the frame's members and their x/y are
+  // fractions of THAT frame; `diam` is the pawn diameter as a % of the frame
+  // width. Everything keys off space ids, so highlights/clicks/fx work
+  // identically in either frame.
+  const spaceLayers = (spaces: ProMapSpace[], diam: number) => {
+    const inFrame = new Set(spaces.map((s) => s.id));
+    // Head and tail are always adjacent, so a two-space fighter never straddles
+    // a frame boundary — require both ends anyway so a bad map can't draw a
+    // band between unrelated coordinate systems.
+    const frameTwoSpace = twoSpaceFighters.filter(
+      (f) => inFrame.has(f.space as SpaceId) && inFrame.has(f.tailSpace as SpaceId)
+    );
+    return (
+      <>
       {/* space hit-circles */}
-      {map.spaces.map((s) => {
+      {spaces.map((s) => {
         const isHighlighted = highlightSet.has(s.id);
         return (
           <Box
@@ -273,7 +352,7 @@ export const ProBoard = ({
             left={`${s.x * 100}%`}
             top={`${s.y * 100}%`}
             transform="translate(-50%, -50%)"
-            w={`${diameter}%`}
+            w={`${diam}%`}
             sx={{ aspectRatio: "1" }}
             borderRadius="50%"
             border={isHighlighted ? "2px solid #E0A82E" : "1px solid rgba(255,255,255,0.15)"}
@@ -287,7 +366,7 @@ export const ProBoard = ({
       })}
 
       {/* neutral board tokens (totems) — below fighters, never clickable */}
-      {map.spaces
+      {spaces
         .filter((s) => tokens.some((t) => t.space === s.id))
         .flatMap((s) =>
           tokens
@@ -299,7 +378,7 @@ export const ProBoard = ({
                 left={`${s.x * 100}%`}
                 top={`${s.y * 100}%`}
                 transform="translate(-50%, -50%) rotate(45deg)"
-                w={`${diameter * 0.55}%`}
+                w={`${diam * 0.55}%`}
                 sx={{ aspectRatio: "1", pointerEvents: "none" }}
                 bg="brand.surfaceDim"
                 border={`2px solid ${PLAYER_COLOR[t.owner] ?? "#999"}`}
@@ -314,7 +393,7 @@ export const ProBoard = ({
       {/* two-space fighter bands — the "string" tying head and tail together.
           viewBox 0-100 with preserveAspectRatio="none" maps the normalized
           space coords straight onto the stretched image. */}
-      {twoSpaceFighters.length > 0 && (
+      {frameTwoSpace.length > 0 && (
         <svg
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
@@ -327,7 +406,7 @@ export const ProBoard = ({
             zIndex: 3,
           }}
         >
-          {twoSpaceFighters.flatMap((f) => {
+          {frameTwoSpace.flatMap((f) => {
             const head = spaceById.get(f.space as SpaceId);
             const tail = spaceById.get(f.tailSpace as SpaceId);
             if (!head || !tail) return [];
@@ -341,7 +420,7 @@ export const ProBoard = ({
                 x2={tail.x * 100}
                 y2={tail.y * 100}
                 stroke="#fff"
-                strokeWidth={diameter * 0.52}
+                strokeWidth={diam * 0.52}
                 strokeLinecap="round"
                 opacity={0.9}
               />,
@@ -352,7 +431,7 @@ export const ProBoard = ({
                 x2={tail.x * 100}
                 y2={tail.y * 100}
                 stroke={color}
-                strokeWidth={diameter * 0.36}
+                strokeWidth={diam * 0.36}
                 strokeLinecap="round"
               />,
             ];
@@ -361,7 +440,7 @@ export const ProBoard = ({
       )}
 
       {/* fighter tokens (heads; stack co-located tokens with a slight diagonal offset) */}
-      {map.spaces
+      {spaces
         .filter((s) => bySpace.has(s.id))
         .flatMap((s) =>
           (bySpace.get(s.id) as ViewFighter[]).map((f, i, all) =>
@@ -370,20 +449,21 @@ export const ProBoard = ({
               s,
               (i - (all.length - 1) / 2) * 0.35,
               "head",
+              diam,
               pendingAnim?.fighterId === f.id ? pendingAnim : undefined
             )
           )
         )}
 
       {/* tail tokens of two-space fighters — same interactions as the head */}
-      {twoSpaceFighters.flatMap((f) => {
+      {frameTwoSpace.flatMap((f) => {
         const tail = spaceById.get(f.tailSpace as SpaceId);
-        return tail ? [fighterToken(f, tail, 0, "tail")] : [];
+        return tail ? [fighterToken(f, tail, 0, "tail", diam)] : [];
       })}
 
       {/* transient effects — impact ring + floating label, above everything */}
       {fx.flatMap((item) => {
-        const s = map.spaces.find((sp) => sp.id === item.space);
+        const s = spaces.find((sp) => sp.id === item.space);
         if (!s) return [];
         const color = FX_COLOR[item.kind];
         return [
@@ -392,7 +472,7 @@ export const ProBoard = ({
             position="absolute"
             left={`${s.x * 100}%`}
             top={`${s.y * 100}%`}
-            w={`${diameter * 1.5}%`}
+            w={`${diam * 1.5}%`}
             sx={{ aspectRatio: "1", pointerEvents: "none" }}
             border={`3px solid ${color}`}
             borderRadius="50%"
@@ -419,6 +499,149 @@ export const ProBoard = ({
           </Text>,
         ];
       })}
+      </>
+    );
+  };
+
+  // A region's inset panel: a compact header bar (drag handle + collapse
+  // toggle) above the art frame. The ART FRAME — not the panel — is the
+  // positioning context, so the identical % math lands pieces on the inset
+  // art regardless of the header. Closed regions (view.closedRegions) grey
+  // out and their art stops taking clicks, but the header stays live so a
+  // dead panel can still be collapsed or dragged out of the way.
+  const regionPanel = (r: ProMapRegion) => {
+    const closed = closedSet.has(r.id);
+    const rDiam = (r.spaceDiameter ?? map.meta.spaceDiameter ?? DEFAULT_DIAMETER) * 100;
+    const isCollapsed = !!collapsed[r.id] && !regionActive(r.id);
+    return (
+      <Box
+        key={r.id}
+        position="relative"
+        w="100%"
+        borderRadius="0.5rem"
+        overflow="hidden"
+        border="1px solid rgba(224,168,46,0.4)"
+        boxShadow="0 4px 16px rgba(0,0,0,0.6)"
+        bg="rgba(18,14,26,0.9)"
+        pointerEvents="auto"
+        filter={closed ? "grayscale(1) brightness(0.55)" : undefined}
+        title={r.label}
+      >
+        <Flex
+          alignItems="center"
+          justifyContent="space-between"
+          px="0.5rem"
+          py="0.15rem"
+          bg="rgba(18,14,26,0.95)"
+          cursor="grab"
+          onPointerDown={onHeaderPointerDown(r.id)}
+          sx={{ touchAction: "none" }}
+        >
+          <Text
+            fontSize="0.65rem"
+            fontFamily="SpaceGrotesk"
+            letterSpacing="0.08em"
+            color="brand.parchment"
+            opacity={0.85}
+            whiteSpace="nowrap"
+          >
+            {r.label}
+            {closed ? " — closed" : ""}
+          </Text>
+          <Box
+            as="button"
+            aria-label={`toggle ${r.label}`}
+            onPointerDown={(e: ReactPointerEvent<HTMLButtonElement>) => e.stopPropagation()}
+            onClick={() => setCollapsed((c) => ({ ...c, [r.id]: !c[r.id] }))}
+            color="brand.parchment"
+            fontSize="0.7rem"
+            lineHeight="1"
+            px="0.3rem"
+            cursor="pointer"
+          >
+            {isCollapsed ? "▸" : "▾"}
+          </Box>
+        </Flex>
+        {!isCollapsed && (
+          <Box position="relative" pointerEvents={closed ? "none" : "auto"}>
+            {r.imageUrl ? (
+              <Box as="img" src={r.imageUrl} alt={r.label} w="100%" display="block" draggable={false} />
+            ) : (
+              <Box w="100%" sx={{ aspectRatio: "4 / 3" }} />
+            )}
+            {spaceLayers(map.spaces.filter((s) => s.region === r.id), rDiam)}
+            {closed && (
+              <Flex position="absolute" inset="0" alignItems="center" justifyContent="center" bg="rgba(0,0,0,0.45)" zIndex={7}>
+                <Text
+                  fontFamily="BebasNeueRegular"
+                  letterSpacing="0.12em"
+                  color="brand.parchment"
+                  fontSize="min(2.4vw, 1.1rem)"
+                  textShadow="0 1px 3px rgba(0,0,0,0.9)"
+                >
+                  {r.label} — CLOSED
+                </Text>
+              </Flex>
+            )}
+          </Box>
+        )}
+      </Box>
+    );
+  };
+
+  return (
+    // Outer box may be stretched by a parent grid/flex row; the INNER box is
+    // the positioning context: it shrink-wraps the image exactly, so the
+    // %-positioned overlays stay glued to the art at any size.
+    <Box maxW="100%">
+      <Box ref={frameRef} position="relative" w="fit-content" maxW="100%" mx="auto" userSelect="none">
+      <Box
+        as="img"
+        src={map.meta.imageUrl}
+        alt={map.meta.title}
+        maxW="100%"
+        maxH={imgMaxH}
+        display="block"
+        draggable={false}
+        borderRadius="0.5rem"
+      />
+
+      {spaceLayers(mainSpaces, diameter)}
+
+      {/* region inset panels (v9 — e.g. Baba Yaga's Hut), pinned bottom-right
+          and stacked upward; sized relative to the board so they scale with it.
+          The container ignores pointer events so the gaps between panels stay
+          clickable board (each panel re-enables its own). A dragged panel
+          leaves the stack and pins to wherever the player put it. */}
+      {regions.some((r) => !panelPos[r.id]) && (
+        <Flex
+          position="absolute"
+          right="1.5%"
+          bottom="1.5%"
+          w="27%"
+          direction="column"
+          gap="0.4rem"
+          zIndex={7}
+          pointerEvents="none"
+        >
+          {regions.filter((r) => !panelPos[r.id]).map((r) => regionPanel(r))}
+        </Flex>
+      )}
+      {regions
+        .filter((r) => panelPos[r.id])
+        .map((r) => (
+          <Box
+            key={r.id}
+            position="absolute"
+            left={`${panelPos[r.id].x}%`}
+            top={`${panelPos[r.id].y}%`}
+            w="27%"
+            zIndex={7}
+            pointerEvents="none"
+          >
+            {regionPanel(r)}
+          </Box>
+        ))}
       </Box>
     </Box>
   );

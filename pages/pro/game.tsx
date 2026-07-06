@@ -1417,6 +1417,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
           fx={boardFx}
           pendingMove={pendingMove}
           onPendingMoveSettled={() => setPendingMove(null)}
+          closedRegions={view.closedRegions}
           onSpaceClick={onSpaceClick}
           onFighterClick={onFighterClick}
           imgMaxH="calc(100svh - 16rem)"

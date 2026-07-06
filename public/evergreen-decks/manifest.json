@@ -119,6 +119,18 @@
         "file": "data/heroes/hollow-oak.rules.ts",
         "commit": "787ced0"
       }
+    },
+    {
+      "heroId": "baba-yaga",
+      "deckId": "yAJ-",
+      "version_id": "8xdoU4KV",
+      "frozenAt": "2026-07-06",
+      "digest": "sha256:36b29806dda92aec8d8b1b9bff18b65d16d67e3fbfbbb59fdb59b43040dc049d",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/baba-yaga.rules.ts",
+        "commit": "b4d9576"
+      }
     }
   ]
 }
