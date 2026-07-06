@@ -1,6 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
 import { useCallback, useEffect, useRef, useState } from "react";
-import NextError from "next/error";
 import {
   Box,
   Button,
@@ -16,7 +15,7 @@ import { mapSubmissionIssueUrl } from "@/lib/pro/mapIssue";
  * DEV-ONLY map annotation editor (docs/pro/tasks/T-009).
  * Loads a board image, lets a human place spaces, draw adjacency edges,
  * paint zones, and mark start slots; exports scripted-map JSON per
- * docs/pro/05-scripted-maps.md §3. 404s in production builds.
+ * docs/pro/05-scripted-maps.md §3. Fully client-side and static-export safe.
  */
 
 type Zone = { id: string; color: string; label: string };
@@ -155,16 +154,7 @@ const toMapDoc = (raw: unknown): MapDoc => {
   return raw as MapDoc; // already a legacy MapDoc
 };
 
-const MapEditor = () => {
-  // Dev-only guard, static-export compatible (the GitHub Pages deploy uses
-  // `next export`, which forbids getServerSideProps). NODE_ENV is inlined at
-  // build time, so production builds compile this page down to a plain 404.
-  if (process.env.NODE_ENV === "production") {
-    // eslint-disable-next-line react-hooks/rules-of-hooks -- returns before any hook, and the branch is fixed for the lifetime of the build
-    return <NextError statusCode={404} />;
-  }
-  return <MapEditorInner />;
-};
+const MapEditor = () => <MapEditorInner />;
 
 const MapEditorInner = () => {
   const [doc, setDoc] = useState<MapDoc>(emptyDoc);
