@@ -3,13 +3,13 @@
  * (issue #133). Reached from the "Game lost" fallback screen — see
  * components/Pro/GameLostScreen (rendered in pages/pro/game.tsx).
  *
- * TODO(Dean): exact Discord invite/DM URL to bake in — the invite/channel/DM
- * link that reaches JollyGrin. Until it's filled in this stays `null` on
- * purpose: we would rather show a disabled, honest placeholder than send a
- * frustrated player to a guessed URL that goes nowhere. The screen falls back
- * to the existing `[pro]` GitHub issue path (lib/pro/bugReport.ts) meanwhile.
+ * We reuse the existing site-wide invite (the same one the navbar and the
+ * Discord widget fall back to) so there's a single source of truth rather than a
+ * second hardcoded invite code that could drift.
  */
-export const DISCORD_REPORT_URL: string | null = null;
+import { DISCORD_FALLBACK_INVITE } from "@/lib/hooks/useDiscordWidget";
+
+export const DISCORD_REPORT_URL: string | null = DISCORD_FALLBACK_INVITE;
 
 /** Who the report is meant to reach — shown next to the (placeholder) button. */
 export const DISCORD_REPORT_HANDLE = "JollyGrin";
