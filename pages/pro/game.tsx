@@ -49,6 +49,7 @@ import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
 import { ReportBugDialog } from "@/components/Pro/ReportBugDialog";
 import { diffViews } from "@/lib/pro/gameLog";
 import { maneuverBoostHint } from "@/lib/pro/maneuverHint";
+import { buildPoseIndex, parsePoseOptions, poseHighlights, resolvePoseClick } from "@/lib/pro/moveChoice";
 import { useGameFx } from "@/lib/pro/useGameFx";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
@@ -829,6 +830,9 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   const [opponent, setOpponent] = useState<OpponentChoice>("human");
   const [aiHeroId, setAiHeroId] = useState<string | null>(null);
   const [selectedFighter, setSelectedFighter] = useState<FighterId | null>(null);
+  // First space tapped in a two-tap LARGE-fighter move pick (issue #132), scoped
+  // to the prompt it belongs to so a stale anchor never leaks into the next one.
+  const [poseAnchor, setPoseAnchor] = useState<{ promptId: string; space: SpaceId } | null>(null);
   const [reportBugOpen, setReportBugOpen] = useState(false);
   // Issue #80: a just-committed MOVE_FIGHTER tweens through its whole path
   // instead of snapping — held here so the board keeps rendering it while
@@ -1258,16 +1262,33 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
     promptForMe?.kind === "CHOOSE_TARGET"
       ? promptForMe.options.map((o) => o.id).filter((id) => fighterIds.has(id))
       : [];
-  const promptBoardIds = new Set([...promptSpaceOptions.values(), ...promptTargetIds]);
+  // Two-space (LARGE fighter) move choice (issue #132): a card's "move up to N
+  // spaces" effect on Triceratops emits CHOOSE_SPACE options encoded as
+  // "<head>|<tail>" pairs, which optionSpace can't resolve — so instead of a wall
+  // of opaque "s12|s13" buttons, parse the pairs and light up the board. The pick
+  // is a two-tap gesture (poseAnchor) resolved by resolvePoseClick in onSpaceClick.
+  const poseOptions = parsePoseOptions(promptForMe, mapSpaceIds);
+  const poseIndex = buildPoseIndex(poseOptions);
+  const activePoseAnchor =
+    promptForMe && poseAnchor?.promptId === promptForMe.promptId ? poseAnchor.space : null;
+  const promptBoardIds = new Set([
+    ...promptSpaceOptions.values(),
+    ...promptTargetIds,
+    ...poseOptions.map((p) => p.optionId),
+  ]);
   const promptButtonOptions = promptForMe
     ? promptForMe.options.filter((o) => !promptBoardIds.has(o.id))
     : [];
   const promptBoardHint =
-    promptSpaceIds.length > 0
-      ? `click a gold space on the board (${promptSpaceIds.length} option${promptSpaceIds.length === 1 ? "" : "s"})`
-      : promptTargetIds.length > 0
-        ? "click a pulsing fighter on the board"
-        : null;
+    poseIndex.size > 0
+      ? activePoseAnchor
+        ? "click the second gold space to finish the move"
+        : `click a gold space to move (${poseIndex.size} destination${poseIndex.size === 1 ? "" : "s"})`
+      : promptSpaceIds.length > 0
+        ? `click a gold space on the board (${promptSpaceIds.length} option${promptSpaceIds.length === 1 ? "" : "s"})`
+        : promptTargetIds.length > 0
+          ? "click a pulsing fighter on the board"
+          : null;
 
   // Card behind the current prompt (issue #72 fix #2), best-effort: trust an
   // explicit option.data.card first, else show the live combat card as the most
@@ -1290,6 +1311,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   const highlightedSpaces = [
     ...[...spaceActions.entries()].filter(([, actions]) => spaceMatches(actions).length > 0).map(([space]) => space),
     ...promptSpaceIds,
+    ...(poseIndex.size > 0 ? poseHighlights(poseIndex, activePoseAnchor) : []),
   ];
   const highlightedFighters = [...attackActions.keys(), ...movableFighters, ...promptTargetIds];
 
@@ -1298,6 +1320,27 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   const boostHint = maneuverBoostHint(view, legalActions);
 
   const onSpaceClick = (space: SpaceId) => {
+    // Two-space (LARGE fighter) move choice owns the board when present: a
+    // uniquely-completing space commits at once, an ambiguous one anchors and
+    // lights up its partners, and re-tapping the anchor cancels (issue #132).
+    if (promptForMe && poseIndex.size > 0) {
+      const click = resolvePoseClick(poseIndex, activePoseAnchor, space);
+      if (click.type === "commit") {
+        respondToPrompt(promptForMe.promptId, click.optionId);
+        setPoseAnchor(null);
+        setSelectedFighter(null);
+        return;
+      }
+      if (click.type === "anchor") {
+        setPoseAnchor({ promptId: promptForMe.promptId, space: click.space });
+        return;
+      }
+      if (click.type === "cancel") {
+        setPoseAnchor(null);
+        return;
+      }
+      // "ignore" — not a pose space; fall through to the generic handling below.
+    }
     // an open prompt owns the board — answer it first
     const promptOption = promptForMe ? promptSpaceOptions.get(space) : undefined;
     if (promptForMe && promptOption) {
