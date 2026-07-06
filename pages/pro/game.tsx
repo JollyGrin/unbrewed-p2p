@@ -47,6 +47,7 @@ import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { ProHud } from "@/components/Pro/ProHud";
 import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
 import { ReportBugDialog } from "@/components/Pro/ReportBugDialog";
+import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
 import { diffViews } from "@/lib/pro/gameLog";
 import { maneuverBoostHint } from "@/lib/pro/maneuverHint";
@@ -124,6 +125,8 @@ const describeAction = (catalog: Record<string, CardMeta>, a: Action): string =>
       return `Place ${a.fighter.split("/")[1]} on ${a.space}`;
     case "RESPOND_PROMPT":
       return "Answer prompt"; // rendered by PromptPanel instead — filtered out of the list
+    case "FORFEIT":
+      return "Forfeit"; // engine #32 enumerates it, but we filter it out of the list and offer it via the dock button
   }
 };
 
@@ -831,6 +834,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   const [aiHeroId, setAiHeroId] = useState<string | null>(null);
   const [selectedFighter, setSelectedFighter] = useState<FighterId | null>(null);
   const [reportBugOpen, setReportBugOpen] = useState(false);
+  const [forfeitOpen, setForfeitOpen] = useState(false);
   // Issue #80: a just-committed MOVE_FIGHTER tweens through its whole path
   // instead of snapping — held here so the board keeps rendering it while
   // the authoritative STATE (which may already show the fighter arrived)
@@ -1229,8 +1233,11 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   // RESPOND_PROMPT renders through the PromptPanel; MOVE_FIGHTER and
   // PLACE_SIDEKICK render as clickable board spaces — listing one button per
   // destination just floods the sidebar (and card actions live on the hand).
+  // FORFEIT: engine #32 enumerates it in legalActions during PLAY (its isMember
+  // gate needs it there), but we render it ONLY through the confirm-gated dock
+  // button — a raw one-click sidebar entry would be the exact misfire we guard.
   const listActions = legalActions.filter(
-    (a) => !["RESPOND_PROMPT", "MOVE_FIGHTER", "PLACE_SIDEKICK"].includes(a.type)
+    (a) => !["RESPOND_PROMPT", "MOVE_FIGHTER", "PLACE_SIDEKICK", "FORFEIT"].includes(a.type)
   );
 
   // Board affordances derive ONLY from what the server offered. Each
@@ -1600,8 +1607,29 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
               {view.winner === view.you ? "VICTORY!" : "DEFEAT"}
             </Text>
           )}
+          {/* Forfeit — only while the game is genuinely live (issue #140). Hidden
+              during SETUP and once GAME_OVER / a winner exists (no affordances
+              remain then). Destructive, so it's red and confirm-gated. */}
+          {view.phase === "PLAY" && !view.winner && (
+            <Button
+              size="sm"
+              mt="0.4rem"
+              colorScheme="red"
+              variant="outline"
+              onClick={() => setForfeitOpen(true)}
+            >
+              Forfeit
+            </Button>
+          )}
         </Flex>
       </Flex>
+
+      {/* concede confirmation (issue #140) — sends FORFEIT on confirm */}
+      <ForfeitDialog
+        isOpen={forfeitOpen}
+        onClose={() => setForfeitOpen(false)}
+        onConfirm={() => sendAction({ type: "FORFEIT", player: view.you })}
+      />
 
       {/* activity feed — bottom-left parchment panel, sandbox style */}
       <ProLog
