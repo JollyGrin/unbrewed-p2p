@@ -133,3 +133,33 @@ describe("resolvePoseClick + poseHighlights", () => {
     expect(poseHighlights(index, "s14").sort()).toEqual(["s14", "s15", "s16", "s4"].sort());
   });
 });
+
+// The same glitch was reported on King Kong — also a LARGE two-space fighter, so
+// its scheme move emits the identical "head|tail" CHOOSE_SPACE shape (30 poses
+// from the repro screenshot on The Mended Drum). The resolver keys on that shape,
+// not on the fighter, so it must behave identically — this locks that in.
+describe("King Kong scheme move (issue #132, fighter-agnostic)", () => {
+  const KONG_PAIRS = [
+    "s12|s13", "s13|s15", "s13|s17", "s14|s15", "s14|s16", "s14|s4",
+    "s15|s16", "s15|s21", "s16|s26", "s1|s2", "s1|s29", "s21|s23",
+    "s21|s26", "s22|s23", "s22|s24", "s23|s24", "s24|s25", "s24|s26",
+    "s25|s26", "s25|s27", "s26|s27", "s27|s28", "s27|s29", "s28|s29",
+    "s2|s3", "s3|s4", "s4|s5", "s5|s6", "s6|s7", "s6|s8",
+  ];
+  const index = buildPoseIndex(parsePoseOptions(posePrompt(KONG_PAIRS), MAP_SPACES));
+
+  it("lights up every distinct pose space (23 across 30 poses)", () => {
+    expect(index.size).toBe(30);
+    expect(index.spaces.size).toBe(23);
+  });
+
+  it("commits on the first tap when a space is in exactly one pose (s8 -> s6|s8)", () => {
+    expect(resolvePoseClick(index, null, "s8")).toEqual({ type: "commit", optionId: "s6|s8" });
+  });
+
+  it("anchors an ambiguous tap then completes on the partner (s6 -> s7 = s6|s7)", () => {
+    expect(resolvePoseClick(index, null, "s6")).toEqual({ type: "anchor", space: "s6" });
+    expect(poseHighlights(index, "s6").sort()).toEqual(["s5", "s6", "s7", "s8"].sort());
+    expect(resolvePoseClick(index, "s6", "s7")).toEqual({ type: "commit", optionId: "s6|s7" });
+  });
+});
