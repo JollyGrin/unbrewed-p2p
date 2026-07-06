@@ -32,6 +32,10 @@ export const FLAGS = {
     label: "Zoom & pan the board",
     desc: "Pinch-zoom and drag the Pro board to inspect crowded spaces.",
   },
+  replays: {
+    label: "Match replays",
+    desc: "Save finished Pro games and scrub through them in full God-view.",
+  },
 } as const;
 
 export type FlagName = keyof typeof FLAGS;

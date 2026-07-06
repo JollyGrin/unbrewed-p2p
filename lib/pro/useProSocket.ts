@@ -28,6 +28,7 @@ import {
   PlayerView,
   ProMapDef,
   PROTOCOL_VERSION,
+  ReplayBundle,
   ServerMsg,
   ViewPrompt,
 } from "./protocol";
@@ -57,6 +58,8 @@ export interface UseProSocketReturn {
   lobbies: LobbyListing[] | null;
   /** whether OUR current room is publicly listed (server-acked) */
   roomPublic: boolean;
+  /** the self-contained bundle pushed at GAME_OVER (v7), for saving to Replays */
+  replayBundle: ReplayBundle | null;
   /**
    * Pass `bot` to play vs the server's scripted AI (protocol v3). Pass
    * `customMap` to playtest an unpublished board (protocol v4); the two compose.
@@ -103,6 +106,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
   const [lobbies, setLobbies] = useState<LobbyListing[] | null>(null);
   const [roomPublic, setRoomPublic] = useState(false);
   const [serverRestarting, setServerRestarting] = useState(false);
+  const [replayBundle, setReplayBundle] = useState<ReplayBundle | null>(null);
 
   const send = useCallback((msg: ClientMsg) => {
     const ws = wsRef.current;
@@ -173,6 +177,11 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
           // the socket will close and the backoff loop reconnects to the new
           // instance, where RECONNECT/RESUME_ROOM revives the game.
           setServerRestarting(true);
+          break;
+        case "REPLAY_BUNDLE":
+          // Pushed to both seats at GAME_OVER — nothing is secret anymore. Held for
+          // the game page to save into the local Replays store.
+          setReplayBundle(msg.bundle);
           break;
         case "OPPONENT_STATUS":
           setOpponentConnected(msg.connected);
@@ -303,6 +312,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
     heroes,
     lobbies,
     roomPublic,
+    replayBundle,
     createRoom,
     joinRoom,
     sendAction,

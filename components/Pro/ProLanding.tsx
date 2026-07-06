@@ -19,6 +19,7 @@ import { DECK_HERO_IDS } from "@/lib/pro/useProCardArt";
 import { frozenAtForDeck } from "@/lib/pro/evergreenManifest";
 import { useProLiveRoster } from "@/lib/pro/useProLiveRoster";
 import { PRO_WS_URL } from "@/lib/pro/wsUrl";
+import { useFlag } from "@/lib/flags";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 
 /**
@@ -58,6 +59,7 @@ const readyPulse = keyframes`
 `;
 
 export const ProLanding = () => {
+  const [replaysEnabled] = useFlag("replays");
   const [picked, setPicked] = useState<PopularDeckMeta>();
   const [previewDeck, setPreviewDeck] = useState<PopularDeckMeta>();
   const liveHeroes = useProLiveRoster(PRO_WS_URL);
@@ -254,7 +256,7 @@ export const ProLanding = () => {
 
           {/* Primary entry point: pick a hero on the game page (or skip straight
               to create-a-room with no preselection). Subtle — /pro is unlisted. */}
-          <Flex justifyContent="center" mt="0.25rem">
+          <Flex justifyContent="center" mt="0.25rem" gap="0.6rem" flexWrap="wrap">
             <ChakraLink
               as={Link}
               href="/pro/game"
@@ -276,6 +278,30 @@ export const ProLanding = () => {
             >
               Start a match →
             </ChakraLink>
+            {/* Replays ships dark: this entry only appears once the beta flag is on. */}
+            {replaysEnabled && (
+              <ChakraLink
+                as={Link}
+                href="/pro/replays"
+                display="inline-flex"
+                alignItems="center"
+                gap="0.4rem"
+                fontFamily="SpaceGrotesk"
+                fontSize="0.8rem"
+                letterSpacing="0.08em"
+                textTransform="uppercase"
+                px="1.1rem"
+                py="0.5rem"
+                borderRadius="999px"
+                border="1px solid"
+                borderColor="whiteAlpha.400"
+                color="brand.parchment"
+                _hover={{ bg: "whiteAlpha.200", textDecoration: "none" }}
+                transition="background 0.15s"
+              >
+                Replays (beta)
+              </ChakraLink>
+            )}
           </Flex>
         </Flex>
 
