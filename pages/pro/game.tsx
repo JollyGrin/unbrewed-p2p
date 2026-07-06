@@ -12,6 +12,7 @@
  *   out-edges (adjacentTo ∪ oneWayTo) — reading MAP data for display, not rules.
  */
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "react-hot-toast";
 import { useRouter } from "next/router";
 import { Box, Button, Flex, Grid, Link, Menu, MenuButton, MenuItem, MenuList, Tag, Text, Textarea, Tooltip, keyframes } from "@chakra-ui/react";
 import { MOVE_STEP_SECONDS, PendingMove, ProBoard } from "@/components/Pro/ProBoard";
@@ -819,7 +820,7 @@ const HeroSelectLobby = ({
 // ---------------------------------------------------------------------------
 
 const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string | null }) => {
-  const { status, roomId, snapshot, opponentConnected, error, heroes, lobbies, roomPublic, createRoom, joinRoom, sendAction, respondToPrompt, requestLobbies, setVisibility } =
+  const { status, roomId, snapshot, opponentConnected, error, heroes, lobbies, roomPublic, createRoom, joinRoom, sendAction, respondToPrompt, requestLobbies, setVisibility, serverRestarting } =
     useProSocket(WS_URL);
   const [joined, setJoined] = useState(false);
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
@@ -951,6 +952,21 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
       setMapError(error.message);
     }
   }, [error]);
+
+  // Deploy-safe games (protocol v7): while the server is redeploying it sends
+  // SERVER_RESTARTING; show a persistent "reconnecting" toast until the next
+  // STATE clears `serverRestarting` (the game resumed on the new instance via
+  // the RESUME_ROOM path in useProSocket). If there's no valid resume token the
+  // reconnect just lands on the normal error screen instead — graceful either way.
+  useEffect(() => {
+    const id = "pro-server-restarting";
+    if (serverRestarting) {
+      toast.loading("Server updating — reconnecting…", { id });
+    } else {
+      toast.dismiss(id);
+    }
+    return () => toast.dismiss(id);
+  }, [serverRestarting]);
 
   if (!joined) {
     const effectiveHeroId = selectedHeroId ?? (heroes === null ? heroParam : null);
