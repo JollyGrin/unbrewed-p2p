@@ -17,10 +17,8 @@
 
 import { PROTOCOL_VERSION, PlayerView } from "./protocol";
 import { ProLogEntry, logEntriesToCsv } from "./gameLog";
+import { buildBugReportUrl as buildBugReportUrlShared, clock } from "../shared/bugReport";
 
-const REPO = "JollyGrin/unbrewed-p2p";
-/** Keep the whole URL under this; GitHub rejects ~8KB+, browsers can be stricter. */
-const MAX_URL_LEN = 7500;
 const LABELS = "bug,player-report";
 
 /** How many log lines to embed inline for each time-window choice. */
@@ -49,8 +47,6 @@ const prettyHero = (heroId: string) =>
     .split("-")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
-
-const clock = (ts?: number) => (ts ? new Date(ts).toISOString().slice(11, 19) : "--:--:--");
 
 /** "You were ATTACKER vs Baba Yaga" — from the live combat, best-effort. */
 const combatRole = (view: PlayerView): string => {
@@ -140,11 +136,6 @@ const windowEntries = (
 /** One inline log line: `12:03:41 [you] King Kong took 3 damage (15/18)`. */
 const fmtLine = (e: ProLogEntry): string => `${clock(e.ts)} [${e.who}] ${e.text}`;
 
-const buildUrl = (title: string, body: string): string =>
-  `https://github.com/${REPO}/issues/new?labels=${encodeURIComponent(LABELS)}&title=${encodeURIComponent(
-    title
-  )}&body=${encodeURIComponent(body)}`;
-
 const titleFor = (input: BugReportInput): string => {
   const { view } = input;
   const first = input.description.trim().split("\n")[0].slice(0, 80).trim();
@@ -180,23 +171,15 @@ export function buildBugReportUrl(input: BugReportInput): string {
       `_Full log (${total} event${total === 1 ? "" : "s"}): attach the CSV downloaded from this dialog — drag & drop it into this text area._`,
     ].join("\n");
 
-  const initial = windowEntries(input.entries, input.when, JUST_NOW_LINES).map(fmtLine);
+  const excerptLines = windowEntries(input.entries, input.when, JUST_NOW_LINES).map(fmtLine);
 
-  // Shrink the excerpt (drop oldest lines first) until the URL fits.
-  for (let take = initial.length; take >= 0; take--) {
-    const excerpt = initial.slice(initial.length - take);
-    const url = buildUrl(title, bodyFor(excerpt, input.description));
-    if (url.length <= MAX_URL_LEN) return url;
-  }
-
-  // Last resort: no excerpt still overflows → truncate the description.
-  let desc = input.description;
-  while (desc.length > 0) {
-    desc = desc.slice(0, Math.floor(desc.length * 0.8));
-    const url = buildUrl(title, bodyFor([], `${desc}…`));
-    if (url.length <= MAX_URL_LEN) return url;
-  }
-  return buildUrl(title, bodyFor([], "_(description omitted — too long to prefill)_"));
+  return buildBugReportUrlShared({
+    title,
+    labels: LABELS,
+    description: input.description,
+    excerptLines,
+    bodyFor,
+  });
 }
 
 /** Turn numbers present in the feed, newest first — powers the "earlier" picker. */

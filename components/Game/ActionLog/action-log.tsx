@@ -17,8 +17,9 @@ import { ChevronDownIcon, ChevronUpIcon } from "@chakra-ui/icons";
 import { colors, fonts } from "@/styles/style";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import { GameState, PlayerState } from "@/lib/gamesocket/message";
+import { SandboxLogEntry, mergeActionLog } from "@/lib/sandbox/gameLog";
 
-type FeedLine = { key: string; player: string; at: number; text: string };
+type FeedLine = SandboxLogEntry;
 
 const INLINE_LINES = 15;
 
@@ -73,24 +74,7 @@ export const ActionLog: React.FC = () => {
     | undefined;
 
   // Newest first.
-  const lines: FeedLine[] = useMemo(() => {
-    if (!players) return [];
-    const merged: FeedLine[] = [];
-    for (const [player, state] of Object.entries(players)) {
-      for (const entry of state?.actionLog ?? []) {
-        merged.push({
-          key: `${player}-${entry.seq}`,
-          player,
-          at: entry.at,
-          text: entry.text,
-        });
-      }
-    }
-    // Wall-clock order across players; seq (inside the key) keeps same-ms
-    // entries from one player stable. Descending = newest first.
-    merged.sort((a, b) => b.at - a.at || b.key.localeCompare(a.key));
-    return merged;
-  }, [players]);
+  const lines: FeedLine[] = useMemo(() => mergeActionLog(players), [players]);
 
   const inline = lines.slice(0, INLINE_LINES);
   const overflow = lines.length - inline.length;
