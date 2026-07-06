@@ -4,7 +4,8 @@
  * modes feel like one app. Read-only by design: every number comes from the
  * server view; there are no adjust buttons because the referee owns the state.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { animate, motion, useDragControls, useMotionValue } from "framer-motion";
 import {
   Box,
   Flex,
@@ -20,7 +21,17 @@ import {
 } from "@chakra-ui/react";
 import { toast } from "react-hot-toast";
 import { LinkIcon } from "@chakra-ui/icons";
-import { TbSword, TbBow, TbCards, TbGrave2, TbWand, TbWandOff } from "react-icons/tb";
+import {
+  TbSword,
+  TbBow,
+  TbCards,
+  TbGrave2,
+  TbWand,
+  TbWandOff,
+  TbChevronUp,
+  TbChevronDown,
+  TbArrowBackUp,
+} from "react-icons/tb";
 import { GiFootprint, GiHearts } from "react-icons/gi";
 import { IoMdHand, IoMdVolumeHigh, IoMdVolumeOff } from "react-icons/io";
 import {
@@ -39,6 +50,7 @@ import {
 import { DeckImportHeroType } from "@/components/DeckPool/deck-import.type";
 import { CardInstanceId, PlayerView, ViewFighter } from "@/lib/pro/protocol";
 import { ResolveCard, ResolveHero } from "@/lib/pro/useProCardArt";
+import { PlateLayout, PlateSeat, useHudPlates } from "@/lib/pro/useHudPlates";
 import { CardFace } from "./ProHand";
 import { ProConnectionStatus } from "@/lib/pro/useProSocket";
 
@@ -89,6 +101,38 @@ const DiscardModal = ({
 // One seat plate
 // ---------------------------------------------------------------------------
 
+/** Tiny ghost icon button for the plate's collapse / reset controls. Its
+ *  pointerdown is swallowed so it never starts a plate drag. */
+const CtrlBtn = ({
+  title,
+  onClick,
+  children,
+}: {
+  title: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) => (
+  <Flex
+    as="button"
+    type="button"
+    aria-label={title}
+    title={title}
+    onPointerDown={(e) => e.stopPropagation()}
+    onDoubleClick={(e) => e.stopPropagation()}
+    onClick={onClick}
+    alignItems="center"
+    justifyContent="center"
+    w="1.15rem"
+    h="1.15rem"
+    borderRadius="0.35rem"
+    color="rgba(231, 204, 152, 0.72)"
+    _hover={{ bg: "rgba(231, 204, 152, 0.16)", color: "brand.primary" }}
+    transition="background 0.15s ease, color 0.15s ease"
+  >
+    {children}
+  </Flex>
+);
+
 const SeatPlate = ({
   label,
   hero,
@@ -101,6 +145,9 @@ const SeatPlate = ({
   discard,
   labelFor,
   resolveCard,
+  layout,
+  hydrated,
+  onUpdate,
 }: {
   label: string;
   hero: DeckImportHeroType | null;
@@ -114,11 +161,188 @@ const SeatPlate = ({
   discard: CardInstanceId[];
   labelFor: (instance: CardInstanceId) => string;
   resolveCard: ResolveCard;
+  layout: PlateLayout;
+  hydrated: boolean;
+  onUpdate: (partial: Partial<PlateLayout>) => void;
 }) => {
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const handCount = typeof hand === "number" ? hand : hand.length;
   const heroName = heroFighter?.name ?? hero?.name ?? "";
   const ranged = heroFighter ? heroFighter.reach === "RANGED" : hero?.isRanged;
+  const heroHp = heroFighter ? `${heroFighter.hp}/${heroFighter.maxHp}` : "–";
+  const collapsed = layout.collapsed;
+  const moved = layout.x !== 0 || layout.y !== 0;
+
+  // Drag transform lives on this WRAPPER (motion values), never on
+  // StatContainer, whose own `transform` is reserved for the :hover lift.
+  const dragControls = useDragControls();
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const initRef = useRef(false);
+  useEffect(() => {
+    // apply the stored offset exactly once, after localStorage hydrates
+    if (hydrated && !initRef.current) {
+      initRef.current = true;
+      x.set(layout.x);
+      y.set(layout.y);
+    }
+  }, [hydrated, layout.x, layout.y, x, y]);
+
+  const persistPos = () => onUpdate({ x: x.get(), y: y.get() });
+  const resetPos = () => {
+    const spring = { type: "spring" as const, stiffness: 500, damping: 40 };
+    animate(x, 0, spring);
+    animate(y, 0, spring);
+    onUpdate({ x: 0, y: 0 });
+  };
+  const toggleCollapse = () => onUpdate({ collapsed: !collapsed });
+
+  // ----- reusable pieces (shared by the live plate and the hover-peek) -----
+  const renderNameBlock = (withAbility: boolean) => (
+    <Box minW={0}>
+      {withAbility ? (
+        <Tooltip
+          hasArrow
+          placement="bottom-start"
+          bg="brand.surfaceDim"
+          color="brand.parchment"
+          label={
+            hero?.specialAbility ? (
+              <Box maxW="18rem" p="0.25rem" whiteSpace="pre-wrap" fontSize="0.78rem">
+                <Text fontWeight="bold" mb="0.25rem" color="brand.accent">
+                  {heroName}
+                </Text>
+                {hero.specialAbility.trim()}
+                {sidekicks.map((s) => (
+                  <Text key={s.id} mt="0.4rem" opacity={s.defeated ? 0.6 : 1}>
+                    <Text as="span" fontWeight="bold" color="brand.accent">
+                      Sidekick:
+                    </Text>{" "}
+                    {s.name} — {s.hp}/{s.maxHp} HP,{" "}
+                    {s.reach === "RANGED" ? "ranged" : "melee"}
+                    {s.defeated ? " (defeated)" : ""}
+                  </Text>
+                ))}
+              </Box>
+            ) : (
+              "hero rules loading…"
+            )
+          }
+        >
+          <PlayerName>{label}</PlayerName>
+        </Tooltip>
+      ) : (
+        <PlayerName>{label}</PlayerName>
+      )}
+      {heroName && <HeroName>{heroName}</HeroName>}
+    </Box>
+  );
+
+  const turnTag = isActive ? (
+    <Tag size="sm" bg="brand.accent" color="brand.surfaceDim" flexShrink={0}>
+      TURN
+    </Tag>
+  ) : null;
+
+  const controls = hovered ? (
+    <Flex alignItems="center" gap="0.15rem" flexShrink={0}>
+      {moved && (
+        <CtrlBtn title="Reset position" onClick={resetPos}>
+          <TbArrowBackUp size="0.8rem" />
+        </CtrlBtn>
+      )}
+      <CtrlBtn title={collapsed ? "Expand plate" : "Collapse plate"} onClick={toggleCollapse}>
+        {collapsed ? <TbChevronDown size="0.8rem" /> : <TbChevronUp size="0.8rem" />}
+      </CtrlBtn>
+    </Flex>
+  ) : null;
+
+  const statsPanel = (
+    <StatsPanel>
+      <StatLine>
+        <GiHearts color="#C0392B" size="16px" />
+        <Text fontWeight="bold" sx={{ fontVariantNumeric: "tabular-nums" }}>
+          {heroHp}
+        </Text>
+        {ranged ? <TbBow size="15px" /> : <TbSword size="15px" />}
+      </StatLine>
+      <MoveChip>
+        <GiFootprint size="13px" />
+        <Text fontSize="0.8rem" fontWeight="bold">
+          {hero?.move ?? "–"}
+        </Text>
+      </MoveChip>
+    </StatsPanel>
+  );
+
+  const sidekickRows = sidekicks.map((s) => (
+    <Flex
+      key={s.id}
+      alignItems="center"
+      gap="0.35rem"
+      px="0.85rem"
+      py="0.2rem"
+      bg="rgba(44, 24, 49, 0.35)"
+      opacity={s.defeated ? 0.45 : 1}
+    >
+      <Text
+        fontSize="0.68rem"
+        fontFamily="SpaceGrotesk"
+        letterSpacing="0.04em"
+        noOfLines={1}
+        textDecoration={s.defeated ? "line-through" : undefined}
+      >
+        {s.name}
+      </Text>
+      <GiHearts color="#C0392B" size="11px" />
+      <Text fontSize="0.72rem" fontWeight="bold" sx={{ fontVariantNumeric: "tabular-nums" }}>
+        {s.hp}/{s.maxHp}
+      </Text>
+      {s.reach === "RANGED" ? <TbBow size="11px" /> : <TbSword size="11px" />}
+    </Flex>
+  ));
+
+  const pipFooter = (
+    <PipFooter>
+      <Pip>
+        <IoMdHand size="12px" />
+        {handCount}
+      </Pip>
+      <Pip>
+        <TbCards size="13px" />
+        {deckCount}
+      </Pip>
+      <Tooltip label="View discard pile" hasArrow>
+        <Pip clickable onClick={() => setDiscardOpen(true)}>
+          <TbGrave2 size="13px" />
+          {discard.length}
+        </Pip>
+      </Tooltip>
+    </PipFooter>
+  );
+
+  // The full plate body — reused as the hover-peek label for a collapsed plate
+  // (static: no drag handle, no controls, plain name so tooltips don't nest).
+  const peekPlate = (
+    <StatContainer isLocal={isLocal} sx={{ cursor: "default" }}>
+      <PlayerTitleBar>
+        {renderNameBlock(false)}
+        {turnTag}
+      </PlayerTitleBar>
+      {statsPanel}
+      {sidekickRows}
+      {pipFooter}
+    </StatContainer>
+  );
+
+  // shared drag/handle props for the live plate's title bar
+  const titleBarDrag = {
+    onPointerDown: (e: React.PointerEvent) => dragControls.start(e),
+    onDoubleClick: resetPos,
+    sx: { cursor: "grab", touchAction: "none" as const },
+  };
 
   return (
     <>
@@ -130,109 +354,66 @@ const SeatPlate = ({
         isOpen={discardOpen}
         onClose={() => setDiscardOpen(false)}
       />
-      <StatContainer isLocal={isLocal}>
-        <PlayerTitleBar>
-          <Box minW={0}>
-            <Tooltip
-              hasArrow
-              placement="bottom-start"
-              bg="brand.surfaceDim"
-              color="brand.parchment"
-              label={
-                hero?.specialAbility ? (
-                  <Box maxW="18rem" p="0.25rem" whiteSpace="pre-wrap" fontSize="0.78rem">
-                    <Text fontWeight="bold" mb="0.25rem" color="brand.accent">
-                      {heroName}
-                    </Text>
-                    {hero.specialAbility.trim()}
-                    {sidekicks.map((s) => (
-                      <Text key={s.id} mt="0.4rem" opacity={s.defeated ? 0.6 : 1}>
-                        <Text as="span" fontWeight="bold" color="brand.accent">
-                          Sidekick:
-                        </Text>{" "}
-                        {s.name} — {s.hp}/{s.maxHp} HP,{" "}
-                        {s.reach === "RANGED" ? "ranged" : "melee"}
-                        {s.defeated ? " (defeated)" : ""}
-                      </Text>
-                    ))}
-                  </Box>
-                ) : (
-                  "hero rules loading…"
-                )
-              }
-            >
-              <PlayerName>{label}</PlayerName>
-            </Tooltip>
-            {heroName && <HeroName>{heroName}</HeroName>}
-          </Box>
-          {isActive && (
-            <Tag size="sm" bg="brand.accent" color="brand.surfaceDim" flexShrink={0}>
-              TURN
-            </Tag>
-          )}
-        </PlayerTitleBar>
-        <StatsPanel>
-          <StatLine>
-            <GiHearts color="#C0392B" size="16px" />
-            <Text fontWeight="bold" sx={{ fontVariantNumeric: "tabular-nums" }}>
-              {heroFighter ? `${heroFighter.hp}/${heroFighter.maxHp}` : "–"}
-            </Text>
-            {ranged ? <TbBow size="15px" /> : <TbSword size="15px" />}
-          </StatLine>
-          <MoveChip>
-            <GiFootprint size="13px" />
-            <Text fontSize="0.8rem" fontWeight="bold">
-              {hero?.move ?? "–"}
-            </Text>
-          </MoveChip>
-        </StatsPanel>
-        {sidekicks.map((s) => (
-          <Flex
-            key={s.id}
-            alignItems="center"
-            gap="0.35rem"
-            px="0.85rem"
-            py="0.2rem"
-            bg="rgba(44, 24, 49, 0.35)"
-            opacity={s.defeated ? 0.45 : 1}
+      <motion.div
+        drag
+        dragListener={false}
+        dragControls={dragControls}
+        dragMomentum={false}
+        style={{ x, y, position: "relative", width: "15rem", zIndex: dragging ? 200 : 1 }}
+        onDragStart={() => setDragging(true)}
+        onDragEnd={() => {
+          setDragging(false);
+          persistPos();
+        }}
+        onHoverStart={() => setHovered(true)}
+        onHoverEnd={() => setHovered(false)}
+      >
+        {collapsed ? (
+          <Tooltip
+            hasArrow={false}
+            placement="bottom-start"
+            openDelay={0}
+            bg="transparent"
+            boxShadow="none"
+            p={0}
+            maxW="none"
+            label={peekPlate}
           >
-            <Text
-              fontSize="0.68rem"
-              fontFamily="SpaceGrotesk"
-              letterSpacing="0.04em"
-              noOfLines={1}
-              textDecoration={s.defeated ? "line-through" : undefined}
-            >
-              {s.name}
-            </Text>
-            <GiHearts color="#C0392B" size="11px" />
-            <Text
-              fontSize="0.72rem"
-              fontWeight="bold"
-              sx={{ fontVariantNumeric: "tabular-nums" }}
-            >
-              {s.hp}/{s.maxHp}
-            </Text>
-            {s.reach === "RANGED" ? <TbBow size="11px" /> : <TbSword size="11px" />}
-          </Flex>
-        ))}
-        <PipFooter>
-          <Pip>
-            <IoMdHand size="12px" />
-            {handCount}
-          </Pip>
-          <Pip>
-            <TbCards size="13px" />
-            {deckCount}
-          </Pip>
-          <Tooltip label="View discard pile" hasArrow>
-            <Pip clickable onClick={() => setDiscardOpen(true)}>
-              <TbGrave2 size="13px" />
-              {discard.length}
-            </Pip>
+            <StatContainer isLocal={isLocal}>
+              <PlayerTitleBar {...titleBarDrag}>
+                {renderNameBlock(true)}
+                <Flex alignItems="center" gap="0.4rem" flexShrink={0}>
+                  <Flex alignItems="center" gap="0.25rem" color="brand.parchment">
+                    <GiHearts color="#C0392B" size="14px" />
+                    <Text
+                      fontWeight="bold"
+                      fontSize="0.9rem"
+                      sx={{ fontVariantNumeric: "tabular-nums" }}
+                    >
+                      {heroHp}
+                    </Text>
+                  </Flex>
+                  {turnTag}
+                  {controls}
+                </Flex>
+              </PlayerTitleBar>
+            </StatContainer>
           </Tooltip>
-        </PipFooter>
-      </StatContainer>
+        ) : (
+          <StatContainer isLocal={isLocal}>
+            <PlayerTitleBar {...titleBarDrag}>
+              {renderNameBlock(true)}
+              <Flex alignItems="center" gap="0.3rem" flexShrink={0}>
+                {turnTag}
+                {controls}
+              </Flex>
+            </PlayerTitleBar>
+            {statsPanel}
+            {sidekickRows}
+            {pipFooter}
+          </StatContainer>
+        )}
+      </motion.div>
     </>
   );
 };
@@ -292,6 +473,10 @@ export const ProHud = ({
     view.fighters.filter((f) => f.owner === player && f.kind === "SIDEKICK");
   const display = STATUS_DISPLAY[status] ?? STATUS_DISPLAY.connecting;
 
+  const { plates, hydrated, update } = useHudPlates();
+  const seatUpdate = (seat: PlateSeat) => (partial: Partial<PlateLayout>) =>
+    update(seat, partial);
+
   return (
     <>
       <HudOverlay>
@@ -307,6 +492,9 @@ export const ProHud = ({
           discard={view.self.discard}
           labelFor={labelFor}
           resolveCard={resolveCard}
+          layout={plates.you}
+          hydrated={hydrated}
+          onUpdate={seatUpdate("you")}
         />
         <SeatPlate
           label="Opponent"
@@ -320,6 +508,9 @@ export const ProHud = ({
           discard={view.opponent.discard}
           labelFor={labelFor}
           resolveCard={resolveCard}
+          layout={plates.opponent}
+          hydrated={hydrated}
+          onUpdate={seatUpdate("opponent")}
         />
       </HudOverlay>
       <ChipCluster>
