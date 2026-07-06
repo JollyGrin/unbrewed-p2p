@@ -33,6 +33,7 @@ import {
   TbChevronDown,
   TbArrowBackUp,
   TbFlask,
+  TbBug,
 } from "react-icons/tb";
 import { GiFootprint, GiHearts } from "react-icons/gi";
 import { IoMdHand, IoMdVolumeHigh, IoMdVolumeOff } from "react-icons/io";
@@ -526,6 +527,8 @@ export interface ProHudProps {
   visualFxOn?: boolean;
   onToggleSound?: () => void;
   onToggleVisualFx?: () => void;
+  /** opens the ReportBugDialog (issue #125/#138) — chip hidden when omitted */
+  onReportBug?: () => void;
 }
 
 export const ProHud = ({
@@ -539,6 +542,7 @@ export const ProHud = ({
   visualFxOn,
   onToggleSound,
   onToggleVisualFx,
+  onReportBug,
 }: ProHudProps) => {
   const heroOf = (player: PlayerView["you"]) =>
     view.fighters.find((f) => f.owner === player && f.kind === "HERO");
@@ -647,6 +651,39 @@ export const ProHud = ({
             {display.label}
           </Text>
         </Flex>
+        {onReportBug && (
+          <Tooltip
+            label="Pro is in beta — you may hit bugs. Click to report one with your game context attached."
+            hasArrow
+            placement="bottom-end"
+          >
+            <Flex
+              {...chipStyles}
+              as="button"
+              cursor="pointer"
+              _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+              color="brand.highlight"
+              onClick={onReportBug}
+              aria-label="Report a bug"
+            >
+              <TbBug size="0.85rem" />
+              <Text fontSize="0.65rem" fontFamily="SpaceGrotesk" whiteSpace="nowrap">
+                Report bug
+              </Text>
+              <Tag
+                size="sm"
+                bg="whiteAlpha.400"
+                color="brand.highlight"
+                fontSize="0.55rem"
+                fontWeight="bold"
+                letterSpacing="0.04em"
+                px="0.3rem"
+              >
+                BETA
+              </Tag>
+            </Flex>
+          </Tooltip>
+        )}
       </ChipCluster>
     </>
   );
