@@ -26,11 +26,13 @@ import {
   LegalOption,
   PlayerView,
   ProMapDef,
+  ReplayBundle,
   SpaceId,
   ViewCombat,
   ViewFighter,
   ViewPrompt,
 } from "@/lib/pro/protocol";
+import { saveReplay } from "@/lib/pro/replayStore";
 import { ProConnectionStatus, useProSocket } from "@/lib/pro/useProSocket";
 import { normalizeMap } from "@/lib/pro/normalizeMap";
 import { mapSubmissionIssueUrl } from "@/lib/pro/mapIssue";
@@ -820,7 +822,7 @@ const HeroSelectLobby = ({
 // ---------------------------------------------------------------------------
 
 const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string | null }) => {
-  const { status, roomId, snapshot, opponentConnected, error, heroes, lobbies, roomPublic, createRoom, joinRoom, sendAction, respondToPrompt, requestLobbies, setVisibility, serverRestarting } =
+  const { status, roomId, snapshot, opponentConnected, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestLobbies, setVisibility, serverRestarting } =
     useProSocket(WS_URL);
   const [joined, setJoined] = useState(false);
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
@@ -859,6 +861,29 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
 
   // Sounds + transient board visuals, derived by diffing snapshots (useGameFx).
   const { boardFx, hurtKey, soundOn, visualOn, toggleSound, toggleVisual } = useGameFx(snapshot);
+
+  // GAME_OVER pushes a self-contained bundle to both seats (protocol v7). Save it
+  // to the local Replays store so the match is scrubbable later (issue #122). Runs
+  // once per bundle; saveReplay is idempotent by content, so a refresh won't dup it.
+  const savedBundleRef = useRef<ReplayBundle | null>(null);
+  useEffect(() => {
+    if (!replayBundle || savedBundleRef.current === replayBundle) return;
+    savedBundleRef.current = replayBundle;
+    const res = saveReplay(replayBundle);
+    if (res.ok) {
+      toast.success(
+        (t) => (
+          <span>
+            Match saved to{" "}
+            <Link href="/pro/replays" color="brand.accent" onClick={() => toast.dismiss(t.id)}>
+              Replays
+            </Link>
+          </span>
+        ),
+        { duration: 6000 }
+      );
+    }
+  }, [replayBundle]);
 
   // Activity feed: diff each view against the previous one (see gameLog.ts).
   const [logEntries, setLogEntries] = useState<ProLogEntry[]>([]);
