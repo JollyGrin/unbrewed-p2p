@@ -85,10 +85,16 @@ const PLAYER_COLOR: Record<string, string> = {
   p2: "#3B8BEB", // blue
 };
 
-/** Token initials: leading "The " is noise ("The Mandalorian"/"The Child"/
- * "Thrall" all rendered as TH), so strip it and take three letters. */
-const tokenInitials = (name: string) =>
-  name.replace(/^the\s+/i, "").slice(0, 3).toUpperCase();
+/** Token initials: leading "The " is noise ("The Mandalorian"/"The Child" would
+ * otherwise both read "THE"), so strip it and take three letters. A name that's
+ * literally just "The" (or empty) has nothing left to abbreviate once stripped —
+ * fall back to a single letter rather than leaking the literal word "THE". */
+const tokenInitials = (name: string) => {
+  const stripped = name.replace(/^the\b\s*/i, "").trim();
+  const base = stripped || name.trim();
+  const initials = base.slice(0, 3).toUpperCase();
+  return initials && initials !== "THE" ? initials : base.slice(0, 1).toUpperCase() || "?";
+};
 
 export const ProBoard = ({
   map,
@@ -225,6 +231,11 @@ export const ProBoard = ({
         animation={isTarget ? `${highlightPulse} 1.4s ease-in-out infinite` : undefined}
         cursor={clickable ? "pointer" : "default"}
         onClick={clickable ? () => onFighterClick!(f.id) : undefined}
+        // `MotionFlex` is `chakra(motion.div, …)`, a plain div — unlike the
+        // real `Flex` component it doesn't default to `display: flex`, so
+        // `alignItems`/`justifyContent` below were silently inert (issue
+        // #129): initials sat at the block-flow top instead of centered.
+        display="flex"
         alignItems="center"
         justifyContent="center"
         zIndex={4}
