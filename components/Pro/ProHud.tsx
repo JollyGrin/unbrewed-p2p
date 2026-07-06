@@ -15,6 +15,7 @@ import {
   ModalContent,
   ModalHeader,
   ModalOverlay,
+  Switch,
   Tag,
   Text,
   Tooltip,
@@ -31,6 +32,7 @@ import {
   TbChevronUp,
   TbChevronDown,
   TbArrowBackUp,
+  TbFlask,
 } from "react-icons/tb";
 import { GiFootprint, GiHearts } from "react-icons/gi";
 import { IoMdHand, IoMdVolumeHigh, IoMdVolumeOff } from "react-icons/io";
@@ -53,6 +55,7 @@ import { ResolveCard, ResolveHero } from "@/lib/pro/useProCardArt";
 import { PlateLayout, PlateSeat, useHudPlates } from "@/lib/pro/useHudPlates";
 import { CardFace } from "./ProHand";
 import { ProConnectionStatus } from "@/lib/pro/useProSocket";
+import { FLAGS, useFlags } from "@/lib/flags";
 
 // ---------------------------------------------------------------------------
 // Discard viewer (public info for both seats)
@@ -440,6 +443,76 @@ const chipStyles = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// Beta-features discovery chip + menu (drives lib/flags registry)
+// ---------------------------------------------------------------------------
+
+const BetaFeaturesChip = () => {
+  const [open, setOpen] = useState(false);
+  const flags = useFlags();
+  const anyOn = flags.some((f) => f.on);
+
+  return (
+    <>
+      <Tooltip label="Beta features" hasArrow>
+        <Flex
+          {...chipStyles}
+          as="button"
+          cursor="pointer"
+          _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+          color="brand.highlight"
+          opacity={anyOn ? 1 : 0.55}
+          onClick={() => setOpen(true)}
+          aria-label="Beta features"
+        >
+          <TbFlask size="0.85rem" />
+        </Flex>
+      </Tooltip>
+      <Modal isOpen={open} onClose={() => setOpen(false)} size="md" isCentered>
+        <ModalOverlay bg="rgba(20, 8, 24, 0.7)" />
+        <ModalContent bg="brand.surface" color="brand.parchment">
+          <ModalHeader
+            fontFamily="BebasNeueRegular"
+            letterSpacing="0.04em"
+            display="flex"
+            alignItems="center"
+            gap="0.5rem"
+          >
+            <TbFlask /> Beta features
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb="1.5rem">
+            <Text opacity={0.65} fontSize="0.82rem" mb="1rem">
+              Experimental features — opt in per browser. They stick until you
+              turn them off.
+            </Text>
+            <Flex direction="column" gap="0.9rem">
+              {flags.map((f) => (
+                <Flex key={f.name} alignItems="center" gap="1rem">
+                  <Box flex="1" minW={0}>
+                    <Text fontWeight="bold" fontSize="0.9rem">
+                      {FLAGS[f.name].label}
+                    </Text>
+                    <Text opacity={0.6} fontSize="0.78rem">
+                      {FLAGS[f.name].desc}
+                    </Text>
+                  </Box>
+                  <Switch
+                    isChecked={f.on}
+                    onChange={f.toggle}
+                    colorScheme="purple"
+                    aria-label={`Toggle ${FLAGS[f.name].label}`}
+                  />
+                </Flex>
+              ))}
+            </Flex>
+          </ModalBody>
+        </ModalContent>
+      </Modal>
+    </>
+  );
+};
+
+// ---------------------------------------------------------------------------
 
 export interface ProHudProps {
   view: PlayerView;
@@ -549,6 +622,7 @@ export const ProHud = ({
             </Flex>
           </Tooltip>
         )}
+        <BetaFeaturesChip />
         {roomId && (
           <Tooltip label="Copy the join link for this room" hasArrow>
             <Flex
