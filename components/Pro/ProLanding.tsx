@@ -42,6 +42,7 @@ const FALLBACK_READY: Record<string, string> = {
   "3jgd": "R2-D2",
   LWNZ: "Gingerbread man",
   "1Y5J": "Triceratops",
+  "yAJ-": "Baba Yaga",
 };
 const IN_THE_LAB: Record<string, string> = {
   "72Dz": "Pinocchio",
