@@ -8,12 +8,14 @@ import { useDebounce } from "use-debounce";
 import { useLocalDeckStorage } from "./useLocalStorage";
 import { DEFAULT_DECK_API, fetchDeckById } from "@/lib/evergreenDecks";
 
+const RELOADED_FOR_DECK_ID_KEY = "unbrewed:reloadedForDeckId";
+
 export const useUnmatchedDeck = () => {
   const [deckId, setDeckId] = useState<string>();
   const [deckIdDebounced] = useDebounce(deckId, 300);
   const [apiUrl, setApiUrl] = useState<string>(DEFAULT_DECK_API);
 
-  const { data, isLoading, error } = useQuery(
+  const { data, isInitialLoading, error } = useQuery(
     ["deck", deckIdDebounced, apiUrl],
     async () => {
       try {
@@ -43,7 +45,11 @@ export const useUnmatchedDeck = () => {
 
   return {
     data,
-    isLoading,
+    // `isLoading` (status === "loading") stays true forever for a disabled
+    // query that never fetched — `isInitialLoading` (isLoading && isFetching)
+    // is false once there's no fetch in flight, which is what callers here
+    // actually mean by "loading".
+    isLoading: isInitialLoading,
     error,
     deckId: deckIdDebounced,
     setDeckId,
@@ -84,8 +90,16 @@ export const useLoadRouterDeck = () => {
         (deck) => deck.version_id === deckId || deck.id === deckId,
       );
 
-      if (localDeck?.version_id !== deckId) {
+      // Only reload once per deckId: if the invite id matches a deck by
+      // `id` but that deck's `version_id` never equals it (e.g. no
+      // version_id set), reload() would otherwise re-run this same branch
+      // after the reload and loop forever.
+      const alreadyReloadedForThisId =
+        sessionStorage.getItem(RELOADED_FOR_DECK_ID_KEY) === deckId;
+
+      if (localDeck?.version_id !== deckId && !alreadyReloadedForThisId) {
         setIsImporting(true);
+        sessionStorage.setItem(RELOADED_FOR_DECK_ID_KEY, deckId);
         toast.success("Refresh the page if you do not see your new deck");
         reload()
       }
