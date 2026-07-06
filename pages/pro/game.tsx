@@ -14,7 +14,7 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { Box, Button, Flex, Grid, Link, Menu, MenuButton, MenuItem, MenuList, Tag, Text, Textarea, Tooltip, keyframes } from "@chakra-ui/react";
-import { ProBoard } from "@/components/Pro/ProBoard";
+import { MOVE_STEP_SECONDS, PendingMove, ProBoard } from "@/components/Pro/ProBoard";
 import {
   Action,
   BotDifficulty,
@@ -66,6 +66,23 @@ const BTN_GOLD = {
   color: "brand.surfaceDim",
   _hover: { bg: "brand.accentDeep" },
   _active: { bg: "brand.accentDeep" },
+};
+
+/** Fallback safety net for a token-move tween (issue #80): the board clears
+ * `pendingMove` itself once the tween's onAnimationComplete fires, but if
+ * that ever gets missed (component churn, bad path data) this forces the
+ * clear anyway so the board can't get stuck showing a stale animated token. */
+const usePendingMoveTimeout = (
+  pendingMove: PendingMove | null,
+  clearPendingMove: () => void
+) => {
+  useEffect(() => {
+    if (!pendingMove) return;
+    const ms = (pendingMove.path.length - 1) * MOVE_STEP_SECONDS * 1000 + 500;
+    const t = setTimeout(clearPendingMove, ms);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingMove]);
 };
 
 /** Printed-card label via the server catalog ('king-kong/clobber#2' -> 'clobber (3/2)'). */
@@ -810,6 +827,12 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   const [aiHeroId, setAiHeroId] = useState<string | null>(null);
   const [selectedFighter, setSelectedFighter] = useState<FighterId | null>(null);
   const [reportBugOpen, setReportBugOpen] = useState(false);
+  // Issue #80: a just-committed MOVE_FIGHTER tweens through its whole path
+  // instead of snapping — held here so the board keeps rendering it while
+  // the authoritative STATE (which may already show the fighter arrived)
+  // comes back over the wire.
+  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
+  usePendingMoveTimeout(pendingMove, () => setPendingMove(null));
   // Custom-map playtest (create flow): raw JSON persists across a BAD_MAP bounce
   // so a power user can fix the board and retry without re-pasting.
   const [customMapJson, setCustomMapJson] = useState("");
@@ -1243,7 +1266,16 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
     }
     const candidates = spaceMatches(spaceActions.get(space) ?? []);
     if (candidates.length === 0) return;
-    sendAction(candidates[0]);
+    const action = candidates[0];
+    sendAction(action);
+    if (action.type === "MOVE_FIGHTER") {
+      // The server's path may or may not include the fighter's current
+      // space as path[0] — prepend it if it's missing so the tween always
+      // starts from where the token actually is.
+      const origin = view.fighters.find((f) => f.id === action.fighter)?.space;
+      const fullPath = origin && action.path[0] !== origin ? [origin, ...action.path] : action.path;
+      if (fullPath.length >= 2) setPendingMove({ fighterId: action.fighter, path: fullPath });
+    }
     setSelectedFighter(null);
   };
   const onFighterClick = (id: FighterId) => {
@@ -1324,6 +1356,8 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
           highlightedFighters={[...new Set(highlightedFighters)]}
           selectedFighter={selectedFighter}
           fx={boardFx}
+          pendingMove={pendingMove}
+          onPendingMoveSettled={() => setPendingMove(null)}
           onSpaceClick={onSpaceClick}
           onFighterClick={onFighterClick}
           imgMaxH="calc(100svh - 16rem)"
@@ -1520,6 +1554,8 @@ const previewFighters = (map: ProMapDef): ViewFighter[] => {
 const PreviewGame = () => {
   const [fighters, setFighters] = useState<ViewFighter[]>(() => previewFighters(PREVIEW_MAP));
   const [selected, setSelected] = useState<FighterId | null>(null);
+  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
+  usePendingMoveTimeout(pendingMove, () => setPendingMove(null));
 
   const spaceById = useMemo(
     () => new Map(PREVIEW_MAP.spaces.map((s) => [s.id, s])),
@@ -1538,10 +1574,14 @@ const PreviewGame = () => {
         highlightedSpaces={outEdges}
         highlightedFighters={selected ? [] : fighters.map((f) => f.id)}
         selectedFighter={selected}
+        pendingMove={pendingMove}
+        onPendingMoveSettled={() => setPendingMove(null)}
         onFighterClick={(id) => setSelected(id)}
         onSpaceClick={(spaceId) => {
           if (!selected) return;
+          const origin = fighters.find((f) => f.id === selected)?.space;
           setFighters((fs) => fs.map((f) => (f.id === selected ? { ...f, space: spaceId } : f)));
+          if (origin && origin !== spaceId) setPendingMove({ fighterId: selected, path: [origin, spaceId] });
           setSelected(null);
         }}
       />

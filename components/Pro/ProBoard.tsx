@@ -7,11 +7,31 @@
  * spaces the caller says are currently actionable (which the server derives
  * from legalActions — the board never computes legality itself).
  */
-import { Box, Flex, Text, keyframes } from "@chakra-ui/react";
+import { Box, Flex, Text, chakra, keyframes, shouldForwardProp } from "@chakra-ui/react";
+import { isValidMotionProp, motion } from "framer-motion";
 import { FighterId, ProMapDef, ProMapSpace, SpaceId, ViewFighter, ViewToken } from "@/lib/pro/protocol";
 import { BoardFxItem } from "@/lib/pro/useGameFx";
 
 const DEFAULT_DIAMETER = 0.021;
+
+// Duration of ONE hop in a multi-step move tween (see PendingMove below).
+// Exported so callers can size a fallback timeout around the same value.
+export const MOVE_STEP_SECONDS = 0.28;
+
+// motion.div wrapped in chakra's style-prop system — lets the fighter token
+// keep every Chakra prop it already had (bg, border, boxShadow…) while also
+// accepting framer-motion's `animate`/`transition` for the path tween.
+const MotionFlex = chakra(motion.div, {
+  shouldForwardProp: (prop) => isValidMotionProp(prop) || shouldForwardProp(prop),
+});
+
+/** A committed MOVE_FIGHTER: the full route including the fighter's space
+ * BEFORE the move as path[0], so the board can tween through every
+ * intermediate node instead of snapping straight to the destination. */
+export interface PendingMove {
+  fighterId: FighterId;
+  path: SpaceId[];
+}
 
 const highlightPulse = keyframes`
   0%, 100% { box-shadow: 0 0 0 2px #e0a82e, 0 0 12px 2px rgba(224,168,46,0.8); }
@@ -49,6 +69,10 @@ export interface ProBoardProps {
   selectedFighter?: FighterId | null;
   /** transient effect overlays (floating damage numbers…) — keyed, caller-expired */
   fx?: BoardFxItem[];
+  /** a just-committed move to tween through node-by-node instead of snapping */
+  pendingMove?: PendingMove | null;
+  /** fired once the tween finishes — caller clears its pendingMove state */
+  onPendingMoveSettled?: () => void;
   onSpaceClick?: (id: SpaceId) => void;
   onFighterClick?: (id: FighterId) => void;
   /** cap the board image height (e.g. "calc(100svh - 2rem)") so the whole
@@ -74,6 +98,8 @@ export const ProBoard = ({
   highlightedFighters = [],
   selectedFighter = null,
   fx = [],
+  pendingMove = null,
+  onPendingMoveSettled,
   onSpaceClick,
   onFighterClick,
   imgMaxH,
@@ -97,40 +123,41 @@ export const ProBoard = ({
   const spaceById = new Map(map.spaces.map((s) => [s.id, s]));
   const twoSpaceFighters = fightersOnBoard.filter((f) => f.tailSpace);
 
+  // The moving fighter's node-by-node route, resolved to coordinates. Only
+  // the HEAD token of the named fighter tweens through it — an
+  // authoritative snapshot landing mid-flight is ignored (see fighterToken)
+  // so the token never jumps to wherever the server says it ended up.
+  const pendingAnim = (() => {
+    if (!pendingMove) return null;
+    const coords = pendingMove.path
+      .map((id) => spaceById.get(id))
+      .filter((s): s is ProMapSpace => !!s);
+    if (coords.length < 2) return null;
+    return {
+      fighterId: pendingMove.fighterId,
+      xs: coords.map((c) => c.x * 100),
+      ys: coords.map((c) => c.y * 100),
+    };
+  })();
+
   // One fighter token (head or tail segment). Clicking EITHER segment acts on
   // the fighter; target/selection styling lights both. Only the head carries
   // the HP badge so the pair still shows a single HP readout.
-  const fighterToken = (f: ViewFighter, s: ProMapSpace, nudge: number, segment: "head" | "tail") => {
+  const fighterToken = (
+    f: ViewFighter,
+    s: ProMapSpace,
+    nudge: number,
+    segment: "head" | "tail",
+    anim?: { xs: number[]; ys: number[] }
+  ) => {
     const color = PLAYER_COLOR[f.owner] ?? "#999";
     const isSelected = f.id === selectedFighter;
     const isTarget = highlightFighterSet.has(f.id);
     const clickable = isTarget && !!onFighterClick;
-    return (
-      <Flex
-        key={segment === "head" ? f.id : `${f.id}-tail`}
-        position="absolute"
-        left={`calc(${s.x * 100}% + ${nudge}rem)`}
-        top={`calc(${s.y * 100}% + ${nudge}rem)`}
-        transform="translate(-50%, -50%)"
-        w={`${diameter * 0.82}%`}
-        sx={{ aspectRatio: "1" }}
-        borderRadius="50%"
-        bg={f.kind === "HERO" ? color : "brand.surfaceDim"}
-        border={`2px solid ${f.kind === "HERO" ? "#fff" : color}`}
-        opacity={f.kind === "HERO" ? 1 : 0.92}
-        boxShadow={
-          isSelected
-            ? "0 0 0 3px #fff, 0 2px 8px rgba(0,0,0,0.6)"
-            : "0 2px 6px rgba(0,0,0,0.5)"
-        }
-        animation={isTarget ? `${highlightPulse} 1.4s ease-in-out infinite` : undefined}
-        cursor={clickable ? "pointer" : "default"}
-        onClick={clickable ? () => onFighterClick(f.id) : undefined}
-        alignItems="center"
-        justifyContent="center"
-        zIndex={4}
-        title={`${f.name} — ${f.hp}/${f.maxHp} HP`}
-      >
+    const key = segment === "head" ? f.id : `${f.id}-tail`;
+
+    const children = (
+      <>
         <Text
           fontSize="min(1.1vw, 0.68rem)"
           fontWeight="bold"
@@ -157,7 +184,54 @@ export const ProBoard = ({
             {f.hp}
           </Flex>
         )}
-      </Flex>
+      </>
+    );
+
+    // Node-by-node route (in %) to tween through, or just the token's own
+    // resting space when nothing is in flight. Always the SAME MotionFlex
+    // element (never swapped for a plain Flex) so a move starting mid-render
+    // is an ANIMATE UPDATE on the already-mounted node, not a fresh mount —
+    // framer-motion only plays keyframes on updates; a mount snaps straight
+    // to rest. The diagonal stacking `nudge` rides on `transform` instead of
+    // `left`/`top` so those two stay plain percentages animation can tween.
+    const xs = anim ? anim.xs : [s.x * 100];
+    const ys = anim ? anim.ys : [s.y * 100];
+    const steps = xs.length;
+    const times = steps > 1 ? Array.from({ length: steps }, (_, i) => i / (steps - 1)) : undefined;
+    const duration = anim ? (steps - 1) * MOVE_STEP_SECONDS : 0;
+
+    return (
+      <MotionFlex
+        key={key}
+        position="absolute"
+        initial={false}
+        animate={{ left: xs.map((x) => `${x}%`), top: ys.map((y) => `${y}%`) }}
+        // Chakra's own `transition` style shorthand (a CSS transition
+        // string) collides in the merged prop type with framer-motion's
+        // Transition object — the `any` sidesteps that, the runtime value
+        // is a real framer-motion Transition.
+        transition={{ duration, ease: "easeInOut", times } as any}
+        onAnimationComplete={anim ? () => onPendingMoveSettled?.() : undefined}
+        transform={`translate(calc(-50% + ${nudge}rem), calc(-50% + ${nudge}rem))`}
+        w={`${diameter * 0.82}%`}
+        sx={{ aspectRatio: "1" }}
+        borderRadius="50%"
+        bg={f.kind === "HERO" ? color : "brand.surfaceDim"}
+        border={`2px solid ${f.kind === "HERO" ? "#fff" : color}`}
+        opacity={f.kind === "HERO" ? 1 : 0.92}
+        boxShadow={
+          isSelected ? "0 0 0 3px #fff, 0 2px 8px rgba(0,0,0,0.6)" : "0 2px 6px rgba(0,0,0,0.5)"
+        }
+        animation={isTarget ? `${highlightPulse} 1.4s ease-in-out infinite` : undefined}
+        cursor={clickable ? "pointer" : "default"}
+        onClick={clickable ? () => onFighterClick!(f.id) : undefined}
+        alignItems="center"
+        justifyContent="center"
+        zIndex={4}
+        title={`${f.name} — ${f.hp}/${f.maxHp} HP`}
+      >
+        {children}
+      </MotionFlex>
     );
   };
 
@@ -280,7 +354,13 @@ export const ProBoard = ({
         .filter((s) => bySpace.has(s.id))
         .flatMap((s) =>
           (bySpace.get(s.id) as ViewFighter[]).map((f, i, all) =>
-            fighterToken(f, s, (i - (all.length - 1) / 2) * 0.35, "head")
+            fighterToken(
+              f,
+              s,
+              (i - (all.length - 1) / 2) * 0.35,
+              "head",
+              pendingAnim?.fighterId === f.id ? pendingAnim : undefined
+            )
           )
         )}
 
