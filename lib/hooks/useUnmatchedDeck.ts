@@ -28,10 +28,14 @@ export const useUnmatchedDeck = () => {
         return result.data;
       } catch (err) {
         console.error(err);
+        // rethrow so react-query marks the query as errored instead of
+        // silently resolving with `data: undefined`
+        throw err;
       }
     },
     {
       enabled: !!deckIdDebounced,
+      retry: false,
       onSuccess: (e) => toast.success("Deck fetched!"),
       onError: (e) => toast.error("Error fetching deck"),
     },
@@ -58,8 +62,14 @@ export const useLoadRouterDeck = () => {
   const { query, reload } = useRouter();
   const deckId = query.deckId as string | undefined;
 
-  const { data, setDeckId } = useUnmatchedDeck();
+  const { data, isLoading: fetchIsLoading, error, setDeckId } = useUnmatchedDeck();
   const { decks, pushDeck, setStar } = useLocalDeckStorage();
+  // Tracks the whole import window — from the moment we decide a reload is
+  // needed until it actually fires — so the UI never falls back to the empty
+  // "no deck selected" placeholder in between (covers the setDeckId debounce
+  // gap that fetchIsLoading alone would miss).
+  const [isImporting, setIsImporting] = useState(false);
+  const [importFailed, setImportFailed] = useState(false);
 
   useEffect(() => {
     if (!deckId) return;
@@ -75,6 +85,7 @@ export const useLoadRouterDeck = () => {
       );
 
       if (localDeck?.version_id !== deckId) {
+        setIsImporting(true);
         toast.success("Refresh the page if you do not see your new deck");
         reload()
       }
@@ -84,8 +95,17 @@ export const useLoadRouterDeck = () => {
     }
 
     // if there's no local deck, set the deckId to fetch from api
+    setIsImporting(true);
     setDeckId(deckId);
   }, [deckId]);
+
+  useEffect(() => {
+    if (!deckId) return;
+    if (error) {
+      setIsImporting(false);
+      setImportFailed(true);
+    }
+  }, [error, deckId]);
 
   useEffect(() => {
     if (!data) return;
@@ -97,4 +117,9 @@ export const useLoadRouterDeck = () => {
     toast.success("Success! Refreshing page to load new deck");
     reload();
   }, [data]);
+
+  return {
+    isLoading: isImporting || fetchIsLoading,
+    error: importFailed,
+  };
 };
