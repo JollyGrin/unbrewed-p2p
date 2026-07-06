@@ -72,6 +72,8 @@ export function normalizeMap(raw: unknown): ProMapDef {
       zones: Array.isArray(s.zones) ? (s.zones as string[]) : [],
       adjacentTo: Array.isArray(s.adjacentTo) ? (s.adjacentTo as string[]) : [],
       ...(Array.isArray(s.oneWayTo) ? { oneWayTo: s.oneWayTo as string[] } : {}),
+      // v9 regions pass through untouched (legacy pasted maps won't have them)
+      ...(typeof s.region === "string" ? { region: s.region } : {}),
       ...(start ? { start } : {}),
     };
   });
@@ -90,6 +92,7 @@ export function normalizeMap(raw: unknown): ProMapDef {
       ...(typeof meta.license === "string" ? { license: meta.license } : {}),
     },
     zones: raw.zones as ProMapDef["zones"],
+    ...(Array.isArray(raw.regions) ? { regions: raw.regions as ProMapDef["regions"] } : {}),
     spaces,
   };
 }
