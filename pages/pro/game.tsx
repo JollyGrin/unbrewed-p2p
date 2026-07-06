@@ -47,6 +47,7 @@ import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { ProHud } from "@/components/Pro/ProHud";
 import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
 import { ReportBugDialog } from "@/components/Pro/ReportBugDialog";
+import { GameLostScreen } from "@/components/Pro/GameLostScreen";
 import { diffViews } from "@/lib/pro/gameLog";
 import { maneuverBoostHint } from "@/lib/pro/maneuverHint";
 import { useGameFx } from "@/lib/pro/useGameFx";
@@ -822,7 +823,7 @@ const HeroSelectLobby = ({
 // ---------------------------------------------------------------------------
 
 const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string | null }) => {
-  const { status, roomId, snapshot, opponentConnected, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestLobbies, setVisibility, serverRestarting } =
+  const { status, roomId, snapshot, opponentConnected, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestLobbies, setVisibility, serverRestarting, gameLost } =
     useProSocket(WS_URL);
   const [joined, setJoined] = useState(false);
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
@@ -1107,6 +1108,23 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
           </Flex>
         )}
       </>
+    );
+  }
+
+  // Terminal resume failure (issue #133): a live game we couldn't restore after
+  // a server update. Takes priority over the raw error/waiting screens — those
+  // dead-ended on a freeze; this apologizes, shows the activity log, and offers a
+  // way to complain. `gameLost` is set ONLY on genuine loss (never a slow-but-ok
+  // resume), so the happy path never reaches here (useProSocket).
+  if (gameLost) {
+    return (
+      <GameLostScreen
+        entries={logEntries}
+        view={snapshot?.view ?? null}
+        roomId={roomId}
+        resolveCard={resolveCard}
+        labelFor={snapshot ? (c) => cardLabel(snapshot.view.catalog, c) : undefined}
+      />
     );
   }
 

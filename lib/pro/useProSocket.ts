@@ -82,9 +82,29 @@ export interface UseProSocketReturn {
    * "server updating — reconnecting…" toast while it's true.
    */
   serverRestarting: boolean;
+  /**
+   * Terminal loss of a live game (issue #133): the server restarted (or our seat
+   * token was rejected) and the game could NOT be resumed — either the resume was
+   * explicitly rejected (ERROR after a RESUME_ROOM, or RESUME_FAILED), or no STATE
+   * came back within RESUME_DEADLINE_MS of a SERVER_RESTARTING. Only ever set once
+   * we've actually been in a live game (a STATE arrived); a successful resume — or
+   * a resume that is merely slow — never sets it. The UI shows a "game lost"
+   * apology instead of hanging on "waiting for game state".
+   */
+  gameLost: boolean;
 }
 
 const MAX_RETRY_DELAY_MS = 10_000;
+
+/**
+ * After a SERVER_RESTARTING, how long we wait for the game to come back (a STATE
+ * on the new instance) before declaring it genuinely lost. Deliberately generous:
+ * a redeploy plus reconnect backoff (up to MAX_RETRY_DELAY_MS per attempt) can
+ * take a while, and we must NEVER show the "game lost" screen for a resume that
+ * was only slow. A resume that succeeds clears the deadline the moment its STATE
+ * (or revived ROOM_JOINED) arrives.
+ */
+const RESUME_DEADLINE_MS = 45_000;
 
 export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
@@ -96,6 +116,13 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
   // True while a RESUME_ROOM is in flight — so a resume that itself fails (bad
   // blob / diverged game) surfaces the error instead of looping back into resume.
   const resumingRef = useRef(false);
+  // True once we've received at least one STATE for the current game — i.e. we
+  // were genuinely mid-match. Gates the "game lost" screen so a pre-join error
+  // (bad ?room= link) never masquerades as a lost game.
+  const hadStateRef = useRef(false);
+  // Live timer that fires if a SERVER_RESTARTING isn't followed by a resume
+  // within RESUME_DEADLINE_MS. Cleared on the resuming STATE/ROOM_JOINED.
+  const resumeDeadlineRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [status, setStatus] = useState<ProConnectionStatus>("idle");
   const [roomId, setRoomId] = useState<string | null>(null);
@@ -107,10 +134,20 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
   const [roomPublic, setRoomPublic] = useState(false);
   const [serverRestarting, setServerRestarting] = useState(false);
   const [replayBundle, setReplayBundle] = useState<ReplayBundle | null>(null);
+  const [gameLost, setGameLost] = useState(false);
 
   const send = useCallback((msg: ClientMsg) => {
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+  }, []);
+
+  // Cancel the pending "game lost" deadline — a resume succeeded (or we're
+  // starting fresh), so the terminal-failure timer must not fire.
+  const clearResumeDeadline = useCallback(() => {
+    if (resumeDeadlineRef.current) {
+      clearTimeout(resumeDeadlineRef.current);
+      resumeDeadlineRef.current = null;
+    }
   }, []);
 
   const connect = useCallback(() => {
@@ -161,11 +198,15 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
           rememberRoom(msg.roomId);
           resumingRef.current = false; // a revive that reached ROOM_JOINED succeeded
           setServerRestarting(false);
+          clearResumeDeadline(); // a revive that reached ROOM_JOINED beat the deadline
           break;
         case "STATE":
           youRef.current = msg.view.you;
+          hadStateRef.current = true; // we're genuinely mid-match now
           setSnapshot({ view: msg.view, legalActions: msg.legalActions, prompt: msg.view.prompt });
           setServerRestarting(false); // a STATE means we're live again (resume done)
+          clearResumeDeadline(); // resume landed (or never failed) — cancel the loss timer
+          setGameLost(false); // a late-but-successful resume wins over a fired deadline
           break;
         case "RESUME_TOKEN":
           // Opaque, encrypted resume blob for our seat — stash it so a redeploy or
@@ -177,6 +218,16 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
           // the socket will close and the backoff loop reconnects to the new
           // instance, where RECONNECT/RESUME_ROOM revives the game.
           setServerRestarting(true);
+          // Arm the terminal-failure deadline: if no STATE/ROOM_JOINED lands
+          // within RESUME_DEADLINE_MS the game is declared lost (issue #133).
+          // Only meaningful once we've actually been in a live game.
+          if (hadStateRef.current && !resumeDeadlineRef.current) {
+            resumeDeadlineRef.current = setTimeout(() => {
+              resumeDeadlineRef.current = null;
+              setServerRestarting(false); // drop the "reconnecting…" toast — it's over
+              setGameLost(true);
+            }, RESUME_DEADLINE_MS);
+          }
           break;
         case "REPLAY_BUNDLE":
           // Pushed to both seats at GAME_OVER — nothing is secret anymore. Held for
@@ -202,8 +253,14 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
           // Resume genuinely failed, or nothing to resume: forget a dead room and show it.
           resumingRef.current = false;
           setServerRestarting(false);
+          clearResumeDeadline();
           if ((msg.code === "ROOM_NOT_FOUND" || msg.code === "RESUME_FAILED") && room) forgetRoom(room);
           setError({ code: msg.code, message: msg.message });
+          // If this terminal failure struck a game we were actually playing, it's
+          // a genuine loss (resume rejected / room gone / seat token dead) — show
+          // the apology screen rather than a bare error (issue #133). A pre-join
+          // error (bad ?room= link, never got a STATE) keeps the existing screens.
+          if (hadStateRef.current) setGameLost(true);
           break;
         }
       }
@@ -216,7 +273,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
       retryRef.current.attempts += 1;
       retryRef.current.timer = setTimeout(connect, delay);
     };
-  }, [wsUrl, send]);
+  }, [wsUrl, send, clearResumeDeadline]);
 
   useEffect(() => {
     if (!wsUrl) {
@@ -227,15 +284,19 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
     const retry = retryRef.current;
     return () => {
       if (retry.timer) clearTimeout(retry.timer);
+      clearResumeDeadline();
       const ws = wsRef.current;
       wsRef.current = null; // marks onclose as superseded
       ws?.close();
     };
-  }, [wsUrl, connect]);
+  }, [wsUrl, connect, clearResumeDeadline]);
 
   const createRoom = useCallback(
     (heroId: string, bot?: { difficulty: BotDifficulty; heroId?: string }, customMap?: ProMapDef) => {
       setError(null); // clear any prior room/hero error on a fresh attempt
+      setGameLost(false); // starting a brand-new game — no lost game to mourn
+      hadStateRef.current = false;
+      clearResumeDeadline();
       const msg: ClientMsg = {
         v: PROTOCOL_VERSION,
         type: "CREATE_ROOM",
@@ -246,12 +307,14 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
       if (wsRef.current?.readyState === WebSocket.OPEN) send(msg);
       else pendingHelloRef.current = msg;
     },
-    [send]
+    [send, clearResumeDeadline]
   );
 
   const joinRoom = useCallback(
     (room: string, heroId: string) => {
       setError(null); // clear any prior room/hero error on a fresh attempt
+      setGameLost(false); // fresh join/resume attempt — drop any prior lost state
+      clearResumeDeadline();
       roomRef.current = room;
       setRoomId(room);
       // heroId === "" is an explicit resume (refresh flow / recent-rooms strip)
@@ -265,7 +328,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
       if (wsRef.current?.readyState === WebSocket.OPEN) send(msg);
       else pendingHelloRef.current = msg;
     },
-    [send]
+    [send, clearResumeDeadline]
   );
 
   const sendAction = useCallback(
@@ -320,5 +383,6 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
     requestLobbies,
     setVisibility,
     serverRestarting,
+    gameLost,
   };
 }
