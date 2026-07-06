@@ -65,9 +65,32 @@
  * be rendered. `MOVE_FIGHTER.path` for a large fighter is the LEADING end's
  * path and may start from either body space; the final pose is
  * (path[n], path[n-1]) — animate each end along the lead/trail paths.
+ *
+ * ## v7 (2026-07-06): deploy-safe games (SIGTERM warning + resume tokens)
+ * Rooms are in-memory, so a Railway redeploy (which SIGTERMs the old instance)
+ * would silently kill live games. Three additive messages fix this:
+ * - `SERVER_RESTARTING` (server->client): the old instance broadcasts this on
+ *   SIGTERM before it closes sockets. The client shows a "server updating" toast
+ *   and lets its reconnect/backoff loop take over against the new instance.
+ * - `RESUME_TOKEN` (server->client): the server periodically pushes an OPAQUE,
+ *   encrypted+authenticated blob per seat (and once more on SIGTERM). It encodes
+ *   `{setup, seed, actionLog, dslVersion, stateHash}` — the deterministic-replay
+ *   format — so EITHER client can revive the whole room on a fresh instance. The
+ *   blob is AES-256-GCM sealed with a server-only key: a client cannot read it,
+ *   so replaying it never breaches the redactFor boundary. Client stores it in
+ *   localStorage (crash-recovery / "resume tomorrow" fall out for free). When the
+ *   key is unset the server NEVER emits a token (fail closed).
+ * - `RESUME_ROOM` (client->server): carries a stored blob to a healthy instance.
+ *   The server decrypts + verifies it, replays the log, and recreates the room +
+ *   both seats with FRESH reconnect tokens, answering `ROOM_JOINED` + `STATE`.
+ *   First client to revive wins; a second `RESUME_ROOM` for the same room id just
+ *   reconnects to the now-live room. On `dslVersion` mismatch the server still
+ *   replays and lets the per-game `stateHash` decide (a semantics change that did
+ *   not touch this game's cards still resumes); a genuine divergence answers
+ *   ERROR{RESUME_FAILED}.
  */
 
-export const PROTOCOL_VERSION = 6;
+export const PROTOCOL_VERSION = 7;
 
 /** Scripted-AI strength preset (server-side budgets; client treats as opaque). */
 export type BotDifficulty = "easy" | "medium" | "hard";
@@ -315,6 +338,9 @@ export type ClientMsg =
   | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string }
   | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }
+  // v7: revive an in-memory room lost to a redeploy/crash. `token` is the opaque
+  // encrypted blob the server last pushed via RESUME_TOKEN (client localStorage).
+  | { v: number; type: "RESUME_ROOM"; token: string }
   | { v: number; type: "ACTION"; roomId: string; action: Action };
 
 export type ServerMsg =
@@ -325,6 +351,12 @@ export type ServerMsg =
   | { v: number; type: "VISIBILITY"; roomId: string; public: boolean } // ack to SET_VISIBILITY
   | { v: number; type: "STATE"; view: PlayerView; legalActions: Action[] }
   | { v: number; type: "OPPONENT_STATUS"; connected: boolean }
+  // v7: the old instance is about to stop (SIGTERM). Show "server updating" and
+  // let the reconnect loop take over — a valid RESUME_TOKEN revives the game.
+  | { v: number; type: "SERVER_RESTARTING" }
+  // v7: opaque, encrypted+authenticated resume blob for THIS seat. Store it
+  // (localStorage) and send it back in RESUME_ROOM to revive after a redeploy.
+  | { v: number; type: "RESUME_TOKEN"; roomId: string; token: string }
   | { v: number; type: "ERROR"; code: ErrorCode; message: string };
 
 export type ErrorCode =
@@ -337,4 +369,5 @@ export type ErrorCode =
   | "ILLEGAL_ACTION" // reducer rejected it (client bug or stale view)
   | "UNKNOWN_HERO"
   | "BAD_MAP" // CREATE_ROOM.customMap failed validation (message lists violations)
+  | "RESUME_FAILED" // RESUME_ROOM replay diverged / resume disabled (see message)
   | "SERVER_ERROR";
