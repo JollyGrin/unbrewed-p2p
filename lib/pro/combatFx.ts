@@ -61,6 +61,7 @@ export function diffCombatCallouts(
   // 3. Scheme / effect card-reveal — float the source card center-screen. Dedup
   //    identical sources within the batch so a doubled event isn't two stacked
   //    cards. `SCHEME_PLAYED.card` / `EFFECT_FIRED.source` may be `'(hidden)'`.
+  //    Buster's nested STUNT and Cameraman reveal events are public reveal beats too.
   const seen = new Set<string>();
   const addReveal = (source: string) => {
     if (seen.has(source)) return;
@@ -68,7 +69,7 @@ export function diffCombatCallouts(
     out.push({ kind: "reveal", source });
   };
   for (const e of events) {
-    if (e.type === "SCHEME_PLAYED") addReveal(e.card);
+    if (e.type === "SCHEME_PLAYED" || e.type === "CARD_PLAYED_FROM_HAND" || e.type === "CARD_REVEALED") addReveal(e.card);
     else if (e.type === "EFFECT_FIRED") addReveal(e.source);
   }
 

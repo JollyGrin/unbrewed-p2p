@@ -102,6 +102,9 @@ const ALL_EVENTS: GameEvent[] = [
   { type: "HP_SET", fighter: "p1/hero", to: 5 },
   { type: "CARD_FOUND", player: "p1", card: "a/x#1", from: "DECK" },
   { type: "CARD_SHUFFLED_INTO_DECK", player: "p1", card: "a/x#1", from: "HAND" },
+  { type: "CARD_RETURNED_TO_HAND", player: "p1", card: "a/x#1" },
+  { type: "CARD_PLAYED_FROM_HAND", player: "p1", card: "a/x#1" },
+  { type: "CARD_REVEALED", player: "p1", card: "a/x#1" },
   { type: "DECK_SHUFFLED", player: "p1" },
   { type: "TOKEN_PLACED", token: "t1", kind: "totem", owner: "p1", space: "s1" },
   { type: "TOKEN_DESTROYED", token: "t1", kind: "totem", owner: "p1", space: "s1", reason: "EFFECT" },
@@ -121,6 +124,8 @@ const ALLOWLIST = new Set([
   "DEFENSE_IGNORED",
   "DAMAGE_PREVENTED",
   "ACTIONS_GAINED",
+  "CARD_RETURNED_TO_HAND",
+  "CARD_REVEALED",
 ]);
 
 describe("enrichLines", () => {
@@ -276,6 +281,21 @@ describe("enrichLines", () => {
       ]);
     });
 
+    it("CARD_RETURNED_TO_HAND and CARD_REVEALED render visible Buster moments", () => {
+      const out = enrichLines(
+        [],
+        [
+          { type: "CARD_RETURNED_TO_HAND", player: "p1", card: "buster-keaton/the-great-stone-face#1" },
+          { type: "CARD_REVEALED", player: "p2", card: "buster-keaton/porkpie-hat#1" },
+        ],
+        ctx("p1")
+      );
+      expect(out).toEqual([
+        { text: "You returned the-great-stone-face to hand", who: "you", cards: ["buster-keaton/the-great-stone-face#1"] },
+        { text: "Opponent revealed porkpie-hat", who: "opp", cards: ["buster-keaton/porkpie-hat#1"] },
+      ]);
+    });
+
     it("appends new lines AFTER the existing diff lines, preserving order", () => {
       const lines: ProLogLine[] = [{ text: "You drew 1 card", who: "you" }];
       const out = enrichLines(lines, [{ type: "DEFENSE_IGNORED" }], ctx());
@@ -296,7 +316,7 @@ describe("enrichLines", () => {
       // A discard is an annotation-only type; add it so the roster is exhaustive.
       seen.add("CARD_DISCARDED");
       // Sanity: the allowlist is a subset of what the union offers.
-      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "ACTIONS_GAINED"]).toContain(t);
+      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_REVEALED"]).toContain(t);
     });
   });
 });
