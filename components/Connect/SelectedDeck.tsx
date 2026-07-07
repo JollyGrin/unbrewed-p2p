@@ -1,9 +1,15 @@
-import { Flex, Tag, Text } from "@chakra-ui/react";
+import { Flex, Spinner, Tag, Text } from "@chakra-ui/react";
 
 import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
 import Link from "next/link";
 
-export const SelectedDeckContainer = () => {
+type Props = {
+  isLoading?: boolean;
+  error?: boolean;
+};
+
+export const SelectedDeckContainer = (props: Props) => {
+  const { isLoading, error } = props;
   const { starredDeck } = useLocalDeckStorage();
   return (
     <Flex
@@ -13,7 +19,78 @@ export const SelectedDeckContainer = () => {
       alignItems={"center"}
       gap={3}
     >
-      {starredDeck === undefined ? (
+      {starredDeck === undefined && isLoading ? (
+        <>
+          <Flex
+            w="200px"
+            h="300px"
+            justifyContent="center"
+            alignItems="center"
+            bg="brand.secondary"
+            border="0.25rem dashed"
+            borderColor="brand.primary"
+            boxShadow="inset 0 0 20px rgba(0,0,0,0.35)"
+            borderRadius="0.5rem"
+            flexDir={"column"}
+            gap={3}
+          >
+            <Spinner size="lg" color="brand.primary" />
+            <Text
+              color="brand.primary"
+              fontSize="0.85rem"
+              px={4}
+              textAlign="center"
+            >
+              Importing your deck…
+            </Text>
+          </Flex>
+          <Text color="brand.secondary" fontSize="0.85rem" opacity={0.7}>
+            Fetching the deck from your invite link
+          </Text>
+        </>
+      ) : starredDeck === undefined && error ? (
+        <>
+          <Flex
+            as={Link}
+            href={"/bag"}
+            role="group"
+            w="200px"
+            h="300px"
+            justifyContent="center"
+            alignItems="center"
+            bg="brand.secondary"
+            border="0.25rem dashed"
+            borderColor="tomato"
+            boxShadow="inset 0 0 20px rgba(0,0,0,0.35)"
+            borderRadius="0.5rem"
+            flexDir={"column"}
+            gap={2}
+            cursor="pointer"
+            transition="all 0.25s ease-in-out"
+          >
+            <Text
+              color="tomato"
+              fontSize="0.85rem"
+              px={4}
+              textAlign="center"
+              fontWeight={700}
+            >
+              Couldn&apos;t load that deck
+            </Text>
+            <Text
+              color="brand.primary"
+              fontSize="0.8rem"
+              px={4}
+              textAlign="center"
+            >
+              Pick one from your bag instead
+            </Text>
+          </Flex>
+          <Text color="brand.secondary" fontSize="0.85rem" opacity={0.7}>
+            No deck selected yet
+          </Text>
+        </>
+      ) : starredDeck === undefined ? (
         <>
           <Flex
             as={Link}

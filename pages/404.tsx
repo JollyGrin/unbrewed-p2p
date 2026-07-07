@@ -1,4 +1,12 @@
-import { Button, Divider, Grid, HStack, Text, VStack } from "@chakra-ui/react";
+import {
+  Button,
+  Divider,
+  Grid,
+  HStack,
+  Spinner,
+  Text,
+  VStack,
+} from "@chakra-ui/react";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
 
@@ -14,9 +22,14 @@ export const getStaticProps: GetStaticProps<Props> = () => {
 export default function Custom404() {
   const router = useRouter();
 
+  const [, online, lobby, user] = router.asPath.split("/");
+  // A referral link (/online/... or /offline/...) always lands here first
+  // since the site is a static export — this isn't a real 404, so it should
+  // never show error copy.
+  const isReferralRedirect = online === "online" || online === "offline";
+
   // Handles the redirect from the old unbrewed online router
   useEffect(() => {
-    const [_, online, lobby, user] = router.asPath.split("/");
     if (online === "offline") {
       const deckId = lobby;
 
@@ -33,7 +46,7 @@ export default function Custom404() {
 
     if (online !== "online") return;
 
-    const [username, deckId] = user?.split("?deck=");
+    const [username, deckId] = user?.split("?deck=") ?? [];
     router.push({
       pathname: "connect",
       query: {
@@ -43,6 +56,24 @@ export default function Custom404() {
       },
     });
   }, [router.asPath]);
+
+  if (isReferralRedirect) {
+    return (
+      <Grid
+        bg="brand.primary"
+        color="brand.secondary"
+        h="100vh"
+        placeItems="center"
+      >
+        <VStack>
+          <Spinner size="xl" />
+          <Text fontFamily="heading" fontSize="1.5rem" fontWeight={700}>
+            Loading your game…
+          </Text>
+        </VStack>
+      </Grid>
+    );
+  }
 
   return (
     <Grid

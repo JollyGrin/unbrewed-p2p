@@ -47,7 +47,8 @@ export const ConnectPage = () => {
   const [inviteDeckId, setInviteDeckId] = useState("");
 
   // uses router props to load new decks
-  useLoadRouterDeck();
+  const { isLoading: isDeckImporting, error: deckImportFailed } =
+    useLoadRouterDeck();
 
   const { starredDeck, decks } = useLocalDeckStorage();
   const { activeServer, setActiveServer, serverList } = useLocalServerStorage();
@@ -132,7 +133,10 @@ export const ConnectPage = () => {
         {/* Step 1 — deck */}
         <VStack w="100%" spacing={2}>
           <StepLabel number="1" label="Choose your deck" />
-          <SelectedDeckContainer />
+          <SelectedDeckContainer
+            isLoading={isDeckImporting}
+            error={deckImportFailed}
+          />
         </VStack>
 
         {/* Steps 2 & 3 — name + lobby */}
@@ -199,7 +203,7 @@ export const ConnectPage = () => {
 
           <Button
             w="100%"
-            isDisabled={loading || !hasDeck}
+            isDisabled={loading || !hasDeck || isDeckImporting}
             bg="brand.secondary"
             color="brand.primary"
             _hover={{ bg: "brand.surfaceDim" }}
@@ -213,13 +217,23 @@ export const ConnectPage = () => {
               refetch();
             }}
           >
-            {loading && <Spinner size="sm" mr={2} />}
-            Connect to Game
+            {(loading || isDeckImporting) && <Spinner size="sm" mr={2} />}
+            {isDeckImporting ? "Importing your deck…" : "Connect to Game"}
           </Button>
-          {!hasDeck && (
+          {isDeckImporting ? (
             <Text fontSize="0.8rem" color="brand.secondary" opacity={0.7} textAlign="center">
-              Star a deck in your bag to enable connecting
+              Fetching the deck from your invite link…
             </Text>
+          ) : deckImportFailed ? (
+            <Text fontSize="0.8rem" color="tomato" opacity={0.9} textAlign="center">
+              Couldn&apos;t load that deck — star one from your bag instead
+            </Text>
+          ) : (
+            !hasDeck && (
+              <Text fontSize="0.8rem" color="brand.secondary" opacity={0.7} textAlign="center">
+                Star a deck in your bag to enable connecting
+              </Text>
+            )
           )}
 
           <Button
