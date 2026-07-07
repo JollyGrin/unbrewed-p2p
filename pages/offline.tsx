@@ -1,148 +1,102 @@
-import { HandContainer, ModalContainer } from "@/components/Game";
-import { useLocalDeckStorage } from "@/lib/hooks";
-import { useDeckOpenWarning } from "@/components/Game/useDeckOpenWarning";
-import { DeckOpenWarningDialog } from "@/components/Game/deck-open-warning.modal";
-import {
-  Box,
-  Button,
-  Divider,
-  HStack,
-  Input,
-  Text,
-  VStack,
-  useDisclosure,
-} from "@chakra-ui/react";
-import { useEffect, useMemo, useState } from "react";
-import { ModalType } from "./game";
-import { PoolType, newPool } from "@/components/DeckPool/PoolFns";
-import { GameState, WebsocketMessage } from "@/lib/gamesocket/message";
-import { PageSeo } from "@/components/Helmet/Head";
+import { Grid, Spinner, Text, VStack } from "@chakra-ui/react";
 import { useRouter } from "next/router";
+import { useEffect } from "react";
 
-// Offline has no opponents to broadcast to, so the action feed is a no-op.
-const noop = () => {};
+import { PageSeo } from "@/components/Helmet/Head";
+import { GameShell } from "@/components/Game/GameShell";
+import { OfflineGameProvider } from "@/lib/contexts/OfflineGameProvider";
+import { useLocalDeckStorage } from "@/lib/hooks";
+import { useUnmatchedDeck } from "@/lib/hooks/useUnmatchedDeck";
 
-const initGamestate: GameState = {
-  last_updated: "foobar",
-  gid: "offline",
-  players: {
-    offline: { pool: undefined },
-  },
-};
-const init: WebsocketMessage = {
-  error: "",
-  msgtype: "offline",
-  content: initGamestate,
-};
-
+/**
+ * Solo offline table. Loads a deck entirely client-side and drops the player
+ * straight onto the full game board (map + draggable card/token table) with
+ * NO websocket — {@link OfflineGameProvider} satisfies the same game context
+ * from local state. Reached directly, or via the /offline/<deckId> referral
+ * link (404.tsx repoints it here).
+ *
+ * A `?deckId=` fetches and stars that specific deck; with none, we fall back to
+ * the starred deck. The pool is built by HandContainer from the starred deck,
+ * the same path a fresh /game session uses.
+ */
 const Offline = () => {
-  const { push, query } = useRouter();
-  const { star, decks } = useLocalDeckStorage();
-  const deck = decks?.find((deck) => deck.id === star);
-  const newDeck = useMemo(() => (deck ? newPool(deck) : undefined), [deck]);
+  const { query, isReady, replace } = useRouter();
+  const deckId = query.deckId as string | undefined;
 
-  const [gameState, setGameState] = useState<WebsocketMessage>(init);
-  const players = gameState?.content?.players as Record<
-    string,
-    { pool?: PoolType }
-  >;
-  const playerState = players?.["offline"]?.pool;
+  const { decks, starredDeck, pushDeck, setStar } = useLocalDeckStorage();
+  const { data, error, setDeckId } = useUnmatchedDeck();
+  const failed = !!error;
 
-  const [modalType, setModalType] = useState<ModalType>(false);
-  const disclosure = useDisclosure();
-  const { requestModal, pendingWarning, confirmOpen, cancelOpen } =
-    useDeckOpenWarning(setModalType);
-
-  function setPlayerState() {
-    return (props: { pool: PoolType }) => {
-      setGameState((prev) => ({
-        ...prev,
-        content: {
-          ...prev.content,
-          players: {
-            offline: { pool: props.pool },
-          },
-        } as GameState,
-      }));
-    };
-  }
-
+  // BoardContainer/HandContainer/ActionLog read `self` from query.name.
   useEffect(() => {
-    if (query.name) return;
-    push({ query: { name: "offline" } });
-  }, []);
+    if (!isReady || query.name) return;
+    replace({ query: { ...query, name: "offline" } }, undefined, {
+      shallow: true,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReady, query.name]);
 
+  // Resolve the requested deck: star it if it's already in the bag, otherwise
+  // kick off a fetch. Reactive (no page reload) — once the deck is starred,
+  // HandContainer builds the pool from it.
   useEffect(() => {
-    if (!newDeck) return;
-    setPlayerState()({ pool: newDeck });
-  }, [newDeck]);
-
-  useEffect(() => {
-    if (modalType) {
-      disclosure.onOpen();
-    } else {
-      disclosure.onClose();
+    if (!isReady || !deckId || !decks) return;
+    const local = decks.find(
+      (d) => d.id === deckId || d.version_id === deckId,
+    );
+    if (local) {
+      setStar(local.id);
+      return;
     }
-  }, [modalType, disclosure]);
+    setDeckId(deckId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReady, deckId, decks]);
+
+  // Fetched deck lands: add it to the bag and star it.
+  useEffect(() => {
+    if (!data) return;
+    pushDeck(data);
+    setStar(data.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
+  // When a deckId was requested, wait until the starred deck actually matches
+  // it (so we don't flash a previously-starred deck's board first).
+  const deckReady = deckId
+    ? !!starredDeck &&
+      (starredDeck.id === deckId || starredDeck.version_id === deckId)
+    : !!starredDeck;
+
+  const nameReady = !!query.name;
 
   return (
     <>
       <PageSeo path="/offline" title="Offline — Unbrewed" noindex />
-      <ModalContainer
-        {...disclosure}
-        modalType={modalType}
-        setModalType={setModalType}
-        setPlayerState={setPlayerState}
-        gameState={gameState}
-        logAction={noop}
-      />
-      <DeckOpenWarningDialog
-        isOpen={pendingWarning}
-        onCancel={cancelOpen}
-        onConfirm={confirmOpen}
-      />
-      <Box h="100vh" bg="brand.primary">
-        <HandContainer
-          setModal={requestModal}
-          setPlayerState={setPlayerState}
-          gameState={gameState}
-          logAction={noop}
-        />
-        <Box p="0.5rem">
-          <HStack gap="0.5rem">
-            <Text>{playerState?.hero?.name}</Text>
-            <Text>hp:{playerState?.hero?.hp}</Text>
-            <Text>move:{playerState?.hero?.move}</Text>
-            <Text>{playerState?.hero?.isRanged ? "Ranged" : "Melee"}</Text>
-          </HStack>
-          <HStack gap="0.5rem">
-            <Text>{playerState?.sidekick?.name}</Text>
-            <Text>hp:{playerState?.sidekick?.hp}</Text>
-            <Text>quantity:{playerState?.sidekick?.quantity}</Text>
-            <Text>{playerState?.sidekick?.isRanged ? "Ranged" : "Melee"}</Text>
-          </HStack>
-          <Text>{playerState?.hero?.specialAbility}</Text>
-          <Text>{playerState?.sidekick?.quote}</Text>
-          <Divider my="1rem" />
-          <HpButton state={playerState?.hero?.hp ?? 0} />
-          <HpButton state={playerState?.sidekick?.hp ?? 0} />
-          <HpButton state={0} />
-          <HpButton state={0} />
-          <HpButton state={0} />
-        </Box>
-      </Box>
+      {deckReady && nameReady ? (
+        <OfflineGameProvider>
+          <GameShell />
+        </OfflineGameProvider>
+      ) : (
+        <Grid
+          bg="brand.primary"
+          color="brand.secondary"
+          h="100vh"
+          placeItems="center"
+        >
+          <VStack>
+            <Spinner size="xl" />
+            <Text fontFamily="heading" fontSize="1.5rem" fontWeight={700}>
+              {failed ? "Couldn't load that deck" : "Loading your deck…"}
+            </Text>
+            {failed && (
+              <Text fontSize="0.9rem" opacity={0.8}>
+                Check the link or grab a deck from your bag.
+              </Text>
+            )}
+          </VStack>
+        </Grid>
+      )}
     </>
-  );
-};
-
-const HpButton = (props: { state?: number }) => {
-  const [hp, setHp] = useState(props?.state ?? 0);
-  return (
-    <HStack my="0.25rem">
-      <Button onClick={() => setHp((prev) => prev - 1)}>-</Button>
-      <Input maxW="5rem" isDisabled value={hp} />
-      <Button onClick={() => setHp((prev) => prev + 1)}>+</Button>
-    </HStack>
   );
 };
 
