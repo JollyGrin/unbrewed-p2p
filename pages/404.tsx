@@ -2,7 +2,6 @@ import {
   Button,
   Divider,
   Grid,
-  HStack,
   Spinner,
   Text,
   VStack,
@@ -31,15 +30,14 @@ export default function Custom404() {
   // Handles the redirect from the old unbrewed online router
   useEffect(() => {
     if (online === "offline") {
+      // /offline/<deckId> is a solo, local-only session — no lobby, no
+      // websocket. Route straight to the offline board; it loads the deck
+      // client-side. `name=offline` is what the board reads as `self`.
       const deckId = lobby;
 
       router.push({
-        pathname: "connect",
-        query: {
-          lobby: "offline-" + Date.now(),
-          username: "offline-" + Date.now(),
-          deckId,
-        },
+        pathname: "offline",
+        query: { deckId, name: "offline" },
       });
       return;
     }
