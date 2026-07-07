@@ -8,12 +8,14 @@ import { useDebounce } from "use-debounce";
 import { useLocalDeckStorage } from "./useLocalStorage";
 import { DEFAULT_DECK_API, fetchDeckById } from "@/lib/evergreenDecks";
 
+const RELOADED_FOR_DECK_ID_KEY = "unbrewed:reloadedForDeckId";
+
 export const useUnmatchedDeck = () => {
   const [deckId, setDeckId] = useState<string>();
   const [deckIdDebounced] = useDebounce(deckId, 300);
   const [apiUrl, setApiUrl] = useState<string>(DEFAULT_DECK_API);
 
-  const { data, isLoading, error } = useQuery(
+  const { data, isInitialLoading, error } = useQuery(
     ["deck", deckIdDebounced, apiUrl],
     async () => {
       try {
@@ -28,10 +30,14 @@ export const useUnmatchedDeck = () => {
         return result.data;
       } catch (err) {
         console.error(err);
+        // rethrow so react-query marks the query as errored instead of
+        // silently resolving with `data: undefined`
+        throw err;
       }
     },
     {
       enabled: !!deckIdDebounced,
+      retry: false,
       onSuccess: (e) => toast.success("Deck fetched!"),
       onError: (e) => toast.error("Error fetching deck"),
     },
@@ -39,7 +45,11 @@ export const useUnmatchedDeck = () => {
 
   return {
     data,
-    isLoading,
+    // `isLoading` (status === "loading") stays true forever for a disabled
+    // query that never fetched — `isInitialLoading` (isLoading && isFetching)
+    // is false once there's no fetch in flight, which is what callers here
+    // actually mean by "loading".
+    isLoading: isInitialLoading,
     error,
     deckId: deckIdDebounced,
     setDeckId,
@@ -58,8 +68,14 @@ export const useLoadRouterDeck = () => {
   const { query, reload } = useRouter();
   const deckId = query.deckId as string | undefined;
 
-  const { data, setDeckId } = useUnmatchedDeck();
+  const { data, isLoading: fetchIsLoading, error, setDeckId } = useUnmatchedDeck();
   const { decks, pushDeck, setStar } = useLocalDeckStorage();
+  // Tracks the whole import window — from the moment we decide a reload is
+  // needed until it actually fires — so the UI never falls back to the empty
+  // "no deck selected" placeholder in between (covers the setDeckId debounce
+  // gap that fetchIsLoading alone would miss).
+  const [isImporting, setIsImporting] = useState(false);
+  const [importFailed, setImportFailed] = useState(false);
 
   useEffect(() => {
     if (!deckId) return;
@@ -74,7 +90,16 @@ export const useLoadRouterDeck = () => {
         (deck) => deck.version_id === deckId || deck.id === deckId,
       );
 
-      if (localDeck?.version_id !== deckId) {
+      // Only reload once per deckId: if the invite id matches a deck by
+      // `id` but that deck's `version_id` never equals it (e.g. no
+      // version_id set), reload() would otherwise re-run this same branch
+      // after the reload and loop forever.
+      const alreadyReloadedForThisId =
+        sessionStorage.getItem(RELOADED_FOR_DECK_ID_KEY) === deckId;
+
+      if (localDeck?.version_id !== deckId && !alreadyReloadedForThisId) {
+        setIsImporting(true);
+        sessionStorage.setItem(RELOADED_FOR_DECK_ID_KEY, deckId);
         toast.success("Refresh the page if you do not see your new deck");
         reload()
       }
@@ -84,8 +109,17 @@ export const useLoadRouterDeck = () => {
     }
 
     // if there's no local deck, set the deckId to fetch from api
+    setIsImporting(true);
     setDeckId(deckId);
   }, [deckId]);
+
+  useEffect(() => {
+    if (!deckId) return;
+    if (error) {
+      setIsImporting(false);
+      setImportFailed(true);
+    }
+  }, [error, deckId]);
 
   useEffect(() => {
     if (!data) return;
@@ -97,4 +131,9 @@ export const useLoadRouterDeck = () => {
     toast.success("Success! Refreshing page to load new deck");
     reload();
   }, [data]);
+
+  return {
+    isLoading: isImporting || fetchIsLoading,
+    error: importFailed,
+  };
 };
