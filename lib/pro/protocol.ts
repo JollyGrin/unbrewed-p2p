@@ -107,6 +107,16 @@
  *   construction, and a schema/dsl-version mismatch refuses rather than render a
  *   subtly-wrong game.
  */
+
+/**
+ * ## v9 (2026-07-06): forfeit / resign (engine #32)
+ * `FORFEIT` is a new `Action`: a seated player concedes at any point during an
+ * active game. The reducer ends the game immediately and awards the opponent the
+ * win, so the server follows the accepted action with the usual winner `STATE`
+ * (phase `GAME_OVER`, `winner` set, `legalActions: []`) and the GAME_OVER
+ * `REPLAY_BUNDLE`. No new message types — it rides the existing ACTION path and
+ * lights up the existing winner display.
+ */
 export const PROTOCOL_VERSION = 9;
 
 /** Scripted-AI strength preset (server-side budgets; client treats as opaque). */
@@ -147,7 +157,14 @@ export type Action =
   | { type: "COMMIT_DEFENSE_CARD"; player: PlayerId; card: CardInstanceId }
   | { type: "DECLINE_DEFENSE"; player: PlayerId }
   | { type: "DISCARD_TO_LIMIT"; player: PlayerId; card: CardInstanceId }
-  | { type: "RESPOND_PROMPT"; player: PlayerId; promptId: string; optionId: string };
+  | { type: "RESPOND_PROMPT"; player: PlayerId; promptId: string; optionId: string }
+  // v9 (engine #32): concede the game — the reducer ends it and awards the win to
+  // the opponent, then the server broadcasts the winner STATE. Legal at any point
+  // during an active game: the engine DOES enumerate it in legalActions (its
+  // isMember gate needs it there to accept the action), but the client filters it
+  // out of the sidebar action list and offers it only via the confirm-gated dock
+  // button — a raw one-click list entry would be an unguarded misfire.
+  | { type: "FORFEIT"; player: PlayerId };
 
 export type LegalOption = { id: string; label: string; data?: Json };
 
