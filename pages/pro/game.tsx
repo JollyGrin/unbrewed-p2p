@@ -1711,6 +1711,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
           highlightedSpaces={[...new Set(highlightedSpaces)]}
           highlightedFighters={[...new Set(highlightedFighters)]}
           selectedFighter={selectedFighter}
+          attack={view.combat ? { attacker: view.combat.attacker, target: view.combat.target } : null}
           fx={boardFx}
           pendingMove={pendingMove}
           onPendingMoveSettled={() => setPendingMove(null)}
