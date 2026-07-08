@@ -134,8 +134,35 @@
  *   `GameEvent` union below mirrors engine/types.ts (drift caught at compile time
  *   in server/redact.ts). One additive engine event, `EFFECT_FIRED`, was added so
  *   delayed effect damage can be attributed to its source card.
+ *
+ * ## v11 (2026-07-08): undo request → opponent accept/reject → rewind (issue #154)
+ * A player can ask to undo their last discrete action; the opponent is prompted
+ * with the consequences and accepts or rejects. Undo is a META-negotiation — it
+ * is NOT an `Action` and NEVER enters the deterministic `actionLog` (that would
+ * make "I asked for an undo" replayable). On accept the server truncates the log
+ * to just before the requester's last discrete move, `runReplay`s from the seed,
+ * and re-broadcasts `STATE` to both seats (the existing crash-recovery rewind
+ * primitive) — redaction is re-derived from the rebuilt state, so undo can't leak
+ * hidden info beyond the accepted rewind. Four additive messages plus one view
+ * flag; a client that ignores them behaves exactly as on v10:
+ * - `UNDO_REQUEST` (client → server): "undo my last action." One pending undo per
+ *   room; the request becomes invalid the moment the requester acts again.
+ * - `UNDO_RESPONSE { accept }` (client → server): the opponent's verdict. On
+ *   accept the server rewinds + broadcasts STATE; on reject it emits UNDO_REJECTED
+ *   to the requester and nothing changes. A bot opponent auto-accepts server-side.
+ * - `UNDO_REQUESTED { requester, actions }` (server → opponent): pushes the prompt,
+ *   listing every action that will be rewound (`UndoActionSummary[]`) — INCLUDING
+ *   the opponent's own intervening moves, so they choose informed. A slight
+ *   info-leak (the requester's now-rewound moves may be named) is acceptable:
+ *   permission is the safeguard, not information hiding.
+ * - `UNDO_REJECTED` (server → requester): the opponent declined; show a notice.
+ * - `PlayerView.canUndo` (server → both): whether THIS viewer has an eligible last
+ *   discrete action to undo right now — the client gates the Undo affordance on it
+ *   (absent/false ⇒ hidden). Recomputed on every STATE, so it flips off the moment
+ *   an undo would be meaningless (game just started, log already at a boundary the
+ *   viewer didn't create) and back on once they act.
  */
-export const PROTOCOL_VERSION = 10;
+export const PROTOCOL_VERSION = 11;
 
 /** Scripted-AI strength preset (server-side budgets; client treats as opaque). */
 export type BotDifficulty = "easy" | "medium" | "hard";
@@ -441,6 +468,12 @@ export interface PlayerView {
   // Regions currently OUT OF PLAY (v0.12.0 — a closed Hut). Public info (no
   // redaction); the client greys out the region's inset panel. Absent/[] = none.
   closedRegions?: string[];
+  // v11: does THIS viewer have an eligible last discrete action they could ask to
+  // undo right now? The client gates the Undo affordance on it (absent/false ⇒
+  // hidden). Recomputed every STATE — flips off at a boundary the viewer didn't
+  // create (game just started, their last move already rewound) and on once they
+  // act. A pre-v11 server omits it, so the button simply never shows.
+  canUndo?: boolean;
   winner: PlayerId | null;
 }
 
@@ -567,6 +600,17 @@ export interface LobbyListing {
   ageMs: number; // time the lobby has been waiting (now − room creation); NOT reset by a visibility toggle
 }
 
+// v11: one entry in an undo prompt's rewind list. The server labels every action
+// that would be removed if the opponent accepts, in log order, so the opponent
+// sees exactly what disappears — crucially INCLUDING their own intervening moves
+// (`player === the receiver`), which they'd want to weigh before consenting.
+// `label` is a human string the server derives from the action (e.g. "Maneuver",
+// "Move Fighter", "Scheme: Feint"); the client just renders it.
+export interface UndoActionSummary {
+  player: PlayerId; // whose action this was (may be the requester OR the opponent)
+  label: string; // human-readable description, ready to display
+}
+
 export type ClientMsg =
   | { v: number; type: "LIST_HEROES" }
   | { v: number; type: "LIST_LOBBIES" }
@@ -579,7 +623,14 @@ export type ClientMsg =
   // v7: revive an in-memory room lost to a redeploy/crash. `token` is the opaque
   // encrypted blob the server last pushed via RESUME_TOKEN (client localStorage).
   | { v: number; type: "RESUME_ROOM"; token: string }
-  | { v: number; type: "ACTION"; roomId: string; action: Action };
+  | { v: number; type: "ACTION"; roomId: string; action: Action }
+  // v11: meta-negotiation, NOT an Action — undo never enters the replay log.
+  // "Undo my last discrete action." The server pushes UNDO_REQUESTED to the
+  // opponent; one pending undo per room; invalidated once the requester acts again.
+  | { v: number; type: "UNDO_REQUEST"; roomId: string }
+  // v11: the opponent's verdict on a pending undo. accept ⇒ server rewinds and
+  // broadcasts STATE to both seats; reject ⇒ server sends UNDO_REJECTED, no change.
+  | { v: number; type: "UNDO_RESPONSE"; roomId: string; accept: boolean };
 
 export type ServerMsg =
   | { v: number; type: "HEROES"; heroes: HeroListing[] }
@@ -610,6 +661,13 @@ export type ServerMsg =
   // v7: opaque, encrypted+authenticated resume blob for THIS seat. Store it
   // (localStorage) and send it back in RESUME_ROOM to revive after a redeploy.
   | { v: number; type: "RESUME_TOKEN"; roomId: string; token: string }
+  // v11: pushed to the OPPONENT when a player asks to undo. `requester` is the
+  // asking seat; `actions` lists every action that would be rewound on accept
+  // (log order), including the opponent's own intervening moves so they decide
+  // informed. Reuse the existing STATE broadcast for the actual rewind on accept.
+  | { v: number; type: "UNDO_REQUESTED"; requester: PlayerId; actions: UndoActionSummary[] }
+  // v11: pushed to the REQUESTER when the opponent declines. Nothing changed.
+  | { v: number; type: "UNDO_REJECTED" }
   | { v: number; type: "ERROR"; code: ErrorCode; message: string };
 
 export type ErrorCode =

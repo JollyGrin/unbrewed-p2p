@@ -27,12 +27,20 @@ import {
   HeroListing,
   LobbyListing,
   PlayerView,
+  PlayerId,
   ProMapDef,
   PROTOCOL_VERSION,
   ReplayBundle,
   ServerMsg,
+  UndoActionSummary,
   ViewPrompt,
 } from "./protocol";
+
+/** An incoming undo request pushed to the opponent (protocol v11). */
+export interface IncomingUndo {
+  requester: PlayerId;
+  actions: UndoActionSummary[];
+}
 
 export type ProConnectionStatus =
   | "idle" // no URL configured
@@ -80,6 +88,22 @@ export interface UseProSocketReturn {
   joinRoom: (roomId: string, heroId: string) => void;
   sendAction: (action: Action) => void;
   respondToPrompt: (promptId: string, optionId: string) => void;
+  /**
+   * Undo (protocol v11). `requestUndo` asks the server to rewind our last
+   * discrete action, pending the opponent's consent; `respondToUndo` answers an
+   * incoming request. `incomingUndo` is the request pushed to US (drive the
+   * accept/reject modal); `undoPending` is true while OUR request awaits a
+   * verdict; `undoRejected` latches true once the opponent declines (call
+   * `acknowledgeUndoRejected` after showing the notice). See useProSocket for the
+   * lifecycle — both clear on the next STATE (accept rewind, or the requester
+   * acting again invalidates the request).
+   */
+  requestUndo: () => void;
+  respondToUndo: (accept: boolean) => void;
+  incomingUndo: IncomingUndo | null;
+  undoPending: boolean;
+  undoRejected: boolean;
+  acknowledgeUndoRejected: () => void;
   /** ask the server for the current public-lobby list (poll while browsing) */
   requestLobbies: () => void;
   /** list/unlist our current room in the public lobby browser */
@@ -143,6 +167,13 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
   const [serverRestarting, setServerRestarting] = useState(false);
   const [replayBundle, setReplayBundle] = useState<ReplayBundle | null>(null);
   const [gameLost, setGameLost] = useState(false);
+  // Undo (v11): the request pushed to US (opponent prompt), our own request's
+  // pending flag, and a latch for "opponent declined". Any STATE clears the first
+  // two — an accept arrives as a rewind STATE, and the requester acting again
+  // (which invalidates a pending request) also broadcasts a STATE to both seats.
+  const [incomingUndo, setIncomingUndo] = useState<IncomingUndo | null>(null);
+  const [undoPending, setUndoPending] = useState(false);
+  const [undoRejected, setUndoRejected] = useState(false);
 
   const send = useCallback((msg: ClientMsg) => {
     const ws = wsRef.current;
@@ -220,6 +251,12 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
           setServerRestarting(false); // a STATE means we're live again (resume done)
           clearResumeDeadline(); // resume landed (or never failed) — cancel the loss timer
           setGameLost(false); // a late-but-successful resume wins over a fired deadline
+          // v11: any STATE resolves a live undo negotiation. If we were waiting on
+          // a verdict this is the accepted rewind (or the game simply moved on); if
+          // we had an incoming request open, the requester acting again invalidated
+          // it. Either way, drop the pending/incoming undo UI.
+          setUndoPending(false);
+          setIncomingUndo(null);
           break;
         case "RESUME_TOKEN":
           // Opaque, encrypted resume blob for our seat — stash it so a redeploy or
@@ -249,6 +286,16 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
           break;
         case "OPPONENT_STATUS":
           setOpponentConnected(msg.connected);
+          break;
+        case "UNDO_REQUESTED":
+          // The opponent asked to undo; surface the accept/reject prompt with the
+          // list of actions that will be rewound (incl. our own intervening moves).
+          setIncomingUndo({ requester: msg.requester, actions: msg.actions });
+          break;
+        case "UNDO_REJECTED":
+          // The opponent declined our undo — stop waiting and latch the notice.
+          setUndoPending(false);
+          setUndoRejected(true);
           break;
         case "ERROR": {
           // A room lost to a redeploy answers ROOM_NOT_FOUND (room gone) or
@@ -367,6 +414,28 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
     [send]
   );
 
+  // Undo (v11): meta-negotiation, sent OUTSIDE the ACTION path so it never enters
+  // the deterministic replay log. requestUndo optimistically enters the pending
+  // state; the server pushes UNDO_REQUESTED to the opponent and answers with either
+  // a rewind STATE (accept) or UNDO_REJECTED (reject).
+  const requestUndo = useCallback(() => {
+    if (!roomRef.current) return;
+    setUndoRejected(false); // fresh attempt clears any stale "declined" notice
+    setUndoPending(true);
+    send({ v: PROTOCOL_VERSION, type: "UNDO_REQUEST", roomId: roomRef.current });
+  }, [send]);
+
+  const respondToUndo = useCallback(
+    (accept: boolean) => {
+      if (!roomRef.current) return;
+      setIncomingUndo(null); // consumed — hide the prompt whichever way we answered
+      send({ v: PROTOCOL_VERSION, type: "UNDO_RESPONSE", roomId: roomRef.current, accept });
+    },
+    [send]
+  );
+
+  const acknowledgeUndoRejected = useCallback(() => setUndoRejected(false), []);
+
   const requestLobbies = useCallback(() => {
     send({ v: PROTOCOL_VERSION, type: "LIST_LOBBIES" });
   }, [send]);
@@ -393,6 +462,12 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
     joinRoom,
     sendAction,
     respondToPrompt,
+    requestUndo,
+    respondToUndo,
+    incomingUndo,
+    undoPending,
+    undoRejected,
+    acknowledgeUndoRejected,
     requestLobbies,
     setVisibility,
     serverRestarting,
