@@ -153,3 +153,42 @@ describe("ProBoard regions", () => {
     expect(screen.queryByAltText("The Hut")).not.toBeInTheDocument();
   });
 });
+
+// issue #120: pinch/scroll zoom + drag pan, gated behind the `zoomMap` flag.
+// The frame (shrink-wrap box holding the art + every overlay) is transformed as
+// one unit; the identity-based click model is untouched, so a click still lands
+// the same action at any zoom/pan. `frame` = the img's parent positioning box.
+const frameOf = () => screen.getByAltText("Test Map").parentElement as HTMLElement;
+
+describe("ProBoard zoom/pan (issue #120)", () => {
+  it("adds no transform and no reset control when zoomable is off (default)", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={MAP} fighters={[fighter({})]} onSpaceClick={() => {}} highlightedSpaces={["s2"]} />
+      </ChakraProvider>
+    );
+    // no transform on the shrink-wrap frame — the board is untouched
+    expect(["", "none"]).toContain(getComputedStyle(frameOf()).transform);
+    // reset-to-fit control only exists once the feature is on AND off-identity
+    expect(screen.queryByText("reset view")).not.toBeInTheDocument();
+  });
+
+  it("keeps identity-based clicks working when zoomable is on", () => {
+    const onSpaceClick = jest.fn();
+    render(
+      <ChakraProvider>
+        <ProBoard map={MAP} fighters={[fighter({})]} highlightedSpaces={["s2"]} onSpaceClick={onSpaceClick} zoomable />
+      </ChakraProvider>
+    );
+    // the transform rides the frame (identity to start — same visual as off)
+    expect(getComputedStyle(frameOf()).transform).toMatch(/scale|matrix/);
+    // a plain click on the highlighted space still fires its action untouched:
+    // no screen-coordinate math, so zoom/pan can't desync the hit target
+    const circle = frameOf().querySelectorAll("div");
+    // the highlighted hit-circle is the one wired with a pointer cursor
+    const hit = [...circle].find((el) => getComputedStyle(el).cursor === "pointer");
+    expect(hit).toBeTruthy();
+    fireEvent.click(hit as HTMLElement);
+    expect(onSpaceClick).toHaveBeenCalledWith("s2");
+  });
+});

@@ -7,11 +7,12 @@
  * spaces the caller says are currently actionable (which the server derives
  * from legalActions — the board never computes legality itself).
  */
-import { Box, Flex, Text, chakra, keyframes, shouldForwardProp } from "@chakra-ui/react";
+import { Box, Button, Flex, Text, chakra, keyframes, shouldForwardProp } from "@chakra-ui/react";
 import { isValidMotionProp, motion } from "framer-motion";
 import { PointerEvent as ReactPointerEvent, useRef, useState } from "react";
 import { FighterId, ProMapDef, ProMapRegion, ProMapSpace, SpaceId, ViewFighter, ViewToken } from "@/lib/pro/protocol";
 import { BoardFxItem } from "@/lib/pro/useGameFx";
+import { useZoomPan } from "@/lib/pro/useZoomPan";
 
 const DEFAULT_DIAMETER = 0.021;
 
@@ -82,6 +83,10 @@ export interface ProBoardProps {
   /** cap the board image height (e.g. "calc(100svh - 2rem)") so the whole
    * field fits the viewport; width shrinks to keep the aspect ratio */
   imgMaxH?: string;
+  /** Enable pinch/scroll zoom + drag pan on the board (issue #120, gated by
+   * the `zoomMap` beta flag). Off (default) = no handlers, no transform, no
+   * added DOM — the board behaves exactly as before. */
+  zoomable?: boolean;
 }
 
 const PLAYER_COLOR: Record<string, string> = {
@@ -114,6 +119,7 @@ export const ProBoard = ({
   onSpaceClick,
   onFighterClick,
   imgMaxH,
+  zoomable = false,
 }: ProBoardProps) => {
   const diameter = (map.meta.spaceDiameter ?? DEFAULT_DIAMETER) * 100; // % of width
   const highlightSet = new Set(highlightedSpaces);
@@ -137,6 +143,11 @@ export const ProBoard = ({
   const frameRef = useRef<HTMLDivElement | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [panelPos, setPanelPos] = useState<Record<string, { x: number; y: number }>>({});
+
+  // Pinch/scroll zoom + drag pan (issue #120). The transform rides the
+  // shrink-wrap frame below so the art and every overlay move as one unit;
+  // when `zoomable` is false the hook attaches nothing and returns no transform.
+  const zoom = useZoomPan(zoomable, frameRef);
 
   // A collapsed panel must never hide a required choice: any highlighted space
   // or targetable fighter INSIDE the region forces it open for the duration.
@@ -246,7 +257,10 @@ export const ProBoard = ({
     const children = (
       <>
         <Text
-          fontSize="min(1.1vw, 0.68rem)"
+          // rem, not vw: the label lives inside the zoom-transformed frame, so
+          // a viewport-relative size would fight the zoom (text stays put while
+          // the token scales). rem scales with the transform like the art.
+          fontSize="0.68rem"
           fontWeight="bold"
           letterSpacing="-0.02em"
           color={f.kind === "HERO" ? "brand.surfaceDim" : "brand.parchment"}
@@ -264,7 +278,7 @@ export const ProBoard = ({
             border={`1.5px solid ${color}`}
             borderRadius="999px"
             px="0.3em"
-            fontSize="min(1.1vw, 0.7rem)"
+            fontSize="0.7rem"
             fontWeight="bold"
             lineHeight="1.4"
           >
@@ -485,7 +499,9 @@ export const ProBoard = ({
             left={`${s.x * 100}%`}
             top={`${s.y * 100}%`}
             fontFamily="BebasNeueRegular"
-            fontSize={item.kind === "damage" || item.kind === "heal" ? "min(3vw, 1.6rem)" : "min(2.2vw, 1.1rem)"}
+            // rem, not vw — see the token-label note above: FX overlays live in
+            // the zoom-transformed frame and must scale with it, not the viewport.
+            fontSize={item.kind === "damage" || item.kind === "heal" ? "1.6rem" : "1.1rem"}
             fontWeight="bold"
             letterSpacing="0.04em"
             color={color}
@@ -576,7 +592,7 @@ export const ProBoard = ({
                   fontFamily="BebasNeueRegular"
                   letterSpacing="0.12em"
                   color="brand.parchment"
-                  fontSize="min(2.4vw, 1.1rem)"
+                  fontSize="1.1rem"
                   textShadow="0 1px 3px rgba(0,0,0,0.9)"
                 >
                   {r.label} — CLOSED
@@ -592,9 +608,27 @@ export const ProBoard = ({
   return (
     // Outer box may be stretched by a parent grid/flex row; the INNER box is
     // the positioning context: it shrink-wraps the image exactly, so the
-    // %-positioned overlays stay glued to the art at any size.
-    <Box maxW="100%">
-      <Box ref={frameRef} position="relative" w="fit-content" maxW="100%" mx="auto" userSelect="none">
+    // %-positioned overlays stay glued to the art at any size. When zoomable,
+    // this outer box is the wheel/pointer target + the zoom viewport (clips the
+    // zoomed frame to the board's cell); the transform rides the inner frame.
+    <Box
+      ref={zoom.containerRef}
+      maxW="100%"
+      position={zoomable ? "relative" : undefined}
+      overflow={zoomable ? "hidden" : undefined}
+      sx={zoomable ? { touchAction: "none", cursor: "grab" } : undefined}
+      {...zoom.handlers}
+    >
+      <Box
+        ref={frameRef}
+        position="relative"
+        w="fit-content"
+        maxW="100%"
+        mx="auto"
+        userSelect="none"
+        transform={zoom.transform}
+        transformOrigin={zoom.transformOrigin}
+      >
       <Box
         as="img"
         src={map.meta.imageUrl}
@@ -643,6 +677,25 @@ export const ProBoard = ({
           </Box>
         ))}
       </Box>
+
+      {/* reset-to-fit control — appears only once zoomed/panned so a mis-pan
+          can never strand the board off-screen. Sits in the outer (untransformed)
+          box so it stays put on screen regardless of the board's transform. */}
+      {zoom.active && (
+        <Button
+          size="xs"
+          position="absolute"
+          bottom="0.5rem"
+          left="0.5rem"
+          zIndex={8}
+          bg="whiteAlpha.300"
+          color="brand.parchment"
+          _hover={{ bg: "whiteAlpha.500" }}
+          onClick={zoom.reset}
+        >
+          reset view
+        </Button>
+      )}
     </Box>
   );
 };
