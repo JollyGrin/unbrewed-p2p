@@ -23,6 +23,7 @@ import {
   Action,
   BotDifficulty,
   ClientMsg,
+  GameEvent,
   HeroListing,
   LobbyListing,
   PlayerView,
@@ -44,6 +45,13 @@ export interface ProGameSnapshot {
   view: PlayerView;
   legalActions: Action[];
   prompt: ViewPrompt | null; // convenience alias of view.prompt
+  /**
+   * Structured engine events for the action that produced THIS broadcast,
+   * redacted per player (protocol v10). Empty on join/reconnect/resume STATE
+   * (the server omits `events` there) and on any pre-v10 server. Kept paired
+   * with `view` so the log effect enriches the same batch's diff atomically.
+   */
+  events: GameEvent[];
 }
 
 export interface UseProSocketReturn {
@@ -203,7 +211,12 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
         case "STATE":
           youRef.current = msg.view.you;
           hadStateRef.current = true; // we're genuinely mid-match now
-          setSnapshot({ view: msg.view, legalActions: msg.legalActions, prompt: msg.view.prompt });
+          setSnapshot({
+            view: msg.view,
+            legalActions: msg.legalActions,
+            prompt: msg.view.prompt,
+            events: msg.events ?? [],
+          });
           setServerRestarting(false); // a STATE means we're live again (resume done)
           clearResumeDeadline(); // resume landed (or never failed) — cancel the loss timer
           setGameLost(false); // a late-but-successful resume wins over a fired deadline
