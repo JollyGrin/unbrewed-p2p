@@ -106,19 +106,34 @@
  *   validates imported/shared bundles: an illegal actionLog is rejected by
  *   construction, and a schema/dsl-version mismatch refuses rather than render a
  *   subtly-wrong game.
- */
-
-/**
- * ## v10 (2026-07-08): prompt attribution (issue #35)
- * `ViewPrompt` gained optional `source` — WHAT opened the prompt, so the client
- * can label a choice with the card/ability asking (players were guessing; see
- * unbrewed-p2p#147/#151). Projected in redactFor from the parked effect run's
- * scope.source: a resolving card's instance → `{ card }`, a hero ability →
- * `{ hero }`, and system prompts with no effect run (combat commit, sidekick
- * placement, maneuver, maneuver-boost) → `null`. Hidden-info guarded: a card
- * instance is named ONLY when its face is public to BOTH players (a scheme in
- * discard, a revealed combat card); a still-hidden face sends `null` instead, so
- * `source` never leaks an identity `redactFor` otherwise strips.
+ *
+ * ## v10 (2026-07-08): prompt attribution + player-redacted event stream
+ * One release train ships two additive features under a single version (issues
+ * #35 and #36):
+ *
+ * - Prompt attribution (issue #35): `ViewPrompt` gained optional `source` — WHAT
+ *   opened the prompt, so the client can label a choice with the card/ability
+ *   asking (players were guessing; see unbrewed-p2p#147/#151). Projected in
+ *   redactFor from the parked effect run's scope.source: a resolving card's
+ *   instance → `{ card }`, a hero ability → `{ hero }`, and system prompts with
+ *   no effect run (combat commit, sidekick placement, maneuver, maneuver-boost)
+ *   → `null`. Hidden-info guarded: a card instance is named ONLY when its face is
+ *   public to BOTH players (a scheme in discard, a revealed combat card); a
+ *   still-hidden face sends `null` instead, so `source` never leaks an identity
+ *   `redactFor` otherwise strips.
+ *
+ * - Player-redacted event stream (issue #36): STATE gained an optional
+ *   `events: GameEvent[]` — the structured events the engine produced for the
+ *   action that triggered THIS broadcast, redacted for the receiving player (own
+ *   hidden cards survive; the opponent's are masked to '(hidden)'). Present only
+ *   on action-triggered broadcasts; join/reconnect/resume STATE omits it (never
+ *   replay old events into a rejoining client's feed). The client appends them to
+ *   its activity feed, replacing the snapshot-diffing in
+ *   unbrewed-p2p/lib/pro/gameLog.ts; a client that ignores `events` sees a
+ *   byte-identical `view`/`legalActions` and behaves exactly as on v9. The
+ *   `GameEvent` union below mirrors engine/types.ts (drift caught at compile time
+ *   in server/redact.ts). One additive engine event, `EFFECT_FIRED`, was added so
+ *   delayed effect damage can be attributed to its source card.
  */
 export const PROTOCOL_VERSION = 10;
 
@@ -167,6 +182,71 @@ export type Action =
   // client constructs this directly (the second always-available exception to
   // "never send an action the server didn't offer", alongside MOVE_FIGHTER paths).
   | { type: "FORFEIT"; player: PlayerId };
+
+// ---------------------------------------------------------------------------
+// Structured event stream (v10). MIRROR of engine/types.ts `GameEvent` — the
+// engine is the source of truth; a compile-time assignability check in
+// server/redact.ts fails the build if the two unions drift. Events reach a
+// client on the STATE that carries the action that produced them, redacted
+// per-player by redactEventForPlayer (server/redact.ts) so a card in a hidden
+// zone is masked to '(hidden)'. The client appends them to its activity feed;
+// a client that ignores `events` behaves exactly as before v10.
+// ---------------------------------------------------------------------------
+export type GameEvent =
+  | { type: "HERO_PLACED"; fighter: FighterId; space: SpaceId }
+  | { type: "SIDEKICK_PLACED"; fighter: FighterId; space: SpaceId }
+  | { type: "TURN_STARTED"; player: PlayerId; turnNumber: number }
+  | { type: "ACTION_SPENT"; player: PlayerId; action: "MANEUVER" | "SCHEME" | "ATTACK" }
+  | { type: "CARD_DRAWN"; player: PlayerId; card: CardInstanceId }
+  | { type: "EXHAUSTION_DAMAGE"; player: PlayerId }
+  | { type: "DAMAGE_APPLIED"; fighter: FighterId; amount: number; source: "EXHAUSTION" | "EFFECT" | "ATTACK" }
+  | { type: "FIGHTER_DEFEATED"; fighter: FighterId }
+  | { type: "MOVE_BOOSTED"; player: PlayerId; card: CardInstanceId; boost: number }
+  | { type: "FIGHTER_MOVED"; fighter: FighterId; path: SpaceId[] }
+  | { type: "SCHEME_PLAYED"; player: PlayerId; card: CardInstanceId }
+  | { type: "CARD_DISCARDED"; player: PlayerId; card: CardInstanceId; reason: "HAND_LIMIT" | "BOOST" | "COMBAT" | "EFFECT" | "MILL" }
+  | { type: "ATTACK_DECLARED"; attacker: FighterId; target: FighterId }
+  | { type: "CARD_COMMITTED"; player: PlayerId }
+  | { type: "CARDS_REVEALED"; attackerCard: CardInstanceId; defenderCard: CardInstanceId | null }
+  | { type: "COMBAT_DAMAGE"; amount: number }
+  | { type: "COMBAT_RESOLVED"; outcome: CombatOutcome }
+  | { type: "COMBAT_ENDED" }
+  | { type: "TURN_ENDED"; player: PlayerId }
+  | { type: "GAME_ENDED"; winner: PlayerId; reason: "HERO_DEFEATED" | "SIMULTANEOUS" | "FORFEIT" }
+  | { type: "PROMPT_OPENED"; player: PlayerId; kind: PromptKind; promptId: string }
+  | { type: "PROMPT_RESOLVED"; player: PlayerId; promptId: string; optionId: string }
+  | { type: "VALUE_MODIFIED"; role: "ATTACK" | "DEFENSE"; delta: number; newEffective: number }
+  | { type: "VALUE_SET"; role: "ATTACK" | "DEFENSE"; to: number; locked: boolean }
+  | { type: "CARD_BOOSTED"; role: "ATTACK" | "DEFENSE"; card: CardInstanceId; blind: boolean }
+  | { type: "BOOST_RETRIEVED"; player: PlayerId; card: CardInstanceId }
+  | { type: "EFFECT_CANCELED"; role: "ATTACK" | "DEFENSE"; scope: string }
+  | { type: "ACTIONS_GAINED"; player: PlayerId; amount: number }
+  | { type: "TURN_END_FORCED"; player: PlayerId }
+  | { type: "DEFENSE_IGNORED" }
+  | { type: "DAMAGE_PREVENTED"; scope: "ALL" }
+  | { type: "COUNTER_CHANGED"; player: PlayerId; name: string; value: number }
+  | { type: "FLAG_SET"; player: PlayerId; flag: string }
+  | { type: "FLAG_CLEARED"; player: PlayerId; flag: string }
+  | { type: "CARD_KEPT"; player: PlayerId; card: CardInstanceId }
+  | { type: "ABILITY_BOOST_COMMITTED"; player: PlayerId }
+  | { type: "DECK_TOP_REORDERED"; player: PlayerId; count: number }
+  | { type: "STAT_SET"; fighter: FighterId; stat: "MOVE"; to: number; expiresAtTurn: number; expiresAt: "START" | "END" }
+  | { type: "HP_FLOOR_SET"; fighter: FighterId; floor: number; expiresAtTurn: number; expiresAt: "START" | "END" }
+  | { type: "HP_SET"; fighter: FighterId; to: number }
+  | { type: "EFFECT_SCHEDULED"; source: string; fireAt: "START" | "END" | "COMBAT_END" }
+  // v10: mirror of EFFECT_SCHEDULED emitted when a scheduled effect actually
+  // fires — lets the client attribute delayed effect damage to the source card.
+  | { type: "EFFECT_FIRED"; source: string; fireAt: "START" | "END" | "COMBAT_END" }
+  | { type: "CARD_FOUND"; player: PlayerId; card: CardInstanceId; from: "DECK" | "DISCARD" }
+  | { type: "CARD_SHUFFLED_INTO_DECK"; player: PlayerId; card: CardInstanceId; from: "HAND" | "DISCARD" }
+  | { type: "DECK_SHUFFLED"; player: PlayerId }
+  | { type: "TOKEN_PLACED"; token: string; kind: "totem"; owner: PlayerId; space: SpaceId }
+  | { type: "TOKEN_DESTROYED"; token: string; kind: "totem"; owner: PlayerId; space: SpaceId; reason: "EFFECT" | "ENTERED" | "REPLACED" }
+  | { type: "FIGHTER_REVIVED"; fighter: FighterId; space: SpaceId }
+  | { type: "FIGHTER_PINNED"; fighter: FighterId; expiresAtTurn: number; expiresAt: "START" | "END" }
+  | { type: "FIGHTER_TAIL_PLACED"; fighter: FighterId; space: SpaceId }
+  | { type: "FIGHTER_EJECTED"; fighter: FighterId; to: SpaceId }
+  | { type: "REGION_CLOSED"; region: string };
 
 export type LegalOption = { id: string; label: string; data?: Json };
 
@@ -507,7 +587,19 @@ export type ServerMsg =
   | { v: number; type: "ROOM_CREATED"; roomId: string; token: string; you: PlayerId }
   | { v: number; type: "ROOM_JOINED"; roomId: string; token: string; you: PlayerId }
   | { v: number; type: "VISIBILITY"; roomId: string; public: boolean } // ack to SET_VISIBILITY
-  | { v: number; type: "STATE"; view: PlayerView; legalActions: Action[] }
+  | {
+      v: number;
+      type: "STATE";
+      view: PlayerView;
+      legalActions: Action[];
+      /**
+       * Events produced by the action that triggered THIS broadcast, redacted
+       * for the receiving player. Omitted on join/reconnect/resume broadcasts
+       * (never replayed) — clients append these to their activity feed. A client
+       * that ignores this field is unaffected.
+       */
+      events?: GameEvent[];
+    }
   // Sent to BOTH seats once the game reaches GAME_OVER (v7). Unredacted +
   // self-contained; the client saves it for the /pro/replays scrubber.
   | { v: number; type: "REPLAY_BUNDLE"; bundle: ReplayBundle }

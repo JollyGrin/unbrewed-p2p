@@ -49,7 +49,8 @@ import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
 import { ReportBugDialog } from "@/components/Pro/ReportBugDialog";
 import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
-import { diffViews } from "@/lib/pro/gameLog";
+import { diffViews, enrichLines } from "@/lib/pro/gameLog";
+import { useFlag } from "@/lib/flags";
 import { maneuverBoostHint } from "@/lib/pro/maneuverHint";
 import { buildPoseIndex, parsePoseOptions, poseHighlights, resolvePoseClick } from "@/lib/pro/moveChoice";
 import { useGameFx } from "@/lib/pro/useGameFx";
@@ -103,6 +104,21 @@ const cardLabel = (catalog: Record<string, CardMeta>, instance: CardInstanceId):
   if (!meta) return instance.split("#")[0].split("/").pop() ?? instance;
   const stats = meta.type === "scheme" ? "scheme" : `${meta.value ?? "–"}/${meta.boost ?? "–"}`;
   return `${meta.title} (${stats})`;
+};
+
+/**
+ * Title for a `GameEvent` `source` (used by enrichLines for scheduled/fired
+ * effect lines): a `CardInstanceId` resolves via the catalog, `'hero:<pid>'`
+ * via the hero fighter's name, and the redacted `'(hidden)'` placeholder as
+ * "a hidden card" (never crashes label resolution).
+ */
+const resolveEventSource = (view: PlayerView, source: string): string => {
+  if (source === "(hidden)") return "a hidden card";
+  if (source.startsWith("hero:")) {
+    const pid = source.slice("hero:".length);
+    return view.fighters.find((f) => f.id === `${pid}/hero`)?.name ?? "a hero ability";
+  }
+  return cardLabel(view.catalog, source);
 };
 
 /** Presentational label for a server-offered action. */
@@ -923,13 +939,24 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   }, [replayBundle]);
 
   // Activity feed: diff each view against the previous one (see gameLog.ts).
+  const [eventLogOn] = useFlag("eventLog");
   const [logEntries, setLogEntries] = useState<ProLogEntry[]>([]);
   const prevViewRef = useRef<PlayerView | null>(null);
   const logSeqRef = useRef(0);
   useEffect(() => {
     if (!snapshot) return;
     const next = snapshot.view;
-    const lines = diffViews(prevViewRef.current, next, (c) => cardLabel(next.catalog, c));
+    const diff = diffViews(prevViewRef.current, next, (c) => cardLabel(next.catalog, c));
+    // Decoratively enrich with the engine's structured events for THIS batch —
+    // gated behind the eventLog flag. Flag off (or no events) leaves the log
+    // byte-identical to the pure diffViews path. See enrichLines in gameLog.ts.
+    const lines =
+      eventLogOn && snapshot.events.length
+        ? enrichLines(diff, snapshot.events, {
+            label: (source) => resolveEventSource(next, source),
+            you: next.you,
+          })
+        : diff;
     prevViewRef.current = next;
     if (lines.length === 0) return;
     const ts = Date.now();
@@ -937,7 +964,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
     setLogEntries((cur) =>
       [...lines.map((l) => ({ ...l, key: `log-${logSeqRef.current++}`, ts, turn })).reverse(), ...cur].slice(0, 120)
     );
-  }, [snapshot]);
+  }, [snapshot, eventLogOn]);
 
   // Returning player: a saved reconnect token for this room means we skip the
   // hero picker entirely and RECONNECT straight into the same seat (joinRoom
