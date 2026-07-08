@@ -40,6 +40,10 @@ export const FLAGS = {
     label: "Event-enriched activity log",
     desc: "Use the engine's structured events to tag discards (boost/combat) and log scheduled/delayed effects, value changes, and gained actions.",
   },
+  combatFx: {
+    label: "Combat callouts",
+    desc: "On-screen flourishes for key moments: a YOUR-TURN banner on every turn, a DEFEND! pulse when you must defend, and a card-reveal when a scheme or effect resolves.",
+  },
 } as const;
 
 export type FlagName = keyof typeof FLAGS;
