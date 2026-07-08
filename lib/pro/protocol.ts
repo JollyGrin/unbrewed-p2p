@@ -135,34 +135,49 @@
  *   in server/redact.ts). One additive engine event, `EFFECT_FIRED`, was added so
  *   delayed effect damage can be attributed to its source card.
  *
- * ## v11 (2026-07-08): undo request → opponent accept/reject → rewind (issue #154)
- * A player can ask to undo their last discrete action; the opponent is prompted
- * with the consequences and accepts or rejects. Undo is a META-negotiation — it
- * is NOT an `Action` and NEVER enters the deterministic `actionLog` (that would
- * make "I asked for an undo" replayable). On accept the server truncates the log
- * to just before the requester's last discrete move, `runReplay`s from the seed,
- * and re-broadcasts `STATE` to both seats (the existing crash-recovery rewind
- * primitive) — redaction is re-derived from the rebuilt state, so undo can't leak
- * hidden info beyond the accepted rewind. Four additive messages plus one view
- * flag; a client that ignores them behaves exactly as on v10:
- * - `UNDO_REQUEST` (client → server): "undo my last action." One pending undo per
- *   room; the request becomes invalid the moment the requester acts again.
- * - `UNDO_RESPONSE { accept }` (client → server): the opponent's verdict. On
- *   accept the server rewinds + broadcasts STATE; on reject it emits UNDO_REJECTED
- *   to the requester and nothing changes. A bot opponent auto-accepts server-side.
- * - `UNDO_REQUESTED { requester, rewindActions }` (server → opponent): pushes the
- *   prompt, listing every action that will be rewound (`UndoActionSummary[]`) —
- *   INCLUDING the opponent's own intervening moves, so they choose informed. Each
- *   entry carries the action TYPE only (no card identity), so the prompt never
- *   leaks which hidden card a rewound move played; the client maps type → label.
- * - `UNDO_REJECTED` (server → requester): the opponent declined; show a notice.
- * - `PlayerView.canUndo` (server → both): whether THIS viewer has an eligible last
- *   discrete action to undo right now — the client gates the Undo affordance on it
- *   (absent/false ⇒ hidden). Recomputed on every STATE, so it flips off the moment
- *   an undo would be meaningless (game just started, log already at a boundary the
- *   viewer didn't create) and back on once they act.
+ * ## v11 (2026-07-08): pro undo — request/rewind negotiation (issue #39)
+ * A player may undo THEIR OWN last discrete move (single level); on the opponent's
+ * consent the server rewinds authoritative state to immediately before that move
+ * and rebroadcasts a fresh STATE to both seats. Undo is a META-negotiation — it is
+ * NOT an `Action` and is NEVER recorded in the deterministic replay log (the rewind
+ * is implemented by truncating `actionLog` + re-running the engine, so a recorded
+ * undo would be self-referential). Four additive messages, none of which touch the
+ * `ACTION` path:
+ * - `UNDO_REQUEST` (client→server): request to undo your own last move. The server
+ *   computes the cut index (start of your last discrete move, walking back over your
+ *   trailing prompt/combat entries so the rewind lands on a clean boundary, never
+ *   mid-prompt) and pushes UNDO_REQUESTED to the opponent. One pending request per
+ *   room; a second while one is pending — or a request with nothing to undo — answers
+ *   ERROR{UNDO_UNAVAILABLE}.
+ * - `UNDO_REQUESTED` (server→opponent): the opponent is ALWAYS prompted, never
+ *   blindsided. `requester` names who asked (so the prompt reads "P1 wants to undo…").
+ *   `rewindActions` summarizes every action that will be rewound — INCLUDING the
+ *   opponent's own moves taken in between (which the rewind also removes, by design)
+ *   — so they can consent informedly. A summary is `{ player, action }` (the action
+ *   TYPE only — no card ids — so the pre-consent prompt leaks no hidden identities).
+ * - `UNDO_RESPONSE {accept}` (client→server): the opponent's answer. accept=true →
+ *   the server truncates the log, replays from the seed, and broadcasts the earlier
+ *   STATE to both seats (no new "undo result" message — the STATE broadcast is the
+ *   result). accept=false → UNDO_REJECTED to the requester, no state change. A bot
+ *   opponent cannot consent, so the server auto-accepts on its behalf.
+ * - `UNDO_REJECTED` (server→requester): the request was declined, or superseded by a
+ *   fresh action / staleness. No state change.
+ * Redaction re-derives from the rebuilt state via redactFor, so an undo cannot leak
+ * hidden info beyond the accepted rewind; resume tokens auto-track the truncated log
+ * (pushed inside broadcastState).
+ *
+ * `PlayerView.canUndo` (per-viewer, recomputed on every STATE broadcast) tells each
+ * client whether that viewer has an eligible last discrete move to undo right now —
+ * the frontend gates its Undo button entirely on this flag.
+ *
+ * ## v12 (2026-07-08): Buster Keaton STUNT event variants
+ * The v0.13.0 DSL batch adds three additive GameEvent variants emitted by Buster
+ * Keaton primitives: `CARD_PLAYED_FROM_HAND` (nested STUNT play),
+ * `CARD_RETURNED_TO_HAND` (combat cleanup returns a revealed combat card), and
+ * `CARD_REVEALED` (The Cameraman's random hand reveal). All are public reveal/play
+ * moments and are redacted/audited by server/redact.ts.
  */
-export const PROTOCOL_VERSION = 11;
+export const PROTOCOL_VERSION = 12;
 
 /** Scripted-AI strength preset (server-side budgets; client treats as opaque). */
 export type BotDifficulty = "easy" | "medium" | "hard";
@@ -266,6 +281,9 @@ export type GameEvent =
   | { type: "EFFECT_FIRED"; source: string; fireAt: "START" | "END" | "COMBAT_END" }
   | { type: "CARD_FOUND"; player: PlayerId; card: CardInstanceId; from: "DECK" | "DISCARD" }
   | { type: "CARD_SHUFFLED_INTO_DECK"; player: PlayerId; card: CardInstanceId; from: "HAND" | "DISCARD" }
+  | { type: "CARD_RETURNED_TO_HAND"; player: PlayerId; card: CardInstanceId }
+  | { type: "CARD_PLAYED_FROM_HAND"; player: PlayerId; card: CardInstanceId }
+  | { type: "CARD_REVEALED"; player: PlayerId; card: CardInstanceId }
   | { type: "DECK_SHUFFLED"; player: PlayerId }
   | { type: "TOKEN_PLACED"; token: string; kind: "totem"; owner: PlayerId; space: SpaceId }
   | { type: "TOKEN_DESTROYED"; token: string; kind: "totem"; owner: PlayerId; space: SpaceId; reason: "EFFECT" | "ENTERED" | "REPLACED" }
@@ -468,11 +486,11 @@ export interface PlayerView {
   // Regions currently OUT OF PLAY (v0.12.0 — a closed Hut). Public info (no
   // redaction); the client greys out the region's inset panel. Absent/[] = none.
   closedRegions?: string[];
-  // v11: does THIS viewer have an eligible last discrete action they could ask to
-  // undo right now? The client gates the Undo affordance on it (absent/false ⇒
-  // hidden). Recomputed every STATE — flips off at a boundary the viewer didn't
-  // create (game just started, their last move already rewound) and on once they
-  // act. A pre-v11 server omits it, so the button simply never shows.
+  // v11: true iff THIS viewer has an eligible last discrete move to undo right now
+  // (there is a clean cut boundary the server would rewind to). Recomputed on every
+  // STATE broadcast per-viewer; the client gates its Undo button entirely on this.
+  // Absent/false = nothing to undo (not this viewer's move, mid-combat, no prior
+  // action, or the game is over).
   canUndo?: boolean;
   winner: PlayerId | null;
 }
@@ -600,16 +618,12 @@ export interface LobbyListing {
   ageMs: number; // time the lobby has been waiting (now − room creation); NOT reset by a visibility toggle
 }
 
-// v11: one entry in an undo prompt's rewind list. The server labels every action
-// that would be removed if the opponent accepts, in log order, so the opponent
-// sees exactly what disappears — crucially INCLUDING their own intervening moves
-// (`player === the receiver`), which they'd want to weigh before consenting.
-// `action` is the action TYPE only (never a card name or other hidden identity):
-// the consent prompt must not leak what specific card was played, so the client
-// maps the type enum to a display string on its own (see UndoRequestDialog).
+// A single rewound action, summarized for the UNDO_REQUESTED prompt (v11). Only
+// the acting player + the action TYPE are exposed — never card ids — so surfacing
+// the rewind list to the opponent BEFORE they consent leaks no hidden identity.
 export interface UndoActionSummary {
-  player: PlayerId; // whose action this was (may be the requester OR the opponent)
-  action: Action["type"]; // the action's discriminant only — no hidden card identity
+  player: PlayerId;
+  action: Action["type"];
 }
 
 export type ClientMsg =
@@ -624,14 +638,12 @@ export type ClientMsg =
   // v7: revive an in-memory room lost to a redeploy/crash. `token` is the opaque
   // encrypted blob the server last pushed via RESUME_TOKEN (client localStorage).
   | { v: number; type: "RESUME_ROOM"; token: string }
-  | { v: number; type: "ACTION"; roomId: string; action: Action }
-  // v11: meta-negotiation, NOT an Action — undo never enters the replay log.
-  // "Undo my last discrete action." The server pushes UNDO_REQUESTED to the
-  // opponent; one pending undo per room; invalidated once the requester acts again.
+  // v11: pro undo. UNDO_REQUEST asks to undo your OWN last discrete move; the server
+  // pushes UNDO_REQUESTED to the opponent. UNDO_RESPONSE carries the opponent's
+  // accept/reject. Neither is an `Action` — undo never enters the replay log.
   | { v: number; type: "UNDO_REQUEST"; roomId: string }
-  // v11: the opponent's verdict on a pending undo. accept ⇒ server rewinds and
-  // broadcasts STATE to both seats; reject ⇒ server sends UNDO_REJECTED, no change.
-  | { v: number; type: "UNDO_RESPONSE"; roomId: string; accept: boolean };
+  | { v: number; type: "UNDO_RESPONSE"; roomId: string; accept: boolean }
+  | { v: number; type: "ACTION"; roomId: string; action: Action };
 
 export type ServerMsg =
   | { v: number; type: "HEROES"; heroes: HeroListing[] }
@@ -662,12 +674,12 @@ export type ServerMsg =
   // v7: opaque, encrypted+authenticated resume blob for THIS seat. Store it
   // (localStorage) and send it back in RESUME_ROOM to revive after a redeploy.
   | { v: number; type: "RESUME_TOKEN"; roomId: string; token: string }
-  // v11: pushed to the OPPONENT when a player asks to undo. `requester` is the
-  // asking seat; `rewindActions` lists every action that would be rewound on
-  // accept (log order), including the opponent's own intervening moves so they
-  // decide informed. Reuse the existing STATE broadcast for the rewind on accept.
+  // v11: pushed to the OPPONENT when a player requests an undo. `requester` is who
+  // asked (so the prompt can name them); `rewindActions` summarizes every action the
+  // accepted rewind would remove (including the opponent's own), so consent is
+  // informed. The opponent answers UNDO_RESPONSE.
   | { v: number; type: "UNDO_REQUESTED"; requester: PlayerId; rewindActions: UndoActionSummary[] }
-  // v11: pushed to the REQUESTER when the opponent declines. Nothing changed.
+  // v11: pushed to the REQUESTER when their undo is declined, superseded, or stale.
   | { v: number; type: "UNDO_REJECTED" }
   | { v: number; type: "ERROR"; code: ErrorCode; message: string };
 
