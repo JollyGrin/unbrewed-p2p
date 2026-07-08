@@ -682,4 +682,5 @@ export type ErrorCode =
   | "UNKNOWN_HERO"
   | "BAD_MAP" // CREATE_ROOM.customMap failed validation (message lists violations)
   | "RESUME_FAILED" // RESUME_ROOM replay diverged / resume disabled (see message)
+  | "UNDO_UNAVAILABLE" // UNDO_REQUEST with nothing to undo, or one already pending
   | "SERVER_ERROR";

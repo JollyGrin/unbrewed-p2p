@@ -94,9 +94,11 @@ export interface UseProSocketReturn {
    * incoming request. `incomingUndo` is the request pushed to US (drive the
    * accept/reject modal); `undoPending` is true while OUR request awaits a
    * verdict; `undoRejected` latches true once the opponent declines (call
-   * `acknowledgeUndoRejected` after showing the notice). See useProSocket for the
-   * lifecycle — both clear on the next STATE (accept rewind, or the requester
-   * acting again invalidates the request).
+   * `acknowledgeUndoRejected` after showing the notice); `undoUnavailable`
+   * latches true when the server answers ERROR{ UNDO_UNAVAILABLE } — nothing to
+   * undo or one already pending (call `acknowledgeUndoUnavailable` after the
+   * notice). See useProSocket for the lifecycle — both clear on the next STATE
+   * (accept rewind, or the requester acting again invalidates the request).
    */
   requestUndo: () => void;
   respondToUndo: (accept: boolean) => void;
@@ -104,6 +106,8 @@ export interface UseProSocketReturn {
   undoPending: boolean;
   undoRejected: boolean;
   acknowledgeUndoRejected: () => void;
+  undoUnavailable: boolean;
+  acknowledgeUndoUnavailable: () => void;
   /** ask the server for the current public-lobby list (poll while browsing) */
   requestLobbies: () => void;
   /** list/unlist our current room in the public lobby browser */
@@ -174,6 +178,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
   const [incomingUndo, setIncomingUndo] = useState<IncomingUndo | null>(null);
   const [undoPending, setUndoPending] = useState(false);
   const [undoRejected, setUndoRejected] = useState(false);
+  const [undoUnavailable, setUndoUnavailable] = useState(false);
 
   const send = useCallback((msg: ClientMsg) => {
     const ws = wsRef.current;
@@ -298,6 +303,15 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
           setUndoRejected(true);
           break;
         case "ERROR": {
+          // Undo couldn't be honored (nothing to undo, or one already pending) —
+          // a benign race despite canUndo-gating (double-request, or the undo
+          // boundary shifted under us). Clear our pending-undo UI and surface a
+          // light "nothing to undo" notice, NOT the terminal error / loss path.
+          if (msg.code === "UNDO_UNAVAILABLE") {
+            setUndoPending(false);
+            setUndoUnavailable(true);
+            break;
+          }
           // A room lost to a redeploy answers ROOM_NOT_FOUND (room gone) or
           // BAD_TOKEN (already revived by the other client, our old seat token no
           // longer matches). If we hold a resume blob for it, revive rather than
@@ -421,6 +435,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
   const requestUndo = useCallback(() => {
     if (!roomRef.current) return;
     setUndoRejected(false); // fresh attempt clears any stale "declined" notice
+    setUndoUnavailable(false); // …and any stale "nothing to undo" notice
     setUndoPending(true);
     send({ v: PROTOCOL_VERSION, type: "UNDO_REQUEST", roomId: roomRef.current });
   }, [send]);
@@ -435,6 +450,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
   );
 
   const acknowledgeUndoRejected = useCallback(() => setUndoRejected(false), []);
+  const acknowledgeUndoUnavailable = useCallback(() => setUndoUnavailable(false), []);
 
   const requestLobbies = useCallback(() => {
     send({ v: PROTOCOL_VERSION, type: "LIST_LOBBIES" });
@@ -468,6 +484,8 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
     undoPending,
     undoRejected,
     acknowledgeUndoRejected,
+    undoUnavailable,
+    acknowledgeUndoUnavailable,
     requestLobbies,
     setVisibility,
     serverRestarting,

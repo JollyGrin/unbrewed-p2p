@@ -872,7 +872,7 @@ const HeroSelectLobby = ({
 // ---------------------------------------------------------------------------
 
 const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string | null }) => {
-  const { status, roomId, snapshot, opponentConnected, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, requestLobbies, setVisibility, serverRestarting, gameLost } =
+  const { status, roomId, snapshot, opponentConnected, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, requestLobbies, setVisibility, serverRestarting, gameLost } =
     useProSocket(WS_URL);
   const [joined, setJoined] = useState(false);
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
@@ -1076,6 +1076,14 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
     toast.error("Your opponent declined the undo.");
     acknowledgeUndoRejected();
   }, [undoRejected, acknowledgeUndoRejected]);
+
+  // The server couldn't honor the undo (nothing to undo, or one already pending)
+  // — a benign race despite canUndo-gating. Light one-shot notice, not an error.
+  useEffect(() => {
+    if (!undoUnavailable) return;
+    toast("Nothing to undo.", { icon: "↩️" });
+    acknowledgeUndoUnavailable();
+  }, [undoUnavailable, acknowledgeUndoUnavailable]);
 
   if (!joined) {
     const effectiveHeroId = selectedHeroId ?? (heroes === null ? heroParam : null);
