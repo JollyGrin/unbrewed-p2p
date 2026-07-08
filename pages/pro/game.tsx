@@ -938,6 +938,10 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
     }
   }, [replayBundle]);
 
+  // Pinch/scroll zoom + drag pan on the board (issue #120) — off by default,
+  // opt-in via the zoomMap beta flag. Zero footprint on ProBoard when off.
+  const [zoomMapOn] = useFlag("zoomMap");
+
   // Activity feed: diff each view against the previous one (see gameLog.ts).
   const [eventLogOn] = useFlag("eventLog");
   const [logEntries, setLogEntries] = useState<ProLogEntry[]>([]);
@@ -1538,6 +1542,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
           onSpaceClick={onSpaceClick}
           onFighterClick={onFighterClick}
           imgMaxH="calc(100svh - 16rem)"
+          zoomable={zoomMapOn}
         />
       </Flex>
 
