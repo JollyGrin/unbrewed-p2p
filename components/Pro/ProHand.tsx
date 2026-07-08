@@ -6,6 +6,7 @@
  */
 import { Box, Flex, Menu, MenuButton, MenuItem, MenuList, Tag, Text } from "@chakra-ui/react";
 import { Card } from "@/components/CardFactory/Card";
+import { useCardPreview } from "@/components/Pro/CardPreview";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 import { Action, CardInstanceId } from "@/lib/pro/protocol";
 import { ResolveCard } from "@/lib/pro/useProCardArt";
@@ -32,9 +33,21 @@ export const CardFace = ({
 }: {
   card: DeckImportCardType | null;
   fallback: string;
-}) =>
-  card ? (
-    <Card card={card} />
+}) => {
+  // Hover / press / focus preview (issue #167). No-op outside a
+  // CardPreviewProvider or for a hidden card, so this stays inert in
+  // lobby/replay surfaces and never previews a face-down opponent card.
+  const preview = useCardPreview(card);
+  return card ? (
+    <Box
+      w="100%"
+      h="100%"
+      outline="none"
+      _focusVisible={{ boxShadow: "0 0 0 2px var(--chakra-colors-brand-accent)", borderRadius: "0.5rem" }}
+      {...preview}
+    >
+      <Card card={card} />
+    </Box>
   ) : (
     <Flex
       w="100%"
@@ -52,6 +65,7 @@ export const CardFace = ({
       </Text>
     </Flex>
   );
+};
 
 export const ProHand = ({ hand, resolveCard, labelFor, actionsFor, onAction }: ProHandProps) => {
   if (hand.length === 0)
