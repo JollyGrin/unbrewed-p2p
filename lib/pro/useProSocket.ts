@@ -39,7 +39,7 @@ import {
 /** An incoming undo request pushed to the opponent (protocol v11). */
 export interface IncomingUndo {
   requester: PlayerId;
-  actions: UndoActionSummary[];
+  rewindActions: UndoActionSummary[];
 }
 
 export type ProConnectionStatus =
@@ -290,7 +290,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
         case "UNDO_REQUESTED":
           // The opponent asked to undo; surface the accept/reject prompt with the
           // list of actions that will be rewound (incl. our own intervening moves).
-          setIncomingUndo({ requester: msg.requester, actions: msg.actions });
+          setIncomingUndo({ requester: msg.requester, rewindActions: msg.rewindActions });
           break;
         case "UNDO_REJECTED":
           // The opponent declined our undo — stop waiting and latch the notice.

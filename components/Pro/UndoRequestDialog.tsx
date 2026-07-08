@@ -1,11 +1,15 @@
 /**
- * Undo-request prompt (issue #154, paired with engine #39). When the opponent
+ * Undo-request prompt (issue #154, paired with engine #40). When the opponent
  * asks to undo their last action, the server pushes UNDO_REQUESTED with the full
  * list of actions that will be rewound on accept — including any of THIS player's
  * own intervening moves. This AlertDialog surfaces that list so the decision is
  * informed: [Accept] rewinds the game and both boards snap back to just before the
  * requester's last discrete move; [Reject] changes nothing. Modeled on
  * ForfeitDialog. Nothing happens unless this player accepts.
+ *
+ * The summary carries the action TYPE only — never a card name — so the prompt
+ * can't leak which hidden card a rewound move played (Dean's ruling). We map each
+ * type to a human label CLIENT-SIDE below; no server-authored string is trusted.
  */
 import { useRef } from "react";
 import {
@@ -19,7 +23,27 @@ import {
   Button,
   Text,
 } from "@chakra-ui/react";
-import type { PlayerId, UndoActionSummary } from "@/lib/pro/protocol";
+import type { Action, PlayerId, UndoActionSummary } from "@/lib/pro/protocol";
+
+// Action TYPE → display label. Deliberately generic (no card identity): the
+// consent prompt says WHAT KIND of action rewinds, not which card it touched.
+const ACTION_LABELS: Record<Action["type"], string> = {
+  PLACE_SIDEKICK: "a sidekick placement",
+  MANEUVER: "a Maneuver",
+  BOOST_MOVE: "a boosted move",
+  MOVE_FIGHTER: "a Move",
+  END_MANEUVER: "an ended Maneuver",
+  SCHEME: "a Scheme",
+  DECLARE_ATTACK: "an Attack",
+  COMMIT_ATTACK_CARD: "an attack card",
+  COMMIT_DEFENSE_CARD: "a defense card",
+  DECLINE_DEFENSE: "a declined defense",
+  DISCARD_TO_LIMIT: "a discard",
+  RESPOND_PROMPT: "a choice",
+  FORFEIT: "a forfeit",
+};
+
+const labelFor = (type: Action["type"]): string => ACTION_LABELS[type] ?? "an action";
 
 export const UndoRequestDialog = ({
   isOpen,
@@ -73,7 +97,7 @@ export const UndoRequestDialog = ({
                       {a.player === you ? "you" : "them"}
                     </Text>
                     <Text as="span" fontWeight={a.player === you ? 700 : 400}>
-                      {a.label}
+                      {labelFor(a.action)}
                     </Text>
                   </Box>
                 ))}
@@ -83,7 +107,7 @@ export const UndoRequestDialog = ({
             {yourRewound.length > 0 && (
               <Text mt="0.6rem" color="brand.accent" fontWeight={600} fontSize="0.9rem">
                 Heads up — this also undoes your:{" "}
-                {yourRewound.map((a) => a.label).join(", ")}.
+                {yourRewound.map((a) => labelFor(a.action)).join(", ")}.
               </Text>
             )}
           </AlertDialogBody>

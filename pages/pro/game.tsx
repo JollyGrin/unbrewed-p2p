@@ -1749,7 +1749,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
       <UndoRequestDialog
         isOpen={!!incomingUndo}
         you={view.you}
-        actions={incomingUndo?.actions ?? []}
+        actions={incomingUndo?.rewindActions ?? []}
         onAccept={() => respondToUndo(true)}
         onReject={() => respondToUndo(false)}
       />
