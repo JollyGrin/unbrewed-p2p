@@ -109,15 +109,18 @@
  */
 
 /**
- * ## v9 (2026-07-06): forfeit / resign (engine #32)
- * `FORFEIT` is a new `Action`: a seated player concedes at any point during an
- * active game. The reducer ends the game immediately and awards the opponent the
- * win, so the server follows the accepted action with the usual winner `STATE`
- * (phase `GAME_OVER`, `winner` set, `legalActions: []`) and the GAME_OVER
- * `REPLAY_BUNDLE`. No new message types — it rides the existing ACTION path and
- * lights up the existing winner display.
+ * ## v10 (2026-07-08): prompt attribution (issue #35)
+ * `ViewPrompt` gained optional `source` — WHAT opened the prompt, so the client
+ * can label a choice with the card/ability asking (players were guessing; see
+ * unbrewed-p2p#147/#151). Projected in redactFor from the parked effect run's
+ * scope.source: a resolving card's instance → `{ card }`, a hero ability →
+ * `{ hero }`, and system prompts with no effect run (combat commit, sidekick
+ * placement, maneuver, maneuver-boost) → `null`. Hidden-info guarded: a card
+ * instance is named ONLY when its face is public to BOTH players (a scheme in
+ * discard, a revealed combat card); a still-hidden face sends `null` instead, so
+ * `source` never leaks an identity `redactFor` otherwise strips.
  */
-export const PROTOCOL_VERSION = 9;
+export const PROTOCOL_VERSION = 10;
 
 /** Scripted-AI strength preset (server-side budgets; client treats as opaque). */
 export type BotDifficulty = "easy" | "medium" | "hard";
@@ -143,8 +146,9 @@ export type CombatOutcome = "ATTACKER_WON" | "DEFENDER_WON" | "UNKNOWN";
 
 // Actions are the ONLY way the client advances the game. The server's
 // legalActions() enumerates which of these are currently legal; the client
-// never constructs an action the server didn't offer (exception: MOVE_FIGHTER
-// may carry any legal path to an offered destination).
+// never constructs an action the server didn't offer (exceptions: MOVE_FIGHTER
+// may carry any legal path to an offered destination, and FORFEIT may always be
+// sent by the player on the clock — the server's legalActions offers it too).
 export type Action =
   | { type: "PLACE_SIDEKICK"; player: PlayerId; fighter: FighterId; space: SpaceId }
   | { type: "MANEUVER"; player: PlayerId }
@@ -158,12 +162,10 @@ export type Action =
   | { type: "DECLINE_DEFENSE"; player: PlayerId }
   | { type: "DISCARD_TO_LIMIT"; player: PlayerId; card: CardInstanceId }
   | { type: "RESPOND_PROMPT"; player: PlayerId; promptId: string; optionId: string }
-  // v9 (engine #32): concede the game — the reducer ends it and awards the win to
-  // the opponent, then the server broadcasts the winner STATE. Legal at any point
-  // during an active game: the engine DOES enumerate it in legalActions (its
-  // isMember gate needs it there to accept the action), but the client filters it
-  // out of the sidebar action list and offers it only via the confirm-gated dock
-  // button — a raw one-click list entry would be an unguarded misfire.
+  // Concede (v9). Legal for whoever is on the clock during PLAY; the server ends
+  // the game with the OTHER player as winner and emits the replay bundle. The
+  // client constructs this directly (the second always-available exception to
+  // "never send an action the server didn't offer", alongside MOVE_FIGHTER paths).
   | { type: "FORFEIT"; player: PlayerId };
 
 export type LegalOption = { id: string; label: string; data?: Json };
@@ -187,6 +189,12 @@ export interface ViewPrompt {
   player: PlayerId;
   kind: PromptKind;
   options: LegalOption[];
+  /** What opened this prompt: a resolving card's instance (face public to both
+   *  players), a hero ability, or null for system prompts (setup, commit,
+   *  maneuver). Lets the client show WHICH effect is asking. A card is named
+   *  only when its face is public to BOTH viewers — a face still hidden from the
+   *  receiving viewer sends null instead, so this never leaks a redacted id. */
+  source?: { card: CardInstanceId } | { hero: PlayerId } | null;
 }
 
 // ---------------------------------------------------------------------------

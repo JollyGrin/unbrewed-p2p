@@ -91,6 +91,12 @@ const usePendingMoveTimeout = (
   }, [pendingMove]);
 };
 
+/** Printed-card title via the server catalog ('king-kong/clobber#2' -> 'Clobber'). */
+const cardTitle = (catalog: Record<string, CardMeta>, instance: CardInstanceId): string => {
+  const defId = instance.split("#")[0];
+  return catalog[defId]?.title ?? defId.split("/").pop() ?? instance;
+};
+
 /** Printed-card label via the server catalog ('king-kong/clobber#2' -> 'clobber (3/2)'). */
 const cardLabel = (catalog: Record<string, CardMeta>, instance: CardInstanceId): string => {
   const meta = catalog[instance.split("#")[0]];
@@ -155,6 +161,8 @@ const PromptPanel = ({
   buttonOptions,
   boardHint,
   previewInstance,
+  sourceInstance,
+  sourceLabel,
   resolveCard,
   catalog,
 }: {
@@ -166,11 +174,20 @@ const PromptPanel = ({
   /** set when some options are answered by clicking the board */
   boardHint: string | null;
   /**
-   * Best-effort card behind this prompt (issue #72 fix #2). ViewPrompt carries
-   * NO source-card field, so the caller approximates it from `option.data.card`
-   * or the live combat card; null = no reliable signal, render header-only.
+   * Legacy best-effort card behind this prompt (issue #72 fix #2), used only when
+   * the server sent no `source`: the caller approximates it from `option.data.card`
+   * or the live combat card; null = no reliable signal, render header-only. Shown
+   * to the CHOOSER only (spectator behaviour unchanged for source-less prompts).
    */
   previewInstance: CardInstanceId | null;
+  /**
+   * Authoritative source card (protocol v10 `ViewPrompt.source.card`) — the effect
+   * that opened this prompt, shown to BOTH players. null when the prompt has no
+   * card source (hero ability or a system/source-less prompt).
+   */
+  sourceInstance: CardInstanceId | null;
+  /** Attribution line ("Effect of <card>" / "<hero>'s ability"), or null. */
+  sourceLabel: string | null;
   resolveCard: ResolveCard;
   catalog: Record<string, CardMeta>;
 }) => (
@@ -178,6 +195,17 @@ const PromptPanel = ({
     <Text fontFamily="ArchivoNarrow" fontWeight="bold" mb="0.5rem" color="brand.accent">
       {prompt.kind.replace(/_/g, " ")}
     </Text>
+    {/* v10 attribution: WHICH effect is asking — shown to chooser and spectator alike */}
+    {sourceLabel && (
+      <Text fontSize="0.8rem" mb="0.5rem" color="brand.parchment" opacity={0.85}>
+        {sourceLabel}
+      </Text>
+    )}
+    {sourceInstance && (
+      <Box w="6.5rem" sx={{ aspectRatio: "63 / 88" }} mb="0.5rem">
+        <CardFace card={resolveCard(sourceInstance)} fallback={cardLabel(catalog, sourceInstance)} />
+      </Box>
+    )}
     {prompt.player === you ? (
       <>
         {previewInstance && (
@@ -1315,12 +1343,24 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
           ? "click a pulsing fighter on the board"
           : null;
 
-  // Card behind the current prompt (issue #72 fix #2), best-effort: trust an
-  // explicit option.data.card first, else show the live combat card as the most
-  // likely cause. DOCUMENTED GAP: the protocol's ViewPrompt has no source-card
-  // field, so a non-combat effect prompt whose server never attaches option.data
-  // still degrades to the header-only panel — we never guess a mapping.
-  const promptCardInstance = promptForMe
+  // Prompt attribution (protocol v10, issue #35 / #147 / #151): `prompt.source`
+  // names WHAT opened this prompt and is sent to BOTH players — a resolving card
+  // (`{ card }`, face public to both) or a hero ability (`{ hero }`). We show the
+  // asking card + an "Effect of …" line to chooser AND spectator alike.
+  const promptSource = prompt?.source ?? null;
+  const sourceCardInstance =
+    promptSource && "card" in promptSource ? promptSource.card : null;
+  const sourceLabel: string | null = !promptSource
+    ? null
+    : "card" in promptSource
+      ? `Effect of ${cardTitle(view.catalog, promptSource.card)}`
+      : `${heroNameOf(heroes, promptSource.hero === view.you ? view.self.heroId : view.opponent.heroId) ?? "Hero"}'s ability`;
+
+  // Legacy best-effort card behind the prompt (issue #72 fix #2), used ONLY when
+  // the server sent no `source` (system prompts, or an older server): trust an
+  // explicit option.data.card first, else the live combat card. When `source` is
+  // present it is authoritative and this fallback stays null (no duplicate face).
+  const promptCardInstance = promptForMe && !promptSource
     ? optionCardInstance(promptForMe.options) ??
       view.combat?.attackerCard?.instance ??
       view.combat?.defenderCard?.instance ??
@@ -1578,6 +1618,8 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
               buttonOptions={promptButtonOptions}
               boardHint={promptBoardHint}
               previewInstance={promptCardInstance}
+              sourceInstance={sourceCardInstance}
+              sourceLabel={sourceLabel}
               resolveCard={resolveCard}
               catalog={view.catalog}
             />
