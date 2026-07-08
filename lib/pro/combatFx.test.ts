@@ -89,6 +89,18 @@ describe("diffCombatCallouts", () => {
       expect(diffCombatCallouts(v, v, events)).toEqual([{ kind: "reveal", source: "baba-yaga/hex#1" }]);
     });
 
+    it("reveals Buster nested STUNT plays and random hand reveals", () => {
+      const v = view({});
+      const events: GameEvent[] = [
+        { type: "CARD_PLAYED_FROM_HAND", player: "p1", card: "buster-keaton/stunt-falling-house#1" },
+        { type: "CARD_REVEALED", player: "p2", card: "buster-keaton/porkpie-hat#1" },
+      ];
+      expect(diffCombatCallouts(v, v, events)).toEqual([
+        { kind: "reveal", source: "buster-keaton/stunt-falling-house#1" },
+        { kind: "reveal", source: "buster-keaton/porkpie-hat#1" },
+      ]);
+    });
+
     it("reveals a fired delayed effect's source", () => {
       const v = view({});
       const events: GameEvent[] = [{ type: "EFFECT_FIRED", source: "king-kong/rampage#2", fireAt: "START" }];

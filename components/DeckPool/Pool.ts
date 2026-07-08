@@ -63,49 +63,46 @@ export default class Pool {
     };
   }
 
-  // /**
-  //  * Create a deck by expanding unique cards by their quantity number
-  //  */
-  // makeDeck = () => {
-  //   const cards = clone(this.cards);
-  //   const newDeck: DeckImportCardType[] = cards.flatMap(
-  //     ({ quantity, ...rest }) => Array(quantity).fill({ quantity, ...rest })
-  //   );
-  //   this.deck = newDeck;
-  // };
+  /**
+   * Create a deck by expanding unique cards by their quantity number.
+   * Kept for the legacy class API; newer code uses PoolFns.makeDeck.
+   */
+  makeDeck = () => {
+    const cards = clone(this.cards);
+    const newDeck: DeckImportCardType[] = cards
+      .filter((card) => !card.isCharacterCard)
+      .flatMap(({ quantity, ...rest }) => Array(quantity).fill({ quantity, ...rest }));
+    this.deck = newDeck;
+  };
 
-  // /**
-  //  * Shuffle deck using the Fisher-Yates shuffle
-  //  */
-  // shuffleDeck = () => {
-  //   if (!this.deck) return;
-  //   for (let i = this.deck.length - 1; i > 0; i--) {
-  //     const j = Math.floor(Math.random() * (i + 1));
-  //     [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]];
-  //   }
-  // };
+  /** Shuffle deck using the Fisher-Yates shuffle. */
+  shuffleDeck = () => {
+    if (!this.deck) return;
+    for (let i = this.deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]];
+    }
+  };
 
-  // draw = () => {
-  //   if (!this.deck || !this.hand) return;
-  //   if (this.deck.length === 0) {
-  //     alert("No cards left");
-  //   }
-  //   const card = this.deck.pop();
-  //   if (card) {
-  //     this.hand.push(card);
-  //   }
-  // };
+  draw = () => {
+    if (!this.deck || !this.hand) return;
+    if (this.deck.length === 0) {
+      alert("No cards left");
+    }
+    const card = this.deck.pop();
+    if (card) {
+      this.hand.push(card);
+    }
+  };
 
-  // /**
-  //  * Draw deck[cardIndex] into your hand
-  //  * @param cardIndex
-  //  * @returns
-  //  */
-  // drawDeck = (cardIndex: number) => {
-  //   if (!this.deck) return;
-  //   this.hand.push(this.deck[cardIndex]);
-  //   this.deck.splice(cardIndex, 1);
-  // };
+  /**
+   * Draw deck[cardIndex] into your hand.
+   */
+  drawDeck = (cardIndex: number) => {
+    if (!this.deck || !this.deck[cardIndex]) return;
+    this.hand.push(this.deck[cardIndex]);
+    this.deck.splice(cardIndex, 1);
+  };
 
   // /**
   //  * Place hand[cardIndex] on top of deck

@@ -131,6 +131,18 @@
         "file": "data/heroes/baba-yaga.rules.ts",
         "commit": "b4d9576"
       }
+    },
+    {
+      "heroId": "buster-keaton",
+      "deckId": "QkB1",
+      "version_id": "J-kyHqVXg",
+      "frozenAt": "2026-07-07",
+      "digest": "sha256:e41c26336bae9ca394084541acee25219e96cd7f50ff721182a4a325353d09d7",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/buster-keaton.rules.ts",
+        "commit": "27a250824bd9"
+      }
     }
   ]
 }

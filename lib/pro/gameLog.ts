@@ -164,9 +164,10 @@ export function diffViews(
 //      instance id) — appends to its `text`/`cards`, never reorders or adds.
 //   2. CREATE a NEW line ONLY for event types on the allowlist below — things
 //      the diff cannot see in a snapshot (value math, scheduled/delayed
-//      effects, ignored defense, prevented damage, gained actions).
+//      effects, ignored defense, prevented damage, gained actions, and public
+//      reveal/return moments that can disappear from the next snapshot.
 // An event type that overlaps diff output (draws, moves, discards, damage,
-// attacks, reveals, tokens, turn changes, defeats) must NEVER create a line —
+// attacks, combat reveals, tokens, turn changes, defeats) must NEVER create a line —
 // only annotate. A bug in the events channel can then at worst lose an
 // annotation; it can never double-report or corrupt the log.
 //
@@ -287,6 +288,24 @@ export function enrichLines(
         added.push({
           text: `${seat} gained ${e.amount} action${e.amount === 1 ? "" : "s"}`,
           who: whoOf(e.player),
+        });
+        break;
+      }
+      case "CARD_RETURNED_TO_HAND": {
+        const seat = whoOf(e.player) === "you" ? "You" : "Opponent";
+        added.push({
+          text: `${seat} returned ${ctx.label(e.card)} to hand`,
+          who: whoOf(e.player),
+          cards: [e.card],
+        });
+        break;
+      }
+      case "CARD_REVEALED": {
+        const seat = whoOf(e.player) === "you" ? "You" : "Opponent";
+        added.push({
+          text: `${seat} revealed ${ctx.label(e.card)}`,
+          who: whoOf(e.player),
+          cards: [e.card],
         });
         break;
       }

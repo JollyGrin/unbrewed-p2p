@@ -175,6 +175,14 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl: "https://imgur.com/E4lqW1b.png"
   },
   {
+    id: "QkB1",
+    name: "Buster Keaton",
+    hero: "Buster Keaton",
+    author: "Community",
+    likes: 0,
+    highlightColour: "#3a3a3a"
+  },
+  {
     id: "L6Z1",
     name: "The Rocketeer",
     hero: "Rocketeer",
