@@ -28,7 +28,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "msw7c",
     likes: 144,
     highlightColour: "#408080",
-    cardbackUrl: "https://i.imgur.com/Hl5FPM6.png"
+    cardbackUrl: "https://i.imgur.com/Hl5FPM6.png",
   },
   {
     id: "LmYw",
@@ -37,7 +37,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Drakmorten",
     likes: 137,
     highlightColour: "#121311",
-    cardbackUrl: "https://i.ibb.co/C9MzW1w/Card-Back-Red-1-1.jpg"
+    cardbackUrl: "https://i.ibb.co/C9MzW1w/Card-Back-Red-1-1.jpg",
   },
   {
     id: "lB-k",
@@ -46,7 +46,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "BennyBoyBl",
     likes: 126,
     highlightColour: "#831000",
-    cardbackUrl: "https://i.postimg.cc/JhQqH9jS/Untitled-Artwork-15.jpg"
+    cardbackUrl: "https://i.postimg.cc/JhQqH9jS/Untitled-Artwork-15.jpg",
   },
   {
     id: "G_nr",
@@ -55,7 +55,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Darthcauley",
     likes: 112,
     highlightColour: "#65a498",
-    cardbackUrl: "https://i.imgur.com/cRqgolk.png"
+    cardbackUrl: "https://i.imgur.com/cRqgolk.png",
   },
   {
     id: "lQz7",
@@ -64,7 +64,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "this_is_Marko",
     likes: 110,
     highlightColour: "#cac41c",
-    cardbackUrl: "https://i.imgur.com/NY00l5g.png"
+    cardbackUrl: "https://i.imgur.com/NY00l5g.png",
   },
   {
     id: "zPmA",
@@ -73,7 +73,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Jowee",
     likes: 96,
     highlightColour: "#860001",
-    cardbackUrl: "https://i.imgur.com/NhatNHz.png"
+    cardbackUrl: "https://i.imgur.com/NhatNHz.png",
   },
   {
     id: "l91K",
@@ -82,7 +82,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "TAYTERTOTS",
     likes: 93,
     highlightColour: "#828282",
-    cardbackUrl: "https://imgur.com/oRLcls0.jpeg"
+    cardbackUrl: "https://imgur.com/oRLcls0.jpeg",
   },
   {
     id: "ddZY",
@@ -91,7 +91,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Lusk",
     likes: 81,
     highlightColour: "#7bcebb",
-    cardbackUrl: "https://i.imgur.com/WKLfZVU.png"
+    cardbackUrl: "https://i.imgur.com/WKLfZVU.png",
   },
   {
     id: "LWNZ",
@@ -100,7 +100,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "TAYTERTOTS",
     likes: 75,
     highlightColour: "#ab224b",
-    cardbackUrl: "https://imgur.com/uiwaAGu.jpeg"
+    cardbackUrl: "https://imgur.com/uiwaAGu.jpeg",
   },
   {
     id: "p1Ew",
@@ -109,7 +109,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "uplankton",
     likes: 69,
     highlightColour: "#b80000",
-    cardbackUrl: "https://i.imgur.com/VXHO1vC.jpg"
+    cardbackUrl: "https://i.imgur.com/VXHO1vC.jpg",
   },
   {
     id: "RnYZ",
@@ -118,7 +118,8 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "JackNorth",
     likes: 68,
     highlightColour: "#7a0000",
-    cardbackUrl: "http://cloud-3.steamusercontent.com/ugc/2000216344332403958/3EEC5D45ABD6E694B5D8B6E095DF485FA3BE08CB/"
+    cardbackUrl:
+      "http://cloud-3.steamusercontent.com/ugc/2000216344332403958/3EEC5D45ABD6E694B5D8B6E095DF485FA3BE08CB/",
   },
   {
     id: "J9En",
@@ -127,7 +128,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "uplankton",
     likes: 64,
     highlightColour: "#bb0707",
-    cardbackUrl: "https://i.imgur.com/zTvbjVr.jpg"
+    cardbackUrl: "https://i.imgur.com/zTvbjVr.jpg",
   },
   {
     id: "vrKW",
@@ -136,7 +137,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "DreamCarver",
     likes: 63,
     highlightColour: "#67daa1",
-    cardbackUrl: "https://i.imgur.com/oIgIu6J.jpg"
+    cardbackUrl: "https://i.imgur.com/oIgIu6J.jpg",
   },
   {
     id: "kdKM",
@@ -144,7 +145,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     hero: "King Kong",
     author: "Blakpantha",
     likes: 63,
-    highlightColour: "#973434"
+    highlightColour: "#973434",
     // cardback image on imgur is dead — tile falls back to the highlight colour
   },
   {
@@ -154,7 +155,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "JackNorth",
     likes: 59,
     highlightColour: "#07220b",
-    cardbackUrl: "https://i.imgur.com/Ov0kDih.png"
+    cardbackUrl: "https://i.imgur.com/Ov0kDih.png",
   },
   {
     id: "L53Q",
@@ -163,7 +164,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Blakpantha",
     likes: 58,
     highlightColour: "#006d8f",
-    cardbackUrl: "https://i.imgur.com/pyGVkMb.png"
+    cardbackUrl: "https://i.imgur.com/pyGVkMb.png",
   },
   {
     id: "yAJ-",
@@ -172,15 +173,15 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Idan",
     likes: 56,
     highlightColour: "#6f7a66",
-    cardbackUrl: "https://imgur.com/E4lqW1b.png"
+    cardbackUrl: "https://imgur.com/E4lqW1b.png",
   },
   {
     id: "QkB1",
     name: "Buster Keaton",
     hero: "Buster Keaton",
-    author: "Community",
+    author: "Mr_Shakespeare",
     likes: 0,
-    highlightColour: "#3a3a3a"
+    highlightColour: "#3a3a3a",
   },
   {
     id: "L6Z1",
@@ -189,7 +190,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Busy_Mason",
     likes: 55,
     highlightColour: "#753100",
-    cardbackUrl: "https://i.ibb.co/C0JwhDz/Card-Backs-1-1.png"
+    cardbackUrl: "https://i.ibb.co/C0JwhDz/Card-Backs-1-1.png",
   },
   {
     id: "Jr21",
@@ -198,7 +199,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "AndSushi",
     likes: 53,
     highlightColour: "#0f4d1f",
-    cardbackUrl: "https://i.imgur.com/66aic7o.png"
+    cardbackUrl: "https://i.imgur.com/66aic7o.png",
   },
   {
     id: "kW1k",
@@ -207,7 +208,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Hubaris",
     likes: 53,
     highlightColour: "#051a29",
-    cardbackUrl: "https://i.ibb.co/tXMx6Hg/image-2021-08-06-004421.png"
+    cardbackUrl: "https://i.ibb.co/tXMx6Hg/image-2021-08-06-004421.png",
   },
   {
     id: "72Dz",
@@ -216,7 +217,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Darthcauley",
     likes: 51,
     highlightColour: "#b73e15",
-    cardbackUrl: "https://i.imgur.com/0iGmQ3K.png"
+    cardbackUrl: "https://i.imgur.com/0iGmQ3K.png",
   },
   {
     id: "pkW2",
@@ -225,7 +226,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "uplankton",
     likes: 51,
     highlightColour: "#f9d834",
-    cardbackUrl: "https://i.imgur.com/eiwFvLl.png"
+    cardbackUrl: "https://i.imgur.com/eiwFvLl.png",
   },
   {
     id: "RD78",
@@ -234,7 +235,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Tsak",
     likes: 48,
     highlightColour: "#e26403",
-    cardbackUrl: "https://i.imgur.com/NDIe8vr.png"
+    cardbackUrl: "https://i.imgur.com/NDIe8vr.png",
   },
   {
     id: "-2n5",
@@ -243,7 +244,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "DreamCarver",
     likes: 46,
     highlightColour: "#3657ae",
-    cardbackUrl: "https://i.imgur.com/DPOixgv.png"
+    cardbackUrl: "https://i.imgur.com/DPOixgv.png",
   },
   {
     id: "Rj5Q",
@@ -252,7 +253,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "JackNorth",
     likes: 45,
     highlightColour: "#8a0000",
-    cardbackUrl: "https://i.imgur.com/wTp8apa.png"
+    cardbackUrl: "https://i.imgur.com/wTp8apa.png",
   },
   {
     id: "-n3G",
@@ -261,7 +262,8 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Indubitably14",
     likes: 44,
     highlightColour: "#590f09",
-    cardbackUrl: "https://i.ibb.co/x1wMq0J/f951f04e0be5a4f5dbbc6c335023c142.jpg"
+    cardbackUrl:
+      "https://i.ibb.co/x1wMq0J/f951f04e0be5a4f5dbbc6c335023c142.jpg",
   },
   {
     id: "JwQ_",
@@ -270,7 +272,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Blakpantha",
     likes: 43,
     highlightColour: "#236aa4",
-    cardbackUrl: "https://i.imgur.com/iudfbbC.png"
+    cardbackUrl: "https://i.imgur.com/iudfbbC.png",
   },
   {
     id: "7Gq2",
@@ -279,7 +281,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "DreamCarver",
     likes: 42,
     highlightColour: "#607874",
-    cardbackUrl: "https://i.imgur.com/wsRXA6V.png"
+    cardbackUrl: "https://i.imgur.com/wsRXA6V.png",
   },
   {
     id: "6G31",
@@ -288,7 +290,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Hubaris",
     likes: 42,
     highlightColour: "#141414",
-    cardbackUrl: "https://i.ibb.co/MpMPP8X/image-2021-11-23-142516.png"
+    cardbackUrl: "https://i.ibb.co/MpMPP8X/image-2021-11-23-142516.png",
   },
   {
     id: "pWdg",
@@ -297,7 +299,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "JackNorth",
     likes: 41,
     highlightColour: "#121212",
-    cardbackUrl: "https://i.imgur.com/xEKFZSN.png"
+    cardbackUrl: "https://i.imgur.com/xEKFZSN.png",
   },
   {
     // Not a top-40 deck — included because it's Pro-playable (unbrewed-p2p #76)
@@ -308,7 +310,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     likes: 2,
     highlightColour: "#296888",
     // self-hosted (upstream deck has none); also patched into both snapshots
-    cardbackUrl: "https://unbrewed.xyz/cardbacks/thrall.webp"
+    cardbackUrl: "https://unbrewed.xyz/cardbacks/thrall.webp",
   },
   {
     // Not a top-40 deck — included because it's Pro-playable (server hero r2-d2)
@@ -318,7 +320,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Inforce",
     likes: 6,
     highlightColour: "#297bff",
-    cardbackUrl: "https://i.imgur.com/9qP1I2P.png"
+    cardbackUrl: "https://i.imgur.com/9qP1I2P.png",
   },
   {
     // Not a top-40 deck — included because it's Pro-playable (server hero
@@ -329,7 +331,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Nitetrio",
     likes: 9,
     highlightColour: "#ec6a13",
-    cardbackUrl: "https://i.imgur.com/5ucSw85.png"
+    cardbackUrl: "https://i.imgur.com/5ucSw85.png",
   },
   {
     // Evergreen original (no unmatched.cards page): King Taranis, the
@@ -342,7 +344,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     highlightColour: "#c9962b",
     // self-hosted; also patched into the evergreen snapshot appearance
     cardbackUrl: "https://unbrewed.xyz/cardbacks/taranis.webp",
-    original: true
+    original: true,
   },
   {
     // Evergreen original: Thetis, the Ebb-and-Flow — server hero thetis.
@@ -354,7 +356,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     highlightColour: "#2ec4b6",
     // self-hosted; also patched into the evergreen snapshot appearance
     cardbackUrl: "https://unbrewed.xyz/cardbacks/thetis.webp",
-    original: true
+    original: true,
   },
   {
     // Evergreen original: The Piper of the Underroads — server hero
@@ -367,7 +369,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     highlightColour: "#b06f2e",
     // self-hosted; also patched into the evergreen snapshot appearance
     cardbackUrl: "https://unbrewed.xyz/cardbacks/piper.webp",
-    original: true
+    original: true,
   },
   {
     // Evergreen original: The Hollow Oak — server hero hollow-oak.
@@ -379,6 +381,6 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     highlightColour: "#5f7d3b",
     // self-hosted; also patched into the evergreen snapshot appearance
     cardbackUrl: "https://unbrewed.xyz/cardbacks/hollowoak.webp",
-    original: true
-  }
+    original: true,
+  },
 ];
