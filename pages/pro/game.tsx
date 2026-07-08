@@ -1414,7 +1414,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
           )}
           <Text opacity={0.8}>Waiting for an opponent — the game starts the moment they join.</Text>
 
-          {/* discoverability: invite privately, list publicly, or (soon) fight a bot */}
+          {/* discoverability: invite privately or list publicly */}
           <Flex gap="0.5rem" alignItems="center" flexWrap="wrap" justifyContent="center">
             <Tag fontFamily="mono" px="0.75rem" py="0.4rem">
               {joinUrl}
@@ -1430,11 +1430,6 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
             >
               {roomPublic ? "✓ public — listed in the lobby browser" : "make lobby public"}
             </Button>
-            <Tooltip label="A referee-trained sparring bot is on the roadmap" hasArrow>
-              <Button {...BTN} isDisabled>
-                play vs bot — coming soon
-              </Button>
-            </Tooltip>
           </Flex>
           <Text fontSize="0.8rem" opacity={0.5}>
             (testing solo? open that link in a second browser tab)
