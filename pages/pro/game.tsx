@@ -57,6 +57,7 @@ import { maneuverBoostHint } from "@/lib/pro/maneuverHint";
 import { buildPoseIndex, parsePoseOptions, poseHighlights, resolvePoseClick } from "@/lib/pro/moveChoice";
 import { useGameFx } from "@/lib/pro/useGameFx";
 import { useCombatCallouts, CombatCalloutItem } from "@/lib/pro/combatFx";
+import { useIncomingMoveTween } from "@/lib/pro/moveTween";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
 
@@ -1031,6 +1032,10 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   // comes back over the wire.
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
   usePendingMoveTimeout(pendingMove, () => setPendingMove(null));
+  // An OPPONENT's move arrives only as an authoritative STATE view — nothing set
+  // a pendingMove, so the enemy token used to teleport (issue #149). Derive one
+  // by diffing snapshots; your own moves stay on the optimistic path above.
+  const { incomingMove, clearIncoming } = useIncomingMoveTween(snapshot);
   // Custom-map playtest (create flow): raw JSON persists across a BAD_MAP bounce
   // so a power user can fix the board and retry without re-pasting.
   const [customMapJson, setCustomMapJson] = useState("");
@@ -1707,8 +1712,11 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
           highlightedFighters={[...new Set(highlightedFighters)]}
           selectedFighter={selectedFighter}
           fx={boardFx}
-          pendingMove={pendingMove}
-          onPendingMoveSettled={() => setPendingMove(null)}
+          pendingMove={pendingMove ?? incomingMove}
+          onPendingMoveSettled={() => {
+            setPendingMove(null);
+            clearIncoming();
+          }}
           closedRegions={view.closedRegions}
           onSpaceClick={onSpaceClick}
           onFighterClick={onFighterClick}
