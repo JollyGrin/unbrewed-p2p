@@ -54,6 +54,7 @@ import { useFlag } from "@/lib/flags";
 import { maneuverBoostHint } from "@/lib/pro/maneuverHint";
 import { buildPoseIndex, parsePoseOptions, poseHighlights, resolvePoseClick } from "@/lib/pro/moveChoice";
 import { useGameFx } from "@/lib/pro/useGameFx";
+import { useCombatCallouts, CombatCalloutItem } from "@/lib/pro/combatFx";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
 
@@ -265,6 +266,145 @@ const hurtVignette = keyframes`
   12%  { opacity: 1; }
   100% { opacity: 0; }
 `;
+
+// --- Combat Callouts (issue #162, gated behind the `combatFx` flag) ---------
+// Full-screen decorative flourishes, following the hurtVignette overlay pattern.
+// Each keyframe both enters AND exits, so a keyed remount plays the whole beat.
+
+/** YOUR-TURN / opponent's-turn banner: sweep in from the top, hold, lift away. */
+const calloutBanner = keyframes`
+  0%   { opacity: 0; transform: translateY(-1.2rem) scaleX(0.94); }
+  12%  { opacity: 1; transform: translateY(0) scaleX(1); }
+  80%  { opacity: 1; transform: translateY(0) scaleX(1); }
+  100% { opacity: 0; transform: translateY(-0.6rem) scaleX(1); }
+`;
+
+/** DEFEND!: slam in, then throb twice in red to pull the eye to the prompt. */
+const defendPulse = keyframes`
+  0%       { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+  14%      { opacity: 1; transform: translate(-50%, -50%) scale(1.18); }
+  28%      { transform: translate(-50%, -50%) scale(1); }
+  46%      { transform: translate(-50%, -50%) scale(1.1); }
+  64%      { transform: translate(-50%, -50%) scale(1); }
+  82%      { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100%     { opacity: 0; transform: translate(-50%, -50%) scale(1.04); }
+`;
+
+/** Scheme / effect card-reveal: rise to center, hold, drift up and fade. */
+const calloutReveal = keyframes`
+  0%   { opacity: 0; transform: translate(-50%, -40%) scale(0.72); }
+  12%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+  25%  { transform: translate(-50%, -50%) scale(1); }
+  78%  { opacity: 1; transform: translate(-50%, -52%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -66%) scale(0.98); }
+`;
+
+/**
+ * The overlay for one live combat callout. Decorative only, pointer-transparent,
+ * and above the board/vignette. `reveal` names its source with the SAME resolver
+ * the activity log uses (`resolveEventSource`), so `'(hidden)'` reads as
+ * "a hidden card" and its face falls back to that text via CardFace.
+ */
+const CombatCalloutOverlay = ({
+  item,
+  view,
+  resolveCard,
+}: {
+  item: CombatCalloutItem;
+  view: PlayerView;
+  resolveCard: ResolveCard;
+}) => {
+  if (item.kind === "turn") {
+    const mine = item.mine;
+    return (
+      <Flex
+        position="fixed"
+        top="18%"
+        left="0"
+        right="0"
+        zIndex={205}
+        justifyContent="center"
+        pointerEvents="none"
+        animation={`${calloutBanner} ${mine ? "1.9s" : "1.6s"} ease-out both`}
+      >
+        <Box
+          px={{ base: "2rem", md: "4rem" }}
+          py="0.6rem"
+          bg={mine ? "rgba(224,168,46,0.16)" : "rgba(0,0,0,0.35)"}
+          borderTop="2px solid"
+          borderBottom="2px solid"
+          borderColor={mine ? "brand.accent" : "whiteAlpha.300"}
+          boxShadow={mine ? "0 0 32px 4px rgba(224,168,46,0.35)" : "none"}
+        >
+          <Text
+            fontFamily="LeagueGothic"
+            fontSize={{ base: "2.4rem", md: "3.4rem" }}
+            lineHeight="1"
+            letterSpacing="0.12em"
+            textAlign="center"
+            color={mine ? "brand.accent" : "brand.parchment"}
+            opacity={mine ? 1 : 0.72}
+            textShadow="0 2px 10px rgba(0,0,0,0.6)"
+          >
+            {mine ? "YOUR TURN" : "OPPONENT'S TURN"}
+          </Text>
+        </Box>
+      </Flex>
+    );
+  }
+
+  if (item.kind === "defend") {
+    return (
+      <Text
+        position="fixed"
+        top="42%"
+        left="50%"
+        zIndex={206}
+        pointerEvents="none"
+        fontFamily="LeagueGothic"
+        fontSize={{ base: "3.5rem", md: "5.5rem" }}
+        lineHeight="1"
+        letterSpacing="0.1em"
+        color="brand.danger"
+        textShadow="0 0 24px rgba(255,99,71,0.7), 0 2px 8px rgba(0,0,0,0.7)"
+        animation={`${defendPulse} 1.7s ease-out both`}
+      >
+        DEFEND!
+      </Text>
+    );
+  }
+
+  // reveal — float the source card's art + name center-screen.
+  const card = resolveCard(item.source);
+  const name = resolveEventSource(view, item.source);
+  return (
+    <Flex
+      position="fixed"
+      top="46%"
+      left="50%"
+      zIndex={205}
+      direction="column"
+      alignItems="center"
+      gap="0.75rem"
+      pointerEvents="none"
+      animation={`${calloutReveal} 2.3s ease-out both`}
+    >
+      <Box w={{ base: "9rem", md: "12rem" }} sx={{ aspectRatio: "63 / 88" }} filter="drop-shadow(0 8px 24px rgba(0,0,0,0.6))">
+        <CardFace card={card} fallback={name} />
+      </Box>
+      <Text
+        fontFamily="BebasNeueRegular"
+        fontSize={{ base: "1.4rem", md: "1.9rem" }}
+        letterSpacing="0.06em"
+        textAlign="center"
+        color="brand.parchment"
+        textShadow="0 2px 8px rgba(0,0,0,0.7)"
+      >
+        {name}
+      </Text>
+    </Flex>
+  );
+};
 
 /** The reveal beat: cards flip in from edge-on, defender a breath later. */
 const flipIn = keyframes`
@@ -915,6 +1055,12 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   // Sounds + transient board visuals, derived by diffing snapshots (useGameFx).
   const { boardFx, hurtKey, soundOn, visualOn, toggleSound, toggleVisual } = useGameFx(snapshot);
 
+  // Combat callouts (issue #162): full-screen turn/defend/reveal flourishes,
+  // gated behind the `combatFx` beta flag. Decorative-only; a separate hook so
+  // the board-FX loop above stays byte-identical. Off → returns [].
+  const [combatFxOn] = useFlag("combatFx");
+  const combatCallouts = useCombatCallouts(snapshot, combatFxOn);
+
   // GAME_OVER pushes a self-contained bundle to both seats (protocol v7). Save it
   // to the local Replays store so the match is scrubbable later (issue #122). Runs
   // once per bundle; saveReplay is idempotent by content, so a refresh won't dup it.
@@ -1558,6 +1704,13 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
           animation={`${hurtVignette} 0.7s ease-out both`}
         />
       )}
+
+      {/* combat callouts: turn banner / DEFEND! pulse / scheme-effect card
+          reveal (issue #162, gated by the combatFx flag inside useCombatCallouts;
+          empty when off or on a pre-v10 server) */}
+      {combatCallouts.map((item) => (
+        <CombatCalloutOverlay key={item.key} item={item} view={view} resolveCard={resolveCard} />
+      ))}
 
       {/* floating player plates + room/connection chips (sandbox HUD DNA);
           report-bug chip (issue #125/#138) shares this row so it doesn't
