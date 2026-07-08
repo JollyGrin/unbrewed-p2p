@@ -36,6 +36,10 @@ export const FLAGS = {
     label: "Match replays",
     desc: "Save finished Pro games and scrub through them in full God-view.",
   },
+  eventLog: {
+    label: "Event-enriched activity log",
+    desc: "Use the engine's structured events to tag discards (boost/combat) and log scheduled/delayed effects, value changes, and gained actions.",
+  },
 } as const;
 
 export type FlagName = keyof typeof FLAGS;
