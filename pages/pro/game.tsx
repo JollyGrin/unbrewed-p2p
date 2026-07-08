@@ -43,6 +43,7 @@ import { POPULAR_DECKS, PopularDeckMeta } from "@/lib/constants/top-decks";
 import { GiFootprint, GiHearts } from "react-icons/gi";
 import { TbBow, TbChevronDown, TbExternalLink, TbInfoCircle, TbSword } from "react-icons/tb";
 import { CardFace, ProHand } from "@/components/Pro/ProHand";
+import { CardPreviewProvider } from "@/components/Pro/CardPreview";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { ProHud } from "@/components/Pro/ProHud";
 import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
@@ -1666,6 +1667,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
     });
 
   return (
+    <CardPreviewProvider>
     <Box h="100svh" overflow="hidden" bg={TABLE_BG} position="relative">
       {/* Playtesting a custom board (this player created it): a near-invisible
           link to submit it to unbrewed. Covers the AI case, where the pre-game
@@ -1950,6 +1952,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
         </Box>
       </Flex>
     </Box>
+    </CardPreviewProvider>
   );
 };
 
