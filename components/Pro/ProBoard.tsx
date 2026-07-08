@@ -52,6 +52,55 @@ const fxRing = keyframes`
   100% { transform: translate(-50%, -50%) scale(2.6); opacity: 0; }
 `;
 
+// Attack arrow (issue #148): a slow throb so the eye finds "who is hitting whom"
+// during the combat commit/reveal beats without it screaming over everything.
+const arrowPulse = keyframes`
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+`;
+
+const ARROW_COLOR = "#E23B3B"; // crimson — reads as "attack", distinct from both player colors
+
+/**
+ * Attacker→target arrow geometry in a frame's normalized 0–100 space (same
+ * convention as the two-space band): a shaft that stops short of both tokens
+ * plus a filled triangular head at the target end. Rendered inside a
+ * preserveAspectRatio="none" SVG, so like the band it inherits the image's
+ * non-uniform stretch — directionally exact (the tip lands on the target),
+ * just visually squished on lopsided maps.
+ */
+const arrowGeometry = (
+  attacker: { x: number; y: number },
+  target: { x: number; y: number },
+  diam: number
+) => {
+  const ax = attacker.x * 100;
+  const ay = attacker.y * 100;
+  const tx = target.x * 100;
+  const ty = target.y * 100;
+  const dx = tx - ax;
+  const dy = ty - ay;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len;
+  const uy = dy / len;
+  const px = -uy; // perpendicular unit
+  const py = ux;
+  const r = diam * 0.5; // token clearance (x-units)
+  const headLen = diam * 1.0;
+  const headW = diam * 0.62;
+  const tipX = tx - ux * r; // land the tip at the target token's edge
+  const tipY = ty - uy * r;
+  const baseX = tipX - ux * headLen;
+  const baseY = tipY - uy * headLen;
+  return {
+    x1: ax + ux * r,
+    y1: ay + uy * r,
+    x2: baseX, // shaft ends where the head begins
+    y2: baseY,
+    points: `${tipX},${tipY} ${baseX + px * headW},${baseY + py * headW} ${baseX - px * headW},${baseY - py * headW}`,
+  };
+};
+
 const FX_COLOR: Record<BoardFxItem["kind"], string> = {
   damage: "#FF5C5C",
   heal: "#58D68D",
@@ -69,6 +118,10 @@ export interface ProBoardProps {
   /** Fighters the current player can act on right now (attack targets, movable…) */
   highlightedFighters?: FighterId[];
   selectedFighter?: FighterId | null;
+  /** Active combat pairing (view.combat) — draws an attacker→target arrow so it's
+   *  clear who is attacking whom during the attack phase (issue #148). null = no
+   *  combat in progress, no arrow. */
+  attack?: { attacker: FighterId; target: FighterId } | null;
   /** transient effect overlays (floating damage numbers…) — keyed, caller-expired */
   fx?: BoardFxItem[];
   /** a just-committed move to tween through node-by-node instead of snapping */
@@ -112,6 +165,7 @@ export const ProBoard = ({
   highlightedSpaces = [],
   highlightedFighters = [],
   selectedFighter = null,
+  attack = null,
   fx = [],
   pendingMove = null,
   onPendingMoveSettled,
@@ -209,6 +263,12 @@ export const ProBoard = ({
   // fighter. Occupancy is exclusive server-side, so a tail never stacks.
   const spaceById = new Map(map.spaces.map((s) => [s.id, s]));
   const twoSpaceFighters = fightersOnBoard.filter((f) => f.tailSpace);
+
+  // Attack arrow (issue #148): the two combatants of the active engagement, if
+  // both are on the board. Resolved once here; spaceLayers draws the arrow in
+  // whichever frame holds both tokens (the arrow doesn't cross frames).
+  const attacker = attack ? fighters.find((f) => f.id === attack.attacker) : undefined;
+  const attackTarget = attack ? fighters.find((f) => f.id === attack.target) : undefined;
 
   // The moving fighter's node-by-node route, resolved to coordinates. Only
   // the HEAD token of the named fighter tweens through it — an
@@ -354,6 +414,15 @@ export const ProBoard = ({
     const frameTwoSpace = twoSpaceFighters.filter(
       (f) => inFrame.has(f.space as SpaceId) && inFrame.has(f.tailSpace as SpaceId)
     );
+    // Attack arrow endpoints, only when BOTH combatants live in this frame (the
+    // arrow is drawn in this frame's own 0–100 coordinate space).
+    const arrow = (() => {
+      if (!attacker?.space || !attackTarget?.space) return null;
+      const from = spaces.find((sp) => sp.id === attacker.space);
+      const to = spaces.find((sp) => sp.id === attackTarget.space);
+      if (!from || !to || from.id === to.id) return null;
+      return arrowGeometry(from, to, diam);
+    })();
     return (
       <>
       {/* space hit-circles */}
@@ -450,6 +519,54 @@ export const ProBoard = ({
               />,
             ];
           })}
+        </svg>
+      )}
+
+      {/* attack arrow (issue #148): attacker -> target, so the board shows who is
+          hitting whom while the combat panel resolves. Sits just under the tokens
+          (zIndex 3) with the head landing at the target's edge, so both pawns stay
+          readable. White outline + crimson fill echoes the hero-token treatment. */}
+      {arrow && (
+        <svg
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            pointerEvents: "none",
+            zIndex: 3,
+            animation: `${arrowPulse} 1.3s ease-in-out infinite`,
+            overflow: "visible",
+          }}
+        >
+          <line
+            x1={arrow.x1}
+            y1={arrow.y1}
+            x2={arrow.x2}
+            y2={arrow.y2}
+            stroke="#fff"
+            strokeWidth={diam * 0.34}
+            strokeLinecap="round"
+            opacity={0.9}
+          />
+          <line
+            x1={arrow.x1}
+            y1={arrow.y1}
+            x2={arrow.x2}
+            y2={arrow.y2}
+            stroke={ARROW_COLOR}
+            strokeWidth={diam * 0.2}
+            strokeLinecap="round"
+          />
+          <polygon
+            points={arrow.points}
+            fill={ARROW_COLOR}
+            stroke="#fff"
+            strokeWidth={diam * 0.14}
+            strokeLinejoin="round"
+          />
         </svg>
       )}
 

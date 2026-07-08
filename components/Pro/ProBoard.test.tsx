@@ -154,6 +154,56 @@ describe("ProBoard regions", () => {
   });
 });
 
+// issue #148: an attacker->target arrow so the board shows who is hitting whom
+// during the attack phase. The arrowhead is the only <polygon> the board draws,
+// so it uniquely identifies the arrow.
+describe("ProBoard attack arrow (issue #148)", () => {
+  const attacker = fighter({ id: "p1/hero", owner: "p1", space: "s1" });
+  const target = fighter({ id: "p2/hero", owner: "p2", name: "Kong", space: "s2" });
+
+  it("draws no arrow when there is no active combat", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard map={MAP} fighters={[attacker, target]} />
+      </ChakraProvider>
+    );
+    expect(container.querySelector("polygon")).toBeNull();
+  });
+
+  it("draws an attacker->target arrow while combat is active", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[attacker, target]}
+          attack={{ attacker: "p1/hero", target: "p2/hero" }}
+        />
+      </ChakraProvider>
+    );
+    // arrowhead present
+    expect(container.querySelector("polygon")).not.toBeNull();
+    // tip points toward the target space (s2 at 0.8,0.8 -> ~80 in 0-100 space),
+    // away from the attacker (s1 at 0.2,0.2 -> ~20): first point x > 50
+    const tipX = Number(
+      container.querySelector("polygon")!.getAttribute("points")!.split(" ")[0].split(",")[0]
+    );
+    expect(tipX).toBeGreaterThan(50);
+  });
+
+  it("draws no arrow when a named combatant is off the board", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[attacker]} // target absent
+          attack={{ attacker: "p1/hero", target: "p2/hero" }}
+        />
+      </ChakraProvider>
+    );
+    expect(container.querySelector("polygon")).toBeNull();
+  });
+});
+
 // issue #120: pinch/scroll zoom + drag pan, gated behind the `zoomMap` flag.
 // The frame (shrink-wrap box holding the art + every overlay) is transformed as
 // one unit; the identity-based click model is untouched, so a click still lands
