@@ -48,6 +48,7 @@ import { ProHud } from "@/components/Pro/ProHud";
 import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
 import { ReportBugDialog } from "@/components/Pro/ReportBugDialog";
 import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
+import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
 import { diffViews, enrichLines } from "@/lib/pro/gameLog";
 import { useFlag } from "@/lib/flags";
@@ -1011,7 +1012,7 @@ const HeroSelectLobby = ({
 // ---------------------------------------------------------------------------
 
 const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string | null }) => {
-  const { status, roomId, snapshot, opponentConnected, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestLobbies, setVisibility, serverRestarting, gameLost } =
+  const { status, roomId, snapshot, opponentConnected, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, requestLobbies, setVisibility, serverRestarting, gameLost } =
     useProSocket(WS_URL);
   const [joined, setJoined] = useState(false);
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
@@ -1206,6 +1207,33 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
     }
     return () => toast.dismiss(id);
   }, [serverRestarting]);
+
+  // Undo (issue #154). While our own request awaits the opponent's verdict, hold
+  // a persistent "waiting" toast; it clears when the request resolves (accept
+  // rewinds the board — undoPending flips false on the next STATE; reject latches
+  // undoRejected below). Mirrors the reconnecting-toast pattern above.
+  useEffect(() => {
+    const id = "pro-undo-pending";
+    if (undoPending) toast.loading("Undo requested — waiting for opponent…", { id });
+    else toast.dismiss(id);
+    return () => toast.dismiss(id);
+  }, [undoPending]);
+
+  // A declined undo is a one-shot notice: show it, then acknowledge so it can't
+  // re-fire on the next render.
+  useEffect(() => {
+    if (!undoRejected) return;
+    toast.error("Your opponent declined the undo.");
+    acknowledgeUndoRejected();
+  }, [undoRejected, acknowledgeUndoRejected]);
+
+  // The server couldn't honor the undo (nothing to undo, or one already pending)
+  // — a benign race despite canUndo-gating. Light one-shot notice, not an error.
+  useEffect(() => {
+    if (!undoUnavailable) return;
+    toast("Nothing to undo.", { icon: "↩️" });
+    acknowledgeUndoUnavailable();
+  }, [undoUnavailable, acknowledgeUndoUnavailable]);
 
   if (!joined) {
     const effectiveHeroId = selectedHeroId ?? (heroes === null ? heroParam : null);
@@ -1842,6 +1870,22 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
               {view.winner === view.you ? "VICTORY!" : "DEFEAT"}
             </Text>
           )}
+          {/* Undo — request to rewind our last action, pending opponent consent
+              (issue #154). Shown only while live and only when the server says we
+              have an eligible last action (view.canUndo); disabled while a request
+              is already in flight. The rewind itself is server-side — we just ask. */}
+          {view.phase === "PLAY" && !view.winner && view.canUndo && (
+            <Button
+              size="sm"
+              mt="0.4rem"
+              colorScheme="yellow"
+              variant="outline"
+              isDisabled={undoPending}
+              onClick={requestUndo}
+            >
+              {undoPending ? "Undo requested…" : "Undo last action"}
+            </Button>
+          )}
           {/* Forfeit — only while the game is genuinely live (issue #140). Hidden
               during SETUP and once GAME_OVER / a winner exists (no affordances
               remain then). Destructive, so it's red and confirm-gated. */}
@@ -1864,6 +1908,16 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
         isOpen={forfeitOpen}
         onClose={() => setForfeitOpen(false)}
         onConfirm={() => sendAction({ type: "FORFEIT", player: view.you })}
+      />
+
+      {/* undo accept/reject prompt (issue #154) — shown to the opponent of the
+          requester; the server pushed the list of actions to be rewound. */}
+      <UndoRequestDialog
+        isOpen={!!incomingUndo}
+        you={view.you}
+        actions={incomingUndo?.rewindActions ?? []}
+        onAccept={() => respondToUndo(true)}
+        onReject={() => respondToUndo(false)}
       />
 
       {/* activity feed — bottom-left parchment panel, sandbox style */}
