@@ -303,10 +303,64 @@ const calloutReveal = keyframes`
 `;
 
 /**
+ * Card-back stand-in for a redacted (`'(hidden)'`) reveal source. A real reveal
+ * shows the source card's art; a redacted one used to fall back to bare text,
+ * which read as a blank tooltip mid-flourish. This fills the same card frame with
+ * an art-forward "hidden scheme" back in the parchment/purple language so the
+ * beat still lands like a card, not a label.
+ */
+const HiddenRevealBack = () => (
+  <Flex
+    w="100%"
+    h="100%"
+    direction="column"
+    alignItems="center"
+    justifyContent="center"
+    gap="0.35rem"
+    borderRadius="0.5rem"
+    border="2px solid"
+    borderColor="brand.accent"
+    bgGradient="linear(160deg, brand.surface 0%, brand.surfaceDim 100%)"
+    boxShadow="inset 0 0 24px rgba(0,0,0,0.45)"
+    position="relative"
+    overflow="hidden"
+  >
+    {/* inner gold keyline echoes the printed-card frame */}
+    <Box
+      position="absolute"
+      inset="0.45rem"
+      borderRadius="0.35rem"
+      border="1px solid"
+      borderColor="rgba(224,168,46,0.4)"
+    />
+    <Text
+      fontFamily="LeagueGothic"
+      fontSize={{ base: "3rem", md: "4rem" }}
+      lineHeight="0.9"
+      color="brand.accent"
+      textShadow="0 2px 10px rgba(0,0,0,0.6)"
+    >
+      ?
+    </Text>
+    <Text
+      fontFamily="BebasNeueRegular"
+      fontSize={{ base: "0.85rem", md: "1rem" }}
+      letterSpacing="0.22em"
+      color="brand.parchment"
+      opacity={0.85}
+    >
+      HIDDEN
+    </Text>
+  </Flex>
+);
+
+/**
  * The overlay for one live combat callout. Decorative only, pointer-transparent,
  * and above the board/vignette. `reveal` names its source with the SAME resolver
- * the activity log uses (`resolveEventSource`), so `'(hidden)'` reads as
- * "a hidden card" and its face falls back to that text via CardFace.
+ * the activity log uses (`resolveEventSource`); a real source shows its art via
+ * CardFace, while the redacted `'(hidden)'` placeholder shows a HiddenRevealBack
+ * card-back so it stays art-forward instead of bare text. `item.slot` cascades
+ * overlapping reveals down-right so they never stack dead-center.
  */
 const CombatCalloutOverlay = ({
   item,
@@ -378,13 +432,17 @@ const CombatCalloutOverlay = ({
   }
 
   // reveal — float the source card's art + name center-screen.
-  const card = resolveCard(item.source);
+  const hidden = item.source === "(hidden)";
+  const card = hidden ? null : resolveCard(item.source);
   const name = resolveEventSource(view, item.source);
+  // Cascade overlapping reveals down-right from dead-center (slot 0) so a
+  // multi-reveal turn fans out instead of piling on one spot.
+  const slot = item.kind === "reveal" ? item.slot ?? 0 : 0;
   return (
     <Flex
       position="fixed"
-      top="46%"
-      left="50%"
+      top={`calc(46% + ${slot * 1.4}rem)`}
+      left={`calc(50% + ${slot * 1.6}rem)`}
       zIndex={205}
       direction="column"
       alignItems="center"
@@ -393,7 +451,7 @@ const CombatCalloutOverlay = ({
       animation={`${calloutReveal} 2.3s ease-out both`}
     >
       <Box w={{ base: "9rem", md: "12rem" }} sx={{ aspectRatio: "63 / 88" }} filter="drop-shadow(0 8px 24px rgba(0,0,0,0.6))">
-        <CardFace card={card} fallback={name} />
+        {hidden ? <HiddenRevealBack /> : <CardFace card={card} fallback={name} />}
       </Box>
       <Text
         fontFamily="BebasNeueRegular"
