@@ -125,8 +125,20 @@ const resolveEventSource = (view: PlayerView, source: string): string => {
   return cardLabel(view.catalog, source);
 };
 
-/** Presentational label for a server-offered action. */
-const describeAction = (catalog: Record<string, CardMeta>, a: Action): string => {
+/**
+ * Presentational label for a server-offered action.
+ *
+ * `ctx` carries the bits a DECLARE_ATTACK label needs to read as plain English
+ * instead of raw fighter ids (issue #161): a name lookup for attacker/target,
+ * and the per-attacker disambiguator number that also badges the matching board
+ * token, so "Attack Kong with Raptor 2" points unambiguously at the token
+ * wearing the 2 badge. Omit `ctx` for the legacy id-suffix fallback.
+ */
+const describeAction = (
+  catalog: Record<string, CardMeta>,
+  a: Action,
+  ctx?: { nameOf: (id: FighterId) => string; attackerBadge?: Partial<Record<FighterId, number>> }
+): string => {
   switch (a.type) {
     case "MANEUVER":
       return "Maneuver";
@@ -138,8 +150,12 @@ const describeAction = (catalog: Record<string, CardMeta>, a: Action): string =>
       return "End maneuver";
     case "SCHEME":
       return `Scheme: ${cardLabel(catalog, a.card)}`;
-    case "DECLARE_ATTACK":
-      return `Attack ${a.target.split("/")[1]} with ${a.attacker.split("/")[1]}`;
+    case "DECLARE_ATTACK": {
+      const targetName = ctx ? ctx.nameOf(a.target) : a.target.split("/")[1];
+      const attackerName = ctx ? ctx.nameOf(a.attacker) : a.attacker.split("/")[1];
+      const badge = ctx?.attackerBadge?.[a.attacker];
+      return `Attack ${targetName} with ${attackerName}${badge != null ? ` ${badge}` : ""}`;
+    }
     case "COMMIT_ATTACK_CARD":
       return `Commit ${cardLabel(catalog, a.card)}`;
     case "COMMIT_DEFENSE_CARD":
@@ -1493,6 +1509,28 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
     legalActions.flatMap((a) => (a.type === "MOVE_FIGHTER" ? [a.fighter] : []))
   );
 
+  // Issue #161: when several same-named sidekicks can each declare an attack,
+  // the sidebar offers "Attack <target> with <name>" once per attacker but the
+  // board gives no clue which token is which — so the player guesses and picks
+  // the wrong one. Assign a 1..N disambiguator per shared name (only when a name
+  // recurs among the attackers), badge the matching token with it, and append it
+  // to the button label, so "with Raptor 2" visibly points at the #2 token.
+  const nameOf = (id: FighterId) => view.fighters.find((f) => f.id === id)?.name ?? id.split("/")[1];
+  const attackerBadge: Partial<Record<FighterId, number>> = {};
+  {
+    const orderByName = new Map<string, FighterId[]>(); // name -> distinct attacker ids, first-seen order
+    for (const a of legalActions) {
+      if (a.type !== "DECLARE_ATTACK") continue;
+      const name = nameOf(a.attacker);
+      const list = orderByName.get(name) ?? [];
+      if (!list.includes(a.attacker)) list.push(a.attacker);
+      orderByName.set(name, list);
+    }
+    for (const ids of orderByName.values()) {
+      if (ids.length > 1) ids.forEach((id, i) => (attackerBadge[id] = i + 1));
+    }
+  }
+
   // Prompts answer via the board too: a CHOOSE_SPACE option names its space in
   // option.id (place ops), option.data.space, or option.label (token ops label
   // a token's space, e.g. destroy-totem); CHOOSE_TARGET options a fighter id.
@@ -1712,6 +1750,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
           highlightedFighters={[...new Set(highlightedFighters)]}
           selectedFighter={selectedFighter}
           attack={view.combat ? { attacker: view.combat.attacker, target: view.combat.target } : null}
+          fighterBadges={attackerBadge}
           fx={boardFx}
           pendingMove={pendingMove ?? incomingMove}
           onPendingMoveSettled={() => {
@@ -1857,7 +1896,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
                 textAlign="left"
                 onClick={() => sendAction(a)}
               >
-                {describeAction(view.catalog, a)}
+                {describeAction(view.catalog, a, { nameOf, attackerBadge })}
               </Button>
             ))}
             {legalActions.length === 0 && !prompt && (
