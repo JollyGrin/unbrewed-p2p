@@ -36,9 +36,9 @@ describe("toPlayerView", () => {
     expect(v.self.heroId).toBe("king-kong");
     expect(v.self.hand).toEqual(["king-kong/clobber#1"]);
     expect(v.self.counters).toEqual({ rage: 1 });
-    expect(v.opponent.id).toBe("p2");
-    expect(v.opponent.handCount).toBe(2);
-    expect(v.opponent.hasCommitted).toBe(true);
+    expect(v.opponent?.id).toBe("p2");
+    expect(v.opponent?.handCount).toBe(2);
+    expect(v.opponent?.hasCommitted).toBe(true);
     // the PlayerView opponent shape never carries the hand array itself
     expect((v.opponent as unknown as Record<string, unknown>).hand).toBeUndefined();
   });
@@ -48,8 +48,8 @@ describe("toPlayerView", () => {
     expect(v.you).toBe("p2");
     expect(v.self.heroId).toBe("thrall");
     expect(v.self.committedCard).toBe("thrall/hex#3");
-    expect(v.opponent.heroId).toBe("king-kong");
-    expect(v.opponent.handCount).toBe(1);
+    expect(v.opponent?.heroId).toBe("king-kong");
+    expect(v.opponent?.handCount).toBe(1);
   });
 });
 

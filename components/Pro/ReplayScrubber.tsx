@@ -26,6 +26,7 @@ import {
   ReplayExpansion,
 } from "@/lib/pro/protocol";
 import { opponentHand, toPlayerView, turnMarkers } from "@/lib/pro/godView";
+import { replayDuelHeroPair, replayHeroFor } from "@/lib/pro/replayHeroes";
 
 const TABLE_BG = "radial-gradient(ellipse at 50% 20%, #5A3263 0%, #48284F 50%, #2C1831 100%)";
 
@@ -96,6 +97,8 @@ export const ReplayScrubber = ({
   };
 
   const oppId: PlayerId = focus === "p1" ? "p2" : "p1";
+  const [p1Hero, p2Hero] = replayDuelHeroPair(meta.heroes);
+  const opponent = view.opponent;
 
   return (
     <Box h="100svh" overflow="hidden" bg={TABLE_BG} position="relative" color="brand.parchment">
@@ -105,7 +108,7 @@ export const ReplayScrubber = ({
           REPLAY · GOD VIEW
         </Tag>
         <Tag bg="rgba(20,8,24,0.65)" color="brand.parchment" fontSize="0.75rem">
-          {heroName(meta.heroes[0])} vs {heroName(meta.heroes[1])} · {meta.mapTitle}
+          {heroName(p1Hero)} vs {heroName(p2Hero)} · {meta.mapTitle}
         </Tag>
         {onExit && (
           <Button {...BTN} onClick={onExit}>
@@ -119,7 +122,7 @@ export const ReplayScrubber = ({
         <Box pointerEvents="auto" transform="scale(0.7)" transformOrigin="top center" opacity={0.95}>
           <Flex direction="column" alignItems="center" gap="0.1rem">
             <Text fontSize="0.7rem" opacity={0.7} fontFamily="SpaceGrotesk" letterSpacing="0.06em">
-              {heroName(view.opponent.heroId)} · hand ({oppHand.length})
+              {heroName(opponent?.heroId ?? oppId)} · hand ({oppHand.length})
             </Text>
             <ProHand hand={oppHand} resolveCard={resolveCard} labelFor={labelFor} actionsFor={() => []} onAction={() => {}} />
           </Flex>
@@ -151,7 +154,7 @@ export const ReplayScrubber = ({
         <Flex gap="0.4rem" alignItems="center" flexWrap="wrap">
           <Tag size="sm" bg="whiteAlpha.300">turn {view.turnNumber}</Tag>
           <Tag size="sm" bg={view.activePlayer === focus ? "brand.accent" : "whiteAlpha.300"} color={view.activePlayer === focus ? "brand.surfaceDim" : "brand.parchment"}>
-            {heroName(view.activePlayer === "p1" ? meta.heroes[0] : meta.heroes[1])}&apos;s turn
+            {heroName(replayHeroFor(meta.heroes, view.activePlayer))}&apos;s turn
           </Tag>
           <Tag size="sm" bg="whiteAlpha.300">{view.phase.toLowerCase()}</Tag>
         </Flex>
@@ -193,7 +196,7 @@ export const ReplayScrubber = ({
 
         {view.winner && (
           <Tag size="lg" bg="brand.accent" color="brand.surfaceDim" fontFamily="LeagueGothic" alignSelf="flex-start">
-            {heroName(view.winner === "p1" ? meta.heroes[0] : meta.heroes[1])} wins
+            {heroName(replayHeroFor(meta.heroes, view.winner))} wins
           </Tag>
         )}
       </Flex>

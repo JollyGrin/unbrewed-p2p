@@ -7,6 +7,7 @@
  * every change; this wants a handful of punchy beats with board coordinates).
  */
 import { FighterId, PlayerView, SpaceId } from "./protocol";
+import { requireOpponent } from "./viewCompat";
 
 export type FxEvent =
   /** combat card(s) flipped face-up — count 2 means attack+defense revealed together */
@@ -30,10 +31,13 @@ export function diffFxEvents(prev: PlayerView | null, next: PlayerView): FxEvent
 
   const events: FxEvent[] = [];
 
+  const prevOpponent = requireOpponent(prev);
+  const nextOpponent = requireOpponent(next);
+
   // Combat commits/reveals first: the flip is the cause, damage the consequence,
   // so the sounds should layer in that order.
   const selfCommitted = !!next.self.committedCard && !prev.self.committedCard;
-  const oppCommitted = next.opponent.hasCommitted && !prev.opponent.hasCommitted;
+  const oppCommitted = nextOpponent.hasCommitted && !prevOpponent.hasCommitted;
   if (selfCommitted || oppCommitted) events.push({ type: "commit" });
 
   const attackerFlipped = !!next.combat?.attackerCard && !prev.combat?.attackerCard;
@@ -82,8 +86,8 @@ export function diffFxEvents(prev: PlayerView | null, next: PlayerView): FxEvent
     next.self.deckCount < prev.self.deckCount &&
     next.self.hand.some((c) => !prev.self.hand.includes(c));
   const drewOpp =
-    next.opponent.deckCount < prev.opponent.deckCount &&
-    next.opponent.handCount > prev.opponent.handCount;
+    nextOpponent.deckCount < prevOpponent.deckCount &&
+    nextOpponent.handCount > prevOpponent.handCount;
   if (drewSelf || drewOpp) events.push({ type: "draw" });
 
   if (next.winner && !prev.winner) {

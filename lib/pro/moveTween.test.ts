@@ -30,6 +30,10 @@ const view = (fighters: ViewFighter[], over: Partial<PlayerView> = {}): PlayerVi
   tokens: [],
   self: { id: "p1", heroId: "king-kong", hand: [], deckCount: 10, discard: [], committedCard: null, counters: {} },
   opponent: { id: "p2", heroId: "baba-yaga", handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {} },
+  players: [
+    { id: "p1", heroId: "fixture-p1", you: true, hand: [], handCount: 0, deckCount: 10, discard: [], committedCard: null, hasCommitted: false, counters: {} },
+    { id: "p2", heroId: "fixture-p2", you: false, handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {} },
+  ],
   combat: null,
   prompt: null,
   winner: null,

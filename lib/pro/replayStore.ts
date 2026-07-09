@@ -15,6 +15,7 @@
  *  - near the byte cap, saveReplay evicts oldest UNSTARRED first to make room.
  */
 import type { ReplayBundle } from "./protocol";
+import { replayHeroList } from "./replayHeroes";
 
 const INDEX_KEY = "unbrewed:pro:replays:index";
 const REPLAY_PREFIX = "unbrewed:pro:replay:";
@@ -32,7 +33,7 @@ export interface ReplayIndexEntry {
   bytes: number; // serialized size of the stored bundle
   // denormalized from bundle.meta for the list UI
   winner: ReplayBundle["meta"]["winner"];
-  heroes: [string, string];
+  heroes: string[];
   turns: number;
   endedAt: number;
   mapTitle: string;
@@ -76,7 +77,7 @@ function writeIndex(entries: ReplayIndexEntry[]): void {
  */
 export function replayId(bundle: ReplayBundle): string {
   const key = [
-    bundle.meta.heroes.join("v"),
+    replayHeroList(bundle.meta.heroes).join("v"),
     bundle.config.seed,
     bundle.actionLog.length,
     bundle.meta.endedAt,
@@ -199,7 +200,7 @@ export function saveReplay(
     starred: existing?.starred ?? false,
     bytes,
     winner: bundle.meta.winner,
-    heroes: bundle.meta.heroes,
+    heroes: replayHeroList(bundle.meta.heroes),
     turns: bundle.meta.turns,
     endedAt: bundle.meta.endedAt,
     mapTitle: bundle.meta.mapTitle,

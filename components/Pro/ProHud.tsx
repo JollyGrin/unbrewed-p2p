@@ -549,6 +549,7 @@ export const ProHud = ({
   const sidekicksOf = (player: PlayerView["you"]) =>
     view.fighters.filter((f) => f.owner === player && f.kind === "SIDEKICK");
   const display = STATUS_DISPLAY[status] ?? STATUS_DISPLAY.connecting;
+  const opponent = view.opponent;
 
   const { plates, hydrated, update } = useHudPlates();
   const seatUpdate = (seat: PlateSeat) => (partial: Partial<PlateLayout>) =>
@@ -573,22 +574,24 @@ export const ProHud = ({
           hydrated={hydrated}
           onUpdate={seatUpdate("you")}
         />
-        <SeatPlate
-          label="Opponent"
-          hero={resolveHero(view.opponent.heroId)}
-          heroFighter={heroOf(view.opponent.id)}
-          sidekicks={sidekicksOf(view.opponent.id)}
-          isLocal={false}
-          isActive={view.activePlayer === view.opponent.id}
-          hand={view.opponent.handCount}
-          deckCount={view.opponent.deckCount}
-          discard={view.opponent.discard}
-          labelFor={labelFor}
-          resolveCard={resolveCard}
-          layout={plates.opponent}
-          hydrated={hydrated}
-          onUpdate={seatUpdate("opponent")}
-        />
+        {opponent && (
+          <SeatPlate
+            label="Opponent"
+            hero={resolveHero(opponent.heroId)}
+            heroFighter={heroOf(opponent.id)}
+            sidekicks={sidekicksOf(opponent.id)}
+            isLocal={false}
+            isActive={view.activePlayer === opponent.id}
+            hand={opponent.handCount}
+            deckCount={opponent.deckCount}
+            discard={opponent.discard}
+            labelFor={labelFor}
+            resolveCard={resolveCard}
+            layout={plates.opponent}
+            hydrated={hydrated}
+            onUpdate={seatUpdate("opponent")}
+          />
+        )}
       </HudOverlay>
       <ChipCluster>
         {onToggleSound && (

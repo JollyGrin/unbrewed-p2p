@@ -6,6 +6,7 @@
  * doesn't also show, and never feeds anything back into play.
  */
 import { CardInstanceId, GameEvent, PlayerView } from "./protocol";
+import { requireOpponent } from "./viewCompat";
 
 export interface ProLogLine {
   text: string;
@@ -55,6 +56,9 @@ export function diffViews(
     lines.push({ text: `Game on — turn ${next.turnNumber}`, who: "game" });
     return lines;
   }
+
+  const prevOpponent = requireOpponent(prev);
+  const nextOpponent = requireOpponent(next);
 
   if (next.turnNumber !== prev.turnNumber) {
     lines.push({
@@ -114,13 +118,13 @@ export function diffViews(
   if (drewSelf > 0 && next.self.deckCount < prev.self.deckCount) {
     lines.push({ text: `You drew ${drewSelf} card${drewSelf === 1 ? "" : "s"}`, who: "you" });
   }
-  const oppDrew = prev.opponent.deckCount - next.opponent.deckCount;
-  if (oppDrew > 0 && next.opponent.handCount > prev.opponent.handCount) {
+  const oppDrew = prevOpponent.deckCount - nextOpponent.deckCount;
+  if (oppDrew > 0 && nextOpponent.handCount > prevOpponent.handCount) {
     lines.push({ text: `Opponent drew ${oppDrew} card${oppDrew === 1 ? "" : "s"}`, who: "opp" });
   }
   for (const [seatKey, prevPile, nextPile] of [
     [next.you, prev.self.discard, next.self.discard],
-    [next.opponent.id, prev.opponent.discard, next.opponent.discard],
+    [nextOpponent.id, prevOpponent.discard, nextOpponent.discard],
   ] as const) {
     const added = nextPile.slice(prevPile.length);
     for (const c of added) {

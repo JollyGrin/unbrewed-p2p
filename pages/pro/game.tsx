@@ -1129,7 +1129,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   // Art fetch (unbrewed-api, matched by title against the server catalog) —
   // must run unconditionally; no-ops until the first STATE arrives.
   const { resolveCard, resolveHero } = useProCardArt(
-    snapshot ? [snapshot.view.self.heroId, snapshot.view.opponent.heroId] : [],
+    snapshot ? [snapshot.view.self.heroId, ...(snapshot.view.opponent ? [snapshot.view.opponent.heroId] : [])] : [],
     snapshot?.view.catalog ?? {}
   );
 
@@ -1656,7 +1656,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
     ? null
     : "card" in promptSource
       ? `Effect of ${cardTitle(view.catalog, promptSource.card)}`
-      : `${heroNameOf(heroes, promptSource.hero === view.you ? view.self.heroId : view.opponent.heroId) ?? "Hero"}'s ability`;
+      : `${heroNameOf(heroes, promptSource.hero === view.you ? view.self.heroId : (view.opponent?.heroId ?? promptSource.hero)) ?? "Hero"}'s ability`;
 
   // Legacy best-effort card behind the prompt (issue #72 fix #2), used ONLY when
   // the server sent no `source` (system prompts, or an older server): trust an
@@ -2010,7 +2010,9 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
       <ForfeitDialog
         isOpen={forfeitOpen}
         onClose={() => setForfeitOpen(false)}
-        onConfirm={() => sendAction({ type: "FORFEIT", player: view.you })}
+        onConfirm={() => {
+          if (view.you === "p1" || view.you === "p2") sendAction({ type: "FORFEIT", player: view.you });
+        }}
       />
 
       {/* undo accept/reject prompt (issue #154) — shown to the opponent of the
