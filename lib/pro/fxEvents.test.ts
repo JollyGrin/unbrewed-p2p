@@ -149,4 +149,17 @@ describe("diffFxEvents", () => {
     expect(diffFxEvents(prev, view({ winner: "p1" }))).toEqual([{ type: "victory" }]);
     expect(diffFxEvents(prev, view({ winner: "p2" }))).toEqual([{ type: "loss" }]);
   });
+
+  it("detects third-player commits and draws without a duel opponent", () => {
+    const players3 = (p3: Partial<PlayerView["players"][number]> = {}) => [
+      { id: "p1" as const, heroId: "fixture-p1", you: true, hand: [], handCount: 0, deckCount: 10, discard: [], committedCard: null, hasCommitted: false, counters: {} },
+      { id: "p2" as const, heroId: "fixture-p2", you: false, handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {} },
+      { id: "p3" as const, heroId: "fixture-p3", you: false, handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {}, ...p3 },
+    ];
+    const prev = view({ opponent: null, players: players3() });
+    const next = view({ opponent: null, players: players3({ hasCommitted: true, handCount: 6, deckCount: 9 }) });
+
+    expect(diffFxEvents(prev, next)).toEqual([{ type: "commit" }, { type: "draw" }]);
+  });
+
 });

@@ -3,11 +3,11 @@ import {
   Box,
   Flex,
   Grid,
-  keyframes,
   Link as ChakraLink,
   Text,
   Tooltip,
 } from "@chakra-ui/react";
+import { keyframes } from "@emotion/react";
 import Link from "next/link";
 import { FaArrowLeft, FaHeart, FaLock } from "react-icons/fa";
 import { TbInfoCircle } from "react-icons/tb";

@@ -51,9 +51,9 @@ import {
   StatsPanel,
 } from "@/components/Game/Header/header.styles";
 import { DeckImportHeroType } from "@/components/DeckPool/deck-import.type";
-import { CardInstanceId, PlayerView, ViewFighter } from "@/lib/pro/protocol";
+import { CardInstanceId, PlayerId, PlayerView, ViewFighter, ViewPlayer } from "@/lib/pro/protocol";
 import { ResolveCard, ResolveHero } from "@/lib/pro/useProCardArt";
-import { PlateLayout, PlateSeat, useHudPlates } from "@/lib/pro/useHudPlates";
+import { DEFAULT_PLATE_LAYOUT, PlateLayout, PlateSeat, useHudPlates } from "@/lib/pro/useHudPlates";
 import { CardFace } from "./ProHand";
 import { ProConnectionStatus } from "@/lib/pro/useProSocket";
 import { FLAGS, useFlags } from "@/lib/flags";
@@ -544,54 +544,68 @@ export const ProHud = ({
   onToggleVisualFx,
   onReportBug,
 }: ProHudProps) => {
-  const heroOf = (player: PlayerView["you"]) =>
+  const heroOf = (player: PlayerId) =>
     view.fighters.find((f) => f.owner === player && f.kind === "HERO");
-  const sidekicksOf = (player: PlayerView["you"]) =>
+  const sidekicksOf = (player: PlayerId) =>
     view.fighters.filter((f) => f.owner === player && f.kind === "SIDEKICK");
   const display = STATUS_DISPLAY[status] ?? STATUS_DISPLAY.connecting;
-  const opponent = view.opponent;
+  const seats: ViewPlayer[] = view.players.length
+    ? view.players
+    : [
+        {
+          id: view.self.id,
+          heroId: view.self.heroId,
+          you: true,
+          hand: view.self.hand,
+          handCount: view.self.hand.length,
+          deckCount: view.self.deckCount,
+          discard: view.self.discard,
+          committedCard: view.self.committedCard,
+          hasCommitted: !!view.self.committedCard,
+          counters: view.self.counters,
+        },
+        ...(view.opponent
+          ? [{
+              id: view.opponent.id,
+              heroId: view.opponent.heroId,
+              you: false,
+              handCount: view.opponent.handCount,
+              deckCount: view.opponent.deckCount,
+              discard: view.opponent.discard,
+              hasCommitted: view.opponent.hasCommitted,
+              counters: view.opponent.counters,
+            }]
+          : []),
+      ];
 
   const { plates, hydrated, update } = useHudPlates();
   const seatUpdate = (seat: PlateSeat) => (partial: Partial<PlateLayout>) =>
     update(seat, partial);
+  const seatLabel = (seat: ViewPlayer) =>
+    seat.you ? "You" : seats.length === 2 ? "Opponent" : seat.id.toUpperCase();
 
   return (
     <>
       <HudOverlay>
-        <SeatPlate
-          label="You"
-          hero={resolveHero(view.self.heroId)}
-          heroFighter={heroOf(view.you)}
-          sidekicks={sidekicksOf(view.you)}
-          isLocal
-          isActive={view.activePlayer === view.you}
-          hand={view.self.hand}
-          deckCount={view.self.deckCount}
-          discard={view.self.discard}
-          labelFor={labelFor}
-          resolveCard={resolveCard}
-          layout={plates.you}
-          hydrated={hydrated}
-          onUpdate={seatUpdate("you")}
-        />
-        {opponent && (
+        {seats.map((seat) => (
           <SeatPlate
-            label="Opponent"
-            hero={resolveHero(opponent.heroId)}
-            heroFighter={heroOf(opponent.id)}
-            sidekicks={sidekicksOf(opponent.id)}
-            isLocal={false}
-            isActive={view.activePlayer === opponent.id}
-            hand={opponent.handCount}
-            deckCount={opponent.deckCount}
-            discard={opponent.discard}
+            key={seat.id}
+            label={seatLabel(seat)}
+            hero={resolveHero(seat.heroId)}
+            heroFighter={heroOf(seat.id)}
+            sidekicks={sidekicksOf(seat.id)}
+            isLocal={seat.you}
+            isActive={view.activePlayer === seat.id}
+            hand={seat.you ? seat.hand ?? view.self.hand : seat.handCount}
+            deckCount={seat.deckCount}
+            discard={seat.discard}
             labelFor={labelFor}
             resolveCard={resolveCard}
-            layout={plates.opponent}
+            layout={plates[seat.id] ?? DEFAULT_PLATE_LAYOUT}
             hydrated={hydrated}
-            onUpdate={seatUpdate("opponent")}
+            onUpdate={seatUpdate(seat.id)}
           />
-        )}
+        ))}
       </HudOverlay>
       <ChipCluster>
         {onToggleSound && (

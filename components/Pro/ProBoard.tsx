@@ -7,7 +7,8 @@
  * spaces the caller says are currently actionable (which the server derives
  * from legalActions — the board never computes legality itself).
  */
-import { Box, Button, Flex, Text, chakra, keyframes, shouldForwardProp } from "@chakra-ui/react";
+import { Box, Button, Flex, Text, chakra, shouldForwardProp } from "@chakra-ui/react";
+import { keyframes } from "@emotion/react";
 import { isValidMotionProp, motion } from "framer-motion";
 import { PointerEvent as ReactPointerEvent, useRef, useState } from "react";
 import { FighterId, ProMapDef, ProMapRegion, ProMapSpace, SpaceId, ViewFighter, ViewToken } from "@/lib/pro/protocol";
@@ -150,6 +151,8 @@ export interface ProBoardProps {
 const PLAYER_COLOR: Record<string, string> = {
   p1: "#E0A82E", // gold
   p2: "#3B8BEB", // blue
+  p3: "#2F9E68", // green
+  p4: "#C0449E", // magenta
 };
 
 /** Token initials: leading "The " is noise ("The Mandalorian"/"The Child" would
