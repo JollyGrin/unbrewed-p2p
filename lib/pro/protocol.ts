@@ -176,8 +176,16 @@
  * `CARD_RETURNED_TO_HAND` (combat cleanup returns a revealed combat card), and
  * `CARD_REVEALED` (The Cameraman's random hand reveal). All are public reveal/play
  * moments and are redacted/audited by server/redact.ts.
+ *
+ * ## v13 (2026-07-09): multiplayer room exposure
+ * Wire player ids now use the reserved runtime-player id space (`p1`..`p16`) so
+ * STATE, legal actions, events, replay bundles, resume tokens, and room seating
+ * can represent 3–4 player formats. `CREATE_ROOM` accepts `formatId` (default
+ * `duel`); rooms fill seats in runtime order and start once the selected format's
+ * player count is reached. PlayerView keeps the duel `self`/`opponent` aliases
+ * for compatibility and adds `players[]`, the multiplayer-safe per-seat view.
  */
-export const PROTOCOL_VERSION = 12;
+export const PROTOCOL_VERSION = 13;
 
 /** Scripted-AI strength preset (server-side budgets; client treats as opaque). */
 export type BotDifficulty = "easy" | "medium" | "hard";
@@ -186,7 +194,11 @@ export type BotDifficulty = "easy" | "medium" | "hard";
 // Shared primitives (mirror engine/types.ts — keep in lockstep)
 // ---------------------------------------------------------------------------
 
-export type PlayerId = "p1" | "p2";
+export type RuntimePlayerId =
+  | "p1" | "p2" | "p3" | "p4" | "p5" | "p6" | "p7" | "p8"
+  | "p9" | "p10" | "p11" | "p12" | "p13" | "p14" | "p15" | "p16";
+export type DuelPlayerId = "p1" | "p2";
+export type PlayerId = RuntimePlayerId;
 export type FighterId = string; // '<playerId>/hero' | '<playerId>/sidekick-<n>'
 export type CardInstanceId = string; // '<cardDefId>#<n>'
 export type CardDefId = string; // 'king-kong/clobber'
@@ -209,7 +221,7 @@ export type CombatOutcome = "ATTACKER_WON" | "DEFENDER_WON" | "UNKNOWN";
 export type Action =
   | { type: "PLACE_SIDEKICK"; player: PlayerId; fighter: FighterId; space: SpaceId }
   | { type: "MANEUVER"; player: PlayerId }
-  | { type: "BOOST_MOVE"; player: PlayerId; card: CardInstanceId }
+  | { type: "BOOST_MOVE"; player: DuelPlayerId; card: CardInstanceId }
   | { type: "MOVE_FIGHTER"; player: PlayerId; fighter: FighterId; path: SpaceId[] }
   | { type: "END_MANEUVER"; player: PlayerId }
   | { type: "SCHEME"; player: PlayerId; card: CardInstanceId }
@@ -223,7 +235,7 @@ export type Action =
   // the game with the OTHER player as winner and emits the replay bundle. The
   // client constructs this directly (the second always-available exception to
   // "never send an action the server didn't offer", alongside MOVE_FIGHTER paths).
-  | { type: "FORFEIT"; player: PlayerId };
+  | { type: "FORFEIT"; player: DuelPlayerId };
 
 // ---------------------------------------------------------------------------
 // Structured event stream (v10). MIRROR of engine/types.ts `GameEvent` — the
@@ -438,6 +450,19 @@ export interface ViewOpponent {
   counters: Record<string, number>; // counters are public
 }
 
+export interface ViewPlayer {
+  id: PlayerId;
+  heroId: string;
+  you: boolean;
+  hand?: CardInstanceId[]; // present only for the receiving player's own seat
+  handCount: number;
+  deckCount: number;
+  discard: CardInstanceId[];
+  committedCard?: CardInstanceId | null; // own face-down commit, present only for self
+  hasCommitted: boolean;
+  counters: Record<string, number>;
+}
+
 export interface ViewCombatCard {
   instance: CardInstanceId;
   role: "ATTACK" | "DEFENSE";
@@ -480,7 +505,10 @@ export interface PlayerView {
   fighters: ViewFighter[];
   tokens: ViewToken[]; // neutral board tokens (totems); public to both players
   self: ViewSelf;
-  opponent: ViewOpponent;
+  // Duel compatibility alias: the first non-self player in runtime order, or null
+  // in malformed/spectator-free states. New multiplayer clients should use players[].
+  opponent: ViewOpponent | null;
+  players: ViewPlayer[];
   combat: ViewCombat | null;
   prompt: ViewPrompt | null;
   // Regions currently OUT OF PLAY (v0.12.0 — a closed Hut). Public info (no
@@ -517,7 +545,8 @@ export interface ReplayConfig {
   seed: number;
   mapId?: string;
   options?: { allowNonstandardDeck?: boolean; startingHandSize?: number };
-  players: { p1: ReplayPlayerSetup; p2: ReplayPlayerSetup };
+  players: { p1: ReplayPlayerSetup; p2: ReplayPlayerSetup } & Partial<Record<PlayerId, ReplayPlayerSetup>>;
+  formatId?: string;
   map: ProMapDef;
 }
 
@@ -525,7 +554,7 @@ export interface ReplayConfig {
 // expanding the whole log.
 export interface ReplayMeta {
   winner: PlayerId | null;
-  heroes: [string, string]; // [p1 heroId, p2 heroId]
+  heroes: Partial<Record<PlayerId, string>>; // hero id by runtime player id
   turns: number;
   endedAt: number; // epoch ms
   mapTitle: string;
@@ -567,7 +596,7 @@ export interface ReplayStep {
   // no prompt is open.
   prompt: ViewPrompt | null;
   winner: PlayerId | null;
-  players: { p1: ReplayStepPlayer; p2: ReplayStepPlayer };
+  players: { p1: ReplayStepPlayer; p2: ReplayStepPlayer } & Partial<Record<PlayerId, ReplayStepPlayer>>;
 }
 
 // `POST /replay` success — map + catalog + heroes are hoisted (static across the
@@ -578,7 +607,7 @@ export interface ReplayExpansion {
   meta: ReplayMeta;
   map: ProMapDef;
   catalog: Record<CardDefId, CardMeta>;
-  heroes: { p1: string; p2: string };
+  heroes: Partial<Record<PlayerId, string>>;
   steps: ReplayStep[];
   finalHash: string; // FNV-1a of the final state — pins the exact game
 }
@@ -631,7 +660,7 @@ export type ClientMsg =
   | { v: number; type: "LIST_LOBBIES" }
   // `customMap` (v4): playtest an unpublished board — the server validates it
   // and uses it for this room only. Composes with `bot`. Omit for the default map.
-  | { v: number; type: "CREATE_ROOM"; heroId: string; bot?: { difficulty: BotDifficulty; heroId?: string }; customMap?: ProMapDef }
+  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; bot?: { difficulty: BotDifficulty; heroId?: string }; customMap?: ProMapDef }
   | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string }
   | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }
@@ -648,8 +677,8 @@ export type ClientMsg =
 export type ServerMsg =
   | { v: number; type: "HEROES"; heroes: HeroListing[] }
   | { v: number; type: "LOBBIES"; lobbies: LobbyListing[] }
-  | { v: number; type: "ROOM_CREATED"; roomId: string; token: string; you: PlayerId }
-  | { v: number; type: "ROOM_JOINED"; roomId: string; token: string; you: PlayerId }
+  | { v: number; type: "ROOM_CREATED"; roomId: string; token: string; you: PlayerId; formatId?: string; seats?: PlayerId[]; requiredPlayers?: number }
+  | { v: number; type: "ROOM_JOINED"; roomId: string; token: string; you: PlayerId; formatId?: string; seats?: PlayerId[]; requiredPlayers?: number }
   | { v: number; type: "VISIBILITY"; roomId: string; public: boolean } // ack to SET_VISIBILITY
   | {
       v: number;

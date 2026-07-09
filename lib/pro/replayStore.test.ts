@@ -32,7 +32,7 @@ function bundle(overrides: { seed?: number; heroes?: [string, string]; winner?: 
       map: { schemaVersion: "1.0", id: "mended-drum", meta: { title: "The Mended Drum", minPlayers: 2, maxPlayers: 2, specialRules: false }, zones: [], spaces: [] },
     },
     actionLog: [],
-    meta: { winner, heroes, turns: 5, endedAt: 1_000, mapTitle: "The Mended Drum" },
+    meta: { winner, heroes: { p1: heroes[0], p2: heroes[1] }, turns: 5, endedAt: 1_000, mapTitle: "The Mended Drum" },
   };
 }
 

@@ -21,6 +21,12 @@ import type {
 
 const other = (p: PlayerId): PlayerId => (p === "p1" ? "p2" : "p1");
 
+function requireStepPlayer(step: ReplayStep, player: PlayerId) {
+  const entry = step.players[player];
+  if (!entry) throw new Error(`Replay step is missing player ${player}`);
+  return entry;
+}
+
 /**
  * Build a full-information PlayerView for `focus` from a replay step + the hoisted
  * map/catalog. Board (fighters/tokens/combat) is shared; hands/decks/discards come
@@ -32,8 +38,8 @@ export function toPlayerView(
   focus: PlayerId,
 ): PlayerView {
   const oppId = other(focus);
-  const me = step.players[focus];
-  const opp = step.players[oppId];
+  const me = requireStepPlayer(step, focus);
+  const opp = requireStepPlayer(step, oppId);
   return {
     you: focus,
     phase: step.phase,
@@ -64,6 +70,30 @@ export function toPlayerView(
       hasCommitted: opp.committedCard !== null,
       counters: opp.counters,
     },
+    players: [
+      {
+        id: focus,
+        heroId: me.heroId,
+        you: true,
+        hand: me.hand,
+        handCount: me.hand.length,
+        deckCount: me.deckCount,
+        discard: me.discard,
+        committedCard: me.committedCard,
+        hasCommitted: me.committedCard !== null,
+        counters: me.counters,
+      },
+      {
+        id: oppId,
+        heroId: opp.heroId,
+        you: false,
+        handCount: opp.hand.length,
+        deckCount: opp.deckCount,
+        discard: opp.discard,
+        hasCommitted: opp.committedCard !== null,
+        counters: opp.counters,
+      },
+    ],
     combat: step.combat,
     prompt: step.prompt,
     winner: step.winner,
@@ -72,7 +102,7 @@ export function toPlayerView(
 
 /** The other seat's actual hand (God-view only) — for the top-of-table fan. */
 export function opponentHand(step: ReplayStep, focus: PlayerId): CardInstanceId[] {
-  return step.players[other(focus)].hand;
+  return requireStepPlayer(step, other(focus)).hand;
 }
 
 /** First step index at (or after) a given 1-based turn number — for jump-to-turn. */

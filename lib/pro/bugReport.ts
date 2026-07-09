@@ -17,6 +17,7 @@
 
 import { PROTOCOL_VERSION, PlayerView } from "./protocol";
 import { ProLogEntry, logEntriesToCsv } from "./gameLog";
+import { requireOpponent } from "./viewCompat";
 import { buildBugReportUrl as buildBugReportUrlShared, clock } from "../shared/bugReport";
 
 const LABELS = "bug,player-report";
@@ -70,19 +71,21 @@ const fighterLines = (view: PlayerView): string => {
           }${f.space ? ` @ ${f.space}` : ""}`
       )
       .join("\n");
-  return [side(view.you, "you:"), side(view.opponent.id, "opp:")].filter(Boolean).join("\n");
+  const opponent = requireOpponent(view);
+  return [side(view.you, "you:"), side(opponent.id, "opp:")].filter(Boolean).join("\n");
 };
 
 /** The auto-captured `<details>` block — readable, folded, no free-text noise. */
 const contextBlock = (input: BugReportInput): string => {
   const { view, roomId, commit, appVersion, userAgent } = input;
+  const opponent = requireOpponent(view);
   const phase = `${view.phase}${view.turnPhase ? ` / ${view.turnPhase}` : ""}`;
   return [
     "<details>",
     "<summary>Auto-captured game context</summary>",
     "",
     `- **Reporter:** ${prettyHero(view.self.heroId)} (${view.you}, ${view.fighters.find((f) => f.owner === view.you && f.kind === "HERO")?.reach ?? "?"})`,
-    `- **Opponent:** ${prettyHero(view.opponent.heroId)} (${view.opponent.id})`,
+    `- **Opponent:** ${prettyHero(opponent.heroId)} (${opponent.id})`,
     `- **Last combat:** ${combatRole(view)}`,
     `- **Turn:** ${view.turnNumber} · ${phase} · ${view.actionsRemaining} action(s) left · active: ${
       view.activePlayer === view.you ? "you" : "opponent"
@@ -94,7 +97,7 @@ const contextBlock = (input: BugReportInput): string => {
     "",
     "**Cards (counts only — no hidden info)**",
     `  - you: hand ${view.self.hand.length} · deck ${view.self.deckCount} · discard ${view.self.discard.length}`,
-    `  - opp: hand ${view.opponent.handCount} · deck ${view.opponent.deckCount} · discard ${view.opponent.discard.length}`,
+    `  - opp: hand ${opponent.handCount} · deck ${opponent.deckCount} · discard ${opponent.discard.length}`,
     "",
     `- **Room:** ${roomId ?? "(unknown)"}`,
     `- **Protocol:** v${PROTOCOL_VERSION}`,
@@ -138,8 +141,9 @@ const fmtLine = (e: ProLogEntry): string => `${clock(e.ts)} [${e.who}] ${e.text}
 
 const titleFor = (input: BugReportInput): string => {
   const { view } = input;
+  const opponent = requireOpponent(view);
   const first = input.description.trim().split("\n")[0].slice(0, 80).trim();
-  const matchup = `${prettyHero(view.self.heroId)} vs ${prettyHero(view.opponent.heroId)}`;
+  const matchup = `${prettyHero(view.self.heroId)} vs ${prettyHero(opponent.heroId)}`;
   return `[pro] ${first || "Bug report"} — ${matchup} (turn ${view.turnNumber})`;
 };
 

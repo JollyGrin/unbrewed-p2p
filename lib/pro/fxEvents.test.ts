@@ -42,6 +42,10 @@ const view = (over: Partial<PlayerView>): PlayerView => ({
   tokens: [],
   self: { id: "p1", heroId: "king-kong", hand: [], deckCount: 10, discard: [], committedCard: null, counters: {} },
   opponent: { id: "p2", heroId: "baba-yaga", handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {} },
+  players: [
+    { id: "p1", heroId: "fixture-p1", you: true, hand: [], handCount: 0, deckCount: 10, discard: [], committedCard: null, hasCommitted: false, counters: {} },
+    { id: "p2", heroId: "fixture-p2", you: false, handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {} },
+  ],
   combat: null,
   prompt: null,
   winner: null,
@@ -121,7 +125,7 @@ describe("diffFxEvents", () => {
     const prev = view({});
     const selfCommit = view({ self: { ...prev.self, committedCard: "king-kong/clobber#1" } });
     expect(diffFxEvents(prev, selfCommit)).toEqual([{ type: "commit" }]);
-    const oppCommit = view({ opponent: { ...prev.opponent, hasCommitted: true } });
+    const oppCommit = view({ opponent: { ...prev.opponent!, hasCommitted: true } });
     expect(diffFxEvents(prev, oppCommit)).toEqual([{ type: "commit" }]);
   });
 
@@ -129,7 +133,7 @@ describe("diffFxEvents", () => {
     const prev = view({});
     const next = view({
       self: { ...prev.self, hand: ["king-kong/clobber#1"], deckCount: 9 },
-      opponent: { ...prev.opponent, handCount: 6, deckCount: 9 },
+      opponent: { ...prev.opponent!, handCount: 6, deckCount: 9 },
     });
     expect(diffFxEvents(prev, next)).toEqual([{ type: "draw" }]);
   });

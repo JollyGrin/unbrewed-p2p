@@ -13,7 +13,7 @@ const good: ReplayBundle = {
     map: { schemaVersion: "1.0", id: "mended-drum", meta: { title: "The Mended Drum", minPlayers: 2, maxPlayers: 2, specialRules: false }, zones: [], spaces: [] },
   },
   actionLog: [],
-  meta: { winner: "p2", heroes: ["king-kong", "thrall"], turns: 5, endedAt: 1_720_000_000_000, mapTitle: "The Mended Drum" },
+  meta: { winner: "p2", heroes: { p1: "king-kong", p2: "thrall" }, turns: 5, endedAt: 1_720_000_000_000, mapTitle: "The Mended Drum" },
 };
 
 describe("parseBundle", () => {
