@@ -325,6 +325,33 @@ describe("enrichLines", () => {
   });
 });
 
+
+describe("multiplayer diffViews", () => {
+  const players3 = (p3: Partial<PlayerView["players"][number]> = {}) => [
+    { id: "p1" as const, heroId: "fixture-p1", you: true, hand: [], handCount: 0, deckCount: 10, discard: [], committedCard: null, hasCommitted: false, counters: {} },
+    { id: "p2" as const, heroId: "fixture-p2", you: false, handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {} },
+    { id: "p3" as const, heroId: "fixture-p3", you: false, handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {}, ...p3 },
+  ];
+
+  it("labels third-player turn, draw, discard, and win lines without a duel opponent", () => {
+    const prev = view({ opponent: null, players: players3() });
+    const next = view({
+      opponent: null,
+      turnNumber: 2,
+      activePlayer: "p3",
+      winner: "p3",
+      players: players3({ handCount: 6, deckCount: 9, discard: ["a/fireball#1"] }),
+    });
+
+    expect(diffViews(prev, next, label).map((l) => l.text)).toEqual(expect.arrayContaining([
+      "Turn 2 — P3's turn",
+      "P3 drew 1 card",
+      "P3 → discard: fireball",
+      "Defeat — P3 wins",
+    ]));
+  });
+});
+
 // --- Parity: flag OFF path (and flag ON with empty events) must equal diffViews.
 // enrichLines with an empty events array returns the diff lines unchanged; this
 // is the byte-identical guarantee the page relies on for the flag-off / pre-v10

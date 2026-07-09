@@ -14,7 +14,8 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { useRouter } from "next/router";
-import { Box, Button, Flex, Grid, Link, Menu, MenuButton, MenuItem, MenuList, Tag, Text, Textarea, Tooltip, keyframes } from "@chakra-ui/react";
+import { Box, Button, Flex, Grid, Link, Menu, MenuButton, MenuItem, MenuList, Tag, Text, Textarea, Tooltip } from "@chakra-ui/react";
+import { keyframes } from "@emotion/react";
 import { MOVE_STEP_SECONDS, PendingMove, ProBoard } from "@/components/Pro/ProBoard";
 import {
   Action,
@@ -24,6 +25,7 @@ import {
   FighterId,
   HeroListing,
   LegalOption,
+  PlayerId,
   PlayerView,
   ProMapDef,
   ReplayBundle,
@@ -60,6 +62,7 @@ import { useCombatCallouts, CombatCalloutItem } from "@/lib/pro/combatFx";
 import { useIncomingMoveTween } from "@/lib/pro/moveTween";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
+import { formatChoice, MULTIPLAYER_PLAYTEST_MAP, PRO_FORMATS, ProFormatId } from "@/lib/pro/multiplayerPlaytest";
 
 /** same table felt the sandbox game uses (game.layout.tsx) */
 const TABLE_BG = "radial-gradient(ellipse at 50% 20%, #5A3263 0%, #48284F 50%, #2C1831 100%)";
@@ -648,6 +651,16 @@ const heroNameOf = (heroes: HeroListing[] | null, heroId: string | null) => {
   return heroes?.find((h) => h.heroId === heroId)?.name ?? prettyHeroId(heroId);
 };
 
+const viewHeroIdOf = (view: PlayerView, player: PlayerId): string | null =>
+  view.players.find((p) => p.id === player)?.heroId ??
+  (view.self.id === player ? view.self.heroId : null) ??
+  (view.opponent?.id === player ? view.opponent.heroId : null);
+
+const playerLabel = (view: PlayerView, player: PlayerId): string => {
+  if (player === view.you) return "your";
+  return view.players.length === 2 ? "opponent's" : `${player.toUpperCase()}'s`;
+};
+
 /**
  * Community-deck metadata (author, likes, cardback) for a server hero via the
  * deck-id bridge. Every /pro hero originates as a fan deck on unmatched.cards —
@@ -855,6 +868,8 @@ const HeroSelectLobby = ({
   heroParam,
   selectedHeroId,
   opponent,
+  selectedFormat,
+  onSelectFormat,
   onSelectOpponent,
   onSelectHero,
   aiHeroId,
@@ -872,6 +887,8 @@ const HeroSelectLobby = ({
   heroParam: string | null;
   selectedHeroId: string | null;
   opponent: OpponentChoice;
+  selectedFormat: ProFormatId;
+  onSelectFormat: (format: ProFormatId) => void;
   onSelectOpponent: (o: OpponentChoice) => void;
   onSelectHero: (heroId: string) => void;
   /** the specific hero the AI should play, or null to let the server pick at random */
@@ -890,6 +907,8 @@ const HeroSelectLobby = ({
   // creator isn't blocked; once the list arrives the real selection takes over.
   const effective = selectedHeroId ?? (heroes === null ? heroParam : null);
   const canConfirm = status === "open" && !!effective;
+  const format = formatChoice(selectedFormat);
+  const multiplayer = selectedFormat !== "duel";
   const [previewHero, setPreviewHero] = useState<HeroListing>();
 
   return (
@@ -967,6 +986,32 @@ const HeroSelectLobby = ({
       />
 
       {!room && (
+        <Flex direction="column" alignItems="center" gap="0.65rem">
+          <Text fontFamily="BebasNeueRegular" fontSize="1.1rem" letterSpacing="0.08em" opacity={0.75}>
+            Format
+          </Text>
+          <Flex gap="0.5rem" flexWrap="wrap" justifyContent="center">
+            {PRO_FORMATS.map((f) => (
+              <Button
+                key={f.id}
+                {...BTN}
+                size="sm"
+                border="2px solid"
+                borderColor={selectedFormat === f.id ? "brand.accent" : "transparent"}
+                onClick={() => onSelectFormat(f.id)}
+              >
+                {f.label}
+              </Button>
+            ))}
+          </Flex>
+          <Text fontSize="0.7rem" opacity={0.6} textAlign="center">
+            {format.detail} · {format.requiredPlayers} players
+            {multiplayer ? " · uses a built-in playtest map unless you paste one" : ""}
+          </Text>
+        </Flex>
+      )}
+
+      {!room && !multiplayer && (
         <Flex direction="column" alignItems="center" gap="0.4rem">
           <Text fontFamily="BebasNeueRegular" fontSize="1.1rem" letterSpacing="0.08em" opacity={0.75}>
             Opponent
@@ -1024,7 +1069,7 @@ const HeroSelectLobby = ({
       )}
 
       <Button {...BTN_GOLD} isDisabled={!canConfirm} onClick={onConfirm}>
-        {room ? "Join" : opponent === "human" ? "Create" : "Play vs AI"}
+        {room ? "Join" : multiplayer ? `Create ${format.label}` : opponent === "human" ? "Create" : "Play vs AI"}
       </Button>
 
       {/* Power-user affordance (create flow only): playtest an unpublished board
@@ -1068,7 +1113,7 @@ const HeroSelectLobby = ({
                 </Text>
               ) : (
                 <Text fontSize="0.6rem" opacity={0.4} fontFamily="SpaceGrotesk">
-                  only you set this up · your opponent (or the AI) just plays on it
+                  only you set this up · other players just join the room link
                 </Text>
               )}
             </Flex>
@@ -1088,11 +1133,12 @@ const HeroSelectLobby = ({
 // ---------------------------------------------------------------------------
 
 const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string | null }) => {
-  const { status, roomId, snapshot, opponentConnected, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, requestLobbies, setVisibility, serverRestarting, gameLost } =
+  const { status, roomId, roomInfo, snapshot, opponentConnected, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, requestLobbies, setVisibility, serverRestarting, gameLost } =
     useProSocket(WS_URL);
   const [joined, setJoined] = useState(false);
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
   const [opponent, setOpponent] = useState<OpponentChoice>("human");
+  const [selectedFormat, setSelectedFormat] = useState<ProFormatId>("duel");
   const [aiHeroId, setAiHeroId] = useState<string | null>(null);
   const [selectedFighter, setSelectedFighter] = useState<FighterId | null>(null);
   // First space tapped in a two-tap LARGE-fighter move pick (issue #132), scoped
@@ -1129,7 +1175,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   // Art fetch (unbrewed-api, matched by title against the server catalog) —
   // must run unconditionally; no-ops until the first STATE arrives.
   const { resolveCard, resolveHero } = useProCardArt(
-    snapshot ? [snapshot.view.self.heroId, ...(snapshot.view.opponent ? [snapshot.view.opponent.heroId] : [])] : [],
+    snapshot ? [...new Set(snapshot.view.players.map((p) => p.heroId))] : [],
     snapshot?.view.catalog ?? {}
   );
 
@@ -1353,6 +1399,11 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
           heroParam={heroParam}
           selectedHeroId={selectedHeroId}
           opponent={opponent}
+          selectedFormat={selectedFormat}
+          onSelectFormat={(format) => {
+            setSelectedFormat(format);
+            if (format !== "duel") setOpponent("human");
+          }}
           onSelectOpponent={setOpponent}
           onSelectHero={setSelectedHeroId}
           aiHeroId={aiHeroId}
@@ -1387,12 +1438,15 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
                 return;
               }
             }
+            if (!customMap && selectedFormat !== "duel") {
+              customMap = MULTIPLAYER_PLAYTEST_MAP;
+            }
             setMapError(null);
             const bot =
-              opponent === "human"
+              selectedFormat !== "duel" || opponent === "human"
                 ? undefined
                 : { difficulty: opponent, ...(aiHeroId ? { heroId: aiHeroId } : {}) };
-            createRoom(effectiveHeroId, bot, customMap);
+            createRoom(effectiveHeroId, bot, customMap, selectedFormat);
             setSelectedHeroId(effectiveHeroId); // lock it for the lobby label
             setJoined(true);
           }}
@@ -1491,7 +1545,15 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
               You are {heroNameOf(heroes, selectedHeroId)}
             </Text>
           )}
-          <Text opacity={0.8}>Waiting for an opponent — the game starts the moment they join.</Text>
+          <Text opacity={0.8} textAlign="center">
+            {(() => {
+              const required = roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers;
+              const seated = roomInfo?.seats.length ?? 1;
+              return required <= 2
+                ? "Waiting for an opponent — the game starts the moment they join."
+                : `Waiting for players — ${seated}/${required} seats joined. Share the same link with everyone.`;
+            })()}
+          </Text>
 
           {/* discoverability: invite privately or list publicly */}
           <Flex gap="0.5rem" alignItems="center" flexWrap="wrap" justifyContent="center">
@@ -1511,7 +1573,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
             </Button>
           </Flex>
           <Text fontSize="0.8rem" opacity={0.5}>
-            (testing solo? open that link in a second browser tab)
+            {(roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers) > 2 ? "(testing solo? open that link in more browser tabs)" : "(testing solo? open that link in a second browser tab)"}
           </Text>
           {mapSubmitUrl && (
             <Link
@@ -1542,6 +1604,8 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
 
   const { view, legalActions, prompt } = snapshot;
   const myTurn = view.activePlayer === view.you;
+  const multiplayerView = view.players.length > 2;
+  const activeTurnLabel = myTurn ? "YOUR TURN" : `${playerLabel(view, view.activePlayer).toUpperCase()} TURN`;
   // RESPOND_PROMPT renders through the PromptPanel; MOVE_FIGHTER and
   // PLACE_SIDEKICK render as clickable board spaces — listing one button per
   // destination just floods the sidebar (and card actions live on the hand).
@@ -1656,7 +1720,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
     ? null
     : "card" in promptSource
       ? `Effect of ${cardTitle(view.catalog, promptSource.card)}`
-      : `${heroNameOf(heroes, promptSource.hero === view.you ? view.self.heroId : (view.opponent?.heroId ?? promptSource.hero)) ?? "Hero"}'s ability`;
+      : `${heroNameOf(heroes, viewHeroIdOf(view, promptSource.hero)) ?? "Hero"}'s ability`;
 
   // Legacy best-effort card behind the prompt (issue #72 fix #2), used ONLY when
   // the server sent no `source` (system prompts, or an older server): trust an
@@ -1858,7 +1922,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
         visualFxOn={visualOn}
         onToggleSound={toggleSound}
         onToggleVisualFx={toggleVisual}
-        onReportBug={() => setReportBugOpen(true)}
+        onReportBug={multiplayerView ? undefined : () => setReportBugOpen(true)}
       />
 
       {/* right control dock — turn state, combat, prompts, actions */}
@@ -1878,7 +1942,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
         <Flex direction="column" gap="0.6rem" sx={{ "& > *": { pointerEvents: "auto" } }}>
           <Flex gap="0.4rem" alignItems="center" flexWrap="wrap">
             <Tag size="sm" bg={myTurn ? "brand.accent" : "whiteAlpha.300"} color={myTurn ? "brand.surfaceDim" : "brand.parchment"}>
-              {myTurn ? "YOUR TURN" : "OPPONENT'S TURN"}
+              {activeTurnLabel}
             </Tag>
             <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
               turn {view.turnNumber}
@@ -1888,7 +1952,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
             </Tag>
             {!opponentConnected && (
               <Tag size="sm" colorScheme="red">
-                opponent disconnected
+                {multiplayerView ? "player disconnected" : "opponent disconnected"}
               </Tag>
             )}
           </Flex>
@@ -1959,7 +2023,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
             ))}
             {legalActions.length === 0 && !prompt && (
               <Text opacity={0.7} fontSize="0.9rem" color="brand.parchment">
-                waiting on opponent…
+                {multiplayerView ? "waiting on another player…" : "waiting on opponent…"}
               </Text>
             )}
           </Flex>
@@ -1992,7 +2056,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
           {/* Forfeit — only while the game is genuinely live (issue #140). Hidden
               during SETUP and once GAME_OVER / a winner exists (no affordances
               remain then). Destructive, so it's red and confirm-gated. */}
-          {view.phase === "PLAY" && !view.winner && (
+          {view.phase === "PLAY" && !view.winner && view.players.length === 2 && (view.you === "p1" || view.you === "p2") && (
             <Button
               size="sm"
               mt="0.4rem"
@@ -2030,7 +2094,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
         entries={logEntries}
         resolveCard={resolveCard}
         labelFor={(c) => cardLabel(view.catalog, c)}
-        onReportBug={() => setReportBugOpen(true)}
+        onReportBug={multiplayerView ? undefined : () => setReportBugOpen(true)}
       />
 
       {/* prefilled-GitHub-issue bug report with auto-captured game context (#87) */}

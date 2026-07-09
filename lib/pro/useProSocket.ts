@@ -49,6 +49,12 @@ export type ProConnectionStatus =
   | "reconnecting"
   | "closed";
 
+export interface ProRoomInfo {
+  formatId: string;
+  seats: PlayerId[];
+  requiredPlayers: number;
+}
+
 export interface ProGameSnapshot {
   view: PlayerView;
   legalActions: Action[];
@@ -65,6 +71,7 @@ export interface ProGameSnapshot {
 export interface UseProSocketReturn {
   status: ProConnectionStatus;
   roomId: string | null;
+  roomInfo: ProRoomInfo | null;
   snapshot: ProGameSnapshot | null;
   opponentConnected: boolean;
   error: { code: string; message: string } | null;
@@ -83,7 +90,8 @@ export interface UseProSocketReturn {
   createRoom: (
     heroId: string,
     bot?: { difficulty: BotDifficulty; heroId?: string },
-    customMap?: ProMapDef
+    customMap?: ProMapDef,
+    formatId?: string
   ) => void;
   joinRoom: (roomId: string, heroId: string) => void;
   sendAction: (action: Action) => void;
@@ -162,6 +170,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
 
   const [status, setStatus] = useState<ProConnectionStatus>("idle");
   const [roomId, setRoomId] = useState<string | null>(null);
+  const [roomInfo, setRoomInfo] = useState<ProRoomInfo | null>(null);
   const [snapshot, setSnapshot] = useState<ProGameSnapshot | null>(null);
   const [opponentConnected, setOpponentConnected] = useState(true);
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
@@ -237,6 +246,11 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
         case "ROOM_JOINED":
           roomRef.current = msg.roomId;
           setRoomId(msg.roomId);
+          setRoomInfo({
+            formatId: msg.formatId ?? "duel",
+            seats: msg.seats ?? [msg.you],
+            requiredPlayers: msg.requiredPlayers ?? 2,
+          });
           setRoomPublic(false); // fresh rooms are private until acked otherwise
           setToken(msg.roomId, msg.token); // fresh reconnect token (revive rotates it)
           rememberRoom(msg.roomId);
@@ -366,7 +380,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
   }, [wsUrl, connect, clearResumeDeadline]);
 
   const createRoom = useCallback(
-    (heroId: string, bot?: { difficulty: BotDifficulty; heroId?: string }, customMap?: ProMapDef) => {
+    (heroId: string, bot?: { difficulty: BotDifficulty; heroId?: string }, customMap?: ProMapDef, formatId?: string) => {
       setError(null); // clear any prior room/hero error on a fresh attempt
       setGameLost(false); // starting a brand-new game — no lost game to mourn
       hadStateRef.current = false;
@@ -377,6 +391,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
         heroId,
         ...(bot ? { bot } : {}),
         ...(customMap ? { customMap } : {}),
+        ...(formatId && formatId !== "duel" ? { formatId } : {}),
       };
       if (wsRef.current?.readyState === WebSocket.OPEN) send(msg);
       else pendingHelloRef.current = msg;
@@ -467,6 +482,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
   return {
     status,
     roomId,
+    roomInfo,
     snapshot,
     opponentConnected,
     error,
