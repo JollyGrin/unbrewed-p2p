@@ -122,6 +122,11 @@ export interface ProBoardProps {
    *  clear who is attacking whom during the attack phase (issue #148). null = no
    *  combat in progress, no arrow. */
   attack?: { attacker: FighterId; target: FighterId } | null;
+  /** Per-fighter disambiguator number drawn as a badge on the token (issue #161).
+   *  Only populated when several same-named attackers are offered at once, so the
+   *  "Attack … with Raptor 1 / 2 / 3" sidebar buttons can be matched to the right
+   *  board token. Absent = no badge (the single-attacker case stays uncluttered). */
+  fighterBadges?: Partial<Record<FighterId, number>>;
   /** transient effect overlays (floating damage numbers…) — keyed, caller-expired */
   fx?: BoardFxItem[];
   /** a just-committed move to tween through node-by-node instead of snapping */
@@ -166,6 +171,7 @@ export const ProBoard = ({
   highlightedFighters = [],
   selectedFighter = null,
   attack = null,
+  fighterBadges = {},
   fx = [],
   pendingMove = null,
   onPendingMoveSettled,
@@ -343,6 +349,30 @@ export const ProBoard = ({
             lineHeight="1.4"
           >
             {f.hp}
+          </Flex>
+        )}
+        {segment === "head" && fighterBadges[f.id] != null && (
+          <Flex
+            position="absolute"
+            top="-18%"
+            left="-18%"
+            bg={color}
+            color="#fff"
+            border="1.5px solid #fff"
+            borderRadius="999px"
+            minWidth="1.3em"
+            px="0.25em"
+            fontSize="0.68rem"
+            fontWeight="bold"
+            lineHeight="1.5"
+            boxShadow="0 1px 3px rgba(0,0,0,0.7)"
+            // a name like "Raptor" can recur across several siblings; this
+            // badge number is what ties the token to its sidebar button.
+            title={`#${fighterBadges[f.id]}`}
+            alignItems="center"
+            justifyContent="center"
+          >
+            {fighterBadges[f.id]}
           </Flex>
         )}
       </>

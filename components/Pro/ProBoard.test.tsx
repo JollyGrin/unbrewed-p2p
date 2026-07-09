@@ -154,7 +154,57 @@ describe("ProBoard regions", () => {
   });
 });
 
-// issue #148: an attacker->target arrow so the board shows who is hitting whom
+// issue #161: when several same-named sidekicks can each declare an attack, the
+// sidebar offers one button per attacker but the board gave no clue which token
+// was which. ProBoard now badges a token with a disambiguator number (matched to
+// the button label) so "Attack … with Raptor 2" visibly points at the #2 token.
+describe("ProBoard fighter disambiguator badge (issue #161)", () => {
+  const raptor = (id: string, space: string) =>
+    fighter({ id, owner: "p1", kind: "SIDEKICK", name: "Raptor", space, hp: 3, maxHp: 3 });
+
+  it("renders no badge when none are provided (single-attacker case stays clean)", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard map={MAP} fighters={[raptor("p1/sidekick-1", "s1")]} />
+      </ChakraProvider>
+    );
+    expect(container.querySelector('[title^="#"]')).toBeNull();
+  });
+
+  it("badges each same-named token with its disambiguator number", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[raptor("p1/sidekick-1", "s1"), raptor("p1/sidekick-2", "s2")]}
+          fighterBadges={{ "p1/sidekick-1": 1, "p1/sidekick-2": 2 }}
+        />
+      </ChakraProvider>
+    );
+    const badges = container.querySelectorAll('[title^="#"]');
+    expect(badges).toHaveLength(2);
+    expect([...badges].map((b) => b.textContent)).toStrictEqual(["1", "2"]);
+    expect(badges[0].getAttribute("title")).toBe("#1");
+    expect(badges[1].getAttribute("title")).toBe("#2");
+  });
+
+  it("leaves an unbadged fighter alone when only its sibling carries a number", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[raptor("p1/sidekick-1", "s1"), raptor("p1/sidekick-2", "s2")]}
+          fighterBadges={{ "p1/sidekick-2": 2 }}
+        />
+      </ChakraProvider>
+    );
+    const badges = container.querySelectorAll('[title^="#"]');
+    expect(badges).toHaveLength(1);
+    expect(badges[0].getAttribute("title")).toBe("#2");
+  });
+});
+
+
 // during the attack phase. The arrowhead is the only <polygon> the board draws,
 // so it uniquely identifies the arrow.
 describe("ProBoard attack arrow (issue #148)", () => {
