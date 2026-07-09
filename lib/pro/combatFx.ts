@@ -20,8 +20,11 @@ export type CombatCallout =
   | { kind: "defend" }
   | { kind: "reveal"; source: string };
 
-/** A live callout on screen: a diffed `CombatCallout` plus a stable key. */
-export type CombatCalloutItem = CombatCallout & { key: string };
+/** A live callout on screen: a diffed `CombatCallout` plus a stable key. Reveals
+ *  also carry a `slot` — a cascade index the overlay turns into a small
+ *  down-right offset so two reveals whose lifetimes overlap don't sit dead-center
+ *  on top of each other. */
+export type CombatCalloutItem = CombatCallout & { key: string; slot?: number };
 
 /** How long each flourish lingers before its timer removes it (ms). */
 const TTL_MS: Record<CombatCallout["kind"], number> = {
@@ -29,6 +32,18 @@ const TTL_MS: Record<CombatCallout["kind"], number> = {
   defend: 1700,
   reveal: 2300,
 };
+
+/** Reveals never mount on top of each other: each one waits this long after the
+ *  previous reveal *appeared*, so a multi-reveal turn deals them out one at a
+ *  time instead of flashing a whole stack at once. */
+const REVEAL_STAGGER_MS = 650;
+/** Cap the reveal backlog. A redacted combo (nested STUNTs, cascading effects)
+ *  could queue a dozen reveals, which would drift far behind the board; past
+ *  this lead we drop the overflow — reveals are decorative. */
+const REVEAL_MAX_LEAD_MS = 2600;
+/** Distinct cascade positions. Any reveals still overlapping in time step
+ *  down-right through these slots (wrapping) instead of stacking dead-center. */
+const REVEAL_SLOTS = 4;
 
 /** The defender is on the clock: combat has reached its commit-defense stage and
  *  YOU are the one who must answer. Precise enough to never fire while you are the
@@ -92,6 +107,10 @@ export function useCombatCallouts(
   const prevViewRef = useRef<PlayerView | null>(null);
   const seqRef = useRef(0);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Reveal-queue bookkeeping: the timestamp the next reveal may appear, and a
+  // monotonic cascade counter that resets once the queue has fully drained.
+  const revealFreeAtRef = useRef(0);
+  const revealCycleRef = useRef(0);
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
 
@@ -107,15 +126,34 @@ export function useCombatCallouts(
     if (!enabledRef.current) return;
     const callouts = diffCombatCallouts(prev, snapshot.view, snapshot.events);
     if (callouts.length === 0) return;
-    const added = callouts.map((c) => ({ ...c, key: `cx-${seqRef.current++}` }));
-    setItems((cur) => [...cur, ...added]);
-    for (const item of added) {
+
+    const removeLater = (key: string, delay: number) =>
       timersRef.current.push(
-        setTimeout(
-          () => setItems((cur) => cur.filter((i) => i.key !== item.key)),
-          TTL_MS[item.kind]
-        )
+        setTimeout(() => setItems((cur) => cur.filter((i) => i.key !== key)), delay)
       );
+
+    const now = Date.now();
+    // A drained queue restarts the cascade at slot 0 (dead-center) so a fresh
+    // burst isn't offset by wherever the last one happened to stop.
+    if (revealFreeAtRef.current <= now) revealCycleRef.current = 0;
+
+    for (const c of callouts) {
+      const key = `cx-${seqRef.current++}`;
+      if (c.kind !== "reveal") {
+        // Turn / defend are view-derived beats — fire immediately, as before.
+        setItems((cur) => [...cur, { ...c, key }]);
+        removeLater(key, TTL_MS[c.kind]);
+        continue;
+      }
+      // Reveal: stagger the entrance, cap the backlog, cascade the position.
+      const showAt = Math.max(now, revealFreeAtRef.current);
+      if (showAt - now > REVEAL_MAX_LEAD_MS) continue; // drop overflow
+      const delay = showAt - now;
+      const slot = revealCycleRef.current++ % REVEAL_SLOTS;
+      revealFreeAtRef.current = showAt + REVEAL_STAGGER_MS;
+      const item: CombatCalloutItem = { ...c, key, slot };
+      timersRef.current.push(setTimeout(() => setItems((cur) => [...cur, item]), delay));
+      removeLater(key, delay + TTL_MS.reveal);
     }
   }, [snapshot]);
 
