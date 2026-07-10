@@ -21,6 +21,19 @@
  * panel stays put until the user acts. `resetKeys` is offered for callers that
  * DO have a reason to re-attempt (and for tests to simulate a reconnect); a
  * value change clears the error exactly once, and a repeat throw is re-caught.
+ *
+ * Render-fuzz detection seam (contract consumed by the render-fuzz harness,
+ * PR #181). Because this boundary is designed to SWALLOW render throws into a
+ * recoverable panel, it would otherwise hide exactly the crashes that harness
+ * exists to catch — turning its gate green-while-blind. Two stable hooks keep it
+ * observable, and both are part of this component's public contract:
+ *   - `onCaught(error, info)` — an optional callback fired from componentDidCatch
+ *     (after the console log). The fuzz harness passes it to assert a throw was
+ *     caught and to capture the error/component-stack. No behavior change when
+ *     unset.
+ *   - `data-testid="pro-error-boundary-fallback"` on the fallback panel's root —
+ *     a stable selector the harness queries to confirm the boundary tripped.
+ * Do not rename or remove either without updating PR #181.
  */
 import { Component, ErrorInfo, ReactNode } from "react";
 import { Box, Button, Code, Flex, Text } from "@chakra-ui/react";
@@ -41,6 +54,12 @@ export interface ProErrorBoundaryProps {
    * re-sent identical view would just re-throw); primarily a testing seam.
    */
   resetKeys?: ReadonlyArray<unknown>;
+  /**
+   * Render-fuzz detection seam (PR #181). Fired from componentDidCatch after the
+   * console log, so a harness can observe throws this boundary would otherwise
+   * swallow. Optional — no behavior change when unset.
+   */
+  onCaught?: (error: Error, info: { componentStack?: string }) => void;
 }
 
 /** Identifiers pinned to the state that actually threw. */
@@ -84,6 +103,9 @@ export class ProErrorBoundary extends Component<
       error,
       info.componentStack
     );
+    // Render-fuzz seam (PR #181): let a harness observe the throw we're about to
+    // swallow. After the console log, before any state change bails us out.
+    this.props.onCaught?.(error, { componentStack: info.componentStack ?? undefined });
     // Pin the identifiers of the state that threw. `this.props` here still holds
     // the props of the render that crashed (this fires during that render's
     // commit), before the socket pushes a newer view and the props drift.
@@ -120,6 +142,7 @@ export class ProErrorBoundary extends Component<
         px="1rem"
         textAlign="center"
         role="alert"
+        data-testid="pro-error-boundary-fallback"
       >
         <Text
           fontFamily="LeagueGothic"
