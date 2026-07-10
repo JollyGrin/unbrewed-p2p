@@ -184,11 +184,23 @@
  * `duel`); rooms fill seats in runtime order and start once the selected format's
  * player count is reached. PlayerView keeps the duel `self`/`opponent` aliases
  * for compatibility and adds `players[]`, the multiplayer-safe per-seat view.
+ *
+ * ## v14 (2026-07-10): host-filled easy bot slots
+ * `CREATE_ROOM.botSeats[]` lets the host mark non-host runtime seats as easy AI
+ * occupants in any supported format. Human joins still fill the next open runtime
+ * slot; planned bot slots materialize automatically once earlier human slots are
+ * filled.
  */
-export const PROTOCOL_VERSION = 13;
+export const PROTOCOL_VERSION = 14;
 
 /** Scripted-AI strength preset (server-side budgets; client treats as opaque). */
 export type BotDifficulty = "easy" | "medium" | "hard";
+
+export interface BotSeatFill {
+  player: PlayerId;
+  difficulty: BotDifficulty;
+  heroId?: string;
+}
 
 // ---------------------------------------------------------------------------
 // Shared primitives (mirror engine/types.ts — keep in lockstep)
@@ -660,7 +672,11 @@ export type ClientMsg =
   | { v: number; type: "LIST_LOBBIES" }
   // `customMap` (v4): playtest an unpublished board — the server validates it
   // and uses it for this room only. Composes with `bot`. Omit for the default map.
-  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; bot?: { difficulty: BotDifficulty; heroId?: string }; customMap?: ProMapDef }
+  // `seed` (dev-only): overrides the server-picked game seed so a whole match —
+  // hands included — reproduces from {seed, actionLog}. HONORED ONLY when the
+  // server enables it (PRO_ALLOW_DEV_SEED=1); production ignores it. Additive and
+  // never sent by the real client, so it needs no client-side protocol sync.
+  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef }
   | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string }
   | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }
