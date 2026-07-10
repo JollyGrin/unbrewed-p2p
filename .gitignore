@@ -13,6 +13,9 @@ gameserver/unbrewed-server
 /coverage
 /screenshots
 
+# render-fuzz sweep output (unbrewed-p2p-179) — findings are generated locally
+render-fuzz-findings/
+
 # next.js
 /.next/
 /out/
