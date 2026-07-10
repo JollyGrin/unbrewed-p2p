@@ -17,6 +17,8 @@ import { useRouter } from "next/router";
 import { Box, Button, Flex, Grid, Link, Menu, MenuButton, MenuItem, MenuList, Tag, Text, Textarea, Tooltip } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
 import { MOVE_STEP_SECONDS, PendingMove, ProBoard } from "@/components/Pro/ProBoard";
+import { ProErrorBoundary } from "@/components/Pro/ProErrorBoundary";
+import { stateHash } from "@/lib/pro/stateHash";
 import {
   Action,
   BotDifficulty,
@@ -1133,7 +1135,7 @@ const HeroSelectLobby = ({
 // ---------------------------------------------------------------------------
 
 const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string | null }) => {
-  const { status, roomId, roomInfo, snapshot, opponentConnected, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, requestLobbies, setVisibility, serverRestarting, gameLost } =
+  const { status, roomId, roomInfo, snapshot, opponentConnected, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, requestLobbies, setVisibility, serverRestarting, gameLost } =
     useProSocket(WS_URL);
   const [joined, setJoined] = useState(false);
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
@@ -1360,6 +1362,19 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
     toast("Nothing to undo.", { icon: "↩️" });
     acknowledgeUndoUnavailable();
   }, [undoUnavailable, acknowledgeUndoUnavailable]);
+
+  // Non-fatal engine error (issue #178): the server couldn't process our action
+  // but the game is intact and the socket is still open. One-shot notice, then
+  // acknowledge — the board stays live and the player can try something else.
+  // Deliberately NOT the "We lost your game" screen (that's socket-close only).
+  useEffect(() => {
+    if (!serverError) return;
+    // Stable id so retrying a broken action coalesces instead of stacking toasts.
+    toast.error("The server couldn't process that action — try again or take a different action.", {
+      id: "pro-server-error",
+    });
+    acknowledgeServerError();
+  }, [serverError, acknowledgeServerError]);
 
   if (!joined) {
     const effectiveHeroId = selectedHeroId ?? (heroes === null ? heroParam : null);
@@ -1827,6 +1842,16 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
     });
 
   return (
+    <ProErrorBoundary
+      roomId={roomId}
+      seat={view.you}
+      stateHash={stateHash(view)}
+      onLeave={() => {
+        // Escape hatch when re-render keeps failing: back to a clean lobby. The
+        // reconnect token stays in localStorage, so this room is still resumable.
+        if (typeof window !== "undefined") window.location.href = "/pro/game";
+      }}
+    >
     <CardPreviewProvider>
     <Box h="100svh" overflow="hidden" bg={TABLE_BG} position="relative">
       {/* Playtesting a custom board (this player created it): a near-invisible
@@ -2120,6 +2145,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
       </Flex>
     </Box>
     </CardPreviewProvider>
+    </ProErrorBoundary>
   );
 };
 

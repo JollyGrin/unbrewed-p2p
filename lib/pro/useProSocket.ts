@@ -116,6 +116,16 @@ export interface UseProSocketReturn {
   acknowledgeUndoRejected: () => void;
   undoUnavailable: boolean;
   acknowledgeUndoUnavailable: () => void;
+  /**
+   * Non-fatal: the engine rejected our last action with an internal error
+   * (ERROR{ SERVER_ERROR }) but did NOT close the socket — game state is intact
+   * and other seats are unaffected (see unbrewed-engine server/index.ts). Latches
+   * true so the UI can show a light "couldn't process that action" notice and
+   * keep the board interactive; call `acknowledgeServerError` after showing it.
+   * This is emphatically NOT the disconnect/loss path (issue #178).
+   */
+  serverError: boolean;
+  acknowledgeServerError: () => void;
   /** ask the server for the current public-lobby list (poll while browsing) */
   requestLobbies: () => void;
   /** list/unlist our current room in the public lobby browser */
@@ -188,6 +198,10 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
   const [undoPending, setUndoPending] = useState(false);
   const [undoRejected, setUndoRejected] = useState(false);
   const [undoUnavailable, setUndoUnavailable] = useState(false);
+  // Non-fatal engine error latch (issue #178): the server answered our action
+  // with ERROR{ SERVER_ERROR } but kept the socket open. Surface a light notice
+  // and leave the board interactive — never the disconnect/loss path.
+  const [serverError, setServerError] = useState(false);
 
   const send = useCallback((msg: ClientMsg) => {
     const ws = wsRef.current;
@@ -324,6 +338,15 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
           if (msg.code === "UNDO_UNAVAILABLE") {
             setUndoPending(false);
             setUndoUnavailable(true);
+            break;
+          }
+          // SERVER_ERROR (issue #178): the engine hit an internal error handling
+          // this action, but the socket stays OPEN and the game state is intact —
+          // other seats are unaffected. This is NOT a disconnect. Surface a light
+          // non-fatal notice and keep the board live; do NOT enter the loss path
+          // (no setError, no forgetRoom, no gameLost) so the player can act again.
+          if (msg.code === "SERVER_ERROR") {
+            setServerError(true);
             break;
           }
           // A room lost to a redeploy answers ROOM_NOT_FOUND (room gone) or
@@ -466,6 +489,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
 
   const acknowledgeUndoRejected = useCallback(() => setUndoRejected(false), []);
   const acknowledgeUndoUnavailable = useCallback(() => setUndoUnavailable(false), []);
+  const acknowledgeServerError = useCallback(() => setServerError(false), []);
 
   const requestLobbies = useCallback(() => {
     send({ v: PROTOCOL_VERSION, type: "LIST_LOBBIES" });
@@ -502,6 +526,8 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
     acknowledgeUndoRejected,
     undoUnavailable,
     acknowledgeUndoUnavailable,
+    serverError,
+    acknowledgeServerError,
     requestLobbies,
     setVisibility,
     serverRestarting,
