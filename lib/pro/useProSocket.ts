@@ -22,6 +22,7 @@ import {
 import {
   Action,
   BotDifficulty,
+  BotSeatFill,
   ClientMsg,
   GameEvent,
   HeroListing,
@@ -91,7 +92,8 @@ export interface UseProSocketReturn {
     heroId: string,
     bot?: { difficulty: BotDifficulty; heroId?: string },
     customMap?: ProMapDef,
-    formatId?: string
+    formatId?: string,
+    botSeats?: BotSeatFill[]
   ) => void;
   joinRoom: (roomId: string, heroId: string) => void;
   sendAction: (action: Action) => void;
@@ -403,7 +405,13 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
   }, [wsUrl, connect, clearResumeDeadline]);
 
   const createRoom = useCallback(
-    (heroId: string, bot?: { difficulty: BotDifficulty; heroId?: string }, customMap?: ProMapDef, formatId?: string) => {
+    (
+      heroId: string,
+      bot?: { difficulty: BotDifficulty; heroId?: string },
+      customMap?: ProMapDef,
+      formatId?: string,
+      botSeats?: BotSeatFill[]
+    ) => {
       setError(null); // clear any prior room/hero error on a fresh attempt
       setGameLost(false); // starting a brand-new game — no lost game to mourn
       hadStateRef.current = false;
@@ -413,6 +421,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
         type: "CREATE_ROOM",
         heroId,
         ...(bot ? { bot } : {}),
+        ...(botSeats && botSeats.length > 0 ? { botSeats } : {}),
         ...(customMap ? { customMap } : {}),
         ...(formatId && formatId !== "duel" ? { formatId } : {}),
       };
