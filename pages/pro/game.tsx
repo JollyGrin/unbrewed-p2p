@@ -64,7 +64,18 @@ import { useCombatCallouts, CombatCalloutItem } from "@/lib/pro/combatFx";
 import { useIncomingMoveTween } from "@/lib/pro/moveTween";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
-import { formatChoice, MULTIPLAYER_PLAYTEST_MAP, PRO_FORMATS, ProFormatId } from "@/lib/pro/multiplayerPlaytest";
+import { formatChoice, PRO_FORMATS, ProFormatId } from "@/lib/pro/multiplayerPlaytest";
+import {
+  CUSTOM_MAP_ID,
+  FORMAT_BADGE,
+  MAP_CATALOG,
+  catalogEntry,
+  customMapForEntry,
+  defaultMapIdForFormat,
+  eligibleFormats,
+  ineligibleReason,
+  mapEligibleForFormat,
+} from "@/lib/pro/mapCatalog";
 
 /** same table felt the sandbox game uses (game.layout.tsx) */
 const TABLE_BG = "radial-gradient(ellipse at 50% 20%, #5A3263 0%, #48284F 50%, #2C1831 100%)";
@@ -879,8 +890,8 @@ const HeroSelectLobby = ({
   onConfirm,
   customMapJson,
   onCustomMapJsonChange,
-  showMapInput,
-  onToggleMapInput,
+  selectedMapId,
+  onSelectMap,
   mapError,
 }: {
   room: string | null;
@@ -900,8 +911,9 @@ const HeroSelectLobby = ({
   /** raw custom-map JSON (create flow only) — persisted in the parent */
   customMapJson: string;
   onCustomMapJsonChange: (json: string) => void;
-  showMapInput: boolean;
-  onToggleMapInput: () => void;
+  /** chosen board: a MAP_CATALOG id, or CUSTOM_MAP_ID for the paste-JSON option */
+  selectedMapId: string;
+  onSelectMap: (id: string) => void;
   /** local parse error or the server's BAD_MAP message, shown inline */
   mapError: string | null;
 }) => {
@@ -1008,8 +1020,115 @@ const HeroSelectLobby = ({
           </Flex>
           <Text fontSize="0.7rem" opacity={0.6} textAlign="center">
             {format.detail} · {format.requiredPlayers} players
-            {multiplayer ? " · uses a built-in playtest map unless you paste one" : ""}
           </Text>
+        </Flex>
+      )}
+
+      {/* Board picker (create flow only): one card per built-in board plus a
+          "Custom…" card that reveals the paste-JSON textarea. Ineligible boards
+          render disabled with the reason — never hidden — mirroring the server's
+          per-format map support so a rendered-eligible card never BAD_MAPs. */}
+      {!room && (
+        <Flex direction="column" alignItems="center" gap="0.65rem" w="100%" maxW="34rem">
+          <Text fontFamily="BebasNeueRegular" fontSize="1.1rem" letterSpacing="0.08em" opacity={0.75}>
+            Board
+          </Text>
+          <Grid
+            w="100%"
+            templateColumns={{ base: "repeat(2, 1fr)", sm: "repeat(3, 1fr)", md: "repeat(4, 1fr)" }}
+            gap="0.6rem"
+          >
+            {MAP_CATALOG.map((entry) => {
+              const reason = ineligibleReason(entry.map, selectedFormat);
+              const eligible = reason === null;
+              const selected = selectedMapId === entry.id;
+              return (
+                <Flex
+                  as="button"
+                  key={entry.id}
+                  direction="column"
+                  gap="0.3rem"
+                  p="0.35rem"
+                  borderRadius="0.5rem"
+                  border="2px solid"
+                  borderColor={selected ? "brand.accent" : "whiteAlpha.200"}
+                  bg="rgba(20, 8, 24, 0.55)"
+                  opacity={eligible ? 1 : 0.4}
+                  cursor={eligible ? "pointer" : "not-allowed"}
+                  transition="border-color 0.15s, opacity 0.15s"
+                  _hover={eligible ? { borderColor: selected ? "brand.accent" : "whiteAlpha.400" } : {}}
+                  onClick={() => eligible && onSelectMap(entry.id)}
+                  disabled={!eligible}
+                  textAlign="left"
+                >
+                  <Box
+                    w="100%"
+                    sx={{ aspectRatio: "16 / 10" }}
+                    borderRadius="0.35rem"
+                    bgImage={`url("${entry.thumbnailUrl}")`}
+                    bgSize="cover"
+                    bgPosition="center"
+                    bgColor="rgba(0,0,0,0.4)"
+                  />
+                  <Text fontFamily="BebasNeueRegular" fontSize="0.85rem" lineHeight="1.05" noOfLines={2}>
+                    {entry.title}
+                  </Text>
+                  <Flex gap="0.25rem" flexWrap="wrap">
+                    {eligibleFormats(entry.map).map((fid) => (
+                      <Text
+                        key={fid}
+                        fontSize="0.55rem"
+                        fontFamily="SpaceGrotesk"
+                        letterSpacing="0.05em"
+                        px="0.3rem"
+                        borderRadius="0.25rem"
+                        bg="whiteAlpha.200"
+                        opacity={0.8}
+                      >
+                        {FORMAT_BADGE[fid]}
+                      </Text>
+                    ))}
+                  </Flex>
+                  {!eligible && (
+                    <Text fontSize="0.55rem" fontFamily="SpaceGrotesk" color="#E0A06E" opacity={0.85}>
+                      {reason}
+                    </Text>
+                  )}
+                </Flex>
+              );
+            })}
+
+            {/* Custom… card — reveals the paste-JSON textarea below */}
+            <Flex
+              as="button"
+              direction="column"
+              gap="0.3rem"
+              p="0.35rem"
+              borderRadius="0.5rem"
+              border="2px dashed"
+              borderColor={selectedMapId === CUSTOM_MAP_ID ? "brand.accent" : "whiteAlpha.300"}
+              bg="rgba(20, 8, 24, 0.35)"
+              cursor="pointer"
+              transition="border-color 0.15s"
+              _hover={{ borderColor: "whiteAlpha.500" }}
+              onClick={() => onSelectMap(CUSTOM_MAP_ID)}
+              alignItems="center"
+              justifyContent="center"
+              textAlign="center"
+            >
+              <Box w="100%" sx={{ aspectRatio: "16 / 10" }} display="flex" alignItems="center" justifyContent="center">
+                <Text fontSize="1.6rem" opacity={0.5}>
+                  +
+                </Text>
+              </Box>
+              <Text fontFamily="BebasNeueRegular" fontSize="0.85rem">
+                Custom…
+              </Text>
+              <Text fontSize="0.55rem" fontFamily="SpaceGrotesk" opacity={0.5}>
+                paste map JSON
+              </Text>
+            </Flex>
+          </Grid>
         </Flex>
       )}
 
@@ -1074,29 +1193,12 @@ const HeroSelectLobby = ({
         {room ? "Join" : multiplayer ? `Create ${format.label}` : opponent === "human" ? "Create" : "Play vs AI"}
       </Button>
 
-      {/* Power-user affordance (create flow only): playtest an unpublished board
-          by pasting its JSON. Kept near-invisible so it doesn't compete for a
-          normal player's attention. Composes with a human or AI opponent. */}
-      {!room && (
+      {/* Custom board: the paste-JSON textarea, revealed only when the Custom…
+          card above is selected. Behavior (validation, BAD_MAP bounce) unchanged. */}
+      {!room && selectedMapId === CUSTOM_MAP_ID && (
         <Box maxW="28rem" w="100%">
-          {!showMapInput ? (
-            <Text
-              as="button"
-              onClick={onToggleMapInput}
-              display="block"
-              mx="auto"
-              fontFamily="SpaceGrotesk"
-              fontSize="0.7rem"
-              letterSpacing="0.08em"
-              opacity={0.35}
-              _hover={{ opacity: 0.75 }}
-              transition="opacity 0.15s"
-            >
-              playtest a custom map
-            </Text>
-          ) : (
-            <Flex direction="column" gap="0.4rem">
-              <Textarea
+          <Flex direction="column" gap="0.4rem">
+            <Textarea
                 value={customMapJson}
                 onChange={(e) => onCustomMapJsonChange(e.target.value)}
                 placeholder="paste map JSON exported from /dev/map-editor — leave blank for the default board"
@@ -1118,8 +1220,7 @@ const HeroSelectLobby = ({
                   only you set this up · other players just join the room link
                 </Text>
               )}
-            </Flex>
-          )}
+          </Flex>
         </Box>
       )}
 
@@ -1141,6 +1242,10 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
   const [opponent, setOpponent] = useState<OpponentChoice>("human");
   const [selectedFormat, setSelectedFormat] = useState<ProFormatId>("duel");
+  // Chosen board in the create flow: a MAP_CATALOG id or CUSTOM_MAP_ID. Starts
+  // on the duel default (The Mended Drum) and follows the format's default when
+  // the format changes to one the current board can't host.
+  const [selectedMapId, setSelectedMapId] = useState<string>(defaultMapIdForFormat("duel"));
   const [aiHeroId, setAiHeroId] = useState<string | null>(null);
   const [selectedFighter, setSelectedFighter] = useState<FighterId | null>(null);
   // First space tapped in a two-tap LARGE-fighter move pick (issue #132), scoped
@@ -1161,7 +1266,6 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   // Custom-map playtest (create flow): raw JSON persists across a BAD_MAP bounce
   // so a power user can fix the board and retry without re-pasting.
   const [customMapJson, setCustomMapJson] = useState("");
-  const [showMapInput, setShowMapInput] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   // Prefilled "submit this map" GitHub issue URL — only when THIS player created
   // the room with a (server-accepted) custom board. null otherwise.
@@ -1316,7 +1420,9 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
     }
     if (error?.code === "BAD_MAP") {
       setJoined(false);
-      setShowMapInput(true);
+      // Only a pasted custom board realistically fails validation; select the
+      // Custom… option so its textarea (where the error renders) is visible.
+      setSelectedMapId(CUSTOM_MAP_ID);
       setMapError(error.message);
     }
   }, [error]);
@@ -1418,6 +1524,14 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
           onSelectFormat={(format) => {
             setSelectedFormat(format);
             if (format !== "duel") setOpponent("human");
+            // Keep a still-eligible board (and a "Custom…" choice) selected;
+            // otherwise fall back to the new format's default board.
+            setSelectedMapId((prev) => {
+              if (prev === CUSTOM_MAP_ID) return prev;
+              const entry = catalogEntry(prev);
+              if (entry && mapEligibleForFormat(entry.map, format)) return prev;
+              return defaultMapIdForFormat(format);
+            });
           }}
           onSelectOpponent={setOpponent}
           onSelectHero={setSelectedHeroId}
@@ -1428,8 +1542,11 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
             setCustomMapJson(json);
             if (mapError) setMapError(null); // clear stale error as they edit
           }}
-          showMapInput={showMapInput}
-          onToggleMapInput={() => setShowMapInput((v) => !v)}
+          selectedMapId={selectedMapId}
+          onSelectMap={(id) => {
+            setSelectedMapId(id);
+            if (mapError) setMapError(null);
+          }}
           mapError={mapError}
           onConfirm={() => {
             if (!effectiveHeroId) return;
@@ -1439,22 +1556,30 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
               setJoined(true);
               return;
             }
-            // Create flow: parse the optional custom board just-in-time. Local
-            // structural errors stay in the lobby; the server re-validates the
-            // graph and answers BAD_MAP (handled by the error effect above).
+            // Create flow: resolve the chosen board. A catalog board sends its
+            // ProMapDef (or nothing, for the server-default duel board); the
+            // Custom… option parses the pasted JSON just-in-time. Local errors
+            // stay in the lobby; the server re-validates and answers BAD_MAP.
             let customMap: ProMapDef | undefined;
-            const trimmed = customMapJson.trim();
-            if (trimmed) {
-              try {
-                customMap = normalizeMap(JSON.parse(trimmed));
-              } catch (e) {
-                setMapError(e instanceof Error ? e.message : "invalid JSON");
-                setShowMapInput(true);
-                return;
+            if (selectedMapId === CUSTOM_MAP_ID) {
+              const trimmed = customMapJson.trim();
+              if (trimmed) {
+                try {
+                  customMap = normalizeMap(JSON.parse(trimmed));
+                } catch (e) {
+                  setMapError(e instanceof Error ? e.message : "invalid JSON");
+                  return;
+                }
+              } else {
+                // blank Custom… → fall back to the format's default board
+                const def = catalogEntry(defaultMapIdForFormat(selectedFormat));
+                customMap = def ? customMapForEntry(def) : undefined;
               }
-            }
-            if (!customMap && selectedFormat !== "duel") {
-              customMap = MULTIPLAYER_PLAYTEST_MAP;
+            } else {
+              const entry =
+                catalogEntry(selectedMapId) ??
+                catalogEntry(defaultMapIdForFormat(selectedFormat))!;
+              customMap = customMapForEntry(entry);
             }
             setMapError(null);
             const bot =
@@ -1564,9 +1689,15 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
             {(() => {
               const required = roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers;
               const seated = roomInfo?.seats.length ?? 1;
-              return required <= 2
-                ? "Waiting for an opponent — the game starts the moment they join."
-                : `Waiting for players — ${seated}/${required} seats joined. Share the same link with everyone.`;
+              const boardTitle =
+                selectedMapId === CUSTOM_MAP_ID
+                  ? "a custom board"
+                  : catalogEntry(selectedMapId)?.title ?? "the default board";
+              const waiting =
+                required <= 2
+                  ? "Waiting for an opponent — the game starts the moment they join."
+                  : `Waiting for players — ${seated}/${required} seats joined. Share the same link with everyone.`;
+              return `${waiting} · playing on ${boardTitle}.`;
             })()}
           </Text>
 
