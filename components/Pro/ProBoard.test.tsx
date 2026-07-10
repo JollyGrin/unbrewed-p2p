@@ -254,6 +254,78 @@ describe("ProBoard attack arrow (issue #148)", () => {
   });
 });
 
+// issue #185: a CHOOSE_SPACE prompt highlights the space, but the fighter token
+// (zIndex 4) sits on top of the space hit-circle (zIndex 3) and swallowed the
+// click — Chain Lightning et al. could not be aimed at an occupied space. The
+// token now forwards a click to onSpaceClick when its own space is highlighted,
+// while still routing fighter-target clicks to onFighterClick.
+describe("ProBoard fighter token over a highlighted space (issue #185)", () => {
+  it("forwards a click on a fighter standing on a highlighted space to onSpaceClick", () => {
+    const onSpaceClick = jest.fn();
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[fighter({ space: "s1" })]}
+          highlightedSpaces={["s1"]}
+          onSpaceClick={onSpaceClick}
+        />
+      </ChakraProvider>
+    );
+    fireEvent.click(screen.getByTitle(/The Mandalorian/));
+    expect(onSpaceClick).toHaveBeenCalledWith("s1");
+  });
+
+  it("gives that token a pointer cursor so it reads as clickable", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[fighter({ space: "s1" })]}
+          highlightedSpaces={["s1"]}
+          onSpaceClick={() => {}}
+        />
+      </ChakraProvider>
+    );
+    expect(getComputedStyle(screen.getByTitle(/The Mandalorian/)).cursor).toBe("pointer");
+  });
+
+  it("does not forward when the token's space is not the highlighted one", () => {
+    const onSpaceClick = jest.fn();
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[fighter({ space: "s1" })]}
+          highlightedSpaces={["s2"]}
+          onSpaceClick={onSpaceClick}
+        />
+      </ChakraProvider>
+    );
+    fireEvent.click(screen.getByTitle(/The Mandalorian/));
+    expect(onSpaceClick).not.toHaveBeenCalled();
+  });
+
+  it("still routes a fighter-target click to onFighterClick, not onSpaceClick", () => {
+    const onFighterClick = jest.fn();
+    const onSpaceClick = jest.fn();
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[fighter({ id: "p1/hero", space: "s1" })]}
+          highlightedFighters={["p1/hero"]}
+          onFighterClick={onFighterClick}
+          onSpaceClick={onSpaceClick}
+        />
+      </ChakraProvider>
+    );
+    fireEvent.click(screen.getByTitle(/The Mandalorian/));
+    expect(onFighterClick).toHaveBeenCalledWith("p1/hero");
+    expect(onSpaceClick).not.toHaveBeenCalled();
+  });
+});
+
 // issue #120: pinch/scroll zoom + drag pan, gated behind the `zoomMap` flag.
 // The frame (shrink-wrap box holding the art + every overlay) is transformed as
 // one unit; the identity-based click model is untouched, so a click still lands

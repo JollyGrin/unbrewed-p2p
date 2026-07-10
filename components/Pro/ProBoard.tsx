@@ -320,7 +320,20 @@ export const ProBoard = ({
     const color = PLAYER_COLOR[f.owner] ?? "#999";
     const isSelected = f.id === selectedFighter;
     const isTarget = highlightFighterSet.has(f.id);
-    const clickable = isTarget && !!onFighterClick;
+    // A CHOOSE_SPACE prompt highlights the space *under* the token, and the
+    // token (zIndex 4) sits above the space hit-circle (zIndex 3) — a click
+    // lands on the token and would die here (DOM siblings don't forward events
+    // downward). So when this token's own space is a highlightable target and
+    // the token isn't itself a fighter-click target, forward the click to the
+    // space. Fighter-target clicks (attack / CHOOSE_TARGET) still take priority.
+    const spaceHighlighted = highlightSet.has(s.id) && !!onSpaceClick;
+    const fighterClickable = isTarget && !!onFighterClick;
+    const clickable = fighterClickable || spaceHighlighted;
+    const handleClick = fighterClickable
+      ? () => onFighterClick!(f.id)
+      : spaceHighlighted
+        ? () => onSpaceClick!(s.id)
+        : undefined;
     const key = segment === "head" ? f.id : `${f.id}-tail`;
 
     const children = (
@@ -418,7 +431,7 @@ export const ProBoard = ({
         }
         animation={isTarget ? `${highlightPulse} 1.4s ease-in-out infinite` : undefined}
         cursor={clickable ? "pointer" : "default"}
-        onClick={clickable ? () => onFighterClick!(f.id) : undefined}
+        onClick={handleClick}
         // `MotionFlex` is `chakra(motion.div, …)`, a plain div — unlike the
         // real `Flex` component it doesn't default to `display: flex`, so
         // `alignItems`/`justifyContent` below were silently inert (issue
