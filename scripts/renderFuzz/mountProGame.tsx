@@ -29,6 +29,9 @@ import ProGamePage from "@/pages/pro/game";
 import { PROTOCOL_VERSION } from "@/lib/pro/protocol";
 import type { Action, GameEvent, PlayerView } from "@/lib/pro/protocol";
 import { installFakeWebSocket, installPolyfills, FakeWebSocket } from "./domEnv";
+import { FALLBACK_TESTID, fallbackShownIn, parseBoundaryMarker, RenderThrow } from "./detect";
+
+export type { RenderThrow } from "./detect";
 
 // The app's .tsx files (game.tsx and its children) use the CLASSIC JSX runtime
 // and do NOT import React, relying on it being in scope. When this harness runs
@@ -37,14 +40,6 @@ import { installFakeWebSocket, installPolyfills, FakeWebSocket } from "./domEnv"
 // the real React as a global so those resolve — a no-op under Jest/SWC's
 // automatic runtime, where the transform injects its own import.
 (globalThis as Record<string, unknown>).React = React;
-
-/** A caught render failure, with enough to re-open the exact spot in the code. */
-export interface RenderThrow {
-  message: string;
-  stack: string | null;
-  /** React's descendant chain to the throwing component (from componentDidCatch). */
-  componentStack: string | null;
-}
 
 export interface RenderOutcome {
   ok: boolean;
@@ -102,26 +97,17 @@ const fakeRouter = (room: string): Record<string, unknown> => ({
   beforePopState() {},
 });
 
-/** Run `fn` with React/jsdom console noise muted (the ErrorBoundary already
- *  captures the real error, so React's redundant console.error and the
- *  test-utils act() deprecation are pure clutter). */
-async function quietly(fn: () => Promise<void>): Promise<void> {
-  const err = console.error;
-  const warn = console.warn;
-  console.error = () => {};
-  console.warn = () => {};
-  try {
-    await fn();
-  } finally {
-    console.error = err;
-    console.warn = warn;
-  }
-}
-
 /**
  * Render a single server view in isolation. Returns `{ ok: true }` if the page
  * mounted and applied the STATE without throwing, or `{ ok: false, error }`
  * with the message + component stack of the first render throw.
+ *
+ * Two throw signals are honored, because the page's OWN ProErrorBoundary catches
+ * board-level crashes before our outer boundary can:
+ *   1. our outer RenderThrowBoundary — for throws ABOVE the page's boundary
+ *      (LiveGame body derivations, provider setup, etc.), and
+ *   2. the page's ProErrorBoundary detection seam — its console marker (parsed,
+ *      not muted) plus its fallback `data-testid` — for throws it swallowed.
  */
 export async function renderView(
   view: PlayerView,
@@ -141,9 +127,28 @@ export async function renderView(
     /* sessionStorage may be unavailable in some envs; the lobby path still renders */
   }
 
-  let captured: RenderThrow | null = null;
+  // 1. Throws that escape the page's own boundary land here.
+  let outerCapture: RenderThrow | null = null;
   const onError = (e: RenderThrow) => {
-    if (!captured) captured = e;
+    if (!outerCapture) outerCapture = e;
+  };
+
+  // 2. Throws the page's ProErrorBoundary swallows: capture its console marker
+  //    instead of blanket-muting console (a plain mute would kill this signal).
+  //    Everything else that React/jsdom logs is still hushed unless RENDER_FUZZ_DEBUG.
+  let markerCapture: RenderThrow | null = null;
+  const realError = console.error;
+  const realWarn = console.warn;
+  console.error = (...args: unknown[]): void => {
+    const parsed = parseBoundaryMarker(args);
+    if (parsed) {
+      if (!markerCapture) markerCapture = parsed;
+      return;
+    }
+    if (process.env.RENDER_FUZZ_DEBUG) realError(...(args as []));
+  };
+  console.warn = (...args: unknown[]): void => {
+    if (process.env.RENDER_FUZZ_DEBUG) realWarn(...(args as []));
   };
 
   const container = document.createElement("div");
@@ -151,58 +156,76 @@ export async function renderView(
   document.body.appendChild(container);
   const root = createRoot(container);
 
-  await quietly(async () => {
+  let fallbackShown = false;
+  let fallbackMessage: string | null = null;
+  try {
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <RouterContext.Provider value={fakeRouter(room) as never}>
+            <ChakraProvider theme={theme}>
+              <RenderThrowBoundary onError={onError}>
+                <ProGamePage />
+              </RenderThrowBoundary>
+            </ChakraProvider>
+          </RouterContext.Provider>
+        </QueryClientProvider>
+      );
+    });
+
+    const ws = FakeWebSocket.latest();
+    if (ws) {
+      await act(async () => {
+        ws.readyState = FakeWebSocket.OPEN;
+        ws.onopen?.({});
+      });
+      await act(async () => {
+        ws.onmessage?.({
+          data: JSON.stringify({
+            v: PROTOCOL_VERSION,
+            type: "STATE",
+            view,
+            legalActions: opts.legalActions ?? [],
+            events: opts.events ?? [],
+          }),
+        });
+      });
+    }
+
+    // The page's boundary tripped into its fallback panel — read it before unmount.
+    fallbackShown = fallbackShownIn(container);
+    if (fallbackShown) {
+      fallbackMessage = container.querySelector(`[data-testid="${FALLBACK_TESTID}"] code`)?.textContent ?? null;
+    }
+  } catch (e) {
+    // A throw that escaped every boundary (e.g. during commit outside a subtree)
+    // is still a genuine render failure — record it.
+    if (!outerCapture) {
+      const err = e as Error;
+      outerCapture = { message: String(err?.message ?? err), stack: err?.stack ?? null, componentStack: null };
+    }
+  } finally {
     try {
       await act(async () => {
-        root.render(
-          <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-            <RouterContext.Provider value={fakeRouter(room) as never}>
-              <ChakraProvider theme={theme}>
-                <RenderThrowBoundary onError={onError}>
-                  <ProGamePage />
-                </RenderThrowBoundary>
-              </ChakraProvider>
-            </RouterContext.Provider>
-          </QueryClientProvider>
-        );
+        root.unmount();
       });
-
-      const ws = FakeWebSocket.latest();
-      if (ws) {
-        await act(async () => {
-          ws.readyState = FakeWebSocket.OPEN;
-          ws.onopen?.({});
-        });
-        await act(async () => {
-          ws.onmessage?.({
-            data: JSON.stringify({
-              v: PROTOCOL_VERSION,
-              type: "STATE",
-              view,
-              legalActions: opts.legalActions ?? [],
-              events: opts.events ?? [],
-            }),
-          });
-        });
-      }
-    } catch (e) {
-      // A throw that escaped the boundary (e.g. during an effect/commit outside
-      // a child subtree) is still a genuine render failure — record it.
-      if (!captured) {
-        const err = e as Error;
-        captured = { message: String(err?.message ?? err), stack: err?.stack ?? null, componentStack: null };
-      }
-    } finally {
-      try {
-        await act(async () => {
-          root.unmount();
-        });
-      } catch {
-        /* unmount best-effort */
-      }
-      container.remove();
+    } catch {
+      /* unmount best-effort */
     }
-  });
+    container.remove();
+    console.error = realError;
+    console.warn = realWarn;
+  }
 
-  return { ok: !captured, error: captured };
+  // Prefer the richest signal: an escaped throw, then the boundary's marked
+  // error, then bare evidence the fallback panel rendered.
+  let error: RenderThrow | null = outerCapture ?? markerCapture;
+  if (!error && fallbackShown) {
+    error = {
+      message: fallbackMessage ?? "render crashed (ProErrorBoundary fallback shown; no error captured)",
+      stack: null,
+      componentStack: null,
+    };
+  }
+  return { ok: !error, error };
 }

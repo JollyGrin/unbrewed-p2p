@@ -197,12 +197,24 @@ export function buildSampleGame(): SampleStep[] {
 }
 
 /**
- * A view hand-mutated to trigger a render throw — the harness's own regression
- * fixture. `fighters` is nulled, emulating a malformed / partially-redacted
- * server payload (the Hollow-Oak class): the board maps over `fighters` during
- * render, so `null.filter(...)` throws deep in the tree and must be CAUGHT as a
- * finding rather than crashing the process.
+ * A view hand-mutated to trigger a render throw INSIDE the board — the harness's
+ * own regression fixture. `tokens` is nulled, emulating a malformed /
+ * partially-redacted server payload (the Hollow-Oak class). `tokens` is consumed
+ * ONLY by ProBoard (`tokens.some(...)`), which the page wraps in its
+ * ProErrorBoundary — so this throw is SWALLOWED by that boundary, exactly the
+ * green-while-blind case the harness must still catch via the boundary's
+ * detection seam (marker + fallback data-testid).
  */
 export function knownBadView(): PlayerView {
+  return buildBaselineView({ tokens: null as unknown as PlayerView["tokens"] });
+}
+
+/**
+ * A view that throws ABOVE the page's boundary: `fighters` is consumed in the
+ * LiveGame render body (before ProErrorBoundary wraps the board), so the throw
+ * escapes to the harness's own outer boundary instead of the page's. Exercises
+ * the second detection path.
+ */
+export function knownBadOuterView(): PlayerView {
   return buildBaselineView({ fighters: null as unknown as ViewFighter[] });
 }

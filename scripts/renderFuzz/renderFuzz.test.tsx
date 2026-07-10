@@ -11,15 +11,20 @@
  *      Running the actual CLI also proves the jsdom mount path itself, without
  *      needing Jest to transform the whole page + Chakra/framer ESM tree.
  */
+import "@testing-library/jest-dom";
+import { render } from "@testing-library/react";
+import { ChakraProvider } from "@chakra-ui/react";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { ProErrorBoundary } from "@/components/Pro/ProErrorBoundary";
 import { sampleJobs } from "./sampling";
 import { viewHash } from "./viewHash";
 import { findViewFiles, readViewFile, readRunDir, RenderJob } from "./runDir";
 import { findingFileName } from "./artifact";
-import { buildBaselineView } from "./sampleViews";
+import { knownBadView } from "./sampleViews";
+import { parseBoundaryMarker, fallbackShownIn, BOUNDARY_MARKER } from "./detect";
 import type { PlayerView } from "@/lib/pro/protocol";
 
 const REPO = resolve(__dirname, "..", "..");
@@ -111,6 +116,65 @@ describe("findingFileName", () => {
   });
 });
 
+describe("parseBoundaryMarker", () => {
+  it("ignores unrelated console.error calls", () => {
+    expect(parseBoundaryMarker(["some other warning", 1, 2])).toBeNull();
+    expect(parseBoundaryMarker([])).toBeNull();
+  });
+
+  it("lifts error + component stack out of the boundary's marker log", () => {
+    const err = new Error("boom");
+    const parsed = parseBoundaryMarker([`${BOUNDARY_MARKER}:`, err, "\n    at ProBoard\n    at ProErrorBoundary"]);
+    expect(parsed).not.toBeNull();
+    expect(parsed!.message).toBe("boom");
+    expect(parsed!.componentStack).toContain("ProErrorBoundary");
+  });
+});
+
+// The critical cross-PR interaction (PR #180): the page wraps its board in
+// ProErrorBoundary, which SWALLOWS a board render throw. React stops at the
+// nearest boundary, so a harness boundary further out never fires. This proves
+// detection still fires — a finding is produced (→ exit 1) — via the boundary's
+// console marker + fallback testid seam, exactly as renderView consumes it.
+describe("detection through a real (swallowing) ProErrorBoundary", () => {
+  const Boom = ({ message }: { message: string }): JSX.Element => {
+    throw new Error(message);
+  };
+
+  it("produces a finding even though the boundary swallows the throw", () => {
+    const errSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    let container: HTMLElement;
+    try {
+      const r = render(
+        <ChakraProvider>
+          <ProErrorBoundary roomId="R" seat="p1" stateHash="h">
+            <Boom message="swallowed board crash" />
+          </ProErrorBoundary>
+        </ChakraProvider>
+      );
+      container = r.container;
+    } finally {
+      // restore below after we read the captured calls
+    }
+
+    // 1. Fallback panel rendered (the boundary tripped) — the DOM signal.
+    expect(fallbackShownIn(container!)).toBe(true);
+
+    // 2. The console marker carried the real error + stack — the rich signal.
+    const marked = errSpy.mock.calls.map((c) => parseBoundaryMarker(c as unknown[])).find(Boolean);
+    errSpy.mockRestore();
+    expect(marked).toBeTruthy();
+    expect(marked!.message).toBe("swallowed board crash");
+    expect(marked!.componentStack).toContain("ProErrorBoundary");
+
+    // 3. renderView's decision: outer boundary saw nothing, yet marker/fallback
+    //    yield an error → the sweep records a finding and exits 1, not 0-blind.
+    const outerCapture = null;
+    const error = outerCapture ?? marked ?? (fallbackShownIn(container!) ? { message: "fallback", stack: null, componentStack: null } : null);
+    expect(error).toBeTruthy();
+  });
+});
+
 // The render subprocess tests boot tsx + mount the real page; give them room.
 const CLI_TIMEOUT = 120_000;
 
@@ -154,9 +218,13 @@ describe("render-fuzz CLI (real jsdom mount)", () => {
         expect(files).toHaveLength(1);
         const finding = JSON.parse(readFileSync(join(out, files[0]), "utf8"));
         expect(finding.error.message).toMatch(/Cannot read properties of null/);
-        expect(finding.error.componentStack).toContain("LiveGame");
+        // Acceptance proof: the throw was SWALLOWED by the page's real
+        // ProErrorBoundary (PR #180) and still caught via its seam — the stack
+        // runs through both the boundary and the board it wraps.
+        expect(finding.error.componentStack).toContain("ProErrorBoundary");
+        expect(finding.error.componentStack).toContain("ProBoard");
         expect(finding.view).toBeTruthy(); // self-contained: repro needs no server
-        expect(finding.viewHash).toBe(viewHash(buildBaselineView({ fighters: null as never })));
+        expect(finding.viewHash).toBe(viewHash(knownBadView()));
       } finally {
         rmSync(out, { recursive: true, force: true });
       }
