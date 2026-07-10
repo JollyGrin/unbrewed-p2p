@@ -88,6 +88,27 @@ describe("ProErrorBoundary", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("pins the throw-time state hash even as live props drift to a newer view", () => {
+    const { rerender } = renderBoundary(
+      <ProErrorBoundary roomId="R1" seat="p1" stateHash="threw-at-this">
+        <Boom bomb message="crash" />
+      </ProErrorBoundary>
+    );
+    expect(screen.getByText(/state threw-at-this/)).toBeInTheDocument();
+
+    // The socket delivers a newer view while the panel is latched: props drift,
+    // but the panel must keep reporting the state that actually crashed.
+    rerender(
+      <ChakraProvider>
+        <ProErrorBoundary roomId="R1" seat="p1" stateHash="newer-view-hash">
+          <Boom bomb message="crash" />
+        </ProErrorBoundary>
+      </ChakraProvider>
+    );
+    expect(screen.getByText(/state threw-at-this/)).toBeInTheDocument();
+    expect(screen.queryByText(/newer-view-hash/)).not.toBeInTheDocument();
+  });
+
   it("on a reconnect that re-sends the same throwing view, re-catches and shows the panel again (no infinite crash loop)", () => {
     // resetKeys models the reconnect: a new view arrives (key changes), the
     // boundary re-attempts the render, the child throws again, and the boundary

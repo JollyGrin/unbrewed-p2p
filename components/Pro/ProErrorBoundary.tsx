@@ -43,8 +43,15 @@ export interface ProErrorBoundaryProps {
   resetKeys?: ReadonlyArray<unknown>;
 }
 
+/** Identifiers pinned to the state that actually threw. */
+type CaughtContext = Pick<ProErrorBoundaryProps, "roomId" | "seat" | "stateHash">;
+
 interface ProErrorBoundaryState {
   error: Error | null;
+  // Snapshotted at catch time so the panel keeps showing the hash/room/seat of
+  // the state that CRASHED — while latched, live props drift to whatever newer
+  // view the socket has since delivered, which would misreport the bug.
+  caught: CaughtContext | null;
 }
 
 const keysChanged = (
@@ -60,9 +67,11 @@ export class ProErrorBoundary extends Component<
   ProErrorBoundaryProps,
   ProErrorBoundaryState
 > {
-  state: ProErrorBoundaryState = { error: null };
+  state: ProErrorBoundaryState = { error: null, caught: null };
 
-  static getDerivedStateFromError(error: Error): ProErrorBoundaryState {
+  static getDerivedStateFromError(error: Error): Partial<ProErrorBoundaryState> {
+    // getDerivedStateFromError is static — no `this.props` here. Just flip into
+    // the error state; the throw-time context is snapshotted in componentDidCatch.
     return { error };
   }
 
@@ -75,23 +84,33 @@ export class ProErrorBoundary extends Component<
       error,
       info.componentStack
     );
+    // Pin the identifiers of the state that threw. `this.props` here still holds
+    // the props of the render that crashed (this fires during that render's
+    // commit), before the socket pushes a newer view and the props drift.
+    const { roomId, seat, stateHash } = this.props;
+    this.setState({ caught: { roomId, seat, stateHash } });
   }
 
   componentDidUpdate(prev: ProErrorBoundaryProps): void {
     if (this.state.error && keysChanged(prev.resetKeys, this.props.resetKeys)) {
-      this.setState({ error: null });
+      this.setState({ error: null, caught: null });
     }
   }
 
   private reset = (): void => {
-    this.setState({ error: null });
+    this.setState({ error: null, caught: null });
   };
 
   render(): ReactNode {
-    const { error } = this.state;
+    const { error, caught } = this.state;
     if (!error) return this.props.children;
 
-    const { roomId, seat, stateHash, onLeave } = this.props;
+    // Prefer the throw-time snapshot; fall back to live props only until the
+    // componentDidCatch snapshot lands (one render) or if it never captured.
+    const { onLeave } = this.props;
+    const roomId = caught ? caught.roomId : this.props.roomId;
+    const seat = caught ? caught.seat : this.props.seat;
+    const stateHash = caught ? caught.stateHash : this.props.stateHash;
     return (
       <Flex
         direction="column"
