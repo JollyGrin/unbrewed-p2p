@@ -52,6 +52,22 @@ describe("ProErrorBoundary", () => {
     );
   });
 
+  it("exposes the render-fuzz seam: onCaught fires with the error and the fallback testid is present (PR #181 contract)", () => {
+    const onCaught = jest.fn();
+    renderBoundary(
+      <ProErrorBoundary onCaught={onCaught}>
+        <Boom bomb message="fuzz caught me" />
+      </ProErrorBoundary>
+    );
+
+    expect(onCaught).toHaveBeenCalledTimes(1);
+    expect(onCaught).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "fuzz caught me" }),
+      expect.objectContaining({ componentStack: expect.any(String) })
+    );
+    expect(screen.getByTestId("pro-error-boundary-fallback")).toBeInTheDocument();
+  });
+
   it("keeps the surrounding app shell alive when a child crashes", () => {
     renderBoundary(
       <div>
