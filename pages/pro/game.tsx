@@ -1369,7 +1369,10 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   // Deliberately NOT the "We lost your game" screen (that's socket-close only).
   useEffect(() => {
     if (!serverError) return;
-    toast.error("The server couldn't process that action — try again or take a different action.");
+    // Stable id so retrying a broken action coalesces instead of stacking toasts.
+    toast.error("The server couldn't process that action — try again or take a different action.", {
+      id: "pro-server-error",
+    });
     acknowledgeServerError();
   }, [serverError, acknowledgeServerError]);
 
