@@ -25,6 +25,17 @@
  * This reader is deliberately tolerant so partial exports still run: `game`
  * defaults to the file's basename, `seat` to `view.you`, `step` to the line
  * index within its file.
+ *
+ * ── Emitter contract for correct sampling / redaction ────────────────────────
+ *   - `--steps K` samples by `step % K`. So `step` MUST be a per-SEAT index. The
+ *     default (file line index) only yields that when a file holds ONE seat's
+ *     sequence. Therefore the emitter must write ONE FILE PER SEAT, or set an
+ *     explicit per-seat `step` on every record. (Interleaving both seats' views
+ *     in one file without explicit `step` makes `--steps` sample incoherently.)
+ *   - `legalActions` and `events` on a record MUST be that same seat's REDACTED
+ *     payloads (the exact arrays the client received alongside this `view`) — the
+ *     client renders them, so a cross-seat mismatch would fuzz a state that never
+ *     existed.
  */
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { basename, extname, join } from "node:path";

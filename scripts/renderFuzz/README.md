@@ -40,8 +40,21 @@ live dev server. Each view renders into a fresh mount and unmounts after, so a
 crash on one step never poisons the next — and the bulk sweep and `--repro` run
 byte-identical code.
 
-A render throw is caught by an error boundary wrapping the page and written as a
-deterministic, **self-contained** finding artifact:
+### Detecting throws the page already swallows
+
+The page wraps its board in `components/Pro/ProErrorBoundary` (issue #178), which
+turns a board render crash into a recoverable panel. React stops error
+propagation at the **nearest** boundary, so a harness boundary placed further out
+never sees board-level crashes — the sweep would go green-while-blind on exactly
+the Hollow-Oak class. The harness closes that by consuming ProErrorBoundary's
+documented detection seam: it parses the boundary's `console.error` marker
+(`[pro] game view render crashed`, carrying the real error + component stack)
+instead of muting it, and checks for its `data-testid="pro-error-boundary-fallback"`
+fallback root. Throws that escape *above* the page's boundary are still caught by
+the harness's own outer boundary. Either signal yields a finding.
+
+A render throw is written as a deterministic, **self-contained** finding
+artifact:
 
 ```jsonc
 {
@@ -74,6 +87,18 @@ knobs slice across games and steps). The reader (`runDir.ts`) is tolerant:
 `game` defaults to the file basename, `seat` to `view.you`, `step` to the line
 index.
 
+**Emitter contract (so sampling and redaction stay coherent):**
+
+- `--steps K` samples by `step % K`, so **`step` must be a per-seat index**. The
+  line-index default only gives that when each file holds **one seat's**
+  sequence — so write **one file per seat** (e.g. `<game>.p1.views.jsonl`,
+  `<game>.p2.views.jsonl`) *or* set an explicit per-seat `step` on every record.
+  Interleaving both seats in one file without an explicit `step` makes `--steps`
+  sample incoherently.
+- `legalActions` / `events` on a record must be **that same seat's redacted
+  payloads** (the exact arrays the client received with this `view`) — the client
+  renders them, so a cross-seat mix would fuzz a state that never existed.
+
 **Why JSONL fixtures rather than importing the engine here:** it keeps the
 private engine out of this repo's dependency graph — CI stays a plain `tsx` run
 with no server and no secrets — and JSONL streams line-by-line for overnight
@@ -89,7 +114,11 @@ downstream (mount, sampling, findings, repro) stays put.
 committed, deterministic stand-ins for the engine export (hand-built from the
 real protocol types + `MULTIPLAYER_PLAYTEST_MAP`, regenerate with
 `npm run pro:render-fuzz:fixtures`). `sample/` must render with 0 throws;
-`known-bad/` is one view with `fighters` nulled — a malformed/partially-redacted
-payload that throws in render and **must be caught**. `renderFuzz.test.ts` drives
-both through the real CLI (the harness's own regression test) plus unit-tests the
-pure sampling/hashing/parsing logic.
+`known-bad/` is one view with `tokens` nulled — consumed only by `ProBoard`
+inside the page's `ProErrorBoundary`, so it throws *inside* that boundary and is
+**swallowed**, proving the seam detection end-to-end (the finding's component
+stack runs through both `ProErrorBoundary` and `ProBoard`).
+`renderFuzz.test.tsx` drives both through the real CLI (the harness's own
+regression test), mounts the real `ProErrorBoundary` around a throwing child to
+prove detection fires when the boundary swallows, and unit-tests the pure
+sampling/hashing/parsing/marker logic.

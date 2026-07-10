@@ -10,7 +10,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Action, GameEvent, PlayerView } from "@/lib/pro/protocol";
-import type { RenderThrow } from "./mountProGame";
+import type { RenderThrow } from "./detect";
 import { viewHash } from "./viewHash";
 
 export interface Finding {
