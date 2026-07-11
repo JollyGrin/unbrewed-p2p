@@ -17,9 +17,20 @@ import type {
   PlayerView,
   ReplayExpansion,
   ReplayStep,
+  ViewPlayer,
 } from "./protocol";
+import { RUNTIME_PLAYER_IDS } from "./replayHeroes";
 
-const other = (p: PlayerId): PlayerId => (p === "p1" ? "p2" : "p1");
+/** Runtime-ordered seat ids present in a step (duel → [p1,p2]; ffa-3 → [p1,p2,p3]). */
+export function seatIds(step: ReplayStep): PlayerId[] {
+  return RUNTIME_PLAYER_IDS.filter((id) => !!step.players[id]);
+}
+
+/** The primary opponent seat for a focus — the first non-focus seat in runtime order
+ * (matches the server's duel-compat `opponent` alias). null in a solo/degenerate step. */
+function firstOpponent(step: ReplayStep, focus: PlayerId): PlayerId | null {
+  return seatIds(step).find((id) => id !== focus) ?? null;
+}
 
 function requireStepPlayer(step: ReplayStep, player: PlayerId) {
   const entry = step.players[player];
@@ -37,9 +48,28 @@ export function toPlayerView(
   exp: Pick<ReplayExpansion, "map" | "catalog">,
   focus: PlayerId,
 ): PlayerView {
-  const oppId = other(focus);
+  const ids = seatIds(step);
   const me = requireStepPlayer(step, focus);
-  const opp = requireStepPlayer(step, oppId);
+  const oppId = firstOpponent(step, focus);
+  const opp = oppId ? requireStepPlayer(step, oppId) : null;
+  // Every seat in runtime order — ProHud renders one plate per entry, so an
+  // ffa-3/team-2v2 replay shows all seats. Non-self seats carry counts only
+  // (the plate never fans a non-local hand), matching the live redacted view.
+  const players: ViewPlayer[] = ids.map((id) => {
+    const p = requireStepPlayer(step, id);
+    const isSelf = id === focus;
+    return {
+      id,
+      heroId: p.heroId,
+      you: isSelf,
+      ...(isSelf ? { hand: p.hand, committedCard: p.committedCard } : {}),
+      handCount: p.hand.length,
+      deckCount: p.deckCount,
+      discard: p.discard,
+      hasCommitted: p.committedCard !== null,
+      counters: p.counters,
+    };
+  });
   return {
     you: focus,
     phase: step.phase,
@@ -61,48 +91,45 @@ export function toPlayerView(
       committedCard: me.committedCard,
       counters: me.counters,
     },
-    opponent: {
-      id: oppId,
-      heroId: opp.heroId,
-      handCount: opp.hand.length,
-      deckCount: opp.deckCount,
-      discard: opp.discard,
-      hasCommitted: opp.committedCard !== null,
-      counters: opp.counters,
-    },
-    players: [
-      {
-        id: focus,
-        heroId: me.heroId,
-        you: true,
-        hand: me.hand,
-        handCount: me.hand.length,
-        deckCount: me.deckCount,
-        discard: me.discard,
-        committedCard: me.committedCard,
-        hasCommitted: me.committedCard !== null,
-        counters: me.counters,
-      },
-      {
-        id: oppId,
-        heroId: opp.heroId,
-        you: false,
-        handCount: opp.hand.length,
-        deckCount: opp.deckCount,
-        discard: opp.discard,
-        hasCommitted: opp.committedCard !== null,
-        counters: opp.counters,
-      },
-    ],
+    opponent:
+      opp && oppId
+        ? {
+            id: oppId,
+            heroId: opp.heroId,
+            handCount: opp.hand.length,
+            deckCount: opp.deckCount,
+            discard: opp.discard,
+            hasCommitted: opp.committedCard !== null,
+            counters: opp.counters,
+          }
+        : null,
+    players,
     combat: step.combat,
     prompt: step.prompt,
     winner: step.winner,
   };
 }
 
-/** The other seat's actual hand (God-view only) — for the top-of-table fan. */
+/** The primary opponent seat's actual hand (God-view only) — the first non-focus
+ * seat. Kept for the duel top-of-table fan; multiplayer uses `opponentSeats`. */
 export function opponentHand(step: ReplayStep, focus: PlayerId): CardInstanceId[] {
-  return requireStepPlayer(step, other(focus)).hand;
+  const oppId = firstOpponent(step, focus);
+  return oppId ? requireStepPlayer(step, oppId).hand : [];
+}
+
+/** Every non-focus seat, face-up (God-view only) — the top-of-table fans. In a
+ * duel this is one entry (identical to the old single-opponent fan); an ffa-3
+ * shows two, a team-2v2 three. */
+export function opponentSeats(
+  step: ReplayStep,
+  focus: PlayerId,
+): { id: PlayerId; heroId: string; hand: CardInstanceId[] }[] {
+  return seatIds(step)
+    .filter((id) => id !== focus)
+    .map((id) => {
+      const p = requireStepPlayer(step, id);
+      return { id, heroId: p.heroId, hand: p.hand };
+    });
 }
 
 /** First step index at (or after) a given 1-based turn number — for jump-to-turn. */
