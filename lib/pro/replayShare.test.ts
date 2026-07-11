@@ -49,4 +49,11 @@ describe("bundleFilename", () => {
   it("includes both heroes and the end date", () => {
     expect(bundleFilename(good)).toMatch(/^unbrewed-replay-king-kong-vs-thrall-\d{4}-\d{2}-\d{2}\.json$/);
   });
+  it("lists every hero for a multiplayer (ffa-3) bundle", () => {
+    const ffa3: ReplayBundle = {
+      ...good,
+      meta: { ...good.meta, heroes: { p1: "king-kong", p2: "thrall", p3: "r2-d2" } },
+    };
+    expect(bundleFilename(ffa3)).toMatch(/^unbrewed-replay-king-kong-vs-thrall-vs-r2-d2-\d{4}-\d{2}-\d{2}\.json$/);
+  });
 });

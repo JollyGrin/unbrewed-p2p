@@ -40,6 +40,7 @@ import {
 import { saveReplay } from "@/lib/pro/replayStore";
 import { ProConnectionStatus, useProSocket } from "@/lib/pro/useProSocket";
 import { normalizeMap } from "@/lib/pro/normalizeMap";
+import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { mapSubmissionIssueUrl } from "@/lib/pro/mapIssue";
 import { RecentRoom, getTabToken, listRecentRooms } from "@/lib/pro/recentRooms";
 import { HERO_DECK_IDS, ResolveCard, useProCardArt } from "@/lib/pro/useProCardArt";
@@ -2200,22 +2201,27 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
         pointerEvents="none"
       >
         <Flex direction="column" gap="0.6rem" sx={{ "& > *": { pointerEvents: "auto" } }}>
-          <Flex gap="0.4rem" alignItems="center" flexWrap="wrap">
-            <Tag size="sm" bg={myTurn ? "brand.accent" : "whiteAlpha.300"} color={myTurn ? "brand.surfaceDim" : "brand.parchment"}>
-              {activeTurnLabel}
-            </Tag>
-            <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
-              turn {view.turnNumber}
-            </Tag>
-            <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
-              {view.actionsRemaining} actions left
-            </Tag>
-            {!opponentConnected && (
-              <Tag size="sm" colorScheme="red">
-                {multiplayerView ? "player disconnected" : "opponent disconnected"}
+          {/* Live-turn chrome — hidden once the game is decided (issue #194): at
+              GAME_OVER legal actions are empty and no seat is "on turn", so these
+              chips would go stale. The outcome (VICTORY!/DEFEAT) shows instead. */}
+          {showLiveTurnChrome(view) && (
+            <Flex gap="0.4rem" alignItems="center" flexWrap="wrap">
+              <Tag size="sm" bg={myTurn ? "brand.accent" : "whiteAlpha.300"} color={myTurn ? "brand.surfaceDim" : "brand.parchment"}>
+                {activeTurnLabel}
               </Tag>
-            )}
-          </Flex>
+              <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
+                turn {view.turnNumber}
+              </Tag>
+              <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
+                {view.actionsRemaining} actions left
+              </Tag>
+              {!opponentConnected && (
+                <Tag size="sm" colorScheme="red">
+                  {multiplayerView ? "player disconnected" : "opponent disconnected"}
+                </Tag>
+              )}
+            </Flex>
+          )}
           {(highlightedSpaces.length > 0 || attackActions.size > 0) && (
             <Text fontSize="0.8rem" color="brand.accent" textShadow="0 1px 3px rgba(0,0,0,0.6)">
               {selectedFighter
@@ -2281,7 +2287,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
                 {describeAction(view.catalog, a, { nameOf, attackerBadge })}
               </Button>
             ))}
-            {legalActions.length === 0 && !prompt && (
+            {legalActions.length === 0 && !prompt && showLiveTurnChrome(view) && (
               <Text opacity={0.7} fontSize="0.9rem" color="brand.parchment">
                 {multiplayerView ? "waiting on another player…" : "waiting on opponent…"}
               </Text>
