@@ -93,12 +93,21 @@ bespoke rendering work, not just data wiring:
 - Check whether `lib/pro/protocol.ts` needs a VERBATIM re-sync from the
   engine repo first (see the sync-procedure comment at the top of that
   file — any server-side protocol change bumps `PROTOCOL_VERSION` and must
-  be copied byte-identical here).
+  be copied byte-identical here). As of the multi-lobby merge (p2p #182 ↔
+  engine #91) it sits at `PROTOCOL_VERSION = 14`; that sync widened the shape
+  for the duel/multiplayer split — `PlayerView.opponent` is now nullable
+  (`ViewOpponent | null`, the first non-self seat in runtime order or null),
+  a `players: ViewPlayer[]` per-seat array was added alongside the retained
+  duel `self`/`opponent` aliases, and `PlayerId` was widened to a 16-slot
+  `RuntimePlayerId` (`p1`…`p16`) with a `DuelPlayerId` (`p1` | `p2`) alias
+  kept for the duel-only actions `BOOST_MOVE` and `FORFEIT`.
 - If it does, use the paired-merge convention in the commit/PR — precedent
   commit `94d2a45`: *"PAIRED with JollyGrin/unbrewed-engine#17 — merge
   together, neither lands without the other"* — because an old client
   talking a stale protocol version gets hard-rejected by a server that's
-  already deployed the new one (and vice versa).
+  already deployed the new one (and vice versa). This byte-identical-sync +
+  paired-merge dance has since been exercised twice more (v13, and the v14
+  multi-lobby sync) and held both times.
 - Precedents: totem rendering (`f0992b0`, `7d0ad9d`), two-space large
   fighters (PR #91 ↔ engine #17).
 
@@ -119,12 +128,25 @@ bespoke rendering work, not just data wiring:
   appearance, cardback) never trip it — no bump-rules needed for art drops.
 - `npm test` has one pre-existing unrelated failure in `Pool.spec.ts` that
   reproduces on a clean `main` checkout — don't chase it.
+- Occupied-space `CHOOSE_SPACE` prompts: a fighter token renders *above* the
+  space hit-circle (token `zIndex 4` vs highlight `zIndex 3` in
+  `ProBoard.tsx`), so a click on the token used to be swallowed — only the
+  ~9% rim of the space stayed clickable (issue #185; fixed in PR #186 by
+  forwarding the token's click to `onSpaceClick` when its own space is
+  highlighted and the token isn't itself a fighter-click target). When
+  wiring a deck whose effects target occupied spaces (place- or
+  move-onto-fighter effects), click-test one such prompt directly on a token
+  during the browser verification, not just on the bare rim.
 
 ## Verification (definition of done for a wiring PR)
 
 - `/pro` landing lists the deck as ready (live-roster driven, plus
   `FALLBACK_READY`).
 - `/pro/game` picker shows the hero; originals carry no unmatched.cards link.
+  The picker now also offers a format selector (Duel / 3P FFA / 2v2) and a
+  board picker — run deck-wiring verification on the **Duel** format (the
+  default) and its default board; the multiplayer formats leave this
+  checklist unchanged.
 - A seat renders the full hand as card faces (template fallback OK if art
   pending); art resolves by title where art exists.
 - The info icon on the hero tile opens `HeroPreviewModal` with the new
