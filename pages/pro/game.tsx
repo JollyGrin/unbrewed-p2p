@@ -66,7 +66,8 @@ import { useCombatCallouts, CombatCalloutItem } from "@/lib/pro/combatFx";
 import { useIncomingMoveTween } from "@/lib/pro/moveTween";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
-import { formatChoice, PRO_FORMATS, ProFormatId } from "@/lib/pro/multiplayerPlaytest";
+import { formatChoice, PRO_FORMATS, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
+import { deriveTeams } from "@/lib/pro/teams";
 import {
   CUSTOM_MAP_ID,
   FORMAT_BADGE,
@@ -1806,6 +1807,41 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
             })()}
           </Text>
 
+          {/* team preview (issue #195): in a team format the seat→team mapping is
+              fixed, so show who is with whom before the game even starts. The
+              viewer's team is listed first and accented. */}
+          {(() => {
+            const comp = teamComposition(roomInfo?.formatId ?? selectedFormat);
+            if (!comp) return null;
+            const youSeat = roomInfo?.you;
+            const fmtSeat = (id: string) => (id === youSeat ? "You" : id.toUpperCase());
+            const myTeam = youSeat ? comp.find((t) => t.seats.includes(youSeat)) : undefined;
+            const ordered = myTeam ? [myTeam, ...comp.filter((t) => t !== myTeam)] : comp;
+            return (
+              <Flex gap="0.6rem" alignItems="center" flexWrap="wrap" justifyContent="center">
+                {ordered.map((t, i) => (
+                  <Flex key={t.team} gap="0.6rem" alignItems="center">
+                    {i > 0 && (
+                      <Text fontFamily="BebasNeueRegular" opacity={0.6} fontSize="0.9rem">
+                        vs
+                      </Text>
+                    )}
+                    <Tag
+                      px="0.75rem"
+                      py="0.4rem"
+                      fontFamily="SpaceGrotesk"
+                      letterSpacing="0.04em"
+                      bg={t === myTeam ? "#39B7A8" : "brand.surfaceDim"}
+                      color={t === myTeam ? "brand.surfaceDim" : "brand.parchment"}
+                    >
+                      {t.seats.map(fmtSeat).join(" + ")}
+                    </Tag>
+                  </Flex>
+                ))}
+              </Flex>
+            );
+          })()}
+
           {/* discoverability: invite privately or list publicly */}
           <Flex gap="0.5rem" alignItems="center" flexWrap="wrap" justifyContent="center">
             <Tag fontFamily="mono" px="0.75rem" py="0.4rem">
@@ -1856,6 +1892,9 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   const { view, legalActions, prompt } = snapshot;
   const myTurn = view.activePlayer === view.you;
   const multiplayerView = view.players.length > 2;
+  // Team affiliation (issue #195): the viewer's team (self + ally) for the board's
+  // shared ring. Empty in duel/ffa/older-server views → the board draws no ring.
+  const friendlyOwners = deriveTeams(view.players, view.you).friendlyOwners;
   const activeTurnLabel = myTurn ? "YOUR TURN" : `${playerLabel(view, view.activePlayer).toUpperCase()} TURN`;
   // RESPOND_PROMPT renders through the PromptPanel; MOVE_FIGHTER and
   // PLACE_SIDEKICK render as clickable board spaces — listing one button per
@@ -2133,6 +2172,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
           highlightedFighters={[...new Set(highlightedFighters)]}
           selectedFighter={selectedFighter}
           attack={view.combat ? { attacker: view.combat.attacker, target: view.combat.target } : null}
+          friendlyOwners={friendlyOwners}
           fighterBadges={attackerBadge}
           fx={boardFx}
           pendingMove={pendingMove ?? incomingMove}

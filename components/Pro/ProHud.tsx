@@ -52,11 +52,17 @@ import {
 } from "@/components/Game/Header/header.styles";
 import { DeckImportHeroType } from "@/components/DeckPool/deck-import.type";
 import { CardInstanceId, PlayerId, PlayerView, ViewFighter, ViewPlayer } from "@/lib/pro/protocol";
+import { deriveTeams } from "@/lib/pro/teams";
 import { ResolveCard, ResolveHero } from "@/lib/pro/useProCardArt";
 import { DEFAULT_PLATE_LAYOUT, PlateLayout, PlateSeat, useHudPlates } from "@/lib/pro/useHudPlates";
 import { CardFace } from "./ProHand";
 import { ProConnectionStatus } from "@/lib/pro/useProSocket";
 import { FLAGS, useFlags } from "@/lib/flags";
+
+// Team-affiliation accent (issue #195). A teal that reads clearly as "friendly"
+// and stays distinct from the gold TURN chip and from every per-seat identity
+// color (gold/blue/green/magenta) so the ALLY chip never blends into a plate.
+const ALLY_ACCENT = "#39B7A8";
 
 // ---------------------------------------------------------------------------
 // Discard viewer (public info for both seats)
@@ -144,6 +150,7 @@ const SeatPlate = ({
   sidekicks,
   isLocal,
   isActive,
+  isAlly,
   hand,
   deckCount,
   discard,
@@ -159,6 +166,8 @@ const SeatPlate = ({
   sidekicks: ViewFighter[];
   isLocal: boolean;
   isActive: boolean;
+  /** teammate of the viewing player (team formats only) — shows an ALLY chip */
+  isAlly: boolean;
   /** own hand instances, or a count for the opponent */
   hand: CardInstanceId[] | number;
   deckCount: number;
@@ -250,6 +259,15 @@ const SeatPlate = ({
     </Tag>
   ) : null;
 
+  // Team formats only (issue #195): mark the viewer's teammate so allies read at
+  // a glance from the HUD alone. Distinct teal keeps it clearly NOT the gold TURN
+  // chip; hidden entirely in duel/ffa/older-server views (isAlly stays false).
+  const allyTag = isAlly ? (
+    <Tag size="sm" bg={ALLY_ACCENT} color="brand.surfaceDim" flexShrink={0} letterSpacing="0.04em">
+      ALLY
+    </Tag>
+  ) : null;
+
   const controls = hovered ? (
     <Flex alignItems="center" gap="0.15rem" flexShrink={0}>
       {moved && (
@@ -333,7 +351,10 @@ const SeatPlate = ({
     <StatContainer isLocal={isLocal} sx={{ cursor: "default" }}>
       <PlayerTitleBar>
         {renderNameBlock(false)}
-        {turnTag}
+        <Flex alignItems="center" gap="0.3rem" flexShrink={0}>
+          {allyTag}
+          {turnTag}
+        </Flex>
       </PlayerTitleBar>
       {statsPanel}
       {sidekickRows}
@@ -397,6 +418,7 @@ const SeatPlate = ({
                       {heroHp}
                     </Text>
                   </Flex>
+                  {allyTag}
                   {turnTag}
                   {controls}
                 </Flex>
@@ -408,6 +430,7 @@ const SeatPlate = ({
             <PlayerTitleBar {...titleBarDrag}>
               {renderNameBlock(true)}
               <Flex alignItems="center" gap="0.3rem" flexShrink={0}>
+                {allyTag}
                 {turnTag}
                 {controls}
               </Flex>
@@ -578,6 +601,12 @@ export const ProHud = ({
           : []),
       ];
 
+  // Team affiliation (issue #195). Inactive (no ALLY chips) unless the view is a
+  // real team format — duel/ffa/older-server views derive `active: false` and
+  // render exactly as before. The fallback duel `seats` above carry no `team`,
+  // which also derives inactive.
+  const teams = deriveTeams(seats, view.you);
+
   const { plates, hydrated, update } = useHudPlates();
   const seatUpdate = (seat: PlateSeat) => (partial: Partial<PlateLayout>) =>
     update(seat, partial);
@@ -596,6 +625,7 @@ export const ProHud = ({
             sidekicks={sidekicksOf(seat.id)}
             isLocal={seat.you}
             isActive={view.activePlayer === seat.id}
+            isAlly={teams.relationOf(seat.id) === "ally"}
             hand={seat.you ? seat.hand ?? view.self.hand : seat.handCount}
             deckCount={seat.deckCount}
             discard={seat.discard}

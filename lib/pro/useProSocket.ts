@@ -54,6 +54,9 @@ export interface ProRoomInfo {
   formatId: string;
   seats: PlayerId[];
   requiredPlayers: number;
+  /** the viewer's own runtime seat (from ROOM_CREATED/JOINED) — lets the waiting
+   *  room phrase the team preview from this player's perspective (issue #195). */
+  you: PlayerId;
 }
 
 export interface ProGameSnapshot {
@@ -266,6 +269,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
             formatId: msg.formatId ?? "duel",
             seats: msg.seats ?? [msg.you],
             requiredPlayers: msg.requiredPlayers ?? 2,
+            you: msg.you,
           });
           setRoomPublic(false); // fresh rooms are private until acked otherwise
           setToken(msg.roomId, msg.token); // fresh reconnect token (revive rotates it)

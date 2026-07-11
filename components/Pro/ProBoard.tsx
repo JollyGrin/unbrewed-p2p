@@ -11,7 +11,7 @@ import { Box, Button, Flex, Text, chakra, shouldForwardProp } from "@chakra-ui/r
 import { keyframes } from "@emotion/react";
 import { isValidMotionProp, motion } from "framer-motion";
 import { PointerEvent as ReactPointerEvent, useRef, useState } from "react";
-import { FighterId, ProMapDef, ProMapRegion, ProMapSpace, SpaceId, ViewFighter, ViewToken } from "@/lib/pro/protocol";
+import { FighterId, PlayerId, ProMapDef, ProMapRegion, ProMapSpace, SpaceId, ViewFighter, ViewToken } from "@/lib/pro/protocol";
 import { BoardFxItem } from "@/lib/pro/useGameFx";
 import { useZoomPan } from "@/lib/pro/useZoomPan";
 
@@ -123,6 +123,11 @@ export interface ProBoardProps {
    *  clear who is attacking whom during the attack phase (issue #148). null = no
    *  combat in progress, no arrow. */
   attack?: { attacker: FighterId; target: FighterId } | null;
+  /** Owner ids on the VIEWER's team, including the viewer (issue #195). Fighters
+   *  owned by any of these get a subtle shared teal ring so allies read at a
+   *  glance without touching per-seat identity colors. Empty/omitted in
+   *  duel/ffa/older-server views → no ring, board unchanged. */
+  friendlyOwners?: PlayerId[];
   /** Per-fighter disambiguator number drawn as a badge on the token (issue #161).
    *  Only populated when several same-named attackers are offered at once, so the
    *  "Attack … with Raptor 1 / 2 / 3" sidebar buttons can be matched to the right
@@ -155,6 +160,12 @@ const PLAYER_COLOR: Record<string, string> = {
   p4: "#C0449E", // magenta
 };
 
+// Team-affiliation ring (issue #195): a teal halo shared by every fighter on the
+// viewer's team. Kept distinct from the gold highlight, white selection ring, and
+// crimson attack arrow so it never reads as any of those. Must match ProHud's
+// ALLY_ACCENT so HUD chip and board ring are visibly the same "team" signal.
+const ALLY_RING = "#39B7A8";
+
 /** Token initials: leading "The " is noise ("The Mandalorian"/"The Child" would
  * otherwise both read "THE"), so strip it and take three letters. A name that's
  * literally just "The" (or empty) has nothing left to abbreviate once stripped —
@@ -174,6 +185,7 @@ export const ProBoard = ({
   highlightedFighters = [],
   selectedFighter = null,
   attack = null,
+  friendlyOwners = [],
   fighterBadges = {},
   fx = [],
   pendingMove = null,
@@ -188,6 +200,7 @@ export const ProBoard = ({
   const highlightSet = new Set(highlightedSpaces);
   const highlightFighterSet = new Set(highlightedFighters);
   const closedSet = new Set(closedRegions);
+  const friendlySet = new Set(friendlyOwners);
 
   // v9 regions (Baba Yaga's Hut): a region's spaces carry x/y normalized to the
   // REGION image, not the main board — each region renders as its own inset
@@ -320,6 +333,7 @@ export const ProBoard = ({
     const color = PLAYER_COLOR[f.owner] ?? "#999";
     const isSelected = f.id === selectedFighter;
     const isTarget = highlightFighterSet.has(f.id);
+    const isFriendly = friendlySet.has(f.owner);
     // A CHOOSE_SPACE prompt highlights the space *under* the token, and the
     // token (zIndex 4) sits above the space hit-circle (zIndex 3) — a click
     // lands on the token and would die here (DOM siblings don't forward events
@@ -335,6 +349,17 @@ export const ProBoard = ({
         ? () => onSpaceClick!(s.id)
         : undefined;
     const key = segment === "head" ? f.id : `${f.id}-tail`;
+
+    // Team ring (issue #195): an outer teal halo shared by the viewer's whole
+    // team. Layered OUTSIDE the white selection ring (larger spread, listed last)
+    // so selection and affiliation both stay legible. A targeted fighter's pulse
+    // animation temporarily overrides box-shadow — the ring returns once it ends.
+    const baseShadow = isSelected
+      ? "0 0 0 3px #fff, 0 2px 8px rgba(0,0,0,0.6)"
+      : "0 2px 6px rgba(0,0,0,0.5)";
+    const boxShadow = isFriendly
+      ? `${baseShadow}, 0 0 0 ${isSelected ? "5px" : "3px"} ${ALLY_RING}`
+      : baseShadow;
 
     const children = (
       <>
@@ -426,9 +451,7 @@ export const ProBoard = ({
         bg={f.kind === "HERO" ? color : "brand.surfaceDim"}
         border={`2px solid ${f.kind === "HERO" ? "#fff" : color}`}
         opacity={f.kind === "HERO" ? 1 : 0.92}
-        boxShadow={
-          isSelected ? "0 0 0 3px #fff, 0 2px 8px rgba(0,0,0,0.6)" : "0 2px 6px rgba(0,0,0,0.5)"
-        }
+        boxShadow={boxShadow}
         animation={isTarget ? `${highlightPulse} 1.4s ease-in-out infinite` : undefined}
         cursor={clickable ? "pointer" : "default"}
         onClick={handleClick}
