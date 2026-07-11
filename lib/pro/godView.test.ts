@@ -2,8 +2,8 @@
  * God-view render adapter (#122): folds a both-sides-face-up ReplayStep back into
  * the redacted PlayerView shape the live table components consume.
  */
-import type { ReplayExpansion, ReplayStep } from "./protocol";
-import { opponentHand, stepIndexForTurn, toPlayerView, turnMarkers } from "./godView";
+import type { ReplayExpansion, ReplayStep, ReplayStepPlayer } from "./protocol";
+import { opponentHand, opponentSeats, seatIds, stepIndexForTurn, toPlayerView, turnMarkers } from "./godView";
 
 const step = (index: number, turnNumber: number): ReplayStep => ({
   index,
@@ -22,6 +22,25 @@ const step = (index: number, turnNumber: number): ReplayStep => ({
     p1: { heroId: "king-kong", hand: ["king-kong/clobber#1"], deckCount: 20, discard: ["king-kong/roar#1"], committedCard: null, counters: { rage: 1 } },
     p2: { heroId: "thrall", hand: ["thrall/hex#1", "thrall/hex#2"], deckCount: 18, discard: [], committedCard: "thrall/hex#3", counters: {} },
   },
+});
+
+const seat = (heroId: string, hand: string[]): ReplayStepPlayer => ({
+  heroId,
+  hand,
+  deckCount: 10,
+  discard: [],
+  committedCard: null,
+  counters: {},
+});
+
+// ffa-3: three seats face-up. `players` (typed p1/p2 required) carries p3 too.
+const ffa3 = (): ReplayStep => ({
+  ...step(0, 1),
+  players: {
+    p1: seat("king-kong", ["king-kong/clobber#1"]),
+    p2: seat("thrall", ["thrall/hex#1"]),
+    p3: seat("r2-d2", ["r2-d2/beep#1", "r2-d2/beep#2"]),
+  } as ReplayStep["players"],
 });
 
 const exp: Pick<ReplayExpansion, "map" | "catalog"> = {
@@ -57,6 +76,37 @@ describe("opponentHand", () => {
   it("exposes the OTHER seat's real hand (God-view only)", () => {
     expect(opponentHand(step(0, 1), "p1")).toEqual(["thrall/hex#1", "thrall/hex#2"]);
     expect(opponentHand(step(0, 1), "p2")).toEqual(["king-kong/clobber#1"]);
+  });
+});
+
+describe("multiplayer (ffa-3)", () => {
+  it("lists every seat in runtime order", () => {
+    expect(seatIds(ffa3())).toEqual(["p1", "p2", "p3"]);
+  });
+
+  it("builds a plate per seat, with the focus seat marked self", () => {
+    const v = toPlayerView(ffa3(), exp, "p3");
+    expect(v.you).toBe("p3");
+    expect(v.players.map((p) => p.id)).toEqual(["p1", "p2", "p3"]);
+    const focusSeat = v.players.find((p) => p.id === "p3");
+    expect(focusSeat?.you).toBe(true);
+    expect(focusSeat?.hand).toEqual(["r2-d2/beep#1", "r2-d2/beep#2"]);
+    // non-focus seats never carry the hand array (counts only), like the live view
+    expect(v.players.filter((p) => !p.you).every((p) => p.hand === undefined)).toBe(true);
+    // opponent alias = first non-focus seat in runtime order
+    expect(v.opponent?.id).toBe("p1");
+  });
+
+  it("fans every non-focus seat's hand at the top", () => {
+    const seats = opponentSeats(ffa3(), "p1");
+    expect(seats.map((s) => s.id)).toEqual(["p2", "p3"]);
+    expect(seats.map((s) => s.heroId)).toEqual(["thrall", "r2-d2"]);
+    expect(seats[1].hand).toEqual(["r2-d2/beep#1", "r2-d2/beep#2"]);
+  });
+
+  it("keeps the duel top-fan identical (one opponent)", () => {
+    expect(opponentSeats(step(0, 1), "p1").map((s) => s.id)).toEqual(["p2"]);
+    expect(opponentSeats(step(0, 1), "p1")[0].hand).toEqual(["thrall/hex#1", "thrall/hex#2"]);
   });
 });
 

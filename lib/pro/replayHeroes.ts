@@ -5,13 +5,18 @@
  */
 import type { PlayerId, ReplayMeta } from "./protocol";
 
-const RUNTIME_PLAYER_IDS: PlayerId[] = [
+export const RUNTIME_PLAYER_IDS: PlayerId[] = [
   "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8",
   "p9", "p10", "p11", "p12", "p13", "p14", "p15", "p16",
 ];
 
 export function replayHeroList(heroes: ReplayMeta["heroes"]): string[] {
   return RUNTIME_PLAYER_IDS.map((id) => heroes[id]).filter((hero): hero is string => !!hero);
+}
+
+/** Runtime-ordered seat ids present in a match (duel → [p1,p2]; ffa-3 → [p1,p2,p3]). */
+export function replaySeatIds(heroes: ReplayMeta["heroes"]): PlayerId[] {
+  return RUNTIME_PLAYER_IDS.filter((id) => !!heroes[id]);
 }
 
 export function replayHeroFor(heroes: ReplayMeta["heroes"], player: PlayerId): string {
