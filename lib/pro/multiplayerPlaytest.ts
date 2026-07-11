@@ -5,7 +5,7 @@
  * is a plain custom board sent to the authoritative server for validation. The
  * client still never derives legal moves or relationships.
  */
-import type { ProMapDef } from "./protocol";
+import type { PlayerId, ProMapDef } from "./protocol";
 
 export type ProFormatId = "duel" | "ffa-3" | "team-2v2";
 
@@ -24,6 +24,30 @@ export const PRO_FORMATS: ProFormatChoice[] = [
 
 export const formatChoice = (id: string | null | undefined): ProFormatChoice =>
   PRO_FORMATS.find((f) => f.id === id) ?? PRO_FORMATS[0]!;
+
+/** One team's runtime seats in a team format (waiting-room preview, issue #195). */
+export interface FormatTeam {
+  team: string;
+  seats: PlayerId[];
+}
+
+/**
+ * Seat→team split for a team format, in runtime seat order (p1..pN). Returns
+ * null for non-team formats (duel/ffa — every seat is independent, no split to
+ * preview). This is the FIXED, format-defined mapping used in the waiting room
+ * BEFORE any game view (and thus any engine `team`) exists; once the match
+ * starts, `view.players[].team` is the source of truth (see lib/pro/teams.ts).
+ *
+ * team-2v2 seats the arena as A1,B1,A2,B2 across start slots 1..4, and seats
+ * fill in runtime order, so p1..p4 split into A={p1,p3} vs B={p2,p4}.
+ */
+export function teamComposition(formatId: string | null | undefined): FormatTeam[] | null {
+  if (formatId !== "team-2v2") return null;
+  return [
+    { team: "A", seats: ["p1", "p3"] },
+    { team: "B", seats: ["p2", "p4"] },
+  ];
+}
 
 interface MapFormatSupportDef {
   id: string;
