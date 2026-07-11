@@ -175,6 +175,20 @@ describe("useProSocket — RATE_LIMITED resilience (issue #209 / engine PR #103)
     expect(hook.result.current.rateLimited).toBe(true);
   });
 
+  it("surfaces ROOM_LIMIT on create as a non-fatal error (no loss screen)", () => {
+    const hook = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    // Server is at its room cap — no STATE was ever received (pre-game).
+    act(() => hook.result.current.createRoom("hero-a"));
+    act(() => ws.emit({ type: "ERROR", code: "ROOM_LIMIT", message: "server full" }));
+
+    expect(hook.result.current.error).toEqual({ code: "ROOM_LIMIT", message: "server full" });
+    expect(hook.result.current.gameLost).toBe(false); // never the loss path pre-game
+    expect(hook.result.current.rateLimited).toBe(false);
+    expect(hook.result.current.snapshot).toBeNull();
+  });
+
   it("reconnects with jittered backoff after a server-initiated close (delay < cap)", () => {
     jest.useFakeTimers();
     const randSpy = jest.spyOn(Math, "random").mockReturnValue(0.5);
