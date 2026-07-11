@@ -67,7 +67,7 @@ import { useIncomingMoveTween } from "@/lib/pro/moveTween";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
 import { formatChoice, PRO_FORMATS, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
-import { deriveTeams } from "@/lib/pro/teams";
+import { deriveTeams, isViewerOnWinningTeam } from "@/lib/pro/teams";
 import {
   CUSTOM_MAP_ID,
   FORMAT_BADGE,
@@ -2340,7 +2340,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
               color="brand.accent"
               textShadow="0 2px 12px rgba(224,168,46,0.5)"
             >
-              {view.winner === view.you ? "VICTORY!" : "DEFEAT"}
+              {isViewerOnWinningTeam(view) ? "VICTORY!" : "DEFEAT"}
             </Text>
           )}
           {/* Undo — request to rewind our last action, pending opponent consent

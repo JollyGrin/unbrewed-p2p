@@ -1,4 +1,4 @@
-import { deriveTeams, TeamSeat } from "./teams";
+import { deriveTeams, isViewerOnWinningTeam, TeamSeat, WinnerView } from "./teams";
 
 // Minimal seat stubs — only id/you/team matter to the derivation.
 const seat = (id: string, team?: string, you = false): TeamSeat =>
@@ -96,5 +96,69 @@ describe("deriveTeams", () => {
       expect(t.allies).toEqual([]);
       expect(t.friendlyOwners).toEqual([]);
     });
+  });
+});
+
+describe("isViewerOnWinningTeam", () => {
+  // Build the minimal WinnerView the helper reads.
+  const view = (winner: string | null, you: string, players: TeamSeat[]) =>
+    ({ winner, you, players } as WinnerView);
+
+  describe("team-2v2 (winner ≠ viewer, same team)", () => {
+    // Seating A1,B1,A2,B2 → p1&p3 (team A) vs p2&p4 (team B). Engine reports the
+    // first living winner by seat order (p1), even when p3 dealt the kill.
+    const players = [
+      seat("p1", "A"),
+      seat("p2", "B"),
+      seat("p3", "A"),
+      seat("p4", "B"),
+    ];
+
+    it("the winning teammate (p3) who ISN'T the reported winner still sees VICTORY", () => {
+      expect(isViewerOnWinningTeam(view("p1", "p3", players))).toBe(true);
+    });
+
+    it("the reported winner (p1) sees VICTORY", () => {
+      expect(isViewerOnWinningTeam(view("p1", "p1", players))).toBe(true);
+    });
+
+    it("both losers (p2, p4) see DEFEAT", () => {
+      expect(isViewerOnWinningTeam(view("p1", "p2", players))).toBe(false);
+      expect(isViewerOnWinningTeam(view("p1", "p4", players))).toBe(false);
+    });
+  });
+
+  describe("duel (2 singleton teams) — unchanged", () => {
+    const players = [seat("p1", "A"), seat("p2", "B")];
+
+    it("only the actual winner sees VICTORY", () => {
+      expect(isViewerOnWinningTeam(view("p1", "p1", players))).toBe(true);
+      expect(isViewerOnWinningTeam(view("p1", "p2", players))).toBe(false);
+    });
+  });
+
+  describe("ffa-3 (3 singleton teams) — unchanged", () => {
+    const players = [seat("p1", "A"), seat("p2", "B"), seat("p3", "C")];
+
+    it("only the actual winner sees VICTORY", () => {
+      expect(isViewerOnWinningTeam(view("p2", "p2", players))).toBe(true);
+      expect(isViewerOnWinningTeam(view("p2", "p1", players))).toBe(false);
+      expect(isViewerOnWinningTeam(view("p2", "p3", players))).toBe(false);
+    });
+  });
+
+  describe("older server (no team field) — identical to today", () => {
+    const players = [seat("p1"), seat("p2")];
+
+    it("falls back to winner === you", () => {
+      expect(isViewerOnWinningTeam(view("p1", "p1", players))).toBe(true);
+      expect(isViewerOnWinningTeam(view("p1", "p2", players))).toBe(false);
+    });
+  });
+
+  it("returns false while no winner is set", () => {
+    expect(
+      isViewerOnWinningTeam(view(null, "p1", [seat("p1", "A"), seat("p2", "A")])),
+    ).toBe(false);
   });
 });

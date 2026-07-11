@@ -7,6 +7,7 @@
  * every change; this wants a handful of punchy beats with board coordinates).
  */
 import { FighterId, PlayerId, PlayerView, SpaceId, ViewPlayer } from "./protocol";
+import { isViewerOnWinningTeam } from "./teams";
 
 export type FxEvent =
   /** combat card(s) flipped face-up — count 2 means attack+defense revealed together */
@@ -126,7 +127,7 @@ export function diffFxEvents(prev: PlayerView | null, next: PlayerView): FxEvent
   if (drewSelf || drewOther) events.push({ type: "draw" });
 
   if (next.winner && !prev.winner) {
-    events.push({ type: next.winner === next.you ? "victory" : "loss" });
+    events.push({ type: isViewerOnWinningTeam(next) ? "victory" : "loss" });
   } else if (prev.activePlayer !== next.activePlayer && next.activePlayer === next.you) {
     events.push({ type: "turn" });
   }
