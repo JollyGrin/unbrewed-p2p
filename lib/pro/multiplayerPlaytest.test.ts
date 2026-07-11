@@ -1,4 +1,4 @@
-import { MULTIPLAYER_PLAYTEST_MAP, PRO_FORMATS, formatChoice } from "./multiplayerPlaytest";
+import { MULTIPLAYER_PLAYTEST_MAP, PRO_FORMATS, formatChoice, teamComposition } from "./multiplayerPlaytest";
 
 describe("multiplayer playtest helpers", () => {
   it("offers duel plus the manual-playtest multiplayer formats", () => {
@@ -29,6 +29,16 @@ describe("multiplayer playtest helpers", () => {
       "ffa-3",
       "team-2v2",
     ]);
+  });
+
+  it("splits team-2v2 into fixed runtime seat teams, and nothing else", () => {
+    expect(teamComposition("team-2v2")).toEqual([
+      { team: "A", seats: ["p1", "p3"] },
+      { team: "B", seats: ["p2", "p4"] },
+    ]);
+    expect(teamComposition("duel")).toBeNull();
+    expect(teamComposition("ffa-3")).toBeNull();
+    expect(teamComposition(undefined)).toBeNull();
   });
 
   it("keeps the arena graph internally consistent", () => {
