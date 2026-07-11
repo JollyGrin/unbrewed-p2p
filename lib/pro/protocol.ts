@@ -211,6 +211,11 @@ export type RuntimePlayerId =
   | "p9" | "p10" | "p11" | "p12" | "p13" | "p14" | "p15" | "p16";
 export type DuelPlayerId = "p1" | "p2";
 export type PlayerId = RuntimePlayerId;
+// Team affiliation, mirrored from the engine (unbrewed-engine PR #101). Public
+// info the engine derives from the setup plan; emitted on every seat in every
+// format (duel/ffa = distinct per-seat teams, 2v2 = shared per team). Opaque
+// string to the client — it only ever compares two TeamIds for equality.
+export type TeamId = string;
 export type FighterId = string; // '<playerId>/hero' | '<playerId>/sidekick-<n>'
 export type CardInstanceId = string; // '<cardDefId>#<n>'
 export type CardDefId = string; // 'king-kong/clobber'
@@ -473,6 +478,13 @@ export interface ViewPlayer {
   committedCard?: CardInstanceId | null; // own face-down commit, present only for self
   hasCommitted: boolean;
   counters: Record<string, number>;
+  // Team affiliation (public info the engine knows via the setup plan). Emitted
+  // UNIFORMLY in every format — teammates share a value; in duel/ffa each seat is
+  // its own singleton team. Identical for every viewer (no per-viewer variance).
+  // ADDITIVE + OPTIONAL: an older server (pre-team) omits it, and the client then
+  // renders exactly as before (no team chrome). Mirrors unbrewed-engine PR #101
+  // (`team` on ViewPlayer + ReplayStepPlayer) — no PROTOCOL_VERSION bump.
+  team?: TeamId;
 }
 
 export interface ViewCombatCard {
@@ -588,6 +600,10 @@ export interface ReplayStepPlayer {
   discard: CardInstanceId[];
   committedCard: CardInstanceId | null;
   counters: Record<string, number>;
+  // Team affiliation in god-view/replay steps (mirrors unbrewed-engine PR #101 —
+  // ReplayStepPlayer carries `team` too, so replay UIs can show teams). Additive
+  // optional; a bundle from an older engine omits it.
+  team?: TeamId;
 }
 
 // One scrubber frame: the board plus BOTH players face-up. `index` 0 is the
