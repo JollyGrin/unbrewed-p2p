@@ -4,6 +4,7 @@
  */
 import type { ReplayExpansion, ReplayStep, ReplayStepPlayer } from "./protocol";
 import { opponentHand, opponentSeats, seatIds, stepIndexForTurn, toPlayerView, turnMarkers } from "./godView";
+import { deriveTeams } from "./teams";
 
 const step = (index: number, turnNumber: number): ReplayStep => ({
   index,
@@ -40,6 +41,18 @@ const ffa3 = (): ReplayStep => ({
     p1: seat("king-kong", ["king-kong/clobber#1"]),
     p2: seat("thrall", ["thrall/hex#1"]),
     p3: seat("r2-d2", ["r2-d2/beep#1", "r2-d2/beep#2"]),
+  } as ReplayStep["players"],
+});
+
+// team-2v2: four seats, teammates share a `team` value (mirrors the engine's
+// uniform `team` on replay steps). p1+p3 vs p2+p4.
+const team2v2 = (): ReplayStep => ({
+  ...step(0, 1),
+  players: {
+    p1: { ...seat("king-kong", ["king-kong/clobber#1"]), team: "A" },
+    p2: { ...seat("thrall", ["thrall/hex#1"]), team: "B" },
+    p3: { ...seat("r2-d2", ["r2-d2/beep#1"]), team: "A" },
+    p4: { ...seat("piper", ["piper/pipe#1"]), team: "B" },
   } as ReplayStep["players"],
 });
 
@@ -107,6 +120,29 @@ describe("multiplayer (ffa-3)", () => {
   it("keeps the duel top-fan identical (one opponent)", () => {
     expect(opponentSeats(step(0, 1), "p1").map((s) => s.id)).toEqual(["p2"]);
     expect(opponentSeats(step(0, 1), "p1")[0].hand).toEqual(["thrall/hex#1", "thrall/hex#2"]);
+  });
+});
+
+describe("teams (2v2 god-view)", () => {
+  it("carries each seat's team through to the mapped view players (#211)", () => {
+    const v = toPlayerView(team2v2(), exp, "p1");
+    expect(v.players.map((p) => p.team)).toEqual(["A", "B", "A", "B"]);
+  });
+
+  it("derives a real team format from the scrubbed step (ALLY chips light up)", () => {
+    // Same derivation ProHud runs — scrubbing a 2v2 replay must match live play.
+    const v = toPlayerView(team2v2(), exp, "p1");
+    const t = deriveTeams(v.players, v.you);
+    expect(t.active).toBe(true);
+    expect(t.allies).toEqual(["p3"]);
+    expect(t.relationOf("p3")).toBe("ally");
+    expect(t.relationOf("p2")).toBe("hostile");
+  });
+
+  it("is absent-safe for pre-team bundles (no team → no team chrome)", () => {
+    const v = toPlayerView(step(0, 1), exp, "p1");
+    expect(v.players.every((p) => p.team === undefined)).toBe(true);
+    expect(deriveTeams(v.players, v.you).active).toBe(false);
   });
 });
 
