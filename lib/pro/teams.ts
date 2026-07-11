@@ -84,3 +84,36 @@ export function deriveTeams(players: TeamSeat[], youId?: PlayerId): TeamView {
 
   return { active, you, relationOf, allies, friendlyOwners, isFriendly };
 }
+
+/** The minimal view shape the winner check needs (a `PlayerView`, or a stub). */
+export interface WinnerView {
+  players: TeamSeat[];
+  winner: PlayerId | null;
+  you: PlayerId | undefined;
+}
+
+/**
+ * Is the VIEWING player on the winning team? (issue #205)
+ *
+ * The engine reports `view.winner` as a SINGLE player — the first living member
+ * of the winning team by seat order, not necessarily the killer. Comparing
+ * `winner === you` therefore flashes DEFEAT to a teammate who actually won a
+ * team game. This routes the win/loss decision through the public per-seat
+ * `team` field instead: the viewer won iff the winner's team equals theirs.
+ *
+ * Degrades to identity (`winner === you`) exactly when there's no team signal to
+ * use — the winner or viewer seat has no `team` (older, pre-team server) — which
+ * also keeps duel/ffa behavior identical, since there the winner's singleton
+ * team only matches the viewer's when they ARE the winner.
+ */
+export function isViewerOnWinningTeam(view: WinnerView): boolean {
+  const { winner, you, players } = view;
+  if (!winner) return false;
+  if (winner === you) return true;
+
+  const winnerTeam = players.find((p) => p.id === winner)?.team;
+  const viewerTeam = players.find((p) => p.id === you)?.team;
+  // No team signal → fall back to identity (winner !== you here → DEFEAT).
+  if (winnerTeam == null || viewerTeam == null) return false;
+  return winnerTeam === viewerTeam;
+}

@@ -6,6 +6,7 @@
  * doesn't also show, and never feeds anything back into play.
  */
 import { CardInstanceId, GameEvent, PlayerId, PlayerView, ViewPlayer } from "./protocol";
+import { deriveTeams, isViewerOnWinningTeam } from "./teams";
 
 export interface ProLogLine {
   text: string;
@@ -194,10 +195,15 @@ export function diffViews(
   }
 
   if (next.winner && !prev.winner) {
-    lines.push({
-      text: next.winner === next.you ? "VICTORY — you win!" : `Defeat — ${seat(next.winner)} wins`,
-      who: "game",
-    });
+    const viewerWon = isViewerOnWinningTeam(next);
+    // In a real team format, phrase both the win and the loss around the team.
+    const teamGame = deriveTeams(next.players, next.you).active;
+    const text = viewerWon
+      ? teamGame
+        ? "VICTORY — your team wins!"
+        : "VICTORY — you win!"
+      : `Defeat — ${seat(next.winner)}${teamGame ? "'s team" : ""} wins`;
+    lines.push({ text, who: "game" });
   }
 
   return lines;
