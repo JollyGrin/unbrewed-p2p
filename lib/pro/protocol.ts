@@ -756,4 +756,11 @@ export type ErrorCode =
   | "BAD_MAP" // CREATE_ROOM.customMap failed validation (message lists violations)
   | "RESUME_FAILED" // RESUME_ROOM replay diverged / resume disabled (see message)
   | "UNDO_UNAVAILABLE" // UNDO_REQUEST with nothing to undo, or one already pending
+  // Additive (2026-07-11, unbrewed-engine PR #103) — mirrored VERBATIM from the
+  // engine's protocol.ts ErrorCode. Both are NON-FATAL and DO NOT bump
+  // PROTOCOL_VERSION (older clients see them as an unknown code and fall back to
+  // the generic error path; new clients render friendly, actionable copy).
+  | "ROOM_LIMIT" // server is at its global room cap — retry shortly (create/join)
+  | "RATE_LIMITED" // client is sending too fast; the socket stays open, but a
+                   // repeated breach makes the server close it (reconnect backs off)
   | "SERVER_ERROR";

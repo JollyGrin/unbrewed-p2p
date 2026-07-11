@@ -131,6 +131,16 @@ export interface UseProSocketReturn {
    */
   serverError: boolean;
   acknowledgeServerError: () => void;
+  /**
+   * Non-fatal: the server answered ERROR{ RATE_LIMITED } — we're sending too fast
+   * (unbrewed-engine PR #103). The socket STAYS OPEN and game state is intact; a
+   * repeated breach is what makes the server close it, at which point the ordinary
+   * reconnect/backoff path (now jittered) takes over. Latches true so the UI can
+   * show a gentle "slow down" toast without tearing the session down; call
+   * `acknowledgeRateLimited` after showing it. Emphatically NOT the loss path.
+   */
+  rateLimited: boolean;
+  acknowledgeRateLimited: () => void;
   /** ask the server for the current public-lobby list (poll while browsing) */
   requestLobbies: () => void;
   /** list/unlist our current room in the public lobby browser */
@@ -207,6 +217,11 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
   // with ERROR{ SERVER_ERROR } but kept the socket open. Surface a light notice
   // and leave the board interactive — never the disconnect/loss path.
   const [serverError, setServerError] = useState(false);
+  // Rate-limit latch (PR #103): the server answered ERROR{ RATE_LIMITED } but kept
+  // the socket open. Surface a gentle "slow down" toast and leave the session
+  // intact — never the disconnect/loss path. If the client keeps breaching, the
+  // server closes the socket and the jittered reconnect loop takes over.
+  const [rateLimited, setRateLimited] = useState(false);
 
   const send = useCallback((msg: ClientMsg) => {
     const ws = wsRef.current;
@@ -355,6 +370,16 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
             setServerError(true);
             break;
           }
+          // RATE_LIMITED (PR #103): we're sending too fast. Like SERVER_ERROR this
+          // is NON-FATAL and the socket stays open — surface a gentle toast and
+          // keep the board live. Do NOT reconnect or resume here: a repeated
+          // breach is what makes the SERVER close the socket, and only then does
+          // the (jittered) backoff loop in onclose run — hammering a limiter with
+          // fresh sockets is exactly what it punishes.
+          if (msg.code === "RATE_LIMITED") {
+            setRateLimited(true);
+            break;
+          }
           // A room lost to a redeploy answers ROOM_NOT_FOUND (room gone) or
           // BAD_TOKEN (already revived by the other client, our old seat token no
           // longer matches). If we hold a resume blob for it, revive rather than
@@ -386,7 +411,14 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
     ws.onclose = () => {
       if (wsRef.current !== ws) return; // superseded by a newer socket
       setStatus("closed");
-      const delay = Math.min(1000 * 2 ** retryRef.current.attempts, MAX_RETRY_DELAY_MS);
+      // Exponential backoff with FULL JITTER (issue #209). A server that closed us
+      // for RATE_LIMITED (or a redeploy that drops every socket at once) would be
+      // hammered by a fleet of clients all reconnecting on the same doubling
+      // schedule — a reconnect storm is exactly what the limiter punishes. Full
+      // jitter (a uniform random point in [0, cappedDelay]) de-synchronizes the
+      // clients and spreads the load while preserving the average backoff growth.
+      const capped = Math.min(1000 * 2 ** retryRef.current.attempts, MAX_RETRY_DELAY_MS);
+      const delay = Math.random() * capped;
       retryRef.current.attempts += 1;
       retryRef.current.timer = setTimeout(connect, delay);
     };
@@ -503,6 +535,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
   const acknowledgeUndoRejected = useCallback(() => setUndoRejected(false), []);
   const acknowledgeUndoUnavailable = useCallback(() => setUndoUnavailable(false), []);
   const acknowledgeServerError = useCallback(() => setServerError(false), []);
+  const acknowledgeRateLimited = useCallback(() => setRateLimited(false), []);
 
   const requestLobbies = useCallback(() => {
     send({ v: PROTOCOL_VERSION, type: "LIST_LOBBIES" });
@@ -541,6 +574,8 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
     acknowledgeUndoUnavailable,
     serverError,
     acknowledgeServerError,
+    rateLimited,
+    acknowledgeRateLimited,
     requestLobbies,
     setVisibility,
     serverRestarting,

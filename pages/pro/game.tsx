@@ -38,6 +38,7 @@ import {
   ViewPrompt,
 } from "@/lib/pro/protocol";
 import { saveReplay } from "@/lib/pro/replayStore";
+import { proErrorMessage } from "@/lib/pro/proErrors";
 import { ProConnectionStatus, useProSocket } from "@/lib/pro/useProSocket";
 import { normalizeMap } from "@/lib/pro/normalizeMap";
 import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
@@ -1326,7 +1327,7 @@ const HeroSelectLobby = ({
 // ---------------------------------------------------------------------------
 
 const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string | null }) => {
-  const { status, roomId, roomInfo, snapshot, opponentConnected, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, requestLobbies, setVisibility, serverRestarting, gameLost } =
+  const { status, roomId, roomInfo, snapshot, opponentConnected, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, requestLobbies, setVisibility, serverRestarting, gameLost } =
     useProSocket(WS_URL);
   const [joined, setJoined] = useState(false);
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
@@ -1517,6 +1518,14 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
       setSelectedMapId(CUSTOM_MAP_ID);
       setMapError(error.message);
     }
+    // ROOM_LIMIT (PR #103): the server is at its global room cap on create/join.
+    // Non-fatal — bounce back to the landing picker (keep the hero/format/board
+    // selections intact) and toast the friendly retry copy; the player just tries
+    // again in a minute. Never the raw error screen or loss path.
+    if (error?.code === "ROOM_LIMIT") {
+      setJoined(false);
+      toast(proErrorMessage("ROOM_LIMIT"), { id: "pro-room-limit", icon: "⏳" });
+    }
   }, [error]);
 
   // Deploy-safe games (protocol v7): while the server is redeploying it sends
@@ -1573,6 +1582,17 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
     });
     acknowledgeServerError();
   }, [serverError, acknowledgeServerError]);
+
+  // Rate limited (issue #209 / engine PR #103): we're sending too fast. Gentle
+  // one-shot toast, then acknowledge — the socket stays open and the board stays
+  // live. A stable id coalesces a burst of breaches into a single toast. If the
+  // server ultimately closes the socket for a repeated breach, the jittered
+  // reconnect/backoff in useProSocket handles resumption; this is NOT a loss.
+  useEffect(() => {
+    if (!rateLimited) return;
+    toast(proErrorMessage("RATE_LIMITED"), { id: "pro-rate-limited", icon: "🐢" });
+    acknowledgeRateLimited();
+  }, [rateLimited, acknowledgeRateLimited]);
 
   if (!joined) {
     const effectiveHeroId = selectedHeroId ?? (heroes === null ? heroParam : null);
@@ -1750,11 +1770,10 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   }
 
   // Room-level errors surface on a friendly screen with a create-new fallback.
+  // (ROOM_LIMIT is handled earlier as a non-fatal bounce back to the landing
+  // picker, so it never reaches this terminal screen.)
   if (error && (error.code === "ROOM_NOT_FOUND" || error.code === "ROOM_FULL")) {
-    const msg =
-      error.code === "ROOM_NOT_FOUND"
-        ? "This room expired or never existed."
-        : "This room is already full.";
+    const msg = proErrorMessage(error.code);
     return (
       <Flex direction="column" alignItems="center" gap="1rem" pt="4rem" px="1rem" textAlign="center">
         <Text fontFamily="LeagueGothic" fontSize="2rem" letterSpacing="0.05em" color="red.300">
