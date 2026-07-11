@@ -56,7 +56,7 @@ import { ReportBugDialog } from "@/components/Pro/ReportBugDialog";
 import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
 import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
-import { diffViews, enrichLines } from "@/lib/pro/gameLog";
+import { diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
 import { useFlag } from "@/lib/flags";
 import { maneuverBoostHint } from "@/lib/pro/maneuverHint";
 import { buildPoseIndex, parsePoseOptions, poseHighlights, resolvePoseClick } from "@/lib/pro/moveChoice";
@@ -1427,6 +1427,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
         ? enrichLines(diff, snapshot.events, {
             label: (source) => resolveEventSource(next, source),
             you: next.you,
+            seat: (player) => seatLabel(next, player),
           })
         : diff;
     prevViewRef.current = next;
@@ -2181,7 +2182,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
         visualFxOn={visualOn}
         onToggleSound={toggleSound}
         onToggleVisualFx={toggleVisual}
-        onReportBug={multiplayerView ? undefined : () => setReportBugOpen(true)}
+        onReportBug={() => setReportBugOpen(true)}
       />
 
       {/* right control dock — turn state, combat, prompts, actions */}
@@ -2353,7 +2354,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
         entries={logEntries}
         resolveCard={resolveCard}
         labelFor={(c) => cardLabel(view.catalog, c)}
-        onReportBug={multiplayerView ? undefined : () => setReportBugOpen(true)}
+        onReportBug={() => setReportBugOpen(true)}
       />
 
       {/* prefilled-GitHub-issue bug report with auto-captured game context (#87) */}
