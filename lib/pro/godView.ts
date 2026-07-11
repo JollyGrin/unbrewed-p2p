@@ -68,6 +68,10 @@ export function toPlayerView(
       discard: p.discard,
       hasCommitted: p.committedCard !== null,
       counters: p.counters,
+      // Carry the seat's team through so ProHud's deriveTeams sees a real team
+      // format when scrubbing a 2v2 replay (ALLY chips etc.); absent-safe for
+      // pre-team bundles. Live play is unaffected (uses the server view). (#211)
+      ...(p.team != null ? { team: p.team } : {}),
     };
   });
   return {
