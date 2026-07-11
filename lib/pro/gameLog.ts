@@ -73,7 +73,13 @@ const playersById = (view: PlayerView): Map<PlayerId, ViewPlayer> => {
   return players;
 };
 
-const playerSeat = (view: PlayerView, player: PlayerId): string => {
+/**
+ * Human seat label for the log/report: "You" for the viewer, "Opponent" in a
+ * duel, and the uppercased seat id ("P3") in any >2-player game — so a
+ * multiplayer log attributes each line to a specific seat, never a generic
+ * "opponent". Shared by diffViews and enrichLines.
+ */
+export const seatLabel = (view: PlayerView, player: PlayerId): string => {
   if (player === view.you) return "You";
   return view.players.length === 2 ? "Opponent" : player.toUpperCase();
 };
@@ -85,7 +91,7 @@ export function diffViews(
 ): ProLogLine[] {
   const lines: ProLogLine[] = [];
   const whoOf = (p: string): "you" | "opp" => (p === next.you ? "you" : "opp");
-  const seat = (p: PlayerId) => playerSeat(next, p);
+  const seat = (p: PlayerId) => seatLabel(next, p);
 
   if (!prev) {
     lines.push({ text: `Game on — turn ${next.turnNumber}`, who: "game" });
@@ -250,6 +256,9 @@ export interface EnrichContext {
   label: (source: string) => string;
   /** Viewer's player id (`view.you`) — maps player-scoped events to you/opp. */
   you: string;
+  /** Seat label for a player-scoped event ("You"/"Opponent"/"P3"), so a >2p
+   *  log names the acting seat instead of a generic "Opponent". */
+  seat: (player: PlayerId) => string;
 }
 
 /**
@@ -328,7 +337,7 @@ export function enrichLines(
         break;
       }
       case "ACTIONS_GAINED": {
-        const seat = whoOf(e.player) === "you" ? "You" : "Opponent";
+        const seat = ctx.seat(e.player);
         added.push({
           text: `${seat} gained ${e.amount} action${e.amount === 1 ? "" : "s"}`,
           who: whoOf(e.player),
@@ -336,7 +345,7 @@ export function enrichLines(
         break;
       }
       case "CARD_RETURNED_TO_HAND": {
-        const seat = whoOf(e.player) === "you" ? "You" : "Opponent";
+        const seat = ctx.seat(e.player);
         added.push({
           text: `${seat} returned ${ctx.label(e.card)} to hand`,
           who: whoOf(e.player),
@@ -345,7 +354,7 @@ export function enrichLines(
         break;
       }
       case "CARD_REVEALED": {
-        const seat = whoOf(e.player) === "you" ? "You" : "Opponent";
+        const seat = ctx.seat(e.player);
         added.push({
           text: `${seat} revealed ${ctx.label(e.card)}`,
           who: whoOf(e.player),

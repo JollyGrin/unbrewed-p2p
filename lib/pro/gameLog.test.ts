@@ -58,13 +58,16 @@ const view = (over: Partial<PlayerView>): PlayerView => ({
 const label = (c: CardInstanceId) => c.split("#")[0].split("/").pop() ?? c;
 
 // Resolver enrichLines gets from the page: card title / hero name / hidden.
-const ctx = (you = "p1"): EnrichContext => ({
+// `seat` mirrors gameLog's seatLabel for a duel; pass `seatFor` to model a >2p
+// game where non-you seats are named by id.
+const ctx = (you = "p1", seatFor?: (p: string) => string): EnrichContext => ({
   you,
   label: (source) => {
     if (source === "(hidden)") return "a hidden card";
     if (source.startsWith("hero:")) return `hero ${source.slice(5)}`;
     return label(source);
   },
+  seat: seatFor ?? ((p) => (p === you ? "You" : "Opponent")),
 });
 
 // Every GameEvent variant, one representative each — used to assert the
@@ -297,6 +300,26 @@ describe("enrichLines", () => {
       expect(out).toEqual([
         { text: "You returned the-great-stone-face to hand", who: "you", cards: ["buster-keaton/the-great-stone-face#1"] },
         { text: "Opponent revealed porkpie-hat", who: "opp", cards: ["buster-keaton/porkpie-hat#1"] },
+      ]);
+    });
+
+    it("names the acting seat (not a generic 'Opponent') for >2p games", () => {
+      // In a 3-player game the page passes seatLabel, which names non-you seats
+      // by id — so a p3 event reads "P3", never "Opponent".
+      const seat3p = (p: string) => (p === "p1" ? "You" : p.toUpperCase());
+      const out = enrichLines(
+        [],
+        [
+          { type: "ACTIONS_GAINED", player: "p3", amount: 1 },
+          { type: "CARD_REVEALED", player: "p3", card: "buster-keaton/porkpie-hat#1" },
+          { type: "CARD_RETURNED_TO_HAND", player: "p2", card: "buster-keaton/the-great-stone-face#1" },
+        ],
+        ctx("p1", seat3p)
+      );
+      expect(out.map((l) => l.text)).toEqual([
+        "P3 gained 1 action",
+        "P3 revealed porkpie-hat",
+        "P2 returned the-great-stone-face to hand",
       ]);
     });
 
