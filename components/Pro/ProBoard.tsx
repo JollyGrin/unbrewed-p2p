@@ -14,6 +14,7 @@ import { PointerEvent as ReactPointerEvent, useRef, useState } from "react";
 import { FighterId, PlayerId, ProMapDef, ProMapRegion, ProMapSpace, SpaceId, ViewFighter, ViewToken } from "@/lib/pro/protocol";
 import { BoardFxItem } from "@/lib/pro/useGameFx";
 import { useZoomPan } from "@/lib/pro/useZoomPan";
+import { LARGE_FIGHTER_BLURB, LARGE_REACH_CHIP } from "@/lib/pro/largeReach";
 
 const DEFAULT_DIAMETER = 0.021;
 
@@ -133,6 +134,11 @@ export interface ProBoardProps {
    *  "Attack … with Raptor 1 / 2 / 3" sidebar buttons can be matched to the right
    *  board token. Absent = no badge (the single-attacker case stays uncluttered). */
   fighterBadges?: Partial<Record<FighterId, number>>;
+  /** Attack targets reachable ONLY via the large-fighter reach extension (issue
+   *  #235). PRESENTATION ONLY — the caller derives these from the server's own
+   *  legalActions; the board just annotates the pulsing token so a 2-space melee
+   *  attack doesn't read as a bug. Absent/empty = no annotation. */
+  extendedReachTargets?: FighterId[];
   /** transient effect overlays (floating damage numbers…) — keyed, caller-expired */
   fx?: BoardFxItem[];
   /** a just-committed move to tween through node-by-node instead of snapping */
@@ -187,6 +193,7 @@ export const ProBoard = ({
   attack = null,
   friendlyOwners = [],
   fighterBadges = {},
+  extendedReachTargets = [],
   fx = [],
   pendingMove = null,
   onPendingMoveSettled,
@@ -199,6 +206,7 @@ export const ProBoard = ({
   const diameter = (map.meta.spaceDiameter ?? DEFAULT_DIAMETER) * 100; // % of width
   const highlightSet = new Set(highlightedSpaces);
   const highlightFighterSet = new Set(highlightedFighters);
+  const extendedReachSet = new Set(extendedReachTargets);
   const closedSet = new Set(closedRegions);
   const friendlySet = new Set(friendlyOwners);
 
@@ -337,6 +345,10 @@ export const ProBoard = ({
     const color = PLAYER_COLOR[f.owner] ?? "#999";
     const isSelected = f.id === selectedFighter;
     const isTarget = highlightFighterSet.has(f.id);
+    // Extended-reach attack target (issue #235): the pulsing token is a legal
+    // target ONLY because a LARGE fighter is involved (2-space melee reach). Mark
+    // it so the 2-space attack doesn't read as a bug. Presentation only.
+    const isExtendedReachTarget = isTarget && extendedReachSet.has(f.id);
     const isFriendly = friendlySet.has(f.owner);
     // A CHOOSE_SPACE prompt highlights the space *under* the token, and the
     // token (zIndex 4) sits above the space hit-circle (zIndex 3) — a click
@@ -420,6 +432,31 @@ export const ProBoard = ({
             {fighterBadges[f.id]}
           </Flex>
         )}
+        {segment === "head" && isExtendedReachTarget && (
+          <Flex
+            position="absolute"
+            top="-46%"
+            left="50%"
+            transform="translateX(-50%)"
+            bg="brand.accent"
+            color="brand.surfaceDim"
+            borderRadius="999px"
+            px="0.45em"
+            fontSize="0.55rem"
+            fontWeight="bold"
+            letterSpacing="0.02em"
+            lineHeight="1.5"
+            whiteSpace="nowrap"
+            boxShadow="0 1px 3px rgba(0,0,0,0.7)"
+            // Terse at-a-glance echo on the pulsing token; the sidebar row carries
+            // the full "Large fighter — melee reach 2" copy + tooltip, and this
+            // pill's hover title spells out the same rule (LARGE_REACH_CHIP is
+            // referenced so board + row can never drift on the wording).
+            title={`${LARGE_REACH_CHIP} — ${LARGE_FIGHTER_BLURB}`}
+          >
+            reach 2
+          </Flex>
+        )}
       </>
     );
 
@@ -467,7 +504,11 @@ export const ProBoard = ({
         alignItems="center"
         justifyContent="center"
         zIndex={4}
-        title={`${f.name} — ${f.hp}/${f.maxHp} HP`}
+        title={
+          isExtendedReachTarget
+            ? `${f.name} — ${f.hp}/${f.maxHp} HP · ${LARGE_FIGHTER_BLURB}`
+            : `${f.name} — ${f.hp}/${f.maxHp} HP`
+        }
       >
         {children}
       </MotionFlex>
