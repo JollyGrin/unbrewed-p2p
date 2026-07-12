@@ -238,7 +238,13 @@ export type CombatOutcome = "ATTACKER_WON" | "DEFENDER_WON" | "UNKNOWN";
 export type Action =
   | { type: "PLACE_SIDEKICK"; player: PlayerId; fighter: FighterId; space: SpaceId }
   | { type: "MANEUVER"; player: PlayerId }
-  | { type: "BOOST_MOVE"; player: DuelPlayerId; card: CardInstanceId }
+  // Maneuver boost (discard a card to widen a fighter's movement). Multiplayer
+  // (unbrewed-engine #119): the engine un-gates BOOST_MOVE enumeration in ffa-3
+  // and team-2v2, so any seat on the clock during its maneuver may boost. Hence
+  // `player: PlayerId`, not `DuelPlayerId` — same widening as FORFEIT below
+  // (additive, no version bump; the client renders it generically from
+  // legalActions and echoes back whatever seat the server offered).
+  | { type: "BOOST_MOVE"; player: PlayerId; card: CardInstanceId }
   | { type: "MOVE_FIGHTER"; player: PlayerId; fighter: FighterId; path: SpaceId[] }
   | { type: "END_MANEUVER"; player: PlayerId }
   | { type: "SCHEME"; player: PlayerId; card: CardInstanceId }
