@@ -45,7 +45,7 @@ import { normalizeMap } from "@/lib/pro/normalizeMap";
 import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { mapSubmissionIssueUrl } from "@/lib/pro/mapIssue";
 import { RecentRoom, getTabToken, listRecentRooms } from "@/lib/pro/recentRooms";
-import { HERO_DECK_IDS, ResolveCard, useProCardArt } from "@/lib/pro/useProCardArt";
+import { HERO_DECK_IDS, ResolveCard, heroIdsForArt, useProCardArt } from "@/lib/pro/useProCardArt";
 import { frozenAtForHero } from "@/lib/pro/evergreenManifest";
 import { POPULAR_DECKS, PopularDeckMeta } from "@/lib/constants/top-decks";
 import { GiFootprint, GiHearts } from "react-icons/gi";
@@ -1270,7 +1270,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
   // Art fetch (unbrewed-api, matched by title against the server catalog) —
   // must run unconditionally; no-ops until the first STATE arrives.
   const { resolveCard, resolveHero, resolveFighterToken } = useProCardArt(
-    snapshot ? [...new Set(snapshot.view.players.map((p) => p.heroId))] : [],
+    snapshot ? heroIdsForArt(snapshot.view) : [],
     snapshot?.view.catalog ?? {}
   );
 
@@ -1327,7 +1327,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
   useEffect(() => {
     if (!snapshot) return;
     const next = snapshot.view;
-    const diff = diffViews(prevViewRef.current, next, (c) => cardLabel(next.catalog, c));
+    const diff = diffViews(prevViewRef.current, next, (c) => cardLabel(next.catalog, c), snapshot.events);
     // Decoratively enrich with the engine's structured events for THIS batch —
     // gated behind the eventLog flag. Flag off (or no events) leaves the log
     // byte-identical to the pure diffViews path. See enrichLines in gameLog.ts.

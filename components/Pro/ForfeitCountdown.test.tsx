@@ -1,5 +1,5 @@
 import { act, render } from "@testing-library/react";
-import { fmtCountdown, ForfeitCountdown } from "./ProHud";
+import { fmtCountdown, ForfeitCountdown, FORFEIT_AT_NEXT_TURN } from "./ProHud";
 
 describe("fmtCountdown", () => {
   it("formats seconds as mm:ss with a zero-padded seconds field", () => {
@@ -34,7 +34,10 @@ describe("ForfeitCountdown — non-drifting server-deadline countdown (issue #22
     expect(container.textContent).toBe("auto-forfeit in 1:02");
   });
 
-  it("clamps at 0:00 once the deadline has passed", () => {
+  it("swaps the ticking clock for 'next turn' copy once the deadline passes (issue #226)", () => {
+    // The engine only lands the forfeit at the seat's next clock edge, so 0:00
+    // can sit for a while. Show what actually happens next instead of a frozen
+    // clock that over-promises exactness.
     jest.useFakeTimers();
     let now = 5_000;
     jest.spyOn(Date, "now").mockImplementation(() => now);
@@ -44,6 +47,35 @@ describe("ForfeitCountdown — non-drifting server-deadline countdown (issue #22
     act(() => {
       jest.advanceTimersByTime(1000);
     });
-    expect(container.textContent).toBe("auto-forfeit in 0:00");
+    expect(container.textContent).toBe(FORFEIT_AT_NEXT_TURN);
+    expect(container.textContent).toBe("auto-forfeits on their next turn");
+    expect(container.textContent).not.toContain("0:00");
+  });
+
+  it("shows 'next turn' copy immediately when the deadline is already in the past", () => {
+    // A late mount (e.g. a plate that just hydrated) must not flash a 0:00 clock.
+    jest.useFakeTimers();
+    const now = 500_000;
+    jest.spyOn(Date, "now").mockImplementation(() => now);
+
+    const { container } = render(<ForfeitCountdown deadline={now - 3000} />);
+    expect(container.textContent).toBe(FORFEIT_AT_NEXT_TURN);
+  });
+
+  it("keeps the 'next turn' copy on every subsequent tick until the badge is cleared", () => {
+    // The forfeit STATE that unmounts the badge can arrive many seconds after the
+    // deadline; the copy must stay put across ticks rather than reverting.
+    jest.useFakeTimers();
+    let now = 5_000;
+    jest.spyOn(Date, "now").mockImplementation(() => now);
+
+    const { container } = render(<ForfeitCountdown deadline={now + 1000} />);
+    now += 20_000;
+    for (let i = 0; i < 5; i++) {
+      act(() => {
+        jest.advanceTimersByTime(1000);
+      });
+      expect(container.textContent).toBe(FORFEIT_AT_NEXT_TURN);
+    }
   });
 });

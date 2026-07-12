@@ -55,6 +55,7 @@ import { DeckImportHeroType } from "@/components/DeckPool/deck-import.type";
 import { CardInstanceId, PlayerId, PlayerView, ViewFighter, ViewPlayer } from "@/lib/pro/protocol";
 import { isLargeFighter, LARGE_FIGHTER_BLURB } from "@/lib/pro/largeReach";
 import { deriveTeams } from "@/lib/pro/teams";
+import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { FlagHudChip, ResolveCard, ResolveHero, flagChipsFor } from "@/lib/pro/useProCardArt";
 import { DEFAULT_PLATE_LAYOUT, PlateLayout, PlateSeat, useHudPlates } from "@/lib/pro/useHudPlates";
 import { CardFace } from "./ProHand";
@@ -212,12 +213,20 @@ export const fmtCountdown = (totalSeconds: number) => {
   return `${m}:${s.toString().padStart(2, "0")}`;
 };
 
+// Copy shown once the countdown hits 0. The engine only injects the abandonment
+// forfeit at the disconnected seat's NEXT clock edge (engine PR #125 — FORFEIT is
+// legal on-clock only), so the deadline can pass while another player is still
+// mid-turn and the sweep lands seconds later (~15s observed). A clock frozen at
+// 0:00 over-promises exactness; this says what actually happens next.
+export const FORFEIT_AT_NEXT_TURN = "auto-forfeits on their next turn";
+
 /**
  * Auto-forfeit countdown (issue #222). Drives off the SERVER deadline
  * (`autoForfeitAt`, epoch ms): every tick it recomputes remaining from
  * `Date.now()` rather than decrementing a local counter, so it never drifts and
- * self-corrects across a backgrounded tab. Clamps at 0 (the forfeit STATE that
- * clears the whole badge is normally already on its way by then).
+ * self-corrects across a backgrounded tab. Once it reaches 0 it stops ticking
+ * and switches to the "next turn" copy (issue #226) — kept until the forfeit
+ * STATE arrives and clears the whole badge — instead of sitting at a stale 0:00.
  */
 export const ForfeitCountdown = ({ deadline }: { deadline: number }) => {
   const remaining = () => Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
@@ -228,6 +237,7 @@ export const ForfeitCountdown = ({ deadline }: { deadline: number }) => {
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deadline]);
+  if (secs === 0) return <>{FORFEIT_AT_NEXT_TURN}</>;
   return <>auto-forfeit in {fmtCountdown(secs)}</>;
 };
 
@@ -807,7 +817,7 @@ export const ProHud = ({
             sidekicks={sidekicksOf(seat.id)}
             flags={seat.flags}
             isLocal={seat.you}
-            isActive={view.activePlayer === seat.id}
+            isActive={showLiveTurnChrome(view) && view.activePlayer === seat.id}
             isAlly={teams.relationOf(seat.id) === "ally"}
             presence={presenceOf(seat)}
             hand={seat.you ? seat.hand ?? view.self.hand : seat.handCount}
