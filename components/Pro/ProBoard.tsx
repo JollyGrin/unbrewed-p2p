@@ -15,6 +15,7 @@ import { FighterId, PlayerId, ProMapDef, ProMapRegion, ProMapSpace, SpaceId, Vie
 import { BoardFxItem } from "@/lib/pro/useGameFx";
 import { useZoomPan } from "@/lib/pro/useZoomPan";
 import { LARGE_FIGHTER_BLURB, LARGE_REACH_CHIP } from "@/lib/pro/largeReach";
+import { tokenInitials } from "./FighterTokenPortrait";
 
 const DEFAULT_DIAMETER = 0.021;
 
@@ -183,13 +184,6 @@ const ALLY_RING = "#39B7A8";
  * otherwise both read "THE"), so strip it and take three letters. A name that's
  * literally just "The" (or empty) has nothing left to abbreviate once stripped —
  * fall back to a single letter rather than leaking the literal word "THE". */
-const tokenInitials = (name: string) => {
-  const stripped = name.replace(/^the\b\s*/i, "").trim();
-  const base = stripped || name.trim();
-  const initials = base.slice(0, 3).toUpperCase();
-  return initials && initials !== "THE" ? initials : base.slice(0, 1).toUpperCase() || "?";
-};
-
 export const ProBoard = ({
   map,
   fighters,
