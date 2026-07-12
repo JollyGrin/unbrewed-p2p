@@ -1616,8 +1616,8 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
               selectedFormat === "duel"
                 ? []
                 : Object.entries(botSlotPlan)
-                    .filter(([, occupant]) => occupant === "easy")
-                    .map(([player]) => ({ player: player as PlayerId, difficulty: "easy" }));
+                    .filter((entry): entry is [string, Exclude<SlotOccupant, "human">] => entry[1] !== "human")
+                    .map(([player, difficulty]) => ({ player: player as PlayerId, difficulty }));
             createRoom(effectiveHeroId, bot, customMap, selectedFormat, botSeats);
             setSelectedHeroId(effectiveHeroId); // lock it for the lobby label
             setJoined(true);
