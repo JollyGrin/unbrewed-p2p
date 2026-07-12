@@ -241,6 +241,17 @@
  * HIGH_TIDE; future: stances, charges, forms). Purely additive; an older client
  * that ignores `flags` is unaffected. Rendered as a HUD state pill via the
  * FLAG_HUD_CHIPS registry in lib/pro/useProCardArt.ts (unbrewed-p2p #233).
+ *
+ * ## Additive field (2026-07-12, no version bump): `ViewPrompt.description`
+ * (issue #134). A multi-step effect (e.g. Coil and Slip's damage-then-move) left
+ * every step's prompt looking identical ("Effect of X / click a pulsing
+ * fighter"), so a player could not tell WHICH step they were answering — see
+ * `source` (v10) for WHAT card is asking; `description` is WHAT is being chosen.
+ * Generated mechanically at emission time from the op being resolved (op verb +
+ * amount) — never per-card authored — and only for CHOOSE_TARGET/CHOOSE_SPACE
+ * prompts where that summary is unambiguous; other prompt kinds and system
+ * prompts (setup, commit, maneuver) omit it. Purely additive and presentation-
+ * only; an older client that ignores it is unaffected.
  */
 export const PROTOCOL_VERSION = 16;
 
@@ -415,6 +426,12 @@ export interface ViewPrompt {
    *  only when its face is public to BOTH viewers — a face still hidden from the
    *  receiving viewer sends null instead, so this never leaks a redacted id. */
   source?: { card: CardInstanceId } | { hero: PlayerId } | null;
+  /** Mechanical summary of WHAT is being chosen (op verb + amount, e.g. "Choose
+   *  a fighter to take 2 damage") — issue #134. Generated at emission time from
+   *  the op being resolved, never per-card authored; undefined where a non-vague
+   *  summary isn't mechanically derivable (system prompts, or prompt kinds other
+   *  than CHOOSE_TARGET/CHOOSE_SPACE). Public: never depends on hidden info. */
+  description?: string;
 }
 
 // ---------------------------------------------------------------------------
