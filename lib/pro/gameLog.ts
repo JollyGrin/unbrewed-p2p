@@ -7,6 +7,7 @@
  */
 import { CardInstanceId, GameEvent, PlayerId, PlayerView, ViewPlayer } from "./protocol";
 import { deriveTeams, isViewerOnWinningTeam } from "./teams";
+import { sweptFighters } from "./sweep";
 
 export interface ProLogLine {
   text: string;
@@ -90,7 +91,8 @@ export const seatLabel = (view: PlayerView, player: PlayerId): string => {
 export function diffViews(
   prev: PlayerView | null,
   next: PlayerView,
-  label: (instance: CardInstanceId) => string
+  label: (instance: CardInstanceId) => string,
+  events: GameEvent[] = []
 ): ProLogLine[] {
   const lines: ProLogLine[] = [];
   const whoOf = (p: string): "you" | "opp" => (p === next.you ? "you" : "opp");
@@ -113,13 +115,17 @@ export function diffViews(
 
   // fighters: movement, damage, defeat
   const prevFighters = new Map(prev.fighters.map((f) => [f.id, f]));
+  // Fighters cleared by the elimination sweep (hero-dead seat) drop to hp:0
+  // with no DAMAGE_APPLIED — that hp change is bookkeeping, not combat, so skip
+  // the phantom "took N damage" line and log a removal instead (issue #212).
+  const swept = sweptFighters(events);
   for (const f of next.fighters) {
     const was = prevFighters.get(f.id);
     if (!was) continue;
     if (f.space !== was.space && f.space && was.space) {
       lines.push({ text: `${f.name} moved`, who: whoOf(f.owner) });
     }
-    if (f.hp < was.hp) {
+    if (f.hp < was.hp && !swept.has(f.id)) {
       lines.push({
         text: `${f.name} took ${was.hp - f.hp} damage (${f.hp}/${f.maxHp})`,
         who: whoOf(f.owner),
@@ -128,7 +134,11 @@ export function diffViews(
       lines.push({ text: `${f.name} healed ${f.hp - was.hp} (${f.hp}/${f.maxHp})`, who: whoOf(f.owner) });
     }
     if (f.defeated && !was.defeated) {
-      lines.push({ text: `${f.name} was defeated!`, who: "game" });
+      lines.push(
+        swept.has(f.id)
+          ? { text: `${f.name} was removed (hero defeated)`, who: "game" }
+          : { text: `${f.name} was defeated!`, who: "game" }
+      );
     }
   }
 
