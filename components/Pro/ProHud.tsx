@@ -56,7 +56,7 @@ import { deriveTeams } from "@/lib/pro/teams";
 import { ResolveCard, ResolveHero } from "@/lib/pro/useProCardArt";
 import { DEFAULT_PLATE_LAYOUT, PlateLayout, PlateSeat, useHudPlates } from "@/lib/pro/useHudPlates";
 import { CardFace } from "./ProHand";
-import { ProConnectionStatus } from "@/lib/pro/useProSocket";
+import { ProConnectionStatus, SeatPresence } from "@/lib/pro/useProSocket";
 import { FLAGS, useFlags } from "@/lib/flags";
 
 // Team-affiliation accent (issue #195). A teal that reads clearly as "friendly"
@@ -143,6 +143,32 @@ const CtrlBtn = ({
   </Flex>
 );
 
+/** mm:ss for a non-negative second count. */
+export const fmtCountdown = (totalSeconds: number) => {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+};
+
+/**
+ * Auto-forfeit countdown (issue #222). Drives off the SERVER deadline
+ * (`autoForfeitAt`, epoch ms): every tick it recomputes remaining from
+ * `Date.now()` rather than decrementing a local counter, so it never drifts and
+ * self-corrects across a backgrounded tab. Clamps at 0 (the forfeit STATE that
+ * clears the whole badge is normally already on its way by then).
+ */
+export const ForfeitCountdown = ({ deadline }: { deadline: number }) => {
+  const remaining = () => Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+  const [secs, setSecs] = useState(remaining);
+  useEffect(() => {
+    setSecs(remaining()); // resync immediately when the deadline changes
+    const id = setInterval(() => setSecs(remaining()), 1000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deadline]);
+  return <>auto-forfeit in {fmtCountdown(secs)}</>;
+};
+
 const SeatPlate = ({
   label,
   hero,
@@ -151,6 +177,7 @@ const SeatPlate = ({
   isLocal,
   isActive,
   isAlly,
+  presence,
   hand,
   deckCount,
   discard,
@@ -168,6 +195,10 @@ const SeatPlate = ({
   isActive: boolean;
   /** teammate of the viewing player (team formats only) — shows an ALLY chip */
   isAlly: boolean;
+  /** seat disconnected mid-game (issue #222): shows an offline badge, plus a
+   *  non-drifting auto-forfeit countdown when `autoForfeitAt` is set. undefined =
+   *  connected (or duel, which never populates this). */
+  presence?: SeatPresence;
   /** own hand instances, or a count for the opponent */
   hand: CardInstanceId[] | number;
   deckCount: number;
@@ -281,6 +312,44 @@ const SeatPlate = ({
     </Flex>
   ) : null;
 
+  // Disconnect / auto-forfeit (issue #222). Compact red tag for the title bar
+  // (both collapsed and expanded plates) — "OFFLINE" when the seat is merely
+  // disconnected, the live mm:ss countdown once the server arms an auto-forfeit.
+  const presenceTag = presence ? (
+    <Tag size="sm" colorScheme="red" flexShrink={0} letterSpacing="0.03em">
+      {presence.autoForfeitAt != null ? (
+        <ForfeitCountdown deadline={presence.autoForfeitAt} />
+      ) : (
+        "OFFLINE"
+      )}
+    </Tag>
+  ) : null;
+
+  // Full-width banner under the title bar (expanded plate) with the softer
+  // "reconnecting…" framing so the state reads clearly at rest.
+  const presenceRow = presence ? (
+    <Flex
+      alignItems="center"
+      gap="0.35rem"
+      px="0.85rem"
+      py="0.25rem"
+      bg="rgba(192, 57, 43, 0.28)"
+      color="brand.parchment"
+    >
+      <Text fontSize="0.68rem" fontFamily="SpaceGrotesk" letterSpacing="0.03em" noOfLines={1}>
+        reconnecting…
+        {presence.autoForfeitAt != null && (
+          <>
+            {" "}
+            <Text as="span" fontWeight="bold" sx={{ fontVariantNumeric: "tabular-nums" }}>
+              <ForfeitCountdown deadline={presence.autoForfeitAt} />
+            </Text>
+          </>
+        )}
+      </Text>
+    </Flex>
+  ) : null;
+
   const statsPanel = (
     <StatsPanel>
       <StatLine>
@@ -352,10 +421,12 @@ const SeatPlate = ({
       <PlayerTitleBar>
         {renderNameBlock(false)}
         <Flex alignItems="center" gap="0.3rem" flexShrink={0}>
+          {presenceTag}
           {allyTag}
           {turnTag}
         </Flex>
       </PlayerTitleBar>
+      {presenceRow}
       {statsPanel}
       {sidekickRows}
       {pipFooter}
@@ -418,6 +489,7 @@ const SeatPlate = ({
                       {heroHp}
                     </Text>
                   </Flex>
+                  {presenceTag}
                   {allyTag}
                   {turnTag}
                   {controls}
@@ -430,11 +502,13 @@ const SeatPlate = ({
             <PlayerTitleBar {...titleBarDrag}>
               {renderNameBlock(true)}
               <Flex alignItems="center" gap="0.3rem" flexShrink={0}>
+                {presenceTag}
                 {allyTag}
                 {turnTag}
                 {controls}
               </Flex>
             </PlayerTitleBar>
+            {presenceRow}
             {statsPanel}
             {sidekickRows}
             {pipFooter}
@@ -542,6 +616,14 @@ export interface ProHudProps {
   view: PlayerView;
   status: ProConnectionStatus;
   roomId: string | null;
+  /**
+   * Seat-identified presence (protocol v15): seats currently disconnected
+   * mid-game, keyed by runtime seat id. A disconnected seat's plate shows an
+   * offline badge; when the entry carries an `autoForfeitAt` deadline it also
+   * renders a non-drifting auto-forfeit countdown. Empty/omitted → every plate
+   * renders exactly as before (duel is untouched — it never populates this).
+   */
+  seatPresence?: Record<string, SeatPresence>;
   resolveCard: ResolveCard;
   resolveHero: ResolveHero;
   labelFor: (instance: CardInstanceId) => string;
@@ -558,6 +640,7 @@ export const ProHud = ({
   view,
   status,
   roomId,
+  seatPresence,
   resolveCard,
   resolveHero,
   labelFor,
@@ -612,6 +695,12 @@ export const ProHud = ({
     update(seat, partial);
   const seatLabel = (seat: ViewPlayer) =>
     seat.you ? "You" : seats.length === 2 ? "Opponent" : seat.id.toUpperCase();
+  // Disconnect/auto-forfeit badge is a multiplayer feature (issue #222): duel
+  // keeps its single top-of-HUD "opponent disconnected" chip and renders plates
+  // exactly as before, so the presence lookup is gated on a multiplayer view.
+  const multiplayer = seats.length > 2;
+  const presenceOf = (seat: ViewPlayer) =>
+    multiplayer ? seatPresence?.[seat.id] : undefined;
 
   return (
     <>
@@ -626,6 +715,7 @@ export const ProHud = ({
             isLocal={seat.you}
             isActive={view.activePlayer === seat.id}
             isAlly={teams.relationOf(seat.id) === "ally"}
+            presence={presenceOf(seat)}
             hand={seat.you ? seat.hand ?? view.self.hand : seat.handCount}
             deckCount={seat.deckCount}
             discard={seat.discard}
