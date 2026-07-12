@@ -161,7 +161,8 @@
       "move": 2,
       "name": "The Piper of the Underroads",
       "specialAbility": "INTO THE UNDERROADS\nAfter you attack, you may move your attacking fighter up to 2 spaces.",
-      "quote": "A sly piper of the flooded ways beneath the city, striking from the dark and slipping back into the pipes while his rat chorus screens him — hit, steal, and vanish."
+      "quote": "A sly piper of the flooded ways beneath the city, striking from the dark and slipping back into the pipes while his rat chorus screens him — hit, steal, and vanish.",
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/token-piper.webp"
     },
     "name": "The Piper of the Underroads",
     "ruleCards": [],
@@ -170,7 +171,8 @@
       "isRanged": false,
       "name": "The Vermin Chorus",
       "quantity": 4,
-      "quote": "A swarm of sewer rats that moves as one body — expendable, endless, and always coming back."
+      "quote": "A swarm of sewer rats that moves as one body — expendable, endless, and always coming back.",
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/token-chorus.webp"
     }
   },
   "deck_first_published_on": null,
