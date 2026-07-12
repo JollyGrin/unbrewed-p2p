@@ -252,6 +252,37 @@
  * prompts where that summary is unambiguous; other prompt kinds and system
  * prompts (setup, commit, maneuver) omit it. Purely additive and presentation-
  * only; an older client that ignores it is unaffected.
+ *
+ * ## Additive change (2026-07-12, no version bump): per-decision move timer
+ * (issue #122, p2p #223). Opt-in at room creation; a room without it behaves
+ * byte-identically to before (no new messages are ever sent).
+ * - `CREATE_ROOM.turnTimerSeconds?` — every time a seat is on the clock (turn
+ *   action, maneuver move, combat commit, prompt response, discard-to-limit,
+ *   setup placement) it has this many seconds to act. Integer 10–300; absent
+ *   or 0 = no timer (today's behavior); anything else answers
+ *   ERROR{BAD_MESSAGE}. Echoed in ROOM_CREATED/ROOM_JOINED/ROOM_STATUS
+ *   (present only when the timer is on) so every client knows the room rules.
+ * - `TURN_TIMER` (server → every connected seat; timed rooms only): the one
+ *   countdown channel — chosen over piggybacking STATE metadata so pause/
+ *   resume edges (which have no STATE broadcast) still notify, and over
+ *   OPPONENT_STATUS because the acting seat itself needs the deadline most.
+ *   Broadcast on every clock change: `deadline` (epoch ms) when the clock is
+ *   running for `player`, `deadline: null` when `player` is on the engine
+ *   clock but their timer is NOT running (bot seat — driven immediately — or
+ *   a disconnected seat, see below). A (re)connect re-broadcasts the current
+ *   snapshot; TURN_TIMER may arrive before or after the accompanying STATE
+ *   and is self-contained. Render a countdown; on expiry the SERVER acts.
+ * - Enforcement: at the deadline the server plays ONE uniformly-random legal
+ *   action for the seat (the same enumeration that drives easy bot seats,
+ *   FORFEIT excluded) — bot-style, never a resignation. The injected action
+ *   lands in the action log like any other, so replays/resumes reproduce it.
+ * - Presence interplay: the timer runs only while the acting seat is a
+ *   CONNECTED human. A disconnected actor's clock pauses (broadcast
+ *   `deadline: null`) and absence is handled by the presence rules — duel
+ *   waits for reconnect; multiplayer runs the #121 abandonment clock (so the
+ *   two clocks never double-fire). Reconnecting re-arms a full fresh window.
+ *   Timers are in-memory only: a resumed room keeps the SETTING (it rides in
+ *   the resume token) but deadlines start fresh.
  */
 export const PROTOCOL_VERSION = 16;
 
@@ -807,7 +838,9 @@ export type ClientMsg =
   // `debug` (v15): true includes `tier: 'reflavored'` heroes in the random pool
   // a server-picked `bot.heroId`/`botSeats[].heroId` draws from. Absent/false =
   // excluded. Never gates an explicitly named heroId. See the v15 note above.
-  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean }
+  // `turnTimerSeconds` (issue #122): per-decision move timer, integer 10–300;
+  // absent or 0 = no timer. See the 2026-07-12 move-timer header note.
+  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number }
   | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string }
   | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }
@@ -824,8 +857,10 @@ export type ClientMsg =
 export type ServerMsg =
   | { v: number; type: "HEROES"; heroes: HeroListing[] }
   | { v: number; type: "LOBBIES"; lobbies: LobbyListing[] }
-  | { v: number; type: "ROOM_CREATED"; roomId: string; token: string; you: PlayerId; formatId?: string; seats?: PlayerId[]; requiredPlayers?: number }
-  | { v: number; type: "ROOM_JOINED"; roomId: string; token: string; you: PlayerId; formatId?: string; seats?: PlayerId[]; requiredPlayers?: number }
+  // `turnTimerSeconds` (issue #122): the room's per-decision timer setting,
+  // present only when the timer is on. Absent = untimed room.
+  | { v: number; type: "ROOM_CREATED"; roomId: string; token: string; you: PlayerId; formatId?: string; seats?: PlayerId[]; requiredPlayers?: number; turnTimerSeconds?: number }
+  | { v: number; type: "ROOM_JOINED"; roomId: string; token: string; you: PlayerId; formatId?: string; seats?: PlayerId[]; requiredPlayers?: number; turnTimerSeconds?: number }
   | { v: number; type: "VISIBILITY"; roomId: string; public: boolean } // ack to SET_VISIBILITY
   | {
       v: number;
@@ -852,7 +887,14 @@ export type ServerMsg =
   // v15: live waiting-room fill (seats/heroes/connectedness). Broadcast to every
   // seated player on join, pre-game seat release (count may DROP), and
   // waiting-room reconnect/disconnect. See RoomStatusSeat + the v15 doc block.
-  | { v: number; type: "ROOM_STATUS"; roomId: string; formatId: string; requiredPlayers: number; seats: RoomStatusSeat[] }
+  | { v: number; type: "ROOM_STATUS"; roomId: string; formatId: string; requiredPlayers: number; seats: RoomStatusSeat[]; turnTimerSeconds?: number }
+  // Per-decision move timer (issue #122; timed rooms ONLY — an untimed room
+  // never sends this). Broadcast on every clock change: `deadline` (epoch ms)
+  // while the clock runs for `player`; `deadline: null` when `player` is on
+  // the engine clock but their timer is paused/not running (bot seat, or a
+  // disconnected seat — presence rules own absence). At the deadline the
+  // server injects one uniformly-random legal action for the seat.
+  | { v: number; type: "TURN_TIMER"; player: PlayerId; deadline: number | null }
   // v7: the old instance is about to stop (SIGTERM). Show "server updating" and
   // let the reconnect loop take over — a valid RESUME_TOKEN revives the game.
   | { v: number; type: "SERVER_RESTARTING" }
