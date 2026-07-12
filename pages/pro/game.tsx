@@ -1318,7 +1318,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
   useEffect(() => {
     if (!snapshot) return;
     const next = snapshot.view;
-    const diff = diffViews(prevViewRef.current, next, (c) => cardLabel(next.catalog, c));
+    const diff = diffViews(prevViewRef.current, next, (c) => cardLabel(next.catalog, c), snapshot.events);
     // Decoratively enrich with the engine's structured events for THIS batch —
     // gated behind the eventLog flag. Flag off (or no events) leaves the log
     // byte-identical to the pure diffViews path. See enrichLines in gameLog.ts.
