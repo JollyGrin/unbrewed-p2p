@@ -25,6 +25,7 @@ import {
   BotSeatFill,
   ClientMsg,
   GameEvent,
+  EncounterListing,
   HeroListing,
   LobbyListing,
   PlayerView,
@@ -53,6 +54,8 @@ export type ProConnectionStatus =
 
 export interface ProRoomInfo {
   formatId: string;
+  mapId?: string;
+  encounterId: string | null;
   seats: PlayerId[];
   requiredPlayers: number;
   /** the viewer's own runtime seat (from ROOM_CREATED/JOINED) — lets the waiting
@@ -105,6 +108,8 @@ export interface UseProSocketReturn {
   error: { code: string; message: string } | null;
   /** server-fed roster; null until the first HEROES reply arrives */
   heroes: HeroListing[] | null;
+  /** hidden/public Campaign encounters; null until the first ENCOUNTERS reply arrives */
+  encounters: EncounterListing[] | null;
   /** open public lobbies; null until the first LOBBIES reply arrives */
   lobbies: LobbyListing[] | null;
   /** whether OUR current room is publicly listed (server-acked) */
@@ -121,6 +126,15 @@ export interface UseProSocketReturn {
     customMap?: ProMapDef,
     formatId?: string,
     botSeats?: BotSeatFill[]
+  ) => void;
+  createEncounterRoom: (
+    encounterId: string,
+    heroId: string,
+    opts?: {
+      allyBot?: { difficulty: BotDifficulty; heroId?: string };
+      bossBot?: { difficulty: BotDifficulty };
+      formatId?: string;
+    }
   ) => void;
   joinRoom: (roomId: string, heroId: string) => void;
   sendAction: (action: Action) => void;
@@ -238,6 +252,7 @@ export function useProSocket(
   const [seatPresence, setSeatPresence] = useState<Record<string, SeatPresence>>({});
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
   const [heroes, setHeroes] = useState<HeroListing[] | null>(null);
+  const [encounters, setEncounters] = useState<EncounterListing[] | null>(null);
   const [lobbies, setLobbies] = useState<LobbyListing[] | null>(null);
   const [roomPublic, setRoomPublic] = useState(false);
   const [serverRestarting, setServerRestarting] = useState(false);
@@ -292,6 +307,14 @@ export function useProSocket(
         type: "LIST_HEROES",
         ...(debugRef.current ? { debug: true } : {}),
       });
+      // Campaign encounters are separate from the public hero roster; list them
+      // over their own wire surface so hidden boss content never leaks into
+      // LIST_HEROES or normal random bot pools.
+      send({
+        v: PROTOCOL_VERSION,
+        type: "LIST_ENCOUNTERS",
+        ...(debugRef.current ? { debug: true } : {}),
+      });
       const room = roomRef.current;
       const token = room ? getToken(room) : null;
       if (room && token) {
@@ -313,6 +336,9 @@ export function useProSocket(
         case "HEROES":
           setHeroes(msg.heroes);
           break;
+        case "ENCOUNTERS":
+          setEncounters(msg.encounters);
+          break;
         case "LOBBIES":
           setLobbies(msg.lobbies);
           break;
@@ -325,9 +351,11 @@ export function useProSocket(
           // so the panel can name who has joined. `you` is preserved from the seat
           // we learned on ROOM_CREATED/JOINED (ROOM_STATUS omits it). Destructure
           // first: msg is not narrowed inside the setState callback closure.
-          const { formatId, requiredPlayers, seats } = msg;
+          const { formatId, mapId, encounterId, requiredPlayers, seats } = msg;
           setRoomInfo((prev) => ({
             formatId,
+            ...(mapId !== undefined ? { mapId } : {}),
+            encounterId: encounterId ?? null,
             seats: seats.map((s) => s.player),
             requiredPlayers,
             you: prev?.you ?? seatRef.current ?? seats[0]?.player ?? ("p1" as PlayerId),
@@ -342,9 +370,11 @@ export function useProSocket(
           setRoomId(msg.roomId);
           {
             // Destructure first: msg is not narrowed inside the setState callback.
-            const { formatId, seats, requiredPlayers, you } = msg;
+            const { formatId, mapId, encounterId, seats, requiredPlayers, you } = msg;
             setRoomInfo((prev) => ({
               formatId: formatId ?? "duel",
+              ...(mapId !== undefined ? { mapId } : {}),
+              encounterId: encounterId ?? null,
               seats: seats ?? [you],
               requiredPlayers: requiredPlayers ?? 2,
               you,
@@ -576,6 +606,37 @@ export function useProSocket(
     [send, clearResumeDeadline]
   );
 
+  const createEncounterRoom = useCallback(
+    (
+      encounterId: string,
+      heroId: string,
+      opts: {
+        allyBot?: { difficulty: BotDifficulty; heroId?: string };
+        bossBot?: { difficulty: BotDifficulty };
+        formatId?: string;
+      } = {}
+    ) => {
+      setError(null);
+      setGameLost(false);
+      setSeatPresence({});
+      hadStateRef.current = false;
+      clearResumeDeadline();
+      const msg: ClientMsg = {
+        v: PROTOCOL_VERSION,
+        type: "CREATE_ENCOUNTER_ROOM",
+        encounterId,
+        heroId,
+        ...(opts.allyBot ? { allyBot: opts.allyBot } : {}),
+        ...(opts.bossBot ? { bossBot: opts.bossBot } : {}),
+        ...(opts.formatId ? { formatId: opts.formatId } : {}),
+        ...(debugRef.current ? { debug: true } : {}),
+      };
+      if (wsRef.current?.readyState === WebSocket.OPEN) send(msg);
+      else pendingHelloRef.current = msg;
+    },
+    [send, clearResumeDeadline]
+  );
+
   const joinRoom = useCallback(
     (room: string, heroId: string) => {
       setError(null); // clear any prior room/hero error on a fresh attempt
@@ -667,10 +728,12 @@ export function useProSocket(
     seatPresence,
     error,
     heroes,
+    encounters,
     lobbies,
     roomPublic,
     replayBundle,
     createRoom,
+    createEncounterRoom,
     joinRoom,
     sendAction,
     respondToPrompt,

@@ -72,9 +72,9 @@ export function toPlayerView(
       // (no active flags) since replay/god-view tide surfacing is a follow-up.
       flags: {},
       // Carry the seat's team through so ProHud's deriveTeams sees a real team
-      // format when scrubbing a 2v2 replay (ALLY chips etc.); absent-safe for
-      // pre-team bundles. Live play is unaffected (uses the server view). (#211)
-      ...(p.team != null ? { team: p.team } : {}),
+      // format when scrubbing a 2v2 replay (ALLY chips etc.). Live play is
+      // unaffected (uses the server view). (#211)
+      team: p.team ?? id,
     };
   });
   return {
@@ -89,6 +89,7 @@ export function toPlayerView(
     catalog: exp.catalog,
     fighters: step.fighters,
     tokens: step.tokens,
+    encounter: null,
     self: {
       id: focus,
       heroId: me.heroId,

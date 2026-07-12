@@ -5,7 +5,7 @@
  * Heuristic and display-only: misses nothing rules-relevant that the view
  * doesn't also show, and never feeds anything back into play.
  */
-import { CardInstanceId, GameEvent, PlayerId, PlayerView, ViewPlayer } from "./protocol";
+import { CardInstanceId, GameEvent, PlayerId, PlayerView, TokenKind, ViewPlayer } from "./protocol";
 import { deriveTeams, isViewerOnWinningTeam } from "./teams";
 import { sweptFighters } from "./sweep";
 
@@ -51,6 +51,7 @@ const playersById = (view: PlayerView): Map<PlayerId, ViewPlayer> => {
     id: view.self.id,
     heroId: view.self.heroId,
     you: true,
+    team: players.get(view.self.id)?.team ?? view.self.id,
     hand: view.self.hand,
     handCount: view.self.hand.length,
     deckCount: view.self.deckCount,
@@ -66,6 +67,7 @@ const playersById = (view: PlayerView): Map<PlayerId, ViewPlayer> => {
       id: view.opponent.id,
       heroId: view.opponent.heroId,
       you: false,
+      team: players.get(view.opponent.id)?.team ?? view.opponent.id,
       handCount: view.opponent.handCount,
       deckCount: view.opponent.deckCount,
       discard: view.opponent.discard,
@@ -191,18 +193,19 @@ export function diffViews(
     }
   }
 
-  // tokens (totems): appearances and disappearances
+  // tokens (totems/flames): appearances and disappearances
+  const tokenName = (kind: TokenKind) => (kind === "flame" ? "flame" : "totem");
   const prevTokens = new Map((prev.tokens ?? []).map((t) => [t.id, t]));
   const nextTokens = new Map((next.tokens ?? []).map((t) => [t.id, t]));
   for (const t of nextTokens.values()) {
     if (!prevTokens.has(t.id)) {
-      lines.push({ text: `${seat(t.owner)} placed a totem`, who: whoOf(t.owner) });
+      lines.push({ text: `${seat(t.owner)} placed a ${tokenName(t.kind)}`, who: whoOf(t.owner) });
     }
   }
   for (const t of prevTokens.values()) {
     if (!nextTokens.has(t.id)) {
       const owner = t.owner === next.you ? "Your" : `${seat(t.owner)}'s`;
-      lines.push({ text: `${owner} totem was destroyed`, who: whoOf(t.owner) });
+      lines.push({ text: `${owner} ${tokenName(t.kind)} was removed`, who: whoOf(t.owner) });
     }
   }
 

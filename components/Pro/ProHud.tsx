@@ -762,6 +762,7 @@ export const ProHud = ({
           id: view.self.id,
           heroId: view.self.heroId,
           you: true,
+          team: view.self.id,
           hand: view.self.hand,
           handCount: view.self.hand.length,
           deckCount: view.self.deckCount,
@@ -776,6 +777,7 @@ export const ProHud = ({
               id: view.opponent.id,
               heroId: view.opponent.heroId,
               you: false,
+              team: view.opponent.id,
               handCount: view.opponent.handCount,
               deckCount: view.opponent.deckCount,
               discard: view.opponent.discard,
@@ -788,8 +790,8 @@ export const ProHud = ({
 
   // Team affiliation (issue #195). Inactive (no ALLY chips) unless the view is a
   // real team format — duel/ffa/older-server views derive `active: false` and
-  // render exactly as before. The fallback duel `seats` above carry no `team`,
-  // which also derives inactive.
+  // render exactly as before. The fallback duel `seats` above use singleton
+  // teams, which also derive inactive.
   const teams = deriveTeams(seats, view.you);
 
   const { plates, hydrated, update } = useHudPlates();

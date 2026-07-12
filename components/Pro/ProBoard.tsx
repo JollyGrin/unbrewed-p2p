@@ -616,29 +616,32 @@ export const ProBoard = ({
         );
       })}
 
-      {/* neutral board tokens (totems) — below fighters, never clickable */}
+      {/* neutral board tokens (totems/flames) — below fighters, never clickable */}
       {spaces
         .filter((s) => tokens.some((t) => t.space === s.id))
         .flatMap((s) =>
           tokens
             .filter((t) => t.space === s.id)
-            .map((t) => (
-              <Box
-                key={t.id}
-                position="absolute"
-                left={`${s.x * 100}%`}
-                top={`${s.y * 100}%`}
-                transform="translate(-50%, -50%) rotate(45deg)"
-                w={`${diam * 0.55}%`}
-                sx={{ aspectRatio: "1", pointerEvents: "none" }}
-                bg="brand.surfaceDim"
-                border={`2px solid ${PLAYER_COLOR[t.owner] ?? "#999"}`}
-                borderRadius="20%"
-                boxShadow="0 1px 4px rgba(0,0,0,0.5)"
-                zIndex={2}
-                title={`Totem (${t.owner})`}
-              />
-            ))
+            .map((t) => {
+              const flame = t.kind === "flame";
+              return (
+                <Box
+                  key={t.id}
+                  position="absolute"
+                  left={`${s.x * 100}%`}
+                  top={`${s.y * 100}%`}
+                  transform={flame ? "translate(-50%, -50%)" : "translate(-50%, -50%) rotate(45deg)"}
+                  w={`${diam * (flame ? 0.62 : 0.55)}%`}
+                  sx={{ aspectRatio: "1", pointerEvents: "none" }}
+                  bg={flame ? "#E85D2A" : "brand.surfaceDim"}
+                  border={`2px solid ${flame ? "#FFD18A" : (PLAYER_COLOR[t.owner] ?? "#999")}`}
+                  borderRadius={flame ? "55% 55% 55% 18%" : "20%"}
+                  boxShadow={flame ? "0 0 10px rgba(232,93,42,0.85)" : "0 1px 4px rgba(0,0,0,0.5)"}
+                  zIndex={2}
+                  title={`${flame ? "Flame hazard" : "Totem"} (${t.owner})`}
+                />
+              );
+            })
         )}
 
       {/* two-space fighter bands — the "string" tying head and tail together.

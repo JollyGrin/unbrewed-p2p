@@ -26,6 +26,7 @@ import {
   BotSeatFill,
   CardInstanceId,
   CardMeta,
+  EncounterListing,
   FighterId,
   HeroListing,
   LegalOption,
@@ -33,6 +34,7 @@ import {
   PlayerView,
   ProMapDef,
   ReplayBundle,
+  RoomStatusSeat,
   SpaceId,
   ViewCombat,
   ViewFighter,
@@ -60,7 +62,7 @@ import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
 import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
 import { diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
-import { cardAffordances, cardLabel, cardTitle, describeAction } from "@/lib/pro/actionDock";
+import { cardAffordances, cardLabel, cardTitle, describeAction, encounterAbilityTitle } from "@/lib/pro/actionDock";
 import {
   isExtendedReachAttack,
   LARGE_FIGHTER_BLURB,
@@ -609,6 +611,64 @@ const CombatPanel = ({
   );
 };
 
+const ENCOUNTER_PHASE_COPY: Record<string, string> = {
+  AWAKEN: "Phase 1 · Awaken",
+  FLIGHT: "Phase 2 · Flight",
+  LANDING: "Phase 3 · Landing",
+};
+
+const EncounterStatusPanel = ({ view }: { view: PlayerView }) => {
+  const enc = view.encounter;
+  if (!enc) return null;
+  const boss = view.fighters.find((f) => f.id === enc.bossFighterId);
+  const available = new Set(enc.tray.available);
+  const used = new Set(enc.tray.used);
+  return (
+    <Box bg="rgba(20, 8, 24, 0.72)" border="1px solid" borderColor="rgba(224,168,46,0.45)" borderRadius="0.5rem" p="0.75rem">
+      <Flex gap="0.4rem" alignItems="center" mb="0.4rem" flexWrap="wrap">
+        <Tag size="sm" bg="brand.accent" color="brand.surfaceDim">
+          CAMPAIGN
+        </Tag>
+        <Text fontFamily="BebasNeueRegular" fontSize="1.1rem" letterSpacing="0.05em">
+          {enc.name}
+        </Text>
+      </Flex>
+      <Text fontSize="0.78rem" color="brand.parchment" opacity={0.86}>
+        {ENCOUNTER_PHASE_COPY[enc.phase] ?? enc.phase} · phase damage {enc.phaseDamage}/20
+        {boss ? ` · ${boss.name} ${boss.hp}/${boss.maxHp} HP` : ""}
+      </Text>
+      <Text fontSize="0.7rem" color="brand.parchment" opacity={0.58} mt="0.15rem">
+        Phase counter box {enc.phaseCounterIndex + 1}
+        {enc.phase === "FLIGHT" ? " · Onyxia uses tray abilities instead of deck cards" : ""}
+      </Text>
+      {enc.tray.initial.length > 0 && (
+        <Flex gap="0.3rem" flexWrap="wrap" mt="0.55rem">
+          {enc.tray.initial.map((ability, i) => {
+            const isAvailable = available.has(ability);
+            const isUsed = used.has(ability);
+            return (
+              <Tag
+                key={`${ability}-${i}`}
+                size="sm"
+                bg={isAvailable ? "rgba(224,168,46,0.24)" : "whiteAlpha.200"}
+                color={isAvailable ? "brand.accent" : "brand.parchment"}
+                opacity={isAvailable ? 1 : isUsed ? 0.45 : 0.65}
+              >
+                {encounterAbilityTitle(ability)}
+              </Tag>
+            );
+          })}
+        </Flex>
+      )}
+      {enc.phase === "LANDING" && enc.redHazardSpaces.length > 0 && (
+        <Text fontSize="0.7rem" color="#FFD18A" opacity={0.86} mt="0.45rem">
+          Red lair spaces are burning; non-boss fighters take 1 damage when they pass through or land on them.
+        </Text>
+      )}
+    </Box>
+  );
+};
+
 // ---------------------------------------------------------------------------
 // Pre-join lobby — hero select (T-021)
 // ---------------------------------------------------------------------------
@@ -630,6 +690,14 @@ const heroNameOf = (heroes: HeroListing[] | null, heroId: string | null) => {
   if (!heroId) return null;
   return heroes?.find((h) => h.heroId === heroId)?.name ?? prettyHeroId(heroId);
 };
+
+const encounterNameOf = (encounters: EncounterListing[] | null, encounterId: string | null) => {
+  if (!encounterId) return null;
+  return encounters?.find((e) => e.encounterId === encounterId)?.name ?? prettyHeroId(encounterId);
+};
+
+const roomSeatName = (heroes: HeroListing[] | null, seat: RoomStatusSeat): string =>
+  seat.role === "boss" ? prettyHeroId(seat.heroId) : heroNameOf(heroes, seat.heroId) ?? seat.player.toUpperCase();
 
 const viewHeroIdOf = (view: PlayerView, player: PlayerId): string | null =>
   view.players.find((p) => p.id === player)?.heroId ??
@@ -849,8 +917,15 @@ const HeroSelectLobby = ({
   room,
   status,
   heroes,
+  encounters,
   heroParam,
   selectedHeroId,
+  selectedEncounterId,
+  onSelectEncounter,
+  encounterAlly,
+  onSelectEncounterAlly,
+  encounterBoss,
+  onSelectEncounterBoss,
   opponent,
   selectedFormat,
   onSelectFormat,
@@ -870,8 +945,15 @@ const HeroSelectLobby = ({
   room: string | null;
   status: ProConnectionStatus;
   heroes: HeroListing[] | null;
+  encounters: EncounterListing[] | null;
   heroParam: string | null;
   selectedHeroId: string | null;
+  selectedEncounterId: string | null;
+  onSelectEncounter: (encounterId: string | null) => void;
+  encounterAlly: OpponentChoice;
+  onSelectEncounterAlly: (o: OpponentChoice) => void;
+  encounterBoss: OpponentChoice;
+  onSelectEncounterBoss: (o: OpponentChoice) => void;
   opponent: OpponentChoice;
   selectedFormat: ProFormatId;
   onSelectFormat: (format: ProFormatId) => void;
@@ -895,9 +977,14 @@ const HeroSelectLobby = ({
   // While the list is loading, a valid-looking `?hero=` stands in so the
   // creator isn't blocked; once the list arrives the real selection takes over.
   const effective = selectedHeroId ?? (heroes === null ? heroParam : null);
-  const canConfirm = status === "open" && !!effective;
+  const campaignSelected = !!selectedEncounterId;
+  const selectedEncounter = selectedEncounterId
+    ? encounters?.find((e) => e.encounterId === selectedEncounterId) ?? null
+    : null;
+  const campaignKnown = !campaignSelected || encounters === null || !!selectedEncounter;
+  const canConfirm = status === "open" && !!effective && campaignKnown;
   const format = formatChoice(selectedFormat);
-  const multiplayer = selectedFormat !== "duel";
+  const multiplayer = !campaignSelected && selectedFormat !== "duel";
   const [previewHero, setPreviewHero] = useState<HeroListing>();
 
   return (
@@ -975,6 +1062,94 @@ const HeroSelectLobby = ({
       />
 
       {!room && (
+        <Flex direction="column" alignItems="center" gap="0.65rem" w="100%" maxW="34rem">
+          <Text fontFamily="BebasNeueRegular" fontSize="1.1rem" letterSpacing="0.08em" opacity={0.75}>
+            Mode
+          </Text>
+          <Flex gap="0.5rem" flexWrap="wrap" justifyContent="center">
+            <Button
+              {...BTN}
+              size="sm"
+              border="2px solid"
+              borderColor={!campaignSelected ? "brand.accent" : "transparent"}
+              onClick={() => onSelectEncounter(null)}
+            >
+              Arena match
+            </Button>
+            {(encounters ?? []).map((enc) => (
+              <Button
+                key={enc.encounterId}
+                {...BTN}
+                size="sm"
+                border="2px solid"
+                borderColor={selectedEncounterId === enc.encounterId ? "brand.accent" : "transparent"}
+                onClick={() => onSelectEncounter(enc.encounterId)}
+              >
+                Campaign · {enc.name}
+              </Button>
+            ))}
+            {encounters === null && selectedEncounterId && (
+              <Tag size="sm" bg="whiteAlpha.200" color="brand.parchment">
+                loading campaign…
+              </Tag>
+            )}
+          </Flex>
+
+          {campaignSelected && (
+            <Box
+              w="100%"
+              border="1px solid"
+              borderColor="rgba(224,168,46,0.45)"
+              borderRadius="0.6rem"
+              bg="rgba(20, 8, 24, 0.55)"
+              p="0.85rem"
+            >
+              <Text fontFamily="LeagueGothic" fontSize="2rem" color="brand.accent" lineHeight="1">
+                {selectedEncounter?.name ?? encounterNameOf(encounters, selectedEncounterId) ?? "Campaign"}
+              </Text>
+              <Text fontFamily="ArchivoNarrow" fontSize="0.9rem" opacity={0.78} mt="0.25rem">
+                {selectedEncounter?.description ?? "Choose your hero, then let the server run the special encounter rules."}
+              </Text>
+              {!campaignKnown && (
+                <Text fontSize="0.75rem" color="#E06A5E" mt="0.4rem">
+                  Campaign encounter not found on this server.
+                </Text>
+              )}
+              <Grid templateColumns={{ base: "1fr", sm: "1fr 1fr" }} gap="0.75rem" mt="0.75rem">
+                {[
+                  { label: "Ally hero", value: encounterAlly, onSelect: onSelectEncounterAlly },
+                  { label: "Onyxia", value: encounterBoss, onSelect: onSelectEncounterBoss },
+                ].map((control) => (
+                  <Flex key={control.label} direction="column" gap="0.35rem">
+                    <Text fontFamily="BebasNeueRegular" letterSpacing="0.06em" opacity={0.72}>
+                      {control.label}
+                    </Text>
+                    <Flex gap="0.35rem" flexWrap="wrap">
+                      {OPPONENT_CHOICES.map((o) => (
+                        <Button
+                          key={o.id}
+                          {...BTN}
+                          size="xs"
+                          border="1px solid"
+                          borderColor={control.value === o.id ? "brand.accent" : "transparent"}
+                          onClick={() => control.onSelect(o.id)}
+                        >
+                          {o.id === "human" ? "Human" : o.label.replace("AI · ", "AI ")}
+                        </Button>
+                      ))}
+                    </Flex>
+                  </Flex>
+                ))}
+              </Grid>
+              <Text fontSize="0.72rem" opacity={0.6} mt="0.65rem">
+                Defaults start a solo-friendly game immediately: your hero plus an AI ally versus AI Onyxia.
+              </Text>
+            </Box>
+          )}
+        </Flex>
+      )}
+
+      {!room && !campaignSelected && (
         <Flex direction="column" alignItems="center" gap="0.65rem">
           <Text fontFamily="BebasNeueRegular" fontSize="1.1rem" letterSpacing="0.08em" opacity={0.75}>
             Format
@@ -1003,7 +1178,7 @@ const HeroSelectLobby = ({
           "Custom…" card that reveals the paste-JSON textarea. Ineligible boards
           render disabled with the reason — never hidden — mirroring the server's
           per-format map support so a rendered-eligible card never BAD_MAPs. */}
-      {!room && (
+      {!room && !campaignSelected && (
         <Flex direction="column" alignItems="center" gap="0.65rem" w="100%" maxW="34rem">
           <Text fontFamily="BebasNeueRegular" fontSize="1.1rem" letterSpacing="0.08em" opacity={0.75}>
             Board
@@ -1107,7 +1282,7 @@ const HeroSelectLobby = ({
         </Flex>
       )}
 
-      {!room && !multiplayer && (
+      {!room && !campaignSelected && !multiplayer && (
         <Flex direction="column" alignItems="center" gap="0.4rem">
           <Text fontFamily="BebasNeueRegular" fontSize="1.1rem" letterSpacing="0.08em" opacity={0.75}>
             Opponent
@@ -1173,12 +1348,22 @@ const HeroSelectLobby = ({
       )}
 
       <Button {...BTN_GOLD} isDisabled={!canConfirm} onClick={onConfirm}>
-        {room ? "Join" : multiplayer ? `Create ${format.label}` : opponent === "human" ? "Create" : "Play vs AI"}
+        {room
+          ? "Join"
+          : campaignSelected
+            ? encounterAlly === "human" || encounterBoss === "human"
+              ? "Create campaign room"
+              : "Enter the lair"
+            : multiplayer
+              ? `Create ${format.label}`
+              : opponent === "human"
+                ? "Create"
+                : "Play vs AI"}
       </Button>
 
       {/* Custom board: the paste-JSON textarea, revealed only when the Custom…
           card above is selected. Behavior (validation, BAD_MAP bounce) unchanged. */}
-      {!room && selectedMapId === CUSTOM_MAP_ID && (
+      {!room && !campaignSelected && selectedMapId === CUSTOM_MAP_ID && (
         <Box maxW="28rem" w="100%">
           <Flex direction="column" gap="0.4rem">
             <Textarea
@@ -1218,11 +1403,14 @@ const HeroSelectLobby = ({
 // LIVE mode
 // ---------------------------------------------------------------------------
 
-const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: string | null; debug: boolean }) => {
-  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, requestLobbies, setVisibility, serverRestarting, gameLost } =
+const LiveGame = ({ room, heroParam, encounterParam, debug }: { room: string | null; heroParam: string | null; encounterParam: string | null; debug: boolean }) => {
+  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, error, heroes, encounters, lobbies, roomPublic, replayBundle, createRoom, createEncounterRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, requestLobbies, setVisibility, serverRestarting, gameLost } =
     useProSocket(WS_URL, debug);
   const [joined, setJoined] = useState(false);
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
+  const [selectedEncounterId, setSelectedEncounterId] = useState<string | null>(encounterParam);
+  const [encounterAlly, setEncounterAlly] = useState<OpponentChoice>("easy");
+  const [encounterBoss, setEncounterBoss] = useState<OpponentChoice>("easy");
   const [opponent, setOpponent] = useState<OpponentChoice>("human");
   const [selectedFormat, setSelectedFormat] = useState<ProFormatId>("duel");
   const [botSlotPlan, setBotSlotPlan] = useState<BotSlotPlan>({});
@@ -1408,6 +1596,13 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
     }
   }, [heroes, heroParam, selectedHeroId]);
 
+  // A /pro/game?encounter=<id> link opens the picker in Campaign mode while still
+  // requiring the player to choose their normal hero seat.
+  useEffect(() => {
+    if (!encounterParam || selectedEncounterId) return;
+    setSelectedEncounterId(encounterParam);
+  }, [encounterParam, selectedEncounterId]);
+
   // UNKNOWN_HERO shouldn't happen when picking from the server list, but if the
   // server rejects the hero, drop back to the picker instead of a dead end.
   // BAD_MAP similarly bounces back to the lobby (hero kept) with the server's
@@ -1535,8 +1730,15 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
           room={room}
           status={status}
           heroes={heroes}
+          encounters={encounters}
           heroParam={heroParam}
           selectedHeroId={selectedHeroId}
+          selectedEncounterId={selectedEncounterId}
+          onSelectEncounter={setSelectedEncounterId}
+          encounterAlly={encounterAlly}
+          onSelectEncounterAlly={setEncounterAlly}
+          encounterBoss={encounterBoss}
+          onSelectEncounterBoss={setEncounterBoss}
           opponent={opponent}
           selectedFormat={selectedFormat}
           onSelectFormat={(format) => {
@@ -1578,6 +1780,17 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
             if (!effectiveHeroId) return;
             if (room) {
               joinRoom(room, effectiveHeroId);
+              setSelectedHeroId(effectiveHeroId);
+              setJoined(true);
+              return;
+            }
+            if (selectedEncounterId) {
+              const selectedEncounter = encounters?.find((e) => e.encounterId === selectedEncounterId);
+              createEncounterRoom(selectedEncounterId, effectiveHeroId, {
+                ...(encounterAlly === "human" ? {} : { allyBot: { difficulty: encounterAlly } }),
+                ...(encounterBoss === "human" ? {} : { bossBot: { difficulty: encounterBoss } }),
+                ...(selectedEncounter?.defaultFormatId ? { formatId: selectedEncounter.defaultFormatId } : {}),
+              });
               setSelectedHeroId(effectiveHeroId);
               setJoined(true);
               return;
@@ -1720,8 +1933,9 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
             {(() => {
               const required = roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers;
               const seated = roomInfo?.seats.length ?? 1;
-              const boardTitle =
-                selectedMapId === CUSTOM_MAP_ID
+              const boardTitle = roomInfo?.encounterId
+                ? `${encounterNameOf(encounters, roomInfo.encounterId) ?? "Campaign"} encounter`
+                : selectedMapId === CUSTOM_MAP_ID
                   ? "a custom board"
                   : catalogEntry(selectedMapId)?.title ?? "the default board";
               const waiting =
@@ -1746,7 +1960,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
               if (id === youSeat) return "You";
               const seat = rosterSeat(id);
               if (!seat) return "?"; // seat not yet filled
-              const name = heroNameOf(heroes, seat.heroId) ?? id.toUpperCase();
+              const name = roomSeatName(heroes, seat);
               return seat.bot ? `${name} (bot)` : name;
             };
             const myTeam = youSeat ? comp.find((t) => t.seats.includes(youSeat)) : undefined;
@@ -1790,7 +2004,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
               <Flex gap="0.5rem" alignItems="center" flexWrap="wrap" justifyContent="center">
                 {roster.map((s) => {
                   const isYou = s.player === youSeat;
-                  const name = isYou ? "You" : heroNameOf(heroes, s.heroId) ?? s.player.toUpperCase();
+                  const name = isYou ? "You" : roomSeatName(heroes, s);
                   return (
                     <Tag
                       key={s.player}
@@ -1803,6 +2017,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
                       opacity={s.connected ? 1 : 0.5}
                     >
                       {name}
+                      {s.role === "boss" ? " (boss)" : ""}
                       {s.bot ? " (bot)" : ""}
                       {s.connected ? "" : " — reconnecting…"}
                     </Tag>
@@ -1821,14 +2036,16 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
               copy link
             </Button>
           </Flex>
-          <Flex gap="0.5rem" alignItems="center" flexWrap="wrap" justifyContent="center">
-            <Button
-              {...(roomPublic ? BTN_GOLD : BTN)}
-              onClick={() => setVisibility(!roomPublic)}
-            >
-              {roomPublic ? "✓ public — listed in the lobby browser" : "make lobby public"}
-            </Button>
-          </Flex>
+          {!roomInfo?.encounterId && (
+            <Flex gap="0.5rem" alignItems="center" flexWrap="wrap" justifyContent="center">
+              <Button
+                {...(roomPublic ? BTN_GOLD : BTN)}
+                onClick={() => setVisibility(!roomPublic)}
+              >
+                {roomPublic ? "✓ public — listed in the lobby browser" : "make lobby public"}
+              </Button>
+            </Flex>
+          )}
           <Text fontSize="0.8rem" opacity={0.5}>
             {(roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers) > 2 ? "(testing solo? open that link in more browser tabs)" : "(testing solo? open that link in a second browser tab)"}
           </Text>
@@ -2292,6 +2509,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
               {boostHint}
             </Text>
           )}
+          {view.encounter && <EncounterStatusPanel view={view} />}
           {view.combat && (
             <CombatPanel
               combat={view.combat}
@@ -2540,6 +2758,7 @@ const ProGamePage = () => {
   const router = useRouter();
   const room = typeof router.query.room === "string" ? router.query.room : null;
   const heroParam = typeof router.query.hero === "string" ? router.query.hero : null;
+  const encounterParam = typeof router.query.encounter === "string" ? router.query.encounter : null;
   // `?debug` (any value, incl. bare `?debug`) opts this session into seeing the
   // reflavored/baseline decks the server hides by default — in the picker and in
   // random bot picks. See lib/pro/protocol.ts v15.
@@ -2547,7 +2766,7 @@ const ProGamePage = () => {
 
   return (
     <Box minH="100svh" bg={TABLE_BG} color="brand.parchment">
-      {WS_URL ? <LiveGame room={room} heroParam={heroParam} debug={debug} /> : <PreviewGame />}
+      {WS_URL ? <LiveGame room={room} heroParam={heroParam} encounterParam={encounterParam} debug={debug} /> : <PreviewGame />}
     </Box>
   );
 };

@@ -18,7 +18,7 @@ import {
 } from "@/lib/constants/top-decks";
 import { DECK_HERO_IDS } from "@/lib/pro/useProCardArt";
 import { frozenAtForDeck } from "@/lib/pro/evergreenManifest";
-import { useProLiveRoster } from "@/lib/pro/useProLiveRoster";
+import { useProLiveEncounters, useProLiveRoster } from "@/lib/pro/useProLiveRoster";
 import { PRO_WS_URL } from "@/lib/pro/wsUrl";
 import { useFlag } from "@/lib/flags";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
@@ -72,6 +72,7 @@ export const ProLanding = () => {
   // decks the server hides by default. See lib/pro/protocol.ts v15.
   const debug = router.query.debug !== undefined;
   const liveHeroes = useProLiveRoster(PRO_WS_URL, debug);
+  const liveEncounters = useProLiveEncounters(PRO_WS_URL, debug);
 
   // A deck is reflavored (hidden unless ?debug, ★-suffixed under it) when our
   // static POPULAR_DECKS tag says so OR the live roster reports
@@ -338,6 +339,82 @@ export const ProLanding = () => {
             )}
           </Flex>
         </Flex>
+
+        {liveEncounters && liveEncounters.length > 0 && (
+          <Box as="section" mt="4rem">
+            <Flex alignItems="baseline" justifyContent="space-between" gap="1rem" mb="1rem">
+              <Box>
+                <Text
+                  fontFamily="BebasNeueRegular"
+                  fontSize={{ base: "1.6rem", md: "2rem" }}
+                  letterSpacing="0.06em"
+                >
+                  Campaign
+                </Text>
+                <Text fontFamily="ArchivoNarrow" fontSize="0.95rem" opacity={0.7}>
+                  Server-run special encounters, separate from the normal hero roster.
+                </Text>
+              </Box>
+              <Text
+                fontFamily="SpaceGrotesk"
+                fontSize="0.72rem"
+                letterSpacing="0.12em"
+                color="brand.accent"
+                textTransform="uppercase"
+              >
+                hidden beta
+              </Text>
+            </Flex>
+            <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap="0.75rem">
+              {liveEncounters.map((enc) => (
+                <ChakraLink
+                  key={enc.encounterId}
+                  as={Link}
+                  href={`/pro/game?encounter=${encodeURIComponent(enc.encounterId)}${debug ? "&debug=1" : ""}`}
+                  p="1rem"
+                  minH="8rem"
+                  display="flex"
+                  flexDirection="column"
+                  justifyContent="space-between"
+                  gap="0.75rem"
+                  borderRadius="0.65rem"
+                  border="2px solid"
+                  borderColor="brand.accent"
+                  bg="radial-gradient(circle at 85% 10%, rgba(232,93,42,0.28), transparent 40%), rgba(20,8,24,0.72)"
+                  _hover={{ textDecoration: "none", transform: "translateY(-2px)", borderColor: "#FFD18A" }}
+                  transition="transform 0.15s, border-color 0.15s"
+                >
+                  <Box>
+                    <Text fontFamily="LeagueGothic" fontSize="2.25rem" lineHeight="0.9" color="brand.accent">
+                      {enc.name}
+                    </Text>
+                    <Text fontFamily="ArchivoNarrow" fontSize="0.95rem" opacity={0.82} mt="0.35rem">
+                      {enc.description}
+                    </Text>
+                  </Box>
+                  <Flex gap="0.4rem" flexWrap="wrap" alignItems="center">
+                    <Text
+                      fontFamily="SpaceGrotesk"
+                      fontSize="0.68rem"
+                      letterSpacing="0.1em"
+                      textTransform="uppercase"
+                      px="0.45rem"
+                      py="0.15rem"
+                      borderRadius="999px"
+                      bg="rgba(224,168,46,0.18)"
+                      color="brand.accent"
+                    >
+                      2 heroes vs boss
+                    </Text>
+                    <Text fontFamily="SpaceGrotesk" fontSize="0.75rem" opacity={0.65}>
+                      pick a fighter → enter the lair
+                    </Text>
+                  </Flex>
+                </ChakraLink>
+              ))}
+            </Grid>
+          </Box>
+        )}
 
         {/* how it becomes real */}
         <Box as="section" mt="4rem">

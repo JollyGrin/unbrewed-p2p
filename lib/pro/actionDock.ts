@@ -1,4 +1,4 @@
-import { Action, CardInstanceId, CardMeta, FighterId } from "./protocol";
+import { Action, CardInstanceId, CardMeta, EncounterAbilityId, FighterId } from "./protocol";
 
 // ---------------------------------------------------------------------------
 // Action-dock presentation (pure). The dock renders EVERY affordance generically
@@ -29,6 +29,9 @@ export interface DescribeCtx {
   nameOf: (id: FighterId) => string;
   attackerBadge?: Partial<Record<FighterId, number>>;
 }
+
+export const encounterAbilityTitle = (ability: EncounterAbilityId): string =>
+  ability === "fireball" ? "Fireball" : "Flamebreath";
 
 /**
  * Presentational label for a server-offered action (sidebar list).
@@ -63,6 +66,12 @@ export const describeAction = (
       const attackerName = ctx ? ctx.nameOf(a.attacker) : a.attacker.split("/")[1];
       const badge = ctx?.attackerBadge?.[a.attacker];
       return `Attack ${targetName} with ${attackerName}${badge != null ? ` ${badge}` : ""}`;
+    }
+    case "USE_ENCOUNTER_ABILITY": {
+      const title = encounterAbilityTitle(a.ability);
+      if (a.target) return `${title}: ${ctx ? ctx.nameOf(a.target) : a.target.split("/")[1]}`;
+      if (a.space) return `${title}: ${a.space}`;
+      return title;
     }
     case "COMMIT_ATTACK_CARD":
       return `Commit ${cardLabel(catalog, a.card)}`;

@@ -191,34 +191,59 @@
  * slot; planned bot slots materialize automatically once earlier human slots are
  * filled.
  *
+ * ## Additive field (2026-07-11, no version bump): per-seat `team`
+ * `ViewPlayer.team` and `ReplayStepPlayer.team` expose the format-defined team id
+ * (`teamOf(setupPlan, player)`) for every seat, in every format — duel/ffa give
+ * each seat its own distinct team id, so the client's team-affiliation UI stays
+ * format-agnostic. Public info: identical for every viewer, never redacted. Purely
+ * additive to existing objects — no PROTOCOL_VERSION bump; older clients that
+ * don't read the field are unaffected (issue #98).
+ *
+ * ## Additive change (2026-07-12, no version bump): multiplayer FORFEIT
+ * `FORFEIT.player` widens from DuelPlayerId to PlayerId, and the action gains an
+ * optional `endsMatch` (issue #117). In multiplayer formats a forfeit is a
+ * voluntary SEAT elimination: the seat's fighters are removed and the game
+ * usually continues; the forfeited seat keeps receiving its normal redacted
+ * view (live-game spectating). The game ends immediately (reason FORFEIT) only
+ * when the format's team logic says so, or when the server's human-stake rule
+ * fires: after the elimination, no living seat belongs to a team containing a
+ * human player. `endsMatch` is that server-stamped verdict riding in the logged
+ * action so replay bundles reproduce the same GAME_OVER deterministically —
+ * clients MUST NOT send it (the server ignores/overwrites a client-authored
+ * flag) and duel forfeits never carry it. Older duel clients are unaffected.
+ *
+ * ## Additive change (2026-07-12, no version bump): multiplayer BOOST_MOVE
+ * `BOOST_MOVE.player` widens from DuelPlayerId to PlayerId (issue #119):
+ * maneuver boosts are now enumerated in every format under the duel conditions
+ * (maneuver not yet boosted, some living on-board fighter unmoved; one action
+ * per boost-bearing hand card). Semantics are unchanged — discard the card
+ * (public), add its boost to the maneuver's movement, once per maneuver. No
+ * shape change beyond the id union; older duel clients are unaffected.
+ *
  * ## Additive change (2026-07-12, no version bump): live room status + presence
- * (unbrewed-engine #121, client sibling p2p #222). Three ADDITIVE changes — no
- * PROTOCOL_VERSION bump; a client that ignores the new fields behaves exactly as
- * on v14 (duel is untouched):
+ * (issue #121, p2p #208). Three additions, all ignorable by older duel clients:
+ * - `ROOM_STATUS` (server → every connected seat): the live waiting-room fill —
+ *   per-slot hero identity, connectedness, and bot-ness (all public info; hero
+ *   picks are public pre-game). Broadcast on join, on pre-game seat release, and
+ *   on reconnect/disconnect while the room is waiting. The `seats: PlayerId[]`
+ *   field on ROOM_CREATED/ROOM_JOINED is unchanged — ROOM_STATUS is the live
+ *   channel. Planned-but-not-yet-materialized bot slots are listed like seats
+ *   (a joiner can never take them, so they count as filled).
+ * - `OPPONENT_STATUS` gains `player` (WHICH seat this is about — duel clients
+ *   that ignore it behave as today) and, when a mid-game abandonment clock is
+ *   running, `autoForfeitAt` (epoch ms deadline) so clients can render
+ *   "P3 disconnected — auto-forfeit in 1:32". A reconnect broadcasts the
+ *   all-clear (`connected: true`, no `autoForfeitAt`).
+ * - Server behavior (no new client message): pre-game, a disconnected seat is
+ *   released after a grace window (PRO_PREGAME_GRACE_MS, default 60s) — its
+ *   reconnect token dies with it and a later joiner may take the slot. Mid-game
+ *   in MULTIPLAYER formats only, a non-bot seat disconnected past
+ *   PRO_ABANDON_FORFEIT_MS (default 2 min) is auto-forfeited: the server
+ *   injects a normal FORFEIT through the #117 human-stake stamping at the
+ *   seat's next clock edge, so the action log replays identically. Duel keeps
+ *   the wait-for-reconnect behavior unchanged.
  *
- * - `ROOM_STATUS` (server → every seated player): the live waiting-room channel.
- *   Carries `{ roomId, formatId, requiredPlayers, seats: RoomStatusSeat[] }` — public
- *   pre-game info (hero picks are public), so the host's waiting panel can render
- *   the true fill count AND which heroes have joined as seats arrive. Broadcast on
- *   join, on pre-game seat release (the count can go DOWN — a ghost seat freed
- *   after a 60s grace), and on waiting-room reconnect/disconnect. The existing
- *   `seats: PlayerId[]` on ROOM_CREATED/ROOM_JOINED is untouched for compatibility;
- *   ROOM_STATUS is the live channel.
- *
- * - `OPPONENT_STATUS.player` (additive): WHICH seat this presence change is about,
- *   so multiplayer clients can flag the specific disconnected seat rather than a
- *   single opaque "opponent". Omitted by older/duel servers, which keep driving the
- *   coarse boolean.
- *
- * - `OPPONENT_STATUS.autoForfeitAt` (additive): when a NON-BOT seat drops mid-game
- *   in a MULTIPLAYER format, the server arms a 2-minute auto-forfeit and sends the
- *   epoch-ms deadline so every client can render a non-drifting countdown
- *   ("reconnecting… auto-forfeit in 1:32", computed from `autoForfeitAt - now`).
- *   Reconnect clears it with a plain all-clear (`connected: true`, no deadline). On
- *   expiry the server injects a normal FORFEIT for that seat — the client needs no
- *   special-casing; the ordinary elimination/game-over STATE takes over.
- *
- * ## v15 (2026-07-12): hero tiers + debug gating (unbrewed-engine #130, #107 Phase 1)
+ * ## v15 (2026-07-12): hero tiers + debug gating (#107 Phase 1)
  * `HeroListing` gains `tier` (`'reflavored' | 'spice' | 'community'`) so the
  * client can render a ★ on reflavored names under `?debug`. `LIST_HEROES` and
  * `CREATE_ROOM` both gain an optional `debug` flag (default false/absent):
@@ -226,11 +251,11 @@
  * the server's random bot-hero pool (duel `bot.heroId` omitted, and
  * `botSeats[].heroId` omitted); `debug: true` includes them in both. An
  * EXPLICIT `heroId` — the player's own pick, a named `bot.heroId`/
- * `botSeats[].heroId`, or `JOIN_ROOM.heroId` — is never gated by tier; only the
- * two random-pick pools are filtered. Purely additive; the server still accepts
- * v14 (an older client that omits `debug` gets `debug: false` behavior — a
- * reflavored hero, today only `thetis`, drops out of its HEROES listing and
- * random-bot pools).
+ * `botSeats[].heroId`, or `JOIN_ROOM.heroId` — is never gated by tier; only
+ * the two random-pick pools are filtered. Purely additive (new optional
+ * request fields, a new listing field): an older client that omits `debug`
+ * gets `debug: false` behavior — a reflavored hero (today only `thetis`)
+ * drops out of its `HEROES` listing and its random-bot pools.
  *
  * ## v16 (2026-07-12): public per-player `flags` (issue #132)
  * `ViewSelf`/`ViewOpponent`/`ViewPlayer` gain `flags: Record<string, boolean>` —
@@ -239,8 +264,7 @@
  * like `counters` — no per-flag special-casing. This is the standing wire
  * primitive for any deck's custom public state (today: Thetis/Thetis Spice
  * HIGH_TIDE; future: stances, charges, forms). Purely additive; an older client
- * that ignores `flags` is unaffected. Rendered as a HUD state pill via the
- * FLAG_HUD_CHIPS registry in lib/pro/useProCardArt.ts (unbrewed-p2p #233).
+ * that ignores `flags` is unaffected.
  *
  * ## Additive field (2026-07-12, no version bump): `ViewPrompt.description`
  * (issue #134). A multi-step effect (e.g. Coil and Slip's damage-then-move) left
@@ -252,8 +276,16 @@
  * prompts where that summary is unambiguous; other prompt kinds and system
  * prompts (setup, commit, maneuver) omit it. Purely additive and presentation-
  * only; an older client that ignores it is unaffected.
+ *
+ * ## v17 (2026-07-12): hidden Campaign encounters
+ * Adds a private Campaign encounter surface for server-authoritative special
+ * fights. New wire shapes: `LIST_ENCOUNTERS`/`ENCOUNTERS`,
+ * `CREATE_ENCOUNTER_ROOM`, room `encounterId`/`mapId`/seat `role`, public
+ * `PlayerView.encounter`, `USE_ENCOUNTER_ABILITY`, flame tokens, and virtual
+ * combat cards. Normal `LIST_HEROES` remains the public roster and does not
+ * expose encounter-owned heroes such as Onyxia.
  */
-export const PROTOCOL_VERSION = 16;
+export const PROTOCOL_VERSION = 17;
 
 /** Scripted-AI strength preset (server-side budgets; client treats as opaque). */
 export type BotDifficulty = "easy" | "medium" | "hard";
@@ -273,15 +305,16 @@ export type RuntimePlayerId =
   | "p9" | "p10" | "p11" | "p12" | "p13" | "p14" | "p15" | "p16";
 export type DuelPlayerId = "p1" | "p2";
 export type PlayerId = RuntimePlayerId;
-// Team affiliation, mirrored from the engine (unbrewed-engine PR #101). Public
-// info the engine derives from the setup plan; emitted on every seat in every
-// format (duel/ffa = distinct per-seat teams, 2v2 = shared per team). Opaque
-// string to the client — it only ever compares two TeamIds for equality.
+// Mirrors engine/format.ts TeamId (opaque format-defined team id, e.g. "A"/"B").
+// Public info — every viewer sees the same team id for a given seat (issue #98).
 export type TeamId = string;
 export type FighterId = string; // '<playerId>/hero' | '<playerId>/sidekick-<n>'
 export type CardInstanceId = string; // '<cardDefId>#<n>'
 export type CardDefId = string; // 'king-kong/clobber'
 export type SpaceId = string;
+export type TokenKind = "totem" | "flame";
+export type EncounterPhase = "AWAKEN" | "FLIGHT" | "LANDING";
+export type EncounterAbilityId = "fireball" | "flamebreath";
 export type Json =
   | string
   | number
@@ -300,35 +333,26 @@ export type CombatOutcome = "ATTACKER_WON" | "DEFENDER_WON" | "UNKNOWN";
 export type Action =
   | { type: "PLACE_SIDEKICK"; player: PlayerId; fighter: FighterId; space: SpaceId }
   | { type: "MANEUVER"; player: PlayerId }
-  // Maneuver boost (discard a card to widen a fighter's movement). Multiplayer
-  // (unbrewed-engine #119): the engine un-gates BOOST_MOVE enumeration in ffa-3
-  // and team-2v2, so any seat on the clock during its maneuver may boost. Hence
-  // `player: PlayerId`, not `DuelPlayerId` — same widening as FORFEIT below
-  // (additive, no version bump; the client renders it generically from
-  // legalActions and echoes back whatever seat the server offered).
   | { type: "BOOST_MOVE"; player: PlayerId; card: CardInstanceId }
   | { type: "MOVE_FIGHTER"; player: PlayerId; fighter: FighterId; path: SpaceId[] }
   | { type: "END_MANEUVER"; player: PlayerId }
   | { type: "SCHEME"; player: PlayerId; card: CardInstanceId }
   | { type: "DECLARE_ATTACK"; player: PlayerId; attacker: FighterId; target: FighterId }
+  | { type: "USE_ENCOUNTER_ABILITY"; player: PlayerId; ability: EncounterAbilityId; target?: FighterId; space?: SpaceId }
   | { type: "COMMIT_ATTACK_CARD"; player: PlayerId; card: CardInstanceId }
   | { type: "COMMIT_DEFENSE_CARD"; player: PlayerId; card: CardInstanceId }
   | { type: "DECLINE_DEFENSE"; player: PlayerId }
   | { type: "DISCARD_TO_LIMIT"; player: PlayerId; card: CardInstanceId }
   | { type: "RESPOND_PROMPT"; player: PlayerId; promptId: string; optionId: string }
-  // Concede (v9). Legal for whoever is on the clock during PLAY; the server ends
-  // the game with the OTHER player as winner and emits the replay bundle. The
-  // client constructs this directly (the second always-available exception to
-  // "never send an action the server didn't offer", alongside MOVE_FIGHTER paths).
-  // Multiplayer (unbrewed-engine #117): FORFEIT is a voluntary SEAT elimination —
-  // the seat's fighters are swept and it drops out of turn order; the game may
-  // continue (team/ffa) or end (human-stake rule). Hence `player: PlayerId`, not
-  // `DuelPlayerId` — any seat on the clock may forfeit.
-  // `endsMatch` (unbrewed-engine PR #118): SERVER-STAMPED into the action log so a
-  // replayed log reproduces the human-stake game-end deterministically (bot-ness
-  // is server knowledge the engine can't re-derive from {setup, seed} alone).
-  // The CLIENT never sets it — it constructs `{ type: "FORFEIT", player }` and the
-  // server fills this in before logging. Optional/absent on the wire the client sends.
+  // Concede (v9; multiplayer semantics 2026-07-12, issue #117). Legal for
+  // whoever is on the clock during PLAY. Duel: the server ends the game with the
+  // OTHER player as winner and emits the replay bundle. Multiplayer: voluntary
+  // seat elimination — the game continues unless team logic or the human-stake
+  // rule ends it (see the 2026-07-12 header note). The client constructs this
+  // directly (the second always-available exception to "never send an action the
+  // server didn't offer", alongside MOVE_FIGHTER paths) but NEVER sets
+  // `endsMatch` — that flag is stamped by the server into the logged action and
+  // appears in replay bundle actionLogs.
   | { type: "FORFEIT"; player: PlayerId; endsMatch?: boolean };
 
 // ---------------------------------------------------------------------------
@@ -391,8 +415,8 @@ export type GameEvent =
   | { type: "CARD_PLAYED_FROM_HAND"; player: PlayerId; card: CardInstanceId }
   | { type: "CARD_REVEALED"; player: PlayerId; card: CardInstanceId }
   | { type: "DECK_SHUFFLED"; player: PlayerId }
-  | { type: "TOKEN_PLACED"; token: string; kind: "totem"; owner: PlayerId; space: SpaceId }
-  | { type: "TOKEN_DESTROYED"; token: string; kind: "totem"; owner: PlayerId; space: SpaceId; reason: "EFFECT" | "ENTERED" | "REPLACED" }
+  | { type: "TOKEN_PLACED"; token: string; kind: TokenKind; owner: PlayerId; space: SpaceId }
+  | { type: "TOKEN_DESTROYED"; token: string; kind: TokenKind; owner: PlayerId; space: SpaceId; reason: "EFFECT" | "ENTERED" | "REPLACED" }
   | { type: "FIGHTER_REVIVED"; fighter: FighterId; space: SpaceId }
   | { type: "FIGHTER_PINNED"; fighter: FighterId; expiresAtTurn: number; expiresAt: "START" | "END" }
   | { type: "FIGHTER_TAIL_PLACED"; fighter: FighterId; space: SpaceId }
@@ -525,7 +549,7 @@ export interface ViewFighter {
 // `space` and diffs appearances/disappearances (TOKEN_PLACED/TOKEN_DESTROYED).
 export interface ViewToken {
   id: string;
-  kind: "totem";
+  kind: TokenKind;
   owner: PlayerId;
   space: SpaceId;
 }
@@ -560,6 +584,9 @@ export interface ViewPlayer {
   id: PlayerId;
   heroId: string;
   you: boolean;
+  // Format-defined team id (duel/ffa: each seat is its own team). Public info —
+  // identical for every viewer, never redacted (issue #98).
+  team: TeamId;
   hand?: CardInstanceId[]; // present only for the receiving player's own seat
   handCount: number;
   deckCount: number;
@@ -567,13 +594,6 @@ export interface ViewPlayer {
   committedCard?: CardInstanceId | null; // own face-down commit, present only for self
   hasCommitted: boolean;
   counters: Record<string, number>;
-  // Team affiliation (public info the engine knows via the setup plan). Emitted
-  // UNIFORMLY in every format — teammates share a value; in duel/ffa each seat is
-  // its own singleton team. Identical for every viewer (no per-viewer variance).
-  // ADDITIVE + OPTIONAL: an older server (pre-team) omits it, and the client then
-  // renders exactly as before (no team chrome). Mirrors unbrewed-engine PR #101
-  // (`team` on ViewPlayer + ReplayStepPlayer) — no PROTOCOL_VERSION bump.
-  team?: TeamId;
   flags: Record<string, boolean>; // v16: active named flags, public (see ViewSelf.flags)
 }
 
@@ -582,6 +602,7 @@ export interface ViewCombatCard {
   role: "ATTACK" | "DEFENSE";
   boosts: CardInstanceId[]; // attached boost cards (public once attached)
   effectiveValue: number; // server-computed running value (printed ± effects + boosts)
+  virtual?: boolean; // encounter/computed card, not a physical hand/deck card
 }
 
 export interface ViewCombat {
@@ -605,6 +626,25 @@ export interface ViewCombat {
   attackDamageDealt: number | null;
 }
 
+
+export interface ViewEncounterTray {
+  initial: EncounterAbilityId[];
+  available: EncounterAbilityId[];
+  used: EncounterAbilityId[];
+}
+
+export interface ViewEncounter {
+  id: string;
+  name: string;
+  bossPlayer: PlayerId;
+  bossFighterId: FighterId;
+  phase: EncounterPhase;
+  phaseDamage: number;
+  phaseCounterIndex: number;
+  tray: ViewEncounterTray;
+  redHazardSpaces: SpaceId[];
+}
+
 export interface PlayerView {
   you: PlayerId;
   phase: "SETUP" | "PLAY" | "GAME_OVER";
@@ -617,7 +657,8 @@ export interface PlayerView {
   map: ProMapDef;
   catalog: Record<CardDefId, CardMeta>;
   fighters: ViewFighter[];
-  tokens: ViewToken[]; // neutral board tokens (totems); public to both players
+  tokens: ViewToken[]; // neutral board tokens (totems/flames); public to both players
+  encounter: ViewEncounter | null;
   self: ViewSelf;
   // Duel compatibility alias: the first non-self player in runtime order, or null
   // in malformed/spectator-free states. New multiplayer clients should use players[].
@@ -659,6 +700,8 @@ export interface ReplayConfig {
   seed: number;
   mapId?: string;
   options?: { allowNonstandardDeck?: boolean; startingHandSize?: number };
+  encounterId?: string;
+  encounter?: Json;
   players: { p1: ReplayPlayerSetup; p2: ReplayPlayerSetup } & Partial<Record<PlayerId, ReplayPlayerSetup>>;
   formatId?: string;
   map: ProMapDef;
@@ -685,15 +728,13 @@ export interface ReplayBundle {
 // One player's full (unredacted) per-step state in a God-view replay.
 export interface ReplayStepPlayer {
   heroId: string;
+  // Format-defined team id — see ViewPlayer.team (issue #98).
+  team: TeamId;
   hand: CardInstanceId[];
   deckCount: number;
   discard: CardInstanceId[];
   committedCard: CardInstanceId | null;
   counters: Record<string, number>;
-  // Team affiliation in god-view/replay steps (mirrors unbrewed-engine PR #101 —
-  // ReplayStepPlayer carries `team` too, so replay UIs can show teams). Additive
-  // optional; a bundle from an older engine omits it.
-  team?: TeamId;
 }
 
 // One scrubber frame: the board plus BOTH players face-up. `index` 0 is the
@@ -764,17 +805,14 @@ export interface HeroListing {
   tier: HeroTier;
 }
 
-// One seat in a live ROOM_STATUS broadcast (v15). Public pre-game info only —
-// the hero pick is public before the game starts, so the waiting room can name
-// who has joined. `bot` is the seat's AI difficulty (a server-filled AI seat) or
-// null for a human seat; `connected` reflects the seat's socket (a seated human
-// can briefly show disconnected during a waiting-room reconnect before its grace
-// timer releases the seat).
-export interface RoomStatusSeat {
-  player: PlayerId;
-  heroId: string;
-  connected: boolean;
-  bot: BotDifficulty | null;
+export interface EncounterListing {
+  encounterId: string;
+  section: "campaign";
+  name: string;
+  description: string;
+  defaultFormatId: string;
+  supportedFormatIds: string[];
+  mapId: string;
 }
 
 // A public room waiting for a second player (LIST_LOBBIES result row).
@@ -783,6 +821,18 @@ export interface LobbyListing {
   heroId: string;
   heroName: string;
   ageMs: number; // time the lobby has been waiting (now − room creation); NOT reset by a visibility toggle
+}
+
+// One slot of a room's live fill state (ROOM_STATUS, issue #121). Public info
+// only: hero picks are public pre-game, bot-ness is public, connectedness is
+// public. Bot seats (materialized or still planned) always report
+// `connected: true` — they have no socket to lose.
+export interface RoomStatusSeat {
+  player: PlayerId;
+  heroId: string;
+  connected: boolean;
+  bot: BotDifficulty | null;
+  role?: "hero" | "boss" | undefined;
 }
 
 // A single rewound action, summarized for the UNDO_REQUESTED prompt (v11). Only
@@ -797,6 +847,7 @@ export type ClientMsg =
   // `debug` (v15): true includes `tier: 'reflavored'` heroes in the HEROES
   // listing. Absent/false = hidden. See the v15 note above.
   | { v: number; type: "LIST_HEROES"; debug?: boolean }
+  | { v: number; type: "LIST_ENCOUNTERS"; debug?: boolean }
   | { v: number; type: "LIST_LOBBIES" }
   // `customMap` (v4): playtest an unpublished board — the server validates it
   // and uses it for this room only. Composes with `bot`. Omit for the default map.
@@ -808,6 +859,7 @@ export type ClientMsg =
   // a server-picked `bot.heroId`/`botSeats[].heroId` draws from. Absent/false =
   // excluded. Never gates an explicitly named heroId. See the v15 note above.
   | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean }
+  | { v: number; type: "CREATE_ENCOUNTER_ROOM"; encounterId: string; heroId: string; allyBot?: { difficulty: BotDifficulty; heroId?: string }; bossBot?: { difficulty: BotDifficulty }; formatId?: string; seed?: number; debug?: boolean }
   | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string }
   | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }
@@ -823,9 +875,10 @@ export type ClientMsg =
 
 export type ServerMsg =
   | { v: number; type: "HEROES"; heroes: HeroListing[] }
+  | { v: number; type: "ENCOUNTERS"; encounters: EncounterListing[] }
   | { v: number; type: "LOBBIES"; lobbies: LobbyListing[] }
-  | { v: number; type: "ROOM_CREATED"; roomId: string; token: string; you: PlayerId; formatId?: string; seats?: PlayerId[]; requiredPlayers?: number }
-  | { v: number; type: "ROOM_JOINED"; roomId: string; token: string; you: PlayerId; formatId?: string; seats?: PlayerId[]; requiredPlayers?: number }
+  | { v: number; type: "ROOM_CREATED"; roomId: string; token: string; you: PlayerId; formatId?: string; mapId?: string; encounterId?: string | null; seats?: PlayerId[]; requiredPlayers?: number }
+  | { v: number; type: "ROOM_JOINED"; roomId: string; token: string; you: PlayerId; formatId?: string; mapId?: string; encounterId?: string | null; seats?: PlayerId[]; requiredPlayers?: number }
   | { v: number; type: "VISIBILITY"; roomId: string; public: boolean } // ack to SET_VISIBILITY
   | {
       v: number;
@@ -843,16 +896,17 @@ export type ServerMsg =
   // Sent to BOTH seats once the game reaches GAME_OVER (v7). Unredacted +
   // self-contained; the client saves it for the /pro/replays scrubber.
   | { v: number; type: "REPLAY_BUNDLE"; bundle: ReplayBundle }
-  // v15: `player` identifies WHICH seat this is about (omitted by older/duel
-  // servers — the client then treats it as the coarse opponent signal). While a
-  // non-bot seat is disconnected mid-game in a MULTIPLAYER format, `autoForfeitAt`
-  // carries the epoch-ms server deadline for a non-drifting countdown; the
-  // all-clear (`connected: true`) omits it. See the v15 doc block.
+  // Live waiting-room fill (issue #121): broadcast to every connected seat on
+  // join, pre-game seat release, and reconnect/disconnect while waiting. The
+  // one live channel for "who is in this room right now" — ROOM_CREATED/
+  // ROOM_JOINED's `seats: PlayerId[]` stays a point-in-time snapshot.
+  | { v: number; type: "ROOM_STATUS"; roomId: string; formatId: string; mapId?: string; encounterId?: string | null; requiredPlayers: number; seats: RoomStatusSeat[] }
+  // `player` (issue #121, additive): WHICH seat this is about — required for
+  // 3–4p rooms, ignorable by duel clients. `autoForfeitAt` (epoch ms) is set
+  // only while a mid-game abandonment clock runs for that seat (multiplayer
+  // formats): at that deadline the server auto-forfeits the seat. A reconnect
+  // broadcast (`connected: true`) never carries it — that IS the all-clear.
   | { v: number; type: "OPPONENT_STATUS"; connected: boolean; player?: PlayerId; autoForfeitAt?: number }
-  // v15: live waiting-room fill (seats/heroes/connectedness). Broadcast to every
-  // seated player on join, pre-game seat release (count may DROP), and
-  // waiting-room reconnect/disconnect. See RoomStatusSeat + the v15 doc block.
-  | { v: number; type: "ROOM_STATUS"; roomId: string; formatId: string; requiredPlayers: number; seats: RoomStatusSeat[] }
   // v7: the old instance is about to stop (SIGTERM). Show "server updating" and
   // let the reconnect loop take over — a valid RESUME_TOKEN revives the game.
   | { v: number; type: "SERVER_RESTARTING" }
@@ -879,12 +933,13 @@ export type ErrorCode =
   | "UNKNOWN_HERO"
   | "BAD_MAP" // CREATE_ROOM.customMap failed validation (message lists violations)
   | "RESUME_FAILED" // RESUME_ROOM replay diverged / resume disabled (see message)
+  // Pushed instead of RESUME_TOKEN (issue #114) when a game has grown long enough
+  // that sealing its resume blob would exceed the ws inbound frame cap
+  // (PRO_MAX_WS_PAYLOAD_BYTES) — the client would never be able to send that
+  // blob back via RESUME_ROOM, so the server never mints it. Not a request
+  // response: pushed proactively wherever RESUME_TOKEN normally would be.
+  | "RESUME_TOO_LARGE"
   | "UNDO_UNAVAILABLE" // UNDO_REQUEST with nothing to undo, or one already pending
-  // Additive (2026-07-11, unbrewed-engine PR #103) — mirrored VERBATIM from the
-  // engine's protocol.ts ErrorCode. Both are NON-FATAL and DO NOT bump
-  // PROTOCOL_VERSION (older clients see them as an unknown code and fall back to
-  // the generic error path; new clients render friendly, actionable copy).
-  | "ROOM_LIMIT" // server is at its global room cap — retry shortly (create/join)
-  | "RATE_LIMITED" // client is sending too fast; the socket stays open, but a
-                   // repeated breach makes the server close it (reconnect backs off)
+  | "ROOM_LIMIT" // CREATE_ROOM refused — server is at its global room cap (PRO_MAX_ROOMS)
+  | "RATE_LIMITED" // this connection is sending messages too fast (see server rate-limit env vars)
   | "SERVER_ERROR";
