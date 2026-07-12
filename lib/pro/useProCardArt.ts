@@ -40,6 +40,9 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // fetch 404s by design; snapshot-only means it is never consulted).
   "king-taranis": "taranis",
   thetis: "thetis",
+  // Spice remix of Thetis (engine hero id `thetis-spice`, display name "Thetis").
+  // Its own snapshot reuses Thetis's art per-card until dedicated spice art lands.
+  "thetis-spice": "thetis-spice",
   "piper-of-the-underroads": "piper",
   "hollow-oak": "hollow-oak",
 };

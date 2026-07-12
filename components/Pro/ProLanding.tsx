@@ -9,6 +9,7 @@ import {
 } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { FaArrowLeft, FaHeart, FaLock } from "react-icons/fa";
 import { TbInfoCircle } from "react-icons/tb";
 import {
@@ -34,7 +35,9 @@ import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 const FALLBACK_READY: Record<string, string> = {
   kdKM: "King Kong",
   taranis: "King Taranis",
-  thetis: "Thetis",
+  // Spice remix (display name "Thetis") is the default-roster Thetis; the
+  // reflavored baseline `thetis` is hidden unless ?debug (see roster filter).
+  "thetis-spice": "Thetis",
   piper: "The Piper of the Underroads",
   "hollow-oak": "The Hollow Oak",
   lDOM: "The Mandalorian",
@@ -64,15 +67,41 @@ export const ProLanding = () => {
   const [replaysEnabled] = useFlag("replays");
   const [picked, setPicked] = useState<PopularDeckMeta>();
   const [previewDeck, setPreviewDeck] = useState<PopularDeckMeta>();
-  const liveHeroes = useProLiveRoster(PRO_WS_URL);
+  const router = useRouter();
+  // `?debug` (any value, incl. bare `?debug`) reveals the reflavored/baseline
+  // decks the server hides by default. See lib/pro/protocol.ts v15.
+  const debug = router.query.debug !== undefined;
+  const liveHeroes = useProLiveRoster(PRO_WS_URL, debug);
+
+  // A deck is reflavored (hidden unless ?debug, ★-suffixed under it) when our
+  // static POPULAR_DECKS tag says so OR the live roster reports
+  // tier === 'reflavored'. The server omits reflavored heroes from a non-debug
+  // listing, so the static tag is what hides the tile before/without a live
+  // roster; under ?debug the server sends the tier and both agree.
+  const isReflavored = (deck: PopularDeckMeta) =>
+    deck.tier === "reflavored" ||
+    liveHeroes?.find((h) => h.heroId === DECK_HERO_IDS[deck.id])?.tier ===
+      "reflavored";
+
+  // The default roster never renders reflavored decks; ?debug shows them.
+  const visibleDecks = debug
+    ? POPULAR_DECKS
+    : POPULAR_DECKS.filter((d) => !isReflavored(d));
+
+  // Client-side display name only: under ?debug a reflavored deck gets a ` ★`
+  // so it reads apart from its identically-named spice replacement. Never
+  // mutates the deck data.
+  const displayName = (deck: PopularDeckMeta) =>
+    debug && isReflavored(deck) ? `${deck.name} ★` : deck.name;
+
   // Once the server has replied, its roster is authoritative: a deck's
   // server hero id being present is what "ready" means. Until then (or if
   // the socket never connects), fall back to the last-known-good set below.
   const SUPPORTED: Record<string, string> = liveHeroes
     ? Object.fromEntries(
-        POPULAR_DECKS.filter((d) =>
-          liveHeroes.some((h) => h.heroId === DECK_HERO_IDS[d.id])
-        ).map((d) => [d.id, d.hero])
+        visibleDecks
+          .filter((d) => liveHeroes.some((h) => h.heroId === DECK_HERO_IDS[d.id]))
+          .map((d) => [d.id, d.hero])
       )
     : FALLBACK_READY;
   const rosterRank = (deckId: string) =>
@@ -182,7 +211,7 @@ export const ProLanding = () => {
               color="brand.accent"
               whiteSpace="nowrap"
             >
-              {readyCount} of {POPULAR_DECKS.length} ready
+              {readyCount} of {visibleDecks.length} ready
             </Text>
           </Flex>
 
@@ -191,7 +220,7 @@ export const ProLanding = () => {
             gap="0.5rem"
           >
             {/* playable first, then lab, then locked — within each group keep like-order */}
-            {[...POPULAR_DECKS]
+            {[...visibleDecks]
               .sort((a, b) => rosterRank(a.id) - rosterRank(b.id))
               .map((deck, i) => {
               const status = SUPPORTED[deck.id]
@@ -201,16 +230,19 @@ export const ProLanding = () => {
                 : "locked";
               // Ready tiles the game page can actually launch (a server hero id
               // exists) navigate straight into create-a-room with that hero
-              // preselected. Everything else stays an inspect-only tile.
+              // preselected. Everything else stays an inspect-only tile. Carry
+              // `debug` through so a reflavored pick stays selectable and the
+              // debug session continues on the game page.
               const serverHeroId = DECK_HERO_IDS[deck.id];
               const href =
                 status === "ready" && serverHeroId
-                  ? `/pro/game?hero=${serverHeroId}`
+                  ? `/pro/game?hero=${serverHeroId}${debug ? "&debug=1" : ""}`
                   : undefined;
               return (
                 <RosterTile
                   key={deck.id}
                   deck={deck}
+                  displayName={displayName(deck)}
                   index={i}
                   status={status}
                   href={href}
@@ -261,7 +293,7 @@ export const ProLanding = () => {
           <Flex justifyContent="center" mt="0.25rem" gap="0.6rem" flexWrap="wrap">
             <ChakraLink
               as={Link}
-              href="/pro/game"
+              href={debug ? "/pro/game?debug=1" : "/pro/game"}
               display="inline-flex"
               alignItems="center"
               gap="0.4rem"
@@ -381,6 +413,7 @@ const ROADMAP = [
 
 const RosterTile = ({
   deck,
+  displayName,
   index,
   status,
   href,
@@ -389,6 +422,8 @@ const RosterTile = ({
   onPreview,
 }: {
   deck: PopularDeckMeta;
+  /** render name (may carry a ` ★` reflavored suffix under ?debug) */
+  displayName: string;
   index: number;
   status: "ready" | "lab" | "locked";
   /** when set, the tile navigates into the game instead of inspect-only picking */
@@ -495,7 +530,7 @@ const RosterTile = ({
             noOfLines={2}
             textShadow="0 1px 2px rgba(0,0,0,0.8)"
           >
-            {deck.name}
+            {displayName}
           </Text>
           <Flex alignItems="center" gap="0.25rem" color="#FAEBD7" pl="0.25rem">
             {locked ? (
