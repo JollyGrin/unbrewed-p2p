@@ -252,7 +252,11 @@ export type Action =
   // the game with the OTHER player as winner and emits the replay bundle. The
   // client constructs this directly (the second always-available exception to
   // "never send an action the server didn't offer", alongside MOVE_FIGHTER paths).
-  | { type: "FORFEIT"; player: DuelPlayerId };
+  // Multiplayer (unbrewed-engine #117): FORFEIT is a voluntary SEAT elimination —
+  // the seat's fighters are swept and it drops out of turn order; the game may
+  // continue (team/ffa) or end (human-stake rule). Hence `player: PlayerId`, not
+  // `DuelPlayerId` — any seat on the clock may forfeit.
+  | { type: "FORFEIT"; player: PlayerId };
 
 // ---------------------------------------------------------------------------
 // Structured event stream (v10). MIRROR of engine/types.ts `GameEvent` — the

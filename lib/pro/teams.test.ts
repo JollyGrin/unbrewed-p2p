@@ -161,4 +161,27 @@ describe("isViewerOnWinningTeam", () => {
       isViewerOnWinningTeam(view(null, "p1", [seat("p1", "A"), seat("p2", "A")])),
     ).toBe(false);
   });
+
+  // Forfeit = voluntary seat elimination (unbrewed-engine #117): the forfeiter
+  // resigns their SEAT, not their team's outcome. The win/loss decision keys off
+  // the unchanged per-seat `team`, so a forfeiter whose team finishes the job
+  // still sees VICTORY — locked in here so the game-over composition can't
+  // regress to flashing DEFEAT at a player on the winning team.
+  describe("forfeited player, game continues then ends (team-2v2)", () => {
+    // A1,B1,A2,B2 → p1&p3 (team A) vs p2&p4 (team B).
+    const players = [
+      seat("p1", "A"),
+      seat("p2", "B"),
+      seat("p3", "A"),
+      seat("p4", "B"),
+    ];
+
+    it("forfeiter (p3) whose bot teammate (p1) wins sees VICTORY", () => {
+      expect(isViewerOnWinningTeam(view("p1", "p3", players))).toBe(true);
+    });
+
+    it("forfeiter (p2) on the losing team sees DEFEAT", () => {
+      expect(isViewerOnWinningTeam(view("p1", "p2", players))).toBe(false);
+    });
+  });
 });
