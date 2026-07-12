@@ -1544,7 +1544,14 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
             if (format !== "duel") setOpponent("human");
             setBotSlotPlan((prev) => {
               const allowed = new Set(assignableSeats(format));
-              return Object.fromEntries(Object.entries(prev).filter(([player]) => allowed.has(player as PlayerId))) as BotSlotPlan;
+              return Object.fromEntries(
+                Object.entries(prev)
+                  .filter(([player]) => allowed.has(player as PlayerId))
+                  .map(([player, occupant]) => [
+                    player,
+                    format === "team-2v2" || occupant === "human" ? occupant : "easy",
+                  ]),
+              ) as BotSlotPlan;
             });
             // Keep a still-eligible board (and a "Custom…" choice) selected;
             // otherwise fall back to the new format's default board.
@@ -1616,8 +1623,8 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
               selectedFormat === "duel"
                 ? []
                 : Object.entries(botSlotPlan)
-                    .filter(([, occupant]) => occupant === "easy")
-                    .map(([player]) => ({ player: player as PlayerId, difficulty: "easy" }));
+                    .filter((entry): entry is [string, Exclude<SlotOccupant, "human">] => entry[1] !== "human")
+                    .map(([player, difficulty]) => ({ player: player as PlayerId, difficulty }));
             createRoom(effectiveHeroId, bot, customMap, selectedFormat, botSeats);
             setSelectedHeroId(effectiveHeroId); // lock it for the lobby label
             setJoined(true);
