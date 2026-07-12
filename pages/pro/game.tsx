@@ -197,11 +197,28 @@ const PromptPanel = ({
     <Text fontFamily="ArchivoNarrow" fontWeight="bold" mb="0.5rem" color="brand.accent">
       {prompt.kind.replace(/_/g, " ")}
     </Text>
-    {/* v10 attribution: WHICH effect is asking — shown to chooser and spectator alike */}
-    {sourceLabel && (
-      <Text fontSize="0.8rem" mb="0.5rem" color="brand.parchment" opacity={0.85}>
-        {sourceLabel}
-      </Text>
+    {/* v16 (issue #237): the mechanical step description — WHICH effect step is
+        resolving on a multi-step card ("Choose a fighter to take 2 damage"). When
+        present it is the PRIMARY line and the card attribution (`sourceLabel`)
+        demotes below it; when absent we fall back to the v10 attribution-only copy.
+        Both shown to chooser and spectator alike. */}
+    {prompt.description ? (
+      <>
+        <Text fontSize="0.95rem" fontWeight="bold" mb="0.25rem" color="brand.parchment">
+          {prompt.description}
+        </Text>
+        {sourceLabel && (
+          <Text fontSize="0.75rem" mb="0.5rem" color="brand.parchment" opacity={0.7}>
+            {sourceLabel}
+          </Text>
+        )}
+      </>
+    ) : (
+      sourceLabel && (
+        <Text fontSize="0.8rem" mb="0.5rem" color="brand.parchment" opacity={0.85}>
+          {sourceLabel}
+        </Text>
+      )
     )}
     {sourceInstance && (
       <Box w="6.5rem" sx={{ aspectRatio: "63 / 88" }} mb="0.5rem">
