@@ -197,7 +197,7 @@
  * on v14 (duel is untouched):
  *
  * - `ROOM_STATUS` (server → every seated player): the live waiting-room channel.
- *   Carries `{ formatId, requiredPlayers, seats: RoomStatusSeat[] }` — public
+ *   Carries `{ roomId, formatId, requiredPlayers, seats: RoomStatusSeat[] }` — public
  *   pre-game info (hero picks are public), so the host's waiting panel can render
  *   the true fill count AND which heroes have joined as seats arrive. Broadcast on
  *   join, on pre-game seat release (the count can go DOWN — a ghost seat freed
@@ -711,14 +711,15 @@ export interface HeroListing {
 
 // One seat in a live ROOM_STATUS broadcast (v15). Public pre-game info only —
 // the hero pick is public before the game starts, so the waiting room can name
-// who has joined. `bot` marks a server-filled AI seat; `connected` reflects the
-// seat's socket (a seated human can briefly show disconnected during a
-// waiting-room reconnect before its grace timer releases the seat).
+// who has joined. `bot` is the seat's AI difficulty (a server-filled AI seat) or
+// null for a human seat; `connected` reflects the seat's socket (a seated human
+// can briefly show disconnected during a waiting-room reconnect before its grace
+// timer releases the seat).
 export interface RoomStatusSeat {
   player: PlayerId;
   heroId: string;
   connected: boolean;
-  bot: boolean;
+  bot: BotDifficulty | null;
 }
 
 // A public room waiting for a second player (LIST_LOBBIES result row).
@@ -791,7 +792,7 @@ export type ServerMsg =
   // v15: live waiting-room fill (seats/heroes/connectedness). Broadcast to every
   // seated player on join, pre-game seat release (count may DROP), and
   // waiting-room reconnect/disconnect. See RoomStatusSeat + the v15 doc block.
-  | { v: number; type: "ROOM_STATUS"; formatId: string; requiredPlayers: number; seats: RoomStatusSeat[] }
+  | { v: number; type: "ROOM_STATUS"; roomId: string; formatId: string; requiredPlayers: number; seats: RoomStatusSeat[] }
   // v7: the old instance is about to stop (SIGTERM). Show "server updating" and
   // let the reconnect loop take over — a valid RESUME_TOKEN revives the game.
   | { v: number; type: "SERVER_RESTARTING" }

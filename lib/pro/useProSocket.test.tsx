@@ -251,11 +251,12 @@ describe("useProSocket — ROOM_STATUS live waiting-room fill (issue #222)", () 
     act(() =>
       ws.emit({
         type: "ROOM_STATUS",
+        roomId: "R1",
         formatId: "team-2v2",
         requiredPlayers: 4,
         seats: [
-          { player: "p1", heroId: "medusa", connected: true, bot: false },
-          { player: "p2", heroId: "king-kong", connected: true, bot: false },
+          { player: "p1", heroId: "medusa", connected: true, bot: null },
+          { player: "p2", heroId: "king-kong", connected: true, bot: null },
         ],
       })
     );
@@ -271,12 +272,13 @@ describe("useProSocket — ROOM_STATUS live waiting-room fill (issue #222)", () 
     act(() =>
       ws.emit({
         type: "ROOM_STATUS",
+        roomId: "R1",
         formatId: "team-2v2",
         requiredPlayers: 4,
         seats: [
-          { player: "p1", heroId: "medusa", connected: true, bot: false },
-          { player: "p2", heroId: "king-kong", connected: true, bot: false },
-          { player: "p3", heroId: "bruce-lee", connected: true, bot: false },
+          { player: "p1", heroId: "medusa", connected: true, bot: null },
+          { player: "p2", heroId: "king-kong", connected: true, bot: null },
+          { player: "p3", heroId: "bruce-lee", connected: true, bot: null },
         ],
       })
     );
@@ -286,11 +288,12 @@ describe("useProSocket — ROOM_STATUS live waiting-room fill (issue #222)", () 
     act(() =>
       ws.emit({
         type: "ROOM_STATUS",
+        roomId: "R1",
         formatId: "team-2v2",
         requiredPlayers: 4,
         seats: [
-          { player: "p1", heroId: "medusa", connected: true, bot: false },
-          { player: "p2", heroId: "king-kong", connected: true, bot: false },
+          { player: "p1", heroId: "medusa", connected: true, bot: null },
+          { player: "p2", heroId: "king-kong", connected: true, bot: null },
         ],
       })
     );
