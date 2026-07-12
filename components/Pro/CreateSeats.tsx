@@ -12,8 +12,7 @@ const BOT_SLOT_CHOICES: Array<{ id: BotDifficulty; label: string }> = [
   { id: "hard", label: "Hard bot" },
 ];
 
-const botSlotChoicesForFormat = (format: ProFormatId): Array<{ id: BotDifficulty; label: string }> =>
-  format === "team-2v2" ? BOT_SLOT_CHOICES : BOT_SLOT_CHOICES.filter((choice) => choice.id === "easy");
+const botSlotChoicesForFormat = (_format: ProFormatId): Array<{ id: BotDifficulty; label: string }> => BOT_SLOT_CHOICES;
 
 const isBotSlotOccupant = (occupant: SlotOccupant): occupant is BotDifficulty => occupant !== "human";
 

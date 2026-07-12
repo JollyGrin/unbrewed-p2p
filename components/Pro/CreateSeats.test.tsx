@@ -95,11 +95,11 @@ describe("CreateSeats — non-team formats", () => {
     expect(screen.getByText("P2")).toBeInTheDocument();
     expect(screen.getByText("P3")).toBeInTheDocument();
     expect(screen.queryByText("P4")).not.toBeInTheDocument();
-    // no team language leaks into ffa, and non-team bot slots stay easy-only.
+    // no team language leaks into ffa, but FFA bot slots can still pick every difficulty.
     expect(screen.queryByText(/your teammate/)).not.toBeInTheDocument();
     expect(screen.getAllByText("Easy bot")).toHaveLength(2);
-    expect(screen.queryByText("Medium bot")).not.toBeInTheDocument();
-    expect(screen.queryByText("Hard bot")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Medium bot")).toHaveLength(2);
+    expect(screen.getAllByText("Hard bot")).toHaveLength(2);
   });
 });
 
