@@ -60,20 +60,23 @@ describe("CreateSeats — team-2v2 grouping (#228)", () => {
     }
   });
 
-  it("P1 (You) has no bot controls; teammate P3 does", () => {
+  it("P1 (You) has no bot controls; teammate P3 can pick every bot difficulty", () => {
     renderPanel("team-2v2");
     expect(within(screen.getByTestId("seat-card-p1")).queryByText("Easy bot")).not.toBeInTheDocument();
-    expect(within(screen.getByTestId("seat-card-p3")).getByText("Easy bot")).toBeInTheDocument();
+    const p3 = within(screen.getByTestId("seat-card-p3"));
+    expect(p3.getByText("Easy bot")).toBeInTheDocument();
+    expect(p3.getByText("Medium bot")).toBeInTheDocument();
+    expect(p3.getByText("Hard bot")).toBeInTheDocument();
   });
 
-  it("setting P3 = Easy bot arms a bot TEAMMATE (fires onChangeBotSlot for p3)", () => {
+  it("setting P3 = Medium bot arms a bot TEAMMATE (fires onChangeBotSlot for p3)", () => {
     const onChange = jest.fn();
     renderPanel("team-2v2", onChange);
     const p3 = screen.getByTestId("seat-card-p3");
-    fireEvent.click(within(p3).getByText("Easy bot"));
-    expect(onChange).toHaveBeenCalledWith("p3", "easy");
+    fireEvent.click(within(p3).getByText("Medium bot"));
+    expect(onChange).toHaveBeenCalledWith("p3", "medium");
     // and it is NOT p2 (the opponent slot the flat layout used to trap into)
-    expect(onChange).not.toHaveBeenCalledWith("p2", "easy");
+    expect(onChange).not.toHaveBeenCalledWith("p2", "medium");
   });
 });
 
@@ -92,8 +95,11 @@ describe("CreateSeats — non-team formats", () => {
     expect(screen.getByText("P2")).toBeInTheDocument();
     expect(screen.getByText("P3")).toBeInTheDocument();
     expect(screen.queryByText("P4")).not.toBeInTheDocument();
-    // no team language leaks into ffa
+    // no team language leaks into ffa, and non-team bot slots stay easy-only.
     expect(screen.queryByText(/your teammate/)).not.toBeInTheDocument();
+    expect(screen.getAllByText("Easy bot")).toHaveLength(2);
+    expect(screen.queryByText("Medium bot")).not.toBeInTheDocument();
+    expect(screen.queryByText("Hard bot")).not.toBeInTheDocument();
   });
 });
 

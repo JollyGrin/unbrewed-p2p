@@ -1,10 +1,21 @@
 import { Button, Flex, Grid, Text } from "@chakra-ui/react";
-import { PlayerId } from "@/lib/pro/protocol";
+import { BotDifficulty, PlayerId } from "@/lib/pro/protocol";
 import { ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
 
 /** Who fills a create-screen seat: a human (via the room link) or a server bot. */
-export type SlotOccupant = "human" | "easy";
+export type SlotOccupant = "human" | BotDifficulty;
 export type BotSlotPlan = Partial<Record<PlayerId, SlotOccupant>>;
+
+const BOT_SLOT_CHOICES: Array<{ id: BotDifficulty; label: string }> = [
+  { id: "easy", label: "Easy bot" },
+  { id: "medium", label: "Medium bot" },
+  { id: "hard", label: "Hard bot" },
+];
+
+const botSlotChoicesForFormat = (format: ProFormatId): Array<{ id: BotDifficulty; label: string }> =>
+  format === "team-2v2" ? BOT_SLOT_CHOICES : BOT_SLOT_CHOICES.filter((choice) => choice.id === "easy");
+
+const isBotSlotOccupant = (occupant: SlotOccupant): occupant is BotDifficulty => occupant !== "human";
 
 // Local mirrors of the create-flow button styles (kept in sync with pages/pro/game.tsx).
 const BTN = {
@@ -87,7 +98,7 @@ export const CreateSeats = ({
         border="2px solid"
         borderColor={
           editable
-            ? occupant === "easy"
+            ? isBotSlotOccupant(occupant)
               ? "brand.accent"
               : "whiteAlpha.200"
             : teamAccent
@@ -113,13 +124,16 @@ export const CreateSeats = ({
             >
               Human
             </Button>
-            <Button
-              {...(occupant === "easy" ? BTN_GOLD : BTN)}
-              size="xs"
-              onClick={() => onChangeBotSlot(player, "easy")}
-            >
-              Easy bot
-            </Button>
+            {botSlotChoicesForFormat(selectedFormat).map((choice) => (
+              <Button
+                key={choice.id}
+                {...(occupant === choice.id ? BTN_GOLD : BTN)}
+                size="xs"
+                onClick={() => onChangeBotSlot(player, choice.id)}
+              >
+                {choice.label}
+              </Button>
+            ))}
           </Flex>
         )}
       </Flex>
@@ -230,13 +244,16 @@ export const CreateSeats = ({
                 >
                   Human
                 </Button>
-                <Button
-                  {...(occupant === "easy" ? BTN_GOLD : BTN)}
-                  size="xs"
-                  onClick={() => onChangeBotSlot(slot.player, "easy")}
-                >
-                  Easy bot
-                </Button>
+                {botSlotChoicesForFormat(selectedFormat).map((choice) => (
+                  <Button
+                    key={choice.id}
+                    {...(occupant === choice.id ? BTN_GOLD : BTN)}
+                    size="xs"
+                    onClick={() => onChangeBotSlot(slot.player, choice.id)}
+                  >
+                    {choice.label}
+                  </Button>
+                ))}
               </Flex>
             </Flex>
           );
