@@ -72,9 +72,16 @@ export const ReplayScrubber = ({
   const step = steps[Math.min(index, lastIndex)];
 
   // Prefetch art for EVERY seat's hero so focusing any seat renders instantly.
-  const { resolveCard, resolveHero } = useProCardArt(heroList, catalog);
+  const { resolveCard, resolveHero, resolveFighterToken } = useProCardArt(heroList, catalog);
 
   const view = useMemo(() => toPlayerView(step, { map, catalog }, focus), [step, map, catalog, focus]);
+  // owner seat -> heroId, so the board resolves each fighter's token art by hero
+  // (ViewFighter carries owner + kind, not heroId). Mirrors pages/pro/game.tsx.
+  const ownerHeroIds = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const p of view.players) m[p.id] = p.heroId;
+    return m;
+  }, [view]);
   const oppSeats = opponentSeats(step, focus);
   const markers = useMemo(() => turnMarkers(steps), [steps]);
   const labelFor = (c: CardInstanceId) => labelForCard(catalog, c);
@@ -142,6 +149,10 @@ export const ReplayScrubber = ({
           map={view.map}
           fighters={view.fighters}
           tokens={view.tokens}
+          fighterTokenArt={(f) => {
+            const heroId = ownerHeroIds[f.owner];
+            return heroId ? resolveFighterToken(heroId, f.kind) : null;
+          }}
           imgMaxH="calc(100svh - 21rem)"
         />
       </Flex>

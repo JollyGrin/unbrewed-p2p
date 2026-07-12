@@ -115,16 +115,33 @@ export const norm = (s: string) => s.trim().toLowerCase();
 
 export type ResolveCard = (instance: CardInstanceId) => DeckImportCardType | null;
 export type ResolveHero = (heroId: string) => DeckImportHeroType | null;
+/**
+ * Board-token portrait art for one fighter, resolved by hero id + kind (HERO vs
+ * SIDEKICK). Returns the deck JSON's `tokenImageUrl` for that fighter, or null
+ * when the deck has none (converted decks, or a snapshot that failed to load) —
+ * the board then draws its initials-only token exactly as before.
+ */
+export type ResolveFighterToken = (
+  heroId: string,
+  kind: "HERO" | "SIDEKICK"
+) => string | null;
 
 interface HeroArt {
   cards: Record<string, DeckImportCardType>;
   hero: DeckImportHeroType;
+  heroTokenUrl: string | null;
+  sidekickTokenUrl: string | null;
 }
 
 export function useProCardArt(
   heroIds: string[],
   catalog: Record<CardDefId, CardMeta>
-): { resolveCard: ResolveCard; resolveHero: ResolveHero; isLoading: boolean } {
+): {
+  resolveCard: ResolveCard;
+  resolveHero: ResolveHero;
+  resolveFighterToken: ResolveFighterToken;
+  isLoading: boolean;
+} {
   const ids = [...new Set(heroIds)].sort();
 
   const { data, isLoading } = useQuery(
@@ -145,7 +162,12 @@ export function useProCardArt(
           const deck = res.data;
           const byTitle: Record<string, DeckImportCardType> = {};
           for (const card of deck.deck_data.cards) byTitle[norm(card.title)] = card;
-          byHero[heroId] = { cards: byTitle, hero: deck.deck_data.hero };
+          byHero[heroId] = {
+            cards: byTitle,
+            hero: deck.deck_data.hero,
+            heroTokenUrl: deck.deck_data.hero.tokenImageUrl ?? null,
+            sidekickTokenUrl: deck.deck_data.sidekick?.tokenImageUrl ?? null,
+          };
         })
       );
       return byHero;
@@ -163,5 +185,11 @@ export function useProCardArt(
 
   const resolveHero: ResolveHero = (heroId) => data?.[heroId]?.hero ?? null;
 
-  return { resolveCard, resolveHero, isLoading };
+  const resolveFighterToken: ResolveFighterToken = (heroId, kind) => {
+    const art = data?.[heroId];
+    if (!art) return null;
+    return (kind === "HERO" ? art.heroTokenUrl : art.sidekickTokenUrl) ?? null;
+  };
+
+  return { resolveCard, resolveHero, resolveFighterToken, isLoading };
 }

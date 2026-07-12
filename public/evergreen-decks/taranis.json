@@ -16,14 +16,16 @@
       "move": 2,
       "name": "King Taranis",
       "specialAbility": "STORMCHANNEL\nWhen King Taranis attacks, you may BOOST that attack, playing the BOOST card face down alongside it. If the effects of your attack card are cancelled, discard the BOOST without using it.",
-      "quote": "A warrior-king forged into a living thunderstorm, channeling every strike through the rune-etched warhammer Gromnir — commit to the big swing and boost it beyond answer."
+      "quote": "A warrior-king forged into a living thunderstorm, channeling every strike through the rune-etched warhammer Gromnir — commit to the big swing and boost it beyond answer.",
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/taranis/token-taranis.webp"
     },
     "sidekick": {
       "hp": 7,
       "isRanged": true,
       "name": "Veyra the Tempest Whisper",
       "quantity": 1,
-      "quote": "A fragile, ethereal storm-oracle who whispers the tempest exactly where it is needed."
+      "quote": "A fragile, ethereal storm-oracle who whispers the tempest exactly where it is needed.",
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/taranis/token-veyra.webp"
     },
     "extraCharacters": [],
     "ruleCards": [],

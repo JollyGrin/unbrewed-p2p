@@ -91,6 +91,13 @@ export type DeckImportHeroType = {
   name: string;
   specialAbility: string;
   quote?: string;
+  /**
+   * Portrait art for this fighter's board token, clipped into the circle on the
+   * Pro board (see ProBoard.fighterToken + lib/pro/useProCardArt). Optional and
+   * additive: only the evergreen decks with painted token art set it; converted
+   * decks omit it and render initials-only exactly as before.
+   */
+  tokenImageUrl?: string;
 };
 
 export type DeckImportSidekickType = Omit<

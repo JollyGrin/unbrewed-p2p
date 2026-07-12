@@ -1269,10 +1269,19 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
   }, [customMapJson]);
   // Art fetch (unbrewed-api, matched by title against the server catalog) —
   // must run unconditionally; no-ops until the first STATE arrives.
-  const { resolveCard, resolveHero } = useProCardArt(
+  const { resolveCard, resolveHero, resolveFighterToken } = useProCardArt(
     snapshot ? [...new Set(snapshot.view.players.map((p) => p.heroId))] : [],
     snapshot?.view.catalog ?? {}
   );
+
+  // owner seat -> heroId, so the board can resolve a fighter's token art by hero
+  // (ViewFighter carries owner + kind, not heroId). Rebuilt per snapshot; empty
+  // until the first STATE arrives (board then draws initials-only tokens).
+  const ownerHeroIds = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const p of snapshot?.view.players ?? []) m[p.id] = p.heroId;
+    return m;
+  }, [snapshot]);
 
   // Sounds + transient board visuals, derived by diffing snapshots (useGameFx).
   const { boardFx, hurtKey, soundOn, visualOn, toggleSound, toggleVisual } = useGameFx(snapshot);
@@ -2157,6 +2166,10 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
           friendlyOwners={friendlyOwners}
           fighterBadges={attackerBadge}
           extendedReachTargets={[...extendedReachTargets]}
+          fighterTokenArt={(f) => {
+            const heroId = ownerHeroIds[f.owner];
+            return heroId ? resolveFighterToken(heroId, f.kind) : null;
+          }}
           fx={boardFx}
           pendingMove={pendingMove ?? incomingMove}
           onPendingMoveSettled={() => {

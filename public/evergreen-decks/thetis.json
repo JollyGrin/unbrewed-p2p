@@ -16,14 +16,16 @@
       "move": 2,
       "name": "Thetis",
       "specialAbility": "EBB AND FLOW\nWhen you place Thetis, choose whether she starts at HIGH TIDE or LOW TIDE.\nAt HIGH TIDE, add 2 to the value of her attack cards. At LOW TIDE, add 1 to the value of her defense cards.\nTurn the tide: switch between HIGH TIDE and LOW TIDE.",
-      "quote": "A tide-bound sea witch who fights in two forms — towering and empowered at HIGH TIDE, lithe and cunning at LOW TIDE — turning the tide mid-battle to strike hard or slip away."
+      "quote": "A tide-bound sea witch who fights in two forms — towering and empowered at HIGH TIDE, lithe and cunning at LOW TIDE — turning the tide mid-battle to strike hard or slip away.",
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/thetis/token-thetis-low.webp"
     },
     "sidekick": {
       "hp": 8,
       "isRanged": false,
       "name": "The Abyssal Maw",
       "quantity": 1,
-      "quote": "Part kraken, part armored sea-reptile — the hunger of the deep given teeth."
+      "quote": "Part kraken, part armored sea-reptile — the hunger of the deep given teeth.",
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/thetis/token-maw.webp"
     },
     "extraCharacters": [],
     "ruleCards": [],
