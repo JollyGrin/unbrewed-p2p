@@ -90,9 +90,10 @@ export const CardSvg: React.FC<{
           />
           <image
             width={props.topPanelWidth}
+            height={roundNumber(props.topPanelHeight, 2)}
             href={props.dataUri}
             clipPath={`url(#${idPrefix}topPanel)`}
-            preserveAspectRatio="xMidYMid meet"
+            preserveAspectRatio="xMidYMid slice"
           />
           <polygon
             style={props.outerBorderStyle}
