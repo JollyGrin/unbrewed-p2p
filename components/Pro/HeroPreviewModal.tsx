@@ -14,6 +14,7 @@ import { MdSupervisorAccount as IconSidekick } from "react-icons/md";
 import { CardFace } from "./ProHand";
 import { useDeckPreview } from "@/lib/pro/useDeckPreview";
 import { useDeckStats } from "@/lib/pro/useDeckStats";
+import { LARGE_FIGHTER_BLURB } from "@/lib/pro/largeReach";
 
 /**
  * Client-side registry of two-space (LARGE) fighters — no pre-match field
@@ -117,6 +118,15 @@ export const HeroPreviewModal = ({
                 </Tag>
               )}
             </Flex>
+          )}
+
+          {/* Standing large-fighter rule (issue #235) — the full sentence that the
+              in-game HUD and attack-reach chip also show, so the 2-space melee
+              reach is explained before the match even starts. Shared copy. */}
+          {isLarge && (
+            <Text mt="0.6rem" fontSize="0.8rem" color="brand.accent" fontWeight={600}>
+              {LARGE_FIGHTER_BLURB}
+            </Text>
           )}
 
           {deck?.hero.quote?.trim() && (
