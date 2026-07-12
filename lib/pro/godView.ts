@@ -68,6 +68,9 @@ export function toPlayerView(
       discard: p.discard,
       hasCommitted: p.committedCard !== null,
       counters: p.counters,
+      // Replay bundles predate v16 `flags`; god-view synthesizes an empty map
+      // (no active flags) since replay/god-view tide surfacing is a follow-up.
+      flags: {},
       // Carry the seat's team through so ProHud's deriveTeams sees a real team
       // format when scrubbing a 2v2 replay (ALLY chips etc.); absent-safe for
       // pre-team bundles. Live play is unaffected (uses the server view). (#211)
@@ -94,6 +97,7 @@ export function toPlayerView(
       discard: me.discard,
       committedCard: me.committedCard,
       counters: me.counters,
+      flags: {},
     },
     opponent:
       opp && oppId
@@ -105,6 +109,7 @@ export function toPlayerView(
             discard: opp.discard,
             hasCommitted: opp.committedCard !== null,
             counters: opp.counters,
+            flags: {},
           }
         : null,
     players,

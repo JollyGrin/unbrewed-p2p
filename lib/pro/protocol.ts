@@ -231,8 +231,18 @@
  * v14 (an older client that omits `debug` gets `debug: false` behavior — a
  * reflavored hero, today only `thetis`, drops out of its HEROES listing and
  * random-bot pools).
+ *
+ * ## v16 (2026-07-12): public per-player `flags` (issue #132)
+ * `ViewSelf`/`ViewOpponent`/`ViewPlayer` gain `flags: Record<string, boolean>` —
+ * the player's currently-active named flags (setFlag op, engine PlayerState.flags),
+ * keyed by flag name -> true (absent = not active). ALL flags are public, exactly
+ * like `counters` — no per-flag special-casing. This is the standing wire
+ * primitive for any deck's custom public state (today: Thetis/Thetis Spice
+ * HIGH_TIDE; future: stances, charges, forms). Purely additive; an older client
+ * that ignores `flags` is unaffected. Rendered as a HUD state pill via the
+ * FLAG_HUD_CHIPS registry in lib/pro/useProCardArt.ts (unbrewed-p2p #233).
  */
-export const PROTOCOL_VERSION = 15;
+export const PROTOCOL_VERSION = 16;
 
 /** Scripted-AI strength preset (server-side budgets; client treats as opaque). */
 export type BotDifficulty = "easy" | "medium" | "hard";
@@ -511,7 +521,11 @@ export interface ViewSelf {
   discard: CardInstanceId[];
   committedCard: CardInstanceId | null; // own face-down commit (visible to self)
   counters: Record<string, number>;
-  flags?: Record<string, boolean>; // public per-player flags (see ViewPlayer.flags)
+  // v16: active named flags (setFlag op), keyed by flag name -> true. Generic
+  // public-state primitive (tide today; stances/charges/forms in future decks) —
+  // presence = currently active, mirroring engine PlayerState.flags. Public,
+  // same for every viewer, no per-flag special-casing.
+  flags: Record<string, boolean>;
 }
 
 export interface ViewOpponent {
@@ -522,7 +536,7 @@ export interface ViewOpponent {
   discard: CardInstanceId[]; // discard is public
   hasCommitted: boolean; // face-down commit exists, identity hidden
   counters: Record<string, number>; // counters are public
-  flags?: Record<string, boolean>; // public per-player flags (see ViewPlayer.flags)
+  flags: Record<string, boolean>; // v16: active named flags, public (see ViewSelf.flags)
 }
 
 export interface ViewPlayer {
@@ -543,18 +557,7 @@ export interface ViewPlayer {
   // renders exactly as before (no team chrome). Mirrors unbrewed-engine PR #101
   // (`team` on ViewPlayer + ReplayStepPlayer) — no PROTOCOL_VERSION bump.
   team?: TeamId;
-  // Public per-player flags, mirroring `counters` (ALL flags are public info the
-  // opponent must play around — Thetis/thetis-spice run EBB AND FLOW on a
-  // `HIGH_TIDE` flag; LOW TIDE = the flag's absence). A set flag is `true`; an
-  // absent flag reads as `false`/undefined. Rendered as a HUD state pill via the
-  // FLAG_HUD_CHIPS registry in lib/pro/useProCardArt.ts.
-  //
-  // ADDITIVE + OPTIONAL, so an older server (pre-flags) omits it and the client
-  // renders exactly as before (no tide chip). Mirrors unbrewed-engine #132
-  // (`flags` on the redacted PlayerView). Kept at the current PROTOCOL_VERSION
-  // per the `team` precedent above; sync the bump here when #132 lands and
-  // formalizes the accepted-version set.
-  flags?: Record<string, boolean>;
+  flags: Record<string, boolean>; // v16: active named flags, public (see ViewSelf.flags)
 }
 
 export interface ViewCombatCard {
