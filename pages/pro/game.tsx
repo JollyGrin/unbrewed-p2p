@@ -18,6 +18,7 @@ import { Box, Button, Flex, Grid, Link, Menu, MenuButton, MenuItem, MenuList, Ta
 import { keyframes } from "@emotion/react";
 import { MOVE_STEP_SECONDS, PendingMove, ProBoard } from "@/components/Pro/ProBoard";
 import { ProErrorBoundary } from "@/components/Pro/ProErrorBoundary";
+import { assignableSeats, BotSlotPlan, CreateSeats, SlotOccupant } from "@/components/Pro/CreateSeats";
 import { stateHash } from "@/lib/pro/stateHash";
 import {
   Action,
@@ -817,22 +818,6 @@ const OPPONENT_CHOICES: { id: OpponentChoice; label: string }[] = [
   { id: "hard", label: "AI · hard" },
 ];
 
-type SlotOccupant = "human" | "easy";
-
-type BotSlotPlan = Partial<Record<PlayerId, SlotOccupant>>;
-
-const SLOT_LABELS: Partial<Record<ProFormatId, Array<{ player: PlayerId; label: string }>>> = {
-  "ffa-3": [
-    { player: "p2", label: "P2" },
-    { player: "p3", label: "P3" },
-  ],
-  "team-2v2": [
-    { player: "p2", label: "Team A · P2" },
-    { player: "p3", label: "Team B · P3" },
-    { player: "p4", label: "Team B · P4" },
-  ],
-};
-
 const HeroSelectLobby = ({
   room,
   status,
@@ -886,7 +871,6 @@ const HeroSelectLobby = ({
   const canConfirm = status === "open" && !!effective;
   const format = formatChoice(selectedFormat);
   const multiplayer = selectedFormat !== "duel";
-  const slotLabels = !room ? SLOT_LABELS[selectedFormat] ?? [] : [];
   const [previewHero, setPreviewHero] = useState<HeroListing>();
 
   return (
@@ -1153,70 +1137,12 @@ const HeroSelectLobby = ({
         </Flex>
       )}
 
-      {!room && multiplayer && slotLabels.length > 0 && (
-        <Flex direction="column" alignItems="center" gap="0.55rem" maxW="34rem" w="100%">
-          <Text fontFamily="BebasNeueRegular" fontSize="1.1rem" letterSpacing="0.08em" opacity={0.75}>
-            Seats
-          </Text>
-          <Grid w="100%" templateColumns={{ base: "1fr", sm: "repeat(2, 1fr)" }} gap="0.5rem">
-            <Flex
-              direction="column"
-              align="center"
-              gap="0.25rem"
-              border="2px solid"
-              borderColor="brand.accent"
-              borderRadius="0.55rem"
-              bg="rgba(20, 8, 24, 0.55)"
-              p="0.55rem"
-            >
-              <Text fontFamily="BebasNeueRegular" fontSize="1rem">
-                {selectedFormat === "team-2v2" ? "Team A · P1" : "P1"}
-              </Text>
-              <Text fontSize="0.7rem" opacity={0.75}>
-                You
-              </Text>
-            </Flex>
-            {slotLabels.map((slot) => {
-              const occupant = botSlotPlan[slot.player] ?? "human";
-              return (
-                <Flex
-                  key={slot.player}
-                  direction="column"
-                  align="center"
-                  gap="0.35rem"
-                  border="2px solid"
-                  borderColor={occupant === "easy" ? "brand.accent" : "whiteAlpha.200"}
-                  borderRadius="0.55rem"
-                  bg="rgba(20, 8, 24, 0.55)"
-                  p="0.55rem"
-                >
-                  <Text fontFamily="BebasNeueRegular" fontSize="1rem">
-                    {slot.label}
-                  </Text>
-                  <Flex gap="0.35rem" flexWrap="wrap" justify="center">
-                    <Button
-                      {...(occupant === "human" ? BTN_GOLD : BTN)}
-                      size="xs"
-                      onClick={() => onChangeBotSlot(slot.player, "human")}
-                    >
-                      Human
-                    </Button>
-                    <Button
-                      {...(occupant === "easy" ? BTN_GOLD : BTN)}
-                      size="xs"
-                      onClick={() => onChangeBotSlot(slot.player, "easy")}
-                    >
-                      Easy bot
-                    </Button>
-                  </Flex>
-                </Flex>
-              );
-            })}
-          </Grid>
-          <Text fontSize="0.7rem" opacity={0.6} textAlign="center">
-            Bot slots are filled by the server. Human slots join with the room link.
-          </Text>
-        </Flex>
+      {!room && multiplayer && (
+        <CreateSeats
+          selectedFormat={selectedFormat}
+          botSlotPlan={botSlotPlan}
+          onChangeBotSlot={onChangeBotSlot}
+        />
       )}
 
       <Button {...BTN_GOLD} isDisabled={!canConfirm} onClick={onConfirm}>
@@ -1581,7 +1507,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
             setSelectedFormat(format);
             if (format !== "duel") setOpponent("human");
             setBotSlotPlan((prev) => {
-              const allowed = new Set((SLOT_LABELS[format] ?? []).map((slot) => slot.player));
+              const allowed = new Set(assignableSeats(format));
               return Object.fromEntries(Object.entries(prev).filter(([player]) => allowed.has(player as PlayerId))) as BotSlotPlan;
             });
             // Keep a still-eligible board (and a "Custom…" choice) selected;
