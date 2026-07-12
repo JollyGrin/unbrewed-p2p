@@ -97,6 +97,18 @@
       }
     },
     {
+      "heroId": "thetis-spice",
+      "deckId": "thetis-spice",
+      "version_id": "evergreen-1",
+      "frozenAt": "2026-07-12",
+      "digest": "sha256:164983df41ac0249e68794d5db066ca356b061462c8673e5f33684f71be0a608",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/thetis-spice.rules.ts",
+        "commit": "14b1900"
+      }
+    },
+    {
       "heroId": "piper-of-the-underroads",
       "deckId": "piper",
       "version_id": "evergreen-1",
