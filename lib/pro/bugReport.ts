@@ -15,7 +15,7 @@
  *    reporter's own hand contents, and never the reconnect token or any opaque.
  */
 
-import { PROTOCOL_VERSION, PlayerView } from "./protocol";
+import { PROTOCOL_VERSION, PlayerId, PlayerView, ViewPlayer } from "./protocol";
 import { ProLogEntry, logEntriesToCsv } from "./gameLog";
 import { buildBugReportUrl as buildBugReportUrlShared, clock } from "../shared/bugReport";
 
@@ -58,20 +58,65 @@ const combatRole = (view: PlayerView): string => {
   return `spectated (${oppName(c.attacker)} → ${oppName(c.target)})`;
 };
 
-/** Per-side HP roster: hero + sidekicks, so a report shows the board at a glance. */
-const fighterLines = (view: PlayerView): string => {
-  const side = (owner: PlayerView["you"], label: string) =>
-    view.fighters
-      .filter((f) => f.owner === owner)
-      .map(
-        (f) =>
-          `  - ${label} ${f.name} (${f.kind.toLowerCase()}): ${f.hp}/${f.maxHp} HP${
-            f.defeated ? " — DEFEATED" : ""
-          }${f.space ? ` @ ${f.space}` : ""}`
-      )
-      .join("\n");
-  return [side(view.you, "you:"), side(view.opponent.id, "opp:")].filter(Boolean).join("\n");
+/**
+ * Compact seat tag for a report line: "you" for the reporter, "opp" for the
+ * single other seat in a duel (keeping duel reports reading exactly as before),
+ * and the raw seat id ("p3") in any >2-player game so every seat is named.
+ */
+const seatTag = (view: PlayerView, player: PlayerId): string => {
+  if (player === view.you) return "you";
+  return view.players.length <= 2 ? "opp" : player;
 };
+
+/** Hero id for a seat — the reporter's own comes from `self`, others from `players[]`. */
+const heroForSeat = (view: PlayerView, p: ViewPlayer): string =>
+  p.you ? view.self.heroId : p.heroId;
+
+/** Non-null counter entries, `"name:value"` joined — omitted when empty. */
+const counterTag = (counters: Record<string, number>): string => {
+  const entries = Object.entries(counters ?? {}).filter(([, v]) => v !== 0);
+  return entries.length ? ` · counters ${entries.map(([k, v]) => `${k}:${v}`).join(", ")}` : "";
+};
+
+/** Per-seat HP roster: hero + sidekicks for EVERY seat, so a report shows the board. */
+const fighterLines = (view: PlayerView): string =>
+  view.players
+    .map((p) => {
+      const tag = seatTag(view, p.id);
+      return view.fighters
+        .filter((f) => f.owner === p.id)
+        .map(
+          (f) =>
+            `  - ${tag}: ${f.name} (${f.kind.toLowerCase()}): ${f.hp}/${f.maxHp} HP${
+              f.defeated ? " — DEFEATED" : ""
+            }${f.space ? ` @ ${f.space}` : ""}`
+        )
+        .join("\n");
+    })
+    .filter(Boolean)
+    .join("\n");
+
+/** Per-seat card counts (never contents) for EVERY seat — no hidden info leaks. */
+const cardLines = (view: PlayerView): string =>
+  view.players
+    .map((p) => {
+      const tag = seatTag(view, p.id);
+      // The reporter's own row is authoritative from `self` (the full redacted
+      // self view); other seats expose counts only — their hand contents are
+      // redacted out of the view, so nothing hidden can leak.
+      const { hand, deck, discard, counters } = p.you
+        ? { hand: view.self.hand.length, deck: view.self.deckCount, discard: view.self.discard.length, counters: view.self.counters }
+        : { hand: p.handCount, deck: p.deckCount, discard: p.discard.length, counters: p.counters };
+      return `  - ${tag}: hand ${hand} · deck ${deck} · discard ${discard}${counterTag(counters)}`;
+    })
+    .join("\n");
+
+/** "Baba Yaga (opp), Thrall (p3)" — every seat but the reporter, hero + tag. */
+const opponentSummary = (view: PlayerView): string =>
+  view.players
+    .filter((p) => !p.you)
+    .map((p) => `${prettyHero(heroForSeat(view, p))} (${seatTag(view, p.id)})`)
+    .join(", ") || "(none)";
 
 /** The auto-captured `<details>` block — readable, folded, no free-text noise. */
 const contextBlock = (input: BugReportInput): string => {
@@ -82,19 +127,18 @@ const contextBlock = (input: BugReportInput): string => {
     "<summary>Auto-captured game context</summary>",
     "",
     `- **Reporter:** ${prettyHero(view.self.heroId)} (${view.you}, ${view.fighters.find((f) => f.owner === view.you && f.kind === "HERO")?.reach ?? "?"})`,
-    `- **Opponent:** ${prettyHero(view.opponent.heroId)} (${view.opponent.id})`,
+    `- **Opponents:** ${opponentSummary(view)}`,
     `- **Last combat:** ${combatRole(view)}`,
     `- **Turn:** ${view.turnNumber} · ${phase} · ${view.actionsRemaining} action(s) left · active: ${
-      view.activePlayer === view.you ? "you" : "opponent"
+      view.activePlayer === view.you ? "you" : seatTag(view, view.activePlayer)
     }`,
-    view.winner ? `- **Winner:** ${view.winner === view.you ? "you" : "opponent"}` : null,
+    view.winner ? `- **Winner:** ${view.winner === view.you ? "you" : seatTag(view, view.winner)}` : null,
     "",
     "**Fighters**",
     fighterLines(view),
     "",
     "**Cards (counts only — no hidden info)**",
-    `  - you: hand ${view.self.hand.length} · deck ${view.self.deckCount} · discard ${view.self.discard.length}`,
-    `  - opp: hand ${view.opponent.handCount} · deck ${view.opponent.deckCount} · discard ${view.opponent.discard.length}`,
+    cardLines(view),
     "",
     `- **Room:** ${roomId ?? "(unknown)"}`,
     `- **Protocol:** v${PROTOCOL_VERSION}`,
@@ -139,7 +183,10 @@ const fmtLine = (e: ProLogEntry): string => `${clock(e.ts)} [${e.who}] ${e.text}
 const titleFor = (input: BugReportInput): string => {
   const { view } = input;
   const first = input.description.trim().split("\n")[0].slice(0, 80).trim();
-  const matchup = `${prettyHero(view.self.heroId)} vs ${prettyHero(view.opponent.heroId)}`;
+  // Reporter first, then every other seat — a duel reads "King Kong vs Baba
+  // Yaga"; a 3P game reads "King Kong vs Baba Yaga vs Thrall".
+  const others = view.players.filter((p) => !p.you).map((p) => prettyHero(heroForSeat(view, p)));
+  const matchup = [prettyHero(view.self.heroId), ...others].join(" vs ");
   return `[pro] ${first || "Bug report"} — ${matchup} (turn ${view.turnNumber})`;
 };
 

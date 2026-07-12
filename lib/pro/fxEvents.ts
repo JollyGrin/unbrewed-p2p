@@ -6,7 +6,8 @@
  * differ because the two care about different things (the log wants prose for
  * every change; this wants a handful of punchy beats with board coordinates).
  */
-import { FighterId, PlayerView, SpaceId } from "./protocol";
+import { FighterId, PlayerId, PlayerView, SpaceId, ViewPlayer } from "./protocol";
+import { isViewerOnWinningTeam } from "./teams";
 
 export type FxEvent =
   /** combat card(s) flipped face-up — count 2 means attack+defense revealed together */
@@ -24,17 +25,56 @@ export type FxEvent =
   | { type: "victory" }
   | { type: "loss" };
 
+const playersById = (view: PlayerView): Map<PlayerId, ViewPlayer> => {
+  const players = new Map(view.players.map((p) => [p.id, p]));
+  players.set(view.self.id, {
+    ...(players.get(view.self.id) ?? {}),
+    id: view.self.id,
+    heroId: view.self.heroId,
+    you: true,
+    hand: view.self.hand,
+    handCount: view.self.hand.length,
+    deckCount: view.self.deckCount,
+    discard: view.self.discard,
+    committedCard: view.self.committedCard,
+    hasCommitted: !!view.self.committedCard,
+    counters: view.self.counters,
+    flags: view.self.flags,
+  });
+  if (view.opponent) {
+    players.set(view.opponent.id, {
+      ...(players.get(view.opponent.id) ?? {}),
+      id: view.opponent.id,
+      heroId: view.opponent.heroId,
+      you: false,
+      handCount: view.opponent.handCount,
+      deckCount: view.opponent.deckCount,
+      discard: view.opponent.discard,
+      hasCommitted: view.opponent.hasCommitted,
+      counters: view.opponent.counters,
+      flags: view.opponent.flags,
+    });
+  }
+  return players;
+};
+
 export function diffFxEvents(prev: PlayerView | null, next: PlayerView): FxEvent[] {
   // First snapshot (join/reconnect) is a state dump, not a play — no fanfare.
   if (!prev) return [];
 
   const events: FxEvent[] = [];
 
+  const prevPlayers = playersById(prev);
+  const nextPlayers = playersById(next);
+
   // Combat commits/reveals first: the flip is the cause, damage the consequence,
   // so the sounds should layer in that order.
   const selfCommitted = !!next.self.committedCard && !prev.self.committedCard;
-  const oppCommitted = next.opponent.hasCommitted && !prev.opponent.hasCommitted;
-  if (selfCommitted || oppCommitted) events.push({ type: "commit" });
+  const otherCommitted = [...nextPlayers].some(([player, nextPlayer]) => {
+    if (player === next.you) return false;
+    return nextPlayer.hasCommitted && !prevPlayers.get(player)?.hasCommitted;
+  });
+  if (selfCommitted || otherCommitted) events.push({ type: "commit" });
 
   const attackerFlipped = !!next.combat?.attackerCard && !prev.combat?.attackerCard;
   const defenderFlipped = !!next.combat?.defenderCard && !prev.combat?.defenderCard;
@@ -81,13 +121,15 @@ export function diffFxEvents(prev: PlayerView | null, next: PlayerView): FxEvent
   const drewSelf =
     next.self.deckCount < prev.self.deckCount &&
     next.self.hand.some((c) => !prev.self.hand.includes(c));
-  const drewOpp =
-    next.opponent.deckCount < prev.opponent.deckCount &&
-    next.opponent.handCount > prev.opponent.handCount;
-  if (drewSelf || drewOpp) events.push({ type: "draw" });
+  const drewOther = [...nextPlayers].some(([player, nextPlayer]) => {
+    if (player === next.you) return false;
+    const prevPlayer = prevPlayers.get(player);
+    return !!prevPlayer && nextPlayer.deckCount < prevPlayer.deckCount && nextPlayer.handCount > prevPlayer.handCount;
+  });
+  if (drewSelf || drewOther) events.push({ type: "draw" });
 
   if (next.winner && !prev.winner) {
-    events.push({ type: next.winner === next.you ? "victory" : "loss" });
+    events.push({ type: isViewerOnWinningTeam(next) ? "victory" : "loss" });
   } else if (prev.activePlayer !== next.activePlayer && next.activePlayer === next.you) {
     events.push({ type: "turn" });
   }

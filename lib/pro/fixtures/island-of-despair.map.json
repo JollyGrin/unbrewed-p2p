@@ -1,0 +1,305 @@
+{
+  "schemaVersion": "1.0",
+  "id": "island-of-despair",
+  "meta": {
+    "title": "Island of Despair",
+    "minPlayers": 2,
+    "maxPlayers": 4,
+    "specialRules": false,
+    "imageUrl": "https://unbrewed.xyz/maps/legacy-island-of-despair.webp",
+    "spaceDiameter": 0.07,
+    "source": "https://youtu.be/fsIgAV93_ko?si=nBPL9FFP1wt6d0kM",
+    "license": "community map — credit the author"
+  },
+  "supportedFormats": [
+    {
+      "id": "duel-island-of-despair",
+      "formatId": "duel",
+      "label": "Duel",
+      "description": "Start slots 1 (right-center) and 2 (left) for a standard 1v1.",
+      "seats": { "A1": { "startSlot": 1 }, "B1": { "startSlot": 2 } }
+    },
+    {
+      "id": "ffa-3-island-of-despair",
+      "formatId": "ffa-3",
+      "label": "3 Player Free For All",
+      "description": "Three independent players use start slots 1, 2, and 3.",
+      "seats": {
+        "A1": { "startSlot": 1 },
+        "B1": { "startSlot": 2 },
+        "C1": { "startSlot": 3 }
+      }
+    },
+    {
+      "id": "team-2v2-island-of-despair",
+      "formatId": "team-2v2",
+      "label": "2v2 Teams",
+      "description": "Diagonal teams so teammates start apart (playtest-tunable): A on slots 1 (right-center) and 4 (top-left), B on slots 2 (left) and 3 (top-right).",
+      "seats": {
+        "A1": { "startSlot": 1 },
+        "A2": { "startSlot": 4 },
+        "B1": { "startSlot": 2 },
+        "B2": { "startSlot": 3 }
+      }
+    }
+  ],
+  "zones": [
+    { "id": "z1", "color": "#c99d85", "label": "zone 1" },
+    { "id": "z2", "color": "#265725", "label": "zone 2" },
+    { "id": "z3", "color": "#7ab9bc", "label": "zone 3" },
+    { "id": "z4", "color": "#93c134", "label": "zone 4" },
+    { "id": "z5", "color": "#c8c8c8", "label": "zone 5" },
+    { "id": "z6", "color": "#27bfd4", "label": "zone 6" },
+    { "id": "z7", "color": "#f9eba9", "label": "zone 7" },
+    { "id": "z8", "color": "#ae2322", "label": "zone 8" },
+    { "id": "z9", "color": "#cdb036", "label": "zone 9" }
+  ],
+  "spaces": [
+    {
+      "id": "s1",
+      "x": 0.08607142857142858,
+      "y": 0.22483688186813186,
+      "zones": ["z1", "z2"],
+      "adjacentTo": ["s30"],
+      "oneWayTo": ["s31"]
+    },
+    {
+      "id": "s2",
+      "x": 0.2828404017857143,
+      "y": 0.11057692307692307,
+      "zones": ["z1", "z4"],
+      "adjacentTo": ["s3", "s32"],
+      "oneWayTo": ["s31"],
+      "start": { "slot": 4 }
+    },
+    {
+      "id": "s3",
+      "x": 0.4074107142857143,
+      "y": 0.12069883241758242,
+      "zones": ["z1", "z4"],
+      "adjacentTo": ["s2", "s4", "s32"]
+    },
+    {
+      "id": "s4",
+      "x": 0.5218247767857143,
+      "y": 0.09191277472527473,
+      "zones": ["z4"],
+      "adjacentTo": ["s3", "s5"]
+    },
+    {
+      "id": "s5",
+      "x": 0.6735714285714286,
+      "y": 0.18021978021978022,
+      "zones": ["z7"],
+      "adjacentTo": ["s4", "s6", "s11"]
+    },
+    {
+      "id": "s6",
+      "x": 0.7792243303571429,
+      "y": 0.2569024725274725,
+      "zones": ["z7"],
+      "adjacentTo": ["s5", "s7", "s10", "s11", "s8"],
+      "start": { "slot": 3 }
+    },
+    {
+      "id": "s7",
+      "x": 0.8540457589285714,
+      "y": 0.09879807692307692,
+      "zones": ["z7"],
+      "adjacentTo": ["s6", "s8"]
+    },
+    {
+      "id": "s8",
+      "x": 0.8981529017857143,
+      "y": 0.26917067307692305,
+      "zones": ["z7"],
+      "adjacentTo": ["s7", "s9", "s10", "s6"]
+    },
+    {
+      "id": "s9",
+      "x": 0.9358203125,
+      "y": 0.4405820741758242,
+      "zones": ["z6", "z7"],
+      "adjacentTo": ["s8", "s13"]
+    },
+    {
+      "id": "s10",
+      "x": 0.8220591517857143,
+      "y": 0.4275068681318681,
+      "zones": ["z6", "z7"],
+      "adjacentTo": ["s12", "s6", "s13", "s8", "s11"]
+    },
+    {
+      "id": "s11",
+      "x": 0.7062667410714286,
+      "y": 0.39078811813186815,
+      "zones": ["z6", "z7"],
+      "adjacentTo": ["s6", "s5", "s12", "s18", "s10"]
+    },
+    {
+      "id": "s12",
+      "x": 0.7488504464285715,
+      "y": 0.5825377747252747,
+      "zones": ["z6"],
+      "adjacentTo": ["s15", "s10", "s11", "s18", "s13"],
+      "start": { "slot": 1 }
+    },
+    {
+      "id": "s13",
+      "x": 0.87515625,
+      "y": 0.5879721840659341,
+      "zones": ["z6"],
+      "adjacentTo": ["s9", "s14", "s12", "s10", "s15"]
+    },
+    {
+      "id": "s14",
+      "x": 0.929921875,
+      "y": 0.7612293956043956,
+      "zones": ["z6"],
+      "adjacentTo": ["s13", "s16", "s15"]
+    },
+    {
+      "id": "s15",
+      "x": 0.817578125,
+      "y": 0.7264337225274725,
+      "zones": ["z6"],
+      "adjacentTo": ["s16", "s12", "s14", "s13"]
+    },
+    {
+      "id": "s16",
+      "x": 0.8528627232142857,
+      "y": 0.8877489697802198,
+      "zones": ["z6"],
+      "adjacentTo": ["s14", "s15"]
+    },
+    {
+      "id": "s17",
+      "x": 0.6842857142857143,
+      "y": 0.8032967032967033,
+      "zones": ["z3", "z5", "z6"],
+      "adjacentTo": ["s21"],
+      "oneWayTo": ["s12", "s15"]
+    },
+    {
+      "id": "s18",
+      "x": 0.6303404017857143,
+      "y": 0.5417067307692308,
+      "zones": ["z5", "z6"],
+      "adjacentTo": ["s11", "s19", "s20", "s12"]
+    },
+    {
+      "id": "s19",
+      "x": 0.5171819196428571,
+      "y": 0.5203897664835165,
+      "zones": ["z5"],
+      "adjacentTo": ["s18", "s34", "s20"]
+    },
+    {
+      "id": "s20",
+      "x": 0.56484375,
+      "y": 0.6923162774725274,
+      "zones": ["z5"],
+      "adjacentTo": ["s21", "s18", "s19"]
+    },
+    {
+      "id": "s21",
+      "x": 0.5635323660714285,
+      "y": 0.8769059065934066,
+      "zones": ["z3", "z5"],
+      "adjacentTo": ["s22", "s17", "s20"]
+    },
+    {
+      "id": "s22",
+      "x": 0.4591127232142857,
+      "y": 0.8910370879120879,
+      "zones": ["z3"],
+      "adjacentTo": ["s23", "s21", "s24"]
+    },
+    {
+      "id": "s23",
+      "x": 0.3770591517857143,
+      "y": 0.7495106456043956,
+      "zones": ["z8"],
+      "adjacentTo": ["s24", "s22"]
+    },
+    {
+      "id": "s24",
+      "x": 0.34,
+      "y": 0.9120879120879121,
+      "zones": ["z3"],
+      "adjacentTo": ["s25", "s23", "s22"]
+    },
+    {
+      "id": "s25",
+      "x": 0.21905691964285715,
+      "y": 0.8935439560439561,
+      "zones": ["z2", "z3"],
+      "adjacentTo": ["s26", "s24", "s27"]
+    },
+    {
+      "id": "s26",
+      "x": 0.09845982142857143,
+      "y": 0.8651699862637363,
+      "zones": ["z2", "z3"],
+      "adjacentTo": ["s27", "s25"]
+    },
+    {
+      "id": "s27",
+      "x": 0.16357142857142856,
+      "y": 0.7318681318681318,
+      "zones": ["z2"],
+      "adjacentTo": ["s29", "s26", "s28", "s25"]
+    },
+    {
+      "id": "s28",
+      "x": 0.08959821428571428,
+      "y": 0.5854653159340659,
+      "zones": ["z2"],
+      "adjacentTo": ["s30", "s29", "s27"],
+      "start": { "slot": 2 }
+    },
+    {
+      "id": "s29",
+      "x": 0.20181361607142856,
+      "y": 0.5523179945054945,
+      "zones": ["z1", "z2"],
+      "adjacentTo": ["s33", "s30", "s28", "s27"]
+    },
+    {
+      "id": "s30",
+      "x": 0.12022879464285714,
+      "y": 0.40945226648351646,
+      "zones": ["z1", "z2"],
+      "adjacentTo": ["s29", "s1", "s28", "s31"]
+    },
+    {
+      "id": "s31",
+      "x": 0.203671875,
+      "y": 0.2861778846153846,
+      "zones": ["z9"],
+      "adjacentTo": ["s30", "s32"]
+    },
+    {
+      "id": "s32",
+      "x": 0.3448046875,
+      "y": 0.265779532967033,
+      "zones": ["z1", "z4"],
+      "adjacentTo": ["s34", "s3", "s2", "s33", "s31"]
+    },
+    {
+      "id": "s33",
+      "x": 0.2901171875,
+      "y": 0.4328125,
+      "zones": ["z1"],
+      "adjacentTo": ["s32", "s29", "s34"],
+      "oneWayTo": ["s31"]
+    },
+    {
+      "id": "s34",
+      "x": 0.40744419642857144,
+      "y": 0.42765281593406596,
+      "zones": ["z1"],
+      "adjacentTo": ["s19", "s32", "s33"]
+    }
+  ]
+}

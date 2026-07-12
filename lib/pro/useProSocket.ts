@@ -22,6 +22,7 @@ import {
 import {
   Action,
   BotDifficulty,
+  BotSeatFill,
   ClientMsg,
   GameEvent,
   HeroListing,
@@ -31,6 +32,7 @@ import {
   ProMapDef,
   PROTOCOL_VERSION,
   ReplayBundle,
+  RoomStatusSeat,
   ServerMsg,
   UndoActionSummary,
   ViewPrompt,
@@ -49,6 +51,27 @@ export type ProConnectionStatus =
   | "reconnecting"
   | "closed";
 
+export interface ProRoomInfo {
+  formatId: string;
+  seats: PlayerId[];
+  requiredPlayers: number;
+  /** the viewer's own runtime seat (from ROOM_CREATED/JOINED) — lets the waiting
+   *  room phrase the team preview from this player's perspective (issue #195). */
+  you: PlayerId;
+  /** live per-seat roster from ROOM_STATUS (v15): hero identity + connectedness,
+   *  so the waiting panel can name who has joined (and let the 2v2 preview fill in
+   *  real heroes). null until the first ROOM_STATUS arrives — an older server, or
+   *  the moment right after create/join — and the panel falls back to seat ids. */
+  roster?: RoomStatusSeat[];
+}
+
+/** A seat currently disconnected mid-game (protocol v15). `autoForfeitAt` is the
+ *  server's epoch-ms auto-forfeit deadline (multiplayer only); null when the seat
+ *  is merely offline with no forfeit armed (e.g. a duel opponent drop). */
+export interface SeatPresence {
+  autoForfeitAt: number | null;
+}
+
 export interface ProGameSnapshot {
   view: PlayerView;
   legalActions: Action[];
@@ -65,8 +88,20 @@ export interface ProGameSnapshot {
 export interface UseProSocketReturn {
   status: ProConnectionStatus;
   roomId: string | null;
+  roomInfo: ProRoomInfo | null;
   snapshot: ProGameSnapshot | null;
   opponentConnected: boolean;
+  /**
+   * Seat-identified presence (protocol v15): the seats currently disconnected
+   * mid-game, keyed by runtime seat id. A value's `autoForfeitAt` (epoch ms)
+   * drives a non-drifting auto-forfeit countdown; null means offline with no
+   * forfeit armed. Empty when everyone is connected. Populated only when the
+   * server sends the additive `player` field — a duel/older server leaves this
+   * empty and drives `opponentConnected` instead. Entries auto-clear on the
+   * all-clear (reconnect) and when the seat becomes eliminated / the game ends,
+   * so the existing forfeit/spectator UI takes over cleanly.
+   */
+  seatPresence: Record<string, SeatPresence>;
   error: { code: string; message: string } | null;
   /** server-fed roster; null until the first HEROES reply arrives */
   heroes: HeroListing[] | null;
@@ -83,7 +118,9 @@ export interface UseProSocketReturn {
   createRoom: (
     heroId: string,
     bot?: { difficulty: BotDifficulty; heroId?: string },
-    customMap?: ProMapDef
+    customMap?: ProMapDef,
+    formatId?: string,
+    botSeats?: BotSeatFill[]
   ) => void;
   joinRoom: (roomId: string, heroId: string) => void;
   sendAction: (action: Action) => void;
@@ -108,6 +145,26 @@ export interface UseProSocketReturn {
   acknowledgeUndoRejected: () => void;
   undoUnavailable: boolean;
   acknowledgeUndoUnavailable: () => void;
+  /**
+   * Non-fatal: the engine rejected our last action with an internal error
+   * (ERROR{ SERVER_ERROR }) but did NOT close the socket — game state is intact
+   * and other seats are unaffected (see unbrewed-engine server/index.ts). Latches
+   * true so the UI can show a light "couldn't process that action" notice and
+   * keep the board interactive; call `acknowledgeServerError` after showing it.
+   * This is emphatically NOT the disconnect/loss path (issue #178).
+   */
+  serverError: boolean;
+  acknowledgeServerError: () => void;
+  /**
+   * Non-fatal: the server answered ERROR{ RATE_LIMITED } — we're sending too fast
+   * (unbrewed-engine PR #103). The socket STAYS OPEN and game state is intact; a
+   * repeated breach is what makes the server close it, at which point the ordinary
+   * reconnect/backoff path (now jittered) takes over. Latches true so the UI can
+   * show a gentle "slow down" toast without tearing the session down; call
+   * `acknowledgeRateLimited` after showing it. Emphatically NOT the loss path.
+   */
+  rateLimited: boolean;
+  acknowledgeRateLimited: () => void;
   /** ask the server for the current public-lobby list (poll while browsing) */
   requestLobbies: () => void;
   /** list/unlist our current room in the public lobby browser */
@@ -142,11 +199,22 @@ const MAX_RETRY_DELAY_MS = 10_000;
  */
 const RESUME_DEADLINE_MS = 45_000;
 
-export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
+export function useProSocket(
+  wsUrl: string | undefined,
+  debug = false
+): UseProSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
+  // Read via ref so toggling debug never re-creates `connect` (which would drop
+  // and re-open the socket). debug is fixed per page load in practice.
+  const debugRef = useRef(debug);
+  debugRef.current = debug;
   const retryRef = useRef({ attempts: 0, timer: 0 as unknown as ReturnType<typeof setTimeout> | 0 });
   const roomRef = useRef<string | null>(null);
   const youRef = useRef<PlayerView["you"] | null>(null);
+  // Our own runtime seat, learned from ROOM_CREATED/JOINED (before any STATE) so a
+  // ROOM_STATUS broadcast — which does not carry `you` — can keep phrasing the
+  // waiting-room preview from this player's perspective.
+  const seatRef = useRef<PlayerId | null>(null);
   // Message we replay when a fresh socket opens (join intent or reconnect).
   const pendingHelloRef = useRef<ClientMsg | null>(null);
   // True while a RESUME_ROOM is in flight — so a resume that itself fails (bad
@@ -162,8 +230,12 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
 
   const [status, setStatus] = useState<ProConnectionStatus>("idle");
   const [roomId, setRoomId] = useState<string | null>(null);
+  const [roomInfo, setRoomInfo] = useState<ProRoomInfo | null>(null);
   const [snapshot, setSnapshot] = useState<ProGameSnapshot | null>(null);
   const [opponentConnected, setOpponentConnected] = useState(true);
+  // Seat-identified presence (v15): seats disconnected mid-game, with an optional
+  // server auto-forfeit deadline. Keyed by runtime seat id; empty = all connected.
+  const [seatPresence, setSeatPresence] = useState<Record<string, SeatPresence>>({});
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
   const [heroes, setHeroes] = useState<HeroListing[] | null>(null);
   const [lobbies, setLobbies] = useState<LobbyListing[] | null>(null);
@@ -179,6 +251,15 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
   const [undoPending, setUndoPending] = useState(false);
   const [undoRejected, setUndoRejected] = useState(false);
   const [undoUnavailable, setUndoUnavailable] = useState(false);
+  // Non-fatal engine error latch (issue #178): the server answered our action
+  // with ERROR{ SERVER_ERROR } but kept the socket open. Surface a light notice
+  // and leave the board interactive — never the disconnect/loss path.
+  const [serverError, setServerError] = useState(false);
+  // Rate-limit latch (PR #103): the server answered ERROR{ RATE_LIMITED } but kept
+  // the socket open. Surface a gentle "slow down" toast and leave the session
+  // intact — never the disconnect/loss path. If the client keeps breaching, the
+  // server closes the socket and the jittered reconnect loop takes over.
+  const [rateLimited, setRateLimited] = useState(false);
 
   const send = useCallback((msg: ClientMsg) => {
     const ws = wsRef.current;
@@ -204,8 +285,13 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
       retryRef.current.attempts = 0;
       setStatus("open");
       // Ask for the roster on every open (incl. reconnects) — one tiny message,
-      // idempotent; the reply feeds the game page's hero picker.
-      send({ v: PROTOCOL_VERSION, type: "LIST_HEROES" });
+      // idempotent; the reply feeds the game page's hero picker. `debug` (v15)
+      // includes reflavored heroes so a debug session can pick/preview them.
+      send({
+        v: PROTOCOL_VERSION,
+        type: "LIST_HEROES",
+        ...(debugRef.current ? { debug: true } : {}),
+      });
       const room = roomRef.current;
       const token = room ? getToken(room) : null;
       if (room && token) {
@@ -233,10 +319,40 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
         case "VISIBILITY":
           if (msg.roomId === roomRef.current) setRoomPublic(msg.public);
           break;
+        case "ROOM_STATUS": {
+          // Live waiting-room fill (v15). Replace seats wholesale — the count can
+          // go DOWN when a pre-game ghost seat is released — and stash the roster
+          // so the panel can name who has joined. `you` is preserved from the seat
+          // we learned on ROOM_CREATED/JOINED (ROOM_STATUS omits it). Destructure
+          // first: msg is not narrowed inside the setState callback closure.
+          const { formatId, requiredPlayers, seats } = msg;
+          setRoomInfo((prev) => ({
+            formatId,
+            seats: seats.map((s) => s.player),
+            requiredPlayers,
+            you: prev?.you ?? seatRef.current ?? seats[0]?.player ?? ("p1" as PlayerId),
+            roster: seats,
+          }));
+          break;
+        }
         case "ROOM_CREATED":
         case "ROOM_JOINED":
           roomRef.current = msg.roomId;
+          seatRef.current = msg.you;
           setRoomId(msg.roomId);
+          {
+            // Destructure first: msg is not narrowed inside the setState callback.
+            const { formatId, seats, requiredPlayers, you } = msg;
+            setRoomInfo((prev) => ({
+              formatId: formatId ?? "duel",
+              seats: seats ?? [you],
+              requiredPlayers: requiredPlayers ?? 2,
+              you,
+              // keep any roster we already have (a ROOM_STATUS can race ahead of a
+              // revive's ROOM_JOINED); the next ROOM_STATUS refreshes it anyway.
+              roster: prev?.roster,
+            }));
+          }
           setRoomPublic(false); // fresh rooms are private until acked otherwise
           setToken(msg.roomId, msg.token); // fresh reconnect token (revive rotates it)
           rememberRoom(msg.roomId);
@@ -244,9 +360,31 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
           setServerRestarting(false);
           clearResumeDeadline(); // a revive that reached ROOM_JOINED beat the deadline
           break;
-        case "STATE":
-          youRef.current = msg.view.you;
+        case "STATE": {
+          const view = msg.view; // narrowed here; not inside the callback below
+          youRef.current = view.you;
+          seatRef.current = view.you;
           hadStateRef.current = true; // we're genuinely mid-match now
+          // v15: when an auto-forfeit actually fires, the server injects a FORFEIT
+          // and this STATE shows the seat eliminated (or the whole game over) — but
+          // it does NOT send an all-clear (the player is still gone). Drop such a
+          // seat's presence here so its countdown doesn't linger at 0:00 over the
+          // top of the elimination/game-over UI. A still-alive disconnected seat
+          // keeps its entry across the STATEs other players' moves produce.
+          setSeatPresence((prev) => {
+            if (Object.keys(prev).length === 0) return prev;
+            if (view.winner) return {}; // game decided — clear every countdown
+            const next = { ...prev };
+            let changed = false;
+            for (const seat of Object.keys(next)) {
+              const fs = view.fighters.filter((f) => f.owner === seat);
+              if (fs.length > 0 && fs.every((f) => f.defeated)) {
+                delete next[seat]; // eliminated → the forfeit/spectator UI owns it
+                changed = true;
+              }
+            }
+            return changed ? next : prev;
+          });
           setSnapshot({
             view: msg.view,
             legalActions: msg.legalActions,
@@ -263,6 +401,7 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
           setUndoPending(false);
           setIncomingUndo(null);
           break;
+        }
         case "RESUME_TOKEN":
           // Opaque, encrypted resume blob for our seat — stash it so a redeploy or
           // crash can revive this exact game via RESUME_ROOM. Never inspected.
@@ -289,9 +428,24 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
           // the game page to save into the local Replays store.
           setReplayBundle(msg.bundle);
           break;
-        case "OPPONENT_STATUS":
+        case "OPPONENT_STATUS": {
+          // Coarse duel signal (unchanged): the single boolean still tracks the
+          // latest presence change, driving the duel HUD's "opponent disconnected".
           setOpponentConnected(msg.connected);
+          // v15: when the server names the seat, maintain the per-seat presence
+          // map (multiplayer HUD reads this, not the coarse bool). A disconnect
+          // records the auto-forfeit deadline (if armed); the all-clear removes it.
+          if (msg.player !== undefined) {
+            const { player, connected, autoForfeitAt } = msg;
+            setSeatPresence((prev) => {
+              const next = { ...prev };
+              if (connected) delete next[player];
+              else next[player] = { autoForfeitAt: autoForfeitAt ?? null };
+              return next;
+            });
+          }
           break;
+        }
         case "UNDO_REQUESTED":
           // The opponent asked to undo; surface the accept/reject prompt with the
           // list of actions that will be rewound (incl. our own intervening moves).
@@ -310,6 +464,25 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
           if (msg.code === "UNDO_UNAVAILABLE") {
             setUndoPending(false);
             setUndoUnavailable(true);
+            break;
+          }
+          // SERVER_ERROR (issue #178): the engine hit an internal error handling
+          // this action, but the socket stays OPEN and the game state is intact —
+          // other seats are unaffected. This is NOT a disconnect. Surface a light
+          // non-fatal notice and keep the board live; do NOT enter the loss path
+          // (no setError, no forgetRoom, no gameLost) so the player can act again.
+          if (msg.code === "SERVER_ERROR") {
+            setServerError(true);
+            break;
+          }
+          // RATE_LIMITED (PR #103): we're sending too fast. Like SERVER_ERROR this
+          // is NON-FATAL and the socket stays open — surface a gentle toast and
+          // keep the board live. Do NOT reconnect or resume here: a repeated
+          // breach is what makes the SERVER close the socket, and only then does
+          // the (jittered) backoff loop in onclose run — hammering a limiter with
+          // fresh sockets is exactly what it punishes.
+          if (msg.code === "RATE_LIMITED") {
+            setRateLimited(true);
             break;
           }
           // A room lost to a redeploy answers ROOM_NOT_FOUND (room gone) or
@@ -343,7 +516,14 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
     ws.onclose = () => {
       if (wsRef.current !== ws) return; // superseded by a newer socket
       setStatus("closed");
-      const delay = Math.min(1000 * 2 ** retryRef.current.attempts, MAX_RETRY_DELAY_MS);
+      // Exponential backoff with FULL JITTER (issue #209). A server that closed us
+      // for RATE_LIMITED (or a redeploy that drops every socket at once) would be
+      // hammered by a fleet of clients all reconnecting on the same doubling
+      // schedule — a reconnect storm is exactly what the limiter punishes. Full
+      // jitter (a uniform random point in [0, cappedDelay]) de-synchronizes the
+      // clients and spreads the load while preserving the average backoff growth.
+      const capped = Math.min(1000 * 2 ** retryRef.current.attempts, MAX_RETRY_DELAY_MS);
+      const delay = Math.random() * capped;
       retryRef.current.attempts += 1;
       retryRef.current.timer = setTimeout(connect, delay);
     };
@@ -366,9 +546,16 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
   }, [wsUrl, connect, clearResumeDeadline]);
 
   const createRoom = useCallback(
-    (heroId: string, bot?: { difficulty: BotDifficulty; heroId?: string }, customMap?: ProMapDef) => {
+    (
+      heroId: string,
+      bot?: { difficulty: BotDifficulty; heroId?: string },
+      customMap?: ProMapDef,
+      formatId?: string,
+      botSeats?: BotSeatFill[]
+    ) => {
       setError(null); // clear any prior room/hero error on a fresh attempt
       setGameLost(false); // starting a brand-new game — no lost game to mourn
+      setSeatPresence({}); // drop any presence carried over from a prior game
       hadStateRef.current = false;
       clearResumeDeadline();
       const msg: ClientMsg = {
@@ -376,7 +563,12 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
         type: "CREATE_ROOM",
         heroId,
         ...(bot ? { bot } : {}),
+        ...(botSeats && botSeats.length > 0 ? { botSeats } : {}),
         ...(customMap ? { customMap } : {}),
+        ...(formatId && formatId !== "duel" ? { formatId } : {}),
+        // `debug` (v15): let a debug session's random bot picks include
+        // reflavored heroes. Never affects an explicitly-named heroId.
+        ...(debugRef.current ? { debug: true } : {}),
       };
       if (wsRef.current?.readyState === WebSocket.OPEN) send(msg);
       else pendingHelloRef.current = msg;
@@ -451,6 +643,8 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
 
   const acknowledgeUndoRejected = useCallback(() => setUndoRejected(false), []);
   const acknowledgeUndoUnavailable = useCallback(() => setUndoUnavailable(false), []);
+  const acknowledgeServerError = useCallback(() => setServerError(false), []);
+  const acknowledgeRateLimited = useCallback(() => setRateLimited(false), []);
 
   const requestLobbies = useCallback(() => {
     send({ v: PROTOCOL_VERSION, type: "LIST_LOBBIES" });
@@ -467,8 +661,10 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
   return {
     status,
     roomId,
+    roomInfo,
     snapshot,
     opponentConnected,
+    seatPresence,
     error,
     heroes,
     lobbies,
@@ -486,6 +682,10 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
     acknowledgeUndoRejected,
     undoUnavailable,
     acknowledgeUndoUnavailable,
+    serverError,
+    acknowledgeServerError,
+    rateLimited,
+    acknowledgeRateLimited,
     requestLobbies,
     setVisibility,
     serverRestarting,

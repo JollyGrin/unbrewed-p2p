@@ -35,8 +35,9 @@ import {
   TbFlask,
   TbBug,
 } from "react-icons/tb";
-import { GiFootprint, GiHearts } from "react-icons/gi";
+import { GiFootprint, GiHearts, GiHighTide, GiLowTide } from "react-icons/gi";
 import { IoMdHand, IoMdVolumeHigh, IoMdVolumeOff } from "react-icons/io";
+import { IconType } from "react-icons";
 import {
   ChipCluster,
   HeroName,
@@ -51,12 +52,79 @@ import {
   StatsPanel,
 } from "@/components/Game/Header/header.styles";
 import { DeckImportHeroType } from "@/components/DeckPool/deck-import.type";
-import { CardInstanceId, PlayerView, ViewFighter } from "@/lib/pro/protocol";
-import { ResolveCard, ResolveHero } from "@/lib/pro/useProCardArt";
-import { PlateLayout, PlateSeat, useHudPlates } from "@/lib/pro/useHudPlates";
+import { CardInstanceId, PlayerId, PlayerView, ViewFighter, ViewPlayer } from "@/lib/pro/protocol";
+import { isLargeFighter, LARGE_FIGHTER_BLURB } from "@/lib/pro/largeReach";
+import { deriveTeams } from "@/lib/pro/teams";
+import { FlagHudChip, ResolveCard, ResolveHero, flagChipsFor } from "@/lib/pro/useProCardArt";
+import { DEFAULT_PLATE_LAYOUT, PlateLayout, PlateSeat, useHudPlates } from "@/lib/pro/useHudPlates";
 import { CardFace } from "./ProHand";
-import { ProConnectionStatus } from "@/lib/pro/useProSocket";
+import { ProConnectionStatus, SeatPresence } from "@/lib/pro/useProSocket";
 import { FLAGS, useFlags } from "@/lib/flags";
+
+// Team-affiliation accent (issue #195). A teal that reads clearly as "friendly"
+// and stays distinct from the gold TURN chip and from every per-seat identity
+// color (gold/blue/green/magenta) so the ALLY chip never blends into a plate.
+const ALLY_ACCENT = "#39B7A8";
+
+// ---------------------------------------------------------------------------
+// Flag HUD chip — always-visible public-state pill (tide today; any future
+// flag-driven deck by adding a FLAG_HUD_CHIPS entry, see useProCardArt.ts)
+// ---------------------------------------------------------------------------
+
+// Optional per-flag glyph. A registry entry with no icon here renders text-only
+// (zero component surgery for a new flag-driven deck). Tide gets the game-icons
+// rising/ebbing-wave pair so HIGH vs LOW reads at a glance — but the WORDS carry
+// the meaning; the icon is reinforcement, never the sole signal.
+const FLAG_CHIP_ICONS: Record<string, { on: IconType; off: IconType }> = {
+  HIGH_TIDE: { on: GiHighTide, off: GiLowTide },
+};
+
+// Kept generic over on/off (flag active vs absent) rather than per-flag, so any
+// future two-state flag reads with the same saturated/muted grammar.
+const flagChipPalette = (on: boolean) =>
+  on
+    ? { bg: "#2E6E8E", color: "#EAF6FB", ring: "rgba(140, 205, 235, 0.6)" }
+    : { bg: "#586A73", color: "#E9F0F3", ring: "rgba(165, 190, 200, 0.45)" };
+
+/**
+ * One flag pill, styled in the counter-chip visual family. `key`ed by its state
+ * upstream so a mid-game flip (HIGH TIDE <-> LOW TIDE from a "Turn the tide."
+ * card) REMOUNTS it and replays the entrance pulse — the flip is noticeable with
+ * no manual prev-value bookkeeping.
+ */
+const FlagChip = ({ chip, on }: { chip: FlagHudChip; on: boolean }) => {
+  const icons = FLAG_CHIP_ICONS[chip.flag];
+  const Icon = icons ? (on ? icons.on : icons.off) : null;
+  const label = on ? chip.onLabel : chip.offLabel;
+  const pal = flagChipPalette(on);
+  return (
+    <motion.div
+      initial={{ scale: 0.6, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ type: "spring", stiffness: 520, damping: 20 }}
+      aria-label={label}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "0.2rem",
+        flexShrink: 0,
+        padding: "0.1rem 0.4rem",
+        borderRadius: "0.375rem",
+        fontSize: "0.65rem",
+        fontWeight: 700,
+        lineHeight: 1.4,
+        letterSpacing: "0.05em",
+        whiteSpace: "nowrap",
+        background: pal.bg,
+        color: pal.color,
+        boxShadow: `inset 0 0 0 1px ${pal.ring}`,
+      }}
+    >
+      {Icon && <Icon size={12} />}
+      {label}
+    </motion.div>
+  );
+};
 
 // ---------------------------------------------------------------------------
 // Discard viewer (public info for both seats)
@@ -137,13 +205,43 @@ const CtrlBtn = ({
   </Flex>
 );
 
+/** mm:ss for a non-negative second count. */
+export const fmtCountdown = (totalSeconds: number) => {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+};
+
+/**
+ * Auto-forfeit countdown (issue #222). Drives off the SERVER deadline
+ * (`autoForfeitAt`, epoch ms): every tick it recomputes remaining from
+ * `Date.now()` rather than decrementing a local counter, so it never drifts and
+ * self-corrects across a backgrounded tab. Clamps at 0 (the forfeit STATE that
+ * clears the whole badge is normally already on its way by then).
+ */
+export const ForfeitCountdown = ({ deadline }: { deadline: number }) => {
+  const remaining = () => Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+  const [secs, setSecs] = useState(remaining);
+  useEffect(() => {
+    setSecs(remaining()); // resync immediately when the deadline changes
+    const id = setInterval(() => setSecs(remaining()), 1000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deadline]);
+  return <>auto-forfeit in {fmtCountdown(secs)}</>;
+};
+
 const SeatPlate = ({
   label,
   hero,
+  heroId,
   heroFighter,
   sidekicks,
+  flags,
   isLocal,
   isActive,
+  isAlly,
+  presence,
   hand,
   deckCount,
   discard,
@@ -155,10 +253,20 @@ const SeatPlate = ({
 }: {
   label: string;
   hero: DeckImportHeroType | null;
+  /** server hero id — gates flag chips (tide only shows for tide heroes) */
+  heroId: string;
   heroFighter: ViewFighter | undefined;
   sidekicks: ViewFighter[];
+  /** public per-player engine flags (tide etc.); undefined on older servers */
+  flags?: Record<string, boolean>;
   isLocal: boolean;
   isActive: boolean;
+  /** teammate of the viewing player (team formats only) — shows an ALLY chip */
+  isAlly: boolean;
+  /** seat disconnected mid-game (issue #222): shows an offline badge, plus a
+   *  non-drifting auto-forfeit countdown when `autoForfeitAt` is set. undefined =
+   *  connected (or duel, which never populates this). */
+  presence?: SeatPresence;
   /** own hand instances, or a count for the opponent */
   hand: CardInstanceId[] | number;
   deckCount: number;
@@ -176,6 +284,7 @@ const SeatPlate = ({
   const heroName = heroFighter?.name ?? hero?.name ?? "";
   const ranged = heroFighter ? heroFighter.reach === "RANGED" : hero?.isRanged;
   const heroHp = heroFighter ? `${heroFighter.hp}/${heroFighter.maxHp}` : "–";
+  const isLargeHero = !!heroFighter && isLargeFighter(heroFighter);
   const collapsed = layout.collapsed;
   const moved = layout.x !== 0 || layout.y !== 0;
 
@@ -213,12 +322,21 @@ const SeatPlate = ({
           bg="brand.surfaceDim"
           color="brand.parchment"
           label={
-            hero?.specialAbility ? (
+            hero?.specialAbility || isLargeHero || sidekicks.length ? (
               <Box maxW="18rem" p="0.25rem" whiteSpace="pre-wrap" fontSize="0.78rem">
                 <Text fontWeight="bold" mb="0.25rem" color="brand.accent">
                   {heroName}
                 </Text>
-                {hero.specialAbility.trim()}
+                {hero?.specialAbility?.trim()}
+                {/* Standing large-fighter rule (issue #235). Keyed on the live
+                    two-space signal (heroFighter.tailSpace), so any future LARGE
+                    hero inherits it without a code change. Copy is shared with the
+                    attack-reach chip so the two never drift. */}
+                {isLargeHero && (
+                  <Text mt={hero?.specialAbility ? "0.5rem" : 0} color="brand.accent">
+                    {LARGE_FIGHTER_BLURB}
+                  </Text>
+                )}
                 {sidekicks.map((s) => (
                   <Text key={s.id} mt="0.4rem" opacity={s.defeated ? 0.6 : 1}>
                     <Text as="span" fontWeight="bold" color="brand.accent">
@@ -226,6 +344,7 @@ const SeatPlate = ({
                     </Text>{" "}
                     {s.name} — {s.hp}/{s.maxHp} HP,{" "}
                     {s.reach === "RANGED" ? "ranged" : "melee"}
+                    {isLargeFighter(s) ? " · large" : ""}
                     {s.defeated ? " (defeated)" : ""}
                   </Text>
                 ))}
@@ -250,6 +369,23 @@ const SeatPlate = ({
     </Tag>
   ) : null;
 
+  // Team formats only (issue #195): mark the viewer's teammate so allies read at
+  // a glance from the HUD alone. Distinct teal keeps it clearly NOT the gold TURN
+  // chip; hidden entirely in duel/ffa/older-server views (isAlly stays false).
+  const allyTag = isAlly ? (
+    <Tag size="sm" bg={ALLY_ACCENT} color="brand.surfaceDim" flexShrink={0} letterSpacing="0.04em">
+      ALLY
+    </Tag>
+  ) : null;
+
+  // Public flag pills (issue #233): always-visible on BOTH seats' cards for heroes
+  // with a flag mechanic (tide today). Generic over the FLAG_HUD_CHIPS registry —
+  // non-flag heroes get an empty list and render exactly as before. Keyed by
+  // on/off state so a mid-game flip remounts the chip and replays its pulse.
+  const flagTags = flagChipsFor(heroId, flags).map(({ chip, on }) => (
+    <FlagChip key={`${chip.flag}-${on ? "on" : "off"}`} chip={chip} on={on} />
+  ));
+
   const controls = hovered ? (
     <Flex alignItems="center" gap="0.15rem" flexShrink={0}>
       {moved && (
@@ -260,6 +396,44 @@ const SeatPlate = ({
       <CtrlBtn title={collapsed ? "Expand plate" : "Collapse plate"} onClick={toggleCollapse}>
         {collapsed ? <TbChevronDown size="0.8rem" /> : <TbChevronUp size="0.8rem" />}
       </CtrlBtn>
+    </Flex>
+  ) : null;
+
+  // Disconnect / auto-forfeit (issue #222). Compact red tag for the title bar
+  // (both collapsed and expanded plates) — "OFFLINE" when the seat is merely
+  // disconnected, the live mm:ss countdown once the server arms an auto-forfeit.
+  const presenceTag = presence ? (
+    <Tag size="sm" colorScheme="red" flexShrink={0} letterSpacing="0.03em">
+      {presence.autoForfeitAt != null ? (
+        <ForfeitCountdown deadline={presence.autoForfeitAt} />
+      ) : (
+        "OFFLINE"
+      )}
+    </Tag>
+  ) : null;
+
+  // Full-width banner under the title bar (expanded plate) with the softer
+  // "reconnecting…" framing so the state reads clearly at rest.
+  const presenceRow = presence ? (
+    <Flex
+      alignItems="center"
+      gap="0.35rem"
+      px="0.85rem"
+      py="0.25rem"
+      bg="rgba(192, 57, 43, 0.28)"
+      color="brand.parchment"
+    >
+      <Text fontSize="0.68rem" fontFamily="SpaceGrotesk" letterSpacing="0.03em" noOfLines={1}>
+        reconnecting…
+        {presence.autoForfeitAt != null && (
+          <>
+            {" "}
+            <Text as="span" fontWeight="bold" sx={{ fontVariantNumeric: "tabular-nums" }}>
+              <ForfeitCountdown deadline={presence.autoForfeitAt} />
+            </Text>
+          </>
+        )}
+      </Text>
     </Flex>
   ) : null;
 
@@ -333,8 +507,14 @@ const SeatPlate = ({
     <StatContainer isLocal={isLocal} sx={{ cursor: "default" }}>
       <PlayerTitleBar>
         {renderNameBlock(false)}
-        {turnTag}
+        <Flex alignItems="center" gap="0.3rem" flexShrink={0}>
+          {flagTags}
+          {presenceTag}
+          {allyTag}
+          {turnTag}
+        </Flex>
       </PlayerTitleBar>
+      {presenceRow}
       {statsPanel}
       {sidekickRows}
       {pipFooter}
@@ -397,6 +577,9 @@ const SeatPlate = ({
                       {heroHp}
                     </Text>
                   </Flex>
+                  {flagTags}
+                  {presenceTag}
+                  {allyTag}
                   {turnTag}
                   {controls}
                 </Flex>
@@ -408,10 +591,14 @@ const SeatPlate = ({
             <PlayerTitleBar {...titleBarDrag}>
               {renderNameBlock(true)}
               <Flex alignItems="center" gap="0.3rem" flexShrink={0}>
+                {flagTags}
+                {presenceTag}
+                {allyTag}
                 {turnTag}
                 {controls}
               </Flex>
             </PlayerTitleBar>
+            {presenceRow}
             {statsPanel}
             {sidekickRows}
             {pipFooter}
@@ -519,6 +706,14 @@ export interface ProHudProps {
   view: PlayerView;
   status: ProConnectionStatus;
   roomId: string | null;
+  /**
+   * Seat-identified presence (protocol v15): seats currently disconnected
+   * mid-game, keyed by runtime seat id. A disconnected seat's plate shows an
+   * offline badge; when the entry carries an `autoForfeitAt` deadline it also
+   * renders a non-drifting auto-forfeit countdown. Empty/omitted → every plate
+   * renders exactly as before (duel is untouched — it never populates this).
+   */
+  seatPresence?: Record<string, SeatPresence>;
   resolveCard: ResolveCard;
   resolveHero: ResolveHero;
   labelFor: (instance: CardInstanceId) => string;
@@ -535,6 +730,7 @@ export const ProHud = ({
   view,
   status,
   roomId,
+  seatPresence,
   resolveCard,
   resolveHero,
   labelFor,
@@ -544,51 +740,86 @@ export const ProHud = ({
   onToggleVisualFx,
   onReportBug,
 }: ProHudProps) => {
-  const heroOf = (player: PlayerView["you"]) =>
+  const heroOf = (player: PlayerId) =>
     view.fighters.find((f) => f.owner === player && f.kind === "HERO");
-  const sidekicksOf = (player: PlayerView["you"]) =>
+  const sidekicksOf = (player: PlayerId) =>
     view.fighters.filter((f) => f.owner === player && f.kind === "SIDEKICK");
   const display = STATUS_DISPLAY[status] ?? STATUS_DISPLAY.connecting;
+  const seats: ViewPlayer[] = view.players.length
+    ? view.players
+    : [
+        {
+          id: view.self.id,
+          heroId: view.self.heroId,
+          you: true,
+          hand: view.self.hand,
+          handCount: view.self.hand.length,
+          deckCount: view.self.deckCount,
+          discard: view.self.discard,
+          committedCard: view.self.committedCard,
+          hasCommitted: !!view.self.committedCard,
+          counters: view.self.counters,
+          flags: view.self.flags,
+        },
+        ...(view.opponent
+          ? [{
+              id: view.opponent.id,
+              heroId: view.opponent.heroId,
+              you: false,
+              handCount: view.opponent.handCount,
+              deckCount: view.opponent.deckCount,
+              discard: view.opponent.discard,
+              hasCommitted: view.opponent.hasCommitted,
+              counters: view.opponent.counters,
+              flags: view.opponent.flags,
+            }]
+          : []),
+      ];
+
+  // Team affiliation (issue #195). Inactive (no ALLY chips) unless the view is a
+  // real team format — duel/ffa/older-server views derive `active: false` and
+  // render exactly as before. The fallback duel `seats` above carry no `team`,
+  // which also derives inactive.
+  const teams = deriveTeams(seats, view.you);
 
   const { plates, hydrated, update } = useHudPlates();
   const seatUpdate = (seat: PlateSeat) => (partial: Partial<PlateLayout>) =>
     update(seat, partial);
+  const seatLabel = (seat: ViewPlayer) =>
+    seat.you ? "You" : seats.length === 2 ? "Opponent" : seat.id.toUpperCase();
+  // Disconnect/auto-forfeit badge is a multiplayer feature (issue #222): duel
+  // keeps its single top-of-HUD "opponent disconnected" chip and renders plates
+  // exactly as before, so the presence lookup is gated on a multiplayer view.
+  const multiplayer = seats.length > 2;
+  const presenceOf = (seat: ViewPlayer) =>
+    multiplayer ? seatPresence?.[seat.id] : undefined;
 
   return (
     <>
       <HudOverlay>
-        <SeatPlate
-          label="You"
-          hero={resolveHero(view.self.heroId)}
-          heroFighter={heroOf(view.you)}
-          sidekicks={sidekicksOf(view.you)}
-          isLocal
-          isActive={view.activePlayer === view.you}
-          hand={view.self.hand}
-          deckCount={view.self.deckCount}
-          discard={view.self.discard}
-          labelFor={labelFor}
-          resolveCard={resolveCard}
-          layout={plates.you}
-          hydrated={hydrated}
-          onUpdate={seatUpdate("you")}
-        />
-        <SeatPlate
-          label="Opponent"
-          hero={resolveHero(view.opponent.heroId)}
-          heroFighter={heroOf(view.opponent.id)}
-          sidekicks={sidekicksOf(view.opponent.id)}
-          isLocal={false}
-          isActive={view.activePlayer === view.opponent.id}
-          hand={view.opponent.handCount}
-          deckCount={view.opponent.deckCount}
-          discard={view.opponent.discard}
-          labelFor={labelFor}
-          resolveCard={resolveCard}
-          layout={plates.opponent}
-          hydrated={hydrated}
-          onUpdate={seatUpdate("opponent")}
-        />
+        {seats.map((seat) => (
+          <SeatPlate
+            key={seat.id}
+            label={seatLabel(seat)}
+            hero={resolveHero(seat.heroId)}
+            heroId={seat.heroId}
+            heroFighter={heroOf(seat.id)}
+            sidekicks={sidekicksOf(seat.id)}
+            flags={seat.flags}
+            isLocal={seat.you}
+            isActive={view.activePlayer === seat.id}
+            isAlly={teams.relationOf(seat.id) === "ally"}
+            presence={presenceOf(seat)}
+            hand={seat.you ? seat.hand ?? view.self.hand : seat.handCount}
+            deckCount={seat.deckCount}
+            discard={seat.discard}
+            labelFor={labelFor}
+            resolveCard={resolveCard}
+            layout={plates[seat.id] ?? DEFAULT_PLATE_LAYOUT}
+            hydrated={hydrated}
+            onUpdate={seatUpdate(seat.id)}
+          />
+        ))}
       </HudOverlay>
       <ChipCluster>
         {onToggleSound && (

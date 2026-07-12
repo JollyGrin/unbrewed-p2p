@@ -5,7 +5,8 @@
  * Heuristic and display-only: misses nothing rules-relevant that the view
  * doesn't also show, and never feeds anything back into play.
  */
-import { CardInstanceId, GameEvent, PlayerView } from "./protocol";
+import { CardInstanceId, GameEvent, PlayerId, PlayerView, ViewPlayer } from "./protocol";
+import { deriveTeams, isViewerOnWinningTeam } from "./teams";
 
 export interface ProLogLine {
   text: string;
@@ -42,6 +43,50 @@ export function logEntriesToCsv(entries: ProLogEntry[]): string {
 
 const short = (name: string) => name.split("/").pop() ?? name;
 
+const playersById = (view: PlayerView): Map<PlayerId, ViewPlayer> => {
+  const players = new Map(view.players.map((p) => [p.id, p]));
+  players.set(view.self.id, {
+    ...(players.get(view.self.id) ?? {}),
+    id: view.self.id,
+    heroId: view.self.heroId,
+    you: true,
+    hand: view.self.hand,
+    handCount: view.self.hand.length,
+    deckCount: view.self.deckCount,
+    discard: view.self.discard,
+    committedCard: view.self.committedCard,
+    hasCommitted: !!view.self.committedCard,
+    counters: view.self.counters,
+    flags: view.self.flags,
+  });
+  if (view.opponent) {
+    players.set(view.opponent.id, {
+      ...(players.get(view.opponent.id) ?? {}),
+      id: view.opponent.id,
+      heroId: view.opponent.heroId,
+      you: false,
+      handCount: view.opponent.handCount,
+      deckCount: view.opponent.deckCount,
+      discard: view.opponent.discard,
+      hasCommitted: view.opponent.hasCommitted,
+      counters: view.opponent.counters,
+      flags: view.opponent.flags,
+    });
+  }
+  return players;
+};
+
+/**
+ * Human seat label for the log/report: "You" for the viewer, "Opponent" in a
+ * duel, and the uppercased seat id ("P3") in any >2-player game — so a
+ * multiplayer log attributes each line to a specific seat, never a generic
+ * "opponent". Shared by diffViews and enrichLines.
+ */
+export const seatLabel = (view: PlayerView, player: PlayerId): string => {
+  if (player === view.you) return "You";
+  return view.players.length === 2 ? "Opponent" : player.toUpperCase();
+};
+
 export function diffViews(
   prev: PlayerView | null,
   next: PlayerView,
@@ -49,16 +94,19 @@ export function diffViews(
 ): ProLogLine[] {
   const lines: ProLogLine[] = [];
   const whoOf = (p: string): "you" | "opp" => (p === next.you ? "you" : "opp");
-  const seat = (p: string) => (p === next.you ? "You" : "Opponent");
+  const seat = (p: PlayerId) => seatLabel(next, p);
 
   if (!prev) {
     lines.push({ text: `Game on — turn ${next.turnNumber}`, who: "game" });
     return lines;
   }
 
+  const prevPlayers = playersById(prev);
+  const nextPlayers = playersById(next);
+
   if (next.turnNumber !== prev.turnNumber) {
     lines.push({
-      text: `Turn ${next.turnNumber} — ${next.activePlayer === next.you ? "your" : "opponent's"} turn`,
+      text: `Turn ${next.turnNumber} — ${next.activePlayer === next.you ? "your" : `${seat(next.activePlayer)}'s`} turn`,
       who: "game",
     });
   }
@@ -109,22 +157,27 @@ export function diffViews(
     });
   }
 
-  // cards: draws (counts only for the opponent), discard-pile growth
+  // cards: draws and discard-pile growth. Only the viewer's own hand has
+  // card identities; other seats expose count deltas.
   const drewSelf = next.self.hand.filter((c) => !prev.self.hand.includes(c)).length;
   if (drewSelf > 0 && next.self.deckCount < prev.self.deckCount) {
     lines.push({ text: `You drew ${drewSelf} card${drewSelf === 1 ? "" : "s"}`, who: "you" });
   }
-  const oppDrew = prev.opponent.deckCount - next.opponent.deckCount;
-  if (oppDrew > 0 && next.opponent.handCount > prev.opponent.handCount) {
-    lines.push({ text: `Opponent drew ${oppDrew} card${oppDrew === 1 ? "" : "s"}`, who: "opp" });
+  for (const [player, nextPlayer] of nextPlayers) {
+    if (player === next.you) continue;
+    const prevPlayer = prevPlayers.get(player);
+    if (!prevPlayer) continue;
+    const drew = prevPlayer.deckCount - nextPlayer.deckCount;
+    if (drew > 0 && nextPlayer.handCount > prevPlayer.handCount) {
+      lines.push({ text: `${seat(player)} drew ${drew} card${drew === 1 ? "" : "s"}`, who: "opp" });
+    }
   }
-  for (const [seatKey, prevPile, nextPile] of [
-    [next.you, prev.self.discard, next.self.discard],
-    [next.opponent.id, prev.opponent.discard, next.opponent.discard],
-  ] as const) {
-    const added = nextPile.slice(prevPile.length);
+  for (const [player, nextPlayer] of nextPlayers) {
+    const prevPlayer = prevPlayers.get(player);
+    if (!prevPlayer) continue;
+    const added = nextPlayer.discard.slice(prevPlayer.discard.length);
     for (const c of added) {
-      lines.push({ text: `${seat(seatKey)} → discard: ${label(c)}`, who: whoOf(seatKey), cards: [c] });
+      lines.push({ text: `${seat(player)} → discard: ${label(c)}`, who: whoOf(player), cards: [c] });
     }
   }
 
@@ -138,16 +191,21 @@ export function diffViews(
   }
   for (const t of prevTokens.values()) {
     if (!nextTokens.has(t.id)) {
-      const owner = t.owner === next.you ? "Your" : "Opponent's";
+      const owner = t.owner === next.you ? "Your" : `${seat(t.owner)}'s`;
       lines.push({ text: `${owner} totem was destroyed`, who: whoOf(t.owner) });
     }
   }
 
   if (next.winner && !prev.winner) {
-    lines.push({
-      text: next.winner === next.you ? "VICTORY — you win!" : "Defeat — opponent wins",
-      who: "game",
-    });
+    const viewerWon = isViewerOnWinningTeam(next);
+    // In a real team format, phrase both the win and the loss around the team.
+    const teamGame = deriveTeams(next.players, next.you).active;
+    const text = viewerWon
+      ? teamGame
+        ? "VICTORY — your team wins!"
+        : "VICTORY — you win!"
+      : `Defeat — ${seat(next.winner)}${teamGame ? "'s team" : ""} wins`;
+    lines.push({ text, who: "game" });
   }
 
   return lines;
@@ -206,6 +264,9 @@ export interface EnrichContext {
   label: (source: string) => string;
   /** Viewer's player id (`view.you`) — maps player-scoped events to you/opp. */
   you: string;
+  /** Seat label for a player-scoped event ("You"/"Opponent"/"P3"), so a >2p
+   *  log names the acting seat instead of a generic "Opponent". */
+  seat: (player: PlayerId) => string;
 }
 
 /**
@@ -284,7 +345,7 @@ export function enrichLines(
         break;
       }
       case "ACTIONS_GAINED": {
-        const seat = whoOf(e.player) === "you" ? "You" : "Opponent";
+        const seat = ctx.seat(e.player);
         added.push({
           text: `${seat} gained ${e.amount} action${e.amount === 1 ? "" : "s"}`,
           who: whoOf(e.player),
@@ -292,7 +353,7 @@ export function enrichLines(
         break;
       }
       case "CARD_RETURNED_TO_HAND": {
-        const seat = whoOf(e.player) === "you" ? "You" : "Opponent";
+        const seat = ctx.seat(e.player);
         added.push({
           text: `${seat} returned ${ctx.label(e.card)} to hand`,
           who: whoOf(e.player),
@@ -301,7 +362,7 @@ export function enrichLines(
         break;
       }
       case "CARD_REVEALED": {
-        const seat = whoOf(e.player) === "you" ? "You" : "Opponent";
+        const seat = ctx.seat(e.player);
         added.push({
           text: `${seat} revealed ${ctx.label(e.card)}`,
           who: whoOf(e.player),

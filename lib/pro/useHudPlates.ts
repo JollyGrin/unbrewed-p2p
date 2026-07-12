@@ -7,7 +7,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 
-export type PlateSeat = "you" | "opponent";
+export type PlateSeat = string;
 
 export interface PlateLayout {
   /** drag offset from the plate's origin slot, in px */
@@ -19,12 +19,12 @@ export interface PlateLayout {
 export type PlatesState = Record<PlateSeat, PlateLayout>;
 
 const STORAGE_KEY = "pro-hud-plates";
-const DEFAULT_LAYOUT: PlateLayout = { x: 0, y: 0, collapsed: false };
-const DEFAULT_STATE: PlatesState = { you: DEFAULT_LAYOUT, opponent: DEFAULT_LAYOUT };
+export const DEFAULT_PLATE_LAYOUT: PlateLayout = { x: 0, y: 0, collapsed: false };
+const DEFAULT_STATE: PlatesState = {};
 
 /** Coerce an untrusted stored blob into a valid PlateLayout, dropping garbage. */
 const sanitize = (raw: unknown): PlateLayout => {
-  if (!raw || typeof raw !== "object") return DEFAULT_LAYOUT;
+  if (!raw || typeof raw !== "object") return DEFAULT_PLATE_LAYOUT;
   const r = raw as Record<string, unknown>;
   return {
     x: typeof r.x === "number" && Number.isFinite(r.x) ? r.x : 0,
@@ -50,10 +50,7 @@ export function useHudPlates(): UseHudPlates {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as Record<string, unknown>;
-        setPlates({
-          you: sanitize(parsed.you),
-          opponent: sanitize(parsed.opponent),
-        });
+        setPlates(Object.fromEntries(Object.entries(parsed).map(([seat, layout]) => [seat, sanitize(layout)])));
       }
     } catch {
       /* storage blocked or malformed — keep defaults */
@@ -63,7 +60,7 @@ export function useHudPlates(): UseHudPlates {
 
   const update = useCallback((seat: PlateSeat, partial: Partial<PlateLayout>) => {
     setPlates((cur) => {
-      const next: PlatesState = { ...cur, [seat]: { ...cur[seat], ...partial } };
+      const next: PlatesState = { ...cur, [seat]: { ...(cur[seat] ?? DEFAULT_PLATE_LAYOUT), ...partial } };
       try {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       } catch {

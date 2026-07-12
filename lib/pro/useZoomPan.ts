@@ -45,6 +45,14 @@ const IDENTITY: ZoomPanState = { scale: 1, tx: 0, ty: 0 };
 
 const clampScale = (s: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, s));
 
+// A region inset panel (Baba Yaga's Hut) is a child of the board container but
+// its own interactive surface — dragging its header, tapping its collapse
+// caret, or scrolling over it must not also pan/zoom the board (issue #216).
+// The panel root carries a `data-region-panel` marker; any gesture whose target
+// sits inside it is left alone here.
+const insideRegionPanel = (target: EventTarget | null): boolean =>
+  target instanceof Element && !!target.closest("[data-region-panel]");
+
 export interface ZoomPan {
   /** attach to the OUTER container — the wheel/pointer target + measuring box */
   containerRef: RefObject<HTMLDivElement>;
@@ -101,6 +109,10 @@ export function useZoomPan(enabled: boolean, frameRef: RefObject<HTMLElement>): 
     const el = containerRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
+      // Scroll/pinch over an inset panel does nothing — zooming the board
+      // behind a panel that stays put reads as a glitch. Let the event pass
+      // (no preventDefault) so the panel keeps normal scroll semantics.
+      if (insideRegionPanel(e.target)) return;
       e.preventDefault();
       zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * WHEEL_ZOOM_SPEED));
     };
@@ -129,6 +141,10 @@ export function useZoomPan(enabled: boolean, frameRef: RefObject<HTMLElement>): 
   const onPointerDown = useCallback(
     (e: ReactPointerEvent) => {
       if (!enabled) return;
+      // A press that begins inside an inset panel (header drag, collapse caret)
+      // is the panel's own gesture — never start a board pan from it (issue
+      // #216). The panel header also stopPropagation()s, so this is a backstop.
+      if (insideRegionPanel(e.target)) return;
       // clear here (not on click) so a touch pan — which fires no click — can't
       // leave didPan set and swallow the NEXT genuine tap.
       didPan.current = false;

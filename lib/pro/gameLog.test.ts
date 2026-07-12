@@ -42,8 +42,12 @@ const view = (over: Partial<PlayerView>): PlayerView => ({
   catalog: {},
   fighters: [fighter({}), fighter({ id: "p2/hero", owner: "p2", name: "Thrall", space: "s2" })],
   tokens: [],
-  self: { id: "p1", heroId: "king-taranis", hand: [], deckCount: 10, discard: [], committedCard: null, counters: {} },
-  opponent: { id: "p2", heroId: "thrall", handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {} },
+  self: { id: "p1", heroId: "king-taranis", hand: [], deckCount: 10, discard: [], committedCard: null, counters: {}, flags: {} },
+  opponent: { id: "p2", heroId: "thrall", handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {}, flags: {} },
+  players: [
+    { id: "p1", heroId: "fixture-p1", you: true, hand: [], handCount: 0, deckCount: 10, discard: [], committedCard: null, hasCommitted: false, counters: {}, flags: {} },
+    { id: "p2", heroId: "fixture-p2", you: false, handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {}, flags: {} },
+  ],
   combat: null,
   prompt: null,
   winner: null,
@@ -54,13 +58,16 @@ const view = (over: Partial<PlayerView>): PlayerView => ({
 const label = (c: CardInstanceId) => c.split("#")[0].split("/").pop() ?? c;
 
 // Resolver enrichLines gets from the page: card title / hero name / hidden.
-const ctx = (you = "p1"): EnrichContext => ({
+// `seat` mirrors gameLog's seatLabel for a duel; pass `seatFor` to model a >2p
+// game where non-you seats are named by id.
+const ctx = (you = "p1", seatFor?: (p: string) => string): EnrichContext => ({
   you,
   label: (source) => {
     if (source === "(hidden)") return "a hidden card";
     if (source.startsWith("hero:")) return `hero ${source.slice(5)}`;
     return label(source);
   },
+  seat: seatFor ?? ((p) => (p === you ? "You" : "Opponent")),
 });
 
 // Every GameEvent variant, one representative each — used to assert the
@@ -296,6 +303,26 @@ describe("enrichLines", () => {
       ]);
     });
 
+    it("names the acting seat (not a generic 'Opponent') for >2p games", () => {
+      // In a 3-player game the page passes seatLabel, which names non-you seats
+      // by id — so a p3 event reads "P3", never "Opponent".
+      const seat3p = (p: string) => (p === "p1" ? "You" : p.toUpperCase());
+      const out = enrichLines(
+        [],
+        [
+          { type: "ACTIONS_GAINED", player: "p3", amount: 1 },
+          { type: "CARD_REVEALED", player: "p3", card: "buster-keaton/porkpie-hat#1" },
+          { type: "CARD_RETURNED_TO_HAND", player: "p2", card: "buster-keaton/the-great-stone-face#1" },
+        ],
+        ctx("p1", seat3p)
+      );
+      expect(out.map((l) => l.text)).toEqual([
+        "P3 gained 1 action",
+        "P3 revealed porkpie-hat",
+        "P2 returned the-great-stone-face to hand",
+      ]);
+    });
+
     it("appends new lines AFTER the existing diff lines, preserving order", () => {
       const lines: ProLogLine[] = [{ text: "You drew 1 card", who: "you" }];
       const out = enrichLines(lines, [{ type: "DEFENSE_IGNORED" }], ctx());
@@ -321,6 +348,54 @@ describe("enrichLines", () => {
   });
 });
 
+
+describe("multiplayer diffViews", () => {
+  const players3 = (p3: Partial<PlayerView["players"][number]> = {}) => [
+    { id: "p1" as const, heroId: "fixture-p1", you: true, hand: [], handCount: 0, deckCount: 10, discard: [], committedCard: null, hasCommitted: false, counters: {}, flags: {} },
+    { id: "p2" as const, heroId: "fixture-p2", you: false, handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {}, flags: {} },
+    { id: "p3" as const, heroId: "fixture-p3", you: false, handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {}, flags: {}, ...p3 },
+  ];
+
+  it("labels third-player turn, draw, discard, and win lines without a duel opponent", () => {
+    const prev = view({ opponent: null, players: players3() });
+    const next = view({
+      opponent: null,
+      turnNumber: 2,
+      activePlayer: "p3",
+      winner: "p3",
+      players: players3({ handCount: 6, deckCount: 9, discard: ["a/fireball#1"] }),
+    });
+
+    expect(diffViews(prev, next, label).map((l) => l.text)).toEqual(expect.arrayContaining([
+      "Turn 2 — P3's turn",
+      "P3 drew 1 card",
+      "P3 → discard: fireball",
+      "Defeat — P3 wins",
+    ]));
+  });
+
+  it("names the acting seat (not 'Opponent') for a p3 maneuver boost in >2p", () => {
+    // A boosted move by p3 surfaces as its discard line + the enrich '(boost)'
+    // suffix (MOVE_BOOSTED itself is diff-covered, not a standalone line). Post
+    // engine-#119 the boosting seat can be p3; the seat label must read "P3".
+    const prev = view({ opponent: null, players: players3() });
+    const next = view({
+      opponent: null,
+      activePlayer: "p3",
+      players: players3({ discard: ["a/fireball#1"] }),
+    });
+    const diff = diffViews(prev, next, label);
+    const seat3p = (p: string) => (p === "p1" ? "You" : p.toUpperCase());
+    const enriched = enrichLines(
+      diff,
+      [{ type: "CARD_DISCARDED", player: "p3", card: "a/fireball#1", reason: "BOOST" }],
+      ctx("p1", seat3p)
+    );
+    expect(enriched.map((l) => l.text)).toContain("P3 → discard: fireball (boost)");
+    expect(enriched.every((l) => !l.text.includes("Opponent"))).toBe(true);
+  });
+});
+
 // --- Parity: flag OFF path (and flag ON with empty events) must equal diffViews.
 // enrichLines with an empty events array returns the diff lines unchanged; this
 // is the byte-identical guarantee the page relies on for the flag-off / pre-v10
@@ -342,8 +417,8 @@ describe("parity with diffViews", () => {
     },
     {
       name: "self discard (unattributed by diff)",
-      prev: view({ self: { id: "p1", heroId: "king-taranis", hand: [], deckCount: 10, discard: [], committedCard: null, counters: {} } }),
-      next: view({ self: { id: "p1", heroId: "king-taranis", hand: [], deckCount: 10, discard: ["a/fireball#1"], committedCard: null, counters: {} } }),
+      prev: view({ self: { id: "p1", heroId: "king-taranis", hand: [], deckCount: 10, discard: [], committedCard: null, counters: {}, flags: {} } }),
+      next: view({ self: { id: "p1", heroId: "king-taranis", hand: [], deckCount: 10, discard: ["a/fireball#1"], committedCard: null, counters: {}, flags: {} } }),
     },
     {
       name: "combat reveal",

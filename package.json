@@ -13,7 +13,9 @@
     "test": "jest --coverage",
     "maps:snapshot": "node scripts/snapshot-maps.mjs",
     "pro:decks:verify": "node scripts/deck-manifest.mjs verify",
-    "pro:decks:bump-rules": "node scripts/deck-manifest.mjs bump-rules"
+    "pro:decks:bump-rules": "node scripts/deck-manifest.mjs bump-rules",
+    "pro:render-fuzz": "tsx scripts/render-fuzz.mts",
+    "pro:render-fuzz:fixtures": "tsx scripts/renderFuzz/writeSampleRun.mts"
   },
   "dependencies": {
     "@3d-dice/dice-box-threejs": "^0.0.12",
@@ -61,6 +63,7 @@
     "jest-environment-jsdom": "^29.5.0",
     "next-translate-plugin": "^2.0.5",
     "sharp": "^0.35.3",
-    "ts-jest": "^29.1.0"
+    "ts-jest": "^29.1.0",
+    "tsx": "^4.23.0"
   }
 }

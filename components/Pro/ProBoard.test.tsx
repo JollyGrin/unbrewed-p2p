@@ -254,6 +254,78 @@ describe("ProBoard attack arrow (issue #148)", () => {
   });
 });
 
+// issue #185: a CHOOSE_SPACE prompt highlights the space, but the fighter token
+// (zIndex 4) sits on top of the space hit-circle (zIndex 3) and swallowed the
+// click — Chain Lightning et al. could not be aimed at an occupied space. The
+// token now forwards a click to onSpaceClick when its own space is highlighted,
+// while still routing fighter-target clicks to onFighterClick.
+describe("ProBoard fighter token over a highlighted space (issue #185)", () => {
+  it("forwards a click on a fighter standing on a highlighted space to onSpaceClick", () => {
+    const onSpaceClick = jest.fn();
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[fighter({ space: "s1" })]}
+          highlightedSpaces={["s1"]}
+          onSpaceClick={onSpaceClick}
+        />
+      </ChakraProvider>
+    );
+    fireEvent.click(screen.getByTitle(/The Mandalorian/));
+    expect(onSpaceClick).toHaveBeenCalledWith("s1");
+  });
+
+  it("gives that token a pointer cursor so it reads as clickable", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[fighter({ space: "s1" })]}
+          highlightedSpaces={["s1"]}
+          onSpaceClick={() => {}}
+        />
+      </ChakraProvider>
+    );
+    expect(getComputedStyle(screen.getByTitle(/The Mandalorian/)).cursor).toBe("pointer");
+  });
+
+  it("does not forward when the token's space is not the highlighted one", () => {
+    const onSpaceClick = jest.fn();
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[fighter({ space: "s1" })]}
+          highlightedSpaces={["s2"]}
+          onSpaceClick={onSpaceClick}
+        />
+      </ChakraProvider>
+    );
+    fireEvent.click(screen.getByTitle(/The Mandalorian/));
+    expect(onSpaceClick).not.toHaveBeenCalled();
+  });
+
+  it("still routes a fighter-target click to onFighterClick, not onSpaceClick", () => {
+    const onFighterClick = jest.fn();
+    const onSpaceClick = jest.fn();
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[fighter({ id: "p1/hero", space: "s1" })]}
+          highlightedFighters={["p1/hero"]}
+          onFighterClick={onFighterClick}
+          onSpaceClick={onSpaceClick}
+        />
+      </ChakraProvider>
+    );
+    fireEvent.click(screen.getByTitle(/The Mandalorian/));
+    expect(onFighterClick).toHaveBeenCalledWith("p1/hero");
+    expect(onSpaceClick).not.toHaveBeenCalled();
+  });
+});
+
 // issue #120: pinch/scroll zoom + drag pan, gated behind the `zoomMap` flag.
 // The frame (shrink-wrap box holding the art + every overlay) is transformed as
 // one unit; the identity-based click model is untouched, so a click still lands
@@ -290,5 +362,40 @@ describe("ProBoard zoom/pan (issue #120)", () => {
     expect(hit).toBeTruthy();
     fireEvent.click(hit as HTMLElement);
     expect(onSpaceClick).toHaveBeenCalledWith("s2");
+  });
+
+  // issue #216: with zoomMap on, the inset panel is a child of the pan target,
+  // so a header-drag pointerdown used to start BOTH the panel drag and a board
+  // pan (a parallax). The header now stops propagation and useZoomPan ignores
+  // any gesture that begins inside a region panel — so the board stays put.
+  it("dragging a region panel's header does not pan the board", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={REGION_MAP} fighters={[fighter({})]} zoomable />
+      </ChakraProvider>
+    );
+    const frame = frameOf();
+    const before = getComputedStyle(frame).transform; // identity, feature on
+    const header = screen.getByText("The Hut").parentElement as HTMLElement;
+    fireEvent.pointerDown(header, { pointerId: 1, clientX: 100, clientY: 100 });
+    // a move well past PAN_THRESHOLD — would translate the frame if it panned
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 200, clientY: 200 });
+    fireEvent.pointerUp(window, { pointerId: 1 });
+    expect(getComputedStyle(frame).transform).toBe(before); // board untouched
+    // and no drag-swallow lingered: the reset control never appeared
+    expect(screen.queryByText("reset view")).not.toBeInTheDocument();
+  });
+
+  // the panel's own controls keep working under zoom (its collapse caret
+  // stops propagation itself, so it never reaches the pan path either).
+  it("keeps the region panel's collapse toggle working with zoom on", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={REGION_MAP} fighters={[fighter({})]} zoomable />
+      </ChakraProvider>
+    );
+    expect(screen.getByAltText("The Hut")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("toggle The Hut"));
+    expect(screen.queryByAltText("The Hut")).not.toBeInTheDocument(); // collapsed
   });
 });

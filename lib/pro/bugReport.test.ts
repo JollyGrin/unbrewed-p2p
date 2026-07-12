@@ -31,8 +31,12 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
     fighter({ id: "p2/hero", owner: "p2", name: "Baba Yaga", hp: 9, maxHp: 14, reach: "RANGED" }),
   ],
   tokens: [],
-  self: { id: "p1", heroId: "king-kong", hand: ["a#1", "b#1"], deckCount: 20, discard: ["c#1"], committedCard: null, counters: {} },
-  opponent: { id: "p2", heroId: "baba-yaga", handCount: 5, deckCount: 18, discard: [], hasCommitted: false, counters: {} },
+  self: { id: "p1", heroId: "king-kong", hand: ["a#1", "b#1"], deckCount: 20, discard: ["c#1"], committedCard: null, counters: {}, flags: {} },
+  opponent: { id: "p2", heroId: "baba-yaga", handCount: 5, deckCount: 18, discard: [], hasCommitted: false, counters: {}, flags: {} },
+  players: [
+    { id: "p1", heroId: "king-kong", you: true, hand: ["a#1", "b#1"], handCount: 2, deckCount: 20, discard: ["c#1"], committedCard: null, hasCommitted: false, counters: {}, flags: {} },
+    { id: "p2", heroId: "baba-yaga", you: false, handCount: 5, deckCount: 18, discard: [], hasCommitted: false, counters: {}, flags: {} },
+  ],
   combat: null,
   prompt: null,
   winner: null,
@@ -123,6 +127,43 @@ describe("buildBugReportUrl", () => {
     const body = decodeURIComponent(url.split("&body=")[1]);
     expect(body).toContain("around turn 3");
     expect(url.length).toBeLessThanOrEqual(MAX);
+  });
+
+  it("captures every seat in a 3-player game without a duel opponent", () => {
+    const multiplayerView = view({
+      // >2p views carry no duel `opponent`; the capture must not need one.
+      opponent: null,
+      activePlayer: "p3",
+      fighters: [
+        fighter({ id: "p1/hero", owner: "p1", name: "King Kong", hp: 12 }),
+        fighter({ id: "p2/hero", owner: "p2", name: "Baba Yaga", hp: 9, maxHp: 14, reach: "RANGED" }),
+        fighter({ id: "p3/hero", owner: "p3", name: "Bigfoot", hp: 7, maxHp: 16 }),
+      ],
+      players: [
+        { id: "p1", heroId: "king-kong", you: true, hand: ["a#1", "b#1"], handCount: 2, deckCount: 20, discard: ["c#1"], committedCard: null, hasCommitted: false, counters: {}, flags: {} },
+        { id: "p2", heroId: "baba-yaga", you: false, handCount: 5, deckCount: 18, discard: [], hasCommitted: false, counters: { rage: 2 }, flags: {} },
+        { id: "p3", heroId: "bigfoot", you: false, handCount: 4, deckCount: 17, discard: ["d#1"], hasCommitted: false, counters: {}, flags: {} },
+      ],
+    });
+
+    let url = "";
+    expect(() => {
+      url = buildBugReportUrl(input({ view: multiplayerView, entries: [entry(0, 4)] }));
+    }).not.toThrow();
+
+    const body = decodeURIComponent(url.split("&body=")[1]);
+    // Every seat's hero appears (title matchup + fighter roster).
+    expect(decodeURIComponent(url.split("?")[1])).toContain("King Kong vs Baba Yaga vs Bigfoot");
+    expect(body).toContain("Bigfoot");
+    // Every seat's public state is present, attributed to its seat (p2/p3, not "opp").
+    expect(body).toContain("p2: Baba Yaga");
+    expect(body).toContain("p3: Bigfoot");
+    expect(body).toContain("p2: hand 5 · deck 18 · discard 0 · counters rage:2");
+    expect(body).toContain("p3: hand 4 · deck 17 · discard 1");
+    // The reporter's own hand count survives (own seat is authoritative from `self`).
+    expect(body).toContain("you: hand 2 · deck 20 · discard 1");
+    // active seat names the seat, not a generic "opponent".
+    expect(body).toContain("active: p3");
   });
 });
 
