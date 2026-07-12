@@ -1345,6 +1345,11 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   const [poseAnchor, setPoseAnchor] = useState<{ promptId: string; space: SpaceId } | null>(null);
   const [reportBugOpen, setReportBugOpen] = useState(false);
   const [forfeitOpen, setForfeitOpen] = useState(false);
+  // Client-side memory that YOU chose to forfeit (vs. being swept by combat), so
+  // the continuing-game spectator panel can say "You forfeited — spectating"
+  // instead of the generic elimination copy. Resets on refresh — the panel then
+  // degrades to the neutral "eliminated" wording, which stays accurate either way.
+  const [iForfeited, setIForfeited] = useState(false);
   // Issue #80: a just-committed MOVE_FIGHTER tweens through its whole path
   // instead of snapping — held here so the board keeps rendering it while
   // the authoritative STATE (which may already show the fighter arrived)
@@ -1911,6 +1916,18 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   const { view, legalActions, prompt } = snapshot;
   const myTurn = view.activePlayer === view.you;
   const multiplayerView = view.players.length > 2;
+  // Forfeit is offered ONLY through the legal-action surface (unbrewed-engine
+  // #117): the engine enumerates FORFEIT in the seat's legalActions exactly while
+  // it may forfeit — on its own clock, live, not yet eliminated. Gating the dock
+  // button on this (rather than re-deriving duel-vs-multiplayer rules client-side)
+  // means it renders in every format the engine allows and vanishes the instant
+  // the seat is out of turn order, with no seat-count/seat-id special-casing.
+  const canForfeit = legalActions.some((a) => a.type === "FORFEIT");
+  // Eliminated-and-spectating: a continuing game (no winner) where every fighter
+  // this seat owns is swept. True after your own forfeit in team/ffa play and
+  // after a team-game combat death — either way you watch the board play on.
+  const myFighters = view.fighters.filter((f) => f.owner === view.you);
+  const iAmSpectating = !view.winner && myFighters.length > 0 && myFighters.every((f) => f.defeated);
   // Team affiliation (issue #195): the viewer's team (self + ally) for the board's
   // shared ring. Empty in duel/ffa/older-server views → the board draws no ring.
   const friendlyOwners = deriveTeams(view.players, view.you).friendlyOwners;
@@ -2348,7 +2365,13 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
             ))}
             {legalActions.length === 0 && !prompt && showLiveTurnChrome(view) && (
               <Text opacity={0.7} fontSize="0.9rem" color="brand.parchment">
-                {multiplayerView ? "waiting on another player…" : "waiting on opponent…"}
+                {iAmSpectating
+                  ? iForfeited
+                    ? "You forfeited — spectating."
+                    : "You've been eliminated — spectating."
+                  : multiplayerView
+                  ? "waiting on another player…"
+                  : "waiting on opponent…"}
               </Text>
             )}
           </Flex>
@@ -2378,10 +2401,13 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
               {undoPending ? "Undo requested…" : "Undo last action"}
             </Button>
           )}
-          {/* Forfeit — only while the game is genuinely live (issue #140). Hidden
-              during SETUP and once GAME_OVER / a winner exists (no affordances
-              remain then). Destructive, so it's red and confirm-gated. */}
-          {view.phase === "PLAY" && !view.winner && view.players.length === 2 && (view.you === "p1" || view.you === "p2") && (
+          {/* Forfeit — rendered whenever the engine offers FORFEIT to this seat
+              (`canForfeit`, issue #140 + unbrewed-engine #117). No seat-count or
+              seat-id gate: duel and multiplayer alike surface it via the same
+              legal-action check, so it appears on your own clock and vanishes
+              once you're eliminated. Destructive, so it's red and confirm-gated;
+              the phase/winner gates stay as belt-and-suspenders. */}
+          {view.phase === "PLAY" && !view.winner && canForfeit && (
             <Button
               size="sm"
               mt="0.4rem"
@@ -2395,12 +2421,16 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
         </Flex>
       </Flex>
 
-      {/* concede confirmation (issue #140) — sends FORFEIT on confirm */}
+      {/* concede confirmation (issue #140) — sends FORFEIT on confirm. In
+          multiplayer this resigns your seat (you may keep spectating), so the
+          dialog copy adapts; `iForfeited` lets the spectator panel say so. */}
       <ForfeitDialog
         isOpen={forfeitOpen}
         onClose={() => setForfeitOpen(false)}
+        multiplayer={multiplayerView}
         onConfirm={() => {
-          if (view.you === "p1" || view.you === "p2") sendAction({ type: "FORFEIT", player: view.you });
+          setIForfeited(true);
+          sendAction({ type: "FORFEIT", player: view.you });
         }}
       />
 

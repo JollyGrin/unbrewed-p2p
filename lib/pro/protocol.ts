@@ -252,7 +252,16 @@ export type Action =
   // the game with the OTHER player as winner and emits the replay bundle. The
   // client constructs this directly (the second always-available exception to
   // "never send an action the server didn't offer", alongside MOVE_FIGHTER paths).
-  | { type: "FORFEIT"; player: DuelPlayerId };
+  // Multiplayer (unbrewed-engine #117): FORFEIT is a voluntary SEAT elimination —
+  // the seat's fighters are swept and it drops out of turn order; the game may
+  // continue (team/ffa) or end (human-stake rule). Hence `player: PlayerId`, not
+  // `DuelPlayerId` — any seat on the clock may forfeit.
+  // `endsMatch` (unbrewed-engine PR #118): SERVER-STAMPED into the action log so a
+  // replayed log reproduces the human-stake game-end deterministically (bot-ness
+  // is server knowledge the engine can't re-derive from {setup, seed} alone).
+  // The CLIENT never sets it — it constructs `{ type: "FORFEIT", player }` and the
+  // server fills this in before logging. Optional/absent on the wire the client sends.
+  | { type: "FORFEIT"; player: PlayerId; endsMatch?: boolean };
 
 // ---------------------------------------------------------------------------
 // Structured event stream (v10). MIRROR of engine/types.ts `GameEvent` — the
