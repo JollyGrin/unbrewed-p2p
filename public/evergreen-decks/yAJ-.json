@@ -187,7 +187,8 @@
       "move": 2,
       "name": "Baba Yaga",
       "quote": "The witch of the deep woods and her chicken-legged Hut — lure victims through its door into a little board all her own, where every card she casts cuts deeper.",
-      "specialAbility": "Fighters can move between The Hut's space and the Entry spaces in The Hut board as if they were adjacent. At the end of your turn, deal 1 damage to every opposing fighter inside The Hut, and place them in spaces in The Hut's zone.\n\n"
+      "specialAbility": "Fighters can move between The Hut's space and the Entry spaces in The Hut board as if they were adjacent. At the end of your turn, deal 1 damage to every opposing fighter inside The Hut, and place them in spaces in The Hut's zone.\n\n",
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/yAJ-/token-baba-yaga.webp"
     },
     "name": "",
     "ruleCards": [
@@ -201,7 +202,8 @@
       "isRanged": false,
       "name": "The Hut",
       "quantity": 1,
-      "quote": "A hut on hen's legs that walks where it pleases — its door opens for everyone and asks no one."
+      "quote": "A hut on hen's legs that walks where it pleases — its door opens for everyone and asks no one.",
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/yAJ-/token-the-hut.webp"
     }
   },
   "deck_first_published_on": "Fri, 02 Jun 2023 00:35:31 GMT",

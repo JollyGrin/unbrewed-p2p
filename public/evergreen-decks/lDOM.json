@@ -213,7 +213,8 @@
       "move": 2,
       "name": "The Mandalorian",
       "specialAbility": "When the Mandalorian plays a card to defend, add 1 to that card's value for each BESKAR ARMOR card in your discard pile. \nIf you draw any BESKAR ARMOR cards to start the game, reshuffle and draw again.",
-      "quote": "A lone bounty hunter who only gets harder to kill \u2014 every beskar card in the discard pile hardens his defense as the fight drags on. This is the way."
+      "quote": "A lone bounty hunter who only gets harder to kill \u2014 every beskar card in the discard pile hardens his defense as the fight drags on. This is the way.",
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/lDOM/token-mandalorian.webp"
     },
     "name": "",
     "ruleCards": [],
@@ -222,7 +223,8 @@
       "isRanged": true,
       "name": "The Child",
       "quantity": 1,
-      "quote": "Small, quiet, and worth more than every bounty in the guild \u2014 the whole reason to keep fighting."
+      "quote": "Small, quiet, and worth more than every bounty in the guild \u2014 the whole reason to keep fighting.",
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/lDOM/token-the-child.webp"
     }
   },
   "deck_first_published_on": null,
