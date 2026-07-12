@@ -6,8 +6,9 @@
  * differ because the two care about different things (the log wants prose for
  * every change; this wants a handful of punchy beats with board coordinates).
  */
-import { FighterId, PlayerId, PlayerView, SpaceId, ViewPlayer } from "./protocol";
+import { FighterId, GameEvent, PlayerId, PlayerView, SpaceId, ViewPlayer } from "./protocol";
 import { isViewerOnWinningTeam } from "./teams";
+import { sweptFighters } from "./sweep";
 
 export type FxEvent =
   /** combat card(s) flipped face-up — count 2 means attack+defense revealed together */
@@ -58,7 +59,11 @@ const playersById = (view: PlayerView): Map<PlayerId, ViewPlayer> => {
   return players;
 };
 
-export function diffFxEvents(prev: PlayerView | null, next: PlayerView): FxEvent[] {
+export function diffFxEvents(
+  prev: PlayerView | null,
+  next: PlayerView,
+  gameEvents: GameEvent[] = []
+): FxEvent[] {
   // First snapshot (join/reconnect) is a state dump, not a play — no fanfare.
   if (!prev) return [];
 
@@ -85,13 +90,17 @@ export function diffFxEvents(prev: PlayerView | null, next: PlayerView): FxEvent
   // Fighters: damage / heal / defeat. A defeated fighter leaves the board
   // (space -> null), so fall back to where it stood for the visual.
   const prevFighters = new Map(prev.fighters.map((f) => [f.id, f]));
+  // Fighters removed by the elimination sweep drop to hp:0 with no
+  // DAMAGE_APPLIED — their hp drop is not combat damage, so skip the phantom
+  // number and don't let it count as "damage this snapshot" (issue #212).
+  const swept = sweptFighters(gameEvents);
   let anyHpDrop = false;
   for (const f of next.fighters) {
     const was = prevFighters.get(f.id);
     if (!was) continue;
     const space = f.space ?? was.space;
     const mine = f.owner === next.you;
-    if (f.hp < was.hp) {
+    if (f.hp < was.hp && !swept.has(f.id)) {
       anyHpDrop = true;
       events.push({
         type: "damage",

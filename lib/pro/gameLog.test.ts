@@ -374,6 +374,60 @@ describe("multiplayer diffViews", () => {
     ]));
   });
 
+  // Elimination sweep (engine #102): when a seat's hero dies its survivors are
+  // cleared to hp:0 with a FIGHTER_DEFEATED but NO DAMAGE_APPLIED. The differ
+  // must not spam "took N damage" for those swept fighters (issue #212).
+  describe("elimination sweep", () => {
+    const prev = view({
+      opponent: null,
+      players: players3(),
+      fighters: [
+        fighter({}),
+        fighter({ id: "p2/hero", owner: "p2", name: "Thrall", space: "s2", hp: 3 }),
+        fighter({ id: "p2/sidekick", owner: "p2", kind: "SIDEKICK", name: "Grunt", space: "s3", hp: 2 }),
+      ],
+    });
+    const next = view({
+      opponent: null,
+      players: players3(),
+      fighters: [
+        fighter({}),
+        fighter({ id: "p2/hero", owner: "p2", name: "Thrall", space: null, hp: 0, defeated: true }),
+        fighter({ id: "p2/sidekick", owner: "p2", kind: "SIDEKICK", name: "Grunt", space: null, hp: 0, defeated: true }),
+      ],
+    });
+
+    it("logs a removal (not damage) for a swept sidekick, keeps the kill-shot for the hero", () => {
+      const texts = diffViews(prev, next, label, [
+        { type: "DAMAGE_APPLIED", fighter: "p2/hero", amount: 3, source: "ATTACK" },
+        { type: "FIGHTER_DEFEATED", fighter: "p2/hero" },
+        { type: "FIGHTER_DEFEATED", fighter: "p2/sidekick" },
+      ]).map((l) => l.text);
+      // Hero was genuinely killed — damage + defeat both survive.
+      expect(texts).toContain("Thrall took 3 damage (0/10)");
+      expect(texts).toContain("Thrall was defeated!");
+      // Swept sidekick — no damage line, a removal line instead of a defeat.
+      expect(texts).not.toContain("Grunt took 2 damage (0/10)");
+      expect(texts).toContain("Grunt was removed (hero defeated)");
+      expect(texts).not.toContain("Grunt was defeated!");
+    });
+
+    it("keeps the damage + defeat line for a genuine kill (DAMAGE_APPLIED present)", () => {
+      const texts = diffViews(prev, next, label, [
+        { type: "DAMAGE_APPLIED", fighter: "p2/sidekick", amount: 2, source: "ATTACK" },
+        { type: "FIGHTER_DEFEATED", fighter: "p2/sidekick" },
+      ]).map((l) => l.text);
+      expect(texts).toContain("Grunt took 2 damage (0/10)");
+      expect(texts).toContain("Grunt was defeated!");
+    });
+
+    it("falls back to pre-fix behaviour with no events (older server)", () => {
+      const texts = diffViews(prev, next, label).map((l) => l.text);
+      expect(texts).toContain("Grunt took 2 damage (0/10)");
+      expect(texts).toContain("Grunt was defeated!");
+    });
+  });
+
   it("names the acting seat (not 'Opponent') for a p3 maneuver boost in >2p", () => {
     // A boosted move by p3 surfaces as its discard line + the enrich '(boost)'
     // suffix (MOVE_BOOSTED itself is diff-covered, not a standalone line). Post

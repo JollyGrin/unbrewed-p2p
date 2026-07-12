@@ -133,6 +133,29 @@ interface HeroArt {
   sidekickTokenUrl: string | null;
 }
 
+/**
+ * Hero ids whose deck art the game should prefetch, derived from a STATE view.
+ * Prefer the multiplayer `players[]` seats; if a (downgraded/rolling-deploy/
+ * malformed) STATE arrives with an EMPTY players[], fall back to the legacy
+ * duel `self`/`opponent` heroIds so art still loads on the seat-fallback board
+ * (unbrewed-p2p #210). Dedupes; drops falsy ids; both empty -> []. Callers feed
+ * this straight into useProCardArt, which keys its query on the sorted list, so
+ * a later STATE that populates players[] changes the list and re-fires the fetch
+ * on its own — no fire-once effect to reset.
+ */
+export function heroIdsForArt(view: {
+  players: { heroId?: string | null }[];
+  self?: { heroId?: string | null } | null;
+  opponent?: { heroId?: string | null } | null;
+}): string[] {
+  const fromPlayers = view.players.map((p) => p.heroId).filter((h): h is string => !!h);
+  if (fromPlayers.length > 0) return [...new Set(fromPlayers)];
+  const legacy = [view.self?.heroId, view.opponent?.heroId].filter(
+    (h): h is string => !!h
+  );
+  return [...new Set(legacy)];
+}
+
 export function useProCardArt(
   heroIds: string[],
   catalog: Record<CardDefId, CardMeta>

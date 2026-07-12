@@ -6,7 +6,7 @@
  * surfaced as chips in the HUD.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PlayerView, SpaceId } from "./protocol";
+import { GameEvent, PlayerView, SpaceId } from "./protocol";
 import { diffFxEvents } from "./fxEvents";
 import { sfx } from "./sfx";
 
@@ -44,7 +44,7 @@ const useStoredToggle = (storageKey: string): [boolean, () => void] => {
   return [on, toggle];
 };
 
-export function useGameFx(snapshot: { view: PlayerView } | null) {
+export function useGameFx(snapshot: { view: PlayerView; events?: GameEvent[] } | null) {
   const [soundOn, toggleSoundStored] = useStoredToggle("pro-sound-fx");
   const [visualOn, toggleVisual] = useStoredToggle("pro-visual-fx");
   const [boardFx, setBoardFx] = useState<BoardFxItem[]>([]);
@@ -74,7 +74,7 @@ export function useGameFx(snapshot: { view: PlayerView } | null) {
 
   useEffect(() => {
     if (!snapshot) return;
-    const events = diffFxEvents(prevViewRef.current, snapshot.view);
+    const events = diffFxEvents(prevViewRef.current, snapshot.view, snapshot.events);
     prevViewRef.current = snapshot.view;
     if (events.length === 0) return;
 
