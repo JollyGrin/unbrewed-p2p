@@ -59,6 +59,7 @@ import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
 import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
 import { diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
+import { cardAffordances, cardLabel, cardTitle, describeAction } from "@/lib/pro/actionDock";
 import { useFlag } from "@/lib/flags";
 import { maneuverBoostHint } from "@/lib/pro/maneuverHint";
 import { buildPoseIndex, parsePoseOptions, poseHighlights, resolvePoseClick } from "@/lib/pro/moveChoice";
@@ -116,20 +117,6 @@ const usePendingMoveTimeout = (
   }, [pendingMove]);
 };
 
-/** Printed-card title via the server catalog ('king-kong/clobber#2' -> 'Clobber'). */
-const cardTitle = (catalog: Record<string, CardMeta>, instance: CardInstanceId): string => {
-  const defId = instance.split("#")[0];
-  return catalog[defId]?.title ?? defId.split("/").pop() ?? instance;
-};
-
-/** Printed-card label via the server catalog ('king-kong/clobber#2' -> 'clobber (3/2)'). */
-const cardLabel = (catalog: Record<string, CardMeta>, instance: CardInstanceId): string => {
-  const meta = catalog[instance.split("#")[0]];
-  if (!meta) return instance.split("#")[0].split("/").pop() ?? instance;
-  const stats = meta.type === "scheme" ? "scheme" : `${meta.value ?? "–"}/${meta.boost ?? "–"}`;
-  return `${meta.title} (${stats})`;
-};
-
 /**
  * Title for a `GameEvent` `source` (used by enrichLines for scheduled/fired
  * effect lines): a `CardInstanceId` resolves via the catalog, `'hero:<pid>'`
@@ -143,54 +130,6 @@ const resolveEventSource = (view: PlayerView, source: string): string => {
     return view.fighters.find((f) => f.id === `${pid}/hero`)?.name ?? "a hero ability";
   }
   return cardLabel(view.catalog, source);
-};
-
-/**
- * Presentational label for a server-offered action.
- *
- * `ctx` carries the bits a DECLARE_ATTACK label needs to read as plain English
- * instead of raw fighter ids (issue #161): a name lookup for attacker/target,
- * and the per-attacker disambiguator number that also badges the matching board
- * token, so "Attack Kong with Raptor 2" points unambiguously at the token
- * wearing the 2 badge. Omit `ctx` for the legacy id-suffix fallback.
- */
-const describeAction = (
-  catalog: Record<string, CardMeta>,
-  a: Action,
-  ctx?: { nameOf: (id: FighterId) => string; attackerBadge?: Partial<Record<FighterId, number>> }
-): string => {
-  switch (a.type) {
-    case "MANEUVER":
-      return "Maneuver";
-    case "BOOST_MOVE":
-      return `Boost move (discard ${cardLabel(catalog, a.card)})`;
-    case "MOVE_FIGHTER":
-      return `Move ${a.fighter.split("/")[1]}`;
-    case "END_MANEUVER":
-      return "End maneuver";
-    case "SCHEME":
-      return `Scheme: ${cardLabel(catalog, a.card)}`;
-    case "DECLARE_ATTACK": {
-      const targetName = ctx ? ctx.nameOf(a.target) : a.target.split("/")[1];
-      const attackerName = ctx ? ctx.nameOf(a.attacker) : a.attacker.split("/")[1];
-      const badge = ctx?.attackerBadge?.[a.attacker];
-      return `Attack ${targetName} with ${attackerName}${badge != null ? ` ${badge}` : ""}`;
-    }
-    case "COMMIT_ATTACK_CARD":
-      return `Commit ${cardLabel(catalog, a.card)}`;
-    case "COMMIT_DEFENSE_CARD":
-      return `Defend with ${cardLabel(catalog, a.card)}`;
-    case "DECLINE_DEFENSE":
-      return "Don't defend";
-    case "DISCARD_TO_LIMIT":
-      return `Discard ${cardLabel(catalog, a.card)}`;
-    case "PLACE_SIDEKICK":
-      return `Place ${a.fighter.split("/")[1]} on ${a.space}`;
-    case "RESPOND_PROMPT":
-      return "Answer prompt"; // rendered by PromptPanel instead — filtered out of the list
-    case "FORFEIT":
-      return "Forfeit"; // engine #32 enumerates it, but we filter it out of the list and offer it via the dock button
-  }
 };
 
 /**
@@ -2135,22 +2074,9 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   };
 
   // Hand affordances: a card is playable iff a server-offered action carries
-  // its instance id. Short verb labels; the full sentence stays in the sidebar.
-  const actionsForCard = (instance: CardInstanceId) =>
-    legalActions.flatMap((a) => {
-      if (!("card" in a) || a.card !== instance) return [];
-      const label =
-        a.type === "SCHEME"
-          ? "Scheme"
-          : a.type === "BOOST_MOVE"
-            ? "Boost move"
-            : a.type === "COMMIT_ATTACK_CARD"
-              ? "Attack with"
-              : a.type === "COMMIT_DEFENSE_CARD"
-                ? "Defend with"
-                : "Discard"; // DISCARD_TO_LIMIT — the only remaining card-carrying type
-      return [{ action: a, label }];
-    });
+  // its instance id (pure logic in lib/pro/actionDock — seat-agnostic, so a
+  // multiplayer BOOST_MOVE from p3 renders and sends exactly like a duel seat).
+  const actionsForCard = (instance: CardInstanceId) => cardAffordances(legalActions, instance);
 
   return (
     <ProErrorBoundary
