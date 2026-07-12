@@ -87,6 +87,57 @@ describe("diffFxEvents", () => {
     );
   });
 
+  // Elimination sweep (engine #102): a hero-dead seat's survivors drop to hp:0
+  // with a FIGHTER_DEFEATED but NO DAMAGE_APPLIED. The differ must not read the
+  // hp drop as combat damage (issue #212).
+  describe("elimination sweep", () => {
+    const swept = view({
+      fighters: [
+        fighter({}),
+        fighter({ id: "p2/hero", owner: "p2", space: null, hp: 0, defeated: true }),
+        fighter({ id: "p2/sidekick", owner: "p2", kind: "SIDEKICK", name: "Grunt", space: null, hp: 0, defeated: true }),
+      ],
+    });
+    const prev = view({
+      fighters: [
+        fighter({}),
+        fighter({ id: "p2/hero", owner: "p2", space: "s2", hp: 4 }),
+        fighter({ id: "p2/sidekick", owner: "p2", kind: "SIDEKICK", name: "Grunt", space: "s3", hp: 3 }),
+      ],
+    });
+
+    it("suppresses the phantom damage number for a swept sidekick (defeat only)", () => {
+      const events = diffFxEvents(prev, swept, [
+        { type: "DAMAGE_APPLIED", fighter: "p2/hero", amount: 4, source: "ATTACK" },
+        { type: "FIGHTER_DEFEATED", fighter: "p2/hero" },
+        { type: "FIGHTER_DEFEATED", fighter: "p2/sidekick" },
+      ]);
+      // The killed hero (has DAMAGE_APPLIED) keeps its damage number...
+      expect(events).toContainEqual(
+        expect.objectContaining({ type: "damage", fighter: "p2/hero", amount: 4 })
+      );
+      // ...but the swept sidekick gets no damage number, only its defeat.
+      expect(events).not.toContainEqual(expect.objectContaining({ type: "damage", fighter: "p2/sidekick" }));
+      expect(events).toContainEqual({ type: "defeated", fighter: "p2/sidekick", space: "s3", mine: false });
+    });
+
+    it("keeps the damage number for a genuine kill-shot (DAMAGE_APPLIED present)", () => {
+      const events = diffFxEvents(prev, swept, [
+        { type: "DAMAGE_APPLIED", fighter: "p2/sidekick", amount: 3, source: "ATTACK" },
+        { type: "FIGHTER_DEFEATED", fighter: "p2/sidekick" },
+      ]);
+      expect(events).toContainEqual(
+        expect.objectContaining({ type: "damage", fighter: "p2/sidekick", amount: 3 })
+      );
+      expect(events).toContainEqual({ type: "defeated", fighter: "p2/sidekick", space: "s3", mine: false });
+    });
+
+    it("falls back to pre-fix behaviour with no events (older server)", () => {
+      const events = diffFxEvents(prev, swept);
+      expect(events).toContainEqual(expect.objectContaining({ type: "damage", fighter: "p2/sidekick" }));
+    });
+  });
+
   it("detects heals", () => {
     const prev = view({ fighters: [fighter({ hp: 5 }), fighter({ id: "p2/hero", owner: "p2", space: "s2" })] });
     const next = view({ fighters: [fighter({ hp: 8 }), fighter({ id: "p2/hero", owner: "p2", space: "s2" })] });
