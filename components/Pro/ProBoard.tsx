@@ -139,6 +139,13 @@ export interface ProBoardProps {
    *  legalActions; the board just annotates the pulsing token so a 2-space melee
    *  attack doesn't read as a bug. Absent/empty = no annotation. */
   extendedReachTargets?: FighterId[];
+  /** Portrait art for a fighter's token, clipped into its circle (issue #247).
+   *  PRESENTATION ONLY — the caller resolves it client-side by hero id + kind
+   *  (see useProCardArt.resolveFighterToken); the board just paints whatever URL
+   *  it gets. Returns undefined/null for fighters whose deck has no token art,
+   *  and those tokens render initials-only exactly as before. Absent prop = no
+   *  art anywhere (the board demo / any caller that doesn't wire it). */
+  fighterTokenArt?: (fighter: ViewFighter) => string | null | undefined;
   /** transient effect overlays (floating damage numbers…) — keyed, caller-expired */
   fx?: BoardFxItem[];
   /** a just-committed move to tween through node-by-node instead of snapping */
@@ -194,6 +201,7 @@ export const ProBoard = ({
   friendlyOwners = [],
   fighterBadges = {},
   extendedReachTargets = [],
+  fighterTokenArt,
   fx = [],
   pendingMove = null,
   onPendingMoveSettled,
@@ -377,8 +385,43 @@ export const ProBoard = ({
       ? `${baseShadow}, 0 0 0 ${isSelected ? "5px" : "3px"} ${ALLY_RING}`
       : baseShadow;
 
+    // Portrait art clipped into the circle (issue #247). HEAD segment only: a
+    // LARGE fighter's tail body stays a plain colored circle (same head-only
+    // rule as the HP badge). Undefined/null for decks without token art → the
+    // token renders initials-only exactly as before.
+    const tokenArt = segment === "head" ? fighterTokenArt?.(f) : null;
+
     const children = (
       <>
+        {tokenArt && (
+          // Own inset layer with its OWN 50% clip + overflow:hidden so only the
+          // art is masked to the circle — the edge badges (HP/number/reach) sit
+          // OUTSIDE at negative offsets and must NOT be clipped, so the mask
+          // stays off the MotionFlex itself. A soft dark scrim over the art
+          // keeps the light initials + colored border legible on any portrait.
+          <Box
+            position="absolute"
+            inset={0}
+            borderRadius="50%"
+            overflow="hidden"
+            zIndex={0}
+          >
+            <Box
+              as="img"
+              src={tokenArt}
+              alt=""
+              draggable={false}
+              w="100%"
+              h="100%"
+              sx={{ objectFit: "cover", objectPosition: "center top" }}
+            />
+            <Box
+              position="absolute"
+              inset={0}
+              bg="radial-gradient(circle at 50% 42%, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.15) 55%, rgba(0,0,0,0.35) 100%)"
+            />
+          </Box>
+        )}
         <Text
           // rem, not vw: the label lives inside the zoom-transformed frame, so
           // a viewport-relative size would fight the zoom (text stays put while
@@ -386,7 +429,18 @@ export const ProBoard = ({
           fontSize="0.68rem"
           fontWeight="bold"
           letterSpacing="-0.02em"
-          color={f.kind === "HERO" ? "brand.surfaceDim" : "brand.parchment"}
+          // Over art, drop to a uniform light label + dark shadow: the per-kind
+          // dark/light color pair can't stay legible on an arbitrary portrait,
+          // so art forces white-on-scrim; no-art keeps the original pairing.
+          color={
+            tokenArt
+              ? "brand.parchment"
+              : f.kind === "HERO"
+                ? "brand.surfaceDim"
+                : "brand.parchment"
+          }
+          textShadow={tokenArt ? "0 1px 3px rgba(0,0,0,0.95)" : undefined}
+          zIndex={1}
           lineHeight={1}
         >
           {tokenInitials(f.name)}

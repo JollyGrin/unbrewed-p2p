@@ -161,7 +161,8 @@
       "move": 3,
       "name": "The Hollow Oak",
       "specialAbility": "JUST ANOTHER TREE\nAt the end of your turn, if there are no opposing fighters in the Hollow Oak's zone, you may draw 1 card.",
-      "quote": "A colossal walking oak that is happiest in an empty grove — a lone bruiser who crashes through the treeline with enormous swings, then stands still until it is just another tree."
+      "quote": "A colossal walking oak that is happiest in an empty grove — a lone bruiser who crashes through the treeline with enormous swings, then stands still until it is just another tree.",
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/token-oak.webp"
     },
     "name": "The Hollow Oak",
     "ruleCards": [],
@@ -170,7 +171,8 @@
       "isRanged": false,
       "name": "The Ember Fox",
       "quantity": 1,
-      "quote": "A quick fox with fur that smolders at the tips, trailing sparks through the undergrowth."
+      "quote": "A quick fox with fur that smolders at the tips, trailing sparks through the undergrowth.",
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/token-ember-fox.webp"
     }
   },
   "deck_first_published_on": null,
