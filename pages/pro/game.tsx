@@ -1266,7 +1266,7 @@ const HeroSelectLobby = ({
 // ---------------------------------------------------------------------------
 
 const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string | null }) => {
-  const { status, roomId, roomInfo, snapshot, opponentConnected, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, requestLobbies, setVisibility, serverRestarting, gameLost } =
+  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, requestLobbies, setVisibility, serverRestarting, gameLost } =
     useProSocket(WS_URL);
   const [joined, setJoined] = useState(false);
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
@@ -1772,12 +1772,21 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
 
           {/* team preview (issue #195): in a team format the seat→team mapping is
               fixed, so show who is with whom before the game even starts. The
-              viewer's team is listed first and accented. */}
+              viewer's team is listed first and accented. Live ROOM_STATUS roster
+              (issue #222) fills each seat with the real hero as it joins — an
+              un-filled seat shows "?" ("You + ? vs GINGERBREAD + ?"). */}
           {(() => {
             const comp = teamComposition(roomInfo?.formatId ?? selectedFormat);
             if (!comp) return null;
             const youSeat = roomInfo?.you;
-            const fmtSeat = (id: string) => (id === youSeat ? "You" : id.toUpperCase());
+            const rosterSeat = (id: string) => roomInfo?.roster?.find((s) => s.player === id);
+            const fmtSeat = (id: string) => {
+              if (id === youSeat) return "You";
+              const seat = rosterSeat(id);
+              if (!seat) return "?"; // seat not yet filled
+              const name = heroNameOf(heroes, seat.heroId) ?? id.toUpperCase();
+              return seat.bot ? `${name} (bot)` : name;
+            };
             const myTeam = youSeat ? comp.find((t) => t.seats.includes(youSeat)) : undefined;
             const ordered = myTeam ? [myTeam, ...comp.filter((t) => t !== myTeam)] : comp;
             return (
@@ -1801,6 +1810,42 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
                     </Tag>
                   </Flex>
                 ))}
+              </Flex>
+            );
+          })()}
+
+          {/* joined-heroes roster for NON-team multiplayer (ffa-3): the team
+              preview above already names heroes per side, so this fills the gap
+              for formats with no fixed team mapping — a live chip per seated
+              hero as ROOM_STATUS arrives (issue #222). */}
+          {(() => {
+            const roster = roomInfo?.roster;
+            const isTeam = !!teamComposition(roomInfo?.formatId ?? selectedFormat);
+            const required = roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers;
+            if (!roster || isTeam || required <= 2) return null;
+            const youSeat = roomInfo?.you;
+            return (
+              <Flex gap="0.5rem" alignItems="center" flexWrap="wrap" justifyContent="center">
+                {roster.map((s) => {
+                  const isYou = s.player === youSeat;
+                  const name = isYou ? "You" : heroNameOf(heroes, s.heroId) ?? s.player.toUpperCase();
+                  return (
+                    <Tag
+                      key={s.player}
+                      px="0.75rem"
+                      py="0.4rem"
+                      fontFamily="SpaceGrotesk"
+                      letterSpacing="0.04em"
+                      bg={isYou ? "#39B7A8" : "brand.surfaceDim"}
+                      color={isYou ? "brand.surfaceDim" : "brand.parchment"}
+                      opacity={s.connected ? 1 : 0.5}
+                    >
+                      {name}
+                      {s.bot ? " (bot)" : ""}
+                      {s.connected ? "" : " — reconnecting…"}
+                    </Tag>
+                  );
+                })}
               </Flex>
             );
           })()}
@@ -2178,6 +2223,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
         view={view}
         status={status}
         roomId={roomId}
+        seatPresence={seatPresence}
         resolveCard={resolveCard}
         resolveHero={resolveHero}
         labelFor={(c) => cardLabel(view.catalog, c)}
@@ -2217,9 +2263,17 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
               <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
                 {view.actionsRemaining} actions left
               </Tag>
-              {!opponentConnected && (
+              {/* In multiplayer the seat-identified presence map is authoritative
+                  (multiple seats can drop independently); duel keeps the coarse
+                  boolean untouched. The per-seat card badge + countdown live in
+                  ProHud — this chip is just the at-a-glance banner (issue #222). */}
+              {(multiplayerView ? Object.keys(seatPresence).length > 0 : !opponentConnected) && (
                 <Tag size="sm" colorScheme="red">
-                  {multiplayerView ? "player disconnected" : "opponent disconnected"}
+                  {multiplayerView
+                    ? Object.keys(seatPresence).length > 1
+                      ? `${Object.keys(seatPresence).length} players disconnected`
+                      : "player disconnected"
+                    : "opponent disconnected"}
                 </Tag>
               )}
             </Flex>

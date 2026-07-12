@@ -190,6 +190,33 @@
  * occupants in any supported format. Human joins still fill the next open runtime
  * slot; planned bot slots materialize automatically once earlier human slots are
  * filled.
+ *
+ * ## v15 (2026-07-12): live room status + seat-identified presence + auto-forfeit
+ * (unbrewed-engine #121, client sibling p2p #222). Three ADDITIVE changes — no
+ * PROTOCOL_VERSION bump; a client that ignores the new fields behaves exactly as
+ * on v14 (duel is untouched):
+ *
+ * - `ROOM_STATUS` (server → every seated player): the live waiting-room channel.
+ *   Carries `{ roomId, formatId, requiredPlayers, seats: RoomStatusSeat[] }` — public
+ *   pre-game info (hero picks are public), so the host's waiting panel can render
+ *   the true fill count AND which heroes have joined as seats arrive. Broadcast on
+ *   join, on pre-game seat release (the count can go DOWN — a ghost seat freed
+ *   after a 60s grace), and on waiting-room reconnect/disconnect. The existing
+ *   `seats: PlayerId[]` on ROOM_CREATED/ROOM_JOINED is untouched for compatibility;
+ *   ROOM_STATUS is the live channel.
+ *
+ * - `OPPONENT_STATUS.player` (additive): WHICH seat this presence change is about,
+ *   so multiplayer clients can flag the specific disconnected seat rather than a
+ *   single opaque "opponent". Omitted by older/duel servers, which keep driving the
+ *   coarse boolean.
+ *
+ * - `OPPONENT_STATUS.autoForfeitAt` (additive): when a NON-BOT seat drops mid-game
+ *   in a MULTIPLAYER format, the server arms a 2-minute auto-forfeit and sends the
+ *   epoch-ms deadline so every client can render a non-drifting countdown
+ *   ("reconnecting… auto-forfeit in 1:32", computed from `autoForfeitAt - now`).
+ *   Reconnect clears it with a plain all-clear (`connected: true`, no deadline). On
+ *   expiry the server injects a normal FORFEIT for that seat — the client needs no
+ *   special-casing; the ordinary elimination/game-over STATE takes over.
  */
 export const PROTOCOL_VERSION = 14;
 
@@ -682,6 +709,19 @@ export interface HeroListing {
   reach: "MELEE" | "RANGED";
 }
 
+// One seat in a live ROOM_STATUS broadcast (v15). Public pre-game info only —
+// the hero pick is public before the game starts, so the waiting room can name
+// who has joined. `bot` is the seat's AI difficulty (a server-filled AI seat) or
+// null for a human seat; `connected` reflects the seat's socket (a seated human
+// can briefly show disconnected during a waiting-room reconnect before its grace
+// timer releases the seat).
+export interface RoomStatusSeat {
+  player: PlayerId;
+  heroId: string;
+  connected: boolean;
+  bot: BotDifficulty | null;
+}
+
 // A public room waiting for a second player (LIST_LOBBIES result row).
 export interface LobbyListing {
   roomId: string;
@@ -743,7 +783,16 @@ export type ServerMsg =
   // Sent to BOTH seats once the game reaches GAME_OVER (v7). Unredacted +
   // self-contained; the client saves it for the /pro/replays scrubber.
   | { v: number; type: "REPLAY_BUNDLE"; bundle: ReplayBundle }
-  | { v: number; type: "OPPONENT_STATUS"; connected: boolean }
+  // v15: `player` identifies WHICH seat this is about (omitted by older/duel
+  // servers — the client then treats it as the coarse opponent signal). While a
+  // non-bot seat is disconnected mid-game in a MULTIPLAYER format, `autoForfeitAt`
+  // carries the epoch-ms server deadline for a non-drifting countdown; the
+  // all-clear (`connected: true`) omits it. See the v15 doc block.
+  | { v: number; type: "OPPONENT_STATUS"; connected: boolean; player?: PlayerId; autoForfeitAt?: number }
+  // v15: live waiting-room fill (seats/heroes/connectedness). Broadcast to every
+  // seated player on join, pre-game seat release (count may DROP), and
+  // waiting-room reconnect/disconnect. See RoomStatusSeat + the v15 doc block.
+  | { v: number; type: "ROOM_STATUS"; roomId: string; formatId: string; requiredPlayers: number; seats: RoomStatusSeat[] }
   // v7: the old instance is about to stop (SIGTERM). Show "server updating" and
   // let the reconnect loop take over — a valid RESUME_TOKEN revives the game.
   | { v: number; type: "SERVER_RESTARTING" }
