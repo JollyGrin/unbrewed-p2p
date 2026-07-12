@@ -52,6 +52,7 @@ export function buildBaselineView(overrides: Partial<PlayerView> = {}): PlayerVi
       discard: ["hero-a/strike#2"],
       committedCard: null,
       counters: {},
+      flags: {},
     },
     opponent: {
       id: "p2",
@@ -61,6 +62,7 @@ export function buildBaselineView(overrides: Partial<PlayerView> = {}): PlayerVi
       discard: ["hero-b/dodge#1"],
       hasCommitted: false,
       counters: {},
+      flags: {},
     },
     players: [
       {
@@ -74,6 +76,7 @@ export function buildBaselineView(overrides: Partial<PlayerView> = {}): PlayerVi
         committedCard: null,
         hasCommitted: false,
         counters: {},
+        flags: {},
       },
       {
         id: "p2",
@@ -84,6 +87,7 @@ export function buildBaselineView(overrides: Partial<PlayerView> = {}): PlayerVi
         discard: ["hero-b/dodge#1"],
         hasCommitted: false,
         counters: {},
+        flags: {},
       },
     ],
     combat: null,
@@ -156,6 +160,7 @@ export function buildSampleGame(): SampleStep[] {
       discard: ["hero-b/dodge#1"],
       committedCard: null,
       counters: {},
+      flags: {},
     },
     opponent: {
       id: "p1",
@@ -165,6 +170,7 @@ export function buildSampleGame(): SampleStep[] {
       discard: ["hero-a/strike#2"],
       hasCommitted: false,
       counters: {},
+      flags: {},
     },
     players: [
       {
@@ -178,6 +184,7 @@ export function buildSampleGame(): SampleStep[] {
         committedCard: null,
         hasCommitted: false,
         counters: {},
+        flags: {},
       },
       {
         id: "p1",
@@ -188,6 +195,7 @@ export function buildSampleGame(): SampleStep[] {
         discard: ["hero-a/strike#2"],
         hasCommitted: false,
         counters: {},
+        flags: {},
       },
     ],
   });
