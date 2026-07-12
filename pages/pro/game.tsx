@@ -61,6 +61,12 @@ import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
 import { diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
 import { cardAffordances, cardLabel, cardTitle, describeAction } from "@/lib/pro/actionDock";
+import {
+  isExtendedReachAttack,
+  LARGE_FIGHTER_BLURB,
+  LARGE_REACH_CHIP,
+  SpaceReach,
+} from "@/lib/pro/largeReach";
 import { useFlag } from "@/lib/flags";
 import { maneuverBoostHint } from "@/lib/pro/maneuverHint";
 import { buildPoseIndex, parsePoseOptions, poseHighlights, resolvePoseClick } from "@/lib/pro/moveChoice";
@@ -1893,6 +1899,28 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
     }
   }
 
+  // Large-fighter reach helper (issue #235): PRESENTATION ONLY. A melee attacker
+  // two spaces from a LARGE fighter is offered the attack (engine rule, docs §4.2b)
+  // and it reads as a bug with nothing on screen to explain it. Flag the exact
+  // DECLARE_ATTACK options that are legal only via the two-space extension so the
+  // sidebar row and the pulsing target can carry a "Large fighter — melee reach 2"
+  // hint. We EXPLAIN what the server already offered; we never re-check legality.
+  const spaceReachById = new Map<SpaceId, SpaceReach>(
+    view.map.spaces.map((s) => [s.id, { adjacentTo: s.adjacentTo, zones: s.zones }])
+  );
+  const fighterById = new Map<FighterId, ViewFighter>(view.fighters.map((f) => [f.id, f]));
+  const isExtendedReach = (a: Action): boolean => {
+    if (a.type !== "DECLARE_ATTACK") return false;
+    const attacker = fighterById.get(a.attacker);
+    const target = fighterById.get(a.target);
+    return !!attacker && !!target && isExtendedReachAttack(attacker, target, spaceReachById);
+  };
+  // Targets reachable ONLY via the extension — so the board can annotate the
+  // pulsing token. Keyed by target id (matches attackActions above).
+  const extendedReachTargets = new Set<FighterId>(
+    legalActions.filter(isExtendedReach).map((a) => (a as { target: FighterId }).target)
+  );
+
   // Prompts answer via the board too: a CHOOSE_SPACE option names its space in
   // option.id (place ops), option.data.space, or option.label (token ops label
   // a token's space, e.g. destroy-totem); CHOOSE_TARGET options a fighter id.
@@ -2111,6 +2139,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
           attack={view.combat ? { attacker: view.combat.attacker, target: view.combat.target } : null}
           friendlyOwners={friendlyOwners}
           fighterBadges={attackerBadge}
+          extendedReachTargets={[...extendedReachTargets]}
           fx={boardFx}
           pendingMove={pendingMove ?? incomingMove}
           onPendingMoveSettled={() => {
@@ -2270,7 +2299,23 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
                 textAlign="left"
                 onClick={() => sendAction(a)}
               >
-                {describeAction(view.catalog, a, { nameOf, attackerBadge })}
+                <Flex as="span" align="center" gap="0.4rem" flexWrap="wrap">
+                  <Text as="span">{describeAction(view.catalog, a, { nameOf, attackerBadge })}</Text>
+                  {isExtendedReach(a) && (
+                    <Tooltip label={LARGE_FIGHTER_BLURB} hasArrow placement="top" openDelay={150}>
+                      <Tag
+                        size="sm"
+                        bg="brand.accent"
+                        color="brand.surfaceDim"
+                        fontWeight={700}
+                        letterSpacing="0.01em"
+                        flexShrink={0}
+                      >
+                        {LARGE_REACH_CHIP}
+                      </Tag>
+                    </Tooltip>
+                  )}
+                </Flex>
               </Button>
             ))}
             {legalActions.length === 0 && !prompt && showLiveTurnChrome(view) && (

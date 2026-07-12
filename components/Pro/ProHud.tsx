@@ -52,6 +52,7 @@ import {
 } from "@/components/Game/Header/header.styles";
 import { DeckImportHeroType } from "@/components/DeckPool/deck-import.type";
 import { CardInstanceId, PlayerId, PlayerView, ViewFighter, ViewPlayer } from "@/lib/pro/protocol";
+import { isLargeFighter, LARGE_FIGHTER_BLURB } from "@/lib/pro/largeReach";
 import { deriveTeams } from "@/lib/pro/teams";
 import { ResolveCard, ResolveHero } from "@/lib/pro/useProCardArt";
 import { DEFAULT_PLATE_LAYOUT, PlateLayout, PlateSeat, useHudPlates } from "@/lib/pro/useHudPlates";
@@ -216,6 +217,7 @@ const SeatPlate = ({
   const heroName = heroFighter?.name ?? hero?.name ?? "";
   const ranged = heroFighter ? heroFighter.reach === "RANGED" : hero?.isRanged;
   const heroHp = heroFighter ? `${heroFighter.hp}/${heroFighter.maxHp}` : "–";
+  const isLargeHero = !!heroFighter && isLargeFighter(heroFighter);
   const collapsed = layout.collapsed;
   const moved = layout.x !== 0 || layout.y !== 0;
 
@@ -253,12 +255,21 @@ const SeatPlate = ({
           bg="brand.surfaceDim"
           color="brand.parchment"
           label={
-            hero?.specialAbility ? (
+            hero?.specialAbility || isLargeHero || sidekicks.length ? (
               <Box maxW="18rem" p="0.25rem" whiteSpace="pre-wrap" fontSize="0.78rem">
                 <Text fontWeight="bold" mb="0.25rem" color="brand.accent">
                   {heroName}
                 </Text>
-                {hero.specialAbility.trim()}
+                {hero?.specialAbility?.trim()}
+                {/* Standing large-fighter rule (issue #235). Keyed on the live
+                    two-space signal (heroFighter.tailSpace), so any future LARGE
+                    hero inherits it without a code change. Copy is shared with the
+                    attack-reach chip so the two never drift. */}
+                {isLargeHero && (
+                  <Text mt={hero?.specialAbility ? "0.5rem" : 0} color="brand.accent">
+                    {LARGE_FIGHTER_BLURB}
+                  </Text>
+                )}
                 {sidekicks.map((s) => (
                   <Text key={s.id} mt="0.4rem" opacity={s.defeated ? 0.6 : 1}>
                     <Text as="span" fontWeight="bold" color="brand.accent">
@@ -266,6 +277,7 @@ const SeatPlate = ({
                     </Text>{" "}
                     {s.name} — {s.hp}/{s.maxHp} HP,{" "}
                     {s.reach === "RANGED" ? "ranged" : "melee"}
+                    {isLargeFighter(s) ? " · large" : ""}
                     {s.defeated ? " (defeated)" : ""}
                   </Text>
                 ))}
