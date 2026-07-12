@@ -55,6 +55,7 @@ import { DeckImportHeroType } from "@/components/DeckPool/deck-import.type";
 import { CardInstanceId, PlayerId, PlayerView, ViewFighter, ViewPlayer } from "@/lib/pro/protocol";
 import { isLargeFighter, LARGE_FIGHTER_BLURB } from "@/lib/pro/largeReach";
 import { deriveTeams } from "@/lib/pro/teams";
+import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { FlagHudChip, ResolveCard, ResolveHero, flagChipsFor } from "@/lib/pro/useProCardArt";
 import { DEFAULT_PLATE_LAYOUT, PlateLayout, PlateSeat, useHudPlates } from "@/lib/pro/useHudPlates";
 import { CardFace } from "./ProHand";
@@ -816,7 +817,7 @@ export const ProHud = ({
             sidekicks={sidekicksOf(seat.id)}
             flags={seat.flags}
             isLocal={seat.you}
-            isActive={view.activePlayer === seat.id}
+            isActive={showLiveTurnChrome(view) && view.activePlayer === seat.id}
             isAlly={teams.relationOf(seat.id) === "ally"}
             presence={presenceOf(seat)}
             hand={seat.you ? seat.hand ?? view.self.hand : seat.handCount}
