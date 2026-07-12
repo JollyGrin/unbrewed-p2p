@@ -215,3 +215,192 @@ describe("useProSocket — RATE_LIMITED resilience (issue #209 / engine PR #103)
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Multi-lobby live fill + seat presence / auto-forfeit (issue #222, engine #121)
+// ---------------------------------------------------------------------------
+
+describe("useProSocket — ROOM_STATUS live waiting-room fill (issue #222)", () => {
+  const realWS = global.WebSocket;
+  beforeEach(() => {
+    // @ts-expect-error — swap in the fake for the test
+    global.WebSocket = FakeWebSocket;
+    window.localStorage.clear();
+  });
+  afterEach(() => {
+    global.WebSocket = realWS;
+    FakeWebSocket.last = null;
+  });
+
+  const bootWaiting = () => {
+    const hook = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    // 2v2 room, host is p1 — created but no game state yet (still waiting).
+    act(() =>
+      ws.emit({ type: "ROOM_CREATED", roomId: "R1", token: "tok", you: "p1", formatId: "team-2v2", seats: ["p1"], requiredPlayers: 4 })
+    );
+    return { hook, ws };
+  };
+
+  it("advances seat count and roster live as seats fill, preserving `you`", () => {
+    const { hook, ws } = bootWaiting();
+    expect(hook.result.current.roomInfo?.seats).toEqual(["p1"]);
+    expect(hook.result.current.roomInfo?.roster).toBeUndefined();
+
+    act(() =>
+      ws.emit({
+        type: "ROOM_STATUS",
+        formatId: "team-2v2",
+        requiredPlayers: 4,
+        seats: [
+          { player: "p1", heroId: "medusa", connected: true, bot: false },
+          { player: "p2", heroId: "king-kong", connected: true, bot: false },
+        ],
+      })
+    );
+
+    const info = hook.result.current.roomInfo!;
+    expect(info.seats).toEqual(["p1", "p2"]); // count advanced 1 → 2
+    expect(info.you).toBe("p1"); // preserved from ROOM_CREATED
+    expect(info.roster?.map((s) => s.heroId)).toEqual(["medusa", "king-kong"]);
+  });
+
+  it("renders a seat-count DROP gracefully (pre-game ghost-seat release)", () => {
+    const { hook, ws } = bootWaiting();
+    act(() =>
+      ws.emit({
+        type: "ROOM_STATUS",
+        formatId: "team-2v2",
+        requiredPlayers: 4,
+        seats: [
+          { player: "p1", heroId: "medusa", connected: true, bot: false },
+          { player: "p2", heroId: "king-kong", connected: true, bot: false },
+          { player: "p3", heroId: "bruce-lee", connected: true, bot: false },
+        ],
+      })
+    );
+    expect(hook.result.current.roomInfo?.seats).toHaveLength(3);
+
+    // p3's ghost seat is released after its grace expires — count drops to 2.
+    act(() =>
+      ws.emit({
+        type: "ROOM_STATUS",
+        formatId: "team-2v2",
+        requiredPlayers: 4,
+        seats: [
+          { player: "p1", heroId: "medusa", connected: true, bot: false },
+          { player: "p2", heroId: "king-kong", connected: true, bot: false },
+        ],
+      })
+    );
+    expect(hook.result.current.roomInfo?.seats).toEqual(["p1", "p2"]);
+    expect(hook.result.current.roomInfo?.roster).toHaveLength(2);
+  });
+});
+
+describe("useProSocket — seat presence + auto-forfeit countdown (issue #222)", () => {
+  const realWS = global.WebSocket;
+  beforeEach(() => {
+    // @ts-expect-error — swap in the fake for the test
+    global.WebSocket = FakeWebSocket;
+    window.localStorage.clear();
+  });
+  afterEach(() => {
+    global.WebSocket = realWS;
+    FakeWebSocket.last = null;
+  });
+
+  // A minimal multiplayer STATE with per-seat fighters we can mark defeated.
+  const mpState = (over: { winner?: string; defeated?: string[] } = {}) => ({
+    type: "STATE",
+    view: {
+      you: "p1",
+      prompt: null,
+      activePlayer: "p1",
+      winner: over.winner ?? null,
+      players: [{ id: "p1" }, { id: "p2" }, { id: "p3" }],
+      fighters: [
+        { owner: "p1", kind: "HERO", defeated: !!over.defeated?.includes("p1") },
+        { owner: "p2", kind: "HERO", defeated: !!over.defeated?.includes("p2") },
+        { owner: "p3", kind: "HERO", defeated: !!over.defeated?.includes("p3") },
+      ],
+    },
+    legalActions: [],
+  });
+
+  const bootMpGame = () => {
+    const hook = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    act(() => ws.emit({ type: "ROOM_JOINED", roomId: "R1", token: "tok", you: "p1", formatId: "ffa-3", seats: ["p1", "p2", "p3"], requiredPlayers: 3 }));
+    act(() => ws.emit(mpState()));
+    return { hook, ws };
+  };
+
+  it("records a disconnected seat + its auto-forfeit deadline, and clears on the all-clear", () => {
+    const { hook, ws } = bootMpGame();
+    expect(hook.result.current.seatPresence).toEqual({});
+
+    const deadline = 1_000_000;
+    act(() => ws.emit({ type: "OPPONENT_STATUS", connected: false, player: "p3", autoForfeitAt: deadline }));
+    expect(hook.result.current.seatPresence).toEqual({ p3: { autoForfeitAt: deadline } });
+
+    // reconnect → all-clear (no deadline) removes the entry.
+    act(() => ws.emit({ type: "OPPONENT_STATUS", connected: true, player: "p3" }));
+    expect(hook.result.current.seatPresence).toEqual({});
+  });
+
+  it("tracks multiple independent disconnected seats", () => {
+    const { hook, ws } = bootMpGame();
+    act(() => ws.emit({ type: "OPPONENT_STATUS", connected: false, player: "p2", autoForfeitAt: 111 }));
+    act(() => ws.emit({ type: "OPPONENT_STATUS", connected: false, player: "p3", autoForfeitAt: 222 }));
+    expect(hook.result.current.seatPresence).toEqual({ p2: { autoForfeitAt: 111 }, p3: { autoForfeitAt: 222 } });
+
+    act(() => ws.emit({ type: "OPPONENT_STATUS", connected: true, player: "p2" }));
+    expect(hook.result.current.seatPresence).toEqual({ p3: { autoForfeitAt: 222 } });
+  });
+
+  it("clears a seat's presence when the auto-forfeit fires (STATE shows it eliminated)", () => {
+    const { hook, ws } = bootMpGame();
+    act(() => ws.emit({ type: "OPPONENT_STATUS", connected: false, player: "p3", autoForfeitAt: 999 }));
+    expect(hook.result.current.seatPresence.p3).toBeDefined();
+
+    // The server injects FORFEIT; the resulting STATE shows p3 swept. No all-clear
+    // is sent (the player is still gone) — the countdown must clear here anyway so
+    // the elimination UI takes over cleanly.
+    act(() => ws.emit(mpState({ defeated: ["p3"] })));
+    expect(hook.result.current.seatPresence).toEqual({});
+  });
+
+  it("clears ALL presence when the game ends (winner set)", () => {
+    const { hook, ws } = bootMpGame();
+    act(() => ws.emit({ type: "OPPONENT_STATUS", connected: false, player: "p2", autoForfeitAt: 1 }));
+    act(() => ws.emit({ type: "OPPONENT_STATUS", connected: false, player: "p3", autoForfeitAt: 2 }));
+    act(() => ws.emit(mpState({ winner: "p1" })));
+    expect(hook.result.current.seatPresence).toEqual({});
+  });
+
+  it("keeps a still-alive disconnected seat across other players' STATE broadcasts", () => {
+    const { hook, ws } = bootMpGame();
+    act(() => ws.emit({ type: "OPPONENT_STATUS", connected: false, player: "p3", autoForfeitAt: 500 }));
+    // p1/p2 keep playing — normal STATE broadcasts arrive with p3 still alive.
+    act(() => ws.emit(mpState()));
+    expect(hook.result.current.seatPresence).toEqual({ p3: { autoForfeitAt: 500 } });
+  });
+
+  it("duel path unchanged: OPPONENT_STATUS without `player` drives only the coarse bool", () => {
+    const hook = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    act(() => ws.emit(roomJoined()));
+    act(() => ws.emit(minimalState()));
+
+    act(() => ws.emit({ type: "OPPONENT_STATUS", connected: false }));
+    expect(hook.result.current.opponentConnected).toBe(false);
+    expect(hook.result.current.seatPresence).toEqual({}); // never populated in duel
+
+    act(() => ws.emit({ type: "OPPONENT_STATUS", connected: true }));
+    expect(hook.result.current.opponentConnected).toBe(true);
+  });
+});
