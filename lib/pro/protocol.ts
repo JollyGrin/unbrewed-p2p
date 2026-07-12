@@ -191,7 +191,7 @@
  * slot; planned bot slots materialize automatically once earlier human slots are
  * filled.
  *
- * ## v15 (2026-07-12): live room status + seat-identified presence + auto-forfeit
+ * ## Additive change (2026-07-12, no version bump): live room status + presence
  * (unbrewed-engine #121, client sibling p2p #222). Three ADDITIVE changes — no
  * PROTOCOL_VERSION bump; a client that ignores the new fields behaves exactly as
  * on v14 (duel is untouched):
@@ -217,8 +217,22 @@
  *   Reconnect clears it with a plain all-clear (`connected: true`, no deadline). On
  *   expiry the server injects a normal FORFEIT for that seat — the client needs no
  *   special-casing; the ordinary elimination/game-over STATE takes over.
+ *
+ * ## v15 (2026-07-12): hero tiers + debug gating (unbrewed-engine #130, #107 Phase 1)
+ * `HeroListing` gains `tier` (`'reflavored' | 'spice' | 'community'`) so the
+ * client can render a ★ on reflavored names under `?debug`. `LIST_HEROES` and
+ * `CREATE_ROOM` both gain an optional `debug` flag (default false/absent):
+ * false hides `tier === 'reflavored'` heroes from the HEROES listing and from
+ * the server's random bot-hero pool (duel `bot.heroId` omitted, and
+ * `botSeats[].heroId` omitted); `debug: true` includes them in both. An
+ * EXPLICIT `heroId` — the player's own pick, a named `bot.heroId`/
+ * `botSeats[].heroId`, or `JOIN_ROOM.heroId` — is never gated by tier; only the
+ * two random-pick pools are filtered. Purely additive; the server still accepts
+ * v14 (an older client that omits `debug` gets `debug: false` behavior — a
+ * reflavored hero, today only `thetis`, drops out of its HEROES listing and
+ * random-bot pools).
  */
-export const PROTOCOL_VERSION = 14;
+export const PROTOCOL_VERSION = 15;
 
 /** Scripted-AI strength preset (server-side budgets; client treats as opaque). */
 export type BotDifficulty = "easy" | "medium" | "hard";
@@ -701,12 +715,19 @@ export type ReplayResponse = ReplayExpansion | ReplayError;
 // ERROR{code:'VERSION'} and the client shows "refresh".
 // ---------------------------------------------------------------------------
 
+// A hero's visibility class (#107 Phase 1). `reflavored` decks are hidden from
+// the public roster and random bot rotation unless the request carries
+// `debug: true`; `spice` are their public replacements; `community` heroes are
+// always visible (no reflavor exists yet).
+export type HeroTier = "reflavored" | "spice" | "community";
+
 export interface HeroListing {
   heroId: string;
   name: string;
   hp: number;
   move: number;
   reach: "MELEE" | "RANGED";
+  tier: HeroTier;
 }
 
 // One seat in a live ROOM_STATUS broadcast (v15). Public pre-game info only —
@@ -739,7 +760,9 @@ export interface UndoActionSummary {
 }
 
 export type ClientMsg =
-  | { v: number; type: "LIST_HEROES" }
+  // `debug` (v15): true includes `tier: 'reflavored'` heroes in the HEROES
+  // listing. Absent/false = hidden. See the v15 note above.
+  | { v: number; type: "LIST_HEROES"; debug?: boolean }
   | { v: number; type: "LIST_LOBBIES" }
   // `customMap` (v4): playtest an unpublished board — the server validates it
   // and uses it for this room only. Composes with `bot`. Omit for the default map.
@@ -747,7 +770,10 @@ export type ClientMsg =
   // hands included — reproduces from {seed, actionLog}. HONORED ONLY when the
   // server enables it (PRO_ALLOW_DEV_SEED=1); production ignores it. Additive and
   // never sent by the real client, so it needs no client-side protocol sync.
-  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef }
+  // `debug` (v15): true includes `tier: 'reflavored'` heroes in the random pool
+  // a server-picked `bot.heroId`/`botSeats[].heroId` draws from. Absent/false =
+  // excluded. Never gates an explicitly named heroId. See the v15 note above.
+  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean }
   | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string }
   | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }

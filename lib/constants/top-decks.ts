@@ -1,4 +1,5 @@
 import { HexColorString } from "@/lib/generic.type";
+import { HeroTier } from "@/lib/pro/protocol";
 
 export type PopularDeckMeta = {
   id: string;
@@ -13,6 +14,15 @@ export type PopularDeckMeta = {
    * exists (don't link there), and the committed snapshot is the only source.
    */
   original?: boolean;
+  /**
+   * Visibility class, mirroring the server's HeroListing.tier. Set to
+   * `"reflavored"` for a baseline deck that a spice remix has replaced: it is
+   * hidden from the default roster and only appears (with a ` ★` suffix) under
+   * `?debug`. The server also omits reflavored heroes from a non-debug
+   * listing, so this static tag is what lets the client hide the tile even
+   * before/without a live roster. Omitted = a normally-visible deck.
+   */
+  tier?: HeroTier;
 };
 
 /**
@@ -348,6 +358,8 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
   },
   {
     // Evergreen original: Thetis, the Ebb-and-Flow — server hero thetis.
+    // Reflavored/baseline deck (tier === 'reflavored'): hidden from the default
+    // roster and bot rotation, visible only under ?debug (see ProLanding).
     id: "thetis",
     name: "Thetis",
     hero: "Thetis",
@@ -355,6 +367,21 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     likes: 0,
     highlightColour: "#2ec4b6",
     // self-hosted; also patched into the evergreen snapshot appearance
+    cardbackUrl: "https://unbrewed.xyz/cardbacks/thetis.webp",
+    original: true,
+    // Replaced on the default roster by `thetis-spice`; visible only under ?debug.
+    tier: "reflavored",
+  },
+  {
+    // Spice remix of Thetis (display name "Thetis") — server hero thetis-spice.
+    // This is the deck shown on the default roster; reuses Thetis's cardback and
+    // per-card art until dedicated spice art lands.
+    id: "thetis-spice",
+    name: "Thetis",
+    hero: "Thetis",
+    author: "unbrewed",
+    likes: 0,
+    highlightColour: "#2ec4b6",
     cardbackUrl: "https://unbrewed.xyz/cardbacks/thetis.webp",
     original: true,
   },
