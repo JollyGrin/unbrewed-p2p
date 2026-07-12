@@ -7,15 +7,27 @@ import { HeroListing, PROTOCOL_VERSION, ServerMsg } from "./protocol";
  * without the reconnect/room machinery useProSocket carries for gameplay.
  * Returns null until the server replies (or the fetch never resolves), so a
  * hero's "ready" status can fall back to a hardcoded default until then.
+ *
+ * `debug` (v15): when true, sends `LIST_HEROES { debug: true }` so the server
+ * includes `tier === 'reflavored'` heroes in the reply (hidden by default).
  */
-export function useProLiveRoster(wsUrl: string | undefined): HeroListing[] | null {
+export function useProLiveRoster(
+  wsUrl: string | undefined,
+  debug = false
+): HeroListing[] | null {
   const [heroes, setHeroes] = useState<HeroListing[] | null>(null);
 
   useEffect(() => {
     if (!wsUrl) return;
     const ws = new WebSocket(wsUrl);
     ws.onopen = () => {
-      ws.send(JSON.stringify({ v: PROTOCOL_VERSION, type: "LIST_HEROES" }));
+      ws.send(
+        JSON.stringify({
+          v: PROTOCOL_VERSION,
+          type: "LIST_HEROES",
+          ...(debug ? { debug: true } : {}),
+        })
+      );
     };
     ws.onmessage = (e) => {
       let msg: ServerMsg;
@@ -30,7 +42,7 @@ export function useProLiveRoster(wsUrl: string | undefined): HeroListing[] | nul
       }
     };
     return () => ws.close();
-  }, [wsUrl]);
+  }, [wsUrl, debug]);
 
   return heroes;
 }
