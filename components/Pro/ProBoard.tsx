@@ -239,6 +239,10 @@ export const ProBoard = ({
   // to the board frame. Rects are captured once at pointerdown — the grab
   // offset keeps the panel from jumping under the pointer.
   const onHeaderPointerDown = (regionId: string) => (e: ReactPointerEvent<HTMLDivElement>) => {
+    // Stop the press from bubbling to the outer container, whose useZoomPan
+    // pointer-down would otherwise start a BOARD pan under the panel — one
+    // gesture moving both (issue #216 parallax). The panel is its own drag.
+    e.stopPropagation();
     const frame = frameRef.current;
     const panel = e.currentTarget.parentElement;
     if (!frame || !panel) return;
@@ -718,6 +722,9 @@ export const ProBoard = ({
     return (
       <Box
         key={r.id}
+        // Marks the inset panel subtree so useZoomPan ignores any pointer/wheel
+        // gesture that starts inside it — defense-in-depth against issue #216.
+        data-region-panel={r.id}
         position="relative"
         w="100%"
         borderRadius="0.5rem"

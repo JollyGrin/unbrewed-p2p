@@ -363,4 +363,39 @@ describe("ProBoard zoom/pan (issue #120)", () => {
     fireEvent.click(hit as HTMLElement);
     expect(onSpaceClick).toHaveBeenCalledWith("s2");
   });
+
+  // issue #216: with zoomMap on, the inset panel is a child of the pan target,
+  // so a header-drag pointerdown used to start BOTH the panel drag and a board
+  // pan (a parallax). The header now stops propagation and useZoomPan ignores
+  // any gesture that begins inside a region panel — so the board stays put.
+  it("dragging a region panel's header does not pan the board", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={REGION_MAP} fighters={[fighter({})]} zoomable />
+      </ChakraProvider>
+    );
+    const frame = frameOf();
+    const before = getComputedStyle(frame).transform; // identity, feature on
+    const header = screen.getByText("The Hut").parentElement as HTMLElement;
+    fireEvent.pointerDown(header, { pointerId: 1, clientX: 100, clientY: 100 });
+    // a move well past PAN_THRESHOLD — would translate the frame if it panned
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 200, clientY: 200 });
+    fireEvent.pointerUp(window, { pointerId: 1 });
+    expect(getComputedStyle(frame).transform).toBe(before); // board untouched
+    // and no drag-swallow lingered: the reset control never appeared
+    expect(screen.queryByText("reset view")).not.toBeInTheDocument();
+  });
+
+  // the panel's own controls keep working under zoom (its collapse caret
+  // stops propagation itself, so it never reaches the pan path either).
+  it("keeps the region panel's collapse toggle working with zoom on", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={REGION_MAP} fighters={[fighter({})]} zoomable />
+      </ChakraProvider>
+    );
+    expect(screen.getByAltText("The Hut")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("toggle The Hut"));
+    expect(screen.queryByAltText("The Hut")).not.toBeInTheDocument(); // collapsed
+  });
 });
