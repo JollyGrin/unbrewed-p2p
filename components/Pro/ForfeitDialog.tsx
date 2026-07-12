@@ -6,8 +6,10 @@
  *
  * The stakes differ by format (unbrewed-engine #117), so the body copy adapts:
  * in a duel it hands the opponent the win; in multiplayer it resigns YOUR seat
- * (your fighters are swept), while the rest of the table — including a surviving
- * teammate — plays on, so you may keep watching.
+ * (your fighters are swept) and the match MAY play on without you. Whether it
+ * actually continues is the server's human-stake call (a solo human forfeiting
+ * ends it at once) — knowledge the client doesn't have — so the copy stays
+ * conditional ("if the match continues…") rather than promising a spectate view.
  */
 import { useRef } from "react";
 import {
@@ -42,7 +44,7 @@ export const ForfeitDialog = ({
           </AlertDialogHeader>
           <AlertDialogBody>
             {multiplayer
-              ? "You resign your seat and its fighters are removed. The rest of the table plays on — you'll keep watching. This cannot be undone."
+              ? "You resign your seat and its fighters are removed. If the match continues without you, you can keep watching. This cannot be undone."
               : "Your opponent wins. This cannot be undone."}
           </AlertDialogBody>
           <AlertDialogFooter gap="0.6rem">

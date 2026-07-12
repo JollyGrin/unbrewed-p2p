@@ -256,7 +256,12 @@ export type Action =
   // the seat's fighters are swept and it drops out of turn order; the game may
   // continue (team/ffa) or end (human-stake rule). Hence `player: PlayerId`, not
   // `DuelPlayerId` — any seat on the clock may forfeit.
-  | { type: "FORFEIT"; player: PlayerId };
+  // `endsMatch` (unbrewed-engine PR #118): SERVER-STAMPED into the action log so a
+  // replayed log reproduces the human-stake game-end deterministically (bot-ness
+  // is server knowledge the engine can't re-derive from {setup, seed} alone).
+  // The CLIENT never sets it — it constructs `{ type: "FORFEIT", player }` and the
+  // server fills this in before logging. Optional/absent on the wire the client sends.
+  | { type: "FORFEIT"; player: PlayerId; endsMatch?: boolean };
 
 // ---------------------------------------------------------------------------
 // Structured event stream (v10). MIRROR of engine/types.ts `GameEvent` — the
