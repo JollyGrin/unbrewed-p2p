@@ -101,6 +101,7 @@ bespoke rendering work, not just data wiring:
   already deployed the new one (and vice versa).
 - Precedents: totem rendering (`f0992b0`, `7d0ad9d`), two-space large
   fighters (PR #91 ↔ engine #17).
+- Engine flag-driven public state (e.g. Thetis tide) surfaces as an always-visible player-card pill via the `FLAG_HUD_CHIPS` registry in `lib/pro/useProCardArt.ts` — a new flag-driven deck adds one entry there, no component changes (issue #233 ↔ engine #132).
 
 ## Gotchas (hard-won, keep them)
 

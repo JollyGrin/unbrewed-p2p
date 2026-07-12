@@ -511,6 +511,7 @@ export interface ViewSelf {
   discard: CardInstanceId[];
   committedCard: CardInstanceId | null; // own face-down commit (visible to self)
   counters: Record<string, number>;
+  flags?: Record<string, boolean>; // public per-player flags (see ViewPlayer.flags)
 }
 
 export interface ViewOpponent {
@@ -521,6 +522,7 @@ export interface ViewOpponent {
   discard: CardInstanceId[]; // discard is public
   hasCommitted: boolean; // face-down commit exists, identity hidden
   counters: Record<string, number>; // counters are public
+  flags?: Record<string, boolean>; // public per-player flags (see ViewPlayer.flags)
 }
 
 export interface ViewPlayer {
@@ -541,6 +543,18 @@ export interface ViewPlayer {
   // renders exactly as before (no team chrome). Mirrors unbrewed-engine PR #101
   // (`team` on ViewPlayer + ReplayStepPlayer) — no PROTOCOL_VERSION bump.
   team?: TeamId;
+  // Public per-player flags, mirroring `counters` (ALL flags are public info the
+  // opponent must play around — Thetis/thetis-spice run EBB AND FLOW on a
+  // `HIGH_TIDE` flag; LOW TIDE = the flag's absence). A set flag is `true`; an
+  // absent flag reads as `false`/undefined. Rendered as a HUD state pill via the
+  // FLAG_HUD_CHIPS registry in lib/pro/useProCardArt.ts.
+  //
+  // ADDITIVE + OPTIONAL, so an older server (pre-flags) omits it and the client
+  // renders exactly as before (no tide chip). Mirrors unbrewed-engine #132
+  // (`flags` on the redacted PlayerView). Kept at the current PROTOCOL_VERSION
+  // per the `team` precedent above; sync the bump here when #132 lands and
+  // formalizes the accepted-version set.
+  flags?: Record<string, boolean>;
 }
 
 export interface ViewCombatCard {

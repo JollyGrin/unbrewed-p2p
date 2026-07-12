@@ -35,8 +35,9 @@ import {
   TbFlask,
   TbBug,
 } from "react-icons/tb";
-import { GiFootprint, GiHearts } from "react-icons/gi";
+import { GiFootprint, GiHearts, GiHighTide, GiLowTide } from "react-icons/gi";
 import { IoMdHand, IoMdVolumeHigh, IoMdVolumeOff } from "react-icons/io";
+import { IconType } from "react-icons";
 import {
   ChipCluster,
   HeroName,
@@ -53,7 +54,7 @@ import {
 import { DeckImportHeroType } from "@/components/DeckPool/deck-import.type";
 import { CardInstanceId, PlayerId, PlayerView, ViewFighter, ViewPlayer } from "@/lib/pro/protocol";
 import { deriveTeams } from "@/lib/pro/teams";
-import { ResolveCard, ResolveHero } from "@/lib/pro/useProCardArt";
+import { FlagHudChip, ResolveCard, ResolveHero, flagChipsFor } from "@/lib/pro/useProCardArt";
 import { DEFAULT_PLATE_LAYOUT, PlateLayout, PlateSeat, useHudPlates } from "@/lib/pro/useHudPlates";
 import { CardFace } from "./ProHand";
 import { ProConnectionStatus, SeatPresence } from "@/lib/pro/useProSocket";
@@ -63,6 +64,66 @@ import { FLAGS, useFlags } from "@/lib/flags";
 // and stays distinct from the gold TURN chip and from every per-seat identity
 // color (gold/blue/green/magenta) so the ALLY chip never blends into a plate.
 const ALLY_ACCENT = "#39B7A8";
+
+// ---------------------------------------------------------------------------
+// Flag HUD chip — always-visible public-state pill (tide today; any future
+// flag-driven deck by adding a FLAG_HUD_CHIPS entry, see useProCardArt.ts)
+// ---------------------------------------------------------------------------
+
+// Optional per-flag glyph. A registry entry with no icon here renders text-only
+// (zero component surgery for a new flag-driven deck). Tide gets the game-icons
+// rising/ebbing-wave pair so HIGH vs LOW reads at a glance — but the WORDS carry
+// the meaning; the icon is reinforcement, never the sole signal.
+const FLAG_CHIP_ICONS: Record<string, { on: IconType; off: IconType }> = {
+  HIGH_TIDE: { on: GiHighTide, off: GiLowTide },
+};
+
+// Kept generic over on/off (flag active vs absent) rather than per-flag, so any
+// future two-state flag reads with the same saturated/muted grammar.
+const flagChipPalette = (on: boolean) =>
+  on
+    ? { bg: "#2E6E8E", color: "#EAF6FB", ring: "rgba(140, 205, 235, 0.6)" }
+    : { bg: "#586A73", color: "#E9F0F3", ring: "rgba(165, 190, 200, 0.45)" };
+
+/**
+ * One flag pill, styled in the counter-chip visual family. `key`ed by its state
+ * upstream so a mid-game flip (HIGH TIDE <-> LOW TIDE from a "Turn the tide."
+ * card) REMOUNTS it and replays the entrance pulse — the flip is noticeable with
+ * no manual prev-value bookkeeping.
+ */
+const FlagChip = ({ chip, on }: { chip: FlagHudChip; on: boolean }) => {
+  const icons = FLAG_CHIP_ICONS[chip.flag];
+  const Icon = icons ? (on ? icons.on : icons.off) : null;
+  const label = on ? chip.onLabel : chip.offLabel;
+  const pal = flagChipPalette(on);
+  return (
+    <motion.div
+      initial={{ scale: 0.6, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ type: "spring", stiffness: 520, damping: 20 }}
+      aria-label={label}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "0.2rem",
+        flexShrink: 0,
+        padding: "0.1rem 0.4rem",
+        borderRadius: "0.375rem",
+        fontSize: "0.65rem",
+        fontWeight: 700,
+        lineHeight: 1.4,
+        letterSpacing: "0.05em",
+        whiteSpace: "nowrap",
+        background: pal.bg,
+        color: pal.color,
+        boxShadow: `inset 0 0 0 1px ${pal.ring}`,
+      }}
+    >
+      {Icon && <Icon size={12} />}
+      {label}
+    </motion.div>
+  );
+};
 
 // ---------------------------------------------------------------------------
 // Discard viewer (public info for both seats)
@@ -172,8 +233,10 @@ export const ForfeitCountdown = ({ deadline }: { deadline: number }) => {
 const SeatPlate = ({
   label,
   hero,
+  heroId,
   heroFighter,
   sidekicks,
+  flags,
   isLocal,
   isActive,
   isAlly,
@@ -189,8 +252,12 @@ const SeatPlate = ({
 }: {
   label: string;
   hero: DeckImportHeroType | null;
+  /** server hero id — gates flag chips (tide only shows for tide heroes) */
+  heroId: string;
   heroFighter: ViewFighter | undefined;
   sidekicks: ViewFighter[];
+  /** public per-player engine flags (tide etc.); undefined on older servers */
+  flags?: Record<string, boolean>;
   isLocal: boolean;
   isActive: boolean;
   /** teammate of the viewing player (team formats only) — shows an ALLY chip */
@@ -298,6 +365,14 @@ const SeatPlate = ({
       ALLY
     </Tag>
   ) : null;
+
+  // Public flag pills (issue #233): always-visible on BOTH seats' cards for heroes
+  // with a flag mechanic (tide today). Generic over the FLAG_HUD_CHIPS registry —
+  // non-flag heroes get an empty list and render exactly as before. Keyed by
+  // on/off state so a mid-game flip remounts the chip and replays its pulse.
+  const flagTags = flagChipsFor(heroId, flags).map(({ chip, on }) => (
+    <FlagChip key={`${chip.flag}-${on ? "on" : "off"}`} chip={chip} on={on} />
+  ));
 
   const controls = hovered ? (
     <Flex alignItems="center" gap="0.15rem" flexShrink={0}>
@@ -421,6 +496,7 @@ const SeatPlate = ({
       <PlayerTitleBar>
         {renderNameBlock(false)}
         <Flex alignItems="center" gap="0.3rem" flexShrink={0}>
+          {flagTags}
           {presenceTag}
           {allyTag}
           {turnTag}
@@ -489,6 +565,7 @@ const SeatPlate = ({
                       {heroHp}
                     </Text>
                   </Flex>
+                  {flagTags}
                   {presenceTag}
                   {allyTag}
                   {turnTag}
@@ -502,6 +579,7 @@ const SeatPlate = ({
             <PlayerTitleBar {...titleBarDrag}>
               {renderNameBlock(true)}
               <Flex alignItems="center" gap="0.3rem" flexShrink={0}>
+                {flagTags}
                 {presenceTag}
                 {allyTag}
                 {turnTag}
@@ -669,6 +747,7 @@ export const ProHud = ({
           committedCard: view.self.committedCard,
           hasCommitted: !!view.self.committedCard,
           counters: view.self.counters,
+          flags: view.self.flags,
         },
         ...(view.opponent
           ? [{
@@ -680,6 +759,7 @@ export const ProHud = ({
               discard: view.opponent.discard,
               hasCommitted: view.opponent.hasCommitted,
               counters: view.opponent.counters,
+              flags: view.opponent.flags,
             }]
           : []),
       ];
@@ -710,8 +790,10 @@ export const ProHud = ({
             key={seat.id}
             label={seatLabel(seat)}
             hero={resolveHero(seat.heroId)}
+            heroId={seat.heroId}
             heroFighter={heroOf(seat.id)}
             sidekicks={sidekicksOf(seat.id)}
+            flags={seat.flags}
             isLocal={seat.you}
             isActive={view.activePlayer === seat.id}
             isAlly={teams.relationOf(seat.id) === "ally"}
