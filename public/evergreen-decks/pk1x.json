@@ -199,7 +199,8 @@
       "move": 2,
       "name": "Thrall",
       "specialAbility": "At end of turn, place 1 totem in any space unoccupied by opposing fighters and in Thrall's range (max 4 in play at any time). \nWhen an opposing fighter occupies a totem's space, destroy that totem.",
-      "quote": "An orc shaman who claims the battlefield one totem at a time, bending its spaces to his will and calling the spirits down on anyone who trespasses."
+      "quote": "An orc shaman who claims the battlefield one totem at a time, bending its spaces to his will and calling the spirits down on anyone who trespasses.",
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/pk1x/token-thrall.webp"
     },
     "sidekick": {
       "hp": 6,

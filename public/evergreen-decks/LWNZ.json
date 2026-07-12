@@ -187,7 +187,8 @@
       "move": 4,
       "name": "gingerbread man ",
       "specialAbility": "           FRESH OUT OF THE OVEN\nGingerbread man may maneuver through spaces containing opposing fighters.\nAt the end of your turn, if Fox is adjacent to Gingerbread man, Gingerbread man takes 1 damage. \n",
-      "quote": "Fresh out of the oven and impossible to pin down — he runs straight through enemy lines, always one step ahead of the Fox snapping at his heels."
+      "quote": "Fresh out of the oven and impossible to pin down — he runs straight through enemy lines, always one step ahead of the Fox snapping at his heels.",
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/LWNZ/token-gingerbread-man.webp"
     },
     "name": "",
     "ruleCards": [],
@@ -196,7 +197,8 @@
       "isRanged": false,
       "name": "Fox",
       "quantity": 1,
-      "quote": "Helpful, patient, and always hungry — best stay out of reach of those jaws."
+      "quote": "Helpful, patient, and always hungry — best stay out of reach of those jaws.",
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/LWNZ/token-fox.webp"
     }
   },
   "deck_first_published_on": null,
