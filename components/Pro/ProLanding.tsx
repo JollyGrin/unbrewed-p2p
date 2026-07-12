@@ -34,7 +34,9 @@ import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 const FALLBACK_READY: Record<string, string> = {
   kdKM: "King Kong",
   taranis: "King Taranis",
-  thetis: "Thetis",
+  // Spice remix (display name "Thetis") is the default-roster Thetis; the
+  // reflavored baseline `thetis` is hidden unless ?debug (see roster filter).
+  "thetis-spice": "Thetis",
   piper: "The Piper of the Underroads",
   "hollow-oak": "The Hollow Oak",
   lDOM: "The Mandalorian",
