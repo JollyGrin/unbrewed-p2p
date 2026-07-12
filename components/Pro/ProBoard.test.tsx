@@ -64,6 +64,54 @@ describe("ProBoard fighter token", () => {
   });
 });
 
+// Portrait token art (issue #247): fighterTokenArt paints a URL into the circle;
+// initials stay in the DOM (legible over a scrim). Decks without art omit the
+// prop / return null and render exactly as before.
+describe("ProBoard fighter token art", () => {
+  const artFor = (url: string | null) => () => url;
+
+  it("clips the resolved portrait into the token and keeps the initials", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[fighter({ name: "The Piper of the Underroads" })]}
+          fighterTokenArt={artFor("/evergreen-decks/art/piper/token-piper.webp")}
+        />
+      </ChakraProvider>
+    );
+    const img = container.querySelector('img[src="/evergreen-decks/art/piper/token-piper.webp"]');
+    expect(img).toBeInTheDocument();
+    // initials remain rendered on top of the art for legibility
+    expect(screen.getByText("PIP")).toBeInTheDocument();
+  });
+
+  it("renders no token art when the resolver returns null (converted decks)", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={MAP} fighters={[fighter({})]} fighterTokenArt={artFor(null)} />
+      </ChakraProvider>
+    );
+    // scope to the token itself — the board's own map background is an <img> too
+    const token = screen.getByTitle(/The Mandalorian/);
+    expect(token.querySelector("img")).toBeNull();
+  });
+
+  it("paints art only on the HEAD segment of a two-space (LARGE) fighter, never the tail", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[fighter({ id: "p1/kong", name: "King Kong", space: "s1", tailSpace: "s2" })]}
+          fighterTokenArt={artFor("/art/kong.webp")}
+        />
+      </ChakraProvider>
+    );
+    // exactly one art layer — the head token; the tail circle stays plain
+    expect(container.querySelectorAll('img[src="/art/kong.webp"]')).toHaveLength(1);
+  });
+});
+
 // v9 board regions (Baba Yaga's Hut): region spaces render inside an inset
 // panel with its own positioning frame; a closed region greys out and stops
 // taking pointer events.
