@@ -373,6 +373,27 @@ describe("multiplayer diffViews", () => {
       "Defeat — P3 wins",
     ]));
   });
+
+  it("names the acting seat (not 'Opponent') for a p3 maneuver boost in >2p", () => {
+    // A boosted move by p3 surfaces as its discard line + the enrich '(boost)'
+    // suffix (MOVE_BOOSTED itself is diff-covered, not a standalone line). Post
+    // engine-#119 the boosting seat can be p3; the seat label must read "P3".
+    const prev = view({ opponent: null, players: players3() });
+    const next = view({
+      opponent: null,
+      activePlayer: "p3",
+      players: players3({ discard: ["a/fireball#1"] }),
+    });
+    const diff = diffViews(prev, next, label);
+    const seat3p = (p: string) => (p === "p1" ? "You" : p.toUpperCase());
+    const enriched = enrichLines(
+      diff,
+      [{ type: "CARD_DISCARDED", player: "p3", card: "a/fireball#1", reason: "BOOST" }],
+      ctx("p1", seat3p)
+    );
+    expect(enriched.map((l) => l.text)).toContain("P3 → discard: fireball (boost)");
+    expect(enriched.every((l) => !l.text.includes("Opponent"))).toBe(true);
+  });
 });
 
 // --- Parity: flag OFF path (and flag ON with empty events) must equal diffViews.
