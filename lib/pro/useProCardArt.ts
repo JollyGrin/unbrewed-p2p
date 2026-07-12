@@ -40,9 +40,63 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // fetch 404s by design; snapshot-only means it is never consulted).
   "king-taranis": "taranis",
   thetis: "thetis",
+  // Spice remix of Thetis (engine hero id `thetis-spice`, display name "Thetis").
+  // Its own snapshot reuses Thetis's art per-card until dedicated spice art lands.
+  "thetis-spice": "thetis-spice",
   "piper-of-the-underroads": "piper",
   "hollow-oak": "hollow-oak",
 };
+
+/**
+ * HUD chips driven by public engine `flags` (PlayerView.flags — see protocol.ts).
+ * Data-driven registry so a future flag-driven deck adds ONE entry here and gets
+ * an always-visible player-card pill with ZERO component changes: ProHud iterates
+ * this list generically (see flagChipsFor + <FlagChip> in components/Pro/ProHud).
+ *
+ * - `flag`      — the PlayerView `flags` key this chip reads.
+ * - `heroes`    — hero ids the chip applies to (the "has the mechanic" gate). An
+ *                 absent flag on ANY OTHER hero means nothing, so the chip never
+ *                 renders there.
+ * - `onLabel` / `offLabel` — words shown when the flag is set / absent. The label
+ *                 text must stay readable; this is decision-driving public state.
+ * - `showWhenAbsent` — for public two-state mechanics (tide) render `offLabel`
+ *                 when the flag is absent; `false` = only show the pill when set.
+ *
+ * Future flag-driven decks extend this map (and, optionally, FLAG_CHIP_ICONS in
+ * ProHud for a bespoke glyph — a new entry renders text-only without one).
+ */
+export interface FlagHudChip {
+  flag: string;
+  heroes: string[];
+  onLabel: string;
+  offLabel: string;
+  showWhenAbsent: boolean;
+}
+
+export const FLAG_HUD_CHIPS: FlagHudChip[] = [
+  {
+    flag: "HIGH_TIDE",
+    heroes: ["thetis", "thetis-spice"],
+    onLabel: "HIGH TIDE",
+    offLabel: "LOW TIDE",
+    showWhenAbsent: true,
+  },
+];
+
+/**
+ * Resolve the flag chips to render for one player card. Pure + generic over the
+ * registry: returns every registered chip whose `heroes` includes this hero and
+ * that should be visible now (`on`, or `showWhenAbsent`), each paired with its
+ * live on/off state. Non-tide heroes (no matching entry) get an empty list, so
+ * an absent flag never renders a stray "off" pill.
+ */
+export const flagChipsFor = (
+  heroId: string,
+  flags: Record<string, boolean> | undefined
+): { chip: FlagHudChip; on: boolean }[] =>
+  FLAG_HUD_CHIPS.filter((chip) => chip.heroes.includes(heroId))
+    .map((chip) => ({ chip, on: !!flags?.[chip.flag] }))
+    .filter(({ chip, on }) => on || chip.showWhenAbsent);
 
 /**
  * Inverse of HERO_DECK_IDS: unmatched.cards deck id -> server hero id. The ONE

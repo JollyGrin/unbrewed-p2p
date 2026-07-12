@@ -1,0 +1,254 @@
+{
+  "bgg_link": null,
+  "created_on": "Sun, 12 Jul 2026 00:00:00 GMT",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#1c3a4d",
+      "cardbackUrl": "https://unbrewed.xyz/cardbacks/thetis.webp",
+      "highlightColour": "#2ec4b6",
+      "isPNP": false,
+      "patternName": "Waves"
+    },
+    "name": "Thetis",
+    "hero": {
+      "hp": 13,
+      "isRanged": false,
+      "move": 2,
+      "name": "Thetis",
+      "specialAbility": "EBB AND FLOW\nWhen you place Thetis, choose whether she starts at HIGH TIDE or LOW TIDE.\nAt HIGH TIDE, add 2 to the value of her attack cards. At LOW TIDE, add 1 to the value of her defense cards.\nTurn the tide: switch between HIGH TIDE and LOW TIDE.",
+      "quote": "A tide-bound sea witch who fights in two forms — towering and empowered at HIGH TIDE, lithe and cunning at LOW TIDE — turning the tide mid-battle to strike hard or slip away."
+    },
+    "sidekick": {
+      "hp": 8,
+      "isRanged": false,
+      "name": "The Abyssal Maw",
+      "quantity": 1,
+      "quote": "Part kraken, part armored sea-reptile — the hunger of the deep given teeth."
+    },
+    "extraCharacters": [],
+    "ruleCards": [],
+    "cards": [
+      {
+        "afterText": "If you won the combat, place Thetis in any other space. Turn the tide.",
+        "basicText": "",
+        "boost": 4,
+        "characterName": "THETIS",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/thetis/al-01.webp",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Undertow",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": "Turn the tide.",
+        "basicText": "",
+        "boost": 4,
+        "characterName": "THETIS",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/thetis/al-02.webp",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "The Tide Turns!",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "Move Thetis up to 3 spaces. Turn the tide.",
+        "basicText": "",
+        "boost": 4,
+        "characterName": "THETIS",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/thetis/al-03.webp",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Crash and Recede",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": "Thetis recovers 3 health. Draw 1 card. Turn the tide.",
+        "basicText": "",
+        "boost": 4,
+        "characterName": "THETIS",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/thetis/al-04.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Tidepool Renewal",
+        "type": "defence",
+        "value": 2
+      },
+      {
+        "afterText": "Move each of your fighters up to 2 spaces. Turn the tide.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "THETIS",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/thetis/al-05.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Moonstruck",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "Move Thetis up to 5 spaces. Turn the tide.",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "THETIS",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/thetis/al-06.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "The Tide Waits for None",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "",
+        "basicText": "Move each of your fighters up to 2 spaces. Turn the tide.",
+        "boost": 3,
+        "characterName": "THETIS",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/thetis/al-07.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Tidal Muster",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "",
+        "basicText": "Draw 2 cards. Turn the tide.",
+        "boost": 2,
+        "characterName": "THETIS",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/thetis/al-08.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Deep Draught",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "Deal 2 damage to one fighter adjacent to the Abyssal Maw. Then you may move one of the fighters in the combat up to 2 spaces.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "MAW",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/thetis/al-09.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Coil and Slip",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "MAW",
+        "duringText": "If you are at HIGH TIDE, this card's value is 5 instead.",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/thetis/al-10.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Hunger of the Tide",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "If you are at HIGH TIDE, this card's value is 5 instead.",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/thetis/al-11.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Spring Tide",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "If you won the combat, choose one of the fighters in the combat and move them up to 2 spaces.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/thetis/al-12.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Skirmish",
+        "type": "versatile",
+        "value": 4
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "If your fighter started this turn in a different space, this card's value is 5 instead.",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/thetis/al-13.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Momentous Shift",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/thetis/al-14.webp",
+        "immediateText": "Cancel all effects on your opponent's card.",
+        "quantity": 3,
+        "title": "Feint",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "Draw 1 card. If you won the combat, draw 2 cards instead.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/thetis/al-15.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Regroup",
+        "type": "versatile",
+        "value": 1
+      }
+    ]
+  },
+  "deck_first_published_on": null,
+  "deck_published": true,
+  "family_id": "thetis-spice",
+  "id": "thetis-spice",
+  "name": "Thetis",
+  "note": "Unbrewed spice remix of the evergreen Thetis deck: same hero, statline, and tide engine, with 6 reworked cards (Undertow, Tidepool Renewal, Tidal Muster, Coil and Slip, Hunger of the Tide, Spring Tide). Art reuses Thetis's until dedicated spice art lands.",
+  "published": true,
+  "published_on": null,
+  "tags": [
+    {
+      "name": "Evergreen",
+      "slug": "evergreen"
+    },
+    {
+      "name": "Spice",
+      "slug": "spice"
+    },
+    {
+      "name": "Public Domain",
+      "slug": "public-domain"
+    }
+  ],
+  "updated_on": "Sun, 12 Jul 2026 00:00:00 GMT",
+  "user": "unbrewed",
+  "version_id": "evergreen-1",
+  "version_name": "1.0"
+}

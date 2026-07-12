@@ -14,16 +14,22 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { useRouter } from "next/router";
-import { Box, Button, Flex, Grid, Link, Menu, MenuButton, MenuItem, MenuList, Tag, Text, Textarea, Tooltip, keyframes } from "@chakra-ui/react";
+import { Box, Button, Flex, Grid, Link, Menu, MenuButton, MenuItem, MenuList, Tag, Text, Textarea, Tooltip } from "@chakra-ui/react";
+import { keyframes } from "@emotion/react";
 import { MOVE_STEP_SECONDS, PendingMove, ProBoard } from "@/components/Pro/ProBoard";
+import { ProErrorBoundary } from "@/components/Pro/ProErrorBoundary";
+import { assignableSeats, BotSlotPlan, CreateSeats, SlotOccupant } from "@/components/Pro/CreateSeats";
+import { stateHash } from "@/lib/pro/stateHash";
 import {
   Action,
   BotDifficulty,
+  BotSeatFill,
   CardInstanceId,
   CardMeta,
   FighterId,
   HeroListing,
   LegalOption,
+  PlayerId,
   PlayerView,
   ProMapDef,
   ReplayBundle,
@@ -33,8 +39,10 @@ import {
   ViewPrompt,
 } from "@/lib/pro/protocol";
 import { saveReplay } from "@/lib/pro/replayStore";
+import { proErrorMessage } from "@/lib/pro/proErrors";
 import { ProConnectionStatus, useProSocket } from "@/lib/pro/useProSocket";
 import { normalizeMap } from "@/lib/pro/normalizeMap";
+import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { mapSubmissionIssueUrl } from "@/lib/pro/mapIssue";
 import { RecentRoom, getTabToken, listRecentRooms } from "@/lib/pro/recentRooms";
 import { HERO_DECK_IDS, ResolveCard, useProCardArt } from "@/lib/pro/useProCardArt";
@@ -51,7 +59,14 @@ import { ReportBugDialog } from "@/components/Pro/ReportBugDialog";
 import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
 import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
-import { diffViews, enrichLines } from "@/lib/pro/gameLog";
+import { diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
+import { cardAffordances, cardLabel, cardTitle, describeAction } from "@/lib/pro/actionDock";
+import {
+  isExtendedReachAttack,
+  LARGE_FIGHTER_BLURB,
+  LARGE_REACH_CHIP,
+  SpaceReach,
+} from "@/lib/pro/largeReach";
 import { useFlag } from "@/lib/flags";
 import { maneuverBoostHint } from "@/lib/pro/maneuverHint";
 import { buildPoseIndex, parsePoseOptions, poseHighlights, resolvePoseClick } from "@/lib/pro/moveChoice";
@@ -60,6 +75,19 @@ import { useCombatCallouts, CombatCalloutItem } from "@/lib/pro/combatFx";
 import { useIncomingMoveTween } from "@/lib/pro/moveTween";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
+import { formatChoice, PRO_FORMATS, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
+import { deriveTeams, isViewerOnWinningTeam } from "@/lib/pro/teams";
+import {
+  CUSTOM_MAP_ID,
+  FORMAT_BADGE,
+  MAP_CATALOG,
+  catalogEntry,
+  customMapForEntry,
+  defaultMapIdForFormat,
+  eligibleFormats,
+  ineligibleReason,
+  mapEligibleForFormat,
+} from "@/lib/pro/mapCatalog";
 
 /** same table felt the sandbox game uses (game.layout.tsx) */
 const TABLE_BG = "radial-gradient(ellipse at 50% 20%, #5A3263 0%, #48284F 50%, #2C1831 100%)";
@@ -96,20 +124,6 @@ const usePendingMoveTimeout = (
   }, [pendingMove]);
 };
 
-/** Printed-card title via the server catalog ('king-kong/clobber#2' -> 'Clobber'). */
-const cardTitle = (catalog: Record<string, CardMeta>, instance: CardInstanceId): string => {
-  const defId = instance.split("#")[0];
-  return catalog[defId]?.title ?? defId.split("/").pop() ?? instance;
-};
-
-/** Printed-card label via the server catalog ('king-kong/clobber#2' -> 'clobber (3/2)'). */
-const cardLabel = (catalog: Record<string, CardMeta>, instance: CardInstanceId): string => {
-  const meta = catalog[instance.split("#")[0]];
-  if (!meta) return instance.split("#")[0].split("/").pop() ?? instance;
-  const stats = meta.type === "scheme" ? "scheme" : `${meta.value ?? "–"}/${meta.boost ?? "–"}`;
-  return `${meta.title} (${stats})`;
-};
-
 /**
  * Title for a `GameEvent` `source` (used by enrichLines for scheduled/fired
  * effect lines): a `CardInstanceId` resolves via the catalog, `'hero:<pid>'`
@@ -123,54 +137,6 @@ const resolveEventSource = (view: PlayerView, source: string): string => {
     return view.fighters.find((f) => f.id === `${pid}/hero`)?.name ?? "a hero ability";
   }
   return cardLabel(view.catalog, source);
-};
-
-/**
- * Presentational label for a server-offered action.
- *
- * `ctx` carries the bits a DECLARE_ATTACK label needs to read as plain English
- * instead of raw fighter ids (issue #161): a name lookup for attacker/target,
- * and the per-attacker disambiguator number that also badges the matching board
- * token, so "Attack Kong with Raptor 2" points unambiguously at the token
- * wearing the 2 badge. Omit `ctx` for the legacy id-suffix fallback.
- */
-const describeAction = (
-  catalog: Record<string, CardMeta>,
-  a: Action,
-  ctx?: { nameOf: (id: FighterId) => string; attackerBadge?: Partial<Record<FighterId, number>> }
-): string => {
-  switch (a.type) {
-    case "MANEUVER":
-      return "Maneuver";
-    case "BOOST_MOVE":
-      return `Boost move (discard ${cardLabel(catalog, a.card)})`;
-    case "MOVE_FIGHTER":
-      return `Move ${a.fighter.split("/")[1]}`;
-    case "END_MANEUVER":
-      return "End maneuver";
-    case "SCHEME":
-      return `Scheme: ${cardLabel(catalog, a.card)}`;
-    case "DECLARE_ATTACK": {
-      const targetName = ctx ? ctx.nameOf(a.target) : a.target.split("/")[1];
-      const attackerName = ctx ? ctx.nameOf(a.attacker) : a.attacker.split("/")[1];
-      const badge = ctx?.attackerBadge?.[a.attacker];
-      return `Attack ${targetName} with ${attackerName}${badge != null ? ` ${badge}` : ""}`;
-    }
-    case "COMMIT_ATTACK_CARD":
-      return `Commit ${cardLabel(catalog, a.card)}`;
-    case "COMMIT_DEFENSE_CARD":
-      return `Defend with ${cardLabel(catalog, a.card)}`;
-    case "DECLINE_DEFENSE":
-      return "Don't defend";
-    case "DISCARD_TO_LIMIT":
-      return `Discard ${cardLabel(catalog, a.card)}`;
-    case "PLACE_SIDEKICK":
-      return `Place ${a.fighter.split("/")[1]} on ${a.space}`;
-    case "RESPOND_PROMPT":
-      return "Answer prompt"; // rendered by PromptPanel instead — filtered out of the list
-    case "FORFEIT":
-      return "Forfeit"; // engine #32 enumerates it, but we filter it out of the list and offer it via the dock button
-  }
 };
 
 /**
@@ -231,11 +197,28 @@ const PromptPanel = ({
     <Text fontFamily="ArchivoNarrow" fontWeight="bold" mb="0.5rem" color="brand.accent">
       {prompt.kind.replace(/_/g, " ")}
     </Text>
-    {/* v10 attribution: WHICH effect is asking — shown to chooser and spectator alike */}
-    {sourceLabel && (
-      <Text fontSize="0.8rem" mb="0.5rem" color="brand.parchment" opacity={0.85}>
-        {sourceLabel}
-      </Text>
+    {/* v16 (issue #237): the mechanical step description — WHICH effect step is
+        resolving on a multi-step card ("Choose a fighter to take 2 damage"). When
+        present it is the PRIMARY line and the card attribution (`sourceLabel`)
+        demotes below it; when absent we fall back to the v10 attribution-only copy.
+        Both shown to chooser and spectator alike. */}
+    {prompt.description ? (
+      <>
+        <Text fontSize="0.95rem" fontWeight="bold" mb="0.25rem" color="brand.parchment">
+          {prompt.description}
+        </Text>
+        {sourceLabel && (
+          <Text fontSize="0.75rem" mb="0.5rem" color="brand.parchment" opacity={0.7}>
+            {sourceLabel}
+          </Text>
+        )}
+      </>
+    ) : (
+      sourceLabel && (
+        <Text fontSize="0.8rem" mb="0.5rem" color="brand.parchment" opacity={0.85}>
+          {sourceLabel}
+        </Text>
+      )
     )}
     {sourceInstance && (
       <Box w="6.5rem" sx={{ aspectRatio: "63 / 88" }} mb="0.5rem">
@@ -648,6 +631,16 @@ const heroNameOf = (heroes: HeroListing[] | null, heroId: string | null) => {
   return heroes?.find((h) => h.heroId === heroId)?.name ?? prettyHeroId(heroId);
 };
 
+const viewHeroIdOf = (view: PlayerView, player: PlayerId): string | null =>
+  view.players.find((p) => p.id === player)?.heroId ??
+  (view.self.id === player ? view.self.heroId : null) ??
+  (view.opponent?.id === player ? view.opponent.heroId : null);
+
+const playerLabel = (view: PlayerView, player: PlayerId): string => {
+  if (player === view.you) return "your";
+  return view.players.length === 2 ? "opponent's" : `${player.toUpperCase()}'s`;
+};
+
 /**
  * Community-deck metadata (author, likes, cardback) for a server hero via the
  * deck-id bridge. Every /pro hero originates as a fan deck on unmatched.cards —
@@ -730,7 +723,11 @@ const HeroTile = ({
               lineHeight="1.05"
               textShadow="0 1px 3px rgba(0,0,0,0.9)"
             >
+              {/* Reflavored/baseline decks (only reachable under ?debug, which
+                  is what surfaces them in the roster) get a ★ so they read apart
+                  from their identically-named spice replacement. */}
               {hero.name}
+              {hero.tier === "reflavored" ? " ★" : ""}
             </Text>
             {deck && (
               <Text
@@ -855,15 +852,19 @@ const HeroSelectLobby = ({
   heroParam,
   selectedHeroId,
   opponent,
+  selectedFormat,
+  onSelectFormat,
   onSelectOpponent,
   onSelectHero,
   aiHeroId,
   onSelectAiHero,
+  botSlotPlan,
+  onChangeBotSlot,
   onConfirm,
   customMapJson,
   onCustomMapJsonChange,
-  showMapInput,
-  onToggleMapInput,
+  selectedMapId,
+  onSelectMap,
   mapError,
 }: {
   room: string | null;
@@ -872,17 +873,22 @@ const HeroSelectLobby = ({
   heroParam: string | null;
   selectedHeroId: string | null;
   opponent: OpponentChoice;
+  selectedFormat: ProFormatId;
+  onSelectFormat: (format: ProFormatId) => void;
   onSelectOpponent: (o: OpponentChoice) => void;
   onSelectHero: (heroId: string) => void;
   /** the specific hero the AI should play, or null to let the server pick at random */
   aiHeroId: string | null;
   onSelectAiHero: (heroId: string | null) => void;
+  botSlotPlan: BotSlotPlan;
+  onChangeBotSlot: (player: PlayerId, occupant: SlotOccupant) => void;
   onConfirm: () => void;
   /** raw custom-map JSON (create flow only) — persisted in the parent */
   customMapJson: string;
   onCustomMapJsonChange: (json: string) => void;
-  showMapInput: boolean;
-  onToggleMapInput: () => void;
+  /** chosen board: a MAP_CATALOG id, or CUSTOM_MAP_ID for the paste-JSON option */
+  selectedMapId: string;
+  onSelectMap: (id: string) => void;
   /** local parse error or the server's BAD_MAP message, shown inline */
   mapError: string | null;
 }) => {
@@ -890,6 +896,8 @@ const HeroSelectLobby = ({
   // creator isn't blocked; once the list arrives the real selection takes over.
   const effective = selectedHeroId ?? (heroes === null ? heroParam : null);
   const canConfirm = status === "open" && !!effective;
+  const format = formatChoice(selectedFormat);
+  const multiplayer = selectedFormat !== "duel";
   const [previewHero, setPreviewHero] = useState<HeroListing>();
 
   return (
@@ -967,6 +975,139 @@ const HeroSelectLobby = ({
       />
 
       {!room && (
+        <Flex direction="column" alignItems="center" gap="0.65rem">
+          <Text fontFamily="BebasNeueRegular" fontSize="1.1rem" letterSpacing="0.08em" opacity={0.75}>
+            Format
+          </Text>
+          <Flex gap="0.5rem" flexWrap="wrap" justifyContent="center">
+            {PRO_FORMATS.map((f) => (
+              <Button
+                key={f.id}
+                {...BTN}
+                size="sm"
+                border="2px solid"
+                borderColor={selectedFormat === f.id ? "brand.accent" : "transparent"}
+                onClick={() => onSelectFormat(f.id)}
+              >
+                {f.label}
+              </Button>
+            ))}
+          </Flex>
+          <Text fontSize="0.7rem" opacity={0.6} textAlign="center">
+            {format.detail} · {format.requiredPlayers} players
+          </Text>
+        </Flex>
+      )}
+
+      {/* Board picker (create flow only): one card per built-in board plus a
+          "Custom…" card that reveals the paste-JSON textarea. Ineligible boards
+          render disabled with the reason — never hidden — mirroring the server's
+          per-format map support so a rendered-eligible card never BAD_MAPs. */}
+      {!room && (
+        <Flex direction="column" alignItems="center" gap="0.65rem" w="100%" maxW="34rem">
+          <Text fontFamily="BebasNeueRegular" fontSize="1.1rem" letterSpacing="0.08em" opacity={0.75}>
+            Board
+          </Text>
+          <Grid
+            w="100%"
+            templateColumns={{ base: "repeat(2, 1fr)", sm: "repeat(3, 1fr)", md: "repeat(4, 1fr)" }}
+            gap="0.6rem"
+          >
+            {MAP_CATALOG.map((entry) => {
+              const reason = ineligibleReason(entry.map, selectedFormat);
+              const eligible = reason === null;
+              const selected = selectedMapId === entry.id;
+              return (
+                <Flex
+                  as="button"
+                  key={entry.id}
+                  direction="column"
+                  gap="0.3rem"
+                  p="0.35rem"
+                  borderRadius="0.5rem"
+                  border="2px solid"
+                  borderColor={selected ? "brand.accent" : "whiteAlpha.200"}
+                  bg="rgba(20, 8, 24, 0.55)"
+                  opacity={eligible ? 1 : 0.4}
+                  cursor={eligible ? "pointer" : "not-allowed"}
+                  transition="border-color 0.15s, opacity 0.15s"
+                  _hover={eligible ? { borderColor: selected ? "brand.accent" : "whiteAlpha.400" } : {}}
+                  onClick={() => eligible && onSelectMap(entry.id)}
+                  disabled={!eligible}
+                  textAlign="left"
+                >
+                  <Box
+                    w="100%"
+                    sx={{ aspectRatio: "16 / 10" }}
+                    borderRadius="0.35rem"
+                    bgImage={`url("${entry.thumbnailUrl}")`}
+                    bgSize="cover"
+                    bgPosition="center"
+                    bgColor="rgba(0,0,0,0.4)"
+                  />
+                  <Text fontFamily="BebasNeueRegular" fontSize="0.85rem" lineHeight="1.05" noOfLines={2}>
+                    {entry.title}
+                  </Text>
+                  <Flex gap="0.25rem" flexWrap="wrap">
+                    {eligibleFormats(entry.map).map((fid) => (
+                      <Text
+                        key={fid}
+                        fontSize="0.55rem"
+                        fontFamily="SpaceGrotesk"
+                        letterSpacing="0.05em"
+                        px="0.3rem"
+                        borderRadius="0.25rem"
+                        bg="whiteAlpha.200"
+                        opacity={0.8}
+                      >
+                        {FORMAT_BADGE[fid]}
+                      </Text>
+                    ))}
+                  </Flex>
+                  {!eligible && (
+                    <Text fontSize="0.55rem" fontFamily="SpaceGrotesk" color="#E0A06E" opacity={0.85}>
+                      {reason}
+                    </Text>
+                  )}
+                </Flex>
+              );
+            })}
+
+            {/* Custom… card — reveals the paste-JSON textarea below */}
+            <Flex
+              as="button"
+              direction="column"
+              gap="0.3rem"
+              p="0.35rem"
+              borderRadius="0.5rem"
+              border="2px dashed"
+              borderColor={selectedMapId === CUSTOM_MAP_ID ? "brand.accent" : "whiteAlpha.300"}
+              bg="rgba(20, 8, 24, 0.35)"
+              cursor="pointer"
+              transition="border-color 0.15s"
+              _hover={{ borderColor: "whiteAlpha.500" }}
+              onClick={() => onSelectMap(CUSTOM_MAP_ID)}
+              alignItems="center"
+              justifyContent="center"
+              textAlign="center"
+            >
+              <Box w="100%" sx={{ aspectRatio: "16 / 10" }} display="flex" alignItems="center" justifyContent="center">
+                <Text fontSize="1.6rem" opacity={0.5}>
+                  +
+                </Text>
+              </Box>
+              <Text fontFamily="BebasNeueRegular" fontSize="0.85rem">
+                Custom…
+              </Text>
+              <Text fontSize="0.55rem" fontFamily="SpaceGrotesk" opacity={0.5}>
+                paste map JSON
+              </Text>
+            </Flex>
+          </Grid>
+        </Flex>
+      )}
+
+      {!room && !multiplayer && (
         <Flex direction="column" alignItems="center" gap="0.4rem">
           <Text fontFamily="BebasNeueRegular" fontSize="1.1rem" letterSpacing="0.08em" opacity={0.75}>
             Opponent
@@ -1023,33 +1164,24 @@ const HeroSelectLobby = ({
         </Flex>
       )}
 
+      {!room && multiplayer && (
+        <CreateSeats
+          selectedFormat={selectedFormat}
+          botSlotPlan={botSlotPlan}
+          onChangeBotSlot={onChangeBotSlot}
+        />
+      )}
+
       <Button {...BTN_GOLD} isDisabled={!canConfirm} onClick={onConfirm}>
-        {room ? "Join" : opponent === "human" ? "Create" : "Play vs AI"}
+        {room ? "Join" : multiplayer ? `Create ${format.label}` : opponent === "human" ? "Create" : "Play vs AI"}
       </Button>
 
-      {/* Power-user affordance (create flow only): playtest an unpublished board
-          by pasting its JSON. Kept near-invisible so it doesn't compete for a
-          normal player's attention. Composes with a human or AI opponent. */}
-      {!room && (
+      {/* Custom board: the paste-JSON textarea, revealed only when the Custom…
+          card above is selected. Behavior (validation, BAD_MAP bounce) unchanged. */}
+      {!room && selectedMapId === CUSTOM_MAP_ID && (
         <Box maxW="28rem" w="100%">
-          {!showMapInput ? (
-            <Text
-              as="button"
-              onClick={onToggleMapInput}
-              display="block"
-              mx="auto"
-              fontFamily="SpaceGrotesk"
-              fontSize="0.7rem"
-              letterSpacing="0.08em"
-              opacity={0.35}
-              _hover={{ opacity: 0.75 }}
-              transition="opacity 0.15s"
-            >
-              playtest a custom map
-            </Text>
-          ) : (
-            <Flex direction="column" gap="0.4rem">
-              <Textarea
+          <Flex direction="column" gap="0.4rem">
+            <Textarea
                 value={customMapJson}
                 onChange={(e) => onCustomMapJsonChange(e.target.value)}
                 placeholder="paste map JSON exported from /dev/map-editor — leave blank for the default board"
@@ -1068,11 +1200,10 @@ const HeroSelectLobby = ({
                 </Text>
               ) : (
                 <Text fontSize="0.6rem" opacity={0.4} fontFamily="SpaceGrotesk">
-                  only you set this up · your opponent (or the AI) just plays on it
+                  only you set this up · other players just join the room link
                 </Text>
               )}
-            </Flex>
-          )}
+          </Flex>
         </Box>
       )}
 
@@ -1087,12 +1218,18 @@ const HeroSelectLobby = ({
 // LIVE mode
 // ---------------------------------------------------------------------------
 
-const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string | null }) => {
-  const { status, roomId, snapshot, opponentConnected, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, requestLobbies, setVisibility, serverRestarting, gameLost } =
-    useProSocket(WS_URL);
+const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: string | null; debug: boolean }) => {
+  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, requestLobbies, setVisibility, serverRestarting, gameLost } =
+    useProSocket(WS_URL, debug);
   const [joined, setJoined] = useState(false);
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
   const [opponent, setOpponent] = useState<OpponentChoice>("human");
+  const [selectedFormat, setSelectedFormat] = useState<ProFormatId>("duel");
+  const [botSlotPlan, setBotSlotPlan] = useState<BotSlotPlan>({});
+  // Chosen board in the create flow: a MAP_CATALOG id or CUSTOM_MAP_ID. Starts
+  // on the duel default (The Mended Drum) and follows the format's default when
+  // the format changes to one the current board can't host.
+  const [selectedMapId, setSelectedMapId] = useState<string>(defaultMapIdForFormat("duel"));
   const [aiHeroId, setAiHeroId] = useState<string | null>(null);
   const [selectedFighter, setSelectedFighter] = useState<FighterId | null>(null);
   // First space tapped in a two-tap LARGE-fighter move pick (issue #132), scoped
@@ -1100,6 +1237,11 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   const [poseAnchor, setPoseAnchor] = useState<{ promptId: string; space: SpaceId } | null>(null);
   const [reportBugOpen, setReportBugOpen] = useState(false);
   const [forfeitOpen, setForfeitOpen] = useState(false);
+  // Client-side memory that YOU chose to forfeit (vs. being swept by combat), so
+  // the continuing-game spectator panel can say "You forfeited — spectating"
+  // instead of the generic elimination copy. Resets on refresh — the panel then
+  // degrades to the neutral "eliminated" wording, which stays accurate either way.
+  const [iForfeited, setIForfeited] = useState(false);
   // Issue #80: a just-committed MOVE_FIGHTER tweens through its whole path
   // instead of snapping — held here so the board keeps rendering it while
   // the authoritative STATE (which may already show the fighter arrived)
@@ -1113,7 +1255,6 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   // Custom-map playtest (create flow): raw JSON persists across a BAD_MAP bounce
   // so a power user can fix the board and retry without re-pasting.
   const [customMapJson, setCustomMapJson] = useState("");
-  const [showMapInput, setShowMapInput] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   // Prefilled "submit this map" GitHub issue URL — only when THIS player created
   // the room with a (server-accepted) custom board. null otherwise.
@@ -1129,7 +1270,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   // Art fetch (unbrewed-api, matched by title against the server catalog) —
   // must run unconditionally; no-ops until the first STATE arrives.
   const { resolveCard, resolveHero } = useProCardArt(
-    snapshot ? [snapshot.view.self.heroId, snapshot.view.opponent.heroId] : [],
+    snapshot ? [...new Set(snapshot.view.players.map((p) => p.heroId))] : [],
     snapshot?.view.catalog ?? {}
   );
 
@@ -1186,6 +1327,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
         ? enrichLines(diff, snapshot.events, {
             label: (source) => resolveEventSource(next, source),
             you: next.you,
+            seat: (player) => seatLabel(next, player),
           })
         : diff;
     prevViewRef.current = next;
@@ -1268,8 +1410,18 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
     }
     if (error?.code === "BAD_MAP") {
       setJoined(false);
-      setShowMapInput(true);
+      // Only a pasted custom board realistically fails validation; select the
+      // Custom… option so its textarea (where the error renders) is visible.
+      setSelectedMapId(CUSTOM_MAP_ID);
       setMapError(error.message);
+    }
+    // ROOM_LIMIT (PR #103): the server is at its global room cap on create/join.
+    // Non-fatal — bounce back to the landing picker (keep the hero/format/board
+    // selections intact) and toast the friendly retry copy; the player just tries
+    // again in a minute. Never the raw error screen or loss path.
+    if (error?.code === "ROOM_LIMIT") {
+      setJoined(false);
+      toast(proErrorMessage("ROOM_LIMIT"), { id: "pro-room-limit", icon: "⏳" });
     }
   }, [error]);
 
@@ -1315,6 +1467,30 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
     acknowledgeUndoUnavailable();
   }, [undoUnavailable, acknowledgeUndoUnavailable]);
 
+  // Non-fatal engine error (issue #178): the server couldn't process our action
+  // but the game is intact and the socket is still open. One-shot notice, then
+  // acknowledge — the board stays live and the player can try something else.
+  // Deliberately NOT the "We lost your game" screen (that's socket-close only).
+  useEffect(() => {
+    if (!serverError) return;
+    // Stable id so retrying a broken action coalesces instead of stacking toasts.
+    toast.error("The server couldn't process that action — try again or take a different action.", {
+      id: "pro-server-error",
+    });
+    acknowledgeServerError();
+  }, [serverError, acknowledgeServerError]);
+
+  // Rate limited (issue #209 / engine PR #103): we're sending too fast. Gentle
+  // one-shot toast, then acknowledge — the socket stays open and the board stays
+  // live. A stable id coalesces a burst of breaches into a single toast. If the
+  // server ultimately closes the socket for a repeated breach, the jittered
+  // reconnect/backoff in useProSocket handles resumption; this is NOT a loss.
+  useEffect(() => {
+    if (!rateLimited) return;
+    toast(proErrorMessage("RATE_LIMITED"), { id: "pro-rate-limited", icon: "🐢" });
+    acknowledgeRateLimited();
+  }, [rateLimited, acknowledgeRateLimited]);
+
   if (!joined) {
     const effectiveHeroId = selectedHeroId ?? (heroes === null ? heroParam : null);
     return (
@@ -1353,17 +1529,41 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
           heroParam={heroParam}
           selectedHeroId={selectedHeroId}
           opponent={opponent}
+          selectedFormat={selectedFormat}
+          onSelectFormat={(format) => {
+            setSelectedFormat(format);
+            if (format !== "duel") setOpponent("human");
+            setBotSlotPlan((prev) => {
+              const allowed = new Set(assignableSeats(format));
+              return Object.fromEntries(Object.entries(prev).filter(([player]) => allowed.has(player as PlayerId))) as BotSlotPlan;
+            });
+            // Keep a still-eligible board (and a "Custom…" choice) selected;
+            // otherwise fall back to the new format's default board.
+            setSelectedMapId((prev) => {
+              if (prev === CUSTOM_MAP_ID) return prev;
+              const entry = catalogEntry(prev);
+              if (entry && mapEligibleForFormat(entry.map, format)) return prev;
+              return defaultMapIdForFormat(format);
+            });
+          }}
           onSelectOpponent={setOpponent}
           onSelectHero={setSelectedHeroId}
           aiHeroId={aiHeroId}
           onSelectAiHero={setAiHeroId}
+          botSlotPlan={botSlotPlan}
+          onChangeBotSlot={(player, occupant) =>
+            setBotSlotPlan((prev) => ({ ...prev, [player]: occupant }))
+          }
           customMapJson={customMapJson}
           onCustomMapJsonChange={(json) => {
             setCustomMapJson(json);
             if (mapError) setMapError(null); // clear stale error as they edit
           }}
-          showMapInput={showMapInput}
-          onToggleMapInput={() => setShowMapInput((v) => !v)}
+          selectedMapId={selectedMapId}
+          onSelectMap={(id) => {
+            setSelectedMapId(id);
+            if (mapError) setMapError(null);
+          }}
           mapError={mapError}
           onConfirm={() => {
             if (!effectiveHeroId) return;
@@ -1373,26 +1573,43 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
               setJoined(true);
               return;
             }
-            // Create flow: parse the optional custom board just-in-time. Local
-            // structural errors stay in the lobby; the server re-validates the
-            // graph and answers BAD_MAP (handled by the error effect above).
+            // Create flow: resolve the chosen board. A catalog board sends its
+            // ProMapDef (or nothing, for the server-default duel board); the
+            // Custom… option parses the pasted JSON just-in-time. Local errors
+            // stay in the lobby; the server re-validates and answers BAD_MAP.
             let customMap: ProMapDef | undefined;
-            const trimmed = customMapJson.trim();
-            if (trimmed) {
-              try {
-                customMap = normalizeMap(JSON.parse(trimmed));
-              } catch (e) {
-                setMapError(e instanceof Error ? e.message : "invalid JSON");
-                setShowMapInput(true);
-                return;
+            if (selectedMapId === CUSTOM_MAP_ID) {
+              const trimmed = customMapJson.trim();
+              if (trimmed) {
+                try {
+                  customMap = normalizeMap(JSON.parse(trimmed));
+                } catch (e) {
+                  setMapError(e instanceof Error ? e.message : "invalid JSON");
+                  return;
+                }
+              } else {
+                // blank Custom… → fall back to the format's default board
+                const def = catalogEntry(defaultMapIdForFormat(selectedFormat));
+                customMap = def ? customMapForEntry(def) : undefined;
               }
+            } else {
+              const entry =
+                catalogEntry(selectedMapId) ??
+                catalogEntry(defaultMapIdForFormat(selectedFormat))!;
+              customMap = customMapForEntry(entry);
             }
             setMapError(null);
             const bot =
-              opponent === "human"
+              selectedFormat !== "duel" || opponent === "human"
                 ? undefined
                 : { difficulty: opponent, ...(aiHeroId ? { heroId: aiHeroId } : {}) };
-            createRoom(effectiveHeroId, bot, customMap);
+            const botSeats: BotSeatFill[] =
+              selectedFormat === "duel"
+                ? []
+                : Object.entries(botSlotPlan)
+                    .filter(([, occupant]) => occupant === "easy")
+                    .map(([player]) => ({ player: player as PlayerId, difficulty: "easy" }));
+            createRoom(effectiveHeroId, bot, customMap, selectedFormat, botSeats);
             setSelectedHeroId(effectiveHeroId); // lock it for the lobby label
             setJoined(true);
           }}
@@ -1450,11 +1667,10 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   }
 
   // Room-level errors surface on a friendly screen with a create-new fallback.
+  // (ROOM_LIMIT is handled earlier as a non-fatal bounce back to the landing
+  // picker, so it never reaches this terminal screen.)
   if (error && (error.code === "ROOM_NOT_FOUND" || error.code === "ROOM_FULL")) {
-    const msg =
-      error.code === "ROOM_NOT_FOUND"
-        ? "This room expired or never existed."
-        : "This room is already full.";
+    const msg = proErrorMessage(error.code);
     return (
       <Flex direction="column" alignItems="center" gap="1rem" pt="4rem" px="1rem" textAlign="center">
         <Text fontFamily="LeagueGothic" fontSize="2rem" letterSpacing="0.05em" color="red.300">
@@ -1491,7 +1707,101 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
               You are {heroNameOf(heroes, selectedHeroId)}
             </Text>
           )}
-          <Text opacity={0.8}>Waiting for an opponent — the game starts the moment they join.</Text>
+          <Text opacity={0.8} textAlign="center">
+            {(() => {
+              const required = roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers;
+              const seated = roomInfo?.seats.length ?? 1;
+              const boardTitle =
+                selectedMapId === CUSTOM_MAP_ID
+                  ? "a custom board"
+                  : catalogEntry(selectedMapId)?.title ?? "the default board";
+              const waiting =
+                required <= 2
+                  ? "Waiting for an opponent — the game starts the moment they join."
+                  : `Waiting for players — ${seated}/${required} seats joined. Share the same link with everyone.`;
+              return `${waiting} · playing on ${boardTitle}.`;
+            })()}
+          </Text>
+
+          {/* team preview (issue #195): in a team format the seat→team mapping is
+              fixed, so show who is with whom before the game even starts. The
+              viewer's team is listed first and accented. Live ROOM_STATUS roster
+              (issue #222) fills each seat with the real hero as it joins — an
+              un-filled seat shows "?" ("You + ? vs GINGERBREAD + ?"). */}
+          {(() => {
+            const comp = teamComposition(roomInfo?.formatId ?? selectedFormat);
+            if (!comp) return null;
+            const youSeat = roomInfo?.you;
+            const rosterSeat = (id: string) => roomInfo?.roster?.find((s) => s.player === id);
+            const fmtSeat = (id: string) => {
+              if (id === youSeat) return "You";
+              const seat = rosterSeat(id);
+              if (!seat) return "?"; // seat not yet filled
+              const name = heroNameOf(heroes, seat.heroId) ?? id.toUpperCase();
+              return seat.bot ? `${name} (bot)` : name;
+            };
+            const myTeam = youSeat ? comp.find((t) => t.seats.includes(youSeat)) : undefined;
+            const ordered = myTeam ? [myTeam, ...comp.filter((t) => t !== myTeam)] : comp;
+            return (
+              <Flex gap="0.6rem" alignItems="center" flexWrap="wrap" justifyContent="center">
+                {ordered.map((t, i) => (
+                  <Flex key={t.team} gap="0.6rem" alignItems="center">
+                    {i > 0 && (
+                      <Text fontFamily="BebasNeueRegular" opacity={0.6} fontSize="0.9rem">
+                        vs
+                      </Text>
+                    )}
+                    <Tag
+                      px="0.75rem"
+                      py="0.4rem"
+                      fontFamily="SpaceGrotesk"
+                      letterSpacing="0.04em"
+                      bg={t === myTeam ? "#39B7A8" : "brand.surfaceDim"}
+                      color={t === myTeam ? "brand.surfaceDim" : "brand.parchment"}
+                    >
+                      {t.seats.map(fmtSeat).join(" + ")}
+                    </Tag>
+                  </Flex>
+                ))}
+              </Flex>
+            );
+          })()}
+
+          {/* joined-heroes roster for NON-team multiplayer (ffa-3): the team
+              preview above already names heroes per side, so this fills the gap
+              for formats with no fixed team mapping — a live chip per seated
+              hero as ROOM_STATUS arrives (issue #222). */}
+          {(() => {
+            const roster = roomInfo?.roster;
+            const isTeam = !!teamComposition(roomInfo?.formatId ?? selectedFormat);
+            const required = roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers;
+            if (!roster || isTeam || required <= 2) return null;
+            const youSeat = roomInfo?.you;
+            return (
+              <Flex gap="0.5rem" alignItems="center" flexWrap="wrap" justifyContent="center">
+                {roster.map((s) => {
+                  const isYou = s.player === youSeat;
+                  const name = isYou ? "You" : heroNameOf(heroes, s.heroId) ?? s.player.toUpperCase();
+                  return (
+                    <Tag
+                      key={s.player}
+                      px="0.75rem"
+                      py="0.4rem"
+                      fontFamily="SpaceGrotesk"
+                      letterSpacing="0.04em"
+                      bg={isYou ? "#39B7A8" : "brand.surfaceDim"}
+                      color={isYou ? "brand.surfaceDim" : "brand.parchment"}
+                      opacity={s.connected ? 1 : 0.5}
+                    >
+                      {name}
+                      {s.bot ? " (bot)" : ""}
+                      {s.connected ? "" : " — reconnecting…"}
+                    </Tag>
+                  );
+                })}
+              </Flex>
+            );
+          })()}
 
           {/* discoverability: invite privately or list publicly */}
           <Flex gap="0.5rem" alignItems="center" flexWrap="wrap" justifyContent="center">
@@ -1511,7 +1821,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
             </Button>
           </Flex>
           <Text fontSize="0.8rem" opacity={0.5}>
-            (testing solo? open that link in a second browser tab)
+            {(roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers) > 2 ? "(testing solo? open that link in more browser tabs)" : "(testing solo? open that link in a second browser tab)"}
           </Text>
           {mapSubmitUrl && (
             <Link
@@ -1542,6 +1852,23 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
 
   const { view, legalActions, prompt } = snapshot;
   const myTurn = view.activePlayer === view.you;
+  const multiplayerView = view.players.length > 2;
+  // Forfeit is offered ONLY through the legal-action surface (unbrewed-engine
+  // #117): the engine enumerates FORFEIT in the seat's legalActions exactly while
+  // it may forfeit — on its own clock, live, not yet eliminated. Gating the dock
+  // button on this (rather than re-deriving duel-vs-multiplayer rules client-side)
+  // means it renders in every format the engine allows and vanishes the instant
+  // the seat is out of turn order, with no seat-count/seat-id special-casing.
+  const canForfeit = legalActions.some((a) => a.type === "FORFEIT");
+  // Eliminated-and-spectating: a continuing game (no winner) where every fighter
+  // this seat owns is swept. True after your own forfeit in team/ffa play and
+  // after a team-game combat death — either way you watch the board play on.
+  const myFighters = view.fighters.filter((f) => f.owner === view.you);
+  const iAmSpectating = !view.winner && myFighters.length > 0 && myFighters.every((f) => f.defeated);
+  // Team affiliation (issue #195): the viewer's team (self + ally) for the board's
+  // shared ring. Empty in duel/ffa/older-server views → the board draws no ring.
+  const friendlyOwners = deriveTeams(view.players, view.you).friendlyOwners;
+  const activeTurnLabel = myTurn ? "YOUR TURN" : `${playerLabel(view, view.activePlayer).toUpperCase()} TURN`;
   // RESPOND_PROMPT renders through the PromptPanel; MOVE_FIGHTER and
   // PLACE_SIDEKICK render as clickable board spaces — listing one button per
   // destination just floods the sidebar (and card actions live on the hand).
@@ -1588,6 +1915,28 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
       if (ids.length > 1) ids.forEach((id, i) => (attackerBadge[id] = i + 1));
     }
   }
+
+  // Large-fighter reach helper (issue #235): PRESENTATION ONLY. A melee attacker
+  // two spaces from a LARGE fighter is offered the attack (engine rule, docs §4.2b)
+  // and it reads as a bug with nothing on screen to explain it. Flag the exact
+  // DECLARE_ATTACK options that are legal only via the two-space extension so the
+  // sidebar row and the pulsing target can carry a "Large fighter — melee reach 2"
+  // hint. We EXPLAIN what the server already offered; we never re-check legality.
+  const spaceReachById = new Map<SpaceId, SpaceReach>(
+    view.map.spaces.map((s) => [s.id, { adjacentTo: s.adjacentTo, zones: s.zones }])
+  );
+  const fighterById = new Map<FighterId, ViewFighter>(view.fighters.map((f) => [f.id, f]));
+  const isExtendedReach = (a: Action): boolean => {
+    if (a.type !== "DECLARE_ATTACK") return false;
+    const attacker = fighterById.get(a.attacker);
+    const target = fighterById.get(a.target);
+    return !!attacker && !!target && isExtendedReachAttack(attacker, target, spaceReachById);
+  };
+  // Targets reachable ONLY via the extension — so the board can annotate the
+  // pulsing token. Keyed by target id (matches attackActions above).
+  const extendedReachTargets = new Set<FighterId>(
+    legalActions.filter(isExtendedReach).map((a) => (a as { target: FighterId }).target)
+  );
 
   // Prompts answer via the board too: a CHOOSE_SPACE option names its space in
   // option.id (place ops), option.data.space, or option.label (token ops label
@@ -1656,7 +2005,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
     ? null
     : "card" in promptSource
       ? `Effect of ${cardTitle(view.catalog, promptSource.card)}`
-      : `${heroNameOf(heroes, promptSource.hero === view.you ? view.self.heroId : view.opponent.heroId) ?? "Hero"}'s ability`;
+      : `${heroNameOf(heroes, viewHeroIdOf(view, promptSource.hero)) ?? "Hero"}'s ability`;
 
   // Legacy best-effort card behind the prompt (issue #72 fix #2), used ONLY when
   // the server sent no `source` (system prompts, or an older server): trust an
@@ -1745,24 +2094,21 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
   };
 
   // Hand affordances: a card is playable iff a server-offered action carries
-  // its instance id. Short verb labels; the full sentence stays in the sidebar.
-  const actionsForCard = (instance: CardInstanceId) =>
-    legalActions.flatMap((a) => {
-      if (!("card" in a) || a.card !== instance) return [];
-      const label =
-        a.type === "SCHEME"
-          ? "Scheme"
-          : a.type === "BOOST_MOVE"
-            ? "Boost move"
-            : a.type === "COMMIT_ATTACK_CARD"
-              ? "Attack with"
-              : a.type === "COMMIT_DEFENSE_CARD"
-                ? "Defend with"
-                : "Discard"; // DISCARD_TO_LIMIT — the only remaining card-carrying type
-      return [{ action: a, label }];
-    });
+  // its instance id (pure logic in lib/pro/actionDock — seat-agnostic, so a
+  // multiplayer BOOST_MOVE from p3 renders and sends exactly like a duel seat).
+  const actionsForCard = (instance: CardInstanceId) => cardAffordances(legalActions, instance);
 
   return (
+    <ProErrorBoundary
+      roomId={roomId}
+      seat={view.you}
+      stateHash={stateHash(view)}
+      onLeave={() => {
+        // Escape hatch when re-render keeps failing: back to a clean lobby. The
+        // reconnect token stays in localStorage, so this room is still resumable.
+        if (typeof window !== "undefined") window.location.href = "/pro/game";
+      }}
+    >
     <CardPreviewProvider>
     <Box h="100svh" overflow="hidden" bg={TABLE_BG} position="relative">
       {/* Playtesting a custom board (this player created it): a near-invisible
@@ -1808,7 +2154,9 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
           highlightedFighters={[...new Set(highlightedFighters)]}
           selectedFighter={selectedFighter}
           attack={view.combat ? { attacker: view.combat.attacker, target: view.combat.target } : null}
+          friendlyOwners={friendlyOwners}
           fighterBadges={attackerBadge}
+          extendedReachTargets={[...extendedReachTargets]}
           fx={boardFx}
           pendingMove={pendingMove ?? incomingMove}
           onPendingMoveSettled={() => {
@@ -1851,6 +2199,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
         view={view}
         status={status}
         roomId={roomId}
+        seatPresence={seatPresence}
         resolveCard={resolveCard}
         resolveHero={resolveHero}
         labelFor={(c) => cardLabel(view.catalog, c)}
@@ -1876,22 +2225,35 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
         pointerEvents="none"
       >
         <Flex direction="column" gap="0.6rem" sx={{ "& > *": { pointerEvents: "auto" } }}>
-          <Flex gap="0.4rem" alignItems="center" flexWrap="wrap">
-            <Tag size="sm" bg={myTurn ? "brand.accent" : "whiteAlpha.300"} color={myTurn ? "brand.surfaceDim" : "brand.parchment"}>
-              {myTurn ? "YOUR TURN" : "OPPONENT'S TURN"}
-            </Tag>
-            <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
-              turn {view.turnNumber}
-            </Tag>
-            <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
-              {view.actionsRemaining} actions left
-            </Tag>
-            {!opponentConnected && (
-              <Tag size="sm" colorScheme="red">
-                opponent disconnected
+          {/* Live-turn chrome — hidden once the game is decided (issue #194): at
+              GAME_OVER legal actions are empty and no seat is "on turn", so these
+              chips would go stale. The outcome (VICTORY!/DEFEAT) shows instead. */}
+          {showLiveTurnChrome(view) && (
+            <Flex gap="0.4rem" alignItems="center" flexWrap="wrap">
+              <Tag size="sm" bg={myTurn ? "brand.accent" : "whiteAlpha.300"} color={myTurn ? "brand.surfaceDim" : "brand.parchment"}>
+                {activeTurnLabel}
               </Tag>
-            )}
-          </Flex>
+              <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
+                turn {view.turnNumber}
+              </Tag>
+              <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
+                {view.actionsRemaining} actions left
+              </Tag>
+              {/* In multiplayer the seat-identified presence map is authoritative
+                  (multiple seats can drop independently); duel keeps the coarse
+                  boolean untouched. The per-seat card badge + countdown live in
+                  ProHud — this chip is just the at-a-glance banner (issue #222). */}
+              {(multiplayerView ? Object.keys(seatPresence).length > 0 : !opponentConnected) && (
+                <Tag size="sm" colorScheme="red">
+                  {multiplayerView
+                    ? Object.keys(seatPresence).length > 1
+                      ? `${Object.keys(seatPresence).length} players disconnected`
+                      : "player disconnected"
+                    : "opponent disconnected"}
+                </Tag>
+              )}
+            </Flex>
+          )}
           {(highlightedSpaces.length > 0 || attackActions.size > 0) && (
             <Text fontSize="0.8rem" color="brand.accent" textShadow="0 1px 3px rgba(0,0,0,0.6)">
               {selectedFighter
@@ -1954,12 +2316,34 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
                 textAlign="left"
                 onClick={() => sendAction(a)}
               >
-                {describeAction(view.catalog, a, { nameOf, attackerBadge })}
+                <Flex as="span" align="center" gap="0.4rem" flexWrap="wrap">
+                  <Text as="span">{describeAction(view.catalog, a, { nameOf, attackerBadge })}</Text>
+                  {isExtendedReach(a) && (
+                    <Tooltip label={LARGE_FIGHTER_BLURB} hasArrow placement="top" openDelay={150}>
+                      <Tag
+                        size="sm"
+                        bg="brand.accent"
+                        color="brand.surfaceDim"
+                        fontWeight={700}
+                        letterSpacing="0.01em"
+                        flexShrink={0}
+                      >
+                        {LARGE_REACH_CHIP}
+                      </Tag>
+                    </Tooltip>
+                  )}
+                </Flex>
               </Button>
             ))}
-            {legalActions.length === 0 && !prompt && (
+            {legalActions.length === 0 && !prompt && showLiveTurnChrome(view) && (
               <Text opacity={0.7} fontSize="0.9rem" color="brand.parchment">
-                waiting on opponent…
+                {iAmSpectating
+                  ? iForfeited
+                    ? "You forfeited — spectating."
+                    : "You've been eliminated — spectating."
+                  : multiplayerView
+                  ? "waiting on another player…"
+                  : "waiting on opponent…"}
               </Text>
             )}
           </Flex>
@@ -1970,7 +2354,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
               color="brand.accent"
               textShadow="0 2px 12px rgba(224,168,46,0.5)"
             >
-              {view.winner === view.you ? "VICTORY!" : "DEFEAT"}
+              {isViewerOnWinningTeam(view) ? "VICTORY!" : "DEFEAT"}
             </Text>
           )}
           {/* Undo — request to rewind our last action, pending opponent consent
@@ -1989,10 +2373,13 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
               {undoPending ? "Undo requested…" : "Undo last action"}
             </Button>
           )}
-          {/* Forfeit — only while the game is genuinely live (issue #140). Hidden
-              during SETUP and once GAME_OVER / a winner exists (no affordances
-              remain then). Destructive, so it's red and confirm-gated. */}
-          {view.phase === "PLAY" && !view.winner && (
+          {/* Forfeit — rendered whenever the engine offers FORFEIT to this seat
+              (`canForfeit`, issue #140 + unbrewed-engine #117). No seat-count or
+              seat-id gate: duel and multiplayer alike surface it via the same
+              legal-action check, so it appears on your own clock and vanishes
+              once you're eliminated. Destructive, so it's red and confirm-gated;
+              the phase/winner gates stay as belt-and-suspenders. */}
+          {view.phase === "PLAY" && !view.winner && canForfeit && (
             <Button
               size="sm"
               mt="0.4rem"
@@ -2006,11 +2393,17 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
         </Flex>
       </Flex>
 
-      {/* concede confirmation (issue #140) — sends FORFEIT on confirm */}
+      {/* concede confirmation (issue #140) — sends FORFEIT on confirm. In
+          multiplayer this resigns your seat (you may keep spectating), so the
+          dialog copy adapts; `iForfeited` lets the spectator panel say so. */}
       <ForfeitDialog
         isOpen={forfeitOpen}
         onClose={() => setForfeitOpen(false)}
-        onConfirm={() => sendAction({ type: "FORFEIT", player: view.you })}
+        multiplayer={multiplayerView}
+        onConfirm={() => {
+          setIForfeited(true);
+          sendAction({ type: "FORFEIT", player: view.you });
+        }}
       />
 
       {/* undo accept/reject prompt (issue #154) — shown to the opponent of the
@@ -2054,6 +2447,7 @@ const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string 
       </Flex>
     </Box>
     </CardPreviewProvider>
+    </ProErrorBoundary>
   );
 };
 
@@ -2133,10 +2527,14 @@ const ProGamePage = () => {
   const router = useRouter();
   const room = typeof router.query.room === "string" ? router.query.room : null;
   const heroParam = typeof router.query.hero === "string" ? router.query.hero : null;
+  // `?debug` (any value, incl. bare `?debug`) opts this session into seeing the
+  // reflavored/baseline decks the server hides by default — in the picker and in
+  // random bot picks. See lib/pro/protocol.ts v15.
+  const debug = router.query.debug !== undefined;
 
   return (
     <Box minH="100svh" bg={TABLE_BG} color="brand.parchment">
-      {WS_URL ? <LiveGame room={room} heroParam={heroParam} /> : <PreviewGame />}
+      {WS_URL ? <LiveGame room={room} heroParam={heroParam} debug={debug} /> : <PreviewGame />}
     </Box>
   );
 };

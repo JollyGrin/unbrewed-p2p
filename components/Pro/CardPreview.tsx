@@ -20,7 +20,8 @@
  * returns no-op handlers, so `CardFace` can call it unconditionally and cards
  * shown in lobby/replay surfaces (no provider) simply stay inert.
  */
-import { Box, keyframes } from "@chakra-ui/react";
+import { Box } from "@chakra-ui/react";
+import { keyframes } from "@emotion/react";
 import {
   createContext,
   ReactNode,

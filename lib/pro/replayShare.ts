@@ -7,6 +7,7 @@
  * falls back to "too long — use the file".
  */
 import type { ReplayBundle } from "./protocol";
+import { replayHeroList } from "./replayHeroes";
 
 // Discord's message body cap is 2000 chars; stay under it with headroom for the
 // wrapping ``` fence a user typically adds.
@@ -50,9 +51,9 @@ export function compactCodeInfo(bundle: ReplayBundle): CompactCodeResult {
 
 /** A stable, human-readable filename for a bundle's .json download. */
 export function bundleFilename(bundle: ReplayBundle): string {
-  const [h1, h2] = bundle.meta.heroes;
+  const heroes = replayHeroList(bundle.meta.heroes);
   const day = new Date(bundle.meta.endedAt || Date.now()).toISOString().slice(0, 10);
-  return `unbrewed-replay-${h1}-vs-${h2}-${day}.json`;
+  return `unbrewed-replay-${heroes.join("-vs-")}-${day}.json`;
 }
 
 /** Trigger a browser download of the bundle as pretty-printed JSON. */

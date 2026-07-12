@@ -25,7 +25,8 @@ import {
   PlayerId,
   ReplayExpansion,
 } from "@/lib/pro/protocol";
-import { opponentHand, toPlayerView, turnMarkers } from "@/lib/pro/godView";
+import { opponentSeats, toPlayerView, turnMarkers } from "@/lib/pro/godView";
+import { replayHeroFor, replayHeroList, replaySeatIds } from "@/lib/pro/replayHeroes";
 
 const TABLE_BG = "radial-gradient(ellipse at 50% 20%, #5A3263 0%, #48284F 50%, #2C1831 100%)";
 
@@ -60,19 +61,21 @@ export const ReplayScrubber = ({
 }) => {
   const { steps, catalog, map, meta } = expansion;
   const lastIndex = steps.length - 1;
+  // Runtime-ordered seats from the bundle — 2 for a duel, 3+ for ffa/team.
+  const seatList = useMemo(() => replaySeatIds(meta.heroes), [meta.heroes]);
+  const heroList = useMemo(() => replayHeroList(meta.heroes), [meta.heroes]);
+  const isDuel = seatList.length <= 2;
   const [index, setIndex] = useState(0);
-  const [focus, setFocus] = useState<PlayerId>(meta.winner ?? "p1");
+  const [focus, setFocus] = useState<PlayerId>(meta.winner ?? seatList[0] ?? "p1");
   const [playing, setPlaying] = useState(false);
 
   const step = steps[Math.min(index, lastIndex)];
 
-  const { resolveCard, resolveHero } = useProCardArt(
-    [step.players.p1.heroId, step.players.p2.heroId],
-    catalog,
-  );
+  // Prefetch art for EVERY seat's hero so focusing any seat renders instantly.
+  const { resolveCard, resolveHero } = useProCardArt(heroList, catalog);
 
   const view = useMemo(() => toPlayerView(step, { map, catalog }, focus), [step, map, catalog, focus]);
-  const oppHand = opponentHand(step, focus);
+  const oppSeats = opponentSeats(step, focus);
   const markers = useMemo(() => turnMarkers(steps), [steps]);
   const labelFor = (c: CardInstanceId) => labelForCard(catalog, c);
 
@@ -95,7 +98,9 @@ export const ReplayScrubber = ({
     go(hit === -1 ? lastIndex : hit);
   };
 
-  const oppId: PlayerId = focus === "p1" ? "p2" : "p1";
+  // Duel keeps its one-tap toggle; multiplayer flips to the next seat in order.
+  const focusPos = Math.max(0, seatList.indexOf(focus));
+  const nextSeat: PlayerId = seatList[(focusPos + 1) % seatList.length] ?? focus;
 
   return (
     <Box h="100svh" overflow="hidden" bg={TABLE_BG} position="relative" color="brand.parchment">
@@ -105,7 +110,7 @@ export const ReplayScrubber = ({
           REPLAY · GOD VIEW
         </Tag>
         <Tag bg="rgba(20,8,24,0.65)" color="brand.parchment" fontSize="0.75rem">
-          {heroName(meta.heroes[0])} vs {heroName(meta.heroes[1])} · {meta.mapTitle}
+          {heroList.map(heroName).join(" vs ")} · {meta.mapTitle}
         </Tag>
         {onExit && (
           <Button {...BTN} onClick={onExit}>
@@ -114,14 +119,19 @@ export const ReplayScrubber = ({
         )}
       </Flex>
 
-      {/* opponent's hand, face-up at the top (God-view only) */}
+      {/* every non-focus seat's hand, face-up at the top (God-view only). A duel
+          shows one fan; ffa-3/team-2v2 fan each opponent side by side. */}
       <Flex position="fixed" top="2.8rem" left="0" right="0" justifyContent="center" zIndex={155} pointerEvents="none">
         <Box pointerEvents="auto" transform="scale(0.7)" transformOrigin="top center" opacity={0.95}>
-          <Flex direction="column" alignItems="center" gap="0.1rem">
-            <Text fontSize="0.7rem" opacity={0.7} fontFamily="SpaceGrotesk" letterSpacing="0.06em">
-              {heroName(view.opponent.heroId)} · hand ({oppHand.length})
-            </Text>
-            <ProHand hand={oppHand} resolveCard={resolveCard} labelFor={labelFor} actionsFor={() => []} onAction={() => {}} />
+          <Flex alignItems="flex-start" justifyContent="center" gap="1.5rem" flexWrap="wrap">
+            {oppSeats.map((seat) => (
+              <Flex key={seat.id} direction="column" alignItems="center" gap="0.1rem">
+                <Text fontSize="0.7rem" opacity={0.7} fontFamily="SpaceGrotesk" letterSpacing="0.06em">
+                  {heroName(seat.heroId)} · hand ({seat.hand.length})
+                </Text>
+                <ProHand hand={seat.hand} resolveCard={resolveCard} labelFor={labelFor} actionsFor={() => []} onAction={() => {}} />
+              </Flex>
+            ))}
           </Flex>
         </Box>
       </Flex>
@@ -151,7 +161,7 @@ export const ReplayScrubber = ({
         <Flex gap="0.4rem" alignItems="center" flexWrap="wrap">
           <Tag size="sm" bg="whiteAlpha.300">turn {view.turnNumber}</Tag>
           <Tag size="sm" bg={view.activePlayer === focus ? "brand.accent" : "whiteAlpha.300"} color={view.activePlayer === focus ? "brand.surfaceDim" : "brand.parchment"}>
-            {heroName(view.activePlayer === "p1" ? meta.heroes[0] : meta.heroes[1])}&apos;s turn
+            {heroName(replayHeroFor(meta.heroes, view.activePlayer))}&apos;s turn
           </Tag>
           <Tag size="sm" bg="whiteAlpha.300">{view.phase.toLowerCase()}</Tag>
         </Flex>
@@ -193,7 +203,7 @@ export const ReplayScrubber = ({
 
         {view.winner && (
           <Tag size="lg" bg="brand.accent" color="brand.surfaceDim" fontFamily="LeagueGothic" alignSelf="flex-start">
-            {heroName(view.winner === "p1" ? meta.heroes[0] : meta.heroes[1])} wins
+            {heroName(replayHeroFor(meta.heroes, view.winner))} wins
           </Tag>
         )}
       </Flex>
@@ -264,11 +274,29 @@ export const ReplayScrubber = ({
           ))}
         </Select>
 
-        <Tooltip label={`Flip perspective (now: ${heroName(view.self.heroId)})`} hasArrow>
-          <Button {...BTN} onClick={() => setFocus(oppId)} leftIcon={<TbArrowsExchange />}>
-            {focus === "p1" ? "P1" : "P2"}
-          </Button>
-        </Tooltip>
+        {isDuel ? (
+          <Tooltip label={`Flip perspective (now: ${heroName(view.self.heroId)})`} hasArrow>
+            <Button {...BTN} onClick={() => setFocus(nextSeat)} leftIcon={<TbArrowsExchange />}>
+              {focus.toUpperCase()}
+            </Button>
+          </Tooltip>
+        ) : (
+          <Select
+            size="sm"
+            w="10rem"
+            bg="whiteAlpha.200"
+            borderColor="whiteAlpha.300"
+            value={focus}
+            onChange={(e) => setFocus(e.target.value as PlayerId)}
+            aria-label="Focus seat"
+          >
+            {seatList.map((id) => (
+              <option key={id} value={id} style={{ color: "#2C1831" }}>
+                {heroName(replayHeroFor(meta.heroes, id))}
+              </option>
+            ))}
+          </Select>
+        )}
       </Flex>
     </Box>
   );

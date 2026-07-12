@@ -7,12 +7,14 @@
  * spaces the caller says are currently actionable (which the server derives
  * from legalActions — the board never computes legality itself).
  */
-import { Box, Button, Flex, Text, chakra, keyframes, shouldForwardProp } from "@chakra-ui/react";
+import { Box, Button, Flex, Text, chakra, shouldForwardProp } from "@chakra-ui/react";
+import { keyframes } from "@emotion/react";
 import { isValidMotionProp, motion } from "framer-motion";
 import { PointerEvent as ReactPointerEvent, useRef, useState } from "react";
-import { FighterId, ProMapDef, ProMapRegion, ProMapSpace, SpaceId, ViewFighter, ViewToken } from "@/lib/pro/protocol";
+import { FighterId, PlayerId, ProMapDef, ProMapRegion, ProMapSpace, SpaceId, ViewFighter, ViewToken } from "@/lib/pro/protocol";
 import { BoardFxItem } from "@/lib/pro/useGameFx";
 import { useZoomPan } from "@/lib/pro/useZoomPan";
+import { LARGE_FIGHTER_BLURB, LARGE_REACH_CHIP } from "@/lib/pro/largeReach";
 
 const DEFAULT_DIAMETER = 0.021;
 
@@ -122,11 +124,21 @@ export interface ProBoardProps {
    *  clear who is attacking whom during the attack phase (issue #148). null = no
    *  combat in progress, no arrow. */
   attack?: { attacker: FighterId; target: FighterId } | null;
+  /** Owner ids on the VIEWER's team, including the viewer (issue #195). Fighters
+   *  owned by any of these get a subtle shared teal ring so allies read at a
+   *  glance without touching per-seat identity colors. Empty/omitted in
+   *  duel/ffa/older-server views → no ring, board unchanged. */
+  friendlyOwners?: PlayerId[];
   /** Per-fighter disambiguator number drawn as a badge on the token (issue #161).
    *  Only populated when several same-named attackers are offered at once, so the
    *  "Attack … with Raptor 1 / 2 / 3" sidebar buttons can be matched to the right
    *  board token. Absent = no badge (the single-attacker case stays uncluttered). */
   fighterBadges?: Partial<Record<FighterId, number>>;
+  /** Attack targets reachable ONLY via the large-fighter reach extension (issue
+   *  #235). PRESENTATION ONLY — the caller derives these from the server's own
+   *  legalActions; the board just annotates the pulsing token so a 2-space melee
+   *  attack doesn't read as a bug. Absent/empty = no annotation. */
+  extendedReachTargets?: FighterId[];
   /** transient effect overlays (floating damage numbers…) — keyed, caller-expired */
   fx?: BoardFxItem[];
   /** a just-committed move to tween through node-by-node instead of snapping */
@@ -150,7 +162,15 @@ export interface ProBoardProps {
 const PLAYER_COLOR: Record<string, string> = {
   p1: "#E0A82E", // gold
   p2: "#3B8BEB", // blue
+  p3: "#2F9E68", // green
+  p4: "#C0449E", // magenta
 };
+
+// Team-affiliation ring (issue #195): a teal halo shared by every fighter on the
+// viewer's team. Kept distinct from the gold highlight, white selection ring, and
+// crimson attack arrow so it never reads as any of those. Must match ProHud's
+// ALLY_ACCENT so HUD chip and board ring are visibly the same "team" signal.
+const ALLY_RING = "#39B7A8";
 
 /** Token initials: leading "The " is noise ("The Mandalorian"/"The Child" would
  * otherwise both read "THE"), so strip it and take three letters. A name that's
@@ -171,7 +191,9 @@ export const ProBoard = ({
   highlightedFighters = [],
   selectedFighter = null,
   attack = null,
+  friendlyOwners = [],
   fighterBadges = {},
+  extendedReachTargets = [],
   fx = [],
   pendingMove = null,
   onPendingMoveSettled,
@@ -184,7 +206,9 @@ export const ProBoard = ({
   const diameter = (map.meta.spaceDiameter ?? DEFAULT_DIAMETER) * 100; // % of width
   const highlightSet = new Set(highlightedSpaces);
   const highlightFighterSet = new Set(highlightedFighters);
+  const extendedReachSet = new Set(extendedReachTargets);
   const closedSet = new Set(closedRegions);
+  const friendlySet = new Set(friendlyOwners);
 
   // v9 regions (Baba Yaga's Hut): a region's spaces carry x/y normalized to the
   // REGION image, not the main board — each region renders as its own inset
@@ -223,6 +247,10 @@ export const ProBoard = ({
   // to the board frame. Rects are captured once at pointerdown — the grab
   // offset keeps the panel from jumping under the pointer.
   const onHeaderPointerDown = (regionId: string) => (e: ReactPointerEvent<HTMLDivElement>) => {
+    // Stop the press from bubbling to the outer container, whose useZoomPan
+    // pointer-down would otherwise start a BOARD pan under the panel — one
+    // gesture moving both (issue #216 parallax). The panel is its own drag.
+    e.stopPropagation();
     const frame = frameRef.current;
     const panel = e.currentTarget.parentElement;
     if (!frame || !panel) return;
@@ -317,8 +345,37 @@ export const ProBoard = ({
     const color = PLAYER_COLOR[f.owner] ?? "#999";
     const isSelected = f.id === selectedFighter;
     const isTarget = highlightFighterSet.has(f.id);
-    const clickable = isTarget && !!onFighterClick;
+    // Extended-reach attack target (issue #235): the pulsing token is a legal
+    // target ONLY because a LARGE fighter is involved (2-space melee reach). Mark
+    // it so the 2-space attack doesn't read as a bug. Presentation only.
+    const isExtendedReachTarget = isTarget && extendedReachSet.has(f.id);
+    const isFriendly = friendlySet.has(f.owner);
+    // A CHOOSE_SPACE prompt highlights the space *under* the token, and the
+    // token (zIndex 4) sits above the space hit-circle (zIndex 3) — a click
+    // lands on the token and would die here (DOM siblings don't forward events
+    // downward). So when this token's own space is a highlightable target and
+    // the token isn't itself a fighter-click target, forward the click to the
+    // space. Fighter-target clicks (attack / CHOOSE_TARGET) still take priority.
+    const spaceHighlighted = highlightSet.has(s.id) && !!onSpaceClick;
+    const fighterClickable = isTarget && !!onFighterClick;
+    const clickable = fighterClickable || spaceHighlighted;
+    const handleClick = fighterClickable
+      ? () => onFighterClick!(f.id)
+      : spaceHighlighted
+        ? () => onSpaceClick!(s.id)
+        : undefined;
     const key = segment === "head" ? f.id : `${f.id}-tail`;
+
+    // Team ring (issue #195): an outer teal halo shared by the viewer's whole
+    // team. Layered OUTSIDE the white selection ring (larger spread, listed last)
+    // so selection and affiliation both stay legible. A targeted fighter's pulse
+    // animation temporarily overrides box-shadow — the ring returns once it ends.
+    const baseShadow = isSelected
+      ? "0 0 0 3px #fff, 0 2px 8px rgba(0,0,0,0.6)"
+      : "0 2px 6px rgba(0,0,0,0.5)";
+    const boxShadow = isFriendly
+      ? `${baseShadow}, 0 0 0 ${isSelected ? "5px" : "3px"} ${ALLY_RING}`
+      : baseShadow;
 
     const children = (
       <>
@@ -375,6 +432,31 @@ export const ProBoard = ({
             {fighterBadges[f.id]}
           </Flex>
         )}
+        {segment === "head" && isExtendedReachTarget && (
+          <Flex
+            position="absolute"
+            top="-46%"
+            left="50%"
+            transform="translateX(-50%)"
+            bg="brand.accent"
+            color="brand.surfaceDim"
+            borderRadius="999px"
+            px="0.45em"
+            fontSize="0.55rem"
+            fontWeight="bold"
+            letterSpacing="0.02em"
+            lineHeight="1.5"
+            whiteSpace="nowrap"
+            boxShadow="0 1px 3px rgba(0,0,0,0.7)"
+            // Terse at-a-glance echo on the pulsing token; the sidebar row carries
+            // the full "Large fighter — melee reach 2" copy + tooltip, and this
+            // pill's hover title spells out the same rule (LARGE_REACH_CHIP is
+            // referenced so board + row can never drift on the wording).
+            title={`${LARGE_REACH_CHIP} — ${LARGE_FIGHTER_BLURB}`}
+          >
+            reach 2
+          </Flex>
+        )}
       </>
     );
 
@@ -410,12 +492,10 @@ export const ProBoard = ({
         bg={f.kind === "HERO" ? color : "brand.surfaceDim"}
         border={`2px solid ${f.kind === "HERO" ? "#fff" : color}`}
         opacity={f.kind === "HERO" ? 1 : 0.92}
-        boxShadow={
-          isSelected ? "0 0 0 3px #fff, 0 2px 8px rgba(0,0,0,0.6)" : "0 2px 6px rgba(0,0,0,0.5)"
-        }
+        boxShadow={boxShadow}
         animation={isTarget ? `${highlightPulse} 1.4s ease-in-out infinite` : undefined}
         cursor={clickable ? "pointer" : "default"}
-        onClick={clickable ? () => onFighterClick!(f.id) : undefined}
+        onClick={handleClick}
         // `MotionFlex` is `chakra(motion.div, …)`, a plain div — unlike the
         // real `Flex` component it doesn't default to `display: flex`, so
         // `alignItems`/`justifyContent` below were silently inert (issue
@@ -424,7 +504,11 @@ export const ProBoard = ({
         alignItems="center"
         justifyContent="center"
         zIndex={4}
-        title={`${f.name} — ${f.hp}/${f.maxHp} HP`}
+        title={
+          isExtendedReachTarget
+            ? `${f.name} — ${f.hp}/${f.maxHp} HP · ${LARGE_FIGHTER_BLURB}`
+            : `${f.name} — ${f.hp}/${f.maxHp} HP`
+        }
       >
         {children}
       </MotionFlex>
@@ -679,6 +763,9 @@ export const ProBoard = ({
     return (
       <Box
         key={r.id}
+        // Marks the inset panel subtree so useZoomPan ignores any pointer/wheel
+        // gesture that starts inside it — defense-in-depth against issue #216.
+        data-region-panel={r.id}
         position="relative"
         w="100%"
         borderRadius="0.5rem"

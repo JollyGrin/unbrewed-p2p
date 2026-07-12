@@ -1,0 +1,197 @@
+/**
+ * Error boundary around the Pro game view (issue #178, part 2).
+ *
+ * The pro board renders whatever `view` the server sends. A malformed-but-valid
+ * state, or a client-side render bug, throws during render and — with no
+ * boundary anywhere — white-screens the whole tab. Worse, reconnect re-sends the
+ * identical view, so a naive remount just crashes again forever (the Hollow-Oak
+ * failure). This boundary turns that dead end into a recoverable panel:
+ *
+ *  - It shows the thrown error message plus the room id, our seat, and a state
+ *    hash — the identifiers a bug report needs to reproduce the crash.
+ *  - "Try re-render" clears the error and re-mounts the children. If they throw
+ *    again the boundary simply catches again and shows the panel — a bounded,
+ *    user-driven retry, never an automatic crash loop.
+ *  - "Leave room" is the escape hatch when re-render keeps failing.
+ *  - It NEVER swallows the error silently: componentDidCatch logs the message
+ *    and the component stack to the console for diagnostics.
+ *
+ * Deliberately NOT auto-resetting on a new `view`: a reconnect delivers the same
+ * throwing state, so auto-retrying it would reintroduce the infinite crash. The
+ * panel stays put until the user acts. `resetKeys` is offered for callers that
+ * DO have a reason to re-attempt (and for tests to simulate a reconnect); a
+ * value change clears the error exactly once, and a repeat throw is re-caught.
+ *
+ * Render-fuzz detection seam (contract consumed by the render-fuzz harness,
+ * PR #181). Because this boundary is designed to SWALLOW render throws into a
+ * recoverable panel, it would otherwise hide exactly the crashes that harness
+ * exists to catch — turning its gate green-while-blind. Two stable hooks keep it
+ * observable, and both are part of this component's public contract:
+ *   - `onCaught(error, info)` — an optional callback fired from componentDidCatch
+ *     (after the console log). The fuzz harness passes it to assert a throw was
+ *     caught and to capture the error/component-stack. No behavior change when
+ *     unset.
+ *   - `data-testid="pro-error-boundary-fallback"` on the fallback panel's root —
+ *     a stable selector the harness queries to confirm the boundary tripped.
+ * Do not rename or remove either without updating PR #181.
+ */
+import { Component, ErrorInfo, ReactNode } from "react";
+import { Box, Button, Code, Flex, Text } from "@chakra-ui/react";
+
+export interface ProErrorBoundaryProps {
+  children: ReactNode;
+  /** current room id, shown in the panel for bug reports */
+  roomId?: string | null;
+  /** our seat (e.g. "p1"), shown in the panel for bug reports */
+  seat?: string | null;
+  /** a short digest of the current state (see lib/pro/stateHash) */
+  stateHash?: string | null;
+  /** escape hatch when re-render keeps failing (e.g. back to the lobby) */
+  onLeave?: () => void;
+  /**
+   * When any value here changes, a currently-shown error is cleared and the
+   * children re-render. Left unset on the live reconnect path on purpose (a
+   * re-sent identical view would just re-throw); primarily a testing seam.
+   */
+  resetKeys?: ReadonlyArray<unknown>;
+  /**
+   * Render-fuzz detection seam (PR #181). Fired from componentDidCatch after the
+   * console log, so a harness can observe throws this boundary would otherwise
+   * swallow. Optional — no behavior change when unset.
+   */
+  onCaught?: (error: Error, info: { componentStack?: string }) => void;
+}
+
+/** Identifiers pinned to the state that actually threw. */
+type CaughtContext = Pick<ProErrorBoundaryProps, "roomId" | "seat" | "stateHash">;
+
+interface ProErrorBoundaryState {
+  error: Error | null;
+  // Snapshotted at catch time so the panel keeps showing the hash/room/seat of
+  // the state that CRASHED — while latched, live props drift to whatever newer
+  // view the socket has since delivered, which would misreport the bug.
+  caught: CaughtContext | null;
+}
+
+const keysChanged = (
+  a: ReadonlyArray<unknown> | undefined,
+  b: ReadonlyArray<unknown> | undefined
+): boolean => {
+  if (a === b) return false;
+  if (!a || !b || a.length !== b.length) return true;
+  return a.some((v, i) => !Object.is(v, b[i]));
+};
+
+export class ProErrorBoundary extends Component<
+  ProErrorBoundaryProps,
+  ProErrorBoundaryState
+> {
+  state: ProErrorBoundaryState = { error: null, caught: null };
+
+  static getDerivedStateFromError(error: Error): Partial<ProErrorBoundaryState> {
+    // getDerivedStateFromError is static — no `this.props` here. Just flip into
+    // the error state; the throw-time context is snapshotted in componentDidCatch.
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    // Never swallow: surface the message AND the component stack so a crash is
+    // diagnosable from the console even when the panel only shows the message.
+    // eslint-disable-next-line no-console
+    console.error(
+      "[pro] game view render crashed:",
+      error,
+      info.componentStack
+    );
+    // Render-fuzz seam (PR #181): let a harness observe the throw we're about to
+    // swallow. After the console log, before any state change bails us out.
+    this.props.onCaught?.(error, { componentStack: info.componentStack ?? undefined });
+    // Pin the identifiers of the state that threw. `this.props` here still holds
+    // the props of the render that crashed (this fires during that render's
+    // commit), before the socket pushes a newer view and the props drift.
+    const { roomId, seat, stateHash } = this.props;
+    this.setState({ caught: { roomId, seat, stateHash } });
+  }
+
+  componentDidUpdate(prev: ProErrorBoundaryProps): void {
+    if (this.state.error && keysChanged(prev.resetKeys, this.props.resetKeys)) {
+      this.setState({ error: null, caught: null });
+    }
+  }
+
+  private reset = (): void => {
+    this.setState({ error: null, caught: null });
+  };
+
+  render(): ReactNode {
+    const { error, caught } = this.state;
+    if (!error) return this.props.children;
+
+    // Prefer the throw-time snapshot; fall back to live props only until the
+    // componentDidCatch snapshot lands (one render) or if it never captured.
+    const { onLeave } = this.props;
+    const roomId = caught ? caught.roomId : this.props.roomId;
+    const seat = caught ? caught.seat : this.props.seat;
+    const stateHash = caught ? caught.stateHash : this.props.stateHash;
+    return (
+      <Flex
+        direction="column"
+        alignItems="center"
+        gap="1.25rem"
+        pt="4rem"
+        px="1rem"
+        textAlign="center"
+        role="alert"
+        data-testid="pro-error-boundary-fallback"
+      >
+        <Text
+          fontFamily="LeagueGothic"
+          fontSize="2rem"
+          letterSpacing="0.05em"
+          color="red.300"
+        >
+          Something went wrong drawing the board
+        </Text>
+        <Text opacity={0.8} maxW="34rem">
+          Your game is still alive on the server — this is a display glitch, not a
+          lost match. Try re-rendering; if it keeps failing, leave the room and
+          rejoin, and please file the details below.
+        </Text>
+
+        <Box
+          maxW="34rem"
+          w="100%"
+          bg="blackAlpha.400"
+          borderRadius="md"
+          p="0.75rem"
+          textAlign="left"
+        >
+          <Code
+            display="block"
+            whiteSpace="pre-wrap"
+            wordBreak="break-word"
+            bg="transparent"
+            color="red.200"
+            fontSize="0.85rem"
+          >
+            {error.message || String(error)}
+          </Code>
+          <Text mt="0.5rem" fontSize="0.7rem" opacity={0.6} fontFamily="mono">
+            room {roomId ?? "?"} · seat {seat ?? "?"} · state {stateHash ?? "?"}
+          </Text>
+        </Box>
+
+        <Flex gap="0.75rem" flexWrap="wrap" justifyContent="center">
+          <Button colorScheme="purple" onClick={this.reset}>
+            Try re-render
+          </Button>
+          {onLeave && (
+            <Button variant="outline" onClick={onLeave}>
+              Leave room
+            </Button>
+          )}
+        </Flex>
+      </Flex>
+    );
+  }
+}
