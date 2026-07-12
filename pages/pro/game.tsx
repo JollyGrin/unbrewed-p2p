@@ -700,7 +700,11 @@ const HeroTile = ({
               lineHeight="1.05"
               textShadow="0 1px 3px rgba(0,0,0,0.9)"
             >
+              {/* Reflavored/baseline decks (only reachable under ?debug, which
+                  is what surfaces them in the roster) get a ★ so they read apart
+                  from their identically-named spice replacement. */}
               {hero.name}
+              {hero.tier === "reflavored" ? " ★" : ""}
             </Text>
             {deck && (
               <Text
@@ -1191,9 +1195,9 @@ const HeroSelectLobby = ({
 // LIVE mode
 // ---------------------------------------------------------------------------
 
-const LiveGame = ({ room, heroParam }: { room: string | null; heroParam: string | null }) => {
+const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: string | null; debug: boolean }) => {
   const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, requestLobbies, setVisibility, serverRestarting, gameLost } =
-    useProSocket(WS_URL);
+    useProSocket(WS_URL, debug);
   const [joined, setJoined] = useState(false);
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
   const [opponent, setOpponent] = useState<OpponentChoice>("human");
@@ -2461,10 +2465,14 @@ const ProGamePage = () => {
   const router = useRouter();
   const room = typeof router.query.room === "string" ? router.query.room : null;
   const heroParam = typeof router.query.hero === "string" ? router.query.hero : null;
+  // `?debug` (any value, incl. bare `?debug`) opts this session into seeing the
+  // reflavored/baseline decks the server hides by default — in the picker and in
+  // random bot picks. See lib/pro/protocol.ts v15.
+  const debug = router.query.debug !== undefined;
 
   return (
     <Box minH="100svh" bg={TABLE_BG} color="brand.parchment">
-      {WS_URL ? <LiveGame room={room} heroParam={heroParam} /> : <PreviewGame />}
+      {WS_URL ? <LiveGame room={room} heroParam={heroParam} debug={debug} /> : <PreviewGame />}
     </Box>
   );
 };

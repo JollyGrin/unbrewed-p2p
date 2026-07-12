@@ -199,8 +199,15 @@ const MAX_RETRY_DELAY_MS = 10_000;
  */
 const RESUME_DEADLINE_MS = 45_000;
 
-export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
+export function useProSocket(
+  wsUrl: string | undefined,
+  debug = false
+): UseProSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
+  // Read via ref so toggling debug never re-creates `connect` (which would drop
+  // and re-open the socket). debug is fixed per page load in practice.
+  const debugRef = useRef(debug);
+  debugRef.current = debug;
   const retryRef = useRef({ attempts: 0, timer: 0 as unknown as ReturnType<typeof setTimeout> | 0 });
   const roomRef = useRef<string | null>(null);
   const youRef = useRef<PlayerView["you"] | null>(null);
@@ -278,8 +285,13 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
       retryRef.current.attempts = 0;
       setStatus("open");
       // Ask for the roster on every open (incl. reconnects) — one tiny message,
-      // idempotent; the reply feeds the game page's hero picker.
-      send({ v: PROTOCOL_VERSION, type: "LIST_HEROES" });
+      // idempotent; the reply feeds the game page's hero picker. `debug` (v15)
+      // includes reflavored heroes so a debug session can pick/preview them.
+      send({
+        v: PROTOCOL_VERSION,
+        type: "LIST_HEROES",
+        ...(debugRef.current ? { debug: true } : {}),
+      });
       const room = roomRef.current;
       const token = room ? getToken(room) : null;
       if (room && token) {
@@ -554,6 +566,9 @@ export function useProSocket(wsUrl: string | undefined): UseProSocketReturn {
         ...(botSeats && botSeats.length > 0 ? { botSeats } : {}),
         ...(customMap ? { customMap } : {}),
         ...(formatId && formatId !== "duel" ? { formatId } : {}),
+        // `debug` (v15): let a debug session's random bot picks include
+        // reflavored heroes. Never affects an explicitly-named heroId.
+        ...(debugRef.current ? { debug: true } : {}),
       };
       if (wsRef.current?.readyState === WebSocket.OPEN) send(msg);
       else pendingHelloRef.current = msg;
