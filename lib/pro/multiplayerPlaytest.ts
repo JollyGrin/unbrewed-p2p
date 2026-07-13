@@ -31,22 +31,55 @@ export interface FormatTeam {
   seats: PlayerId[];
 }
 
+/** A map's `supportedFormats` block — the per-format seat bindings the engine
+ *  zips against runtime players. Only the shape `teamComposition` reads; both
+ *  `MULTIPLAYER_PLAYTEST_MAP` and the mapCatalog `CatalogMap` satisfy it. */
+export interface TeamSeatSource {
+  supportedFormats?: Array<{ formatId: string; seats: Record<string, unknown> }>;
+}
+
+/**
+ * Island of Despair's 2v2 seat order — the default 2v2 board's pairing. Used
+ * when no map (or no matching `supportedFormats` entry) is supplied, e.g. a
+ * pasted custom map that carries no authored seat block.
+ */
+const DEFAULT_TEAM_2V2_SEAT_ORDER = ["A1", "A2", "B1", "B2"];
+
+/** The team a format seat belongs to: the seat id's leading letter (A1/A2 → A,
+ *  B1/B2 → B), mirroring the engine format's `seat.team` convention. */
+const teamOfSeat = (seatId: string): string => seatId.match(/^[A-Za-z]+/)?.[0] ?? seatId;
+
 /**
  * Seat→team split for a team format, in runtime seat order (p1..pN). Returns
  * null for non-team formats (duel/ffa — every seat is independent, no split to
- * preview). This is the FIXED, format-defined mapping used in the waiting room
- * BEFORE any game view (and thus any engine `team`) exists; once the match
- * starts, `view.players[].team` is the source of truth (see lib/pro/teams.ts).
+ * preview). This is the map-defined mapping used in the waiting room BEFORE any
+ * game view (and thus any engine `team`) exists; once the match starts,
+ * `view.players[].team` is the source of truth (see lib/pro/teams.ts).
  *
- * team-2v2 seats the arena as A1,B1,A2,B2 across start slots 1..4, and seats
- * fill in runtime order, so p1..p4 split into A={p1,p3} vs B={p2,p4}.
+ * The split is DERIVED FROM THE MAP, mirroring the engine's zip in
+ * `formatSetup.ts`: `Object.keys(support.seats)` yields the seat order, runtime
+ * players p1..pN fill it in order, and each seat's team is its id's letter. So
+ * the default 2v2 board (Island of Despair, seats A1,A2,B1,B2) gives
+ * A={p1,p2} vs B={p3,p4}, while an interleaved board (Playtest Arena,
+ * A1,B1,A2,B2) gives A={p1,p3} vs B={p2,p4}. Passing no map falls back to the
+ * default board's order (issue #264).
  */
-export function teamComposition(formatId: string | null | undefined): FormatTeam[] | null {
+export function teamComposition(
+  formatId: string | null | undefined,
+  map?: TeamSeatSource | null,
+): FormatTeam[] | null {
   if (formatId !== "team-2v2") return null;
-  return [
-    { team: "A", seats: ["p1", "p3"] },
-    { team: "B", seats: ["p2", "p4"] },
-  ];
+  const support = map?.supportedFormats?.find((f) => f.formatId === formatId);
+  const seatOrder = support ? Object.keys(support.seats) : DEFAULT_TEAM_2V2_SEAT_ORDER;
+  const teams: FormatTeam[] = [];
+  seatOrder.forEach((seatId, index) => {
+    const player = `p${index + 1}` as PlayerId;
+    const team = teamOfSeat(seatId);
+    const bucket = teams.find((t) => t.team === team);
+    if (bucket) bucket.seats.push(player);
+    else teams.push({ team, seats: [player] });
+  });
+  return teams;
 }
 
 interface MapFormatSupportDef {

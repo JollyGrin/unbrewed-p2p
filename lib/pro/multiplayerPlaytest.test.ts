@@ -31,10 +31,26 @@ describe("multiplayer playtest helpers", () => {
     ]);
   });
 
-  it("splits team-2v2 into fixed runtime seat teams, and nothing else", () => {
+  it("splits team-2v2 into runtime seat teams derived from the map, and nothing else", () => {
+    // No map → default board order (Island of Despair: A1,A2,B1,B2 → A={p1,p2}).
     expect(teamComposition("team-2v2")).toEqual([
+      { team: "A", seats: ["p1", "p2"] },
+      { team: "B", seats: ["p3", "p4"] },
+    ]);
+    // The interleaved arena (A1,B1,A2,B2) pairs the other way: A={p1,p3}.
+    expect(teamComposition("team-2v2", MULTIPLAYER_PLAYTEST_MAP)).toEqual([
       { team: "A", seats: ["p1", "p3"] },
       { team: "B", seats: ["p2", "p4"] },
+    ]);
+    // A default-ordered board matches the no-map fallback.
+    const islandOrder = {
+      supportedFormats: [
+        { formatId: "team-2v2", seats: { A1: {}, A2: {}, B1: {}, B2: {} } },
+      ],
+    };
+    expect(teamComposition("team-2v2", islandOrder)).toEqual([
+      { team: "A", seats: ["p1", "p2"] },
+      { team: "B", seats: ["p3", "p4"] },
     ]);
     expect(teamComposition("duel")).toBeNull();
     expect(teamComposition("ffa-3")).toBeNull();

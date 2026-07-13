@@ -1,6 +1,6 @@
 import { Button, Flex, Grid, Text } from "@chakra-ui/react";
 import { BotDifficulty, PlayerId } from "@/lib/pro/protocol";
-import { ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
+import { ProFormatId, TeamSeatSource, teamComposition } from "@/lib/pro/multiplayerPlaytest";
 
 /** Who fills a create-screen seat: a human (via the room link) or a server bot. */
 export type SlotOccupant = "human" | BotDifficulty;
@@ -39,8 +39,9 @@ const ALLY_ACCENT = "#39B7A8";
 // Flat, un-teamed seat lists for formats with no fixed pairing (ffa-3). The
 // creator is always P1; these are the OTHER seats they can pre-fill with bots.
 // team-2v2 is deliberately absent — its seats are grouped by team from the
-// authoritative `teamComposition` (A={p1,p3} vs B={p2,p4}), NOT laid out flat,
-// so a creator can see their teammate's slot before assigning a bot (#228).
+// map-derived `teamComposition` (default board: A={p1,p2} vs B={p3,p4}), NOT
+// laid out flat, so a creator can see their teammate's slot before assigning a
+// bot (#228, #264).
 const SLOT_LABELS: Partial<Record<ProFormatId, Array<{ player: PlayerId; label: string }>>> = {
   "ffa-3": [
     { player: "p2", label: "P2" },
@@ -52,7 +53,9 @@ const SLOT_LABELS: Partial<Record<ProFormatId, Array<{ player: PlayerId; label: 
  * The seats a creator can pre-fill with a bot for a format — every seat except
  * their own (P1). Single source of truth for both the panel below and the
  * format-change pruning in game.tsx, so the two never disagree about which bot
- * slots survive a format switch.
+ * slots survive a format switch. The seat SET is map-independent (any 2v2 board
+ * binds the same four runtime seats), so no map is needed here — only the
+ * team GROUPING depends on the map (see `teamComposition`).
  */
 export function assignableSeats(format: ProFormatId): PlayerId[] {
   const comp = teamComposition(format);
@@ -63,23 +66,29 @@ export function assignableSeats(format: ProFormatId): PlayerId[] {
 /**
  * Create-screen seats panel. Non-duel only; renders nothing for duel.
  *
- * team-2v2 groups the four seats into their two FIXED teams — Team A = P1 (You)
- * + P3 (your teammate) vs Team B = P2 + P4 (opponents) — because the runtime
- * seating is INTERLEAVED (A1,B1,A2,B2 → p1..p4 split A={p1,p3}, B={p2,p4}). A
- * flat P1/P2 // P3/P4 grid reads as adjacent pairs and traps creators into
- * arming a bot OPPONENT when they wanted a bot TEAMMATE (#228). ffa-3 keeps the
- * original flat layout (no teams to show).
+ * team-2v2 groups the four seats into their two teams, DERIVED FROM THE SELECTED
+ * MAP's seat order (mirroring the engine) — for the default board that is Team A
+ * = P1 (You) + P2 (your teammate) vs Team B = P3 + P4 (opponents); an
+ * interleaved board (Playtest Arena, A1,B1,A2,B2) instead pairs A={p1,p3} vs
+ * B={p2,p4}. A flat P1/P2 // P3/P4 grid reads as adjacent pairs and traps
+ * creators into arming a bot OPPONENT when they wanted a bot TEAMMATE — and a
+ * hard-coded pairing armed the WRONG team on the default board (#228, #264).
+ * ffa-3 keeps the original flat layout (no teams to show).
  */
 export const CreateSeats = ({
   selectedFormat,
+  selectedMap,
   botSlotPlan,
   onChangeBotSlot,
 }: {
   selectedFormat: ProFormatId;
+  /** The chosen board, so the team split mirrors the engine's seat-order zip.
+   *  Undefined (e.g. a pasted custom map) falls back to the default pairing. */
+  selectedMap?: TeamSeatSource | null;
   botSlotPlan: BotSlotPlan;
   onChangeBotSlot: (player: PlayerId, occupant: SlotOccupant) => void;
 }) => {
-  const comp = teamComposition(selectedFormat);
+  const comp = teamComposition(selectedFormat, selectedMap);
   // The creator always holds P1, so their team is whichever contains p1.
   const youSeat: PlayerId = "p1";
 
