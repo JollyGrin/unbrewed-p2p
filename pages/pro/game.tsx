@@ -14,7 +14,7 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { useRouter } from "next/router";
-import { Box, Button, Flex, Grid, Link, Menu, MenuButton, MenuItem, MenuList, Tag, Text, Textarea, Tooltip } from "@chakra-ui/react";
+import { Box, Button, Flex, Grid, Link, Menu, MenuButton, MenuItem, MenuList, NumberDecrementStepper, NumberIncrementStepper, NumberInput, NumberInputField, NumberInputStepper, Switch, Tag, Text, Textarea, Tooltip } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
 import { MOVE_STEP_SECONDS, PendingMove, ProBoard } from "@/components/Pro/ProBoard";
 import { ProErrorBoundary } from "@/components/Pro/ProErrorBoundary";
@@ -106,6 +106,18 @@ const BTN_GOLD = {
   _hover: { bg: "brand.accentDeep" },
   _active: { bg: "brand.accentDeep" },
 };
+
+// Move-timer config (issue #223). The server accepts an integer 10–300s; the host
+// opts in and picks a per-move duration. Quick-pick presets plus a free custom
+// value, both clamped to the engine bound. `TURN_TIMER_DEFAULT` is what flipping
+// the toggle ON lands on.
+const TURN_TIMER_MIN = 10;
+const TURN_TIMER_MAX = 300;
+const TURN_TIMER_PRESETS = [30, 60, 90, 120] as const;
+const TURN_TIMER_DEFAULT = 60;
+/** Clamp a raw seconds value to the engine's accepted range (integer 10–300). */
+const clampTurnTimer = (n: number) =>
+  Math.min(TURN_TIMER_MAX, Math.max(TURN_TIMER_MIN, Math.round(n)));
 
 /** Fallback safety net for a token-move tween (issue #80): the board clears
  * `pendingMove` itself once the tween's onAnimationComplete fires, but if
@@ -860,6 +872,8 @@ const HeroSelectLobby = ({
   onSelectAiHero,
   botSlotPlan,
   onChangeBotSlot,
+  turnTimerSeconds,
+  onSelectTurnTimer,
   onConfirm,
   customMapJson,
   onCustomMapJsonChange,
@@ -882,6 +896,9 @@ const HeroSelectLobby = ({
   onSelectAiHero: (heroId: string | null) => void;
   botSlotPlan: BotSlotPlan;
   onChangeBotSlot: (player: PlayerId, occupant: SlotOccupant) => void;
+  /** per-decision move timer in seconds (issue #223); 0 = off (create flow only) */
+  turnTimerSeconds: number;
+  onSelectTurnTimer: (seconds: number) => void;
   onConfirm: () => void;
   /** raw custom-map JSON (create flow only) — persisted in the parent */
   customMapJson: string;
@@ -995,6 +1012,79 @@ const HeroSelectLobby = ({
           </Flex>
           <Text fontSize="0.7rem" opacity={0.6} textAlign="center">
             {format.detail} · {format.requiredPlayers} players
+          </Text>
+        </Flex>
+      )}
+
+      {/* Move timer (issue #223, create flow only): opt-in per-decision clock. Off
+          by default — a room created with it off sends no turnTimerSeconds and
+          behaves exactly as today. On → each seat gets `turnTimerSeconds` to act
+          per decision; the server plays a random legal move if the clock runs out. */}
+      {!room && (
+        <Flex direction="column" alignItems="center" gap="0.5rem">
+          <Flex alignItems="center" gap="0.6rem">
+            <Text fontFamily="BebasNeueRegular" fontSize="1.1rem" letterSpacing="0.08em" opacity={0.75}>
+              Move timer
+            </Text>
+            <Switch
+              isChecked={turnTimerSeconds > 0}
+              onChange={(e) => onSelectTurnTimer(e.target.checked ? TURN_TIMER_DEFAULT : 0)}
+              colorScheme="yellow"
+              aria-label="Enable per-decision move timer"
+            />
+          </Flex>
+          {turnTimerSeconds > 0 && (
+            <Flex direction="column" alignItems="center" gap="0.45rem">
+              {/* quick-pick presets */}
+              <Flex gap="0.4rem" flexWrap="wrap" justifyContent="center">
+                {TURN_TIMER_PRESETS.map((s) => (
+                  <Button
+                    key={s}
+                    {...(turnTimerSeconds === s ? BTN_GOLD : BTN)}
+                    size="sm"
+                    onClick={() => onSelectTurnTimer(s)}
+                  >
+                    {s}s
+                  </Button>
+                ))}
+              </Flex>
+              {/* custom value — any integer in the engine's 10–300s range */}
+              <Flex alignItems="center" gap="0.4rem">
+                <Text fontSize="0.75rem" opacity={0.7}>
+                  Custom
+                </Text>
+                <NumberInput
+                  size="sm"
+                  maxW="6.5rem"
+                  min={TURN_TIMER_MIN}
+                  max={TURN_TIMER_MAX}
+                  step={5}
+                  value={turnTimerSeconds}
+                  keepWithinRange
+                  clampValueOnBlur
+                  onChange={(_str, num) => {
+                    // ignore an empty / mid-edit field; commit any finite value and
+                    // let clampValueOnBlur + the confirm-time clamp enforce the bound
+                    if (Number.isFinite(num)) onSelectTurnTimer(num);
+                  }}
+                  aria-label="Custom move timer seconds"
+                >
+                  <NumberInputField bg="rgba(0,0,0,0.3)" borderColor="whiteAlpha.300" _focus={{ borderColor: "brand.accent" }} />
+                  <NumberInputStepper>
+                    <NumberIncrementStepper />
+                    <NumberDecrementStepper />
+                  </NumberInputStepper>
+                </NumberInput>
+                <Text fontSize="0.7rem" opacity={0.5}>
+                  sec ({TURN_TIMER_MIN}–{TURN_TIMER_MAX})
+                </Text>
+              </Flex>
+            </Flex>
+          )}
+          <Text fontSize="0.7rem" opacity={0.6} textAlign="center" maxW="26rem">
+            {turnTimerSeconds > 0
+              ? `${clampTurnTimer(turnTimerSeconds)}s per decision — if your clock runs out, the server plays a random legal move for you.`
+              : "Off — players take as long as they like on each decision."}
           </Text>
         </Flex>
       )}
@@ -1219,7 +1309,7 @@ const HeroSelectLobby = ({
 // ---------------------------------------------------------------------------
 
 const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: string | null; debug: boolean }) => {
-  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, requestLobbies, setVisibility, serverRestarting, gameLost } =
+  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, requestLobbies, setVisibility, serverRestarting, gameLost } =
     useProSocket(WS_URL, debug);
   const [joined, setJoined] = useState(false);
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
@@ -1231,6 +1321,10 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
   // the format changes to one the current board can't host.
   const [selectedMapId, setSelectedMapId] = useState<string>(defaultMapIdForFormat("duel"));
   const [aiHeroId, setAiHeroId] = useState<string | null>(null);
+  // Per-decision move timer (issue #223), create flow only: seconds each seat has
+  // to act. 0 = off (the default) → CREATE_ROOM omits turnTimerSeconds and the
+  // room behaves exactly as today. The toggle flips between 0 and a default preset.
+  const [turnTimerSeconds, setTurnTimerSeconds] = useState(0);
   const [selectedFighter, setSelectedFighter] = useState<FighterId | null>(null);
   // First space tapped in a two-tap LARGE-fighter move pick (issue #132), scoped
   // to the prompt it belongs to so a stale anchor never leaks into the next one.
@@ -1500,6 +1594,17 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
     acknowledgeRateLimited();
   }, [rateLimited, acknowledgeRateLimited]);
 
+  // Move timer (issue #223): the viewer's OWN clock ran out and the server played
+  // a move for them. The move itself renders through the ordinary STATE flow (the
+  // draining bar just advances to the next actor) — this one-shot toast keeps the
+  // "a move was made for you" legible. An opponent's expiry needs no toast: their
+  // move just advances the board like any other.
+  useEffect(() => {
+    if (!ownTimerExpired) return;
+    toast("Time's up — a move was made for you.", { id: "pro-own-timer", icon: "⏱️" });
+    acknowledgeOwnTimerExpired();
+  }, [ownTimerExpired, acknowledgeOwnTimerExpired]);
+
   if (!joined) {
     const effectiveHeroId = selectedHeroId ?? (heroes === null ? heroParam : null);
     return (
@@ -1563,6 +1668,8 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
           onChangeBotSlot={(player, occupant) =>
             setBotSlotPlan((prev) => ({ ...prev, [player]: occupant }))
           }
+          turnTimerSeconds={turnTimerSeconds}
+          onSelectTurnTimer={setTurnTimerSeconds}
           customMapJson={customMapJson}
           onCustomMapJsonChange={(json) => {
             setCustomMapJson(json);
@@ -1618,7 +1725,10 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
                 : Object.entries(botSlotPlan)
                     .filter((entry): entry is [string, Exclude<SlotOccupant, "human">] => entry[1] !== "human")
                     .map(([player, difficulty]) => ({ player: player as PlayerId, difficulty }));
-            createRoom(effectiveHeroId, bot, customMap, selectedFormat, botSeats);
+            // Clamp to the engine's 10–300 bound at the wire (a mid-edit custom
+            // value could sit outside it); 0 = off stays off.
+            const timerSeconds = turnTimerSeconds > 0 ? clampTurnTimer(turnTimerSeconds) : 0;
+            createRoom(effectiveHeroId, bot, customMap, selectedFormat, botSeats, timerSeconds);
             setSelectedHeroId(effectiveHeroId); // lock it for the lobby label
             setJoined(true);
           }}
@@ -1731,6 +1841,22 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
               return `${waiting} · playing on ${boardTitle}.`;
             })()}
           </Text>
+
+          {/* Move timer setting (issue #223): echoed by the server on
+              ROOM_CREATED/JOINED/ROOM_STATUS, so joiners know the room's rule
+              before the game starts. Absent = untimed room → nothing shown. */}
+          {roomInfo?.turnTimerSeconds ? (
+            <Tag
+              px="0.75rem"
+              py="0.4rem"
+              fontFamily="SpaceGrotesk"
+              letterSpacing="0.04em"
+              bg="brand.accent"
+              color="brand.surfaceDim"
+            >
+              ⏱ Move timer: {roomInfo.turnTimerSeconds}s per decision
+            </Tag>
+          ) : null}
 
           {/* team preview (issue #195): in a team format the seat→team mapping is
               fixed, so show who is with whom before the game even starts. The
@@ -2213,6 +2339,8 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
         status={status}
         roomId={roomId}
         seatPresence={seatPresence}
+        turnTimer={turnTimer}
+        turnTimerSeconds={roomInfo?.turnTimerSeconds}
         resolveCard={resolveCard}
         resolveHero={resolveHero}
         labelFor={(c) => cardLabel(view.catalog, c)}

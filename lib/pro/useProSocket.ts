@@ -63,6 +63,21 @@ export interface ProRoomInfo {
    *  real heroes). null until the first ROOM_STATUS arrives — an older server, or
    *  the moment right after create/join — and the panel falls back to seat ids. */
   roster?: RoomStatusSeat[];
+  /** per-decision move timer setting for this room (issue #223): the seconds each
+   *  seat has to act, echoed by the server on ROOM_CREATED/JOINED/ROOM_STATUS.
+   *  undefined = untimed room (the default; no TURN_TIMER is ever sent). Lets the
+   *  waiting room announce the rule before the game starts, and the draining bar
+   *  size its window. */
+  turnTimerSeconds?: number;
+}
+
+/** A live move-timer snapshot from the server (issue #223, protocol TURN_TIMER).
+ *  `deadline` is epoch ms while `player`'s clock is running, or null when they are
+ *  on the engine clock but their timer is paused (bot / disconnected seat). null
+ *  (the whole object) in an untimed room — the server never sends TURN_TIMER. */
+export interface TurnTimer {
+  player: PlayerId;
+  deadline: number | null;
 }
 
 /** A seat currently disconnected mid-game (protocol v15). `autoForfeitAt` is the
@@ -102,6 +117,23 @@ export interface UseProSocketReturn {
    * so the existing forfeit/spectator UI takes over cleanly.
    */
   seatPresence: Record<string, SeatPresence>;
+  /**
+   * Live per-decision move timer (issue #223): the latest TURN_TIMER broadcast —
+   * which seat is on the clock and its epoch-ms `deadline` (null = paused). null
+   * until the first TURN_TIMER, and always null in an untimed room (the server
+   * never sends one), so an untimed game renders byte-identically to before. The
+   * draining bar reads this; it resyncs on every broadcast and clamps at 0.
+   */
+  turnTimer: TurnTimer | null;
+  /**
+   * One-shot latch (issue #223): the VIEWER'S OWN clock ran out and the server
+   * played a move for them. Set when a running own-deadline elapses without the
+   * viewer acting and is then superseded by the next TURN_TIMER/STATE. Drives a
+   * brief "time's up" toast; call `acknowledgeOwnTimerExpired` after showing it.
+   * Never set for an opponent's expiry (their move just advances the board).
+   */
+  ownTimerExpired: boolean;
+  acknowledgeOwnTimerExpired: () => void;
   error: { code: string; message: string } | null;
   /** server-fed roster; null until the first HEROES reply arrives */
   heroes: HeroListing[] | null;
@@ -120,7 +152,9 @@ export interface UseProSocketReturn {
     bot?: { difficulty: BotDifficulty; heroId?: string },
     customMap?: ProMapDef,
     formatId?: string,
-    botSeats?: BotSeatFill[]
+    botSeats?: BotSeatFill[],
+    /** per-decision move timer in seconds (issue #223); 0/undefined = off */
+    turnTimerSeconds?: number
   ) => void;
   joinRoom: (roomId: string, heroId: string) => void;
   sendAction: (action: Action) => void;
@@ -236,6 +270,17 @@ export function useProSocket(
   // Seat-identified presence (v15): seats disconnected mid-game, with an optional
   // server auto-forfeit deadline. Keyed by runtime seat id; empty = all connected.
   const [seatPresence, setSeatPresence] = useState<Record<string, SeatPresence>>({});
+  // Live move timer (v/issue #223): the latest TURN_TIMER broadcast. null in an
+  // untimed room (never sent) and until the first broadcast lands.
+  const [turnTimer, setTurnTimer] = useState<TurnTimer | null>(null);
+  // One-shot latch: the viewer's OWN clock expired and the server moved for them.
+  const [ownTimerExpired, setOwnTimerExpired] = useState(false);
+  // The viewer's currently-armed deadline (epoch ms) while THEIR clock runs, or
+  // null otherwise. `acted` flips true the moment the viewer dispatches an action
+  // in this window — so a move landing right at the wire is never mistaken for a
+  // timeout. When a running own-deadline is superseded without the viewer having
+  // acted (and the wall clock is past it), that's a genuine own-clock expiry.
+  const ownClockRef = useRef<{ deadline: number; acted: boolean } | null>(null);
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
   const [heroes, setHeroes] = useState<HeroListing[] | null>(null);
   const [lobbies, setLobbies] = useState<LobbyListing[] | null>(null);
@@ -273,6 +318,16 @@ export function useProSocket(
       clearTimeout(resumeDeadlineRef.current);
       resumeDeadlineRef.current = null;
     }
+  }, []);
+
+  // Move timer (issue #223): a running own-clock has been superseded (a new
+  // TURN_TIMER, or a STATE that resolved the decision). If the viewer never acted
+  // in that window AND the wall clock is past the deadline, the server timed them
+  // out — latch the "time's up" notice. Always clears the armed clock afterward.
+  const resolveOwnClock = useCallback(() => {
+    const own = ownClockRef.current;
+    if (own && !own.acted && Date.now() >= own.deadline) setOwnTimerExpired(true);
+    ownClockRef.current = null;
   }, []);
 
   const connect = useCallback(() => {
@@ -325,13 +380,14 @@ export function useProSocket(
           // so the panel can name who has joined. `you` is preserved from the seat
           // we learned on ROOM_CREATED/JOINED (ROOM_STATUS omits it). Destructure
           // first: msg is not narrowed inside the setState callback closure.
-          const { formatId, requiredPlayers, seats } = msg;
+          const { formatId, requiredPlayers, seats, turnTimerSeconds } = msg;
           setRoomInfo((prev) => ({
             formatId,
             seats: seats.map((s) => s.player),
             requiredPlayers,
             you: prev?.you ?? seatRef.current ?? seats[0]?.player ?? ("p1" as PlayerId),
             roster: seats,
+            turnTimerSeconds,
           }));
           break;
         }
@@ -342,7 +398,7 @@ export function useProSocket(
           setRoomId(msg.roomId);
           {
             // Destructure first: msg is not narrowed inside the setState callback.
-            const { formatId, seats, requiredPlayers, you } = msg;
+            const { formatId, seats, requiredPlayers, you, turnTimerSeconds } = msg;
             setRoomInfo((prev) => ({
               formatId: formatId ?? "duel",
               seats: seats ?? [you],
@@ -351,6 +407,7 @@ export function useProSocket(
               // keep any roster we already have (a ROOM_STATUS can race ahead of a
               // revive's ROOM_JOINED); the next ROOM_STATUS refreshes it anyway.
               roster: prev?.roster,
+              turnTimerSeconds,
             }));
           }
           setRoomPublic(false); // fresh rooms are private until acked otherwise
@@ -394,6 +451,14 @@ export function useProSocket(
           setServerRestarting(false); // a STATE means we're live again (resume done)
           clearResumeDeadline(); // resume landed (or never failed) — cancel the loss timer
           setGameLost(false); // a late-but-successful resume wins over a fired deadline
+          // Move timer (issue #223): once the game is decided there is no next
+          // clock — drop any armed own-clock (without a "time's up" toast) so a
+          // game-ending timeout doesn't leave a stale deadline behind, and clear
+          // the visible bar. A live game leaves the bar to the next TURN_TIMER.
+          if (view.winner) {
+            ownClockRef.current = null;
+            setTurnTimer(null);
+          }
           // v11: any STATE resolves a live undo negotiation. If we were waiting on
           // a verdict this is the accepted rewind (or the game simply moved on); if
           // we had an incoming request open, the requester acting again invalidated
@@ -444,6 +509,22 @@ export function useProSocket(
               return next;
             });
           }
+          break;
+        }
+        case "TURN_TIMER": {
+          // Move timer (issue #223). Every clock change (arm/pause/resume/next
+          // actor) arrives here — timed rooms only. Any change supersedes a
+          // running own-clock: resolve it first (a lapse the viewer never acted
+          // on is a genuine timeout → toast), then re-arm if THIS broadcast is
+          // the viewer's own running clock. The bar reads `turnTimer` and
+          // resyncs to the fresh deadline on every broadcast (no drift).
+          const { player, deadline } = msg;
+          resolveOwnClock();
+          const me = youRef.current ?? seatRef.current;
+          if (player === me && deadline != null) {
+            ownClockRef.current = { deadline, acted: false };
+          }
+          setTurnTimer({ player, deadline });
           break;
         }
         case "UNDO_REQUESTED":
@@ -527,7 +608,7 @@ export function useProSocket(
       retryRef.current.attempts += 1;
       retryRef.current.timer = setTimeout(connect, delay);
     };
-  }, [wsUrl, send, clearResumeDeadline]);
+  }, [wsUrl, send, clearResumeDeadline, resolveOwnClock]);
 
   useEffect(() => {
     if (!wsUrl) {
@@ -551,11 +632,15 @@ export function useProSocket(
       bot?: { difficulty: BotDifficulty; heroId?: string },
       customMap?: ProMapDef,
       formatId?: string,
-      botSeats?: BotSeatFill[]
+      botSeats?: BotSeatFill[],
+      turnTimerSeconds?: number
     ) => {
       setError(null); // clear any prior room/hero error on a fresh attempt
       setGameLost(false); // starting a brand-new game — no lost game to mourn
       setSeatPresence({}); // drop any presence carried over from a prior game
+      setTurnTimer(null); // …and any move-timer bar from a prior game
+      setOwnTimerExpired(false);
+      ownClockRef.current = null;
       hadStateRef.current = false;
       clearResumeDeadline();
       const msg: ClientMsg = {
@@ -569,6 +654,8 @@ export function useProSocket(
         // `debug` (v15): let a debug session's random bot picks include
         // reflavored heroes. Never affects an explicitly-named heroId.
         ...(debugRef.current ? { debug: true } : {}),
+        // Only include when on: absent/0 = untimed (byte-identical to today).
+        ...(turnTimerSeconds && turnTimerSeconds > 0 ? { turnTimerSeconds } : {}),
       };
       if (wsRef.current?.readyState === WebSocket.OPEN) send(msg);
       else pendingHelloRef.current = msg;
@@ -599,6 +686,9 @@ export function useProSocket(
 
   const sendAction = useCallback(
     (action: Action) => {
+      // Move timer (issue #223): the viewer acted within their window, so a
+      // later supersede of this clock is a normal move, never a timeout.
+      if (ownClockRef.current) ownClockRef.current.acted = true;
       if (roomRef.current)
         send({ v: PROTOCOL_VERSION, type: "ACTION", roomId: roomRef.current, action });
     },
@@ -609,6 +699,7 @@ export function useProSocket(
   // path (the server enumerates them in legalActions too).
   const respondToPrompt = useCallback(
     (promptId: string, optionId: string) => {
+      if (ownClockRef.current) ownClockRef.current.acted = true; // acted in-window (v#223)
       if (roomRef.current && youRef.current)
         send({
           v: PROTOCOL_VERSION,
@@ -641,6 +732,7 @@ export function useProSocket(
     [send]
   );
 
+  const acknowledgeOwnTimerExpired = useCallback(() => setOwnTimerExpired(false), []);
   const acknowledgeUndoRejected = useCallback(() => setUndoRejected(false), []);
   const acknowledgeUndoUnavailable = useCallback(() => setUndoUnavailable(false), []);
   const acknowledgeServerError = useCallback(() => setServerError(false), []);
@@ -665,6 +757,9 @@ export function useProSocket(
     snapshot,
     opponentConnected,
     seatPresence,
+    turnTimer,
+    ownTimerExpired,
+    acknowledgeOwnTimerExpired,
     error,
     heroes,
     lobbies,
