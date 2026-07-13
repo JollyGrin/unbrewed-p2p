@@ -636,6 +636,38 @@ export interface ViewCombat {
   attackDamageDealt: number | null;
 }
 
+// Incremental-maneuver "move graph" (issue #285, PAIRED with engine #55).
+//
+// PROVISIONAL SHAPE — mirrors the engine #55 design doc; it is ADDITIVE and
+// OPTIONAL so an older/mismatched server simply omits it and the client falls
+// back to today's one-click canonical-path move. Before the client PR merges,
+// this MUST be resynced VERBATIM from the engine #55 branch's protocol (the
+// wire shape is authoritative there, not here — do not diverge).
+//
+// During MANEUVER_MOVE the engine publishes, for each of the active player's
+// movable fighters, the spaces reachable within its remaining move allowance so
+// the client can let the player step hop-by-hop LOCALLY (ghost preview, nothing
+// sent per step) and commit ONE MOVE_FIGHTER{fighter, path} with the whole
+// accumulated path. All stepping legality lives in this graph — the client
+// stays rules-free (no BFS/occupancy logic).
+export interface MoveGraphNode {
+  space: SpaceId;
+  // May the fighter END its move here (an empty, legal resting destination)?
+  // Traversable-but-not-stoppable spaces (e.g. friendly pass-through) are false.
+  canStop: boolean;
+}
+export interface MoveGraph {
+  // Total steps available for this fighter's whole walk, boost included. One
+  // committed MOVE_FIGHTER path may be up to `allowance` edges long.
+  allowance: number;
+  // Every traversable space within `allowance` of the fighter's current space
+  // (the origin itself may be included).
+  nodes: MoveGraphNode[];
+  // Legal single-step edges among `nodes`, directed so one-way `moveEdges` are
+  // honoured ([from, to]).
+  edges: [SpaceId, SpaceId][];
+}
+
 export interface PlayerView {
   you: PlayerId;
   phase: "SETUP" | "PLAY" | "GAME_OVER";
@@ -644,7 +676,11 @@ export interface PlayerView {
   actionsRemaining: number;
   turnPhase: "ACTION_SELECT" | "MANEUVER_MOVE" | "DISCARD_TO_LIMIT" | null;
   // Non-null only during MANEUVER_MOVE (which fighters already moved, boost applied).
-  maneuver: { boostApplied: number; boosted: boolean; moved: FighterId[] } | null;
+  // `moveGraph` (PROVISIONAL, engine #55): per-fighter incremental-step graph,
+  // present only when the server supports it. Absent → single-click moves only.
+  maneuver:
+    | { boostApplied: number; boosted: boolean; moved: FighterId[]; moveGraph?: Record<FighterId, MoveGraph> }
+    | null;
   map: ProMapDef;
   catalog: Record<CardDefId, CardMeta>;
   fighters: ViewFighter[];
