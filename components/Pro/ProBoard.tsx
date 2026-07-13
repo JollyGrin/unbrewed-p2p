@@ -153,6 +153,12 @@ export interface ProBoardProps {
   pendingMove?: PendingMove | null;
   /** fired once the tween finishes — caller clears its pendingMove state */
   onPendingMoveSettled?: () => void;
+  /** Incremental-maneuver LOCAL preview (issue #285): the ghost token's current
+   *  route while the player steps hop-by-hop. `path[0]` is the fighter's real
+   *  space (the token stays there), the last element is the ghost's position.
+   *  PRESENTATION ONLY, non-interactive, no tween — nothing has been sent yet;
+   *  clicks still land on the underlying gold step highlights. null = no preview. */
+  previewMove?: PendingMove | null;
   /** Region ids currently out of play (view.closedRegions) — their inset
    * panels grey out and stop taking clicks */
   closedRegions?: string[];
@@ -199,6 +205,7 @@ export const ProBoard = ({
   fx = [],
   pendingMove = null,
   onPendingMoveSettled,
+  previewMove = null,
   closedRegions = [],
   onSpaceClick,
   onFighterClick,
@@ -585,6 +592,28 @@ export const ProBoard = ({
       if (!from || !to || from.id === to.id) return null;
       return arrowGeometry(from, to, diam);
     })();
+    // Incremental-maneuver ghost + trail (issue #285): the stepping fighter's
+    // preview position and the hops taken so far, in THIS frame's 0–100 space.
+    // Nothing is committed yet, so the real token stays where the server put it;
+    // this is a translucent duplicate that follows the local preview. Rendered
+    // only when the whole path lives in this frame (no cross-frame trail).
+    const preview = (() => {
+      if (!previewMove) return null;
+      const f = fighters.find((x) => x.id === previewMove.fighterId);
+      const nodes = previewMove.path
+        .map((id) => spaces.find((sp) => sp.id === id))
+        .filter((s): s is ProMapSpace => !!s);
+      if (!f || nodes.length < 2 || nodes.length !== previewMove.path.length) return null;
+      const ghost = nodes[nodes.length - 1];
+      return {
+        color: PLAYER_COLOR[f.owner] ?? "#999",
+        initials: tokenInitials(f.name),
+        isHero: f.kind === "HERO",
+        x: ghost.x * 100,
+        y: ghost.y * 100,
+        points: nodes.map((n) => `${n.x * 100},${n.y * 100}`).join(" "),
+      };
+    })();
     return (
       <>
       {/* space hit-circles */}
@@ -753,6 +782,66 @@ export const ProBoard = ({
         const tail = spaceById.get(f.tailSpace as SpaceId);
         return tail ? [fighterToken(f, tail, 0, "tail", diam)] : [];
       })}
+
+      {/* incremental-maneuver preview (issue #285): dashed trail through the hops
+          taken + a translucent ghost token at the preview position. Both are
+          non-interactive so clicks pass to the gold step highlights beneath. */}
+      {preview && (
+        <svg
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            pointerEvents: "none",
+            zIndex: 3,
+          }}
+        >
+          <polyline
+            points={preview.points}
+            fill="none"
+            stroke="#E0A82E"
+            strokeWidth={diam * 0.18}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeDasharray={`${diam * 0.3} ${diam * 0.3}`}
+            opacity={0.85}
+          />
+        </svg>
+      )}
+      {preview && (
+        <Box
+          position="absolute"
+          left={`${preview.x}%`}
+          top={`${preview.y}%`}
+          transform="translate(-50%, -50%)"
+          w={`${diam * 0.82}%`}
+          sx={{ aspectRatio: "1", pointerEvents: "none" }}
+          borderRadius="50%"
+          bg={preview.isHero ? preview.color : "brand.surfaceDim"}
+          border={`2px dashed ${preview.isHero ? "#fff" : preview.color}`}
+          opacity={0.55}
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          zIndex={5}
+          title="move preview — click again to keep stepping, or End move to commit"
+        >
+          <Text
+            fontSize="0.68rem"
+            fontWeight="bold"
+            letterSpacing="-0.02em"
+            color="brand.parchment"
+            textShadow="0 1px 3px rgba(0,0,0,0.85)"
+            lineHeight={1}
+            userSelect="none"
+          >
+            {preview.initials}
+          </Text>
+        </Box>
+      )}
 
       {/* transient effects — impact ring + floating label, above everything */}
       {fx.flatMap((item) => {
