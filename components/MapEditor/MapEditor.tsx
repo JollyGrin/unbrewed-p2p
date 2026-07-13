@@ -16,10 +16,11 @@ import { useCallback, useEffect, useState } from "react";
 import { Flex } from "@chakra-ui/react";
 import { useMapHistory } from "./useMapHistory";
 import {
-  MapDoc, Zone, EdgeRef, EdgeState,
+  MapDoc, MapItem, Zone, EdgeRef, EdgeState,
   STORAGE_KEY, DEFAULT_DIAMETER, emptyDoc, toMapDef, toMapDoc, validate,
   addSpace, moveSpace, deleteSpace, toggleZone, setStart, nudgeSpace,
   nextSpaceId, setTwoWay, applyEdgeState, edgeRef, edgeState, addZone as addZoneFn,
+  addItem as addItemFn, setItemField, removeItem, setSpaceItem, setPassage,
 } from "./model";
 import { MapCanvas, EditorMode } from "./MapCanvas";
 import { Toolbar } from "./Toolbar";
@@ -128,7 +129,20 @@ export const MapEditor = () => {
       commit((d) => applyEdgeState(d, ref, state));
       if (state === "none") setSelectedEdge(undefined);
     },
+    setItem: (id, itemId) => commit((d) => setSpaceItem(d, id, itemId)),
+    setPassage: (id, on) => commit((d) => setPassage(d, id, on)),
   };
+
+  // --- battlefield-item panel actions (engine #157) -------------------------
+  const addItem = useCallback((kind: MapItem["kind"]) => {
+    commit((d) => addItemFn(d, kind).doc);
+  }, [commit]);
+  const setItemFieldCb = useCallback((id: string, patch: Partial<MapItem>) => {
+    update((d) => setItemField(d, id, patch));
+  }, [update]);
+  const removeItemCb = useCallback((id: string) => {
+    commit((d) => removeItem(d, id));
+  }, [commit]);
 
   // --- toolbar actions ------------------------------------------------------
   const setMetaField = useCallback((patch: Partial<MapDoc["meta"]>) => {
@@ -190,6 +204,9 @@ export const MapEditor = () => {
         setMetaField={setMetaField}
         setZoneField={setZoneField}
         addZone={addZone}
+        addItem={addItem}
+        setItemField={setItemFieldCb}
+        removeItem={removeItemCb}
         doExport={doExport}
         doImport={doImport}
         doReset={doReset}

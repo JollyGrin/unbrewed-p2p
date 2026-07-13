@@ -16,6 +16,11 @@ import {
   setStart,
   nudgeSpace,
   validate,
+  addItem,
+  setItemField,
+  removeItem,
+  setSpaceItem,
+  setPassage,
 } from "./model";
 
 const doc = (over: Partial<MapDoc> = {}): MapDoc => ({
@@ -55,6 +60,27 @@ describe("toMapDef / toMapDoc round-trip", () => {
   it("accepts a legacy MapDoc (no schemaVersion) untouched", () => {
     const legacy = doc();
     expect(toMapDoc(legacy)).toEqual(legacy);
+  });
+
+  it("round-trips battlefield items + space.item + passage (engine #156/#157)", () => {
+    const d0 = doc({
+      items: [
+        { id: "sword", kind: "combat", label: "Sword", value: 2 },
+        { id: "bomb", kind: "scheme", label: "Bomb", ops: [{ op: "dealDamage", amount: 1 }] as never },
+      ],
+      spaces: [
+        { id: "s1", x: 0.2, y: 0.2, zones: ["z1"], adjacentTo: ["s2"], start: 1, item: "sword" },
+        { id: "s2", x: 0.8, y: 0.2, zones: ["z1"], adjacentTo: ["s1"], start: 2, item: "bomb", passage: true },
+        { id: "s3", x: 0.5, y: 0.8, zones: ["z1"], adjacentTo: ["s2"], passage: true },
+      ],
+    });
+    const def = toMapDef(d0);
+    expect(def.items).toHaveLength(2);
+    expect(def.spaces[0].item).toBe("sword");
+    expect(def.spaces[1].passage).toBe(true);
+    expect(def.spaces[2].passage).toBe(true);
+    // export → import → export is a fixed point.
+    expect(toMapDef(toMapDoc(JSON.parse(JSON.stringify(def))))).toEqual(def);
   });
 });
 
@@ -159,5 +185,72 @@ describe("validate", () => {
     const w = validate(bad);
     expect(w.some((m) => m.includes("asymmetric"))).toBe(true);
     expect(w.some((m) => m.includes("isolated"))).toBe(true);
+  });
+
+  it("warns on the engine's item rules (unassigned, twice-assigned, bad value/ops)", () => {
+    const w = validate(
+      doc({
+        items: [
+          { id: "sword", kind: "combat", label: "Sword", value: 0 }, // value < 1
+          { id: "bomb", kind: "scheme", label: "Bomb", ops: [] }, // empty ops
+          { id: "ghost", kind: "combat", label: "Ghost", value: 1 }, // unassigned
+        ],
+        spaces: [
+          { id: "s1", x: 0.2, y: 0.2, zones: ["z1"], adjacentTo: ["s2"], start: 1, item: "sword" },
+          { id: "s2", x: 0.8, y: 0.2, zones: ["z1"], adjacentTo: ["s1"], start: 2, item: "sword" }, // twice
+        ],
+      })
+    );
+    expect(w.some((m) => m.includes("combat item sword needs an integer value ≥ 1"))).toBe(true);
+    expect(w.some((m) => m.includes("scheme item bomb needs non-empty ops"))).toBe(true);
+    expect(w.some((m) => m.includes("ghost is defined but unassigned"))).toBe(true);
+    expect(w.some((m) => m.includes("sword is assigned to 2 spaces"))).toBe(true);
+  });
+
+  it("warns when exactly one space is flagged as a secret passage (engine #156)", () => {
+    const one = doc({
+      spaces: [
+        { id: "s1", x: 0.2, y: 0.2, zones: ["z1"], adjacentTo: ["s2"], start: 1, passage: true },
+        { id: "s2", x: 0.8, y: 0.2, zones: ["z1"], adjacentTo: ["s1"], start: 2 },
+      ],
+    });
+    expect(validate(one).some((m) => m.includes("needs at least 2 passage spaces"))).toBe(true);
+    // two passage spaces is a valid network — no passage warning.
+    const two = setPassage(one, "s2", true);
+    expect(validate(two).some((m) => m.includes("passage"))).toBe(false);
+  });
+});
+
+describe("battlefield item + passage mutations", () => {
+  it("adds a combat item (default value 1) and a scheme item (empty ops)", () => {
+    const { doc: d1, itemId: combatId } = addItem(doc(), "combat");
+    expect(d1.items).toHaveLength(1);
+    expect(d1.items![0]).toMatchObject({ id: combatId, kind: "combat", value: 1 });
+    const { doc: d2, itemId: schemeId } = addItem(d1, "scheme");
+    expect(d2.items).toHaveLength(2);
+    expect(d2.items![1]).toMatchObject({ id: schemeId, kind: "scheme", ops: [] });
+    expect(combatId).not.toBe(schemeId); // unique ids
+  });
+
+  it("assigns an item to a space and clears it", () => {
+    const { doc: d1, itemId } = addItem(doc(), "combat");
+    const assigned = setSpaceItem(d1, "s1", itemId);
+    expect(assigned.spaces.find((s) => s.id === "s1")!.item).toBe(itemId);
+    const cleared = setSpaceItem(assigned, "s1", undefined);
+    expect(cleared.spaces.find((s) => s.id === "s1")!.item).toBeUndefined();
+  });
+
+  it("removing an item also scrubs it from every space that spawned it", () => {
+    const { doc: d1, itemId } = addItem(doc(), "combat");
+    const assigned = setSpaceItem(d1, "s1", itemId);
+    const removed = removeItem(assigned, itemId);
+    expect(removed.items).toHaveLength(0);
+    expect(removed.spaces.find((s) => s.id === "s1")!.item).toBeUndefined();
+  });
+
+  it("edits an item's fields via setItemField", () => {
+    const { doc: d1, itemId } = addItem(doc(), "combat");
+    const edited = setItemField(d1, itemId, { label: "Excalibur", value: 3 });
+    expect(edited.items![0]).toMatchObject({ label: "Excalibur", value: 3 });
   });
 });

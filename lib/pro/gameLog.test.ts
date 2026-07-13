@@ -488,3 +488,47 @@ describe("parity with diffViews", () => {
     expect(enrichLines(diff, [], ctx(next.you))).toEqual(diff);
   });
 });
+
+describe("diffViews — v17 battlefield item lines (always-on, off the event stream)", () => {
+  // Item labels live on the static map.items, not the card catalog, so these
+  // lines read off the event stream (the always-passed channel), with the label
+  // resolved from view.map. They must NOT depend on the eventLog flag.
+  const withItems = (over: Partial<PlayerView> = {}) =>
+    view({
+      map: {
+        schemaVersion: "1",
+        id: "m",
+        meta: { title: "m", minPlayers: 2, maxPlayers: 2, specialRules: false },
+        zones: [],
+        items: [
+          { id: "sword", kind: "combat", label: "Sword", value: 2 },
+          { id: "bomb", kind: "scheme", label: "Bomb", ops: [] as never },
+        ],
+        spaces: [],
+      },
+      ...over,
+    });
+
+  it("logs a scheme-item use with the item label", () => {
+    const prev = withItems();
+    const next = withItems();
+    const events: GameEvent[] = [{ type: "ITEM_USED", player: "p1", space: "s1", item: "bomb" }];
+    const lines = diffViews(prev, next, label, events);
+    expect(lines).toContainEqual({ text: "You used Bomb", who: "you" });
+  });
+
+  it("logs a combat-item attach with label, value, and role", () => {
+    const prev = withItems();
+    const next = withItems();
+    const events: GameEvent[] = [
+      { type: "COMBAT_ITEM_ATTACHED", player: "p2", role: "ATTACK", space: "s2", item: "sword", value: 2 },
+    ];
+    const lines = diffViews(prev, next, label, events);
+    expect(lines).toContainEqual({ text: "Opponent attached Sword (+2 attack)", who: "opp" });
+  });
+
+  it("emits no item line when the batch carries no item events (resume/join)", () => {
+    const lines = diffViews(withItems(), withItems(), label, []);
+    expect(lines.some((l) => /used|attached/.test(l.text))).toBe(false);
+  });
+});

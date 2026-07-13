@@ -7,9 +7,13 @@
  * (== engine MapDef). `toMapDef`/`toMapDoc` are byte-compatible with the
  * original single-file editor so old drafts load and round-trips diff clean.
  */
-import type { ProMapDef } from "@/lib/pro/protocol";
+import type { ProMapDef, ProMapItem } from "@/lib/pro/protocol";
 
 export type Zone = { id: string; color: string; label: string };
+/** Battlefield item definition (engine #157 / protocol v17) — identical to the
+ *  wire `ProMapItem`. Combat items carry `value` (≥1); scheme items carry raw `ops`
+ *  JSON (no ops-builder in v1). */
+export type MapItem = ProMapItem;
 export type Space = {
   id: string;
   x: number; // normalized 0-1 of image width
@@ -18,6 +22,8 @@ export type Space = {
   adjacentTo: string[]; // symmetric edges
   oneWayTo?: string[]; // directed edges (e.g. Mended Drum's stairs drop)
   start?: number; // player slot 1-4
+  item?: string; // battlefield item id spawned here (MapItem.id) — engine #157
+  passage?: boolean; // secret-passage space (engine #156)
 };
 export type MapDoc = {
   meta: {
@@ -30,6 +36,7 @@ export type MapDoc = {
     spaceDiameter?: number;
   };
   zones: Zone[];
+  items?: MapItem[]; // battlefield item definitions (engine #157) — absent on ordinary maps
   spaces: Space[];
 };
 
@@ -82,6 +89,7 @@ export const toMapDef = (doc: MapDoc): ProMapDef => {
       ...(doc.meta.license ? { license: doc.meta.license } : {}),
     },
     zones: doc.zones,
+    ...(doc.items && doc.items.length ? { items: doc.items } : {}),
     spaces: doc.spaces.map((s) => ({
       id: s.id,
       x: s.x,
@@ -90,6 +98,8 @@ export const toMapDef = (doc: MapDoc): ProMapDef => {
       adjacentTo: s.adjacentTo,
       ...(s.oneWayTo && s.oneWayTo.length ? { oneWayTo: s.oneWayTo } : {}),
       ...(typeof s.start === "number" ? { start: { slot: s.start } } : {}),
+      ...(s.item ? { item: s.item } : {}),
+      ...(s.passage ? { passage: true } : {}),
     })),
   };
 };
@@ -117,6 +127,9 @@ export const toMapDoc = (raw: unknown): MapDoc => {
         ...(typeof meta.spaceDiameter === "number" ? { spaceDiameter: meta.spaceDiameter } : {}),
       },
       zones: (r.zones as Zone[]) ?? [],
+      // items + per-space item/passage round-trip untouched (engine #156/#157);
+      // the space spread copies `item`/`passage` verbatim, start is un-nested.
+      ...(Array.isArray(r.items) ? { items: r.items as MapItem[] } : {}),
       spaces: ((r.spaces as Record<string, unknown>[]) ?? []).map((s) => ({
         ...(s as unknown as Space),
         start:
@@ -288,6 +301,54 @@ export const setStart = (doc: MapDoc, id: string, slot: number | undefined): Map
   spaces: doc.spaces.map((s) => (s.id === id ? { ...s, start: slot } : s)),
 });
 
+// ---------------------------------------------------------------------------
+// Battlefield items + secret passages (engine #156/#157). All pure (doc in, doc
+// out). Field shapes come straight from the engine — the editor invents nothing.
+// ---------------------------------------------------------------------------
+
+/** Next free `itemN` id (never collides with an existing item). */
+export const nextItemId = (doc: MapDoc): string => {
+  const existing = new Set((doc.items ?? []).map((it) => it.id));
+  let n = (doc.items?.length ?? 0) + 1;
+  while (existing.has(`item${n}`)) n++;
+  return `item${n}`;
+};
+
+/** Add a fresh item of `kind` — combat items default value 1, scheme items empty ops. */
+export const addItem = (doc: MapDoc, kind: MapItem["kind"]): { doc: MapDoc; itemId: string } => {
+  const id = nextItemId(doc);
+  const item: MapItem =
+    kind === "combat"
+      ? { id, kind, label: `Combat item ${id}`, value: 1 }
+      : { id, kind, label: `Scheme item ${id}`, ops: [] };
+  return { doc: { ...doc, items: [...(doc.items ?? []), item] }, itemId: id };
+};
+
+/** Patch one item's fields (label, value, ops). Kind is fixed at creation. */
+export const setItemField = (doc: MapDoc, id: string, patch: Partial<MapItem>): MapDoc => ({
+  ...doc,
+  items: (doc.items ?? []).map((it) => (it.id === id ? { ...it, ...patch } : it)),
+});
+
+/** Remove an item definition AND clear it from any space that spawned it. */
+export const removeItem = (doc: MapDoc, id: string): MapDoc => ({
+  ...doc,
+  items: (doc.items ?? []).filter((it) => it.id !== id),
+  spaces: doc.spaces.map((s) => (s.item === id ? { ...s, item: undefined } : s)),
+});
+
+/** Assign (or clear) the battlefield item spawned on a space. */
+export const setSpaceItem = (doc: MapDoc, spaceId: string, itemId: string | undefined): MapDoc => ({
+  ...doc,
+  spaces: doc.spaces.map((s) => (s.id === spaceId ? { ...s, item: itemId || undefined } : s)),
+});
+
+/** Flag/unflag a space as a secret passage (engine #156). */
+export const setPassage = (doc: MapDoc, spaceId: string, on: boolean): MapDoc => ({
+  ...doc,
+  spaces: doc.spaces.map((s) => (s.id === spaceId ? { ...s, passage: on || undefined } : s)),
+});
+
 export const addZone = (doc: MapDoc): { doc: MapDoc; zoneId: string } => {
   const n = doc.zones.length;
   const zone: Zone = {
@@ -322,5 +383,41 @@ export const validate = (doc: MapDoc): string[] => {
       if (s.adjacentTo.includes(a)) w.push(`${s.id}->${a} is BOTH two-way and one-way`);
     });
   });
+
+  // Battlefield items (engine #157) — mirror engine validateMap so authors aren't
+  // surprised at room creation: well-formed for kind, unique ids, every space.item
+  // resolves + is used at most once, and no item is declared without a spawn space.
+  const items = doc.items ?? [];
+  const itemIds = new Set<string>();
+  items.forEach((it) => {
+    if (!it.id.trim()) w.push("item id is empty");
+    else if (itemIds.has(it.id)) w.push(`duplicate item id: ${it.id}`);
+    itemIds.add(it.id);
+    if (it.kind === "combat") {
+      if (typeof it.value !== "number" || !Number.isInteger(it.value) || it.value < 1)
+        w.push(`combat item ${it.id} needs an integer value ≥ 1`);
+    } else if (it.kind === "scheme") {
+      if (!Array.isArray(it.ops) || it.ops.length === 0)
+        w.push(`scheme item ${it.id} needs non-empty ops`);
+    }
+  });
+  const spawnedCount = new Map<string, number>();
+  doc.spaces.forEach((s) => {
+    if (s.item === undefined) return;
+    if (!itemIds.has(s.item)) w.push(`${s.id} assigns unknown item ${s.item}`);
+    spawnedCount.set(s.item, (spawnedCount.get(s.item) ?? 0) + 1);
+  });
+  spawnedCount.forEach((count, id) => {
+    if (count > 1) w.push(`item ${id} is assigned to ${count} spaces (use each item id on at most one space)`);
+  });
+  items.forEach((it) => {
+    if (!spawnedCount.has(it.id)) w.push(`item ${it.id} is defined but unassigned to any space`);
+  });
+
+  // Secret passages (engine #156): a one-space network is unreachable-by-construction.
+  const passageSpaces = doc.spaces.filter((s) => s.passage);
+  if (passageSpaces.length === 1)
+    w.push(`${passageSpaces[0].id}: a secret-passage network needs at least 2 passage spaces`);
+
   return w;
 };

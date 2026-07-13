@@ -191,6 +191,26 @@ export function diffViews(
     }
   }
 
+  // battlefield items (v17): scheme-item use + combat-item attach. These are
+  // NOT snapshot-derivable from `view` alone (the item label lives on the static
+  // map, not the catalog, and both actions merely drop a token), so they read off
+  // the always-present event stream — the same channel diffViews already uses for
+  // sweeps. Absent on join/reconnect/resume broadcasts, so no lines double-fire.
+  // Item labels come from the static map.items (present on both prev and next).
+  const itemLabel = (id: string): string =>
+    (next.map.items ?? []).find((it) => it.id === id)?.label ?? id;
+  for (const e of events) {
+    if (e.type === "ITEM_USED") {
+      lines.push({ text: `${seat(e.player)} used ${itemLabel(e.item)}`, who: whoOf(e.player) });
+    } else if (e.type === "COMBAT_ITEM_ATTACHED") {
+      const role = e.role === "ATTACK" ? "attack" : "defense";
+      lines.push({
+        text: `${seat(e.player)} attached ${itemLabel(e.item)} (+${e.value} ${role})`,
+        who: whoOf(e.player),
+      });
+    }
+  }
+
   // tokens (totems): appearances and disappearances
   const prevTokens = new Map((prev.tokens ?? []).map((t) => [t.id, t]));
   const nextTokens = new Map((next.tokens ?? []).map((t) => [t.id, t]));
