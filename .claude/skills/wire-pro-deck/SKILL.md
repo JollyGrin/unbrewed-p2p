@@ -75,9 +75,10 @@ reply lands or if the socket never connects — keep it matching the deployed
 server's roster so the landing never regresses to "not ready" on a slow
 connect.
 
-**5. Cardback** — self-hosted at `public/cardbacks/<hero-id>.webp`
-(precedent: Thrall, commit `82f30c3`) or a community imgur URL in
-`POPULAR_DECKS.cardbackUrl`.
+**5. Cardback** — self-hosted co-located with the deck's card art and
+tokens at `public/evergreen-decks/art/<deck>/cardback.webp` (precedent:
+king-kong; convention consolidated in unbrewed-p2p-259) or a community
+imgur URL in `POPULAR_DECKS.cardbackUrl`.
 
 No step needed for the hero-preview modal (`components/Pro/HeroPreviewModal.tsx`,
 added PR #92/unbrewed-p2p-84): `lib/pro/useDeckPreview.ts` reads the same
