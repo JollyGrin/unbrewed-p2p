@@ -14,8 +14,10 @@ import {
 } from "./moveSteps";
 import type { MoveGraph, SpaceId } from "./protocol";
 
-// A tiny straight line of five spaces s0..s4 with bidirectional edges, plus a
-// branch s2->s5. Every space is a legal resting spot unless noted.
+// A small line of spaces s0..s5 with bidirectional edges, plus a branch s2->s5.
+// Mirrors the engine graph (issue #55): the ORIGIN s0 is a node with
+// `canStop=false` (staying put is END_MANEUVER); every other space is a legal
+// resting spot unless overridden.
 const line = (allowance: number, stops?: Partial<Record<SpaceId, boolean>>): MoveGraph => {
   const ids: SpaceId[] = ["s0", "s1", "s2", "s3", "s4", "s5"];
   const edges: [SpaceId, SpaceId][] = [];
@@ -28,8 +30,12 @@ const line = (allowance: number, stops?: Partial<Record<SpaceId, boolean>>): Mov
   link("s3", "s4");
   link("s2", "s5");
   return {
+    fighter: "p1/hero",
     allowance,
-    nodes: ids.map((space) => ({ space, canStop: stops?.[space] ?? true })),
+    nodes: ids.map((space) => ({
+      space,
+      canStop: stops?.[space] ?? space !== "s0", // origin non-stoppable by default
+    })),
     edges,
   };
 };
@@ -59,12 +65,14 @@ describe("moveSteps — bookkeeping", () => {
 });
 
 describe("moveSteps — legalNextSteps", () => {
-  it("offers only the stoppable edge-neighbours of the preview position", () => {
+  it("offers the edge-neighbours of the preview position (incl. stepping BACK)", () => {
     const g = line(3);
     const s = startStepping("s0");
     expect(legalNextSteps(g, s).sort()).toEqual(["s1"]);
     const s2 = stepTo(g, s, "s1")!;
-    expect(legalNextSteps(g, s2).sort()).toEqual(["s0", "s2"]); // can step forward or BACK
+    // From s1 (rem 2) you may step forward to s2 OR back to the origin s0 — the
+    // origin is non-stoppable but there is budget (rem ≥ 2) to leave it again.
+    expect(legalNextSteps(g, s2).sort()).toEqual(["s0", "s2"]);
   });
 
   it("offers nothing once the allowance is spent", () => {
@@ -74,26 +82,35 @@ describe("moveSteps — legalNextSteps", () => {
     expect(legalNextSteps(g, s)).toEqual([]);
   });
 
-  it("omits a neighbour that is not a legal resting spot (pass-through space)", () => {
-    // s2 is friendly pass-through (canStop=false) — never a clickable step target.
-    const g = line(3, { s2: false });
-    const s = stepTo(g, startStepping("s0"), "s1")!;
-    expect(legalNextSteps(g, s).sort()).toEqual(["s0"]);
+  it("offers a pass-through (non-stoppable) neighbour while there is budget to leave it", () => {
+    const g = line(3, { s2: false }); // s2 is pass-through only
+    const s = stepTo(g, startStepping("s0"), "s1")!; // rem 2 at s1
+    expect(legalNextSteps(g, s)).toContain("s2");
+  });
+
+  it("withholds a pass-through neighbour when only one step remains (would strand)", () => {
+    const g = line(2, { s2: false }); // s2 pass-through; s1 stoppable
+    const s = stepTo(g, startStepping("s0"), "s1")!; // rem 1 at s1
+    // s2 (pass-through) and s0 (origin, non-stoppable) both need rem ≥ 2 to leave.
+    expect(legalNextSteps(g, s)).not.toContain("s2");
+    expect(legalNextSteps(g, s)).not.toContain("s0");
   });
 });
 
 describe("moveSteps — canStopAt / canCommit", () => {
-  it("always allows stopping at the origin (no-op / revisit)", () => {
-    const g = line(3, { s0: false }); // even if the graph marks origin non-stoppable
-    expect(canStopAt(g, "s0", "s0")).toBe(true);
+  it("never lets the fighter END on its own start space (origin canStop=false)", () => {
+    const g = line(3);
+    expect(canStopAt(g, "s0")).toBe(false);
+    // step out and back to origin — committing there is still forbidden
+    let s = stepTo(g, startStepping("s0"), "s1")!;
+    s = stepTo(g, s, "s0")!;
+    expect(previewPosition(s)).toBe("s0");
+    expect(canCommit(g, s)).toBe(false);
   });
 
   it("forbids committing on a pass-through space but allows it one hop later", () => {
     const g = line(3, { s2: false });
-    let s = stepTo(g, startStepping("s0"), "s1")!;
-    // step onto s2 is not offered (pass-through); reach it via applyClick? no —
-    // committing is only asked at a reachable preview, so drive to s3 legally:
-    s = { origin: "s0", path: ["s0", "s1", "s2"] }; // hand-built mid-walk over a pass-through
+    let s: ReturnType<typeof startStepping> = { origin: "s0", path: ["s0", "s1", "s2"] };
     expect(canCommit(g, s)).toBe(false); // s2 not stoppable
     s = { origin: "s0", path: ["s0", "s1", "s2", "s3"] };
     expect(canCommit(g, s)).toBe(true); // s3 is stoppable

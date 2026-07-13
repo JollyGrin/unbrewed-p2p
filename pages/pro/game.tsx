@@ -2188,7 +2188,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
       : null;
   const moveGraph =
     view.turnPhase === "MANEUVER_MOVE" && selectedFighter != null
-      ? view.maneuver?.moveGraph?.[selectedFighter] ?? null
+      ? view.moveGraphs?.find((g) => g.fighter === selectedFighter) ?? null
       : null;
   // The live preview state for the selected fighter — its own `step` if one is in
   // flight, else a fresh preview parked at the origin. Null unless stepping is on.
