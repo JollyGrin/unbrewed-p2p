@@ -148,10 +148,10 @@
         "boost": 2,
         "characterName": "MALFURION",
         "duringText": "",
-        "imageUrl": "/evergreen-decks/art/malfurion-stormrage/bear-form.webp",
+        "imageUrl": "/evergreen-decks/art/malfurion-stormrage/dire-bear-form.webp",
         "immediateText": "",
         "quantity": 2,
-        "title": "Bear Form",
+        "title": "Dire Bear Form",
         "type": "defence",
         "value": 2,
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
