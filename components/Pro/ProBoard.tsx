@@ -199,7 +199,7 @@ const OnyxiaBoardGraph = ({
   // coordinate system as the SVG viewBox so spaces stay circular on wide maps.
   const r = (diam / 100) * width * 0.5;
   const edgeWidth = width * 0.0042;
-  const oneWayWidth = width * 0.0036;
+  const oneWayWidth = width * 0.0022;
   const outlineWidth = width * 0.0016;
   return (
     <svg
@@ -209,8 +209,8 @@ const OnyxiaBoardGraph = ({
       style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 2 }}
     >
       <defs>
-        <marker id="onyxia-one-way-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
-          <path d="M 0 0 L 8 4 L 0 8 z" fill="#f8f0dc" stroke="#050505" strokeWidth="0.75" />
+        <marker id="onyxia-one-way-arrow" markerWidth="5" markerHeight="5" refX="4.4" refY="2.5" orient="auto" markerUnits="strokeWidth">
+          <path d="M 0 0 L 5 2.5 L 0 5 z" fill="#f8f0dc" stroke="#050505" strokeWidth="0.45" />
         </marker>
       </defs>
       {edges.map(({ from, to }) => (
@@ -241,7 +241,7 @@ const OnyxiaBoardGraph = ({
             stroke="#f8f0dc"
             strokeWidth={oneWayWidth}
             strokeLinecap="round"
-            strokeDasharray={`${oneWayWidth * 2} ${oneWayWidth * 2}`}
+            strokeDasharray={`${oneWayWidth * 1.6} ${oneWayWidth * 2.2}`}
             markerEnd="url(#onyxia-one-way-arrow)"
           />
         );
