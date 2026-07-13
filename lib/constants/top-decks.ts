@@ -357,6 +357,19 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     original: true,
   },
   {
+    // Spice remix of King Taranis (display name "King Taranis") — server hero
+    // king-taranis-spice. Reuses King Taranis's cardback and per-card art until
+    // dedicated spice art lands.
+    id: "taranis-spice",
+    name: "King Taranis",
+    hero: "King Taranis",
+    author: "unbrewed",
+    likes: 0,
+    highlightColour: "#c9962b",
+    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/taranis/cardback.webp",
+    original: true,
+  },
+  {
     // Evergreen original: Thetis, the Ebb-and-Flow — server hero thetis.
     // Reflavored/baseline deck (tier === 'reflavored'): hidden from the default
     // roster and bot rotation, visible only under ?debug (see ProLanding).
@@ -399,6 +412,19 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     original: true,
   },
   {
+    // Spice remix of The Piper of the Underroads (display name shared) — server
+    // hero piper-of-the-underroads-spice. Reuses Piper's cardback and per-card
+    // art until dedicated spice art lands.
+    id: "piper-spice",
+    name: "The Piper of the Underroads",
+    hero: "The Piper of the Underroads",
+    author: "unbrewed",
+    likes: 0,
+    highlightColour: "#b06f2e",
+    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/piper/cardback.webp",
+    original: true,
+  },
+  {
     // Evergreen original: The Hollow Oak — server hero hollow-oak.
     id: "hollow-oak",
     name: "The Hollow Oak",
@@ -407,6 +433,19 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     likes: 0,
     highlightColour: "#5f7d3b",
     // self-hosted; also patched into the evergreen snapshot appearance
+    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/cardback.webp",
+    original: true,
+  },
+  {
+    // Spice remix of The Hollow Oak (display name shared) — server hero
+    // hollow-oak-spice. Reuses Hollow Oak's cardback and per-card art until
+    // dedicated spice art lands.
+    id: "hollow-oak-spice",
+    name: "The Hollow Oak",
+    hero: "The Hollow Oak",
+    author: "unbrewed",
+    likes: 0,
+    highlightColour: "#5f7d3b",
     cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/cardback.webp",
     original: true,
   },

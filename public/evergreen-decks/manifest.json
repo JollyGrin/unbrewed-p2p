@@ -155,6 +155,42 @@
         "file": "data/heroes/buster-keaton.rules.ts",
         "commit": "27a250824bd9"
       }
+    },
+    {
+      "heroId": "king-taranis-spice",
+      "deckId": "taranis-spice",
+      "version_id": "evergreen-1",
+      "frozenAt": "2026-07-13",
+      "digest": "sha256:b3ba26ef31ebbd79602f17149197b01b91d0037627559dfdc6cc36294649e695",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/king-taranis-spice.rules.ts",
+        "commit": "3ddb8b7"
+      }
+    },
+    {
+      "heroId": "piper-of-the-underroads-spice",
+      "deckId": "piper-spice",
+      "version_id": "evergreen-1",
+      "frozenAt": "2026-07-13",
+      "digest": "sha256:d2240d920e138635ca07ea1c3a882ad00721c2063c9e5454dc5ad8f80757ed90",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/piper-of-the-underroads-spice.rules.ts",
+        "commit": "7c47af6"
+      }
+    },
+    {
+      "heroId": "hollow-oak-spice",
+      "deckId": "hollow-oak-spice",
+      "version_id": "evergreen-1",
+      "frozenAt": "2026-07-13",
+      "digest": "sha256:7d988182bd16f1b92e31715cf21b0ea3180be4d13490f027d3acb73fd42da98d",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/hollow-oak-spice.rules.ts",
+        "commit": "27195fe"
+      }
     }
   ]
 }
