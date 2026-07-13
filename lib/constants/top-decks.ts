@@ -156,7 +156,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Blakpantha",
     likes: 63,
     highlightColour: "#973434",
-    // cardback image on imgur is dead — tile falls back to the highlight colour
+    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/king-kong/cardback.webp",
   },
   {
     id: "XjyQ",
@@ -192,6 +192,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Mr_Shakespeare",
     likes: 0,
     highlightColour: "#3a3a3a",
+    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/QkB1/cardback.webp",
   },
   {
     id: "L6Z1",
