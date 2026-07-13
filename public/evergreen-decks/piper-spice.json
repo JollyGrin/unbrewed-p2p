@@ -1,0 +1,204 @@
+{
+  "bgg_link": null,
+  "created_on": "Mon, 13 Jul 2026 00:00:00 GMT",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#2e3d26",
+      "cardbackUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/cardback.webp",
+      "highlightColour": "#b06f2e",
+      "isPNP": false,
+      "patternName": "Topography"
+    },
+    "cards": [
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 4,
+        "characterName": "PIPER",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/rh-01.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "A Killing Note",
+        "type": "attack",
+        "value": 5
+      },
+      {
+        "afterText": "Draw 1 card for each damage dealt to the opposing fighter. If you won the combat, deal 1 damage to each opposing fighter adjacent to your fighter.",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "PIPER",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/rh-02.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Swarm the Fallen",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "Draw 2 cards. If you won the combat and the opposing fighter is within your range, deal 1 damage to it.",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "PIPER",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/rh-03.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "A Piercing Reprise",
+        "type": "attack",
+        "value": 2
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "ANY",
+        "duringText": "Your opponent discards 1 random card. Add that card's BOOST value to this card's value.",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/rh-04.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Out of the Culverts",
+        "type": "attack",
+        "value": 2
+      },
+      {
+        "afterText": "",
+        "basicText": "Draw 1 card. Then your opponent discards 1 card at random.",
+        "boost": 3,
+        "characterName": "PIPER",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/rh-05.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Tribute of Teeth",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "Draw 2 cards. Return a defeated Vermin Chorus rat (if any) to any space in the Piper's zone. If you won the combat, deal 1 damage to each opposing fighter adjacent to your fighter.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/rh-06.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Gnawed to the Bone",
+        "type": "defence",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "VERMIN",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/rh-07.webp",
+        "immediateText": "Cancel all effects on your opponent's card and ignore its defense value.",
+        "quantity": 4,
+        "title": "A Thousand Teeth",
+        "type": "attack",
+        "value": 2
+      },
+      {
+        "afterText": "If your fighter is adjacent to the opposing fighter, draw 1 card.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/rh-08.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Snark",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "Deal 1 damage to each opposing fighter adjacent to your fighter.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/rh-09.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Wily Fighting",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/rh-10.webp",
+        "immediateText": "Cancel all effects on your opponent's card.",
+        "quantity": 3,
+        "title": "Feint",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "Draw 1 card. If you won the combat, draw 2 cards instead.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/rh-11.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Regroup",
+        "type": "versatile",
+        "value": 1
+      }
+    ],
+    "extraCharacters": [],
+    "hero": {
+      "hp": 13,
+      "isRanged": true,
+      "move": 2,
+      "name": "The Piper of the Underroads",
+      "specialAbility": "INTO THE UNDERROADS\nAfter you attack, you may move your attacking fighter up to 2 spaces.",
+      "quote": "A sly piper of the flooded ways beneath the city, striking from the dark and slipping back into the pipes while his rat chorus screens him — hit, steal, and vanish.",
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/token-piper.webp"
+    },
+    "name": "The Piper of the Underroads",
+    "ruleCards": [],
+    "sidekick": {
+      "hp": 1,
+      "isRanged": false,
+      "name": "The Vermin Chorus",
+      "quantity": 4,
+      "quote": "A swarm of sewer rats that moves as one body — expendable, endless, and always coming back.",
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/token-chorus.webp"
+    }
+  },
+  "deck_first_published_on": null,
+  "deck_published": true,
+  "family_id": "piper-spice",
+  "id": "piper-spice",
+  "name": "The Piper of the Underroads",
+  "note": "Unbrewed spice remix of the evergreen Piper of the Underroads deck: same hero, statline, and INTO THE UNDERROADS hit-and-run engine, with 4 reworked cards (Swarm the Fallen, A Piercing Reprise, Tribute of Teeth, Gnawed to the Bone) leaning harder into the Vermin Chorus swarm. Art reuses Piper's until dedicated spice art lands.",
+  "published": true,
+  "published_on": null,
+  "tags": [
+    {
+      "name": "Evergreen",
+      "slug": "evergreen"
+    },
+    {
+      "name": "Spice",
+      "slug": "spice"
+    },
+    {
+      "name": "Public Domain",
+      "slug": "public-domain"
+    }
+  ],
+  "updated_on": "Mon, 13 Jul 2026 00:00:00 GMT",
+  "user": "unbrewed",
+  "version_id": "evergreen-1",
+  "version_name": "1.0"
+}

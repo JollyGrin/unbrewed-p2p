@@ -1,0 +1,204 @@
+{
+  "bgg_link": null,
+  "created_on": "Mon, 13 Jul 2026 00:00:00 GMT",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#2c3b22",
+      "cardbackUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/cardback.webp",
+      "highlightColour": "#5f7d3b",
+      "isPNP": false,
+      "patternName": "Leaf"
+    },
+    "cards": [
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "OAK",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/bf-01.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Old Growth",
+        "type": "attack",
+        "value": 6
+      },
+      {
+        "afterText": "If you won the combat, deal 1 damage to each fighter adjacent to the Hollow Oak.",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "OAK",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/bf-02.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Breaking Boughs",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "",
+        "basicText": "Move the Hollow Oak up to 5 spaces. It may move through spaces containing opposing fighters.",
+        "boost": 3,
+        "characterName": "OAK",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/bf-03.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "The Forest Walks",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "",
+        "basicText": "Move the Ember Fox up to 5 spaces; it may move through spaces containing opposing fighters. Then draw 1 card.",
+        "boost": 2,
+        "characterName": "FOX",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/bf-04.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Foxfire",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "Move this fighter up to 3 spaces away from every opposing fighter.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/bf-05.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Rooted Elsewhere",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "Move this fighter up to 5 spaces. It may move through spaces containing opposing fighters.",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/bf-06.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Only the Wind in the Leaves",
+        "type": "defence",
+        "value": 3
+      },
+      {
+        "afterText": "Move the opposing fighter up to 3 spaces. It may move through spaces containing fighters.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/bf-07.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "A Trick of the Light",
+        "type": "versatile",
+        "value": 4
+      },
+      {
+        "afterText": "If you won the combat, choose one of the fighters in the combat and move them up to 2 spaces.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/bf-08.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Skirmish",
+        "type": "versatile",
+        "value": 4
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "If your fighter started this turn in a different space, this card's value is 5 instead.",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/bf-09.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Momentous Shift",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/bf-10.webp",
+        "immediateText": "Cancel all effects on your opponent's card.",
+        "quantity": 3,
+        "title": "Feint",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "Draw 1 card. If you won the combat, draw 2 cards instead.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/bf-11.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Regroup",
+        "type": "versatile",
+        "value": 1
+      }
+    ],
+    "extraCharacters": [],
+    "hero": {
+      "hp": 16,
+      "isRanged": false,
+      "move": 3,
+      "name": "The Hollow Oak",
+      "specialAbility": "JUST ANOTHER TREE\nAt the end of your turn, if there are no opposing fighters in the Hollow Oak's zone, you may draw 1 card.",
+      "quote": "A colossal walking oak that is happiest in an empty grove — a lone bruiser who crashes through the treeline with enormous swings, then stands still until it is just another tree.",
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/token-oak.webp"
+    },
+    "name": "The Hollow Oak",
+    "ruleCards": [],
+    "sidekick": {
+      "hp": 6,
+      "isRanged": false,
+      "name": "The Ember Fox",
+      "quantity": 1,
+      "quote": "A quick fox with fur that smolders at the tips, trailing sparks through the undergrowth.",
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/token-ember-fox.webp"
+    }
+  },
+  "deck_first_published_on": null,
+  "deck_published": true,
+  "family_id": "hollow-oak-spice",
+  "id": "hollow-oak-spice",
+  "name": "The Hollow Oak",
+  "note": "Unbrewed spice remix of the evergreen Hollow Oak deck: same hero, statline, and JUST ANOTHER TREE fight-alone engine, with 4 reworked cards (Foxfire, Rooted Elsewhere, Only the Wind in the Leaves, A Trick of the Light) that manufacture the solitude the hero rewards. Art reuses Hollow Oak's until dedicated spice art lands.",
+  "published": true,
+  "published_on": null,
+  "tags": [
+    {
+      "name": "Evergreen",
+      "slug": "evergreen"
+    },
+    {
+      "name": "Spice",
+      "slug": "spice"
+    },
+    {
+      "name": "Public Domain",
+      "slug": "public-domain"
+    }
+  ],
+  "updated_on": "Mon, 13 Jul 2026 00:00:00 GMT",
+  "user": "unbrewed",
+  "version_id": "evergreen-1",
+  "version_name": "1.0"
+}
