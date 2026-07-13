@@ -316,7 +316,7 @@ const hurtVignette = keyframes`
   100% { opacity: 0; }
 `;
 
-// --- Combat Callouts (issue #162, gated behind the `combatFx` flag) ---------
+// --- Combat Callouts (issue #162) -------------------------------------------
 // Full-screen decorative flourishes, following the hurtVignette overlay pattern.
 // Each keyframe both enters AND exits, so a keyed remount plays the whole beat.
 
@@ -1458,11 +1458,10 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
   // Sounds + transient board visuals, derived by diffing snapshots (useGameFx).
   const { boardFx, hurtKey, soundOn, visualOn, toggleSound, toggleVisual } = useGameFx(snapshot);
 
-  // Combat callouts (issue #162): full-screen turn/defend/reveal flourishes,
-  // gated behind the `combatFx` beta flag. Decorative-only; a separate hook so
-  // the board-FX loop above stays byte-identical. Off → returns [].
-  const [combatFxOn] = useFlag("combatFx");
-  const combatCallouts = useCombatCallouts(snapshot, combatFxOn);
+  // Combat callouts (issue #162): full-screen turn/defend/reveal flourishes.
+  // Decorative-only; a separate hook so the board-FX loop above stays
+  // byte-identical.
+  const combatCallouts = useCombatCallouts(snapshot);
 
   // GAME_OVER pushes a self-contained bundle to both seats (protocol v7). Save it
   // to the local Replays store so the match is scrubbable later (issue #122). Runs
@@ -1492,7 +1491,6 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
   const [zoomMapOn] = useFlag("zoomMap");
 
   // Activity feed: diff each view against the previous one (see gameLog.ts).
-  const [eventLogOn] = useFlag("eventLog");
   const [logEntries, setLogEntries] = useState<ProLogEntry[]>([]);
   const prevViewRef = useRef<PlayerView | null>(null);
   const logSeqRef = useRef(0);
@@ -1501,10 +1499,10 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
     const next = snapshot.view;
     const diff = diffViews(prevViewRef.current, next, (c) => cardLabel(next.catalog, c), snapshot.events);
     // Decoratively enrich with the engine's structured events for THIS batch —
-    // gated behind the eventLog flag. Flag off (or no events) leaves the log
-    // byte-identical to the pure diffViews path. See enrichLines in gameLog.ts.
+    // tags discards with their reason and logs scheduled/delayed effects, value
+    // changes, and gained actions. No events → same as diffViews. See enrichLines.
     const lines =
-      eventLogOn && snapshot.events.length
+      snapshot.events.length
         ? enrichLines(diff, snapshot.events, {
             label: (source) => resolveEventSource(next, source),
             you: next.you,
@@ -1520,7 +1518,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
     setLogEntries((cur) =>
       [...lines.map((l) => ({ ...l, key: `log-${logSeqRef.current++}`, ts, turn })).reverse(), ...cur].slice(0, 120)
     );
-  }, [snapshot, eventLogOn]);
+  }, [snapshot]);
 
   // Returning player: a saved reconnect token for this room means we skip the
   // hero picker entirely and RECONNECT straight into the same seat (joinRoom
@@ -2537,8 +2535,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
       )}
 
       {/* combat callouts: turn banner / DEFEND! pulse / scheme-effect card
-          reveal (issue #162, gated by the combatFx flag inside useCombatCallouts;
-          empty when off or on a pre-v10 server) */}
+          reveal (issue #162; empty on a pre-v10 server) */}
       {combatCallouts.map((item) => (
         <CombatCalloutOverlay key={item.key} item={item} view={view} resolveCard={resolveCard} />
       ))}

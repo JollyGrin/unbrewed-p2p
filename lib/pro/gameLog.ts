@@ -244,7 +244,7 @@ export function diffViews(
 }
 
 // ---------------------------------------------------------------------------
-// Event enrichment (protocol v10, gated behind the `eventLog` flag).
+// Event enrichment (protocol v10).
 //
 // `diffViews` above remains the ONLY producer of log lines for anything it can
 // derive from the view snapshots. `enrichLines` layers the structured engine
@@ -274,10 +274,10 @@ const isCardSource = (source: string): boolean =>
 
 /** Human suffix for a `CARD_DISCARDED.reason`, appended to the discard line. */
 const DISCARD_REASON: Record<string, string> = {
-  BOOST: "boost",
-  COMBAT: "combat",
-  HAND_LIMIT: "hand limit",
-  EFFECT: "effect",
+  BOOST: "spent to boost",
+  COMBAT: "used in combat",
+  HAND_LIMIT: "over hand limit",
+  EFFECT: "card effect",
   MILL: "milled",
 };
 
@@ -338,7 +338,7 @@ export function enrichLines(
           (l) =>
             /→ discard:/.test(l.text) &&
             l.cards?.includes(e.card) &&
-            !/ \((?:boost|combat|hand limit|effect|milled)\)$/.test(l.text)
+            !/ \((?:spent to boost|used in combat|over hand limit|card effect|milled)\)$/.test(l.text)
         );
         if (target) target.text = `${target.text} (${suffix})`;
         break;
