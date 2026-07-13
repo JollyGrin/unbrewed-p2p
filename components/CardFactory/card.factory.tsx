@@ -85,7 +85,7 @@ export const CardSvg: React.FC<{
           <rect
             className="top-panel"
             width={props.topPanelWidth}
-            height={props.topPanelHeight}
+            height={roundNumber(props.topPanelHeight, 2)}
             style={cardStyles.topPanelStyle}
           />
           <image
