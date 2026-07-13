@@ -1,0 +1,574 @@
+{
+  "schemaVersion": "1.0",
+  "id": "city-docks",
+  "meta": {
+    "title": "City Docks",
+    "minPlayers": 2,
+    "maxPlayers": 4,
+    "specialRules": false,
+    "imageUrl": "https://unbrewed.xyz/maps/community-city-docks-85.webp",
+    "spaceDiameter": 0.076,
+    "source": "https://www.the-unmatched.club/c/maps/city-docks.85",
+    "license": "Fan battlefield 'City Docks' designed by Inforce (the-unmatched.club). Source: https://www.the-unmatched.club/c/maps/city-docks.85 — credit Inforce and the-unmatched.club."
+  },
+  "supportedFormats": [
+    {
+      "id": "duel-city-docks",
+      "formatId": "duel",
+      "label": "Duel",
+      "description": "Start slots 1 (right harbor wall) and 2 (left rooftops) for a standard 1v1.",
+      "seats": {
+        "A1": {
+          "startSlot": 1
+        },
+        "B1": {
+          "startSlot": 2
+        }
+      }
+    },
+    {
+      "id": "ffa-3-city-docks",
+      "formatId": "ffa-3",
+      "label": "3 Player Free For All",
+      "description": "Three independent players use start slots 1, 2, and 3.",
+      "seats": {
+        "A1": {
+          "startSlot": 1
+        },
+        "B1": {
+          "startSlot": 2
+        },
+        "C1": {
+          "startSlot": 3
+        }
+      }
+    },
+    {
+      "id": "team-2v2-city-docks",
+      "formatId": "team-2v2",
+      "label": "2v2 Teams",
+      "description": "Diagonal teams so teammates start apart (playtest-tunable): A on slots 1 (right wall) and 4 (left boardwalk), B on slots 2 (left rooftops) and 3 (right piers).",
+      "seats": {
+        "A1": {
+          "startSlot": 1
+        },
+        "A2": {
+          "startSlot": 4
+        },
+        "B1": {
+          "startSlot": 2
+        },
+        "B2": {
+          "startSlot": 3
+        }
+      }
+    }
+  ],
+  "zones": [
+    {
+      "id": "z-street",
+      "color": "#c3ac8e",
+      "label": "cobbled streets"
+    },
+    {
+      "id": "z-piers",
+      "color": "#655139",
+      "label": "docks & piers"
+    },
+    {
+      "id": "z-wall",
+      "color": "#b5b2ae",
+      "label": "harbor wall"
+    },
+    {
+      "id": "z-board",
+      "color": "#998666",
+      "label": "old boardwalk"
+    },
+    {
+      "id": "z-water",
+      "color": "#0092b3",
+      "label": "harbor water"
+    },
+    {
+      "id": "z-roofs",
+      "color": "#ba7b6e",
+      "label": "tiled rooftops"
+    },
+    {
+      "id": "z-beach",
+      "color": "#ebb36f",
+      "label": "sandy shore"
+    }
+  ],
+  "spaces": [
+    {
+      "id": "s1",
+      "x": 0.6572265625,
+      "y": 0.08483247878359264,
+      "zones": [
+        "z-street"
+      ],
+      "adjacentTo": [
+        "s8",
+        "s9"
+      ]
+    },
+    {
+      "id": "s2",
+      "x": 0.2165,
+      "y": 0.1392,
+      "zones": [
+        "z-roofs"
+      ],
+      "adjacentTo": [
+        "s3",
+        "s6"
+      ]
+    },
+    {
+      "id": "s3",
+      "x": 0.139,
+      "y": 0.2379,
+      "zones": [
+        "z-roofs"
+      ],
+      "adjacentTo": [
+        "s2",
+        "s5",
+        "s11"
+      ],
+      "start": {
+        "slot": 2
+      }
+    },
+    {
+      "id": "s4",
+      "x": 0.940032958984375,
+      "y": 0.2553372524752475,
+      "zones": [
+        "z-street"
+      ],
+      "adjacentTo": [
+        "s10",
+        "s15"
+      ]
+    },
+    {
+      "id": "s5",
+      "x": 0.0447,
+      "y": 0.284,
+      "zones": [
+        "z-roofs",
+        "z-street"
+      ],
+      "adjacentTo": [
+        "s3",
+        "s12"
+      ]
+    },
+    {
+      "id": "s6",
+      "x": 0.33231353759765625,
+      "y": 0.34723081683168316,
+      "zones": [
+        "z-street"
+      ],
+      "adjacentTo": [
+        "s2",
+        "s7",
+        "s11",
+        "s13"
+      ]
+    },
+    {
+      "id": "s7",
+      "x": 0.45368194580078125,
+      "y": 0.2981678748231966,
+      "zones": [
+        "z-street"
+      ],
+      "adjacentTo": [
+        "s6",
+        "s8",
+        "s14"
+      ]
+    },
+    {
+      "id": "s8",
+      "x": 0.5796966552734375,
+      "y": 0.2869740099009901,
+      "zones": [
+        "z-street",
+        "z-wall"
+      ],
+      "adjacentTo": [
+        "s1",
+        "s7",
+        "s9",
+        "s14"
+      ]
+    },
+    {
+      "id": "s9",
+      "x": 0.7040557861328125,
+      "y": 0.2887309936350778,
+      "zones": [
+        "z-street",
+        "z-wall"
+      ],
+      "adjacentTo": [
+        "s1",
+        "s8",
+        "s10"
+      ]
+    },
+    {
+      "id": "s10",
+      "x": 0.8275222778320312,
+      "y": 0.28462031471004245,
+      "zones": [
+        "z-street",
+        "z-wall"
+      ],
+      "adjacentTo": [
+        "s4",
+        "s9",
+        "s15"
+      ]
+    },
+    {
+      "id": "s11",
+      "x": 0.20241546630859375,
+      "y": 0.36023691654879775,
+      "zones": [
+        "z-street",
+        "z-roofs"
+      ],
+      "adjacentTo": [
+        "s3",
+        "s6",
+        "s12",
+        "s13"
+      ]
+    },
+    {
+      "id": "s12",
+      "x": 0.05017852783203125,
+      "y": 0.45636271216407354,
+      "zones": [
+        "z-roofs",
+        "z-street"
+      ],
+      "adjacentTo": [
+        "s5",
+        "s11",
+        "s13",
+        "s16"
+      ]
+    },
+    {
+      "id": "s13",
+      "x": 0.1878814697265625,
+      "y": 0.49881762729844414,
+      "zones": [
+        "z-street",
+        "z-board"
+      ],
+      "adjacentTo": [
+        "s6",
+        "s11",
+        "s12",
+        "s16",
+        "s19"
+      ]
+    },
+    {
+      "id": "s14",
+      "x": 0.5792236328125,
+      "y": 0.45367751060820366,
+      "zones": [
+        "z-wall"
+      ],
+      "adjacentTo": [
+        "s7",
+        "s8",
+        "s17",
+        "s18",
+        "s20"
+      ]
+    },
+    {
+      "id": "s15",
+      "x": 0.8489532470703125,
+      "y": 0.44288145332390383,
+      "zones": [
+        "z-wall"
+      ],
+      "adjacentTo": [
+        "s4",
+        "s10",
+        "s18",
+        "s21"
+      ],
+      "start": {
+        "slot": 1
+      }
+    },
+    {
+      "id": "s16",
+      "x": 0.1074,
+      "y": 0.5998,
+      "zones": [
+        "z-board"
+      ],
+      "adjacentTo": [
+        "s12",
+        "s13",
+        "s24"
+      ]
+    },
+    {
+      "id": "s17",
+      "x": 0.41149139404296875,
+      "y": 0.558135166195191,
+      "zones": [
+        "z-board"
+      ],
+      "adjacentTo": [
+        "s14",
+        "s19",
+        "s25"
+      ]
+    },
+    {
+      "id": "s18",
+      "x": 0.7110595703125,
+      "y": 0.5313273514851485,
+      "zones": [
+        "z-water",
+        "z-wall"
+      ],
+      "adjacentTo": [
+        "s14",
+        "s15",
+        "s23"
+      ]
+    },
+    {
+      "id": "s19",
+      "x": 0.27576446533203125,
+      "y": 0.6175521570014144,
+      "zones": [
+        "z-board"
+      ],
+      "adjacentTo": [
+        "s13",
+        "s17",
+        "s22"
+      ],
+      "start": {
+        "slot": 4
+      }
+    },
+    {
+      "id": "s20",
+      "x": 0.5755386352539062,
+      "y": 0.6120049504950495,
+      "zones": [
+        "z-piers"
+      ],
+      "adjacentTo": [
+        "s14",
+        "s23",
+        "s25",
+        "s26"
+      ]
+    },
+    {
+      "id": "s21",
+      "x": 0.8542709350585938,
+      "y": 0.6122812057991514,
+      "zones": [
+        "z-piers"
+      ],
+      "adjacentTo": [
+        "s15",
+        "s23",
+        "s27"
+      ]
+    },
+    {
+      "id": "s22",
+      "x": 0.1862945556640625,
+      "y": 0.7132359441301273,
+      "zones": [
+        "z-beach",
+        "z-board"
+      ],
+      "adjacentTo": [
+        "s19",
+        "s24",
+        "s28",
+        "s29"
+      ]
+    },
+    {
+      "id": "s23",
+      "x": 0.7115402221679688,
+      "y": 0.7476573550212164,
+      "zones": [
+        "z-water"
+      ],
+      "adjacentTo": [
+        "s18",
+        "s20",
+        "s21",
+        "s26",
+        "s27",
+        "s30"
+      ]
+    },
+    {
+      "id": "s24",
+      "x": 0.06558990478515625,
+      "y": 0.7756143917963225,
+      "zones": [
+        "z-beach"
+      ],
+      "adjacentTo": [
+        "s16",
+        "s22",
+        "s28"
+      ]
+    },
+    {
+      "id": "s25",
+      "x": 0.433380126953125,
+      "y": 0.7748629773691655,
+      "zones": [
+        "z-water",
+        "z-board"
+      ],
+      "adjacentTo": [
+        "s17",
+        "s20",
+        "s26",
+        "s29",
+        "s31"
+      ]
+    },
+    {
+      "id": "s26",
+      "x": 0.5726699829101562,
+      "y": 0.7767194130127298,
+      "zones": [
+        "z-piers"
+      ],
+      "adjacentTo": [
+        "s20",
+        "s23",
+        "s25",
+        "s30",
+        "s32"
+      ]
+    },
+    {
+      "id": "s27",
+      "x": 0.8483810424804688,
+      "y": 0.7699345827439887,
+      "zones": [
+        "z-piers"
+      ],
+      "adjacentTo": [
+        "s21",
+        "s23",
+        "s30",
+        "s33"
+      ],
+      "start": {
+        "slot": 3
+      }
+    },
+    {
+      "id": "s28",
+      "x": 0.1483,
+      "y": 0.9038,
+      "zones": [
+        "z-water"
+      ],
+      "adjacentTo": [
+        "s22",
+        "s24",
+        "s29"
+      ]
+    },
+    {
+      "id": "s29",
+      "x": 0.28897857666015625,
+      "y": 0.8874204384724187,
+      "zones": [
+        "z-water"
+      ],
+      "adjacentTo": [
+        "s22",
+        "s25",
+        "s28",
+        "s31"
+      ]
+    },
+    {
+      "id": "s30",
+      "x": 0.7202377319335938,
+      "y": 0.9030454384724187,
+      "zones": [
+        "z-water"
+      ],
+      "adjacentTo": [
+        "s23",
+        "s26",
+        "s27",
+        "s32",
+        "s33"
+      ]
+    },
+    {
+      "id": "s31",
+      "x": 0.4322967529296875,
+      "y": 0.9329473125884017,
+      "zones": [
+        "z-piers"
+      ],
+      "adjacentTo": [
+        "s25",
+        "s29",
+        "s32"
+      ]
+    },
+    {
+      "id": "s32",
+      "x": 0.5711898803710938,
+      "y": 0.9340633840169731,
+      "zones": [
+        "z-piers"
+      ],
+      "adjacentTo": [
+        "s26",
+        "s30",
+        "s31"
+      ]
+    },
+    {
+      "id": "s33",
+      "x": 0.8808670043945312,
+      "y": 0.9385166195190948,
+      "zones": [
+        "z-piers"
+      ],
+      "adjacentTo": [
+        "s27",
+        "s30"
+      ]
+    }
+  ]
+}
