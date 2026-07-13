@@ -268,13 +268,24 @@ const urgentPulse = keyframes`
 `;
 
 /**
- * The acting seat's draining bar (issue #223). Reads the SERVER `deadline` (epoch
- * ms) every animation frame and recomputes remaining from `Date.now()` — no
- * free-running local timer, so it never drifts and self-corrects across a
- * backgrounded tab. Resyncs whenever `deadline`/`totalSeconds` changes (a new
- * TURN_TIMER broadcast). Clamps at 0. Subtle gold at rest; shifts to an insistent
- * red pulse inside the last MOVE_TIMER_URGENT_S seconds. Every seat renders the
- * bar for whoever is on the clock, so it doubles as a "waiting on them" cue.
+ * The acting seat's draining bar (issue #223, desync fix #283). Reads the SERVER
+ * `deadline` (epoch ms) every animation frame and recomputes remaining from
+ * `Date.now()` — no free-running local timer, so it never drifts and self-corrects
+ * across a backgrounded tab.
+ *
+ * The bar's 100% is anchored to the remaining time captured the instant THIS
+ * deadline first arrived (see `windowRef`), NOT the room's fixed `totalSeconds`.
+ * That keeps the fill a pure function of the client's own clock: it starts full
+ * and empties exactly at `deadline`, in lockstep with the numeric readout (both
+ * derive from the same `remaining`). Anchoring to `totalSeconds` instead let
+ * client/server clock skew — or any per-decision window that didn't equal the
+ * room setting — desync the two: a lagging client pinned the fill at 100% while
+ * the number ticked an inflated count (bar "frozen"), and a leading client (or a
+ * shorter window) started the fill part-drained so it never read full at turn
+ * start (#283). Re-anchors whenever `deadline` changes (a new TURN_TIMER) and on
+ * refocus. Clamps at 0. Subtle gold at rest; shifts to an insistent red pulse
+ * inside the last MOVE_TIMER_URGENT_S seconds. Every seat renders the bar for
+ * whoever is on the clock, so it doubles as a "waiting on them" cue.
  */
 export const MoveTimerBar = ({
   deadline,
@@ -283,21 +294,45 @@ export const MoveTimerBar = ({
   deadline: number;
   totalSeconds: number;
 }) => {
+  // The window this deadline was armed with, in the client's clock frame: the
+  // remaining time when we first saw it (falls back to the room setting for an
+  // already-elapsed deadline, so the denominator is never zero/negative).
+  const windowRef = useRef(Math.max(1, totalSeconds * 1000));
+  const anchor = () => {
+    windowRef.current = Math.max(
+      moveTimerRemainingMs(deadline, Date.now()),
+      1
+    );
+  };
   const read = () => {
     const now = Date.now();
+    const remaining = moveTimerRemainingMs(deadline, now);
     return {
-      fraction: moveTimerFraction(deadline, totalSeconds, now),
-      secs: Math.ceil(moveTimerRemainingMs(deadline, now) / 1000),
+      fraction: Math.min(1, Math.max(0, remaining / windowRef.current)),
+      secs: Math.ceil(remaining / 1000),
     };
   };
-  const [{ fraction, secs }, setState] = useState(read);
+  const [{ fraction, secs }, setState] = useState(() => {
+    anchor();
+    return read();
+  });
   useEffect(() => {
-    setState(read()); // resync immediately on a new deadline
+    anchor(); // re-anchor the 100% window to the fresh deadline…
+    setState(read()); // …and resync the readout immediately
     let raf = requestAnimationFrame(function loop() {
       setState(read());
       raf = requestAnimationFrame(loop);
     });
-    return () => cancelAnimationFrame(raf);
+    // rAF is throttled/suspended while the tab is backgrounded; snap back to the
+    // true remaining the moment it returns rather than waiting for the next frame.
+    const onVisible = () => {
+      if (!document.hidden) setState(read());
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelAnimationFrame(raf);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deadline, totalSeconds]);
 
@@ -333,6 +368,7 @@ export const MoveTimerBar = ({
           bg={fillColor}
           width={`${fraction * 100}%`}
           data-urgent={urgent ? "true" : "false"}
+          data-fill={Math.round(fraction * 100)}
           transition="width 0.1s linear, background 0.3s ease"
           sx={urgent ? { animation: `${urgentPulse} 1s ease-in-out infinite` } : undefined}
         />
