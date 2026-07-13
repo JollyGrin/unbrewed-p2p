@@ -201,7 +201,6 @@ const OnyxiaBoardGraph = ({
   const edgeWidth = width * 0.0042;
   const oneWayWidth = width * 0.0036;
   const outlineWidth = width * 0.0016;
-  const whelpFontSize = r * 1.1;
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
@@ -264,20 +263,15 @@ const OnyxiaBoardGraph = ({
             )}
             <circle cx={cx} cy={cy} r={r} fill="none" stroke="#0d0b08" strokeWidth={outlineWidth} />
             {isWhelpSpawn && (
-              <text
-                x={cx}
-                y={cy + whelpFontSize * 0.34}
-                textAnchor="middle"
-                fontSize={whelpFontSize}
-                fontWeight="900"
-                fontFamily="serif"
-                fill="#f8f0dc"
-                stroke="#0d0b08"
-                strokeWidth={outlineWidth * 1.5}
-                paintOrder="stroke"
-              >
-                W
-              </text>
+              <image
+                href="/maps/onyxia-dragon-symbol.png"
+                x={cx - r * 0.62}
+                y={cy - r * 0.7}
+                width={r * 1.24}
+                height={r * 1.4}
+                preserveAspectRatio="xMidYMid meet"
+                opacity="0.92"
+              />
             )}
           </g>
         );
