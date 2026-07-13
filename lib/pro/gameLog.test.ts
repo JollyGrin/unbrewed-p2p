@@ -1,4 +1,12 @@
-import { diffViews, enrichLines, EnrichContext, ProLogLine } from "./gameLog";
+import {
+  diffViews,
+  enrichLines,
+  batchPhase,
+  groupLog,
+  EnrichContext,
+  ProLogEntry,
+  ProLogLine,
+} from "./gameLog";
 import { CardInstanceId, GameEvent, PlayerView, ViewCombat, ViewFighter } from "./protocol";
 
 // --- fixture builders (mirrors fxEvents.test.ts) ----------------------------
@@ -544,6 +552,82 @@ describe("parity with diffViews", () => {
     const diff = diffViews(prev, next, label);
     // Flag ON but events empty (older server / no action events) — same result.
     expect(enrichLines(diff, [], ctx(next.you))).toEqual(diff);
+  });
+});
+
+// --- Grouping metadata (issue #298) -----------------------------------------
+// The page stamps every appended STATE batch with a batchId, the batch's action
+// (from ACTION_SPENT) and the turn's actor, so the log panel can section lines
+// by turn and group one player action's lines into a single block.
+describe("batchPhase — the action label a STATE batch carried", () => {
+  it.each([
+    ["MANEUVER", "Maneuver"],
+    ["SCHEME", "Scheme"],
+    ["ATTACK", "Attack"],
+    ["SCHEME_ITEM", "Scheme Item"],
+  ] as const)("maps ACTION_SPENT %s → %s", (action, label) => {
+    expect(batchPhase([{ type: "ACTION_SPENT", player: "p1", action }])).toBe(label);
+  });
+
+  it("is undefined for a batch with no ACTION_SPENT (setup, forced end-of-turn)", () => {
+    expect(batchPhase([{ type: "TURN_STARTED", player: "p1", turnNumber: 2 }])).toBeUndefined();
+    expect(batchPhase([])).toBeUndefined();
+  });
+
+  it("finds the ACTION_SPENT among other events", () => {
+    expect(
+      batchPhase([
+        { type: "FIGHTER_MOVED", fighter: "p1/hero", path: ["s1", "s2"] },
+        { type: "ACTION_SPENT", player: "p1", action: "ATTACK" },
+        { type: "COMBAT_DAMAGE", amount: 3 },
+      ])
+    ).toBe("Attack");
+  });
+});
+
+describe("groupLog — section newest-first entries by turn and batch", () => {
+  const entry = (over: Partial<ProLogEntry> & { text: string }): ProLogEntry => ({
+    key: over.text,
+    who: "game",
+    ...over,
+  });
+
+  it("splits a turn into one group per batchId, preserving order", () => {
+    // Newest-first: turn 2 attack batch (batch 3), then turn 2 maneuver (batch 2).
+    const entries: ProLogEntry[] = [
+      entry({ text: "3 damage", turn: 2, turnActor: "Opponent", batchId: 3, phase: "Attack" }),
+      entry({ text: "Reveal", turn: 2, turnActor: "Opponent", batchId: 3, phase: "Attack" }),
+      entry({ text: "moved", turn: 2, turnActor: "Opponent", batchId: 2, phase: "Maneuver" }),
+    ];
+    const sections = groupLog(entries);
+    expect(sections).toHaveLength(1);
+    expect(sections[0].turn).toBe(2);
+    expect(sections[0].actor).toBe("Opponent");
+    expect(sections[0].groups.map((g) => g.phase)).toEqual(["Attack", "Maneuver"]);
+    expect(sections[0].groups[0].entries.map((e) => e.text)).toEqual(["3 damage", "Reveal"]);
+  });
+
+  it("opens a new section at each turn boundary", () => {
+    const entries: ProLogEntry[] = [
+      entry({ text: "b", turn: 3, turnActor: "You", batchId: 5, phase: "Scheme" }),
+      entry({ text: "a", turn: 2, turnActor: "Opponent", batchId: 4, phase: "Maneuver" }),
+    ];
+    const sections = groupLog(entries);
+    expect(sections.map((s) => s.turn)).toEqual([3, 2]);
+    expect(sections.map((s) => s.actor)).toEqual(["You", "Opponent"]);
+  });
+
+  it("keeps no-action batches as a neutral group (undefined phase)", () => {
+    const entries: ProLogEntry[] = [
+      entry({ text: "Game on", turn: 1, turnActor: "You", batchId: 0 }),
+    ];
+    const sections = groupLog(entries);
+    expect(sections[0].groups[0].phase).toBeUndefined();
+    expect(sections[0].groups[0].entries[0].text).toBe("Game on");
+  });
+
+  it("returns no sections for an empty feed", () => {
+    expect(groupLog([])).toEqual([]);
   });
 });
 
