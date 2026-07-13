@@ -63,6 +63,164 @@ const arrowPulse = keyframes`
 
 const ARROW_COLOR = "#E23B3B"; // crimson — reads as "attack", distinct from both player colors
 
+const ONYXIA_PHASE_BOXES = 12;
+
+const OnyxiaPhaseBar = ({ index }: { index: number | null }) => {
+  const clamped = index == null ? null : Math.max(0, Math.min(ONYXIA_PHASE_BOXES - 1, index));
+  return (
+    <Box
+      position="absolute"
+      left="50%"
+      top="1.25%"
+      transform="translateX(-50%)"
+      w="62%"
+      zIndex={7}
+      pointerEvents="none"
+      filter="drop-shadow(0 3px 8px rgba(0,0,0,0.75))"
+    >
+      <Box position="relative">
+        <Box as="img" src="/maps/onyxia-phasebar.png" alt="Onyxia phase bar" w="100%" display="block" draggable={false} />
+        {clamped !== null && (
+          <Box
+            position="absolute"
+            top="0"
+            bottom="0"
+            left={`${(clamped / ONYXIA_PHASE_BOXES) * 100}%`}
+            w={`${100 / ONYXIA_PHASE_BOXES}%`}
+            border="3px solid #E0A82E"
+            boxShadow="0 0 12px rgba(224,168,46,0.95), inset 0 0 10px rgba(224,168,46,0.45)"
+          />
+        )}
+      </Box>
+    </Box>
+  );
+};
+
+const OnyxiaFlamebreathLanes = () => (
+  <svg
+    viewBox="0 0 2471 2251"
+    preserveAspectRatio="none"
+    aria-hidden="true"
+    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 2 }}
+  >
+    <rect
+      opacity="0.4"
+      x="13.257"
+      y="372.981"
+      width="519.395"
+      height="2387.55"
+      rx="92.5"
+      transform="rotate(-44.2418 13.257 372.981)"
+      fill="#E0E0E0"
+      fillOpacity="0.4"
+      stroke="#95161D"
+      strokeWidth="15"
+      strokeDasharray="0 20"
+    />
+    <rect
+      opacity="0.4"
+      x="1692.78"
+      y="373.099"
+      width="519.395"
+      height="2101.82"
+      rx="92.5"
+      transform="rotate(44.2973 1692.78 373.099)"
+      fill="#E0E0E0"
+      fillOpacity="0.4"
+      stroke="#95161D"
+      strokeWidth="15"
+      strokeDasharray="0 20"
+    />
+    <rect
+      opacity="0.4"
+      x="8"
+      y="906"
+      width="2455"
+      height="710"
+      rx="92.5"
+      fill="#E0E0E0"
+      fillOpacity="0.4"
+      stroke="#95161D"
+      strokeWidth="15"
+      strokeDasharray="0 20"
+    />
+  </svg>
+);
+
+const ONYXIA_ZONE_COLORS: Record<string, string> = {
+  green: "#2fbf71",
+  yellow: "#f4d35e",
+  orange: "#f59e42",
+  red: "#ef5a5a",
+  blue: "#51c7df",
+  purple: "#8b5cf6",
+  black: "#111827",
+};
+
+const semicirclePath = (cx: number, cy: number, r: number, side: "left" | "right") =>
+  side === "left"
+    ? `M ${cx} ${cy - r} A ${r} ${r} 0 0 0 ${cx} ${cy + r} L ${cx} ${cy} Z`
+    : `M ${cx} ${cy - r} A ${r} ${r} 0 0 1 ${cx} ${cy + r} L ${cx} ${cy} Z`;
+
+const OnyxiaBoardGraph = ({ spaces, diam, width, height }: { spaces: ProMapSpace[]; diam: number; width: number; height: number }) => {
+  const byId = new Map(spaces.map((s) => [s.id, s]));
+  const edgeKeys = new Set<string>();
+  const edges = spaces.flatMap((from) =>
+    (from.adjacentTo ?? []).flatMap((toId) => {
+      const to = byId.get(toId);
+      if (!to) return [];
+      const key = [from.id, to.id].sort().join("--");
+      if (edgeKeys.has(key)) return [];
+      edgeKeys.add(key);
+      return [{ from, to }];
+    })
+  );
+  // `diam` is a percentage of board width. Convert to the same pixel-like
+  // coordinate system as the SVG viewBox so spaces stay circular on wide maps.
+  const r = (diam / 100) * width * 0.5;
+  const edgeWidth = width * 0.0042;
+  const outlineWidth = width * 0.0016;
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
+      aria-hidden="true"
+      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 2 }}
+    >
+      {edges.map(({ from, to }) => (
+        <line
+          key={`${from.id}-${to.id}`}
+          x1={from.x * width}
+          y1={from.y * height}
+          x2={to.x * width}
+          y2={to.y * height}
+          stroke="#050505"
+          strokeWidth={edgeWidth}
+          strokeLinecap="round"
+        />
+      ))}
+      {spaces.map((s) => {
+        const cx = s.x * width;
+        const cy = s.y * height;
+        const colors = (s.zones.length ? s.zones : ["green"]).map((z) => ONYXIA_ZONE_COLORS[z] ?? "#999");
+        return (
+          <g key={s.id}>
+            {colors.length === 1 ? (
+              <circle cx={cx} cy={cy} r={r} fill={colors[0]} />
+            ) : (
+              <>
+                <path d={semicirclePath(cx, cy, r, "left")} fill={colors[0]} />
+                <path d={semicirclePath(cx, cy, r, "right")} fill={colors[1]} />
+              </>
+            )}
+            <circle cx={cx} cy={cy} r={r} fill="none" stroke="#0d0b08" strokeWidth={outlineWidth} />
+          </g>
+        );
+      })}
+    </svg>
+  );
+};
+
 /**
  * Attacker→target arrow geometry in a frame's normalized 0–100 space (same
  * convention as the two-space band): a shaft that stops short of both tokens
@@ -155,6 +313,9 @@ export interface ProBoardProps {
   /** Region ids currently out of play (view.closedRegions) — their inset
    * panels grey out and stop taking clicks */
   closedRegions?: string[];
+  /** Presentation-only encounter overlays. Rules and legality still come from the server. */
+  encounterPhase?: string | null;
+  encounterPhaseCounterIndex?: number | null;
   onSpaceClick?: (id: SpaceId) => void;
   onFighterClick?: (id: FighterId) => void;
   /** cap the board image height (e.g. "calc(100svh - 2rem)") so the whole
@@ -206,6 +367,8 @@ export const ProBoard = ({
   pendingMove = null,
   onPendingMoveSettled,
   closedRegions = [],
+  encounterPhase = null,
+  encounterPhaseCounterIndex = null,
   onSpaceClick,
   onFighterClick,
   imgMaxH,
@@ -596,6 +759,7 @@ export const ProBoard = ({
       {/* space hit-circles */}
       {spaces.map((s) => {
         const isHighlighted = highlightSet.has(s.id);
+        const hidePassiveCircle = map.id === "onyxia-lair" && !isHighlighted;
         return (
           <Box
             key={s.id}
@@ -606,7 +770,7 @@ export const ProBoard = ({
             w={`${diam}%`}
             sx={{ aspectRatio: "1" }}
             borderRadius="50%"
-            border={isHighlighted ? "2px solid #E0A82E" : "1px solid rgba(255,255,255,0.15)"}
+            border={hidePassiveCircle ? "0" : isHighlighted ? "2px solid #E0A82E" : "1px solid rgba(255,255,255,0.15)"}
             bg={isHighlighted ? "rgba(224,168,46,0.45)" : "transparent"}
             animation={isHighlighted ? `${highlightPulse} 1.4s ease-in-out infinite` : undefined}
             cursor={isHighlighted && onSpaceClick ? "pointer" : "default"}
@@ -896,6 +1060,10 @@ export const ProBoard = ({
     );
   };
 
+  const boardAspect = map.meta.imageWidth && map.meta.imageHeight
+    ? `${map.meta.imageWidth} / ${map.meta.imageHeight}`
+    : "4 / 3";
+
   return (
     // Outer box may be stretched by a parent grid/flex row; the INNER box is
     // the positioning context: it shrink-wraps the image exactly, so the
@@ -920,16 +1088,49 @@ export const ProBoard = ({
         transform={zoom.transform}
         transformOrigin={zoom.transformOrigin}
       >
-      <Box
-        as="img"
-        src={map.meta.imageUrl}
-        alt={map.meta.title}
-        maxW="100%"
-        maxH={imgMaxH}
-        display="block"
-        draggable={false}
-        borderRadius="0.5rem"
-      />
+      {map.meta.imageUrl ? (
+        <Box
+          as="img"
+          src={map.meta.imageUrl}
+          alt={map.meta.title}
+          maxW="100%"
+          maxH={imgMaxH}
+          display="block"
+          draggable={false}
+          borderRadius="0.5rem"
+        />
+      ) : (
+        <Flex
+          w="min(100vw, 72rem)"
+          maxW="100%"
+          maxH={imgMaxH}
+          sx={{ aspectRatio: boardAspect }}
+          alignItems="center"
+          justifyContent="center"
+          borderRadius="0.5rem"
+          border="1px solid rgba(224,168,46,0.35)"
+          bg="radial-gradient(circle at 46% 48%, rgba(173,110,43,0.52) 0%, rgba(96,63,36,0.76) 48%, rgba(28,22,25,0.94) 100%)"
+          boxShadow="inset 0 0 80px rgba(0,0,0,0.42)"
+          color="brand.parchment"
+          fontFamily="BebasNeueRegular"
+          fontSize="1.1rem"
+          letterSpacing="0.08em"
+          opacity={0.95}
+        >
+          {map.meta.title}
+        </Flex>
+      )}
+
+      {map.id === "onyxia-lair" && encounterPhase === "FLIGHT" && <OnyxiaFlamebreathLanes />}
+      {map.id === "onyxia-lair" && (
+        <OnyxiaBoardGraph
+          spaces={mainSpaces}
+          diam={diameter}
+          width={map.meta.imageWidth ?? 100}
+          height={map.meta.imageHeight ?? 100}
+        />
+      )}
+      {map.id === "onyxia-lair" && <OnyxiaPhaseBar index={encounterPhaseCounterIndex} />}
 
       {spaceLayers(mainSpaces, diameter)}
 

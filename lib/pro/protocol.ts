@@ -859,7 +859,7 @@ export type ClientMsg =
   // a server-picked `bot.heroId`/`botSeats[].heroId` draws from. Absent/false =
   // excluded. Never gates an explicitly named heroId. See the v15 note above.
   | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean }
-  | { v: number; type: "CREATE_ENCOUNTER_ROOM"; encounterId: string; heroId: string; allyBot?: { difficulty: BotDifficulty; heroId?: string }; bossBot?: { difficulty: BotDifficulty }; formatId?: string; seed?: number; debug?: boolean }
+  | { v: number; type: "CREATE_ENCOUNTER_ROOM"; encounterId: string; heroId?: string; player?: PlayerId; botSeats?: BotSeatFill[]; allyBot?: { difficulty: BotDifficulty; heroId?: string }; bossBot?: { difficulty: BotDifficulty }; formatId?: string; seed?: number; debug?: boolean }
   | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string }
   | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }

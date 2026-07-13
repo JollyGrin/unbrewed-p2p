@@ -129,8 +129,10 @@ export interface UseProSocketReturn {
   ) => void;
   createEncounterRoom: (
     encounterId: string,
-    heroId: string,
+    heroId: string | undefined,
     opts?: {
+      player?: PlayerId;
+      botSeats?: BotSeatFill[];
       allyBot?: { difficulty: BotDifficulty; heroId?: string };
       bossBot?: { difficulty: BotDifficulty };
       formatId?: string;
@@ -609,8 +611,10 @@ export function useProSocket(
   const createEncounterRoom = useCallback(
     (
       encounterId: string,
-      heroId: string,
+      heroId: string | undefined,
       opts: {
+        player?: PlayerId;
+        botSeats?: BotSeatFill[];
         allyBot?: { difficulty: BotDifficulty; heroId?: string };
         bossBot?: { difficulty: BotDifficulty };
         formatId?: string;
@@ -625,7 +629,9 @@ export function useProSocket(
         v: PROTOCOL_VERSION,
         type: "CREATE_ENCOUNTER_ROOM",
         encounterId,
-        heroId,
+        ...(heroId ? { heroId } : {}),
+        ...(opts.player ? { player: opts.player } : {}),
+        ...(opts.botSeats?.length ? { botSeats: opts.botSeats } : {}),
         ...(opts.allyBot ? { allyBot: opts.allyBot } : {}),
         ...(opts.bossBot ? { bossBot: opts.bossBot } : {}),
         ...(opts.formatId ? { formatId: opts.formatId } : {}),

@@ -906,6 +906,13 @@ const SkeletonTile = () => (
 /** Opponent choice in the create flow: a human via link, or the server AI. */
 type OpponentChoice = "human" | BotDifficulty;
 
+type EncounterSeatChoice = "me" | OpponentChoice;
+const ENCOUNTER_SEATS: { player: PlayerId; label: string }[] = [
+  { player: "p1", label: "Hero 1" },
+  { player: "p2", label: "Hero 2" },
+  { player: "p3", label: "Ony" },
+];
+
 const OPPONENT_CHOICES: { id: OpponentChoice; label: string }[] = [
   { id: "human", label: "Human" },
   { id: "easy", label: "AI · easy" },
@@ -922,10 +929,8 @@ const HeroSelectLobby = ({
   selectedHeroId,
   selectedEncounterId,
   onSelectEncounter,
-  encounterAlly,
-  onSelectEncounterAlly,
-  encounterBoss,
-  onSelectEncounterBoss,
+  encounterSeats,
+  onChangeEncounterSeat,
   opponent,
   selectedFormat,
   onSelectFormat,
@@ -950,10 +955,8 @@ const HeroSelectLobby = ({
   selectedHeroId: string | null;
   selectedEncounterId: string | null;
   onSelectEncounter: (encounterId: string | null) => void;
-  encounterAlly: OpponentChoice;
-  onSelectEncounterAlly: (o: OpponentChoice) => void;
-  encounterBoss: OpponentChoice;
-  onSelectEncounterBoss: (o: OpponentChoice) => void;
+  encounterSeats: Record<PlayerId, EncounterSeatChoice>;
+  onChangeEncounterSeat: (player: PlayerId, choice: EncounterSeatChoice) => void;
   opponent: OpponentChoice;
   selectedFormat: ProFormatId;
   onSelectFormat: (format: ProFormatId) => void;
@@ -982,7 +985,9 @@ const HeroSelectLobby = ({
     ? encounters?.find((e) => e.encounterId === selectedEncounterId) ?? null
     : null;
   const campaignKnown = !campaignSelected || encounters === null || !!selectedEncounter;
-  const canConfirm = status === "open" && !!effective && campaignKnown;
+  const encounterMeSeat = ENCOUNTER_SEATS.find((seat) => encounterSeats[seat.player] === "me")?.player ?? "p1";
+  const campaignNeedsHeroPick = campaignSelected && encounterMeSeat !== "p3";
+  const canConfirm = status === "open" && campaignKnown && (campaignSelected ? (!campaignNeedsHeroPick || !!effective) : !!effective);
   const format = formatChoice(selectedFormat);
   const multiplayer = !campaignSelected && selectedFormat !== "duel";
   const [previewHero, setPreviewHero] = useState<HeroListing>();
@@ -1115,34 +1120,39 @@ const HeroSelectLobby = ({
                   Campaign encounter not found on this server.
                 </Text>
               )}
-              <Grid templateColumns={{ base: "1fr", sm: "1fr 1fr" }} gap="0.75rem" mt="0.75rem">
-                {[
-                  { label: "Ally hero", value: encounterAlly, onSelect: onSelectEncounterAlly },
-                  { label: "Onyxia", value: encounterBoss, onSelect: onSelectEncounterBoss },
-                ].map((control) => (
-                  <Flex key={control.label} direction="column" gap="0.35rem">
-                    <Text fontFamily="BebasNeueRegular" letterSpacing="0.06em" opacity={0.72}>
-                      {control.label}
-                    </Text>
-                    <Flex gap="0.35rem" flexWrap="wrap">
-                      {OPPONENT_CHOICES.map((o) => (
-                        <Button
-                          key={o.id}
-                          {...BTN}
-                          size="xs"
-                          border="1px solid"
-                          borderColor={control.value === o.id ? "brand.accent" : "transparent"}
-                          onClick={() => control.onSelect(o.id)}
-                        >
-                          {o.id === "human" ? "Human" : o.label.replace("AI · ", "AI ")}
-                        </Button>
-                      ))}
+              <Grid templateColumns={{ base: "1fr", sm: "1fr 1fr", md: "repeat(3, 1fr)" }} gap="0.75rem" mt="0.75rem">
+                {ENCOUNTER_SEATS.map((seat) => {
+                  const value = encounterSeats[seat.player];
+                  const choices: { id: EncounterSeatChoice; label: string }[] = [
+                    { id: "me", label: "Me" },
+                    { id: "human", label: "Human" },
+                    ...OPPONENT_CHOICES.filter((o) => o.id !== "human").map((o) => ({ id: o.id, label: o.label.replace("AI · ", "AI ") })),
+                  ];
+                  return (
+                    <Flex key={seat.player} direction="column" gap="0.35rem">
+                      <Text fontFamily="BebasNeueRegular" letterSpacing="0.06em" opacity={0.72}>
+                        {seat.label}
+                      </Text>
+                      <Flex gap="0.35rem" flexWrap="wrap">
+                        {choices.map((o) => (
+                          <Button
+                            key={o.id}
+                            {...BTN}
+                            size="xs"
+                            border="1px solid"
+                            borderColor={value === o.id ? "brand.accent" : "transparent"}
+                            onClick={() => onChangeEncounterSeat(seat.player, o.id)}
+                          >
+                            {o.label}
+                          </Button>
+                        ))}
+                      </Flex>
                     </Flex>
-                  </Flex>
-                ))}
+                  );
+                })}
               </Grid>
               <Text fontSize="0.72rem" opacity={0.6} mt="0.65rem">
-                Defaults start a solo-friendly game immediately: your hero plus an AI ally versus AI Onyxia.
+                Choose which seat is you. Set the other seats to Human to invite friends, or AI to start immediately.
               </Text>
             </Box>
           )}
@@ -1351,7 +1361,7 @@ const HeroSelectLobby = ({
         {room
           ? "Join"
           : campaignSelected
-            ? encounterAlly === "human" || encounterBoss === "human"
+            ? ENCOUNTER_SEATS.some((seat) => encounterSeats[seat.player] === "human")
               ? "Create campaign room"
               : "Enter the lair"
             : multiplayer
@@ -1409,8 +1419,11 @@ const LiveGame = ({ room, heroParam, encounterParam, debug }: { room: string | n
   const [joined, setJoined] = useState(false);
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
   const [selectedEncounterId, setSelectedEncounterId] = useState<string | null>(encounterParam);
-  const [encounterAlly, setEncounterAlly] = useState<OpponentChoice>("easy");
-  const [encounterBoss, setEncounterBoss] = useState<OpponentChoice>("easy");
+  const [encounterSeats, setEncounterSeats] = useState<Record<PlayerId, EncounterSeatChoice>>({
+    p1: "me",
+    p2: "easy",
+    p3: "easy",
+  } as Record<PlayerId, EncounterSeatChoice>);
   const [opponent, setOpponent] = useState<OpponentChoice>("human");
   const [selectedFormat, setSelectedFormat] = useState<ProFormatId>("duel");
   const [botSlotPlan, setBotSlotPlan] = useState<BotSlotPlan>({});
@@ -1735,10 +1748,18 @@ const LiveGame = ({ room, heroParam, encounterParam, debug }: { room: string | n
           selectedHeroId={selectedHeroId}
           selectedEncounterId={selectedEncounterId}
           onSelectEncounter={setSelectedEncounterId}
-          encounterAlly={encounterAlly}
-          onSelectEncounterAlly={setEncounterAlly}
-          encounterBoss={encounterBoss}
-          onSelectEncounterBoss={setEncounterBoss}
+          encounterSeats={encounterSeats}
+          onChangeEncounterSeat={(player, choice) => {
+            setEncounterSeats((prev) => {
+              const next = { ...prev, [player]: choice };
+              if (choice === "me") {
+                for (const seat of ENCOUNTER_SEATS) {
+                  if (seat.player !== player && next[seat.player] === "me") next[seat.player] = "easy";
+                }
+              }
+              return next;
+            });
+          }}
           opponent={opponent}
           selectedFormat={selectedFormat}
           onSelectFormat={(format) => {
@@ -1777,8 +1798,8 @@ const LiveGame = ({ room, heroParam, encounterParam, debug }: { room: string | n
           }}
           mapError={mapError}
           onConfirm={() => {
-            if (!effectiveHeroId) return;
             if (room) {
+              if (!effectiveHeroId) return;
               joinRoom(room, effectiveHeroId);
               setSelectedHeroId(effectiveHeroId);
               setJoined(true);
@@ -1786,15 +1807,25 @@ const LiveGame = ({ room, heroParam, encounterParam, debug }: { room: string | n
             }
             if (selectedEncounterId) {
               const selectedEncounter = encounters?.find((e) => e.encounterId === selectedEncounterId);
-              createEncounterRoom(selectedEncounterId, effectiveHeroId, {
-                ...(encounterAlly === "human" ? {} : { allyBot: { difficulty: encounterAlly } }),
-                ...(encounterBoss === "human" ? {} : { bossBot: { difficulty: encounterBoss } }),
+              const meSeat = ENCOUNTER_SEATS.find((seat) => encounterSeats[seat.player] === "me")?.player ?? "p1";
+              const creatorHeroId = meSeat === "p3" ? undefined : effectiveHeroId ?? undefined;
+              if (meSeat !== "p3" && !creatorHeroId) return;
+              const botSeats = ENCOUNTER_SEATS.flatMap((seat) => {
+                const occupant = encounterSeats[seat.player];
+                return occupant !== "me" && occupant !== "human"
+                  ? [{ player: seat.player, difficulty: occupant }]
+                  : [];
+              });
+              createEncounterRoom(selectedEncounterId, creatorHeroId, {
+                player: meSeat,
+                botSeats,
                 ...(selectedEncounter?.defaultFormatId ? { formatId: selectedEncounter.defaultFormatId } : {}),
               });
-              setSelectedHeroId(effectiveHeroId);
+              if (creatorHeroId) setSelectedHeroId(creatorHeroId);
               setJoined(true);
               return;
             }
+            if (!effectiveHeroId) return;
             // Create flow: resolve the chosen board. A catalog board sends its
             // ProMapDef (or nothing, for the server-default duel board); the
             // Custom… option parses the pasted JSON just-in-time. Local errors
@@ -2394,6 +2425,8 @@ const LiveGame = ({ room, heroParam, encounterParam, debug }: { room: string | n
             clearIncoming();
           }}
           closedRegions={view.closedRegions}
+          encounterPhase={view.encounter?.phase ?? null}
+          encounterPhaseCounterIndex={view.encounter?.phaseCounterIndex ?? null}
           onSpaceClick={onSpaceClick}
           onFighterClick={onFighterClick}
           imgMaxH="calc(100svh - 16rem)"
