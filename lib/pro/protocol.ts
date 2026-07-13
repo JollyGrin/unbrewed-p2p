@@ -252,8 +252,67 @@
  * prompts where that summary is unambiguous; other prompt kinds and system
  * prompts (setup, commit, maneuver) omit it. Purely additive and presentation-
  * only; an older client that ignores it is unaffected.
+ *
+ * ## Additive change (2026-07-12, no version bump): per-decision move timer
+ * (issue #122, p2p #223). Opt-in at room creation; a room without it behaves
+ * byte-identically to before (no new messages are ever sent).
+ * - `CREATE_ROOM.turnTimerSeconds?` — every time a seat is on the clock (turn
+ *   action, maneuver move, combat commit, prompt response, discard-to-limit,
+ *   setup placement) it has this many seconds to act. Integer 10–300; absent
+ *   or 0 = no timer (today's behavior); anything else answers
+ *   ERROR{BAD_MESSAGE}. Echoed in ROOM_CREATED/ROOM_JOINED/ROOM_STATUS
+ *   (present only when the timer is on) so every client knows the room rules.
+ * - `TURN_TIMER` (server → every connected seat; timed rooms only): the one
+ *   countdown channel — chosen over piggybacking STATE metadata so pause/
+ *   resume edges (which have no STATE broadcast) still notify, and over
+ *   OPPONENT_STATUS because the acting seat itself needs the deadline most.
+ *   Broadcast on every clock change: `deadline` (epoch ms) when the clock is
+ *   running for `player`, `deadline: null` when `player` is on the engine
+ *   clock but their timer is NOT running (bot seat — driven immediately — or
+ *   a disconnected seat, see below). A (re)connect re-broadcasts the current
+ *   snapshot; TURN_TIMER may arrive before or after the accompanying STATE
+ *   and is self-contained. Render a countdown; on expiry the SERVER acts.
+ * - Enforcement: at the deadline the server plays ONE uniformly-random legal
+ *   action for the seat (the same enumeration that drives easy bot seats,
+ *   FORFEIT excluded) — bot-style, never a resignation. The injected action
+ *   lands in the action log like any other, so replays/resumes reproduce it.
+ * - Presence interplay: the timer runs only while the acting seat is a
+ *   CONNECTED human. A disconnected actor's clock pauses (broadcast
+ *   `deadline: null`) and absence is handled by the presence rules — duel
+ *   waits for reconnect; multiplayer runs the #121 abandonment clock (so the
+ *   two clocks never double-fire). Reconnecting re-arms a full fresh window.
+ *   Timers are in-memory only: a resumed room keeps the SETTING (it rides in
+ *   the resume token) but deadlines start fresh.
+ *
+ * ## v17 (2026-07-13): map-authored battlefield item spaces (Teen Spirit)
+ * Additive map + runtime surfaces for board item tokens (unbrewed-engine #157,
+ * issue #152; client sibling p2p #277). `ProMapSpace` gains `item?` (the item id
+ * spawned on that space); `ProMapDef` gains `items?` (`ProMapItem[]` — combat items
+ * carry `value`, scheme items carry opaque `ops`). `PlayerView.itemTokens?` lists the
+ * tokens still on the board (space -> item id), public ("the effects aren't secret")
+ * and cleared as items are consumed — the client drives every item badge strictly off
+ * this map, NEVER off the static `map.items`/`space.item` def. New action
+ * `USE_SCHEME_ITEM` (use a scheme item; costs an action, NOT a scheme-card play) and
+ * an optional `attachItem?` on `COMMIT_ATTACK_CARD`/`COMMIT_DEFENSE_CARD` (attach the
+ * combat item on the fighter's space — attacker decides before the defender). Events
+ * `ITEM_USED` + `COMBAT_ITEM_ATTACHED`, and `ACTION_SPENT.action` adds `SCHEME_ITEM`.
+ * Purely additive: item-less maps carry none of the new fields and behave identically.
+ *
+ * ## Additive sync (2026-07-13, no version bump): General Grievous
+ * (unbrewed-engine PR #160, client sibling p2p #288 — PAIRED, merge together). All
+ * additive on top of v17; an older client that ignores these is unaffected:
+ * - `ViewFighter.reach`/`ReplayFighter.reach` gain `"LUNGE"` (RANGED-style targeting +
+ *   a forced post-commit landing placement; the landing arrives as a normal CHOOSE_SPACE
+ *   prompt, so no LUNGE-specific rule rides the view).
+ * - `ViewSelf`/`ViewOpponent`/`ViewPlayer` gain `wonCombatThisTurn: boolean` — public,
+ *   turn-scoped; drives Grievous's six "if you won a combat this turn" affordances.
+ * - Six GameEvent variants (COMBAT_WON_MARKED, PLAYED_CARD_RETURNED, SECOND_ATTACK_COMMITTED,
+ *   BONUS_ATTACK_STARTED, BONUS_ATTACK_PASSED, SUB_ATTACK_INITIATED) delineate the nested
+ *   Multi-Arm Barrage / "Fire, you fools!" combats so the 2nd/3rd hits read as intentional.
+ * The engine branch sits at PROTOCOL_VERSION 16 (cut before v17); Dean does the
+ * compatibility rebase to v17 at merge, at which point ACCEPTED_PROTOCOL_VERSIONS covers 17.
  */
-export const PROTOCOL_VERSION = 16;
+export const PROTOCOL_VERSION = 17;
 
 /** Scripted-AI strength preset (server-side budgets; client treats as opaque). */
 export type BotDifficulty = "easy" | "medium" | "hard";
@@ -310,9 +369,17 @@ export type Action =
   | { type: "MOVE_FIGHTER"; player: PlayerId; fighter: FighterId; path: SpaceId[] }
   | { type: "END_MANEUVER"; player: PlayerId }
   | { type: "SCHEME"; player: PlayerId; card: CardInstanceId }
+  // Use a battlefield SCHEME item (v17 — Teen Spirit). The active fighter must
+  // occupy `space` and it must hold a scheme item token. Costs an action but is NOT
+  // "playing a scheme card". The client sends the space the server offered.
+  | { type: "USE_SCHEME_ITEM"; player: PlayerId; space: SpaceId }
   | { type: "DECLARE_ATTACK"; player: PlayerId; attacker: FighterId; target: FighterId }
-  | { type: "COMMIT_ATTACK_CARD"; player: PlayerId; card: CardInstanceId }
-  | { type: "COMMIT_DEFENSE_CARD"; player: PlayerId; card: CardInstanceId }
+  // attachItem (v17): the attacker may attach the COMBAT item on its space to this
+  // card — decided BEFORE the defender's defend decision, and public. The server
+  // offers both the plain and attach variants; absent = no attach.
+  | { type: "COMMIT_ATTACK_CARD"; player: PlayerId; card: CardInstanceId; attachItem?: boolean }
+  // attachItem (v17): the defender may attach the COMBAT item on its space.
+  | { type: "COMMIT_DEFENSE_CARD"; player: PlayerId; card: CardInstanceId; attachItem?: boolean }
   | { type: "DECLINE_DEFENSE"; player: PlayerId }
   | { type: "DISCARD_TO_LIMIT"; player: PlayerId; card: CardInstanceId }
   | { type: "RESPOND_PROMPT"; player: PlayerId; promptId: string; optionId: string }
@@ -344,7 +411,7 @@ export type GameEvent =
   | { type: "HERO_PLACED"; fighter: FighterId; space: SpaceId }
   | { type: "SIDEKICK_PLACED"; fighter: FighterId; space: SpaceId }
   | { type: "TURN_STARTED"; player: PlayerId; turnNumber: number }
-  | { type: "ACTION_SPENT"; player: PlayerId; action: "MANEUVER" | "SCHEME" | "ATTACK" }
+  | { type: "ACTION_SPENT"; player: PlayerId; action: "MANEUVER" | "SCHEME" | "ATTACK" | "SCHEME_ITEM" }
   | { type: "CARD_DRAWN"; player: PlayerId; card: CardInstanceId }
   | { type: "EXHAUSTION_DAMAGE"; player: PlayerId }
   | { type: "DAMAGE_APPLIED"; fighter: FighterId; amount: number; source: "EXHAUSTION" | "EFFECT" | "ATTACK" }
@@ -397,7 +464,30 @@ export type GameEvent =
   | { type: "FIGHTER_PINNED"; fighter: FighterId; expiresAtTurn: number; expiresAt: "START" | "END" }
   | { type: "FIGHTER_TAIL_PLACED"; fighter: FighterId; space: SpaceId }
   | { type: "FIGHTER_EJECTED"; fighter: FighterId; to: SpaceId }
-  | { type: "REGION_CLOSED"; region: string };
+  | { type: "REGION_CLOSED"; region: string }
+  // Battlefield items (v17 — Teen Spirit). ITEM_USED = a scheme item was activated
+  // (token consumed). COMBAT_ITEM_ATTACHED = a combat item was attached to a combat
+  // card at commit (token consumed); the +value bump lands in the DURING window.
+  | { type: "ITEM_USED"; player: PlayerId; space: SpaceId; item: string }
+  | { type: "COMBAT_ITEM_ATTACHED"; player: PlayerId; role: "ATTACK" | "DEFENSE"; space: SpaceId; item: string; value: number }
+  // General Grievous (SYNCED VERBATIM from unbrewed-engine protocol/protocol.ts, PR #160,
+  // engine batches A/C/D — additive, no PROTOCOL_VERSION bump; keep in lockstep).
+  // v0.14.0 (batch A): markCombatWon marks the controller as having won a combat this turn;
+  // returnPlayedCard takes a played-this-turn card back to hand (discard case; the
+  // live-combat-card case reuses CARD_RETURNED_TO_HAND at cleanup).
+  | { type: "COMBAT_WON_MARKED"; player: PlayerId }
+  | { type: "PLAYED_CARD_RETURNED"; player: PlayerId; card: CardInstanceId }
+  // v0.16.0 (batch C — Multi-Arm Barrage). SECOND_ATTACK_COMMITTED is card-less
+  // (like CARD_COMMITTED): the face-down second attack must not leak. BONUS_ATTACK_STARTED
+  // marks Combat 2 opening; BONUS_ATTACK_PASSED marks the attacker declining/auto-passing it.
+  | { type: "SECOND_ATTACK_COMMITTED"; player: PlayerId }
+  | { type: "BONUS_ATTACK_STARTED"; attacker: FighterId; target: FighterId }
+  | { type: "BONUS_ATTACK_PASSED"; player: PlayerId }
+  // v0.17.0 (batch D — "Fire, you fools!"): a chosen droid's fixed-value sub-attack opens
+  // against `target`. Full information — the value is printed on card 210. The attack is a
+  // SYNTHETIC combat card (instance `sub-attack:<fighter>`, no catalog entry) — the client
+  // renders a printed "Blast 'em!" face rather than a catalog lookup.
+  | { type: "SUB_ATTACK_INITIATED"; attacker: FighterId; target: FighterId; value: number };
 
 export type LegalOption = { id: string; label: string; data?: Json };
 
@@ -463,6 +553,27 @@ export interface ProMapSpace {
   oneWayTo?: SpaceId[]; // directed MOVEMENT-ONLY edges (e.g. Drum stairs)
   region?: string; // region id (absent = main board) — v0.12.0
   start?: { slot: number };
+  item?: string; // v17 — battlefield item id spawned here (ProMapItem.id)
+  // Secret passage (engine #156, Cobble & Fog p.16 — Baskerville Manor). All spaces
+  // with `passage: true` form ONE all-pairs MOVEMENT-only network (1 MP per jump; not
+  // adjacency for attacks/effects; large fighters excluded). The engine enforces the
+  // movement; the client only renders a keyhole badge on flagged spaces. Mirrors
+  // engine/map.ts MapSpaceDef (sent verbatim in view.map, though absent from the
+  // engine's own protocol.ts ProMapSpace).
+  passage?: boolean;
+}
+
+// A battlefield item printed on the board (v17 — Teen Spirit). 'combat' items add a
+// DURING COMBAT value bump; 'scheme' items are use-activated. `ops` (scheme items)
+// is the effect DSL body — opaque to the client, resolved server-side. The client
+// renders a badge on `item` spaces (purple versatile square / yellow scheme square)
+// and clears it when the token leaves `itemTokens`.
+export interface ProMapItem {
+  id: string;
+  kind: "combat" | "scheme";
+  label: string;
+  value?: number; // combat items: the value bump
+  ops?: Json; // scheme items: effect body (opaque to the client)
 }
 
 export interface ProMapDef {
@@ -483,6 +594,7 @@ export interface ProMapDef {
   };
   zones: ProMapZone[];
   regions?: ProMapRegion[]; // v0.12.0 — board regions (absent on ordinary maps)
+  items?: ProMapItem[]; // v17 — battlefield item definitions (absent on ordinary maps)
   spaces: ProMapSpace[];
 }
 
@@ -516,7 +628,7 @@ export interface ViewFighter {
   tailSpace: SpaceId | null;
   hp: number;
   maxHp: number;
-  reach: "MELEE" | "RANGED";
+  reach: "MELEE" | "RANGED" | "LUNGE"; // LUNGE (General Grievous) — RANGED-style targeting + forced post-commit landing placement
   defeated: boolean;
 }
 
@@ -543,6 +655,12 @@ export interface ViewSelf {
   // presence = currently active, mirroring engine PlayerState.flags. Public,
   // same for every viewer, no per-flag special-casing.
   flags: Record<string, boolean>;
+  // Won >=1 combat this turn (engine combatsWonThisTurn membership; also set by
+  // markCombatWon off a loss). Public, turn-scoped — clears at turn start. Drives
+  // the client's affordance for General Grievous's six "if you won a combat this
+  // turn" cards (legibility only; legalActions stays authoritative). SYNCED from
+  // unbrewed-engine PR #160 — additive, no PROTOCOL_VERSION bump.
+  wonCombatThisTurn: boolean;
 }
 
 export interface ViewOpponent {
@@ -554,6 +672,7 @@ export interface ViewOpponent {
   hasCommitted: boolean; // face-down commit exists, identity hidden
   counters: Record<string, number>; // counters are public
   flags: Record<string, boolean>; // v16: active named flags, public (see ViewSelf.flags)
+  wonCombatThisTurn: boolean; // public, turn-scoped (see ViewSelf.wonCombatThisTurn)
 }
 
 export interface ViewPlayer {
@@ -575,6 +694,7 @@ export interface ViewPlayer {
   // (`team` on ViewPlayer + ReplayStepPlayer) — no PROTOCOL_VERSION bump.
   team?: TeamId;
   flags: Record<string, boolean>; // v16: active named flags, public (see ViewSelf.flags)
+  wonCombatThisTurn: boolean; // public, turn-scoped (see ViewSelf.wonCombatThisTurn)
 }
 
 export interface ViewCombatCard {
@@ -605,6 +725,32 @@ export interface ViewCombat {
   attackDamageDealt: number | null;
 }
 
+// Incremental maneuver movement (issue #55, p2p #285). A per-fighter graph the
+// client walks LOCALLY to step a maneuver hop by hop (up to `allowance` total
+// steps), then commits ONE MOVE_FIGHTER with the accumulated (possibly
+// back-and-forth) path — the server already accepts any legal path whose endpoint
+// is a reachable destination. `nodes` are every space reachable within
+// `allowance` steps (including pass-through-only spaces); `canStop` marks the
+// legal resting places (empty, not barred — a valid MOVE_FIGHTER endpoint);
+// `edges` are the directed legal single steps among `nodes` (adjacentTo ∪ oneWayTo
+// ∪ portals ∪ passages — undirected edges appear both ways so you can wander back,
+// one-way arrows appear one way only). The fighter's own start space is a node with
+// `canStop=false` (staying put is END_MANEUVER). See PlayerView.moveGraphs.
+//
+// SYNCED VERBATIM from unbrewed-engine protocol/protocol.ts @ c96ed84 (PR #161,
+// issue #55). Keep in lockstep with the engine shape — do not diverge.
+export interface MoveGraphNode {
+  space: SpaceId;
+  canStop: boolean;
+}
+
+export interface MoveGraph {
+  fighter: FighterId;
+  allowance: number; // max total steps (baseMove / MOVE override + applied maneuver boost)
+  nodes: MoveGraphNode[];
+  edges: [SpaceId, SpaceId][];
+}
+
 export interface PlayerView {
   you: PlayerId;
   phase: "SETUP" | "PLAY" | "GAME_OVER";
@@ -614,6 +760,13 @@ export interface PlayerView {
   turnPhase: "ACTION_SELECT" | "MANEUVER_MOVE" | "DISCARD_TO_LIMIT" | null;
   // Non-null only during MANEUVER_MOVE (which fighters already moved, boost applied).
   maneuver: { boostApplied: number; boosted: boolean; moved: FighterId[] } | null;
+  // issue #55: per-fighter incremental-movement graphs, present ONLY for the active
+  // player during MANEUVER_MOVE (absent for the opponent and in every other phase).
+  // Lets the client step a maneuver hop-by-hop locally and commit ONE MOVE_FIGHTER
+  // with the accumulated path (the server accepts any legal path to a reachable
+  // destination). A client that ignores this keeps today's one-click-to-destination
+  // behavior. LARGE fighters are omitted (still one-click). See MoveGraph.
+  moveGraphs?: MoveGraph[];
   map: ProMapDef;
   catalog: Record<CardDefId, CardMeta>;
   fighters: ViewFighter[];
@@ -628,6 +781,11 @@ export interface PlayerView {
   // Regions currently OUT OF PLAY (v0.12.0 — a closed Hut). Public info (no
   // redaction); the client greys out the region's inset panel. Absent/[] = none.
   closedRegions?: string[];
+  // v17: battlefield item tokens still ON the board, keyed by space → item id
+  // (look the id up in map.items). Public — "the effects aren't secret". Absent on
+  // maps with no items; an id disappears from here the instant its token is
+  // consumed. The client renders/clears item badges from this map.
+  itemTokens?: Record<SpaceId, string>;
   // v11: true iff THIS viewer has an eligible last discrete move to undo right now
   // (there is a clean cut boundary the server would rewind to). Recomputed on every
   // STATE broadcast per-viewer; the client gates its Undo button entirely on this.
@@ -760,7 +918,7 @@ export interface HeroListing {
   name: string;
   hp: number;
   move: number;
-  reach: "MELEE" | "RANGED";
+  reach: "MELEE" | "RANGED" | "LUNGE"; // LUNGE (General Grievous) — RANGED-style targeting + forced post-commit landing placement
   tier: HeroTier;
 }
 
@@ -807,7 +965,9 @@ export type ClientMsg =
   // `debug` (v15): true includes `tier: 'reflavored'` heroes in the random pool
   // a server-picked `bot.heroId`/`botSeats[].heroId` draws from. Absent/false =
   // excluded. Never gates an explicitly named heroId. See the v15 note above.
-  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean }
+  // `turnTimerSeconds` (issue #122): per-decision move timer, integer 10–300;
+  // absent or 0 = no timer. See the 2026-07-12 move-timer header note.
+  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number }
   | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string }
   | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }
@@ -824,8 +984,10 @@ export type ClientMsg =
 export type ServerMsg =
   | { v: number; type: "HEROES"; heroes: HeroListing[] }
   | { v: number; type: "LOBBIES"; lobbies: LobbyListing[] }
-  | { v: number; type: "ROOM_CREATED"; roomId: string; token: string; you: PlayerId; formatId?: string; seats?: PlayerId[]; requiredPlayers?: number }
-  | { v: number; type: "ROOM_JOINED"; roomId: string; token: string; you: PlayerId; formatId?: string; seats?: PlayerId[]; requiredPlayers?: number }
+  // `turnTimerSeconds` (issue #122): the room's per-decision timer setting,
+  // present only when the timer is on. Absent = untimed room.
+  | { v: number; type: "ROOM_CREATED"; roomId: string; token: string; you: PlayerId; formatId?: string; seats?: PlayerId[]; requiredPlayers?: number; turnTimerSeconds?: number }
+  | { v: number; type: "ROOM_JOINED"; roomId: string; token: string; you: PlayerId; formatId?: string; seats?: PlayerId[]; requiredPlayers?: number; turnTimerSeconds?: number }
   | { v: number; type: "VISIBILITY"; roomId: string; public: boolean } // ack to SET_VISIBILITY
   | {
       v: number;
@@ -852,7 +1014,14 @@ export type ServerMsg =
   // v15: live waiting-room fill (seats/heroes/connectedness). Broadcast to every
   // seated player on join, pre-game seat release (count may DROP), and
   // waiting-room reconnect/disconnect. See RoomStatusSeat + the v15 doc block.
-  | { v: number; type: "ROOM_STATUS"; roomId: string; formatId: string; requiredPlayers: number; seats: RoomStatusSeat[] }
+  | { v: number; type: "ROOM_STATUS"; roomId: string; formatId: string; requiredPlayers: number; seats: RoomStatusSeat[]; turnTimerSeconds?: number }
+  // Per-decision move timer (issue #122; timed rooms ONLY — an untimed room
+  // never sends this). Broadcast on every clock change: `deadline` (epoch ms)
+  // while the clock runs for `player`; `deadline: null` when `player` is on
+  // the engine clock but their timer is paused/not running (bot seat, or a
+  // disconnected seat — presence rules own absence). At the deadline the
+  // server injects one uniformly-random legal action for the seat.
+  | { v: number; type: "TURN_TIMER"; player: PlayerId; deadline: number | null }
   // v7: the old instance is about to stop (SIGTERM). Show "server updating" and
   // let the reconnect loop take over — a valid RESUME_TOKEN revives the game.
   | { v: number; type: "SERVER_RESTARTING" }

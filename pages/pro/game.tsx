@@ -14,7 +14,7 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { useRouter } from "next/router";
-import { Box, Button, Flex, Grid, Link, Menu, MenuButton, MenuItem, MenuList, Tag, Text, Textarea, Tooltip } from "@chakra-ui/react";
+import { Box, Button, Flex, Grid, Link, Menu, MenuButton, MenuItem, MenuList, NumberDecrementStepper, NumberIncrementStepper, NumberInput, NumberInputField, NumberInputStepper, Switch, Tag, Text, Textarea, Tooltip } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
 import { MOVE_STEP_SECONDS, PendingMove, ProBoard } from "@/components/Pro/ProBoard";
 import { ProErrorBoundary } from "@/components/Pro/ProErrorBoundary";
@@ -60,7 +60,8 @@ import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
 import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
 import { diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
-import { cardAffordances, cardLabel, cardTitle, describeAction } from "@/lib/pro/actionDock";
+import { AttachItem, cardAffordances, cardLabel, cardTitle, describeAction } from "@/lib/pro/actionDock";
+import { ItemGlyph } from "@/components/Pro/ItemBadge";
 import {
   isExtendedReachAttack,
   LARGE_FIGHTER_BLURB,
@@ -70,6 +71,16 @@ import {
 import { useFlag } from "@/lib/flags";
 import { maneuverBoostHint } from "@/lib/pro/maneuverHint";
 import { buildPoseIndex, parsePoseOptions, poseHighlights, resolvePoseClick } from "@/lib/pro/moveChoice";
+import {
+  applyClick as applyStepClick,
+  canCommit as canCommitStep,
+  commitPath as stepCommitPath,
+  isFresh as isStepFresh,
+  legalNextSteps,
+  remaining as stepRemaining,
+  startStepping,
+  type StepState,
+} from "@/lib/pro/moveSteps";
 import { useGameFx } from "@/lib/pro/useGameFx";
 import { useCombatCallouts, CombatCalloutItem } from "@/lib/pro/combatFx";
 import { useIncomingMoveTween } from "@/lib/pro/moveTween";
@@ -106,6 +117,18 @@ const BTN_GOLD = {
   _hover: { bg: "brand.accentDeep" },
   _active: { bg: "brand.accentDeep" },
 };
+
+// Move-timer config (issue #223). The server accepts an integer 10–300s; the host
+// opts in and picks a per-move duration. Quick-pick presets plus a free custom
+// value, both clamped to the engine bound. `TURN_TIMER_DEFAULT` is what flipping
+// the toggle ON lands on.
+const TURN_TIMER_MIN = 10;
+const TURN_TIMER_MAX = 300;
+const TURN_TIMER_PRESETS = [30, 60, 90, 120] as const;
+const TURN_TIMER_DEFAULT = 60;
+/** Clamp a raw seconds value to the engine's accepted range (integer 10–300). */
+const clampTurnTimer = (n: number) =>
+  Math.min(TURN_TIMER_MAX, Math.max(TURN_TIMER_MIN, Math.round(n)));
 
 /** Fallback safety net for a token-move tween (issue #80): the board clears
  * `pendingMove` itself once the tween's onAnimationComplete fires, but if
@@ -161,6 +184,7 @@ const PromptPanel = ({
   you,
   onRespond,
   buttonOptions,
+  cardOptions,
   boardHint,
   previewInstance,
   sourceInstance,
@@ -173,6 +197,10 @@ const PromptPanel = ({
   onRespond: (promptId: string, optionId: string) => void;
   /** options NOT answerable via the board (e.g. "Decline move") */
   buttonOptions: ViewPrompt["options"];
+  /** hand-card options rendered as clickable card faces (issue #288 — Multi-Arm
+   *  Barrage second-attack commit): each `{ id, instance }` shows the offered card;
+   *  clicking answers with its option id. The sentinel stays in `buttonOptions`. */
+  cardOptions: { id: string; instance: CardInstanceId }[];
   /** set when some options are answered by clicking the board */
   boardHint: string | null;
   /**
@@ -236,6 +264,25 @@ const PromptPanel = ({
           <Text fontSize="0.85rem" mb={buttonOptions.length ? "0.5rem" : 0} color="brand.parchment">
             {boardHint}
           </Text>
+        )}
+        {cardOptions.length > 0 && (
+          <Flex gap="0.5rem" flexWrap="wrap" mb="0.5rem">
+            {cardOptions.map((c) => (
+              <Box
+                key={c.id}
+                as="button"
+                w="5rem"
+                sx={{ aspectRatio: "63 / 88" }}
+                borderRadius="0.35rem"
+                transition="transform 0.1s, box-shadow 0.1s"
+                _hover={{ transform: "translateY(-3px)", boxShadow: "0 0 0 2px var(--chakra-colors-brand-accent)" }}
+                onClick={() => onRespond(prompt.promptId, c.id)}
+                aria-label={`Commit ${cardLabel(catalog, c.instance)} as second attack`}
+              >
+                <CardFace card={resolveCard(c.instance)} fallback={cardLabel(catalog, c.instance)} />
+              </Box>
+            ))}
+          </Flex>
         )}
         <Flex gap="0.5rem" flexWrap="wrap">
           {buttonOptions.map((o) => (
@@ -473,6 +520,39 @@ const flipIn = keyframes`
   to   { transform: perspective(600px) rotateY(0) scale(1); opacity: 1; }
 `;
 
+/**
+ * Synthetic "Fire, you fools!" sub-attack combat card (issue #288 — engine batch D).
+ * The chosen B1 droid's "Blast 'em!" attack has no catalog/deck entry (its instance is
+ * `sub-attack:<fighter>`, `synthetic: true` server-side) — it is a graphic PRINTED on
+ * card 210's face with no separate cell to crop — so resolveCard can't find art. Render
+ * a distinct card-shaped tile rather than the raw-instance-id text fallback. The value
+ * rides the normal combat math (effectiveValue) shown by the slot's detail line.
+ */
+const isSubAttackCard = (instance: CardInstanceId) => instance.startsWith("sub-attack:");
+const SubAttackFace = () => (
+  <Flex
+    w="100%"
+    h="100%"
+    direction="column"
+    align="center"
+    justify="center"
+    borderRadius="0.35rem"
+    border="2px solid"
+    borderColor="brand.accent"
+    bg="linear-gradient(160deg, #6b2b2b, #3a1414)"
+    color="brand.parchment"
+    px="0.35rem"
+    textAlign="center"
+  >
+    <Text fontFamily="BebasNeueRegular" fontSize="1.1rem" letterSpacing="0.04em" lineHeight="1.05">
+      Blast&nbsp;&apos;em!
+    </Text>
+    <Text fontSize="0.6rem" opacity={0.8} mt="0.2rem">
+      sub-attack
+    </Text>
+  </Flex>
+);
+
 /** One combat slot: revealed card face, own face-down commit, or a card back. */
 const CombatSlot = ({
   label,
@@ -507,7 +587,11 @@ const CombatSlot = ({
           h="100%"
           animation={`${flipIn} 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.1) ${revealDelay} both`}
         >
-          <CardFace card={resolveCard(card.instance)} fallback={cardLabel(catalog, card.instance)} />
+          {isSubAttackCard(card.instance) ? (
+            <SubAttackFace />
+          ) : (
+            <CardFace card={resolveCard(card.instance)} fallback={cardLabel(catalog, card.instance)} />
+          )}
         </Box>
       ) : facedownInstance ? (
         <Box position="relative" w="100%" h="100%">
@@ -756,7 +840,7 @@ const HeroTile = ({
             <StatPip icon={<GiFootprint size="14px" />} label={String(hero.move)} />
             <StatPip
               icon={hero.reach === "RANGED" ? <TbBow size="15px" /> : <TbSword size="15px" />}
-              label={hero.reach === "RANGED" ? "rng" : "mel"}
+              label={hero.reach === "RANGED" ? "rng" : hero.reach === "LUNGE" ? "lng" : "mel"}
             />
           </Flex>
         </Flex>
@@ -860,6 +944,8 @@ const HeroSelectLobby = ({
   onSelectAiHero,
   botSlotPlan,
   onChangeBotSlot,
+  turnTimerSeconds,
+  onSelectTurnTimer,
   onConfirm,
   customMapJson,
   onCustomMapJsonChange,
@@ -882,6 +968,9 @@ const HeroSelectLobby = ({
   onSelectAiHero: (heroId: string | null) => void;
   botSlotPlan: BotSlotPlan;
   onChangeBotSlot: (player: PlayerId, occupant: SlotOccupant) => void;
+  /** per-decision move timer in seconds (issue #223); 0 = off (create flow only) */
+  turnTimerSeconds: number;
+  onSelectTurnTimer: (seconds: number) => void;
   onConfirm: () => void;
   /** raw custom-map JSON (create flow only) — persisted in the parent */
   customMapJson: string;
@@ -995,6 +1084,79 @@ const HeroSelectLobby = ({
           </Flex>
           <Text fontSize="0.7rem" opacity={0.6} textAlign="center">
             {format.detail} · {format.requiredPlayers} players
+          </Text>
+        </Flex>
+      )}
+
+      {/* Move timer (issue #223, create flow only): opt-in per-decision clock. Off
+          by default — a room created with it off sends no turnTimerSeconds and
+          behaves exactly as today. On → each seat gets `turnTimerSeconds` to act
+          per decision; the server plays a random legal move if the clock runs out. */}
+      {!room && (
+        <Flex direction="column" alignItems="center" gap="0.5rem">
+          <Flex alignItems="center" gap="0.6rem">
+            <Text fontFamily="BebasNeueRegular" fontSize="1.1rem" letterSpacing="0.08em" opacity={0.75}>
+              Move timer
+            </Text>
+            <Switch
+              isChecked={turnTimerSeconds > 0}
+              onChange={(e) => onSelectTurnTimer(e.target.checked ? TURN_TIMER_DEFAULT : 0)}
+              colorScheme="yellow"
+              aria-label="Enable per-decision move timer"
+            />
+          </Flex>
+          {turnTimerSeconds > 0 && (
+            <Flex direction="column" alignItems="center" gap="0.45rem">
+              {/* quick-pick presets */}
+              <Flex gap="0.4rem" flexWrap="wrap" justifyContent="center">
+                {TURN_TIMER_PRESETS.map((s) => (
+                  <Button
+                    key={s}
+                    {...(turnTimerSeconds === s ? BTN_GOLD : BTN)}
+                    size="sm"
+                    onClick={() => onSelectTurnTimer(s)}
+                  >
+                    {s}s
+                  </Button>
+                ))}
+              </Flex>
+              {/* custom value — any integer in the engine's 10–300s range */}
+              <Flex alignItems="center" gap="0.4rem">
+                <Text fontSize="0.75rem" opacity={0.7}>
+                  Custom
+                </Text>
+                <NumberInput
+                  size="sm"
+                  maxW="6.5rem"
+                  min={TURN_TIMER_MIN}
+                  max={TURN_TIMER_MAX}
+                  step={5}
+                  value={turnTimerSeconds}
+                  keepWithinRange
+                  clampValueOnBlur
+                  onChange={(_str, num) => {
+                    // ignore an empty / mid-edit field; commit any finite value and
+                    // let clampValueOnBlur + the confirm-time clamp enforce the bound
+                    if (Number.isFinite(num)) onSelectTurnTimer(num);
+                  }}
+                  aria-label="Custom move timer seconds"
+                >
+                  <NumberInputField bg="rgba(0,0,0,0.3)" borderColor="whiteAlpha.300" _focus={{ borderColor: "brand.accent" }} />
+                  <NumberInputStepper>
+                    <NumberIncrementStepper />
+                    <NumberDecrementStepper />
+                  </NumberInputStepper>
+                </NumberInput>
+                <Text fontSize="0.7rem" opacity={0.5}>
+                  sec ({TURN_TIMER_MIN}–{TURN_TIMER_MAX})
+                </Text>
+              </Flex>
+            </Flex>
+          )}
+          <Text fontSize="0.7rem" opacity={0.6} textAlign="center" maxW="26rem">
+            {turnTimerSeconds > 0
+              ? `${clampTurnTimer(turnTimerSeconds)}s per decision — if your clock runs out, the server plays a random legal move for you.`
+              : "Off — players take as long as they like on each decision."}
           </Text>
         </Flex>
       )}
@@ -1167,6 +1329,7 @@ const HeroSelectLobby = ({
       {!room && multiplayer && (
         <CreateSeats
           selectedFormat={selectedFormat}
+          selectedMap={catalogEntry(selectedMapId)?.map}
           botSlotPlan={botSlotPlan}
           onChangeBotSlot={onChangeBotSlot}
         />
@@ -1219,7 +1382,7 @@ const HeroSelectLobby = ({
 // ---------------------------------------------------------------------------
 
 const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: string | null; debug: boolean }) => {
-  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, requestLobbies, setVisibility, serverRestarting, gameLost } =
+  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, requestLobbies, setVisibility, serverRestarting, gameLost } =
     useProSocket(WS_URL, debug);
   const [joined, setJoined] = useState(false);
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
@@ -1231,7 +1394,16 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
   // the format changes to one the current board can't host.
   const [selectedMapId, setSelectedMapId] = useState<string>(defaultMapIdForFormat("duel"));
   const [aiHeroId, setAiHeroId] = useState<string | null>(null);
+  // Per-decision move timer (issue #223), create flow only: seconds each seat has
+  // to act. 0 = off (the default) → CREATE_ROOM omits turnTimerSeconds and the
+  // room behaves exactly as today. The toggle flips between 0 and a default preset.
+  const [turnTimerSeconds, setTurnTimerSeconds] = useState(0);
   const [selectedFighter, setSelectedFighter] = useState<FighterId | null>(null);
+  // Incremental-maneuver stepping (issue #285): the LOCAL hop-by-hop preview for
+  // the selected fighter, scoped to that fighter so it never leaks across a
+  // re-selection. null = no preview in flight (fresh). Nothing is sent until the
+  // move commits — the whole accumulated path lands as one MOVE_FIGHTER.
+  const [step, setStep] = useState<{ fighter: FighterId; state: StepState } | null>(null);
   // First space tapped in a two-tap LARGE-fighter move pick (issue #132), scoped
   // to the prompt it belongs to so a stale anchor never leaks into the next one.
   const [poseAnchor, setPoseAnchor] = useState<{ promptId: string; space: SpaceId } | null>(null);
@@ -1337,6 +1509,8 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
             label: (source) => resolveEventSource(next, source),
             you: next.you,
             seat: (player) => seatLabel(next, player),
+            fighter: (id) =>
+              next.fighters.find((f) => f.id === id)?.name ?? id.split("/").pop() ?? id,
           })
         : diff;
     prevViewRef.current = next;
@@ -1500,6 +1674,17 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
     acknowledgeRateLimited();
   }, [rateLimited, acknowledgeRateLimited]);
 
+  // Move timer (issue #223): the viewer's OWN clock ran out and the server played
+  // a move for them. The move itself renders through the ordinary STATE flow (the
+  // draining bar just advances to the next actor) — this one-shot toast keeps the
+  // "a move was made for you" legible. An opponent's expiry needs no toast: their
+  // move just advances the board like any other.
+  useEffect(() => {
+    if (!ownTimerExpired) return;
+    toast("Time's up — a move was made for you.", { id: "pro-own-timer", icon: "⏱️" });
+    acknowledgeOwnTimerExpired();
+  }, [ownTimerExpired, acknowledgeOwnTimerExpired]);
+
   if (!joined) {
     const effectiveHeroId = selectedHeroId ?? (heroes === null ? heroParam : null);
     return (
@@ -1563,6 +1748,8 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
           onChangeBotSlot={(player, occupant) =>
             setBotSlotPlan((prev) => ({ ...prev, [player]: occupant }))
           }
+          turnTimerSeconds={turnTimerSeconds}
+          onSelectTurnTimer={setTurnTimerSeconds}
           customMapJson={customMapJson}
           onCustomMapJsonChange={(json) => {
             setCustomMapJson(json);
@@ -1618,7 +1805,10 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
                 : Object.entries(botSlotPlan)
                     .filter((entry): entry is [string, Exclude<SlotOccupant, "human">] => entry[1] !== "human")
                     .map(([player, difficulty]) => ({ player: player as PlayerId, difficulty }));
-            createRoom(effectiveHeroId, bot, customMap, selectedFormat, botSeats);
+            // Clamp to the engine's 10–300 bound at the wire (a mid-edit custom
+            // value could sit outside it); 0 = off stays off.
+            const timerSeconds = turnTimerSeconds > 0 ? clampTurnTimer(turnTimerSeconds) : 0;
+            createRoom(effectiveHeroId, bot, customMap, selectedFormat, botSeats, timerSeconds);
             setSelectedHeroId(effectiveHeroId); // lock it for the lobby label
             setJoined(true);
           }}
@@ -1732,13 +1922,32 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
             })()}
           </Text>
 
+          {/* Move timer setting (issue #223): echoed by the server on
+              ROOM_CREATED/JOINED/ROOM_STATUS, so joiners know the room's rule
+              before the game starts. Absent = untimed room → nothing shown. */}
+          {roomInfo?.turnTimerSeconds ? (
+            <Tag
+              px="0.75rem"
+              py="0.4rem"
+              fontFamily="SpaceGrotesk"
+              letterSpacing="0.04em"
+              bg="brand.accent"
+              color="brand.surfaceDim"
+            >
+              ⏱ Move timer: {roomInfo.turnTimerSeconds}s per decision
+            </Tag>
+          ) : null}
+
           {/* team preview (issue #195): in a team format the seat→team mapping is
               fixed, so show who is with whom before the game even starts. The
               viewer's team is listed first and accented. Live ROOM_STATUS roster
               (issue #222) fills each seat with the real hero as it joins — an
               un-filled seat shows "?" ("You + ? vs GINGERBREAD + ?"). */}
           {(() => {
-            const comp = teamComposition(roomInfo?.formatId ?? selectedFormat);
+            const comp = teamComposition(
+              roomInfo?.formatId ?? selectedFormat,
+              catalogEntry(selectedMapId)?.map,
+            );
             if (!comp) return null;
             const youSeat = roomInfo?.you;
             const rosterSeat = (id: string) => roomInfo?.roster?.find((s) => s.player === id);
@@ -1782,7 +1991,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
               hero as ROOM_STATUS arrives (issue #222). */}
           {(() => {
             const roster = roomInfo?.roster;
-            const isTeam = !!teamComposition(roomInfo?.formatId ?? selectedFormat);
+            const isTeam = !!teamComposition(roomInfo?.formatId ?? selectedFormat, catalogEntry(selectedMapId)?.map);
             const required = roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers;
             if (!roster || isTeam || required <= 2) return null;
             const youSeat = roomInfo?.you;
@@ -1975,6 +2184,24 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
     promptForMe?.kind === "CHOOSE_TARGET"
       ? promptForMe.options.map((o) => o.id).filter((id) => fighterIds.has(id))
       : [];
+  // Hand-card options (issue #288 — Multi-Arm Barrage second-attack commit): a
+  // CHOOSE_OPTION whose options name a hand card in option.data.card (a real
+  // instance id `<defId>#<n>`) rather than an effect label. Render these as
+  // clickable card FACES (a hand-card picker) instead of raw-instance-id buttons;
+  // the sentinel (`decline`, data.card null) still falls through to a panel button.
+  // Effect-label options (card 200's chooseOne) carry data.branch, not data.card,
+  // so they are never misread as cards.
+  const optionCardId = (o: LegalOption): CardInstanceId | null => {
+    const c = (o.data as { card?: unknown } | undefined)?.card;
+    return typeof c === "string" && c.includes("#") ? c : null;
+  };
+  const promptCardOptions: { id: string; instance: CardInstanceId }[] =
+    promptForMe?.kind === "CHOOSE_OPTION"
+      ? promptForMe.options.flatMap((o) => {
+          const instance = optionCardId(o);
+          return instance ? [{ id: o.id, instance }] : [];
+        })
+      : [];
   // Two-space (LARGE fighter) move choice (issue #132): a card's "move up to N
   // spaces" effect on Triceratops emits CHOOSE_SPACE options encoded as
   // "<head>|<tail>" pairs, which optionSpace can't resolve — so instead of a wall
@@ -1988,6 +2215,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
     ...promptSpaceOptions.values(),
     ...promptTargetIds,
     ...poseOptions.map((p) => p.optionId),
+    ...promptCardOptions.map((c) => c.id),
   ]);
   const promptButtonOptions = promptForMe
     ? promptForMe.options.filter((o) => !promptBoardIds.has(o.id))
@@ -2033,8 +2261,45 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
     selectedFighter
       ? actions.filter((a) => a.type !== "MOVE_FIGHTER" || a.fighter === selectedFighter)
       : actions;
+  // Incremental maneuver stepping (issue #285). Active ONLY during MANEUVER_MOVE
+  // once a fighter is selected AND the server sent a move graph for it. Effect/
+  // scheme CHOOSE_SPACE moves, large fighters (omitted from the graph), and older
+  // servers all leave `moveGraph` null → today's one-click canonical-path move.
+  const selectedOrigin =
+    selectedFighter != null
+      ? view.fighters.find((f) => f.id === selectedFighter)?.space ?? null
+      : null;
+  const moveGraph =
+    view.turnPhase === "MANEUVER_MOVE" && selectedFighter != null
+      ? view.moveGraphs?.find((g) => g.fighter === selectedFighter) ?? null
+      : null;
+  // The live preview state for the selected fighter — its own `step` if one is in
+  // flight, else a fresh preview parked at the origin. Null unless stepping is on.
+  const stepState: StepState | null =
+    moveGraph && selectedOrigin
+      ? step && step.fighter === selectedFighter && step.state.origin === selectedOrigin
+        ? step.state
+        : startStepping(selectedOrigin)
+      : null;
+  // While stepping (≥1 hop) show only the next legal hops from the preview
+  // position; when fresh, fall through to today's enumerated destinations so a
+  // far one-click still commits the canonical path.
+  const stepHighlights: SpaceId[] | null =
+    moveGraph && stepState && !isStepFresh(stepState) ? legalNextSteps(moveGraph, stepState) : null;
+  // The ghost's route (nothing sent yet) — only once at least one hop is taken.
+  const previewMove: PendingMove | null =
+    moveGraph && stepState && selectedFighter && !isStepFresh(stepState)
+      ? { fighterId: selectedFighter, path: stepCommitPath(stepState) }
+      : null;
+  // Board-level stepping affordance state (issue #285): only meaningful once a
+  // hop is previewed (previewMove non-null). `stepMovesLeft` counts remaining
+  // hops; `stepCanEnd` gates the "End move here" commit on a legal resting spot.
+  const stepMovesLeft = moveGraph && stepState ? stepRemaining(moveGraph, stepState) : 0;
+  const stepCanEnd = !!(moveGraph && stepState && canCommitStep(moveGraph, stepState));
+
   const highlightedSpaces = [
-    ...[...spaceActions.entries()].filter(([, actions]) => spaceMatches(actions).length > 0).map(([space]) => space),
+    ...(stepHighlights ??
+      [...spaceActions.entries()].filter(([, actions]) => spaceMatches(actions).length > 0).map(([space]) => space)),
     ...promptSpaceIds,
     ...(poseIndex.size > 0 ? poseHighlights(poseIndex, activePoseAnchor) : []),
   ];
@@ -2043,6 +2308,20 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
   // Issue #85: say out loud why boost is (or is no longer) available, instead
   // of letting the affordance silently vanish once the fighters have moved.
   const boostHint = maneuverBoostHint(view, legalActions);
+
+  // Commit the accumulated incremental-maneuver walk as ONE MOVE_FIGHTER (issue
+  // #285): the engine already accepts arbitrary legal paths incl. revisits, so
+  // the opponent sees a single multi-hop tween and it's one undo unit. The path
+  // is client-constructed — MOVE_FIGHTER is the sanctioned exception to "only
+  // send what the server offered".
+  const commitStep = (state: StepState) => {
+    if (!selectedFighter) return;
+    const path = stepCommitPath(state);
+    sendAction({ type: "MOVE_FIGHTER", player: view.you, fighter: selectedFighter, path });
+    if (path.length >= 2) setPendingMove({ fighterId: selectedFighter, path });
+    setStep(null);
+    setSelectedFighter(null);
+  };
 
   const onSpaceClick = (space: SpaceId) => {
     // Two-space (LARGE fighter) move choice owns the board when present: a
@@ -2073,6 +2352,25 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
       setSelectedFighter(null);
       return;
     }
+    // Incremental maneuver stepping (issue #285): once the server sends a move
+    // graph for the selected fighter, the graph OWNS its maneuver clicks. A click
+    // either advances the LOCAL preview one hop or — while fresh — adopts the
+    // server's canonical path to a far destination. Nothing is sent until the
+    // walk commits (auto on 0 remaining, or via the "End move" affordance).
+    if (moveGraph && stepState) {
+      const canonical = (spaceActions.get(space) ?? []).find(
+        (a): a is Extract<Action, { type: "MOVE_FIGHTER" }> =>
+          a.type === "MOVE_FIGHTER" && a.fighter === selectedFighter
+      );
+      const res = applyStepClick(moveGraph, stepState, space, canonical ? canonical.path : null);
+      if (res.type === "step") {
+        if (res.commit) commitStep(res.state);
+        else setStep({ fighter: selectedFighter as FighterId, state: res.state });
+      }
+      // Stepped, committed, or ignored — never fall through to the one-click
+      // commit below (mid-walk far jumps stay disabled; the client owns no paths).
+      return;
+    }
     const candidates = spaceMatches(spaceActions.get(space) ?? []);
     if (candidates.length === 0) return;
     const action = candidates[0];
@@ -2097,15 +2395,54 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
     if (attack) {
       sendAction(attack);
       setSelectedFighter(null);
+      setStep(null);
     } else if (movableFighters.has(id)) {
+      // Stepping (issue #285): the selected fighter's token stays at its ORIGIN
+      // while the ghost previews elsewhere, so clicking it steps BACK one hop
+      // toward origin when that's legal (keeps back-and-forth reachable). If it
+      // isn't an adjacent step, fall through to toggling the selection.
+      if (moveGraph && stepState && id === selectedFighter && !isStepFresh(stepState)) {
+        const res = applyStepClick(moveGraph, stepState, stepState.origin, null);
+        if (res.type === "step") {
+          if (res.commit) commitStep(res.state);
+          else setStep({ fighter: id, state: res.state });
+          return;
+        }
+      }
       setSelectedFighter((cur) => (cur === id ? null : id));
+      setStep(null); // selecting/deselecting always starts a fresh preview
     }
   };
+
+  // Battlefield items (v17) — ALL presentation. Item labels come from the static
+  // map.items; token PRESENCE and attach eligibility come from the server (view.
+  // itemTokens + the offered attachItem commit variants). We never re-derive item
+  // legality — the badge/label/attach control only surface what the server sent.
+  const itemDefById = new Map((view.map.items ?? []).map((it) => [it.id, it]));
+  const liveItemLabel = (space: SpaceId): string | undefined => {
+    const id = view.itemTokens?.[space];
+    return (id ? itemDefById.get(id) : undefined)?.label;
+  };
+  // The COMBAT item the viewer may attach on THIS commit: the one on the committing
+  // fighter's space (the attacker if we're attacking, else the target we're
+  // defending). Combat-kind only; its label + value drive the attach menu entry.
+  const attachItemContext: AttachItem | undefined = (() => {
+    const c = view.combat;
+    if (!c) return undefined;
+    const fighterId =
+      c.attackerPlayer === view.you ? c.attacker : c.defenderPlayer === view.you ? c.target : null;
+    if (!fighterId) return undefined;
+    const space = view.fighters.find((f) => f.id === fighterId)?.space;
+    const id = space ? view.itemTokens?.[space] : undefined;
+    const def = id ? itemDefById.get(id) : undefined;
+    return def && def.kind === "combat" ? { label: def.label, value: def.value ?? 0 } : undefined;
+  })();
 
   // Hand affordances: a card is playable iff a server-offered action carries
   // its instance id (pure logic in lib/pro/actionDock — seat-agnostic, so a
   // multiplayer BOOST_MOVE from p3 renders and sends exactly like a duel seat).
-  const actionsForCard = (instance: CardInstanceId) => cardAffordances(legalActions, instance);
+  const actionsForCard = (instance: CardInstanceId) =>
+    cardAffordances(legalActions, instance, attachItemContext);
 
   return (
     <ProErrorBoundary
@@ -2172,11 +2509,13 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
           }}
           fx={boardFx}
           pendingMove={pendingMove ?? incomingMove}
+          previewMove={previewMove}
           onPendingMoveSettled={() => {
             setPendingMove(null);
             clearIncoming();
           }}
           closedRegions={view.closedRegions}
+          itemTokens={view.itemTokens}
           onSpaceClick={onSpaceClick}
           onFighterClick={onFighterClick}
           imgMaxH="calc(100svh - 16rem)"
@@ -2213,6 +2552,8 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
         status={status}
         roomId={roomId}
         seatPresence={seatPresence}
+        turnTimer={turnTimer}
+        turnTimerSeconds={roomInfo?.turnTimerSeconds}
         resolveCard={resolveCard}
         resolveHero={resolveHero}
         labelFor={(c) => cardLabel(view.catalog, c)}
@@ -2238,6 +2579,49 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
         pointerEvents="none"
       >
         <Flex direction="column" gap="0.6rem" sx={{ "& > *": { pointerEvents: "auto" } }}>
+          {/* Incremental-maneuver stepping controls (issue #285): shown while a
+              local hop-by-hop preview is in flight. "End move here" commits the
+              accumulated path as one MOVE_FIGHTER (auto-commits when 0 moves are
+              left); "Cancel" resets the ghost to the origin — nothing was sent, so
+              the cancel is free. Addresses the awkward maneuver prompt in #169. */}
+          {previewMove && (
+            <Flex
+              direction="column"
+              gap="0.4rem"
+              bg="rgba(0,0,0,0.55)"
+              border="1px solid"
+              borderColor="brand.accent"
+              borderRadius="0.5rem"
+              p="0.6rem"
+            >
+              <Text fontSize="0.8rem" color="brand.accent" fontWeight={700}>
+                stepping {selectedFighter?.split("/")[1]} — {stepMovesLeft} move{stepMovesLeft === 1 ? "" : "s"} left
+              </Text>
+              <Text fontSize="0.7rem" color="brand.parchment" opacity={0.85}>
+                click a gold space to step (moving back counts too), or:
+              </Text>
+              <Flex gap="0.4rem">
+                <Button
+                  size="sm"
+                  flex={1}
+                  colorScheme="yellow"
+                  isDisabled={!stepCanEnd}
+                  onClick={() => stepState && commitStep(stepState)}
+                >
+                  End move here
+                </Button>
+                <Button
+                  size="sm"
+                  flex={1}
+                  variant="outline"
+                  color="brand.parchment"
+                  onClick={() => setStep(null)}
+                >
+                  Cancel
+                </Button>
+              </Flex>
+            </Flex>
+          )}
           {/* Live-turn chrome — hidden once the game is decided (issue #194): at
               GAME_OVER legal actions are empty and no seat is "on turn", so these
               chips would go stale. The outcome (VICTORY!/DEFEAT) shows instead. */}
@@ -2267,10 +2651,12 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
               )}
             </Flex>
           )}
-          {(highlightedSpaces.length > 0 || attackActions.size > 0) && (
+          {!previewMove && (highlightedSpaces.length > 0 || attackActions.size > 0) && (
             <Text fontSize="0.8rem" color="brand.accent" textShadow="0 1px 3px rgba(0,0,0,0.6)">
               {selectedFighter
-                ? `showing moves for ${selectedFighter.split("/")[1]} — click a gold space (click the fighter again to unselect)`
+                ? moveGraph
+                  ? `stepping ${selectedFighter.split("/")[1]} — click a near gold space to step one at a time, or a far one to move straight there`
+                  : `showing moves for ${selectedFighter.split("/")[1]} — click a gold space (click the fighter again to unselect)`
                 : [
                     highlightedSpaces.length > 0 &&
                       `click a gold space to move there (${highlightedSpaces.length} option${
@@ -2307,6 +2693,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
               you={view.you}
               onRespond={respondToPrompt}
               buttonOptions={promptButtonOptions}
+              cardOptions={promptCardOptions}
               boardHint={promptBoardHint}
               previewInstance={promptCardInstance}
               sourceInstance={sourceCardInstance}
@@ -2330,7 +2717,17 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
                 onClick={() => sendAction(a)}
               >
                 <Flex as="span" align="center" gap="0.4rem" flexWrap="wrap">
-                  <Text as="span">{describeAction(view.catalog, a, { nameOf, attackerBadge })}</Text>
+                  {/* Scheme-item use (v17): a leading yellow lightning glyph marks
+                      this as a BOARD item action, visually distinct from a hand
+                      scheme card. The item's label rides in the describeAction text. */}
+                  {a.type === "USE_SCHEME_ITEM" && (
+                    <Box as="span" display="inline-flex" boxSize="1.1rem" flexShrink={0}>
+                      <ItemGlyph kind="scheme" fill="#E4B106" />
+                    </Box>
+                  )}
+                  <Text as="span">
+                    {describeAction(view.catalog, a, { nameOf, attackerBadge, itemLabelForSpace: liveItemLabel })}
+                  </Text>
                   {isExtendedReach(a) && (
                     <Tooltip label={LARGE_FIGHTER_BLURB} hasArrow placement="top" openDelay={150}>
                       <Tag

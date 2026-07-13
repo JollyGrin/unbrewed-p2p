@@ -29,6 +29,7 @@ const seat = (id: PlayerId, you: boolean): ViewPlayer => ({
   hasCommitted: false,
   counters: {},
   flags: {},
+  wonCombatThisTurn: false,
 });
 
 const makeView = (opts: {
@@ -59,6 +60,7 @@ const makeView = (opts: {
       committedCard: null,
       counters: {},
       flags: {},
+  wonCombatThisTurn: false,
     },
     opponent: null,
     players,

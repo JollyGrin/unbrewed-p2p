@@ -5,7 +5,7 @@
  * Heuristic and display-only: misses nothing rules-relevant that the view
  * doesn't also show, and never feeds anything back into play.
  */
-import { CardInstanceId, GameEvent, PlayerId, PlayerView, ViewPlayer } from "./protocol";
+import { CardInstanceId, FighterId, GameEvent, PlayerId, PlayerView, ViewPlayer } from "./protocol";
 import { deriveTeams, isViewerOnWinningTeam } from "./teams";
 import { sweptFighters } from "./sweep";
 
@@ -59,6 +59,7 @@ const playersById = (view: PlayerView): Map<PlayerId, ViewPlayer> => {
     hasCommitted: !!view.self.committedCard,
     counters: view.self.counters,
     flags: view.self.flags,
+    wonCombatThisTurn: view.self.wonCombatThisTurn,
   });
   if (view.opponent) {
     players.set(view.opponent.id, {
@@ -72,6 +73,7 @@ const playersById = (view: PlayerView): Map<PlayerId, ViewPlayer> => {
       hasCommitted: view.opponent.hasCommitted,
       counters: view.opponent.counters,
       flags: view.opponent.flags,
+      wonCombatThisTurn: view.opponent.wonCombatThisTurn,
     });
   }
   return players;
@@ -191,6 +193,26 @@ export function diffViews(
     }
   }
 
+  // battlefield items (v17): scheme-item use + combat-item attach. These are
+  // NOT snapshot-derivable from `view` alone (the item label lives on the static
+  // map, not the catalog, and both actions merely drop a token), so they read off
+  // the always-present event stream — the same channel diffViews already uses for
+  // sweeps. Absent on join/reconnect/resume broadcasts, so no lines double-fire.
+  // Item labels come from the static map.items (present on both prev and next).
+  const itemLabel = (id: string): string =>
+    (next.map.items ?? []).find((it) => it.id === id)?.label ?? id;
+  for (const e of events) {
+    if (e.type === "ITEM_USED") {
+      lines.push({ text: `${seat(e.player)} used ${itemLabel(e.item)}`, who: whoOf(e.player) });
+    } else if (e.type === "COMBAT_ITEM_ATTACHED") {
+      const role = e.role === "ATTACK" ? "attack" : "defense";
+      lines.push({
+        text: `${seat(e.player)} attached ${itemLabel(e.item)} (+${e.value} ${role})`,
+        who: whoOf(e.player),
+      });
+    }
+  }
+
   // tokens (totems): appearances and disappearances
   const prevTokens = new Map((prev.tokens ?? []).map((t) => [t.id, t]));
   const nextTokens = new Map((next.tokens ?? []).map((t) => [t.id, t]));
@@ -277,6 +299,10 @@ export interface EnrichContext {
   /** Seat label for a player-scoped event ("You"/"Opponent"/"P3"), so a >2p
    *  log names the acting seat instead of a generic "Opponent". */
   seat: (player: PlayerId) => string;
+  /** Display name for a FighterId ("General Grievous"/"B1 Battle Droid"), from
+   *  the STATE view's fighter list — used by the nested-combat events (issue #288)
+   *  that carry attacker/target fighter ids rather than a card source. */
+  fighter: (id: FighterId) => string;
 }
 
 /**
@@ -380,6 +406,56 @@ export function enrichLines(
         });
         break;
       }
+
+      // --- General Grievous nested combat (issue #288 ↔ engine #160) ---------
+      // These delineate up to three sequential combats sharing the one
+      // `state.combat` slot. Because that slot is REUSED (not cleared to null
+      // between combats), diffViews' `!prev.combat` combat-start guard never
+      // fires for combats 2/3 — so these NEW lines fill a genuine gap, they do
+      // not double-report. All allowlist (Mode 2).
+      case "COMBAT_WON_MARKED": {
+        const seat = ctx.seat(e.player);
+        added.push({
+          text: `${seat} ${seat === "You" ? "are" : "is"} considered to have won this combat`,
+          who: whoOf(e.player),
+        });
+        break;
+      }
+      case "PLAYED_CARD_RETURNED": {
+        const seat = ctx.seat(e.player);
+        added.push({
+          text: `${seat} returned ${ctx.label(e.card)} to hand`,
+          who: whoOf(e.player),
+          cards: [e.card],
+        });
+        break;
+      }
+      case "SECOND_ATTACK_COMMITTED": {
+        added.push({
+          text: `${ctx.fighter(`${e.player}/hero`)} readies a second attack (face down)`,
+          who: whoOf(e.player),
+        });
+        break;
+      }
+      case "BONUS_ATTACK_STARTED": {
+        added.push({
+          text: `Multi-Arm Barrage — Combat 2: ${ctx.fighter(e.attacker)} vs ${ctx.fighter(e.target)}`,
+          who: "game",
+        });
+        break;
+      }
+      case "BONUS_ATTACK_PASSED": {
+        added.push({ text: "Multi-Arm Barrage — 2nd attack passed", who: "game" });
+        break;
+      }
+      case "SUB_ATTACK_INITIATED": {
+        added.push({
+          text: `${ctx.fighter(e.attacker)} fires Blast 'em! (${e.value}) at ${ctx.fighter(e.target)}`,
+          who: "game",
+        });
+        break;
+      }
+
       // Every other event type overlaps diff output (or is not yet allowlisted)
       // and must NEVER create a line. Do nothing.
       default:

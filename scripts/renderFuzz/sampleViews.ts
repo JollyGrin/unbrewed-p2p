@@ -53,6 +53,7 @@ export function buildBaselineView(overrides: Partial<PlayerView> = {}): PlayerVi
       committedCard: null,
       counters: {},
       flags: {},
+  wonCombatThisTurn: false,
     },
     opponent: {
       id: "p2",
@@ -63,6 +64,7 @@ export function buildBaselineView(overrides: Partial<PlayerView> = {}): PlayerVi
       hasCommitted: false,
       counters: {},
       flags: {},
+  wonCombatThisTurn: false,
     },
     players: [
       {
@@ -77,6 +79,7 @@ export function buildBaselineView(overrides: Partial<PlayerView> = {}): PlayerVi
         hasCommitted: false,
         counters: {},
         flags: {},
+  wonCombatThisTurn: false,
       },
       {
         id: "p2",
@@ -88,6 +91,7 @@ export function buildBaselineView(overrides: Partial<PlayerView> = {}): PlayerVi
         hasCommitted: false,
         counters: {},
         flags: {},
+  wonCombatThisTurn: false,
       },
     ],
     combat: null,
@@ -161,6 +165,7 @@ export function buildSampleGame(): SampleStep[] {
       committedCard: null,
       counters: {},
       flags: {},
+  wonCombatThisTurn: false,
     },
     opponent: {
       id: "p1",
@@ -171,6 +176,7 @@ export function buildSampleGame(): SampleStep[] {
       hasCommitted: false,
       counters: {},
       flags: {},
+  wonCombatThisTurn: false,
     },
     players: [
       {
@@ -185,6 +191,7 @@ export function buildSampleGame(): SampleStep[] {
         hasCommitted: false,
         counters: {},
         flags: {},
+  wonCombatThisTurn: false,
       },
       {
         id: "p1",
@@ -196,6 +203,7 @@ export function buildSampleGame(): SampleStep[] {
         hasCommitted: false,
         counters: {},
         flags: {},
+  wonCombatThisTurn: false,
       },
     ],
   });

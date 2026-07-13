@@ -27,11 +27,11 @@ const view = (over: Partial<PlayerView>): PlayerView => ({
   catalog: {},
   fighters: [fighter({}), fighter({ id: "p2/hero", owner: "p2", name: "The Mandalorian", space: "s2" })],
   tokens: [],
-  self: { id: "p1", heroId: "thrall", hand: [], deckCount: 20, discard: [], committedCard: null, counters: {}, flags: {} },
-  opponent: { id: "p2", heroId: "the-mandalorian", handCount: 5, deckCount: 20, discard: [], hasCommitted: false, counters: {}, flags: {} },
+  self: { id: "p1", heroId: "thrall", hand: [], deckCount: 20, discard: [], committedCard: null, counters: {}, flags: {}, wonCombatThisTurn: false },
+  opponent: { id: "p2", heroId: "the-mandalorian", handCount: 5, deckCount: 20, discard: [], hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false },
   players: [
-    { id: "p1", heroId: "fixture-p1", you: true, hand: [], handCount: 0, deckCount: 10, discard: [], committedCard: null, hasCommitted: false, counters: {}, flags: {} },
-    { id: "p2", heroId: "fixture-p2", you: false, handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {}, flags: {} },
+    { id: "p1", heroId: "fixture-p1", you: true, hand: [], handCount: 0, deckCount: 10, discard: [], committedCard: null, hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false },
+    { id: "p2", heroId: "fixture-p2", you: false, handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false },
   ],
   combat: null,
   prompt: null,
@@ -98,5 +98,14 @@ describe("maneuverBoostHint (issue #85)", () => {
 
   it("falls back to the no-boostable-cards wording pre-move", () => {
     expect(maneuverBoostHint(view({}), [endManeuver])).toBe("no boostable cards in hand");
+  });
+
+  // Issue #285: a fighter that is mid-PREVIEW (stepped locally but not yet
+  // committed) is NOT in `maneuver.moved` — the whole walk lands as one
+  // MOVE_FIGHTER only on commit. So the hint must still treat it as un-moved and
+  // keep boost on the table; the local ghost never suppresses the boost tip.
+  it("keeps boost eligible for a fighter that is only mid-preview (not yet committed)", () => {
+    const v = view({ maneuver: { boostApplied: 0, boosted: false, moved: [] } });
+    expect(maneuverBoostHint(v, [boost("thrall/lightning-bolt#1"), endManeuver])).toMatch(/discard a card/);
   });
 });

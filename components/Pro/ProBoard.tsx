@@ -11,10 +11,18 @@ import { Box, Button, Flex, Text, chakra, shouldForwardProp } from "@chakra-ui/r
 import { keyframes } from "@emotion/react";
 import { isValidMotionProp, motion } from "framer-motion";
 import { PointerEvent as ReactPointerEvent, useRef, useState } from "react";
-import { FighterId, PlayerId, ProMapDef, ProMapRegion, ProMapSpace, SpaceId, ViewFighter, ViewToken } from "@/lib/pro/protocol";
+import { FighterId, PlayerId, ProMapDef, ProMapItem, ProMapRegion, ProMapSpace, SpaceId, ViewFighter, ViewToken } from "@/lib/pro/protocol";
 import { BoardFxItem } from "@/lib/pro/useGameFx";
 import { useZoomPan } from "@/lib/pro/useZoomPan";
 import { LARGE_FIGHTER_BLURB, LARGE_REACH_CHIP } from "@/lib/pro/largeReach";
+import { tokenInitials } from "./FighterTokenPortrait";
+import { ItemBadge, PassageBadge } from "./ItemBadge";
+
+/** Hover/long-press tooltip for a live item token, per the official wording. */
+export const itemBadgeTitle = (item: ProMapItem): string =>
+  item.kind === "combat"
+    ? `${item.label} — +${item.value ?? 0} to a combat card played from this space`
+    : item.label;
 
 const DEFAULT_DIAMETER = 0.021;
 
@@ -152,9 +160,21 @@ export interface ProBoardProps {
   pendingMove?: PendingMove | null;
   /** fired once the tween finishes — caller clears its pendingMove state */
   onPendingMoveSettled?: () => void;
+  /** Incremental-maneuver LOCAL preview (issue #285): the ghost token's current
+   *  route while the player steps hop-by-hop. `path[0]` is the fighter's real
+   *  space (the token stays there), the last element is the ghost's position.
+   *  PRESENTATION ONLY, non-interactive, no tween — nothing has been sent yet;
+   *  clicks still land on the underlying gold step highlights. null = no preview. */
+  previewMove?: PendingMove | null;
   /** Region ids currently out of play (view.closedRegions) — their inset
    * panels grey out and stop taking clicks */
   closedRegions?: string[];
+  /** Live battlefield item tokens (view.itemTokens), keyed by space → item id.
+   *  DRIVES the item badges strictly off server state — a badge appears only while
+   *  its space is in this map and vanishes the instant the token is consumed. NEVER
+   *  read the static map.items/space.item for presence (protocol v17). Absent/empty
+   *  = no item badges. The item id is looked up in `map.items` for kind + label. */
+  itemTokens?: Record<SpaceId, string>;
   onSpaceClick?: (id: SpaceId) => void;
   onFighterClick?: (id: FighterId) => void;
   /** cap the board image height (e.g. "calc(100svh - 2rem)") so the whole
@@ -183,13 +203,6 @@ const ALLY_RING = "#39B7A8";
  * otherwise both read "THE"), so strip it and take three letters. A name that's
  * literally just "The" (or empty) has nothing left to abbreviate once stripped —
  * fall back to a single letter rather than leaking the literal word "THE". */
-const tokenInitials = (name: string) => {
-  const stripped = name.replace(/^the\b\s*/i, "").trim();
-  const base = stripped || name.trim();
-  const initials = base.slice(0, 3).toUpperCase();
-  return initials && initials !== "THE" ? initials : base.slice(0, 1).toUpperCase() || "?";
-};
-
 export const ProBoard = ({
   map,
   fighters,
@@ -205,13 +218,18 @@ export const ProBoard = ({
   fx = [],
   pendingMove = null,
   onPendingMoveSettled,
+  previewMove = null,
   closedRegions = [],
+  itemTokens = {},
   onSpaceClick,
   onFighterClick,
   imgMaxH,
   zoomable = false,
 }: ProBoardProps) => {
   const diameter = (map.meta.spaceDiameter ?? DEFAULT_DIAMETER) * 100; // % of width
+  // Static item definitions (kind + label + value), keyed by id — looked up from
+  // the LIVE itemTokens map so a badge renders only while the token is on the board.
+  const itemById = new Map((map.items ?? []).map((it) => [it.id, it]));
   const highlightSet = new Set(highlightedSpaces);
   const highlightFighterSet = new Set(highlightedFighters);
   const extendedReachSet = new Set(extendedReachTargets);
@@ -591,6 +609,28 @@ export const ProBoard = ({
       if (!from || !to || from.id === to.id) return null;
       return arrowGeometry(from, to, diam);
     })();
+    // Incremental-maneuver ghost + trail (issue #285): the stepping fighter's
+    // preview position and the hops taken so far, in THIS frame's 0–100 space.
+    // Nothing is committed yet, so the real token stays where the server put it;
+    // this is a translucent duplicate that follows the local preview. Rendered
+    // only when the whole path lives in this frame (no cross-frame trail).
+    const preview = (() => {
+      if (!previewMove) return null;
+      const f = fighters.find((x) => x.id === previewMove.fighterId);
+      const nodes = previewMove.path
+        .map((id) => spaces.find((sp) => sp.id === id))
+        .filter((s): s is ProMapSpace => !!s);
+      if (!f || nodes.length < 2 || nodes.length !== previewMove.path.length) return null;
+      const ghost = nodes[nodes.length - 1];
+      return {
+        color: PLAYER_COLOR[f.owner] ?? "#999",
+        initials: tokenInitials(f.name),
+        isHero: f.kind === "HERO",
+        x: ghost.x * 100,
+        y: ghost.y * 100,
+        points: nodes.map((n) => `${n.x * 100},${n.y * 100}`).join(" "),
+      };
+    })();
     return (
       <>
       {/* space hit-circles */}
@@ -640,6 +680,54 @@ export const ProBoard = ({
               />
             ))
         )}
+
+      {/* battlefield item tokens (v17) — a purple/versatile (combat) or
+          yellow/lightning (scheme) square in the space's upper-right corner, and a
+          keyhole in the upper-left for a secret-passage space (engine #156). Item
+          presence is driven STRICTLY off the live server itemTokens map (never the
+          static def), so a consumed token's badge disappears for BOTH players. The
+          badges sit just outside the hit-circle so they never swallow a space click. */}
+      {spaces.flatMap((s) => {
+        const itemId = itemTokens[s.id];
+        const item = itemId ? itemById.get(itemId) : undefined;
+        const badgeW = diam * 0.5;
+        // transform %s are relative to the badge's OWN box, so the corner offset
+        // scales with the badge and never mixes the frame's width/height axes.
+        const out = [];
+        if (item) {
+          out.push(
+            <Box
+              key={`${s.id}-item`}
+              position="absolute"
+              left={`${s.x * 100}%`}
+              top={`${s.y * 100}%`}
+              transform="translate(35%, -115%)"
+              w={`${badgeW}%`}
+              sx={{ aspectRatio: "1" }}
+              zIndex={5}
+            >
+              <ItemBadge kind={item.kind} title={itemBadgeTitle(item)} />
+            </Box>
+          );
+        }
+        if (s.passage) {
+          out.push(
+            <Box
+              key={`${s.id}-passage`}
+              position="absolute"
+              left={`${s.x * 100}%`}
+              top={`${s.y * 100}%`}
+              transform="translate(-135%, -115%)"
+              w={`${badgeW}%`}
+              sx={{ aspectRatio: "1" }}
+              zIndex={5}
+            >
+              <PassageBadge />
+            </Box>
+          );
+        }
+        return out;
+      })}
 
       {/* two-space fighter bands — the "string" tying head and tail together.
           viewBox 0-100 with preserveAspectRatio="none" maps the normalized
@@ -759,6 +847,66 @@ export const ProBoard = ({
         const tail = spaceById.get(f.tailSpace as SpaceId);
         return tail ? [fighterToken(f, tail, 0, "tail", diam)] : [];
       })}
+
+      {/* incremental-maneuver preview (issue #285): dashed trail through the hops
+          taken + a translucent ghost token at the preview position. Both are
+          non-interactive so clicks pass to the gold step highlights beneath. */}
+      {preview && (
+        <svg
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            pointerEvents: "none",
+            zIndex: 3,
+          }}
+        >
+          <polyline
+            points={preview.points}
+            fill="none"
+            stroke="#E0A82E"
+            strokeWidth={diam * 0.18}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeDasharray={`${diam * 0.3} ${diam * 0.3}`}
+            opacity={0.85}
+          />
+        </svg>
+      )}
+      {preview && (
+        <Box
+          position="absolute"
+          left={`${preview.x}%`}
+          top={`${preview.y}%`}
+          transform="translate(-50%, -50%)"
+          w={`${diam * 0.82}%`}
+          sx={{ aspectRatio: "1", pointerEvents: "none" }}
+          borderRadius="50%"
+          bg={preview.isHero ? preview.color : "brand.surfaceDim"}
+          border={`2px dashed ${preview.isHero ? "#fff" : preview.color}`}
+          opacity={0.55}
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          zIndex={5}
+          title="move preview — click again to keep stepping, or End move to commit"
+        >
+          <Text
+            fontSize="0.68rem"
+            fontWeight="bold"
+            letterSpacing="-0.02em"
+            color="brand.parchment"
+            textShadow="0 1px 3px rgba(0,0,0,0.85)"
+            lineHeight={1}
+            userSelect="none"
+          >
+            {preview.initials}
+          </Text>
+        </Box>
+      )}
 
       {/* transient effects — impact ring + floating label, above everything */}
       {fx.flatMap((item) => {

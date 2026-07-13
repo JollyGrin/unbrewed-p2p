@@ -320,7 +320,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     likes: 2,
     highlightColour: "#296888",
     // self-hosted (upstream deck has none); also patched into both snapshots
-    cardbackUrl: "https://unbrewed.xyz/cardbacks/thrall.webp",
+    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/pk1x/cardback.webp",
   },
   {
     // Not a top-40 deck — included because it's Pro-playable (server hero r2-d2)
@@ -346,6 +346,8 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
   {
     // Evergreen original (no unmatched.cards page): King Taranis, the
     // Stormquenched — server hero king-taranis.
+    // Reflavored/baseline deck (tier === 'reflavored'): hidden from the default
+    // roster and bot rotation, visible only under ?debug (see ProLanding).
     id: "taranis",
     name: "King Taranis",
     hero: "King Taranis",
@@ -353,7 +355,22 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     likes: 0,
     highlightColour: "#c9962b",
     // self-hosted; also patched into the evergreen snapshot appearance
-    cardbackUrl: "https://unbrewed.xyz/cardbacks/taranis.webp",
+    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/taranis/cardback.webp",
+    original: true,
+    // Replaced on the default roster by `taranis-spice`; visible only under ?debug.
+    tier: "reflavored",
+  },
+  {
+    // Spice remix of King Taranis (display name "King Taranis") — server hero
+    // king-taranis-spice. Reuses King Taranis's cardback and per-card art until
+    // dedicated spice art lands.
+    id: "taranis-spice",
+    name: "King Taranis",
+    hero: "King Taranis",
+    author: "unbrewed",
+    likes: 0,
+    highlightColour: "#c9962b",
+    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/taranis/cardback.webp",
     original: true,
   },
   {
@@ -367,7 +384,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     likes: 0,
     highlightColour: "#2ec4b6",
     // self-hosted; also patched into the evergreen snapshot appearance
-    cardbackUrl: "https://unbrewed.xyz/cardbacks/thetis.webp",
+    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/thetis/cardback.webp",
     original: true,
     // Replaced on the default roster by `thetis-spice`; visible only under ?debug.
     tier: "reflavored",
@@ -382,12 +399,14 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "unbrewed",
     likes: 0,
     highlightColour: "#2ec4b6",
-    cardbackUrl: "https://unbrewed.xyz/cardbacks/thetis.webp",
+    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/thetis/cardback.webp",
     original: true,
   },
   {
     // Evergreen original: The Piper of the Underroads — server hero
     // piper-of-the-underroads.
+    // Reflavored/baseline deck (tier === 'reflavored'): hidden from the default
+    // roster and bot rotation, visible only under ?debug (see ProLanding).
     id: "piper",
     name: "The Piper of the Underroads",
     hero: "The Piper of the Underroads",
@@ -395,11 +414,28 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     likes: 0,
     highlightColour: "#b06f2e",
     // self-hosted; also patched into the evergreen snapshot appearance
-    cardbackUrl: "https://unbrewed.xyz/cardbacks/piper.webp",
+    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/piper/cardback.webp",
+    original: true,
+    // Replaced on the default roster by `piper-spice`; visible only under ?debug.
+    tier: "reflavored",
+  },
+  {
+    // Spice remix of The Piper of the Underroads (display name shared) — server
+    // hero piper-of-the-underroads-spice. Reuses Piper's cardback and per-card
+    // art until dedicated spice art lands.
+    id: "piper-spice",
+    name: "The Piper of the Underroads",
+    hero: "The Piper of the Underroads",
+    author: "unbrewed",
+    likes: 0,
+    highlightColour: "#b06f2e",
+    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/piper/cardback.webp",
     original: true,
   },
   {
     // Evergreen original: The Hollow Oak — server hero hollow-oak.
+    // Reflavored/baseline deck (tier === 'reflavored'): hidden from the default
+    // roster and bot rotation, visible only under ?debug (see ProLanding).
     id: "hollow-oak",
     name: "The Hollow Oak",
     hero: "The Hollow Oak",
@@ -407,7 +443,35 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     likes: 0,
     highlightColour: "#5f7d3b",
     // self-hosted; also patched into the evergreen snapshot appearance
-    cardbackUrl: "https://unbrewed.xyz/cardbacks/hollowoak.webp",
+    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/cardback.webp",
+    original: true,
+    // Replaced on the default roster by `hollow-oak-spice`; visible only under ?debug.
+    tier: "reflavored",
+  },
+  {
+    // Spice remix of The Hollow Oak (display name shared) — server hero
+    // hollow-oak-spice. Reuses Hollow Oak's cardback and per-card art until
+    // dedicated spice art lands.
+    id: "hollow-oak-spice",
+    name: "The Hollow Oak",
+    hero: "The Hollow Oak",
+    author: "unbrewed",
+    likes: 0,
+    highlightColour: "#5f7d3b",
+    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/cardback.webp",
+    original: true,
+  },
+  {
+    // Evergreen original: General Grievous — server hero general-grievous (issue
+    // #288 ↔ engine #160). No unmatched.cards page (original: true suppresses the
+    // lobby deep-link). Card art renders from the R2 TTS sprite sheet via the
+    // snapshot's per-card `cardImage`; no dedicated cardback art yet.
+    id: "grievous",
+    name: "General Grievous",
+    hero: "General Grievous",
+    author: "unbrewed",
+    likes: 0,
+    highlightColour: "#8a9199",
     original: true,
   },
 ];

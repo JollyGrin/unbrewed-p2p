@@ -6,6 +6,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { animate, motion, useDragControls, useMotionValue } from "framer-motion";
+import { keyframes } from "@emotion/react";
 import {
   Box,
   Flex,
@@ -59,7 +60,7 @@ import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { FlagHudChip, ResolveCard, ResolveHero, flagChipsFor } from "@/lib/pro/useProCardArt";
 import { DEFAULT_PLATE_LAYOUT, PlateLayout, PlateSeat, useHudPlates } from "@/lib/pro/useHudPlates";
 import { CardFace } from "./ProHand";
-import { ProConnectionStatus, SeatPresence } from "@/lib/pro/useProSocket";
+import { ProConnectionStatus, SeatPresence, TurnTimer } from "@/lib/pro/useProSocket";
 import { FLAGS, useFlags } from "@/lib/flags";
 
 // Team-affiliation accent (issue #195). A teal that reads clearly as "friendly"
@@ -241,6 +242,141 @@ export const ForfeitCountdown = ({ deadline }: { deadline: number }) => {
   return <>auto-forfeit in {fmtCountdown(secs)}</>;
 };
 
+// ---------------------------------------------------------------------------
+// Move timer draining bar (issue #223)
+// ---------------------------------------------------------------------------
+
+/** Seconds of remaining time under which the bar turns insistent (color + pulse). */
+export const MOVE_TIMER_URGENT_S = 10;
+
+/** Remaining milliseconds on the clock, clamped at 0. Pure — driven by the SERVER
+ *  deadline, never a local counter, so it can't drift. */
+export const moveTimerRemainingMs = (deadline: number, now: number) =>
+  Math.max(0, deadline - now);
+
+/** Fraction of the full window still remaining (0–1), for the bar width. The
+ *  window length is the room's `turnTimerSeconds`; a non-positive total (or a
+ *  deadline already past) reads 0. */
+export const moveTimerFraction = (deadline: number, totalSeconds: number, now: number) => {
+  if (totalSeconds <= 0) return 0;
+  return Math.min(1, Math.max(0, (deadline - now) / (totalSeconds * 1000)));
+};
+
+const urgentPulse = keyframes`
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+`;
+
+/**
+ * The acting seat's draining bar (issue #223, desync fix #283). Reads the SERVER
+ * `deadline` (epoch ms) every animation frame and recomputes remaining from
+ * `Date.now()` — no free-running local timer, so it never drifts and self-corrects
+ * across a backgrounded tab.
+ *
+ * The bar's 100% is anchored to the remaining time captured the instant THIS
+ * deadline first arrived (see `windowRef`), NOT the room's fixed `totalSeconds`.
+ * That keeps the fill a pure function of the client's own clock: it starts full
+ * and empties exactly at `deadline`, in lockstep with the numeric readout (both
+ * derive from the same `remaining`). Anchoring to `totalSeconds` instead let
+ * client/server clock skew — or any per-decision window that didn't equal the
+ * room setting — desync the two: a lagging client pinned the fill at 100% while
+ * the number ticked an inflated count (bar "frozen"), and a leading client (or a
+ * shorter window) started the fill part-drained so it never read full at turn
+ * start (#283). Re-anchors whenever `deadline` changes (a new TURN_TIMER) and on
+ * refocus. Clamps at 0. Subtle gold at rest; shifts to an insistent red pulse
+ * inside the last MOVE_TIMER_URGENT_S seconds. Every seat renders the bar for
+ * whoever is on the clock, so it doubles as a "waiting on them" cue.
+ */
+export const MoveTimerBar = ({
+  deadline,
+  totalSeconds,
+}: {
+  deadline: number;
+  totalSeconds: number;
+}) => {
+  // The window this deadline was armed with, in the client's clock frame: the
+  // remaining time when we first saw it (falls back to the room setting for an
+  // already-elapsed deadline, so the denominator is never zero/negative).
+  const windowRef = useRef(Math.max(1, totalSeconds * 1000));
+  const anchor = () => {
+    windowRef.current = Math.max(
+      moveTimerRemainingMs(deadline, Date.now()),
+      1
+    );
+  };
+  const read = () => {
+    const now = Date.now();
+    const remaining = moveTimerRemainingMs(deadline, now);
+    return {
+      fraction: Math.min(1, Math.max(0, remaining / windowRef.current)),
+      secs: Math.ceil(remaining / 1000),
+    };
+  };
+  const [{ fraction, secs }, setState] = useState(() => {
+    anchor();
+    return read();
+  });
+  useEffect(() => {
+    anchor(); // re-anchor the 100% window to the fresh deadline…
+    setState(read()); // …and resync the readout immediately
+    let raf = requestAnimationFrame(function loop() {
+      setState(read());
+      raf = requestAnimationFrame(loop);
+    });
+    // rAF is throttled/suspended while the tab is backgrounded; snap back to the
+    // true remaining the moment it returns rather than waiting for the next frame.
+    const onVisible = () => {
+      if (!document.hidden) setState(read());
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelAnimationFrame(raf);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deadline, totalSeconds]);
+
+  const urgent = secs <= MOVE_TIMER_URGENT_S;
+  const fillColor = urgent ? "#C0392B" : "brand.accent";
+  return (
+    <Box px="0.85rem" pt="0.15rem" pb="0.4rem" aria-label="move timer">
+      <Flex justifyContent="space-between" alignItems="center" mb="0.15rem">
+        <Text
+          fontSize="0.55rem"
+          fontFamily="SpaceGrotesk"
+          letterSpacing="0.08em"
+          textTransform="uppercase"
+          opacity={0.6}
+        >
+          on the clock
+        </Text>
+        <Text
+          fontSize="0.62rem"
+          fontFamily="SpaceGrotesk"
+          fontWeight="bold"
+          sx={{ fontVariantNumeric: "tabular-nums" }}
+          color={urgent ? "#F0A6A0" : "brand.parchment"}
+          opacity={urgent ? 1 : 0.75}
+        >
+          {fmtCountdown(Math.max(0, secs))}
+        </Text>
+      </Flex>
+      <Box h="4px" borderRadius="2px" bg="rgba(20, 8, 24, 0.55)" overflow="hidden">
+        <Box
+          h="100%"
+          borderRadius="2px"
+          bg={fillColor}
+          width={`${fraction * 100}%`}
+          data-urgent={urgent ? "true" : "false"}
+          data-fill={Math.round(fraction * 100)}
+          transition="width 0.1s linear, background 0.3s ease"
+          sx={urgent ? { animation: `${urgentPulse} 1s ease-in-out infinite` } : undefined}
+        />
+      </Box>
+    </Box>
+  );
+};
+
 const SeatPlate = ({
   label,
   hero,
@@ -248,10 +384,12 @@ const SeatPlate = ({
   heroFighter,
   sidekicks,
   flags,
+  wonCombat,
   isLocal,
   isActive,
   isAlly,
   presence,
+  timer,
   hand,
   deckCount,
   discard,
@@ -269,10 +407,18 @@ const SeatPlate = ({
   sidekicks: ViewFighter[];
   /** public per-player engine flags (tide etc.); undefined on older servers */
   flags?: Record<string, boolean>;
+  /** won >=1 combat this turn (ViewPlayer.wonCombatThisTurn) — shows a "combat won"
+   *  chip that explains why Grievous's conditional AFTER effects fire differently.
+   *  Turn-scoped: clears at turn start. undefined on older servers → no chip. */
+  wonCombat?: boolean;
   isLocal: boolean;
   isActive: boolean;
   /** teammate of the viewing player (team formats only) — shows an ALLY chip */
   isAlly: boolean;
+  /** move-timer window for THIS seat (issue #223): the server `deadline` and the
+   *  room's window length, present only while this seat's clock is running in a
+   *  timed room. undefined → no bar (untimed room, or not this seat's clock). */
+  timer?: { deadline: number; totalSeconds: number };
   /** seat disconnected mid-game (issue #222): shows an offline badge, plus a
    *  non-drifting auto-forfeit countdown when `autoForfeitAt` is set. undefined =
    *  connected (or duel, which never populates this). */
@@ -396,6 +542,17 @@ const SeatPlate = ({
     <FlagChip key={`${chip.flag}-${on ? "on" : "off"}`} chip={chip} on={on} />
   ));
 
+  // "combat won ✓" chip (issue #288 ↔ engine #160): shown on the acting seat while
+  // `wonCombatThisTurn` is set, so a player can see WHY a conditional AFTER effect
+  // fired differently (six General Grievous cards gate on it; card 202 sets it even
+  // on a loss). Turn-scoped — clears at turn start. Not hero-gated: any deck that
+  // one day exposes the flag gets it. Green keeps it clearly NOT the gold TURN chip.
+  const combatWonTag = wonCombat ? (
+    <Tag size="sm" bg="#3f8f5b" color="brand.surfaceDim" flexShrink={0} letterSpacing="0.03em">
+      combat won ✓
+    </Tag>
+  ) : null;
+
   const controls = hovered ? (
     <Flex alignItems="center" gap="0.15rem" flexShrink={0}>
       {moved && (
@@ -445,6 +602,13 @@ const SeatPlate = ({
         )}
       </Text>
     </Flex>
+  ) : null;
+
+  // Move timer draining bar (issue #223): a full-width strip at the bottom of the
+  // plate while this seat is on the clock. Shown on collapsed and expanded plates
+  // (and the hover-peek) so whoever is waiting sees the same countdown.
+  const timerBar = timer ? (
+    <MoveTimerBar deadline={timer.deadline} totalSeconds={timer.totalSeconds} />
   ) : null;
 
   const statsPanel = (
@@ -519,6 +683,7 @@ const SeatPlate = ({
         {renderNameBlock(false)}
         <Flex alignItems="center" gap="0.3rem" flexShrink={0}>
           {flagTags}
+          {combatWonTag}
           {presenceTag}
           {allyTag}
           {turnTag}
@@ -528,6 +693,7 @@ const SeatPlate = ({
       {statsPanel}
       {sidekickRows}
       {pipFooter}
+      {timerBar}
     </StatContainer>
   );
 
@@ -588,12 +754,14 @@ const SeatPlate = ({
                     </Text>
                   </Flex>
                   {flagTags}
+                  {combatWonTag}
                   {presenceTag}
                   {allyTag}
                   {turnTag}
                   {controls}
                 </Flex>
               </PlayerTitleBar>
+              {timerBar}
             </StatContainer>
           </Tooltip>
         ) : (
@@ -602,6 +770,7 @@ const SeatPlate = ({
               {renderNameBlock(true)}
               <Flex alignItems="center" gap="0.3rem" flexShrink={0}>
                 {flagTags}
+                {combatWonTag}
                 {presenceTag}
                 {allyTag}
                 {turnTag}
@@ -612,6 +781,7 @@ const SeatPlate = ({
             {statsPanel}
             {sidekickRows}
             {pipFooter}
+            {timerBar}
           </StatContainer>
         )}
       </motion.div>
@@ -724,6 +894,16 @@ export interface ProHudProps {
    * renders exactly as before (duel is untouched — it never populates this).
    */
   seatPresence?: Record<string, SeatPresence>;
+  /**
+   * Live move timer (issue #223): the latest TURN_TIMER broadcast — which seat is
+   * on the clock and its epoch-ms deadline. The acting seat's plate renders a
+   * draining bar off `deadline`. null/omitted (an untimed room) → no bar anywhere,
+   * so the HUD renders byte-identically to before.
+   */
+  turnTimer?: TurnTimer | null;
+  /** the room's per-decision window length in seconds (issue #223), sizing the
+   *  draining bar. Omitted in an untimed room. */
+  turnTimerSeconds?: number;
   resolveCard: ResolveCard;
   resolveHero: ResolveHero;
   labelFor: (instance: CardInstanceId) => string;
@@ -741,6 +921,8 @@ export const ProHud = ({
   status,
   roomId,
   seatPresence,
+  turnTimer,
+  turnTimerSeconds,
   resolveCard,
   resolveHero,
   labelFor,
@@ -770,6 +952,7 @@ export const ProHud = ({
           hasCommitted: !!view.self.committedCard,
           counters: view.self.counters,
           flags: view.self.flags,
+          wonCombatThisTurn: view.self.wonCombatThisTurn,
         },
         ...(view.opponent
           ? [{
@@ -782,6 +965,7 @@ export const ProHud = ({
               hasCommitted: view.opponent.hasCommitted,
               counters: view.opponent.counters,
               flags: view.opponent.flags,
+              wonCombatThisTurn: view.opponent.wonCombatThisTurn,
             }]
           : []),
       ];
@@ -803,6 +987,17 @@ export const ProHud = ({
   const multiplayer = seats.length > 2;
   const presenceOf = (seat: ViewPlayer) =>
     multiplayer ? seatPresence?.[seat.id] : undefined;
+  // Move timer (issue #223): the acting seat gets a draining bar while its clock
+  // is running (a live `deadline`) in a timed room. A paused clock (deadline null:
+  // bot/disconnected) and every untimed room render no bar. Works for duel and
+  // multiplayer alike — the bar tracks whichever seat TURN_TIMER names.
+  const timerOf = (seat: ViewPlayer) =>
+    turnTimer &&
+    turnTimer.player === seat.id &&
+    turnTimer.deadline != null &&
+    turnTimerSeconds
+      ? { deadline: turnTimer.deadline, totalSeconds: turnTimerSeconds }
+      : undefined;
 
   return (
     <>
@@ -816,10 +1011,12 @@ export const ProHud = ({
             heroFighter={heroOf(seat.id)}
             sidekicks={sidekicksOf(seat.id)}
             flags={seat.flags}
+            wonCombat={seat.wonCombatThisTurn}
             isLocal={seat.you}
             isActive={showLiveTurnChrome(view) && view.activePlayer === seat.id}
             isAlly={teams.relationOf(seat.id) === "ally"}
             presence={presenceOf(seat)}
+            timer={timerOf(seat)}
             hand={seat.you ? seat.hand ?? view.self.hand : seat.handCount}
             deckCount={seat.deckCount}
             discard={seat.discard}

@@ -14,6 +14,23 @@ const NATIVE: ProMapDef = {
   ],
 };
 
+/** A native map exercising the v17 battlefield-item + passage fields. */
+const NATIVE_ITEMS: ProMapDef = {
+  schemaVersion: "1.0",
+  id: "spirit",
+  meta: { title: "Teen Spirit", minPlayers: 2, maxPlayers: 2, specialRules: true },
+  zones: [{ id: "z", color: "#fff", label: "Z" }],
+  items: [
+    { id: "sword", kind: "combat", label: "Sword", value: 2 },
+    { id: "bomb", kind: "scheme", label: "Bomb", ops: [{ op: "dealDamage", amount: 1 }] as never },
+  ],
+  spaces: [
+    { id: "a", x: 0.1, y: 0.1, zones: ["z"], adjacentTo: ["b"], start: { slot: 1 }, item: "sword" },
+    { id: "b", x: 0.2, y: 0.2, zones: ["z"], adjacentTo: ["a"], start: { slot: 2 }, item: "bomb", passage: true },
+    { id: "c", x: 0.3, y: 0.3, zones: ["z"], adjacentTo: ["b"], passage: true },
+  ],
+};
+
 /** The legacy editor MapDoc shape (pre native-export copies people saved). */
 const LEGACY_DOC = {
   meta: { title: "Old Board", imageUrl: "http://x/y.png", players: [1, 2], source: "me", license: "cc" },
@@ -27,6 +44,19 @@ const LEGACY_DOC = {
 describe("normalizeMap", () => {
   it("passes an engine-native ProMapDef through untouched", () => {
     expect(normalizeMap(NATIVE)).toEqual(NATIVE);
+  });
+
+  it("passes v17 battlefield items + space.item + space.passage through untouched (native)", () => {
+    const out = normalizeMap(NATIVE_ITEMS);
+    expect(out).toEqual(NATIVE_ITEMS);
+    // The new fields survive a JSON round-trip identically (paste path).
+    expect(normalizeMap(JSON.parse(JSON.stringify(NATIVE_ITEMS)))).toEqual(NATIVE_ITEMS);
+    // Spot-check the exact fields the wire/UX depend on.
+    expect(out.items).toHaveLength(2);
+    expect(out.spaces[0].item).toBe("sword");
+    expect(out.spaces[1].item).toBe("bomb");
+    expect(out.spaces[1].passage).toBe(true);
+    expect(out.spaces[2].passage).toBe(true);
   });
 
   it("converts a legacy MapDoc: players->min/max, start number-> {slot}", () => {

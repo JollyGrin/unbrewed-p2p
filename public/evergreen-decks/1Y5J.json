@@ -161,7 +161,8 @@
       "move": 1,
       "name": "TRICERATOPS",
       "specialAbility": "Triceratops is a large fighter. She can attack up to 2 spaces away.\n\nIf Triceratops is adjacent to the opposing fighter, add +1 to the value of all Triceratops' attacks.\n\n\n\n",
-      "quote": "Horns, frill, and a very short temper — a LARGE fighter who can gore from two spaces away but hits hardest nose-to-nose."
+      "quote": "Horns, frill, and a very short temper — a LARGE fighter who can gore from two spaces away but hits hardest nose-to-nose.",
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/1Y5J/token-triceratops.webp"
     },
     "name": "",
     "ruleCards": [],

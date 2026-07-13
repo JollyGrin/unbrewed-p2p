@@ -42,11 +42,11 @@ const view = (over: Partial<PlayerView>): PlayerView => ({
   catalog: {},
   fighters: [fighter({}), fighter({ id: "p2/hero", owner: "p2", name: "Thrall", space: "s2" })],
   tokens: [],
-  self: { id: "p1", heroId: "king-taranis", hand: [], deckCount: 10, discard: [], committedCard: null, counters: {}, flags: {} },
-  opponent: { id: "p2", heroId: "thrall", handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {}, flags: {} },
+  self: { id: "p1", heroId: "king-taranis", hand: [], deckCount: 10, discard: [], committedCard: null, counters: {}, flags: {}, wonCombatThisTurn: false },
+  opponent: { id: "p2", heroId: "thrall", handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false },
   players: [
-    { id: "p1", heroId: "fixture-p1", you: true, hand: [], handCount: 0, deckCount: 10, discard: [], committedCard: null, hasCommitted: false, counters: {}, flags: {} },
-    { id: "p2", heroId: "fixture-p2", you: false, handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {}, flags: {} },
+    { id: "p1", heroId: "fixture-p1", you: true, hand: [], handCount: 0, deckCount: 10, discard: [], committedCard: null, hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false },
+    { id: "p2", heroId: "fixture-p2", you: false, handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false },
   ],
   combat: null,
   prompt: null,
@@ -68,6 +68,7 @@ const ctx = (you = "p1", seatFor?: (p: string) => string): EnrichContext => ({
     return label(source);
   },
   seat: seatFor ?? ((p) => (p === you ? "You" : "Opponent")),
+  fighter: (id) => id.split("/").pop() ?? id,
 });
 
 // Every GameEvent variant, one representative each — used to assert the
@@ -120,6 +121,13 @@ const ALL_EVENTS: GameEvent[] = [
   { type: "FIGHTER_TAIL_PLACED", fighter: "p1/hero", space: "s1" },
   { type: "FIGHTER_EJECTED", fighter: "p1/hero", to: "s2" },
   { type: "REGION_CLOSED", region: "hut" },
+  // General Grievous nested combat (issue #288) — all allowlisted new-line events.
+  { type: "COMBAT_WON_MARKED", player: "p1" },
+  { type: "PLAYED_CARD_RETURNED", player: "p1", card: "a/x#1" },
+  { type: "SECOND_ATTACK_COMMITTED", player: "p1" },
+  { type: "BONUS_ATTACK_STARTED", attacker: "p1/hero", target: "p2/hero" },
+  { type: "BONUS_ATTACK_PASSED", player: "p1" },
+  { type: "SUB_ATTACK_INITIATED", attacker: "p1/sidekick-1", target: "p2/hero", value: 4 },
 ];
 
 // The allowlist — event types enrichLines is permitted to turn into new lines.
@@ -133,6 +141,12 @@ const ALLOWLIST = new Set([
   "ACTIONS_GAINED",
   "CARD_RETURNED_TO_HAND",
   "CARD_REVEALED",
+  "COMBAT_WON_MARKED",
+  "PLAYED_CARD_RETURNED",
+  "SECOND_ATTACK_COMMITTED",
+  "BONUS_ATTACK_STARTED",
+  "BONUS_ATTACK_PASSED",
+  "SUB_ATTACK_INITIATED",
 ]);
 
 describe("enrichLines", () => {
@@ -343,7 +357,51 @@ describe("enrichLines", () => {
       // A discard is an annotation-only type; add it so the roster is exhaustive.
       seen.add("CARD_DISCARDED");
       // Sanity: the allowlist is a subset of what the union offers.
-      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_REVEALED"]).toContain(t);
+      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_REVEALED", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED"]).toContain(t);
+    });
+  });
+
+  // General Grievous nested-combat events (issue #288 ↔ engine #160): each fills a
+  // gap the view-diff misses because up to three combats reuse the one state.combat
+  // slot, so `!prev.combat` never fires for combats 2/3. ctx().fighter strips the
+  // "<pid>/" prefix in these fixtures ("hero", "sidekick-1").
+  describe("General Grievous nested combat (issue #288)", () => {
+    const line = (event: GameEvent) => enrichLines([], [event], ctx())[0];
+
+    it("SECOND_ATTACK_COMMITTED — names the hero readying a face-down 2nd attack", () => {
+      expect(line({ type: "SECOND_ATTACK_COMMITTED", player: "p1" }).text).toBe(
+        "hero readies a second attack (face down)"
+      );
+    });
+
+    it("BONUS_ATTACK_STARTED — labels Combat 2 with both fighters", () => {
+      expect(line({ type: "BONUS_ATTACK_STARTED", attacker: "p1/hero", target: "p2/hero" }).text).toBe(
+        "Multi-Arm Barrage — Combat 2: hero vs hero"
+      );
+    });
+
+    it("BONUS_ATTACK_PASSED — a game line", () => {
+      const l = line({ type: "BONUS_ATTACK_PASSED", player: "p1" });
+      expect(l.text).toBe("Multi-Arm Barrage — 2nd attack passed");
+      expect(l.who).toBe("game");
+    });
+
+    it("SUB_ATTACK_INITIATED — droid fires Blast 'em! with the printed value", () => {
+      expect(
+        line({ type: "SUB_ATTACK_INITIATED", attacker: "p1/sidekick-1", target: "p2/hero", value: 4 }).text
+      ).toBe("sidekick-1 fires Blast 'em! (4) at hero");
+    });
+
+    it("COMBAT_WON_MARKED — 'You are considered to have won' for the viewer", () => {
+      expect(line({ type: "COMBAT_WON_MARKED", player: "p1" }).text).toBe(
+        "You are considered to have won this combat"
+      );
+    });
+
+    it("PLAYED_CARD_RETURNED — returns the named card to hand", () => {
+      const l = line({ type: "PLAYED_CARD_RETURNED", player: "p1", card: "a/x#1" });
+      expect(l.text).toBe("You returned x to hand");
+      expect(l.cards).toEqual(["a/x#1"]);
     });
   });
 });
@@ -351,9 +409,9 @@ describe("enrichLines", () => {
 
 describe("multiplayer diffViews", () => {
   const players3 = (p3: Partial<PlayerView["players"][number]> = {}) => [
-    { id: "p1" as const, heroId: "fixture-p1", you: true, hand: [], handCount: 0, deckCount: 10, discard: [], committedCard: null, hasCommitted: false, counters: {}, flags: {} },
-    { id: "p2" as const, heroId: "fixture-p2", you: false, handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {}, flags: {} },
-    { id: "p3" as const, heroId: "fixture-p3", you: false, handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {}, flags: {}, ...p3 },
+    { id: "p1" as const, heroId: "fixture-p1", you: true, hand: [], handCount: 0, deckCount: 10, discard: [], committedCard: null, hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false },
+    { id: "p2" as const, heroId: "fixture-p2", you: false, handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false },
+    { id: "p3" as const, heroId: "fixture-p3", you: false, handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false, ...p3 },
   ];
 
   it("labels third-player turn, draw, discard, and win lines without a duel opponent", () => {
@@ -471,8 +529,8 @@ describe("parity with diffViews", () => {
     },
     {
       name: "self discard (unattributed by diff)",
-      prev: view({ self: { id: "p1", heroId: "king-taranis", hand: [], deckCount: 10, discard: [], committedCard: null, counters: {}, flags: {} } }),
-      next: view({ self: { id: "p1", heroId: "king-taranis", hand: [], deckCount: 10, discard: ["a/fireball#1"], committedCard: null, counters: {}, flags: {} } }),
+      prev: view({ self: { id: "p1", heroId: "king-taranis", hand: [], deckCount: 10, discard: [], committedCard: null, counters: {}, flags: {}, wonCombatThisTurn: false } }),
+      next: view({ self: { id: "p1", heroId: "king-taranis", hand: [], deckCount: 10, discard: ["a/fireball#1"], committedCard: null, counters: {}, flags: {}, wonCombatThisTurn: false } }),
     },
     {
       name: "combat reveal",
@@ -486,5 +544,49 @@ describe("parity with diffViews", () => {
     const diff = diffViews(prev, next, label);
     // Flag ON but events empty (older server / no action events) — same result.
     expect(enrichLines(diff, [], ctx(next.you))).toEqual(diff);
+  });
+});
+
+describe("diffViews — v17 battlefield item lines (always-on, off the event stream)", () => {
+  // Item labels live on the static map.items, not the card catalog, so these
+  // lines read off the event stream (the always-passed channel), with the label
+  // resolved from view.map. They must NOT depend on the eventLog flag.
+  const withItems = (over: Partial<PlayerView> = {}) =>
+    view({
+      map: {
+        schemaVersion: "1",
+        id: "m",
+        meta: { title: "m", minPlayers: 2, maxPlayers: 2, specialRules: false },
+        zones: [],
+        items: [
+          { id: "sword", kind: "combat", label: "Sword", value: 2 },
+          { id: "bomb", kind: "scheme", label: "Bomb", ops: [] as never },
+        ],
+        spaces: [],
+      },
+      ...over,
+    });
+
+  it("logs a scheme-item use with the item label", () => {
+    const prev = withItems();
+    const next = withItems();
+    const events: GameEvent[] = [{ type: "ITEM_USED", player: "p1", space: "s1", item: "bomb" }];
+    const lines = diffViews(prev, next, label, events);
+    expect(lines).toContainEqual({ text: "You used Bomb", who: "you" });
+  });
+
+  it("logs a combat-item attach with label, value, and role", () => {
+    const prev = withItems();
+    const next = withItems();
+    const events: GameEvent[] = [
+      { type: "COMBAT_ITEM_ATTACHED", player: "p2", role: "ATTACK", space: "s2", item: "sword", value: 2 },
+    ];
+    const lines = diffViews(prev, next, label, events);
+    expect(lines).toContainEqual({ text: "Opponent attached Sword (+2 attack)", who: "opp" });
+  });
+
+  it("emits no item line when the batch carries no item events (resume/join)", () => {
+    const lines = diffViews(withItems(), withItems(), label, []);
+    expect(lines.some((l) => /used|attached/.test(l.text))).toBe(false);
   });
 });
