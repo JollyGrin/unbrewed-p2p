@@ -17,6 +17,7 @@ import { useZoomPan } from "@/lib/pro/useZoomPan";
 import { LARGE_FIGHTER_BLURB, LARGE_REACH_CHIP } from "@/lib/pro/largeReach";
 import { tokenInitials } from "./FighterTokenPortrait";
 import { ItemBadge, PassageBadge } from "./ItemBadge";
+import type { DruidFormTokenBadge } from "@/lib/pro/druidForm";
 
 /** Hover/long-press tooltip for a live item token, per the official wording. */
 export const itemBadgeTitle = (item: ProMapItem): string =>
@@ -154,6 +155,10 @@ export interface ProBoardProps {
    *  and those tokens render initials-only exactly as before. Absent prop = no
    *  art anywhere (the board demo / any caller that doesn't wire it). */
   fighterTokenArt?: (fighter: ViewFighter) => string | null | undefined;
+  /** Small state badge for a fighter token (Malfurion form today). PRESENTATION
+   *  ONLY — caller derives the badge from public player flags; the board just
+   *  draws it on the hero token head. Absent/null = no badge. */
+  fighterTokenBadge?: (fighter: ViewFighter) => DruidFormTokenBadge | null | undefined;
   /** transient effect overlays (floating damage numbers…) — keyed, caller-expired */
   fx?: BoardFxItem[];
   /** a just-committed move to tween through node-by-node instead of snapping */
@@ -215,6 +220,7 @@ export const ProBoard = ({
   fighterBadges = {},
   extendedReachTargets = [],
   fighterTokenArt,
+  fighterTokenBadge,
   fx = [],
   pendingMove = null,
   onPendingMoveSettled,
@@ -408,6 +414,7 @@ export const ProBoard = ({
     // rule as the HP badge). Undefined/null for decks without token art → the
     // token renders initials-only exactly as before.
     const tokenArt = segment === "head" ? fighterTokenArt?.(f) : null;
+    const tokenBadge = segment === "head" && f.kind === "HERO" ? fighterTokenBadge?.(f) : null;
 
     const children = (
       <>
@@ -478,6 +485,30 @@ export const ProBoard = ({
             lineHeight="1.4"
           >
             {f.hp}
+          </Flex>
+        )}
+        {tokenBadge && (
+          <Flex
+            position="absolute"
+            top="-20%"
+            right="-20%"
+            minWidth="1.45em"
+            h="1.45em"
+            px="0.18em"
+            alignItems="center"
+            justifyContent="center"
+            bg={tokenBadge.bg}
+            color={tokenBadge.color}
+            border="1.5px solid #fff"
+            borderRadius="999px"
+            fontSize="0.68rem"
+            fontWeight="bold"
+            lineHeight="1"
+            boxShadow="0 1px 4px rgba(0,0,0,0.75)"
+            title={tokenBadge.title}
+            aria-label={tokenBadge.title}
+          >
+            {tokenBadge.icon}
           </Flex>
         )}
         {segment === "head" && fighterBadges[f.id] != null && (
