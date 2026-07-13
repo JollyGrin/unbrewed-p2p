@@ -906,11 +906,12 @@ const SkeletonTile = () => (
 /** Opponent choice in the create flow: a human via link, or the server AI. */
 type OpponentChoice = "human" | BotDifficulty;
 
-type EncounterSeatChoice = "me" | OpponentChoice;
-const ENCOUNTER_SEATS: { player: PlayerId; label: string }[] = [
+type EncounterSeatChoice = "me" | OpponentChoice | "empty";
+const ENCOUNTER_SEATS: { player: PlayerId; label: string; optional?: boolean }[] = [
   { player: "p1", label: "Hero 1" },
   { player: "p2", label: "Hero 2" },
   { player: "p3", label: "Ony" },
+  { player: "p4", label: "Hero 3", optional: true },
 ];
 
 const OPPONENT_CHOICES: { id: OpponentChoice; label: string }[] = [
@@ -1120,10 +1121,11 @@ const HeroSelectLobby = ({
                   Campaign encounter not found on this server.
                 </Text>
               )}
-              <Grid templateColumns={{ base: "1fr", sm: "1fr 1fr", md: "repeat(3, 1fr)" }} gap="0.75rem" mt="0.75rem">
+              <Grid templateColumns={{ base: "1fr", sm: "1fr 1fr", md: "repeat(4, 1fr)" }} gap="0.75rem" mt="0.75rem">
                 {ENCOUNTER_SEATS.map((seat) => {
                   const value = encounterSeats[seat.player];
                   const choices: { id: EncounterSeatChoice; label: string }[] = [
+                    ...(seat.optional ? [{ id: "empty" as const, label: "Empty" }] : []),
                     { id: "me", label: "Me" },
                     { id: "human", label: "Human" },
                     ...OPPONENT_CHOICES.filter((o) => o.id !== "human").map((o) => ({ id: o.id, label: o.label.replace("AI · ", "AI ") })),
@@ -1152,7 +1154,7 @@ const HeroSelectLobby = ({
                 })}
               </Grid>
               <Text fontSize="0.72rem" opacity={0.6} mt="0.65rem">
-                Choose which seat is you. Set the other seats to Human to invite friends, or AI to start immediately.
+                Choose which seat is you. Leave Hero 3 Empty for 2v1, or fill it to play 3v1.
               </Text>
             </Box>
           )}
@@ -1423,6 +1425,7 @@ const LiveGame = ({ room, heroParam, encounterParam, debug }: { room: string | n
     p1: "me",
     p2: "easy",
     p3: "easy",
+    p4: "empty",
   } as Record<PlayerId, EncounterSeatChoice>);
   const [opponent, setOpponent] = useState<OpponentChoice>("human");
   const [selectedFormat, setSelectedFormat] = useState<ProFormatId>("duel");
@@ -1754,9 +1757,10 @@ const LiveGame = ({ room, heroParam, encounterParam, debug }: { room: string | n
               const next = { ...prev, [player]: choice };
               if (choice === "me") {
                 for (const seat of ENCOUNTER_SEATS) {
-                  if (seat.player !== player && next[seat.player] === "me") next[seat.player] = "easy";
+                  if (seat.player !== player && next[seat.player] === "me") next[seat.player] = seat.optional ? "empty" : "easy";
                 }
               }
+              if (!ENCOUNTER_SEATS.some((seat) => next[seat.player] === "me")) next.p1 = "me";
               return next;
             });
           }}
@@ -1806,20 +1810,20 @@ const LiveGame = ({ room, heroParam, encounterParam, debug }: { room: string | n
               return;
             }
             if (selectedEncounterId) {
-              const selectedEncounter = encounters?.find((e) => e.encounterId === selectedEncounterId);
               const meSeat = ENCOUNTER_SEATS.find((seat) => encounterSeats[seat.player] === "me")?.player ?? "p1";
               const creatorHeroId = meSeat === "p3" ? undefined : effectiveHeroId ?? undefined;
               if (meSeat !== "p3" && !creatorHeroId) return;
               const botSeats = ENCOUNTER_SEATS.flatMap((seat) => {
                 const occupant = encounterSeats[seat.player];
-                return occupant !== "me" && occupant !== "human"
+                return occupant !== "me" && occupant !== "human" && occupant !== "empty"
                   ? [{ player: seat.player, difficulty: occupant }]
                   : [];
               });
+              const formatId = encounterSeats.p4 === "empty" ? "two-v-one-boss" : "three-v-one-boss";
               createEncounterRoom(selectedEncounterId, creatorHeroId, {
                 player: meSeat,
                 botSeats,
-                ...(selectedEncounter?.defaultFormatId ? { formatId: selectedEncounter.defaultFormatId } : {}),
+                formatId,
               });
               if (creatorHeroId) setSelectedHeroId(creatorHeroId);
               setJoined(true);
