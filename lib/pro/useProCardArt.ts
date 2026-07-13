@@ -40,6 +40,10 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // fetch 404s by design; snapshot-only means it is never consulted).
   "king-taranis": "taranis",
   thetis: "thetis",
+  // General Grievous (issue #288 ↔ engine #160): original, no unmatched.cards page.
+  // Card art renders from the self-hosted R2 TTS sprite sheet (cardImage on each
+  // snapshot card), not the unmatched.cards renderer.
+  "general-grievous": "grievous",
   // Spice remixes (engine hero id `<hero>-spice`, display name shared with the
   // baseline). Each snapshot reuses the baseline's art per-card until dedicated
   // spice art lands.

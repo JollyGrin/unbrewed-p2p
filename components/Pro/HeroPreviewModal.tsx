@@ -46,7 +46,7 @@ export interface HeroPreviewModalProps {
   /** server hero id, when known — used for the LARGE badge and balance profile lookup */
   heroId?: string;
   /** stats already on hand (e.g. from the live roster) shown while the deck loads / on fetch failure */
-  quickStats?: { hp: number; move: number; reach: "MELEE" | "RANGED" };
+  quickStats?: { hp: number; move: number; reach: "MELEE" | "RANGED" | "LUNGE" };
 }
 
 /** Staggered reveal on open — sections rise in sequence for one orchestrated
@@ -113,7 +113,17 @@ export const HeroPreviewModal = ({
 
   const hp = deck?.hero.hp ?? quickStats?.hp;
   const move = deck?.hero.move ?? quickStats?.move;
-  const reach = deck ? (deck.hero.isRanged ? "RANGED" : "MELEE") : quickStats?.reach;
+  // The deck snapshot only carries `isRanged` (boolean) and so can't express
+  // LUNGE (General Grievous); when the live roster's quickStats reports LUNGE,
+  // prefer it over the isRanged-derived melee/ranged (issue #288).
+  const reach =
+    quickStats?.reach === "LUNGE"
+      ? "LUNGE"
+      : deck
+        ? deck.hero.isRanged
+          ? "RANGED"
+          : "MELEE"
+        : quickStats?.reach;
   const isLarge = !!heroId && LARGE_HERO_IDS.has(heroId);
 
   const sidekick = deck?.sidekick;
@@ -175,7 +185,7 @@ export const HeroPreviewModal = ({
                       )}
                       {reach && (
                         <StatPill icon={reach === "RANGED" ? <TbBow size="15px" /> : <TbSword size="15px" />}>
-                          {reach === "RANGED" ? "ranged" : "melee"}
+                          {reach === "RANGED" ? "ranged" : reach === "LUNGE" ? "lunge" : "melee"}
                         </StatPill>
                       )}
                       {isLarge && (

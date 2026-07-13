@@ -184,6 +184,7 @@ const PromptPanel = ({
   you,
   onRespond,
   buttonOptions,
+  cardOptions,
   boardHint,
   previewInstance,
   sourceInstance,
@@ -196,6 +197,10 @@ const PromptPanel = ({
   onRespond: (promptId: string, optionId: string) => void;
   /** options NOT answerable via the board (e.g. "Decline move") */
   buttonOptions: ViewPrompt["options"];
+  /** hand-card options rendered as clickable card faces (issue #288 — Multi-Arm
+   *  Barrage second-attack commit): each `{ id, instance }` shows the offered card;
+   *  clicking answers with its option id. The sentinel stays in `buttonOptions`. */
+  cardOptions: { id: string; instance: CardInstanceId }[];
   /** set when some options are answered by clicking the board */
   boardHint: string | null;
   /**
@@ -259,6 +264,25 @@ const PromptPanel = ({
           <Text fontSize="0.85rem" mb={buttonOptions.length ? "0.5rem" : 0} color="brand.parchment">
             {boardHint}
           </Text>
+        )}
+        {cardOptions.length > 0 && (
+          <Flex gap="0.5rem" flexWrap="wrap" mb="0.5rem">
+            {cardOptions.map((c) => (
+              <Box
+                key={c.id}
+                as="button"
+                w="5rem"
+                sx={{ aspectRatio: "63 / 88" }}
+                borderRadius="0.35rem"
+                transition="transform 0.1s, box-shadow 0.1s"
+                _hover={{ transform: "translateY(-3px)", boxShadow: "0 0 0 2px var(--chakra-colors-brand-accent)" }}
+                onClick={() => onRespond(prompt.promptId, c.id)}
+                aria-label={`Commit ${cardLabel(catalog, c.instance)} as second attack`}
+              >
+                <CardFace card={resolveCard(c.instance)} fallback={cardLabel(catalog, c.instance)} />
+              </Box>
+            ))}
+          </Flex>
         )}
         <Flex gap="0.5rem" flexWrap="wrap">
           {buttonOptions.map((o) => (
@@ -496,6 +520,39 @@ const flipIn = keyframes`
   to   { transform: perspective(600px) rotateY(0) scale(1); opacity: 1; }
 `;
 
+/**
+ * Synthetic "Fire, you fools!" sub-attack combat card (issue #288 — engine batch D).
+ * The chosen B1 droid's "Blast 'em!" attack has no catalog/deck entry (its instance is
+ * `sub-attack:<fighter>`, `synthetic: true` server-side) — it is a graphic PRINTED on
+ * card 210's face with no separate cell to crop — so resolveCard can't find art. Render
+ * a distinct card-shaped tile rather than the raw-instance-id text fallback. The value
+ * rides the normal combat math (effectiveValue) shown by the slot's detail line.
+ */
+const isSubAttackCard = (instance: CardInstanceId) => instance.startsWith("sub-attack:");
+const SubAttackFace = () => (
+  <Flex
+    w="100%"
+    h="100%"
+    direction="column"
+    align="center"
+    justify="center"
+    borderRadius="0.35rem"
+    border="2px solid"
+    borderColor="brand.accent"
+    bg="linear-gradient(160deg, #6b2b2b, #3a1414)"
+    color="brand.parchment"
+    px="0.35rem"
+    textAlign="center"
+  >
+    <Text fontFamily="BebasNeueRegular" fontSize="1.1rem" letterSpacing="0.04em" lineHeight="1.05">
+      Blast&nbsp;&apos;em!
+    </Text>
+    <Text fontSize="0.6rem" opacity={0.8} mt="0.2rem">
+      sub-attack
+    </Text>
+  </Flex>
+);
+
 /** One combat slot: revealed card face, own face-down commit, or a card back. */
 const CombatSlot = ({
   label,
@@ -530,7 +587,11 @@ const CombatSlot = ({
           h="100%"
           animation={`${flipIn} 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.1) ${revealDelay} both`}
         >
-          <CardFace card={resolveCard(card.instance)} fallback={cardLabel(catalog, card.instance)} />
+          {isSubAttackCard(card.instance) ? (
+            <SubAttackFace />
+          ) : (
+            <CardFace card={resolveCard(card.instance)} fallback={cardLabel(catalog, card.instance)} />
+          )}
         </Box>
       ) : facedownInstance ? (
         <Box position="relative" w="100%" h="100%">
@@ -779,7 +840,7 @@ const HeroTile = ({
             <StatPip icon={<GiFootprint size="14px" />} label={String(hero.move)} />
             <StatPip
               icon={hero.reach === "RANGED" ? <TbBow size="15px" /> : <TbSword size="15px" />}
-              label={hero.reach === "RANGED" ? "rng" : "mel"}
+              label={hero.reach === "RANGED" ? "rng" : hero.reach === "LUNGE" ? "lng" : "mel"}
             />
           </Flex>
         </Flex>
@@ -1448,6 +1509,8 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
             label: (source) => resolveEventSource(next, source),
             you: next.you,
             seat: (player) => seatLabel(next, player),
+            fighter: (id) =>
+              next.fighters.find((f) => f.id === id)?.name ?? id.split("/").pop() ?? id,
           })
         : diff;
     prevViewRef.current = next;
@@ -2121,6 +2184,24 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
     promptForMe?.kind === "CHOOSE_TARGET"
       ? promptForMe.options.map((o) => o.id).filter((id) => fighterIds.has(id))
       : [];
+  // Hand-card options (issue #288 — Multi-Arm Barrage second-attack commit): a
+  // CHOOSE_OPTION whose options name a hand card in option.data.card (a real
+  // instance id `<defId>#<n>`) rather than an effect label. Render these as
+  // clickable card FACES (a hand-card picker) instead of raw-instance-id buttons;
+  // the sentinel (`decline`, data.card null) still falls through to a panel button.
+  // Effect-label options (card 200's chooseOne) carry data.branch, not data.card,
+  // so they are never misread as cards.
+  const optionCardId = (o: LegalOption): CardInstanceId | null => {
+    const c = (o.data as { card?: unknown } | undefined)?.card;
+    return typeof c === "string" && c.includes("#") ? c : null;
+  };
+  const promptCardOptions: { id: string; instance: CardInstanceId }[] =
+    promptForMe?.kind === "CHOOSE_OPTION"
+      ? promptForMe.options.flatMap((o) => {
+          const instance = optionCardId(o);
+          return instance ? [{ id: o.id, instance }] : [];
+        })
+      : [];
   // Two-space (LARGE fighter) move choice (issue #132): a card's "move up to N
   // spaces" effect on Triceratops emits CHOOSE_SPACE options encoded as
   // "<head>|<tail>" pairs, which optionSpace can't resolve — so instead of a wall
@@ -2134,6 +2215,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
     ...promptSpaceOptions.values(),
     ...promptTargetIds,
     ...poseOptions.map((p) => p.optionId),
+    ...promptCardOptions.map((c) => c.id),
   ]);
   const promptButtonOptions = promptForMe
     ? promptForMe.options.filter((o) => !promptBoardIds.has(o.id))
@@ -2611,6 +2693,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
               you={view.you}
               onRespond={respondToPrompt}
               buttonOptions={promptButtonOptions}
+              cardOptions={promptCardOptions}
               boardHint={promptBoardHint}
               previewInstance={promptCardInstance}
               sourceInstance={sourceCardInstance}
