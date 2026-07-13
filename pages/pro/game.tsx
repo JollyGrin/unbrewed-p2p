@@ -60,7 +60,8 @@ import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
 import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
 import { diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
-import { cardAffordances, cardLabel, cardTitle, describeAction } from "@/lib/pro/actionDock";
+import { AttachItem, cardAffordances, cardLabel, cardTitle, describeAction } from "@/lib/pro/actionDock";
+import { ItemGlyph } from "@/components/Pro/ItemBadge";
 import {
   isExtendedReachAttack,
   LARGE_FIGHTER_BLURB,
@@ -2331,10 +2332,35 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
     }
   };
 
+  // Battlefield items (v17) — ALL presentation. Item labels come from the static
+  // map.items; token PRESENCE and attach eligibility come from the server (view.
+  // itemTokens + the offered attachItem commit variants). We never re-derive item
+  // legality — the badge/label/attach control only surface what the server sent.
+  const itemDefById = new Map((view.map.items ?? []).map((it) => [it.id, it]));
+  const liveItemLabel = (space: SpaceId): string | undefined => {
+    const id = view.itemTokens?.[space];
+    return (id ? itemDefById.get(id) : undefined)?.label;
+  };
+  // The COMBAT item the viewer may attach on THIS commit: the one on the committing
+  // fighter's space (the attacker if we're attacking, else the target we're
+  // defending). Combat-kind only; its label + value drive the attach menu entry.
+  const attachItemContext: AttachItem | undefined = (() => {
+    const c = view.combat;
+    if (!c) return undefined;
+    const fighterId =
+      c.attackerPlayer === view.you ? c.attacker : c.defenderPlayer === view.you ? c.target : null;
+    if (!fighterId) return undefined;
+    const space = view.fighters.find((f) => f.id === fighterId)?.space;
+    const id = space ? view.itemTokens?.[space] : undefined;
+    const def = id ? itemDefById.get(id) : undefined;
+    return def && def.kind === "combat" ? { label: def.label, value: def.value ?? 0 } : undefined;
+  })();
+
   // Hand affordances: a card is playable iff a server-offered action carries
   // its instance id (pure logic in lib/pro/actionDock — seat-agnostic, so a
   // multiplayer BOOST_MOVE from p3 renders and sends exactly like a duel seat).
-  const actionsForCard = (instance: CardInstanceId) => cardAffordances(legalActions, instance);
+  const actionsForCard = (instance: CardInstanceId) =>
+    cardAffordances(legalActions, instance, attachItemContext);
 
   return (
     <ProErrorBoundary
@@ -2407,6 +2433,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
             clearIncoming();
           }}
           closedRegions={view.closedRegions}
+          itemTokens={view.itemTokens}
           onSpaceClick={onSpaceClick}
           onFighterClick={onFighterClick}
           imgMaxH="calc(100svh - 16rem)"
@@ -2607,7 +2634,17 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
                 onClick={() => sendAction(a)}
               >
                 <Flex as="span" align="center" gap="0.4rem" flexWrap="wrap">
-                  <Text as="span">{describeAction(view.catalog, a, { nameOf, attackerBadge })}</Text>
+                  {/* Scheme-item use (v17): a leading yellow lightning glyph marks
+                      this as a BOARD item action, visually distinct from a hand
+                      scheme card. The item's label rides in the describeAction text. */}
+                  {a.type === "USE_SCHEME_ITEM" && (
+                    <Box as="span" display="inline-flex" boxSize="1.1rem" flexShrink={0}>
+                      <ItemGlyph kind="scheme" fill="#E4B106" />
+                    </Box>
+                  )}
+                  <Text as="span">
+                    {describeAction(view.catalog, a, { nameOf, attackerBadge, itemLabelForSpace: liveItemLabel })}
+                  </Text>
                   {isExtendedReach(a) && (
                     <Tooltip label={LARGE_FIGHTER_BLURB} hasArrow placement="top" openDelay={150}>
                       <Tag

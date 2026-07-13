@@ -448,6 +448,66 @@ describe("ProBoard zoom/pan (issue #120)", () => {
   });
 });
 
+// Battlefield item + secret-passage badges (protocol v17 / engine #156-#157).
+// Badges are driven STRICTLY off the live server view (itemTokens + space.passage),
+// never the static map def — a consumed token's badge must disappear for both players.
+const ITEM_MAP: ProMapDef = {
+  ...MAP,
+  items: [
+    { id: "sword", kind: "combat", label: "Sword", value: 2 },
+    { id: "bomb", kind: "scheme", label: "Bomb", ops: [] as never },
+  ],
+  spaces: [
+    { id: "s1", x: 0.2, y: 0.2, zones: [], adjacentTo: ["s2"], start: { slot: 1 }, item: "sword" },
+    { id: "s2", x: 0.8, y: 0.8, zones: [], adjacentTo: ["s1"], start: { slot: 2 }, item: "bomb", passage: true },
+    { id: "s3", x: 0.5, y: 0.5, zones: [], adjacentTo: ["s2"], passage: true },
+  ],
+};
+
+describe("ProBoard battlefield item + passage badges", () => {
+  it("renders a combat badge with the +N tooltip only while its token is live", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={ITEM_MAP} fighters={[fighter({})]} itemTokens={{ s1: "sword" }} />
+      </ChakraProvider>
+    );
+    expect(
+      screen.getByTitle("Sword — +2 to a combat card played from this space")
+    ).toBeInTheDocument();
+  });
+
+  it("renders a scheme badge tooltip from the item label", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={ITEM_MAP} fighters={[fighter({})]} itemTokens={{ s2: "bomb" }} />
+      </ChakraProvider>
+    );
+    expect(screen.getByTitle("Bomb")).toBeInTheDocument();
+  });
+
+  it("drives badges OFF itemTokens, not the static map def — a consumed token shows no badge", () => {
+    // s1 statically names 'sword' but the token is gone from itemTokens → no badge.
+    render(
+      <ChakraProvider>
+        <ProBoard map={ITEM_MAP} fighters={[fighter({})]} itemTokens={{}} />
+      </ChakraProvider>
+    );
+    expect(
+      screen.queryByTitle("Sword — +2 to a combat card played from this space")
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders a keyhole badge on every secret-passage space (snapshot-driven)", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={ITEM_MAP} fighters={[fighter({})]} itemTokens={{}} />
+      </ChakraProvider>
+    );
+    // s2 and s3 are passage spaces → two keyhole badges, independent of itemTokens.
+    expect(screen.getAllByTitle("Secret passage")).toHaveLength(2);
+  });
+});
+
 // Incremental-maneuver stepping (issue #285): the player steps a fighter
 // hop-by-hop as a LOCAL preview (nothing sent), so the board renders a ghost
 // token + dashed trail at the preview position via `previewMove`, and the gold
