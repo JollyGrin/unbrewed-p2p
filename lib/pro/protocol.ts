@@ -356,6 +356,8 @@ export type CombatOutcome = "ATTACKER_WON" | "DEFENDER_WON" | "UNKNOWN";
 // never constructs an action the server didn't offer (exceptions: MOVE_FIGHTER
 // may carry any legal path to an offered destination, and FORFEIT may always be
 // sent by the player on the clock — the server's legalActions offers it too).
+export type DruidForm = "Human" | "Bear" | "Moonkin";
+
 export type Action =
   | { type: "PLACE_SIDEKICK"; player: PlayerId; fighter: FighterId; space: SpaceId }
   | { type: "MANEUVER"; player: PlayerId }
@@ -367,6 +369,7 @@ export type Action =
   // legalActions and echoes back whatever seat the server offered).
   | { type: "BOOST_MOVE"; player: PlayerId; card: CardInstanceId }
   | { type: "MOVE_FIGHTER"; player: PlayerId; fighter: FighterId; path: SpaceId[] }
+  | { type: "SHAPESHIFT"; player: PlayerId; form: DruidForm; via: "MANEUVER" | "OMEN" | "TRAVEL" }
   | { type: "END_MANEUVER"; player: PlayerId }
   | { type: "SCHEME"; player: PlayerId; card: CardInstanceId }
   // Use a battlefield SCHEME item (v17 — Teen Spirit). The active fighter must
@@ -418,6 +421,8 @@ export type GameEvent =
   | { type: "FIGHTER_DEFEATED"; fighter: FighterId }
   | { type: "MOVE_BOOSTED"; player: PlayerId; card: CardInstanceId; boost: number }
   | { type: "FIGHTER_MOVED"; fighter: FighterId; path: SpaceId[] }
+  | { type: "FORM_CHANGED"; player: PlayerId; fighter: FighterId; form: DruidForm }
+  | { type: "DIE_ROLLED"; player: PlayerId; sides: number; result: number; source: string }
   | { type: "SCHEME_PLAYED"; player: PlayerId; card: CardInstanceId }
   | { type: "CARD_DISCARDED"; player: PlayerId; card: CardInstanceId; reason: "HAND_LIMIT" | "BOOST" | "COMBAT" | "EFFECT" | "MILL" }
   | { type: "ATTACK_DECLARED"; attacker: FighterId; target: FighterId }
