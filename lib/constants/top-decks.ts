@@ -478,4 +478,16 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
       "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/cover.png",
     original: true,
   },
+  {
+    // Evergreen original: Malfurion Stormrage — server hero malfurion-stormrage.
+    // Self-hosted generated art lives in public/evergreen-decks/art/malfurion-stormrage.
+    id: "malfurion-stormrage",
+    name: "Malfurion Stormrage",
+    hero: "Malfurion Stormrage",
+    author: "unbrewed",
+    likes: 0,
+    highlightColour: "#2fbf71",
+    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/malfurion-stormrage/cardback.webp",
+    original: true,
+  },
 ];
