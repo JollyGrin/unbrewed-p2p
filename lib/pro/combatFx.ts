@@ -93,15 +93,10 @@ export function diffCombatCallouts(
 
 /**
  * Manage the live set of combat callouts for the page. Each new flourish is
- * appended with a stable key and a per-kind timer removes it. `enabled` (the
- * `combatFx` flag) gates production only: `prevViewRef` still advances while off,
- * so flipping the flag on mid-game diffs against the CURRENT view (no stale burst
- * of banners). Off → returns `[]` and creates no state, so the flag-off path is
- * byte-identical to today.
+ * appended with a stable key and a per-kind timer removes it.
  */
 export function useCombatCallouts(
-  snapshot: { view: PlayerView; events: GameEvent[] } | null,
-  enabled: boolean
+  snapshot: { view: PlayerView; events: GameEvent[] } | null
 ): CombatCalloutItem[] {
   const [items, setItems] = useState<CombatCalloutItem[]>([]);
   const prevViewRef = useRef<PlayerView | null>(null);
@@ -111,8 +106,6 @@ export function useCombatCallouts(
   // monotonic cascade counter that resets once the queue has fully drained.
   const revealFreeAtRef = useRef(0);
   const revealCycleRef = useRef(0);
-  const enabledRef = useRef(enabled);
-  enabledRef.current = enabled;
 
   useEffect(() => {
     const timers = timersRef.current;
@@ -123,7 +116,6 @@ export function useCombatCallouts(
     if (!snapshot) return;
     const prev = prevViewRef.current;
     prevViewRef.current = snapshot.view;
-    if (!enabledRef.current) return;
     const callouts = diffCombatCallouts(prev, snapshot.view, snapshot.events);
     if (callouts.length === 0) return;
 
@@ -157,5 +149,5 @@ export function useCombatCallouts(
     }
   }, [snapshot]);
 
-  return enabled ? items : [];
+  return items;
 }
