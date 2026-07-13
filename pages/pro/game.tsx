@@ -1257,6 +1257,7 @@ const HeroSelectLobby = ({
       {!room && multiplayer && (
         <CreateSeats
           selectedFormat={selectedFormat}
+          selectedMap={catalogEntry(selectedMapId)?.map}
           botSlotPlan={botSlotPlan}
           onChangeBotSlot={onChangeBotSlot}
         />
@@ -1864,7 +1865,10 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
               (issue #222) fills each seat with the real hero as it joins — an
               un-filled seat shows "?" ("You + ? vs GINGERBREAD + ?"). */}
           {(() => {
-            const comp = teamComposition(roomInfo?.formatId ?? selectedFormat);
+            const comp = teamComposition(
+              roomInfo?.formatId ?? selectedFormat,
+              catalogEntry(selectedMapId)?.map,
+            );
             if (!comp) return null;
             const youSeat = roomInfo?.you;
             const rosterSeat = (id: string) => roomInfo?.roster?.find((s) => s.player === id);
@@ -1908,7 +1912,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
               hero as ROOM_STATUS arrives (issue #222). */}
           {(() => {
             const roster = roomInfo?.roster;
-            const isTeam = !!teamComposition(roomInfo?.formatId ?? selectedFormat);
+            const isTeam = !!teamComposition(roomInfo?.formatId ?? selectedFormat, catalogEntry(selectedMapId)?.map);
             const required = roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers;
             if (!roster || isTeam || required <= 2) return null;
             const youSeat = roomInfo?.you;
