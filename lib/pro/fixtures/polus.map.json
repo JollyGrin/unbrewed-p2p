@@ -1,0 +1,568 @@
+{
+  "schemaVersion": "1.0",
+  "id": "polus",
+  "meta": {
+    "title": "Polus",
+    "minPlayers": 2,
+    "maxPlayers": 4,
+    "specialRules": false,
+    "imageUrl": "https://unbrewed.xyz/maps/community-polus-96.webp",
+    "spaceDiameter": 0.0762,
+    "source": "https://www.the-unmatched.club/c/maps/polus.96",
+    "license": "Fan battlefield 'Polus' designed by Elisey (the-unmatched.club). Source: https://www.the-unmatched.club/c/maps/polus.96 — credit Elisey and the-unmatched.club."
+  },
+  "zones": [
+    {
+      "id": "z1",
+      "color": "#705482",
+      "label": "outside"
+    },
+    {
+      "id": "z2",
+      "color": "#a27ea9",
+      "label": "corridors"
+    },
+    {
+      "id": "z3",
+      "color": "#6474ae",
+      "label": "office"
+    },
+    {
+      "id": "z4",
+      "color": "#545c64",
+      "label": "dropship"
+    },
+    {
+      "id": "z5",
+      "color": "#75435f",
+      "label": "electrical"
+    },
+    {
+      "id": "z6",
+      "color": "#856d4c",
+      "label": "communications"
+    },
+    {
+      "id": "z7",
+      "color": "#c5dddd",
+      "label": "weapons"
+    },
+    {
+      "id": "z8",
+      "color": "#b69e7c",
+      "label": "storage"
+    },
+    {
+      "id": "z9",
+      "color": "#487b56",
+      "label": "specimen room"
+    },
+    {
+      "id": "z10",
+      "color": "#8993b4",
+      "label": "laboratory"
+    }
+  ],
+  "supportedFormats": [
+    {
+      "id": "duel-polus",
+      "formatId": "duel",
+      "label": "Duel",
+      "description": "Start slots 1 and 2 for a standard 1v1.",
+      "seats": {
+        "A1": {
+          "startSlot": 1
+        },
+        "B1": {
+          "startSlot": 2
+        }
+      }
+    },
+    {
+      "id": "ffa-3-polus",
+      "formatId": "ffa-3",
+      "label": "3 Player Free For All",
+      "description": "Three independent players use start slots 1, 2, and 3.",
+      "seats": {
+        "A1": {
+          "startSlot": 1
+        },
+        "B1": {
+          "startSlot": 2
+        },
+        "C1": {
+          "startSlot": 3
+        }
+      }
+    },
+    {
+      "id": "team-2v2-polus",
+      "formatId": "team-2v2",
+      "label": "2v2 Teams",
+      "description": "Balanced diagonal teams so teammates start far apart: Team A holds slot 1 (top dropship, c2) and slot 4 (bottom-center office, c21); Team B holds slot 2 (bottom-left specimen, c24) and slot 3 (top-center comms, c8).",
+      "seats": {
+        "A1": {
+          "startSlot": 1
+        },
+        "A2": {
+          "startSlot": 4
+        },
+        "B1": {
+          "startSlot": 2
+        },
+        "B2": {
+          "startSlot": 3
+        }
+      }
+    }
+  ],
+  "spaces": [
+    {
+      "id": "s1",
+      "x": 0.3623,
+      "y": 0.1028,
+      "zones": [
+        "z4"
+      ],
+      "adjacentTo": [
+        "s2",
+        "s3",
+        "s4"
+      ]
+    },
+    {
+      "id": "s2",
+      "x": 0.4535,
+      "y": 0.0984,
+      "zones": [
+        "z4"
+      ],
+      "adjacentTo": [
+        "s1",
+        "s3",
+        "s4"
+      ],
+      "start": {
+        "slot": 1
+      }
+    },
+    {
+      "id": "s3",
+      "x": 0.3639,
+      "y": 0.2341,
+      "zones": [
+        "z4",
+        "z2"
+      ],
+      "adjacentTo": [
+        "s1",
+        "s2",
+        "s4",
+        "s6"
+      ]
+    },
+    {
+      "id": "s4",
+      "x": 0.4559,
+      "y": 0.2365,
+      "zones": [
+        "z2",
+        "z4"
+      ],
+      "adjacentTo": [
+        "s1",
+        "s2",
+        "s3",
+        "s6"
+      ]
+    },
+    {
+      "id": "s5",
+      "x": 0.1868,
+      "y": 0.3668,
+      "zones": [
+        "z5"
+      ],
+      "adjacentTo": [
+        "s12",
+        "s17"
+      ]
+    },
+    {
+      "id": "s6",
+      "x": 0.40195465087890625,
+      "y": 0.36307682107496464,
+      "zones": [
+        "z1",
+        "z2",
+        "z4"
+      ],
+      "adjacentTo": [
+        "s3",
+        "s4",
+        "s7",
+        "s12",
+        "s13"
+      ]
+    },
+    {
+      "id": "s7",
+      "x": 0.5108,
+      "y": 0.3666,
+      "zones": [
+        "z2"
+      ],
+      "adjacentTo": [
+        "s6",
+        "s8"
+      ]
+    },
+    {
+      "id": "s8",
+      "x": 0.6135635375976562,
+      "y": 0.37472374469589814,
+      "zones": [
+        "z6",
+        "z2"
+      ],
+      "adjacentTo": [
+        "s7",
+        "s9",
+        "s15"
+      ],
+      "start": {
+        "slot": 3
+      }
+    },
+    {
+      "id": "s9",
+      "x": 0.717864990234375,
+      "y": 0.36358513083451205,
+      "zones": [
+        "z6"
+      ],
+      "adjacentTo": [
+        "s8",
+        "s10"
+      ]
+    },
+    {
+      "id": "s10",
+      "x": 0.8130111694335938,
+      "y": 0.3113507779349364,
+      "zones": [
+        "z7",
+        "z6"
+      ],
+      "adjacentTo": [
+        "s9",
+        "s11"
+      ]
+    },
+    {
+      "id": "s11",
+      "x": 0.897613525390625,
+      "y": 0.37000530410183874,
+      "zones": [
+        "z7"
+      ],
+      "adjacentTo": [
+        "s10",
+        "s16"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s12",
+      "x": 0.3051,
+      "y": 0.408,
+      "zones": [
+        "z2",
+        "z1",
+        "z5"
+      ],
+      "adjacentTo": [
+        "s5",
+        "s6",
+        "s13"
+      ]
+    },
+    {
+      "id": "s13",
+      "x": 0.3745,
+      "y": 0.5054,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s6",
+        "s12",
+        "s14",
+        "s20"
+      ]
+    },
+    {
+      "id": "s14",
+      "x": 0.5000534057617188,
+      "y": 0.5378027758132956,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s13",
+        "s15"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s15",
+      "x": 0.6268,
+      "y": 0.512,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s8",
+        "s14",
+        "s18",
+        "s23"
+      ]
+    },
+    {
+      "id": "s16",
+      "x": 0.9151153564453125,
+      "y": 0.5157355021216408,
+      "zones": [
+        "z7"
+      ],
+      "adjacentTo": [
+        "s11",
+        "s28"
+      ]
+    },
+    {
+      "id": "s17",
+      "x": 0.145,
+      "y": 0.5735,
+      "zones": [
+        "z5"
+      ],
+      "adjacentTo": [
+        "s5",
+        "s24"
+      ]
+    },
+    {
+      "id": "s18",
+      "x": 0.7178421020507812,
+      "y": 0.6045350070721358,
+      "zones": [
+        "z1",
+        "z8"
+      ],
+      "adjacentTo": [
+        "s15",
+        "s23"
+      ]
+    },
+    {
+      "id": "s19",
+      "x": 0.0618,
+      "y": 0.6445,
+      "zones": [
+        "z9"
+      ],
+      "adjacentTo": [
+        "s24",
+        "s29"
+      ]
+    },
+    {
+      "id": "s20",
+      "x": 0.3427,
+      "y": 0.6587,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s13",
+        "s25",
+        "s30"
+      ]
+    },
+    {
+      "id": "s21",
+      "x": 0.4341,
+      "y": 0.68,
+      "zones": [
+        "z3"
+      ],
+      "adjacentTo": [
+        "s22",
+        "s26",
+        "s30"
+      ],
+      "start": {
+        "slot": 4
+      }
+    },
+    {
+      "id": "s22",
+      "x": 0.5321,
+      "y": 0.6835,
+      "zones": [
+        "z3",
+        "z8"
+      ],
+      "adjacentTo": [
+        "s21",
+        "s23",
+        "s26"
+      ]
+    },
+    {
+      "id": "s23",
+      "x": 0.6165,
+      "y": 0.6378,
+      "zones": [
+        "z8",
+        "z1"
+      ],
+      "adjacentTo": [
+        "s15",
+        "s18",
+        "s22"
+      ]
+    },
+    {
+      "id": "s24",
+      "x": 0.1325,
+      "y": 0.7419,
+      "zones": [
+        "z5",
+        "z9"
+      ],
+      "adjacentTo": [
+        "s17",
+        "s19",
+        "s29",
+        "s31"
+      ],
+      "start": {
+        "slot": 2
+      }
+    },
+    {
+      "id": "s25",
+      "x": 0.24298858642578125,
+      "y": 0.7484640205091938,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s20",
+        "s31"
+      ]
+    },
+    {
+      "id": "s26",
+      "x": 0.497222900390625,
+      "y": 0.7997149045261669,
+      "zones": [
+        "z3"
+      ],
+      "adjacentTo": [
+        "s21",
+        "s22",
+        "s32"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s27",
+      "x": 0.7413787841796875,
+      "y": 0.7642658239038189,
+      "zones": [
+        "z10"
+      ],
+      "adjacentTo": [
+        "s28",
+        "s33"
+      ]
+    },
+    {
+      "id": "s28",
+      "x": 0.8598480224609375,
+      "y": 0.763359706506365,
+      "zones": [
+        "z10"
+      ],
+      "adjacentTo": [
+        "s16",
+        "s27"
+      ]
+    },
+    {
+      "id": "s29",
+      "x": 0.0691,
+      "y": 0.8444,
+      "zones": [
+        "z9"
+      ],
+      "adjacentTo": [
+        "s19",
+        "s24"
+      ]
+    },
+    {
+      "id": "s30",
+      "x": 0.38137054443359375,
+      "y": 0.8066765381895332,
+      "zones": [
+        "z3",
+        "z1"
+      ],
+      "adjacentTo": [
+        "s20",
+        "s21"
+      ]
+    },
+    {
+      "id": "s31",
+      "x": 0.16998291015625,
+      "y": 0.8930560466760962,
+      "zones": [
+        "z5"
+      ],
+      "adjacentTo": [
+        "s24",
+        "s25"
+      ]
+    },
+    {
+      "id": "s32",
+      "x": 0.5629348754882812,
+      "y": 0.8957412482319661,
+      "zones": [
+        "z3"
+      ],
+      "adjacentTo": [
+        "s26",
+        "s33"
+      ]
+    },
+    {
+      "id": "s33",
+      "x": 0.6576919555664062,
+      "y": 0.9017083628005658,
+      "zones": [
+        "z10",
+        "z3"
+      ],
+      "adjacentTo": [
+        "s27",
+        "s32"
+      ]
+    }
+  ]
+}

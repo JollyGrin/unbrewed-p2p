@@ -15,14 +15,16 @@ import islandOfDespairJson from "./fixtures/island-of-despair.map.json";
 const island = catalogEntry("island-of-despair")!;
 const mendedDrum = catalogEntry("mended-drum")!;
 const cityDocks = catalogEntry("city-docks")!;
+const polus = catalogEntry("polus")!;
 const arena = catalogEntry("multiplayer-arena-playtest")!;
 
 describe("map catalog", () => {
-  it("lists the three built-in boards in order", () => {
+  it("lists the built-in boards in order", () => {
     expect(MAP_CATALOG.map((e) => e.id)).toEqual([
       "mended-drum",
       "island-of-despair",
       "city-docks",
+      "polus",
       "multiplayer-arena-playtest",
     ]);
     expect(arena.title).toBe("Playtest Arena (synthetic)");
@@ -43,6 +45,13 @@ describe("map catalog", () => {
       expect(mapEligibleForFormat(cityDocks.map, "duel")).toBe(true);
       expect(mapEligibleForFormat(cityDocks.map, "ffa-3")).toBe(true);
       expect(mapEligibleForFormat(cityDocks.map, "team-2v2")).toBe(true);
+    });
+
+    it("Polus supports all three formats via authored supportedFormats", () => {
+      expect(eligibleFormats(polus.map)).toEqual(["duel", "ffa-3", "team-2v2"]);
+      expect(mapEligibleForFormat(polus.map, "duel")).toBe(true);
+      expect(mapEligibleForFormat(polus.map, "ffa-3")).toBe(true);
+      expect(mapEligibleForFormat(polus.map, "team-2v2")).toBe(true);
     });
 
     it("The Mended Drum is duel-only via the printed slots 1&2 fallback", () => {
