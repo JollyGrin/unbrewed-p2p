@@ -45,6 +45,7 @@ export const HERO_DECK_IDS: Record<string, string> = {
   "thetis-spice": "thetis-spice",
   "piper-of-the-underroads": "piper",
   "hollow-oak": "hollow-oak",
+  onyxia: "onyxia",
 };
 
 /**

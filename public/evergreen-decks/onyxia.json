@@ -1,0 +1,179 @@
+{
+  "bgg_link": null,
+  "created_on": "Mon, 13 Jul 2026 00:00:00 GMT",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#E0EFF0",
+      "cardbackUrl": "",
+      "highlightColour": "#F07838",
+      "isPNP": false,
+      "patternName": ""
+    },
+    "name": "Onyxia",
+    "hero": {
+      "hp": 20,
+      "isRanged": true,
+      "move": 1,
+      "name": "Onyxia",
+      "specialAbility": "Only has 1 action per turn. Takes a turn after (in-between) each player. Increment phase bar at the start of your turn.\nReset phase bar when Onyxia’s health reaches 0. Reset health to 20 and begin next phase.",
+      "tokenImageUrl": "/maps/onyxia-dragon-symbol.png"
+    },
+    "sidekick": {
+      "hp": 1,
+      "isRanged": false,
+      "name": "Whelps",
+      "quantity": 0,
+      "tokenImageUrl": "/maps/onyxia-dragon-symbol.png"
+    },
+    "extraCharacters": [],
+    "ruleCards": [],
+    "cards": [
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ONYXIA",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/onyxia/tail-sweep.png",
+        "immediateText": "Move opposing and all adjacent fighers 1 space.",
+        "quantity": 3,
+        "title": "Tail Sweep",
+        "type": "versatile",
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/onyxia/tail-sweep.png"
+        }
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "Deals damage to player + 1 dmg to all adjacent",
+        "imageUrl": "/evergreen-decks/art/onyxia/wing-buffet.png",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Wing Buffet",
+        "type": "attack",
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/onyxia/wing-buffet.png"
+        }
+      },
+      {
+        "afterText": "If you won the combat, deals the damage difference to all adjacent player.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ONYXIA",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/onyxia/spit-fire.png",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Spit fire",
+        "type": "attack",
+        "value": 5,
+        "cardImage": {
+          "url": "/evergreen-decks/art/onyxia/spit-fire.png"
+        }
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/onyxia/knock-away.png",
+        "immediateText": "Cancel all effects on the opposing fighter's card.",
+        "quantity": 2,
+        "title": "Knock Away",
+        "type": "versatile",
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/onyxia/knock-away.png"
+        }
+      },
+      {
+        "afterText": "",
+        "basicText": "Place a flame token on an unoccupied space.\n\nFlame tokens deal 1 damage to any opposing fighter who lands/passes thru it.",
+        "boost": 1,
+        "characterName": "ONYXIA",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/onyxia/ignite.png",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "ignite",
+        "type": "scheme",
+        "value": null,
+        "cardImage": {
+          "url": "/evergreen-decks/art/onyxia/ignite.png"
+        }
+      },
+      {
+        "afterText": "Spawn two whelps.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/onyxia/brood-of-onyxia.png",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "brood of onyxia",
+        "type": "defence",
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/onyxia/brood-of-onyxia.png"
+        }
+      },
+      {
+        "afterText": "",
+        "basicText": "Can only be played if a whelp is on the field.",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/onyxia/blood-pact.png",
+        "immediateText": "Add 2 value to this card for each whelp you sacrifice.",
+        "quantity": 3,
+        "title": "Blood Pact",
+        "type": "versatile",
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/onyxia/blood-pact.png"
+        }
+      },
+      {
+        "afterText": "",
+        "basicText": "Gain 2 actions.",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/onyxia/lair-advantage.png",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "lair advantage",
+        "type": "scheme",
+        "value": null,
+        "cardImage": {
+          "url": "/evergreen-decks/art/onyxia/lair-advantage.png"
+        }
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/onyxia/phoenix-flame.png",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Phoenix Flame",
+        "type": "versatile",
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/onyxia/phoenix-flame.png"
+        }
+      }
+    ]
+  },
+  "id": "onyxia",
+  "version_id": "evergreen-1"
+}
