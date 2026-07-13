@@ -41,6 +41,7 @@ const playersById = (view: PlayerView): Map<PlayerId, ViewPlayer> => {
     hasCommitted: !!view.self.committedCard,
     counters: view.self.counters,
     flags: view.self.flags,
+    wonCombatThisTurn: view.self.wonCombatThisTurn,
   });
   if (view.opponent) {
     players.set(view.opponent.id, {
@@ -54,6 +55,7 @@ const playersById = (view: PlayerView): Map<PlayerId, ViewPlayer> => {
       hasCommitted: view.opponent.hasCommitted,
       counters: view.opponent.counters,
       flags: view.opponent.flags,
+      wonCombatThisTurn: view.opponent.wonCombatThisTurn,
     });
   }
   return players;

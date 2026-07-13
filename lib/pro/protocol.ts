@@ -297,6 +297,20 @@
  * combat item on the fighter's space — attacker decides before the defender). Events
  * `ITEM_USED` + `COMBAT_ITEM_ATTACHED`, and `ACTION_SPENT.action` adds `SCHEME_ITEM`.
  * Purely additive: item-less maps carry none of the new fields and behave identically.
+ *
+ * ## Additive sync (2026-07-13, no version bump): General Grievous
+ * (unbrewed-engine PR #160, client sibling p2p #288 — PAIRED, merge together). All
+ * additive on top of v17; an older client that ignores these is unaffected:
+ * - `ViewFighter.reach`/`ReplayFighter.reach` gain `"LUNGE"` (RANGED-style targeting +
+ *   a forced post-commit landing placement; the landing arrives as a normal CHOOSE_SPACE
+ *   prompt, so no LUNGE-specific rule rides the view).
+ * - `ViewSelf`/`ViewOpponent`/`ViewPlayer` gain `wonCombatThisTurn: boolean` — public,
+ *   turn-scoped; drives Grievous's six "if you won a combat this turn" affordances.
+ * - Six GameEvent variants (COMBAT_WON_MARKED, PLAYED_CARD_RETURNED, SECOND_ATTACK_COMMITTED,
+ *   BONUS_ATTACK_STARTED, BONUS_ATTACK_PASSED, SUB_ATTACK_INITIATED) delineate the nested
+ *   Multi-Arm Barrage / "Fire, you fools!" combats so the 2nd/3rd hits read as intentional.
+ * The engine branch sits at PROTOCOL_VERSION 16 (cut before v17); Dean does the
+ * compatibility rebase to v17 at merge, at which point ACCEPTED_PROTOCOL_VERSIONS covers 17.
  */
 export const PROTOCOL_VERSION = 17;
 
@@ -455,7 +469,25 @@ export type GameEvent =
   // (token consumed). COMBAT_ITEM_ATTACHED = a combat item was attached to a combat
   // card at commit (token consumed); the +value bump lands in the DURING window.
   | { type: "ITEM_USED"; player: PlayerId; space: SpaceId; item: string }
-  | { type: "COMBAT_ITEM_ATTACHED"; player: PlayerId; role: "ATTACK" | "DEFENSE"; space: SpaceId; item: string; value: number };
+  | { type: "COMBAT_ITEM_ATTACHED"; player: PlayerId; role: "ATTACK" | "DEFENSE"; space: SpaceId; item: string; value: number }
+  // General Grievous (SYNCED VERBATIM from unbrewed-engine protocol/protocol.ts, PR #160,
+  // engine batches A/C/D — additive, no PROTOCOL_VERSION bump; keep in lockstep).
+  // v0.14.0 (batch A): markCombatWon marks the controller as having won a combat this turn;
+  // returnPlayedCard takes a played-this-turn card back to hand (discard case; the
+  // live-combat-card case reuses CARD_RETURNED_TO_HAND at cleanup).
+  | { type: "COMBAT_WON_MARKED"; player: PlayerId }
+  | { type: "PLAYED_CARD_RETURNED"; player: PlayerId; card: CardInstanceId }
+  // v0.16.0 (batch C — Multi-Arm Barrage). SECOND_ATTACK_COMMITTED is card-less
+  // (like CARD_COMMITTED): the face-down second attack must not leak. BONUS_ATTACK_STARTED
+  // marks Combat 2 opening; BONUS_ATTACK_PASSED marks the attacker declining/auto-passing it.
+  | { type: "SECOND_ATTACK_COMMITTED"; player: PlayerId }
+  | { type: "BONUS_ATTACK_STARTED"; attacker: FighterId; target: FighterId }
+  | { type: "BONUS_ATTACK_PASSED"; player: PlayerId }
+  // v0.17.0 (batch D — "Fire, you fools!"): a chosen droid's fixed-value sub-attack opens
+  // against `target`. Full information — the value is printed on card 210. The attack is a
+  // SYNTHETIC combat card (instance `sub-attack:<fighter>`, no catalog entry) — the client
+  // renders a printed "Blast 'em!" face rather than a catalog lookup.
+  | { type: "SUB_ATTACK_INITIATED"; attacker: FighterId; target: FighterId; value: number };
 
 export type LegalOption = { id: string; label: string; data?: Json };
 
@@ -596,7 +628,7 @@ export interface ViewFighter {
   tailSpace: SpaceId | null;
   hp: number;
   maxHp: number;
-  reach: "MELEE" | "RANGED";
+  reach: "MELEE" | "RANGED" | "LUNGE"; // LUNGE (General Grievous) — RANGED-style targeting + forced post-commit landing placement
   defeated: boolean;
 }
 
@@ -623,6 +655,12 @@ export interface ViewSelf {
   // presence = currently active, mirroring engine PlayerState.flags. Public,
   // same for every viewer, no per-flag special-casing.
   flags: Record<string, boolean>;
+  // Won >=1 combat this turn (engine combatsWonThisTurn membership; also set by
+  // markCombatWon off a loss). Public, turn-scoped — clears at turn start. Drives
+  // the client's affordance for General Grievous's six "if you won a combat this
+  // turn" cards (legibility only; legalActions stays authoritative). SYNCED from
+  // unbrewed-engine PR #160 — additive, no PROTOCOL_VERSION bump.
+  wonCombatThisTurn: boolean;
 }
 
 export interface ViewOpponent {
@@ -634,6 +672,7 @@ export interface ViewOpponent {
   hasCommitted: boolean; // face-down commit exists, identity hidden
   counters: Record<string, number>; // counters are public
   flags: Record<string, boolean>; // v16: active named flags, public (see ViewSelf.flags)
+  wonCombatThisTurn: boolean; // public, turn-scoped (see ViewSelf.wonCombatThisTurn)
 }
 
 export interface ViewPlayer {
@@ -655,6 +694,7 @@ export interface ViewPlayer {
   // (`team` on ViewPlayer + ReplayStepPlayer) — no PROTOCOL_VERSION bump.
   team?: TeamId;
   flags: Record<string, boolean>; // v16: active named flags, public (see ViewSelf.flags)
+  wonCombatThisTurn: boolean; // public, turn-scoped (see ViewSelf.wonCombatThisTurn)
 }
 
 export interface ViewCombatCard {
@@ -878,7 +918,7 @@ export interface HeroListing {
   name: string;
   hp: number;
   move: number;
-  reach: "MELEE" | "RANGED";
+  reach: "MELEE" | "RANGED" | "LUNGE"; // LUNGE (General Grievous) — RANGED-style targeting + forced post-commit landing placement
   tier: HeroTier;
 }
 

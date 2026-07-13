@@ -191,6 +191,18 @@
         "file": "data/heroes/hollow-oak-spice.rules.ts",
         "commit": "27195fe"
       }
+    },
+    {
+      "heroId": "general-grievous",
+      "deckId": "grievous",
+      "version_id": "evergreen-1",
+      "frozenAt": "2026-07-13",
+      "digest": "sha256:76e812f1011dcdbe38c30add3b8c0d2bbcea271b14f4cd4a7fc7cac10e6f5f6c",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/general-grievous.rules.ts",
+        "commit": "887ab9c"
+      }
     }
   ]
 }

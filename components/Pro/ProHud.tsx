@@ -384,6 +384,7 @@ const SeatPlate = ({
   heroFighter,
   sidekicks,
   flags,
+  wonCombat,
   isLocal,
   isActive,
   isAlly,
@@ -406,6 +407,10 @@ const SeatPlate = ({
   sidekicks: ViewFighter[];
   /** public per-player engine flags (tide etc.); undefined on older servers */
   flags?: Record<string, boolean>;
+  /** won >=1 combat this turn (ViewPlayer.wonCombatThisTurn) — shows a "combat won"
+   *  chip that explains why Grievous's conditional AFTER effects fire differently.
+   *  Turn-scoped: clears at turn start. undefined on older servers → no chip. */
+  wonCombat?: boolean;
   isLocal: boolean;
   isActive: boolean;
   /** teammate of the viewing player (team formats only) — shows an ALLY chip */
@@ -537,6 +542,17 @@ const SeatPlate = ({
     <FlagChip key={`${chip.flag}-${on ? "on" : "off"}`} chip={chip} on={on} />
   ));
 
+  // "combat won ✓" chip (issue #288 ↔ engine #160): shown on the acting seat while
+  // `wonCombatThisTurn` is set, so a player can see WHY a conditional AFTER effect
+  // fired differently (six General Grievous cards gate on it; card 202 sets it even
+  // on a loss). Turn-scoped — clears at turn start. Not hero-gated: any deck that
+  // one day exposes the flag gets it. Green keeps it clearly NOT the gold TURN chip.
+  const combatWonTag = wonCombat ? (
+    <Tag size="sm" bg="#3f8f5b" color="brand.surfaceDim" flexShrink={0} letterSpacing="0.03em">
+      combat won ✓
+    </Tag>
+  ) : null;
+
   const controls = hovered ? (
     <Flex alignItems="center" gap="0.15rem" flexShrink={0}>
       {moved && (
@@ -667,6 +683,7 @@ const SeatPlate = ({
         {renderNameBlock(false)}
         <Flex alignItems="center" gap="0.3rem" flexShrink={0}>
           {flagTags}
+          {combatWonTag}
           {presenceTag}
           {allyTag}
           {turnTag}
@@ -737,6 +754,7 @@ const SeatPlate = ({
                     </Text>
                   </Flex>
                   {flagTags}
+                  {combatWonTag}
                   {presenceTag}
                   {allyTag}
                   {turnTag}
@@ -752,6 +770,7 @@ const SeatPlate = ({
               {renderNameBlock(true)}
               <Flex alignItems="center" gap="0.3rem" flexShrink={0}>
                 {flagTags}
+                {combatWonTag}
                 {presenceTag}
                 {allyTag}
                 {turnTag}
@@ -933,6 +952,7 @@ export const ProHud = ({
           hasCommitted: !!view.self.committedCard,
           counters: view.self.counters,
           flags: view.self.flags,
+          wonCombatThisTurn: view.self.wonCombatThisTurn,
         },
         ...(view.opponent
           ? [{
@@ -945,6 +965,7 @@ export const ProHud = ({
               hasCommitted: view.opponent.hasCommitted,
               counters: view.opponent.counters,
               flags: view.opponent.flags,
+              wonCombatThisTurn: view.opponent.wonCombatThisTurn,
             }]
           : []),
       ];
@@ -990,6 +1011,7 @@ export const ProHud = ({
             heroFighter={heroOf(seat.id)}
             sidekicks={sidekicksOf(seat.id)}
             flags={seat.flags}
+            wonCombat={seat.wonCombatThisTurn}
             isLocal={seat.you}
             isActive={showLiveTurnChrome(view) && view.activePlayer === seat.id}
             isAlly={teams.relationOf(seat.id) === "ally"}

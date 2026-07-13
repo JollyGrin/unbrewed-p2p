@@ -1,0 +1,258 @@
+{
+  "bgg_link": null,
+  "created_on": "Mon, 13 Jul 2026 00:00:00 GMT",
+  "deck_first_published_on": "Mon, 13 Jul 2026 00:00:00 GMT",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#3a3f45",
+      "cardbackUrl": "",
+      "highlightColour": "#8a9199",
+      "isPNP": false,
+      "patternName": "Durasteel"
+    },
+    "name": "General Grievous",
+    "hero": {
+      "hp": 17,
+      "isRanged": false,
+      "move": 2,
+      "name": "General Grievous",
+      "specialAbility": "MULTI-ARM BARRAGE\nWhen attacking as General Grievous, you may play a second attack face down simultaneously. (Combat 1 resolves entirely before Combat 2 resolves.)",
+      "quote": "A four-armed cyborg warlord who lunges into reach and answers a single opening with a barrage of blades — reach LUNGE, backed by a swarm of expendable B1 droids."
+    },
+    "sidekick": {
+      "hp": 1,
+      "isRanged": true,
+      "name": "B1 Battle Droid",
+      "quantity": 3,
+      "quote": "Roger, roger. Expendable, numerous, and always ready to fire on command."
+    },
+    "extraCharacters": [],
+    "ruleCards": [],
+    "cards": [
+      {
+        "afterText": "",
+        "basicText": "Choose 2 different effects. If you won a combat this turn, resolve all 3: move Grievous up to 4 spaces; shuffle 2 GRIEVOUS cards from your discard back into your deck; draw 1 card and gain 1 action.",
+        "boost": 3,
+        "characterName": "GRIEVOUS",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Fear, Surprise, & Intimidation",
+        "type": "scheme",
+        "value": null,
+        "cardImage": {
+          "url": "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/actionCards.png",
+          "cols": 10,
+          "rows": 2,
+          "index": 0
+        }
+      },
+      {
+        "afterText": "If you won a combat this turn, choose a card you played this turn and return it to your hand. (It may be this card.)",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "GRIEVOUS",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Unrelenting Advance",
+        "type": "attack",
+        "value": 4,
+        "cardImage": {
+          "url": "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/actionCards.png",
+          "cols": 10,
+          "rows": 2,
+          "index": 1
+        }
+      },
+      {
+        "afterText": "You are considered to have won this combat. Move General Grievous up to 2 spaces.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "GRIEVOUS",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Arrogant but Effective",
+        "type": "versatile",
+        "value": 2,
+        "cardImage": {
+          "url": "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/actionCards.png",
+          "cols": 10,
+          "rows": 2,
+          "index": 2
+        }
+      },
+      {
+        "afterText": "Summon a B1 Battle Droid in General Grievous' zone. Move each of your fighters up to 3 spaces.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "GRIEVOUS",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Commanding Presence",
+        "type": "versatile",
+        "value": 3,
+        "cardImage": {
+          "url": "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/actionCards.png",
+          "cols": 10,
+          "rows": 2,
+          "index": 3
+        }
+      },
+      {
+        "afterText": "Draw 1 card. If you won a combat this turn, end the turn.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "GRIEVOUS",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "You must Break them",
+        "type": "defence",
+        "value": 3,
+        "cardImage": {
+          "url": "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/actionCards.png",
+          "cols": 10,
+          "rows": 2,
+          "index": 4
+        }
+      },
+      {
+        "afterText": "Draw 1 card. If you won a combat this turn, draw 2 instead.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "GRIEVOUS",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Recompute",
+        "type": "versatile",
+        "value": 1,
+        "cardImage": {
+          "url": "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/actionCards.png",
+          "cols": 10,
+          "rows": 2,
+          "index": 5
+        }
+      },
+      {
+        "afterText": "Move Grievous up to 2 spaces. If you won a combat this turn, you may move him up to 4 instead.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "GRIEVOUS",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Use the Unorthodox",
+        "type": "attack",
+        "value": 4,
+        "cardImage": {
+          "url": "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/actionCards.png",
+          "cols": 10,
+          "rows": 2,
+          "index": 6
+        }
+      },
+      {
+        "afterText": "Deal 1 damage to each opposing fighter adjacent to your fighter. If you won a combat this turn, deal 2 instead.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "GRIEVOUS",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Wily Brawling",
+        "type": "versatile",
+        "value": 3,
+        "cardImage": {
+          "url": "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/actionCards.png",
+          "cols": 10,
+          "rows": 2,
+          "index": 7
+        }
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "GRIEVOUS",
+        "duringText": "If you share no zones with the space you started in this turn, the value of this card is 6 instead.",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Momentous Lunge",
+        "type": "attack",
+        "value": 2,
+        "cardImage": {
+          "url": "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/actionCards.png",
+          "cols": 10,
+          "rows": 2,
+          "index": 8
+        }
+      },
+      {
+        "afterText": "Choose 1 effect: draw 1 card; the opponent discards 1 card; or return a defeated B1 Battle Droid to any space in General Grievous' zone.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "GRIEVOUS",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Roger Roger",
+        "type": "versatile",
+        "value": 3,
+        "cardImage": {
+          "url": "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/actionCards.png",
+          "cols": 10,
+          "rows": 2,
+          "index": 9
+        }
+      },
+      {
+        "afterText": "Choose a B1 Battle Droid in the opposing fighter's zone. They initiate the printed sub-attack \"Blast 'em!\" (value 4).",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "GRIEVOUS",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Fire, you fools!",
+        "type": "attack",
+        "value": 1,
+        "cardImage": {
+          "url": "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/actionCards.png",
+          "cols": 10,
+          "rows": 2,
+          "index": 10
+        }
+      }
+    ]
+  },
+  "deck_published": true,
+  "family_id": "general-grievous",
+  "id": "grievous",
+  "liked": false,
+  "likes": 0,
+  "name": "General Grievous",
+  "note": "Evergreen original — rules-enforced Pro deck (server hero general-grievous). Card art renders from the self-hosted R2 TTS sprite sheet (10x2 grid, cell = CardID - 200); no unmatched.cards entry exists. Paraphrased card text; the printed faces carry the authoritative wording.",
+  "published": true,
+  "published_on": "Mon, 13 Jul 2026 00:00:00 GMT",
+  "tags": ["pro", "evergreen", "original"],
+  "updated_on": "Mon, 13 Jul 2026 00:00:00 GMT",
+  "user": "unbrewed",
+  "version_id": "evergreen-1",
+  "version_name": "evergreen-1",
+  "versions": []
+}

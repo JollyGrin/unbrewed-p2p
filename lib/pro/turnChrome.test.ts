@@ -20,7 +20,7 @@ const view = (winner: PlayerId | null, seats: number): PlayerView => ({
   catalog: {},
   fighters: [],
   tokens: [],
-  self: { id: "p1", heroId: "king-kong", hand: [], deckCount: 0, discard: [], committedCard: null, counters: {}, flags: {} },
+  self: { id: "p1", heroId: "king-kong", hand: [], deckCount: 0, discard: [], committedCard: null, counters: {}, flags: {}, wonCombatThisTurn: false },
   opponent: null,
   players: Array.from({ length: seats }, (_, i) => ({
     id: `p${i + 1}` as PlayerId,
@@ -32,6 +32,7 @@ const view = (winner: PlayerId | null, seats: number): PlayerView => ({
     hasCommitted: false,
     counters: {},
     flags: {},
+  wonCombatThisTurn: false,
   })),
   combat: null,
   prompt: null,
