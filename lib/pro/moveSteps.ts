@@ -52,32 +52,37 @@ export const isFresh = (s: StepState): boolean => stepsTaken(s) === 0;
 export const remaining = (g: MoveGraph, s: StepState): number => g.allowance - stepsTaken(s);
 
 /**
- * May the fighter END its move on `space`? The origin is ALWAYS stoppable
- * (returning there is a legal no-op / revisit); every other space follows its
- * node's `canStop` flag. Spaces absent from the graph are never stoppable.
+ * May the fighter END its move on `space`? Purely the graph's `canStop` flag —
+ * the engine marks empty, non-barred resting places true and everything else
+ * (pass-through spaces AND the fighter's own start space) false, because "staying
+ * put is END_MANEUVER", not a zero-length MOVE_FIGHTER. Spaces absent from the
+ * graph are never stoppable.
  */
-export const canStopAt = (g: MoveGraph, origin: SpaceId, space: SpaceId): boolean => {
-  if (space === origin) return true;
+export const canStopAt = (g: MoveGraph, space: SpaceId): boolean => {
   const node = g.nodes.find((n) => n.space === space);
   return !!node && node.canStop;
 };
 
 /**
- * Spaces the player can click to take ONE hop from the current preview position.
- * These are the graph's edge-neighbours of the preview position that are legal
- * resting spots (`canStop`), offered only while budget remains. Restricting
- * clickable hops to stoppable spaces keeps the "select fighter vs step onto its
- * space" ambiguity (#185) out of the common case — step targets are empty, so no
- * token sits on them. (Passing THROUGH a non-stoppable friendly space is reached
- * via the fresh far-click canonical path, not by stepping.)
+ * Spaces the player can click to take ONE hop from the current preview position:
+ * the graph's edge-neighbours of that position, offered while budget remains.
+ * A hop onto a NON-stoppable node (a pass-through space, or the origin on the way
+ * back) is only offered when there is budget left AFTER it to leave again
+ * (`remaining ≥ 2`) — so the walk can never strand on a space it may not end on.
+ * A stoppable neighbour is always offered while `remaining ≥ 1`. This is what lets
+ * the player wander back and forth: the origin re-appears as a step target once
+ * you have moved off it (and its own token routes that click to a step-back, see
+ * game.tsx). All of it reads only the graph — no client rules.
  */
 export const legalNextSteps = (g: MoveGraph, s: StepState): SpaceId[] => {
-  if (remaining(g, s) <= 0) return [];
+  const rem = remaining(g, s);
+  if (rem <= 0) return [];
   const pos = previewPosition(s);
+  const isNode = (space: SpaceId) => g.nodes.some((n) => n.space === space);
   const out = new Set<SpaceId>();
   for (const [a, b] of g.edges) {
-    if (a !== pos || b === pos) continue;
-    if (canStopAt(g, s.origin, b)) out.add(b);
+    if (a !== pos || b === pos || !isNode(b)) continue;
+    if (canStopAt(g, b) || rem >= 2) out.add(b);
   }
   return [...out];
 };
@@ -92,7 +97,7 @@ export const stepTo = (g: MoveGraph, s: StepState, space: SpaceId): StepState | 
  * preview position to be a legal resting spot.
  */
 export const canCommit = (g: MoveGraph, s: StepState): boolean =>
-  stepsTaken(s) > 0 && canStopAt(g, s.origin, previewPosition(s));
+  stepsTaken(s) > 0 && canStopAt(g, previewPosition(s));
 
 /** The full path to submit as `MOVE_FIGHTER.path` (origin as `path[0]`). */
 export const commitPath = (s: StepState): SpaceId[] => [...s.path];

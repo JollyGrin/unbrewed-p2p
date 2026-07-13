@@ -636,35 +636,29 @@ export interface ViewCombat {
   attackDamageDealt: number | null;
 }
 
-// Incremental-maneuver "move graph" (issue #285, PAIRED with engine #55).
+// Incremental maneuver movement (issue #55, p2p #285). A per-fighter graph the
+// client walks LOCALLY to step a maneuver hop by hop (up to `allowance` total
+// steps), then commits ONE MOVE_FIGHTER with the accumulated (possibly
+// back-and-forth) path — the server already accepts any legal path whose endpoint
+// is a reachable destination. `nodes` are every space reachable within
+// `allowance` steps (including pass-through-only spaces); `canStop` marks the
+// legal resting places (empty, not barred — a valid MOVE_FIGHTER endpoint);
+// `edges` are the directed legal single steps among `nodes` (adjacentTo ∪ oneWayTo
+// ∪ portals ∪ passages — undirected edges appear both ways so you can wander back,
+// one-way arrows appear one way only). The fighter's own start space is a node with
+// `canStop=false` (staying put is END_MANEUVER). See PlayerView.moveGraphs.
 //
-// PROVISIONAL SHAPE — mirrors the engine #55 design doc; it is ADDITIVE and
-// OPTIONAL so an older/mismatched server simply omits it and the client falls
-// back to today's one-click canonical-path move. Before the client PR merges,
-// this MUST be resynced VERBATIM from the engine #55 branch's protocol (the
-// wire shape is authoritative there, not here — do not diverge).
-//
-// During MANEUVER_MOVE the engine publishes, for each of the active player's
-// movable fighters, the spaces reachable within its remaining move allowance so
-// the client can let the player step hop-by-hop LOCALLY (ghost preview, nothing
-// sent per step) and commit ONE MOVE_FIGHTER{fighter, path} with the whole
-// accumulated path. All stepping legality lives in this graph — the client
-// stays rules-free (no BFS/occupancy logic).
+// SYNCED VERBATIM from unbrewed-engine protocol/protocol.ts @ c96ed84 (PR #161,
+// issue #55). Keep in lockstep with the engine shape — do not diverge.
 export interface MoveGraphNode {
   space: SpaceId;
-  // May the fighter END its move here (an empty, legal resting destination)?
-  // Traversable-but-not-stoppable spaces (e.g. friendly pass-through) are false.
   canStop: boolean;
 }
+
 export interface MoveGraph {
-  // Total steps available for this fighter's whole walk, boost included. One
-  // committed MOVE_FIGHTER path may be up to `allowance` edges long.
-  allowance: number;
-  // Every traversable space within `allowance` of the fighter's current space
-  // (the origin itself may be included).
+  fighter: FighterId;
+  allowance: number; // max total steps (baseMove / MOVE override + applied maneuver boost)
   nodes: MoveGraphNode[];
-  // Legal single-step edges among `nodes`, directed so one-way `moveEdges` are
-  // honoured ([from, to]).
   edges: [SpaceId, SpaceId][];
 }
 
@@ -676,11 +670,14 @@ export interface PlayerView {
   actionsRemaining: number;
   turnPhase: "ACTION_SELECT" | "MANEUVER_MOVE" | "DISCARD_TO_LIMIT" | null;
   // Non-null only during MANEUVER_MOVE (which fighters already moved, boost applied).
-  // `moveGraph` (PROVISIONAL, engine #55): per-fighter incremental-step graph,
-  // present only when the server supports it. Absent → single-click moves only.
-  maneuver:
-    | { boostApplied: number; boosted: boolean; moved: FighterId[]; moveGraph?: Record<FighterId, MoveGraph> }
-    | null;
+  maneuver: { boostApplied: number; boosted: boolean; moved: FighterId[] } | null;
+  // issue #55: per-fighter incremental-movement graphs, present ONLY for the active
+  // player during MANEUVER_MOVE (absent for the opponent and in every other phase).
+  // Lets the client step a maneuver hop-by-hop locally and commit ONE MOVE_FIGHTER
+  // with the accumulated path (the server accepts any legal path to a reachable
+  // destination). A client that ignores this keeps today's one-click-to-destination
+  // behavior. LARGE fighters are omitted (still one-click). See MoveGraph.
+  moveGraphs?: MoveGraph[];
   map: ProMapDef;
   catalog: Record<CardDefId, CardMeta>;
   fighters: ViewFighter[];
