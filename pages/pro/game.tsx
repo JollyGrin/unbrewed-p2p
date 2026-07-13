@@ -59,7 +59,7 @@ import { ReportBugDialog } from "@/components/Pro/ReportBugDialog";
 import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
 import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
-import { diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
+import { batchPhase, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
 import { AttachItem, cardAffordances, cardLabel, cardTitle, describeAction } from "@/lib/pro/actionDock";
 import { ItemGlyph } from "@/components/Pro/ItemBadge";
 import {
@@ -1494,6 +1494,9 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
   const [logEntries, setLogEntries] = useState<ProLogEntry[]>([]);
   const prevViewRef = useRef<PlayerView | null>(null);
   const logSeqRef = useRef(0);
+  // One monotonic id per appended STATE batch (issue #298) — every line of a
+  // batch shares it, so the log panel groups a single player action together.
+  const logBatchRef = useRef(0);
   useEffect(() => {
     if (!snapshot) return;
     const next = snapshot.view;
@@ -1515,8 +1518,16 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
     if (lines.length === 0) return;
     const ts = Date.now();
     const turn = next.turnNumber;
+    const turnActor = seatLabel(next, next.activePlayer);
+    const phase = batchPhase(snapshot.events);
+    const batchId = logBatchRef.current++;
     setLogEntries((cur) =>
-      [...lines.map((l) => ({ ...l, key: `log-${logSeqRef.current++}`, ts, turn })).reverse(), ...cur].slice(0, 120)
+      [
+        ...lines
+          .map((l) => ({ ...l, key: `log-${logSeqRef.current++}`, ts, turn, turnActor, batchId, phase }))
+          .reverse(),
+        ...cur,
+      ].slice(0, 120)
     );
   }, [snapshot]);
 
