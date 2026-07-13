@@ -462,16 +462,19 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     original: true,
   },
   {
-    // Evergreen original: General Grievous — server hero general-grievous (issue
-    // #288 ↔ engine #160). No unmatched.cards page (original: true suppresses the
-    // lobby deep-link). Card art renders from the R2 TTS sprite sheet via the
-    // snapshot's per-card `cardImage`; no dedicated cardback art yet.
+    // Evergreen original: General Grievous — a fan creation by Inforce (issue
+    // #288 ↔ engine #160; polish #291). No unmatched.cards page (original: true
+    // suppresses the lobby deep-link). Card art renders from the R2 TTS sprite
+    // sheet via the snapshot's per-card `cardImage`; cardback is the TTS cover,
+    // self-hosted on R2 and mirrored into the evergreen snapshot appearance.
     id: "grievous",
     name: "General Grievous",
     hero: "General Grievous",
-    author: "unbrewed",
+    author: "Inforce",
     likes: 0,
     highlightColour: "#8a9199",
+    cardbackUrl:
+      "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/cover.png",
     original: true,
   },
 ];
