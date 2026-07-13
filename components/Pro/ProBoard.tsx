@@ -147,7 +147,7 @@ const OnyxiaFlamebreathLanes = () => (
   </svg>
 );
 
-const ONYXIA_ZONE_COLORS: Record<string, string> = {
+const FALLBACK_ONYXIA_ZONE_COLORS: Record<string, string> = {
   green: "#2fbf71",
   yellow: "#f4d35e",
   orange: "#f59e42",
@@ -162,7 +162,19 @@ const semicirclePath = (cx: number, cy: number, r: number, side: "left" | "right
     ? `M ${cx} ${cy - r} A ${r} ${r} 0 0 0 ${cx} ${cy + r} L ${cx} ${cy} Z`
     : `M ${cx} ${cy - r} A ${r} ${r} 0 0 1 ${cx} ${cy + r} L ${cx} ${cy} Z`;
 
-const OnyxiaBoardGraph = ({ spaces, diam, width, height }: { spaces: ProMapSpace[]; diam: number; width: number; height: number }) => {
+const OnyxiaBoardGraph = ({
+  spaces,
+  diam,
+  width,
+  height,
+  zoneColors,
+}: {
+  spaces: ProMapSpace[];
+  diam: number;
+  width: number;
+  height: number;
+  zoneColors: Map<string, string>;
+}) => {
   const byId = new Map(spaces.map((s) => [s.id, s]));
   const edgeKeys = new Set<string>();
   const edges = spaces.flatMap((from) =>
@@ -202,7 +214,7 @@ const OnyxiaBoardGraph = ({ spaces, diam, width, height }: { spaces: ProMapSpace
       {spaces.map((s) => {
         const cx = s.x * width;
         const cy = s.y * height;
-        const colors = (s.zones.length ? s.zones : ["green"]).map((z) => ONYXIA_ZONE_COLORS[z] ?? "#999");
+        const colors = (s.zones.length ? s.zones : ["green"]).map((z) => zoneColors.get(z) ?? FALLBACK_ONYXIA_ZONE_COLORS[z] ?? "#999");
         return (
           <g key={s.id}>
             {colors.length === 1 ? (
@@ -1128,6 +1140,7 @@ export const ProBoard = ({
           diam={diameter}
           width={map.meta.imageWidth ?? 100}
           height={map.meta.imageHeight ?? 100}
+          zoneColors={new Map(map.zones.map((z) => [z.id, z.color]))}
         />
       )}
       {map.id === "onyxia-lair" && <OnyxiaPhaseBar index={encounterPhaseCounterIndex} />}
