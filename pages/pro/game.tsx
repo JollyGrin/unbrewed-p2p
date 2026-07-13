@@ -998,7 +998,39 @@ const SplashPanel = ({
           </Text>
           {deck && (
             <Text fontStyle="italic" fontSize="0.8rem" color="brand.parchment" opacity={0.85}>
-              by {deck.author}
+              by{" "}
+              {/* Community decks link to their unmatched.cards attribution page;
+                  evergreen originals (deck.original) have no such page, so the
+                  author stays plain text. stopPropagation is defensive — the
+                  splash panel isn't itself selectable, but keeps the link inert
+                  toward any future click-to-lock wrapper. */}
+              {deck.original ? (
+                deck.author
+              ) : (
+                <Tooltip
+                  label={`View ${deck.author}'s deck on unmatched.cards`}
+                  hasArrow
+                  placement="top"
+                  openDelay={150}
+                >
+                  <Link
+                    href={`https://unmatched.cards/decks/${deck.id}`}
+                    isExternal
+                    aria-label={`View ${deck.author}'s deck on unmatched.cards (opens in a new tab)`}
+                    onClick={(e) => e.stopPropagation()}
+                    color="inherit"
+                    textDecoration="underline"
+                    sx={{ textUnderlineOffset: "0.15em" }}
+                    _hover={{ color: "brand.accent", opacity: 1 }}
+                    display="inline-flex"
+                    alignItems="center"
+                    gap="0.2rem"
+                  >
+                    {deck.author}
+                    <TbExternalLink size="0.7rem" />
+                  </Link>
+                </Tooltip>
+              )}
             </Text>
           )}
           <Flex gap="0.9rem" mt="0.45rem" align="center" color="brand.parchment" sx={{ fontVariantNumeric: "tabular-nums" }}>
