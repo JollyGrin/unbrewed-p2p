@@ -407,3 +407,191 @@ describe("useProSocket — seat presence + auto-forfeit countdown (issue #222)",
     expect(hook.result.current.opponentConnected).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Per-decision move timer (issue #223, engine #122): CREATE_ROOM.turnTimerSeconds,
+// echoed setting, TURN_TIMER broadcasts, and own-clock expiry detection.
+// ---------------------------------------------------------------------------
+
+describe("useProSocket — move timer wire (issue #223)", () => {
+  const realWS = global.WebSocket;
+  beforeEach(() => {
+    // @ts-expect-error — swap in the fake for the test
+    global.WebSocket = FakeWebSocket;
+    window.localStorage.clear();
+  });
+  afterEach(() => {
+    global.WebSocket = realWS;
+    FakeWebSocket.last = null;
+  });
+
+  const boot = () => {
+    const hook = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    return { hook, ws };
+  };
+
+  it("CREATE_ROOM includes turnTimerSeconds when a timer is set, omits it when off", () => {
+    const { hook, ws } = boot();
+    act(() => hook.result.current.createRoom("hero-a", undefined, undefined, "duel", [], 30));
+    const timed = ws.sent.map((s) => JSON.parse(s)).find((m) => m.type === "CREATE_ROOM");
+    expect(timed.turnTimerSeconds).toBe(30);
+
+    ws.sent.length = 0;
+    act(() => hook.result.current.createRoom("hero-a")); // no timer arg
+    const untimed = ws.sent.map((s) => JSON.parse(s)).find((m) => m.type === "CREATE_ROOM");
+    expect(untimed).toBeDefined();
+    expect("turnTimerSeconds" in untimed).toBe(false);
+
+    ws.sent.length = 0;
+    act(() => hook.result.current.createRoom("hero-a", undefined, undefined, "duel", [], 0));
+    const zero = ws.sent.map((s) => JSON.parse(s)).find((m) => m.type === "CREATE_ROOM");
+    expect("turnTimerSeconds" in zero).toBe(false); // 0 = off → omitted
+  });
+
+  it("surfaces the room's turnTimerSeconds from ROOM_CREATED / ROOM_JOINED / ROOM_STATUS", () => {
+    const { hook, ws } = boot();
+    act(() => ws.emit({ type: "ROOM_CREATED", roomId: "R1", token: "t", you: "p1", turnTimerSeconds: 45 }));
+    expect(hook.result.current.roomInfo?.turnTimerSeconds).toBe(45);
+
+    act(() =>
+      ws.emit({
+        type: "ROOM_STATUS",
+        roomId: "R1",
+        formatId: "duel",
+        requiredPlayers: 2,
+        seats: [{ player: "p1", heroId: "medusa", connected: true, bot: null }],
+        turnTimerSeconds: 45,
+      })
+    );
+    expect(hook.result.current.roomInfo?.turnTimerSeconds).toBe(45);
+  });
+
+  it("an untimed room leaves turnTimerSeconds undefined and never sets turnTimer", () => {
+    const { hook, ws } = boot();
+    act(() => ws.emit({ type: "ROOM_JOINED", roomId: "R1", token: "t", you: "p1" }));
+    act(() => ws.emit(minimalState()));
+    expect(hook.result.current.roomInfo?.turnTimerSeconds).toBeUndefined();
+    expect(hook.result.current.turnTimer).toBeNull();
+  });
+
+  it("tracks the latest TURN_TIMER broadcast (which seat, and the deadline)", () => {
+    const { hook, ws } = boot();
+    act(() => ws.emit({ type: "ROOM_JOINED", roomId: "R1", token: "t", you: "p1", turnTimerSeconds: 30 }));
+    act(() => ws.emit(minimalState()));
+
+    act(() => ws.emit({ type: "TURN_TIMER", player: "p1", deadline: 1_000_000 }));
+    expect(hook.result.current.turnTimer).toEqual({ player: "p1", deadline: 1_000_000 });
+
+    // resync to a fresh deadline / next actor
+    act(() => ws.emit({ type: "TURN_TIMER", player: "p2", deadline: 2_000_000 }));
+    expect(hook.result.current.turnTimer).toEqual({ player: "p2", deadline: 2_000_000 });
+
+    // paused clock (bot/disconnected) → deadline null
+    act(() => ws.emit({ type: "TURN_TIMER", player: "p2", deadline: null }));
+    expect(hook.result.current.turnTimer).toEqual({ player: "p2", deadline: null });
+  });
+
+  it("latches ownTimerExpired when the viewer's own clock lapses and the server moves on", () => {
+    jest.spyOn(Date, "now").mockReturnValue(1_000_000);
+    try {
+      const { hook, ws } = boot();
+      act(() => ws.emit({ type: "ROOM_JOINED", roomId: "R1", token: "t", you: "p1", turnTimerSeconds: 30 }));
+      act(() => ws.emit(minimalState()));
+
+      // our clock is armed with a deadline 10s out
+      act(() => ws.emit({ type: "TURN_TIMER", player: "p1", deadline: 1_010_000 }));
+      expect(hook.result.current.ownTimerExpired).toBe(false);
+
+      // wall clock passes the deadline WITHOUT us acting; the server injects a move
+      // and broadcasts the next actor's clock → our lapse is a genuine timeout.
+      (Date.now as jest.Mock).mockReturnValue(1_011_000);
+      act(() => ws.emit({ type: "TURN_TIMER", player: "p2", deadline: 1_041_000 }));
+      expect(hook.result.current.ownTimerExpired).toBe(true);
+
+      act(() => hook.result.current.acknowledgeOwnTimerExpired());
+      expect(hook.result.current.ownTimerExpired).toBe(false);
+    } finally {
+      (Date.now as jest.Mock).mockRestore();
+    }
+  });
+
+  it("does NOT latch when the viewer acted before the deadline (move at the wire)", () => {
+    jest.spyOn(Date, "now").mockReturnValue(1_000_000);
+    try {
+      const { hook, ws } = boot();
+      act(() => ws.emit({ type: "ROOM_JOINED", roomId: "R1", token: "t", you: "p1", turnTimerSeconds: 30 }));
+      act(() => ws.emit(minimalState()));
+      act(() => ws.emit({ type: "TURN_TIMER", player: "p1", deadline: 1_010_000 }));
+
+      // we act just before the deadline…
+      (Date.now as jest.Mock).mockReturnValue(1_009_500);
+      act(() => hook.result.current.sendAction({ type: "END_TURN", player: "p1" } as never));
+      // …and the round-trip TURN_TIMER for the next actor lands a hair after it
+      (Date.now as jest.Mock).mockReturnValue(1_010_200);
+      act(() => ws.emit({ type: "TURN_TIMER", player: "p2", deadline: 1_040_000 }));
+
+      expect(hook.result.current.ownTimerExpired).toBe(false); // our move, not a timeout
+    } finally {
+      (Date.now as jest.Mock).mockRestore();
+    }
+  });
+
+  it("does NOT latch on an OPPONENT's clock expiry (their move just advances)", () => {
+    jest.spyOn(Date, "now").mockReturnValue(1_000_000);
+    try {
+      const { hook, ws } = boot();
+      act(() => ws.emit({ type: "ROOM_JOINED", roomId: "R1", token: "t", you: "p1", turnTimerSeconds: 30 }));
+      act(() => ws.emit(minimalState()));
+
+      // opponent p2 is on the clock and times out
+      act(() => ws.emit({ type: "TURN_TIMER", player: "p2", deadline: 1_010_000 }));
+      (Date.now as jest.Mock).mockReturnValue(1_011_000);
+      act(() => ws.emit({ type: "TURN_TIMER", player: "p1", deadline: 1_041_000 }));
+
+      expect(hook.result.current.ownTimerExpired).toBe(false);
+    } finally {
+      (Date.now as jest.Mock).mockRestore();
+    }
+  });
+
+  it("does NOT latch on a pause (disconnect) before the deadline", () => {
+    jest.spyOn(Date, "now").mockReturnValue(1_000_000);
+    try {
+      const { hook, ws } = boot();
+      act(() => ws.emit({ type: "ROOM_JOINED", roomId: "R1", token: "t", you: "p1", turnTimerSeconds: 30 }));
+      act(() => ws.emit(minimalState()));
+      act(() => ws.emit({ type: "TURN_TIMER", player: "p1", deadline: 1_010_000 }));
+
+      // we drop with 5s left; the server pauses our clock (deadline null)
+      (Date.now as jest.Mock).mockReturnValue(1_005_000);
+      act(() => ws.emit({ type: "TURN_TIMER", player: "p1", deadline: null }));
+
+      expect(hook.result.current.ownTimerExpired).toBe(false); // paused, not expired
+    } finally {
+      (Date.now as jest.Mock).mockRestore();
+    }
+  });
+
+  it("clears the bar and any armed own-clock when the game ends (winner set)", () => {
+    jest.spyOn(Date, "now").mockReturnValue(1_000_000);
+    try {
+      const { hook, ws } = boot();
+      act(() => ws.emit({ type: "ROOM_JOINED", roomId: "R1", token: "t", you: "p1", turnTimerSeconds: 30 }));
+      act(() => ws.emit(minimalState()));
+      act(() => ws.emit({ type: "TURN_TIMER", player: "p1", deadline: 1_010_000 }));
+      expect(hook.result.current.turnTimer).not.toBeNull();
+
+      // game-over STATE (a winner is decided): the bar clears, no "time's up" toast
+      (Date.now as jest.Mock).mockReturnValue(1_011_000);
+      act(() =>
+        ws.emit({ type: "STATE", view: { you: "p1", prompt: null, activePlayer: "p1", winner: "p1" }, legalActions: [] })
+      );
+      expect(hook.result.current.turnTimer).toBeNull();
+      expect(hook.result.current.ownTimerExpired).toBe(false);
+    } finally {
+      (Date.now as jest.Mock).mockRestore();
+    }
+  });
+});
