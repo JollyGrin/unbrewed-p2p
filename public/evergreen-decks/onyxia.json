@@ -34,15 +34,12 @@
         "boost": 1,
         "characterName": "ONYXIA",
         "duringText": "",
-        "imageUrl": "/evergreen-decks/art/onyxia/tail-sweep.png",
+        "imageUrl": "/evergreen-decks/art/onyxia/tail-sweep.jpg",
         "immediateText": "Move opposing and all adjacent fighers 1 space.",
         "quantity": 3,
         "title": "Tail Sweep",
         "type": "versatile",
-        "value": 3,
-        "cardImage": {
-          "url": "/evergreen-decks/art/onyxia/tail-sweep.png"
-        }
+        "value": 3
       },
       {
         "afterText": "",
@@ -55,10 +52,7 @@
         "quantity": 3,
         "title": "Wing Buffet",
         "type": "attack",
-        "value": 3,
-        "cardImage": {
-          "url": "/evergreen-decks/art/onyxia/wing-buffet.png"
-        }
+        "value": 3
       },
       {
         "afterText": "If you won the combat, deals the damage difference to all adjacent player.",
@@ -66,15 +60,12 @@
         "boost": 1,
         "characterName": "ONYXIA",
         "duringText": "",
-        "imageUrl": "/evergreen-decks/art/onyxia/spit-fire.png",
+        "imageUrl": "/evergreen-decks/art/onyxia/spit-fire.jpg",
         "immediateText": "",
         "quantity": 3,
         "title": "Spit fire",
         "type": "attack",
-        "value": 5,
-        "cardImage": {
-          "url": "/evergreen-decks/art/onyxia/spit-fire.png"
-        }
+        "value": 5
       },
       {
         "afterText": "",
@@ -82,15 +73,11 @@
         "boost": 1,
         "characterName": "ANY",
         "duringText": "",
-        "imageUrl": "/evergreen-decks/art/onyxia/knock-away.png",
         "immediateText": "Cancel all effects on the opposing fighter's card.",
         "quantity": 2,
         "title": "Knock Away",
         "type": "versatile",
-        "value": 3,
-        "cardImage": {
-          "url": "/evergreen-decks/art/onyxia/knock-away.png"
-        }
+        "value": 3
       },
       {
         "afterText": "",
@@ -98,15 +85,11 @@
         "boost": 1,
         "characterName": "ONYXIA",
         "duringText": "",
-        "imageUrl": "/evergreen-decks/art/onyxia/ignite.png",
         "immediateText": "",
         "quantity": 3,
         "title": "ignite",
         "type": "scheme",
-        "value": null,
-        "cardImage": {
-          "url": "/evergreen-decks/art/onyxia/ignite.png"
-        }
+        "value": null
       },
       {
         "afterText": "Spawn two whelps.",
@@ -114,15 +97,12 @@
         "boost": 1,
         "characterName": "ANY",
         "duringText": "",
-        "imageUrl": "/evergreen-decks/art/onyxia/brood-of-onyxia.png",
+        "imageUrl": "/evergreen-decks/art/onyxia/brood-of-onyxia.jpg",
         "immediateText": "",
         "quantity": 3,
         "title": "brood of onyxia",
         "type": "defence",
-        "value": 3,
-        "cardImage": {
-          "url": "/evergreen-decks/art/onyxia/brood-of-onyxia.png"
-        }
+        "value": 3
       },
       {
         "afterText": "",
@@ -130,15 +110,11 @@
         "boost": 1,
         "characterName": "ANY",
         "duringText": "",
-        "imageUrl": "/evergreen-decks/art/onyxia/blood-pact.png",
         "immediateText": "Add 2 value to this card for each whelp you sacrifice.",
         "quantity": 3,
         "title": "Blood Pact",
         "type": "versatile",
-        "value": 3,
-        "cardImage": {
-          "url": "/evergreen-decks/art/onyxia/blood-pact.png"
-        }
+        "value": 3
       },
       {
         "afterText": "",
@@ -146,15 +122,11 @@
         "boost": 1,
         "characterName": "ANY",
         "duringText": "",
-        "imageUrl": "/evergreen-decks/art/onyxia/lair-advantage.png",
         "immediateText": "",
         "quantity": 2,
         "title": "lair advantage",
         "type": "scheme",
-        "value": null,
-        "cardImage": {
-          "url": "/evergreen-decks/art/onyxia/lair-advantage.png"
-        }
+        "value": null
       },
       {
         "afterText": "",
@@ -162,15 +134,11 @@
         "boost": 1,
         "characterName": "ANY",
         "duringText": "",
-        "imageUrl": "/evergreen-decks/art/onyxia/phoenix-flame.png",
         "immediateText": "",
         "quantity": 1,
         "title": "Phoenix Flame",
         "type": "versatile",
-        "value": 2,
-        "cardImage": {
-          "url": "/evergreen-decks/art/onyxia/phoenix-flame.png"
-        }
+        "value": 2
       }
     ]
   },
