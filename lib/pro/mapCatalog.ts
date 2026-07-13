@@ -18,6 +18,7 @@ import { MULTIPLAYER_PLAYTEST_MAP, PRO_FORMATS, ProFormatId } from "./multiplaye
 import mendedDrumJson from "./fixtures/mended-drum.map.json";
 import islandOfDespairJson from "./fixtures/island-of-despair.map.json";
 import cityDocksJson from "./fixtures/city-docks.map.json";
+import polusJson from "./fixtures/polus.map.json";
 
 /** A board's authored per-format seat mapping (present on multiplayer boards). */
 interface MapFormatSupport {
@@ -45,6 +46,7 @@ export interface MapCatalogEntry {
 const mendedDrum = mendedDrumJson as unknown as CatalogMap;
 const islandOfDespair = islandOfDespairJson as unknown as CatalogMap;
 const cityDocks = cityDocksJson as unknown as CatalogMap;
+const polus = polusJson as unknown as CatalogMap;
 
 /**
  * Ordered built-in boards. The Mended Drum is the duel default (server board,
@@ -69,6 +71,12 @@ export const MAP_CATALOG: MapCatalogEntry[] = [
     title: cityDocks.meta.title,
     thumbnailUrl: cityDocks.meta.imageUrl ?? "",
     map: cityDocks,
+  },
+  {
+    id: polus.id,
+    title: polus.meta.title,
+    thumbnailUrl: polus.meta.imageUrl ?? "",
+    map: polus,
   },
   {
     id: MULTIPLAYER_PLAYTEST_MAP.id,
