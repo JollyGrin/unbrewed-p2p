@@ -21,6 +21,7 @@ const MODE_HELP: Record<EditorMode, string> = {
   place: "click board = add · click space = select · drag = move · hover = delete ✕",
   connect: "click A then B (or drag A→B) = two-way edge · click an edge to set direction / delete",
   zone: "pick a zone below, then click spaces to toggle membership",
+  passage: "click spaces to flag/unflag them as secret passages · ≥2 flagged spaces form one teleport network",
 };
 
 interface Props {
@@ -83,7 +84,7 @@ export const Toolbar = (props: Props) => {
         onChange={(e) => setMetaField({ source: e.target.value })} />
 
       <Flex gap="0.25rem" flexWrap="wrap">
-        {(["place", "connect", "zone"] as EditorMode[]).map((m) => (
+        {(["place", "connect", "zone", "passage"] as EditorMode[]).map((m) => (
           <Button key={m} {...(mode === m ? BTN_ON : BTN)} onClick={() => setMode(m)}>{m}</Button>
         ))}
       </Flex>

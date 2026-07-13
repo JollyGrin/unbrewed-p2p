@@ -23,7 +23,7 @@ import { ItemBadge, PassageBadge } from "@/components/Pro/ItemBadge";
 import type { EdgeRef, MapDoc, Zone } from "./model";
 import { edgeRef, edgesOf, sameEdge, spaceById } from "./model";
 
-export type EditorMode = "place" | "connect" | "zone";
+export type EditorMode = "place" | "connect" | "zone" | "passage";
 
 interface Props {
   doc: MapDoc;
@@ -38,6 +38,7 @@ interface Props {
   onClearSelection: () => void;
   onConnect: (a: string, b: string) => void;
   onToggleZone: (id: string) => void;
+  onTogglePassage: (id: string) => void;
   onDeleteSpace: (id: string) => void;
   onMoveStart: () => void;
   onMove: (id: string, x: number, y: number) => void;
@@ -52,13 +53,16 @@ const SELECTED = "#00e5ff";
 const TWO_WAY = "#00e5ff";
 const ONE_WAY = "#ff9f1c";
 const PENDING = "#e0a82e";
+// Keyhole parchment (same fill as PassageBadge's glyph) — reused to tint the
+// secret-passage network links so the linkage reads as "belongs to the keyholes".
+const PASSAGE = "#E8D9B8";
 
 export const MapCanvas = (props: Props) => {
   const {
     doc, zones, spaceDiameter, mode,
     selectedSpaceId, selectedEdge,
     onPlace, onSelectSpace, onSelectEdge, onClearSelection,
-    onConnect, onToggleZone, onDeleteSpace, onMoveStart, onMove, onMoveEnd,
+    onConnect, onToggleZone, onTogglePassage, onDeleteSpace, onMoveStart, onMove, onMoveEnd,
   } = props;
 
   const imgRef = useRef<HTMLImageElement>(null);
@@ -163,8 +167,10 @@ export const MapCanvas = (props: Props) => {
       return;
     }
     // place-mode select and connect are resolved on pointer-up; here we only
-    // handle zone painting (which has no gesture) so the click always toggles.
+    // handle the gesture-less toggles (zone painting, passage flagging) so the
+    // click always toggles.
     if (mode === "zone") onToggleZone(id);
+    else if (mode === "passage") onTogglePassage(id);
   };
 
   // Rubber-band preview follows the cursor from the pending/click anchor while
@@ -190,10 +196,23 @@ export const MapCanvas = (props: Props) => {
     }
   };
 
-  const edgesClickable = mode !== "zone";
+  // Edges stay selectable only in the edge-oriented modes; zone/passage clicks
+  // are for painting spaces, so a stray click on an edge line must not steal them.
+  const edgesClickable = mode === "place" || mode === "connect";
   const diamPct = spaceDiameter * 100;
   const anchor = pendingSource ?? undefined;
   const anchorSpace = anchor ? spaceById(doc, anchor) : undefined;
+
+  // All-pairs links between the flagged passage spaces (engine #156 wires them
+  // into one mutual teleport network; the model keeps that implicit, so we draw
+  // it). Only meaningful with ≥2 spaces — one keyhole is not yet a network.
+  const passageSpaces = doc.spaces.filter((s) => s.passage);
+  const passageLinks: [typeof passageSpaces[number], typeof passageSpaces[number]][] = [];
+  if (passageSpaces.length >= 2) {
+    for (let i = 0; i < passageSpaces.length; i++)
+      for (let j = i + 1; j < passageSpaces.length; j++)
+        passageLinks.push([passageSpaces[i], passageSpaces[j]]);
+  }
 
   const spaceCursor = mode === "place" ? "grab" : mode === "connect" ? "crosshair" : "pointer";
 
@@ -236,6 +255,19 @@ export const MapCanvas = (props: Props) => {
             preserveAspectRatio="none"
             style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
           >
+            {/* secret-passage network (engine #156): flagged spaces are mutually
+                connected. Draw a faint keyhole-tinted link between every pair so
+                the all-pairs teleport relationship is legible. Rendered first so
+                real edges (and the keyhole badges) sit on top. */}
+            {passageLinks.map(([a, b]) => (
+              <line
+                key={`passage-${a.id}-${b.id}`}
+                x1={a.x * 100} y1={a.y * 100} x2={b.x * 100} y2={b.y * 100}
+                stroke={PASSAGE} strokeWidth={1.5} vectorEffect="non-scaling-stroke"
+                strokeDasharray="2 4" strokeLinecap="round" opacity={0.45}
+              />
+            ))}
+
             {edgesOf(doc).map((edge) => {
               const from = spaceById(doc, edge.from);
               const to = spaceById(doc, edge.to);
