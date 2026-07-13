@@ -93,9 +93,18 @@ export const FighterTokenPortrait = ({
           alt=""
           draggable={false}
           position="absolute"
-          inset={0}
-          w="100%"
-          h="100%"
+          // Overscan the art past the mask on EVERY edge (~3px) before any
+          // framing zoom. The `scale(1.2)` below is anchored center-top, so it
+          // overscans the bottom and sides but pins the art's TOP edge exactly on
+          // the circle's border-radius/overflow:hidden seam — at some DPRs a
+          // sub-pixel hairline of the field/gold rim then peeks through at the
+          // top (issue #279; #272 fixed the bottom, #273 added the zoom, neither
+          // covered the top). Growing the base box outward gives the pinned top
+          // its own bleed so the art fully covers the circle at every edge.
+          top="-3px"
+          left="-3px"
+          w="calc(100% + 6px)"
+          h="calc(100% + 6px)"
           // `cover` only zooms to the container's aspect ratio; a token asset with
           // its own baked-in padding/margin around the character still reads as
           // inset inside the circle. An extra scale zooms into the art itself so

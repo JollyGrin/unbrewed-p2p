@@ -99,4 +99,13 @@ describe("maneuverBoostHint (issue #85)", () => {
   it("falls back to the no-boostable-cards wording pre-move", () => {
     expect(maneuverBoostHint(view({}), [endManeuver])).toBe("no boostable cards in hand");
   });
+
+  // Issue #285: a fighter that is mid-PREVIEW (stepped locally but not yet
+  // committed) is NOT in `maneuver.moved` — the whole walk lands as one
+  // MOVE_FIGHTER only on commit. So the hint must still treat it as un-moved and
+  // keep boost on the table; the local ghost never suppresses the boost tip.
+  it("keeps boost eligible for a fighter that is only mid-preview (not yet committed)", () => {
+    const v = view({ maneuver: { boostApplied: 0, boosted: false, moved: [] } });
+    expect(maneuverBoostHint(v, [boost("thrall/lightning-bolt#1"), endManeuver])).toMatch(/discard a card/);
+  });
 });
