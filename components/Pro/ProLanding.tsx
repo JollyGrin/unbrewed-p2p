@@ -34,14 +34,14 @@ import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
  */
 const FALLBACK_READY: Record<string, string> = {
   kdKM: "King Kong",
-  taranis: "King Taranis",
+  // Spice remixes are the default-roster decks; their reflavored baselines
+  // (`taranis`, `thetis`, `piper`, `hollow-oak`) are flipped to tier
+  // `reflavored` and hidden unless ?debug (see roster filter). Their snapshots
+  // + manifest entries stay for debug play, but they are omitted here so the
+  // pre-socket roster shows spice only.
   "taranis-spice": "King Taranis",
-  // Spice remix (display name "Thetis") is the default-roster Thetis; the
-  // reflavored baseline `thetis` is hidden unless ?debug (see roster filter).
   "thetis-spice": "Thetis",
-  piper: "The Piper of the Underroads",
   "piper-spice": "The Piper of the Underroads",
-  "hollow-oak": "The Hollow Oak",
   "hollow-oak-spice": "The Hollow Oak",
   lDOM: "The Mandalorian",
   pk1x: "Thrall",
