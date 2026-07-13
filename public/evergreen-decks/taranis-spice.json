@@ -1,0 +1,269 @@
+{
+  "bgg_link": null,
+  "created_on": "Mon, 13 Jul 2026 00:00:00 GMT",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#3b4a5e",
+      "cardbackUrl": "https://unbrewed.xyz/evergreen-decks/art/taranis/cardback.webp",
+      "highlightColour": "#c9962b",
+      "isPNP": false,
+      "patternName": "Lightning"
+    },
+    "name": "King Taranis",
+    "hero": {
+      "hp": 18,
+      "isRanged": false,
+      "move": 2,
+      "name": "King Taranis",
+      "specialAbility": "STORMCHANNEL\nWhen King Taranis attacks, you may BOOST that attack, playing the BOOST card face down alongside it. If the effects of your attack card are cancelled, discard the BOOST without using it.",
+      "quote": "A warrior-king forged into a living thunderstorm, channeling every strike through the rune-etched warhammer Gromnir — commit to the big swing and boost it beyond answer.",
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/taranis/token-taranis.webp"
+    },
+    "sidekick": {
+      "hp": 7,
+      "isRanged": true,
+      "name": "Veyra the Tempest Whisper",
+      "quantity": 1,
+      "quote": "A fragile, ethereal storm-oracle who whispers the tempest exactly where it is needed.",
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/taranis/token-veyra.webp"
+    },
+    "extraCharacters": [],
+    "ruleCards": [],
+    "cards": [
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "TARANIS",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/taranis/ka-01.webp",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Gromnir",
+        "type": "attack",
+        "value": 6
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "TARANIS",
+        "duringText": "You may BOOST this attack. (This stacks with STORMCHANNEL's boost.)",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/taranis/ka-02.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Storm's Toll",
+        "type": "attack",
+        "value": 2
+      },
+      {
+        "afterText": "Choose one — draw 2 cards; or King Taranis recovers 3 health.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "TARANIS",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/taranis/ka-03.webp",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Skyfather's Charge",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "Move each of your fighters up to 3 spaces.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "TARANIS",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/taranis/ka-04.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Stormstride",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "If King Taranis has 4 or less health and was not defeated, set his health to 8.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "TARANIS",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/taranis/ka-05.webp",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Eye of the Storm",
+        "type": "defence",
+        "value": 1
+      },
+      {
+        "afterText": "",
+        "basicText": "Search your deck and discard pile for GROMNIR and put it into your hand. Shuffle your deck if you searched it.",
+        "boost": 2,
+        "characterName": "TARANIS",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/taranis/ka-06.webp",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "The Hammer Answers",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "",
+        "basicText": "Draw 1 card. Place Veyra in any space.",
+        "boost": 2,
+        "characterName": "VEYRA",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/taranis/ka-07.webp",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Gathering Storm",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "Deal 1 damage to one fighter adjacent to Veyra.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "VEYRA",
+        "duringText": "Prevent all damage.",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/taranis/ka-08.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Static Shroud",
+        "type": "defence",
+        "value": 0
+      },
+      {
+        "afterText": "If you won the combat, move Veyra up to 4 spaces and draw 1 card.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "VEYRA",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/taranis/ka-09.webp",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Tempest's Gambit",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "",
+        "basicText": "Choose a space in Veyra's zone. Deal 2 damage to each opposing fighter there and in one adjacent space. Draw a card if this defeats at least one fighter.",
+        "boost": 2,
+        "characterName": "VEYRA",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/taranis/ka-10.webp",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Chain Lightning",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "",
+        "basicText": "Move each fighter — yours and your opponent's — up to 3 spaces. Then move Veyra up to 2 more spaces.",
+        "boost": 2,
+        "characterName": "VEYRA",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/taranis/ka-11.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Driving Squall",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "Move your fighter up to 4 spaces.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/taranis/ka-12.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Swift Strike",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": "If you won the combat, choose one of the fighters in the combat and move them up to 2 spaces.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/taranis/ka-13.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Skirmish",
+        "type": "versatile",
+        "value": 4
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "If your fighter started this turn in a different space, this card's value is 5 instead.",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/taranis/ka-14.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Momentous Shift",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/taranis/ka-15.webp",
+        "immediateText": "Cancel all effects on your opponent's card.",
+        "quantity": 3,
+        "title": "Feint",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "Draw 1 card. If you won the combat, draw 2 cards instead.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/taranis/ka-16.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Regroup",
+        "type": "versatile",
+        "value": 1
+      }
+    ]
+  },
+  "deck_first_published_on": null,
+  "deck_published": true,
+  "family_id": "taranis-spice",
+  "id": "taranis-spice",
+  "name": "King Taranis",
+  "note": "Unbrewed spice remix of the evergreen King Taranis deck: same hero, statline, and STORMCHANNEL boost engine, with 6 reworked cards (Skyfather's Charge, Stormstride, Gathering Storm, Static Shroud, Tempest's Gambit, Driving Squall) leaning harder into the Veyra sidekick dynamic. Art reuses King Taranis's until dedicated spice art lands.",
+  "published": true,
+  "published_on": null,
+  "tags": [
+    {
+      "name": "Evergreen",
+      "slug": "evergreen"
+    },
+    {
+      "name": "Spice",
+      "slug": "spice"
+    },
+    {
+      "name": "Public Domain",
+      "slug": "public-domain"
+    }
+  ],
+  "updated_on": "Mon, 13 Jul 2026 00:00:00 GMT",
+  "user": "unbrewed",
+  "version_id": "evergreen-1",
+  "version_name": "1.0"
+}
