@@ -461,4 +461,17 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/cardback.webp",
     original: true,
   },
+  {
+    // Evergreen original: General Grievous — server hero general-grievous (issue
+    // #288 ↔ engine #160). No unmatched.cards page (original: true suppresses the
+    // lobby deep-link). Card art renders from the R2 TTS sprite sheet via the
+    // snapshot's per-card `cardImage`; no dedicated cardback art yet.
+    id: "grievous",
+    name: "General Grievous",
+    hero: "General Grievous",
+    author: "unbrewed",
+    likes: 0,
+    highlightColour: "#8a9199",
+    original: true,
+  },
 ];
