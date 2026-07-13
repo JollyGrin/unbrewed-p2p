@@ -44,3 +44,45 @@ describe("actionDock — BOOST_MOVE renders and emits generically", () => {
     expect(cardAffordances([p3Boost], "king-taranis/other#1")).toEqual([]);
   });
 });
+
+describe("actionDock — v17 battlefield items", () => {
+  it("labels USE_SCHEME_ITEM with the item's label from the space", () => {
+    const use: Action = { type: "USE_SCHEME_ITEM", player: "p1", space: "s4" };
+    expect(
+      describeAction(catalog, use, { nameOf, itemLabelForSpace: (sp) => (sp === "s4" ? "Fire Bomb" : undefined) })
+    ).toBe("Use Fire Bomb");
+    // No resolver → a graceful generic fallback (never a bare "undefined").
+    expect(describeAction(catalog, use, { nameOf })).toBe("Use item");
+  });
+
+  it("surfaces plain + attach commit variants as two labeled affordances", () => {
+    const card = "king-taranis/fireball#1";
+    const legalActions: Action[] = [
+      { type: "COMMIT_ATTACK_CARD", player: "p1", card },
+      { type: "COMMIT_ATTACK_CARD", player: "p1", card, attachItem: true },
+    ];
+    const affordances = cardAffordances(legalActions, card, { label: "Sword", value: 2 });
+    expect(affordances.map((a) => a.label)).toEqual(["Attack with", "Attack with + Sword (+2)"]);
+    // The attach variant forwards attachItem:true verbatim to the server.
+    expect(affordances[1].action).toMatchObject({ type: "COMMIT_ATTACK_CARD", attachItem: true });
+  });
+
+  it("labels a defense attach variant too", () => {
+    const card = "king-taranis/fireball#1";
+    const affordances = cardAffordances(
+      [{ type: "COMMIT_DEFENSE_CARD", player: "p2", card, attachItem: true }],
+      card,
+      { label: "Shield", value: 1 }
+    );
+    expect(affordances[0].label).toBe("Defend with + Shield (+1)");
+  });
+
+  it("without an attach-item context the attach variant keeps the plain verb", () => {
+    const card = "king-taranis/fireball#1";
+    const affordances = cardAffordances(
+      [{ type: "COMMIT_ATTACK_CARD", player: "p1", card, attachItem: true }],
+      card
+    );
+    expect(affordances[0].label).toBe("Attack with");
+  });
+});
