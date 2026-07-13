@@ -19,6 +19,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Box } from "@chakra-ui/react";
 import { useZoomPan } from "@/lib/pro/useZoomPan";
+import { ItemBadge, PassageBadge } from "@/components/Pro/ItemBadge";
 import type { EdgeRef, MapDoc, Zone } from "./model";
 import { edgeRef, edgesOf, sameEdge, spaceById } from "./model";
 
@@ -327,6 +328,24 @@ export const MapCanvas = (props: Props) => {
                     borderRadius="50%" bg="brand.accent" color="black" fontSize="0.6rem"
                     fontWeight={700} textAlign="center" lineHeight="16px">
                     {s.start}
+                  </Box>
+                )}
+                {/* battlefield item badge (engine #157) — the same purple/yellow
+                    square the in-game board shows; bottom-right so it clears the
+                    start (top-right) and delete ✕ (top-left) badges. */}
+                {(() => {
+                  const item = s.item ? (doc.items ?? []).find((it) => it.id === s.item) : undefined;
+                  return item ? (
+                    <Box position="absolute" bottom="-9px" right="-9px" w="16px" h="16px"
+                      title={`${item.label} (${item.kind})`}>
+                      <ItemBadge kind={item.kind} title={`${item.label} (${item.kind})`} />
+                    </Box>
+                  ) : null;
+                })()}
+                {/* secret-passage keyhole (engine #156) — bottom-left. */}
+                {s.passage && (
+                  <Box position="absolute" bottom="-9px" left="-9px" w="16px" h="16px">
+                    <PassageBadge />
                   </Box>
                 )}
                 {/* hover delete ✕ — common op without switching to a delete tool */}

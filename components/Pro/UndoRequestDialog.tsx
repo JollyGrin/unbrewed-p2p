@@ -34,6 +34,7 @@ const ACTION_LABELS: Record<Action["type"], string> = {
   MOVE_FIGHTER: "a Move",
   END_MANEUVER: "an ended Maneuver",
   SCHEME: "a Scheme",
+  USE_SCHEME_ITEM: "a scheme item",
   DECLARE_ATTACK: "an Attack",
   COMMIT_ATTACK_CARD: "an attack card",
   COMMIT_DEFENSE_CARD: "a defense card",

@@ -283,8 +283,22 @@
  *   two clocks never double-fire). Reconnecting re-arms a full fresh window.
  *   Timers are in-memory only: a resumed room keeps the SETTING (it rides in
  *   the resume token) but deadlines start fresh.
+ *
+ * ## v17 (2026-07-13): map-authored battlefield item spaces (Teen Spirit)
+ * Additive map + runtime surfaces for board item tokens (unbrewed-engine #157,
+ * issue #152; client sibling p2p #277). `ProMapSpace` gains `item?` (the item id
+ * spawned on that space); `ProMapDef` gains `items?` (`ProMapItem[]` — combat items
+ * carry `value`, scheme items carry opaque `ops`). `PlayerView.itemTokens?` lists the
+ * tokens still on the board (space -> item id), public ("the effects aren't secret")
+ * and cleared as items are consumed — the client drives every item badge strictly off
+ * this map, NEVER off the static `map.items`/`space.item` def. New action
+ * `USE_SCHEME_ITEM` (use a scheme item; costs an action, NOT a scheme-card play) and
+ * an optional `attachItem?` on `COMMIT_ATTACK_CARD`/`COMMIT_DEFENSE_CARD` (attach the
+ * combat item on the fighter's space — attacker decides before the defender). Events
+ * `ITEM_USED` + `COMBAT_ITEM_ATTACHED`, and `ACTION_SPENT.action` adds `SCHEME_ITEM`.
+ * Purely additive: item-less maps carry none of the new fields and behave identically.
  */
-export const PROTOCOL_VERSION = 16;
+export const PROTOCOL_VERSION = 17;
 
 /** Scripted-AI strength preset (server-side budgets; client treats as opaque). */
 export type BotDifficulty = "easy" | "medium" | "hard";
@@ -341,9 +355,17 @@ export type Action =
   | { type: "MOVE_FIGHTER"; player: PlayerId; fighter: FighterId; path: SpaceId[] }
   | { type: "END_MANEUVER"; player: PlayerId }
   | { type: "SCHEME"; player: PlayerId; card: CardInstanceId }
+  // Use a battlefield SCHEME item (v17 — Teen Spirit). The active fighter must
+  // occupy `space` and it must hold a scheme item token. Costs an action but is NOT
+  // "playing a scheme card". The client sends the space the server offered.
+  | { type: "USE_SCHEME_ITEM"; player: PlayerId; space: SpaceId }
   | { type: "DECLARE_ATTACK"; player: PlayerId; attacker: FighterId; target: FighterId }
-  | { type: "COMMIT_ATTACK_CARD"; player: PlayerId; card: CardInstanceId }
-  | { type: "COMMIT_DEFENSE_CARD"; player: PlayerId; card: CardInstanceId }
+  // attachItem (v17): the attacker may attach the COMBAT item on its space to this
+  // card — decided BEFORE the defender's defend decision, and public. The server
+  // offers both the plain and attach variants; absent = no attach.
+  | { type: "COMMIT_ATTACK_CARD"; player: PlayerId; card: CardInstanceId; attachItem?: boolean }
+  // attachItem (v17): the defender may attach the COMBAT item on its space.
+  | { type: "COMMIT_DEFENSE_CARD"; player: PlayerId; card: CardInstanceId; attachItem?: boolean }
   | { type: "DECLINE_DEFENSE"; player: PlayerId }
   | { type: "DISCARD_TO_LIMIT"; player: PlayerId; card: CardInstanceId }
   | { type: "RESPOND_PROMPT"; player: PlayerId; promptId: string; optionId: string }
@@ -375,7 +397,7 @@ export type GameEvent =
   | { type: "HERO_PLACED"; fighter: FighterId; space: SpaceId }
   | { type: "SIDEKICK_PLACED"; fighter: FighterId; space: SpaceId }
   | { type: "TURN_STARTED"; player: PlayerId; turnNumber: number }
-  | { type: "ACTION_SPENT"; player: PlayerId; action: "MANEUVER" | "SCHEME" | "ATTACK" }
+  | { type: "ACTION_SPENT"; player: PlayerId; action: "MANEUVER" | "SCHEME" | "ATTACK" | "SCHEME_ITEM" }
   | { type: "CARD_DRAWN"; player: PlayerId; card: CardInstanceId }
   | { type: "EXHAUSTION_DAMAGE"; player: PlayerId }
   | { type: "DAMAGE_APPLIED"; fighter: FighterId; amount: number; source: "EXHAUSTION" | "EFFECT" | "ATTACK" }
@@ -428,7 +450,12 @@ export type GameEvent =
   | { type: "FIGHTER_PINNED"; fighter: FighterId; expiresAtTurn: number; expiresAt: "START" | "END" }
   | { type: "FIGHTER_TAIL_PLACED"; fighter: FighterId; space: SpaceId }
   | { type: "FIGHTER_EJECTED"; fighter: FighterId; to: SpaceId }
-  | { type: "REGION_CLOSED"; region: string };
+  | { type: "REGION_CLOSED"; region: string }
+  // Battlefield items (v17 — Teen Spirit). ITEM_USED = a scheme item was activated
+  // (token consumed). COMBAT_ITEM_ATTACHED = a combat item was attached to a combat
+  // card at commit (token consumed); the +value bump lands in the DURING window.
+  | { type: "ITEM_USED"; player: PlayerId; space: SpaceId; item: string }
+  | { type: "COMBAT_ITEM_ATTACHED"; player: PlayerId; role: "ATTACK" | "DEFENSE"; space: SpaceId; item: string; value: number };
 
 export type LegalOption = { id: string; label: string; data?: Json };
 
@@ -494,6 +521,27 @@ export interface ProMapSpace {
   oneWayTo?: SpaceId[]; // directed MOVEMENT-ONLY edges (e.g. Drum stairs)
   region?: string; // region id (absent = main board) — v0.12.0
   start?: { slot: number };
+  item?: string; // v17 — battlefield item id spawned here (ProMapItem.id)
+  // Secret passage (engine #156, Cobble & Fog p.16 — Baskerville Manor). All spaces
+  // with `passage: true` form ONE all-pairs MOVEMENT-only network (1 MP per jump; not
+  // adjacency for attacks/effects; large fighters excluded). The engine enforces the
+  // movement; the client only renders a keyhole badge on flagged spaces. Mirrors
+  // engine/map.ts MapSpaceDef (sent verbatim in view.map, though absent from the
+  // engine's own protocol.ts ProMapSpace).
+  passage?: boolean;
+}
+
+// A battlefield item printed on the board (v17 — Teen Spirit). 'combat' items add a
+// DURING COMBAT value bump; 'scheme' items are use-activated. `ops` (scheme items)
+// is the effect DSL body — opaque to the client, resolved server-side. The client
+// renders a badge on `item` spaces (purple versatile square / yellow scheme square)
+// and clears it when the token leaves `itemTokens`.
+export interface ProMapItem {
+  id: string;
+  kind: "combat" | "scheme";
+  label: string;
+  value?: number; // combat items: the value bump
+  ops?: Json; // scheme items: effect body (opaque to the client)
 }
 
 export interface ProMapDef {
@@ -514,6 +562,7 @@ export interface ProMapDef {
   };
   zones: ProMapZone[];
   regions?: ProMapRegion[]; // v0.12.0 — board regions (absent on ordinary maps)
+  items?: ProMapItem[]; // v17 — battlefield item definitions (absent on ordinary maps)
   spaces: ProMapSpace[];
 }
 
@@ -659,6 +708,11 @@ export interface PlayerView {
   // Regions currently OUT OF PLAY (v0.12.0 — a closed Hut). Public info (no
   // redaction); the client greys out the region's inset panel. Absent/[] = none.
   closedRegions?: string[];
+  // v17: battlefield item tokens still ON the board, keyed by space → item id
+  // (look the id up in map.items). Public — "the effects aren't secret". Absent on
+  // maps with no items; an id disappears from here the instant its token is
+  // consumed. The client renders/clears item badges from this map.
+  itemTokens?: Record<SpaceId, string>;
   // v11: true iff THIS viewer has an eligible last discrete move to undo right now
   // (there is a clean cut boundary the server would rewind to). Recomputed on every
   // STATE broadcast per-viewer; the client gates its Undo button entirely on this.
