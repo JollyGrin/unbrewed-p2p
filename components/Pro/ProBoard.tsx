@@ -168,12 +168,14 @@ const OnyxiaBoardGraph = ({
   width,
   height,
   zoneColors,
+  whelpZoneIds,
 }: {
   spaces: ProMapSpace[];
   diam: number;
   width: number;
   height: number;
   zoneColors: Map<string, string>;
+  whelpZoneIds: Set<string>;
 }) => {
   const byId = new Map(spaces.map((s) => [s.id, s]));
   const edgeKeys = new Set<string>();
@@ -187,11 +189,19 @@ const OnyxiaBoardGraph = ({
       return [{ from, to }];
     })
   );
+  const oneWayEdges = spaces.flatMap((from) =>
+    (from.oneWayTo ?? []).flatMap((toId) => {
+      const to = byId.get(toId);
+      return to ? [{ from, to }] : [];
+    })
+  );
   // `diam` is a percentage of board width. Convert to the same pixel-like
   // coordinate system as the SVG viewBox so spaces stay circular on wide maps.
   const r = (diam / 100) * width * 0.5;
   const edgeWidth = width * 0.0042;
+  const oneWayWidth = width * 0.0036;
   const outlineWidth = width * 0.0016;
+  const whelpFontSize = r * 1.1;
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
@@ -199,6 +209,11 @@ const OnyxiaBoardGraph = ({
       aria-hidden="true"
       style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 2 }}
     >
+      <defs>
+        <marker id="onyxia-one-way-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+          <path d="M 0 0 L 8 4 L 0 8 z" fill="#f8f0dc" stroke="#050505" strokeWidth="0.75" />
+        </marker>
+      </defs>
       {edges.map(({ from, to }) => (
         <line
           key={`${from.id}-${to.id}`}
@@ -211,10 +226,32 @@ const OnyxiaBoardGraph = ({
           strokeLinecap="round"
         />
       ))}
+      {oneWayEdges.map(({ from, to }) => {
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const len = Math.hypot(dx * width, dy * height) || 1;
+        const trimX = (dx * width / len) * r * 1.25;
+        const trimY = (dy * height / len) * r * 1.25;
+        return (
+          <line
+            key={`one-way-${from.id}-${to.id}`}
+            x1={from.x * width + trimX}
+            y1={from.y * height + trimY}
+            x2={to.x * width - trimX}
+            y2={to.y * height - trimY}
+            stroke="#f8f0dc"
+            strokeWidth={oneWayWidth}
+            strokeLinecap="round"
+            strokeDasharray={`${oneWayWidth * 2} ${oneWayWidth * 2}`}
+            markerEnd="url(#onyxia-one-way-arrow)"
+          />
+        );
+      })}
       {spaces.map((s) => {
         const cx = s.x * width;
         const cy = s.y * height;
         const colors = (s.zones.length ? s.zones : ["green"]).map((z) => zoneColors.get(z) ?? FALLBACK_ONYXIA_ZONE_COLORS[z] ?? "#999");
+        const isWhelpSpawn = s.zones.length === 1 && whelpZoneIds.has(s.zones[0] ?? "");
         return (
           <g key={s.id}>
             {colors.length === 1 ? (
@@ -226,6 +263,22 @@ const OnyxiaBoardGraph = ({
               </>
             )}
             <circle cx={cx} cy={cy} r={r} fill="none" stroke="#0d0b08" strokeWidth={outlineWidth} />
+            {isWhelpSpawn && (
+              <text
+                x={cx}
+                y={cy + whelpFontSize * 0.34}
+                textAnchor="middle"
+                fontSize={whelpFontSize}
+                fontWeight="900"
+                fontFamily="serif"
+                fill="#f8f0dc"
+                stroke="#0d0b08"
+                strokeWidth={outlineWidth * 1.5}
+                paintOrder="stroke"
+              >
+                W
+              </text>
+            )}
           </g>
         );
       })}
@@ -1141,6 +1194,7 @@ export const ProBoard = ({
           width={map.meta.imageWidth ?? 100}
           height={map.meta.imageHeight ?? 100}
           zoneColors={new Map(map.zones.map((z) => [z.id, z.color]))}
+          whelpZoneIds={new Set(map.zones.filter((z) => /whelp/i.test(z.label)).map((z) => z.id))}
         />
       )}
       {map.id === "onyxia-lair" && <OnyxiaPhaseBar index={encounterPhaseCounterIndex} />}
