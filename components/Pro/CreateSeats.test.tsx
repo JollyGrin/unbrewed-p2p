@@ -1,55 +1,79 @@
 /**
- * Create-screen seats panel (#228). The 2v2 trap was a FLAT P1/P2 // P3/P4 grid
- * that reads as adjacent pairs, so a creator arms a bot OPPONENT (P2) when they
- * meant a bot TEAMMATE. These tests pin the fix: seats are grouped by their
- * fixed team (A={p1,p3} vs B={p2,p4}), the teammate is identifiable before any
- * click, and duel/ffa-3 stay flat.
+ * Create-screen seats panel (#228, #264). The 2v2 trap was a FLAT P1/P2 // P3/P4
+ * grid that reads as adjacent pairs, so a creator arms a bot OPPONENT when they
+ * meant a bot TEAMMATE. The panel now groups seats by their team — but the team
+ * split is DERIVED FROM THE SELECTED MAP (mirroring the engine), not hard-coded:
+ * the default 2v2 board (Island of Despair, seats A1,A2,B1,B2) pairs A={p1,p2}
+ * vs B={p3,p4}, while the interleaved Playtest Arena (A1,B1,A2,B2) pairs
+ * A={p1,p3} vs B={p2,p4}. These tests pin that map-awareness, the teammate being
+ * identifiable before any click, and duel/ffa-3 staying flat.
  */
 import "@testing-library/jest-dom";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { assignableSeats, BotSlotPlan, CreateSeats, SlotOccupant } from "./CreateSeats";
+import { MULTIPLAYER_PLAYTEST_MAP, TeamSeatSource } from "@/lib/pro/multiplayerPlaytest";
 import { PlayerId } from "@/lib/pro/protocol";
 
 const renderPanel = (
   format: "duel" | "ffa-3" | "team-2v2",
-  onChange: (player: PlayerId, occupant: SlotOccupant) => void = () => {},
-  plan: BotSlotPlan = {},
+  {
+    onChange = () => {},
+    plan = {},
+    map,
+  }: {
+    onChange?: (player: PlayerId, occupant: SlotOccupant) => void;
+    plan?: BotSlotPlan;
+    map?: TeamSeatSource | null;
+  } = {},
 ) =>
   render(
     <ChakraProvider>
-      <CreateSeats selectedFormat={format} botSlotPlan={plan} onChangeBotSlot={onChange} />
+      <CreateSeats selectedFormat={format} selectedMap={map} botSlotPlan={plan} onChangeBotSlot={onChange} />
     </ChakraProvider>,
   );
 
-describe("CreateSeats — team-2v2 grouping (#228)", () => {
-  it("groups seats into Team A (You + P3 teammate) vs Team B (P2 + P4 opponents)", () => {
-    renderPanel("team-2v2");
+describe("CreateSeats — team-2v2 grouping (#228, #264)", () => {
+  it("default board: Team A (You + P2 teammate) vs Team B (P3 + P4 opponents)", () => {
+    renderPanel("team-2v2"); // no map → default board order (Island of Despair)
 
     const teamA = screen.getByTestId("team-box-A");
     const teamB = screen.getByTestId("team-box-B");
 
-    // The creator's team owns P1 (You) and P3 — the interleaved teammate.
+    // The creator's team owns P1 (You) and P2 — the default board's teammate.
     expect(within(teamA).getByTestId("seat-card-p1")).toBeInTheDocument();
-    expect(within(teamA).getByTestId("seat-card-p3")).toBeInTheDocument();
+    expect(within(teamA).getByTestId("seat-card-p2")).toBeInTheDocument();
     expect(within(teamA).getByText("Team A")).toBeInTheDocument();
     expect(within(teamA).getByText("You + your teammate")).toBeInTheDocument();
 
-    // The opponents own P2 and P4 — NOT the adjacent P2 the flat layout implied.
-    expect(within(teamB).getByTestId("seat-card-p2")).toBeInTheDocument();
+    // The opponents own P3 and P4.
+    expect(within(teamB).getByTestId("seat-card-p3")).toBeInTheDocument();
     expect(within(teamB).getByTestId("seat-card-p4")).toBeInTheDocument();
     expect(within(teamB).getByText("Team B")).toBeInTheDocument();
     expect(within(teamB).getByText("Opponents")).toBeInTheDocument();
   });
 
-  it("identifies the teammate slot (P3) before any interaction", () => {
+  it("interleaved arena map: Team A (You + P3) vs Team B (P2 + P4)", () => {
+    renderPanel("team-2v2", { map: MULTIPLAYER_PLAYTEST_MAP });
+
+    const teamA = screen.getByTestId("team-box-A");
+    const teamB = screen.getByTestId("team-box-B");
+
+    // Arena seats A1,B1,A2,B2 → runtime split A={p1,p3}, B={p2,p4}.
+    expect(within(teamA).getByTestId("seat-card-p1")).toBeInTheDocument();
+    expect(within(teamA).getByTestId("seat-card-p3")).toBeInTheDocument();
+    expect(within(teamB).getByTestId("seat-card-p2")).toBeInTheDocument();
+    expect(within(teamB).getByTestId("seat-card-p4")).toBeInTheDocument();
+  });
+
+  it("identifies the teammate slot (P2 on the default board) before any interaction", () => {
     renderPanel("team-2v2");
-    const p3 = screen.getByTestId("seat-card-p3");
-    expect(within(p3).getByText("P3")).toBeInTheDocument();
-    expect(within(p3).getByText("your teammate")).toBeInTheDocument();
-    // P1 is the creator; P2/P4 are opponents.
+    const p2 = screen.getByTestId("seat-card-p2");
+    expect(within(p2).getByText("P2")).toBeInTheDocument();
+    expect(within(p2).getByText("your teammate")).toBeInTheDocument();
+    // P1 is the creator; P3/P4 are opponents.
     expect(within(screen.getByTestId("seat-card-p1")).getByText("You")).toBeInTheDocument();
-    expect(within(screen.getByTestId("seat-card-p2")).getByText("opponent")).toBeInTheDocument();
+    expect(within(screen.getByTestId("seat-card-p3")).getByText("opponent")).toBeInTheDocument();
     expect(within(screen.getByTestId("seat-card-p4")).getByText("opponent")).toBeInTheDocument();
   });
 
@@ -60,23 +84,23 @@ describe("CreateSeats — team-2v2 grouping (#228)", () => {
     }
   });
 
-  it("P1 (You) has no bot controls; teammate P3 can pick every bot difficulty", () => {
+  it("P1 (You) has no bot controls; teammate P2 can pick every bot difficulty", () => {
     renderPanel("team-2v2");
     expect(within(screen.getByTestId("seat-card-p1")).queryByText("Easy bot")).not.toBeInTheDocument();
-    const p3 = within(screen.getByTestId("seat-card-p3"));
-    expect(p3.getByText("Easy bot")).toBeInTheDocument();
-    expect(p3.getByText("Medium bot")).toBeInTheDocument();
-    expect(p3.getByText("Hard bot")).toBeInTheDocument();
+    const p2 = within(screen.getByTestId("seat-card-p2"));
+    expect(p2.getByText("Easy bot")).toBeInTheDocument();
+    expect(p2.getByText("Medium bot")).toBeInTheDocument();
+    expect(p2.getByText("Hard bot")).toBeInTheDocument();
   });
 
-  it("setting P3 = Medium bot arms a bot TEAMMATE (fires onChangeBotSlot for p3)", () => {
+  it("setting the teammate (P2) = Medium bot arms a bot TEAMMATE, not an opponent", () => {
     const onChange = jest.fn();
-    renderPanel("team-2v2", onChange);
-    const p3 = screen.getByTestId("seat-card-p3");
-    fireEvent.click(within(p3).getByText("Medium bot"));
-    expect(onChange).toHaveBeenCalledWith("p3", "medium");
-    // and it is NOT p2 (the opponent slot the flat layout used to trap into)
-    expect(onChange).not.toHaveBeenCalledWith("p2", "medium");
+    renderPanel("team-2v2", { onChange });
+    const p2 = screen.getByTestId("seat-card-p2");
+    fireEvent.click(within(p2).getByText("Medium bot"));
+    expect(onChange).toHaveBeenCalledWith("p2", "medium");
+    // and it is NOT p3 (an opponent on the default board)
+    expect(onChange).not.toHaveBeenCalledWith("p3", "medium");
   });
 });
 
@@ -105,7 +129,7 @@ describe("CreateSeats — non-team formats", () => {
 
 describe("assignableSeats — bot-eligible seats per format", () => {
   it("team-2v2 exposes P2/P3/P4 (every seat but the creator's P1)", () => {
-    expect(assignableSeats("team-2v2")).toEqual(["p3", "p2", "p4"]);
+    expect(assignableSeats("team-2v2")).toEqual(["p2", "p3", "p4"]);
   });
   it("ffa-3 exposes P2/P3", () => {
     expect(assignableSeats("ffa-3")).toEqual(["p2", "p3"]);
