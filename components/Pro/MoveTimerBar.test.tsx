@@ -48,6 +48,8 @@ describe("MoveTimerBar — non-drifting, deadline-driven bar (issue #223)", () =
     jest.restoreAllMocks();
   });
   const frame = () => act(() => rafCb?.(0));
+  const fill = (container: HTMLElement) =>
+    Number(container.querySelector("[data-fill]")?.getAttribute("data-fill"));
 
   it("shows the true remaining time from the deadline, not a local counter (no drift)", () => {
     let now = 1_000_000;
@@ -69,6 +71,51 @@ describe("MoveTimerBar — non-drifting, deadline-driven bar (issue #223)", () =
     now += 10_000; // well past
     frame();
     expect(container.textContent).toContain("0:00");
+  });
+
+  it("starts full and drains in lockstep with the number for a clean window", () => {
+    let now = 1_000_000;
+    jest.spyOn(Date, "now").mockImplementation(() => now);
+    const { container } = render(<MoveTimerBar deadline={now + 20_000} totalSeconds={20} />);
+    expect(fill(container)).toBe(100); // full at turn start
+    expect(container.textContent).toContain("0:20");
+
+    now += 10_000;
+    frame();
+    expect(fill(container)).toBe(50); // half drained ↔ half the number
+    expect(container.textContent).toContain("0:10");
+  });
+
+  it("stays full at turn start and drains proportionally even when the client clock lags the server (#283)", () => {
+    // Client clock behind the server → the deadline is 40s out for a 30s window.
+    // Anchoring to `totalSeconds` (30) pinned the fill at 100% for the first 10s
+    // while the number ticked 0:40→0:31 (bar "frozen"). Anchoring to the observed
+    // window keeps fill and number in lockstep from the first frame.
+    let now = 1_000_000;
+    jest.spyOn(Date, "now").mockImplementation(() => now);
+    const { container } = render(<MoveTimerBar deadline={now + 40_000} totalSeconds={30} />);
+    expect(fill(container)).toBe(100);
+
+    now += 10_000; // 30s of 40 remaining
+    frame();
+    expect(fill(container)).toBe(75); // NOT pinned at 100
+    expect(container.textContent).toContain("0:30");
+  });
+
+  it("resets to full the instant a new (later) deadline arrives — new turn/decision (#283)", () => {
+    let now = 1_000_000;
+    jest.spyOn(Date, "now").mockImplementation(() => now);
+    const { container, rerender } = render(
+      <MoveTimerBar deadline={now + 20_000} totalSeconds={20} />
+    );
+    now += 15_000; // drain most of the window
+    frame();
+    expect(fill(container)).toBe(25);
+
+    // A fresh TURN_TIMER for the next move: new deadline a full window out.
+    rerender(<MoveTimerBar deadline={now + 20_000} totalSeconds={20} />);
+    expect(fill(container)).toBe(100); // snaps back to full, not stuck at 25
+    expect(container.textContent).toContain("0:20");
   });
 
   it("is calm above the urgent threshold and turns urgent inside the last MOVE_TIMER_URGENT_S seconds", () => {

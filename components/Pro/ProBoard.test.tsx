@@ -507,3 +507,114 @@ describe("ProBoard battlefield item + passage badges", () => {
     expect(screen.getAllByTitle("Secret passage")).toHaveLength(2);
   });
 });
+
+// Incremental-maneuver stepping (issue #285): the player steps a fighter
+// hop-by-hop as a LOCAL preview (nothing sent), so the board renders a ghost
+// token + dashed trail at the preview position via `previewMove`, and the gold
+// step highlights beneath must stay clickable.
+const LINE_MAP: ProMapDef = {
+  schemaVersion: "1",
+  id: "line-map",
+  meta: { title: "Line Map", minPlayers: 2, maxPlayers: 2, specialRules: false, imageUrl: "/test.png" },
+  zones: [],
+  spaces: [
+    { id: "s1", x: 0.2, y: 0.5, zones: [], adjacentTo: ["s2"], start: { slot: 1 } },
+    { id: "s2", x: 0.5, y: 0.5, zones: [], adjacentTo: ["s1", "s3"] },
+    { id: "s3", x: 0.8, y: 0.5, zones: [], adjacentTo: ["s2"], start: { slot: 2 } },
+  ],
+};
+
+describe("ProBoard incremental-maneuver preview (issue #285)", () => {
+  it("renders a ghost token at the preview position and a dashed trail through the hops", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={LINE_MAP}
+          fighters={[fighter({ space: "s1" })]}
+          previewMove={{ fighterId: "p1/hero", path: ["s1", "s2", "s3"] }}
+        />
+      </ChakraProvider>
+    );
+    // The real token stays at its server space; the ghost is a separate node.
+    expect(screen.getByTitle(/move preview/)).toBeInTheDocument();
+    // A dashed polyline traces the accumulated path.
+    const trail = container.querySelector("polyline");
+    expect(trail).not.toBeNull();
+    expect(trail?.getAttribute("stroke-dasharray")).toBeTruthy();
+  });
+
+  it("makes the ghost non-interactive so clicks fall through to the step highlights beneath", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={LINE_MAP}
+          fighters={[fighter({ space: "s1" })]}
+          highlightedSpaces={["s2"]}
+          previewMove={{ fighterId: "p1/hero", path: ["s1", "s2"] }}
+          onSpaceClick={() => {}}
+        />
+      </ChakraProvider>
+    );
+    expect(getComputedStyle(screen.getByTitle(/move preview/)).pointerEvents).toBe("none");
+  });
+
+  it("draws no preview when previewMove is absent", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={LINE_MAP} fighters={[fighter({ space: "s1" })]} />
+      </ChakraProvider>
+    );
+    expect(screen.queryByTitle(/move preview/)).not.toBeInTheDocument();
+  });
+});
+
+// Step-highlight ambiguity matrix (issue #285, extends the issue #185 fix):
+// stepping re-highlights spaces that hold tokens far more often, so the exact
+// "select the fighter vs step onto its space" disambiguation must stay correct.
+describe("ProBoard step-highlight over occupied spaces (issue #285 / #185)", () => {
+  it("routes a click on a MOVABLE fighter standing on a highlighted space to onFighterClick, not onSpaceClick", () => {
+    // This is the stepping ORIGIN case: the selected fighter's token sits on its
+    // origin, which is re-highlighted as a step-back target. Fighter-target
+    // clicks must win so game.tsx can drive select / step-back, NOT a raw step.
+    const onFighterClick = jest.fn();
+    const onSpaceClick = jest.fn();
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={LINE_MAP}
+          fighters={[fighter({ id: "p1/hero", space: "s1" })]}
+          highlightedSpaces={["s1"]}
+          highlightedFighters={["p1/hero"]}
+          selectedFighter="p1/hero"
+          onFighterClick={onFighterClick}
+          onSpaceClick={onSpaceClick}
+        />
+      </ChakraProvider>
+    );
+    fireEvent.click(screen.getByTitle(/The Mandalorian/));
+    expect(onFighterClick).toHaveBeenCalledWith("p1/hero");
+    expect(onSpaceClick).not.toHaveBeenCalled();
+  });
+
+  it("forwards a click on a NON-target fighter sitting on a highlighted step space to onSpaceClick", () => {
+    // A token that is highlighted-as-a-space but NOT a fighter target (e.g. a
+    // friendly you can step onto/through) must forward to the space, else the
+    // token would swallow the step click (the original issue #185 failure).
+    const onFighterClick = jest.fn();
+    const onSpaceClick = jest.fn();
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={LINE_MAP}
+          fighters={[fighter({ id: "p2/hero", owner: "p2", name: "Thrall", space: "s2" })]}
+          highlightedSpaces={["s2"]}
+          onFighterClick={onFighterClick}
+          onSpaceClick={onSpaceClick}
+        />
+      </ChakraProvider>
+    );
+    fireEvent.click(screen.getByTitle(/Thrall/));
+    expect(onSpaceClick).toHaveBeenCalledWith("s2");
+    expect(onFighterClick).not.toHaveBeenCalled();
+  });
+});
