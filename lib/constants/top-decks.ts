@@ -320,7 +320,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     likes: 2,
     highlightColour: "#296888",
     // self-hosted (upstream deck has none); also patched into both snapshots
-    cardbackUrl: "https://unbrewed.xyz/cardbacks/thrall.webp",
+    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/pk1x/cardback.webp",
   },
   {
     // Not a top-40 deck — included because it's Pro-playable (server hero r2-d2)
@@ -353,7 +353,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     likes: 0,
     highlightColour: "#c9962b",
     // self-hosted; also patched into the evergreen snapshot appearance
-    cardbackUrl: "https://unbrewed.xyz/cardbacks/taranis.webp",
+    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/taranis/cardback.webp",
     original: true,
   },
   {
@@ -367,7 +367,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     likes: 0,
     highlightColour: "#2ec4b6",
     // self-hosted; also patched into the evergreen snapshot appearance
-    cardbackUrl: "https://unbrewed.xyz/cardbacks/thetis.webp",
+    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/thetis/cardback.webp",
     original: true,
     // Replaced on the default roster by `thetis-spice`; visible only under ?debug.
     tier: "reflavored",
@@ -382,7 +382,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "unbrewed",
     likes: 0,
     highlightColour: "#2ec4b6",
-    cardbackUrl: "https://unbrewed.xyz/cardbacks/thetis.webp",
+    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/thetis/cardback.webp",
     original: true,
   },
   {
@@ -395,7 +395,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     likes: 0,
     highlightColour: "#b06f2e",
     // self-hosted; also patched into the evergreen snapshot appearance
-    cardbackUrl: "https://unbrewed.xyz/cardbacks/piper.webp",
+    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/piper/cardback.webp",
     original: true,
   },
   {
@@ -407,7 +407,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     likes: 0,
     highlightColour: "#5f7d3b",
     // self-hosted; also patched into the evergreen snapshot appearance
-    cardbackUrl: "https://unbrewed.xyz/cardbacks/hollowoak.webp",
+    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/cardback.webp",
     original: true,
   },
 ];
