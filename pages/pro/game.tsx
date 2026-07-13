@@ -70,6 +70,16 @@ import {
 import { useFlag } from "@/lib/flags";
 import { maneuverBoostHint } from "@/lib/pro/maneuverHint";
 import { buildPoseIndex, parsePoseOptions, poseHighlights, resolvePoseClick } from "@/lib/pro/moveChoice";
+import {
+  applyClick as applyStepClick,
+  canCommit as canCommitStep,
+  commitPath as stepCommitPath,
+  isFresh as isStepFresh,
+  legalNextSteps,
+  remaining as stepRemaining,
+  startStepping,
+  type StepState,
+} from "@/lib/pro/moveSteps";
 import { useGameFx } from "@/lib/pro/useGameFx";
 import { useCombatCallouts, CombatCalloutItem } from "@/lib/pro/combatFx";
 import { useIncomingMoveTween } from "@/lib/pro/moveTween";
@@ -1327,6 +1337,11 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
   // room behaves exactly as today. The toggle flips between 0 and a default preset.
   const [turnTimerSeconds, setTurnTimerSeconds] = useState(0);
   const [selectedFighter, setSelectedFighter] = useState<FighterId | null>(null);
+  // Incremental-maneuver stepping (issue #285): the LOCAL hop-by-hop preview for
+  // the selected fighter, scoped to that fighter so it never leaks across a
+  // re-selection. null = no preview in flight (fresh). Nothing is sent until the
+  // move commits — the whole accumulated path lands as one MOVE_FIGHTER.
+  const [step, setStep] = useState<{ fighter: FighterId; state: StepState } | null>(null);
   // First space tapped in a two-tap LARGE-fighter move pick (issue #132), scoped
   // to the prompt it belongs to so a stale anchor never leaks into the next one.
   const [poseAnchor, setPoseAnchor] = useState<{ promptId: string; space: SpaceId } | null>(null);
@@ -2163,8 +2178,45 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
     selectedFighter
       ? actions.filter((a) => a.type !== "MOVE_FIGHTER" || a.fighter === selectedFighter)
       : actions;
+  // Incremental maneuver stepping (issue #285). Active ONLY during MANEUVER_MOVE
+  // once a fighter is selected AND the server sent a move graph for it. Effect/
+  // scheme CHOOSE_SPACE moves, large fighters (omitted from the graph), and older
+  // servers all leave `moveGraph` null → today's one-click canonical-path move.
+  const selectedOrigin =
+    selectedFighter != null
+      ? view.fighters.find((f) => f.id === selectedFighter)?.space ?? null
+      : null;
+  const moveGraph =
+    view.turnPhase === "MANEUVER_MOVE" && selectedFighter != null
+      ? view.maneuver?.moveGraph?.[selectedFighter] ?? null
+      : null;
+  // The live preview state for the selected fighter — its own `step` if one is in
+  // flight, else a fresh preview parked at the origin. Null unless stepping is on.
+  const stepState: StepState | null =
+    moveGraph && selectedOrigin
+      ? step && step.fighter === selectedFighter && step.state.origin === selectedOrigin
+        ? step.state
+        : startStepping(selectedOrigin)
+      : null;
+  // While stepping (≥1 hop) show only the next legal hops from the preview
+  // position; when fresh, fall through to today's enumerated destinations so a
+  // far one-click still commits the canonical path.
+  const stepHighlights: SpaceId[] | null =
+    moveGraph && stepState && !isStepFresh(stepState) ? legalNextSteps(moveGraph, stepState) : null;
+  // The ghost's route (nothing sent yet) — only once at least one hop is taken.
+  const previewMove: PendingMove | null =
+    moveGraph && stepState && selectedFighter && !isStepFresh(stepState)
+      ? { fighterId: selectedFighter, path: stepCommitPath(stepState) }
+      : null;
+  // Board-level stepping affordance state (issue #285): only meaningful once a
+  // hop is previewed (previewMove non-null). `stepMovesLeft` counts remaining
+  // hops; `stepCanEnd` gates the "End move here" commit on a legal resting spot.
+  const stepMovesLeft = moveGraph && stepState ? stepRemaining(moveGraph, stepState) : 0;
+  const stepCanEnd = !!(moveGraph && stepState && canCommitStep(moveGraph, stepState));
+
   const highlightedSpaces = [
-    ...[...spaceActions.entries()].filter(([, actions]) => spaceMatches(actions).length > 0).map(([space]) => space),
+    ...(stepHighlights ??
+      [...spaceActions.entries()].filter(([, actions]) => spaceMatches(actions).length > 0).map(([space]) => space)),
     ...promptSpaceIds,
     ...(poseIndex.size > 0 ? poseHighlights(poseIndex, activePoseAnchor) : []),
   ];
@@ -2173,6 +2225,20 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
   // Issue #85: say out loud why boost is (or is no longer) available, instead
   // of letting the affordance silently vanish once the fighters have moved.
   const boostHint = maneuverBoostHint(view, legalActions);
+
+  // Commit the accumulated incremental-maneuver walk as ONE MOVE_FIGHTER (issue
+  // #285): the engine already accepts arbitrary legal paths incl. revisits, so
+  // the opponent sees a single multi-hop tween and it's one undo unit. The path
+  // is client-constructed — MOVE_FIGHTER is the sanctioned exception to "only
+  // send what the server offered".
+  const commitStep = (state: StepState) => {
+    if (!selectedFighter) return;
+    const path = stepCommitPath(state);
+    sendAction({ type: "MOVE_FIGHTER", player: view.you, fighter: selectedFighter, path });
+    if (path.length >= 2) setPendingMove({ fighterId: selectedFighter, path });
+    setStep(null);
+    setSelectedFighter(null);
+  };
 
   const onSpaceClick = (space: SpaceId) => {
     // Two-space (LARGE fighter) move choice owns the board when present: a
@@ -2203,6 +2269,25 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
       setSelectedFighter(null);
       return;
     }
+    // Incremental maneuver stepping (issue #285): once the server sends a move
+    // graph for the selected fighter, the graph OWNS its maneuver clicks. A click
+    // either advances the LOCAL preview one hop or — while fresh — adopts the
+    // server's canonical path to a far destination. Nothing is sent until the
+    // walk commits (auto on 0 remaining, or via the "End move" affordance).
+    if (moveGraph && stepState) {
+      const canonical = (spaceActions.get(space) ?? []).find(
+        (a): a is Extract<Action, { type: "MOVE_FIGHTER" }> =>
+          a.type === "MOVE_FIGHTER" && a.fighter === selectedFighter
+      );
+      const res = applyStepClick(moveGraph, stepState, space, canonical ? canonical.path : null);
+      if (res.type === "step") {
+        if (res.commit) commitStep(res.state);
+        else setStep({ fighter: selectedFighter as FighterId, state: res.state });
+      }
+      // Stepped, committed, or ignored — never fall through to the one-click
+      // commit below (mid-walk far jumps stay disabled; the client owns no paths).
+      return;
+    }
     const candidates = spaceMatches(spaceActions.get(space) ?? []);
     if (candidates.length === 0) return;
     const action = candidates[0];
@@ -2227,8 +2312,22 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
     if (attack) {
       sendAction(attack);
       setSelectedFighter(null);
+      setStep(null);
     } else if (movableFighters.has(id)) {
+      // Stepping (issue #285): the selected fighter's token stays at its ORIGIN
+      // while the ghost previews elsewhere, so clicking it steps BACK one hop
+      // toward origin when that's legal (keeps back-and-forth reachable). If it
+      // isn't an adjacent step, fall through to toggling the selection.
+      if (moveGraph && stepState && id === selectedFighter && !isStepFresh(stepState)) {
+        const res = applyStepClick(moveGraph, stepState, stepState.origin, null);
+        if (res.type === "step") {
+          if (res.commit) commitStep(res.state);
+          else setStep({ fighter: id, state: res.state });
+          return;
+        }
+      }
       setSelectedFighter((cur) => (cur === id ? null : id));
+      setStep(null); // selecting/deselecting always starts a fresh preview
     }
   };
 
@@ -2302,6 +2401,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
           }}
           fx={boardFx}
           pendingMove={pendingMove ?? incomingMove}
+          previewMove={previewMove}
           onPendingMoveSettled={() => {
             setPendingMove(null);
             clearIncoming();
@@ -2370,6 +2470,49 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
         pointerEvents="none"
       >
         <Flex direction="column" gap="0.6rem" sx={{ "& > *": { pointerEvents: "auto" } }}>
+          {/* Incremental-maneuver stepping controls (issue #285): shown while a
+              local hop-by-hop preview is in flight. "End move here" commits the
+              accumulated path as one MOVE_FIGHTER (auto-commits when 0 moves are
+              left); "Cancel" resets the ghost to the origin — nothing was sent, so
+              the cancel is free. Addresses the awkward maneuver prompt in #169. */}
+          {previewMove && (
+            <Flex
+              direction="column"
+              gap="0.4rem"
+              bg="rgba(0,0,0,0.55)"
+              border="1px solid"
+              borderColor="brand.accent"
+              borderRadius="0.5rem"
+              p="0.6rem"
+            >
+              <Text fontSize="0.8rem" color="brand.accent" fontWeight={700}>
+                stepping {selectedFighter?.split("/")[1]} — {stepMovesLeft} move{stepMovesLeft === 1 ? "" : "s"} left
+              </Text>
+              <Text fontSize="0.7rem" color="brand.parchment" opacity={0.85}>
+                click a gold space to step (moving back counts too), or:
+              </Text>
+              <Flex gap="0.4rem">
+                <Button
+                  size="sm"
+                  flex={1}
+                  colorScheme="yellow"
+                  isDisabled={!stepCanEnd}
+                  onClick={() => stepState && commitStep(stepState)}
+                >
+                  End move here
+                </Button>
+                <Button
+                  size="sm"
+                  flex={1}
+                  variant="outline"
+                  color="brand.parchment"
+                  onClick={() => setStep(null)}
+                >
+                  Cancel
+                </Button>
+              </Flex>
+            </Flex>
+          )}
           {/* Live-turn chrome — hidden once the game is decided (issue #194): at
               GAME_OVER legal actions are empty and no seat is "on turn", so these
               chips would go stale. The outcome (VICTORY!/DEFEAT) shows instead. */}
@@ -2399,10 +2542,12 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
               )}
             </Flex>
           )}
-          {(highlightedSpaces.length > 0 || attackActions.size > 0) && (
+          {!previewMove && (highlightedSpaces.length > 0 || attackActions.size > 0) && (
             <Text fontSize="0.8rem" color="brand.accent" textShadow="0 1px 3px rgba(0,0,0,0.6)">
               {selectedFighter
-                ? `showing moves for ${selectedFighter.split("/")[1]} — click a gold space (click the fighter again to unselect)`
+                ? moveGraph
+                  ? `stepping ${selectedFighter.split("/")[1]} — click a near gold space to step one at a time, or a far one to move straight there`
+                  : `showing moves for ${selectedFighter.split("/")[1]} — click a gold space (click the fighter again to unselect)`
                 : [
                     highlightedSpaces.length > 0 &&
                       `click a gold space to move there (${highlightedSpaces.length} option${
