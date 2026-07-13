@@ -11,16 +11,19 @@ import {
 } from "./mapCatalog";
 import { normalizeMap } from "./normalizeMap";
 import islandOfDespairJson from "./fixtures/island-of-despair.map.json";
+import weathertopJson from "./fixtures/weathertop.map.json";
 
 const island = catalogEntry("island-of-despair")!;
 const mendedDrum = catalogEntry("mended-drum")!;
+const weathertop = catalogEntry("weathertop")!;
 const arena = catalogEntry("multiplayer-arena-playtest")!;
 
 describe("map catalog", () => {
-  it("lists the three built-in boards in order", () => {
+  it("lists the built-in boards in order", () => {
     expect(MAP_CATALOG.map((e) => e.id)).toEqual([
       "mended-drum",
       "island-of-despair",
+      "weathertop",
       "multiplayer-arena-playtest",
     ]);
     expect(arena.title).toBe("Playtest Arena (synthetic)");
@@ -34,6 +37,13 @@ describe("map catalog", () => {
       expect(mapEligibleForFormat(island.map, "duel")).toBe(true);
       expect(mapEligibleForFormat(island.map, "ffa-3")).toBe(true);
       expect(mapEligibleForFormat(island.map, "team-2v2")).toBe(true);
+    });
+
+    it("Weathertop supports all three formats via authored supportedFormats", () => {
+      expect(eligibleFormats(weathertop.map)).toEqual(["duel", "ffa-3", "team-2v2"]);
+      expect(mapEligibleForFormat(weathertop.map, "duel")).toBe(true);
+      expect(mapEligibleForFormat(weathertop.map, "ffa-3")).toBe(true);
+      expect(mapEligibleForFormat(weathertop.map, "team-2v2")).toBe(true);
     });
 
     it("The Mended Drum is duel-only via the printed slots 1&2 fallback", () => {
@@ -122,5 +132,35 @@ describe("island-of-despair fixture", () => {
     expect(slotOf(2)).toBe("s28");
     expect(slotOf(3)).toBe("s6");
     expect(slotOf(4)).toBe("s2");
+  });
+});
+
+describe("weathertop fixture", () => {
+  it("normalizes clean (engine-native pass-through)", () => {
+    const map = normalizeMap(weathertopJson);
+    expect(map.id).toBe("weathertop");
+    expect(map.meta.title).toBe("Weathertop");
+    expect(map.spaces).toHaveLength(34);
+    const slots = new Set(map.spaces.flatMap((s) => (s.start ? [s.start.slot] : [])));
+    expect(slots).toEqual(new Set([1, 2, 3, 4]));
+  });
+
+  it("preserves all 7 one-way (oneWayTo) edges through normalizeMap", () => {
+    const map = normalizeMap(weathertopJson);
+    const oneWay = map.spaces
+      .filter((s) => s.oneWayTo && s.oneWayTo.length)
+      .flatMap((s) => s.oneWayTo!.map((to) => `${s.id}->${to}`))
+      .sort();
+    expect(oneWay).toEqual(
+      [
+        "s2->s1",
+        "s7->s34",
+        "s9->s15",
+        "s11->s6",
+        "s20->s25",
+        "s23->s27",
+        "s23->s32",
+      ].sort(),
+    );
   });
 });
