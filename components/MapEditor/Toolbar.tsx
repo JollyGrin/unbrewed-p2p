@@ -11,9 +11,10 @@
  */
 import { Box, Button, Flex, Input, Text, Textarea } from "@chakra-ui/react";
 import { mapSubmissionIssueUrl } from "@/lib/pro/mapIssue";
-import type { MapDoc, Zone } from "./model";
+import type { MapDoc, MapItem, Zone } from "./model";
 import { DEFAULT_DIAMETER, toMapDef } from "./model";
 import type { EditorMode } from "./MapCanvas";
+import { ItemsPanel } from "./ItemsPanel";
 import { BTN, BTN_ON } from "./ui";
 
 const MODE_HELP: Record<EditorMode, string> = {
@@ -40,6 +41,9 @@ interface Props {
   setMetaField: (patch: Partial<MapDoc["meta"]>) => void;
   setZoneField: (zoneId: string, patch: Partial<Zone>) => void;
   addZone: () => void;
+  addItem: (kind: MapItem["kind"]) => void;
+  setItemField: (id: string, patch: Partial<MapItem>) => void;
+  removeItem: (id: string) => void;
   doExport: () => void;
   doImport: () => void;
   doReset: () => void;
@@ -49,7 +53,8 @@ export const Toolbar = (props: Props) => {
   const {
     doc, mode, setMode, activeZone, setActiveZone, io, setIo, warnings,
     canUndo, canRedo, undo, redo, beginEdit, endEdit,
-    setMetaField, setZoneField, addZone, doExport, doImport, doReset,
+    setMetaField, setZoneField, addZone, addItem, setItemField, removeItem,
+    doExport, doImport, doReset,
   } = props;
 
   const diameter = doc.meta.spaceDiameter ?? DEFAULT_DIAMETER;
@@ -111,6 +116,15 @@ export const Toolbar = (props: Props) => {
         ))}
         <Button {...BTN} onClick={addZone}>+ zone</Button>
       </Flex>
+
+      <ItemsPanel
+        items={doc.items ?? []}
+        addItem={addItem}
+        setItemField={setItemField}
+        removeItem={removeItem}
+        beginEdit={beginEdit}
+        endEdit={endEdit}
+      />
 
       <Flex alignItems="center" gap="0.5rem">
         <Text fontSize="0.75rem" whiteSpace="nowrap">circle size</Text>

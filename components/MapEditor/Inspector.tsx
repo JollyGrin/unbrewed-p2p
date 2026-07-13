@@ -8,7 +8,7 @@
  * engine features (#151 secret passages, #152 battlefield items): their
  * per-space fields drop into `<SpaceExtensionPoint>` as a small follow-up.
  */
-import { Box, Button, Flex, Text } from "@chakra-ui/react";
+import { Box, Button, Checkbox, Flex, Select, Text } from "@chakra-ui/react";
 import type { EdgeRef, EdgeState, MapDoc, Zone } from "./model";
 import { edgeState, spaceById } from "./model";
 import { BTN, BTN_ON } from "./ui";
@@ -21,6 +21,8 @@ export interface InspectorActions {
   setStart: (id: string, slot: number | undefined) => void;
   nudge: (id: string, dx: number, dy: number) => void;
   setEdge: (ref: EdgeRef, state: EdgeState) => void;
+  setItem: (id: string, itemId: string | undefined) => void;
+  setPassage: (id: string, on: boolean) => void;
 }
 
 interface Props {
@@ -41,13 +43,47 @@ const Section = ({ label, children }: { label: string; children: React.ReactNode
   </Box>
 );
 
-/** Placeholder for engine #151/#152 per-space fields — intentionally inert. */
-const SpaceExtensionPoint = () => (
-  <Box borderTop="1px dashed" borderColor="whiteAlpha.300" pt="0.5rem" opacity={0.45}>
-    <Text fontSize="0.62rem" fontStyle="italic">
-      more per-space fields (secret passage, battlefield item) land here once
-      engine #151/#152 merge
-    </Text>
+/** Per-space engine #156/#157 fields: a battlefield-item assignment and the
+ *  secret-passage flag. This is the extension point #269 marked. */
+const SpaceExtensionPoint = ({
+  space,
+  doc,
+  actions,
+}: {
+  space: { id: string; item?: string; passage?: boolean };
+  doc: MapDoc;
+  actions: InspectorActions;
+}) => (
+  <Box borderTop="1px dashed" borderColor="whiteAlpha.300" pt="0.5rem" display="flex" flexDir="column" gap="0.6rem">
+    <Section label="battlefield item">
+      <Select
+        size="sm"
+        value={space.item ?? ""}
+        onChange={(e) => actions.setItem(space.id, e.target.value || undefined)}
+        bg="rgba(0,0,0,0.25)"
+      >
+        <option value="">none</option>
+        {(doc.items ?? []).map((it) => (
+          <option key={it.id} value={it.id}>
+            {it.label} ({it.kind})
+          </option>
+        ))}
+      </Select>
+      {(doc.items ?? []).length === 0 && (
+        <Text fontSize="0.62rem" opacity={0.6} mt="0.2rem">
+          define items in the sidebar’s Items panel first
+        </Text>
+      )}
+    </Section>
+    <Section label="secret passage">
+      <Checkbox
+        isChecked={!!space.passage}
+        onChange={(e) => actions.setPassage(space.id, e.target.checked)}
+        size="sm"
+      >
+        <Text fontSize="0.72rem">secret passage space</Text>
+      </Checkbox>
+    </Section>
   </Box>
 );
 
@@ -174,7 +210,7 @@ const SpaceInspector = ({
         </Flex>
       </Section>
 
-      <SpaceExtensionPoint />
+      <SpaceExtensionPoint space={s} doc={doc} actions={actions} />
 
       <Button size="xs" colorScheme="red" variant="outline" onClick={() => actions.deleteSpace(id)}>
         delete space

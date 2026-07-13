@@ -1,4 +1,4 @@
-import { Action, CardInstanceId, CardMeta, FighterId } from "./protocol";
+import { Action, CardInstanceId, CardMeta, FighterId, SpaceId } from "./protocol";
 
 // ---------------------------------------------------------------------------
 // Action-dock presentation (pure). The dock renders EVERY affordance generically
@@ -28,6 +28,10 @@ export const cardLabel = (catalog: Record<string, CardMeta>, instance: CardInsta
 export interface DescribeCtx {
   nameOf: (id: FighterId) => string;
   attackerBadge?: Partial<Record<FighterId, number>>;
+  /** Label of the live scheme item on a space (view.itemTokens → map.items), so a
+   *  USE_SCHEME_ITEM action reads "Use <item label>" rather than a bare "Use item"
+   *  (protocol v17). Undefined = the space has no known item; falls back to "item". */
+  itemLabelForSpace?: (space: SpaceId) => string | undefined;
 }
 
 /**
@@ -58,6 +62,8 @@ export const describeAction = (
       return "End maneuver";
     case "SCHEME":
       return `Scheme: ${cardLabel(catalog, a.card)}`;
+    case "USE_SCHEME_ITEM":
+      return `Use ${ctx?.itemLabelForSpace?.(a.space) ?? "item"}`;
     case "DECLARE_ATTACK": {
       const targetName = ctx ? ctx.nameOf(a.target) : a.target.split("/")[1];
       const attackerName = ctx ? ctx.nameOf(a.attacker) : a.attacker.split("/")[1];
@@ -87,19 +93,35 @@ export interface CardAffordance {
   label: string;
 }
 
+/** The live COMBAT item a committing fighter may attach (protocol v17). Derived by
+ *  the page from view.combat + the fighter's space + view.itemTokens + map.items. In
+ *  any one combat the viewer is EITHER attacker or defender, so a single item
+ *  (label + value) covers both COMMIT_ATTACK_CARD and COMMIT_DEFENSE_CARD. */
+export interface AttachItem {
+  label: string;
+  value: number;
+}
+
 /**
  * Hand affordances for one card: a card is playable iff a server-offered action
  * carries its instance id. Short verb labels; the full sentence stays in the
  * sidebar. The action is forwarded UNCHANGED, so a multiplayer BOOST_MOVE keeps
  * its `player: "p3"` and sendAction echoes that seat back to the server.
+ *
+ * v17 combat items: when the server offers BOTH a plain and an `attachItem: true`
+ * commit for the same card, they surface as two menu entries — the attach one
+ * labeled "<verb> + <item> (+N)" so the opt-in is explicit. The attach decision is
+ * the server's to offer (attacker commits before the defender decides); this only
+ * labels what was offered.
  */
 export const cardAffordances = (
   legalActions: Action[],
-  instance: CardInstanceId
+  instance: CardInstanceId,
+  attachItem?: AttachItem
 ): CardAffordance[] =>
   legalActions.flatMap((a) => {
     if (!("card" in a) || a.card !== instance) return [];
-    const label =
+    const base =
       a.type === "SCHEME"
         ? "Scheme"
         : a.type === "BOOST_MOVE"
@@ -109,5 +131,8 @@ export const cardAffordances = (
             : a.type === "COMMIT_DEFENSE_CARD"
               ? "Defend with"
               : "Discard"; // DISCARD_TO_LIMIT — the only remaining card-carrying type
+    const attaches =
+      (a.type === "COMMIT_ATTACK_CARD" || a.type === "COMMIT_DEFENSE_CARD") && a.attachItem === true;
+    const label = attaches && attachItem ? `${base} + ${attachItem.label} (+${attachItem.value})` : base;
     return [{ action: a, label }];
   });
