@@ -32,21 +32,15 @@ const SCHEME_VIEWBOX = "0 0 5190 12910";
 const SCHEME_PATH =
   "M73 12883 c7 -35 182 -616 858 -2847 640 -2111 1029 -3406 1029 -3421 0 -22 -140 -25 -1044 -25 -490 0 -897 -4 -904 -9 -14 -9 12 -122 968 -4226 549 -2356 532 -2286 556 -2296 50 -18 3564 -73 3564 -55 0 8 -243 505 -1080 2206 -1046 2127 -1236 2517 -1228 2525 4 5 700 -7 1513 -25 582 -13 885 -13 885 0 0 12 -117 200 -1463 2362 -2940 4720 -3639 5838 -3650 5838 -5 0 -7 -12 -4 -27z";
 
-/** The bare glyph SVG (no square) — flips Y because the card-factory paths use a
- *  bottom-left origin. Reused by the editor's canvas overlay too. */
+/** The bare glyph SVG (no square). The paths are copied VERBATIM from the
+ *  card-factory `IconSvg`, which renders them with NO transform in a standard
+ *  top-left SVG coordinate space — so we do the same (no flip). Reused by the
+ *  editor's canvas overlay too. */
 export const ItemGlyph = ({ kind, fill = "#fff" }: { kind: ItemBadgeKind; fill?: string }) => {
   const isCombat = kind === "combat";
-  const [vw, vh] = (isCombat ? VERSATILE_VIEWBOX : SCHEME_VIEWBOX).split(" ").slice(2).map(Number);
   return (
     <svg viewBox={isCombat ? VERSATILE_VIEWBOX : SCHEME_VIEWBOX} width="66%" height="66%" fill={fill}>
-      {/* paths are authored bottom-left-origin (negative coords) — flip vertically */}
-      <g transform={`translate(0 ${vh}) scale(1 -1)`} data-vw={vw}>
-        {isCombat ? (
-          VERSATILE_PATHS.map((d, i) => <path key={i} d={d} />)
-        ) : (
-          <path d={SCHEME_PATH} />
-        )}
-      </g>
+      {isCombat ? VERSATILE_PATHS.map((d, i) => <path key={i} d={d} />) : <path d={SCHEME_PATH} />}
     </svg>
   );
 };
