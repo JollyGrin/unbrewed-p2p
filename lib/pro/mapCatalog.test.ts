@@ -14,6 +14,7 @@ import islandOfDespairJson from "./fixtures/island-of-despair.map.json";
 
 const island = catalogEntry("island-of-despair")!;
 const mendedDrum = catalogEntry("mended-drum")!;
+const cityDocks = catalogEntry("city-docks")!;
 const arena = catalogEntry("multiplayer-arena-playtest")!;
 
 describe("map catalog", () => {
@@ -21,6 +22,7 @@ describe("map catalog", () => {
     expect(MAP_CATALOG.map((e) => e.id)).toEqual([
       "mended-drum",
       "island-of-despair",
+      "city-docks",
       "multiplayer-arena-playtest",
     ]);
     expect(arena.title).toBe("Playtest Arena (synthetic)");
@@ -34,6 +36,13 @@ describe("map catalog", () => {
       expect(mapEligibleForFormat(island.map, "duel")).toBe(true);
       expect(mapEligibleForFormat(island.map, "ffa-3")).toBe(true);
       expect(mapEligibleForFormat(island.map, "team-2v2")).toBe(true);
+    });
+
+    it("City Docks supports all three formats via authored supportedFormats", () => {
+      expect(eligibleFormats(cityDocks.map)).toEqual(["duel", "ffa-3", "team-2v2"]);
+      expect(mapEligibleForFormat(cityDocks.map, "duel")).toBe(true);
+      expect(mapEligibleForFormat(cityDocks.map, "ffa-3")).toBe(true);
+      expect(mapEligibleForFormat(cityDocks.map, "team-2v2")).toBe(true);
     });
 
     it("The Mended Drum is duel-only via the printed slots 1&2 fallback", () => {
