@@ -96,7 +96,18 @@ export const FighterTokenPortrait = ({
           inset={0}
           w="100%"
           h="100%"
-          sx={{ objectFit: "cover", objectPosition: "center top" }}
+          // `cover` only zooms to the container's aspect ratio; a token asset with
+          // its own baked-in padding/margin around the character still reads as
+          // inset inside the circle. An extra scale zooms into the art itself so
+          // the character fills the frame edge-to-edge (issue #270). Anchored at
+          // center-top to match objectPosition and the board token, and kept
+          // inside the circle's overflow:hidden so nothing spills the gold rim.
+          sx={{
+            objectFit: "cover",
+            objectPosition: "center top",
+            transform: "scale(1.2)",
+            transformOrigin: "center top",
+          }}
         />
         {/* Soft edge scrim keeps the gold rim reading over any portrait. */}
         <Box
