@@ -11,7 +11,7 @@
  *   verified without the backend. Clicking a fighter shows its movement
  *   out-edges (adjacentTo ∪ oneWayTo) — reading MAP data for display, not rules.
  */
-import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { useRouter } from "next/router";
 import { Box, Button, Flex, Grid, Input, Link, Menu, MenuButton, MenuItem, MenuList, NumberDecrementStepper, NumberIncrementStepper, NumberInput, NumberInputField, NumberInputStepper, Tag, Text, Textarea, Tooltip } from "@chakra-ui/react";
@@ -49,10 +49,11 @@ import { HERO_DECK_IDS, ResolveCard, heroIdsForArt, useProCardArt } from "@/lib/
 import { frozenAtForHero } from "@/lib/pro/evergreenManifest";
 import { POPULAR_DECKS, PopularDeckMeta } from "@/lib/constants/top-decks";
 import { GiFootprint, GiHearts } from "react-icons/gi";
-import { TbBow, TbChevronDown, TbExternalLink, TbInfoCircle, TbSword } from "react-icons/tb";
+import { TbBow, TbChevronDown, TbExternalLink, TbInfoCircle, TbSword, TbZoomIn } from "react-icons/tb";
 import { CardFace, ProHand } from "@/components/Pro/ProHand";
 import { CardPreviewProvider } from "@/components/Pro/CardPreview";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
+import { MapPreviewModal } from "@/components/Pro/MapPreviewModal";
 import { ProHud } from "@/components/Pro/ProHud";
 import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
 import { ReportBugDialog } from "@/components/Pro/ReportBugDialog";
@@ -97,6 +98,7 @@ import {
   ineligibleReason,
   mapEligibleForFormat,
 } from "@/lib/pro/mapCatalog";
+import type { MapCatalogEntry } from "@/lib/pro/mapCatalog";
 
 /** same table felt the sandbox game uses (game.layout.tsx) */
 const TABLE_BG = "radial-gradient(ellipse at 50% 20%, #5A3263 0%, #48284F 50%, #2C1831 100%)";
@@ -998,7 +1000,39 @@ const SplashPanel = ({
           </Text>
           {deck && (
             <Text fontStyle="italic" fontSize="0.8rem" color="brand.parchment" opacity={0.85}>
-              by {deck.author}
+              by{" "}
+              {/* Community decks link to their unmatched.cards attribution page;
+                  evergreen originals (deck.original) have no such page, so the
+                  author stays plain text. stopPropagation is defensive — the
+                  splash panel isn't itself selectable, but keeps the link inert
+                  toward any future click-to-lock wrapper. */}
+              {deck.original ? (
+                deck.author
+              ) : (
+                <Tooltip
+                  label={`View ${deck.author}'s deck on unmatched.cards`}
+                  hasArrow
+                  placement="top"
+                  openDelay={150}
+                >
+                  <Link
+                    href={`https://unmatched.cards/decks/${deck.id}`}
+                    isExternal
+                    aria-label={`View ${deck.author}'s deck on unmatched.cards (opens in a new tab)`}
+                    onClick={(e) => e.stopPropagation()}
+                    color="inherit"
+                    textDecoration="underline"
+                    sx={{ textUnderlineOffset: "0.15em" }}
+                    _hover={{ color: "brand.accent", opacity: 1 }}
+                    display="inline-flex"
+                    alignItems="center"
+                    gap="0.2rem"
+                  >
+                    {deck.author}
+                    <TbExternalLink size="0.7rem" />
+                  </Link>
+                </Tooltip>
+              )}
             </Text>
           )}
           <Flex gap="0.9rem" mt="0.45rem" align="center" color="brand.parchment" sx={{ fontVariantNumeric: "tabular-nums" }}>
@@ -1285,6 +1319,7 @@ const HeroSelectLobby = ({
   const format = formatChoice(selectedFormat);
   const multiplayer = selectedFormat !== "duel";
   const [previewHero, setPreviewHero] = useState<HeroListing>();
+  const [previewMap, setPreviewMap] = useState<MapCatalogEntry | null>(null);
 
   // Roster browse state: the hovered fighter drives the splash live and reverts
   // to the locked pick on mouse-leave; search + reach filter narrow the mosaic.
@@ -1733,6 +1768,44 @@ const HeroSelectLobby = ({
                         bgPosition="center"
                         bgColor="rgba(0,0,0,0.4)"
                       />
+                      {/* Inspect affordance — opens the full board image + attribution
+                          without committing to the pick. stopPropagation keeps the
+                          card's own onClick (select) from firing (issue #316). It's a
+                          span (not a <button>) because the card itself is a <button>
+                          and buttons can't nest. */}
+                      <Box
+                        as="span"
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Preview ${entry.title}`}
+                        title="Preview board"
+                        position="absolute"
+                        top="0.2rem"
+                        right="0.2rem"
+                        w="1.35rem"
+                        h="1.35rem"
+                        display="flex"
+                        alignItems="center"
+                        justifyContent="center"
+                        borderRadius="0.35rem"
+                        bg="rgba(10,4,12,0.7)"
+                        color="brand.parchment"
+                        cursor="pointer"
+                        _hover={{ bg: "rgba(10,4,12,0.9)", color: "brand.accent" }}
+                        onClick={(e: ReactMouseEvent) => {
+                          e.stopPropagation();
+                          setPreviewMap(entry);
+                        }}
+                        onKeyDown={(e: ReactKeyboardEvent) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setPreviewMap(entry);
+                          }
+                        }}
+                      >
+                        <TbZoomIn size="0.85rem" />
+                      </Box>
                       <Text
                         fontFamily="SpaceGrotesk"
                         fontSize="0.56rem"
@@ -1806,6 +1879,12 @@ const HeroSelectLobby = ({
             ? { hp: previewHero.hp, move: previewHero.move, reach: previewHero.reach }
             : undefined
         }
+      />
+
+      <MapPreviewModal
+        isOpen={!!previewMap}
+        onClose={() => setPreviewMap(null)}
+        entry={previewMap}
       />
 
       {/* ---------------- player plates ---------------- */}

@@ -15,6 +15,8 @@ import weathertopJson from "./fixtures/weathertop.map.json";
 
 const island = catalogEntry("island-of-despair")!;
 const mendedDrum = catalogEntry("mended-drum")!;
+const cityDocks = catalogEntry("city-docks")!;
+const polus = catalogEntry("polus")!;
 const weathertop = catalogEntry("weathertop")!;
 const arena = catalogEntry("multiplayer-arena-playtest")!;
 
@@ -23,6 +25,8 @@ describe("map catalog", () => {
     expect(MAP_CATALOG.map((e) => e.id)).toEqual([
       "mended-drum",
       "island-of-despair",
+      "city-docks",
+      "polus",
       "weathertop",
       "multiplayer-arena-playtest",
     ]);
@@ -37,6 +41,20 @@ describe("map catalog", () => {
       expect(mapEligibleForFormat(island.map, "duel")).toBe(true);
       expect(mapEligibleForFormat(island.map, "ffa-3")).toBe(true);
       expect(mapEligibleForFormat(island.map, "team-2v2")).toBe(true);
+    });
+
+    it("City Docks supports all three formats via authored supportedFormats", () => {
+      expect(eligibleFormats(cityDocks.map)).toEqual(["duel", "ffa-3", "team-2v2"]);
+      expect(mapEligibleForFormat(cityDocks.map, "duel")).toBe(true);
+      expect(mapEligibleForFormat(cityDocks.map, "ffa-3")).toBe(true);
+      expect(mapEligibleForFormat(cityDocks.map, "team-2v2")).toBe(true);
+    });
+
+    it("Polus supports all three formats via authored supportedFormats", () => {
+      expect(eligibleFormats(polus.map)).toEqual(["duel", "ffa-3", "team-2v2"]);
+      expect(mapEligibleForFormat(polus.map, "duel")).toBe(true);
+      expect(mapEligibleForFormat(polus.map, "ffa-3")).toBe(true);
+      expect(mapEligibleForFormat(polus.map, "team-2v2")).toBe(true);
     });
 
     it("Weathertop supports all three formats via authored supportedFormats", () => {

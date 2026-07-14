@@ -17,6 +17,8 @@ import type { ProMapDef } from "./protocol";
 import { MULTIPLAYER_PLAYTEST_MAP, PRO_FORMATS, ProFormatId } from "./multiplayerPlaytest";
 import mendedDrumJson from "./fixtures/mended-drum.map.json";
 import islandOfDespairJson from "./fixtures/island-of-despair.map.json";
+import cityDocksJson from "./fixtures/city-docks.map.json";
+import polusJson from "./fixtures/polus.map.json";
 import weathertopJson from "./fixtures/weathertop.map.json";
 
 /** A board's authored per-format seat mapping (present on multiplayer boards). */
@@ -44,6 +46,8 @@ export interface MapCatalogEntry {
 
 const mendedDrum = mendedDrumJson as unknown as CatalogMap;
 const islandOfDespair = islandOfDespairJson as unknown as CatalogMap;
+const cityDocks = cityDocksJson as unknown as CatalogMap;
+const polus = polusJson as unknown as CatalogMap;
 const weathertop = weathertopJson as unknown as CatalogMap;
 
 /**
@@ -63,6 +67,18 @@ export const MAP_CATALOG: MapCatalogEntry[] = [
     title: islandOfDespair.meta.title,
     thumbnailUrl: islandOfDespair.meta.imageUrl ?? "",
     map: islandOfDespair,
+  },
+  {
+    id: cityDocks.id,
+    title: cityDocks.meta.title,
+    thumbnailUrl: cityDocks.meta.imageUrl ?? "",
+    map: cityDocks,
+  },
+  {
+    id: polus.id,
+    title: polus.meta.title,
+    thumbnailUrl: polus.meta.imageUrl ?? "",
+    map: polus,
   },
   {
     id: weathertop.id,

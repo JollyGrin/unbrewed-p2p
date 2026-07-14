@@ -20,7 +20,7 @@ import {
   STORAGE_KEY, DEFAULT_DIAMETER, emptyDoc, toMapDef, toMapDoc, validate,
   addSpace, moveSpace, deleteSpace, toggleZone, setStart, nudgeSpace,
   nextSpaceId, setTwoWay, applyEdgeState, edgeRef, edgeState, addZone as addZoneFn,
-  addItem as addItemFn, setItemField, removeItem, setSpaceItem, setPassage,
+  addItem as addItemFn, setItemField, removeItem, setSpaceItem, setPassage, spaceById,
 } from "./model";
 import { MapCanvas, EditorMode } from "./MapCanvas";
 import { Toolbar } from "./Toolbar";
@@ -113,6 +113,10 @@ export const MapEditor = () => {
     if (!activeZone) return;
     commit((d) => toggleZone(d, id, activeZone));
   }, [activeZone, commit]);
+
+  const onTogglePassage = useCallback((id: string) => {
+    commit((d) => setPassage(d, id, !spaceById(d, id)?.passage));
+  }, [commit]);
 
   const onDeleteSpace = useCallback((id: string) => {
     commit((d) => deleteSpace(d, id));
@@ -225,6 +229,7 @@ export const MapEditor = () => {
         onClearSelection={clearSelection}
         onConnect={onConnect}
         onToggleZone={onToggleZonePaint}
+        onTogglePassage={onTogglePassage}
         onDeleteSpace={onDeleteSpace}
         onMoveStart={beginTransient}
         onMove={onMove}
