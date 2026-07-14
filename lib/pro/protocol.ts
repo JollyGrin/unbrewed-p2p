@@ -222,7 +222,7 @@
  * `HeroListing` gains `tier` (`'reflavored' | 'spice' | 'community'`) so the
  * client can render a ★ on reflavored names under `?debug`. `LIST_HEROES` and
  * `CREATE_ROOM` both gain an optional `debug` flag (default false/absent):
- * false hides `tier === 'reflavored'` heroes from the HEROES listing and from
+ * false hides debug-only heroes from the HEROES listing and from
  * the server's random bot-hero pool (duel `bot.heroId` omitted, and
  * `botSeats[].heroId` omitted); `debug: true` includes them in both. An
  * EXPLICIT `heroId` — the player's own pick, a named `bot.heroId`/
@@ -311,8 +311,14 @@
  *   Multi-Arm Barrage / "Fire, you fools!" combats so the 2nd/3rd hits read as intentional.
  * The engine branch sits at PROTOCOL_VERSION 16 (cut before v17); Dean does the
  * compatibility rebase to v17 at merge, at which point ACCEPTED_PROTOCOL_VERSIONS covers 17.
+ *
+ * ## v18 (2026-07-14): lab hero tier (unbrewed-engine #180, client sibling p2p #323)
+ * `HeroTier` gains `"lab"` for playable-but-unsettled decks that should stay
+ * hidden from the default roster and random bot pools. As with `"reflavored"`,
+ * `LIST_HEROES.debug` and `CREATE_ROOM.debug` include lab heroes; explicitly
+ * named hero ids remain accepted for direct debug links.
  */
-export const PROTOCOL_VERSION = 17;
+export const PROTOCOL_VERSION = 18;
 
 /** Scripted-AI strength preset (server-side budgets; client treats as opaque). */
 export type BotDifficulty = "easy" | "medium" | "hard";
@@ -912,11 +918,11 @@ export type ReplayResponse = ReplayExpansion | ReplayError;
 // ERROR{code:'VERSION'} and the client shows "refresh".
 // ---------------------------------------------------------------------------
 
-// A hero's visibility class (#107 Phase 1). `reflavored` decks are hidden from
-// the public roster and random bot rotation unless the request carries
-// `debug: true`; `spice` are their public replacements; `community` heroes are
-// always visible (no reflavor exists yet).
-export type HeroTier = "reflavored" | "spice" | "community";
+// A hero's visibility class (#107 Phase 1, v18). `reflavored` and `lab` decks
+// are hidden from the public roster and random bot rotation unless the request
+// carries `debug: true`; `spice` are public replacements; `community` heroes are
+// public by default.
+export type HeroTier = "reflavored" | "spice" | "community" | "lab";
 
 export interface HeroListing {
   heroId: string;
@@ -957,8 +963,8 @@ export interface UndoActionSummary {
 }
 
 export type ClientMsg =
-  // `debug` (v15): true includes `tier: 'reflavored'` heroes in the HEROES
-  // listing. Absent/false = hidden. See the v15 note above.
+  // `debug` (v15/v18): true includes debug-only heroes in the HEROES listing.
+  // Absent/false = hidden. See the v15 and v18 notes above.
   | { v: number; type: "LIST_HEROES"; debug?: boolean }
   | { v: number; type: "LIST_LOBBIES" }
   // `customMap` (v4): playtest an unpublished board — the server validates it
@@ -967,9 +973,9 @@ export type ClientMsg =
   // hands included — reproduces from {seed, actionLog}. HONORED ONLY when the
   // server enables it (PRO_ALLOW_DEV_SEED=1); production ignores it. Additive and
   // never sent by the real client, so it needs no client-side protocol sync.
-  // `debug` (v15): true includes `tier: 'reflavored'` heroes in the random pool
-  // a server-picked `bot.heroId`/`botSeats[].heroId` draws from. Absent/false =
-  // excluded. Never gates an explicitly named heroId. See the v15 note above.
+  // `debug` (v15/v18): true includes debug-only heroes in the random pool a
+  // server-picked `bot.heroId`/`botSeats[].heroId` draws from. Absent/false =
+  // excluded. Never gates an explicitly named heroId. See the v15 and v18 notes.
   // `turnTimerSeconds` (issue #122): per-decision move timer, integer 10–300;
   // absent or 0 = no timer. See the 2026-07-12 move-timer header note.
   | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number }

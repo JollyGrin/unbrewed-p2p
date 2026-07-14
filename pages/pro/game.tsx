@@ -3591,8 +3591,8 @@ const ProGamePage = () => {
   const room = typeof router.query.room === "string" ? router.query.room : null;
   const heroParam = typeof router.query.hero === "string" ? router.query.hero : null;
   // `?debug` (any value, incl. bare `?debug`) opts this session into seeing the
-  // reflavored/baseline decks the server hides by default — in the picker and in
-  // random bot picks. See lib/pro/protocol.ts v15.
+  // debug-only decks the server hides by default, in the picker and in random
+  // bot picks. See lib/pro/protocol.ts v15/v18.
   const debug = router.query.debug !== undefined;
 
   return (

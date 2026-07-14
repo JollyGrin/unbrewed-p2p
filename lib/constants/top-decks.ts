@@ -21,11 +21,10 @@ export type PopularDeckMeta = {
   lab?: boolean;
   /**
    * Visibility class, mirroring the server's HeroListing.tier. Set to
-   * `"reflavored"` for a baseline deck that a spice remix has replaced: it is
-   * hidden from the default roster and only appears (with a ` ★` suffix) under
-   * `?debug`. The server also omits reflavored heroes from a non-debug
-   * listing, so this static tag is what lets the client hide the tile even
-   * before/without a live roster. Omitted = a normally-visible deck.
+   * `"reflavored"` for a baseline deck that a spice remix has replaced or
+   * `"lab"` for a playable-but-unsettled deck. Both are hidden from the default
+   * roster and only appear under `?debug`; reflavored decks also get a ` ★`
+   * suffix there. Omitted = a normally-visible deck.
    */
   tier?: HeroTier;
 };
@@ -495,5 +494,6 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl: "/evergreen-decks/art/malfurion-stormrage/deck-select.webp",
     original: true,
     lab: true,
+    tier: "lab",
   },
 ];

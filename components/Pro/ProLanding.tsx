@@ -72,25 +72,22 @@ export const ProLanding = () => {
   const [picked, setPicked] = useState<PopularDeckMeta>();
   const [previewDeck, setPreviewDeck] = useState<PopularDeckMeta>();
   const router = useRouter();
-  // `?debug` (any value, incl. bare `?debug`) reveals the reflavored/baseline
-  // decks the server hides by default. See lib/pro/protocol.ts v15.
+  // `?debug` (any value, incl. bare `?debug`) reveals debug-only decks the
+  // server hides by default. See lib/pro/protocol.ts v15/v18.
   const debug = router.query.debug !== undefined;
   const liveHeroes = useProLiveRoster(PRO_WS_URL, debug);
 
-  // A deck is reflavored (hidden unless ?debug, ★-suffixed under it) when our
-  // static POPULAR_DECKS tag says so OR the live roster reports
-  // tier === 'reflavored'. The server omits reflavored heroes from a non-debug
-  // listing, so the static tag is what hides the tile before/without a live
-  // roster; under ?debug the server sends the tier and both agree.
+  const liveTier = (deck: PopularDeckMeta) =>
+    liveHeroes?.find((h) => h.heroId === DECK_HERO_IDS[deck.id])?.tier;
   const isReflavored = (deck: PopularDeckMeta) =>
-    deck.tier === "reflavored" ||
-    liveHeroes?.find((h) => h.heroId === DECK_HERO_IDS[deck.id])?.tier ===
-      "reflavored";
+    deck.tier === "reflavored" || liveTier(deck) === "reflavored";
+  const isDebugOnly = (deck: PopularDeckMeta) =>
+    isReflavored(deck) || deck.tier === "lab" || liveTier(deck) === "lab";
 
-  // The default roster never renders reflavored decks; ?debug shows them.
+  // The default roster never renders debug-only decks; ?debug shows them.
   const visibleDecks = debug
     ? POPULAR_DECKS
-    : POPULAR_DECKS.filter((d) => !isReflavored(d));
+    : POPULAR_DECKS.filter((d) => !isDebugOnly(d));
 
   // Client-side display name only: under ?debug a reflavored deck gets a ` ★`
   // so it reads apart from its identically-named spice replacement. Never
