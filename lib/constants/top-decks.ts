@@ -487,7 +487,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "unbrewed",
     likes: 0,
     highlightColour: "#2fbf71",
-    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/malfurion-stormrage/cardback.webp",
+    cardbackUrl: "/evergreen-decks/art/malfurion-stormrage/deck-select.webp",
     original: true,
   },
 ];
