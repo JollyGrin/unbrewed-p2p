@@ -16,6 +16,31 @@ export interface ProLogLine {
   cards?: CardInstanceId[];
 }
 
+/**
+ * Display label for the player action a STATE batch carried, derived from its
+ * `ACTION_SPENT.action`. Used to label an action group in the log; `undefined`
+ * for batches with no player action (setup, forced end-of-turn, prompt
+ * resolutions), which render as a neutral (unlabeled) group.
+ */
+export type ProLogPhase = "Maneuver" | "Scheme" | "Attack" | "Scheme Item";
+
+const ACTION_PHASE: Record<"MANEUVER" | "SCHEME" | "ATTACK" | "SCHEME_ITEM", ProLogPhase> = {
+  MANEUVER: "Maneuver",
+  SCHEME: "Scheme",
+  ATTACK: "Attack",
+  SCHEME_ITEM: "Scheme Item",
+};
+
+/**
+ * The action-group label for one STATE broadcast, read off its `ACTION_SPENT`
+ * event (a batch carries at most one). `undefined` when the batch spent no
+ * action — the log then renders those lines as a neutral group.
+ */
+export function batchPhase(events: GameEvent[]): ProLogPhase | undefined {
+  const spent = events.find((e) => e.type === "ACTION_SPENT");
+  return spent && spent.type === "ACTION_SPENT" ? ACTION_PHASE[spent.action] : undefined;
+}
+
 /** A log line as stored in the page (feed + CSV/bug-report export). */
 export interface ProLogEntry extends ProLogLine {
   key: string;
@@ -23,6 +48,14 @@ export interface ProLogEntry extends ProLogLine {
   ts?: number;
   /** turn number the line belongs to — lets the bug-report dialog window by turn */
   turn?: number;
+  /** seat that owned this turn ("You"/"Opponent"/"P3"), for the turn header */
+  turnActor?: string;
+  /** monotonic id of the STATE batch these lines came from — lines sharing a
+   *  batchId are one player action and render as a single grouped block */
+  batchId?: number;
+  /** action label for the batch (Maneuver/Scheme/Attack/Scheme Item), or
+   *  undefined for batches that spent no action (neutral group) */
+  phase?: ProLogPhase;
 }
 
 const csvCell = (value: string) => `"${value.replace(/"/g, '""')}"`;
@@ -30,16 +63,56 @@ const csvCell = (value: string) => `"${value.replace(/"/g, '""')}"`;
 /**
  * Oldest-first CSV of the whole feed (entries are stored newest-first). Single
  * source for both the activity-panel download and the bug-report attachment.
+ * The `phase` column (issue #298) carries the action label so an exported log
+ * can be grouped the same way the panel groups it.
  */
 export function logEntriesToCsv(entries: ProLogEntry[]): string {
   return [
-    "time,turn,who,text",
+    "time,turn,phase,who,text",
     ...[...entries]
       .reverse()
       .map((e) =>
-        [e.ts ? new Date(e.ts).toISOString() : "", e.turn ?? "", e.who, csvCell(e.text)].join(",")
+        [e.ts ? new Date(e.ts).toISOString() : "", e.turn ?? "", e.phase ?? "", e.who, csvCell(e.text)].join(",")
       ),
   ].join("\n");
+}
+
+/** One player action's lines, grouped under its turn (see `groupLog`). */
+export interface ProLogActionGroup {
+  batchId?: number;
+  phase?: ProLogPhase;
+  entries: ProLogEntry[];
+}
+
+/** One turn's worth of action groups, newest-first (see `groupLog`). */
+export interface ProLogTurnSection {
+  turn?: number;
+  actor?: string;
+  groups: ProLogActionGroup[];
+}
+
+/**
+ * Section a newest-first entry list into turns, and each turn into action
+ * groups (one per STATE batch). Because batches are appended whole and turns
+ * only advance, entries are already contiguous by turn and by `batchId`, so a
+ * single pass suffices. Display-only; never reorders lines.
+ */
+export function groupLog(entries: ProLogEntry[]): ProLogTurnSection[] {
+  const sections: ProLogTurnSection[] = [];
+  for (const e of entries) {
+    let section = sections[sections.length - 1];
+    if (!section || section.turn !== e.turn) {
+      section = { turn: e.turn, actor: e.turnActor, groups: [] };
+      sections.push(section);
+    }
+    let group = section.groups[section.groups.length - 1];
+    if (!group || group.batchId !== e.batchId) {
+      group = { batchId: e.batchId, phase: e.phase, entries: [] };
+      section.groups.push(group);
+    }
+    group.entries.push(e);
+  }
+  return sections;
 }
 
 const short = (name: string) => name.split("/").pop() ?? name;
@@ -244,7 +317,7 @@ export function diffViews(
 }
 
 // ---------------------------------------------------------------------------
-// Event enrichment (protocol v10, gated behind the `eventLog` flag).
+// Event enrichment (protocol v10).
 //
 // `diffViews` above remains the ONLY producer of log lines for anything it can
 // derive from the view snapshots. `enrichLines` layers the structured engine
@@ -274,10 +347,10 @@ const isCardSource = (source: string): boolean =>
 
 /** Human suffix for a `CARD_DISCARDED.reason`, appended to the discard line. */
 const DISCARD_REASON: Record<string, string> = {
-  BOOST: "boost",
-  COMBAT: "combat",
-  HAND_LIMIT: "hand limit",
-  EFFECT: "effect",
+  BOOST: "spent to boost",
+  COMBAT: "used in combat",
+  HAND_LIMIT: "over hand limit",
+  EFFECT: "card effect",
   MILL: "milled",
 };
 
@@ -338,7 +411,7 @@ export function enrichLines(
           (l) =>
             /→ discard:/.test(l.text) &&
             l.cards?.includes(e.card) &&
-            !/ \((?:boost|combat|hand limit|effect|milled)\)$/.test(l.text)
+            !/ \((?:spent to boost|used in combat|over hand limit|card effect|milled)\)$/.test(l.text)
         );
         if (target) target.text = `${target.text} (${suffix})`;
         break;

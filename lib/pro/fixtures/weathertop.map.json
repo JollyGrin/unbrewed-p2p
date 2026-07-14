@@ -1,0 +1,598 @@
+{
+  "schemaVersion": "1.0",
+  "id": "weathertop",
+  "meta": {
+    "title": "Weathertop",
+    "minPlayers": 2,
+    "maxPlayers": 4,
+    "specialRules": false,
+    "imageUrl": "https://unbrewed.xyz/maps/legacy-weathertop.webp",
+    "imageWidth": 1280,
+    "imageHeight": 827,
+    "spaceDiameter": 0.09,
+    "source": "https://www.youtube.com/watch?app=desktop&v=fsIgAV93_ko",
+    "license": "Legacy community battlefield 'Weathertop' by Taytertot. Source: https://www.youtube.com/watch?app=desktop&v=fsIgAV93_ko — credit Taytertot."
+  },
+  "supportedFormats": [
+    {
+      "id": "duel-weathertop",
+      "formatId": "duel",
+      "label": "Duel",
+      "description": "Start slots 1 and 2 for a standard 1v1.",
+      "seats": {
+        "A1": {
+          "startSlot": 1
+        },
+        "B1": {
+          "startSlot": 2
+        }
+      }
+    },
+    {
+      "id": "ffa-3-weathertop",
+      "formatId": "ffa-3",
+      "label": "3 Player Free For All",
+      "description": "Three independent players use start slots 1, 2, and 3.",
+      "seats": {
+        "A1": {
+          "startSlot": 1
+        },
+        "B1": {
+          "startSlot": 2
+        },
+        "C1": {
+          "startSlot": 3
+        }
+      }
+    },
+    {
+      "id": "team-2v2-weathertop",
+      "formatId": "team-2v2",
+      "label": "2v2 Teams",
+      "description": "Diagonal teams so teammates start far apart: Team A holds slot 1 (top-left grassy hollow, c6) and slot 2 (bottom-right deep woods, c30); Team B holds slot 3 (lower-left wraith-shadow, c22) and slot 4 (top-right still water, c4).",
+      "seats": {
+        "A1": {
+          "startSlot": 1
+        },
+        "A2": {
+          "startSlot": 2
+        },
+        "B1": {
+          "startSlot": 3
+        },
+        "B2": {
+          "startSlot": 4
+        }
+      }
+    }
+  ],
+  "zones": [
+    {
+      "id": "z-grass",
+      "color": "#74934a",
+      "label": "grassy hollow"
+    },
+    {
+      "id": "z-roots",
+      "color": "#865532",
+      "label": "dead roots"
+    },
+    {
+      "id": "z-water",
+      "color": "#4db3e1",
+      "label": "still water"
+    },
+    {
+      "id": "z-gold",
+      "color": "#f8d12b",
+      "label": "firelit trail"
+    },
+    {
+      "id": "z-shadow",
+      "color": "#c93938",
+      "label": "wraith-shadow"
+    },
+    {
+      "id": "z-ring",
+      "color": "#626262",
+      "label": "the stone ring"
+    },
+    {
+      "id": "z-rubble",
+      "color": "#b0b1b0",
+      "label": "broken stones"
+    },
+    {
+      "id": "z-woods",
+      "color": "#2f7140",
+      "label": "deep woods"
+    }
+  ],
+  "spaces": [
+    {
+      "id": "s1",
+      "x": 0.3998,
+      "y": 0.1436,
+      "zones": [
+        "z-grass",
+        "z-roots"
+      ],
+      "adjacentTo": [
+        "s7",
+        "s13",
+        "s34"
+      ]
+    },
+    {
+      "id": "s2",
+      "x": 0.5557,
+      "y": 0.1061,
+      "zones": [
+        "z-roots",
+        "z-water"
+      ],
+      "adjacentTo": [
+        "s3",
+        "s8"
+      ],
+      "oneWayTo": [
+        "s1"
+      ]
+    },
+    {
+      "id": "s3",
+      "x": 0.691,
+      "y": 0.1505,
+      "zones": [
+        "z-water",
+        "z-gold"
+      ],
+      "adjacentTo": [
+        "s2",
+        "s4",
+        "s8",
+        "s9"
+      ]
+    },
+    {
+      "id": "s4",
+      "x": 0.8229,
+      "y": 0.1285,
+      "zones": [
+        "z-water",
+        "z-gold"
+      ],
+      "adjacentTo": [
+        "s3",
+        "s5",
+        "s9"
+      ],
+      "start": {
+        "slot": 4
+      }
+    },
+    {
+      "id": "s5",
+      "x": 0.9348,
+      "y": 0.1965,
+      "zones": [
+        "z-water"
+      ],
+      "adjacentTo": [
+        "s4",
+        "s16"
+      ]
+    },
+    {
+      "id": "s6",
+      "x": 0.1533,
+      "y": 0.2415,
+      "zones": [
+        "z-grass"
+      ],
+      "adjacentTo": [
+        "s10",
+        "s33"
+      ],
+      "start": {
+        "slot": 1
+      }
+    },
+    {
+      "id": "s7",
+      "x": 0.2994,
+      "y": 0.2573,
+      "zones": [
+        "z-grass",
+        "z-roots"
+      ],
+      "adjacentTo": [
+        "s1",
+        "s11"
+      ],
+      "oneWayTo": [
+        "s34"
+      ]
+    },
+    {
+      "id": "s8",
+      "x": 0.559,
+      "y": 0.2751,
+      "zones": [
+        "z-ring"
+      ],
+      "adjacentTo": [
+        "s2",
+        "s3",
+        "s13",
+        "s14"
+      ]
+    },
+    {
+      "id": "s9",
+      "x": 0.7293,
+      "y": 0.3464,
+      "zones": [
+        "z-gold"
+      ],
+      "adjacentTo": [
+        "s3",
+        "s4",
+        "s20"
+      ],
+      "oneWayTo": [
+        "s15"
+      ]
+    },
+    {
+      "id": "s10",
+      "x": 0.0848,
+      "y": 0.3779,
+      "zones": [
+        "z-grass",
+        "z-shadow"
+      ],
+      "adjacentTo": [
+        "s6",
+        "s11",
+        "s17"
+      ]
+    },
+    {
+      "id": "s11",
+      "x": 0.216,
+      "y": 0.4081,
+      "zones": [
+        "z-grass",
+        "z-shadow"
+      ],
+      "adjacentTo": [
+        "s7",
+        "s10",
+        "s17"
+      ],
+      "oneWayTo": [
+        "s6"
+      ]
+    },
+    {
+      "id": "s12",
+      "x": 0.3699,
+      "y": 0.4734,
+      "zones": [
+        "z-ring"
+      ],
+      "adjacentTo": [
+        "s13",
+        "s18",
+        "s19"
+      ]
+    },
+    {
+      "id": "s13",
+      "x": 0.4553,
+      "y": 0.36,
+      "zones": [
+        "z-ring"
+      ],
+      "adjacentTo": [
+        "s1",
+        "s8",
+        "s12",
+        "s14",
+        "s19"
+      ]
+    },
+    {
+      "id": "s14",
+      "x": 0.5559,
+      "y": 0.4492,
+      "zones": [
+        "z-ring"
+      ],
+      "adjacentTo": [
+        "s8",
+        "s13",
+        "s19"
+      ]
+    },
+    {
+      "id": "s15",
+      "x": 0.8449,
+      "y": 0.4686,
+      "zones": [
+        "z-woods"
+      ],
+      "adjacentTo": [
+        "s16",
+        "s21",
+        "s25"
+      ]
+    },
+    {
+      "id": "s16",
+      "x": 0.94,
+      "y": 0.3848,
+      "zones": [
+        "z-woods"
+      ],
+      "adjacentTo": [
+        "s5",
+        "s15",
+        "s21"
+      ]
+    },
+    {
+      "id": "s17",
+      "x": 0.1379,
+      "y": 0.5423,
+      "zones": [
+        "z-grass",
+        "z-shadow"
+      ],
+      "adjacentTo": [
+        "s10",
+        "s11",
+        "s22"
+      ]
+    },
+    {
+      "id": "s18",
+      "x": 0.2779,
+      "y": 0.6073,
+      "zones": [
+        "z-shadow"
+      ],
+      "adjacentTo": [
+        "s12",
+        "s22",
+        "s23"
+      ]
+    },
+    {
+      "id": "s19",
+      "x": 0.4652,
+      "y": 0.5617,
+      "zones": [
+        "z-ring"
+      ],
+      "adjacentTo": [
+        "s12",
+        "s13",
+        "s14"
+      ]
+    },
+    {
+      "id": "s20",
+      "x": 0.7293,
+      "y": 0.5411,
+      "zones": [
+        "z-gold",
+        "z-woods"
+      ],
+      "adjacentTo": [
+        "s9",
+        "s24"
+      ],
+      "oneWayTo": [
+        "s25"
+      ]
+    },
+    {
+      "id": "s21",
+      "x": 0.9318,
+      "y": 0.5831,
+      "zones": [
+        "z-woods"
+      ],
+      "adjacentTo": [
+        "s15",
+        "s16",
+        "s25",
+        "s31"
+      ]
+    },
+    {
+      "id": "s22",
+      "x": 0.1809,
+      "y": 0.708,
+      "zones": [
+        "z-shadow"
+      ],
+      "adjacentTo": [
+        "s17",
+        "s18",
+        "s26",
+        "s27"
+      ],
+      "start": {
+        "slot": 3
+      }
+    },
+    {
+      "id": "s23",
+      "x": 0.3598,
+      "y": 0.7273,
+      "zones": [
+        "z-shadow",
+        "z-rubble"
+      ],
+      "adjacentTo": [
+        "s18"
+      ],
+      "oneWayTo": [
+        "s27",
+        "s32"
+      ]
+    },
+    {
+      "id": "s24",
+      "x": 0.6559,
+      "y": 0.6826,
+      "zones": [
+        "z-gold"
+      ],
+      "adjacentTo": [
+        "s20",
+        "s28",
+        "s29"
+      ]
+    },
+    {
+      "id": "s25",
+      "x": 0.8338,
+      "y": 0.6938,
+      "zones": [
+        "z-woods"
+      ],
+      "adjacentTo": [
+        "s15",
+        "s21",
+        "s30",
+        "s31"
+      ]
+    },
+    {
+      "id": "s26",
+      "x": 0.1488,
+      "y": 0.8785,
+      "zones": [
+        "z-shadow",
+        "z-rubble"
+      ],
+      "adjacentTo": [
+        "s22",
+        "s27"
+      ]
+    },
+    {
+      "id": "s27",
+      "x": 0.2619,
+      "y": 0.8443,
+      "zones": [
+        "z-shadow",
+        "z-rubble"
+      ],
+      "adjacentTo": [
+        "s22",
+        "s26",
+        "s32"
+      ]
+    },
+    {
+      "id": "s28",
+      "x": 0.5643,
+      "y": 0.8715,
+      "zones": [
+        "z-gold",
+        "z-rubble"
+      ],
+      "adjacentTo": [
+        "s24",
+        "s29",
+        "s32"
+      ]
+    },
+    {
+      "id": "s29",
+      "x": 0.6887,
+      "y": 0.8507,
+      "zones": [
+        "z-woods",
+        "z-rubble",
+        "z-gold"
+      ],
+      "adjacentTo": [
+        "s24",
+        "s28",
+        "s30"
+      ]
+    },
+    {
+      "id": "s30",
+      "x": 0.8207,
+      "y": 0.8785,
+      "zones": [
+        "z-woods"
+      ],
+      "adjacentTo": [
+        "s25",
+        "s29",
+        "s31"
+      ],
+      "start": {
+        "slot": 2
+      }
+    },
+    {
+      "id": "s31",
+      "x": 0.9322,
+      "y": 0.7845,
+      "zones": [
+        "z-woods"
+      ],
+      "adjacentTo": [
+        "s21",
+        "s25",
+        "s30"
+      ]
+    },
+    {
+      "id": "s32",
+      "x": 0.4137,
+      "y": 0.9135,
+      "zones": [
+        "z-rubble"
+      ],
+      "adjacentTo": [
+        "s27",
+        "s28"
+      ]
+    },
+    {
+      "id": "s33",
+      "x": 0.0742,
+      "y": 0.0726,
+      "zones": [
+        "z-grass"
+      ],
+      "adjacentTo": [
+        "s6",
+        "s34"
+      ]
+    },
+    {
+      "id": "s34",
+      "x": 0.225,
+      "y": 0.0907,
+      "zones": [
+        "z-grass",
+        "z-roots"
+      ],
+      "adjacentTo": [
+        "s1",
+        "s33"
+      ]
+    }
+  ]
+}
