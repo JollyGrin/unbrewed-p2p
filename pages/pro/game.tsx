@@ -84,6 +84,7 @@ import {
 } from "@/lib/pro/moveSteps";
 import { useGameFx } from "@/lib/pro/useGameFx";
 import { useCombatCallouts, CombatCalloutItem } from "@/lib/pro/combatFx";
+import { useTokenLife } from "@/lib/pro/tokenLife";
 import { useIncomingMoveTween } from "@/lib/pro/moveTween";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
@@ -2091,6 +2092,14 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
   // byte-identical.
   const combatCallouts = useCombatCallouts(snapshot);
 
+  // Lively tokens (issue #320): per-fighter recoil/lunge/brace/topple gestures,
+  // diffed off the same snapshots. Opt-in behind the `tokenLife` beta flag; the
+  // hook always advances its prevViewRef but emits nothing while off, so toggling
+  // it on mid-game diffs cleanly. Passing null to ProBoard when off keeps the
+  // token DOM byte-identical.
+  const [tokenLifeOn] = useFlag("tokenLife");
+  const tokenGestures = useTokenLife(snapshot, tokenLifeOn);
+
   // GAME_OVER pushes a self-contained bundle to both seats (protocol v7). Save it
   // to the local Replays store so the match is scrubbable later (issue #122). Runs
   // once per bundle; saveReplay is idempotent by content, so a refresh won't dup it.
@@ -3137,6 +3146,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
           onFighterClick={onFighterClick}
           imgMaxH="calc(100svh - 16rem)"
           zoomable={zoomMapOn}
+          tokenLife={tokenLifeOn ? tokenGestures : null}
         />
       </Flex>
 

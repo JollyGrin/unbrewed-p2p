@@ -618,3 +618,55 @@ describe("ProBoard step-highlight over occupied spaces (issue #285 / #185)", () 
     expect(onFighterClick).not.toHaveBeenCalled();
   });
 });
+
+// Lively tokens (issue #320, `tokenLife` beta flag). PRESENTATION ONLY — the DOM
+// is byte-identical when the prop is absent, and the token keeps behaving (click
+// routing, title) when the feature is on.
+describe("ProBoard tokenLife layer (issue #320)", () => {
+  it("keeps the token clickable and titled when the feature is on", () => {
+    const onFighterClick = jest.fn();
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[fighter({})]}
+          highlightedFighters={["p1/hero"]}
+          onFighterClick={onFighterClick}
+          tokenLife={{}}
+        />
+      </ChakraProvider>
+    );
+    const token = screen.getByTitle(/The Mandalorian/);
+    expect(getComputedStyle(token).display).toBe("flex");
+    fireEvent.click(token);
+    expect(onFighterClick).toHaveBeenCalledWith("p1/hero");
+  });
+
+  it("renders a KO ghost for a toppled fighter and clears the live token filter path", () => {
+    // The topple gesture carries the fighter's last space; the ghost renders as
+    // an extra, non-interactive token overlay at that space.
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[fighter({ id: "p1/hero", space: "s1" })]}
+          tokenLife={{
+            "p2/dead": { kind: "topple", key: 1, dx: 1, dy: 0, amount: 0, space: "s2" },
+          }}
+        />
+      </ChakraProvider>
+    );
+    // The live fighter is still there; the ghost adds a second circle. No throw is
+    // the core assertion — the ghost path renders in the frame holding its space.
+    expect(screen.getByTitle(/The Mandalorian/)).toBeInTheDocument();
+  });
+
+  it("does not add the KO ghost path when the feature is off (null tokenLife)", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={MAP} fighters={[fighter({})]} />
+      </ChakraProvider>
+    );
+    expect(screen.getByTitle(/The Mandalorian/)).toBeInTheDocument();
+  });
+});

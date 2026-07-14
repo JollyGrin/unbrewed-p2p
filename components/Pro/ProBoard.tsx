@@ -9,13 +9,15 @@
  */
 import { Box, Button, Flex, Text, chakra, shouldForwardProp } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
-import { isValidMotionProp, motion } from "framer-motion";
-import { PointerEvent as ReactPointerEvent, useRef, useState } from "react";
+import { isValidMotionProp, motion, useReducedMotion } from "framer-motion";
+import { PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 import { FighterId, PlayerId, ProMapDef, ProMapItem, ProMapRegion, ProMapSpace, SpaceId, ViewFighter, ViewToken } from "@/lib/pro/protocol";
 import { BoardFxItem } from "@/lib/pro/useGameFx";
+import { TokenGestures, usePageHidden } from "@/lib/pro/tokenLife";
 import { useZoomPan } from "@/lib/pro/useZoomPan";
 import { LARGE_FIGHTER_BLURB, LARGE_REACH_CHIP } from "@/lib/pro/largeReach";
 import { tokenInitials } from "./FighterTokenPortrait";
+import { TokenIdle, TokenLifeLayer, phaseSeed } from "./TokenLifeLayer";
 import { ItemBadge, PassageBadge } from "./ItemBadge";
 
 /** Hover/long-press tooltip for a live item token, per the official wording. */
@@ -68,6 +70,37 @@ const arrowPulse = keyframes`
   0%, 100% { opacity: 0.6; }
   50% { opacity: 1; }
 `;
+
+// K.O. topple (issue #320, `tokenLife` flag): a defeated fighter has already left
+// the board's live token list, so its fall plays on a short-lived overlay GHOST
+// captured at the moment of defeat. It tips over (away from the attacker),
+// desaturates and sinks as it fades. `translate(-50%, …)` re-centers on the space
+// exactly like a real token. Reduced-motion collapses this to a plain fade.
+const KO_GHOST_MS = 750;
+const toppleFallRight = keyframes`
+  0%   { transform: translate(-50%, -50%) rotate(0deg) scale(1); opacity: 0.95; filter: saturate(1); }
+  100% { transform: translate(-50%, -28%) rotate(34deg) scale(0.8); opacity: 0; filter: saturate(0.15) brightness(0.6); }
+`;
+const toppleFallLeft = keyframes`
+  0%   { transform: translate(-50%, -50%) rotate(0deg) scale(1); opacity: 0.95; filter: saturate(1); }
+  100% { transform: translate(-50%, -28%) rotate(-34deg) scale(0.8); opacity: 0; filter: saturate(0.15) brightness(0.6); }
+`;
+const toppleFade = keyframes`
+  0%   { transform: translate(-50%, -50%) scale(1); opacity: 0.9; }
+  100% { transform: translate(-50%, -50%) scale(0.9); opacity: 0; filter: saturate(0.2); }
+`;
+
+/** One captured defeated fighter, animating its fall on the overlay. */
+interface KoGhost {
+  key: string;
+  space: SpaceId;
+  color: string;
+  art?: string | null;
+  initials: string;
+  isHero: boolean;
+  fallRight: boolean;
+  reduced: boolean;
+}
 
 const ARROW_COLOR = "#E23B3B"; // crimson — reads as "attack", distinct from both player colors
 
@@ -184,6 +217,11 @@ export interface ProBoardProps {
    * the `zoomMap` beta flag). Off (default) = no handlers, no transform, no
    * added DOM — the board behaves exactly as before. */
   zoomable?: boolean;
+  /** Per-fighter combat gestures for the `tokenLife` beta feature (issue #320),
+   *  derived from snapshot diffs by useTokenLife. PRESENTATION ONLY. Absent/null
+   *  (flag off) = no wrapper, no idle motion — the token DOM is byte-identical to
+   *  today. Present (even if empty) = tokens breathe and react to combat. */
+  tokenLife?: TokenGestures | null;
 }
 
 const PLAYER_COLOR: Record<string, string> = {
@@ -192,6 +230,10 @@ const PLAYER_COLOR: Record<string, string> = {
   p3: "#2F9E68", // green
   p4: "#C0449E", // magenta
 };
+
+// Raw hex for the token body when the `tokenLife` layer paints the circle via
+// inline style (Chakra tokens don't resolve there). Must match styles/style.ts.
+const SURFACE_DIM = "#2C1831";
 
 // Team-affiliation ring (issue #195): a teal halo shared by every fighter on the
 // viewer's team. Kept distinct from the gold highlight, white selection ring, and
@@ -225,7 +267,12 @@ export const ProBoard = ({
   onFighterClick,
   imgMaxH,
   zoomable = false,
+  tokenLife = null,
 }: ProBoardProps) => {
+  // "Lively tokens" (issue #320): present (even empty) = the feature is on.
+  const tokenLifeOn = !!tokenLife;
+  const reducedMotion = !!useReducedMotion();
+  const pageHidden = usePageHidden();
   const diameter = (map.meta.spaceDiameter ?? DEFAULT_DIAMETER) * 100; // % of width
   // Static item definitions (kind + label + value), keyed by id — looked up from
   // the LIVE itemTokens map so a badge renders only while the token is on the board.
@@ -329,6 +376,46 @@ export const ProBoard = ({
   // whichever frame holds both tokens (the arrow doesn't cross frames).
   const attacker = attack ? fighters.find((f) => f.id === attack.attacker) : undefined;
   const attackTarget = attack ? fighters.find((f) => f.id === attack.target) : undefined;
+
+  // K.O. topple ghosts (issue #320). A `topple` gesture is captured the instant a
+  // fighter is defeated — while it is still in `fighters` — into a short-lived
+  // overlay so the fall survives the fighter leaving the live token list next
+  // snapshot. Self-contained: no ghosts unless the flag is on, so the board's
+  // token DOM is unchanged when off.
+  const [koGhosts, setKoGhosts] = useState<KoGhost[]>([]);
+  const koSeenRef = useRef<Record<FighterId, number>>({});
+  const koTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => {
+    const timers = koTimersRef.current;
+    return () => timers.forEach(clearTimeout);
+  }, []);
+  useEffect(() => {
+    if (!tokenLife) return;
+    const fresh: KoGhost[] = [];
+    for (const [id, g] of Object.entries(tokenLife)) {
+      if (g.kind !== "topple" || koSeenRef.current[id] === g.key) continue;
+      koSeenRef.current[id] = g.key;
+      const f = fighters.find((ff) => ff.id === id);
+      const space = g.space ?? f?.space ?? f?.tailSpace ?? null;
+      if (!f || !space) continue;
+      fresh.push({
+        key: `ko-${id}-${g.key}`,
+        space,
+        color: PLAYER_COLOR[f.owner] ?? "#999",
+        art: fighterTokenArt?.(f) ?? null,
+        initials: tokenInitials(f.name),
+        isHero: f.kind === "HERO",
+        fallRight: g.dx >= 0,
+        reduced: reducedMotion,
+      });
+    }
+    if (fresh.length === 0) return;
+    setKoGhosts((cur) => [...cur, ...fresh]);
+    const keys = new Set(fresh.map((k) => k.key));
+    koTimersRef.current.push(
+      setTimeout(() => setKoGhosts((cur) => cur.filter((k) => !keys.has(k.key))), KO_GHOST_MS)
+    );
+  }, [tokenLife, fighters, fighterTokenArt, reducedMotion]);
 
   // The moving fighter's node-by-node route, resolved to coordinates. Only
   // the HEAD token of the named fighter tweens through it — an
@@ -545,6 +632,44 @@ export const ProBoard = ({
     const times = steps > 1 ? Array.from({ length: steps }, (_, i) => i / (steps - 1)) : undefined;
     const duration = anim ? (steps - 1) * MOVE_STEP_SECONDS : 0;
 
+    // The visible circle body. When `tokenLife` is on it moves onto the inner
+    // gesture wrapper (so the whole token recoils/lunges as one unit) and the
+    // MotionFlex becomes a transparent shell that keeps only the position tween
+    // and the box-shadow rings; when off it stays on the MotionFlex exactly as
+    // before, so the token DOM is byte-identical.
+    // `bodyBgToken` is the Chakra token used on the OFF path (byte-identical to
+    // today); `bodyBgHex` is the resolved hex the inner layer needs for inline
+    // style. Border/opacity are the same expression on both paths.
+    const bodyBgToken = f.kind === "HERO" ? color : "brand.surfaceDim";
+    const bodyBgHex = f.kind === "HERO" ? color : SURFACE_DIM;
+    const bodyBorder = `2px solid ${f.kind === "HERO" ? "#fff" : color}`;
+    const bodyOpacity = f.kind === "HERO" ? 1 : 0.92;
+
+    // Idle vocabulary: selected/deciding fighter gets the "ready" bob (idle
+    // breathing suppressed so the two never read as the same); a near-death
+    // fighter breathes "labored"; everyone else breathes normally.
+    const idle: TokenIdle = isSelected
+      ? "ready"
+      : f.maxHp > 0 && f.hp / f.maxHp <= 0.34
+        ? "labored"
+        : "breathing";
+
+    const body = tokenLifeOn ? (
+      <TokenLifeLayer
+        gesture={tokenLife?.[f.id]}
+        idle={idle}
+        reduced={reducedMotion}
+        paused={pageHidden}
+        moving={!!anim}
+        seed={phaseSeed(f.id)}
+        body={{ bg: bodyBgHex, border: bodyBorder, opacity: bodyOpacity }}
+      >
+        {children}
+      </TokenLifeLayer>
+    ) : (
+      children
+    );
+
     return (
       <MotionFlex
         key={key}
@@ -561,9 +686,9 @@ export const ProBoard = ({
         w={`${diam * 0.82}%`}
         sx={{ aspectRatio: "1" }}
         borderRadius="50%"
-        bg={f.kind === "HERO" ? color : "brand.surfaceDim"}
-        border={`2px solid ${f.kind === "HERO" ? "#fff" : color}`}
-        opacity={f.kind === "HERO" ? 1 : 0.92}
+        bg={tokenLifeOn ? "transparent" : bodyBgToken}
+        border={tokenLifeOn ? "none" : bodyBorder}
+        opacity={tokenLifeOn ? 1 : bodyOpacity}
         boxShadow={boxShadow}
         animation={isTarget ? `${highlightPulse} 1.4s ease-in-out infinite` : undefined}
         cursor={clickable ? "pointer" : "default"}
@@ -582,10 +707,58 @@ export const ProBoard = ({
             : `${f.name} — ${f.hp}/${f.maxHp} HP`
         }
       >
-        {children}
+        {body}
       </MotionFlex>
     );
   };
+
+  // One K.O. ghost, drawn like a token in whichever frame holds its space.
+  const koGhostToken = (g: KoGhost, s: ProMapSpace, diam: number) => (
+    <Box
+      key={g.key}
+      position="absolute"
+      left={`${s.x * 100}%`}
+      top={`${s.y * 100}%`}
+      w={`${diam * 0.82}%`}
+      sx={{ aspectRatio: "1" }}
+      borderRadius="50%"
+      bg={g.isHero ? g.color : SURFACE_DIM}
+      border={`2px solid ${g.isHero ? "#fff" : g.color}`}
+      display="flex"
+      alignItems="center"
+      justifyContent="center"
+      pointerEvents="none"
+      zIndex={5}
+      style={{ transformOrigin: "center bottom" }}
+      animation={`${g.reduced ? toppleFade : g.fallRight ? toppleFallRight : toppleFallLeft} ${
+        KO_GHOST_MS / 1000
+      }s ease-in forwards`}
+    >
+      {g.art && (
+        <Box position="absolute" inset={0} borderRadius="50%" overflow="hidden">
+          <Box
+            as="img"
+            src={g.art}
+            alt=""
+            draggable={false}
+            w="100%"
+            h="100%"
+            sx={{ objectFit: "cover", objectPosition: "center top" }}
+          />
+        </Box>
+      )}
+      <Text
+        fontSize="0.68rem"
+        fontWeight="bold"
+        letterSpacing="-0.02em"
+        color="brand.parchment"
+        textShadow="0 1px 3px rgba(0,0,0,0.95)"
+        lineHeight={1}
+      >
+        {g.initials}
+      </Text>
+    </Box>
+  );
 
   // All per-space overlays for ONE positioning frame — the main board or a
   // region inset panel. `spaces` are the frame's members and their x/y are
@@ -846,6 +1019,14 @@ export const ProBoard = ({
       {frameTwoSpace.flatMap((f) => {
         const tail = spaceById.get(f.tailSpace as SpaceId);
         return tail ? [fighterToken(f, tail, 0, "tail", diam)] : [];
+      })}
+
+      {/* K.O. topple ghosts (issue #320) — a defeated fighter's fall, played on an
+          overlay because the fighter has already left the live token list. Drawn
+          only in the frame that holds its space. */}
+      {koGhosts.flatMap((g) => {
+        const s = spaces.find((sp) => sp.id === g.space);
+        return s ? [koGhostToken(g, s, diam)] : [];
       })}
 
       {/* incremental-maneuver preview (issue #285): dashed trail through the hops
