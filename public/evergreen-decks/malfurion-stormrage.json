@@ -31,7 +31,7 @@
     "ruleCards": [],
     "cards": [
       {
-        "afterText": "",
+        "afterText": "If you won the combat, deal 1 damage to the opposing fighter.",
         "basicText": "Human or Moonkin Form only.",
         "boost": 2,
         "characterName": "MALFURION",
@@ -41,7 +41,7 @@
         "quantity": 2,
         "title": "Moonfire",
         "type": "attack",
-        "value": 4,
+        "value": 3,
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
       },
       {
