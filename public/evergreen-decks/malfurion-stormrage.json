@@ -41,7 +41,7 @@
         "quantity": 2,
         "title": "Moonfire",
         "type": "attack",
-        "value": 5,
+        "value": 4,
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
       },
       {
@@ -83,7 +83,7 @@
         "quantity": 2,
         "title": "Maul",
         "type": "attack",
-        "value": 5,
+        "value": 4,
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
       },
       {
@@ -125,7 +125,7 @@
         "quantity": 2,
         "title": "Thorns",
         "type": "defence",
-        "value": 3,
+        "value": 2,
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
       },
       {
@@ -139,7 +139,7 @@
         "quantity": 2,
         "title": "Rejuvenation",
         "type": "defence",
-        "value": 4,
+        "value": 3,
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
       },
       {
@@ -167,7 +167,7 @@
         "quantity": 3,
         "title": "Regrowth",
         "type": "versatile",
-        "value": 4,
+        "value": 3,
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
       },
       {
@@ -181,7 +181,7 @@
         "quantity": 2,
         "title": "Entangling Roots",
         "type": "versatile",
-        "value": 4,
+        "value": 3,
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
       },
       {

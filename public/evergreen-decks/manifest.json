@@ -209,7 +209,7 @@
       "deckId": "malfurion-stormrage",
       "version_id": "evergreen-1",
       "frozenAt": "2026-07-14",
-      "digest": "sha256:09288bb6041a9d54482ae19274c93122aaa8af5f9d329da3e632f8d2435fa1ba",
+      "digest": "sha256:19c6122cbc92ec3ecae0e44f502d7ea4648a36ba0cdc3ea6c5d83ee4c9482f95",
       "rulesVerified": {
         "repo": "unbrewed-engine",
         "file": "data/heroes/malfurion-stormrage.rules.ts",
