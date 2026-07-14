@@ -41,7 +41,7 @@
         "quantity": 2,
         "title": "Moonfire",
         "type": "attack",
-        "value": 3,
+        "value": 5,
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
       },
       {
@@ -55,7 +55,7 @@
         "quantity": 2,
         "title": "Starfire",
         "type": "attack",
-        "value": 3,
+        "value": 4,
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
       },
       {
@@ -69,7 +69,7 @@
         "quantity": 2,
         "title": "Wrath",
         "type": "attack",
-        "value": 3,
+        "value": 4,
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
       },
       {
@@ -83,7 +83,7 @@
         "quantity": 2,
         "title": "Maul",
         "type": "attack",
-        "value": 3,
+        "value": 5,
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
       },
       {
@@ -97,7 +97,7 @@
         "quantity": 2,
         "title": "Barkskin",
         "type": "defence",
-        "value": 2,
+        "value": 4,
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
       },
       {
@@ -111,7 +111,7 @@
         "quantity": 2,
         "title": "Survival Instincts",
         "type": "defence",
-        "value": 3,
+        "value": 4,
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
       },
       {
@@ -125,7 +125,7 @@
         "quantity": 2,
         "title": "Thorns",
         "type": "defence",
-        "value": 1,
+        "value": 3,
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
       },
       {
@@ -139,7 +139,7 @@
         "quantity": 2,
         "title": "Rejuvenation",
         "type": "defence",
-        "value": 2,
+        "value": 4,
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
       },
       {
@@ -153,7 +153,7 @@
         "quantity": 2,
         "title": "Dire Bear Form",
         "type": "defence",
-        "value": 4,
+        "value": 5,
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
       },
       {
@@ -167,7 +167,7 @@
         "quantity": 3,
         "title": "Regrowth",
         "type": "versatile",
-        "value": 2,
+        "value": 4,
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
       },
       {
@@ -181,7 +181,7 @@
         "quantity": 2,
         "title": "Entangling Roots",
         "type": "versatile",
-        "value": 2,
+        "value": 4,
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
       },
       {
@@ -195,7 +195,7 @@
         "quantity": 2,
         "title": "Charge",
         "type": "versatile",
-        "value": 3,
+        "value": 5,
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
       },
       {
