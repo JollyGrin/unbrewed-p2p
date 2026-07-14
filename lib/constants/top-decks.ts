@@ -15,6 +15,11 @@ export type PopularDeckMeta = {
    */
   original?: boolean;
   /**
+   * Public caution badge for playable-but-unsettled decks. Lab decks may still
+   * be served by the Pro engine, but their balance/mechanics are not final.
+   */
+  lab?: boolean;
+  /**
    * Visibility class, mirroring the server's HeroListing.tier. Set to
    * `"reflavored"` for a baseline deck that a spice remix has replaced: it is
    * hidden from the default roster and only appears (with a ` ★` suffix) under
@@ -489,5 +494,6 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     highlightColour: "#2fbf71",
     cardbackUrl: "/evergreen-decks/art/malfurion-stormrage/deck-select.webp",
     original: true,
+    lab: true,
   },
 ];

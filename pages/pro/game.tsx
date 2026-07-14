@@ -744,6 +744,27 @@ const heroDeckMeta = (heroId: string): PopularDeckMeta | undefined => {
   return POPULAR_DECKS.find((d) => d.id === deckId);
 };
 
+const LabDeckTag = ({ compact = false }: { compact?: boolean }) => (
+  <Tag
+    size="sm"
+    variant="subtle"
+    bg="rgba(224,168,46,0.24)"
+    color="brand.accent"
+    border="1px solid rgba(224,168,46,0.35)"
+    borderRadius="999px"
+    fontFamily="SpaceGrotesk"
+    fontSize={compact ? "0.48rem" : "0.58rem"}
+    fontWeight={700}
+    letterSpacing="0.12em"
+    textTransform="uppercase"
+    px={compact ? "0.3rem" : "0.45rem"}
+    py="0.05rem"
+    boxShadow="0 2px 6px rgba(0,0,0,0.35)"
+  >
+    In the lab
+  </Tag>
+);
+
 const skeletonPulse = keyframes`
   0%, 100% { opacity: 0.35; }
   50%      { opacity: 0.7; }
@@ -870,6 +891,11 @@ const RosterTile = ({
           sx={{ transform: "rotate(-8deg)", animation: `${tokenStamp} 0.22s ease`, ...NO_MOTION }}
         >
           P1
+        </Flex>
+      )}
+      {deck?.lab && (
+        <Flex position="absolute" top="0.3rem" right="0.3rem" zIndex={3}>
+          <LabDeckTag compact />
         </Flex>
       )}
       <Text
@@ -999,6 +1025,11 @@ const SplashPanel = ({
             {hero.name}
             {hero.tier === "reflavored" ? " ★" : ""}
           </Text>
+          {deck?.lab && (
+            <Flex mt="0.25rem">
+              <LabDeckTag />
+            </Flex>
+          )}
           {deck && (
             <Text fontStyle="italic" fontSize="0.8rem" color="brand.parchment" opacity={0.85}>
               by{" "}

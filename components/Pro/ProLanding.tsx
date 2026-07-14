@@ -108,9 +108,11 @@ export const ProLanding = () => {
           .map((d) => [d.id, d.hero])
       )
     : FALLBACK_READY;
-  const rosterRank = (deckId: string) =>
-    SUPPORTED[deckId] ? 0 : IN_THE_LAB[deckId] ? 1 : 2;
-  const readyCount = Object.keys(SUPPORTED).length;
+  const rosterRank = (deck: PopularDeckMeta) =>
+    deck.lab || IN_THE_LAB[deck.id] ? 1 : SUPPORTED[deck.id] ? 0 : 2;
+  const readyCount = visibleDecks.filter(
+    (deck) => SUPPORTED[deck.id] && !deck.lab && !IN_THE_LAB[deck.id]
+  ).length;
 
   return (
     <Box minH="100svh" bg="brand.surfaceDim" color="brand.parchment">
@@ -225,12 +227,12 @@ export const ProLanding = () => {
           >
             {/* playable first, then lab, then locked — within each group keep like-order */}
             {[...visibleDecks]
-              .sort((a, b) => rosterRank(a.id) - rosterRank(b.id))
+              .sort((a, b) => rosterRank(a) - rosterRank(b))
               .map((deck, i) => {
-              const status = SUPPORTED[deck.id]
-                ? "ready"
-                : IN_THE_LAB[deck.id]
+              const status = deck.lab || IN_THE_LAB[deck.id]
                 ? "lab"
+                : SUPPORTED[deck.id]
+                ? "ready"
                 : "locked";
               // Ready tiles the game page can actually launch (a server hero id
               // exists) navigate straight into create-a-room with that hero
@@ -281,12 +283,14 @@ export const ProLanding = () => {
               {!picked && "Select a fighter to inspect the roster"}
               {picked &&
                 SUPPORTED[picked.id] &&
+                !picked.lab &&
                 `${picked.hero} is live — click the tile to enter the arena`}
               {picked &&
-                IN_THE_LAB[picked.id] &&
+                (picked.lab || IN_THE_LAB[picked.id]) &&
                 `${picked.hero} is in the lab — its weird mechanics are stress-testing the rules engine`}
               {picked &&
                 !SUPPORTED[picked.id] &&
+                !picked.lab &&
                 !IN_THE_LAB[picked.id] &&
                 `${picked.hero} awaits conversion — rules support comes deck by deck`}
             </Text>
