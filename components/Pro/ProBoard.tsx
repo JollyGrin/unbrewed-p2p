@@ -47,6 +47,16 @@ export interface PendingMove {
   path: SpaceId[];
 }
 
+/** One "who would move here" cue (issue #320 follow-up): a ghost of `fighterId`
+ * at destination `to`, plus a source ring + connector from its current space
+ * `from`. Shown on hover of a move-target space and, persistently, while an
+ * ambiguous space's fighter chooser is open. PRESENTATION ONLY. */
+export interface MoveHint {
+  fighterId: FighterId;
+  from: SpaceId;
+  to: SpaceId;
+}
+
 const highlightPulse = keyframes`
   0%, 100% { box-shadow: 0 0 0 2px #e0a82e, 0 0 12px 2px rgba(224,168,46,0.8); }
   50% { box-shadow: 0 0 0 3px #e0a82e, 0 0 22px 6px rgba(224,168,46,0.5); }
@@ -103,6 +113,12 @@ interface KoGhost {
 }
 
 const ARROW_COLOR = "#E23B3B"; // crimson — reads as "attack", distinct from both player colors
+// Movement-intent cue (issue #320 follow-up): a soft periwinkle for the "who
+// moves here" ghost/connector/source-ring. Deliberately its OWN channel —
+// distinct from the gold move highlight (#E0A82E), the white selection ring, the
+// teal ally ring (#39B7A8), and the crimson attack arrow — and it never touches
+// box-shadow (which selection already owns).
+const MOVE_HINT_COLOR = "#A78BFA";
 
 /**
  * Attacker→target arrow geometry in a frame's normalized 0–100 space (same
@@ -210,6 +226,15 @@ export interface ProBoardProps {
   itemTokens?: Record<SpaceId, string>;
   onSpaceClick?: (id: SpaceId) => void;
   onFighterClick?: (id: FighterId) => void;
+  /** Hover of a highlighted move-target space (null on leave) — drives the
+   *  "who would move here" cue. Fired ONLY for highlighted spaces. */
+  onSpaceHover?: (id: SpaceId | null) => void;
+  /** Hover of a fighter token (null on leave) — lets the caller preview just
+   *  that fighter's reachable spaces without committing a selection. */
+  onFighterHover?: (id: FighterId | null) => void;
+  /** "Who would move here" cues to draw (issue #320 follow-up): a ghost at each
+   *  destination + a source ring & connector. Absent/empty = nothing drawn. */
+  moveHint?: MoveHint[] | null;
   /** cap the board image height (e.g. "calc(100svh - 2rem)") so the whole
    * field fits the viewport; width shrinks to keep the aspect ratio */
   imgMaxH?: string;
@@ -265,6 +290,9 @@ export const ProBoard = ({
   itemTokens = {},
   onSpaceClick,
   onFighterClick,
+  onSpaceHover,
+  onFighterHover,
+  moveHint = null,
   imgMaxH,
   zoomable = false,
   tokenLife = null,
@@ -693,6 +721,10 @@ export const ProBoard = ({
         animation={isTarget ? `${highlightPulse} 1.4s ease-in-out infinite` : undefined}
         cursor={clickable ? "pointer" : "default"}
         onClick={handleClick}
+        // Hovering a fighter lets the caller preview just its reachable spaces.
+        // Fired for every token; the caller ignores non-movable ones.
+        onMouseEnter={onFighterHover ? () => onFighterHover(f.id) : undefined}
+        onMouseLeave={onFighterHover ? () => onFighterHover(null) : undefined}
         // `MotionFlex` is `chakra(motion.div, …)`, a plain div — unlike the
         // real `Flex` component it doesn't default to `display: flex`, so
         // `alignItems`/`justifyContent` below were silently inert (issue
@@ -804,6 +836,18 @@ export const ProBoard = ({
         points: nodes.map((n) => `${n.x * 100},${n.y * 100}`).join(" "),
       };
     })();
+    // "Who would move here" cues (issue #320 follow-up): resolve each hint to its
+    // source + destination coords in THIS frame (both ends must live here), the
+    // owning fighter's look, and — when several land on the same space — a small
+    // stack index so the ghosts don't sit exactly on top of one another.
+    const hints = (moveHint ?? []).flatMap((h) => {
+      const from = spaces.find((sp) => sp.id === h.from);
+      const to = spaces.find((sp) => sp.id === h.to);
+      const f = fighters.find((x) => x.id === h.fighterId);
+      if (!from || !to || !f) return [];
+      return [{ h, from, to, color: PLAYER_COLOR[f.owner] ?? "#999", initials: tokenInitials(f.name), isHero: f.kind === "HERO", art: fighterTokenArt?.(f) ?? null }];
+    });
+    const stackIndex = new Map<SpaceId, number>();
     return (
       <>
       {/* space hit-circles */}
@@ -824,6 +868,10 @@ export const ProBoard = ({
             animation={isHighlighted ? `${highlightPulse} 1.4s ease-in-out infinite` : undefined}
             cursor={isHighlighted && onSpaceClick ? "pointer" : "default"}
             onClick={isHighlighted && onSpaceClick ? () => onSpaceClick(s.id) : undefined}
+            // Hover cue only for actionable spaces — the caller shows "who would
+            // move here". Fires null on leave so the cue clears.
+            onMouseEnter={isHighlighted && onSpaceHover ? () => onSpaceHover(s.id) : undefined}
+            onMouseLeave={isHighlighted && onSpaceHover ? () => onSpaceHover(null) : undefined}
             zIndex={isHighlighted ? 3 : 1}
           />
         );
@@ -999,6 +1047,65 @@ export const ProBoard = ({
         </svg>
       )}
 
+      {/* move-intent connectors + source rings (issue #320 follow-up): a
+          periwinkle shaft from each candidate fighter's space to the hovered/
+          anchored destination, with a ring around the source token. Sits under
+          the tokens (zIndex 3) like the attack arrow; non-crimson so it never
+          reads as an attack. Static (no pulse) to stay distinct from the pulsing
+          gold highlight. */}
+      {hints.length > 0 && (
+        <svg
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            pointerEvents: "none",
+            zIndex: 3,
+            overflow: "visible",
+          }}
+        >
+          {hints.flatMap(({ h, from, to }) => {
+            if (from.id === to.id) return [];
+            const g = arrowGeometry(from, to, diam);
+            return [
+              <circle
+                key={`${h.fighterId}-${h.to}-ring`}
+                cx={from.x * 100}
+                cy={from.y * 100}
+                r={diam * 0.62}
+                fill="none"
+                stroke={MOVE_HINT_COLOR}
+                strokeWidth={diam * 0.16}
+                opacity={0.95}
+              />,
+              <line
+                key={`${h.fighterId}-${h.to}-line`}
+                x1={g.x1}
+                y1={g.y1}
+                x2={g.x2}
+                y2={g.y2}
+                stroke={MOVE_HINT_COLOR}
+                strokeWidth={diam * 0.18}
+                strokeLinecap="round"
+                strokeDasharray={`${diam * 0.34} ${diam * 0.26}`}
+                opacity={0.9}
+              />,
+              <polygon
+                key={`${h.fighterId}-${h.to}-head`}
+                points={g.points}
+                fill={MOVE_HINT_COLOR}
+                stroke="#fff"
+                strokeWidth={diam * 0.1}
+                strokeLinejoin="round"
+              />,
+            ];
+          })}
+        </svg>
+      )}
+
       {/* fighter tokens (heads; stack co-located tokens with a slight diagonal offset) */}
       {spaces
         .filter((s) => bySpace.has(s.id))
@@ -1027,6 +1134,63 @@ export const ProBoard = ({
       {koGhosts.flatMap((g) => {
         const s = spaces.find((sp) => sp.id === g.space);
         return s ? [koGhostToken(g, s, diam)] : [];
+      })}
+
+      {/* move-intent destination ghosts (issue #320 follow-up): a translucent
+          duplicate of each candidate fighter AT the hovered/anchored space, so
+          you see WHICH fighter would move there before committing. Multiple
+          candidates stack with a slight diagonal offset so the ambiguity is
+          visible. Non-interactive (clicks pass through to the space beneath). */}
+      {hints.map(({ h, to, color, initials, isHero, art }) => {
+        const idx = stackIndex.get(h.to) ?? 0;
+        stackIndex.set(h.to, idx + 1);
+        const nudge = idx * 0.5;
+        return (
+          <Box
+            key={`hint-${h.fighterId}-${h.to}`}
+            position="absolute"
+            left={`${to.x * 100}%`}
+            top={`${to.y * 100}%`}
+            transform={`translate(calc(-50% + ${nudge}rem), calc(-50% + ${nudge}rem))`}
+            w={`${diam * 0.82}%`}
+            sx={{ aspectRatio: "1", pointerEvents: "none" }}
+            borderRadius="50%"
+            bg={isHero ? color : "brand.surfaceDim"}
+            border={`2px dashed ${MOVE_HINT_COLOR}`}
+            opacity={0.6}
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            zIndex={5}
+            title={`${initials} would move here`}
+          >
+            {art && (
+              <Box position="absolute" inset={0} borderRadius="50%" overflow="hidden" opacity={0.85}>
+                <Box
+                  as="img"
+                  src={art}
+                  alt=""
+                  draggable={false}
+                  w="100%"
+                  h="100%"
+                  sx={{ objectFit: "cover", objectPosition: "center top" }}
+                />
+              </Box>
+            )}
+            <Text
+              fontSize="0.68rem"
+              fontWeight="bold"
+              letterSpacing="-0.02em"
+              color="brand.parchment"
+              textShadow="0 1px 3px rgba(0,0,0,0.9)"
+              lineHeight={1}
+              userSelect="none"
+              zIndex={1}
+            >
+              {initials}
+            </Text>
+          </Box>
+        );
       })}
 
       {/* incremental-maneuver preview (issue #285): dashed trail through the hops

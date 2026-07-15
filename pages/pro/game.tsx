@@ -16,7 +16,7 @@ import { toast } from "react-hot-toast";
 import { useRouter } from "next/router";
 import { Box, Button, Flex, Grid, Input, Link, Menu, MenuButton, MenuItem, MenuList, NumberDecrementStepper, NumberIncrementStepper, NumberInput, NumberInputField, NumberInputStepper, Tag, Text, Textarea, Tooltip } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
-import { MOVE_STEP_SECONDS, PendingMove, ProBoard } from "@/components/Pro/ProBoard";
+import { MOVE_STEP_SECONDS, MoveHint, PendingMove, ProBoard } from "@/components/Pro/ProBoard";
 import { ProErrorBoundary } from "@/components/Pro/ProErrorBoundary";
 import { assignableSeats, BotSlotPlan, SlotOccupant } from "@/components/Pro/CreateSeats";
 import { stateHash } from "@/lib/pro/stateHash";
@@ -85,6 +85,7 @@ import {
 import { useGameFx } from "@/lib/pro/useGameFx";
 import { useCombatCallouts, CombatCalloutItem } from "@/lib/pro/combatFx";
 import { useTokenLife } from "@/lib/pro/tokenLife";
+import { resolveSpaceMove } from "@/lib/pro/moveResolve";
 import { useIncomingMoveTween } from "@/lib/pro/moveTween";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
@@ -2036,6 +2037,13 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
   // First space tapped in a two-tap LARGE-fighter move pick (issue #132), scoped
   // to the prompt it belongs to so a stale anchor never leaks into the next one.
   const [poseAnchor, setPoseAnchor] = useState<{ promptId: string; space: SpaceId } | null>(null);
+  // "Who would move here" cues (issue #320 follow-up). `hoveredSpace`/`hoveredFighter`
+  // are pointer-only (touch never sets them). `moveChoice` is the touch-safe
+  // ambiguity resolver: a move space reachable by >1 of your fighters anchors here
+  // instead of silently moving the first one, and the next fighter click commits.
+  const [hoveredSpace, setHoveredSpace] = useState<SpaceId | null>(null);
+  const [hoveredFighter, setHoveredFighter] = useState<FighterId | null>(null);
+  const [moveChoice, setMoveChoice] = useState<{ space: SpaceId; candidates: FighterId[] } | null>(null);
   const [reportBugOpen, setReportBugOpen] = useState(false);
   const [forfeitOpen, setForfeitOpen] = useState(false);
   // Client-side memory that YOU chose to forfeit (vs. being swept by combat), so
@@ -2099,6 +2107,14 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
   // token DOM byte-identical.
   const [tokenLifeOn] = useFlag("tokenLife");
   const tokenGestures = useTokenLife(snapshot, tokenLifeOn);
+
+  // A new authoritative snapshot invalidates the transient move-choice anchor and
+  // any lingering hover cue (the legal-action set may have changed under it).
+  useEffect(() => {
+    setMoveChoice(null);
+    setHoveredSpace(null);
+    setHoveredFighter(null);
+  }, [snapshot]);
 
   // GAME_OVER pushes a self-contained bundle to both seats (protocol v7). Save it
   // to the local Replays store so the match is scrubbable later (issue #122). Runs
@@ -2881,12 +2897,20 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
       null
     : null;
 
-  // Optional filter: click one of your movable fighters to see only ITS moves
-  // (matters once a deck has sidekicks; harmless in the Kong mirror).
-  const spaceMatches = (actions: Action[]) =>
-    selectedFighter
-      ? actions.filter((a) => a.type !== "MOVE_FIGHTER" || a.fighter === selectedFighter)
+  // Optional filter: narrow a space's actions to ONE fighter's moves (non-move
+  // actions like PLACE_SIDEKICK always pass through). Used for click resolution
+  // (selected fighter) and for the hover preview below (hovered fighter).
+  const matchesFighter = (actions: Action[], fighter: FighterId | null) =>
+    fighter
+      ? actions.filter((a) => a.type !== "MOVE_FIGHTER" || a.fighter === fighter)
       : actions;
+  // Inverse preview (issue #320 follow-up): with nothing selected, hovering one of
+  // your OWN movable fighters previews only ITS reachable spaces — without
+  // committing a selection. `focusFighter` drives the gold highlight set only;
+  // click resolution still keys off `selectedFighter`.
+  const hoverPreviewFighter =
+    !selectedFighter && hoveredFighter && movableFighters.has(hoveredFighter) ? hoveredFighter : null;
+  const focusFighter = selectedFighter ?? hoverPreviewFighter;
   // Incremental maneuver stepping (issue #285). Active ONLY during MANEUVER_MOVE
   // once a fighter is selected AND the server sent a move graph for it. Effect/
   // scheme CHOOSE_SPACE moves, large fighters (omitted from the graph), and older
@@ -2925,11 +2949,37 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
 
   const highlightedSpaces = [
     ...(stepHighlights ??
-      [...spaceActions.entries()].filter(([, actions]) => spaceMatches(actions).length > 0).map(([space]) => space)),
+      [...spaceActions.entries()]
+        .filter(([, actions]) => matchesFighter(actions, focusFighter).length > 0)
+        .map(([space]) => space)),
     ...promptSpaceIds,
     ...(poseIndex.size > 0 ? poseHighlights(poseIndex, activePoseAnchor) : []),
   ];
   const highlightedFighters = [...attackActions.keys(), ...movableFighters, ...promptTargetIds];
+
+  // "Who would move here" cues (issue #320 follow-up). Source = the anchored
+  // ambiguous space if a chooser is open, else the pointer-hovered space. For a
+  // selected/hover-previewed fighter, narrow to just that fighter; otherwise show
+  // every candidate so an ambiguous space reads as ambiguous. Suppressed while a
+  // prompt or the stepping graph owns the board (they have their own visuals).
+  const moveHintSpace = moveChoice?.space ?? hoveredSpace;
+  const moveHint: MoveHint[] =
+    moveHintSpace && !promptForMe && !(moveGraph && stepState)
+      ? (() => {
+          const moveActs = (spaceActions.get(moveHintSpace) ?? []).filter(
+            (a): a is Extract<Action, { type: "MOVE_FIGHTER" }> => a.type === "MOVE_FIGHTER"
+          );
+          const fighterIds = moveChoice
+            ? moveChoice.candidates
+            : focusFighter
+              ? moveActs.filter((a) => a.fighter === focusFighter).map((a) => a.fighter)
+              : [...new Set(moveActs.map((a) => a.fighter))];
+          return [...new Set(fighterIds)].flatMap((fid) => {
+            const from = view.fighters.find((f) => f.id === fid)?.space;
+            return from ? [{ fighterId: fid, from, to: moveHintSpace }] : [];
+          });
+        })()
+      : [];
 
   // Issue #85: say out loud why boost is (or is no longer) available, instead
   // of letting the affordance silently vanish once the fighters have moved.
@@ -2997,25 +3047,64 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
       // commit below (mid-walk far jumps stay disabled; the client owns no paths).
       return;
     }
-    const candidates = spaceMatches(spaceActions.get(space) ?? []);
-    if (candidates.length === 0) return;
-    const action = candidates[0];
+    // Re-tapping the already-anchored ambiguous space cancels the chooser.
+    if (moveChoice?.space === space) {
+      setMoveChoice(null);
+      return;
+    }
+    // Kill the silent first-pick: a space reachable by MORE THAN ONE of your
+    // fighters (and none pre-selected) must not auto-move whichever the server
+    // enumerated first. Anchor here and let the next fighter click decide — this
+    // also makes the ambiguity resolvable on touch (tap space, then tap fighter).
+    const res = resolveSpaceMove(spaceActions.get(space) ?? [], selectedFighter);
+    if (res.kind === "none") {
+      setMoveChoice(null);
+      return;
+    }
+    if (res.kind === "choose") {
+      setMoveChoice({ space, candidates: res.candidates });
+      return;
+    }
+    setMoveChoice(null);
+    commitMoveOrAction(res.action, space);
+    setSelectedFighter(null);
+  };
+  // Send one resolved board action; if it's a MOVE_FIGHTER, start the tween from
+  // the fighter's real space (the server path may omit it as path[0]).
+  const commitMoveOrAction = (action: Action, _space: SpaceId) => {
     sendAction(action);
     if (action.type === "MOVE_FIGHTER") {
-      // The server's path may or may not include the fighter's current
-      // space as path[0] — prepend it if it's missing so the tween always
-      // starts from where the token actually is.
       const origin = view.fighters.find((f) => f.id === action.fighter)?.space;
       const fullPath = origin && action.path[0] !== origin ? [origin, ...action.path] : action.path;
       if (fullPath.length >= 2) setPendingMove({ fighterId: action.fighter, path: fullPath });
     }
+  };
+  // Resolve an open ambiguous-move chooser by picking the fighter: find that
+  // fighter's MOVE_FIGHTER to the anchored space and commit it.
+  const resolveMoveChoice = (fighter: FighterId): boolean => {
+    if (!moveChoice || !moveChoice.candidates.includes(fighter)) return false;
+    const action = (spaceActions.get(moveChoice.space) ?? []).find(
+      (a): a is Extract<Action, { type: "MOVE_FIGHTER" }> =>
+        a.type === "MOVE_FIGHTER" && a.fighter === fighter
+    );
+    setMoveChoice(null);
+    if (!action) return false;
+    commitMoveOrAction(action, moveChoice.space);
     setSelectedFighter(null);
+    return true;
   };
   const onFighterClick = (id: FighterId) => {
     if (promptForMe && promptTargetIds.includes(id)) {
       respondToPrompt(promptForMe.promptId, id);
       setSelectedFighter(null);
       return;
+    }
+    // An open ambiguous-move chooser: clicking one of its candidate fighters
+    // commits THAT fighter's move to the anchored space (touch path). A click on
+    // any other fighter cancels the chooser and proceeds normally.
+    if (moveChoice) {
+      if (resolveMoveChoice(id)) return;
+      setMoveChoice(null);
     }
     const attack = attackActions.get(id);
     if (attack) {
@@ -3144,6 +3233,9 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
           itemTokens={view.itemTokens}
           onSpaceClick={onSpaceClick}
           onFighterClick={onFighterClick}
+          onSpaceHover={setHoveredSpace}
+          onFighterHover={setHoveredFighter}
+          moveHint={moveHint}
           imgMaxH="calc(100svh - 16rem)"
           zoomable={zoomMapOn}
           tokenLife={tokenLifeOn ? tokenGestures : null}
@@ -3277,7 +3369,13 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
               )}
             </Flex>
           )}
-          {!previewMove && (highlightedSpaces.length > 0 || attackActions.size > 0) && (
+          {moveChoice && (
+            <Text fontSize="0.8rem" color="#C4B5FD" fontWeight="bold" textShadow="0 1px 3px rgba(0,0,0,0.6)">
+              {moveChoice.candidates.map((id) => nameOf(id)).join(" or ")} can both move here — click which
+              fighter should move (or tap the space again to cancel)
+            </Text>
+          )}
+          {!moveChoice && !previewMove && (highlightedSpaces.length > 0 || attackActions.size > 0) && (
             <Text fontSize="0.8rem" color="brand.accent" textShadow="0 1px 3px rgba(0,0,0,0.6)">
               {selectedFighter
                 ? moveGraph
