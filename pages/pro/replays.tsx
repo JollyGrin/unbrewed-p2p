@@ -6,6 +6,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import Head from "next/head";
+import { useRouter } from "next/router";
 import {
   Box,
   Button,
@@ -204,6 +205,22 @@ const ReplaysList = () => {
     },
     [openBundle, toast, refresh],
   );
+
+  // Deep-link: /pro/replays?open=<id> auto-opens that saved replay once (issue
+  // #240 — the "View replay" link on the win/defeat screen lands here). Runs
+  // after the router is ready; if the id isn't found (e.g. opened on another
+  // device, or evicted) we fall through to the list without complaint.
+  const router = useRouter();
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (!router.isReady || autoOpenedRef.current) return;
+    const raw = router.query.open;
+    const id = Array.isArray(raw) ? raw[0] : raw;
+    if (!id) return;
+    autoOpenedRef.current = true;
+    const bundle = loadReplay(id);
+    if (bundle) void openBundle(bundle, { id });
+  }, [router.isReady, router.query.open, openBundle]);
 
   const doImport = useCallback(
     async (text: string) => {
