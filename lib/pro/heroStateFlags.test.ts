@@ -40,6 +40,8 @@ describe("HERO_STATE_FLAGS registry", () => {
     expect(forms.every((e) => e.heroes.includes("malfurion-stormrage"))).toBe(true);
     expect(forms.filter((e) => e.isDefault).map((e) => e.flag)).toEqual(["DRUID_FORM_HUMAN"]);
     expect(forms.every((e) => e.nameplate && e.token)).toBe(true);
+    // issue #335: every form also swaps the HERO-token portrait and hides its badge.
+    expect(forms.every((e) => e.tokenArt?.on && e.hideBadgeWhenArt)).toBe(true);
   });
 });
 
@@ -124,9 +126,20 @@ describe("fighterTokenArtFor (portrait swap)", () => {
     expect(fighterTokenArtFor("thetis-spice", undefined)).toMatch(/token-thetis-low\.webp$/);
   });
 
+  it.each([
+    ["DRUID_FORM_BEAR", /token-malfurion-bear\.webp$/],
+    ["DRUID_FORM_MOONKIN", /token-malfurion-moonkin\.webp$/],
+    ["DRUID_FORM_HUMAN", /token-malfurion\.webp$/],
+  ])("swaps Malfurion to the %s portrait bust (issue #335)", (flag, pattern) => {
+    expect(fighterTokenArtFor("malfurion-stormrage", { [flag]: true })).toMatch(pattern);
+  });
+
+  it("defaults Malfurion's portrait to the Human bust when no form flag is set", () => {
+    expect(fighterTokenArtFor("malfurion-stormrage", {})).toMatch(/token-malfurion\.webp$/);
+    expect(fighterTokenArtFor("malfurion-stormrage", undefined)).toMatch(/token-malfurion\.webp$/);
+  });
+
   it("returns null for a hero/state with no tokenArt entry (fixed portrait kept)", () => {
-    // Malfurion forms declare badges but no art yet — resolution must not invent one.
-    expect(fighterTokenArtFor("malfurion-stormrage", { DRUID_FORM_BEAR: true })).toBeNull();
     expect(fighterTokenArtFor("king-kong", { HIGH_TIDE: true })).toBeNull();
     expect(fighterTokenArtFor(undefined, { HIGH_TIDE: true })).toBeNull();
   });
@@ -144,10 +157,20 @@ describe("fighterTokenStateFor (badge + portrait, shared entry)", () => {
     });
   });
 
-  it("keeps the badge and no art override for a badge-only state (Malfurion)", () => {
-    const st = fighterTokenStateFor("malfurion-stormrage", { DRUID_FORM_BEAR: true });
-    expect(st.badge).toMatchObject({ label: "Bear" });
-    expect(st.heroArtUrl).toBeNull();
+  it("suppresses Malfurion's form badge in favor of the portrait bust (hideBadgeWhenArt)", () => {
+    expect(fighterTokenStateFor("malfurion-stormrage", { DRUID_FORM_BEAR: true })).toEqual({
+      badge: null,
+      heroArtUrl: expect.stringMatching(/token-malfurion-bear\.webp$/),
+    });
+    expect(fighterTokenStateFor("malfurion-stormrage", { DRUID_FORM_MOONKIN: true })).toEqual({
+      badge: null,
+      heroArtUrl: expect.stringMatching(/token-malfurion-moonkin\.webp$/),
+    });
+    // No form flag → Human bust (group default), badge still suppressed.
+    expect(fighterTokenStateFor("malfurion-stormrage", {})).toEqual({
+      badge: null,
+      heroArtUrl: expect.stringMatching(/token-malfurion\.webp$/),
+    });
   });
 
   it("returns an empty state for a non-registered hero", () => {
@@ -162,7 +185,8 @@ describe("fighterTokenStateByOwner", () => {
       { id: "p2", heroId: "thetis", flags: { HIGH_TIDE: true } },
       { id: "p3", heroId: "king-kong", flags: {} },
     ]);
-    expect(state.p1).toMatchObject({ badge: { label: "Bear" }, heroArtUrl: null });
+    expect(state.p1!.heroArtUrl).toMatch(/token-malfurion-bear\.webp$/);
+    expect(state.p1!.badge).toBeNull();
     expect(state.p2!.heroArtUrl).toMatch(/token-thetis-high\.webp$/);
     expect(state.p2!.badge).toBeNull();
     expect(state.p3).toBeUndefined();
