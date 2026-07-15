@@ -215,6 +215,18 @@
         "file": "data/heroes/malfurion-stormrage.rules.ts",
         "commit": "9c10ef65da0bd50efea78a078f8ede92dbaf2c6d"
       }
+    },
+    {
+      "heroId": "clone-troopers",
+      "deckId": "DJQB",
+      "version_id": "BJE_cG1PZ",
+      "frozenAt": "2026-07-15",
+      "digest": "sha256:6e8802b77fa332556933937f9b1d09ebcc71afe9e6acb0a53fd5b98cd9739b70",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/clone-troopers.rules.ts",
+        "commit": "uncommitted"
+      }
     }
   ]
 }

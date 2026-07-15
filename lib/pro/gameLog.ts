@@ -420,7 +420,8 @@ export function enrichLines(
       // --- Mode 2: new lines, allowlist only -------------------------------
       case "VALUE_MODIFIED": {
         const label = e.role === "ATTACK" ? "Attack" : "Defense";
-        added.push({ text: `${label} value ${e.newEffective - e.delta} → ${e.newEffective}`, who: "game" });
+        const sign = e.delta > 0 ? "+" : "";
+        added.push({ text: `${label} value ${e.newEffective - e.delta} → ${e.newEffective} (${sign}${e.delta})`, who: "game" });
         break;
       }
       case "VALUE_SET": {

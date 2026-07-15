@@ -20,11 +20,11 @@ export type PopularDeckMeta = {
    */
   lab?: boolean;
   /**
-   * Visibility class, mirroring the server's HeroListing.tier. Set to
+   * Visibility/support class, mirroring the server's HeroListing.tier. Set to
    * `"reflavored"` for a baseline deck that a spice remix has replaced or
-   * `"lab"` for a playable-but-unsettled deck. Both are hidden from the default
-   * roster and only appear under `?debug`; reflavored decks also get a ` ★`
-   * suffix there. Omitted = a normally-visible deck.
+   * `"lab"` for a playable-but-unsettled deck. Reflavored decks are hidden from
+   * the default roster and only appear under `?debug`; lab decks stay public but
+   * carry a caution badge. Omitted = a normally-visible deck.
    */
   tier?: HeroTier;
 };
@@ -347,6 +347,19 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     likes: 9,
     highlightColour: "#ec6a13",
     cardbackUrl: "/evergreen-decks/art/1Y5J/cardback.png",
+  },
+  {
+    // In-the-lab Pro deck (unmatched.cards DJQB / version BJE_cG1PZ) — server
+    // hero clone-troopers. Listed in Search Community Decks with a lab caution.
+    id: "DJQB",
+    name: "Clone Troopers",
+    hero: "Clone Troopers",
+    author: "Inforce",
+    likes: 1,
+    highlightColour: "#0000aa",
+    cardbackUrl: "https://i.imgur.com/ummrmL0.png",
+    lab: true,
+    tier: "lab",
   },
   {
     // Evergreen original (no unmatched.cards page): King Taranis, the
