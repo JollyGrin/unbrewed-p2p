@@ -38,7 +38,7 @@ import {
   ViewFighter,
   ViewPrompt,
 } from "@/lib/pro/protocol";
-import { saveReplay } from "@/lib/pro/replayStore";
+import { replayId, saveReplay } from "@/lib/pro/replayStore";
 import { proErrorMessage } from "@/lib/pro/proErrors";
 import { ProConnectionStatus, useProSocket } from "@/lib/pro/useProSocket";
 import { normalizeMap } from "@/lib/pro/normalizeMap";
@@ -3526,14 +3526,35 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
             )}
           </Flex>
           {view.winner && (
-            <Text
-              fontFamily="LeagueGothic"
-              fontSize="3rem"
-              color="brand.accent"
-              textShadow="0 2px 12px rgba(224,168,46,0.5)"
-            >
-              {isViewerOnWinningTeam(view) ? "VICTORY!" : "DEFEAT"}
-            </Text>
+            <Flex direction="column" align="center" gap="0.15rem">
+              <Text
+                fontFamily="LeagueGothic"
+                fontSize="3rem"
+                color="brand.accent"
+                textShadow="0 2px 12px rgba(224,168,46,0.5)"
+                lineHeight="1"
+              >
+                {isViewerOnWinningTeam(view) ? "VICTORY!" : "DEFEAT"}
+              </Text>
+              {/* Deep-link straight into this match's saved God-view replay
+                  (issue #240). The bundle is saved locally on GAME_OVER (see the
+                  saveReplay effect above); /pro/replays?open=<id> auto-opens it.
+                  Only shown once we hold the bundle, so the link always resolves. */}
+              {replayBundle && (
+                <Link
+                  href={`/pro/replays?open=${replayId(replayBundle)}`}
+                  color="brand.parchment"
+                  opacity={0.85}
+                  fontSize="0.9rem"
+                  display="inline-flex"
+                  alignItems="center"
+                  gap="0.3rem"
+                  _hover={{ opacity: 1, color: "brand.accent", textDecoration: "none" }}
+                >
+                  View replay <TbExternalLink size="0.85rem" />
+                </Link>
+              )}
+            </Flex>
           )}
           {/* Undo — request to rewind our last action, pending opponent consent
               (issue #154). Shown only while live and only when the server says we
