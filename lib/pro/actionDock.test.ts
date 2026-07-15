@@ -146,11 +146,14 @@ describe("actionDock — soleAction (spacebar eligibility, issue #353)", () => {
 
 describe("actionDock — Malfurion shapeshift", () => {
   it("labels maneuver and Omen shapeshift actions distinctly and forwards them unchanged", () => {
+    const nightElfShift: Action = { type: "SHAPESHIFT", player: "p1", form: "Human", via: "MANEUVER" };
     const maneuverShift: Action = { type: "SHAPESHIFT", player: "p1", form: "Bear", via: "MANEUVER" };
     const omenShift: Action = { type: "SHAPESHIFT", player: "p1", form: "Moonkin", via: "OMEN" };
 
+    expect(describeAction(catalog, nightElfShift, { nameOf })).toBe("Shapeshift to Night Elf");
     expect(describeAction(catalog, maneuverShift, { nameOf })).toBe("Shapeshift to Bear");
     expect(describeAction(catalog, omenShift, { nameOf })).toBe("Omen: Shapeshift to Moonkin");
+    expect(nightElfShift).toEqual({ type: "SHAPESHIFT", player: "p1", form: "Human", via: "MANEUVER" });
     expect(maneuverShift).toEqual({ type: "SHAPESHIFT", player: "p1", form: "Bear", via: "MANEUVER" });
     expect(omenShift).toEqual({ type: "SHAPESHIFT", player: "p1", form: "Moonkin", via: "OMEN" });
   });

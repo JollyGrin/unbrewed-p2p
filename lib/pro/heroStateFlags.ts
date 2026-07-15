@@ -23,7 +23,7 @@
  *  - Exclusive group (Malfurion druid forms): several entries sharing a `group`,
  *    of which exactly one is active — the one whose flag is set, or the
  *    `isDefault` entry when none is (an older snapshot may omit the form flag;
- *    Human is the useful default so the surfaces still answer "what form?").
+ *    Night Elf is the useful default so the surfaces still answer "what form?").
  */
 import { PlayerId } from "./protocol";
 
@@ -83,7 +83,7 @@ export interface HeroStateFlag {
  *   under public/evergreen-decks/art/thetis/). `hideBadgeWhenArt` drops the corner
  *   badge here since the portrait itself reads as the tide state.
  * - Malfurion `DRUID_FORM_*`: an exclusive `druid-form` group — one form active
- *   at a time; Human is the default. Each form swaps the whole PORTRAIT (elf /
+ *   at a time; Night Elf is the default. Each form swaps the whole PORTRAIT (elf /
  *   bear / moonkin busts, committed under public/evergreen-decks/art/
  *   malfurion-stormrage/) and drops its corner badge like tide, since the
  *   portrait already reads as the form.
@@ -131,8 +131,8 @@ export const HERO_STATE_FLAGS: HeroStateFlag[] = [
     heroes: ["malfurion-stormrage"],
     group: "druid-form",
     isDefault: true,
-    nameplate: { onLabel: "HUMAN", offLabel: "", showWhenAbsent: false },
-    token: { on: { icon: "✦", label: "Human", title: "Human Form", bg: "#2E6B48", color: "#ECFFF4" } },
+    nameplate: { onLabel: "NIGHT ELF", offLabel: "", showWhenAbsent: false },
+    token: { on: { icon: "✦", label: "Night Elf", title: "Night Elf Form", bg: "#2E6B48", color: "#ECFFF4" } },
     // Stated explicitly (== the deck's fixed tokenImageUrl) so the group self-
     // documents its default, and stays correct if that fixed art ever diverges.
     tokenArt: { on: "https://unbrewed.xyz/evergreen-decks/art/malfurion-stormrage/token-malfurion.webp" },

@@ -16,7 +16,7 @@
       "isRanged": true,
       "move": 2,
       "name": "Malfurion Stormrage",
-      "specialAbility": "SHAPESHIFT\nMalfurion starts in Human Form. At the start of your turn, set your Omen counter to 1. During your turn, you may spend Omen to shapeshift into Human, Bear, or Moonkin Form. Human and Moonkin are ranged; Bear is melee.",
+      "specialAbility": "SHAPESHIFT\nMalfurion starts in Night Elf Form. During your turn, you may use an encounter action to shapeshift into Night Elf, Bear, or Moonkin form. Night Elf and Moonkin form are ranged; Bear is melee. Each card used has a chance to give you Omen of Clarity. When granted, you may shapeshift without consuming an action.",
       "quote": "An original archdruid duelist who shifts between healing, claws, and celestial fury.",
       "tokenImageUrl": "/evergreen-decks/art/malfurion-stormrage/token-malfurion.webp"
     },
@@ -32,7 +32,7 @@
     "cards": [
       {
         "afterText": "If you won the combat, deal 1 damage to the opposing fighter.",
-        "basicText": "Human or Moonkin Form only.",
+        "basicText": "Night Elf or Moonkin Form only.",
         "boost": 2,
         "characterName": "MALFURION",
         "duringText": "",
@@ -46,7 +46,7 @@
       },
       {
         "afterText": "",
-        "basicText": "Human or Moonkin Form only.",
+        "basicText": "Night Elf or Moonkin Form only.",
         "boost": 2,
         "characterName": "MALFURION",
         "duringText": "If you are in Moonkin Form, this card's value is +2.",
@@ -60,7 +60,7 @@
       },
       {
         "afterText": "",
-        "basicText": "Human or Moonkin Form only.",
+        "basicText": "Night Elf or Moonkin Form only.",
         "boost": 1,
         "characterName": "MALFURION",
         "duringText": "If you are in Moonkin Form, this card's value is +1.",
@@ -158,7 +158,7 @@
       },
       {
         "afterText": "Recover 2 health. Draw 1 card.",
-        "basicText": "Human Form only.",
+        "basicText": "Night Elf Form only.",
         "boost": 2,
         "characterName": "MALFURION",
         "duringText": "",
@@ -172,7 +172,7 @@
       },
       {
         "afterText": "If you won the combat, the opposing fighter is pinned until the end of their next turn.",
-        "basicText": "Human or Moonkin Form only.",
+        "basicText": "Night Elf or Moonkin Form only.",
         "boost": 2,
         "characterName": "MALFURION",
         "duringText": "",
@@ -200,7 +200,7 @@
       },
       {
         "afterText": "",
-        "basicText": "Human or Moonkin Form only. Gain 2 actions.",
+        "basicText": "Night Elf or Moonkin Form only. Gain 2 actions.",
         "boost": 3,
         "characterName": "MALFURION",
         "duringText": "",
@@ -214,7 +214,7 @@
       },
       {
         "afterText": "",
-        "basicText": "Moonkin Form only. Deal damage equal to your remaining actions to each opposing fighter in Malfurion's zone, then lose all remaining actions.",
+        "basicText": "Night Elf or Moonkin Form only. Deal 1 damage to each opposing fighter in Malfurion's zone, plus 1 damage for each action you have remaining. If Malfurion is in Moonkin Form, deal 1 additional damage. Then lose all your remaining actions.",
         "boost": 3,
         "characterName": "MALFURION",
         "duringText": "",
@@ -228,7 +228,7 @@
       },
       {
         "afterText": "",
-        "basicText": "Human Form only. Each friendly fighter in Malfurion's zone recovers health equal to twice your remaining actions, then lose all remaining actions.",
+        "basicText": "Night Elf Form only. Each friendly fighter in Malfurion's zone recovers health equal to twice your remaining actions, then lose all remaining actions.",
         "boost": 2,
         "characterName": "MALFURION",
         "duringText": "",
@@ -242,7 +242,7 @@
       },
       {
         "afterText": "",
-        "basicText": "Any form. Move Malfurion up to 4 spaces. He may move through fighters. Then choose Human, Bear, or Moonkin Form.",
+        "basicText": "Any form. Move Malfurion up to 4 spaces. He may move through fighters. Then choose Night Elf, Bear, or Moonkin Form.",
         "boost": 3,
         "characterName": "MALFURION",
         "duringText": "",

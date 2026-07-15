@@ -65,7 +65,7 @@ describe("flagChipsFor (HUD nameplate)", () => {
   it.each([
     ["DRUID_FORM_BEAR", "BEAR"],
     ["DRUID_FORM_MOONKIN", "MOONKIN"],
-    ["DRUID_FORM_HUMAN", "HUMAN"],
+    ["DRUID_FORM_HUMAN", "NIGHT ELF"],
   ])("shows exactly one druid-form chip (%s) for the active form", (flag, label) => {
     const chips = flagChipsFor("malfurion-stormrage", { [flag]: true });
     expect(chips).toHaveLength(1);
@@ -74,7 +74,7 @@ describe("flagChipsFor (HUD nameplate)", () => {
     expect(chips[0].on).toBe(true);
   });
 
-  it("defaults Malfurion's nameplate to HUMAN when no form flag is set", () => {
+  it("defaults Malfurion's nameplate to NIGHT ELF when no form flag is set", () => {
     const chips = flagChipsFor("malfurion-stormrage", {});
     expect(chips).toHaveLength(1);
     expect(chips[0].chip.flag).toBe("DRUID_FORM_HUMAN");
@@ -94,7 +94,7 @@ describe("fighterTokenBadgeFor (board token)", () => {
   });
 
   it.each([
-    ["DRUID_FORM_HUMAN", "Human", "✦"],
+    ["DRUID_FORM_HUMAN", "Night Elf", "✦"],
     ["DRUID_FORM_BEAR", "Bear", "🐾"],
     ["DRUID_FORM_MOONKIN", "Moonkin", "☾"],
   ])("maps Malfurion %s form flags to token badges", (flag, label, icon) => {
@@ -105,8 +105,8 @@ describe("fighterTokenBadgeFor (board token)", () => {
     });
   });
 
-  it("defaults Malfurion's token to Human Form when form flags are absent", () => {
-    expect(fighterTokenBadgeFor("malfurion-stormrage", {})).toMatchObject({ label: "Human" });
+  it("defaults Malfurion's token to Night Elf Form when form flags are absent", () => {
+    expect(fighterTokenBadgeFor("malfurion-stormrage", {})).toMatchObject({ label: "Night Elf" });
   });
 
   it("does not badge non-registered heroes", () => {
@@ -134,7 +134,7 @@ describe("fighterTokenArtFor (portrait swap)", () => {
     expect(fighterTokenArtFor("malfurion-stormrage", { [flag]: true })).toMatch(pattern);
   });
 
-  it("defaults Malfurion's portrait to the Human bust when no form flag is set", () => {
+  it("defaults Malfurion's portrait to the Night Elf bust when no form flag is set", () => {
     expect(fighterTokenArtFor("malfurion-stormrage", {})).toMatch(/token-malfurion\.webp$/);
     expect(fighterTokenArtFor("malfurion-stormrage", undefined)).toMatch(/token-malfurion\.webp$/);
   });
@@ -166,7 +166,7 @@ describe("fighterTokenStateFor (badge + portrait, shared entry)", () => {
       badge: null,
       heroArtUrl: expect.stringMatching(/token-malfurion-moonkin\.webp$/),
     });
-    // No form flag → Human bust (group default), badge still suppressed.
+    // No form flag → Night Elf bust (group default), badge still suppressed.
     expect(fighterTokenStateFor("malfurion-stormrage", {})).toEqual({
       badge: null,
       heroArtUrl: expect.stringMatching(/token-malfurion\.webp$/),
