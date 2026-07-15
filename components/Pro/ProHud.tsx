@@ -57,7 +57,8 @@ import { CardInstanceId, PlayerId, PlayerView, ViewFighter, ViewPlayer } from "@
 import { isLargeFighter, LARGE_FIGHTER_BLURB } from "@/lib/pro/largeReach";
 import { deriveTeams } from "@/lib/pro/teams";
 import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
-import { FlagHudChip, ResolveCard, ResolveHero, flagChipsFor } from "@/lib/pro/useProCardArt";
+import { ResolveCard, ResolveHero } from "@/lib/pro/useProCardArt";
+import { FlagHudChip, flagChipsFor } from "@/lib/pro/heroStateFlags";
 import { DEFAULT_PLATE_LAYOUT, PlateLayout, PlateSeat, useHudPlates } from "@/lib/pro/useHudPlates";
 import { CardFace } from "./ProHand";
 import { ProConnectionStatus, SeatPresence, TurnTimer } from "@/lib/pro/useProSocket";
@@ -69,14 +70,15 @@ import { FLAGS, useFlags } from "@/lib/flags";
 const ALLY_ACCENT = "#39B7A8";
 
 // ---------------------------------------------------------------------------
-// Flag HUD chip — always-visible public-state pill (tide today; any future
-// flag-driven deck by adding a FLAG_HUD_CHIPS entry, see useProCardArt.ts)
+// Flag HUD chip — always-visible public-state pill (tide + druid form today; any
+// future flag-driven state by adding a HERO_STATE_FLAGS entry, which lights up
+// this nameplate AND the fighter-token badge — see lib/pro/heroStateFlags.ts)
 // ---------------------------------------------------------------------------
 
-// Optional per-flag glyph. A registry entry with no icon here renders text-only
-// (zero component surgery for a new flag-driven deck). Tide gets the game-icons
-// rising/ebbing-wave pair so HIGH vs LOW reads at a glance — but the WORDS carry
-// the meaning; the icon is reinforcement, never the sole signal.
+// Optional per-flag nameplate glyph. A registry entry with no icon here renders
+// text-only (zero component surgery for a new flag-driven state). Tide gets the
+// game-icons rising/ebbing-wave pair so HIGH vs LOW reads at a glance — but the
+// WORDS carry the meaning; the icon is reinforcement, never the sole signal.
 const FLAG_CHIP_ICONS: Record<string, { on: IconType; off: IconType }> = {
   HIGH_TIDE: { on: GiHighTide, off: GiLowTide },
 };
@@ -535,7 +537,7 @@ const SeatPlate = ({
   ) : null;
 
   // Public flag pills (issue #233): always-visible on BOTH seats' cards for heroes
-  // with a flag mechanic (tide today). Generic over the FLAG_HUD_CHIPS registry —
+  // with a flag mechanic (tide + druid form today). Generic over HERO_STATE_FLAGS —
   // non-flag heroes get an empty list and render exactly as before. Keyed by
   // on/off state so a mid-game flip remounts the chip and replays its pulse.
   const flagTags = flagChipsFor(heroId, flags).map(({ chip, on }) => (

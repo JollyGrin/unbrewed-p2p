@@ -238,9 +238,10 @@
  * keyed by flag name -> true (absent = not active). ALL flags are public, exactly
  * like `counters` — no per-flag special-casing. This is the standing wire
  * primitive for any deck's custom public state (today: Thetis/Thetis Spice
- * HIGH_TIDE; future: stances, charges, forms). Purely additive; an older client
- * that ignores `flags` is unaffected. Rendered as a HUD state pill via the
- * FLAG_HUD_CHIPS registry in lib/pro/useProCardArt.ts (unbrewed-p2p #233).
+ * HIGH_TIDE, Malfurion druid forms; future: stances, charges). Purely additive;
+ * an older client that ignores `flags` is unaffected. Rendered as a HUD nameplate
+ * pill AND a fighter-token badge via the unified HERO_STATE_FLAGS registry in
+ * lib/pro/heroStateFlags.ts (unbrewed-p2p #233, #329).
  *
  * ## Additive field (2026-07-12, no version bump): `ViewPrompt.description`
  * (issue #134). A multi-step effect (e.g. Coil and Slip's damage-then-move) left
