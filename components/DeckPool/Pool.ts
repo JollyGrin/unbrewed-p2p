@@ -1,6 +1,7 @@
 import {
   DeckImportCardType,
   DeckImportHeroType,
+  DeckImportRuleCardType,
   DeckImportSidekickType,
   DeckImportType,
   PoolCardType,
@@ -17,6 +18,8 @@ export default class Pool {
   deck: DeckImportCardType[] | null;
   hero: DeckImportHeroType;
   sidekick: DeckImportSidekickType;
+  /** deck-level "extra rules" cards (issue #372); [] when the deck has none */
+  ruleCards: DeckImportRuleCardType[];
 
   hand: DeckImportCardType[];
   discard: DeckImportCardType[];
@@ -52,6 +55,7 @@ export default class Pool {
       name: sidekick.name,
       quote: sidekick.quote,
     };
+    this.ruleCards = deck_data.ruleCards ?? [];
 
     // CONTAINERS
     this.hand = [];

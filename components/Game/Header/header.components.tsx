@@ -285,7 +285,10 @@ export const Stat: React.FC<{
 };
 
 const TipBody = (props: { pool: PoolType }) => {
-  const { deckName, hero, sidekick } = props.pool;
+  const { deckName, hero, sidekick, ruleCards } = props.pool;
+  // deck-level "extra rules" cards (issue #372) — e.g. Clone Troopers' board
+  // cap. Distinct from hero.specialAbility; content preserves its \n breaks.
+  const rules = (ruleCards ?? []).filter((r) => r.content?.trim());
   return (
     <Box minW="300px">
       <Text fontWeight="bold">{deckName}</Text>
@@ -294,6 +297,14 @@ const TipBody = (props: { pool: PoolType }) => {
         {hero.name}: {hero.isRanged ? "Ranged" : "Meele"}
       </Text>
       <Text>{hero.specialAbility}</Text>
+      {rules.map((rule, i) => (
+        <Text key={`${rule.title}-${i}`} mt="0.35rem" whiteSpace="pre-wrap">
+          <Text as="span" fontWeight="bold">
+            {rule.title || "Extra rules"}:
+          </Text>{" "}
+          {rule.content.trim()}
+        </Text>
+      ))}
       <Divider />
       <Text>
         {sidekick.name}: {sidekick.isRanged ? "Ranged" : "Meele"}
