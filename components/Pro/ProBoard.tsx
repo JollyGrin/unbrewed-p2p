@@ -146,8 +146,8 @@ const arrowGeometry = (
   const px = -uy; // perpendicular unit
   const py = ux;
   const r = diam * 0.5; // token clearance (x-units)
-  const headLen = diam * 1.0;
-  const headW = diam * 0.62;
+  const headLen = diam * 0.5; // slim chevron — roughly half a pawn long, not a full one
+  const headW = diam * 0.3; // half-width; keeps the head reading as a pointer, not a wedge
   const tipX = tx - ux * r; // land the tip at the target token's edge
   const tipY = ty - uy * r;
   const baseX = tipX - ux * headLen;
@@ -1056,7 +1056,7 @@ export const ProBoard = ({
             x2={arrow.x2}
             y2={arrow.y2}
             stroke="#fff"
-            strokeWidth={diam * 0.34}
+            strokeWidth={diam * 0.2}
             strokeLinecap="round"
             opacity={0.9}
           />
@@ -1066,14 +1066,14 @@ export const ProBoard = ({
             x2={arrow.x2}
             y2={arrow.y2}
             stroke={ARROW_COLOR}
-            strokeWidth={diam * 0.2}
+            strokeWidth={diam * 0.12}
             strokeLinecap="round"
           />
           <polygon
             points={arrow.points}
             fill={ARROW_COLOR}
             stroke="#fff"
-            strokeWidth={diam * 0.14}
+            strokeWidth={diam * 0.08}
             strokeLinejoin="round"
           />
         </svg>
@@ -1107,10 +1107,10 @@ export const ProBoard = ({
                 key={`${h.fighterId}-${h.to}-ring`}
                 cx={from.x * 100}
                 cy={from.y * 100}
-                r={diam * 0.62}
+                r={diam * 0.44}
                 fill="none"
                 stroke={MOVE_HINT_COLOR}
-                strokeWidth={diam * 0.16}
+                strokeWidth={diam * 0.1}
                 opacity={0.95}
               />,
               <line
@@ -1120,9 +1120,9 @@ export const ProBoard = ({
                 x2={g.x2}
                 y2={g.y2}
                 stroke={MOVE_HINT_COLOR}
-                strokeWidth={diam * 0.18}
+                strokeWidth={diam * 0.11}
                 strokeLinecap="round"
-                strokeDasharray={`${diam * 0.34} ${diam * 0.26}`}
+                strokeDasharray={`${diam * 0.2} ${diam * 0.16}`}
                 opacity={0.9}
               />,
               <polygon
@@ -1130,7 +1130,7 @@ export const ProBoard = ({
                 points={g.points}
                 fill={MOVE_HINT_COLOR}
                 stroke="#fff"
-                strokeWidth={diam * 0.1}
+                strokeWidth={diam * 0.06}
                 strokeLinejoin="round"
               />,
             ];
