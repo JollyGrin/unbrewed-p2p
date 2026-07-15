@@ -168,7 +168,7 @@
       },
       {
         "afterText": "",
-        "basicText": "You may place up to 4 totems on eligible spaces in Thrall\u2019s zone. If Thrall already has 1 or more totems on the board, destroy 1 before placing each new totem. If you draw this card to start the game, reshuffle and draw again.",
+        "basicText": "You may place totems on eligible spaces in Thrall\u2019s zone until Thrall has 4 totems in play. While at 4, destroy 1 of your totems before placing each new one (repositioning). If you draw this card to start the game, reshuffle and draw again.",
         "boost": 1,
         "characterName": "THRALL",
         "duringText": "",
@@ -219,8 +219,8 @@
   "published": true,
   "published_on": null,
   "tags": [],
-  "updated_on": "Mon, 07 Sep 2020 20:33:06 GMT",
+  "updated_on": "Wed, 15 Jul 2026 20:59:25 GMT",
   "user": "JollyGrin",
   "version_id": "y8Eado",
-  "version_name": "v2.4"
+  "version_name": "v2.5"
 }
