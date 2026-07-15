@@ -650,3 +650,155 @@ describe("ProBoard step-highlight over occupied spaces (issue #285 / #185)", () 
     expect(onFighterClick).not.toHaveBeenCalled();
   });
 });
+
+// Lively tokens (issue #320, `tokenLife` beta flag). PRESENTATION ONLY — the DOM
+// is byte-identical when the prop is absent, and the token keeps behaving (click
+// routing, title) when the feature is on.
+describe("ProBoard tokenLife layer (issue #320)", () => {
+  it("keeps the token clickable and titled when the feature is on", () => {
+    const onFighterClick = jest.fn();
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[fighter({})]}
+          highlightedFighters={["p1/hero"]}
+          onFighterClick={onFighterClick}
+          tokenLife={{}}
+        />
+      </ChakraProvider>
+    );
+    const token = screen.getByTitle(/The Mandalorian/);
+    expect(getComputedStyle(token).display).toBe("flex");
+    fireEvent.click(token);
+    expect(onFighterClick).toHaveBeenCalledWith("p1/hero");
+  });
+
+  it("renders a KO ghost for a toppled fighter and clears the live token filter path", () => {
+    // The topple gesture carries the fighter's last space; the ghost renders as
+    // an extra, non-interactive token overlay at that space.
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[fighter({ id: "p1/hero", space: "s1" })]}
+          tokenLife={{
+            "p2/dead": { kind: "topple", key: 1, dx: 1, dy: 0, amount: 0, space: "s2" },
+          }}
+        />
+      </ChakraProvider>
+    );
+    // The live fighter is still there; the ghost adds a second circle. No throw is
+    // the core assertion — the ghost path renders in the frame holding its space.
+    expect(screen.getByTitle(/The Mandalorian/)).toBeInTheDocument();
+  });
+
+  it("does not add the KO ghost path when the feature is off (null tokenLife)", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={MAP} fighters={[fighter({})]} />
+      </ChakraProvider>
+    );
+    expect(screen.getByTitle(/The Mandalorian/)).toBeInTheDocument();
+  });
+});
+
+// "Who would move here" hover cue + move-hint rendering (issue #320 follow-up).
+describe("ProBoard move-intent hover cue (issue #320)", () => {
+  it("fires onSpaceHover with the id on enter and null on leave, for highlighted spaces only", () => {
+    const onSpaceHover = jest.fn();
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[fighter({ space: "s1" })]}
+          highlightedSpaces={["s2"]}
+          onSpaceClick={jest.fn()}
+          onSpaceHover={onSpaceHover}
+        />
+      </ChakraProvider>
+    );
+    // s2 is highlighted → its hit-circle is the only pointer-cursor Box at that
+    // coord (the lone fighter sits on s1). Emotion emits classNames, so read the
+    // resolved style via getComputedStyle rather than the inline `style` attr.
+    const s2 = Array.from(document.querySelectorAll("div")).find((el) => {
+      const cs = getComputedStyle(el as HTMLElement);
+      return cs.left === "80%" && cs.cursor === "pointer";
+    }) as HTMLElement;
+    expect(s2).toBeTruthy();
+    fireEvent.mouseEnter(s2);
+    expect(onSpaceHover).toHaveBeenCalledWith("s2");
+    fireEvent.mouseLeave(s2);
+    expect(onSpaceHover).toHaveBeenCalledWith(null);
+  });
+
+  it("fires onFighterHover on the token", () => {
+    const onFighterHover = jest.fn();
+    render(
+      <ChakraProvider>
+        <ProBoard map={MAP} fighters={[fighter({})]} onFighterHover={onFighterHover} />
+      </ChakraProvider>
+    );
+    const token = screen.getByTitle(/The Mandalorian/);
+    fireEvent.mouseEnter(token);
+    expect(onFighterHover).toHaveBeenCalledWith("p1/hero");
+    fireEvent.mouseLeave(token);
+    expect(onFighterHover).toHaveBeenCalledWith(null);
+  });
+
+  it("renders a destination ghost per move-hint candidate", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[
+            fighter({ id: "p1/hero", name: "The Mandalorian", space: "s1" }),
+            fighter({ id: "p1/child", name: "The Child", kind: "SIDEKICK", space: "s1" }),
+          ]}
+          highlightedSpaces={["s2"]}
+          moveHint={[
+            { fighterId: "p1/hero", from: "s1", to: "s2" },
+            { fighterId: "p1/child", from: "s1", to: "s2" },
+          ]}
+        />
+      </ChakraProvider>
+    );
+    // one ghost per candidate at the destination
+    expect(screen.getByTitle(/MAN would move here/)).toBeInTheDocument();
+    expect(screen.getByTitle(/CHI would move here/)).toBeInTheDocument();
+  });
+
+  it("draws nothing when moveHint is empty/absent", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={MAP} fighters={[fighter({ space: "s1" })]} highlightedSpaces={["s2"]} />
+      </ChakraProvider>
+    );
+    expect(screen.queryByTitle(/would move here/)).not.toBeInTheDocument();
+  });
+
+  it("makes an ambiguous space (hero + sidekick both reach s2) visibly ambiguous: two ghosts + connectors", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[
+            fighter({ id: "p1/hero", name: "The Mandalorian", space: "s1" }),
+            fighter({ id: "p1/child", name: "The Child", kind: "SIDEKICK", space: "s1" }),
+          ]}
+          highlightedSpaces={["s2"]}
+          moveHint={[
+            { fighterId: "p1/hero", from: "s1", to: "s2" },
+            { fighterId: "p1/child", from: "s1", to: "s2" },
+          ]}
+        />
+      </ChakraProvider>
+    );
+    // both candidates ghosted at the destination — the ambiguity is on screen
+    expect(screen.getByTitle(/MAN would move here/)).toBeInTheDocument();
+    expect(screen.getByTitle(/CHI would move here/)).toBeInTheDocument();
+    // a source ring per candidate + a connector arrowhead per candidate (SVG)
+    expect(container.querySelectorAll("circle").length).toBeGreaterThanOrEqual(2);
+    expect(container.querySelectorAll("polygon").length).toBeGreaterThanOrEqual(2);
+  });
+});
