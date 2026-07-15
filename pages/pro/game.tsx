@@ -1584,6 +1584,9 @@ const HeroSelectLobby = ({
     return h.name.toLowerCase().includes(q) || author.toLowerCase().includes(q);
   });
 
+  const recommendedHeroes = visibleHeroes.filter((h) => h.deckSection === "recommended");
+  const communityHeroes = visibleHeroes.filter((h) => h.deckSection === "community");
+
   const stageName =
     selectedMapId === CUSTOM_MAP_ID
       ? "Custom board"
@@ -1848,7 +1851,7 @@ const HeroSelectLobby = ({
         <Flex direction="column" gap="0.9rem" minW="0">
           <Flex align="center" justify="space-between" gap="0.75rem" flexWrap="wrap">
             <Text fontFamily="LeagueGothic" fontSize="1.25rem" letterSpacing="0.1em" color="brand.accent">
-              CHOOSE YOUR FIGHTER
+              SELECT YOUR HERO
             </Text>
             <Flex gap="0.4rem" align="center" flexWrap="wrap">
               <Input
@@ -1889,13 +1892,13 @@ const HeroSelectLobby = ({
             </Flex>
           </Flex>
 
-          <Grid
-            templateColumns="repeat(auto-fill, minmax(5.25rem, 1fr))"
-            gap="0.5rem"
-            onMouseLeave={() => setHoverHero(undefined)}
-          >
-            {heroes === null ? (
-              heroParam ? (
+          {heroes === null ? (
+            <Grid
+              templateColumns="repeat(auto-fill, minmax(5.25rem, 1fr))"
+              gap="0.5rem"
+              onMouseLeave={() => setHoverHero(undefined)}
+            >
+              {heroParam ? (
                 <Box
                   position="relative"
                   w="100%"
@@ -1922,30 +1925,60 @@ const HeroSelectLobby = ({
                   <SkeletonTile />
                   <SkeletonTile />
                 </>
-              )
-            ) : heroes.length === 0 ? (
-              <Text gridColumn="1 / -1" textAlign="center" opacity={0.7}>
-                no heroes available — try again shortly
-              </Text>
-            ) : visibleHeroes.length === 0 ? (
-              <Text gridColumn="1 / -1" textAlign="center" opacity={0.6} fontSize="0.85rem" py="1rem">
-                No fighters match — clear the search or filter.
-              </Text>
-            ) : (
-              visibleHeroes.map((h) => (
-                <RosterTile
-                  key={h.heroId}
-                  hero={h}
-                  selected={effective === h.heroId}
-                  onSelect={() => onSelectHero(h.heroId)}
-                  onHover={() => setHoverHero(h)}
-                />
-              ))
-            )}
-          </Grid>
+              )}
+            </Grid>
+          ) : heroes.length === 0 ? (
+            <Text textAlign="center" opacity={0.7}>
+              no heroes available — try again shortly
+            </Text>
+          ) : visibleHeroes.length === 0 ? (
+            <Text textAlign="center" opacity={0.6} fontSize="0.85rem" py="1rem">
+              No fighters match — clear the search or filter.
+            </Text>
+          ) : (
+            <Flex direction="column" gap="1rem" onMouseLeave={() => setHoverHero(undefined)}>
+              {recommendedHeroes.length > 0 && (
+                <Grid templateColumns="repeat(auto-fill, minmax(5.25rem, 1fr))" gap="0.5rem">
+                  {recommendedHeroes.map((h) => (
+                    <RosterTile
+                      key={h.heroId}
+                      hero={h}
+                      selected={effective === h.heroId}
+                      onSelect={() => onSelectHero(h.heroId)}
+                      onHover={() => setHoverHero(h)}
+                    />
+                  ))}
+                </Grid>
+              )}
+
+              {communityHeroes.length > 0 && (
+                <Flex direction="column" gap="0.55rem">
+                  <Flex align="baseline" justify="space-between" gap="0.75rem" flexWrap="wrap">
+                    <Text fontFamily="LeagueGothic" fontSize="1.05rem" letterSpacing="0.1em" color="brand.accent">
+                      SEARCH COMMUNITY DECKS
+                    </Text>
+                    <Text fontSize="0.68rem" color="whiteAlpha.500" fontFamily="SpaceGrotesk" maxW="32rem">
+                      Community decks are playable fan decks. They may be less maintained or less balanced than recommended picks.
+                    </Text>
+                  </Flex>
+                  <Grid templateColumns="repeat(auto-fill, minmax(5.25rem, 1fr))" gap="0.5rem">
+                    {communityHeroes.map((h) => (
+                      <RosterTile
+                        key={h.heroId}
+                        hero={h}
+                        selected={effective === h.heroId}
+                        onSelect={() => onSelectHero(h.heroId)}
+                        onHover={() => setHoverHero(h)}
+                      />
+                    ))}
+                  </Grid>
+                </Flex>
+              )}
+            </Flex>
+          )}
 
           <Text fontSize="0.72rem" color="whiteAlpha.500" fontFamily="SpaceGrotesk">
-            All fighters are community-built fan decks. ♥ health · ⚑ fighters · ⚔ / 🏹 attack style shown in the splash panel.
+            ♥ health · ⚑ fighters · ⚔ / 🏹 attack style shown in the splash panel.
           </Text>
 
           {/* ---------------- stage row ---------------- */}
