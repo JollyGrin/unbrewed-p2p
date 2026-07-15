@@ -36,6 +36,10 @@ export const FLAGS = {
     label: "Match replays",
     desc: "Save finished Pro games and scrub through them in full God-view.",
   },
+  tokenLife: {
+    label: "Lively tokens",
+    desc: "Board tokens react to combat (recoil, lunge, brace, topple) and breathe at rest.",
+  },
 } as const;
 
 export type FlagName = keyof typeof FLAGS;
