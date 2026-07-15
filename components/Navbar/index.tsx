@@ -1,6 +1,7 @@
 import styled from "@emotion/styled";
 import { HStack } from "@chakra-ui/react";
 import { IconLogo } from "../Icons/IconLogo";
+import { ProNavButton } from "./ProNavButton";
 import Link from "next/link";
 
 import { FaDiscord } from "react-icons/fa";
@@ -16,7 +17,8 @@ export const Navbar = () => {
         <IconLogo fontSize="2rem" />
       </Link>
 
-      <HStack>
+      <HStack flexWrap="wrap" justifyContent="flex-end">
+        <ProNavButton />
         <Link href="/bag">
           <BagIcon />
         </Link>
