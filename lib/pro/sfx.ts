@@ -20,11 +20,14 @@ export type SfxName =
   | "heal"
   | "turn"
   | "victory"
-  | "loss";
+  | "loss"
+  // "The Snuff" (issue #346): a candle-snuff / fuse-fizzle "pfft" for the moment
+  // a cancel-effects card (Feint, …) foils an opponent's card text.
+  | "snuff";
 
 const NAMES: SfxName[] = [
   "flip", "commit", "draw", "hit", "hit-heavy", "blocked",
-  "defeat", "heal", "turn", "victory", "loss",
+  "defeat", "heal", "turn", "victory", "loss", "snuff",
 ];
 
 /** per-clip trim so impacts punch and UI dings stay polite */
@@ -37,6 +40,7 @@ const CLIP_GAIN: Partial<Record<SfxName, number>> = {
   heal: 0.7,
   turn: 0.5,
   loss: 0.8,
+  snuff: 0.85,
 };
 
 class SfxEngine {

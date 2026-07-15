@@ -23,6 +23,8 @@ export type FxEvent =
   | { type: "defeated"; fighter: FighterId; space: SpaceId | null; mine: boolean }
   /** it just became your turn */
   | { type: "turn" }
+  /** a cancel-effects card (Feint, …) snuffed an opponent's card text (#346) */
+  | { type: "cancel" }
   | { type: "victory" }
   | { type: "loss" };
 
@@ -138,6 +140,12 @@ export function diffFxEvents(
     return !!prevPlayer && nextPlayer.deckCount < prevPlayer.deckCount && nextPlayer.handCount > prevPlayer.handCount;
   });
   if (drewSelf || drewOther) events.push({ type: "draw" });
+
+  // "The Snuff" (#346): a cancel-effects card foiled an opponent's card text.
+  // EFFECT_CANCELED lives only on the v10 event stream (nothing in the snapshot
+  // reflects it), so read it off `gameEvents`; one beat per batch however many
+  // effects were cancelled. Absent on join/reconnect (empty events) — no ghost.
+  if (gameEvents.some((e) => e.type === "EFFECT_CANCELED")) events.push({ type: "cancel" });
 
   if (next.winner && !prev.winner) {
     events.push({ type: isViewerOnWinningTeam(next) ? "victory" : "loss" });
