@@ -17,7 +17,7 @@ import { useZoomPan } from "@/lib/pro/useZoomPan";
 import { LARGE_FIGHTER_BLURB, LARGE_REACH_CHIP } from "@/lib/pro/largeReach";
 import { tokenInitials } from "./FighterTokenPortrait";
 import { ItemBadge, PassageBadge } from "./ItemBadge";
-import type { DruidFormTokenBadge } from "@/lib/pro/druidForm";
+import type { FlagTokenBadge } from "@/lib/pro/heroStateFlags";
 
 /** Hover/long-press tooltip for a live item token, per the official wording. */
 export const itemBadgeTitle = (item: ProMapItem): string =>
@@ -155,10 +155,11 @@ export interface ProBoardProps {
    *  and those tokens render initials-only exactly as before. Absent prop = no
    *  art anywhere (the board demo / any caller that doesn't wire it). */
   fighterTokenArt?: (fighter: ViewFighter) => string | null | undefined;
-  /** Small state badge for a fighter token (Malfurion form today). PRESENTATION
-   *  ONLY — caller derives the badge from public player flags; the board just
-   *  draws it on the hero token head. Absent/null = no badge. */
-  fighterTokenBadge?: (fighter: ViewFighter) => DruidFormTokenBadge | null | undefined;
+  /** Small state badge for a fighter token (tide / druid form today). PRESENTATION
+   *  ONLY — caller derives the badge from public player flags via the unified
+   *  HERO_STATE_FLAGS registry; the board just draws it on the hero token head.
+   *  Absent/null = no badge. */
+  fighterTokenBadge?: (fighter: ViewFighter) => FlagTokenBadge | null | undefined;
   /** transient effect overlays (floating damage numbers…) — keyed, caller-expired */
   fx?: BoardFxItem[];
   /** a just-committed move to tween through node-by-node instead of snapping */
