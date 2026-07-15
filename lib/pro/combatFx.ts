@@ -19,11 +19,23 @@ export type CombatCallout =
   | { kind: "turn"; mine: boolean }
   | { kind: "defend" }
   | { kind: "reveal"; source: string }
-  // "The Snuff" (issue #346): a cancel-effects card (Feint, …) killed a combat
-  // card's TEXT. `role` names the cancelled (victim) side — the overlay resolves
-  // its face from combat.attackerCard/defenderCard and keeps its printed value
-  // visibly "alive" (the number still hits; only the words burn away).
-  | { kind: "cancel"; role: "ATTACK" | "DEFENSE" };
+  // "The Snuff" (issue #346, hardened in #350): a cancel-effects card (Feint, …)
+  // killed a combat card's TEXT. `role` names the cancelled (victim) side. EVERYTHING
+  // the overlay draws is captured HERE at diff time, never re-read from the live view
+  // at render: a Feint that ends the combat in one server drive already carries
+  // `combat: null` by the time the overlay mounts, which used to degrade the face to
+  // a blank "Attack card" placeholder. `victim`/`canceller` are the two combat-card
+  // instance ids (victim = cancelled side, canceller = the opposite card that did it),
+  // or null when neither the batch nor the surviving view can name them. `value` is
+  // the pill's "STILL HITS" number: net COMBAT_DAMAGE when it resolved in the batch,
+  // else the victim's printed catalog value (the number still hits; only the words burn).
+  | {
+      kind: "cancel";
+      role: "ATTACK" | "DEFENSE";
+      victim: string | null;
+      canceller: string | null;
+      value: number | null;
+    };
 
 /** A live callout on screen: a diffed `CombatCallout` plus a stable key. Reveals
  *  also carry a `slot` — a cascade index the overlay turns into a small
@@ -96,15 +108,45 @@ export function diffCombatCallouts(
     else if (e.type === "EFFECT_FIRED") addReveal(e.source);
   }
 
-  // 4. The Snuff (issue #346) — a cancel-effects card foiled a combat card. Dedup
-  //    by cancelled side within the batch (a card can raise EFFECT_CANCELED per
-  //    scope, but the callout is one victim per side). Only the v10 `events`
+  // 4. The Snuff (issue #346, hardened in #350) — a cancel-effects card foiled a
+  //    combat card. Resolve EVERYTHING the overlay draws HERE, from the batch, so a
+  //    Feint that drives COMBAT_DAMAGE/RESOLVED/ENDED in the same STATE message (its
+  //    view already `combat: null`) can't degrade the callout to a blank placeholder.
+  //    Dedup by cancelled side within the batch (a card can raise EFFECT_CANCELED
+  //    per scope, but the callout is one victim per side). Only the v10 `events`
   //    carry this; a pre-v10/empty batch yields none, exactly like reveals.
+  //
+  //    Faces: CARDS_REVEALED (same STATE message, always carries both ids — the
+  //    reveal callout's trick) is authoritative; fall back to the surviving combat
+  //    view when the cancel lands in a LATER batch (e.g. after a prompt pause) where
+  //    no fresh reveal event rides along.
+  const revealed = events.find((e) => e.type === "CARDS_REVEALED");
+  const attackerId =
+    (revealed?.type === "CARDS_REVEALED" ? revealed.attackerCard : null) ??
+    prev.combat?.attackerCard?.instance ??
+    next.combat?.attackerCard?.instance ??
+    null;
+  const defenderId =
+    (revealed?.type === "CARDS_REVEALED" ? revealed.defenderCard : null) ??
+    prev.combat?.defenderCard?.instance ??
+    next.combat?.defenderCard?.instance ??
+    null;
+  //    Pill: net damage that still landed this batch (COMBAT_DAMAGE) is the truth
+  //    when present; otherwise fall back to the victim's printed catalog value —
+  //    the same static source the activity log reads for its "(2/2)" stats.
+  const damage = events.find((e) => e.type === "COMBAT_DAMAGE");
+  const netDamage = damage?.type === "COMBAT_DAMAGE" ? damage.amount : null;
+  const printedValue = (instance: string | null): number | null =>
+    instance ? next.catalog[instance.split("#")[0]]?.value ?? null : null;
+
   const cancelledRoles = new Set<"ATTACK" | "DEFENSE">();
   for (const e of events) {
     if (e.type === "EFFECT_CANCELED" && !cancelledRoles.has(e.role)) {
       cancelledRoles.add(e.role);
-      out.push({ kind: "cancel", role: e.role });
+      const victim = e.role === "ATTACK" ? attackerId : defenderId;
+      const canceller = e.role === "ATTACK" ? defenderId : attackerId;
+      const value = netDamage ?? printedValue(victim);
+      out.push({ kind: "cancel", role: e.role, victim, canceller, value });
     }
   }
 
