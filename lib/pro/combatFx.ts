@@ -18,7 +18,12 @@ import { GameEvent, PlayerView } from "./protocol";
 export type CombatCallout =
   | { kind: "turn"; mine: boolean }
   | { kind: "defend" }
-  | { kind: "reveal"; source: string };
+  | { kind: "reveal"; source: string }
+  // "The Snuff" (issue #346): a cancel-effects card (Feint, …) killed a combat
+  // card's TEXT. `role` names the cancelled (victim) side — the overlay resolves
+  // its face from combat.attackerCard/defenderCard and keeps its printed value
+  // visibly "alive" (the number still hits; only the words burn away).
+  | { kind: "cancel"; role: "ATTACK" | "DEFENSE" };
 
 /** A live callout on screen: a diffed `CombatCallout` plus a stable key. Reveals
  *  also carry a `slot` — a cascade index the overlay turns into a small
@@ -31,6 +36,9 @@ const TTL_MS: Record<CombatCallout["kind"], number> = {
   turn: 1900,
   defend: 1700,
   reveal: 2300,
+  // Matches reveals so the snuff never outlives the floating damage numbers that
+  // land right after it (EFFECT_CANCELED fires before COMBAT_DAMAGE) — issue #346.
+  cancel: 2300,
 };
 
 /** Reveals never mount on top of each other: each one waits this long after the
@@ -86,6 +94,18 @@ export function diffCombatCallouts(
   for (const e of events) {
     if (e.type === "SCHEME_PLAYED" || e.type === "CARD_PLAYED_FROM_HAND" || e.type === "CARD_REVEALED") addReveal(e.card);
     else if (e.type === "EFFECT_FIRED") addReveal(e.source);
+  }
+
+  // 4. The Snuff (issue #346) — a cancel-effects card foiled a combat card. Dedup
+  //    by cancelled side within the batch (a card can raise EFFECT_CANCELED per
+  //    scope, but the callout is one victim per side). Only the v10 `events`
+  //    carry this; a pre-v10/empty batch yields none, exactly like reveals.
+  const cancelledRoles = new Set<"ATTACK" | "DEFENSE">();
+  for (const e of events) {
+    if (e.type === "EFFECT_CANCELED" && !cancelledRoles.has(e.role)) {
+      cancelledRoles.add(e.role);
+      out.push({ kind: "cancel", role: e.role });
+    }
   }
 
   return out;

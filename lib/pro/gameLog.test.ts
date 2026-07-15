@@ -144,6 +144,7 @@ const ALLOWLIST = new Set([
   "VALUE_SET",
   "EFFECT_SCHEDULED",
   "EFFECT_FIRED",
+  "EFFECT_CANCELED",
   "DEFENSE_IGNORED",
   "DAMAGE_PREVENTED",
   "ACTIONS_GAINED",
@@ -283,6 +284,15 @@ describe("enrichLines", () => {
       expect(out).toEqual([{ text: "a hidden card: delayed effect resolves", who: "game", cards: undefined }]);
     });
 
+    it("EFFECT_CANCELED renders a Feint line naming the cancelled side (issue #346)", () => {
+      expect(enrichLines([], [{ type: "EFFECT_CANCELED", role: "ATTACK", scope: "s" }], ctx())).toEqual([
+        { text: "Feint! Attack card effects were cancelled (printed value still counts)", who: "game" },
+      ]);
+      expect(enrichLines([], [{ type: "EFFECT_CANCELED", role: "DEFENSE", scope: "s" }], ctx())).toEqual([
+        { text: "Feint! Defense card effects were cancelled (printed value still counts)", who: "game" },
+      ]);
+    });
+
     it("DEFENSE_IGNORED and DAMAGE_PREVENTED render fixed lines", () => {
       const out = enrichLines(
         [],
@@ -365,7 +375,7 @@ describe("enrichLines", () => {
       // A discard is an annotation-only type; add it so the roster is exhaustive.
       seen.add("CARD_DISCARDED");
       // Sanity: the allowlist is a subset of what the union offers.
-      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_REVEALED", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED"]).toContain(t);
+      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_REVEALED", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED"]).toContain(t);
     });
   });
 

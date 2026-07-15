@@ -132,6 +132,40 @@ describe("diffCombatCallouts", () => {
     });
   });
 
+  describe("The Snuff — cancel callout (issue #346)", () => {
+    it("emits a cancel naming the victim side from EFFECT_CANCELED.role", () => {
+      const v = view({ combat: combat({ stage: "IMMEDIATELY" }) });
+      const events: GameEvent[] = [{ type: "EFFECT_CANCELED", role: "ATTACK", scope: "ALL" }];
+      expect(diffCombatCallouts(v, v, events)).toEqual([{ kind: "cancel", role: "ATTACK" }]);
+    });
+
+    it("dedupes multiple cancels of the same side within one batch", () => {
+      const v = view({ combat: combat({ stage: "IMMEDIATELY" }) });
+      const events: GameEvent[] = [
+        { type: "EFFECT_CANCELED", role: "DEFENSE", scope: "ALL" },
+        { type: "EFFECT_CANCELED", role: "DEFENSE", scope: "TEXT" },
+      ];
+      expect(diffCombatCallouts(v, v, events)).toEqual([{ kind: "cancel", role: "DEFENSE" }]);
+    });
+
+    it("emits one cancel per side when both are cancelled", () => {
+      const v = view({ combat: combat({ stage: "IMMEDIATELY" }) });
+      const events: GameEvent[] = [
+        { type: "EFFECT_CANCELED", role: "ATTACK", scope: "ALL" },
+        { type: "EFFECT_CANCELED", role: "DEFENSE", scope: "ALL" },
+      ];
+      expect(diffCombatCallouts(v, v, events)).toEqual([
+        { kind: "cancel", role: "ATTACK" },
+        { kind: "cancel", role: "DEFENSE" },
+      ]);
+    });
+
+    it("emits no cancel when the events stream is empty (pre-v10 server)", () => {
+      const v = view({ combat: combat({ stage: "IMMEDIATELY" }) });
+      expect(diffCombatCallouts(v, v, [])).toEqual([]);
+    });
+  });
+
   it("emits a turn banner and a reveal together in one batch", () => {
     const prev = view({ activePlayer: "p2" });
     const next = view({ activePlayer: "p1" });

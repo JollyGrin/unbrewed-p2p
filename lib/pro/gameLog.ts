@@ -445,6 +445,14 @@ export function enrichLines(
         });
         break;
       }
+      case "EFFECT_CANCELED": {
+        // "The Snuff" (issue #346). The cancel kills the card's TEXT only — its
+        // printed value still resolves — so the line says so explicitly instead
+        // of leaving the cancel to be reverse-engineered from the damage math.
+        const side = e.role === "ATTACK" ? "Attack" : "Defense";
+        added.push({ text: `Feint! ${side} card effects were cancelled (printed value still counts)`, who: "game" });
+        break;
+      }
       case "DEFENSE_IGNORED": {
         added.push({ text: "Defense ignored", who: "game" });
         break;

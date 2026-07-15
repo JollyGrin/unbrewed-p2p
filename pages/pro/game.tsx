@@ -359,6 +359,58 @@ const calloutReveal = keyframes`
   100% { opacity: 0; transform: translate(-50%, -66%) scale(0.98); }
 `;
 
+// --- "The Snuff" cancel-effects callout (issue #346) ------------------------
+// One rule to teach: a cancel kills the card's TEXT, not its printed value. So
+// the victim card rises, the feint slaps over it, its effect-text band chars to
+// ash — while the printed value stays LIT and pulses ("this part still hits").
+
+/** The victim card rises to center, holds while it's foiled, then fades. */
+const calloutSnuff = keyframes`
+  0%   { opacity: 0; transform: translate(-50%, -40%) scale(0.72); }
+  10%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+  20%  { transform: translate(-50%, -50%) scale(1); }
+  82%  { opacity: 1; transform: translate(-50%, -51%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -62%) scale(0.98); }
+`;
+
+/** The feint card sweeps in from the canceller's side and slaps over at an angle. */
+const snuffSlap = keyframes`
+  0%   { opacity: 0; transform: translate(115%, -32%) rotate(26deg) scale(1.12); }
+  20%  { opacity: 0; transform: translate(115%, -32%) rotate(26deg) scale(1.12); }
+  40%  { opacity: 1; transform: translate(9%, 5%) rotate(10deg) scale(1.03); }
+  48%  { transform: translate(6%, 3%) rotate(8deg) scale(1); }
+  84%  { opacity: 1; transform: translate(6%, 3%) rotate(8deg) scale(1); }
+  100% { opacity: 0; transform: translate(6%, -4%) rotate(8deg) scale(0.98); }
+`;
+
+/** The victim's effect-text band chars to ash — smoke washes over the lower card
+ *  while the printed value (top band) stays clear. Waits for the slap to land. */
+const snuffAsh = keyframes`
+  0%   { opacity: 0; }
+  42%  { opacity: 0; }
+  70%  { opacity: 0.88; }
+  100% { opacity: 0.82; }
+`;
+
+/** The printed value pulses once — "this part still hits you." */
+const snuffValuePulse = keyframes`
+  0%   { transform: scale(1); }
+  58%  { transform: scale(1); box-shadow: 0 0 0 0 rgba(224,168,46,0); }
+  72%  { transform: scale(1.32); box-shadow: 0 0 22px 6px rgba(224,168,46,0.85); }
+  86%  { transform: scale(1.08); }
+  100% { transform: scale(1.12); box-shadow: 0 0 14px 3px rgba(224,168,46,0.6); }
+`;
+
+/** NOPE. stamps in hard, rotated, once the effect is snuffed. */
+const snuffStamp = keyframes`
+  0%   { opacity: 0; transform: translate(-50%, -50%) rotate(-13deg) scale(2.6); }
+  50%  { opacity: 0; transform: translate(-50%, -50%) rotate(-13deg) scale(2.6); }
+  60%  { opacity: 1; transform: translate(-50%, -50%) rotate(-13deg) scale(0.9); }
+  68%  { transform: translate(-50%, -50%) rotate(-13deg) scale(1.08); }
+  76%  { transform: translate(-50%, -50%) rotate(-13deg) scale(1); }
+  100% { opacity: 1; transform: translate(-50%, -50%) rotate(-13deg) scale(1); }
+`;
+
 /**
  * Card-back stand-in for a redacted (`'(hidden)'`) reveal source. A real reveal
  * shows the source card's art; a redacted one used to fall back to bare text,
@@ -485,6 +537,136 @@ const CombatCalloutOverlay = ({
       >
         DEFEND!
       </Text>
+    );
+  }
+
+  if (item.kind === "cancel") {
+    // "The Snuff" — a cancel-effects card foiled the `role` side's card TEXT.
+    // Resolve BOTH combat cards: the victim (cancelled side) rises, the canceller
+    // (opposite side, e.g. Feint) slaps over it. The victim's printed value stays
+    // lit because the number still resolves; only the words burn to ash.
+    const victimCard = item.role === "ATTACK" ? view.combat?.attackerCard : view.combat?.defenderCard;
+    const cancellerCard = item.role === "ATTACK" ? view.combat?.defenderCard : view.combat?.attackerCard;
+    const victimFace = victimCard ? resolveCard(victimCard.instance) : null;
+    const victimName = victimCard
+      ? cardLabel(view.catalog, victimCard.instance)
+      : item.role === "ATTACK"
+        ? "Attack card"
+        : "Defense card";
+    const cancellerFace = cancellerCard ? resolveCard(cancellerCard.instance) : null;
+    const cancellerName = cancellerCard ? cardLabel(view.catalog, cancellerCard.instance) : "Cancel";
+    const printedValue = victimCard?.effectiveValue;
+    return (
+      <Flex
+        position="fixed"
+        top="46%"
+        left="50%"
+        zIndex={206}
+        direction="column"
+        alignItems="center"
+        gap="0.6rem"
+        pointerEvents="none"
+        // base (reduced-motion) state: settled + visible; the keyframe overrides at runtime
+        opacity={1}
+        transform="translate(-50%, -50%)"
+        animation={`${calloutSnuff} 2.3s ease-out both`}
+        sx={NO_MOTION}
+      >
+        <Box
+          position="relative"
+          w={{ base: "9rem", md: "12rem" }}
+          sx={{ aspectRatio: "63 / 88" }}
+          filter="drop-shadow(0 8px 24px rgba(0,0,0,0.6))"
+        >
+          {/* the victim card — its text is about to be snuffed, its number spared */}
+          <CardFace card={victimFace} fallback={victimName} />
+
+          {/* effect-text band chars to ash: a dark smoke gradient washes up from the
+              bottom (where card text sits), leaving the top value band clear */}
+          <Box
+            position="absolute"
+            inset="0"
+            borderRadius="0.5rem"
+            bgGradient="linear(to-t, rgba(12,10,9,0.96) 42%, rgba(20,16,14,0.55) 66%, transparent 82%)"
+            opacity={0.82}
+            animation={`${snuffAsh} 2.3s ease-out both`}
+            sx={NO_MOTION}
+          />
+
+          {/* the printed value stays LIT and pulses once — "this part still hits" */}
+          {printedValue !== undefined && (
+            <Flex
+              position="absolute"
+              bottom="-0.6rem"
+              left="50%"
+              transform="translateX(-50%)"
+              direction="column"
+              align="center"
+              px="0.7rem"
+              py="0.25rem"
+              borderRadius="999px"
+              bg="rgba(20,16,14,0.9)"
+              border="2px solid"
+              borderColor="brand.accent"
+              animation={`${snuffValuePulse} 2.3s ease-out both`}
+              sx={NO_MOTION}
+            >
+              <Text fontFamily="LeagueGothic" fontSize="1.9rem" lineHeight="1" color="brand.accent" textShadow="0 0 12px rgba(224,168,46,0.8)">
+                {printedValue}
+              </Text>
+              <Text fontFamily="BebasNeueRegular" fontSize="0.55rem" letterSpacing="0.14em" color="brand.parchment" opacity={0.85}>
+                STILL HITS
+              </Text>
+            </Flex>
+          )}
+
+          {/* the feint card sweeps in from the side and slaps over at an angle */}
+          {cancellerCard && (
+            <Box
+              position="absolute"
+              inset="0"
+              transform="translate(6%, 3%) rotate(8deg)"
+              filter="drop-shadow(0 10px 20px rgba(0,0,0,0.7))"
+              animation={`${snuffSlap} 2.3s cubic-bezier(0.2, 0.8, 0.3, 1.2) both`}
+              sx={NO_MOTION}
+            >
+              <CardFace card={cancellerFace} fallback={cancellerName} />
+            </Box>
+          )}
+
+          {/* the stamp: NOPE. */}
+          <Text
+            position="absolute"
+            top="46%"
+            left="50%"
+            transform="translate(-50%, -50%) rotate(-13deg)"
+            fontFamily="LeagueGothic"
+            fontSize={{ base: "2.6rem", md: "3.4rem" }}
+            lineHeight="1"
+            letterSpacing="0.06em"
+            color="brand.danger"
+            textShadow="0 0 18px rgba(255,99,71,0.7), 0 2px 6px rgba(0,0,0,0.8)"
+            border="3px solid"
+            borderColor="brand.danger"
+            borderRadius="0.35rem"
+            px="0.4rem"
+            animation={`${snuffStamp} 2.3s ease-out both`}
+            sx={NO_MOTION}
+          >
+            NOPE.
+          </Text>
+        </Box>
+        <Text
+          fontFamily="BebasNeueRegular"
+          fontSize={{ base: "1.1rem", md: "1.4rem" }}
+          letterSpacing="0.06em"
+          textAlign="center"
+          color="brand.parchment"
+          textShadow="0 2px 8px rgba(0,0,0,0.7)"
+        >
+          {victimName} — effects cancelled
+        </Text>
+      </Flex>
     );
   }
 

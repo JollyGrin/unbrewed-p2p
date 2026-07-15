@@ -201,6 +201,22 @@ describe("diffFxEvents", () => {
     expect(diffFxEvents(prev, view({ winner: "p2" }))).toEqual([{ type: "loss" }]);
   });
 
+  it("emits one cancel beat when an effect is cancelled (issue #346)", () => {
+    const v = view({});
+    expect(diffFxEvents(v, v, [{ type: "EFFECT_CANCELED", role: "ATTACK", scope: "ALL" }])).toEqual([
+      { type: "cancel" },
+    ]);
+    // One beat however many effects were cancelled in the batch.
+    expect(
+      diffFxEvents(v, v, [
+        { type: "EFFECT_CANCELED", role: "ATTACK", scope: "ALL" },
+        { type: "EFFECT_CANCELED", role: "DEFENSE", scope: "ALL" },
+      ])
+    ).toEqual([{ type: "cancel" }]);
+    // No event stream (pre-v10 / reconnect) → no ghost beat.
+    expect(diffFxEvents(v, v)).toEqual([]);
+  });
+
   it("detects third-player commits and draws without a duel opponent", () => {
     const players3 = (p3: Partial<PlayerView["players"][number]> = {}) => [
       { id: "p1" as const, heroId: "fixture-p1", you: true, hand: [], handCount: 0, deckCount: 10, discard: [], committedCard: null, hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false },

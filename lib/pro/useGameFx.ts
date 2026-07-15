@@ -122,6 +122,10 @@ export function useGameFx(snapshot: { view: PlayerView; events?: GameEvent[] } |
         case "turn":
           if (sound) sfx.play("turn");
           break;
+        case "cancel":
+          // "The Snuff" (#346) — the fuse-fizzle punctuating a cancelled card.
+          if (sound) sfx.play("snuff");
+          break;
         case "victory":
           if (sound) sfx.play("victory");
           break;
