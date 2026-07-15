@@ -49,7 +49,7 @@ import { HERO_DECK_IDS, ResolveCard, heroIdsForArt, useProCardArt } from "@/lib/
 import { frozenAtForHero } from "@/lib/pro/evergreenManifest";
 import { POPULAR_DECKS, PopularDeckMeta } from "@/lib/constants/top-decks";
 import { GiFootprint, GiHearts } from "react-icons/gi";
-import { TbBow, TbChevronDown, TbExternalLink, TbInfoCircle, TbSword, TbZoomIn } from "react-icons/tb";
+import { TbBow, TbChevronDown, TbExternalLink, TbInfoCircle, TbPlus, TbSword, TbZoomIn } from "react-icons/tb";
 import { CardFace, ProHand } from "@/components/Pro/ProHand";
 import { CardPreviewProvider } from "@/components/Pro/CardPreview";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
@@ -3806,6 +3806,21 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
                   View replay <TbExternalLink size="0.85rem" />
                 </Link>
               )}
+              {/* Straight back into matchmaking so players can start another
+                  game without hand-navigating (issue #374). Bare href = full
+                  navigation, same as the sibling replay link above. */}
+              <Link
+                href="/pro/game"
+                color="brand.parchment"
+                opacity={0.85}
+                fontSize="0.9rem"
+                display="inline-flex"
+                alignItems="center"
+                gap="0.3rem"
+                _hover={{ opacity: 1, color: "brand.accent", textDecoration: "none" }}
+              >
+                <TbPlus size="0.85rem" /> New game
+              </Link>
             </Flex>
           )}
           {/* Undo — request to rewind our last action, pending opponent consent
