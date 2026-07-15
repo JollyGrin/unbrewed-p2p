@@ -310,7 +310,8 @@
  *
  * ## v17 (2026-07-13): map-authored battlefield item spaces (Teen Spirit)
  * Additive map + runtime surfaces for board item tokens (issue #152). `ProMapSpace`
- * gains `item?` (the item id spawned on that space); `ProMapDef` gains `items?`
+ * gains `item?` (the item id spawned on that space) and `passage?` (a
+ * secret-passage marker rendered by the client); `ProMapDef` gains `items?`
  * (`ProMapItem[]` — combat items carry `value`, scheme items carry opaque `ops`).
  * `PlayerView.itemTokens?` lists tokens still on the board (space -> item id), public
  * ("the effects aren't secret") and cleared as items are consumed. New action
@@ -585,6 +586,7 @@ export interface ProMapSpace {
   region?: string; // region id (absent = main board) — v0.12.0
   start?: { slot: number };
   item?: string; // v17 — battlefield item id spawned here (ProMapItem.id)
+  passage?: boolean; // v17 — secret-passage space marker rendered by the client
 }
 
 // A battlefield item printed on the board (v17 — Teen Spirit). 'combat' items add a
@@ -725,7 +727,7 @@ export interface ViewPlayer {
   you: boolean;
   // Format-defined team id (duel/ffa: each seat is its own team). Public info —
   // identical for every viewer, never redacted (issue #98).
-  team: TeamId;
+  team?: TeamId;
   hand?: CardInstanceId[]; // present only for the receiving player's own seat
   handCount: number;
   deckCount: number;

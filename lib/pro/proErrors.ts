@@ -22,6 +22,7 @@ const MESSAGES: Record<ErrorCode, string> = {
   UNKNOWN_HERO: "That hero isn't available.",
   BAD_MAP: "That custom board didn't pass validation.",
   RESUME_FAILED: "This game couldn't be restored.",
+  RESUME_TOO_LARGE: "This game is too large to restore after a server restart.",
   UNDO_UNAVAILABLE: "Nothing to undo.",
   // PR #103 additions — the two this ticket wires up with friendly handling.
   ROOM_LIMIT: "Server is full — try again in a few minutes.",
