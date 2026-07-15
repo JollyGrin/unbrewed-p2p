@@ -1,12 +1,13 @@
 /**
  * Client-only feature flags for opt-in experiments.
  *
- * A flag turns an experimental feature on for THIS browser via either a URL
- * param (`?zoomMap`) or a persisted localStorage entry. A URL-present flag also
- * writes itself to storage, so `?zoomMap` sticks after the param is dropped or
- * the tab reloads. Values are computed only after mount, so `useFlag` returns
- * `false` on the first (SSR) render — no hydration mismatch, and an off flag
- * renders literally nothing when consumers gate on it (`{flag && <Feature/>}`).
+ * Flags default ON for THIS browser and stay on unless explicitly toggled off
+ * in the beta-features menu (which persists `"off"` to localStorage). A URL
+ * param (`?zoomMap`) is a sticky opt-in that writes `"on"` to storage so it
+ * survives dropping the param — but it never overrides an explicit `"off"`.
+ * Values are computed only after mount, so `useFlag` returns `false` on the
+ * first (SSR) render — no hydration mismatch, and an off flag renders literally
+ * nothing when consumers gate on it (`{flag && <Feature/>}`).
  *
  * State lives in a single module store shared by every `useFlag`/`useFlags`
  * caller, so toggling a flag in the beta-features menu updates its consumer
@@ -70,24 +71,27 @@ let store: Record<FlagName, boolean> | null = null;
 let listSnapshot: FlagState[] | null = null;
 
 const seed = (name: FlagName): boolean => {
-  let stored = false;
+  let stored: string | null = null;
   try {
-    stored = window.localStorage.getItem(storageKey(name)) === "on";
+    stored = window.localStorage.getItem(storageKey(name));
   } catch {
-    /* storage blocked — fall back to URL only */
+    /* storage blocked — fall back to default-on */
   }
   if (urlHasParam(name)) {
-    if (!stored) {
-      // make `?zoomMap` sticky once so it survives dropping the param
+    // `?zoomMap` is a sticky opt-in, but must never resurrect an explicit "off".
+    if (stored !== "off") {
       try {
         window.localStorage.setItem(storageKey(name), "on");
       } catch {
         /* ignore */
       }
+      return true;
     }
-    return true;
+    return false;
   }
-  return stored;
+  // Default ON: only an explicit "off" opts out. Never-touched (null) and "on"
+  // both read on.
+  return stored !== "off";
 };
 
 const ensureStore = (): Record<FlagName, boolean> => {
