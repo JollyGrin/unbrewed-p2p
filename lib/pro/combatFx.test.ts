@@ -132,37 +132,88 @@ describe("diffCombatCallouts", () => {
     });
   });
 
-  describe("The Snuff — cancel callout (issue #346)", () => {
+  describe("The Snuff — cancel callout (issues #346, #350)", () => {
+    // A combat whose faces are already revealed, plus a catalog that prices them.
+    const revealedCombat = combat({
+      stage: "IMMEDIATELY",
+      attackerCard: { instance: "king-kong/clobber#2", role: "ATTACK", boosts: [], effectiveValue: 3 },
+      defenderCard: { instance: "baba-yaga/feint#1", role: "DEFENSE", boosts: [], effectiveValue: 0 },
+    });
+    const pricedCatalog: PlayerView["catalog"] = {
+      "king-kong/clobber": { title: "Clobber", type: "attack", value: 3, boost: 2 },
+      "baba-yaga/feint": { title: "Feint", type: "defense", value: 0, boost: 1 },
+    };
+
     it("emits a cancel naming the victim side from EFFECT_CANCELED.role", () => {
-      const v = view({ combat: combat({ stage: "IMMEDIATELY" }) });
+      const v = view({ combat: revealedCombat, catalog: pricedCatalog });
       const events: GameEvent[] = [{ type: "EFFECT_CANCELED", role: "ATTACK", scope: "ALL" }];
-      expect(diffCombatCallouts(v, v, events)).toEqual([{ kind: "cancel", role: "ATTACK" }]);
+      // No CARDS_REVEALED / COMBAT_DAMAGE in the batch: faces fall back to the live
+      // combat view, the pill to the victim's printed catalog value.
+      expect(diffCombatCallouts(v, v, events)).toEqual([
+        { kind: "cancel", role: "ATTACK", victim: "king-kong/clobber#2", canceller: "baba-yaga/feint#1", value: 3 },
+      ]);
     });
 
     it("dedupes multiple cancels of the same side within one batch", () => {
-      const v = view({ combat: combat({ stage: "IMMEDIATELY" }) });
+      const v = view({ combat: revealedCombat, catalog: pricedCatalog });
       const events: GameEvent[] = [
         { type: "EFFECT_CANCELED", role: "DEFENSE", scope: "ALL" },
         { type: "EFFECT_CANCELED", role: "DEFENSE", scope: "TEXT" },
       ];
-      expect(diffCombatCallouts(v, v, events)).toEqual([{ kind: "cancel", role: "DEFENSE" }]);
+      expect(diffCombatCallouts(v, v, events)).toEqual([
+        { kind: "cancel", role: "DEFENSE", victim: "baba-yaga/feint#1", canceller: "king-kong/clobber#2", value: 0 },
+      ]);
     });
 
     it("emits one cancel per side when both are cancelled", () => {
-      const v = view({ combat: combat({ stage: "IMMEDIATELY" }) });
+      const v = view({ combat: revealedCombat, catalog: pricedCatalog });
       const events: GameEvent[] = [
         { type: "EFFECT_CANCELED", role: "ATTACK", scope: "ALL" },
         { type: "EFFECT_CANCELED", role: "DEFENSE", scope: "ALL" },
       ];
       expect(diffCombatCallouts(v, v, events)).toEqual([
-        { kind: "cancel", role: "ATTACK" },
-        { kind: "cancel", role: "DEFENSE" },
+        { kind: "cancel", role: "ATTACK", victim: "king-kong/clobber#2", canceller: "baba-yaga/feint#1", value: 3 },
+        { kind: "cancel", role: "DEFENSE", victim: "baba-yaga/feint#1", canceller: "king-kong/clobber#2", value: 0 },
       ]);
     });
 
     it("emits no cancel when the events stream is empty (pre-v10 server)", () => {
-      const v = view({ combat: combat({ stage: "IMMEDIATELY" }) });
+      const v = view({ combat: revealedCombat, catalog: pricedCatalog });
       expect(diffCombatCallouts(v, v, [])).toEqual([]);
+    });
+
+    // Issue #350 — the Feint-ends-combat one-drive case: EFFECT_CANCELED rides the
+    // same STATE message as COMBAT_DAMAGE/RESOLVED/ENDED, so next.combat is already
+    // null. Faces MUST come from the batch's CARDS_REVEALED, the pill from COMBAT_DAMAGE.
+    it("captures faces from CARDS_REVEALED and the pill from COMBAT_DAMAGE when combat already ended", () => {
+      const prev = view({ combat: combat({ stage: "IMMEDIATELY" }), catalog: pricedCatalog });
+      const next = view({ combat: null, catalog: pricedCatalog });
+      const events: GameEvent[] = [
+        { type: "CARDS_REVEALED", attackerCard: "king-kong/clobber#2", defenderCard: "baba-yaga/feint#1" },
+        { type: "EFFECT_CANCELED", role: "ATTACK", scope: "ALL" },
+        { type: "COMBAT_DAMAGE", amount: 2 },
+      ];
+      expect(diffCombatCallouts(prev, next, events)).toEqual([
+        // victim = ATTACK (clobber), canceller = the opposite defender card; the pill
+        // reads the net COMBAT_DAMAGE (2), NOT the printed value (3), because damage resolved.
+        { kind: "cancel", role: "ATTACK", victim: "king-kong/clobber#2", canceller: "baba-yaga/feint#1", value: 2 },
+      ]);
+    });
+
+    // Same one-drive batch, but the cancel resolved before damage did: no COMBAT_DAMAGE
+    // rides along, so the pill falls back to the victim's printed catalog value while the
+    // faces still come straight from CARDS_REVEALED.
+    it("falls back to the printed catalog value when the batch carries no COMBAT_DAMAGE", () => {
+      const prev = view({ combat: combat({ stage: "IMMEDIATELY" }), catalog: pricedCatalog });
+      const next = view({ combat: null, catalog: pricedCatalog });
+      const events: GameEvent[] = [
+        { type: "CARDS_REVEALED", attackerCard: "king-kong/clobber#2", defenderCard: "baba-yaga/feint#1" },
+        { type: "EFFECT_CANCELED", role: "ATTACK", scope: "ALL" },
+      ];
+      expect(diffCombatCallouts(prev, next, events)).toEqual([
+        // victim = ATTACK (clobber, printed value 3); pill falls back to that catalog value.
+        { kind: "cancel", role: "ATTACK", victim: "king-kong/clobber#2", canceller: "baba-yaga/feint#1", value: 3 },
+      ]);
     });
   });
 

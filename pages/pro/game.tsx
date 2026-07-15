@@ -541,21 +541,23 @@ const CombatCalloutOverlay = ({
   }
 
   if (item.kind === "cancel") {
-    // "The Snuff" — a cancel-effects card foiled the `role` side's card TEXT.
-    // Resolve BOTH combat cards: the victim (cancelled side) rises, the canceller
-    // (opposite side, e.g. Feint) slaps over it. The victim's printed value stays
-    // lit because the number still resolves; only the words burn to ash.
-    const victimCard = item.role === "ATTACK" ? view.combat?.attackerCard : view.combat?.defenderCard;
-    const cancellerCard = item.role === "ATTACK" ? view.combat?.defenderCard : view.combat?.attackerCard;
-    const victimFace = victimCard ? resolveCard(victimCard.instance) : null;
-    const victimName = victimCard
-      ? cardLabel(view.catalog, victimCard.instance)
+    // "The Snuff" — a cancel-effects card foiled the `role` side's card TEXT. EVERY
+    // field is read from the payload captured at diff time (issue #350); the live
+    // `view.combat` is deliberately NOT consulted here, because a Feint that ends the
+    // combat in one server drive already carries `combat: null` by the time this
+    // mounts. The victim (cancelled side) rises, the canceller (opposite side, e.g.
+    // Feint) slaps over it; the pill value stays lit because the number still hits,
+    // only the words burn to ash. `view.catalog` (match-level, stable) is fine — it's
+    // the static title/value source, not the transient combat state.
+    const victimFace = item.victim ? resolveCard(item.victim) : null;
+    const victimName = item.victim
+      ? cardLabel(view.catalog, item.victim)
       : item.role === "ATTACK"
         ? "Attack card"
         : "Defense card";
-    const cancellerFace = cancellerCard ? resolveCard(cancellerCard.instance) : null;
-    const cancellerName = cancellerCard ? cardLabel(view.catalog, cancellerCard.instance) : "Cancel";
-    const printedValue = victimCard?.effectiveValue;
+    const cancellerFace = item.canceller ? resolveCard(item.canceller) : null;
+    const cancellerName = item.canceller ? cardLabel(view.catalog, item.canceller) : "Cancel";
+    const printedValue = item.value ?? undefined;
     return (
       <Flex
         position="fixed"
@@ -621,7 +623,7 @@ const CombatCalloutOverlay = ({
           )}
 
           {/* the feint card sweeps in from the side and slaps over at an angle */}
-          {cancellerCard && (
+          {item.canceller && (
             <Box
               position="absolute"
               inset="0"
