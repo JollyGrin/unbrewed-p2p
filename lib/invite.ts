@@ -79,9 +79,11 @@ export const randomPlayerName = (): string => {
   return `${pick(ADJECTIVES)}${pick(CREATURES)}`;
 };
 
-/** One of the community's 30 most-liked decks, at random. */
-export const randomPopularDeck = (): PopularDeckMeta =>
-  POPULAR_DECKS[Math.floor(Math.random() * POPULAR_DECKS.length)];
+/** One of the visible community decks, at random. */
+export const randomPopularDeck = (): PopularDeckMeta => {
+  const visibleDecks = POPULAR_DECKS.filter((deck) => deck.tier !== "reflavored" && deck.tier !== "lab");
+  return visibleDecks[Math.floor(Math.random() * visibleDecks.length)]!;
+};
 
 /**
  * Save a deck to the bag and star it, writing localStorage synchronously so

@@ -72,25 +72,22 @@ export const ProLanding = () => {
   const [picked, setPicked] = useState<PopularDeckMeta>();
   const [previewDeck, setPreviewDeck] = useState<PopularDeckMeta>();
   const router = useRouter();
-  // `?debug` (any value, incl. bare `?debug`) reveals the reflavored/baseline
-  // decks the server hides by default. See lib/pro/protocol.ts v15.
+  // `?debug` (any value, incl. bare `?debug`) reveals debug-only decks the
+  // server hides by default. See lib/pro/protocol.ts v15/v18.
   const debug = router.query.debug !== undefined;
   const liveHeroes = useProLiveRoster(PRO_WS_URL, debug);
 
-  // A deck is reflavored (hidden unless ?debug, ★-suffixed under it) when our
-  // static POPULAR_DECKS tag says so OR the live roster reports
-  // tier === 'reflavored'. The server omits reflavored heroes from a non-debug
-  // listing, so the static tag is what hides the tile before/without a live
-  // roster; under ?debug the server sends the tier and both agree.
+  const liveTier = (deck: PopularDeckMeta) =>
+    liveHeroes?.find((h) => h.heroId === DECK_HERO_IDS[deck.id])?.tier;
   const isReflavored = (deck: PopularDeckMeta) =>
-    deck.tier === "reflavored" ||
-    liveHeroes?.find((h) => h.heroId === DECK_HERO_IDS[deck.id])?.tier ===
-      "reflavored";
+    deck.tier === "reflavored" || liveTier(deck) === "reflavored";
+  const isDebugOnly = (deck: PopularDeckMeta) =>
+    isReflavored(deck) || deck.tier === "lab" || liveTier(deck) === "lab";
 
-  // The default roster never renders reflavored decks; ?debug shows them.
+  // The default roster never renders debug-only decks; ?debug shows them.
   const visibleDecks = debug
     ? POPULAR_DECKS
-    : POPULAR_DECKS.filter((d) => !isReflavored(d));
+    : POPULAR_DECKS.filter((d) => !isDebugOnly(d));
 
   // Client-side display name only: under ?debug a reflavored deck gets a ` ★`
   // so it reads apart from its identically-named spice replacement. Never
@@ -108,9 +105,11 @@ export const ProLanding = () => {
           .map((d) => [d.id, d.hero])
       )
     : FALLBACK_READY;
-  const rosterRank = (deckId: string) =>
-    SUPPORTED[deckId] ? 0 : IN_THE_LAB[deckId] ? 1 : 2;
-  const readyCount = Object.keys(SUPPORTED).length;
+  const rosterRank = (deck: PopularDeckMeta) =>
+    deck.lab || IN_THE_LAB[deck.id] ? 1 : SUPPORTED[deck.id] ? 0 : 2;
+  const readyCount = visibleDecks.filter(
+    (deck) => SUPPORTED[deck.id] && !deck.lab && !IN_THE_LAB[deck.id]
+  ).length;
 
   return (
     <Box minH="100svh" bg="brand.surfaceDim" color="brand.parchment">
@@ -225,12 +224,12 @@ export const ProLanding = () => {
           >
             {/* playable first, then lab, then locked — within each group keep like-order */}
             {[...visibleDecks]
-              .sort((a, b) => rosterRank(a.id) - rosterRank(b.id))
+              .sort((a, b) => rosterRank(a) - rosterRank(b))
               .map((deck, i) => {
-              const status = SUPPORTED[deck.id]
-                ? "ready"
-                : IN_THE_LAB[deck.id]
+              const status = deck.lab || IN_THE_LAB[deck.id]
                 ? "lab"
+                : SUPPORTED[deck.id]
+                ? "ready"
                 : "locked";
               // Ready tiles the game page can actually launch (a server hero id
               // exists) navigate straight into create-a-room with that hero
@@ -281,12 +280,14 @@ export const ProLanding = () => {
               {!picked && "Select a fighter to inspect the roster"}
               {picked &&
                 SUPPORTED[picked.id] &&
+                !picked.lab &&
                 `${picked.hero} is live — click the tile to enter the arena`}
               {picked &&
-                IN_THE_LAB[picked.id] &&
+                (picked.lab || IN_THE_LAB[picked.id]) &&
                 `${picked.hero} is in the lab — its weird mechanics are stress-testing the rules engine`}
               {picked &&
                 !SUPPORTED[picked.id] &&
+                !picked.lab &&
                 !IN_THE_LAB[picked.id] &&
                 `${picked.hero} awaits conversion — rules support comes deck by deck`}
             </Text>

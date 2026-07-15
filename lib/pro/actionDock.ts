@@ -58,6 +58,8 @@ export const describeAction = (
       return `Boost move (discard ${cardLabel(catalog, a.card)})`;
     case "MOVE_FIGHTER":
       return `Move ${a.fighter.split("/")[1]}`;
+    case "SHAPESHIFT":
+      return `${a.via === "OMEN" ? "Omen: " : ""}Shapeshift to ${a.form}`;
     case "END_MANEUVER":
       return "End maneuver";
     case "SCHEME":

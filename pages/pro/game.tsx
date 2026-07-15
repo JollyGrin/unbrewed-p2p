@@ -89,6 +89,7 @@ import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
 import { formatChoice, PRO_FORMATS, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
 import { deriveTeams, isViewerOnWinningTeam } from "@/lib/pro/teams";
+import { druidFormBadgesByOwner } from "@/lib/pro/druidForm";
 import {
   CUSTOM_MAP_ID,
   MAP_CATALOG,
@@ -743,6 +744,27 @@ const heroDeckMeta = (heroId: string): PopularDeckMeta | undefined => {
   return POPULAR_DECKS.find((d) => d.id === deckId);
 };
 
+const LabDeckTag = ({ compact = false }: { compact?: boolean }) => (
+  <Tag
+    size="sm"
+    variant="subtle"
+    bg="rgba(224,168,46,0.24)"
+    color="brand.accent"
+    border="1px solid rgba(224,168,46,0.35)"
+    borderRadius="999px"
+    fontFamily="SpaceGrotesk"
+    fontSize={compact ? "0.48rem" : "0.58rem"}
+    fontWeight={700}
+    letterSpacing="0.12em"
+    textTransform="uppercase"
+    px={compact ? "0.3rem" : "0.45rem"}
+    py="0.05rem"
+    boxShadow="0 2px 6px rgba(0,0,0,0.35)"
+  >
+    In the lab
+  </Tag>
+);
+
 const skeletonPulse = keyframes`
   0%, 100% { opacity: 0.35; }
   50%      { opacity: 0.7; }
@@ -869,6 +891,11 @@ const RosterTile = ({
           sx={{ transform: "rotate(-8deg)", animation: `${tokenStamp} 0.22s ease`, ...NO_MOTION }}
         >
           P1
+        </Flex>
+      )}
+      {deck?.lab && (
+        <Flex position="absolute" top="0.3rem" right="0.3rem" zIndex={3}>
+          <LabDeckTag compact />
         </Flex>
       )}
       <Text
@@ -998,6 +1025,11 @@ const SplashPanel = ({
             {hero.name}
             {hero.tier === "reflavored" ? " ★" : ""}
           </Text>
+          {deck?.lab && (
+            <Flex mt="0.25rem">
+              <LabDeckTag />
+            </Flex>
+          )}
           {deck && (
             <Text fontStyle="italic" fontSize="0.8rem" color="brand.parchment" opacity={0.85}>
               by{" "}
@@ -2082,6 +2114,10 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
     for (const p of snapshot?.view.players ?? []) m[p.id] = p.heroId;
     return m;
   }, [snapshot]);
+  const ownerDruidFormBadges = useMemo(
+    () => druidFormBadgesByOwner(snapshot?.view.players ?? []),
+    [snapshot]
+  );
 
   // Sounds + transient board visuals, derived by diffing snapshots (useGameFx).
   const { boardFx, hurtKey, soundOn, visualOn, toggleSound, toggleVisual } = useGameFx(snapshot);
@@ -3124,6 +3160,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
             const heroId = ownerHeroIds[f.owner];
             return heroId ? resolveFighterToken(heroId, f.kind) : null;
           }}
+          fighterTokenBadge={(f) => ownerDruidFormBadges[f.owner] ?? null}
           fx={boardFx}
           pendingMove={pendingMove ?? incomingMove}
           previewMove={previewMove}
@@ -3554,8 +3591,8 @@ const ProGamePage = () => {
   const room = typeof router.query.room === "string" ? router.query.room : null;
   const heroParam = typeof router.query.hero === "string" ? router.query.hero : null;
   // `?debug` (any value, incl. bare `?debug`) opts this session into seeing the
-  // reflavored/baseline decks the server hides by default — in the picker and in
-  // random bot picks. See lib/pro/protocol.ts v15.
+  // debug-only decks the server hides by default, in the picker and in random
+  // bot picks. See lib/pro/protocol.ts v15/v18.
   const debug = router.query.debug !== undefined;
 
   return (

@@ -112,6 +112,38 @@ describe("ProBoard fighter token art", () => {
   });
 });
 
+// Malfurion shapeshift state: the caller derives public form state from player
+// flags and ProBoard renders a compact icon on the hero token.
+describe("ProBoard fighter token form badge", () => {
+  const bearBadge = { icon: "🐾", label: "Bear", title: "Bear Form", bg: "#5A351C", color: "#FFF1D6" };
+
+  it("renders a form badge on a hero token", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={MAP} fighters={[fighter({ name: "Malfurion Stormrage" })]} fighterTokenBadge={() => bearBadge} />
+      </ChakraProvider>
+    );
+
+    const token = screen.getByTitle(/Malfurion Stormrage/);
+    expect(token).toContainElement(screen.getByLabelText("Bear Form"));
+    expect(screen.getByText("🐾")).toBeInTheDocument();
+  });
+
+  it("does not put form badges on sidekick tokens", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[fighter({ kind: "SIDEKICK", name: "Treant", id: "p1/treant" })]}
+          fighterTokenBadge={() => bearBadge}
+        />
+      </ChakraProvider>
+    );
+
+    expect(screen.queryByLabelText("Bear Form")).not.toBeInTheDocument();
+  });
+});
+
 // v9 board regions (Baba Yaga's Hut): region spaces render inside an inset
 // panel with its own positioning frame; a closed region greys out and stops
 // taking pointer events.

@@ -44,6 +44,7 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // Card art renders from the self-hosted R2 TTS sprite sheet (cardImage on each
   // snapshot card), not the unmatched.cards renderer.
   "general-grievous": "grievous",
+  "malfurion-stormrage": "malfurion-stormrage",
   // Spice remixes (engine hero id `<hero>-spice`, display name shared with the
   // baseline). Each snapshot reuses the baseline's art per-card until dedicated
   // spice art lands.
