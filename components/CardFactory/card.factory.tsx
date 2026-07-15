@@ -30,7 +30,15 @@ const CardFactoryBase: React.FC<{ card: DeckImportCardType }> = ({ card }) => {
 
   if (!props || !card) return <div />;
 
-  return <CardSvg card={card} props={props} />;
+  // promoteLayer: DOM-rendered cards (hand, deck-info grid, hover preview) get
+  // their own GPU compositing layer so the art `<image preserveAspectRatio="…
+  // slice">` is rasterized once, correctly, on a stable layer. Without it the
+  // browser mis-rasterizes `slice` as `meet` at rest inside the modal's scrolled
+  // aspect-ratio tiles, leaving a white band of the #fff top panel below the art
+  // (issue #373). String-rendered board tokens (CardSvg used directly by
+  // cardFace.tsx) intentionally opt out — promoting them would raster the vector
+  // and blur it when d3 zooms the board in.
+  return <CardSvg card={card} props={props} promoteLayer />;
 };
 
 /**
@@ -46,7 +54,18 @@ export const CardSvg: React.FC<{
   width?: string | number;
   height?: string | number;
   idPrefix?: string;
-}> = ({ card, props, width = "100%", height = "100%", idPrefix = "" }) => {
+  /** Force the card onto its own GPU compositing layer (issue #373). Set by the
+   * DOM renderer so the `slice` art rasterizes correctly at rest; left off for
+   * string-rendered board tokens so d3 zoom keeps the vector crisp. */
+  promoteLayer?: boolean;
+}> = ({
+  card,
+  props,
+  width = "100%",
+  height = "100%",
+  idPrefix = "",
+  promoteLayer = false,
+}) => {
   return (
     <Fragment>
       <svg
@@ -56,7 +75,10 @@ export const CardSvg: React.FC<{
         height={height}
         // HACK: width currently used to center the offset to right
         width={width}
-        style={{ userSelect: "none" }}
+        style={{
+          userSelect: "none",
+          ...(promoteLayer ? { transform: "translateZ(0)" } : {}),
+        }}
         xmlns="http://www.w3.org/2000/svg"
       >
         <clipPath id={`${idPrefix}innerBorder`}>
