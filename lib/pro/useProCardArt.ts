@@ -45,6 +45,7 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // snapshot card), not the unmatched.cards renderer.
   "general-grievous": "grievous",
   "malfurion-stormrage": "malfurion-stormrage",
+  "clone-troopers": "DJQB",
   // Spice remixes (engine hero id `<hero>-spice`, display name shared with the
   // baseline). Each snapshot reuses the baseline's art per-card until dedicated
   // spice art lands.
