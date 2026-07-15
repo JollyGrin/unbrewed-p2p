@@ -14,7 +14,7 @@
 import { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { useRouter } from "next/router";
-import { Box, Button, Flex, Grid, Input, Link, Menu, MenuButton, MenuItem, MenuList, NumberDecrementStepper, NumberIncrementStepper, NumberInput, NumberInputField, NumberInputStepper, Tag, Text, Textarea, Tooltip } from "@chakra-ui/react";
+import { Box, Button, Flex, Grid, Input, Kbd, Link, Menu, MenuButton, MenuItem, MenuList, NumberDecrementStepper, NumberIncrementStepper, NumberInput, NumberInputField, NumberInputStepper, Tag, Text, Textarea, Tooltip } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
 import { MOVE_STEP_SECONDS, MoveHint, PendingMove, ProBoard } from "@/components/Pro/ProBoard";
 import { ProErrorBoundary } from "@/components/Pro/ProErrorBoundary";
@@ -61,7 +61,7 @@ import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
 import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
 import { batchPhase, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
-import { AttachItem, cardAffordances, cardLabel, cardTitle, describeAction } from "@/lib/pro/actionDock";
+import { AttachItem, cardAffordances, cardLabel, cardTitle, describeAction, soleAction } from "@/lib/pro/actionDock";
 import { ItemGlyph } from "@/components/Pro/ItemBadge";
 import {
   isExtendedReachAttack,
@@ -2265,6 +2265,29 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
   // instead of the generic elimination copy. Resets on refresh — the panel then
   // degrades to the neutral "eliminated" wording, which stays accurate either way.
   const [iForfeited, setIForfeited] = useState(false);
+  // Spacebar performs the sole available dock action (issue #353). The single
+  // window listener is registered once and reads the current eligible action
+  // through a ref, so it needn't re-bind on every snapshot. Kept in sync each
+  // render below (see `soleActionRef.current = …` after `listActions`).
+  const soleActionRef = useRef<Action | null>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.repeat) return; // holding space must not spam the action
+      if (e.code !== "Space" && e.key !== " ") return;
+      const action = soleActionRef.current;
+      if (!action) return; // 0 or 2+ options, prompt open, or not your turn
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName.toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select" || el?.isContentEditable) return;
+      // A modal/dialog (ForfeitDialog, etc.) owns the keyboard while open — never
+      // fire the shortcut underneath one. Chakra portals mark them aria-modal.
+      if (typeof document !== "undefined" && document.querySelector('[aria-modal="true"]')) return;
+      e.preventDefault(); // stop page scroll and a native re-fire if the button has focus
+      sendAction(action);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sendAction]);
   // Issue #80: a just-committed MOVE_FIGHTER tweens through its whole path
   // instead of snapping — held here so the board keeps rendering it while
   // the authoritative STATE (which may already show the fighter arrived)
@@ -2959,6 +2982,11 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
   const listActions = legalActions.filter(
     (a) => !["RESPOND_PROMPT", "MOVE_FIGHTER", "PLACE_SIDEKICK", "FORFEIT"].includes(a.type)
   );
+  // The one dock action a spacebar press may fire (issue #353): eligible only
+  // when, ignoring FORFEIT, exactly one legal action remains and it's a dock
+  // action with no prompt open. Synced into the ref the keydown listener reads.
+  const sole = soleAction(legalActions, prompt);
+  soleActionRef.current = sole;
 
   // Board affordances derive ONLY from what the server offered. Each
   // highlighted space maps back to the exact server-offered action so a click
@@ -3691,6 +3719,20 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
                         {LARGE_REACH_CHIP}
                       </Tag>
                     </Tooltip>
+                  )}
+                  {/* Sole-option shortcut hint (issue #353): only the lone eligible
+                      dock action carries it, and pressing space fires this action. */}
+                  {a === sole && (
+                    <Kbd
+                      ml="auto"
+                      flexShrink={0}
+                      bg="rgba(255,255,255,0.08)"
+                      borderColor="rgba(255,255,255,0.25)"
+                      color="brand.parchment"
+                      fontSize="0.7rem"
+                    >
+                      space
+                    </Kbd>
                   )}
                 </Flex>
               </Button>
