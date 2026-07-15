@@ -242,9 +242,9 @@ describe("enrichLines", () => {
   });
 
   describe("new lines (mode 2) — allowlist only", () => {
-    it("VALUE_MODIFIED renders 'Attack value X → Y'", () => {
+    it("VALUE_MODIFIED renders the before/after value and delta", () => {
       const out = enrichLines([], [{ type: "VALUE_MODIFIED", role: "ATTACK", delta: 2, newEffective: 5 }], ctx());
-      expect(out).toEqual([{ text: "Attack value 3 → 5", who: "game" }]);
+      expect(out).toEqual([{ text: "Attack value 3 → 5 (+2)", who: "game" }]);
     });
 
     it("VALUE_SET renders 'Defense value set to N' with a locked marker", () => {

@@ -354,8 +354,12 @@
  * client can split the Start a Match roster into maintained recommendations and
  * Search Community Decks. This is separate from `tier`, which still controls
  * visibility/debug gating and provenance labels.
+ *
+ * ## v20 (2026-07-15): lab decks are public community playtest decks
+ * `LIST_HEROES` includes `tier:'lab'` decks by default, always in the community
+ * section. Random bot pools still exclude lab decks unless debug is requested.
  */
-export const PROTOCOL_VERSION = 19;
+export const PROTOCOL_VERSION = 20;
 
 /** Scripted-AI strength preset (server-side budgets; client treats as opaque). */
 export type BotDifficulty = "easy" | "medium" | "hard";
@@ -921,10 +925,10 @@ export type ReplayResponse = ReplayExpansion | ReplayError;
 // ERROR{code:'VERSION'} and the client shows "refresh".
 // ---------------------------------------------------------------------------
 
-// A hero's visibility class (#107 Phase 1, v18). `reflavored` and `lab` decks
-// are hidden from the public roster and random bot rotation unless the request
-// carries `debug: true`; `spice` are public replacements; `community` heroes are
-// public by default.
+// A hero's visibility/support class (#107 Phase 1, v18). `reflavored` decks are
+// hidden from the public roster and random bot rotation unless the request carries
+// `debug: true`; `lab` decks are public playtest decks but excluded from random bot
+// rotation by default. `spice` are public replacements; `community` heroes are public by default.
 export type HeroTier = "reflavored" | "spice" | "community" | "lab";
 
 // Roster grouping for the Start a Match page (v19). This is presentation
