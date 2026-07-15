@@ -42,7 +42,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "msw7c",
     likes: 144,
     highlightColour: "#408080",
-    cardbackUrl: "https://i.imgur.com/Hl5FPM6.png",
+    cardbackUrl: "/evergreen-decks/art/lDOM/cardback.png",
   },
   {
     id: "LmYw",
@@ -114,7 +114,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "TAYTERTOTS",
     likes: 75,
     highlightColour: "#ab224b",
-    cardbackUrl: "https://imgur.com/uiwaAGu.jpeg",
+    cardbackUrl: "/evergreen-decks/art/LWNZ/cardback.jpeg",
   },
   {
     id: "p1Ew",
@@ -187,7 +187,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Idan",
     likes: 56,
     highlightColour: "#6f7a66",
-    cardbackUrl: "https://imgur.com/E4lqW1b.png",
+    cardbackUrl: "/evergreen-decks/art/yAJ-/cardback.png",
   },
   {
     id: "QkB1",
@@ -335,7 +335,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Inforce",
     likes: 6,
     highlightColour: "#297bff",
-    cardbackUrl: "https://i.imgur.com/9qP1I2P.png",
+    cardbackUrl: "/evergreen-decks/art/3jgd/cardback.png",
   },
   {
     // Not a top-40 deck — included because it's Pro-playable (server hero
@@ -346,7 +346,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Nitetrio",
     likes: 9,
     highlightColour: "#ec6a13",
-    cardbackUrl: "https://i.imgur.com/5ucSw85.png",
+    cardbackUrl: "/evergreen-decks/art/1Y5J/cardback.png",
   },
   {
     // Evergreen original (no unmatched.cards page): King Taranis, the
@@ -493,7 +493,5 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     highlightColour: "#2fbf71",
     cardbackUrl: "/evergreen-decks/art/malfurion-stormrage/cardback.webp",
     original: true,
-    lab: true,
-    tier: "lab",
   },
 ];
