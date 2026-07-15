@@ -14,7 +14,7 @@
  * bounces with `BAD_MAP`.
  */
 import type { ProMapDef } from "./protocol";
-import { MULTIPLAYER_PLAYTEST_MAP, PRO_FORMATS, ProFormatId } from "./multiplayerPlaytest";
+import { PRO_FORMATS, ProFormatId } from "./multiplayerPlaytest";
 import mendedDrumJson from "./fixtures/mended-drum.map.json";
 import islandOfDespairJson from "./fixtures/island-of-despair.map.json";
 
@@ -61,12 +61,6 @@ export const MAP_CATALOG: MapCatalogEntry[] = [
     title: islandOfDespair.meta.title,
     thumbnailUrl: islandOfDespair.meta.imageUrl ?? "",
     map: islandOfDespair,
-  },
-  {
-    id: MULTIPLAYER_PLAYTEST_MAP.id,
-    title: "Playtest Arena (synthetic)",
-    thumbnailUrl: MULTIPLAYER_PLAYTEST_MAP.meta.imageUrl ?? "",
-    map: MULTIPLAYER_PLAYTEST_MAP,
   },
 ];
 

@@ -4,11 +4,13 @@
  * These stand in for the engine export step's real `redactFor()` output so the
  * harness runs end-to-end today (before unbrewed-engine's emitter lands) and so
  * the Jest regression test has known-good and known-bad inputs. Hand-built from
- * the real protocol types + the real MULTIPLAYER_PLAYTEST_MAP — no LLM, no
- * server, fully reproducible.
+ * the real protocol types + a real catalog fixture — no LLM, no server, fully
+ * reproducible.
  */
-import type { PlayerView, ViewFighter } from "@/lib/pro/protocol";
-import { MULTIPLAYER_PLAYTEST_MAP } from "@/lib/pro/multiplayerPlaytest";
+import type { PlayerView, ProMapDef, ViewFighter } from "@/lib/pro/protocol";
+import islandOfDespairJson from "@/lib/pro/fixtures/island-of-despair.map.json";
+
+const SAMPLE_MAP = islandOfDespairJson as ProMapDef;
 
 const CATALOG = {
   "hero-a/strike": { title: "Strike", type: "attack" as const, value: 3, boost: 2 },
@@ -37,11 +39,11 @@ export function buildBaselineView(overrides: Partial<PlayerView> = {}): PlayerVi
     actionsRemaining: 2,
     turnPhase: "ACTION_SELECT",
     maneuver: null,
-    map: MULTIPLAYER_PLAYTEST_MAP,
+    map: SAMPLE_MAP,
     catalog: CATALOG,
     fighters: [
-      fighter({ id: "p1/hero", owner: "p1", name: "Alpha", space: "w1", hp: 9, maxHp: 12, reach: "MELEE" }),
-      fighter({ id: "p2/hero", owner: "p2", name: "Beta", space: "e1", hp: 7, maxHp: 10, reach: "RANGED" }),
+      fighter({ id: "p1/hero", owner: "p1", name: "Alpha", space: "s12", hp: 9, maxHp: 12, reach: "MELEE" }),
+      fighter({ id: "p2/hero", owner: "p2", name: "Beta", space: "s28", hp: 7, maxHp: 10, reach: "RANGED" }),
     ],
     tokens: [],
     encounter: null,

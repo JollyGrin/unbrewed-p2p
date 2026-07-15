@@ -14,17 +14,14 @@ import islandOfDespairJson from "./fixtures/island-of-despair.map.json";
 
 const island = catalogEntry("island-of-despair")!;
 const mendedDrum = catalogEntry("mended-drum")!;
-const arena = catalogEntry("multiplayer-arena-playtest")!;
 
 describe("map catalog", () => {
-  it("lists the three built-in boards in order", () => {
+  it("lists the two built-in boards in order", () => {
     expect(MAP_CATALOG.map((e) => e.id)).toEqual([
       "mended-drum",
       "island-of-despair",
-      "multiplayer-arena-playtest",
     ]);
-    expect(arena.title).toBe("Playtest Arena (synthetic)");
-    // every entry carries a thumbnail (board image or the arena's data-URI svg)
+    // every entry carries a thumbnail.
     expect(MAP_CATALOG.every((e) => e.thumbnailUrl.length > 0)).toBe(true);
   });
 

@@ -112,7 +112,7 @@ downstream (mount, sampling, findings, repro) stays put.
 
 `test/replays/smokebot/sample/` and `test/replays/smokebot/known-bad/` are
 committed, deterministic stand-ins for the engine export (hand-built from the
-real protocol types + `MULTIPLAYER_PLAYTEST_MAP`, regenerate with
+real protocol types + the Island of Despair fixture, regenerate with
 `npm run pro:render-fuzz:fixtures`). `sample/` must render with 0 throws;
 `known-bad/` is one view with `tokens` nulled — consumed only by `ProBoard`
 inside the page's `ProErrorBoundary`, so it throws *inside* that boundary and is
