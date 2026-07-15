@@ -126,7 +126,7 @@ export const ProLog = ({
     resolveCard ? (
       <Flex gap="0.5rem" p="0.25rem">
         {cards.map((c, i) => (
-          <Box key={`${c}-${i}`} w="9rem" sx={{ aspectRatio: "63 / 88" }}>
+          <Box key={`${c}-${i}`} w="13.5rem" sx={{ aspectRatio: "63 / 88" }}>
             <CardFace card={resolveCard(c)} fallback={labelFor?.(c) ?? c} />
           </Box>
         ))}
@@ -158,6 +158,10 @@ export const ProLog = ({
             hasArrow
             bg="brand.surfaceDim"
             openDelay={150}
+            // Default Chakra tooltip maxW (320px) would clip the enlarged
+            // preview once a line names more than one card — let it size to
+            // its contents; popper still repositions to avoid viewport edges.
+            maxW="none"
           >
             {line}
           </Tooltip>
