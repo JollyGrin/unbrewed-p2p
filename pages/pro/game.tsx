@@ -72,6 +72,7 @@ import {
 import { useFlag } from "@/lib/flags";
 import { maneuverBoostHint } from "@/lib/pro/maneuverHint";
 import { buildPoseIndex, parsePoseOptions, poseHighlights, resolvePoseClick } from "@/lib/pro/moveChoice";
+import { cardFaceOptions } from "@/lib/pro/cardOptions";
 import {
   applyClick as applyStepClick,
   canCommit as canCommitStep,
@@ -288,7 +289,7 @@ const PromptPanel = ({
                 transition="transform 0.1s, box-shadow 0.1s"
                 _hover={{ transform: "translateY(-3px)", boxShadow: "0 0 0 2px var(--chakra-colors-brand-accent)" }}
                 onClick={() => onRespond(prompt.promptId, c.id)}
-                aria-label={`Commit ${cardLabel(catalog, c.instance)} as second attack`}
+                aria-label={`Choose ${cardLabel(catalog, c.instance)}`}
               >
                 <CardFace card={resolveCard(c.instance)} fallback={cardLabel(catalog, c.instance)} />
               </Box>
@@ -3049,24 +3050,16 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
     promptForMe?.kind === "CHOOSE_TARGET"
       ? promptForMe.options.map((o) => o.id).filter((id) => fighterIds.has(id))
       : [];
-  // Hand-card options (issue #288 — Multi-Arm Barrage second-attack commit): a
-  // CHOOSE_OPTION whose options name a hand card in option.data.card (a real
-  // instance id `<defId>#<n>`) rather than an effect label. Render these as
-  // clickable card FACES (a hand-card picker) instead of raw-instance-id buttons;
-  // the sentinel (`decline`, data.card null) still falls through to a panel button.
-  // Effect-label options (card 200's chooseOne) carry data.branch, not data.card,
-  // so they are never misread as cards.
-  const optionCardId = (o: LegalOption): CardInstanceId | null => {
-    const c = (o.data as { card?: unknown } | undefined)?.card;
-    return typeof c === "string" && c.includes("#") ? c : null;
-  };
-  const promptCardOptions: { id: string; instance: CardInstanceId }[] =
-    promptForMe?.kind === "CHOOSE_OPTION"
-      ? promptForMe.options.flatMap((o) => {
-          const instance = optionCardId(o);
-          return instance ? [{ id: o.id, instance }] : [];
-        })
-      : [];
+  // Card-pick options (issue #288 — Multi-Arm Barrage second-attack commit;
+  // extended by issue #352 — deck search/tutor, look-at-top, discard picks): a
+  // CHOOSE_OPTION or CHOOSE_TARGET whose options name a real card instance in
+  // option.data.card (`<defId>#<n>`) rather than an effect label or a board
+  // target. Render these as clickable card FACES (with the same hover/press-hold
+  // preview the hand uses) instead of opaque instance-id buttons; sentinels
+  // (`decline`, data.card null) and effect-label branches (data.branch) carry no
+  // `#` instance id and fall through to panel buttons, and fighter/space
+  // CHOOSE_TARGETs carry no data.card so their board-click flow is untouched.
+  const promptCardOptions = cardFaceOptions(promptForMe);
   // Two-space (LARGE fighter) move choice (issue #132): a card's "move up to N
   // spaces" effect on Triceratops emits CHOOSE_SPACE options encoded as
   // "<head>|<tail>" pairs, which optionSpace can't resolve — so instead of a wall
