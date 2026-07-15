@@ -86,3 +86,16 @@ describe("actionDock — v17 battlefield items", () => {
     expect(affordances[0].label).toBe("Attack with");
   });
 });
+
+
+describe("actionDock — Malfurion shapeshift", () => {
+  it("labels maneuver and Omen shapeshift actions distinctly and forwards them unchanged", () => {
+    const maneuverShift: Action = { type: "SHAPESHIFT", player: "p1", form: "Bear", via: "MANEUVER" };
+    const omenShift: Action = { type: "SHAPESHIFT", player: "p1", form: "Moonkin", via: "OMEN" };
+
+    expect(describeAction(catalog, maneuverShift, { nameOf })).toBe("Shapeshift to Bear");
+    expect(describeAction(catalog, omenShift, { nameOf })).toBe("Omen: Shapeshift to Moonkin");
+    expect(maneuverShift).toEqual({ type: "SHAPESHIFT", player: "p1", form: "Bear", via: "MANEUVER" });
+    expect(omenShift).toEqual({ type: "SHAPESHIFT", player: "p1", form: "Moonkin", via: "OMEN" });
+  });
+});

@@ -9,7 +9,7 @@ import { HeroListing, PROTOCOL_VERSION, ServerMsg } from "./protocol";
  * hero's "ready" status can fall back to a hardcoded default until then.
  *
  * `debug` (v15): when true, sends `LIST_HEROES { debug: true }` so the server
- * includes `tier === 'reflavored'` heroes in the reply (hidden by default).
+ * includes debug-only heroes in the reply (hidden by default).
  */
 export function useProLiveRoster(
   wsUrl: string | undefined,

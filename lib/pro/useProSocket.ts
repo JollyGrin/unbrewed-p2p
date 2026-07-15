@@ -341,7 +341,7 @@ export function useProSocket(
       setStatus("open");
       // Ask for the roster on every open (incl. reconnects) — one tiny message,
       // idempotent; the reply feeds the game page's hero picker. `debug` (v15)
-      // includes reflavored heroes so a debug session can pick/preview them.
+      // includes debug-only heroes so a debug session can pick/preview them.
       send({
         v: PROTOCOL_VERSION,
         type: "LIST_HEROES",
@@ -651,8 +651,8 @@ export function useProSocket(
         ...(botSeats && botSeats.length > 0 ? { botSeats } : {}),
         ...(customMap ? { customMap } : {}),
         ...(formatId && formatId !== "duel" ? { formatId } : {}),
-        // `debug` (v15): let a debug session's random bot picks include
-        // reflavored heroes. Never affects an explicitly-named heroId.
+        // `debug` (v15/v18): let a debug session's random bot picks include
+        // debug-only heroes. Never affects an explicitly-named heroId.
         ...(debugRef.current ? { debug: true } : {}),
         // Only include when on: absent/0 = untimed (byte-identical to today).
         ...(turnTimerSeconds && turnTimerSeconds > 0 ? { turnTimerSeconds } : {}),

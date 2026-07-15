@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useRouter } from "next/router";
 import {
   Box,
   Flex,
@@ -32,6 +33,11 @@ export const PopularDecks = (props: {
   setStar: (id: string) => void;
 }) => {
   const [loadingId, setLoadingId] = useState<string>();
+  const router = useRouter();
+  const debug = router.query.debug !== undefined;
+  const visibleDecks = debug
+    ? POPULAR_DECKS
+    : POPULAR_DECKS.filter((deck) => deck.tier !== "reflavored" && deck.tier !== "lab");
 
   const pickDeck = async (meta: PopularDeckMeta) => {
     if (loadingId) return;
@@ -65,7 +71,7 @@ export const PopularDecks = (props: {
         templateColumns="repeat(auto-fill, minmax(150px, 1fr))"
         gap="0.5rem"
       >
-        {POPULAR_DECKS.map((deck) => (
+        {visibleDecks.map((deck) => (
           <DeckTile
             key={deck.id}
             deck={deck}

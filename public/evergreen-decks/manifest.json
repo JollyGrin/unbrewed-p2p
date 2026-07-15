@@ -203,6 +203,18 @@
         "file": "data/heroes/general-grievous.rules.ts",
         "commit": "887ab9c"
       }
+    },
+    {
+      "heroId": "malfurion-stormrage",
+      "deckId": "malfurion-stormrage",
+      "version_id": "evergreen-1",
+      "frozenAt": "2026-07-14",
+      "digest": "sha256:38ef5d38c3dc8224e5733df614f0d3de505069d2ca17d39d3fbf469565a9cd78",
+      "rulesVerified": {
+        "repo": "unbrewed-engine",
+        "file": "data/heroes/malfurion-stormrage.rules.ts",
+        "commit": "9c10ef65da0bd50efea78a078f8ede92dbaf2c6d"
+      }
     }
   ]
 }

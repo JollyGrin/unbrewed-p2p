@@ -15,12 +15,16 @@ export type PopularDeckMeta = {
    */
   original?: boolean;
   /**
+   * Public caution badge for playable-but-unsettled decks. Lab decks may still
+   * be served by the Pro engine, but their balance/mechanics are not final.
+   */
+  lab?: boolean;
+  /**
    * Visibility class, mirroring the server's HeroListing.tier. Set to
-   * `"reflavored"` for a baseline deck that a spice remix has replaced: it is
-   * hidden from the default roster and only appears (with a ` ★` suffix) under
-   * `?debug`. The server also omits reflavored heroes from a non-debug
-   * listing, so this static tag is what lets the client hide the tile even
-   * before/without a live roster. Omitted = a normally-visible deck.
+   * `"reflavored"` for a baseline deck that a spice remix has replaced or
+   * `"lab"` for a playable-but-unsettled deck. Both are hidden from the default
+   * roster and only appear under `?debug`; reflavored decks also get a ` ★`
+   * suffix there. Omitted = a normally-visible deck.
    */
   tier?: HeroTier;
 };
@@ -477,5 +481,19 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl:
       "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/cover.png",
     original: true,
+  },
+  {
+    // Evergreen original: Malfurion Stormrage — server hero malfurion-stormrage.
+    // Self-hosted generated art lives in public/evergreen-decks/art/malfurion-stormrage.
+    id: "malfurion-stormrage",
+    name: "Malfurion Stormrage",
+    hero: "Malfurion Stormrage",
+    author: "unbrewed",
+    likes: 0,
+    highlightColour: "#2fbf71",
+    cardbackUrl: "/evergreen-decks/art/malfurion-stormrage/deck-select.webp",
+    original: true,
+    lab: true,
+    tier: "lab",
   },
 ];

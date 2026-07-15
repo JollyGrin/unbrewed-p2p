@@ -32,6 +32,7 @@ const ACTION_LABELS: Record<Action["type"], string> = {
   MANEUVER: "a Maneuver",
   BOOST_MOVE: "a boosted move",
   MOVE_FIGHTER: "a Move",
+  SHAPESHIFT: "a Shapeshift",
   END_MANEUVER: "an ended Maneuver",
   SCHEME: "a Scheme",
   USE_SCHEME_ITEM: "a scheme item",
