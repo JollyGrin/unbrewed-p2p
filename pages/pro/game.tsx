@@ -91,7 +91,7 @@ import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
 import { formatChoice, PRO_FORMATS, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
 import { deriveTeams, isViewerOnWinningTeam } from "@/lib/pro/teams";
-import { tokenBadgesByOwner } from "@/lib/pro/heroStateFlags";
+import { fighterTokenStateByOwner } from "@/lib/pro/heroStateFlags";
 import {
   CUSTOM_MAP_ID,
   MAP_CATALOG,
@@ -2123,8 +2123,11 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
     for (const p of snapshot?.view.players ?? []) m[p.id] = p.heroId;
     return m;
   }, [snapshot]);
-  const ownerFlagBadges = useMemo(
-    () => tokenBadgesByOwner(snapshot?.view.players ?? []),
+  // owner seat -> { badge, heroArtUrl }: one map feeding BOTH the token badge and
+  // the flag-driven portrait swap (Thetis tide), resolved from the same
+  // HERO_STATE_FLAGS entry. Rebuilt per snapshot so mid-game flag flips re-render.
+  const ownerTokenState = useMemo(
+    () => fighterTokenStateByOwner(snapshot?.view.players ?? []),
     [snapshot]
   );
 
@@ -3255,10 +3258,14 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
           fighterBadges={attackerBadge}
           extendedReachTargets={[...extendedReachTargets]}
           fighterTokenArt={(f) => {
+            // A flag-driven portrait swap (Thetis tide) wins for the HERO token;
+            // otherwise fall back to the deck's fixed per-hero token art.
+            const st = ownerTokenState[f.owner];
+            if (f.kind === "HERO" && st?.heroArtUrl) return st.heroArtUrl;
             const heroId = ownerHeroIds[f.owner];
             return heroId ? resolveFighterToken(heroId, f.kind) : null;
           }}
-          fighterTokenBadge={(f) => ownerFlagBadges[f.owner] ?? null}
+          fighterTokenBadge={(f) => ownerTokenState[f.owner]?.badge ?? null}
           fx={boardFx}
           pendingMove={pendingMove ?? incomingMove}
           previewMove={previewMove}

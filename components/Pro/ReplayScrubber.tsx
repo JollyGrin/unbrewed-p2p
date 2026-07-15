@@ -19,7 +19,7 @@ import { ProBoard } from "@/components/Pro/ProBoard";
 import { ProHud } from "@/components/Pro/ProHud";
 import { CardFace, ProHand } from "@/components/Pro/ProHand";
 import { useProCardArt } from "@/lib/pro/useProCardArt";
-import { tokenBadgesByOwner } from "@/lib/pro/heroStateFlags";
+import { fighterTokenStateByOwner } from "@/lib/pro/heroStateFlags";
 import {
   CardInstanceId,
   CardMeta,
@@ -83,7 +83,9 @@ export const ReplayScrubber = ({
     for (const p of view.players) m[p.id] = p.heroId;
     return m;
   }, [view]);
-  const ownerFlagBadges = useMemo(() => tokenBadgesByOwner(view.players), [view]);
+  // owner seat -> { badge, heroArtUrl }: one map feeding both the token badge and
+  // the flag-driven portrait swap, so replay tide art tracks the scrubbed step.
+  const ownerTokenState = useMemo(() => fighterTokenStateByOwner(view.players), [view]);
   const oppSeats = opponentSeats(step, focus);
   const markers = useMemo(() => turnMarkers(steps), [steps]);
   const labelFor = (c: CardInstanceId) => labelForCard(catalog, c);
@@ -152,10 +154,14 @@ export const ReplayScrubber = ({
           fighters={view.fighters}
           tokens={view.tokens}
           fighterTokenArt={(f) => {
+            // Flag-driven portrait swap (Thetis tide) wins for the HERO token;
+            // else the deck's fixed per-hero token art.
+            const st = ownerTokenState[f.owner];
+            if (f.kind === "HERO" && st?.heroArtUrl) return st.heroArtUrl;
             const heroId = ownerHeroIds[f.owner];
             return heroId ? resolveFighterToken(heroId, f.kind) : null;
           }}
-          fighterTokenBadge={(f) => ownerFlagBadges[f.owner] ?? null}
+          fighterTokenBadge={(f) => ownerTokenState[f.owner]?.badge ?? null}
           imgMaxH="calc(100svh - 21rem)"
         />
       </Flex>

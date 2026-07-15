@@ -5,8 +5,11 @@
  *
  *  - `nameplate` — the always-visible HUD player-card pill (ProHud <FlagChip>).
  *  - `token`     — a corner badge on the fighter's board token (ProBoard).
+ *  - `tokenArt`  — a per-state swap of the HERO token's PORTRAIT art (issue #330),
+ *                  not just a badge overlay. The deck JSON's fixed `tokenImageUrl`
+ *                  stays the default; this override picks a state-specific portrait.
  *
- * A single registry entry lights up BOTH surfaces, so a new flag-driven hero
+ * A single registry entry lights up ALL THREE surfaces, so a new flag-driven hero
  * state needs only an entry here (+ optionally a bespoke nameplate glyph in
  * ProHud's FLAG_CHIP_ICONS) — ZERO ProHud/ProBoard component changes. This
  * replaces the split systems that predated it: the nameplate-only FLAG_HUD_CHIPS
@@ -60,13 +63,25 @@ export interface HeroStateFlag {
   /** board-token badge (`on` = flag set, `off` = absent variant for two-state
    *  flags); omit for nameplate-only states. */
   token?: { on: FlagTokenBadge; off?: FlagTokenBadge };
+  /** per-state HERO-token PORTRAIT art (issue #330): swaps the token image, not
+   *  just a corner badge. `on` = flag set, `off` = absent variant. A missing
+   *  variant (or no `tokenArt` at all) falls back to the deck's fixed
+   *  `tokenImageUrl`, so heroes without an entry render exactly as before. Only
+   *  the HERO token swaps; the sidekick keeps its fixed art. */
+  tokenArt?: { on: string; off?: string };
+  /** when a variant supplies portrait art, suppress its corner badge — the
+   *  portrait already conveys the state (recommended for art swaps like tide).
+   *  A variant with no art keeps its badge regardless. */
+  hideBadgeWhenArt?: boolean;
 }
 
 /**
  * The registry. Each entry declares the surfaces its flag drives.
  *
  * - Thetis `HIGH_TIDE`: standalone two-state — nameplate flips HIGH/LOW TIDE,
- *   token flips a rising/ebbing badge.
+ *   token flips the whole PORTRAIT (high- vs low-tide art, both already committed
+ *   under public/evergreen-decks/art/thetis/). `hideBadgeWhenArt` drops the corner
+ *   badge here since the portrait itself reads as the tide state.
  * - Malfurion `DRUID_FORM_*`: an exclusive `druid-form` group — one form active
  *   at a time; Human is the default.
  */
@@ -79,6 +94,14 @@ export const HERO_STATE_FLAGS: HeroStateFlag[] = [
       on: { icon: "🌊", label: "High", title: "High Tide", bg: "#2E6E8E", color: "#EAF6FB" },
       off: { icon: "🐚", label: "Low", title: "Low Tide", bg: "#586A73", color: "#E9F0F3" },
     },
+    // Both tide portraits are committed; the board swaps between them by flag. The
+    // deck's fixed tokenImageUrl (low tide) remains the safe default if the query
+    // hasn't resolved the flag yet.
+    tokenArt: {
+      on: "https://unbrewed.xyz/evergreen-decks/art/thetis/token-thetis-high.webp",
+      off: "https://unbrewed.xyz/evergreen-decks/art/thetis/token-thetis-low.webp",
+    },
+    hideBadgeWhenArt: true,
   },
   {
     flag: "DRUID_FORM_BEAR",
@@ -165,35 +188,96 @@ export const flagChipsFor = (
 };
 
 /**
- * Resolve the single token badge for one fighter's hero, or null. A set flag
- * wins (first in registry order); with none set, an exclusive group falls back
- * to its `isDefault`, and a standalone two-state flag shows its `off` variant.
- * Heroes with no token-bearing entry get null (initials-only token as before).
+ * The winning token variant for one fighter's hero given its live flags: which
+ * registry entry, and whether its `on` (flag set / group-default) or `off`
+ * (absent two-state variant) presentation applies. A set flag wins (first in
+ * registry order); with none set, an exclusive group falls back to its
+ * `isDefault` (`on`), and a standalone two-state flag shows its `off`. Considers
+ * entries bearing EITHER a badge or portrait art, so badge and art always resolve
+ * the SAME variant and never disagree. Null when the hero has no token entry.
+ */
+const activeTokenVariant = (
+  heroId: string | undefined,
+  flags: Record<string, boolean> | undefined
+): { entry: HeroStateFlag; on: boolean } | null => {
+  if (!heroId) return null;
+  const entries = entriesForHero(heroId).filter((e) => e.token || e.tokenArt);
+  for (const e of entries) if (flags?.[e.flag]) return { entry: e, on: true };
+  for (const e of entries) {
+    if (e.isDefault) return { entry: e, on: true };
+    if (e.token?.off || e.tokenArt?.off) return { entry: e, on: false };
+  }
+  return null;
+};
+
+const badgeOf = (v: { entry: HeroStateFlag; on: boolean }): FlagTokenBadge | null =>
+  (v.on ? v.entry.token?.on : v.entry.token?.off) ?? null;
+
+const artOf = (v: { entry: HeroStateFlag; on: boolean }): string | null =>
+  (v.on ? v.entry.tokenArt?.on : v.entry.tokenArt?.off) ?? null;
+
+/**
+ * Resolve the single token badge for one fighter's hero, or null. Heroes with no
+ * token-bearing entry get null (initials-only token as before). This is the badge
+ * a state DECLARES; art-driven suppression (`hideBadgeWhenArt`) is applied by the
+ * composed `fighterTokenStateFor`, so this stays a pure per-state unit.
  */
 export const fighterTokenBadgeFor = (
   heroId: string | undefined,
   flags: Record<string, boolean> | undefined
 ): FlagTokenBadge | null => {
-  if (!heroId) return null;
-  const entries = entriesForHero(heroId).filter((e) => e.token);
-  for (const e of entries) if (flags?.[e.flag]) return e.token!.on;
-  for (const e of entries) {
-    if (e.isDefault) return e.token!.on;
-    if (e.token!.off) return e.token!.off;
-  }
-  return null;
+  const v = activeTokenVariant(heroId, flags);
+  return v ? badgeOf(v) : null;
 };
 
 /**
- * Per-owner token badges for a set of seats. ProBoard renders badges by fighter
- * owner (ViewFighter carries owner, not heroId), so callers pre-resolve here.
- * Owners with no active badge are omitted.
+ * Resolve the per-state HERO-token PORTRAIT art override for one fighter's hero,
+ * or null to fall back to the deck's fixed `tokenImageUrl`. Reads the same active
+ * variant as the badge, so tide art and tide badge always agree.
  */
-export const tokenBadgesByOwner = (
+export const fighterTokenArtFor = (
+  heroId: string | undefined,
+  flags: Record<string, boolean> | undefined
+): string | null => {
+  const v = activeTokenVariant(heroId, flags);
+  return v ? artOf(v) : null;
+};
+
+/**
+ * Combined token presentation for one fighter's hero: the corner `badge` and the
+ * HERO-token portrait art override (`heroArtUrl`). When the active variant swaps
+ * art AND its entry sets `hideBadgeWhenArt`, the badge is dropped (the portrait
+ * conveys the state). Both fields null for a hero with no token entry.
+ */
+export interface FighterTokenState {
+  badge: FlagTokenBadge | null;
+  /** HERO-token portrait override URL, or null to keep the deck's fixed art. */
+  heroArtUrl: string | null;
+}
+
+export const fighterTokenStateFor = (
+  heroId: string | undefined,
+  flags: Record<string, boolean> | undefined
+): FighterTokenState => {
+  const v = activeTokenVariant(heroId, flags);
+  if (!v) return { badge: null, heroArtUrl: null };
+  const heroArtUrl = artOf(v);
+  const badge = heroArtUrl && v.entry.hideBadgeWhenArt ? null : badgeOf(v);
+  return { badge, heroArtUrl };
+};
+
+/**
+ * Per-owner token state for a set of seats. ProBoard resolves both the badge and
+ * the portrait-art swap by fighter owner (ViewFighter carries owner, not heroId),
+ * so callers pre-resolve here — ONE map feeding both the `fighterTokenBadge` and
+ * `fighterTokenArt` props. Owners whose state has neither a badge nor an art
+ * override are omitted.
+ */
+export const fighterTokenStateByOwner = (
   players: Array<{ id: PlayerId; heroId: string; flags?: Record<string, boolean> }>
-): Partial<Record<PlayerId, FlagTokenBadge>> =>
+): Partial<Record<PlayerId, FighterTokenState>> =>
   Object.fromEntries(
     players
-      .map((p) => [p.id, fighterTokenBadgeFor(p.heroId, p.flags)] as const)
-      .filter((entry): entry is readonly [PlayerId, FlagTokenBadge] => !!entry[1])
+      .map((p) => [p.id, fighterTokenStateFor(p.heroId, p.flags)] as const)
+      .filter(([, st]) => st.badge || st.heroArtUrl)
   );
