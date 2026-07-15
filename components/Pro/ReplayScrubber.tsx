@@ -19,7 +19,7 @@ import { ProBoard } from "@/components/Pro/ProBoard";
 import { ProHud } from "@/components/Pro/ProHud";
 import { CardFace, ProHand } from "@/components/Pro/ProHand";
 import { useProCardArt } from "@/lib/pro/useProCardArt";
-import { druidFormBadgesByOwner } from "@/lib/pro/druidForm";
+import { tokenBadgesByOwner } from "@/lib/pro/heroStateFlags";
 import {
   CardInstanceId,
   CardMeta,
@@ -83,7 +83,7 @@ export const ReplayScrubber = ({
     for (const p of view.players) m[p.id] = p.heroId;
     return m;
   }, [view]);
-  const ownerDruidFormBadges = useMemo(() => druidFormBadgesByOwner(view.players), [view]);
+  const ownerFlagBadges = useMemo(() => tokenBadgesByOwner(view.players), [view]);
   const oppSeats = opponentSeats(step, focus);
   const markers = useMemo(() => turnMarkers(steps), [steps]);
   const labelFor = (c: CardInstanceId) => labelForCard(catalog, c);
@@ -155,7 +155,7 @@ export const ReplayScrubber = ({
             const heroId = ownerHeroIds[f.owner];
             return heroId ? resolveFighterToken(heroId, f.kind) : null;
           }}
-          fighterTokenBadge={(f) => ownerDruidFormBadges[f.owner] ?? null}
+          fighterTokenBadge={(f) => ownerFlagBadges[f.owner] ?? null}
           imgMaxH="calc(100svh - 21rem)"
         />
       </Flex>
