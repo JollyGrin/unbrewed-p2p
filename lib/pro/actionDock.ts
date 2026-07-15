@@ -89,6 +89,40 @@ export const describeAction = (
   }
 };
 
+/** Action types the sidebar never lists as a plain button: prompts render in the
+ *  PromptPanel, board affordances (MOVE_FIGHTER / PLACE_SIDEKICK) render as
+ *  clickable spaces, and FORFEIT is offered only through the confirm-gated dock
+ *  button. Kept here so `listActions` (game.tsx) and `soleAction` agree on what a
+ *  "dock action" is. */
+export const NON_DOCK_ACTION_TYPES: ReadonlyArray<Action["type"]> = [
+  "RESPOND_PROMPT",
+  "MOVE_FIGHTER",
+  "PLACE_SIDEKICK",
+  "FORFEIT",
+];
+
+/**
+ * The single dock action a spacebar shortcut may fire, or null (issue #353).
+ *
+ * Eligible only when, ignoring FORFEIT entirely, the server offers EXACTLY ONE
+ * legal action AND that action is a dock action (not a board affordance or a
+ * prompt). FORFEIT and undo (which isn't a legalAction at all) never count
+ * toward the option total, so "only Maneuver, plus you could forfeit" still
+ * qualifies. A live prompt disqualifies the whole state — spacebar must never
+ * answer a PromptPanel.
+ *
+ * Seat-agnostic and undo-agnostic by design: it reads only the server's
+ * `legalActions` and whether a prompt is open, mirroring how the rest of the
+ * dock stays free of client-side rules.
+ */
+export const soleAction = (legalActions: Action[], prompt: unknown): Action | null => {
+  if (prompt) return null;
+  const nonForfeit = legalActions.filter((a) => a.type !== "FORFEIT");
+  if (nonForfeit.length !== 1) return null;
+  const only = nonForfeit[0];
+  return NON_DOCK_ACTION_TYPES.includes(only.type) ? null : only;
+};
+
 /** A hand-card affordance: the raw server action plus a short verb label. */
 export interface CardAffordance {
   action: Action;

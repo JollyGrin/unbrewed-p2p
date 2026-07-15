@@ -1,4 +1,4 @@
-import { cardAffordances, describeAction } from "./actionDock";
+import { cardAffordances, describeAction, soleAction } from "./actionDock";
 import { Action, CardMeta } from "./protocol";
 
 // A minimal catalog so cardLabel prints a real "title (value/boost)" string.
@@ -87,6 +87,62 @@ describe("actionDock — v17 battlefield items", () => {
   });
 });
 
+
+describe("actionDock — soleAction (spacebar eligibility, issue #353)", () => {
+  it("returns the sole action when only Maneuver is legal", () => {
+    const maneuver: Action = { type: "MANEUVER", player: "p1" };
+    expect(soleAction([maneuver], null)).toBe(maneuver);
+  });
+
+  it("returns DECLINE_DEFENSE even when FORFEIT is also legal", () => {
+    // Defending with no defendable cards: DECLINE_DEFENSE is the only real option,
+    // FORFEIT rides alongside but never counts toward the option total.
+    const decline: Action = { type: "DECLINE_DEFENSE", player: "p1" };
+    const forfeit: Action = { type: "FORFEIT", player: "p1" };
+    expect(soleAction([decline, forfeit], null)).toBe(decline);
+    expect(soleAction([forfeit, decline], null)).toBe(decline);
+  });
+
+  it("returns the sole action when only End maneuver is legal", () => {
+    const end: Action = { type: "END_MANEUVER", player: "p1" };
+    expect(soleAction([end], null)).toBe(end);
+  });
+
+  it("returns null with two or more dock options", () => {
+    const legalActions: Action[] = [
+      { type: "MANEUVER", player: "p1" },
+      { type: "END_MANEUVER", player: "p1" },
+    ];
+    expect(soleAction(legalActions, null)).toBeNull();
+  });
+
+  it("returns null while a prompt is open even if one action is legal", () => {
+    const maneuver: Action = { type: "MANEUVER", player: "p1" };
+    expect(soleAction([maneuver], { kind: "something" })).toBeNull();
+  });
+
+  it("returns null when a board affordance sits alongside the dock action", () => {
+    // MOVE_FIGHTER renders as a clickable space, not a dock button, so a state with
+    // both a move and a maneuver is genuinely multi-option — spacebar stays inert.
+    const legalActions: Action[] = [
+      { type: "MOVE_FIGHTER", player: "p1", fighter: "king-kong/kong", path: ["s1", "s2"] },
+      { type: "MANEUVER", player: "p1" },
+    ];
+    expect(soleAction(legalActions, null)).toBeNull();
+  });
+
+  it("returns null when the lone non-forfeit action is itself a board/prompt action", () => {
+    // A single MOVE_FIGHTER is not a dock action — nothing for the sidebar button.
+    const move: Action = { type: "MOVE_FIGHTER", player: "p1", fighter: "king-kong/kong", path: ["s1", "s2"] };
+    expect(soleAction([move], null)).toBeNull();
+    expect(soleAction([move, { type: "FORFEIT", player: "p1" }], null)).toBeNull();
+  });
+
+  it("returns null for an empty action list (spectating / not your turn)", () => {
+    expect(soleAction([], null)).toBeNull();
+    expect(soleAction([{ type: "FORFEIT", player: "p1" }], null)).toBeNull();
+  });
+});
 
 describe("actionDock — Malfurion shapeshift", () => {
   it("labels maneuver and Omen shapeshift actions distinctly and forwards them unchanged", () => {
