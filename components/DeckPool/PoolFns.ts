@@ -1,4 +1,8 @@
-import { DeckImportCardType, DeckImportType } from "./deck-import.type";
+import {
+  DeckImportCardType,
+  DeckImportRuleCardType,
+  DeckImportType,
+} from "./deck-import.type";
 
 export type PoolType = {
   author: string;
@@ -9,6 +13,9 @@ export type PoolType = {
   deck: DeckImportCardType[] | null;
   hero: PawnInfo & { move: number; specialAbility: string };
   sidekick: PawnInfo & { quantity: number | null; quote: string };
+  /** deck-level "extra rules" cards (issue #372) — e.g. Clone Troopers' board
+   *  cap. [] when the deck has none. */
+  ruleCards: DeckImportRuleCardType[];
   hand: DeckImportCardType[];
   discard: DeckImportCardType[];
   commit: {
@@ -47,6 +54,7 @@ export const newPool = (deckData: DeckImportType): PoolType => {
       name: sidekick.name,
       quote: sidekick.quote,
     },
+    ruleCards: deck_data.ruleCards ?? [],
     hand: [],
     discard: [],
     commit: {

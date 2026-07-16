@@ -22,6 +22,19 @@ describe("Class: Pool", () => {
     expect(pool.cards.length).toEqual(mockDeck.deck_data.cards.length);
   });
 
+  // issue #372: deck-level "extra rules" cards (e.g. Clone Troopers' board cap)
+  // used to be dropped by the pool transform; they must now thread through.
+  test("threads ruleCards through, defaulting to [] when absent", () => {
+    const mockDeck = clone(_mockDeck);
+    const pool = new Pool(mockDeck);
+    expect(pool.ruleCards).toEqual(mockDeck.deck_data.ruleCards);
+    expect(pool.ruleCards.length).toBeGreaterThan(0);
+
+    const noRules = clone(_mockDeck);
+    delete (noRules.deck_data as { ruleCards?: unknown }).ruleCards;
+    expect(new Pool(noRules).ruleCards).toEqual([]);
+  });
+
   test("makes a deck", () => {
     const mockDeck = clone(_mockDeck);
     const pool = new Pool(mockDeck);

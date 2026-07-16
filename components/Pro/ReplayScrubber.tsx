@@ -73,7 +73,7 @@ export const ReplayScrubber = ({
   const step = steps[Math.min(index, lastIndex)];
 
   // Prefetch art for EVERY seat's hero so focusing any seat renders instantly.
-  const { resolveCard, resolveHero, resolveFighterToken } = useProCardArt(heroList, catalog);
+  const { resolveCard, resolveHero, resolveRuleCards, resolveFighterToken } = useProCardArt(heroList, catalog);
 
   const view = useMemo(() => toPlayerView(step, { map, catalog }, focus), [step, map, catalog, focus]);
   // owner seat -> heroId, so the board resolves each fighter's token art by hero
@@ -173,6 +173,7 @@ export const ReplayScrubber = ({
         roomId={null}
         resolveCard={resolveCard}
         resolveHero={resolveHero}
+        resolveRuleCards={resolveRuleCards}
         labelFor={labelFor}
       />
 
