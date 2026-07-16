@@ -50,17 +50,101 @@ const labelForCard = (catalog: Record<string, CardMeta>, instance: CardInstanceI
 const heroName = (heroId: string) =>
   heroId.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 
+type ReplayAction = {
+  type: string;
+  player?: string;
+  fighter?: string;
+  space?: string;
+  card?: string;
+  path?: string[];
+  form?: string;
+  attacker?: string;
+  target?: string;
+  ability?: string;
+  promptId?: string;
+  optionId?: string;
+  attachItem?: boolean;
+};
+
+type ReplayPrompt = {
+  promptId: string;
+  kind: string;
+  description?: string;
+  options: Array<{ id: string; label: string }>;
+  source?: { card?: CardInstanceId; hero?: string } | null;
+};
+
+type ReplayFrameForLog = { prompt?: ReplayPrompt | null };
+
+const shortId = (id: string) => id.split("/").pop()?.split("#")[0]?.replace(/-/g, " ") ?? id;
+const cardLabel = (card: CardInstanceId) => shortId(card);
+const fighterLabel = (fighter: string) => fighter.replace("/hero", " hero").replace("/sidekick-", " sidekick ");
+const spaceLabel = (space: string) => space.toUpperCase();
+
+const promptLabel = (action: ReplayAction, beforeStep?: ReplayFrameForLog): string => {
+  const prompt = beforeStep?.prompt;
+  const option = prompt?.options.find((o) => o.id === action.optionId);
+  const choice = option?.label ?? action.optionId ?? "?";
+  const source = prompt?.source?.card ? ` for ${cardLabel(prompt.source.card)}` : "";
+  const detail = prompt?.description ? `${prompt.description}: ` : "";
+  return `${action.player ?? "?"}: choose ${detail}${choice}${source}`;
+};
+
+const actionLabel = (action: ReplayAction, beforeStep?: ReplayFrameForLog): string => {
+  switch (action.type) {
+    case "PLACE_SIDEKICK":
+      return `${action.player ?? "?"}: place ${fighterLabel(action.fighter ?? "fighter")} at ${spaceLabel(action.space ?? "?")}`;
+    case "MANEUVER":
+      return `${action.player ?? "?"}: maneuver`;
+    case "BOOST_MOVE":
+      return `${action.player ?? "?"}: boost move with ${cardLabel(action.card ?? "card")}`;
+    case "MOVE_FIGHTER": {
+      const to = action.path?.[action.path.length - 1];
+      return `${action.player ?? "?"}: move ${fighterLabel(action.fighter ?? "fighter")}${to ? ` to ${spaceLabel(to)}` : ""}`;
+    }
+    case "SHAPESHIFT":
+      return `${action.player ?? "?"}: shapeshift to ${action.form ?? "form"}`;
+    case "END_MANEUVER":
+      return `${action.player ?? "?"}: end maneuver`;
+    case "SCHEME":
+      return `${action.player ?? "?"}: scheme ${cardLabel(action.card ?? "card")}`;
+    case "USE_SCHEME_ITEM":
+      return `${action.player ?? "?"}: use scheme item at ${spaceLabel(action.space ?? "?")}`;
+    case "DECLARE_ATTACK":
+      return `${action.player ?? "?"}: attack ${fighterLabel(action.target ?? "target")} with ${fighterLabel(action.attacker ?? "attacker")}`;
+    case "COMMIT_ATTACK_CARD":
+      return `${action.player ?? "?"}: attack card ${cardLabel(action.card ?? "card")}${action.attachItem ? " + item" : ""}`;
+    case "COMMIT_DEFENSE_CARD":
+      return `${action.player ?? "?"}: defense card ${cardLabel(action.card ?? "card")}${action.attachItem ? " + item" : ""}`;
+    case "DECLINE_DEFENSE":
+      return `${action.player ?? "?"}: decline defense`;
+    case "DISCARD_TO_LIMIT":
+      return `${action.player ?? "?"}: discard ${cardLabel(action.card ?? "card")}`;
+    case "RESPOND_PROMPT":
+      return promptLabel(action, beforeStep);
+    case "FORFEIT":
+      return `${action.player ?? "?"}: forfeit`;
+    case "USE_ENCOUNTER_ABILITY":
+      return `${action.player ?? "?"}: ability ${action.ability ?? "ability"}`;
+    default:
+      return `${action.player ?? "?"}: ${action.type.toLowerCase().replace(/_/g, " ")}`;
+  }
+};
+
 /** Milliseconds between frames while playing. */
 const PLAY_INTERVAL_MS = 700;
 
 export const ReplayScrubber = ({
   expansion,
   onExit,
+  exitLabel = "← back to replays",
 }: {
   expansion: ReplayExpansion;
   onExit?: () => void;
+  exitLabel?: string;
 }) => {
   const { steps, catalog, map, meta } = expansion;
+  const actionLog = (expansion as ReplayExpansion & { actionLog?: ReplayAction[] }).actionLog ?? [];
   const lastIndex = steps.length - 1;
   // Runtime-ordered seats from the bundle — 2 for a duel, 3+ for ffa/team.
   const seatList = useMemo(() => replaySeatIds(meta.heroes), [meta.heroes]);
@@ -125,7 +209,7 @@ export const ReplayScrubber = ({
         </Tag>
         {onExit && (
           <Button {...BTN} onClick={onExit}>
-            ← back to replays
+            {exitLabel}
           </Button>
         )}
       </Flex>
@@ -186,6 +270,37 @@ export const ReplayScrubber = ({
           </Tag>
           <Tag size="sm" bg="whiteAlpha.300">{view.phase.toLowerCase()}</Tag>
         </Flex>
+
+        {actionLog.length > 0 && (
+          <Box bg="brand.surface" border="1px solid" borderColor="whiteAlpha.300" borderRadius="0.5rem" p="0.65rem">
+            <Flex justify="space-between" align="center" mb="0.45rem">
+              <Text fontFamily="BebasNeueRegular" fontSize="1rem" letterSpacing="0.04em">ACTION LOG</Text>
+              <Tag size="sm" bg="whiteAlpha.200">step {index}/{lastIndex}</Tag>
+            </Flex>
+            <Box maxH="12rem" overflowY="auto" pr="0.15rem">
+              {actionLog.map((action, actionIndex) => {
+                const stepIndex = actionIndex + 1;
+                const active = stepIndex === index;
+                return (
+                  <Flex
+                    key={`${actionIndex}-${action.type}`}
+                    gap="0.45rem"
+                    align="baseline"
+                    px="0.45rem"
+                    py="0.3rem"
+                    borderRadius="0.35rem"
+                    bg={active ? "brand.accent" : stepIndex < index ? "whiteAlpha.100" : "transparent"}
+                    color={active ? "brand.surfaceDim" : "brand.parchment"}
+                    opacity={stepIndex > index ? 0.45 : 1}
+                  >
+                    <Text fontSize="0.68rem" fontFamily="monospace" flexShrink={0}>{stepIndex}</Text>
+                    <Text fontSize="0.75rem" noOfLines={2}>{actionLabel(action, steps[actionIndex] as ReplayFrameForLog | undefined)}</Text>
+                  </Flex>
+                );
+              })}
+            </Box>
+          </Box>
+        )}
 
         {step.combat && (
           <Box bg="brand.surface" border="1px solid" borderColor="whiteAlpha.300" borderRadius="0.5rem" p="0.75rem">
