@@ -52,12 +52,12 @@ import {
   StatLine,
   StatsPanel,
 } from "@/components/Game/Header/header.styles";
-import { DeckImportHeroType } from "@/components/DeckPool/deck-import.type";
+import { DeckImportHeroType, DeckImportRuleCardType } from "@/components/DeckPool/deck-import.type";
 import { CardInstanceId, PlayerId, PlayerView, ViewFighter, ViewPlayer } from "@/lib/pro/protocol";
 import { isLargeFighter, LARGE_FIGHTER_BLURB } from "@/lib/pro/largeReach";
 import { deriveTeams } from "@/lib/pro/teams";
 import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
-import { ResolveCard, ResolveHero } from "@/lib/pro/useProCardArt";
+import { ResolveCard, ResolveHero, ResolveRuleCards } from "@/lib/pro/useProCardArt";
 import { FlagHudChip, flagChipsFor } from "@/lib/pro/heroStateFlags";
 import { DEFAULT_PLATE_LAYOUT, PlateLayout, PlateSeat, useHudPlates } from "@/lib/pro/useHudPlates";
 import { CardFace } from "./ProHand";
@@ -382,6 +382,7 @@ export const MoveTimerBar = ({
 const SeatPlate = ({
   label,
   hero,
+  ruleCards,
   heroId,
   heroFighter,
   sidekicks,
@@ -403,6 +404,9 @@ const SeatPlate = ({
 }: {
   label: string;
   hero: DeckImportHeroType | null;
+  /** deck-level "extra rules" cards (issue #372) — e.g. Clone Troopers' board
+   *  cap; shown in the name-plate tooltip. [] when the deck has none. */
+  ruleCards: DeckImportRuleCardType[];
   /** server hero id — gates flag chips (tide only shows for tide heroes) */
   heroId: string;
   heroFighter: ViewFighter | undefined;
@@ -440,6 +444,7 @@ const SeatPlate = ({
   const [dragging, setDragging] = useState(false);
   const handCount = typeof hand === "number" ? hand : hand.length;
   const heroName = heroFighter?.name ?? hero?.name ?? "";
+  const rules = ruleCards.filter((r) => r.content?.trim());
   const ranged = heroFighter ? heroFighter.reach === "RANGED" : hero?.isRanged;
   const heroHp = heroFighter ? `${heroFighter.hp}/${heroFighter.maxHp}` : "–";
   const isLargeHero = !!heroFighter && isLargeFighter(heroFighter);
@@ -480,12 +485,22 @@ const SeatPlate = ({
           bg="brand.surfaceDim"
           color="brand.parchment"
           label={
-            hero?.specialAbility || isLargeHero || sidekicks.length ? (
+            hero?.specialAbility || isLargeHero || sidekicks.length || rules.length ? (
               <Box maxW="18rem" p="0.25rem" whiteSpace="pre-wrap" fontSize="0.78rem">
                 <Text fontWeight="bold" mb="0.25rem" color="brand.accent">
                   {heroName}
                 </Text>
                 {hero?.specialAbility?.trim()}
+                {/* Deck-level "extra rules" cards (issue #372) — distinct from the
+                    hero's own specialAbility above; each preserves its \n breaks. */}
+                {rules.map((rule, i) => (
+                  <Box key={`${rule.title}-${i}`} mt={hero?.specialAbility || i > 0 ? "0.5rem" : 0}>
+                    <Text as="span" fontWeight="bold" color="brand.accent">
+                      {rule.title || "Extra rules"}:
+                    </Text>{" "}
+                    {rule.content.trim()}
+                  </Box>
+                ))}
                 {/* Standing large-fighter rule (issue #235). Keyed on the live
                     two-space signal (heroFighter.tailSpace), so any future LARGE
                     hero inherits it without a code change. Copy is shared with the
@@ -908,6 +923,8 @@ export interface ProHudProps {
   turnTimerSeconds?: number;
   resolveCard: ResolveCard;
   resolveHero: ResolveHero;
+  /** deck-level "extra rules" cards per hero (issue #372); omit → no rules shown */
+  resolveRuleCards?: ResolveRuleCards;
   labelFor: (instance: CardInstanceId) => string;
   /** sound / visual effect toggles (useGameFx) — chips hidden when omitted */
   soundOn?: boolean;
@@ -927,6 +944,7 @@ export const ProHud = ({
   turnTimerSeconds,
   resolveCard,
   resolveHero,
+  resolveRuleCards,
   labelFor,
   soundOn,
   visualFxOn,
@@ -1009,6 +1027,7 @@ export const ProHud = ({
             key={seat.id}
             label={seatLabel(seat)}
             hero={resolveHero(seat.heroId)}
+            ruleCards={resolveRuleCards?.(seat.heroId) ?? []}
             heroId={seat.heroId}
             heroFighter={heroOf(seat.id)}
             sidekicks={sidekicksOf(seat.id)}

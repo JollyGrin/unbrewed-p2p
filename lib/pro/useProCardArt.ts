@@ -14,6 +14,7 @@ import axios from "axios";
 import {
   DeckImportCardType,
   DeckImportHeroType,
+  DeckImportRuleCardType,
   DeckImportType,
 } from "@/components/DeckPool/deck-import.type";
 import { CardDefId, CardInstanceId, CardMeta } from "./protocol";
@@ -82,6 +83,12 @@ export const norm = (s: string) => s.trim().toLowerCase();
 export type ResolveCard = (instance: CardInstanceId) => DeckImportCardType | null;
 export type ResolveHero = (heroId: string) => DeckImportHeroType | null;
 /**
+ * Deck-level "extra rules" cards for a hero (issue #372) — e.g. Clone Troopers'
+ * board cap. Distinct from hero.specialAbility; returns [] when the deck has
+ * none or hasn't loaded, so callers render nothing extra.
+ */
+export type ResolveRuleCards = (heroId: string) => DeckImportRuleCardType[];
+/**
  * Board-token portrait art for one fighter, resolved by hero id + kind (HERO vs
  * SIDEKICK). Returns the deck JSON's `tokenImageUrl` for that fighter, or null
  * when the deck has none (converted decks, or a snapshot that failed to load) —
@@ -95,6 +102,7 @@ export type ResolveFighterToken = (
 interface HeroArt {
   cards: Record<string, DeckImportCardType>;
   hero: DeckImportHeroType;
+  ruleCards: DeckImportRuleCardType[];
   heroTokenUrl: string | null;
   sidekickTokenUrl: string | null;
 }
@@ -128,6 +136,7 @@ export function useProCardArt(
 ): {
   resolveCard: ResolveCard;
   resolveHero: ResolveHero;
+  resolveRuleCards: ResolveRuleCards;
   resolveFighterToken: ResolveFighterToken;
   isLoading: boolean;
 } {
@@ -154,6 +163,7 @@ export function useProCardArt(
           byHero[heroId] = {
             cards: byTitle,
             hero: deck.deck_data.hero,
+            ruleCards: deck.deck_data.ruleCards ?? [],
             heroTokenUrl: deck.deck_data.hero.tokenImageUrl ?? null,
             sidekickTokenUrl: deck.deck_data.sidekick?.tokenImageUrl ?? null,
           };
@@ -174,11 +184,14 @@ export function useProCardArt(
 
   const resolveHero: ResolveHero = (heroId) => data?.[heroId]?.hero ?? null;
 
+  const resolveRuleCards: ResolveRuleCards = (heroId) =>
+    data?.[heroId]?.ruleCards ?? [];
+
   const resolveFighterToken: ResolveFighterToken = (heroId, kind) => {
     const art = data?.[heroId];
     if (!art) return null;
     return (kind === "HERO" ? art.heroTokenUrl : art.sidekickTokenUrl) ?? null;
   };
 
-  return { resolveCard, resolveHero, resolveFighterToken, isLoading };
+  return { resolveCard, resolveHero, resolveRuleCards, resolveFighterToken, isLoading };
 }

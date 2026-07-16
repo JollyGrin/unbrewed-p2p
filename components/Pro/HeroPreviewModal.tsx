@@ -131,6 +131,7 @@ export const HeroPreviewModal = ({
     !!sidekick && (sidekick.name !== "Sidekick" || (!!sidekick.hp && !!sidekick.quantity));
 
   const cards = (deck?.cards ?? []).filter((c) => !c.isCharacterCard);
+  const ruleCards = (deck?.ruleCards ?? []).filter((r) => r.content?.trim());
 
   return (
     // Provider hosts the full-res hover/press card preview (issue #167) that
@@ -256,8 +257,24 @@ export const HeroPreviewModal = ({
               </Reveal>
             )}
 
-            {cards.length > 0 && (
+            {/* Deck-level "extra rules" cards (issue #372) — e.g. Clone Troopers'
+                6-token board cap. Distinct from hero.specialAbility above; content
+                preserves its \n line breaks. Decks without ruleCards render nothing. */}
+            {ruleCards.length > 0 && (
               <Reveal index={3}>
+                {ruleCards.map((rule, i) => (
+                  <Box key={`${rule.title}-${i}`}>
+                    <SectionHeading>{rule.title || "Extra rules"}</SectionHeading>
+                    <Text fontSize="0.85rem" whiteSpace="pre-wrap" opacity={0.9}>
+                      {rule.content.trim()}
+                    </Text>
+                  </Box>
+                ))}
+              </Reveal>
+            )}
+
+            {cards.length > 0 && (
+              <Reveal index={4}>
                 <SectionHeading>Cards ({cards.length})</SectionHeading>
                 {/* Legible at rest (Part 2, Ask A): ~8.5rem tiles (hand-card size)
                     in an auto-fill grid so a dense 12-card deck reads without
@@ -306,7 +323,7 @@ export const HeroPreviewModal = ({
             )}
 
             {stats && (
-              <Reveal index={4}>
+              <Reveal index={5}>
                 <SectionHeading>Balance profile</SectionHeading>
                 <Flex direction="column" gap="0.2rem" fontSize="0.85rem">
                   {stats.archetype && <Text>Archetype: {stats.archetype}</Text>}

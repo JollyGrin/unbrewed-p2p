@@ -2351,7 +2351,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
   }, [customMapJson]);
   // Art fetch (unbrewed-api, matched by title against the server catalog) —
   // must run unconditionally; no-ops until the first STATE arrives.
-  const { resolveCard, resolveHero, resolveFighterToken } = useProCardArt(
+  const { resolveCard, resolveHero, resolveRuleCards, resolveFighterToken } = useProCardArt(
     snapshot ? heroIdsForArt(snapshot.view) : [],
     snapshot?.view.catalog ?? {}
   );
@@ -3556,6 +3556,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
         turnTimerSeconds={roomInfo?.turnTimerSeconds}
         resolveCard={resolveCard}
         resolveHero={resolveHero}
+        resolveRuleCards={resolveRuleCards}
         labelFor={(c) => cardLabel(view.catalog, c)}
         soundOn={soundOn}
         visualFxOn={visualOn}
