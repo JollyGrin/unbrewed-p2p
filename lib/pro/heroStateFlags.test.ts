@@ -40,8 +40,10 @@ describe("HERO_STATE_FLAGS registry", () => {
     expect(forms.every((e) => e.heroes.includes("malfurion-stormrage"))).toBe(true);
     expect(forms.filter((e) => e.isDefault).map((e) => e.flag)).toEqual(["DRUID_FORM_HUMAN"]);
     expect(forms.every((e) => e.nameplate && e.token)).toBe(true);
-    // issue #335: every form also swaps the HERO-token portrait and hides its badge.
-    expect(forms.every((e) => e.tokenArt?.on && e.hideBadgeWhenArt)).toBe(true);
+    // issue #335: every form also swaps the HERO-token portrait. issue #385: the
+    // rim badge stays ON alongside the portrait (hideBadgeWhenArt off/absent), so
+    // the form reads on all three surfaces at once.
+    expect(forms.every((e) => e.tokenArt?.on && !e.hideBadgeWhenArt)).toBe(true);
   });
 });
 
@@ -157,18 +159,20 @@ describe("fighterTokenStateFor (badge + portrait, shared entry)", () => {
     });
   });
 
-  it("suppresses Malfurion's form badge in favor of the portrait bust (hideBadgeWhenArt)", () => {
+  it("keeps Malfurion's form rim badge ALONGSIDE the portrait bust (issue #385)", () => {
+    // Regression from #337: the rim badge (🐾 / ☾ / ✦) must render together with
+    // the swapped portrait, not be suppressed by it. hideBadgeWhenArt is off here.
     expect(fighterTokenStateFor("malfurion-stormrage", { DRUID_FORM_BEAR: true })).toEqual({
-      badge: null,
+      badge: expect.objectContaining({ icon: "🐾", label: "Bear", title: "Bear Form" }),
       heroArtUrl: expect.stringMatching(/token-malfurion-bear\.webp$/),
     });
     expect(fighterTokenStateFor("malfurion-stormrage", { DRUID_FORM_MOONKIN: true })).toEqual({
-      badge: null,
+      badge: expect.objectContaining({ icon: "☾", label: "Moonkin", title: "Moonkin Form" }),
       heroArtUrl: expect.stringMatching(/token-malfurion-moonkin\.webp$/),
     });
-    // No form flag → Night Elf bust (group default), badge still suppressed.
+    // No form flag → Night Elf bust (group default), rim badge still shown.
     expect(fighterTokenStateFor("malfurion-stormrage", {})).toEqual({
-      badge: null,
+      badge: expect.objectContaining({ icon: "✦", label: "Night Elf", title: "Night Elf Form" }),
       heroArtUrl: expect.stringMatching(/token-malfurion\.webp$/),
     });
   });
@@ -186,8 +190,10 @@ describe("fighterTokenStateByOwner", () => {
       { id: "p3", heroId: "king-kong", flags: {} },
     ]);
     expect(state.p1!.heroArtUrl).toMatch(/token-malfurion-bear\.webp$/);
-    expect(state.p1!.badge).toBeNull();
+    // #385: Malfurion keeps his rim badge alongside the portrait.
+    expect(state.p1!.badge).toMatchObject({ icon: "🐾" });
     expect(state.p2!.heroArtUrl).toMatch(/token-thetis-high\.webp$/);
+    // Thetis tide portrait is intentionally badge-free (hideBadgeWhenArt).
     expect(state.p2!.badge).toBeNull();
     expect(state.p3).toBeUndefined();
   });
