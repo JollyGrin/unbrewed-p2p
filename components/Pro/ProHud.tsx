@@ -60,6 +60,7 @@ import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { ResolveCard, ResolveHero, ResolveRuleCards } from "@/lib/pro/useProCardArt";
 import { FlagHudChip, flagChipsFor } from "@/lib/pro/heroStateFlags";
 import { DEFAULT_PLATE_LAYOUT, PlateLayout, PlateSeat, useHudPlates } from "@/lib/pro/useHudPlates";
+import { useCardPreview } from "./CardPreview";
 import { CardFace } from "./ProHand";
 import { ProConnectionStatus, SeatPresence, TurnTimer } from "@/lib/pro/useProSocket";
 import { FLAGS, useFlags } from "@/lib/flags";
@@ -572,11 +573,25 @@ const SeatPlate = ({
     </Tag>
   ) : null;
 
+  const ongoingSchemeCard = ongoingScheme ? resolveCard(ongoingScheme) : null;
+  const ongoingSchemeLabel = ongoingScheme ? labelFor(ongoingScheme) : "";
+  const ongoingSchemePreview = useCardPreview(ongoingSchemeCard);
+
   // Public face-up ongoing scheme (protocol v21). A compact title chip keeps the
   // state visible even when the plate is collapsed; the expanded row names the
   // exact card without requiring a modal.
   const ongoingSchemeTag = ongoingScheme ? (
-    <Tag size="sm" bg="#6D4C8D" color="brand.parchment" flexShrink={0} letterSpacing="0.04em">
+    <Tag
+      size="sm"
+      bg="#6D4C8D"
+      color="brand.parchment"
+      flexShrink={0}
+      letterSpacing="0.04em"
+      cursor={ongoingSchemeCard ? "help" : "default"}
+      aria-label={`Ongoing scheme: ${ongoingSchemeLabel}`}
+      title={ongoingSchemeLabel}
+      {...ongoingSchemePreview}
+    >
       ONGOING
     </Tag>
   ) : null;
@@ -692,6 +707,10 @@ const SeatPlate = ({
       py="0.2rem"
       bg="rgba(109, 76, 141, 0.28)"
       color="brand.parchment"
+      cursor={ongoingSchemeCard ? "help" : "default"}
+      aria-label={`Ongoing scheme: ${ongoingSchemeLabel}`}
+      title={ongoingSchemeLabel}
+      {...ongoingSchemePreview}
     >
       <TbWand size="12px" />
       <Text
@@ -703,8 +722,8 @@ const SeatPlate = ({
       >
         ONGOING
       </Text>
-      <Text fontSize="0.68rem" fontFamily="SpaceGrotesk" noOfLines={1} title={labelFor(ongoingScheme)}>
-        {labelFor(ongoingScheme)}
+      <Text fontSize="0.68rem" fontFamily="SpaceGrotesk" noOfLines={1}>
+        {ongoingSchemeLabel}
       </Text>
     </Flex>
   ) : null;
@@ -817,6 +836,7 @@ const SeatPlate = ({
                   {controls}
                 </Flex>
               </PlayerTitleBar>
+              {ongoingSchemeRow}
               {timerBar}
             </StatContainer>
           </Tooltip>
