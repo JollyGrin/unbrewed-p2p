@@ -16,6 +16,7 @@ import { toast } from "react-hot-toast";
 import { useRouter } from "next/router";
 import { Box, Button, Flex, Grid, Input, Kbd, Link, Menu, MenuButton, MenuItem, MenuList, NumberDecrementStepper, NumberIncrementStepper, NumberInput, NumberInputField, NumberInputStepper, Tag, Text, Textarea, Tooltip } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
+import { motion, useReducedMotion } from "framer-motion";
 import { MOVE_STEP_SECONDS, MoveHint, PendingMove, ProBoard } from "@/components/Pro/ProBoard";
 import { ProErrorBoundary } from "@/components/Pro/ProErrorBoundary";
 import { assignableSeats, BotSlotPlan, SlotOccupant } from "@/components/Pro/CreateSeats";
@@ -84,9 +85,10 @@ import {
   startStepping,
   type StepState,
 } from "@/lib/pro/moveSteps";
-import { useGameFx } from "@/lib/pro/useGameFx";
+import { useGameFx, DamageArc } from "@/lib/pro/useGameFx";
 import { useCombatCallouts, CombatCalloutItem } from "@/lib/pro/combatFx";
 import { useCombatStrike, CombatStrike, StrikeVariant } from "@/lib/pro/combatStrike";
+import { useCombatValueFx, CombatValueFx, SlotValueFx, CombatRole } from "@/lib/pro/combatValueFx";
 import { useTokenLife } from "@/lib/pro/tokenLife";
 import { resolveSpaceMove } from "@/lib/pro/moveResolve";
 import { useIncomingMoveTween } from "@/lib/pro/moveTween";
@@ -924,6 +926,54 @@ const strikeKnockVars = (damage: number): CSSProperties =>
     "--tilt": `${Math.min(12, 7 + damage).toFixed(1)}deg`,
   } as CSSProperties);
 
+// ---------------------------------------------------------------------------
+// The math beat (issue #382 — #379 battle-sequence epic). Value modifiers fly in
+// as chips onto the slot's value pill (useCombatValueFx paces them through the
+// battle timeline); the pill ticks up as each lands. When the combat resolves the
+// comparison beat pulses the winning value gold (snuffValuePulse) and dims/cracks
+// the loser — sequenced by CSS delay off the strike's contact moment.
+// ---------------------------------------------------------------------------
+
+/** Chip on-screen lifetime — matches CHIP_TTL_MS in combatValueFx so the fly-in +
+ *  fade covers exactly the window the hook keeps the chip mounted. */
+const CHIP_FLY_DUR = 0.9;
+/** A modifier chip flies in from up-right and settles onto the value pill. */
+const chipFly = keyframes`
+  0%   { opacity: 0; transform: translate(1.5rem, -0.6rem) scale(0.7); }
+  35%  { opacity: 1; transform: translate(0.45rem, -0.25rem) scale(1.08); }
+  72%  { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(0, 0.15rem) scale(0.92); }
+`;
+/** The pill pops as its number ticks — keyed by the displayed value so each step
+ *  replays it, reading as a count-up rather than a silent jump. */
+const valueTick = keyframes`
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.3); text-shadow: 0 0 12px rgba(255,224,138,0.9); }
+  100% { transform: scale(1); }
+`;
+/** The losing value cracks: a small shake, then desaturates and dims in place. */
+const loserDim = keyframes`
+  0%   { transform: translateX(0) rotate(0deg); filter: none; opacity: 1; }
+  22%  { transform: translateX(-2px) rotate(-1.5deg); }
+  46%  { transform: translateX(2px) rotate(1.5deg); }
+  100% { transform: translateX(0) rotate(0deg); filter: grayscale(0.85) brightness(0.7); opacity: 0.5; }
+`;
+
+/** Comparison beat begins just after the strike lands. */
+const COMPARE_DELAY = STRIKE_CONTACT_DELAY + 0.12;
+
+/** Which value pulses on the comparison beat: the winner glows gold, the loser
+ *  dims. Derived from the strike variant so the panel and the strike never disagree
+ *  about who won. Tie → neither (a neutral shove, no gold). */
+const comparePulseFor = (
+  variant: StrikeVariant | undefined,
+  role: CombatRole
+): "gold" | "dim" | null => {
+  if (variant === "win") return role === "ATTACK" ? "gold" : "dim";
+  if (variant === "blocked") return role === "DEFENSE" ? "gold" : "dim";
+  return null;
+};
+
 /**
  * Synthetic "Fire, you fools!" sub-attack combat card (issue #288 — engine batch D).
  * The chosen B1 droid's "Blast 'em!" attack has no catalog/deck entry (its instance is
@@ -969,6 +1019,8 @@ const CombatSlot = ({
   revealDelay = "0s",
   strikeAnimation,
   strikeVars,
+  valueFx,
+  comparePulse,
 }: {
   label: string;
   card: ViewCombat["attackerCard"];
@@ -983,6 +1035,11 @@ const CombatSlot = ({
    *  --kb/--tilt vars scaling the defense knockback with damage. */
   strikeAnimation?: string;
   strikeVars?: CSSProperties;
+  /** math beat (#382): chips flying onto the pill + the pill's ticking value.
+   *  Undefined ⇒ visual-fx off / reduced motion ⇒ the pill shows the raw value. */
+  valueFx?: SlotValueFx;
+  /** comparison beat (#382): "gold" pulses the winning value, "dim" cracks the loser. */
+  comparePulse?: "gold" | "dim" | null;
 }) => (
   <Box textAlign="center">
     <Text opacity={0.6} fontSize="0.75rem" mb="0.25rem">
@@ -1038,10 +1095,61 @@ const CombatSlot = ({
       )}
     </Box>
     {card && (
-      <Text fontSize="0.95rem" fontWeight="bold" color="brand.accent">
-        {card.effectiveValue}
-        {card.boosts.length ? ` (+${card.boosts.length} boost)` : ""}
-      </Text>
+      // The value row is a positioning context: chips fly in beside the pill, and
+      // the pill's number ticks (valueFx.displayValue) up to the effective value.
+      <Flex position="relative" justify="center" align="center" h="1.4rem">
+        {/* modifier chips flying onto the pill (issue #382) */}
+        {(valueFx?.chips ?? []).map((chip) => (
+          <Box
+            key={chip.key}
+            position="absolute"
+            left="50%"
+            bottom="100%"
+            transform="translateX(-50%)"
+            px="0.4rem"
+            py="0.05rem"
+            mb="0.1rem"
+            borderRadius="999px"
+            whiteSpace="nowrap"
+            fontFamily="SpaceGrotesk"
+            fontSize="0.62rem"
+            fontWeight="bold"
+            letterSpacing="0.02em"
+            color={chip.delta < 0 ? "#ff9a8a" : "brand.accent"}
+            bg="rgba(20,16,14,0.92)"
+            border="1px solid"
+            borderColor={chip.delta < 0 ? "rgba(255,120,90,0.6)" : "rgba(224,168,46,0.6)"}
+            boxShadow="0 2px 8px rgba(0,0,0,0.6)"
+            pointerEvents="none"
+            zIndex={3}
+            animation={`${chipFly} ${CHIP_FLY_DUR}s cubic-bezier(0.2, 0.8, 0.3, 1) both`}
+            sx={NO_MOTION}
+            title={chip.source ? cardLabel(catalog, chip.source) : undefined}
+          >
+            {chip.label}
+          </Box>
+        ))}
+        <Text
+          // Keyed by the displayed value so each tick replays the pop (count-up feel).
+          key={valueFx?.displayValue ?? card.effectiveValue}
+          fontSize="0.95rem"
+          fontWeight="bold"
+          color="brand.accent"
+          animation={
+            comparePulse === "gold"
+              ? `${snuffValuePulse} 0.9s ease-out ${COMPARE_DELAY}s both`
+              : comparePulse === "dim"
+                ? `${loserDim} 0.7s ease-out ${COMPARE_DELAY}s both`
+                : valueFx?.displayValue != null
+                  ? `${valueTick} 0.28s ease-out both`
+                  : undefined
+          }
+          sx={comparePulse || valueFx?.displayValue != null ? NO_MOTION : undefined}
+        >
+          {valueFx?.displayValue ?? card.effectiveValue}
+          {card.boosts.length ? ` (+${card.boosts.length} boost)` : ""}
+        </Text>
+      </Flex>
     )}
     {detail && (
       <Text fontSize="0.75rem" opacity={0.7}>
@@ -1157,6 +1265,8 @@ const CombatPanel = ({
   you,
   selfCommitted,
   strike,
+  valueFx,
+  clashRef,
 }: {
   combat: ViewCombat;
   catalog: Record<string, CardMeta>;
@@ -1164,6 +1274,11 @@ const CombatPanel = ({
   you: PlayerView["you"];
   selfCommitted: CardInstanceId | null;
   strike?: CombatStrike | null;
+  /** math beat (#382): per-role chips + ticking pill value (undefined ⇒ off). */
+  valueFx?: CombatValueFx;
+  /** the clash point (seam between the cards) — the arc launches from here. The
+   *  page owns the ref and reads its rect at launch time (#382). */
+  clashRef?: React.Ref<HTMLDivElement>;
 }) => {
   const attackerCommitted = combat.stage !== "COMMIT_ATTACK";
   const pastReveal = !["COMMIT_ATTACK", "COMMIT_DEFENSE"].includes(combat.stage);
@@ -1209,6 +1324,8 @@ const CombatPanel = ({
           facedownState={attackerCommitted ? "committed" : "deciding"}
           catalog={catalog}
           strikeAnimation={attackAnim}
+          valueFx={valueFx?.ATTACK}
+          comparePulse={comparePulseFor(strike?.variant, "ATTACK")}
         />
         <CombatSlot
           label="defense"
@@ -1222,8 +1339,21 @@ const CombatPanel = ({
           catalog={catalog}
           strikeAnimation={defenseAnim}
           strikeVars={strike?.variant === "win" ? strikeKnockVars(strike.damage) : undefined}
+          valueFx={valueFx?.DEFENSE}
+          comparePulse={comparePulseFor(strike?.variant, "DEFENSE")}
         />
         {ring}
+        {/* Clash point — the seam between the two cards. Zero-size marker whose
+            viewport rect is the arc's launch origin (#382). */}
+        <Box
+          ref={clashRef}
+          position="absolute"
+          top="42%"
+          left="50%"
+          w="1px"
+          h="1px"
+          pointerEvents="none"
+        />
       </Flex>
       <CombatStageTicker stage={combat.stage} />
       {combat.outcome && combat.outcome !== "UNKNOWN" && (
@@ -1232,6 +1362,84 @@ const CombatPanel = ({
           {combat.attackDamageDealt !== null ? ` · ${combat.attackDamageDealt} dmg` : ""}
         </Text>
       )}
+    </Box>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// The damage arc (issue #382 — #379 battle-sequence epic). One fixed-position
+// projectile per resolved hit, arcing from the panel clash point down to the
+// defender's token. Both endpoints are viewport px CAPTURED AT LAUNCH by useGameFx
+// (correct under the board's zoom/pan transform, where board coords are not), so
+// this layer just tweens between two frozen points along a quadratic bézier. The
+// board `−N` / ring / hit sound are delayed to the landing by useGameFx, so no
+// duplicate is spawned here. framer-motion drives the flight (the epic sanctions it
+// for genuine springs/paths); the whole layer is absent when there are no arcs.
+// ---------------------------------------------------------------------------
+
+/** Sample a quadratic bézier (P0→P2, control lifted above the midpoint so the shot
+ *  arcs) into N viewport points for framer-motion keyframe arrays. */
+const arcPoints = (from: DamageArc["from"], to: DamageArc["to"], n = 18) => {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const dist = Math.hypot(dx, dy);
+  // Control point: midpoint, lifted UP (screen y−) by a fraction of the span so the
+  // projectile lobs rather than sliding straight; clamped so long shots don't balloon.
+  const cx = (from.x + to.x) / 2;
+  const cy = (from.y + to.y) / 2 - Math.min(220, dist * 0.28 + 40);
+  const xs: number[] = [];
+  const ys: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1);
+    const mt = 1 - t;
+    xs.push(mt * mt * from.x + 2 * mt * t * cx + t * t * to.x);
+    ys.push(mt * mt * from.y + 2 * mt * t * cy + t * t * to.y);
+  }
+  return { xs, ys };
+};
+
+const DamageArcLayer = ({ arcs }: { arcs: DamageArc[] }) => {
+  if (arcs.length === 0) return null;
+  return (
+    <Box position="fixed" inset="0" pointerEvents="none" zIndex={205}>
+      {arcs.map((arc) => {
+        const { xs, ys } = arcPoints(arc.from, arc.to);
+        const dur = arc.flightMs / 1000;
+        return (
+          <motion.div
+            key={arc.key}
+            style={{ position: "fixed", top: 0, left: 0, willChange: "transform" }}
+            initial={{ x: arc.from.x, y: arc.from.y, opacity: 0, scale: 0.6 }}
+            animate={{
+              x: xs,
+              y: ys,
+              // pop in on launch, hold, then a touch bigger as it lands
+              opacity: [0, 1, 1, 1],
+              scale: [0.6, 1.1, 1, arc.heavy ? 1.25 : 1.1],
+            }}
+            // ease-in so it accelerates into the token like a thrown blow
+            transition={{ duration: dur, ease: "easeIn", opacity: { duration: dur * 0.3 } }}
+          >
+            <Box
+              transform="translate(-50%, -50%)"
+              px={arc.heavy ? "0.6rem" : "0.5rem"}
+              py="0.1rem"
+              borderRadius="999px"
+              fontFamily="BebasNeueRegular"
+              fontSize={arc.heavy ? "1.7rem" : "1.35rem"}
+              fontWeight="bold"
+              lineHeight="1"
+              color="#fff"
+              bg="rgba(200,40,40,0.92)"
+              border="2px solid #ff7a5c"
+              boxShadow="0 0 18px rgba(255,90,60,0.85), 0 2px 6px rgba(0,0,0,0.7)"
+              whiteSpace="nowrap"
+            >
+              −{arc.amount}
+            </Box>
+          </motion.div>
+        );
+      })}
     </Box>
   );
 };
@@ -2719,8 +2927,19 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
     [snapshot]
   );
 
-  // Sounds + transient board visuals, derived by diffing snapshots (useGameFx).
-  const { boardFx, hurtKey, soundOn, visualOn, toggleSound, toggleVisual } = useGameFx(snapshot);
+  // Registry of fighter-token DOM elements, populated by ProBoard's tokens, read at
+  // arc-launch time to measure the defender's viewport rect (#382). A Map ref rather
+  // than state so registration never re-renders.
+  const fighterElsRef = useRef<Map<string, HTMLElement>>(new Map());
+  // The combat panel's clash point (seam between the cards) — the arc's launch origin.
+  const clashRef = useRef<HTMLDivElement | null>(null);
+
+  // Sounds + transient board visuals, derived by diffing snapshots (useGameFx). The
+  // refs let the damage-arc (#382) measure its endpoints at launch.
+  const { boardFx, arcs, hurtKey, soundOn, visualOn, toggleSound, toggleVisual } = useGameFx(
+    snapshot,
+    { fighterEls: fighterElsRef, clashRef }
+  );
 
   // Combat callouts (issue #162): full-screen turn/defend/reveal flourishes.
   // Decorative-only; a separate hook so the board-FX loop above stays
@@ -2731,6 +2950,14 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
   // the defense card and it reacts by outcome. `lingeringCombat` freezes a combat
   // that resolves+ends in one batch so the panel survives long enough to play it.
   const { strike, lingeringCombat } = useCombatStrike(snapshot);
+
+  // The math beat (issue #382): value modifiers fly in as chips onto the value
+  // pill, which ticks toward the effective value; paced through the shared battle
+  // timeline. Purely decorative — gated off (raw values shown) when visual-fx is
+  // off OR reduced motion is requested (the count-up is motion too), exactly like
+  // the strike.
+  const combatValueFx = useCombatValueFx(snapshot);
+  const reducedMotion = !!useReducedMotion();
 
   // Lively tokens (issue #320): per-fighter recoil/lunge/brace/topple gestures,
   // diffed off the same snapshots. Opt-in behind the `tokenLife` beta flag; the
@@ -3873,6 +4100,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
           imgMaxH="calc(100svh - 16rem)"
           zoomable={zoomMapOn}
           tokenLife={tokenLifeOn ? tokenGestures : null}
+          fighterEls={fighterElsRef}
         />
       </Flex>
 
@@ -3888,6 +4116,11 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
           animation={`${hurtVignette} 0.7s ease-out both`}
         />
       )}
+
+      {/* damage arcs (issue #382): fixed-position projectiles from the panel clash
+          point to the defender's token. Endpoints captured at launch by useGameFx;
+          absent when visual-fx is off (arcs is never populated in that case). */}
+      {visualOn && <DamageArcLayer arcs={arcs} />}
 
       {/* combat callouts: turn banner / DEFEND! pulse / scheme reveal / effect
           ribbon (issues #162, #380; empty on a pre-v10 server). Gated on the
@@ -4052,6 +4285,8 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
               you={view.you}
               selfCommitted={view.self.committedCard}
               strike={visualOn ? strike : null}
+              valueFx={visualOn && !reducedMotion ? combatValueFx : undefined}
+              clashRef={clashRef}
             />
           )}
           {prompt && (
