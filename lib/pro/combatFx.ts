@@ -19,6 +19,14 @@ export type CombatCallout =
   | { kind: "turn"; mine: boolean }
   | { kind: "defend" }
   | { kind: "reveal"; source: string }
+  // A delayed During/After-Combat effect (`EFFECT_FIRED`, issue #380) resolving.
+  // Distinct from a plain reveal so the overlay can wear a combat-window ribbon
+  // (⚡ DURING COMBAT / AFTER COMBAT) instead of looking identical to a scheme
+  // being played. `source` follows the reveal rules (the source card's instance
+  // id, or the redacted `'(hidden)'` placeholder). `window` is derived from the
+  // event's `fireAt` (see EFFECT_WINDOW) — the SAME field the activity log reads,
+  // so the ribbon and the log line can never disagree about a card's timing.
+  | { kind: "effect"; source: string; window: "during" | "after" }
   // "The Snuff" (issue #346, hardened in #350): a cancel-effects card (Feint, …)
   // killed a combat card's TEXT. `role` names the cancelled (victim) side. EVERYTHING
   // the overlay draws is captured HERE at diff time, never re-read from the live view
@@ -38,16 +46,32 @@ export type CombatCallout =
     };
 
 /** A live callout on screen: a diffed `CombatCallout` plus a stable key. Reveals
- *  also carry a `slot` — a cascade index the overlay turns into a small
- *  down-right offset so two reveals whose lifetimes overlap don't sit dead-center
- *  on top of each other. */
+ *  and effect ribbons also carry a `slot` — a cascade index the overlay turns
+ *  into a small down-right offset so two callouts whose lifetimes overlap don't
+ *  sit dead-center on top of each other. */
 export type CombatCalloutItem = CombatCallout & { key: string; slot?: number };
+
+/** Which combat window an `EFFECT_FIRED` wears on its ribbon, from the event's
+ *  `fireAt`. `COMBAT_END` is the only fireAt that names the combat itself
+ *  resolving — the log phrases it "at end of combat" (gameLog `FIRE_AT`) — so it
+ *  reads as the "AFTER COMBAT" aftermath. `START`/`END` are turn-boundary delayed
+ *  effects that fire while a combat callout is still the on-screen context, so
+ *  they wear the "DURING COMBAT" ribbon. Deriving from the same `fireAt` field
+ *  the activity log reads keeps ribbon and log line in lockstep. */
+const EFFECT_WINDOW: Record<"START" | "END" | "COMBAT_END", "during" | "after"> = {
+  START: "during",
+  END: "during",
+  COMBAT_END: "after",
+};
 
 /** How long each flourish lingers before its timer removes it (ms). */
 const TTL_MS: Record<CombatCallout["kind"], number> = {
   turn: 1900,
   defend: 1700,
   reveal: 2300,
+  // Matches reveals — effect ribbons ride the same stagger queue and motion, so
+  // they linger for exactly as long (issue #380).
+  effect: 2300,
   // Matches reveals so the snuff never outlives the floating damage numbers that
   // land right after it (EFFECT_CANCELED fires before COMBAT_DAMAGE) — issue #346.
   cancel: 2300,
@@ -93,19 +117,31 @@ export function diffCombatCallouts(
   // 2. DEFEND! — the moment the combat asks YOU to commit a defense.
   if (mustDefend(next) && !mustDefend(prev)) out.push({ kind: "defend" });
 
-  // 3. Scheme / effect card-reveal — float the source card center-screen. Dedup
-  //    identical sources within the batch so a doubled event isn't two stacked
-  //    cards. `SCHEME_PLAYED.card` / `EFFECT_FIRED.source` may be `'(hidden)'`.
-  //    Buster's nested STUNT and Cameraman reveal events are public reveal beats too.
+  // 3. Scheme card-reveal — float the source card center-screen with the plain
+  //    look. Dedup identical sources within the batch so a doubled event isn't
+  //    two stacked cards. `SCHEME_PLAYED.card` may be `'(hidden)'`. Buster's
+  //    nested STUNT and Cameraman reveal events are public reveal beats too.
   const seen = new Set<string>();
   const addReveal = (source: string) => {
     if (seen.has(source)) return;
     seen.add(source);
     out.push({ kind: "reveal", source });
   };
+  //    Effect ribbons (issue #380) — a delayed During/After-Combat effect fired.
+  //    Kept distinct from reveals: same rise, but the overlay draws a combat-window
+  //    ribbon so it never looks like a scheme being played. Deduped on their own
+  //    set so a card that both plays AND fires an effect this batch still shows one
+  //    of each (a plain reveal + a ribboned effect), not a single collapsed card.
+  //    `EFFECT_FIRED.source` may be `'(hidden)'`, rendered generically.
+  const seenEffect = new Set<string>();
+  const addEffect = (source: string, fireAt: "START" | "END" | "COMBAT_END") => {
+    if (seenEffect.has(source)) return;
+    seenEffect.add(source);
+    out.push({ kind: "effect", source, window: EFFECT_WINDOW[fireAt] });
+  };
   for (const e of events) {
     if (e.type === "SCHEME_PLAYED" || e.type === "CARD_PLAYED_FROM_HAND" || e.type === "CARD_REVEALED") addReveal(e.card);
-    else if (e.type === "EFFECT_FIRED") addReveal(e.source);
+    else if (e.type === "EFFECT_FIRED") addEffect(e.source, e.fireAt);
   }
 
   // 4. The Snuff (issue #346, hardened in #350) — a cancel-effects card foiled a
@@ -164,8 +200,8 @@ export function useCombatCallouts(
   const prevViewRef = useRef<PlayerView | null>(null);
   const seqRef = useRef(0);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-  // Reveal-queue bookkeeping: the timestamp the next reveal may appear, and a
-  // monotonic cascade counter that resets once the queue has fully drained.
+  // Reveal/effect-queue bookkeeping: the timestamp the next staggered callout may
+  // appear, and a monotonic cascade counter that resets once the queue has drained.
   const revealFreeAtRef = useRef(0);
   const revealCycleRef = useRef(0);
 
@@ -193,13 +229,15 @@ export function useCombatCallouts(
 
     for (const c of callouts) {
       const key = `cx-${seqRef.current++}`;
-      if (c.kind !== "reveal") {
-        // Turn / defend are view-derived beats — fire immediately, as before.
+      if (c.kind !== "reveal" && c.kind !== "effect") {
+        // Turn / defend / cancel are view-derived beats — fire immediately, as before.
         setItems((cur) => [...cur, { ...c, key }]);
         removeLater(key, TTL_MS[c.kind]);
         continue;
       }
-      // Reveal: stagger the entrance, cap the backlog, cascade the position.
+      // Reveal + effect ribbon share ONE stagger queue (issue #380): stagger the
+      // entrance, cap the backlog, cascade the position so simultaneous callouts
+      // deal out one at a time instead of stacking dead-center.
       const showAt = Math.max(now, revealFreeAtRef.current);
       if (showAt - now > REVEAL_MAX_LEAD_MS) continue; // drop overflow
       const delay = showAt - now;
@@ -207,7 +245,7 @@ export function useCombatCallouts(
       revealFreeAtRef.current = showAt + REVEAL_STAGGER_MS;
       const item: CombatCalloutItem = { ...c, key, slot };
       timersRef.current.push(setTimeout(() => setItems((cur) => [...cur, item]), delay));
-      removeLater(key, delay + TTL_MS.reveal);
+      removeLater(key, delay + TTL_MS[c.kind]);
     }
   }, [snapshot]);
 
