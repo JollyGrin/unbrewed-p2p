@@ -11,7 +11,7 @@
  *   verified without the backend. Clicking a fighter shows its movement
  *   out-edges (adjacentTo ∪ oneWayTo) — reading MAP data for display, not rules.
  */
-import { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { useRouter } from "next/router";
 import { Box, Button, Flex, Grid, Input, Kbd, Link, Menu, MenuButton, MenuItem, MenuList, NumberDecrementStepper, NumberIncrementStepper, NumberInput, NumberInputField, NumberInputStepper, Tag, Text, Textarea, Tooltip } from "@chakra-ui/react";
@@ -26,6 +26,7 @@ import {
   BotSeatFill,
   CardInstanceId,
   CardMeta,
+  CombatOutcome,
   FighterId,
   HeroListing,
   LegalOption,
@@ -465,12 +466,120 @@ const HiddenRevealBack = () => (
 );
 
 /**
+ * Shared card-callout primitive (issue #380). A card face that rises to center
+ * screen, holds, then drifts up and fades — the motion the scheme reveal and the
+ * effect ribbon share. Callers supply the face (`children`), an optional `ribbon`
+ * banner drawn across the card, an optional `caption` below it, and a `slot`
+ * cascade index (overlapping callouts step down-right instead of stacking
+ * dead-center). The base style is the *settled* state (opacity 1, centered) so
+ * that under reduced motion — where NO_MOTION disables the keyframe — a static,
+ * readable card remains instead of a card frozen at the keyframe's 0% (invisible)
+ * frame. The reveal branch used to lack this reduced-motion fallback; expressing
+ * it through the primitive fixes that in passing.
+ *
+ * The Snuff (#346/#350) keeps its own bespoke render below: its choreography
+ * (the feint card sweeping in, the ash wash, the value pill, the NOPE. stamp)
+ * is too specialized to fold in without risking that hardened behavior.
+ */
+const CardCallout = ({
+  slot = 0,
+  ribbon,
+  caption,
+  zIndex = 205,
+  children,
+}: {
+  slot?: number;
+  ribbon?: ReactNode;
+  caption?: ReactNode;
+  zIndex?: number;
+  children: ReactNode;
+}) => (
+  <Flex
+    position="fixed"
+    top={`calc(46% + ${slot * 1.4}rem)`}
+    left={`calc(50% + ${slot * 1.6}rem)`}
+    zIndex={zIndex}
+    direction="column"
+    alignItems="center"
+    gap="0.75rem"
+    pointerEvents="none"
+    // base (reduced-motion) state: settled + visible; the keyframe overrides at runtime
+    opacity={1}
+    transform="translate(-50%, -50%)"
+    animation={`${calloutReveal} 2.3s ease-out both`}
+    sx={NO_MOTION}
+  >
+    <Box
+      position="relative"
+      w={{ base: "9rem", md: "12rem" }}
+      sx={{ aspectRatio: "63 / 88" }}
+      filter="drop-shadow(0 8px 24px rgba(0,0,0,0.6))"
+    >
+      {children}
+      {ribbon}
+    </Box>
+    {caption}
+  </Flex>
+);
+
+/** The name band beneath a card callout (reveal + effect ribbon share it). */
+const CalloutCaption = ({ children }: { children: ReactNode }) => (
+  <Text
+    fontFamily="BebasNeueRegular"
+    fontSize={{ base: "1.4rem", md: "1.9rem" }}
+    letterSpacing="0.06em"
+    textAlign="center"
+    color="brand.parchment"
+    textShadow="0 2px 8px rgba(0,0,0,0.7)"
+  >
+    {children}
+  </Text>
+);
+
+/**
+ * Banner ribbon draped across an effect callout, naming its combat window so a
+ * fired During/After-Combat effect never looks like a plain scheme reveal. Sits
+ * over the card art (a slight tilt reads as a physical sash) in the parchment /
+ * purple / gold language of the rest of the callout layer.
+ */
+const EffectRibbon = ({ window }: { window: "during" | "after" }) => (
+  <Flex
+    position="absolute"
+    top="42%"
+    left="-0.5rem"
+    right="-0.5rem"
+    justifyContent="center"
+    alignItems="center"
+    px="0.5rem"
+    py="0.3rem"
+    transform="rotate(-5deg)"
+    bgGradient="linear(90deg, brand.accentDeep 0%, brand.accent 50%, brand.accentDeep 100%)"
+    borderTop="1px solid"
+    borderBottom="1px solid"
+    borderColor="rgba(0,0,0,0.35)"
+    boxShadow="0 4px 14px rgba(0,0,0,0.55)"
+  >
+    <Text
+      fontFamily="LeagueGothic"
+      fontSize={{ base: "1rem", md: "1.25rem" }}
+      lineHeight="1"
+      letterSpacing="0.1em"
+      whiteSpace="nowrap"
+      color="brand.surfaceDim"
+      textShadow="0 1px 1px rgba(255,255,255,0.25)"
+    >
+      {window === "during" ? "⚡ DURING COMBAT" : "AFTER COMBAT"}
+    </Text>
+  </Flex>
+);
+
+/**
  * The overlay for one live combat callout. Decorative only, pointer-transparent,
  * and above the board/vignette. `reveal` names its source with the SAME resolver
  * the activity log uses (`resolveEventSource`); a real source shows its art via
  * CardFace, while the redacted `'(hidden)'` placeholder shows a HiddenRevealBack
  * card-back so it stays art-forward instead of bare text. `item.slot` cascades
- * overlapping reveals down-right so they never stack dead-center.
+ * overlapping reveals/effects down-right so they never stack dead-center.
  */
 const CombatCalloutOverlay = ({
   item,
@@ -673,39 +782,35 @@ const CombatCalloutOverlay = ({
     );
   }
 
-  // reveal — float the source card's art + name center-screen.
+  // effect — a fired During/After-Combat effect (issue #380). Same rise as a
+  // reveal, but wearing a combat-window ribbon across the card so it never reads
+  // as a plain scheme play. A redacted source reuses the HiddenRevealBack card
+  // with the ribbon still shown, so the window still reads even when the card can't.
+  if (item.kind === "effect") {
+    const hidden = item.source === "(hidden)";
+    const card = hidden ? null : resolveCard(item.source);
+    const name = resolveEventSource(view, item.source);
+    return (
+      <CardCallout
+        slot={item.slot ?? 0}
+        ribbon={<EffectRibbon window={item.window} />}
+        caption={<CalloutCaption>{name}</CalloutCaption>}
+      >
+        {hidden ? <HiddenRevealBack /> : <CardFace card={card} fallback={name} />}
+      </CardCallout>
+    );
+  }
+
+  // reveal — float the source card's art + name center-screen (plain look).
   const hidden = item.source === "(hidden)";
   const card = hidden ? null : resolveCard(item.source);
   const name = resolveEventSource(view, item.source);
   // Cascade overlapping reveals down-right from dead-center (slot 0) so a
   // multi-reveal turn fans out instead of piling on one spot.
-  const slot = item.kind === "reveal" ? item.slot ?? 0 : 0;
   return (
-    <Flex
-      position="fixed"
-      top={`calc(46% + ${slot * 1.4}rem)`}
-      left={`calc(50% + ${slot * 1.6}rem)`}
-      zIndex={205}
-      direction="column"
-      alignItems="center"
-      gap="0.75rem"
-      pointerEvents="none"
-      animation={`${calloutReveal} 2.3s ease-out both`}
-    >
-      <Box w={{ base: "9rem", md: "12rem" }} sx={{ aspectRatio: "63 / 88" }} filter="drop-shadow(0 8px 24px rgba(0,0,0,0.6))">
-        {hidden ? <HiddenRevealBack /> : <CardFace card={card} fallback={name} />}
-      </Box>
-      <Text
-        fontFamily="BebasNeueRegular"
-        fontSize={{ base: "1.4rem", md: "1.9rem" }}
-        letterSpacing="0.06em"
-        textAlign="center"
-        color="brand.parchment"
-        textShadow="0 2px 8px rgba(0,0,0,0.7)"
-      >
-        {name}
-      </Text>
-    </Flex>
+    <CardCallout slot={item.slot ?? 0} caption={<CalloutCaption>{name}</CalloutCaption>}>
+      {hidden ? <HiddenRevealBack /> : <CardFace card={card} fallback={name} />}
+    </CardCallout>
   );
 };
 
@@ -830,6 +935,69 @@ const CombatSlot = ({
   </Box>
 );
 
+/**
+ * Combat windows for the panel ticker (issue #380). The two COMMIT_* stages
+ * collapse into a leading pre-reveal "commit" state; HERO_POST/CLEANUP fold into
+ * the trailing "after". The named windows mirror the resolution order the engine
+ * walks (IMMEDIATELY → DURING → DAMAGE → AFTER, ViewCombat.stage in protocol.ts).
+ */
+const COMBAT_WINDOWS = ["commit", "immediately", "during", "damage", "after"] as const;
+
+const combatWindowIndex = (stage: ViewCombat["stage"]): number => {
+  switch (stage) {
+    case "COMMIT_ATTACK":
+    case "COMMIT_DEFENSE":
+      return 0;
+    case "IMMEDIATELY":
+      return 1;
+    case "DURING":
+      return 2;
+    case "DAMAGE":
+      return 3;
+    case "AFTER":
+    case "HERO_POST":
+    case "CLEANUP":
+      return 4;
+    default:
+      return 0;
+  }
+};
+
+/** Compact one-row ticker of the combat windows: active lit, past dimmed. */
+const CombatStageTicker = ({ stage }: { stage: ViewCombat["stage"] }) => {
+  const active = combatWindowIndex(stage);
+  return (
+    <Flex mt="0.5rem" justifyContent="center" alignItems="center" gap="0.3rem" flexWrap="wrap">
+      {COMBAT_WINDOWS.map((w, i) => (
+        <Fragment key={w}>
+          {i > 0 && (
+            <Text fontSize="0.55rem" opacity={0.3} aria-hidden>
+              ›
+            </Text>
+          )}
+          <Text
+            fontFamily="SpaceGrotesk"
+            fontSize="0.6rem"
+            letterSpacing="0.08em"
+            textTransform="uppercase"
+            fontWeight={i === active ? "bold" : "normal"}
+            color={i === active ? "brand.accent" : "brand.parchment"}
+            opacity={i === active ? 1 : i < active ? 0.5 : 0.28}
+          >
+            {w}
+          </Text>
+        </Fragment>
+      ))}
+    </Flex>
+  );
+};
+
+/** Human-readable combat outcome — never the raw enum, and UNKNOWN stays hidden. */
+const COMBAT_OUTCOME_LABEL: Record<Exclude<CombatOutcome, "UNKNOWN">, string> = {
+  ATTACKER_WON: "Attacker wins",
+  DEFENDER_WON: "Defender wins",
+};
+
 /** The reveal beat + running combat math, straight from the server view. */
 const CombatPanel = ({
   combat,
@@ -852,9 +1020,6 @@ const CombatPanel = ({
         <Tag colorScheme="red" size="sm">
           COMBAT
         </Tag>
-        <Text fontSize="0.8rem" opacity={0.7}>
-          {combat.stage.replace(/_/g, " ").toLowerCase()}
-        </Text>
       </Flex>
       <Flex gap="1rem" justifyContent="center">
         <CombatSlot
@@ -879,9 +1044,10 @@ const CombatPanel = ({
           catalog={catalog}
         />
       </Flex>
-      {combat.outcome && (
+      <CombatStageTicker stage={combat.stage} />
+      {combat.outcome && combat.outcome !== "UNKNOWN" && (
         <Text textAlign="center" mt="0.5rem" fontWeight="bold">
-          {combat.outcome.replace(/_/g, " ").toLowerCase()}
+          {COMBAT_OUTCOME_LABEL[combat.outcome]}
           {combat.attackDamageDealt !== null ? ` · ${combat.attackDamageDealt} dmg` : ""}
         </Text>
       )}
@@ -3510,11 +3676,15 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
         />
       )}
 
-      {/* combat callouts: turn banner / DEFEND! pulse / scheme-effect card
-          reveal (issue #162; empty on a pre-v10 server) */}
-      {combatCallouts.map((item) => (
-        <CombatCalloutOverlay key={item.key} item={item} view={view} resolveCard={resolveCard} />
-      ))}
+      {/* combat callouts: turn banner / DEFEND! pulse / scheme reveal / effect
+          ribbon (issues #162, #380; empty on a pre-v10 server). Gated on the
+          pro-visual-fx toggle per the battle-sequence epic's shared constraint;
+          the hook still advances its prevViewRef while off, so flipping the
+          toggle mid-combat diffs cleanly with no backlog burst. */}
+      {visualOn &&
+        combatCallouts.map((item) => (
+          <CombatCalloutOverlay key={item.key} item={item} view={view} resolveCard={resolveCard} />
+        ))}
 
       {/* floating player plates + room/connection chips (sandbox HUD DNA);
           report-bug chip (issue #125/#138) shares this row so it doesn't
