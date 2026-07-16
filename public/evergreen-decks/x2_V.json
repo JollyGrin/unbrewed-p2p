@@ -1,0 +1,249 @@
+{
+  "bgg_link": null,
+  "created_on": "Tue, 02 Sep 2025 02:53:51 GMT",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#ab8a4e",
+      "cardbackUrl": "https://i.imgur.com/xGc33g5.png",
+      "highlightColour": "#003761",
+      "isPNP": false,
+      "patternName": "None"
+    },
+    "cards": [
+      {
+        "afterText": "[3] CRITICAL STRIKE",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "BATMAN",
+        "duringText": "",
+        "imageUrl": "https://th.bing.com/th/id/OIP.2aENJQ9UOTwnLOM16xjPtgAAAA?rs=1&pid=ImgDetMain",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "The Dark Knight",
+        "type": "attack",
+        "value": 1
+      },
+      {
+        "afterText": "Move Batman up to 1 space. Draw 1 card. Gain 1 action.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "BATMAN",
+        "duringText": "",
+        "imageUrl": "https://i.pinimg.com/originals/d8/ab/93/d8ab936f4417dc06ac16af7f15e94508.jpg",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "The Caped Crusader",
+        "type": "attack",
+        "value": 2
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "If Batman and the Batmobile are adjacent to the opposing fighter, the value of this card is 5 instead.",
+        "imageUrl": "https://i.imgur.com/s5XsAvp.jpeg",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Coordinated Assault",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": "Move the Batmobile up to 5 spaces. You may move through opposing fighters. Then, deal 1 damage to each opposing fighter the Batmobile passed through. ",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://i.pinimg.com/1200x/c3/d8/29/c3d8290db818559130bd87a7ed7ca129.jpg",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Remote Control",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "Move the Batmobile up to 4 spaces. You may place any previously adjacent friendly fighters adjacent to the Batmobile.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "BATMOBILE",
+        "duringText": "",
+        "imageUrl": "https://i.pinimg.com/1200x/14/10/9a/14109a8874f4bc0cc55ef6dc1649b478.jpg",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Assisted Takedown",
+        "type": "versatile",
+        "value": 4
+      },
+      {
+        "afterText": "Choose one:\n▸ Batman recovers 1 health.\n▸ Move Batman 1 space.\n▸Draw 1 card. \n",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "BATMAN",
+        "duringText": "",
+        "imageUrl": "https://img.goodfon.com/wallpaper/big/8/a6/superhero-komiksy-dark-knight-detective-tros-supergeroi-mask.jpg",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Utility Belt",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "If the value of this card matches your opponent's card, draw 1 card and the opposing fighter takes 2 damage.",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "BATMAN",
+        "duringText": "You may increase or decrease the value of this card by 1.",
+        "imageUrl": "https://i.imgur.com/snSCYBh.png",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Contingency Plan",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://i.imgur.com/wc3A1gX.jpeg",
+        "immediateText": "Cancel all effects on your opponent's card.",
+        "quantity": 2,
+        "title": "Feint",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "Move both fighters in the combat up to 2 spaces.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "https://th.bing.com/th/id/OIP.HP-Qw9BvHVZCxzSqsUzUswHaLb?rs=1&pid=ImgDetMain",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Grapple",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "Place Batman in any space outside of the opposing fighter's zone.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "BATMAN",
+        "duringText": "Cancel all DURING COMBAT and AFTER COMBAT effects on the opponent's card.",
+        "imageUrl": "https://static0.srcdn.com/wordpress/wp-content/uploads/2023/02/batman-smoke-bomb-dc-comics.jpg",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Smoke Pellet",
+        "type": "defence",
+        "value": 3
+      },
+      {
+        "afterText": null,
+        "basicText": "If Batman and the Batmobile are adjacent to each other, move Batman up to 5 spaces away.\n\nGain 1 action.",
+        "boost": 3,
+        "characterName": "BATMOBILE",
+        "duringText": null,
+        "imageUrl": "https://i.imgur.com/JrH434D.jpeg",
+        "immediateText": null,
+        "quantity": 2,
+        "title": "Power Eject",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": null,
+        "basicText": "Draw 2 cards.\n--------------------------------------------------------\nONGOING: Before the start of your turn, move Batman up to 2 spaces. Discard this card if you did not win a combat during your turn.",
+        "boost": 3,
+        "characterName": "BATMAN",
+        "duringText": null,
+        "imageUrl": "https://images2.alphacoders.com/106/thumb-1920-1068868.jpg",
+        "immediateText": null,
+        "quantity": 2,
+        "title": "The Bat-signal",
+        "type": "scheme",
+        "value": null
+      }
+    ],
+    "extraCharacters": [],
+    "hero": {
+      "hp": 14,
+      "isRanged": false,
+      "move": 2,
+      "name": "Batman",
+      "specialAbility": "I AM VENGEANCE\nIf Batman was not in a fighter's zone at the start of his turn, add +2 to the value of his attacks against that fighter.\n\nThe Batmobile has a movement of 3. The Batmobile is considered a Large Fighter.\n\n",
+      "tokenImageUrl": "https://yptpnirqgfmxphjvsdjz.supabase.co/storage/v1/object/public/fan_heroes/50081cd3-b52f-478c-98e4-383cf4a3ec92/3312/seo-08588663f7.webp"
+    },
+    "name": "",
+    "ruleCards": [
+      {
+        "title": "Large Fighter",
+        "content": "The Batmobile is a Large Fighter. It occupies two spaces, may attack up to 2 spaces away, and has movement 3."
+      }
+    ],
+    "sidekick": {
+      "hp": 16,
+      "isRanged": false,
+      "name": "The Batmobile",
+      "quantity": 1,
+      "quote": null,
+      "tokenImageUrl": "https://cdn.shopify.com/s/files/1/0182/2915/products/Batmobile-Snyder_dc0e1376-4d26-44a4-87c7-1307c110127c_1024x1024.jpg?v=1656347798"
+    }
+  },
+  "deck_first_published_on": "Wed, 22 Oct 2025 22:10:28 GMT",
+  "deck_published": true,
+  "family_id": "x2_V",
+  "id": "x2_V",
+  "liked": false,
+  "likes": 1,
+  "name": "Batman",
+  "note": "If you want to print, use https://www.the-unmatched.club/c/heroes/batman.3312 for the bonus attack and the ONGOING effect. It looks much nicer there.\n\nSnapshot sources: https://unmatched.cards/decks/x2_V/versions/oKDVaxEv8 and https://www.the-unmatched.club/c/heroes/batman.3312",
+  "published": true,
+  "published_on": "Wed, 22 Oct 2025 22:10:28 GMT",
+  "tags": [
+    {
+      "name": "Melee Hero",
+      "slug": "melee-hero"
+    },
+    {
+      "name": "DC Comics",
+      "slug": "dc-comics"
+    },
+    {
+      "name": "DC",
+      "slug": "dc"
+    },
+    {
+      "name": "Large Sidekick",
+      "slug": "large-sidekick"
+    },
+    {
+      "name": "Large Fighter",
+      "slug": "large-fighter"
+    },
+    {
+      "name": "Batmobile",
+      "slug": "batmobile"
+    },
+    {
+      "name": "Batman",
+      "slug": "batman"
+    }
+  ],
+  "updated_on": "Fri, 20 Feb 2026 05:46:35 GMT",
+  "user": "Inforce",
+  "version_id": "oKDVaxEv8",
+  "version_name": "Initial version",
+  "versions": [
+    {
+      "created_on": "Tue, 02 Sep 2025 02:53:51 GMT",
+      "id": "oKDVaxEv8",
+      "name": "Batman",
+      "published": true,
+      "updated_on": "Fri, 20 Feb 2026 05:46:35 GMT",
+      "version_name": "Initial version"
+    }
+  ]
+}

@@ -30,7 +30,8 @@ export type PopularDeckMeta = {
 };
 
 /**
- * Most-liked community decks on unmatched.cards.
+ * Curated Pro landing roster, seeded from most-liked community decks on unmatched.cards
+ * plus rules-ready decks we want surfaced for demos.
  * Snapshot taken 2026-07-02 — refresh occasionally via
  * https://unmatched.cards/api/decks?sortBy=likes&sortDesc=true&perPage=40
  */
@@ -43,6 +44,16 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     likes: 144,
     highlightColour: "#408080",
     cardbackUrl: "/evergreen-decks/art/lDOM/cardback.png",
+  },
+  {
+    id: "x2_V",
+    name: "Batman",
+    hero: "Batman",
+    author: "Inforce",
+    likes: 1,
+    highlightColour: "#003761",
+    lab: true,
+    cardbackUrl: "https://i.imgur.com/xGc33g5.png",
   },
   {
     id: "LmYw",

@@ -50,6 +50,7 @@ const FALLBACK_READY: Record<string, string> = {
   "1Y5J": "Triceratops",
   "yAJ-": "Baba Yaga",
   QkB1: "Buster Keaton",
+  x2_V: "Batman",
   grievous: "General Grievous",
   "malfurion-stormrage": "Malfurion Stormrage",
 };

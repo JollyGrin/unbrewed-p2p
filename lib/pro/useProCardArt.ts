@@ -36,6 +36,7 @@ export const HERO_DECK_IDS: Record<string, string> = {
   triceratops: "1Y5J",
   "baba-yaga": "yAJ-",
   "buster-keaton": "QkB1",
+  batman: "x2_V",
   // Evergreen originals: no unmatched.cards page exists — the ids are ours, and
   // the snapshot in public/evergreen-decks/ is the ONLY source (the live-API
   // fetch 404s by design; snapshot-only means it is never consulted).
