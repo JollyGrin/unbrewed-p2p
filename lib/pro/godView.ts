@@ -66,6 +66,9 @@ export function toPlayerView(
       handCount: p.hand.length,
       deckCount: p.deckCount,
       discard: p.discard,
+      // Replay bundles before protocol v21 lack ongoingScheme; default null so
+      // old replays still scrub while new ones show face-up ongoing schemes.
+      ongoingScheme: p.ongoingScheme ?? null,
       hasCommitted: p.committedCard !== null,
       counters: p.counters,
       // Replay bundles predate v16 `flags`; god-view synthesizes an empty map
@@ -98,6 +101,7 @@ export function toPlayerView(
       hand: me.hand,
       deckCount: me.deckCount,
       discard: me.discard,
+      ongoingScheme: me.ongoingScheme ?? null,
       committedCard: me.committedCard,
       counters: me.counters,
       flags: {},
@@ -111,6 +115,7 @@ export function toPlayerView(
             handCount: opp.hand.length,
             deckCount: opp.deckCount,
             discard: opp.discard,
+            ongoingScheme: opp.ongoingScheme ?? null,
             hasCommitted: opp.committedCard !== null,
             counters: opp.counters,
             flags: {},

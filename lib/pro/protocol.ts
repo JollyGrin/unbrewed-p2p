@@ -358,8 +358,30 @@
  * ## v20 (2026-07-15): lab decks are public community playtest decks
  * `LIST_HEROES` includes `tier:'lab'` decks by default, always in the community
  * section. Random bot pools still exclude lab decks unless debug is requested.
+ *
+ * ## v21 (2026-07-16): ongoing schemes are public per-player cards
+ * Player/replay views expose each seat's active `ongoingScheme`, or null/absent
+ * when none is active, so clients can render face-up ongoing scheme cards outside discard.
+ *
+ * ## Additive field (2026-07-16, no version bump): `ViewFighter.statuses?`
+ * (unbrewed-engine #204, unblocks p2p #371). A generic per-fighter status-
+ * effect list — the fighter-scoped parallel to the per-player `flags` model
+ * (v16) — so the client can render effects inflicted on a fighter that isn't
+ * its own controller's hero (roots today; poison/snare/marks/buffs are the
+ * same shape tomorrow) without a new protocol field per effect. Today it
+ * carries at most one entry, `{ kind: 'PINNED', expiresAtTurn, expiresAt }`,
+ * derived at redact time from the engine `pin` op (Entangling Roots, Thrall's
+ * earthbind totem) whenever `Fighter.pins[]` is non-empty (the turn-edge
+ * sweep guarantees a present entry is currently active) — previously the only
+ * signal was the transient `FIGHTER_PINNED` log event, with no persistent
+ * view field. `kind` is mechanical/engine-stable; the client owns the
+ * kind -> flavor label/badge mapping. Public for both seats — nothing here is
+ * secret. Deliberately per-fighter, not folded into `flags`: these effects
+ * can target `OPPOSING_FIGHTER` (may be a sidekick) and are typically
+ * inflicted by the opponent, so they don't fit the hero-scoped flag shape.
+ * Purely additive; an older client that ignores it is unaffected.
  */
-export const PROTOCOL_VERSION = 20;
+export const PROTOCOL_VERSION = 21;
 
 /** Scripted-AI strength preset (server-side budgets; client treats as opaque). */
 export type BotDifficulty = "easy" | "medium" | "hard";
@@ -660,6 +682,27 @@ export interface ViewFighter {
   maxHp: number;
   reach: "MELEE" | "RANGED" | "LUNGE"; // LUNGE v0.15.0 (General Grievous) — client renders the lunge reach icon
   defeated: boolean;
+  // Additive field (2026-07-16, no version bump): per-fighter status effects
+  // (issue #204) — the fighter-scoped parallel to ViewSelf/ViewOpponent.flags
+  // (v16, per-player). `kind` is a mechanical, engine-stable tag (e.g.
+  // 'PINNED' for the pin op / FIGHTER_PINNED event, matching future
+  // statOverrides-derived kinds); the client maps `kind` to its own
+  // flavor label/icon — the engine never bakes in per-hero flavor text.
+  // `expiresAtTurn`/`expiresAt` mirror the underlying absolute-stamped expiry
+  // (present when the effect is timed; both entries may be absent for a
+  // permanent status once one exists). This is a per-FIGHTER field rather
+  // than folded into the per-player `flags` model because these effects can
+  // target a fighter that is not its controller's own hero (OPPOSING_FIGHTER,
+  // possibly a sidekick) and are typically inflicted by the opponent. Public:
+  // nothing about a fighter's status is secret. An older client that ignores
+  // it is unaffected.
+  statuses?: FighterStatus[];
+}
+
+export interface FighterStatus {
+  kind: string; // e.g. 'PINNED' — mechanical/engine-stable, not display text
+  expiresAtTurn?: number | null;
+  expiresAt?: "START" | "END" | null;
 }
 
 // Neutral board tokens (totems). Nothing about a totem is hidden — the full list
@@ -701,6 +744,7 @@ export interface ViewSelf {
   hand: CardInstanceId[];
   deckCount: number;
   discard: CardInstanceId[];
+  ongoingScheme?: CardInstanceId | null; // public face-up ongoing scheme, if any (older views may omit)
   committedCard: CardInstanceId | null; // own face-down commit (visible to self)
   counters: Record<string, number>;
   // v16: active named flags (setFlag op), keyed by flag name -> true. Generic
@@ -719,6 +763,7 @@ export interface ViewOpponent {
   handCount: number;
   deckCount: number;
   discard: CardInstanceId[]; // discard is public
+  ongoingScheme?: CardInstanceId | null; // public face-up ongoing scheme, if any (older views may omit)
   hasCommitted: boolean; // face-down commit exists, identity hidden
   counters: Record<string, number>; // counters are public
   flags: Record<string, boolean>; // v16: active named flags, public (see ViewSelf.flags)
@@ -736,6 +781,7 @@ export interface ViewPlayer {
   handCount: number;
   deckCount: number;
   discard: CardInstanceId[];
+  ongoingScheme?: CardInstanceId | null; // public face-up ongoing scheme, if any (older views may omit)
   committedCard?: CardInstanceId | null; // own face-down commit, present only for self
   hasCommitted: boolean;
   counters: Record<string, number>;
@@ -864,10 +910,11 @@ export interface ReplayBundle {
 export interface ReplayStepPlayer {
   heroId: string;
   // Format-defined team id — see ViewPlayer.team (issue #98).
-  team: TeamId;
+  team?: TeamId;
   hand: CardInstanceId[];
   deckCount: number;
   discard: CardInstanceId[];
+  ongoingScheme?: CardInstanceId | null; // public face-up ongoing scheme, if any (older views may omit)
   committedCard: CardInstanceId | null;
   counters: Record<string, number>;
 }

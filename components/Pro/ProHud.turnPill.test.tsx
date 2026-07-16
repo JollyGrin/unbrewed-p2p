@@ -22,10 +22,12 @@ const seat = (id: PlayerId, you: boolean): ViewPlayer => ({
   id,
   heroId: `${id}-hero`,
   you,
+  team: id,
   hand: you ? [] : undefined,
   handCount: 0,
   deckCount: 0,
   discard: [],
+  ongoingScheme: null,
   hasCommitted: false,
   counters: {},
   flags: {},
@@ -57,10 +59,11 @@ const makeView = (opts: {
       hand: [],
       deckCount: 0,
       discard: [],
+      ongoingScheme: null,
       committedCard: null,
       counters: {},
       flags: {},
-  wonCombatThisTurn: false,
+      wonCombatThisTurn: false,
     },
     opponent: null,
     players,
@@ -79,7 +82,7 @@ const renderHud = (view: PlayerView) =>
         roomId="room-1"
         resolveCard={() => null}
         resolveHero={() => null}
-        labelFor={() => ""}
+        labelFor={(card) => (card === "clone-troopers/elite-strategy#1" ? "Elite Strategy" : "")}
       />
     </ChakraProvider>,
   );
@@ -95,6 +98,18 @@ describe("ProHud TURN pill — winner gate (issue #227)", () => {
       renderHud(makeView({ seats: ["p1", "p2"], you: "p1", activePlayer: "p1", winner: "p2" }));
       expect(screen.queryByText("TURN")).not.toBeInTheDocument();
     });
+  });
+
+  it("renders a public ongoing scheme chip and card label", () => {
+    const ongoing = "clone-troopers/elite-strategy#1";
+    const view = makeView({ seats: ["p1", "p2"], you: "p1", activePlayer: "p1", winner: null });
+    view.self.ongoingScheme = ongoing;
+    view.players = view.players.map((p) => (p.id === "p1" ? { ...p, ongoingScheme: ongoing } : p));
+
+    renderHud(view);
+
+    expect(screen.getByText("Elite Strategy")).toBeInTheDocument();
+    expect(screen.getAllByText("ONGOING").length).toBeGreaterThan(0);
   });
 
   describe("multiplayer", () => {
