@@ -85,8 +85,9 @@ export interface HeroStateFlag {
  * - Malfurion `DRUID_FORM_*`: an exclusive `druid-form` group — one form active
  *   at a time; Night Elf is the default. Each form swaps the whole PORTRAIT (elf /
  *   bear / moonkin busts, committed under public/evergreen-decks/art/
- *   malfurion-stormrage/) and drops its corner badge like tide, since the
- *   portrait already reads as the form.
+ *   malfurion-stormrage/) AND keeps its corner rim badge (🐾 / ☾ / ✦) — unlike
+ *   tide, the form is worth calling out on all three surfaces at once (portrait +
+ *   rim badge + nameplate), so these entries leave `hideBadgeWhenArt` off (#385).
  */
 export const HERO_STATE_FLAGS: HeroStateFlag[] = [
   {
@@ -112,10 +113,9 @@ export const HERO_STATE_FLAGS: HeroStateFlag[] = [
     group: "druid-form",
     nameplate: { onLabel: "BEAR", offLabel: "", showWhenAbsent: false },
     token: { on: { icon: "🐾", label: "Bear", title: "Bear Form", bg: "#5A351C", color: "#FFF1D6" } },
-    // Bear-form bust (shipped #334); the distinct portrait reads as the form, so
-    // drop the corner badge (matches Thetis tide).
+    // Bear-form bust (shipped #334). Keep the rim badge alongside the portrait
+    // (#385) so the form reads on the token even at a glance.
     tokenArt: { on: "https://unbrewed.xyz/evergreen-decks/art/malfurion-stormrage/token-malfurion-bear.webp" },
-    hideBadgeWhenArt: true,
   },
   {
     flag: "DRUID_FORM_MOONKIN",
@@ -124,7 +124,6 @@ export const HERO_STATE_FLAGS: HeroStateFlag[] = [
     nameplate: { onLabel: "MOONKIN", offLabel: "", showWhenAbsent: false },
     token: { on: { icon: "☾", label: "Moonkin", title: "Moonkin Form", bg: "#244D7A", color: "#EAF4FF" } },
     tokenArt: { on: "https://unbrewed.xyz/evergreen-decks/art/malfurion-stormrage/token-malfurion-moonkin.webp" },
-    hideBadgeWhenArt: true,
   },
   {
     flag: "DRUID_FORM_HUMAN",
@@ -136,7 +135,6 @@ export const HERO_STATE_FLAGS: HeroStateFlag[] = [
     // Stated explicitly (== the deck's fixed tokenImageUrl) so the group self-
     // documents its default, and stays correct if that fixed art ever diverges.
     tokenArt: { on: "https://unbrewed.xyz/evergreen-decks/art/malfurion-stormrage/token-malfurion.webp" },
-    hideBadgeWhenArt: true,
   },
 ];
 
