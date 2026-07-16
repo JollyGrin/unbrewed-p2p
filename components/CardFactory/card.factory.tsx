@@ -30,15 +30,49 @@ const CardFactoryBase: React.FC<{ card: DeckImportCardType }> = ({ card }) => {
 
   if (!props || !card) return <div />;
 
-  // promoteLayer: DOM-rendered cards (hand, deck-info grid, hover preview) get
-  // their own GPU compositing layer so the art `<image preserveAspectRatio="…
-  // slice">` is rasterized once, correctly, on a stable layer. Without it the
-  // browser mis-rasterizes `slice` as `meet` at rest inside the modal's scrolled
-  // aspect-ratio tiles, leaving a white band of the #fff top panel below the art
-  // (issue #373). String-rendered board tokens (CardSvg used directly by
-  // cardFace.tsx) intentionally opt out — promoting them would raster the vector
-  // and blur it when d3 zooms the board in.
-  return <CardSvg card={card} props={props} promoteLayer />;
+  // DOM-rendered cards (hand, deck-info grid, hover preview) paint the art as an
+  // HTML `background-size: cover` layer BEHIND a frame-only SVG, instead of an
+  // in-SVG `<image preserveAspectRatio="… slice">`. The slice path was left with
+  // a white band below the art at rest (issue #373): the correctly-scaled image
+  // raster was truncated at the bottom inside the clipPath group and only a
+  // re-composite (hover/scroll) painted the missing strip. `background-size:
+  // cover` fills deterministically, never depending on the compositor honoring
+  // `slice`. `htmlArt` also switches the SVG's cream base to an even-odd ring so
+  // the top-panel window is transparent and the art shows through.
+  //
+  // String-rendered board tokens (CardSvg used directly by cardFace.tsx) can't
+  // carry an HTML layer, so they keep the all-SVG path (htmlArt off) — they've
+  // never shown the band, and staying vector keeps them crisp under d3 zoom.
+  return (
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          // Cover the inner card area (inside the 3-unit cream border); the
+          // frame SVG's opaque bottom/name panels paint over the lower/left of
+          // this, and the cream ring covers the square corners.
+          top: `${(conprops.outerBorderWidth / conprops.height) * 100}%`,
+          left: `${(conprops.outerBorderWidth / conprops.width) * 100}%`,
+          right: `${(conprops.outerBorderWidth / conprops.width) * 100}%`,
+          bottom: `${(conprops.outerBorderWidth / conprops.height) * 100}%`,
+          backgroundImage: `url("${props.dataUri}")`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          zIndex: 0,
+        }}
+      />
+      {/* The frame SVG must paint ON TOP of the art layer. Both are painted in
+          the wrapper's stacking context, and CSS paints positioned elements
+          after in-flow ones — so the positioned art div would otherwise cover
+          the frame. Positioning the SVG wrapper with a higher z-index keeps the
+          borders, name banner, text, and black panel above the art. */}
+      <div style={{ position: "relative", zIndex: 1, width: "100%", height: "100%" }}>
+        <CardSvg card={card} props={props} htmlArt />
+      </div>
+    </div>
+  );
 };
 
 /**
@@ -54,18 +88,23 @@ export const CardSvg: React.FC<{
   width?: string | number;
   height?: string | number;
   idPrefix?: string;
-  /** Force the card onto its own GPU compositing layer (issue #373). Set by the
-   * DOM renderer so the `slice` art rasterizes correctly at rest; left off for
-   * string-rendered board tokens so d3 zoom keeps the vector crisp. */
-  promoteLayer?: boolean;
+  /** Render the SVG as a FRAME ONLY (issue #373): the DOM renderer paints the
+   * card art as an HTML `background-size: cover` layer behind this SVG, so here
+   * we drop the in-SVG art `<image>` and the white top-panel rect, and turn the
+   * cream base into an even-odd ring so the top-panel window is transparent and
+   * the HTML art shows through. Left off (default) for string-rendered board
+   * tokens, which keep the self-contained all-SVG art path. */
+  htmlArt?: boolean;
 }> = ({
   card,
   props,
   width = "100%",
   height = "100%",
   idPrefix = "",
-  promoteLayer = false,
+  htmlArt = false,
 }) => {
+  const { width: W, height: H, cornerRadius: R, innerCornerRadius: r } = conprops;
+  const b = conprops.outerBorderWidth;
   return (
     <Fragment>
       <svg
@@ -75,10 +114,7 @@ export const CardSvg: React.FC<{
         height={height}
         // HACK: width currently used to center the offset to right
         width={width}
-        style={{
-          userSelect: "none",
-          ...(promoteLayer ? { transform: "translateZ(0)" } : {}),
-        }}
+        style={{ userSelect: "none" }}
         xmlns="http://www.w3.org/2000/svg"
       >
         <clipPath id={`${idPrefix}innerBorder`}>
@@ -94,29 +130,54 @@ export const CardSvg: React.FC<{
             height={roundNumber(props.topPanelHeight, 2)}
           />
         </clipPath>
-        <rect
-          width={conprops.width}
-          height={conprops.height}
-          rx={conprops.cornerRadius}
-          style={props.outerBorderStyle}
-        />
+        {htmlArt ? (
+          // Cream border as an even-odd ring: outer rounded rect minus the inner
+          // rounded rect, so the inner (top-panel) area is transparent and the
+          // HTML `background-size: cover` art layer behind shows through. The
+          // ring's rounded inner corners also mask the art layer's square ones.
+          <path
+            fillRule="evenodd"
+            style={props.outerBorderStyle}
+            d={
+              `M${R},0 H${W - R} A${R},${R} 0 0 1 ${W},${R} V${H - R} ` +
+              `A${R},${R} 0 0 1 ${W - R},${H} H${R} A${R},${R} 0 0 1 0,${H - R} ` +
+              `V${R} A${R},${R} 0 0 1 ${R},0 Z ` +
+              `M${b + r},${b} H${W - b - r} A${r},${r} 0 0 1 ${W - b},${b + r} ` +
+              `V${H - b - r} A${r},${r} 0 0 1 ${W - b - r},${H - b} H${b + r} ` +
+              `A${r},${r} 0 0 1 ${b},${H - b - r} V${b + r} A${r},${r} 0 0 1 ${b + r},${b} Z`
+            }
+          />
+        ) : (
+          <rect
+            width={conprops.width}
+            height={conprops.height}
+            rx={conprops.cornerRadius}
+            style={props.outerBorderStyle}
+          />
+        )}
         <g
           transform={`translate(${conprops.outerBorderWidth} ${conprops.outerBorderWidth})`}
           clipPath={`url(#${idPrefix}innerBorder)`}
         >
-          <rect
-            className="top-panel"
-            width={props.topPanelWidth}
-            height={roundNumber(props.topPanelHeight, 2)}
-            style={cardStyles.topPanelStyle}
-          />
-          <image
-            width={props.topPanelWidth}
-            height={roundNumber(props.topPanelHeight, 2)}
-            href={props.dataUri}
-            clipPath={`url(#${idPrefix}topPanel)`}
-            preserveAspectRatio="xMidYMid slice"
-          />
+          {/* Board tokens keep the in-SVG art (white top panel + slice image);
+              the DOM renderer omits both and supplies an HTML cover-art layer. */}
+          {!htmlArt && (
+            <>
+              <rect
+                className="top-panel"
+                width={props.topPanelWidth}
+                height={roundNumber(props.topPanelHeight, 2)}
+                style={cardStyles.topPanelStyle}
+              />
+              <image
+                width={props.topPanelWidth}
+                height={roundNumber(props.topPanelHeight, 2)}
+                href={props.dataUri}
+                clipPath={`url(#${idPrefix}topPanel)`}
+                preserveAspectRatio="xMidYMid slice"
+              />
+            </>
+          )}
           <polygon
             style={props.outerBorderStyle}
             points={`
