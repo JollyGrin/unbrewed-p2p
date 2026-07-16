@@ -227,6 +227,18 @@
         "file": "data/heroes/clone-troopers.rules.ts",
         "commit": "uncommitted"
       }
+    },
+    {
+      "heroId": "batman",
+      "deckId": "x2_V",
+      "version_id": "oKDVaxEv8",
+      "frozenAt": "2026-07-16",
+      "digest": "sha256:f3757c5bed3505bfa67b0321630f726ac49bb6ff5768e3b3584dd0a5632bd279",
+      "rulesVerified": {
+        "repo": "unbrewed-engine",
+        "file": "data/heroes/batman.rules.ts",
+        "commit": "5e3e6b0"
+      }
     }
   ]
 }
