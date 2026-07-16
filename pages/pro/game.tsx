@@ -11,7 +11,7 @@
  *   verified without the backend. Clicking a fighter shows its movement
  *   out-edges (adjacentTo ∪ oneWayTo) — reading MAP data for display, not rules.
  */
-import { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { useRouter } from "next/router";
 import { Box, Button, Flex, Grid, Input, Kbd, Link, Menu, MenuButton, MenuItem, MenuList, NumberDecrementStepper, NumberIncrementStepper, NumberInput, NumberInputField, NumberInputStepper, Tag, Text, Textarea, Tooltip } from "@chakra-ui/react";
@@ -85,6 +85,7 @@ import {
 } from "@/lib/pro/moveSteps";
 import { useGameFx } from "@/lib/pro/useGameFx";
 import { useCombatCallouts, CombatCalloutItem } from "@/lib/pro/combatFx";
+import { useCombatStrike, CombatStrike, StrikeVariant } from "@/lib/pro/combatStrike";
 import { useTokenLife } from "@/lib/pro/tokenLife";
 import { resolveSpaceMove } from "@/lib/pro/moveResolve";
 import { useIncomingMoveTween } from "@/lib/pro/moveTween";
@@ -716,6 +717,108 @@ const flipIn = keyframes`
   to   { transform: perspective(600px) rotateY(0) scale(1); opacity: 1; }
 `;
 
+// ---------------------------------------------------------------------------
+// The strike beat (issue #381 — #379 battle-sequence epic). After both cards
+// settle (~0.85s after reveal), the attack card lunges right and slams the
+// defense card; the defense reacts by outcome. Same physical grammar as the
+// token gestures (TokenLifeLayer / TOKEN_LIFE_TUNING) — lunge / recoil / brace,
+// similar durations — at card scale. Emotion keyframes + Chakra `animation`,
+// sequenced by CSS animation-delay off the flip; derived + keyed once per combat
+// by useCombatStrike so it plays exactly once. Wrapped in NO_MOTION at every use.
+// ---------------------------------------------------------------------------
+
+/** Wind-up before the lunge — 0.18s defender delay + 0.55s flip + a beat. */
+const STRIKE_DELAY = 0.85;
+/** The attack card's lunge/recoil (~token lunge 0.32s + settle). */
+const STRIKE_LUNGE_DUR = 0.5;
+/** The defense reaction begins as the attack arrives (~55% through the lunge). */
+const STRIKE_CONTACT_DELAY = STRIKE_DELAY + STRIKE_LUNGE_DUR * 0.44;
+const STRIKE_REACT_DUR = 0.5;
+
+// Attack card — win: lunge across into contact, follow through, settle back home.
+const strikeLungeWin = keyframes`
+  0%   { transform: translateX(0) scale(1); }
+  55%  { transform: translateX(46%) scale(1.07); }
+  72%  { transform: translateX(30%) scale(1.03); }
+  100% { transform: translateX(0) scale(1); }
+`;
+// Attack card — blocked: lunge, bounce off the shield, recoil past the slot, rest.
+const strikeLungeBlocked = keyframes`
+  0%   { transform: translateX(0) scale(1); }
+  42%  { transform: translateX(40%) scale(1.05); }
+  60%  { transform: translateX(-16%) scale(0.96); }
+  80%  { transform: translateX(7%); }
+  100% { transform: translateX(0) scale(1); }
+`;
+// Attack card — tie: a shorter shove in and separate, neutral.
+const strikeLungeTie = keyframes`
+  0%   { transform: translateX(0); }
+  50%  { transform: translateX(28%) scale(1.02); }
+  100% { transform: translateX(0); }
+`;
+// Defense card — win: struck, staggers, settles knocked aside + dimmed. Distance
+// and tilt ride --kb / --tilt (scaled with damage). `both` holds the pose until
+// the strike descriptor clears (or the lingered panel unmounts).
+const strikeKnockback = keyframes`
+  0%   { transform: translateX(0) rotate(0deg); opacity: 1; }
+  16%  { transform: translateX(var(--kb)) rotate(var(--tilt)); opacity: 1; }
+  42%  { transform: translateX(calc(var(--kb) * 0.55)) rotate(calc(var(--tilt) * 0.6)); }
+  66%  { transform: translateX(calc(var(--kb) * 0.82)) rotate(calc(var(--tilt) * 0.85)); }
+  100% { transform: translateX(calc(var(--kb) * 0.6)) rotate(calc(var(--tilt) * 0.66)); opacity: 0.66; }
+`;
+// Defense card — blocked: a small proud brace pulse (held its ground).
+const strikeBrace = keyframes`
+  0%,100% { transform: scale(1); }
+  35%     { transform: scale(1.09) translateY(-4%); }
+  60%     { transform: scale(1.02); }
+`;
+// Defense card — tie: shoved right and separates, neutral, returns.
+const strikeShoveDef = keyframes`
+  0%   { transform: translateX(0); }
+  45%  { transform: translateX(16%) rotate(2deg); }
+  100% { transform: translateX(0); }
+`;
+// A 2–3px panel shake at the contact moment.
+const strikeShake = keyframes`
+  0%,100% { transform: translate(0, 0); }
+  20%     { transform: translate(-2px, 1px); }
+  40%     { transform: translate(2px, -2px); }
+  60%     { transform: translate(-2px, 2px); }
+  80%     { transform: translate(2px, -1px); }
+`;
+// Impact ring at the contact point (win / tie).
+const strikeImpact = keyframes`
+  0%   { transform: translate(-50%, -50%) scale(0.2); opacity: 0; }
+  30%  { opacity: 0.85; }
+  100% { transform: translate(-50%, -50%) scale(1.9); opacity: 0; }
+`;
+// Shield ring flashing on the defense card (blocked).
+const strikeShield = keyframes`
+  0%   { transform: translate(-50%, -50%) scale(0.55); opacity: 0; }
+  25%  { opacity: 0.95; }
+  100% { transform: translate(-50%, -50%) scale(1.3); opacity: 0; }
+`;
+
+const STRIKE_ATTACK_KF: Record<StrikeVariant, ReturnType<typeof keyframes>> = {
+  win: strikeLungeWin,
+  blocked: strikeLungeBlocked,
+  tie: strikeLungeTie,
+};
+const STRIKE_DEFENSE_KF: Record<StrikeVariant, ReturnType<typeof keyframes>> = {
+  win: strikeKnockback,
+  blocked: strikeBrace,
+  tie: strikeShoveDef,
+};
+
+/** Knockback distance/tilt for the defense card, scaled with damage (win only).
+ *  Passed via inline `style` (custom properties) — the proven pattern for CSS vars
+ *  read by an Emotion keyframe (see game.carousel.tsx's --rot/--droop). */
+const strikeKnockVars = (damage: number): CSSProperties =>
+  ({
+    "--kb": `${Math.min(22, 8 + damage * 2.5).toFixed(1)}px`,
+    "--tilt": `${Math.min(12, 7 + damage).toFixed(1)}deg`,
+  } as CSSProperties);
+
 /**
  * Synthetic "Fire, you fools!" sub-attack combat card (issue #288 — engine batch D).
  * The chosen B1 droid's "Blast 'em!" attack has no catalog/deck entry (its instance is
@@ -759,6 +862,8 @@ const CombatSlot = ({
   facedownState,
   catalog,
   revealDelay = "0s",
+  strikeAnimation,
+  strikeVars,
 }: {
   label: string;
   card: ViewCombat["attackerCard"];
@@ -769,12 +874,23 @@ const CombatSlot = ({
   facedownState: "committed" | "deciding" | "none";
   catalog: Record<string, CardMeta>;
   revealDelay?: string;
+  /** strike beat (#381): a lunge/knockback animation applied to the card box, plus
+   *  --kb/--tilt vars scaling the defense knockback with damage. */
+  strikeAnimation?: string;
+  strikeVars?: CSSProperties;
 }) => (
   <Box textAlign="center">
     <Text opacity={0.6} fontSize="0.75rem" mb="0.25rem">
       {label}
     </Text>
-    <Box w="6.5rem" sx={{ aspectRatio: "63 / 88" }} mx="auto" position="relative">
+    <Box
+      w="6.5rem"
+      mx="auto"
+      position="relative"
+      animation={strikeAnimation}
+      style={strikeVars}
+      sx={{ aspectRatio: "63 / 88", ...(strikeAnimation ? NO_MOTION : {}) }}
+    >
       {card ? (
         // keyed by instance: mounts fresh at reveal, so the flip plays exactly once
         <Box
@@ -830,24 +946,84 @@ const CombatSlot = ({
   </Box>
 );
 
-/** The reveal beat + running combat math, straight from the server view. */
+/** A decorative ring flashed at the strike's contact point / on the blocked card.
+ *  `pointerEvents="none"`; mounts with the strike so its 0.5s animation plays once. */
+const StrikeRing = ({
+  variant,
+  delay,
+  left,
+}: {
+  variant: StrikeVariant;
+  delay: number;
+  left: string;
+}) => {
+  const shield = variant === "blocked";
+  return (
+    <Box
+      position="absolute"
+      top="42%"
+      left={left}
+      w="2.6rem"
+      h="2.6rem"
+      borderRadius="50%"
+      border={shield ? "3px solid #6fd3c6" : "3px solid #f0c14b"}
+      boxShadow={shield ? "0 0 16px rgba(111,211,198,0.7)" : "0 0 16px rgba(240,193,75,0.7)"}
+      pointerEvents="none"
+      zIndex={2}
+      opacity={0}
+      animation={`${shield ? strikeShield : strikeImpact} 0.5s ease-out ${delay}s both`}
+      sx={NO_MOTION}
+    />
+  );
+};
+
+/** The reveal beat + running combat math, straight from the server view. The
+ *  strike beat (#381) rides on top: when `strike` is set, the attack card lunges
+ *  and slams the defense card, the panel shakes, and a ring flashes — all sequenced
+ *  by CSS delay off the flip and gated on the caller (visual-fx off ⇒ null). */
 const CombatPanel = ({
   combat,
   catalog,
   resolveCard,
   you,
   selfCommitted,
+  strike,
 }: {
   combat: ViewCombat;
   catalog: Record<string, CardMeta>;
   resolveCard: ResolveCard;
   you: PlayerView["you"];
   selfCommitted: CardInstanceId | null;
+  strike?: CombatStrike | null;
 }) => {
   const attackerCommitted = combat.stage !== "COMMIT_ATTACK";
   const pastReveal = !["COMMIT_ATTACK", "COMMIT_DEFENSE"].includes(combat.stage);
+  const attackAnim = strike
+    ? `${STRIKE_ATTACK_KF[strike.variant]} ${STRIKE_LUNGE_DUR}s cubic-bezier(0.3, 0, 0.2, 1) ${STRIKE_DELAY}s both`
+    : undefined;
+  const defenseAnim = strike
+    ? `${STRIKE_DEFENSE_KF[strike.variant]} ${STRIKE_REACT_DUR}s cubic-bezier(0.2, 0.8, 0.3, 1) ${STRIKE_CONTACT_DELAY}s both`
+    : undefined;
+  // The panel shakes at the contact moment; the ring flashes there too. Blocked
+  // flashes a shield on the defense card (right), win/tie an impact ring at the seam.
+  const ring = strike ? (
+    <StrikeRing
+      variant={strike.variant}
+      delay={STRIKE_CONTACT_DELAY}
+      left={strike.variant === "blocked" ? "72%" : "50%"}
+    />
+  ) : null;
   return (
-    <Box bg="brand.surface" border="1px solid" borderColor="whiteAlpha.300" borderRadius="0.5rem" p="0.75rem">
+    <Box
+      bg="brand.surface"
+      border="1px solid"
+      borderColor="whiteAlpha.300"
+      borderRadius="0.5rem"
+      p="0.75rem"
+      position="relative"
+      animation={strike ? `${strikeShake} 0.4s ease-in-out ${STRIKE_CONTACT_DELAY}s both` : undefined}
+      sx={strike ? NO_MOTION : undefined}
+    >
       <Flex gap="0.5rem" alignItems="center" mb="0.5rem">
         <Tag colorScheme="red" size="sm">
           COMBAT
@@ -856,7 +1032,7 @@ const CombatPanel = ({
           {combat.stage.replace(/_/g, " ").toLowerCase()}
         </Text>
       </Flex>
-      <Flex gap="1rem" justifyContent="center">
+      <Flex gap="1rem" justifyContent="center" position="relative">
         <CombatSlot
           label="attack"
           card={combat.attackerCard}
@@ -866,6 +1042,7 @@ const CombatPanel = ({
           }
           facedownState={attackerCommitted ? "committed" : "deciding"}
           catalog={catalog}
+          strikeAnimation={attackAnim}
         />
         <CombatSlot
           label="defense"
@@ -877,7 +1054,10 @@ const CombatPanel = ({
           }
           facedownState={combat.stage === "COMMIT_DEFENSE" ? "deciding" : pastReveal ? "none" : "committed"}
           catalog={catalog}
+          strikeAnimation={defenseAnim}
+          strikeVars={strike?.variant === "win" ? strikeKnockVars(strike.damage) : undefined}
         />
+        {ring}
       </Flex>
       {combat.outcome && (
         <Text textAlign="center" mt="0.5rem" fontWeight="bold">
@@ -2380,6 +2560,11 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
   // byte-identical.
   const combatCallouts = useCombatCallouts(snapshot);
 
+  // The strike beat (issue #381): after the flip settles, the attack card slams
+  // the defense card and it reacts by outcome. `lingeringCombat` freezes a combat
+  // that resolves+ends in one batch so the panel survives long enough to play it.
+  const { strike, lingeringCombat } = useCombatStrike(snapshot);
+
   // Lively tokens (issue #320): per-fighter recoil/lunge/brace/topple gestures,
   // diffed off the same snapshots. Opt-in behind the `tokenLife` beta flag; the
   // hook always advances its prevViewRef but emits nothing while off, so toggling
@@ -3684,13 +3869,18 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
               {boostHint}
             </Text>
           )}
-          {view.combat && (
+          {/* Strike beat (#381): while a combat that resolved+ended in one batch
+              lingers, keep rendering the panel from the frozen snapshot so the
+              slam can play. Visual-fx off ⇒ no linger, no strike (outcome still
+              lives in the activity log); the panel just unmounts as before. */}
+          {(view.combat ?? (visualOn ? lingeringCombat : null)) && (
             <CombatPanel
-              combat={view.combat}
+              combat={(view.combat ?? lingeringCombat)!}
               catalog={view.catalog}
               resolveCard={resolveCard}
               you={view.you}
               selfCommitted={view.self.committedCard}
+              strike={visualOn ? strike : null}
             />
           )}
           {prompt && (
