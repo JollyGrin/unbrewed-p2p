@@ -84,27 +84,24 @@ describe("CardFactory art: HTML cover layer (issue #373)", () => {
   it.each([
     ["low-text (tall top panel)", lowTextCard],
     ["high-text (short top panel)", highTextCard],
-  ])("cover box fully covers the top panel — %s", (_label, card) => {
+  ])("cover box === the top-panel window exactly — %s", (_label, card) => {
     const { container } = render(<CardFactory card={card} />);
     const art = artLayer(container);
     const props = calculateProps(card, getMeasureCanvas()!);
 
-    // Art box in card-space units (inset by the cream border on every side).
+    // Art box in card-space units, from its inline top/left/width/height.
+    const artLeft = pctToUnits(art.style.left, conprops.width);
     const artTop = pctToUnits(art.style.top, conprops.height);
-    const artBottom =
-      conprops.height - pctToUnits(art.style.bottom, conprops.height);
+    const artWidth = pctToUnits(art.style.width, conprops.width);
+    const artHeight = pctToUnits(art.style.height, conprops.height);
 
-    // The top panel occupies card-y [outerBorderWidth, outerBorderWidth+topPanelHeight];
-    // the black bottom panel starts at outerBorderWidth+bottomPanelY.
-    const topPanelTop = conprops.outerBorderWidth;
-    const topPanelBottom = conprops.outerBorderWidth + props.topPanelHeight;
-    const blackPanelTop = conprops.outerBorderWidth + props.bottomPanelY;
-
-    // Covers the whole top panel...
-    expect(artTop).toBeLessThanOrEqual(topPanelTop + 1e-6);
-    expect(artBottom).toBeGreaterThanOrEqual(topPanelBottom - 1e-6);
-    // ...and extends under the black panel, so there can be no seam/white band.
-    expect(artBottom).toBeGreaterThan(blackPanelTop);
+    // The top-panel window: offset by the cream border, sized to the top panel.
+    // Matching this box makes `cover` frame the art identically to the old
+    // in-SVG `<image slice>` (same box → same crop), no over-zoom.
+    expect(artLeft).toBeCloseTo(conprops.outerBorderWidth, 5);
+    expect(artTop).toBeCloseTo(conprops.outerBorderWidth, 5);
+    expect(artWidth).toBeCloseTo(props.topPanelWidth, 5);
+    expect(artHeight).toBeCloseTo(props.topPanelHeight, 1);
   });
 
   it("frame SVG (htmlArt) has no white top-panel rect and no in-SVG art image", () => {

@@ -49,13 +49,16 @@ const CardFactoryBase: React.FC<{ card: DeckImportCardType }> = ({ card }) => {
         aria-hidden
         style={{
           position: "absolute",
-          // Cover the inner card area (inside the 3-unit cream border); the
-          // frame SVG's opaque bottom/name panels paint over the lower/left of
-          // this, and the cream ring covers the square corners.
+          // Size the art layer to EXACTLY the top-panel window so `cover` scales
+          // the image against the same box the old in-SVG `<image
+          // preserveAspectRatio="xMidYMid slice">` used — the crop is then
+          // mathematically identical to the original slice framing. Spanning a
+          // larger box (e.g. the full inner card) would over-zoom, since only the
+          // window is visible through the frame's transparent hole (issue #373).
           top: `${(conprops.outerBorderWidth / conprops.height) * 100}%`,
           left: `${(conprops.outerBorderWidth / conprops.width) * 100}%`,
-          right: `${(conprops.outerBorderWidth / conprops.width) * 100}%`,
-          bottom: `${(conprops.outerBorderWidth / conprops.height) * 100}%`,
+          width: `${(props.topPanelWidth / conprops.width) * 100}%`,
+          height: `${(roundNumber(props.topPanelHeight, 2) / conprops.height) * 100}%`,
           backgroundImage: `url("${props.dataUri}")`,
           backgroundSize: "cover",
           backgroundPosition: "center",
@@ -105,6 +108,9 @@ export const CardSvg: React.FC<{
 }) => {
   const { width: W, height: H, cornerRadius: R, innerCornerRadius: r } = conprops;
   const b = conprops.outerBorderWidth;
+  // Top-panel window (root svg coords), used by htmlArt to punch the art hole.
+  const winR = b + props.topPanelWidth;
+  const winB = b + roundNumber(props.topPanelHeight, 2);
   return (
     <Fragment>
       <svg
@@ -131,10 +137,15 @@ export const CardSvg: React.FC<{
           />
         </clipPath>
         {htmlArt ? (
-          // Cream border as an even-odd ring: outer rounded rect minus the inner
-          // rounded rect, so the inner (top-panel) area is transparent and the
-          // HTML `background-size: cover` art layer behind shows through. The
-          // ring's rounded inner corners also mask the art layer's square ones.
+          // Cream base with an even-odd hole punched at EXACTLY the top-panel
+          // window (outer rounded rect minus the window), so only that window is
+          // transparent and the HTML `background-size: cover` art layer behind
+          // shows through. Everything else — the border, the cream hairline
+          // divider below the art, and the area under the black panel — stays
+          // cream, so no transparent seam can appear. The window's top corners
+          // are rounded to the inner radius (matching the card's inner border);
+          // its bottom edge is a straight internal line, exactly like the old
+          // slice image's bottom.
           <path
             fillRule="evenodd"
             style={props.outerBorderStyle}
@@ -142,9 +153,8 @@ export const CardSvg: React.FC<{
               `M${R},0 H${W - R} A${R},${R} 0 0 1 ${W},${R} V${H - R} ` +
               `A${R},${R} 0 0 1 ${W - R},${H} H${R} A${R},${R} 0 0 1 0,${H - R} ` +
               `V${R} A${R},${R} 0 0 1 ${R},0 Z ` +
-              `M${b + r},${b} H${W - b - r} A${r},${r} 0 0 1 ${W - b},${b + r} ` +
-              `V${H - b - r} A${r},${r} 0 0 1 ${W - b - r},${H - b} H${b + r} ` +
-              `A${r},${r} 0 0 1 ${b},${H - b - r} V${b + r} A${r},${r} 0 0 1 ${b + r},${b} Z`
+              `M${b + r},${b} H${winR - r} A${r},${r} 0 0 1 ${winR},${b + r} ` +
+              `V${winB} H${b} V${b + r} A${r},${r} 0 0 1 ${b + r},${b} Z`
             }
           />
         ) : (
