@@ -86,7 +86,7 @@ describe("diffCombatCallouts", () => {
     });
   });
 
-  describe("scheme / effect card-reveal (v10 events)", () => {
+  describe("scheme card-reveal (v10 events)", () => {
     it("reveals a played scheme's source card", () => {
       const v = view({});
       const events: GameEvent[] = [{ type: "SCHEME_PLAYED", player: "p2", card: "baba-yaga/hex#1" }];
@@ -105,28 +105,90 @@ describe("diffCombatCallouts", () => {
       ]);
     });
 
-    it("reveals a fired delayed effect's source", () => {
-      const v = view({});
-      const events: GameEvent[] = [{ type: "EFFECT_FIRED", source: "king-kong/rampage#2", fireAt: "START" }];
-      expect(diffCombatCallouts(v, v, events)).toEqual([{ kind: "reveal", source: "king-kong/rampage#2" }]);
-    });
-
-    it("passes a redacted source through as '(hidden)' for generic rendering", () => {
-      const v = view({});
-      const events: GameEvent[] = [{ type: "EFFECT_FIRED", source: "(hidden)", fireAt: "END" }];
-      expect(diffCombatCallouts(v, v, events)).toEqual([{ kind: "reveal", source: "(hidden)" }]);
-    });
-
-    it("dedupes identical sources within one batch", () => {
+    it("dedupes identical scheme sources within one batch", () => {
       const v = view({});
       const events: GameEvent[] = [
         { type: "SCHEME_PLAYED", player: "p1", card: "king-kong/plan#1" },
-        { type: "EFFECT_FIRED", source: "king-kong/plan#1", fireAt: "COMBAT_END" },
+        { type: "SCHEME_PLAYED", player: "p1", card: "king-kong/plan#1" },
       ];
       expect(diffCombatCallouts(v, v, events)).toEqual([{ kind: "reveal", source: "king-kong/plan#1" }]);
     });
 
     it("emits no reveal when the events stream is empty (pre-v10 server)", () => {
+      const v = view({});
+      expect(diffCombatCallouts(v, v, [])).toEqual([]);
+    });
+  });
+
+  describe("effect ribbon — fired During/After-Combat effect (issue #380)", () => {
+    it("maps fireAt START to the during-combat window", () => {
+      const v = view({});
+      const events: GameEvent[] = [{ type: "EFFECT_FIRED", source: "king-kong/rampage#2", fireAt: "START" }];
+      expect(diffCombatCallouts(v, v, events)).toEqual([
+        { kind: "effect", source: "king-kong/rampage#2", window: "during" },
+      ]);
+    });
+
+    it("maps fireAt END to the during-combat window", () => {
+      const v = view({});
+      const events: GameEvent[] = [{ type: "EFFECT_FIRED", source: "king-kong/rampage#2", fireAt: "END" }];
+      expect(diffCombatCallouts(v, v, events)).toEqual([
+        { kind: "effect", source: "king-kong/rampage#2", window: "during" },
+      ]);
+    });
+
+    it("maps fireAt COMBAT_END to the after-combat window", () => {
+      const v = view({});
+      const events: GameEvent[] = [{ type: "EFFECT_FIRED", source: "king-kong/plan#1", fireAt: "COMBAT_END" }];
+      expect(diffCombatCallouts(v, v, events)).toEqual([
+        { kind: "effect", source: "king-kong/plan#1", window: "after" },
+      ]);
+    });
+
+    it("passes a redacted source through as '(hidden)' for generic rendering", () => {
+      const v = view({});
+      const events: GameEvent[] = [{ type: "EFFECT_FIRED", source: "(hidden)", fireAt: "END" }];
+      expect(diffCombatCallouts(v, v, events)).toEqual([
+        { kind: "effect", source: "(hidden)", window: "during" },
+      ]);
+    });
+
+    it("dedupes identical effect sources within one batch", () => {
+      const v = view({});
+      const events: GameEvent[] = [
+        { type: "EFFECT_FIRED", source: "king-kong/plan#1", fireAt: "COMBAT_END" },
+        { type: "EFFECT_FIRED", source: "king-kong/plan#1", fireAt: "COMBAT_END" },
+      ];
+      expect(diffCombatCallouts(v, v, events)).toEqual([
+        { kind: "effect", source: "king-kong/plan#1", window: "after" },
+      ]);
+    });
+
+    it("emits a plain reveal AND a ribboned effect when a card both plays and fires", () => {
+      const v = view({});
+      const events: GameEvent[] = [
+        { type: "SCHEME_PLAYED", player: "p1", card: "king-kong/plan#1" },
+        { type: "EFFECT_FIRED", source: "king-kong/plan#1", fireAt: "COMBAT_END" },
+      ];
+      expect(diffCombatCallouts(v, v, events)).toEqual([
+        { kind: "reveal", source: "king-kong/plan#1" },
+        { kind: "effect", source: "king-kong/plan#1", window: "after" },
+      ]);
+    });
+
+    it("emits two effects in one batch (the overlay staggers them)", () => {
+      const v = view({});
+      const events: GameEvent[] = [
+        { type: "EFFECT_FIRED", source: "king-kong/rampage#2", fireAt: "START" },
+        { type: "EFFECT_FIRED", source: "king-kong/plan#1", fireAt: "COMBAT_END" },
+      ];
+      expect(diffCombatCallouts(v, v, events)).toEqual([
+        { kind: "effect", source: "king-kong/rampage#2", window: "during" },
+        { kind: "effect", source: "king-kong/plan#1", window: "after" },
+      ]);
+    });
+
+    it("emits no effect when the events stream is empty (pre-v10 / reconnect)", () => {
       const v = view({});
       expect(diffCombatCallouts(v, v, [])).toEqual([]);
     });
