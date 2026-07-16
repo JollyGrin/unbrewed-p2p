@@ -91,13 +91,13 @@
         "basicText": "Any form.",
         "boost": 2,
         "characterName": "MALFURION",
-        "duringText": "If you are in Bear Form, this card's value is +1.",
+        "duringText": "If you are in Bear Form, this card's value is +2.",
         "imageUrl": "/evergreen-decks/art/malfurion-stormrage/barkskin.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "Barkskin",
         "type": "defence",
-        "value": 4,
+        "value": 3,
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
       },
       {
@@ -129,17 +129,17 @@
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
       },
       {
-        "afterText": "Recover 1 health.",
-        "basicText": "Any form.",
+        "afterText": "Move each adjacent fighter up to 1 space. If Malfurion is in Moonkin Form, deal 1 damage to each adjacent fighter.",
+        "basicText": "Night Elf or Moonkin Form only.",
         "boost": 2,
         "characterName": "MALFURION",
         "duringText": "",
         "imageUrl": "/evergreen-decks/art/malfurion-stormrage/rejuvenation.webp",
         "immediateText": "",
         "quantity": 2,
-        "title": "Rejuvenation",
-        "type": "defence",
-        "value": 3,
+        "title": "Typhoon",
+        "type": "versatile",
+        "value": 2,
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
       },
       {
@@ -166,7 +166,7 @@
         "immediateText": "",
         "quantity": 3,
         "title": "Regrowth",
-        "type": "versatile",
+        "type": "defence",
         "value": 3,
         "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
       },
@@ -214,7 +214,7 @@
       },
       {
         "afterText": "",
-        "basicText": "Night Elf or Moonkin Form only. Deal 1 damage to each opposing fighter in Malfurion's zone, plus 1 damage for each action you have remaining. If Malfurion is in Moonkin Form, deal 1 additional damage. Then lose all your remaining actions.",
+        "basicText": "Night Elf or Moonkin Form only. Deal damage to each opposing fighter in Malfurion's zone equal to the number of actions you have remaining, plus 1. If Malfurion is in Moonkin Form, deal 1 additional damage. Then end your turn.",
         "boost": 3,
         "characterName": "MALFURION",
         "duringText": "",
@@ -228,7 +228,7 @@
       },
       {
         "afterText": "",
-        "basicText": "Night Elf Form only. Each friendly fighter in Malfurion's zone recovers health equal to twice your remaining actions, then lose all remaining actions.",
+        "basicText": "Night Elf Form only. Each friendly fighter in Malfurion's zone recovers 2 health plus twice your remaining actions after playing this card. Then lose all remaining actions.",
         "boost": 2,
         "characterName": "MALFURION",
         "duringText": "",
