@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import {
   captureLingeringCombat,
+  comparePulseFor,
   diffCombatStrike,
   LINGER_TTL_MS,
   STRIKE_TTL_MS,
@@ -164,6 +165,27 @@ describe("diffCombatStrike", () => {
     ];
     const second = diffCombatStrike(prev, next, events2);
     expect(first?.key).not.toBe(second?.key);
+  });
+});
+
+describe("comparePulseFor", () => {
+  it("glows the attacker gold and dims the defender on a win", () => {
+    expect(comparePulseFor("win", "ATTACK")).toBe("gold");
+    expect(comparePulseFor("win", "DEFENSE")).toBe("dim");
+  });
+
+  it("glows the defender gold and dims the attacker on a block", () => {
+    expect(comparePulseFor("blocked", "DEFENSE")).toBe("gold");
+    expect(comparePulseFor("blocked", "ATTACK")).toBe("dim");
+  });
+
+  it("flashes BOTH values neutrally on a tie (0-damage draw still reads)", () => {
+    expect(comparePulseFor("tie", "ATTACK")).toBe("neutral");
+    expect(comparePulseFor("tie", "DEFENSE")).toBe("neutral");
+  });
+
+  it("returns null when there is no strike (nothing to compare yet)", () => {
+    expect(comparePulseFor(undefined, "ATTACK")).toBeNull();
   });
 });
 
