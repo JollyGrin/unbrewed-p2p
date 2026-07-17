@@ -35,16 +35,41 @@ export interface CombatStrike {
 
 /** How long the strike descriptor stays live (ms). Kept just PAST the linger TTL so
  *  the defense card's `both`-held knocked/dimmed pose is still applied when a
- *  lingered panel unmounts — the panel disappears rather than snapping back to rest. */
-export const STRIKE_TTL_MS = 1800;
-/** How long a frozen combat lingers after `view.combat` clears (ms). Covers the
- *  full strike (wind-up ~0.85s + lunge/reaction ~0.5s) plus a short settled hold. */
-export const LINGER_TTL_MS = 1700;
+ *  lingered panel unmounts — the panel disappears rather than snapping back to rest.
+ *  Lengthened with the slower sequence (#382 pacing) so the pose never clears mid-dwell. */
+export const STRIKE_TTL_MS = 2900;
+/** How long a frozen combat lingers after `view.combat` clears (ms). Covers the full
+ *  slowed sequence — wind-up ~0.85s + lunge/reaction ~0.68s + the comparison beat +
+ *  the damage arc landing (~2.5s) — plus a settled DWELL so the resolved state (values
+ *  pulsed, damage landed) holds visibly before the panel unmounts (#382 pacing). */
+export const LINGER_TTL_MS = 2800;
 
 /** The instances that identify one combat — used to build the strike key so a new
  *  combat (fresh card instances) can never collide with the one just resolved. */
 const combatKey = (attackerCard: string | null, defenderCard: string | null): string =>
   `strike:${attackerCard ?? "none"}->${defenderCard ?? "none"}`;
+
+/** How a value pill pulses on the comparison beat (issue #382): the winner glows
+ *  gold, the loser dims/cracks, a tie flashes both neutrally, null = no pulse. */
+export type CompareBeat = "gold" | "dim" | "neutral" | null;
+
+/**
+ * The comparison beat, derived from the strike variant so the value pulse and the
+ * strike choreography never disagree about who won:
+ *  - win → the attacker's value glows gold, the defender's dims.
+ *  - blocked (defender won) → the defender's value glows gold, the attacker's dims.
+ *  - tie → BOTH values flash neutrally, so a 0-damage draw still reads as a resolved
+ *    clash rather than "nothing happened" (the #382 0-damage regression).
+ */
+export function comparePulseFor(
+  variant: StrikeVariant | undefined,
+  role: "ATTACK" | "DEFENSE"
+): CompareBeat {
+  if (variant === "win") return role === "ATTACK" ? "gold" : "dim";
+  if (variant === "blocked") return role === "DEFENSE" ? "gold" : "dim";
+  if (variant === "tie") return "neutral";
+  return null;
+}
 
 /**
  * Diff two consecutive snapshots into at most one strike beat, or null. Pure and

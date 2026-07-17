@@ -10,7 +10,7 @@
 import { Box, Button, Flex, Text, chakra, shouldForwardProp } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
 import { isValidMotionProp, motion, useReducedMotion } from "framer-motion";
-import { PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
+import { MutableRefObject, PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 import { FighterId, PlayerId, ProMapDef, ProMapItem, ProMapRegion, ProMapSpace, SpaceId, ViewFighter, ViewToken } from "@/lib/pro/protocol";
 import { BoardFxItem } from "@/lib/pro/useGameFx";
 import { TokenGestures, usePageHidden } from "@/lib/pro/tokenLife";
@@ -253,6 +253,11 @@ export interface ProBoardProps {
    *  (flag off) = no wrapper, no idle motion — the token DOM is byte-identical to
    *  today. Present (even if empty) = tokens breathe and react to combat. */
   tokenLife?: TokenGestures | null;
+  /** Registry of fighter-token DOM elements, keyed by fighter id (issue #382). The
+   *  caller reads it at damage-arc launch to measure the defender token's viewport
+   *  rect — correct under the board's zoom/pan transform, where board coords aren't.
+   *  Only the head token registers; cleared on unmount. Absent = no registration. */
+  fighterEls?: MutableRefObject<Map<FighterId, HTMLElement>>;
 }
 
 const PLAYER_COLOR: Record<string, string> = {
@@ -303,6 +308,7 @@ export const ProBoard = ({
   imgMaxH,
   zoomable = false,
   tokenLife = null,
+  fighterEls,
 }: ProBoardProps) => {
   // "Lively tokens" (issue #320): present (even empty) = the feature is on.
   const tokenLifeOn = !!tokenLife;
@@ -733,6 +739,17 @@ export const ProBoard = ({
     return (
       <MotionFlex
         key={key}
+        // Register the HEAD token in the caller's registry so the damage arc can
+        // measure this fighter's viewport rect at launch (#382). Tail segments and
+        // ghosts don't register — one element per fighter id.
+        ref={
+          fighterEls && segment === "head"
+            ? (el: HTMLElement | null) => {
+                if (el) fighterEls.current.set(f.id, el);
+                else fighterEls.current.delete(f.id);
+              }
+            : undefined
+        }
         position="absolute"
         initial={false}
         animate={{ left: xs.map((x) => `${x}%`), top: ys.map((y) => `${y}%`) }}

@@ -122,11 +122,25 @@ export function diffFxEvents(
     }
   }
 
-  // The defense held: outcome just landed and nobody lost HP this snapshot.
-  // (attackDamageDealt === 0 is the explicit signal; the hp check guards the
-  // null case so effect-damage isn't misread as a block.)
-  if (next.combat?.outcome && !prev.combat?.outcome && !anyHpDrop && next.combat.attackDamageDealt === 0) {
-    const target = next.fighters.find((f) => f.id === next.combat!.target);
+  // The defense held: the combat resolved this batch dealing zero damage. Keyed off
+  // the SAME resolve signal the strike diff uses (COMBAT_RESOLVED / COMBAT_DAMAGE in
+  // the batch, or an outcome transition off UNKNOWN), NOT `next.combat.outcome` —
+  // which is already null when a combat resolves+ends in one STATE batch, so the old
+  // gate silently dropped BLOCKED for every single-batch block/tie (#382 regression).
+  // Absence of COMBAT_DAMAGE means 0 damage; the hp check guards the pre-v10 path so
+  // effect-damage isn't misread as a block. Empty events + no transition → nothing
+  // (join/reconnect stays silent).
+  const resolvedEvent = gameEvents.find((e) => e.type === "COMBAT_RESOLVED");
+  const damageEvent = gameEvents.find((e) => e.type === "COMBAT_DAMAGE");
+  const prevOutcome = prev.combat?.outcome ?? null;
+  const nextOutcome = next.combat?.outcome ?? null;
+  const resolvedByView = nextOutcome !== null && nextOutcome !== "UNKNOWN" && prevOutcome !== nextOutcome;
+  const resolvedThisBatch = !!resolvedEvent || !!damageEvent || resolvedByView;
+  const netDamage =
+    damageEvent?.type === "COMBAT_DAMAGE" ? damageEvent.amount : next.combat?.attackDamageDealt ?? 0;
+  if (resolvedThisBatch && netDamage === 0 && !anyHpDrop) {
+    const targetId = next.combat?.target ?? prev.combat?.target ?? null;
+    const target = targetId ? next.fighters.find((f) => f.id === targetId) : undefined;
     events.push({ type: "blocked", space: target?.space ?? null });
   }
 
