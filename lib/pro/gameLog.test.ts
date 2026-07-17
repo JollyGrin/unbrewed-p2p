@@ -3,6 +3,7 @@ import {
   enrichLines,
   batchPhase,
   groupLog,
+  logEntriesToCsv,
   EnrichContext,
   ProLogEntry,
   ProLogLine,
@@ -682,5 +683,97 @@ describe("diffViews — v17 battlefield item lines (always-on, off the event str
   it("emits no item line when the batch carries no item events (resume/join)", () => {
     const lines = diffViews(withItems(), withItems(), label, []);
     expect(lines.some((l) => /used|attached/.test(l.text))).toBe(false);
+  });
+});
+
+// --- Line order within a batch (issue #402) ---------------------------------
+// One reading direction per level: turns/groups are newest-first (the page
+// prepends whole batches), but lines WITHIN a batch must read chronologically
+// top-down — the combat lifecycle (attack → reveal → outcome) precedes the
+// fighter damage/defeat it caused, and enrich additions trail the batch.
+describe("diffViews — chronological line order within a batch (issue #402)", () => {
+  it("emits attack → reveal → outcome → damage → defeat in story order", () => {
+    const prev = view({ combat: null });
+    const next = view({
+      combat: combat({
+        attackerCard: { instance: "a/fireball#1" } as never,
+        outcome: "ATTACKER_WON",
+        attackDamageDealt: 10,
+      }),
+      fighters: [
+        fighter({}),
+        fighter({ id: "p2/hero", owner: "p2", name: "Thrall", space: "s2", hp: 0, defeated: true }),
+      ],
+    });
+    const texts = diffViews(prev, next, label).map((l) => l.text);
+    expect(texts).toEqual([
+      "King Taranis attacks Thrall",
+      "Reveal: fireball vs no defense",
+      "attacker won — 10 damage",
+      "Thrall took 10 damage (0/10)",
+      "Thrall was defeated!",
+    ]);
+  });
+
+  it("keeps enrichLines' new lines after the diff lines (damage before discard reason)", () => {
+    // prev already has a combat (no outcome yet) so the attack-start line does
+    // not fire — this batch is just the outcome resolving.
+    const prev = view({ combat: combat({ outcome: null }) });
+    const next = view({
+      combat: combat({ outcome: "ATTACKER_WON", attackDamageDealt: 3 }),
+      fighters: [fighter({}), fighter({ id: "p2/hero", owner: "p2", name: "Thrall", space: "s2", hp: 7 })],
+    });
+    const diff = diffViews(prev, next, label);
+    const out = enrichLines(diff, [{ type: "DEFENSE_IGNORED" }], ctx());
+    expect(out.map((l) => l.text)).toEqual([
+      "attacker won — 3 damage",
+      "Thrall took 3 damage (7/10)",
+      "Defense ignored",
+    ]);
+  });
+});
+
+// --- CSV export is strictly oldest-first, line-by-line (issue #402) ----------
+// Entries are stored newest-batch-first but oldest-first within a batch, so the
+// export reverses the BATCH order only — never the lines inside a batch — to get
+// a monotonically non-decreasing time column.
+describe("logEntriesToCsv — strictly oldest-first export", () => {
+  const entry = (over: Partial<ProLogEntry> & { text: string }): ProLogEntry => ({
+    key: over.text,
+    who: "game",
+    ...over,
+  });
+
+  it("reverses batch order but preserves line order within a batch", () => {
+    // Stored newest-first: batch 1 (turn 2) on top, batch 0 (turn 1) below; each
+    // batch's lines stored oldest-first.
+    const entries: ProLogEntry[] = [
+      entry({ text: "attack", turn: 2, batchId: 1, ts: 300 }),
+      entry({ text: "damage", turn: 2, batchId: 1, ts: 300 }),
+      entry({ text: "game on", turn: 1, batchId: 0, ts: 100 }),
+      entry({ text: "you drew 1", turn: 1, batchId: 0, ts: 100 }),
+    ];
+    const rows = logEntriesToCsv(entries).split("\n").slice(1); // drop header
+    expect(rows.map((r) => r.split(",")[4])).toEqual([
+      '"game on"',
+      '"you drew 1"',
+      '"attack"',
+      '"damage"',
+    ]);
+  });
+
+  it("keeps the time column monotonically non-decreasing", () => {
+    const entries: ProLogEntry[] = [
+      entry({ text: "b0", batchId: 2, ts: 300 }),
+      entry({ text: "b1", batchId: 2, ts: 300 }),
+      entry({ text: "a0", batchId: 1, ts: 200 }),
+      entry({ text: "c0", batchId: 0, ts: 100 }),
+    ];
+    const times = logEntriesToCsv(entries)
+      .split("\n")
+      .slice(1)
+      .map((r) => r.split(",")[0]);
+    const sorted = [...times].sort();
+    expect(times).toEqual(sorted);
   });
 });
