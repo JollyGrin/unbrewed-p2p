@@ -56,7 +56,9 @@ export interface ScheduleResult<T> {
 
 /** The battle sequence's entrance-lead cap. Keeps the total chip run ≲2.5s so a
  *  multi-modifier combat still lands its comparison beat without drifting behind
- *  the board (acceptance: "capped so total lead stays ≲2.5s"). */
+ *  the board (acceptance: "capped so total lead stays ≲2.5s"). Re-checked against
+ *  the slowed sequence (#382 pacing): the chips (pre-combat modifiers) still wrap up
+ *  before the arc lands (~2.5s) and well inside the longer linger, so 2.5s holds. */
 export const BATTLE_MAX_LEAD_MS = 2500;
 
 /**

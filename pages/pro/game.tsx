@@ -87,8 +87,8 @@ import {
 } from "@/lib/pro/moveSteps";
 import { useGameFx, DamageArc } from "@/lib/pro/useGameFx";
 import { useCombatCallouts, CombatCalloutItem } from "@/lib/pro/combatFx";
-import { useCombatStrike, CombatStrike, StrikeVariant } from "@/lib/pro/combatStrike";
-import { useCombatValueFx, CombatValueFx, SlotValueFx, CombatRole } from "@/lib/pro/combatValueFx";
+import { useCombatStrike, CombatStrike, StrikeVariant, comparePulseFor, CompareBeat } from "@/lib/pro/combatStrike";
+import { useCombatValueFx, CombatValueFx, SlotValueFx } from "@/lib/pro/combatValueFx";
 import { useTokenLife } from "@/lib/pro/tokenLife";
 import { resolveSpaceMove } from "@/lib/pro/moveResolve";
 import { useIncomingMoveTween } from "@/lib/pro/moveTween";
@@ -836,11 +836,13 @@ const flipIn = keyframes`
 
 /** Wind-up before the lunge — 0.18s defender delay + 0.55s flip + a beat. */
 const STRIKE_DELAY = 0.85;
-/** The attack card's lunge/recoil (~token lunge 0.32s + settle). */
-const STRIKE_LUNGE_DUR = 0.5;
+/** The attack card's lunge/recoil. Lengthened (#382 pacing feedback: the beats
+ *  felt rushed) so the slam reads with weight rather than snapping. */
+const STRIKE_LUNGE_DUR = 0.68;
 /** The defense reaction begins as the attack arrives (~55% through the lunge). */
 const STRIKE_CONTACT_DELAY = STRIKE_DELAY + STRIKE_LUNGE_DUR * 0.44;
-const STRIKE_REACT_DUR = 0.5;
+/** The defense card's knockback/brace/shove. Lengthened alongside the lunge. */
+const STRIKE_REACT_DUR = 0.68;
 
 // Attack card — win: lunge across into contact, follow through, settle back home.
 const strikeLungeWin = keyframes`
@@ -958,21 +960,20 @@ const loserDim = keyframes`
   46%  { transform: translateX(2px) rotate(1.5deg); }
   100% { transform: translateX(0) rotate(0deg); filter: grayscale(0.85) brightness(0.7); opacity: 0.5; }
 `;
+/** A tie's neutral two-way pulse: BOTH values flash (no gold, no dim) so an
+ *  equal-values draw reads as a resolved clash, not "nothing happened" (#382
+ *  0-damage regression). Parchment glow, not the winner's gold. */
+const neutralPulse = keyframes`
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.2); text-shadow: 0 0 12px rgba(240,230,210,0.75); }
+  100% { transform: scale(1); }
+`;
 
-/** Comparison beat begins just after the strike lands. */
-const COMPARE_DELAY = STRIKE_CONTACT_DELAY + 0.12;
-
-/** Which value pulses on the comparison beat: the winner glows gold, the loser
- *  dims. Derived from the strike variant so the panel and the strike never disagree
- *  about who won. Tie → neither (a neutral shove, no gold). */
-const comparePulseFor = (
-  variant: StrikeVariant | undefined,
-  role: CombatRole
-): "gold" | "dim" | null => {
-  if (variant === "win") return role === "ATTACK" ? "gold" : "dim";
-  if (variant === "blocked") return role === "DEFENSE" ? "gold" : "dim";
-  return null;
-};
+/** Comparison beat begins just after the (now-longer) strike lands. */
+const COMPARE_DELAY = STRIKE_CONTACT_DELAY + 0.15;
+/** Comparison pulse durations — lengthened with the rest of the sequence so the
+ *  resolved values hold their pose rather than blinking. Keyed by CompareBeat. */
+const COMPARE_DUR = { gold: 1.1, dim: 1.0, neutral: 1.0 } as const;
 
 /**
  * Synthetic "Fire, you fools!" sub-attack combat card (issue #288 — engine batch D).
@@ -1038,8 +1039,9 @@ const CombatSlot = ({
   /** math beat (#382): chips flying onto the pill + the pill's ticking value.
    *  Undefined ⇒ visual-fx off / reduced motion ⇒ the pill shows the raw value. */
   valueFx?: SlotValueFx;
-  /** comparison beat (#382): "gold" pulses the winning value, "dim" cracks the loser. */
-  comparePulse?: "gold" | "dim" | null;
+  /** comparison beat (#382): "gold" pulses the winning value, "dim" cracks the
+   *  loser, "neutral" flashes both on a tie. */
+  comparePulse?: CompareBeat;
 }) => (
   <Box textAlign="center">
     <Text opacity={0.6} fontSize="0.75rem" mb="0.25rem">
@@ -1137,12 +1139,14 @@ const CombatSlot = ({
           color="brand.accent"
           animation={
             comparePulse === "gold"
-              ? `${snuffValuePulse} 0.9s ease-out ${COMPARE_DELAY}s both`
+              ? `${snuffValuePulse} ${COMPARE_DUR.gold}s ease-out ${COMPARE_DELAY}s both`
               : comparePulse === "dim"
-                ? `${loserDim} 0.7s ease-out ${COMPARE_DELAY}s both`
-                : valueFx?.displayValue != null
-                  ? `${valueTick} 0.28s ease-out both`
-                  : undefined
+                ? `${loserDim} ${COMPARE_DUR.dim}s ease-out ${COMPARE_DELAY}s both`
+                : comparePulse === "neutral"
+                  ? `${neutralPulse} ${COMPARE_DUR.neutral}s ease-out ${COMPARE_DELAY}s both`
+                  : valueFx?.displayValue != null
+                    ? `${valueTick} 0.28s ease-out both`
+                    : undefined
           }
           sx={comparePulse || valueFx?.displayValue != null ? NO_MOTION : undefined}
         >
