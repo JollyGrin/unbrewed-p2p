@@ -17,6 +17,7 @@ import { DeckStats } from "./Stats";
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
 import { toast } from "react-hot-toast";
 import { DeckCards } from "./DeckCards";
+import { EditHeroInfo } from "./EditHeroInfo";
 
 export const BagDecks = () => {
   const {
@@ -76,6 +77,7 @@ export const BagDecks = () => {
                 setSelectedDeckId={setSelectedDeckId}
                 setStar={setStar}
                 removeDeckbyId={removeDeckbyId}
+                updateDeck={updateDeck}
               />
               <DeckCards
                 decks={decks}
@@ -291,15 +293,18 @@ const DeckActions = ({
   setSelectedDeckId,
   removeDeckbyId,
   setStar,
+  updateDeck,
 }: {
   deck?: DeckImportType;
   selectedDeckId?: string;
   setSelectedDeckId: (id?: string) => void;
   removeDeckbyId: (id: string) => void;
   setStar: (id: string) => void;
+  updateDeck: (updated: DeckImportType) => void;
 }) => {
   const [, copy] = useCopyToClipboard();
   if (!selectedDeckId) return null;
+  const isImageDeck = deck?.tags?.includes("image-deck");
 
   return (
     <Flex
@@ -316,6 +321,9 @@ const DeckActions = ({
       <Button size="sm" variant="ghost" color="brand.primary" onClick={() => setSelectedDeckId(undefined)}>
         ← Back
       </Button>
+      {isImageDeck && deck && (
+        <EditHeroInfo deck={deck} onSave={updateDeck} />
+      )}
       <Button
         size="sm"
         bg="brand.accent"
