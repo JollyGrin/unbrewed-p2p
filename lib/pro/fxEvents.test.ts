@@ -1,5 +1,5 @@
 import { diffFxEvents } from "./fxEvents";
-import { PlayerView, ViewCombat, ViewFighter } from "./protocol";
+import { GameEvent, PlayerView, ViewCombat, ViewFighter } from "./protocol";
 
 const fighter = (over: Partial<ViewFighter>): ViewFighter => ({
   id: "p1/hero",
@@ -170,6 +170,49 @@ describe("diffFxEvents", () => {
       fighters: [fighter({}), fighter({ id: "p2/hero", owner: "p2", space: "s2", hp: 8 })],
     });
     expect(diffFxEvents(prev, hit).map((e) => e.type)).toEqual(["damage"]);
+  });
+
+  it("flags a block when the combat resolves+ends in ONE batch (next.combat null)", () => {
+    // The single-batch regression (#382): COMBAT_RESOLVED + COMBAT_ENDED arrive
+    // together with combat already null, so the old `next.combat?.outcome` gate
+    // never fired. Keyed off the resolve event + 0 damage, BLOCKED still shows.
+    const prev = view({ combat: combat({ stage: "DAMAGE" }) });
+    const next = view({ combat: null });
+    const events: GameEvent[] = [
+      { type: "COMBAT_RESOLVED", outcome: "DEFENDER_WON" },
+      { type: "COMBAT_ENDED" },
+    ];
+    expect(diffFxEvents(prev, next, events)).toEqual([{ type: "blocked", space: "s2" }]);
+  });
+
+  it("flags a tie's 0-damage resolve as blocked on the board too (single batch)", () => {
+    const prev = view({ combat: combat({ stage: "DAMAGE" }) });
+    const next = view({ combat: null });
+    const events: GameEvent[] = [
+      { type: "COMBAT_RESOLVED", outcome: "ATTACKER_WON" }, // resolved, but no COMBAT_DAMAGE
+      { type: "COMBAT_ENDED" },
+    ];
+    expect(diffFxEvents(prev, next, events)).toEqual([{ type: "blocked", space: "s2" }]);
+  });
+
+  it("does NOT flag blocked on a mid-combat reconnect (empty events, no transition)", () => {
+    const prev = view({ combat: combat({ stage: "DAMAGE" }) });
+    const next = view({ combat: combat({ stage: "DAMAGE" }) });
+    expect(diffFxEvents(prev, next, [])).toEqual([]);
+  });
+
+  it("does NOT flag blocked when the same batch dealt damage (single-batch win)", () => {
+    const prev = view({ combat: combat({ stage: "DAMAGE" }) });
+    const next = view({
+      combat: null,
+      fighters: [fighter({}), fighter({ id: "p2/hero", owner: "p2", space: "s2", hp: 7 })],
+    });
+    const events: GameEvent[] = [
+      { type: "COMBAT_DAMAGE", amount: 3 },
+      { type: "COMBAT_RESOLVED", outcome: "ATTACKER_WON" },
+      { type: "COMBAT_ENDED" },
+    ];
+    expect(diffFxEvents(prev, next, events).map((e) => e.type)).toEqual(["damage"]);
   });
 
   it("detects commits from either seat", () => {
