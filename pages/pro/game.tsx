@@ -2427,11 +2427,14 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
     const turnActor = seatLabel(next, next.activePlayer);
     const phase = batchPhase(snapshot.events);
     const batchId = logBatchRef.current++;
+    // Prepend the batch whole (newest group on top) but keep the batch's lines
+    // in emission order so a single action reads chronologically top-down —
+    // attack → reveal → outcome → damage → discards (issue #402). diffViews
+    // emits the combat lifecycle before damage; enrichLines' additions trail
+    // the batch, which is correct once the batch is no longer reversed.
     setLogEntries((cur) =>
       [
-        ...lines
-          .map((l) => ({ ...l, key: `log-${logSeqRef.current++}`, ts, turn, turnActor, batchId, phase }))
-          .reverse(),
+        ...lines.map((l) => ({ ...l, key: `log-${logSeqRef.current++}`, ts, turn, turnActor, batchId, phase })),
         ...cur,
       ].slice(0, 120)
     );

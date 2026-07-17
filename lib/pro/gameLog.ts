@@ -61,19 +61,28 @@ export interface ProLogEntry extends ProLogLine {
 const csvCell = (value: string) => `"${value.replace(/"/g, '""')}"`;
 
 /**
- * Oldest-first CSV of the whole feed (entries are stored newest-first). Single
- * source for both the activity-panel download and the bug-report attachment.
- * The `phase` column (issue #298) carries the action label so an exported log
- * can be grouped the same way the panel groups it.
+ * Oldest-first CSV of the whole feed. Single source for both the activity-panel
+ * download and the bug-report attachment. The `phase` column (issue #298)
+ * carries the action label so an exported log can be grouped the same way the
+ * panel groups it.
+ *
+ * Batches are stored newest-first, but lines WITHIN a batch are stored
+ * oldest-first (issue #402). So to get a strictly oldest-first, line-by-line
+ * export we reverse the order of the batches only — never the lines inside one.
  */
 export function logEntriesToCsv(entries: ProLogEntry[]): string {
+  const batches: ProLogEntry[][] = [];
+  for (const e of entries) {
+    const last = batches[batches.length - 1];
+    if (last && last[0].batchId === e.batchId) last.push(e);
+    else batches.push([e]);
+  }
+  const ordered = batches.reverse().flat();
   return [
     "time,turn,phase,who,text",
-    ...[...entries]
-      .reverse()
-      .map((e) =>
-        [e.ts ? new Date(e.ts).toISOString() : "", e.turn ?? "", e.phase ?? "", e.who, csvCell(e.text)].join(",")
-      ),
+    ...ordered.map((e) =>
+      [e.ts ? new Date(e.ts).toISOString() : "", e.turn ?? "", e.phase ?? "", e.who, csvCell(e.text)].join(",")
+    ),
   ].join("\n");
 }
 
@@ -188,7 +197,36 @@ export function diffViews(
     });
   }
 
-  // fighters: movement, damage, defeat
+  // combat lifecycle FIRST so a single action reads as a chronological story
+  // top-down: attack declared → reveal → outcome, then the fighter damage/defeat
+  // those caused (issue #402). Within one STATE batch these never overlap
+  // (movement is a maneuver; damage is combat), so ordering the whole combat
+  // block ahead of the whole fighter block is safe.
+  if (next.combat && !prev.combat) {
+    const att = next.fighters.find((f) => f.id === next.combat!.attacker);
+    const tgt = next.fighters.find((f) => f.id === next.combat!.target);
+    lines.push({
+      text: `${att?.name ?? short(next.combat.attacker)} attacks ${tgt?.name ?? short(next.combat.target)}`,
+      who: whoOf(next.combat.attackerPlayer),
+    });
+  }
+  if (next.combat?.attackerCard && !prev.combat?.attackerCard) {
+    const def = next.combat.defenderCard;
+    lines.push({
+      text: `Reveal: ${label(next.combat.attackerCard.instance)} vs ${def ? label(def.instance) : "no defense"}`,
+      who: "game",
+      cards: [next.combat.attackerCard.instance, ...(def ? [def.instance] : [])],
+    });
+  }
+  if (next.combat?.outcome && !prev.combat?.outcome) {
+    const dmg = next.combat.attackDamageDealt;
+    lines.push({
+      text: `${next.combat.outcome.replace(/_/g, " ").toLowerCase()}${dmg !== null ? ` — ${dmg} damage` : ""}`,
+      who: "game",
+    });
+  }
+
+  // fighters: movement, damage, defeat — after the combat lines that caused them.
   const prevFighters = new Map(prev.fighters.map((f) => [f.id, f]));
   // Fighters cleared by the elimination sweep (hero-dead seat) drop to hp:0
   // with no DAMAGE_APPLIED — that hp change is bookkeeping, not combat, so skip
@@ -215,31 +253,6 @@ export function diffViews(
           : { text: `${f.name} was defeated!`, who: "game" }
       );
     }
-  }
-
-  // combat lifecycle
-  if (next.combat && !prev.combat) {
-    const att = next.fighters.find((f) => f.id === next.combat!.attacker);
-    const tgt = next.fighters.find((f) => f.id === next.combat!.target);
-    lines.push({
-      text: `${att?.name ?? short(next.combat.attacker)} attacks ${tgt?.name ?? short(next.combat.target)}`,
-      who: whoOf(next.combat.attackerPlayer),
-    });
-  }
-  if (next.combat?.attackerCard && !prev.combat?.attackerCard) {
-    const def = next.combat.defenderCard;
-    lines.push({
-      text: `Reveal: ${label(next.combat.attackerCard.instance)} vs ${def ? label(def.instance) : "no defense"}`,
-      who: "game",
-      cards: [next.combat.attackerCard.instance, ...(def ? [def.instance] : [])],
-    });
-  }
-  if (next.combat?.outcome && !prev.combat?.outcome) {
-    const dmg = next.combat.attackDamageDealt;
-    lines.push({
-      text: `${next.combat.outcome.replace(/_/g, " ").toLowerCase()}${dmg !== null ? ` — ${dmg} damage` : ""}`,
-      who: "game",
-    });
   }
 
   // cards: draws and discard-pile growth. Only the viewer's own hand has
