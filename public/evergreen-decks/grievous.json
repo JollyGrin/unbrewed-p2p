@@ -5,7 +5,7 @@
   "deck_data": {
     "appearance": {
       "borderColour": "#3a3f45",
-      "cardbackUrl": "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/cover.png",
+      "cardbackUrl": "https://unbrewed.xyz/evergreen-decks/art/grievous/cardback.webp",
       "highlightColour": "#8a9199",
       "isPNP": false,
       "patternName": "Durasteel"
@@ -37,17 +37,14 @@
         "boost": 3,
         "characterName": "GRIEVOUS",
         "duringText": "",
-        "imageUrl": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/grievous/fear-surprise-intimidation.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "Fear, Surprise, & Intimidation",
         "type": "scheme",
         "value": null,
         "cardImage": {
-          "url": "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/actionCards.png",
-          "cols": 10,
-          "rows": 2,
-          "index": 0
+          "url": "https://unbrewed.xyz/evergreen-decks/art/grievous/fear-surprise-intimidation.webp"
         }
       },
       {
@@ -56,17 +53,14 @@
         "boost": 3,
         "characterName": "GRIEVOUS",
         "duringText": "",
-        "imageUrl": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/grievous/unrelenting-advance.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "Unrelenting Advance",
         "type": "attack",
         "value": 4,
         "cardImage": {
-          "url": "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/actionCards.png",
-          "cols": 10,
-          "rows": 2,
-          "index": 1
+          "url": "https://unbrewed.xyz/evergreen-decks/art/grievous/unrelenting-advance.webp"
         }
       },
       {
@@ -75,17 +69,14 @@
         "boost": 1,
         "characterName": "GRIEVOUS",
         "duringText": "",
-        "imageUrl": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/grievous/arrogant-but-effective.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Arrogant but Effective",
         "type": "versatile",
         "value": 2,
         "cardImage": {
-          "url": "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/actionCards.png",
-          "cols": 10,
-          "rows": 2,
-          "index": 2
+          "url": "https://unbrewed.xyz/evergreen-decks/art/grievous/arrogant-but-effective.webp"
         }
       },
       {
@@ -94,17 +85,14 @@
         "boost": 2,
         "characterName": "GRIEVOUS",
         "duringText": "",
-        "imageUrl": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/grievous/commanding-presence.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Commanding Presence",
         "type": "versatile",
         "value": 3,
         "cardImage": {
-          "url": "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/actionCards.png",
-          "cols": 10,
-          "rows": 2,
-          "index": 3
+          "url": "https://unbrewed.xyz/evergreen-decks/art/grievous/commanding-presence.webp"
         }
       },
       {
@@ -113,17 +101,14 @@
         "boost": 1,
         "characterName": "GRIEVOUS",
         "duringText": "",
-        "imageUrl": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/grievous/you-must-break-them.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "You must Break them",
         "type": "defence",
         "value": 3,
         "cardImage": {
-          "url": "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/actionCards.png",
-          "cols": 10,
-          "rows": 2,
-          "index": 4
+          "url": "https://unbrewed.xyz/evergreen-decks/art/grievous/you-must-break-them.webp"
         }
       },
       {
@@ -132,17 +117,14 @@
         "boost": 2,
         "characterName": "GRIEVOUS",
         "duringText": "",
-        "imageUrl": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/grievous/recompute.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Recompute",
         "type": "versatile",
         "value": 1,
         "cardImage": {
-          "url": "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/actionCards.png",
-          "cols": 10,
-          "rows": 2,
-          "index": 5
+          "url": "https://unbrewed.xyz/evergreen-decks/art/grievous/recompute.webp"
         }
       },
       {
@@ -151,17 +133,14 @@
         "boost": 2,
         "characterName": "GRIEVOUS",
         "duringText": "",
-        "imageUrl": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/grievous/use-the-unorthodox.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Use the Unorthodox",
         "type": "attack",
         "value": 4,
         "cardImage": {
-          "url": "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/actionCards.png",
-          "cols": 10,
-          "rows": 2,
-          "index": 6
+          "url": "https://unbrewed.xyz/evergreen-decks/art/grievous/use-the-unorthodox.webp"
         }
       },
       {
@@ -170,17 +149,14 @@
         "boost": 1,
         "characterName": "GRIEVOUS",
         "duringText": "",
-        "imageUrl": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/grievous/wily-brawling.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Wily Brawling",
         "type": "versatile",
         "value": 3,
         "cardImage": {
-          "url": "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/actionCards.png",
-          "cols": 10,
-          "rows": 2,
-          "index": 7
+          "url": "https://unbrewed.xyz/evergreen-decks/art/grievous/wily-brawling.webp"
         }
       },
       {
@@ -189,17 +165,14 @@
         "boost": 1,
         "characterName": "GRIEVOUS",
         "duringText": "If you share no zones with the space you started in this turn, the value of this card is 6 instead.",
-        "imageUrl": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/grievous/momentous-lunge.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Momentous Lunge",
         "type": "attack",
         "value": 2,
         "cardImage": {
-          "url": "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/actionCards.png",
-          "cols": 10,
-          "rows": 2,
-          "index": 8
+          "url": "https://unbrewed.xyz/evergreen-decks/art/grievous/momentous-lunge.webp"
         }
       },
       {
@@ -208,17 +181,14 @@
         "boost": 2,
         "characterName": "GRIEVOUS",
         "duringText": "",
-        "imageUrl": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/grievous/roger-roger.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Roger Roger",
         "type": "versatile",
         "value": 3,
         "cardImage": {
-          "url": "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/actionCards.png",
-          "cols": 10,
-          "rows": 2,
-          "index": 9
+          "url": "https://unbrewed.xyz/evergreen-decks/art/grievous/roger-roger.webp"
         }
       },
       {
@@ -227,17 +197,14 @@
         "boost": 2,
         "characterName": "GRIEVOUS",
         "duringText": "",
-        "imageUrl": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/grievous/fire-you-fools.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "Fire, you fools!",
         "type": "attack",
         "value": 1,
         "cardImage": {
-          "url": "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/actionCards.png",
-          "cols": 10,
-          "rows": 2,
-          "index": 10
+          "url": "https://unbrewed.xyz/evergreen-decks/art/grievous/fire-you-fools.webp"
         }
       }
     ]
@@ -248,10 +215,14 @@
   "liked": false,
   "likes": 0,
   "name": "General Grievous",
-  "note": "Evergreen original — rules-enforced Pro deck (server hero general-grievous). Card art renders from the self-hosted R2 TTS sprite sheet (10x2 grid, cell = CardID - 200); no unmatched.cards entry exists. Paraphrased card text; the printed faces carry the authoritative wording.",
+  "note": "Evergreen original — rules-enforced Pro deck (server hero general-grievous). Card art is self-hosted, one full-face webp per card in public/evergreen-decks/art/grievous (mirrored from the-unmatched.club deck 9861); rendered full-bleed via cardImage since the faces carry their own frame + text. No unmatched.cards entry exists. Paraphrased card text; the printed faces carry the authoritative wording.",
   "published": true,
   "published_on": "Mon, 13 Jul 2026 00:00:00 GMT",
-  "tags": ["pro", "evergreen", "original"],
+  "tags": [
+    "pro",
+    "evergreen",
+    "original"
+  ],
   "updated_on": "Mon, 13 Jul 2026 00:00:00 GMT",
   "user": "Inforce",
   "version_id": "evergreen-1",
