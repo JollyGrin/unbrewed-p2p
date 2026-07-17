@@ -131,6 +131,28 @@ describe("buildImageDeck", () => {
     expect(solo.deck_data.sidekick.hp).toBeNull();
   });
 
+  it("carries special ability and sidekick quote when supplied", () => {
+    const parsed = parseTtsDeck(ttsSavedObject);
+    const deck = buildImageDeck({
+      name: "Boba Fett",
+      specialAbility: "After combat: draw a card",
+      sidekickName: "Stormtrooper",
+      sidekickQuantity: 2,
+      sidekickQuote: "Only imperial stormtroopers are so precise",
+      cards: parsed.cards,
+    });
+    expect(deck.deck_data.hero.specialAbility).toBe(
+      "After combat: draw a card",
+    );
+    expect(deck.deck_data.sidekick.quote).toBe(
+      "Only imperial stormtroopers are so precise",
+    );
+
+    // falls back to the placeholder when no ability text is given
+    const bare = buildImageDeck({ name: "Boba", cards: parsed.cards });
+    expect(bare.deck_data.hero.specialAbility).toBe("See hero card");
+  });
+
   it("keeps standalone hero cards out of the shuffled draw deck", () => {
     const parsed = parseTtsDeck({
       ObjectStates: [

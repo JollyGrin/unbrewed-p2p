@@ -50,6 +50,11 @@ type DeckMeta = {
   hp: string;
   move: string;
   isRanged: boolean;
+  specialAbility: string;
+  sidekickName: string;
+  sidekickHp: string;
+  sidekickQuantity: string;
+  sidekickIsRanged: boolean;
 };
 
 const Builder = ({ onAdded }: { onAdded?: (deckId: string) => void }) => {
@@ -64,6 +69,11 @@ const Builder = ({ onAdded }: { onAdded?: (deckId: string) => void }) => {
     hp: "15",
     move: "2",
     isRanged: false,
+    specialAbility: "",
+    sidekickName: "",
+    sidekickHp: "",
+    sidekickQuantity: "",
+    sidekickIsRanged: false,
   });
 
   const loadTtsJson = (text: string) => {
@@ -106,11 +116,17 @@ const Builder = ({ onAdded }: { onAdded?: (deckId: string) => void }) => {
       toast.error("Give the deck a name first");
       return;
     }
+    const sidekickQuantity = parseInt(meta.sidekickQuantity) || 0;
     const deck = buildImageDeck({
       name: meta.name.trim(),
       hp: parseInt(meta.hp) || 15,
       move: parseInt(meta.move) || 2,
       isRanged: meta.isRanged,
+      specialAbility: meta.specialAbility,
+      sidekickName: meta.sidekickName,
+      sidekickQuantity,
+      sidekickHp: parseInt(meta.sidekickHp) || undefined,
+      sidekickIsRanged: meta.sidekickIsRanged,
       cardbackUrl,
       cards,
     });
@@ -291,6 +307,82 @@ const Builder = ({ onAdded }: { onAdded?: (deckId: string) => void }) => {
             <Checkbox
               isChecked={meta.isRanged}
               onChange={(e) => setMeta({ ...meta, isRanged: e.target.checked })}
+            >
+              <Text fontSize="0.8rem">Ranged</Text>
+            </Checkbox>
+          </Grid>
+
+          <Box mt="0.5rem">
+            <FormLabel fontSize="0.75rem" mb="0">
+              Special ability
+            </FormLabel>
+            <Textarea
+              bg="white"
+              size="sm"
+              rows={2}
+              placeholder="Hero's special ability text (TTS imports don't include it)"
+              value={meta.specialAbility}
+              onChange={(e) =>
+                setMeta({ ...meta, specialAbility: e.target.value })
+              }
+            />
+          </Box>
+
+          <Text fontWeight={700} fontSize="0.8rem" mt="0.75rem">
+            Sidekick (optional)
+          </Text>
+          <Grid
+            templateColumns="2fr 1fr 1fr auto"
+            gap="0.5rem"
+            alignItems="end"
+            mt="0.25rem"
+          >
+            <Box>
+              <FormLabel fontSize="0.75rem" mb="0">
+                Name
+              </FormLabel>
+              <Input
+                bg="white"
+                size="sm"
+                value={meta.sidekickName}
+                onChange={(e) =>
+                  setMeta({ ...meta, sidekickName: e.target.value })
+                }
+              />
+            </Box>
+            <Box>
+              <FormLabel fontSize="0.75rem" mb="0">
+                HP each
+              </FormLabel>
+              <Input
+                bg="white"
+                size="sm"
+                type="number"
+                value={meta.sidekickHp}
+                onChange={(e) =>
+                  setMeta({ ...meta, sidekickHp: e.target.value })
+                }
+              />
+            </Box>
+            <Box>
+              <FormLabel fontSize="0.75rem" mb="0">
+                Count
+              </FormLabel>
+              <Input
+                bg="white"
+                size="sm"
+                type="number"
+                value={meta.sidekickQuantity}
+                onChange={(e) =>
+                  setMeta({ ...meta, sidekickQuantity: e.target.value })
+                }
+              />
+            </Box>
+            <Checkbox
+              isChecked={meta.sidekickIsRanged}
+              onChange={(e) =>
+                setMeta({ ...meta, sidekickIsRanged: e.target.checked })
+              }
             >
               <Text fontSize="0.8rem">Ranged</Text>
             </Checkbox>

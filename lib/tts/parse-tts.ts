@@ -174,11 +174,14 @@ export type ImageDeckInput = {
   hp?: number;
   move?: number;
   isRanged?: boolean;
+  /** free text; TTS has no hero stats, so this is user-supplied */
+  specialAbility?: string;
   /** minions/sidekick: quantity 0 or undefined = none */
   sidekickName?: string;
   sidekickQuantity?: number;
   sidekickHp?: number;
   sidekickIsRanged?: boolean;
+  sidekickQuote?: string;
   cardbackUrl?: string;
   cards: ParsedTtsCard[];
 };
@@ -247,7 +250,7 @@ export const buildImageDeck = (input: ImageDeckInput): DeckImportType => {
         hp: input.hp ?? 15,
         move: input.move ?? 2,
         isRanged: input.isRanged ?? false,
-        specialAbility: "See hero card",
+        specialAbility: input.specialAbility?.trim() || "See hero card",
       },
       sidekick: hasSidekick
         ? {
@@ -256,7 +259,7 @@ export const buildImageDeck = (input: ImageDeckInput): DeckImportType => {
             // multiple minions are 1hp each by convention
             hp: input.sidekickHp ?? 1,
             isRanged: input.sidekickIsRanged ?? false,
-            quote: "",
+            quote: input.sidekickQuote?.trim() || "",
           }
         : {
             name: "Sidekick",
