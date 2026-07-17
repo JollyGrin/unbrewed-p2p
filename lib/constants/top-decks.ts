@@ -502,8 +502,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Inforce",
     likes: 0,
     highlightColour: "#8a9199",
-    cardbackUrl:
-      "https://pub-89a6241d8d86432d87db88c05869507a.r2.dev/9861/42326b0498/tts/cover.png",
+    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/grievous/cardback.webp",
     original: true,
   },
   {
