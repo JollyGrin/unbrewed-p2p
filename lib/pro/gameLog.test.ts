@@ -405,10 +405,33 @@ describe("enrichLines", () => {
       expect(l.who).toBe("game");
     });
 
-    it("SUB_ATTACK_INITIATED — droid fires Blast 'em! with the printed value", () => {
+    it("SUB_ATTACK_INITIATED — a B1 Battle Droid fires Blast 'em! with the printed value", () => {
+      // Grievous's flavor is kept only when the attacker resolves to a B1
+      // Battle Droid — the fighter that fires the printed sub-attack (#411).
+      const grievousCtx: EnrichContext = {
+        ...ctx(),
+        fighter: (id) => (id.endsWith("/sidekick-1") ? "B1 Battle Droid" : (id.split("/").pop() ?? id)),
+      };
       expect(
-        line({ type: "SUB_ATTACK_INITIATED", attacker: "p1/sidekick-1", target: "p2/hero", value: 4 }).text
-      ).toBe("sidekick-1 fires Blast 'em! (4) at hero");
+        enrichLines(
+          [],
+          [{ type: "SUB_ATTACK_INITIATED", attacker: "p1/sidekick-1", target: "p2/hero", value: 4 }],
+          grievousCtx
+        )[0].text
+      ).toBe("B1 Battle Droid fires Blast 'em! (4) at hero");
+    });
+
+    it("SUB_ATTACK_INITIATED — any other attacker gets a neutral bonus-attack line, never 'Blast 'em!'", () => {
+      // Batman's Dark Knight [3] CRITICAL STRIKE uses the same generic op but
+      // must not borrow Grievous's flavor (#411).
+      const text = line({
+        type: "SUB_ATTACK_INITIATED",
+        attacker: "p1/hero",
+        target: "p2/sidekick-1",
+        value: 3,
+      }).text;
+      expect(text).toBe("hero makes a bonus attack (3) against sidekick-1");
+      expect(text).not.toContain("Blast 'em!");
     });
 
     it("COMBAT_WON_MARKED — 'You are considered to have won' for the viewer", () => {
