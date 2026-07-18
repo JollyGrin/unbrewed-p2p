@@ -2518,7 +2518,7 @@ const HeroSelectLobby = ({
             <Flex align="center" gap="0.7rem">
               <Text {...STRIP_LBL}>STAGE</Text>
               <Flex gap="0.5rem" overflowX="auto" pb="0.25rem" flex="1">
-                {MAP_CATALOG.map((entry) => {
+                {MAP_CATALOG.filter((e) => !e.hidden).map((entry) => {
                   const reason = ineligibleReason(entry.map, selectedFormat);
                   const eligible = reason === null;
                   const selected = selectedMapId === entry.id;
