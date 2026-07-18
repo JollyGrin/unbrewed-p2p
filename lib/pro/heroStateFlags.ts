@@ -138,6 +138,109 @@ export const HERO_STATE_FLAGS: HeroStateFlag[] = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// Counter-driven states (issue #420: Nancy Drew's CLUE economy)
+// ---------------------------------------------------------------------------
+
+/**
+ * A public per-player NUMERIC counter (PlayerView.counters — see protocol.ts;
+ * moved by the engine `counter` op, broadcast via COUNTER_CHANGED). This is a
+ * DIFFERENT protocol field from `flags`: flags are booleans, counters are ints.
+ * Rather than fake a counter as N boolean flag states (a hardcoded 0..max group
+ * that multiplies per resource-counter deck), a counter is ONE registry entry
+ * here, projected onto the SAME two render surfaces the flag registry drives —
+ * the nameplate <FlagChip> pill and the token corner badge. A future counter
+ * deck adds a single entry; zero ProHud/ProBoard component changes.
+ *
+ * Both surfaces are HIDDEN AT 0 (an empty resource reads as no chip / no badge).
+ * Counters are public, so a Nancy counter renders on BOTH seats' plates.
+ */
+export interface HeroStateCounter {
+  /** the PlayerView `counters` key the engine emits. VERIFY against the engine's
+   *  rules.ts — the key is the raw counter name (Nancy's is `CLUE`, singular),
+   *  which is NOT necessarily the flavor label ("CLUES"). */
+  counter: string;
+  /** hero ids the counter applies to (the "has the mechanic" gate). */
+  heroes: string[];
+  /** HUD nameplate pill. `labelTemplate` substitutes `{n}` with the live value
+   *  (e.g. "CLUES: {n}" -> "CLUES: 3"). Omit for token-only counters. */
+  nameplate?: { labelTemplate: string };
+  /** board-token corner badge. The badge `label` is the live value; `icon`,
+   *  `title` prefix, and colors are fixed. Omit for nameplate-only counters. */
+  token?: { icon: string; title: string; bg: string; color: string };
+}
+
+export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
+  {
+    // Nancy Drew's CLUE economy (issue #420 ↔ engine #225). Engine counter key is
+    // `CLUE` (singular; { name: 'CLUE', max: 5 } in nancy-drew.rules.ts) — the
+    // "CLUES" plural is only flavor, so the pill/badge label carry it, the gate
+    // uses the exact key.
+    counter: "CLUE",
+    heroes: ["nancy-drew"],
+    nameplate: { labelTemplate: "CLUES: {n}" },
+    token: { icon: "🔍", title: "CLUES", bg: "#6D4C8D", color: "#F3ECFA" },
+  },
+];
+
+const counterEntriesForHero = (heroId: string) =>
+  HERO_STATE_COUNTERS.filter((e) => e.heroes.includes(heroId));
+
+/**
+ * Nameplate chips a hero's counters contribute, in the SAME `{ chip, on }[]` shape
+ * `flagChipsFor` returns — so ProHud renders both through one <FlagChip> map with
+ * no branching. Each positive counter yields one chip (`on: true`, label with `{n}`
+ * filled); a counter at 0/absent yields nothing (hidden at 0). The chip's `flag`
+ * key is namespaced `counter:<name>` so it never collides with a boolean-flag glyph
+ * in FLAG_CHIP_ICONS (counters render text-only, which is what we want).
+ */
+export const counterChipsFor = (
+  heroId: string,
+  counters: Record<string, number> | undefined
+): { chip: FlagHudChip; on: boolean }[] => {
+  const chips: { chip: FlagHudChip; on: boolean }[] = [];
+  for (const e of counterEntriesForHero(heroId)) {
+    if (!e.nameplate) continue;
+    const n = counters?.[e.counter] ?? 0;
+    if (n <= 0) continue; // hidden at 0
+    chips.push({
+      chip: {
+        flag: `counter:${e.counter}`,
+        onLabel: e.nameplate.labelTemplate.replace("{n}", String(n)),
+        offLabel: "",
+      },
+      on: true,
+    });
+  }
+  return chips;
+};
+
+/**
+ * The token corner badge a hero's counters contribute, or null. First positive
+ * counter wins (registry order); a counter at 0/absent contributes nothing (hidden
+ * at 0). Reuses FlagTokenBadge so it drops straight into ProBoard's existing
+ * `fighterTokenBadge` path — the numeric value is the badge `label`.
+ */
+export const fighterTokenCounterBadgeFor = (
+  heroId: string | undefined,
+  counters: Record<string, number> | undefined
+): FlagTokenBadge | null => {
+  if (!heroId) return null;
+  for (const e of counterEntriesForHero(heroId)) {
+    if (!e.token) continue;
+    const n = counters?.[e.counter] ?? 0;
+    if (n <= 0) continue; // hidden at 0
+    return {
+      icon: e.token.icon,
+      label: String(n),
+      title: `${e.token.title}: ${n}`,
+      bg: e.token.bg,
+      color: e.token.color,
+    };
+  }
+  return null;
+};
+
 /** All registry entries a hero participates in, in registry order. */
 const entriesForHero = (heroId: string) =>
   HERO_STATE_FLAGS.filter((e) => e.heroes.includes(heroId));
@@ -283,12 +386,27 @@ export const fighterTokenStateFor = (
  * so callers pre-resolve here — ONE map feeding both the `fighterTokenBadge` and
  * `fighterTokenArt` props. Owners whose state has neither a badge nor an art
  * override are omitted.
+ *
+ * The corner badge merges both state families: a flag-driven badge (tide / druid
+ * form) wins; otherwise a counter-driven badge (Nancy's CLUE) fills it. A hero
+ * today drives only one, so the precedence is academic — but it keeps the single
+ * badge slot deterministic if a future hero ever declares both.
  */
 export const fighterTokenStateByOwner = (
-  players: Array<{ id: PlayerId; heroId: string; flags?: Record<string, boolean> }>
+  players: Array<{
+    id: PlayerId;
+    heroId: string;
+    flags?: Record<string, boolean>;
+    counters?: Record<string, number>;
+  }>
 ): Partial<Record<PlayerId, FighterTokenState>> =>
   Object.fromEntries(
     players
-      .map((p) => [p.id, fighterTokenStateFor(p.heroId, p.flags)] as const)
+      .map((p) => {
+        const flagState = fighterTokenStateFor(p.heroId, p.flags);
+        const badge =
+          flagState.badge ?? fighterTokenCounterBadgeFor(p.heroId, p.counters);
+        return [p.id, { badge, heroArtUrl: flagState.heroArtUrl }] as const;
+      })
       .filter(([, st]) => st.badge || st.heroArtUrl)
   );
