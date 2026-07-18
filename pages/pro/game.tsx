@@ -74,6 +74,7 @@ import {
 import { useFlag } from "@/lib/flags";
 import { maneuverBoostHint } from "@/lib/pro/maneuverHint";
 import { buildPoseIndex, parsePoseOptions, poseHighlights, resolvePoseClick } from "@/lib/pro/moveChoice";
+import { moveBudgetLine, unofferableMoveFeedback } from "@/lib/pro/moveFeedback";
 import { cardFaceOptions } from "@/lib/pro/cardOptions";
 import {
   applyClick as applyStepClick,
@@ -202,6 +203,7 @@ const PromptPanel = ({
   buttonOptions,
   cardOptions,
   boardHint,
+  budgetLine,
   previewInstance,
   sourceInstance,
   sourceLabel,
@@ -219,6 +221,11 @@ const PromptPanel = ({
   cardOptions: { id: string; instance: CardInstanceId }[];
   /** set when some options are answered by clicking the board */
   boardHint: string | null;
+  /** issue #412: the step budget line for a CHOOSE_SPACE *move* prompt ("Move
+   *  up to 2 spaces"), shown as the primary line so the player knows why some
+   *  spaces aren't offered. null for non-move prompts (fall back to
+   *  `prompt.description`). */
+  budgetLine: string | null;
   /**
    * Legacy best-effort card behind this prompt (issue #72 fix #2), used only when
    * the server sent no `source`: the caller approximates it from `option.data.card`
@@ -245,11 +252,13 @@ const PromptPanel = ({
         resolving on a multi-step card ("Choose a fighter to take 2 damage"). When
         present it is the PRIMARY line and the card attribution (`sourceLabel`)
         demotes below it; when absent we fall back to the v10 attribution-only copy.
-        Both shown to chooser and spectator alike. */}
-    {prompt.description ? (
+        Both shown to chooser and spectator alike. Issue #412: for a CHOOSE_SPACE
+        move prompt `budgetLine` (the "Move up to N spaces" budget, or a move-shaped
+        fallback) takes the primary line so the step budget is always stated. */}
+    {(budgetLine ?? prompt.description) ? (
       <>
         <Text fontSize="0.95rem" fontWeight="bold" mb="0.25rem" color="brand.parchment">
-          {prompt.description}
+          {budgetLine ?? prompt.description}
         </Text>
         {sourceLabel && (
           <Text fontSize="0.75rem" mb="0.5rem" color="brand.parchment" opacity={0.7}>
@@ -3708,6 +3717,11 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
         : promptTargetIds.length > 0
           ? "click a pulsing fighter on the board"
           : null;
+  // issue #412: state the move budget on a CHOOSE_SPACE *move* prompt (the
+  // "Move up to N spaces" summary rides in `prompt.description`). A LARGE mover's
+  // pose prompt is always a move; other CHOOSE_SPACE prompts are detected by the
+  // description's move verb. null for placement/token prompts (keep their copy).
+  const promptBudgetLine = moveBudgetLine(promptForMe, poseIndex.size > 0);
 
   // Prompt attribution (protocol v10, issue #35 / #147 / #151): `prompt.source`
   // names WHAT opened this prompt and is sent to BOTH players — a resolving card
@@ -3863,6 +3877,24 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
       respondToPrompt(promptForMe.promptId, promptOption);
       setSelectedFighter(null);
       return;
+    }
+    // issue #412: tapping a visible-but-unofferable space during a move prompt
+    // used to be a SILENT no-op (which read as "the game won't let me" — see
+    // issue #326's LARGE King Kong vs. the Hut portal). Give lightweight, honest
+    // feedback instead. Offered spaces already returned above; placement/token
+    // CHOOSE_SPACE prompts return null here and fall through unchanged.
+    if (promptForMe?.kind === "CHOOSE_SPACE") {
+      const feedback = unofferableMoveFeedback({
+        prompt: promptForMe,
+        space,
+        offeredSpaces: new Set([...promptSpaceOptions.keys(), ...poseIndex.spaces]),
+        largeMover: poseIndex.size > 0,
+        spaceRegion: view.map.spaces.find((s) => s.id === space)?.region ?? null,
+      });
+      if (feedback) {
+        toast(feedback, { id: "pro-move-unreachable", icon: "🚫" });
+        return;
+      }
     }
     // Incremental maneuver stepping (issue #285): once the server sends a move
     // graph for the selected fighter, the graph OWNS its maneuver clicks. A click
@@ -4278,6 +4310,7 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
               buttonOptions={promptButtonOptions}
               cardOptions={promptCardOptions}
               boardHint={promptBoardHint}
+              budgetLine={promptBudgetLine}
               previewInstance={promptCardInstance}
               sourceInstance={sourceCardInstance}
               sourceLabel={sourceLabel}
