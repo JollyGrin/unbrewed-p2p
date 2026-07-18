@@ -20,6 +20,7 @@ import { tokenInitials } from "./FighterTokenPortrait";
 import { TokenIdle, TokenLifeLayer, phaseSeed } from "./TokenLifeLayer";
 import { ItemBadge, PassageBadge } from "./ItemBadge";
 import type { FlagTokenBadge } from "@/lib/pro/heroStateFlags";
+import { fighterStatusBadgesFor } from "@/lib/pro/fighterStatuses";
 
 /** Hover/long-press tooltip for a live item token, per the official wording. */
 export const itemBadgeTitle = (item: ProMapItem): string =>
@@ -565,6 +566,12 @@ export const ProBoard = ({
     // token renders initials-only exactly as before.
     const tokenArt = segment === "head" ? fighterTokenArt?.(f) : null;
     const tokenBadge = segment === "head" && f.kind === "HERO" ? fighterTokenBadge?.(f) : null;
+    // Per-fighter status rim badges (issue #371) — driven straight off
+    // ViewFighter.statuses via the FIGHTER_STATUS_BADGES registry. Unlike the
+    // hero-state tokenBadge above, these apply to ANY fighter (hero OR sidekick,
+    // any hero) since a status is typically inflicted by the opponent. Head
+    // segment only, same rule as the HP/state badges.
+    const statusBadges = segment === "head" ? fighterStatusBadgesFor(f) : [];
 
     const children = (
       <>
@@ -659,6 +666,44 @@ export const ProBoard = ({
             aria-label={tokenBadge.title}
           >
             {tokenBadge.icon}
+          </Flex>
+        )}
+        {statusBadges.length > 0 && (
+          // Rim badges for each active per-fighter status (#371). Anchored at the
+          // bottom-left corner — clear of the HP badge (bottom-right), the
+          // hero-state badge (top-right), the number badge (top-left) and the
+          // reach pill (top-center) — and stacked upward (column-reverse) so a
+          // second status kind just adds another badge with no repositioning.
+          <Flex
+            position="absolute"
+            bottom="-20%"
+            left="-20%"
+            direction="column-reverse"
+            alignItems="flex-start"
+            gap="0.15em"
+          >
+            {statusBadges.map((b) => (
+              <Flex
+                key={b.kind}
+                minWidth="1.45em"
+                h="1.45em"
+                px="0.18em"
+                alignItems="center"
+                justifyContent="center"
+                bg={b.bg}
+                color={b.color}
+                border="1.5px solid #fff"
+                borderRadius="999px"
+                fontSize="0.68rem"
+                fontWeight="bold"
+                lineHeight="1"
+                boxShadow="0 1px 4px rgba(0,0,0,0.75)"
+                title={b.title}
+                aria-label={b.title}
+              >
+                {b.icon}
+              </Flex>
+            ))}
           </Flex>
         )}
         {segment === "head" && fighterBadges[f.id] != null && (
