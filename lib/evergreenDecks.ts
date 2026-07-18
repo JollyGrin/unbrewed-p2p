@@ -20,7 +20,14 @@ import { HERO_DECK_IDS } from "@/lib/pro/useProCardArt";
 
 export const EVERGREEN_DECK_IDS = new Set<string>(Object.values(HERO_DECK_IDS));
 
-export const DEFAULT_DECK_API = "https://unbrewed-api.vercel.app/api/unmatched-deck/";
+// The deck-fetch CORS proxy now lives in the engine server (folded in from the
+// standalone unbrewed-api Vercel app): same path, same body, CORS-open for GET.
+// NEXT_PUBLIC_DECK_API_URL can override for local-engine testing, but note it's
+// build-time-inlined (same caveat as NEXT_PUBLIC_PRO_WS_URL), so the fallback
+// must stay the prod engine URL.
+export const DEFAULT_DECK_API =
+  process.env.NEXT_PUBLIC_DECK_API_URL ??
+  "https://unbrewed-engine-production.up.railway.app/api/unmatched-deck/";
 
 const fromSnapshot = (id: string) =>
   axios.get<DeckImportType>(`/evergreen-decks/${id}.json`).then((r) => r.data);
