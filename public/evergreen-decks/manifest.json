@@ -239,6 +239,18 @@
         "file": "data/heroes/batman.rules.ts",
         "commit": "5e3e6b0"
       }
+    },
+    {
+      "heroId": "muhammad-ali",
+      "deckId": "Yr3m",
+      "version_id": "mYnvFoQz",
+      "frozenAt": "2026-07-18",
+      "digest": "sha256:6c313383e3048026682d99fc7bd0ce8f3002a631f2980113c8ebabaf7d29985f",
+      "rulesVerified": {
+        "repo": "unbrewed-engine",
+        "file": "data/heroes/muhammad-ali.rules.ts",
+        "commit": "43be0c3"
+      }
     }
   ]
 }

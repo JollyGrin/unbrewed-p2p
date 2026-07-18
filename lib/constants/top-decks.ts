@@ -373,6 +373,20 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     tier: "lab",
   },
   {
+    // In-the-lab Pro deck (unmatched.cards Yr3m / version mYnvFoQz) — server
+    // hero muhammad-ali (issue #421 ↔ engine #176). Solo fighter, no sidekick.
+    // Full upstream card art (imgur); cardback is the deck's own imgur cover.
+    id: "Yr3m",
+    name: "Muhammad Ali",
+    hero: "Muhammad Ali",
+    author: "Hubaris",
+    likes: 24,
+    highlightColour: "#b856f9",
+    cardbackUrl: "https://i.imgur.com/55YqrwI.png",
+    lab: true,
+    tier: "lab",
+  },
+  {
     // Evergreen original (no unmatched.cards page): King Taranis, the
     // Stormquenched — server hero king-taranis.
     // Reflavored/baseline deck (tier === 'reflavored'): hidden from the default
