@@ -544,10 +544,19 @@ export function enrichLines(
         break;
       }
       case "SUB_ATTACK_INITIATED": {
-        added.push({
-          text: `${ctx.fighter(e.attacker)} fires Blast 'em! (${e.value}) at ${ctx.fighter(e.target)}`,
-          who: "game",
-        });
+        // The `subAttack` op is generic: any card that opens a deferred bonus
+        // attack (Grievous's "Fire, you fools!" → a B1 Battle Droid's printed
+        // "Blast 'em!", Batman's Dark Knight [3] CRITICAL STRIKE, …) emits it.
+        // The protocol carries no source card (attacker/target/value only), so
+        // we can only flavor from the attacker's identity client-side: keep
+        // Grievous's "Blast 'em!" when a B1 Battle Droid fires, otherwise a
+        // source-neutral bonus-attack line (issue #411).
+        const attacker = ctx.fighter(e.attacker);
+        const target = ctx.fighter(e.target);
+        const text = attacker.includes("B1 Battle Droid")
+          ? `${attacker} fires Blast 'em! (${e.value}) at ${target}`
+          : `${attacker} makes a bonus attack (${e.value}) against ${target}`;
+        added.push({ text, who: "game" });
         break;
       }
 
