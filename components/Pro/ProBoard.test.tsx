@@ -406,6 +406,131 @@ describe("ProBoard fighter token over a highlighted space (issue #185)", () => {
   });
 });
 
+// issue #413: a space can belong to several zones, and zone-conditional effects
+// count fighters in EVERY zone a space touches. Hovering/selecting a space lights
+// up every space sharing one of its zones, tinted + ringed in that zone's own
+// color, so multi-zone membership reads at a glance (root cause of the #254
+// misread). Presentation-only, driven off the static map def.
+describe("ProBoard zone-membership highlight (issue #413)", () => {
+  const ZA = "#ff0000";
+  const ZB = "#00ff00";
+  // s1 ∈ {A}; s2 ∈ {A, B} (multi-zone); s3 ∈ {B}; s4 ∈ {} (no zone).
+  const ZONE_MAP: ProMapDef = {
+    schemaVersion: "1",
+    id: "zone-map",
+    meta: { title: "Zone Map", minPlayers: 2, maxPlayers: 2, specialRules: false, imageUrl: "/z.png" },
+    zones: [
+      { id: "A", color: ZA, label: "Grove" },
+      { id: "B", color: ZB, label: "Glade" },
+    ],
+    spaces: [
+      { id: "s1", x: 0.1, y: 0.1, zones: ["A"], adjacentTo: ["s2"] },
+      { id: "s2", x: 0.3, y: 0.3, zones: ["A", "B"], adjacentTo: ["s1", "s3"] },
+      { id: "s3", x: 0.5, y: 0.5, zones: ["B"], adjacentTo: ["s2"] },
+      { id: "s4", x: 0.7, y: 0.7, zones: [], adjacentTo: [] },
+    ],
+  };
+  const circle = (container: HTMLElement, id: string) =>
+    container.querySelector(`[data-space-id="${id}"]`) as HTMLElement;
+
+  it("shows no zone legend and tints nothing until a space is hovered", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard map={ZONE_MAP} fighters={[]} />
+      </ChakraProvider>
+    );
+    expect(screen.queryByText("Grove")).not.toBeInTheDocument();
+    expect(getComputedStyle(circle(container, "s2")).boxShadow).toBe("");
+  });
+
+  it("hovering a single-zone space rings every member of that one zone, and only those", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard map={ZONE_MAP} fighters={[]} />
+      </ChakraProvider>
+    );
+    fireEvent.mouseEnter(circle(container, "s1")); // s1 ∈ zone A only
+    // legend names zone A, not B
+    expect(screen.getByText("Grove")).toBeInTheDocument();
+    expect(screen.queryByText("Glade")).not.toBeInTheDocument();
+    // members of A (s1, s2) get a red ring; s3 (zone B only) and s4 (no zone) don't
+    expect(getComputedStyle(circle(container, "s1")).boxShadow).toContain(ZA);
+    expect(getComputedStyle(circle(container, "s2")).boxShadow).toContain(ZA);
+    expect(getComputedStyle(circle(container, "s3")).boxShadow).toBe("");
+    expect(getComputedStyle(circle(container, "s4")).boxShadow).toBe("");
+  });
+
+  it("hovering a multi-zone space highlights ALL its zones, distinguishable per zone", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard map={ZONE_MAP} fighters={[]} />
+      </ChakraProvider>
+    );
+    fireEvent.mouseEnter(circle(container, "s2")); // s2 ∈ zones A and B
+    // legend names both zones
+    expect(screen.getByText("Grove")).toBeInTheDocument();
+    expect(screen.getByText("Glade")).toBeInTheDocument();
+    // the multi-zone space carries a ring for EACH zone (both colors present)
+    const s2Shadow = getComputedStyle(circle(container, "s2")).boxShadow;
+    expect(s2Shadow).toContain(ZA);
+    expect(s2Shadow).toContain(ZB);
+    // a single-zone member of each zone lights only in its own color
+    expect(getComputedStyle(circle(container, "s1")).boxShadow).toContain(ZA);
+    expect(getComputedStyle(circle(container, "s3")).boxShadow).toContain(ZB);
+    // the zone-less space stays untouched
+    expect(getComputedStyle(circle(container, "s4")).boxShadow).toBe("");
+  });
+
+  it("clears the highlight on mouse leave", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard map={ZONE_MAP} fighters={[]} />
+      </ChakraProvider>
+    );
+    fireEvent.mouseEnter(circle(container, "s1"));
+    expect(screen.getByText("Grove")).toBeInTheDocument();
+    fireEvent.mouseLeave(circle(container, "s1"));
+    expect(screen.queryByText("Grove")).not.toBeInTheDocument();
+    expect(getComputedStyle(circle(container, "s2")).boxShadow).toBe("");
+  });
+
+  it("tapping a space toggles its zone highlight (the touch path)", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard map={ZONE_MAP} fighters={[]} />
+      </ChakraProvider>
+    );
+    fireEvent.click(circle(container, "s3")); // select
+    expect(screen.getByText("Glade")).toBeInTheDocument();
+    fireEvent.click(circle(container, "s3")); // tap again to clear
+    expect(screen.queryByText("Glade")).not.toBeInTheDocument();
+  });
+
+  it("does not hijack an actionable space: a highlighted space still commits its prompt", () => {
+    const onSpaceClick = jest.fn();
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard map={ZONE_MAP} fighters={[]} highlightedSpaces={["s2"]} onSpaceClick={onSpaceClick} />
+      </ChakraProvider>
+    );
+    fireEvent.click(circle(container, "s2"));
+    expect(onSpaceClick).toHaveBeenCalledWith("s2");
+  });
+
+  it("hovering a fighter lights the zones of the space it stands on", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard map={ZONE_MAP} fighters={[fighter({ space: "s2" })]} />
+      </ChakraProvider>
+    );
+    fireEvent.mouseEnter(screen.getByTitle(/The Mandalorian/));
+    // s2 is multi-zone → both zones light up from hovering its occupant
+    expect(screen.getByText("Grove")).toBeInTheDocument();
+    expect(screen.getByText("Glade")).toBeInTheDocument();
+    expect(getComputedStyle(circle(container, "s3")).boxShadow).toContain(ZB);
+  });
+});
+
 // issue #120: pinch/scroll zoom + drag pan, gated behind the `zoomMap` flag.
 // The frame (shrink-wrap box holding the art + every overlay) is transformed as
 // one unit; the identity-based click model is untouched, so a click still lands

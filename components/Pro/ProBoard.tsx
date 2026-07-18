@@ -121,6 +121,13 @@ const ARROW_COLOR = "#E23B3B"; // crimson — reads as "attack", distinct from b
 // box-shadow (which selection already owns).
 const MOVE_HINT_COLOR = "#A78BFA";
 
+// Zone-membership readability (issue #413): a subtle fill tint keyed to a zone's
+// own color. Append a low-alpha channel to a #rrggbb color (editor zone colors
+// are always hex); any non-hex value is returned untouched so it degrades to a
+// solid-but-harmless fill rather than throwing off the CSS.
+const zoneTint = (hex: string): string =>
+  /^#[0-9a-fA-F]{6}$/.test(hex) ? `${hex}3D` : hex; // ~24% alpha
+
 /**
  * Attacker→target arrow geometry in a frame's normalized 0–100 space (same
  * convention as the two-space band): a shaft that stops short of both tokens
@@ -411,6 +418,27 @@ export const ProBoard = ({
   // fighter. Occupancy is exclusive server-side, so a tail never stacks.
   const spaceById = new Map(map.spaces.map((s) => [s.id, s]));
   const twoSpaceFighters = fightersOnBoard.filter((f) => f.tailSpace);
+
+  // Multi-zone readability (issue #413): a space can belong to several zones, and
+  // zone-conditional effects count fighters in EVERY zone a space touches — so a
+  // fighter can be "in the zone" via a second, non-obvious zone (issue #254 was
+  // almost certainly this misread). Hovering (desktop) or tapping (touch) any
+  // space lights up every space sharing one of its zones, tinted + ringed in that
+  // zone's own color, so the full membership reads at a glance. Purely
+  // presentational, driven off the static map def, and deliberately distinct from
+  // the gold action highlight so it never reads as a move/attack prompt.
+  const [zoneHoverSpace, setZoneHoverSpace] = useState<SpaceId | null>(null);
+  const zoneColorById = new Map(map.zones.map((z) => [z.id, z.color] as const));
+  const hoveredZoneSet = (() => {
+    const s = zoneHoverSpace ? spaceById.get(zoneHoverSpace) : undefined;
+    return new Set((s?.zones ?? []).filter((z) => zoneColorById.has(z)));
+  })();
+  // Zone colors applying to a space = the intersection of its zones with the
+  // hovered space's zones, kept in the space's own zone order for stable rings.
+  const zoneMemberColors = (s: ProMapSpace): string[] =>
+    hoveredZoneSet.size
+      ? s.zones.filter((z) => hoveredZoneSet.has(z)).map((z) => zoneColorById.get(z) as string)
+      : [];
 
   // Attack arrow (issue #148): the two combatants of the active engagement, if
   // both are on the board. Resolved once here; spaceLayers draws the arrow in
@@ -768,12 +796,21 @@ export const ProBoard = ({
         opacity={tokenLifeOn ? 1 : bodyOpacity}
         boxShadow={boxShadow}
         animation={isTarget ? `${highlightPulse} 1.4s ease-in-out infinite` : undefined}
-        cursor={clickable ? "pointer" : "default"}
-        onClick={handleClick}
-        // Hovering a fighter lets the caller preview just its reachable spaces.
-        // Fired for every token; the caller ignores non-movable ones.
-        onMouseEnter={onFighterHover ? () => onFighterHover(f.id) : undefined}
-        onMouseLeave={onFighterHover ? () => onFighterHover(null) : undefined}
+        cursor={clickable || s.zones.length ? "pointer" : "default"}
+        // Actionable tokens keep their action; a non-actionable token toggles the
+        // zone preview for its space (issue #413) — occupied spaces sit under the
+        // token, so the token is the touch/click target for them.
+        onClick={handleClick ?? (() => setZoneHoverSpace((cur) => (cur === s.id ? null : s.id)))}
+        // Hovering a fighter lets the caller preview its reachable spaces AND
+        // lights the zones its space belongs to. Fired for every token.
+        onMouseEnter={() => {
+          setZoneHoverSpace(s.id);
+          onFighterHover?.(f.id);
+        }}
+        onMouseLeave={() => {
+          setZoneHoverSpace((cur) => (cur === s.id ? null : cur));
+          onFighterHover?.(null);
+        }}
         // `MotionFlex` is `chakra(motion.div, …)`, a plain div — unlike the
         // real `Flex` component it doesn't default to `display: flex`, so
         // `alignItems`/`justifyContent` below were silently inert (issue
@@ -902,9 +939,20 @@ export const ProBoard = ({
       {/* space hit-circles */}
       {spaces.map((s) => {
         const isHighlighted = highlightSet.has(s.id);
+        const zoneCols = zoneMemberColors(s);
+        const inZone = zoneCols.length > 0;
+        // Concentric per-zone rings (issue #413): one outset ring per zone this
+        // space shares with the hovered space, each in that zone's color. A
+        // multi-zone space carries several rings, so its membership is unambiguous.
+        // Distinct from the gold action highlight (a solid fill + pulse) so it
+        // never reads as a move/attack target.
+        const zoneRings = inZone
+          ? zoneCols.map((c, i) => `0 0 0 ${2 * (i + 1)}px ${c}`).join(", ")
+          : undefined;
         return (
           <Box
             key={s.id}
+            data-space-id={s.id}
             position="absolute"
             left={`${s.x * 100}%`}
             top={`${s.y * 100}%`}
@@ -913,15 +961,37 @@ export const ProBoard = ({
             sx={{ aspectRatio: "1" }}
             borderRadius="50%"
             border={isHighlighted ? "2px solid #E0A82E" : "1px solid rgba(255,255,255,0.15)"}
-            bg={isHighlighted ? "rgba(224,168,46,0.45)" : "transparent"}
+            bg={
+              isHighlighted ? "rgba(224,168,46,0.45)"
+              : inZone ? zoneTint(zoneCols[0])
+              : "transparent"
+            }
+            boxShadow={zoneRings}
             animation={isHighlighted ? `${highlightPulse} 1.4s ease-in-out infinite` : undefined}
-            cursor={isHighlighted && onSpaceClick ? "pointer" : "default"}
-            onClick={isHighlighted && onSpaceClick ? () => onSpaceClick(s.id) : undefined}
-            // Hover cue only for actionable spaces — the caller shows "who would
-            // move here". Fires null on leave so the cue clears.
-            onMouseEnter={isHighlighted && onSpaceHover ? () => onSpaceHover(s.id) : undefined}
-            onMouseLeave={isHighlighted && onSpaceHover ? () => onSpaceHover(null) : undefined}
-            zIndex={isHighlighted ? 3 : 1}
+            cursor={
+              isHighlighted && onSpaceClick ? "pointer"
+              : s.zones.length ? "pointer"
+              : "default"
+            }
+            // Actionable spaces commit the prompt (unchanged). Any other space
+            // toggles the zone-membership preview — the touch/click path; hover
+            // drives it on desktop.
+            onClick={
+              isHighlighted && onSpaceClick
+                ? () => onSpaceClick(s.id)
+                : () => setZoneHoverSpace((cur) => (cur === s.id ? null : s.id))
+            }
+            // Hover previews this space's zones (any space); actionable spaces
+            // also fire the caller's "who would move here" cue, clearing on leave.
+            onMouseEnter={() => {
+              setZoneHoverSpace(s.id);
+              if (isHighlighted) onSpaceHover?.(s.id);
+            }}
+            onMouseLeave={() => {
+              setZoneHoverSpace((cur) => (cur === s.id ? null : cur));
+              if (isHighlighted) onSpaceHover?.(null);
+            }}
+            zIndex={isHighlighted ? 3 : inZone ? 2 : 1}
           />
         );
       })}
@@ -1506,6 +1576,43 @@ export const ProBoard = ({
             {regionPanel(r)}
           </Box>
         ))}
+
+      {/* zone-membership legend (issue #413): names the zone(s) the inspected
+          space belongs to, color-matched to the on-board rings, so a multi-zone
+          space is unambiguous. Non-interactive; shown only while a space is
+          hovered/selected and only when the map actually defines zones. */}
+      {hoveredZoneSet.size > 0 && (
+        <Flex
+          position="absolute"
+          top="1.5%"
+          left="1.5%"
+          zIndex={8}
+          direction="column"
+          gap="0.15rem"
+          bg="blackAlpha.700"
+          px="0.4rem"
+          py="0.3rem"
+          borderRadius="0.4rem"
+          pointerEvents="none"
+        >
+          {map.zones
+            .filter((z) => hoveredZoneSet.has(z.id))
+            .map((z) => (
+              <Flex key={z.id} align="center" gap="0.35rem">
+                <Box
+                  w="0.7rem"
+                  h="0.7rem"
+                  borderRadius="2px"
+                  bg={z.color}
+                  border="1px solid rgba(255,255,255,0.6)"
+                />
+                <Box as="span" fontSize="0.7rem" color="white" whiteSpace="nowrap">
+                  {z.label || z.id}
+                </Box>
+              </Flex>
+            ))}
+        </Flex>
+      )}
       </Box>
 
       {/* reset-to-fit control — appears only once zoomed/panned so a mis-pan
