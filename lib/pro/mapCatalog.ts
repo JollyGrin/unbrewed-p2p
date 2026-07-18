@@ -42,6 +42,12 @@ export interface MapCatalogEntry {
    * to its own built-in default board (byte-identical to today's duel default).
    */
   serverDefault?: boolean;
+  /**
+   * When true, this entry stays in `MAP_CATALOG` (so tests, fixtures, and
+   * `catalogEntry()` keep resolving it) but is filtered out of the user-facing
+   * board picker. Used for synthetic/dev-only boards like the playtest arena.
+   */
+  hidden?: boolean;
 }
 
 const mendedDrum = mendedDrumJson as unknown as CatalogMap;
@@ -91,6 +97,7 @@ export const MAP_CATALOG: MapCatalogEntry[] = [
     title: "Playtest Arena (synthetic)",
     thumbnailUrl: MULTIPLAYER_PLAYTEST_MAP.meta.imageUrl ?? "",
     map: MULTIPLAYER_PLAYTEST_MAP,
+    hidden: true,
   },
 ];
 
