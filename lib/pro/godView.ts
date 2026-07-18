@@ -77,6 +77,10 @@ export function toPlayerView(
       // Replay bundles predate `wonCombatThisTurn` — default false (the "combat
       // won" chip is a live-play affordance; replay legibility is a follow-up).
       wonCombatThisTurn: false,
+      lostCombatThisTurn: false,
+      firstAttackThisTurn: false,
+      playedACardThisTurn: false,
+      tookDamageThisTurn: false,
       // Carry the seat's team through so ProHud's deriveTeams sees a real team
       // format when scrubbing a 2v2 replay (ALLY chips etc.); absent-safe for
       // pre-team bundles. Live play is unaffected (uses the server view). (#211)
@@ -106,6 +110,10 @@ export function toPlayerView(
       counters: me.counters,
       flags: {},
       wonCombatThisTurn: false,
+      lostCombatThisTurn: false,
+      firstAttackThisTurn: false,
+      playedACardThisTurn: false,
+      tookDamageThisTurn: false,
     },
     opponent:
       opp && oppId
@@ -120,6 +128,10 @@ export function toPlayerView(
             counters: opp.counters,
             flags: {},
             wonCombatThisTurn: false,
+            lostCombatThisTurn: false,
+            firstAttackThisTurn: false,
+            playedACardThisTurn: false,
+            tookDamageThisTurn: false,
           }
         : null,
     players,
