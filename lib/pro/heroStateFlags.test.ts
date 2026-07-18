@@ -9,8 +9,11 @@
  */
 import {
   HERO_STATE_FLAGS,
+  HERO_STATE_COUNTERS,
   flagChipsFor,
+  counterChipsFor,
   fighterTokenBadgeFor,
+  fighterTokenCounterBadgeFor,
   fighterTokenArtFor,
   fighterTokenStateFor,
   fighterTokenStateByOwner,
@@ -196,5 +199,92 @@ describe("fighterTokenStateByOwner", () => {
     // Thetis tide portrait is intentionally badge-free (hideBadgeWhenArt).
     expect(state.p2!.badge).toBeNull();
     expect(state.p3).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Counter-driven states (issue #420: Nancy Drew's CLUE economy). Same two render
+// surfaces as flags, driven by the numeric PlayerView.counters field instead.
+// ---------------------------------------------------------------------------
+
+describe("HERO_STATE_COUNTERS registry", () => {
+  it("registers Nancy's CLUE counter on the exact engine key (singular)", () => {
+    const clue = HERO_STATE_COUNTERS.find((e) => e.heroes.includes("nancy-drew"));
+    expect(clue).toBeDefined();
+    // Engine emits the counter under key `CLUE` (nancy-drew.rules.ts:
+    // { name: 'CLUE', max: 5 }) — NOT the "CLUES" flavor plural.
+    expect(clue!.counter).toBe("CLUE");
+    expect(clue!.nameplate?.labelTemplate).toBe("CLUES: {n}");
+    expect(clue!.token).toMatchObject({ title: "CLUES" });
+  });
+});
+
+describe("counterChipsFor (HUD nameplate)", () => {
+  it("shows a CLUES pill with the live value when Nancy has clues", () => {
+    const chips = counterChipsFor("nancy-drew", { CLUE: 3 });
+    expect(chips).toHaveLength(1);
+    expect(chips[0].chip.onLabel).toBe("CLUES: 3");
+    expect(chips[0].on).toBe(true);
+    // namespaced flag key so it can't collide with a boolean-flag glyph
+    expect(chips[0].chip.flag).toBe("counter:CLUE");
+  });
+
+  it("hides the pill at 0 (and when the counter is absent)", () => {
+    expect(counterChipsFor("nancy-drew", { CLUE: 0 })).toEqual([]);
+    expect(counterChipsFor("nancy-drew", {})).toEqual([]);
+    expect(counterChipsFor("nancy-drew", undefined)).toEqual([]);
+  });
+
+  it("renders on EITHER seat's plate — the function is owner-agnostic (counters are public)", () => {
+    // same resolver drives self and opponent plates; both show the opponent's clues
+    expect(counterChipsFor("nancy-drew", { CLUE: 5 })[0].chip.onLabel).toBe("CLUES: 5");
+  });
+
+  it("renders no counter chip for a non-registered hero, even with a stray counter", () => {
+    expect(counterChipsFor("king-kong", { CLUE: 4 })).toEqual([]);
+  });
+});
+
+describe("fighterTokenCounterBadgeFor (board token)", () => {
+  it("badges Nancy's token with the numeric CLUE count", () => {
+    expect(fighterTokenCounterBadgeFor("nancy-drew", { CLUE: 4 })).toMatchObject({
+      icon: "🔍",
+      label: "4",
+      title: "CLUES: 4",
+    });
+  });
+
+  it("hides the badge at 0 / absent", () => {
+    expect(fighterTokenCounterBadgeFor("nancy-drew", { CLUE: 0 })).toBeNull();
+    expect(fighterTokenCounterBadgeFor("nancy-drew", {})).toBeNull();
+    expect(fighterTokenCounterBadgeFor("nancy-drew", undefined)).toBeNull();
+  });
+
+  it("does not badge non-registered heroes", () => {
+    expect(fighterTokenCounterBadgeFor("king-kong", { CLUE: 3 })).toBeNull();
+    expect(fighterTokenCounterBadgeFor(undefined, { CLUE: 3 })).toBeNull();
+  });
+});
+
+describe("fighterTokenStateByOwner with counters", () => {
+  it("resolves Nancy's CLUE badge from counters for any owner, hidden at 0", () => {
+    const state = fighterTokenStateByOwner([
+      { id: "p1", heroId: "nancy-drew", counters: { CLUE: 2 } }, // self
+      { id: "p2", heroId: "nancy-drew", counters: { CLUE: 0 } }, // absent at 0
+      { id: "p3", heroId: "thetis", flags: { HIGH_TIDE: true } }, // flag hero unaffected
+    ]);
+    expect(state.p1!.badge).toMatchObject({ label: "2", title: "CLUES: 2" });
+    expect(state.p1!.heroArtUrl).toBeNull();
+    expect(state.p2).toBeUndefined(); // 0 clues → no badge, omitted
+    expect(state.p3!.heroArtUrl).toMatch(/token-thetis-high\.webp$/);
+  });
+
+  it("gives a flag-driven badge precedence over a counter badge if a hero had both", () => {
+    // Academic today (no hero declares both), but keeps the single badge slot
+    // deterministic. Malfurion's rim badge wins over any counter.
+    const state = fighterTokenStateByOwner([
+      { id: "p1", heroId: "malfurion-stormrage", flags: { DRUID_FORM_BEAR: true }, counters: { CLUE: 9 } },
+    ]);
+    expect(state.p1!.badge).toMatchObject({ icon: "🐾" });
   });
 });
