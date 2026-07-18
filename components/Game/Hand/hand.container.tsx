@@ -10,6 +10,7 @@ import {
   makeDeck,
   newPool,
   removeHandCard,
+  reorderTop,
   shuffleDeck,
 } from "@/components/DeckPool/PoolFns";
 import { PlayCardToTable } from "@/components/Positions/position.type";
@@ -18,7 +19,7 @@ import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
 import { Flex } from "@chakra-ui/react";
 import { useRouter } from "next/router";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { HandFan } from "../game.carousel";
 import styled from "@emotion/styled";
 import { colors, fonts } from "@/styles/style";
@@ -26,6 +27,13 @@ import { flow } from "lodash";
 import { ModalType } from "@/pages/game";
 import { CloseIcon } from "@chakra-ui/icons";
 import { WebsocketMessage } from "@/lib/gamesocket/message";
+import {
+  DeckCommand,
+  DeckLabel,
+  buildDeckCommands,
+} from "@/components/Game/CommandMenu/deckCommands";
+import { ScryModal } from "@/components/Game/CommandMenu/scry.modal";
+import { PileSplitButton } from "./pile-split-button";
 
 type GameData = {
   gameState: WebsocketMessage | undefined;
@@ -39,6 +47,8 @@ export const HandContainer = ({
   setPlayerState,
   logAction,
   playToTable,
+  revealHand,
+  returnRevealedHand,
   offerCardTransfer,
 }: {
   setModal: (type: ModalType) => void;
@@ -47,6 +57,10 @@ export const HandContainer = ({
   logAction: GameData["logAction"];
   /** Spawns the card as a board token — absent offline (no board). */
   playToTable?: PlayCardToTable;
+  /** Lay the whole hand face-up on the table (issue #426, item 3). */
+  revealHand?: () => void;
+  /** Reclaim the revealed hand from the table. */
+  returnRevealedHand?: () => void;
   /** Escrows a card for another player — absent offline (no opponents). */
   offerCardTransfer?: (
     to: string,
@@ -151,6 +165,74 @@ export const HandContainer = ({
         }
       : undefined;
 
+  // Scry reuses the shared modal; the deck chevron opens it locally.
+  const [scryOpen, setScryOpen] = useState(false);
+  // Local mirror of whether the hand is laid out on the table, so the button
+  // can toggle between reveal and return. Board tokens are the source of truth,
+  // so returning stray cards from the token panel may desync this — worst case
+  // is a harmless no-op click.
+  const [handRevealed, setHandRevealed] = useState(false);
+
+  const applyScry = (
+    topCards: DeckImportCardType[],
+    bottomCards: DeckImportCardType[],
+  ) => {
+    const pool = playerState?.pool;
+    if (!pool) return;
+    reorderTop(pool, topCards, bottomCards);
+    setGameState(pool);
+    logAction("Reordered the top of their deck");
+  };
+
+  // Mirrors the palette's `act`: mutate the pool, broadcast it, then log a line
+  // that can name the affected cards (function labels run post-mutation).
+  const act =
+    <R,>(mutate: (p: PoolType) => R, label: DeckLabel<R>) =>
+    () => {
+      const pool = playerState?.pool;
+      if (!pool) return;
+      const moved = mutate(pool);
+      const text = typeof label === "function" ? label(pool, moved) : label;
+      setGameState(pool);
+      logAction(text);
+    };
+
+  // Boost from deck (issue #426, item 2): flip the top deck card face-up onto
+  // the table as a small token so the value is public, and log name + boost.
+  // Resolving it = discarding the token from its panel.
+  const gBoostFromDeck = () => {
+    const pool = playerState?.pool;
+    if (!pool?.deck?.length || !playToTable) return;
+    const card = pool.deck.pop();
+    if (!card) return;
+    setGameState(pool);
+    playToTable(card, { faceDown: false, size: 130 });
+    logAction(`Boosted from deck: ${card.title} (boost ${card.boost})`);
+  };
+
+  // Same command entries as the ⌘ palette (deckCommands.ts) so nothing forks;
+  // the chevrons just filter to the relevant pile. Only the pile groups matter
+  // here (no dice / token-library), and the deck chevron adds the board-backed
+  // boost action.
+  const pileCommands: DeckCommand[] = useMemo(
+    () =>
+      buildDeckCommands({
+        act,
+        openScry: () => setScryOpen(true),
+        openModal: setModal,
+        boostFromDeck: playToTable ? gBoostFromDeck : undefined,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [playerState?.pool, playToTable],
+  );
+  const deckCommands = pileCommands.filter((c) => c.group === "Deck");
+  // The Discard pile button itself opens the pile, so drop that entry.
+  const discardCommands = pileCommands.filter(
+    (c) => c.group === "Discard" && c.id !== "openDiscard",
+  );
+
+  const handCount = playerState?.pool?.hand?.length ?? 0;
+
   return (
     <>
       <ActionCluster>
@@ -159,12 +241,40 @@ export const HandContainer = ({
         >
           Draw +1
         </PileButton>
-        <PileButton onClick={() => setModal("deck")}>
-          Deck ({playerState?.pool?.deck?.length ?? 0})
-        </PileButton>
-        <PileButton onClick={() => setModal("discard")}>
-          Discard ({playerState?.pool?.discard?.length ?? 0})
-        </PileButton>
+        {playToTable &&
+          (handRevealed ? (
+            <PileButton
+              onClick={() => {
+                returnRevealedHand?.();
+                setHandRevealed(false);
+              }}
+            >
+              Return hand
+            </PileButton>
+          ) : (
+            handCount > 0 && (
+              <PileButton
+                onClick={() => {
+                  revealHand?.();
+                  setHandRevealed(true);
+                }}
+              >
+                Reveal hand
+              </PileButton>
+            )
+          ))}
+        <PileSplitButton
+          label={`Deck (${playerState?.pool?.deck?.length ?? 0})`}
+          onPrimary={() => setModal("deck")}
+          commands={deckCommands}
+          pool={playerState?.pool}
+        />
+        <PileSplitButton
+          label={`Discard (${playerState?.pool?.discard?.length ?? 0})`}
+          onPrimary={() => setModal("discard")}
+          commands={discardCommands}
+          pool={playerState?.pool}
+        />
         {playerState?.pool?.commit?.boost && (
           <PileButton
             onClick={() => gCancelBoost(playerState?.pool as PoolType)}
@@ -194,6 +304,12 @@ export const HandContainer = ({
           giveFn: gGiveCard,
         }}
         opponents={opponents}
+      />
+      <ScryModal
+        isOpen={scryOpen}
+        onClose={() => setScryOpen(false)}
+        deck={playerState?.pool?.deck ?? []}
+        onApply={applyScry}
       />
     </>
   );

@@ -35,6 +35,12 @@ export type BoardToken = {
   card?: DeckImportCardType;
   /** Card tokens: render the back instead of the face (everyone sees the back). */
   faceDown?: boolean;
+  /**
+   * Card tokens spawned by "Reveal hand" (issue #426, item 3). Tagged so
+   * "Return all to hand" can find and reclaim exactly that batch, leaving any
+   * manually-played or boost tokens on the table.
+   */
+  fromReveal?: boolean;
 };
 
 export type TokenCounter = {
@@ -93,8 +99,26 @@ export const cardTokenHeight = (width: number) =>
  */
 export type PlayCardToTable = (
   card: DeckImportCardType,
-  opts?: { faceDown?: boolean; screenPos?: { x: number; y: number } },
+  opts?: {
+    faceDown?: boolean;
+    screenPos?: { x: number; y: number };
+    /** Rendered width in board px; defaults to DEFAULT_CARD_TOKEN_WIDTH. */
+    size?: number;
+  },
 ) => void;
+
+/**
+ * Board-owned macros bridged up to the hand controls (issue #426, items 2–3):
+ * these mutate both the pool (playerstate) and the board tokens
+ * (playerposition), which only the board container can do together, so it
+ * publishes them through a ref for the hand's buttons to call.
+ */
+export type BoardActions = {
+  /** Lay every hand card face-up on the table in a row. */
+  revealHand: () => void;
+  /** Reclaim exactly the cards laid out by revealHand back into the hand. */
+  returnRevealedHand: () => void;
+};
 
 /**
  * Normalize whatever shape is stored on the relay into a PositionBlob.
