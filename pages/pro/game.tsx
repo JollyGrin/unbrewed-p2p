@@ -1785,43 +1785,55 @@ const SplashPanel = ({
               <LabDeckTag />
             </Flex>
           )}
-          {deck && (
-            <Text fontStyle="italic" fontSize="0.8rem" color="brand.parchment" opacity={0.85}>
-              by{" "}
-              {/* Community decks link to their unmatched.cards attribution page;
-                  evergreen originals (deck.original) have no such page, so the
-                  author stays plain text. stopPropagation is defensive — the
-                  splash panel isn't itself selectable, but keeps the link inert
-                  toward any future click-to-lock wrapper. */}
-              {deck.original ? (
-                deck.author
-              ) : (
-                <Tooltip
-                  label={`View ${deck.author}'s deck on unmatched.cards`}
-                  hasArrow
-                  placement="top"
-                  openDelay={150}
-                >
-                  <Link
-                    href={`https://unmatched.cards/decks/${deck.id}`}
-                    isExternal
-                    aria-label={`View ${deck.author}'s deck on unmatched.cards (opens in a new tab)`}
-                    onClick={(e) => e.stopPropagation()}
-                    color="inherit"
-                    textDecoration="underline"
-                    sx={{ textUnderlineOffset: "0.15em" }}
-                    _hover={{ color: "brand.accent", opacity: 1 }}
-                    display="inline-flex"
-                    alignItems="center"
-                    gap="0.2rem"
-                  >
-                    {deck.author}
-                    <TbExternalLink size="0.7rem" />
-                  </Link>
-                </Tooltip>
-              )}
-            </Text>
-          )}
+          {deck &&
+            (() => {
+              // Attribution link target: an explicit `sourceUrl` wins (an evergreen
+              // deck can have a real source page off unmatched.cards — e.g. Grievous
+              // on the-unmatched.club, #428). Otherwise community decks derive their
+              // unmatched.cards page from the deck id. Evergreen originals with no
+              // source page fall through to plain text.
+              const attributionHref =
+                deck.sourceUrl ??
+                (deck.original ? undefined : `https://unmatched.cards/decks/${deck.id}`);
+              const attributionSite = attributionHref
+                ? attributionHref.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]
+                : "";
+              return (
+                <Text fontStyle="italic" fontSize="0.8rem" color="brand.parchment" opacity={0.85}>
+                  by{" "}
+                  {/* stopPropagation is defensive — the splash panel isn't itself
+                      selectable, but keeps the link inert toward any future
+                      click-to-lock wrapper. */}
+                  {attributionHref ? (
+                    <Tooltip
+                      label={`View ${deck.author}'s deck on ${attributionSite}`}
+                      hasArrow
+                      placement="top"
+                      openDelay={150}
+                    >
+                      <Link
+                        href={attributionHref}
+                        isExternal
+                        aria-label={`View ${deck.author}'s deck on ${attributionSite} (opens in a new tab)`}
+                        onClick={(e) => e.stopPropagation()}
+                        color="inherit"
+                        textDecoration="underline"
+                        sx={{ textUnderlineOffset: "0.15em" }}
+                        _hover={{ color: "brand.accent", opacity: 1 }}
+                        display="inline-flex"
+                        alignItems="center"
+                        gap="0.2rem"
+                      >
+                        {deck.author}
+                        <TbExternalLink size="0.7rem" />
+                      </Link>
+                    </Tooltip>
+                  ) : (
+                    deck.author
+                  )}
+                </Text>
+              );
+            })()}
           <Flex gap="0.9rem" mt="0.45rem" align="center" color="brand.parchment" sx={{ fontVariantNumeric: "tabular-nums" }}>
             <StatPip icon={<GiHearts color="#C0392B" size="15px" />} label={String(hero.hp)} />
             <StatPip icon={<GiFootprint size="14px" />} label={String(hero.move)} />
