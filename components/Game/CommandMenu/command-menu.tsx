@@ -15,30 +15,11 @@ import styled from "@emotion/styled";
 import { colors, fonts } from "@/styles/style";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import { ModalType } from "@/pages/game";
-import {
-  PoolType,
-  drawMultiple,
-  mill,
-  reorderTop,
-  discardRandomCard,
-  discardToDeckTop,
-  drawDiscard,
-  shuffleDeck,
-  shuffleDiscardIntoDeck,
-} from "@/components/DeckPool/PoolFns";
+import { PoolType, reorderTop } from "@/components/DeckPool/PoolFns";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 import { ScryModal } from "./scry.modal";
 import { rollDice } from "@/components/Game/Dice/rollDice";
-
-type Command = {
-  id: string;
-  label: string;
-  group: string;
-  keywords?: string;
-  /** Whether the command can run given the current pool. */
-  enabled: (pool: PoolType) => boolean;
-  run: () => void;
-};
+import { DeckCommand, DeckLabel, buildDeckCommands } from "./deckCommands";
 
 export const CommandMenu: React.FC<{
   openModal: (type: ModalType) => void;
@@ -80,14 +61,18 @@ export const CommandMenu: React.FC<{
   // Mutate the pool in place, then let logAction broadcast it: logAction reads
   // the same (now-mutated) pool object and sends it stamped with the feed
   // entry, so a single message carries both the deck change and the log line.
-  // `label` doubles as a local toast for the actor's own feedback.
-  const act = (mutate: (p: PoolType) => unknown, label: string) => () => {
-    if (!pool) return;
-    mutate(pool);
-    logAction(label);
-    toast.success(label);
-    close();
-  };
+  // `label` doubles as a local toast for the actor's own feedback; a function
+  // label runs after the mutation so it can name the affected cards.
+  const act =
+    <R,>(mutate: (p: PoolType) => R, label: DeckLabel<R>) =>
+    () => {
+      if (!pool) return;
+      const moved = mutate(pool);
+      const text = typeof label === "function" ? label(pool, moved) : label;
+      logAction(text);
+      toast.success(text);
+      close();
+    };
 
   // Roll dice: publishRoll shows the shared 3D roll + banner to the whole room;
   // we also log it so there's a persistent record in the action feed.
@@ -118,195 +103,29 @@ export const CommandMenu: React.FC<{
   const discardLen = pool?.discard?.length ?? 0;
   const handLen = pool?.hand?.length ?? 0;
 
-  const commands: Command[] = useMemo(
-    (): Command[] => [
-      {
-        id: "rolld20",
-        group: "Dice",
-        label: "Roll d20",
-        keywords: "dice die roll random d20",
-        enabled: () => true,
-        run: roll(20, 1),
-      },
-      {
-        id: "rolld6",
-        group: "Dice",
-        label: "Roll d6",
-        keywords: "dice die roll random d6",
-        enabled: () => true,
-        run: roll(6, 1),
-      },
-      {
-        id: "roll2d6",
-        group: "Dice",
-        label: "Roll 2d6",
-        keywords: "dice die roll random 2d6 two",
-        enabled: () => true,
-        run: roll(6, 2),
-      },
-      {
-        id: "rolld100",
-        group: "Dice",
-        label: "Roll d100 (percentile)",
-        keywords: "dice die roll random d100 percent",
-        enabled: () => true,
-        run: roll(100, 1),
-      },
-      {
-        id: "rolld4",
-        group: "Dice",
-        label: "Roll d4",
-        keywords: "dice die roll random d4",
-        enabled: () => true,
-        run: roll(4, 1),
-      },
-      {
-        id: "rolld8",
-        group: "Dice",
-        label: "Roll d8",
-        keywords: "dice die roll random d8",
-        enabled: () => true,
-        run: roll(8, 1),
-      },
-      {
-        id: "rolld10",
-        group: "Dice",
-        label: "Roll d10",
-        keywords: "dice die roll random d10",
-        enabled: () => true,
-        run: roll(10, 1),
-      },
-      {
-        id: "rolld12",
-        group: "Dice",
-        label: "Roll d12",
-        keywords: "dice die roll random d12",
-        enabled: () => true,
-        run: roll(12, 1),
-      },
-      {
-        id: "scry",
-        group: "Deck",
-        label: "Scry — peek & reorder top of deck",
-        keywords: "peek look top order surveil",
-        enabled: (p) => (p.deck?.length ?? 0) > 0,
-        run: () => {
+  // Single source of truth shared with the pile split-button chevrons
+  // (deckCommands.ts). The palette injects the primitives it can provide —
+  // dice rolls, the token library — and closes itself in each callback.
+  const commands: DeckCommand[] = useMemo(
+    () =>
+      buildDeckCommands({
+        act,
+        roll,
+        openModal: (type) => {
+          close();
+          openModal(type);
+        },
+        openScry: () => {
           setIsOpen(false);
           setScryOpen(true);
         },
-      },
-      {
-        id: "draw2",
-        group: "Deck",
-        label: "Draw 2 cards",
-        keywords: "multiple",
-        enabled: (p) => (p.deck?.length ?? 0) > 0,
-        run: act((p) => drawMultiple(p, 2), "Drew 2 cards"),
-      },
-      {
-        id: "draw3",
-        group: "Deck",
-        label: "Draw 3 cards",
-        keywords: "multiple",
-        enabled: (p) => (p.deck?.length ?? 0) > 0,
-        run: act((p) => drawMultiple(p, 3), "Drew 3 cards"),
-      },
-      {
-        id: "mill1",
-        group: "Deck",
-        label: "Mill 1 (top of deck → discard)",
-        keywords: "discard top",
-        enabled: (p) => (p.deck?.length ?? 0) > 0,
-        run: act((p) => mill(p, 1), "Milled 1 card"),
-      },
-      {
-        id: "mill3",
-        group: "Deck",
-        label: "Mill 3 (top of deck → discard)",
-        keywords: "discard top",
-        enabled: (p) => (p.deck?.length ?? 0) > 0,
-        run: act((p) => mill(p, 3), "Milled 3 cards"),
-      },
-      {
-        id: "shuffle",
-        group: "Deck",
-        label: "Shuffle deck",
-        keywords: "randomize",
-        enabled: (p) => (p.deck?.length ?? 0) > 0,
-        run: act((p) => shuffleDeck(p), "Shuffled deck"),
-      },
-      {
-        id: "search",
-        group: "Deck",
-        label: "Search deck (browse — reshuffles on close)",
-        keywords: "tutor find open",
-        enabled: (p) => (p.deck?.length ?? 0) > 0,
-        run: () => {
-          close();
-          openModal("deck");
-        },
-      },
-      {
-        id: "discardRandom",
-        group: "Hand",
-        label: "Discard a random card from hand",
-        keywords: "ambush force",
-        enabled: (p) => (p.hand?.length ?? 0) > 0,
-        run: act((p) => discardRandomCard(p), "Discarded a random card"),
-      },
-      {
-        id: "discardTopToDeck",
-        group: "Discard",
-        label: "Put top of discard on top of deck",
-        keywords: "houdini return recur",
-        enabled: (p) => (p.discard?.length ?? 0) > 0,
-        run: act(
-          (p) => discardToDeckTop(p, p.discard.length - 1),
-          "Moved top of discard to deck",
-        ),
-      },
-      {
-        id: "discardTopToHand",
-        group: "Discard",
-        label: "Return top of discard to hand",
-        keywords: "recur bruce lee",
-        enabled: (p) => (p.discard?.length ?? 0) > 0,
-        run: act(
-          (p) => drawDiscard(p, p.discard.length - 1),
-          "Returned top of discard to hand",
-        ),
-      },
-      {
-        id: "shuffleDiscardIn",
-        group: "Discard",
-        label: "Shuffle discard into deck",
-        keywords: "reset reshuffle",
-        enabled: (p) => (p.discard?.length ?? 0) > 0,
-        run: act((p) => shuffleDiscardIntoDeck(p), "Shuffled discard into deck"),
-      },
-      {
-        id: "openDiscard",
-        group: "Discard",
-        label: "Open discard pile",
-        keywords: "view browse",
-        enabled: () => true,
-        run: () => {
-          close();
-          openModal("discard");
-        },
-      },
-      {
-        id: "addToken",
-        group: "Board",
-        label: "Add a board token (icons, images, overlays)",
-        keywords: "pawn marker map overlay icon image",
-        enabled: () => typeof openTokenLibrary === "function",
-        run: () => {
-          close();
-          openTokenLibrary?.();
-        },
-      },
-    ],
+        openTokenLibrary: openTokenLibrary
+          ? () => {
+              close();
+              openTokenLibrary();
+            }
+          : undefined,
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [pool, deckLen, discardLen, handLen],
   );

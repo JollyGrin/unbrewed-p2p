@@ -11,6 +11,7 @@ import { CardPickupPanel } from "@/components/Positions/card-pickup.panel";
 import { CardPeek, PeekAnchor } from "@/components/Positions/card-peek";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 import {
+  BoardActions,
   BoardToken,
   DEFAULT_CARD_TOKEN_WIDTH,
   DEFAULT_PLAYER_COLOR,
@@ -71,6 +72,12 @@ export const GameShell = () => {
 
   // Hand → board bridge: BoardContainer fills it, HandContainer calls it.
   const playToTableRef = useRef<PlayCardToTable>(() => {});
+  // Board-owned macros (reveal hand / return revealed) that touch both pool and
+  // tokens: BoardContainer fills this, the hand controls call it.
+  const boardActionsRef = useRef<BoardActions>({
+    revealHand: () => {},
+    returnRevealedHand: () => {},
+  });
 
   useEffect(() => {
     if (modalType) {
@@ -97,8 +104,12 @@ export const GameShell = () => {
         self={query?.name as string}
         tokenLibrary={tokenLibraryDisclosure}
         playToTableRef={playToTableRef}
+        boardActionsRef={boardActionsRef}
       />
-      <HandWrapper setModalType={requestModal} {...{ playToTableRef }} />
+      <HandWrapper
+        setModalType={requestModal}
+        {...{ playToTableRef, boardActionsRef }}
+      />
       <DiceOverlay />
       <ReportBugButton />
       <ActionLog />
@@ -116,9 +127,11 @@ export const GameShell = () => {
 const HandWrapper = ({
   setModalType,
   playToTableRef,
+  boardActionsRef,
 }: {
   setModalType: (type: ModalType) => void;
   playToTableRef: MutableRefObject<PlayCardToTable>;
+  boardActionsRef: MutableRefObject<BoardActions>;
 }) => {
   const { gameState, setPlayerState, logAction, offerCardTransfer } =
     useWebGame();
@@ -126,6 +139,8 @@ const HandWrapper = ({
     <HandContainer
       setModal={setModalType}
       playToTable={(card, opts) => playToTableRef.current(card, opts)}
+      revealHand={() => boardActionsRef.current.revealHand()}
+      returnRevealedHand={() => boardActionsRef.current.returnRevealedHand()}
       offerCardTransfer={offerCardTransfer}
       {...{ gameState, setPlayerState, logAction }}
     />
@@ -152,10 +167,12 @@ const BoardContainer = ({
   self,
   tokenLibrary,
   playToTableRef,
+  boardActionsRef,
 }: {
   self: string;
   tokenLibrary: { isOpen: boolean; onOpen: () => void; onClose: () => void };
   playToTableRef: MutableRefObject<PlayCardToTable>;
+  boardActionsRef: MutableRefObject<BoardActions>;
 }) => {
   const { query } = useRouter();
   const mapUrl = query.mapUrl as string | undefined;
@@ -333,7 +350,7 @@ const BoardContainer = ({
       const pos = opts?.screenPos
         ? screenToBoardRef.current(opts.screenPos.x, opts.screenPos.y)
         : centerRef.current();
-      const w = DEFAULT_CARD_TOKEN_WIDTH;
+      const w = opts?.size ?? DEFAULT_CARD_TOKEN_WIDTH;
       const h = cardTokenHeight(w);
       const token: BoardToken = {
         id: newTokenId(self),
@@ -380,6 +397,56 @@ const BoardContainer = ({
     },
     [patchToken, logAction],
   );
+
+  // Reveal hand (issue #426, item 3): lay every hand card face-up on the table
+  // in a centered row. Both channels move at once — the cards leave the pool
+  // (playerstate) and become tagged tokens (playerposition) — so this can only
+  // live on the board, which owns both. The log names every card so opponents
+  // see the reveal even though tokens are the visible surface.
+  const revealHand = useCallback(() => {
+    const pool = players?.[self]?.pool;
+    if (!pool?.hand?.length) return;
+    const cards = pool.hand.splice(0, pool.hand.length);
+    const { x, y } = centerRef.current();
+    const w = 130;
+    const h = cardTokenHeight(w);
+    const gap = Math.round(w * 0.5);
+    const startX = x - ((cards.length - 1) * gap) / 2;
+    const revealed: BoardToken[] = cards.map((card, i) => ({
+      id: newTokenId(self),
+      x: Math.round(startX + i * gap - w / 2),
+      y: Math.round(y - h / 2),
+      size: w,
+      h,
+      card,
+      faceDown: false,
+      fromReveal: true,
+    }));
+    setPlayerState()({ pool });
+    sendTokens([...myTokens, ...revealed]);
+    logAction(
+      `Revealed their hand (${cards.length}): ${cards
+        .map((c) => c.title)
+        .join(", ")}`,
+    );
+  }, [players, self, setPlayerState, sendTokens, myTokens, logAction]);
+
+  // Undo of revealHand: reclaim exactly the tagged tokens (leaving any manually
+  // played or boost cards on the table) back into the hand.
+  const returnRevealedHand = useCallback(() => {
+    const pool = players?.[self]?.pool;
+    if (!pool) return;
+    const revealed = myTokens.filter((t) => t.fromReveal && t.card);
+    if (!revealed.length) return;
+    revealed.forEach((t) => t.card && pool.hand.push(t.card));
+    setPlayerState()({ pool });
+    sendTokens(myTokens.filter((t) => !(t.fromReveal && t.card)));
+    logAction(`Returned ${revealed.length} revealed cards to hand`);
+  }, [players, self, setPlayerState, sendTokens, myTokens, logAction]);
+
+  useEffect(() => {
+    boardActionsRef.current = { revealHand, returnRevealedHand };
+  }, [boardActionsRef, revealHand, returnRevealedHand]);
 
   // Spawn a starter disc for players with no tokens yet. Wait a beat after
   // joining so a rejoining player's saved tokens can arrive first.
