@@ -94,6 +94,7 @@ describe("diffCombatStrike", () => {
       variant: "win",
       damage: 4,
       outcome: "ATTACKER_WON",
+      suppressStrike: false,
     });
   });
 
@@ -122,14 +123,19 @@ describe("diffCombatStrike", () => {
     expect(s?.damage).toBe(2);
   });
 
-  it("suppresses the strike when an EFFECT_CANCELED ends the combat (The Snuff)", () => {
+  it("flags suppressStrike (but still returns the descriptor) when an EFFECT_CANCELED ends the combat (The Snuff)", () => {
     const prev = view({ combat: combat({ stage: "DAMAGE" }) });
     const next = view({ combat: null });
     const events: GameEvent[] = [
       ...resolvedEnded("ATTACKER_WON", 2),
       { type: "EFFECT_CANCELED", role: "DEFENSE", scope: "TEXT" },
     ];
-    expect(diffCombatStrike(prev, next, events)).toBeNull();
+    // The descriptor is returned so the panel can still LINGER (issue #147); only the
+    // strike beat is suppressed so it doesn't double-animate against the Snuff callout.
+    const s = diffCombatStrike(prev, next, events);
+    expect(s?.suppressStrike).toBe(true);
+    expect(s?.damage).toBe(2);
+    expect(s?.outcome).toBe("ATTACKER_WON");
   });
 
   it("still strikes when a during-combat cancel does NOT end the combat", () => {
@@ -143,6 +149,7 @@ describe("diffCombatStrike", () => {
     const s = diffCombatStrike(prev, next, events);
     expect(s?.variant).toBe("win");
     expect(s?.damage).toBe(3);
+    expect(s?.suppressStrike).toBe(false);
   });
 
   it("keys stably per combat (so the hook emits each combat once)", () => {
@@ -197,6 +204,7 @@ describe("captureLingeringCombat", () => {
       variant: "win",
       damage: 5,
       outcome: "ATTACKER_WON",
+      suppressStrike: false,
     });
     expect(frozen?.stage).toBe("CLEANUP");
     expect(frozen?.outcome).toBe("ATTACKER_WON");
@@ -207,7 +215,7 @@ describe("captureLingeringCombat", () => {
   it("returns null when there is no live combat to freeze", () => {
     const prev = view({ combat: null });
     expect(
-      captureLingeringCombat(prev, { key: "k", variant: "tie", damage: 0, outcome: null })
+      captureLingeringCombat(prev, { key: "k", variant: "tie", damage: 0, outcome: null, suppressStrike: false })
     ).toBeNull();
   });
 });
@@ -251,6 +259,32 @@ describe("useCombatStrike", () => {
     // A brand-new live combat arrives before the linger TTL → cancels it immediately.
     const fresh = combat({ stage: "COMMIT_DEFENSE", attackerCard: card("king-kong/uppercut#7"), defenderCard: null });
     act(() => rerender({ s: snap(view({ combat: fresh })) }));
+    expect(result.current.lingeringCombat).toBeNull();
+  });
+
+  it("lingers the panel for a Feint that ends combat WITHOUT firing a strike (issue #147)", () => {
+    const { result, rerender } = renderHook((props: { s: ReturnType<typeof snap> }) => useCombatStrike(props.s), {
+      initialProps: { s: snap(view({ combat: combat({ stage: "DAMAGE" }) })) },
+    });
+
+    // Attack answered by a Feint that cancels effects and ENDS the combat in one batch.
+    const feint: GameEvent[] = [
+      ...resolvedEnded("ATTACKER_WON", 2),
+      { type: "EFFECT_CANCELED", role: "DEFENSE", scope: "TEXT" },
+    ];
+    act(() => rerender({ s: snap(view({ combat: null }), feint) }));
+
+    // The strike beat is suppressed (the Snuff callout owns the slam)...
+    expect(result.current.strike).toBeNull();
+    // ...but the panel still lingers with both cards' resolved outcome + damage.
+    expect(result.current.lingeringCombat).not.toBeNull();
+    expect(result.current.lingeringCombat?.attackDamageDealt).toBe(2);
+    expect(result.current.lingeringCombat?.outcome).toBe("ATTACKER_WON");
+    expect(result.current.lingeringCombat?.attackerCard?.instance).toBe("king-kong/clobber#1");
+    expect(result.current.lingeringCombat?.defenderCard?.instance).toBe("baba-yaga/dodge#1");
+
+    // The linger clears itself after the TTL.
+    act(() => jest.advanceTimersByTime(LINGER_TTL_MS + 20));
     expect(result.current.lingeringCombat).toBeNull();
   });
 

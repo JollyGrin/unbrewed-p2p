@@ -31,6 +31,12 @@ export interface CombatStrike {
   damage: number;
   /** The resolved outcome, stamped onto the frozen linger combat's outcome text. */
   outcome: CombatOutcome | null;
+  /** True when this resolve was a Feint / "The Snuff" (an EFFECT_CANCELED that ENDED
+   *  the combat this batch): the strike beat is suppressed so it doesn't double-animate
+   *  against the Snuff callout, but the descriptor is still returned so the panel can
+   *  LINGER — the strike and the panel-linger are decoupled (issue #147). The hook
+   *  reads this to skip `setStrike` while still freezing the panel snapshot. */
+  suppressStrike: boolean;
 }
 
 /** How long the strike descriptor stays live (ms). Kept just PAST the linger TTL so
@@ -80,9 +86,12 @@ export function comparePulseFor(
  *    COMBAT_DAMAGE event, or `view.combat.outcome` transitioning off UNKNOWN/null.
  *    An empty `events` join/reconnect batch yields none (there is no resolve event
  *    and no outcome transition on a mid-combat rejoin).
- *  - Suppressed when the batch's EFFECT_CANCELED ENDS the combat (a Feint / "The
- *    Snuff", #346/#350): that callout owns the moment, so we don't double-animate.
- *    A during-combat cancel that still resolves to a real hit later keeps its strike.
+ *  - The STRIKE is suppressed (but the descriptor is still returned, flagged
+ *    `suppressStrike`) when the batch's EFFECT_CANCELED ENDS the combat (a Feint /
+ *    "The Snuff", #346/#350): that callout owns the moment, so we don't double-animate
+ *    the slam — yet the panel still needs to LINGER so both committed cards + values
+ *    stay visible (issue #147). A during-combat cancel that still resolves to a real
+ *    hit later keeps its strike.
  */
 export function diffCombatStrike(
   prev: PlayerView | null,
@@ -107,10 +116,13 @@ export function diffCombatStrike(
 
   if (!resolvedEvent && !damageEvent && !resolvedByView) return null;
 
-  // The Snuff owns the feint-cancel moment. Suppress only when the cancel ENDS the
-  // combat this batch — a normal combat also ends (COMBAT_ENDED at cleanup) but has
-  // no EFFECT_CANCELED, so it is never suppressed here.
-  if (canceled && ended) return null;
+  // The Snuff owns the feint-cancel moment, so the STRIKE beat is suppressed when the
+  // cancel ENDS the combat this batch — a normal combat also ends (COMBAT_ENDED at
+  // cleanup) but has no EFFECT_CANCELED, so it is never suppressed. The descriptor is
+  // still returned (flagged) rather than dropped to null: the panel-linger is
+  // decoupled from the strike so the calm side-by-side reveal stays visible for the
+  // Feint-ends-combat case (issue #147).
+  const suppressStrike = canceled && ended;
 
   const outcome: CombatOutcome | null =
     (resolvedEvent?.type === "COMBAT_RESOLVED" ? resolvedEvent.outcome : null) ??
@@ -138,7 +150,13 @@ export function diffCombatStrike(
     next.combat?.defenderCard?.instance ??
     null;
 
-  return { key: combatKey(attackerCard, defenderCard), variant, damage, outcome };
+  return {
+    key: combatKey(attackerCard, defenderCard),
+    variant,
+    damage,
+    outcome,
+    suppressStrike,
+  };
 }
 
 /**
@@ -170,7 +188,10 @@ export function captureLingeringCombat(
  *
  *  - Each combat's strike is emitted exactly once (deduped by its stable key).
  *  - When the combat ends in the resolving batch, the just-resolved combat is
- *    frozen so the panel lingers ~1.7s and the strike has somewhere to play.
+ *    frozen so the panel lingers ~2.8s and the strike has somewhere to play. This
+ *    linger is DECOUPLED from the strike: a Feint that ends combat (`suppressStrike`)
+ *    fires no strike, yet the panel still lingers so both cards + values are seen
+ *    (issue #147) while the Snuff callout plays over the top.
  *  - A new live combat (or any new `view.combat`) cancels a pending linger
  *    immediately, so a fast follow-up combat never renders the stale frozen one.
  */
@@ -210,12 +231,19 @@ export function useCombatStrike(
     if (!s || s.key === lastKeyRef.current) return;
     lastKeyRef.current = s.key;
 
-    setStrike(s);
-    if (strikeTimerRef.current) clearTimeout(strikeTimerRef.current);
-    strikeTimerRef.current = setTimeout(() => setStrike(null), STRIKE_TTL_MS);
+    // The strike beat fires only when NOT suppressed. On a Feint that ends the combat
+    // (`suppressStrike`), the Snuff callout owns the slam, so we skip the strike — but
+    // the panel-linger below still runs so both committed cards + values stay on screen
+    // (issue #147).
+    if (!s.suppressStrike) {
+      setStrike(s);
+      if (strikeTimerRef.current) clearTimeout(strikeTimerRef.current);
+      strikeTimerRef.current = setTimeout(() => setStrike(null), STRIKE_TTL_MS);
+    }
 
     // Combat ended in this very batch (view.combat already null) → freeze it so the
-    // panel keeps rendering while the strike plays.
+    // panel keeps rendering while the strike plays (or, on a suppressed Feint, while the
+    // Snuff callout resolves over the top).
     if (!next.combat && prev) {
       const frozen = captureLingeringCombat(prev, s);
       if (frozen) {
