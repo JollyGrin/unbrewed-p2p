@@ -56,6 +56,15 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl: "https://i.imgur.com/xGc33g5.png",
   },
   {
+    id: "nPnv",
+    name: "Nancy Drew",
+    hero: "Nancy Drew",
+    author: "TheRealNomiMalonely",
+    likes: 23,
+    highlightColour: "#fada0b",
+    cardbackUrl: "https://i.imgur.com/Wh9hG5d.jpeg",
+  },
+  {
     id: "LmYw",
     name: "John Wick",
     hero: "john wick",

@@ -239,6 +239,18 @@
         "file": "data/heroes/batman.rules.ts",
         "commit": "5e3e6b0"
       }
+    },
+    {
+      "heroId": "nancy-drew",
+      "deckId": "nPnv",
+      "version_id": "z_P5fKxJZ",
+      "frozenAt": "2026-07-18",
+      "digest": "sha256:3ea1bc60643d9768d72f6c84dfe261a2425f9318ed532b3e6e63fa1cda0b7fa2",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/nancy-drew.rules.ts",
+        "commit": "a5b5204"
+      }
     }
   ]
 }
