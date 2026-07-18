@@ -58,7 +58,7 @@ import { isLargeFighter, LARGE_FIGHTER_BLURB } from "@/lib/pro/largeReach";
 import { deriveTeams } from "@/lib/pro/teams";
 import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { ResolveCard, ResolveHero, ResolveRuleCards } from "@/lib/pro/useProCardArt";
-import { FlagHudChip, flagChipsFor } from "@/lib/pro/heroStateFlags";
+import { FlagHudChip, flagChipsFor, counterChipsFor } from "@/lib/pro/heroStateFlags";
 import { DEFAULT_PLATE_LAYOUT, PlateLayout, PlateSeat, useHudPlates } from "@/lib/pro/useHudPlates";
 import { useCardPreview } from "./CardPreview";
 import { CardFace } from "./ProHand";
@@ -388,6 +388,7 @@ const SeatPlate = ({
   heroFighter,
   sidekicks,
   flags,
+  counters,
   wonCombat,
   isLocal,
   isActive,
@@ -415,6 +416,9 @@ const SeatPlate = ({
   sidekicks: ViewFighter[];
   /** public per-player engine flags (tide etc.); undefined on older servers */
   flags?: Record<string, boolean>;
+  /** public per-player engine counters (Nancy's CLUE etc.; PlayerView.counters).
+   *  Drives the counter nameplate pill + token badge; undefined on older servers. */
+  counters?: Record<string, number>;
   /** won >=1 combat this turn (ViewPlayer.wonCombatThisTurn) — shows a "combat won"
    *  chip that explains why Grievous's conditional AFTER effects fire differently.
    *  Turn-scoped: clears at turn start. undefined on older servers → no chip. */
@@ -554,12 +558,17 @@ const SeatPlate = ({
     </Tag>
   ) : null;
 
-  // Public flag pills (issue #233): always-visible on BOTH seats' cards for heroes
-  // with a flag mechanic (tide + druid form today). Generic over HERO_STATE_FLAGS —
-  // non-flag heroes get an empty list and render exactly as before. Keyed by
-  // on/off state so a mid-game flip remounts the chip and replays its pulse.
-  const flagTags = flagChipsFor(heroId, flags).map(({ chip, on }) => (
-    <FlagChip key={`${chip.flag}-${on ? "on" : "off"}`} chip={chip} on={on} />
+  // Public state pills, always-visible on BOTH seats' cards. Flag-driven states
+  // (issue #233: tide + druid form) and counter-driven states (issue #420: Nancy's
+  // CLUE) both project to the same {chip,on} shape and render through one <FlagChip>
+  // map — non-participating heroes get empty lists and render exactly as before.
+  // Counter chips are hidden at 0. Keyed by chip contents so a value/state change
+  // remounts the chip and replays its pulse (CLUES: 2 -> CLUES: 3 re-animates live).
+  const flagTags = [
+    ...flagChipsFor(heroId, flags),
+    ...counterChipsFor(heroId, counters),
+  ].map(({ chip, on }) => (
+    <FlagChip key={`${chip.flag}-${chip.onLabel}-${on ? "on" : "off"}`} chip={chip} on={on} />
   ));
 
   // "combat won ✓" chip (issue #288 ↔ engine #160): shown on the acting seat while
@@ -1097,6 +1106,7 @@ export const ProHud = ({
             heroFighter={heroOf(seat.id)}
             sidekicks={sidekicksOf(seat.id)}
             flags={seat.flags}
+            counters={seat.counters}
             wonCombat={seat.wonCombatThisTurn}
             isLocal={seat.you}
             isActive={showLiveTurnChrome(view) && view.activePlayer === seat.id}

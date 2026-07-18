@@ -37,6 +37,9 @@ export const HERO_DECK_IDS: Record<string, string> = {
   "baba-yaga": "yAJ-",
   "buster-keaton": "QkB1",
   batman: "x2_V",
+  // Nancy Drew (issue #420 ↔ engine #225): community deck, CLUE token economy
+  // (FIGURE_MOVED zone-entry) riding the existing `counters` view; no protocol change.
+  "nancy-drew": "nPnv",
   // Evergreen originals: no unmatched.cards page exists — the ids are ours, and
   // the snapshot in public/evergreen-decks/ is the ONLY source (the live-API
   // fetch 404s by design; snapshot-only means it is never consulted).
