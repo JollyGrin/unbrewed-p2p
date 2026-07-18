@@ -37,7 +37,11 @@ export const DeckModalContent = ({
             // anchor the draw tag to this card, not the modal body
             position="relative"
           >
-            <Flex position="absolute" top={0} left={0} zIndex={1}>
+            {/* zIndex 2 to paint above the CardFactory frame wrapper
+                (card.factory.tsx zIndex:1, load-bearing for the #373
+                art-band fix) — equal z-index let the later-rendered
+                frame cover the tag (#430). */}
+            <Flex position="absolute" top={0} left={0} zIndex={2}>
               <Tag
                 fontSize="1.25rem"
                 userSelect="none"
