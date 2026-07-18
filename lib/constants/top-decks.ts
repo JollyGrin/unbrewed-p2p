@@ -15,6 +15,13 @@ export type PopularDeckMeta = {
    */
   original?: boolean;
   /**
+   * External attribution page for this deck, when it lives somewhere other than
+   * unmatched.cards (e.g. the-unmatched.club). Takes precedence over the derived
+   * unmatched.cards link, so an evergreen `original` deck that DOES have a source
+   * page can still credit + link to it instead of rendering as plain text.
+   */
+  sourceUrl?: string;
+  /**
    * Public caution badge for playable-but-unsettled decks. Lab decks may still
    * be served by the Pro engine, but their balance/mechanics are not final.
    */
@@ -493,9 +500,11 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
   {
     // Evergreen original: General Grievous — a fan creation by Inforce (issue
     // #288 ↔ engine #160; polish #291). No unmatched.cards page (original: true
-    // suppresses the lobby deep-link). Card art renders from the R2 TTS sprite
-    // sheet via the snapshot's per-card `cardImage`; cardback is the TTS cover,
-    // self-hosted on R2 and mirrored into the evergreen snapshot appearance.
+    // suppresses the lobby deep-link), but it does have a real source page on
+    // the-unmatched.club, so `sourceUrl` restores the attribution link (#428).
+    // Card art renders from the R2 TTS sprite sheet via the snapshot's per-card
+    // `cardImage`; cardback is the TTS cover, self-hosted on R2 and mirrored into
+    // the evergreen snapshot appearance.
     id: "grievous",
     name: "General Grievous",
     hero: "General Grievous",
@@ -504,6 +513,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     highlightColour: "#8a9199",
     cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/grievous/cardback.webp",
     original: true,
+    sourceUrl: "https://www.the-unmatched.club/c/heroes/general-grievous.9861",
   },
   {
     // Evergreen original: Malfurion Stormrage — server hero malfurion-stormrage.
