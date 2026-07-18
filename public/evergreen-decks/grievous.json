@@ -218,6 +218,7 @@
   "note": "Evergreen original — rules-enforced Pro deck (server hero general-grievous). Card art is self-hosted, one full-face webp per card in public/evergreen-decks/art/grievous (mirrored from the-unmatched.club deck 9861); rendered full-bleed via cardImage since the faces carry their own frame + text. No unmatched.cards entry exists. Paraphrased card text; the printed faces carry the authoritative wording.",
   "published": true,
   "published_on": "Mon, 13 Jul 2026 00:00:00 GMT",
+  "sourceUrl": "https://www.the-unmatched.club/c/heroes/general-grievous.9861",
   "tags": [
     "pro",
     "evergreen",

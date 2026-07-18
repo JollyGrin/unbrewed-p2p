@@ -14,6 +14,12 @@ export type DeckImportType = {
   note: string;
   published: boolean;
   published_on: DateString;
+  /**
+   * External attribution page for this deck when it lives somewhere other than
+   * unmatched.cards (e.g. the-unmatched.club). Optional and additive: mirrors the
+   * `sourceUrl` on PopularDeckMeta so the committed snapshot is self-describing.
+   */
+  sourceUrl?: string;
   tags: string[];
   updated_on: DateString;
   user: string;
