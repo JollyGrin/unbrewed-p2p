@@ -14,9 +14,8 @@
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { DeckImportDataType, DeckImportType } from "@/components/DeckPool/deck-import.type";
+import { DEFAULT_DECK_API } from "@/lib/evergreenDecks";
 import { DECK_HERO_IDS } from "./useProCardArt";
-
-const API = "https://unbrewed-api.vercel.app/api/unmatched-deck/";
 
 export function useDeckPreview(deckId: string | null, enabled: boolean) {
   return useQuery<DeckImportDataType | null>(
@@ -28,7 +27,7 @@ export function useDeckPreview(deckId: string | null, enabled: boolean) {
         .catch(() => null);
       if (snapshot) return snapshot.data.deck_data;
       if (DECK_HERO_IDS[deckId]) return null;
-      const remote = await axios.get<DeckImportType>(API + deckId).catch(() => null);
+      const remote = await axios.get<DeckImportType>(DEFAULT_DECK_API + deckId).catch(() => null);
       return remote?.data.deck_data ?? null;
     },
     { enabled: enabled && !!deckId, staleTime: Infinity, retry: 1 }
