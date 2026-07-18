@@ -174,7 +174,7 @@
       "move": 2,
       "name": "Batman",
       "specialAbility": "I AM VENGEANCE\nIf Batman was not in a fighter's zone at the start of his turn, add +2 to the value of his attacks against that fighter.\n\nThe Batmobile has a movement of 3. The Batmobile is considered a Large Fighter.\n\n",
-      "tokenImageUrl": "https://yptpnirqgfmxphjvsdjz.supabase.co/storage/v1/object/public/fan_heroes/50081cd3-b52f-478c-98e4-383cf4a3ec92/3312/seo-08588663f7.webp"
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/x2_V/token-batman.webp"
     },
     "name": "",
     "ruleCards": [
@@ -189,7 +189,7 @@
       "name": "The Batmobile",
       "quantity": 1,
       "quote": null,
-      "tokenImageUrl": "https://cdn.shopify.com/s/files/1/0182/2915/products/Batmobile-Snyder_dc0e1376-4d26-44a4-87c7-1307c110127c_1024x1024.jpg?v=1656347798"
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/x2_V/token-batmobile.webp"
     }
   },
   "deck_first_published_on": "Wed, 22 Oct 2025 22:10:28 GMT",
