@@ -48,6 +48,9 @@ export const HERO_DECK_IDS: Record<string, string> = {
   "general-grievous": "grievous",
   "malfurion-stormrage": "malfurion-stormrage",
   "clone-troopers": "DJQB",
+  // Muhammad Ali (issue #421 ↔ engine #176): community deck Yr3m, solo hero
+  // (16/3/MELEE, no sidekick), tier 'lab'. Full card art on the upstream page.
+  "muhammad-ali": "Yr3m",
   // Spice remixes (engine hero id `<hero>-spice`, display name shared with the
   // baseline). Each snapshot reuses the baseline's art per-card until dedicated
   // spice art lands.

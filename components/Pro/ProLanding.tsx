@@ -53,6 +53,7 @@ const FALLBACK_READY: Record<string, string> = {
   x2_V: "Batman",
   grievous: "General Grievous",
   "malfurion-stormrage": "Malfurion Stormrage",
+  Yr3m: "Muhammad Ali",
 };
 const IN_THE_LAB: Record<string, string> = {
   "72Dz": "Pinocchio",
