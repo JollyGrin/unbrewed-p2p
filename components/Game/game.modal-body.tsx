@@ -34,11 +34,10 @@ export const DeckModalContent = ({
             w="100%"
             maxH={"550px"}
             key={card.title + index}
-            // CSS-only hover reveal: pointing at a card must not
-            // re-render the whole grid
-            sx={{ ".drawtag": { opacity: 0 }, ":hover .drawtag": { opacity: 1 } }}
+            // anchor the draw tag to this card, not the modal body
+            position="relative"
           >
-            <Flex position="absolute" zIndex={1} className="drawtag">
+            <Flex position="absolute" top={0} left={0} zIndex={1}>
               <Tag
                 fontSize="1.25rem"
                 userSelect="none"
