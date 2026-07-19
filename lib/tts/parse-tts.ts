@@ -47,7 +47,7 @@ type TtsObject = {
 };
 
 /** steam cloud hosts images over https; old exports reference http */
-const httpsUpgrade = (url: string): string =>
+export const httpsUpgrade = (url: string): string =>
   url.replace(
     /^http:\/\/(cloud-\d+\.steamusercontent\.com|steamusercontent-a\.akamaihd\.net)/,
     "https://$1",

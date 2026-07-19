@@ -18,6 +18,7 @@ import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
 import { toast } from "react-hot-toast";
 import { DeckCards } from "./DeckCards";
 import { EditHeroInfo } from "./EditHeroInfo";
+import { EditCardback } from "./EditCardback";
 
 export const BagDecks = () => {
   const {
@@ -324,6 +325,7 @@ const DeckActions = ({
       {isImageDeck && deck && (
         <EditHeroInfo deck={deck} onSave={updateDeck} />
       )}
+      {deck && <EditCardback deck={deck} onSave={updateDeck} />}
       <Button
         size="sm"
         bg="brand.accent"
