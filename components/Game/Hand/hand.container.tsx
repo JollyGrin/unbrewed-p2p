@@ -34,6 +34,7 @@ import {
 } from "@/components/Game/CommandMenu/deckCommands";
 import { ScryModal } from "@/components/Game/CommandMenu/scry.modal";
 import { PileSplitButton } from "./pile-split-button";
+import { HandActionsButton } from "./hand-actions-button";
 
 type GameData = {
   gameState: WebsocketMessage | undefined;
@@ -231,38 +232,57 @@ export const HandContainer = ({
     (c) => c.group === "Discard" && c.id !== "openDiscard",
   );
 
-  const handCount = playerState?.pool?.hand?.length ?? 0;
+  // Hand-actions dropdown entries (issue #439). Reveal/return are board-backed
+  // (only present when we can play to the table); "Discard a random card" comes
+  // from the shared Hand command group so it never forks. Laying these out as a
+  // persistent dropdown above Draw means drawing no longer inserts a standalone
+  // button into the cluster and shifts Draw's slot.
+  const handActionCommands: DeckCommand[] = [
+    ...(revealHand
+      ? [
+          {
+            id: "revealHand",
+            group: "Hand" as const,
+            label: "Reveal hand",
+            enabled: (p: PoolType) => (p.hand?.length ?? 0) > 0,
+            run: () => {
+              revealHand();
+              setHandRevealed(true);
+            },
+          },
+        ]
+      : []),
+    ...(returnRevealedHand
+      ? [
+          {
+            id: "returnHand",
+            group: "Hand" as const,
+            label: "Return to hand",
+            enabled: () => handRevealed,
+            run: () => {
+              returnRevealedHand();
+              setHandRevealed(false);
+            },
+          },
+        ]
+      : []),
+    ...pileCommands.filter((c) => c.group === "Hand"),
+  ];
 
   return (
     <>
       <ActionCluster>
+        {handActionCommands.length > 0 && (
+          <HandActionsButton
+            commands={handActionCommands}
+            pool={playerState?.pool}
+          />
+        )}
         <PileButton
           onClick={() => playerState?.pool && gDraw(playerState?.pool)}
         >
           Draw +1
         </PileButton>
-        {playToTable &&
-          (handRevealed ? (
-            <PileButton
-              onClick={() => {
-                returnRevealedHand?.();
-                setHandRevealed(false);
-              }}
-            >
-              Return hand
-            </PileButton>
-          ) : (
-            handCount > 0 && (
-              <PileButton
-                onClick={() => {
-                  revealHand?.();
-                  setHandRevealed(true);
-                }}
-              >
-                Reveal hand
-              </PileButton>
-            )
-          ))}
         <PileSplitButton
           label={`Deck (${playerState?.pool?.deck?.length ?? 0})`}
           onPrimary={() => setModal("deck")}
