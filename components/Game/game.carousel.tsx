@@ -166,7 +166,6 @@ export const HandFan: React.FC<CardWrapperProps> = ({
                 <PopoverCardActions
                   actions={[
                     { text: "Discard", fn: () => functions.discardFn(index) },
-                    { text: "Boost", fn: () => functions.boostFn(index) },
                     ...(functions.playFn
                       ? [
                           {
