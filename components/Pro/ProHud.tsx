@@ -1045,6 +1045,10 @@ export const ProHud = ({
           counters: view.self.counters,
           flags: view.self.flags,
           wonCombatThisTurn: view.self.wonCombatThisTurn,
+          lostCombatThisTurn: view.self.lostCombatThisTurn,
+          firstAttackThisTurn: view.self.firstAttackThisTurn,
+          playedACardThisTurn: view.self.playedACardThisTurn,
+          tookDamageThisTurn: view.self.tookDamageThisTurn,
         },
         ...(view.opponent
           ? [{
@@ -1060,6 +1064,10 @@ export const ProHud = ({
               counters: view.opponent.counters,
               flags: view.opponent.flags,
               wonCombatThisTurn: view.opponent.wonCombatThisTurn,
+              lostCombatThisTurn: view.opponent.lostCombatThisTurn,
+              firstAttackThisTurn: view.opponent.firstAttackThisTurn,
+              playedACardThisTurn: view.opponent.playedACardThisTurn,
+              tookDamageThisTurn: view.opponent.tookDamageThisTurn,
             }]
           : []),
       ];

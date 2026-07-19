@@ -37,6 +37,9 @@ export const HERO_DECK_IDS: Record<string, string> = {
   "baba-yaga": "yAJ-",
   "buster-keaton": "QkB1",
   batman: "x2_V",
+  // Specter Knight (issue #419 ↔ engine #226): community deck with a prompted
+  // additional-defense combat primitive; art comes from the frozen xBvn snapshot.
+  "specter-knight": "xBvn",
   // Nancy Drew (issue #420 ↔ engine #225): community deck, CLUE token economy
   // (FIGURE_MOVED zone-entry) riding the existing `counters` view; no protocol change.
   "nancy-drew": "nPnv",

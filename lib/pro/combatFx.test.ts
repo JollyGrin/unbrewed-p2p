@@ -9,6 +9,7 @@ const combat = (over: Partial<ViewCombat>): ViewCombat => ({
   stage: "COMMIT_ATTACK",
   attackerCard: null,
   defenderCard: null,
+  additionalDefenseCard: null,
   outcome: null,
   attackDamageDealt: null,
   ...over,
@@ -26,11 +27,11 @@ const view = (over: Partial<PlayerView>): PlayerView => ({
   catalog: {},
   fighters: [],
   tokens: [],
-  self: { id: "p1", heroId: "king-kong", hand: [], deckCount: 10, discard: [], committedCard: null, counters: {}, flags: {}, wonCombatThisTurn: false },
-  opponent: { id: "p2", heroId: "baba-yaga", handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false },
+  self: { id: "p1", heroId: "king-kong", hand: [], deckCount: 10, discard: [], committedCard: null, counters: {}, flags: {}, wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false },
+  opponent: { id: "p2", heroId: "baba-yaga", handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false },
   players: [
-    { id: "p1", heroId: "fixture-p1", you: true, hand: [], handCount: 0, deckCount: 10, discard: [], committedCard: null, hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false },
-    { id: "p2", heroId: "fixture-p2", you: false, handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false },
+    { id: "p1", heroId: "fixture-p1", you: true, hand: [], handCount: 0, deckCount: 10, discard: [], committedCard: null, hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false },
+    { id: "p2", heroId: "fixture-p2", you: false, handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false },
   ],
   combat: null,
   prompt: null,
@@ -200,6 +201,7 @@ describe("diffCombatCallouts", () => {
       stage: "IMMEDIATELY",
       attackerCard: { instance: "king-kong/clobber#2", role: "ATTACK", boosts: [], effectiveValue: 3 },
       defenderCard: { instance: "baba-yaga/feint#1", role: "DEFENSE", boosts: [], effectiveValue: 0 },
+      additionalDefenseCard: null,
     });
     const pricedCatalog: PlayerView["catalog"] = {
       "king-kong/clobber": { title: "Clobber", type: "attack", value: 3, boost: 2 },
