@@ -31,11 +31,11 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
     fighter({ id: "p2/hero", owner: "p2", name: "Baba Yaga", hp: 9, maxHp: 14, reach: "RANGED" }),
   ],
   tokens: [],
-  self: { id: "p1", heroId: "king-kong", hand: ["a#1", "b#1"], deckCount: 20, discard: ["c#1"], committedCard: null, counters: {}, flags: {}, wonCombatThisTurn: false },
-  opponent: { id: "p2", heroId: "baba-yaga", handCount: 5, deckCount: 18, discard: [], hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false },
+  self: { id: "p1", heroId: "king-kong", hand: ["a#1", "b#1"], deckCount: 20, discard: ["c#1"], committedCard: null, counters: {}, flags: {}, wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false },
+  opponent: { id: "p2", heroId: "baba-yaga", handCount: 5, deckCount: 18, discard: [], hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false },
   players: [
-    { id: "p1", heroId: "king-kong", you: true, hand: ["a#1", "b#1"], handCount: 2, deckCount: 20, discard: ["c#1"], committedCard: null, hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false },
-    { id: "p2", heroId: "baba-yaga", you: false, handCount: 5, deckCount: 18, discard: [], hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false },
+    { id: "p1", heroId: "king-kong", you: true, hand: ["a#1", "b#1"], handCount: 2, deckCount: 20, discard: ["c#1"], committedCard: null, hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false },
+    { id: "p2", heroId: "baba-yaga", you: false, handCount: 5, deckCount: 18, discard: [], hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false },
   ],
   combat: null,
   prompt: null,
@@ -92,6 +92,7 @@ describe("buildBugReportUrl", () => {
             stage: "DAMAGE",
             attackerCard: null,
             defenderCard: null,
+            additionalDefenseCard: null,
             outcome: null,
             attackDamageDealt: null,
           },
@@ -140,9 +141,9 @@ describe("buildBugReportUrl", () => {
         fighter({ id: "p3/hero", owner: "p3", name: "Bigfoot", hp: 7, maxHp: 16 }),
       ],
       players: [
-        { id: "p1", heroId: "king-kong", you: true, hand: ["a#1", "b#1"], handCount: 2, deckCount: 20, discard: ["c#1"], committedCard: null, hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false },
-        { id: "p2", heroId: "baba-yaga", you: false, handCount: 5, deckCount: 18, discard: [], hasCommitted: false, counters: { rage: 2 }, flags: {}, wonCombatThisTurn: false },
-        { id: "p3", heroId: "bigfoot", you: false, handCount: 4, deckCount: 17, discard: ["d#1"], hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false },
+        { id: "p1", heroId: "king-kong", you: true, hand: ["a#1", "b#1"], handCount: 2, deckCount: 20, discard: ["c#1"], committedCard: null, hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false },
+        { id: "p2", heroId: "baba-yaga", you: false, handCount: 5, deckCount: 18, discard: [], hasCommitted: false, counters: { rage: 2 }, flags: {}, wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false },
+        { id: "p3", heroId: "bigfoot", you: false, handCount: 4, deckCount: 17, discard: ["d#1"], hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false },
       ],
     });
 

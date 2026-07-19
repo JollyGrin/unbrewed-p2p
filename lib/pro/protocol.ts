@@ -343,6 +343,19 @@
  * correctness (legalActions stays authoritative). Purely additive; an older client that
  * ignores it is unaffected.
  *
+ * ## Additive field family (2026-07-18, no version bump): turn-scoped event flags (engine v0.22.0)
+ * `ViewSelf`/`ViewOpponent`/`ViewPlayer` gain four more public turn-scoped booleans, mirroring
+ * `wonCombatThisTurn` exactly (public, identical for every viewer, clear at turn start):
+ *   - `lostCombatThisTurn`  — engine `GameState.combatsLostThisTurn` membership (lost >=1 combat).
+ *   - `firstAttackThisTurn` — NOT yet in `GameState.attackedThisTurn` (their next attack is the first).
+ *   - `playedACardThisTurn` — `GameState.cardsPlayedThisTurn[pid]` non-empty (played >=1 card publicly).
+ *   - `tookDamageThisTurn`  — engine `GameState.damageTakenThisTurn` membership (an owned fighter took damage).
+ * Back the DSL predicates LOST_COMBAT_THIS_TURN / FIRST_ATTACK_THIS_TURN / PLAYED_A_CARD_THIS_TURN /
+ * TOOK_DAMAGE_THIS_TURN. Legibility only (legalActions stays authoritative). Purely additive; an
+ * older client ignoring them is unaffected. Sync note: the four fields must be copied verbatim to
+ * unbrewed-p2p `lib/pro/protocol.ts` (a client-wiring ticket is drafted in
+ * docs/plans/turn-scoped-state-convert.md). No shipped deck consumes them yet.
+ *
  * ## v18 (2026-07-14): lab hero tier (unbrewed-engine #180, client sibling p2p #323)
  * `HeroTier` gains `'lab'` for playable-but-unsettled decks that should stay
  * hidden from the default roster and random bot pools. As with `reflavored`,
@@ -363,6 +376,12 @@
  * Player/replay views expose each seat's active `ongoingScheme`, or null/absent
  * when none is active, so clients can render face-up ongoing scheme cards outside discard.
  *
+ * ## v22 (2026-07-18): additional defense combat card
+ * Specter Knight's `playAdditionalDefense` primitive can put one extra revealed
+ * defense card into the live combat. `ViewCombat.additionalDefenseCard` exposes
+ * it like the primary defense card, and `ADDITIONAL_DEFENSE_PLAYED` announces the
+ * reveal/play event. The selection uses existing `RESPOND_PROMPT` actions.
+ *
  * ## Additive field (2026-07-16, no version bump): `ViewFighter.statuses?`
  * (unbrewed-engine #204, unblocks p2p #371). A generic per-fighter status-
  * effect list — the fighter-scoped parallel to the per-player `flags` model
@@ -380,8 +399,13 @@
  * can target `OPPOSING_FIGHTER` (may be a sidekick) and are typically
  * inflicted by the opponent, so they don't fit the hero-scoped flag shape.
  * Purely additive; an older client that ignores it is unaffected.
+ *
+ * ## Additive request field (2026-07-18, no version bump): per-seat telemetry pilot
+ * `CREATE_ROOM.pilot?` and `JOIN_ROOM.pilot?` let socket-driven non-bot seats
+ * tag telemetry as `llm:<model>` instead of the default `human`. Built-in bots
+ * still report `bot:<difficulty>`. Invalid pilot labels answer BAD_MESSAGE.
  */
-export const PROTOCOL_VERSION = 21;
+export const PROTOCOL_VERSION = 22;
 
 /** Scripted-AI strength preset (server-side budgets; client treats as opaque). */
 export type BotDifficulty = "easy" | "medium" | "hard";
@@ -518,6 +542,7 @@ export type GameEvent =
   | { type: "CARD_SHUFFLED_INTO_DECK"; player: PlayerId; card: CardInstanceId; from: "HAND" | "DISCARD" }
   | { type: "CARD_RETURNED_TO_HAND"; player: PlayerId; card: CardInstanceId }
   | { type: "CARD_PLAYED_FROM_HAND"; player: PlayerId; card: CardInstanceId }
+  | { type: "ADDITIONAL_DEFENSE_PLAYED"; player: PlayerId; card: CardInstanceId }
   | { type: "CARD_REVEALED"; player: PlayerId; card: CardInstanceId }
   | { type: "DECK_SHUFFLED"; player: PlayerId }
   | { type: "TOKEN_PLACED"; token: string; kind: "totem"; owner: PlayerId; space: SpaceId }
@@ -755,6 +780,12 @@ export interface ViewSelf {
   // Won >=1 combat this turn (engine combatsWonThisTurn membership; also set by
   // markCombatWon off a loss). Public, turn-scoped — see the 2026-07-13 additive note.
   wonCombatThisTurn: boolean;
+  // Turn-scoped event flags (v0.22.0 additive family, see the note below). All public,
+  // identical for every viewer, clear at turn start.
+  lostCombatThisTurn: boolean; // lost >=1 combat this turn (engine combatsLostThisTurn)
+  firstAttackThisTurn: boolean; // has NOT yet resolved an attack this turn (next attack is the first)
+  playedACardThisTurn: boolean; // played (revealed/schemed) >=1 card this turn
+  tookDamageThisTurn: boolean; // an owned fighter took >=1 damage this turn
 }
 
 export interface ViewOpponent {
@@ -768,6 +799,10 @@ export interface ViewOpponent {
   counters: Record<string, number>; // counters are public
   flags: Record<string, boolean>; // v16: active named flags, public (see ViewSelf.flags)
   wonCombatThisTurn: boolean; // public, turn-scoped (see ViewSelf.wonCombatThisTurn)
+  lostCombatThisTurn: boolean; // v0.22.0, public, turn-scoped (see ViewSelf)
+  firstAttackThisTurn: boolean; // v0.22.0, public, turn-scoped (see ViewSelf)
+  playedACardThisTurn: boolean; // v0.22.0, public, turn-scoped (see ViewSelf)
+  tookDamageThisTurn: boolean; // v0.22.0, public, turn-scoped (see ViewSelf)
 }
 
 export interface ViewPlayer {
@@ -787,6 +822,10 @@ export interface ViewPlayer {
   counters: Record<string, number>;
   flags: Record<string, boolean>; // v16: active named flags, public (see ViewSelf.flags)
   wonCombatThisTurn: boolean; // public, turn-scoped (see ViewSelf.wonCombatThisTurn)
+  lostCombatThisTurn: boolean; // v0.22.0, public, turn-scoped (see ViewSelf)
+  firstAttackThisTurn: boolean; // v0.22.0, public, turn-scoped (see ViewSelf)
+  playedACardThisTurn: boolean; // v0.22.0, public, turn-scoped (see ViewSelf)
+  tookDamageThisTurn: boolean; // v0.22.0, public, turn-scoped (see ViewSelf)
 }
 
 export interface ViewCombatCard {
@@ -813,6 +852,7 @@ export interface ViewCombat {
   // Revealed cards only — null before reveal / if defender declined.
   attackerCard: ViewCombatCard | null;
   defenderCard: ViewCombatCard | null;
+  additionalDefenseCard: ViewCombatCard | null;
   outcome: CombatOutcome | null;
   attackDamageDealt: number | null;
 }
@@ -1037,8 +1077,10 @@ export type ClientMsg =
   // excluded. Never gates an explicitly named heroId. See the v15 and v18 notes.
   // `turnTimerSeconds` (issue #122): per-decision move timer, integer 10–300;
   // absent or 0 = no timer. See the 2026-07-13 move-timer header note.
-  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number }
-  | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string }
+  // `pilot`: telemetry label for socket-driven seats. Omit/empty = human;
+  // LLM agents should send llm:<model>.
+  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; pilot?: string }
+  | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string; pilot?: string }
   | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }
   // v7: revive an in-memory room lost to a redeploy/crash. `token` is the opaque

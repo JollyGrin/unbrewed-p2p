@@ -251,6 +251,18 @@
         "file": "data/heroes/nancy-drew.rules.ts",
         "commit": "a5b5204"
       }
+    },
+    {
+      "heroId": "specter-knight",
+      "deckId": "xBvn",
+      "version_id": "ojN2f49QE",
+      "frozenAt": "2026-07-19",
+      "digest": "sha256:b7d702dc871d9b54c15392900bf239e5a631f8c72073a0254158131bbdb4b771",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/specter-knight.rules.ts",
+        "commit": "d62f3c1"
+      }
     }
   ]
 }

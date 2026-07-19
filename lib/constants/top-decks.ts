@@ -72,6 +72,20 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl: "https://i.imgur.com/Wh9hG5d.jpeg",
   },
   {
+    // In-the-lab Pro deck (unmatched.cards xBvn / version ojN2f49QE) — server
+    // hero specter-knight. Additional-defense prompt/order mechanics are still
+    // playtest-only, so surface the deck with a lab caution.
+    id: "xBvn",
+    name: "Specter Knight (Shovel Knight)",
+    hero: "Specter Knight",
+    author: "XtraReason",
+    likes: 3,
+    highlightColour: "#b51a00",
+    cardbackUrl: "https://sm.ign.com/t/ign_nordic/review/s/shovel-kni/shovel-knight-treasure-trove-review_cb9b.1280.jpg",
+    lab: true,
+    tier: "lab",
+  },
+  {
     id: "LmYw",
     name: "John Wick",
     hero: "john wick",

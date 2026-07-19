@@ -142,6 +142,10 @@ const playersById = (view: PlayerView): Map<PlayerId, ViewPlayer> => {
     counters: view.self.counters,
     flags: view.self.flags,
     wonCombatThisTurn: view.self.wonCombatThisTurn,
+    lostCombatThisTurn: view.self.lostCombatThisTurn,
+    firstAttackThisTurn: view.self.firstAttackThisTurn,
+    playedACardThisTurn: view.self.playedACardThisTurn,
+    tookDamageThisTurn: view.self.tookDamageThisTurn,
   });
   if (view.opponent) {
     players.set(view.opponent.id, {
@@ -156,6 +160,10 @@ const playersById = (view: PlayerView): Map<PlayerId, ViewPlayer> => {
       counters: view.opponent.counters,
       flags: view.opponent.flags,
       wonCombatThisTurn: view.opponent.wonCombatThisTurn,
+      lostCombatThisTurn: view.opponent.lostCombatThisTurn,
+      firstAttackThisTurn: view.opponent.firstAttackThisTurn,
+      playedACardThisTurn: view.opponent.playedACardThisTurn,
+      tookDamageThisTurn: view.opponent.tookDamageThisTurn,
     });
   }
   return players;

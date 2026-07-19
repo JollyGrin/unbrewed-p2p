@@ -53,7 +53,7 @@ export function buildBaselineView(overrides: Partial<PlayerView> = {}): PlayerVi
       committedCard: null,
       counters: {},
       flags: {},
-  wonCombatThisTurn: false,
+  wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false,
     },
     opponent: {
       id: "p2",
@@ -64,7 +64,7 @@ export function buildBaselineView(overrides: Partial<PlayerView> = {}): PlayerVi
       hasCommitted: false,
       counters: {},
       flags: {},
-  wonCombatThisTurn: false,
+  wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false,
     },
     players: [
       {
@@ -79,7 +79,7 @@ export function buildBaselineView(overrides: Partial<PlayerView> = {}): PlayerVi
         hasCommitted: false,
         counters: {},
         flags: {},
-  wonCombatThisTurn: false,
+  wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false,
       },
       {
         id: "p2",
@@ -91,7 +91,7 @@ export function buildBaselineView(overrides: Partial<PlayerView> = {}): PlayerVi
         hasCommitted: false,
         counters: {},
         flags: {},
-  wonCombatThisTurn: false,
+  wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false,
       },
     ],
     combat: null,
@@ -132,6 +132,7 @@ export function buildSampleGame(): SampleStep[] {
         stage: "COMMIT_DEFENSE",
         attackerCard: { instance: "hero-a/strike#1", role: "ATTACK", boosts: [], effectiveValue: 3 },
         defenderCard: null,
+        additionalDefenseCard: null,
         outcome: null,
         attackDamageDealt: null,
       },
@@ -165,7 +166,7 @@ export function buildSampleGame(): SampleStep[] {
       committedCard: null,
       counters: {},
       flags: {},
-  wonCombatThisTurn: false,
+  wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false,
     },
     opponent: {
       id: "p1",
@@ -176,7 +177,7 @@ export function buildSampleGame(): SampleStep[] {
       hasCommitted: false,
       counters: {},
       flags: {},
-  wonCombatThisTurn: false,
+  wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false,
     },
     players: [
       {
@@ -191,7 +192,7 @@ export function buildSampleGame(): SampleStep[] {
         hasCommitted: false,
         counters: {},
         flags: {},
-  wonCombatThisTurn: false,
+  wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false,
       },
       {
         id: "p1",
@@ -203,7 +204,7 @@ export function buildSampleGame(): SampleStep[] {
         hasCommitted: false,
         counters: {},
         flags: {},
-  wonCombatThisTurn: false,
+  wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false,
       },
     ],
   });
