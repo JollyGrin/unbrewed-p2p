@@ -2996,9 +2996,30 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
     }
   }, [replayBundle]);
 
-  // Pinch/scroll zoom + drag pan on the board (issue #120) — off by default,
-  // opt-in via the zoomMap beta flag. Zero footprint on ProBoard when off.
+  // Pinch/scroll zoom + drag pan on the board (issue #120), now the default
+  // interaction: the board fills the whole stage and the fixed HUD/hand/dock
+  // float over it (issue #450). Turning the flag off falls back to the old
+  // boxed, padded board — no transform, no gestures.
   const [zoomMapOn] = useFlag("zoomMap");
+  // The decision dock only reserves its 20rem column at lg and up (matches the
+  // `pr={{ base, lg }}` on the fallback board box below). Read via matchMedia
+  // rather than Chakra's useBreakpointValue, which touches `window` during the
+  // static prerender of this page and fails the export.
+  const [dockWide, setDockWide] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 62em)"); // Chakra's `lg`
+    const sync = () => setDockWide(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  // px of the stage hidden behind those fixed overlays, so the initial fit
+  // centers the board in the strip the player can actually see. Mirrors the
+  // padding the non-zoom fallback below still uses.
+  const boardFitInset = useMemo(
+    () => ({ top: 120, bottom: 136, left: 16, right: dockWide ? 320 : 16 }),
+    [dockWide]
+  );
 
   // Activity feed: diff each view against the previous one (see gameLog.ts).
   const [logEntries, setLogEntries] = useState<ProLogEntry[]>([]);
@@ -4077,15 +4098,19 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
         </Link>
       )}
 
-      {/* board — fills the stage, capped so the whole field stays in view */}
+      {/* Board stage. With zoom on (the default) the board fills this box edge
+          to edge and the fixed HUD/hand/dock float over it — the board's own
+          fit transform, not padding, is what keeps the field clear of them, so
+          a drag can carry it under the overlays. Flag off = the old boxed
+          board, centered inside padding reserved for those same overlays. */}
       <Flex
         h="100%"
-        alignItems="center"
+        alignItems={zoomMapOn ? "stretch" : "center"}
         justifyContent="center"
-        p="1rem"
-        pt="7.5rem"
-        pb="8.5rem"
-        pr={{ base: "1rem", lg: "20rem" }}
+        p={zoomMapOn ? 0 : "1rem"}
+        pt={zoomMapOn ? 0 : "7.5rem"}
+        pb={zoomMapOn ? 0 : "8.5rem"}
+        pr={zoomMapOn ? 0 : { base: "1rem", lg: "20rem" }}
       >
         <ProBoard
           map={view.map}
@@ -4121,8 +4146,9 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
           onSpaceHover={setHoveredSpace}
           onFighterHover={setHoveredFighter}
           moveHint={moveHint}
-          imgMaxH="calc(100svh - 16rem)"
+          imgMaxH={zoomMapOn ? undefined : "calc(100svh - 16rem)"}
           zoomable={zoomMapOn}
+          fitInset={boardFitInset}
           tokenLife={tokenLifeOn ? tokenGestures : null}
           fighterEls={fighterElsRef}
         />
