@@ -21,6 +21,7 @@ import { TokenIdle, TokenLifeLayer, phaseSeed } from "./TokenLifeLayer";
 import { ItemBadge, PassageBadge } from "./ItemBadge";
 import type { FlagTokenBadge } from "@/lib/pro/heroStateFlags";
 import { fighterStatusBadgesFor } from "@/lib/pro/fighterStatuses";
+import { useFlag } from "@/lib/flags";
 
 /** Hover/long-press tooltip for a live item token, per the official wording. */
 export const itemBadgeTitle = (item: ProMapItem): string =>
@@ -428,9 +429,18 @@ export const ProBoard = ({
   // zone's own color, so the full membership reads at a glance. Purely
   // presentational, driven off the static map def, and deliberately distinct from
   // the gold action highlight so it never reads as a move/attack prompt.
+  // Gated behind a default-OFF beta flag (issue #447): when off, the highlight
+  // behaves as if #413 never shipped. `setZoneHover` swallows every hover/tap so
+  // `zoneHoverSpace` stays null, and the derivation below refuses to light up even
+  // a stale value the instant the flag is toggled off mid-hover (no reload).
+  const [zoneHoverOn] = useFlag("zoneHover");
   const [zoneHoverSpace, setZoneHoverSpace] = useState<SpaceId | null>(null);
+  const setZoneHover: typeof setZoneHoverSpace = (v) => {
+    if (zoneHoverOn) setZoneHoverSpace(v);
+  };
   const zoneColorById = new Map(map.zones.map((z) => [z.id, z.color] as const));
   const hoveredZoneSet = (() => {
+    if (!zoneHoverOn) return new Set<string>();
     const s = zoneHoverSpace ? spaceById.get(zoneHoverSpace) : undefined;
     return new Set((s?.zones ?? []).filter((z) => zoneColorById.has(z)));
   })();
@@ -845,15 +855,15 @@ export const ProBoard = ({
         // Actionable tokens keep their action; a non-actionable token toggles the
         // zone preview for its space (issue #413) — occupied spaces sit under the
         // token, so the token is the touch/click target for them.
-        onClick={handleClick ?? (() => setZoneHoverSpace((cur) => (cur === s.id ? null : s.id)))}
+        onClick={handleClick ?? (() => setZoneHover((cur) => (cur === s.id ? null : s.id)))}
         // Hovering a fighter lets the caller preview its reachable spaces AND
         // lights the zones its space belongs to. Fired for every token.
         onMouseEnter={() => {
-          setZoneHoverSpace(s.id);
+          setZoneHover(s.id);
           onFighterHover?.(f.id);
         }}
         onMouseLeave={() => {
-          setZoneHoverSpace((cur) => (cur === s.id ? null : cur));
+          setZoneHover((cur) => (cur === s.id ? null : cur));
           onFighterHover?.(null);
         }}
         // `MotionFlex` is `chakra(motion.div, …)`, a plain div — unlike the
@@ -1024,16 +1034,16 @@ export const ProBoard = ({
             onClick={
               isHighlighted && onSpaceClick
                 ? () => onSpaceClick(s.id)
-                : () => setZoneHoverSpace((cur) => (cur === s.id ? null : s.id))
+                : () => setZoneHover((cur) => (cur === s.id ? null : s.id))
             }
             // Hover previews this space's zones (any space); actionable spaces
             // also fire the caller's "who would move here" cue, clearing on leave.
             onMouseEnter={() => {
-              setZoneHoverSpace(s.id);
+              setZoneHover(s.id);
               if (isHighlighted) onSpaceHover?.(s.id);
             }}
             onMouseLeave={() => {
-              setZoneHoverSpace((cur) => (cur === s.id ? null : cur));
+              setZoneHover((cur) => (cur === s.id ? null : cur));
               if (isHighlighted) onSpaceHover?.(null);
             }}
             zIndex={isHighlighted ? 3 : inZone ? 2 : 1}

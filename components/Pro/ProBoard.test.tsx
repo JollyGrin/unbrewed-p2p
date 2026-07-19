@@ -3,6 +3,16 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { ProBoard } from "./ProBoard";
 import { ProMapDef, ViewFighter } from "@/lib/pro/protocol";
+import { __resetFlagsForTest } from "@/lib/flags";
+
+// The zone-membership highlight (#413) is gated behind the default-OFF `zoneHover`
+// beta flag (#447). The flag store is a memoized module singleton seeded from
+// localStorage, so tests that depend on a specific state must set it and re-seed.
+const setZoneHoverFlag = (on: boolean | null) => {
+  if (on === null) window.localStorage.removeItem("flag-zoneHover");
+  else window.localStorage.setItem("flag-zoneHover", on ? "on" : "off");
+  __resetFlagsForTest();
+};
 
 const MAP: ProMapDef = {
   schemaVersion: "1",
@@ -412,6 +422,11 @@ describe("ProBoard fighter token over a highlighted space (issue #185)", () => {
 // color, so multi-zone membership reads at a glance (root cause of the #254
 // misread). Presentation-only, driven off the static map def.
 describe("ProBoard zone-membership highlight (issue #413)", () => {
+  // Gated behind the `zoneHover` beta flag (#447); these behaviors only exist
+  // with it ON. Restore the default (OFF) afterward so later blocks are clean.
+  beforeEach(() => setZoneHoverFlag(true));
+  afterEach(() => setZoneHoverFlag(null));
+
   const ZA = "#ff0000";
   const ZB = "#00ff00";
   // s1 ∈ {A}; s2 ∈ {A, B} (multi-zone); s3 ∈ {B}; s4 ∈ {} (no zone).
@@ -528,6 +543,76 @@ describe("ProBoard zone-membership highlight (issue #413)", () => {
     expect(screen.getByText("Grove")).toBeInTheDocument();
     expect(screen.getByText("Glade")).toBeInTheDocument();
     expect(getComputedStyle(circle(container, "s3")).boxShadow).toContain(ZB);
+  });
+});
+
+// issue #447: the #413 zone-membership highlight is gated behind a default-OFF
+// `zoneHover` beta flag. OFF (fresh browser) → the board behaves as if #413 never
+// shipped: no rings, no tint, no zone-name legend on hover. The gold
+// move/attack-target highlight is a SEPARATE feature and must keep working.
+describe("ProBoard zone-hover flag gate (issue #447)", () => {
+  const ZA = "#ff0000";
+  const ZONE_MAP: ProMapDef = {
+    schemaVersion: "1",
+    id: "zone-gate-map",
+    meta: { title: "Zone Map", minPlayers: 2, maxPlayers: 2, specialRules: false, imageUrl: "/z.png" },
+    zones: [{ id: "A", color: ZA, label: "Grove" }],
+    spaces: [
+      { id: "s1", x: 0.1, y: 0.1, zones: ["A"], adjacentTo: ["s2"] },
+      { id: "s2", x: 0.3, y: 0.3, zones: ["A"], adjacentTo: ["s1"] },
+    ],
+  };
+  const circle = (container: HTMLElement, id: string) =>
+    container.querySelector(`[data-space-id="${id}"]`) as HTMLElement;
+
+  afterEach(() => setZoneHoverFlag(null));
+
+  it("defaults OFF: hovering a space produces no ring, no tint, and no zone legend", () => {
+    setZoneHoverFlag(null); // fresh browser — no stored value → registry default (OFF)
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard map={ZONE_MAP} fighters={[]} />
+      </ChakraProvider>
+    );
+    fireEvent.mouseEnter(circle(container, "s1"));
+    // #413 would have ringed both members of zone A and shown the "Grove" legend.
+    expect(getComputedStyle(circle(container, "s1")).boxShadow).toBe("");
+    expect(getComputedStyle(circle(container, "s2")).boxShadow).toBe("");
+    expect(screen.queryByText("Grove")).not.toBeInTheDocument();
+  });
+
+  it("keeps the gold move/attack-target highlight working while the flag is OFF", () => {
+    setZoneHoverFlag(null);
+    const onSpaceClick = jest.fn();
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard map={ZONE_MAP} fighters={[]} highlightedSpaces={["s2"]} onSpaceClick={onSpaceClick} />
+      </ChakraProvider>
+    );
+    // the highlighted hit-circle still wears the gold border and is clickable —
+    // the gold action highlight is independent of the zone-hover flag.
+    const s2 = circle(container, "s2");
+    expect(getComputedStyle(s2).cursor).toBe("pointer");
+    expect(getComputedStyle(s2).borderColor.toLowerCase()).toBe("#e0a82e");
+    fireEvent.click(s2);
+    expect(onSpaceClick).toHaveBeenCalledWith("s2");
+    // ...and hovering still lights no zone ring.
+    fireEvent.mouseEnter(circle(container, "s1"));
+    expect(getComputedStyle(circle(container, "s1")).boxShadow).toBe("");
+    expect(screen.queryByText("Grove")).not.toBeInTheDocument();
+  });
+
+  it("turning the flag ON re-enables the zone rings + legend on hover", () => {
+    setZoneHoverFlag(true);
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard map={ZONE_MAP} fighters={[]} />
+      </ChakraProvider>
+    );
+    fireEvent.mouseEnter(circle(container, "s1"));
+    expect(getComputedStyle(circle(container, "s1")).boxShadow).toContain(ZA);
+    expect(getComputedStyle(circle(container, "s2")).boxShadow).toContain(ZA);
+    expect(screen.getByText("Grove")).toBeInTheDocument();
   });
 });
 
