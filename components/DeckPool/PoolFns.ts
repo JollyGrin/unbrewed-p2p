@@ -33,12 +33,22 @@ export type PawnInfo = {
 export const newPool = (deckData: DeckImportType): PoolType => {
   const { user, family_id, name, note, deck_data } = deckData;
   const { cards, hero, sidekick } = deck_data;
+  // Backfill the deck-level cardback onto each card. Only TTS image imports set
+  // a per-card cardBackUrl; every other source (evergreen/popular, unbrewed.xyz
+  // API) carries the back at deck level in appearance.cardbackUrl (lowercase b).
+  // Pooled cards detach from deck_data and sync whole over the websocket, so the
+  // back must live on the card or the board renders the house back face-down.
+  // An existing per-card value wins, keeping TTS decks unchanged.
+  const backfilledCards = cards.map((c) => ({
+    ...c,
+    cardBackUrl: c.cardBackUrl ?? (deck_data.appearance?.cardbackUrl || undefined),
+  }));
   return {
     author: user,
     deckid: family_id,
     deckName: name,
     deckNote: note,
-    cards: cards,
+    cards: backfilledCards,
     deck: null,
     hero: {
       hp: hero.hp,
