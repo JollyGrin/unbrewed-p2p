@@ -30,8 +30,8 @@ import { useCallback, useSyncExternalStore } from "react";
 /** The experiment registry — one entry per flag, discoverable in the menu. */
 export const FLAGS = {
   zoomMap: {
-    label: "Zoom & pan the board",
-    desc: "Pinch-zoom and drag the Pro board to inspect crowded spaces.",
+    label: "Full-screen board",
+    desc: "The board fills the screen and can be dragged and pinch-zoomed. Off = the old boxed board.",
   },
   replays: {
     label: "Match replays",

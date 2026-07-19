@@ -14,7 +14,7 @@
 import { CSSProperties, Fragment, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { useRouter } from "next/router";
-import { Box, Button, Flex, Grid, Input, Kbd, Link, Menu, MenuButton, MenuItem, MenuList, NumberDecrementStepper, NumberIncrementStepper, NumberInput, NumberInputField, NumberInputStepper, Tag, Text, Textarea, Tooltip } from "@chakra-ui/react";
+import { Box, Button, Flex, Grid, Input, Link, Menu, MenuButton, MenuItem, MenuList, NumberDecrementStepper, NumberIncrementStepper, NumberInput, NumberInputField, NumberInputStepper, Tag, Text, Textarea, Tooltip } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
 import { motion, useReducedMotion } from "framer-motion";
 import { MOVE_STEP_SECONDS, MoveHint, PendingMove, ProBoard } from "@/components/Pro/ProBoard";
@@ -44,18 +44,18 @@ import { replayId, saveReplay } from "@/lib/pro/replayStore";
 import { proErrorMessage } from "@/lib/pro/proErrors";
 import { ProConnectionStatus, useProSocket } from "@/lib/pro/useProSocket";
 import { normalizeMap } from "@/lib/pro/normalizeMap";
-import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { mapSubmissionIssueUrl } from "@/lib/pro/mapIssue";
 import { RecentRoom, getTabToken, listRecentRooms } from "@/lib/pro/recentRooms";
 import { HERO_DECK_IDS, ResolveCard, heroIdsForArt, useProCardArt } from "@/lib/pro/useProCardArt";
 import { frozenAtForHero } from "@/lib/pro/evergreenManifest";
 import { POPULAR_DECKS, PopularDeckMeta } from "@/lib/constants/top-decks";
 import { GiFootprint, GiHearts } from "react-icons/gi";
-import { TbBow, TbChevronDown, TbExternalLink, TbInfoCircle, TbPlus, TbSword, TbZoomIn } from "react-icons/tb";
+import { TbBow, TbChevronDown, TbExternalLink, TbInfoCircle, TbSword, TbZoomIn } from "react-icons/tb";
 import { CardFace, ProHand } from "@/components/Pro/ProHand";
 import { CardPreviewProvider } from "@/components/Pro/CardPreview";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { MapPreviewModal } from "@/components/Pro/MapPreviewModal";
+import { ProDock } from "@/components/Pro/ProDock";
 import { ProHud } from "@/components/Pro/ProHud";
 import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
 import { ReportBugDialog } from "@/components/Pro/ReportBugDialog";
@@ -64,11 +64,8 @@ import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
 import { batchPhase, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
 import { AttachItem, cardAffordances, cardLabel, cardTitle, describeAction, soleAction } from "@/lib/pro/actionDock";
-import { ItemGlyph } from "@/components/Pro/ItemBadge";
 import {
   isExtendedReachAttack,
-  LARGE_FIGHTER_BLURB,
-  LARGE_REACH_CHIP,
   SpaceReach,
 } from "@/lib/pro/largeReach";
 import { useFlag } from "@/lib/flags";
@@ -96,7 +93,7 @@ import { useIncomingMoveTween } from "@/lib/pro/moveTween";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
 import { formatChoice, PRO_FORMATS, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
-import { deriveTeams, isViewerOnWinningTeam } from "@/lib/pro/teams";
+import { deriveTeams } from "@/lib/pro/teams";
 import { fighterTokenStateByOwner } from "@/lib/pro/heroStateFlags";
 import {
   CUSTOM_MAP_ID,
@@ -2996,9 +2993,30 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
     }
   }, [replayBundle]);
 
-  // Pinch/scroll zoom + drag pan on the board (issue #120) — off by default,
-  // opt-in via the zoomMap beta flag. Zero footprint on ProBoard when off.
+  // Pinch/scroll zoom + drag pan on the board (issue #120), now the default
+  // interaction: the board fills the whole stage and the fixed HUD/hand/dock
+  // float over it (issue #450). Turning the flag off falls back to the old
+  // boxed, padded board — no transform, no gestures.
   const [zoomMapOn] = useFlag("zoomMap");
+  // The decision dock only reserves its 20rem column at lg and up (matches the
+  // `pr={{ base, lg }}` on the fallback board box below). Read via matchMedia
+  // rather than Chakra's useBreakpointValue, which touches `window` during the
+  // static prerender of this page and fails the export.
+  const [dockWide, setDockWide] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 62em)"); // Chakra's `lg`
+    const sync = () => setDockWide(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  // px of the stage hidden behind those fixed overlays, so the initial fit
+  // centers the board in the strip the player can actually see. Mirrors the
+  // padding the non-zoom fallback below still uses.
+  const boardFitInset = useMemo(
+    () => ({ top: 120, bottom: 136, left: 16, right: dockWide ? 320 : 16 }),
+    [dockWide]
+  );
 
   // Activity feed: diff each view against the previous one (see gameLog.ts).
   const [logEntries, setLogEntries] = useState<ProLogEntry[]>([]);
@@ -3589,6 +3607,20 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
   // shared ring. Empty in duel/ffa/older-server views → the board draws no ring.
   const friendlyOwners = deriveTeams(view.players, view.you).friendlyOwners;
   const activeTurnLabel = myTurn ? "YOUR TURN" : `${playerLabel(view, view.activePlayer).toUpperCase()} TURN`;
+  // At-a-glance dock banner for dropped players (issue #222). In multiplayer the
+  // seat-identified presence map is authoritative (multiple seats can drop
+  // independently); duel keeps the coarse boolean untouched. The per-seat card
+  // badge + countdown live in ProHud — this is just the banner copy.
+  const droppedSeats = Object.keys(seatPresence).length;
+  const disconnectedLabel = multiplayerView
+    ? droppedSeats > 1
+      ? `${droppedSeats} players disconnected`
+      : droppedSeats === 1
+      ? "player disconnected"
+      : null
+    : opponentConnected
+    ? null
+    : "opponent disconnected";
   // RESPOND_PROMPT renders through the PromptPanel; MOVE_FIGHTER and
   // PLACE_SIDEKICK render as clickable board spaces — listing one button per
   // destination just floods the sidebar (and card actions live on the hand).
@@ -4077,15 +4109,19 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
         </Link>
       )}
 
-      {/* board — fills the stage, capped so the whole field stays in view */}
+      {/* Board stage. With zoom on (the default) the board fills this box edge
+          to edge and the fixed HUD/hand/dock float over it — the board's own
+          fit transform, not padding, is what keeps the field clear of them, so
+          a drag can carry it under the overlays. Flag off = the old boxed
+          board, centered inside padding reserved for those same overlays. */}
       <Flex
         h="100%"
-        alignItems="center"
+        alignItems={zoomMapOn ? "stretch" : "center"}
         justifyContent="center"
-        p="1rem"
-        pt="7.5rem"
-        pb="8.5rem"
-        pr={{ base: "1rem", lg: "20rem" }}
+        p={zoomMapOn ? 0 : "1rem"}
+        pt={zoomMapOn ? 0 : "7.5rem"}
+        pb={zoomMapOn ? 0 : "8.5rem"}
+        pr={zoomMapOn ? 0 : { base: "1rem", lg: "20rem" }}
       >
         <ProBoard
           map={view.map}
@@ -4121,8 +4157,9 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
           onSpaceHover={setHoveredSpace}
           onFighterHover={setHoveredFighter}
           moveHint={moveHint}
-          imgMaxH="calc(100svh - 16rem)"
+          imgMaxH={zoomMapOn ? undefined : "calc(100svh - 16rem)"}
           zoomable={zoomMapOn}
+          fitInset={boardFitInset}
           tokenLife={tokenLifeOn ? tokenGestures : null}
           fighterEls={fighterElsRef}
         />
@@ -4178,131 +4215,37 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
         onReportBug={() => setReportBugOpen(true)}
       />
 
-      {/* right control dock — turn state, combat, prompts, actions */}
-      <Flex
-        position="fixed"
-        right="0.75rem"
-        top="7.5rem"
-        bottom="1rem"
-        w="18.5rem"
-        direction="column"
-        gap="0.6rem"
-        zIndex={140}
-        overflowY="auto"
-        sx={{ "::-webkit-scrollbar": { display: "none" } }}
-        pointerEvents="none"
-      >
-        <Flex direction="column" gap="0.6rem" sx={{ "& > *": { pointerEvents: "auto" } }}>
-          {/* Incremental-maneuver stepping controls (issue #285): shown while a
-              local hop-by-hop preview is in flight. "End move here" commits the
-              accumulated path as one MOVE_FIGHTER (auto-commits when 0 moves are
-              left); "Cancel" resets the ghost to the origin — nothing was sent, so
-              the cancel is free. Addresses the awkward maneuver prompt in #169. */}
-          {previewMove && (
-            <Flex
-              direction="column"
-              gap="0.4rem"
-              bg="rgba(0,0,0,0.55)"
-              border="1px solid"
-              borderColor="brand.accent"
-              borderRadius="0.5rem"
-              p="0.6rem"
-            >
-              <Text fontSize="0.8rem" color="brand.accent" fontWeight={700}>
-                stepping {selectedFighter?.split("/")[1]} — {stepMovesLeft} move{stepMovesLeft === 1 ? "" : "s"} left
-              </Text>
-              <Text fontSize="0.7rem" color="brand.parchment" opacity={0.85}>
-                click a gold space to step (moving back counts too), or:
-              </Text>
-              <Flex gap="0.4rem">
-                <Button
-                  size="sm"
-                  flex={1}
-                  colorScheme="yellow"
-                  isDisabled={!stepCanEnd}
-                  onClick={() => stepState && commitStep(stepState)}
-                >
-                  End move here
-                </Button>
-                <Button
-                  size="sm"
-                  flex={1}
-                  variant="outline"
-                  color="brand.parchment"
-                  onClick={() => setStep(null)}
-                >
-                  Cancel
-                </Button>
-              </Flex>
-            </Flex>
-          )}
-          {/* Live-turn chrome — hidden once the game is decided (issue #194): at
-              GAME_OVER legal actions are empty and no seat is "on turn", so these
-              chips would go stale. The outcome (VICTORY!/DEFEAT) shows instead. */}
-          {showLiveTurnChrome(view) && (
-            <Flex gap="0.4rem" alignItems="center" flexWrap="wrap">
-              <Tag size="sm" bg={myTurn ? "brand.accent" : "whiteAlpha.300"} color={myTurn ? "brand.surfaceDim" : "brand.parchment"}>
-                {activeTurnLabel}
-              </Tag>
-              <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
-                turn {view.turnNumber}
-              </Tag>
-              <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
-                {view.actionsRemaining} actions left
-              </Tag>
-              {/* In multiplayer the seat-identified presence map is authoritative
-                  (multiple seats can drop independently); duel keeps the coarse
-                  boolean untouched. The per-seat card badge + countdown live in
-                  ProHud — this chip is just the at-a-glance banner (issue #222). */}
-              {(multiplayerView ? Object.keys(seatPresence).length > 0 : !opponentConnected) && (
-                <Tag size="sm" colorScheme="red">
-                  {multiplayerView
-                    ? Object.keys(seatPresence).length > 1
-                      ? `${Object.keys(seatPresence).length} players disconnected`
-                      : "player disconnected"
-                    : "opponent disconnected"}
-                </Tag>
-              )}
-            </Flex>
-          )}
-          {moveChoice && (
-            <Text fontSize="0.8rem" color="#C4B5FD" fontWeight="bold" textShadow="0 1px 3px rgba(0,0,0,0.6)">
-              {moveChoice.candidates.map((id) => nameOf(id)).join(" or ")} can both move here — click which
-              fighter should move (or tap the space again to cancel)
-            </Text>
-          )}
-          {!moveChoice && !previewMove && (highlightedSpaces.length > 0 || attackActions.size > 0) && (
-            <Text fontSize="0.8rem" color="brand.accent" textShadow="0 1px 3px rgba(0,0,0,0.6)">
-              {selectedFighter
-                ? moveGraph
-                  ? `stepping ${selectedFighter.split("/")[1]} — click a near gold space to step one at a time, or a far one to move straight there`
-                  : `showing moves for ${selectedFighter.split("/")[1]} — click a gold space (click the fighter again to unselect)`
-                : [
-                    highlightedSpaces.length > 0 &&
-                      `click a gold space to move there (${highlightedSpaces.length} option${
-                        highlightedSpaces.length === 1 ? "" : "s"
-                      })`,
-                    attackActions.size > 0 && "click a pulsing enemy to attack",
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-            </Text>
-          )}
-          {boostHint && (
-            <Text
-              fontSize="0.75rem"
-              color="brand.parchment"
-              opacity={0.85}
-              textShadow="0 1px 3px rgba(0,0,0,0.6)"
-            >
-              {boostHint}
-            </Text>
-          )}
-          {/* Strike beat (#381): while a combat that resolved+ended in one batch
-              lingers, keep rendering the panel from the frozen snapshot so the
-              slam can play. Visual-fx off ⇒ no linger, no strike (outcome still
-              lives in the activity log); the panel just unmounts as before. */}
-          {(view.combat ?? (visualOn ? lingeringCombat : null)) && (
+      {/* Floating decision dock — turn state, combat, prompts, actions. Owns
+          its own drag/collapse/persistence (issue #451); the two big inline
+          panels ride in as slots so they can stay in this file. */}
+      <ProDock
+        view={view}
+        myTurn={myTurn}
+        activeTurnLabel={activeTurnLabel}
+        disconnectedLabel={disconnectedLabel}
+        stepping={
+          previewMove
+            ? {
+                fighterName: selectedFighter?.split("/")[1] ?? "",
+                movesLeft: stepMovesLeft,
+                canEnd: stepCanEnd,
+                onEnd: () => stepState && commitStep(stepState),
+                onCancel: () => setStep(null),
+              }
+            : null
+        }
+        moveChoiceNames={moveChoice ? moveChoice.candidates.map((id) => nameOf(id)) : null}
+        selectedFighterName={selectedFighter ? selectedFighter.split("/")[1] : null}
+        stepwiseMoves={!!moveGraph}
+        highlightedCount={highlightedSpaces.length}
+        attackTargetCount={attackActions.size}
+        boostHint={boostHint}
+        combatPanel={
+          /* Strike beat (#381): while a combat that resolved+ended in one batch
+             lingers, keep rendering the panel from the frozen snapshot so the
+             slam can play. Visual-fx off ⇒ no linger, no strike (outcome still
+             lives in the activity log); the panel just unmounts as before. */
+          (view.combat ?? (visualOn ? lingeringCombat : null)) ? (
             <CombatPanel
               combat={(view.combat ?? lingeringCombat)!}
               catalog={view.catalog}
@@ -4313,8 +4256,10 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
               valueFx={visualOn && !reducedMotion ? combatValueFx : undefined}
               clashRef={clashRef}
             />
-          )}
-          {prompt && (
+          ) : null
+        }
+        promptPanel={
+          prompt ? (
             <PromptPanel
               prompt={prompt}
               you={view.you}
@@ -4329,157 +4274,25 @@ const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: 
               resolveCard={resolveCard}
               catalog={view.catalog}
             />
-          )}
-          <Flex direction="column" gap="0.4rem">
-            {listActions.map((a, i) => (
-              <Button
-                key={i}
-                {...BTN}
-                bg="rgba(20, 8, 24, 0.65)"
-                justifyContent="flex-start"
-                whiteSpace="normal"
-                height="auto"
-                minH="2rem"
-                py="0.4rem"
-                textAlign="left"
-                onClick={() => sendAction(a)}
-              >
-                <Flex as="span" align="center" gap="0.4rem" flexWrap="wrap">
-                  {/* Scheme-item use (v17): a leading yellow lightning glyph marks
-                      this as a BOARD item action, visually distinct from a hand
-                      scheme card. The item's label rides in the describeAction text. */}
-                  {a.type === "USE_SCHEME_ITEM" && (
-                    <Box as="span" display="inline-flex" boxSize="1.1rem" flexShrink={0}>
-                      <ItemGlyph kind="scheme" fill="#E4B106" />
-                    </Box>
-                  )}
-                  <Text as="span">
-                    {describeAction(view.catalog, a, { nameOf, attackerBadge, itemLabelForSpace: liveItemLabel })}
-                  </Text>
-                  {isExtendedReach(a) && (
-                    <Tooltip label={LARGE_FIGHTER_BLURB} hasArrow placement="top" openDelay={150}>
-                      <Tag
-                        size="sm"
-                        bg="brand.accent"
-                        color="brand.surfaceDim"
-                        fontWeight={700}
-                        letterSpacing="0.01em"
-                        flexShrink={0}
-                      >
-                        {LARGE_REACH_CHIP}
-                      </Tag>
-                    </Tooltip>
-                  )}
-                  {/* Sole-option shortcut hint (issue #353): only the lone eligible
-                      dock action carries it, and pressing space fires this action. */}
-                  {a === sole && (
-                    <Kbd
-                      ml="auto"
-                      flexShrink={0}
-                      bg="rgba(255,255,255,0.08)"
-                      borderColor="rgba(255,255,255,0.25)"
-                      color="brand.parchment"
-                      fontSize="0.7rem"
-                    >
-                      space
-                    </Kbd>
-                  )}
-                </Flex>
-              </Button>
-            ))}
-            {legalActions.length === 0 && !prompt && showLiveTurnChrome(view) && (
-              <Text opacity={0.7} fontSize="0.9rem" color="brand.parchment">
-                {iAmSpectating
-                  ? iForfeited
-                    ? "You forfeited — spectating."
-                    : "You've been eliminated — spectating."
-                  : multiplayerView
-                  ? "waiting on another player…"
-                  : "waiting on opponent…"}
-              </Text>
-            )}
-          </Flex>
-          {view.winner && (
-            <Flex direction="column" align="center" gap="0.15rem">
-              <Text
-                fontFamily="LeagueGothic"
-                fontSize="3rem"
-                color="brand.accent"
-                textShadow="0 2px 12px rgba(224,168,46,0.5)"
-                lineHeight="1"
-              >
-                {isViewerOnWinningTeam(view) ? "VICTORY!" : "DEFEAT"}
-              </Text>
-              {/* Deep-link straight into this match's saved God-view replay
-                  (issue #240). The bundle is saved locally on GAME_OVER (see the
-                  saveReplay effect above); /pro/replays?open=<id> auto-opens it.
-                  Only shown once we hold the bundle, so the link always resolves. */}
-              {replayBundle && (
-                <Link
-                  href={`/pro/replays?open=${replayId(replayBundle)}`}
-                  color="brand.parchment"
-                  opacity={0.85}
-                  fontSize="0.9rem"
-                  display="inline-flex"
-                  alignItems="center"
-                  gap="0.3rem"
-                  _hover={{ opacity: 1, color: "brand.accent", textDecoration: "none" }}
-                >
-                  View replay <TbExternalLink size="0.85rem" />
-                </Link>
-              )}
-              {/* Straight back into matchmaking so players can start another
-                  game without hand-navigating (issue #374). Bare href = full
-                  navigation, same as the sibling replay link above. */}
-              <Link
-                href="/pro/game"
-                color="brand.parchment"
-                opacity={0.85}
-                fontSize="0.9rem"
-                display="inline-flex"
-                alignItems="center"
-                gap="0.3rem"
-                _hover={{ opacity: 1, color: "brand.accent", textDecoration: "none" }}
-              >
-                <TbPlus size="0.85rem" /> New game
-              </Link>
-            </Flex>
-          )}
-          {/* Undo — request to rewind our last action, pending opponent consent
-              (issue #154). Shown only while live and only when the server says we
-              have an eligible last action (view.canUndo); disabled while a request
-              is already in flight. The rewind itself is server-side — we just ask. */}
-          {view.phase === "PLAY" && !view.winner && view.canUndo && (
-            <Button
-              size="sm"
-              mt="0.4rem"
-              colorScheme="yellow"
-              variant="outline"
-              isDisabled={undoPending}
-              onClick={requestUndo}
-            >
-              {undoPending ? "Undo requested…" : "Undo last action"}
-            </Button>
-          )}
-          {/* Forfeit — rendered whenever the engine offers FORFEIT to this seat
-              (`canForfeit`, issue #140 + unbrewed-engine #117). No seat-count or
-              seat-id gate: duel and multiplayer alike surface it via the same
-              legal-action check, so it appears on your own clock and vanishes
-              once you're eliminated. Destructive, so it's red and confirm-gated;
-              the phase/winner gates stay as belt-and-suspenders. */}
-          {view.phase === "PLAY" && !view.winner && canForfeit && (
-            <Button
-              size="sm"
-              mt="0.4rem"
-              colorScheme="red"
-              variant="outline"
-              onClick={() => setForfeitOpen(true)}
-            >
-              Forfeit
-            </Button>
-          )}
-        </Flex>
-      </Flex>
+          ) : null
+        }
+        hasPrompt={!!prompt}
+        listActions={listActions}
+        soleAction={sole}
+        describe={(a) => describeAction(view.catalog, a, { nameOf, attackerBadge, itemLabelForSpace: liveItemLabel })}
+        isExtendedReach={isExtendedReach}
+        onAction={sendAction}
+        legalActionCount={legalActions.length}
+        iAmSpectating={iAmSpectating}
+        iForfeited={iForfeited}
+        multiplayerView={multiplayerView}
+        replayHref={replayBundle ? `/pro/replays?open=${replayId(replayBundle)}` : null}
+        undoPending={undoPending}
+        onUndo={requestUndo}
+        canForfeit={canForfeit}
+        onForfeit={() => setForfeitOpen(true)}
+      />
+
 
       {/* concede confirmation (issue #140) — sends FORFEIT on confirm. In
           multiplayer this resigns your seat (you may keep spectating), so the

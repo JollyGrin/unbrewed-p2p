@@ -14,7 +14,7 @@ import { MutableRefObject, PointerEvent as ReactPointerEvent, useEffect, useRef,
 import { FighterId, PlayerId, ProMapDef, ProMapItem, ProMapRegion, ProMapSpace, SpaceId, ViewFighter, ViewToken } from "@/lib/pro/protocol";
 import { BoardFxItem } from "@/lib/pro/useGameFx";
 import { TokenGestures, usePageHidden } from "@/lib/pro/tokenLife";
-import { useZoomPan } from "@/lib/pro/useZoomPan";
+import { ZoomPanInset, useZoomPan } from "@/lib/pro/useZoomPan";
 import { LARGE_FIGHTER_BLURB, LARGE_REACH_CHIP } from "@/lib/pro/largeReach";
 import { tokenInitials } from "./FighterTokenPortrait";
 import { TokenIdle, TokenLifeLayer, phaseSeed } from "./TokenLifeLayer";
@@ -253,9 +253,15 @@ export interface ProBoardProps {
    * field fits the viewport; width shrinks to keep the aspect ratio */
   imgMaxH?: string;
   /** Enable pinch/scroll zoom + drag pan on the board (issue #120, gated by
-   * the `zoomMap` beta flag). Off (default) = no handlers, no transform, no
-   * added DOM — the board behaves exactly as before. */
+   * the `zoomMap` flag). Off (default) = no handlers, no transform, no
+   * added DOM — the board behaves exactly as before. On, the board FILLS its
+   * parent box and that box becomes the pan/zoom viewport, so the parent must
+   * give it a height (issue #450). */
   zoomable?: boolean;
+  /** px of this box hidden behind the caller's fixed overlays (HUD, dock,
+   *  hand). The initial fit centers the board in what's left, so the whole
+   *  field is visible on load without any user interaction. `zoomable` only. */
+  fitInset?: ZoomPanInset;
   /** Per-fighter combat gestures for the `tokenLife` beta feature (issue #320),
    *  derived from snapshot diffs by useTokenLife. PRESENTATION ONLY. Absent/null
    *  (flag off) = no wrapper, no idle motion — the token DOM is byte-identical to
@@ -315,6 +321,7 @@ export const ProBoard = ({
   moveHint = null,
   imgMaxH,
   zoomable = false,
+  fitInset,
   tokenLife = null,
   fighterEls,
 }: ProBoardProps) => {
@@ -353,7 +360,7 @@ export const ProBoard = ({
   // Pinch/scroll zoom + drag pan (issue #120). The transform rides the
   // shrink-wrap frame below so the art and every overlay move as one unit;
   // when `zoomable` is false the hook attaches nothing and returns no transform.
-  const zoom = useZoomPan(zoomable, frameRef);
+  const zoom = useZoomPan(zoomable, frameRef, fitInset);
 
   // A collapsed panel must never hide a required choice: any highlighted space
   // or targetable fighter INSIDE the region forces it open for the duration.
@@ -1554,22 +1561,31 @@ export const ProBoard = ({
     // Outer box may be stretched by a parent grid/flex row; the INNER box is
     // the positioning context: it shrink-wraps the image exactly, so the
     // %-positioned overlays stay glued to the art at any size. When zoomable,
-    // this outer box is the wheel/pointer target + the zoom viewport (clips the
-    // zoomed frame to the board's cell); the transform rides the inner frame.
+    // this outer box FILLS the parent stage and is the wheel/pointer target +
+    // the zoom viewport (clipping whatever the transform pushes past the
+    // screen edge); the transform rides the inner frame.
     <Box
       ref={zoom.containerRef}
       maxW="100%"
+      w={zoomable ? "100%" : undefined}
+      h={zoomable ? "100%" : undefined}
       position={zoomable ? "relative" : undefined}
       overflow={zoomable ? "hidden" : undefined}
       sx={zoomable ? { touchAction: "none", cursor: "grab" } : undefined}
       {...zoom.handlers}
     >
+      {/* Zoomable: pinned to the viewport's top-left so the fit transform is
+          plain container coordinates (no auto-centering offset to back out of),
+          and freed from the flow so its natural height can exceed the stage —
+          the fit scale, not a max-height cap, is what brings it into view. */}
       <Box
         ref={frameRef}
-        position="relative"
+        position={zoomable ? "absolute" : "relative"}
+        top={zoomable ? 0 : undefined}
+        left={zoomable ? 0 : undefined}
         w="fit-content"
         maxW="100%"
-        mx="auto"
+        mx={zoomable ? undefined : "auto"}
         userSelect="none"
         transform={zoom.transform}
         transformOrigin={zoom.transformOrigin}
@@ -1660,15 +1676,16 @@ export const ProBoard = ({
       )}
       </Box>
 
-      {/* reset-to-fit control — appears only once zoomed/panned so a mis-pan
-          can never strand the board off-screen. Sits in the outer (untransformed)
-          box so it stays put on screen regardless of the board's transform. */}
+      {/* reset-to-fit control — appears only once the view has moved off the
+          initial fit. Sits in the outer (untransformed) box so it stays put on
+          screen regardless of the board's transform, tucked just inside the
+          caller's overlay inset so the hand/dock never buries it. */}
       {zoom.active && (
         <Button
           size="xs"
           position="absolute"
-          bottom="0.5rem"
-          left="0.5rem"
+          bottom={`${(fitInset?.bottom ?? 0) + 8}px`}
+          left={`${(fitInset?.left ?? 0) + 8}px`}
           zIndex={8}
           bg="whiteAlpha.300"
           color="brand.parchment"

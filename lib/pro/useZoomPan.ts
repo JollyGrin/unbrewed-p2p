@@ -1,6 +1,6 @@
 /**
- * Pinch/scroll zoom + drag pan for the Pro board (issue #120, behind the
- * `zoomMap` beta flag).
+ * Pinch/scroll zoom + drag pan for the Pro board (issue #120; the board fills
+ * the viewport as of #450).
  *
  * The transform lives on ProBoard's shrink-wrap box — the `w:fit-content`
  * frame that holds the map image AND every %-positioned overlay (hit-circles,
@@ -34,6 +34,10 @@ const WHEEL_ZOOM_SPEED = 0.0015;
 // px of pointer travel before a press becomes a pan — below this it stays a
 // click, so tapping a highlighted space still fires its action untouched.
 const PAN_THRESHOLD = 4;
+// Fraction of the board that must stay inside the viewport while panning, so a
+// mis-drag can never strand it off-screen (issue #450). Capped at the viewport
+// size too, or a board zoomed larger than the screen would be unpannable.
+const MIN_VISIBLE = 0.25;
 
 interface ZoomPanState {
   scale: number;
@@ -43,7 +47,28 @@ interface ZoomPanState {
 
 const IDENTITY: ZoomPanState = { scale: 1, tx: 0, ty: 0 };
 
+/** Insets (px) of the region NOT covered by the fixed overlays — HUD band on
+ *  top, decision dock on the right, hand along the bottom. The initial fit
+ *  centers the board inside what's left. */
+export interface ZoomPanInset {
+  top?: number;
+  right?: number;
+  bottom?: number;
+  left?: number;
+}
+
 const clampScale = (s: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, s));
+
+const same = (a: ZoomPanState, b: ZoomPanState) =>
+  Math.abs(a.scale - b.scale) < 1e-3 && Math.abs(a.tx - b.tx) < 0.5 && Math.abs(a.ty - b.ty) < 0.5;
+
+/** Clamp one axis so `span` px of board keeps `MIN_VISIBLE` of itself (or the
+ *  whole viewport, whichever is smaller) overlapping [0, viewport]. */
+const clampAxis = (t: number, span: number, viewport: number): number => {
+  if (!span || !viewport) return t;
+  const keep = Math.min(span * MIN_VISIBLE, viewport);
+  return Math.min(viewport - keep, Math.max(keep - span, t));
+};
 
 // A region inset panel (Baba Yaga's Hut) is a child of the board container but
 // its own interactive surface — dragging its header, tapping its collapse
@@ -66,7 +91,7 @@ export interface ZoomPan {
   };
   /** true once zoomed or panned away from the fit view — gate the reset control on it */
   active: boolean;
-  /** snap back to the fit-to-frame identity view */
+  /** snap back to the computed initial fit */
   reset: () => void;
 }
 
@@ -74,10 +99,67 @@ export interface ZoomPan {
  * @param enabled  master switch (the `zoomMap` flag) — false = inert
  * @param frameRef ref to the transformed shrink-wrap frame; its live rect is
  *                 what keeps zoom anchored under the cursor as scale changes
+ * @param inset    px of the container hidden behind the fixed overlays; the
+ *                 initial fit centers the board in the remaining region
  */
-export function useZoomPan(enabled: boolean, frameRef: RefObject<HTMLElement>): ZoomPan {
+export function useZoomPan(
+  enabled: boolean,
+  frameRef: RefObject<HTMLElement>,
+  inset: ZoomPanInset = {}
+): ZoomPan {
   const containerRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<ZoomPanState>(IDENTITY);
+  // The transform the board loads at and "reset view" returns to. Recomputed
+  // whenever the container or the (layout-size) frame changes — including the
+  // map image finishing its load, which is what first gives the frame a height.
+  const [fit, setFit] = useState<ZoomPanState>(IDENTITY);
+  // Set by any user gesture: until then the board keeps re-fitting on resize,
+  // after it we leave the player's view alone.
+  const touched = useRef(false);
+
+  const { top = 0, right = 0, bottom = 0, left = 0 } = inset;
+
+  const computeFit = useCallback((): ZoomPanState | null => {
+    const c = containerRef.current;
+    const f = frameRef.current;
+    if (!c || !f) return null;
+    const cw = c.clientWidth;
+    const ch = c.clientHeight;
+    // offsetWidth/Height are LAYOUT sizes — unaffected by the transform we're
+    // about to replace, so this is stable to run at any current zoom.
+    const fw = f.offsetWidth;
+    const fh = f.offsetHeight;
+    if (!cw || !ch || !fw || !fh) return null;
+    const availW = Math.max(cw - left - right, 1);
+    const availH = Math.max(ch - top - bottom, 1);
+    const scale = clampScale(Math.min(availW / fw, availH / fh));
+    return {
+      scale,
+      tx: left + (availW - fw * scale) / 2,
+      ty: top + (availH - fh * scale) / 2,
+    };
+  }, [frameRef, top, right, bottom, left]);
+
+  // Re-fit on any size change of the viewport box or the board frame. While the
+  // player hasn't touched the view, the board follows along; once they have, we
+  // only refresh what "reset view" will restore.
+  useEffect(() => {
+    if (!enabled) return;
+    const c = containerRef.current;
+    const f = frameRef.current;
+    if (!c || !f || typeof ResizeObserver === "undefined") return;
+    const apply = () => {
+      const next = computeFit();
+      if (!next) return;
+      setFit((prev) => (same(prev, next) ? prev : next));
+      if (!touched.current) setState((prev) => (same(prev, next) ? prev : next));
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(c);
+    ro.observe(f);
+    return () => ro.disconnect();
+  }, [enabled, frameRef, computeFit]);
 
   // Zoom keeping the frame-local point under (clientX, clientY) fixed. The
   // frame's CURRENT rect already folds in the live tx/ty/scale, so the new
@@ -114,19 +196,28 @@ export function useZoomPan(enabled: boolean, frameRef: RefObject<HTMLElement>): 
       // (no preventDefault) so the panel keeps normal scroll semantics.
       if (insideRegionPanel(e.target)) return;
       e.preventDefault();
+      touched.current = true;
       zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * WHEEL_ZOOM_SPEED));
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
   }, [enabled, zoomAt]);
 
-  // Snap back to the fit view if the feature is switched off, so no stale
-  // transform lingers on the frame when the flag flips.
+  // Drop back to a bare identity if the feature is switched off, so no stale
+  // transform lingers on the frame when the flag flips (the untransformed board
+  // is centered by its own layout again).
   useEffect(() => {
-    if (!enabled) setState(IDENTITY);
+    if (!enabled) {
+      touched.current = false;
+      setState(IDENTITY);
+      setFit(IDENTITY);
+    }
   }, [enabled]);
 
-  const reset = useCallback(() => setState(IDENTITY), []);
+  const reset = useCallback(() => {
+    touched.current = false;
+    setState(computeFit() ?? fit);
+  }, [computeFit, fit]);
 
   // Active pointers (by id) for pinch; a press only becomes a pan once it
   // crosses PAN_THRESHOLD, and a pan sets didPan so the trailing click is
@@ -179,6 +270,7 @@ export function useZoomPan(enabled: boolean, frameRef: RefObject<HTMLElement>): 
         }
         pinchDist.current = dist;
         didPan.current = true;
+        touched.current = true;
         return;
       }
 
@@ -189,9 +281,24 @@ export function useZoomPan(enabled: boolean, frameRef: RefObject<HTMLElement>): 
       }
       if (panning.current) {
         didPan.current = true;
+        touched.current = true;
         // translate() sits outside scale() in the transform, so a screen-pixel
-        // drag maps 1:1 to the translate regardless of zoom.
-        setState((s) => ({ ...s, tx: s.tx + dx, ty: s.ty + dy }));
+        // drag maps 1:1 to the translate regardless of zoom. The result is
+        // clamped so a chunk of the board always stays on screen — with the
+        // board filling the viewport there's no surrounding page to drag back
+        // from (issue #450).
+        const c = containerRef.current;
+        const f = frameRef.current;
+        setState((s) => {
+          const tx = s.tx + dx;
+          const ty = s.ty + dy;
+          if (!c || !f) return { ...s, tx, ty };
+          return {
+            ...s,
+            tx: clampAxis(tx, f.offsetWidth * s.scale, c.clientWidth),
+            ty: clampAxis(ty, f.offsetHeight * s.scale, c.clientHeight),
+          };
+        });
       }
     };
     const onUp = (e: PointerEvent) => {
@@ -207,7 +314,7 @@ export function useZoomPan(enabled: boolean, frameRef: RefObject<HTMLElement>): 
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
     };
-  }, [enabled, zoomAt]);
+  }, [enabled, zoomAt, frameRef]);
 
   // Capture-phase: if the gesture just panned, eat the click before it reaches
   // a hit-circle/fighter so panning never triggers an action.
@@ -224,7 +331,9 @@ export function useZoomPan(enabled: boolean, frameRef: RefObject<HTMLElement>): 
     transform: enabled ? `translate(${state.tx}px, ${state.ty}px) scale(${state.scale})` : undefined,
     transformOrigin: enabled ? "0 0" : undefined,
     handlers: enabled ? { onPointerDown, onClickCapture } : {},
-    active: enabled && (state.scale !== 1 || state.tx !== 0 || state.ty !== 0),
+    // "reset view" is offered only once the player has moved AWAY from the fit —
+    // the fit itself is the resting view, however far from identity it sits.
+    active: enabled && !same(state, fit),
     reset,
   };
 }
