@@ -24,4 +24,50 @@ describe("newPool", () => {
     delete (noRules.deck_data as { ruleCards?: unknown }).ruleCards;
     expect(newPool(noRules).ruleCards).toEqual([]);
   });
+
+  // issue #437: decks that only carry the back at deck level
+  // (appearance.cardbackUrl — API/evergreen decks) must have it backfilled onto
+  // every pooled card, since pooled cards detach from deck_data.
+  test("backfills the deck-level cardback onto each card", () => {
+    const deck = clone(_mockDeck);
+    deck.deck_data = clone(deck.deck_data);
+    deck.deck_data.appearance = {
+      ...deck.deck_data.appearance,
+      cardbackUrl: "https://example.com/back.webp",
+    };
+    deck.deck_data.cards = deck.deck_data.cards.map((c) => ({
+      ...c,
+      cardBackUrl: undefined,
+    }));
+
+    const pool = newPool(deck);
+    expect(pool.cards.length).toBeGreaterThan(0);
+    expect(
+      pool.cards.every(
+        (c) => c.cardBackUrl === "https://example.com/back.webp",
+      ),
+    ).toBe(true);
+  });
+
+  // TTS image decks already set a per-card cardBackUrl; it must win over the
+  // deck-level value so those decks are unchanged.
+  test("keeps an existing per-card cardBackUrl over the deck-level back", () => {
+    const deck = clone(_mockDeck);
+    deck.deck_data = clone(deck.deck_data);
+    deck.deck_data.appearance = {
+      ...deck.deck_data.appearance,
+      cardbackUrl: "https://example.com/deck-back.webp",
+    };
+    deck.deck_data.cards = deck.deck_data.cards.map((c) => ({
+      ...c,
+      cardBackUrl: "https://example.com/tts-back.webp",
+    }));
+
+    const pool = newPool(deck);
+    expect(
+      pool.cards.every(
+        (c) => c.cardBackUrl === "https://example.com/tts-back.webp",
+      ),
+    ).toBe(true);
+  });
 });
