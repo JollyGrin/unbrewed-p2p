@@ -60,21 +60,10 @@ export const Hero = () => {
           </Text>
           <IconLogoTextmark height="7em" width="auto" />
           <Text maxW="34rem" textAlign="center" opacity={0.75} px="1rem">
-            Build homebrew decks, drop them on any map, and play head-to-head
-            with a friend — right in your browser.
+            Grab a starter deck, open a lobby, and play head-to-head with a
+            friend — free, right in your browser.
           </Text>
           <HStack color="brand.primary" mt="0.75rem" flexWrap="wrap" justify="center">
-            <Button
-              variant="outline"
-              color="inherit"
-              borderColor="brand.primary"
-              _hover={{ bg: "brand.primary", color: "brand.secondary" }}
-              as={Link}
-              href="/bag"
-            >
-              Add your decks
-            </Button>
-
             <Button
               color="brand.secondary"
               bg="brand.primary"
@@ -85,6 +74,17 @@ export const Hero = () => {
               href="/connect"
             >
               Connect &amp; Play
+            </Button>
+
+            <Button
+              variant="outline"
+              color="inherit"
+              borderColor="brand.primary"
+              _hover={{ bg: "brand.primary", color: "brand.secondary" }}
+              as={Link}
+              href="/bag"
+            >
+              Add your decks
             </Button>
           </HStack>
           <DiscordPresence tone="light" mt="0.5rem" />
