@@ -1,16 +1,23 @@
-import { Flex, Spinner, Tag, Text } from "@chakra-ui/react";
+import { Flex, Select, Spinner, Tag, Text } from "@chakra-ui/react";
 
-import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
+import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import Link from "next/link";
 
 type Props = {
   isLoading?: boolean;
   error?: boolean;
+  /**
+   * Deck state is owned by ConnectPage: `useLocalDeckStorage` instances don't
+   * sync after mount, so the tile, the switcher and the Connect button's
+   * `hasDeck` gate all have to read from the same one.
+   */
+  starredDeck?: DeckImportType;
+  decks?: DeckImportType[];
+  setStar: (id: string) => void;
 };
 
 export const SelectedDeckContainer = (props: Props) => {
-  const { isLoading, error } = props;
-  const { starredDeck } = useLocalDeckStorage();
+  const { isLoading, error, starredDeck, decks, setStar } = props;
   return (
     <Flex
       flexDir={"column"}
@@ -131,6 +138,28 @@ export const SelectedDeckContainer = (props: Props) => {
           <Text color="brand.secondary" fontSize="0.85rem" opacity={0.7}>
             No deck selected yet
           </Text>
+          {/* Decks but no star — e.g. the starred one was deleted in /bag.
+              Let them pick here rather than sending them back. */}
+          {!!decks?.length && (
+            <Select
+              aria-label="Choose your deck"
+              w="100%"
+              maxW="380px"
+              bg="white"
+              focusBorderColor="brand.secondary"
+              value=""
+              onChange={(e) => setStar(e.target.value)}
+            >
+              <option value="" disabled>
+                Pick a deck…
+              </option>
+              {decks.map((deck) => (
+                <option key={deck.id} value={deck.id}>
+                  {deck.name}
+                </option>
+              ))}
+            </Select>
+          )}
         </>
       ) : (
         <>
@@ -179,6 +208,33 @@ export const SelectedDeckContainer = (props: Props) => {
           >
             {starredDeck.name}
           </Tag>
+          {/* Swap decks without a round trip through /bag */}
+          <Select
+            aria-label="Choose your deck"
+            w="100%"
+            maxW="380px"
+            bg="white"
+            focusBorderColor="brand.secondary"
+            value={starredDeck.id}
+            onChange={(e) => setStar(e.target.value)}
+          >
+            {decks?.map((deck) => (
+              <option key={deck.id} value={deck.id}>
+                {deck.name}
+              </option>
+            ))}
+          </Select>
+          <Text
+            as={Link}
+            href="/bag"
+            fontSize="0.8rem"
+            color="brand.secondary"
+            opacity={0.7}
+            textDecoration="underline"
+            _hover={{ opacity: 1 }}
+          >
+            ＋ Add more decks in your bag
+          </Text>
         </>
       )}
     </Flex>
