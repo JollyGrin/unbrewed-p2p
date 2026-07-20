@@ -21,6 +21,16 @@ export type BoardToken = {
   cutout?: boolean;
   /** Raster image (.png/.jpg/.webp) url. */
   imageUrl?: string;
+  /**
+   * Crop for an `imageUrl` that points at a sprite sheet rather than a single
+   * image (Tabletop Simulator / the-unmatched.club exports pack ~70 faces into
+   * one file). Absent = the url is a whole image, rendered as before.
+   *
+   * This is what lets a hero/rule card ride onto the board as a plain image
+   * token instead of a card token: the art is croppable without coupling the
+   * token to a pool card (see heroCardToken).
+   */
+  sheet?: SheetCrop;
   /** Overlay tokens (mini-maps etc.) render beneath all normal tokens. */
   overlay?: boolean;
   /** Locked overlays ignore all pointer events until the owner unlocks them. */
@@ -60,6 +70,18 @@ export function toSavedToken(token: Partial<BoardToken>): SavedToken {
   const { id, x, y, card, faceDown, fromReveal, ...saved } = token;
   return saved;
 }
+
+/**
+ * Which cell of a sprite sheet an image token shows. Mirrors the geometry
+ * fields of CardImageRef (minus the url, which lives on the token) so the
+ * same ImageFace renderer can draw both.
+ */
+export type SheetCrop = {
+  cols: number;
+  rows: number;
+  /** 0-based cell index, counted left-to-right then top-to-bottom. */
+  index: number;
+};
 
 export type TokenCounter = {
   /** Live-link to the owner's HUD health. Absent = detached manual counter. */

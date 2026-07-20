@@ -8,7 +8,8 @@ import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
 import { buildInviteUrl } from "@/lib/invite";
 import { PoolType } from "@/components/DeckPool/PoolFns";
 import { PlayerBox } from "./header.components";
-import { FC } from "react";
+import { HeroRulesPanel } from "./hero-rules.panel";
+import { FC, useState } from "react";
 import { ChipCluster, HudOverlay } from "./header.styles";
 import { ConnectionStatus } from "@/lib/gamesocket/socket";
 
@@ -41,6 +42,12 @@ export const HeaderContainer: FC<{ openPositionModal: () => void }> = ({
   >;
   const playerKeys = players && Object.keys(players);
 
+  // Which seat's extended rules are pinned open (issue #474). Held here rather
+  // than per-PlayerBox so only one panel is ever mounted — two would overlap,
+  // since the panel is pinned to a fixed corner.
+  const [rulesFor, setRulesFor] = useState<string>();
+  const rulesPool = rulesFor ? players?.[rulesFor]?.pool : undefined;
+
   return (
     <>
       <HudOverlay>
@@ -55,6 +62,12 @@ export const HeaderContainer: FC<{ openPositionModal: () => void }> = ({
                   playerState={players[playerName] as { pool: PoolType }}
                   setGameState={setGameState}
                   openPositionModal={openPositionModal}
+                  onOpenRules={() =>
+                    setRulesFor((current) =>
+                      current === playerName ? undefined : playerName,
+                    )
+                  }
+                  rulesOpen={rulesFor === playerName}
                 />
               ),
           )
@@ -70,6 +83,13 @@ export const HeaderContainer: FC<{ openPositionModal: () => void }> = ({
         <InviteChip />
         <ConnectionChip status={connectionStatus} />
       </ChipCluster>
+      {rulesFor && rulesPool && (
+        <HeroRulesPanel
+          pool={rulesPool}
+          name={rulesFor}
+          onClose={() => setRulesFor(undefined)}
+        />
+      )}
     </>
   );
 };

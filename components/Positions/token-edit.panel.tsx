@@ -33,10 +33,16 @@ export const TokenEditPanel: FC<{
 
   return (
     <Box
+      // Bottom-right above the hand, matching CardTokenPanel and
+      // CardPickupPanel — the other two on-board selection panels, which are
+      // mutually exclusive with this one. The old top-right corner put it
+      // under the HUD cluster (Invite / Report bug / Activity log), which
+      // covered Size and hid Delete behind the activity feed; z-indexing over
+      // the Activity log would only have inverted the problem.
       position="absolute"
-      top="0.75rem"
-      right="0.75rem"
-      zIndex={5}
+      bottom="6.25rem"
+      right="1rem"
+      zIndex={250}
       bg="brand.parchment"
       color="brand.surfaceDim"
       borderRadius="0.75rem"

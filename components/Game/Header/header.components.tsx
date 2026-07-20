@@ -44,7 +44,7 @@ import styled from "@emotion/styled";
 import { colors, fonts } from "@/styles/style";
 import { useState } from "react";
 
-import { FaMap } from "react-icons/fa";
+import { FaMap, FaScroll } from "react-icons/fa";
 import { MapModal } from "./map.modal";
 import { DiceModal } from "./dice.modal";
 import { DiscardModalReadOnly } from "./discard.modal";
@@ -55,7 +55,18 @@ export const PlayerBox: React.FC<{
   playerState: { pool: PoolType };
   setGameState: (pool: PoolType) => void;
   openPositionModal?: () => void;
-}> = ({ isLocal, name, playerState, setGameState, openPositionModal }) => {
+  /** Pin/unpin this seat's extended rules panel (issue #474). */
+  onOpenRules?: () => void;
+  rulesOpen?: boolean;
+}> = ({
+  isLocal,
+  name,
+  playerState,
+  setGameState,
+  openPositionModal,
+  onOpenRules,
+  rulesOpen,
+}) => {
   const { hand, deck, discard, hero, sidekick } = playerState.pool;
 
   const updateHealth = (
@@ -93,8 +104,29 @@ export const PlayerBox: React.FC<{
             </Tooltip>
             {hero?.name && <HeroName>{hero.name}</HeroName>}
           </Box>
-          {isLocal && (
-            <HStack gap="0.25rem" flexShrink={0}>
+          <HStack gap="0.25rem" flexShrink={0}>
+            {/* Not gated on isLocal: opponents' extended rules matter just as
+                much as your own, and the pool carries them for every seat. */}
+            {onOpenRules && (
+              <Tooltip
+                label={`${rulesOpen ? "Hide" : "Show"} hero rules${
+                  isLocal ? "" : ` for ${name}`
+                }`}
+                hasArrow
+              >
+                <ControlButton
+                  as="button"
+                  aria-label={`${rulesOpen ? "Hide" : "Show"} hero rules`}
+                  aria-pressed={rulesOpen}
+                  onClick={onOpenRules}
+                  style={rulesOpen ? { opacity: 1 } : undefined}
+                >
+                  <FaScroll size="14px" />
+                </ControlButton>
+              </Tooltip>
+            )}
+            {isLocal && (
+              <>
               <Tooltip label="Change map" hasArrow>
                 <ControlButton
                   as="button"
@@ -125,8 +157,9 @@ export const PlayerBox: React.FC<{
                   <IconDice size="15px" />
                 </ControlButton>
               </Tooltip>
-            </HStack>
-          )}
+              </>
+            )}
+          </HStack>
         </PlayerTitleBar>
 
         <StatsPanel>

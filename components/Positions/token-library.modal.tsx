@@ -24,6 +24,7 @@ import { DeleteIcon, LockIcon, UnlockIcon } from "@chakra-ui/icons";
 import { FC, ReactNode, useMemo, useState } from "react";
 //@ts-ignore
 import { CirclePicker } from "react-color";
+import { ImageFace } from "@/components/CardFactory/Card";
 import { toast } from "react-hot-toast";
 import {
   GameIconSet,
@@ -355,12 +356,23 @@ const TokenRow: FC<{
       gap="0.6rem"
     >
       {isImage ? (
-        <Image
-          src={token.imageUrl}
-          alt={label}
-          boxSize="2.2rem"
-          objectFit="contain"
-        />
+        token.sheet ? (
+          // Sheet-cropped pieces (hero/rule cards from a TTS import) would
+          // preview as the whole ~70-face sprite sheet through <Image>.
+          <Box boxSize="2.2rem">
+            <ImageFace
+              image={{ url: token.imageUrl!, ...token.sheet }}
+              title={label}
+            />
+          </Box>
+        ) : (
+          <Image
+            src={token.imageUrl}
+            alt={label}
+            boxSize="2.2rem"
+            objectFit="contain"
+          />
+        )
       ) : (
         <Flex
           align="center"
@@ -393,8 +405,14 @@ const TokenRow: FC<{
             bg="rgba(255,255,255,0.5)"
             onChange={(e) => {
               const next = Number(e.target.value);
-              // image pieces are square, so height tracks width
-              onPatch(isImage ? { size: next, h: next } : { size: next });
+              // Height tracks width at the piece's current aspect — square for
+              // ordinary images, 63:88 for a seeded hero/rule card.
+              const aspect = (token.h ?? size) / size;
+              onPatch(
+                isImage
+                  ? { size: next, h: Math.round(next * aspect) }
+                  : { size: next },
+              );
             }}
           >
             {sizeOptions.map((c) => (
