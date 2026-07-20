@@ -6,6 +6,7 @@ import {
   getMeasureCanvas,
 } from "@/components/CardFactory/card.helpers";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
+import type { SheetCrop } from "@/components/Positions/position.type";
 import { escapeAttr } from "./index";
 
 /**
@@ -44,6 +45,37 @@ export function cardTokenMarkup(t: {
   if (t.faceDown && t.owner) {
     markup += ownerPlate({ w: t.w, h: t.h, name: t.owner, color: t.color });
   }
+  if (cache.size >= CACHE_MAX) cache.clear();
+  cache.set(key, markup);
+  return markup;
+}
+
+/**
+ * Face for an image token whose url is a sprite sheet (hero/rule cards seeded
+ * from a TTS import — see heroCardToken). Same ImageFace path as a card token,
+ * but driven by the token's own `sheet` crop rather than a pool card, so the
+ * token stays a plain image and never couples to the deck's pool.
+ */
+export function sheetImageMarkup(t: {
+  id: string;
+  url: string;
+  sheet: SheetCrop;
+  w: number;
+  h: number;
+}): string {
+  const key = `sheet|${t.url}|${t.sheet.index}|${t.w}|${t.h}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+
+  const markup = renderToStaticMarkup(
+    <ImageFace
+      image={{ url: t.url, ...t.sheet }}
+      title="hero card"
+      width={t.w}
+      height={t.h}
+      clipId={`sheetclip-${safeId(t.id)}`}
+    />,
+  );
   if (cache.size >= CACHE_MAX) cache.clear();
   cache.set(key, markup);
   return markup;
