@@ -22,45 +22,61 @@ import {
   SITE_URL,
 } from "@/components/Helmet/Head";
 
-const STEPS = [
+const QUICK_START = [
   {
     number: "1",
-    Icon: IconCards,
-    title: "Design or find a deck",
-    text: "Use Unmatched.cards (by Jon G) to build your own deck — or grab one someone else has already made.",
-    button: {
-      text: "Browse decks on Unmatched.Cards",
-      href: "https://unmatched.cards/decks",
-    },
-  },
-  {
-    number: "2",
     Icon: IconCardDraw,
-    title: "Load up your bag",
-    text: "Copy the deck code and add the deck(s) you want to play with into your bag.",
+    title: "Grab a starter deck",
+    text: "Open your bag and pick a starter or popular deck — one click and it's ready to play.",
     button: {
       text: "Open your bag",
       href: "/bag",
     },
   },
   {
-    number: "3",
-    Icon: IconMap,
-    title: "Pick a map",
-    text: "Choose a custom map to battle on. Browse the community or bring your own — all you need is an image URL.",
-    button: {
-      text: "Find maps on r/Unmatched",
-      href: "https://www.reddit.com/r/Unmatched/search/?q=custom+map&type=link&cId=abc80961-6c74-4572-9733-5a250b2586e5&iId=d9eb7d0d-a5a9-420d-ae4b-e14c1417699a",
-    },
-  },
-  {
-    number: "4",
+    number: "2",
     Icon: IconLogo,
-    title: "Create or join a game",
-    text: "Start a lobby and share its name with a friend so you can both jump into the same game.",
+    title: "Name a lobby",
+    text: "Head to Connect, type any lobby name, and you're in. No account, no download.",
     button: {
       text: "Connect to a game",
       href: "/connect",
+    },
+  },
+  {
+    number: "3",
+    Icon: IconCards,
+    title: "Send the invite link",
+    text: "Copy the invite link from the lobby and send it to a friend — it drops them straight into your game, deck and all.",
+  },
+];
+
+const FEATURES = [
+  {
+    Icon: IconCards,
+    title: "Design your own decks",
+    text: "Build a homebrew deck on Unmatched.cards (by Jon G), then paste its code into your bag.",
+    button: {
+      text: "Browse decks on Unmatched.Cards",
+      href: "https://unmatched.cards/decks",
+    },
+  },
+  {
+    Icon: IconCardDraw,
+    title: "Import from anywhere",
+    text: "Decks published on the-unmatched.club, Tabletop Simulator exports, raw JSON, or a list of card image URLs — they all load into your bag.",
+    button: {
+      text: "Add your decks",
+      href: "/bag",
+    },
+  },
+  {
+    Icon: IconMap,
+    title: "Any image is a map",
+    text: "Unbrewed ships with a set of maps, and you can swap in your own mid-game — all you need is an image URL.",
+    button: {
+      text: "Find maps on r/Unmatched",
+      href: "https://www.reddit.com/r/Unmatched/search/?q=custom+map&type=link&cId=abc80961-6c74-4572-9733-5a250b2586e5&iId=d9eb7d0d-a5a9-420d-ae4b-e14c1417699a",
     },
   },
 ];
@@ -69,6 +85,10 @@ const FAQS: { q: string; a: string }[] = [
   {
     q: "Is Unbrewed free?",
     a: "Yes. Unbrewed is completely free and open-source. There are no accounts, subscriptions, or paywalls — you play straight from your web browser.",
+  },
+  {
+    q: "What is the fastest way to start playing?",
+    a: "Load a starter deck from your bag, open a lobby on the Connect page, and copy the invite link. Whoever clicks it lands in your game with the deck already imported.",
   },
   {
     q: "Do I need to create an account?",
@@ -129,8 +149,8 @@ const structuredData = {
       "@type": "HowTo",
       name: "How to play Unmatched fan decks online in your browser",
       description:
-        "Four steps to your first online Unmatched game with Unbrewed.",
-      step: STEPS.map((step, i) => ({
+        "Start your first online Unmatched game with Unbrewed in under a minute.",
+      step: QUICK_START.map((step, i) => ({
         "@type": "HowToStep",
         position: i + 1,
         name: step.title,
@@ -182,23 +202,25 @@ export const LandingPage = () => {
             lineHeight="1.1"
             color="brand.secondary"
           >
-            Four steps to your first game
+            Playing in under a minute
           </Text>
           <Text mt="0.5rem" maxW="46rem" color="brand.secondary" opacity={0.85}>
             Unbrewed is a free, open-source simulator for playing Unmatched fan
             decks online. It runs entirely in your browser — no account, no
-            download. Import decks from Unmatched.cards, the-unmatched.club, or
-            Tabletop Simulator, drop them onto any map from an image URL, and
-            play head-to-head with a friend.
+            download, no setup. Grab a starter deck, open a lobby, and send a
+            friend the invite link. When you want more, it imports decks from
+            Unmatched.cards, the-unmatched.club, Tabletop Simulator and beyond.
           </Text>
 
-          <SimpleGrid mt="1.75rem" columns={{ base: 1, md: 2 }} spacing="1rem">
-            {STEPS.map((step, i) => (
+          <SimpleGrid mt="1.75rem" columns={{ base: 1, md: 3 }} spacing="1rem">
+            {QUICK_START.map((step, i) => (
               <SlideFade key={step.number} in offsetY="20px" delay={i * 0.06}>
                 <StepCard {...step} />
               </SlideFade>
             ))}
           </SimpleGrid>
+
+          <Features />
 
           <FindMatch />
 
@@ -256,8 +278,34 @@ export const LandingPage = () => {
   );
 };
 
+const Features = () => (
+  <Box mt="2.5rem" as="section" aria-labelledby="features-heading">
+    <Text
+      as="h2"
+      id="features-heading"
+      fontFamily="SpaceGrotesk"
+      fontSize="1.75rem"
+      fontWeight={700}
+      color="brand.secondary"
+    >
+      Bring your own everything
+    </Text>
+    <Text mt="0.35rem" maxW="46rem" color="brand.secondary" opacity={0.85}>
+      Starter decks get you playing today — but Unbrewed is built for the decks
+      and maps you make yourself.
+    </Text>
+    <SimpleGrid mt="1.25rem" columns={{ base: 1, md: 3 }} spacing="1rem">
+      {FEATURES.map((feature, i) => (
+        <SlideFade key={feature.title} in offsetY="20px" delay={i * 0.06}>
+          <StepCard {...feature} />
+        </SlideFade>
+      ))}
+    </SimpleGrid>
+  </Box>
+);
+
 const StepCard = (props: {
-  number: string;
+  number?: string;
   Icon: any;
   title: string;
   text: string;
@@ -278,17 +326,19 @@ const StepCard = (props: {
     >
       <Box>
         <HStack align="center" spacing="0.75rem" mb="0.75rem">
-          <Circle
-            size="2.5rem"
-            bg="brand.primary"
-            color="brand.secondary"
-            fontFamily="SpaceGrotesk"
-            fontWeight={700}
-            fontSize="1.1rem"
-            flexShrink={0}
-          >
-            {props.number}
-          </Circle>
+          {props.number && (
+            <Circle
+              size="2.5rem"
+              bg="brand.primary"
+              color="brand.secondary"
+              fontFamily="SpaceGrotesk"
+              fontWeight={700}
+              fontSize="1.1rem"
+              flexShrink={0}
+            >
+              {props.number}
+            </Circle>
+          )}
           <props.Icon fontSize="2rem" color="brand.primary" />
           <Text
             as="h3"
