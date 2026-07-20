@@ -362,6 +362,14 @@ const StepCard = (props: {
           color="brand.secondary"
           _hover={{ bg: "brand.primary" }}
           alignSelf="flex-start"
+          /* long labels must wrap inside the card instead of overflowing it */
+          maxW="100%"
+          h="auto"
+          minH="2rem"
+          py="0.4rem"
+          whiteSpace="normal"
+          textAlign="left"
+          lineHeight="1.3"
           as={Link}
           href={props.button.href}
         >
