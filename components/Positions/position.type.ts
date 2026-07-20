@@ -1,4 +1,4 @@
-import { DeckImportCardType } from "../DeckPool/deck-import.type";
+import type { DeckImportCardType } from "../DeckPool/deck-import.type";
 
 /**
  * Board token model.
@@ -42,6 +42,24 @@ export type BoardToken = {
    */
   fromReveal?: boolean;
 };
+
+/**
+ * A token loadout entry saved on a deck (see DeckImportType.savedTokens).
+ *
+ * Position and identity are per-game, so they are stripped; card tokens are
+ * excluded too — a saved card would detach from the pool it belongs to and
+ * duplicate itself into every game the deck is used in.
+ */
+export type SavedToken = Omit<
+  BoardToken,
+  "id" | "x" | "y" | "card" | "faceDown" | "fromReveal"
+>;
+
+/** Drop the per-game fields so a board token can be stored on a deck. */
+export function toSavedToken(token: Partial<BoardToken>): SavedToken {
+  const { id, x, y, card, faceDown, fromReveal, ...saved } = token;
+  return saved;
+}
 
 export type TokenCounter = {
   /** Live-link to the owner's HUD health. Absent = detached manual counter. */
@@ -150,6 +168,42 @@ export function migrateBlob(raw: unknown): PositionBlob {
       ...(legacy.sidekicks ?? []).map(toToken),
     ],
   };
+}
+
+/**
+ * Where a fresh player's tokens land: the top-left of the 1200x1000 map, the
+ * same corner the lone starter disc has always used.
+ */
+export const SPAWN_ORIGIN = { x: 150, y: 100 };
+const SPAWN_GAP = 24;
+const SPAWN_ROW_MAX_X = 1050;
+
+/**
+ * Lay a deck's saved loadout out near the player's edge of the board: a row
+ * running right from SPAWN_ORIGIN, wrapping onto a new row before it would
+ * run off the map. Overlays (mini-maps, zones) are wide and get their own row.
+ */
+export function spawnSavedTokens(
+  saved: SavedToken[],
+  owner: string,
+): BoardToken[] {
+  let x = SPAWN_ORIGIN.x;
+  let y = SPAWN_ORIGIN.y;
+  let rowHeight = 0;
+
+  return saved.map((token) => {
+    const w = token.size ?? DEFAULT_TOKEN_SIZE;
+    const h = token.h ?? w;
+    if (x > SPAWN_ORIGIN.x && x + w > SPAWN_ROW_MAX_X) {
+      x = SPAWN_ORIGIN.x;
+      y += rowHeight + SPAWN_GAP;
+      rowHeight = 0;
+    }
+    const placed: BoardToken = { ...token, id: newTokenId(owner), x, y };
+    x += w + SPAWN_GAP;
+    rowHeight = Math.max(rowHeight, h);
+    return placed;
+  });
 }
 
 let tokenCounter = 0;
