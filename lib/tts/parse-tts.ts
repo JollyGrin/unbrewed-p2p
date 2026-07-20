@@ -3,6 +3,7 @@ import {
   DeckImportCardType,
   DeckImportType,
 } from "@/components/DeckPool/deck-import.type";
+import { seedHeroCardTokens } from "@/components/Positions/heroCardTokens";
 
 /**
  * Parser for Tabletop Simulator deck exports — the machine-readable
@@ -235,6 +236,10 @@ export const buildImageDeck = (input: ImageDeckInput): DeckImportType => {
     tags: ["image-deck"],
     version_name: "1",
     versions: [],
+    // Hero/rule cards are reference material, not draw-pile cards — seed them
+    // as board tokens so they are on the table from the first turn instead of
+    // being invisible once the game starts (issue #474).
+    savedTokens: seedHeroCardTokens(cards),
     deck_data: {
       name: input.name,
       appearance: {

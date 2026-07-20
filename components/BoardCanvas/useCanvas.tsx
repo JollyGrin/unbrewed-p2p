@@ -6,7 +6,7 @@ import {
   cardTokenHeight,
 } from "../Positions/position.type";
 import { TokenMarkup } from "./Tokens";
-import { cardTokenMarkup } from "./Tokens/cardFace";
+import { cardTokenMarkup, sheetImageMarkup } from "./Tokens/cardFace";
 import { publishBoardTransform, setBoardSvg } from "./boardTransform";
 
 type CanvasProps = {
@@ -111,7 +111,9 @@ export const useCanvas = ({
           color: d.color,
         });
       } else if (d.imageUrl) {
-        inner = TokenMarkup.image({ url: d.imageUrl, w, h });
+        inner = d.sheet
+          ? sheetImageMarkup({ id: d.id, url: d.imageUrl, sheet: d.sheet, w, h })
+          : TokenMarkup.image({ url: d.imageUrl, w, h });
       } else if (d.icon) {
         inner =
           iconSvg(d.icon, {

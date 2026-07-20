@@ -9,6 +9,7 @@ import {
 } from "@chakra-ui/react";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
+import { applyHeroCardFlag } from "@/components/Positions/heroCardTokens";
 
 import { FaPlus, FaStar } from "react-icons/fa";
 
@@ -43,9 +44,19 @@ export const BagDecks = () => {
         ? { ...card, isCharacterCard: !card.isCharacterCard }
         : card,
     );
+    // Flagging a card hero/rule also puts it on the table (issue #474), and
+    // unflagging takes it back off. Only this transition seeds — nothing
+    // re-derives the loadout from the flags on load, so a token the user
+    // deleted in EditSavedTokens stays deleted.
+    const toggled = cards[cardIndex];
     updateDeck({
       ...selectedDeck,
       deck_data: { ...selectedDeck.deck_data, cards },
+      savedTokens: applyHeroCardFlag(
+        selectedDeck.savedTokens ?? [],
+        toggled,
+        !!toggled.isCharacterCard,
+      ),
     });
   };
 
