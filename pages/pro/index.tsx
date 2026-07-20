@@ -4,8 +4,8 @@ import { ProLanding } from "@/components/Pro/ProLanding";
 import { markProNewSeen } from "@/components/Navbar/ProNavButton";
 
 /**
- * Unbrewed Pro — the (in development) rules-enforced mode.
- * Roadmap & architecture: docs/pro/01-context.md
+ * Unbrewed Pro — the rules-enforced mode (open beta).
+ * Architecture: docs/pro/01-context.md
  */
 const ProPage = () => {
   // Reaching Pro (even via direct URL) retires the front-page NEW badge (#358).
@@ -16,10 +16,11 @@ const ProPage = () => {
   return (
     <>
       <Head>
-        <title>Unbrewed Pro — rules-enforced Unmatched (in development)</title>
+        {/* single string child: next/head warns on a multi-child <title> */}
+        <title>{"Unbrewed Pro — rules-enforced Unmatched: play vs AI or friends in your browser"}</title>
         <meta
           name="description"
-          content="Unbrewed Pro is an upcoming rules-enforced way to play Unmatched online: a server referees every move, so you can battle strangers — and eventually an AI. The free-form sandbox stays as it is."
+          content="Play Unmatched with full rules enforcement in your browser. A referee server allows only legal moves, does the combat math, and keeps hands hidden — battle an AI at three difficulties, a friend, or a stranger. No account, no install."
         />
       </Head>
       <ProLanding />
