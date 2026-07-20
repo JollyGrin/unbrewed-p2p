@@ -21,7 +21,7 @@ import {
   Tooltip,
 } from "@chakra-ui/react";
 import { DeleteIcon, LockIcon, UnlockIcon } from "@chakra-ui/icons";
-import { FC, useMemo, useState } from "react";
+import { FC, ReactNode, useMemo, useState } from "react";
 //@ts-ignore
 import { CirclePicker } from "react-color";
 import { toast } from "react-hot-toast";
@@ -55,6 +55,9 @@ const SIZE_CHOICES = [
 /**
  * The token menu: pick your player color (tints every token you own), manage
  * everything you have on the board, and add icons / discs / images / overlays.
+ *
+ * Also serves the /bag deck editor as a loadout picker (`offBoard`), where the
+ * same tokens are being edited off the table — see EditSavedTokens.
  */
 export const TokenLibraryModal: FC<{
   isOpen: boolean;
@@ -66,6 +69,17 @@ export const TokenLibraryModal: FC<{
   onAdd: (token: Omit<BoardToken, "id" | "x" | "y">) => void;
   onPatch: (id: string, patch: Partial<BoardToken>) => void;
   onDelete: (id: string) => void;
+  /** Header text; defaults to the in-game wording. */
+  title?: string;
+  /** Blurb under the header — used to explain the deck-loadout context. */
+  intro?: ReactNode;
+  /** Action row pinned below the list (e.g. "save these to my deck"). */
+  footer?: ReactNode;
+  /**
+   * Editing a loadout with no board behind it: relabels the list and lets
+   * image pieces be resized here, since there is nothing to click on a table.
+   */
+  offBoard?: boolean;
 }> = ({
   isOpen,
   onClose,
@@ -76,6 +90,10 @@ export const TokenLibraryModal: FC<{
   onAdd,
   onPatch,
   onDelete,
+  title = "Your Board Tokens",
+  intro,
+  footer,
+  offBoard = false,
 }) => {
   const icons = useGameIcons();
   const [query, setQuery] = useState("");
@@ -147,10 +165,15 @@ export const TokenLibraryModal: FC<{
           color="brand.secondary"
           pb="0.25rem"
         >
-          Your Board Tokens
+          {title}
         </ModalHeader>
         <ModalCloseButton />
         <ModalBody pb="1.25rem">
+          {intro && (
+            <Text fontSize="0.85rem" opacity={0.75} mb="0.9rem">
+              {intro}
+            </Text>
+          )}
           <SectionLabel>Your color — tints all of your tokens</SectionLabel>
           <Box mt="0.4rem">
             <CirclePicker
@@ -163,7 +186,7 @@ export const TokenLibraryModal: FC<{
 
           <Divider my="0.9rem" borderColor="rgba(72, 40, 79, 0.3)" />
 
-          <SectionLabel>On the board</SectionLabel>
+          <SectionLabel>{offBoard ? "Saved tokens" : "On the board"}</SectionLabel>
           <Flex direction="column" gap="0.4rem" mt="0.5rem">
             {tokens.length === 0 && (
               <Text fontSize="0.85rem" opacity={0.7}>
@@ -177,11 +200,14 @@ export const TokenLibraryModal: FC<{
                 color={color}
                 icons={icons}
                 linkedHp={linkedHp}
+                offBoard={offBoard}
                 onPatch={(patch) => onPatch(t.id, patch)}
                 onDelete={() => onDelete(t.id)}
               />
             ))}
           </Flex>
+
+          {footer && <Box mt="0.75rem">{footer}</Box>}
 
           <Divider my="0.9rem" borderColor="rgba(72, 40, 79, 0.3)" />
 
@@ -293,12 +319,16 @@ const TokenRow: FC<{
   color: string;
   icons: GameIconSet | null;
   linkedHp: LinkedHp;
+  offBoard?: boolean;
   onPatch: (patch: Partial<BoardToken>) => void;
   onDelete: () => void;
-}> = ({ token, color, icons, linkedHp, onPatch, onDelete }) => {
+}> = ({ token, color, icons, linkedHp, offBoard, onPatch, onDelete }) => {
   const isImage = Boolean(token.imageUrl);
   const Icon = token.icon ? icons?.[token.icon] : undefined;
   const size = token.size ?? DEFAULT_TOKEN_SIZE;
+  // Overlays are sized by aspect-ratio probe and positioned on the table, so
+  // they stay board-only; everything else is resizable wherever it is edited.
+  const canResize = !isImage || (Boolean(offBoard) && !token.overlay);
 
   const label = token.icon
     ? iconLabel(token.icon)
@@ -348,9 +378,11 @@ const TokenRow: FC<{
         {label}
       </Text>
 
-      {isImage ? (
+      {isImage && !canResize ? (
         <Text fontSize="0.7rem" opacity={0.6}>
-          click it on the board to resize{token.overlay ? " / lock" : ""}
+          {offBoard
+            ? "sized and locked in game"
+            : `click it on the board to resize${token.overlay ? " / lock" : ""}`}
         </Text>
       ) : (
         <HStack gap="0.4rem">
@@ -359,7 +391,11 @@ const TokenRow: FC<{
             w="6.5rem"
             value={size}
             bg="rgba(255,255,255,0.5)"
-            onChange={(e) => onPatch({ size: Number(e.target.value) })}
+            onChange={(e) => {
+              const next = Number(e.target.value);
+              // image pieces are square, so height tracks width
+              onPatch(isImage ? { size: next, h: next } : { size: next });
+            }}
           >
             {sizeOptions.map((c) => (
               <option key={c.value} value={c.value}>

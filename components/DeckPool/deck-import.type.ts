@@ -1,4 +1,7 @@
 import { DateString, HexColorString, ValidUrlString } from "@/lib/generic.type";
+// type-only: position.type imports DeckImportCardType back from here, and
+// erasing both sides keeps that cycle out of the emitted module graph.
+import type { SavedToken } from "@/components/Positions/position.type";
 
 export type DeckImportType = {
   bgg_link: string | null;
@@ -20,6 +23,23 @@ export type DeckImportType = {
    * `sourceUrl` on PopularDeckMeta so the committed snapshot is self-describing.
    */
   sourceUrl?: string;
+  /**
+   * Token loadout for this deck: starring it and joining a game spawns these
+   * on the board automatically (GameShell), so a sandbox player stops
+   * rebuilding the same markers every session. Edited in /bag.
+   *
+   * Optional and additive — decks without it behave exactly as before, and
+   * because decks serialize whole these ride through export/import untouched.
+   * Image tokens are URLs only, never base64: DECKS is capped at ~5MB and the
+   * position blob is rebroadcast over the websocket on every action.
+   */
+  savedTokens?: SavedToken[];
+  /**
+   * Preferred player color for this deck; tints the spawned tokens. Typed as
+   * a plain string (not HexColorString) because it is copied straight into
+   * PositionBlob.color, which the relay carries untyped.
+   */
+  savedTokenColor?: string;
   tags: string[];
   updated_on: DateString;
   user: string;
