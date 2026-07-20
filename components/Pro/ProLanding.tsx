@@ -19,50 +19,53 @@ import {
 } from "@/lib/constants/top-decks";
 import { DECK_HERO_IDS } from "@/lib/pro/useProCardArt";
 import { frozenAtForDeck } from "@/lib/pro/evergreenManifest";
-import { useProLiveRoster } from "@/lib/pro/useProLiveRoster";
+import { useProLiveRosterState } from "@/lib/pro/useProLiveRoster";
 import { PRO_WS_URL } from "@/lib/pro/wsUrl";
 import { useFlag } from "@/lib/flags";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { MAP_CATALOG, FORMAT_BADGE, eligibleFormats } from "@/lib/pro/mapCatalog";
-import type { BotDifficulty } from "@/lib/pro/protocol";
+import type { BotDifficulty, HeroListing } from "@/lib/pro/protocol";
 import { vsParamFor } from "@/lib/pro/vsParam";
 
 /**
- * Pro roster status. Ready = decks the live server actually serves right
- * now — fetched over the same LIST_HEROES protocol the game page uses
- * (see useProLiveRoster), so a deck merging into the engine repo shows up
- * here with no frontend edit required. FALLBACK_READY only covers the gap
- * before that first reply lands (or if the socket never connects). Lab =
- * DSL stress-test decks: they shape the engine but aren't launch content,
- * and the server never lists them, so this stays a manual set.
+ * The roster is server-first, exactly like the game page's fighter picker
+ * (pages/pro/game.tsx): the live LIST_HEROES reply IS the roster, and each
+ * entry's tier decides whether it renders as a battle-ready or an in-the-lab
+ * tile. A hero merged into the engine therefore appears here with zero
+ * frontend edits, and the two surfaces can't drift — they read the same list.
+ *
+ * POPULAR_DECKS is joined in (by DECK_HERO_IDS) for presentation only: card-back
+ * art, like count, highlight colour, and the deck id the preview modal fetches.
+ * A served hero with no tile entry still renders — plain colour, server name,
+ * no likes badge. Decks the server does NOT serve are the "challengers
+ * approaching" queue.
+ *
+ * There is deliberately no hardcoded heroId→name fallback here: a hand-kept
+ * snapshot is exactly what went stale before (prod advertised 14 battle-ready
+ * while the server served 15). Pre-reply we show skeletons; if the socket never
+ * connects we say so.
  */
-const FALLBACK_READY: Record<string, string> = {
-  kdKM: "King Kong",
-  // Spice remixes are the default-roster decks; their reflavored baselines
-  // (`taranis`, `thetis`, `piper`, `hollow-oak`) are flipped to tier
-  // `reflavored` and hidden unless ?debug (see roster filter). Their snapshots
-  // + manifest entries stay for debug play, but they are omitted here so the
-  // pre-socket roster shows spice only.
-  "taranis-spice": "King Taranis",
-  "thetis-spice": "Thetis",
-  "piper-spice": "The Piper of the Underroads",
-  "hollow-oak-spice": "The Hollow Oak",
-  lDOM: "The Mandalorian",
-  pk1x: "Thrall",
-  "3jgd": "R2-D2",
-  LWNZ: "Gingerbread man",
-  "1Y5J": "Triceratops",
-  "yAJ-": "Baba Yaga",
-  QkB1: "Buster Keaton",
-  x2_V: "Batman",
-  grievous: "General Grievous",
-  "malfurion-stormrage": "Malfurion Stormrage",
-  nPnv: "Nancy Drew",
-};
-const IN_THE_LAB: Record<string, string> = {
-  "72Dz": "Pinocchio",
-  G_nr: "Schrödinger's Cat",
-};
+type RosterStatus = "ready" | "lab" | "locked";
+
+interface RosterEntry {
+  /** stable identity: the server hero id, or the deck id for locked decks */
+  key: string;
+  /** tile caption — the full deck title (may carry a ` ★` reflavored suffix) */
+  name: string;
+  /** just the fighter, for the announcer and tooltips ("Voldemort", not
+   *  "Voldemort (The Wizarding World)") */
+  shortName: string;
+  status: RosterStatus;
+  /** server hero id — set for everything the server actually serves */
+  heroId?: string;
+  /** the server listing, for ready/lab entries */
+  listing?: HeroListing;
+  /** presentation extras, when a top-decks tile exists for this hero */
+  deck?: PopularDeckMeta;
+}
+
+/** Tile colour for a served hero with no top-decks entry yet. */
+const DEFAULT_HIGHLIGHT = "#3B2A47";
 
 const tileIn = keyframes`
   from { opacity: 0; transform: translateY(10px) scale(0.96); }
@@ -86,9 +89,9 @@ const skewChip = (deg = -6) => ({
 
 export const ProLanding = () => {
   const [replaysEnabled] = useFlag("replays");
-  const [picked, setPicked] = useState<PopularDeckMeta>();
-  const [hovered, setHovered] = useState<PopularDeckMeta>();
-  const [previewDeck, setPreviewDeck] = useState<PopularDeckMeta>();
+  const [picked, setPicked] = useState<RosterEntry>();
+  const [hovered, setHovered] = useState<RosterEntry>();
+  const [previewEntry, setPreviewEntry] = useState<RosterEntry>();
   // The seat strip's P2 occupant — display-scale only. It exists to set the
   // difficulty the primary CTA carries in `?vs=`, not to create a room here.
   const [p2, setP2] = useState<SeatOccupant>("medium");
@@ -97,45 +100,54 @@ export const ProLanding = () => {
   // `?debug` (any value, incl. bare `?debug`) reveals debug-only decks the
   // server hides by default. See lib/pro/protocol.ts v15/v18.
   const debug = router.query.debug !== undefined;
-  const liveHeroes = useProLiveRoster(PRO_WS_URL, debug);
+  const { heroes: liveHeroes, offline } = useProLiveRosterState(PRO_WS_URL, debug);
 
-  const liveTier = (deck: PopularDeckMeta) =>
-    liveHeroes?.find((h) => h.heroId === DECK_HERO_IDS[deck.id])?.tier;
-  const isReflavored = (deck: PopularDeckMeta) =>
-    deck.tier === "reflavored" || liveTier(deck) === "reflavored";
-  const isDebugOnly = (deck: PopularDeckMeta) =>
-    isReflavored(deck) || deck.tier === "lab" || liveTier(deck) === "lab";
+  // The server's reply IS the roster. Everything below is a projection of it;
+  // POPULAR_DECKS only decorates. Note the server already applies the debug
+  // gate — reflavored/lab-only heroes are simply absent from a non-debug
+  // reply — so there is no client-side visibility filter to keep in sync.
+  const roster: RosterEntry[] = (liveHeroes ?? []).map((listing) => {
+    const deck = deckForHeroId(listing.heroId);
+    // Prefer the curated tile copy where it exists: the engine's own display
+    // names are raw deck titles ("TRICERATOPS", a trailing-space "gingerbread
+    // man ") that read badly on a landing page. The server name is the
+    // fallback, so a hero with no tile entry still renders with a real name.
+    // Under ?debug a reflavored deck gets a ` ★` so it reads apart from the
+    // identically named spice remix that replaced it.
+    const serverName = listing.name.trim();
+    const star = listing.tier === "reflavored" ? " ★" : "";
+    return {
+      key: listing.heroId,
+      name: `${deck?.name ?? serverName}${star}`,
+      shortName: `${deck?.hero ?? serverName}${star}`,
+      status: listing.tier === "lab" ? "lab" : "ready",
+      heroId: listing.heroId,
+      listing,
+      deck,
+    };
+  });
 
-  // The default roster never renders debug-only decks; ?debug shows them.
-  const visibleDecks = debug
-    ? POPULAR_DECKS
-    : POPULAR_DECKS.filter((d) => !isDebugOnly(d));
-
-  // Client-side display name only: under ?debug a reflavored deck gets a ` ★`
-  // so it reads apart from its identically-named spice replacement. Never
-  // mutates the deck data.
-  const displayName = (deck: PopularDeckMeta) =>
-    debug && isReflavored(deck) ? `${deck.name} ★` : deck.name;
-
-  // Once the server has replied, its roster is authoritative: a deck's
-  // server hero id being present is what "ready" means. Until then (or if
-  // the socket never connects), fall back to the last-known-good set below.
-  const SUPPORTED: Record<string, string> = liveHeroes
-    ? Object.fromEntries(
-        visibleDecks
-          .filter((d) => liveHeroes.some((h) => h.heroId === DECK_HERO_IDS[d.id]))
-          .map((d) => [d.id, d.hero])
-      )
-    : FALLBACK_READY;
-  const statusOf = (deck: PopularDeckMeta): "ready" | "lab" | "locked" =>
-    deck.lab || IN_THE_LAB[deck.id] ? "lab" : SUPPORTED[deck.id] ? "ready" : "locked";
-
-  const readyDecks = visibleDecks.filter((d) => statusOf(d) === "ready");
-  const labDecks = visibleDecks.filter((d) => statusOf(d) === "lab");
-  const lockedDecks = visibleDecks.filter((d) => statusOf(d) === "locked");
-  const readyCount = readyDecks.length;
+  const readyEntries = roster.filter((e) => e.status === "ready");
+  const labEntries = roster.filter((e) => e.status === "lab");
   // Ready tiles first, then lab; locked decks live in the drawer below the grid.
-  const gridDecks = [...readyDecks, ...labDecks];
+  const gridEntries = [...readyEntries, ...labEntries];
+
+  // "Challengers approaching" = tiles the server does NOT serve. Reflavored
+  // baselines never queue here: their spice replacement is already on the grid
+  // under the same name, so listing them would read as a duplicate fighter.
+  const lockedEntries: RosterEntry[] = liveHeroes
+    ? POPULAR_DECKS.filter(
+        (d) =>
+          d.tier !== "reflavored" &&
+          !liveHeroes.some((h) => h.heroId === DECK_HERO_IDS[d.id])
+      ).map((deck) => ({
+        key: deck.id,
+        name: deck.name,
+        shortName: deck.hero,
+        status: "locked" as const,
+        deck,
+      }))
+    : [];
 
   // Every internal link keeps the debug session alive.
   const withDebug = (href: string) =>
@@ -150,11 +162,11 @@ export const ProLanding = () => {
   const spotlight = hovered ?? picked;
   const announcer = !spotlight
     ? "Pick a fighter — gold tiles jump straight into a match"
-    : statusOf(spotlight) === "ready"
-      ? `${spotlight.hero.toUpperCase()} IS READY — CLICK TO ENTER THE ARENA`
-      : statusOf(spotlight) === "lab"
-        ? `${spotlight.hero.toUpperCase()} IS IN THE LAB — STRESS-TESTING THE RULES ENGINE`
-        : `${spotlight.hero.toUpperCase()} AWAITS CONVERSION — RULES SUPPORT COMES DECK BY DECK`;
+    : spotlight.status === "ready"
+      ? `${spotlight.shortName.toUpperCase()} IS READY — CLICK TO ENTER THE ARENA`
+      : spotlight.status === "lab"
+        ? `${spotlight.shortName.toUpperCase()} IS IN THE LAB — STRESS-TESTING THE RULES ENGINE`
+        : `${spotlight.shortName.toUpperCase()} AWAITS CONVERSION — RULES SUPPORT COMES DECK BY DECK`;
 
   return (
     <Box minH="100svh" bg="brand.surfaceDim" color="brand.parchment">
@@ -240,9 +252,10 @@ export const ProLanding = () => {
             opacity={0.55}
           >
             Every deck is hand-converted into engine rules, so the roster grows a
-            few fighters at a time — {readyCount} are battle-ready today. The
-            free-form sandbox isn&apos;t going anywhere; Pro is an additional way
-            to play.
+            few fighters at a time
+            {readyEntries.length > 0 && ` — ${readyEntries.length} are battle-ready today`}.
+            The free-form sandbox isn&apos;t going anywhere; Pro is an additional
+            way to play.
           </Text>
         </Box>
 
@@ -389,8 +402,13 @@ export const ProLanding = () => {
               color="brand.accent"
               whiteSpace="nowrap"
             >
-              {readyCount} battle-ready
-              {labDecks.length > 0 && ` · ${labDecks.length} in the lab`}
+              {!liveHeroes
+                ? offline
+                  ? "roster offline"
+                  : "loading roster…"
+                : `${readyEntries.length} battle-ready${
+                    labEntries.length > 0 ? ` · ${labEntries.length} in the lab` : ""
+                  }`}
             </Text>
           </Flex>
 
@@ -398,34 +416,52 @@ export const ProLanding = () => {
             templateColumns="repeat(auto-fill, minmax(150px, 1fr))"
             gap="0.5rem"
           >
-            {gridDecks.map((deck, i) => {
-              const status = statusOf(deck);
-              // Ready tiles the game page can actually launch (a server hero id
-              // exists) navigate straight into create-a-room with that hero
-              // preselected. Everything else stays an inspect-only tile. Carry
-              // `debug` through so a reflavored pick stays selectable and the
-              // debug session continues on the game page.
-              const serverHeroId = DECK_HERO_IDS[deck.id];
+            {/* Pre-reply the roster is genuinely unknown, so the grid holds its
+                shape with skeletons rather than asserting a stale hero list. */}
+            {!liveHeroes && !offline &&
+              Array.from({ length: SKELETON_TILES }, (_, i) => (
+                <SkeletonTile key={i} index={i} />
+              ))}
+            {gridEntries.map((entry, i) => {
+              // Ready tiles navigate straight into create-a-room with the hero
+              // preselected; lab tiles stay inspect-only. Carry `debug` through
+              // so a reflavored pick stays selectable and the debug session
+              // continues on the game page.
               const href =
-                status === "ready" && serverHeroId
-                  ? withDebug(`/pro/game?hero=${serverHeroId}`)
+                entry.status === "ready"
+                  ? withDebug(`/pro/game?hero=${entry.heroId}`)
                   : undefined;
               return (
                 <RosterTile
-                  key={deck.id}
-                  deck={deck}
-                  displayName={displayName(deck)}
+                  key={entry.key}
+                  entry={entry}
                   index={i}
-                  status={status}
                   href={href}
-                  isPicked={picked?.id === deck.id}
-                  onPick={() => setPicked(deck)}
+                  isPicked={picked?.key === entry.key}
+                  onPick={() => setPicked(entry)}
                   onHover={setHovered}
-                  onPreview={() => setPreviewDeck(deck)}
+                  onPreview={() => setPreviewEntry(entry)}
                 />
               );
             })}
           </Grid>
+
+          {/* The socket never answered: say so plainly instead of pulsing
+              skeletons forever. Every CTA above still works — the game page
+              runs its own LIST_HEROES and may well succeed. */}
+          {offline && (
+            <Text
+              fontFamily="SpaceGrotesk"
+              fontSize="0.85rem"
+              textAlign="center"
+              opacity={0.6}
+              py="1rem"
+            >
+              Couldn&apos;t reach the referee server, so the roster isn&apos;t
+              listed here. Head into the arena — the fighter picker will load it
+              there.
+            </Text>
+          )}
 
           {/* announcer bar */}
           <Flex
@@ -445,7 +481,7 @@ export const ProLanding = () => {
               letterSpacing="0.08em"
               textAlign="center"
               color={
-                spotlight && statusOf(spotlight) === "ready" ? "brand.accent" : undefined
+                spotlight?.status === "ready" ? "brand.accent" : undefined
               }
               opacity={spotlight ? 1 : 0.45}
             >
@@ -454,7 +490,7 @@ export const ProLanding = () => {
           </Flex>
 
           {/* locked decks: out of the grid, behind a challengers-approaching drawer */}
-          {lockedDecks.length > 0 && (
+          {lockedEntries.length > 0 && (
             <Box>
               <Flex
                 as="button"
@@ -475,14 +511,14 @@ export const ProLanding = () => {
                 _hover={{ bg: "rgba(250,235,215,0.08)", borderColor: "brand.accent" }}
                 transition="background 0.15s, border-color 0.15s"
               >
-                {lockedDecks.length} challengers approaching {lockedOpen ? "▲" : "▼"}
+                {lockedEntries.length} challengers approaching {lockedOpen ? "▲" : "▼"}
               </Flex>
               {lockedOpen && (
                 <Box mt="0.6rem">
                   <Flex flexWrap="wrap" gap="0.35rem">
-                    {lockedDecks.map((deck) => (
+                    {lockedEntries.map((entry) => (
                       <Flex
-                        key={deck.id}
+                        key={entry.key}
                         alignItems="center"
                         gap="0.35rem"
                         px="0.55rem"
@@ -496,7 +532,7 @@ export const ProLanding = () => {
                         filter="grayscale(1)"
                       >
                         <FaLock size="0.6rem" />
-                        {displayName(deck)}
+                        {entry.name}
                       </Flex>
                     ))}
                   </Flex>
@@ -638,12 +674,21 @@ export const ProLanding = () => {
         </Box>
       </Box>
 
+      {/* A served hero with no tile entry has no deck JSON to fetch (deckId
+          null); the modal still shows its name and the stats off the listing. */}
       <HeroPreviewModal
-        isOpen={!!previewDeck}
-        onClose={() => setPreviewDeck(undefined)}
-        deckId={previewDeck?.id ?? null}
-        heroName={previewDeck?.hero ?? ""}
-        heroId={previewDeck ? DECK_HERO_IDS[previewDeck.id] : undefined}
+        isOpen={!!previewEntry}
+        onClose={() => setPreviewEntry(undefined)}
+        deckId={previewEntry?.deck?.id ?? null}
+        heroName={previewEntry?.name ?? ""}
+        heroId={previewEntry?.heroId}
+        quickStats={
+          previewEntry?.listing && {
+            hp: previewEntry.listing.hp,
+            move: previewEntry.listing.move,
+            reach: previewEntry.listing.reach,
+          }
+        }
       />
     </Box>
   );
@@ -812,37 +857,70 @@ const SeatPlate = ({
   );
 };
 
+/**
+ * The one crossover from server hero id back to the presentation tile. Built
+ * once at module load: DECK_HERO_IDS is deck id → hero id, and POPULAR_DECKS is
+ * small, but the roster maps over it per render.
+ */
+const DECK_BY_HERO_ID: Record<string, PopularDeckMeta> = Object.fromEntries(
+  POPULAR_DECKS.flatMap((deck) => {
+    const heroId = DECK_HERO_IDS[deck.id];
+    return heroId ? [[heroId, deck] as const] : [];
+  })
+);
+const deckForHeroId = (heroId: string): PopularDeckMeta | undefined =>
+  DECK_BY_HERO_ID[heroId];
+
+/** How many placeholder tiles stand in for the roster before it arrives. */
+const SKELETON_TILES = 12;
+
+const skeletonPulse = keyframes`
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 0.65; }
+`;
+
+/** Pre-reply placeholder — same footprint as a real tile, no hero claimed. */
+const SkeletonTile = ({ index }: { index: number }) => (
+  <Box
+    aria-hidden
+    h="5.5rem"
+    borderRadius="0.5rem"
+    border="2px solid rgba(250,235,215,0.08)"
+    bg="rgba(250,235,215,0.06)"
+    sx={{
+      animation: `${skeletonPulse} 1.6s ease-in-out ${index * 0.08}s infinite`,
+      [REDUCED_MOTION]: { animation: "none", opacity: 0.4 },
+    }}
+  />
+);
+
 const RosterTile = ({
-  deck,
-  displayName,
+  entry,
   index,
-  status,
   href,
   isPicked,
   onPick,
   onHover,
   onPreview,
 }: {
-  deck: PopularDeckMeta;
-  /** render name (may carry a ` ★` reflavored suffix under ?debug) */
-  displayName: string;
+  entry: RosterEntry;
   index: number;
-  status: "ready" | "lab" | "locked";
   /** when set, the tile navigates into the game instead of inspect-only picking */
   href?: string;
   isPicked: boolean;
   onPick: () => void;
   /** announcer spotlight follows the cursor; undefined clears it */
-  onHover: (deck: PopularDeckMeta | undefined) => void;
+  onHover: (entry: RosterEntry | undefined) => void;
   onPreview: () => void;
 }) => {
+  const { deck, name, shortName, status } = entry;
   const locked = status === "locked";
   const tile = (
       <Flex
         onClick={href ? undefined : onPick}
-        onMouseEnter={() => onHover(deck)}
+        onMouseEnter={() => onHover(entry)}
         onMouseLeave={() => onHover(undefined)}
-        onFocus={() => onHover(deck)}
+        onFocus={() => onHover(entry)}
         onBlur={() => onHover(undefined)}
         flexDir="column"
         justifyContent="flex-end"
@@ -881,8 +959,10 @@ const RosterTile = ({
           [REDUCED_MOTION]: { transform: "none" },
         }}
         filter={locked && !isPicked ? "grayscale(0.9) brightness(0.55)" : undefined}
-        bg={deck.highlightColour}
-        bgImage={deck.cardbackUrl ? `url(${deck.cardbackUrl})` : undefined}
+        // Art is a presentation extra: a served hero with no tile entry gets the
+        // neutral highlight and no card back, and still reads as a real tile.
+        bg={deck?.highlightColour ?? DEFAULT_HIGHLIGHT}
+        bgImage={deck?.cardbackUrl ? `url(${deck.cardbackUrl})` : undefined}
         bgSize="cover"
         bgPos="center"
       >
@@ -917,7 +997,7 @@ const RosterTile = ({
             e.stopPropagation();
             onPreview();
           }}
-          aria-label={`Preview ${deck.hero}`}
+          aria-label={`Preview ${shortName}`}
           position="absolute"
           top="0.35rem"
           right="0.4rem"
@@ -942,30 +1022,34 @@ const RosterTile = ({
             noOfLines={2}
             textShadow="0 1px 2px rgba(0,0,0,0.8)"
           >
-            {displayName}
+            {name}
           </Text>
           <Flex alignItems="center" gap="0.25rem" color="#FAEBD7" pl="0.25rem">
             {locked ? (
               <FaLock size="0.65rem" opacity={0.8} />
             ) : (
-              <>
-                <FaHeart size="0.6rem" />
-                <Text fontSize="0.7rem">{deck.likes}</Text>
-              </>
+              // No tile entry means no like count to show — the badge is
+              // omitted rather than rendered as a zero.
+              deck && (
+                <>
+                  <FaHeart size="0.6rem" />
+                  <Text fontSize="0.7rem">{deck.likes}</Text>
+                </>
+              )
             )}
           </Flex>
         </Flex>
       </Flex>
   );
-  const frozenAt = status === "ready" ? frozenAtForDeck(deck.id) : null;
+  const frozenAt = status === "ready" && deck ? frozenAtForDeck(deck.id) : null;
   const inspectHint =
     status === "ready"
-      ? `${deck.hero} — playable now, click to enter the arena${
+      ? `${shortName} — playable now, click to enter the arena${
           frozenAt ? ` (rules version frozen ${frozenAt})` : ""
         }`
       : status === "lab"
-      ? `${deck.hero} — stress-testing the engine's rule language`
-      : `${deck.hero} — not yet converted (every deck's rules are hand-tuned)`;
+      ? `${shortName} — stress-testing the engine's rule language`
+      : `${shortName} — not yet converted (every deck's rules are hand-tuned)`;
   return (
     <Tooltip label={inspectHint}>
       {href ? (
