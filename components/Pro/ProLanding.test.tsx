@@ -1,25 +1,66 @@
 /**
- * /pro landing (#460). The page used to sell a future product — an "IN
+ * /pro landing (#460, #462). The page used to sell a future product — an "IN
  * DEVELOPMENT" badge, "one day fight an AI", a roadmap of already-shipped
  * steps. It now sells the playable game, so these tests pin the things that
  * would quietly regress it: the retired future-tense vocabulary, the seat
  * strip driving the Play-vs-AI CTA's `?vs=` preset, and locked decks staying
  * out of the roster grid.
+ *
+ * They also pin the roster's SOURCE (#462): the live LIST_HEROES reply, not an
+ * intersection with the hand-kept POPULAR_DECKS list. The regression that
+ * motivated it — prod advertising "14 battle-ready" while the server served 15
+ * — is only catchable by driving the mocked roster, so every roster test does.
  */
 import "@testing-library/jest-dom";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ProLanding } from "./ProLanding";
+import type { HeroListing, HeroTier } from "@/lib/pro/protocol";
 
-// The landing opens a LIST_HEROES socket; jsdom has no WebSocket. Returning null
-// (as the hook does before the server replies) exercises the FALLBACK_READY path.
+/** A LIST_HEROES row. Stats are irrelevant here; the id/name/tier are not. */
+const listing = (
+  heroId: string,
+  name: string,
+  tier: HeroTier = "community",
+): HeroListing => ({
+  heroId,
+  name,
+  hp: 16,
+  move: 3,
+  reach: "MELEE",
+  tier,
+  deckSection: "community",
+});
+
+/** The roster the mocked socket "replies" with — reassigned per test. */
+let mockRosterState: { heroes: HeroListing[] | null; offline: boolean };
+let mockDebug = false;
+
+// jsdom has no WebSocket, so the LIST_HEROES hook is mocked wholesale.
 jest.mock("../../lib/pro/useProLiveRoster", () => ({
-  useProLiveRoster: () => null,
+  useProLiveRosterState: () => mockRosterState,
 }));
 jest.mock("next/router", () => ({
-  useRouter: () => ({ query: {}, pathname: "/pro" }),
+  useRouter: () => ({
+    query: mockDebug ? { debug: "1" } : {},
+    pathname: "/pro",
+  }),
 }));
+
+// A realistic default: heroes the tile list knows, one lab-tier hero, all with
+// POPULAR_DECKS entries.
+const DEFAULT_ROSTER = [
+  listing("king-kong", "King Kong"),
+  listing("the-mandalorian", "The Mandalorian"),
+  listing("baba-yaga", "Baba Yaga"),
+  listing("nancy-drew", "Nancy Drew", "lab"),
+];
+
+beforeEach(() => {
+  mockRosterState = { heroes: DEFAULT_ROSTER, offline: false };
+  mockDebug = false;
+});
 
 // The hero-preview modal the roster tiles open runs a react-query fetch.
 const renderLanding = () =>
@@ -107,9 +148,8 @@ describe("ProLanding — roster", () => {
 
   it("links a battle-ready fighter straight into a match", () => {
     renderLanding();
-    // King Kong ships in FALLBACK_READY, so it renders as a ready tile.
     const tile = screen.getByRole("link", { name: /King Kong/ });
-    expect(tile).toHaveAttribute("href", expect.stringContaining("/pro/game?hero="));
+    expect(tile).toHaveAttribute("href", "/pro/game?hero=king-kong");
     expect(within(tile).getByText("PLAY NOW")).toBeInTheDocument();
   });
 
@@ -120,6 +160,110 @@ describe("ProLanding — roster", () => {
 
     fireEvent.mouseEnter(screen.getByRole("link", { name: /King Kong/ }).firstChild!);
     expect(screen.getByText(/KING KONG IS READY — CLICK TO ENTER THE ARENA/)).toBeInTheDocument();
+  });
+});
+
+/**
+ * The heart of #462. Before it, /pro started from POPULAR_DECKS and intersected
+ * with the server; a hero the server served but no tile described was invisible,
+ * and two hand-kept maps (FALLBACK_READY, IN_THE_LAB) drifted from reality.
+ */
+describe("ProLanding — the server roster IS the roster", () => {
+  it("renders a served hero that no deck entry describes, using the server name", () => {
+    mockRosterState = {
+      heroes: [...DEFAULT_ROSTER, listing("sherlock-holmes", "Sherlock Holmes")],
+      offline: false,
+    };
+    renderLanding();
+
+    // No POPULAR_DECKS entry and no DECK_HERO_IDS mapping exists for this hero —
+    // it must still reach the grid, named and launchable, with zero frontend edits.
+    const tile = screen.getByRole("link", { name: /Sherlock Holmes/ });
+    expect(tile).toHaveAttribute("href", "/pro/game?hero=sherlock-holmes");
+    expect(within(tile).getByText("PLAY NOW")).toBeInTheDocument();
+  });
+
+  it("splits ready vs lab on the server's tier, and counts what it renders", () => {
+    renderLanding();
+    // DEFAULT_ROSTER: 3 community + 1 lab.
+    expect(screen.getByText("3 battle-ready · 1 in the lab")).toBeInTheDocument();
+    expect(screen.getAllByText("PLAY NOW")).toHaveLength(3);
+    expect(screen.getByText("IN THE LAB")).toBeInTheDocument();
+    // Nancy Drew is lab-tier server-side: an inspect-only tile, not a link.
+    expect(screen.queryByRole("link", { name: /Nancy Drew/ })).not.toBeInTheDocument();
+  });
+
+  it("follows the server when a hero's tier changes, with no frontend edit", () => {
+    // Same hero, promoted out of the lab. Nothing else in the app changes.
+    mockRosterState = {
+      heroes: [listing("nancy-drew", "Nancy Drew", "community")],
+      offline: false,
+    };
+    renderLanding();
+    expect(screen.getByText("1 battle-ready")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Nancy Drew/ })).toBeInTheDocument();
+  });
+
+  it("keeps a served hero out of the challengers queue", () => {
+    renderLanding();
+    fireEvent.click(screen.getByRole("button", { name: /challengers approaching/i }));
+    // Every grid fighter is served, so none of them may also be "approaching".
+    for (const name of ["King Kong", "The Mandalorian", "Baba Yaga", "Nancy Drew"]) {
+      expect(screen.getAllByText(name)).toHaveLength(1);
+    }
+    // ...while a deck the server does not serve is exactly what the drawer holds.
+    // (chips carry the full deck title, as they always have)
+    expect(screen.getByText(/^Voldemort/)).toBeInTheDocument();
+  });
+
+  it("shows debug-only heroes the server reveals under ?debug, starred", () => {
+    mockDebug = true;
+    mockRosterState = {
+      heroes: [
+        listing("king-taranis", "King Taranis", "reflavored"),
+        listing("king-taranis-spice", "King Taranis", "spice"),
+      ],
+      offline: false,
+    };
+    renderLanding();
+
+    // Both tiles render (the server, not the client, decides debug visibility),
+    // and the reflavored baseline is starred apart from its spice replacement.
+    expect(screen.getByText("2 battle-ready")).toBeInTheDocument();
+    expect(screen.getByText("King Taranis ★")).toBeInTheDocument();
+    expect(screen.getByText("King Taranis")).toBeInTheDocument();
+    // Debug survives the hop into the game.
+    expect(screen.getByRole("link", { name: /King Taranis ★/ })).toHaveAttribute(
+      "href",
+      "/pro/game?hero=king-taranis&debug=1",
+    );
+  });
+});
+
+describe("ProLanding — before and without a roster", () => {
+  it("shows skeletons, not a stale hero list, before the server replies", () => {
+    mockRosterState = { heroes: null, offline: false };
+    const { container } = renderLanding();
+
+    expect(screen.getByText(/loading roster/i)).toBeInTheDocument();
+    expect(container.querySelectorAll("[aria-hidden='true']").length).toBeGreaterThan(0);
+    // No fighter is claimed ready while the roster is unknown.
+    expect(screen.queryByText("PLAY NOW")).not.toBeInTheDocument();
+    expect(screen.queryByText(/battle-ready/)).not.toBeInTheDocument();
+    // And no challengers drawer either — "not served" is unknowable right now.
+    expect(
+      screen.queryByRole("button", { name: /challengers approaching/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("degrades gracefully when the socket never connects", () => {
+    mockRosterState = { heroes: null, offline: true };
+    renderLanding();
+
+    expect(screen.getByText(/roster offline/i)).toBeInTheDocument();
+    expect(screen.getByText(/couldn't reach the referee server/i)).toBeInTheDocument();
+    // The CTAs are untouched: the game page runs its own LIST_HEROES.
+    expect(primaryCta()).toHaveAttribute("href", "/pro/game?vs=ai-medium");
   });
 });
 
