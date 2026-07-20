@@ -105,6 +105,7 @@ import {
   mapEligibleForFormat,
 } from "@/lib/pro/mapCatalog";
 import type { MapCatalogEntry } from "@/lib/pro/mapCatalog";
+import { parseVsParam } from "@/lib/pro/vsParam";
 
 /** same table felt the sandbox game uses (game.layout.tsx) */
 const TABLE_BG = "radial-gradient(ellipse at 50% 20%, #5A3263 0%, #48284F 50%, #2C1831 100%)";
@@ -2811,12 +2812,22 @@ const HeroSelectLobby = ({
 // LIVE mode
 // ---------------------------------------------------------------------------
 
-const LiveGame = ({ room, heroParam, debug }: { room: string | null; heroParam: string | null; debug: boolean }) => {
+const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; heroParam: string | null; vsBot: BotDifficulty | null; debug: boolean }) => {
   const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, requestLobbies, setVisibility, serverRestarting, gameLost } =
     useProSocket(WS_URL, debug);
   const [joined, setJoined] = useState(false);
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
   const [opponent, setOpponent] = useState<OpponentChoice>("human");
+  // `?vs=` preset (#460) applied ONCE, when the param resolves — on the static
+  // export router.query is empty for the first render, so this can't be a
+  // useState initializer. One-shot by design: a manual chip change afterwards
+  // must win rather than being re-stomped by the still-present URL param.
+  const vsPresetApplied = useRef(false);
+  useEffect(() => {
+    if (vsPresetApplied.current || !vsBot) return;
+    vsPresetApplied.current = true;
+    setOpponent(vsBot);
+  }, [vsBot]);
   const [selectedFormat, setSelectedFormat] = useState<ProFormatId>("duel");
   const [botSlotPlan, setBotSlotPlan] = useState<BotSlotPlan>({});
   // Chosen board in the create flow: a MAP_CATALOG id or CUSTOM_MAP_ID. Starts
@@ -4428,6 +4439,10 @@ const ProGamePage = () => {
   const router = useRouter();
   const room = typeof router.query.room === "string" ? router.query.room : null;
   const heroParam = typeof router.query.hero === "string" ? router.query.hero : null;
+  // `?vs=ai[-easy|-medium|-hard]` presets the duel opponent seat to a bot, so
+  // the landing's "Play vs AI" CTA lands one click from a solo match (#460).
+  // Independent of `?hero=` — both compose.
+  const vsBot = parseVsParam(router.query.vs);
   // `?debug` (any value, incl. bare `?debug`) opts this session into seeing the
   // debug-only decks the server hides by default, in the picker and in random
   // bot picks. See lib/pro/protocol.ts v15/v18.
@@ -4435,7 +4450,7 @@ const ProGamePage = () => {
 
   return (
     <Box minH="100svh" bg={TABLE_BG} color="brand.parchment">
-      {WS_URL ? <LiveGame room={room} heroParam={heroParam} debug={debug} /> : <PreviewGame />}
+      {WS_URL ? <LiveGame room={room} heroParam={heroParam} vsBot={vsBot} debug={debug} /> : <PreviewGame />}
     </Box>
   );
 };
