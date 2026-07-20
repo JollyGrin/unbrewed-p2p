@@ -1,10 +1,11 @@
 /**
  * Client-only feature flags for opt-in experiments.
  *
- * Flags default ON for THIS browser and stay on unless explicitly toggled off
- * in the beta-features menu (which persists `"off"` to localStorage). A URL
- * param (`?zoomMap`) is a sticky opt-in that writes `"on"` to storage so it
- * survives dropping the param — but it never overrides an explicit `"off"`.
+ * Flags default ON for THIS browser (unless the entry sets `defaultOn: false`)
+ * and stay at their default unless explicitly toggled in the beta-features menu
+ * (which persists `"on"`/`"off"` to localStorage). A URL param (`?zoomMap`) is a
+ * sticky opt-in that writes `"on"` to storage so it survives dropping the param
+ * — but it never overrides an explicit `"off"`.
  * Values are computed only after mount, so `useFlag` returns `false` on the
  * first (SSR) render — no hydration mismatch, and an off flag renders literally
  * nothing when consumers gate on it (`{flag && <Feature/>}`).
@@ -15,6 +16,7 @@
  *
  * ── Adding a flag ──────────────────────────────────────────────────────────
  *   1. Add an entry to FLAGS below (the key is the URL param + storage suffix).
+ *      Add `defaultOn: false` to ship it default-OFF (opt-in only).
  *   2. Gate the feature: `const [on] = useFlag("myFlag"); return on && <X/>;`
  * It shows up in the beta-features menu automatically.
  *
@@ -41,9 +43,18 @@ export const FLAGS = {
     label: "Lively tokens",
     desc: "Board tokens react to combat (recoil, lunge, brace, topple) and breathe at rest.",
   },
+  zoneHover: {
+    label: "Zone-membership hover",
+    desc: "Hovering a Pro board space rings and tints every space sharing one of its zones.",
+    defaultOn: false,
+  },
 } as const;
 
 export type FlagName = keyof typeof FLAGS;
+
+/** Whether a flag reads on when its stored value is unset. Defaults to true. */
+const defaultOnFor = (name: FlagName): boolean =>
+  (FLAGS[name] as { defaultOn?: boolean }).defaultOn ?? true;
 
 const FLAG_NAMES = Object.keys(FLAGS) as FlagName[];
 
@@ -89,9 +100,11 @@ const seed = (name: FlagName): boolean => {
     }
     return false;
   }
-  // Default ON: only an explicit "off" opts out. Never-touched (null) and "on"
-  // both read on.
-  return stored !== "off";
+  // Explicit "on"/"off" in storage always win; a never-touched (null) flag
+  // falls back to its registry default (ON unless `defaultOn: false`).
+  if (stored === "on") return true;
+  if (stored === "off") return false;
+  return defaultOnFor(name);
 };
 
 const ensureStore = (): Record<FlagName, boolean> => {
@@ -163,3 +176,14 @@ const getListSnapshot = (): FlagState[] => {
 /** Every registered flag with its live state — for the beta-features menu. */
 export const useFlags = (): FlagState[] =>
   useSyncExternalStore(subscribe, getListSnapshot, () => serverList);
+
+/**
+ * Test-only: drop the memoized store so the next read re-seeds from the current
+ * localStorage. The store is a module singleton memoized on first read, so a
+ * test that mutates `localStorage` after any flag has been read needs this to
+ * take effect. Never call from app code.
+ */
+export const __resetFlagsForTest = () => {
+  store = null;
+  listSnapshot = null;
+};
