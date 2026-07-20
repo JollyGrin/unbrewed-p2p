@@ -144,19 +144,25 @@ const SectionHeading = styled(Text)`
 `;
 
 /**
- * Pinned bottom-right: the left column is taken by the HUD plates (top) and
- * the hand controls (bottom), which the panel would sit under. Bottom-right
- * only has to clear the Tokens/Actions buttons, hence the 4.75rem offset.
- * z-index sits with ActionLog's panel (240) so both float over the board.
+ * Pinned bottom-left, above the hand controls.
+ *
+ * Not bottom-right: that corner is the on-board selection panels' slot
+ * (TokenEditPanel / CardTokenPanel / CardPickupPanel, all at bottom 6.25rem,
+ * z 250), and this panel stays open while you play, so it would sit under
+ * whichever one you opened. Not top-right either — that is the HUD cluster
+ * and the Activity log. The left column above the hand controls is the one
+ * region nothing else claims.
+ *
+ * z-index sits with ActionLog's panel (240), below the selection panels.
  */
 const Panel = styled(Box)`
   position: fixed;
-  bottom: 4.75rem;
-  right: 1rem;
+  bottom: 11rem;
+  left: 1rem;
   z-index: 240;
   width: 260px;
   max-width: calc(100vw - 2rem);
-  max-height: min(55vh, 28rem);
+  max-height: min(45vh, 22rem);
   display: flex;
   flex-direction: column;
   background-color: ${colors.brand.parchment};
