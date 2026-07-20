@@ -19,6 +19,7 @@ import { toast } from "react-hot-toast";
 import { DeckCards } from "./DeckCards";
 import { EditHeroInfo } from "./EditHeroInfo";
 import { EditCardback } from "./EditCardback";
+import { EditSavedTokens } from "./EditSavedTokens";
 
 export const BagDecks = () => {
   const {
@@ -326,6 +327,7 @@ const DeckActions = ({
         <EditHeroInfo deck={deck} onSave={updateDeck} />
       )}
       {deck && <EditCardback deck={deck} onSave={updateDeck} />}
+      {deck && <EditSavedTokens deck={deck} onSave={updateDeck} />}
       <Button
         size="sm"
         bg="brand.accent"

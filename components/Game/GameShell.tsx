@@ -21,7 +21,10 @@ import {
   cardTokenHeight,
   migrateBlob,
   newTokenId,
+  spawnSavedTokens,
 } from "@/components/Positions/position.type";
+import { SaveTokensToDeck } from "@/components/Positions/save-tokens-to-deck";
+import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import { GameState } from "@/lib/gamesocket/message";
 import {
@@ -176,6 +179,7 @@ const BoardContainer = ({
 }) => {
   const { query } = useRouter();
   const mapUrl = query.mapUrl as string | undefined;
+  const { starredDeck, updateDeck } = useLocalDeckStorage();
 
   const {
     gamePositions,
@@ -448,19 +452,31 @@ const BoardContainer = ({
     boardActionsRef.current = { revealHand, returnRevealedHand };
   }, [boardActionsRef, revealHand, returnRevealedHand]);
 
-  // Spawn a starter disc for players with no tokens yet. Wait a beat after
-  // joining so a rejoining player's saved tokens can arrive first.
+  // Seed a fresh player's board: their starred deck's saved loadout if it has
+  // one (issue #467), otherwise the lone starter disc as always. Wait a beat
+  // after joining so a rejoining player's existing tokens can arrive first and
+  // cancel this — the blob check is what makes the spawn once-per-game.
   useEffect(() => {
     if (!self || gameState === undefined) return;
     if (blobs[self]) return;
     const timer = setTimeout(() => {
-      sendBlob({
-        color: DEFAULT_PLAYER_COLOR,
-        tokens: [{ id: newTokenId(self), x: 150, y: 100 }],
-      });
+      const saved = starredDeck?.savedTokens ?? [];
+      // The loadout replaces the starter disc rather than adding to it: a
+      // player who saved tokens saved exactly what they want on the table.
+      sendBlob(
+        saved.length
+          ? {
+              color: starredDeck?.savedTokenColor ?? DEFAULT_PLAYER_COLOR,
+              tokens: spawnSavedTokens(saved, self),
+            }
+          : {
+              color: DEFAULT_PLAYER_COLOR,
+              tokens: [{ id: newTokenId(self), x: 150, y: 100 }],
+            },
+      );
     }, 1500);
     return () => clearTimeout(timer);
-  }, [blobs, self, gameState, sendBlob]);
+  }, [blobs, self, gameState, sendBlob, starredDeck]);
 
   const iconSvg = useCallback(
     (
@@ -599,6 +615,16 @@ const BoardContainer = ({
         onAdd={addToken}
         onPatch={patchToken}
         onDelete={deleteToken}
+        footer={
+          starredDeck && (
+            <SaveTokensToDeck
+              deck={starredDeck}
+              tokens={myTokens}
+              color={myColor}
+              onSave={updateDeck}
+            />
+          )
+        }
       />
     </Box>
   );
