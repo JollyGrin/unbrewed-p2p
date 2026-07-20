@@ -8,6 +8,7 @@ import {
   drawDiscard,
   shuffleDeck,
   shuffleDiscardIntoDeck,
+  shuffleRandomDiscardIntoDeck,
 } from "@/components/DeckPool/PoolFns";
 import { ModalType } from "@/pages/game";
 
@@ -253,6 +254,36 @@ export function buildDeckCommands(ctx: DeckCommandCtx): DeckCommand[] {
       keywords: "reset reshuffle",
       enabled: hasDiscard,
       run: act((p) => shuffleDiscardIntoDeck(p), "Shuffled discard into deck"),
+    },
+    {
+      id: "shuffleRandom1DiscardIn",
+      group: "Discard",
+      label: "Shuffle 1 random card into deck",
+      keywords: "recur recycle random partial",
+      enabled: hasDiscard,
+      run: act(
+        (p) => shuffleRandomDiscardIntoDeck(p, 1),
+        (_p, moved) =>
+          moved.length
+            ? `Shuffled ${moved[0].title} into deck`
+            : "Shuffled 1 random card into deck",
+      ),
+    },
+    {
+      id: "shuffleRandom3DiscardIn",
+      group: "Discard",
+      label: "Shuffle 3 random cards into deck",
+      keywords: "recur recycle random partial",
+      enabled: hasDiscard,
+      run: act(
+        (p) => shuffleRandomDiscardIntoDeck(p, 3),
+        (_p, moved) =>
+          moved.length
+            ? `Shuffled ${moved.length} into deck: ${moved
+                .map((c) => c.title)
+                .join(", ")}`
+            : "Shuffled 3 random cards into deck",
+      ),
     },
     {
       id: "openDiscard",
