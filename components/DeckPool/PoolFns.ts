@@ -283,6 +283,34 @@ export const shuffleDiscardIntoDeck = (pool: PoolType): PoolType => {
 };
 
 //   /**
+//    * Shuffle `count` randomly-chosen cards from the discard back into the deck,
+//    * for TTS-style effects that recycle part of the discard without resetting
+//    * the whole pile (issue #463). Clamped to the discard size, so a short pile
+//    * moves what it has and an empty one is a no-op.
+//    *
+//    * Unlike the other pool fns this returns the cards it moved rather than the
+//    * pool (which it mutates in place): the picks are random and land in a
+//    * freshly shuffled deck, so the caller can't recover them positionally the
+//    * way `mill` can — and the log has to name them (issue #426, item 4).
+//    */
+export const shuffleRandomDiscardIntoDeck = (
+  pool: PoolType,
+  count: number,
+): DeckImportCardType[] => {
+  if (!pool.deck || !pool.discard?.length) return [];
+
+  const moved: DeckImportCardType[] = [];
+  for (let i = 0; i < count && pool.discard.length > 0; i++) {
+    const index = Math.floor(Math.random() * pool.discard.length);
+    moved.push(pool.discard.splice(index, 1)[0]);
+  }
+
+  pool.deck = pool.deck.concat(moved);
+  shuffleDeck(pool);
+  return moved;
+};
+
+//   /**
 //    * Draw discard[cardIndex] to hand
 //    * @param cardIndex
 //    */
