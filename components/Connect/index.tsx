@@ -50,7 +50,7 @@ export const ConnectPage = () => {
   const { isLoading: isDeckImporting, error: deckImportFailed } =
     useLoadRouterDeck();
 
-  const { starredDeck, decks } = useLocalDeckStorage();
+  const { starredDeck, decks, setStar } = useLocalDeckStorage();
   const { activeServer, setActiveServer, serverList } = useLocalServerStorage();
 
   // create the lobby and connect to it
@@ -136,6 +136,9 @@ export const ConnectPage = () => {
           <SelectedDeckContainer
             isLoading={isDeckImporting}
             error={deckImportFailed}
+            starredDeck={starredDeck}
+            decks={decks}
+            setStar={setStar}
           />
         </VStack>
 
