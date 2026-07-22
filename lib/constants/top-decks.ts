@@ -550,4 +550,17 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl: "/evergreen-decks/art/malfurion-stormrage/cardback.webp",
     original: true,
   },
+  {
+    // In-the-lab Pro deck (unmatched.cards p82X / version EZYf44) — server
+    // hero cairne-bloodhoof. RAGE counter economy with spendCounterForValue
+    // (v0.25.0); Taunt card flagged NEEDS-PRIMITIVE (empty blocks).
+    id: "p82X",
+    name: "Cairne Bloodhoof",
+    hero: "Cairne Bloodhoof",
+    author: "Unknown",
+    likes: 0,
+    highlightColour: "#ce9272",
+    lab: true,
+    tier: "lab",
+  },
 ];

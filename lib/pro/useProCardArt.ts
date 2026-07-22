@@ -63,6 +63,10 @@ export const HERO_DECK_IDS: Record<string, string> = {
   "piper-of-the-underroads-spice": "piper-spice",
   "hollow-oak": "hollow-oak",
   "hollow-oak-spice": "hollow-oak-spice",
+  // Cairne Bloodhoof (issue #457 ↔ engine #240/#241): community deck, RAGE
+  // counter economy (spendCounterForValue v0.25.0 + FIGHTER_DEFEATED trigger).
+  // No protocol change — reuses existing CHOOSE_OPTION prompt + counters view.
+  "cairne-bloodhoof": "p82X",
 };
 
 /**
