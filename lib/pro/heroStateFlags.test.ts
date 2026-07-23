@@ -217,6 +217,16 @@ describe("HERO_STATE_COUNTERS registry", () => {
     expect(clue!.nameplate?.labelTemplate).toBe("CLUES: {n}");
     expect(clue!.token).toMatchObject({ title: "CLUES" });
   });
+
+  it("registers Cairne's RAGE counter on the exact engine key", () => {
+    const rage = HERO_STATE_COUNTERS.find((e) => e.heroes.includes("cairne-bloodhoof"));
+    expect(rage).toBeDefined();
+    // Engine emits the counter under key `RAGE` (cairne-bloodhoof.rules.ts:
+    // counters: [{ name: 'RAGE' }]).
+    expect(rage!.counter).toBe("RAGE");
+    expect(rage!.nameplate?.labelTemplate).toBe("RAGE: {n}");
+    expect(rage!.token).toMatchObject({ icon: "😡", title: "RAGE" });
+  });
 });
 
 describe("counterChipsFor (HUD nameplate)", () => {
@@ -243,6 +253,20 @@ describe("counterChipsFor (HUD nameplate)", () => {
   it("renders no counter chip for a non-registered hero, even with a stray counter", () => {
     expect(counterChipsFor("king-kong", { CLUE: 4 })).toEqual([]);
   });
+
+  it("shows a RAGE pill with the live value when Cairne has rage", () => {
+    const chips = counterChipsFor("cairne-bloodhoof", { RAGE: 2 });
+    expect(chips).toHaveLength(1);
+    expect(chips[0].chip.onLabel).toBe("RAGE: 2");
+    expect(chips[0].on).toBe(true);
+    expect(chips[0].chip.flag).toBe("counter:RAGE");
+  });
+
+  it("hides Cairne's RAGE pill at 0 (and when absent)", () => {
+    expect(counterChipsFor("cairne-bloodhoof", { RAGE: 0 })).toEqual([]);
+    expect(counterChipsFor("cairne-bloodhoof", {})).toEqual([]);
+    expect(counterChipsFor("cairne-bloodhoof", undefined)).toEqual([]);
+  });
 });
 
 describe("fighterTokenCounterBadgeFor (board token)", () => {
@@ -263,6 +287,20 @@ describe("fighterTokenCounterBadgeFor (board token)", () => {
   it("does not badge non-registered heroes", () => {
     expect(fighterTokenCounterBadgeFor("king-kong", { CLUE: 3 })).toBeNull();
     expect(fighterTokenCounterBadgeFor(undefined, { CLUE: 3 })).toBeNull();
+  });
+
+  it("badges Cairne's token with the numeric RAGE count (😡)", () => {
+    expect(fighterTokenCounterBadgeFor("cairne-bloodhoof", { RAGE: 3 })).toMatchObject({
+      icon: "😡",
+      label: "3",
+      title: "RAGE: 3",
+    });
+  });
+
+  it("hides Cairne's RAGE badge at 0 / absent", () => {
+    expect(fighterTokenCounterBadgeFor("cairne-bloodhoof", { RAGE: 0 })).toBeNull();
+    expect(fighterTokenCounterBadgeFor("cairne-bloodhoof", {})).toBeNull();
+    expect(fighterTokenCounterBadgeFor("cairne-bloodhoof", undefined)).toBeNull();
   });
 });
 

@@ -181,6 +181,16 @@ export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
     nameplate: { labelTemplate: "CLUES: {n}" },
     token: { icon: "🔍", title: "CLUES", bg: "#6D4C8D", color: "#F3ECFA" },
   },
+  {
+    // Cairne Bloodhoof's RAGE economy (issue #480-family ↔ engine #241). Engine
+    // counter key is `RAGE` (counters: [{ name: 'RAGE' }] in cairne-bloodhoof.rules.ts).
+    // Rage-crimson bg / cream text match the deck's POSTER-STYLE palette. Hidden at
+    // 0 like every counter (an empty rage pool reads as no chip / no badge).
+    counter: "RAGE",
+    heroes: ["cairne-bloodhoof"],
+    nameplate: { labelTemplate: "RAGE: {n}" },
+    token: { icon: "😡", title: "RAGE", bg: "#A61C1C", color: "#FDF3E3" },
+  },
 ];
 
 const counterEntriesForHero = (heroId: string) =>
