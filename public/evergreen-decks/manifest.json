@@ -268,12 +268,12 @@
       "heroId": "cairne-bloodhoof",
       "deckId": "p82X",
       "version_id": "EZYf44",
-      "frozenAt": "2026-07-20",
-      "digest": "sha256:4fa1471ef2bdf237b3c5af86122af1e588273415b1fab54cb5b39bababba843a",
+      "frozenAt": "2026-07-23",
+      "digest": "sha256:179708f7fcda927ced7ac49591c3343d4b67375ea6167c776f8ac2b7a8934d35",
       "rulesVerified": {
-        "repo": "unbrewed-pro-server",
+        "repo": "unbrewed-engine",
         "file": "data/heroes/cairne-bloodhoof.rules.ts",
-        "commit": "4df70bb"
+        "commit": "a37b59beefd1a4f36067ccf27602be54326cec30"
       }
     }
   ]
