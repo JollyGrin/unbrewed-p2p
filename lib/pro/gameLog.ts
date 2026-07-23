@@ -180,6 +180,46 @@ export const seatLabel = (view: PlayerView, player: PlayerId): string => {
   return view.players.length === 2 ? "Opponent" : player.toUpperCase();
 };
 
+/**
+ * Log lines for the batch's `COUNTER_CHANGED` events (RAGE, Nancy's CLUE,
+ * OMEN…). The event carries only the NEW value, so the delta is derived against
+ * a per-`(player, counter)` running value: the FIRST event of a batch chains
+ * off `priorValue` (the pre-batch snapshot value, 0 if the counter was unseen),
+ * and each later event in the same batch chains off the value the prior event
+ * set — so multiple mutations of one counter in a single action each read out.
+ *
+ * Generic by construction (raw engine key as the display name, no per-hero
+ * switch), so any current or future counter hero surfaces automatically:
+ *   - decrease to a positive value → `spent 2 RAGE (1 remaining)`
+ *   - decrease to zero             → `lost all RAGE (was 2)`
+ *   - increase                     → `gained 1 RAGE (2 total)`
+ * A no-op (value unchanged) emits nothing.
+ */
+export function counterChangeLines(
+  events: GameEvent[],
+  priorValue: (player: PlayerId, name: string) => number,
+  whoOf: (player: PlayerId) => "you" | "opp"
+): ProLogLine[] {
+  const running = new Map<string, number>();
+  const out: ProLogLine[] = [];
+  for (const e of events) {
+    if (e.type !== "COUNTER_CHANGED") continue;
+    const key = `${e.player} ${e.name}`;
+    const prior = running.has(key) ? running.get(key)! : priorValue(e.player, e.name);
+    running.set(key, e.value);
+    const delta = e.value - prior;
+    if (delta === 0) continue;
+    const text =
+      delta > 0
+        ? `gained ${delta} ${e.name} (${e.value} total)`
+        : e.value === 0
+          ? `lost all ${e.name} (was ${prior})`
+          : `spent ${-delta} ${e.name} (${e.value} remaining)`;
+    out.push({ text, who: whoOf(e.player) });
+  }
+  return out;
+}
+
 export function diffViews(
   prev: PlayerView | null,
   next: PlayerView,
@@ -306,6 +346,19 @@ export function diffViews(
       });
     }
   }
+
+  // public counters (RAGE / CLUE / OMEN …): spent/gained/lost, off the event
+  // stream — each COUNTER_CHANGED carries only the new value, so the delta is
+  // measured against the pre-batch snapshot value (issue #485). Both seats see
+  // both players' lines; counters are public. Absent on reconnect/resume
+  // broadcasts (no events), so no lines double-fire.
+  lines.push(
+    ...counterChangeLines(
+      events,
+      (player, name) => prevPlayers.get(player)?.counters?.[name] ?? 0,
+      whoOf
+    )
+  );
 
   // tokens (totems): appearances and disappearances
   const prevTokens = new Map((prev.tokens ?? []).map((t) => [t.id, t]));

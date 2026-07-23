@@ -2,13 +2,14 @@ import {
   diffViews,
   enrichLines,
   batchPhase,
+  counterChangeLines,
   groupLog,
   logEntriesToCsv,
   EnrichContext,
   ProLogEntry,
   ProLogLine,
 } from "./gameLog";
-import { CardInstanceId, GameEvent, PlayerView, ViewCombat, ViewFighter } from "./protocol";
+import { CardInstanceId, GameEvent, PlayerId, PlayerView, ViewCombat, ViewFighter } from "./protocol";
 
 // --- fixture builders (mirrors fxEvents.test.ts) ----------------------------
 
@@ -799,5 +800,113 @@ describe("logEntriesToCsv — strictly oldest-first export", () => {
       .map((r) => r.split(",")[0]);
     const sorted = [...times].sort();
     expect(times).toEqual(sorted);
+  });
+});
+
+// --- Counter changes: spent/gained/lost RAGE etc. (issue #485) ---------------
+// The engine emits COUNTER_CHANGED { player, name, value } with only the NEW
+// value, so the formatter derives the delta against a per-(player, counter)
+// running value seeded from the pre-batch snapshot. Generic for every counter
+// hero (RAGE, CLUE, OMEN …) — no per-hero switch.
+describe("counterChangeLines — the COUNTER_CHANGED formatter", () => {
+  const cc = (player: PlayerId, name: string, value: number): GameEvent => ({
+    type: "COUNTER_CHANGED",
+    player,
+    name,
+    value,
+  });
+  const whoOf = (p: PlayerId): "you" | "opp" => (p === "p1" ? "you" : "opp");
+  // No prior value tracked for any counter: every first-seen delta is vs 0.
+  const noPrior = () => 0;
+
+  it("logs a gain as `gained N NAME (total)`", () => {
+    const lines = counterChangeLines([cc("p1", "RAGE", 2)], () => 1, whoOf);
+    expect(lines).toEqual([{ text: "gained 1 RAGE (2 total)", who: "you" }]);
+  });
+
+  it("logs a spend (decrease to a positive value) as `spent N NAME (remaining)`", () => {
+    const lines = counterChangeLines([cc("p1", "RAGE", 1)], () => 3, whoOf);
+    expect(lines).toEqual([{ text: "spent 2 RAGE (1 remaining)", who: "you" }]);
+  });
+
+  it("logs a removeAll (decrease to zero) as `lost all NAME (was N)`", () => {
+    const lines = counterChangeLines([cc("p1", "RAGE", 0)], () => 2, whoOf);
+    expect(lines).toEqual([{ text: "lost all RAGE (was 2)", who: "you" }]);
+  });
+
+  it("treats a first-seen counter with no prior value as 0 (increase from 0)", () => {
+    const lines = counterChangeLines([cc("p1", "OMEN", 3)], noPrior, whoOf);
+    expect(lines).toEqual([{ text: "gained 3 OMEN (3 total)", who: "you" }]);
+  });
+
+  it("emits nothing for a no-op change (value unchanged)", () => {
+    expect(counterChangeLines([cc("p1", "RAGE", 2)], () => 2, whoOf)).toEqual([]);
+  });
+
+  it("chains multiple mutations of one counter within a single batch", () => {
+    // spend 2 (3→1) then gain 1 (1→2) in the same action: each reads out, the
+    // second delta measured against the value the first event set, not the
+    // pre-batch snapshot.
+    const lines = counterChangeLines([cc("p1", "RAGE", 1), cc("p1", "RAGE", 2)], () => 3, whoOf);
+    expect(lines).toEqual([
+      { text: "spent 2 RAGE (1 remaining)", who: "you" },
+      { text: "gained 1 RAGE (2 total)", who: "you" },
+    ]);
+  });
+
+  it("keeps interleaved two-player sequences on independent running values", () => {
+    // p1 RAGE 3→1, p2 CLUE 0→1, p1 RAGE 1→0, p2 CLUE 1→2 — each (player,name)
+    // tracks its own baseline, so the deltas never cross-contaminate.
+    const prior = (player: string, name: string) =>
+      player === "p1" && name === "RAGE" ? 3 : 0;
+    const lines = counterChangeLines(
+      [cc("p1", "RAGE", 1), cc("p2", "CLUE", 1), cc("p1", "RAGE", 0), cc("p2", "CLUE", 2)],
+      prior,
+      whoOf
+    );
+    expect(lines).toEqual([
+      { text: "spent 2 RAGE (1 remaining)", who: "you" },
+      { text: "gained 1 CLUE (1 total)", who: "opp" },
+      { text: "lost all RAGE (was 1)", who: "you" },
+      { text: "gained 1 CLUE (2 total)", who: "opp" },
+    ]);
+  });
+
+  it("ignores non-counter events in the batch", () => {
+    expect(counterChangeLines([{ type: "DEFENSE_IGNORED" }], () => 0, whoOf)).toEqual([]);
+  });
+});
+
+// diffViews seeds the pre-batch baseline from the previous snapshot's public
+// counters, so the delta is correct end-to-end (issue #485).
+describe("diffViews — counter change lines seeded from the snapshot baseline", () => {
+  const withCounter = (self: number, opp: number, over: Partial<PlayerView> = {}) =>
+    view({
+      self: { id: "p1", heroId: "cairne-bloodhoof", hand: [], deckCount: 10, discard: [], committedCard: null, counters: { RAGE: self }, flags: {}, wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false },
+      opponent: { id: "p2", heroId: "thrall", handCount: 5, deckCount: 10, discard: [], hasCommitted: false, counters: { RAGE: opp }, flags: {}, wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false },
+      ...over,
+    });
+
+  it("derives a spend delta from the previous snapshot's counter value", () => {
+    const prev = withCounter(3, 0);
+    const next = withCounter(1, 0);
+    const lines = diffViews(prev, next, label, [
+      { type: "COUNTER_CHANGED", player: "p1", name: "RAGE", value: 1 },
+    ]);
+    expect(lines).toContainEqual({ text: "spent 2 RAGE (1 remaining)", who: "you" });
+  });
+
+  it("attributes the opponent's gain to [opp] (public counters, both seats)", () => {
+    const prev = withCounter(0, 1);
+    const next = withCounter(0, 2);
+    const lines = diffViews(prev, next, label, [
+      { type: "COUNTER_CHANGED", player: "p2", name: "RAGE", value: 2 },
+    ]);
+    expect(lines).toContainEqual({ text: "gained 1 RAGE (2 total)", who: "opp" });
+  });
+
+  it("emits no counter line on a broadcast with no events (resume/join)", () => {
+    const lines = diffViews(withCounter(3, 0), withCounter(1, 0), label, []);
+    expect(lines.some((l) => /RAGE/.test(l.text))).toBe(false);
   });
 });
