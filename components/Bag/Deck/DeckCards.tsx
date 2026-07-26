@@ -121,37 +121,40 @@ const HeroCard = ({ deck }: { deck: DeckImportType }) => {
         </Flex>
       )}
 
-      {/* character cards past the hero/sidekick (issue #500) — Skeleton King's
-          skeletons, Frankenstein's Monster. Same row as the sidekick above, so
-          a player sees the whole roster before starring the deck. Blank slots
-          (the Maker's empty "Sidekick" stubs) are dropped by the shared guard,
-          so decks without the field render exactly as before. */}
-      {extraCharacters.map(({ hero: character }, index) => (
-        <Box key={`${character.name}-${index}`}>
-          <Flex justifyContent="space-between">
-            <Text fontWeight={700}>{character.name}</Text>
-            <HStack>
-              {character.hp !== null && (
-                <>
-                  <FaHeart />
-                  <Text>{character.hp}</Text>
-                </>
-              )}
-              <GiFootprint />
-              <Text>{character.move}</Text>
-              <IsRanged isRanged={character.isRanged} />
-            </HStack>
-          </Flex>
-          {!!character.specialAbility?.trim() && (
-            <Text fontSize="0.75rem" opacity="0.75" whiteSpace="pre-wrap">
-              {character.specialAbility.trim()}
-            </Text>
-          )}
-        </Box>
-      ))}
-
       <Box>
         <Text>{hero?.specialAbility}</Text>
+
+        {/* character cards past the hero/sidekick (issue #500) — Skeleton
+            King's skeletons, Frankenstein's Monster. Same row as the sidekick
+            above, so a player sees the whole roster before starring the deck,
+            but placed after the hero's ability so that paragraph stays with
+            the hero it belongs to. Blank slots (the Maker's empty "Sidekick"
+            stubs) are dropped by the shared guard, so decks without the field
+            render exactly as before. */}
+        {extraCharacters.map(({ hero: character }, index) => (
+          <Box key={`${character.name}-${index}`}>
+            <Flex justifyContent="space-between">
+              <Text fontWeight={700}>{character.name}</Text>
+              <HStack>
+                {character.hp !== null && (
+                  <>
+                    <FaHeart />
+                    <Text>{character.hp}</Text>
+                  </>
+                )}
+                <GiFootprint />
+                <Text>{character.move}</Text>
+                <IsRanged isRanged={character.isRanged} />
+              </HStack>
+            </Flex>
+            {!!character.specialAbility?.trim() && (
+              <Text fontSize="0.75rem" opacity="0.75" whiteSpace="pre-wrap">
+                {character.specialAbility.trim()}
+              </Text>
+            )}
+          </Box>
+        ))}
+
         <Text
           mt="4px"
           fontSize="0.75rem"
