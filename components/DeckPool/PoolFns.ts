@@ -49,6 +49,19 @@ export const normalizeCardText = <T extends DeckImportCardType>(card: T): T => (
   afterText: blankToEmpty(card.afterText),
 });
 
+/**
+ * True when the deck actually fields a sidekick (issue #494).
+ *
+ * unmatched.cards always emits a sidekick object, even for decks with none —
+ * a stub like `{ hp: null, isRanged: true, name: "", quantity: 0 }`, where the
+ * `isRanged: true` is just their form default. We pass that through faithfully
+ * (other surfaces read `quantity === 0`), so every consumer that renders the
+ * sidekick has to gate on the stub rather than on an absent key.
+ */
+export const hasSidekick = (
+  sidekick?: PoolType["sidekick"] | null,
+): boolean => !!sidekick?.name && (sidekick.quantity ?? 0) > 0;
+
 export const newPool = (deckData: DeckImportType): PoolType => {
   const { user, family_id, name, note, deck_data } = deckData;
   const { cards, hero, sidekick } = deck_data;

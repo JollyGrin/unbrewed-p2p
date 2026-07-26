@@ -4,7 +4,7 @@ import styled from "@emotion/styled";
 import { GiHearts } from "react-icons/gi";
 import { TbBow, TbSword } from "react-icons/tb";
 import { colors } from "@/styles/style";
-import { PoolType } from "@/components/DeckPool/PoolFns";
+import { PoolType, hasSidekick } from "@/components/DeckPool/PoolFns";
 
 /**
  * Persistent hero-rules panel for the sandbox HUD (issue #474).
@@ -32,7 +32,7 @@ export const HeroRulesPanel = ({
   const { deckName, hero, sidekick, ruleCards } = pool;
   const rules = (ruleCards ?? []).filter((rule) => rule.content?.trim());
   const ability = hero?.specialAbility?.trim();
-  const hasSidekick = !!sidekick?.name && (sidekick.quantity ?? 0) > 0;
+  const showSidekick = hasSidekick(sidekick);
 
   return (
     <Panel>
@@ -89,7 +89,7 @@ export const HeroRulesPanel = ({
           />
         ))}
 
-        {hasSidekick && (
+        {showSidekick && (
           <Section
             title="Sidekick"
             body={[
