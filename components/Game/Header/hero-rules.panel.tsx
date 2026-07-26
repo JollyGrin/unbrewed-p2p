@@ -4,7 +4,11 @@ import styled from "@emotion/styled";
 import { GiHearts } from "react-icons/gi";
 import { TbBow, TbSword } from "react-icons/tb";
 import { colors } from "@/styles/style";
-import { PoolType, hasSidekick } from "@/components/DeckPool/PoolFns";
+import {
+  PoolExtraCharacterType,
+  PoolType,
+  hasSidekick,
+} from "@/components/DeckPool/PoolFns";
 
 /**
  * Persistent hero-rules panel for the sandbox HUD (issue #474).
@@ -29,10 +33,14 @@ export const HeroRulesPanel = ({
   name: string;
   onClose: () => void;
 }) => {
-  const { deckName, hero, sidekick, ruleCards } = pool;
+  const { deckName, hero, sidekick, ruleCards, extraCharacters } = pool;
   const rules = (ruleCards ?? []).filter((rule) => rule.content?.trim());
   const ability = hero?.specialAbility?.trim();
   const showSidekick = hasSidekick(sidekick);
+  // character cards past the hero (issue #500) — Skeleton King's two skeleton
+  // types, Frankenstein's Monster. Blank slots are dropped by the pool
+  // transform, so decks without the field render exactly as before.
+  const extras = extraCharacters ?? [];
 
   return (
     <Panel>
@@ -89,6 +97,14 @@ export const HeroRulesPanel = ({
           />
         ))}
 
+        {extras.map((character, i) => (
+          <Section
+            key={`${character.hero.name}-${i}`}
+            title={character.hero.name || "Extra character"}
+            body={extraCharacterBody(character)}
+          />
+        ))}
+
         {showSidekick && (
           <Section
             title="Sidekick"
@@ -108,6 +124,22 @@ export const HeroRulesPanel = ({
     </Panel>
   );
 };
+
+/** Stats line then the ability, e.g. "1 HP, melee, move 2\nthis is larry" —
+ *  the same shape the Sidekick section already uses for its body. */
+const extraCharacterBody = ({ hero }: PoolExtraCharacterType): string =>
+  [
+    [
+      hero.hp !== null && hero.hp !== undefined ? `${hero.hp} HP` : "",
+      hero.isRanged ? "ranged" : "melee",
+      typeof hero.move === "number" ? `move ${hero.move}` : "",
+    ]
+      .filter(Boolean)
+      .join(", "),
+    hero.specialAbility?.trim(),
+  ]
+    .filter(Boolean)
+    .join("\n");
 
 const Section = ({
   title,

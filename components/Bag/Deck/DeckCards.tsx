@@ -1,5 +1,6 @@
 import { Card } from "@/components/CardFactory/Card";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
+import { toPoolExtraCharacters } from "@/components/DeckPool/PoolFns";
 import { Flex, Box, Text, HStack, Tooltip } from "@chakra-ui/react";
 
 import { FaHeart } from "react-icons/fa";
@@ -78,6 +79,12 @@ export const DeckCards = ({
 const HeroCard = ({ deck }: { deck: DeckImportType }) => {
   const hero = deck?.deck_data?.hero;
   const sidekick = deck?.deck_data?.sidekick;
+  // Read straight off deck_data — this tile never sees a pool. Routed through
+  // the same narrowing helper the pool uses so /bag and the table agree on
+  // which characters a deck actually fields (issue #500).
+  const extraCharacters = toPoolExtraCharacters(
+    deck?.deck_data?.extraCharacters,
+  );
   const isSidekick =
     sidekick?.name !== "Sidekick" || (!!sidekick.hp && !!sidekick.quantity);
   return (
@@ -116,6 +123,38 @@ const HeroCard = ({ deck }: { deck: DeckImportType }) => {
 
       <Box>
         <Text>{hero?.specialAbility}</Text>
+
+        {/* character cards past the hero/sidekick (issue #500) — Skeleton
+            King's skeletons, Frankenstein's Monster. Same row as the sidekick
+            above, so a player sees the whole roster before starring the deck,
+            but placed after the hero's ability so that paragraph stays with
+            the hero it belongs to. Blank slots (the Maker's empty "Sidekick"
+            stubs) are dropped by the shared guard, so decks without the field
+            render exactly as before. */}
+        {extraCharacters.map(({ hero: character }, index) => (
+          <Box key={`${character.name}-${index}`}>
+            <Flex justifyContent="space-between">
+              <Text fontWeight={700}>{character.name}</Text>
+              <HStack>
+                {character.hp !== null && (
+                  <>
+                    <FaHeart />
+                    <Text>{character.hp}</Text>
+                  </>
+                )}
+                <GiFootprint />
+                <Text>{character.move}</Text>
+                <IsRanged isRanged={character.isRanged} />
+              </HStack>
+            </Flex>
+            {!!character.specialAbility?.trim() && (
+              <Text fontSize="0.75rem" opacity="0.75" whiteSpace="pre-wrap">
+                {character.specialAbility.trim()}
+              </Text>
+            )}
+          </Box>
+        ))}
+
         <Text
           mt="4px"
           fontSize="0.75rem"

@@ -6,6 +6,10 @@ import {
   DeckImportType,
   PoolCardType,
 } from "@/components/DeckPool/deck-import.type";
+import {
+  PoolExtraCharacterType,
+  toPoolExtraCharacters,
+} from "@/components/DeckPool/PoolFns";
 import { clone } from "lodash";
 
 export default class Pool {
@@ -20,6 +24,8 @@ export default class Pool {
   sidekick: DeckImportSidekickType;
   /** deck-level "extra rules" cards (issue #372); [] when the deck has none */
   ruleCards: DeckImportRuleCardType[];
+  /** character cards past the hero/sidekick (issue #500); [] for most decks */
+  extraCharacters: PoolExtraCharacterType[];
 
   hand: DeckImportCardType[];
   discard: DeckImportCardType[];
@@ -56,6 +62,7 @@ export default class Pool {
       quote: sidekick.quote,
     };
     this.ruleCards = deck_data.ruleCards ?? [];
+    this.extraCharacters = toPoolExtraCharacters(deck_data.extraCharacters);
 
     // CONTAINERS
     this.hand = [];
