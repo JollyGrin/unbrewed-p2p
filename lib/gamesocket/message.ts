@@ -57,6 +57,26 @@ export interface PlayerState {
   pendingTransfers?: CardTransfer[]; // sender's escrow, pruned once acked
   appliedTransfers?: string[]; // recipient's consumed ids (dedup under rebroadcast)
   tokenClaims?: TokenClaim[]; // claimant's "I want that table card" requests
+  // Room-wide reset (docs/game-reset-plan.md). Proposed on the proposer's
+  // blob, voted on each other player's blob, committed by bumping resetEpoch —
+  // which is the ONLY field that actually triggers a wipe.
+  resetRequest?: ResetRequest; // proposer only; cleared on commit/cancel/expiry
+  resetVotes?: ResetVote[]; // this player's answers to requests they've seen
+  resetEpoch?: number; // highest reset this player has APPLIED
+}
+
+/** A proposal to wipe the room. Lives on the proposer's blob until resolved. */
+export interface ResetRequest {
+  id: string;
+  by: string;
+  at: number;
+}
+
+/** One player's answer to a request, stamped on their OWN blob. */
+export interface ResetVote {
+  requestId: string;
+  accept: boolean;
+  at: number;
 }
 
 export type TransferZone = "hand" | "deckTop" | "deckBottom" | "discard";

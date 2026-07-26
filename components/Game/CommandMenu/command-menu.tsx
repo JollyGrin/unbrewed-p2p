@@ -19,6 +19,7 @@ import { PoolType, reorderTop } from "@/components/DeckPool/PoolFns";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 import { ScryModal } from "./scry.modal";
 import { rollDice } from "@/components/Game/Dice/rollDice";
+import { useGameMenus } from "@/components/Game/GameMenus/game-menus";
 import { DeckCommand, DeckLabel, buildDeckCommands } from "./deckCommands";
 
 export const CommandMenu: React.FC<{
@@ -34,6 +35,7 @@ export const CommandMenu: React.FC<{
   const localName = useRouter().query?.name;
   const player = Array.isArray(localName) ? localName[0] : localName;
   const { gameState, logAction, publishRoll } = useWebGame();
+  const menus = useGameMenus();
   const players = gameState?.content?.players as
     | Record<string, { pool?: PoolType }>
     | undefined;
@@ -125,9 +127,21 @@ export const CommandMenu: React.FC<{
               openTokenLibrary();
             }
           : undefined,
+        newGame: menus
+          ? () => {
+              close();
+              menus.openNewGame();
+            }
+          : undefined,
+        changeDeck: menus
+          ? () => {
+              close();
+              menus.openChangeDeck();
+            }
+          : undefined,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pool, deckLen, discardLen, handLen],
+    [pool, deckLen, discardLen, handLen, menus],
   );
 
   const filtered = useMemo(() => {
@@ -142,10 +156,15 @@ export const CommandMenu: React.FC<{
     setCursor((c) => Math.min(c, Math.max(0, filtered.length - 1)));
   }, [filtered.length]);
 
+  // Game-lifecycle commands are the only ones that make sense without a pool —
+  // "New game" is exactly what you want when your deck failed to build.
+  const isRunnable = (cmd: DeckCommand) =>
+    pool ? cmd.enabled(pool) : cmd.group === "Game";
+
   const runAt = (index: number) => {
     const cmd = filtered[index];
-    if (!cmd || !pool) return;
-    if (!cmd.enabled(pool)) {
+    if (!cmd) return;
+    if (!isRunnable(cmd)) {
       toast.error("Not available right now");
       return;
     }
@@ -204,7 +223,7 @@ export const CommandMenu: React.FC<{
               </Text>
             )}
             {filtered.map((cmd, index) => {
-              const disabled = pool ? !cmd.enabled(pool) : true;
+              const disabled = !isRunnable(cmd);
               const active = index === cursor;
               const prevGroup = filtered[index - 1]?.group;
               return (

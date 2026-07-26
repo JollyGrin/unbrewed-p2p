@@ -14,10 +14,18 @@ type Props = {
   starredDeck?: DeckImportType;
   decks?: DeckImportType[];
   setStar: (id: string) => void;
+  /**
+   * Whether the tile and footer link out to /bag. Off in the in-game deck
+   * picker (issue #493): navigating away mid-game would drop the player out of
+   * their lobby, so there the tile is inert and the picker is the Select.
+   */
+  linkToBag?: boolean;
 };
 
 export const SelectedDeckContainer = (props: Props) => {
   const { isLoading, error, starredDeck, decks, setStar } = props;
+  const linkToBag = props.linkToBag ?? true;
+  const bagLink = linkToBag ? { as: Link, href: "/bag", cursor: "pointer" } : {};
   return (
     <Flex
       flexDir={"column"}
@@ -58,8 +66,7 @@ export const SelectedDeckContainer = (props: Props) => {
       ) : starredDeck === undefined && error ? (
         <>
           <Flex
-            as={Link}
-            href={"/bag"}
+            {...bagLink}
             role="group"
             w="200px"
             h="300px"
@@ -72,7 +79,6 @@ export const SelectedDeckContainer = (props: Props) => {
             borderRadius="0.5rem"
             flexDir={"column"}
             gap={2}
-            cursor="pointer"
             transition="all 0.25s ease-in-out"
           >
             <Text
@@ -100,8 +106,7 @@ export const SelectedDeckContainer = (props: Props) => {
       ) : starredDeck === undefined ? (
         <>
           <Flex
-            as={Link}
-            href={"/bag"}
+            {...bagLink}
             role="group"
             w="200px"
             h="300px"
@@ -114,7 +119,6 @@ export const SelectedDeckContainer = (props: Props) => {
             borderRadius="0.5rem"
             flexDir={"column"}
             gap={2}
-            cursor="pointer"
             transition="all 0.25s ease-in-out"
             _hover={{ borderColor: "brand.highlight", transform: "translateY(-2px)" }}
           >
@@ -164,8 +168,7 @@ export const SelectedDeckContainer = (props: Props) => {
       ) : (
         <>
           <Flex
-            as={Link}
-            href="/bag"
+            {...bagLink}
             w="200px"
             h="300px"
             bg={starredDeck.deck_data.appearance.highlightColour}
@@ -183,7 +186,6 @@ export const SelectedDeckContainer = (props: Props) => {
               boxShadow: "0 0 10px rgba(0,0,0,0.55)",
               filter: "saturate(1.1)",
             }}
-            cursor="pointer"
           >
             <Text
               display={
@@ -224,17 +226,19 @@ export const SelectedDeckContainer = (props: Props) => {
               </option>
             ))}
           </Select>
-          <Text
-            as={Link}
-            href="/bag"
-            fontSize="0.8rem"
-            color="brand.secondary"
-            opacity={0.7}
-            textDecoration="underline"
-            _hover={{ opacity: 1 }}
-          >
-            ＋ Add more decks in your bag
-          </Text>
+          {linkToBag && (
+            <Text
+              as={Link}
+              href="/bag"
+              fontSize="0.8rem"
+              color="brand.secondary"
+              opacity={0.7}
+              textDecoration="underline"
+              _hover={{ opacity: 1 }}
+            >
+              ＋ Add more decks in your bag
+            </Text>
+          )}
         </>
       )}
     </Flex>
