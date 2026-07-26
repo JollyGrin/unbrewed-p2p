@@ -256,7 +256,15 @@ export const CardSvg: React.FC<{
             strokeWidth="0.4"
             stroke="#fff"
           />
-          {card.basicText ? (
+          {/* Sections are driven off the WRAPPED line counts, never the raw
+              card strings (issue #495). The `y` of each block accumulates the
+              previous blocks' wrapped lengths, and the wrap fns treat a
+              whitespace-only string (" ", "\n", an &nbsp; that survived a
+              deck-builder textarea) as empty — so gating on raw truthiness drew
+              a heading that occupied zero layout lines and the next section
+              landed on the identical baseline, overlapping it. Same lengths also
+              size the black panel (actions.bottomPanelHeight). */}
+          {props.wrapBasicText.length > 0 ? (
             <text
               style={props.bodyTextStyle}
               y={
@@ -279,7 +287,7 @@ export const CardSvg: React.FC<{
             ""
           )}
 
-          {!props.isScheme && card.immediateText ? (
+          {!props.isScheme && props.wrapImmediateText.length > 0 ? (
             <text
               style={props.bodyTextStyle}
               y={
@@ -294,7 +302,10 @@ export const CardSvg: React.FC<{
                 x={conprops.bottomPanelPadding}
                 style={cardStyles.sectionHeadingStyle}
               >
-                IMMEDIATELY:
+                {/* nbsp, not a plain space: the wrap indent budgets for
+                    "IMMEDIATELY: " but SVG collapses a trailing space, so the
+                    first content line rendered flush against the colon. */}
+                {"IMMEDIATELY:\u00a0"}
               </tspan>
               {props.wrapImmediateText.map((line, index) => (
                 <tspan
@@ -310,7 +321,7 @@ export const CardSvg: React.FC<{
             ""
           )}
 
-          {!props.isScheme && card.duringText ? (
+          {!props.isScheme && props.wrapDuringText.length > 0 ? (
             <text
               style={props.bodyTextStyle}
               y={
@@ -327,7 +338,7 @@ export const CardSvg: React.FC<{
                 x={conprops.bottomPanelPadding}
                 style={cardStyles.sectionHeadingStyle}
               >
-                DURING COMBAT:
+                {"DURING COMBAT:\u00a0"}
               </tspan>
               {props.wrapDuringText.map((line, index) => (
                 <tspan
@@ -343,7 +354,7 @@ export const CardSvg: React.FC<{
             ""
           )}
 
-          {!props.isScheme && card.afterText ? (
+          {!props.isScheme && props.wrapAfterText.length > 0 ? (
             <text
               style={props.bodyTextStyle}
               y={
@@ -362,7 +373,7 @@ export const CardSvg: React.FC<{
                 x={conprops.bottomPanelPadding}
                 style={cardStyles.sectionHeadingStyle}
               >
-                AFTER COMBAT:
+                {"AFTER COMBAT:\u00a0"}
               </tspan>
               {props.wrapAfterText.map((line, index) => (
                 <tspan

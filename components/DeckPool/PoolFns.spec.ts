@@ -26,6 +26,33 @@ describe("newPool", () => {
     expect(newPool(noRules).ruleCards).toEqual([]);
   });
 
+  // issue #495: whitespace-only body text (" ", "\n", an &nbsp; that survived a
+  // deck-builder textarea) reads as "has a section" to raw truthiness checks
+  // while the card layout, which trims, gives it zero lines. Normalize it on
+  // import so the copy that syncs over the websocket is clean too.
+  test("normalizes whitespace-only card text to empty strings", () => {
+    const deck = clone(_mockDeck);
+    deck.deck_data = clone(deck.deck_data);
+    deck.deck_data.cards = deck.deck_data.cards.map((c, i) =>
+      i === 0
+        ? {
+            ...c,
+            basicText: " ",
+            immediateText: "\n",
+            duringText: " ",
+            afterText: "Deal 1 damage to the opponent",
+          }
+        : c,
+    );
+
+    const card = newPool(deck).cards[0];
+    expect(card.basicText).toBe("");
+    expect(card.immediateText).toBe("");
+    expect(card.duringText).toBe("");
+    // Real text is passed through verbatim.
+    expect(card.afterText).toBe("Deal 1 damage to the opponent");
+  });
+
   // issue #437: decks that only carry the back at deck level
   // (appearance.cardbackUrl — API/evergreen decks) must have it backfilled onto
   // every pooled card, since pooled cards detach from deck_data.
