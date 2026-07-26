@@ -12,7 +12,13 @@ import {
 } from "@/components/DeckPool/PoolFns";
 import { ModalType } from "@/pages/game";
 
-export type CommandGroup = "Dice" | "Deck" | "Hand" | "Discard" | "Board";
+export type CommandGroup =
+  | "Dice"
+  | "Deck"
+  | "Hand"
+  | "Discard"
+  | "Board"
+  | "Game";
 
 export type DeckCommand = {
   id: string;
@@ -56,6 +62,12 @@ export type DeckCommandCtx = {
    * play to the table provide it.
    */
   boostFromDeck?: () => void;
+  /**
+   * Game-lifecycle entries (issue #493). Provided by surfaces that mount the
+   * dialogs (`GameMenusProvider`); omitted everywhere else, exactly like dice.
+   */
+  newGame?: () => void;
+  changeDeck?: () => void;
 };
 
 /**
@@ -65,8 +77,16 @@ export type DeckCommandCtx = {
  * shows the actions it can actually perform.
  */
 export function buildDeckCommands(ctx: DeckCommandCtx): DeckCommand[] {
-  const { act, openScry, openModal, roll, openTokenLibrary, boostFromDeck } =
-    ctx;
+  const {
+    act,
+    openScry,
+    openModal,
+    roll,
+    openTokenLibrary,
+    boostFromDeck,
+    newGame,
+    changeDeck,
+  } = ctx;
   const hasDeck = (p: PoolType) => (p.deck?.length ?? 0) > 0;
   const hasDiscard = (p: PoolType) => (p.discard?.length ?? 0) > 0;
   const hasHand = (p: PoolType) => (p.hand?.length ?? 0) > 0;
@@ -308,5 +328,32 @@ export function buildDeckCommands(ctx: DeckCommandCtx): DeckCommand[] {
       ]
     : [];
 
-  return [...dice, ...deck, ...hand, ...discard, ...board];
+  const game: DeckCommand[] = [
+    ...(changeDeck
+      ? [
+          {
+            id: "changeDeck",
+            group: "Game" as const,
+            label: "Change my deck (swap hero)",
+            keywords: "deck hero swap switch character",
+            enabled: () => true,
+            run: changeDeck,
+          },
+        ]
+      : []),
+    ...(newGame
+      ? [
+          {
+            id: "newGame",
+            group: "Game" as const,
+            label: "New game (clears the table for everyone)",
+            keywords: "reset rematch restart again wipe",
+            enabled: () => true,
+            run: newGame,
+          },
+        ]
+      : []),
+  ];
+
+  return [...dice, ...deck, ...hand, ...discard, ...board, ...game];
 }

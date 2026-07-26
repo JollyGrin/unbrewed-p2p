@@ -16,6 +16,12 @@ import {
 } from "../gamesocket/message";
 import { PositionBlob } from "@/components/Positions/position.type";
 import { WebGameContext } from "./WebGameProvider";
+import { DeckImportType } from "@/components/DeckPool/deck-import.type";
+import {
+  initPool,
+  initPositionBlob,
+  readStarredDeck,
+} from "@/lib/sandbox/initGame";
 
 // Keep the local feed bounded exactly like the online provider does.
 const ACTION_LOG_LIMIT = 25;
@@ -111,6 +117,40 @@ export const OfflineGameProvider: FC<PropsWithChildren> = ({ children }) => {
     setLatestRoll(roll);
   }, []);
 
+  // Wipe and re-seed from `deck`. Shared by "New game" (the starred deck) and
+  // "Change my deck" (the newly picked one) — offline they differ only in the
+  // log line, since there is nobody else to clear or to ask for consent.
+  const reseed = useCallback(
+    (deck: DeckImportType | undefined, text: string) => {
+      actionSeqRef.current = 1;
+      setPlayers({
+        [SELF]: {
+          pool: deck ? initPool(deck) : undefined,
+          actionLog: [{ seq: 1, at: Date.now(), text }],
+        },
+      });
+      setPositions({ [SELF]: initPositionBlob(deck, SELF) });
+      setLatestRoll(undefined);
+    },
+    [],
+  );
+
+  // Solo table: nobody to ask, so "New game" commits immediately — the same
+  // shortcut the online provider takes when no other seat has a pool.
+  const [reset, setReset] = useState<{ epoch: number; appliedAt?: number }>({
+    epoch: 0,
+  });
+  const requestGameReset = useCallback(() => {
+    setReset((prev) => ({ epoch: prev.epoch + 1, appliedAt: Date.now() }));
+    reseed(readStarredDeck(), `New game started by ${SELF}`);
+  }, [reseed]);
+
+  const switchDeck = useCallback(
+    (deck: DeckImportType) =>
+      reseed(deck, `Switched to ${deck.deck_data?.hero?.name ?? deck.name}`),
+    [reseed],
+  );
+
   return (
     <WebGameContext.Provider
       value={{
@@ -128,6 +168,14 @@ export const OfflineGameProvider: FC<PropsWithChildren> = ({ children }) => {
         // no-ops purely to satisfy the context shape.
         offerCardTransfer: () => {},
         claimTableCard: () => {},
+        // Reset: no consent step and no protocol, so only the commit path is
+        // real. There is never a request to cancel, force or answer.
+        resetStatus: reset,
+        requestGameReset,
+        cancelGameReset: () => {},
+        forceGameReset: requestGameReset,
+        respondGameReset: () => {},
+        switchDeck,
       }}
     >
       {children}

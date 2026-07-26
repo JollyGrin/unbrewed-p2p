@@ -21,8 +21,8 @@ import {
   cardTokenHeight,
   migrateBlob,
   newTokenId,
-  spawnSavedTokens,
 } from "@/components/Positions/position.type";
+import { initPositionBlob } from "@/lib/sandbox/initGame";
 import { SaveTokensToDeck } from "@/components/Positions/save-tokens-to-deck";
 import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
@@ -53,6 +53,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { GameMenusProvider } from "@/components/Game/GameMenus/game-menus";
 import { useDeckOpenWarning } from "@/components/Game/useDeckOpenWarning";
 import { DeckOpenWarningDialog } from "@/components/Game/deck-open-warning.modal";
 
@@ -92,34 +93,38 @@ export const GameShell = () => {
 
   return (
     <GameLayout>
-      <ModalWrapper
-        {...disclosure}
-        modalType={modalType}
-        setModalType={setModalType}
-      />
-      <DeckOpenWarningDialog
-        isOpen={pendingWarning}
-        onCancel={cancelOpen}
-        onConfirm={confirmOpen}
-      />
-      <HeaderContainer openPositionModal={tokenLibraryDisclosure.onOpen} />
-      <BoardContainer
-        self={query?.name as string}
-        tokenLibrary={tokenLibraryDisclosure}
-        playToTableRef={playToTableRef}
-        boardActionsRef={boardActionsRef}
-      />
-      <HandWrapper
-        setModalType={requestModal}
-        {...{ playToTableRef, boardActionsRef }}
-      />
-      <DiceOverlay />
-      <ReportBugButton />
-      <ActionLog />
-      <CommandMenu
-        openModal={requestModal}
-        openTokenLibrary={tokenLibraryDisclosure.onOpen}
-      />
+      {/* Owns the new-game / change-deck dialogs and exposes them to the
+          header and the ⌘ palette (issue #493). */}
+      <GameMenusProvider>
+        <ModalWrapper
+          {...disclosure}
+          modalType={modalType}
+          setModalType={setModalType}
+        />
+        <DeckOpenWarningDialog
+          isOpen={pendingWarning}
+          onCancel={cancelOpen}
+          onConfirm={confirmOpen}
+        />
+        <HeaderContainer openPositionModal={tokenLibraryDisclosure.onOpen} />
+        <BoardContainer
+          self={query?.name as string}
+          tokenLibrary={tokenLibraryDisclosure}
+          playToTableRef={playToTableRef}
+          boardActionsRef={boardActionsRef}
+        />
+        <HandWrapper
+          setModalType={requestModal}
+          {...{ playToTableRef, boardActionsRef }}
+        />
+        <DiceOverlay />
+        <ReportBugButton />
+        <ActionLog />
+        <CommandMenu
+          openModal={requestModal}
+          openTokenLibrary={tokenLibraryDisclosure.onOpen}
+        />
+      </GameMenusProvider>
     </GameLayout>
   );
 };
@@ -459,22 +464,9 @@ const BoardContainer = ({
   useEffect(() => {
     if (!self || gameState === undefined) return;
     if (blobs[self]) return;
-    const timer = setTimeout(() => {
-      const saved = starredDeck?.savedTokens ?? [];
-      // The loadout replaces the starter disc rather than adding to it: a
-      // player who saved tokens saved exactly what they want on the table.
-      sendBlob(
-        saved.length
-          ? {
-              color: starredDeck?.savedTokenColor ?? DEFAULT_PLAYER_COLOR,
-              tokens: spawnSavedTokens(saved, self),
-            }
-          : {
-              color: DEFAULT_PLAYER_COLOR,
-              tokens: [{ id: newTokenId(self), x: 150, y: 100 }],
-            },
-      );
-    }, 1500);
+    // Same helper the reset re-seeds with, so a rematch board is identical to
+    // a fresh join's (lib/sandbox/initGame.ts).
+    const timer = setTimeout(() => sendBlob(initPositionBlob(starredDeck, self)), 1500);
     return () => clearTimeout(timer);
   }, [blobs, self, gameState, sendBlob, starredDeck]);
 

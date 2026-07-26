@@ -7,12 +7,10 @@ import {
   deckCardBottom,
   discardCard,
   draw,
-  makeDeck,
-  newPool,
   removeHandCard,
   reorderTop,
-  shuffleDeck,
 } from "@/components/DeckPool/PoolFns";
+import { initPool } from "@/lib/sandbox/initGame";
 import { PlayCardToTable } from "@/components/Positions/position.type";
 import { TransferZone } from "@/lib/gamesocket/message";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
@@ -90,12 +88,15 @@ export const HandContainer = ({
     // timer fire would re-init the deck over it (hand/deck reset, and any
     // cards out on the table would be duplicated back into the deck).
     const timer = setTimeout(() => {
-      const initDeck = flow(newPool, makeDeck, shuffleDeck, draw);
-      const pool = initDeck(starredDeck);
-      setGameState(pool);
+      setGameState(initPool(starredDeck));
     }, 500);
     return () => clearTimeout(timer);
-  }, [gameState]);
+    // starredDeck matters as well as gameState: `useLocalDeckStorage` resolves
+    // one render AFTER mount, so on a surface whose gameState never changes on
+    // its own (offline — no socket snapshots) this effect would run once with
+    // no deck and never fire again, leaving the player with an empty pool.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState, starredDeck]);
 
   const gDraw = flow(draw, setGameState, () => logAction("Drew a card"));
   const gDeckCard = flow(
