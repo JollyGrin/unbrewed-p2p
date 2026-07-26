@@ -1,5 +1,6 @@
 import {
   DeckImportCardType,
+  DeckImportExtraCharacterType,
   DeckImportRuleCardType,
   DeckImportType,
 } from "./deck-import.type";
@@ -11,11 +12,14 @@ export type PoolType = {
   deckNote: string;
   cards: DeckImportCardType[];
   deck: DeckImportCardType[] | null;
-  hero: PawnInfo & { move: number; specialAbility: string };
-  sidekick: PawnInfo & { quantity: number | null; quote: string };
+  hero: PoolHero;
+  sidekick: PoolSidekick;
   /** deck-level "extra rules" cards (issue #372) — e.g. Clone Troopers' board
    *  cap. [] when the deck has none. */
   ruleCards: DeckImportRuleCardType[];
+  /** character cards past the primary hero/sidekick (issue #500) — e.g.
+   *  Skeleton King's skeletons. [] for the vast majority of decks. */
+  extraCharacters: PoolExtraCharacterType[];
   hand: DeckImportCardType[];
   discard: DeckImportCardType[];
   commit: {
@@ -28,6 +32,15 @@ export type PawnInfo = {
   hp: number | null;
   isRanged: boolean;
   name: string;
+};
+export type PoolHero = PawnInfo & { move: number; specialAbility: string };
+export type PoolSidekick = PawnInfo & {
+  quantity: number | null;
+  quote: string;
+};
+export type PoolExtraCharacterType = {
+  hero: PoolHero;
+  sidekick: PoolSidekick;
 };
 
 /**
@@ -58,9 +71,47 @@ export const normalizeCardText = <T extends DeckImportCardType>(card: T): T => (
  * (other surfaces read `quantity === 0`), so every consumer that renders the
  * sidekick has to gate on the stub rather than on an absent key.
  */
-export const hasSidekick = (
-  sidekick?: PoolType["sidekick"] | null,
-): boolean => !!sidekick?.name && (sidekick.quantity ?? 0) > 0;
+export const hasSidekick = (sidekick?: PoolSidekick | null): boolean =>
+  !!sidekick?.name && (sidekick.quantity ?? 0) > 0;
+
+/**
+ * Extra character cards (issue #500) narrowed to the fields the pool carries.
+ *
+ * Same narrow copy as the primary hero/sidekick, and for the same reason: the
+ * whole pool is rebroadcast over the websocket on every action, so nothing rides
+ * along that no surface renders.
+ *
+ * Entries with neither a name nor an ability are dropped — unmatched.cards' Maker
+ * happily saves a blank slot, and an unnamed, abilityless character is a section
+ * header over nothing. The sidekick half is kept verbatim (stub included) and
+ * gated at render time by `hasSidekick`, exactly like the primary one.
+ */
+export const toPoolExtraCharacters = (
+  extraCharacters?: DeckImportExtraCharacterType[] | null,
+): PoolExtraCharacterType[] =>
+  (extraCharacters ?? [])
+    .filter(
+      (character) =>
+        !!character?.hero &&
+        (!!character.hero.name?.trim() ||
+          !!character.hero.specialAbility?.trim()),
+    )
+    .map(({ hero, sidekick }) => ({
+      hero: {
+        hp: hero.hp ?? null,
+        isRanged: !!hero.isRanged,
+        move: hero.move,
+        name: hero.name,
+        specialAbility: hero.specialAbility,
+      },
+      sidekick: {
+        hp: sidekick?.hp ?? null,
+        isRanged: !!sidekick?.isRanged,
+        quantity: sidekick?.quantity ?? null,
+        name: sidekick?.name ?? "",
+        quote: sidekick?.quote ?? "",
+      },
+    }));
 
 export const newPool = (deckData: DeckImportType): PoolType => {
   const { user, family_id, name, note, deck_data } = deckData;
@@ -97,6 +148,7 @@ export const newPool = (deckData: DeckImportType): PoolType => {
       quote: sidekick.quote,
     },
     ruleCards: deck_data.ruleCards ?? [],
+    extraCharacters: toPoolExtraCharacters(deck_data.extraCharacters),
     hand: [],
     discard: [],
     commit: {

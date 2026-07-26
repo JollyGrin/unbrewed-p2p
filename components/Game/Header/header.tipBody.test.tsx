@@ -66,3 +66,47 @@ describe("TipBody — sidekick gating (issue #494)", () => {
     expect(container.querySelectorAll("p")).toHaveLength(2);
   });
 });
+
+/**
+ * issue #500: Skeleton King's "hero" is three character cards. The pool now
+ * carries the extras, and the tooltip has to name all of them — the panel showed
+ * only the first, so two of the three characters were invisible in-game.
+ */
+describe("TipBody — extra characters (issue #500)", () => {
+  const skeletons = [
+    {
+      hero: { hp: 1, isRanged: false, move: 2, name: "skeleton", specialAbility: "this is larry" },
+      sidekick: noSidekick,
+    },
+    {
+      hero: { hp: 1, isRanged: false, move: 2, name: "ghost skeleton", specialAbility: "larry but dead" },
+      sidekick: noSidekick,
+    },
+  ];
+
+  it("lists every extra character with its stats and ability", () => {
+    const { container } = render(
+      <TipBody
+        pool={{ ...pool(noSidekick), extraCharacters: skeletons } as PoolType}
+      />,
+    );
+
+    // both names get their own labelled line, after a divider
+    expect(screen.getAllByText(/skeleton:/)).toHaveLength(2);
+    expect(screen.getByText(/ghost skeleton:/)).toBeTruthy();
+    expect(container.textContent).toMatch(/skeleton: *Melee, 1 HP, move 2/);
+    expect(screen.getByText("this is larry")).toBeTruthy();
+    expect(screen.getByText("larry but dead")).toBeTruthy();
+    expect(container.querySelectorAll("hr")).toHaveLength(2); // hero + extras
+    // the extras' placeholder sidekicks stay hidden
+    expect(screen.queryByText(/Sidekick/)).toBeNull();
+  });
+
+  it("renders nothing extra for the decks that have none", () => {
+    const { container } = render(
+      <TipBody pool={{ ...pool(noSidekick), extraCharacters: [] } as PoolType} />,
+    );
+    // deckName, hero line, ability — same three as before the field existed
+    expect(container.querySelectorAll("p")).toHaveLength(3);
+  });
+});

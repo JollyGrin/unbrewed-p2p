@@ -35,6 +35,31 @@ describe("Class: Pool", () => {
     expect(new Pool(noRules).ruleCards).toEqual([]);
   });
 
+  // issue #500: extra character cards (Skeleton King's skeletons) thread through
+  // the class pool the same way, so the two pool builders stay in step.
+  test("threads extraCharacters through, defaulting to [] when absent", () => {
+    const deck = clone(_mockDeck);
+    deck.deck_data = clone(deck.deck_data);
+    deck.deck_data.extraCharacters = [
+      {
+        hero: {
+          hp: 1,
+          isRanged: false,
+          move: 2,
+          name: "skeleton",
+          specialAbility: "this is larry",
+        },
+        sidekick: { hp: null, isRanged: false, name: "Sidekick", quantity: 0, quote: "" },
+      },
+    ];
+    expect(new Pool(deck).extraCharacters).toHaveLength(1);
+    expect(new Pool(deck).extraCharacters[0].hero.name).toBe("skeleton");
+
+    const noExtras = clone(_mockDeck);
+    delete (noExtras.deck_data as { extraCharacters?: unknown }).extraCharacters;
+    expect(new Pool(noExtras).extraCharacters).toEqual([]);
+  });
+
   test("makes a deck", () => {
     const mockDeck = clone(_mockDeck);
     const pool = new Pool(mockDeck);

@@ -55,7 +55,20 @@ export type DeckImportDataType = {
   sidekick: DeckImportSidekickType;
   name: string;
   ruleCards?: DeckImportRuleCardType[];
-  extraCharacters?: any[];
+  /**
+   * Character cards beyond the primary hero + sidekick (issue #500) — e.g.
+   * Skeleton King's two summonable skeleton types, Victor Frankenstein's
+   * Monster, One Punch Man's Genos. unmatched.cards' Maker emits them as
+   * hero/sidekick PAIRS, reusing the same two shapes, and most carry the
+   * builder's empty sidekick stub (`{ name: "Sidekick", quantity: 0 }`) —
+   * see `hasSidekick` before rendering the sidekick half.
+   */
+  extraCharacters?: DeckImportExtraCharacterType[];
+};
+
+export type DeckImportExtraCharacterType = {
+  hero: DeckImportHeroType;
+  sidekick: DeckImportSidekickType;
 };
 
 export type DeckImportAppearanceType = {
