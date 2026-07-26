@@ -26,6 +26,94 @@ describe("newPool", () => {
     expect(newPool(noRules).ruleCards).toEqual([]);
   });
 
+  // issue #500: decks whose "hero" is several character cards (Skeleton King's
+  // two skeleton types, Frankenstein's Monster) had everything past the first
+  // hero dropped by the pool transform, so a whole character was invisible.
+  describe("extraCharacters (issue #500)", () => {
+    /** the Maker's empty sidekick slot, written into every extra character */
+    const stubSidekick = {
+      hp: null,
+      isRanged: false,
+      name: "Sidekick",
+      quantity: 0,
+      quote: "",
+    };
+    const skeleton = {
+      hero: {
+        hp: 1,
+        isRanged: false,
+        move: 2,
+        name: "skeleton",
+        specialAbility: "this is larry\n\n",
+      },
+      sidekick: stubSidekick,
+    };
+    const withExtras = (extraCharacters: unknown) => {
+      const deck = clone(_mockDeck);
+      deck.deck_data = clone(deck.deck_data);
+      deck.deck_data.extraCharacters =
+        extraCharacters as typeof deck.deck_data.extraCharacters;
+      return deck;
+    };
+
+    test("threads extra characters through, narrowed to the pool fields", () => {
+      const pool = newPool(withExtras([skeleton]));
+      expect(pool.extraCharacters).toEqual([
+        {
+          hero: {
+            hp: 1,
+            isRanged: false,
+            move: 2,
+            name: "skeleton",
+            specialAbility: "this is larry\n\n",
+          },
+          sidekick: stubSidekick,
+        },
+      ]);
+    });
+
+    test("defaults to [] when absent — the vast majority of decks", () => {
+      const deck = clone(_mockDeck);
+      deck.deck_data = clone(deck.deck_data);
+      delete (deck.deck_data as { extraCharacters?: unknown }).extraCharacters;
+      expect(newPool(deck).extraCharacters).toEqual([]);
+      expect(newPool(withExtras([])).extraCharacters).toEqual([]);
+    });
+
+    test("drops blank slots with no name and no ability", () => {
+      const blank = {
+        hero: { hp: null, isRanged: false, move: 0, name: "  ", specialAbility: "\n" },
+        sidekick: stubSidekick,
+      };
+      const pool = newPool(withExtras([blank, skeleton]));
+      expect(pool.extraCharacters.map((c) => c.hero.name)).toEqual(["skeleton"]);
+    });
+
+    // the pool is rebroadcast over the websocket on every action, so an extra
+    // character carries the same narrow fields the hero mapping copies
+    test("carries nothing past the fields the hero mapping copies", () => {
+      const bloated = {
+        hero: { ...skeleton.hero, quote: "unused", tokenImageUrl: "x.webp" },
+        sidekick: { ...stubSidekick, tokenImageUrl: "y.webp" },
+      };
+      const [character] = newPool(withExtras([bloated])).extraCharacters;
+      expect(Object.keys(character.hero).sort()).toEqual([
+        "hp",
+        "isRanged",
+        "move",
+        "name",
+        "specialAbility",
+      ]);
+      expect(Object.keys(character.sidekick).sort()).toEqual([
+        "hp",
+        "isRanged",
+        "name",
+        "quantity",
+        "quote",
+      ]);
+    });
+  });
+
   // issue #495: whitespace-only body text (" ", "\n", an &nbsp; that survived a
   // deck-builder textarea) reads as "has a section" to raw truthiness checks
   // while the card layout, which trims, gives it zero lines. Normalize it on

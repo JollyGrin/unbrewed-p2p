@@ -348,11 +348,14 @@ export const Stat: React.FC<{
 };
 
 export const TipBody = (props: { pool: PoolType }) => {
-  const { deckName, hero, sidekick, ruleCards } = props.pool;
+  const { deckName, hero, sidekick, ruleCards, extraCharacters } = props.pool;
   // deck-level "extra rules" cards (issue #372) — e.g. Clone Troopers' board
   // cap. Distinct from hero.specialAbility; content preserves its \n breaks.
   const rules = (ruleCards ?? []).filter((r) => r.content?.trim());
   const ability = hero?.specialAbility?.trim();
+  // character cards past the hero (issue #500) — Skeleton King's two skeleton
+  // types. Blank slots are already dropped by the pool transform.
+  const extras = extraCharacters ?? [];
   return (
     <Box minW="300px">
       <Text fontWeight="bold">{deckName}</Text>
@@ -381,6 +384,28 @@ export const TipBody = (props: { pool: PoolType }) => {
           {sidekick.quote && <Text>{sidekick.quote}</Text>}
         </>
       )}
+      {/* one block per extra character, mirroring the sidekick block above
+          (issue #500). Decks without the field add nothing at all. */}
+      {extras.length > 0 && <Divider />}
+      {extras.map((character, i) => (
+        <Box key={`${character.hero.name}-${i}`}>
+          <Text>
+            {character.hero.name || "Extra character"}:{" "}
+            {character.hero.isRanged ? "Ranged" : "Melee"}
+            {character.hero.hp !== null && character.hero.hp !== undefined
+              ? `, ${character.hero.hp} HP`
+              : ""}
+            {typeof character.hero.move === "number"
+              ? `, move ${character.hero.move}`
+              : ""}
+          </Text>
+          {!!character.hero.specialAbility?.trim() && (
+            <Text whiteSpace="pre-wrap">
+              {character.hero.specialAbility.trim()}
+            </Text>
+          )}
+        </Box>
+      ))}
     </Box>
   );
 };
