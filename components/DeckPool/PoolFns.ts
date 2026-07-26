@@ -30,6 +30,25 @@ export type PawnInfo = {
   name: string;
 };
 
+/**
+ * Blank-but-not-empty body text — " ", "\n", an &nbsp; that survived a
+ * deck-builder textarea — reads as "has a section" to anything checking raw
+ * truthiness while the card layout (which trims) gives it zero lines (issue
+ * #495). CardFactory now gates on the wrapped line counts, but the pooled copy
+ * is what syncs over the websocket and lands in localStorage, so normalize it
+ * once on import and keep the wire copy clean for every other consumer.
+ * Non-blank text is passed through verbatim — wrapping does its own trimming.
+ */
+const blankToEmpty = (text: string): string => (text?.trim() ? text : "");
+
+export const normalizeCardText = <T extends DeckImportCardType>(card: T): T => ({
+  ...card,
+  basicText: blankToEmpty(card.basicText),
+  immediateText: blankToEmpty(card.immediateText),
+  duringText: blankToEmpty(card.duringText),
+  afterText: blankToEmpty(card.afterText),
+});
+
 export const newPool = (deckData: DeckImportType): PoolType => {
   const { user, family_id, name, note, deck_data } = deckData;
   const { cards, hero, sidekick } = deck_data;
@@ -40,7 +59,7 @@ export const newPool = (deckData: DeckImportType): PoolType => {
   // back must live on the card or the board renders the house back face-down.
   // An existing per-card value wins, keeping TTS decks unchanged.
   const backfilledCards = cards.map((c) => ({
-    ...c,
+    ...normalizeCardText(c),
     cardBackUrl: c.cardBackUrl ?? (deck_data.appearance?.cardbackUrl || undefined),
   }));
   return {

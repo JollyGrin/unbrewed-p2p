@@ -127,3 +127,92 @@ describe("CardFactory art: HTML cover layer (issue #373)", () => {
     expect(svg.querySelector("rect[rx]")).not.toBeNull();
   });
 });
+
+/**
+ * Issue #495: a card whose immediateText/duringText/afterText is whitespace-only
+ * (" ", "\n", an &nbsp; from a deck-builder textarea) drew that section's
+ * heading — the render gated on raw truthiness — while the layout accumulator
+ * counted TRIMMED lines, so the heading occupied zero lines and the next
+ * section was placed on the identical baseline. Two bold headings overlapped
+ * into an unreadable garble (reported on an AQUA JET card).
+ */
+
+/** The section blocks (IMMEDIATELY / DURING COMBAT / AFTER COMBAT): each is a
+ *  <text> whose first <tspan> carries the 4px heading style. */
+const sectionTexts = (container: HTMLElement): SVGTextElement[] =>
+  Array.from(container.querySelectorAll<SVGTextElement>("text")).filter(
+    (t) => t.querySelector("tspan")?.style.fontSize === "4px",
+  );
+
+const headingOf = (t: SVGTextElement) =>
+  (t.querySelector("tspan")?.textContent ?? "").trim();
+
+describe("CardFactory sections: whitespace-only text (issue #495)", () => {
+  const blankImmediate: DeckImportCardType = {
+    ...base,
+    title: "Aqua Jet",
+    immediateText: " ",
+    afterText: "Deal 1 damage to the opponent",
+  };
+
+  it("renders no heading for a whitespace-only section", () => {
+    const { container } = render(<CardFactory card={blankImmediate} />);
+    const sections = sectionTexts(container);
+    expect(sections).toHaveLength(1);
+    expect(headingOf(sections[0])).toBe("AFTER COMBAT:");
+  });
+
+  it.each([
+    ["a plain space", " "],
+    ["a newline", "\n"],
+    ["an nbsp", " "],
+  ])("treats %s as an absent section", (_label, blank) => {
+    const { container } = render(
+      <CardFactory
+        card={{ ...base, title: "Aqua Jet", duringText: blank, afterText: "Deal 1 damage" }}
+      />,
+    );
+    expect(sectionTexts(container).map(headingOf)).toEqual(["AFTER COMBAT:"]);
+  });
+
+  it("lays out the remaining sections at strictly increasing baselines", () => {
+    // The blank IMMEDIATELY block must not consume a baseline: DURING and AFTER
+    // then have to sit at distinct, ascending y values. On the raw-truthiness
+    // guard the phantom heading left DURING at IMMEDIATELY's own y.
+    const { container } = render(
+      <CardFactory
+        card={{
+          ...base,
+          title: "Aqua Jet",
+          basicText: "This card's effect always goes first",
+          immediateText: " ",
+          duringText: "Deal 1 damage to the opponent",
+          afterText: "Draw a card",
+        }}
+      />,
+    );
+    const sections = sectionTexts(container);
+    expect(sections.map(headingOf)).toEqual(["DURING COMBAT:", "AFTER COMBAT:"]);
+    const ys = sections.map((t) => Number(t.getAttribute("y")));
+    ys.forEach((y) => expect(Number.isFinite(y)).toBe(true));
+    for (let i = 1; i < ys.length; i++) expect(ys[i]).toBeGreaterThan(ys[i - 1]);
+  });
+
+  it("sizes the black panel without the phantom section", () => {
+    const canvas = getMeasureCanvas()!;
+    const withBlank = calculateProps(blankImmediate, canvas);
+    const withoutField = calculateProps(
+      { ...blankImmediate, immediateText: "" },
+      canvas,
+    );
+    expect(withBlank.bottomPanelHeight).toBe(withoutField.bottomPanelHeight);
+  });
+
+  it("applies to the string-rendered board token path (CardSvg)", () => {
+    const props = calculateProps(blankImmediate, getMeasureCanvas()!);
+    const { container } = render(
+      <CardSvg card={blankImmediate} props={props} />,
+    );
+    expect(sectionTexts(container).map(headingOf)).toEqual(["AFTER COMBAT:"]);
+  });
+});
