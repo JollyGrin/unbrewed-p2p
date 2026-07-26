@@ -45,6 +45,8 @@ import { colors, fonts } from "@/styles/style";
 import { useState } from "react";
 
 import { FaMap, FaScroll } from "react-icons/fa";
+import { GrPowerReset as IconNewGame } from "react-icons/gr";
+import { useGameMenus } from "@/components/Game/GameMenus/game-menus";
 import { MapModal } from "./map.modal";
 import { DiceModal } from "./dice.modal";
 import { DiscardModalReadOnly } from "./discard.modal";
@@ -83,6 +85,7 @@ export const PlayerBox: React.FC<{
   const mapDisclosure = useDisclosure();
   const diceDisclosure = useDisclosure();
   const discardDisclosure = useDisclosure();
+  const menus = useGameMenus();
 
   const sidekickQty = sidekick?.quantity ?? 0;
   const hasSidekick = sidekickQty > 0;
@@ -157,6 +160,30 @@ export const PlayerBox: React.FC<{
                   <IconDice size="15px" />
                 </ControlButton>
               </Tooltip>
+              {/* Game lifecycle (issue #493). Absent on surfaces that don't
+                  mount GameMenusProvider. */}
+              {menus && (
+                <>
+                  <Tooltip label="Change my deck" hasArrow>
+                    <ControlButton
+                      as="button"
+                      aria-label="Change my deck"
+                      onClick={menus.openChangeDeck}
+                    >
+                      <IconDeck size="15px" />
+                    </ControlButton>
+                  </Tooltip>
+                  <Tooltip label="New game — clears the table" hasArrow>
+                    <ControlButton
+                      as="button"
+                      aria-label="New game"
+                      onClick={menus.openNewGame}
+                    >
+                      <IconNewGame size="14px" />
+                    </ControlButton>
+                  </Tooltip>
+                </>
+              )}
               </>
             )}
           </HStack>
