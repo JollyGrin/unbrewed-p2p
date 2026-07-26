@@ -39,6 +39,7 @@ import {
   PoolType,
   adjustHp,
   adjustSidekickQuantity,
+  hasSidekick,
 } from "@/components/DeckPool/PoolFns";
 import styled from "@emotion/styled";
 import { colors, fonts } from "@/styles/style";
@@ -88,7 +89,9 @@ export const PlayerBox: React.FC<{
   const menus = useGameMenus();
 
   const sidekickQty = sidekick?.quantity ?? 0;
-  const hasSidekick = sidekickQty > 0;
+  // Deliberately looser than `hasSidekick()`: this row is the HP/count control,
+  // so an unnamed-but-fielded sidekick still needs to be adjustable.
+  const showSidekickStats = sidekickQty > 0;
 
   return (
     <>
@@ -213,7 +216,7 @@ export const PlayerBox: React.FC<{
                 </span>
               </Tooltip>
             </StatLine>
-            {hasSidekick && (
+            {showSidekickStats && (
               <StatLine mt="0.3rem">
                 <Stat
                   isLocal={isLocal}
@@ -344,19 +347,20 @@ export const Stat: React.FC<{
   );
 };
 
-const TipBody = (props: { pool: PoolType }) => {
+export const TipBody = (props: { pool: PoolType }) => {
   const { deckName, hero, sidekick, ruleCards } = props.pool;
   // deck-level "extra rules" cards (issue #372) — e.g. Clone Troopers' board
   // cap. Distinct from hero.specialAbility; content preserves its \n breaks.
   const rules = (ruleCards ?? []).filter((r) => r.content?.trim());
+  const ability = hero?.specialAbility?.trim();
   return (
     <Box minW="300px">
       <Text fontWeight="bold">{deckName}</Text>
       <Divider />
       <Text>
-        {hero.name}: {hero.isRanged ? "Ranged" : "Meele"}
+        {hero.name}: {hero.isRanged ? "Ranged" : "Melee"}
       </Text>
-      <Text>{hero.specialAbility}</Text>
+      {ability && <Text>{ability}</Text>}
       {rules.map((rule, i) => (
         <Text key={`${rule.title}-${i}`} mt="0.35rem" whiteSpace="pre-wrap">
           <Text as="span" fontWeight="bold">
@@ -365,11 +369,18 @@ const TipBody = (props: { pool: PoolType }) => {
           {rule.content.trim()}
         </Text>
       ))}
-      <Divider />
-      <Text>
-        {sidekick.name}: {sidekick.isRanged ? "Ranged" : "Meele"}
-      </Text>
-      <Text>{sidekick.quote}</Text>
+      {/* gated the same way as the hero-rules panel: decks with no sidekick
+          still carry an unmatched.cards stub, and rendering it unguarded read
+          as a phantom ": Ranged" line (issue #494). */}
+      {hasSidekick(sidekick) && (
+        <>
+          <Divider />
+          <Text>
+            {sidekick.name}: {sidekick.isRanged ? "Ranged" : "Melee"}
+          </Text>
+          {sidekick.quote && <Text>{sidekick.quote}</Text>}
+        </>
+      )}
     </Box>
   );
 };
