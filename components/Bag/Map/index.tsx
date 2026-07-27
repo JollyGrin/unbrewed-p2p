@@ -11,9 +11,9 @@ import {
 } from "@chakra-ui/react";
 import { useState } from "react";
 import { AddNewFields } from "./AddNewMapFields";
-import { CloseIcon, LinkIcon } from "@chakra-ui/icons";
-import Link from "next/link";
+import { CloseIcon } from "@chakra-ui/icons";
 import { useRouter } from "next/router";
+import { MapCard } from "./MapCard";
 import { MapModal } from "./MapModal";
 import DEFAULT_MAPS from "./MapModal/defaultMaps.json";
 import { toast } from "react-hot-toast";
@@ -83,102 +83,40 @@ export const BagMap = () => {
           const isCustom = data.some((m) => m.imgUrl === map.imgUrl);
           const isSelected = selectedUrl === map.imgUrl;
           return (
-            <Box
+            <MapCard
               key={map?.imgUrl}
+              map={map}
               w="250px"
               h="200px"
-              bg="brand.highlight"
-              bgImg={map?.thumbUrl ?? map?.imgUrl}
-              bgPos="center"
-              bgSize="cover"
-              borderRadius="0.5rem"
-              border="3px solid"
-              borderColor={isSelected ? "brand.accent" : "transparent"}
-              boxShadow="0 2px 8px rgba(20, 8, 24, 0.3)"
-              position="relative"
-              cursor="pointer"
-              transition="transform 0.15s ease-out"
-              _hover={{ transform: "translateY(-2px)" }}
-              onClick={() => selectMap(map)}
-            >
-              <Flex
-                position="absolute"
-                bottom="0"
-                w="100%"
-                p="0.35rem 0.5rem"
-                bg="linear-gradient(180deg, rgba(20,8,24,0) 0%, rgba(20,8,24,0.85) 100%)"
-                borderBottomRadius="0.35rem"
-                justifyContent="space-between"
-                alignItems="end"
-                color="#FAEBD7"
-              >
-                <Box>
-                  <Text fontWeight={700} fontSize="0.85rem" lineHeight={1.2}>
-                    {map?.meta?.title ?? "Untitled map"}
-                  </Text>
-                  {map?.meta?.author && (
-                    <Text fontSize="0.7rem" opacity={0.8}>
-                      by {map.meta.author}
-                    </Text>
-                  )}
-                </Box>
-                {map?.meta?.url && (
-                  <Link
-                    href={map.meta.url}
-                    target="_blank"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <LinkIcon />
-                  </Link>
-                )}
-              </Flex>
-
-              {isSelected && (
-                <Tag
-                  position="absolute"
-                  top="0.35rem"
-                  left="0.35rem"
-                  size="sm"
-                  bg="brand.accent"
-                  color="brand.surfaceDim"
-                >
-                  Selected
-                </Tag>
-              )}
-
-              {isCustom ? (
-                <Tooltip label="Remove this map from your bag">
-                  <Flex
-                    position="absolute"
-                    top="0.35rem"
-                    right="0.35rem"
-                    bg="rgba(20, 8, 24, 0.6)"
-                    borderRadius="100%"
-                    p="0.35rem"
-                    color="#FAEBD7"
-                    _hover={{ bg: "brand.danger" }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      remove(map.imgUrl);
-                      toast.success("Map removed");
-                    }}
-                  >
-                    <CloseIcon boxSize="0.6rem" />
-                  </Flex>
-                </Tooltip>
-              ) : (
-                <Tag
-                  position="absolute"
-                  top="0.35rem"
-                  right="0.35rem"
-                  size="sm"
-                  bg="rgba(20, 8, 24, 0.6)"
-                  color="#FAEBD7"
-                >
-                  built-in
-                </Tag>
-              )}
-            </Box>
+              isSelected={isSelected}
+              onSelect={() => selectMap(map)}
+              badge={isSelected ? "Selected" : undefined}
+              corner={
+                isCustom ? (
+                  <Tooltip label="Remove this map from your bag">
+                    <Flex
+                      bg="rgba(20, 8, 24, 0.6)"
+                      borderRadius="100%"
+                      p="0.35rem"
+                      color="#FAEBD7"
+                      cursor="pointer"
+                      _hover={{ bg: "brand.danger" }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        remove(map.imgUrl);
+                        toast.success("Map removed");
+                      }}
+                    >
+                      <CloseIcon boxSize="0.6rem" />
+                    </Flex>
+                  </Tooltip>
+                ) : (
+                  <Tag size="sm" bg="rgba(20, 8, 24, 0.6)" color="#FAEBD7">
+                    built-in
+                  </Tag>
+                )
+              }
+            />
           );
         })}
       </Flex>

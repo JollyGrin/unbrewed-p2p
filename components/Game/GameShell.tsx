@@ -35,6 +35,7 @@ import {
   adjustHp,
 } from "@/components/DeckPool/PoolFns";
 import { iconToSvg, useGameIcons } from "@/lib/icons/gameIcons";
+import { DEFAULT_MAP_URL } from "@/lib/maps/defaultMap";
 import { Box, Button, useDisclosure } from "@chakra-ui/react";
 import { PlusSquareIcon } from "@chakra-ui/icons";
 import { useRouter } from "next/router";
@@ -512,7 +513,7 @@ const BoardContainer = ({
   return (
     <Box h={"100%"} minH={0} overflow="hidden" position="relative">
       <BoardCanvas
-        src={mapUrl ?? "basraport.webp"}
+        src={mapUrl ?? DEFAULT_MAP_URL}
         tokens={allTokens}
         move={moveTokenThrottled}
         self={self}
