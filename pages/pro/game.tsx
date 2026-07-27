@@ -63,7 +63,15 @@ import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
 import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
 import { batchPhase, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
-import { AttachItem, cardAffordances, cardLabel, cardTitle, describeAction, soleAction } from "@/lib/pro/actionDock";
+import {
+  AttachItem,
+  cardAffordances,
+  cardLabel,
+  cardTitle,
+  describeAction,
+  dockRows,
+  soleAction,
+} from "@/lib/pro/actionDock";
 import {
   isExtendedReachAttack,
   SpaceReach,
@@ -2885,6 +2893,32 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [sendAction]);
+  // Number hotkeys 1–9 fire the dock's rows (issue #514) — the multi-option
+  // counterpart to the spacebar above, and built the same way: one window
+  // listener reading a ref, so it never re-binds per snapshot. The ref holds the
+  // rows in RENDERED (post-sort) order, so a digit always fires the row wearing
+  // that chip. Only dock rows are ever in the ref — Undo, Forfeit, and prompt
+  // options are unreachable by digit on purpose.
+  const hotkeyActionsRef = useRef<Action[]>([]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      // Leave browser/OS chords (⌘1 tab switching, alt-digit) alone.
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (!/^[1-9]$/.test(e.key)) return;
+      const action = hotkeyActionsRef.current[Number(e.key) - 1];
+      if (!action) return; // fewer rows than that, prompt open, or not your turn
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName.toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select" || el?.isContentEditable) return;
+      // A modal/dialog owns the keyboard while open — same guard as the spacebar.
+      if (typeof document !== "undefined" && document.querySelector('[aria-modal="true"]')) return;
+      e.preventDefault();
+      sendAction(action);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sendAction]);
   // Issue #80: a just-committed MOVE_FIGHTER tweens through its whole path
   // instead of snapping — held here so the board keeps rendering it while
   // the authoritative STATE (which may already show the fighter arrived)
@@ -3646,6 +3680,13 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   // action with no prompt open. Synced into the ref the keydown listener reads.
   const sole = soleAction(legalActions, prompt);
   soleActionRef.current = sole;
+  // Grouped + numbered dock rows (issue #514). Combat-first ordering with
+  // dividers; hotkeys assigned after the sort. A live prompt owns the keyboard,
+  // so the digits go inert while one is open — the rows themselves still render.
+  const dockActionRows = dockRows(listActions);
+  hotkeyActionsRef.current = prompt
+    ? []
+    : dockActionRows.filter((r) => r.hotkey != null).map((r) => r.action);
 
   // Board affordances derive ONLY from what the server offered. Each
   // highlighted space maps back to the exact server-offered action so a click
@@ -3694,6 +3735,22 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
     view.map.spaces.map((s) => [s.id, { adjacentTo: s.adjacentTo, zones: s.zones }])
   );
   const fighterById = new Map<FighterId, ViewFighter>(view.fighters.map((f) => [f.id, f]));
+  // Board-token art for one fighter. Hoisted out of the <ProBoard> call so the
+  // dock's attack rows (issue #514) paint the SAME face the board does — one
+  // resolver, so a flag-driven portrait swap can never show two different heads.
+  const fighterTokenArt = (f: ViewFighter): string | null => {
+    // A flag-driven portrait swap (Thetis tide) wins for the HERO token;
+    // otherwise fall back to the deck's fixed per-hero token art.
+    const st = ownerTokenState[f.owner];
+    if (f.kind === "HERO" && st?.heroArtUrl) return st.heroArtUrl;
+    const heroId = ownerHeroIds[f.owner];
+    return heroId ? resolveFighterToken(heroId, f.kind) : null;
+  };
+  /** Name + token art for a dock attack row; null when the view lost the fighter. */
+  const fighterFace = (id: FighterId) => {
+    const f = fighterById.get(id);
+    return f ? { name: nameOf(id), artUrl: fighterTokenArt(f) } : null;
+  };
   const isExtendedReach = (a: Action): boolean => {
     if (a.type !== "DECLARE_ATTACK") return false;
     const attacker = fighterById.get(a.attacker);
@@ -4145,14 +4202,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
           friendlyOwners={friendlyOwners}
           fighterBadges={attackerBadge}
           extendedReachTargets={[...extendedReachTargets]}
-          fighterTokenArt={(f) => {
-            // A flag-driven portrait swap (Thetis tide) wins for the HERO token;
-            // otherwise fall back to the deck's fixed per-hero token art.
-            const st = ownerTokenState[f.owner];
-            if (f.kind === "HERO" && st?.heroArtUrl) return st.heroArtUrl;
-            const heroId = ownerHeroIds[f.owner];
-            return heroId ? resolveFighterToken(heroId, f.kind) : null;
-          }}
+          fighterTokenArt={fighterTokenArt}
           fighterTokenBadge={(f) => ownerTokenState[f.owner]?.badge ?? null}
           fx={boardFx}
           pendingMove={pendingMove ?? incomingMove}
@@ -4288,10 +4338,12 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
           ) : null
         }
         hasPrompt={!!prompt}
-        listActions={listActions}
+        rows={dockActionRows}
         soleAction={sole}
         describe={(a) => describeAction(view.catalog, a, { nameOf, attackerBadge, itemLabelForSpace: liveItemLabel })}
         isExtendedReach={isExtendedReach}
+        fighterFace={fighterFace}
+        attackerBadge={attackerBadge}
         onAction={sendAction}
         legalActionCount={legalActions.length}
         iAmSpectating={iAmSpectating}

@@ -10,15 +10,24 @@
  * The one rule this component owns beyond layout: a collapsed dock must never
  * hide a decision the engine is waiting on. See `needsInput` below.
  */
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { Fragment, ReactNode, useEffect, useRef, useState } from "react";
 import { Box, Button, Flex, Kbd, Link, Tag, Text, Tooltip } from "@chakra-ui/react";
 import { animate, motion, useDragControls, useMotionValue } from "framer-motion";
-import { TbChevronDown, TbChevronUp, TbExternalLink, TbGripHorizontal, TbPlus } from "react-icons/tb";
-import { Action, PlayerView } from "@/lib/pro/protocol";
+import {
+  TbArrowNarrowRight,
+  TbChevronDown,
+  TbChevronUp,
+  TbExternalLink,
+  TbGripHorizontal,
+  TbPlus,
+} from "react-icons/tb";
+import { Action, FighterId, PlayerView } from "@/lib/pro/protocol";
 import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { isViewerOnWinningTeam } from "@/lib/pro/teams";
 import { LARGE_FIGHTER_BLURB, LARGE_REACH_CHIP } from "@/lib/pro/largeReach";
 import { ItemGlyph } from "@/components/Pro/ItemBadge";
+import { tokenInitials } from "./FighterTokenPortrait";
+import { DockRow } from "@/lib/pro/actionDock";
 import { useDockLayout } from "@/lib/pro/useDockLayout";
 
 /** Width of the dock's default right-edge slot. */
@@ -30,6 +39,87 @@ const BTN = {
   color: "brand.parchment",
   _hover: { bg: "whiteAlpha.400" },
   _active: { bg: "whiteAlpha.500" },
+};
+
+/**
+ * Chip-scale circular token face for an attack row (issue #514).
+ *
+ * Mirrors the board token's art-clip + initials treatment — same `tokenInitials`
+ * ProBoard and the hero-preview portrait share, same center-top cover crop — at
+ * a size that sits inline in a dock button. The board's own token stays bespoke
+ * (HP/reach badges, move tweens); the one badge that DOES ride here is the #161
+ * disambiguator, because it is exactly what ties this row to a board token.
+ *
+ * `face` may be null (a fighter the view no longer carries) — render nothing
+ * rather than an empty disc.
+ */
+const DockTokenFace = ({
+  face,
+  badge,
+}: {
+  face: { name: string; artUrl: string | null } | null;
+  badge?: number;
+}) => {
+  if (!face) return null;
+  return (
+    <Box as="span" position="relative" display="inline-flex" flexShrink={0} title={face.name}>
+      <Box
+        as="span"
+        display="inline-flex"
+        alignItems="center"
+        justifyContent="center"
+        boxSize="1.5rem"
+        borderRadius="50%"
+        overflow="hidden"
+        bg="radial-gradient(circle at 50% 30%, #3d2249 0%, var(--chakra-colors-brand-surfaceDim) 80%)"
+        border="1px solid"
+        borderColor="rgba(224,168,46,0.7)"
+      >
+        {face.artUrl ? (
+          <Box
+            as="img"
+            src={face.artUrl}
+            alt=""
+            draggable={false}
+            w="100%"
+            h="100%"
+            sx={{
+              objectFit: "cover",
+              objectPosition: "center top",
+              transform: "scale(1.2)",
+              transformOrigin: "center top",
+            }}
+          />
+        ) : (
+          <Text as="span" fontFamily="BebasNeueRegular" fontSize="0.62rem" lineHeight={1}>
+            {tokenInitials(face.name)}
+          </Text>
+        )}
+      </Box>
+      {badge != null && (
+        <Flex
+          as="span"
+          position="absolute"
+          top="-0.28rem"
+          left="-0.28rem"
+          minWidth="1.15em"
+          bg="brand.surfaceDim"
+          color="#fff"
+          border="1px solid #fff"
+          borderRadius="999px"
+          px="0.15em"
+          fontSize="0.58rem"
+          fontWeight="bold"
+          lineHeight="1.4"
+          alignItems="center"
+          justifyContent="center"
+          title={`#${badge}`}
+        >
+          {badge}
+        </Flex>
+      )}
+    </Box>
+  );
 };
 
 /** Incremental-maneuver stepping state, when a local hop-by-hop preview runs. */
@@ -64,11 +154,21 @@ export interface ProDockProps {
   /** true while the engine is waiting on a prompt response from this seat */
   hasPrompt: boolean;
   /** ----- action list ----- */
-  listActions: Action[];
+  /** grouped + numbered dock rows (lib/pro/actionDock `dockRows`, issue #514) —
+   *  already in rendered order, so the chip on a row IS the digit that fires it */
+  rows: DockRow[];
   /** the lone eligible action, which the spacebar shortcut fires (issue #353) */
   soleAction: Action | null;
   describe: (action: Action) => string;
   isExtendedReach: (action: Action) => boolean;
+  /** Board-token face for a fighter, so an attack row can show attacker → target
+   *  in the same art the board draws (issue #514). Returns null when the fighter
+   *  is unknown; a null `artUrl` falls back to the board's initials. Omit the
+   *  prop entirely (tests, replays) and attack rows stay text-only. */
+  fighterFace?: (id: FighterId) => { name: string; artUrl: string | null } | null;
+  /** the #161 disambiguation number per attacker, badged onto its face here and
+   *  onto the matching board token */
+  attackerBadge?: Partial<Record<FighterId, number>>;
   onAction: (action: Action) => void;
   legalActionCount: number;
   iAmSpectating: boolean;
@@ -97,10 +197,12 @@ export const ProDock = ({
   combatPanel,
   promptPanel,
   hasPrompt,
-  listActions,
+  rows,
   soleAction,
   describe,
   isExtendedReach,
+  fighterFace,
+  attackerBadge = {},
   onAction,
   legalActionCount,
   iAmSpectating,
@@ -144,10 +246,10 @@ export const ProDock = ({
   // tuck a required decision out of sight. The preference itself is left
   // untouched, so the dock folds itself back up once the moment passes.
   //
-  // Gate on `legalActionCount`, not `myTurn && listActions.length`: the engine
+  // Gate on `legalActionCount`, not `myTurn && rows.length`: the engine
   // offers a seat actions outside its own clock (sidekick placement on turn 0
   // is the live case), and board-rendered actions like MOVE_FIGHTER never reach
-  // `listActions` — both would slip through a turn-scoped check.
+  // `rows` — both would slip through a turn-scoped check.
   const needsInput = hasPrompt || !!combatPanel || !!view.winner || legalActionCount > 0;
   const collapsed = layout.collapsed && !needsInput;
 
@@ -315,59 +417,91 @@ export const ProDock = ({
       {combatPanel}
       {promptPanel}
       <Flex direction="column" gap="0.4rem">
-        {listActions.map((a, i) => (
-          <Button
-            key={i}
-            {...BTN}
-            bg="rgba(20, 8, 24, 0.65)"
-            justifyContent="flex-start"
-            whiteSpace="normal"
-            height="auto"
-            minH="2rem"
-            py="0.4rem"
-            textAlign="left"
-            onClick={() => onAction(a)}
-          >
-            <Flex as="span" align="center" gap="0.4rem" flexWrap="wrap">
-              {/* Scheme-item use (v17): a leading yellow lightning glyph marks
-                  this as a BOARD item action, visually distinct from a hand
-                  scheme card. The item's label rides in the describe() text. */}
-              {a.type === "USE_SCHEME_ITEM" && (
-                <Box as="span" display="inline-flex" boxSize="1.1rem" flexShrink={0}>
-                  <ItemGlyph kind="scheme" fill="#E4B106" />
-                </Box>
-              )}
-              <Text as="span">{describe(a)}</Text>
-              {isExtendedReach(a) && (
-                <Tooltip label={LARGE_FIGHTER_BLURB} hasArrow placement="top" openDelay={150}>
-                  <Tag
-                    size="sm"
-                    bg="brand.accent"
-                    color="brand.surfaceDim"
-                    fontWeight={700}
-                    letterSpacing="0.01em"
+        {rows.map(({ action: a, hotkey, dividerBefore }, i) => (
+          <Fragment key={i}>
+            {/* Group divider (issue #514): a hairline between bands — maneuver,
+                combat, schemes — so the eye lands on the right family of rows
+                instead of scanning one undifferentiated stack. */}
+            {dividerBefore && <Box h="1px" bg="rgba(231, 204, 152, 0.16)" mx="0.15rem" my="0.1rem" />}
+            <Button
+              {...BTN}
+              bg="rgba(20, 8, 24, 0.65)"
+              justifyContent="flex-start"
+              whiteSpace="normal"
+              height="auto"
+              minH="2rem"
+              py="0.4rem"
+              textAlign="left"
+              onClick={() => onAction(a)}
+            >
+              <Flex as="span" align="center" gap="0.4rem" flexWrap="wrap">
+                {/* Number hotkey (issue #514): the digit that fires this row, in
+                    rendered order. Only present with 2+ rows — the 1-row case is
+                    the spacebar's (#353), whose chip renders on the right below. */}
+                {hotkey != null && (
+                  <Kbd
                     flexShrink={0}
+                    bg="rgba(255,255,255,0.08)"
+                    borderColor="rgba(255,255,255,0.25)"
+                    color="brand.parchment"
+                    fontSize="0.68rem"
+                    px="0.35rem"
                   >
-                    {LARGE_REACH_CHIP}
-                  </Tag>
-                </Tooltip>
-              )}
-              {/* Sole-option shortcut hint (issue #353): only the lone eligible
-                  dock action carries it, and pressing space fires this action. */}
-              {a === soleAction && (
-                <Kbd
-                  ml="auto"
-                  flexShrink={0}
-                  bg="rgba(255,255,255,0.08)"
-                  borderColor="rgba(255,255,255,0.25)"
-                  color="brand.parchment"
-                  fontSize="0.7rem"
-                >
-                  space
-                </Kbd>
-              )}
-            </Flex>
-          </Button>
+                    {hotkey}
+                  </Kbd>
+                )}
+                {/* Scheme-item use (v17): a leading yellow lightning glyph marks
+                    this as a BOARD item action, visually distinct from a hand
+                    scheme card. The item's label rides in the describe() text. */}
+                {a.type === "USE_SCHEME_ITEM" && (
+                  <Box as="span" display="inline-flex" boxSize="1.1rem" flexShrink={0}>
+                    <ItemGlyph kind="scheme" fill="#E4B106" />
+                  </Box>
+                )}
+                {/* Attack rows show WHO hits WHOM in the board's own token art
+                    (issue #514), so picking the right attacker is a glance rather
+                    than a name-match. The text label stays — the faces annotate it. */}
+                {a.type === "DECLARE_ATTACK" && fighterFace && (
+                  <Flex as="span" align="center" gap="0.15rem" flexShrink={0}>
+                    <DockTokenFace face={fighterFace(a.attacker)} badge={attackerBadge[a.attacker]} />
+                    <Box as="span" color="#E36B6B" display="inline-flex">
+                      <TbArrowNarrowRight size="0.95rem" />
+                    </Box>
+                    <DockTokenFace face={fighterFace(a.target)} />
+                  </Flex>
+                )}
+                <Text as="span">{describe(a)}</Text>
+                {isExtendedReach(a) && (
+                  <Tooltip label={LARGE_FIGHTER_BLURB} hasArrow placement="top" openDelay={150}>
+                    <Tag
+                      size="sm"
+                      bg="brand.accent"
+                      color="brand.surfaceDim"
+                      fontWeight={700}
+                      letterSpacing="0.01em"
+                      flexShrink={0}
+                    >
+                      {LARGE_REACH_CHIP}
+                    </Tag>
+                  </Tooltip>
+                )}
+                {/* Sole-option shortcut hint (issue #353): only the lone eligible
+                    dock action carries it, and pressing space fires this action. */}
+                {a === soleAction && (
+                  <Kbd
+                    ml="auto"
+                    flexShrink={0}
+                    bg="rgba(255,255,255,0.08)"
+                    borderColor="rgba(255,255,255,0.25)"
+                    color="brand.parchment"
+                    fontSize="0.7rem"
+                  >
+                    space
+                  </Kbd>
+                )}
+              </Flex>
+            </Button>
+          </Fragment>
         ))}
         {legalActionCount === 0 && !hasPrompt && liveChrome && (
           <Text opacity={0.7} fontSize="0.9rem" color="brand.parchment">

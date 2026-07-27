@@ -1,9 +1,11 @@
-import { cardAffordances, describeAction, soleAction } from "./actionDock";
+import { cardAffordances, describeAction, dockRows, soleAction } from "./actionDock";
 import { Action, CardMeta } from "./protocol";
 
 // A minimal catalog so cardLabel prints a real "title (value/boost)" string.
 const catalog: Record<string, CardMeta> = {
   "king-taranis/fireball": { title: "Fireball", type: "attack", value: 3, boost: 2 },
+  // A boostless scheme — the fallback path for the "Boost +X" label.
+  "king-taranis/war-drums": { title: "War Drums", type: "scheme", value: null, boost: null },
 };
 
 const nameOf = (id: string) => id; // DECLARE_ATTACK-only; unused by BOOST_MOVE.
@@ -34,10 +36,10 @@ describe("actionDock — BOOST_MOVE renders and emits generically", () => {
     });
   });
 
-  it("sidebar describeAction reads 'Boost move (discard …)' for the p3 seat", () => {
+  it("sidebar describeAction reads 'Boost +X with <Title>' for the p3 seat", () => {
     // Player-agnostic: the label depends only on the discarded card, never the
     // seat, so a multiplayer boost reads identically to a duel boost.
-    expect(describeAction(catalog, p3Boost, { nameOf })).toBe("Boost move (discard Fireball (3/2))");
+    expect(describeAction(catalog, p3Boost, { nameOf })).toBe("Boost +2 with Fireball");
   });
 
   it("offers no affordance for a card no server action carries", () => {
@@ -141,6 +143,105 @@ describe("actionDock — soleAction (spacebar eligibility, issue #353)", () => {
   it("returns null for an empty action list (spectating / not your turn)", () => {
     expect(soleAction([], null)).toBeNull();
     expect(soleAction([{ type: "FORFEIT", player: "p1" }], null)).toBeNull();
+  });
+});
+
+describe("actionDock — boost labels (issue #514)", () => {
+  const boostOf = (card: string): Action => ({ type: "BOOST_MOVE", player: "p1", card });
+
+  it("leads with the boost value and names the card plainly", () => {
+    // What a maneuvering player actually needs: how far does this card carry me.
+    expect(describeAction(catalog, boostOf("king-taranis/fireball#1"), { nameOf })).toBe(
+      "Boost +2 with Fireball"
+    );
+  });
+
+  it("falls back to the discard wording when the card has no printed boost", () => {
+    // Never "Boost +null": a boostless card keeps the original sentence.
+    expect(describeAction(catalog, boostOf("king-taranis/war-drums#1"), { nameOf })).toBe(
+      "Boost move (discard War Drums (scheme))"
+    );
+  });
+
+  it("falls back for a card missing from the catalog entirely", () => {
+    expect(describeAction(catalog, boostOf("king-taranis/unknown#1"), { nameOf })).toBe(
+      "Boost move (discard unknown)"
+    );
+  });
+});
+
+describe("actionDock — dockRows ordering, dividers, hotkeys (issue #514)", () => {
+  const maneuver: Action = { type: "MANEUVER", player: "p1" };
+  const endManeuver: Action = { type: "END_MANEUVER", player: "p1" };
+  const boostA: Action = { type: "BOOST_MOVE", player: "p1", card: "king-taranis/fireball#1" };
+  const boostB: Action = { type: "BOOST_MOVE", player: "p1", card: "king-taranis/fireball#2" };
+  const attackA: Action = {
+    type: "DECLARE_ATTACK",
+    player: "p1",
+    attacker: "king-taranis/king",
+    target: "king-kong/kong",
+  };
+  const attackB: Action = {
+    type: "DECLARE_ATTACK",
+    player: "p1",
+    attacker: "king-taranis/raptor-1",
+    target: "king-kong/kong",
+  };
+  const scheme: Action = { type: "SCHEME", player: "p1", card: "king-taranis/war-drums#1" };
+  const useItem: Action = { type: "USE_SCHEME_ITEM", player: "p1", space: "s4" };
+
+  it("puts End maneuver above the boost rows, with one divider between them", () => {
+    // The maneuver sub-state: the server offers END_MANEUVER alongside every
+    // boostable hand card, and the way OUT should never be buried in the list.
+    const rows = dockRows([boostA, endManeuver, boostB]);
+    expect(rows.map((r) => r.action)).toEqual([endManeuver, boostA, boostB]);
+    expect(rows.map((r) => r.dividerBefore)).toEqual([false, true, false]);
+  });
+
+  it("puts attacks above schemes on the choose-action state, maneuver on top", () => {
+    const rows = dockRows([scheme, attackA, maneuver, useItem, attackB]);
+    expect(rows.map((r) => r.action)).toEqual([maneuver, attackA, attackB, scheme, useItem]);
+    // One divider per group boundary: maneuver | attacks | schemes.
+    expect(rows.map((r) => r.dividerBefore)).toEqual([false, true, false, true, false]);
+  });
+
+  it("numbers rows 1..N in RENDERED order, so the chip fires its own row", () => {
+    const rows = dockRows([scheme, attackA, maneuver]);
+    expect(rows.map((r) => [r.hotkey, r.action.type])).toEqual([
+      [1, "MANEUVER"],
+      [2, "DECLARE_ATTACK"],
+      [3, "SCHEME"],
+    ]);
+  });
+
+  it("leaves a lone row unnumbered — that case is the spacebar's (#353)", () => {
+    expect(dockRows([maneuver])).toEqual([{ action: maneuver, hotkey: null, dividerBefore: false }]);
+    expect(dockRows([])).toEqual([]);
+  });
+
+  it("stops handing out chips after the 9th row", () => {
+    const many = Array.from({ length: 11 }, (_, i): Action => ({
+      type: "SCHEME",
+      player: "p1",
+      card: `king-taranis/war-drums#${i}`,
+    }));
+    const rows = dockRows(many);
+    expect(rows.map((r) => r.hotkey)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, null, null]);
+  });
+
+  it("keeps the server's order within a group and forwards actions unchanged", () => {
+    // Stable within a band: same-name sidekick attacks stay in the order the
+    // server enumerated them, which is what the #161 badge numbers follow.
+    const rows = dockRows([attackB, attackA]);
+    expect(rows.map((r) => r.action)).toEqual([attackB, attackA]);
+    expect(rows[0].action).toBe(attackB); // same object reference — sendAction echoes it verbatim
+  });
+
+  it("drops nothing: an unrecognized dock action still renders, last", () => {
+    const discard: Action = { type: "DISCARD_TO_LIMIT", player: "p1", card: "king-taranis/fireball#1" };
+    const rows = dockRows([discard, maneuver]);
+    expect(rows.map((r) => r.action)).toEqual([maneuver, discard]);
+    expect(rows.map((r) => r.dividerBefore)).toEqual([false, true]);
   });
 });
 
