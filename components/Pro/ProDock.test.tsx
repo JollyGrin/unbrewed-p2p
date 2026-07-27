@@ -8,6 +8,7 @@ import "@testing-library/jest-dom";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { ProDock, ProDockProps } from "./ProDock";
 import { Action, PlayerView } from "@/lib/pro/protocol";
+import { DockRow } from "@/lib/pro/actionDock";
 
 const view = (over: Partial<PlayerView> = {}): PlayerView =>
   ({
@@ -28,6 +29,14 @@ const view = (over: Partial<PlayerView> = {}): PlayerView =>
 
 const ACTION = { type: "PASS" } as unknown as Action;
 
+/** One un-numbered, un-dividered row — the shape most of these tests want. */
+const row = (action: Action, over: Partial<DockRow> = {}): DockRow => ({
+  action,
+  hotkey: null,
+  dividerBefore: false,
+  ...over,
+});
+
 const props = (over: Partial<ProDockProps> = {}): ProDockProps => ({
   view: view(),
   myTurn: false,
@@ -43,7 +52,7 @@ const props = (over: Partial<ProDockProps> = {}): ProDockProps => ({
   combatPanel: null,
   promptPanel: null,
   hasPrompt: false,
-  listActions: [],
+  rows: [],
   soleAction: null,
   describe: () => "do the thing",
   isExtendedReach: () => false,
@@ -118,7 +127,7 @@ describe("ProDock auto-expand guard", () => {
   });
 
   it("expands when it is your turn with legal actions", async () => {
-    await collapseThen({ myTurn: true, listActions: [ACTION], legalActionCount: 1 });
+    await collapseThen({ myTurn: true, rows: [row(ACTION)], legalActionCount: 1 });
     expect(screen.getByText("do the thing")).toBeInTheDocument();
   });
 
@@ -126,7 +135,7 @@ describe("ProDock auto-expand guard", () => {
   // another seat is the active player, and MOVE_FIGHTER/PLACE_SIDEKICK render as
   // board spaces rather than dock buttons. Seen live in a 2-player room.
   it("expands for a board-rendered action offered outside your own turn", async () => {
-    await collapseThen({ myTurn: false, listActions: [], legalActionCount: 1, highlightedCount: 5 });
+    await collapseThen({ myTurn: false, rows: [], legalActionCount: 1, highlightedCount: 5 });
     expect(screen.getByText(/click a gold space to move there \(5 options\)/)).toBeInTheDocument();
   });
 
@@ -149,5 +158,87 @@ describe("ProDock auto-expand guard", () => {
 
     rerender(<ProDock {...props()} />);
     expect(screen.getByRole("button", { name: /expand dock/i })).toBeInTheDocument();
+  });
+});
+
+describe("ProDock action rows (issue #514)", () => {
+  const attack = (attacker: string, target: string): Action =>
+    ({ type: "DECLARE_ATTACK", player: "p1", attacker, target } as unknown as Action);
+
+  it("renders the hotkey chip a row was numbered with, and none when unnumbered", async () => {
+    render(
+      <ProDock
+        {...props({
+          legalActionCount: 2,
+          rows: [row(ACTION, { hotkey: 1 }), row(ACTION, { hotkey: 2 })],
+          describe: (a) => `option ${(a as unknown as { n?: number }).n ?? ""}`,
+        })}
+      />
+    );
+    await act(async () => {});
+    // The chips are what the page's digit listener promises to honour.
+    expect(screen.getByText("1")).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.queryByText("3")).not.toBeInTheDocument();
+  });
+
+  it("keeps the spacebar chip on a lone row rather than numbering it", async () => {
+    render(<ProDock {...props({ legalActionCount: 1, rows: [row(ACTION)], soleAction: ACTION })} />);
+    await act(async () => {});
+    expect(screen.getByText("space")).toBeInTheDocument();
+    expect(screen.queryByText("1")).not.toBeInTheDocument();
+  });
+
+  it("fires the row's own action on click", async () => {
+    const other = { type: "OTHER" } as unknown as Action;
+    const onAction = jest.fn();
+    render(
+      <ProDock
+        {...props({
+          legalActionCount: 2,
+          rows: [row(ACTION, { hotkey: 1 }), row(other, { hotkey: 2 })],
+          describe: (a) => ((a as unknown as { type: string }).type === "PASS" ? "first" : "second"),
+          onAction,
+        })}
+      />
+    );
+    await act(async () => {});
+    fireEvent.click(screen.getByText("second").closest("button")!);
+    expect(onAction).toHaveBeenCalledWith(other);
+  });
+
+  it("paints attacker → target token faces on an attack row, badging the attacker", async () => {
+    const raptor = "king-taranis/raptor-1";
+    const kong = "king-kong/kong";
+    render(
+      <ProDock
+        {...props({
+          legalActionCount: 1,
+          rows: [row(attack(raptor, kong), { hotkey: 1 })],
+          describe: () => "Attack Kong with Raptor 2",
+          // No art for either fighter → the board's initials fallback.
+          fighterFace: (id) => ({ name: id === raptor ? "Raptor" : "Kong", artUrl: null }),
+          attackerBadge: { [raptor]: 2 },
+        })}
+      />
+    );
+    await act(async () => {});
+    expect(screen.getByText("RAP")).toBeInTheDocument(); // tokenInitials("Raptor")
+    expect(screen.getByText("KON")).toBeInTheDocument(); // tokenInitials("Kong")
+    expect(screen.getByTitle("#2")).toBeInTheDocument(); // the #161 disambiguator
+  });
+
+  it("stays text-only when no face resolver is supplied", async () => {
+    render(
+      <ProDock
+        {...props({
+          legalActionCount: 1,
+          rows: [row(attack("king-taranis/king", "king-kong/kong"))],
+          describe: () => "Attack Kong with King",
+        })}
+      />
+    );
+    await act(async () => {});
+    expect(screen.getByText("Attack Kong with King")).toBeInTheDocument();
   });
 });
