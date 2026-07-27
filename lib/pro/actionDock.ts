@@ -54,8 +54,17 @@ export const describeAction = (
   switch (a.type) {
     case "MANEUVER":
       return "Maneuver";
-    case "BOOST_MOVE":
-      return `Boost move (discard ${cardLabel(catalog, a.card)})`;
+    case "BOOST_MOVE": {
+      // "Boost +2 with War Drums" (issue #514) — during a maneuver the ONLY thing
+      // that matters is how far each card carries you, so the boost value leads
+      // and the card is named plainly. A catalog miss (or a card the server says
+      // has no printed boost) falls back to the original discard wording rather
+      // than printing "Boost +null".
+      const boost = catalog[a.card.split("#")[0]]?.boost;
+      return boost == null
+        ? `Boost move (discard ${cardLabel(catalog, a.card)})`
+        : `Boost +${boost} with ${cardTitle(catalog, a.card)}`;
+    }
     case "MOVE_FIGHTER":
       return `Move ${a.fighter.split("/")[1]}`;
     case "SHAPESHIFT": {
@@ -123,6 +132,77 @@ export const soleAction = (legalActions: Action[], prompt: unknown): Action | nu
   if (nonForfeit.length !== 1) return null;
   const only = nonForfeit[0];
   return NON_DOCK_ACTION_TYPES.includes(only.type) ? null : only;
+};
+
+// ---------------------------------------------------------------------------
+// Dock row ordering + hotkeys (issue #514)
+// ---------------------------------------------------------------------------
+
+/** The bands the dock groups its rows into, in RENDERED order. */
+export type DockGroup = "maneuver" | "attack" | "scheme" | "boost" | "other";
+
+/** Rendered top-to-bottom. Maneuver leads (it's the state you're in, or the
+ *  cheapest way out of it), then combat — the usual path, and the one players
+ *  hunt for — then schemes, then the maneuver-only boost rows, then anything
+ *  else the server offers (commits, defenses, discards, shapeshifts). */
+const GROUP_ORDER: readonly DockGroup[] = ["maneuver", "attack", "scheme", "boost", "other"];
+
+/** Which band a server action renders in. Type-driven only — no seat, no rules. */
+export const dockGroup = (a: Action): DockGroup => {
+  switch (a.type) {
+    case "MANEUVER":
+    case "END_MANEUVER":
+      return "maneuver";
+    case "DECLARE_ATTACK":
+      return "attack";
+    case "SCHEME":
+    case "USE_SCHEME_ITEM":
+      return "scheme";
+    case "BOOST_MOVE":
+      return "boost";
+    default:
+      return "other";
+  }
+};
+
+/** One rendered dock row: the server action plus its presentation extras. */
+export interface DockRow {
+  /** the server-offered action, forwarded to sendAction unchanged */
+  action: Action;
+  /** the digit that fires this row (1–9), or null — a lone row (the spacebar's
+   *  job, issue #353) and any row past the 9th carry no chip */
+  hotkey: number | null;
+  /** render a group divider immediately above this row */
+  dividerBefore: boolean;
+}
+
+/**
+ * Group, order, and number the dock's rows (issue #514).
+ *
+ * Ordering is by band (see GROUP_ORDER), STABLE within a band so the server's own
+ * enumeration order survives. Hotkeys are assigned AFTER sorting, top-to-bottom,
+ * so the chip a row wears is always the digit that fires that row.
+ *
+ * Two states this shapes in particular:
+ *  - maneuvering (END_MANEUVER + BOOST_MOVE offered): "End maneuver" first, then
+ *    a divider, then the boost rows.
+ *  - choose-action: Maneuver, then the attacks, then a divider, then the schemes.
+ *
+ * Pure and seat-agnostic: it reads action `type` only, so a multiplayer seat's
+ * rows sort exactly like a duel seat's.
+ */
+export const dockRows = (actions: Action[]): DockRow[] => {
+  const ordered = GROUP_ORDER.flatMap((g) => actions.filter((a) => dockGroup(a) === g));
+  // A single row is the spacebar's case (#353) — numbering it would advertise a
+  // second shortcut for the same one button.
+  const numbered = ordered.length >= 2;
+  let prev: DockGroup | null = null;
+  return ordered.map((action, i) => {
+    const group = dockGroup(action);
+    const dividerBefore = prev !== null && group !== prev;
+    prev = group;
+    return { action, hotkey: numbered && i < 9 ? i + 1 : null, dividerBefore };
+  });
 };
 
 /** A hand-card affordance: the raw server action plus a short verb label. */
