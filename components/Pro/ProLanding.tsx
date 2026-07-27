@@ -23,6 +23,7 @@ import { useProLiveRosterState } from "@/lib/pro/useProLiveRoster";
 import { PRO_WS_URL } from "@/lib/pro/wsUrl";
 import { useFlag } from "@/lib/flags";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
+import { ProHeroVideo } from "@/components/Pro/ProHeroVideo";
 import { MAP_CATALOG, FORMAT_BADGE, eligibleFormats } from "@/lib/pro/mapCatalog";
 import type { BotDifficulty, HeroListing } from "@/lib/pro/protocol";
 import { vsParamFor } from "@/lib/pro/vsParam";
@@ -169,7 +170,18 @@ export const ProLanding = () => {
         : `${spotlight.shortName.toUpperCase()} AWAITS CONVERSION — RULES SUPPORT COMES DECK BY DECK`;
 
   return (
-    <Box minH="100svh" bg="brand.surfaceDim" color="brand.parchment">
+    <Box
+      position="relative"
+      minH="100svh"
+      bg="brand.surfaceDim"
+      color="brand.parchment"
+      overflowX="clip"
+    >
+      {/* Looping footage of a real Pro game, mounted after hydration and only
+          when the gates allow it. Sits beneath the backdrop below, which is its
+          scrim. */}
+      <ProHeroVideo />
+
       {/* subtle arena backdrop: radial spotlight + scanline grain */}
       <Box
         position="fixed"
