@@ -7,6 +7,7 @@ import {
   STRIKE_TTL_MS,
   useCombatStrike,
 } from "./combatStrike";
+import { ARC_FLIGHT_MS, ARC_LAUNCH_MS, DAMAGE_BEAT_MS } from "./combatTiming";
 import { GameEvent, PlayerView, ViewCombat, ViewCombatCard } from "./protocol";
 
 const card = (instance: string, over: Partial<ViewCombatCard> = {}): ViewCombatCard => ({
@@ -219,6 +220,91 @@ describe("captureLingeringCombat", () => {
       captureLingeringCombat(prev, { key: "k", variant: "tie", damage: 0, outcome: null, suppressStrike: false })
     ).toBeNull();
   });
+
+  // Root cause A of #517: the whole combat arrives in one server drive, so the last
+  // live combat is still PRE-reveal — freezing it verbatim froze the blank card.
+  it("grafts the batch's revealed faces onto a PRE-reveal base (issue #517)", () => {
+    const prev = view({
+      combat: combat({ stage: "COMMIT_DEFENSE", attackerCard: null, defenderCard: null }),
+      catalog: {
+        "king-kong/clobber": { title: "Clobber", type: "attack", value: 4, boost: 2 },
+        "baba-yaga/dodge": { title: "Dodge", type: "defense", value: 1, boost: 3 },
+      },
+    });
+    const frozen = captureLingeringCombat(
+      prev,
+      { key: "k", variant: "win", damage: 3, outcome: "ATTACKER_WON", suppressStrike: false },
+      resolvedEnded("ATTACKER_WON", 3)
+    );
+    expect(frozen?.attackerCard?.instance).toBe("king-kong/clobber#1");
+    expect(frozen?.attackerCard?.role).toBe("ATTACK");
+    expect(frozen?.defenderCard?.instance).toBe("baba-yaga/dodge#1");
+    expect(frozen?.defenderCard?.role).toBe("DEFENSE");
+    // No VALUE_* event rode along → the printed catalog values stand in.
+    expect(frozen?.attackerCard?.effectiveValue).toBe(4);
+    expect(frozen?.defenderCard?.effectiveValue).toBe(1);
+  });
+
+  it("uses the batch's announced effective values and boosts for a grafted face", () => {
+    const prev = view({
+      combat: combat({ stage: "COMMIT_DEFENSE", attackerCard: null, defenderCard: null }),
+      catalog: { "king-kong/clobber": { title: "Clobber", type: "attack", value: 4, boost: 2 } },
+    });
+    const events: GameEvent[] = [
+      ...resolvedEnded("ATTACKER_WON", 6),
+      { type: "CARD_BOOSTED", role: "ATTACK", card: "king-kong/roar#3", blind: false },
+      { type: "VALUE_MODIFIED", role: "ATTACK", delta: 2, newEffective: 6 },
+    ];
+    const frozen = captureLingeringCombat(
+      prev,
+      { key: "k", variant: "win", damage: 6, outcome: "ATTACKER_WON", suppressStrike: false },
+      events
+    );
+    expect(frozen?.attackerCard?.effectiveValue).toBe(6);
+    expect(frozen?.attackerCard?.boosts).toEqual(["king-kong/roar#3"]);
+  });
+
+  it("keeps the live faces when the view already carried them (server values win)", () => {
+    const prev = view({ combat: combat({ stage: "DAMAGE" }) });
+    const frozen = captureLingeringCombat(
+      prev,
+      { key: "k", variant: "win", damage: 1, outcome: "ATTACKER_WON", suppressStrike: false },
+      // A stale/odd reveal in the same batch must not overwrite what the view published.
+      [{ type: "CARDS_REVEALED", attackerCard: "other/card#9", defenderCard: "other/card#8" }]
+    );
+    expect(frozen?.attackerCard?.instance).toBe("king-kong/clobber#1");
+    expect(frozen?.defenderCard?.instance).toBe("baba-yaga/dodge#1");
+  });
+
+  it("leaves the defense slot empty when the defender declined (null in CARDS_REVEALED)", () => {
+    const prev = view({
+      combat: combat({ stage: "COMMIT_DEFENSE", attackerCard: null, defenderCard: null }),
+      catalog: { "king-kong/clobber": { title: "Clobber", type: "attack", value: 4, boost: 2 } },
+    });
+    const events: GameEvent[] = [
+      { type: "CARDS_REVEALED", attackerCard: "king-kong/clobber#1", defenderCard: null },
+      { type: "COMBAT_DAMAGE", amount: 4 },
+      { type: "COMBAT_RESOLVED", outcome: "ATTACKER_WON" },
+      { type: "COMBAT_ENDED" },
+    ];
+    const frozen = captureLingeringCombat(
+      prev,
+      { key: "k", variant: "win", damage: 4, outcome: "ATTACKER_WON", suppressStrike: false },
+      events
+    );
+    expect(frozen?.attackerCard?.instance).toBe("king-kong/clobber#1");
+    expect(frozen?.defenderCard).toBeNull();
+  });
+
+  it("keeps the base outcome/damage when no strike descriptor rides along (end-in-a-later-batch)", () => {
+    const prev = view({
+      combat: combat({ stage: "AFTER", outcome: "ATTACKER_WON", attackDamageDealt: 3 }),
+    });
+    const frozen = captureLingeringCombat(prev, null, []);
+    expect(frozen?.outcome).toBe("ATTACKER_WON");
+    expect(frozen?.attackDamageDealt).toBe(3);
+    expect(frozen?.stage).toBe("CLEANUP");
+  });
 });
 
 describe("useCombatStrike", () => {
@@ -286,6 +372,91 @@ describe("useCombatStrike", () => {
 
     // The linger clears itself after the TTL.
     act(() => jest.advanceTimersByTime(LINGER_TTL_MS + 20));
+    expect(result.current.lingeringCombat).toBeNull();
+  });
+
+  // Root cause A of #517 at the hook level: commit → reveal → resolve → end in ONE
+  // server drive (declined defense / bot batch). The pre-reveal combat is all the hook
+  // has to freeze, so the panel used to linger a BLANK card while damage flew out of it.
+  it("lingers with BOTH revealed faces when the whole combat arrives in one batch (#517)", () => {
+    const preReveal = view({
+      combat: combat({ stage: "COMMIT_DEFENSE", attackerCard: null, defenderCard: null }),
+      catalog: {
+        "king-kong/clobber": { title: "Clobber", type: "attack", value: 4, boost: 2 },
+        "baba-yaga/dodge": { title: "Dodge", type: "defense", value: 1, boost: 3 },
+      },
+    });
+    const { result, rerender } = renderHook((props: { s: ReturnType<typeof snap> }) => useCombatStrike(props.s), {
+      initialProps: { s: snap(preReveal) },
+    });
+
+    act(() => rerender({ s: snap(view({ combat: null }), resolvedEnded("ATTACKER_WON", 3)) }));
+
+    expect(result.current.lingeringCombat?.attackerCard?.instance).toBe("king-kong/clobber#1");
+    expect(result.current.lingeringCombat?.defenderCard?.instance).toBe("baba-yaga/dodge#1");
+    expect(result.current.lingeringCombat?.attackDamageDealt).toBe(3);
+    expect(result.current.lingeringCombat?.outcome).toBe("ATTACKER_WON");
+  });
+
+  // Root cause B of #517: the combat RESOLVES in batch A (outcome stamped, combat
+  // survives for AFTER-window prompts) and ENDS in a later batch B. B carries no
+  // resolve event and no outcome transition, so the panel used to unmount instantly.
+  it("lingers when the combat ENDS in a later batch than it resolved (#517)", () => {
+    const { result, rerender } = renderHook((props: { s: ReturnType<typeof snap> }) => useCombatStrike(props.s), {
+      initialProps: { s: snap(view({ combat: combat({ stage: "DAMAGE", outcome: "UNKNOWN" }) })) },
+    });
+
+    // Batch A — resolves, combat survives (AFTER window). Strike fires, no linger yet.
+    const resolvedA = view({
+      combat: combat({ stage: "AFTER", outcome: "ATTACKER_WON", attackDamageDealt: 2 }),
+    });
+    act(() =>
+      rerender({
+        s: snap(resolvedA, [
+          { type: "COMBAT_DAMAGE", amount: 2 },
+          { type: "COMBAT_RESOLVED", outcome: "ATTACKER_WON" },
+        ]),
+      })
+    );
+    expect(result.current.strike?.variant).toBe("win");
+    expect(result.current.lingeringCombat).toBeNull();
+
+    // Batch B — cleanup drive: the combat just disappears. The panel must still linger.
+    act(() => rerender({ s: snap(view({ combat: null }), [{ type: "COMBAT_ENDED" }]) }));
+    expect(result.current.lingeringCombat).not.toBeNull();
+    expect(result.current.lingeringCombat?.outcome).toBe("ATTACKER_WON");
+    expect(result.current.lingeringCombat?.attackDamageDealt).toBe(2);
+    expect(result.current.lingeringCombat?.attackerCard?.instance).toBe("king-kong/clobber#1");
+    expect(result.current.lingeringCombat?.defenderCard?.instance).toBe("baba-yaga/dodge#1");
+
+    // …and it outlives the damage arc landing + the token beat before clearing.
+    act(() => jest.advanceTimersByTime(ARC_LAUNCH_MS + ARC_FLIGHT_MS + DAMAGE_BEAT_MS));
+    expect(result.current.lingeringCombat).not.toBeNull();
+    act(() => jest.advanceTimersByTime(LINGER_TTL_MS));
+    expect(result.current.lingeringCombat).toBeNull();
+  });
+
+  it("does not re-fire the strike when the later end batch arrives", () => {
+    const { result, rerender } = renderHook((props: { s: ReturnType<typeof snap> }) => useCombatStrike(props.s), {
+      initialProps: { s: snap(view({ combat: combat({ stage: "DAMAGE", outcome: "UNKNOWN" }) })) },
+    });
+    act(() =>
+      rerender({
+        s: snap(view({ combat: combat({ stage: "AFTER", outcome: "ATTACKER_WON", attackDamageDealt: 2 }) }), [
+          { type: "COMBAT_RESOLVED", outcome: "ATTACKER_WON" },
+        ]),
+      })
+    );
+    const first = result.current.strike;
+    act(() => rerender({ s: snap(view({ combat: null }), [{ type: "COMBAT_ENDED" }]) }));
+    expect(result.current.strike).toBe(first);
+  });
+
+  it("does NOT linger a combat that vanishes without ever resolving", () => {
+    const { result, rerender } = renderHook((props: { s: ReturnType<typeof snap> }) => useCombatStrike(props.s), {
+      initialProps: { s: snap(view({ combat: combat({ stage: "COMMIT_DEFENSE", outcome: null }) })) },
+    });
+    act(() => rerender({ s: snap(view({ combat: null }), [{ type: "COMBAT_ENDED" }]) }));
     expect(result.current.lingeringCombat).toBeNull();
   });
 

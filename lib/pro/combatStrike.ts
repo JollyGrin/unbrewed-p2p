@@ -15,7 +15,16 @@
  * panel to play in. The linger snapshot bridges that gap.
  */
 import { useEffect, useRef, useState } from "react";
-import { CombatOutcome, GameEvent, PlayerView, ViewCombat } from "./protocol";
+import {
+  CardInstanceId,
+  CardMeta,
+  CombatOutcome,
+  GameEvent,
+  PlayerView,
+  ViewCombat,
+  ViewCombatCard,
+} from "./protocol";
+import { LINGER_TTL_MS, STRIKE_TTL_MS } from "./combatTiming";
 
 /** win = attacker dealt damage (defense knocked back); blocked = defender won / 0
  *  damage (attack bounces off a shield); tie = resolved but neither side dealt
@@ -39,16 +48,10 @@ export interface CombatStrike {
   suppressStrike: boolean;
 }
 
-/** How long the strike descriptor stays live (ms). Kept just PAST the linger TTL so
- *  the defense card's `both`-held knocked/dimmed pose is still applied when a
- *  lingered panel unmounts — the panel disappears rather than snapping back to rest.
- *  Lengthened with the slower sequence (#382 pacing) so the pose never clears mid-dwell. */
-export const STRIKE_TTL_MS = 2900;
-/** How long a frozen combat lingers after `view.combat` clears (ms). Covers the full
- *  slowed sequence — wind-up ~0.85s + lunge/reaction ~0.68s + the comparison beat +
- *  the damage arc landing (~2.5s) — plus a settled DWELL so the resolved state (values
- *  pulsed, damage landed) holds visibly before the panel unmounts (#382 pacing). */
-export const LINGER_TTL_MS = 2800;
+/* Both TTLs are DERIVED from the damage arc's clock in combatTiming.ts and re-exported
+ * here for the panel's existing call sites. They used to be hand-tuned numbers that
+ * drifted under the arc, unmounting the panel mid-flight (issue #517). */
+export { LINGER_TTL_MS, STRIKE_TTL_MS };
 
 /** The instances that identify one combat — used to build the strike key so a new
  *  combat (fresh card instances) can never collide with the one just resolved. */
@@ -159,25 +162,96 @@ export function diffCombatStrike(
   };
 }
 
+/** The printed value of a card instance, from the view catalog (0 when unknown —
+ *  a missing pill reads better than a wrong one). */
+const printedValueOf = (
+  instance: CardInstanceId,
+  catalog: Record<string, CardMeta>
+): number => catalog[instance.split("#")[0]]?.value ?? 0;
+
+/** The last effective value announced for a role this batch (VALUE_SET wins over an
+ *  earlier VALUE_MODIFIED, both in event order), or the printed value if the server
+ *  announced no adjustment. Only used for a face the live view never carried. */
+const effectiveValueFor = (
+  role: "ATTACK" | "DEFENSE",
+  instance: CardInstanceId,
+  events: GameEvent[],
+  catalog: Record<string, CardMeta>
+): number => {
+  let value = printedValueOf(instance, catalog);
+  for (const e of events) {
+    if (e.type === "VALUE_SET" && e.role === role) value = e.to;
+    else if (e.type === "VALUE_MODIFIED" && e.role === role) value = e.newEffective;
+  }
+  return value;
+};
+
+/** Reconstruct the ViewCombatCard for a face that was revealed by EVENT in the same
+ *  batch that ended the combat — the live view never got to publish it. */
+const faceFromEvents = (
+  instance: CardInstanceId,
+  role: "ATTACK" | "DEFENSE",
+  events: GameEvent[],
+  catalog: Record<string, CardMeta>
+): ViewCombatCard => ({
+  instance,
+  role,
+  boosts: events.flatMap((e) =>
+    e.type === "CARD_BOOSTED" && e.role === role ? [e.card] : []
+  ),
+  effectiveValue: effectiveValueFor(role, instance, events, catalog),
+});
+
 /**
  * Freeze the just-resolved combat into a ViewCombat the panel can keep rendering
- * for the strike's duration after the live `view.combat` has already cleared in the
- * resolving batch. Built from the last live combat (prev.combat) with the resolved
- * outcome/damage stamped on, so both faces + the outcome text survive the unmount.
- * Returns null when there was no live combat to freeze (defensive — a resolve
- * always has a preceding combat).
+ * for the strike's duration after the live `view.combat` has already cleared. Built
+ * from the last live combat (prev.combat) with the resolved outcome/damage stamped on,
+ * so both faces + the outcome text survive the unmount.
+ *
+ * The batch's CARDS_REVEALED is GRAFTED over any face `prev.combat` was still hiding
+ * (issue #517): when commit → reveal → resolve → end all arrive in ONE server drive
+ * (declined defense, a bot acting in a single batch, a Feint snuff), `prev.combat` is
+ * still the PRE-reveal stage with `attackerCard`/`defenderCard` null — freezing it
+ * verbatim froze the dashed "no card" placeholder, so the damage arc flew out of a
+ * blank card. Everything the panel draws must be captured HERE, at diff time.
+ *
+ * `strike` may be null when the combat's resolve landed in an EARLIER batch than its
+ * end; the base combat already carries the outcome/damage in that case.
+ *
+ * Returns null when there was no live combat to freeze (defensive — a resolve always
+ * has a preceding combat).
  */
 export function captureLingeringCombat(
   prev: PlayerView,
-  strike: CombatStrike
+  strike: CombatStrike | null,
+  events: GameEvent[] = []
 ): ViewCombat | null {
   const base = prev.combat;
   if (!base) return null;
+
+  const revealed = events.find((e) => e.type === "CARDS_REVEALED");
+  const reveal = revealed?.type === "CARDS_REVEALED" ? revealed : null;
+  const catalog = prev.catalog ?? {};
+
+  // Prefer the live faces (they carry the server's boosts + effective values); only
+  // fill a slot the view still had hidden. A null defenderCard in CARDS_REVEALED means
+  // the defense was declined — the empty slot is then the truth, not a bug.
+  const attackerCard =
+    base.attackerCard ??
+    (reveal ? faceFromEvents(reveal.attackerCard, "ATTACK", events, catalog) : null);
+  const defenderCard =
+    base.defenderCard ??
+    (reveal?.defenderCard
+      ? faceFromEvents(reveal.defenderCard, "DEFENSE", events, catalog)
+      : null);
+
   return {
     ...base,
+    attackerCard,
+    defenderCard,
     stage: "CLEANUP",
-    outcome: strike.outcome ?? base.outcome,
-    attackDamageDealt: strike.damage,
+    outcome: strike?.outcome ?? base.outcome,
+    attackDamageDealt: strike ? strike.damage : base.attackDamageDealt,
   };
 }
 
@@ -187,11 +261,17 @@ export function captureLingeringCombat(
  * `view.combat` has cleared in the resolving batch.
  *
  *  - Each combat's strike is emitted exactly once (deduped by its stable key).
- *  - When the combat ends in the resolving batch, the just-resolved combat is
- *    frozen so the panel lingers ~2.8s and the strike has somewhere to play. This
- *    linger is DECOUPLED from the strike: a Feint that ends combat (`suppressStrike`)
- *    fires no strike, yet the panel still lingers so both cards + values are seen
- *    (issue #147) while the Snuff callout plays over the top.
+ *  - The panel freezes on the combat → null TRANSITION, whichever batch that lands in
+ *    — not only when the resolving batch itself ends the combat (issue #517). A combat
+ *    that resolves in batch A (outcome stamped, combat survives for AFTER-window
+ *    prompts) and ends in a later batch B used to get NO linger at all: `diffCombatStrike(B)`
+ *    is null, so the panel unmounted instantly at B — mid-arc when bot cleanup drives
+ *    follow fast. The last live combat is frozen instead, carrying A's outcome.
+ *  - The linger is DECOUPLED from the strike: a Feint that ends combat
+ *    (`suppressStrike`) fires no strike, yet the panel still lingers so both cards +
+ *    values are seen (issue #147) while the Snuff callout plays over the top.
+ *  - Only a RESOLVED combat lingers: a combat that vanishes without ever resolving has
+ *    nothing to hold on screen, so it unmounts as before.
  *  - A new live combat (or any new `view.combat`) cancels a pending linger
  *    immediately, so a fast follow-up combat never renders the stale frozen one.
  */
@@ -202,6 +282,9 @@ export function useCombatStrike(
   const [lingeringCombat, setLingeringCombat] = useState<ViewCombat | null>(null);
   const prevViewRef = useRef<PlayerView | null>(null);
   const lastKeyRef = useRef<string | null>(null);
+  /** The most recent strike descriptor, kept so a combat whose END arrives in a LATER
+   *  batch than its resolve can still stamp the frozen panel with that outcome/damage. */
+  const lastStrikeRef = useRef<CombatStrike | null>(null);
   const strikeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lingerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -228,33 +311,46 @@ export function useCombatStrike(
     }
 
     const s = diffCombatStrike(prev, next, snapshot.events);
-    if (!s || s.key === lastKeyRef.current) return;
-    lastKeyRef.current = s.key;
+    const fresh = !!s && s.key !== lastKeyRef.current;
+    if (fresh && s) {
+      lastKeyRef.current = s.key;
+      lastStrikeRef.current = s;
 
-    // The strike beat fires only when NOT suppressed. On a Feint that ends the combat
-    // (`suppressStrike`), the Snuff callout owns the slam, so we skip the strike — but
-    // the panel-linger below still runs so both committed cards + values stay on screen
-    // (issue #147).
-    if (!s.suppressStrike) {
-      setStrike(s);
-      if (strikeTimerRef.current) clearTimeout(strikeTimerRef.current);
-      strikeTimerRef.current = setTimeout(() => setStrike(null), STRIKE_TTL_MS);
-    }
-
-    // Combat ended in this very batch (view.combat already null) → freeze it so the
-    // panel keeps rendering while the strike plays (or, on a suppressed Feint, while the
-    // Snuff callout resolves over the top).
-    if (!next.combat && prev) {
-      const frozen = captureLingeringCombat(prev, s);
-      if (frozen) {
-        setLingeringCombat(frozen);
-        if (lingerTimerRef.current) clearTimeout(lingerTimerRef.current);
-        lingerTimerRef.current = setTimeout(
-          () => setLingeringCombat(null),
-          LINGER_TTL_MS
-        );
+      // The strike beat fires only when NOT suppressed. On a Feint that ends the combat
+      // (`suppressStrike`), the Snuff callout owns the slam, so we skip the strike — but
+      // the panel-linger below still runs so both committed cards + values stay on screen
+      // (issue #147).
+      if (!s.suppressStrike) {
+        setStrike(s);
+        if (strikeTimerRef.current) clearTimeout(strikeTimerRef.current);
+        strikeTimerRef.current = setTimeout(() => setStrike(null), STRIKE_TTL_MS);
       }
     }
+
+    // The combat left the view THIS batch → freeze it so the panel keeps rendering
+    // while the strike plays (or, on a suppressed Feint, while the Snuff callout
+    // resolves over the top). This runs on the transition itself, not only inside the
+    // resolving batch, so a resolve-now/end-later combat still lingers (#517).
+    if (!prev?.combat || next.combat) return;
+
+    // …but only for a combat that actually RESOLVED: either this batch's descriptor, the
+    // one remembered from the resolving batch (same combat), or an outcome the surviving
+    // combat was already carrying. A combat that vanishes unresolved has nothing to hold.
+    const carried =
+      lastStrikeRef.current &&
+      lastStrikeRef.current.key ===
+        combatKey(prev.combat.attackerCard?.instance ?? null, prev.combat.defenderCard?.instance ?? null)
+        ? lastStrikeRef.current
+        : null;
+    const prevOutcome = prev.combat.outcome;
+    const resolved = !!s || !!carried || (!!prevOutcome && prevOutcome !== "UNKNOWN");
+    if (!resolved) return;
+
+    const frozen = captureLingeringCombat(prev, s ?? carried, snapshot.events);
+    if (!frozen) return;
+    setLingeringCombat(frozen);
+    if (lingerTimerRef.current) clearTimeout(lingerTimerRef.current);
+    lingerTimerRef.current = setTimeout(() => setLingeringCombat(null), LINGER_TTL_MS);
   }, [snapshot]);
 
   return { strike, lingeringCombat };
