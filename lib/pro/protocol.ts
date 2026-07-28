@@ -404,11 +404,61 @@
  * `CREATE_ROOM.pilot?` and `JOIN_ROOM.pilot?` let socket-driven non-bot seats
  * tag telemetry as `llm:<model>` instead of the default `human`. Built-in bots
  * still report `bot:<difficulty>`. Invalid pilot labels answer BAD_MESSAGE.
+ *
+ * ## v23 (2026-07-27): the `expert` bot tier, behind a server flag (issue #263)
+ * `BotDifficulty` gains `"expert"` — the ISMCTS search bot, which cleared its
+ * acceptance gate at 91.7% over 1,000 games vs the shipped `hard` (#239).
+ * `HeroListing` gains an OPTIONAL `botTiers?: BotDifficulty[]`.
+ *
+ * ### The tier is DORMANT unless the server enables it
+ * A v23 build ships with the tier switched OFF (`EXPOSE_EXPERT=1` turns it on).
+ * While dormant the server presents the v22 surface EXACTLY:
+ * - `HeroListing.botTiers` is OMITTED from every listing, and
+ * - a CREATE_ROOM naming `expert` is refused with the same
+ *   `BAD_MESSAGE: Unknown bot difficulty: expert` a v22 server answers.
+ * So a client may not infer from `PROTOCOL_VERSION` alone that the tier is
+ * claimable. `PROTOCOL_VERSION` says what the build CAN do; the listing says
+ * what this server WILL do.
+ *
+ * ### Client rule for `botTiers` (both directions of skew)
+ * ABSENT `botTiers` means "this server does not advertise per-hero bot tiers" —
+ * the client MUST fall back to the v22 tier set (`easy|medium|hard`) for that
+ * hero. PRESENT `botTiers` is authoritative and MUST be used as-is: it always
+ * contains the always-available tiers, and `expert` appears only on heroes the
+ * ladder actually measured (the #239 corpus is 3 heroes on 1 map, and per-hero
+ * availability is how that honesty reaches the UI). A client must not assume
+ * two heroes carry the same list. CREATE_ROOM enforces the same list — an
+ * `expert` request naming an unlisted hero (the bot's OR the creator's) answers
+ * BAD_MESSAGE — so the field is UI affordance over an enforced rule.
+ *
+ * ### Otherwise additive in every direction
+ * - The DEFAULT is unchanged. Nothing on the wire carries a default difficulty;
+ *   `expert` is reachable only by a client that names it.
+ * - A v22 client is unaffected: it never sends the value and ignores the new
+ *   field, and v22 stays in the server's accepted set for a deploy window.
+ *
+ * ### `medium` changed identity (no wire change)
+ * `medium` is now flat Monte Carlo at 16 sweeps instead of the 1-ply greedy bot,
+ * so the ladder is one search with four budgets. The enum, the defaults and
+ * every message shape are untouched — budgets have always been server-side and
+ * opaque to clients — but a client that LABELS the tiers ("Medium — greedy")
+ * may want new copy, and live win-rate baselines against `medium` reset on the
+ * deploy exactly as they do for `hard`. In telemetry the seats relabel
+ * themselves: `medium` reports `bot:mc(16,10000ms)` and `expert`
+ * `bot:ismcts(512,10000ms)` under #278's algorithm-based scheme.
+ *
+ * Capacity, not protocol: the server caps concurrent bot SEARCHES process-wide
+ * (every searching tier shares one gate) and serves an over-cap decision at the
+ * contended budget rather than letting contention silently thin every search.
+ * Invisible on the wire by design — see server/botAdmission.ts (#278).
  */
-export const PROTOCOL_VERSION = 22;
+export const PROTOCOL_VERSION = 23;
 
-/** Scripted-AI strength preset (server-side budgets; client treats as opaque). */
-export type BotDifficulty = "easy" | "medium" | "hard";
+/**
+ * Scripted-AI strength preset (server-side budgets; client treats as opaque).
+ * `expert` (v23) is not offered for every hero — see `HeroListing.botTiers`.
+ */
+export type BotDifficulty = "easy" | "medium" | "hard" | "expert";
 
 export interface BotSeatFill {
   player: PlayerId;
@@ -1032,6 +1082,15 @@ export interface HeroListing {
   reach: "MELEE" | "RANGED" | "LUNGE"; // LUNGE v0.15.0 (General Grievous) — client renders the lunge reach icon
   tier: HeroTier;
   deckSection: HeroDeckSection;
+  // Bot tiers this server will accept for a seat piloting this hero (v23).
+  // ABSENT = this server doesn't advertise per-hero tiers; fall back to the v22
+  // set (easy|medium|hard). A server with the expert tier dormant omits it
+  // entirely, so absence is the normal case, not an error. When PRESENT it is
+  // authoritative: it always contains the always-available tiers, carries
+  // `expert` only where the ladder measured it, and must not be assumed equal
+  // across heroes. The lobby should grey out (not hide) a missing tier; asking
+  // for one anyway is refused with BAD_MESSAGE.
+  botTiers?: BotDifficulty[];
 }
 
 // A public room waiting for a second player (LIST_LOBBIES result row).

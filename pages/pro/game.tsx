@@ -20,6 +20,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { MOVE_STEP_SECONDS, MoveHint, PendingMove, ProBoard } from "@/components/Pro/ProBoard";
 import { ProErrorBoundary } from "@/components/Pro/ProErrorBoundary";
 import { assignableSeats, BotSlotPlan, SlotOccupant } from "@/components/Pro/CreateSeats";
+import { availableBotTiers, botTierChoices, BotTierChoice, coerceBotTier } from "@/lib/pro/botTiers";
 import { stateHash } from "@/lib/pro/stateHash";
 import {
   Action,
@@ -1916,25 +1917,39 @@ function Segmented<T extends string>({
 }
 
 /** Who-fills-this-seat choice, unified across the duel opponent + multiplayer
- *  seats (both drive the same `human | easy | medium | hard` union). */
+ *  seats (both drive the same `human | <bot tier>` union). */
 type OpponentChoice = "human" | BotDifficulty;
-const SEAT_CHIPS: { v: OpponentChoice; label: string }[] = [
+
+/** One chip: "Hum" plus whichever bot tiers THIS SERVER offers for the picked
+ *  heroes. The bot tiers are never hardcoded here — see lib/pro/botTiers.ts. */
+type SeatChip = { v: OpponentChoice; label: string; badge?: string; tooltip?: string };
+const seatChips = (tiers: BotTierChoice[]): SeatChip[] => [
   { v: "human", label: "Hum" },
-  { v: "easy", label: "AI·E" },
-  { v: "medium", label: "AI·M" },
-  { v: "hard", label: "AI·H" },
+  ...tiers.map((t) => ({ v: t.id as OpponentChoice, label: t.chip, badge: t.badge, tooltip: t.tooltip })),
 ];
 
-const PlateChips = ({ value, onChange }: { value: OpponentChoice; onChange: (v: OpponentChoice) => void }) => (
+/** The pre-roster strip: the always-available tiers, never an empty picker. */
+const FALLBACK_SEAT_CHIPS = seatChips(botTierChoices(null, []));
+
+const PlateChips = ({
+  value,
+  onChange,
+  chips,
+}: {
+  value: OpponentChoice;
+  onChange: (v: OpponentChoice) => void;
+  chips: SeatChip[];
+}) => (
   <Flex gap="0.25rem" mt="0.3rem" flexWrap="wrap">
-    {SEAT_CHIPS.map((c) => {
+    {chips.map((c) => {
       const active = value === c.v;
-      return (
+      const btn = (
         <Button
           key={c.v}
           type="button"
           size="xs"
           aria-pressed={active}
+          data-testid={`seat-chip-${c.v}`}
           h="1.3rem"
           minW="auto"
           px="0.45rem"
@@ -1948,7 +1963,19 @@ const PlateChips = ({ value, onChange }: { value: OpponentChoice; onChange: (v: 
           _hover={{ borderColor: active ? "brand.accentDeep" : "whiteAlpha.400" }}
         >
           {c.label}
+          {c.badge && (
+            <Text as="span" ml="0.25rem" fontSize="0.5rem" letterSpacing="0.05em" opacity={0.85} textTransform="uppercase">
+              {c.badge}
+            </Text>
+          )}
         </Button>
+      );
+      return c.tooltip ? (
+        <Tooltip key={c.v} label={c.tooltip} openDelay={200} fontSize="0.7rem">
+          {btn}
+        </Tooltip>
+      ) : (
+        btn
       );
     })}
   </Flex>
@@ -1968,6 +1995,7 @@ const SeatPlate = ({
   occupant,
   onChange,
   teamAccent,
+  chips,
 }: {
   tag: string;
   role?: string;
@@ -1977,6 +2005,8 @@ const SeatPlate = ({
   occupant?: OpponentChoice;
   onChange?: (v: OpponentChoice) => void;
   teamAccent?: boolean;
+  /** Who-fills-this-seat chips, built from the server's advertised bot tiers. */
+  chips?: SeatChip[];
 }) => {
   const isAi = !!occupant && occupant !== "human";
   return (
@@ -2020,7 +2050,7 @@ const SeatPlate = ({
         <Text fontFamily="BebasNeueRegular" fontSize="0.95rem" letterSpacing="0.03em" noOfLines={1}>
           {you ? heroName ?? "Pick a fighter" : isAi ? `AI · ${occupant}` : "Open seat"}
         </Text>
-        {!you && onChange && <PlateChips value={occupant ?? "human"} onChange={onChange} />}
+        {!you && onChange && <PlateChips value={occupant ?? "human"} onChange={onChange} chips={chips ?? FALLBACK_SEAT_CHIPS} />}
       </Box>
     </Flex>
   );
@@ -2141,6 +2171,14 @@ const HeroSelectLobby = ({
 
   const lockedHero = heroes?.find((h) => h.heroId === effective);
   const lockedName = lockedHero?.name ?? (effective ? prettyHeroId(effective) : null);
+  // The bot tiers this server offers for the heroes THIS room names — the
+  // creator's pick and, in a duel, the AI's named hero. Derived from the live
+  // listing every render, so switching fighter swaps the strip immediately; a
+  // server that advertises nothing (old, or the tier switched off) yields the
+  // unchanged easy/medium/hard set. See lib/pro/botTiers.ts.
+  const seatChipStrip = seatChips(
+    botTierChoices(heroes, [effective, selectedFormat === "duel" ? aiHeroId : null]),
+  );
   const lockedCardback = lockedHero ? heroDeckMeta(lockedHero.heroId)?.cardbackUrl : undefined;
   // Splash shows the hover preview, else the locked pick. Hovering your own
   // locked tile keeps the "locked" wording (matches the mockup).
@@ -2244,7 +2282,7 @@ const HeroSelectLobby = ({
         <>
           <SeatPlate tag="P1" role="You" you heroName={lockedName} cardback={lockedCardback} />
           <VsBadge />
-          <SeatPlate tag="P2" role="Opponent" occupant={opponent} onChange={onSelectOpponent} />
+          <SeatPlate tag="P2" role="Opponent" occupant={opponent} onChange={onSelectOpponent} chips={seatChipStrip} />
         </>
       );
     }
@@ -2288,6 +2326,7 @@ const HeroSelectLobby = ({
                       teamAccent={mine}
                       occupant={you ? undefined : botSlotPlan[seat] ?? "human"}
                       onChange={you ? undefined : (v) => onChangeBotSlot(seat, v)}
+                      chips={seatChipStrip}
                     />
                   );
                 })}
@@ -2308,6 +2347,7 @@ const HeroSelectLobby = ({
             tag={seat.toUpperCase()}
             occupant={botSlotPlan[seat] ?? "human"}
             onChange={(v) => onChangeBotSlot(seat, v)}
+            chips={seatChipStrip}
           />
         ))}
       </>
@@ -2843,6 +2883,32 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   // the format changes to one the current board can't host.
   const [selectedMapId, setSelectedMapId] = useState<string>(defaultMapIdForFormat("duel"));
   const [aiHeroId, setAiHeroId] = useState<string | null>(null);
+  // A tier can stop being offered while it is armed — switch to a fighter the
+  // server doesn't serve Expert for and the already-picked Expert seat would be
+  // sent anyway, only to be refused (BAD_MESSAGE) after the create click. Prune
+  // the moment the offer changes, dropping to the strongest tier still offered.
+  // Joined to a string so the effect re-runs on a CHANGE of offer, not on every
+  // render's fresh array identity.
+  const armedTierKey = availableBotTiers(heroes, [
+    selectedHeroId,
+    selectedFormat === "duel" ? aiHeroId : null,
+  ]).join(",");
+  useEffect(() => {
+    const offered = armedTierKey.split(",") as BotDifficulty[];
+    setOpponent((prev) => (prev === "human" ? prev : coerceBotTier(prev, offered)));
+    setBotSlotPlan((prev) => {
+      let changed = false;
+      const next = Object.fromEntries(
+        Object.entries(prev).map(([player, occupant]) => {
+          if (occupant === "human" || occupant === undefined) return [player, occupant];
+          const coerced = coerceBotTier(occupant, offered);
+          if (coerced !== occupant) changed = true;
+          return [player, coerced];
+        }),
+      ) as BotSlotPlan;
+      return changed ? next : prev;
+    });
+  }, [armedTierKey]);
   // Per-decision move timer (issue #223), create flow only: seconds each seat has
   // to act. 0 = off (the default) → CREATE_ROOM omits turnTimerSeconds and the
   // room behaves exactly as today. The toggle flips between 0 and a default preset.

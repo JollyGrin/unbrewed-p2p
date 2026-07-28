@@ -13,7 +13,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { assignableSeats, BotSlotPlan, CreateSeats, SlotOccupant } from "./CreateSeats";
 import { MULTIPLAYER_PLAYTEST_MAP, TeamSeatSource } from "@/lib/pro/multiplayerPlaytest";
-import { PlayerId } from "@/lib/pro/protocol";
+import { BotDifficulty, HeroListing, PlayerId } from "@/lib/pro/protocol";
 
 const renderPanel = (
   format: "duel" | "ffa-3" | "team-2v2",
@@ -21,17 +21,39 @@ const renderPanel = (
     onChange = () => {},
     plan = {},
     map,
+    heroes,
+    selectedHeroId,
   }: {
     onChange?: (player: PlayerId, occupant: SlotOccupant) => void;
     plan?: BotSlotPlan;
     map?: TeamSeatSource | null;
+    heroes?: HeroListing[] | null;
+    selectedHeroId?: string | null;
   } = {},
 ) =>
   render(
     <ChakraProvider>
-      <CreateSeats selectedFormat={format} selectedMap={map} botSlotPlan={plan} onChangeBotSlot={onChange} />
+      <CreateSeats
+        selectedFormat={format}
+        selectedMap={map}
+        botSlotPlan={plan}
+        onChangeBotSlot={onChange}
+        heroes={heroes}
+        selectedHeroId={selectedHeroId}
+      />
     </ChakraProvider>,
   );
+
+const listing = (heroId: string, botTiers?: BotDifficulty[]): HeroListing => ({
+  heroId,
+  name: heroId,
+  hp: 16,
+  move: 3,
+  reach: "MELEE",
+  tier: "community",
+  deckSection: "recommended",
+  ...(botTiers ? { botTiers } : {}),
+});
 
 describe("CreateSeats — team-2v2 grouping (#228, #264)", () => {
   it("default board: Team A (You + P2 teammate) vs Team B (P3 + P4 opponents)", () => {
@@ -124,6 +146,78 @@ describe("CreateSeats — non-team formats", () => {
     expect(screen.getAllByText("Easy bot")).toHaveLength(2);
     expect(screen.getAllByText("Medium bot")).toHaveLength(2);
     expect(screen.getAllByText("Hard bot")).toHaveLength(2);
+  });
+});
+
+/**
+ * Bot tiers come from the server listing, never a client constant (#458). The
+ * stronger tier ships DORMANT behind a server switch, so the picker must render
+ * identically to today against a server that advertises nothing — and pick it up
+ * with no client deploy the moment the switch flips.
+ */
+describe("CreateSeats — server-advertised bot tiers", () => {
+  it("stub payload advertising expert: the tier appears, with its alpha badge", () => {
+    renderPanel("team-2v2", {
+      heroes: [listing("king-kong", ["easy", "medium", "hard", "expert"])],
+      selectedHeroId: "king-kong",
+    });
+    const p2 = within(screen.getByTestId("seat-card-p2"));
+    expect(p2.getByTestId("bot-tier-expert")).toBeInTheDocument();
+    expect(within(p2.getByTestId("bot-tier-expert")).getByText("alpha")).toBeInTheDocument();
+    // the established tiers are untouched
+    expect(p2.getByTestId("bot-tier-easy")).toBeInTheDocument();
+    expect(p2.getByTestId("bot-tier-hard")).toBeInTheDocument();
+  });
+
+  it("server without the field (old build, or the tier switched off): easy/medium/hard only", () => {
+    renderPanel("team-2v2", { heroes: [listing("king-kong")], selectedHeroId: "king-kong" });
+    const p2 = within(screen.getByTestId("seat-card-p2"));
+    expect(p2.queryByTestId("bot-tier-expert")).not.toBeInTheDocument();
+    // …and no skeleton/placeholder in its place — the strip is simply today's.
+    expect(p2.getByTestId("bot-tier-easy")).toBeInTheDocument();
+    expect(p2.getByTestId("bot-tier-medium")).toBeInTheDocument();
+    expect(p2.getByTestId("bot-tier-hard")).toBeInTheDocument();
+  });
+
+  it("no roster yet (socket still connecting) renders the fallback strip", () => {
+    renderPanel("team-2v2", { heroes: null, selectedHeroId: "king-kong" });
+    const p2 = within(screen.getByTestId("seat-card-p2"));
+    expect(p2.queryByTestId("bot-tier-expert")).not.toBeInTheDocument();
+    expect(p2.getByTestId("bot-tier-hard")).toBeInTheDocument();
+  });
+
+  it("follows the hero selection live: expert appears/disappears as the pick changes", () => {
+    const heroes = [
+      listing("king-kong", ["easy", "medium", "hard", "expert"]),
+      listing("bigfoot", ["easy", "medium", "hard"]),
+    ];
+    const { rerender } = renderPanel("ffa-3", { heroes, selectedHeroId: "bigfoot" });
+    expect(screen.queryByTestId("bot-tier-expert")).not.toBeInTheDocument();
+
+    rerender(
+      <ChakraProvider>
+        <CreateSeats
+          selectedFormat="ffa-3"
+          botSlotPlan={{}}
+          onChangeBotSlot={() => {}}
+          heroes={heroes}
+          selectedHeroId="king-kong"
+        />
+      </ChakraProvider>,
+    );
+    // one per assignable ffa-3 seat (P2, P3)
+    expect(screen.getAllByTestId("bot-tier-expert")).toHaveLength(2);
+  });
+
+  it("picking the stronger tier reports it to the parent unchanged", () => {
+    const onChange = jest.fn();
+    renderPanel("team-2v2", {
+      onChange,
+      heroes: [listing("king-kong", ["easy", "medium", "hard", "expert"])],
+      selectedHeroId: "king-kong",
+    });
+    fireEvent.click(within(screen.getByTestId("seat-card-p3")).getByTestId("bot-tier-expert"));
+    expect(onChange).toHaveBeenCalledWith("p3", "expert");
   });
 });
 
