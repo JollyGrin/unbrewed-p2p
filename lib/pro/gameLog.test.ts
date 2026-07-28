@@ -3,6 +3,7 @@ import {
   diffViews,
   enrichLines,
   batchPhase,
+  batchTurnTag,
   counterChangeLines,
   groupLog,
   logEntriesToCsv,
@@ -945,6 +946,53 @@ describe("groupLog — section newest-first entries by turn and batch", () => {
 
   it("returns no sections for an empty feed", () => {
     expect(groupLog([])).toEqual([]);
+  });
+
+  // --- issue #522: a turn that appears twice must stay two distinct sections --
+  it("gives a repeated turn two sections with distinct ids", () => {
+    // A rewind broadcast tagged turn 10 landed between turn-21 batches, so the
+    // feed carries turn 21 / turn 10 / turn 21 top-down.
+    const entries: ProLogEntry[] = [
+      entry({ text: "newest 21", turn: 21, turnActor: "Opponent", batchId: 9 }),
+      entry({ text: "ghost 10", turn: 10, turnActor: "You", batchId: 8 }),
+      entry({ text: "older 21", turn: 21, turnActor: "Opponent", batchId: 7 }),
+    ];
+    const sections = groupLog(entries);
+    expect(sections.map((s) => s.turn)).toEqual([21, 10, 21]);
+    expect(new Set(sections.map((s) => s.id)).size).toBe(3);
+  });
+
+  it("anchors a section's id on its OLDEST entry, so prepending a batch keeps it", () => {
+    const older = entry({ text: "older", turn: 4, turnActor: "You", batchId: 1 });
+    const before = groupLog([older]);
+    const after = groupLog([entry({ text: "newer", turn: 4, turnActor: "You", batchId: 2 }), older]);
+    expect(after[0].id).toBe(before[0].id);
+    expect(after[0].groups).toHaveLength(2);
+  });
+});
+
+describe("batchTurnTag — turn tag for one STATE batch (issue #522)", () => {
+  it("uses the post-batch view's turn and active seat while turns advance", () => {
+    const prev = view({ turnNumber: 3, activePlayer: "p1" });
+    const next = view({ turnNumber: 4, activePlayer: "p2" });
+    expect(batchTurnTag(prev, next)).toEqual({ turn: 4, turnActor: "Opponent" });
+  });
+
+  it("files a REGRESSED broadcast under the turn it interrupted", () => {
+    const prev = view({ turnNumber: 21, activePlayer: "p2" });
+    const next = view({ turnNumber: 10, activePlayer: "p1" });
+    expect(batchTurnTag(prev, next)).toEqual({ turn: 21, turnActor: "Opponent" });
+  });
+
+  it("keeps the same turn (and its seat) for mid-turn batches", () => {
+    const prev = view({ turnNumber: 7, activePlayer: "p1" });
+    const next = view({ turnNumber: 7, activePlayer: "p1" });
+    expect(batchTurnTag(prev, next)).toEqual({ turn: 7, turnActor: "You" });
+  });
+
+  it("falls back to the incoming view on the very first batch", () => {
+    const next = view({ turnNumber: 1, activePlayer: "p1" });
+    expect(batchTurnTag(null, next)).toEqual({ turn: 1, turnActor: "You" });
   });
 });
 

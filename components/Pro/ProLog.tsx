@@ -106,21 +106,23 @@ export const ProLog = ({
   onReportBug?: () => void;
 }) => {
   const [open, setOpen] = useState(true);
-  // Per-turn collapse overrides. Default: the most recent turn is expanded and
-  // older turns collapsed; a click flips (and remembers) that turn's state.
-  const [collapsedTurns, setCollapsedTurns] = useState<Record<number, boolean>>({});
+  // Per-section collapse overrides, keyed by the section's own id rather than
+  // its turn number: a rewind can put one turn in two sections, and keying by
+  // turn made both share a single collapse state (and collide as React keys),
+  // so clicking either header appeared to do nothing (issue #522). Default: the
+  // newest section is expanded, older ones collapsed; a click flips (and
+  // remembers) that section's state.
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   }, [entries.length, open]);
 
   const sections = useMemo(() => groupLog(entries), [entries]);
-  const latestTurn = sections[0]?.turn;
-  const turnKey = (turn?: number) => turn ?? -1;
-  const isTurnCollapsed = (turn?: number) =>
-    collapsedTurns[turnKey(turn)] ?? turn !== latestTurn;
-  const toggleTurn = (turn?: number) =>
-    setCollapsedTurns((cur) => ({ ...cur, [turnKey(turn)]: !isTurnCollapsed(turn) }));
+  const latestSection = sections[0]?.id;
+  const isSectionCollapsed = (id: string) => collapsedSections[id] ?? id !== latestSection;
+  const toggleSection = (id: string) =>
+    setCollapsedSections((cur) => ({ ...cur, [id]: !isSectionCollapsed(id) }));
 
   const cardPreview = (cards: CardInstanceId[]) =>
     resolveCard ? (
@@ -247,10 +249,10 @@ export const ProLog = ({
             </Text>
           ) : (
             sections.map((section) => {
-              const collapsed = isTurnCollapsed(section.turn);
+              const collapsed = isSectionCollapsed(section.id);
               return (
-                <Box key={turnKey(section.turn)}>
-                  <TurnHeader onClick={() => toggleTurn(section.turn)}>
+                <Box key={section.id}>
+                  <TurnHeader onClick={() => toggleSection(section.id)}>
                     {collapsed ? (
                       <ChevronRightIcon boxSize="0.8rem" />
                     ) : (

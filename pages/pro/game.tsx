@@ -63,7 +63,7 @@ import { ReportBugDialog } from "@/components/Pro/ReportBugDialog";
 import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
 import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
-import { actionFallbackLine, batchPhase, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
+import { actionFallbackLine, batchPhase, batchTurnTag, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
 import {
   AttachItem,
   cardAffordances,
@@ -3162,11 +3162,13 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
         ? actionFallbackLine(snapshot.events, next.you, (player) => seatLabel(next, player))
         : undefined;
     const lines = fallback ? [fallback] : enriched;
+    // Tag against the PRE-batch view, so a broadcast whose turn number went
+    // BACKWARDS (undo rewind, resume/correction) files under the turn it
+    // interrupted instead of minting an out-of-place TURN section (issue #522).
+    const { turn, turnActor } = batchTurnTag(prevViewRef.current, next);
     prevViewRef.current = next;
     if (lines.length === 0) return;
     const ts = Date.now();
-    const turn = next.turnNumber;
-    const turnActor = seatLabel(next, next.activePlayer);
     const phase = batchPhase(snapshot.events);
     const batchId = logBatchRef.current++;
     // Prepend the batch whole (newest group on top) but keep the batch's lines
