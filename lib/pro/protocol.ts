@@ -451,8 +451,39 @@
  * (every searching tier shares one gate) and serves an over-cap decision at the
  * contended budget rather than letting contention silently thin every search.
  * Invisible on the wire by design — see server/botAdmission.ts (#278).
+ *
+ * ## v24 (2026-07-28): combat event enrichment (issue #281, p2p#510/#511)
+ * Three additive event-stream changes so a client can EXPLAIN a combat it could
+ * previously only report. All three are event-only — no state/view shape changes,
+ * no new messages, no behavior change; an older client that ignores them renders
+ * exactly as on v23.
+ *
+ * - `EFFECT_CANCELED` gains `voided`, `boostVoided` and `card` (p2p#506). The
+ *   client printed a fixed "attack card effects were cancelled" for EVERY cancel,
+ *   which is wrong for a card with no cancellable effect blocks: per the King
+ *   Arthur/Excalibur ruling (02 §5.5) such a card can never be "cancelled", so its
+ *   printed value AND its ability-attached boost still count. `voided: false` is
+ *   the engine saying exactly that; `boostVoided` reports the discardIfCanceled
+ *   consequence when it does land.
+ *
+ * - `COMBAT_VALUE_BREAKDOWN` (new, p2p#506) — emitted once per combat at damage
+ *   calc, immediately before `COMBAT_DAMAGE`/`COMBAT_RESOLVED`: the itemized
+ *   effective value of both sides (printed/override, effect delta, attached
+ *   boosts, ability boosts, total). `VALUE_MODIFIED` already narrated the deltas;
+ *   boost contributions were invisible, so "why 9 vs 2?" was unanswerable.
+ *
+ * - `EFFECT_RESOLVING` (new, p2p#507/#511) — the effect-resolution marker. Only
+ *   SCHEDULED effects carried a source (`EFFECT_SCHEDULED`/`EFFECT_FIRED`); inline
+ *   IMMEDIATELY/DURING/AFTER blocks, triggers and schemes emitted nothing about
+ *   their origin, so SNIPE's "AFTER: draw 1" emptying a deck and killing its own
+ *   player read as an unattributed exhaustion. The marker precedes the block's
+ *   events and repeats after `PROMPT_RESOLVED` for prompt-resolved ops, and the
+ *   contract is positional: everything after a marker belongs to that `source`
+ *   until the next marker (a repeated identical marker is idempotent). Enough to
+ *   render
+ *   `AFTER · SNIPE: draw 1 → deck empty → exhaustion 2 dmg → defeated`.
  */
-export const PROTOCOL_VERSION = 23;
+export const PROTOCOL_VERSION = 24;
 
 /**
  * Scripted-AI strength preset (server-side budgets; client treats as opaque).
@@ -570,7 +601,16 @@ export type GameEvent =
   | { type: "VALUE_SET"; role: "ATTACK" | "DEFENSE"; to: number; locked: boolean }
   | { type: "CARD_BOOSTED"; role: "ATTACK" | "DEFENSE"; card: CardInstanceId; blind: boolean }
   | { type: "BOOST_RETRIEVED"; player: PlayerId; card: CardInstanceId }
-  | { type: "EFFECT_CANCELED"; role: "ATTACK" | "DEFENSE"; scope: string }
+  // v24 (#281): `voided` says whether the cancel actually voided one of the named
+  // card's own cancellable, non-empty effect blocks (02 §5.5). FALSE = the cancel
+  // resolved but nothing was lost (a card with no effect blocks, e.g. Gromnir, or only
+  // UNCANCELLABLE ones) — clients MUST NOT narrate "effects cancelled" in that case;
+  // the printed value and any ability-attached boost still count. `boostVoided` is the
+  // ability-attached-boost consequence (HeroDef attackBoost discardIfCanceled path):
+  // the boost rides the card but stops counting toward its value. `card` names WHICH
+  // combat card was hit (role alone is ambiguous with an additional defense in play);
+  // null for a synthetic sub-attack card.
+  | { type: "EFFECT_CANCELED"; role: "ATTACK" | "DEFENSE"; scope: string; card: CardInstanceId | null; voided: boolean; boostVoided: boolean }
   | { type: "ACTIONS_GAINED"; player: PlayerId; amount: number }
   | { type: "TURN_END_FORCED"; player: PlayerId }
   | { type: "DEFENSE_IGNORED" }
@@ -620,7 +660,61 @@ export type GameEvent =
   // (token consumed). COMBAT_ITEM_ATTACHED = a combat item was attached to a combat
   // card at commit (token consumed); the +value bump lands in the DURING window.
   | { type: "ITEM_USED"; player: PlayerId; space: SpaceId; item: string }
-  | { type: "COMBAT_ITEM_ATTACHED"; player: PlayerId; role: "ATTACK" | "DEFENSE"; space: SpaceId; item: string; value: number };
+  | { type: "COMBAT_ITEM_ATTACHED"; player: PlayerId; role: "ATTACK" | "DEFENSE"; space: SpaceId; item: string; value: number }
+  // v24 (#281): effect-resolution marker. Emitted immediately BEFORE the ops of one
+  // effect block / trigger / scheme run, and again right after PROMPT_RESOLVED when the
+  // answer belongs to a parked run, so every consequence event that follows
+  // (CARD_DRAWN, EXHAUSTION_DAMAGE, FIGHTER_MOVED, DAMAGE_APPLIED, …) is attributable
+  // to `source` UNTIL THE NEXT MARKER. `source` is a card instance id, `hero:<pid>` for
+  // a hero ability, or `item:<id>` for a battlefield item. Engine-driven system prompts
+  // (combat commit, setup placement) emit no marker at all. A run that prompts several
+  // times re-emits the SAME marker after each answer — consecutive identical markers are
+  // idempotent, and a client may collapse them into one feed entry.
+  | { type: "EFFECT_RESOLVING"; source: string; window: EffectWindow; player: PlayerId }
+  // v24 (#281): the combat value math, emitted once per combat at damage calc,
+  // immediately before COMBAT_DAMAGE / COMBAT_RESOLVED. VALUE_MODIFIED narrates deltas
+  // as they land; this is the reconciled total the outcome was decided on. `defense` is
+  // empty when the defender declined (or when `ignoreDefense`), and holds two entries
+  // when an additional defense card is in play.
+  | { type: "COMBAT_VALUE_BREAKDOWN"; attack: ValueBreakdown; defense: ValueBreakdown[]; effectiveAttack: number; effectiveDefense: number; ignoreDefense: boolean };
+
+/**
+ * The timing context an effect run belongs to (v24, #281) — reported by
+ * EFFECT_RESOLVING so a client can label the marker ("AFTER · SNIPE"). Engine-internal
+ * 'SYSTEM' runs never reach the wire (they emit no marker), so the value is listed for
+ * completeness only.
+ */
+export type EffectWindow =
+  | "IMMEDIATELY"
+  | "DURING"
+  | "AFTER"
+  | "SCHEME"
+  | "TRIGGER"
+  | "SCHEDULED"
+  | "SETUP"
+  | "ITEM"
+  | "SYSTEM";
+
+/**
+ * One combat card's effective-value components (v24, #281). `total` is authoritative
+ * (it is the engine's effectiveValue, and matches `ViewCombatCard.effectiveValue`); the
+ * components explain it:
+ *   total = max(0, (override ?? printed) + delta + boosts + abilityBoosts)
+ * A `locked` card ("cannot be changed") freezes at (override ?? printed) and reports 0
+ * for every other channel. `abilityBoosts` is 0 when an actual cancel voided the card
+ * (02 §5.5) — the same fact EFFECT_CANCELED.boostVoided reported.
+ */
+export interface ValueBreakdown {
+  role: "ATTACK" | "DEFENSE";
+  card: CardInstanceId | null; // null = synthetic sub-attack card
+  printed: number;
+  override: number | null;
+  delta: number;
+  boosts: number;
+  abilityBoosts: number;
+  locked: boolean;
+  total: number;
+}
 
 export type LegalOption = { id: string; label: string; data?: Json };
 

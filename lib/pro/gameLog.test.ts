@@ -10,7 +10,7 @@ import {
   ProLogEntry,
   ProLogLine,
 } from "./gameLog";
-import { CardInstanceId, GameEvent, PlayerId, PlayerView, ViewCombat, ViewFighter } from "./protocol";
+import { CardInstanceId, GameEvent, PlayerId, PlayerView, ValueBreakdown, ViewCombat, ViewFighter } from "./protocol";
 
 // --- fixture builders (mirrors fxEvents.test.ts) ----------------------------
 
@@ -109,7 +109,16 @@ const ALL_EVENTS: GameEvent[] = [
   { type: "PROMPT_RESOLVED", player: "p1", promptId: "p", optionId: "o" },
   { type: "CARD_BOOSTED", role: "ATTACK", card: "a/x#1", blind: false },
   { type: "BOOST_RETRIEVED", player: "p1", card: "a/x#1" },
-  { type: "EFFECT_CANCELED", role: "ATTACK", scope: "s" },
+  { type: "EFFECT_CANCELED", role: "ATTACK", scope: "s", card: "a/x#1", voided: true, boostVoided: false },
+  { type: "EFFECT_RESOLVING", source: "a/x#1", window: "AFTER", player: "p1" },
+  {
+    type: "COMBAT_VALUE_BREAKDOWN",
+    attack: { role: "ATTACK", card: "a/x#1", printed: 3, override: null, delta: 0, boosts: 0, abilityBoosts: 0, locked: false, total: 3 },
+    defense: [],
+    effectiveAttack: 3,
+    effectiveDefense: 0,
+    ignoreDefense: false,
+  },
   { type: "TURN_END_FORCED", player: "p1" },
   { type: "COUNTER_CHANGED", player: "p1", name: "rage", value: 2 },
   { type: "FLAG_SET", player: "p1", flag: "f" },
@@ -149,6 +158,7 @@ const ALLOWLIST = new Set([
   "EFFECT_SCHEDULED",
   "EFFECT_FIRED",
   "EFFECT_CANCELED",
+  "COMBAT_VALUE_BREAKDOWN",
   "DEFENSE_IGNORED",
   "DAMAGE_PREVENTED",
   "EXHAUSTION_DAMAGE",
@@ -290,11 +300,15 @@ describe("enrichLines", () => {
     });
 
     it("EFFECT_CANCELED renders a Feint line naming the cancelled side (issue #346)", () => {
-      expect(enrichLines([], [{ type: "EFFECT_CANCELED", role: "ATTACK", scope: "s" }], ctx())).toEqual([
-        { text: "Feint! Attack card effects were cancelled (printed value still counts)", who: "game" },
+      const canceled = (role: "ATTACK" | "DEFENSE"): GameEvent => ({
+        type: "EFFECT_CANCELED", role, scope: "s", card: "a/snuff-target#1", voided: true, boostVoided: false,
+      });
+      const cards = ["a/snuff-target#1"];
+      expect(enrichLines([], [canceled("ATTACK")], ctx())).toEqual([
+        { text: "Feint! Attack card effects were cancelled (printed value still counts)", who: "game", cards },
       ]);
-      expect(enrichLines([], [{ type: "EFFECT_CANCELED", role: "DEFENSE", scope: "s" }], ctx())).toEqual([
-        { text: "Feint! Defense card effects were cancelled (printed value still counts)", who: "game" },
+      expect(enrichLines([], [canceled("DEFENSE")], ctx())).toEqual([
+        { text: "Feint! Defense card effects were cancelled (printed value still counts)", who: "game", cards },
       ]);
     });
 
@@ -417,6 +431,160 @@ describe("enrichLines", () => {
     });
   });
 
+  // Issue #510 ↔ engine #281 (protocol v24). Game 9VQH turn 19: Gromnir (6) + a
+  // +3 ability boost = 9 met a FEINT, and the log printed the fixed "attack card
+  // effects were cancelled" even though Gromnir has NO effect text — nothing was
+  // cancelled and the boost legitimately stood, so correct 6 damage read as a bug.
+  describe("cancel outcome + value math (issue #510)", () => {
+    const cancel = (over: Partial<Extract<GameEvent, { type: "EFFECT_CANCELED" }>> = {}): GameEvent => ({
+      type: "EFFECT_CANCELED", role: "ATTACK", scope: "s", card: "a/gromnir#1", voided: true, boostVoided: false, ...over,
+    });
+
+    it("says nothing was cancelled when the cancel voided nothing", () => {
+      expect(enrichLines([], [cancel({ voided: false })], ctx())).toEqual([
+        {
+          text: "Feint had no effect — gromnir has no card effects to cancel (value and boosts still count)",
+          who: "game",
+          cards: ["a/gromnir#1"],
+        },
+      ]);
+    });
+
+    it("falls back to the role when a voided-nothing cancel names no card", () => {
+      const out = enrichLines([], [cancel({ voided: false, card: null, role: "DEFENSE" })], ctx());
+      expect(out).toEqual([
+        {
+          text: "Feint had no effect — the defense card has no card effects to cancel (value and boosts still count)",
+          who: "game",
+          cards: undefined,
+        },
+      ]);
+    });
+
+    it("keeps the historical line when the cancel really did void effects", () => {
+      expect(enrichLines([], [cancel()], ctx())).toEqual([
+        {
+          text: "Feint! Attack card effects were cancelled (printed value still counts)",
+          who: "game",
+          cards: ["a/gromnir#1"],
+        },
+      ]);
+    });
+
+    it("names the ability boost when the cancel stripped it too (discardIfCanceled)", () => {
+      expect(enrichLines([], [cancel({ boostVoided: true })], ctx())).toEqual([
+        {
+          text: "Feint! Attack card effects were cancelled (printed value still counts) — its ability boost was cancelled too and no longer counts",
+          who: "game",
+          cards: ["a/gromnir#1"],
+        },
+      ]);
+    });
+
+    it("treats a pre-v24 event with no `voided` flag as a real cancel", () => {
+      // A v23 server omits the flag entirely; the old line is the safe default.
+      const legacy = { type: "EFFECT_CANCELED", role: "ATTACK", scope: "s" } as unknown as GameEvent;
+      expect(enrichLines([], [legacy], ctx())).toEqual([
+        { text: "Feint! Attack card effects were cancelled (printed value still counts)", who: "game" },
+      ]);
+    });
+
+    const side = (over: Partial<ValueBreakdown> = {}): ValueBreakdown => ({
+      role: "ATTACK", card: "a/gromnir#1", printed: 6, override: null, delta: 0,
+      boosts: 0, abilityBoosts: 0, locked: false, total: 6, ...over,
+    });
+    const breakdown = (over: Partial<Extract<GameEvent, { type: "COMBAT_VALUE_BREAKDOWN" }>> = {}): GameEvent => ({
+      type: "COMBAT_VALUE_BREAKDOWN",
+      attack: side(),
+      defense: [side({ role: "DEFENSE", card: "a/feint#1", printed: 2, total: 2 })],
+      effectiveAttack: 6,
+      effectiveDefense: 2,
+      ignoreDefense: false,
+      ...over,
+    });
+
+    it("renders the 9VQH math for both sides so the damage is auditable", () => {
+      const out = enrichLines(
+        [],
+        [
+          breakdown({
+            attack: side({ abilityBoosts: 3, total: 9 }),
+            defense: [side({ role: "DEFENSE", card: "a/feint#1", printed: 2, delta: 1, total: 3 })],
+            effectiveAttack: 9,
+            effectiveDefense: 3,
+          }),
+        ],
+        ctx()
+      );
+      expect(out).toEqual([
+        {
+          text: "Attack: 6 (gromnir) + 3 (ability boost) = 9 · Defense: 2 (feint) + 1 = 3",
+          who: "game",
+          cards: ["a/gromnir#1", "a/feint#1"],
+        },
+      ]);
+    });
+
+    it("labels attached boost cards separately from ability boosts", () => {
+      const out = enrichLines([], [breakdown({ attack: side({ boosts: 4, total: 10 }), effectiveAttack: 10 })], ctx());
+      expect(out[0].text).toBe("Attack: 6 (gromnir) + 4 (boost) = 10 · Defense: 2 (feint) = 2");
+    });
+
+    it("renders a negative effect delta and marks the engine's floor at 0", () => {
+      const out = enrichLines(
+        [],
+        [breakdown({ attack: side({ delta: -8, total: 0 }), effectiveAttack: 0 })],
+        ctx()
+      );
+      expect(out[0].text).toBe("Attack: 6 (gromnir) - 8 (min 0) = 0 · Defense: 2 (feint) = 2");
+    });
+
+    it("marks an overridden / locked value instead of inventing arithmetic", () => {
+      const out = enrichLines(
+        [],
+        [breakdown({ attack: side({ override: 4, locked: true, total: 4 }), effectiveAttack: 4 })],
+        ctx()
+      );
+      expect(out[0].text).toBe("Attack: 4 (gromnir, set, locked) = 4 · Defense: 2 (feint) = 2");
+    });
+
+    it("reads out an undefended combat and an ignored defense differently", () => {
+      const none = enrichLines([], [breakdown({ defense: [], effectiveDefense: 0 })], ctx());
+      expect(none[0].text).toBe("Attack: 6 (gromnir) = 6 · Defense: none");
+      const ignored = enrichLines([], [breakdown({ ignoreDefense: true })], ctx());
+      expect(ignored[0].text).toBe("Attack: 6 (gromnir) = 6 · Defense: ignored");
+    });
+
+    it("sums both cards when an additional defense card is in play (v22)", () => {
+      const out = enrichLines(
+        [],
+        [
+          breakdown({
+            defense: [
+              side({ role: "DEFENSE", card: "a/feint#1", printed: 2, total: 2 }),
+              side({ role: "DEFENSE", card: "a/parry#1", printed: 3, boosts: 1, total: 4 }),
+            ],
+            effectiveDefense: 6,
+          }),
+        ],
+        ctx()
+      );
+      expect(out[0].text).toBe("Attack: 6 (gromnir) = 6 · Defense: 2 (feint) + 3 (parry) + 1 (boost) = 6");
+      expect(out[0].cards).toEqual(["a/gromnir#1", "a/feint#1", "a/parry#1"]);
+    });
+
+    it("falls back to the role for a synthetic sub-attack card with no instance", () => {
+      const out = enrichLines(
+        [],
+        [breakdown({ attack: side({ card: null, printed: 4, total: 4 }), effectiveAttack: 4, defense: [], effectiveDefense: 0 })],
+        ctx()
+      );
+      expect(out).toEqual([
+        { text: "Attack: 4 (attack) = 4 · Defense: none", who: "game", cards: undefined },
+      ]);
+    });
+  });
+
   describe("regression guard — non-allowlisted events create zero lines", () => {
     it("feeds every non-allowlisted GameEvent type through and asserts no new lines", () => {
       const nonAllowlisted = ALL_EVENTS.filter((e) => !ALLOWLIST.has(e.type));
@@ -430,7 +598,7 @@ describe("enrichLines", () => {
       // A discard is an annotation-only type; add it so the roster is exhaustive.
       seen.add("CARD_DISCARDED");
       // Sanity: the allowlist is a subset of what the union offers.
-      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_REVEALED", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED"]).toContain(t);
+      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "COMBAT_VALUE_BREAKDOWN", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_REVEALED", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED"]).toContain(t);
     });
   });
 

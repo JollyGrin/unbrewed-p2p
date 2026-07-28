@@ -5,7 +5,15 @@
  * Heuristic and display-only: misses nothing rules-relevant that the view
  * doesn't also show, and never feeds anything back into play.
  */
-import { CardInstanceId, FighterId, GameEvent, PlayerId, PlayerView, ViewPlayer } from "./protocol";
+import {
+  CardInstanceId,
+  FighterId,
+  GameEvent,
+  PlayerId,
+  PlayerView,
+  ValueBreakdown,
+  ViewPlayer,
+} from "./protocol";
 import { deriveTeams, isViewerOnWinningTeam } from "./teams";
 import { sweptFighters } from "./sweep";
 
@@ -469,6 +477,56 @@ const FIRE_AT: Record<string, string> = {
   COMBAT_END: "at end of combat",
 };
 
+/**
+ * One signed contribution in a value breakdown, rendered as ` + 3 (boost)` /
+ * ` - 1`. The unlabeled form is used for the net effect delta, whose components
+ * `VALUE_MODIFIED` already narrates line by line.
+ */
+const term = (amount: number, what?: string): string =>
+  `${amount < 0 ? "-" : "+"} ${Math.abs(amount)}${what ? ` (${what})` : ""}`;
+
+/**
+ * The terms of one combat card's effective value, as ` = `-free arithmetic:
+ * `6 (Gromnir) + 3 (boost) - 1`. The base term names the card so a reader can
+ * tell which side's math they are looking at without cross-referencing the
+ * reveal line; `null` card (a synthetic sub-attack) falls back to the role.
+ *
+ * A `locked` card ("value cannot be changed") reports zero on every other
+ * channel per the protocol, so it renders as the bare base with a marker. When
+ * the components would go negative the engine floors the card at 0 — say so,
+ * or `3 - 5 = 0` reads as an arithmetic bug rather than the rule it is.
+ */
+function breakdownTerms(b: ValueBreakdown, label: (source: string) => string): string {
+  const name = b.card ? label(b.card) : b.role === "ATTACK" ? "attack" : "defense";
+  const base = b.override ?? b.printed;
+  const notes = [b.override !== null ? "set" : null, b.locked ? "locked" : null].filter(Boolean);
+  const parts = [`${base} (${[name, ...notes].join(", ")})`];
+  if (b.delta !== 0) parts.push(term(b.delta));
+  if (b.boosts !== 0) parts.push(term(b.boosts, "boost"));
+  if (b.abilityBoosts !== 0) parts.push(term(b.abilityBoosts, "ability boost"));
+  if (base + b.delta + b.boosts + b.abilityBoosts < 0 && b.total === 0) parts.push("(min 0)");
+  return parts.join(" ");
+}
+
+/**
+ * The `COMBAT_VALUE_BREAKDOWN` line: `Attack: 6 (Gromnir) + 3 (boost) = 9 ·
+ * Defense: 2 (FEINT) + 1 = 3` (issue #510). The totals come from the event's
+ * `effectiveAttack`/`effectiveDefense` — the numbers the outcome was actually
+ * decided on — so the line can never disagree with the damage it explains.
+ */
+function valueBreakdownText(
+  e: Extract<GameEvent, { type: "COMBAT_VALUE_BREAKDOWN" }>,
+  label: (source: string) => string
+): string {
+  const attack = `Attack: ${breakdownTerms(e.attack, label)} = ${e.effectiveAttack}`;
+  const defense = e.ignoreDefense
+    ? "Defense: ignored"
+    : e.defense.length === 0
+      ? "Defense: none"
+      : `Defense: ${e.defense.map((d) => breakdownTerms(d, label)).join(" + ")} = ${e.effectiveDefense}`;
+  return `${attack} · ${defense}`;
+}
+
 /** Context the page supplies so enrichment can resolve labels and seats
  *  without any data fetching of its own. */
 export interface EnrichContext {
@@ -558,8 +616,51 @@ export function enrichLines(
         // "The Snuff" (issue #346). The cancel kills the card's TEXT only — its
         // printed value still resolves — so the line says so explicitly instead
         // of leaving the cancel to be reverse-engineered from the damage math.
+        //
+        // v24 `voided` (issue #510) distinguishes the two very different things
+        // this event has always covered. A card with no cancellable effect
+        // blocks (Gromnir) cannot be "cancelled" at all — per the King
+        // Arthur/Excalibur ruling its value AND its ability-attached boost still
+        // count — and the old fixed line sent readers of game 9VQH straight to
+        // the wrong conclusion: correct 6 damage looked like a boost that had
+        // failed to apply. Only `voided === false` takes the new branch, so a
+        // pre-v24 server (flag absent) keeps the historical line.
         const side = e.role === "ATTACK" ? "Attack" : "Defense";
-        added.push({ text: `Feint! ${side} card effects were cancelled (printed value still counts)`, who: "game" });
+        const cards = e.card ? [e.card] : undefined;
+        if (e.voided === false) {
+          const name = e.card ? ctx.label(e.card) : `the ${side.toLowerCase()} card`;
+          added.push({
+            text: `Feint had no effect — ${name} has no card effects to cancel (value and boosts still count)`,
+            who: "game",
+            cards,
+          });
+          break;
+        }
+        // A real cancel. When it also stripped the hero's ability-attached boost
+        // (`discardIfCanceled`), that is the half of the outcome the damage math
+        // makes look arbitrary — name it rather than leaving a silent -N.
+        added.push({
+          text:
+            `Feint! ${side} card effects were cancelled (printed value still counts)` +
+            (e.boostVoided ? " — its ability boost was cancelled too and no longer counts" : ""),
+          who: "game",
+          cards,
+        });
+        break;
+      }
+      case "COMBAT_VALUE_BREAKDOWN": {
+        // The auditable value math for both sides (issue #510). VALUE_MODIFIED
+        // narrates effect deltas as they land, but boost contributions had no
+        // trace beyond a bare "→ discard: Storm's Toll (used in combat)", so the
+        // final damage number could not be reconstructed from the log at all.
+        const named = [e.attack.card, ...e.defense.map((d) => d.card)].filter(
+          (c): c is CardInstanceId => c !== null
+        );
+        added.push({
+          text: valueBreakdownText(e, ctx.label),
+          who: "game",
+          cards: named.length ? named : undefined,
+        });
         break;
       }
       case "EXHAUSTION_DAMAGE": {

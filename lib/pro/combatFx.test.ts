@@ -210,7 +210,7 @@ describe("diffCombatCallouts", () => {
 
     it("emits a cancel naming the victim side from EFFECT_CANCELED.role", () => {
       const v = view({ combat: revealedCombat, catalog: pricedCatalog });
-      const events: GameEvent[] = [{ type: "EFFECT_CANCELED", role: "ATTACK", scope: "ALL" }];
+      const events: GameEvent[] = [{ type: "EFFECT_CANCELED", role: "ATTACK", scope: "ALL", card: null, voided: true, boostVoided: false }];
       // No CARDS_REVEALED / COMBAT_DAMAGE in the batch: faces fall back to the live
       // combat view, the pill to the victim's printed catalog value.
       expect(diffCombatCallouts(v, v, events)).toEqual([
@@ -221,8 +221,8 @@ describe("diffCombatCallouts", () => {
     it("dedupes multiple cancels of the same side within one batch", () => {
       const v = view({ combat: revealedCombat, catalog: pricedCatalog });
       const events: GameEvent[] = [
-        { type: "EFFECT_CANCELED", role: "DEFENSE", scope: "ALL" },
-        { type: "EFFECT_CANCELED", role: "DEFENSE", scope: "TEXT" },
+        { type: "EFFECT_CANCELED", role: "DEFENSE", scope: "ALL", card: null, voided: true, boostVoided: false },
+        { type: "EFFECT_CANCELED", role: "DEFENSE", scope: "TEXT", card: null, voided: true, boostVoided: false },
       ];
       expect(diffCombatCallouts(v, v, events)).toEqual([
         { kind: "cancel", role: "DEFENSE", victim: "baba-yaga/feint#1", canceller: "king-kong/clobber#2", value: 0 },
@@ -232,8 +232,8 @@ describe("diffCombatCallouts", () => {
     it("emits one cancel per side when both are cancelled", () => {
       const v = view({ combat: revealedCombat, catalog: pricedCatalog });
       const events: GameEvent[] = [
-        { type: "EFFECT_CANCELED", role: "ATTACK", scope: "ALL" },
-        { type: "EFFECT_CANCELED", role: "DEFENSE", scope: "ALL" },
+        { type: "EFFECT_CANCELED", role: "ATTACK", scope: "ALL", card: null, voided: true, boostVoided: false },
+        { type: "EFFECT_CANCELED", role: "DEFENSE", scope: "ALL", card: null, voided: true, boostVoided: false },
       ];
       expect(diffCombatCallouts(v, v, events)).toEqual([
         { kind: "cancel", role: "ATTACK", victim: "king-kong/clobber#2", canceller: "baba-yaga/feint#1", value: 3 },
@@ -254,7 +254,7 @@ describe("diffCombatCallouts", () => {
       const next = view({ combat: null, catalog: pricedCatalog });
       const events: GameEvent[] = [
         { type: "CARDS_REVEALED", attackerCard: "king-kong/clobber#2", defenderCard: "baba-yaga/feint#1" },
-        { type: "EFFECT_CANCELED", role: "ATTACK", scope: "ALL" },
+        { type: "EFFECT_CANCELED", role: "ATTACK", scope: "ALL", card: null, voided: true, boostVoided: false },
         { type: "COMBAT_DAMAGE", amount: 2 },
       ];
       expect(diffCombatCallouts(prev, next, events)).toEqual([
@@ -272,7 +272,7 @@ describe("diffCombatCallouts", () => {
       const next = view({ combat: null, catalog: pricedCatalog });
       const events: GameEvent[] = [
         { type: "CARDS_REVEALED", attackerCard: "king-kong/clobber#2", defenderCard: "baba-yaga/feint#1" },
-        { type: "EFFECT_CANCELED", role: "ATTACK", scope: "ALL" },
+        { type: "EFFECT_CANCELED", role: "ATTACK", scope: "ALL", card: null, voided: true, boostVoided: false },
       ];
       expect(diffCombatCallouts(prev, next, events)).toEqual([
         // victim = ATTACK (clobber, printed value 3); pill falls back to that catalog value.
