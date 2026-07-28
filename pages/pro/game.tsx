@@ -62,7 +62,7 @@ import { ReportBugDialog } from "@/components/Pro/ReportBugDialog";
 import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
 import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
-import { batchPhase, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
+import { actionFallbackLine, batchPhase, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
 import {
   AttachItem,
   cardAffordances,
@@ -3077,7 +3077,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
     // Decoratively enrich with the engine's structured events for THIS batch —
     // tags discards with their reason and logs scheduled/delayed effects, value
     // changes, and gained actions. No events → same as diffViews. See enrichLines.
-    const lines =
+    const enriched =
       snapshot.events.length
         ? enrichLines(diff, snapshot.events, {
             label: (source) => resolveEventSource(next, source),
@@ -3087,6 +3087,15 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
               next.fighters.find((f) => f.id === id)?.name ?? id.split("/").pop() ?? id,
           })
         : diff;
+    // A batch that spent an action but produced nothing visible (an empty-deck
+    // draw that moves no one — issue #509) would otherwise drop out entirely,
+    // leaving a spent action with zero trace in the feed. Fall back to a
+    // minimal line so the action still renders as its own labeled group.
+    const fallback =
+      enriched.length === 0
+        ? actionFallbackLine(snapshot.events, next.you, (player) => seatLabel(next, player))
+        : undefined;
+    const lines = fallback ? [fallback] : enriched;
     prevViewRef.current = next;
     if (lines.length === 0) return;
     const ts = Date.now();

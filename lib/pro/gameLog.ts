@@ -31,6 +31,15 @@ const ACTION_PHASE: Record<"MANEUVER" | "SCHEME" | "ATTACK" | "SCHEME_ITEM", Pro
   SCHEME_ITEM: "Scheme Item",
 };
 
+/** Past-tense verb per action, for the minimal fallback line (see
+ *  `actionFallbackLine`). */
+const ACTION_VERB: Record<"MANEUVER" | "SCHEME" | "ATTACK" | "SCHEME_ITEM", string> = {
+  MANEUVER: "maneuvered",
+  SCHEME: "schemed",
+  ATTACK: "attacked",
+  SCHEME_ITEM: "used a scheme item",
+};
+
 /**
  * The action-group label for one STATE broadcast, read off its `ACTION_SPENT`
  * event (a batch carries at most one). `undefined` when the batch spent no
@@ -39,6 +48,30 @@ const ACTION_PHASE: Record<"MANEUVER" | "SCHEME" | "ATTACK" | "SCHEME_ITEM", Pro
 export function batchPhase(events: GameEvent[]): ProLogPhase | undefined {
   const spent = events.find((e) => e.type === "ACTION_SPENT");
   return spent && spent.type === "ACTION_SPENT" ? ACTION_PHASE[spent.action] : undefined;
+}
+
+/**
+ * Minimal stand-in line for a STATE batch that SPENT an action yet produced no
+ * visible lines at all — e.g. a maneuver that draws from an empty deck and
+ * doesn't move (issue #509): no deck-count change, so no "drew a card"; no
+ * space change, so no "moved". Without this the whole action vanishes from the
+ * feed and a player watching the log sees an action disappear with no trace.
+ *
+ * Only ever used as a LAST RESORT (zero other lines for the batch), so it can
+ * never duplicate a richer line, and only for batches with an `ACTION_SPENT` —
+ * a batch that spent nothing and showed nothing is genuinely not worth a line.
+ */
+export function actionFallbackLine(
+  events: GameEvent[],
+  you: PlayerId,
+  seat: (player: PlayerId) => string
+): ProLogLine | undefined {
+  const spent = events.find((e) => e.type === "ACTION_SPENT");
+  if (!spent || spent.type !== "ACTION_SPENT") return undefined;
+  return {
+    text: `${seat(spent.player)} ${ACTION_VERB[spent.action]}`,
+    who: spent.player === you ? "you" : "opp",
+  };
 }
 
 /** A log line as stored in the page (feed + CSV/bug-report export). */
@@ -401,8 +434,9 @@ export function diffViews(
 //      instance id) — appends to its `text`/`cards`, never reorders or adds.
 //   2. CREATE a NEW line ONLY for event types on the allowlist below — things
 //      the diff cannot see in a snapshot (value math, scheduled/delayed
-//      effects, ignored defense, prevented damage, gained actions, and public
-//      reveal/return moments that can disappear from the next snapshot.
+//      effects, ignored defense, prevented damage, gained actions, deck
+//      exhaustion, and public reveal/return moments that can disappear from the
+//      next snapshot.
 // An event type that overlaps diff output (draws, moves, discards, damage,
 // attacks, combat reveals, tokens, turn changes, defeats) must NEVER create a line —
 // only annotate. A bug in the events channel can then at worst lose an
@@ -526,6 +560,21 @@ export function enrichLines(
         // of leaving the cancel to be reverse-engineered from the damage math.
         const side = e.role === "ATTACK" ? "Attack" : "Defense";
         added.push({ text: `Feint! ${side} card effects were cancelled (printed value still counts)`, who: "game" });
+        break;
+      }
+      case "EXHAUSTION_DAMAGE": {
+        // Drawing from an empty deck costs 2 damage to EVERY living fighter of
+        // that seat (issue #509). Not snapshot-derivable — the draw changes no
+        // counts, so without this line the resulting hp loss reads as an
+        // unexplained "took 1 damage" and a hero can simply die mid-log. The hp
+        // loss itself stays a separate diff line, so this never double-reports.
+        const seat = ctx.seat(e.player);
+        const whose = seat === "You" ? "Your" : `${seat}'s`;
+        const their = seat === "You" ? "your" : "their";
+        added.push({
+          text: `Exhaustion! ${whose} deck is empty — drawing deals 2 damage to each of ${their} fighters`,
+          who: whoOf(e.player),
+        });
         break;
       }
       case "DEFENSE_IGNORED": {
