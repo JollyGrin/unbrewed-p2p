@@ -256,6 +256,16 @@ export const seatLabel = (view: PlayerView, player: PlayerId): string => {
 };
 
 /**
+ * Delimiter joining `(player, counter)` into the running-value map key in
+ * `counterChangeLines`. Written as an ESCAPE, never as a literal control byte:
+ * this used to be a raw NUL in the source, which makes grep/ripgrep classify
+ * gameLog.ts as a binary file and silently skip it in every repo-wide search.
+ * ASCII unit separator — it cannot occur in an engine PlayerId or counter name,
+ * so "p1"+"RAGE" can never collide with some other pair.
+ */
+const COUNTER_KEY_SEP = "\u001f";
+
+/**
  * Log lines for the batch's `COUNTER_CHANGED` events (RAGE, Nancy's CLUE,
  * OMEN…). The event carries only the NEW value, so the delta is derived against
  * a per-`(player, counter)` running value: the FIRST event of a batch chains
@@ -279,7 +289,7 @@ export function counterChangeLines(
   const out: ProLogLine[] = [];
   for (const e of events) {
     if (e.type !== "COUNTER_CHANGED") continue;
-    const key = `${e.player} ${e.name}`;
+    const key = `${e.player}${COUNTER_KEY_SEP}${e.name}`;
     const prior = running.has(key) ? running.get(key)! : priorValue(e.player, e.name);
     running.set(key, e.value);
     const delta = e.value - prior;
