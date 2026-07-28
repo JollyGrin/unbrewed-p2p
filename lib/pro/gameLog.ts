@@ -136,6 +136,15 @@ export interface ProLogActionGroup {
 
 /** One turn's worth of action groups, newest-first (see `groupLog`). */
 export interface ProLogTurnSection {
+  /**
+   * Stable identity for this SECTION, distinct from `turn`: the key of its
+   * OLDEST entry. The turn number is not usable as an identity — a rewind can
+   * put the same turn in two separate sections, and duplicate React keys /
+   * collapse-state keys then make the two sections toggle as one (issue #522).
+   * Anchoring on the oldest entry keeps the id fixed while newer batches are
+   * prepended to the section.
+   */
+  id: string;
   turn?: number;
   actor?: string;
   groups: ProLogActionGroup[];
@@ -143,18 +152,22 @@ export interface ProLogTurnSection {
 
 /**
  * Section a newest-first entry list into turns, and each turn into action
- * groups (one per STATE batch). Because batches are appended whole and turns
- * only advance, entries are already contiguous by turn and by `batchId`, so a
- * single pass suffices. Display-only; never reorders lines.
+ * groups (one per STATE batch). Batches are appended whole, so entries are
+ * contiguous by `batchId` and (normally) by turn, and a single pass suffices.
+ * Display-only; never reorders lines — a turn that appears twice (rewind)
+ * stays two sections in feed order, each with its own `id`.
  */
 export function groupLog(entries: ProLogEntry[]): ProLogTurnSection[] {
   const sections: ProLogTurnSection[] = [];
   for (const e of entries) {
     let section = sections[sections.length - 1];
     if (!section || section.turn !== e.turn) {
-      section = { turn: e.turn, actor: e.turnActor, groups: [] };
+      section = { id: e.key, turn: e.turn, actor: e.turnActor, groups: [] };
       sections.push(section);
     }
+    // entries run newest-first, so the last one scanned is the section's
+    // oldest — the anchor that survives new batches landing on top.
+    section.id = e.key;
     let group = section.groups[section.groups.length - 1];
     if (!group || group.batchId !== e.batchId) {
       group = { batchId: e.batchId, phase: e.phase, entries: [] };
@@ -163,6 +176,27 @@ export function groupLog(entries: ProLogEntry[]): ProLogTurnSection[] {
     group.entries.push(e);
   }
   return sections;
+}
+
+/**
+ * Turn tag (number + acting seat) for one STATE batch's lines.
+ *
+ * Normally just the post-batch view's turn, but a view whose turn number
+ * REGRESSES — an approved undo rewind, or a resume/correction that revives an
+ * older state — would otherwise mint a whole out-of-place TURN section wherever
+ * that batch landed in the newest-first feed ("TURN 10 — YOU" sitting above
+ * "TURN 21 — OPPONENT", issue #522). File such a batch under the turn it
+ * interrupted instead, so the rewind reads inside the turn the players were
+ * actually looking at. Batches AFTER the rewind carry the new (lower) turn
+ * number and open their own section normally.
+ */
+export function batchTurnTag(
+  prev: PlayerView | null,
+  next: PlayerView
+): { turn: number; turnActor: string } {
+  const rewound = !!prev && next.turnNumber < prev.turnNumber;
+  const view = rewound ? prev! : next;
+  return { turn: view.turnNumber, turnActor: seatLabel(next, view.activePlayer) };
 }
 
 const short = (name: string) => name.split("/").pop() ?? name;
@@ -222,6 +256,16 @@ export const seatLabel = (view: PlayerView, player: PlayerId): string => {
 };
 
 /**
+ * Delimiter joining `(player, counter)` into the running-value map key in
+ * `counterChangeLines`. Written as an ESCAPE, never as a literal control byte:
+ * this used to be a raw NUL in the source, which makes grep/ripgrep classify
+ * gameLog.ts as a binary file and silently skip it in every repo-wide search.
+ * ASCII unit separator — it cannot occur in an engine PlayerId or counter name,
+ * so "p1"+"RAGE" can never collide with some other pair.
+ */
+const COUNTER_KEY_SEP = "\u001f";
+
+/**
  * Log lines for the batch's `COUNTER_CHANGED` events (RAGE, Nancy's CLUE,
  * OMEN…). The event carries only the NEW value, so the delta is derived against
  * a per-`(player, counter)` running value: the FIRST event of a batch chains
@@ -245,7 +289,7 @@ export function counterChangeLines(
   const out: ProLogLine[] = [];
   for (const e of events) {
     if (e.type !== "COUNTER_CHANGED") continue;
-    const key = `${e.player} ${e.name}`;
+    const key = `${e.player}${COUNTER_KEY_SEP}${e.name}`;
     const prior = running.has(key) ? running.get(key)! : priorValue(e.player, e.name);
     running.set(key, e.value);
     const delta = e.value - prior;
