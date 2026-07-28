@@ -728,8 +728,8 @@ const MODES = [
     text: "Warm up on Easy, spar Medium, sweat against Hard's Monte-Carlo brain. Solo matches start instantly.",
   },
   {
-    title: "Five boards — or yours",
-    text: "The Mended Drum, Island of Despair, City Docks, Polus, Weathertop — or import a custom map.",
+    title: "Six boards — or yours",
+    text: "The Mended Drum, Island of Despair, City Docks, Polus, Weathertop, Count's Castle — or import a custom map.",
   },
   {
     title: "Every match, a replay",

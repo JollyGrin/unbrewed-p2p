@@ -1,0 +1,1201 @@
+{
+  "schemaVersion": "1.0",
+  "id": "counts-castle",
+  "meta": {
+    "title": "Count's Castle",
+    "minPlayers": 2,
+    "maxPlayers": 4,
+    "specialRules": false,
+    "imageUrl": "https://unbrewed.xyz/maps/legacy-counts-castle.webp",
+    "spaceDiameter": 0.036,
+    "source": "https://www.youtube.com/watch?app=desktop&v=fsIgAV93_ko",
+    "license": "community map — credit the author"
+  },
+  "supportedFormats": [
+    {
+      "id": "duel-counts-castle",
+      "formatId": "duel",
+      "label": "Duel",
+      "description": "Start slots 1 and 2 for a standard 1v1.",
+      "seats": {
+        "A1": {
+          "startSlot": 1
+        },
+        "B1": {
+          "startSlot": 2
+        }
+      }
+    },
+    {
+      "id": "ffa-3-counts-castle",
+      "formatId": "ffa-3",
+      "label": "3 Player Free For All",
+      "description": "Three independent players use start slots 1, 2, and 3.",
+      "seats": {
+        "A1": {
+          "startSlot": 1
+        },
+        "B1": {
+          "startSlot": 2
+        },
+        "C1": {
+          "startSlot": 3
+        }
+      }
+    },
+    {
+      "id": "team-2v2-counts-castle",
+      "formatId": "team-2v2",
+      "label": "2v2 Teams",
+      "description": "Outside/inside teams so teammates start far apart: Team A holds slot 1 (dead woods, s19 — outside the east wall) and slot 2 (shadowed keep, s70 — deep inside), 13 moves apart; Team B holds slot 3 (castle ramparts, s13 — the north-east battlement) and slot 4 (fountain court, s63 — the middle of the castle), 8 moves apart. The other two pairings would seat teammates only 4 moves apart (2&4) or 5 (1&3).",
+      "seats": {
+        "A1": {
+          "startSlot": 1
+        },
+        "A2": {
+          "startSlot": 2
+        },
+        "B1": {
+          "startSlot": 3
+        },
+        "B2": {
+          "startSlot": 4
+        }
+      }
+    }
+  ],
+  "zones": [
+    {
+      "id": "z-hill",
+      "color": "#b3763f",
+      "label": "barren hillside"
+    },
+    {
+      "id": "z-bats",
+      "color": "#b5ab97",
+      "label": "bat swarms"
+    },
+    {
+      "id": "z-grove",
+      "color": "#8a8a52",
+      "label": "tangled grove"
+    },
+    {
+      "id": "z-pines",
+      "color": "#4e523d",
+      "label": "dark pines"
+    },
+    {
+      "id": "z-brick",
+      "color": "#ecd79f",
+      "label": "castle ramparts"
+    },
+    {
+      "id": "z-rain",
+      "color": "#5f6574",
+      "label": "rainswept ridge"
+    },
+    {
+      "id": "z-leaf",
+      "color": "#3f6b4a",
+      "label": "fir forest"
+    },
+    {
+      "id": "z-trees",
+      "color": "#b99b7d",
+      "label": "dead woods"
+    },
+    {
+      "id": "z-stair-w",
+      "color": "#6096a3",
+      "label": "west tower stair"
+    },
+    {
+      "id": "z-hall",
+      "color": "#b06478",
+      "label": "great hall"
+    },
+    {
+      "id": "z-chamber",
+      "color": "#e8dcc0",
+      "label": "royal chambers"
+    },
+    {
+      "id": "z-flames",
+      "color": "#d9bb64",
+      "label": "torchlit gallery"
+    },
+    {
+      "id": "z-court",
+      "color": "#7ba7b8",
+      "label": "fountain court"
+    },
+    {
+      "id": "z-redhall",
+      "color": "#b6483c",
+      "label": "crimson gallery"
+    },
+    {
+      "id": "z-keep",
+      "color": "#423e4e",
+      "label": "shadowed keep"
+    },
+    {
+      "id": "z-bones",
+      "color": "#5d4a3f",
+      "label": "bone pit"
+    },
+    {
+      "id": "z-vault",
+      "color": "#c88553",
+      "label": "treasure vault"
+    },
+    {
+      "id": "z-thorns",
+      "color": "#7c5a8c",
+      "label": "thorn garden"
+    },
+    {
+      "id": "z-road",
+      "color": "#cbbd8d",
+      "label": "old cart road"
+    },
+    {
+      "id": "z-cobble",
+      "color": "#7a7570",
+      "label": "cobbled yard"
+    },
+    {
+      "id": "z-stair-s",
+      "color": "#b8bd6a",
+      "label": "south gate stair"
+    }
+  ],
+  "spaces": [
+    {
+      "id": "s2",
+      "x": 0.13639359886013327,
+      "y": 0.09120159163140928,
+      "zones": [
+        "z-hill",
+        "z-bats"
+      ],
+      "adjacentTo": [
+        "s1",
+        "s3",
+        "s49"
+      ]
+    },
+    {
+      "id": "s3",
+      "x": 0.21503631872563303,
+      "y": 0.11848280038344218,
+      "zones": [
+        "z-hill"
+      ],
+      "adjacentTo": [
+        "s2",
+        "s5",
+        "s4"
+      ]
+    },
+    {
+      "id": "s4",
+      "x": 0.289539948071896,
+      "y": 0.19759830576433757,
+      "zones": [
+        "z-hill"
+      ],
+      "adjacentTo": [
+        "s5",
+        "s3"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s5",
+      "x": 0.30272530881176163,
+      "y": 0.07694068127878989,
+      "zones": [
+        "z-hill"
+      ],
+      "adjacentTo": [
+        "s3",
+        "s6",
+        "s4"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s7",
+      "x": 0.4313037983557574,
+      "y": 0.18668582226352443,
+      "zones": [
+        "z-pines"
+      ],
+      "adjacentTo": [
+        "s9",
+        "s6",
+        "s8"
+      ]
+    },
+    {
+      "id": "s8",
+      "x": 0.4861467477356454,
+      "y": 0.0761969268177912,
+      "zones": [
+        "z-pines",
+        "z-brick"
+      ],
+      "adjacentTo": [
+        "s6",
+        "s10",
+        "s9",
+        "s7"
+      ]
+    },
+    {
+      "id": "s9",
+      "x": 0.5161551540001125,
+      "y": 0.19350612445153265,
+      "zones": [
+        "z-pines"
+      ],
+      "adjacentTo": [
+        "s8",
+        "s7",
+        "s54"
+      ]
+    },
+    {
+      "id": "s10",
+      "x": 0.5875544654569478,
+      "y": 0.07074068506738462,
+      "zones": [
+        "z-brick"
+      ],
+      "adjacentTo": [
+        "s8",
+        "s11"
+      ]
+    },
+    {
+      "id": "s11",
+      "x": 0.67817789638758,
+      "y": 0.07808316664166222,
+      "zones": [
+        "z-brick"
+      ],
+      "adjacentTo": [
+        "s10",
+        "s12"
+      ]
+    },
+    {
+      "id": "s12",
+      "x": 0.7814573692418488,
+      "y": 0.06990733502768848,
+      "zones": [
+        "z-brick",
+        "z-rain"
+      ],
+      "adjacentTo": [
+        "s11",
+        "s13",
+        "s14"
+      ]
+    },
+    {
+      "id": "s13",
+      "x": 0.8738573125580723,
+      "y": 0.08593570913734136,
+      "zones": [
+        "z-brick",
+        "z-rain"
+      ],
+      "adjacentTo": [
+        "s12",
+        "s15",
+        "s14"
+      ],
+      "start": {
+        "slot": 3
+      },
+      "passage": true
+    },
+    {
+      "id": "s14",
+      "x": 0.8095940203733493,
+      "y": 0.19402830383780204,
+      "zones": [
+        "z-rain"
+      ],
+      "adjacentTo": [
+        "s12",
+        "s13",
+        "s15"
+      ]
+    },
+    {
+      "id": "s15",
+      "x": 0.9047931023157963,
+      "y": 0.20494078733861518,
+      "zones": [
+        "z-rain",
+        "z-leaf"
+      ],
+      "adjacentTo": [
+        "s13",
+        "s16",
+        "s14"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s16",
+      "x": 0.9565317338062568,
+      "y": 0.3154296827843484,
+      "zones": [
+        "z-leaf"
+      ],
+      "adjacentTo": [
+        "s15",
+        "s17"
+      ]
+    },
+    {
+      "id": "s17",
+      "x": 0.9568475788420928,
+      "y": 0.43396673383469975,
+      "zones": [
+        "z-leaf"
+      ],
+      "adjacentTo": [
+        "s16",
+        "s18"
+      ]
+    },
+    {
+      "id": "s18",
+      "x": 0.9345892010600348,
+      "y": 0.5495863339420913,
+      "zones": [
+        "z-leaf",
+        "z-trees"
+      ],
+      "adjacentTo": [
+        "s17",
+        "s20",
+        "s19"
+      ]
+    },
+    {
+      "id": "s19",
+      "x": 0.8406371992676255,
+      "y": 0.5814214681166692,
+      "zones": [
+        "z-trees"
+      ],
+      "adjacentTo": [
+        "s21",
+        "s18",
+        "s20"
+      ],
+      "start": {
+        "slot": 1
+      }
+    },
+    {
+      "id": "s20",
+      "x": 0.9135467313997852,
+      "y": 0.6636030966385177,
+      "zones": [
+        "z-leaf",
+        "z-trees"
+      ],
+      "adjacentTo": [
+        "s18",
+        "s22",
+        "s19",
+        "s21"
+      ]
+    },
+    {
+      "id": "s21",
+      "x": 0.8168374287820137,
+      "y": 0.6960025448752073,
+      "zones": [
+        "z-trees"
+      ],
+      "adjacentTo": [
+        "s23",
+        "s19",
+        "s20",
+        "s22"
+      ]
+    },
+    {
+      "id": "s22",
+      "x": 0.8954801486475136,
+      "y": 0.7737539898185011,
+      "zones": [
+        "z-trees"
+      ],
+      "adjacentTo": [
+        "s20",
+        "s23",
+        "s21",
+        "s26"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s23",
+      "x": 0.8075244751137309,
+      "y": 0.8092195611961438,
+      "zones": [
+        "z-trees"
+      ],
+      "adjacentTo": [
+        "s22",
+        "s21",
+        "s24"
+      ]
+    },
+    {
+      "id": "s24",
+      "x": 0.7806203867386915,
+      "y": 0.9169803357666737,
+      "zones": [
+        "z-trees"
+      ],
+      "adjacentTo": [
+        "s25",
+        "s23",
+        "s27"
+      ]
+    },
+    {
+      "id": "s25",
+      "x": 0.8768542413109478,
+      "y": 0.9401693632059017,
+      "zones": [
+        "z-trees"
+      ],
+      "adjacentTo": [
+        "s26",
+        "s24"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s26",
+      "x": 0.9420449169889279,
+      "y": 0.8692382204506162,
+      "zones": [
+        "z-trees"
+      ],
+      "adjacentTo": [
+        "s22",
+        "s25"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s27",
+      "x": 0.6926647132049089,
+      "y": 0.9251646983922835,
+      "zones": [
+        "z-cobble"
+      ],
+      "adjacentTo": [
+        "s28",
+        "s24"
+      ]
+    },
+    {
+      "id": "s28",
+      "x": 0.602455756026657,
+      "y": 0.8811344485475828,
+      "zones": [
+        "z-cobble"
+      ],
+      "adjacentTo": [
+        "s29",
+        "s30",
+        "s31",
+        "s27"
+      ]
+    },
+    {
+      "id": "s29",
+      "x": 0.5971747218695043,
+      "y": 0.7678951816102068,
+      "zones": [
+        "z-cobble"
+      ],
+      "adjacentTo": [
+        "s30",
+        "s28"
+      ]
+    },
+    {
+      "id": "s30",
+      "x": 0.5146838208777251,
+      "y": 0.8310445281977701,
+      "zones": [
+        "z-cobble"
+      ],
+      "adjacentTo": [
+        "s33",
+        "s32",
+        "s31",
+        "s29",
+        "s28"
+      ]
+    },
+    {
+      "id": "s31",
+      "x": 0.5136853829004968,
+      "y": 0.9415159653427527,
+      "zones": [
+        "z-cobble"
+      ],
+      "adjacentTo": [
+        "s32",
+        "s30",
+        "s28"
+      ]
+    },
+    {
+      "id": "s32",
+      "x": 0.4350063283824162,
+      "y": 0.8719663413258194,
+      "zones": [
+        "z-cobble"
+      ],
+      "adjacentTo": [
+        "s35",
+        "s34",
+        "s30",
+        "s33",
+        "s31"
+      ]
+    },
+    {
+      "id": "s33",
+      "x": 0.4446326854160771,
+      "y": 0.7493190137055121,
+      "zones": [
+        "z-cobble"
+      ],
+      "adjacentTo": [
+        "s34",
+        "s30",
+        "s32",
+        "s59"
+      ]
+    },
+    {
+      "id": "s34",
+      "x": 0.3529042072465634,
+      "y": 0.8062077803215636,
+      "zones": [
+        "z-thorns",
+        "z-cobble"
+      ],
+      "adjacentTo": [
+        "s37",
+        "s35",
+        "s32",
+        "s33"
+      ]
+    },
+    {
+      "id": "s35",
+      "x": 0.34941981357586466,
+      "y": 0.9255952444920453,
+      "zones": [
+        "z-road",
+        "z-cobble"
+      ],
+      "adjacentTo": [
+        "s34",
+        "s36",
+        "s32"
+      ]
+    },
+    {
+      "id": "s36",
+      "x": 0.2567667586871575,
+      "y": 0.9293101633159323,
+      "zones": [
+        "z-road"
+      ],
+      "adjacentTo": [
+        "s35",
+        "s39"
+      ]
+    },
+    {
+      "id": "s37",
+      "x": 0.2598710765765851,
+      "y": 0.7642588503661334,
+      "zones": [
+        "z-thorns"
+      ],
+      "adjacentTo": [
+        "s38",
+        "s34"
+      ]
+    },
+    {
+      "id": "s38",
+      "x": 0.16674153989375645,
+      "y": 0.765622910803735,
+      "zones": [
+        "z-thorns"
+      ],
+      "adjacentTo": [
+        "s42",
+        "s41",
+        "s37"
+      ]
+    },
+    {
+      "id": "s39",
+      "x": 0.15319582105279275,
+      "y": 0.9307626009214259,
+      "zones": [
+        "z-road"
+      ],
+      "adjacentTo": [
+        "s36",
+        "s41",
+        "s40"
+      ]
+    },
+    {
+      "id": "s40",
+      "x": 0.05469506607222819,
+      "y": 0.9355550025068273,
+      "zones": [
+        "z-road"
+      ],
+      "adjacentTo": [
+        "s41",
+        "s39"
+      ]
+    },
+    {
+      "id": "s41",
+      "x": 0.0691818828895571,
+      "y": 0.8018770796218662,
+      "zones": [
+        "z-thorns"
+      ],
+      "adjacentTo": [
+        "s42",
+        "s38",
+        "s39",
+        "s40"
+      ]
+    },
+    {
+      "id": "s42",
+      "x": 0.09505119863478728,
+      "y": 0.687296002863328,
+      "zones": [
+        "z-grove",
+        "z-thorns"
+      ],
+      "adjacentTo": [
+        "s43",
+        "s41",
+        "s44",
+        "s38"
+      ]
+    },
+    {
+      "id": "s43",
+      "x": 0.049521202923182156,
+      "y": 0.5863555304808064,
+      "zones": [
+        "z-grove"
+      ],
+      "adjacentTo": [
+        "s45",
+        "s42",
+        "s44"
+      ]
+    },
+    {
+      "id": "s44",
+      "x": 0.14782460275505688,
+      "y": 0.591811772231213,
+      "zones": [
+        "z-grove"
+      ],
+      "adjacentTo": [
+        "s45",
+        "s42",
+        "s43"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s45",
+      "x": 0.09608597126459649,
+      "y": 0.49496348116149613,
+      "zones": [
+        "z-grove"
+      ],
+      "adjacentTo": [
+        "s46",
+        "s43",
+        "s47",
+        "s44"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s46",
+      "x": 0.0422777945145177,
+      "y": 0.4062995527173892,
+      "zones": [
+        "z-bats",
+        "z-grove"
+      ],
+      "adjacentTo": [
+        "s48",
+        "s45",
+        "s47"
+      ]
+    },
+    {
+      "id": "s47",
+      "x": 0.14265073960601082,
+      "y": 0.38856676702856785,
+      "zones": [
+        "z-bats",
+        "z-grove"
+      ],
+      "adjacentTo": [
+        "s48",
+        "s46",
+        "s45"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s48",
+      "x": 0.07706544892476624,
+      "y": 0.2906443617586842,
+      "zones": [
+        "z-bats"
+      ],
+      "adjacentTo": [
+        "s49",
+        "s46",
+        "s47"
+      ]
+    },
+    {
+      "id": "s49",
+      "x": 0.07332097340879393,
+      "y": 0.18668582226352443,
+      "zones": [
+        "z-hill",
+        "z-bats"
+      ],
+      "adjacentTo": [
+        "s2",
+        "s1",
+        "s48"
+      ]
+    },
+    {
+      "id": "s50",
+      "x": 0.19173285209304647,
+      "y": 0.24942512505580075,
+      "zones": [
+        "z-stair-w"
+      ],
+      "adjacentTo": [
+        "s51"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s51",
+      "x": 0.2657886825533065,
+      "y": 0.34355277258771355,
+      "zones": [
+        "z-hall"
+      ],
+      "adjacentTo": [
+        "s52",
+        "s50",
+        "s55"
+      ]
+    },
+    {
+      "id": "s52",
+      "x": 0.35588045266773516,
+      "y": 0.3384184857840227,
+      "zones": [
+        "z-hall"
+      ],
+      "adjacentTo": [
+        "s53",
+        "s51"
+      ]
+    },
+    {
+      "id": "s53",
+      "x": 0.43963048436125335,
+      "y": 0.38993082746616947,
+      "zones": [
+        "z-hall",
+        "z-flames"
+      ],
+      "adjacentTo": [
+        "s60",
+        "s54",
+        "s52"
+      ]
+    },
+    {
+      "id": "s54",
+      "x": 0.5153640621428908,
+      "y": 0.33272482453313107,
+      "zones": [
+        "z-hall"
+      ],
+      "adjacentTo": [
+        "s61",
+        "s53",
+        "s9"
+      ]
+    },
+    {
+      "id": "s55",
+      "x": 0.2637191372936881,
+      "y": 0.47177445372226817,
+      "zones": [
+        "z-chamber"
+      ],
+      "adjacentTo": [
+        "s51",
+        "s57",
+        "s56"
+      ]
+    },
+    {
+      "id": "s56",
+      "x": 0.34443140241880627,
+      "y": 0.5236087503511306,
+      "zones": [
+        "z-chamber"
+      ],
+      "adjacentTo": [
+        "s57",
+        "s55",
+        "s58",
+        "s60"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s57",
+      "x": 0.2513018657359776,
+      "y": 0.5795352282927981,
+      "zones": [
+        "z-chamber"
+      ],
+      "adjacentTo": [
+        "s55",
+        "s56",
+        "s58"
+      ]
+    },
+    {
+      "id": "s58",
+      "x": 0.3309793582312866,
+      "y": 0.6300054644840589,
+      "zones": [
+        "z-chamber"
+      ],
+      "adjacentTo": [
+        "s57",
+        "s56"
+      ]
+    },
+    {
+      "id": "s59",
+      "x": 0.44066525699106257,
+      "y": 0.6163648601080425,
+      "zones": [
+        "z-flames"
+      ],
+      "adjacentTo": [
+        "s64",
+        "s60",
+        "s33"
+      ]
+    },
+    {
+      "id": "s60",
+      "x": 0.4421373514071132,
+      "y": 0.5002332954522198,
+      "zones": [
+        "z-flames"
+      ],
+      "adjacentTo": [
+        "s59",
+        "s53",
+        "s56"
+      ]
+    },
+    {
+      "id": "s61",
+      "x": 0.53665657093883,
+      "y": 0.44326773232778277,
+      "zones": [
+        "z-court"
+      ],
+      "adjacentTo": [
+        "s62",
+        "s54",
+        "s63"
+      ]
+    },
+    {
+      "id": "s62",
+      "x": 0.6215079265831851,
+      "y": 0.43917555101497785,
+      "zones": [
+        "z-court"
+      ],
+      "adjacentTo": [
+        "s63",
+        "s61"
+      ]
+    },
+    {
+      "id": "s63",
+      "x": 0.5759779308715799,
+      "y": 0.5346597816470929,
+      "zones": [
+        "z-court"
+      ],
+      "adjacentTo": [
+        "s65",
+        "s62",
+        "s61",
+        "s64"
+      ],
+      "start": {
+        "slot": 4
+      }
+    },
+    {
+      "id": "s64",
+      "x": 0.53665657093883,
+      "y": 0.6287799518416065,
+      "zones": [
+        "z-court"
+      ],
+      "adjacentTo": [
+        "s63",
+        "s59",
+        "s65"
+      ]
+    },
+    {
+      "id": "s65",
+      "x": 0.6194383813235667,
+      "y": 0.6219596496535983,
+      "zones": [
+        "z-court"
+      ],
+      "adjacentTo": [
+        "s66",
+        "s68",
+        "s63",
+        "s64"
+      ]
+    },
+    {
+      "id": "s66",
+      "x": 0.7115331453765861,
+      "y": 0.6642455232192492,
+      "zones": [
+        "z-redhall"
+      ],
+      "adjacentTo": [
+        "s68",
+        "s67",
+        "s65"
+      ]
+    },
+    {
+      "id": "s67",
+      "x": 0.7125679180063953,
+      "y": 0.7897390834786006,
+      "zones": [
+        "z-stair-s"
+      ],
+      "adjacentTo": [
+        "s66"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s68",
+      "x": 0.7053245095977309,
+      "y": 0.5551206882111177,
+      "zones": [
+        "z-redhall"
+      ],
+      "adjacentTo": [
+        "s69",
+        "s66",
+        "s65"
+      ]
+    },
+    {
+      "id": "s69",
+      "x": 0.7102995549231522,
+      "y": 0.43311746923635247,
+      "zones": [
+        "z-keep"
+      ],
+      "adjacentTo": [
+        "s74",
+        "s68",
+        "s70"
+      ]
+    },
+    {
+      "id": "s70",
+      "x": 0.7094636001169677,
+      "y": 0.3191382325060331,
+      "zones": [
+        "z-keep"
+      ],
+      "adjacentTo": [
+        "s73",
+        "s71",
+        "s74",
+        "s69"
+      ],
+      "start": {
+        "slot": 2
+      }
+    },
+    {
+      "id": "s71",
+      "x": 0.6225426992129943,
+      "y": 0.3218663533812364,
+      "zones": [
+        "z-keep"
+      ],
+      "adjacentTo": [
+        "s70"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s72",
+      "x": 0.6204731539533759,
+      "y": 0.20182903487229167,
+      "zones": [
+        "z-bones"
+      ],
+      "adjacentTo": [
+        "s73"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s73",
+      "x": 0.7073940548573493,
+      "y": 0.2059212161850966,
+      "zones": [
+        "z-redhall"
+      ],
+      "adjacentTo": [
+        "s72",
+        "s70"
+      ]
+    },
+    {
+      "id": "s74",
+      "x": 0.7798281389439938,
+      "y": 0.3791568917605055,
+      "zones": [
+        "z-redhall",
+        "z-keep",
+        "z-vault"
+      ],
+      "adjacentTo": [
+        "s70",
+        "s76",
+        "s75",
+        "s69"
+      ]
+    },
+    {
+      "id": "s75",
+      "x": 0.8584708588094936,
+      "y": 0.32323041381883805,
+      "zones": [
+        "z-vault"
+      ],
+      "adjacentTo": [
+        "s76",
+        "s74"
+      ]
+    },
+    {
+      "id": "s76",
+      "x": 0.8564013135498751,
+      "y": 0.43644743013977455,
+      "zones": [
+        "z-vault"
+      ],
+      "adjacentTo": [
+        "s74",
+        "s75"
+      ]
+    },
+    {
+      "id": "s1",
+      "x": 0.05034368492039432,
+      "y": 0.06379752564770096,
+      "zones": [
+        "z-hill",
+        "z-bats"
+      ],
+      "adjacentTo": [
+        "s2",
+        "s49"
+      ]
+    },
+    {
+      "id": "s6",
+      "x": 0.3949947586608098,
+      "y": 0.07763489016352622,
+      "zones": [
+        "z-hill",
+        "z-pines"
+      ],
+      "adjacentTo": [
+        "s5",
+        "s8",
+        "s7"
+      ]
+    }
+  ]
+}
