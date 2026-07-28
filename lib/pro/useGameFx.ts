@@ -8,6 +8,7 @@
 import { MutableRefObject, RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { FighterId, GameEvent, PlayerView, SpaceId } from "./protocol";
 import { diffFxEvents } from "./fxEvents";
+import { ARC_FLIGHT_MS, ARC_LAUNCH_MS } from "./combatTiming";
 import { sfx } from "./sfx";
 
 /** one transient overlay on the board, anchored to a space */
@@ -42,14 +43,9 @@ export interface DamageArc {
 
 const BOARD_FX_TTL_MS = 1600;
 
-/** When the arc leaves the panel — after the strike lands (~1.1s) and the comparison
- *  beat has begun pulsing. Kept in one place; the board damage beat is delayed by
- *  ARC_LAUNCH_MS + ARC_FLIGHT_MS so it fires exactly as the projectile arrives.
- *  Pushed later with the slowed sequence (#382 pacing) so the number leaves AFTER the
- *  winning value pulses, not on top of the strike. */
-const ARC_LAUNCH_MS = 1900;
-/** How long the projectile is in the air. */
-const ARC_FLIGHT_MS = 620;
+/* The arc's clock lives in combatTiming.ts alongside the panel-linger TTL that must
+ * outlast it — see the note there (issue #517). The board damage beat is delayed by
+ * ARC_LAUNCH_MS + ARC_FLIGHT_MS so it fires exactly as the projectile arrives. */
 
 /** Optional refs the page threads in so the arc can measure its endpoints at launch:
  *  a registry of fighter-token elements (defender lookup) and the panel clash point. */
