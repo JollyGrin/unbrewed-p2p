@@ -43,3 +43,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# raw capture masters (unbrewed-p2p-504)
+# Screen-capture masters get dropped straight into public/pro/ and are tens of
+# megabytes; only the encoded, web-sized derivatives belong in git. The single
+# `*` deliberately does not cross a `/`, so the encoded hero clips one level
+# down in public/pro/hero/ stay tracked — as do marketing/public/clips/*.mp4.
+public/pro/*.mp4
+
