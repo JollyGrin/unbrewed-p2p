@@ -1,4 +1,5 @@
 import {
+  actionFallbackLine,
   diffViews,
   enrichLines,
   batchPhase,
@@ -150,6 +151,7 @@ const ALLOWLIST = new Set([
   "EFFECT_CANCELED",
   "DEFENSE_IGNORED",
   "DAMAGE_PREVENTED",
+  "EXHAUSTION_DAMAGE",
   "ACTIONS_GAINED",
   "CARD_RETURNED_TO_HAND",
   "CARD_REVEALED",
@@ -308,6 +310,56 @@ describe("enrichLines", () => {
       ]);
     });
 
+    // issue #509: a fatal empty-deck draw showed only "took 1 damage". The
+    // exhaustion rule is invisible to the view diff (the draw changes no
+    // counts), so the event has to name the cause itself.
+    it("EXHAUSTION_DAMAGE names the empty deck as the cause, per seat", () => {
+      const out = enrichLines(
+        [],
+        [
+          { type: "EXHAUSTION_DAMAGE", player: "p1" },
+          { type: "EXHAUSTION_DAMAGE", player: "p2" },
+        ],
+        ctx("p1")
+      );
+      expect(out).toEqual([
+        {
+          text: "Exhaustion! Your deck is empty — drawing deals 2 damage to each of your fighters",
+          who: "you",
+        },
+        {
+          text: "Exhaustion! Opponent's deck is empty — drawing deals 2 damage to each of their fighters",
+          who: "opp",
+        },
+      ]);
+    });
+
+    it("EXHAUSTION_DAMAGE names the acting seat in a >2p game", () => {
+      const seat3p = (p: string) => (p === "p1" ? "You" : p.toUpperCase());
+      const out = enrichLines([], [{ type: "EXHAUSTION_DAMAGE", player: "p3" }], ctx("p1", seat3p));
+      expect(out.map((l) => l.text)).toEqual([
+        "Exhaustion! P3's deck is empty — drawing deals 2 damage to each of their fighters",
+      ]);
+    });
+
+    it("EXHAUSTION_DAMAGE explains the hp loss without replacing it", () => {
+      // The damage itself stays a diff line (the view shows the hp change);
+      // enrichLines only adds the missing "why", so the fatal draw reads as a
+      // cause + effect pair instead of a bare "took 1 damage".
+      const lines: ProLogLine[] = [
+        { text: "The Mandalorian took 1 damage (0/14)", who: "opp" },
+      ];
+      const out = enrichLines(
+        lines,
+        [{ type: "EXHAUSTION_DAMAGE", player: "p2" }, { type: "DAMAGE_APPLIED", fighter: "p2/hero", amount: 2, source: "EXHAUSTION" }],
+        ctx("p1")
+      );
+      expect(out.map((l) => l.text)).toEqual([
+        "The Mandalorian took 1 damage (0/14)",
+        "Exhaustion! Opponent's deck is empty — drawing deals 2 damage to each of their fighters",
+      ]);
+    });
+
     it("ACTIONS_GAINED attributes to you/opp and pluralizes", () => {
       const out = enrichLines(
         [],
@@ -378,7 +430,7 @@ describe("enrichLines", () => {
       // A discard is an annotation-only type; add it so the roster is exhaustive.
       seen.add("CARD_DISCARDED");
       // Sanity: the allowlist is a subset of what the union offers.
-      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_REVEALED", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED"]).toContain(t);
+      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_REVEALED", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED"]).toContain(t);
     });
   });
 
@@ -618,6 +670,67 @@ describe("batchPhase — the action label a STATE batch carried", () => {
         { type: "COMBAT_DAMAGE", amount: 3 },
       ])
     ).toBe("Attack");
+  });
+});
+
+// issue #509: an empty-deck, no-move maneuver produces no diff lines at all —
+// no deck-count change (nothing to draw), no space change. Without a fallback
+// the whole action vanishes and the player sees an action spent with no trace.
+describe("actionFallbackLine — a spent action never renders as nothing", () => {
+  const seat = (p: PlayerId) => (p === "p1" ? "You" : "Opponent");
+
+  it.each([
+    ["MANEUVER", "Opponent maneuvered"],
+    ["SCHEME", "Opponent schemed"],
+    ["ATTACK", "Opponent attacked"],
+    ["SCHEME_ITEM", "Opponent used a scheme item"],
+  ] as const)("renders %s as a minimal line", (action, text) => {
+    expect(
+      actionFallbackLine([{ type: "ACTION_SPENT", player: "p2", action }], "p1", seat)
+    ).toEqual({ text, who: "opp" });
+  });
+
+  it("attributes the viewer's own action to 'you'", () => {
+    expect(
+      actionFallbackLine([{ type: "ACTION_SPENT", player: "p1", action: "MANEUVER" }], "p1", seat)
+    ).toEqual({ text: "You maneuvered", who: "you" });
+  });
+
+  it("names the acting seat in a >2p game", () => {
+    const seat3p = (p: PlayerId) => (p === "p1" ? "You" : p.toUpperCase());
+    expect(
+      actionFallbackLine([{ type: "ACTION_SPENT", player: "p3", action: "SCHEME" }], "p1", seat3p)
+    ).toEqual({ text: "P3 schemed", who: "opp" });
+  });
+
+  it("is undefined for a batch that spent no action (setup, forced end-of-turn)", () => {
+    expect(actionFallbackLine([], "p1", seat)).toBeUndefined();
+    expect(
+      actionFallbackLine([{ type: "TURN_STARTED", player: "p1", turnNumber: 2 }], "p1", seat)
+    ).toBeUndefined();
+  });
+
+  it("finds the ACTION_SPENT among the batch's other events", () => {
+    // The motivating batch: a maneuver whose draw hit an empty deck. CARD_DRAWN
+    // never fires, nothing moves — only the action itself is left to report.
+    expect(
+      actionFallbackLine(
+        [
+          { type: "ACTION_SPENT", player: "p2", action: "MANEUVER" },
+          { type: "DECK_SHUFFLED", player: "p2" },
+        ],
+        "p1",
+        seat
+      )
+    ).toEqual({ text: "Opponent maneuvered", who: "opp" });
+  });
+
+  it("pairs with batchPhase so the group renders under its action label", () => {
+    // The page uses both: batchPhase for the group heading, this for the body.
+    // An empty-deck maneuver must read as *Maneuver* → "Opponent maneuvered".
+    const events: GameEvent[] = [{ type: "ACTION_SPENT", player: "p2", action: "MANEUVER" }];
+    expect(batchPhase(events)).toBe("Maneuver");
+    expect(actionFallbackLine(events, "p1", seat)?.text).toBe("Opponent maneuvered");
   });
 });
 
