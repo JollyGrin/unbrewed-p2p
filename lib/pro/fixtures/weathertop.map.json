@@ -9,7 +9,7 @@
     "imageUrl": "https://unbrewed.xyz/maps/legacy-weathertop.webp",
     "imageWidth": 1280,
     "imageHeight": 827,
-    "spaceDiameter": 0.09,
+    "spaceDiameter": 0.089,
     "source": "https://www.youtube.com/watch?app=desktop&v=fsIgAV93_ko",
     "license": "Legacy community battlefield 'Weathertop' by Taytertot. Source: https://www.youtube.com/watch?app=desktop&v=fsIgAV93_ko — credit Taytertot."
   },
@@ -192,7 +192,8 @@
       ],
       "adjacentTo": [
         "s10",
-        "s33"
+        "s33",
+        "s34"
       ],
       "start": {
         "slot": 1
@@ -313,7 +314,8 @@
       "adjacentTo": [
         "s8",
         "s13",
-        "s19"
+        "s19",
+        "s24"
       ]
     },
     {
@@ -453,6 +455,7 @@
         "z-gold"
       ],
       "adjacentTo": [
+        "s14",
         "s20",
         "s28",
         "s29"
@@ -571,8 +574,8 @@
     },
     {
       "id": "s33",
-      "x": 0.0742,
-      "y": 0.0726,
+      "x": 0.083,
+      "y": 0.1038,
       "zones": [
         "z-grass"
       ],
@@ -583,14 +586,15 @@
     },
     {
       "id": "s34",
-      "x": 0.225,
-      "y": 0.0907,
+      "x": 0.2295,
+      "y": 0.0927,
       "zones": [
         "z-grass",
         "z-roots"
       ],
       "adjacentTo": [
         "s1",
+        "s6",
         "s33"
       ]
     }
