@@ -248,14 +248,14 @@ describe("diffFxEvents", () => {
 
   it("emits one cancel beat when an effect is cancelled (issue #346)", () => {
     const v = view({});
-    expect(diffFxEvents(v, v, [{ type: "EFFECT_CANCELED", role: "ATTACK", scope: "ALL" }])).toEqual([
+    expect(diffFxEvents(v, v, [{ type: "EFFECT_CANCELED", role: "ATTACK", scope: "ALL", card: null, voided: true, boostVoided: false }])).toEqual([
       { type: "cancel" },
     ]);
     // One beat however many effects were cancelled in the batch.
     expect(
       diffFxEvents(v, v, [
-        { type: "EFFECT_CANCELED", role: "ATTACK", scope: "ALL" },
-        { type: "EFFECT_CANCELED", role: "DEFENSE", scope: "ALL" },
+        { type: "EFFECT_CANCELED", role: "ATTACK", scope: "ALL", card: null, voided: true, boostVoided: false },
+        { type: "EFFECT_CANCELED", role: "DEFENSE", scope: "ALL", card: null, voided: true, boostVoided: false },
       ])
     ).toEqual([{ type: "cancel" }]);
     // No event stream (pre-v10 / reconnect) → no ghost beat.

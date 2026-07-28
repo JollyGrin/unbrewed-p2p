@@ -130,7 +130,7 @@ describe("diffCombatStrike", () => {
     const next = view({ combat: null });
     const events: GameEvent[] = [
       ...resolvedEnded("ATTACKER_WON", 2),
-      { type: "EFFECT_CANCELED", role: "DEFENSE", scope: "TEXT" },
+      { type: "EFFECT_CANCELED", role: "DEFENSE", scope: "TEXT", card: null, voided: true, boostVoided: false },
     ];
     // The descriptor is returned so the panel can still LINGER (issue #147); only the
     // strike beat is suppressed so it doesn't double-animate against the Snuff callout.
@@ -144,7 +144,7 @@ describe("diffCombatStrike", () => {
     const prev = view({ combat: combat({ stage: "DURING" }) });
     const next = view({ combat: combat({ stage: "DAMAGE", outcome: "ATTACKER_WON", attackDamageDealt: 3 }) });
     const events: GameEvent[] = [
-      { type: "EFFECT_CANCELED", role: "ATTACK", scope: "TEXT" },
+      { type: "EFFECT_CANCELED", role: "ATTACK", scope: "TEXT", card: null, voided: true, boostVoided: false },
       { type: "COMBAT_DAMAGE", amount: 3 },
       { type: "COMBAT_RESOLVED", outcome: "ATTACKER_WON" },
     ];
@@ -357,7 +357,7 @@ describe("useCombatStrike", () => {
     // Attack answered by a Feint that cancels effects and ENDS the combat in one batch.
     const feint: GameEvent[] = [
       ...resolvedEnded("ATTACKER_WON", 2),
-      { type: "EFFECT_CANCELED", role: "DEFENSE", scope: "TEXT" },
+      { type: "EFFECT_CANCELED", role: "DEFENSE", scope: "TEXT", card: null, voided: true, boostVoided: false },
     ];
     act(() => rerender({ s: snap(view({ combat: null }), feint) }));
 
