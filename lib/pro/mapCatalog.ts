@@ -20,6 +20,7 @@ import islandOfDespairJson from "./fixtures/island-of-despair.map.json";
 import cityDocksJson from "./fixtures/city-docks.map.json";
 import polusJson from "./fixtures/polus.map.json";
 import weathertopJson from "./fixtures/weathertop.map.json";
+import countsCastleJson from "./fixtures/counts-castle.map.json";
 
 /** A board's authored per-format seat mapping (present on multiplayer boards). */
 interface MapFormatSupport {
@@ -55,6 +56,7 @@ const islandOfDespair = islandOfDespairJson as unknown as CatalogMap;
 const cityDocks = cityDocksJson as unknown as CatalogMap;
 const polus = polusJson as unknown as CatalogMap;
 const weathertop = weathertopJson as unknown as CatalogMap;
+const countsCastle = countsCastleJson as unknown as CatalogMap;
 
 /**
  * Ordered built-in boards. The Mended Drum is the duel default (server board,
@@ -91,6 +93,12 @@ export const MAP_CATALOG: MapCatalogEntry[] = [
     title: weathertop.meta.title,
     thumbnailUrl: weathertop.meta.imageUrl ?? "",
     map: weathertop,
+  },
+  {
+    id: countsCastle.id,
+    title: countsCastle.meta.title,
+    thumbnailUrl: countsCastle.meta.imageUrl ?? "",
+    map: countsCastle,
   },
   {
     id: MULTIPLAYER_PLAYTEST_MAP.id,

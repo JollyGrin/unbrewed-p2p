@@ -12,12 +12,14 @@ import {
 import { normalizeMap } from "./normalizeMap";
 import islandOfDespairJson from "./fixtures/island-of-despair.map.json";
 import weathertopJson from "./fixtures/weathertop.map.json";
+import countsCastleJson from "./fixtures/counts-castle.map.json";
 
 const island = catalogEntry("island-of-despair")!;
 const mendedDrum = catalogEntry("mended-drum")!;
 const cityDocks = catalogEntry("city-docks")!;
 const polus = catalogEntry("polus")!;
 const weathertop = catalogEntry("weathertop")!;
+const countsCastle = catalogEntry("counts-castle")!;
 const arena = catalogEntry("multiplayer-arena-playtest")!;
 
 describe("map catalog", () => {
@@ -28,6 +30,7 @@ describe("map catalog", () => {
       "city-docks",
       "polus",
       "weathertop",
+      "counts-castle",
       "multiplayer-arena-playtest",
     ]);
     expect(arena.title).toBe("Playtest Arena (synthetic)");
@@ -62,6 +65,13 @@ describe("map catalog", () => {
       expect(mapEligibleForFormat(weathertop.map, "duel")).toBe(true);
       expect(mapEligibleForFormat(weathertop.map, "ffa-3")).toBe(true);
       expect(mapEligibleForFormat(weathertop.map, "team-2v2")).toBe(true);
+    });
+
+    it("Count's Castle supports all three formats via authored supportedFormats", () => {
+      expect(eligibleFormats(countsCastle.map)).toEqual(["duel", "ffa-3", "team-2v2"]);
+      expect(mapEligibleForFormat(countsCastle.map, "duel")).toBe(true);
+      expect(mapEligibleForFormat(countsCastle.map, "ffa-3")).toBe(true);
+      expect(mapEligibleForFormat(countsCastle.map, "team-2v2")).toBe(true);
     });
 
     it("The Mended Drum is duel-only via the printed slots 1&2 fallback", () => {
@@ -180,5 +190,94 @@ describe("weathertop fixture", () => {
         "s23->s32",
       ].sort(),
     );
+  });
+});
+
+describe("counts-castle fixture", () => {
+  const spaces = countsCastleJson.spaces as Array<{
+    id: string;
+    zones: string[];
+    passage?: boolean;
+    start?: { slot: number };
+  }>;
+
+  it("normalizes clean (engine-native pass-through)", () => {
+    const map = normalizeMap(countsCastleJson);
+    expect(map.id).toBe("counts-castle");
+    expect(map.meta.title).toBe("Count's Castle");
+    expect(map.spaces).toHaveLength(76);
+    const slots = new Set(map.spaces.flatMap((s) => (s.start ? [s.start.slot] : [])));
+    expect(slots).toEqual(new Set([1, 2, 3, 4]));
+  });
+
+  it("maps the four start slots to the expected spaces (s19/s70/s13/s63)", () => {
+    const slotOf = (slot: number) => spaces.find((s) => s.start?.slot === slot)?.id;
+    expect(slotOf(1)).toBe("s19");
+    expect(slotOf(2)).toBe("s70");
+    expect(slotOf(3)).toBe("s13");
+    expect(slotOf(4)).toBe("s63");
+  });
+
+  it("declares 21 zones, every one of them used by at least one space", () => {
+    const map = normalizeMap(countsCastleJson);
+    expect(map.zones).toHaveLength(21);
+    const used = new Set(spaces.flatMap((s) => s.zones));
+    expect(new Set(map.zones.map((z) => z.id))).toEqual(used);
+  });
+
+  it("s74 is the three-zone meeting point (keep / crimson gallery / vault)", () => {
+    const s74 = spaces.find((s) => s.id === "s74")!;
+    expect(new Set(s74.zones)).toEqual(new Set(["z-keep", "z-redhall", "z-vault"]));
+    expect(s74.zones).toHaveLength(3);
+    // it's the only space carrying more than two zones
+    expect(spaces.filter((s) => s.zones.length > 2).map((s) => s.id)).toEqual(["s74"]);
+  });
+
+  it("carries the 15 printed secret passages", () => {
+    expect(spaces.filter((s) => s.passage).map((s) => s.id)).toEqual([
+      "s4",
+      "s5",
+      "s13",
+      "s15",
+      "s22",
+      "s25",
+      "s26",
+      "s44",
+      "s45",
+      "s47",
+      "s50",
+      "s56",
+      "s67",
+      "s71",
+      "s72",
+    ]);
+  });
+
+  it("has a fully symmetric, fully connected adjacency graph", () => {
+    const byId = new Map(
+      (countsCastleJson.spaces as Array<{ id: string; adjacentTo: string[] }>).map((s) => [s.id, s]),
+    );
+    for (const s of byId.values()) {
+      for (const to of s.adjacentTo) {
+        expect(byId.get(to)?.adjacentTo).toContain(s.id);
+      }
+    }
+    const seen = new Set(["s1"]);
+    const queue = ["s1"];
+    while (queue.length) {
+      for (const to of byId.get(queue.shift()!)!.adjacentTo) {
+        if (!seen.has(to)) (seen.add(to), queue.push(to));
+      }
+    }
+    expect(seen.size).toBe(76);
+  });
+
+  it("orders 2v2 seat keys A1, A2, B1, B2 (engine zips players against key order)", () => {
+    const team = (countsCastle.map.supportedFormats ?? []).find(
+      (f) => f.formatId === "team-2v2",
+    )!;
+    expect(Object.keys(team.seats)).toEqual(["A1", "A2", "B1", "B2"]);
+    // teammates start furthest apart: A = slots 1+2 (13 moves), B = slots 3+4 (8)
+    expect(Object.values(team.seats).map((s) => s.startSlot)).toEqual([1, 2, 3, 4]);
   });
 });
