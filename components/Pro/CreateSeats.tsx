@@ -1,18 +1,11 @@
-import { Button, Flex, Grid, Text } from "@chakra-ui/react";
-import { BotDifficulty, PlayerId } from "@/lib/pro/protocol";
+import { Button, Flex, Grid, Text, Tooltip } from "@chakra-ui/react";
+import { BotDifficulty, HeroListing, PlayerId } from "@/lib/pro/protocol";
+import { botTierChoices } from "@/lib/pro/botTiers";
 import { ProFormatId, TeamSeatSource, teamComposition } from "@/lib/pro/multiplayerPlaytest";
 
 /** Who fills a create-screen seat: a human (via the room link) or a server bot. */
 export type SlotOccupant = "human" | BotDifficulty;
 export type BotSlotPlan = Partial<Record<PlayerId, SlotOccupant>>;
-
-const BOT_SLOT_CHOICES: Array<{ id: BotDifficulty; label: string }> = [
-  { id: "easy", label: "Easy bot" },
-  { id: "medium", label: "Medium bot" },
-  { id: "hard", label: "Hard bot" },
-];
-
-const botSlotChoicesForFormat = (_format: ProFormatId): Array<{ id: BotDifficulty; label: string }> => BOT_SLOT_CHOICES;
 
 const isBotSlotOccupant = (occupant: SlotOccupant): occupant is BotDifficulty => occupant !== "human";
 
@@ -80,6 +73,8 @@ export const CreateSeats = ({
   selectedMap,
   botSlotPlan,
   onChangeBotSlot,
+  heroes,
+  selectedHeroId,
 }: {
   selectedFormat: ProFormatId;
   /** The chosen board, so the team split mirrors the engine's seat-order zip.
@@ -87,10 +82,45 @@ export const CreateSeats = ({
   selectedMap?: TeamSeatSource | null;
   botSlotPlan: BotSlotPlan;
   onChangeBotSlot: (player: PlayerId, occupant: SlotOccupant) => void;
+  /** The server roster — the ONLY source of which bot tiers this server offers
+   *  (`HeroListing.botTiers`). Absent/omitted → the easy|medium|hard fallback. */
+  heroes?: HeroListing[] | null;
+  /** The creator's locked hero: `expert` is gated on it too, not just the bot's. */
+  selectedHeroId?: string | null;
 }) => {
   const comp = teamComposition(selectedFormat, selectedMap);
   // The creator always holds P1, so their team is whichever contains p1.
   const youSeat: PlayerId = "p1";
+  // Recomputed every render, so flipping heroes swaps the offered tiers live.
+  const tierChoices = botTierChoices(heroes, [selectedHeroId]);
+
+  // One bot button. A tier with provenance (today: Expert) carries a small
+  // badge + hover copy so nobody mistakes it for a finished ladder rung.
+  const tierButton = (choice: (typeof tierChoices)[number], active: boolean, onPick: () => void) => {
+    const btn = (
+      <Button
+        key={choice.id}
+        {...(active ? BTN_GOLD : BTN)}
+        size="xs"
+        data-testid={`bot-tier-${choice.id}`}
+        onClick={onPick}
+      >
+        {choice.label}
+        {choice.badge && (
+          <Text as="span" ml="0.3rem" fontSize="0.55rem" letterSpacing="0.06em" opacity={0.8} textTransform="uppercase">
+            {choice.badge}
+          </Text>
+        )}
+      </Button>
+    );
+    return choice.tooltip ? (
+      <Tooltip key={choice.id} label={choice.tooltip} openDelay={200} fontSize="0.7rem">
+        {btn}
+      </Tooltip>
+    ) : (
+      btn
+    );
+  };
 
   // Shared seat card. P1 (You) is fixed; the rest toggle Human / Easy bot.
   const seatCard = (player: PlayerId, role: string, teamAccent: boolean) => {
@@ -132,16 +162,9 @@ export const CreateSeats = ({
             >
               Human
             </Button>
-            {botSlotChoicesForFormat(selectedFormat).map((choice) => (
-              <Button
-                key={choice.id}
-                {...(occupant === choice.id ? BTN_GOLD : BTN)}
-                size="xs"
-                onClick={() => onChangeBotSlot(player, choice.id)}
-              >
-                {choice.label}
-              </Button>
-            ))}
+            {tierChoices.map((choice) =>
+              tierButton(choice, occupant === choice.id, () => onChangeBotSlot(player, choice.id)),
+            )}
           </Flex>
         )}
       </Flex>
@@ -252,16 +275,9 @@ export const CreateSeats = ({
                 >
                   Human
                 </Button>
-                {botSlotChoicesForFormat(selectedFormat).map((choice) => (
-                  <Button
-                    key={choice.id}
-                    {...(occupant === choice.id ? BTN_GOLD : BTN)}
-                    size="xs"
-                    onClick={() => onChangeBotSlot(slot.player, choice.id)}
-                  >
-                    {choice.label}
-                  </Button>
-                ))}
+                {tierChoices.map((choice) =>
+                  tierButton(choice, occupant === choice.id, () => onChangeBotSlot(slot.player, choice.id)),
+                )}
               </Flex>
             </Flex>
           );
