@@ -71,6 +71,10 @@ export function toPlayerView(
       ongoingScheme: p.ongoingScheme ?? null,
       hasCommitted: p.committedCard !== null,
       counters: p.counters,
+      // Set-aside piles (protocol v25). Bundles predate the field; spreading keeps
+      // it ABSENT for an old replay, which is exactly how the live view encodes
+      // "nothing tucked" — so the TRAINING pill/badge stays hidden either way.
+      ...(p.piles ? { piles: p.piles } : {}),
       // Replay bundles predate v16 `flags`; god-view synthesizes an empty map
       // (no active flags) since replay/god-view tide surfacing is a follow-up.
       flags: {},
@@ -108,6 +112,7 @@ export function toPlayerView(
       ongoingScheme: me.ongoingScheme ?? null,
       committedCard: me.committedCard,
       counters: me.counters,
+      ...(me.piles ? { piles: me.piles } : {}),
       flags: {},
       wonCombatThisTurn: false,
       lostCombatThisTurn: false,
@@ -126,6 +131,7 @@ export function toPlayerView(
             ongoingScheme: opp.ongoingScheme ?? null,
             hasCommitted: opp.committedCard !== null,
             counters: opp.counters,
+            ...(opp.piles ? { piles: opp.piles } : {}),
             flags: {},
             wonCombatThisTurn: false,
             lostCombatThisTurn: false,

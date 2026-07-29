@@ -669,6 +669,7 @@ export const ProBoard = ({
             minWidth="1.45em"
             h="1.45em"
             px="0.18em"
+            gap={tokenBadge.showLabel ? "0.12em" : undefined}
             alignItems="center"
             justifyContent="center"
             bg={tokenBadge.bg}
@@ -683,6 +684,14 @@ export const ProBoard = ({
             aria-label={tokenBadge.title}
           >
             {tokenBadge.icon}
+            {/* Numeric states (counter / set-aside pile) draw the live value on the
+                token itself — the tooltip alone was not a board-readable surface.
+                Word-labelled flag states leave `showLabel` off and stay icon-only. */}
+            {tokenBadge.showLabel && (
+              <Box as="span" sx={{ fontVariantNumeric: "tabular-nums" }}>
+                {tokenBadge.label}
+              </Box>
+            )}
           </Flex>
         )}
         {statusBadges.length > 0 && (
