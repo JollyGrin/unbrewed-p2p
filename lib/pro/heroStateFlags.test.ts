@@ -326,3 +326,120 @@ describe("fighterTokenStateByOwner with counters", () => {
     expect(state.p1!.badge).toMatchObject({ icon: "🐾" });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Pile-driven states (issue #539 ↔ engine #293/#294: Luke Skywalker's TRAINING
+// pile). Same registry, same two render surfaces — but the value is the LENGTH
+// of a PlayerView.piles card list (protocol v25) rather than a counters int, and
+// the nameplate chip additionally carries the tucked card ids so the pill can
+// open the inspection overlay. The zone is public, so every assertion below is
+// deliberately owner-agnostic.
+// ---------------------------------------------------------------------------
+
+const LUKE_TRAINING = [
+  "luke-skywalker/training-that-is-why-you-fail#1",
+  "luke-skywalker/training-size-matters-not#1",
+];
+
+describe("HERO_STATE_COUNTERS registry — Luke's TRAINING pile", () => {
+  const luke = () => HERO_STATE_COUNTERS.find((e) => e.heroes.includes("luke-skywalker"));
+
+  it("registers the pile on the exact engine pile name, with no counters key", () => {
+    const e = luke();
+    expect(e).toBeDefined();
+    // Engine tucks into pile `TRAINING` (luke-skywalker.rules.ts: const PILE =
+    // 'TRAINING'). It is a card zone, NOT a counter — `counter` must stay unset
+    // or the projection would read the wrong protocol field.
+    expect(e!.pile).toBe("TRAINING");
+    expect(e!.counter).toBeUndefined();
+  });
+
+  it("declares BOTH client surfaces (nameplate pill + token badge)", () => {
+    expect(luke()!.nameplate?.labelTemplate).toBe("TRAINING: {n}");
+    expect(luke()!.token).toMatchObject({ title: "TRAINING" });
+  });
+});
+
+describe("counterChipsFor — pile-sourced (HUD nameplate)", () => {
+  it("shows a TRAINING pill counting the tucked cards", () => {
+    const chips = counterChipsFor("luke-skywalker", undefined, { TRAINING: LUKE_TRAINING });
+    expect(chips).toHaveLength(1);
+    expect(chips[0].chip.onLabel).toBe("TRAINING: 2");
+    expect(chips[0].on).toBe(true);
+    // namespaced `pile:` (not `counter:`) so it can never collide with a
+    // boolean-flag glyph or a same-named counter
+    expect(chips[0].chip.flag).toBe("pile:TRAINING");
+  });
+
+  it("carries the tucked card ids so the pill can open the inspection overlay", () => {
+    const chips = counterChipsFor("luke-skywalker", undefined, { TRAINING: LUKE_TRAINING });
+    expect(chips[0].chip.pile).toBe("TRAINING");
+    expect(chips[0].chip.cards).toEqual(LUKE_TRAINING);
+  });
+
+  it("renders identically for EITHER seat — the pile is public, so the projection is owner-agnostic", () => {
+    const self = counterChipsFor("luke-skywalker", undefined, { TRAINING: LUKE_TRAINING });
+    const opponent = counterChipsFor("luke-skywalker", undefined, { TRAINING: LUKE_TRAINING });
+    expect(opponent).toEqual(self);
+  });
+
+  it("hides the pill when nothing is tucked (engine prunes the emptied pile key)", () => {
+    expect(counterChipsFor("luke-skywalker", undefined, { TRAINING: [] })).toEqual([]);
+    expect(counterChipsFor("luke-skywalker", undefined, {})).toEqual([]);
+    // pre-v25 server: no `piles` field at all
+    expect(counterChipsFor("luke-skywalker", undefined, undefined)).toEqual([]);
+    expect(counterChipsFor("luke-skywalker", {})).toEqual([]);
+  });
+
+  it("renders no pile chip for a non-registered hero, even with a stray TRAINING pile", () => {
+    expect(counterChipsFor("king-kong", undefined, { TRAINING: LUKE_TRAINING })).toEqual([]);
+  });
+
+  it("leaves counter-sourced chips (Nancy) with no pile/cards — only piles are inspectable", () => {
+    const chips = counterChipsFor("nancy-drew", { CLUE: 3 });
+    expect(chips[0].chip.pile).toBeUndefined();
+    expect(chips[0].chip.cards).toBeUndefined();
+  });
+});
+
+describe("fighterTokenCounterBadgeFor — pile-sourced (board token)", () => {
+  it("badges Luke's token with the live tucked count and asks to draw it", () => {
+    expect(
+      fighterTokenCounterBadgeFor("luke-skywalker", undefined, { TRAINING: LUKE_TRAINING })
+    ).toMatchObject({
+      icon: "🌱",
+      label: "2",
+      title: "TRAINING: 2",
+      // the count must read off the BOARD, not just the badge tooltip
+      showLabel: true,
+    });
+  });
+
+  it("hides the badge when nothing is tucked / on a pre-v25 server", () => {
+    expect(fighterTokenCounterBadgeFor("luke-skywalker", undefined, { TRAINING: [] })).toBeNull();
+    expect(fighterTokenCounterBadgeFor("luke-skywalker", undefined, {})).toBeNull();
+    expect(fighterTokenCounterBadgeFor("luke-skywalker", undefined, undefined)).toBeNull();
+  });
+
+  it("does not badge non-registered heroes", () => {
+    expect(fighterTokenCounterBadgeFor("king-kong", undefined, { TRAINING: LUKE_TRAINING })).toBeNull();
+    expect(fighterTokenCounterBadgeFor(undefined, undefined, { TRAINING: LUKE_TRAINING })).toBeNull();
+  });
+
+  it("draws the numeric label for counter-sourced badges too (Nancy/Cairne)", () => {
+    expect(fighterTokenCounterBadgeFor("nancy-drew", { CLUE: 4 })).toMatchObject({ showLabel: true });
+  });
+});
+
+describe("fighterTokenStateByOwner with piles", () => {
+  it("resolves Luke's TRAINING badge for BOTH seats of a mirror, hidden when untucked", () => {
+    const state = fighterTokenStateByOwner([
+      { id: "p1", heroId: "luke-skywalker", piles: { TRAINING: LUKE_TRAINING } },
+      { id: "p2", heroId: "luke-skywalker", piles: { TRAINING: [LUKE_TRAINING[0]] } },
+      { id: "p3", heroId: "luke-skywalker" }, // nothing tucked yet → no `piles` key
+    ]);
+    expect(state.p1!.badge).toMatchObject({ label: "2", title: "TRAINING: 2" });
+    expect(state.p2!.badge).toMatchObject({ label: "1", title: "TRAINING: 1" });
+    expect(state.p3).toBeUndefined();
+  });
+});

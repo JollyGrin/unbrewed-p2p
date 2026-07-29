@@ -482,8 +482,22 @@
  *   until the next marker (a repeated identical marker is idempotent). Enough to
  *   render
  *   `AFTER · SNIPE: draw 1 → deck empty → exhaustion 2 dmg → defeated`.
+ *
+ * ## v25 (2026-07-29): per-player set-aside piles (engine #293, DSL v0.29.0)
+ * A new PUBLIC card zone: named, face-up, ordered per-player piles of cards parked
+ * out of hand/deck/discard — "tuck it under your hero card" (Luke Skywalker's
+ * TRAINING pile), and the shape the roadmap's exile / card-BURN / revealed-cards
+ * zones will reuse. Additive in every direction:
+ *
+ * - `ViewSelf.piles`, `ViewOpponent.piles`, `ViewPlayer.piles` and
+ *   `ReplayStepPlayer.piles` — `{ [pileName]: CardInstanceId[] }`, ABSENT when the
+ *   seat has tucked nothing. Both seats see full card identities (the pile is public
+ *   information, like the discard pile), so there is no redaction asymmetry.
+ * - `CARD_TUCKED` / `CARD_RETURNED_FROM_PILE` events narrate the moves.
+ * - A client that ignores the field renders exactly as on v24, except that a tucked
+ *   card is in no zone it knows — clients SHOULD render the pile beside the discard.
  */
-export const PROTOCOL_VERSION = 24;
+export const PROTOCOL_VERSION = 25;
 
 /**
  * Scripted-AI strength preset (server-side budgets; client treats as opaque).
@@ -631,6 +645,12 @@ export type GameEvent =
   | { type: "CARD_FOUND"; player: PlayerId; card: CardInstanceId; from: "DECK" | "DISCARD" }
   | { type: "CARD_SHUFFLED_INTO_DECK"; player: PlayerId; card: CardInstanceId; from: "HAND" | "DISCARD" }
   | { type: "CARD_RETURNED_TO_HAND"; player: PlayerId; card: CardInstanceId }
+  // v25 (DSL v0.29.0 — set-aside piles): a played card was tucked into a named
+  // public pile ("under the hero card") instead of discarding, and the inverse —
+  // a tucked card taken back to its owner's hand. Both are full information: the
+  // pile's contents ride every seat's view (see ViewSelf.piles).
+  | { type: "CARD_TUCKED"; player: PlayerId; card: CardInstanceId; pile: string }
+  | { type: "CARD_RETURNED_FROM_PILE"; player: PlayerId; card: CardInstanceId; pile: string }
   | { type: "CARD_PLAYED_FROM_HAND"; player: PlayerId; card: CardInstanceId }
   | { type: "ADDITIONAL_DEFENSE_PLAYED"; player: PlayerId; card: CardInstanceId }
   | { type: "CARD_REVEALED"; player: PlayerId; card: CardInstanceId }
@@ -914,6 +934,7 @@ export interface ViewSelf {
   deckCount: number;
   discard: CardInstanceId[];
   ongoingScheme?: CardInstanceId | null; // public face-up ongoing scheme, if any (older views may omit)
+  piles?: Record<string, CardInstanceId[]>; // v25: named public set-aside piles ("tucked under the hero card"), card identities visible to EVERY viewer; absent when nothing is tucked
   committedCard: CardInstanceId | null; // own face-down commit (visible to self)
   counters: Record<string, number>;
   // v16: active named flags (setFlag op), keyed by flag name -> true. Generic
@@ -939,6 +960,7 @@ export interface ViewOpponent {
   deckCount: number;
   discard: CardInstanceId[]; // discard is public
   ongoingScheme?: CardInstanceId | null; // public face-up ongoing scheme, if any (older views may omit)
+  piles?: Record<string, CardInstanceId[]>; // v25: named public set-aside piles ("tucked under the hero card"), card identities visible to EVERY viewer; absent when nothing is tucked
   hasCommitted: boolean; // face-down commit exists, identity hidden
   counters: Record<string, number>; // counters are public
   flags: Record<string, boolean>; // v16: active named flags, public (see ViewSelf.flags)
@@ -961,6 +983,7 @@ export interface ViewPlayer {
   deckCount: number;
   discard: CardInstanceId[];
   ongoingScheme?: CardInstanceId | null; // public face-up ongoing scheme, if any (older views may omit)
+  piles?: Record<string, CardInstanceId[]>; // v25: named public set-aside piles ("tucked under the hero card"), card identities visible to EVERY viewer; absent when nothing is tucked
   committedCard?: CardInstanceId | null; // own face-down commit, present only for self
   hasCommitted: boolean;
   counters: Record<string, number>;
@@ -1099,6 +1122,7 @@ export interface ReplayStepPlayer {
   deckCount: number;
   discard: CardInstanceId[];
   ongoingScheme?: CardInstanceId | null; // public face-up ongoing scheme, if any (older views may omit)
+  piles?: Record<string, CardInstanceId[]>; // v25: named public set-aside piles ("tucked under the hero card"), card identities visible to EVERY viewer; absent when nothing is tucked
   committedCard: CardInstanceId | null;
   counters: Record<string, number>;
 }
