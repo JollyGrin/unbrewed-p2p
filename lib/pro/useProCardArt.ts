@@ -67,6 +67,13 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // counter economy (spendCounterForValue v0.25.0 + FIGHTER_DEFEATED trigger).
   // No protocol change — reuses existing CHOOSE_OPTION prompt + counters view.
   "cairne-bloodhoof": "p82X",
+  // Darth Vader (issue #533 ↔ engine #288): the-unmatched.club deck 4173 by
+  // Inforce (https://www.the-unmatched.club/c/heroes/darth-vader.4173). TUC decks
+  // have no unmatched.cards page, so the deck id is ours (General Grievous
+  // precedent) and the committed snapshot is the only source. Card faces are
+  // self-hosted full-bleed via cardImage, mirrored from TUC's own per-card
+  // preview webps.
+  "darth-vader": "darth-vader",
 };
 
 /**

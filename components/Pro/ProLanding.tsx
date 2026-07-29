@@ -22,6 +22,7 @@ import { frozenAtForDeck } from "@/lib/pro/evergreenManifest";
 import { useProLiveRosterState } from "@/lib/pro/useProLiveRoster";
 import { PRO_WS_URL } from "@/lib/pro/wsUrl";
 import { useFlag } from "@/lib/flags";
+import { DeckAttribution } from "@/components/Pro/DeckAttribution";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { ProHeroVideo } from "@/components/Pro/ProHeroVideo";
 import { MAP_CATALOG, FORMAT_BADGE, eligibleFormats } from "@/lib/pro/mapCatalog";
@@ -1063,19 +1064,37 @@ const RosterTile = ({
       ? `${shortName} — stress-testing the engine's rule language`
       : `${shortName} — not yet converted (every deck's rules are hand-tuned)`;
   return (
-    <Tooltip label={inspectHint}>
-      {href ? (
-        <ChakraLink
-          as={Link}
-          href={href}
-          display="block"
-          _hover={{ textDecoration: "none" }}
-        >
-          {tile}
-        </ChakraLink>
-      ) : (
-        tile
+    <Box>
+      <Tooltip label={inspectHint}>
+        {href ? (
+          <ChakraLink
+            as={Link}
+            href={href}
+            display="block"
+            _hover={{ textDecoration: "none" }}
+          >
+            {tile}
+          </ChakraLink>
+        ) : (
+          tile
+        )}
+      </Tooltip>
+      {/* Author credit sits OUTSIDE the tile's wrapping link on purpose: the
+          credit is itself a link to the deck's source page, and an anchor
+          nested in an anchor is invalid HTML (browsers silently unnest it,
+          which loses the outer tile's click target). Every deck with a tile
+          entry gets one — a newly wired deck credits its author for free. */}
+      {deck && (
+        <DeckAttribution
+          deck={deck}
+          fontSize="0.65rem"
+          fontStyle="normal"
+          opacity={0.6}
+          mt="0.25rem"
+          px="0.1rem"
+          fontFamily="SpaceGrotesk"
+        />
       )}
-    </Tooltip>
+    </Box>
   );
 };
