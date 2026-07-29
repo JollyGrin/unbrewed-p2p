@@ -25,7 +25,7 @@
  *    `isDefault` entry when none is (an older snapshot may omit the form flag;
  *    Night Elf is the useful default so the surfaces still answer "what form?").
  */
-import { PlayerId } from "./protocol";
+import { CardInstanceId, PlayerId } from "./protocol";
 
 /** Board-token corner badge presentation (icon + label + colors). */
 export interface FlagTokenBadge {
@@ -34,6 +34,12 @@ export interface FlagTokenBadge {
   title: string;
   bg: string;
   color: string;
+  /** draw `label` next to the icon on the board token. Numeric states (a counter
+   *  or a set-aside pile) set this so the LIVE VALUE reads off the board itself
+   *  rather than only out of the badge tooltip; word-labelled flag states
+   *  ("Bear", "High") leave it off — the icon carries them and the words would
+   *  not fit the rim badge. */
+  showLabel?: boolean;
 }
 
 /** HUD nameplate pill presentation for a flag's on/off words. */
@@ -139,27 +145,46 @@ export const HERO_STATE_FLAGS: HeroStateFlag[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Counter-driven states (issue #420: Nancy Drew's CLUE economy)
+// Counter-driven states (issue #420: Nancy Drew's CLUE economy; issue #539:
+// Luke Skywalker's TRAINING pile, counted off a card zone instead of an int)
 // ---------------------------------------------------------------------------
 
 /**
- * A public per-player NUMERIC counter (PlayerView.counters — see protocol.ts;
- * moved by the engine `counter` op, broadcast via COUNTER_CHANGED). This is a
- * DIFFERENT protocol field from `flags`: flags are booleans, counters are ints.
- * Rather than fake a counter as N boolean flag states (a hardcoded 0..max group
- * that multiplies per resource-counter deck), a counter is ONE registry entry
- * here, projected onto the SAME two render surfaces the flag registry drives —
- * the nameplate <FlagChip> pill and the token corner badge. A future counter
- * deck adds a single entry; zero ProHud/ProBoard component changes.
+ * A public per-player NUMERIC state, from either of two protocol fields:
  *
- * Both surfaces are HIDDEN AT 0 (an empty resource reads as no chip / no badge).
- * Counters are public, so a Nancy counter renders on BOTH seats' plates.
+ *  - `counter` — a `PlayerView.counters` int (moved by the engine `counter` op,
+ *    broadcast via COUNTER_CHANGED). Nancy's CLUE, Cairne's RAGE.
+ *  - `pile` — the LENGTH of a `PlayerView.piles` set-aside pile (protocol v25 /
+ *    DSL v0.29.0: a named, public, face-up per-player zone of cards tucked under
+ *    the hero card). Luke's TRAINING pile. A pile is a CARD LIST, not an int, but
+ *    its player-facing state is "how many are tucked" — so it projects onto the
+ *    same two surfaces through the same entry shape, and additionally exposes the
+ *    card ids so the pill can open an inspection overlay (the zone is public, so
+ *    EITHER player may read EITHER pile).
+ *
+ * Both are a DIFFERENT protocol field from `flags`: flags are booleans. Rather
+ * than fake a count as N boolean flag states (a hardcoded 0..max group that
+ * multiplies per resource deck), each is ONE registry entry here, projected onto
+ * the SAME two render surfaces the flag registry drives — the nameplate
+ * <FlagChip> pill and the token corner badge. A future counter/pile deck adds a
+ * single entry; zero ProHud/ProBoard component changes.
+ *
+ * Both surfaces are HIDDEN AT 0 (an empty resource / untucked pile reads as no
+ * chip / no badge). Counters and piles are public, so they render on BOTH seats'
+ * plates.
+ *
+ * Exactly one of `counter` / `pile` is set — `sourceKey` is the entry's identity
+ * either way.
  */
 export interface HeroStateCounter {
   /** the PlayerView `counters` key the engine emits. VERIFY against the engine's
    *  rules.ts — the key is the raw counter name (Nancy's is `CLUE`, singular),
-   *  which is NOT necessarily the flavor label ("CLUES"). */
-  counter: string;
+   *  which is NOT necessarily the flavor label ("CLUES"). Omit when `pile` is set. */
+  counter?: string;
+  /** the PlayerView `piles` key (protocol v25). The rendered value is the pile's
+   *  LENGTH, and its cards are inspectable. VERIFY against the engine's rules.ts —
+   *  Luke's is `TRAINING`. Omit when `counter` is set. */
+  pile?: string;
   /** hero ids the counter applies to (the "has the mechanic" gate). */
   heroes: string[];
   /** HUD nameplate pill. `labelTemplate` substitutes `{n}` with the live value
@@ -191,33 +216,66 @@ export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
     nameplate: { labelTemplate: "RAGE: {n}" },
     token: { icon: "😡", title: "RAGE", bg: "#A61C1C", color: "#FDF3E3" },
   },
+  {
+    // Luke Skywalker's TRAINING pile (issue #539 ↔ engine #293/#294). PILE-sourced,
+    // not a counter: the engine tucks each played "Training: …" scheme under the
+    // hero card into the public `TRAINING` pile (const PILE = 'TRAINING' in
+    // luke-skywalker.rules.ts), and two combat cards plus his maneuver allowance
+    // scale off CARDS_IN_PILE. The count is therefore the pile's LENGTH, and the
+    // pill opens the pile so either player can read WHICH Training cards are down.
+    // Jedi-green/saber-blue palette, distinct from Nancy's purple and Cairne's red.
+    pile: "TRAINING",
+    heroes: ["luke-skywalker"],
+    nameplate: { labelTemplate: "TRAINING: {n}" },
+    token: { icon: "🌱", title: "TRAINING", bg: "#2E6B48", color: "#ECFFF4" },
+  },
 ];
+
+/** An entry's identity key — its counter name or its pile name. */
+const sourceKey = (e: HeroStateCounter): string => e.counter ?? e.pile ?? "";
+
+/**
+ * The live value an entry renders: a `counters` int, or a `piles` pile's length.
+ * A missing counter/pile (older server, or nothing tucked — the engine prunes an
+ * emptied pile's key) reads 0, which hides both surfaces.
+ */
+const valueOf = (
+  e: HeroStateCounter,
+  counters: Record<string, number> | undefined,
+  piles: Record<string, CardInstanceId[]> | undefined
+): number =>
+  e.pile ? piles?.[e.pile]?.length ?? 0 : counters?.[e.counter!] ?? 0;
 
 const counterEntriesForHero = (heroId: string) =>
   HERO_STATE_COUNTERS.filter((e) => e.heroes.includes(heroId));
 
 /**
- * Nameplate chips a hero's counters contribute, in the SAME `{ chip, on }[]` shape
- * `flagChipsFor` returns — so ProHud renders both through one <FlagChip> map with
- * no branching. Each positive counter yields one chip (`on: true`, label with `{n}`
- * filled); a counter at 0/absent yields nothing (hidden at 0). The chip's `flag`
- * key is namespaced `counter:<name>` so it never collides with a boolean-flag glyph
- * in FLAG_CHIP_ICONS (counters render text-only, which is what we want).
+ * Nameplate chips a hero's counters/piles contribute, in the SAME `{ chip, on }[]`
+ * shape `flagChipsFor` returns — so ProHud renders both through one <FlagChip> map
+ * with no branching. Each positive value yields one chip (`on: true`, label with
+ * `{n}` filled); a value of 0/absent yields nothing (hidden at 0). The chip's
+ * `flag` key is namespaced `counter:` / `pile:` so it never collides with a
+ * boolean-flag glyph in FLAG_CHIP_ICONS (these render text-only, which is what we
+ * want). A pile-sourced chip also carries `pile` + `cards`, which is what makes the
+ * pill an inspection affordance — the zone is public, so this is filled for EITHER
+ * seat's plate.
  */
 export const counterChipsFor = (
   heroId: string,
-  counters: Record<string, number> | undefined
+  counters: Record<string, number> | undefined,
+  piles?: Record<string, CardInstanceId[]>
 ): { chip: FlagHudChip; on: boolean }[] => {
   const chips: { chip: FlagHudChip; on: boolean }[] = [];
   for (const e of counterEntriesForHero(heroId)) {
     if (!e.nameplate) continue;
-    const n = counters?.[e.counter] ?? 0;
+    const n = valueOf(e, counters, piles);
     if (n <= 0) continue; // hidden at 0
     chips.push({
       chip: {
-        flag: `counter:${e.counter}`,
+        flag: `${e.pile ? "pile" : "counter"}:${sourceKey(e)}`,
         onLabel: e.nameplate.labelTemplate.replace("{n}", String(n)),
         offLabel: "",
+        ...(e.pile ? { pile: e.pile, cards: [...(piles?.[e.pile] ?? [])] } : {}),
       },
       on: true,
     });
@@ -226,19 +284,22 @@ export const counterChipsFor = (
 };
 
 /**
- * The token corner badge a hero's counters contribute, or null. First positive
- * counter wins (registry order); a counter at 0/absent contributes nothing (hidden
- * at 0). Reuses FlagTokenBadge so it drops straight into ProBoard's existing
- * `fighterTokenBadge` path — the numeric value is the badge `label`.
+ * The token corner badge a hero's counters/piles contribute, or null. First
+ * positive entry wins (registry order); a value of 0/absent contributes nothing
+ * (hidden at 0). Reuses FlagTokenBadge so it drops straight into ProBoard's
+ * existing `fighterTokenBadge` path — the numeric value is the badge `label`, and
+ * `showLabel` draws it on the token beside the icon so the live count reads off
+ * the BOARD, not just the tooltip.
  */
 export const fighterTokenCounterBadgeFor = (
   heroId: string | undefined,
-  counters: Record<string, number> | undefined
+  counters: Record<string, number> | undefined,
+  piles?: Record<string, CardInstanceId[]>
 ): FlagTokenBadge | null => {
   if (!heroId) return null;
   for (const e of counterEntriesForHero(heroId)) {
     if (!e.token) continue;
-    const n = counters?.[e.counter] ?? 0;
+    const n = valueOf(e, counters, piles);
     if (n <= 0) continue; // hidden at 0
     return {
       icon: e.token.icon,
@@ -246,6 +307,7 @@ export const fighterTokenCounterBadgeFor = (
       title: `${e.token.title}: ${n}`,
       bg: e.token.bg,
       color: e.token.color,
+      showLabel: true,
     };
   }
   return null;
@@ -272,6 +334,11 @@ export interface FlagHudChip {
   flag: string;
   onLabel: string;
   offLabel: string;
+  /** set-aside pile this chip counts (protocol v25) — present ONLY for
+   *  pile-sourced chips. Its presence is what turns the pill into a clickable
+   *  inspection affordance; `cards` are the tucked instances to show. */
+  pile?: string;
+  cards?: CardInstanceId[];
 }
 
 const toChip = (e: HeroStateFlag): FlagHudChip => ({
@@ -398,9 +465,10 @@ export const fighterTokenStateFor = (
  * override are omitted.
  *
  * The corner badge merges both state families: a flag-driven badge (tide / druid
- * form) wins; otherwise a counter-driven badge (Nancy's CLUE) fills it. A hero
- * today drives only one, so the precedence is academic — but it keeps the single
- * badge slot deterministic if a future hero ever declares both.
+ * form) wins; otherwise a counter/pile-driven badge (Nancy's CLUE, Luke's TRAINING
+ * pile) fills it. A hero today drives only one, so the precedence is academic —
+ * but it keeps the single badge slot deterministic if a future hero ever declares
+ * both.
  */
 export const fighterTokenStateByOwner = (
   players: Array<{
@@ -408,6 +476,8 @@ export const fighterTokenStateByOwner = (
     heroId: string;
     flags?: Record<string, boolean>;
     counters?: Record<string, number>;
+    /** v25 set-aside piles; absent on older servers / an untucked seat. */
+    piles?: Record<string, CardInstanceId[]>;
   }>
 ): Partial<Record<PlayerId, FighterTokenState>> =>
   Object.fromEntries(
@@ -415,7 +485,8 @@ export const fighterTokenStateByOwner = (
       .map((p) => {
         const flagState = fighterTokenStateFor(p.heroId, p.flags);
         const badge =
-          flagState.badge ?? fighterTokenCounterBadgeFor(p.heroId, p.counters);
+          flagState.badge ??
+          fighterTokenCounterBadgeFor(p.heroId, p.counters, p.piles);
         return [p.id, { badge, heroArtUrl: flagState.heroArtUrl }] as const;
       })
       .filter(([, st]) => st.badge || st.heroArtUrl)

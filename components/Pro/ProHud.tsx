@@ -97,7 +97,17 @@ const flagChipPalette = (on: boolean) =>
  * card) REMOUNTS it and replays the entrance pulse — the flip is noticeable with
  * no manual prev-value bookkeeping.
  */
-const FlagChip = ({ chip, on }: { chip: FlagHudChip; on: boolean }) => {
+const FlagChip = ({
+  chip,
+  on,
+  onClick,
+}: {
+  chip: FlagHudChip;
+  on: boolean;
+  /** present for a pile-sourced chip — clicking opens the pile card list. The
+   *  pointerdown is swallowed so the click never starts a plate drag. */
+  onClick?: () => void;
+}) => {
   const icons = FLAG_CHIP_ICONS[chip.flag];
   const Icon = icons ? (on ? icons.on : icons.off) : null;
   const label = on ? chip.onLabel : chip.offLabel;
@@ -108,7 +118,24 @@ const FlagChip = ({ chip, on }: { chip: FlagHudChip; on: boolean }) => {
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: "spring", stiffness: 520, damping: 20 }}
       aria-label={label}
+      {...(onClick
+        ? {
+            role: "button",
+            tabIndex: 0,
+            title: `${label} — view the tucked cards`,
+            onPointerDown: (e: React.PointerEvent) => e.stopPropagation(),
+            onDoubleClick: (e: React.MouseEvent) => e.stopPropagation(),
+            onClick,
+            onKeyDown: (e: React.KeyboardEvent) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            },
+          }
+        : {})}
       style={{
+        cursor: onClick ? "pointer" : undefined,
         display: "inline-flex",
         alignItems: "center",
         gap: "0.2rem",
@@ -132,10 +159,13 @@ const FlagChip = ({ chip, on }: { chip: FlagHudChip; on: boolean }) => {
 };
 
 // ---------------------------------------------------------------------------
-// Discard viewer (public info for both seats)
+// Public card-zone viewer (public info for both seats): the discard pile, and —
+// since protocol v25 — a named set-aside pile (Luke's TRAINING cards tucked under
+// his hero card). Both zones are fully public, so either seat can open EITHER
+// player's list; the only difference is the title and which ids are passed in.
 // ---------------------------------------------------------------------------
 
-const DiscardModal = ({
+const CardListModal = ({
   title,
   cards,
   resolveCard,
@@ -389,6 +419,7 @@ const SeatPlate = ({
   sidekicks,
   flags,
   counters,
+  piles,
   wonCombat,
   isLocal,
   isActive,
@@ -419,6 +450,11 @@ const SeatPlate = ({
   /** public per-player engine counters (Nancy's CLUE etc.; PlayerView.counters).
    *  Drives the counter nameplate pill + token badge; undefined on older servers. */
   counters?: Record<string, number>;
+  /** public per-player set-aside piles (Luke's TRAINING cards tucked under his
+   *  hero card; PlayerView.piles, protocol v25). Drives the same pill + token
+   *  badge as a counter, and makes the pill open the pile's card list. undefined
+   *  on older servers, or when this seat has tucked nothing. */
+  piles?: Record<string, CardInstanceId[]>;
   /** won >=1 combat this turn (ViewPlayer.wonCombatThisTurn) — shows a "combat won"
    *  chip that explains why Grievous's conditional AFTER effects fire differently.
    *  Turn-scoped: clears at turn start. undefined on older servers → no chip. */
@@ -447,6 +483,10 @@ const SeatPlate = ({
   onUpdate: (partial: Partial<PlateLayout>) => void;
 }) => {
   const [discardOpen, setDiscardOpen] = useState(false);
+  // Which set-aside pile this plate is inspecting (v25), by pile name; null =
+  // closed. Held per-plate so a seat's pill always opens THAT seat's pile — the
+  // zone is public, so this works identically on the local and opponent plates.
+  const [openPile, setOpenPile] = useState<string | null>(null);
   const [hovered, setHovered] = useState(false);
   const [dragging, setDragging] = useState(false);
   const handCount = typeof hand === "number" ? hand : hand.length;
@@ -559,17 +599,31 @@ const SeatPlate = ({
   ) : null;
 
   // Public state pills, always-visible on BOTH seats' cards. Flag-driven states
-  // (issue #233: tide + druid form) and counter-driven states (issue #420: Nancy's
-  // CLUE) both project to the same {chip,on} shape and render through one <FlagChip>
-  // map — non-participating heroes get empty lists and render exactly as before.
-  // Counter chips are hidden at 0. Keyed by chip contents so a value/state change
-  // remounts the chip and replays its pulse (CLUES: 2 -> CLUES: 3 re-animates live).
+  // (issue #233: tide + druid form) and counter/pile-driven states (issue #420:
+  // Nancy's CLUE; issue #539: Luke's TRAINING pile) all project to the same
+  // {chip,on} shape and render through one <FlagChip> map — non-participating
+  // heroes get empty lists and render exactly as before. Counter/pile chips are
+  // hidden at 0. Keyed by chip contents so a value/state change remounts the chip
+  // and replays its pulse (CLUES: 2 -> CLUES: 3 re-animates live).
+  //
+  // A pile-sourced chip carries `pile`, which makes the pill a click target that
+  // opens that pile's card list — the zone is public, so this affordance is on
+  // BOTH seats' plates and either player can read either pile.
   const flagTags = [
     ...flagChipsFor(heroId, flags),
-    ...counterChipsFor(heroId, counters),
+    ...counterChipsFor(heroId, counters, piles),
   ].map(({ chip, on }) => (
-    <FlagChip key={`${chip.flag}-${chip.onLabel}-${on ? "on" : "off"}`} chip={chip} on={on} />
+    <FlagChip
+      key={`${chip.flag}-${chip.onLabel}-${on ? "on" : "off"}`}
+      chip={chip}
+      on={on}
+      onClick={chip.pile ? () => setOpenPile(chip.pile!) : undefined}
+    />
   ));
+
+  // The pile the plate is currently inspecting, resolved live off `piles` (not off
+  // the chip snapshot) so an open overlay follows further tucks in the same game.
+  const openPileCards = openPile ? piles?.[openPile] ?? [] : [];
 
   // "combat won ✓" chip (issue #288 ↔ engine #160): shown on the acting seat while
   // `wonCombatThisTurn` is set, so a player can see WHY a conditional AFTER effect
@@ -789,13 +843,25 @@ const SeatPlate = ({
 
   return (
     <>
-      <DiscardModal
+      <CardListModal
         title={`${heroName} — discard pile`}
         cards={discard}
         resolveCard={resolveCard}
         labelFor={labelFor}
         isOpen={discardOpen}
         onClose={() => setDiscardOpen(false)}
+      />
+      {/* Set-aside pile inspection (v25). Same overlay as the discard pile — the
+          zone is equally public, so nothing here is gated on `isLocal`. The seat
+          `label` leads the title because BOTH plates carry a pill: in a mirror the
+          hero name alone can't say whose pile you opened. */}
+      <CardListModal
+        title={`${label} · ${heroName} — ${openPile} (tucked under hero card)`}
+        cards={openPileCards}
+        resolveCard={resolveCard}
+        labelFor={labelFor}
+        isOpen={openPile !== null}
+        onClose={() => setOpenPile(null)}
       />
       <motion.div
         drag
@@ -1043,6 +1109,7 @@ export const ProHud = ({
           committedCard: view.self.committedCard,
           hasCommitted: !!view.self.committedCard,
           counters: view.self.counters,
+          piles: view.self.piles,
           flags: view.self.flags,
           wonCombatThisTurn: view.self.wonCombatThisTurn,
           lostCombatThisTurn: view.self.lostCombatThisTurn,
@@ -1062,6 +1129,7 @@ export const ProHud = ({
               ongoingScheme: view.opponent.ongoingScheme ?? null,
               hasCommitted: view.opponent.hasCommitted,
               counters: view.opponent.counters,
+              piles: view.opponent.piles,
               flags: view.opponent.flags,
               wonCombatThisTurn: view.opponent.wonCombatThisTurn,
               lostCombatThisTurn: view.opponent.lostCombatThisTurn,
@@ -1115,6 +1183,7 @@ export const ProHud = ({
             sidekicks={sidekicksOf(seat.id)}
             flags={seat.flags}
             counters={seat.counters}
+            piles={seat.piles}
             wonCombat={seat.wonCombatThisTurn}
             isLocal={seat.you}
             isActive={showLiveTurnChrome(view) && view.activePlayer === seat.id}

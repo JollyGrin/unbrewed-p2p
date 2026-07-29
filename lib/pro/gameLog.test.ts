@@ -133,6 +133,9 @@ const ALL_EVENTS: GameEvent[] = [
   { type: "CARD_FOUND", player: "p1", card: "a/x#1", from: "DECK" },
   { type: "CARD_SHUFFLED_INTO_DECK", player: "p1", card: "a/x#1", from: "HAND" },
   { type: "CARD_RETURNED_TO_HAND", player: "p1", card: "a/x#1" },
+  // Set-aside piles (issue #539, protocol v25) — both allowlisted new-line events.
+  { type: "CARD_TUCKED", player: "p1", card: "a/x#1", pile: "TRAINING" },
+  { type: "CARD_RETURNED_FROM_PILE", player: "p1", card: "a/x#1", pile: "TRAINING" },
   { type: "CARD_PLAYED_FROM_HAND", player: "p1", card: "a/x#1" },
   { type: "CARD_REVEALED", player: "p1", card: "a/x#1" },
   { type: "DECK_SHUFFLED", player: "p1" },
@@ -166,6 +169,8 @@ const ALLOWLIST = new Set([
   "ACTIONS_GAINED",
   "CARD_RETURNED_TO_HAND",
   "CARD_REVEALED",
+  "CARD_TUCKED",
+  "CARD_RETURNED_FROM_PILE",
   "COMBAT_WON_MARKED",
   "PLAYED_CARD_RETURNED",
   "SECOND_ATTACK_COMMITTED",
@@ -405,6 +410,48 @@ describe("enrichLines", () => {
       ]);
     });
 
+    // Set-aside piles (issue #539 ↔ engine #293, protocol v25). A tuck routes a
+    // played card into a public pile INSTEAD of the discard, so diffViews sees it
+    // leave hand and arrive in no zone it tracks — without these lines the card
+    // silently vanishes from the log.
+    it("CARD_TUCKED narrates Luke parking a Training card under his hero card", () => {
+      const out = enrichLines(
+        [],
+        [
+          { type: "CARD_TUCKED", player: "p1", card: "luke-skywalker/training-size-matters-not#1", pile: "TRAINING" },
+          { type: "CARD_TUCKED", player: "p2", card: "luke-skywalker/training-that-is-why-you-fail#1", pile: "TRAINING" },
+        ],
+        ctx("p1")
+      );
+      expect(out).toEqual([
+        {
+          text: "You tucked training-size-matters-not under your hero card (TRAINING)",
+          who: "you",
+          cards: ["luke-skywalker/training-size-matters-not#1"],
+        },
+        {
+          text: "Opponent tucked training-that-is-why-you-fail under their hero card (TRAINING)",
+          who: "opp",
+          cards: ["luke-skywalker/training-that-is-why-you-fail#1"],
+        },
+      ]);
+    });
+
+    it("CARD_RETURNED_FROM_PILE narrates the inverse move", () => {
+      const out = enrichLines(
+        [],
+        [{ type: "CARD_RETURNED_FROM_PILE", player: "p2", card: "luke-skywalker/confronting-fear#1", pile: "TRAINING" }],
+        ctx("p1")
+      );
+      expect(out).toEqual([
+        {
+          text: "Opponent took confronting-fear back from TRAINING to hand",
+          who: "opp",
+          cards: ["luke-skywalker/confronting-fear#1"],
+        },
+      ]);
+    });
+
     it("names the acting seat (not a generic 'Opponent') for >2p games", () => {
       // In a 3-player game the page passes seatLabel, which names non-you seats
       // by id — so a p3 event reads "P3", never "Opponent".
@@ -599,7 +646,7 @@ describe("enrichLines", () => {
       // A discard is an annotation-only type; add it so the roster is exhaustive.
       seen.add("CARD_DISCARDED");
       // Sanity: the allowlist is a subset of what the union offers.
-      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "COMBAT_VALUE_BREAKDOWN", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_REVEALED", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED"]).toContain(t);
+      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "COMBAT_VALUE_BREAKDOWN", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_REVEALED", "CARD_TUCKED", "CARD_RETURNED_FROM_PILE", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED"]).toContain(t);
     });
   });
 

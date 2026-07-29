@@ -757,6 +757,32 @@ export function enrichLines(
         break;
       }
 
+      // --- Set-aside piles (issue #539 ↔ engine #293, protocol v25) ----------
+      // A tuck moves a played card into a public pile INSTEAD of the discard, so
+      // the diff sees a card leave hand and never arrive anywhere it tracks — it
+      // would otherwise silently vanish from the log. The return is the inverse.
+      // Allowlist (Mode 2): neither overlaps a diff line.
+      case "CARD_TUCKED": {
+        const seat = ctx.seat(e.player);
+        added.push({
+          text: `${seat} tucked ${ctx.label(e.card)} under ${
+            seat === "You" ? "your" : "their"
+          } hero card (${e.pile})`,
+          who: whoOf(e.player),
+          cards: [e.card],
+        });
+        break;
+      }
+      case "CARD_RETURNED_FROM_PILE": {
+        const seat = ctx.seat(e.player);
+        added.push({
+          text: `${seat} took ${ctx.label(e.card)} back from ${e.pile} to hand`,
+          who: whoOf(e.player),
+          cards: [e.card],
+        });
+        break;
+      }
+
       // --- General Grievous nested combat (issue #288 ↔ engine #160) ---------
       // These delineate up to three sequential combats sharing the one
       // `state.combat` slot. Because that slot is REUSED (not cleared to null
