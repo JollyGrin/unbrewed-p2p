@@ -297,7 +297,7 @@
       "rulesVerified": {
         "repo": "unbrewed-engine",
         "file": "data/heroes/darth-maul.rules.ts",
-        "commit": "PENDING-ENGINE-PR-290"
+        "commit": "bab86cd16a4bb5a9cf92fcd6c061fc4d49dd50c5"
       }
     }
   ]
