@@ -565,4 +565,25 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     lab: true,
     tier: "lab",
   },
+  {
+    // In-the-lab Pro deck: Darth Vader — the-unmatched.club deck 4173 by Inforce
+    // (issue #533 ↔ engine #288). Like Grievous this is a TUC deck with no
+    // unmatched.cards page, so `original: true` suppresses the lobby deep-link
+    // and `sourceUrl` carries the real attribution target. Card faces are
+    // self-hosted full-bleed via the snapshot's per-card `cardImage`.
+    id: "darth-vader",
+    name: "Darth Vader",
+    hero: "Darth Vader",
+    author: "Inforce",
+    likes: 0,
+    highlightColour: "#420000",
+    // Repo-relative (malfurion precedent): the tile art is served out of this
+    // app's own public/, so it renders on localhost and preview builds too —
+    // an absolute unbrewed.xyz URL only resolves once prod has the asset.
+    cardbackUrl: "/evergreen-decks/art/darth-vader/cardback.webp",
+    original: true,
+    sourceUrl: "https://www.the-unmatched.club/c/heroes/darth-vader.4173",
+    lab: true,
+    tier: "lab",
+  },
 ];

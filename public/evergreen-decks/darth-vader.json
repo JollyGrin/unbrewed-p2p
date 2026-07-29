@@ -1,0 +1,245 @@
+{
+  "bgg_link": null,
+  "created_on": "Wed, 29 Jul 2026 00:00:00 GMT",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#ec1c2a",
+      "cardbackUrl": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/cardback.webp",
+      "highlightColour": "#420000",
+      "isPNP": false,
+      "patternName": "Melt"
+    },
+    "cards": [
+      {
+        "afterText": "If you won the combat, draw 1 card and recover 1 health.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "DARTH VADER",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/altering-the-deal.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Altering the deal",
+        "type": "attack",
+        "value": 4,
+        "cardImage": {
+          "url": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/altering-the-deal.webp"
+        }
+      },
+      {
+        "afterText": "",
+        "basicText": "Gain 1 action. Choose an opponent. They choose 1 effect for you to resolve:\n▸ Deal 2 damage to all of the opponent's fighters.\n▸ Draw 1 card. Place Vader in any space.",
+        "boost": 3,
+        "characterName": "DARTH VADER",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/anakin-skywalker-no-more.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Anakin Skywalker no more",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "DARTH VADER",
+        "duringText": "If you took damage this turn, you may deal up to 5 damage to Vader. Increase the value of this card by the amount of damage dealt.",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/dark-lord-of-the-sith.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Dark lord of the sith",
+        "type": "attack",
+        "value": 5,
+        "cardImage": {
+          "url": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/dark-lord-of-the-sith.webp"
+        }
+      },
+      {
+        "afterText": "Move Darth Vader up to 3 spaces.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "DARTH VADER",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/dash.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Dash",
+        "type": "versatile",
+        "value": 3,
+        "cardImage": {
+          "url": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/dash.webp"
+        }
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "DARTH VADER",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/feint.webp",
+        "immediateText": "Cancel all effect's on the opponent's card.",
+        "quantity": 3,
+        "title": "Feint",
+        "type": "versatile",
+        "value": 2,
+        "cardImage": {
+          "url": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/feint.webp"
+        }
+      },
+      {
+        "afterText": "You may deal 1 damage to Darth Vader to draw 2 cards.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "DARTH VADER",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/forged-by-suffering.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Forged by suffering",
+        "type": "versatile",
+        "value": 2,
+        "cardImage": {
+          "url": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/forged-by-suffering.webp"
+        }
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "DARTH VADER",
+        "duringText": "The value of this card is equal to the amount of card's in the defending player's hand.",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/form-v.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Form V",
+        "type": "versatile",
+        "value": 0,
+        "cardImage": {
+          "url": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/form-v.webp"
+        }
+      },
+      {
+        "afterText": "You may deal 1 damage to Darth Vader to gain 1 action.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "DARTH VADER",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/i-have-you-now.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "I have you now",
+        "type": "attack",
+        "value": 5,
+        "cardImage": {
+          "url": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/i-have-you-now.webp"
+        }
+      },
+      {
+        "afterText": "",
+        "basicText": "Darth Vader recovers 2 health.\n\nONGOING: Whenever Darth Vader wins a combat as the attacker, he recovers 1 health. Discard this card if Darth Vader takes 2 or more combat damage.",
+        "boost": 3,
+        "characterName": "DARTH VADER",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/more-machine-than-man.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "More machine than man",
+        "type": "scheme",
+        "value": null,
+        "cardImage": {
+          "url": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/more-machine-than-man.webp"
+        }
+      },
+      {
+        "afterText": "Move Darth Vader up to 2 spaces. Recover 1 health. Gain 1 action.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "DARTH VADER",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/the-power-of-the-dark-side.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "The Power of the Dark Side",
+        "type": "attack",
+        "value": 1,
+        "cardImage": {
+          "url": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/the-power-of-the-dark-side.webp"
+        }
+      },
+      {
+        "afterText": "You may deal 1 damage to Darth Vader to deal 2 damage to all opposing fighters adjcent to Darth Vader.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "DARTH VADER",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/wrath.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Wrath",
+        "type": "versatile",
+        "value": 4,
+        "cardImage": {
+          "url": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/wrath.webp"
+        }
+      },
+      {
+        "afterText": "Discard the top card of the opponent's deck. Darth Vader recovers health equal to that card's BOOST value.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "DARTH VADER",
+        "duringText": "",
+        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/your-thoughts-betray-you.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Your thoughts betray you",
+        "type": "defence",
+        "value": 2,
+        "cardImage": {
+          "url": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/your-thoughts-betray-you.webp"
+        }
+      }
+    ],
+    "extraCharacters": [],
+    "hero": {
+      "hp": 17,
+      "isRanged": false,
+      "move": 2,
+      "name": "Darth Vader",
+      "quote": "The ability to destroy a planet is insignificant next to the power of the Force.",
+      "specialAbility": "FUELED BY RAGE\nAfter you attack, if you lost the combat, take 1 damage and draw 1 card.",
+      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/darth-vader/token-darth-vader.webp"
+    },
+    "name": "Darth Vader",
+    "ruleCards": [],
+    "sidekick": {
+      "hp": null,
+      "isRanged": false,
+      "name": "Sidekick",
+      "quantity": 0,
+      "quote": ""
+    }
+  },
+  "deck_first_published_on": "Wed, 29 Jul 2026 00:00:00 GMT",
+  "deck_published": true,
+  "family_id": "darth-vader",
+  "id": "darth-vader",
+  "liked": false,
+  "likes": 0,
+  "name": "Darth Vader",
+  "note": "Rules-enforced Pro deck (server hero darth-vader), mirrored from the-unmatched.club deck 4173 by Inforce. TUC has no unmatched.cards page, so the deck id is ours and this snapshot is the only source. Card faces are self-hosted in public/evergreen-decks/art/darth-vader, one full-face webp per card rendered full-bleed via cardImage. \"Anakin Skywalker no more\" is the exception: its face object was pulled from the TUC CDN after the card was edited upstream on 2026-07-20, so it renders from the card template over its self-hosted artwork panel — the text below is the current printed wording either way.",
+  "published": true,
+  "published_on": "Wed, 29 Jul 2026 00:00:00 GMT",
+  "sourceUrl": "https://www.the-unmatched.club/c/heroes/darth-vader.4173",
+  "tags": [
+    "pro",
+    "evergreen",
+    "the-unmatched.club",
+    "Star Wars"
+  ],
+  "updated_on": "Wed, 29 Jul 2026 00:00:00 GMT",
+  "user": "Inforce",
+  "version_id": "evergreen-1",
+  "version_name": "evergreen-1",
+  "versions": []
+}

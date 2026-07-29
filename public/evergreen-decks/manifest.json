@@ -275,6 +275,18 @@
         "file": "data/heroes/cairne-bloodhoof.rules.ts",
         "commit": "cfd2208ef771dc6880d7cfb502e4b0866e4c4417"
       }
+    },
+    {
+      "heroId": "darth-vader",
+      "deckId": "darth-vader",
+      "version_id": "evergreen-1",
+      "frozenAt": "2026-07-29",
+      "digest": "sha256:32e4e9fde3e69f2c70028b65c120bb5b3ee70e66ca18a7b9c927c688f5519062",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/darth-vader.rules.ts",
+        "commit": "fcc70cb"
+      }
     }
   ]
 }
