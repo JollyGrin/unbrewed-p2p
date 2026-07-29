@@ -74,6 +74,9 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // self-hosted full-bleed via cardImage, mirrored from TUC's own per-card
   // preview webps.
   "darth-vader": "darth-vader",
+  // Darth Maul (engine PR #290): TUC community deck by Rogue RaiderOne (source
+  // ID 9090). Sith Assassin action-economy hero, no sidekick, no protocol change.
+  "darth-maul": "darth-maul",
 };
 
 /**
