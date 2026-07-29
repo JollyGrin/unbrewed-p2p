@@ -599,5 +599,13 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl: "/evergreen-decks/art/darth-maul/cardback.webp",
     original: true,
     sourceUrl: "https://www.the-unmatched.club/c/heroes/darth-maul.9090",
+    // Engine serves this hero at tier `lab` (server/content.ts), so the landing
+    // already badges it from the live listing. These two mirror that locally for
+    // the consumers that read the tile instead: `lab` drives the create-screen
+    // caution badge (pages/pro/game.tsx), `tier` filters the deck out of the
+    // sandbox community picker (components/Bag/PopularDecks) and invite copy
+    // (lib/invite.ts) — same shape as the Darth Vader tile above.
+    lab: true,
+    tier: "lab",
   },
 ];
