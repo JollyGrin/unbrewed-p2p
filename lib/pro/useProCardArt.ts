@@ -77,6 +77,13 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // Darth Maul (engine PR #290): TUC community deck by Rogue RaiderOne (source
   // ID 9090). Sith Assassin action-economy hero, no sidekick, no protocol change.
   "darth-maul": "darth-maul",
+  // Luke Skywalker (issue #541 ↔ engine #296): TUC community deck 12306 by Rogue
+  // RaiderOne — the set-aside TRAINING pile hero. No unmatched.cards page, so the
+  // deck id is ours. Card faces are the AUTHOR's finished renders (his TUC
+  // replacementImage set), self-hosted and drawn full-bleed via cardImage; this
+  // deck must never fall back to the generated template, which cannot reproduce
+  // his banner/layout design.
+  "luke-skywalker": "luke-skywalker",
 };
 
 /**

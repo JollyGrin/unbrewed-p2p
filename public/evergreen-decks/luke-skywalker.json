@@ -1,0 +1,288 @@
+{
+  "bgg_link": null,
+  "created_on": "2026-07-22T13:15:43.764888+00:00",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#4e818d",
+      "cardbackUrl": "/evergreen-decks/art/luke-skywalker/cardback.webp",
+      "highlightColour": "#146312",
+      "isPNP": false,
+      "patternName": "Blueprint"
+    },
+    "cards": [
+      {
+        "afterText": "Move both fighters in the combat up to 2 spaces.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/luke-skywalker/like-my-father-before-me.webp"
+        },
+        "characterName": "Luke",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/luke-skywalker/like-my-father-before-me.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Like my Father Before me",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": "Draw 1 card.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/luke-skywalker/quick-strike.webp"
+        },
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/luke-skywalker/quick-strike.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Quick Strike",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "Gain 2 actions.",
+        "boost": 0,
+        "cardImage": {
+          "url": "/evergreen-decks/art/luke-skywalker/training-that-is-why-you-fail.webp"
+        },
+        "characterName": "Yoda",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/luke-skywalker/training-that-is-why-you-fail.webp",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Training: That is why you fail",
+        "type": "scheme",
+        "value": 0
+      },
+      {
+        "afterText": "You may place your fighter in any space.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/luke-skywalker/bewilderment.webp"
+        },
+        "characterName": "Yoda",
+        "duringText": "Prevent all damage.",
+        "imageUrl": "/evergreen-decks/art/luke-skywalker/bewilderment.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Bewilderment",
+        "type": "defence",
+        "value": 0
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/luke-skywalker/wars-make-not-one-great.webp"
+        },
+        "characterName": "Any",
+        "duringText": "If Yoda played this card to defend, or if Luke played this card to attack, ignore the value of your opponent's card.",
+        "imageUrl": "/evergreen-decks/art/luke-skywalker/wars-make-not-one-great.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Wars make not one greaT",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "",
+        "basicText": "Search your deck or discard pile for a Training Card, and add it to your hand. If you searched the deck, shuffle it.",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/luke-skywalker/the-boy-has-no-patience.webp"
+        },
+        "characterName": "Yoda",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/luke-skywalker/the-boy-has-no-patience.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "The boy has no patience",
+        "type": "scheme",
+        "value": 0
+      },
+      {
+        "afterText": "Each of your fighters recovers 1 health.",
+        "basicText": "",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/luke-skywalker/the-force-flows-through-you.webp"
+        },
+        "characterName": "Yoda",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/luke-skywalker/the-force-flows-through-you.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "The force flows through you",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "Move Luke up to 5 spaces, He may move through opposing fighters.",
+        "boost": 0,
+        "cardImage": {
+          "url": "/evergreen-decks/art/luke-skywalker/training-size-matters-not.webp"
+        },
+        "characterName": "Yoda",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/luke-skywalker/training-size-matters-not.webp",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "TRAINING: Size matters Not",
+        "type": "scheme",
+        "value": 0
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/luke-skywalker/im-not-afraid.webp"
+        },
+        "characterName": "Luke",
+        "duringText": "For each TRAINING card under your hero card, add +1 to this card's value.",
+        "imageUrl": "/evergreen-decks/art/luke-skywalker/im-not-afraid.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "I'm not afraid",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/luke-skywalker/the-way-of-the-force.webp"
+        },
+        "characterName": "Any",
+        "duringText": "Increase this card's value by +1 for each Training Card underneath your hero card.",
+        "imageUrl": "/evergreen-decks/art/luke-skywalker/the-way-of-the-force.webp",
+        "immediateText": "Cancel all effects on your opponent's card.",
+        "quantity": 3,
+        "title": "The way of the force",
+        "type": "versatile",
+        "value": 0
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/luke-skywalker/confronting-fear.webp"
+        },
+        "characterName": "Luke",
+        "duringText": "If the opposing fighter is a hero, this card's value is 6 instead.",
+        "imageUrl": "/evergreen-decks/art/luke-skywalker/confronting-fear.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Confronting FeaR",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "Move a fighter in the combat up to 2 spaces.",
+        "basicText": "",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/luke-skywalker/the-force-is-my-ally.webp"
+        },
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/luke-skywalker/the-force-is-my-ally.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "The Force is my Ally",
+        "type": "versatile",
+        "value": 4
+      },
+      {
+        "afterText": "Shuffle 2 random cards from your discard pile into your deck.",
+        "basicText": "",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/luke-skywalker/always-in-motion-is-the-future.webp"
+        },
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/luke-skywalker/always-in-motion-is-the-future.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Always in motion is the future",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "If you lost the combat, choose a Training card from under your hero card, and return it to your hand.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/luke-skywalker/the-greatest-teacher-failure-is.webp"
+        },
+        "characterName": "Luke",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/luke-skywalker/the-greatest-teacher-failure-is.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "The Greatest Teacher Failure Is",
+        "type": "defence",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "Shuffle any number of cards from your hand back into your deck, then draw that many cards.",
+        "boost": 0,
+        "cardImage": {
+          "url": "/evergreen-decks/art/luke-skywalker/training-unlearn-what-you-have-learned.webp"
+        },
+        "characterName": "Yoda",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/luke-skywalker/training-unlearn-what-you-have-learned.webp",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Training: Unlearn what you have learned",
+        "type": "scheme",
+        "value": 4
+      }
+    ],
+    "hero": {
+      "hp": 15,
+      "isRanged": false,
+      "move": 2,
+      "name": "Luke Skywalker",
+      "specialAbility": "There is no try\nWhen you maneuver, you may move Luke +1 space for each Training Card under your hero card.\nAfter you play a training card, tuck it under this card. While these cards remain under this hero card, its training bonus applies.",
+      "tokenImageUrl": "/evergreen-decks/art/luke-skywalker/token-luke-skywalker.webp"
+    },
+    "name": "Luke Skywalker",
+    "sidekick": {
+      "hp": 6,
+      "isRanged": true,
+      "name": "Yoda",
+      "quantity": 1,
+      "quote": "",
+      "tokenImageUrl": "/evergreen-decks/art/luke-skywalker/token-yoda.webp"
+    }
+  },
+  "deck_first_published_on": "2026-07-22T13:45:06.997304+00:00",
+  "deck_published": true,
+  "family_id": "luke-skywalker",
+  "id": "luke-skywalker",
+  "liked": false,
+  "likes": 0,
+  "name": "Luke Skywalker",
+  "note": "Rules-enforced Pro deck (server hero luke-skywalker), mirrored from the-unmatched.club deck 12306 \"Luke Skywalker\" by Rogue RaiderOne (https://www.the-unmatched.club/c/heroes/luke-skywalker.12306), version 2026.07.22 \"Art Overhaul\". A community deck, balanced by its author — TUC has no unmatched.cards page, so the deck id is ours and this snapshot is the only source. Card faces are the author's OWN finished renders (the replacementImage set he uploaded to TUC, identical to the pixels in his TTS export), self-hosted in public/evergreen-decks/art/luke-skywalker and drawn full-bleed via cardImage — never through the generated card template, which cannot reproduce his banners and layout. Card values/boosts/types mirror the live engine catalog (protocol 25, probed 2026-07-29); URLs are repo-relative (malfurion precedent) so the art resolves on localhost and preview builds too. Also mirrored here but not referenced by any UI surface yet: art/luke-skywalker/hero-card.webp, the author's own hero-card render (his TUC `customImage`). The character-select splash paints its art as a cover background BEHIND the panel's own name/credit overlay, where a text-heavy card render is unreadable, so the splash + roster tile + seat plate all use cardback.webp like every sibling deck. Kept in-repo so the render is never hotlinked from imgur if a surface for it lands.",
+  "published": true,
+  "published_on": "2026-07-22T13:45:06.997304+00:00",
+  "sourceUrl": "https://www.the-unmatched.club/c/heroes/luke-skywalker.12306",
+  "tags": [],
+  "updated_on": "2026-07-22T13:43:04.90202+00:00",
+  "user": "Rogue RaiderOne",
+  "version_id": "evergreen-1",
+  "version_name": "Art Overhaul"
+}

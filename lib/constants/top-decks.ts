@@ -608,4 +608,24 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     lab: true,
     tier: "lab",
   },
+  {
+    // TUC community deck 12306 by Rogue RaiderOne (engine #296) — the set-aside
+    // TRAINING pile hero, balanced by its author. No unmatched.cards page, so
+    // `original: true` suppresses the lobby deep-link and `sourceUrl` credits TUC.
+    id: "luke-skywalker",
+    name: "Luke Skywalker",
+    hero: "Luke Skywalker",
+    author: "Rogue RaiderOne",
+    likes: 0,
+    highlightColour: "#146312",
+    // Repo-relative, like the two Sith tiles above: served out of this app's own
+    // public/, so tile art renders on localhost and preview builds too.
+    cardbackUrl: "/evergreen-decks/art/luke-skywalker/cardback.webp",
+    original: true,
+    sourceUrl: "https://www.the-unmatched.club/c/heroes/luke-skywalker.12306",
+    // Engine serves this hero at tier `lab` (server/content.ts) — mirrored here
+    // for the tile-reading consumers, same as the two Sith tiles above.
+    lab: true,
+    tier: "lab",
+  },
 ];
