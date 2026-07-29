@@ -299,6 +299,18 @@
         "file": "data/heroes/darth-maul.rules.ts",
         "commit": "bab86cd16a4bb5a9cf92fcd6c061fc4d49dd50c5"
       }
+    },
+    {
+      "heroId": "luke-skywalker",
+      "deckId": "luke-skywalker",
+      "version_id": "evergreen-1",
+      "frozenAt": "2026-07-29",
+      "digest": "sha256:c6483eaef1cf4359c57dbf44489ba7475aef42caba5eb0501d278a30e0b31fb9",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/luke-skywalker.rules.ts",
+        "commit": "aee12be"
+      }
     }
   ]
 }
