@@ -287,6 +287,18 @@
         "file": "data/heroes/darth-vader.rules.ts",
         "commit": "fcc70cb"
       }
+    },
+    {
+      "heroId": "darth-maul",
+      "deckId": "darth-maul",
+      "version_id": "evergreen-1",
+      "frozenAt": "2026-07-29",
+      "digest": "sha256:c9feff79d1337868d4cd377d41d089cd915812ecd8fd126e23ad606667f5bec2",
+      "rulesVerified": {
+        "repo": "unbrewed-engine",
+        "file": "data/heroes/darth-maul.rules.ts",
+        "commit": "PENDING-ENGINE-PR-290"
+      }
     }
   ]
 }
