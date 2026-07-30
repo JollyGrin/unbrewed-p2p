@@ -94,6 +94,9 @@ export interface HeroStateFlag {
  *   malfurion-stormrage/) AND keeps its corner rim badge (🐾 / ☾ / ✦) — unlike
  *   tide, the form is worth calling out on all three surfaces at once (portrait +
  *   rim badge + nameplate), so these entries leave `hideBadgeWhenArt` off (#385).
+ * - Doppelgänger `EQUILIBRIUM`: standalone but ONE-SIDED — nameplate pill + token
+ *   badge appear only while the stance is held (no `off` variant, no portrait
+ *   swap), since "not in equilibrium" is every other fighter's default state.
  */
 export const HERO_STATE_FLAGS: HeroStateFlag[] = [
   {
@@ -141,6 +144,38 @@ export const HERO_STATE_FLAGS: HeroStateFlag[] = [
     // Stated explicitly (== the deck's fixed tokenImageUrl) so the group self-
     // documents its default, and stays correct if that fixed art ever diverges.
     tokenArt: { on: "https://unbrewed.xyz/evergreen-decks/art/malfurion-stormrage/token-malfurion.webp" },
+  },
+  {
+    // The Doppelgänger's EQUILIBRIUM stance (issue #545 ↔ engine #303). Raw engine
+    // flag key is `EQUILIBRIUM` — the deck's two COMBAT_RESOLVED triggers are
+    // `setFlag EQUILIBRIUM` on `{is:'UNKNOWN'}` and `setFlag EQUILIBRIUM
+    // mode:'CLEAR'` on `{not:{is:'UNKNOWN'}}` (doppelganger-design.md § Hero) —
+    // so the gate uses that exact key, not the "STILL WATERS" flavour label of the
+    // resolver ability.
+    //
+    // Standalone but ONE-SIDED, unlike Thetis's tide: the flag is armed by a
+    // no-winner combat and broken by ANY decided one (including the Doppelgänger's
+    // own wins), and "not in equilibrium" is simply the default state of every
+    // fighter on the board — there is nothing to announce. So no `off` variant and
+    // `showWhenAbsent: false`: both surfaces appear only while the stance is held,
+    // which is exactly when the opponent needs to know that The Omen reads 5 and
+    // Shatter the Glass swings +2.
+    //
+    // No `tokenArt`: the deck has a single hero portrait (the mirror-double), so
+    // the corner badge carries the state on the board.
+    flag: "EQUILIBRIUM",
+    heroes: ["doppelganger"],
+    nameplate: { onLabel: "EQUILIBRIUM", offLabel: "", showWhenAbsent: false },
+    token: {
+      on: {
+        icon: "⚖",
+        label: "Balance",
+        title: "Equilibrium — the last combat had no winner",
+        // Silvered-glass slate, distinct from tide blue and the druid-form palettes.
+        bg: "#55636F",
+        color: "#F0F4F8",
+      },
+    },
   },
 ];
 

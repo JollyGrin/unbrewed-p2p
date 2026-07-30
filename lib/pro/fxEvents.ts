@@ -9,6 +9,7 @@
 import { FighterId, GameEvent, PlayerId, PlayerView, SpaceId, ViewPlayer } from "./protocol";
 import { isViewerOnWinningTeam } from "./teams";
 import { sweptFighters } from "./sweep";
+import { isNoWinner } from "./combatOutcome";
 
 export type FxEvent =
   /** combat card(s) flipped face-up — count 2 means attack+defense revealed together */
@@ -18,8 +19,12 @@ export type FxEvent =
   | { type: "draw" }
   | { type: "damage"; fighter: FighterId; space: SpaceId | null; amount: number; mine: boolean; heroHit: boolean }
   | { type: "heal"; fighter: FighterId; space: SpaceId | null; amount: number; mine: boolean }
-  /** combat resolved with zero damage dealt — the defense held */
-  | { type: "blocked"; space: SpaceId | null }
+  /** combat resolved with zero damage dealt. `noWinner` splits the two very
+   *  different reasons that happens: normally the DEFENSE HELD (a block), but a
+   *  ternary `UNKNOWN` outcome (the Doppelgänger, engine #303) is nobody holding
+   *  anything — the values simply matched. The board callout says which; the beat
+   *  and its neutral steel colour are shared. */
+  | { type: "blocked"; space: SpaceId | null; noWinner: boolean }
   | { type: "defeated"; fighter: FighterId; space: SpaceId | null; mine: boolean }
   /** it just became your turn */
   | { type: "turn" }
@@ -132,24 +137,32 @@ export function diffFxEvents(
 
   // The defense held: the combat resolved this batch dealing zero damage. Keyed off
   // the SAME resolve signal the strike diff uses (COMBAT_RESOLVED / COMBAT_DAMAGE in
-  // the batch, or an outcome transition off UNKNOWN), NOT `next.combat.outcome` —
+  // the batch, or an outcome transition off null), NOT `next.combat.outcome` —
   // which is already null when a combat resolves+ends in one STATE batch, so the old
   // gate silently dropped BLOCKED for every single-batch block/tie (#382 regression).
   // Absence of COMBAT_DAMAGE means 0 damage; the hp check guards the pre-v10 path so
   // effect-damage isn't misread as a block. Empty events + no transition → nothing
   // (join/reconnect stays silent).
+  //
+  // `null` — not 'UNKNOWN' — is the unresolved sentinel (engine/combat.ts writes
+  // `outcome: null` on creation); the old exclusion made a Doppelgänger no-winner
+  // resolve invisible on this fallback path (engine #303).
   const resolvedEvent = gameEvents.find((e) => e.type === "COMBAT_RESOLVED");
   const damageEvent = gameEvents.find((e) => e.type === "COMBAT_DAMAGE");
   const prevOutcome = prev.combat?.outcome ?? null;
   const nextOutcome = next.combat?.outcome ?? null;
-  const resolvedByView = nextOutcome !== null && nextOutcome !== "UNKNOWN" && prevOutcome !== nextOutcome;
+  const resolvedByView = nextOutcome !== null && prevOutcome !== nextOutcome;
   const resolvedThisBatch = !!resolvedEvent || !!damageEvent || resolvedByView;
   const netDamage =
     damageEvent?.type === "COMBAT_DAMAGE" ? damageEvent.amount : next.combat?.attackDamageDealt ?? 0;
   if (resolvedThisBatch && netDamage === 0 && !anyHpDrop) {
     const targetId = next.combat?.target ?? prev.combat?.target ?? null;
     const target = targetId ? next.fighters.find((f) => f.id === targetId) : undefined;
-    events.push({ type: "blocked", space: target?.space ?? null });
+    // Prefer the event's outcome (authoritative, and the only source when the combat
+    // resolved+ended in this batch); fall back to the surviving view's.
+    const outcome =
+      (resolvedEvent?.type === "COMBAT_RESOLVED" ? resolvedEvent.outcome : null) ?? nextOutcome;
+    events.push({ type: "blocked", space: target?.space ?? null, noWinner: isNoWinner(outcome) });
   }
 
   // Cards drawn (either seat — the table should sound busy for both players).
