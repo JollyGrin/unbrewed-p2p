@@ -311,6 +311,18 @@
         "file": "data/heroes/luke-skywalker.rules.ts",
         "commit": "aee12be"
       }
+    },
+    {
+      "heroId": "doppelganger",
+      "deckId": "doppelganger",
+      "version_id": "evergreen-1",
+      "frozenAt": "2026-07-30",
+      "digest": "sha256:05b37adc1a0d663d70456261dae20090b3926a8f1ca3c2a74b5ad9a5f70f1343",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/doppelganger.rules.ts",
+        "commit": "e82f2c0"
+      }
     }
   ]
 }
