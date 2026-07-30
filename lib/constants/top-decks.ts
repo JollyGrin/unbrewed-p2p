@@ -628,4 +628,33 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     lab: true,
     tier: "lab",
   },
+  {
+    // Evergreen ORIGINAL: The Doppelgänger — server hero doppelganger (engine #303,
+    // the tie/UNKNOWN niche deck). Self-hosted POSTER-STYLE art in
+    // public/evergreen-decks/art/doppelganger (#544/#547). `original: true` — no
+    // unmatched.cards page exists, so no deep-link.
+    id: "doppelganger",
+    name: "The Doppelgänger",
+    hero: "The Doppelgänger",
+    author: "unbrewed",
+    likes: 0,
+    // Cold silver from the run's palette; no sibling deck's highlight is silver.
+    highlightColour: "#9fb4c4",
+    // The 2:3 cardback, like every sibling deck. The art hand-off (#544) offered
+    // swapping the roster tile to the square 1024² `deck-select.webp` as "a one-line
+    // POPULAR_DECKS change", but this ONE field is `bgImage`+cover for THREE surfaces,
+    // not just the thumbnail: the /pro roster tile (ProLanding), the /bag Popular
+    // decks tile, AND the tall ~28rem hero splash in the /pro/game picker (both the
+    // hover preview and the locked pick). A 1024² square cover-crops to a narrow
+    // centre strip in that splash, losing most of the composition, whereas the 2:3
+    // cardback fits it almost exactly. Optimising the thumbnail would cost the larger
+    // surface, so `deck-select.webp` + `splash.webp` stay shipped-but-unwired until a
+    // surface can address them separately.
+    cardbackUrl: "/evergreen-decks/art/doppelganger/cardback.webp",
+    original: true,
+    // Engine serves this hero at tier `lab` (server/content.ts: candidate deck,
+    // in the lab while the no-winner economy gets live playtesting).
+    lab: true,
+    tier: "lab",
+  },
 ];

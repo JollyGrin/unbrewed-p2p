@@ -84,6 +84,13 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // deck must never fall back to the generated template, which cannot reproduce
   // his banner/layout design.
   "luke-skywalker": "luke-skywalker",
+  // The Doppelgänger (issue #545 ↔ engine #303/#304): an unbrewed ORIGINAL, so the
+  // deck id is ours and the hand-authored snapshot is the only source — there is no
+  // unmatched.cards or TUC page to fetch. Card art is generated ILLUSTRATION, so it
+  // rides per-card `imageUrl` through the generated card template (Cairne/Malfurion
+  // precedent), NOT the full-bleed `cardImage` path the two Sith decks and Luke use
+  // for their authors' finished renders.
+  doppelganger: "doppelganger",
 };
 
 /**
