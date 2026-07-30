@@ -165,7 +165,7 @@ describe("diffFxEvents", () => {
     const blocked = view({
       combat: combat({ stage: "CLEANUP", outcome: "DEFENDER_WON", attackDamageDealt: 0 }),
     });
-    expect(diffFxEvents(prev, blocked)).toEqual([{ type: "blocked", space: "s2" }]);
+    expect(diffFxEvents(prev, blocked)).toEqual([{ type: "blocked", space: "s2", noWinner: false }]);
 
     const hit = view({
       combat: combat({ stage: "CLEANUP", outcome: "ATTACKER_WON", attackDamageDealt: 2 }),
@@ -184,7 +184,7 @@ describe("diffFxEvents", () => {
       { type: "COMBAT_RESOLVED", outcome: "DEFENDER_WON" },
       { type: "COMBAT_ENDED" },
     ];
-    expect(diffFxEvents(prev, next, events)).toEqual([{ type: "blocked", space: "s2" }]);
+    expect(diffFxEvents(prev, next, events)).toEqual([{ type: "blocked", space: "s2", noWinner: false }]);
   });
 
   it("flags a tie's 0-damage resolve as blocked on the board too (single batch)", () => {
@@ -194,7 +194,34 @@ describe("diffFxEvents", () => {
       { type: "COMBAT_RESOLVED", outcome: "ATTACKER_WON" }, // resolved, but no COMBAT_DAMAGE
       { type: "COMBAT_ENDED" },
     ];
-    expect(diffFxEvents(prev, next, events)).toEqual([{ type: "blocked", space: "s2" }]);
+    expect(diffFxEvents(prev, next, events)).toEqual([{ type: "blocked", space: "s2", noWinner: false }]);
+  });
+
+  // Issue #545 ↔ engine #303 "The Doppelgänger": the ternary UNKNOWN outcome. The
+  // beat is the same neutral 0-damage burst, but it must NOT borrow the defender's
+  // "BLOCKED" word — nobody blocked anything, the values simply matched.
+  it("marks a no-winner (UNKNOWN) 0-damage resolve so the callout reads NO WINNER", () => {
+    const prev = view({ combat: combat({ stage: "DAMAGE" }) });
+    const next = view({ combat: null });
+    const events: GameEvent[] = [
+      { type: "COMBAT_RESOLVED", outcome: "UNKNOWN" },
+      { type: "COMBAT_ENDED" },
+    ];
+    expect(diffFxEvents(prev, next, events)).toEqual([
+      { type: "blocked", space: "s2", noWinner: true },
+    ]);
+  });
+
+  it("marks a no-winner resolve off the VIEW transition too (no resolve event)", () => {
+    // `null` — not 'UNKNOWN' — is the engine's unresolved sentinel, so an outcome
+    // transitioning null → UNKNOWN is a real resolve on this fallback path.
+    const prev = view({ combat: combat({ stage: "DAMAGE", outcome: null }) });
+    const next = view({
+      combat: combat({ stage: "AFTER", outcome: "UNKNOWN", attackDamageDealt: 0 }),
+    });
+    expect(diffFxEvents(prev, next, [])).toEqual([
+      { type: "blocked", space: "s2", noWinner: true },
+    ]);
   });
 
   it("does NOT flag blocked on a mid-combat reconnect (empty events, no transition)", () => {

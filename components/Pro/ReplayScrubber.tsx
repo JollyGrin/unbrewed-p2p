@@ -20,6 +20,7 @@ import { ProHud } from "@/components/Pro/ProHud";
 import { CardFace, ProHand } from "@/components/Pro/ProHand";
 import { useProCardArt } from "@/lib/pro/useProCardArt";
 import { fighterTokenStateByOwner } from "@/lib/pro/heroStateFlags";
+import { combatOutcomeBannerText, isNoWinner } from "@/lib/pro/combatOutcome";
 import {
   CardInstanceId,
   CardMeta,
@@ -329,9 +330,17 @@ export const ReplayScrubber = ({
               })}
             </Flex>
             {step.combat.outcome && (
-              <Text textAlign="center" mt="0.4rem" fontSize="0.85rem" fontWeight="bold">
-                {step.combat.outcome.replace(/_/g, " ").toLowerCase()}
-                {step.combat.attackDamageDealt !== null ? ` · ${step.combat.attackDamageDealt} dmg` : ""}
+              // Shared wording (combatOutcome.ts) so the scrubber matches the live
+              // panel — it used to print the raw enum, which read "unknown" for a
+              // Doppelgänger no-winner resolve (engine #303).
+              <Text
+                textAlign="center"
+                mt="0.4rem"
+                fontSize="0.85rem"
+                fontWeight="bold"
+                color={isNoWinner(step.combat.outcome) ? "#B8C4CE" : undefined}
+              >
+                {combatOutcomeBannerText(step.combat.outcome, step.combat.attackDamageDealt)}
               </Text>
             )}
           </Box>

@@ -200,6 +200,74 @@ describe("fighterTokenStateByOwner", () => {
     expect(state.p2!.badge).toBeNull();
     expect(state.p3).toBeUndefined();
   });
+
+  it("carries the Doppelgänger's EQUILIBRIUM badge with no portrait override", () => {
+    const state = fighterTokenStateByOwner([
+      { id: "p1", heroId: "doppelganger", flags: { EQUILIBRIUM: true } },
+      { id: "p2", heroId: "doppelganger", flags: {} },
+    ]);
+    expect(state.p1!.badge).toMatchObject({ icon: "⚖" });
+    // Single hero portrait — the deck's fixed tokenImageUrl stands.
+    expect(state.p1!.heroArtUrl).toBeNull();
+    // No badge and no art off the stance ⇒ the owner is omitted entirely.
+    expect(state.p2).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The Doppelgänger's EQUILIBRIUM stance (issue #545 ↔ engine #303). A standalone
+// ONE-SIDED flag: both surfaces render only while the stance is held. Nancy's
+// CLUE counter is the "both surfaces from one entry" template; this is the flag
+// equivalent, and unlike Thetis's tide it has no ABSENT variant to draw.
+// ---------------------------------------------------------------------------
+
+describe("EQUILIBRIUM (Doppelgänger)", () => {
+  it("registers on the exact engine flag key, with both surfaces", () => {
+    const eq = HERO_STATE_FLAGS.find((e) => e.flag === "EQUILIBRIUM");
+    expect(eq).toBeDefined();
+    // The engine flag key is the raw `EQUILIBRIUM` the deck's two COMBAT_RESOLVED
+    // triggers set/clear — NOT the "STILL WATERS" flavour name of the resolver.
+    expect(eq!.flag).toBe("EQUILIBRIUM");
+    expect(eq!.heroes).toEqual(["doppelganger"]);
+    expect(eq!.nameplate).toMatchObject({ onLabel: "EQUILIBRIUM", showWhenAbsent: false });
+    expect(eq!.token?.on).toBeDefined();
+    // One-sided: nothing renders for the (default) absent stance.
+    expect(eq!.token?.off).toBeUndefined();
+    expect(eq!.group).toBeUndefined();
+    expect(eq!.tokenArt).toBeUndefined();
+  });
+
+  it("shows the nameplate pill only while the stance is held", () => {
+    const chips = flagChipsFor("doppelganger", { EQUILIBRIUM: true });
+    expect(chips).toHaveLength(1);
+    expect(chips[0].chip.flag).toBe("EQUILIBRIUM");
+    expect(chips[0].chip.onLabel).toBe("EQUILIBRIUM");
+    expect(chips[0].on).toBe(true);
+    // Broken by any decided combat — and an older snapshot may omit the key.
+    expect(flagChipsFor("doppelganger", { EQUILIBRIUM: false })).toEqual([]);
+    expect(flagChipsFor("doppelganger", {})).toEqual([]);
+    expect(flagChipsFor("doppelganger", undefined)).toEqual([]);
+  });
+
+  it("shows the board-token badge only while the stance is held", () => {
+    expect(fighterTokenBadgeFor("doppelganger", { EQUILIBRIUM: true })).toMatchObject({
+      icon: "⚖",
+      title: expect.stringContaining("Equilibrium"),
+    });
+    expect(fighterTokenBadgeFor("doppelganger", { EQUILIBRIUM: false })).toBeNull();
+    expect(fighterTokenBadgeFor("doppelganger", {})).toBeNull();
+  });
+
+  it("never leaks onto another hero carrying the same flag key", () => {
+    expect(flagChipsFor("king-kong", { EQUILIBRIUM: true })).toEqual([]);
+    expect(fighterTokenBadgeFor("king-kong", { EQUILIBRIUM: true })).toBeNull();
+  });
+
+  it("leaves the Doppelgänger's other surfaces untouched", () => {
+    // No portrait swap (one hero bust), and no counter/pile economy.
+    expect(fighterTokenArtFor("doppelganger", { EQUILIBRIUM: true })).toBeNull();
+    expect(counterChipsFor("doppelganger", {})).toEqual([]);
+  });
 });
 
 // ---------------------------------------------------------------------------

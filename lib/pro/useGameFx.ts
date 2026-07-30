@@ -10,6 +10,7 @@ import { FighterId, GameEvent, PlayerView, SpaceId } from "./protocol";
 import { diffFxEvents } from "./fxEvents";
 import { ARC_FLIGHT_MS, ARC_LAUNCH_MS } from "./combatTiming";
 import { sfx } from "./sfx";
+import { combatZeroDamageCallout } from "./combatOutcome";
 
 /** one transient overlay on the board, anchored to a space */
 export interface BoardFxItem {
@@ -208,8 +209,11 @@ export function useGameFx(
           emitBoardFx(e.space, "heal", `+${e.amount}`);
           break;
         case "blocked":
+          // Shared beat, two words: "BLOCKED" when the defense held, "NO WINNER"
+          // for a ternary UNKNOWN resolve (engine #303) — borrowing the defender's
+          // word there would credit a block that never happened.
           if (sound) sfx.play("blocked");
-          emitBoardFx(e.space, "blocked", "BLOCKED");
+          emitBoardFx(e.space, "blocked", combatZeroDamageCallout(e.noWinner));
           break;
         case "defeated":
           // your own fighter falling tolls lower

@@ -117,7 +117,10 @@ export function diffTokenGestures(
       }
       case "blocked": {
         // The defense held — the target braces (a firm squash-and-settle) and
-        // the attacker still lunges into the block.
+        // the attacker still lunges into the block. Also covers a no-winner
+        // resolve (`noWinner`, engine #303): the same mutual brace-and-shove is
+        // the honest physical grammar for two matched values, so only the board
+        // CALLOUT differs (see useGameFx / combatZeroDamageCallout).
         if (combat?.target) out[combat.target] = { kind: "brace", dx: 0, dy: 0, amount: 0 };
         lungeAttacker();
         break;

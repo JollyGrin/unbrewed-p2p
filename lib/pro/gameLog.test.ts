@@ -1116,6 +1116,23 @@ describe("diffViews — chronological line order within a batch (issue #402)", (
     ]);
   });
 
+  // The ternary third outcome (issue #545 ↔ engine #303 "The Doppelgänger"). This
+  // line used to print the raw enum lowercased — "unknown — 0 damage" — because no
+  // shipped deck could emit COMBAT_RESOLVED {outcome:'UNKNOWN'} until the tie deck.
+  it("logs an UNKNOWN outcome as a no-winner stalemate, not the raw enum", () => {
+    const prev = view({ combat: combat({ outcome: null }) });
+    const next = view({ combat: combat({ outcome: "UNKNOWN", attackDamageDealt: 0 }) });
+    const lines = diffViews(prev, next, label, [
+      { type: "COMBAT_RESOLVED", outcome: "UNKNOWN" },
+      { type: "COMBAT_ENDED" },
+    ]);
+    expect(lines.map((l) => l.text)).toEqual(["no winner — the values matched"]);
+    // Neither a leaked enum nor a defender-win reading (the #545 audit's worry).
+    expect(lines[0].text).not.toContain("unknown");
+    expect(lines[0].text).not.toMatch(/defender|attacker/);
+    expect(lines[0].who).toBe("game");
+  });
+
   it("keeps enrichLines' new lines after the diff lines (damage before discard reason)", () => {
     // prev already has a combat (no outcome yet) so the attack-start line does
     // not fire — this batch is just the outcome resolving.

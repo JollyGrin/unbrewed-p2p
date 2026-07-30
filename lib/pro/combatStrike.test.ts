@@ -8,7 +8,7 @@ import {
   useCombatStrike,
 } from "./combatStrike";
 import { ARC_FLIGHT_MS, ARC_LAUNCH_MS, DAMAGE_BEAT_MS } from "./combatTiming";
-import { GameEvent, PlayerView, ViewCombat, ViewCombatCard } from "./protocol";
+import { CombatOutcome, GameEvent, PlayerView, ViewCombat, ViewCombatCard } from "./protocol";
 
 const card = (instance: string, over: Partial<ViewCombatCard> = {}): ViewCombatCard => ({
   instance,
@@ -57,7 +57,7 @@ const view = (over: Partial<PlayerView>): PlayerView => ({
 });
 
 /** A combat that resolves + ends in one batch: view.combat is already null next. */
-const resolvedEnded = (outcome: "ATTACKER_WON" | "DEFENDER_WON", damage: number): GameEvent[] => {
+const resolvedEnded = (outcome: CombatOutcome, damage: number): GameEvent[] => {
   const evs: GameEvent[] = [
     { type: "CARDS_REVEALED", attackerCard: "king-kong/clobber#1", defenderCard: "baba-yaga/dodge#1" },
   ];
@@ -117,8 +117,41 @@ describe("diffCombatStrike", () => {
     expect(s?.damage).toBe(0);
   });
 
+  // Issue #545 ↔ engine #303 "The Doppelgänger": the first deck that can emit
+  // COMBAT_RESOLVED {outcome:'UNKNOWN'}. The neutral mutual-shove `tie`
+  // choreography is right for it; a `blocked` shield-bounce (the defender-win
+  // variant) would be a lie, and so would the attacker's gold `win`.
+  it("emits a neutral TIE strike — never BLOCKED — on an UNKNOWN (no-winner) resolve", () => {
+    const prev = view({ combat: combat({ stage: "DAMAGE" }) });
+    const next = view({ combat: null });
+    const s = diffCombatStrike(prev, next, resolvedEnded("UNKNOWN", 0));
+    expect(s?.variant).toBe("tie");
+    expect(s?.damage).toBe(0);
+    expect(s?.outcome).toBe("UNKNOWN");
+    // The value pulse must credit nobody: both sides flash neutrally.
+    expect(comparePulseFor(s!.variant, "ATTACK")).toBe("neutral");
+    expect(comparePulseFor(s!.variant, "DEFENSE")).toBe("neutral");
+  });
+
+  it("keeps a no-winner resolve neutral even if it somehow carried damage", () => {
+    const prev = view({ combat: combat({ stage: "DAMAGE" }) });
+    const next = view({ combat: null });
+    const s = diffCombatStrike(prev, next, resolvedEnded("UNKNOWN", 2));
+    expect(s?.variant).toBe("tie");
+  });
+
+  it("resolves an UNKNOWN via the view transition (null is the unresolved sentinel)", () => {
+    // Pre-#545 this path excluded 'UNKNOWN' as if it meant "not yet resolved", so a
+    // Doppelgänger stalemate arriving without a resolve event fired no strike at all.
+    const prev = view({ combat: combat({ stage: "DAMAGE", outcome: null }) });
+    const next = view({ combat: combat({ stage: "AFTER", outcome: "UNKNOWN", attackDamageDealt: 0 }) });
+    const s = diffCombatStrike(prev, next, []);
+    expect(s?.variant).toBe("tie");
+    expect(s?.outcome).toBe("UNKNOWN");
+  });
+
   it("resolves via the view outcome transition when no resolve event rides along", () => {
-    const prev = view({ combat: combat({ stage: "DAMAGE", outcome: "UNKNOWN" }) });
+    const prev = view({ combat: combat({ stage: "DAMAGE", outcome: null }) });
     const next = view({ combat: combat({ stage: "AFTER", outcome: "ATTACKER_WON", attackDamageDealt: 2 }) });
     const s = diffCombatStrike(prev, next, []);
     expect(s?.variant).toBe("win");
@@ -403,7 +436,7 @@ describe("useCombatStrike", () => {
   // resolve event and no outcome transition, so the panel used to unmount instantly.
   it("lingers when the combat ENDS in a later batch than it resolved (#517)", () => {
     const { result, rerender } = renderHook((props: { s: ReturnType<typeof snap> }) => useCombatStrike(props.s), {
-      initialProps: { s: snap(view({ combat: combat({ stage: "DAMAGE", outcome: "UNKNOWN" }) })) },
+      initialProps: { s: snap(view({ combat: combat({ stage: "DAMAGE", outcome: null }) })) },
     });
 
     // Batch A — resolves, combat survives (AFTER window). Strike fires, no linger yet.
@@ -438,7 +471,7 @@ describe("useCombatStrike", () => {
 
   it("does not re-fire the strike when the later end batch arrives", () => {
     const { result, rerender } = renderHook((props: { s: ReturnType<typeof snap> }) => useCombatStrike(props.s), {
-      initialProps: { s: snap(view({ combat: combat({ stage: "DAMAGE", outcome: "UNKNOWN" }) })) },
+      initialProps: { s: snap(view({ combat: combat({ stage: "DAMAGE", outcome: null }) })) },
     });
     act(() =>
       rerender({
@@ -450,6 +483,28 @@ describe("useCombatStrike", () => {
     const first = result.current.strike;
     act(() => rerender({ s: snap(view({ combat: null }), [{ type: "COMBAT_ENDED" }]) }));
     expect(result.current.strike).toBe(first);
+  });
+
+  // Issue #545: a Doppelgänger stalemate that resolves in batch A and ENDS in a
+  // later batch B must still linger. The old `prevOutcome !== "UNKNOWN"` guard read
+  // a real no-winner outcome as "never resolved" and unmounted the panel instantly.
+  it("lingers a no-winner (UNKNOWN) combat that ends in a later batch", () => {
+    const { result, rerender } = renderHook((props: { s: ReturnType<typeof snap> }) => useCombatStrike(props.s), {
+      initialProps: { s: snap(view({ combat: combat({ stage: "DAMAGE", outcome: null }) })) },
+    });
+    // Batch A — resolves UNKNOWN, combat survives for the AFTER window.
+    act(() =>
+      rerender({
+        s: snap(view({ combat: combat({ stage: "AFTER", outcome: "UNKNOWN", attackDamageDealt: 0 }) }), [
+          { type: "COMBAT_RESOLVED", outcome: "UNKNOWN" },
+        ]),
+      })
+    );
+    expect(result.current.strike?.variant).toBe("tie");
+    // Batch B — cleanup drive: the combat just disappears. The panel must linger.
+    act(() => rerender({ s: snap(view({ combat: null }), [{ type: "COMBAT_ENDED" }]) }));
+    expect(result.current.lingeringCombat).not.toBeNull();
+    expect(result.current.lingeringCombat?.outcome).toBe("UNKNOWN");
   });
 
   it("does NOT linger a combat that vanishes without ever resolving", () => {
