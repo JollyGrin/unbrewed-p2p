@@ -25,10 +25,14 @@ import {
   ViewCombatCard,
 } from "./protocol";
 import { LINGER_TTL_MS, STRIKE_TTL_MS } from "./combatTiming";
+import { isNoWinner } from "./combatOutcome";
 
 /** win = attacker dealt damage (defense knocked back); blocked = defender won / 0
  *  damage (attack bounces off a shield); tie = resolved but neither side dealt
- *  damage (a neutral mutual shove). */
+ *  damage (a neutral mutual shove). The `tie` variant is also where a ternary
+ *  `UNKNOWN` outcome lands — a genuine no-winner combat (the Doppelgänger, engine
+ *  #303) is exactly the mutual shove this variant was choreographed for, and its
+ *  neutral compare pulse is the correct read: nobody's value glows gold. */
 export type StrikeVariant = "win" | "blocked" | "tie";
 
 export interface CombatStrike {
@@ -86,7 +90,7 @@ export function comparePulseFor(
  *  - The first snapshot (prev === null) is a state dump / reconnect, never a play,
  *    so it stays silent — no ghost strike on rejoin.
  *  - A strike fires only when the combat RESOLVES this batch: a COMBAT_RESOLVED or
- *    COMBAT_DAMAGE event, or `view.combat.outcome` transitioning off UNKNOWN/null.
+ *    COMBAT_DAMAGE event, or `view.combat.outcome` transitioning off null.
  *    An empty `events` join/reconnect batch yields none (there is no resolve event
  *    and no outcome transition on a mid-combat rejoin).
  *  - The STRIKE is suppressed (but the descriptor is still returned, flagged
@@ -109,13 +113,18 @@ export function diffCombatStrike(
   const canceled = events.some((e) => e.type === "EFFECT_CANCELED");
 
   // The outcome-transition path covers a resolve that arrives without an explicit
-  // COMBAT_RESOLVED event (pre-v10 batch) but where combat survives with a fresh,
-  // non-UNKNOWN outcome. When combat ends in the same batch, next.combat is already
-  // null so this can't fire — the events carry the resolve instead.
+  // COMBAT_RESOLVED event (pre-v10 batch) but where the combat survives carrying a
+  // fresh outcome. When combat ends in the same batch, next.combat is already null
+  // so this can't fire — the events carry the resolve instead.
+  //
+  // The "unresolved" sentinel is `null`, NOT 'UNKNOWN': engine/combat.ts creates a
+  // combat with `outcome: null` and only ever writes a value in resolveCombat. This
+  // used to also exclude 'UNKNOWN', which silently dropped the Doppelgänger's
+  // no-winner resolve (engine #303) on this fallback path — an UNKNOWN outcome is a
+  // RESOLVE, not a placeholder.
   const prevOutcome = prev.combat?.outcome ?? null;
   const nextOutcome = next.combat?.outcome ?? null;
-  const resolvedByView =
-    nextOutcome !== null && nextOutcome !== "UNKNOWN" && prevOutcome !== nextOutcome;
+  const resolvedByView = nextOutcome !== null && prevOutcome !== nextOutcome;
 
   if (!resolvedEvent && !damageEvent && !resolvedByView) return null;
 
@@ -136,8 +145,17 @@ export function diffCombatStrike(
       ? damageEvent.amount
       : next.combat?.attackDamageDealt ?? 0;
 
-  const variant: StrikeVariant =
-    damage > 0 ? "win" : outcome === "DEFENDER_WON" ? "blocked" : "tie";
+  // UNKNOWN is checked FIRST and defensively: a no-winner combat cannot deal attack
+  // damage under the engine's only resolver (`valuesEqualUnknown` fires on equal
+  // values), but if some future resolver ever returned UNKNOWN alongside damage, the
+  // neutral shove is still the honest choreography — never the attacker's gold win.
+  const variant: StrikeVariant = isNoWinner(outcome)
+    ? "tie"
+    : damage > 0
+      ? "win"
+      : outcome === "DEFENDER_WON"
+        ? "blocked"
+        : "tie";
 
   // Card faces identify the combat. CARDS_REVEALED (same STATE batch when a combat
   // resolves at reveal) is authoritative; otherwise fall back to the surviving view.
@@ -342,8 +360,10 @@ export function useCombatStrike(
         combatKey(prev.combat.attackerCard?.instance ?? null, prev.combat.defenderCard?.instance ?? null)
         ? lastStrikeRef.current
         : null;
-    const prevOutcome = prev.combat.outcome;
-    const resolved = !!s || !!carried || (!!prevOutcome && prevOutcome !== "UNKNOWN");
+    // Any non-null outcome counts as resolved — `null` is the unresolved sentinel
+    // (see diffCombatStrike). Excluding 'UNKNOWN' here denied the panel-linger to a
+    // Doppelgänger stalemate whose end arrived in a later batch (engine #303).
+    const resolved = !!s || !!carried || prev.combat.outcome !== null;
     if (!resolved) return;
 
     const frozen = captureLingeringCombat(prev, s ?? carried, snapshot.events);

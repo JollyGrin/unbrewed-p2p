@@ -28,7 +28,6 @@ import {
   BotSeatFill,
   CardInstanceId,
   CardMeta,
-  CombatOutcome,
   FighterId,
   HeroListing,
   LegalOption,
@@ -96,6 +95,7 @@ import {
 import { useGameFx, DamageArc } from "@/lib/pro/useGameFx";
 import { useCombatCallouts, CombatCalloutItem } from "@/lib/pro/combatFx";
 import { useCombatStrike, CombatStrike, StrikeVariant, comparePulseFor, CompareBeat } from "@/lib/pro/combatStrike";
+import { combatOutcomeBannerText, isNoWinner } from "@/lib/pro/combatOutcome";
 import { useCombatValueFx, CombatValueFx, SlotValueFx } from "@/lib/pro/combatValueFx";
 import { useTokenLife } from "@/lib/pro/tokenLife";
 import { resolveSpaceMove } from "@/lib/pro/moveResolve";
@@ -1268,17 +1268,11 @@ const CombatStageTicker = ({ stage }: { stage: ViewCombat["stage"] }) => {
   );
 };
 
-/** Human-readable combat outcome — never the raw enum, and UNKNOWN stays hidden. */
-const COMBAT_OUTCOME_LABEL: Record<Exclude<CombatOutcome, "UNKNOWN">, string> = {
-  ATTACKER_WON: "Attacker wins",
-  DEFENDER_WON: "Defender wins",
-};
-
 /** The reveal beat + running combat math, straight from the server view. The
  *  strike beat (#381) rides on top: when `strike` is set, the attack card lunges
  *  and slams the defense card, the panel shakes, and a ring flashes — all sequenced
  *  by CSS delay off the flip and gated on the caller (visual-fx off ⇒ null). The
- *  stage ticker (#380) sits below the slots; the outcome uses COMBAT_OUTCOME_LABEL. */
+ *  stage ticker (#380) sits below the slots; the outcome line reads from combatOutcome.ts (incl. the no-winner case, #545). */
 const CombatPanel = ({
   combat,
   catalog,
@@ -1377,10 +1371,18 @@ const CombatPanel = ({
         />
       </Flex>
       <CombatStageTicker stage={combat.stage} />
-      {combat.outcome && combat.outcome !== "UNKNOWN" && (
-        <Text textAlign="center" mt="0.5rem" fontWeight="bold">
-          {COMBAT_OUTCOME_LABEL[combat.outcome]}
-          {combat.attackDamageDealt !== null ? ` · ${combat.attackDamageDealt} dmg` : ""}
+      {combat.outcome && (
+        // A no-winner resolve (UNKNOWN — the Doppelgänger, engine #303) used to be
+        // suppressed here, so the panel went silent on a mechanic whose whole point
+        // is the stalemate. It now says so, in the muted steel of the neutral
+        // "tie" strike variant rather than the plain bold of a decided combat.
+        <Text
+          textAlign="center"
+          mt="0.5rem"
+          fontWeight="bold"
+          color={isNoWinner(combat.outcome) ? "#B8C4CE" : undefined}
+        >
+          {combatOutcomeBannerText(combat.outcome, combat.attackDamageDealt)}
         </Text>
       )}
     </Box>

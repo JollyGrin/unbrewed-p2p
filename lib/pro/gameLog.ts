@@ -16,6 +16,7 @@ import {
 } from "./protocol";
 import { deriveTeams, isViewerOnWinningTeam } from "./teams";
 import { sweptFighters } from "./sweep";
+import { combatOutcomeLogText } from "./combatOutcome";
 
 export interface ProLogLine {
   text: string;
@@ -352,9 +353,12 @@ export function diffViews(
     });
   }
   if (next.combat?.outcome && !prev.combat?.outcome) {
-    const dmg = next.combat.attackDamageDealt;
+    // Wording comes from combatOutcome.ts so the log, the panel banner and the
+    // replay scrubber can never disagree. UNKNOWN — the Doppelgänger's no-winner
+    // resolve (engine #303) — used to print the raw enum here ("unknown — 0
+    // damage"); it now reads "no winner — the values matched".
     lines.push({
-      text: `${next.combat.outcome.replace(/_/g, " ").toLowerCase()}${dmg !== null ? ` — ${dmg} damage` : ""}`,
+      text: combatOutcomeLogText(next.combat.outcome, next.combat.attackDamageDealt),
       who: "game",
     });
   }
