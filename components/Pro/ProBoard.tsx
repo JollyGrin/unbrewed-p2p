@@ -15,7 +15,7 @@ import { FighterId, PlayerId, ProMapDef, ProMapItem, ProMapRegion, ProMapSpace, 
 import { BoardFxItem } from "@/lib/pro/useGameFx";
 import { TokenGestures, usePageHidden } from "@/lib/pro/tokenLife";
 import { ZoomPanInset, useZoomPan } from "@/lib/pro/useZoomPan";
-import { LARGE_FIGHTER_BLURB, LARGE_REACH_CHIP } from "@/lib/pro/largeReach";
+import { LARGE_REACH_TARGET_BLURB } from "@/lib/pro/largeReach";
 import { tokenInitials } from "./FighterTokenPortrait";
 import { TokenIdle, TokenLifeLayer, phaseSeed } from "./TokenLifeLayer";
 import { ItemBadge, PassageBadge } from "./ItemBadge";
@@ -773,10 +773,11 @@ export const ProBoard = ({
             whiteSpace="nowrap"
             boxShadow="0 1px 3px rgba(0,0,0,0.7)"
             // Terse at-a-glance echo on the pulsing token; the sidebar row carries
-            // the full "Large fighter — melee reach 2" copy + tooltip, and this
-            // pill's hover title spells out the same rule (LARGE_REACH_CHIP is
-            // referenced so board + row can never drift on the wording).
-            title={`${LARGE_REACH_CHIP} — ${LARGE_FIGHTER_BLURB}`}
+            // the full "Large fighter — melee reach 2" copy + tooltip. The reach is
+            // attacker-only (#549), so this token is the one being reached OVER —
+            // its hover title says so from the receiving end, wording still composed
+            // from the shared blurb so board + row can never drift.
+            title={LARGE_REACH_TARGET_BLURB}
           >
             reach 2
           </Flex>
@@ -892,7 +893,7 @@ export const ProBoard = ({
         zIndex={4}
         title={
           isExtendedReachTarget
-            ? `${f.name} — ${f.hp}/${f.maxHp} HP · ${LARGE_FIGHTER_BLURB}`
+            ? `${f.name} — ${f.hp}/${f.maxHp} HP · ${LARGE_REACH_TARGET_BLURB}`
             : `${f.name} — ${f.hp}/${f.maxHp} HP`
         }
       >
