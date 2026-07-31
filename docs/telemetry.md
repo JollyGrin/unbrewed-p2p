@@ -13,7 +13,7 @@ does *not***. Short version: **p2p does not produce balance telemetry.**
 
 Pro games run on the **unbrewed-engine Pro server** — the same WebSocket server
 this app's Pro client connects to (`lib/pro/wsUrl.ts` →
-`wss://unbrewed-engine-production.up.railway.app`). Balance telemetry is emitted
+`wss://engine.unbrewed.xyz`). Balance telemetry is emitted
 **server-side, by the engine**, when a game finishes and (separately) when its
 deck registry is published. See `docs/TELEMETRY.md` in the `unbrewed-engine`
 repo for the producer details, payloads, and config.
