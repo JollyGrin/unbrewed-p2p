@@ -1,29 +1,49 @@
 import { SpaceId, ViewFighter } from "./protocol";
 
 // ---------------------------------------------------------------------------
-// Large-fighter reach — PRESENTATION ONLY (unbrewed-p2p #235).
+// Large-fighter reach — PRESENTATION ONLY (unbrewed-p2p #235, corrected by #549).
 //
-// The engine already decides legality (docs/pro/02-unmatched-rules.md §4.2b:
-// "attacks involving a LARGE fighter can be made up to 2 spaces away"; Triceratops
-// prints "She can attack up to 2 spaces away"). A melee fighter two spaces from
-// Triceratops is therefore offered the attack — correct, but with nothing on
-// screen to say why it reads as a bug. These helpers EXPLAIN a server-offered
-// option; they never recompute or second-guess whether it is legal.
+// The engine decides legality; these helpers only EXPLAIN a server-offered
+// option and never recompute or second-guess whether it is legal.
+//
+// The reach is ATTACKER-ONLY (unbrewed-engine#307). Every primary source grants
+// it one-directionally: T. Rex's card reads "SHE can attack up to 2 spaces away"
+// and the rulebook "Large fighters can attack up to 2 spaces away, even over
+// fighters that occupy one of those spaces". #235 originally mirrored the
+// engine's symmetric rule and shipped a tooltip explaining behaviour that was
+// never legal; the case it explained is now simply not offered. A large fighter
+// is still REACHABLE from what looks like two spaces away — next to its tail is
+// two steps from its head — but that is ordinary adjacency, which
+// `withinNormalReach` already covers by checking both body spaces.
 //
 // Copy lives here so the attack-row chip (1) and the hero-rules blurb (2) can
 // never drift apart (#235 acceptance criterion 3).
 // ---------------------------------------------------------------------------
 
-/** Compact chip shown beside a surprise (extended-reach) attack option. */
+/**
+ * Compact chip shown beside a surprise (extended-reach) attack option. Only ever
+ * appears on the large fighter's OWN attack rows, so "melee reach 2" describes
+ * the attacker named in that row.
+ */
 export const LARGE_REACH_CHIP = "Large fighter — melee reach 2";
 
 /**
  * Standing rule line for a LARGE fighter, shown wherever the client surfaces a
  * fighter's rules. Also the tooltip behind the reach chip, so the chip's hover
- * text and the hero-panel line are word-for-word identical.
+ * text and the hero-panel line are word-for-word identical. States the reach
+ * one-directionally, and spells out the opponent's side so nobody reads the
+ * occupancy half as their own reach growing.
  */
 export const LARGE_FIGHTER_BLURB =
-  "Large fighter: occupies up to 2 spaces; melee attacks involving it can be made from up to 2 spaces away.";
+  "Large fighter: occupies 2 spaces; it can attack up to 2 spaces away, even over fighters in between. Opponents attack it normally, from any space next to its body.";
+
+/**
+ * Hover copy for the board marker on a fighter that a LARGE attacker is reaching
+ * over. That fighter is the TARGET, not the large one, so this frames the rule
+ * from the receiving end before quoting the shared blurb — and is composed from
+ * `LARGE_FIGHTER_BLURB` so the wording still cannot drift.
+ */
+export const LARGE_REACH_TARGET_BLURB = `Within a large fighter's 2-space attack reach. ${LARGE_FIGHTER_BLURB}`;
 
 /**
  * A LARGE fighter occupies two adjacent spaces, so `tailSpace` is populated once
@@ -82,10 +102,12 @@ export const withinNormalReach = (
 
 /**
  * True when a server-offered attack is legal ONLY via the large-fighter reach
- * extension: a LARGE fighter is involved (attacker or target) AND the target sits
- * beyond the attacker's normal reach. This is exactly the case that reads as a bug
- * without a hint. Returns false the instant either fighter is off-board (no space),
- * so a stale view never produces a phantom chip.
+ * extension: the ATTACKER is LARGE (engine#307 — the reach is one-directional)
+ * AND the target sits beyond its normal reach. This is exactly the case that
+ * reads as a bug without a hint. A LARGE *target* explains nothing: an attack on
+ * it is only ever offered from a space next to its head or its tail, which
+ * `withinNormalReach` already counts. Returns false the instant either fighter
+ * is off-board (no space), so a stale view never produces a phantom chip.
  */
 export const isExtendedReachAttack = (
   attacker: ViewFighter,
@@ -93,6 +115,6 @@ export const isExtendedReachAttack = (
   spaces: Map<SpaceId, SpaceReach>
 ): boolean => {
   if (attacker.space == null || target.space == null) return false;
-  if (!isLargeFighter(attacker) && !isLargeFighter(target)) return false;
+  if (!isLargeFighter(attacker)) return false;
   return !withinNormalReach(attacker, target, spaces);
 };

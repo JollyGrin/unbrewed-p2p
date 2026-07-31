@@ -30,11 +30,24 @@ import { useDeckStats } from "@/lib/pro/useDeckStats";
 import { LARGE_FIGHTER_BLURB } from "@/lib/pro/largeReach";
 
 /**
- * Client-side registry of two-space (LARGE) fighters — no pre-match field
- * exposes this (ViewFighter.tailSpace only appears once a match starts, see
- * protocol.ts v6). Update by hand as more LARGE heroes get converted.
+ * Client-side registry of two-space (LARGE) HEROES — no pre-match field exposes
+ * size (ViewFighter.tailSpace only appears once a match starts, see protocol.ts
+ * v6), so unlike every in-game surface this one cannot be data-driven and must
+ * be extended by hand as more LARGE heroes are converted. Kong shipped missing
+ * from it (issue #549): his preview showed no badge and no rule line, so a
+ * player picking him first met the 2-space reach mid-match.
+ *
+ * KNOWN LIMITATION — this is keyed on the HERO id, so a deck whose large fighter
+ * is a SIDEKICK gets no pre-match signal at all. Batman's Batmobile is LARGE
+ * (engine data/heroes/batman.rules.ts) and "batman" does not belong in this set:
+ * adding it would badge the hero himself, who is a normal fighter, and print a
+ * rule line about the wrong body. Fixing that needs a per-fighter size in the
+ * preview data, not another entry here.
+ *
+ * HeroPreviewModal.test.tsx pins both branches; keep entries in sync with the
+ * engine's `size: 'LARGE'` heroes.
  */
-const LARGE_HERO_IDS = new Set(["triceratops"]);
+const LARGE_HERO_IDS = new Set(["triceratops", "king-kong"]);
 
 export interface HeroPreviewModalProps {
   isOpen: boolean;
