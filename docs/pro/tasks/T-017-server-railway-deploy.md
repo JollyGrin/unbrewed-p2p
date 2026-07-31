@@ -39,8 +39,8 @@ CI/CD automation, autoscaling, persistence, custom metrics.
 
 Deployed from GitHub (JollyGrin/unbrewed-engine, main) via Nixpacks;
 railway.json supplies `npm start` + `/healthz` healthcheck; Railway injects
-PORT. Domain: `unbrewed-engine-production.up.railway.app` — client endpoint
-`wss://unbrewed-engine-production.up.railway.app` (NEXT_PUBLIC_PRO_WS_URL).
+PORT. Domain: `engine.unbrewed.xyz` — client endpoint
+`wss://engine.unbrewed.xyz` (NEXT_PUBLIC_PRO_WS_URL).
 Verified against production: healthz 200, scripted two-client game (251
 random legal actions to GAME_OVER, no secret leakage), reconnect-by-token OK.
 Note: rooms are in-memory by design — each deploy/restart drops live games.

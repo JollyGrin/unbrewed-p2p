@@ -76,7 +76,7 @@ jobs:
       - name: Build with Next.js
         # NEXT_PUBLIC_PRO_WS_URL is baked in at build time. When the repo
         # variable is unset it expands to "" and /pro/game falls back to its
-        # hardcoded Railway default (wss://unbrewed-engine-production.up.railway.app),
+        # hardcoded engine default (wss://engine.unbrewed.xyz),
         # so the deployed page is playable with zero config. To point Pages at a
         # different backend, set a repository variable of that name to the new
         # wss:// URL (Settings → Secrets and variables → Actions → Variables).

@@ -27,7 +27,7 @@ export const EVERGREEN_DECK_IDS = new Set<string>(Object.values(HERO_DECK_IDS));
 // must stay the prod engine URL.
 export const DEFAULT_DECK_API =
   process.env.NEXT_PUBLIC_DECK_API_URL ??
-  "https://unbrewed-engine-production.up.railway.app/api/unmatched-deck/";
+  "https://engine.unbrewed.xyz/api/unmatched-deck/";
 
 const fromSnapshot = (id: string) =>
   axios.get<DeckImportType>(`/evergreen-decks/${id}.json`).then((r) => r.data);
