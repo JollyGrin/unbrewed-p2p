@@ -25,6 +25,7 @@ const fighter = (over: Partial<ViewFighter>): ViewFighter => ({
   hp: 10,
   maxHp: 10,
   reach: "MELEE",
+  size: "NORMAL",
   defeated: false,
   ...over,
 });
@@ -1040,6 +1041,76 @@ describe("batchTurnTag — turn tag for one STATE batch (issue #522)", () => {
   it("falls back to the incoming view on the very first batch", () => {
     const next = view({ turnNumber: 1, activePlayer: "p1" });
     expect(batchTurnTag(null, next)).toEqual({ turn: 1, turnActor: "You" });
+  });
+});
+
+describe("diffViews — v26 board objects and v27 benign removal (Gerry the Isopod)", () => {
+  const larry = fighter({ id: "p1/sidekick-1", kind: "SIDEKICK", name: "Larry", space: "s3", hp: 3, maxHp: 3 });
+  const withFighters = (fighters: ViewFighter[], tokens: PlayerView["tokens"] = []) =>
+    view({ fighters, tokens });
+
+  it("narrates a corpse as what the body left, NOT as a placed totem", () => {
+    const dead = { ...larry, space: null, defeated: true };
+    const lines = diffViews(
+      withFighters([larry]),
+      withFighters([dead], [
+        { id: "corpse-0", kind: "corpse", owner: "p1", space: "s3", ownerTurnsRemaining: 3, origin: "corpse-of:p1/sidekick-1" },
+      ]),
+      label
+    );
+    expect(lines).toContainEqual({ text: "Larry's corpse remains on the battlefield", who: "you" });
+    expect(lines.some((l) => l.text.includes("totem"))).toBe(false);
+  });
+
+  it("still calls a totem a totem", () => {
+    const lines = diffViews(
+      withFighters([larry]),
+      withFighters([larry], [{ id: "t1", kind: "totem", owner: "p1", space: "s1" }]),
+      label
+    );
+    expect(lines).toContainEqual({ text: "You placed a totem", who: "you" });
+  });
+
+  it("distinguishes a corpse that ROTTED OUT from one that was eaten", () => {
+    const corpse = { id: "corpse-0", kind: "corpse" as const, owner: "p1" as PlayerId, space: "s3" };
+    const expired = diffViews(
+      withFighters([larry], [corpse]),
+      withFighters([larry]),
+      label,
+      [{ type: "TOKEN_DESTROYED", token: "corpse-0", kind: "corpse", owner: "p1", space: "s3", reason: "EXPIRED" }]
+    );
+    expect(expired).toContainEqual({ text: "Your corpse rotted away", who: "you" });
+
+    const eaten = diffViews(
+      withFighters([larry], [corpse]),
+      withFighters([larry]),
+      label,
+      [{ type: "TOKEN_DESTROYED", token: "corpse-0", kind: "corpse", owner: "p1", space: "s3", reason: "EFFECT" }]
+    );
+    expect(eaten).toContainEqual({ text: "Your corpse was destroyed", who: "you" });
+  });
+
+  it("narrates a LIVING fighter eaten off the board (removeFromBoard) instead of letting it vanish", () => {
+    // Cannibalize's living-Larry branch: off the board, still alive — neither a move
+    // (no destination) nor a defeat, so before v27 this produced no line at all.
+    const lines = diffViews(
+      withFighters([larry]),
+      withFighters([{ ...larry, space: null }]),
+      label
+    );
+    expect(lines).toContainEqual({ text: "Larry was removed from the battlefield", who: "you" });
+    // …and it must NOT read as a death.
+    expect(lines.some((l) => l.text.includes("defeated"))).toBe(false);
+  });
+
+  it("does not double-report a DEFEAT as a benign removal", () => {
+    const lines = diffViews(
+      withFighters([larry]),
+      withFighters([{ ...larry, space: null, defeated: true }]),
+      label
+    );
+    expect(lines).toContainEqual({ text: "Larry was defeated!", who: "game" });
+    expect(lines.some((l) => l.text.includes("removed from the battlefield"))).toBe(false);
   });
 });
 

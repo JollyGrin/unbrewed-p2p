@@ -23,6 +23,7 @@ const fighter = (over: Partial<ViewFighter> & Pick<ViewFighter, "id" | "owner" |
   hp: 10,
   maxHp: 10,
   reach: "MELEE",
+  size: "NORMAL",
   defeated: false,
   ...over,
 });

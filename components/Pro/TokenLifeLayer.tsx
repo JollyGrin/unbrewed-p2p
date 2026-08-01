@@ -196,6 +196,13 @@ export const TokenLifeLayer = ({
       w="100%"
       h="100%"
       position="relative"
+      // Round the WRAPPER, not just the body below it. The token it lives in is a
+      // circle but does not clip (badges deliberately overhang), so this square box
+      // stuck out past the circle at the corners. That was invisible until protocol
+      // v28 let fighters share a space: the corner then covered the NEXT stacked
+      // token's centre and swallowed its click. Purely a hit-area fix — the box has
+      // no background of its own, so nothing renders differently.
+      borderRadius="50%"
       display="flex"
       alignItems="center"
       justifyContent="center"

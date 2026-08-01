@@ -323,6 +323,18 @@
         "file": "data/heroes/doppelganger.rules.ts",
         "commit": "e82f2c0"
       }
+    },
+    {
+      "heroId": "gerry-the-isopod",
+      "deckId": "5jGPM",
+      "version_id": "qOz5NtMP3P",
+      "frozenAt": "2026-08-01",
+      "digest": "sha256:3c89d539d48d938e652186a239ffdfe066bc8e640fe154966cf8e91d296c87c2",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/gerry-the-isopod.rules.ts",
+        "commit": "41cce7b"
+      }
     }
   ]
 }
