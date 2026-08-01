@@ -2,7 +2,7 @@ import "@testing-library/jest-dom";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { ProBoard } from "./ProBoard";
-import { ProMapDef, ViewFighter } from "@/lib/pro/protocol";
+import { ProMapDef, ViewFighter, ViewToken } from "@/lib/pro/protocol";
 import { __resetFlagsForTest } from "@/lib/flags";
 
 // The zone-membership highlight (#413) is gated behind the default-OFF `zoneHover`
@@ -35,6 +35,7 @@ const fighter = (over: Partial<ViewFighter>): ViewFighter => ({
   hp: 10,
   maxHp: 10,
   reach: "MELEE",
+  size: "NORMAL",
   defeated: false,
   ...over,
 });
@@ -1010,5 +1011,254 @@ describe("ProBoard move-intent hover cue (issue #320)", () => {
     // a source ring per candidate + a connector arrowhead per candidate (SVG)
     expect(container.querySelectorAll("circle").length).toBeGreaterThanOrEqual(2);
     expect(container.querySelectorAll("polygon").length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+/**
+ * Board objects (protocol v26, issue #553). The pre-v26 board hardcoded ONE sprite
+ * (a totem diamond) and assumed objects never share a space. Both assumptions are
+ * gone: kinds come from the BOARD_OBJECT_VISUALS registry, and two corpses — or a
+ * corpse and a totem — can sit on the same space.
+ */
+describe("ProBoard board objects", () => {
+  const corpse = (over: Partial<ViewToken> = {}): ViewToken => ({
+    id: "corpse-0",
+    kind: "corpse",
+    owner: "p1",
+    space: "s1",
+    ownerTurnsRemaining: 3,
+    origin: "corpse-of:p1/sidekick-1",
+    ...over,
+  });
+
+  it("renders a corpse titled as the fighter it came from, with its countdown", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[]}
+          tokens={[corpse()]}
+          boardObjectOriginName={() => "Larry"}
+        />
+      </ChakraProvider>
+    );
+    expect(screen.getAllByTitle(/Corpse of Larry \(p1\) — 3 owner turns left/).length).toBeGreaterThan(0);
+  });
+
+  it("draws one pip per remaining owner turn", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard map={MAP} fighters={[]} tokens={[corpse({ ownerTurnsRemaining: 2 })]} />
+      </ChakraProvider>
+    );
+    const pipRow = container.querySelector('[title*="Corpse"][style*="display: flex"]');
+    // the pip strip is the only flex row inside the object; count its children
+    const strips = [...container.querySelectorAll('[title*="Corpse"]')].filter(
+      (el) => el.children.length === 2 && getComputedStyle(el).display === "flex"
+    );
+    expect(pipRow ?? strips[0]).toBeTruthy();
+    expect((pipRow ?? strips[0])!.children.length).toBe(2);
+  });
+
+  it("greys and flips the origin fighter's art so a corpse never reads as a live token", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[]}
+          tokens={[corpse()]}
+          boardObjectArt={() => "/larry.webp"}
+        />
+      </ChakraProvider>
+    );
+    const img = container.querySelector('img[src="/larry.webp"]') as HTMLElement;
+    expect(img).toBeTruthy();
+    const style = getComputedStyle(img);
+    expect(style.filter).toContain("grayscale");
+    expect(style.transform).toContain("rotate(180deg)");
+  });
+
+  it("keeps a totem on its pre-v26 diamond sprite", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={MAP} fighters={[]} tokens={[{ id: "t1", kind: "totem", owner: "p1", space: "s2" }]} />
+      </ChakraProvider>
+    );
+    const totem = screen.getByTitle("Totem (p1)");
+    expect(getComputedStyle(totem).transform).toContain("rotate(45deg)");
+    // permanent: no countdown clause in the title, no pips
+    expect(totem.children.length).toBe(0);
+  });
+
+  it("renders BOTH objects when two share one space, offset apart", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[]}
+          tokens={[
+            corpse({ id: "corpse-0", space: "s1" }),
+            { id: "t1", kind: "totem", owner: "p1", space: "s1" },
+          ]}
+        />
+      </ChakraProvider>
+    );
+    expect(screen.getAllByTitle(/Corpse/).length).toBeGreaterThan(0);
+    expect(screen.getByTitle("Totem (p1)")).toBeInTheDocument();
+    // the two sprites must not be drawn at the identical offset (they'd overlap)
+    const transforms = [...container.querySelectorAll('[title*="Corpse"], [title="Totem (p1)"]')]
+      .map((el) => getComputedStyle(el as HTMLElement).transform)
+      .filter(Boolean);
+    expect(new Set(transforms).size).toBeGreaterThan(1);
+  });
+
+  it("still renders a kind it does not know (protocol degrade-gracefully rule)", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[]}
+          tokens={[{ id: "w1", kind: "wall" as ViewToken["kind"], owner: "p1", space: "s2" }]}
+        />
+      </ChakraProvider>
+    );
+    expect(screen.getByTitle("Board object (p1)")).toBeInTheDocument();
+  });
+});
+
+/**
+ * v28 SMALL fighters: several fighters legally share one space. The pre-v28 board
+ * assumed one, and its 0.35rem diagonal nudge collapsed five tokens into one hit
+ * area — four of them unclickable. These pin the properties a player depends on.
+ */
+describe("ProBoard stacked fighters (protocol v28)", () => {
+  const larry = (n: number, over: Partial<ViewFighter> = {}): ViewFighter =>
+    fighter({
+      id: `p1/sidekick-${n}`,
+      kind: "SIDEKICK",
+      name: "Larry",
+      size: "SMALL",
+      hp: 3,
+      maxHp: 3,
+      space: "s1",
+      ...over,
+    });
+
+  it("renders all five of (4 Larrys + Kong) on one space, each at its own offset", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[
+            fighter({ id: "p2/kong", owner: "p2", name: "King Kong", space: "s1" }),
+            larry(1),
+            larry(2),
+            larry(3),
+            larry(4),
+          ]}
+        />
+      </ChakraProvider>
+    );
+    // five distinct tokens...
+    expect(screen.getAllByTitle(/Larry —/)).toHaveLength(4);
+    expect(screen.getByTitle(/King Kong —/)).toBeInTheDocument();
+    // ...at five distinct transforms, so none is hidden underneath another
+    const transforms = [...container.querySelectorAll('[title*="Larry —"], [title*="King Kong —"]')].map(
+      (el) => getComputedStyle(el as HTMLElement).transform
+    );
+    expect(new Set(transforms).size).toBe(5);
+  });
+
+  it("gives every stacked fighter its OWN click target", () => {
+    const clicked: string[] = [];
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[larry(1), larry(2), larry(3), larry(4)]}
+          highlightedFighters={["p1/sidekick-1", "p1/sidekick-2", "p1/sidekick-3", "p1/sidekick-4"]}
+          onFighterClick={(id) => clicked.push(id)}
+        />
+      </ChakraProvider>
+    );
+    for (const token of screen.getAllByTitle(/Larry —/)) fireEvent.click(token);
+    // each token routed to a DIFFERENT fighter — the pre-v28 failure was that four
+    // of these were physically unreachable, so this would have been ["…-4"] only
+    expect(new Set(clicked).size).toBe(4);
+  });
+
+  it("draws a SMALL fighter smaller than a NORMAL one", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={MAP} fighters={[larry(1, { space: "s1" }), fighter({ space: "s2" })]} />
+      </ChakraProvider>
+    );
+    const w = (el: HTMLElement) => parseFloat(getComputedStyle(el).width);
+    expect(w(screen.getByTitle(/Larry —/))).toBeLessThan(w(screen.getByTitle(/The Mandalorian/)));
+  });
+
+  it("renders the big body BEFORE the smalls, so smalls draw on top", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[larry(1), fighter({ id: "p2/kong", owner: "p2", name: "King Kong", space: "s1" }), larry(2)]}
+        />
+      </ChakraProvider>
+    );
+    const order = [...container.querySelectorAll('[title*="Larry —"], [title*="King Kong —"]')].map((el) =>
+      (el as HTMLElement).title.startsWith("King Kong") ? "big" : "small"
+    );
+    expect(order[0]).toBe("big");
+  });
+
+  it("keeps an ATTACK on a fighter sharing your own space clickable (v28 same-space adjacency)", () => {
+    // Gerry and an enemy Larry on one space: same-space fighters are mutually
+    // adjacent when either is small, so the server offers the attack.
+    const clicked: string[] = [];
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[
+            fighter({ id: "p1/hero", name: "Gerry", size: "SMALL", space: "s1" }),
+            larry(9, { id: "p2/sidekick-9", owner: "p2", space: "s1" }),
+          ]}
+          highlightedFighters={["p2/sidekick-9"]}
+          onFighterClick={(id) => clicked.push(id)}
+        />
+      </ChakraProvider>
+    );
+    fireEvent.click(screen.getByTitle(/Larry —/));
+    expect(clicked).toEqual(["p2/sidekick-9"]);
+  });
+
+  it("stacks 4 corpses on one space without collapsing their countdown pips", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[]}
+          tokens={Array.from({ length: 4 }, (_, i) => ({
+            id: `corpse-${i}`,
+            kind: "corpse" as const,
+            owner: "p1" as const,
+            space: "s1",
+            ownerTurnsRemaining: 3,
+          }))}
+        />
+      </ChakraProvider>
+    );
+    // The disc carries the title; its POSITIONED wrapper carries the stack offset.
+    const wrappers = [...container.querySelectorAll('[title*="Corpse"]')]
+      .map((el) => el.parentElement as HTMLElement)
+      .filter((el): el is HTMLElement => !!el);
+    const transforms = wrappers.map((el) => getComputedStyle(el).transform).filter(Boolean);
+    expect(new Set(transforms).size).toBeGreaterThanOrEqual(4);
+    // …and every corpse still draws its 3 pips, rather than one smeared blob
+    const pipStrips = [...container.querySelectorAll('[title*="Corpse"]')].filter(
+      (el) => el.children.length === 3
+    );
+    expect(pipStrips).toHaveLength(4);
   });
 });

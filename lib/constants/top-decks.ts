@@ -657,4 +657,27 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     lab: true,
     tier: "lab",
   },
+  {
+    // In-the-lab Pro deck (unmatched.cards 5jGPM / version qOz5NtMP3P) — server
+    // hero gerry-the-isopod (issue #553 ↔ engine #316/#317/#318). The colony deck:
+    // four interchangeable Larrys spent as costs, and the first consumer of the
+    // v26 board-object CORPSE kind. Real unmatched.cards page, so no `original`
+    // and the lobby deep-link is derived from `id`.
+    id: "5jGPM",
+    name: "Gerry the Isopod",
+    hero: "Gerry the Isopod",
+    author: "Emperourrrrr",
+    sourceUrl: "https://unmatched.cards/decks/5jGPM/versions/qOz5NtMP3P",
+    likes: 0,
+    // The deck's own borderColour/highlightColour from the author's appearance block.
+    highlightColour: "#5050a0",
+    // Repo-relative (malfurion/Vader precedent): the tile art is served out of this
+    // app's own public/, so it renders on localhost and preview builds too.
+    cardbackUrl: "/evergreen-decks/art/5jGPM/cardback.webp",
+    // Engine serves this hero at tier `lab` (server/content.ts): out of random bot
+    // rotation and the eval corpora while the corpse economy and the small-fighter
+    // divergence get live playtesting.
+    lab: true,
+    tier: "lab",
+  },
 ];

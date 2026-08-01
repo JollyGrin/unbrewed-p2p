@@ -14,6 +14,7 @@ import {
   ValueBreakdown,
   ViewPlayer,
 } from "./protocol";
+import { boardObjectOriginFighter, boardObjectVisualFor } from "./boardObjects";
 import { deriveTeams, isViewerOnWinningTeam } from "./teams";
 import { sweptFighters } from "./sweep";
 import { combatOutcomeLogText } from "./combatOutcome";
@@ -390,6 +391,14 @@ export function diffViews(
           : { text: `${f.name} was defeated!`, who: "game" }
       );
     }
+    // BENIGN removal (protocol v27 `removeFromBoard` / FIGHTER_REMOVED — Gerry's
+    // Cannibalize eating a LIVING Larry): off the board, still alive, so neither the
+    // move branch above (it requires a destination) nor the defeat branch fires and
+    // the fighter used to just vanish from the board unremarked. Derived from the
+    // snapshot rather than the event so it also narrates on an older/quieter server.
+    if (!f.space && was.space && !f.defeated && !was.defeated) {
+      lines.push({ text: `${f.name} was removed from the battlefield`, who: whoOf(f.owner) });
+    }
   }
 
   // cards: draws and discard-pile growth. Only the viewer's own hand has
@@ -449,19 +458,39 @@ export function diffViews(
     )
   );
 
-  // tokens (totems): appearances and disappearances
+  // board objects (protocol v26): appearances and disappearances, worded per KIND.
+  // A corpse is not "placed" by anyone — it is what a body leaves behind — and it can
+  // leave by being eaten (EFFECT) or by rotting out (EXPIRED), which the countdown
+  // pips have been advertising. Unmapped future kinds fall back to the registry's
+  // generic noun rather than being called totems.
   const prevTokens = new Map((prev.tokens ?? []).map((t) => [t.id, t]));
   const nextTokens = new Map((next.tokens ?? []).map((t) => [t.id, t]));
+  const fighterNameOf = (id: string | null): string | null =>
+    id ? (next.fighters.find((f) => f.id === id)?.name ?? null) : null;
+  const destroyReasons = new Map(
+    events.flatMap((e) => (e.type === "TOKEN_DESTROYED" ? [[e.token, e.reason] as const] : []))
+  );
   for (const t of nextTokens.values()) {
-    if (!prevTokens.has(t.id)) {
-      lines.push({ text: `${seat(t.owner)} placed a totem`, who: whoOf(t.owner) });
+    if (prevTokens.has(t.id)) continue;
+    const noun = boardObjectVisualFor(t).noun;
+    if (t.kind === "corpse") {
+      const from = fighterNameOf(boardObjectOriginFighter(t));
+      lines.push({
+        text: from
+          ? `${from}'s ${noun} remains on the battlefield`
+          : `A ${noun} remains on the battlefield`,
+        who: whoOf(t.owner),
+      });
+    } else {
+      lines.push({ text: `${seat(t.owner)} placed a ${noun}`, who: whoOf(t.owner) });
     }
   }
   for (const t of prevTokens.values()) {
-    if (!nextTokens.has(t.id)) {
-      const owner = t.owner === next.you ? "Your" : `${seat(t.owner)}'s`;
-      lines.push({ text: `${owner} totem was destroyed`, who: whoOf(t.owner) });
-    }
+    if (nextTokens.has(t.id)) continue;
+    const noun = boardObjectVisualFor(t).noun;
+    const owner = t.owner === next.you ? "Your" : `${seat(t.owner)}'s`;
+    const verb = destroyReasons.get(t.id) === "EXPIRED" ? "rotted away" : "was destroyed";
+    lines.push({ text: `${owner} ${noun} ${verb}`, who: whoOf(t.owner) });
   }
 
   if (next.winner && !prev.winner) {

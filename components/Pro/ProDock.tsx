@@ -388,8 +388,12 @@ export const ProDock = ({
       {turnChips}
       {moveChoiceNames && (
         <Text fontSize="0.8rem" color="#C4B5FD" fontWeight="bold" textShadow="0 1px 3px rgba(0,0,0,0.6)">
-          {moveChoiceNames.join(" or ")} can both move here — click which fighter should move (or tap the
-          space again to cancel)
+          {/* "both" was hardcoded when two candidates was the only case. Protocol
+              v28 (SMALL fighters) makes four same-named Larrys reaching one space
+              ordinary, so the count drives the wording. Names arrive pre-badged
+              ("Larry 2") and the matching number is on the board token. */}
+          {moveChoiceNames.join(" or ")} can {moveChoiceNames.length > 2 ? "all" : "both"} move here —
+          click which fighter should move (or tap the space again to cancel)
         </Text>
       )}
       {!moveChoiceNames && !stepping && (highlightedCount > 0 || attackTargetCount > 0) && (

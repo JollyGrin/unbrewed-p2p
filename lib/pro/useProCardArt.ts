@@ -91,6 +91,14 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // precedent), NOT the full-bleed `cardImage` path the two Sith decks and Luke use
   // for their authors' finished renders.
   doppelganger: "doppelganger",
+  // Gerry the Isopod (issue #553 ↔ engine #316/#317/#318): community deck 5jGPM by
+  // Emperourrrrr, the CORPSE deck — defeated Larrys stay on the board as v26
+  // board objects for three of the owner's turns. Card faces are the author's
+  // own picture picks, self-hosted per #446 and drawn through the generated card
+  // template via per-card `imageUrl` (Cairne precedent), NOT the full-bleed
+  // `cardImage` path. Four of the ten faces are low-res web thumbnails the author
+  // hotlinked; they ship as-is per the 2026-08-01 ruling.
+  "gerry-the-isopod": "5jGPM",
 };
 
 /**

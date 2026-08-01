@@ -26,7 +26,10 @@ import {
   CardMeta,
   PlayerId,
   ReplayExpansion,
+  ViewFighter,
+  ViewToken,
 } from "@/lib/pro/protocol";
+import { boardObjectOriginFighter } from "@/lib/pro/boardObjects";
 import { opponentSeats, toPlayerView, turnMarkers } from "@/lib/pro/godView";
 import { replayHeroFor, replayHeroList, replaySeatIds } from "@/lib/pro/replayHeroes";
 
@@ -171,6 +174,12 @@ export const ReplayScrubber = ({
   // owner seat -> { badge, heroArtUrl }: one map feeding both the token badge and
   // the flag-driven portrait swap, so replay tide art tracks the scrubbed step.
   const ownerTokenState = useMemo(() => fighterTokenStateByOwner(view.players), [view]);
+  // The fighter a board OBJECT came from (protocol v26 `origin`), for corpse art +
+  // labels. Its record is still in `view.fighters` after the defeat, off-board.
+  const originFighter = (t: ViewToken): ViewFighter | null => {
+    const id = boardObjectOriginFighter(t);
+    return id ? (view.fighters.find((f) => f.id === id) ?? null) : null;
+  };
   const oppSeats = opponentSeats(step, focus);
   const markers = useMemo(() => turnMarkers(steps), [steps]);
   const labelFor = (c: CardInstanceId) => labelForCard(catalog, c);
@@ -238,6 +247,17 @@ export const ReplayScrubber = ({
           map={view.map}
           fighters={view.fighters}
           tokens={view.tokens}
+          // A corpse renders as the (greyed, flipped) fighter it came from, in the
+          // replay exactly as in the live game — same `origin` → fighter → art path.
+          boardObjectArt={(t) => {
+            const f = originFighter(t);
+            if (!f) return null;
+            const st = ownerTokenState[f.owner];
+            if (f.kind === "HERO" && st?.heroArtUrl) return st.heroArtUrl;
+            const heroId = ownerHeroIds[f.owner];
+            return heroId ? resolveFighterToken(heroId, f.kind) : null;
+          }}
+          boardObjectOriginName={(t) => originFighter(t)?.name ?? null}
           fighterTokenArt={(f) => {
             // Flag-driven portrait swap (Thetis tide) wins for the HERO token;
             // else the deck's fixed per-hero token art.
