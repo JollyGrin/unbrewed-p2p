@@ -164,7 +164,8 @@
       "isRanged": false,
       "move": 2,
       "name": "Gerry",
-      "specialAbility": "MY CHILDREN: Whenever a Larry is defeated, draw 1 card.\n\nGerry is the main hero. If Gerry is defeated, you lose the game.\n\n\n\n"
+      "specialAbility": "MY CHILDREN: Whenever a Larry is defeated, draw 1 card.\n\nGerry is the main hero. If Gerry is defeated, you lose the game.\n\n\n\n",
+      "tokenImageUrl": "/evergreen-decks/art/5jGPM/token-gerry.webp"
     },
     "name": "",
     "ruleCards": [
@@ -178,7 +179,8 @@
       "isRanged": false,
       "name": "Larry",
       "quantity": 4,
-      "quote": "MOLT: At the start of your turn, heal 1 health."
+      "quote": "MOLT: At the start of your turn, heal 1 health.",
+      "tokenImageUrl": "/evergreen-decks/art/5jGPM/token-larry.webp"
     }
   },
   "deck_first_published_on": "Tue, 14 Jul 2026 22:55:18 GMT",
