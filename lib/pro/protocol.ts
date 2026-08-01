@@ -423,13 +423,20 @@
  * ### Client rule for `botTiers` (both directions of skew)
  * ABSENT `botTiers` means "this server does not advertise per-hero bot tiers" —
  * the client MUST fall back to the v22 tier set (`easy|medium|hard`) for that
- * hero. PRESENT `botTiers` is authoritative and MUST be used as-is: it always
- * contains the always-available tiers, and `expert` appears only on heroes the
- * ladder actually measured (the #239 corpus is 3 heroes on 1 map, and per-hero
- * availability is how that honesty reaches the UI). A client must not assume
- * two heroes carry the same list. CREATE_ROOM enforces the same list — an
- * `expert` request naming an unlisted hero (the bot's OR the creator's) answers
- * BAD_MESSAGE — so the field is UI affordance over an enforced rule.
+ * hero. PRESENT `botTiers` is authoritative and MUST be used as-is; a client
+ * must not assume two heroes carry the same list, even though today they do
+ * (see the #283 note below). Asking for a tier a hero does not list is refused
+ * with BAD_MESSAGE, so the field is UI affordance over an enforced rule.
+ *
+ * ### Policy change (2026-07-28, no version bump): expert on every hero (#283)
+ * `botTiers` originally carried `expert` only on the three heroes the #239
+ * ladder measured. It now carries it on every served hero once exposure is on.
+ * The wire SHAPE is unchanged — same optional field, same per-hero list, same
+ * refusal — so this is a server policy change, not a protocol one, and a client
+ * written against the v23 rule above needs no edit. What moved is where the
+ * honesty lives: strength is still measured on 3 heroes and 1 map, and the
+ * remaining decks are labelled ALPHA client-side (p2p#458) instead of being
+ * silently greyed out. Clients SHOULD carry that label; the server cannot.
  *
  * ### Otherwise additive in every direction
  * - The DEFAULT is unchanged. Nothing on the wire carries a default difficulty;
@@ -496,12 +503,57 @@
  * - `CARD_TUCKED` / `CARD_RETURNED_FROM_PILE` events narrate the moves.
  * - A client that ignores the field renders exactly as on v24, except that a tucked
  *   card is in no zone it knows — clients SHOULD render the pile beside the discard.
+ *
+ * ## v26 (2026-08-01): board objects generalized (engine #317, DSL v0.33.0)
+ * `ViewToken` stopped being "a Thrall totem". The engine's board-object collection
+ * now carries a KIND plus a per-kind policy, and the first new kind is `corpse` —
+ * a defeated fighter's body that stays on the board for a few turns (Gerry the
+ * Isopod). Additive; a v25 client keeps rendering totems correctly.
+ *
+ * - `ViewToken.kind` widened from the literal `"totem"` to `ViewTokenKind`
+ *   (`"totem" | "corpse"`, and it will grow). Same on `TOKEN_PLACED` /
+ *   `TOKEN_DESTROYED`.
+ * - `ViewToken.ownerTurnsRemaining` — countdown pips; ABSENT = permanent.
+ * - `ViewToken.origin` — display provenance, e.g. `"corpse-of:p1/sidekick-2"`, so a
+ *   corpse can render as the greyed fighter it was. ABSENT for card-placed objects.
+ * - `TOKEN_DESTROYED.reason` gains `"EXPIRED"` (the countdown ran out).
+ * - **Client-visible behaviour change:** board objects may now SHARE A SPACE (a
+ *   corpse and a totem, or two corpses). Anything keying board objects by space
+ *   — notably a CHOOSE_SPACE prompt-option map — must key by `ViewToken.id`.
+ *
+ * ## v27 (2026-08-01): benign removal (engine #318, DSL v0.34.0)
+ * One additive `GameEvent` variant. `removeFromBoard` — declared in the DSL since
+ * v0.1 and always throwing until now — took a body off the board WITHOUT defeating
+ * it (Gerry the Isopod's "Cannibalize": eat a living Larry). That is a distinct
+ * thing from a defeat and must not reuse `FIGHTER_DEFEATED`, which every client
+ * treats as a death (FX, log line, and — for this deck — a corpse marker).
+ *
+ * - `FIGHTER_REMOVED { fighter, space }` — the fighter left `space` alive. The
+ *   figure's own record no longer carries a space, which is why the event does.
+ *   A client that does not know the variant simply drops it and still sees the
+ *   figure disappear from the next `PlayerView`; nothing else moved.
+ *
+ * ## v28 (2026-08-01): the SMALL fighter class (engine #318, DSL v0.35.0)
+ * The official small-fighter rules (Teen Spirit p.16) land in the engine, and one of
+ * them is client-visible in a way nothing before it was: **several fighters may now
+ * occupy the same space.**
+ *
+ * - `ViewFighter.size` — `"NORMAL" | "LARGE" | "SMALL"`. LARGE was always inferable
+ *   from `tailSpace`; SMALL is not inferable from anything else on the wire.
+ * - **Client-visible behaviour change:** up to 4 SMALL fighters plus at most one
+ *   non-small may share a `space`, and they may belong to DIFFERENT players. Anything
+ *   keying fighters by space — board rendering, target pickers, the CHOOSE_SPACE
+ *   prompt map — must handle N fighters per space and key by `ViewFighter.id`.
+ * - Same-space fighters are mutually ADJACENT when either is small, so a legal attack
+ *   may name a target on the attacker's own space. Targeting is already fighter-id
+ *   keyed; only range HINTS drawn from space adjacency need to know.
  */
-export const PROTOCOL_VERSION = 25;
+export const PROTOCOL_VERSION = 28;
 
 /**
  * Scripted-AI strength preset (server-side budgets; client treats as opaque).
- * `expert` (v23) is not offered for every hero — see `HeroListing.botTiers`.
+ * `expert` (v23) is offered per hero — see `HeroListing.botTiers` — and only
+ * when the server's exposure switch is on.
  */
 export type BotDifficulty = "easy" | "medium" | "hard" | "expert";
 
@@ -655,9 +707,11 @@ export type GameEvent =
   | { type: "ADDITIONAL_DEFENSE_PLAYED"; player: PlayerId; card: CardInstanceId }
   | { type: "CARD_REVEALED"; player: PlayerId; card: CardInstanceId }
   | { type: "DECK_SHUFFLED"; player: PlayerId }
-  | { type: "TOKEN_PLACED"; token: string; kind: "totem"; owner: PlayerId; space: SpaceId }
-  | { type: "TOKEN_DESTROYED"; token: string; kind: "totem"; owner: PlayerId; space: SpaceId; reason: "EFFECT" | "ENTERED" | "REPLACED" | "OWNER_ELIMINATED" }
+  | { type: "TOKEN_PLACED"; token: string; kind: ViewTokenKind; owner: PlayerId; space: SpaceId; origin?: string }
+  | { type: "TOKEN_DESTROYED"; token: string; kind: ViewTokenKind; owner: PlayerId; space: SpaceId; reason: "EFFECT" | "ENTERED" | "REPLACED" | "OWNER_ELIMINATED" | "EXPIRED" }
   | { type: "FIGHTER_REVIVED"; fighter: FighterId; space: SpaceId }
+  // v27 — benign removal: the fighter left `space` ALIVE (removeFromBoard). Not a death.
+  | { type: "FIGHTER_REMOVED"; fighter: FighterId; space: SpaceId }
   | { type: "FIGHTER_PINNED"; fighter: FighterId; expiresAtTurn: number; expiresAt: "START" | "END" }
   | { type: "FIGHTER_TAIL_PLACED"; fighter: FighterId; space: SpaceId }
   | { type: "FIGHTER_EJECTED"; fighter: FighterId; to: SpaceId }
@@ -870,6 +924,11 @@ export interface ViewFighter {
   hp: number;
   maxHp: number;
   reach: "MELEE" | "RANGED" | "LUNGE"; // LUNGE v0.15.0 (General Grievous) — client renders the lunge reach icon
+  // v28 — the fighter's size class. LARGE was previously inferable from `tailSpace`;
+  // SMALL is not inferable from anything on the wire, and the client needs it: several
+  // small fighters legally SHARE a space (≤4 smalls + ≤1 non-small), so the board must
+  // stack them, and same-space fighters are mutually adjacent for targeting.
+  size: "NORMAL" | "LARGE" | "SMALL";
   defeated: boolean;
   // Additive field (2026-07-16, no version bump): per-fighter status effects
   // (issue #204) — the fighter-scoped parallel to ViewSelf/ViewOpponent.flags
@@ -894,14 +953,35 @@ export interface FighterStatus {
   expiresAt?: "START" | "END" | null;
 }
 
-// Neutral board tokens (totems). Nothing about a totem is hidden — the full list
-// is sent to both players; the client renders a non-interactive sprite at
-// `space` and diffs appearances/disappearances (TOKEN_PLACED/TOKEN_DESTROYED).
+// Board object kinds (protocol v26). 'totem' = Thrall's totems, unchanged.
+// 'corpse' = a defeated fighter's body left on the board (Gerry the Isopod). A
+// client that does not know a kind should still render SOMETHING at `space` —
+// kinds are additive and this union will grow (walls, traps, decoys).
+export type ViewTokenKind = "totem" | "corpse";
+
+// Neutral board objects. Nothing about one is hidden — the full list is sent to
+// both players; the client renders a non-interactive sprite at `space` and diffs
+// appearances/disappearances (TOKEN_PLACED/TOKEN_DESTROYED).
+//
+// NO board object participates in occupancy: fighters enter, pass through, and end
+// on any object's space. Two objects CAN share a space (a corpse and a totem, or two
+// corpses) — the pre-v26 "tokens never share a space" assumption no longer holds, so
+// a client keying board objects by space must key by `id` instead.
 export interface ViewToken {
   id: string;
-  kind: "totem";
+  kind: ViewTokenKind;
   owner: PlayerId;
   space: SpaceId;
+  // Countdown lifecycle (protocol v26). Remaining OWNER turns before the object is
+  // removed — render as pips. It ticks down at the start of each of the owner's
+  // turns and the object disappears at the start of the owner's turn on which this
+  // reads 0, so "0" means "gone at your next turn's start". ABSENT = permanent
+  // (every totem).
+  ownerTurnsRemaining?: number;
+  // Provenance for display only, e.g. "corpse-of:p1/sidekick-2" — lets the client
+  // label a corpse with the fighter it came from (a greyed Larry, not a generic
+  // marker). Absent for card-placed objects. The engine never reads it.
+  origin?: string;
 }
 
 // Incremental maneuver movement (issue #55). A per-fighter graph the client walks
@@ -1204,10 +1284,10 @@ export interface HeroListing {
   // ABSENT = this server doesn't advertise per-hero tiers; fall back to the v22
   // set (easy|medium|hard). A server with the expert tier dormant omits it
   // entirely, so absence is the normal case, not an error. When PRESENT it is
-  // authoritative: it always contains the always-available tiers, carries
-  // `expert` only where the ladder measured it, and must not be assumed equal
-  // across heroes. The lobby should grey out (not hide) a missing tier; asking
-  // for one anyway is refused with BAD_MESSAGE.
+  // authoritative and must not be assumed equal across heroes — though since
+  // #283 every served hero does list the same set, `expert` included. The lobby
+  // should grey out (not hide) a missing tier; asking for one anyway is refused
+  // with BAD_MESSAGE.
   botTiers?: BotDifficulty[];
 }
 

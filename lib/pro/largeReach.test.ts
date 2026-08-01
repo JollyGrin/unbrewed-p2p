@@ -29,6 +29,7 @@ const fighter = (over: Partial<ViewFighter>): ViewFighter => ({
   hp: 10,
   maxHp: 10,
   reach: "MELEE",
+  size: "NORMAL",
   defeated: false,
   ...over,
 });

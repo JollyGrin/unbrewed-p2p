@@ -1,0 +1,334 @@
+{
+  "bgg_link": null,
+  "created_on": "Thu, 30 Jul 2026 02:32:24 GMT",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#5050a0",
+      "cardbackUrl": "/evergreen-decks/art/5jGPM/cardback.webp",
+      "highlightColour": "#5050a0",
+      "isPNP": false,
+      "patternName": "Floating Cogs"
+    },
+    "cards": [
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/5jGPM/family-sacrifice.82e6fd23.webp",
+        "immediateText": "You may defeat up to 2 Larrys. For each Larry defeated this way, increase this card's value by 2.\n",
+        "quantity": 3,
+        "title": "Family sacrifice",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": null,
+        "basicText": "Choose 2 adjacent Larrys. Summon 1 Larry adjacent to either of them.\nDraw 1 card.",
+        "boost": 3,
+        "characterName": "ANY",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/5jGPM/breed.26515e07.webp",
+        "immediateText": null,
+        "quantity": 5,
+        "title": "Breed",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "This card's value is increased by 1 for each of your fighters adjacent to the opposing fighter.",
+        "imageUrl": "/evergreen-decks/art/5jGPM/swarm.d3ae137f.webp",
+        "immediateText": "Move any number of your fighters within 2 spaces of the opposing fighter so they become adjacent to that fighter.",
+        "quantity": 3,
+        "title": "Swarm",
+        "type": "attack",
+        "value": 2
+      },
+      {
+        "afterText": "You may have this fighter curl up. If you do, reduce combat damage dealt to this fighter by 2, and this fighter cannot move until the end of its next turn.",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/5jGPM/protection.e037efec.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Protection",
+        "type": "defence",
+        "value": 2
+      },
+      {
+        "afterText": null,
+        "basicText": "Choose 1:\n• Each of your fighters recovers 2 health.\n• Summon 1 Larry adjacent to one of your fighters.\n\nDraw 1 card. Gain 1 action.",
+        "boost": 3,
+        "characterName": "ANY",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/5jGPM/calcium-yum-yum.23926f84.webp",
+        "immediateText": null,
+        "quantity": 2,
+        "title": "Calcium Yum Yum",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "The loser of combat cannot move during their next turn.",
+        "basicText": "",
+        "boost": 4,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/5jGPM/headbutt.e2dd3385.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Headbutt",
+        "type": "attack",
+        "value": 5
+      },
+      {
+        "afterText": null,
+        "basicText": "Choose a Larry or defeated Larry. Heal each of your fighters adjacent to that Larry 3 health. Remove that Larry from the battlefield.",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/5jGPM/cannibalize.ca8bf214.webp",
+        "immediateText": null,
+        "quantity": 3,
+        "title": "Cannibalize",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "If your opponent's card has a value of 4 or less, prevent all combat damage that would be dealt by that card. Then your opponent discards the top 2 cards of their deck.",
+        "basicText": "Bro might be dead 💀",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/5jGPM/play-dead.46060661.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Play Dead",
+        "type": "defence",
+        "value": 1
+      },
+      {
+        "afterText": "The loser of combat takes damage equal to the difference between the combat values.",
+        "basicText": "",
+        "boost": 4,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/5jGPM/bumpy-exoskeleton.a3eeb5c1.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Bumpy exoskeleton",
+        "type": "versatile",
+        "value": 5
+      },
+      {
+        "afterText": "If this fighter loses combat, each of your fighters may move up to 3 spaces.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/5jGPM/necromones.1d07586a.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Necromones",
+        "type": "defence",
+        "value": 3
+      }
+    ],
+    "extraCharacters": [
+      {
+        "hero": {
+          "hp": 3,
+          "isRanged": false,
+          "move": 2,
+          "name": "larry",
+          "specialAbility": "MOLT: At the start of your turn, heal 1 health.\n\nLarrys are sidekicks.\n"
+        },
+        "sidekick": {
+          "hp": null,
+          "isRanged": false,
+          "name": "Sidekick",
+          "quantity": 0,
+          "quote": ""
+        }
+      }
+    ],
+    "hero": {
+      "hp": 15,
+      "isRanged": false,
+      "move": 2,
+      "name": "Gerry",
+      "specialAbility": "MY CHILDREN: Whenever a Larry is defeated, draw 1 card.\n\nGerry is the main hero. If Gerry is defeated, you lose the game.\n\n\n\n"
+    },
+    "name": "",
+    "ruleCards": [
+      {
+        "content": "Start with Gerry and 2 Larrys.\n\nYou may not have more than 4 living Larrys.\n\nDefeated Larrys remain on the battlefield. Remove each defeated Larry at the end of your 3rd turn after it was defeated.\n\nGerry and all Larrys are small fighters.\n",
+        "title": "Isopod Colony"
+      }
+    ],
+    "sidekick": {
+      "hp": 3,
+      "isRanged": false,
+      "name": "Larry",
+      "quantity": 4,
+      "quote": "MOLT: At the start of your turn, heal 1 health."
+    }
+  },
+  "deck_first_published_on": "Tue, 14 Jul 2026 22:55:18 GMT",
+  "deck_published": true,
+  "family_id": "5jGPM",
+  "id": "5jGPM",
+  "liked": false,
+  "likes": 2,
+  "name": "Gerry the Isopod",
+  "note": "I raise isopods at home, and I decided to make a deck about them!\n\nI named the deck after one of the original 10, who i named Gerry. I named him that after the leader of the evolution skeleton army from Clash Royale. The picture for the card FAMILY SACRIFICE is of Gerry on my finger. \n\nI hope you enjoy this deck!\n-Emperour",
+  "published": true,
+  "published_on": "Thu, 30 Jul 2026 02:32:26 GMT",
+  "tags": [
+    {
+      "name": "Fully-arted",
+      "slug": "fully-arted"
+    },
+    {
+      "name": "Melee Hero",
+      "slug": "melee-hero"
+    },
+    {
+      "name": "Multiple Sidekicks",
+      "slug": "multiple-sidekicks"
+    },
+    {
+      "name": "extra rules",
+      "slug": "extra-rules"
+    },
+    {
+      "name": "isopod",
+      "slug": "isopod"
+    },
+    {
+      "name": "melee",
+      "slug": "melee"
+    },
+    {
+      "name": "Tested",
+      "slug": "tested"
+    }
+  ],
+  "updated_on": "Thu, 30 Jul 2026 04:14:10 GMT",
+  "user": "Emperourrrrr",
+  "version_id": "qOz5NtMP3P",
+  "version_name": "Complete Final Version",
+  "versions": [
+    {
+      "created_on": "Thu, 30 Jul 2026 02:32:24 GMT",
+      "id": "qOz5NtMP3P",
+      "name": "Gerry the Isopod",
+      "published": true,
+      "updated_on": "Thu, 30 Jul 2026 04:14:10 GMT",
+      "version_name": "Complete Final Version"
+    },
+    {
+      "created_on": "Tue, 28 Jul 2026 22:05:48 GMT",
+      "id": "ydJ5EcMX-7",
+      "name": "Gerry the Isopod",
+      "published": true,
+      "updated_on": "Thu, 30 Jul 2026 02:32:20 GMT",
+      "version_name": "Complete Final Version"
+    },
+    {
+      "created_on": "Tue, 28 Jul 2026 19:49:39 GMT",
+      "id": "42ZP_cDONP",
+      "name": "Gerry the Isopod",
+      "published": true,
+      "updated_on": "Tue, 28 Jul 2026 22:05:35 GMT",
+      "version_name": "Final Version"
+    },
+    {
+      "created_on": "Mon, 27 Jul 2026 19:42:51 GMT",
+      "id": "kYd5xUe-nO",
+      "name": "Gerry the Isopod",
+      "published": true,
+      "updated_on": "Tue, 28 Jul 2026 19:40:15 GMT",
+      "version_name": "Initial version"
+    },
+    {
+      "created_on": "Thu, 16 Jul 2026 22:03:32 GMT",
+      "id": "erxVyurq1E",
+      "name": "Gerry the Isopod",
+      "published": true,
+      "updated_on": "Mon, 27 Jul 2026 19:42:50 GMT",
+      "version_name": "Initial version"
+    },
+    {
+      "created_on": "Thu, 16 Jul 2026 22:02:16 GMT",
+      "id": "ZYM7KUA8d9",
+      "name": "Gerry the Isopod",
+      "published": true,
+      "updated_on": "Thu, 16 Jul 2026 22:02:18 GMT",
+      "version_name": "Initial version"
+    },
+    {
+      "created_on": "Thu, 16 Jul 2026 21:55:10 GMT",
+      "id": "XjnBKSXQG-",
+      "name": "Gerry the Isopod",
+      "published": true,
+      "updated_on": "Thu, 16 Jul 2026 22:02:15 GMT",
+      "version_name": "Initial version"
+    },
+    {
+      "created_on": "Thu, 16 Jul 2026 21:24:15 GMT",
+      "id": "KZ96nhqNb4",
+      "name": "Gerry the Isopod",
+      "published": true,
+      "updated_on": "Thu, 16 Jul 2026 21:55:10 GMT",
+      "version_name": "Initial version"
+    },
+    {
+      "created_on": "Thu, 16 Jul 2026 20:54:59 GMT",
+      "id": "G1dPnuKADn",
+      "name": "Gerry the Isopod",
+      "published": true,
+      "updated_on": "Thu, 16 Jul 2026 21:24:15 GMT",
+      "version_name": "Initial version"
+    },
+    {
+      "created_on": "Thu, 16 Jul 2026 20:18:02 GMT",
+      "id": "o6x9ru49yo",
+      "name": "Gerry the Isopod",
+      "published": true,
+      "updated_on": "Thu, 16 Jul 2026 20:54:59 GMT",
+      "version_name": "Initial version"
+    },
+    {
+      "created_on": "Wed, 15 Jul 2026 13:23:08 GMT",
+      "id": "5jGPMSAbyx",
+      "name": "Gerry the Isopod",
+      "published": true,
+      "updated_on": "Thu, 16 Jul 2026 17:16:11 GMT",
+      "version_name": "Initial version"
+    },
+    {
+      "created_on": "Wed, 15 Jul 2026 00:28:55 GMT",
+      "id": "B4KebcVAzg",
+      "name": "Gerry the Isopod",
+      "published": true,
+      "updated_on": "Wed, 15 Jul 2026 13:18:09 GMT",
+      "version_name": "Initial version"
+    },
+    {
+      "created_on": "Tue, 14 Jul 2026 22:55:14 GMT",
+      "id": "NQ_xdaJj12",
+      "name": "Gerry the Isopod",
+      "published": true,
+      "updated_on": "Tue, 14 Jul 2026 23:51:33 GMT",
+      "version_name": "Initial version"
+    }
+  ]
+}

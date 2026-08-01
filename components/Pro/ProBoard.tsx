@@ -21,6 +21,18 @@ import { TokenIdle, TokenLifeLayer, phaseSeed } from "./TokenLifeLayer";
 import { ItemBadge, PassageBadge } from "./ItemBadge";
 import type { FlagTokenBadge } from "@/lib/pro/heroStateFlags";
 import { fighterStatusBadgesFor } from "@/lib/pro/fighterStatuses";
+import {
+  boardObjectCountdown,
+  boardObjectTitle,
+  boardObjectVisualFor,
+} from "@/lib/pro/boardObjects";
+import {
+  objectStackOffsets,
+  SCALE_BY_SIZE,
+  stackLayout,
+  StackOccupant,
+  StackSlot,
+} from "@/lib/pro/tokenStack";
 import { useFlag } from "@/lib/flags";
 
 /** Hover/long-press tooltip for a live item token, per the official wording. */
@@ -180,8 +192,19 @@ const FX_COLOR: Record<BoardFxItem["kind"], string> = {
 export interface ProBoardProps {
   map: ProMapDef;
   fighters: ViewFighter[];
-  /** Neutral board tokens (totems) — non-interactive sprites, public to both players */
+  /** Neutral board OBJECTS (protocol v26) — non-interactive sprites, public to both
+   *  players. Kind-driven presentation via the BOARD_OBJECT_VISUALS registry; two
+   *  objects MAY share a space (a corpse and a totem, or two corpses), so they stack
+   *  with the same diagonal offset living fighters use. */
   tokens?: ViewToken[];
+  /** Portrait art for a CORPSE-style object, clipped into its disc (issue #553).
+   *  PRESENTATION ONLY — the caller resolves it from `ViewToken.origin` (the fighter
+   *  the object came from) exactly the way `fighterTokenArt` resolves a live token.
+   *  Absent/null → the object draws its registry glyph instead. */
+  boardObjectArt?: (token: ViewToken) => string | null | undefined;
+  /** Display name of the fighter an object came from (`ViewToken.origin`), for the
+   *  hover title. Absent/null → the title omits the provenance clause. */
+  boardObjectOriginName?: (token: ViewToken) => string | null | undefined;
   /** Spaces the current player can act on right now (move targets, placements…) */
   highlightedSpaces?: SpaceId[];
   /** Fighters the current player can act on right now (attack targets, movable…) */
@@ -309,6 +332,8 @@ export const ProBoard = ({
   extendedReachTargets = [],
   fighterTokenArt,
   fighterTokenBadge,
+  boardObjectArt,
+  boardObjectOriginName,
   fx = [],
   pendingMove = null,
   onPendingMoveSettled,
@@ -420,6 +445,33 @@ export const ProBoard = ({
     list.push(f);
     bySpace.set(f.space as SpaceId, list);
   }
+
+  // Per-space stack layout (protocol v28 — SMALL fighters share spaces). Keyed by
+  // `<fighterId>` for a head segment and `<fighterId>-tail` for a LARGE tail, so
+  // BOTH body spaces of a large fighter participate: a small standing on Kong's
+  // tail rings around the tail exactly as one on its head rings around the head.
+  // Occupant order is `view.fighters` order, which is stable across renders, so a
+  // token does not hop between ring positions on an unrelated state change.
+  const stackBySpace = new Map<SpaceId, Map<string, StackSlot>>();
+  {
+    const occupantsBySpace = new Map<SpaceId, StackOccupant[]>();
+    const add = (space: SpaceId, occupant: StackOccupant) => {
+      const list = occupantsBySpace.get(space) ?? [];
+      list.push(occupant);
+      occupantsBySpace.set(space, list);
+    };
+    for (const f of fightersOnBoard) {
+      add(f.space as SpaceId, { key: f.id, size: f.size ?? "NORMAL" });
+      // The tail is the same body: it is the ONE non-small on its space too.
+      if (f.tailSpace) add(f.tailSpace, { key: `${f.id}-tail`, size: f.size ?? "NORMAL" });
+    }
+    for (const [space, occupants] of occupantsBySpace) {
+      stackBySpace.set(space, stackLayout(occupants));
+    }
+  }
+  /** This token's drawn position + scale; centred full-size if the space is unknown. */
+  const slotFor = (space: SpaceId, key: string): StackSlot =>
+    stackBySpace.get(space)?.get(key) ?? { dx: 0, dy: 0, scale: SCALE_BY_SIZE.NORMAL, order: 0 };
 
   // v6 two-space (LARGE) fighters: `space` is the head, `tailSpace` the second
   // body space. The head renders through the normal per-space pass below;
@@ -537,7 +589,7 @@ export const ProBoard = ({
   const fighterToken = (
     f: ViewFighter,
     s: ProMapSpace,
-    nudge: number,
+    slot: StackSlot,
     segment: "head" | "tail",
     diam: number,
     anim?: { xs: number[]; ys: number[] }
@@ -645,10 +697,16 @@ export const ProBoard = ({
           {tokenInitials(f.name)}
         </Text>
         {segment === "head" && (
+          // NB `pointerEvents="none"` on every badge layer below: they are anchored at
+          // NEGATIVE offsets so they deliberately spill outside the token circle, and
+          // since protocol v28 the space next to a token is another stacked fighter.
+          // Without this a neighbour's HP badge sits over your token's centre and
+          // swallows the click — decorative chrome must never be a click target.
           <Flex
             position="absolute"
             bottom="-18%"
             right="-18%"
+            pointerEvents="none"
             bg="brand.surfaceDim"
             color="brand.parchment"
             border={`1.5px solid ${color}`}
@@ -666,6 +724,7 @@ export const ProBoard = ({
             position="absolute"
             top="-20%"
             right="-20%"
+            pointerEvents="none"
             minWidth="1.45em"
             h="1.45em"
             px="0.18em"
@@ -704,6 +763,7 @@ export const ProBoard = ({
             position="absolute"
             bottom="-20%"
             left="-20%"
+            pointerEvents="none"
             direction="column-reverse"
             alignItems="flex-start"
             gap="0.15em"
@@ -737,6 +797,7 @@ export const ProBoard = ({
             position="absolute"
             top="-18%"
             left="-18%"
+            pointerEvents="none"
             bg={color}
             color="#fff"
             border="1.5px solid #fff"
@@ -859,8 +920,10 @@ export const ProBoard = ({
         // is a real framer-motion Transition.
         transition={{ duration, ease: "easeInOut", times } as any}
         onAnimationComplete={anim ? () => onPendingMoveSettled?.() : undefined}
-        transform={`translate(calc(-50% + ${nudge}rem), calc(-50% + ${nudge}rem))`}
-        w={`${diam * 0.82}%`}
+        // v28: offsets are a PERCENTAGE OF THIS TOKEN'S OWN WIDTH, so the whole
+        // cluster scales with the board and the zoom transform (see tokenStack.ts).
+        transform={`translate(calc(-50% + ${slot.dx}%), calc(-50% + ${slot.dy}%))`}
+        w={`${diam * slot.scale}%`}
         sx={{ aspectRatio: "1" }}
         borderRadius="50%"
         bg={tokenLifeOn ? "transparent" : bodyBgToken}
@@ -899,6 +962,141 @@ export const ProBoard = ({
       >
         {body}
       </MotionFlex>
+    );
+  };
+
+  /**
+   * One board object (protocol v26), drawn from its registry entry. Non-interactive
+   * and BELOW the fighter layer in every kind — an object never blocks a space click
+   * and never competes with a fighter token for a target click.
+   *
+   * `muted` kinds (corpses) render as a DISC, not the totem diamond, because they are
+   * the fighter they came from: same circular silhouette, the origin fighter's own
+   * portrait art where the caller resolves one, greyscaled and rotated 180° so it
+   * reads as a body lying on its back — an isopod's death pose, and unmistakably not
+   * a live token. Countdown pips hang under the disc, one per remaining owner turn;
+   * `remaining === 0` is drawn as a single hollow pip ("gone at the owner's next turn
+   * start") because zero pips would read as permanent.
+   */
+  const boardObjectToken = (
+    t: ViewToken,
+    s: ProMapSpace,
+    offset: { dx: number; dy: number },
+    diam: number
+  ) => {
+    const visual = boardObjectVisualFor(t);
+    const color = PLAYER_COLOR[t.owner] ?? "#999";
+    const countdown = boardObjectCountdown(t);
+    const title = boardObjectTitle(t, t.owner, boardObjectOriginName?.(t));
+    const art = visual.muted ? boardObjectArt?.(t) : null;
+    // Percent-of-own-width, like the fighter stack — scales with board and zoom.
+    const tx = `calc(-50% + ${offset.dx}%)`;
+    const ty = `calc(-50% + ${offset.dy}%)`;
+
+    if (visual.shape === "diamond") {
+      return (
+        <Box
+          key={t.id}
+          position="absolute"
+          left={`${s.x * 100}%`}
+          top={`${s.y * 100}%`}
+          transform={`translate(${tx}, ${ty}) rotate(45deg)`}
+          w={`${diam * 0.55}%`}
+          sx={{ aspectRatio: "1", pointerEvents: "none" }}
+          bg="brand.surfaceDim"
+          border={`2px solid ${color}`}
+          borderRadius="20%"
+          boxShadow="0 1px 4px rgba(0,0,0,0.5)"
+          zIndex={2}
+          title={title}
+        />
+      );
+    }
+
+    return (
+      <Box
+        key={t.id}
+        position="absolute"
+        left={`${s.x * 100}%`}
+        top={`${s.y * 100}%`}
+        transform={`translate(${tx}, ${ty})`}
+        w={`${diam * 0.62}%`}
+        sx={{ aspectRatio: "1", pointerEvents: "none" }}
+        zIndex={2}
+      >
+        <Box
+          position="relative"
+          w="100%"
+          h="100%"
+          borderRadius="50%"
+          overflow="hidden"
+          bg={SURFACE_DIM}
+          // Dashed, dimmed rim: still owner-colored (whose body it is matters for
+          // Cannibalize) but visibly not the solid ring of a living fighter.
+          border={`2px dashed ${color}`}
+          opacity={0.72}
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          boxShadow="0 1px 4px rgba(0,0,0,0.5)"
+          title={title}
+        >
+          {art ? (
+            <Box
+              as="img"
+              src={art}
+              alt=""
+              draggable={false}
+              w="100%"
+              h="100%"
+              sx={{
+                objectFit: "cover",
+                objectPosition: "center top",
+                filter: "grayscale(1) brightness(0.65)",
+                transform: "rotate(180deg)",
+              }}
+            />
+          ) : (
+            <Text fontSize="0.6rem" lineHeight={1} color="brand.parchment" opacity={0.85}>
+              {visual.glyph}
+            </Text>
+          )}
+        </Box>
+        {countdown && (
+          // Pips ride just under the disc, outside its clip, so they stay legible
+          // over the board art at any zoom.
+          <Box
+            position="absolute"
+            left="50%"
+            top="100%"
+            transform="translate(-50%, 0.1rem)"
+            display="flex"
+            gap="0.1rem"
+            title={title}
+          >
+            {countdown.expiring ? (
+              <Box
+                w="0.28rem"
+                h="0.28rem"
+                borderRadius="50%"
+                border={`1px solid ${color}`}
+                boxShadow="0 0 2px rgba(0,0,0,0.9)"
+              />
+            ) : (
+              Array.from({ length: countdown.pips }, (_, i) => (
+                <Box
+                  key={i}
+                  w="0.28rem"
+                  h="0.28rem"
+                  borderRadius="50%"
+                  bg={color}
+                  boxShadow="0 0 2px rgba(0,0,0,0.9)"
+                />
+              ))
+            )}
+          </Box>
+        )}
+      </Box>
     );
   };
 
@@ -1068,30 +1266,22 @@ export const ProBoard = ({
         );
       })}
 
-      {/* neutral board tokens (totems) — below fighters, never clickable */}
+      {/* neutral board OBJECTS (protocol v26) — below fighters, never clickable.
+          Kind-driven via BOARD_OBJECT_VISUALS: totems keep their pre-v26 diamond
+          byte-for-byte, corpses draw as a muted, upside-down disc of the fighter they
+          came from plus countdown pips. Objects MAY share a space since v26, so they
+          stack on the same diagonal offset as co-located fighters instead of drawing
+          exactly on top of one another. */}
       {spaces
         .filter((s) => tokens.some((t) => t.space === s.id))
-        .flatMap((s) =>
-          tokens
-            .filter((t) => t.space === s.id)
-            .map((t) => (
-              <Box
-                key={t.id}
-                position="absolute"
-                left={`${s.x * 100}%`}
-                top={`${s.y * 100}%`}
-                transform="translate(-50%, -50%) rotate(45deg)"
-                w={`${diam * 0.55}%`}
-                sx={{ aspectRatio: "1", pointerEvents: "none" }}
-                bg="brand.surfaceDim"
-                border={`2px solid ${PLAYER_COLOR[t.owner] ?? "#999"}`}
-                borderRadius="20%"
-                boxShadow="0 1px 4px rgba(0,0,0,0.5)"
-                zIndex={2}
-                title={`Totem (${t.owner})`}
-              />
-            ))
-        )}
+        .flatMap((s) => {
+          const here = tokens.filter((t) => t.space === s.id);
+          // v28: up to 4 Larrys can die stacked, so up to 4 corpses share a space.
+          // Ringing them keeps each disc AND its countdown pips (which hang below
+          // the disc) legible instead of smearing them into one blob.
+          const offsets = objectStackOffsets(here.length);
+          return here.map((t, i) => boardObjectToken(t, s, offsets[i], diam));
+        })}
 
       {/* battlefield item tokens (v17) — a purple/versatile (combat) or
           yellow/lightning (scheme) square in the space's upper-right corner, and a
@@ -1297,26 +1487,34 @@ export const ProBoard = ({
         </svg>
       )}
 
-      {/* fighter tokens (heads; stack co-located tokens with a slight diagonal offset) */}
+      {/* fighter tokens (heads). v28: several fighters legally share a space, so
+          each space's occupants are laid out by `stackLayout` — the non-small keeps
+          the centre, smalls ring around it — and emitted in the layout's `order` so
+          the big body renders BEHIND the smalls standing on it (equal zIndex, DOM
+          order decides). Every token keeps its own click target. */}
       {spaces
         .filter((s) => bySpace.has(s.id))
         .flatMap((s) =>
-          (bySpace.get(s.id) as ViewFighter[]).map((f, i, all) =>
-            fighterToken(
-              f,
-              s,
-              (i - (all.length - 1) / 2) * 0.35,
-              "head",
-              diam,
-              pendingAnim?.fighterId === f.id ? pendingAnim : undefined
+          [...(bySpace.get(s.id) as ViewFighter[])]
+            .sort((a, b) => slotFor(s.id, a.id).order - slotFor(s.id, b.id).order)
+            .map((f) =>
+              fighterToken(
+                f,
+                s,
+                slotFor(s.id, f.id),
+                "head",
+                diam,
+                pendingAnim?.fighterId === f.id ? pendingAnim : undefined
+              )
             )
-          )
         )}
 
-      {/* tail tokens of two-space fighters — same interactions as the head */}
+      {/* tail tokens of two-space fighters — same interactions as the head. The tail
+          takes its own space's slot, so smalls sharing the TAIL space ring around it
+          just as they do around the head. */}
       {frameTwoSpace.flatMap((f) => {
         const tail = spaceById.get(f.tailSpace as SpaceId);
-        return tail ? [fighterToken(f, tail, 0, "tail", diam)] : [];
+        return tail ? [fighterToken(f, tail, slotFor(tail.id, `${f.id}-tail`), "tail", diam)] : [];
       })}
 
       {/* K.O. topple ghosts (issue #320) — a defeated fighter's fall, played on an

@@ -39,7 +39,14 @@ import {
   ViewCombat,
   ViewFighter,
   ViewPrompt,
+  ViewToken,
 } from "@/lib/pro/protocol";
+import {
+  boardObjectOriginFighter,
+  boardObjectVisualFor,
+  disambiguateLabels,
+} from "@/lib/pro/boardObjects";
+import { buildPromptSpaceMap } from "@/lib/pro/promptSpaces";
 import { replayId, saveReplay } from "@/lib/pro/replayStore";
 import { proErrorMessage } from "@/lib/pro/proErrors";
 import { ProConnectionStatus, useProSocket } from "@/lib/pro/useProSocket";
@@ -3742,20 +3749,33 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   // recurs among the attackers), badge the matching token with it, and append it
   // to the button label, so "with Raptor 2" visibly points at the #2 token.
   const nameOf = (id: FighterId) => view.fighters.find((f) => f.id === id)?.name ?? id.split("/")[1];
+  //
+  // v28 extends this to the MOVE chooser. With the SMALL fighter class a player can
+  // field four identically-named Larrys that all reach one space, and the chooser
+  // read "Larry or Larry or Larry or Larry" over four unnumbered ghosts — the exact
+  // #161 failure, one step further along. Numbering is driven off the union of the
+  // offered attackers and the open chooser's candidates, so the badge set is
+  // unchanged whenever no chooser is open (every pre-v28 situation).
   const attackerBadge: Partial<Record<FighterId, number>> = {};
   {
-    const orderByName = new Map<string, FighterId[]>(); // name -> distinct attacker ids, first-seen order
-    for (const a of legalActions) {
-      if (a.type !== "DECLARE_ATTACK") continue;
-      const name = nameOf(a.attacker);
+    const badgeCandidates: FighterId[] = [
+      ...legalActions.flatMap((a) => (a.type === "DECLARE_ATTACK" ? [a.attacker] : [])),
+      ...(moveChoice?.candidates ?? []),
+    ];
+    const orderByName = new Map<string, FighterId[]>(); // name -> distinct ids, first-seen order
+    for (const id of badgeCandidates) {
+      const name = nameOf(id);
       const list = orderByName.get(name) ?? [];
-      if (!list.includes(a.attacker)) list.push(a.attacker);
+      if (!list.includes(id)) list.push(id);
       orderByName.set(name, list);
     }
     for (const ids of orderByName.values()) {
       if (ids.length > 1) ids.forEach((id, i) => (attackerBadge[id] = i + 1));
     }
   }
+  /** A fighter's name with its disambiguator, when it has one ("Larry 2"). */
+  const badgedName = (id: FighterId) =>
+    attackerBadge[id] ? `${nameOf(id)} ${attackerBadge[id]}` : nameOf(id);
 
   // Large-fighter reach helper (issue #235): PRESENTATION ONLY. A melee attacker
   // two spaces from a LARGE fighter is offered the attack (engine rule, docs §4.2b)
@@ -3778,6 +3798,21 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
     const heroId = ownerHeroIds[f.owner];
     return heroId ? resolveFighterToken(heroId, f.kind) : null;
   };
+  // A board OBJECT that came from a fighter (protocol v26 `ViewToken.origin` —
+  // Gerry's corpses) resolves through the SAME art path as a living token, so a
+  // Larry's body on the board is recognisably that Larry. The fighter record is
+  // still in `view.fighters` after the defeat (off-board, `defeated:true`), which is
+  // why this can look it up at all. Card-placed objects (totems) carry no origin and
+  // fall through to null, keeping their registry sprite.
+  const originFighterOf = (t: ViewToken): ViewFighter | null => {
+    const id = boardObjectOriginFighter(t);
+    return id ? (fighterById.get(id as FighterId) ?? null) : null;
+  };
+  const boardObjectArt = (t: ViewToken): string | null => {
+    const f = originFighterOf(t);
+    return f ? fighterTokenArt(f) : null;
+  };
+  const boardObjectOriginName = (t: ViewToken): string | null => originFighterOf(t)?.name ?? null;
   /** Name + token art for a dock attack row; null when the view lost the fighter. */
   const fighterFace = (id: FighterId) => {
     const f = fighterById.get(id);
@@ -3809,16 +3844,45 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
     if (mapSpaceIds.has(o.label)) return o.label;
     return null;
   };
-  // space -> optionId (tokens never share a space, so this can't collide)
-  const promptSpaceOptions = new Map<SpaceId, string>(
-    promptForMe?.kind === "CHOOSE_SPACE"
-      ? promptForMe.options.flatMap((o) => {
-          const space = optionSpace(o);
-          return space ? [[space, o.id] as const] : [];
-        })
-      : []
+  // space -> optionIdS. Until protocol v26 this was a space -> ONE optionId map,
+  // justified by "tokens never share a space". v26 retired that assumption: board
+  // objects no longer participate in occupancy, so two corpses — or a corpse and a
+  // totem — can sit on one space, and a destroy-object prompt then offers SEVERAL
+  // options naming the same space (`execDestroyToken` labels each option with its
+  // token's space). The old Map silently kept the last of them, which made one
+  // offered object unclickable and left its button stranded in the panel.
+  //
+  // So: key the FULL list. A space with exactly one option answers on click exactly
+  // as before; an ambiguous space stays highlighted (its objects are still what the
+  // prompt is about) but every one of its options falls through to the panel, where
+  // `boardObjectOptionLabel` below tells them apart — a board click cannot express
+  // "the older of the two corpses here" and must not guess.
+  const promptSpaceMap = buildPromptSpaceMap(
+    promptForMe?.kind === "CHOOSE_SPACE" ? promptForMe.options : [],
+    (o) => optionSpace(o as LegalOption)
   );
+  const promptSpaceOptions = promptSpaceMap.bySpace as Map<SpaceId, string[]>;
+  /** Only the spaces whose click is unambiguous — the ones a board click can answer. */
+  const promptUnambiguousSpaces = promptSpaceMap.unambiguous as Map<SpaceId, string>;
   const promptSpaceIds = [...promptSpaceOptions.keys()];
+  /**
+   * Panel label for a CHOOSE_SPACE option that names a board OBJECT. The engine
+   * labels these with the object's SPACE, which is ambiguous exactly when it matters
+   * (two corpses on one space read as two identical "s12" buttons). Re-label from the
+   * live token so kind and countdown are visible; options that aren't objects, or
+   * whose token the view no longer holds, keep the server's own label untouched.
+   */
+  const tokensById = new Map((view.tokens ?? []).map((t) => [t.id, t]));
+  const boardObjectOptionLabel = (o: LegalOption): string => {
+    const tokenId = (o.data as { tokenId?: string } | undefined)?.tokenId;
+    const token = tokenId ? tokensById.get(tokenId) : undefined;
+    if (!token) return o.label;
+    const visual = boardObjectVisualFor(token);
+    const name = boardObjectOriginName(token);
+    const turns = token.ownerTurnsRemaining;
+    const life = turns === undefined || turns === null ? "" : ` · ${turns} turn${turns === 1 ? "" : "s"} left`;
+    return `${visual.label}${name ? ` of ${name}` : ""} at ${token.space}${life}`;
+  };
   const promptTargetIds =
     promptForMe?.kind === "CHOOSE_TARGET"
       ? promptForMe.options.map((o) => o.id).filter((id) => fighterIds.has(id))
@@ -3842,15 +3906,21 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   const poseIndex = buildPoseIndex(poseOptions);
   const activePoseAnchor =
     promptForMe && poseAnchor?.promptId === promptForMe.promptId ? poseAnchor.space : null;
+  // Only UNAMBIGUOUS space options count as board-answered; every option sharing a
+  // space with another falls through to the panel (see promptSpaceOptions above).
   const promptBoardIds = new Set([
-    ...promptSpaceOptions.values(),
+    ...promptUnambiguousSpaces.values(),
     ...promptTargetIds,
     ...poseOptions.map((p) => p.optionId),
     ...promptCardOptions.map((c) => c.id),
   ]);
-  const promptButtonOptions = promptForMe
-    ? promptForMe.options.filter((o) => !promptBoardIds.has(o.id))
-    : [];
+  const promptButtonOptions = disambiguateLabels(
+    promptForMe
+      ? promptForMe.options
+          .filter((o) => !promptBoardIds.has(o.id))
+          .map((o) => ({ ...o, label: boardObjectOptionLabel(o) }))
+      : []
+  );
   const promptBoardHint =
     poseIndex.size > 0
       ? activePoseAnchor
@@ -4016,10 +4086,21 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
       // "ignore" — not a pose space; fall through to the generic handling below.
     }
     // an open prompt owns the board — answer it first
-    const promptOption = promptForMe ? promptSpaceOptions.get(space) : undefined;
+    const promptOption = promptForMe ? promptUnambiguousSpaces.get(space) : undefined;
     if (promptForMe && promptOption) {
       respondToPrompt(promptForMe.promptId, promptOption);
       setSelectedFighter(null);
+      return;
+    }
+    // …unless several offered objects share this space (protocol v26 — two corpses,
+    // or a corpse and a totem). A click can't say WHICH, and picking one silently
+    // would be a guess, so send the player to the labelled panel buttons.
+    const ambiguous = promptForMe ? (promptSpaceOptions.get(space)?.length ?? 0) : 0;
+    if (promptForMe && ambiguous > 1) {
+      toast(`${ambiguous} objects on this space — pick one in the panel`, {
+        id: "pro-object-ambiguous",
+        icon: "🪦",
+      });
       return;
     }
     // issue #412: tapping a visible-but-unofferable space during a move prompt
@@ -4236,6 +4317,8 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
           extendedReachTargets={[...extendedReachTargets]}
           fighterTokenArt={fighterTokenArt}
           fighterTokenBadge={(f) => ownerTokenState[f.owner]?.badge ?? null}
+          boardObjectArt={boardObjectArt}
+          boardObjectOriginName={boardObjectOriginName}
           fx={boardFx}
           pendingMove={pendingMove ?? incomingMove}
           previewMove={previewMove}
@@ -4327,7 +4410,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
               }
             : null
         }
-        moveChoiceNames={moveChoice ? moveChoice.candidates.map((id) => nameOf(id)) : null}
+        moveChoiceNames={moveChoice ? moveChoice.candidates.map((id) => badgedName(id)) : null}
         selectedFighterName={selectedFighter ? selectedFighter.split("/")[1] : null}
         stepwiseMoves={!!moveGraph}
         highlightedCount={highlightedSpaces.length}
@@ -4456,8 +4539,8 @@ const PREVIEW_MAP = mendedDrum as ProMapDef;
 const previewFighters = (map: ProMapDef): ViewFighter[] => {
   const start = (slot: number) => map.spaces.find((s) => s.start?.slot === slot)?.id ?? null;
   return [
-    { id: "p1/hero", owner: "p1", kind: "HERO", name: "King Kong", space: start(1), tailSpace: null, hp: 18, maxHp: 18, reach: "MELEE", defeated: false },
-    { id: "p2/hero", owner: "p2", kind: "HERO", name: "Baba Yaga", space: start(2), tailSpace: null, hp: 14, maxHp: 14, reach: "RANGED", defeated: false },
+    { id: "p1/hero", owner: "p1", kind: "HERO", name: "King Kong", space: start(1), tailSpace: null, hp: 18, maxHp: 18, reach: "MELEE", size: "NORMAL", defeated: false },
+    { id: "p2/hero", owner: "p2", kind: "HERO", name: "Baba Yaga", space: start(2), tailSpace: null, hp: 14, maxHp: 14, reach: "RANGED", size: "NORMAL", defeated: false },
   ];
 };
 
