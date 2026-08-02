@@ -21,6 +21,7 @@ import { CardFace, ProHand } from "@/components/Pro/ProHand";
 import { useProCardArt } from "@/lib/pro/useProCardArt";
 import { fighterTokenStateByOwner } from "@/lib/pro/heroStateFlags";
 import { combatOutcomeBannerText, isNoWinner } from "@/lib/pro/combatOutcome";
+import { squadBadges } from "@/lib/pro/squadNumbers";
 import {
   CardInstanceId,
   CardMeta,
@@ -247,6 +248,9 @@ export const ReplayScrubber = ({
           map={view.map}
           fighters={view.fighters}
           tokens={view.tokens}
+          // Same stable squad numbers the live board paints (issue #560), so a
+          // replay of a six-clone squad is as readable as the game was.
+          fighterBadges={squadBadges(view.fighters)}
           // A corpse renders as the (greyed, flipped) fighter it came from, in the
           // replay exactly as in the live game — same `origin` → fighter → art path.
           boardObjectArt={(t) => {
