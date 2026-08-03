@@ -80,8 +80,14 @@ jobs:
         # so the deployed page is playable with zero config. To point Pages at a
         # different backend, set a repository variable of that name to the new
         # wss:// URL (Settings → Secrets and variables → Actions → Variables).
+        #
+        # NEXT_PUBLIC_API_URL (accounts API, issue #459) works the same way and
+        # falls back to https://api.unbrewed.xyz. The account chip hides itself
+        # whenever that host doesn't answer, so an unset/undeployed API leaves
+        # the site exactly as it is today.
         env:
           NEXT_PUBLIC_PRO_WS_URL: ${{ vars.NEXT_PUBLIC_PRO_WS_URL }}
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
           # Short commit hash surfaced in in-game bug reports (issue #87).
           NEXT_PUBLIC_COMMIT_SHA: ${{ github.sha }}
         run: ${{ steps.detect-package-manager.outputs.runner }} next build
