@@ -4,6 +4,7 @@ import { ChakraProvider } from "@chakra-ui/react";
 import { ProBoard } from "./ProBoard";
 import { ProMapDef, ViewFighter, ViewToken } from "@/lib/pro/protocol";
 import { __resetFlagsForTest } from "@/lib/flags";
+import { squadBadges } from "@/lib/pro/squadNumbers";
 
 // The zone-membership highlight (#413) is gated behind the default-OFF `zoneHover`
 // beta flag (#447). The flag store is a memoized module singleton seeded from
@@ -292,6 +293,32 @@ describe("ProBoard fighter disambiguator badge (issue #161)", () => {
     const badges = container.querySelectorAll('[title^="#"]');
     expect(badges).toHaveLength(1);
     expect(badges[0].getAttribute("title")).toBe("#2");
+  });
+
+  // Issue #560: #161's badges only existed while a chooser was open and were
+  // numbered by first-seen order among that chooser's candidates. Fed from
+  // squadBadges the board wears them ALL the time, numbered off the engine id —
+  // which is what lets a player follow one damaged clone across turns.
+  it("wears squadBadges numbers with no chooser open, keyed to the engine id", () => {
+    const roster = [raptor("p1/sidekick-1", "s1"), raptor("p1/sidekick-3", "s2")];
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard map={MAP} fighters={roster} fighterBadges={squadBadges(roster)} />
+      </ChakraProvider>
+    );
+    const badges = container.querySelectorAll('[title^="#"]');
+    expect([...badges].map((b) => b.getAttribute("title"))).toStrictEqual(["#1", "#3"]);
+  });
+
+  it("drops the badge once a squad is down to one survivor", () => {
+    const survivor = raptor("p1/sidekick-1", "s1");
+    const dead = { ...raptor("p1/sidekick-2", "s2"), defeated: true, space: null };
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard map={MAP} fighters={[survivor]} fighterBadges={squadBadges([survivor, dead])} />
+      </ChakraProvider>
+    );
+    expect(container.querySelector('[title^="#"]')).toBeNull();
   });
 });
 
