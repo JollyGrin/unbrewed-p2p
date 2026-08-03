@@ -315,13 +315,13 @@
     {
       "heroId": "doppelganger",
       "deckId": "doppelganger",
-      "version_id": "evergreen-1",
-      "frozenAt": "2026-07-30",
-      "digest": "sha256:05b37adc1a0d663d70456261dae20090b3926a8f1ca3c2a74b5ad9a5f70f1343",
+      "version_id": "evergreen-2",
+      "frozenAt": "2026-08-03",
+      "digest": "sha256:0ca4ecbd4e5fb2c8a8550cdc7029d1f14d8425cac4ab34962d7605cdfe5bffe8",
       "rulesVerified": {
         "repo": "unbrewed-pro-server",
         "file": "data/heroes/doppelganger.rules.ts",
-        "commit": "e82f2c0"
+        "commit": "6d47505"
       }
     },
     {

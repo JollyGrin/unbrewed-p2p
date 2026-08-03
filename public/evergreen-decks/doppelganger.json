@@ -12,11 +12,11 @@
     },
     "name": "The Doppelgänger",
     "hero": {
-      "hp": 15,
+      "hp": 16,
       "isRanged": false,
       "move": 2,
       "name": "The Doppelgänger",
-      "specialAbility": "STILL WATERS\nIf the final combat values are exactly equal, the combat has no winner. (Equality only — over-defending still loses the attack normally.)\n\nEQUILIBRIUM\nAfter a combat with no winner, the Doppelgänger holds EQUILIBRIUM. It holds until any combat has a winner — including one the Doppelgänger wins.",
+      "specialAbility": "STILL WATERS\nIf the final combat values are exactly equal, the combat has no winner. When the Doppelgänger defends, it may set its card's value equal to the attack's. (Equality only — over-defending still loses the attack normally.)\n\nEQUILIBRIUM\nAfter a combat with no winner, the Doppelgänger holds EQUILIBRIUM. It holds until any combat has a winner — including one the Doppelgänger wins.",
       "quote": "An original folklore duelist: the mirror-double that fights you to a standstill. It wins nothing and loses nothing, and every stalemate leaves it a little more balanced.",
       "tokenImageUrl": "/evergreen-decks/art/doppelganger/token-doppelganger.webp"
     },
@@ -31,14 +31,14 @@
     "ruleCards": [],
     "cards": [
       {
-        "afterText": "If the combat had no winner, deal 1 damage to the opposing fighter and draw 1 card.",
+        "afterText": "If the combat had no winner, deal 2 damage to the opposing fighter and draw 1 card.",
         "basicText": "",
         "boost": 1,
         "characterName": "DOPPELGÄNGER",
         "duringText": "You may set this card's value equal to the opposing card's value.",
         "imageUrl": "/evergreen-decks/art/doppelganger/step-for-step.webp",
         "immediateText": "",
-        "quantity": 4,
+        "quantity": 5,
         "title": "Step for Step",
         "type": "attack",
         "value": 1,
@@ -49,7 +49,7 @@
         "basicText": "",
         "boost": 2,
         "characterName": "DOPPELGÄNGER",
-        "duringText": "If you hold EQUILIBRIUM, this card's value is 5.",
+        "duringText": "If you hold EQUILIBRIUM, this card's value is 7.",
         "imageUrl": "/evergreen-decks/art/doppelganger/the-omen.webp",
         "immediateText": "",
         "quantity": 2,
@@ -63,7 +63,7 @@
         "basicText": "",
         "boost": 2,
         "characterName": "DOPPELGÄNGER",
-        "duringText": "If you hold EQUILIBRIUM, this card's value is increased by 2 and you lose EQUILIBRIUM.",
+        "duringText": "If you hold EQUILIBRIUM, this card's value is increased by 3 and you lose EQUILIBRIUM.",
         "imageUrl": "/evergreen-decks/art/doppelganger/shatter-the-glass.webp",
         "immediateText": "",
         "quantity": 2,
@@ -97,7 +97,7 @@
         "quantity": 2,
         "title": "Silvered Glass",
         "type": "defence",
-        "value": 3,
+        "value": 4,
         "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp"
       },
       {
@@ -108,7 +108,7 @@
         "duringText": "",
         "imageUrl": "/evergreen-decks/art/doppelganger/pale-company.webp",
         "immediateText": "",
-        "quantity": 2,
+        "quantity": 3,
         "title": "Pale Company",
         "type": "scheme",
         "value": null,
@@ -143,11 +143,11 @@
         "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp"
       },
       {
-        "afterText": "If the combat had no winner, you may move the Doppelgänger up to 2 spaces.",
+        "afterText": "If the combat had no winner, you may move the Doppelgänger up to 2 spaces, then draw 1 card.",
         "basicText": "",
         "boost": 2,
         "characterName": "DOPPELGÄNGER",
-        "duringText": "If you hold EQUILIBRIUM, this card's value is increased by 2.",
+        "duringText": "If you hold EQUILIBRIUM, this card's value is increased by 3.",
         "imageUrl": "/evergreen-decks/art/doppelganger/your-own-reflection.webp",
         "immediateText": "",
         "quantity": 3,
@@ -167,7 +167,7 @@
         "quantity": 3,
         "title": "The Glass Between",
         "type": "versatile",
-        "value": 2,
+        "value": 3,
         "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp"
       },
       {
@@ -178,7 +178,7 @@
         "duringText": "",
         "imageUrl": "/evergreen-decks/art/doppelganger/feint.webp",
         "immediateText": "Cancel all effects on your opponent's card.",
-        "quantity": 3,
+        "quantity": 2,
         "title": "Feint",
         "type": "versatile",
         "value": 2,
@@ -192,7 +192,7 @@
         "duringText": "",
         "imageUrl": "/evergreen-decks/art/doppelganger/regroup.webp",
         "immediateText": "",
-        "quantity": 3,
+        "quantity": 2,
         "title": "Regroup",
         "type": "versatile",
         "value": 1,
@@ -214,9 +214,9 @@
     "pro",
     "original"
   ],
-  "updated_on": "Thu, 30 Jul 2026 00:00:00 GMT",
+  "updated_on": "Mon, 03 Aug 2026 00:00:00 GMT",
   "user": "unbrewed",
-  "version_id": "evergreen-1",
-  "version_name": "Evergreen 1",
+  "version_id": "evergreen-2",
+  "version_name": "Evergreen 2",
   "versions": []
 }
