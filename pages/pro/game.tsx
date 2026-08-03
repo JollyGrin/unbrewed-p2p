@@ -86,6 +86,7 @@ import {
 } from "@/lib/pro/largeReach";
 import { useFlag } from "@/lib/flags";
 import { maneuverBoostHint } from "@/lib/pro/maneuverHint";
+import { badgedFighterName, fighterName, squadBadges } from "@/lib/pro/squadNumbers";
 import { buildPoseIndex, parsePoseOptions, poseHighlights, resolvePoseClick } from "@/lib/pro/moveChoice";
 import { moveBudgetLine, unofferableMoveFeedback } from "@/lib/pro/moveFeedback";
 import { cardFaceOptions } from "@/lib/pro/cardOptions";
@@ -3102,6 +3103,11 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
     if (!snapshot) return;
     const next = snapshot.view;
     const diff = diffViews(prevViewRef.current, next, (c) => cardLabel(next.catalog, c), snapshot.events);
+    // Same stable squad numbers the board badges carry (issue #560), so a feed
+    // line about one of six identical clones names the exact token ("Clone
+    // Trooper 3 takes 2 damage"). Off-board scope: the clone this batch just
+    // defeated still has to be nameable in its own death line.
+    const logBadges = squadBadges(next.fighters, { includeOffBoard: true });
     // Decoratively enrich with the engine's structured events for THIS batch —
     // tags discards with their reason and logs scheduled/delayed effects, value
     // changes, and gained actions. No events → same as diffViews. See enrichLines.
@@ -3111,8 +3117,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
             label: (source) => resolveEventSource(next, source),
             you: next.you,
             seat: (player) => seatLabel(next, player),
-            fighter: (id) =>
-              next.fighters.find((f) => f.id === id)?.name ?? id.split("/").pop() ?? id,
+            fighter: (id) => badgedFighterName(next.fighters, logBadges, id),
           })
         : diff;
     // A batch that spent an action but produced nothing visible (an empty-deck
@@ -3745,37 +3750,21 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   // Issue #161: when several same-named sidekicks can each declare an attack,
   // the sidebar offers "Attack <target> with <name>" once per attacker but the
   // board gives no clue which token is which — so the player guesses and picks
-  // the wrong one. Assign a 1..N disambiguator per shared name (only when a name
-  // recurs among the attackers), badge the matching token with it, and append it
-  // to the button label, so "with Raptor 2" visibly points at the #2 token.
-  const nameOf = (id: FighterId) => view.fighters.find((f) => f.id === id)?.name ?? id.split("/")[1];
+  // the wrong one. Badge the matching token with a number and append it to the
+  // button label, so "with Raptor 2" visibly points at the #2 token.
+  const nameOf = (id: FighterId) => fighterName(view.fighters, id);
   //
-  // v28 extends this to the MOVE chooser. With the SMALL fighter class a player can
-  // field four identically-named Larrys that all reach one space, and the chooser
-  // read "Larry or Larry or Larry or Larry" over four unnumbered ghosts — the exact
-  // #161 failure, one step further along. Numbering is driven off the union of the
-  // offered attackers and the open chooser's candidates, so the badge set is
-  // unchanged whenever no chooser is open (every pre-v28 situation).
-  const attackerBadge: Partial<Record<FighterId, number>> = {};
-  {
-    const badgeCandidates: FighterId[] = [
-      ...legalActions.flatMap((a) => (a.type === "DECLARE_ATTACK" ? [a.attacker] : [])),
-      ...(moveChoice?.candidates ?? []),
-    ];
-    const orderByName = new Map<string, FighterId[]>(); // name -> distinct ids, first-seen order
-    for (const id of badgeCandidates) {
-      const name = nameOf(id);
-      const list = orderByName.get(name) ?? [];
-      if (!list.includes(id)) list.push(id);
-      orderByName.set(name, list);
-    }
-    for (const ids of orderByName.values()) {
-      if (ids.length > 1) ids.forEach((id, i) => (attackerBadge[id] = i + 1));
-    }
-  }
-  /** A fighter's name with its disambiguator, when it has one ("Larry 2"). */
-  const badgedName = (id: FighterId) =>
-    attackerBadge[id] ? `${nameOf(id)} ${attackerBadge[id]}` : nameOf(id);
+  // Issue #560 makes that numbering PERSISTENT and STABLE. #161 (and its v28
+  // move-chooser extension) numbered by first-seen order among the open prompt's
+  // candidates, so the badges vanished with the prompt and "Clone Trooper 2" could
+  // be a different token next turn — with a six-clone squad that's the whole
+  // problem, since the summon lands in the ATTACKER's zone and "Same heart, same
+  // blood" cares which clone sits at 1 HP. squadBadges numbers off the engine id
+  // instead and derives the set from the roster, so every same-named board-mate is
+  // badged at all times and the numbers never reshuffle. See lib/pro/squadNumbers.
+  const attackerBadge = squadBadges(view.fighters);
+  /** A fighter's name with its stable squad number, when it has one ("Larry 2"). */
+  const badgedName = (id: FighterId) => badgedFighterName(view.fighters, attackerBadge, id);
 
   // Large-fighter reach helper (issue #235): PRESENTATION ONLY. A melee attacker
   // two spaces from a LARGE fighter is offered the attack (engine rule, docs §4.2b)
