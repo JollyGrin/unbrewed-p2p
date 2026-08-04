@@ -1,16 +1,23 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Box,
   Button,
+  Flex,
   Menu,
   MenuButton,
   MenuItem,
   MenuList,
   Text,
+  Tooltip,
 } from "@chakra-ui/react";
 import { useRouter } from "next/router";
 import { FaDiscord } from "react-icons/fa";
-import { signInUrl, signOut, useAccount } from "@/lib/account/useAccount";
+import {
+  refreshAccount,
+  signInUrl,
+  signOut,
+  useAccount,
+} from "@/lib/account/useAccount";
 
 /**
  * The optional Discord account affordance (issue #459) — a sign-in pill when
@@ -135,5 +142,103 @@ export const AccountChip = () => {
         </MenuItem>
       </MenuList>
     </Menu>
+  );
+};
+
+/** Matches the surrounding ProHud chips (components/Pro/ProHud.tsx). */
+const hudChipStyles = {
+  alignItems: "center",
+  gap: "0.3rem",
+  px: "0.5rem",
+  py: "0.15rem",
+  borderRadius: "1rem",
+  bg: "rgba(20, 8, 24, 0.55)",
+  color: "brand.highlight",
+} as const;
+
+/**
+ * The in-game variant, for the /pro HUD chip cluster. Same probe, same store,
+ * zero extra requests — but two deliberate differences from the page chip,
+ * both because a live game and its websocket are at stake:
+ *
+ * 1. **Signed in is display-only** (no sign-out menu). ProHud is read-only by
+ *    design and there is nothing account-shaped to do mid-match; a dropdown
+ *    over the board is just another mis-tap.
+ * 2. **Signing in opens a new tab**, and it returns to `/pro`, never to this
+ *    game URL. A same-tab OAuth hop would tear down the socket and drop the
+ *    player out of a live match, and a new tab returning to `/pro/game?room=…`
+ *    would open a SECOND connection to the same room. The game tab keeps
+ *    playing untouched and re-probes `/me` when it regains focus — a listener
+ *    that only exists after the player actually clicks sign-in, and disarms on
+ *    the first focus, so a click costs exactly one extra `/me` and an idle
+ *    game costs nothing. (Abandoning the Discord tab therefore doesn't leave a
+ *    listener re-probing every time the player alt-tabs; clicking sign-in
+ *    again re-arms it.)
+ */
+export const InGameAccountChip = () => {
+  const { status, account } = useAccount();
+  const [awaitingSignIn, setAwaitingSignIn] = useState(false);
+
+  useEffect(() => {
+    if (!awaitingSignIn) return;
+    const onFocus = () => {
+      setAwaitingSignIn(false);
+      refreshAccount();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [awaitingSignIn]);
+
+  if (status === "loading" || status === "offline") return null;
+
+  if (status === "guest" || !account) {
+    return (
+      <Tooltip label="Opens Discord in a new tab — your game keeps running here" hasArrow>
+        <Flex
+          {...hudChipStyles}
+          as="a"
+          href={signInUrl("/pro")}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Sign in with Discord"
+          cursor="pointer"
+          _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+          onClick={() => setAwaitingSignIn(true)}
+        >
+          <FaDiscord size="0.85rem" />
+          <Text fontSize="0.65rem" fontFamily="SpaceGrotesk" whiteSpace="nowrap">
+            Sign in
+          </Text>
+        </Flex>
+      </Tooltip>
+    );
+  }
+
+  return (
+    <Flex {...hudChipStyles} aria-label={`Signed in as ${account.username}`}>
+      {account.avatarUrl ? (
+        <Box
+          as="img"
+          data-testid="account-avatar"
+          src={account.avatarUrl}
+          alt=""
+          boxSize="0.85rem"
+          borderRadius="full"
+          objectFit="cover"
+        />
+      ) : (
+        <FaDiscord size="0.85rem" />
+      )}
+      <Text
+        fontSize="0.65rem"
+        fontFamily="SpaceGrotesk"
+        whiteSpace="nowrap"
+        maxW="7rem"
+        overflow="hidden"
+        textOverflow="ellipsis"
+      >
+        {account.username}
+      </Text>
+    </Flex>
   );
 };
