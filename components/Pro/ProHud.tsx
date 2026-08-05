@@ -52,6 +52,7 @@ import {
   StatLine,
   StatsPanel,
 } from "@/components/Game/Header/header.styles";
+import { InGameAccountChip } from "@/components/Account/AccountChip";
 import { DeckImportHeroType, DeckImportRuleCardType } from "@/components/DeckPool/deck-import.type";
 import { CardInstanceId, PlayerId, PlayerView, ViewFighter, ViewPlayer } from "@/lib/pro/protocol";
 import { isLargeFighter, LARGE_FIGHTER_BLURB } from "@/lib/pro/largeReach";
@@ -1296,6 +1297,11 @@ export const ProHud = ({
             </Flex>
           </Tooltip>
         )}
+        {/* Optional Discord account (#459). Rides the chip cluster so it can
+            never sit over the board; renders nothing for guests-with-no-API,
+            and its sign-in deliberately leaves this tab (and its socket)
+            alone — see components/Account/AccountChip. */}
+        <InGameAccountChip />
       </ChipCluster>
     </>
   );

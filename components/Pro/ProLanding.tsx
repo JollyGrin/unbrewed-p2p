@@ -22,6 +22,7 @@ import { frozenAtForDeck } from "@/lib/pro/evergreenManifest";
 import { useProLiveRosterState } from "@/lib/pro/useProLiveRoster";
 import { PRO_WS_URL } from "@/lib/pro/wsUrl";
 import { useFlag } from "@/lib/flags";
+import { AccountChip } from "@/components/Account/AccountChip";
 import { DeckAttribution } from "@/components/Pro/DeckAttribution";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { ProHeroVideo } from "@/components/Pro/ProHeroVideo";
@@ -213,18 +214,23 @@ export const ProLanding = () => {
           >
             <FaArrowLeft size="0.7rem" /> unbrewed
           </ChakraLink>
-          <Flex
-            fontFamily="SpaceGrotesk"
-            fontSize="0.7rem"
-            fontWeight={700}
-            letterSpacing="0.2em"
-            px="0.7rem"
-            py="0.25rem"
-            bg="brand.accent"
-            color="brand.surfaceDim"
-            sx={skewChip()}
-          >
-            <Text>OPEN BETA</Text>
+          <Flex alignItems="center" gap="0.75rem">
+            <Flex
+              fontFamily="SpaceGrotesk"
+              fontSize="0.7rem"
+              fontWeight={700}
+              letterSpacing="0.2em"
+              px="0.7rem"
+              py="0.25rem"
+              bg="brand.accent"
+              color="brand.surfaceDim"
+              sx={skewChip()}
+            >
+              <Text>OPEN BETA</Text>
+            </Flex>
+            {/* Optional Discord account (#459) — hidden entirely unless the
+                accounts API answers; Pro itself needs no account. */}
+            <AccountChip />
           </Flex>
         </Flex>
 
