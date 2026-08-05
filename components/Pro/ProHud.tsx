@@ -53,6 +53,8 @@ import {
   StatsPanel,
 } from "@/components/Game/Header/header.styles";
 import { InGameAccountChip } from "@/components/Account/AccountChip";
+import { useAccount } from "@/lib/account/useAccount";
+import { seatNameplate } from "@/lib/pro/playerIdentity";
 import { DeckImportHeroType, DeckImportRuleCardType } from "@/components/DeckPool/deck-import.type";
 import { CardInstanceId, PlayerId, PlayerView, ViewFighter, ViewPlayer } from "@/lib/pro/protocol";
 import { isLargeFighter, LARGE_FIGHTER_BLURB } from "@/lib/pro/largeReach";
@@ -427,6 +429,7 @@ const SeatPlate = ({
   isAlly,
   presence,
   timer,
+  avatarUrl,
   hand,
   deckCount,
   discard,
@@ -472,6 +475,11 @@ const SeatPlate = ({
    *  non-drifting auto-forfeit countdown when `autoForfeitAt` is set. undefined =
    *  connected (or duel, which never populates this). */
   presence?: SeatPresence;
+  /** Discord avatar for the LOCAL seat only (issue #568), rendered beside the
+   *  nameplate. Read locally from `useAccount()` — avatars deliberately do NOT
+   *  cross the protocol, so an opponent's plate never carries one. undefined =
+   *  signed out, no avatar set, or the opponent's plate → nothing renders. */
+  avatarUrl?: string | null;
   /** own hand instances, or a count for the opponent */
   hand: CardInstanceId[] | number;
   deckCount: number;
@@ -522,6 +530,28 @@ const SeatPlate = ({
     onUpdate({ x: 0, y: 0 });
   };
   const toggleCollapse = () => onUpdate({ collapsed: !collapsed });
+
+  // Your own Discord avatar beside your name (issue #568). Purely local: it is
+  // read from `useAccount()` on this machine and never sent, so the opponent's
+  // plate shows their NAME and no picture. Decorative (alt="") — the name is
+  // right next to it.
+  const nameLine = avatarUrl ? (
+    <Flex alignItems="center" gap="0.35rem" minW={0}>
+      <Box
+        as="img"
+        data-testid="plate-avatar"
+        src={avatarUrl}
+        alt=""
+        boxSize="1rem"
+        borderRadius="full"
+        objectFit="cover"
+        flexShrink={0}
+      />
+      <PlayerName>{label}</PlayerName>
+    </Flex>
+  ) : (
+    <PlayerName>{label}</PlayerName>
+  );
 
   // ----- reusable pieces (shared by the live plate and the hover-peek) -----
   const renderNameBlock = (withAbility: boolean) => (
@@ -575,10 +605,10 @@ const SeatPlate = ({
             )
           }
         >
-          <PlayerName>{label}</PlayerName>
+          {nameLine}
         </Tooltip>
       ) : (
-        <PlayerName>{label}</PlayerName>
+        nameLine
       )}
       {heroName && <HeroName>{heroName}</HeroName>}
     </Box>
@@ -1094,6 +1124,10 @@ export const ProHud = ({
   const sidekicksOf = (player: PlayerId) =>
     view.fighters.filter((f) => f.owner === player && f.kind === "SIDEKICK");
   const display = STATUS_DISPLAY[status] ?? STATUS_DISPLAY.connecting;
+  // Local-only (issue #568): your own avatar for your own plate. Null for a
+  // guest, an unreachable accounts API, or an account with no avatar set — all
+  // of which render the plate exactly as it does today.
+  const { account } = useAccount();
   const seats: ViewPlayer[] = view.players.length
     ? view.players
     : [
@@ -1101,6 +1135,8 @@ export const ProHud = ({
           id: view.self.id,
           heroId: view.self.heroId,
           you: true,
+          // #568: the seat's claimed name, when this server broadcasts one.
+          displayName: view.self.displayName,
           team: view.self.id,
           hand: view.self.hand,
           handCount: view.self.hand.length,
@@ -1123,6 +1159,7 @@ export const ProHud = ({
               id: view.opponent.id,
               heroId: view.opponent.heroId,
               you: false,
+              displayName: view.opponent.displayName,
               team: view.opponent.id,
               handCount: view.opponent.handCount,
               deckCount: view.opponent.deckCount,
@@ -1150,8 +1187,10 @@ export const ProHud = ({
   const { plates, hydrated, update } = useHudPlates();
   const seatUpdate = (seat: PlateSeat) => (partial: Partial<PlateLayout>) =>
     update(seat, partial);
-  const seatLabel = (seat: ViewPlayer) =>
-    seat.you ? "You" : seats.length === 2 ? "Opponent" : seat.id.toUpperCase();
+  // Nameplate label (issue #568): a seat's broadcast `displayName` when the
+  // player claimed one, otherwise today's "You"/"Opponent"/seat-id fallbacks —
+  // so a guest seat, an older server and an old room all read exactly as before.
+  const seatLabel = (seat: ViewPlayer) => seatNameplate(seat, seats.length);
   // Disconnect/auto-forfeit badge is a multiplayer feature (issue #222): duel
   // keeps its single top-of-HUD "opponent disconnected" chip and renders plates
   // exactly as before, so the presence lookup is gated on a multiplayer view.
@@ -1191,6 +1230,7 @@ export const ProHud = ({
             isAlly={teams.relationOf(seat.id) === "ally"}
             presence={presenceOf(seat)}
             timer={timerOf(seat)}
+            avatarUrl={seat.you ? account?.avatarUrl : undefined}
             hand={seat.you ? seat.hand ?? view.self.hand : seat.handCount}
             deckCount={seat.deckCount}
             discard={seat.discard}

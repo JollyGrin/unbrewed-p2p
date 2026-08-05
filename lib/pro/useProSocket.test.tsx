@@ -1,5 +1,14 @@
 import { act, renderHook } from "@testing-library/react";
+import type { AccountState } from "../account/useAccount";
 import { useProSocket } from "./useProSocket";
+
+// The hook reads the optional Discord account (issue #568) to decide whether to
+// claim a seat identity. Stubbed here so no test hits `/me`; the default is a
+// guest, which is exactly the state every pre-#568 test assumes.
+let mockAccount: AccountState = { status: "guest", account: null };
+jest.mock("../account/useAccount", () => ({
+  useAccount: () => mockAccount,
+}));
 
 /**
  * Minimal fake WebSocket so we can drive the client's message handling without a
@@ -593,5 +602,107 @@ describe("useProSocket — move timer wire (issue #223)", () => {
     } finally {
       (Date.now as jest.Mock).mockRestore();
     }
+  });
+});
+
+/**
+ * Optional player identity on the wire (issue #568, engine #344).
+ *
+ * The load-bearing assertion is the GUEST one: with nobody signed in, the
+ * CREATE_ROOM/JOIN_ROOM frames must not grow a single key, because that is what
+ * lets this client talk to the live engine exactly as today's `main` does.
+ */
+describe("useProSocket — player identity on create/join", () => {
+  const realWS = global.WebSocket;
+  beforeEach(() => {
+    // @ts-expect-error — swap in the fake for the test
+    global.WebSocket = FakeWebSocket;
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    mockAccount = { status: "guest", account: null };
+  });
+  afterEach(() => {
+    global.WebSocket = realWS;
+    FakeWebSocket.last = null;
+  });
+
+  const signIn = () => {
+    mockAccount = {
+      status: "signed-in",
+      account: { id: "discord-42", username: "JollyGrin", avatarUrl: "https://cdn/x.png" },
+    };
+  };
+
+  const boot = () => {
+    const hook = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    return { hook, ws };
+  };
+
+  const frame = (ws: FakeWebSocket, type: string) =>
+    JSON.parse(ws.sent.find((s) => JSON.parse(s).type === type)!);
+
+  it("sends nothing extra for a guest — CREATE_ROOM is byte-identical to today", () => {
+    const { hook, ws } = boot();
+    act(() => hook.result.current.createRoom("king-kong"));
+
+    const msg = frame(ws, "CREATE_ROOM");
+    expect(msg).not.toHaveProperty("displayName");
+    expect(msg).not.toHaveProperty("playerId");
+  });
+
+  it("sends nothing extra for a guest on JOIN_ROOM either", () => {
+    const { hook, ws } = boot();
+    act(() => hook.result.current.joinRoom("R1", "king-kong"));
+
+    const msg = frame(ws, "JOIN_ROOM");
+    expect(msg).not.toHaveProperty("displayName");
+    expect(msg).not.toHaveProperty("playerId");
+  });
+
+  it("sends the Discord name and account id on CREATE_ROOM when signed in", () => {
+    signIn();
+    const { hook, ws } = boot();
+    act(() => hook.result.current.createRoom("king-kong"));
+
+    expect(frame(ws, "CREATE_ROOM")).toMatchObject({
+      displayName: "JollyGrin",
+      playerId: "discord-42",
+    });
+  });
+
+  it("sends them on JOIN_ROOM too, so the joiner's name reaches the host", () => {
+    signIn();
+    const { hook, ws } = boot();
+    act(() => hook.result.current.joinRoom("R1", "king-kong"));
+
+    expect(frame(ws, "JOIN_ROOM")).toMatchObject({
+      displayName: "JollyGrin",
+      playerId: "discord-42",
+    });
+  });
+
+  it("keeps identity off RECONNECT — the server kept the seat, name included", () => {
+    signIn();
+    const { hook, ws } = boot();
+    act(() => hook.result.current.joinRoom("R1", "king-kong"));
+    act(() => ws.emit({ type: "ROOM_JOINED", roomId: "R1", token: "tok", you: "p1" }));
+
+    // a refresh-style rejoin now finds this tab's token and reconnects instead
+    act(() => hook.result.current.joinRoom("R1", ""));
+    const msg = frame(ws, "RECONNECT");
+    expect(msg).not.toHaveProperty("displayName");
+    expect(msg).not.toHaveProperty("playerId");
+  });
+
+  it("stays a guest on the wire while the /me probe is still in flight", () => {
+    mockAccount = { status: "loading", account: null };
+    const { hook, ws } = boot();
+    act(() => hook.result.current.createRoom("king-kong"));
+
+    const msg = frame(ws, "CREATE_ROOM");
+    expect(msg).not.toHaveProperty("displayName");
+    expect(msg).not.toHaveProperty("playerId");
   });
 });
