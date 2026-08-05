@@ -10,6 +10,7 @@ import {
   Text,
   Tooltip,
 } from "@chakra-ui/react";
+import NextLink from "next/link";
 import { useRouter } from "next/router";
 import { FaDiscord } from "react-icons/fa";
 import {
@@ -22,6 +23,10 @@ import {
 /**
  * The optional Discord account affordance (issue #459) — a sign-in pill when
  * signed out, an avatar + username menu when signed in.
+ *
+ * That menu is also the ONLY entry point to /account (#573): a guest sees no
+ * new nav affordance at all, because the whole chip is already invisible to
+ * them when the API is unreachable and is a sign-in pill when it isn't.
  *
  * Deliberately renders NOTHING while the `/me` probe is in flight and when the
  * accounts API is unreachable: the site is a standalone static build first, so
@@ -124,6 +129,17 @@ export const AccountChip = () => {
         minW="9rem"
         py="0.25rem"
       >
+        <MenuItem
+          as={NextLink}
+          href="/account"
+          bg="transparent"
+          fontFamily="ArchivoNarrow"
+          fontSize="0.9rem"
+          _hover={{ bg: "brand.surface" }}
+          _focus={{ bg: "brand.surface" }}
+        >
+          Account
+        </MenuItem>
         <MenuItem
           bg="transparent"
           fontFamily="ArchivoNarrow"
