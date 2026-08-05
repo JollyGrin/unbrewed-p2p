@@ -11,6 +11,7 @@ import { useEffect } from "react";
 
 import type { GetStaticProps } from "next";
 import Link from "next/link";
+import { ReplaySharePage, sharedReplayIdFromPath } from "@/components/Pro/ReplayShareLanding";
 
 type Props = Record<string, never>;
 
@@ -22,6 +23,10 @@ export default function Custom404() {
   const router = useRouter();
 
   const [, online, lobby, user] = router.asPath.split("/");
+  // Share links (#567) are `/share/replay/<uuid>` — no runtime-minted id can be
+  // pre-rendered, so GitHub Pages serves 404.html for them and the landing
+  // renders in place, with no redirect hop.
+  const shareId = sharedReplayIdFromPath(router.asPath);
   // A referral link (/online/... or /offline/...) always lands here first
   // since the site is a static export — this isn't a real 404, so it should
   // never show error copy.
@@ -54,6 +59,9 @@ export default function Custom404() {
       },
     });
   }, [router.asPath]);
+
+  // A share link isn't a 404 either — render the replay landing right here.
+  if (shareId) return <ReplaySharePage id={shareId} />;
 
   if (isReferralRedirect) {
     return (

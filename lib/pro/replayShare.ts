@@ -23,6 +23,16 @@ export function parseBundle(text: string): ReplayBundle {
   } catch {
     throw new Error("That isn't valid JSON.");
   }
+  return assertBundle(parsed);
+}
+
+/**
+ * The same structural gate as parseBundle, for a value that arrived already
+ * parsed (a share-link payload — see lib/pro/replayCloud.ts). Throws with a
+ * readable message on a bad shape; the authoritative check is still the
+ * server's /replay.
+ */
+export function assertBundle(parsed: unknown): ReplayBundle {
   if (!parsed || typeof parsed !== "object") throw new Error("A bundle must be a JSON object.");
   const b = parsed as Partial<ReplayBundle>;
   if (b.v !== 1) throw new Error("Unrecognized bundle version (expected v1).");
@@ -47,6 +57,25 @@ export interface CompactCodeResult {
 export function compactCodeInfo(bundle: ReplayBundle): CompactCodeResult {
   const code = compactCode(bundle);
   return { code, length: code.length, tooLongForDiscord: code.length > DISCORD_INLINE_LIMIT };
+}
+
+/** Title-cased hero id ('king-kong' → 'King Kong'), shared by every replay label. */
+const heroName = (heroId: string) =>
+  heroId
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+
+/**
+ * Human-readable label for a bundle ("King Kong vs Bigfoot — Blackwood Forest").
+ * Used as the default title when uploading a replay to the cloud (#567) and as
+ * the heading on the public share landing page.
+ */
+export function replayLabel(bundle: ReplayBundle): string {
+  const heroes = replayHeroList(bundle.meta.heroes).map(heroName);
+  const matchup = heroes.length ? heroes.join(" vs ") : "Unbrewed Pro match";
+  const map = bundle.meta.mapTitle;
+  return map ? `${matchup} — ${map}` : matchup;
 }
 
 /** A stable, human-readable filename for a bundle's .json download. */
