@@ -19,6 +19,7 @@ import { useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { PageSeo } from "@/components/Helmet/Head";
 import { AccountGames } from "@/components/Account/AccountGames";
+import { AccountStatsSection } from "@/components/Account/AccountStats";
 import { signInUrl, signOut, useAccount } from "@/lib/account/useAccount";
 
 const Panel = (props: React.ComponentProps<typeof Box>) => (
@@ -215,11 +216,7 @@ export const AccountPage = () => {
         username={account.username}
         avatarUrl={account.avatarUrl}
       />
-      {/*
-        Stats (win rates per hero, GET /me/stats) slot in here as a sibling
-        Panel between the header and the history — issue #574. Deliberately
-        not implemented in this ticket, and no call is made for it.
-      */}
+      <AccountStatsSection />
       <AccountGames />
     </Shell>
   );
