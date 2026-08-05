@@ -21,6 +21,7 @@ import { fetchSharedReplay } from "@/lib/pro/replayCloud";
 import { fetchReplayExpansion } from "@/lib/pro/replayApi";
 import { assertBundle, downloadBundle, replayLabel } from "@/lib/pro/replayShare";
 import { saveReplay } from "@/lib/pro/replayStore";
+import { parseSharePath } from "@/lib/share/sharedItem";
 import { ReplayScrubber } from "@/components/Pro/ReplayScrubber";
 
 const TABLE_BG = "radial-gradient(ellipse at 50% 20%, #5A3263 0%, #48284F 50%, #2C1831 100%)";
@@ -185,16 +186,14 @@ export const ReplayShareLanding = ({ id }: { id: string | null }) => {
  * path. The static export can't pre-render a runtime-minted id, so GitHub Pages
  * serves 404.html for these links and pages/404.tsx uses this to render the
  * landing in place instead of the "Whoops!" copy.
+ *
+ * Delegates to the one `/share/<kind>/<id>` parser (#566 added `deck`/`map`
+ * links through the same rescue), so all three link shapes agree on what counts
+ * as a share URL.
  */
 export const sharedReplayIdFromPath = (asPath: string): string | null => {
-  const [path] = asPath.split("?");
-  const parts = path.split("/").filter(Boolean);
-  if (parts.length !== 3 || parts[0] !== "share" || parts[1] !== "replay") return null;
-  try {
-    return decodeURIComponent(parts[2]);
-  } catch {
-    return parts[2];
-  }
+  const share = parseSharePath(asPath);
+  return share?.kind === "replay" ? share.id : null;
 };
 
 /** Wrapper adding the page chrome, shared by the route and the 404 rescue. */
