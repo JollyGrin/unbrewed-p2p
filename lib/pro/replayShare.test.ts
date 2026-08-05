@@ -2,7 +2,7 @@
  * Import / export / share helpers (#122): bundle parsing + the Discord length guard.
  */
 import type { ReplayBundle } from "./protocol";
-import { DISCORD_INLINE_LIMIT, bundleFilename, compactCodeInfo, parseBundle } from "./replayShare";
+import { DISCORD_INLINE_LIMIT, bundleFilename, compactCodeInfo, parseBundle, replayLabel } from "./replayShare";
 
 const good: ReplayBundle = {
   v: 1,
@@ -42,6 +42,20 @@ describe("compactCodeInfo", () => {
     const info = compactCodeInfo(good);
     expect(info.tooLongForDiscord).toBe(false);
     expect(info.code).toContain('"v":1');
+  });
+});
+
+describe("replayLabel", () => {
+  it("reads as a matchup on a map — the default cloud-upload title (#567)", () => {
+    expect(replayLabel(good)).toBe("King Kong vs Thrall — The Mended Drum");
+  });
+  it("lists every hero in a multiplayer bundle", () => {
+    const ffa3: ReplayBundle = { ...good, meta: { ...good.meta, heroes: { p1: "king-kong", p2: "thrall", p3: "r2-d2" } } };
+    expect(replayLabel(ffa3)).toContain("King Kong vs Thrall vs R2 D2");
+  });
+  it("drops the dash when the bundle has no map title", () => {
+    const noMap: ReplayBundle = { ...good, meta: { ...good.meta, mapTitle: "" } };
+    expect(replayLabel(noMap)).toBe("King Kong vs Thrall");
   });
 });
 
