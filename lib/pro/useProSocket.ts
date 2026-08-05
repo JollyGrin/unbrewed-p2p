@@ -37,6 +37,8 @@ import {
   UndoActionSummary,
   ViewPrompt,
 } from "./protocol";
+import { useAccount } from "@/lib/account/useAccount";
+import { identityFields } from "./playerIdentity";
 
 /** An incoming undo request pushed to the opponent (protocol v11). */
 export interface IncomingUndo {
@@ -242,6 +244,14 @@ export function useProSocket(
   // and re-open the socket). debug is fixed per page load in practice.
   const debugRef = useRef(debug);
   debugRef.current = debug;
+  // Optional player identity (issue #568). Read through a ref for the same
+  // reason as `debug`: the account settles asynchronously, and a state change
+  // here must never re-create `connect` and drop a live socket. A guest — and a
+  // probe that hasn't answered yet — yields `{}`, so nothing new goes on the
+  // wire and the room behaves exactly as it does today.
+  const account = useAccount();
+  const identityRef = useRef(account);
+  identityRef.current = account;
   const retryRef = useRef({ attempts: 0, timer: 0 as unknown as ReturnType<typeof setTimeout> | 0 });
   const roomRef = useRef<string | null>(null);
   const youRef = useRef<PlayerView["you"] | null>(null);
@@ -656,6 +666,9 @@ export function useProSocket(
         ...(debugRef.current ? { debug: true } : {}),
         // Only include when on: absent/0 = untimed (byte-identical to today).
         ...(turnTimerSeconds && turnTimerSeconds > 0 ? { turnTimerSeconds } : {}),
+        // Signed-in seat identity (#568): the Discord name is broadcast to the
+        // other seat, the account id goes to telemetry only. `{}` for a guest.
+        ...identityFields(identityRef.current),
       };
       if (wsRef.current?.readyState === WebSocket.OPEN) send(msg);
       else pendingHelloRef.current = msg;
@@ -675,9 +688,19 @@ export function useProSocket(
       // reclaims THIS TAB's seat — never a token another tab wrote, or the
       // second tab of a two-tab solo test would steal the host's seat.
       const token = heroId === "" ? getToken(room) : getTabToken(room);
+      // RECONNECT carries no identity: the server kept the SEAT (and with it the
+      // name it claimed on join), so re-sending would only be a chance to
+      // disagree with it. That is also what makes a mid-game refresh keep the
+      // nameplate — the name comes back on the resumed seat's view, not from us.
       const msg: ClientMsg = token
         ? { v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token }
-        : { v: PROTOCOL_VERSION, type: "JOIN_ROOM", roomId: room, heroId };
+        : {
+            v: PROTOCOL_VERSION,
+            type: "JOIN_ROOM",
+            roomId: room,
+            heroId,
+            ...identityFields(identityRef.current),
+          };
       if (wsRef.current?.readyState === WebSocket.OPEN) send(msg);
       else pendingHelloRef.current = msg;
     },
