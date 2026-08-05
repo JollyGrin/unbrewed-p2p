@@ -36,11 +36,17 @@ import { buildInviteUrl } from "@/lib/invite";
 import { toast } from "react-hot-toast";
 import Link from "next/link";
 import { DiscordPresence } from "@/components/Discord";
+import { useAccount } from "@/lib/account/useAccount";
 
 export const ConnectPage = () => {
   const router = useRouter();
   const nameRef = useRef<HTMLInputElement>(null);
   const gidRef = useRef<HTMLInputElement>(null);
+  const account = useAccount();
+  // The name WE last wrote into the (uncontrolled) name field — a random
+  // default, or the account name once `/me` answers. null once the player has
+  // touched the field, which is what stops a late probe from overwriting them.
+  const autoNameRef = useRef<string | null>(null);
 
   const [lobby, setLobby] = useState(gidRef?.current?.value ?? "");
   const [showInvite, setShowInvite] = useState(false);
@@ -69,7 +75,9 @@ export const ConnectPage = () => {
   // query params (?username=, ?lobby=) — those must take priority.
   useEffect(() => {
     if (nameRef.current && !nameRef.current.value) {
-      nameRef.current.value = generateRandomName();
+      const random = generateRandomName();
+      nameRef.current.value = random;
+      autoNameRef.current = random;
     }
     if (gidRef.current && !gidRef.current.value) {
       const randomLobby = generateRandomName();
@@ -79,9 +87,24 @@ export const ConnectPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Signed-in players play under their Discord name (issue #568). The `/me`
+  // probe settles after mount, so this replaces the random default the moment
+  // it answers — but ONLY while the field still holds the value WE wrote. The
+  // input is uncontrolled and stays freely editable; typing or rolling a fresh
+  // name clears the claim so a late probe can't stomp a deliberate choice. A
+  // guest (or an unreachable API) keeps the random name exactly as before.
+  useEffect(() => {
+    if (account.status !== "signed-in") return;
+    const input = nameRef.current;
+    if (!input || input.value !== autoNameRef.current) return;
+    input.value = account.account.username;
+    autoNameRef.current = input.value;
+  }, [account]);
+
   const handleRerollName = () => {
     if (nameRef.current) {
       nameRef.current.value = generateRandomName();
+      autoNameRef.current = null; // a deliberate roll — don't restomp it
     }
   };
 
@@ -151,6 +174,9 @@ export const ConnectPage = () => {
                 id="player-name"
                 ref={nameRef}
                 defaultValue={router.query.username as string | undefined}
+                onChange={() => {
+                  autoNameRef.current = null; // the player owns the field now
+                }}
                 placeholder="Your name"
                 bg="white"
                 focusBorderColor="brand.secondary"
