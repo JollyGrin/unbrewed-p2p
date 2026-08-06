@@ -18,6 +18,7 @@ import { useState } from "react";
 
 import { Navbar } from "@/components/Navbar";
 import { PageSeo } from "@/components/Helmet/Head";
+import { AccountDiscord } from "@/components/Account/AccountDiscord";
 import { AccountGames } from "@/components/Account/AccountGames";
 import { AccountStatsSection } from "@/components/Account/AccountStats";
 import { signInUrl, signOut, useAccount } from "@/lib/account/useAccount";
@@ -217,6 +218,7 @@ export const AccountPage = () => {
         avatarUrl={account.avatarUrl}
       />
       <AccountStatsSection />
+      <AccountDiscord />
       <AccountGames />
     </Shell>
   );
