@@ -20,8 +20,16 @@ import { Navbar } from "@/components/Navbar";
 import { PageSeo } from "@/components/Helmet/Head";
 import { AccountDiscord } from "@/components/Account/AccountDiscord";
 import { AccountGames } from "@/components/Account/AccountGames";
+import {
+  AccountBadgeCase,
+  SelectedBadgeChip,
+} from "@/components/Account/AccountBadges";
+import { AccountLevelBar } from "@/components/Account/AccountLevel";
 import { AccountStatsSection } from "@/components/Account/AccountStats";
+import { levelProgress, type LevelProgress } from "@/lib/account/stats";
 import { signInUrl, signOut, useAccount } from "@/lib/account/useAccount";
+import { useAccountStats } from "@/lib/account/useAccountStats";
+import { BadgeCaseState, useBadges } from "@/lib/account/useBadges";
 
 const Panel = (props: React.ComponentProps<typeof Box>) => (
   <Box
@@ -61,9 +69,14 @@ const Shell = ({ children }: { children: React.ReactNode }) => (
 const ProfileHeader = ({
   username,
   avatarUrl,
+  level,
+  badges,
 }: {
   username: string;
   avatarUrl: string | null;
+  /** #577: null when the API doesn't send the progression block → no level UI. */
+  level: LevelProgress | null;
+  badges: BadgeCaseState;
 }) => {
   const [signingOut, setSigningOut] = useState(false);
   // A stale avatar hash 404s on the Discord CDN. At chip size that is a shrug;
@@ -108,20 +121,28 @@ const ProfileHeader = ({
       )}
 
       <Box flex="1" minW={0}>
-        <Text
-          as="h1"
-          fontFamily="LeagueGothic"
-          fontSize="2rem"
-          lineHeight="1.05"
-          overflow="hidden"
-          textOverflow="ellipsis"
-          whiteSpace="nowrap"
-        >
-          {username}
-        </Text>
+        {/* The worn badge sits ON the name line (#577) — it is a title, and a
+            title belongs beside the name rather than under it. It wraps to its
+            own line before it squeezes a long username. */}
+        <Flex align="center" gap="0.5rem" flexWrap="wrap" minW={0}>
+          <Text
+            as="h1"
+            fontFamily="LeagueGothic"
+            fontSize="2rem"
+            lineHeight="1.05"
+            overflow="hidden"
+            textOverflow="ellipsis"
+            whiteSpace="nowrap"
+            minW={0}
+          >
+            {username}
+          </Text>
+          <SelectedBadgeChip state={badges} />
+        </Flex>
         <Text fontSize="0.8rem" opacity={0.65}>
           Signed in with Discord
         </Text>
+        <AccountLevelBar progress={level} />
       </Box>
 
       <Button
@@ -176,6 +197,12 @@ const SignInPrompt = () => (
 
 export const AccountPage = () => {
   const { status, account } = useAccount();
+  // One `GET /me/stats` for the page: the header's level bar and the record
+  // block below read the same payload. Both hooks stay quiet for a guest — they
+  // fire nothing until the `/me` probe says signed-in — so the page still costs
+  // a signed-out visitor exactly one request.
+  const statsView = useAccountStats();
+  const badges = useBadges();
 
   if (status === "loading") {
     return (
@@ -216,8 +243,11 @@ export const AccountPage = () => {
       <ProfileHeader
         username={account.username}
         avatarUrl={account.avatarUrl}
+        level={statsView.stats ? levelProgress(statsView.stats) : null}
+        badges={badges}
       />
-      <AccountStatsSection />
+      <AccountStatsSection view={statsView} />
+      <AccountBadgeCase state={badges} />
       <AccountDiscord />
       <AccountGames />
     </Shell>

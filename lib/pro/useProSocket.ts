@@ -38,6 +38,7 @@ import {
   ViewPrompt,
 } from "./protocol";
 import { useAccount } from "@/lib/account/useAccount";
+import { useBadges } from "@/lib/account/useBadges";
 import { identityFields } from "./playerIdentity";
 
 /** An incoming undo request pushed to the opponent (protocol v11). */
@@ -252,6 +253,12 @@ export function useProSocket(
   const account = useAccount();
   const identityRef = useRef(account);
   identityRef.current = account;
+  // The badge the player chose to wear (issue #577), read through a ref for the
+  // same reason. `useBadges` asks the API nothing until the account probe says
+  // signed-in, so a guest still opens a Pro page with zero extra requests.
+  const badges = useBadges();
+  const badgeRef = useRef(badges.selected);
+  badgeRef.current = badges.selected;
   const retryRef = useRef({ attempts: 0, timer: 0 as unknown as ReturnType<typeof setTimeout> | 0 });
   const roomRef = useRef<string | null>(null);
   const youRef = useRef<PlayerView["you"] | null>(null);
@@ -668,7 +675,8 @@ export function useProSocket(
         ...(turnTimerSeconds && turnTimerSeconds > 0 ? { turnTimerSeconds } : {}),
         // Signed-in seat identity (#568): the Discord name is broadcast to the
         // other seat, the account id goes to telemetry only. `{}` for a guest.
-        ...identityFields(identityRef.current),
+        // The worn badge (#577) rides alongside the name, under the same gate.
+        ...identityFields(identityRef.current, badgeRef.current),
       };
       if (wsRef.current?.readyState === WebSocket.OPEN) send(msg);
       else pendingHelloRef.current = msg;
@@ -689,9 +697,9 @@ export function useProSocket(
       // second tab of a two-tab solo test would steal the host's seat.
       const token = heroId === "" ? getToken(room) : getTabToken(room);
       // RECONNECT carries no identity: the server kept the SEAT (and with it the
-      // name it claimed on join), so re-sending would only be a chance to
-      // disagree with it. That is also what makes a mid-game refresh keep the
-      // nameplate — the name comes back on the resumed seat's view, not from us.
+      // name and badge it claimed on join), so re-sending would only be a chance
+      // to disagree with it. That is also what makes a mid-game refresh keep the
+      // nameplate — both come back on the resumed seat's view, not from us.
       const msg: ClientMsg = token
         ? { v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token }
         : {
@@ -699,7 +707,7 @@ export function useProSocket(
             type: "JOIN_ROOM",
             roomId: room,
             heroId,
-            ...identityFields(identityRef.current),
+            ...identityFields(identityRef.current, badgeRef.current),
           };
       if (wsRef.current?.readyState === WebSocket.OPEN) send(msg);
       else pendingHelloRef.current = msg;

@@ -28,6 +28,8 @@ import type { AccountState } from "@/lib/account/useAccount";
 /** Engine limits (server/identity.ts) — mirrored so we bound names the same way. */
 export const MAX_DISPLAY_NAME = 32;
 export const MAX_PLAYER_ID = 64;
+/** Engine limit for `badge` (issue #347) — sanitized exactly like the name. */
+export const MAX_BADGE_ID = 32;
 
 // C0 controls + DEL + C1 controls, matching the engine's set exactly (\n, \r
 // and \t included — none of them belong in a one-line label).
@@ -52,6 +54,20 @@ export const sanitizeDisplayName = (raw: string): string | undefined => {
 };
 
 /**
+ * A badge id for the wire, or undefined.
+ *
+ * Same sanitizer as the name, same limit, and for the same reason: what we send
+ * should be what comes back. A badge id the client can't render is still sent —
+ * the id is the server's and the OTHER seat may well have art we don't — so this
+ * bounds the string and nothing more.
+ */
+export const sanitizeBadgeId = (raw: string): string | undefined => {
+  const stripped = raw.replace(CONTROL_CHARS_GLOBAL, "").trim();
+  if (stripped === "") return undefined;
+  return stripped.slice(0, MAX_BADGE_ID).trim() || undefined;
+};
+
+/**
  * The identity fields to spread into a CREATE_ROOM/JOIN_ROOM message.
  *
  * `{}` for guest / loading / offline — a client that hasn't finished its `/me`
@@ -59,12 +75,19 @@ export const sanitizeDisplayName = (raw: string): string | undefined => {
  * is the same outcome as not being signed in. (The probe fires on page load and
  * the create flow needs a hero pick first, so in practice it has long since
  * settled.)
+ *
+ * `selectedBadge` (issue #577) rides along under the SAME gate: signed-in only.
+ * A guest with a stale badge id in memory, or a signed-in player wearing
+ * nothing, sends no `badge` key — so an unadorned room is byte-identical to a
+ * pre-#347 one. The badge is never sent without the account it belongs to.
  */
 export const identityFields = (
   state: AccountState,
-): { displayName?: string; playerId?: string } => {
+  selectedBadge?: string | null,
+): { displayName?: string; badge?: string; playerId?: string } => {
   if (state.status !== "signed-in" || !state.account) return {};
   const displayName = sanitizeDisplayName(state.account.username);
+  const badge = selectedBadge ? sanitizeBadgeId(selectedBadge) : undefined;
   // Over-long or control-bearing ids are DROPPED, never truncated: a truncated
   // pseudonymous token would attribute telemetry to the wrong player. The
   // server drops the field on the same rule (and keeps the join either way).
@@ -73,6 +96,7 @@ export const identityFields = (
     id && id.length <= MAX_PLAYER_ID && !CONTROL_CHARS.test(id) ? id : undefined;
   return {
     ...(displayName ? { displayName } : {}),
+    ...(badge ? { badge } : {}),
     ...(playerId ? { playerId } : {}),
   };
 };

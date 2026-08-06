@@ -33,7 +33,7 @@ import {
   statHeroLabel,
   type FormResult,
 } from "@/lib/account/stats";
-import { useAccountStats } from "@/lib/account/useAccountStats";
+import { AccountStatsView } from "@/lib/account/useAccountStats";
 
 /** Rows a table shows before it folds the rest behind "show all". */
 export const COLLAPSE_AFTER = 8;
@@ -423,8 +423,13 @@ const NothingYet = () => (
   </Quiet>
 );
 
-export const AccountStatsSection = () => {
-  const { status, stats } = useAccountStats();
+/**
+ * `view` is passed in rather than fetched here (#577): the profile header's
+ * level bar reads the same `GET /me/stats`, and one hook call on the page keeps
+ * that a single request instead of two mounts racing for the same payload.
+ */
+export const AccountStatsSection = ({ view }: { view: AccountStatsView }) => {
+  const { status, stats } = view;
 
   const heroRows: StatRow[] =
     stats?.byHero.map((row) => ({

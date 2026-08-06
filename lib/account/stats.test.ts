@@ -9,12 +9,14 @@ import {
   fetchAccountStats,
   formatClock,
   headlineWinRate,
+  levelProgress,
   MIN_WIN_RATE_GAMES,
   monthLabel,
   normalizeStats,
   percentLabel,
   recordLabel,
   winPercent,
+  xpForLevel,
 } from "./stats";
 
 const reply = (status: number, body: unknown) =>
@@ -252,5 +254,86 @@ describe("formatting", () => {
     expect(monthLabel("2026-03-14T10:00:00.000Z")).toBe("Mar 2026");
     expect(monthLabel(null)).toBeNull();
     expect(monthLabel("whenever")).toBeNull();
+  });
+});
+
+/**
+ * Levels (#577). The API sends `{level, xp, xpForNext}` on the same payload, and
+ * the bar is drawn WITHIN the current level — so the level's floor is the one
+ * number this client recomputes from the published curve.
+ */
+describe("levels", () => {
+  const withLevel = (over: Record<string, unknown>) =>
+    normalizeStats({ ...BASE, ...over });
+
+  it("hides itself entirely when the API didn't send the block", () => {
+    // An API deployed before unbrewed-api#18: the expected case, not an error.
+    const stats = normalizeStats(BASE);
+    expect(stats.level).toBeNull();
+    expect(stats.xp).toBeNull();
+    expect(stats.xpForNext).toBeNull();
+    expect(levelProgress(stats)).toBeNull();
+  });
+
+  it("hides itself when the block arrives half-written", () => {
+    expect(levelProgress(withLevel({ level: 3, xp: 700 }))).toBeNull();
+    expect(levelProgress(withLevel({ level: 3, xpForNext: 600 }))).toBeNull();
+    expect(levelProgress(withLevel({ xp: 700, xpForNext: 600 }))).toBeNull();
+    // Junk is the same as absent — never a bar drawn off a string.
+    expect(
+      levelProgress(withLevel({ level: "3", xp: 700, xpForNext: 600 })),
+    ).toBeNull();
+  });
+
+  it("follows the API's published curve", () => {
+    // 50·N·(N+1): level 1 = 100, level 5 = 1500, level 10 = 5500, 20 = 21000.
+    expect(xpForLevel(0)).toBe(0);
+    expect(xpForLevel(1)).toBe(100);
+    expect(xpForLevel(5)).toBe(1500);
+    expect(xpForLevel(10)).toBe(5500);
+    expect(xpForLevel(20)).toBe(21000);
+  });
+
+  it("measures the bar across the CURRENT level, not the whole climb", () => {
+    // Level 5 runs 1500 → 2100. 1800 is exactly half way.
+    const progress = levelProgress(
+      withLevel({ level: 5, xp: 1800, xpForNext: 2100 }),
+    );
+    expect(progress).toEqual({
+      level: 5,
+      xp: 1800,
+      floor: 1500,
+      next: 2100,
+      percent: 50,
+      toGo: 300,
+    });
+    // The lifetime ratio would have read 86% — near-full at every level, which
+    // is exactly the reading this avoids.
+  });
+
+  it("draws a real bar at level 0", () => {
+    // Level 0 is a player under 100 XP, NOT a missing field.
+    const progress = levelProgress(withLevel({ level: 0, xp: 40, xpForNext: 100 }));
+    expect(progress).toMatchObject({ level: 0, floor: 0, percent: 40, toGo: 60 });
+  });
+
+  it("is empty at a level's floor and full at its ceiling", () => {
+    expect(levelProgress(withLevel({ level: 3, xp: 600, xpForNext: 800 }))).
+      toMatchObject({ percent: 0, toGo: 200 });
+    expect(levelProgress(withLevel({ level: 3, xp: 800, xpForNext: 800 }))).
+      toMatchObject({ percent: 100, toGo: 0 });
+  });
+
+  it("clamps rather than drawing an absurd bar off a bad payload", () => {
+    // xpForNext at or below the level's own floor would divide by zero.
+    expect(
+      levelProgress(withLevel({ level: 5, xp: 1800, xpForNext: 1500 })),
+    ).toMatchObject({ percent: 100, toGo: 0 });
+    // XP behind the level it claims: empty, never negative.
+    expect(
+      levelProgress(withLevel({ level: 5, xp: 200, xpForNext: 2100 })),
+    ).toMatchObject({ percent: 0, toGo: 1900 });
+    // A negative level reads as absent, not as a bar with a negative floor.
+    expect(levelProgress(withLevel({ level: -2, xp: 10, xpForNext: 100 }))).toBeNull();
   });
 });
