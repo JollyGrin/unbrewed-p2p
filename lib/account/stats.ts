@@ -68,6 +68,13 @@ export interface AccountStats {
   firstGameAt: string | null;
   lastGameAt: string | null;
   byHero: HeroStat[];
+  // --- progression (#577); null means "this deploy didn't send the block" ----
+  /** Current level. 0 is a real level (under 100 lifetime XP), not "absent". */
+  level: number | null;
+  /** Lifetime XP. */
+  xp: number | null;
+  /** CUMULATIVE lifetime XP the next level needs — an absolute total, not a remainder. */
+  xpForNext: number | null;
   // --- enriched; null means "this deploy didn't send the section" ------------
   avgDurationSeconds: number | null;
   avgTurns: number | null;
@@ -99,6 +106,16 @@ const asNumber = (value: unknown): number | null =>
 const asCount = (value: unknown): number => {
   const n = asNumber(value);
   return n !== null && n >= 0 ? Math.round(n) : 0;
+};
+
+/**
+ * A count that keeps the "absent" case: `null` when the field wasn't sent (or
+ * came back unusable), which is what lets the level UI hide itself entirely on
+ * an API deployed before the progression block existed.
+ */
+const asOptionalCount = (value: unknown): number | null => {
+  const n = asNumber(value);
+  return n !== null && n >= 0 ? Math.round(n) : null;
 };
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
@@ -190,6 +207,9 @@ export const normalizeStats = (body: unknown): AccountStats => {
         heroId: asString(row.heroId),
         heroName: asString(row.heroName),
       })) ?? [],
+    level: asOptionalCount(root.level),
+    xp: asOptionalCount(root.xp),
+    xpForNext: asOptionalCount(root.xpForNext),
     avgDurationSeconds: asNumber(root.avgDurationSeconds),
     avgTurns: asNumber(root.avgTurns),
     streaks: normalizeStreaks(root.streaks),
@@ -325,3 +345,62 @@ export const botTierLabel = (bot: BotStat): string =>
  * friendly "go play a game" state rather than on a wall of zeroes.
  */
 export const hasPlayed = (stats: AccountStats): boolean => stats.totalGames > 0;
+
+// --- levels (issue #577) -----------------------------------------------------
+
+/**
+ * Cumulative lifetime XP a level starts at: `50·N·(N+1)` (level 1 = 100,
+ * level 10 = 5500). The API computes this too and publishes the formula in its
+ * README precisely so a client can draw a WITHIN-level bar; `xpForNext` alone
+ * only supports a lifetime bar, which reads as "nearly full" forever.
+ *
+ * That makes the curve the one number duplicated across the two services. It is
+ * a deliberate, bounded duplication: if the API ever retunes it, the bar is
+ * drawn against a stale floor — clamped to 0–100% by {@link levelProgress}, so
+ * the failure mode is a bar in the wrong place, never a broken or absurd one.
+ */
+export const xpForLevel = (level: number): number =>
+  level <= 0 ? 0 : 50 * level * (level + 1);
+
+export interface LevelProgress {
+  level: number;
+  /** Lifetime XP. */
+  xp: number;
+  /** Cumulative XP this level started at. */
+  floor: number;
+  /** Cumulative XP the next level needs. */
+  next: number;
+  /** Whole percent through the current level, clamped to 0–100. */
+  percent: number;
+  /** Lifetime XP still to go before the next level, never negative. */
+  toGo: number;
+}
+
+/**
+ * The header's level bar, or `null` when there is no level to draw.
+ *
+ * `null` covers exactly one case that matters: an API deployed before the
+ * progression block, which simply doesn't send the fields. The whole level UI
+ * hides rather than rendering a zeroed bar — same degradation contract the
+ * enriched stats sections already keep. Level 0 is NOT that case: it is a real
+ * level for a player under 100 XP, and it draws a real (nearly empty) bar.
+ *
+ * Everything else here is defence against a producer bug rather than a case we
+ * expect: an `xpForNext` at or below the level's floor would divide by zero or
+ * flip the bar, so the span is floored at 1 and the percentage clamped.
+ */
+export const levelProgress = (stats: AccountStats): LevelProgress | null => {
+  const { level, xp, xpForNext } = stats;
+  if (level === null || xp === null || xpForNext === null) return null;
+  const floor = xpForLevel(level);
+  const span = Math.max(1, xpForNext - floor);
+  const percent = Math.max(0, Math.min(100, Math.round(((xp - floor) / span) * 100)));
+  return {
+    level,
+    xp,
+    floor,
+    next: xpForNext,
+    percent,
+    toGo: Math.max(0, xpForNext - xp),
+  };
+};

@@ -10,6 +10,20 @@ jest.mock("../account/useAccount", () => ({
   useAccount: () => mockAccount,
 }));
 
+// The badge case (issue #577) is the second thing the hook reads. Stubbed for
+// the same reason: no test should reach `/me/badges`, and "wearing nothing" is
+// what every pre-#577 test assumes.
+let mockBadge: string | null = null;
+jest.mock("../account/useBadges", () => ({
+  useBadges: () => ({
+    status: "ready",
+    badges: [],
+    selected: mockBadge,
+    busy: false,
+    notice: null,
+  }),
+}));
+
 /**
  * Minimal fake WebSocket so we can drive the client's message handling without a
  * real server. Captures outbound frames and lets a test feed inbound ServerMsgs.
@@ -620,6 +634,7 @@ describe("useProSocket — player identity on create/join", () => {
     window.localStorage.clear();
     window.sessionStorage.clear();
     mockAccount = { status: "guest", account: null };
+    mockBadge = null;
   });
   afterEach(() => {
     global.WebSocket = realWS;
@@ -704,5 +719,95 @@ describe("useProSocket — player identity on create/join", () => {
     const msg = frame(ws, "CREATE_ROOM");
     expect(msg).not.toHaveProperty("displayName");
     expect(msg).not.toHaveProperty("playerId");
+  });
+});
+
+/**
+ * The worn badge on the wire (issue #577, engine #347).
+ *
+ * The gate is the pair: signed in AND wearing something. Either half missing
+ * and the frame must not grow the key — a badge id left over in a store after a
+ * sign-out is the one way a guest's frame could stop being byte-identical.
+ */
+describe("useProSocket — worn badge on create/join", () => {
+  const realWS = global.WebSocket;
+  beforeEach(() => {
+    // @ts-expect-error — swap in the fake for the test
+    global.WebSocket = FakeWebSocket;
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    mockAccount = { status: "guest", account: null };
+    mockBadge = null;
+  });
+  afterEach(() => {
+    global.WebSocket = realWS;
+    FakeWebSocket.last = null;
+  });
+
+  const signIn = () => {
+    mockAccount = {
+      status: "signed-in",
+      account: { id: "discord-42", username: "JollyGrin", avatarUrl: null },
+    };
+  };
+
+  const boot = () => {
+    const hook = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    return { hook, ws };
+  };
+
+  const frame = (ws: FakeWebSocket, type: string) =>
+    JSON.parse(ws.sent.find((s) => JSON.parse(s).type === type)!);
+
+  it("sends the badge on CREATE_ROOM when signed in and wearing one", () => {
+    signIn();
+    mockBadge = "bot-slayer";
+    const { hook, ws } = boot();
+    act(() => hook.result.current.createRoom("king-kong"));
+
+    expect(frame(ws, "CREATE_ROOM")).toMatchObject({
+      displayName: "JollyGrin",
+      badge: "bot-slayer",
+    });
+  });
+
+  it("sends it on JOIN_ROOM too, so the host's HUD gets the chip", () => {
+    signIn();
+    mockBadge = "streak-5";
+    const { hook, ws } = boot();
+    act(() => hook.result.current.joinRoom("R1", "king-kong"));
+
+    expect(frame(ws, "JOIN_ROOM")).toMatchObject({ badge: "streak-5" });
+  });
+
+  it("omits the key entirely when signed in but wearing nothing", () => {
+    signIn();
+    const { hook, ws } = boot();
+    act(() => hook.result.current.createRoom("king-kong"));
+
+    expect(frame(ws, "CREATE_ROOM")).not.toHaveProperty("badge");
+  });
+
+  it("omits it for a guest even with a badge id still in the store", () => {
+    mockBadge = "veteran";
+    const { hook, ws } = boot();
+    act(() => hook.result.current.createRoom("king-kong"));
+    act(() => hook.result.current.joinRoom("R1", "king-kong"));
+
+    expect(frame(ws, "CREATE_ROOM")).not.toHaveProperty("badge");
+    expect(frame(ws, "JOIN_ROOM")).not.toHaveProperty("badge");
+  });
+
+  it("keeps the badge off RECONNECT — the server kept the seat and its chip", () => {
+    signIn();
+    mockBadge = "veteran";
+    const { hook, ws } = boot();
+    act(() => hook.result.current.joinRoom("R1", "king-kong"));
+    act(() => ws.emit({ type: "ROOM_JOINED", roomId: "R1", token: "tok", you: "p1" }));
+
+    act(() => hook.result.current.joinRoom("R1", ""));
+    expect(frame(ws, "RECONNECT")).not.toHaveProperty("badge");
   });
 });

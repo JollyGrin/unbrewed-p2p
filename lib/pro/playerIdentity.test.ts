@@ -11,7 +11,9 @@
 import type { AccountState } from "@/lib/account/useAccount";
 import {
   identityFields,
+  MAX_BADGE_ID,
   MAX_DISPLAY_NAME,
+  sanitizeBadgeId,
   sanitizeDisplayName,
   seatNameplate,
 } from "./playerIdentity";
@@ -136,5 +138,64 @@ describe("seatNameplate (fallback logic)", () => {
   it("truncates an over-long broadcast name to the protocol bound", () => {
     const label = seatNameplate({ ...them, displayName: "q".repeat(80) }, 2);
     expect(label).toHaveLength(MAX_DISPLAY_NAME);
+  });
+});
+
+/**
+ * The worn badge (issue #577, engine #347). It rides beside the name under the
+ * SAME gate — signed-in only — so a room with nobody wearing anything is still
+ * byte-identical to a pre-#347 one.
+ */
+describe("identityFields — the worn badge", () => {
+  it("sends the badge beside the name for a signed-in wearer", () => {
+    expect(identityFields(signedIn("JollyGrin"), "bot-slayer")).toEqual({
+      displayName: "JollyGrin",
+      badge: "bot-slayer",
+      playerId: "discord-user-1",
+    });
+  });
+
+  it("sends no badge key when the player is wearing nothing", () => {
+    for (const nothing of [null, undefined, ""]) {
+      const fields = identityFields(signedIn("JollyGrin"), nothing);
+      expect(fields).not.toHaveProperty("badge");
+      expect(fields).toEqual({
+        displayName: "JollyGrin",
+        playerId: "discord-user-1",
+      });
+    }
+  });
+
+  it("sends nothing at all for a guest, badge in hand or not", () => {
+    // The badge belongs to an account; it never travels without one. A stale id
+    // left in memory after a sign-out must not reach the wire.
+    for (const state of [
+      { status: "guest", account: null },
+      { status: "loading", account: null },
+      { status: "offline", account: null },
+    ] as const) {
+      expect(identityFields(state, "veteran")).toEqual({});
+    }
+  });
+
+  it("bounds a badge id the same way the engine does", () => {
+    expect(sanitizeBadgeId("  streak-5  ")).toBe("streak-5");
+    expect(sanitizeBadgeId("   ")).toBeUndefined();
+    expect(sanitizeBadgeId("")).toBeUndefined();
+    // Truncated, not dropped: unlike playerId, a badge is cosmetic — and the
+    // engine truncates at the same 32, so what we send is what comes back.
+    const long = "x".repeat(MAX_BADGE_ID + 10);
+    expect(sanitizeBadgeId(long)).toHaveLength(MAX_BADGE_ID);
+    expect(identityFields(signedIn("JollyGrin"), long).badge).toHaveLength(
+      MAX_BADGE_ID,
+    );
+  });
+
+  it("sends an id it has no art for — the catalog is not ours", () => {
+    // A badge added API-side must still reach the other seat; whether THAT
+    // client can draw it is its own business.
+    expect(identityFields(signedIn("JollyGrin"), "moon-walker")).toMatchObject({
+      badge: "moon-walker",
+    });
   });
 });

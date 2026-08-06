@@ -18,6 +18,7 @@ import { ChakraProvider } from "@chakra-ui/react";
 import { AccountPage } from "./AccountPage";
 import { COLLAPSE_AFTER } from "./AccountStats";
 import { __resetAccountStoreForTests } from "@/lib/account/useAccount";
+import { __resetBadgeStoreForTests } from "@/lib/account/useBadges";
 
 jest.mock("next/router", () => ({
   useRouter: () => ({ asPath: "/account", query: {}, push: jest.fn() }),
@@ -129,6 +130,7 @@ const rowTexts = (testId: string) =>
 
 beforeEach(() => {
   __resetAccountStoreForTests();
+  __resetBadgeStoreForTests();
   fetchMock = jest.fn();
   global.fetch = fetchMock as unknown as typeof fetch;
 });
@@ -402,10 +404,15 @@ describe("AccountStats — the section's own shell", () => {
     await screen.findByTestId("account-stat-form");
     const stats = section();
     expect(within(stats).getByText("My record")).toBeInTheDocument();
-    // Header → record → games, the order #573 left a slot for.
+    // Header → record → badges (#577) → games, the order #573 left slots for.
     const headings = screen
       .getAllByRole("heading")
       .map((node) => node.textContent);
-    expect(headings).toEqual(["JollyGrin", "My record", "My games"]);
+    expect(headings).toEqual([
+      "JollyGrin",
+      "My record",
+      "Badge case",
+      "My games",
+    ]);
   });
 });
