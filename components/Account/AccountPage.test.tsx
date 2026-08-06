@@ -16,6 +16,7 @@ import { ChakraProvider } from "@chakra-ui/react";
 import { AccountPage } from "./AccountPage";
 import { API_URL } from "@/lib/account/apiUrl";
 import { __resetAccountStoreForTests } from "@/lib/account/useAccount";
+import { __resetBadgeStoreForTests } from "@/lib/account/useBadges";
 import type { ReplayIndexEntry } from "@/lib/pro/replayStore";
 
 jest.mock("next/router", () => ({
@@ -96,6 +97,7 @@ const gamesRequests = () =>
 
 beforeEach(() => {
   __resetAccountStoreForTests();
+  __resetBadgeStoreForTests();
   savedReplays = [];
   fetchMock = jest.fn();
   global.fetch = fetchMock as unknown as typeof fetch;

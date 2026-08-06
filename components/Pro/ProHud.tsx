@@ -55,6 +55,7 @@ import {
 import { InGameAccountChip } from "@/components/Account/AccountChip";
 import { useAccount } from "@/lib/account/useAccount";
 import { seatNameplate } from "@/lib/pro/playerIdentity";
+import { BadgeGlyph, badgeArtName, isKnownBadge } from "@/components/Badges/BadgeGlyph";
 import { DeckImportHeroType, DeckImportRuleCardType } from "@/components/DeckPool/deck-import.type";
 import { CardInstanceId, PlayerId, PlayerView, ViewFighter, ViewPlayer } from "@/lib/pro/protocol";
 import { isLargeFighter, LARGE_FIGHTER_BLURB } from "@/lib/pro/largeReach";
@@ -430,6 +431,7 @@ const SeatPlate = ({
   presence,
   timer,
   avatarUrl,
+  badge,
   hand,
   deckCount,
   discard,
@@ -480,6 +482,11 @@ const SeatPlate = ({
    *  cross the protocol, so an opponent's plate never carries one. undefined =
    *  signed out, no avatar set, or the opponent's plate → nothing renders. */
   avatarUrl?: string | null;
+  /** This seat's broadcast badge id (issue #577, engine #347) — public, so it
+   *  renders on BOTH plates. Opaque and unverified: an id with no art here
+   *  renders nothing at all. undefined = the seat wears none, or an older
+   *  server → nothing renders. */
+  badge?: string;
   /** own hand instances, or a count for the opponent */
   hand: CardInstanceId[] | number;
   deckCount: number;
@@ -531,27 +538,47 @@ const SeatPlate = ({
   };
   const toggleCollapse = () => onUpdate({ collapsed: !collapsed });
 
+  // The seat's worn badge (issue #577), on BOTH plates — this is the first
+  // cosmetic the opponent can see, which is the whole point of putting it on
+  // the wire. Unlike the avatar it is NOT local: it comes from the seat's
+  // broadcast state, so your own plate shows it for the same reason theirs does.
+  //
+  // An id this build has no art for renders NOTHING. The engine deliberately
+  // never validates the string, so a fallback glyph here would let any client
+  // put a shape on your screen by inventing one; a missing chip until the client
+  // catches up is the cheaper failure.
+  const badgeChip =
+    badge && isKnownBadge(badge) ? (
+      <Box data-testid="plate-badge" data-badge-id={badge} flexShrink={0}>
+        <BadgeGlyph id={badge} size="0.95rem" title={badgeArtName(badge)} />
+      </Box>
+    ) : null;
+
   // Your own Discord avatar beside your name (issue #568). Purely local: it is
   // read from `useAccount()` on this machine and never sent, so the opponent's
   // plate shows their NAME and no picture. Decorative (alt="") — the name is
   // right next to it.
-  const nameLine = avatarUrl ? (
-    <Flex alignItems="center" gap="0.35rem" minW={0}>
-      <Box
-        as="img"
-        data-testid="plate-avatar"
-        src={avatarUrl}
-        alt=""
-        boxSize="1rem"
-        borderRadius="full"
-        objectFit="cover"
-        flexShrink={0}
-      />
+  const nameLine =
+    avatarUrl || badgeChip ? (
+      <Flex alignItems="center" gap="0.35rem" minW={0}>
+        {avatarUrl ? (
+          <Box
+            as="img"
+            data-testid="plate-avatar"
+            src={avatarUrl}
+            alt=""
+            boxSize="1rem"
+            borderRadius="full"
+            objectFit="cover"
+            flexShrink={0}
+          />
+        ) : null}
+        <PlayerName>{label}</PlayerName>
+        {badgeChip}
+      </Flex>
+    ) : (
       <PlayerName>{label}</PlayerName>
-    </Flex>
-  ) : (
-    <PlayerName>{label}</PlayerName>
-  );
+    );
 
   // ----- reusable pieces (shared by the live plate and the hover-peek) -----
   const renderNameBlock = (withAbility: boolean) => (
@@ -1137,6 +1164,8 @@ export const ProHud = ({
           you: true,
           // #568: the seat's claimed name, when this server broadcasts one.
           displayName: view.self.displayName,
+          // #577: and the badge it claimed, same treatment.
+          badge: view.self.badge,
           team: view.self.id,
           hand: view.self.hand,
           handCount: view.self.hand.length,
@@ -1160,6 +1189,7 @@ export const ProHud = ({
               heroId: view.opponent.heroId,
               you: false,
               displayName: view.opponent.displayName,
+              badge: view.opponent.badge,
               team: view.opponent.id,
               handCount: view.opponent.handCount,
               deckCount: view.opponent.deckCount,
@@ -1231,6 +1261,7 @@ export const ProHud = ({
             presence={presenceOf(seat)}
             timer={timerOf(seat)}
             avatarUrl={seat.you ? account?.avatarUrl : undefined}
+            badge={seat.badge}
             hand={seat.you ? seat.hand ?? view.self.hand : seat.handCount}
             deckCount={seat.deckCount}
             discard={seat.discard}
