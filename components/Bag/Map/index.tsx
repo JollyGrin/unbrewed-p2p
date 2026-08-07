@@ -4,11 +4,13 @@ import {
   Box,
   Flex,
   Grid,
+  HStack,
   Image,
   Skeleton,
   Tag,
   Tooltip,
 } from "@chakra-ui/react";
+import { SaveToCloudCorner, cloudMapName } from "@/components/Bag/Cloud";
 import { useState } from "react";
 import { AddNewFields } from "./AddNewMapFields";
 import { CloseIcon } from "@chakra-ui/icons";
@@ -93,23 +95,35 @@ export const BagMap = () => {
               badge={isSelected ? "Selected" : undefined}
               corner={
                 isCustom ? (
-                  <Tooltip label="Remove this map from your bag">
-                    <Flex
-                      bg="rgba(20, 8, 24, 0.6)"
-                      borderRadius="100%"
-                      p="0.35rem"
-                      color="#FAEBD7"
-                      cursor="pointer"
-                      _hover={{ bg: "brand.danger" }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        remove(map.imgUrl);
-                        toast.success("Map removed");
-                      }}
-                    >
-                      <CloseIcon boxSize="0.6rem" />
-                    </Flex>
-                  </Tooltip>
+                  <HStack spacing="0.25rem">
+                    {/*
+                      Cloud copy + share link for signed-in users (issue #566).
+                      Renders nothing for guests and when the accounts API is
+                      unreachable, leaving this shelf exactly as it is today.
+                    */}
+                    <SaveToCloudCorner
+                      kind="maps"
+                      name={cloudMapName(map)}
+                      data={map}
+                    />
+                    <Tooltip label="Remove this map from your bag">
+                      <Flex
+                        bg="rgba(20, 8, 24, 0.6)"
+                        borderRadius="100%"
+                        p="0.35rem"
+                        color="#FAEBD7"
+                        cursor="pointer"
+                        _hover={{ bg: "brand.danger" }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          remove(map.imgUrl);
+                          toast.success("Map removed");
+                        }}
+                      >
+                        <CloseIcon boxSize="0.6rem" />
+                      </Flex>
+                    </Tooltip>
+                  </HStack>
                 ) : (
                   <Tag size="sm" bg="rgba(20, 8, 24, 0.6)" color="#FAEBD7">
                     built-in

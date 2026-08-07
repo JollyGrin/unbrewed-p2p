@@ -1,4 +1,5 @@
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
+import { CloudBagSection } from "@/components/Bag/Cloud";
 import { MapData, useLocalDeckStorage, useLocalMapStorage } from "@/lib/hooks";
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
 import { useGenericImport } from "@/lib/hooks/useGenericImport";
@@ -68,15 +69,26 @@ export const BagBulkContainer = () => {
         Backup &amp; Share
       </Text>
       <Text maxW="46rem" fontSize="0.9rem" mb="1rem" opacity={0.85}>
-        Everything lives in your browser — nothing is stored on a server. Save
-        a backup file to keep your decks and maps safe, move them to another
-        device, share them with a friend, or play again years from now even if
-        the original deck links go offline.
+        Your bag lives in this browser. Save a backup file to keep your decks and
+        maps safe, move them to another device, share them with a friend, or play
+        again years from now even if the original deck links go offline.
       </Text>
       <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap="1rem">
         <ExportPanel decks={decks} maps={maps} star={star} />
         <ImportPanel {...{ importDecks, importMaps, decks, maps }} />
       </Grid>
+
+      {/*
+        Cloud shelves (issue #566). The section renders nothing at all when the
+        accounts API is unreachable, and a single "Sign in to sync" panel for a
+        guest — so this tab reads exactly as it did before for anyone who never
+        signs in. Loading goes through the bag's own importers, so a cloud copy
+        and a backup file land in the bag by the identical path.
+      */}
+      <CloudBagSection
+        onImportDeck={(data) => importDecks([data as DeckImportType])}
+        onImportMap={(data) => importMaps([data as MapData])}
+      />
     </Box>
   );
 };

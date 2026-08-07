@@ -11,6 +11,9 @@ import { useEffect } from "react";
 
 import type { GetStaticProps } from "next";
 import Link from "next/link";
+import { ReplaySharePage } from "@/components/Pro/ReplayShareLanding";
+import { ShareLanding } from "@/components/Share/ShareLanding";
+import { parseSharePath } from "@/lib/share/sharedItem";
 
 type Props = Record<string, never>;
 
@@ -22,6 +25,11 @@ export default function Custom404() {
   const router = useRouter();
 
   const [, online, lobby, user] = router.asPath.split("/");
+  // Share links — `/share/replay/<uuid>` (#567) and `/share/deck|map/<uuid>`
+  // (#566). No runtime-minted id can be pre-rendered, so GitHub Pages serves
+  // 404.html for them and the matching landing renders in place, with no
+  // redirect hop and the URL intact.
+  const share = parseSharePath(router.asPath);
   // A referral link (/online/... or /offline/...) always lands here first
   // since the site is a static export — this isn't a real 404, so it should
   // never show error copy.
@@ -29,6 +37,7 @@ export default function Custom404() {
 
   // Handles the redirect from the old unbrewed online router
   useEffect(() => {
+    if (share) return;
     if (online === "offline") {
       // /offline/<deckId> is a solo, local-only session — no lobby, no
       // websocket. Route straight to the offline board; it loads the deck
@@ -54,6 +63,10 @@ export default function Custom404() {
       },
     });
   }, [router.asPath]);
+
+  // A share link isn't a 404 either — render the right landing right here.
+  if (share?.kind === "replay") return <ReplaySharePage id={share.id} />;
+  if (share) return <ShareLanding route={share.kind} id={share.id} />;
 
   if (isReferralRedirect) {
     return (

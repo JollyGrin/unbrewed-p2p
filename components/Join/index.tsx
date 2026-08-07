@@ -14,7 +14,7 @@ import { RepeatIcon } from "@chakra-ui/icons";
 import axios from "axios";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import styled from "@emotion/styled";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
@@ -32,6 +32,7 @@ import {
   randomPlayerName,
   randomPopularDeck,
 } from "@/lib/invite";
+import { useAccount } from "@/lib/account/useAccount";
 
 /** Sentinel values for the deck <Select>; local decks use their own id. */
 const CHOICE_REMOTE = "__remote";
@@ -50,8 +51,18 @@ export const JoinPage = () => {
   const { decks, star } = useLocalDeckStorage();
   const { activeServer, setActiveServer } = useLocalServerStorage();
 
+  const account = useAccount();
+
   const [mounted, setMounted] = useState(false);
   const [name, setName] = useState("");
+  // Whether `name` is still the value WE filled in (a random name, or the
+  // account name once the probe lands) rather than something the player chose.
+  // Typing or rolling a new name clears it, so a late-arriving `/me` can never
+  // stomp a deliberate choice — see the prefill effect below.
+  const autoNameRef = useRef<string | null>(null);
+  // One-shot: the account name is applied at most once per page load, so a
+  // later re-render (or a re-probe after sign-out) can't re-stomp the field.
+  const accountNameApplied = useRef(false);
   const [deckChoice, setDeckChoice] = useState<string>(CHOICE_REMOTE);
   const [remoteDeck, setRemoteDeck] = useState<DeckImportType>();
   const [randomMeta, setRandomMeta] = useState<PopularDeckMeta>();
@@ -61,8 +72,29 @@ export const JoinPage = () => {
   // random values are picked after mount so the static prerender matches
   useEffect(() => {
     setMounted(true);
-    setName(randomPlayerName());
+    const random = randomPlayerName();
+    autoNameRef.current = random;
+    setName(random);
   }, []);
+
+  // Signed-in players play under their Discord name (issue #568). The `/me`
+  // probe settles after mount, so this replaces the random placeholder the
+  // moment it answers — but ONLY while the field still holds a value we wrote.
+  // The input stays freely editable, and a guest keeps the random name exactly
+  // as before.
+  //
+  // The ref bookkeeping deliberately lives in the effect BODY, never inside a
+  // `setName(current => …)` updater: StrictMode double-invokes updaters to
+  // catch impurity, and the second pass would see the ref we just moved and
+  // conclude the player had typed the name themselves — silently restoring the
+  // random one.
+  useEffect(() => {
+    if (accountNameApplied.current || account.status !== "signed-in") return;
+    if (name !== autoNameRef.current) return; // the player already chose a name
+    accountNameApplied.current = true;
+    autoNameRef.current = account.account.username;
+    setName(account.account.username);
+  }, [account, name]);
 
   const serverOverride =
     serverParam && isValidServerUrl(serverParam) ? serverParam : undefined;
@@ -210,7 +242,10 @@ export const JoinPage = () => {
             <Flex mt={2} gap={2}>
               <Input
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  autoNameRef.current = null; // the player owns the field now
+                  setName(e.target.value);
+                }}
                 placeholder="Your name"
                 bg="white"
                 focusBorderColor="brand.secondary"
@@ -218,7 +253,10 @@ export const JoinPage = () => {
               <IconButton
                 aria-label="Roll a new name"
                 icon={<RepeatIcon />}
-                onClick={() => setName(randomPlayerName())}
+                onClick={() => {
+                  autoNameRef.current = null; // a deliberate roll — don't restomp it
+                  setName(randomPlayerName());
+                }}
                 variant="outline"
                 color="brand.secondary"
                 borderColor="brand.secondary"

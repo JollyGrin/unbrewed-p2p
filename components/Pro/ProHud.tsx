@@ -52,6 +52,10 @@ import {
   StatLine,
   StatsPanel,
 } from "@/components/Game/Header/header.styles";
+import { InGameAccountChip } from "@/components/Account/AccountChip";
+import { useAccount } from "@/lib/account/useAccount";
+import { seatNameplate } from "@/lib/pro/playerIdentity";
+import { BadgeGlyph, badgeArtName, isKnownBadge } from "@/components/Badges/BadgeGlyph";
 import { DeckImportHeroType, DeckImportRuleCardType } from "@/components/DeckPool/deck-import.type";
 import { CardInstanceId, PlayerId, PlayerView, ViewFighter, ViewPlayer } from "@/lib/pro/protocol";
 import { isLargeFighter, LARGE_FIGHTER_BLURB } from "@/lib/pro/largeReach";
@@ -426,6 +430,8 @@ const SeatPlate = ({
   isAlly,
   presence,
   timer,
+  avatarUrl,
+  badge,
   hand,
   deckCount,
   discard,
@@ -471,6 +477,16 @@ const SeatPlate = ({
    *  non-drifting auto-forfeit countdown when `autoForfeitAt` is set. undefined =
    *  connected (or duel, which never populates this). */
   presence?: SeatPresence;
+  /** Discord avatar for the LOCAL seat only (issue #568), rendered beside the
+   *  nameplate. Read locally from `useAccount()` — avatars deliberately do NOT
+   *  cross the protocol, so an opponent's plate never carries one. undefined =
+   *  signed out, no avatar set, or the opponent's plate → nothing renders. */
+  avatarUrl?: string | null;
+  /** This seat's broadcast badge id (issue #577, engine #347) — public, so it
+   *  renders on BOTH plates. Opaque and unverified: an id with no art here
+   *  renders nothing at all. undefined = the seat wears none, or an older
+   *  server → nothing renders. */
+  badge?: string;
   /** own hand instances, or a count for the opponent */
   hand: CardInstanceId[] | number;
   deckCount: number;
@@ -521,6 +537,48 @@ const SeatPlate = ({
     onUpdate({ x: 0, y: 0 });
   };
   const toggleCollapse = () => onUpdate({ collapsed: !collapsed });
+
+  // The seat's worn badge (issue #577), on BOTH plates — this is the first
+  // cosmetic the opponent can see, which is the whole point of putting it on
+  // the wire. Unlike the avatar it is NOT local: it comes from the seat's
+  // broadcast state, so your own plate shows it for the same reason theirs does.
+  //
+  // An id this build has no art for renders NOTHING. The engine deliberately
+  // never validates the string, so a fallback glyph here would let any client
+  // put a shape on your screen by inventing one; a missing chip until the client
+  // catches up is the cheaper failure.
+  const badgeChip =
+    badge && isKnownBadge(badge) ? (
+      <Box data-testid="plate-badge" data-badge-id={badge} flexShrink={0}>
+        <BadgeGlyph id={badge} size="0.95rem" title={badgeArtName(badge)} />
+      </Box>
+    ) : null;
+
+  // Your own Discord avatar beside your name (issue #568). Purely local: it is
+  // read from `useAccount()` on this machine and never sent, so the opponent's
+  // plate shows their NAME and no picture. Decorative (alt="") — the name is
+  // right next to it.
+  const nameLine =
+    avatarUrl || badgeChip ? (
+      <Flex alignItems="center" gap="0.35rem" minW={0}>
+        {avatarUrl ? (
+          <Box
+            as="img"
+            data-testid="plate-avatar"
+            src={avatarUrl}
+            alt=""
+            boxSize="1rem"
+            borderRadius="full"
+            objectFit="cover"
+            flexShrink={0}
+          />
+        ) : null}
+        <PlayerName>{label}</PlayerName>
+        {badgeChip}
+      </Flex>
+    ) : (
+      <PlayerName>{label}</PlayerName>
+    );
 
   // ----- reusable pieces (shared by the live plate and the hover-peek) -----
   const renderNameBlock = (withAbility: boolean) => (
@@ -574,10 +632,10 @@ const SeatPlate = ({
             )
           }
         >
-          <PlayerName>{label}</PlayerName>
+          {nameLine}
         </Tooltip>
       ) : (
-        <PlayerName>{label}</PlayerName>
+        nameLine
       )}
       {heroName && <HeroName>{heroName}</HeroName>}
     </Box>
@@ -1093,6 +1151,10 @@ export const ProHud = ({
   const sidekicksOf = (player: PlayerId) =>
     view.fighters.filter((f) => f.owner === player && f.kind === "SIDEKICK");
   const display = STATUS_DISPLAY[status] ?? STATUS_DISPLAY.connecting;
+  // Local-only (issue #568): your own avatar for your own plate. Null for a
+  // guest, an unreachable accounts API, or an account with no avatar set — all
+  // of which render the plate exactly as it does today.
+  const { account } = useAccount();
   const seats: ViewPlayer[] = view.players.length
     ? view.players
     : [
@@ -1100,6 +1162,10 @@ export const ProHud = ({
           id: view.self.id,
           heroId: view.self.heroId,
           you: true,
+          // #568: the seat's claimed name, when this server broadcasts one.
+          displayName: view.self.displayName,
+          // #577: and the badge it claimed, same treatment.
+          badge: view.self.badge,
           team: view.self.id,
           hand: view.self.hand,
           handCount: view.self.hand.length,
@@ -1122,6 +1188,8 @@ export const ProHud = ({
               id: view.opponent.id,
               heroId: view.opponent.heroId,
               you: false,
+              displayName: view.opponent.displayName,
+              badge: view.opponent.badge,
               team: view.opponent.id,
               handCount: view.opponent.handCount,
               deckCount: view.opponent.deckCount,
@@ -1149,8 +1217,10 @@ export const ProHud = ({
   const { plates, hydrated, update } = useHudPlates();
   const seatUpdate = (seat: PlateSeat) => (partial: Partial<PlateLayout>) =>
     update(seat, partial);
-  const seatLabel = (seat: ViewPlayer) =>
-    seat.you ? "You" : seats.length === 2 ? "Opponent" : seat.id.toUpperCase();
+  // Nameplate label (issue #568): a seat's broadcast `displayName` when the
+  // player claimed one, otherwise today's "You"/"Opponent"/seat-id fallbacks —
+  // so a guest seat, an older server and an old room all read exactly as before.
+  const seatLabel = (seat: ViewPlayer) => seatNameplate(seat, seats.length);
   // Disconnect/auto-forfeit badge is a multiplayer feature (issue #222): duel
   // keeps its single top-of-HUD "opponent disconnected" chip and renders plates
   // exactly as before, so the presence lookup is gated on a multiplayer view.
@@ -1190,6 +1260,8 @@ export const ProHud = ({
             isAlly={teams.relationOf(seat.id) === "ally"}
             presence={presenceOf(seat)}
             timer={timerOf(seat)}
+            avatarUrl={seat.you ? account?.avatarUrl : undefined}
+            badge={seat.badge}
             hand={seat.you ? seat.hand ?? view.self.hand : seat.handCount}
             deckCount={seat.deckCount}
             discard={seat.discard}
@@ -1296,6 +1368,11 @@ export const ProHud = ({
             </Flex>
           </Tooltip>
         )}
+        {/* Optional Discord account (#459). Rides the chip cluster so it can
+            never sit over the board; renders nothing for guests-with-no-API,
+            and its sign-in deliberately leaves this tab (and its socket)
+            alone — see components/Account/AccountChip. */}
+        <InGameAccountChip />
       </ChipCluster>
     </>
   );

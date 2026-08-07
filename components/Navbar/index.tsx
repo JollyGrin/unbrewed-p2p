@@ -2,6 +2,7 @@ import styled from "@emotion/styled";
 import { HStack } from "@chakra-ui/react";
 import { IconLogo } from "../Icons/IconLogo";
 import { ProNavButton } from "./ProNavButton";
+import { AccountChip } from "../Account/AccountChip";
 import Link from "next/link";
 
 import { FaDiscord } from "react-icons/fa";
@@ -31,6 +32,9 @@ export const Navbar = () => {
         <Link href="https://github.com/jollygrin/unbrewed-p2p/">
           <GithubIcon />
         </Link>
+        {/* Optional Discord account (#459) — renders nothing unless the
+            accounts API answers, so guest play is untouched. */}
+        <AccountChip />
       </HStack>
     </HStack>
   );
