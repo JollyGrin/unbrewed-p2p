@@ -547,6 +547,38 @@
  * - Same-space fighters are mutually ADJACENT when either is small, so a legal attack
  *   may name a target on the attacker's own space. Targeting is already fighter-id
  *   keyed; only range HINTS drawn from space adjacency need to know.
+ *
+ * ## Additive fields (2026-08-05, no version bump): optional player identity
+ * Part of the accounts epic (issue #344). `CREATE_ROOM`/`JOIN_ROOM` gain two
+ * OPTIONAL fields, and the seat's public shapes gain one:
+ * - `displayName?` (request) — a human label for the seat. Sanitized server-side
+ *   (control characters stripped, trimmed, truncated to 32 chars; empty after
+ *   that = absent) and BROADCAST to every seat as `RoomStatusSeat.displayName`
+ *   and `ViewSelf`/`ViewOpponent`/`ViewPlayer.displayName`.
+ * - `playerId?` (request) — an opaque pseudonymous token, max 64 chars (longer
+ *   or malformed drops the FIELD, never the join). It goes to TELEMETRY ONLY;
+ *   it is never broadcast, never rendered, never logged.
+ * Both are CLIENT-CLAIMED and UNVERIFIED in v1: cosmetic labeling and
+ * pseudonymous attribution, never authorization. Seating, legality and
+ * redaction key off the runtime seat id exactly as before. A signed-token
+ * upgrade is a later phase (see server/identity.ts for the trust model).
+ * Purely additive to existing objects — no PROTOCOL_VERSION bump. With the
+ * request fields absent the wire is byte-identical to v28 behavior, so an older
+ * client that never sends or reads them is completely unaffected.
+ *
+ * ## Additive fields (2026-08-06, no version bump): optional seat badge
+ * Issue #347, the same pattern as `displayName` above. `CREATE_ROOM`/`JOIN_ROOM`
+ * gain one more OPTIONAL field, and the seat's public shapes gain one:
+ * - `badge?` (request) — an opaque badge id (e.g. `bot-slayer`), sanitized
+ *   exactly like `displayName` (control characters stripped, trimmed, truncated
+ *   to 32 chars; empty after that = absent) and BROADCAST beside the name as
+ *   `RoomStatusSeat.badge` and `ViewSelf`/`ViewOpponent`/`ViewPlayer.badge`.
+ * The server NEVER interprets the id: the client maps id → art and renders
+ * nothing for an id it does not know, so the badge catalog can grow without a
+ * server deploy. Client-claimed and UNVERIFIED like the fields above — purely
+ * cosmetic, never authorization, and NEVER sent to telemetry. Bot seats never
+ * carry one. Purely additive, so no PROTOCOL_VERSION bump: with the field
+ * absent not one message grows a key.
  */
 export const PROTOCOL_VERSION = 28;
 
@@ -1010,6 +1042,14 @@ export interface MoveGraph {
 export interface ViewSelf {
   id: PlayerId;
   heroId: string;
+  // #344: this seat's claimed display name, sanitized server-side; absent when
+  // the seat claimed none. Public (both seats see it), cosmetic, UNVERIFIED.
+  displayName?: string;
+  // #347: this seat's claimed badge id, sanitized server-side; absent when the
+  // seat claimed none. Opaque — the server never interprets it; a client maps
+  // it to art and renders nothing for an unknown id. Public, cosmetic,
+  // UNVERIFIED, and never sent to telemetry.
+  badge?: string;
   hand: CardInstanceId[];
   deckCount: number;
   discard: CardInstanceId[];
@@ -1036,6 +1076,14 @@ export interface ViewSelf {
 export interface ViewOpponent {
   id: PlayerId;
   heroId: string;
+  // #344: this seat's claimed display name, sanitized server-side; absent when
+  // the seat claimed none. Public (both seats see it), cosmetic, UNVERIFIED.
+  displayName?: string;
+  // #347: this seat's claimed badge id, sanitized server-side; absent when the
+  // seat claimed none. Opaque — the server never interprets it; a client maps
+  // it to art and renders nothing for an unknown id. Public, cosmetic,
+  // UNVERIFIED, and never sent to telemetry.
+  badge?: string;
   handCount: number;
   deckCount: number;
   discard: CardInstanceId[]; // discard is public
@@ -1055,6 +1103,14 @@ export interface ViewPlayer {
   id: PlayerId;
   heroId: string;
   you: boolean;
+  // #344: this seat's claimed display name, sanitized server-side; absent when
+  // the seat claimed none. Public (both seats see it), cosmetic, UNVERIFIED.
+  displayName?: string;
+  // #347: this seat's claimed badge id, sanitized server-side; absent when the
+  // seat claimed none. Opaque — the server never interprets it; a client maps
+  // it to art and renders nothing for an unknown id. Public, cosmetic,
+  // UNVERIFIED, and never sent to telemetry.
+  badge?: string;
   // Format-defined team id (duel/ffa: each seat is its own team). Public info —
   // identical for every viewer, never redacted (issue #98).
   team?: TeamId;
@@ -1308,6 +1364,13 @@ export interface RoomStatusSeat {
   heroId: string;
   connected: boolean;
   bot: BotDifficulty | null;
+  // #344: the seat's claimed display name, sanitized server-side. Absent when
+  // the seat claimed none (and always absent for bot seats). Cosmetic and
+  // UNVERIFIED — never key anything off it.
+  displayName?: string;
+  // #347: the seat's claimed badge id, same treatment and same caveats as
+  // `displayName`. Opaque to the server; unknown ids render as nothing.
+  badge?: string;
 }
 
 // A single rewound action, summarized for the UNDO_REQUESTED prompt (v11). Only
@@ -1336,8 +1399,14 @@ export type ClientMsg =
   // absent or 0 = no timer. See the 2026-07-13 move-timer header note.
   // `pilot`: telemetry label for socket-driven seats. Omit/empty = human;
   // LLM agents should send llm:<model>.
-  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; pilot?: string }
-  | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string; pilot?: string }
+  // `displayName`/`playerId` (issue #344): optional, client-claimed, UNVERIFIED
+  // seat identity — the name is sanitized + broadcast, the id goes to telemetry
+  // only. See the 2026-08-05 header note.
+  // `badge` (issue #347): optional, client-claimed, UNVERIFIED opaque badge id
+  // — sanitized + broadcast beside the name, never sent to telemetry. See the
+  // 2026-08-06 header note.
+  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; pilot?: string; displayName?: string; badge?: string; playerId?: string }
+  | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string; pilot?: string; displayName?: string; badge?: string; playerId?: string }
   | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }
   // v7: revive an in-memory room lost to a redeploy/crash. `token` is the opaque

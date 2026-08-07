@@ -4,6 +4,14 @@ import { ChakraProvider } from "@chakra-ui/react";
 import { ProHud } from "./ProHud";
 import { PlayerId, PlayerView, ProMapDef, ViewPlayer } from "@/lib/pro/protocol";
 
+// The HUD reads the optional Discord account for the local seat's avatar
+// (issue #568). Stubbed to "guest" so these tests never fire the `/me` probe —
+// with no account, the plates render exactly as they did before that change.
+jest.mock("../../lib/account/useAccount", () => ({
+  ...jest.requireActual("../../lib/account/useAccount"),
+  useAccount: () => ({ status: "guest", account: null }),
+}));
+
 // Regression coverage for issue #227: PR #200 winner-gated the right-panel turn
 // chips + waiting banner, but the gold "TURN" pill on the HUD player card still
 // rendered after GAME_OVER (seen stuck on the viewer's card on the DEFEAT

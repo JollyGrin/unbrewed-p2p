@@ -14,6 +14,7 @@ import { applyHeroCardFlag } from "@/components/Positions/heroCardTokens";
 import { FaPlus, FaStar } from "react-icons/fa";
 
 import { AddDeckHub } from "@/components/Bag/AddDeckHub";
+import { SaveToCloudButton } from "@/components/Bag/Cloud";
 import { DeckStats } from "./Stats";
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
 import { toast } from "react-hot-toast";
@@ -339,6 +340,14 @@ const DeckActions = ({
       )}
       {deck && <EditCardback deck={deck} onSave={updateDeck} />}
       {deck && <EditSavedTokens deck={deck} onSave={updateDeck} />}
+      {/*
+        Cloud copy for signed-in users (issue #566). Renders nothing for guests
+        and when the accounts API is unreachable, so this bar is unchanged for
+        everyone who never signs in.
+      */}
+      {deck && (
+        <SaveToCloudButton kind="decks" name={deck.name} data={deck} />
+      )}
       <Button
         size="sm"
         bg="brand.accent"
