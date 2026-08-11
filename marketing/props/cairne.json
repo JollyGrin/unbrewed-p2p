@@ -1,0 +1,22 @@
+{
+  "deckSlug": "p82X",
+  "tagline": "Snowball bruiser that banks RAGE and risks losing all of it",
+  "featuredCards": [
+    {
+      "title": "Bloodrage",
+      "caption": "Pays 2 health for 2 RAGE. The snowball starts by hurting yourself on purpose."
+    },
+    {
+      "title": "Heroic Strike",
+      "caption": "The workhorse: a 3 that becomes a 5 once three RAGE are banked — and banks another on the way."
+    },
+    {
+      "title": "fuel my hate",
+      "caption": "Defends without emptying the bank, then turns the damage gap into more RAGE."
+    },
+    {
+      "title": "blood thirst",
+      "caption": "Every RAGE spent here counts twice. This is the card the whole bank was saved for."
+    }
+  ]
+}

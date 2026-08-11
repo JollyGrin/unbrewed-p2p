@@ -9,7 +9,20 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "noUnusedLocals": true
+    "noUnusedLocals": true,
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    // The DeckAnnouncement composition imports the app's CardFactory from
+    // outside this package. Those files use the app's "@/…" alias, and they
+    // resolve `react` from the repo root — which has its own (older) React.
+    // Point both at this package so `tsc` checks them the way webpack bundles
+    // them (Remotion aliases react to a single copy at bundle time).
+    "paths": {
+      "@/*": ["../*"],
+      "react": ["./node_modules/@types/react"],
+      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
+      "react/jsx-dev-runtime": ["./node_modules/@types/react/jsx-dev-runtime"]
+    }
   },
   "exclude": ["remotion.config.ts"]
 }

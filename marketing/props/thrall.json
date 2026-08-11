@@ -1,0 +1,22 @@
+{
+  "deckSlug": "pk1x",
+  "tagline": "Board-engine ramp that turns a field of totems into fuel",
+  "featuredCards": [
+    {
+      "title": "Nature's Call",
+      "caption": "Plants totems until all four are standing. Everything else in the deck is paid for by the board you just built."
+    },
+    {
+      "title": "Mana Tide Totem",
+      "caption": "The engine: with a totem in range, dig three deep or tutor the exact card the turn needs."
+    },
+    {
+      "title": "Fire nova totem",
+      "caption": "Detonates one of your own totems for 4 damage to everything beside it. The field is ammunition."
+    },
+    {
+      "title": "Elemental fury",
+      "caption": "The cash-out. Raze up to four totems at once and add every one of them to this card's value."
+    }
+  ]
+}
