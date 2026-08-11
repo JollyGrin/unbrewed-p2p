@@ -1,0 +1,18 @@
+{
+  "deckSlug": "doppelganger",
+  "tagline": "A mirror duelist that turns the standstill into the threat",
+  "featuredCards": [
+    {
+      "title": "Step for Step",
+      "caption": "Sets its value to exactly yours. Nobody wins the combat — and the reflection still deals 2 and draws a card."
+    },
+    {
+      "title": "Pale Company",
+      "caption": "Banks EQUILIBRIUM without throwing a punch. The stalemate counter is the deck's whole economy."
+    },
+    {
+      "title": "The Omen",
+      "caption": "A 2 that reads as a 7 while you hold EQUILIBRIUM. Meeting your own double was always the bad sign."
+    }
+  ]
+}

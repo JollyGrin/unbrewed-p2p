@@ -1,0 +1,22 @@
+{
+  "deckSlug": "malfurion-stormrage",
+  "tagline": "Three forms, and your form decides which cards are legal",
+  "featuredCards": [
+    {
+      "title": "Travel Form",
+      "caption": "The pivot: cross four spaces and come out in whichever of the three forms the turn calls for."
+    },
+    {
+      "title": "Dire Bear Form",
+      "caption": "A 5 to defend with that also drops you into Bear. The form change is the card."
+    },
+    {
+      "title": "Starfire",
+      "caption": "Night Elf or Moonkin only — a 6 in Moonkin. In the wrong shape it is not even legal to play."
+    },
+    {
+      "title": "Hurricane",
+      "caption": "The cash-out: every action you did not spend this turn becomes damage in Malfurion's zone."
+    }
+  ]
+}

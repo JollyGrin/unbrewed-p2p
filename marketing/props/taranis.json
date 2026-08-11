@@ -1,0 +1,22 @@
+{
+  "deckSlug": "taranis",
+  "tagline": "Toolbox midrange with a hidden boost on every swing",
+  "featuredCards": [
+    {
+      "title": "Gromnir",
+      "caption": "The one big swing. A 6 that is never only a 6 — STORMCHANNEL slides a boost under it face down before anyone sees the number."
+    },
+    {
+      "title": "Storm's Toll",
+      "caption": "A 2 on the table with two boosts hiding beneath it. Defend it honestly and the storm answers anyway."
+    },
+    {
+      "title": "The Hammer Answers",
+      "caption": "Pulls Gromnir out of the deck or the discard pile, so the finisher is a plan you make, not a card you wait for."
+    },
+    {
+      "title": "Howling Gale",
+      "caption": "Moves every fighter on the board — yours and theirs — to reset the fight where the hammer wants it."
+    }
+  ]
+}
