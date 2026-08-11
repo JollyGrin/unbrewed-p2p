@@ -5,12 +5,13 @@ import {
 } from "remotion";
 import { BrandFonts } from "../fonts";
 import { PromoAudio } from "./audio";
+import { Flourish } from "./Flourish";
 import { loadDeckPromo, type DeckPromo } from "./deck";
 import { paletteFor } from "./palette";
 import { deckAnnouncementSchema, type DeckAnnouncementInput } from "./schema";
 import { CallToAction } from "./scenes/CallToAction";
 import { ColdOpen } from "./scenes/ColdOpen";
-import { HowItPlays } from "./scenes/HowItPlays";
+import { cardAnchor, HowItPlays } from "./scenes/HowItPlays";
 import { Niche } from "./scenes/Niche";
 import { promoTimeline } from "./timeline";
 import { Backdrop, SceneFade, Wordmark } from "./ui";
@@ -54,6 +55,7 @@ export const deckAnnouncementMetadata: CalculateMetadataFunction<
 export const DeckAnnouncement: React.FC<DeckAnnouncementProps> = ({
   tagline,
   musicTrack,
+  particleStyle,
   deck,
 }) => {
   if (!deck) {
@@ -71,6 +73,17 @@ export const DeckAnnouncement: React.FC<DeckAnnouncementProps> = ({
     <AbsoluteFill style={{ backgroundColor: palette.deep }}>
       <BrandFonts>
         <Backdrop deck={deck} palette={palette} />
+
+        {/* behind every scene: ambient field + a burst on each audio cue */}
+        <Flourish
+          palette={palette}
+          timeline={timeline}
+          hasQuote={hasQuote}
+          particleStyle={particleStyle}
+          cardAnchors={deck.featured.map((_, index) =>
+            cardAnchor(index, deck.featured.length),
+          )}
+        />
 
         <Sequence durationInFrames={coldOpen.duration}>
           <SceneFade durationInFrames={coldOpen.duration}>

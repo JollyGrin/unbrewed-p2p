@@ -18,5 +18,6 @@
       "title": "Howling Gale",
       "caption": "Moves every fighter on the board — yours and theirs — to reset the fight where the hammer wants it."
     }
-  ]
+  ],
+  "particleStyle": "embers"
 }
