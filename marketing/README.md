@@ -69,7 +69,8 @@ node scripts/compress-discord.mjs taranis   # 720p two-pass H.264, guaranteed <8
      "tagline": "…",                   // what the deck is FOR, one line
      "featuredCards": [                // 3–4, `title` must match the deck JSON
        { "title": "Gromnir", "caption": "…" }
-     ]
+     ],
+     "musicTrack": "level-2"           // optional; default "level-1"
    }
    ```
 
@@ -93,6 +94,11 @@ deck (the error lists the ones that are), or props that miss the schema.
 | 140 per card | featured cards fan in one at a time with their captions |
 | 180 | hp / move / melee-or-ranged strip, "Play free at unbrewed.xyz", cardback out |
 
+Each beat is scored: a riser into a slam on the deck name, one blip per text
+reveal, swish + thock + coin per featured card, and a closing hit with an 8-bit
+sting over the CTA. A chiptune bed runs underneath, ducking under every hit and
+fading out before the sting.
+
 The cold open is sized around the hero quote — 25–35 words that have to be
 readable before the cut. Decks that ship no quote (cairne) would hold a still
 frame for five seconds, so they get a 160-frame cold open instead.
@@ -108,6 +114,15 @@ frame for five seconds, so they get a 160-frame cold open instead.
   Remotion's webpack config aliases `react` to a single copy, so importing
   across the package boundary is safe; `tsconfig.json` maps the app's `@/*`
   paths so `tsc` can follow it.
+- `src/DeckAnnouncement/timeline.ts` is the single frame budget: the scene
+  Sequences and the audio cues in `audio.tsx` are both built from
+  `promoTimeline()`, so retiming a beat retimes its sound. Cue frames inside a
+  scene are that scene's own animation frames — the comments in `audio.tsx`
+  name which.
+- **All audio is CC0** (Kenney SFX packs + Juhani Junkala's 5 Chiptunes), listed
+  file by file in `public/audio/LICENSES.md`. These clips are posted publicly
+  and stay up, so nothing needing attribution goes in — no CC-BY, no "free for
+  personal use". Add a `LICENSES.md` row for anything new.
 - `src/fonts.tsx` exports `<BrandFonts>`, which holds the render open until the
   brand fonts are really on the page. `loadFont()` alone does not: it registers
   its `delayRender` while the bundle is evaluating, before any composition

@@ -4,6 +4,7 @@ import {
   type CalculateMetadataFunction,
 } from "remotion";
 import { BrandFonts } from "../fonts";
+import { PromoAudio } from "./audio";
 import { loadDeckPromo, type DeckPromo } from "./deck";
 import { paletteFor } from "./palette";
 import { deckAnnouncementSchema, type DeckAnnouncementInput } from "./schema";
@@ -11,26 +12,18 @@ import { CallToAction } from "./scenes/CallToAction";
 import { ColdOpen } from "./scenes/ColdOpen";
 import { HowItPlays } from "./scenes/HowItPlays";
 import { Niche } from "./scenes/Niche";
+import { promoTimeline } from "./timeline";
 import { Backdrop, SceneFade, Wordmark } from "./ui";
 
-export const FPS = 30;
-
-/** Scene lengths in frames. A 3-card deck runs 1030f (34.3s), a 4-card deck
- * 1170f (39s) — the top of the 20–40s brief. */
-export const NICHE = 180;
-export const PER_CARD = 140;
-export const CTA = 180;
-
-/**
- * The cold open is sized around its longest-lived text: the hero quote runs
- * 25–35 words and has to be comfortably readable before the cut, which takes
- * ~5.5s of hold on top of the cardback turn. Decks that ship no quote (cairne)
- * would just sit on a still frame, so they get the short version.
- */
-export const coldOpenFrames = (hasQuote: boolean) => (hasQuote ? 250 : 160);
-
-export const totalDuration = (featuredCount: number, hasQuote: boolean) =>
-  coldOpenFrames(hasQuote) + NICHE + PER_CARD * featuredCount + CTA;
+export {
+  coldOpenFrames,
+  CTA,
+  FPS,
+  NICHE,
+  PER_CARD,
+  promoTimeline,
+  totalDuration,
+} from "./timeline";
 
 /**
  * The component takes the deck ALREADY loaded: `deckAnnouncementMetadata`
@@ -50,16 +43,17 @@ export const deckAnnouncementMetadata: CalculateMetadataFunction<
   const parsed = deckAnnouncementSchema.parse(props);
   const deck = await loadDeckPromo(parsed, abortSignal);
   return {
-    durationInFrames: totalDuration(
+    durationInFrames: promoTimeline(
       deck.featured.length,
       Boolean(deck.hero.quote),
-    ),
+    ).total,
     props: { ...props, ...parsed, deck },
   };
 };
 
 export const DeckAnnouncement: React.FC<DeckAnnouncementProps> = ({
   tagline,
+  musicTrack,
   deck,
 }) => {
   if (!deck) {
@@ -69,39 +63,46 @@ export const DeckAnnouncement: React.FC<DeckAnnouncementProps> = ({
   }
 
   const palette = paletteFor(deck);
-  const coldOpen = coldOpenFrames(Boolean(deck.hero.quote));
-  const cards = PER_CARD * deck.featured.length;
+  const hasQuote = Boolean(deck.hero.quote);
+  const timeline = promoTimeline(deck.featured.length, hasQuote);
+  const { coldOpen, niche, cards, cta } = timeline;
 
   return (
     <AbsoluteFill style={{ backgroundColor: palette.deep }}>
       <BrandFonts>
         <Backdrop deck={deck} palette={palette} />
 
-        <Sequence durationInFrames={coldOpen}>
-          <SceneFade durationInFrames={coldOpen}>
+        <Sequence durationInFrames={coldOpen.duration}>
+          <SceneFade durationInFrames={coldOpen.duration}>
             <ColdOpen deck={deck} palette={palette} />
           </SceneFade>
         </Sequence>
 
-        <Sequence from={coldOpen} durationInFrames={NICHE}>
-          <SceneFade durationInFrames={NICHE}>
+        <Sequence from={niche.from} durationInFrames={niche.duration}>
+          <SceneFade durationInFrames={niche.duration}>
             <Niche deck={deck} palette={palette} tagline={tagline} />
           </SceneFade>
         </Sequence>
 
-        <Sequence from={coldOpen + NICHE} durationInFrames={cards}>
-          <SceneFade durationInFrames={cards}>
-            <HowItPlays deck={deck} palette={palette} perCard={PER_CARD} />
+        <Sequence from={cards.from} durationInFrames={cards.duration}>
+          <SceneFade durationInFrames={cards.duration}>
+            <HowItPlays deck={deck} palette={palette} perCard={cards.perCard} />
           </SceneFade>
         </Sequence>
 
-        <Sequence from={coldOpen + NICHE + cards} durationInFrames={CTA}>
-          <SceneFade durationInFrames={CTA}>
+        <Sequence from={cta.from} durationInFrames={cta.duration}>
+          <SceneFade durationInFrames={cta.duration}>
             <CallToAction deck={deck} palette={palette} />
           </SceneFade>
         </Sequence>
 
         <Wordmark palette={palette} />
+
+        <PromoAudio
+          timeline={timeline}
+          hasQuote={hasQuote}
+          musicTrack={musicTrack}
+        />
       </BrandFonts>
     </AbsoluteFill>
   );

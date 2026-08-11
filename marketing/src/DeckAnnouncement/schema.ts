@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MUSIC_TRACKS } from "./audio";
 
 /**
  * Props for the parameterized deck-announcement promo. A launch video is one
@@ -28,6 +29,11 @@ export const deckAnnouncementSchema = z.object({
     )
     .min(3)
     .max(4),
+  /**
+   * Which committed chiptune runs under the video (public/audio/music). All
+   * CC0 — see public/audio/LICENSES.md. Omit for the default, "level-1".
+   */
+  musicTrack: z.enum(MUSIC_TRACKS).optional(),
 });
 
 export type DeckAnnouncementInput = z.infer<typeof deckAnnouncementSchema>;
