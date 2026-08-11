@@ -31,7 +31,8 @@
     "lint": "eslint src scripts && tsc",
     "render:deck": "remotion render DeckAnnouncement",
     "promo": "node scripts/promo.mjs",
-    "compress:discord": "node scripts/compress-discord.mjs"
+    "compress:discord": "node scripts/compress-discord.mjs",
+    "check:flourish": "node scripts/check-flourish.mjs"
   },
   "sideEffects": [
     "*.css"

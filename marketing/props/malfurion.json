@@ -18,5 +18,6 @@
       "title": "Hurricane",
       "caption": "The cash-out: every action you did not spend this turn becomes damage in Malfurion's zone."
     }
-  ]
+  ],
+  "particleStyle": "aura"
 }

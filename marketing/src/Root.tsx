@@ -37,7 +37,9 @@ export const RemotionRoot: React.FC = () => {
         id="DeckAnnouncement"
         component={DeckAnnouncement}
         schema={deckAnnouncementSchema}
-        defaultProps={taranis}
+        // parsed, not cast: a json import widens "embers" to string, and the
+        // Studio should fail loudly on a props file that drifted off-schema
+        defaultProps={deckAnnouncementSchema.parse(taranis)}
         calculateMetadata={deckAnnouncementMetadata}
         durationInFrames={totalDuration(taranis.featuredCards.length, true)}
         fps={FPS}

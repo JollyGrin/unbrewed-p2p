@@ -56,6 +56,12 @@ name); `deckSlug` is the JSON file name from step 0.
 - **musicTrack** — optional, `"level-1"` (default) · `"level-2"` · `"level-3"`,
   the committed Juhani Junkala chiptunes. Leave it out unless a deck wants a
   different vibe; `level-1` is the driving character-select one.
+- **particleStyle** — optional, `"motes"` (default) · `"embers"` · `"aura"` ·
+  `"ash"`: which ambient field drifts behind the video (see *Particle flourish*
+  below). Tinted from the deck's own `highlightColour`, so it is a texture
+  choice, not a colour one. Shipped picks: taranis + cairne `embers`,
+  malfurion `aura`, doppelganger `ash`, thrall the default. Omit it unless a
+  deck clearly wants one — `motes` is the conservative answer.
 
 Read the deck before picking:
 
@@ -149,8 +155,46 @@ sync. Re-render **every** deck in `props/` afterwards; palette, timing and audio
 changes are template-wide.
 
 If you move a beat *inside* a scene (the name rise, a card's landing, the CTA
-outro), move its cue constant in `src/DeckAnnouncement/audio.tsx` to match — the
-cue frames are that scene's own animation frames, named in the comments there.
+outro), move its cue frame in the `CUE` table in `src/DeckAnnouncement/timeline.ts`
+to match — those are that scene's own animation frames, and both the audio cues
+(`audio.tsx`) and the particle bursts (`Flourish.tsx`) are built from them, so
+one edit retimes the sound and its burst together.
+
+## Particle flourish
+
+An ambient particle layer runs behind every scene — `src/DeckAnnouncement/particles.ts`
+(all the maths, no React) and `Flourish.tsx` (the divs). Three parts, all
+tinted from the deck's `highlightColour`:
+
+| Layer | What it does |
+| --- | --- |
+| Ambient field | ~48 particles in 3 depth layers (back small/slow, front large/fast) drifting the whole video |
+| Cue bursts | a spark burst on the deck-name slam, a dust puff under each card as it lands, a shimmer sweep on the closing sting |
+| Hero aura | a slow breathing glow behind the hero art on the cold open, under its ken-burns push |
+
+Two rules are not negotiable, and `npm run check:flourish` enforces both:
+
+- **Determinism.** Remotion renders frames independently and in parallel, so a
+  particle may only depend on (its seed, the frame). Every roll goes through
+  Remotion's seeded `random()` keyed on the particle's index — **`Math.random()`
+  is forbidden anywhere in the composition**; it re-rolls per frame and the
+  field strobes.
+- **Subtlety.** The flourish mounts between the backdrop and the scenes, so it
+  is always behind text and card faces, no particle passes ~0.2 opacity, and
+  `ambientDim()` pulls the field down to ~0.3 under the beats the viewer is
+  reading (the quote, the tagline + ability panel, every caption). Seasoning,
+  not a screensaver — when in doubt, less.
+
+Bursts are windows, not triggers: `burstProgress()` is exactly 0 outside
+`[cue, cue + duration)`, which is what makes "no stray flickers" checkable.
+`check:flourish` walks every frame of every deck shape and fails if a burst
+draws anything off-cue, if the field breaks its opacity budget, or if it does
+not back off under a reading beat. Run it after touching either file.
+
+Animate the flourish the same way as everything else: `useCurrentFrame()` +
+`interpolate()`, plain divs, no CSS animation, no per-frame `blur()` (soft dots
+are radial gradients — blur is the one cheap-looking effect that is genuinely
+expensive).
 
 ## Audio assets are CC0 only — no exceptions
 

@@ -8,6 +8,7 @@ import {
 } from "remotion";
 import { font } from "../../theme";
 import type { DeckPromo } from "../deck";
+import { HeroAura } from "../Flourish";
 import { alpha, type Palette } from "../palette";
 import { EASE, Eyebrow } from "../ui";
 
@@ -64,6 +65,8 @@ export const ColdOpen: React.FC<{ deck: DeckPromo; palette: Palette }> = ({
       }}
     >
       <div style={{ position: "relative", width: CARD_W, height: CARD_H }}>
+        {/* first child, so the glow sits behind both faces of the card */}
+        <HeroAura palette={palette} />
         {deck.cardbackUrl ? (
           <Img
             src={deck.cardbackUrl}
@@ -104,8 +107,15 @@ export const ColdOpen: React.FC<{ deck: DeckPromo; palette: Palette }> = ({
                 width: "100%",
                 height: "100%",
                 objectFit: "cover",
-                // slow push so the held frame never reads as a freeze
-                transform: `scale(${interpolate(frame, [38, 250], [1, 1.06])})`,
+                // slow ken-burns push+pan so the held frame never reads as a freeze
+                transform: [
+                  `scale(${interpolate(frame, [38, 250], [1, 1.06])})`,
+                  `translate(${interpolate(frame, [38, 250], [0, -1.4])}%, ${interpolate(
+                    frame,
+                    [38, 250],
+                    [0, 1],
+                  )}%)`,
+                ].join(" "),
               }}
             />
           ) : null}

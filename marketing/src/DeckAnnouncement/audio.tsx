@@ -1,7 +1,7 @@
 import { Audio } from "@remotion/media";
 import { Fragment } from "react";
 import { interpolate, Sequence, staticFile } from "remotion";
-import type { PromoTimeline } from "./timeline";
+import { CUE, type PromoTimeline } from "./timeline";
 
 /**
  * The promo's audio layer: a chiptune bed under retro SFX punched in on the
@@ -30,28 +30,27 @@ const DUCK_DEPTH = 0.5;
 const DUCK_IN = 3;
 const DUCK_OUT = 20;
 
-// ---- cold open (frames from scenes/ColdOpen.tsx) ----
-const NAME_SLAM = 48; // nameRise starts: the deck name comes up
+// ---- cue frames ----
+// Every beat-internal frame lives in timeline.ts (`CUE`), because the particle
+// flourish fires off the same numbers — see Flourish.tsx.
+const NAME_SLAM = CUE.nameSlam;
 // riser.wav is 0.54s; slowed it runs ~27f and is deeper, so it starts on the
 // cardback turn and tops out exactly on the slam
 const RISER_RATE = 0.6;
 const RISER_SECONDS = 0.54;
 const RISER_LENGTH = Math.round((RISER_SECONDS * 30) / RISER_RATE);
-const QUOTE_IN = 62; // quoteIn fade begins
+const QUOTE_IN = CUE.quoteIn;
 
-// ---- niche (frames from scenes/Niche.tsx) ----
-const HEADLINE_IN = 0; // headline spring
-const PANEL_IN = 26; // ability panel spring
+const HEADLINE_IN = CUE.nicheHeadline;
+const PANEL_IN = CUE.nichePanel;
 
-// ---- featured cards (frames from scenes/HowItPlays.tsx, per card) ----
-const CARD_LAND = 13; // the enter spring has all but settled
-const CARD_STATS = 22; // the value/boost line under the caption reads in
+const CARD_LAND = CUE.cardLand;
+const CARD_STATS = CUE.cardStats;
 
-// ---- cta (frames from scenes/CallToAction.tsx) ----
-const STAT_CHIPS = [0, 8, 16]; // StatChip delays
-const URL_IN = 30; // ctaIn spring
-const OUTRO_AT = 118; // the cardback takes the frame
-const JINGLE_AT = OUTRO_AT + 5;
+const STAT_CHIPS = CUE.statChips;
+const URL_IN = CUE.ctaUrl;
+const OUTRO_AT = CUE.ctaOutro;
+const JINGLE_AT = CUE.ctaSting;
 /** Music is gone by the time the sting lands — the jingle buttons the video. */
 const MUSIC_FADE_OUT_AT = 44;
 

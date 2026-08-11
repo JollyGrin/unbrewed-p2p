@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MUSIC_TRACKS } from "./audio";
+import { PARTICLE_STYLES } from "./particles";
 
 /**
  * Props for the parameterized deck-announcement promo. A launch video is one
@@ -34,6 +35,13 @@ export const deckAnnouncementSchema = z.object({
    * CC0 — see public/audio/LICENSES.md. Omit for the default, "level-1".
    */
   musicTrack: z.enum(MUSIC_TRACKS).optional(),
+  /**
+   * Which ambient particle field drifts behind the video, tinted from the
+   * deck's own highlight colour: "motes" (neutral dust — the default),
+   * "embers" (rising warm sparks), "aura" (slow orbiting wisps), "ash"
+   * (falling dark flakes). Omit unless a deck clearly wants one.
+   */
+  particleStyle: z.enum(PARTICLE_STYLES).optional(),
 });
 
 export type DeckAnnouncementInput = z.infer<typeof deckAnnouncementSchema>;
