@@ -27,8 +27,10 @@
     "dev": "remotion studio",
     "build": "remotion bundle",
     "upgrade": "remotion upgrade",
-    "lint": "eslint src && tsc",
-    "render:deck": "remotion render DeckAnnouncement"
+    "lint": "eslint src scripts && tsc",
+    "render:deck": "remotion render DeckAnnouncement",
+    "promo": "node scripts/promo.mjs",
+    "compress:discord": "node scripts/compress-discord.mjs"
   },
   "sideEffects": [
     "*.css"

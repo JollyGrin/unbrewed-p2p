@@ -45,10 +45,19 @@ hard-coded per deck — palette, hero statline, quote, special ability, card
 faces and card art all come out of the shipped deck JSON.
 
 ```console
-npm run render:deck -- out/taranis.mp4 --props=props/taranis.json
-# or, verbatim:
-npx remotion render DeckAnnouncement out/doppelganger.mp4 --props=props/doppelganger.json
+npm run promo -- taranis      # render + Discord copy: out/taranis.mp4, out/taranis-discord.mp4
 ```
+
+Or the pieces:
+
+```console
+npx remotion render DeckAnnouncement out/taranis.mp4 --props=props/taranis.json
+node scripts/compress-discord.mjs taranis   # 720p two-pass H.264, guaranteed <8MB
+```
+
+`out/` is gitignored — commit the props file, not the mp4s. The full workflow
+(including how to pick the featured cards) is written up as a skill in
+`.claude/skills/deck-promo/SKILL.md`.
 
 ### Adding a deck
 
