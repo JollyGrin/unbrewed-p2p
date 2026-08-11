@@ -53,6 +53,9 @@ name); `deckSlug` is the JSON file name from step 0.
   deck's arc: setup → engine → payoff → cash-out.
 - **captions** — ≤ 180 chars, one idea, says why the card matters rather than
   restating its rules text (the card face is on screen beside it).
+- **musicTrack** — optional, `"level-1"` (default) · `"level-2"` · `"level-3"`,
+  the committed Juhani Junkala chiptunes. Leave it out unless a deck wants a
+  different vibe; `level-1` is the driving character-select one.
 
 Read the deck before picking:
 
@@ -101,6 +104,19 @@ for f in 100 300 620 1100; do ffmpeg -loglevel error -y -ss $(python3 -c "print(
 Beats: cold open (cardback → hero, name, quote) · tagline + ability panel ·
 one featured card per 140f · CTA statline + cardback out.
 
+Listen to it too — the render carries a full audio layer:
+
+| Beat | Sound |
+| --- | --- |
+| Cold open | riser under the cardback turn → slam on the deck name (+ a soft blip on the quote) |
+| Tagline / ability | one blip per reveal — the headline, then the ability panel |
+| Featured cards | swish in, thock on landing, coin accent on the value/boost line |
+| CTA | statline ticks, a confirm on the url, then the closing hit + 8-bit sting |
+
+A chiptune bed runs under all of it, ducking under each hit and fading out
+before the sting. Cue frames live in `src/DeckAnnouncement/audio.tsx` and are
+built from `promoTimeline()`, so retiming a scene retimes its sound.
+
 ## Quirks
 
 - **No `hero.quote` in the deck JSON** (cairne): the cold open drops from 250f
@@ -126,7 +142,26 @@ one featured card per 140f · CTA statline + cardback out.
 
 ## Adding a new scene or changing timing
 
-`src/DeckAnnouncement/index.tsx` owns the frame budget (`coldOpenFrames`,
-`NICHE`, `PER_CARD`, `CTA`, `totalDuration`) — change it there, not in a scene,
-so `calculateMetadata` and the Sequences stay in sync. Re-render **every** deck
-in `props/` afterwards; palette and timing changes are template-wide.
+`src/DeckAnnouncement/timeline.ts` owns the frame budget (`coldOpenFrames`,
+`NICHE`, `PER_CARD`, `CTA`, `totalDuration`, `promoTimeline`) — change it there,
+not in a scene, so `calculateMetadata`, the Sequences and the audio cues stay in
+sync. Re-render **every** deck in `props/` afterwards; palette, timing and audio
+changes are template-wide.
+
+If you move a beat *inside* a scene (the name rise, a card's landing, the CTA
+outro), move its cue constant in `src/DeckAnnouncement/audio.tsx` to match — the
+cue frames are that scene's own animation frames, named in the comments there.
+
+## Audio assets are CC0 only — no exceptions
+
+Everything under `marketing/public/audio/` is CC0 (Kenney SFX packs, Juhani
+Junkala's 5 Chiptunes) and listed in `marketing/public/audio/LICENSES.md`.
+These videos are posted publicly and stay up forever, so:
+
+- Add nothing that needs a credit line — no CC-BY, no "free for personal use",
+  no "royalty-free with attribution", and not the remotion.media stock SFX
+  (wrong vibe, and not CC0 across the board).
+- Commit only the files a cue actually uses, and add a row to `LICENSES.md`
+  with the original file name, its pack, the source URL and the CC0 statement.
+- SFX are WAV, music is MP3, both transcoded from the source download —
+  say so in `LICENSES.md` if you transcode something new.
