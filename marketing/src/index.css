@@ -1,3 +1,19 @@
 * {
   box-sizing: border-box;
 }
+
+/* Card-type colors for the app's CardFactory, which colors the value canton
+   with a class name (styles/globals.css in the app). Kept in sync with
+   `cardType` in theme.ts. */
+.attack {
+  fill: #dc3034;
+}
+.defence {
+  fill: #2c76ac;
+}
+.versatile {
+  fill: #6c4e8d;
+}
+.scheme {
+  fill: #fcbd71;
+}
