@@ -29,23 +29,25 @@ export const ColdOpen: React.FC<{ deck: DeckPromo; palette: Palette }> = ({
     durationInFrames: 26,
   });
   // the turn: the back squashes to nothing, the face opens out of it
-  const backScaleX = interpolate(frame, [26, 42], [1, 0], {
+  const backScaleX = interpolate(frame, [22, 38], [1, 0], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: EASE,
   });
-  const faceScaleX = interpolate(frame, [42, 58], [0, 1], {
+  const faceScaleX = interpolate(frame, [38, 54], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: EASE,
   });
   const nameRise = spring({
-    frame: frame - 54,
+    frame: frame - 48,
     fps,
     config: { damping: 200 },
     durationInFrames: 26,
   });
-  const quoteIn = interpolate(frame, [70, 92], [0, 1], {
+  // the quote is the beat's whole payload — it lands early and then holds,
+  // so a first-time viewer can read all of it before the cut
+  const quoteIn = interpolate(frame, [62, 82], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: EASE,
@@ -98,7 +100,13 @@ export const ColdOpen: React.FC<{ deck: DeckPromo; palette: Palette }> = ({
           {deck.hero.portraitUrl ? (
             <Img
               src={deck.hero.portraitUrl}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                // slow push so the held frame never reads as a freeze
+                transform: `scale(${interpolate(frame, [38, 250], [1, 1.06])})`,
+              }}
             />
           ) : null}
           <div

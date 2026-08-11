@@ -55,7 +55,7 @@ export type Palette = {
   deep: string;
   /** panel fill that reads as "on top of" the backdrop */
   panel: string;
-  /** body copy on the backdrop */
+  /** body copy on the backdrop (always dark, so always the parchment ink) */
   ink: string;
   /** dimmer body copy */
   inkDim: string;
@@ -64,17 +64,27 @@ export type Palette = {
 };
 
 export const paletteFor = (deck: DeckPromo): Palette => {
-  const base = deck.borderColour;
-  const accent = deck.highlightColour;
-  const dark = luminance(base) < 0.62;
-  const ink = dark ? brand.parchment : brand.surfaceDim;
+  // Deck border colours are picked to frame a card, not to fill a screen:
+  // taranis/doppelganger are near-black, but thrall (#86d41a) and cairne
+  // (#60f10f) are fluorescent green. Pull a light deck down onto the brand's
+  // dark surface — it keeps the deck's hue as a tint and every scene keeps the
+  // same contrast contract. Decks that are already dark are untouched.
+  const raw = deck.borderColour;
+  const base = luminance(raw) < 0.62 ? raw : mix(raw, brand.surfaceDim, 0.78);
+
+  // Same problem on the accent: thrall's highlight is a dark blue that would
+  // vanish as heading text on the backdrop. Lift it until it reads.
+  const rawAccent = deck.highlightColour;
+  const accent =
+    luminance(rawAccent) < 0.42 ? mix(rawAccent, "#ffffff", 0.5) : rawAccent;
+
   return {
     base,
     accent,
-    deep: mix(base, "#000000", dark ? 0.55 : 0.2),
-    panel: mix(base, dark ? "#000000" : "#ffffff", 0.32),
-    ink,
-    inkDim: mix(ink, base, 0.35),
+    deep: mix(base, "#000000", 0.55),
+    panel: mix(base, "#000000", 0.32),
+    ink: brand.parchment,
+    inkDim: mix(brand.parchment, base, 0.35),
     onAccent: luminance(accent) < 0.62 ? brand.parchment : brand.surfaceDim,
   };
 };

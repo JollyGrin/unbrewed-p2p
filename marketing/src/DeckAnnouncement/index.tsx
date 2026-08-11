@@ -15,14 +15,22 @@ import { Backdrop, SceneFade, Wordmark } from "./ui";
 
 export const FPS = 30;
 
-/** Scene lengths in frames. 3 featured cards → 900f (30s), 4 → 1040f (34.7s). */
-export const COLD_OPEN = 120;
+/** Scene lengths in frames. A 3-card deck runs 1030f (34.3s), a 4-card deck
+ * 1170f (39s) — the top of the 20–40s brief. */
 export const NICHE = 180;
 export const PER_CARD = 140;
 export const CTA = 180;
 
-export const totalDuration = (featuredCount: number) =>
-  COLD_OPEN + NICHE + PER_CARD * featuredCount + CTA;
+/**
+ * The cold open is sized around its longest-lived text: the hero quote runs
+ * 25–35 words and has to be comfortably readable before the cut, which takes
+ * ~5.5s of hold on top of the cardback turn. Decks that ship no quote (cairne)
+ * would just sit on a still frame, so they get the short version.
+ */
+export const coldOpenFrames = (hasQuote: boolean) => (hasQuote ? 250 : 160);
+
+export const totalDuration = (featuredCount: number, hasQuote: boolean) =>
+  coldOpenFrames(hasQuote) + NICHE + PER_CARD * featuredCount + CTA;
 
 /**
  * The component takes the deck ALREADY loaded: `deckAnnouncementMetadata`
@@ -42,7 +50,10 @@ export const deckAnnouncementMetadata: CalculateMetadataFunction<
   const parsed = deckAnnouncementSchema.parse(props);
   const deck = await loadDeckPromo(parsed, abortSignal);
   return {
-    durationInFrames: totalDuration(deck.featured.length),
+    durationInFrames: totalDuration(
+      deck.featured.length,
+      Boolean(deck.hero.quote),
+    ),
     props: { ...props, ...parsed, deck },
   };
 };
@@ -58,6 +69,7 @@ export const DeckAnnouncement: React.FC<DeckAnnouncementProps> = ({
   }
 
   const palette = paletteFor(deck);
+  const coldOpen = coldOpenFrames(Boolean(deck.hero.quote));
   const cards = PER_CARD * deck.featured.length;
 
   return (
@@ -65,25 +77,25 @@ export const DeckAnnouncement: React.FC<DeckAnnouncementProps> = ({
       <BrandFonts>
         <Backdrop deck={deck} palette={palette} />
 
-        <Sequence durationInFrames={COLD_OPEN}>
-          <SceneFade durationInFrames={COLD_OPEN}>
+        <Sequence durationInFrames={coldOpen}>
+          <SceneFade durationInFrames={coldOpen}>
             <ColdOpen deck={deck} palette={palette} />
           </SceneFade>
         </Sequence>
 
-        <Sequence from={COLD_OPEN} durationInFrames={NICHE}>
+        <Sequence from={coldOpen} durationInFrames={NICHE}>
           <SceneFade durationInFrames={NICHE}>
             <Niche deck={deck} palette={palette} tagline={tagline} />
           </SceneFade>
         </Sequence>
 
-        <Sequence from={COLD_OPEN + NICHE} durationInFrames={cards}>
+        <Sequence from={coldOpen + NICHE} durationInFrames={cards}>
           <SceneFade durationInFrames={cards}>
             <HowItPlays deck={deck} palette={palette} perCard={PER_CARD} />
           </SceneFade>
         </Sequence>
 
-        <Sequence from={COLD_OPEN + NICHE + cards} durationInFrames={CTA}>
+        <Sequence from={coldOpen + NICHE + cards} durationInFrames={CTA}>
           <SceneFade durationInFrames={CTA}>
             <CallToAction deck={deck} palette={palette} />
           </SceneFade>

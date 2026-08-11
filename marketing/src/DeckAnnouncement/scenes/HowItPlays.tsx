@@ -7,7 +7,7 @@ import {
 } from "remotion";
 import { cardType, font } from "../../theme";
 import { CardFace } from "../CardFace";
-import type { DeckPromo } from "../deck";
+import type { DeckPromo, PromoCard } from "../deck";
 import { alpha, type Palette } from "../palette";
 import { EASE, Eyebrow } from "../ui";
 
@@ -15,6 +15,8 @@ const CARD_H = 610;
 const CARD_W = (CARD_H * 63) / 88;
 const FAN_CENTER_X = 1330;
 const FAN_CENTER_Y = 560;
+
+const isScheme = (card: PromoCard) => card.type.toLowerCase() === "scheme";
 
 const typeColor = (type: string) =>
   (cardType as Record<string, string | undefined>)[type.toLowerCase()] ??
@@ -154,7 +156,11 @@ const Caption: React.FC<{
           }}
         >
           {[
-            card.value === undefined ? null : `VALUE ${card.value}`,
+            // schemes print no combat value — some decks still carry one in
+            // their JSON, and the card face beside this line never shows it
+            isScheme(card) || card.value === undefined
+              ? null
+              : `VALUE ${card.value}`,
             `BOOST ${card.boost}`,
             `×${card.quantity}`,
           ]

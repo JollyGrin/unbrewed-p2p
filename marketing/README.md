@@ -64,8 +64,12 @@ npx remotion render DeckAnnouncement out/doppelganger.mp4 --props=props/doppelga
    }
    ```
 
-2. Render it. That's the whole workflow — 3 featured cards is a 30s video, 4 is
-   ~35s (`calculateMetadata` sets the duration).
+   The props file name is yours to pick; `deckSlug` is the deck JSON's file
+   name, which for older decks is an opaque id (`props/thrall.json` renders
+   `"deckSlug": "pk1x"`).
+
+2. Render it. That's the whole workflow — 3 featured cards is a 34s video, 4 is
+   39s (`calculateMetadata` sets the duration).
 
 Bad input fails the render before frame 0 rather than producing a blank video:
 an unknown `deckSlug` (404 on the deck JSON), a card `title` that isn't in the
@@ -75,10 +79,14 @@ deck (the error lists the ones that are), or props that miss the schema.
 
 | Frames (30fps) | Beat |
 | --- | --- |
-| 0–120 | cardback turns over into the hero portrait, deck name, hero quote |
-| 120–300 | the `tagline`, backed by the hero's special ability panel |
-| 300 + 140/card | featured cards fan in one at a time with their captions |
-| last 180 | hp / move / melee-or-ranged strip, "Play free at unbrewed.xyz", cardback out |
+| 250 | cardback turns over into the hero portrait, deck name, hero quote |
+| 180 | the `tagline`, backed by the hero's special ability panel |
+| 140 per card | featured cards fan in one at a time with their captions |
+| 180 | hp / move / melee-or-ranged strip, "Play free at unbrewed.xyz", cardback out |
+
+The cold open is sized around the hero quote — 25–35 words that have to be
+readable before the cut. Decks that ship no quote (cairne) would hold a still
+frame for five seconds, so they get a 160-frame cold open instead.
 
 ### How it reaches the app
 

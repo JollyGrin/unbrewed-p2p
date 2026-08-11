@@ -39,7 +39,7 @@ export const RemotionRoot: React.FC = () => {
         schema={deckAnnouncementSchema}
         defaultProps={taranis}
         calculateMetadata={deckAnnouncementMetadata}
-        durationInFrames={totalDuration(taranis.featuredCards.length)}
+        durationInFrames={totalDuration(taranis.featuredCards.length, true)}
         fps={FPS}
         width={1920}
         height={1080}
