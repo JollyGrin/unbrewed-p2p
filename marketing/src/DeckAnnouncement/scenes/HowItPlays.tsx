@@ -34,6 +34,14 @@ const slot = (index: number, total: number) => {
   };
 };
 
+/** Just under a landed card — where the flourish puffs its dust, so the burst
+ * follows the fan geometry instead of duplicating it. Below the card's own
+ * edge: the puff renders behind the faces, so anything higher would be hidden. */
+export const cardAnchor = (index: number, total: number) => {
+  const { x, y } = slot(index, total);
+  return { x, y: y + CARD_H / 2 + 24 };
+};
+
 const FannedCard: React.FC<{
   deck: DeckPromo;
   index: number;
