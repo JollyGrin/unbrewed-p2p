@@ -338,14 +338,14 @@
     },
     {
       "heroId": "kenshiro",
-      "deckId": "kenshiro",
-      "version_id": "evergreen-1",
+      "deckId": "6rDz",
+      "version_id": "WvW4T24Nq",
       "frozenAt": "2026-08-12",
-      "digest": "sha256:d3478e839c1fcd5a16076faea270a440e13b84a455311a8170e4b00368c69982",
+      "digest": "sha256:008770a740f610e589e9c21beedeb9dbfebf23547225c7bac4fca0056b891551",
       "rulesVerified": {
         "repo": "unbrewed-pro-server",
         "file": "data/heroes/kenshiro.rules.ts",
-        "commit": "c35561a"
+        "commit": "79e3c15"
       }
     }
   ]

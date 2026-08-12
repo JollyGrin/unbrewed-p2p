@@ -574,26 +574,35 @@ describe("HERO_STATE_FLAGS — Kenshiro's buff + condition pills", () => {
   });
 });
 
-describe("HERO_STATE_COUNTERS — Kenshiro's HOKUTO chain", () => {
-  const chain = () => HERO_STATE_COUNTERS.find((e) => e.counter === "HUNDRED_FIST");
+describe("HERO_STATE_COUNTERS — Kenshiro's HUNDRED_FIST ledger", () => {
+  const ledger = () => HERO_STATE_COUNTERS.find((e) => e.counter === "HUNDRED_FIST");
 
   it("registers the exact engine counter key on both surfaces", () => {
-    const e = chain();
+    const e = ledger();
     expect(e).toBeDefined();
     expect(e!.pile).toBeUndefined();
     expect(e!.heroes).toEqual(["kenshiro"]);
-    expect(e!.nameplate?.labelTemplate).toBe("HOKUTO CHAIN: {n}");
-    expect(e!.token).toMatchObject({ title: "HOKUTO CHAIN" });
+    expect(e!.nameplate?.labelTemplate).toBe("HUNDRED-FIST: {n}");
+    expect(e!.token).toMatchObject({ title: "HUNDRED-FIST (copies played)" });
   });
 
-  it("pills + badges the live chain depth, and hides both at 0", () => {
+  it("never calls itself a chain — the counter is a played-copies ledger that reads one high mid-combat", () => {
+    // kenshiro.rules.ts banks HUNDRED_FIST from a CARD_PLAYED trigger (fires at
+    // reveal), so during the Rush's own combat the value is copies-in-discard + 1.
+    // Labelling it "CHAIN: n" would assert n chain hits that have not happened.
+    const e = ledger()!;
+    expect(e.nameplate!.labelTemplate).not.toMatch(/chain/i);
+    expect(e.token!.title).not.toMatch(/chain/i);
+  });
+
+  it("pills + badges the live count, and hides both at 0", () => {
     const chips = counterChipsFor("kenshiro", { HUNDRED_FIST: 2 });
     expect(chips).toHaveLength(1);
-    expect(chips[0].chip.onLabel).toBe("HOKUTO CHAIN: 2");
+    expect(chips[0].chip.onLabel).toBe("HUNDRED-FIST: 2");
     expect(chips[0].chip.flag).toBe("counter:HUNDRED_FIST");
     expect(fighterTokenCounterBadgeFor("kenshiro", { HUNDRED_FIST: 2 })).toMatchObject({
       label: "2",
-      title: "HOKUTO CHAIN: 2",
+      title: "HUNDRED-FIST (copies played): 2",
       showLabel: true,
     });
     expect(counterChipsFor("kenshiro", { HUNDRED_FIST: 0 })).toEqual([]);
@@ -604,7 +613,7 @@ describe("HERO_STATE_COUNTERS — Kenshiro's HOKUTO chain", () => {
   it("wins the single token badge slot over the value preview, whatever else is set", () => {
     expect(
       fighterTokenCounterBadgeFor("kenshiro", { DMG_LAST_TURN: 6, HUNDRED_FIST: 1 })
-    ).toMatchObject({ title: "HOKUTO CHAIN: 1" });
+    ).toMatchObject({ title: "HUNDRED-FIST (copies played): 1" });
   });
 
   it("reaches the board through fighterTokenStateByOwner", () => {
@@ -612,7 +621,7 @@ describe("HERO_STATE_COUNTERS — Kenshiro's HOKUTO chain", () => {
       { id: "p1", heroId: "kenshiro", counters: { HUNDRED_FIST: 3 } },
       { id: "p2", heroId: "nancy-drew", counters: { CLUE: 1 } },
     ]);
-    expect(state.p1!.badge).toMatchObject({ label: "3", title: "HOKUTO CHAIN: 3" });
+    expect(state.p1!.badge).toMatchObject({ label: "3", title: "HUNDRED-FIST (copies played): 3" });
     expect(state.p2!.badge).toMatchObject({ title: "CLUES: 1" });
   });
 });
@@ -627,23 +636,20 @@ describe("HERO_STATE_COUNTERS — Kenshiro's DMG_LAST_TURN preview", () => {
     expect(e!.token).toBeUndefined();
   });
 
-  it("is ungated by hero, so it renders on whichever seat the engine banked it on", () => {
-    expect(preview()!.anyHero).toBe(true);
-    // Kenshiro's own plate…
+  it("is gated to kenshiro — the counter is declared on HIS HeroDef, not the seat that took the damage", () => {
+    expect(preview()!.heroes).toEqual(["kenshiro"]);
     expect(counterChipsFor("kenshiro", { DMG_LAST_TURN: 6 }).map((c) => c.chip.onLabel)).toEqual([
       "DMG LAST TURN: 6",
     ]);
-    // …and the seat that TOOK the damage, whose hero is anything at all.
-    expect(counterChipsFor("king-kong", { DMG_LAST_TURN: 5 }).map((c) => c.chip.onLabel)).toEqual([
-      "DMG LAST TURN: 5",
-    ]);
+    // A stray same-named counter on another deck's seat must not borrow the pill.
+    expect(counterChipsFor("king-kong", { DMG_LAST_TURN: 5 })).toEqual([]);
   });
 
-  it("stays invisible everywhere while the counter is absent or 0 (no Kenshiro in the game)", () => {
-    expect(counterChipsFor("king-kong", {})).toEqual([]);
-    expect(counterChipsFor("king-kong", { DMG_LAST_TURN: 0 })).toEqual([]);
-    expect(counterChipsFor("king-kong", undefined)).toEqual([]);
-    // and it must never conjure a board badge, on any hero
-    expect(fighterTokenCounterBadgeFor("king-kong", { DMG_LAST_TURN: 9 })).toBeNull();
+  it("stays hidden while the counter is absent or 0 (it is inert until engine B3 lands)", () => {
+    expect(counterChipsFor("kenshiro", {})).toEqual([]);
+    expect(counterChipsFor("kenshiro", { DMG_LAST_TURN: 0 })).toEqual([]);
+    expect(counterChipsFor("kenshiro", undefined)).toEqual([]);
+    // and it must never conjure a board badge
+    expect(fighterTokenCounterBadgeFor("kenshiro", { DMG_LAST_TURN: 9 })).toBeNull();
   });
 });

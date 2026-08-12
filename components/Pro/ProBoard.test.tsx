@@ -1289,3 +1289,51 @@ describe("ProBoard stacked fighters (protocol v28)", () => {
     expect(pipStrips).toHaveLength(4);
   });
 });
+
+// Per-fighter durable markers (issue #596 ↔ engine #360, protocol v29). The badge
+// row is registry-driven (lib/pro/fighterStatuses), but the RENDER half — one badge
+// per status, a unique React key per marker name, and the stack count drawn beside
+// the icon — lives here, so it is asserted here.
+describe("ProBoard marker badges", () => {
+  const marked = (statuses: ViewFighter["statuses"]) =>
+    render(
+      <ChakraProvider>
+        <ProBoard map={MAP} fighters={[fighter({ name: "Specter Knight", statuses })]} />
+      </ChakraProvider>
+    );
+
+  it("draws a MARKED status as its named badge, with the tooltip naming the mark", () => {
+    marked([{ kind: "MARKED", name: "MERIDIAN", count: 1 }]);
+    const badge = screen.getByTitle(/Meridian/);
+    expect(badge).toBeInTheDocument();
+    expect(badge.textContent).toContain("✷");
+    // a single stack stays icon-only — "×1" would be noise on a rim badge
+    expect(badge.textContent).not.toContain("1");
+  });
+
+  it("draws the STACK COUNT beside the icon once a fighter carries more than one", () => {
+    marked([{ kind: "MARKED", name: "MERIDIAN", count: 3 }]);
+    const badge = screen.getByTitle(/Meridian ×3/);
+    expect(badge.textContent).toContain("3");
+  });
+
+  it("renders one badge per marker NAME, plus any kind-keyed status, with no key collision", () => {
+    // Two MARKED entries share a `kind`; keying the row by kind would drop one of
+    // them (and warn). Keying by marker name keeps all three badges.
+    const { container } = marked([
+      { kind: "PINNED" },
+      { kind: "MARKED", name: "MERIDIAN", count: 1 },
+      { kind: "MARKED", name: "REVENGE", count: 2 },
+    ]);
+    expect(screen.getByTitle(/Rooted/)).toBeInTheDocument();
+    expect(screen.getByTitle(/Meridian/)).toBeInTheDocument();
+    // an unknown marker still renders, under its raw engine name (protocol v29)
+    expect(screen.getByTitle(/REVENGE ×2/)).toBeInTheDocument();
+    expect(container.querySelectorAll('[title*="Rooted"], [title*="Meridian"], [title*="REVENGE"]')).toHaveLength(3);
+  });
+
+  it("draws nothing for a fighter with no statuses", () => {
+    const { container } = marked([]);
+    expect(container.querySelectorAll('[title*="Meridian"]')).toHaveLength(0);
+  });
+});

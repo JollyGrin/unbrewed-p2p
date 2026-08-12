@@ -99,16 +99,20 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // `cardImage` path. Four of the ten faces are low-res web thumbnails the author
   // hotlinked; they ship as-is per the 2026-08-01 ruling.
   "gerry-the-isopod": "5jGPM",
-  // Kenshiro (issue #596 ↔ engine #362, on the #359/#360 lab train): TUC community
-  // deck 12653 by Calton White — the HOKUTO chain hero (Hundred-Fist Rush drains up
-  // to three sequential sub-attacks off engine #359's followup queue). No
-  // unmatched.cards page, so the deck id is ours. Card faces are the AUTHOR's
-  // finished renders (his TUC replacementImage set, hotlinked to i.imgur.com
-  // upstream and mirrored here per #446), self-hosted and drawn full-bleed via
-  // cardImage — this deck must never fall back to the generated template, which
-  // cannot reproduce his banner/layout design, and must never be routed to the
-  // art-generation pipeline.
-  kenshiro: "kenshiro",
+  // Kenshiro (issue #596 ↔ engine #362, on the #359/#360 lab train): community deck
+  // 6rDz by Calton_White — the HOKUTO chain hero (Hundred-Fist Rush drains up to
+  // three sequential sub-attacks off engine #359's followup queue). The deck id is
+  // the real unmatched.cards one, which is also the source kenshiro.rules.ts was
+  // converted from, so the snapshot's rules fields are engine-exact.
+  //
+  // The ART, unusually, comes from a DIFFERENT publication of the same deck — the
+  // author's the-unmatched.club 12653, the only place he uploaded finished card
+  // renders (6rDz hotlinks scattered stock images). Those faces are self-hosted per
+  // #446 and drawn full-bleed via cardImage; this deck must never fall back to the
+  // generated template, which cannot reproduce his banner/layout design, and must
+  // never be routed to the art-generation pipeline. The two publications disagree on
+  // three boosts — the snapshot follows 6rDz/the engine; see the deck note.
+  kenshiro: "6rDz",
 };
 
 /**
