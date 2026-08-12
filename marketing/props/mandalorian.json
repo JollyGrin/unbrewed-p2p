@@ -1,0 +1,22 @@
+{
+  "deckSlug": "lDOM",
+  "tagline": "A ranged toolbox that only gets harder to kill as the beskar piles up",
+  "featuredCards": [
+    {
+      "title": "BESKAR ARMOR",
+      "caption": "Once it hits the discard pile it never stops working — every later defence counts it. Blocking gets better the longer you fight him."
+    },
+    {
+      "title": "QUICK DRAW",
+      "caption": "A cheap shot that hands back the action it cost. It is the glue between the grabs and the punishes."
+    },
+    {
+      "title": "CABLE SHOT",
+      "caption": "Yanks a fighter into his lap and hurts them on arrival. Once they are close, the whole toolbox has a target."
+    },
+    {
+      "title": "I CAN BRING YOU IN WARM...",
+      "caption": "Win with it and the deck stops being random — search out the exact tool the fight is asking for."
+    }
+  ]
+}

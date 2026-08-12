@@ -1,0 +1,22 @@
+{
+  "deckSlug": "x2_V",
+  "tagline": "Arrive out of nowhere for +2, then vanish before the answer lands",
+  "featuredCards": [
+    {
+      "title": "The Bat-signal",
+      "caption": "Two cards now, and while it sticks he repositions before every turn — as long as he keeps winning combats."
+    },
+    {
+      "title": "Smoke Pellet",
+      "caption": "Cancels the clever half of your card and puts him outside your zone, which re-arms the ambush bonus."
+    },
+    {
+      "title": "The Dark Knight",
+      "caption": "A printed 1 that lands as a critical strike. Coming in from out of the zone is what makes it lethal."
+    },
+    {
+      "title": "Coordinated Assault",
+      "caption": "Him on one side, two tons of Batmobile on the other. Flanked, it jumps to five."
+    }
+  ]
+}

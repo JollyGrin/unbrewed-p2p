@@ -1,0 +1,22 @@
+{
+  "deckSlug": "1Y5J",
+  "tagline": "A three-ton brawler that pays in blood to stay nose-to-nose — and pins you there",
+  "featuredCards": [
+    {
+      "title": "STAMPEDE",
+      "caption": "Ploughs through the board, shoving and hurting everything she runs over. Distance is not a defence against her."
+    },
+    {
+      "title": "UNSTOPPABLE CHARGE",
+      "caption": "Every space she covered adds to the hit and it cannot be cancelled — but the recoil comes off her own bar."
+    },
+    {
+      "title": "IMPALED BY THE HORNS",
+      "caption": "Nose-to-nose, you do not get to leave for the rest of the turn. That is where her +1 lives."
+    },
+    {
+      "title": "15,000 POUNDS OF MUSCLE",
+      "caption": "Your card's value stops mattering. She takes two damage and simply walks through the block."
+    }
+  ]
+}

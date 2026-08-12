@@ -1,0 +1,22 @@
+{
+  "deckSlug": "QkB1",
+  "tagline": "Win the combat, pull a free stunt, then fish it back out of the discard",
+  "featuredCards": [
+    {
+      "title": "Porkpie Hat",
+      "caption": "Either a card and an action, or the exact stunt you want back in hand. It sets up the turn before it starts."
+    },
+    {
+      "title": "death-defying stunts",
+      "caption": "The stunts are six singletons — this shuffles two of them back in so the engine never actually runs out."
+    },
+    {
+      "title": "Stunt - \nFalling House",
+      "caption": "Played off the special ability it hits everyone next to him for three, for free, after a combat he already won."
+    },
+    {
+      "title": "\"Tragedy is a close-up; comedy, a long shot.\"",
+      "caption": "Cashes the last stunt in the discard pile as raw damage. The bigger the stunt, the bigger the bill."
+    }
+  ]
+}
