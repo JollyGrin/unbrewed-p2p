@@ -48,6 +48,33 @@ export const FIGHTER_STATUS_BADGES: Record<string, FighterStatusBadge> = {
     bg: "#3A4A55",
     color: "#DCEBF2",
   },
+  // Kenshiro's MERIDIAN mark (issue #596 ↔ engine #360). His hero ability — "708
+  // Meridian hidden channeling points" — pings a marked fighter for 1 at the end of
+  // his turn, and the mark lands on an OPPOSING fighter (hero OR sidekick), which is
+  // precisely why it belongs here and not in HERO_STATE_FLAGS: that registry is
+  // per-PLAYER and gated on the CONTROLLER's hero id, so a mark sitting on the
+  // opponent's sidekick would render nowhere (the Cairne RAGE lesson). Riding
+  // `ViewFighter.statuses` puts the badge on the marked token itself — the fighter
+  // that is about to take the ping is the one wearing the warning.
+  //
+  // No protocol change: `FighterStatus.kind` is a free-form engine-stable string, so
+  // #360 only has to emit `{ kind: 'MERIDIAN' }`. Until it does, this entry simply
+  // never matches (unknown kinds are skipped, and a kind with no entry renders
+  // nothing) — VERIFY the raw kind against kenshiro.rules.ts when #362's branch
+  // lands and rename here if the engine spells it differently.
+  //
+  // Hokuto crimson, deliberately the SAME family as the HOKUTO chain counter badge
+  // (heroStateFlags) and deliberately NOT the cold slate of PINNED: the two can sit
+  // on the same token, and a player must be able to tell "rooted" from "marked to
+  // burst" at a glance.
+  MERIDIAN: {
+    kind: "MERIDIAN",
+    icon: "✷",
+    label: "Marked",
+    title: "Meridian — takes 1 damage at the end of Kenshiro's turn",
+    bg: "#8C1C24",
+    color: "#FDE9E4",
+  },
 };
 
 /**

@@ -511,3 +511,139 @@ describe("fighterTokenStateByOwner with piles", () => {
     expect(state.p3).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Kenshiro (issue #596 ↔ engine #362, on the #359/#360 lab train). Four states
+// across BOTH registries: three boolean buff/condition flags that are nameplate
+// ONLY, and two counters — the HOKUTO chain (both surfaces) and the
+// YOU ARE ALREADY DEAD! value preview (nameplate only, ungated by hero).
+//
+// The Cairne RAGE lesson drives every assertion here: the view is registry-driven,
+// so a state with no entry — or an entry on the wrong key — renders NOWHERE.
+// ---------------------------------------------------------------------------
+
+describe("HERO_STATE_FLAGS — Kenshiro's buff + condition pills", () => {
+  const entry = (flag: string) => HERO_STATE_FLAGS.find((e) => e.flag === flag);
+
+  it.each([
+    ["NUNCHAKU", "NUNCHAKU +1"],
+    ["DRAGON_FORM", "DRAGON FORM +2"],
+    ["ALLY_DAMAGED_LAST_TURN", "ALLY HIT LAST TURN"],
+  ])("registers %s on the exact engine key, gated to kenshiro", (flag, label) => {
+    const e = entry(flag);
+    expect(e).toBeDefined();
+    expect(e!.heroes).toEqual(["kenshiro"]);
+    expect(e!.nameplate).toMatchObject({ onLabel: label, showWhenAbsent: false });
+  });
+
+  it("keeps all three OFF the board token, so the HOKUTO chain badge owns that slot", () => {
+    // fighterTokenStateByOwner gives a flag badge precedence over a counter badge,
+    // so a token entry on any of these would HIDE the live chain count.
+    for (const flag of ["NUNCHAKU", "DRAGON_FORM", "ALLY_DAMAGED_LAST_TURN"]) {
+      expect(entry(flag)!.token).toBeUndefined();
+      expect(entry(flag)!.tokenArt).toBeUndefined();
+    }
+  });
+
+  it("shows only the pills whose flags are set, and nothing at all when none are", () => {
+    expect(flagChipsFor("kenshiro", { NUNCHAKU: true }).map((c) => c.chip.onLabel)).toEqual([
+      "NUNCHAKU +1",
+    ]);
+    expect(
+      flagChipsFor("kenshiro", { DRAGON_FORM: true, ALLY_DAMAGED_LAST_TURN: true }).map(
+        (c) => c.chip.onLabel
+      )
+    ).toEqual(["DRAGON FORM +2", "ALLY HIT LAST TURN"]);
+    // One-sided states: no "off" pill, unlike Thetis's LOW TIDE.
+    expect(flagChipsFor("kenshiro", {})).toEqual([]);
+    expect(flagChipsFor("kenshiro", undefined)).toEqual([]);
+  });
+
+  it("never leaks Kenshiro's flags onto another hero's plate", () => {
+    expect(flagChipsFor("thetis", { NUNCHAKU: true, DRAGON_FORM: true })).toEqual([
+      // thetis keeps its own two-state tide pill and nothing else
+      expect.objectContaining({ chip: expect.objectContaining({ flag: "HIGH_TIDE" }) }),
+    ]);
+  });
+
+  it("leaves the board token untouched — no badge, no portrait swap", () => {
+    expect(fighterTokenStateFor("kenshiro", { NUNCHAKU: true, DRAGON_FORM: true })).toEqual({
+      badge: null,
+      heroArtUrl: null,
+    });
+  });
+});
+
+describe("HERO_STATE_COUNTERS — Kenshiro's HOKUTO chain", () => {
+  const chain = () => HERO_STATE_COUNTERS.find((e) => e.counter === "HUNDRED_FIST");
+
+  it("registers the exact engine counter key on both surfaces", () => {
+    const e = chain();
+    expect(e).toBeDefined();
+    expect(e!.pile).toBeUndefined();
+    expect(e!.heroes).toEqual(["kenshiro"]);
+    expect(e!.nameplate?.labelTemplate).toBe("HOKUTO CHAIN: {n}");
+    expect(e!.token).toMatchObject({ title: "HOKUTO CHAIN" });
+  });
+
+  it("pills + badges the live chain depth, and hides both at 0", () => {
+    const chips = counterChipsFor("kenshiro", { HUNDRED_FIST: 2 });
+    expect(chips).toHaveLength(1);
+    expect(chips[0].chip.onLabel).toBe("HOKUTO CHAIN: 2");
+    expect(chips[0].chip.flag).toBe("counter:HUNDRED_FIST");
+    expect(fighterTokenCounterBadgeFor("kenshiro", { HUNDRED_FIST: 2 })).toMatchObject({
+      label: "2",
+      title: "HOKUTO CHAIN: 2",
+      showLabel: true,
+    });
+    expect(counterChipsFor("kenshiro", { HUNDRED_FIST: 0 })).toEqual([]);
+    expect(fighterTokenCounterBadgeFor("kenshiro", { HUNDRED_FIST: 0 })).toBeNull();
+    expect(fighterTokenCounterBadgeFor("kenshiro", {})).toBeNull();
+  });
+
+  it("wins the single token badge slot over the value preview, whatever else is set", () => {
+    expect(
+      fighterTokenCounterBadgeFor("kenshiro", { DMG_LAST_TURN: 6, HUNDRED_FIST: 1 })
+    ).toMatchObject({ title: "HOKUTO CHAIN: 1" });
+  });
+
+  it("reaches the board through fighterTokenStateByOwner", () => {
+    const state = fighterTokenStateByOwner([
+      { id: "p1", heroId: "kenshiro", counters: { HUNDRED_FIST: 3 } },
+      { id: "p2", heroId: "nancy-drew", counters: { CLUE: 1 } },
+    ]);
+    expect(state.p1!.badge).toMatchObject({ label: "3", title: "HOKUTO CHAIN: 3" });
+    expect(state.p2!.badge).toMatchObject({ title: "CLUES: 1" });
+  });
+});
+
+describe("HERO_STATE_COUNTERS — Kenshiro's DMG_LAST_TURN preview", () => {
+  const preview = () => HERO_STATE_COUNTERS.find((e) => e.counter === "DMG_LAST_TURN");
+
+  it("is nameplate-only: a look-ahead figure, not a board state", () => {
+    const e = preview();
+    expect(e).toBeDefined();
+    expect(e!.nameplate?.labelTemplate).toBe("DMG LAST TURN: {n}");
+    expect(e!.token).toBeUndefined();
+  });
+
+  it("is ungated by hero, so it renders on whichever seat the engine banked it on", () => {
+    expect(preview()!.anyHero).toBe(true);
+    // Kenshiro's own plate…
+    expect(counterChipsFor("kenshiro", { DMG_LAST_TURN: 6 }).map((c) => c.chip.onLabel)).toEqual([
+      "DMG LAST TURN: 6",
+    ]);
+    // …and the seat that TOOK the damage, whose hero is anything at all.
+    expect(counterChipsFor("king-kong", { DMG_LAST_TURN: 5 }).map((c) => c.chip.onLabel)).toEqual([
+      "DMG LAST TURN: 5",
+    ]);
+  });
+
+  it("stays invisible everywhere while the counter is absent or 0 (no Kenshiro in the game)", () => {
+    expect(counterChipsFor("king-kong", {})).toEqual([]);
+    expect(counterChipsFor("king-kong", { DMG_LAST_TURN: 0 })).toEqual([]);
+    expect(counterChipsFor("king-kong", undefined)).toEqual([]);
+    // and it must never conjure a board badge, on any hero
+    expect(fighterTokenCounterBadgeFor("king-kong", { DMG_LAST_TURN: 9 })).toBeNull();
+  });
+});

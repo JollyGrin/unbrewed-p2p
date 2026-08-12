@@ -34,6 +34,37 @@ describe("FIGHTER_STATUS_BADGES registry", () => {
   });
 });
 
+describe("MERIDIAN (issue #596 ↔ engine #360)", () => {
+  it("registers the mark as a per-FIGHTER status, not a per-player hero flag", () => {
+    const mark = FIGHTER_STATUS_BADGES.MERIDIAN;
+    expect(mark).toBeDefined();
+    expect(mark.kind).toBe("MERIDIAN");
+    expect(mark.label).toBe("Marked");
+    expect(mark.title.toLowerCase()).toContain("meridian");
+    // Visibly NOT the PINNED slate: both can sit on the same token at once.
+    expect(mark.bg).not.toBe(FIGHTER_STATUS_BADGES.PINNED.bg);
+  });
+
+  it("badges an OPPOSING hero — the fighter that takes the end-of-turn ping", () => {
+    const marked = fighter({ owner: "p2", statuses: [{ kind: "MERIDIAN" }] });
+    expect(fighterStatusBadgesFor(marked).map((b) => b.kind)).toEqual(["MERIDIAN"]);
+  });
+
+  it("badges a marked SIDEKICK too (the reason this is not a hero-gated flag)", () => {
+    const kick = fighter({ id: "p2/sidekick-1", kind: "SIDEKICK", name: "Ally", statuses: [{ kind: "MERIDIAN" }] });
+    expect(fighterStatusBadgesFor(kick).map((b) => b.kind)).toEqual(["MERIDIAN"]);
+  });
+
+  it("stacks with PINNED, in statuses order, when a fighter carries both", () => {
+    const both = fighter({ statuses: [{ kind: "PINNED" }, { kind: "MERIDIAN" }] });
+    expect(fighterStatusBadgesFor(both).map((b) => b.kind)).toEqual(["PINNED", "MERIDIAN"]);
+  });
+
+  it("clears the instant the engine drops the mark", () => {
+    expect(fighterStatusBadgesFor(fighter({ statuses: [] }))).toEqual([]);
+  });
+});
+
 describe("fighterStatusBadgesFor", () => {
   it("returns [] for a fighter with no statuses", () => {
     expect(fighterStatusBadgesFor(fighter())).toEqual([]);

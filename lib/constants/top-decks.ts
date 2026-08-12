@@ -678,4 +678,28 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     lab: true,
     tier: "lab",
   },
+  {
+    // In-the-lab Pro deck — server hero kenshiro (issue #596 ↔ engine #362, riding
+    // the #359 followup-queue / #360 per-fighter-marker train). TUC community deck
+    // 12653 by Calton White; no unmatched.cards page, so `original: true` suppresses
+    // the lobby deep-link and `sourceUrl` credits TUC.
+    id: "kenshiro",
+    name: "Kenshiro",
+    hero: "Kenshiro",
+    author: "Calton White",
+    likes: 0,
+    // Hokuto crimson, from the deck's own card banners. No sibling tile is this red
+    // (Cairne's rage-crimson lives on a counter badge, not a tile).
+    highlightColour: "#b3232c",
+    // Repo-relative (Luke/Vader precedent): served out of this app's own public/, so
+    // the tile + picker splash render on localhost and preview builds too. The
+    // author's own `cardsBack` render, mirrored off i.imgur.com per #446.
+    cardbackUrl: "/evergreen-decks/art/kenshiro/cardback.webp",
+    original: true,
+    sourceUrl: "https://www.the-unmatched.club/c/heroes/kenshiro.12653",
+    // Engine serves this hero at tier `lab` (server/content.ts): the whole Kenshiro
+    // train lands in the lab while the HOKUTO chain and MERIDIAN ping get playtested.
+    lab: true,
+    tier: "lab",
+  },
 ];

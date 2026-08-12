@@ -146,6 +146,46 @@ export const HERO_STATE_FLAGS: HeroStateFlag[] = [
     tokenArt: { on: "https://unbrewed.xyz/evergreen-decks/art/malfurion-stormrage/token-malfurion.webp" },
   },
   {
+    // Kenshiro's NUNCHAKU turn buff (issue #596 ↔ engine #362). Engine flag key is
+    // `NUNCHAKU` — the scheme grants "all of Kenshiro's attacks this turn are +1
+    // value", which is otherwise INVISIBLE: the buff lands on a card that has not
+    // been played yet, so without a pill the player has no way to see the +1 is
+    // live when they pick their attack. One-sided like EQUILIBRIUM: "no nunchaku"
+    // is the default state, so no `off` variant and `showWhenAbsent: false`.
+    //
+    // NAMEPLATE ONLY, deliberately — the token's single corner-badge slot belongs
+    // to the HUNDRED_FIST chain counter below, and a flag badge would WIN that slot
+    // (fighterTokenStateByOwner gives flag badges precedence over counter badges),
+    // hiding the chain progress behind a buff that the nameplate already states.
+    flag: "NUNCHAKU",
+    heroes: ["kenshiro"],
+    nameplate: { onLabel: "NUNCHAKU +1", offLabel: "", showWhenAbsent: false },
+  },
+  {
+    // Kenshiro's DRAGON_FORM turn buff (issue #596 ↔ engine #362). Engine flag key
+    // is `DRAGON_FORM`: Hokuto: Dragon Form Breathing Technique makes every HOKUTO
+    // card +2 value this turn, but ONLY if an ally fighter was damaged last turn —
+    // so the pill answers "did the condition hold?" without replaying the turn.
+    // Nameplate only, for the same badge-slot reason as NUNCHAKU.
+    flag: "DRAGON_FORM",
+    heroes: ["kenshiro"],
+    nameplate: { onLabel: "DRAGON FORM +2", offLabel: "", showWhenAbsent: false },
+  },
+  {
+    // Kenshiro's ALLY_DAMAGED_LAST_TURN condition (issue #596 ↔ engine #362) — the
+    // GATE on Dragon Form, not a buff: the flag is armed by an ally taking damage
+    // and read when the scheme resolves. It rides Kenshiro's OWN nameplate (his
+    // controller is the one deciding whether the scheme is worth an action this
+    // turn), and like the two buffs above it is nameplate-only.
+    //
+    // Distinct from DRAGON_FORM on purpose: the condition can hold with the scheme
+    // unplayed, and (after the scheme resolves) the buff outlives nothing — two
+    // separate facts, two separate pills.
+    flag: "ALLY_DAMAGED_LAST_TURN",
+    heroes: ["kenshiro"],
+    nameplate: { onLabel: "ALLY HIT LAST TURN", offLabel: "", showWhenAbsent: false },
+  },
+  {
     // The Doppelgänger's EQUILIBRIUM stance (issue #545 ↔ engine #303). Raw engine
     // flag key is `EQUILIBRIUM` — the deck's two COMBAT_RESOLVED triggers are
     // `setFlag EQUILIBRIUM` on `{is:'UNKNOWN'}` and `setFlag EQUILIBRIUM
@@ -222,6 +262,16 @@ export interface HeroStateCounter {
   pile?: string;
   /** hero ids the counter applies to (the "has the mechanic" gate). */
   heroes: string[];
+  /** opt-out of the hero gate (issue #596). Set ONLY for a counter whose KEY is
+   *  unique to one deck but whose VALUE may be written onto EITHER seat's player
+   *  state — Kenshiro's `DMG_LAST_TURN` tracks damage the OPPOSING fighter took,
+   *  and whether the engine banks that on Kenshiro's seat or on the seat that took
+   *  it is an engine-side detail the client cannot see. The counter only ever
+   *  exists in a game containing that deck, and every counter is hidden at 0/absent,
+   *  so an ungated entry still renders on exactly one plate — the one the engine
+   *  actually wrote. `heroes` stays filled in as documentation of the owning deck.
+   *  Precedent for ungated public state: ProHud's "combat won ✓" chip. */
+  anyHero?: boolean;
   /** HUD nameplate pill. `labelTemplate` substitutes `{n}` with the live value
    *  (e.g. "CLUES: {n}" -> "CLUES: 3"). Omit for token-only counters. */
   nameplate?: { labelTemplate: string };
@@ -264,6 +314,40 @@ export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
     nameplate: { labelTemplate: "TRAINING: {n}" },
     token: { icon: "🌱", title: "TRAINING", bg: "#2E6B48", color: "#ECFFF4" },
   },
+  {
+    // Kenshiro's HOKUTO chain progress (issue #596 ↔ engine #362). Engine counter
+    // key is `HUNDRED_FIST` — Hokuto: Hundred-Fist Rush opens one extra combat per
+    // copy already in the discard pile (WAAAA / TATATA / WAATAAA!, up to three),
+    // drained off engine #359's FIFO followup queue. Both surfaces, because the
+    // chain is the deck's whole identity: the nameplate answers "how deep am I?"
+    // and the token badge puts the live number on the board while the sub-combats
+    // resolve. Hidden at 0 like every counter.
+    counter: "HUNDRED_FIST",
+    heroes: ["kenshiro"],
+    nameplate: { labelTemplate: "HOKUTO CHAIN: {n}" },
+    // Hokuto crimson on cream, matching the deck's card banners. Cairne's RAGE
+    // badge is the nearest red, and the two decks never share a board state key.
+    token: { icon: "👊", title: "HOKUTO CHAIN", bg: "#B3232C", color: "#FDF3E3" },
+  },
+  {
+    // Kenshiro's DMG_LAST_TURN preview (issue #596 ↔ engine #362). Engine counter
+    // key is `DMG_LAST_TURN`: YOU ARE ALREADY DEAD! deals "half the damage he took
+    // last turn (rounded down)" and SETS ITS OWN VALUE to that number — so without
+    // this pill the card's real value is unknowable until it is committed, which is
+    // exactly the wrong moment. NAMEPLATE ONLY: it is a look-ahead figure, not a
+    // board state, and the token badge slot belongs to the chain counter above
+    // (fighterTokenCounterBadgeFor takes the FIRST positive entry in registry order,
+    // so the chain entry preceding this one is what keeps the board badge stable).
+    //
+    // `anyHero` — see the field's doc: the key is Kenshiro-only but the seat it
+    // lands on is not knowable client-side. VERIFY against kenshiro.rules.ts when
+    // engine #362 lands, and drop `anyHero` if the counter provably sits on
+    // Kenshiro's own seat.
+    counter: "DMG_LAST_TURN",
+    heroes: ["kenshiro"],
+    anyHero: true,
+    nameplate: { labelTemplate: "DMG LAST TURN: {n}" },
+  },
 ];
 
 /** An entry's identity key — its counter name or its pile name. */
@@ -282,7 +366,7 @@ const valueOf = (
   e.pile ? piles?.[e.pile]?.length ?? 0 : counters?.[e.counter!] ?? 0;
 
 const counterEntriesForHero = (heroId: string) =>
-  HERO_STATE_COUNTERS.filter((e) => e.heroes.includes(heroId));
+  HERO_STATE_COUNTERS.filter((e) => e.anyHero || e.heroes.includes(heroId));
 
 /**
  * Nameplate chips a hero's counters/piles contribute, in the SAME `{ chip, on }[]`

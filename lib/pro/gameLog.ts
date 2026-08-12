@@ -619,6 +619,14 @@ export interface EnrichContext {
    *  the STATE view's fighter list — used by the nested-combat events (issue #288)
    *  that carry attacker/target fighter ids rather than a card source. */
   fighter: (id: FighterId) => string;
+  /** Chain progress for the n-th (0-based) SUB_ATTACK_INITIATED event in THIS
+   *  batch — "Hundred-Fist Rush — chain hit 2 of up to 3" — or null when there is
+   *  no chain worth naming (issue #596 ↔ engine #359). The ordinal is passed
+   *  rather than the label itself because one batch can drain several followups.
+   *  Supplied by the page from lib/pro/subAttackChain.ts, which is where the
+   *  cross-batch bookkeeping lives; omitted (older callers, tests of the
+   *  single-hit shape) leaves the line exactly as it was. */
+  chain?: (ordinalInBatch: number) => string | null;
 }
 
 /**
@@ -636,6 +644,9 @@ export function enrichLines(
   const out: ProLogLine[] = lines.map((l) => ({ ...l, cards: l.cards ? [...l.cards] : l.cards }));
   const whoOf = (p: string): "you" | "opp" => (p === ctx.you ? "you" : "opp");
   const added: ProLogLine[] = [];
+  // Position of the next SUB_ATTACK_INITIATED within this batch — a drained
+  // followup queue can dispatch more than one before a player has to act again.
+  let subAttackOrdinal = 0;
 
   // A card instance rendered on a NEW line so the panel can hover its face.
   const sourceCards = (source: string): CardInstanceId[] | undefined =>
@@ -867,10 +878,15 @@ export function enrichLines(
         // source-neutral bonus-attack line (issue #411).
         const attacker = ctx.fighter(e.attacker);
         const target = ctx.fighter(e.target);
-        const text = attacker.includes("B1 Battle Droid")
+        const base = attacker.includes("B1 Battle Droid")
           ? `${attacker} fires Blast 'em! (${e.value}) at ${target}`
           : `${attacker} makes a bonus attack (${e.value}) against ${target}`;
-        added.push({ text, who: "game" });
+        // Chain progress prefix (#596): engine #359's followup QUEUE lets one card
+        // open several of these in a row, and N identical lines are unreadable
+        // without an ordinal. Null for a lone unregistered hit — which keeps
+        // Grievous's single "Fire, you fools!" line byte-identical.
+        const progress = ctx.chain?.(subAttackOrdinal++) ?? null;
+        added.push({ text: progress ? `${progress}: ${base}` : base, who: "game" });
         break;
       }
 

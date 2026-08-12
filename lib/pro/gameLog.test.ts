@@ -705,6 +705,48 @@ describe("enrichLines", () => {
       expect(text).not.toContain("Blast 'em!");
     });
 
+    it("SUB_ATTACK_INITIATED — a chain hit is prefixed with its progress (#596)", () => {
+      // engine #359's followup QUEUE can open three of these back to back; without
+      // the ordinal the three lines are indistinguishable in the feed.
+      const chainCtx: EnrichContext = { ...ctx(), chain: () => "Hundred-Fist Rush — chain hit 2 of up to 3" };
+      expect(
+        enrichLines(
+          [],
+          [{ type: "SUB_ATTACK_INITIATED", attacker: "p1/hero", target: "p2/hero", value: 3 }],
+          chainCtx
+        )[0].text
+      ).toBe("Hundred-Fist Rush — chain hit 2 of up to 3: hero makes a bonus attack (3) against hero");
+    });
+
+    it("SUB_ATTACK_INITIATED — each followup in one batch gets its own ordinal", () => {
+      const chainCtx: EnrichContext = { ...ctx(), chain: (n) => `chain hit ${n + 1}` };
+      const lines = enrichLines(
+        [],
+        [
+          { type: "SUB_ATTACK_INITIATED", attacker: "p1/hero", target: "p2/hero", value: 3 },
+          { type: "SUB_ATTACK_INITIATED", attacker: "p1/hero", target: "p2/hero", value: 3 },
+        ],
+        chainCtx
+      );
+      expect(lines[0].text.startsWith("chain hit 1:")).toBe(true);
+      expect(lines[1].text.startsWith("chain hit 2:")).toBe(true);
+    });
+
+    it("SUB_ATTACK_INITIATED — a null chain leaves the line byte-identical (Grievous)", () => {
+      const grievousCtx: EnrichContext = {
+        ...ctx(),
+        fighter: (id) => (id.endsWith("/sidekick-1") ? "B1 Battle Droid" : (id.split("/").pop() ?? id)),
+        chain: () => null,
+      };
+      expect(
+        enrichLines(
+          [],
+          [{ type: "SUB_ATTACK_INITIATED", attacker: "p1/sidekick-1", target: "p2/hero", value: 4 }],
+          grievousCtx
+        )[0].text
+      ).toBe("B1 Battle Droid fires Blast 'em! (4) at hero");
+    });
+
     it("COMBAT_WON_MARKED — 'You are considered to have won' for the viewer", () => {
       expect(line({ type: "COMBAT_WON_MARKED", player: "p1" }).text).toBe(
         "You are considered to have won this combat"

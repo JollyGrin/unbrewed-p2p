@@ -99,6 +99,16 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // `cardImage` path. Four of the ten faces are low-res web thumbnails the author
   // hotlinked; they ship as-is per the 2026-08-01 ruling.
   "gerry-the-isopod": "5jGPM",
+  // Kenshiro (issue #596 ↔ engine #362, on the #359/#360 lab train): TUC community
+  // deck 12653 by Calton White — the HOKUTO chain hero (Hundred-Fist Rush drains up
+  // to three sequential sub-attacks off engine #359's followup queue). No
+  // unmatched.cards page, so the deck id is ours. Card faces are the AUTHOR's
+  // finished renders (his TUC replacementImage set, hotlinked to i.imgur.com
+  // upstream and mirrored here per #446), self-hosted and drawn full-bleed via
+  // cardImage — this deck must never fall back to the generated template, which
+  // cannot reproduce his banner/layout design, and must never be routed to the
+  // art-generation pipeline.
+  kenshiro: "kenshiro",
 };
 
 /**
