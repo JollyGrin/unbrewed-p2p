@@ -6,15 +6,20 @@
  * that a newer client renders from a field its API never sent.
  */
 import {
+  casualGamesNote,
+  countedRecord,
   fetchAccountStats,
   formatClock,
   headlineWinRate,
+  isCasualBot,
+  orderedBotSplits,
   levelProgress,
   MIN_WIN_RATE_GAMES,
   monthLabel,
   normalizeStats,
   percentLabel,
   recordLabel,
+  splitLosses,
   winPercent,
   xpForLevel,
 } from "./stats";
@@ -335,5 +340,187 @@ describe("levels", () => {
     ).toMatchObject({ percent: 0, toGo: 1900 });
     // A negative level reads as absent, not as a bar with a negative floor.
     expect(levelProgress(withLevel({ level: -2, xp: 10, xpForNext: 100 }))).toBeNull();
+  });
+});
+
+// --- the counted record (issue #592) -----------------------------------------
+
+/**
+ * A payload with games in every tier. The totals are deliberately the sum of
+ * ALL of it (30 games, 17–10–3) so the tests can show what the record drops.
+ */
+const TIERED = {
+  totalGames: 30,
+  wins: 17,
+  losses: 10,
+  draws: 3,
+  byOpponentKind: {
+    human: { games: 10, wins: 5, draws: 2 },
+    bots: [
+      { difficulty: "easy", games: 8, wins: 7, draws: 0 },
+      { difficulty: "expert", games: 6, wins: 2, draws: 1 },
+      { difficulty: "hard", games: 4, wins: 2, draws: 0 },
+      { difficulty: "medium", games: 2, wins: 1, draws: 0 },
+    ],
+  },
+};
+
+describe("counted record — easy/medium are visible but never count", () => {
+  it("sums human + hard + expert + unknown and leaves the casual tiers out", () => {
+    const record = countedRecord(normalizeStats(TIERED));
+
+    // 10 + 6 + 4 counted games; 5 + 2 + 2 wins; 2 + 1 + 0 draws.
+    expect(record).toEqual({
+      games: 20,
+      wins: 9,
+      losses: 8,
+      draws: 3,
+      casualGames: 10,
+    });
+  });
+
+  it("counts the unknown tier — those games are unlabelled, not casual", () => {
+    const record = countedRecord(
+      normalizeStats({
+        ...TIERED,
+        byOpponentKind: {
+          human: null,
+          bots: [
+            { difficulty: "unknown", games: 12, wins: 5, draws: 1 },
+            { difficulty: "easy", games: 3, wins: 3, draws: 0 },
+          ],
+        },
+      }),
+    );
+    expect(record).toMatchObject({ games: 12, wins: 5, losses: 6, draws: 1 });
+  });
+
+  it("treats a missing draws field as none rather than breaking the arithmetic", () => {
+    // The pre-telemetry#58 shape: split rows with games/wins and nothing else.
+    const record = countedRecord(
+      normalizeStats({
+        ...TIERED,
+        byOpponentKind: {
+          human: { games: 10, wins: 4 },
+          bots: [
+            { difficulty: "hard", games: 5, wins: 2 },
+            { difficulty: "medium", games: 4, wins: 4 },
+          ],
+        },
+      }),
+    );
+    // Undecided games land in the loss column: 15 games, 6 wins, 0 draws.
+    expect(record).toEqual({
+      games: 15,
+      wins: 6,
+      losses: 9,
+      draws: 0,
+      casualGames: 4,
+    });
+    expect(splitLosses({ games: 5, wins: 2 })).toBe(3);
+  });
+
+  it("never lets a bad row push losses below zero", () => {
+    expect(splitLosses({ games: 3, wins: 3, draws: 2 })).toBe(0);
+    // The clamp is in the normaliser too: draws can't exceed the games left.
+    const stats = normalizeStats({
+      byOpponentKind: { human: { games: 3, wins: 3, draws: 2 }, bots: [] },
+    });
+    expect(stats.byOpponentKind?.human).toEqual({ games: 3, wins: 3, draws: 0 });
+  });
+
+  it("keeps telemetry's own totals when there is nothing to exclude", () => {
+    // No byOpponentKind at all — the pre-split API. The degradation contract:
+    // the headline is exactly what it was before this ticket.
+    expect(countedRecord(normalizeStats(BASE))).toBeNull();
+    expect(recordLabel(normalizeStats(BASE))).toBe("5–3–1");
+    expect(casualGamesNote(normalizeStats(BASE))).toBeNull();
+
+    // Splits present, but no casual games in them.
+    const clean = normalizeStats({
+      ...BASE,
+      byOpponentKind: {
+        human: { games: 6, wins: 4, draws: 1 },
+        bots: [{ difficulty: "expert", games: 3, wins: 1, draws: 0 }],
+      },
+    });
+    expect(countedRecord(clean)).toBeNull();
+    expect(recordLabel(clean)).toBe("5–3–1");
+  });
+
+  it("drives the headline record and win rate off the counted games", () => {
+    const stats = normalizeStats(TIERED);
+    // 17–10–3 lifetime, 9–8–3 once the farmed easy wins come out.
+    expect(recordLabel(stats)).toBe("9–8–3");
+    expect(headlineWinRate(stats)).toBe("45%");
+  });
+
+  it("keeps the small-sample guard on the counted games, not the played ones", () => {
+    // 20 games played, but only 4 of them count — still too few to rate.
+    const stats = normalizeStats({
+      totalGames: 20,
+      wins: 18,
+      byOpponentKind: {
+        human: null,
+        bots: [
+          { difficulty: "easy", games: 16, wins: 16, draws: 0 },
+          { difficulty: "hard", games: 4, wins: 2, draws: 0 },
+        ],
+      },
+    });
+    expect(headlineWinRate(stats)).toBe("—");
+    expect(recordLabel(stats)).toBe("2–2–0");
+  });
+
+  it("explains the gap in one line, pluralised", () => {
+    expect(casualGamesNote(normalizeStats(TIERED))).toBe(
+      "10 casual bot games (easy/medium) not counted",
+    );
+    expect(
+      casualGamesNote(
+        normalizeStats({
+          byOpponentKind: {
+            human: { games: 4, wins: 2 },
+            bots: [{ difficulty: "medium", games: 1, wins: 1 }],
+          },
+        }),
+      ),
+    ).toBe("1 casual bot game (easy/medium) not counted");
+  });
+});
+
+describe("opposition ordering", () => {
+  it("puts the tiers that count first, hardest down, and the casual pair last", () => {
+    const stats = normalizeStats(TIERED);
+    expect(
+      orderedBotSplits(stats.byOpponentKind?.bots ?? []).map(
+        (bot) => bot.difficulty,
+      ),
+    ).toEqual(["expert", "hard", "medium", "easy"]);
+  });
+
+  it("sorts an unnamed tier with unknown — counted, in the middle", () => {
+    const stats = normalizeStats({
+      byOpponentKind: {
+        human: null,
+        bots: [
+          { difficulty: "easy", games: 9, wins: 9 },
+          { difficulty: "brutal", games: 2, wins: 0 },
+          { difficulty: "unknown", games: 5, wins: 1 },
+          { difficulty: "expert", games: 1, wins: 0 },
+        ],
+      },
+    });
+    const bots = stats.byOpponentKind?.bots ?? [];
+    expect(orderedBotSplits(bots).map((bot) => bot.difficulty)).toEqual([
+      "expert",
+      // Same rank as unknown, so games-desc breaks the tie.
+      "unknown",
+      "brutal",
+      "easy",
+    ]);
+    expect(bots.filter(isCasualBot).map((bot) => bot.difficulty)).toEqual([
+      "easy",
+    ]);
   });
 });

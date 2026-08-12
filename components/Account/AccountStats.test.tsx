@@ -16,7 +16,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { ChakraProvider } from "@chakra-ui/react";
 
 import { AccountPage } from "./AccountPage";
-import { COLLAPSE_AFTER } from "./AccountStats";
+import { CASUAL_SPLIT_NOTE, COLLAPSE_AFTER } from "./AccountStats";
 import { __resetAccountStoreForTests } from "@/lib/account/useAccount";
 import { __resetBadgeStoreForTests } from "@/lib/account/useBadges";
 
@@ -45,8 +45,16 @@ const BASE_STATS = {
   avatarUrl: null,
 };
 
+/**
+ * The enriched payload, with games in EVERY opponent tier (#592). The totals
+ * cover all 15 of them; the record the page shows covers the 11 that count.
+ */
 const FULL_STATS = {
   ...BASE_STATS,
+  totalGames: 15,
+  wins: 9,
+  losses: 5,
+  draws: 1,
   avgDurationSeconds: 733,
   avgTurns: 13.6,
   streaks: { current: 2, best: 5 },
@@ -60,15 +68,18 @@ const FULL_STATS = {
     { map: "hells-kitchen", games: 3, wins: 1 },
   ],
   byOpponentKind: {
-    human: { games: 5, wins: 3 },
+    human: { games: 5, wins: 3, draws: 1 },
     bots: [
-      { difficulty: "hard", games: 4, wins: 2 },
+      { difficulty: "hard", games: 4, wins: 2, draws: 0 },
+      // No `draws` key: the pre-telemetry#58 row shape, still countable.
       { difficulty: "easy", games: 3, wins: 2 },
+      { difficulty: "expert", games: 2, wins: 1, draws: 0 },
+      { difficulty: "medium", games: 1, wins: 1, draws: 0 },
     ],
   },
   firstPlayer: {
-    first: { games: 7, wins: 5 },
-    second: { games: 5, wins: 2 },
+    first: { games: 7, wins: 5, draws: 1 },
+    second: { games: 5, wins: 2, draws: 0 },
   },
 };
 
@@ -147,10 +158,11 @@ describe("AccountStats — the full payload", () => {
         0,
       ),
     );
-    expect(tileValue("Games")).toBe("12last Aug 2026");
-    // 7 of 12 played, draws included in the denominator.
-    expect(tileValue("Win rate")).toBe("58%");
-    expect(tileValue("W–L–D")).toBe("7–4–1win–loss–draw");
+    // Everything played is still the games tile…
+    expect(tileValue("Games")).toBe("15last Aug 2026");
+    // …but the record is the 11 counted games only: 6–4–1, 6 of 11.
+    expect(tileValue("Win rate")).toBe("55%");
+    expect(tileValue("W–L–D")).toBe("6–4–1win–loss–draw");
     expect(tileValue("Win streak")).toBe("2best 5");
     expect(tileValue("Game length")).toBe("12:1314 turns avg");
     expect(tileValue("Playing since")).toBe("Mar 2026");
@@ -204,13 +216,69 @@ describe("AccountStats — the full payload", () => {
     const splits = screen
       .getAllByTestId("account-stat-split")
       .map((node) => node.textContent?.replace(/\s+/g, " ").trim());
+    // Humans, then the tiers that count hardest-first, then the casual pair —
+    // and the casual rows carry a games count and no record at all.
     expect(splits).toEqual([
-      "vs humans60% · 5 games",
-      "vs hard bots50% · 4 games",
-      "vs easy bots67% · 3 games",
-      "going first71% · 7 games",
-      "going second40% · 5 games",
+      "vs humans60% · 5 games3–1–1 w–l–d",
+      "vs expert bots50% · 2 games1–1–0 w–l–d",
+      "vs hard bots50% · 4 games2–2–0 w–l–d",
+      `vs medium bots1 game${CASUAL_SPLIT_NOTE}`,
+      `vs easy bots3 games${CASUAL_SPLIT_NOTE}`,
+      "going first71% · 7 games5–1–1 w–l–d",
+      "going second40% · 5 games2–3–0 w–l–d",
     ]);
+  });
+
+  it("demotes the easy/medium rows and says why, next to them", async () => {
+    signedInWithStats(() => reply(200, FULL_STATS));
+
+    renderPage();
+
+    await waitFor(() =>
+      expect(
+        screen.queryAllByTestId("account-stat-split").length,
+      ).toBeGreaterThan(0),
+    );
+    const casual = screen
+      .getAllByTestId("account-stat-split")
+      .filter((node) => node.dataset.casual === "true");
+
+    expect(casual.map((node) => node.textContent)).toEqual([
+      `vs medium bots1 game${CASUAL_SPLIT_NOTE}`,
+      `vs easy bots3 games${CASUAL_SPLIT_NOTE}`,
+    ]);
+    // No percentage anywhere on a demoted row — that is the whole point.
+    for (const node of casual) {
+      expect(node.textContent).not.toMatch(/%/);
+      expect(within(node).getByText(CASUAL_SPLIT_NOTE)).toBeInTheDocument();
+    }
+    // …and the headline says where the missing games went.
+    expect(
+      screen.getByTestId("account-stat-casual-note").textContent,
+    ).toBe("4 casual bot games (easy/medium) not counted");
+  });
+
+  it("says nothing about casual games when the player has none", async () => {
+    signedInWithStats(() =>
+      reply(200, {
+        ...FULL_STATS,
+        byOpponentKind: {
+          human: { games: 5, wins: 3, draws: 1 },
+          bots: [{ difficulty: "hard", games: 4, wins: 2, draws: 0 }],
+        },
+      }),
+    );
+
+    renderPage();
+
+    await waitFor(() =>
+      expect(
+        screen.queryAllByTestId("account-stat-split").length,
+      ).toBeGreaterThan(0),
+    );
+    expect(screen.queryByTestId("account-stat-casual-note")).toBeNull();
+    // Telemetry's own totals, untouched, exactly as before this ticket.
+    expect(tileValue("W–L–D")).toBe("9–5–1win–loss–draw");
   });
 
   it("asks for stats exactly once", async () => {
@@ -232,9 +300,11 @@ describe("AccountStats — degradation", () => {
     await waitFor(() =>
       expect(screen.queryAllByTestId("account-stat-hero-row")).toHaveLength(2),
     );
-    // The base half is all there.
+    // The base half is all there — and with no per-tier split to exclude
+    // anything, the headline is telemetry's own record, as it always was.
     expect(tileValue("Win rate")).toBe("58%");
     expect(tileValue("W–L–D")).toBe("7–4–1win–loss–draw");
+    expect(screen.queryByTestId("account-stat-casual-note")).toBeNull();
 
     // …and nothing the API didn't send is invented.
     expect(screen.queryByTestId("account-stat-form")).toBeNull();

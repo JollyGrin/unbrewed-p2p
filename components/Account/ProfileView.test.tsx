@@ -17,6 +17,7 @@ import "@testing-library/jest-dom";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 
+import { CASUAL_SPLIT_NOTE_PUBLIC } from "./AccountStats";
 import { ProfileView } from "./ProfileView";
 import type { AccountStats } from "@/lib/account/stats";
 import type { AccountStatsView } from "@/lib/account/useAccountStats";
@@ -206,6 +207,35 @@ describe("ProfileView — read-only mode", () => {
     expect(screen.getByText(/Every finished Pro game Emyrk played/)).toBeInTheDocument();
     expect(screen.getByTestId("stats-caveat")).toHaveTextContent(
       /numbers are for fun/i,
+    );
+  });
+});
+
+describe("ProfileView — casual bot games on somebody else's profile", () => {
+  it("demotes the easy/medium rows without calling it your record", () => {
+    renderView({
+      owner: false,
+      stats: {
+        status: "ready",
+        stats: {
+          ...STATS,
+          byOpponentKind: {
+            human: { games: 6, wins: 4, draws: 1 },
+            bots: [{ difficulty: "easy", games: 5, wins: 5, draws: 0 }],
+          },
+        },
+      },
+    });
+
+    const casual = screen
+      .getAllByTestId("account-stat-split")
+      .filter((node) => node.dataset.casual === "true");
+    expect(casual.map((node) => node.textContent)).toEqual([
+      `vs easy bots5 games${CASUAL_SPLIT_NOTE_PUBLIC}`,
+    ]);
+    // The five farmed wins are off the record, and the page says so.
+    expect(screen.getByTestId("account-stat-casual-note").textContent).toBe(
+      "5 casual bot games (easy/medium) not counted",
     );
   });
 });

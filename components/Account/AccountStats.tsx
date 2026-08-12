@@ -22,12 +22,18 @@ import { mapLabel } from "@/lib/account/gameHistory";
 import {
   AccountStats as AccountStatsData,
   botTierLabel,
+  casualGamesNote,
   formatClock,
   hasPlayed,
+  headlineRecord,
   headlineWinRate,
+  isCasualBot,
   MIN_WIN_RATE_GAMES,
   monthLabel,
+  orderedBotSplits,
   percentLabel,
+  splitDraws,
+  splitLosses,
   recordLabel,
   StatSplit,
   statHeroLabel,
@@ -87,6 +93,9 @@ const Tiles = ({ stats }: { stats: AccountStatsData }) => {
   const since = monthLabel(stats.firstGameAt);
   const turns =
     stats.avgTurns !== null ? `${Math.round(stats.avgTurns)} turns avg` : null;
+  // The guard is about the sample the percentage is drawn from, which is the
+  // COUNTED games — not the games tile, which still counts everything played.
+  const counted = headlineRecord(stats).games;
 
   return (
     <Box
@@ -104,7 +113,7 @@ const Tiles = ({ stats }: { stats: AccountStatsData }) => {
         label="Win rate"
         value={headlineWinRate(stats)}
         sub={
-          stats.totalGames < MIN_WIN_RATE_GAMES
+          counted < MIN_WIN_RATE_GAMES
             ? `after ${MIN_WIN_RATE_GAMES} games`
             : null
         }
@@ -120,6 +129,27 @@ const Tiles = ({ stats }: { stats: AccountStatsData }) => {
       {clock ? <Tile label="Game length" value={clock} sub={turns} /> : null}
       {since ? <Tile label="Playing since" value={since} /> : null}
     </Box>
+  );
+};
+
+/**
+ * The one line that explains a W–L–D smaller than the games tile beside it.
+ * Absent — not zeroed — whenever there is nothing to explain, which includes
+ * every API deployed before the per-tier split existed.
+ */
+const CasualNote = ({ stats }: { stats: AccountStatsData }) => {
+  const note = casualGamesNote(stats);
+  if (!note) return null;
+  return (
+    <Text
+      data-testid="account-stat-casual-note"
+      fontSize="0.72rem"
+      opacity={0.6}
+      mt="-0.6rem"
+      mb="0.9rem"
+    >
+      {note}
+    </Text>
   );
 };
 
@@ -321,18 +351,69 @@ export const StatTable = ({
 
 // --- splits ------------------------------------------------------------------
 
-/** One "12 games · 58%" pair. Small enough to sit four to a row. */
-const Split = ({ label, split }: { label: string; split: StatSplit }) => (
-  <Box data-testid="account-stat-split" minW="7rem">
+/**
+ * Why the easy/medium rows carry no record (#592). Stated on the row itself
+ * rather than in a footnote: the question it answers ("where did my fifty wins
+ * go?") is asked while looking straight at that number.
+ */
+export const CASUAL_SPLIT_NOTE = "No XP · not counted in your record";
+
+/** The same sentence on somebody else's profile, where it isn't your record. */
+export const CASUAL_SPLIT_NOTE_PUBLIC = "No XP · not counted in the record";
+
+/**
+ * One "58% · 12 games" pair. Small enough to sit four to a row.
+ *
+ * A `casual` split is the demoted form: games played, and nothing that looks
+ * like a record — no win rate, no W–L. Showing a percentage there would be the
+ * whole problem in miniature, a number that reads as achievement next to a line
+ * saying it counts for nothing.
+ */
+const Split = ({
+  label,
+  split,
+  casual = false,
+  casualNote = CASUAL_SPLIT_NOTE,
+}: {
+  label: string;
+  split: StatSplit;
+  casual?: boolean;
+  casualNote?: string;
+}) => (
+  <Box
+    data-testid="account-stat-split"
+    data-casual={casual ? "true" : undefined}
+    minW="7rem"
+    opacity={casual ? 0.6 : 1}
+  >
     <Text fontSize="0.78rem" opacity={0.7}>
       {label}
     </Text>
-    <Text fontFamily="SpaceGrotesk" fontWeight={700} fontSize="0.9rem">
-      {percentLabel(split)}{" "}
-      <Text as="span" fontWeight={400} opacity={0.65} fontSize="0.78rem">
-        · {split.games} {split.games === 1 ? "game" : "games"}
-      </Text>
-    </Text>
+    {casual ? (
+      <>
+        <Text fontFamily="SpaceGrotesk" fontWeight={400} fontSize="0.9rem">
+          {split.games} {split.games === 1 ? "game" : "games"}
+        </Text>
+        <Text fontSize="0.68rem" opacity={0.85} lineHeight="1.3">
+          {casualNote}
+        </Text>
+      </>
+    ) : (
+      <>
+        <Text fontFamily="SpaceGrotesk" fontWeight={700} fontSize="0.9rem">
+          {percentLabel(split)}{" "}
+          <Text as="span" fontWeight={400} opacity={0.65} fontSize="0.78rem">
+            · {split.games} {split.games === 1 ? "game" : "games"}
+          </Text>
+        </Text>
+        {/* The record behind the percentage. Losses are derived, so a row from
+            an API without `draws` reads its undecided games as losses rather
+            than as nothing at all. */}
+        <Text fontSize="0.68rem" opacity={0.6} lineHeight="1.3">
+          {split.wins}–{splitLosses(split)}–{splitDraws(split)} w–l–d
+        </Text>
+      </>
+    )}
   </Box>
 );
 
@@ -360,7 +441,13 @@ const SplitGroup = ({
   </Box>
 );
 
-const Splits = ({ stats }: { stats: AccountStatsData }) => {
+const Splits = ({
+  stats,
+  owner,
+}: {
+  stats: AccountStatsData;
+  owner: boolean;
+}) => {
   const kind = stats.byOpponentKind;
   const seat = stats.firstPlayer;
   // The seat split only says something once both sides exist; telemetry sends
@@ -375,11 +462,13 @@ const Splits = ({ stats }: { stats: AccountStatsData }) => {
           {kind.human && kind.human.games > 0 ? (
             <Split label="vs humans" split={kind.human} />
           ) : null}
-          {kind.bots.map((bot) => (
+          {orderedBotSplits(kind.bots).map((bot) => (
             <Split
               key={bot.difficulty}
               label={`vs ${botTierLabel(bot).toLowerCase()}`}
               split={bot}
+              casual={isCasualBot(bot)}
+              casualNote={owner ? CASUAL_SPLIT_NOTE : CASUAL_SPLIT_NOTE_PUBLIC}
             />
           ))}
         </SplitGroup>
@@ -507,6 +596,7 @@ export const AccountStatsSection = ({
       {status === "ready" && stats && hasPlayed(stats) ? (
         <>
           <Tiles stats={stats} />
+          <CasualNote stats={stats} />
           {stats.recentForm && stats.recentForm.length > 0 ? (
             <RecentForm form={stats.recentForm} />
           ) : null}
@@ -527,7 +617,7 @@ export const AccountStatsSection = ({
               testId="account-stat-matchup-row"
             />
           ) : null}
-          <Splits stats={stats} />
+          <Splits stats={stats} owner={owner} />
           {mapRows.length > 0 ? (
             <StatTable
               heading="Boards"
