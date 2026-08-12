@@ -1,6 +1,7 @@
 /**
  * The badge case on /account (issue #577) — the whole catalog as a grid, with
- * the unlocked ones wearable.
+ * the unlocked ones wearable — and the same case, read-only, on another
+ * player's public profile (#590).
  *
  * Three decisions shape it:
  *
@@ -15,6 +16,11 @@
  * 3. **Nothing fails loudly.** A dead API, a 503 and a refused pick all land on
  *    the same quiet line the stats block uses. The worst outcome of a broken
  *    cosmetic write is that the badge didn't change.
+ *
+ * `readOnly` (#590) removes the interaction rather than disabling it, for the
+ * same reason a locked tile is a `<div>`: on somebody else's profile there is
+ * nothing to press, and a focusable control that refuses every press is worse
+ * for a keyboard than no control at all.
  */
 import { Box, Flex, Text } from "@chakra-ui/react";
 
@@ -39,12 +45,14 @@ const BadgeTile = ({
   badge,
   selected,
   busy,
+  readOnly,
 }: {
   badge: Badge;
   selected: boolean;
   busy: boolean;
+  readOnly: boolean;
 }) => {
-  const interactive = badge.unlocked;
+  const interactive = badge.unlocked && !readOnly;
 
   const frame = {
     "data-testid": "account-badge",
@@ -120,7 +128,17 @@ const Quiet = ({ children }: { children: React.ReactNode }) => (
   </Text>
 );
 
-export const AccountBadgeCase = ({ state }: { state: BadgeCaseState }) => {
+export const AccountBadgeCase = ({
+  state,
+  readOnly = false,
+  name,
+}: {
+  state: BadgeCaseState;
+  /** True on a public profile: the grid displays, nothing selects. */
+  readOnly?: boolean;
+  /** Whose case this is. Only used when `readOnly` is true. */
+  name?: string;
+}) => {
   const { status, badges, selected, busy, notice } = state;
   const unlocked = badges.filter((badge) => badge.unlocked).length;
 
@@ -146,8 +164,12 @@ export const AccountBadgeCase = ({ state }: { state: BadgeCaseState }) => {
       </Text>
       <Text fontSize="0.8rem" opacity={0.65} mb="0.7rem">
         {status === "ready" && badges.length > 0
-          ? `${unlocked} of ${badges.length} unlocked. Wear one and it shows beside your name — including to your opponent in a Pro game.`
-          : "Badges you unlock by playing Pro games while signed in."}
+          ? readOnly
+            ? `${unlocked} of ${badges.length} unlocked. The one being worn shows beside the name — including to an opponent in a Pro game.`
+            : `${unlocked} of ${badges.length} unlocked. Wear one and it shows beside your name — including to your opponent in a Pro game.`
+          : readOnly
+            ? `Badges ${name ?? "this player"} unlocked by playing Pro games.`
+            : "Badges you unlock by playing Pro games while signed in."}
       </Text>
 
       {status === "loading" ? <Quiet>Opening the case…</Quiet> : null}
@@ -175,6 +197,7 @@ export const AccountBadgeCase = ({ state }: { state: BadgeCaseState }) => {
                 badge={badge}
                 selected={badge.id === selected}
                 busy={busy}
+                readOnly={readOnly}
               />
             ))}
           </Box>
