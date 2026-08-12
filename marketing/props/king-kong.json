@@ -1,0 +1,22 @@
+{
+  "deckSlug": "kdKM",
+  "tagline": "A 32-HP juggernaut that pays in blood to drag you close and pin you there",
+  "featuredCards": [
+    {
+      "title": "Crash through the Trees",
+      "caption": "Kong walks straight through anyone in the way. Getting into your zone is never the hard part of this deck."
+    },
+    {
+      "title": "reCKLESS LUNGE",
+      "caption": "Three damage, three taken. With 32 health, his own bar is just another resource to spend."
+    },
+    {
+      "title": "Smash and grab",
+      "caption": "Wins the combat, then plants you wherever he likes with no movement next turn. This is the lockdown."
+    },
+    {
+      "title": "eighth wonder of the world",
+      "caption": "An 8 for the price of standing still and bleeding. The turn ends here, and so does most of your plan."
+    }
+  ]
+}

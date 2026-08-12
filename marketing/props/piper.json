@@ -1,0 +1,22 @@
+{
+  "deckSlug": "piper",
+  "tagline": "Strike from the dark, slip back into the pipes, and let the rats hold the line",
+  "featuredCards": [
+    {
+      "title": "The Sewer Tithe",
+      "caption": "A card now and a bad choice for them: discard, or hand him another one. The draw engine starts here."
+    },
+    {
+      "title": "A Sharp Refrain",
+      "caption": "Two cards off an attack — and the special ability walks him out of reach right after it."
+    },
+    {
+      "title": "Pickings from the Wounded",
+      "caption": "Draws a card for every point that got through. Damage and card advantage stop being separate things."
+    },
+    {
+      "title": "A Killing Note",
+      "caption": "No text at all — a 5 with a 4 on the back. The hand he has been building finally just hits you."
+    }
+  ]
+}

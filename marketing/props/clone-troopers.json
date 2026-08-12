@@ -1,0 +1,22 @@
+{
+  "deckSlug": "DJQB",
+  "tagline": "No hero at all — six clones, and every card counts how many showed up",
+  "featuredCards": [
+    {
+      "title": "Elite Strategy",
+      "caption": "Drops a clone anywhere on the board. Every number in this deck is really a headcount."
+    },
+    {
+      "title": "Transport Carrier",
+      "caption": "Moves every clone five spaces through anything and hands back an action. The squad relocates as one."
+    },
+    {
+      "title": "Tactical Assault",
+      "caption": "A printed 1 that climbs with each brother already standing in your zone. Surround first, swing second."
+    },
+    {
+      "title": "Execute order 66",
+      "caption": "One damage per clone in that fighter's zone, with no combat to win. The swarm collects."
+    }
+  ]
+}

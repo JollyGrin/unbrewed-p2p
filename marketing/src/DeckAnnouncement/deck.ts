@@ -19,6 +19,12 @@ export type PromoCard = {
   boost: number;
   quantity: number;
   imageUrl?: string;
+  /**
+   * Whole-card art (grievous, darth-vader and luke-skywalker ship full
+   * printed card renders). The app's Card draws this full-bleed instead of
+   * the generated template — dropping it prints title and rules text twice.
+   */
+  cardImage?: { url: string; cols?: number; rows?: number; index?: number };
   basicText: string;
   immediateText: string;
   duringText: string;
@@ -67,6 +73,26 @@ export const resolveArt = (
 };
 
 /**
+ * A card's whole-card image, with its url pointed at the local file. Sprite
+ * sheet fields (Tabletop Simulator exports) ride along untouched — they are
+ * cell coordinates, not paths. A cardImage whose url will not resolve is
+ * dropped rather than carried: Card only falls back to the generated
+ * template when the url is absent or the image errors.
+ */
+const asCardImage = (raw: unknown): PromoCard["cardImage"] => {
+  if (!raw || typeof raw !== "object") return undefined;
+  const { url, cols, rows, index } = raw as Record<string, unknown>;
+  const resolved = resolveArt(typeof url === "string" ? url : undefined);
+  if (!resolved) return undefined;
+  return {
+    url: resolved,
+    ...(cols == null ? {} : { cols: Number(cols) }),
+    ...(rows == null ? {} : { rows: Number(rows) }),
+    ...(index == null ? {} : { index: Number(index) }),
+  };
+};
+
+/**
  * "STORMCHANNEL\nWhen King Taranis attacks…" → a heading plus its body, with
  * blank-line-separated blocks (the Doppelgänger has two) kept apart.
  */
@@ -98,6 +124,7 @@ const asCard = (raw: Record<string, unknown>): PromoCard => ({
   boost: Number(raw.boost ?? 0),
   quantity: Number(raw.quantity ?? 1),
   imageUrl: resolveArt(raw.imageUrl as string | undefined),
+  cardImage: asCardImage(raw.cardImage),
   basicText: String(raw.basicText ?? ""),
   immediateText: String(raw.immediateText ?? ""),
   duringText: String(raw.duringText ?? ""),
@@ -155,12 +182,14 @@ export const loadDeckPromo = async (
   >;
   return {
     slug: deckSlug,
-    deckName: String(data.name ?? hero.name),
+    // `name` is an empty string on most launch decks, not absent — `||` so
+    // those fall back to the hero name instead of slamming a blank title.
+    deckName: String(data.name || hero.name).trim(),
     borderColour: appearance.borderColour || "#3A2140",
     highlightColour: appearance.highlightColour || "#E0A82E",
     cardbackUrl: resolveArt(appearance.cardbackUrl),
     hero: {
-      name: String(hero.name),
+      name: String(hero.name).trim(),
       hp: Number(hero.hp ?? 0),
       move: Number(hero.move ?? 0),
       isRanged: Boolean(hero.isRanged),

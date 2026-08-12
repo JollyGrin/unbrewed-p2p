@@ -1,0 +1,23 @@
+{
+  "deckSlug": "yAJ-",
+  "tagline": "Drag them through the Hut's door onto a little board that belongs to her",
+  "featuredCards": [
+    {
+      "title": "Chicken Legs",
+      "caption": "The Hut walks. She parks the front door on top of you and hurts everything it stomps through on the way."
+    },
+    {
+      "title": "Abduction",
+      "caption": "The moment the deck is built around: the opposing fighter is placed inside the Hut, and she steps in after them."
+    },
+    {
+      "title": "The Devil's Grandmother",
+      "caption": "Inside her own walls the same card is worth six. Half the deck reads the same way — being home is the buff."
+    },
+    {
+      "title": "Spinning Rampage",
+      "caption": "The rent. Everyone locked in the Hut takes two, and there is no combat to win your way out of it."
+    }
+  ],
+  "particleStyle": "ash"
+}

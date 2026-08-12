@@ -1,0 +1,22 @@
+{
+  "deckSlug": "3jgd",
+  "tagline": "Six hit points, played as a dial — R2 tunes his own health into card values",
+  "featuredCards": [
+    {
+      "title": "It Deserves Our graditute",
+      "caption": "Sets his health to any number you like. Every other card in the deck reads that number, so this is the tuning knob."
+    },
+    {
+      "title": "Holographic Message",
+      "caption": "Worth exactly what R2 is worth. Topped up, it is one of the biggest numbers in the game."
+    },
+    {
+      "title": "Not just a droid",
+      "caption": "The inverse: it pays out most when he is nearly gone. Low health is a loaded weapon here, not a crisis."
+    },
+    {
+      "title": "You're my only hope",
+      "caption": "The safety net that makes those one-health turns survivable. He simply refuses to fall over."
+    }
+  ]
+}

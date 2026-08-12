@@ -1,0 +1,22 @@
+{
+  "deckSlug": "grievous",
+  "tagline": "Two attacks in a single swing — and eight of his cards get better once he wins one",
+  "featuredCards": [
+    {
+      "title": "Momentous Lunge",
+      "caption": "Cross a zone and the 2 becomes a 6. Closing distance is the whole cost of his biggest hit."
+    },
+    {
+      "title": "Arrogant but Effective",
+      "caption": "Declares itself a win no matter what happened. That unlocks the rest of the deck on demand."
+    },
+    {
+      "title": "Unrelenting Advance",
+      "caption": "After a win, take back a card you already played this turn. His best cards get played twice."
+    },
+    {
+      "title": "Fear, Surprise, & Intimidation",
+      "caption": "Two effects normally, all three once he has won — movement, recursion, cards and an action in one card."
+    }
+  ]
+}

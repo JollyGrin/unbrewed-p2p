@@ -1,0 +1,22 @@
+{
+  "deckSlug": "LWNZ",
+  "tagline": "Paid to run from the Fox and paid to run with him — and he halves what you swing",
+  "featuredCards": [
+    {
+      "title": "Ginger snap ",
+      "caption": "Rewards him for being nowhere near his own sidekick — a card and a health for keeping his distance."
+    },
+    {
+      "title": "Working together ",
+      "caption": "And the opposite: stand beside the Fox and the turn keeps going. The deck pulls you both ways every turn."
+    },
+    {
+      "title": "Cookie cutter ",
+      "caption": "Cuts your number in half before it lands. The best defence in this deck is your own attack, ruined."
+    },
+    {
+      "title": "the way the cookie crumbles",
+      "caption": "Burns the top of the deck to damage everyone in his zone and heal it straight back. A cookie for you, a cookie for him."
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "deckSlug": "darth-vader",
+  "tagline": "Spends health like currency for cards, actions and damage — then takes it back",
+  "featuredCards": [
+    {
+      "title": "Forged by suffering",
+      "caption": "One damage, two cards. The exchange rate that the rest of the deck is priced against."
+    },
+    {
+      "title": "I have you now",
+      "caption": "A 5 that sells him an extra action for a point of health. Tempo, bought with the health bar."
+    },
+    {
+      "title": "Dark lord of the sith",
+      "caption": "Pay up to five of his own health and every point goes onto the value. There is no ceiling he respects."
+    },
+    {
+      "title": "More machine than man",
+      "caption": "Heals two, and while it stays out every winning attack heals another. The bill gets paid off between turns."
+    }
+  ],
+  "particleStyle": "embers"
+}

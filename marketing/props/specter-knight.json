@@ -1,0 +1,23 @@
+{
+  "deckSlug": "xBvn",
+  "tagline": "Every attack he wins pays out — another card, or another action",
+  "featuredCards": [
+    {
+      "title": "Judgment rush",
+      "caption": "Four spaces through anyone in the way, and the action to swing when he gets there. He picks the fight."
+    },
+    {
+      "title": "Dread talon",
+      "caption": "Boost it and draw. Cheap attacks that refill the hand are how the tempo never stalls."
+    },
+    {
+      "title": "Under the order",
+      "caption": "No text, no conditions, just a 5 with a 4 on the back. Some turns you only need the number."
+    },
+    {
+      "title": "Specter of torment ",
+      "caption": "An 8 whose effects cannot be cancelled. They get an extra defence card — they will need it."
+    }
+  ],
+  "particleStyle": "ash"
+}

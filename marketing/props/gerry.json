@@ -1,0 +1,22 @@
+{
+  "deckSlug": "5jGPM",
+  "tagline": "Breed a family of Larrys, then spend them — every death draws Gerry another card",
+  "featuredCards": [
+    {
+      "title": "Breed",
+      "caption": "Five copies, and each one adds a body and a card. The board fills up faster than it can be cleared."
+    },
+    {
+      "title": "Swarm",
+      "caption": "Pulls every nearby isopod onto the target and counts them for value. Being surrounded is the point."
+    },
+    {
+      "title": "Cannibalize",
+      "caption": "Eat one of the children to heal everyone standing near it — and the special ability pays a card for the loss."
+    },
+    {
+      "title": "Family sacrifice",
+      "caption": "Two Larrys traded for +4 and two more cards. Grim arithmetic, and it wins fights."
+    }
+  ]
+}
