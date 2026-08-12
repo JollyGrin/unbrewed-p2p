@@ -1,5 +1,6 @@
 /**
- * The "My games" shelf on /account (issue #573).
+ * The match-history shelf — "My games" on /account (issue #573), and the same
+ * list on another player's public profile (#590).
  *
  * Read-only history of finished Pro games, newest first, walked a page at a
  * time with the API's opaque cursor. Every non-happy state is a sentence in the
@@ -9,7 +10,13 @@
  *
  * Rows link into a replay only when THIS browser saved one for that game — see
  * lib/account/replayLink.ts for why that join is a natural key rather than an
- * id, and why a miss is the normal case.
+ * id, and why a miss is the normal case. That join is symmetric (all heroes,
+ * sorted), so it keeps working on somebody else's profile: a game you played
+ * AGAINST them is a game you may well have saved.
+ *
+ * The history itself is passed in rather than fetched here (#590), so one page
+ * decides whose games these are — `/me/games` or `/players/games?u=` — and this
+ * file stays a renderer.
  */
 import { useEffect, useState } from "react";
 import { Badge, Box, Button, Flex, Text } from "@chakra-ui/react";
@@ -29,7 +36,7 @@ import {
   relativeDate,
 } from "@/lib/account/gameHistory";
 import { localReplayHref, localReplayIdForGame } from "@/lib/account/replayLink";
-import { useGameHistory } from "@/lib/account/useGameHistory";
+import { GameHistoryView } from "@/lib/account/useGameHistory";
 import { listReplays, type ReplayIndexEntry } from "@/lib/pro/replayStore";
 
 const OUTCOME_STYLE: Record<GameOutcome, { bg: string; color: string }> = {
@@ -133,8 +140,22 @@ const Quiet = ({ children }: { children: React.ReactNode }) => (
   </Text>
 );
 
-export const AccountGames = () => {
-  const { status, games, hasMore, loadingMore, loadMore } = useGameHistory();
+/**
+ * Copy is the only thing that differs between the two modes: the same shelf
+ * reads "My games" for its owner and "<name>'s games" to a visitor.
+ */
+export const AccountGames = ({
+  history,
+  owner = true,
+  name,
+}: {
+  history: GameHistoryView;
+  /** False on a public profile: read-only, and the copy stops saying "my". */
+  owner?: boolean;
+  /** Whose games these are. Only used when `owner` is false. */
+  name?: string;
+}) => {
+  const { status, games, hasMore, loadingMore, loadMore } = history;
   // localStorage is client-only, so the replay index arrives after mount; until
   // then rows simply render without a replay link (never a hydration mismatch).
   const [replays, setReplays] = useState<ReplayIndexEntry[]>([]);
@@ -161,14 +182,16 @@ export const AccountGames = () => {
         fontSize="1.15rem"
         mb="0.2rem"
       >
-        My games
+        {owner ? "My games" : "Games"}
       </Text>
       <Text fontSize="0.8rem" opacity={0.65} mb="0.6rem">
-        Finished Pro games played while signed in. Sandbox tables aren&apos;t
-        recorded.
+        Finished Pro games {owner ? "" : `${name ?? "this player"} `}played
+        while signed in. Sandbox tables aren&apos;t recorded.
       </Text>
 
-      {status === "loading" ? <Quiet>Loading your games…</Quiet> : null}
+      {status === "loading" ? (
+        <Quiet>{owner ? "Loading your games…" : "Loading games…"}</Quiet>
+      ) : null}
 
       {status === "unavailable" ? (
         <Quiet>
@@ -179,8 +202,9 @@ export const AccountGames = () => {
 
       {status === "ready" && games.length === 0 ? (
         <Quiet>
-          No games here yet. Play a Pro game while signed in and it&apos;ll show
-          up.
+          {owner
+            ? "No games here yet. Play a Pro game while signed in and it'll show up."
+            : "No finished Pro games on record yet."}
         </Quiet>
       ) : null}
 

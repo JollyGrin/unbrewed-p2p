@@ -24,9 +24,11 @@ import {
  * The optional Discord account affordance (issue #459) — a sign-in pill when
  * signed out, an avatar + username menu when signed in.
  *
- * That menu is also the ONLY entry point to /account (#573): a guest sees no
- * new nav affordance at all, because the whole chip is already invisible to
- * them when the API is unreachable and is a sign-in pill when it isn't.
+ * That menu is also the ONLY entry point to /account (#573) and to the public
+ * /leaderboard (#590): a guest sees no new nav affordance at all, because the
+ * whole chip is already invisible to them when the API is unreachable and is a
+ * sign-in pill when it isn't. (The board itself needs no account — /account's
+ * own sign-in prompt links to it too, for exactly that reason.)
  *
  * Deliberately renders NOTHING while the `/me` probe is in flight and when the
  * accounts API is unreachable: the site is a standalone static build first, so
@@ -139,6 +141,17 @@ export const AccountChip = () => {
           _focus={{ bg: "brand.surface" }}
         >
           Account
+        </MenuItem>
+        <MenuItem
+          as={NextLink}
+          href="/leaderboard"
+          bg="transparent"
+          fontFamily="ArchivoNarrow"
+          fontSize="0.9rem"
+          _hover={{ bg: "brand.surface" }}
+          _focus={{ bg: "brand.surface" }}
+        >
+          Leaderboard
         </MenuItem>
         <MenuItem
           bg="transparent"
