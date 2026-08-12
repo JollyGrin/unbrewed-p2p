@@ -1,0 +1,23 @@
+{
+  "deckSlug": "hollow-oak",
+  "tagline": "Enormous swings, then it stands perfectly still until it is just another tree",
+  "featuredCards": [
+    {
+      "title": "The Forest Walks",
+      "caption": "Five spaces, straight through whoever is standing there. It crosses the board faster than anything its size should."
+    },
+    {
+      "title": "Old Growth",
+      "caption": "A clean 6 with no conditions. The oak does not need a combo to hurt you."
+    },
+    {
+      "title": "Breaking Boughs",
+      "caption": "Wins and splashes everyone next to it. Grouping up against a tree this size is a mistake."
+    },
+    {
+      "title": "Rooted Elsewhere",
+      "caption": "Attacks, then steps away into an empty space — so it ends the turn alone and draws for it."
+    }
+  ],
+  "particleStyle": "embers"
+}

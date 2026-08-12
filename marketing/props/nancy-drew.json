@@ -1,0 +1,22 @@
+{
+  "deckSlug": "nPnv",
+  "tagline": "Every step toward her is a clue, and clues buy the exact answer she needs",
+  "featuredCards": [
+    {
+      "title": "Connecting the Dots",
+      "caption": "Card or clue, your choice — and four banked clues later it deletes your value outright."
+    },
+    {
+      "title": "At the Scene of the Crime",
+      "caption": "Defends by milling you, and the size of what she binned is the size of the payout."
+    },
+    {
+      "title": "Master Sleuth",
+      "caption": "Worth +1 for every clue on the board and spends none of them. The bank is the card."
+    },
+    {
+      "title": "Crack The Case!",
+      "caption": "Five clues and the boost doubles. This is what she has been saving for since turn one."
+    }
+  ]
+}

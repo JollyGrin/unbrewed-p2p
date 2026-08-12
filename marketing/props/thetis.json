@@ -1,0 +1,23 @@
+{
+  "deckSlug": "thetis",
+  "tagline": "Two forms, one deck — hit hard at HIGH TIDE, slip away at LOW, and flip at will",
+  "featuredCards": [
+    {
+      "title": "Deep Draught",
+      "caption": "Two cards and a free flip. Getting into the right stance costs almost nothing in this deck."
+    },
+    {
+      "title": "Crash and Recede",
+      "caption": "Strike, walk three spaces, change form. Every tide card is a repositioning card as well."
+    },
+    {
+      "title": "The Tide Turns!",
+      "caption": "A 4 with a 4 on the back that switches her stance as it resolves. Attack now, defend next."
+    },
+    {
+      "title": "Tidepool Mirror",
+      "caption": "Two of three: cards, health, or a teleport out. The low-tide defence bonus lands on top of it."
+    }
+  ],
+  "particleStyle": "aura"
+}

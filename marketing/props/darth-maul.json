@@ -1,0 +1,22 @@
+{
+  "deckSlug": "darth-maul",
+  "tagline": "Chains actions until the turn refuses to end — and heals on every one past the fourth",
+  "featuredCards": [
+    {
+      "title": "Master of the Hunt",
+      "caption": "Two actions for one card. The chain has to start somewhere, and it usually starts here."
+    },
+    {
+      "title": "Efficient Bladework",
+      "caption": "An attack that refunds its own action, and pays a card once the turn is already running long."
+    },
+    {
+      "title": "Don't be so certain",
+      "caption": "Uncancellable, and worth two more actions against anything with an immediate effect. Their tricks feed him."
+    },
+    {
+      "title": "I MUST HAVE REVENGE",
+      "caption": "Adds +1 for every other card played this turn. The longer the chain, the more this hurts."
+    }
+  ]
+}

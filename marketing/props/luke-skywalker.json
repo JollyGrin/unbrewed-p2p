@@ -1,0 +1,22 @@
+{
+  "deckSlug": "luke-skywalker",
+  "tagline": "Every lesson sticks — tuck training under the hero card and the whole deck grows",
+  "featuredCards": [
+    {
+      "title": "The boy has no patience",
+      "caption": "Digs a training card out of the deck or the discard pile. The engine is only three cards, so you go and find them."
+    },
+    {
+      "title": "Training: That is why you fail",
+      "caption": "Two actions now, then it tucks under the hero card and never comes back — the movement bonus is permanent."
+    },
+    {
+      "title": "The way of the force",
+      "caption": "Cancels their card, and climbs by +1 for every lesson already tucked away. Late on, denial with a real number behind it."
+    },
+    {
+      "title": "I'm not afraid",
+      "caption": "A 4 that grows with the training pile. Nothing about this deck's numbers is fixed."
+    }
+  ]
+}

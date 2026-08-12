@@ -155,12 +155,14 @@ export const loadDeckPromo = async (
   >;
   return {
     slug: deckSlug,
-    deckName: String(data.name ?? hero.name),
+    // `name` is an empty string on most launch decks, not absent — `||` so
+    // those fall back to the hero name instead of slamming a blank title.
+    deckName: String(data.name || hero.name).trim(),
     borderColour: appearance.borderColour || "#3A2140",
     highlightColour: appearance.highlightColour || "#E0A82E",
     cardbackUrl: resolveArt(appearance.cardbackUrl),
     hero: {
-      name: String(hero.name),
+      name: String(hero.name).trim(),
       hp: Number(hero.hp ?? 0),
       move: Number(hero.move ?? 0),
       isRanged: Boolean(hero.isRanged),
