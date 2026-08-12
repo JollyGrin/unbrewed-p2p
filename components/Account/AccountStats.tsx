@@ -32,6 +32,8 @@ import {
   monthLabel,
   orderedBotSplits,
   percentLabel,
+  splitDraws,
+  splitLosses,
   recordLabel,
   StatSplit,
   statHeroLabel,
@@ -397,12 +399,20 @@ const Split = ({
         </Text>
       </>
     ) : (
-      <Text fontFamily="SpaceGrotesk" fontWeight={700} fontSize="0.9rem">
-        {percentLabel(split)}{" "}
-        <Text as="span" fontWeight={400} opacity={0.65} fontSize="0.78rem">
-          · {split.games} {split.games === 1 ? "game" : "games"}
+      <>
+        <Text fontFamily="SpaceGrotesk" fontWeight={700} fontSize="0.9rem">
+          {percentLabel(split)}{" "}
+          <Text as="span" fontWeight={400} opacity={0.65} fontSize="0.78rem">
+            · {split.games} {split.games === 1 ? "game" : "games"}
+          </Text>
         </Text>
-      </Text>
+        {/* The record behind the percentage. Losses are derived, so a row from
+            an API without `draws` reads its undecided games as losses rather
+            than as nothing at all. */}
+        <Text fontSize="0.68rem" opacity={0.6} lineHeight="1.3">
+          {split.wins}–{splitLosses(split)}–{splitDraws(split)} w–l–d
+        </Text>
+      </>
     )}
   </Box>
 );

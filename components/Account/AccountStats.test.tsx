@@ -219,13 +219,13 @@ describe("AccountStats — the full payload", () => {
     // Humans, then the tiers that count hardest-first, then the casual pair —
     // and the casual rows carry a games count and no record at all.
     expect(splits).toEqual([
-      "vs humans60% · 5 games",
-      "vs expert bots50% · 2 games",
-      "vs hard bots50% · 4 games",
+      "vs humans60% · 5 games3–1–1 w–l–d",
+      "vs expert bots50% · 2 games1–1–0 w–l–d",
+      "vs hard bots50% · 4 games2–2–0 w–l–d",
       `vs medium bots1 game${CASUAL_SPLIT_NOTE}`,
       `vs easy bots3 games${CASUAL_SPLIT_NOTE}`,
-      "going first71% · 7 games",
-      "going second40% · 5 games",
+      "going first71% · 7 games5–1–1 w–l–d",
+      "going second40% · 5 games2–3–0 w–l–d",
     ]);
   });
 
