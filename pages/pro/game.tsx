@@ -21,6 +21,7 @@ import { MOVE_STEP_SECONDS, MoveHint, PendingMove, ProBoard } from "@/components
 import { ProErrorBoundary } from "@/components/Pro/ProErrorBoundary";
 import { assignableSeats, BotSlotPlan, SlotOccupant } from "@/components/Pro/CreateSeats";
 import { availableBotTiers, botTierChoices, BotTierChoice, coerceBotTier } from "@/lib/pro/botTiers";
+import { OpponentChoice, useOpponentSeat } from "@/lib/pro/opponentSeat";
 import { stateHash } from "@/lib/pro/stateHash";
 import {
   Action,
@@ -1879,9 +1880,6 @@ function Segmented<T extends string>({
   );
 }
 
-/** Who-fills-this-seat choice, unified across the duel opponent + multiplayer
- *  seats (both drive the same `human | <bot tier>` union). */
-type OpponentChoice = "human" | BotDifficulty;
 
 /** One chip: "Hum" plus whichever bot tiers THIS SERVER offers for the picked
  *  heroes. The bot tiers are never hardcoded here — see lib/pro/botTiers.ts. */
@@ -2828,17 +2826,10 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
     useProSocket(WS_URL, debug);
   const [joined, setJoined] = useState(false);
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
-  const [opponent, setOpponent] = useState<OpponentChoice>("human");
-  // `?vs=` preset (#460) applied ONCE, when the param resolves — on the static
-  // export router.query is empty for the first render, so this can't be a
-  // useState initializer. One-shot by design: a manual chip change afterwards
-  // must win rather than being re-stomped by the still-present URL param.
-  const vsPresetApplied = useRef(false);
-  useEffect(() => {
-    if (vsPresetApplied.current || !vsBot) return;
-    vsPresetApplied.current = true;
-    setOpponent(vsBot);
-  }, [vsBot]);
+  // Duel opponent seat. `chooseOpponent` is the player clicking a chip and locks
+  // the seat against the post-hydration `?vs=` preset (#460/#593); `reviseOpponent`
+  // is for machine-driven narrowing that isn't a choice. See lib/pro/opponentSeat.ts.
+  const { opponent, chooseOpponent, reviseOpponent } = useOpponentSeat(vsBot);
   const [selectedFormat, setSelectedFormat] = useState<ProFormatId>("duel");
   const [botSlotPlan, setBotSlotPlan] = useState<BotSlotPlan>({});
   // Chosen board in the create flow: a MAP_CATALOG id or CUSTOM_MAP_ID. Starts
@@ -2858,7 +2849,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   ]).join(",");
   useEffect(() => {
     const offered = armedTierKey.split(",") as BotDifficulty[];
-    setOpponent((prev) => (prev === "human" ? prev : coerceBotTier(prev, offered)));
+    reviseOpponent((prev) => (prev === "human" ? prev : coerceBotTier(prev, offered)));
     setBotSlotPlan((prev) => {
       let changed = false;
       const next = Object.fromEntries(
@@ -2871,7 +2862,9 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
       ) as BotSlotPlan;
       return changed ? next : prev;
     });
-  }, [armedTierKey]);
+    // `reviseOpponent` is a stable setState — listed only to satisfy the lint rule,
+    // which can't see that through the hook boundary.
+  }, [armedTierKey, reviseOpponent]);
   // Per-decision move timer (issue #223), create flow only: seconds each seat has
   // to act. 0 = off (the default) → CREATE_ROOM omits turnTimerSeconds and the
   // room behaves exactly as today. The toggle flips between 0 and a default preset.
@@ -3335,7 +3328,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
           selectedFormat={selectedFormat}
           onSelectFormat={(format) => {
             setSelectedFormat(format);
-            if (format !== "duel") setOpponent("human");
+            if (format !== "duel") reviseOpponent("human");
             setBotSlotPlan((prev) => {
               const allowed = new Set(assignableSeats(format));
               return Object.fromEntries(Object.entries(prev).filter(([player]) => allowed.has(player as PlayerId))) as BotSlotPlan;
@@ -3349,7 +3342,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
               return defaultMapIdForFormat(format);
             });
           }}
-          onSelectOpponent={setOpponent}
+          onSelectOpponent={chooseOpponent}
           onSelectHero={setSelectedHeroId}
           aiHeroId={aiHeroId}
           onSelectAiHero={setAiHeroId}
