@@ -407,28 +407,44 @@ const Quiet = ({ children }: { children: React.ReactNode }) => (
  * genuinely the same thing from the player's seat — there is no record to show
  * — and only one of them is worth a sentence about what to do next.
  */
-const NothingYet = () => (
-  <Quiet>
-    No Pro games on record yet.{" "}
-    <Text
-      as={NextLink}
-      href="/pro"
-      textDecoration="underline"
-      fontWeight={600}
-      _hover={{ opacity: 0.8 }}
-    >
-      Play a Pro game
-    </Text>{" "}
-    while signed in and your record shows up here.
-  </Quiet>
-);
+const NothingYet = ({ owner }: { owner: boolean }) => {
+  // Somebody else's empty shelf is a fact, not an invitation: pointing a
+  // visitor at /pro from another player's profile is a nudge aimed at the
+  // wrong person.
+  if (!owner) return <Quiet>No Pro games on record yet.</Quiet>;
+  return (
+    <Quiet>
+      No Pro games on record yet.{" "}
+      <Text
+        as={NextLink}
+        href="/pro"
+        textDecoration="underline"
+        fontWeight={600}
+        _hover={{ opacity: 0.8 }}
+      >
+        Play a Pro game
+      </Text>{" "}
+      while signed in and your record shows up here.
+    </Quiet>
+  );
+};
 
 /**
  * `view` is passed in rather than fetched here (#577): the profile header's
  * level bar reads the same `GET /me/stats`, and one hook call on the page keeps
  * that a single request instead of two mounts racing for the same payload.
  */
-export const AccountStatsSection = ({ view }: { view: AccountStatsView }) => {
+export const AccountStatsSection = ({
+  view,
+  owner = true,
+  name,
+}: {
+  view: AccountStatsView;
+  /** False on a public profile: the same tables, copy in the third person. */
+  owner?: boolean;
+  /** Whose record this is. Only used when `owner` is false. */
+  name?: string;
+}) => {
   const { status, stats } = view;
 
   const heroRows: StatRow[] =
@@ -473,16 +489,19 @@ export const AccountStatsSection = ({ view }: { view: AccountStatsView }) => {
         fontSize="1.15rem"
         mb="0.2rem"
       >
-        My record
+        {owner ? "My record" : "Record"}
       </Text>
       <Text fontSize="0.8rem" opacity={0.65} mb="0.7rem">
-        Every finished Pro game you played while signed in.
+        Every finished Pro game {owner ? "you" : (name ?? "this player")} played
+        while signed in.
       </Text>
 
-      {status === "loading" ? <Quiet>Counting your games…</Quiet> : null}
+      {status === "loading" ? (
+        <Quiet>{owner ? "Counting your games…" : "Counting games…"}</Quiet>
+      ) : null}
 
       {status === "unavailable" || (stats && !hasPlayed(stats)) ? (
-        <NothingYet />
+        <NothingYet owner={owner} />
       ) : null}
 
       {status === "ready" && stats && hasPlayed(stats) ? (
@@ -493,7 +512,7 @@ export const AccountStatsSection = ({ view }: { view: AccountStatsView }) => {
           ) : null}
           {heroRows.length > 0 ? (
             <StatTable
-              heading="My heroes"
+              heading={owner ? "My heroes" : "Heroes"}
               firstColumn="Hero"
               rows={heroRows}
               testId="account-stat-hero-row"

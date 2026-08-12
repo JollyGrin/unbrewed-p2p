@@ -11,151 +11,70 @@
  * pages that have their own job; /account is a page the user asked for by name,
  * and a blank one reads as broken. So an unreachable API gets one calm sentence
  * instead of an empty document. No new call is made for a guest either way.
+ *
+ * Since #590 the body of the page IS `ProfileView` — the same component
+ * `/stats?u=` renders for anybody else — with the owner-only extras layered on
+ * top: a wearable badge case (the `owner` flag), the Discord perks card as a
+ * child, and sign-out in the header. That is the whole design rule of the
+ * feature: /account is a superset of a public profile, never a parallel one.
  */
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import { FaDiscord } from "react-icons/fa";
+import NextLink from "next/link";
 import { useState } from "react";
 
-import { Navbar } from "@/components/Navbar";
-import { PageSeo } from "@/components/Helmet/Head";
 import { AccountDiscord } from "@/components/Account/AccountDiscord";
-import { AccountGames } from "@/components/Account/AccountGames";
-import {
-  AccountBadgeCase,
-  SelectedBadgeChip,
-} from "@/components/Account/AccountBadges";
-import { AccountLevelBar } from "@/components/Account/AccountLevel";
-import { AccountStatsSection } from "@/components/Account/AccountStats";
-import { levelProgress, type LevelProgress } from "@/lib/account/stats";
+import { ProfileView } from "@/components/Account/ProfileView";
+import { AccountShell, Panel } from "@/components/Account/Shell";
 import { signInUrl, signOut, useAccount } from "@/lib/account/useAccount";
 import { useAccountStats } from "@/lib/account/useAccountStats";
-import { BadgeCaseState, useBadges } from "@/lib/account/useBadges";
+import { useBadges } from "@/lib/account/useBadges";
+import { useGameHistory } from "@/lib/account/useGameHistory";
 
-const Panel = (props: React.ComponentProps<typeof Box>) => (
-  <Box
-    bg="brand.parchment"
-    borderRadius="0.75rem"
-    p="1.1rem"
-    boxShadow="0 2px 8px rgba(20, 8, 24, 0.25)"
+const Shell = ({ children }: { children: React.ReactNode }) => (
+  <AccountShell
+    seo={{
+      path: "/account",
+      title: "Your account | Unbrewed",
+      description:
+        "Your Unbrewed account: Discord profile and the history of your finished Pro games.",
+      noindex: true,
+    }}
+  >
+    {children}
+  </AccountShell>
+);
+
+const GhostButton = (props: React.ComponentProps<typeof Button>) => (
+  <Button
+    size="sm"
+    variant="outline"
+    flexShrink={0}
+    borderColor="brand.secondary"
+    color="brand.secondary"
+    fontFamily="ArchivoNarrow"
+    fontWeight={400}
+    _hover={{ bg: "rgba(72, 40, 79, 0.1)" }}
     {...props}
   />
 );
 
-const Shell = ({ children }: { children: React.ReactNode }) => (
-  <Flex flexDir="column" bg="brand.highlight" minH="100svh">
-    <PageSeo
-      path="/account"
-      title="Your account | Unbrewed"
-      description="Your Unbrewed account: Discord profile and the history of your finished Pro games."
-      noindex
-    />
-    <Box color="brand.secondary">
-      <Navbar />
-    </Box>
-    <Box
-      flex="1"
-      color="brand.secondary"
-      w="100%"
-      maxW="52rem"
-      mx="auto"
-      px={{ base: "0.9rem", md: "1.25rem" }}
-      py="1.5rem"
-    >
-      {children}
-    </Box>
-  </Flex>
-);
-
-const ProfileHeader = ({
-  username,
-  avatarUrl,
-  level,
-  badges,
-}: {
-  username: string;
-  avatarUrl: string | null;
-  /** #577: null when the API doesn't send the progression block → no level UI. */
-  level: LevelProgress | null;
-  badges: BadgeCaseState;
-}) => {
+/**
+ * The owner-only end of the profile header: the way to the public board, and
+ * the way out. Stacked rather than inline so a narrow screen doesn't squeeze
+ * the username to nothing.
+ */
+const OwnerActions = () => {
   const [signingOut, setSigningOut] = useState(false);
-  // A stale avatar hash 404s on the Discord CDN. At chip size that is a shrug;
-  // at 3rem a broken-image glyph is the loudest thing on the page, so fall
-  // through to the same placeholder an avatar-less account gets.
-  const [avatarBroken, setAvatarBroken] = useState(false);
 
   return (
-    <Panel
-      as="header"
-      display="flex"
-      alignItems="center"
-      gap="0.9rem"
-      mb="1rem"
-    >
-      {avatarUrl && !avatarBroken ? (
-        // Plain <img>, not next/image: the site is statically exported, so
-        // there is no optimizer and the Discord CDN host would need config.
-        <Box
-          as="img"
-          data-testid="account-avatar"
-          src={avatarUrl}
-          alt=""
-          onError={() => setAvatarBroken(true)}
-          boxSize="3rem"
-          borderRadius="full"
-          objectFit="cover"
-          flexShrink={0}
-        />
-      ) : (
-        <Box
-          boxSize="3rem"
-          borderRadius="full"
-          bg="rgba(72, 40, 79, 0.15)"
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-          flexShrink={0}
-        >
-          <FaDiscord size="1.5rem" />
-        </Box>
-      )}
-
-      <Box flex="1" minW={0}>
-        {/* The worn badge sits ON the name line (#577) — it is a title, and a
-            title belongs beside the name rather than under it. It wraps to its
-            own line before it squeezes a long username. */}
-        <Flex align="center" gap="0.5rem" flexWrap="wrap" minW={0}>
-          <Text
-            as="h1"
-            fontFamily="LeagueGothic"
-            fontSize="2rem"
-            lineHeight="1.05"
-            overflow="hidden"
-            textOverflow="ellipsis"
-            whiteSpace="nowrap"
-            minW={0}
-          >
-            {username}
-          </Text>
-          <SelectedBadgeChip state={badges} />
-        </Flex>
-        <Text fontSize="0.8rem" opacity={0.65}>
-          Signed in with Discord
-        </Text>
-        <AccountLevelBar progress={level} />
-      </Box>
-
-      <Button
-        size="sm"
-        variant="outline"
-        flexShrink={0}
-        borderColor="brand.secondary"
-        color="brand.secondary"
-        fontFamily="ArchivoNarrow"
-        fontWeight={400}
+    <Flex direction="column" align="stretch" gap="0.4rem" flexShrink={0}>
+      <GhostButton as={NextLink} href="/leaderboard">
+        Leaderboard
+      </GhostButton>
+      <GhostButton
         isLoading={signingOut}
         loadingText="Signing out…"
-        _hover={{ bg: "rgba(72, 40, 79, 0.1)" }}
         onClick={() => {
           setSigningOut(true);
           // signOut() never rejects; it refetches /me and pushes the result to
@@ -164,8 +83,8 @@ const ProfileHeader = ({
         }}
       >
         Sign out
-      </Button>
-    </Panel>
+      </GhostButton>
+    </Flex>
   );
 };
 
@@ -192,17 +111,31 @@ const SignInPrompt = () => (
     >
       Sign in with Discord
     </Button>
+    {/* The board is public, so it is worth offering even to someone who
+        isn't going to sign in. */}
+    <Box mt="0.9rem">
+      <Text
+        as={NextLink}
+        href="/leaderboard"
+        fontSize="0.85rem"
+        textDecoration="underline"
+        _hover={{ opacity: 0.8 }}
+      >
+        See the leaderboard
+      </Text>
+    </Box>
   </Panel>
 );
 
 export const AccountPage = () => {
   const { status, account } = useAccount();
   // One `GET /me/stats` for the page: the header's level bar and the record
-  // block below read the same payload. Both hooks stay quiet for a guest — they
-  // fire nothing until the `/me` probe says signed-in — so the page still costs
-  // a signed-out visitor exactly one request.
+  // block below read the same payload. All three hooks stay quiet for a guest —
+  // they fire nothing until the `/me` probe says signed-in — so the page still
+  // costs a signed-out visitor exactly one request.
   const statsView = useAccountStats();
   const badges = useBadges();
+  const history = useGameHistory();
 
   if (status === "loading") {
     return (
@@ -240,16 +173,18 @@ export const AccountPage = () => {
 
   return (
     <Shell>
-      <ProfileHeader
+      <ProfileView
+        owner
         username={account.username}
         avatarUrl={account.avatarUrl}
-        level={statsView.stats ? levelProgress(statsView.stats) : null}
+        subtitle="Signed in with Discord"
         badges={badges}
-      />
-      <AccountStatsSection view={statsView} />
-      <AccountBadgeCase state={badges} />
-      <AccountDiscord />
-      <AccountGames />
+        stats={statsView}
+        history={history}
+        headerAction={<OwnerActions />}
+      >
+        <AccountDiscord />
+      </ProfileView>
     </Shell>
   );
 };
