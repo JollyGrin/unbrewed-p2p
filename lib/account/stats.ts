@@ -27,6 +27,14 @@ export type FormResult = "W" | "L" | "D";
 export interface StatSplit {
   games: number;
   wins: number;
+  /**
+   * Draws in this slice. Additive (telemetry#58) and therefore OPTIONAL: an API
+   * on the older aggregate sends the row without it, and the whole point of the
+   * counted record is that it still computes then. Read it through
+   * {@link splitDraws}, never `split.draws` directly, so "not sent" and "none"
+   * land on the same 0 everywhere.
+   */
+  draws?: number;
 }
 
 export interface HeroStat extends StatSplit {
@@ -123,12 +131,17 @@ const asRecord = (value: unknown): Record<string, unknown> | null =>
     ? (value as Record<string, unknown>)
     : null;
 
-/** games/wins, with wins clamped into the games it was counted out of. */
+/**
+ * games/wins/draws, with wins clamped into the games it was counted out of and
+ * draws into whatever games are left after them — `losses = games − wins −
+ * draws` is arithmetic the record leans on, so it must never go negative.
+ */
 const normalizeSplit = (raw: unknown): StatSplit | null => {
   const row = asRecord(raw);
   if (!row) return null;
   const games = asCount(row.games);
-  return { games, wins: Math.min(asCount(row.wins), games) };
+  const wins = Math.min(asCount(row.wins), games);
+  return { games, wins, draws: Math.min(asCount(row.draws), games - wins) };
 };
 
 const byGamesDesc = <T extends StatSplit>(rows: T[]): T[] =>
@@ -272,19 +285,27 @@ export const percentLabel = (split: StatSplit): string => {
  * `MIN_WIN_RATE_GAMES` games a percentage is theatre (one game = "100%"), so
  * the tile shows an em dash and the W–L–D tile carries the real information.
  *
+ * Measured over the COUNTED games (see {@link headlineRecord}), so the
+ * percentage and the W–L–D beside it are always the same games — a shelf of
+ * easy-bot wins moves neither.
+ *
  * The guard is deliberately NOT applied to the table rows. There, the games
  * column sits right next to the percentage — the reader can see "2 games" and
  * discount it themselves — and dashing out most of a new player's heroes would
  * empty the very table they came to look at.
  */
-export const headlineWinRate = (stats: AccountStats): string =>
-  stats.totalGames < MIN_WIN_RATE_GAMES
+export const headlineWinRate = (stats: AccountStats): string => {
+  const record = headlineRecord(stats);
+  return record.games < MIN_WIN_RATE_GAMES
     ? "—"
-    : percentLabel({ games: stats.totalGames, wins: stats.wins });
+    : percentLabel({ games: record.games, wins: record.wins });
+};
 
 /** "12–3–1" — the record behind the percentage. */
-export const recordLabel = (stats: AccountStats): string =>
-  `${stats.wins}–${stats.losses}–${stats.draws}`;
+export const recordLabel = (stats: AccountStats): string => {
+  const record = headlineRecord(stats);
+  return `${record.wins}–${record.losses}–${record.draws}`;
+};
 
 /** "12:13" / "1:04:22" — clock form, asked for by the ticket. */
 export const formatClock = (seconds: number | null): string | null => {
@@ -338,6 +359,129 @@ export const botTierLabel = (bot: BotStat): string =>
   bot.difficulty === "unknown"
     ? "Bots"
     : `${capitalize(bot.difficulty)} bots`;
+
+// --- opposition tiers (issue #592) -------------------------------------------
+
+/** Draws in a split, treating a row from a pre-telemetry#58 API as having none. */
+export const splitDraws = (split: StatSplit): number => split.draws ?? 0;
+
+/** `games − wins − draws`, floored at 0 for a producer that doesn't add up. */
+export const splitLosses = (split: StatSplit): number =>
+  Math.max(0, split.games - split.wins - splitDraws(split));
+
+/**
+ * The tiers that earn nothing and prove nothing.
+ *
+ * Product rule (#592): an easy or medium bot game is practice. It gives no XP
+ * and never touches your win/loss record — otherwise the shortest path to a
+ * gaudy record is farming the bot that doesn't fight back. They stay VISIBLE on
+ * the page, with the reason written next to them, because a player who won
+ * fifty easy games and saw nothing move deserves an answer rather than a guess.
+ */
+export const CASUAL_TIERS: ReadonlySet<string> = new Set(["easy", "medium"]);
+
+/** True for a bot row whose games are practice rather than record. */
+export const isCasualBot = (bot: BotStat): boolean =>
+  CASUAL_TIERS.has(bot.difficulty);
+
+/**
+ * Reading order for the opposition splits: humans first (handled by the
+ * component), then the tiers that count, hardest first, then the casual pair
+ * last — the demoted rows belong at the end of the line, not in the middle of
+ * the record.
+ *
+ * `unknown` sits with the counted tiers deliberately. It is a tier telemetry
+ * could not name, not a tier that doesn't count; after telemetry#58 it should
+ * be all but empty, and until then dropping those games out of the record would
+ * silently erase most of a player's bot history.
+ */
+const TIER_ORDER: Record<string, number> = {
+  expert: 0,
+  hard: 1,
+  unknown: 2,
+  medium: 3,
+  easy: 4,
+};
+
+/** An unrecognised difficulty sorts with `unknown`: counted, in the middle. */
+const tierRank = (bot: BotStat): number => TIER_ORDER[bot.difficulty] ?? 2;
+
+/** Bot splits in reading order; ties (or a novel tier) fall back to games-desc. */
+export const orderedBotSplits = (bots: BotStat[]): BotStat[] =>
+  [...bots].sort((a, b) => tierRank(a) - tierRank(b) || b.games - a.games);
+
+export interface CountedRecord {
+  games: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  /** Easy/medium games left OUT of the numbers above. Always > 0 here. */
+  casualGames: number;
+}
+
+/**
+ * The record with the casual tiers taken out — or `null` when there is nothing
+ * to take out, which is the ordinary case and the whole degradation story.
+ *
+ * `null` covers three of them: an API that never sent `byOpponentKind` (older
+ * deploy — the page must render exactly what it rendered before), a player with
+ * no easy/medium games at all, and a payload whose casual rows are empty. In
+ * every one of those the top-level `wins/losses/draws` telemetry already
+ * computed is both authoritative and correct, and re-deriving it from splits
+ * that need not sum to the whole would only invent a discrepancy.
+ *
+ * When casual games DO exist the record is summed from the counted rows
+ * instead: human + expert + hard + unknown, with `losses = games − wins −
+ * draws` per row so a missing `draws` (pre-telemetry#58) merely lands those
+ * games in the loss column rather than breaking the arithmetic.
+ */
+export const countedRecord = (stats: AccountStats): CountedRecord | null => {
+  const kind = stats.byOpponentKind;
+  if (!kind) return null;
+  const casualGames = kind.bots
+    .filter(isCasualBot)
+    .reduce((total, bot) => total + bot.games, 0);
+  if (casualGames <= 0) return null;
+
+  const counted: StatSplit[] = [
+    ...(kind.human ? [kind.human] : []),
+    ...kind.bots.filter((bot) => !isCasualBot(bot)),
+  ];
+  return counted.reduce<CountedRecord>(
+    (record, split) => ({
+      games: record.games + split.games,
+      wins: record.wins + split.wins,
+      losses: record.losses + splitLosses(split),
+      draws: record.draws + splitDraws(split),
+      casualGames,
+    }),
+    { games: 0, wins: 0, losses: 0, draws: 0, casualGames },
+  );
+};
+
+/** The counted record when one applies, else telemetry's own totals. */
+export const headlineRecord = (
+  stats: AccountStats,
+): { games: number; wins: number; losses: number; draws: number } =>
+  countedRecord(stats) ?? {
+    games: stats.totalGames,
+    wins: stats.wins,
+    losses: stats.losses,
+    draws: stats.draws,
+  };
+
+/**
+ * "3 casual bot games (easy/medium) not counted" — the one line that explains a
+ * headline record smaller than the games tile above it. `null` when the two
+ * agree and there is nothing to explain.
+ */
+export const casualGamesNote = (stats: AccountStats): string | null => {
+  const record = countedRecord(stats);
+  if (!record) return null;
+  const games = record.casualGames;
+  const plural = games === 1 ? "game" : "games";
+  return `${games} casual bot ${plural} (easy/medium) not counted`;
+};
 
 /**
  * True when the player has an aggregate worth rendering at all. A zero-game
