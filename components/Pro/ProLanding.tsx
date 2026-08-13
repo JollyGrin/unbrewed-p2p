@@ -135,14 +135,32 @@ export const ProLanding = () => {
   // Ready tiles first, then lab; locked decks live in the drawer below the grid.
   const gridEntries = [...readyEntries, ...labEntries];
 
+  // Every fighter the server already serves, by normalized name — see
+  // `fighterKey`. Both the curated tile name and the engine's own display name
+  // count, so the match holds whichever of the two a locked deck echoes.
+  const liveFighters = new Set(
+    roster.flatMap((e) =>
+      [e.deck?.hero, e.listing?.name]
+        .filter((n): n is string => !!n)
+        .map(fighterKey)
+    )
+  );
+
   // "Challengers approaching" = tiles the server does NOT serve. Reflavored
   // baselines never queue here: their spice replacement is already on the grid
   // under the same name, so listing them would read as a duplicate fighter.
+  // Same rationale for a deck that merely *duplicates* a served fighter:
+  // POPULAR_DECKS carries rival community takes on heroes the engine already
+  // runs (two Darth Vaders, a "The Batman" beside "Batman" — #600), and each
+  // has its own deck id, so the id check above can't see them. Queueing them
+  // would advertise as upcoming a fighter that is one row up on the grid.
   const lockedEntries: RosterEntry[] = liveHeroes
     ? POPULAR_DECKS.filter(
         (d) =>
           d.tier !== "reflavored" &&
-          !liveHeroes.some((h) => h.heroId === DECK_HERO_IDS[d.id])
+          !liveHeroes.some((h) => h.heroId === DECK_HERO_IDS[d.id]) &&
+          !liveFighters.has(fighterKey(d.hero)) &&
+          !liveFighters.has(fighterKey(d.name))
       ).map((deck) => ({
         key: deck.id,
         name: deck.name,
@@ -889,6 +907,15 @@ const DECK_BY_HERO_ID: Record<string, PopularDeckMeta> = Object.fromEntries(
 );
 const deckForHeroId = (heroId: string): PopularDeckMeta | undefined =>
   DECK_BY_HERO_ID[heroId];
+
+/**
+ * Fighter identity for duplicate detection: lowercase, and drop a leading
+ * "the " so a community "The Batman" deck reads as the same fighter as the
+ * served "Batman". Deliberately name-based — rival takes on one hero carry
+ * different deck ids, so ids can't tell they are the same fighter.
+ */
+const fighterKey = (name: string) =>
+  name.trim().toLowerCase().replace(/^the\s+/, "");
 
 /** How many placeholder tiles stand in for the roster before it arrives. */
 const SKELETON_TILES = 12;
