@@ -6,9 +6,14 @@
  * existed (no cloud section, no upload button), and the two server refusals a
  * user can actually hit — the 50-replay cap and the 2 MB size limit — surface
  * as readable toasts rather than a silent no-op.
+ *
+ * Nothing here polls the DOM (#598). Every request the component makes is a
+ * jest mock that settles on the microtask queue, so "the page has caught up"
+ * is a flush — see `settle()` — and every assertion below is a synchronous
+ * query with no wall clock in the loop.
  */
 import "@testing-library/jest-dom";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { ReplaysBrowser } from "./ReplaysBrowser";
 import type { ReplayBundle } from "@/lib/pro/protocol";
@@ -74,6 +79,20 @@ const wireFetch = () => {
   }) as unknown as typeof fetch;
 };
 
+/**
+ * Let the component finish reacting to its mocked requests.
+ *
+ * `act` drains the microtask queue and the effects those microtasks schedule,
+ * to quiescence — one call covers the whole `/me` → signed-in → `GET /replays`
+ * → rendered chain. Waiting this way instead of with `findBy*` is what makes
+ * the suite deterministic under a loaded parallel `jest` run (#598): `findBy*`
+ * retries its query against a real 1-second clock, and a single accessible-name
+ * query over this Chakra-rendered page costs ~0.25 s even on an idle machine,
+ * so under CPU contention one attempt can eat the entire budget and "time out"
+ * on an element that was already in the DOM.
+ */
+const settle = () => act(async () => {});
+
 const renderBrowser = () =>
   render(
     <ChakraProvider>
@@ -81,7 +100,13 @@ const renderBrowser = () =>
     </ChakraProvider>,
   );
 
-const uploadButton = () => screen.findByRole("button", { name: /upload & copy link/i });
+/**
+ * Queried by label rather than by role+name: it is the same `aria-label`
+ * either way, and `ByLabelText` is a couple of orders of magnitude cheaper
+ * than computing accessible names for every button on the page.
+ */
+const uploadButton = () => screen.getByLabelText(/upload & copy link/i);
+const noUploadButton = () => screen.queryByLabelText(/upload & copy link/i);
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -98,13 +123,15 @@ beforeEach(() => {
 describe("ReplaysBrowser cloud upload", () => {
   it("uploads with the local replay's label and copies the share link", async () => {
     renderBrowser();
+    await settle();
 
-    fireEvent.click(await uploadButton());
+    fireEvent.click(uploadButton());
+    await settle();
 
-    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted).toHaveLength(1);
     expect(posted[0]).toEqual({ title: "King Kong vs Thrall — The Mended Drum", bundle });
-    await waitFor(() => expect(copied).toEqual([`${window.location.origin}/share/replay/the-id`]));
-    expect(await screen.findByText("Share link copied")).toBeInTheDocument();
+    expect(copied).toEqual([`${window.location.origin}/share/replay/the-id`]);
+    expect(screen.getByText("Share link copied")).toBeInTheDocument();
   });
 
   it("toasts a friendly message when the 50-replay cap is reached", async () => {
@@ -112,9 +139,12 @@ describe("ReplaysBrowser cloud upload", () => {
     wireFetch();
 
     renderBrowser();
-    fireEvent.click(await uploadButton());
+    await settle();
 
-    expect(await screen.findByText("Cloud replays are full")).toBeInTheDocument();
+    fireEvent.click(uploadButton());
+    await settle();
+
+    expect(screen.getByText("Cloud replays are full")).toBeInTheDocument();
     expect(
       screen.getByText(new RegExp(`cloud replays are full \\(${CLOUD_REPLAY_CAP}\\)`, "i")),
     ).toBeInTheDocument();
@@ -126,9 +156,12 @@ describe("ReplaysBrowser cloud upload", () => {
     wireFetch();
 
     renderBrowser();
-    fireEvent.click(await uploadButton());
+    await settle();
 
-    expect(await screen.findByText("Couldn't upload that replay")).toBeInTheDocument();
+    fireEvent.click(uploadButton());
+    await settle();
+
+    expect(screen.getByText("Couldn't upload that replay")).toBeInTheDocument();
     expect(screen.getByText(/over 2 MB/)).toBeInTheDocument();
   });
 
@@ -139,17 +172,20 @@ describe("ReplaysBrowser cloud upload", () => {
     wireFetch();
 
     renderBrowser();
+    await settle();
 
-    expect(await screen.findByText("My cloud replays")).toBeInTheDocument();
+    expect(screen.getByText("My cloud replays")).toBeInTheDocument();
     expect(screen.getByText(`1/${CLOUD_REPLAY_CAP}`)).toBeInTheDocument();
     expect(screen.getByText("Grand final")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /copy share link for Grand final/i }));
+    fireEvent.click(screen.getByLabelText(/copy share link for Grand final/i));
     expect(copied).toEqual([`${window.location.origin}/share/replay/cloud-1`]);
 
-    fireEvent.click(screen.getByRole("button", { name: /delete Grand final from the cloud/i }));
-    await waitFor(() => expect(deleted).toEqual(["cloud-1"]));
-    await waitFor(() => expect(screen.queryByText("Grand final")).toBeNull());
+    fireEvent.click(screen.getByLabelText(/delete Grand final from the cloud/i));
+    await settle();
+
+    expect(deleted).toEqual(["cloud-1"]);
+    expect(screen.queryByText("Grand final")).toBeNull();
     expect(screen.getByText(`0/${CLOUD_REPLAY_CAP}`)).toBeInTheDocument();
   });
 
@@ -158,21 +194,23 @@ describe("ReplaysBrowser cloud upload", () => {
     wireFetch();
 
     renderBrowser();
+    await settle();
 
     // The local list still renders — guest behaviour is unchanged.
-    expect(await screen.findByText(/The Mended Drum/)).toBeInTheDocument();
+    expect(screen.getByText(/The Mended Drum/)).toBeInTheDocument();
     expect(screen.queryByText("My cloud replays")).toBeNull();
-    expect(screen.queryByRole("button", { name: /upload & copy link/i })).toBeNull();
+    expect(noUploadButton()).toBeNull();
   });
 
   it("behaves exactly as before when the accounts API is unreachable", async () => {
     global.fetch = jest.fn().mockRejectedValue(new TypeError("Failed to fetch")) as unknown as typeof fetch;
 
     renderBrowser();
+    await settle();
 
-    expect(await screen.findByText(/The Mended Drum/)).toBeInTheDocument();
+    expect(screen.getByText(/The Mended Drum/)).toBeInTheDocument();
     expect(screen.queryByText("My cloud replays")).toBeNull();
-    expect(screen.queryByRole("button", { name: /upload & copy link/i })).toBeNull();
+    expect(noUploadButton()).toBeNull();
   });
 
   it("hides the upload button when the listing call fails even though /me worked", async () => {
@@ -180,9 +218,10 @@ describe("ReplaysBrowser cloud upload", () => {
     wireFetch();
 
     renderBrowser();
+    await settle();
 
-    expect(await screen.findByText(/The Mended Drum/)).toBeInTheDocument();
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(`${API_URL}/replays`, expect.anything()));
-    expect(screen.queryByRole("button", { name: /upload & copy link/i })).toBeNull();
+    expect(screen.getByText(/The Mended Drum/)).toBeInTheDocument();
+    expect(global.fetch).toHaveBeenCalledWith(`${API_URL}/replays`, expect.anything());
+    expect(noUploadButton()).toBeNull();
   });
 });
