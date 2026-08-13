@@ -1,0 +1,336 @@
+{
+  "bgg_link": null,
+  "created_on": "Fri, 17 Apr 2026 11:49:29 GMT",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#f8c417",
+      "cardbackUrl": "/evergreen-decks/art/6rDz/cardback.webp",
+      "highlightColour": "#0340f3",
+      "isPNP": false,
+      "patternName": "Death Star"
+    },
+    "cards": [
+      {
+        "afterText": "If Hokuto:Hundred-Fist Rush in your discard pile is >= 1, WAAAA. WAAAA: 3 ATK After Combat:If Hokuto:Hundred-Fist Rush in your discard pile is >= 2,TATATA. TATATA: 3 ATK After Combat:If Hokuto:Hundred-Fist Rush in your discard pile is >= 3, WAATAAA! WAATAAA!: ATK 3.",
+        "basicText": "",
+        "boost": 0,
+        "cardImage": {
+          "url": "/evergreen-decks/art/6rDz/hokuto-hundred-fist-rush.webp"
+        },
+        "characterName": "KENSHIRO",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/6rDz/hokuto-hundred-fist-rush.webp",
+        "immediateText": "",
+        "quantity": 4,
+        "title": "Hokuto: Hundred-Fist Rush",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": "Move the defending fighter up to two spaces then deal 2 damage to all any opposing fighter adjacent to it.",
+        "basicText": "",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/6rDz/hokuto-hordebreaker-strike.webp"
+        },
+        "characterName": "KENSHIRO",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/6rDz/hokuto-hordebreaker-strike.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Hokuto: Hordebreaker Strike",
+        "type": "attack",
+        "value": 2
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/6rDz/hokuto-stone-mountain-splitting-slash.webp"
+        },
+        "characterName": "KENSHIRO",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/6rDz/hokuto-stone-mountain-splitting-slash.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Hokuto: Stone Mountain Splitting Slash",
+        "type": "attack",
+        "value": 5
+      },
+      {
+        "afterText": "Move Kenshiro up to 3 spaces.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/6rDz/hokuto-vacuum-finger-strike.webp"
+        },
+        "characterName": "KENSHIRO",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/6rDz/hokuto-vacuum-finger-strike.webp",
+        "immediateText": "Choose up to five cards from a opponent's discard pile and remove them from the game.",
+        "quantity": 2,
+        "title": "Hokuto: Vacuum Finger Strike",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "If Kenshiro is adjacent to the opposing fighter, deal 2 damage to that fighter.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/6rDz/hokuto-bone-demolisher.webp"
+        },
+        "characterName": "KENSHIRO",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/6rDz/hokuto-bone-demolisher.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Hokuto: Bone Demolisher",
+        "type": "defence",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "Drawn 2 cards. Gain 1 action. If an ally fighter was dealt damage last turn, all of Kenshiro's HOKUTO cards this turn are +2 value.",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/6rDz/hokuto-dragon-form-breathing-technique.webp"
+        },
+        "characterName": "KENSHIRO",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/6rDz/hokuto-dragon-form-breathing-technique.webp",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Hokuto: Dragon Form Breathing Technique",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "",
+        "basicText": "This card's effects cannot be canceled.",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/6rDz/you-are-already-dead.webp"
+        },
+        "characterName": "KENSHIRO",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/6rDz/you-are-already-dead.webp",
+        "immediateText": "Deal damege to the opposing fighter equal to half the damege he took last turn (rounded down); this card value is equal to that number.",
+        "quantity": 1,
+        "title": "YOU ARE ALREADY DEAD!",
+        "type": "defence",
+        "value": 0
+      },
+      {
+        "afterText": "Place Kenshiro in any space in his zone.",
+        "basicText": "",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/6rDz/subconscious-transmigration-of-souls.webp"
+        },
+        "characterName": "KENSHIRO",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/6rDz/subconscious-transmigration-of-souls.webp",
+        "immediateText": "This combat, Kenshiro does not take damage from effects or combat.",
+        "quantity": 1,
+        "title": "Subconscious Transmigration of Souls",
+        "type": "defence",
+        "value": 0
+      },
+      {
+        "afterText": "Remove this card form the game.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/6rDz/death-omen-star.webp"
+        },
+        "characterName": "KENSHIRO",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/6rDz/death-omen-star.webp",
+        "immediateText": "If Kenshiro's health is 5 or below: Choose up to 3 Hokuto cards with different names from your discard pile, add them to your hand, and gain 5 life. At the end of your next turn, Kenshiro loses 5 health. His health can't go below 1 by this effect.",
+        "quantity": 1,
+        "title": "Death Omen Star",
+        "type": "defence",
+        "value": 2
+      },
+      {
+        "afterText": "",
+        "basicText": "Heal Kenshiro and an ally fighter in his zone 2 health; you may Place that fighter adjacent to Kenshiro or Move kenshiro up to 4 spaces.",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/6rDz/the-savior-of-the-century-s-end.webp"
+        },
+        "characterName": "KENSHIRO",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/6rDz/the-savior-of-the-century-s-end.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "The Savior of the Century's End",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "",
+        "basicText": "All of Kenshiro's attacks this turn are +1 value. Gain 1 action",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/6rDz/nunchaku.webp"
+        },
+        "characterName": "KENSHIRO",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/6rDz/nunchaku.webp",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Nunchaku",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "",
+        "basicText": "Choose an opposing fighter in Kenshiro's zone. Place them in any space adjacent to \nKenshiro. Gain 1 action.",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/6rDz/bring-it-on.webp"
+        },
+        "characterName": "KENSHIRO",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/6rDz/bring-it-on.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Bring It On",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/6rDz/momentous-shift.webp"
+        },
+        "characterName": "KENSHIRO",
+        "duringText": "If your fighter started this turn in a different space, this card's value is 5 instead.",
+        "imageUrl": "/evergreen-decks/art/6rDz/momentous-shift.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Momentous Shift",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "If you won the combat, choose one of the fighters in the combat and move them up to 2 spaces.",
+        "basicText": "",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/6rDz/skirmish.webp"
+        },
+        "characterName": "KENSHIRO",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/6rDz/skirmish.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Skirmish",
+        "type": "versatile",
+        "value": 4
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/6rDz/feint.webp"
+        },
+        "characterName": "KENSHIRO",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/6rDz/feint.webp",
+        "immediateText": "Cancel all effects on your opponent's card.",
+        "quantity": 3,
+        "title": "Feint",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/6rDz/disrupting-strike.webp"
+        },
+        "characterName": "KENSHIRO",
+        "duringText": "The value of your opponent's card is equal to its printed value and cannot be changed.",
+        "imageUrl": "/evergreen-decks/art/6rDz/disrupting-strike.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Disrupting Strike",
+        "type": "versatile",
+        "value": 3
+      }
+    ],
+    "hero": {
+      "hp": 17,
+      "isRanged": false,
+      "move": 2,
+      "name": "Kenshiro",
+      "specialAbility": "708 Meridian hidden channeling points\nAt the end of your turn if an opposing fighter took combat damage from a HOKUTO card, deal 1 damage to that fighter.",
+      "tokenImageUrl": "/evergreen-decks/art/6rDz/token-kenshiro.webp"
+    },
+    "name": "Kenshiro",
+    "sidekick": {
+      "hp": null,
+      "isRanged": false,
+      "name": "Sidekick",
+      "quantity": 0,
+      "quote": "It's useless. Hokuto Shinken is invincible.\n\n                                                       -Kenshiro.\n"
+    }
+  },
+  "deck_first_published_on": "Sat, 27 May 2023 15:26:13 GMT",
+  "deck_published": true,
+  "family_id": "6rDz",
+  "id": "6rDz",
+  "liked": false,
+  "likes": 0,
+  "name": "Kenshiro",
+  "note": "Rules-enforced Pro deck (server hero kenshiro), mirrored from unmatched.cards deck 6rDz \"Kenshiro\" by Calton_White, version WvW4T24Nq — the SAME source the engine converted from (data/heroes/kenshiro.rules.ts cites it), so every rules-relevant field here is engine-exact. A LAB deck: engine JollyGrin/unbrewed-engine#362 on the #359/#360 train, and four printed clauses are still BLOCKED engine-side (the Hundred-Fist chain, the 708-Meridian tick, and the two damage-taken reads on YOU ARE ALREADY DEAD! / Dragon Form), so balance and mechanics are not final. ART comes from the author's OTHER publication of this deck, the-unmatched.club 12653 (https://www.the-unmatched.club/c/heroes/kenshiro.12653), where he uploaded finished renders as per-card `replacementImage`; 6rDz itself only hotlinks scattered stock images. Every face, his `cardsBack`, and his `customImage` hero render are mirrored into public/evergreen-decks/art/6rDz (upstream they are i.imgur.com hotlinks and imgur rots; #446 standard) and drawn full-bleed via cardImage — never through the generated card template, which cannot reproduce his banners and layout, and never through the art-generation pipeline. URLs are repo-relative (Luke/Malfurion precedent) so the art resolves on localhost and preview builds too. token-kenshiro.webp is a bust cropped from that cardback art. BOOSTS ON THREE CARDS FOLLOW THE PRINTED ART, per Dean's ruling of 2026-08-13 on the conflict between the author's two publications: what the card face shows is what the referee must apply. Momentous Shift boost 2, Skirmish boost 1 and Disrupting Strike boost 1 are the club-printed values, NOT 6rDz's 3/2/2 — engine #364 is adopting the same three, so the lock is deliberately one step ahead of kenshiro.rules.ts at commit 885d585 and converges when that lands. Every other rules-relevant field is byte-exact against that file. Where the two publications disagree elsewhere the snapshot keeps 6rDz, which is right on both counts: the club copy truncates Death Omen Star's text mid-sentence and banners Stone Mountain Splitting Slash as \"Any\" where its own art reads KENSHIRO. Titles/values/boosts/quantities are verbatim, typos included (\"damege\", \"Drawn 2 cards\", \"form the game\") — art matches by lowercased verbatim title. The three HOKUTO stages printed on Hundred-Fist Rush (WAAAA / TATATA / WAATAAA!) are the sub-attack chain engine#359's followup queue drains — see lib/pro/subAttackChain.ts for the client-side narration.",
+  "published": true,
+  "published_on": "Fri, 17 Apr 2026 11:49:34 GMT",
+  "tags": [
+    {
+      "name": "Melee Hero",
+      "slug": "melee-hero"
+    },
+    {
+      "name": "Testing Needed",
+      "slug": "testing-needed"
+    },
+    {
+      "name": "Solo Fighter",
+      "slug": "solo-fighter"
+    },
+    {
+      "name": "manga",
+      "slug": "manga"
+    },
+    {
+      "name": "Fully-arted",
+      "slug": "fully-arted"
+    },
+    {
+      "name": "Feedback wanted",
+      "slug": "feedback-wanted"
+    },
+    {
+      "name": "Male Hero",
+      "slug": "male-hero"
+    },
+    {
+      "name": "Legends of the Apocalypse Vol.1",
+      "slug": "legends-of-the-apocalypse-vol-1"
+    }
+  ],
+  "updated_on": "Thu, 30 Jul 2026 03:51:12 GMT",
+  "user": "Calton_White",
+  "version_id": "WvW4T24Nq",
+  "version_name": "Version 1.16",
+  "sourceUrl": "https://unmatched.cards/decks/6rDz/versions/WvW4T24Nq"
+}

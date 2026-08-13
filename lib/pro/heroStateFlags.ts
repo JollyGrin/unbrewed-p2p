@@ -146,6 +146,38 @@ export const HERO_STATE_FLAGS: HeroStateFlag[] = [
     tokenArt: { on: "https://unbrewed.xyz/evergreen-decks/art/malfurion-stormrage/token-malfurion.webp" },
   },
   {
+    // Kenshiro's NUNCHAKU turn buff (issue #596 ↔ engine #362). Engine flag key is
+    // `NUNCHAKU` — the scheme grants "all of Kenshiro's attacks this turn are +1
+    // value", which is otherwise INVISIBLE: the buff lands on a card that has not
+    // been played yet, so without a pill the player has no way to see the +1 is
+    // live when they pick their attack. One-sided like EQUILIBRIUM: "no nunchaku"
+    // is the default state, so no `off` variant and `showWhenAbsent: false`.
+    //
+    // NAMEPLATE ONLY, deliberately — the token's single corner-badge slot belongs
+    // to the HUNDRED_FIST chain counter below, and a flag badge would WIN that slot
+    // (fighterTokenStateByOwner gives flag badges precedence over counter badges),
+    // hiding the chain progress behind a buff that the nameplate already states.
+    flag: "NUNCHAKU",
+    heroes: ["kenshiro"],
+    nameplate: { onLabel: "NUNCHAKU +1", offLabel: "", showWhenAbsent: false },
+  },
+  {
+    // Kenshiro's DRAGON_FORM turn buff (issue #596 ↔ engine #362). Engine flag key
+    // is `DRAGON_FORM`: Hokuto: Dragon Form Breathing Technique makes every HOKUTO
+    // card +2 value this turn, but ONLY if an ally fighter was damaged last turn —
+    // so the pill answers "did the condition hold?" without replaying the turn.
+    // Nameplate only, for the same badge-slot reason as NUNCHAKU.
+    //
+    // The pill is the WHOLE story of the buff: an `ALLY_DAMAGED_LAST_TURN` flag entry
+    // used to sit beside this one, showing the scheme's gate, but engine #368 turned
+    // that gate into a live `FIGHTER_TOOK_DAMAGE … window:'LAST_TURN'` predicate over
+    // the ally selector, so no carry-forward flag is set any more and the key is
+    // retired from the contract. Only the RESULT is public now.
+    flag: "DRAGON_FORM",
+    heroes: ["kenshiro"],
+    nameplate: { onLabel: "DRAGON FORM +2", offLabel: "", showWhenAbsent: false },
+  },
+  {
     // The Doppelgänger's EQUILIBRIUM stance (issue #545 ↔ engine #303). Raw engine
     // flag key is `EQUILIBRIUM` — the deck's two COMBAT_RESOLVED triggers are
     // `setFlag EQUILIBRIUM` on `{is:'UNKNOWN'}` and `setFlag EQUILIBRIUM
@@ -263,6 +295,45 @@ export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
     heroes: ["luke-skywalker"],
     nameplate: { labelTemplate: "TRAINING: {n}" },
     token: { icon: "🌱", title: "TRAINING", bg: "#2E6B48", color: "#ECFFF4" },
+  },
+  {
+    // Kenshiro's HUNDRED_FIST ledger (issue #596 ↔ engine #362, verified against
+    // data/heroes/kenshiro.rules.ts on the #362 branch: `counters: [{ name:
+    // 'HUNDRED_FIST' }, …]` is declared on the HeroDef, so it is banked on KENSHIRO's
+    // own seat).
+    //
+    // NOT a live chain counter, despite what the mechanic looks like from outside.
+    // `CARDS_IN_DISCARD` cannot resolve a title filter in a PREDICATE, so the deck
+    // maintains this counter as a stand-in ledger: a CARD_PLAYED hero trigger banks
+    // one per copy of Hokuto: Hundred-Fist Rush that Kenshiro PLAYS, and Death Omen
+    // Star spends one back when it pulls a copy out of the discard. The number is
+    // "copies played (and not retrieved)" — exactly what gates how deep the next Rush
+    // chains, which is why it is worth a pill. Two documented divergences ride along
+    // (rules.ts header): it reads ONE HIGH during the Rush's own combat (CARD_PLAYED
+    // fires at reveal, so the chain gates are >= 2/3/4), and a copy that reached the
+    // discard as a BOOST is never counted.
+    //
+    // The label says HUNDRED-FIST, not "chain", for that first divergence: a pill
+    // reading "CHAIN: 2" mid-combat would claim two chain hits when the truth is one
+    // banked copy plus the card on the table. Live chain progress is a different
+    // surface entirely — lib/pro/subAttackChain.ts, counted off SUB_ATTACK_INITIATED.
+    //
+    // Both surfaces: the nameplate answers "how deep will my next Rush go?", the token
+    // badge puts the number on the board. Hidden at 0 like every counter.
+    //
+    // Kenshiro's ONLY counter. A `DMG_LAST_TURN` entry lived here too, previewing YOU
+    // ARE ALREADY DEAD!'s value; engine #368 rotated the damage ledger at turn start,
+    // so "half the damege he took last turn" became a plain `DAMAGE_TAKEN` read with
+    // `window:'LAST_TURN'` and the carry-forward counter was retired from the contract
+    // (kenshiro.rules.ts declares `counters: [{ name: 'HUNDRED_FIST' }]` and nothing
+    // else). The entry was dropped rather than left to match nothing — dead registry
+    // rows are how a real state ends up mis-keyed later.
+    counter: "HUNDRED_FIST",
+    heroes: ["kenshiro"],
+    nameplate: { labelTemplate: "HUNDRED-FIST: {n}" },
+    // Hokuto crimson on cream, matching the deck's card banners. Cairne's RAGE badge
+    // is the nearest red, and the two decks never share a board state key.
+    token: { icon: "👊", title: "HUNDRED-FIST (copies played)", bg: "#B3232C", color: "#FDF3E3" },
   },
 ];
 

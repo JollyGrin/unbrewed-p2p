@@ -770,7 +770,9 @@ export const ProBoard = ({
           >
             {statusBadges.map((b) => (
               <Flex
-                key={b.kind}
+                // `key`, not `kind`: one fighter can carry several `MARKED` statuses
+                // at once (one per marker name, protocol v29), which share a kind.
+                key={b.key}
                 minWidth="1.45em"
                 h="1.45em"
                 px="0.18em"
@@ -788,6 +790,15 @@ export const ProBoard = ({
                 aria-label={b.title}
               >
                 {b.icon}
+                {/* stack depth for a multi-stack marker (#596 ↔ engine #360) — the
+                    count is rules-relevant (it IS the damage the tick deals), so it
+                    reads off the board, not just out of the tooltip. A single stack
+                    stays icon-only: "×1" is noise. */}
+                {b.count && b.count > 1 ? (
+                  <Box as="span" ml="0.1em">
+                    {b.count}
+                  </Box>
+                ) : null}
               </Flex>
             ))}
           </Flex>

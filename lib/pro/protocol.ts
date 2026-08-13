@@ -579,8 +579,26 @@
  * cosmetic, never authorization, and NEVER sent to telemetry. Bot seats never
  * carry one. Purely additive, so no PROTOCOL_VERSION bump: with the field
  * absent not one message grows a key.
+ *
+ * ## v29 (2026-08-12): per-fighter durable markers (engine #360)
+ * The engine gained per-FIGHTER durable state — named, stacking, PUBLIC marks that
+ * outlive the effect that applied them (Kenshiro's 708-Meridian mark, Inigo Montoya's
+ * Revenge tokens). `counter`/`setFlag` are per-PLAYER and so cannot say WHICH of a
+ * seat's fighters is marked, which is what made this a protocol-visible gap rather than
+ * a deck detail. Two additions, both purely additive:
+ * - Two `GameEvent` variants, `FIGHTER_MARKED` / `FIGHTER_MARKS_CLEARED` (above), for
+ *   the log and for spot animations.
+ * - `FighterStatus` gains `name?` / `count?`, carrying `kind: 'MARKED'` entries — the
+ *   PERSISTENT view of the same fact, one entry per marker name, so a reconnecting
+ *   client renders the marks without having replayed the log. This is the same
+ *   "add a kind, never a ViewFighter field" path `PINNED` took.
+ * Nothing here is secret: markers are identical for every viewer and redactFor sends
+ * them to both seats. CLIENT SURFACE (unbrewed-p2p): the board fighter token badge row
+ * (the component that renders the PINNED status) and the event log formatter. An older
+ * client that ignores the new kind and the two events is unaffected — no existing
+ * message shape changed, and no engine deck emits either today.
  */
-export const PROTOCOL_VERSION = 28;
+export const PROTOCOL_VERSION = 29;
 
 /**
  * Scripted-AI strength preset (server-side budgets; client treats as opaque).
@@ -745,6 +763,13 @@ export type GameEvent =
   // v27 — benign removal: the fighter left `space` ALIVE (removeFromBoard). Not a death.
   | { type: "FIGHTER_REMOVED"; fighter: FighterId; space: SpaceId }
   | { type: "FIGHTER_PINNED"; fighter: FighterId; expiresAtTurn: number; expiresAt: "START" | "END" }
+  // v29 — per-fighter durable markers (engine #360). `total` is the fighter's resulting
+  // stack count for that name, so "Revenge x3" renders from the event alone; a null
+  // expiry stamp means the mark is DURABLE (survives turn edges until cleared or the
+  // fighter is defeated). Neither the turn-edge expiry sweep nor a defeat emits an
+  // event — both are derivable from TURN_STARTED / FIGHTER_DEFEATED.
+  | { type: "FIGHTER_MARKED"; fighter: FighterId; name: string; count: number; total: number; expiresAtTurn: number | null; expiresAt: "START" | "END" | null }
+  | { type: "FIGHTER_MARKS_CLEARED"; fighter: FighterId; name: string | null; removed: number }
   | { type: "FIGHTER_TAIL_PLACED"; fighter: FighterId; space: SpaceId }
   | { type: "FIGHTER_EJECTED"; fighter: FighterId; to: SpaceId }
   | { type: "REGION_CLOSED"; region: string }
@@ -983,6 +1008,13 @@ export interface FighterStatus {
   kind: string; // e.g. 'PINNED' — mechanical/engine-stable, not display text
   expiresAtTurn?: number | null;
   expiresAt?: "START" | "END" | null;
+  // v29 — set on `kind: 'MARKED'` (per-fighter durable markers, engine #360): the
+  // marker's engine-stable NAME (e.g. 'MERIDIAN', 'REVENGE') and how many stacks of it
+  // the fighter carries. One status entry per distinct name, sorted by name. The client
+  // maps name → badge art exactly as it maps `kind` → icon; a name it does not know
+  // should still render a generic mark with the count. Absent on every other kind.
+  name?: string;
+  count?: number;
 }
 
 // Board object kinds (protocol v26). 'totem' = Thrall's totems, unchanged.
