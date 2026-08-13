@@ -216,6 +216,33 @@ describe("ProLanding — the server roster IS the roster", () => {
     expect(screen.getByText(/^Voldemort/)).toBeInTheDocument();
   });
 
+  /**
+   * #600: POPULAR_DECKS holds rival community takes on heroes the engine
+   * already runs (two Darth Vader decks, plus a "The Batman" beside the served
+   * "Batman"). Each has its own deck id, so the id→hero mapping cannot tell
+   * they are the same fighter — the drawer advertised as "approaching" three
+   * fighters that were sitting on the grid.
+   */
+  it("keeps a duplicate deck of a served fighter out of the queue", () => {
+    mockRosterState = {
+      heroes: [
+        listing("darth-vader", "DARTH VADER", "lab"),
+        listing("batman", "Batman"),
+      ],
+      offline: false,
+    };
+    renderLanding();
+    fireEvent.click(screen.getByRole("button", { name: /challengers approaching/i }));
+
+    // Each fighter appears exactly once — on the grid, never also as upcoming.
+    expect(screen.getAllByText("Darth Vader")).toHaveLength(1);
+    expect(screen.getAllByText("Batman")).toHaveLength(1);
+    // ...including the "The "-prefixed community deck of the same fighter.
+    expect(screen.queryByText("The Batman")).not.toBeInTheDocument();
+    // A genuinely unconverted deck still queues — this is a dedup, not a purge.
+    expect(screen.getByText(/^John Wick/)).toBeInTheDocument();
+  });
+
   it("shows debug-only heroes the server reveals under ?debug, starred", () => {
     mockDebug = true;
     mockRosterState = {
