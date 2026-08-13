@@ -511,3 +511,127 @@ describe("fighterTokenStateByOwner with piles", () => {
     expect(state.p3).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Kenshiro (issue #596 ↔ engine #362, on the #359/#360 lab train). Four states
+// across BOTH registries: three boolean buff/condition flags that are nameplate
+// ONLY, and two counters — the HOKUTO chain (both surfaces) and the
+// YOU ARE ALREADY DEAD! value preview (nameplate only, ungated by hero).
+//
+// The Cairne RAGE lesson drives every assertion here: the view is registry-driven,
+// so a state with no entry — or an entry on the wrong key — renders NOWHERE.
+// ---------------------------------------------------------------------------
+
+describe("HERO_STATE_FLAGS — Kenshiro's buff + condition pills", () => {
+  const entry = (flag: string) => HERO_STATE_FLAGS.find((e) => e.flag === flag);
+
+  it.each([
+    ["NUNCHAKU", "NUNCHAKU +1"],
+    ["DRAGON_FORM", "DRAGON FORM +2"],
+  ])("registers %s on the exact engine key, gated to kenshiro", (flag, label) => {
+    const e = entry(flag);
+    expect(e).toBeDefined();
+    expect(e!.heroes).toEqual(["kenshiro"]);
+    expect(e!.nameplate).toMatchObject({ onLabel: label, showWhenAbsent: false });
+  });
+
+  it("keeps both OFF the board token, so the HUNDRED-FIST badge owns that slot", () => {
+    // fighterTokenStateByOwner gives a flag badge precedence over a counter badge,
+    // so a token entry on either of these would HIDE the live ledger count.
+    for (const flag of ["NUNCHAKU", "DRAGON_FORM"]) {
+      expect(entry(flag)!.token).toBeUndefined();
+      expect(entry(flag)!.tokenArt).toBeUndefined();
+    }
+  });
+
+  it("registers NO entry for the two keys engine #368 retired", () => {
+    // The #368 ledger rotation turned both carry-forwards into live LAST_TURN reads,
+    // so kenshiro.rules.ts never sets either key. A registry entry for one would be
+    // permanently dead — and dead rows are how a live state gets mis-keyed later.
+    expect(HERO_STATE_FLAGS.find((e) => e.flag === "ALLY_DAMAGED_LAST_TURN")).toBeUndefined();
+    expect(HERO_STATE_COUNTERS.find((e) => e.counter === "DMG_LAST_TURN")).toBeUndefined();
+    // …and the hero's only counter is the ledger.
+    expect(HERO_STATE_COUNTERS.filter((e) => e.heroes.includes("kenshiro")).map((e) => e.counter))
+      .toEqual(["HUNDRED_FIST"]);
+  });
+
+  it("shows only the pills whose flags are set, and nothing at all when none are", () => {
+    expect(flagChipsFor("kenshiro", { NUNCHAKU: true }).map((c) => c.chip.onLabel)).toEqual([
+      "NUNCHAKU +1",
+    ]);
+    expect(
+      flagChipsFor("kenshiro", { NUNCHAKU: true, DRAGON_FORM: true }).map((c) => c.chip.onLabel)
+    ).toEqual(["NUNCHAKU +1", "DRAGON FORM +2"]);
+    // a retired key never conjures a pill, whatever the server sends
+    expect(flagChipsFor("kenshiro", { ALLY_DAMAGED_LAST_TURN: true })).toEqual([]);
+    // One-sided states: no "off" pill, unlike Thetis's LOW TIDE.
+    expect(flagChipsFor("kenshiro", {})).toEqual([]);
+    expect(flagChipsFor("kenshiro", undefined)).toEqual([]);
+  });
+
+  it("never leaks Kenshiro's flags onto another hero's plate", () => {
+    expect(flagChipsFor("thetis", { NUNCHAKU: true, DRAGON_FORM: true })).toEqual([
+      // thetis keeps its own two-state tide pill and nothing else
+      expect.objectContaining({ chip: expect.objectContaining({ flag: "HIGH_TIDE" }) }),
+    ]);
+  });
+
+  it("leaves the board token untouched — no badge, no portrait swap", () => {
+    expect(fighterTokenStateFor("kenshiro", { NUNCHAKU: true, DRAGON_FORM: true })).toEqual({
+      badge: null,
+      heroArtUrl: null,
+    });
+  });
+});
+
+describe("HERO_STATE_COUNTERS — Kenshiro's HUNDRED_FIST ledger", () => {
+  const ledger = () => HERO_STATE_COUNTERS.find((e) => e.counter === "HUNDRED_FIST");
+
+  it("registers the exact engine counter key on both surfaces", () => {
+    const e = ledger();
+    expect(e).toBeDefined();
+    expect(e!.pile).toBeUndefined();
+    expect(e!.heroes).toEqual(["kenshiro"]);
+    expect(e!.nameplate?.labelTemplate).toBe("HUNDRED-FIST: {n}");
+    expect(e!.token).toMatchObject({ title: "HUNDRED-FIST (copies played)" });
+  });
+
+  it("never calls itself a chain — the counter is a played-copies ledger that reads one high mid-combat", () => {
+    // kenshiro.rules.ts banks HUNDRED_FIST from a CARD_PLAYED trigger (fires at
+    // reveal), so during the Rush's own combat the value is copies-in-discard + 1.
+    // Labelling it "CHAIN: n" would assert n chain hits that have not happened.
+    const e = ledger()!;
+    expect(e.nameplate!.labelTemplate).not.toMatch(/chain/i);
+    expect(e.token!.title).not.toMatch(/chain/i);
+  });
+
+  it("pills + badges the live count, and hides both at 0", () => {
+    const chips = counterChipsFor("kenshiro", { HUNDRED_FIST: 2 });
+    expect(chips).toHaveLength(1);
+    expect(chips[0].chip.onLabel).toBe("HUNDRED-FIST: 2");
+    expect(chips[0].chip.flag).toBe("counter:HUNDRED_FIST");
+    expect(fighterTokenCounterBadgeFor("kenshiro", { HUNDRED_FIST: 2 })).toMatchObject({
+      label: "2",
+      title: "HUNDRED-FIST (copies played): 2",
+      showLabel: true,
+    });
+    expect(counterChipsFor("kenshiro", { HUNDRED_FIST: 0 })).toEqual([]);
+    expect(fighterTokenCounterBadgeFor("kenshiro", { HUNDRED_FIST: 0 })).toBeNull();
+    expect(fighterTokenCounterBadgeFor("kenshiro", {})).toBeNull();
+  });
+
+  it("owns the token badge slot, ignoring any stray counter the server sends", () => {
+    expect(
+      fighterTokenCounterBadgeFor("kenshiro", { DMG_LAST_TURN: 6, HUNDRED_FIST: 1 })
+    ).toMatchObject({ title: "HUNDRED-FIST (copies played): 1" });
+  });
+
+  it("reaches the board through fighterTokenStateByOwner", () => {
+    const state = fighterTokenStateByOwner([
+      { id: "p1", heroId: "kenshiro", counters: { HUNDRED_FIST: 3 } },
+      { id: "p2", heroId: "nancy-drew", counters: { CLUE: 1 } },
+    ]);
+    expect(state.p1!.badge).toMatchObject({ label: "3", title: "HUNDRED-FIST (copies played): 3" });
+    expect(state.p2!.badge).toMatchObject({ title: "CLUES: 1" });
+  });
+});

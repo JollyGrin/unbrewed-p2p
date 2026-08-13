@@ -335,6 +335,18 @@
         "file": "data/heroes/gerry-the-isopod.rules.ts",
         "commit": "41cce7b"
       }
+    },
+    {
+      "heroId": "kenshiro",
+      "deckId": "6rDz",
+      "version_id": "WvW4T24Nq",
+      "frozenAt": "2026-08-12",
+      "digest": "sha256:c4708b74cc737bd0c9d25d4aba64bba670d6380f6c1f256c32b6c084260df2e3",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/kenshiro.rules.ts",
+        "commit": "885d585"
+      }
     }
   ]
 }

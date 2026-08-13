@@ -154,6 +154,9 @@ const ALL_EVENTS: GameEvent[] = [
   { type: "BONUS_ATTACK_STARTED", attacker: "p1/hero", target: "p2/hero" },
   { type: "BONUS_ATTACK_PASSED", player: "p1" },
   { type: "SUB_ATTACK_INITIATED", attacker: "p1/sidekick-1", target: "p2/hero", value: 4 },
+  // v29 per-fighter markers (issue #596 ↔ engine #360).
+  { type: "FIGHTER_MARKED", fighter: "p2/hero", name: "MERIDIAN", count: 1, total: 1, expiresAtTurn: null, expiresAt: null },
+  { type: "FIGHTER_MARKS_CLEARED", fighter: "p2/hero", name: "MERIDIAN", removed: 1 },
 ];
 
 // The allowlist — event types enrichLines is permitted to turn into new lines.
@@ -178,6 +181,8 @@ const ALLOWLIST = new Set([
   "BONUS_ATTACK_STARTED",
   "BONUS_ATTACK_PASSED",
   "SUB_ATTACK_INITIATED",
+  "FIGHTER_MARKED",
+  "FIGHTER_MARKS_CLEARED",
 ]);
 
 describe("enrichLines", () => {
@@ -647,7 +652,7 @@ describe("enrichLines", () => {
       // A discard is an annotation-only type; add it so the roster is exhaustive.
       seen.add("CARD_DISCARDED");
       // Sanity: the allowlist is a subset of what the union offers.
-      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "COMBAT_VALUE_BREAKDOWN", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_REVEALED", "CARD_TUCKED", "CARD_RETURNED_FROM_PILE", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED"]).toContain(t);
+      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "COMBAT_VALUE_BREAKDOWN", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_REVEALED", "CARD_TUCKED", "CARD_RETURNED_FROM_PILE", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED", "FIGHTER_MARKED", "FIGHTER_MARKS_CLEARED"]).toContain(t);
     });
   });
 
@@ -703,6 +708,101 @@ describe("enrichLines", () => {
       }).text;
       expect(text).toBe("hero makes a bonus attack (3) against sidekick-1");
       expect(text).not.toContain("Blast 'em!");
+    });
+
+    it("SUB_ATTACK_INITIATED — a chain hit is prefixed with its progress (#596)", () => {
+      // engine #359's followup QUEUE can open three of these back to back; without
+      // the ordinal the three lines are indistinguishable in the feed.
+      const chainCtx: EnrichContext = { ...ctx(), chain: () => "Hundred-Fist Rush — chain hit 2 of up to 3" };
+      expect(
+        enrichLines(
+          [],
+          [{ type: "SUB_ATTACK_INITIATED", attacker: "p1/hero", target: "p2/hero", value: 3 }],
+          chainCtx
+        )[0].text
+      ).toBe("Hundred-Fist Rush — chain hit 2 of up to 3: hero makes a bonus attack (3) against hero");
+    });
+
+    it("SUB_ATTACK_INITIATED — each followup in one batch gets its own ordinal", () => {
+      const chainCtx: EnrichContext = { ...ctx(), chain: (n) => `chain hit ${n + 1}` };
+      const lines = enrichLines(
+        [],
+        [
+          { type: "SUB_ATTACK_INITIATED", attacker: "p1/hero", target: "p2/hero", value: 3 },
+          { type: "SUB_ATTACK_INITIATED", attacker: "p1/hero", target: "p2/hero", value: 3 },
+        ],
+        chainCtx
+      );
+      expect(lines[0].text.startsWith("chain hit 1:")).toBe(true);
+      expect(lines[1].text.startsWith("chain hit 2:")).toBe(true);
+    });
+
+    it("SUB_ATTACK_INITIATED — a null chain leaves the line byte-identical (Grievous)", () => {
+      const grievousCtx: EnrichContext = {
+        ...ctx(),
+        fighter: (id) => (id.endsWith("/sidekick-1") ? "B1 Battle Droid" : (id.split("/").pop() ?? id)),
+        chain: () => null,
+      };
+      expect(
+        enrichLines(
+          [],
+          [{ type: "SUB_ATTACK_INITIATED", attacker: "p1/sidekick-1", target: "p2/hero", value: 4 }],
+          grievousCtx
+        )[0].text
+      ).toBe("B1 Battle Droid fires Blast 'em! (4) at hero");
+    });
+
+    it("FIGHTER_MARKED — names the fighter and the marker, durable by default", () => {
+      expect(
+        line({
+          type: "FIGHTER_MARKED",
+          fighter: "p2/hero",
+          name: "MERIDIAN",
+          count: 1,
+          total: 1,
+          expiresAtTurn: null,
+          expiresAt: null,
+        }).text
+      ).toBe("hero is marked — Meridian");
+    });
+
+    it("FIGHTER_MARKED — shows the resulting stack count and a turn-scoped expiry", () => {
+      expect(
+        line({
+          type: "FIGHTER_MARKED",
+          fighter: "p2/hero",
+          name: "MERIDIAN",
+          count: 1,
+          total: 2,
+          expiresAtTurn: 4,
+          expiresAt: "END",
+        }).text
+      ).toBe("hero is marked — Meridian (×2) until end of turn");
+    });
+
+    it("FIGHTER_MARKED — an unknown marker narrates under its raw engine name", () => {
+      // Inigo's REVENGE tokens land before this client has a badge for them; the log
+      // must not swallow public state (protocol v29's degrade-gracefully rule).
+      expect(
+        line({
+          type: "FIGHTER_MARKED",
+          fighter: "p1/hero",
+          name: "REVENGE",
+          count: 1,
+          total: 3,
+          expiresAtTurn: null,
+          expiresAt: null,
+        }).text
+      ).toBe("hero is marked — REVENGE (×3)");
+    });
+
+    it("FIGHTER_MARKS_CLEARED — names the marker, or says 'marks' for the no-name form", () => {
+      expect(
+        line({ type: "FIGHTER_MARKS_CLEARED", fighter: "p2/hero", name: "MERIDIAN", removed: 2 }).text
+      ).toBe("hero: Meridian cleared (×2)");
+      expect(
+        line({ type: "FIGHTER_MARKS_CLEARED", fighter: "p2/hero", name: null, removed: 1 }).text
+      ).toBe("hero: marks cleared");
     });
 
     it("COMBAT_WON_MARKED — 'You are considered to have won' for the viewer", () => {

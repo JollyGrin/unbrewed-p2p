@@ -73,6 +73,14 @@ import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
 import { actionFallbackLine, batchPhase, batchTurnTag, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
 import {
+  EMPTY_SUB_ATTACK_CHAIN,
+  SubAttackChainProgress,
+  SubAttackChainState,
+  advanceSubAttackChain,
+  parentCardTitle,
+  subAttackChainProgress,
+} from "@/lib/pro/subAttackChain";
+import {
   AttachItem,
   cardAffordances,
   cardLabel,
@@ -1002,15 +1010,22 @@ const COMPARE_DELAY = STRIKE_CONTACT_DELAY + 0.15;
 const COMPARE_DUR = { gold: 1.1, dim: 1.0, neutral: 1.0 } as const;
 
 /**
- * Synthetic "Fire, you fools!" sub-attack combat card (issue #288 — engine batch D).
- * The chosen B1 droid's "Blast 'em!" attack has no catalog/deck entry (its instance is
- * `sub-attack:<fighter>`, `synthetic: true` server-side) — it is a graphic PRINTED on
- * card 210's face with no separate cell to crop — so resolveCard can't find art. Render
- * a distinct card-shaped tile rather than the raw-instance-id text fallback. The value
- * rides the normal combat math (effectiveValue) shown by the slot's detail line.
+ * Synthetic sub-attack combat card (issue #288 — engine batch D; extended to chains
+ * in issue #596 ↔ engine #359).
+ * A `subAttack` op's attack has no catalog/deck entry (its instance is
+ * `sub-attack:<fighter>`, `synthetic: true` server-side) and carries no printed text,
+ * so resolveCard can't find art. Render a distinct card-shaped tile rather than the
+ * raw-instance-id text fallback. The value rides the normal combat math
+ * (effectiveValue) shown by the slot's detail line.
+ *
+ * `title`/`note` name WHICH sub-attack this is. Grievous's single droid shot keeps its
+ * printed "Blast 'em!" graphic (the default), while a chain hit is labelled by the
+ * PARENT card plus its index — "Hundred-Fist Rush" / "chain hit 2 of up to 3" — since
+ * engine #359 lets one card open three of these in a row and the synthetic faces are
+ * otherwise indistinguishable.
  */
 const isSubAttackCard = (instance: CardInstanceId) => instance.startsWith("sub-attack:");
-const SubAttackFace = () => (
+const SubAttackFace = ({ title, note }: { title?: string; note?: string }) => (
   <Flex
     w="100%"
     h="100%"
@@ -1026,10 +1041,10 @@ const SubAttackFace = () => (
     textAlign="center"
   >
     <Text fontFamily="BebasNeueRegular" fontSize="1.1rem" letterSpacing="0.04em" lineHeight="1.05">
-      Blast&nbsp;&apos;em!
+      {title ?? <>Blast&nbsp;&apos;em!</>}
     </Text>
     <Text fontSize="0.6rem" opacity={0.8} mt="0.2rem">
-      sub-attack
+      {note ?? "sub-attack"}
     </Text>
   </Flex>
 );
@@ -1048,6 +1063,7 @@ const CombatSlot = ({
   strikeVars,
   valueFx,
   comparePulse,
+  subAttackFace,
 }: {
   label: string;
   card: ViewCombat["attackerCard"];
@@ -1068,6 +1084,9 @@ const CombatSlot = ({
   /** comparison beat (#382): "gold" pulses the winning value, "dim" cracks the
    *  loser, "neutral" flashes both on a tie. */
   comparePulse?: CompareBeat;
+  /** labels for a SYNTHETIC sub-attack face in this slot (#596). Ignored unless the
+   *  revealed card is one; absent ⇒ the Grievous "Blast 'em!" default. */
+  subAttackFace?: { title?: string; note?: string };
 }) => (
   <Box textAlign="center">
     <Text opacity={0.6} fontSize="0.75rem" mb="0.25rem">
@@ -1090,7 +1109,7 @@ const CombatSlot = ({
           animation={`${flipIn} 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.1) ${revealDelay} both`}
         >
           {isSubAttackCard(card.instance) ? (
-            <SubAttackFace />
+            <SubAttackFace title={subAttackFace?.title} note={subAttackFace?.note} />
           ) : (
             <CardFace card={resolveCard(card.instance)} fallback={cardLabel(catalog, card.instance)} />
           )}
@@ -1291,6 +1310,7 @@ const CombatPanel = ({
   strike,
   valueFx,
   clashRef,
+  chain,
 }: {
   combat: ViewCombat;
   catalog: Record<string, CardMeta>;
@@ -1303,6 +1323,10 @@ const CombatPanel = ({
   /** the clash point (seam between the cards) — the arc launches from here. The
    *  page owns the ref and reads its rect at launch time (#382). */
   clashRef?: React.Ref<HTMLDivElement>;
+  /** live sub-attack CHAIN progress (#596 ↔ engine #359), when this combat is a
+   *  synthetic followup: names the parent card and which hit of the chain this is.
+   *  Null/undefined for an ordinary combat and for a lone unnamed sub-attack. */
+  chain?: SubAttackChainProgress | null;
 }) => {
   const attackerCommitted = combat.stage !== "COMMIT_ATTACK";
   const pastReveal = !["COMMIT_ATTACK", "COMMIT_DEFENSE"].includes(combat.stage);
@@ -1336,6 +1360,15 @@ const CombatPanel = ({
         <Tag colorScheme="red" size="sm">
           COMBAT
         </Tag>
+        {/* Chain progress (#596): engine #359's followup queue can open up to three
+            of these back to back, each with its own defense window. Without an
+            ordinal the defender cannot tell hit 2 from hit 3 — the synthetic faces
+            are identical and the card that opened them is long gone from the table. */}
+        {chain && (
+          <Tag size="sm" bg="#B3232C" color="#FDF3E3" letterSpacing="0.03em">
+            {chain.text}
+          </Tag>
+        )}
       </Flex>
       <Flex gap="1rem" justifyContent="center" position="relative">
         <CombatSlot
@@ -1347,6 +1380,11 @@ const CombatPanel = ({
           }
           facedownState={attackerCommitted ? "committed" : "deciding"}
           catalog={catalog}
+          subAttackFace={
+            chain
+              ? { title: chain.label, note: `chain hit ${chain.hit}${chain.max ? ` of up to ${chain.max}` : ""}` }
+              : undefined
+          }
           strikeAnimation={attackAnim}
           valueFx={valueFx?.ATTACK}
           comparePulse={comparePulseFor(strike?.variant, "ATTACK")}
@@ -3088,6 +3126,10 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   // Activity feed: diff each view against the previous one (see gameLog.ts).
   const [logEntries, setLogEntries] = useState<ProLogEntry[]>([]);
   const prevViewRef = useRef<PlayerView | null>(null);
+  // Live sub-attack chain (issue #596): the ref is the running value the next batch
+  // advances from; the state copy is what the combat panel renders.
+  const chainRef = useRef<SubAttackChainState>(EMPTY_SUB_ATTACK_CHAIN);
+  const [chain, setChain] = useState<SubAttackChainState>(EMPTY_SUB_ATTACK_CHAIN);
   const logSeqRef = useRef(0);
   // One monotonic id per appended STATE batch (issue #298) — every line of a
   // batch shares it, so the log panel groups a single player action together.
@@ -3096,6 +3138,16 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
     if (!snapshot) return;
     const next = snapshot.view;
     const diff = diffViews(prevViewRef.current, next, (c) => cardLabel(next.catalog, c), snapshot.events);
+    // Sub-attack CHAIN bookkeeping (issue #596 ↔ engine #359). Runs here because
+    // this is the one effect that already sees BOTH views of a batch, and the
+    // parent card of a chain is only readable in the pre-batch one. `before` is the
+    // count entering the batch, so the n-th followup this batch dispatches is hit
+    // `before + n + 1`.
+    const before = chainRef.current;
+    const after = advanceSubAttackChain(before, prevViewRef.current, next, snapshot.events);
+    chainRef.current = after;
+    setChain(after);
+    const chainTitle = parentCardTitle(next.catalog, after.parent);
     // Same stable squad numbers the board badges carry (issue #560), so a feed
     // line about one of six identical clones names the exact token ("Clone
     // Trooper 3 takes 2 damage"). Off-board scope: the clone this batch just
@@ -3111,6 +3163,8 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
             you: next.you,
             seat: (player) => seatLabel(next, player),
             fighter: (id) => badgedFighterName(next.fighters, logBadges, id),
+            chain: (ordinal) =>
+              subAttackChainProgress(chainTitle, before.hits + ordinal + 1)?.text ?? null,
           })
         : diff;
     // A batch that spent an action but produced nothing visible (an empty-deck
@@ -3671,6 +3725,17 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   }
 
   const { view, legalActions, prompt } = snapshot;
+  // Sub-attack chain progress for the combat ON THE TABLE (issue #596 ↔ engine
+  // #359). Non-null only while that combat is a SYNTHETIC followup — an ordinary
+  // combat never wears a chain tag — and only when there is something worth naming
+  // (a lone Grievous droid shot stays unlabeled; see subAttackChainProgress).
+  // Reads the lingering combat too, so the tag survives the linger snapshot the
+  // strike beat renders after a combat resolves.
+  const chainCombat = view.combat ?? lingeringCombat;
+  const combatChain =
+    chainCombat?.attackerCard && isSubAttackCard(chainCombat.attackerCard.instance)
+      ? subAttackChainProgress(parentCardTitle(view.catalog, chain.parent), chain.hits)
+      : null;
   const myTurn = view.activePlayer === view.you;
   const multiplayerView = view.players.length > 2;
   // Forfeit is offered ONLY through the legal-action surface (unbrewed-engine
@@ -4413,6 +4478,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
               strike={visualOn ? strike : null}
               valueFx={visualOn && !reducedMotion ? combatValueFx : undefined}
               clashRef={clashRef}
+              chain={combatChain}
             />
           ) : null
         }

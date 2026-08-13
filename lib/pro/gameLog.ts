@@ -15,6 +15,7 @@ import {
   ViewPlayer,
 } from "./protocol";
 import { boardObjectOriginFighter, boardObjectVisualFor } from "./boardObjects";
+import { FIGHTER_MARKER_BADGES } from "./fighterStatuses";
 import { deriveTeams, isViewerOnWinningTeam } from "./teams";
 import { sweptFighters } from "./sweep";
 import { combatOutcomeLogText } from "./combatOutcome";
@@ -604,6 +605,15 @@ function valueBreakdownText(
   return `${attack} · ${defense}`;
 }
 
+/**
+ * Display words for a per-fighter marker name (protocol v29 `FighterStatus.name` /
+ * the two marker events). Reuses the board badge registry so the log and the token
+ * can never drift apart — a marker the client does not know still narrates, under its
+ * raw engine name, rather than vanishing from the feed.
+ */
+const markerLabel = (name: string): string =>
+  FIGHTER_MARKER_BADGES[name]?.label ?? name;
+
 /** Context the page supplies so enrichment can resolve labels and seats
  *  without any data fetching of its own. */
 export interface EnrichContext {
@@ -619,6 +629,14 @@ export interface EnrichContext {
    *  the STATE view's fighter list — used by the nested-combat events (issue #288)
    *  that carry attacker/target fighter ids rather than a card source. */
   fighter: (id: FighterId) => string;
+  /** Chain progress for the n-th (0-based) SUB_ATTACK_INITIATED event in THIS
+   *  batch — "Hundred-Fist Rush — chain hit 2 of up to 3" — or null when there is
+   *  no chain worth naming (issue #596 ↔ engine #359). The ordinal is passed
+   *  rather than the label itself because one batch can drain several followups.
+   *  Supplied by the page from lib/pro/subAttackChain.ts, which is where the
+   *  cross-batch bookkeeping lives; omitted (older callers, tests of the
+   *  single-hit shape) leaves the line exactly as it was. */
+  chain?: (ordinalInBatch: number) => string | null;
 }
 
 /**
@@ -636,6 +654,9 @@ export function enrichLines(
   const out: ProLogLine[] = lines.map((l) => ({ ...l, cards: l.cards ? [...l.cards] : l.cards }));
   const whoOf = (p: string): "you" | "opp" => (p === ctx.you ? "you" : "opp");
   const added: ProLogLine[] = [];
+  // Position of the next SUB_ATTACK_INITIATED within this batch — a drained
+  // followup queue can dispatch more than one before a player has to act again.
+  let subAttackOrdinal = 0;
 
   // A card instance rendered on a NEW line so the panel can hover its face.
   const sourceCards = (source: string): CardInstanceId[] | undefined =>
@@ -857,6 +878,32 @@ export function enrichLines(
         added.push({ text: "Multi-Arm Barrage — 2nd attack passed", who: "game" });
         break;
       }
+      // v29 per-fighter durable markers (issue #596 ↔ engine #360). The board badge
+      // shows the CURRENT marks; these two lines give them a HISTORY — which fighter
+      // got marked by what, and when the sweep took them away — because the mark is
+      // applied in one combat and cashed in at turn end, several actions later.
+      case "FIGHTER_MARKED": {
+        // `total` is the resulting stack count, so a re-mark reads "×2" without the
+        // client tracking stacks itself. A null expiry stamp means DURABLE: it
+        // survives turn edges until something clears it.
+        const stacks = e.total > 1 ? ` (×${e.total})` : "";
+        const scope = e.expiresAtTurn === null ? "" : " until end of turn";
+        added.push({
+          text: `${ctx.fighter(e.fighter)} is marked — ${markerLabel(e.name)}${stacks}${scope}`,
+          who: "game",
+        });
+        break;
+      }
+      case "FIGHTER_MARKS_CLEARED": {
+        // `name: null` = every marker on that fighter was cleared (the no-name form
+        // of clearFighterMarks). `removed` is how many stacks went.
+        const what = e.name === null ? "marks" : markerLabel(e.name);
+        added.push({
+          text: `${ctx.fighter(e.fighter)}: ${what} cleared${e.removed > 1 ? ` (×${e.removed})` : ""}`,
+          who: "game",
+        });
+        break;
+      }
       case "SUB_ATTACK_INITIATED": {
         // The `subAttack` op is generic: any card that opens a deferred bonus
         // attack (Grievous's "Fire, you fools!" → a B1 Battle Droid's printed
@@ -867,10 +914,15 @@ export function enrichLines(
         // source-neutral bonus-attack line (issue #411).
         const attacker = ctx.fighter(e.attacker);
         const target = ctx.fighter(e.target);
-        const text = attacker.includes("B1 Battle Droid")
+        const base = attacker.includes("B1 Battle Droid")
           ? `${attacker} fires Blast 'em! (${e.value}) at ${target}`
           : `${attacker} makes a bonus attack (${e.value}) against ${target}`;
-        added.push({ text, who: "game" });
+        // Chain progress prefix (#596): engine #359's followup QUEUE lets one card
+        // open several of these in a row, and N identical lines are unreadable
+        // without an ordinal. Null for a lone unregistered hit — which keeps
+        // Grievous's single "Fire, you fools!" line byte-identical.
+        const progress = ctx.chain?.(subAttackOrdinal++) ?? null;
+        added.push({ text: progress ? `${progress}: ${base}` : base, who: "game" });
         break;
       }
 
