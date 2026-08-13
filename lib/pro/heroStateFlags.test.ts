@@ -528,7 +528,6 @@ describe("HERO_STATE_FLAGS — Kenshiro's buff + condition pills", () => {
   it.each([
     ["NUNCHAKU", "NUNCHAKU +1"],
     ["DRAGON_FORM", "DRAGON FORM +2"],
-    ["ALLY_DAMAGED_LAST_TURN", "ALLY HIT LAST TURN"],
   ])("registers %s on the exact engine key, gated to kenshiro", (flag, label) => {
     const e = entry(flag);
     expect(e).toBeDefined();
@@ -536,13 +535,24 @@ describe("HERO_STATE_FLAGS — Kenshiro's buff + condition pills", () => {
     expect(e!.nameplate).toMatchObject({ onLabel: label, showWhenAbsent: false });
   });
 
-  it("keeps all three OFF the board token, so the HOKUTO chain badge owns that slot", () => {
+  it("keeps both OFF the board token, so the HUNDRED-FIST badge owns that slot", () => {
     // fighterTokenStateByOwner gives a flag badge precedence over a counter badge,
-    // so a token entry on any of these would HIDE the live chain count.
-    for (const flag of ["NUNCHAKU", "DRAGON_FORM", "ALLY_DAMAGED_LAST_TURN"]) {
+    // so a token entry on either of these would HIDE the live ledger count.
+    for (const flag of ["NUNCHAKU", "DRAGON_FORM"]) {
       expect(entry(flag)!.token).toBeUndefined();
       expect(entry(flag)!.tokenArt).toBeUndefined();
     }
+  });
+
+  it("registers NO entry for the two keys engine #368 retired", () => {
+    // The #368 ledger rotation turned both carry-forwards into live LAST_TURN reads,
+    // so kenshiro.rules.ts never sets either key. A registry entry for one would be
+    // permanently dead — and dead rows are how a live state gets mis-keyed later.
+    expect(HERO_STATE_FLAGS.find((e) => e.flag === "ALLY_DAMAGED_LAST_TURN")).toBeUndefined();
+    expect(HERO_STATE_COUNTERS.find((e) => e.counter === "DMG_LAST_TURN")).toBeUndefined();
+    // …and the hero's only counter is the ledger.
+    expect(HERO_STATE_COUNTERS.filter((e) => e.heroes.includes("kenshiro")).map((e) => e.counter))
+      .toEqual(["HUNDRED_FIST"]);
   });
 
   it("shows only the pills whose flags are set, and nothing at all when none are", () => {
@@ -550,10 +560,10 @@ describe("HERO_STATE_FLAGS — Kenshiro's buff + condition pills", () => {
       "NUNCHAKU +1",
     ]);
     expect(
-      flagChipsFor("kenshiro", { DRAGON_FORM: true, ALLY_DAMAGED_LAST_TURN: true }).map(
-        (c) => c.chip.onLabel
-      )
-    ).toEqual(["DRAGON FORM +2", "ALLY HIT LAST TURN"]);
+      flagChipsFor("kenshiro", { NUNCHAKU: true, DRAGON_FORM: true }).map((c) => c.chip.onLabel)
+    ).toEqual(["NUNCHAKU +1", "DRAGON FORM +2"]);
+    // a retired key never conjures a pill, whatever the server sends
+    expect(flagChipsFor("kenshiro", { ALLY_DAMAGED_LAST_TURN: true })).toEqual([]);
     // One-sided states: no "off" pill, unlike Thetis's LOW TIDE.
     expect(flagChipsFor("kenshiro", {})).toEqual([]);
     expect(flagChipsFor("kenshiro", undefined)).toEqual([]);
@@ -610,7 +620,7 @@ describe("HERO_STATE_COUNTERS — Kenshiro's HUNDRED_FIST ledger", () => {
     expect(fighterTokenCounterBadgeFor("kenshiro", {})).toBeNull();
   });
 
-  it("wins the single token badge slot over the value preview, whatever else is set", () => {
+  it("owns the token badge slot, ignoring any stray counter the server sends", () => {
     expect(
       fighterTokenCounterBadgeFor("kenshiro", { DMG_LAST_TURN: 6, HUNDRED_FIST: 1 })
     ).toMatchObject({ title: "HUNDRED-FIST (copies played): 1" });
@@ -623,33 +633,5 @@ describe("HERO_STATE_COUNTERS — Kenshiro's HUNDRED_FIST ledger", () => {
     ]);
     expect(state.p1!.badge).toMatchObject({ label: "3", title: "HUNDRED-FIST (copies played): 3" });
     expect(state.p2!.badge).toMatchObject({ title: "CLUES: 1" });
-  });
-});
-
-describe("HERO_STATE_COUNTERS — Kenshiro's DMG_LAST_TURN preview", () => {
-  const preview = () => HERO_STATE_COUNTERS.find((e) => e.counter === "DMG_LAST_TURN");
-
-  it("is nameplate-only: a look-ahead figure, not a board state", () => {
-    const e = preview();
-    expect(e).toBeDefined();
-    expect(e!.nameplate?.labelTemplate).toBe("DMG LAST TURN: {n}");
-    expect(e!.token).toBeUndefined();
-  });
-
-  it("is gated to kenshiro — the counter is declared on HIS HeroDef, not the seat that took the damage", () => {
-    expect(preview()!.heroes).toEqual(["kenshiro"]);
-    expect(counterChipsFor("kenshiro", { DMG_LAST_TURN: 6 }).map((c) => c.chip.onLabel)).toEqual([
-      "DMG LAST TURN: 6",
-    ]);
-    // A stray same-named counter on another deck's seat must not borrow the pill.
-    expect(counterChipsFor("king-kong", { DMG_LAST_TURN: 5 })).toEqual([]);
-  });
-
-  it("stays hidden while the counter is absent or 0 (it is inert until engine B3 lands)", () => {
-    expect(counterChipsFor("kenshiro", {})).toEqual([]);
-    expect(counterChipsFor("kenshiro", { DMG_LAST_TURN: 0 })).toEqual([]);
-    expect(counterChipsFor("kenshiro", undefined)).toEqual([]);
-    // and it must never conjure a board badge
-    expect(fighterTokenCounterBadgeFor("kenshiro", { DMG_LAST_TURN: 9 })).toBeNull();
   });
 });

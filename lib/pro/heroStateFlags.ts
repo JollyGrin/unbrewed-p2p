@@ -167,23 +167,15 @@ export const HERO_STATE_FLAGS: HeroStateFlag[] = [
     // card +2 value this turn, but ONLY if an ally fighter was damaged last turn —
     // so the pill answers "did the condition hold?" without replaying the turn.
     // Nameplate only, for the same badge-slot reason as NUNCHAKU.
+    //
+    // The pill is the WHOLE story of the buff: an `ALLY_DAMAGED_LAST_TURN` flag entry
+    // used to sit beside this one, showing the scheme's gate, but engine #368 turned
+    // that gate into a live `FIGHTER_TOOK_DAMAGE … window:'LAST_TURN'` predicate over
+    // the ally selector, so no carry-forward flag is set any more and the key is
+    // retired from the contract. Only the RESULT is public now.
     flag: "DRAGON_FORM",
     heroes: ["kenshiro"],
     nameplate: { onLabel: "DRAGON FORM +2", offLabel: "", showWhenAbsent: false },
-  },
-  {
-    // Kenshiro's ALLY_DAMAGED_LAST_TURN condition (issue #596 ↔ engine #362) — the
-    // GATE on Dragon Form, not a buff: the flag is armed by an ally taking damage
-    // and read when the scheme resolves. It rides Kenshiro's OWN nameplate (his
-    // controller is the one deciding whether the scheme is worth an action this
-    // turn), and like the two buffs above it is nameplate-only.
-    //
-    // Distinct from DRAGON_FORM on purpose: the condition can hold with the scheme
-    // unplayed, and (after the scheme resolves) the buff outlives nothing — two
-    // separate facts, two separate pills.
-    flag: "ALLY_DAMAGED_LAST_TURN",
-    heroes: ["kenshiro"],
-    nameplate: { onLabel: "ALLY HIT LAST TURN", offLabel: "", showWhenAbsent: false },
   },
   {
     // The Doppelgänger's EQUILIBRIUM stance (issue #545 ↔ engine #303). Raw engine
@@ -328,36 +320,20 @@ export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
     //
     // Both surfaces: the nameplate answers "how deep will my next Rush go?", the token
     // badge puts the number on the board. Hidden at 0 like every counter.
+    //
+    // Kenshiro's ONLY counter. A `DMG_LAST_TURN` entry lived here too, previewing YOU
+    // ARE ALREADY DEAD!'s value; engine #368 rotated the damage ledger at turn start,
+    // so "half the damege he took last turn" became a plain `DAMAGE_TAKEN` read with
+    // `window:'LAST_TURN'` and the carry-forward counter was retired from the contract
+    // (kenshiro.rules.ts declares `counters: [{ name: 'HUNDRED_FIST' }]` and nothing
+    // else). The entry was dropped rather than left to match nothing — dead registry
+    // rows are how a real state ends up mis-keyed later.
     counter: "HUNDRED_FIST",
     heroes: ["kenshiro"],
     nameplate: { labelTemplate: "HUNDRED-FIST: {n}" },
     // Hokuto crimson on cream, matching the deck's card banners. Cairne's RAGE badge
     // is the nearest red, and the two decks never share a board state key.
     token: { icon: "👊", title: "HUNDRED-FIST (copies played)", bg: "#B3232C", color: "#FDF3E3" },
-  },
-  {
-    // Kenshiro's DMG_LAST_TURN preview (issue #596 ↔ engine #362). YOU ARE ALREADY
-    // DEAD! deals "half the damege he took last turn (rounded down)" and SETS ITS OWN
-    // VALUE to that number — so without this pill the card's real value is unknowable
-    // until the moment it is committed, which is exactly too late.
-    //
-    // Hero-gated to kenshiro, NOT ungated: the counter is declared on Kenshiro's own
-    // HeroDef alongside HUNDRED_FIST, so it is banked on HIS seat. The earlier
-    // `anyHero` hedge — written before #362's branch carried the rules file — is
-    // retired, and the field with it.
-    //
-    // INERT TODAY: the clause is blocked engine-side (B3 in the rules file — there is
-    // no all-sources damage-taken Amount yet), so nothing writes the counter and the
-    // pill stays hidden at 0. The entry ships anyway because it is the agreed
-    // state-key contract; it lights up the day B3 lands, with no client change.
-    //
-    // NAMEPLATE ONLY: a look-ahead figure, not a board state, and the token badge slot
-    // belongs to the ledger above (fighterTokenCounterBadgeFor takes the FIRST
-    // positive entry in registry order, so the entry preceding this one is what keeps
-    // the board badge stable).
-    counter: "DMG_LAST_TURN",
-    heroes: ["kenshiro"],
-    nameplate: { labelTemplate: "DMG LAST TURN: {n}" },
   },
 ];
 

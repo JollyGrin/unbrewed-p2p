@@ -205,7 +205,7 @@
       {
         "afterText": "",
         "basicText": "",
-        "boost": 3,
+        "boost": 2,
         "cardImage": {
           "url": "/evergreen-decks/art/6rDz/momentous-shift.webp"
         },
@@ -221,7 +221,7 @@
       {
         "afterText": "If you won the combat, choose one of the fighters in the combat and move them up to 2 spaces.",
         "basicText": "",
-        "boost": 2,
+        "boost": 1,
         "cardImage": {
           "url": "/evergreen-decks/art/6rDz/skirmish.webp"
         },
@@ -253,7 +253,7 @@
       {
         "afterText": "",
         "basicText": "",
-        "boost": 2,
+        "boost": 1,
         "cardImage": {
           "url": "/evergreen-decks/art/6rDz/disrupting-strike.webp"
         },
@@ -291,7 +291,7 @@
   "liked": false,
   "likes": 0,
   "name": "Kenshiro",
-  "note": "Rules-enforced Pro deck (server hero kenshiro), mirrored from unmatched.cards deck 6rDz \"Kenshiro\" by Calton_White, version WvW4T24Nq — the SAME source the engine converted from (data/heroes/kenshiro.rules.ts cites it), so every rules-relevant field here is engine-exact. A LAB deck: engine JollyGrin/unbrewed-engine#362 on the #359/#360 train, and four printed clauses are still BLOCKED engine-side (the Hundred-Fist chain, the 708-Meridian tick, and the two damage-taken reads on YOU ARE ALREADY DEAD! / Dragon Form), so balance and mechanics are not final. ART comes from the author's OTHER publication of this deck, the-unmatched.club 12653 (https://www.the-unmatched.club/c/heroes/kenshiro.12653), where he uploaded finished renders as per-card `replacementImage`; 6rDz itself only hotlinks scattered stock images. Every face, his `cardsBack`, and his `customImage` hero render are mirrored into public/evergreen-decks/art/6rDz (upstream they are i.imgur.com hotlinks and imgur rots; #446 standard) and drawn full-bleed via cardImage — never through the generated card template, which cannot reproduce his banners and layout, and never through the art-generation pipeline. URLs are repo-relative (Luke/Malfurion precedent) so the art resolves on localhost and preview builds too. token-kenshiro.webp is a bust cropped from that cardback art. KNOWN ART/RULES DIVERGENCE — the two upstream publications are not identical, and where they disagree this snapshot follows 6rDz (= the engine), so three cards print a boost pip that is one lower than the boost the referee applies: Momentous Shift (art 2, rules 3), Skirmish (art 1, rules 2) and Disrupting Strike (art 1, rules 2). The club copy also truncates Death Omen Star's text mid-sentence and banners Stone Mountain Splitting Slash as \"Any\" where its own art reads KENSHIRO; 6rDz is right on both. Upstream authoring conflict, flagged for the deck author — do NOT \"fix\" it here in either direction without a ruling. Titles/values/boosts/quantities are verbatim, typos included (\"damege\", \"Drawn 2 cards\", \"form the game\") — art matches by lowercased verbatim title. The three HOKUTO stages printed on Hundred-Fist Rush (WAAAA / TATATA / WAATAAA!) are the sub-attack chain engine#359's followup queue drains — see lib/pro/subAttackChain.ts for the client-side narration.",
+  "note": "Rules-enforced Pro deck (server hero kenshiro), mirrored from unmatched.cards deck 6rDz \"Kenshiro\" by Calton_White, version WvW4T24Nq — the SAME source the engine converted from (data/heroes/kenshiro.rules.ts cites it), so every rules-relevant field here is engine-exact. A LAB deck: engine JollyGrin/unbrewed-engine#362 on the #359/#360 train, and four printed clauses are still BLOCKED engine-side (the Hundred-Fist chain, the 708-Meridian tick, and the two damage-taken reads on YOU ARE ALREADY DEAD! / Dragon Form), so balance and mechanics are not final. ART comes from the author's OTHER publication of this deck, the-unmatched.club 12653 (https://www.the-unmatched.club/c/heroes/kenshiro.12653), where he uploaded finished renders as per-card `replacementImage`; 6rDz itself only hotlinks scattered stock images. Every face, his `cardsBack`, and his `customImage` hero render are mirrored into public/evergreen-decks/art/6rDz (upstream they are i.imgur.com hotlinks and imgur rots; #446 standard) and drawn full-bleed via cardImage — never through the generated card template, which cannot reproduce his banners and layout, and never through the art-generation pipeline. URLs are repo-relative (Luke/Malfurion precedent) so the art resolves on localhost and preview builds too. token-kenshiro.webp is a bust cropped from that cardback art. BOOSTS ON THREE CARDS FOLLOW THE PRINTED ART, per Dean's ruling of 2026-08-13 on the conflict between the author's two publications: what the card face shows is what the referee must apply. Momentous Shift boost 2, Skirmish boost 1 and Disrupting Strike boost 1 are the club-printed values, NOT 6rDz's 3/2/2 — engine #364 is adopting the same three, so the lock is deliberately one step ahead of kenshiro.rules.ts at commit 885d585 and converges when that lands. Every other rules-relevant field is byte-exact against that file. Where the two publications disagree elsewhere the snapshot keeps 6rDz, which is right on both counts: the club copy truncates Death Omen Star's text mid-sentence and banners Stone Mountain Splitting Slash as \"Any\" where its own art reads KENSHIRO. Titles/values/boosts/quantities are verbatim, typos included (\"damege\", \"Drawn 2 cards\", \"form the game\") — art matches by lowercased verbatim title. The three HOKUTO stages printed on Hundred-Fist Rush (WAAAA / TATATA / WAATAAA!) are the sub-attack chain engine#359's followup queue drains — see lib/pro/subAttackChain.ts for the client-side narration.",
   "published": true,
   "published_on": "Fri, 17 Apr 2026 11:49:34 GMT",
   "tags": [
