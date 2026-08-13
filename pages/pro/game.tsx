@@ -111,7 +111,14 @@ import {
 } from "@/lib/pro/moveSteps";
 import { useGameFx, DamageArc } from "@/lib/pro/useGameFx";
 import { useCombatCallouts, CombatCalloutItem } from "@/lib/pro/combatFx";
-import { useCombatStrike, CombatStrike, StrikeVariant, comparePulseFor, CompareBeat } from "@/lib/pro/combatStrike";
+import {
+  useCombatStrike,
+  CombatStrike,
+  StrikeVariant,
+  comparePulseFor,
+  CompareBeat,
+  panelCombatFor,
+} from "@/lib/pro/combatStrike";
 import { combatOutcomeBannerText, isNoWinner } from "@/lib/pro/combatOutcome";
 import { useCombatValueFx, CombatValueFx, SlotValueFx } from "@/lib/pro/combatValueFx";
 import { useTokenLife } from "@/lib/pro/tokenLife";
@@ -3049,7 +3056,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   // The strike beat (issue #381): after the flip settles, the attack card slams
   // the defense card and it reacts by outcome. `lingeringCombat` freezes a combat
   // that resolves+ends in one batch so the panel survives long enough to play it.
-  const { strike, lingeringCombat } = useCombatStrike(snapshot);
+  const { strike, lingeringCombat, lingerHold } = useCombatStrike(snapshot);
 
   // The math beat (issue #382): value modifiers fly in as chips onto the value
   // pill, which ticks toward the effective value; paced through the shared battle
@@ -3731,7 +3738,13 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   // (a lone Grievous droid shot stays unlabeled; see subAttackChainProgress).
   // Reads the lingering combat too, so the tag survives the linger snapshot the
   // strike beat renders after a combat resolves.
-  const chainCombat = view.combat ?? lingeringCombat;
+  // While a HOLD is active (#602) the frozen combat keeps the panel even though a
+  // new one is live, so a chained attack's commit can't yank the previous combat's
+  // faces out from under its still-flying damage arc. Outside a hold this is exactly
+  // `view.combat ?? lingeringCombat` as before. Presentation only — nothing else in
+  // the page (legal actions, prompts, the defender's decision buttons) reads it.
+  const panelCombat = panelCombatFor(view.combat, lingeringCombat, lingerHold);
+  const chainCombat = panelCombat;
   const combatChain =
     chainCombat?.attackerCard && isSubAttackCard(chainCombat.attackerCard.instance)
       ? subAttackChainProgress(parentCardTitle(view.catalog, chain.parent), chain.hits)
@@ -4466,11 +4479,13 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
         combatPanel={
           /* Strike beat (#381): while a combat that resolved+ended in one batch
              lingers, keep rendering the panel from the frozen snapshot so the
-             slam can play. Visual-fx off ⇒ no linger, no strike (outcome still
-             lives in the activity log); the panel just unmounts as before. */
-          (view.combat ?? (visualOn ? lingeringCombat : null)) ? (
+             slam can play — including OVER a freshly committed next combat while
+             the hold lasts (#602). Visual-fx off ⇒ no linger, no hold, no strike
+             (outcome still lives in the activity log); the panel just renders the
+             live combat and unmounts as before. */
+          (visualOn ? panelCombat : view.combat) ? (
             <CombatPanel
-              combat={(view.combat ?? lingeringCombat)!}
+              combat={(visualOn ? panelCombat : view.combat)!}
               catalog={view.catalog}
               resolveCard={resolveCard}
               you={view.you}
