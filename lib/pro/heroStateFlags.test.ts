@@ -535,24 +535,45 @@ describe("HERO_STATE_FLAGS — Kenshiro's buff + condition pills", () => {
     expect(e!.nameplate).toMatchObject({ onLabel: label, showWhenAbsent: false });
   });
 
-  it("keeps both OFF the board token, so the HUNDRED-FIST badge owns that slot", () => {
-    // fighterTokenStateByOwner gives a flag badge precedence over a counter badge,
-    // so a token entry on either of these would HIDE the live ledger count.
+  it("keeps both OFF the board token — nameplate-only, even with the badge slot free", () => {
+    // Both buffs are TURN-scoped and only matter while their owner picks an attack,
+    // where the two pills already state them; a rim badge could carry only one of the
+    // two and would imply the other was off. Engine #377 emptied the counter slot they
+    // used to defer to, and the answer stayed the same (see the registry comment).
     for (const flag of ["NUNCHAKU", "DRAGON_FORM"]) {
       expect(entry(flag)!.token).toBeUndefined();
       expect(entry(flag)!.tokenArt).toBeUndefined();
     }
   });
 
-  it("registers NO entry for the two keys engine #368 retired", () => {
-    // The #368 ledger rotation turned both carry-forwards into live LAST_TURN reads,
-    // so kenshiro.rules.ts never sets either key. A registry entry for one would be
-    // permanently dead — and dead rows are how a live state gets mis-keyed later.
+  it("registers NO entry for the three retired keys — kenshiro owns no counter at all", () => {
+    // #368's ledger rotation turned both carry-forwards into live LAST_TURN reads, and
+    // #377 replaced the chain ledger with a direct discard-pile query (DSL v0.40.1 can
+    // resolve CARDS_IN_DISCARD in a predicate, so Hundred-Fist Rush asks the printed
+    // question straight off the pile). kenshiro.rules.ts now declares no `counters` at
+    // all, and his seat's counters map is empty for the whole game. A registry entry for
+    // any of these would be permanently dead — and dead rows are how a live state gets
+    // mis-keyed later.
     expect(HERO_STATE_FLAGS.find((e) => e.flag === "ALLY_DAMAGED_LAST_TURN")).toBeUndefined();
     expect(HERO_STATE_COUNTERS.find((e) => e.counter === "DMG_LAST_TURN")).toBeUndefined();
-    // …and the hero's only counter is the ledger.
-    expect(HERO_STATE_COUNTERS.filter((e) => e.heroes.includes("kenshiro")).map((e) => e.counter))
-      .toEqual(["HUNDRED_FIST"]);
+    expect(HERO_STATE_COUNTERS.filter((e) => e.heroes.includes("kenshiro"))).toEqual([]);
+  });
+
+  it("renders no counter surface for kenshiro, however stale the state it is handed", () => {
+    // Registry-driven, and gated by HERO ID before any key is read: with no kenshiro
+    // row, NOTHING in a `counters` map can conjure a pill or a badge — not the retired
+    // Hundred-Fist ledger a pre-#377 server or an old replay bundle still banks, not
+    // #368's damage carry-forward, not another hero's live key.
+    const stale = { RETIRED_LEDGER: 3, DMG_LAST_TURN: 6, CLUE: 2, RAGE: 4 };
+    expect(counterChipsFor("kenshiro", stale)).toEqual([]);
+    expect(fighterTokenCounterBadgeFor("kenshiro", stale)).toBeNull();
+    // …so the seat contributes no token state at all and is omitted from the map.
+    const state = fighterTokenStateByOwner([
+      { id: "p1", heroId: "kenshiro", counters: stale },
+      { id: "p2", heroId: "nancy-drew", counters: { CLUE: 1 } },
+    ]);
+    expect(state.p1).toBeUndefined();
+    expect(state.p2!.badge).toMatchObject({ title: "CLUES: 1" });
   });
 
   it("shows only the pills whose flags are set, and nothing at all when none are", () => {
@@ -581,57 +602,5 @@ describe("HERO_STATE_FLAGS — Kenshiro's buff + condition pills", () => {
       badge: null,
       heroArtUrl: null,
     });
-  });
-});
-
-describe("HERO_STATE_COUNTERS — Kenshiro's HUNDRED_FIST ledger", () => {
-  const ledger = () => HERO_STATE_COUNTERS.find((e) => e.counter === "HUNDRED_FIST");
-
-  it("registers the exact engine counter key on both surfaces", () => {
-    const e = ledger();
-    expect(e).toBeDefined();
-    expect(e!.pile).toBeUndefined();
-    expect(e!.heroes).toEqual(["kenshiro"]);
-    expect(e!.nameplate?.labelTemplate).toBe("HUNDRED-FIST: {n}");
-    expect(e!.token).toMatchObject({ title: "HUNDRED-FIST (copies played)" });
-  });
-
-  it("never calls itself a chain — the counter is a played-copies ledger that reads one high mid-combat", () => {
-    // kenshiro.rules.ts banks HUNDRED_FIST from a CARD_PLAYED trigger (fires at
-    // reveal), so during the Rush's own combat the value is copies-in-discard + 1.
-    // Labelling it "CHAIN: n" would assert n chain hits that have not happened.
-    const e = ledger()!;
-    expect(e.nameplate!.labelTemplate).not.toMatch(/chain/i);
-    expect(e.token!.title).not.toMatch(/chain/i);
-  });
-
-  it("pills + badges the live count, and hides both at 0", () => {
-    const chips = counterChipsFor("kenshiro", { HUNDRED_FIST: 2 });
-    expect(chips).toHaveLength(1);
-    expect(chips[0].chip.onLabel).toBe("HUNDRED-FIST: 2");
-    expect(chips[0].chip.flag).toBe("counter:HUNDRED_FIST");
-    expect(fighterTokenCounterBadgeFor("kenshiro", { HUNDRED_FIST: 2 })).toMatchObject({
-      label: "2",
-      title: "HUNDRED-FIST (copies played): 2",
-      showLabel: true,
-    });
-    expect(counterChipsFor("kenshiro", { HUNDRED_FIST: 0 })).toEqual([]);
-    expect(fighterTokenCounterBadgeFor("kenshiro", { HUNDRED_FIST: 0 })).toBeNull();
-    expect(fighterTokenCounterBadgeFor("kenshiro", {})).toBeNull();
-  });
-
-  it("owns the token badge slot, ignoring any stray counter the server sends", () => {
-    expect(
-      fighterTokenCounterBadgeFor("kenshiro", { DMG_LAST_TURN: 6, HUNDRED_FIST: 1 })
-    ).toMatchObject({ title: "HUNDRED-FIST (copies played): 1" });
-  });
-
-  it("reaches the board through fighterTokenStateByOwner", () => {
-    const state = fighterTokenStateByOwner([
-      { id: "p1", heroId: "kenshiro", counters: { HUNDRED_FIST: 3 } },
-      { id: "p2", heroId: "nancy-drew", counters: { CLUE: 1 } },
-    ]);
-    expect(state.p1!.badge).toMatchObject({ label: "3", title: "HUNDRED-FIST (copies played): 3" });
-    expect(state.p2!.badge).toMatchObject({ title: "CLUES: 1" });
   });
 });
