@@ -549,9 +549,11 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     original: true,
   },
   {
-    // In-the-lab Pro deck (unmatched.cards p82X / version EZYf44) — server
-    // hero cairne-bloodhoof. RAGE counter economy with spendCounterForValue
-    // (v0.25.0); Taunt card flagged NEEDS-PRIMITIVE (empty blocks).
+    // Pro deck (unmatched.cards p82X / version EZYf44) — server hero
+    // cairne-bloodhoof. Graduated from the lab 2026-08-17 alongside the engine's
+    // tier promotion (engine #389 — the RAGE counter economy settled in live
+    // play). RAGE spends through spendCounterForValue (v0.25.0); the Taunt card
+    // is still flagged NEEDS-PRIMITIVE (empty blocks).
     id: "p82X",
     name: "Cairne Bloodhoof",
     hero: "Cairne Bloodhoof",
@@ -560,8 +562,6 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     likes: 2,
     highlightColour: "#ce9272",
     cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/p82X/cardback.webp",
-    lab: true,
-    tier: "lab",
   },
   {
     // In-the-lab Pro deck: Darth Vader — the-unmatched.club deck 4173 by Inforce
@@ -656,11 +656,13 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     tier: "lab",
   },
   {
-    // In-the-lab Pro deck (unmatched.cards 5jGPM / version qOz5NtMP3P) — server
-    // hero gerry-the-isopod (issue #553 ↔ engine #316/#317/#318). The colony deck:
-    // four interchangeable Larrys spent as costs, and the first consumer of the
-    // v26 board-object CORPSE kind. Real unmatched.cards page, so no `original`
-    // and the lobby deep-link is derived from `id`.
+    // Pro deck (unmatched.cards 5jGPM / version qOz5NtMP3P) — server hero
+    // gerry-the-isopod (issue #553 ↔ engine #316/#317/#318). Graduated from the
+    // lab 2026-08-17 alongside the engine's tier promotion (engine #389 — the
+    // corpse economy and the small-fighter divergence settled in live play). The
+    // colony deck: four interchangeable Larrys spent as costs, and the first
+    // consumer of the v26 board-object CORPSE kind. Real unmatched.cards page, so
+    // no `original` and the lobby deep-link is derived from `id`.
     id: "5jGPM",
     name: "Gerry the Isopod",
     hero: "Gerry the Isopod",
@@ -672,11 +674,6 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     // Repo-relative (malfurion/Vader precedent): the tile art is served out of this
     // app's own public/, so it renders on localhost and preview builds too.
     cardbackUrl: "/evergreen-decks/art/5jGPM/cardback.webp",
-    // Engine serves this hero at tier `lab` (server/content.ts): out of random bot
-    // rotation and the eval corpora while the corpse economy and the small-fighter
-    // divergence get live playtesting.
-    lab: true,
-    tier: "lab",
   },
   {
     // In-the-lab Pro deck (unmatched.cards 6rDz / version WvW4T24Nq) — server hero
