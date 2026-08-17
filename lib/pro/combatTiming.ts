@@ -41,6 +41,21 @@ export const SETTLE_DWELL_MS = 450;
 export const LINGER_TTL_MS =
   ARC_LAUNCH_MS + ARC_FLIGHT_MS + DAMAGE_BEAT_MS + SETTLE_DWELL_MS;
 
+/**
+ * How long a frozen combat may HOLD the panel against a NEW live combat (#602).
+ * Chained attacks used to cancel the linger the instant the next COMMIT arrived, so
+ * combat 1's damage number landed out of a face-down "deciding…" panel. The takeover
+ * is deferred instead — but only until combat 1's arc has flown AND its token-side
+ * beat has landed, measured from the same freeze the arc timers start at.
+ *
+ * Derived, never hand-tuned, exactly like `LINGER_TTL_MS`. It deliberately omits
+ * `SETTLE_DWELL_MS`: the dwell is the courtesy pause of a quiet board, and when the
+ * next attack is already committed that commit IS the settle. That also makes the
+ * hold strictly shorter than the linger it rides on, so a hold can never keep a
+ * frozen combat on screen after the snapshot behind it has expired.
+ */
+export const LINGER_HOLD_MS = ARC_LAUNCH_MS + ARC_FLIGHT_MS + DAMAGE_BEAT_MS;
+
 /** Slack between the strike pose clearing and the panel unmounting. Small and
  *  positive so the defense card's held knocked/dimmed pose is still applied on the
  *  panel's final frame — it disappears rather than snapping back to rest. */
