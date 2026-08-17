@@ -24,7 +24,7 @@ import {
   ViewCombat,
   ViewCombatCard,
 } from "./protocol";
-import { LINGER_TTL_MS, STRIKE_TTL_MS } from "./combatTiming";
+import { LINGER_HOLD_MS, LINGER_TTL_MS, STRIKE_TTL_MS } from "./combatTiming";
 import { isNoWinner } from "./combatOutcome";
 
 /** win = attacker dealt damage (defense knocked back); blocked = defender won / 0
@@ -55,12 +55,54 @@ export interface CombatStrike {
 /* Both TTLs are DERIVED from the damage arc's clock in combatTiming.ts and re-exported
  * here for the panel's existing call sites. They used to be hand-tuned numbers that
  * drifted under the arc, unmounting the panel mid-flight (issue #517). */
-export { LINGER_TTL_MS, STRIKE_TTL_MS };
+export { LINGER_HOLD_MS, LINGER_TTL_MS, STRIKE_TTL_MS };
 
 /** The instances that identify one combat — used to build the strike key so a new
  *  combat (fresh card instances) can never collide with the one just resolved. */
 const combatKey = (attackerCard: string | null, defenderCard: string | null): string =>
   `strike:${attackerCard ?? "none"}->${defenderCard ?? "none"}`;
+
+/**
+ * Has this LIVE combat got past its face-down commit stage — i.e. are its own cards
+ * revealed or is it already resolving? Used to collapse the linger hold (#602): a
+ * frozen previous combat may cover a new combat's "deciding…" stage, but the instant
+ * the new one shows faces or lands damage it outranks the old snapshot — never show
+ * stale cards over a combat that is resolving right now.
+ *
+ * Event-first (the batch that reveals is authoritative even before the view catches
+ * up), then the view: any outcome, a revealed attacker face (the view carries
+ * revealed cards only), or a stage past the two COMMIT stages.
+ */
+export function combatHasRevealed(combat: ViewCombat, events: GameEvent[]): boolean {
+  if (
+    events.some(
+      (e) =>
+        e.type === "CARDS_REVEALED" ||
+        e.type === "COMBAT_RESOLVED" ||
+        e.type === "COMBAT_DAMAGE"
+    )
+  )
+    return true;
+  if (combat.outcome !== null || combat.attackDamageDealt !== null) return true;
+  if (combat.attackerCard || combat.defenderCard) return true;
+  return combat.stage !== "COMMIT_ATTACK" && combat.stage !== "COMMIT_DEFENSE";
+}
+
+/**
+ * Which combat the panel should render (#602). Normally the live combat wins and the
+ * frozen snapshot only covers the gap after it clears — but while a HOLD is active
+ * the frozen combat keeps the panel, so a chained attack's commit can't yank combat
+ * 1's faces out from under its still-flying damage arc. Pure, so the page has no
+ * branching of its own.
+ */
+export function panelCombatFor(
+  live: ViewCombat | null,
+  lingering: ViewCombat | null,
+  hold: boolean
+): ViewCombat | null {
+  if (hold && lingering) return lingering;
+  return live ?? lingering;
+}
 
 /** How a value pill pulses on the comparison beat (issue #382): the winner glows
  *  gold, the loser dims/cracks, a tie flashes both neutrally, null = no pulse. */
@@ -290,14 +332,24 @@ export function captureLingeringCombat(
  *    values are seen (issue #147) while the Snuff callout plays over the top.
  *  - Only a RESOLVED combat lingers: a combat that vanishes without ever resolving has
  *    nothing to hold on screen, so it unmounts as before.
- *  - A new live combat (or any new `view.combat`) cancels a pending linger
- *    immediately, so a fast follow-up combat never renders the stale frozen one.
+ *  - A new live combat HOLDS the panel instead of cancelling the linger outright
+ *    (#602): while the frozen combat's damage arc and token beat are still landing
+ *    (`LINGER_HOLD_MS` from the freeze) the panel keeps rendering it, then the live
+ *    combat takes over. The hold collapses early the moment the NEW combat itself
+ *    reveals or resolves, so presentation never lags more than one combat behind.
  */
 export function useCombatStrike(
   snapshot: { view: PlayerView; events: GameEvent[] } | null
-): { strike: CombatStrike | null; lingeringCombat: ViewCombat | null } {
+): {
+  strike: CombatStrike | null;
+  lingeringCombat: ViewCombat | null;
+  /** True while the frozen combat is holding the panel against a LIVE combat —
+   *  feed it to `panelCombatFor`; nothing else in the page branches on it. */
+  lingerHold: boolean;
+} {
   const [strike, setStrike] = useState<CombatStrike | null>(null);
   const [lingeringCombat, setLingeringCombat] = useState<ViewCombat | null>(null);
+  const [lingerHold, setLingerHold] = useState(false);
   const prevViewRef = useRef<PlayerView | null>(null);
   const lastKeyRef = useRef<string | null>(null);
   /** The most recent strike descriptor, kept so a combat whose END arrives in a LATER
@@ -305,11 +357,32 @@ export function useCombatStrike(
   const lastStrikeRef = useRef<CombatStrike | null>(null);
   const strikeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lingerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Open while the frozen combat's arc + damage beat are still landing — the window
+   *  during which a new live combat is made to wait its turn (#602). */
+  const holdWindowRef = useRef(false);
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Whether a LIVE combat is currently on the table — read when the hold window
+   *  closes, so a combat that has been waiting behind the hold takes the panel on
+   *  that timer rather than on the next server batch. */
+  const liveCombatRef = useRef(false);
+
+  /** Drop the frozen panel and every timer attached to it — the live combat (or an
+   *  empty panel) takes over on this render. */
+  const dropLinger = () => {
+    if (lingerTimerRef.current) clearTimeout(lingerTimerRef.current);
+    if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+    lingerTimerRef.current = null;
+    holdTimerRef.current = null;
+    holdWindowRef.current = false;
+    setLingeringCombat(null);
+    setLingerHold(false);
+  };
 
   useEffect(
     () => () => {
       if (strikeTimerRef.current) clearTimeout(strikeTimerRef.current);
       if (lingerTimerRef.current) clearTimeout(lingerTimerRef.current);
+      if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
     },
     []
   );
@@ -319,13 +392,21 @@ export function useCombatStrike(
     const prev = prevViewRef.current;
     const next = snapshot.view;
     prevViewRef.current = next;
+    liveCombatRef.current = !!next.combat;
 
-    // A live combat on screen cancels any lingering frozen combat immediately —
-    // this is what "a new combat starting during the linger cancels it" means.
+    // A live combat on screen used to cancel the frozen one on the spot — which is
+    // exactly the chained-attack bug (#602): combat 2's COMMIT lands 1-2s after
+    // combat 1 resolves, so combat 1's damage number arrived out of a face-down
+    // "deciding…" panel. The takeover is HELD instead while the arc + token beat are
+    // still landing, and released (or collapsed early) below.
     if (next.combat && lingerTimerRef.current) {
-      clearTimeout(lingerTimerRef.current);
-      lingerTimerRef.current = null;
-      setLingeringCombat(null);
+      if (holdWindowRef.current && !combatHasRevealed(next.combat, snapshot.events)) {
+        setLingerHold(true);
+      } else {
+        // Outside the hold window, or the new combat is already showing faces /
+        // resolving: the live combat outranks the old snapshot immediately.
+        dropLinger();
+      }
     }
 
     const s = diffCombatStrike(prev, next, snapshot.events);
@@ -369,9 +450,29 @@ export function useCombatStrike(
     const frozen = captureLingeringCombat(prev, s ?? carried, snapshot.events);
     if (!frozen) return;
     setLingeringCombat(frozen);
+    // A fresh freeze is never itself held over anything, and it opens a new hold
+    // window: from HERE — the same batch useGameFx starts the damage arc's timers
+    // from — the next combat has to wait LINGER_HOLD_MS for its panel (#602).
+    setLingerHold(false);
     if (lingerTimerRef.current) clearTimeout(lingerTimerRef.current);
-    lingerTimerRef.current = setTimeout(() => setLingeringCombat(null), LINGER_TTL_MS);
+    if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+    holdWindowRef.current = true;
+    holdTimerRef.current = setTimeout(() => {
+      holdWindowRef.current = false;
+      holdTimerRef.current = null;
+      // The arc has landed. A combat that has been waiting behind the hold takes the
+      // panel now — and the spent snapshot goes with it, so it can never resurface if
+      // that combat later vanishes. On a quiet board the snapshot just finishes its
+      // own linger.
+      if (liveCombatRef.current) dropLinger();
+      else setLingerHold(false);
+    }, LINGER_HOLD_MS);
+    lingerTimerRef.current = setTimeout(() => {
+      lingerTimerRef.current = null;
+      setLingeringCombat(null);
+      setLingerHold(false);
+    }, LINGER_TTL_MS);
   }, [snapshot]);
 
-  return { strike, lingeringCombat };
+  return { strike, lingeringCombat, lingerHold };
 }

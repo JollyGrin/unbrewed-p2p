@@ -1,13 +1,16 @@
 import { act, renderHook } from "@testing-library/react";
 import {
   captureLingeringCombat,
+  combatHasRevealed,
   comparePulseFor,
   diffCombatStrike,
+  LINGER_HOLD_MS,
   LINGER_TTL_MS,
+  panelCombatFor,
   STRIKE_TTL_MS,
   useCombatStrike,
 } from "./combatStrike";
-import { ARC_FLIGHT_MS, ARC_LAUNCH_MS, DAMAGE_BEAT_MS } from "./combatTiming";
+import { ARC_FLIGHT_MS, ARC_LAUNCH_MS, DAMAGE_BEAT_MS, SETTLE_DWELL_MS } from "./combatTiming";
 import { CombatOutcome, GameEvent, PlayerView, ViewCombat, ViewCombatCard } from "./protocol";
 
 const card = (instance: string, over: Partial<ViewCombatCard> = {}): ViewCombatCard => ({
@@ -366,7 +369,7 @@ describe("useCombatStrike", () => {
     expect(result.current.strike).toBeNull();
   });
 
-  it("lingers the resolved combat, then a NEW live combat cancels the linger", () => {
+  it("lingers the resolved combat; a NEW combat that already shows a face takes the panel at once", () => {
     const { result, rerender } = renderHook((props: { s: ReturnType<typeof snap> }) => useCombatStrike(props.s), {
       initialProps: { s: snap(view({ combat: combat({ stage: "DURING" }) })) },
     });
@@ -376,7 +379,8 @@ describe("useCombatStrike", () => {
     expect(result.current.lingeringCombat).not.toBeNull();
     expect(result.current.lingeringCombat?.attackDamageDealt).toBe(2);
 
-    // A brand-new live combat arrives before the linger TTL → cancels it immediately.
+    // A brand-new live combat arrives before the linger TTL carrying a revealed
+    // attacker face — a resolving combat outranks the frozen one, so no hold (#602).
     const fresh = combat({ stage: "COMMIT_DEFENSE", attackerCard: card("king-kong/uppercut#7"), defenderCard: null });
     act(() => rerender({ s: snap(view({ combat: fresh })) }));
     expect(result.current.lingeringCombat).toBeNull();
@@ -515,6 +519,115 @@ describe("useCombatStrike", () => {
     expect(result.current.lingeringCombat).toBeNull();
   });
 
+  /* ------------------------------------------------------------------ #602
+   * Chained attacks. The opponent commits the NEXT attack ~1-2s after the last
+   * one resolved, while the previous combat's damage arc is still in the air.
+   * Cancelling the linger on that COMMIT (the old rule) landed the damage number
+   * on a face-down "deciding…" panel — unreadable. The takeover is HELD instead.
+   * -------------------------------------------------------------------------- */
+
+  /** The next attack's commit stage: both faces still hidden, nothing resolved. */
+  const nextCommit = () =>
+    combat({ stage: "COMMIT_DEFENSE", attackerCard: null, defenderCard: null, outcome: null });
+
+  it("holds the frozen panel through a chained attack's COMMIT until the arc + beat land (#602)", () => {
+    const { result, rerender } = renderHook((props: { s: ReturnType<typeof snap> }) => useCombatStrike(props.s), {
+      initialProps: { s: snap(view({ combat: combat({ stage: "DURING" }) })) },
+    });
+
+    // Combat 1 resolves + ends → freeze. The damage arc starts flying now.
+    act(() => rerender({ s: snap(view({ combat: null }), resolvedEnded("ATTACKER_WON", 2)) }));
+    const frozen = result.current.lingeringCombat;
+    expect(frozen).not.toBeNull();
+    expect(result.current.lingerHold).toBe(false);
+
+    // Combat 2's COMMIT arrives mid-arc. The panel must NOT flip to it yet.
+    act(() => jest.advanceTimersByTime(1200));
+    const live = nextCommit();
+    act(() => rerender({ s: snap(view({ combat: live })) }));
+    expect(result.current.lingerHold).toBe(true);
+    expect(result.current.lingeringCombat).toBe(frozen);
+    expect(panelCombatFor(live, result.current.lingeringCombat, result.current.lingerHold)).toBe(frozen);
+
+    // Still held while the arc is in the air and its damage beat pops...
+    act(() => jest.advanceTimersByTime(ARC_LAUNCH_MS + ARC_FLIGHT_MS - 1200));
+    expect(result.current.lingerHold).toBe(true);
+    expect(result.current.lingeringCombat).toBe(frozen);
+
+    // ...and released once the beat has landed — the live combat takes the panel.
+    act(() => jest.advanceTimersByTime(DAMAGE_BEAT_MS + 20));
+    expect(result.current.lingerHold).toBe(false);
+    expect(result.current.lingeringCombat).toBeNull();
+    expect(panelCombatFor(live, result.current.lingeringCombat, result.current.lingerHold)).toBe(live);
+  });
+
+  it("collapses the hold the moment the NEW combat reveals (#602)", () => {
+    const { result, rerender } = renderHook((props: { s: ReturnType<typeof snap> }) => useCombatStrike(props.s), {
+      initialProps: { s: snap(view({ combat: combat({ stage: "DURING" }) })) },
+    });
+    act(() => rerender({ s: snap(view({ combat: null }), resolvedEnded("ATTACKER_WON", 2)) }));
+
+    // Combat 2 commits face-down → held.
+    act(() => jest.advanceTimersByTime(600));
+    act(() => rerender({ s: snap(view({ combat: nextCommit() })) }));
+    expect(result.current.lingerHold).toBe(true);
+
+    // Combat 2 reveals a beat later (bot instant-drive): the stale faces must go
+    // NOW rather than sit on top of a combat that is already resolving.
+    const revealed = combat({
+      stage: "DURING",
+      attackerCard: card("king-kong/uppercut#7"),
+      defenderCard: card("baba-yaga/parry#4", { role: "DEFENSE" }),
+    });
+    act(() =>
+      rerender({
+        s: snap(view({ combat: revealed }), [
+          { type: "CARDS_REVEALED", attackerCard: "king-kong/uppercut#7", defenderCard: "baba-yaga/parry#4" },
+        ]),
+      })
+    );
+    expect(result.current.lingerHold).toBe(false);
+    expect(result.current.lingeringCombat).toBeNull();
+    expect(panelCombatFor(revealed, result.current.lingeringCombat, result.current.lingerHold)).toBe(revealed);
+  });
+
+  it("does not hold a combat that commits AFTER the hold window has closed (#602)", () => {
+    const { result, rerender } = renderHook((props: { s: ReturnType<typeof snap> }) => useCombatStrike(props.s), {
+      initialProps: { s: snap(view({ combat: combat({ stage: "DURING" }) })) },
+    });
+    act(() => rerender({ s: snap(view({ combat: null }), resolvedEnded("ATTACKER_WON", 2)) }));
+
+    // Past the hold window but still inside the linger's own TTL (the settle dwell).
+    act(() => jest.advanceTimersByTime(LINGER_HOLD_MS + 20));
+    expect(result.current.lingeringCombat).not.toBeNull();
+    act(() => rerender({ s: snap(view({ combat: nextCommit() })) }));
+    expect(result.current.lingerHold).toBe(false);
+    expect(result.current.lingeringCombat).toBeNull();
+  });
+
+  it("freezes the NEW combat cleanly when it resolves during the previous hold (#602)", () => {
+    const { result, rerender } = renderHook((props: { s: ReturnType<typeof snap> }) => useCombatStrike(props.s), {
+      initialProps: { s: snap(view({ combat: combat({ stage: "DURING" }) })) },
+    });
+    act(() => rerender({ s: snap(view({ combat: null }), resolvedEnded("ATTACKER_WON", 2)) }));
+    act(() => jest.advanceTimersByTime(500));
+    act(() => rerender({ s: snap(view({ combat: nextCommit() })) }));
+    expect(result.current.lingerHold).toBe(true);
+
+    // Combat 2 resolves + ends in one batch while combat 1 was still holding: its
+    // OWN snapshot replaces the frozen one, unheld, on a fresh hold window.
+    const second: GameEvent[] = [
+      { type: "CARDS_REVEALED", attackerCard: "king-kong/uppercut#7", defenderCard: null },
+      { type: "COMBAT_DAMAGE", amount: 5 },
+      { type: "COMBAT_RESOLVED", outcome: "ATTACKER_WON" },
+      { type: "COMBAT_ENDED" },
+    ];
+    act(() => rerender({ s: snap(view({ combat: null }), second) }));
+    expect(result.current.lingerHold).toBe(false);
+    expect(result.current.lingeringCombat?.attackerCard?.instance).toBe("king-kong/uppercut#7");
+    expect(result.current.lingeringCombat?.attackDamageDealt).toBe(5);
+  });
+
   it("clears the linger on its own after the TTL when nothing follows", () => {
     const { result, rerender } = renderHook((props: { s: ReturnType<typeof snap> }) => useCombatStrike(props.s), {
       initialProps: { s: snap(view({ combat: combat({ stage: "DURING" }) })) },
@@ -523,5 +636,76 @@ describe("useCombatStrike", () => {
     expect(result.current.lingeringCombat).not.toBeNull();
     act(() => jest.advanceTimersByTime(LINGER_TTL_MS + 20));
     expect(result.current.lingeringCombat).toBeNull();
+  });
+});
+
+/**
+ * #602's invariant, the same rule #520 set for `LINGER_TTL_MS`: the hold window is
+ * DERIVED from the arc's clock, never hand-tuned. These fail the moment someone
+ * types a number into it.
+ */
+describe("the linger hold window", () => {
+  it("is exactly the arc's flight plus the token-side damage beat", () => {
+    expect(LINGER_HOLD_MS).toBe(ARC_LAUNCH_MS + ARC_FLIGHT_MS + DAMAGE_BEAT_MS);
+  });
+
+  it("outlives the damage arc landing — the whole point of holding", () => {
+    expect(LINGER_HOLD_MS).toBeGreaterThan(ARC_LAUNCH_MS + ARC_FLIGHT_MS);
+  });
+
+  it("never outlives the linger it rides on (the hold is bounded)", () => {
+    expect(LINGER_HOLD_MS).toBeLessThanOrEqual(LINGER_TTL_MS);
+    // It drops exactly the settle dwell: when the next attack is already committed,
+    // that commit IS the settle — so the delay a player actually feels is bounded by
+    // the hold minus however long the commit took to arrive.
+    expect(LINGER_TTL_MS - LINGER_HOLD_MS).toBe(SETTLE_DWELL_MS);
+  });
+});
+
+describe("panelCombatFor", () => {
+  const live = combat({ stage: "COMMIT_DEFENSE", attackerCard: null, defenderCard: null });
+  const frozen = combat({ stage: "CLEANUP", outcome: "ATTACKER_WON", attackDamageDealt: 3 });
+
+  it("renders the live combat when nothing is held (today's behavior)", () => {
+    expect(panelCombatFor(live, frozen, false)).toBe(live);
+    expect(panelCombatFor(live, null, false)).toBe(live);
+  });
+
+  it("renders the frozen combat while the takeover is held", () => {
+    expect(panelCombatFor(live, frozen, true)).toBe(frozen);
+  });
+
+  it("falls back to the linger with no live combat, and to nothing at all", () => {
+    expect(panelCombatFor(null, frozen, false)).toBe(frozen);
+    expect(panelCombatFor(null, null, true)).toBeNull();
+  });
+});
+
+describe("combatHasRevealed", () => {
+  const commitStage = combat({ stage: "COMMIT_DEFENSE", attackerCard: null, defenderCard: null });
+
+  it("is false for a face-down commit stage — exactly what a hold may cover", () => {
+    expect(combatHasRevealed(commitStage, [])).toBe(false);
+    expect(combatHasRevealed(combat({ stage: "COMMIT_ATTACK", attackerCard: null, defenderCard: null }), [])).toBe(
+      false
+    );
+  });
+
+  it("is true on the revealing/resolving batch even before the view catches up", () => {
+    expect(
+      combatHasRevealed(commitStage, [
+        { type: "CARDS_REVEALED", attackerCard: "king-kong/clobber#1", defenderCard: null },
+      ])
+    ).toBe(true);
+    expect(combatHasRevealed(commitStage, [{ type: "COMBAT_DAMAGE", amount: 2 }])).toBe(true);
+    expect(combatHasRevealed(commitStage, [{ type: "COMBAT_RESOLVED", outcome: "ATTACKER_WON" }])).toBe(true);
+  });
+
+  it("is true once the view carries a face, an outcome, or a post-commit stage", () => {
+    expect(combatHasRevealed(combat({ stage: "COMMIT_DEFENSE", defenderCard: null }), [])).toBe(true);
+    expect(
+      combatHasRevealed(combat({ stage: "COMMIT_DEFENSE", attackerCard: null, defenderCard: null, outcome: "UNKNOWN" }), [])
+    ).toBe(true);
+    expect(combatHasRevealed(combat({ stage: "DURING", attackerCard: null, defenderCard: null }), [])).toBe(true);
   });
 });
