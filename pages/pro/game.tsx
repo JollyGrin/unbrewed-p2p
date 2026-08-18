@@ -129,6 +129,7 @@ import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
 import { formatChoice, PRO_FORMATS, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
 import { deriveTeams } from "@/lib/pro/teams";
 import { fighterTokenStateByOwner } from "@/lib/pro/heroStateFlags";
+import { CosmeticRimTier, cosmeticEquipFor } from "@/lib/pro/cosmetics";
 import {
   CUSTOM_MAP_ID,
   MAP_CATALOG,
@@ -3858,6 +3859,17 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
     const heroId = ownerHeroIds[f.owner];
     return heroId ? resolveFighterToken(heroId, f.kind) : null;
   };
+  // Cosmetic rim tier for a hero's board token (issue #613). PURELY DECORATIVE:
+  // resolved locally, never sent, never received — an opponent sees the plain
+  // token. It rides BESIDE `fighterTokenArt` above rather than inside it, so a
+  // hero-state portrait swap keeps deciding the picture and this only ever adds
+  // chrome around it. Sidekicks are deferred (design doc §10b), so the whole
+  // chain starts at the HERO check. Today's only equip source is the local
+  // `pro:cosmetics:debug` registry, so this is null for everyone by default.
+  const fighterTokenRim = (f: ViewFighter): CosmeticRimTier | null => {
+    if (f.kind !== "HERO") return null;
+    return cosmeticEquipFor(ownerHeroIds[f.owner]).tokenRim ?? null;
+  };
   // A board OBJECT that came from a fighter (protocol v26 `ViewToken.origin` —
   // Gerry's corpses) resolves through the SAME art path as a living token, so a
   // Larry's body on the board is recognisably that Larry. The fighter record is
@@ -4377,6 +4389,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
           extendedReachTargets={[...extendedReachTargets]}
           fighterTokenArt={fighterTokenArt}
           fighterTokenBadge={(f) => ownerTokenState[f.owner]?.badge ?? null}
+          fighterTokenRim={fighterTokenRim}
           boardObjectArt={boardObjectArt}
           boardObjectOriginName={boardObjectOriginName}
           fx={boardFx}
