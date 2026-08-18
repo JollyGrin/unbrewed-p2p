@@ -25,6 +25,8 @@ import {
   COSMETIC_RIM_TIERS,
   CosmeticRimTier,
 } from "@/lib/pro/cosmetics";
+import { encodeCosmetics } from "@/lib/pro/cosmeticsWire";
+import { cardRimForSeats, seatCosmetics } from "@/lib/pro/seatCosmetics";
 import { Card } from "./Card";
 import { rimBodyId } from "./cardRim";
 
@@ -281,5 +283,107 @@ describe("the invariant — a rim changes how a card looks and nothing else", ()
       ).map((r) => r.getAttribute("stroke-width"));
     });
     for (const w of widths) expect(w).toEqual(widths[0]);
+  });
+});
+
+/**
+ * The same two guarantees, but with the tiers arriving over the WIRE (#615)
+ * rather than from a local registry: a seat's opaque `cosmetics` blob, decoded
+ * and resolved exactly as the game page resolves it.
+ *
+ * This is the regression that matters most for the wire, because the wire is
+ * what makes a per-card cosmetic visible to an OPPONENT — and an opponent who
+ * could tell a face-down committed combat card apart by its art would have a
+ * competitive-integrity bug, not a cosmetic one (design doc §4a).
+ */
+describe("wire-delivered cosmetics (#615)", () => {
+  const HERO = "kenshiro";
+  /** The same MIXED ladder, published as the blob an opponent would receive. */
+  const blobFor = (cards: DeckImportCardType[]): string =>
+    encodeCosmetics({
+      tokenRimTier: 4,
+      cards: LADDER.flatMap((tier, i) =>
+        tier ? [{ key: cards[i].title, tier: COSMETIC_RIM_TIERS.indexOf(tier) + 1 }] : [],
+      ),
+    })!;
+
+  /** The deck as the receiving client renders it, tiers resolved off the blob. */
+  const wireDeck = (cards: DeckImportCardType[]): DeckImportCardType[] => {
+    const resolved = seatCosmetics([
+      { id: "p2", heroId: HERO, you: false, cosmetics: blobFor(cards) },
+    ]);
+    return LADDER.map((_tier, i) =>
+      withRimTier(cards[i], cardRimForSeats(resolved, HERO, cards[i].title)),
+    );
+  };
+
+  it.each([
+    ["image deck", IMAGE_DECK],
+    ["generated deck", GENERATED_DECK],
+  ])("paints the tiers the blob named on a %s, per card", (_k, cards) => {
+    const { container } = render(
+      <>
+        {wireDeck(cards).map((card, i) => (
+          <Card key={i} card={card} />
+        ))}
+      </>,
+    );
+    expect(rimTiersIn(container)).toEqual(EXPECTED);
+  });
+
+  it.each([
+    ["image deck", IMAGE_DECK],
+    ["generated deck", GENERATED_DECK],
+  ])("still renders byte-identical BACKS for a wire-mixed %s", (_k, cards) => {
+    const backs = wireDeck(cards).map((card) =>
+      cardTokenMarkup({
+        // Title pinned so the ONLY thing varying between backs is the tier the
+        // wire delivered.
+        card: { ...card, title: cards[0].title },
+        id: "wire-back",
+        faceDown: true,
+        w: 63,
+        h: 88,
+        owner: "Dean",
+        color: "#E7CC98",
+      }),
+    );
+    expect(new Set(backs).size).toBe(1);
+    expect(backs[0]).not.toContain("data-cosmetic-rim");
+  });
+
+  it("renders base art for a hostile or malformed blob rather than failing", () => {
+    for (const blob of ["c2;t4;deadbe4", "🙂".repeat(40), ";;;;", "c1;t9"]) {
+      const resolved = seatCosmetics([
+        { id: "p2", heroId: HERO, you: false, cosmetics: blob },
+      ]);
+      const { container } = render(
+        <>
+          {IMAGE_DECK.slice(0, 3).map((card, i) => (
+            <Card
+              key={i}
+              card={withRimTier(card, cardRimForSeats(resolved, HERO, card.title))}
+            />
+          ))}
+        </>,
+      );
+      expect(rimTiersIn(container)).toEqual([]);
+    }
+  });
+
+  it("hides an opponent's rims — and only theirs — with the setting on", () => {
+    const seats = [
+      { id: "p1", heroId: "king-taranis", you: true, cosmetics: blobFor(GENERATED_DECK) },
+      { id: "p2", heroId: HERO, you: false, cosmetics: blobFor(IMAGE_DECK) },
+    ];
+    const hidden = seatCosmetics(seats, { hideOthers: true });
+    expect(
+      GENERATED_DECK.map((c) => cardRimForSeats(hidden, "king-taranis", c.title)).filter(
+        Boolean,
+      ),
+    ).toHaveLength(EXPECTED.length);
+    expect(
+      IMAGE_DECK.map((c) => cardRimForSeats(hidden, HERO, c.title)).filter(Boolean),
+    ).toHaveLength(0);
   });
 });

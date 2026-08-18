@@ -23,7 +23,7 @@ import {
   norm,
   withRimTier,
 } from "./cardAppearance";
-import { cardRimFor } from "./cosmetics";
+import { SeatCosmetics, cardRimForSeats } from "./seatCosmetics";
 import { CardDefId, CardInstanceId, CardMeta } from "./protocol";
 
 /**
@@ -212,7 +212,13 @@ export function heroIdsForArt(view: {
 
 export function useProCardArt(
   heroIds: string[],
-  catalog: Record<CardDefId, CardMeta>
+  catalog: Record<CardDefId, CardMeta>,
+  /**
+   * Equipped cosmetics decoded from the seats' wire blobs (issue #615). Omitted
+   * — by the sandbox surfaces and by any caller with no seats yet — means the
+   * local debug registry decides, exactly as it did before the wire existed.
+   */
+  cosmetics?: SeatCosmetics | null
 ): {
   resolveCard: ResolveCard;
   resolveCardAppearance: ResolveCardAppearance;
@@ -255,14 +261,15 @@ export function useProCardArt(
     { enabled: ids.length > 0, staleTime: Infinity, retry: 1 }
   );
 
-  // Equipped cosmetics (epic #610) come from the shared debug registry, which
-  // is memoized per page load and inert: a card that resolves no treatment
-  // renders base art and NEVER waits on one.
+  // Equipped cosmetics (epic #610): the seats' wire loadouts first (#615), the
+  // local debug registry for any hero that published none. Both are already in
+  // memory and inert — a card that resolves no treatment renders base art and
+  // NEVER waits on one.
   const resolveCardAppearance: ResolveCardAppearance = (heroId, title) =>
     cardAppearance(
       withRimTier(
         data?.[heroId]?.cards[norm(title)],
-        cardRimFor(heroId, title)
+        cardRimForSeats(cosmetics, heroId, title)
       )
     );
 

@@ -39,7 +39,8 @@ import {
 } from "./protocol";
 import { useAccount } from "@/lib/account/useAccount";
 import { useBadges } from "@/lib/account/useBadges";
-import { identityFields } from "./playerIdentity";
+import { useCosmetics } from "@/lib/account/useCosmetics";
+import { cosmeticsField, identityFields } from "./playerIdentity";
 
 /** An incoming undo request pushed to the opponent (protocol v11). */
 export interface IncomingUndo {
@@ -259,6 +260,17 @@ export function useProSocket(
   const badges = useBadges();
   const badgeRef = useRef(badges.selected);
   badgeRef.current = badges.selected;
+  // The equipped cosmetic loadout (epic #610, issue #615), read through a ref
+  // for the same reason again. This is /collection's own hook (#614) — one
+  // module owns what `GET /me/cosmetics` answers — and only its `heroes` are
+  // read here; the spend/toggle half belongs to that page. Gated identically:
+  // it asks the API nothing until the account probe says signed-in, so a guest
+  // publishes no `cosmetics` field and their JOIN_ROOM stays byte-identical to
+  // a pre-#392 one. Whatever the hero turns out to be, the loadout for it is
+  // already in hand — the fetch runs on mount, the hero is picked afterwards.
+  const cosmetics = useCosmetics();
+  const cosmeticsRef = useRef(cosmetics.heroes);
+  cosmeticsRef.current = cosmetics.heroes;
   const retryRef = useRef({ attempts: 0, timer: 0 as unknown as ReturnType<typeof setTimeout> | 0 });
   const roomRef = useRef<string | null>(null);
   const youRef = useRef<PlayerView["you"] | null>(null);
@@ -677,6 +689,10 @@ export function useProSocket(
         // other seat, the account id goes to telemetry only. `{}` for a guest.
         // The worn badge (#577) rides alongside the name, under the same gate.
         ...identityFields(identityRef.current, badgeRef.current),
+        // The cosmetic loadout for THIS hero (#615) — an opaque ids-only blob
+        // the engine stores and echoes and never parses. Absent for a guest, a
+        // hero with nothing equipped, and an API that didn't answer.
+        ...cosmeticsField(identityRef.current, cosmeticsRef.current, heroId),
       };
       if (wsRef.current?.readyState === WebSocket.OPEN) send(msg);
       else pendingHelloRef.current = msg;
@@ -708,6 +724,9 @@ export function useProSocket(
             roomId: room,
             heroId,
             ...identityFields(identityRef.current, badgeRef.current),
+            // Same gate as CREATE_ROOM. RECONNECT deliberately carries none:
+            // the server kept the seat, and with it the blob it claimed on join.
+            ...cosmeticsField(identityRef.current, cosmeticsRef.current, heroId),
           };
       if (wsRef.current?.readyState === WebSocket.OPEN) send(msg);
       else pendingHelloRef.current = msg;

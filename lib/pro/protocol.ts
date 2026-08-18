@@ -597,6 +597,31 @@
  * (the component that renders the PINNED status) and the event log formatter. An older
  * client that ignores the new kind and the two events is unaffected — no existing
  * message shape changed, and no engine deck emits either today.
+ *
+ * ## Additive fields (2026-08-18, no version bump): opaque seat cosmetics
+ * Engine #392, wave 0 of the card-cosmetics epic (issue #610). The same
+ * client-claimed/UNVERIFIED pattern as `badge` above, with one deliberate
+ * difference: an over-cap value REJECTS the join instead of truncating.
+ * - `cosmetics?` (request, `CREATE_ROOM`/`JOIN_ROOM`) — an OPAQUE string, max
+ *   512 BYTES of UTF-8. Ids only — never a URL, never base64, never inline
+ *   image data: the field rides `ViewPlayer`, which is rebroadcast to every
+ *   seat on every action. Over the cap = `BAD_MESSAGE`, so the client caps
+ *   itself (`lib/pro/cosmeticsWire.ts`) rather than risk a rejected join.
+ * - `ViewPlayer.cosmetics?` — echoed VERBATIM per seat, public and never
+ *   redacted (the opponent seeing your upgrades is the point), absent when the
+ *   seat claimed none.
+ * - `ReplayPlayerSetup.cosmetics?` — frozen into replay bundles so an old
+ *   replay re-renders with the skins it was played with. RENDER-ONLY: the
+ *   engine strips the key back off before the setup reaches its reducer.
+ *
+ * ⛔ THE INVARIANT: a cosmetic changes what a card LOOKS like and nothing else.
+ * The engine reads an upgraded card byte-for-byte identically to a plain one.
+ * The server's ENTIRE relationship with this field is store it, echo it, cap
+ * it: never parsed, never logged, never sent to telemetry, never visible to a
+ * bot. The CLIENT side lives in `lib/pro/cosmeticsWire.ts` (encode/decode) and
+ * `lib/pro/seatCosmetics.ts` (resolve); no cosmetic id or art ever enters the
+ * engine repo. Purely additive, so no PROTOCOL_VERSION bump: with the field
+ * absent not one message grows a key.
  */
 export const PROTOCOL_VERSION = 29;
 
@@ -1143,6 +1168,13 @@ export interface ViewPlayer {
   // it to art and renders nothing for an unknown id. Public, cosmetic,
   // UNVERIFIED, and never sent to telemetry.
   badge?: string;
+  // #392: this seat's claimed cosmetics blob, echoed VERBATIM. Opaque — the
+  // server never parses it, only caps it at 512 bytes on join; the client
+  // resolves the ids inside it locally (lib/pro/seatCosmetics.ts) and renders
+  // base art for anything it does not recognize. Public (the opponent is meant
+  // to see your upgrades), cosmetic, UNVERIFIED, never sent to telemetry, and
+  // absent when the seat claimed none. See THE INVARIANT in the header note.
+  cosmetics?: string;
   // Format-defined team id (duel/ffa: each seat is its own team). Public info —
   // identical for every viewer, never redacted (issue #98).
   team?: TeamId;
@@ -1250,6 +1282,12 @@ export interface ReplayPlayerSetup {
   heroId: string;
   hero: Json; // engine HeroDef — opaque to the client
   cards: Json; // engine CardDef[] — opaque to the client
+  // #392: the seat's cosmetics blob at the time the match was played, frozen in
+  // so an old replay re-renders with the skins it was actually played with
+  // rather than today's. RENDER-ONLY: the server strips this key off before the
+  // setup reaches the engine, so it can never influence a replayed game. Absent
+  // on pre-#392 bundles and on seats that claimed nothing.
+  cosmetics?: string;
 }
 
 // A complete engine InitConfig plus the resolved board graph, so a bundle
@@ -1437,8 +1475,13 @@ export type ClientMsg =
   // `badge` (issue #347): optional, client-claimed, UNVERIFIED opaque badge id
   // — sanitized + broadcast beside the name, never sent to telemetry. See the
   // 2026-08-06 header note.
-  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; pilot?: string; displayName?: string; badge?: string; playerId?: string }
-  | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string; pilot?: string; displayName?: string; badge?: string; playerId?: string }
+  // `cosmetics` (engine #392): optional, client-claimed, UNVERIFIED OPAQUE blob
+  // of cosmetic ids, max 512 BYTES — over the cap REJECTS the message with
+  // BAD_MESSAGE (it is not truncated). Echoed verbatim into `ViewPlayer` and
+  // frozen into replay bundles; never parsed, never logged, never sent to
+  // telemetry, never visible to a bot. See the 2026-08-18 header note.
+  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; pilot?: string; displayName?: string; badge?: string; playerId?: string; cosmetics?: string }
+  | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string; pilot?: string; displayName?: string; badge?: string; playerId?: string; cosmetics?: string }
   | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }
   // v7: revive an in-memory room lost to a redeploy/crash. `token` is the opaque

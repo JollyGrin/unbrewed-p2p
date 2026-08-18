@@ -20,6 +20,7 @@ import {
   putTokenRim,
   rimProgress,
   rimTierName,
+  wireLoadoutFor,
 } from "./cosmetics";
 
 const reply = (status: number, body: unknown) =>
@@ -254,5 +255,80 @@ describe("presentation helpers", () => {
       available: 0,
       tokenRim: { unlockedTier: 0, enabled: false },
     });
+  });
+});
+
+/**
+ * `wireLoadoutFor` (#615) — the second consumer of this module. What is pinned
+ * here is what a player PUBLISHES to the other seat, so every case is about
+ * claiming neither more nor less than they actually own.
+ */
+describe("wireLoadoutFor — the equip wire's projection", () => {
+  const heroes = normalizeCosmetics(
+    okBody([
+      heroBody(),
+      heroBody({ heroId: "thrall", cards: [], tokenRim: { unlockedTier: 3, enabled: true } }),
+    ]),
+  ).heroes;
+
+  it("projects a hero's cards and enabled rim into the encoder's shape", () => {
+    expect(wireLoadoutFor(heroes, "thetis")).toEqual({
+      tokenRimTier: 2,
+      cards: [{ key: "undertow", tier: 2 }],
+    });
+  });
+
+  it("publishes a rim with no cards, and cards with no rim", () => {
+    expect(wireLoadoutFor(heroes, "thrall")).toEqual({ tokenRimTier: 3, cards: [] });
+    const rimless = normalizeCosmetics(
+      okBody([heroBody({ tokenRim: { unlockedTier: 4, enabled: false } })]),
+    ).heroes;
+    expect(wireLoadoutFor(rimless, "thetis")).toEqual({
+      tokenRimTier: 0,
+      cards: [{ key: "undertow", tier: 2 }],
+    });
+  });
+
+  it("does not publish a rim the player switched OFF", () => {
+    // `enabled` is the /collection opt-out. Honouring it here is what makes
+    // that switch mean something to the opponent.
+    const off = normalizeCosmetics(
+      okBody([heroBody({ cards: [], tokenRim: { unlockedTier: 4, enabled: false } })]),
+    ).heroes;
+    expect(wireLoadoutFor(off, "thetis")).toBeNull();
+  });
+
+  it("does not publish a rim telemetry could not confirm", () => {
+    // On the degraded 503 body `unlockedTier` is null — "we don't know" — and
+    // claiming a tier off that would show a rim nobody had earned. The card
+    // rows are the API's OWN storage, so they still publish.
+    const degraded = normalizeCosmetics(
+      okBody([heroBody({ tokenRim: { unlockedTier: null, enabled: true } })]),
+    ).heroes;
+    expect(wireLoadoutFor(degraded, "thetis")).toEqual({
+      tokenRimTier: 0,
+      cards: [{ key: "undertow", tier: 2 }],
+    });
+    const nothingElse = normalizeCosmetics(
+      okBody([heroBody({ cards: [], tokenRim: { unlockedTier: null, enabled: true } })]),
+    ).heroes;
+    expect(wireLoadoutFor(nothingElse, "thetis")).toBeNull();
+  });
+
+  it("falls a spice remix back to its base hero, like the debug registry does", () => {
+    expect(wireLoadoutFor(heroes, "thetis-spice")).toEqual(wireLoadoutFor(heroes, "thetis"));
+  });
+
+  it("answers null for an unknown hero, no hero, and no payload", () => {
+    expect(wireLoadoutFor(heroes, "king-kong")).toBeNull();
+    expect(wireLoadoutFor(heroes, "king-kong-spice")).toBeNull();
+    expect(wireLoadoutFor(heroes, null)).toBeNull();
+    expect(wireLoadoutFor(heroes, "")).toBeNull();
+    expect(wireLoadoutFor(null, "thetis")).toBeNull();
+    expect(wireLoadoutFor([], "thetis")).toBeNull();
+  });
+
+  it("matches a hero id whatever case or padding it arrives in", () => {
+    expect(wireLoadoutFor(heroes, "  THETIS ")).toEqual(wireLoadoutFor(heroes, "thetis"));
   });
 });

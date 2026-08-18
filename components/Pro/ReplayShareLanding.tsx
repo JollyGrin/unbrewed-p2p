@@ -23,6 +23,7 @@ import { assertBundle, downloadBundle, replayLabel } from "@/lib/pro/replayShare
 import { saveReplay } from "@/lib/pro/replayStore";
 import { parseSharePath } from "@/lib/share/sharedItem";
 import { ReplayScrubber } from "@/components/Pro/ReplayScrubber";
+import { replayCosmetics } from "@/lib/pro/seatCosmetics";
 
 const TABLE_BG = "radial-gradient(ellipse at 50% 20%, #5A3263 0%, #48284F 50%, #2C1831 100%)";
 const BTN = { size: "sm" as const, bg: "whiteAlpha.200", color: "brand.parchment", _hover: { bg: "whiteAlpha.400" } };
@@ -141,7 +142,13 @@ export const ReplayShareLanding = ({ id }: { id: string | null }) => {
   const { loaded } = phase;
 
   if (watching) {
-    return <ReplayScrubber expansion={loaded.expansion} onExit={() => setWatching(false)} />;
+    return (
+      <ReplayScrubber
+        expansion={loaded.expansion}
+        cosmetics={replayCosmetics(loaded.bundle)}
+        onExit={() => setWatching(false)}
+      />
+    );
   }
 
   return (

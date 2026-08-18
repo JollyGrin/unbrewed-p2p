@@ -21,6 +21,8 @@ import axios from "axios";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { cardAppearance, withRimTier } from "./cardAppearance";
 import { COSMETICS_DEBUG_KEY, __resetCosmeticsForTest } from "./cosmetics";
+import { encodeCosmetics } from "./cosmeticsWire";
+import { SeatCosmetics, seatCosmetics } from "./seatCosmetics";
 import { CardDefId, CardMeta } from "./protocol";
 import { norm, useProCardArt } from "./useProCardArt";
 
@@ -98,7 +100,10 @@ const catalogOf = (
     ]),
   );
 
-const renderArt = async (heroes: [string, string][]) => {
+const renderArt = async (
+  heroes: [string, string][],
+  cosmetics?: SeatCosmetics,
+) => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -111,6 +116,7 @@ const renderArt = async (heroes: [string, string][]) => {
       useProCardArt(
         heroes.map(([h]) => h),
         catalog,
+        cosmetics,
       ),
     {
       wrapper: ({ children }) => (
@@ -314,5 +320,99 @@ describe("withRimTier", () => {
     expect(withRimTier(card, "silver")).not.toBe(bronze);
     // Re-stamping an already-stamped card with its own tier is a no-op.
     expect(withRimTier(bronze, "bronze")).toBe(bronze);
+  });
+});
+
+// --- the wire (#615) --------------------------------------------------------
+
+describe("resolveCardAppearance — cosmetics delivered over the wire", () => {
+  beforeEach(() => {
+    mockedAxios.get.mockImplementation(async (url: string) => {
+      const deckId = url.replace("/evergreen-decks/", "").replace(".json", "");
+      return { data: readDeck(deckId) } as never;
+    });
+  });
+  afterEach(() => {
+    jest.resetAllMocks();
+    window.localStorage.clear();
+    __resetCosmeticsForTest();
+  });
+
+  /** The blob the OPPONENT's seat published — the same mixed ladder as above. */
+  const wireSeats = (
+    cards: DeckImportType["deck_data"]["cards"],
+    opts: { you?: boolean } = {},
+  ): SeatCosmetics =>
+    seatCosmetics([
+      {
+        id: "p1",
+        heroId: IMAGE_HERO,
+        you: opts.you ?? true,
+        cosmetics: encodeCosmetics({
+          cards: [
+            { key: cards[0].title, tier: 1 },
+            { key: cards[2].title, tier: 4 },
+            { key: cards[3].title, tier: 2 },
+          ],
+        }),
+      },
+    ]);
+
+  it("answers the wire's tier per card, and null for the rest", async () => {
+    const cards = readDeck("6rDz").deck_data.cards;
+    const result = await renderArt([[IMAGE_HERO, "6rDz"]], wireSeats(cards));
+    const tierOf = (title: string) =>
+      result.current.resolveCardAppearance(IMAGE_HERO, title).rimTier;
+    expect(tierOf(cards[0].title)).toBe("bronze");
+    expect(tierOf(cards[2].title)).toBe("iridescent");
+    expect(tierOf(cards[3].title)).toBe("silver");
+    expect(tierOf(cards[1].title)).toBeNull();
+  });
+
+  it("beats the local debug registry for a hero that published a loadout", async () => {
+    const cards = readDeck("6rDz").deck_data.cards;
+    equip({ [IMAGE_HERO]: { cards: { [norm(cards[1].title)]: "gold" } } });
+    const result = await renderArt([[IMAGE_HERO, "6rDz"]], wireSeats(cards));
+    // The registry's card is NOT topped up onto the wire loadout...
+    expect(
+      result.current.resolveCardAppearance(IMAGE_HERO, cards[1].title).rimTier,
+    ).toBeNull();
+    // ...and the wire's own cards are unaffected by it.
+    expect(
+      result.current.resolveCardAppearance(IMAGE_HERO, cards[0].title).rimTier,
+    ).toBe("bronze");
+  });
+
+  it("falls back to the debug registry for a hero with no wire loadout", async () => {
+    const cards = readDeck("6rDz").deck_data.cards;
+    equipMixed(cards);
+    const result = await renderArt([[IMAGE_HERO, "6rDz"]], seatCosmetics([]));
+    expect(
+      result.current.resolveCardAppearance(IMAGE_HERO, cards[0].title).rimTier,
+    ).toBe("bronze");
+  });
+
+  it("stamps a wire tier onto resolveCard without touching the game-facing card", async () => {
+    const cards = readDeck("6rDz").deck_data.cards;
+    const result = await renderArt([[IMAGE_HERO, "6rDz"]], wireSeats(cards));
+    const upgraded = result.current.resolveCard(`${IMAGE_HERO}/c0#1`);
+    expect(upgraded?.cosmeticRimTier).toBe("bronze");
+    const { cosmeticRimTier, ...gameFacing } = upgraded!;
+    expect(gameFacing).toEqual(cards[0]);
+    // Same object across instances — identity is what memoized renderers key on.
+    expect(upgraded).toBe(result.current.resolveCard(`${IMAGE_HERO}/c0#9`));
+  });
+
+  it("renders base art — never throws — for a hostile blob", async () => {
+    const cards = readDeck("6rDz").deck_data.cards;
+    const hostile = seatCosmetics([
+      { id: "p1", heroId: IMAGE_HERO, you: true, cosmetics: "c1;t99;💥,,,zzzzzzzz" },
+    ]);
+    const result = await renderArt([[IMAGE_HERO, "6rDz"]], hostile);
+    for (const card of cards) {
+      const seen = result.current.resolveCardAppearance(IMAGE_HERO, card.title);
+      expect(seen.rimTier).toBeNull();
+      expect(seen.cardImage).toEqual(card.cardImage ?? null);
+    }
   });
 });
