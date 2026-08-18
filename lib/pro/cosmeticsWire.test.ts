@@ -1,0 +1,290 @@
+/**
+ * The equip wire (#615) — encoding v1 is a FIXED contract between two clients
+ * that may be different builds, so what is pinned here is the grammar itself,
+ * not just "encode then decode agrees with itself".
+ *
+ * Three properties matter more than the rest, and each has its own block below:
+ *
+ *  1. A round trip preserves every MIXED tier (a uniform fixture passes while
+ *     the tier digit is being ignored).
+ *  2. Nothing throws, ever, for any input — this parses a field a hostile peer
+ *     controls completely, and its failure mode must be base art.
+ *  3. A fully-upgraded loadout fits under the engine's 512-BYTE cap, because
+ *     over it the engine rejects the JOIN with BAD_MESSAGE rather than
+ *     truncating — an over-long blob would cost somebody their seat.
+ */
+import { COSMETIC_RIM_TIERS, CosmeticRimTier } from "./cosmetics";
+import {
+  COSMETICS_MAX_BYTES,
+  COSMETICS_WIRE_VERSION,
+  cosmeticTitleHash,
+  decodeCosmetics,
+  digitFromTier,
+  encodeCosmetics,
+  fnv1a32,
+  tierFromDigit,
+  wireCardRim,
+} from "./cosmeticsWire";
+
+const utf8 = (s: string) => Buffer.byteLength(s, "utf8");
+
+/** Some upgraded, at different tiers; the rest deliberately at base art. */
+const MIXED: { key: string; tier: number }[] = [
+  { key: "Brute Strength", tier: 1 },
+  { key: "Feint", tier: 4 },
+  { key: "Hundred Crack Fist", tier: 2 },
+  { key: "North Star", tier: 3 },
+];
+
+describe("fnv1a32 + cosmeticTitleHash", () => {
+  it("is a stable 32-bit unsigned hash", () => {
+    expect(fnv1a32("")).toBe(0x811c9dc5);
+    for (const s of ["feint", "brute strength", "★ 百裂拳", "a".repeat(200)]) {
+      const h = fnv1a32(s);
+      expect(Number.isInteger(h)).toBe(true);
+      expect(h).toBeGreaterThanOrEqual(0);
+      expect(h).toBeLessThanOrEqual(0xffffffff);
+    }
+  });
+
+  it("hashes the NORMALIZED title, so it matches the art index's key", () => {
+    // `norm` is trim + lowercase; the wire must agree with the snapshot lookup
+    // or a rim silently misses its card.
+    expect(cosmeticTitleHash("  Feint ")).toBe(cosmeticTitleHash("feint"));
+    expect(cosmeticTitleHash("BRUTE Strength")).toBe(
+      cosmeticTitleHash("brute strength"),
+    );
+  });
+
+  it("is at most 6 base36 characters and distinguishes real deck titles", () => {
+    const titles = [
+      "Feint",
+      "Brute Strength",
+      "Hundred Crack Fist",
+      "North Star",
+      "Battle Aura",
+      "Iron Teeth",
+      "Hokuto: Bone Demolisher",
+    ];
+    const hashes = titles.map(cosmeticTitleHash);
+    for (const h of hashes) {
+      expect(h).toMatch(/^[0-9a-z]{1,6}$/);
+    }
+    expect(new Set(hashes).size).toBe(titles.length);
+  });
+});
+
+describe("tier digits", () => {
+  it("round-trips every ladder tier", () => {
+    for (const tier of COSMETIC_RIM_TIERS) {
+      expect(tierFromDigit(digitFromTier(tier))).toBe(tier);
+    }
+  });
+
+  it("answers null off the ladder — 0 is base art, not a tier", () => {
+    for (const d of [0, -1, 5, 99, 1.5, NaN, Infinity]) {
+      expect(tierFromDigit(d)).toBeNull();
+    }
+  });
+});
+
+describe("encode/decode round trip", () => {
+  it("preserves a MIXED-tier loadout with a token rim", () => {
+    const blob = encodeCosmetics({ tokenRimTier: 3, cards: MIXED })!;
+    expect(blob.startsWith(`${COSMETICS_WIRE_VERSION};t3;`)).toBe(true);
+
+    const decoded = decodeCosmetics(blob);
+    expect(decoded.tokenRim).toBe("gold");
+    for (const { key, tier } of MIXED) {
+      expect(wireCardRim(decoded, key)).toBe(COSMETIC_RIM_TIERS[tier - 1]);
+    }
+    // A card nobody upgraded stays at base art.
+    expect(wireCardRim(decoded, "Battle Aura")).toBeNull();
+  });
+
+  it("resolves by NORMALIZED title, both directions", () => {
+    const decoded = decodeCosmetics(
+      encodeCosmetics({ cards: [{ key: "feint", tier: 2 }] }),
+    );
+    expect(wireCardRim(decoded, "  FEINT  ")).toBe("silver");
+  });
+
+  it("carries the token rim with no cards, and cards with no token rim", () => {
+    const tokenOnly = encodeCosmetics({ tokenRimTier: 2 })!;
+    expect(decodeCosmetics(tokenOnly)).toEqual({
+      tokenRim: "silver",
+      cardsByHash: {},
+    });
+
+    const cardsOnly = encodeCosmetics({ cards: [{ key: "Feint", tier: 1 }] })!;
+    expect(cardsOnly).toBe(`${COSMETICS_WIRE_VERSION};${cosmeticTitleHash("Feint")}1`);
+    const decoded = decodeCosmetics(cardsOnly);
+    expect(decoded.tokenRim).toBeNull();
+    expect(wireCardRim(decoded, "Feint")).toBe("bronze");
+  });
+
+  it("says NOTHING (an absent field) when there is nothing equipped", () => {
+    // This is what keeps a guest's JOIN_ROOM byte-identical to a pre-#392 one.
+    expect(encodeCosmetics(null)).toBeUndefined();
+    expect(encodeCosmetics(undefined)).toBeUndefined();
+    expect(encodeCosmetics({})).toBeUndefined();
+    expect(encodeCosmetics({ tokenRimTier: 0, cards: [] })).toBeUndefined();
+    // Tier 0 is base art, not a cosmetic — it is never worth a byte.
+    expect(encodeCosmetics({ cards: [{ key: "Feint", tier: 0 }] })).toBeUndefined();
+  });
+
+  it("drops off-ladder tiers per ENTRY, never the loadout", () => {
+    const blob = encodeCosmetics({
+      tokenRimTier: 99,
+      cards: [
+        { key: "Feint", tier: 9 },
+        { key: "North Star", tier: 2 },
+        { key: "", tier: 3 },
+      ],
+    })!;
+    const decoded = decodeCosmetics(blob);
+    expect(decoded.tokenRim).toBeNull();
+    expect(wireCardRim(decoded, "Feint")).toBeNull();
+    expect(wireCardRim(decoded, "North Star")).toBe("silver");
+  });
+
+  it("says a duplicated key once", () => {
+    const blob = encodeCosmetics({
+      cards: [
+        { key: "Feint", tier: 2 },
+        { key: "feint", tier: 2 },
+      ],
+    })!;
+    expect(blob.split(",")).toHaveLength(1);
+  });
+});
+
+describe("the parser never throws and never guesses", () => {
+  it("ignores an unknown version prefix ENTIRELY", () => {
+    // A v2 encoding is a different grammar, not a damaged one: guessing at half
+    // of it would paint the wrong rims rather than none.
+    const v2 = `c2;t3;${cosmeticTitleHash("Feint")}4`;
+    expect(decodeCosmetics(v2)).toEqual({ tokenRim: null, cardsByHash: {} });
+    expect(decodeCosmetics("")).toEqual({ tokenRim: null, cardsByHash: {} });
+    expect(decodeCosmetics("nonsense")).toEqual({ tokenRim: null, cardsByHash: {} });
+  });
+
+  it("drops a malformed entry INDIVIDUALLY and keeps the good ones", () => {
+    const good = `${cosmeticTitleHash("Feint")}2`;
+    const blob = `${COSMETICS_WIRE_VERSION};t1;${good},,zzzzzzzzzz9,!!!,${good.slice(0, 3)}`;
+    const decoded = decodeCosmetics(blob);
+    expect(decoded.tokenRim).toBe("bronze");
+    expect(wireCardRim(decoded, "Feint")).toBe("silver");
+    expect(Object.keys(decoded.cardsByHash)).toHaveLength(1);
+  });
+
+  it("tolerates an empty field between the version and the entries", () => {
+    const good = `${cosmeticTitleHash("Feint")}3`;
+    expect(
+      wireCardRim(decodeCosmetics(`${COSMETICS_WIRE_VERSION};;${good}`), "Feint"),
+    ).toBe("gold");
+  });
+
+  it("refuses an over-cap blob whole rather than parsing an unbounded string", () => {
+    const huge = `${COSMETICS_WIRE_VERSION};${"a1b2c31,".repeat(500)}`;
+    expect(huge.length).toBeGreaterThan(COSMETICS_MAX_BYTES);
+    expect(decodeCosmetics(huge)).toEqual({ tokenRim: null, cardsByHash: {} });
+  });
+
+  it("survives a fuzz sweep of hostile inputs and always answers a shape", () => {
+    // Deterministic PRNG: a flaky fuzz test is a test nobody trusts.
+    let seed = 0x2f6e2b1;
+    const rand = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+    // Hostile alphabet, written as escapes so this source file stays plain text:
+    // a literal NUL in a .ts makes git treat the whole file as binary.
+    const alphabet = 'c12;,tzZ!\\{}[]"\'\u0000\u00a0\u{1f600} -.%$';
+
+    for (let i = 0; i < 2000; i++) {
+      const len = Math.floor(rand() * 60);
+      let s = rand() < 0.5 ? `${COSMETICS_WIRE_VERSION};` : "";
+      for (let j = 0; j < len; j++) {
+        s += alphabet[Math.floor(rand() * alphabet.length)];
+      }
+      const decoded = decodeCosmetics(s);
+      expect(decoded.tokenRim === null || COSMETIC_RIM_TIERS.includes(decoded.tokenRim)).toBe(true);
+      for (const tier of Object.values(decoded.cardsByHash)) {
+        expect(COSMETIC_RIM_TIERS).toContain(tier);
+      }
+      // And the render-side lookup is total for whatever came out.
+      expect(() => wireCardRim(decoded, "Feint")).not.toThrow();
+    }
+  });
+
+  it("never throws on non-strings", () => {
+    for (const junk of [null, undefined, 0, {}, [], true] as unknown[]) {
+      expect(() => decodeCosmetics(junk as string)).not.toThrow();
+      expect(decodeCosmetics(junk as string).cardsByHash).toEqual({});
+    }
+  });
+});
+
+describe("the 512-byte cap (the engine REJECTS above it)", () => {
+  /** A full 60-card loadout, every card at the ladder's top tier. */
+  const FULLY_UPGRADED = Array.from({ length: 60 }, (_, i) => ({
+    key: `Some Reasonably Long Card Title ${i}`,
+    tier: COSMETIC_RIM_TIERS.length,
+  }));
+
+  it("fits a fully-upgraded 60-entry loadout plus a token rim", () => {
+    const blob = encodeCosmetics({ tokenRimTier: 4, cards: FULLY_UPGRADED })!;
+    expect(utf8(blob)).toBeLessThanOrEqual(COSMETICS_MAX_BYTES);
+    const decoded = decodeCosmetics(blob);
+    expect(decoded.tokenRim).toBe("iridescent");
+    // Nothing was silently dropped at this size.
+    expect(Object.keys(decoded.cardsByHash).length).toBe(60);
+  });
+
+  it("truncates the LOWEST tiers first when a loadout would overflow", () => {
+    // 200 cards is far past anything a real deck can hold; it exists to prove
+    // the guardrail picks what to lose rather than blowing the cap.
+    const oversized = [
+      { key: "Keep Me — top tier", tier: 4 },
+      ...Array.from({ length: 200 }, (_, i) => ({ key: `filler ${i}`, tier: 1 })),
+    ];
+    const blob = encodeCosmetics({ tokenRimTier: 1, cards: oversized })!;
+    expect(utf8(blob)).toBeLessThanOrEqual(COSMETICS_MAX_BYTES);
+
+    const decoded = decodeCosmetics(blob);
+    // The token rim and the top-tier card survive; the cheap rims are the ones
+    // that went.
+    expect(decoded.tokenRim).toBe("bronze");
+    expect(wireCardRim(decoded, "Keep Me — top tier")).toBe("iridescent");
+    expect(Object.keys(decoded.cardsByHash).length).toBeLessThan(oversized.length);
+  });
+
+  it("emits only ASCII, so byte length and character length agree", () => {
+    const blob = encodeCosmetics({
+      tokenRimTier: 2,
+      // Non-ASCII TITLES are fine — they are hashed, never sent.
+      cards: [{ key: "百裂拳 ★ Hokuto", tier: 3 }, ...MIXED],
+    })!;
+    expect(blob).toMatch(/^[0-9a-z;,]+$/);
+    expect(utf8(blob)).toBe(blob.length);
+  });
+});
+
+describe("wireCardRim", () => {
+  it("is total — no blob, no entry, no hero all answer null", () => {
+    expect(wireCardRim(null, "Feint")).toBeNull();
+    expect(wireCardRim(undefined, "Feint")).toBeNull();
+    expect(wireCardRim({ tokenRim: null, cardsByHash: {} }, "Feint")).toBeNull();
+  });
+
+  it("puts the tier the blob named on the card the blob named", () => {
+    const decoded = decodeCosmetics(encodeCosmetics({ cards: MIXED }));
+    const expected: Record<string, CosmeticRimTier> = {
+      "Brute Strength": "bronze",
+      Feint: "iridescent",
+      "Hundred Crack Fist": "silver",
+      "North Star": "gold",
+    };
+    for (const [title, tier] of Object.entries(expected)) {
+      expect(wireCardRim(decoded, title)).toBe(tier);
+    }
+  });
+});

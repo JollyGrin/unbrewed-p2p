@@ -23,7 +23,10 @@
  * with a stray control character doesn't render one way locally and another
  * way after the round trip.
  */
+import type { HeroCosmetics } from "@/lib/account/cosmetics";
+import { wireLoadoutFor } from "@/lib/account/cosmetics";
 import type { AccountState } from "@/lib/account/useAccount";
+import { encodeCosmetics } from "./cosmeticsWire";
 
 /** Engine limits (server/identity.ts) — mirrored so we bound names the same way. */
 export const MAX_DISPLAY_NAME = 32;
@@ -99,6 +102,42 @@ export const identityFields = (
     ...(badge ? { badge } : {}),
     ...(playerId ? { playerId } : {}),
   };
+};
+
+/**
+ * The `cosmetics` field for a CREATE_ROOM/JOIN_ROOM message (epic #610, issue
+ * #615) — this player's equipped loadout for the hero they are about to play,
+ * encoded into the opaque blob the engine stores and echoes.
+ *
+ * ⛔ THE INVARIANT — a cosmetic changes what a card LOOKS like and nothing
+ * else. The blob is IDS ONLY: never a URL, never inline data, never anything
+ * the engine parses. See `cosmeticsWire.ts` for the encoding and its cap.
+ *
+ * `{}` — no key at all — whenever there is nothing to publish: a guest, an
+ * accounts API that didn't answer, a hero with nothing equipped. That is the
+ * same old-client-safety story as `identityFields` above: absent fields mean a
+ * message byte-identical to a pre-#392 one, so guest play is untouched by
+ * construction.
+ *
+ * The signed-in check is deliberately duplicated here rather than left to the
+ * store (which does clear on sign-out): a loadout still sitting in memory after
+ * someone signs out is the one way a guest's frame could quietly stop being
+ * byte-identical, and it is the same belt-and-braces gate `identityFields`
+ * applies to the badge.
+ *
+ * Sanitization is not the story here that it is for a display name. The engine
+ * echoes this value VERBATIM and caps it at 512 bytes, rejecting the message
+ * above that, so the encoder's job is to stay under the cap — which it does by
+ * dropping its own lowest-tier entries — and there is nothing to trim.
+ */
+export const cosmeticsField = (
+  state: AccountState,
+  heroes: readonly HeroCosmetics[] | null | undefined,
+  heroId: string,
+): { cosmetics?: string } => {
+  if (state.status !== "signed-in" || !state.account) return {};
+  const blob = encodeCosmetics(wireLoadoutFor(heroes, heroId));
+  return blob ? { cosmetics: blob } : {};
 };
 
 /**

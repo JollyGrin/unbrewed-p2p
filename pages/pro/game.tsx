@@ -129,7 +129,9 @@ import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
 import { formatChoice, PRO_FORMATS, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
 import { deriveTeams } from "@/lib/pro/teams";
 import { fighterTokenStateByOwner } from "@/lib/pro/heroStateFlags";
-import { CosmeticRimTier, cosmeticEquipFor } from "@/lib/pro/cosmetics";
+import { CosmeticRimTier } from "@/lib/pro/cosmetics";
+import { seatCosmetics, tokenRimForSeat } from "@/lib/pro/seatCosmetics";
+import { useHideOpponentCosmetics } from "@/lib/pro/useHideOpponentCosmetics";
 import {
   CUSTOM_MAP_ID,
   MAP_CATALOG,
@@ -3014,9 +3016,20 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   }, [customMapJson]);
   // Art fetch (unbrewed-api, matched by title against the server catalog) —
   // must run unconditionally; no-ops until the first STATE arrives.
+  // Equipped cosmetics, decoded once per snapshot from each seat's opaque
+  // `cosmetics` blob (issue #615). PURELY DECORATIVE and total: an unparseable
+  // blob, an unknown hash and a seat that published nothing all resolve to base
+  // art. `hideCosmetics` is the player's own "hide opponent cosmetics" setting;
+  // it drops OTHER seats' loadouts and never their own.
+  const [hideCosmetics, toggleHideCosmetics] = useHideOpponentCosmetics();
+  const cosmetics = useMemo(
+    () => seatCosmetics(snapshot?.view.players, { hideOthers: hideCosmetics }),
+    [snapshot, hideCosmetics]
+  );
   const { resolveCard, resolveHero, resolveRuleCards, resolveFighterToken } = useProCardArt(
     snapshot ? heroIdsForArt(snapshot.view) : [],
-    snapshot?.view.catalog ?? {}
+    snapshot?.view.catalog ?? {},
+    cosmetics
   );
 
   // owner seat -> heroId, so the board can resolve a fighter's token art by hero
@@ -3859,16 +3872,17 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
     const heroId = ownerHeroIds[f.owner];
     return heroId ? resolveFighterToken(heroId, f.kind) : null;
   };
-  // Cosmetic rim tier for a hero's board token (issue #613). PURELY DECORATIVE:
-  // resolved locally, never sent, never received — an opponent sees the plain
-  // token. It rides BESIDE `fighterTokenArt` above rather than inside it, so a
-  // hero-state portrait swap keeps deciding the picture and this only ever adds
-  // chrome around it. Sidekicks are deferred (design doc §10b), so the whole
-  // chain starts at the HERO check. Today's only equip source is the local
-  // `pro:cosmetics:debug` registry, so this is null for everyone by default.
+  // Cosmetic rim tier for a hero's board token (issue #613/#615). PURELY
+  // DECORATIVE: it rides BESIDE `fighterTokenArt` above rather than inside it,
+  // so a hero-state portrait swap keeps deciding the picture and this only ever
+  // adds chrome around it. Sidekicks are deferred (design doc §10b), so the
+  // whole chain starts at the HERO check. Seat-keyed rather than hero-keyed —
+  // `ViewFighter` carries an owner, so a mirror match paints each seat's own
+  // rim — with the local `pro:cosmetics:debug` registry behind it for any seat
+  // that published no blob.
   const fighterTokenRim = (f: ViewFighter): CosmeticRimTier | null => {
     if (f.kind !== "HERO") return null;
-    return cosmeticEquipFor(ownerHeroIds[f.owner]).tokenRim ?? null;
+    return tokenRimForSeat(cosmetics, f.owner, ownerHeroIds[f.owner]);
   };
   // A board OBJECT that came from a fighter (protocol v26 `ViewToken.origin` —
   // Gerry's corpses) resolves through the SAME art path as a living token, so a
@@ -4461,6 +4475,13 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
         visualFxOn={visualOn}
         onToggleSound={toggleSound}
         onToggleVisualFx={toggleVisual}
+        opponentCosmeticsHidden={hideCosmetics}
+        onToggleOpponentCosmetics={
+          // Only offered once an opponent has actually published something —
+          // otherwise it is a chip that visibly does nothing in every guest
+          // game, which is most of them.
+          cosmetics.hasOpponentCosmetics ? toggleHideCosmetics : undefined
+        }
         onReportBug={() => setReportBugOpen(true)}
       />
 

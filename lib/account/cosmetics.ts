@@ -20,10 +20,17 @@
  *    disabled buttons, the other is an ordinary new account — so the nullable
  *    fields stay nullable all the way to the render.
  *
+ * Since #615 this module has a SECOND consumer: the equip wire, which needs the
+ * loadout for the one hero a player is about to take into a game rather than
+ * the whole ledger a store page renders. That is `wireLoadoutFor` at the bottom
+ * — a pure projection of the same `HeroCosmetics` rows, so there is one place
+ * that knows what the API answers and one shape it answers in.
+ *
  * ⛔ THE INVARIANT — a cosmetic changes what something LOOKS like and nothing
  * else. Nothing in this module reaches the engine, a log line, a legal action,
  * a bot, or a replay outcome. It buys pixels.
  */
+import type { CosmeticLoadout } from "@/lib/pro/cosmeticsWire";
 import { COSMETIC_RIM_TIERS, CosmeticRimTier } from "@/lib/pro/cosmetics";
 import { API_URL } from "./apiUrl";
 
@@ -421,4 +428,49 @@ export const rimProgress = (
     toGo: Math.max(0, nextThreshold - earned),
     percent: Math.max(0, Math.min(100, Math.round(((earned - floor) / span) * 100))),
   };
+};
+
+// --- the equip wire (#615) ---------------------------------------------------
+
+/**
+ * One hero's loadout, projected into what the JOIN_ROOM encoder wants
+ * (`lib/pro/cosmeticsWire.ts`).
+ *
+ * Two decisions live here rather than in the encoder, because both are facts
+ * about what the API means rather than about the wire format:
+ *
+ * 1. **A rim the player switched OFF is not published.** `tokenRim.enabled` is
+ *    exactly that opt-out, and honouring it client-side is what makes the
+ *    /collection toggle mean something to the other seat.
+ * 2. **`unlockedTier: null` publishes nothing.** During a telemetry outage the
+ *    API says "we don't know" rather than a number (see (2) in the header), and
+ *    claiming a rim we could not confirm is the one way this could show someone
+ *    a tier they had not earned. Card rows are the API's own storage and
+ *    survive the outage, so they still publish.
+ *
+ * A `<hero>-spice` remix falls back to its base hero's row, matching the rest
+ * of the client's spice convention (a remix shares its base hero's display name
+ * and art) and the debug registry's own fallback — so a player who upgraded
+ * Thetis wears those rims on Thetis-spice too. Deliberately NOT folded into the
+ * hook's `heroFor`, which is the /collection page's own lookup and must keep
+ * treating a remix as its own row.
+ *
+ * Answers null when there is nothing to publish, which is what keeps a
+ * JOIN_ROOM byte-identical to a pre-#392 one.
+ */
+export const wireLoadoutFor = (
+  heroes: readonly HeroCosmetics[] | null | undefined,
+  heroId: string | null | undefined,
+): CosmeticLoadout | null => {
+  if (!heroes || !heroId) return null;
+  const id = heroId.trim().toLowerCase();
+  const hero =
+    heroes.find((row) => row.heroId.trim().toLowerCase() === id) ??
+    (id.endsWith("-spice")
+      ? heroes.find((row) => row.heroId.trim().toLowerCase() === id.slice(0, -6))
+      : undefined);
+  if (!hero) return null;
+  const tokenRimTier = hero.tokenRim.enabled ? (hero.tokenRim.unlockedTier ?? 0) : 0;
+  if (tokenRimTier <= 0 && hero.cards.length === 0) return null;
+  return { tokenRimTier, cards: hero.cards };
 };
