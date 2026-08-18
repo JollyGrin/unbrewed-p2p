@@ -29,6 +29,7 @@
  * seat gold `#E0A82E` — so a p1 hero's rim can never be mistaken for the seat
  * disc or the pulsing gold target ring.
  */
+import { norm } from "./cardAppearance";
 
 /** The ladder, in ascending order. Index = rank; the array IS the ordering. */
 export const COSMETIC_RIM_TIERS = ["bronze", "silver", "gold", "iridescent"] as const;
@@ -69,6 +70,45 @@ export const COSMETIC_RIM_PAINTS: Record<CosmeticRimTier, CosmeticRimPaint> = {
 export const isCosmeticRimTier = (v: unknown): v is CosmeticRimTier =>
   typeof v === "string" && (COSMETIC_RIM_TIERS as readonly string[]).includes(v);
 
+/** One stop of a rim paint: its colour and its position around the sweep. */
+export interface CosmeticRimStop {
+  color: string;
+  /** 0..1 — the stop's `Ndeg` angle divided by 360. */
+  offset: number;
+}
+
+/**
+ * The same four paints, as ordered stop lists, for consumers that CANNOT use a
+ * CSS conic gradient. SVG 1.1 has no conic gradient, and the card rim (#612)
+ * must render inside the card's `<svg>` on both of its render paths — including
+ * the board-token face, which is string-rendered SVG where `foreignObject` is
+ * ruled out (design doc §6). So the card paints these stops into a
+ * `linearGradient`: the sweep geometry differs from the token's ring, the
+ * COLOURS and their order do not, which is what makes the two surfaces read as
+ * one reward ladder rather than two unrelated effects.
+ *
+ * Derived from `COSMETIC_RIM_PAINTS`, never duplicated — re-tune a ring above
+ * and the card rims follow it.
+ */
+export const COSMETIC_RIM_STOPS: Record<
+  CosmeticRimTier,
+  readonly CosmeticRimStop[]
+> = Object.fromEntries(
+  COSMETIC_RIM_TIERS.map((tier) => {
+    const stops = [
+      ...COSMETIC_RIM_PAINTS[tier].ring.matchAll(
+        /(#[0-9a-f]{6})\s+(-?[\d.]+)deg/gi,
+      ),
+    ].map(([, color, deg]) => ({
+      color,
+      // Clamped: a stop outside 0..1 is undefined behaviour for an SVG
+      // gradient, and a paint could legally start at a negative angle.
+      offset: Math.min(1, Math.max(0, Number(deg) / 360)),
+    }));
+    return [tier, stops] as const;
+  }),
+) as unknown as Record<CosmeticRimTier, readonly CosmeticRimStop[]>;
+
 /**
  * What one hero has equipped. Slots are OPTIONAL and independent — the token
  * rim (#613) and the card rim (#612) each read only their own key, so the two
@@ -77,8 +117,18 @@ export const isCosmeticRimTier = (v: unknown): v is CosmeticRimTier =>
 export interface CosmeticEquip {
   /** Rim on the hero's fighter token on the /pro board (#613). */
   tokenRim?: CosmeticRimTier;
-  /** Rim on the hero's cards (#612). */
-  cardRim?: CosmeticRimTier;
+  /**
+   * Rims on INDIVIDUAL cards of this hero's deck (#612), keyed by
+   * `norm(title)`. A SET, not one rim for the whole hero: card cosmetics are
+   * earned per card, and a mixed deck — some cards upgraded, at different
+   * tiers — is the feature (design doc §4d).
+   *
+   * Keyed by normalized TITLE rather than by instance, so upgrading "Feint"
+   * upgrades every copy of Feint. That is intended: a cosmetic belongs to a
+   * card, and two identical cards in hand must never look like two different
+   * game objects.
+   */
+  cards?: Record<string, CosmeticRimTier>;
 }
 
 /**
@@ -86,10 +136,12 @@ export interface CosmeticEquip {
  * account/unlock plumbing lands (design doc §3/§4b: the real source is an
  * opaque per-seat blob the engine stores and echoes, never interprets).
  *
- * Shape: `{ [heroId]: { tokenRim?: tier, cardRim?: tier } }`, e.g.
+ * Shape: `{ [heroId]: { tokenRim?: tier, cards?: { [normTitle]: tier } } }`, e.g.
  *
- *     localStorage.setItem("pro:cosmetics:debug",
- *       JSON.stringify({ "thetis": { tokenRim: "gold" } }))
+ *     localStorage.setItem("pro:cosmetics:debug", JSON.stringify({
+ *       thetis: { tokenRim: "gold" },
+ *       kenshiro: { cards: { "hokuto: bone demolisher": "iridescent" } },
+ *     }))
  *
  * It is DEBUG-ONLY and local: it never crosses the wire, so an opponent sees
  * nothing. Malformed JSON, unknown heroes and unknown tier names all resolve to
@@ -105,6 +157,25 @@ type EquipRegistry = Record<string, CosmeticEquip>;
 // is what lets a test change it mid-suite.
 let cache: EquipRegistry | null = null;
 
+/**
+ * The per-card slot. Bad entries are dropped ONE AT A TIME — a single typo'd
+ * tier must not cost a player the rest of their rims — and an all-bad map
+ * answers null so the slot is simply absent rather than an empty object.
+ */
+const parseCardRims = (
+  raw: unknown,
+): Record<string, CosmeticRimTier> | null => {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const cards: Record<string, CosmeticRimTier> = {};
+  for (const [title, tier] of Object.entries(raw as Record<string, unknown>)) {
+    // `norm` is the art index's own title key (cardAppearance.ts): the frozen
+    // snapshot lookup and this registry MUST normalize identically, or a rim
+    // silently misses its card.
+    if (isCosmeticRimTier(tier)) cards[norm(title)] = tier;
+  }
+  return Object.keys(cards).length ? cards : null;
+};
+
 const parseRegistry = (raw: string | null): EquipRegistry => {
   if (!raw) return {};
   try {
@@ -113,11 +184,12 @@ const parseRegistry = (raw: string | null): EquipRegistry => {
     const out: EquipRegistry = {};
     for (const [heroId, slots] of Object.entries(parsed as Record<string, unknown>)) {
       if (!slots || typeof slots !== "object") continue;
-      const { tokenRim, cardRim } = slots as Record<string, unknown>;
+      const { tokenRim, cards } = slots as Record<string, unknown>;
       const equip: CosmeticEquip = {};
       if (isCosmeticRimTier(tokenRim)) equip.tokenRim = tokenRim;
-      if (isCosmeticRimTier(cardRim)) equip.cardRim = cardRim;
-      if (equip.tokenRim || equip.cardRim) out[heroId.trim().toLowerCase()] = equip;
+      const cardRims = parseCardRims(cards);
+      if (cardRims) equip.cards = cardRims;
+      if (equip.tokenRim || equip.cards) out[heroId.trim().toLowerCase()] = equip;
     }
     return out;
   } catch {
@@ -149,3 +221,19 @@ export const cosmeticEquipFor = (heroId?: string | null): CosmeticEquip => {
   const id = heroId.trim().toLowerCase();
   return registry[id] ?? (id.endsWith("-spice") ? (registry[id.slice(0, -6)] ?? {}) : {});
 };
+
+/**
+ * The rim equipped on ONE card of a hero's deck (#612), or null for base art.
+ * Per card, never per deck — a hero with three upgraded cards answers a tier
+ * for those three and null for the other twenty-odd.
+ *
+ * Total by construction: an unknown hero, an unknown title, an unset registry
+ * and a malformed blob are all simply "no cosmetic", never an error, because a
+ * treatment that fails to resolve must degrade to base art with zero gameplay
+ * consequence.
+ */
+export const cardRimFor = (
+  heroId: string | null | undefined,
+  title: string,
+): CosmeticRimTier | null =>
+  cosmeticEquipFor(heroId).cards?.[norm(title)] ?? null;

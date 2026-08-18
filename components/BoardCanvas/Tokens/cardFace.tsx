@@ -36,9 +36,14 @@ export function cardTokenMarkup(t: {
   owner?: string;
   color?: string;
 }): string {
+  // The cosmetic tier is PART OF THE KEY, not an afterthought: markup is
+  // memoized per token id and a card's rim can change under the same id (the
+  // player equips one, or the registry finishes loading). Leaving it out goes
+  // stale on only SOME cards — the ones actually upgraded — which reads as a
+  // flaky renderer rather than a bug (design doc §6 gotchas).
   const key = `${t.id}|${t.faceDown ? 1 : 0}|${t.w}|${t.owner ?? ""}|${
     t.color ?? ""
-  }`;
+  }|${cardAppearance(t.card).rimTier ?? 0}`;
   const hit = cache.get(key);
   if (hit) return hit;
 
@@ -111,16 +116,15 @@ const ownerPlate = ({
 };
 
 /**
- * Board-token face. The face image is asked of the cosmetics seam
- * (`cardAppearance`, design doc §7 Phase 0) rather than read off the card, so
- * both branches — image face and generated all-SVG template — resolve through
- * the same indirection point the DOM renderer uses. Phase 0 answers exactly
- * what `t.card.cardImage` answered.
+ * Board-token face. The face image AND the cosmetic treatment are asked of the
+ * cosmetics seam (`cardAppearance`, design doc §7) rather than read off the
+ * card, so both branches — image face and generated all-SVG template — resolve
+ * through the same indirection point the DOM renderer uses. The generated
+ * branch picks the rim up inside `CardSvg`, which asks the same seam.
  *
- * ⚠️ When the seam starts answering with more than the base art, whatever it
- * adds MUST join `cardTokenMarkup`'s cache key above: the markup is memoized
- * per token id, so a per-card treatment missing from the key goes stale on
- * SOME cards only, which reads as a flaky renderer rather than a bug.
+ * ⚠️ Anything the seam answers with beyond the base art MUST join
+ * `cardTokenMarkup`'s cache key above — see the note there. The cosmetic rim
+ * (epic #610) is in that key.
  */
 const faceMarkup = (t: {
   id: string;
@@ -128,7 +132,7 @@ const faceMarkup = (t: {
   w: number;
   h: number;
 }): string => {
-  const image = cardAppearance(t.card).cardImage;
+  const { cardImage: image, rimTier } = cardAppearance(t.card);
   if (image?.url) {
     return renderToStaticMarkup(
       <ImageFace
@@ -137,6 +141,7 @@ const faceMarkup = (t: {
         width={t.w}
         height={t.h}
         clipId={`cardclip-${safeId(t.id)}`}
+        rimTier={rimTier}
       />,
     );
   }
