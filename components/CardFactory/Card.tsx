@@ -1,4 +1,5 @@
 import { FC, memo, useEffect, useId, useState } from "react";
+import { cardAppearance } from "@/lib/pro/cardAppearance";
 import {
   CardImageRef,
   DeckImportCardType,
@@ -6,15 +7,20 @@ import {
 import { CardFactory } from "./card.factory";
 
 /**
- * The one card renderer the app should use. Cards carrying a
- * `cardImage` render that image (single file or a sprite-sheet cell,
- * as exported by Tabletop Simulator / The Unmatched Club); everything
- * else renders the classic generated template. If the image fails to
- * load we fall back to the template so a dead link never blanks the
- * table.
+ * The one card renderer the app should use. Cards whose APPEARANCE carries a
+ * face image render that image (single file or a sprite-sheet cell, as exported
+ * by Tabletop Simulator / The Unmatched Club); everything else renders the
+ * classic generated template — here the DOM-hybrid one, which paints an HTML
+ * art layer behind a frame-only SVG (issue #373). If the image fails to load we
+ * fall back to the template so a dead link never blanks the table.
+ *
+ * The face image is asked of the cosmetics seam (`cardAppearance`, design doc
+ * §7 Phase 0) rather than read off the card, so both branches — and therefore
+ * both DOM render combinations — resolve through the one indirection point a
+ * later cosmetic layer plugs into.
  */
 const CardBase: FC<{ card: DeckImportCardType }> = ({ card }) => {
-  const image = card?.cardImage;
+  const image = cardAppearance(card).cardImage;
   const failed = useImageFailed(image?.url);
   if (!image?.url || failed) return <CardFactory card={card} />;
   return <ImageFace image={image} title={card.title} />;

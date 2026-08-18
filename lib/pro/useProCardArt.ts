@@ -17,6 +17,7 @@ import {
   DeckImportRuleCardType,
   DeckImportType,
 } from "@/components/DeckPool/deck-import.type";
+import { CardAppearance, cardAppearance } from "./cardAppearance";
 import { CardDefId, CardInstanceId, CardMeta } from "./protocol";
 
 /**
@@ -138,6 +139,19 @@ export const DECK_HERO_IDS: Record<string, string> = Object.fromEntries(
 export const norm = (s: string) => s.trim().toLowerCase();
 
 export type ResolveCard = (instance: CardInstanceId) => DeckImportCardType | null;
+/**
+ * The card-cosmetics seam (design doc §7, Phase 0) — how ONE card looks, keyed
+ * per card by `(heroId, title)` rather than per deck, because cosmetics are
+ * earned per card. Phase 0 returns exactly today's resolution (the frozen
+ * snapshot's `cardImage`, matched on `norm(title)`) and nothing else; a later
+ * phase resolves a treatment here and every render path inherits it, since all
+ * four render combinations already ask this seam instead of reading
+ * `card.cardImage` themselves. See lib/pro/cardAppearance.ts.
+ */
+export type ResolveCardAppearance = (
+  heroId: string,
+  title: string
+) => CardAppearance;
 export type ResolveHero = (heroId: string) => DeckImportHeroType | null;
 /**
  * Deck-level "extra rules" cards for a hero (issue #372) — e.g. Clone Troopers'
@@ -192,6 +206,7 @@ export function useProCardArt(
   catalog: Record<CardDefId, CardMeta>
 ): {
   resolveCard: ResolveCard;
+  resolveCardAppearance: ResolveCardAppearance;
   resolveHero: ResolveHero;
   resolveRuleCards: ResolveRuleCards;
   resolveFighterToken: ResolveFighterToken;
@@ -231,12 +246,26 @@ export function useProCardArt(
     { enabled: ids.length > 0, staleTime: Infinity, retry: 1 }
   );
 
+  const resolveCardAppearance: ResolveCardAppearance = (heroId, title) =>
+    cardAppearance(data?.[heroId]?.cards[norm(title)]);
+
   const resolveCard: ResolveCard = (instance) => {
     const defId = instance.split("#")[0];
     const heroId = defId.split("/")[0];
     const meta = catalog[defId];
     if (!meta || !data?.[heroId]) return null;
-    return data[heroId].cards[norm(meta.title)] ?? null;
+    const card = data[heroId].cards[norm(meta.title)] ?? null;
+    if (!card) return null;
+    // Face art comes from the seam, never straight off the snapshot entry.
+    // This is the bridge that makes the per-card `(heroId, title)` seam reach
+    // the renderers, which hold a resolved card and no longer know its key —
+    // whatever the seam decides here is what every Pro surface draws. Today it
+    // decides exactly what the snapshot said, so the card is handed back
+    // untouched: its identity must stay stable, memoized renderers key on it.
+    const { cardImage } = resolveCardAppearance(heroId, meta.title);
+    return cardImage === (card.cardImage ?? null)
+      ? card
+      : { ...card, cardImage: cardImage ?? undefined };
   };
 
   const resolveHero: ResolveHero = (heroId) => data?.[heroId]?.hero ?? null;
@@ -250,5 +279,12 @@ export function useProCardArt(
     return (kind === "HERO" ? art.heroTokenUrl : art.sidekickTokenUrl) ?? null;
   };
 
-  return { resolveCard, resolveHero, resolveRuleCards, resolveFighterToken, isLoading };
+  return {
+    resolveCard,
+    resolveCardAppearance,
+    resolveHero,
+    resolveRuleCards,
+    resolveFighterToken,
+    isLoading,
+  };
 }

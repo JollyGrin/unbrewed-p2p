@@ -6,6 +6,7 @@ import {
   getMeasureCanvas,
 } from "@/components/CardFactory/card.helpers";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
+import { cardAppearance } from "@/lib/pro/cardAppearance";
 import type { SheetCrop } from "@/components/Positions/position.type";
 import { escapeAttr } from "./index";
 
@@ -109,13 +110,25 @@ const ownerPlate = ({
 </g>`;
 };
 
+/**
+ * Board-token face. The face image is asked of the cosmetics seam
+ * (`cardAppearance`, design doc §7 Phase 0) rather than read off the card, so
+ * both branches — image face and generated all-SVG template — resolve through
+ * the same indirection point the DOM renderer uses. Phase 0 answers exactly
+ * what `t.card.cardImage` answered.
+ *
+ * ⚠️ When the seam starts answering with more than the base art, whatever it
+ * adds MUST join `cardTokenMarkup`'s cache key above: the markup is memoized
+ * per token id, so a per-card treatment missing from the key goes stale on
+ * SOME cards only, which reads as a flaky renderer rather than a bug.
+ */
 const faceMarkup = (t: {
   id: string;
   card: DeckImportCardType;
   w: number;
   h: number;
 }): string => {
-  const image = t.card.cardImage;
+  const image = cardAppearance(t.card).cardImage;
   if (image?.url) {
     return renderToStaticMarkup(
       <ImageFace
