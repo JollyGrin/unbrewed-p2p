@@ -2,6 +2,9 @@ import { DateString, HexColorString, ValidUrlString } from "@/lib/generic.type";
 // type-only: position.type imports DeckImportCardType back from here, and
 // erasing both sides keeps that cycle out of the emitted module graph.
 import type { SavedToken } from "@/components/Positions/position.type";
+// type-only: the cosmetic ladder's tier names live with the ladder itself
+// (lib/pro/cosmetics.ts), so a re-tune can never leave this field behind.
+import type { CosmeticRimTier } from "@/lib/pro/cosmetics";
 
 export type DeckImportType = {
   bgg_link: string | null;
@@ -119,6 +122,15 @@ export type DeckImportCardType = {
    * into the draw deck. makeDeck skips cards with this flag.
    */
   isCharacterCard?: boolean;
+  /**
+   * Cosmetic metal-rim tier — the shared bronze/silver/antiqued-gold/iridescent
+   * ladder of epic #610, the same four the fighter token wears. CLIENT-RENDER
+   * ONLY: never present in deck JSON, never sent over the wire, stamped onto a
+   * resolved card by the cosmetics seam (`lib/pro/cardAppearance.ts`) and read
+   * by nothing but a renderer. The import is type-only, so this file gains no
+   * runtime dependency on /pro.
+   */
+  cosmeticRimTier?: CosmeticRimTier;
 };
 
 export type PoolCardType = Omit<DeckImportCardType, "quantity">;
