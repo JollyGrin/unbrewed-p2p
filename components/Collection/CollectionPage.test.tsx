@@ -80,6 +80,7 @@ interface Routes {
   cosmetics?: Response;
   spend?: Response;
   tokenRim?: Response;
+  cardRims?: Response;
 }
 
 let calls: string[] = [];
@@ -99,6 +100,7 @@ const wire = (routes: Routes) => {
       return routes.spend ?? reply(200, { hero: heroBlock() });
     }
     if (url === `${API_URL}/me/cosmetics/token-rim`) return routes.tokenRim ?? reply(200, {});
+    if (url === `${API_URL}/me/cosmetics/card-rims`) return routes.cardRims ?? reply(200, {});
     throw new Error(`unexpected fetch: ${url}`);
   });
   global.fetch = fetchMock as unknown as typeof fetch;
@@ -501,6 +503,91 @@ describe("the token rim", () => {
     await waitFor(() => expect(screen.getByTestId("token-preview")).toBeInTheDocument());
     expect(screen.getByText("No rim unlocked yet")).toBeInTheDocument();
     expect(screen.getByLabelText("Show my rim in games")).toBeDisabled();
+  });
+});
+
+/**
+ * "Show card rims" (#627) — the play-surface opt-out. The rule that is easy to
+ * get wrong, and is pinned here: /collection is the MANAGEMENT surface, so
+ * switching rims off must not hide or lock anything on this page. What it
+ * changes is what crosses the wire, which `lib/account/cosmetics.test.ts`
+ * pins on the encoder.
+ */
+describe("the card-rims switch", () => {
+  const LABEL = "Show card rims";
+
+  it("is on by default and sends the pref when switched off", async () => {
+    const fetchMock = wire({});
+    await renderPage();
+
+    await waitFor(() => expect(screen.getByTestId("card-set-feint")).toBeInTheDocument());
+    expect(screen.getByLabelText(LABEL)).toBeChecked();
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText(LABEL));
+    });
+
+    const [, init] = fetchMock.mock.calls.find(
+      ([url]) => url === `${API_URL}/me/cosmetics/card-rims`,
+    )!;
+    expect(JSON.parse(init?.body as string)).toEqual({ heroId: "kenshiro", enabled: false });
+    expect(screen.getByLabelText(LABEL)).not.toBeChecked();
+    // The token rim is a separate pref and a separate endpoint.
+    expect(calls).not.toContain(`${API_URL}/me/cosmetics/token-rim`);
+    expect(screen.getByLabelText("Show my rim in games")).toBeChecked();
+  });
+
+  it("keeps the owned tiers on screen and the upgrades live while it is OFF", async () => {
+    wire({
+      cosmetics: reply(200, {
+        heroes: [heroBlock({ cardRims: { enabled: false } })],
+        constants: CONSTANTS,
+      }),
+    });
+    await renderPage();
+
+    await waitFor(() => expect(screen.getByTestId("card-set-feint")).toBeInTheDocument());
+    expect(screen.getByLabelText(LABEL)).not.toBeChecked();
+
+    // Still tier 1, still wearing the REAL bronze rim: this page shows what you
+    // OWN. Hiding it here would read as having lost the upgrade.
+    const feint = screen.getByTestId("card-set-feint");
+    expect(feint).toHaveAttribute("data-tier", "1");
+    expect(feint.querySelector('[data-cosmetic-rim="bronze"]')).not.toBeNull();
+    expect(within(feint).getByText(/^Bronze/)).toBeInTheDocument();
+    // And it still says so out loud, so "hidden" never reads as "gone".
+    expect(screen.getByTestId("card-rims-hidden")).toHaveTextContent(/Upgraded but hidden/);
+
+    // Upgrade buttons stay active — the switch governs play, not the shop.
+    expect(within(feint).getByRole("button", { name: /Upgrade · 150/ })).toBeEnabled();
+    expect(
+      within(screen.getByTestId("card-set-nunchaku")).getByRole("button", {
+        name: /Upgrade · 50/,
+      }),
+    ).toBeEnabled();
+  });
+
+  it("rolls the switch back when the write fails", async () => {
+    wire({ cardRims: reply(503, {}) });
+    await renderPage();
+
+    await waitFor(() => expect(screen.getByTestId("card-set-feint")).toBeInTheDocument());
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText(LABEL));
+    });
+    expect(screen.getByLabelText(LABEL)).toBeChecked();
+    expect(await screen.findByText(/Couldn't save that right now/)).toBeInTheDocument();
+  });
+
+  it("won't offer a switch to a player who has bought nothing", async () => {
+    wire({
+      cosmetics: reply(200, { heroes: [heroBlock({ cards: [] })], constants: CONSTANTS }),
+    });
+    await renderPage();
+
+    await waitFor(() => expect(screen.getByTestId("card-set-feint")).toBeInTheDocument());
+    expect(screen.getByLabelText(LABEL)).toBeDisabled();
+    expect(screen.queryByTestId("card-rims-hidden")).not.toBeInTheDocument();
   });
 });
 

@@ -17,6 +17,7 @@ const hero = (over: Partial<HeroCosmetics> = {}): HeroCosmetics => ({
   available: 700,
   cards: [{ key: "feint", tier: 1 }],
   tokenRim: { unlockedTier: 2, enabled: true },
+  cardRims: { enabled: true },
   ...over,
 });
 

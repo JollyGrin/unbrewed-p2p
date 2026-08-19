@@ -213,6 +213,7 @@ describe("cosmeticsField (epic #610, issue #615)", () => {
     available: 500,
     cards: [{ key: "feint", tier: 3 }],
     tokenRim: { unlockedTier: 2, enabled: true },
+    cardRims: { enabled: true },
     ...over,
   });
   const loadout = [hero()];

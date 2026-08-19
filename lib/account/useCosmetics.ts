@@ -17,8 +17,8 @@
  * 3. **Writes are never optimistic about money.** A spend moves nothing until
  *    the server has agreed, and its reply carries the hero's whole block, so
  *    there is no local arithmetic to get wrong and nothing to roll back. The
- *    token-rim TOGGLE is the one exception (a boolean the server stores
- *    verbatim, no balance involved), and it rolls back on failure.
+ *    display-pref TOGGLES are the one exception (booleans the server stores
+ *    verbatim, no balance involved), and they roll back on failure.
  */
 import { useCallback, useEffect, useState } from "react";
 
@@ -27,11 +27,12 @@ import {
   CosmeticsPayload,
   FALLBACK_CONSTANTS,
   HeroCosmetics,
+  RimPrefResult,
   SpendResult,
-  TokenRimResult,
   emptyHeroCosmetics,
   fetchCosmetics,
   postSpend,
+  putCardRims,
   putTokenRim,
 } from "./cosmetics";
 import { useAccount } from "./useAccount";
@@ -61,7 +62,9 @@ export interface CosmeticsState {
   /** Buy one tier step. Resolves with the server's verdict for the caller to say. */
   upgrade: (heroId: string, cardKey: string, tier: number) => Promise<SpendResult>;
   /** Show or hide this hero's token rim in games. */
-  setTokenRim: (heroId: string, enabled: boolean) => Promise<TokenRimResult>;
+  setTokenRim: (heroId: string, enabled: boolean) => Promise<RimPrefResult>;
+  /** Show or hide ALL of this hero's bought card rims in games (#627). */
+  setCardRims: (heroId: string, enabled: boolean) => Promise<RimPrefResult>;
 }
 
 const EMPTY: CosmeticsPayload = { heroes: [], constants: FALLBACK_CONSTANTS };
@@ -149,32 +152,62 @@ export const useCosmetics = (): CosmeticsState => {
     [busy, mergeHero],
   );
 
-  const setTokenRim = useCallback(
-    async (heroId: string, enabled: boolean): Promise<TokenRimResult> => {
-      // Optimistic, and only here: this is a stored boolean with no balance
-      // behind it, so the switch may move first and step back if the write
-      // fails. Nothing is spent either way.
+  /**
+   * The optimistic display-pref write, shared by both switches.
+   *
+   * Optimistic, and only here: a pref is a stored boolean with no balance
+   * behind it, so the switch may move first and step back if the write fails.
+   * Nothing is spent either way. `set` patches one hero's row; `write` is the
+   * endpoint that agrees or doesn't.
+   */
+  const setPref = useCallback(
+    async (
+      heroId: string,
+      enabled: boolean,
+      set: (row: HeroCosmetics, value: boolean) => HeroCosmetics,
+      write: (heroId: string, enabled: boolean) => Promise<RimPrefResult>,
+    ): Promise<RimPrefResult> => {
       const apply = (value: boolean) =>
         setPayload((current) => {
           const known = current.heroes.some((row) => row.heroId === heroId);
-          const patch = (row: HeroCosmetics): HeroCosmetics => ({
-            ...row,
-            tokenRim: { ...row.tokenRim, enabled: value },
-          });
           return {
             ...current,
             heroes: known
-              ? current.heroes.map((row) => (row.heroId === heroId ? patch(row) : row))
-              : [...current.heroes, patch(emptyHeroCosmetics(heroId, !failed))],
+              ? current.heroes.map((row) => (row.heroId === heroId ? set(row, value) : row))
+              : [...current.heroes, set(emptyHeroCosmetics(heroId, !failed), value)],
           };
         });
 
       apply(enabled);
-      const result = await putTokenRim(heroId, enabled);
+      const result = await write(heroId, enabled);
       if (!result.ok) apply(!enabled);
       return result;
     },
     [failed],
+  );
+
+  const setTokenRim = useCallback(
+    (heroId: string, enabled: boolean): Promise<RimPrefResult> =>
+      setPref(
+        heroId,
+        enabled,
+        (row, value) => ({ ...row, tokenRim: { ...row.tokenRim, enabled: value } }),
+        putTokenRim,
+      ),
+    [setPref],
+  );
+
+  const setCardRims = useCallback(
+    (heroId: string, enabled: boolean): Promise<RimPrefResult> =>
+      setPref(
+        heroId,
+        enabled,
+        // Only the pref moves: `cards` is the ledger of what the player owns,
+        // and hiding rims must never look like losing them.
+        (row, value) => ({ ...row, cardRims: { enabled: value } }),
+        putCardRims,
+      ),
+    [setPref],
   );
 
   return {
@@ -185,5 +218,6 @@ export const useCosmetics = (): CosmeticsState => {
     heroFor,
     upgrade,
     setTokenRim,
+    setCardRims,
   };
 };

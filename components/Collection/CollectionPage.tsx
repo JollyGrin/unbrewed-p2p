@@ -2,9 +2,16 @@
  * /collection — the deck-upgrade management surface (epic #610, ticket #614).
  *
  * One page, four blocks: pick a hero, see what that hero has earned, spend it
- * on card art, and decide whether to wear the token rim it unlocked. It is the
- * "currency + choice" model of design doc §4c(b), which is exactly the phase
- * §4f says needs a screen of its own.
+ * on card art, and decide whether to WEAR what it bought — a switch for the
+ * token rim, and one for the card rims (#627). It is the "currency + choice"
+ * model of design doc §4c(b), which is exactly the phase §4f says needs a
+ * screen of its own.
+ *
+ * Owning and wearing are separate, and this page is about OWNING: both
+ * switches govern the play surfaces only, so the grid keeps rendering every
+ * tier the player bought and every upgrade button stays live while a switch is
+ * off. A management screen that hid your collection the moment you stopped
+ * wearing it would be the wrong screen.
  *
  * The hero block is a PICKER, not a dropdown (#625): every hero states its own
  * points and its own rim at rest, because "where are my points?" is the
@@ -30,7 +37,7 @@
  * a log line or a replay outcome.
  */
 import { useMemo, useState } from "react";
-import { Box, Button, Flex, Text, useToast } from "@chakra-ui/react";
+import { Box, Button, Flex, Switch, Text, useToast } from "@chakra-ui/react";
 import { FaDiscord } from "react-icons/fa";
 import NextLink from "next/link";
 
@@ -200,6 +207,20 @@ export const CollectionPage = () => {
     if (!result.ok) notify("Couldn't save that right now — try again.", "error");
   };
 
+  /**
+   * "Show card rims" (#627) — the play-surface opt-out, NOT a shop filter. It
+   * governs what a hero takes to the table (through `wireLoadoutFor`, so own
+   * hand, opponent view and deck preview all follow it at once) and changes
+   * nothing about this page: the grid below keeps rendering every tier the
+   * player owns and every upgrade button stays live, exactly as the token
+   * section keeps showing your unlocked rim while its display is off.
+   */
+  const onToggleCardRims = async (enabled: boolean) => {
+    if (!hero) return;
+    const result = await cosmetics.setCardRims(hero.heroId, enabled);
+    if (!result.ok) notify("Couldn't save that right now — try again.", "error");
+  };
+
   if (accountStatus === "loading" || cosmetics.status === "loading") {
     return (
       <Shell>
@@ -233,6 +254,8 @@ export const CollectionPage = () => {
   }
 
   const progress = rimProgress(heroCosmetics.earned, cosmetics.constants.tokenRimThresholds);
+  const cardRimsOn = heroCosmetics.cardRims.enabled;
+  const ownedRims = heroCosmetics.cards.length;
   const nextRim = rimTierName((progress.tier ?? 0) + 1);
   const points = (value: number | null) => (value === null ? "—" : value.toLocaleString());
 
@@ -310,16 +333,42 @@ export const CollectionPage = () => {
       )}
 
       <Panel as="section" aria-labelledby="collection-cards-heading">
-        <Text
-          id="collection-cards-heading"
-          as="h2"
-          fontFamily="SpaceGrotesk"
-          fontWeight={700}
-          fontSize="1.15rem"
+        <Flex
+          align="center"
+          justify="space-between"
+          gap="0.75rem"
+          flexWrap="wrap"
           mb="0.6rem"
         >
-          Cards
-        </Text>
+          <Text
+            id="collection-cards-heading"
+            as="h2"
+            fontFamily="SpaceGrotesk"
+            fontWeight={700}
+            fontSize="1.15rem"
+          >
+            Cards
+          </Text>
+          <Flex align="center" gap="0.5rem">
+            <Switch
+              id="collection-card-rims-switch"
+              isChecked={cardRimsOn}
+              // Nothing bought = nothing to hide. Same rule as the token
+              // switch, which stays disabled until a rim exists to wear.
+              isDisabled={ownedRims === 0}
+              onChange={(event) => void onToggleCardRims(event.target.checked)}
+            />
+            <Text as="label" htmlFor="collection-card-rims-switch" fontSize="0.85rem">
+              Show card rims
+            </Text>
+          </Flex>
+        </Flex>
+        {ownedRims > 0 && !cardRimsOn && (
+          <Text fontSize="0.75rem" opacity={0.7} mb="0.6rem" data-testid="card-rims-hidden">
+            Upgraded but hidden — your cards go to the table with base art. The
+            tiers below are still yours, and upgrades still work.
+          </Text>
+        )}
         <CardSetGrid
           sets={deck?.sets ?? []}
           hero={heroCosmetics}
