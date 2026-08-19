@@ -34,6 +34,8 @@ import {
   StackSlot,
 } from "@/lib/pro/tokenStack";
 import { useFlag } from "@/lib/flags";
+import type { CosmeticRimTier } from "@/lib/pro/cosmetics";
+import { COSMETIC_RIM_MIN_PX, FighterTokenRim } from "./FighterTokenRim";
 
 /** Hover/long-press tooltip for a live item token, per the official wording. */
 export const itemBadgeTitle = (item: ProMapItem): string =>
@@ -241,6 +243,15 @@ export interface ProBoardProps {
    *  HERO_STATE_FLAGS registry; the board just draws it on the hero token head.
    *  Absent/null = no badge. */
   fighterTokenBadge?: (fighter: ViewFighter) => FlagTokenBadge | null | undefined;
+  /** Cosmetic metal rim tier for a fighter token (issue #613, design doc §10).
+   *  PURELY DECORATIVE and HERO-ONLY — a masked metallic band painted INSIDE the
+   *  token's existing white border, below every badge, with no pointer events. It
+   *  never changes a token's position, size, hitbox, colours or badges, so nothing
+   *  a player reads off the board depends on it; the caller resolves the tier
+   *  client-side (today from the local `pro:cosmetics:debug` registry) and the
+   *  board just paints it. Absent prop / null / a token too small to carry it
+   *  (see COSMETIC_RIM_MIN_PX) = the plain token, byte-identical to today. */
+  fighterTokenRim?: (fighter: ViewFighter) => CosmeticRimTier | null | undefined;
   /** transient effect overlays (floating damage numbers…) — keyed, caller-expired */
   fx?: BoardFxItem[];
   /** a just-committed move to tween through node-by-node instead of snapping */
@@ -315,6 +326,12 @@ const SURFACE_DIM = "#2C1831";
 // ALLY_ACCENT so HUD chip and board ring are visibly the same "team" signal.
 const ALLY_RING = "#39B7A8";
 
+// Width of a region inset panel as a fraction of the board frame. The panels
+// carry their own %-positioned tokens, so this is what converts their sizing
+// into the same on-screen pixels the main board's tokens measure in (#613).
+const REGION_PANEL_W = 0.27;
+const REGION_PANEL_W_CSS = `${REGION_PANEL_W * 100}%`;
+
 /** Token initials: leading "The " is noise ("The Mandalorian"/"The Child" would
  * otherwise both read "THE"), so strip it and take three letters. A name that's
  * literally just "The" (or empty) has nothing left to abbreviate once stripped —
@@ -332,6 +349,7 @@ export const ProBoard = ({
   extendedReachTargets = [],
   fighterTokenArt,
   fighterTokenBadge,
+  fighterTokenRim,
   boardObjectArt,
   boardObjectOriginName,
   fx = [],
@@ -387,6 +405,27 @@ export const ProBoard = ({
   // shrink-wrap frame below so the art and every overlay move as one unit;
   // when `zoomable` is false the hook attaches nothing and returns no transform.
   const zoom = useZoomPan(zoomable, frameRef, fitInset);
+
+  // Layout width (px, BEFORE the zoom transform) of the shrink-wrap frame every
+  // board overlay is positioned against. Read for one reason only: the cosmetic
+  // fighter-token rim (#613) auto-retires below a rendered pixel size, and a
+  // token's size is a percentage of this box times the live zoom scale, so it
+  // cannot be known without measuring. Nothing that affects play reads this.
+  // 0 = not measured yet (SSR, or a DOM with no ResizeObserver) and is treated
+  // as UNKNOWN, never as "tiny".
+  const [frameW, setFrameW] = useState(0);
+  useEffect(() => {
+    const f = frameRef.current;
+    if (!f || typeof ResizeObserver === "undefined") return;
+    const apply = () => setFrameW((prev) => (prev === f.offsetWidth ? prev : f.offsetWidth));
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(f);
+    return () => ro.disconnect();
+  }, []);
+  // On-screen width of the main board frame. Region inset panels are a fixed
+  // fraction of it (REGION_PANEL_W below), so each layer passes its own.
+  const framePx = frameW * zoom.scale;
 
   // A collapsed panel must never hide a required choice: any highlighted space
   // or targetable fighter INSIDE the region forces it open for the duration.
@@ -592,6 +631,9 @@ export const ProBoard = ({
     slot: StackSlot,
     segment: "head" | "tail",
     diam: number,
+    /** on-screen width (px) of the frame this token's % sizing is relative to;
+     *  0 when unmeasured. Cosmetic-only — see the rim gate below. */
+    layerPx: number,
     anim?: { xs: number[]; ys: number[] }
   ) => {
     const color = PLAYER_COLOR[f.owner] ?? "#999";
@@ -641,6 +683,22 @@ export const ProBoard = ({
     // any hero) since a status is typically inflicted by the opponent. Head
     // segment only, same rule as the HP/state badges.
     const statusBadges = segment === "head" ? fighterStatusBadgesFor(f) : [];
+    // Cosmetic metal rim (#613, design doc §10). HERO head segment only —
+    // sidekick cosmetics are explicitly deferred (§10b), and a LARGE fighter's
+    // tail is a plain body, same head-only rule as every badge. It resolves
+    // strictly BESIDE the art chain, never instead of it: a hero-state portrait
+    // swap still wins the picture, and the rim is additive chrome on top.
+    //
+    // Auto-retire (§10b): below COSMETIC_RIM_MIN_PX of rendered diameter the rim
+    // just isn't rendered — the badges need those pixels, and since the rim is an
+    // absolutely-positioned overlay its absence shifts no layout. An UNMEASURED
+    // frame (layerPx 0) renders it: the gate exists to protect tiny tokens, not
+    // to withhold the cosmetic whenever the size is unknown.
+    const rimTier = segment === "head" && f.kind === "HERO" ? (fighterTokenRim?.(f) ?? null) : null;
+    const rim =
+      rimTier && (layerPx === 0 || layerPx * ((diam * slot.scale) / 100) >= COSMETIC_RIM_MIN_PX)
+        ? rimTier
+        : null;
 
     const children = (
       <>
@@ -673,6 +731,9 @@ export const ProBoard = ({
             />
           </Box>
         )}
+        {/* Cosmetic rim — after the art so the band seats on the edge of the
+            portrait, before every badge so it can never sit over one. */}
+        {rim && <FighterTokenRim tier={rim} />}
         <Text
           // rem, not vw: the label lives inside the zoom-transformed frame, so
           // a viewport-relative size would fight the zoom (text stays put while
@@ -1164,7 +1225,7 @@ export const ProBoard = ({
   // fractions of THAT frame; `diam` is the pawn diameter as a % of the frame
   // width. Everything keys off space ids, so highlights/clicks/fx work
   // identically in either frame.
-  const spaceLayers = (spaces: ProMapSpace[], diam: number) => {
+  const spaceLayers = (spaces: ProMapSpace[], diam: number, layerPx: number) => {
     const inFrame = new Set(spaces.map((s) => s.id));
     // Head and tail are always adjacent, so a two-space fighter never straddles
     // a frame boundary — require both ends anyway so a bad map can't draw a
@@ -1515,6 +1576,7 @@ export const ProBoard = ({
                 slotFor(s.id, f.id),
                 "head",
                 diam,
+                layerPx,
                 pendingAnim?.fighterId === f.id ? pendingAnim : undefined
               )
             )
@@ -1525,7 +1587,9 @@ export const ProBoard = ({
           just as they do around the head. */}
       {frameTwoSpace.flatMap((f) => {
         const tail = spaceById.get(f.tailSpace as SpaceId);
-        return tail ? [fighterToken(f, tail, slotFor(tail.id, `${f.id}-tail`), "tail", diam)] : [];
+        return tail
+          ? [fighterToken(f, tail, slotFor(tail.id, `${f.id}-tail`), "tail", diam, layerPx)]
+          : [];
       })}
 
       {/* K.O. topple ghosts (issue #320) — a defeated fighter's fall, played on an
@@ -1766,7 +1830,11 @@ export const ProBoard = ({
             ) : (
               <Box w="100%" sx={{ aspectRatio: "4 / 3" }} />
             )}
-            {spaceLayers(map.spaces.filter((s) => s.region === r.id), rDiam)}
+            {spaceLayers(
+              map.spaces.filter((s) => s.region === r.id),
+              rDiam,
+              framePx * REGION_PANEL_W
+            )}
             {closed && (
               <Flex position="absolute" inset="0" alignItems="center" justifyContent="center" bg="rgba(0,0,0,0.45)" zIndex={7}>
                 <Text
@@ -1830,7 +1898,7 @@ export const ProBoard = ({
         borderRadius="0.5rem"
       />
 
-      {spaceLayers(mainSpaces, diameter)}
+      {spaceLayers(mainSpaces, diameter, framePx)}
 
       {/* region inset panels (v9 — e.g. Baba Yaga's Hut), pinned bottom-right
           and stacked upward; sized relative to the board so they scale with it.
@@ -1842,7 +1910,7 @@ export const ProBoard = ({
           position="absolute"
           right="1.5%"
           bottom="1.5%"
-          w="27%"
+          w={REGION_PANEL_W_CSS}
           direction="column"
           gap="0.4rem"
           zIndex={7}
@@ -1859,7 +1927,7 @@ export const ProBoard = ({
             position="absolute"
             left={`${panelPos[r.id].x}%`}
             top={`${panelPos[r.id].y}%`}
-            w="27%"
+            w={REGION_PANEL_W_CSS}
             zIndex={7}
             pointerEvents="none"
           >

@@ -17,6 +17,13 @@ import {
   DeckImportRuleCardType,
   DeckImportType,
 } from "@/components/DeckPool/deck-import.type";
+import {
+  CardAppearance,
+  cardAppearance,
+  norm,
+  withRimTier,
+} from "./cardAppearance";
+import { SeatCosmetics, cardRimForSeats } from "./seatCosmetics";
 import { CardDefId, CardInstanceId, CardMeta } from "./protocol";
 
 /**
@@ -134,10 +141,26 @@ export const DECK_HERO_IDS: Record<string, string> = Object.fromEntries(
 /** Art-matching title normalization. Exported for the evergreen-manifest test
  * proving a title with exotic whitespace (Baba Yaga's " Iron Teeth" begins
  * with a NON-BREAKING SPACE in both the API snapshot and the engine rules.ts)
- * still matches: JS trim() strips U+00A0 on both sides. */
-export const norm = (s: string) => s.trim().toLowerCase();
+ * still matches: JS trim() strips U+00A0 on both sides.
+ *
+ * Defined in the (dependency-free) seam module and re-exported here, because
+ * the cosmetics registry keys on it too: the snapshot index and the treatment
+ * lookup must normalize titles identically or a rim silently misses its card. */
+export { norm };
 
 export type ResolveCard = (instance: CardInstanceId) => DeckImportCardType | null;
+/**
+ * The card-cosmetics seam (design doc §7) — how ONE card looks, keyed per card
+ * by `(heroId, title)` rather than per deck, because cosmetics are earned per
+ * card. It answers the frozen snapshot's `cardImage` (matched on `norm(title)`)
+ * PLUS the treatment equipped on that exact card, and every render path
+ * inherits both, since all four render combinations already ask this seam
+ * instead of reading `card.cardImage` themselves. See lib/pro/cardAppearance.ts.
+ */
+export type ResolveCardAppearance = (
+  heroId: string,
+  title: string
+) => CardAppearance;
 export type ResolveHero = (heroId: string) => DeckImportHeroType | null;
 /**
  * Deck-level "extra rules" cards for a hero (issue #372) — e.g. Clone Troopers'
@@ -189,9 +212,16 @@ export function heroIdsForArt(view: {
 
 export function useProCardArt(
   heroIds: string[],
-  catalog: Record<CardDefId, CardMeta>
+  catalog: Record<CardDefId, CardMeta>,
+  /**
+   * Equipped cosmetics decoded from the seats' wire blobs (issue #615). Omitted
+   * — by the sandbox surfaces and by any caller with no seats yet — means the
+   * local debug registry decides, exactly as it did before the wire existed.
+   */
+  cosmetics?: SeatCosmetics | null
 ): {
   resolveCard: ResolveCard;
+  resolveCardAppearance: ResolveCardAppearance;
   resolveHero: ResolveHero;
   resolveRuleCards: ResolveRuleCards;
   resolveFighterToken: ResolveFighterToken;
@@ -231,12 +261,42 @@ export function useProCardArt(
     { enabled: ids.length > 0, staleTime: Infinity, retry: 1 }
   );
 
+  // Equipped cosmetics (epic #610): the seats' wire loadouts first (#615), the
+  // local debug registry for any hero that published none. Both are already in
+  // memory and inert — a card that resolves no treatment renders base art and
+  // NEVER waits on one.
+  const resolveCardAppearance: ResolveCardAppearance = (heroId, title) =>
+    cardAppearance(
+      withRimTier(
+        data?.[heroId]?.cards[norm(title)],
+        cardRimForSeats(cosmetics, heroId, title)
+      )
+    );
+
   const resolveCard: ResolveCard = (instance) => {
     const defId = instance.split("#")[0];
     const heroId = defId.split("/")[0];
     const meta = catalog[defId];
     if (!meta || !data?.[heroId]) return null;
-    return data[heroId].cards[norm(meta.title)] ?? null;
+    const card = data[heroId].cards[norm(meta.title)] ?? null;
+    if (!card) return null;
+    // Face art AND treatment come from the seam, never straight off the
+    // snapshot entry. This is the bridge that makes the per-card
+    // `(heroId, title)` seam reach the renderers, which hold a resolved card
+    // and no longer know its key — whatever the seam decides here is what every
+    // Pro surface draws, in all four render combinations.
+    //
+    // Identity must stay stable, memoized renderers key on it: an un-upgraded
+    // card is handed back untouched, and `withRimTier` memoizes its stamped
+    // copy per (card, tier) so an upgraded one is the same object on every call
+    // too. Only the tier actually CHANGING yields a new reference — which is
+    // exactly when a re-render is wanted.
+    const { cardImage, rimTier } = resolveCardAppearance(heroId, meta.title);
+    const art =
+      cardImage === (card.cardImage ?? null)
+        ? card
+        : { ...card, cardImage: cardImage ?? undefined };
+    return withRimTier(art, rimTier);
   };
 
   const resolveHero: ResolveHero = (heroId) => data?.[heroId]?.hero ?? null;
@@ -250,5 +310,12 @@ export function useProCardArt(
     return (kind === "HERO" ? art.heroTokenUrl : art.sidekickTokenUrl) ?? null;
   };
 
-  return { resolveCard, resolveHero, resolveRuleCards, resolveFighterToken, isLoading };
+  return {
+    resolveCard,
+    resolveCardAppearance,
+    resolveHero,
+    resolveRuleCards,
+    resolveFighterToken,
+    isLoading,
+  };
 }

@@ -1,5 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import type { AccountState } from "../account/useAccount";
+import type { HeroCosmetics } from "../account/cosmetics";
+import { decodeCosmetics, wireCardRim } from "./cosmeticsWire";
 import { useProSocket } from "./useProSocket";
 
 // The hook reads the optional Discord account (issue #568) to decide whether to
@@ -22,6 +24,16 @@ jest.mock("../account/useBadges", () => ({
     busy: false,
     notice: null,
   }),
+}));
+
+// The cosmetic standing (#614's hook) is the third thing the socket reads, for
+// the loadout it publishes on join (#615). Stubbed for the same reason again:
+// no test should reach `/me/cosmetics`, and "nothing equipped" is what every
+// pre-#615 test assumes. Only `heroes` is read here — the spend/toggle half of
+// that hook belongs to /collection.
+let mockCosmetics: HeroCosmetics[] = [];
+jest.mock("../account/useCosmetics", () => ({
+  useCosmetics: () => ({ status: "ready", heroes: mockCosmetics }),
 }));
 
 /**
@@ -809,5 +821,184 @@ describe("useProSocket — worn badge on create/join", () => {
 
     act(() => hook.result.current.joinRoom("R1", ""));
     expect(frame(ws, "RECONNECT")).not.toHaveProperty("badge");
+  });
+});
+
+/**
+ * The equipped cosmetics blob on the wire (issue #615, engine #392).
+ *
+ * The gate is the same pair as the badge's — signed in AND something equipped
+ * FOR THIS HERO — with one extra property to hold: what goes on the wire is IDS
+ * ONLY. A URL, a title, or inline data in this field would be the invariant
+ * breaking, not a cosmetic bug, so the shape is asserted and not just the
+ * presence.
+ */
+describe("useProSocket — equipped cosmetics on create/join", () => {
+  const realWS = global.WebSocket;
+  beforeEach(() => {
+    // @ts-expect-error — swap in the fake for the test
+    global.WebSocket = FakeWebSocket;
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    mockAccount = { status: "guest", account: null };
+    mockBadge = null;
+    mockCosmetics = [];
+  });
+  afterEach(() => {
+    global.WebSocket = realWS;
+    FakeWebSocket.last = null;
+  });
+
+  const signIn = () => {
+    mockAccount = {
+      status: "signed-in",
+      account: { id: "discord-42", username: "JollyGrin", avatarUrl: null },
+    };
+  };
+
+  const row = (over: Partial<HeroCosmetics>): HeroCosmetics => ({
+    heroId: "king-kong",
+    earned: 900,
+    spent: 0,
+    adjusted: 0,
+    available: 900,
+    cards: [],
+    tokenRim: { unlockedTier: 0, enabled: false },
+    cardRims: { enabled: true },
+    ...over,
+  });
+
+  const equip = () => {
+    mockCosmetics = [
+      row({
+        heroId: "king-kong",
+        cards: [{ key: "brute strength", tier: 3 }],
+        tokenRim: { unlockedTier: 2, enabled: true },
+      }),
+      // A hero with card rims but the token rim switched OFF on /collection.
+      row({
+        heroId: "thrall",
+        cards: [{ key: "warchief", tier: 1 }],
+        tokenRim: { unlockedTier: 4, enabled: false },
+      }),
+    ];
+  };
+
+  const boot = () => {
+    const hook = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    return { hook, ws };
+  };
+
+  const frame = (ws: FakeWebSocket, type: string) =>
+    JSON.parse(ws.sent.find((s) => JSON.parse(s).type === type)!);
+
+  it("sends the blob for the hero being played on CREATE_ROOM", () => {
+    signIn();
+    equip();
+    const { hook, ws } = boot();
+    act(() => hook.result.current.createRoom("king-kong"));
+
+    const { cosmetics } = frame(ws, "CREATE_ROOM");
+    expect(typeof cosmetics).toBe("string");
+    const decoded = decodeCosmetics(cosmetics);
+    expect(decoded.tokenRim).toBe("silver");
+    expect(wireCardRim(decoded, "Brute Strength")).toBe("gold");
+  });
+
+  it("sends the blob for the hero being played on JOIN_ROOM", () => {
+    signIn();
+    equip();
+    const { hook, ws } = boot();
+    act(() => hook.result.current.joinRoom("R1", "thrall"));
+
+    const { cosmetics } = frame(ws, "JOIN_ROOM");
+    expect(decodeCosmetics(cosmetics).tokenRim).toBeNull();
+    expect(wireCardRim(decodeCosmetics(cosmetics), "Warchief")).toBe("bronze");
+  });
+
+  // #627: the card-rims switch is honoured by `wireLoadoutFor`, so the JOIN
+  // blob — and therefore own hand, opponent view and deck preview, which all
+  // project through this one encoder — carries zero card entries.
+  it("sends ZERO card entries for a hero with card rims switched off", () => {
+    signIn();
+    mockCosmetics = [
+      row({
+        heroId: "king-kong",
+        cards: [{ key: "brute strength", tier: 3 }],
+        tokenRim: { unlockedTier: 2, enabled: true },
+        cardRims: { enabled: false },
+      }),
+    ];
+    const { hook, ws } = boot();
+    act(() => hook.result.current.joinRoom("R1", "king-kong"));
+
+    const { cosmetics } = frame(ws, "JOIN_ROOM");
+    const decoded = decodeCosmetics(cosmetics);
+    // The earned token rim is a separate pref and still crosses.
+    expect(decoded.tokenRim).toBe("silver");
+    expect(decoded.cardsByHash).toEqual({});
+    expect(wireCardRim(decoded, "Brute Strength")).toBeNull();
+  });
+
+  it("omits the key entirely when card rims are off and no rim is worn", () => {
+    signIn();
+    mockCosmetics = [
+      row({
+        heroId: "king-kong",
+        cards: [{ key: "brute strength", tier: 3 }],
+        tokenRim: { unlockedTier: 4, enabled: false },
+        cardRims: { enabled: false },
+      }),
+    ];
+    const { hook, ws } = boot();
+    act(() => hook.result.current.joinRoom("R1", "king-kong"));
+
+    expect(frame(ws, "JOIN_ROOM")).not.toHaveProperty("cosmetics");
+  });
+
+  it("publishes IDS ONLY — never a URL, inline data, or a card title", () => {
+    signIn();
+    equip();
+    const { hook, ws } = boot();
+    act(() => hook.result.current.createRoom("king-kong"));
+
+    const { cosmetics } = frame(ws, "CREATE_ROOM");
+    expect(cosmetics).toMatch(/^[0-9a-z;,]+$/);
+    expect(cosmetics).not.toMatch(/https?:|data:|\.png|\.webp|brute/i);
+    expect(Buffer.byteLength(cosmetics, "utf8")).toBeLessThanOrEqual(512);
+  });
+
+  it("omits the key for a hero with nothing equipped", () => {
+    signIn();
+    equip();
+    const { hook, ws } = boot();
+    act(() => hook.result.current.createRoom("baba-yaga"));
+
+    expect(frame(ws, "CREATE_ROOM")).not.toHaveProperty("cosmetics");
+  });
+
+  it("omits it for a guest even with a loadout still in the store", () => {
+    // Guest play is untouched BY CONSTRUCTION: useCosmetics only probes once the
+    // account probe says signed-in, and a stale store must not leak either.
+    equip();
+    const { hook, ws } = boot();
+    act(() => hook.result.current.createRoom("king-kong"));
+    act(() => hook.result.current.joinRoom("R1", "king-kong"));
+
+    expect(frame(ws, "CREATE_ROOM")).not.toHaveProperty("cosmetics");
+    expect(frame(ws, "JOIN_ROOM")).not.toHaveProperty("cosmetics");
+  });
+
+  it("keeps cosmetics off RECONNECT — the server kept the seat and its blob", () => {
+    signIn();
+    equip();
+    const { hook, ws } = boot();
+    act(() => hook.result.current.joinRoom("R1", "king-kong"));
+    act(() => ws.emit({ type: "ROOM_JOINED", roomId: "R1", token: "tok", you: "p1" }));
+
+    act(() => hook.result.current.joinRoom("R1", ""));
+    expect(frame(ws, "RECONNECT")).not.toHaveProperty("cosmetics");
   });
 });

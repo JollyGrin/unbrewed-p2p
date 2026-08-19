@@ -58,6 +58,7 @@ import {
   uploadReplay,
 } from "@/lib/pro/replayCloud";
 import { ReplayScrubber } from "@/components/Pro/ReplayScrubber";
+import { replayCosmetics } from "@/lib/pro/seatCosmetics";
 
 const TABLE_BG = "radial-gradient(ellipse at 50% 20%, #5A3263 0%, #48284F 50%, #2C1831 100%)";
 const SAMPLE_URL = "/pro/replays/sample-kong-mirror.json";
@@ -253,6 +254,10 @@ export const ReplaysBrowser = () => {
   const [entries, setEntries] = useState<ReplayIndexEntry[]>([]);
   const [meter, setMeter] = useState<StorageMeter>({ usedBytes: 0, budgetBytes: 0, ratio: 0, nearFull: false });
   const [expansion, setExpansion] = useState<ReplayExpansion | null>(null);
+  // The cosmetics blobs frozen into the OPEN bundle (#615). Held beside the
+  // expansion because the server's /replay expansion does not echo them — they
+  // are render-only, so they never left the bundle.
+  const [replayCosmeticBlobs, setReplayCosmeticBlobs] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [importText, setImportText] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
@@ -309,6 +314,7 @@ export const ReplaysBrowser = () => {
         if (!saved.ok) toast({ description: saved.error ?? "save failed", status: "warning" });
         refresh();
       }
+      setReplayCosmeticBlobs(replayCosmetics(bundle));
       setExpansion(res.expansion);
       return true;
     },
@@ -473,7 +479,13 @@ export const ReplaysBrowser = () => {
   }, [openBundle, toast]);
 
   if (expansion) {
-    return <ReplayScrubber expansion={expansion} onExit={() => { setExpansion(null); refresh(); }} />;
+    return (
+      <ReplayScrubber
+        expansion={expansion}
+        cosmetics={replayCosmeticBlobs}
+        onExit={() => { setExpansion(null); refresh(); }}
+      />
+    );
   }
 
   return (

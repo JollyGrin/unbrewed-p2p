@@ -42,6 +42,13 @@ jest.mock("../../lib/pro/useDeckPreview", () => ({
 jest.mock("../../lib/pro/useDeckStats", () => ({
   useDeckStats: () => ({ data: null }),
 }));
+// The modal also probes the accounts API for the player's own cosmetics (#623).
+// A guest is the state this suite wants — no toggle, no rims, and no async
+// probe landing a state update after the test has finished asserting.
+// The cosmetics toggle has its own suite: HeroPreviewModal.cosmetics.test.tsx.
+jest.mock("../../lib/account/useAccount", () => ({
+  useAccount: () => ({ status: "guest", account: null }),
+}));
 
 const QUICK_STATS = { hp: 20, move: 2, reach: "MELEE" as const };
 

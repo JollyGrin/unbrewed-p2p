@@ -28,6 +28,8 @@ import {
   TbBow,
   TbCards,
   TbGrave2,
+  TbEyeOff,
+  TbSparkles,
   TbWand,
   TbWandOff,
   TbChevronUp,
@@ -1125,6 +1127,11 @@ export interface ProHudProps {
   visualFxOn?: boolean;
   onToggleSound?: () => void;
   onToggleVisualFx?: () => void;
+  /** "Hide opponent cosmetics" (issue #615) — the chip is hidden when the
+   *  handler is omitted, which the page does until an opponent has actually
+   *  published a loadout. Your OWN cosmetics are never affected. */
+  opponentCosmeticsHidden?: boolean;
+  onToggleOpponentCosmetics?: () => void;
   /** opens the ReportBugDialog (issue #125/#138) — chip hidden when omitted */
   onReportBug?: () => void;
 }
@@ -1144,6 +1151,8 @@ export const ProHud = ({
   visualFxOn,
   onToggleSound,
   onToggleVisualFx,
+  opponentCosmeticsHidden,
+  onToggleOpponentCosmetics,
   onReportBug,
 }: ProHudProps) => {
   const heroOf = (player: PlayerId) =>
@@ -1307,6 +1316,37 @@ export const ProHud = ({
               aria-label={visualFxOn ? "Hide visual effects" : "Show visual effects"}
             >
               {visualFxOn ? <TbWand size="0.85rem" /> : <TbWandOff size="0.85rem" />}
+            </Flex>
+          </Tooltip>
+        )}
+        {onToggleOpponentCosmetics && (
+          <Tooltip
+            label={
+              opponentCosmeticsHidden
+                ? "Show opponent card cosmetics"
+                : "Hide opponent card cosmetics"
+            }
+            hasArrow
+          >
+            <Flex
+              {...chipStyles}
+              as="button"
+              cursor="pointer"
+              _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+              color="brand.highlight"
+              opacity={opponentCosmeticsHidden ? 0.55 : 1}
+              onClick={onToggleOpponentCosmetics}
+              aria-label={
+                opponentCosmeticsHidden
+                  ? "Show opponent card cosmetics"
+                  : "Hide opponent card cosmetics"
+              }
+            >
+              {opponentCosmeticsHidden ? (
+                <TbEyeOff size="0.85rem" />
+              ) : (
+                <TbSparkles size="0.85rem" />
+              )}
             </Flex>
           </Tooltip>
         )}
