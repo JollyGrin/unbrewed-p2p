@@ -11,7 +11,10 @@
  *  - a 503 reads as "temporarily unavailable" with the ledger still on screen
  *    and every buy disabled — an outage must never read as a wipe;
  *  - a 422 says why, in the server's own numbers;
- *  - the anti-farm disclosure is on the page, verbatim.
+ *  - the anti-farm disclosure is on the page, verbatim;
+ *  - the hero PICKER (#625) states every hero's points and rim without a
+ *    click, ranks the ones with points first, and never lists a reflavored
+ *    baseline — not even one the API still reports points on.
  */
 import "@testing-library/jest-dom";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -293,7 +296,7 @@ describe("a signed-in player", () => {
 
     await waitFor(() => expect(screen.getByTestId("card-set-feint")).toBeInTheDocument());
     await act(async () => {
-      fireEvent.change(screen.getByLabelText("Hero"), { target: { value: "luke-skywalker" } });
+      fireEvent.click(screen.getByTestId("hero-row-luke-skywalker"));
     });
 
     // Luke's snapshot is a second query; it lands a tick after the switch.
@@ -303,9 +306,14 @@ describe("a signed-in player", () => {
     const points = within(screen.getByTestId("collection-points"));
     expect(points.getByText("300")).toBeInTheDocument();
     expect(points.getByText("250")).toBeInTheDocument();
-    // Kenshiro's cards — and his bronze Feint — are gone with him.
+    // Kenshiro's cards — and his bronze Feint — are gone with him. Scoped to
+    // the card grid: the picker rows carry rims of their own now (#625).
     expect(screen.queryByTestId("card-set-nunchaku")).toBeNull();
-    expect(document.querySelector('[data-cosmetic-rim]')).toBeNull();
+    expect(
+      document
+        .querySelector('[aria-labelledby="collection-cards-heading"]')
+        ?.querySelector("[data-cosmetic-rim]"),
+    ).toBeNull();
   });
 
   it("stops offering upgrades once a card tops the ladder", async () => {
@@ -322,6 +330,124 @@ describe("a signed-in player", () => {
     expect(within(feint).getByText("Fully upgraded")).toBeInTheDocument();
     expect(within(feint).queryByRole("button")).toBeNull();
     expect(feint.querySelector('[data-cosmetic-rim="iridescent"]')).not.toBeNull();
+  });
+});
+
+describe("the hero picker (#625)", () => {
+  const roster = () =>
+    wire({
+      cosmetics: reply(200, {
+        heroes: [
+          heroBlock({ heroId: "batman", earned: 300, spent: 0, available: 300,
+            cards: [], tokenRim: { unlockedTier: 1, enabled: true } }),
+          heroBlock(),
+          // A stale baseline row: the API is folding these into their spice
+          // successor, and until it has, the client must not list one.
+          heroBlock({ heroId: "thetis", earned: 5000, available: 5000, cards: [],
+            tokenRim: { unlockedTier: 4, enabled: true } }),
+        ],
+        constants: CONSTANTS,
+      }),
+    });
+
+  it("shows every played hero's points and rim with no interaction at all", async () => {
+    roster();
+    await renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId("collection-hero-picker")).toBeInTheDocument(),
+    );
+    const kenshiro = screen.getByTestId("hero-row-kenshiro");
+    expect(kenshiro).toHaveTextContent("900 earned · 700 available · Silver rim");
+    // The REAL FighterTokenRim, not a mock gradient — it stamps its tier.
+    expect(
+      screen.getByTestId("hero-rim-kenshiro").querySelector('[data-cosmetic-rim="silver"]'),
+    ).not.toBeNull();
+    expect(screen.getByTestId("hero-row-batman")).toHaveTextContent(
+      "300 earned · 300 available · Bronze rim",
+    );
+    expect(screen.getByTestId("hero-rim-batman")).toHaveAttribute(
+      "data-cosmetic-tier",
+      "bronze",
+    );
+  });
+
+  it("ranks by earned points, and the top hero is the one selected", async () => {
+    roster();
+    await renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId("collection-hero-picker")).toBeInTheDocument(),
+    );
+    const listed = screen
+      .getAllByTestId(/^hero-row-/)
+      .map((row) => row.getAttribute("data-testid"));
+    expect(listed.slice(0, 2)).toEqual(["hero-row-kenshiro", "hero-row-batman"]);
+    // Kenshiro (900) leads Batman (300), and leads the page.
+    expect(screen.getByTestId("hero-row-kenshiro")).toHaveAttribute("data-selected", "true");
+    expect(screen.getByTestId("hero-row-batman")).toHaveAttribute("data-selected", "false");
+    expect(screen.getByTestId("card-set-feint")).toBeInTheDocument();
+  });
+
+  it("never lists a reflavored baseline, even with 5000 points on it", async () => {
+    roster();
+    await renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId("collection-hero-picker")).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId("hero-row-thetis")).toBeNull();
+    fireEvent.click(screen.getByTestId("collection-more-decks"));
+    expect(screen.queryByTestId("hero-row-thetis")).toBeNull();
+    // Its successor is listed, under the plain shared name.
+    expect(screen.getByTestId("hero-row-thetis-spice")).toHaveTextContent("Thetis");
+  });
+
+  it("lists a hero only the API knows about, named from its id", async () => {
+    wire({
+      cosmetics: reply(200, {
+        heroes: [heroBlock(), heroBlock({ heroId: "some-retired-hero", earned: 40, available: 40 })],
+        constants: CONSTANTS,
+      }),
+    });
+    await renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId("collection-hero-picker")).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("hero-row-some-retired-hero")).toHaveTextContent(
+      "Some Retired Hero",
+    );
+  });
+
+  it("keeps the zero-point roster collapsed until asked, then selects from it", async () => {
+    roster();
+    await renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId("collection-hero-picker")).toBeInTheDocument(),
+    );
+    const more = screen.getByTestId("collection-more-decks");
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByTestId("hero-row-luke-skywalker")).toBeNull();
+
+    fireEvent.click(more);
+    expect(more).toHaveAttribute("aria-expanded", "true");
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("hero-row-luke-skywalker"));
+    });
+
+    // Selecting from the collapsed half behaves exactly like the dropdown did.
+    await waitFor(() =>
+      expect(screen.getByTestId("card-set-quick strike")).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("hero-row-luke-skywalker")).toHaveAttribute(
+      "data-selected",
+      "true",
+    );
+    expect(screen.getByTestId("hero-row-kenshiro")).toHaveAttribute("data-selected", "false");
+    // Luke is unplayed: earned 0 and available 0, not "unknown".
+    expect(within(screen.getByTestId("collection-points")).getAllByText("0")).toHaveLength(2);
   });
 });
 
@@ -412,6 +538,12 @@ describe("when stats are down", () => {
       expect(button).toBeDisabled();
     }
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+    // The picker keeps rendering: names and rows, with the numbers it honestly
+    // cannot know shown as unknown rather than as zero.
+    expect(screen.getByTestId("hero-row-kenshiro")).toHaveTextContent(
+      "— earned · — available · Rim unavailable",
+    );
+    expect(screen.getByTestId("hero-row-kenshiro")).toHaveAttribute("data-selected", "true");
   });
 
   it("still lets a player hide their rim — that write needs no telemetry", async () => {

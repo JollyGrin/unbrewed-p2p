@@ -1,5 +1,5 @@
 /**
- * The hero list /collection browses (ticket #614).
+ * The hero list /collection browses (tickets #614, #625).
  *
  * Built from the metadata the client already has — `HERO_DECK_IDS` (the one
  * hero↔deck mapping for Pro) joined to `POPULAR_DECKS` for display names —
@@ -11,11 +11,20 @@
  * Two rules the ordering encodes:
  *
  *  - **Heroes you have points on come first**, in the API's own order (games
- *    descending). That is the list a player came to look at.
+ *    descending). The picker re-sorts them by earned points (#625, see
+ *    `picker.ts`); this file's job is only to say WHO is on the list.
  *  - **A hero the API knows and we don't is still listed.** A retired deck, or
  *    one added upstream before the client caught up, must never make somebody's
  *    purchases disappear — the same reason the API itself unions its ledger
  *    into the telemetry list.
+ *
+ * Reflavored baselines (`thetis`, `king-taranis`, …) are the one exception to
+ * that second rule, and #625 made it absolute: they are dropped from the list
+ * even when the API reports points on one. A player cannot take a baseline to
+ * the table — the spice remix replaced it under the same display name — so a
+ * row for one is a row nobody can act on, and its points are folded into the
+ * successor upstream (unbrewed-api). "Unknown hero id" still renders; only
+ * "known to be a retired baseline" is filtered.
  */
 import { POPULAR_DECKS, PopularDeckMeta } from "@/lib/constants/top-decks";
 import { DECK_HERO_IDS, HERO_DECK_IDS } from "@/lib/pro/useProCardArt";
@@ -45,37 +54,36 @@ const prettify = (heroId: string): string =>
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 
+/** A baseline whose spice remix replaced it — never listed. See the header. */
+const isReflavored = (heroId: string): boolean =>
+  DECK_BY_HERO_ID[heroId]?.tier === "reflavored";
+
 const entryFor = (heroId: string): CollectionHero => {
   const deck = DECK_BY_HERO_ID[heroId];
-  // A reflavored baseline shares its display name with the spice remix that
-  // replaced it, so it gets /pro's ` ★` disambiguator — a player who has points
-  // on both must be able to tell the two rows apart.
-  const star = deck?.tier === "reflavored" ? " ★" : "";
   return {
     heroId,
     deckId: HERO_DECK_IDS[heroId] ?? deck?.id ?? null,
-    name: `${deck?.name ?? prettify(heroId)}${star}`,
+    // No ` ★` disambiguator: the baseline it told apart is gone from the list,
+    // so the only "Thetis" row left is the one you can actually play.
+    name: deck?.name ?? prettify(heroId),
     lab: deck?.tier === "lab",
   };
 };
 
 /**
- * Every hero worth showing, in reading order.
- *
- * Reflavored baselines are hidden from the DEFAULT list (their spice remix is
- * already there under the same name), but appear the moment the API reports
- * points on one — hiding a hero somebody has spent on would be a bug, not tidy.
+ * Every hero worth showing, API rows first and the rest of the Pro roster
+ * behind them, alphabetically.
  */
 export const collectionRoster = (apiHeroIds: string[] = []): CollectionHero[] => {
   const seen = new Set<string>();
   const roster: CollectionHero[] = [];
   for (const heroId of apiHeroIds) {
-    if (!heroId || seen.has(heroId)) continue;
+    if (!heroId || seen.has(heroId) || isReflavored(heroId)) continue;
     seen.add(heroId);
     roster.push(entryFor(heroId));
   }
   const rest = Object.keys(HERO_DECK_IDS)
-    .filter((heroId) => !seen.has(heroId) && DECK_BY_HERO_ID[heroId]?.tier !== "reflavored")
+    .filter((heroId) => !seen.has(heroId) && !isReflavored(heroId))
     .map(entryFor)
     .sort((a, b) => a.name.localeCompare(b.name));
   return [...roster, ...rest];

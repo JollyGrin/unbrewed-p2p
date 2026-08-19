@@ -1,8 +1,8 @@
 /**
- * The /collection hero list (#614). The ordering rule is the whole file: the
- * heroes you have points on come first, in the API's own games-descending
- * order, and a hero the client has never heard of is still listed — hiding one
- * would make somebody's purchases look like they vanished.
+ * The /collection hero list (#614, #625). Two rules are the whole file: a hero
+ * the client has never heard of is still listed — hiding one would make
+ * somebody's purchases look like they vanished — and a reflavored baseline
+ * never is, points or no points, because nobody can take one to the table.
  */
 import { collectionRoster } from "./roster";
 import { HERO_DECK_IDS } from "@/lib/pro/useProCardArt";
@@ -20,13 +20,19 @@ describe("collectionRoster", () => {
     expect([...rest].sort((a, b) => a.localeCompare(b))).toEqual(rest);
   });
 
-  it("hides a reflavored baseline by default, but not once it has points", () => {
-    // `thetis` is the baseline that `thetis-spice` replaced.
-    expect(collectionRoster([]).some((h) => h.heroId === "thetis")).toBe(false);
-    const withPoints = collectionRoster(["thetis"]);
-    expect(withPoints[0]).toMatchObject({ heroId: "thetis" });
-    // The ★ is /pro's own disambiguator — both rows read "Thetis" otherwise.
-    expect(withPoints[0].name).toContain("★");
+  it("drops every reflavored baseline, even one the API reports points on", () => {
+    const baselines = ["thetis", "king-taranis", "piper-of-the-underroads", "hollow-oak"];
+    for (const heroId of baselines) {
+      expect(collectionRoster([]).some((h) => h.heroId === heroId)).toBe(false);
+      // #625: the API stops reporting these ids, but a stale row must not
+      // resurrect a hero the player cannot play.
+      expect(collectionRoster([heroId]).some((h) => h.heroId === heroId)).toBe(false);
+    }
+    // ...and the successor keeps the plain name — the ★ that told them apart
+    // has nothing left to disambiguate.
+    const spice = collectionRoster([]).find((h) => h.heroId === "thetis-spice");
+    expect(spice?.name).toBe("Thetis");
+    expect(collectionRoster([]).some((h) => h.name.includes("★"))).toBe(false);
   });
 
   it("keeps a hero only the API knows about, naming it from its id", () => {
