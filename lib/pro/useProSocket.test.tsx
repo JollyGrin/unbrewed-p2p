@@ -864,6 +864,7 @@ describe("useProSocket — equipped cosmetics on create/join", () => {
     available: 900,
     cards: [],
     tokenRim: { unlockedTier: 0, enabled: false },
+    cardRims: { enabled: true },
     ...over,
   });
 
@@ -915,6 +916,46 @@ describe("useProSocket — equipped cosmetics on create/join", () => {
     const { cosmetics } = frame(ws, "JOIN_ROOM");
     expect(decodeCosmetics(cosmetics).tokenRim).toBeNull();
     expect(wireCardRim(decodeCosmetics(cosmetics), "Warchief")).toBe("bronze");
+  });
+
+  // #627: the card-rims switch is honoured by `wireLoadoutFor`, so the JOIN
+  // blob — and therefore own hand, opponent view and deck preview, which all
+  // project through this one encoder — carries zero card entries.
+  it("sends ZERO card entries for a hero with card rims switched off", () => {
+    signIn();
+    mockCosmetics = [
+      row({
+        heroId: "king-kong",
+        cards: [{ key: "brute strength", tier: 3 }],
+        tokenRim: { unlockedTier: 2, enabled: true },
+        cardRims: { enabled: false },
+      }),
+    ];
+    const { hook, ws } = boot();
+    act(() => hook.result.current.joinRoom("R1", "king-kong"));
+
+    const { cosmetics } = frame(ws, "JOIN_ROOM");
+    const decoded = decodeCosmetics(cosmetics);
+    // The earned token rim is a separate pref and still crosses.
+    expect(decoded.tokenRim).toBe("silver");
+    expect(decoded.cardsByHash).toEqual({});
+    expect(wireCardRim(decoded, "Brute Strength")).toBeNull();
+  });
+
+  it("omits the key entirely when card rims are off and no rim is worn", () => {
+    signIn();
+    mockCosmetics = [
+      row({
+        heroId: "king-kong",
+        cards: [{ key: "brute strength", tier: 3 }],
+        tokenRim: { unlockedTier: 4, enabled: false },
+        cardRims: { enabled: false },
+      }),
+    ];
+    const { hook, ws } = boot();
+    act(() => hook.result.current.joinRoom("R1", "king-kong"));
+
+    expect(frame(ws, "JOIN_ROOM")).not.toHaveProperty("cosmetics");
   });
 
   it("publishes IDS ONLY — never a URL, inline data, or a card title", () => {

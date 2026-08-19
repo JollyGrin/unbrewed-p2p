@@ -15,6 +15,7 @@ const hero = (heroId: string, over: Partial<HeroCosmetics> = {}): HeroCosmetics 
   available: 100,
   cards: [],
   tokenRim: { unlockedTier: 0, enabled: false },
+  cardRims: { enabled: true },
   ...over,
 });
 

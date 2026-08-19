@@ -224,6 +224,26 @@ describe("a signed-in player with upgrades on this hero", () => {
   // A telemetry outage answers 503 WITH the stored ledger (lib/account/cosmetics
   // (1)); a player's bought upgrades must not appear to evaporate. The token rim
   // still goes quiet, because `unlockedTier: null` means "we couldn't confirm".
+  // #627: the card-rims pref is honoured by the SAME `wireLoadoutFor` this
+  // preview projects through, so the modal follows it without knowing it
+  // exists. Pinned here because "the encoder is the single source" is the whole
+  // reason the toggle needed no new code on this surface.
+  it("does not preview card rims the player switched off on /collection", async () => {
+    wire({
+      cosmetics: reply(200, {
+        heroes: [heroBlock({ cardRims: { enabled: false } })],
+        constants: CONSTANTS,
+      }),
+    });
+    await openModal("kenshiro");
+
+    await waitFor(() => expect(screen.getByTestId("hero-preview-upgrades")).toBeInTheDocument());
+    // Every card back to base art; the token rim is a separate pref and stays.
+    expect(cardRim("feint")).toBeNull();
+    expect(cardRim("hokuto: bone demolisher")).toBeNull();
+    expect(portraitRim()).toBe("silver");
+  });
+
   it("still previews bought card rims from a 503's degraded ledger", async () => {
     wire({
       cosmetics: reply(503, {
@@ -274,6 +294,28 @@ describe("when there is nothing to show", () => {
     wire({
       cosmetics: reply(200, {
         heroes: [heroBlock({ cards: [], tokenRim: { unlockedTier: 0, enabled: true } })],
+        constants: CONSTANTS,
+      }),
+    });
+    await openModal("kenshiro");
+
+    await waitFor(() => expect(calls).toContain(`${API_URL}/me/cosmetics`));
+    expect(screen.queryByTestId("hero-preview-upgrades")).not.toBeInTheDocument();
+    expect(anyRim()).toBe(0);
+  });
+
+  // #627: card rims off AND no token rim to wear = nothing to preview, so the
+  // toggle disappears — the same "owns >= 1 upgrade" gate, read through the
+  // encoder rather than re-derived here.
+  it("gives a player who switched card rims off, with no rim, no toggle", async () => {
+    wire({
+      cosmetics: reply(200, {
+        heroes: [
+          heroBlock({
+            cardRims: { enabled: false },
+            tokenRim: { unlockedTier: 0, enabled: true },
+          }),
+        ],
         constants: CONSTANTS,
       }),
     });

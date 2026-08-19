@@ -53,6 +53,25 @@ export interface CosmeticTokenRim {
   enabled: boolean;
 }
 
+/**
+ * Whether this hero's bought card rims are worn in games (#627). ONE switch for
+ * the whole hero, not one per card: the ask is "let me play with base art
+ * again", and thirty switches would be a chore rather than an answer.
+ *
+ * There is no `unlockedTier` twin here because a card rim is BOUGHT, not
+ * unlocked — `cards` is the ledger of what is owned, and this is only the
+ * display pref over it. Nothing about it is telemetry-derived, so like
+ * `tokenRim.enabled` it survives an outage intact.
+ */
+export interface CosmeticCardRims {
+  /**
+   * Default TRUE. A missing field means an API that predates the pref, and a
+   * player who bought rims before it existed must keep wearing them — so
+   * "absent" reads as on, and only an explicit `false` turns them off.
+   */
+  enabled: boolean;
+}
+
 /** One hero's cosmetic standing. Telemetry-derived fields are nullable — see (2). */
 export interface HeroCosmetics {
   heroId: string;
@@ -62,6 +81,7 @@ export interface HeroCosmetics {
   available: number | null;
   cards: CosmeticCard[];
   tokenRim: CosmeticTokenRim;
+  cardRims: CosmeticCardRims;
 }
 
 /** The economy, as the API publishes it. Never hardcoded on this side. */
@@ -123,7 +143,14 @@ export type SpendResult =
   | { ok: true; hero: HeroCosmetics }
   | { ok: false; reason: SpendFailure; message: string };
 
-export type TokenRimResult = { ok: true } | { ok: false; reason: SpendFailure };
+/**
+ * The outcome of writing a display pref (`token-rim`, `card-rims`). Both
+ * endpoints share one shape because they are the same kind of write: a stored
+ * boolean, no balance behind it, so there is nothing to report but "did it
+ * land". `TokenRimResult` stays as its older name.
+ */
+export type RimPrefResult = { ok: true } | { ok: false; reason: SpendFailure };
+export type TokenRimResult = RimPrefResult;
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -182,6 +209,11 @@ const normalizeHero = (raw: unknown): HeroCosmetics | null => {
       unlockedTier: asNullableCount(rim.unlockedTier),
       enabled: rim.enabled === true,
     },
+    // Note the asymmetry with `tokenRim.enabled` above, and that it is
+    // deliberate: an absent token rim defaults OFF because it is a reward the
+    // API opts you into, while absent card rims default ON because they are
+    // upgrades you already paid for. Only an explicit `false` hides them.
+    cardRims: { enabled: asRecord(row.cardRims)?.enabled !== false },
   };
 };
 
@@ -330,18 +362,19 @@ export const postSpend = async (
 };
 
 /**
- * Turn a hero's token rim on or off.
+ * Write one display pref for one hero.
  *
- * Deliberately telemetry-free on the server, so it keeps working while stats
- * are unreachable — which is why the page leaves this toggle live even when
- * the rest of it is degraded.
+ * Both pref endpoints are deliberately telemetry-free on the server, so they
+ * keep working while stats are unreachable — which is why the page leaves
+ * these toggles live even when the rest of it is degraded.
  */
-export const putTokenRim = async (
+const putRimPref = async (
+  path: "token-rim" | "card-rims",
   heroId: string,
   enabled: boolean,
-): Promise<TokenRimResult> => {
+): Promise<RimPrefResult> => {
   try {
-    const res = await fetch(`${API_URL}/me/cosmetics/token-rim`, {
+    const res = await fetch(`${API_URL}/me/cosmetics/${path}`, {
       method: "PUT",
       credentials: "include",
       headers: { Accept: "application/json", "Content-Type": "application/json" },
@@ -352,6 +385,20 @@ export const putTokenRim = async (
     return { ok: false, reason: "unavailable" };
   }
 };
+
+/** Turn a hero's token rim on or off. */
+export const putTokenRim = (heroId: string, enabled: boolean): Promise<RimPrefResult> =>
+  putRimPref("token-rim", heroId, enabled);
+
+/**
+ * Turn ALL of a hero's bought card rims on or off (#627).
+ *
+ * One switch, not one per card, and strictly independent of the token rim: a
+ * player may wear the rim they earned while playing with base card art, or the
+ * other way round.
+ */
+export const putCardRims = (heroId: string, enabled: boolean): Promise<RimPrefResult> =>
+  putRimPref("card-rims", heroId, enabled);
 
 // --- presentation helpers ----------------------------------------------------
 // Pure, so every number and label on the page is testable without a DOM.
@@ -370,6 +417,9 @@ export const emptyHeroCosmetics = (
   available: known ? 0 : null,
   cards: [],
   tokenRim: { unlockedTier: known ? 0 : null, enabled: false },
+  // On, like the API's own default — a hero with nothing bought has nothing to
+  // hide, and this is the value a first purchase should inherit.
+  cardRims: { enabled: true },
 });
 
 /** Tier bought on one card set; 0 for an un-upgraded one. */
@@ -439,9 +489,14 @@ export const rimProgress = (
  * Two decisions live here rather than in the encoder, because both are facts
  * about what the API means rather than about the wire format:
  *
- * 1. **A rim the player switched OFF is not published.** `tokenRim.enabled` is
- *    exactly that opt-out, and honouring it client-side is what makes the
- *    /collection toggle mean something to the other seat.
+ * 1. **A rim the player switched OFF is not published.** `tokenRim.enabled` and
+ *    `cardRims.enabled` (#627) are exactly those opt-outs, and honouring them
+ *    client-side is what makes the /collection toggles mean something to the
+ *    other seat. The two are INDEPENDENT — card rims off still publishes the
+ *    token rim, and vice versa — and neither touches what the player OWNS, so
+ *    switching either back on restores every tier they bought. /collection
+ *    keeps rendering those tiers while a switch is off for exactly that
+ *    reason: it manages the collection, it does not wear it.
  * 2. **`unlockedTier: null` publishes nothing.** During a telemetry outage the
  *    API says "we don't know" rather than a number (see (2) in the header), and
  *    claiming a rim we could not confirm is the one way this could show someone
@@ -471,6 +526,7 @@ export const wireLoadoutFor = (
       : undefined);
   if (!hero) return null;
   const tokenRimTier = hero.tokenRim.enabled ? (hero.tokenRim.unlockedTier ?? 0) : 0;
-  if (tokenRimTier <= 0 && hero.cards.length === 0) return null;
-  return { tokenRimTier, cards: hero.cards };
+  const cards = hero.cardRims.enabled ? hero.cards : [];
+  if (tokenRimTier <= 0 && cards.length === 0) return null;
+  return { tokenRimTier, cards };
 };

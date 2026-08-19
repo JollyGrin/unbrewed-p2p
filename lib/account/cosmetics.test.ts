@@ -17,11 +17,13 @@ import {
   nextTierCost,
   normalizeCosmetics,
   postSpend,
+  putCardRims,
   putTokenRim,
   rimProgress,
   rimTierName,
   wireLoadoutFor,
 } from "./cosmetics";
+import { encodeCosmetics } from "@/lib/pro/cosmeticsWire";
 
 const reply = (status: number, body: unknown) =>
   ({
@@ -79,6 +81,21 @@ describe("normalizeCosmetics", () => {
     expect(hero.spent).toBe(200);
     expect(hero.cards).toEqual([{ key: "undertow", tier: 2 }]);
     expect(hero.tokenRim.enabled).toBe(true);
+  });
+
+  it("treats a missing `cardRims` field as ON — an API older than the pref (#627)", () => {
+    // Backward compat with teeth: a player who bought rims before the pref
+    // existed must keep wearing them, so only an explicit `false` hides them.
+    expect(normalizeCosmetics(okBody([heroBody()])).heroes[0].cardRims).toEqual({
+      enabled: true,
+    });
+    expect(
+      normalizeCosmetics(okBody([heroBody({ cardRims: {} })])).heroes[0].cardRims,
+    ).toEqual({ enabled: true });
+    expect(
+      normalizeCosmetics(okBody([heroBody({ cardRims: { enabled: false } })])).heroes[0]
+        .cardRims,
+    ).toEqual({ enabled: false });
   });
 
   it("drops junk rows and duplicate ids rather than rendering them twice", () => {
@@ -211,6 +228,22 @@ describe("putTokenRim", () => {
   });
 });
 
+describe("putCardRims", () => {
+  it("sends the pref to its own endpoint and reports the outcome", async () => {
+    mockFetch().mockResolvedValue(reply(200, {}));
+    expect(await putCardRims("thetis", false)).toEqual({ ok: true });
+    const [url, init] = mockFetch().mock.calls[0];
+    expect(url).toContain("/me/cosmetics/card-rims");
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(init.body)).toEqual({ heroId: "thetis", enabled: false });
+
+    mockFetch().mockResolvedValue(reply(503, {}));
+    expect(await putCardRims("thetis", true)).toEqual({ ok: false, reason: "unavailable" });
+    mockFetch().mockResolvedValue(reply(401, {}));
+    expect(await putCardRims("thetis", true)).toEqual({ ok: false, reason: "unauthorized" });
+  });
+});
+
 describe("presentation helpers", () => {
   it("names the rim ladder, clamping a tier newer than this client", () => {
     expect(rimTierName(0)).toBeNull();
@@ -313,6 +346,64 @@ describe("wireLoadoutFor — the equip wire's projection", () => {
       okBody([heroBody({ cards: [], tokenRim: { unlockedTier: null, enabled: true } })]),
     ).heroes;
     expect(wireLoadoutFor(nothingElse, "thetis")).toBeNull();
+  });
+
+  it("publishes ZERO card entries when card rims are switched off (#627)", () => {
+    // A MIXED loadout: two upgraded cards and an unlocked, worn token rim. The
+    // card switch drops every card entry and leaves the token rim alone —
+    // "play without cosmetics" must not cost the rim you earned.
+    const mixed = normalizeCosmetics(
+      okBody([
+        heroBody({
+          cards: [
+            { key: "undertow", tier: 2 },
+            { key: "riptide", tier: 4 },
+          ],
+          tokenRim: { unlockedTier: 2, enabled: true },
+          cardRims: { enabled: false },
+        }),
+      ]),
+    ).heroes;
+    expect(wireLoadoutFor(mixed, "thetis")).toEqual({ tokenRimTier: 2, cards: [] });
+    // Still a valid, token-only blob — the very shape a rim-with-no-cards
+    // player already publishes.
+    expect(encodeCosmetics(wireLoadoutFor(mixed, "thetis"))).toBe("c1;t2");
+  });
+
+  it("publishes nothing at all when BOTH switches are off, cards owned or not", () => {
+    const off = normalizeCosmetics(
+      okBody([
+        heroBody({
+          tokenRim: { unlockedTier: 4, enabled: false },
+          cardRims: { enabled: false },
+        }),
+      ]),
+    ).heroes;
+    expect(wireLoadoutFor(off, "thetis")).toBeNull();
+    expect(encodeCosmetics(wireLoadoutFor(off, "thetis"))).toBeUndefined();
+  });
+
+  it("keeps the two switches independent — the token rim is unaffected", () => {
+    const cardsOnly = normalizeCosmetics(
+      okBody([
+        heroBody({
+          tokenRim: { unlockedTier: 3, enabled: false },
+          cardRims: { enabled: true },
+        }),
+      ]),
+    ).heroes;
+    expect(wireLoadoutFor(cardsOnly, "thetis")).toEqual({
+      tokenRimTier: 0,
+      cards: [{ key: "undertow", tier: 2 }],
+    });
+  });
+
+  it("publishes every owned card when the field is absent — an older API (#627)", () => {
+    const legacy = normalizeCosmetics(okBody([heroBody()])).heroes;
+    expect(wireLoadoutFor(legacy, "thetis")).toEqual({
+      tokenRimTier: 2,
+      cards: [{ key: "undertow", tier: 2 }],
+    });
   });
 
   it("falls a spice remix back to its base hero, like the debug registry does", () => {
