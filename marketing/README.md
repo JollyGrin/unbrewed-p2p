@@ -129,6 +129,63 @@ frame for five seconds, so they get a 160-frame cold open instead.
   mounts, so frames come out in the fallback face. `UnbrewedTrailer` and
   `UnbrewedDemo` still have that bug and can adopt the same wrapper.
 
+## CosmeticsAnnouncement — the cosmetic-rewards launch ad
+
+`CosmeticsAnnouncement` is the launch advert for the cosmetic rim ladder (epic
+#610). Unlike `DeckAnnouncement` it is a **fixed storyboard**, not a template:
+one 1920x1080 / 39s video about one shipped feature, so the deck, the star card
+and the cast live in `src/CosmeticsAnnouncement/cast.ts` rather than in props.
+The only prop is which chiptune runs under it.
+
+```console
+npm run promo -- cosmetics    # → out/cosmetics.mp4 + out/cosmetics-discord.mp4
+npm run render:cosmetics      # just the mp4
+```
+
+| Frames (30fps) | Beat |
+| --- | --- |
+| 120 | one Thrall card alone; a beat of stillness, then the bronze rim ignites |
+| 260 | the ladder — the same card steps bronze → silver → antiqued gold → iridescent |
+| 160 | a /collection panel: points tick up, one card is bought a rung |
+| 150 | a fanned hand where every copy of the upgraded set rims at once |
+| 180 | board vignette: the fighter token climbs its threshold bar |
+| 150 | combat reveal — their base card against your iridescent one |
+| 150 | end card: unbrewed.xyz/collection |
+
+Beats 1 and 2 are a **match cut**, not a dissolve: the card is in the same place
+at the same size on both sides, so `SceneFade` gets `fadeOut: 0` / `fadeIn: 0`
+there and each scene fades only its own copy.
+
+### Why it can't drift from the app
+
+- Card rims are the shipped `CardRim`, reached through the shipped
+  `withRimTier` seam (`shared/CardFace.tsx` takes a `rimTier`). The token band
+  and the ladder pips paint `COSMETIC_RIM_PAINTS[tier].ring` — the same conic
+  gradient string `FighterTokenRim` uses — under the same radial mask.
+- Tier names, tier order, upgrade prices and rim thresholds come from
+  `lib/pro/cosmetics.ts` and `lib/account/cosmetics.ts`. Re-tune the ladder in
+  the app and the video follows it.
+- The deck, its art and its card faces are read out of the shipped deck JSON by
+  the same loader the deck promos use.
+
+The one thing the ad adds is MOTION — an ignition cross-fade and a specular
+sweep, both drawn in the tier's own brightest stop. The shipped rim is static by
+design (nothing in a hand animates at rest); those overlays live only here.
+
+## Shared pieces
+
+`src/shared/` is what both compositions are built from — `color.ts` (palette
+maths), `deck.ts` (the evergreen-deck loader), `CardFace.tsx` (the app's real
+card renderer), `particles.ts` (the flourish maths), `Flourish.tsx`, `ui.tsx`
+and `audio.tsx`. A composition owns only its own storyboard: its `timeline.ts`,
+the choreography beside it (`particles.ts` / `flourish.ts` — which frames burst,
+how far the field dims), its scenes and its audio cue sheet.
+
+`npm run check:flourish` proves, for BOTH compositions, that every burst is
+silent outside a cue window, that the ambient field stays inside its opacity
+budget and backs off under copy, and that nothing anywhere in `src/` calls
+`Math.random()`.
+
 ## Docs
 
 Get started with Remotion by reading the [fundamentals page](https://www.remotion.dev/docs/the-fundamentals).

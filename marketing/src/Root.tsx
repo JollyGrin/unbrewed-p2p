@@ -9,7 +9,14 @@ import {
   totalDuration,
 } from "./DeckAnnouncement";
 import { deckAnnouncementSchema } from "./DeckAnnouncement/schema";
+import {
+  CosmeticsAnnouncement,
+  cosmeticsAnnouncementMetadata,
+  totalDuration as cosmeticsDuration,
+} from "./CosmeticsAnnouncement";
+import { cosmeticsAnnouncementSchema } from "./CosmeticsAnnouncement/schema";
 import taranis from "../props/taranis.json";
+import cosmetics from "../props/cosmetics.json";
 
 export const RemotionRoot: React.FC = () => {
   return (
@@ -42,6 +49,19 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={deckAnnouncementSchema.parse(taranis)}
         calculateMetadata={deckAnnouncementMetadata}
         durationInFrames={totalDuration(taranis.featuredCards.length, true)}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      {/* The cosmetic-rewards launch ad (#629). One fixed storyboard, so it
+          takes no cast props — only which chiptune runs under it. */}
+      <Composition
+        id="CosmeticsAnnouncement"
+        component={CosmeticsAnnouncement}
+        schema={cosmeticsAnnouncementSchema}
+        defaultProps={cosmeticsAnnouncementSchema.parse(cosmetics)}
+        calculateMetadata={cosmeticsAnnouncementMetadata}
+        durationInFrames={cosmeticsDuration()}
         fps={FPS}
         width={1920}
         height={1080}

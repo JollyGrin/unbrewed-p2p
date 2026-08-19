@@ -6,7 +6,7 @@ import {
 import { BrandFonts } from "../fonts";
 import { PromoAudio } from "./audio";
 import { Flourish } from "./Flourish";
-import { loadDeckPromo, type DeckPromo } from "./deck";
+import { loadDeckPromo, type DeckPromo } from "../shared/deck";
 import { paletteFor } from "./palette";
 import { deckAnnouncementSchema, type DeckAnnouncementInput } from "./schema";
 import { CallToAction } from "./scenes/CallToAction";
