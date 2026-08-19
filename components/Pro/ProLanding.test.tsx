@@ -41,6 +41,13 @@ let mockDebug = false;
 jest.mock("../../lib/pro/useProLiveRoster", () => ({
   useProLiveRosterState: () => mockRosterState,
 }));
+// The hero-preview modal this page mounts probes the accounts API for the
+// player's own cosmetics (#623). A guest is this suite's subject — the roster
+// tiles — and it keeps an async probe from settling after a case has finished.
+jest.mock("../../lib/account/useAccount", () => ({
+  ...jest.requireActual("../../lib/account/useAccount"),
+  useAccount: () => ({ status: "guest", account: null }),
+}));
 jest.mock("next/router", () => ({
   useRouter: () => ({
     query: mockDebug ? { debug: "1" } : {},

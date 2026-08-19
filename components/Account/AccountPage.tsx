@@ -60,15 +60,19 @@ const GhostButton = (props: React.ComponentProps<typeof Button>) => (
 );
 
 /**
- * The owner-only end of the profile header: the way to the public board, and
- * the way out. Stacked rather than inline so a narrow screen doesn't squeeze
- * the username to nothing.
+ * The owner-only end of the profile header: the way to your cosmetic
+ * collection (#614), the way to the public board, and the way out. Stacked
+ * rather than inline so a narrow screen doesn't squeeze the username to
+ * nothing.
  */
 const OwnerActions = () => {
   const [signingOut, setSigningOut] = useState(false);
 
   return (
     <Flex direction="column" align="stretch" gap="0.4rem" flexShrink={0}>
+      <GhostButton as={NextLink} href="/collection">
+        Collection
+      </GhostButton>
       <GhostButton as={NextLink} href="/leaderboard">
         Leaderboard
       </GhostButton>

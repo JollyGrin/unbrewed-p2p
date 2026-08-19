@@ -20,6 +20,7 @@ import { ProHud } from "@/components/Pro/ProHud";
 import { CardFace, ProHand } from "@/components/Pro/ProHand";
 import { useProCardArt } from "@/lib/pro/useProCardArt";
 import { fighterTokenStateByOwner } from "@/lib/pro/heroStateFlags";
+import { seatCosmetics, tokenRimForSeat } from "@/lib/pro/seatCosmetics";
 import { combatOutcomeBannerText, isNoWinner } from "@/lib/pro/combatOutcome";
 import { squadBadges } from "@/lib/pro/squadNumbers";
 import {
@@ -141,10 +142,20 @@ const PLAY_INTERVAL_MS = 700;
 
 export const ReplayScrubber = ({
   expansion,
+  cosmetics: cosmeticBlobs,
   onExit,
   exitLabel = "← back to replays",
 }: {
   expansion: ReplayExpansion;
+  /**
+   * Per-seat cosmetics blobs frozen into the bundle (engine #392, issue #615),
+   * keyed by runtime seat id — `replayCosmetics(bundle)`. RENDER-ONLY, and
+   * absent for pre-#392 bundles and for the scenario catalogue, which is served
+   * as an expansion with no bundle behind it. A seat with no blob falls back to
+   * the local `pro:cosmetics:debug` registry exactly as the live board does —
+   * that registry is the unauthed testing path — and to base art without one.
+   */
+  cosmetics?: Record<string, string>;
   onExit?: () => void;
   exitLabel?: string;
 }) => {
@@ -161,8 +172,31 @@ export const ReplayScrubber = ({
 
   const step = steps[Math.min(index, lastIndex)];
 
+  // The cosmetics the match was PLAYED with (#615), not today's: the blobs come
+  // off the bundle rather than off this browser's account. The focused seat
+  // stands in for "you", which is what makes a mirror match resolve its shared
+  // hero key to the seat being watched. The "hide opponent cosmetics" setting is
+  // deliberately NOT applied — it exists to keep a live opponent's chrome out of
+  // your way mid-decision, and a replay is something you chose to sit and watch.
+  const cosmetics = useMemo(
+    () =>
+      seatCosmetics(
+        seatList.map((id) => ({
+          id,
+          heroId: replayHeroFor(meta.heroes, id) ?? "",
+          you: id === focus,
+          cosmetics: cosmeticBlobs?.[id],
+        })),
+      ),
+    [seatList, meta.heroes, focus, cosmeticBlobs],
+  );
+
   // Prefetch art for EVERY seat's hero so focusing any seat renders instantly.
-  const { resolveCard, resolveHero, resolveRuleCards, resolveFighterToken } = useProCardArt(heroList, catalog);
+  const { resolveCard, resolveHero, resolveRuleCards, resolveFighterToken } = useProCardArt(
+    heroList,
+    catalog,
+    cosmetics,
+  );
 
   const view = useMemo(() => toPlayerView(step, { map, catalog }, focus), [step, map, catalog, focus]);
   // owner seat -> heroId, so the board resolves each fighter's token art by hero
@@ -271,6 +305,13 @@ export const ReplayScrubber = ({
             return heroId ? resolveFighterToken(heroId, f.kind) : null;
           }}
           fighterTokenBadge={(f) => ownerTokenState[f.owner]?.badge ?? null}
+          // The token rim the seat wore when the match was played (#613/#615),
+          // seat-keyed like the live board's. Sidekicks are deferred (§10b).
+          fighterTokenRim={(f) =>
+            f.kind === "HERO"
+              ? tokenRimForSeat(cosmetics, f.owner, ownerHeroIds[f.owner])
+              : null
+          }
           imgMaxH="calc(100svh - 21rem)"
         />
       </Flex>

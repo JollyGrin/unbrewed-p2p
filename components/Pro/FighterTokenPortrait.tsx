@@ -14,6 +14,8 @@
  * never drift on how a name reduces to letters.
  */
 import { Box, Text } from "@chakra-ui/react";
+import type { CosmeticRimTier } from "@/lib/pro/cosmetics";
+import { FighterTokenRim } from "./FighterTokenRim";
 
 /**
  * Board-token initials: strip a leading "the ", take up to 3 letters, and floor
@@ -33,6 +35,16 @@ export interface FighterTokenPortraitProps {
   artUrl?: string | null;
   /** any CSS length — drives diameter and the initials font size */
   size?: string;
+  /**
+   * Cosmetic metal rim (epic #610), or null for the plain portrait. Painted
+   * with the board's own `FighterTokenRim`, never a look-alike, so what a
+   * player previews here is literally what the table will draw (#623).
+   *
+   * Purely decorative: the rim is an absolutely-positioned, `pointerEvents:
+   * none` overlay inside the circle, so its presence shifts no layout and its
+   * absence costs nothing.
+   */
+  rimTier?: CosmeticRimTier | null;
 }
 
 /**
@@ -45,6 +57,7 @@ export const FighterTokenPortrait = ({
   name,
   artUrl,
   size = "5rem",
+  rimTier = null,
 }: FighterTokenPortraitProps) => (
   <Box
     position="relative"
@@ -137,5 +150,8 @@ export const FighterTokenPortrait = ({
         {tokenInitials(name)}
       </Text>
     )}
+    {/* Last child, so the band seats on the edge of the portrait (or over the
+        vignette behind the initials, which it never overlaps). */}
+    {rimTier && <FighterTokenRim tier={rimTier} />}
   </Box>
 );

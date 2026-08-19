@@ -89,6 +89,10 @@ export interface ZoomPan {
     onPointerDown?: (e: ReactPointerEvent) => void;
     onClickCapture?: (e: ReactMouseEvent) => void;
   };
+  /** The live scale factor of the frame transform, as a number — `1` when
+   *  disabled. Lets a caller convert a board-relative LAYOUT size into the size
+   *  it actually occupies on screen. */
+  scale: number;
   /** true once zoomed or panned away from the fit view — gate the reset control on it */
   active: boolean;
   /** snap back to the computed initial fit */
@@ -331,6 +335,10 @@ export function useZoomPan(
     transform: enabled ? `translate(${state.tx}px, ${state.ty}px) scale(${state.scale})` : undefined,
     transformOrigin: enabled ? "0 0" : undefined,
     handlers: enabled ? { onPointerDown, onClickCapture } : {},
+    // The live scale as a NUMBER, for callers that need to know how big a piece
+    // of the board actually lands on screen (the cosmetic rim retires below a
+    // rendered pixel size, #613). 1 when disabled — no transform is applied.
+    scale: enabled ? state.scale : 1,
     // "reset view" is offered only once the player has moved AWAY from the fit —
     // the fit itself is the resting view, however far from identity it sits.
     active: enabled && !same(state, fit),

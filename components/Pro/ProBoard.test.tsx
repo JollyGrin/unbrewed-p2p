@@ -1337,3 +1337,218 @@ describe("ProBoard marker badges", () => {
     expect(container.querySelectorAll('[title*="Meridian"]')).toHaveLength(0);
   });
 });
+
+// Cosmetic fighter-token rim (issue #613, design doc §10). THE INVARIANT: purely
+// decorative — it never changes a token's position, size, colours, badges or
+// hitbox, and it fails silently to the plain token. These tests are the fixtures
+// the contract asks for: a rimmed and an unrimmed hero token side by side, plus
+// the hard rules of §10a and the auto-retire below ~24px.
+describe("ProBoard fighter token cosmetic rim", () => {
+  // jsdom has no layout: `offsetWidth` is 0 and there is no ResizeObserver, so
+  // ProBoard's frame measurement never fires and the board reports its size as
+  // UNKNOWN. That is the default state for most tests below (rim renders); the
+  // auto-retire block installs both to drive real pixel sizes.
+  const stubFrameWidth = (px: number) => {
+    class StubResizeObserver {
+      constructor(private cb: () => void) {}
+      observe() {
+        this.cb();
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    const g = global as unknown as { ResizeObserver?: unknown };
+    const prevRO = g.ResizeObserver;
+    const prevDesc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetWidth");
+    g.ResizeObserver = StubResizeObserver;
+    Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
+      configurable: true,
+      get: () => px,
+    });
+    return () => {
+      g.ResizeObserver = prevRO;
+      if (prevDesc) Object.defineProperty(HTMLElement.prototype, "offsetWidth", prevDesc);
+      else delete (HTMLElement.prototype as unknown as Record<string, unknown>).offsetWidth;
+    };
+  };
+
+  const rimOf = (el: Element | null) => el?.querySelector("[data-cosmetic-rim]") ?? null;
+
+  // The fixture the contract names: one hero with a rim, one without, on the same
+  // board. Everything else about the two tokens is identical.
+  const sideBySide = () =>
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[
+            fighter({ id: "p1/hero", owner: "p1", name: "Rimmed Hero", space: "s1" }),
+            fighter({ id: "p2/hero", owner: "p2", name: "Plain Hero", space: "s2" }),
+          ]}
+          fighterTokenRim={(f) => (f.owner === "p1" ? "gold" : null)}
+        />
+      </ChakraProvider>
+    );
+
+  it("rims the equipped hero and leaves the unequipped one exactly as before", () => {
+    const { container } = sideBySide();
+    const rimmed = screen.getByTitle(/Rimmed Hero/);
+    const plain = screen.getByTitle(/Plain Hero/);
+    expect(rimOf(rimmed)).toHaveAttribute("data-cosmetic-rim", "gold");
+    expect(rimOf(plain)).toBeNull();
+    // exactly one rim on the whole board
+    expect(container.querySelectorAll("[data-cosmetic-rim]")).toHaveLength(1);
+  });
+
+  it("changes NOTHING else about the rimmed token — same box, same badges, same title", () => {
+    const { container } = sideBySide();
+    const rimmed = screen.getByTitle(/Rimmed Hero/);
+    const plain = screen.getByTitle(/Plain Hero/);
+    const box = (el: HTMLElement) => {
+      const s = getComputedStyle(el);
+      return { w: s.width, aspect: s.aspectRatio, radius: s.borderRadius, display: s.display };
+    };
+    expect(box(rimmed)).toEqual(box(plain));
+    // the seat-colour body and its white border are game data — untouched
+    expect(getComputedStyle(rimmed).border).toBe(getComputedStyle(plain).border);
+    // HP badge still reads, and the rim contributed no text of its own: each
+    // token is exactly its initials + its HP, rim or no rim.
+    expect(rimmed.textContent).toBe("RIM10");
+    expect(plain.textContent).toBe("PLA10");
+    expect(container.querySelectorAll("[data-cosmetic-rim]")[0]).toHaveAttribute("aria-hidden");
+  });
+
+  it("keeps the rim non-interactive so it can never swallow a fighter click (§10a)", () => {
+    const onFighterClick = jest.fn();
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[fighter({ name: "Rimmed Hero" })]}
+          highlightedFighters={["p1/hero"]}
+          onFighterClick={onFighterClick}
+          fighterTokenRim={() => "iridescent"}
+        />
+      </ChakraProvider>
+    );
+    const rim = rimOf(screen.getByTitle(/Rimmed Hero/)) as HTMLElement;
+    expect(getComputedStyle(rim).pointerEvents).toBe("none");
+    fireEvent.click(screen.getByTitle(/Rimmed Hero/));
+    expect(onFighterClick).toHaveBeenCalledWith("p1/hero");
+  });
+
+  it("renders inside the border and never outside it — the ring zone is game state (§10a)", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={MAP} fighters={[fighter({ name: "Rimmed Hero" })]} fighterTokenRim={() => "silver"} />
+      </ChakraProvider>
+    );
+    const rim = rimOf(screen.getByTitle(/Rimmed Hero/)) as HTMLElement;
+    const s = getComputedStyle(rim);
+    // absolute at inset 0 = the token's PADDING box, i.e. strictly inside the
+    // 2px border; no negative offset anywhere would push it into the ring zone.
+    expect(s.position).toBe("absolute");
+    // `inset: 0` — no negative offset anywhere that could push it into the ring
+    // zone the way every badge layer deliberately does.
+    expect(s.inset).toBe("0px");
+    expect(s.inset).not.toContain("-");
+    // masked down to a band, so the seat-colour centre shows through untouched
+    expect(s.maskImage || (s as unknown as Record<string, string>).WebkitMaskImage).toMatch(
+      /radial-gradient/
+    );
+  });
+
+  it("is a sidekick-free cosmetic — sidekicks are deferred (§10b)", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[fighter({ id: "p1/sk", kind: "SIDEKICK", name: "Raptor" })]}
+          // even a resolver that says "yes" for everything must not rim a sidekick
+          fighterTokenRim={() => "gold"}
+        />
+      </ChakraProvider>
+    );
+    expect(container.querySelectorAll("[data-cosmetic-rim]")).toHaveLength(0);
+  });
+
+  it("rims only the HEAD of a two-space (LARGE) hero, never the tail", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[fighter({ id: "p1/kong", name: "King Kong", space: "s1", tailSpace: "s2" })]}
+          fighterTokenRim={() => "bronze"}
+        />
+      </ChakraProvider>
+    );
+    expect(container.querySelectorAll("[data-cosmetic-rim]")).toHaveLength(1);
+  });
+
+  it("sits BELOW the hero-state portrait swap — the art still decides the picture", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={MAP}
+          fighters={[fighter({ name: "Rimmed Hero" })]}
+          fighterTokenArt={() => "/art/thetis-high.webp"}
+          fighterTokenRim={() => "gold"}
+        />
+      </ChakraProvider>
+    );
+    // the hero-state art is painted, unchanged, alongside the rim
+    expect(container.querySelector('img[src="/art/thetis-high.webp"]')).toBeInTheDocument();
+    expect(container.querySelectorAll("[data-cosmetic-rim]")).toHaveLength(1);
+    // …and the initials are still legible over both
+    expect(screen.getByText("RIM")).toBeInTheDocument();
+  });
+
+  it("draws nothing at all when no rim prop is wired (every board today)", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard map={MAP} fighters={[fighter({})]} />
+      </ChakraProvider>
+    );
+    expect(container.querySelectorAll("[data-cosmetic-rim]")).toHaveLength(0);
+  });
+
+  describe("auto-retire below ~24px rendered diameter (§10b)", () => {
+    // A NORMAL token is 2.1% * 0.82 ≈ 1.72% of the frame; a SMALL is 2.1% * 0.52
+    // ≈ 1.09%. So a 1600px frame draws a NORMAL at ~28px (rimmed) and a SMALL at
+    // ~17px (retired), and a 1000px frame puts even the NORMAL at ~17px — the
+    // shape of a SMALL fighter at minimum zoom.
+    let restore = () => {};
+    afterEach(() => restore());
+
+    const boardAt = (framePx: number, size: ViewFighter["size"] = "NORMAL") => {
+      restore = stubFrameWidth(framePx);
+      return render(
+        <ChakraProvider>
+          <ProBoard
+            map={MAP}
+            fighters={[fighter({ name: "Rimmed Hero", size })]}
+            fighterTokenRim={() => "gold"}
+          />
+        </ChakraProvider>
+      );
+    };
+
+    it("rims a comfortably large token", () => {
+      const { container } = boardAt(1600);
+      expect(container.querySelectorAll("[data-cosmetic-rim]")).toHaveLength(1);
+    });
+
+    it("retires on a small board where the token lands under 24px", () => {
+      const { container } = boardAt(1000);
+      expect(container.querySelectorAll("[data-cosmetic-rim]")).toHaveLength(0);
+      // and the token itself is untouched — no layout shift, just no rim
+      expect(screen.getByTitle(/Rimmed Hero/)).toBeInTheDocument();
+      expect(screen.getByText("RIM")).toBeInTheDocument();
+    });
+
+    it("leaves SMALL fighters alone even on a board that rims a NORMAL one", () => {
+      const { container } = boardAt(1600, "SMALL");
+      expect(container.querySelectorAll("[data-cosmetic-rim]")).toHaveLength(0);
+    });
+  });
+});

@@ -16,15 +16,42 @@
  * read the resolved field off the preview deck rather than re-plumbing the whole
  * catalog machinery into a pre-match surface. FighterTokenPortrait mirrors the
  * board's art-clip + initials fallback so art-less decks look intentional too.
+ *
+ * Cosmetics (issue #623, epic #610): a signed-in player who owns an upgrade on
+ * THIS hero gets a "Show my upgrades" switch, default on, that paints their
+ * owned rims on the very cards and token they will take into a game. It renders
+ * through the REAL treatment components (`withRimTier` -> `CardRim`,
+ * `FighterTokenRim`) rather than a preview look-alike, so /collection, this
+ * modal and the table can never drift apart on what a tier looks like.
+ *
+ * The loadout is strictly ADDITIVE and strictly late: `useHeroPreviewLoadout`
+ * is gated on `isOpen`, never blocks a render, and answers null for a guest,
+ * for a hero with nothing bought, and for an unreachable API — in all three the
+ * modal is byte-identical to the pre-#623 one, which is what keeps the preview
+ * working for not-yet-converted community decks that have no account story at
+ * all.
  */
-import { ReactNode } from "react";
-import { Box, Flex, Modal, ModalBody, ModalCloseButton, ModalContent, ModalOverlay, Tag, Text } from "@chakra-ui/react";
+import { ReactNode, useEffect, useState } from "react";
+import {
+  Box,
+  Flex,
+  Modal,
+  ModalBody,
+  ModalCloseButton,
+  ModalContent,
+  ModalOverlay,
+  Switch,
+  Tag,
+  Text,
+} from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
 import { GiFootprint, GiHearts } from "react-icons/gi";
 import { TbBow, TbSword } from "react-icons/tb";
 import { CardFace } from "./ProHand";
 import { CardPreviewProvider } from "./CardPreview";
 import { FighterTokenPortrait } from "./FighterTokenPortrait";
+import { useHeroPreviewLoadout } from "@/lib/account/useHeroPreviewLoadout";
+import { norm, withRimTier } from "@/lib/pro/cardAppearance";
 import { useDeckPreview } from "@/lib/pro/useDeckPreview";
 import { useDeckStats } from "@/lib/pro/useDeckStats";
 import { LARGE_FIGHTER_BLURB } from "@/lib/pro/largeReach";
@@ -122,6 +149,18 @@ export const HeroPreviewModal = ({
 }: HeroPreviewModalProps) => {
   const { data: deck, isLoading } = useDeckPreview(deckId, isOpen);
   const { data: statsFile } = useDeckStats();
+  // Null for a guest, for a hero with nothing bought, and for an API that
+  // didn't answer — the three cases where this modal must look exactly as it
+  // did before cosmetics existed.
+  const loadout = useHeroPreviewLoadout(heroId, isOpen);
+  const [showUpgrades, setShowUpgrades] = useState(true);
+  // Default ON per open: seeing the rims is what a player opened this for, and
+  // toggling off is a deliberate "show me the base art" comparison rather than
+  // a preference to carry into the next hero they inspect.
+  useEffect(() => {
+    if (isOpen) setShowUpgrades(true);
+  }, [isOpen, heroId]);
+  const worn = showUpgrades ? loadout : null;
   const stats = heroId ? statsFile?.[heroId] : undefined;
 
   const hp = deck?.hero.hp ?? quickStats?.hp;
@@ -178,6 +217,11 @@ export const HeroPreviewModal = ({
                   name={deck?.hero.name ?? heroName}
                   artUrl={deck?.hero.tokenImageUrl}
                   size="5rem"
+                  // HERO only. The board paints the token rim on the hero's head
+                  // segment and nothing else (ProBoard, design doc §10b defers
+                  // sidekick cosmetics), so rimming the sidekick portrait here
+                  // would preview a reward that never appears at the table.
+                  rimTier={worn?.tokenRim ?? null}
                 />
                 <Box minW={0}>
                   <Text
@@ -211,6 +255,43 @@ export const HeroPreviewModal = ({
                   )}
                 </Box>
               </Flex>
+
+              {/* "Show my upgrades" (issue #623) — present ONLY when this
+                  player owns something on this hero, so it never advertises a
+                  store to somebody with nothing in it. Default on; off is the
+                  before/after comparison against base art. */}
+              {loadout && (
+                <Flex
+                  data-testid="hero-preview-upgrades"
+                  data-showing={showUpgrades ? "on" : "off"}
+                  align="center"
+                  gap="0.55rem"
+                  mt="0.9rem"
+                  px="0.7rem"
+                  py="0.35rem"
+                  w="fit-content"
+                  borderRadius="full"
+                  bg="whiteAlpha.100"
+                  border="1px solid"
+                  borderColor="whiteAlpha.200"
+                >
+                  <Switch
+                    id="hero-preview-upgrades-switch"
+                    size="sm"
+                    isChecked={showUpgrades}
+                    onChange={(event) => setShowUpgrades(event.target.checked)}
+                  />
+                  <Text
+                    as="label"
+                    htmlFor="hero-preview-upgrades-switch"
+                    fontSize="0.8rem"
+                    cursor="pointer"
+                    userSelect="none"
+                  >
+                    Show my upgrades
+                  </Text>
+                </Flex>
+              )}
 
               {/* Standing large-fighter rule (issue #235) — the full sentence that
                   the in-game HUD and attack-reach chip also show, so the 2-space
@@ -302,6 +383,11 @@ export const HeroPreviewModal = ({
                   {cards.map((card, i) => (
                     <Box
                       key={`${card.title}-${i}`}
+                      // The card SET key — `norm(title)`, the same key the art
+                      // snapshot, the rim registry and the API's `cardKey` all
+                      // agree on. Rendered so a test (and a human with devtools)
+                      // can tell which cell is which without reading art.
+                      data-card-key={norm(card.title)}
                       position="relative"
                       overflow="hidden"
                       borderRadius="0.55rem"
@@ -328,7 +414,15 @@ export const HeroPreviewModal = ({
                         "&:hover::after": { transform: "translateX(130%)" },
                       }}
                     >
-                      <CardFace card={card} fallback={card.title} />
+                      {/* The REAL treatment, through the same seam /pro and
+                          /collection paint through: `withRimTier` stamps the
+                          tier and `Card` -> `CardRim` draws it. An un-upgraded
+                          card (and every card with the toggle off) is handed
+                          back untouched, by reference. */}
+                      <CardFace
+                        card={withRimTier(card, worn?.cardRims[norm(card.title)] ?? null)}
+                        fallback={card.title}
+                      />
                     </Box>
                   ))}
                 </Box>

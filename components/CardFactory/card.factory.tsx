@@ -1,5 +1,7 @@
 import { Fragment, memo, useEffect, useMemo, useState } from "react";
+import { cardAppearance } from "@/lib/pro/cardAppearance";
 import { DeckImportCardType } from "../DeckPool/deck-import.type";
+import { CardRim } from "./cardRim";
 import {
   calculateProps,
   cardStyles,
@@ -442,6 +444,13 @@ export const CardSvg: React.FC<{
             {card.quantity}
           </text>
         </g>
+        {/* Cosmetic rim (epic #610), asked of the same seam the face art comes
+            from — the treatment rides on the resolved card, so the generated
+            template needs no extra prop threading and picks it up on BOTH of
+            its render paths: the DOM-hybrid frame SVG (which already paints
+            above the HTML art layer) and the string-rendered board token.
+            Last child, so it overlays the frame without any z-index. */}
+        <CardRim tier={cardAppearance(card).rimTier} />
       </svg>
     </Fragment>
   );

@@ -1,0 +1,194 @@
+/**
+ * The receiving half of the equip wire (#615): seats in, rims out.
+ *
+ * What is pinned here is the POLICY rather than the parsing (that lives in
+ * cosmeticsWire.test.ts): which seat's loadout wins where, what the
+ * "hide opponent cosmetics" setting hides and what it must never hide, and the
+ * precedence between the wire and the local debug registry.
+ */
+import {
+  COSMETICS_DEBUG_KEY,
+  __resetCosmeticsForTest,
+} from "./cosmetics";
+import { encodeCosmetics } from "./cosmeticsWire";
+import {
+  cardRimForSeats,
+  replayCosmetics,
+  seatCosmetics,
+  tokenRimForSeat,
+} from "./seatCosmetics";
+
+const MINE = encodeCosmetics({
+  tokenRimTier: 4,
+  cards: [
+    { key: "Feint", tier: 3 },
+    { key: "Brute Strength", tier: 1 },
+  ],
+})!;
+
+const THEIRS = encodeCosmetics({
+  tokenRimTier: 1,
+  cards: [{ key: "Iron Teeth", tier: 4 }],
+})!;
+
+const seats = (over: Partial<Record<"p1" | "p2", string>> = {}) => [
+  { id: "p1", heroId: "kenshiro", you: true, cosmetics: over.p1 ?? MINE },
+  { id: "p2", heroId: "baba-yaga", you: false, cosmetics: over.p2 ?? THEIRS },
+];
+
+const seedDebug = (registry: unknown) => {
+  window.localStorage.setItem(COSMETICS_DEBUG_KEY, JSON.stringify(registry));
+  __resetCosmeticsForTest();
+};
+
+beforeEach(() => {
+  window.localStorage.clear();
+  __resetCosmeticsForTest();
+});
+
+describe("seatCosmetics", () => {
+  it("resolves each seat's own token rim, seat-keyed", () => {
+    const c = seatCosmetics(seats());
+    expect(tokenRimForSeat(c, "p1", "kenshiro")).toBe("iridescent");
+    expect(tokenRimForSeat(c, "p2", "baba-yaga")).toBe("bronze");
+  });
+
+  it("resolves each hero's card rims, and base art for the rest", () => {
+    const c = seatCosmetics(seats());
+    expect(cardRimForSeats(c, "kenshiro", "Feint")).toBe("gold");
+    expect(cardRimForSeats(c, "kenshiro", "Brute Strength")).toBe("bronze");
+    expect(cardRimForSeats(c, "kenshiro", "Battle Aura")).toBeNull();
+    expect(cardRimForSeats(c, "baba-yaga", "Iron Teeth")).toBe("iridescent");
+  });
+
+  it("reports whether an OPPONENT published anything", () => {
+    expect(seatCosmetics(seats()).hasOpponentCosmetics).toBe(true);
+    // Own seat only — nothing to offer a toggle for.
+    expect(
+      seatCosmetics([{ id: "p1", heroId: "kenshiro", you: true, cosmetics: MINE }])
+        .hasOpponentCosmetics,
+    ).toBe(false);
+  });
+
+  it("is total for an empty / absent seat list", () => {
+    for (const s of [null, undefined, []]) {
+      const c = seatCosmetics(s);
+      expect(cardRimForSeats(c, "kenshiro", "Feint")).toBeNull();
+      expect(tokenRimForSeat(c, "p1", "kenshiro")).toBeNull();
+    }
+  });
+
+  it("never throws on a garbage blob — that seat simply renders base art", () => {
+    const c = seatCosmetics([
+      { id: "p1", heroId: "kenshiro", you: true, cosmetics: "c9;💥;;;" },
+      { id: "p2", heroId: "baba-yaga", cosmetics: " ".repeat(50) },
+    ]);
+    expect(cardRimForSeats(c, "kenshiro", "Feint")).toBeNull();
+    expect(tokenRimForSeat(c, "p2", "baba-yaga")).toBeNull();
+  });
+
+  describe("mirror match — one hero, two loadouts", () => {
+    const mirror = [
+      { id: "p2", heroId: "kenshiro", you: false, cosmetics: THEIRS },
+      { id: "p1", heroId: "kenshiro", you: true, cosmetics: MINE },
+    ];
+
+    it("resolves the shared hero key to YOUR OWN loadout, whatever the seat order", () => {
+      const c = seatCosmetics(mirror);
+      expect(cardRimForSeats(c, "kenshiro", "Feint")).toBe("gold");
+      expect(cardRimForSeats(c, "kenshiro", "Iron Teeth")).toBeNull();
+    });
+
+    it("still paints each seat's OWN token rim — tokens are seat-keyed", () => {
+      const c = seatCosmetics(mirror);
+      expect(tokenRimForSeat(c, "p1", "kenshiro")).toBe("iridescent");
+      expect(tokenRimForSeat(c, "p2", "kenshiro")).toBe("bronze");
+    });
+  });
+
+  describe("hide opponent cosmetics", () => {
+    it("hides other seats and keeps your own", () => {
+      const c = seatCosmetics(seats(), { hideOthers: true });
+      expect(cardRimForSeats(c, "kenshiro", "Feint")).toBe("gold");
+      expect(tokenRimForSeat(c, "p1", "kenshiro")).toBe("iridescent");
+      expect(cardRimForSeats(c, "baba-yaga", "Iron Teeth")).toBeNull();
+      expect(tokenRimForSeat(c, "p2", "baba-yaga")).toBeNull();
+    });
+
+    it("keeps reporting that an opponent HAS cosmetics, so the toggle stays offered", () => {
+      expect(seatCosmetics(seats(), { hideOthers: true }).hasOpponentCosmetics).toBe(true);
+    });
+
+    it("also blocks the local debug registry from painting a hidden seat", () => {
+      seedDebug({ "baba-yaga": { tokenRim: "gold", cards: { "iron teeth": "silver" } } });
+      const c = seatCosmetics(
+        [
+          { id: "p1", heroId: "kenshiro", you: true, cosmetics: MINE },
+          // No blob at all — but hiding must still hide.
+          { id: "p2", heroId: "baba-yaga", you: false },
+        ],
+        { hideOthers: true },
+      );
+      expect(tokenRimForSeat(c, "p2", "baba-yaga")).toBeNull();
+      expect(cardRimForSeats(c, "baba-yaga", "Iron Teeth")).toBeNull();
+    });
+  });
+
+  describe("precedence over the local debug registry", () => {
+    it("the wire wins for a seat that published one", () => {
+      seedDebug({ kenshiro: { tokenRim: "bronze", cards: { feint: "bronze" } } });
+      const c = seatCosmetics(seats());
+      expect(cardRimForSeats(c, "kenshiro", "Feint")).toBe("gold");
+      expect(tokenRimForSeat(c, "p1", "kenshiro")).toBe("iridescent");
+    });
+
+    it("the wire does not TOP UP a published loadout with local rims", () => {
+      // Both screens must agree; local state adding a rim the opponent cannot
+      // see is exactly the disagreement this rule exists to prevent.
+      seedDebug({ kenshiro: { cards: { "battle aura": "iridescent" } } });
+      const c = seatCosmetics(seats());
+      expect(cardRimForSeats(c, "kenshiro", "Battle Aura")).toBeNull();
+    });
+
+    it("the debug registry still decides for a seat with NO blob (unauthed testing)", () => {
+      seedDebug({ thetis: { tokenRim: "silver", cards: { "tidal wave": "gold" } } });
+      const c = seatCosmetics([{ id: "p1", heroId: "thetis", you: true }]);
+      expect(tokenRimForSeat(c, "p1", "thetis")).toBe("silver");
+      expect(cardRimForSeats(c, "thetis", "Tidal Wave")).toBe("gold");
+    });
+
+    it("falls back to the registry with no seat information at all", () => {
+      seedDebug({ thetis: { cards: { "tidal wave": "gold" } } });
+      expect(cardRimForSeats(null, "thetis", "Tidal Wave")).toBe("gold");
+      expect(cardRimForSeats(undefined, null, "Tidal Wave")).toBeNull();
+    });
+  });
+});
+
+describe("replayCosmetics", () => {
+  it("reads the per-seat blobs frozen into a bundle", () => {
+    expect(
+      replayCosmetics({
+        config: {
+          players: {
+            p1: { cosmetics: MINE },
+            p2: { cosmetics: THEIRS },
+          },
+        },
+      }),
+    ).toEqual({ p1: MINE, p2: THEIRS });
+  });
+
+  it("is empty for a pre-#392 bundle, a seat that claimed nothing, and junk", () => {
+    expect(replayCosmetics({ config: { players: { p1: {}, p2: { cosmetics: "" } } } })).toEqual({});
+    expect(replayCosmetics({ config: {} })).toEqual({});
+    expect(replayCosmetics(null)).toEqual({});
+    expect(replayCosmetics(undefined)).toEqual({});
+  });
+
+  it("round-trips through the seat resolver, so a replay wears what it was played with", () => {
+    const blobs = replayCosmetics({ config: { players: { p1: { cosmetics: MINE } } } });
+    const c = seatCosmetics([{ id: "p1", heroId: "kenshiro", you: true, cosmetics: blobs.p1 }]);
+    expect(cardRimForSeats(c, "kenshiro", "Feint")).toBe("gold");
+  });
+});

@@ -9,7 +9,10 @@
  *   sides rather than showing a blank plate.
  */
 import type { AccountState } from "@/lib/account/useAccount";
+import type { HeroCosmetics } from "@/lib/account/cosmetics";
+import { decodeCosmetics, wireCardRim } from "./cosmeticsWire";
 import {
+  cosmeticsField,
   identityFields,
   MAX_BADGE_ID,
   MAX_DISPLAY_NAME,
@@ -197,5 +200,84 @@ describe("identityFields — the worn badge", () => {
     expect(identityFields(signedIn("JollyGrin"), "moon-walker")).toMatchObject({
       badge: "moon-walker",
     });
+  });
+});
+
+describe("cosmeticsField (epic #610, issue #615)", () => {
+  /** A hero row exactly as `GET /me/cosmetics` reports it (#614's shape). */
+  const hero = (over: Partial<HeroCosmetics> = {}): HeroCosmetics => ({
+    heroId: "kenshiro",
+    earned: 900,
+    spent: 400,
+    adjusted: 0,
+    available: 500,
+    cards: [{ key: "feint", tier: 3 }],
+    tokenRim: { unlockedTier: 2, enabled: true },
+    cardRims: { enabled: true },
+    ...over,
+  });
+  const loadout = [hero()];
+
+  it("publishes the loadout for the hero being played, as an ids-only blob", () => {
+    const { cosmetics } = cosmeticsField(signedIn("JollyGrin"), loadout, "kenshiro");
+    expect(cosmetics).toBeDefined();
+    // Ids only: no URL, no inline data, no title, and small.
+    expect(cosmetics).toMatch(/^[0-9a-z;,]+$/);
+    expect(cosmetics).not.toMatch(/https?:|data:|feint/i);
+    expect(Buffer.byteLength(cosmetics!, "utf8")).toBeLessThanOrEqual(512);
+    expect(wireCardRim(decodeCosmetics(cosmetics), "Feint")).toBe("gold");
+    expect(decodeCosmetics(cosmetics).tokenRim).toBe("silver");
+  });
+
+  it("sends NO KEY for a guest, an unreached API, or a hero with nothing equipped", () => {
+    // The whole old-client-safety story: absent fields = a pre-#392 message.
+    expect(cosmeticsField(signedIn("JollyGrin"), null, "kenshiro")).toEqual({});
+    expect(cosmeticsField(signedIn("JollyGrin"), undefined, "kenshiro")).toEqual({});
+    expect(cosmeticsField(signedIn("JollyGrin"), [], "kenshiro")).toEqual({});
+    expect(cosmeticsField(signedIn("JollyGrin"), loadout, "thetis")).toEqual({});
+    expect(
+      cosmeticsField(
+        signedIn("JollyGrin"),
+        [hero({ heroId: "thetis", cards: [], tokenRim: { unlockedTier: 0, enabled: true } })],
+        "thetis",
+      ),
+    ).toEqual({});
+  });
+
+  it("does not publish a rim the player switched off on /collection", () => {
+    // The `enabled` pref is the opt-out; honouring it client-side is what makes
+    // the collection toggle mean anything to the other seat.
+    const off = [hero({ cards: [], tokenRim: { unlockedTier: 4, enabled: false } })];
+    expect(cosmeticsField(signedIn("JollyGrin"), off, "kenshiro")).toEqual({});
+  });
+
+  it("does not publish a rim telemetry could not confirm", () => {
+    // `unlockedTier: null` is "we don't know" on the API's degraded 503 body —
+    // claiming a tier off it would show a rim nobody had earned.
+    const unknown = [hero({ cards: [], tokenRim: { unlockedTier: null, enabled: true } })];
+    expect(cosmeticsField(signedIn("JollyGrin"), unknown, "kenshiro")).toEqual({});
+    // The card rows are the API's OWN storage and survive the outage, so they
+    // still publish.
+    const degraded = [hero({ tokenRim: { unlockedTier: null, enabled: true } })];
+    const { cosmetics } = cosmeticsField(signedIn("JollyGrin"), degraded, "kenshiro");
+    expect(decodeCosmetics(cosmetics).tokenRim).toBeNull();
+    expect(wireCardRim(decodeCosmetics(cosmetics), "Feint")).toBe("gold");
+  });
+
+  it("sends NOTHING for a guest, even with a loadout still in memory", () => {
+    // A store left over from a signed-out session is the one way a guest's frame
+    // could quietly stop being byte-identical to a pre-#392 one.
+    for (const state of [
+      { status: "guest", account: null },
+      { status: "loading", account: null },
+    ] as AccountState[]) {
+      expect(cosmeticsField(state, loadout, "kenshiro")).toEqual({});
+    }
+  });
+
+  it("publishes the base hero's loadout for a spice remix", () => {
+    expect(cosmeticsField(signedIn("JollyGrin"), loadout, "kenshiro-spice").cosmetics).toBe(
+      cosmeticsField(signedIn("JollyGrin"), loadout, "kenshiro").cosmetics,
+    );
   });
 });

@@ -1,23 +1,34 @@
 import { FC, memo, useEffect, useId, useState } from "react";
+import { cardAppearance } from "@/lib/pro/cardAppearance";
+import type { CosmeticRimTier } from "@/lib/pro/cosmetics";
 import {
   CardImageRef,
   DeckImportCardType,
 } from "../DeckPool/deck-import.type";
 import { CardFactory } from "./card.factory";
+import { CardRim } from "./cardRim";
 
 /**
- * The one card renderer the app should use. Cards carrying a
- * `cardImage` render that image (single file or a sprite-sheet cell,
- * as exported by Tabletop Simulator / The Unmatched Club); everything
- * else renders the classic generated template. If the image fails to
- * load we fall back to the template so a dead link never blanks the
- * table.
+ * The one card renderer the app should use. Cards whose APPEARANCE carries a
+ * face image render that image (single file or a sprite-sheet cell, as exported
+ * by Tabletop Simulator / The Unmatched Club); everything else renders the
+ * classic generated template — here the DOM-hybrid one, which paints an HTML
+ * art layer behind a frame-only SVG (issue #373). If the image fails to load we
+ * fall back to the template so a dead link never blanks the table.
+ *
+ * The face image is asked of the cosmetics seam (`cardAppearance`, design doc
+ * §7 Phase 0) rather than read off the card, so both branches — and therefore
+ * both DOM render combinations — resolve through the one indirection point a
+ * later cosmetic layer plugs into.
  */
 const CardBase: FC<{ card: DeckImportCardType }> = ({ card }) => {
-  const image = card?.cardImage;
+  const { cardImage: image, rimTier } = cardAppearance(card);
   const failed = useImageFailed(image?.url);
+  // The generated branch reads the treatment off the card through the same
+  // seam, one layer down in CardSvg — so a fallback from a dead image url
+  // keeps the rim, exactly like it keeps the card.
   if (!image?.url || failed) return <CardFactory card={card} />;
-  return <ImageFace image={image} title={card.title} />;
+  return <ImageFace image={image} title={card.title} rimTier={rimTier} />;
 };
 
 export const Card = memo(CardBase);
@@ -49,6 +60,7 @@ export const ImageFace = ({
   width = "100%",
   height = "100%",
   clipId: clipIdProp,
+  rimTier,
 }: {
   image: CardImageRef;
   title: string;
@@ -57,6 +69,11 @@ export const ImageFace = ({
   width?: string | number;
   height?: string | number;
   clipId?: string;
+  /** Equipped cosmetic rim (epic #610), passed in rather than read off a card
+   * because this component draws bare images too — hero sprite-sheet cells and,
+   * crucially, CARD BACKS. A back is rendered without a tier by construction,
+   * which is what keeps a cosmetic from leaking through a face-down card. */
+  rimTier?: CosmeticRimTier | null;
 }) => {
   const autoId = useId();
   const clipId = clipIdProp ?? autoId;
@@ -102,6 +119,8 @@ export const ImageFace = ({
           />
         )}
       </g>
+      {/* Last child: paints over the (clipped) face, inside the same viewBox. */}
+      <CardRim tier={rimTier} />
     </svg>
   );
 };
