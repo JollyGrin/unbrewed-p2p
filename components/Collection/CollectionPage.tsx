@@ -6,6 +6,12 @@
  * "currency + choice" model of design doc §4c(b), which is exactly the phase
  * §4f says needs a screen of its own.
  *
+ * The hero block is a PICKER, not a dropdown (#625): every hero states its own
+ * points and its own rim at rest, because "where are my points?" is the
+ * question that brought the player here and a `<select>` answered it one
+ * option at a time. Ordering and the two sections live in
+ * `lib/collection/picker.ts`; the rows live in `HeroPicker`.
+ *
  * Auth-gated the way /account is, and for the same reason: the site is
  * statically exported, so there is no server to redirect anybody. A guest gets
  * a short explainer plus the sign-in CTA rather than a bounce or a blank page,
@@ -24,17 +30,19 @@
  * a log line or a replay outcome.
  */
 import { useMemo, useState } from "react";
-import { Box, Button, Flex, Select, Text, useToast } from "@chakra-ui/react";
+import { Box, Button, Flex, Text, useToast } from "@chakra-ui/react";
 import { FaDiscord } from "react-icons/fa";
 import NextLink from "next/link";
 
 import { AccountShell, Panel } from "@/components/Account/Shell";
 import { CardSetGrid, tierLabel } from "@/components/Collection/CardSetGrid";
+import { HeroPicker } from "@/components/Collection/HeroPicker";
 import { TokenRimPanel } from "@/components/Collection/TokenRimPanel";
 import { tokenInitials } from "@/components/Pro/FighterTokenPortrait";
 import { signInUrl, useAccount } from "@/lib/account/useAccount";
 import { useCosmetics } from "@/lib/account/useCosmetics";
 import { rimProgress, rimTierName } from "@/lib/account/cosmetics";
+import { heroPickerSections } from "@/lib/collection/picker";
 import { collectionRoster } from "@/lib/collection/roster";
 import { CardSet, useHeroDeck } from "@/lib/collection/useHeroDeck";
 import { COSMETIC_RIM_PAINTS } from "@/lib/pro/cosmetics";
@@ -148,19 +156,29 @@ export const CollectionPage = () => {
   const toast = useToast();
   const [pickedHeroId, setPickedHeroId] = useState<string | null>(null);
 
-  // Heroes the API reported lead the list (games descending); the rest of the
-  // Pro roster follows. Recomputed only when that list actually changes.
+  const degraded = cosmetics.status === "unavailable";
+
+  // Heroes the API reported lead the list; the rest of the Pro roster follows.
+  // Recomputed only when that list actually changes.
   const roster = useMemo(
     () => collectionRoster(cosmetics.heroes.map((row) => row.heroId)),
     [cosmetics.heroes],
   );
-  // No effect syncs the default: deriving it means the top hero is selected the
-  // moment the payload lands, without a render that shows the wrong one first.
-  const hero = roster.find((row) => row.heroId === pickedHeroId) ?? roster[0] ?? null;
+  const sections = useMemo(
+    () => heroPickerSections(roster, cosmetics.heroes, degraded),
+    [roster, cosmetics.heroes, degraded],
+  );
+  const ordered = useMemo(
+    () => [...sections.ranked, ...sections.more].map((row) => row.hero),
+    [sections],
+  );
+  // No effect syncs the default: deriving it means the player's best hero is
+  // selected the moment the payload lands — the picker's own top row — without
+  // a render that shows the wrong one first.
+  const hero = ordered.find((row) => row.heroId === pickedHeroId) ?? ordered[0] ?? null;
   const { deck, isLoading: deckLoading } = useHeroDeck(hero?.deckId ?? null);
   const heroCosmetics = cosmetics.heroFor(hero?.heroId ?? "");
 
-  const degraded = cosmetics.status === "unavailable";
   const canSpend = cosmetics.status === "ready" && !cosmetics.busy;
 
   const notify = (title: string, status: "success" | "error") =>
@@ -247,33 +265,11 @@ export const CollectionPage = () => {
         <Text fontSize="0.85rem" opacity={0.8} mb="0.8rem">
           {EXPLAINER}
         </Text>
-        <Box maxW="22rem" mb="0.9rem">
-          <Text
-            as="label"
-            htmlFor="collection-hero"
-            fontSize="0.75rem"
-            textTransform="uppercase"
-            letterSpacing="0.06em"
-            opacity={0.7}
-          >
-            Hero
-          </Text>
-          <Select
-            id="collection-hero"
-            size="sm"
-            mt="0.2rem"
-            borderColor="rgba(72, 40, 79, 0.35)"
-            value={hero?.heroId ?? ""}
-            onChange={(event) => setPickedHeroId(event.target.value)}
-          >
-            {roster.map((entry) => (
-              <option key={entry.heroId} value={entry.heroId}>
-                {entry.name}
-                {entry.lab ? " (lab)" : ""}
-              </option>
-            ))}
-          </Select>
-        </Box>
+        <HeroPicker
+          sections={sections}
+          selectedHeroId={hero?.heroId ?? null}
+          onSelect={setPickedHeroId}
+        />
         <Flex gap="1rem" flexWrap="wrap" data-testid="collection-points">
           <Stat
             label="Earned"
