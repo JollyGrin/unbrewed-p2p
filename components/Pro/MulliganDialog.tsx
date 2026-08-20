@@ -23,6 +23,7 @@ import {
   Box,
   Button,
   Flex,
+  Spinner,
   Text,
 } from "@chakra-ui/react";
 import { CardFace } from "@/components/Pro/ProHand";
@@ -115,7 +116,7 @@ export const MulliganDialog = ({
               </Text>
             )}
           </AlertDialogBody>
-          <AlertDialogFooter gap="0.6rem">
+          <AlertDialogFooter gap="0.6rem" justifyContent="center">
             {awaitingYou ? (
               options.map((option, i) => {
                 const choice = mulliganChoiceOf(option);
@@ -132,9 +133,10 @@ export const MulliganDialog = ({
                 );
               })
             ) : (
-              <Button ref={focusRef} isDisabled variant="ghost" color="brand.parchment">
-                {decided ? "waiting…" : "opponent deciding…"}
-              </Button>
+              // Waiting: the body line already says whose turn it is to decide,
+              // so the footer only has to look busy — a second copy of the same
+              // sentence as a dead button reads like a control that does nothing.
+              <Spinner size="sm" opacity={0.6} speed="1.2s" aria-label="waiting" />
             )}
           </AlertDialogFooter>
         </AlertDialogContent>
