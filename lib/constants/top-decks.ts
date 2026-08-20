@@ -676,9 +676,11 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl: "/evergreen-decks/art/5jGPM/cardback.webp",
   },
   {
-    // In-the-lab Pro deck (unmatched.cards 6rDz / version WvW4T24Nq) — server hero
-    // kenshiro (issue #596 ↔ engine #362, riding the #359 followup-queue / #360
-    // per-fighter-marker train). Real unmatched.cards page, so no `original` and the
+    // Pro deck (unmatched.cards 6rDz / version WvW4T24Nq) — server hero kenshiro
+    // (issue #596 ↔ engine #362, riding the #359 followup-queue / #360
+    // per-fighter-marker train). Graduated from the lab 2026-08-20 alongside the
+    // engine's tier promotion (engine #396 — the HOKUTO chain and the MERIDIAN ping
+    // settled in live play). Real unmatched.cards page, so no `original` and the
     // lobby deep-link is derived from `id` (Gerry precedent); `sourceUrl` pins the
     // exact version the engine converted from.
     id: "6rDz",
@@ -695,9 +697,5 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     // same file 6rDz's appearance block hotlinks.
     cardbackUrl: "/evergreen-decks/art/6rDz/cardback.webp",
     sourceUrl: "https://unmatched.cards/decks/6rDz/versions/WvW4T24Nq",
-    // Engine serves this hero at tier `lab` (server/content.ts): the whole Kenshiro
-    // train lands in the lab while the HOKUTO chain and MERIDIAN ping get playtested.
-    lab: true,
-    tier: "lab",
   },
 ];
