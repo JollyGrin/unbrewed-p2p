@@ -820,6 +820,36 @@ describe("enrichLines", () => {
 });
 
 
+describe("opening-hand mulligan (issue #622 ↔ engine #395)", () => {
+  // Named rather than typed: the two events reach the client from a newer
+  // engine than the protocol copy this build was cut against (lib/pro/mulligan.ts).
+  const mulliganed = (player: string) => ({ type: "MULLIGAN_TAKEN", player }) as unknown as GameEvent;
+  const kept = (player: string) => ({ type: "HAND_KEPT", player }) as unknown as GameEvent;
+
+  it("narrates both seats' choices when the window closes", () => {
+    const out = enrichLines([], [mulliganed("p1"), kept("p2")], ctx());
+    expect(out).toEqual([
+      { text: "You mulliganed your opening hand", who: "you" },
+      { text: "Opponent kept their opening hand", who: "opp" },
+    ]);
+  });
+
+  it("keeps the redraw itself out of the feed — five in, five out, deck unchanged", () => {
+    // A mulligan swaps the hand without changing the deck count, so the draw
+    // heuristic must not narrate it; the explicit events are the only lines.
+    const before = view({ phase: "SETUP", self: { ...view({}).self, hand: ["a/x#1", "a/y#2"], deckCount: 10 } });
+    const after = view({ phase: "SETUP", self: { ...view({}).self, hand: ["a/z#3", "a/w#4"], deckCount: 10 } });
+    const diff = diffViews(before, after, label, []);
+    expect(diff.filter((l) => /drew/.test(l.text))).toEqual([]);
+    expect(enrichLines(diff, [mulliganed("p1"), kept("p2")], ctx()).filter((l) => /drew/.test(l.text))).toEqual([]);
+  });
+
+  it("adds nothing on a server that never opens the window", () => {
+    const lines: ProLogLine[] = [{ text: "Turn 1 — your turn", who: "game" }];
+    expect(enrichLines(lines, [{ type: "TURN_STARTED", player: "p1", turnNumber: 1 }], ctx())).toEqual(lines);
+  });
+});
+
 describe("multiplayer diffViews", () => {
   const players3 = (p3: Partial<PlayerView["players"][number]> = {}) => [
     { id: "p1" as const, heroId: "fixture-p1", you: true, hand: [], handCount: 0, deckCount: 10, discard: [], committedCard: null, hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false },

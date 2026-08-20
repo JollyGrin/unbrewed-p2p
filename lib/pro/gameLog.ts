@@ -19,6 +19,7 @@ import { FIGHTER_MARKER_BADGES } from "./fighterStatuses";
 import { deriveTeams, isViewerOnWinningTeam } from "./teams";
 import { sweptFighters } from "./sweep";
 import { combatOutcomeLogText } from "./combatOutcome";
+import { mulliganLogLines } from "./mulligan";
 
 export interface ProLogLine {
   text: string;
@@ -932,6 +933,15 @@ export function enrichLines(
         break;
     }
   }
+
+  // Opening-hand mulligan (issue #622 ↔ engine #395). Handled apart from the
+  // switch above because its two events are matched by NAME rather than against
+  // the `GameEvent` union — see lib/pro/mulligan.ts for why. They are emitted
+  // only when the window closes, for both seats, so this is the moment each
+  // player's choice becomes public. The redraw itself leaves no diff line (five
+  // cards in, five out, deck count unchanged), so these lines are the whole
+  // narration rather than a duplicate of one.
+  added.push(...mulliganLogLines(events, { you: ctx.you as PlayerId, seat: ctx.seat }));
 
   return [...out, ...added];
 }

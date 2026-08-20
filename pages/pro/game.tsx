@@ -70,8 +70,10 @@ import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
 import { ReportBugDialog } from "@/components/Pro/ReportBugDialog";
 import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
 import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
+import { MulliganDialog } from "@/components/Pro/MulliganDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
 import { actionFallbackLine, batchPhase, batchTurnTag, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
+import { MulliganChoice, isMulliganPrompt, mulliganChoiceOf } from "@/lib/pro/mulligan";
 import {
   EMPTY_SUB_ATTACK_CHAIN,
   SubAttackChainProgress,
@@ -2935,6 +2937,16 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   const [moveChoice, setMoveChoice] = useState<{ space: SpaceId; candidates: FighterId[] } | null>(null);
   const [reportBugOpen, setReportBugOpen] = useState(false);
   const [forfeitOpen, setForfeitOpen] = useState(false);
+  // Opening-hand mulligan (issue #622 ↔ engine #395): the answer this seat has
+  // already sent, latched by promptId so the buttons can't be fired twice while
+  // the answering STATE is in flight and so the waiting line can say which way
+  // you went. Cleared whenever no mulligan window is open, so a reopened window
+  // (rewind/resume) always starts undecided.
+  const [mulliganAnswer, setMulliganAnswer] = useState<{ promptId: string; choice: MulliganChoice | null } | null>(null);
+  const mulliganWindowOpen = isMulliganPrompt(snapshot?.prompt);
+  useEffect(() => {
+    if (!mulliganWindowOpen) setMulliganAnswer(null);
+  }, [mulliganWindowOpen]);
   // Client-side memory that YOU chose to forfeit (vs. being swept by combat), so
   // the continuing-game spectator panel can say "You forfeited — spectating"
   // instead of the generic elimination copy. Resets on refresh — the panel then
@@ -3921,6 +3933,16 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   // a token's space, e.g. destroy-totem); CHOOSE_TARGET options a fighter id.
   // Board-answerable options become highlights; the rest stay panel buttons.
   const promptForMe = prompt && prompt.player === view.you ? prompt : null;
+  // Opening-hand mulligan (issue #622 ↔ engine #395). On the wire it is an
+  // ordinary prompt, but it is a one-time whole-attention decision, so it renders
+  // as a modal (MulliganDialog) instead of a dock panel — and is suppressed from
+  // the panel below so it lives in exactly ONE place. Every other prompt kind,
+  // and every server that never opens this window, is untouched.
+  const mulliganPrompt = isMulliganPrompt(prompt) ? prompt : null;
+  const mulliganAwaitsMe =
+    !!mulliganPrompt &&
+    mulliganPrompt.player === view.you &&
+    mulliganAnswer?.promptId !== mulliganPrompt.promptId;
   const mapSpaceIds = new Set(view.map.spaces.map((s) => s.id));
   const fighterIds = new Set(view.fighters.map((f) => f.id));
   const optionSpace = (o: LegalOption): SpaceId | null => {
@@ -4532,7 +4554,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
           ) : null
         }
         promptPanel={
-          prompt ? (
+          prompt && !mulliganPrompt ? (
             <PromptPanel
               prompt={prompt}
               you={view.you}
@@ -4590,6 +4612,37 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
         actions={incomingUndo?.rewindActions ?? []}
         onAccept={() => respondToUndo(true)}
         onReject={() => respondToUndo(false)}
+      />
+
+      {/* opening-hand mulligan (issue #622) — keep or redraw the five cards you
+          were dealt. Open for the WHOLE window (including while the opponent is
+          the one being asked) so the hand stays on screen and the waiting state
+          is honest; it never shows the opponent's answer, which arrives in the
+          log once the engine closes the window. */}
+      <MulliganDialog
+        isOpen={!!mulliganPrompt}
+        hand={view.self.hand}
+        resolveCard={resolveCard}
+        labelFor={(c) => cardLabel(view.catalog, c)}
+        options={mulliganAwaitsMe ? (mulliganPrompt?.options ?? []) : []}
+        awaitingYou={mulliganAwaitsMe}
+        decided={mulliganAnswer?.choice ?? null}
+        timer={
+          // Same gate the HUD plate uses for this seat's bar — the modal hides
+          // that bar, so the clock rides along inside it while you decide.
+          mulliganAwaitsMe && turnTimer?.player === view.you && turnTimer.deadline != null && roomInfo?.turnTimerSeconds
+            ? { deadline: turnTimer.deadline, totalSeconds: roomInfo.turnTimerSeconds }
+            : null
+        }
+        onChoose={(optionId) => {
+          if (!mulliganPrompt) return;
+          const option = mulliganPrompt.options.find((o) => o.id === optionId) ?? null;
+          setMulliganAnswer({
+            promptId: mulliganPrompt.promptId,
+            choice: option ? mulliganChoiceOf(option) : null,
+          });
+          respondToPrompt(mulliganPrompt.promptId, optionId);
+        }}
       />
 
       {/* activity feed — bottom-left parchment panel, sandbox style */}
