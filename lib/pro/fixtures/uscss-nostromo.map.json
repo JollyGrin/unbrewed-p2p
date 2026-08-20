@@ -1,0 +1,466 @@
+{
+  "schemaVersion": "1.0",
+  "id": "uscss-nostromo",
+  "meta": {
+    "title": "USCSS Nostromo",
+    "minPlayers": 2,
+    "maxPlayers": 2,
+    "specialRules": false,
+    "imageUrl": "https://unbrewed.xyz/maps/community-uscss-nostromo.webp",
+    "imageWidth": 1280,
+    "imageHeight": 736,
+    "spaceDiameter": 0.093,
+    "source": "fan battlefield by MrBrownieDL — board image supplied directly (testdata/nostromo.png); hosting + credit link still to be confirmed with the author (unbrewed-p2p#648)",
+    "license": "Fan battlefield 'USCSS Nostromo' designed by MrBrownieDL — credit the author. License/credit line pending the author's confirmation."
+  },
+  "supportedFormats": [
+    {
+      "id": "duel-uscss-nostromo",
+      "formatId": "duel",
+      "label": "Duel",
+      "description": "Start slots 1 and 2 for a standard 1v1.",
+      "seats": {
+        "A1": {
+          "startSlot": 1
+        },
+        "B1": {
+          "startSlot": 2
+        }
+      }
+    }
+  ],
+  "zones": [
+    {
+      "id": "z1",
+      "color": "#8a8a8a",
+      "label": "hypersleep bay"
+    },
+    {
+      "id": "z2",
+      "color": "#83391c",
+      "label": "crew deck"
+    },
+    {
+      "id": "z3",
+      "color": "#3c3449",
+      "label": "bridge"
+    },
+    {
+      "id": "z4",
+      "color": "#575755",
+      "label": "engine walkway"
+    },
+    {
+      "id": "z5",
+      "color": "#bc0c19",
+      "label": "the nest"
+    },
+    {
+      "id": "z6",
+      "color": "#b1718c",
+      "label": "medbay"
+    },
+    {
+      "id": "z7",
+      "color": "#23470a",
+      "label": "egg chamber"
+    }
+  ],
+  "spaces": [
+    {
+      "id": "s1",
+      "x": 0.0844,
+      "y": 0.168,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s2",
+        "s7"
+      ]
+    },
+    {
+      "id": "s2",
+      "x": 0.2102,
+      "y": 0.2126,
+      "zones": [
+        "z1",
+        "z2"
+      ],
+      "adjacentTo": [
+        "s1",
+        "s3",
+        "s7",
+        "s8"
+      ]
+    },
+    {
+      "id": "s3",
+      "x": 0.4104,
+      "y": 0.1107,
+      "zones": [
+        "z3"
+      ],
+      "adjacentTo": [
+        "s2",
+        "s4"
+      ]
+    },
+    {
+      "id": "s4",
+      "x": 0.5212,
+      "y": 0.1196,
+      "zones": [
+        "z3"
+      ],
+      "adjacentTo": [
+        "s3",
+        "s9"
+      ]
+    },
+    {
+      "id": "s5",
+      "x": 0.7431,
+      "y": 0.215,
+      "zones": [
+        "z3",
+        "z5"
+      ],
+      "adjacentTo": [
+        "s6",
+        "s9",
+        "s10",
+        "s15"
+      ]
+    },
+    {
+      "id": "s6",
+      "x": 0.9217,
+      "y": 0.15,
+      "zones": [
+        "z5"
+      ],
+      "adjacentTo": [
+        "s5",
+        "s10",
+        "s16"
+      ]
+    },
+    {
+      "id": "s7",
+      "x": 0.1562,
+      "y": 0.4013,
+      "zones": [
+        "z1",
+        "z2"
+      ],
+      "adjacentTo": [
+        "s1",
+        "s2",
+        "s11",
+        "s17"
+      ]
+    },
+    {
+      "id": "s8",
+      "x": 0.3219,
+      "y": 0.258,
+      "zones": [
+        "z2"
+      ],
+      "adjacentTo": [
+        "s2",
+        "s12"
+      ]
+    },
+    {
+      "id": "s9",
+      "x": 0.6171,
+      "y": 0.2493,
+      "zones": [
+        "z3"
+      ],
+      "adjacentTo": [
+        "s4",
+        "s5",
+        "s13",
+        "s14",
+        "s15"
+      ]
+    },
+    {
+      "id": "s10",
+      "x": 0.8452,
+      "y": 0.3057,
+      "zones": [
+        "z5"
+      ],
+      "adjacentTo": [
+        "s5",
+        "s6",
+        "s15",
+        "s16"
+      ]
+    },
+    {
+      "id": "s11",
+      "x": 0.0772,
+      "y": 0.5639,
+      "zones": [
+        "z2"
+      ],
+      "adjacentTo": [
+        "s7",
+        "s17",
+        "s22"
+      ]
+    },
+    {
+      "id": "s12",
+      "x": 0.3797,
+      "y": 0.4352,
+      "zones": [
+        "z4",
+        "z2"
+      ],
+      "adjacentTo": [
+        "s8",
+        "s13",
+        "s18"
+      ]
+    },
+    {
+      "id": "s13",
+      "x": 0.4933,
+      "y": 0.4265,
+      "zones": [
+        "z4"
+      ],
+      "adjacentTo": [
+        "s9",
+        "s12",
+        "s14"
+      ]
+    },
+    {
+      "id": "s14",
+      "x": 0.5911,
+      "y": 0.5441,
+      "zones": [
+        "z4"
+      ],
+      "adjacentTo": [
+        "s9",
+        "s13",
+        "s19",
+        "s26"
+      ]
+    },
+    {
+      "id": "s15",
+      "x": 0.7312,
+      "y": 0.4457,
+      "zones": [
+        "z3",
+        "z6",
+        "z5"
+      ],
+      "adjacentTo": [
+        "s5",
+        "s9",
+        "s10",
+        "s20"
+      ]
+    },
+    {
+      "id": "s16",
+      "x": 0.9197,
+      "y": 0.4526,
+      "zones": [
+        "z6",
+        "z5"
+      ],
+      "adjacentTo": [
+        "s6",
+        "s10",
+        "s29"
+      ]
+    },
+    {
+      "id": "s17",
+      "x": 0.1918,
+      "y": 0.6265,
+      "zones": [
+        "z2"
+      ],
+      "adjacentTo": [
+        "s7",
+        "s11",
+        "s18"
+      ],
+      "start": {
+        "slot": 1
+      }
+    },
+    {
+      "id": "s18",
+      "x": 0.3063,
+      "y": 0.6352,
+      "zones": [
+        "z2"
+      ],
+      "adjacentTo": [
+        "s12",
+        "s17",
+        "s24"
+      ]
+    },
+    {
+      "id": "s19",
+      "x": 0.4497,
+      "y": 0.663,
+      "zones": [
+        "z4",
+        "z7"
+      ],
+      "adjacentTo": [
+        "s14",
+        "s25",
+        "s26"
+      ]
+    },
+    {
+      "id": "s20",
+      "x": 0.7073,
+      "y": 0.6491,
+      "zones": [
+        "z4",
+        "z6"
+      ],
+      "adjacentTo": [
+        "s15",
+        "s21",
+        "s26",
+        "s27"
+      ]
+    },
+    {
+      "id": "s21",
+      "x": 0.8373,
+      "y": 0.6057,
+      "zones": [
+        "z6"
+      ],
+      "adjacentTo": [
+        "s20",
+        "s28",
+        "s29"
+      ],
+      "start": {
+        "slot": 2
+      }
+    },
+    {
+      "id": "s22",
+      "x": 0.0884,
+      "y": 0.7637,
+      "zones": [
+        "z7"
+      ],
+      "adjacentTo": [
+        "s11",
+        "s23"
+      ]
+    },
+    {
+      "id": "s23",
+      "x": 0.1694,
+      "y": 0.8846,
+      "zones": [
+        "z7"
+      ],
+      "adjacentTo": [
+        "s22",
+        "s24"
+      ]
+    },
+    {
+      "id": "s24",
+      "x": 0.3014,
+      "y": 0.8833,
+      "zones": [
+        "z7"
+      ],
+      "adjacentTo": [
+        "s18",
+        "s23",
+        "s25"
+      ]
+    },
+    {
+      "id": "s25",
+      "x": 0.4514,
+      "y": 0.8872,
+      "zones": [
+        "z7"
+      ],
+      "adjacentTo": [
+        "s19",
+        "s24"
+      ]
+    },
+    {
+      "id": "s26",
+      "x": 0.5901,
+      "y": 0.8215,
+      "zones": [
+        "z4"
+      ],
+      "adjacentTo": [
+        "s14",
+        "s19",
+        "s20",
+        "s27"
+      ]
+    },
+    {
+      "id": "s27",
+      "x": 0.6976,
+      "y": 0.8472,
+      "zones": [
+        "z6"
+      ],
+      "adjacentTo": [
+        "s20",
+        "s26",
+        "s28"
+      ]
+    },
+    {
+      "id": "s28",
+      "x": 0.8103,
+      "y": 0.8048,
+      "zones": [
+        "z6"
+      ],
+      "adjacentTo": [
+        "s21",
+        "s27",
+        "s29"
+      ]
+    },
+    {
+      "id": "s29",
+      "x": 0.9427,
+      "y": 0.8317,
+      "zones": [
+        "z6"
+      ],
+      "adjacentTo": [
+        "s16",
+        "s21",
+        "s28"
+      ]
+    }
+  ]
+}
