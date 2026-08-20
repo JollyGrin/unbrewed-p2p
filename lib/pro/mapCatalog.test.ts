@@ -13,6 +13,7 @@ import { normalizeMap } from "./normalizeMap";
 import islandOfDespairJson from "./fixtures/island-of-despair.map.json";
 import weathertopJson from "./fixtures/weathertop.map.json";
 import countsCastleJson from "./fixtures/counts-castle.map.json";
+import uscssNostromoJson from "./fixtures/uscss-nostromo.map.json";
 
 const island = catalogEntry("island-of-despair")!;
 const mendedDrum = catalogEntry("mended-drum")!;
@@ -20,6 +21,7 @@ const cityDocks = catalogEntry("city-docks")!;
 const polus = catalogEntry("polus")!;
 const weathertop = catalogEntry("weathertop")!;
 const countsCastle = catalogEntry("counts-castle")!;
+const nostromo = catalogEntry("uscss-nostromo")!;
 const arena = catalogEntry("multiplayer-arena-playtest")!;
 
 describe("map catalog", () => {
@@ -31,6 +33,7 @@ describe("map catalog", () => {
       "polus",
       "weathertop",
       "counts-castle",
+      "uscss-nostromo",
       "multiplayer-arena-playtest",
     ]);
     expect(arena.title).toBe("Playtest Arena (synthetic)");
@@ -72,6 +75,15 @@ describe("map catalog", () => {
       expect(mapEligibleForFormat(countsCastle.map, "duel")).toBe(true);
       expect(mapEligibleForFormat(countsCastle.map, "ffa-3")).toBe(true);
       expect(mapEligibleForFormat(countsCastle.map, "team-2v2")).toBe(true);
+    });
+
+    it("USCSS Nostromo is duel-only — an authored duel block, no 3rd/4th slot", () => {
+      expect(eligibleFormats(nostromo.map)).toEqual(["duel"]);
+      expect(mapEligibleForFormat(nostromo.map, "duel")).toBe(true);
+      expect(mapEligibleForFormat(nostromo.map, "ffa-3")).toBe(false);
+      expect(mapEligibleForFormat(nostromo.map, "team-2v2")).toBe(false);
+      expect(ineligibleReason(nostromo.map, "ffa-3")).toBe("needs 3 start slots");
+      expect(ineligibleReason(nostromo.map, "team-2v2")).toBe("needs 4 start slots");
     });
 
     it("The Mended Drum is duel-only via the printed slots 1&2 fallback", () => {
@@ -279,5 +291,74 @@ describe("counts-castle fixture", () => {
     expect(Object.keys(team.seats)).toEqual(["A1", "A2", "B1", "B2"]);
     // teammates start furthest apart: A = slots 1+2 (13 moves), B = slots 3+4 (8)
     expect(Object.values(team.seats).map((s) => s.startSlot)).toEqual([1, 2, 3, 4]);
+  });
+});
+
+describe("uscss-nostromo fixture", () => {
+  const spaces = uscssNostromoJson.spaces as Array<{
+    id: string;
+    zones: string[];
+    adjacentTo: string[];
+    start?: { slot: number };
+  }>;
+
+  it("normalizes clean (engine-native pass-through)", () => {
+    const map = normalizeMap(uscssNostromoJson);
+    expect(map.id).toBe("uscss-nostromo");
+    expect(map.meta.title).toBe("USCSS Nostromo");
+    expect(map.spaces).toHaveLength(29);
+    const slots = new Set(map.spaces.flatMap((s) => (s.start ? [s.start.slot] : [])));
+    expect(slots).toEqual(new Set([1, 2]));
+  });
+
+  it("maps the two start slots to the expected spaces (s17/s21)", () => {
+    const slotOf = (slot: number) => spaces.find((s) => s.start?.slot === slot)?.id;
+    expect(slotOf(1)).toBe("s17");
+    expect(slotOf(2)).toBe("s21");
+  });
+
+  it("declares 7 zones, every one of them used by at least one space", () => {
+    const map = normalizeMap(uscssNostromoJson);
+    expect(map.zones).toHaveLength(7);
+    const used = new Set(spaces.flatMap((s) => s.zones));
+    expect(new Set(map.zones.map((z) => z.id))).toEqual(used);
+  });
+
+  it("s15 is the three-zone meeting point (bridge / medbay / the nest)", () => {
+    const s15 = spaces.find((s) => s.id === "s15")!;
+    expect(new Set(s15.zones)).toEqual(new Set(["z3", "z6", "z5"]));
+    // the only space carrying more than two zones; 7 others are split circles
+    expect(spaces.filter((s) => s.zones.length > 2).map((s) => s.id)).toEqual(["s15"]);
+    expect(spaces.filter((s) => s.zones.length === 2)).toHaveLength(7);
+  });
+
+  it("has a fully symmetric, fully connected adjacency graph", () => {
+    const byId = new Map(spaces.map((s) => [s.id, s]));
+    for (const s of byId.values()) {
+      for (const to of s.adjacentTo) {
+        expect(byId.get(to)?.adjacentTo).toContain(s.id);
+      }
+    }
+    const seen = new Set(["s1"]);
+    const queue = ["s1"];
+    while (queue.length) {
+      for (const to of byId.get(queue.shift()!)!.adjacentTo) {
+        if (!seen.has(to)) (seen.add(to), queue.push(to));
+      }
+    }
+    expect(seen.size).toBe(29);
+  });
+
+  it("serves its board image from the repo (no third-party host)", () => {
+    expect(uscssNostromoJson.meta.imageUrl).toBe(
+      "https://unbrewed.xyz/maps/community-uscss-nostromo.webp",
+    );
+  });
+
+  it("authors a single duel format with A1/B1 on slots 1 and 2", () => {
+    const formats = nostromo.map.supportedFormats ?? [];
+    expect(formats.map((f) => f.formatId)).toEqual(["duel"]);
+    expect(Object.keys(formats[0].seats)).toEqual(["A1", "B1"]);
+    expect(Object.values(formats[0].seats).map((s) => s.startSlot)).toEqual([1, 2]);
   });
 });
