@@ -14,7 +14,7 @@ import {
   Spinner,
 } from "@chakra-ui/react";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
-import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
+import { useBagDecks } from "@/lib/bag/useBag";
 import { colors, fonts } from "@/styles/style";
 
 const whatDies = (isSolo: boolean) => [
@@ -43,7 +43,7 @@ export const NewGameModal = (props: {
 }) => {
   const { resetStatus, requestGameReset, cancelGameReset, forceGameReset } =
     useWebGame();
-  const { starredDeck } = useLocalDeckStorage();
+  const { starredDeck } = useBagDecks();
   const pending = resetStatus.pending;
 
   const close = () => props.onClose();

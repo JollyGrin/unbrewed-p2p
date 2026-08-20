@@ -24,7 +24,7 @@ import {
 } from "@/components/Positions/position.type";
 import { initPositionBlob } from "@/lib/sandbox/initGame";
 import { SaveTokensToDeck } from "@/components/Positions/save-tokens-to-deck";
-import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
+import { useBagDecks } from "@/lib/bag/useBag";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import { GameState } from "@/lib/gamesocket/message";
 import {
@@ -185,7 +185,7 @@ const BoardContainer = ({
 }) => {
   const { query } = useRouter();
   const mapUrl = query.mapUrl as string | undefined;
-  const { starredDeck, updateDeck } = useLocalDeckStorage();
+  const { starredDeck, updateDeck } = useBagDecks();
 
   const {
     gamePositions,

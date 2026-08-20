@@ -14,15 +14,15 @@ export const CodePanel = ({
   setStar,
   onAdded,
 }: {
-  pushDeck: (deck: DeckImportType) => boolean;
+  pushDeck: (deck: DeckImportType) => Promise<boolean>;
   setStar: (id: string) => void;
   onAdded?: (deckId: string) => void;
 }) => {
   const { data, isLoading, setDeckId } = useUnmatchedDeck();
 
-  const save = () => {
+  const save = async () => {
     if (!data) return;
-    if (!pushDeck(data)) return; // storage full — pushDeck toasted already
+    if (!(await pushDeck(data))) return; // storage full — already toasted
     setStar(data.id);
     toast.success(`${data.name} saved & ready to play`);
     setDeckId(undefined);

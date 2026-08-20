@@ -1,6 +1,13 @@
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { POPULAR_DECKS, PopularDeckMeta } from "@/lib/constants/top-decks";
-import { DEFAULT_SERVER, LS_KEY } from "@/lib/hooks/useLocalStorage";
+import { DEFAULT_SERVER } from "@/lib/hooks/useLocalStorage";
+import {
+  addItem,
+  bagItems,
+  loadLocal,
+  setStar,
+  stores,
+} from "@/lib/bag/bagStore";
 
 // re-exported so existing callers keep their import path; evergreen decks
 // (rule-enforced in Pro) resolve from the committed snapshot first
@@ -86,16 +93,21 @@ export const randomPopularDeck = (): PopularDeckMeta => {
 };
 
 /**
- * Save a deck to the bag and star it, writing localStorage synchronously so
- * it's guaranteed to be there when /game mounts right after (the hook-based
- * setters flush on a later render, which a router.push can outrun).
+ * Save a deck to the bag and star it, then hand back once the write has
+ * actually landed — callers navigate to /game immediately afterwards, so the
+ * deck has to be resolvable by the time the table mounts.
+ *
+ * It goes through the bag store rather than localStorage (#644), so a signed-in
+ * player's invite deck lands in their account like every other add, and a guest
+ * (or an unreachable API) gets the identical synchronous localStorage write
+ * this has always done. The star is set first: it is a local pointer either
+ * way, and a slow upload must not leave the player deckless at the table.
  */
-export const persistAndStarDeck = (deck: DeckImportType): void => {
-  const raw = localStorage.getItem(LS_KEY.DECKS);
-  const decks: DeckImportType[] = raw ? JSON.parse(raw) : [];
-  if (!decks.some((d) => d.id === deck.id)) {
-    decks.push(deck);
-    localStorage.setItem(LS_KEY.DECKS, JSON.stringify(decks));
-  }
-  localStorage.setItem(LS_KEY.STAR_DECK, deck.id);
+export const persistAndStarDeck = async (
+  deck: DeckImportType,
+): Promise<void> => {
+  setStar(deck.id);
+  loadLocal(stores.decks);
+  const already = bagItems(stores.decks).some((d) => d?.id === deck.id);
+  if (!already) await addItem(stores.decks, deck);
 };

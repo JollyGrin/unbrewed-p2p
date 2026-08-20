@@ -14,7 +14,7 @@ import {
 import { toast } from "react-hot-toast";
 import { FaFileImport } from "react-icons/fa";
 import { Card } from "@/components/CardFactory/Card";
-import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
+import { useBagDecks } from "@/lib/bag/useBag";
 import {
   ParsedTtsCard,
   buildImageDeck,
@@ -58,7 +58,7 @@ type DeckMeta = {
 };
 
 const Builder = ({ onAdded }: { onAdded?: (deckId: string) => void }) => {
-  const { pushDeck, setStar } = useLocalDeckStorage();
+  const { pushDeck, setStar } = useBagDecks();
 
   const [source, setSource] = useState<"tts" | "urls">("tts");
   const [cards, setCards] = useState<ParsedTtsCard[]>([]);
@@ -111,7 +111,7 @@ const Builder = ({ onAdded }: { onAdded?: (deckId: string) => void }) => {
     [cards],
   );
 
-  const save = () => {
+  const save = async () => {
     if (!meta.name.trim()) {
       toast.error("Give the deck a name first");
       return;
@@ -130,7 +130,7 @@ const Builder = ({ onAdded }: { onAdded?: (deckId: string) => void }) => {
       cardbackUrl,
       cards,
     });
-    if (!pushDeck(deck)) return; // storage full — pushDeck toasted already
+    if (!(await pushDeck(deck))) return; // storage full — already toasted
     setStar(deck.id);
     toast.success(`${deck.name} saved & ready to play`);
     onAdded?.(deck.id);

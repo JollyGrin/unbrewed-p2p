@@ -13,7 +13,7 @@ import {
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 import { SelectedDeckContainer } from "@/components/Connect/SelectedDeck";
-import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
+import { useBagDecks } from "@/lib/bag/useBag";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import { colors, fonts } from "@/styles/style";
 
@@ -30,7 +30,7 @@ export const ChangeDeckModal = (props: {
   isOpen: boolean;
   onClose: () => void;
 }) => {
-  const { decks, starredDeck, setStar } = useLocalDeckStorage();
+  const { decks, starredDeck, setStar } = useBagDecks();
   const { switchDeck } = useWebGame();
   const [selectedId, setSelectedId] = useState<string>();
 

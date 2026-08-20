@@ -5,7 +5,7 @@ import { useEffect } from "react";
 import { PageSeo } from "@/components/Helmet/Head";
 import { GameShell } from "@/components/Game/GameShell";
 import { OfflineGameProvider } from "@/lib/contexts/OfflineGameProvider";
-import { useLocalDeckStorage } from "@/lib/hooks";
+import { useBagDecks } from "@/lib/bag/useBag";
 import { useUnmatchedDeck } from "@/lib/hooks/useUnmatchedDeck";
 
 /**
@@ -23,7 +23,7 @@ const Offline = () => {
   const { query, isReady, replace } = useRouter();
   const deckId = query.deckId as string | undefined;
 
-  const { decks, starredDeck, pushDeck, setStar } = useLocalDeckStorage();
+  const { decks, starredDeck, pushDeck, setStar } = useBagDecks();
   const { data, error, setDeckId } = useUnmatchedDeck();
   const failed = !!error;
 
@@ -55,8 +55,7 @@ const Offline = () => {
   // Fetched deck lands: add it to the bag and star it.
   useEffect(() => {
     if (!data) return;
-    pushDeck(data);
-    setStar(data.id);
+    void pushDeck(data).then(() => setStar(data.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 

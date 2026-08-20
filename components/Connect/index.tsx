@@ -14,10 +14,8 @@ import {
 } from "@chakra-ui/react";
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
-import {
-  useLocalDeckStorage,
-  useLocalServerStorage,
-} from "@/lib/hooks/useLocalStorage";
+import { useLocalServerStorage } from "@/lib/hooks/useLocalStorage";
+import { useBagDecks } from "@/lib/bag/useBag";
 import { SettingsModal } from "@/components/Settings/settings.modal";
 import { useLoadRouterDeck } from "@/lib/hooks";
 import { Navbar } from "@/components/Navbar";
@@ -49,7 +47,7 @@ export const ConnectPage = () => {
   const { isLoading: isDeckImporting, error: deckImportFailed } =
     useLoadRouterDeck();
 
-  const { starredDeck, decks, setStar } = useLocalDeckStorage();
+  const { starredDeck, decks, setStar, isLoading: bagLoading } = useBagDecks();
   const { activeServer, setActiveServer, serverList } = useLocalServerStorage();
 
   // create the lobby and connect to it
