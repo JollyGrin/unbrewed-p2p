@@ -70,8 +70,10 @@ import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
 import { ReportBugDialog } from "@/components/Pro/ReportBugDialog";
 import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
 import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
+import { MulliganDialog } from "@/components/Pro/MulliganDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
 import { actionFallbackLine, batchPhase, batchTurnTag, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
+import { MulliganChoice, isMulliganPrompt, mulliganChoiceOf } from "@/lib/pro/mulligan";
 import {
   EMPTY_SUB_ATTACK_CHAIN,
   SubAttackChainProgress,
@@ -2117,6 +2119,8 @@ const HeroSelectLobby = ({
   onChangeBotSlot,
   turnTimerSeconds,
   onSelectTurnTimer,
+  mulligan,
+  onSelectMulligan,
   onConfirm,
   customMapJson,
   onCustomMapJsonChange,
@@ -2144,6 +2148,9 @@ const HeroSelectLobby = ({
   /** per-decision move timer in seconds (issue #223); 0 = off (create flow only) */
   turnTimerSeconds: number;
   onSelectTurnTimer: (seconds: number) => void;
+  /** opening-hand mulligan for this room (engine #395); true = on (create flow only) */
+  mulligan: boolean;
+  onSelectMulligan: (on: boolean) => void;
   onConfirm: () => void;
   /** raw custom-map JSON (create flow only) — persisted in the parent */
   customMapJson: string;
@@ -2223,8 +2230,9 @@ const HeroSelectLobby = ({
       ? "Custom board"
       : catalogEntry(selectedMapId)?.title ?? "Default board";
   const timerText = turnTimerSeconds > 0 ? `${clampTurnTimer(turnTimerSeconds)}s timer` : "no timer";
+  const mulliganText = mulligan ? "mulligan on" : "no mulligan";
   const summary = effective
-    ? `${lockedName} · ${stageName} · ${timerText}`
+    ? `${lockedName} · ${stageName} · ${timerText} · ${mulliganText}`
     : "Pick a fighter to preview — click a tile to lock in.";
 
   const createLabel = !effective
@@ -2440,6 +2448,21 @@ const HeroSelectLobby = ({
                   </NumberInput>
                 )}
               </Flex>
+            </Flex>
+            {/* Opening-hand mulligan (engine #395, issue #631). ON is the
+                engine default, so "Off" is the only choice that reaches the
+                wire — see createRoom in lib/pro/useProSocket.ts. */}
+            <Flex align="center" gap="0.5rem">
+              <Text {...STRIP_LBL}>🃏 MULLIGAN</Text>
+              <Segmented
+                ariaLabel="Opening-hand mulligan"
+                value={mulligan ? "on" : "off"}
+                onChange={(v) => onSelectMulligan(v === "on")}
+                options={[
+                  { value: "on", label: "On" },
+                  { value: "off", label: "Off" },
+                ]}
+              />
             </Flex>
           </>
         )}
@@ -2923,6 +2946,10 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   // to act. 0 = off (the default) → CREATE_ROOM omits turnTimerSeconds and the
   // room behaves exactly as today. The toggle flips between 0 and a default preset.
   const [turnTimerSeconds, setTurnTimerSeconds] = useState(0);
+  // Opening-hand mulligan (engine #395, issue #631), create flow only. The
+  // engine defaults it ON for new games, so true is the default here too and
+  // only an explicit opt-out puts `mulligan: false` on CREATE_ROOM.
+  const [mulligan, setMulligan] = useState(true);
   const [selectedFighter, setSelectedFighter] = useState<FighterId | null>(null);
   // Incremental-maneuver stepping (issue #285): the LOCAL hop-by-hop preview for
   // the selected fighter, scoped to that fighter so it never leaks across a
@@ -2941,6 +2968,16 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   const [moveChoice, setMoveChoice] = useState<{ space: SpaceId; candidates: FighterId[] } | null>(null);
   const [reportBugOpen, setReportBugOpen] = useState(false);
   const [forfeitOpen, setForfeitOpen] = useState(false);
+  // Opening-hand mulligan (issue #622 ↔ engine #395): the answer this seat has
+  // already sent, latched by promptId so the buttons can't be fired twice while
+  // the answering STATE is in flight and so the waiting line can say which way
+  // you went. Cleared whenever no mulligan window is open, so a reopened window
+  // (rewind/resume) always starts undecided.
+  const [mulliganAnswer, setMulliganAnswer] = useState<{ promptId: string; choice: MulliganChoice | null } | null>(null);
+  const mulliganWindowOpen = isMulliganPrompt(snapshot?.prompt);
+  useEffect(() => {
+    if (!mulliganWindowOpen) setMulliganAnswer(null);
+  }, [mulliganWindowOpen]);
   // Client-side memory that YOU chose to forfeit (vs. being swept by combat), so
   // the continuing-game spectator panel can say "You forfeited — spectating"
   // instead of the generic elimination copy. Resets on refresh — the panel then
@@ -3433,6 +3470,8 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
           }
           turnTimerSeconds={turnTimerSeconds}
           onSelectTurnTimer={setTurnTimerSeconds}
+          mulligan={mulligan}
+          onSelectMulligan={setMulligan}
           customMapJson={customMapJson}
           onCustomMapJsonChange={(json) => {
             setCustomMapJson(json);
@@ -3491,7 +3530,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
             // Clamp to the engine's 10–300 bound at the wire (a mid-edit custom
             // value could sit outside it); 0 = off stays off.
             const timerSeconds = turnTimerSeconds > 0 ? clampTurnTimer(turnTimerSeconds) : 0;
-            createRoom(effectiveHeroId, bot, customMap, selectedFormat, botSeats, timerSeconds);
+            createRoom(effectiveHeroId, bot, customMap, selectedFormat, botSeats, timerSeconds, mulligan);
             setSelectedHeroId(effectiveHeroId); // lock it for the lobby label
             setJoined(true);
           }}
@@ -3927,6 +3966,16 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   // a token's space, e.g. destroy-totem); CHOOSE_TARGET options a fighter id.
   // Board-answerable options become highlights; the rest stay panel buttons.
   const promptForMe = prompt && prompt.player === view.you ? prompt : null;
+  // Opening-hand mulligan (issue #622 ↔ engine #395). On the wire it is an
+  // ordinary prompt, but it is a one-time whole-attention decision, so it renders
+  // as a modal (MulliganDialog) instead of a dock panel — and is suppressed from
+  // the panel below so it lives in exactly ONE place. Every other prompt kind,
+  // and every server that never opens this window, is untouched.
+  const mulliganPrompt = isMulliganPrompt(prompt) ? prompt : null;
+  const mulliganAwaitsMe =
+    !!mulliganPrompt &&
+    mulliganPrompt.player === view.you &&
+    mulliganAnswer?.promptId !== mulliganPrompt.promptId;
   const mapSpaceIds = new Set(view.map.spaces.map((s) => s.id));
   const fighterIds = new Set(view.fighters.map((f) => f.id));
   const optionSpace = (o: LegalOption): SpaceId | null => {
@@ -4538,7 +4587,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
           ) : null
         }
         promptPanel={
-          prompt ? (
+          prompt && !mulliganPrompt ? (
             <PromptPanel
               prompt={prompt}
               you={view.you}
@@ -4597,6 +4646,38 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
         actions={incomingUndo?.rewindActions ?? []}
         onAccept={() => respondToUndo(true)}
         onReject={() => respondToUndo(false)}
+      />
+
+      {/* opening-hand mulligan (issue #622) — keep or redraw the five cards you
+          were dealt. Open for the WHOLE window (including while the opponent is
+          the one being asked) so the hand stays on screen and the waiting state
+          is honest; it never shows the opponent's answer, which arrives in the
+          log once the engine closes the window. */}
+      <MulliganDialog
+        isOpen={!!mulliganPrompt}
+        hand={view.self.hand}
+        resolveCard={resolveCard}
+        labelFor={(c) => cardLabel(view.catalog, c)}
+        options={mulliganAwaitsMe ? (mulliganPrompt?.options ?? []) : []}
+        awaitingYou={mulliganAwaitsMe}
+        decided={mulliganAnswer?.choice ?? null}
+        multiplayer={multiplayerView}
+        timer={
+          // Same gate the HUD plate uses for this seat's bar — the modal hides
+          // that bar, so the clock rides along inside it while you decide.
+          mulliganAwaitsMe && turnTimer?.player === view.you && turnTimer.deadline != null && roomInfo?.turnTimerSeconds
+            ? { deadline: turnTimer.deadline, totalSeconds: roomInfo.turnTimerSeconds }
+            : null
+        }
+        onChoose={(optionId) => {
+          if (!mulliganPrompt) return;
+          const option = mulliganPrompt.options.find((o) => o.id === optionId) ?? null;
+          setMulliganAnswer({
+            promptId: mulliganPrompt.promptId,
+            choice: option ? mulliganChoiceOf(option) : null,
+          });
+          respondToPrompt(mulliganPrompt.promptId, optionId);
+        }}
       />
 
       {/* activity feed — bottom-left parchment panel, sandbox style */}

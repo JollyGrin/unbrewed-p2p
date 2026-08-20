@@ -599,31 +599,63 @@
  * message shape changed, and no engine deck emits either today.
  *
  * ## Additive fields (2026-08-18, no version bump): opaque seat cosmetics
- * Engine #392, wave 0 of the card-cosmetics epic (issue #610). The same
+ * Issue #392, wave 0 of the card-cosmetics epic (unbrewed-p2p#610). The same
  * client-claimed/UNVERIFIED pattern as `badge` above, with one deliberate
  * difference: an over-cap value REJECTS the join instead of truncating.
  * - `cosmetics?` (request, `CREATE_ROOM`/`JOIN_ROOM`) — an OPAQUE string, max
  *   512 BYTES of UTF-8. Ids only — never a URL, never base64, never inline
- *   image data: the field rides `ViewPlayer`, which is rebroadcast to every
- *   seat on every action. Over the cap = `BAD_MESSAGE`, so the client caps
- *   itself (`lib/pro/cosmeticsWire.ts`) rather than risk a rejected join.
- * - `ViewPlayer.cosmetics?` — echoed VERBATIM per seat, public and never
- *   redacted (the opponent seeing your upgrades is the point), absent when the
- *   seat claimed none.
+ *   image data: this field rides `ViewPlayer`, which is rebroadcast to every
+ *   seat on every action, so an unbounded blob would be a bandwidth
+ *   amplification vector. Over the cap = `BAD_MESSAGE`, not a truncation,
+ *   because a truncated loadout blob is garbage rather than a shorter label.
+ *   Empty/absent/non-string all mean "this seat claimed no cosmetics".
+ * - `ViewPlayer.cosmetics?` — echoed VERBATIM per seat. Public (both seats see
+ *   it — showing your upgrades off to the opponent is the point), never
+ *   redacted, absent when unclaimed.
  * - `ReplayPlayerSetup.cosmetics?` — frozen into replay bundles so an old
  *   replay re-renders with the skins it was played with. RENDER-ONLY: the
- *   engine strips the key back off before the setup reaches its reducer.
+ *   engine strips the field back off before the setup reaches the reducer.
  *
- * ⛔ THE INVARIANT: a cosmetic changes what a card LOOKS like and nothing else.
- * The engine reads an upgraded card byte-for-byte identically to a plain one.
- * The server's ENTIRE relationship with this field is store it, echo it, cap
- * it: never parsed, never logged, never sent to telemetry, never visible to a
- * bot. The CLIENT side lives in `lib/pro/cosmeticsWire.ts` (encode/decode) and
- * `lib/pro/seatCosmetics.ts` (resolve); no cosmetic id or art ever enters the
- * engine repo. Purely additive, so no PROTOCOL_VERSION bump: with the field
- * absent not one message grows a key.
+ * ⛔ THE INVARIANT (copy it into any follow-up ticket): a cosmetic changes what
+ * a card LOOKS like and nothing else. The engine reads an upgraded card
+ * byte-for-byte identically to a plain one. No cosmetic may change any game
+ * state, any legal move, any bot decision, any log line, any replay outcome,
+ * any balance number, or any card identity — ever. The server's ENTIRE
+ * relationship with this field is **store it, echo it, cap it**: it is never
+ * parsed, never logged, never sent to telemetry, never visible to a bot (bots
+ * decide from `GameState`, which has never heard of a seat label), and no
+ * cosmetic id, art or tier table ever enters this repo. Enforced by
+ * `test/cosmetics.test.ts` (differential determinism + bot blindness + the
+ * cap) and `test/cosmeticsGuard.test.ts` (a grep guard over `engine/`, `ai/`
+ * and `data/heroes/`). Purely additive, so no PROTOCOL_VERSION bump: with the
+ * field absent not one message grows a key.
+ *
+ * ## v30 (2026-08-20): the opening-hand mulligan (engine #395)
+ * After the opening hands are dealt and BEFORE the heroes are placed, each seat
+ * gets a ONE-TIME keep-or-redraw choice: shuffle your whole hand back into your
+ * deck and draw the same number again. One mulligan per seat per game, no partial
+ * redraws. Under the hood the two decisions are ordinary sequential prompts (p1,
+ * then p2) — there is no new "both seats act at once" primitive on this wire — but
+ * they FEEL simultaneous because a decision applies nothing until BOTH are in:
+ * - `PromptKind` gains `"MULLIGAN"` (options `KEEP` / `MULLIGAN`), answered with
+ *   the usual `RESPOND_PROMPT`. The waiting seat gets the standard redacted prompt
+ *   summary (`options: []`), and the `PROMPT_RESOLVED` event's `optionId` is masked
+ *   for them exactly as it is for a face-down combat commit — so nobody can learn
+ *   the other seat's answer while the window is open. NOTHING in `PlayerView`
+ *   changes while it is open (no hand, deck count, or discard moves).
+ * - Two `GameEvent` variants, `MULLIGAN_TAKEN` / `HAND_KEPT`, emitted for BOTH
+ *   seats when the window closes — the decisions are public after the fact.
+ * - `CREATE_ROOM.mulligan?` — per-room opt-OUT. Absent = on, which is the default
+ *   for every new room; `false` reproduces the pre-v30 flow exactly (no prompt, no
+ *   events, no action-log entries). Not echoed back: the client that set it knows,
+ *   and both seats see the window itself the moment it opens.
+ * CLIENT SURFACE (unbrewed-p2p#622): render the MULLIGAN prompt (a two-button
+ * modal over your own opening hand + a "waiting for your opponent" state), and
+ * format the two events in the activity log. A room created by an older client
+ * still opens the window — the prompt is an ordinary prompt, so a client that
+ * renders unknown prompt kinds generically can already answer it.
  */
-export const PROTOCOL_VERSION = 29;
+export const PROTOCOL_VERSION = 30;
 
 /**
  * Scripted-AI strength preset (server-side budgets; client treats as opaque).
@@ -782,6 +814,14 @@ export type GameEvent =
   | { type: "ADDITIONAL_DEFENSE_PLAYED"; player: PlayerId; card: CardInstanceId }
   | { type: "CARD_REVEALED"; player: PlayerId; card: CardInstanceId }
   | { type: "DECK_SHUFFLED"; player: PlayerId }
+  // v30 — opening-hand mulligan (engine #395). Emitted ONLY when the window closes,
+  // once for EVERY seat (one of the two), in setup order: the decision is public
+  // after the fact, so the activity log can say "p1 mulliganed their opening hand"
+  // / "p2 kept their hand" without inferring it from the shuffle/draw traffic.
+  // A MULLIGAN_TAKEN is followed by that seat's CARD_SHUFFLED_INTO_DECK batch,
+  // DECK_SHUFFLED and CARD_DRAWN batch (card ids redacted for the other seat).
+  | { type: "MULLIGAN_TAKEN"; player: PlayerId }
+  | { type: "HAND_KEPT"; player: PlayerId }
   | { type: "TOKEN_PLACED"; token: string; kind: ViewTokenKind; owner: PlayerId; space: SpaceId; origin?: string }
   | { type: "TOKEN_DESTROYED"; token: string; kind: ViewTokenKind; owner: PlayerId; space: SpaceId; reason: "EFFECT" | "ENTERED" | "REPLACED" | "OWNER_ELIMINATED" | "EXPIRED" }
   | { type: "FIGHTER_REVIVED"; fighter: FighterId; space: SpaceId }
@@ -812,6 +852,11 @@ export type GameEvent =
   // v0.17.0 (Grievous batch D — "Fire, you fools!"): a chosen droid's fixed-value sub-attack
   // opens against `target`. Full information — the value is printed on card 210.
   | { type: "SUB_ATTACK_INITIATED"; attacker: FighterId; target: FighterId; value: number }
+  // v0.45.0 (#378): a whole-card cancel (Feint) landed on a synthetic sub-attack card, so the
+  // rest of that card's chain — `severed` still-queued links — never opens. `card` is the
+  // parent card whose text queued them. Narration only: the canceled link's own combat has
+  // already resolved on printed value.
+  | { type: "CHAIN_SEVERED"; card: CardDefId; severed: number }
   // Battlefield items (v17 — Teen Spirit). ITEM_USED = a scheme item was activated
   // (token consumed). COMBAT_ITEM_ATTACHED = a combat item was attached to a combat
   // card at commit (token consumed); the +value bump lands in the DURING window.
@@ -880,7 +925,13 @@ export type PromptKind =
   | "YES_NO"
   | "CHOOSE_OPTION"
   | "COMMIT_COMBAT_CARD"
-  | "PAY_COST";
+  | "PAY_COST"
+  // v30 — the one-time opening-hand mulligan (engine #395). Two options, ids
+  // "KEEP" and "MULLIGAN"; answered with RESPOND_PROMPT like any other prompt.
+  // Opened during SETUP, before the heroes are on the board. The OTHER seat gets
+  // the usual redacted summary (`options: []` = "they are deciding") and learns
+  // nothing about the answer until both seats have decided.
+  | "MULLIGAN";
 
 /**
  * The prompt as the viewer sees it. The choosing player receives the full
@@ -1169,8 +1220,8 @@ export interface ViewPlayer {
   // UNVERIFIED, and never sent to telemetry.
   badge?: string;
   // #392: this seat's claimed cosmetics blob, echoed VERBATIM. Opaque — the
-  // server never parses it, only caps it at 512 bytes on join; the client
-  // resolves the ids inside it locally (lib/pro/seatCosmetics.ts) and renders
+  // server never parses it, only caps it at 512 bytes on join; a client
+  // resolves the ids inside against a runtime cosmetics manifest and renders
   // base art for anything it does not recognize. Public (the opponent is meant
   // to see your upgrades), cosmetic, UNVERIFIED, never sent to telemetry, and
   // absent when the seat claimed none. See THE INVARIANT in the header note.
@@ -1284,9 +1335,9 @@ export interface ReplayPlayerSetup {
   cards: Json; // engine CardDef[] — opaque to the client
   // #392: the seat's cosmetics blob at the time the match was played, frozen in
   // so an old replay re-renders with the skins it was actually played with
-  // rather than today's. RENDER-ONLY: the server strips this key off before the
-  // setup reaches the engine, so it can never influence a replayed game. Absent
-  // on pre-#392 bundles and on seats that claimed nothing.
+  // rather than today's. RENDER-ONLY: `expandReplay` strips this key off before
+  // the setup reaches the engine, so the field can never influence a replayed
+  // game. Absent on pre-#392 bundles and on seats that claimed nothing.
   cosmetics?: string;
 }
 
@@ -1295,7 +1346,11 @@ export interface ReplayPlayerSetup {
 export interface ReplayConfig {
   seed: number;
   mapId?: string;
-  options?: { allowNonstandardDeck?: boolean; startingHandSize?: number };
+  // `mulligan` (v30, engine #395): the game was played with the opening-hand
+  // mulligan window open, so its action log carries the window's own prompt
+  // answers. Absent = the pre-v30 flow; every bundle from a mulligan-free game is
+  // byte-identical to a pre-v30 one.
+  options?: { allowNonstandardDeck?: boolean; startingHandSize?: number; mulligan?: boolean };
   players: { p1: ReplayPlayerSetup; p2: ReplayPlayerSetup } & Partial<Record<PlayerId, ReplayPlayerSetup>>;
   formatId?: string;
   map: ProMapDef;
@@ -1467,6 +1522,10 @@ export type ClientMsg =
   // excluded. Never gates an explicitly named heroId. See the v15 and v18 notes.
   // `turnTimerSeconds` (issue #122): per-decision move timer, integer 10–300;
   // absent or 0 = no timer. See the 2026-07-13 move-timer header note.
+  // `mulligan` (v30, engine #395): opening-hand mulligan for this room. ABSENT = ON —
+  // the room creator opts OUT with `false`, and an older client that never sends the
+  // field gets the same game a new one does. Anything but a boolean (or absent)
+  // answers ERROR{BAD_MESSAGE}. See the v30 header note.
   // `pilot`: telemetry label for socket-driven seats. Omit/empty = human;
   // LLM agents should send llm:<model>.
   // `displayName`/`playerId` (issue #344): optional, client-claimed, UNVERIFIED
@@ -1475,12 +1534,12 @@ export type ClientMsg =
   // `badge` (issue #347): optional, client-claimed, UNVERIFIED opaque badge id
   // — sanitized + broadcast beside the name, never sent to telemetry. See the
   // 2026-08-06 header note.
-  // `cosmetics` (engine #392): optional, client-claimed, UNVERIFIED OPAQUE blob
+  // `cosmetics` (issue #392): optional, client-claimed, UNVERIFIED OPAQUE blob
   // of cosmetic ids, max 512 BYTES — over the cap REJECTS the message with
   // BAD_MESSAGE (it is not truncated). Echoed verbatim into `ViewPlayer` and
   // frozen into replay bundles; never parsed, never logged, never sent to
   // telemetry, never visible to a bot. See the 2026-08-18 header note.
-  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; pilot?: string; displayName?: string; badge?: string; playerId?: string; cosmetics?: string }
+  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; mulligan?: boolean; pilot?: string; displayName?: string; badge?: string; playerId?: string; cosmetics?: string }
   | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string; pilot?: string; displayName?: string; badge?: string; playerId?: string; cosmetics?: string }
   | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }

@@ -926,6 +926,23 @@ export function enrichLines(
         break;
       }
 
+      // Opening-hand mulligan (issue #622 ↔ protocol v30). Both events land only
+      // when the window CLOSES, one per seat, which is the moment each player's
+      // choice becomes public — until then the answers are redacted and there is
+      // nothing to say. Nothing else narrates them: a redraw moves five cards out
+      // and five back in with the deck count unchanged, so the view diff sees no
+      // draw at all.
+      case "MULLIGAN_TAKEN":
+      case "HAND_KEPT": {
+        const mine = e.player === ctx.you;
+        const verb = e.type === "MULLIGAN_TAKEN" ? "mulliganed" : "kept";
+        added.push({
+          text: `${ctx.seat(e.player)} ${verb} ${mine ? "your" : "their"} opening hand`,
+          who: whoOf(e.player),
+        });
+        break;
+      }
+
       // Every other event type overlaps diff output (or is not yet allowlisted)
       // and must NEVER create a line. Do nothing.
       default:
