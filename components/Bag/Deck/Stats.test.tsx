@@ -41,4 +41,47 @@ describe("DeckStats meter", () => {
 
     expect(container.textContent).toContain("5120kb / 5120kb local storage");
   });
+
+  /**
+   * The meter measures a BROWSER limit (#644). A signed-in user whose bag has
+   * moved to their account has no such limit to be warned about, and showing a
+   * bar reading "0kb / 5120kb" would imply one that isn't there.
+   */
+  describe("when signed in", () => {
+    it("drops the bar entirely once nothing is left on this device", () => {
+      const storage = computeStorageBreakdown([
+        ["unbrewed:pro:replay:one", val(3000)],
+      ]);
+
+      const { container } = render(
+        <DeckStats length={4} storage={storage} isSignedIn />,
+      );
+
+      expect(container.textContent).toContain("4 Decks");
+      expect(container.textContent).toContain("saved to your account");
+      expect(container.textContent).not.toContain("local storage");
+      expect(container.querySelector("a")).toBeNull();
+    });
+
+    it("keeps the bar, plus a way out, while items remain on the device", () => {
+      const storage = computeStorageBreakdown([["DECKS", val(180)]]);
+
+      const { container } = render(
+        <DeckStats length={2} storage={storage} isSignedIn />,
+      );
+
+      expect(container.textContent).toMatch(/180(\.\d+)?kb \/ 5120kb local storage/);
+      const move = Array.from(container.querySelectorAll("a")).find(
+        (link) => link.textContent === "move to your account",
+      );
+      expect(move?.getAttribute("href")).toBe("/bag?tab=2");
+    });
+
+    it("is unchanged for a guest with an empty bag", () => {
+      const storage = computeStorageBreakdown([]);
+      const { container } = render(<DeckStats length={0} storage={storage} />);
+
+      expect(container.textContent).toContain("0kb / 5120kb local storage");
+    });
+  });
 });

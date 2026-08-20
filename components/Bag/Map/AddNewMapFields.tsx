@@ -1,4 +1,5 @@
-import { MapData, useLocalMapStorage } from "@/lib/hooks";
+import { MapData } from "@/lib/hooks";
+import { useBagMaps } from "@/lib/bag/useBag";
 import { Box, Button, FormLabel, HStack, Input, Fade, Text } from "@chakra-ui/react";
 import { Dispatch, SetStateAction } from "react";
 import { toast } from "react-hot-toast";
@@ -12,7 +13,7 @@ export const AddNewFields = ({
   enterMapUrl: (value: string) => void;
   setNewMap: Dispatch<SetStateAction<MapData | undefined>>;
 }) => {
-  const { add } = useLocalMapStorage();
+  const { add } = useBagMaps();
   return (
     <Box p="1rem" color="brand.primary">
       <FormLabel fontFamily="SpaceGrotesk" fontWeight={700} mb="0.15rem">
@@ -35,10 +36,11 @@ export const AddNewFields = ({
           color="brand.surfaceDim"
           _hover={{ bg: "brand.accentDeep" }}
           isDisabled={!newMap || !newMap.meta?.title}
-          onClick={() => {
-            add(newMap as MapData);
+          onClick={async () => {
+            const title = newMap?.meta?.title ?? "Map";
+            const map = newMap as MapData;
             setNewMap(undefined);
-            toast.success(`${newMap?.meta?.title ?? "Map"} added to your bag`);
+            if (await add(map)) toast.success(`${title} added to your bag`);
           }}
         >
           Add map

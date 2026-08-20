@@ -12,7 +12,7 @@ import {
   newTokenId,
   spawnSavedTokens,
 } from "@/components/Positions/position.type";
-import { LS_KEY } from "@/lib/hooks/useLocalStorage";
+import { readStarredDeckFromBag } from "@/lib/bag/bagStore";
 
 /**
  * Starting-state helpers shared by every path that has to put a player on a
@@ -48,21 +48,18 @@ export const initPositionBlob = (
 };
 
 /**
- * Read the starred deck straight out of localStorage.
+ * Read the starred deck out of the bag, at the moment it's needed.
  *
- * `useLocalDeckStorage` instances don't sync with each other after mount, so a
- * deck switched in-game ("Change my deck") would leave every OTHER hook
- * instance — including the provider's — holding the old deck. Reading at the
- * moment of use sidesteps that entirely.
+ * Hook instances don't sync with each other after mount, so a deck switched
+ * in-game ("Change my deck") would leave every OTHER instance — including the
+ * provider's — holding the old deck. Reading from the shared store at the point
+ * of use sidesteps that entirely, and picks up an account deck as readily as a
+ * device one (#644): both callers are user-triggered events on a page where the
+ * bag has long since mounted and hydrated.
  */
 export const readStarredDeck = (): DeckImportType | undefined => {
-  if (typeof window === "undefined") return undefined;
   try {
-    const id = localStorage.getItem(LS_KEY.STAR_DECK);
-    if (!id) return undefined;
-    const raw = localStorage.getItem(LS_KEY.DECKS);
-    const decks: DeckImportType[] = raw ? JSON.parse(raw) : [];
-    return decks.find((deck) => deck?.id === id);
+    return readStarredDeckFromBag();
   } catch {
     return undefined;
   }

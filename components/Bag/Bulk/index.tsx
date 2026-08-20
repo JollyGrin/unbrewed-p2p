@@ -1,6 +1,7 @@
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
-import { CloudBagSection } from "@/components/Bag/Cloud";
-import { MapData, useLocalDeckStorage, useLocalMapStorage } from "@/lib/hooks";
+import { AccountBagPanel } from "@/components/Bag/Account";
+import { MapData } from "@/lib/hooks";
+import { useBagDecks, useBagMaps } from "@/lib/bag/useBag";
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
 import { useGenericImport } from "@/lib/hooks/useGenericImport";
 import {
@@ -14,6 +15,7 @@ import {
   Text,
   Textarea,
 } from "@chakra-ui/react";
+import { useAccount } from "@/lib/account/useAccount";
 import { useRouter } from "next/router";
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "react-hot-toast";
@@ -55,8 +57,9 @@ const parseJson = (text: string): unknown => {
 };
 
 export const BagBulkContainer = () => {
-  const { decks, star, importDecks } = useLocalDeckStorage();
-  const { data: maps, importMaps } = useLocalMapStorage();
+  const { decks, star, importDecks } = useBagDecks();
+  const { data: maps, importMaps } = useBagMaps();
+  const account = useAccount();
 
   return (
     <Box h="100%" p="1rem" maxW="1100px" mx="auto">
@@ -69,9 +72,9 @@ export const BagBulkContainer = () => {
         Backup &amp; Share
       </Text>
       <Text maxW="46rem" fontSize="0.9rem" mb="1rem" opacity={0.85}>
-        Your bag lives in this browser. Save a backup file to keep your decks and
-        maps safe, move them to another device, share them with a friend, or play
-        again years from now even if the original deck links go offline.
+        {account.status === "signed-in"
+          ? "Your bag lives in your account. Save a backup file anyway to keep a copy you own outright, hand it to a friend, or play again years from now even if the original deck links go offline."
+          : "Your bag lives in this browser. Save a backup file to keep your decks and maps safe, move them to another device, share them with a friend, or play again years from now even if the original deck links go offline."}
       </Text>
       <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap="1rem">
         <ExportPanel decks={decks} maps={maps} star={star} />
@@ -79,16 +82,13 @@ export const BagBulkContainer = () => {
       </Grid>
 
       {/*
-        Cloud shelves (issue #566). The section renders nothing at all when the
-        accounts API is unreachable, and a single "Sign in to sync" panel for a
-        guest — so this tab reads exactly as it did before for anyone who never
-        signs in. Loading goes through the bag's own importers, so a cloud copy
-        and a backup file land in the bag by the identical path.
+        The account block (#644). It renders nothing at all when the accounts
+        API is unreachable, and one quiet sign-in line for a guest — so this tab
+        reads exactly as it did before for anyone who never signs in. The
+        separate "cloud shelf" that #566 put here is gone: account items are in
+        the Decks and Maps tabs now, next to the device's.
       */}
-      <CloudBagSection
-        onImportDeck={(data) => importDecks([data as DeckImportType])}
-        onImportMap={(data) => importMaps([data as MapData])}
-      />
+      <AccountBagPanel />
     </Box>
   );
 };
@@ -186,8 +186,8 @@ const ImportPanel = ({
   decks,
   maps,
 }: {
-  importDecks: (d: DeckImportType[]) => number;
-  importMaps: (m: MapData[]) => number;
+  importDecks: (d: DeckImportType[]) => Promise<number>;
+  importMaps: (m: MapData[]) => Promise<number>;
   decks?: DeckImportType[];
   maps: MapData[];
 }) => {
@@ -225,9 +225,9 @@ const ImportPanel = ({
     setRawText(await file.text());
   };
 
-  const runImport = () => {
-    const addedDecks = importDecks(newDecks);
-    const addedMaps = importMaps(newMaps);
+  const runImport = async () => {
+    const addedDecks = await importDecks(newDecks);
+    const addedMaps = await importMaps(newMaps);
     // 0 added with something to add means the write was refused (storage full,
     // already toasted) — don't claim a successful import over that.
     if (addedDecks + addedMaps === 0 && newDecks.length + newMaps.length > 0) return;

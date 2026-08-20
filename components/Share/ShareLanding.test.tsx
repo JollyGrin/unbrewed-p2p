@@ -12,6 +12,7 @@ import { ShareLanding } from "./ShareLanding";
 import { API_URL } from "@/lib/account/apiUrl";
 import { LS_KEY } from "@/lib/hooks/useLocalStorage";
 import { __resetAccountStoreForTests } from "@/lib/account/useAccount";
+import { __resetBagStoresForTests } from "@/lib/bag/bagStore";
 
 jest.mock("next/router", () => ({
   useRouter: () => ({ asPath: "/share/deck/cloud-id", query: {} }),
@@ -62,6 +63,7 @@ beforeEach(() => {
   // The navbar chip shares a module-level probe; cold-start it so every case
   // sees the same sequence of calls.
   __resetAccountStoreForTests();
+  __resetBagStoresForTests();
   localStorage.clear();
   toastSuccess.mockClear();
   fetchMock = jest.fn();
@@ -99,12 +101,17 @@ describe("a shared deck", () => {
     renderLanding("deck");
     fireEvent.click(await screen.findByText("Add to my bag"));
 
+    // The write goes through the bag store now (#644), which is async even for
+    // a guest — the localStorage path underneath is the same one as before.
+    await waitFor(() =>
+      expect(localStorage.getItem(LS_KEY.DECKS)).not.toBeNull(),
+    );
     const stored = JSON.parse(localStorage.getItem(LS_KEY.DECKS) ?? "[]");
     expect(stored).toHaveLength(1);
     // The identical deck JSON, round-tripped through the share link.
     expect(stored[0]).toEqual(DECK_DATA);
     expect(localStorage.getItem(LS_KEY.STAR_DECK)).toBe("deck-1");
-    expect(toastSuccess).toHaveBeenCalled();
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
     // and the button becomes the way onward
     expect(await screen.findByText("Open your bag")).toBeInTheDocument();
   });

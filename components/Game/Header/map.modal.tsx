@@ -1,6 +1,7 @@
 import { MapCard } from "@/components/Bag/Map/MapCard";
 import DEFAULT_MAPS from "@/components/Bag/Map/MapModal/defaultMaps.json";
-import { MapData, useLocalMapStorage } from "@/lib/hooks";
+import { MapData } from "@/lib/hooks";
+import { useBagMaps } from "@/lib/bag/useBag";
 import { DEFAULT_MAP_URL } from "@/lib/maps/defaultMap";
 import { ChevronDownIcon, ChevronRightIcon, SearchIcon } from "@chakra-ui/icons";
 import {
@@ -45,7 +46,7 @@ type MapEntry = { map: MapData; source: FilterKey };
 
 export const MapModal = (props: { isOpen: boolean; onClose: () => void }) => {
   const { query, push } = useRouter();
-  const { data: localMaps } = useLocalMapStorage();
+  const { data: localMaps } = useBagMaps();
 
   const queryUrl = query?.mapUrl as string | undefined;
 

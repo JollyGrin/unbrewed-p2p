@@ -14,7 +14,7 @@ import { initPool } from "@/lib/sandbox/initGame";
 import { PlayCardToTable } from "@/components/Positions/position.type";
 import { TransferZone } from "@/lib/gamesocket/message";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
-import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
+import { useBagDecks } from "@/lib/bag/useBag";
 import { Flex } from "@chakra-ui/react";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
@@ -71,7 +71,7 @@ export const HandContainer = ({
   const localName = useRouter().query?.name;
   const player = Array.isArray(localName) ? localName[0] : localName;
 
-  const { starredDeck } = useLocalDeckStorage();
+  const { starredDeck } = useBagDecks();
   const players = gameState?.content?.players as Record<
     string,
     { pool?: PoolType }
@@ -91,7 +91,7 @@ export const HandContainer = ({
       setGameState(initPool(starredDeck));
     }, 500);
     return () => clearTimeout(timer);
-    // starredDeck matters as well as gameState: `useLocalDeckStorage` resolves
+    // starredDeck matters as well as gameState: `useBagDecks` resolves
     // one render AFTER mount, so on a surface whose gameState never changes on
     // its own (offline — no socket snapshots) this effect would run once with
     // no deck and never fire again, leaving the player with an empty pool.

@@ -1,8 +1,14 @@
-import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { useEffect, useState } from "react";
 
-import { safeRemoveItem, safeSetItem } from "@/lib/storage/quota";
-
+/**
+ * Keys, the gameserver list, and the shared `MapData` shape.
+ *
+ * The deck and map hooks that used to live here are gone (#644): the bag is now
+ * account-first for a signed-in user, and localStorage is only one of its two
+ * backends. Everything that reads or writes the bag goes through
+ * `lib/bag/useBag.ts`, which is the ONLY module allowed to touch these two keys
+ * — that is what stops a surface from quietly staying device-only.
+ */
 export const LS_KEY = {
   DECKS: "DECKS",
   STAR_DECK: "STAR_DECK_ID",
@@ -72,94 +78,6 @@ export const useLocalServerStorage = () => {
   };
 };
 
-export const useLocalDeckStorage = () => {
-  const [decks, setDecks] = useState<DeckImportType[]>();
-  const [star, setStar] = useState<string>("");
-
-  useEffect(() => {
-    const localDecks: string | null = localStorage.getItem(LS_KEY.DECKS);
-    if (localDecks) {
-      setDecks(JSON.parse(localDecks));
-    }
-  }, []);
-
-  useEffect(() => {
-    const localStar = localStorage.getItem(LS_KEY.STAR_DECK);
-    if (star) {
-      if (star !== localStar) {
-        localStorage.setItem(LS_KEY.STAR_DECK, star);
-      }
-    } else if (!star && localStar) {
-      setStar(localStar);
-    }
-  }, [star]);
-
-  /** Returns false when the device is full (a toast has already explained). */
-  const pushDeck = (data: DeckImportType): boolean => {
-    const newArray = decks ? [...decks, data] : [data];
-    if (!safeSetItem(LS_KEY.DECKS, JSON.stringify(newArray))) return false;
-    setDecks(newArray);
-    // a deck you add should be ready to play: star it if nothing is starred
-    if (!star && !localStorage.getItem(LS_KEY.STAR_DECK)) {
-      setStar(data.id);
-    }
-    return true;
-  };
-
-  const removeDeckbyId = (id: string) => {
-    const newArray = decks?.filter((deck) => deck.id !== id);
-    safeSetItem(LS_KEY.DECKS, JSON.stringify(newArray));
-    setDecks(newArray);
-  };
-
-  /** replace a stored deck in place (same id) */
-  const updateDeck = (updated: DeckImportType) => {
-    const newArray = (decks ?? []).map((deck) =>
-      deck.id === updated.id ? updated : deck,
-    );
-    if (!safeSetItem(LS_KEY.DECKS, JSON.stringify(newArray))) return;
-    setDecks(newArray);
-  };
-
-  /**
-   * Merge decks into the bag, skipping ids already present.
-   * Returns how many were actually added.
-   */
-  const importDecks = (incoming: DeckImportType[]): number => {
-    const existing = decks ?? [];
-    const existingIds = new Set(existing.map((deck) => deck.id));
-    const fresh = incoming.filter((deck) => deck?.id && !existingIds.has(deck.id));
-    if (fresh.length === 0) return 0;
-    const newArray = [...existing, ...fresh];
-    if (!safeSetItem(LS_KEY.DECKS, JSON.stringify(newArray))) return 0;
-    setDecks(newArray);
-    if (!star && !localStorage.getItem(LS_KEY.STAR_DECK)) {
-      setStar(fresh[0].id);
-    }
-    return fresh.length;
-  };
-
-  /** wipe every deck from the bag (state-driven, no page reload needed) */
-  const clearDecks = () => {
-    safeRemoveItem(LS_KEY.DECKS);
-    safeRemoveItem(LS_KEY.STAR_DECK);
-    setDecks([]);
-    setStar("");
-  };
-
-  return {
-    decks,
-    star,
-    starredDeck: decks?.find((deck) => deck.id === star),
-    setStar,
-    pushDeck,
-    removeDeckbyId,
-    updateDeck,
-    importDecks,
-    clearDecks,
-  };
-};
-
 export type MapData = {
   isStarred?: boolean;
   imgUrl: string;
@@ -175,56 +93,5 @@ export type MapData = {
     author?: string;
     url?: string;
     title: string;
-  };
-};
-export const useLocalMapStorage = () => {
-  const [mapList, setMapList] = useState<MapData[]>([]);
-
-  useEffect(() => {
-    const localMapList = localStorage.getItem(LS_KEY.MAP_LIST);
-
-    if (localMapList) {
-      setMapList(JSON.parse(localMapList));
-    } else {
-      setMapList([]);
-    }
-  }, []);
-
-  /** Returns false when the device is full (a toast has already explained). */
-  const setList = (maps: MapData[]): boolean => {
-    if (!safeSetItem(LS_KEY.MAP_LIST, JSON.stringify(maps))) return false;
-    setMapList(maps);
-    return true;
-  };
-
-  const addMap = (map: MapData): boolean => setList([...mapList, map]);
-
-  function clearList() {
-    safeRemoveItem(LS_KEY.MAP_LIST);
-    setMapList([]);
-  }
-
-  const removeMap = (imgUrl: string) => {
-    setList(mapList.filter((map) => map.imgUrl !== imgUrl));
-  };
-
-  /** Merge maps in, skipping image urls already present. Returns count added. */
-  const importMaps = (incoming: MapData[]): number => {
-    const existingUrls = new Set(mapList.map((map) => map.imgUrl));
-    const fresh = incoming.filter(
-      (map) => map?.imgUrl && !existingUrls.has(map.imgUrl),
-    );
-    if (fresh.length === 0) return 0;
-    if (!setList([...mapList, ...fresh])) return 0;
-    return fresh.length;
-  };
-
-  return {
-    data: mapList,
-    set: setList,
-    add: addMap,
-    clear: clearList,
-    remove: removeMap,
-    importMaps,
   };
 };

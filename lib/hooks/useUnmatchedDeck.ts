@@ -5,7 +5,7 @@ import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useDebounce } from "use-debounce";
-import { useLocalDeckStorage } from "./useLocalStorage";
+import { useBagDecks } from "@/lib/bag/useBag";
 import { DEFAULT_DECK_API, fetchDeckById } from "@/lib/evergreenDecks";
 
 const RELOADED_FOR_DECK_ID_KEY = "unbrewed:reloadedForDeckId";
@@ -69,7 +69,7 @@ export const useLoadRouterDeck = () => {
   const deckId = query.deckId as string | undefined;
 
   const { data, isLoading: fetchIsLoading, error, setDeckId } = useUnmatchedDeck();
-  const { decks, pushDeck, setStar } = useLocalDeckStorage();
+  const { decks, pushDeck, setStar } = useBagDecks();
   // Tracks the whole import window — from the moment we decide a reload is
   // needed until it actually fires — so the UI never falls back to the empty
   // "no deck selected" placeholder in between (covers the setDeckId debounce
@@ -125,9 +125,15 @@ export const useLoadRouterDeck = () => {
     if (!data) return;
     if (!deckId) return;
 
-    // once api data is available, push the deck to local storage and star it
-    if (!pushDeck(data)) return; // storage full — pushDeck toasted already
-    setStar(data.id);
+    // once the api data is available, put the deck in the bag and star it
+    let cancelled = false;
+    void (async () => {
+      if (!(await pushDeck(data))) return; // storage full — already toasted
+      if (!cancelled) setStar(data.id);
+    })();
+    return () => {
+      cancelled = true;
+    };
     toast.success("Success! Refreshing page to load new deck");
     reload();
   }, [data]);

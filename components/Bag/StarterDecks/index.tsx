@@ -7,7 +7,7 @@ import { useStarterDecks } from "./useStarterDecks";
  * deck in mind yet. Rendered bare inside AddDeckHub's focused view.
  */
 export const StarterDeckContainer = (props: {
-  pushDeck: (data: DeckImportType) => boolean;
+  pushDeck: (data: DeckImportType) => Promise<boolean>;
   deckIds?: string[];
 }) => {
   const results = useStarterDecks({ enabled: true });
@@ -39,7 +39,7 @@ export const StarterDeckContainer = (props: {
               borderColor="rgba(72, 40, 79, 0.3)"
               bg={added ? "rgba(72, 40, 79, 0.12)" : "white"}
               isDisabled={added}
-              onClick={() => props.pushDeck(record.data as DeckImportType)}
+              onClick={() => void props.pushDeck(record.data as DeckImportType)}
             >
               {added ? "✓ " : "+ "}
               {record.data.name}

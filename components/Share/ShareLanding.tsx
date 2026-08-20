@@ -27,7 +27,8 @@ import { toast } from "react-hot-toast";
 import { Navbar } from "@/components/Navbar";
 import { PageSeo } from "@/components/Helmet/Head";
 import { persistAndStarDeck } from "@/lib/invite";
-import { useLocalMapStorage } from "@/lib/hooks/useLocalStorage";
+import { useBagMaps } from "@/lib/bag/useBag";
+import { useAccount } from "@/lib/account/useAccount";
 import {
   SharedDeckPreview,
   SharedLoad,
@@ -207,10 +208,11 @@ const DeckPreview = ({ preview }: { preview: SharedDeckPreview }) => {
             bg="brand.accent"
             color="brand.surfaceDim"
             _hover={{ bg: "brand.accentDeep" }}
-            onClick={() => {
-              // Same synchronous write the invite flow uses, so the deck is
-              // there the moment the user navigates on.
-              persistAndStarDeck(preview.deck);
+            onClick={async () => {
+              // Same write the invite flow uses, so the deck is there the
+              // moment the user navigates on — the account's copy when they
+              // are signed in, this browser's when they aren't.
+              await persistAndStarDeck(preview.deck);
               setAdded(true);
               toast.success(`${preview.name} is in your bag, ready to play`);
             }}
@@ -222,16 +224,30 @@ const DeckPreview = ({ preview }: { preview: SharedDeckPreview }) => {
           Start a game
         </Button>
       </Flex>
-      <Text fontSize="0.72rem" opacity={0.6} mt="0.8rem">
-        Adding it stores the deck in this browser. Nothing is uploaded, and you
-        don&apos;t need an account.
-      </Text>
+      <BagDestinationNote thing="deck" />
     </Box>
   );
 };
 
+/**
+ * Where "Add to my bag" actually puts it. A guest's copy still lands in this
+ * browser and needs no account, which is what this line has always promised;
+ * for a signed-in user the bag IS the account (#644), so saying "nothing is
+ * uploaded" would be a lie.
+ */
+const BagDestinationNote = ({ thing }: { thing: "deck" | "map" }) => {
+  const { status } = useAccount();
+  return (
+    <Text fontSize="0.72rem" opacity={0.6} mt="0.8rem">
+      {status === "signed-in"
+        ? `Adding it saves the ${thing} to your account, so it follows you to any browser you sign in to.`
+        : `Adding it stores the ${thing} in this browser. Nothing is uploaded, and you don't need an account.`}
+    </Text>
+  );
+};
+
 const MapPreview = ({ preview }: { preview: SharedMapPreview }) => {
-  const { importMaps } = useLocalMapStorage();
+  const { importMaps } = useBagMaps();
   const [added, setAdded] = useState(false);
 
   return (
@@ -272,8 +288,8 @@ const MapPreview = ({ preview }: { preview: SharedMapPreview }) => {
             bg="brand.accent"
             color="brand.surfaceDim"
             _hover={{ bg: "brand.accentDeep" }}
-            onClick={() => {
-              const count = importMaps([preview.map]);
+            onClick={async () => {
+              const count = await importMaps([preview.map]);
               setAdded(true);
               toast.success(
                 count > 0
@@ -286,10 +302,7 @@ const MapPreview = ({ preview }: { preview: SharedMapPreview }) => {
           </Button>
         )}
       </Flex>
-      <Text fontSize="0.72rem" opacity={0.6} mt="0.8rem">
-        Adding it stores the map in this browser. Nothing is uploaded, and you
-        don&apos;t need an account.
-      </Text>
+      <BagDestinationNote thing="map" />
     </Box>
   );
 };

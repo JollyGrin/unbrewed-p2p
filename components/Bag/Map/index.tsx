@@ -1,4 +1,5 @@
-import { MapData, useLocalMapStorage } from "@/lib/hooks";
+import { MapData } from "@/lib/hooks";
+import { useBagMaps } from "@/lib/bag/useBag";
 import {
   Text,
   Box,
@@ -10,7 +11,7 @@ import {
   Tag,
   Tooltip,
 } from "@chakra-ui/react";
-import { SaveToCloudCorner, cloudMapName } from "@/components/Bag/Cloud";
+import { BagSourceChip, ShareItemCorner } from "@/components/Bag/Account";
 import { useState } from "react";
 import { AddNewFields } from "./AddNewMapFields";
 import { CloseIcon } from "@chakra-ui/icons";
@@ -22,7 +23,7 @@ import { toast } from "react-hot-toast";
 
 export const BagMap = () => {
   const { query, push } = useRouter();
-  const { data, remove } = useLocalMapStorage();
+  const { data, remove, sourceOf, cloudIdOf } = useBagMaps();
   const [newMap, setNewMap] = useState<MapData>();
 
   function enterMapUrl(value?: string) {
@@ -96,15 +97,15 @@ export const BagMap = () => {
               corner={
                 isCustom ? (
                   <HStack spacing="0.25rem">
+                    <BagSourceChip source={sourceOf(map.imgUrl)} />
                     {/*
-                      Cloud copy + share link for signed-in users (issue #566).
-                      Renders nothing for guests and when the accounts API is
-                      unreachable, leaving this shelf exactly as it is today.
+                      A share link exists only for a map that lives in the
+                      account (#644) — a device map has no row to link to, so a
+                      guest's card carries exactly the controls it always did.
                     */}
-                    <SaveToCloudCorner
+                    <ShareItemCorner
                       kind="maps"
-                      name={cloudMapName(map)}
-                      data={map}
+                      cloudId={cloudIdOf(map.imgUrl)}
                     />
                     <Tooltip label="Remove this map from your bag">
                       <Flex
@@ -114,9 +115,9 @@ export const BagMap = () => {
                         color="#FAEBD7"
                         cursor="pointer"
                         _hover={{ bg: "brand.danger" }}
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation();
-                          remove(map.imgUrl);
+                          await remove(map.imgUrl);
                           toast.success("Map removed");
                         }}
                       >

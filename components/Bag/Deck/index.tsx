@@ -5,17 +5,19 @@ import {
   Flex,
   Grid,
   HStack,
+  Spinner,
   Text,
 } from "@chakra-ui/react";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
-import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
+import { useBagDecks } from "@/lib/bag/useBag";
+import { useAccount } from "@/lib/account/useAccount";
 import { useStorageBreakdown } from "@/lib/storage/breakdown";
 import { applyHeroCardFlag } from "@/components/Positions/heroCardTokens";
 
 import { FaPlus, FaStar } from "react-icons/fa";
 
 import { AddDeckHub } from "@/components/Bag/AddDeckHub";
-import { SaveToCloudButton } from "@/components/Bag/Cloud";
+import { BagSourceChip, ShareItemButton } from "@/components/Bag/Account";
 import { DeckStats } from "./Stats";
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
 import { toast } from "react-hot-toast";
@@ -33,13 +35,17 @@ export const BagDecks = () => {
     setStar,
     star,
     clearDecks,
-  } = useLocalDeckStorage();
+    isLoading,
+    sourceOf,
+    cloudIdOf,
+  } = useBagDecks();
   const storage = useStorageBreakdown();
+  const account = useAccount();
 
   const [selectedDeckId, setSelectedDeckId] = useState<string>();
   const selectedDeck = decks?.find((deck) => deck.id === selectedDeckId);
 
-  const toggleCharacterCard = (cardIndex: number) => {
+  const toggleCharacterCard = async (cardIndex: number) => {
     if (!selectedDeck) return;
     const cards = selectedDeck.deck_data.cards.map((card, i) =>
       i === cardIndex
@@ -51,7 +57,7 @@ export const BagDecks = () => {
     // re-derives the loadout from the flags on load, so a token the user
     // deleted in EditSavedTokens stays deleted.
     const toggled = cards[cardIndex];
-    updateDeck({
+    await updateDeck({
       ...selectedDeck,
       deck_data: { ...selectedDeck.deck_data, cards },
       savedTokens: applyHeroCardFlag(
@@ -65,7 +71,11 @@ export const BagDecks = () => {
   return (
     <Flex direction="column" h="100%" minH={0}>
       <Box bg="brand.primary" flexShrink={0}>
-        <DeckStats length={decks?.length ?? 0} storage={storage} />
+        <DeckStats
+          length={decks?.length ?? 0}
+          storage={storage}
+          isSignedIn={account.status === "signed-in"}
+        />
       </Box>
 
       <Grid
@@ -76,6 +86,8 @@ export const BagDecks = () => {
       >
         <DeckRail
           decks={decks}
+          isLoading={isLoading}
+          sourceOf={sourceOf}
           star={star}
           selectedDeckId={selectedDeckId}
           onSelect={setSelectedDeckId}
@@ -93,6 +105,7 @@ export const BagDecks = () => {
                 setStar={setStar}
                 removeDeckbyId={removeDeckbyId}
                 updateDeck={updateDeck}
+                cloudIdOf={cloudIdOf}
               />
               <DeckCards
                 decks={decks}
@@ -119,6 +132,8 @@ export const BagDecks = () => {
 
 const DeckRail = ({
   decks,
+  isLoading,
+  sourceOf,
   star,
   selectedDeckId,
   onSelect,
@@ -126,11 +141,13 @@ const DeckRail = ({
   onClearAll,
 }: {
   decks?: DeckImportType[];
+  isLoading: boolean;
+  sourceOf: (id: string) => "device" | "cloud";
   star?: string;
   selectedDeckId?: string;
   onSelect: (id: string) => void;
   onAddDeck: () => void;
-  onClearAll: () => void;
+  onClearAll: () => Promise<void> | void;
 }) => {
   const [confirmClear, setConfirmClear] = useState(false);
   const count = decks?.length ?? 0;
@@ -176,7 +193,20 @@ const DeckRail = ({
       </Flex>
 
       <Box flex="1" overflowY="auto" minH={0}>
-        {count === 0 ? (
+        {isLoading && count === 0 ? (
+          /*
+            An account bag arrives one round trip after mount. Showing the empty
+            state in the meantime would tell a signed-in player their decks are
+            gone, so the rail waits instead of flashing (#644). Anything already
+            on the device is rendered immediately, spinner or not.
+          */
+          <Flex align="center" justify="center" gap="0.5rem" p="1.5rem 1rem">
+            <Spinner size="sm" color="brand.secondary" />
+            <Text fontSize="0.8rem" opacity={0.7}>
+              Loading your bag…
+            </Text>
+          </Flex>
+        ) : count === 0 ? (
           <Flex
             direction="column"
             align="center"
@@ -195,6 +225,7 @@ const DeckRail = ({
             <DeckListItem
               key={deck.id + deck.version_id}
               deck={deck}
+              source={sourceOf(deck.id)}
               isStarred={star === deck.id}
               isSelected={selectedDeckId === deck.id}
               onSelect={onSelect}
@@ -252,11 +283,13 @@ const DeckRail = ({
 
 const DeckListItem = ({
   deck,
+  source,
   isStarred,
   isSelected,
   onSelect,
 }: {
   deck: DeckImportType;
+  source: "device" | "cloud";
   isStarred: boolean;
   isSelected: boolean;
   onSelect: (id: string) => void;
@@ -292,6 +325,7 @@ const DeckListItem = ({
       >
         {deck.name}
       </Text>
+      <BagSourceChip source={source} />
       {isStarred && (
         <FaStar
           color="#E0A82E"
@@ -309,13 +343,15 @@ const DeckActions = ({
   removeDeckbyId,
   setStar,
   updateDeck,
+  cloudIdOf,
 }: {
   deck?: DeckImportType;
   selectedDeckId?: string;
   setSelectedDeckId: (id?: string) => void;
-  removeDeckbyId: (id: string) => void;
+  removeDeckbyId: (id: string) => Promise<void> | void;
   setStar: (id: string) => void;
-  updateDeck: (updated: DeckImportType) => void;
+  updateDeck: (updated: DeckImportType) => Promise<void> | void;
+  cloudIdOf: (id: string) => string | undefined;
 }) => {
   const [, copy] = useCopyToClipboard();
   if (!selectedDeckId) return null;
@@ -342,13 +378,11 @@ const DeckActions = ({
       {deck && <EditCardback deck={deck} onSave={updateDeck} />}
       {deck && <EditSavedTokens deck={deck} onSave={updateDeck} />}
       {/*
-        Cloud copy for signed-in users (issue #566). Renders nothing for guests
-        and when the accounts API is unreachable, so this bar is unchanged for
-        everyone who never signs in.
+        Share link for a deck that lives in the account (#644). A device deck
+        has no server-side row to link to, so the button isn't offered — which
+        is also why a guest's action bar is unchanged.
       */}
-      {deck && (
-        <SaveToCloudButton kind="decks" name={deck.name} data={deck} />
-      )}
+      {deck && <ShareItemButton kind="decks" cloudId={cloudIdOf(deck.id)} />}
       <Button
         size="sm"
         bg="brand.accent"
