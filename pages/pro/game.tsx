@@ -126,6 +126,7 @@ import { resolveSpaceMove } from "@/lib/pro/moveResolve";
 import { useIncomingMoveTween } from "@/lib/pro/moveTween";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
+import { useAccount } from "@/lib/account/useAccount";
 import { formatChoice, PRO_FORMATS, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
 import { deriveTeams } from "@/lib/pro/teams";
 import { fighterTokenStateByOwner } from "@/lib/pro/heroStateFlags";
@@ -2872,6 +2873,11 @@ const HeroSelectLobby = ({
 const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; heroParam: string | null; vsBot: BotDifficulty | null; debug: boolean }) => {
   const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, requestLobbies, setVisibility, serverRestarting, gameLost } =
     useProSocket(WS_URL, debug);
+  // No extra request: the `/me` probe is a shared module-level store that
+  // `useProSocket` has already kicked off. Only the forfeit dialog reads it —
+  // cosmetic points exist for signed-in players, so only they are told what
+  // conceding costs (#636).
+  const { status: accountStatus } = useAccount();
   const [joined, setJoined] = useState(false);
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
   // Duel opponent seat. `chooseOpponent` is the player clicking a chip and locks
@@ -4576,6 +4582,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
         isOpen={forfeitOpen}
         onClose={() => setForfeitOpen(false)}
         multiplayer={multiplayerView}
+        signedIn={accountStatus === "signed-in"}
         onConfirm={() => {
           setIForfeited(true);
           sendAction({ type: "FORFEIT", player: view.you });
