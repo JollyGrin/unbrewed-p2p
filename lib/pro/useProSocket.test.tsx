@@ -631,6 +631,78 @@ describe("useProSocket — move timer wire (issue #223)", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Opening-hand mulligan opt-out (issue #631, engine #395). The engine defaults
+// the window ON, so the load-bearing assertion is that a DEFAULT room's
+// CREATE_ROOM does not grow the key at all — only an explicit opt-out is sent.
+// ---------------------------------------------------------------------------
+
+describe("useProSocket — mulligan opt-out wire (issue #631)", () => {
+  const realWS = global.WebSocket;
+  beforeEach(() => {
+    // @ts-expect-error — swap in the fake for the test
+    global.WebSocket = FakeWebSocket;
+    // Both stores: a seat token left by an earlier suite would turn the
+    // JOIN_ROOM case below into a RECONNECT.
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+  });
+  afterEach(() => {
+    global.WebSocket = realWS;
+    FakeWebSocket.last = null;
+  });
+
+  const boot = () => {
+    const hook = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    return { hook, ws };
+  };
+
+  const created = (ws: FakeWebSocket) =>
+    ws.sent.map((raw) => JSON.parse(raw)).find((m) => m.type === "CREATE_ROOM");
+
+  it("sends mulligan: false only when the creator turns it off", () => {
+    const { hook, ws } = boot();
+    act(() => hook.result.current.createRoom("hero-a", undefined, undefined, "duel", [], 0, false));
+    expect(created(ws).mulligan).toBe(false);
+  });
+
+  it("omits the key for a default room (mulligan on) — byte-identical to today", () => {
+    const { hook, ws } = boot();
+    act(() => hook.result.current.createRoom("hero-a", undefined, undefined, "duel", [], 0, true));
+    expect("mulligan" in created(ws)).toBe(false);
+
+    ws.sent.length = 0;
+    act(() => hook.result.current.createRoom("hero-a")); // arg omitted entirely
+    expect("mulligan" in created(ws)).toBe(false);
+  });
+
+  it("rides alongside a bot room and a move timer", () => {
+    const { hook, ws } = boot();
+    act(() =>
+      hook.result.current.createRoom(
+        "hero-a",
+        { difficulty: "easy" },
+        undefined,
+        "duel",
+        [],
+        30,
+        false,
+      ),
+    );
+    expect(created(ws)).toMatchObject({ bot: { difficulty: "easy" }, turnTimerSeconds: 30, mulligan: false });
+  });
+
+  it("never puts the flag on JOIN_ROOM — it is creator-only room config", () => {
+    const { hook, ws } = boot();
+    act(() => hook.result.current.joinRoom("R1", "hero-b"));
+    const join = ws.sent.map((raw) => JSON.parse(raw)).find((m) => m.type === "JOIN_ROOM");
+    expect(join).toBeDefined();
+    expect("mulligan" in join).toBe(false);
+  });
+});
+
 /**
  * Optional player identity on the wire (issue #568, engine #344).
  *

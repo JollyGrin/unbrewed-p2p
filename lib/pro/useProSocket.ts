@@ -158,7 +158,13 @@ export interface UseProSocketReturn {
     formatId?: string,
     botSeats?: BotSeatFill[],
     /** per-decision move timer in seconds (issue #223); 0/undefined = off */
-    turnTimerSeconds?: number
+    turnTimerSeconds?: number,
+    /**
+     * Opening-hand mulligan (engine #395), room config, creator-only. `false`
+     * turns the window off for BOTH seats; `true`/undefined = on (the default),
+     * and the field is omitted from the wire entirely.
+     */
+    mulligan?: boolean
   ) => void;
   joinRoom: (roomId: string, heroId: string) => void;
   sendAction: (action: Action) => void;
@@ -662,7 +668,8 @@ export function useProSocket(
       customMap?: ProMapDef,
       formatId?: string,
       botSeats?: BotSeatFill[],
-      turnTimerSeconds?: number
+      turnTimerSeconds?: number,
+      mulligan?: boolean
     ) => {
       setError(null); // clear any prior room/hero error on a fresh attempt
       setGameLost(false); // starting a brand-new game — no lost game to mourn
@@ -685,6 +692,10 @@ export function useProSocket(
         ...(debugRef.current ? { debug: true } : {}),
         // Only include when on: absent/0 = untimed (byte-identical to today).
         ...(turnTimerSeconds && turnTimerSeconds > 0 ? { turnTimerSeconds } : {}),
+        // Opening-hand mulligan (engine #395, issue #631): ON by default, so
+        // only an explicit opt-OUT reaches the wire. Any other value (true,
+        // undefined) omits the key and the room is byte-identical to today.
+        ...(mulligan === false ? { mulligan: false } : {}),
         // Signed-in seat identity (#568): the Discord name is broadcast to the
         // other seat, the account id goes to telemetry only. `{}` for a guest.
         // The worn badge (#577) rides alongside the name, under the same gate.
