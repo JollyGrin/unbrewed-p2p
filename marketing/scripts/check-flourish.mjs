@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Control check for the particle flourish (src/DeckAnnouncement/particles.ts).
+// Control check for the particle flourish (src/shared/particles.ts and each
+// composition's own choreography beside its timeline).
 //
 //   npm run check:flourish
 //
@@ -7,8 +8,9 @@
 // screensaver, and neither is visible in any single rendered frame:
 //
 //   1. BURSTS ONLY ON CUES — every burst is silent on every frame that is not
-//      inside a window opened by a cue frame from timeline.ts. No stray
-//      one-off flickers, and retiming a beat moves a burst with its sound.
+//      inside a window opened by a cue frame from that composition's
+//      timeline.ts. No stray one-off flickers, and retiming a beat moves a
+//      burst with its sound.
 //   2. SUBTLETY + DETERMINISM — the ambient field never exceeds its opacity
 //      budget on any frame of any style, and nothing in the flourish reaches
 //      for Math.random(): Remotion renders frames independently, so that would
@@ -17,18 +19,33 @@
 // The modules under test are TypeScript; this transpiles them with the repo's
 // own typescript rather than adding a test runner to a render-only package.
 
-import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 import ts from "typescript";
 
-const SRC = path.join(import.meta.dirname, "..", "src", "DeckAnnouncement");
-const MODULES = ["timeline", "particles"];
+const SRC = path.join(import.meta.dirname, "..", "src");
 
-/** Transpile the pure modules into a temp dir and import them as ESM. */
-const load = async (name) => {
+/** The pure modules, as src-relative paths. Transpiled as a graph so the
+ * shared maths can be imported by each composition's choreography. */
+const MODULES = [
+  "shared/particles",
+  "DeckAnnouncement/timeline",
+  "DeckAnnouncement/particles",
+  "CosmeticsAnnouncement/timeline",
+  "CosmeticsAnnouncement/flourish",
+];
+
+/** Transpile the module graph into a temp dir, mirroring src's layout. */
+const loadAll = async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "flourish-"));
   for (const module of MODULES) {
     const { outputText } = ts.transpileModule(
@@ -40,13 +57,21 @@ const load = async (name) => {
         },
       },
     );
+    const out = path.join(dir, `${module}.mjs`);
+    mkdirSync(path.dirname(out), { recursive: true });
     // node wants explicit extensions where the bundler does not
     writeFileSync(
-      path.join(dir, `${module}.mjs`),
-      outputText.replace(/from ["']\.\/(\w+)["']/g, 'from "./$1.mjs"'),
+      out,
+      outputText.replace(/from ["'](\.[^"']*)["']/g, 'from "$1.mjs"'),
     );
   }
-  return import(pathToFileURL(path.join(dir, `${name}.mjs`)).href);
+  const loaded = {};
+  for (const module of MODULES) {
+    loaded[module] = await import(
+      pathToFileURL(path.join(dir, `${module}.mjs`)).href
+    );
+  }
+  return loaded;
 };
 
 const failures = [];
@@ -64,25 +89,20 @@ const rnd = (key) => {
   return ((hash >>> 0) % 100000) / 100000;
 };
 
-const { promoTimeline, promoCues } = await load("timeline");
+const modules = await loadAll();
 const {
   PARTICLE_STYLES,
-  ambientDim,
   buildField,
   burstParticles,
   burstProgress,
-  burstsFor,
   particleAt,
   shimmerAt,
-} = await load("particles");
+} = modules["shared/particles"];
 
-// Every deck shape the template can produce (3 or 4 cards, quote or no quote).
-const SHAPES = [
-  { cards: 3, hasQuote: true },
-  { cards: 4, hasQuote: true },
-  { cards: 3, hasQuote: false },
-  { cards: 4, hasQuote: false },
-];
+const deckTimeline = modules["DeckAnnouncement/timeline"];
+const deckFlourish = modules["DeckAnnouncement/particles"];
+const cosmeticsTimelineModule = modules["CosmeticsAnnouncement/timeline"];
+const cosmeticsFlourish = modules["CosmeticsAnnouncement/flourish"];
 
 /** The fan anchors HowItPlays hands the flourish — geometry is irrelevant here. */
 const anchors = (count) =>
@@ -91,17 +111,68 @@ const anchors = (count) =>
     y: 560 + index * 20,
   }));
 
-// ---- 1. bursts only fire on cue frames ----
-for (const { cards, hasQuote } of SHAPES) {
-  const label = `${cards} cards, ${hasQuote ? "quote" : "no quote"}`;
-  const timeline = promoTimeline(cards, hasQuote);
-  const cues = promoCues(timeline);
-  const bursts = burstsFor(timeline, anchors(cards));
-  const cueFrames = new Set([cues.nameSlam, ...cues.cardLands, cues.sting]);
+/**
+ * One composition to check: every deck shape the deck promo can produce, and
+ * the cosmetics ad's single fixed shape. Each entry answers a timeline, its
+ * bursts, the frames its cues fire on, its ambient dim, and the frames the
+ * viewer is READING on (where the field must have backed off).
+ */
+const CASES = [
+  ...[
+    { cards: 3, hasQuote: true },
+    { cards: 4, hasQuote: true },
+    { cards: 3, hasQuote: false },
+    { cards: 4, hasQuote: false },
+  ].map(({ cards, hasQuote }) => {
+    const timeline = deckTimeline.promoTimeline(cards, hasQuote);
+    const cues = deckTimeline.promoCues(timeline);
+    return {
+      label: `deck: ${cards} cards, ${hasQuote ? "quote" : "no quote"}`,
+      timeline,
+      bursts: deckFlourish.burstsFor(timeline, anchors(cards)),
+      expectedBursts: cards + 2,
+      cueFrames: new Set([cues.nameSlam, ...cues.cardLands, cues.sting]),
+      dim: (frame) => deckFlourish.ambientDim(frame, timeline, hasQuote),
+      reading: [
+        timeline.niche.from + 40,
+        timeline.cards.from + 60,
+        timeline.cards.from + timeline.cards.perCard + 60,
+      ],
+    };
+  }),
+  (() => {
+    const timeline = cosmeticsTimelineModule.cosmeticsTimeline();
+    const cues = cosmeticsFlourish.cosmeticsCues(timeline);
+    return {
+      label: "cosmetics",
+      timeline,
+      bursts: cosmeticsFlourish.burstsFor(timeline),
+      // ignition + 4 rungs + 3 copies + 4 token tiers + 2 slams + the sting
+      expectedBursts: 15,
+      cueFrames: new Set([
+        cues.ignite,
+        ...cues.rungs,
+        cues.copies,
+        ...cues.tokenTiers,
+        ...cues.tableSlams,
+        cues.sting,
+      ]),
+      dim: (frame) => cosmeticsFlourish.ambientDim(frame, timeline),
+      reading: [
+        timeline.hook.from + timeline.hook.duration - 20,
+        timeline.earn.from + 60,
+        timeline.everyCopy.from + 60,
+        timeline.token.from + 60,
+      ],
+    };
+  })(),
+];
 
+// ---- 1. bursts only fire on cue frames ----
+for (const { label, timeline, bursts, expectedBursts, cueFrames } of CASES) {
   check(
-    bursts.length === cards + 2,
-    `${label}: expected ${cards + 2} bursts, got ${bursts.length}`,
+    bursts.length === expectedBursts,
+    `${label}: expected ${expectedBursts} bursts, got ${bursts.length}`,
   );
   for (const burst of bursts) {
     check(
@@ -148,39 +219,32 @@ for (const style of PARTICLE_STYLES) {
     `${style}: field has fewer than 2 depth layers`,
   );
 
-  for (const { cards, hasQuote } of SHAPES) {
-    const timeline = promoTimeline(cards, hasQuote);
+  for (const { label, timeline, dim, reading } of CASES) {
     for (let frame = 0; frame < timeline.total; frame += 3) {
-      const dim = ambientDim(frame, timeline, hasQuote);
+      const at = dim(frame);
       check(
-        dim >= 0 && dim <= 1,
-        `${style}: ambientDim ${dim} out of range at frame ${frame}`,
+        at >= 0 && at <= 1,
+        `${style} / ${label}: ambientDim ${at} out of range at frame ${frame}`,
       );
       for (const spec of field) {
-        const at = particleAt(spec, frame, style);
+        const particle = particleAt(spec, frame, style);
         check(
-          at.opacity * dim <= AMBIENT_BUDGET,
-          `${style}: a particle hit ${(at.opacity * dim).toFixed(3)} at frame ${frame}`,
+          particle.opacity * at <= AMBIENT_BUDGET,
+          `${style} / ${label}: a particle hit ${(particle.opacity * at).toFixed(3)} at frame ${frame}`,
         );
       }
     }
     // under the copy-heavy beats the field must actually back off
-    const reading = [
-      timeline.niche.from + 40,
-      timeline.cards.from + 60,
-      timeline.cards.from + timeline.cards.perCard + 60,
-    ];
     for (const frame of reading) {
-      const dim = ambientDim(frame, timeline, hasQuote);
       check(
-        dim <= READING_BUDGET,
-        `${style}: ambient field is at ${dim.toFixed(2)} during a reading beat (frame ${frame})`,
+        dim(frame) <= READING_BUDGET,
+        `${style} / ${label}: ambient field is at ${dim(frame).toFixed(2)} during a reading beat (frame ${frame})`,
       );
     }
   }
 }
 
-// ---- 3. no Math.random() anywhere in the composition ----
+// ---- 3. no Math.random() anywhere in a composition ----
 const walk = (dir) =>
   readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
     entry.isDirectory()
@@ -193,6 +257,7 @@ const stripComments = (source) =>
   source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
 
 for (const file of walk(SRC)) {
+  if (!/\.tsx?$/.test(file)) continue;
   if (stripComments(readFileSync(file, "utf8")).includes("Math.random(")) {
     failures.push(
       `${path.relative(SRC, file)} calls Math.random() — frames render independently, so it would flicker`,

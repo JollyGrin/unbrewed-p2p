@@ -6,8 +6,8 @@ import {
   useVideoConfig,
 } from "remotion";
 import { cardType, font } from "../../theme";
-import { CardFace } from "../CardFace";
-import type { DeckPromo, PromoCard } from "../deck";
+import { CardFace } from "../../shared/CardFace";
+import type { DeckPromo, PromoCard } from "../../shared/deck";
 import { alpha, type Palette } from "../palette";
 import { EASE, Eyebrow } from "../ui";
 

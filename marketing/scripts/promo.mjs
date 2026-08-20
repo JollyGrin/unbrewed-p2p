@@ -2,6 +2,7 @@
 // Render a deck promo and produce its Discord copy in one step.
 //
 //   npm run promo -- taranis     → out/taranis.mp4 + out/taranis-discord.mp4
+//   npm run promo -- cosmetics   → out/cosmetics.mp4 + out/cosmetics-discord.mp4
 //
 // <slug> is the props file name in props/ (which is not necessarily the
 // deckSlug inside it — props/thrall.json renders deck "pk1x").
@@ -25,6 +26,12 @@ if (!existsSync(props)) {
   process.exit(1);
 }
 
+// Most props files are a deck launch. A handful are one-off campaign videos
+// with their own composition; they are listed here so the command stays one
+// command rather than sprouting a second script per video.
+const COMPOSITIONS = { cosmetics: "CosmeticsAnnouncement" };
+const composition = COMPOSITIONS[slug] ?? "DeckAnnouncement";
+
 const step = (bin, args) => {
   const { status } = spawnSync(bin, args, {
     stdio: "inherit",
@@ -36,7 +43,7 @@ const step = (bin, args) => {
 step("npx", [
   "remotion",
   "render",
-  "DeckAnnouncement",
+  composition,
   path.join("out", `${slug}.mp4`),
   `--props=${props}`,
 ]);

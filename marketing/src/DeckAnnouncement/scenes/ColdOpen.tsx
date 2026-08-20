@@ -7,7 +7,7 @@ import {
   useVideoConfig,
 } from "remotion";
 import { font } from "../../theme";
-import type { DeckPromo } from "../deck";
+import type { DeckPromo } from "../../shared/deck";
 import { HeroAura } from "../Flourish";
 import { alpha, type Palette } from "../palette";
 import { EASE, Eyebrow } from "../ui";

@@ -1,7 +1,22 @@
-import { Audio } from "@remotion/media";
 import { Fragment } from "react";
-import { interpolate, Sequence, staticFile } from "remotion";
+import { interpolate } from "remotion";
+import {
+  clampBoth,
+  Cue,
+  DEFAULT_MUSIC_TRACK,
+  duckedGain,
+  MUSIC_BASE,
+  MUSIC_FADE_IN,
+  MusicBed,
+  type MusicTrack,
+} from "../shared/audio";
 import { CUE, type PromoTimeline } from "./timeline";
+
+export {
+  DEFAULT_MUSIC_TRACK,
+  MUSIC_TRACKS,
+  type MusicTrack,
+} from "../shared/audio";
 
 /**
  * The promo's audio layer: a chiptune bed under retro SFX punched in on the
@@ -13,22 +28,6 @@ import { CUE, type PromoTimeline } from "./timeline";
  * that needs attribution or a "free for personal use" grant goes in here: the
  * videos are posted publicly and forever, and we keep zero licence bookkeeping.
  */
-
-/** Committed tracks — Juhani Junkala's 5 Chiptunes (Action), CC0. */
-export const MUSIC_TRACKS = ["level-1", "level-2", "level-3"] as const;
-export type MusicTrack = (typeof MUSIC_TRACKS)[number];
-
-/** Level 1 is the driving character-select-y one; the default for every deck. */
-export const DEFAULT_MUSIC_TRACK: MusicTrack = "level-1";
-
-// ---- music bed ----
-// The tracks are mastered hot (~-7 LUFS) and the SFX peak near 0dBFS, so the
-// bed sits low and dips further under each hit.
-const MUSIC_BASE = 0.2;
-const MUSIC_FADE_IN = 24;
-const DUCK_DEPTH = 0.5;
-const DUCK_IN = 3;
-const DUCK_OUT = 20;
 
 // ---- cue frames ----
 // Every beat-internal frame lives in timeline.ts (`CUE`), because the particle
@@ -54,52 +53,21 @@ const JINGLE_AT = CUE.ctaSting;
 /** Music is gone by the time the sting lands — the jingle buttons the video. */
 const MUSIC_FADE_OUT_AT = 44;
 
-const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
-
-/** One SFX hit. No `durationInFrames`: the file ends when it ends. */
-const Cue: React.FC<{
-  sfx: string;
-  from: number;
-  volume?: number;
-  playbackRate?: number;
-}> = ({ sfx, from, volume = 1, playbackRate }) => (
-  <Sequence from={from} layout="none" name={`sfx: ${sfx} @${from}`}>
-    <Audio
-      src={staticFile(`audio/sfx/${sfx}.wav`)}
-      volume={volume}
-      playbackRate={playbackRate}
-    />
-  </Sequence>
-);
-
-/** Deepest dip of any hit that is close to this frame. */
-const duckAmount = (frame: number, hits: number[]) =>
-  hits.reduce(
-    (deepest, hit) =>
-      Math.max(
-        deepest,
-        interpolate(frame, [hit - DUCK_IN, hit, hit + DUCK_OUT], [0, 1, 0], {
-          ...clamp,
-        }),
-      ),
-    0,
-  );
-
 const musicVolume = (
   frame: number,
   timeline: PromoTimeline,
   hits: number[],
 ) => {
-  const fadeIn = interpolate(frame, [0, MUSIC_FADE_IN], [0, 1], { ...clamp });
+  const fadeIn = interpolate(frame, [0, MUSIC_FADE_IN], [0, 1], {
+    ...clampBoth,
+  });
   const fadeOut = interpolate(
     frame,
     [timeline.cta.from + MUSIC_FADE_OUT_AT, timeline.cta.from + OUTRO_AT],
     [1, 0],
-    { ...clamp },
+    { ...clampBoth },
   );
-  return (
-    MUSIC_BASE * fadeIn * fadeOut * (1 - DUCK_DEPTH * duckAmount(frame, hits))
-  );
+  return MUSIC_BASE * fadeIn * fadeOut * duckedGain(frame, hits);
 };
 
 export const PromoAudio: React.FC<{
@@ -120,14 +88,8 @@ export const PromoAudio: React.FC<{
 
   return (
     <>
-      {/* The bed runs the whole video. `loop` only matters if a deck ever
-          outruns the 72s track — it can't today, and it stays correct if it does. */}
-      <Audio
-        src={staticFile(`audio/music/junkala-${musicTrack}.mp3`)}
-        loop
-        // the fade/duck curve is in absolute frames, so it must not restart
-        // with the loop
-        loopVolumeCurveBehavior="extend"
+      <MusicBed
+        track={musicTrack}
         volume={(frame) => musicVolume(frame, timeline, hits)}
       />
 
