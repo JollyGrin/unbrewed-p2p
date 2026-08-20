@@ -228,6 +228,9 @@ const ImportPanel = ({
   const runImport = () => {
     const addedDecks = importDecks(newDecks);
     const addedMaps = importMaps(newMaps);
+    // 0 added with something to add means the write was refused (storage full,
+    // already toasted) — don't claim a successful import over that.
+    if (addedDecks + addedMaps === 0 && newDecks.length + newMaps.length > 0) return;
     toast.success(`Imported ${addedDecks} decks and ${addedMaps} maps`);
     setRawText("");
     setUrlInput("");

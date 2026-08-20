@@ -9,6 +9,7 @@ import {
 } from "@chakra-ui/react";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { useLocalDeckStorage } from "@/lib/hooks/useLocalStorage";
+import { useStorageBreakdown } from "@/lib/storage/breakdown";
 import { applyHeroCardFlag } from "@/components/Positions/heroCardTokens";
 
 import { FaPlus, FaStar } from "react-icons/fa";
@@ -29,11 +30,11 @@ export const BagDecks = () => {
     pushDeck,
     removeDeckbyId,
     updateDeck,
-    totalKbLeft,
     setStar,
     star,
     clearDecks,
   } = useLocalDeckStorage();
+  const storage = useStorageBreakdown();
 
   const [selectedDeckId, setSelectedDeckId] = useState<string>();
   const selectedDeck = decks?.find((deck) => deck.id === selectedDeckId);
@@ -64,7 +65,7 @@ export const BagDecks = () => {
   return (
     <Flex direction="column" h="100%" minH={0}>
       <Box bg="brand.primary" flexShrink={0}>
-        <DeckStats length={decks?.length ?? 0} deckKb={totalKbLeft ?? 0} />
+        <DeckStats length={decks?.length ?? 0} storage={storage} />
       </Box>
 
       <Grid
