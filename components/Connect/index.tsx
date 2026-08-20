@@ -2,14 +2,10 @@ import {
   Box,
   Button,
   Circle,
-  Collapse,
-  Divider,
   Flex,
-  FormLabel,
   HStack,
   IconButton,
   Input,
-  Select,
   Spinner,
   Tag,
   TagLabel,
@@ -26,13 +22,12 @@ import { SettingsModal } from "@/components/Settings/settings.modal";
 import { useLoadRouterDeck } from "@/lib/hooks";
 import { Navbar } from "@/components/Navbar";
 import { SelectedDeckContainer } from "./SelectedDeck";
+import { InviteLink } from "./InviteLink";
 import { useCreateLobby } from "./useCreateLobby";
 import { generateRandomName } from "./randomName";
 import styled from "@emotion/styled";
 import { SettingsIcon } from "@chakra-ui/icons";
 import { GiRollingDices } from "react-icons/gi";
-import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
-import { buildInviteUrl } from "@/lib/invite";
 import { toast } from "react-hot-toast";
 import Link from "next/link";
 import { DiscordPresence } from "@/components/Discord";
@@ -49,8 +44,6 @@ export const ConnectPage = () => {
   const autoNameRef = useRef<string | null>(null);
 
   const [lobby, setLobby] = useState(gidRef?.current?.value ?? "");
-  const [showInvite, setShowInvite] = useState(false);
-  const [inviteDeckId, setInviteDeckId] = useState("");
 
   // uses router props to load new decks
   const { isLoading: isDeckImporting, error: deckImportFailed } =
@@ -64,8 +57,6 @@ export const ConnectPage = () => {
     gidRef,
     nameRef,
   });
-
-  const [_, copy] = useCopyToClipboard();
 
   useEffect(() => {
     router.prefetch("/game");
@@ -122,7 +113,6 @@ export const ConnectPage = () => {
       gidRef.current.focus();
     }
     setLobby("");
-    setShowInvite(false);
   };
 
   const hasDeck = starredDeck !== undefined;
@@ -199,10 +189,7 @@ export const ConnectPage = () => {
                 id="lobby-name"
                 ref={gidRef}
                 defaultValue={router.query.lobby as string | undefined}
-                onChange={(e) => {
-                  setLobby(e.target.value);
-                  if (e.target.value === "") setShowInvite(false);
-                }}
+                onChange={(e) => setLobby(e.target.value)}
                 placeholder="lobby name"
                 bg="white"
                 focusBorderColor="brand.secondary"
@@ -287,70 +274,12 @@ export const ConnectPage = () => {
         </VStack>
 
         {/* Optional — invite a friend with a one-click join link */}
-        <Box w="100%" maxW="380px">
-          <Divider borderColor="brand.secondary" opacity={0.25} />
-          {!showInvite ? (
-            <Button
-              mt="0.75rem"
-              variant="ghost"
-              size="sm"
-              w="100%"
-              color="brand.secondary"
-              _hover={{ bg: "blackAlpha.50" }}
-              isDisabled={lobby === ""}
-              onClick={() => setShowInvite(true)}
-            >
-              {lobby === ""
-                ? "Name a lobby above to invite a friend"
-                : "＋ Invite a friend with a link"}
-            </Button>
-          ) : (
-            <Collapse in={showInvite} animateOpacity>
-              <VStack mt="0.75rem" spacing={2} align="stretch">
-                <FormLabel m={0} color="brand.secondary" fontSize="0.85rem">
-                  Bundle a deck for them (optional):
-                </FormLabel>
-                <Select
-                  bg="white"
-                  focusBorderColor="brand.secondary"
-                  value={inviteDeckId}
-                  onChange={(e) => setInviteDeckId(e.target.value)}
-                >
-                  <option value="">
-                    Let them choose — or get a popular deck
-                  </option>
-                  {decks?.map((deck) => (
-                    <option key={deck.id} value={deck.version_id ?? deck.id}>
-                      {deck.name}
-                    </option>
-                  ))}
-                </Select>
-                <Button
-                  w="100%"
-                  bg="brand.secondary"
-                  color="brand.primary"
-                  _hover={{ bg: "brand.surfaceDim" }}
-                  onClick={() => {
-                    const gid = gidRef?.current?.value;
-                    if (!gid) return;
-                    copy(
-                      buildInviteUrl({
-                        gid,
-                        server: activeServer,
-                        deckId: inviteDeckId || undefined,
-                      }),
-                    );
-                    toast.success(
-                      "Invite link copied — anyone who clicks it jumps straight in!",
-                    );
-                  }}
-                >
-                  Copy Invite Link
-                </Button>
-              </VStack>
-            </Collapse>
-          )}
-        </Box>
+        <InviteLink
+          lobby={lobby}
+          decks={decks}
+          activeServer={activeServer}
+          gidRef={gidRef}
+        />
       </ConnectContainer>
 
       <Flex
