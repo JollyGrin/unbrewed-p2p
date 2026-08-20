@@ -45,7 +45,7 @@ export const AddJson = ({
         toast.error("That JSON isn't a deck (needs an id and deck_data)");
         return;
       }
-      pushDeck(deck);
+      if (!pushDeck(deck)) return; // storage full — pushDeck toasted already
       toast.success(`${deck.name ?? "Deck"} added to your bag`);
       onAdded?.(deck.id);
     } catch {

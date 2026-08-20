@@ -130,7 +130,7 @@ const Builder = ({ onAdded }: { onAdded?: (deckId: string) => void }) => {
       cardbackUrl,
       cards,
     });
-    pushDeck(deck);
+    if (!pushDeck(deck)) return; // storage full — pushDeck toasted already
     setStar(deck.id);
     toast.success(`${deck.name} saved & ready to play`);
     onAdded?.(deck.id);

@@ -7,7 +7,7 @@ import { useStarterDecks } from "./useStarterDecks";
  * deck in mind yet. Rendered bare inside AddDeckHub's focused view.
  */
 export const StarterDeckContainer = (props: {
-  pushDeck: (data: DeckImportType) => void;
+  pushDeck: (data: DeckImportType) => boolean;
   deckIds?: string[];
 }) => {
   const results = useStarterDecks({ enabled: true });

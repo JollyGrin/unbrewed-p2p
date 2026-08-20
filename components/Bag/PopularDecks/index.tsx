@@ -29,7 +29,7 @@ import { frozenAtForDeck } from "@/lib/pro/evergreenManifest";
 export const PopularDecks = (props: {
   deckIds?: string[];
   star?: string;
-  pushDeck: (deck: DeckImportType) => void;
+  pushDeck: (deck: DeckImportType) => boolean;
   setStar: (id: string) => void;
 }) => {
   const [loadingId, setLoadingId] = useState<string>();
@@ -50,7 +50,7 @@ export const PopularDecks = (props: {
     setLoadingId(meta.id);
     try {
       const deck = await fetchDeckById(meta.id);
-      props.pushDeck(deck);
+      if (!props.pushDeck(deck)) return; // storage full — pushDeck toasted already
       props.setStar(deck.id);
       toast.success(`${meta.name} saved & ready to play`);
     } catch (err) {

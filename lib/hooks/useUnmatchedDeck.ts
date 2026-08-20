@@ -126,7 +126,7 @@ export const useLoadRouterDeck = () => {
     if (!deckId) return;
 
     // once api data is available, push the deck to local storage and star it
-    pushDeck(data);
+    if (!pushDeck(data)) return; // storage full — pushDeck toasted already
     setStar(data.id);
     toast.success("Success! Refreshing page to load new deck");
     reload();
