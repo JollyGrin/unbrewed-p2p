@@ -19,7 +19,6 @@ import { FIGHTER_MARKER_BADGES } from "./fighterStatuses";
 import { deriveTeams, isViewerOnWinningTeam } from "./teams";
 import { sweptFighters } from "./sweep";
 import { combatOutcomeLogText } from "./combatOutcome";
-import { mulliganLogLines } from "./mulligan";
 
 export interface ProLogLine {
   text: string;
@@ -927,21 +926,29 @@ export function enrichLines(
         break;
       }
 
+      // Opening-hand mulligan (issue #622 ↔ protocol v30). Both events land only
+      // when the window CLOSES, one per seat, which is the moment each player's
+      // choice becomes public — until then the answers are redacted and there is
+      // nothing to say. Nothing else narrates them: a redraw moves five cards out
+      // and five back in with the deck count unchanged, so the view diff sees no
+      // draw at all.
+      case "MULLIGAN_TAKEN":
+      case "HAND_KEPT": {
+        const mine = e.player === ctx.you;
+        const verb = e.type === "MULLIGAN_TAKEN" ? "mulliganed" : "kept";
+        added.push({
+          text: `${ctx.seat(e.player)} ${verb} ${mine ? "your" : "their"} opening hand`,
+          who: whoOf(e.player),
+        });
+        break;
+      }
+
       // Every other event type overlaps diff output (or is not yet allowlisted)
       // and must NEVER create a line. Do nothing.
       default:
         break;
     }
   }
-
-  // Opening-hand mulligan (issue #622 ↔ engine #395). Handled apart from the
-  // switch above because its two events are matched by NAME rather than against
-  // the `GameEvent` union — see lib/pro/mulligan.ts for why. They are emitted
-  // only when the window closes, for both seats, so this is the moment each
-  // player's choice becomes public. The redraw itself leaves no diff line (five
-  // cards in, five out, deck count unchanged), so these lines are the whole
-  // narration rather than a duplicate of one.
-  added.push(...mulliganLogLines(events, { you: ctx.you as PlayerId, seat: ctx.seat }));
 
   return [...out, ...added];
 }

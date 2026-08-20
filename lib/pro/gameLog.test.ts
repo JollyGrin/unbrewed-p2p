@@ -140,6 +140,8 @@ const ALL_EVENTS: GameEvent[] = [
   { type: "CARD_PLAYED_FROM_HAND", player: "p1", card: "a/x#1" },
   { type: "CARD_REVEALED", player: "p1", card: "a/x#1" },
   { type: "DECK_SHUFFLED", player: "p1" },
+  { type: "MULLIGAN_TAKEN", player: "p1" },
+  { type: "HAND_KEPT", player: "p2" },
   { type: "TOKEN_PLACED", token: "t1", kind: "totem", owner: "p1", space: "s1" },
   { type: "TOKEN_DESTROYED", token: "t1", kind: "totem", owner: "p1", space: "s1", reason: "EFFECT" },
   { type: "FIGHTER_REVIVED", fighter: "p1/hero", space: "s1" },
@@ -181,6 +183,8 @@ const ALLOWLIST = new Set([
   "BONUS_ATTACK_STARTED",
   "BONUS_ATTACK_PASSED",
   "SUB_ATTACK_INITIATED",
+  "MULLIGAN_TAKEN",
+  "HAND_KEPT",
   "FIGHTER_MARKED",
   "FIGHTER_MARKS_CLEARED",
 ]);
@@ -652,7 +656,7 @@ describe("enrichLines", () => {
       // A discard is an annotation-only type; add it so the roster is exhaustive.
       seen.add("CARD_DISCARDED");
       // Sanity: the allowlist is a subset of what the union offers.
-      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "COMBAT_VALUE_BREAKDOWN", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_REVEALED", "CARD_TUCKED", "CARD_RETURNED_FROM_PILE", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED", "FIGHTER_MARKED", "FIGHTER_MARKS_CLEARED"]).toContain(t);
+      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "COMBAT_VALUE_BREAKDOWN", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_REVEALED", "CARD_TUCKED", "CARD_RETURNED_FROM_PILE", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED", "FIGHTER_MARKED", "FIGHTER_MARKS_CLEARED", "MULLIGAN_TAKEN", "HAND_KEPT"]).toContain(t);
     });
   });
 
@@ -820,11 +824,9 @@ describe("enrichLines", () => {
 });
 
 
-describe("opening-hand mulligan (issue #622 ↔ engine #395)", () => {
-  // Named rather than typed: the two events reach the client from a newer
-  // engine than the protocol copy this build was cut against (lib/pro/mulligan.ts).
-  const mulliganed = (player: string) => ({ type: "MULLIGAN_TAKEN", player }) as unknown as GameEvent;
-  const kept = (player: string) => ({ type: "HAND_KEPT", player }) as unknown as GameEvent;
+describe("opening-hand mulligan (issue #622 ↔ protocol v30)", () => {
+  const mulliganed = (player: PlayerId): GameEvent => ({ type: "MULLIGAN_TAKEN", player });
+  const kept = (player: PlayerId): GameEvent => ({ type: "HAND_KEPT", player });
 
   it("narrates both seats' choices when the window closes", () => {
     const out = enrichLines([], [mulliganed("p1"), kept("p2")], ctx());
@@ -842,6 +844,36 @@ describe("opening-hand mulligan (issue #622 ↔ engine #395)", () => {
     const diff = diffViews(before, after, label, []);
     expect(diff.filter((l) => /drew/.test(l.text))).toEqual([]);
     expect(enrichLines(diff, [mulliganed("p1"), kept("p2")], ctx()).filter((l) => /drew/.test(l.text))).toEqual([]);
+  });
+
+  it("stays two lines through the whole close batch the engine actually sends", () => {
+    // Protocol v30 note: a MULLIGAN_TAKEN is followed by that seat's
+    // CARD_SHUFFLED_INTO_DECK batch, DECK_SHUFFLED and CARD_DRAWN batch. None of
+    // those is allowlisted, and the hand swap leaves the deck count where it was,
+    // so the feed must read as the two decisions and nothing else.
+    const hand = ["a/x#1", "a/y#2", "a/z#3", "a/w#4", "a/v#5"];
+    const fresh = ["a/k#6", "a/l#7", "a/m#8", "a/n#9", "a/o#10"];
+    const before = view({ phase: "SETUP", self: { ...view({}).self, hand, deckCount: 30 } });
+    const after = view({ phase: "SETUP", self: { ...view({}).self, hand: fresh, deckCount: 30 } });
+    const events: GameEvent[] = [
+      mulliganed("p1"),
+      ...hand.map((card): GameEvent => ({ type: "CARD_SHUFFLED_INTO_DECK", player: "p1", card, from: "HAND" })),
+      { type: "DECK_SHUFFLED", player: "p1" },
+      ...fresh.map((card): GameEvent => ({ type: "CARD_DRAWN", player: "p1", card })),
+      kept("p2"),
+    ];
+    expect(enrichLines(diffViews(before, after, label, events), events, ctx())).toEqual([
+      { text: "You mulliganed your opening hand", who: "you" },
+      { text: "Opponent kept their opening hand", who: "opp" },
+    ]);
+  });
+
+  it("reads the same window from the other seat", () => {
+    const out = enrichLines([], [mulliganed("p1"), kept("p2")], ctx("p2"));
+    expect(out).toEqual([
+      { text: "Opponent mulliganed their opening hand", who: "opp" },
+      { text: "You kept your opening hand", who: "you" },
+    ]);
   });
 
   it("adds nothing on a server that never opens the window", () => {
