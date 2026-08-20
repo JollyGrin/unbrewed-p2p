@@ -23,9 +23,13 @@ import { readStarredDeck } from "@/lib/sandbox/initGame";
 import { __resetBagStoresForTests, setStar } from "./bagStore";
 import { useBagDecks, useBagMaps } from "./useBag";
 
-jest.mock("react-hot-toast", () => ({
-  toast: { success: jest.fn(), error: jest.fn() },
-}));
+const toastPlain = jest.fn();
+jest.mock("react-hot-toast", () => {
+  const toast: any = (...args: unknown[]) => toastPlain(...args);
+  toast.success = jest.fn();
+  toast.error = jest.fn();
+  return { toast };
+});
 
 const USER = { id: "u1", username: "JollyGrin", avatarUrl: null };
 
@@ -102,6 +106,7 @@ const signedInApi = (options?: {
 };
 
 beforeEach(() => {
+  toastPlain.mockClear();
   localStorage.clear();
   __resetAccountStoreForTests();
   __resetBagStoresForTests();
@@ -224,6 +229,11 @@ describe("a signed-in user", () => {
       deck("d1", "Bruce Lee"),
     ]);
     await waitFor(() => expect(result.current.sourceOf("d1")).toBe("device"));
+    // …and the user is told where it actually went (§2's offline fallback).
+    expect(toastPlain).toHaveBeenCalledWith(
+      expect.stringContaining("Saved on this device"),
+      expect.objectContaining({ id: "bag-device-fallback" }),
+    );
   });
 
   it("resolves a starred ACCOUNT deck at game start", async () => {

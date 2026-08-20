@@ -37,6 +37,7 @@ import {
   updateCloudItem,
 } from "@/lib/account/bagCloud";
 import { LS_KEY, MapData } from "@/lib/hooks/useLocalStorage";
+import { toast } from "react-hot-toast";
 import { safeRemoveItem, safeSetItem } from "@/lib/storage/quota";
 
 /** Where an item the user is looking at actually lives. */
@@ -272,6 +273,19 @@ export type WriteOutcome =
 export const FELL_BACK_TO_DEVICE =
   "Saved on this device — move it to your account from Bag → Backup & Share when you're back online.";
 
+/**
+ * Toasting from the store rather than from each caller is deliberate, and
+ * matches `safeSetItem` in lib/storage/quota.ts: the caller asked to save
+ * something and believes it worked, so the ONE place that knows it went
+ * somewhere else is the one that has to say so. The shared ids collapse a bulk
+ * import's twenty fallbacks into a single line.
+ */
+const warnFellBackToDevice = () =>
+  toast(FELL_BACK_TO_DEVICE, { id: "bag-device-fallback", icon: "📱" });
+
+const warnCloudWriteFailed = (reason: CloudFailure) =>
+  toast.error(cloudFailureMessage(reason), { id: "bag-cloud-write" });
+
 const addLocal = <T,>(store: KindStore<T>, item: T): WriteOutcome =>
   persistLocal(store, [...store.local, item])
     ? { ok: true, where: "device" }
@@ -312,7 +326,11 @@ export const addItem = async <T,>(
   // The API refused or vanished — keep the item rather than the purity of the
   // account-only rule. A 409 from a pre-#38 (still capped) API lands here too.
   const local = addLocal(store, item);
-  return local.ok ? { ok: false, reason: result.reason } : local;
+  if (local.ok) {
+    warnFellBackToDevice();
+    return { ok: false, reason: result.reason };
+  }
+  return local;
 };
 
 /** Replace an item in place, on whichever backend currently holds it. */
@@ -337,7 +355,12 @@ export const updateItem = async <T,>(
     store.nameOf(item),
     item,
   );
-  if (!result.ok) return false;
+  if (!result.ok) {
+    // The edit did NOT stick. Saying nothing would leave the user looking at a
+    // change that vanishes on the next render.
+    warnCloudWriteFailed(result.reason);
+    return false;
+  }
   store.cloud = store.cloud.map((candidate) =>
     candidate.cloudId === entry.cloudId ? { ...candidate, data: item } : candidate,
   );
@@ -361,6 +384,7 @@ export const removeItem = async <T,>(
       );
       publish(store);
     } else {
+      warnCloudWriteFailed(result.reason);
       ok = false;
     }
   }
@@ -418,6 +442,7 @@ export const importItems = async <T,>(
   if (strandedOnDevice.length) {
     if (persistLocal(store, [...store.local, ...strandedOnDevice])) {
       added += strandedOnDevice.length;
+      warnFellBackToDevice();
     }
   }
   publish(store);
