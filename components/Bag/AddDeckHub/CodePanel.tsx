@@ -14,7 +14,7 @@ export const CodePanel = ({
   setStar,
   onAdded,
 }: {
-  pushDeck: (deck: DeckImportType) => void;
+  pushDeck: (deck: DeckImportType) => boolean;
   setStar: (id: string) => void;
   onAdded?: (deckId: string) => void;
 }) => {
@@ -22,7 +22,7 @@ export const CodePanel = ({
 
   const save = () => {
     if (!data) return;
-    pushDeck(data);
+    if (!pushDeck(data)) return; // storage full — pushDeck toasted already
     setStar(data.id);
     toast.success(`${data.name} saved & ready to play`);
     setDeckId(undefined);

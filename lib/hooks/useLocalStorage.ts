@@ -1,6 +1,8 @@
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { useEffect, useState } from "react";
 
+import { safeRemoveItem, safeSetItem } from "@/lib/storage/quota";
+
 export const LS_KEY = {
   DECKS: "DECKS",
   STAR_DECK: "STAR_DECK_ID",
@@ -72,8 +74,6 @@ export const useLocalServerStorage = () => {
 
 export const useLocalDeckStorage = () => {
   const [decks, setDecks] = useState<DeckImportType[]>();
-  const [deckKb, setDeckKb] = useState<number>(0);
-  const [totalKbLeft, setTotalKbLeft] = useState<number>(0);
   const [star, setStar] = useState<string>("");
 
   useEffect(() => {
@@ -81,22 +81,6 @@ export const useLocalDeckStorage = () => {
     if (localDecks) {
       setDecks(JSON.parse(localDecks));
     }
-
-    var _lsTotal = 0,
-      _xLen,
-      _x;
-    for (_x in localStorage) {
-      if (!localStorage.hasOwnProperty(_x)) {
-        continue;
-      }
-      _xLen = (localStorage[_x].length + _x.length) * 2;
-      _lsTotal += _xLen;
-      if (_x === LS_KEY.DECKS) {
-        const kb = +(_xLen / 1024).toFixed(2);
-        setDeckKb(kb);
-      }
-    }
-    setTotalKbLeft(+(_lsTotal / 1024).toFixed(2));
   }, []);
 
   useEffect(() => {
@@ -110,24 +94,21 @@ export const useLocalDeckStorage = () => {
     }
   }, [star]);
 
-  const pushDeck = (data: DeckImportType) => {
-    let newArray;
-    if (decks) {
-      newArray = [...decks, data];
-    } else {
-      newArray = [data];
-    }
+  /** Returns false when the device is full (a toast has already explained). */
+  const pushDeck = (data: DeckImportType): boolean => {
+    const newArray = decks ? [...decks, data] : [data];
+    if (!safeSetItem(LS_KEY.DECKS, JSON.stringify(newArray))) return false;
     setDecks(newArray);
-    localStorage.setItem(LS_KEY.DECKS, JSON.stringify(newArray));
     // a deck you add should be ready to play: star it if nothing is starred
     if (!star && !localStorage.getItem(LS_KEY.STAR_DECK)) {
       setStar(data.id);
     }
+    return true;
   };
 
   const removeDeckbyId = (id: string) => {
     const newArray = decks?.filter((deck) => deck.id !== id);
-    localStorage.setItem(LS_KEY.DECKS, JSON.stringify(newArray));
+    safeSetItem(LS_KEY.DECKS, JSON.stringify(newArray));
     setDecks(newArray);
   };
 
@@ -136,7 +117,7 @@ export const useLocalDeckStorage = () => {
     const newArray = (decks ?? []).map((deck) =>
       deck.id === updated.id ? updated : deck,
     );
-    localStorage.setItem(LS_KEY.DECKS, JSON.stringify(newArray));
+    if (!safeSetItem(LS_KEY.DECKS, JSON.stringify(newArray))) return;
     setDecks(newArray);
   };
 
@@ -150,7 +131,7 @@ export const useLocalDeckStorage = () => {
     const fresh = incoming.filter((deck) => deck?.id && !existingIds.has(deck.id));
     if (fresh.length === 0) return 0;
     const newArray = [...existing, ...fresh];
-    localStorage.setItem(LS_KEY.DECKS, JSON.stringify(newArray));
+    if (!safeSetItem(LS_KEY.DECKS, JSON.stringify(newArray))) return 0;
     setDecks(newArray);
     if (!star && !localStorage.getItem(LS_KEY.STAR_DECK)) {
       setStar(fresh[0].id);
@@ -160,16 +141,14 @@ export const useLocalDeckStorage = () => {
 
   /** wipe every deck from the bag (state-driven, no page reload needed) */
   const clearDecks = () => {
-    localStorage.removeItem(LS_KEY.DECKS);
-    localStorage.removeItem(LS_KEY.STAR_DECK);
+    safeRemoveItem(LS_KEY.DECKS);
+    safeRemoveItem(LS_KEY.STAR_DECK);
     setDecks([]);
     setStar("");
   };
 
   return {
     decks,
-    deckKb,
-    totalKbLeft,
     star,
     starredDeck: decks?.find((deck) => deck.id === star),
     setStar,
@@ -211,19 +190,17 @@ export const useLocalMapStorage = () => {
     }
   }, []);
 
-  const setList = (maps: MapData[]) => {
-    localStorage.setItem(LS_KEY.MAP_LIST, JSON.stringify(maps));
+  /** Returns false when the device is full (a toast has already explained). */
+  const setList = (maps: MapData[]): boolean => {
+    if (!safeSetItem(LS_KEY.MAP_LIST, JSON.stringify(maps))) return false;
     setMapList(maps);
+    return true;
   };
 
-  const addMap = (map: MapData) => {
-    const newMapsList = [...mapList, map];
-    localStorage.setItem(LS_KEY.MAP_LIST, JSON.stringify(newMapsList));
-    setMapList(newMapsList);
-  };
+  const addMap = (map: MapData): boolean => setList([...mapList, map]);
 
   function clearList() {
-    localStorage.removeItem(LS_KEY.MAP_LIST);
+    safeRemoveItem(LS_KEY.MAP_LIST);
     setMapList([]);
   }
 
@@ -238,7 +215,7 @@ export const useLocalMapStorage = () => {
       (map) => map?.imgUrl && !existingUrls.has(map.imgUrl),
     );
     if (fresh.length === 0) return 0;
-    setList([...mapList, ...fresh]);
+    if (!setList([...mapList, ...fresh])) return 0;
     return fresh.length;
   };
 
