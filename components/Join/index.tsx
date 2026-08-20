@@ -21,10 +21,9 @@ import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { PopularDeckMeta } from "@/lib/constants/top-decks";
 import {
   DEFAULT_SERVER,
-  LS_KEY,
-  useLocalDeckStorage,
   useLocalServerStorage,
 } from "@/lib/hooks/useLocalStorage";
+import { useBagDecks } from "@/lib/bag/useBag";
 import {
   fetchDeckById,
   isValidServerUrl,
@@ -48,7 +47,7 @@ export const JoinPage = () => {
   const invitedDeckId = router.query.deckId as string | undefined;
   const serverParam = router.query.server as string | undefined;
 
-  const { decks, star } = useLocalDeckStorage();
+  const { decks, star, setStar } = useBagDecks();
   const { activeServer, setActiveServer } = useLocalServerStorage();
 
   const account = useAccount();
@@ -172,9 +171,9 @@ export const JoinPage = () => {
         const deck =
           remoteDeck ??
           (await fetchDeckById(invitedDeckId ?? randomMeta?.id ?? ""));
-        persistAndStarDeck(deck);
+        await persistAndStarDeck(deck);
       } else {
-        localStorage.setItem(LS_KEY.STAR_DECK, deckChoice);
+        setStar(deckChoice);
       }
 
       router.push(

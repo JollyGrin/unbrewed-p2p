@@ -59,7 +59,7 @@ export const AddDeckHub = ({
   deckIds,
   onDeckAdded,
 }: {
-  pushDeck: (deck: DeckImportType) => boolean;
+  pushDeck: (deck: DeckImportType) => Promise<boolean>;
   setStar: (id: string) => void;
   star?: string;
   deckIds?: string[];

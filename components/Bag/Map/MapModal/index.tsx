@@ -1,4 +1,5 @@
-import { MapData, useLocalMapStorage } from "@/lib/hooks";
+import { MapData } from "@/lib/hooks";
+import { useBagMaps } from "@/lib/bag/useBag";
 import {
   Image,
   Modal,
@@ -23,7 +24,7 @@ import Link from "next/link";
 export const MapModal = () => {
   const { query, push } = useRouter();
   const queryUrl = query.mapUrl as string | undefined;
-  const { data } = useLocalMapStorage();
+  const { data } = useBagMaps();
   const [loaded, setLoaded] = useState(false);
 
   // Reset to the loading state whenever a different map is selected so we never

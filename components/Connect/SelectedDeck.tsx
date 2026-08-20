@@ -7,9 +7,9 @@ type Props = {
   isLoading?: boolean;
   error?: boolean;
   /**
-   * Deck state is owned by ConnectPage: `useLocalDeckStorage` instances don't
-   * sync after mount, so the tile, the switcher and the Connect button's
-   * `hasDeck` gate all have to read from the same one.
+   * Deck state is owned by ConnectPage: hook instances don't sync after mount,
+   * so the tile, the switcher and the Connect button's `hasDeck` gate all have
+   * to read from the same one.
    */
   starredDeck?: DeckImportType;
   decks?: DeckImportType[];

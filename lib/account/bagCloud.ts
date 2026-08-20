@@ -18,9 +18,15 @@ import { API_URL } from "./apiUrl";
 /** The two bag surfaces. Matches the API's path segment verbatim. */
 export type BagKind = "decks" | "maps";
 
-/** Items per kind per user; the 101st create answers 409. Mirrors the server. */
-export const BAG_ITEM_CAP = 100;
-/** Serialized `data` cap for a single item; over it the server answers 413. */
+/**
+ * Serialized `data` cap for a single item; over it the server answers 413.
+ *
+ * There is deliberately NO client mirror of an item COUNT cap any more (#644):
+ * the account is the bag for a signed-in user, so the number of decks they may
+ * keep is the server's business alone (unbrewed-api#38 removed it). A pre-#38
+ * API still answers 409 on the 101st item, and that lands as `cap_reached` like
+ * any other refusal — the item simply stays on the device.
+ */
 export const MAX_ITEM_BYTES = 256 * 1024;
 
 /** A listing row — metadata only, never the payload. */
@@ -66,7 +72,7 @@ const fail = (reason: CloudFailure): CloudResult<never> => ({
 export const cloudFailureMessage = (reason: CloudFailure): string => {
   switch (reason) {
     case "cap_reached":
-      return `Your cloud bag is full (${BAG_ITEM_CAP} items). Delete one to make room.`;
+      return "Your account bag is full — this one stayed on this device.";
     case "too_large":
       return "That one is too big for the cloud bag (256 KB limit). Image decks should use URLs, not embedded images.";
     case "unauthorized":
@@ -76,7 +82,7 @@ export const cloudFailureMessage = (reason: CloudFailure): string => {
     case "rate_limited":
       return "Too many changes at once. Give it a few seconds and try again.";
     case "offline":
-      return "Couldn't reach the cloud right now. Your bag is safe in this browser.";
+      return "Couldn't reach your account right now. Your bag is safe in this browser.";
   }
 };
 
@@ -175,6 +181,30 @@ export const updateCloudItem = async (
   });
   if (!res.ok) return res;
   return { ok: true, value: { id } };
+};
+
+/** One row of a bulk import: the same `{name, data}` a single create takes. */
+export type BulkImportItem = { name: string; data: unknown };
+
+/**
+ * Move a whole local bag up in one request (unbrewed-api#38, `POST /bag/import`).
+ *
+ * The client must ALSO work against the pre-#38 API, which has no such route
+ * and answers 404 — so this is strictly best-effort and its body is never
+ * trusted: the migration re-lists afterwards and decides what actually landed
+ * from the server's own listing. That makes a 404, a partial apply and a
+ * mid-flight network drop all recoverable by the same per-item follow-up loop,
+ * with no risk of uploading anything twice.
+ */
+export const bulkImportCloudItems = async (payload: {
+  decks: BulkImportItem[];
+  maps: BulkImportItem[];
+}): Promise<CloudResult<null>> => {
+  const res = await request<unknown>("/bag/import", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return res.ok ? { ok: true, value: null } : res;
 };
 
 export const deleteCloudItem = async (

@@ -12,6 +12,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MapModal } from "./map.modal";
 import DEFAULT_MAPS from "@/components/Bag/Map/MapModal/defaultMaps.json";
 import { DEFAULT_MAP_URL } from "@/lib/maps/defaultMap";
+import { __resetBagStoresForTests } from "@/lib/bag/bagStore";
 
 const push = jest.fn();
 let mockQuery: Record<string, string> = {};
@@ -33,7 +34,8 @@ const LOCAL_MAP = {
   meta: { title: "My Backyard Arena", author: "grins" },
 };
 
-// `useLocalMapStorage` reads localStorage on mount; seeding it is enough.
+// The bag store reads localStorage once per page load (#644), so seeding the
+// key is enough as long as each case starts from a cold store — see beforeEach.
 const seedLocalMaps = (maps: unknown[]) =>
   localStorage.setItem("MAP_LIST", JSON.stringify(maps));
 
@@ -45,6 +47,7 @@ beforeEach(() => {
   push.mockClear();
   mockQuery = {};
   localStorage.clear();
+  __resetBagStoresForTests();
 });
 
 const open = () =>

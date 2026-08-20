@@ -10,7 +10,7 @@ import {
 } from "@chakra-ui/react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocalDeckStorage } from "@/lib/hooks";
+import { useBagDecks } from "@/lib/bag/useBag";
 import axios from "axios";
 import { toast } from "react-hot-toast";
 import { useJsonCheck } from "@/lib/hooks/useJsonCheck";
@@ -25,7 +25,7 @@ export const AddJson = ({
 }: {
   onAdded?: (deckId: string) => void;
 }) => {
-  const { pushDeck } = useLocalDeckStorage();
+  const { pushDeck } = useBagDecks();
   const [mode, setMode] = useState<"text" | "url">("text");
 
   const [json, setJson] = useState<string>("");
@@ -38,14 +38,14 @@ export const AddJson = ({
     { enabled: !!url },
   );
 
-  const addDeck = (raw: unknown) => {
+  const addDeck = async (raw: unknown) => {
     try {
       const deck = typeof raw === "string" ? JSON.parse(raw) : raw;
       if (!deck?.id || !deck?.deck_data) {
         toast.error("That JSON isn't a deck (needs an id and deck_data)");
         return;
       }
-      if (!pushDeck(deck)) return; // storage full — pushDeck toasted already
+      if (!(await pushDeck(deck))) return; // storage full — already toasted
       toast.success(`${deck.name ?? "Deck"} added to your bag`);
       onAdded?.(deck.id);
     } catch {

@@ -14,10 +14,8 @@ import {
 } from "@chakra-ui/react";
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
-import {
-  useLocalDeckStorage,
-  useLocalServerStorage,
-} from "@/lib/hooks/useLocalStorage";
+import { useLocalServerStorage } from "@/lib/hooks/useLocalStorage";
+import { useBagDecks } from "@/lib/bag/useBag";
 import { SettingsModal } from "@/components/Settings/settings.modal";
 import { useLoadRouterDeck } from "@/lib/hooks";
 import { Navbar } from "@/components/Navbar";
@@ -49,7 +47,7 @@ export const ConnectPage = () => {
   const { isLoading: isDeckImporting, error: deckImportFailed } =
     useLoadRouterDeck();
 
-  const { starredDeck, decks, setStar } = useLocalDeckStorage();
+  const { starredDeck, decks, setStar, isLoading: bagLoading } = useBagDecks();
   const { activeServer, setActiveServer, serverList } = useLocalServerStorage();
 
   // create the lobby and connect to it
@@ -147,7 +145,9 @@ export const ConnectPage = () => {
         <VStack w="100%" spacing={2}>
           <StepLabel number="1" label="Choose your deck" />
           <SelectedDeckContainer
-            isLoading={isDeckImporting}
+            // bagLoading covers the account half arriving a round trip after
+            // mount (#644): the tile spins rather than claiming no deck.
+            isLoading={isDeckImporting || bagLoading}
             error={deckImportFailed}
             starredDeck={starredDeck}
             decks={decks}
@@ -219,7 +219,7 @@ export const ConnectPage = () => {
 
           <Button
             w="100%"
-            isDisabled={loading || !hasDeck || isDeckImporting}
+            isDisabled={loading || !hasDeck || isDeckImporting || bagLoading}
             bg="brand.secondary"
             color="brand.primary"
             _hover={{ bg: "brand.surfaceDim" }}
@@ -245,7 +245,8 @@ export const ConnectPage = () => {
               Couldn&apos;t load that deck — star one from your bag instead
             </Text>
           ) : (
-            !hasDeck && (
+            !hasDeck &&
+            !bagLoading && (
               <Text fontSize="0.8rem" color="brand.secondary" opacity={0.7} textAlign="center">
                 Star a deck in your bag to enable connecting
               </Text>
