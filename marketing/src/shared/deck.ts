@@ -1,5 +1,4 @@
 import { staticFile } from "remotion";
-import type { DeckAnnouncementInput } from "./schema";
 
 /**
  * Reads a shipped evergreen deck out of the APP's public folder — which
@@ -32,6 +31,16 @@ export type PromoCard = {
 };
 
 export type Ability = { name?: string; text: string };
+
+/**
+ * What to pull out of a deck: the JSON file name plus the cards a composition
+ * wants faces for. `DeckAnnouncement` passes its props file straight in;
+ * `CosmeticsAnnouncement` passes a fixed cast written into the composition.
+ */
+export type DeckSelection = {
+  deckSlug: string;
+  featuredCards: { title: string; caption: string }[];
+};
 
 export type DeckPromo = {
   slug: string;
@@ -139,7 +148,7 @@ const key = (title: string) => title.trim().toLowerCase();
  * (this runs in calculateMetadata, before frame 0), never render blank.
  */
 export const loadDeckPromo = async (
-  { deckSlug, featuredCards }: DeckAnnouncementInput,
+  { deckSlug, featuredCards }: DeckSelection,
   signal?: AbortSignal,
 ): Promise<DeckPromo> => {
   const src = `evergreen-decks/${deckSlug}.json`;

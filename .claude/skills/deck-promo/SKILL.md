@@ -143,10 +143,18 @@ built from `promoTimeline()`, so retiming a scene retimes its sound.
 - **Fonts**: composition content must sit inside `<BrandFonts>` (see
   `src/fonts.tsx`). `loadFont()` alone does not hold the render, so text comes
   out in the fallback face.
+- **The app's `@/…` alias** is wired for webpack in `remotion.config.ts` (and
+  for `tsc` in `tsconfig.json`). The card renderer imports through it, so a
+  render fails at bundle time if that alias is dropped.
 - Animate with `useCurrentFrame()` + `interpolate`/`spring` only. CSS
   transitions and keyframes do not render in Remotion.
 
 ## Adding a new scene or changing timing
+
+Anything generic — palette maths, the deck loader, `CardFace`, the particle
+maths, `SceneFade`/`Eyebrow`/`Wordmark`, the audio primitives — lives in
+`src/shared/` and is used by `CosmeticsAnnouncement` too, so changing it
+changes that video as well.
 
 `src/DeckAnnouncement/timeline.ts` owns the frame budget (`coldOpenFrames`,
 `NICHE`, `PER_CARD`, `CTA`, `totalDuration`, `promoTimeline`) — change it there,
@@ -162,9 +170,12 @@ one edit retimes the sound and its burst together.
 
 ## Particle flourish
 
-An ambient particle layer runs behind every scene — `src/DeckAnnouncement/particles.ts`
-(all the maths, no React) and `Flourish.tsx` (the divs). Three parts, all
-tinted from the deck's `highlightColour`:
+An ambient particle layer runs behind every scene. The maths is generic and
+lives in `src/shared/particles.ts` (no React); the divs are in
+`src/shared/Flourish.tsx`; and WHICH frames burst plus how far the field dims
+beat by beat is this composition's own, in `src/DeckAnnouncement/particles.ts`
+(`burstsFor`, `ambientDim`). Three parts, all tinted from the deck's
+`highlightColour`:
 
 | Layer | What it does |
 | --- | --- |
@@ -187,9 +198,10 @@ Two rules are not negotiable, and `npm run check:flourish` enforces both:
 
 Bursts are windows, not triggers: `burstProgress()` is exactly 0 outside
 `[cue, cue + duration)`, which is what makes "no stray flickers" checkable.
-`check:flourish` walks every frame of every deck shape and fails if a burst
-draws anything off-cue, if the field breaks its opacity budget, or if it does
-not back off under a reading beat. Run it after touching either file.
+`check:flourish` walks every frame of every deck shape — and of the fixed
+`CosmeticsAnnouncement` storyboard — and fails if a burst draws anything
+off-cue, if the field breaks its opacity budget, or if it does not back off
+under a reading beat. Run it after touching either file.
 
 Animate the flourish the same way as everything else: `useCurrentFrame()` +
 `interpolate()`, plain divs, no CSS animation, no per-frame `blur()` (soft dots

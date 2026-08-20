@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { MUSIC_TRACKS } from "./audio";
-import { PARTICLE_STYLES } from "./particles";
+import { MUSIC_TRACKS } from "../shared/audio";
+import { PARTICLE_STYLES } from "../shared/particles";
 
 /**
  * Props for the parameterized deck-announcement promo. A launch video is one

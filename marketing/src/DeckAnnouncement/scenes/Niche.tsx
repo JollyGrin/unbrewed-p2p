@@ -6,7 +6,7 @@ import {
   useVideoConfig,
 } from "remotion";
 import { font } from "../../theme";
-import type { Ability, DeckPromo } from "../deck";
+import type { Ability, DeckPromo } from "../../shared/deck";
 import { alpha, type Palette } from "../palette";
 import { EASE, Eyebrow } from "../ui";
 
