@@ -2118,6 +2118,8 @@ const HeroSelectLobby = ({
   onChangeBotSlot,
   turnTimerSeconds,
   onSelectTurnTimer,
+  mulligan,
+  onSelectMulligan,
   onConfirm,
   customMapJson,
   onCustomMapJsonChange,
@@ -2145,6 +2147,9 @@ const HeroSelectLobby = ({
   /** per-decision move timer in seconds (issue #223); 0 = off (create flow only) */
   turnTimerSeconds: number;
   onSelectTurnTimer: (seconds: number) => void;
+  /** opening-hand mulligan for this room (engine #395); true = on (create flow only) */
+  mulligan: boolean;
+  onSelectMulligan: (on: boolean) => void;
   onConfirm: () => void;
   /** raw custom-map JSON (create flow only) — persisted in the parent */
   customMapJson: string;
@@ -2224,8 +2229,9 @@ const HeroSelectLobby = ({
       ? "Custom board"
       : catalogEntry(selectedMapId)?.title ?? "Default board";
   const timerText = turnTimerSeconds > 0 ? `${clampTurnTimer(turnTimerSeconds)}s timer` : "no timer";
+  const mulliganText = mulligan ? "mulligan on" : "no mulligan";
   const summary = effective
-    ? `${lockedName} · ${stageName} · ${timerText}`
+    ? `${lockedName} · ${stageName} · ${timerText} · ${mulliganText}`
     : "Pick a fighter to preview — click a tile to lock in.";
 
   const createLabel = !effective
@@ -2441,6 +2447,21 @@ const HeroSelectLobby = ({
                   </NumberInput>
                 )}
               </Flex>
+            </Flex>
+            {/* Opening-hand mulligan (engine #395, issue #631). ON is the
+                engine default, so "Off" is the only choice that reaches the
+                wire — see createRoom in lib/pro/useProSocket.ts. */}
+            <Flex align="center" gap="0.5rem">
+              <Text {...STRIP_LBL}>🃏 MULLIGAN</Text>
+              <Segmented
+                ariaLabel="Opening-hand mulligan"
+                value={mulligan ? "on" : "off"}
+                onChange={(v) => onSelectMulligan(v === "on")}
+                options={[
+                  { value: "on", label: "On" },
+                  { value: "off", label: "Off" },
+                ]}
+              />
             </Flex>
           </>
         )}
@@ -2919,6 +2940,10 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   // to act. 0 = off (the default) → CREATE_ROOM omits turnTimerSeconds and the
   // room behaves exactly as today. The toggle flips between 0 and a default preset.
   const [turnTimerSeconds, setTurnTimerSeconds] = useState(0);
+  // Opening-hand mulligan (engine #395, issue #631), create flow only. The
+  // engine defaults it ON for new games, so true is the default here too and
+  // only an explicit opt-out puts `mulligan: false` on CREATE_ROOM.
+  const [mulligan, setMulligan] = useState(true);
   const [selectedFighter, setSelectedFighter] = useState<FighterId | null>(null);
   // Incremental-maneuver stepping (issue #285): the LOCAL hop-by-hop preview for
   // the selected fighter, scoped to that fighter so it never leaks across a
@@ -3439,6 +3464,8 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
           }
           turnTimerSeconds={turnTimerSeconds}
           onSelectTurnTimer={setTurnTimerSeconds}
+          mulligan={mulligan}
+          onSelectMulligan={setMulligan}
           customMapJson={customMapJson}
           onCustomMapJsonChange={(json) => {
             setCustomMapJson(json);
@@ -3497,7 +3524,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
             // Clamp to the engine's 10–300 bound at the wire (a mid-edit custom
             // value could sit outside it); 0 = off stays off.
             const timerSeconds = turnTimerSeconds > 0 ? clampTurnTimer(turnTimerSeconds) : 0;
-            createRoom(effectiveHeroId, bot, customMap, selectedFormat, botSeats, timerSeconds);
+            createRoom(effectiveHeroId, bot, customMap, selectedFormat, botSeats, timerSeconds, mulligan);
             setSelectedHeroId(effectiveHeroId); // lock it for the lobby label
             setJoined(true);
           }}
