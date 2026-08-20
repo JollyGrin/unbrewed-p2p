@@ -11,13 +11,14 @@ import {
 import { keyframes } from "@emotion/react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { FaArrowLeft, FaHeart, FaLock } from "react-icons/fa";
+import { FaArrowLeft, FaHeart } from "react-icons/fa";
 import { TbInfoCircle } from "react-icons/tb";
 import {
   POPULAR_DECKS,
   PopularDeckMeta,
 } from "@/lib/constants/top-decks";
 import { DECK_HERO_IDS } from "@/lib/pro/useProCardArt";
+import { DISCORD_FALLBACK_INVITE } from "@/lib/hooks/useDiscordWidget";
 import { frozenAtForDeck } from "@/lib/pro/evergreenManifest";
 import { useProLiveRosterState } from "@/lib/pro/useProLiveRoster";
 import { PRO_WS_URL } from "@/lib/pro/wsUrl";
@@ -40,18 +41,18 @@ import { vsParamFor } from "@/lib/pro/vsParam";
  * POPULAR_DECKS is joined in (by DECK_HERO_IDS) for presentation only: card-back
  * art, like count, highlight colour, and the deck id the preview modal fetches.
  * A served hero with no tile entry still renders — plain colour, server name,
- * no likes badge. Decks the server does NOT serve are the "challengers
- * approaching" queue.
+ * no likes badge. Decks the server does not serve simply aren't listed — the
+ * page points at Discord instead of advertising a queue that goes stale (#642).
  *
  * There is deliberately no hardcoded heroId→name fallback here: a hand-kept
  * snapshot is exactly what went stale before (prod advertised 14 battle-ready
  * while the server served 15). Pre-reply we show skeletons; if the socket never
  * connects we say so.
  */
-type RosterStatus = "ready" | "lab" | "locked";
+type RosterStatus = "ready" | "lab";
 
 interface RosterEntry {
-  /** stable identity: the server hero id, or the deck id for locked decks */
+  /** stable identity: the server hero id */
   key: string;
   /** tile caption — the full deck title (may carry a ` ★` reflavored suffix) */
   name: string;
@@ -98,7 +99,6 @@ export const ProLanding = () => {
   // The seat strip's P2 occupant — display-scale only. It exists to set the
   // difficulty the primary CTA carries in `?vs=`, not to create a room here.
   const [p2, setP2] = useState<SeatOccupant>("medium");
-  const [lockedOpen, setLockedOpen] = useState(false);
   const router = useRouter();
   // `?debug` (any value, incl. bare `?debug`) reveals debug-only decks the
   // server hides by default. See lib/pro/protocol.ts v15/v18.
@@ -132,43 +132,8 @@ export const ProLanding = () => {
 
   const readyEntries = roster.filter((e) => e.status === "ready");
   const labEntries = roster.filter((e) => e.status === "lab");
-  // Ready tiles first, then lab; locked decks live in the drawer below the grid.
+  // Ready tiles first, then lab.
   const gridEntries = [...readyEntries, ...labEntries];
-
-  // Every fighter the server already serves, by normalized name — see
-  // `fighterKey`. Both the curated tile name and the engine's own display name
-  // count, so the match holds whichever of the two a locked deck echoes.
-  const liveFighters = new Set(
-    roster.flatMap((e) =>
-      [e.deck?.hero, e.listing?.name]
-        .filter((n): n is string => !!n)
-        .map(fighterKey)
-    )
-  );
-
-  // "Challengers approaching" = tiles the server does NOT serve. Reflavored
-  // baselines never queue here: their spice replacement is already on the grid
-  // under the same name, so listing them would read as a duplicate fighter.
-  // Same rationale for a deck that merely *duplicates* a served fighter:
-  // POPULAR_DECKS carries rival community takes on heroes the engine already
-  // runs (two Darth Vaders, a "The Batman" beside "Batman" — #600), and each
-  // has its own deck id, so the id check above can't see them. Queueing them
-  // would advertise as upcoming a fighter that is one row up on the grid.
-  const lockedEntries: RosterEntry[] = liveHeroes
-    ? POPULAR_DECKS.filter(
-        (d) =>
-          d.tier !== "reflavored" &&
-          !liveHeroes.some((h) => h.heroId === DECK_HERO_IDS[d.id]) &&
-          !liveFighters.has(fighterKey(d.hero)) &&
-          !liveFighters.has(fighterKey(d.name))
-      ).map((deck) => ({
-        key: deck.id,
-        name: deck.name,
-        shortName: deck.hero,
-        status: "locked" as const,
-        deck,
-      }))
-    : [];
 
   // Every internal link keeps the debug session alive.
   const withDebug = (href: string) =>
@@ -185,9 +150,7 @@ export const ProLanding = () => {
     ? "Pick a fighter — gold tiles jump straight into a match"
     : spotlight.status === "ready"
       ? `${spotlight.shortName.toUpperCase()} IS READY — CLICK TO ENTER THE ARENA`
-      : spotlight.status === "lab"
-        ? `${spotlight.shortName.toUpperCase()} IS IN THE LAB — STRESS-TESTING THE RULES ENGINE`
-        : `${spotlight.shortName.toUpperCase()} AWAITS CONVERSION — RULES SUPPORT COMES DECK BY DECK`;
+      : `${spotlight.shortName.toUpperCase()} IS IN THE LAB — STRESS-TESTING THE RULES ENGINE`;
 
   return (
     <Box
@@ -526,66 +489,31 @@ export const ProLanding = () => {
             </Text>
           </Flex>
 
-          {/* locked decks: out of the grid, behind a challengers-approaching drawer */}
-          {lockedEntries.length > 0 && (
-            <Box>
-              <Flex
-                as="button"
-                type="button"
-                onClick={() => setLockedOpen((v) => !v)}
-                aria-expanded={lockedOpen}
-                w="100%"
-                alignItems="center"
-                justifyContent="center"
-                gap="0.5rem"
-                py="0.7rem"
-                borderRadius="0.5rem"
-                border="1px solid rgba(250,235,215,0.18)"
-                bg="rgba(250,235,215,0.04)"
-                fontFamily="BebasNeueRegular"
-                fontSize="1.05rem"
-                letterSpacing="0.1em"
-                _hover={{ bg: "rgba(250,235,215,0.08)", borderColor: "brand.accent" }}
-                transition="background 0.15s, border-color 0.15s"
+          {/* Rules support comes deck by deck, so the honest answer to "where
+              is my deck?" is a request channel, not a queue that goes stale. */}
+          <Box
+            p="1rem"
+            borderRadius="0.5rem"
+            bg="rgba(250,235,215,0.05)"
+            border="1px solid rgba(250,235,215,0.12)"
+          >
+            <Text fontFamily="SpaceGrotesk" fontSize="0.9rem" opacity={0.85}>
+              <Text as="span" fontWeight={700}>
+                Want a deck added?
+              </Text>{" "}
+              Request it in the{" "}
+              <ChakraLink
+                href={DISCORD_FALLBACK_INVITE}
+                isExternal
+                fontWeight={700}
+                color="brand.accent"
+                _hover={{ textDecoration: "underline" }}
               >
-                {lockedEntries.length} challengers approaching {lockedOpen ? "▲" : "▼"}
-              </Flex>
-              {lockedOpen && (
-                <Box mt="0.6rem">
-                  <Flex flexWrap="wrap" gap="0.35rem">
-                    {lockedEntries.map((entry) => (
-                      <Flex
-                        key={entry.key}
-                        alignItems="center"
-                        gap="0.35rem"
-                        px="0.55rem"
-                        py="0.3rem"
-                        borderRadius="0.35rem"
-                        border="1px solid rgba(250,235,215,0.12)"
-                        bg="rgba(250,235,215,0.03)"
-                        fontFamily="SpaceGrotesk"
-                        fontSize="0.75rem"
-                        color="whiteAlpha.700"
-                        filter="grayscale(1)"
-                      >
-                        <FaLock size="0.6rem" />
-                        {entry.name}
-                      </Flex>
-                    ))}
-                  </Flex>
-                  <Text
-                    mt="0.6rem"
-                    fontFamily="SpaceGrotesk"
-                    fontSize="0.75rem"
-                    opacity={0.5}
-                  >
-                    Conversions are prioritised by demand — the decks people ask
-                    for most get hand-written into engine rules first.
-                  </Text>
-                </Box>
-              )}
-            </Box>
-          )}
+                #pro-deck-request
+              </ChakraLink>{" "}
+              channel on our Discord.
+            </Text>
+          </Box>
         </Flex>
 
         {/* stage select */}
@@ -908,15 +836,6 @@ const DECK_BY_HERO_ID: Record<string, PopularDeckMeta> = Object.fromEntries(
 const deckForHeroId = (heroId: string): PopularDeckMeta | undefined =>
   DECK_BY_HERO_ID[heroId];
 
-/**
- * Fighter identity for duplicate detection: lowercase, and drop a leading
- * "the " so a community "The Batman" deck reads as the same fighter as the
- * served "Batman". Deliberately name-based — rival takes on one hero carry
- * different deck ids, so ids can't tell they are the same fighter.
- */
-const fighterKey = (name: string) =>
-  name.trim().toLowerCase().replace(/^the\s+/, "");
-
 /** How many placeholder tiles stand in for the roster before it arrives. */
 const SKELETON_TILES = 12;
 
@@ -960,7 +879,6 @@ const RosterTile = ({
   onPreview: () => void;
 }) => {
   const { deck, name, shortName, status } = entry;
-  const locked = status === "locked";
   const tile = (
       <Flex
         onClick={href ? undefined : onPick}
@@ -980,13 +898,7 @@ const RosterTile = ({
         opacity={0}
         animation={`${tileIn} 0.4s ease-out ${index * 0.03}s forwards`}
         border="2px solid"
-        borderColor={
-          status === "ready"
-            ? "brand.accent"
-            : status === "lab"
-            ? "rgba(224,168,46,0.35)"
-            : "rgba(250,235,215,0.12)"
-        }
+        borderColor={status === "ready" ? "brand.accent" : "rgba(224,168,46,0.35)"}
         sx={{
           ...(status === "ready"
             ? { animation: `${tileIn} 0.4s ease-out ${index * 0.03}s forwards, ${readyPulse} 2.6s ease-in-out infinite` }
@@ -1004,7 +916,6 @@ const RosterTile = ({
           zIndex: 1,
           [REDUCED_MOTION]: { transform: "none" },
         }}
-        filter={locked && !isPicked ? "grayscale(0.9) brightness(0.55)" : undefined}
         // Art is a presentation extra: a served hero with no tile entry gets the
         // neutral highlight and no card back, and still reads as a real tile.
         bg={deck?.highlightColour ?? DEFAULT_HIGHLIGHT}
@@ -1017,24 +928,22 @@ const RosterTile = ({
           inset="0"
           bg="linear-gradient(180deg, rgba(20,8,24,0) 20%, rgba(20,8,24,0.85) 100%)"
         />
-        {status !== "locked" && (
-          <Flex
-            position="absolute"
-            top="0.35rem"
-            left="0.4rem"
-            fontFamily="SpaceGrotesk"
-            fontSize="0.55rem"
-            fontWeight={700}
-            letterSpacing="0.12em"
-            px="0.35rem"
-            py="0.1rem"
-            bg={status === "ready" ? "brand.accent" : "rgba(224,168,46,0.25)"}
-            color={status === "ready" ? "brand.surfaceDim" : "brand.accent"}
-            sx={skewChip()}
-          >
-            <Text>{status === "ready" ? "PLAY NOW" : "IN THE LAB"}</Text>
-          </Flex>
-        )}
+        <Flex
+          position="absolute"
+          top="0.35rem"
+          left="0.4rem"
+          fontFamily="SpaceGrotesk"
+          fontSize="0.55rem"
+          fontWeight={700}
+          letterSpacing="0.12em"
+          px="0.35rem"
+          py="0.1rem"
+          bg={status === "ready" ? "brand.accent" : "rgba(224,168,46,0.25)"}
+          color={status === "ready" ? "brand.surfaceDim" : "brand.accent"}
+          sx={skewChip()}
+        >
+          <Text>{status === "ready" ? "PLAY NOW" : "IN THE LAB"}</Text>
+        </Flex>
         <Flex
           as="button"
           type="button"
@@ -1071,17 +980,13 @@ const RosterTile = ({
             {name}
           </Text>
           <Flex alignItems="center" gap="0.25rem" color="#FAEBD7" pl="0.25rem">
-            {locked ? (
-              <FaLock size="0.65rem" opacity={0.8} />
-            ) : (
-              // No tile entry means no like count to show — the badge is
-              // omitted rather than rendered as a zero.
-              deck && (
-                <>
-                  <FaHeart size="0.6rem" />
-                  <Text fontSize="0.7rem">{deck.likes}</Text>
-                </>
-              )
+            {/* No tile entry means no like count to show — the badge is
+                omitted rather than rendered as a zero. */}
+            {deck && (
+              <>
+                <FaHeart size="0.6rem" />
+                <Text fontSize="0.7rem">{deck.likes}</Text>
+              </>
             )}
           </Flex>
         </Flex>
