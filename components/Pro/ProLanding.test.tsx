@@ -3,8 +3,8 @@
  * DEVELOPMENT" badge, "one day fight an AI", a roadmap of already-shipped
  * steps. It now sells the playable game, so these tests pin the things that
  * would quietly regress it: the retired future-tense vocabulary, the seat
- * strip driving the Play-vs-AI CTA's `?vs=` preset, and locked decks staying
- * out of the roster grid.
+ * strip driving the Play-vs-AI CTA's `?vs=` preset, and the deck-request panel
+ * that replaced the stale "challengers approaching" drawer (#642).
  *
  * They also pin the roster's SOURCE (#462): the live LIST_HEROES reply, not an
  * intersection with the hand-kept POPULAR_DECKS list. The regression that
@@ -17,6 +17,7 @@ import { ChakraProvider } from "@chakra-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ProLanding } from "./ProLanding";
 import type { HeroListing, HeroTier } from "@/lib/pro/protocol";
+import { DISCORD_FALLBACK_INVITE } from "@/lib/hooks/useDiscordWidget";
 
 /** A LIST_HEROES row. Stats are irrelevant here; the id/name/tier are not. */
 const listing = (
@@ -143,14 +144,21 @@ describe("ProLanding — roster", () => {
     expect(container.textContent ?? "").not.toMatch(/\d+ of \d+ ready/);
   });
 
-  it("hides locked decks behind a challengers-approaching drawer", () => {
-    renderLanding();
-    const toggle = screen.getByRole("button", { name: /challengers approaching/i });
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
+  /**
+   * #642: the drawer listed POPULAR_DECKS the server doesn't serve as
+   * "challengers approaching" — a promise that went stale. The honest answer
+   * is a request channel, so the panel replaced it.
+   */
+  it("points unserved decks at the Discord request channel, not a queue", () => {
+    const { container } = renderLanding();
 
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByText(/prioritised by demand/i)).toBeInTheDocument();
+    expect(screen.getByText(/want a deck added\?/i)).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "#pro-deck-request" });
+    expect(link).toHaveAttribute("href", DISCORD_FALLBACK_INVITE);
+    expect(link.getAttribute("href")).toMatch(/discord/i);
+    // The drawer and everything it advertised are gone.
+    expect(container.textContent ?? "").not.toMatch(/challengers approaching/i);
+    expect(screen.queryByText(/^Voldemort/)).not.toBeInTheDocument();
   });
 
   it("links a battle-ready fighter straight into a match", () => {
@@ -211,43 +219,15 @@ describe("ProLanding — the server roster IS the roster", () => {
     expect(screen.getByRole("link", { name: /Nancy Drew/ })).toBeInTheDocument();
   });
 
-  it("keeps a served hero out of the challengers queue", () => {
+  it("renders every served fighter exactly once, and nothing else", () => {
     renderLanding();
-    fireEvent.click(screen.getByRole("button", { name: /challengers approaching/i }));
-    // Every grid fighter is served, so none of them may also be "approaching".
+    // The grid is the whole roster: no second listing of a served fighter, and
+    // no unserved deck (POPULAR_DECKS carries "The Batman", Voldemort, …).
     for (const name of ["King Kong", "The Mandalorian", "Baba Yaga", "Nancy Drew"]) {
       expect(screen.getAllByText(name)).toHaveLength(1);
     }
-    // ...while a deck the server does not serve is exactly what the drawer holds.
-    // (chips carry the full deck title, as they always have)
-    expect(screen.getByText(/^Voldemort/)).toBeInTheDocument();
-  });
-
-  /**
-   * #600: POPULAR_DECKS holds rival community takes on heroes the engine
-   * already runs (two Darth Vader decks, plus a "The Batman" beside the served
-   * "Batman"). Each has its own deck id, so the id→hero mapping cannot tell
-   * they are the same fighter — the drawer advertised as "approaching" three
-   * fighters that were sitting on the grid.
-   */
-  it("keeps a duplicate deck of a served fighter out of the queue", () => {
-    mockRosterState = {
-      heroes: [
-        listing("darth-vader", "DARTH VADER", "lab"),
-        listing("batman", "Batman"),
-      ],
-      offline: false,
-    };
-    renderLanding();
-    fireEvent.click(screen.getByRole("button", { name: /challengers approaching/i }));
-
-    // Each fighter appears exactly once — on the grid, never also as upcoming.
-    expect(screen.getAllByText("Darth Vader")).toHaveLength(1);
-    expect(screen.getAllByText("Batman")).toHaveLength(1);
-    // ...including the "The "-prefixed community deck of the same fighter.
     expect(screen.queryByText("The Batman")).not.toBeInTheDocument();
-    // A genuinely unconverted deck still queues — this is a dedup, not a purge.
-    expect(screen.getByText(/^John Wick/)).toBeInTheDocument();
+    expect(screen.queryByText(/^John Wick/)).not.toBeInTheDocument();
   });
 
   it("shows debug-only heroes the server reveals under ?debug, starred", () => {
@@ -284,10 +264,8 @@ describe("ProLanding — before and without a roster", () => {
     // No fighter is claimed ready while the roster is unknown.
     expect(screen.queryByText("PLAY NOW")).not.toBeInTheDocument();
     expect(screen.queryByText(/battle-ready/)).not.toBeInTheDocument();
-    // And no challengers drawer either — "not served" is unknowable right now.
-    expect(
-      screen.queryByRole("button", { name: /challengers approaching/i }),
-    ).not.toBeInTheDocument();
+    // The deck-request panel is roster-independent — it always stands.
+    expect(screen.getByText(/want a deck added\?/i)).toBeInTheDocument();
   });
 
   it("degrades gracefully when the socket never connects", () => {
