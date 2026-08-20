@@ -8,7 +8,7 @@
  */
 import { API_URL } from "./apiUrl";
 import {
-  BAG_ITEM_CAP,
+  bulkImportCloudItems,
   cloudFailureMessage,
   createCloudItem,
   deleteCloudItem,
@@ -126,7 +126,7 @@ describe("createCloudItem", () => {
 
   it("surfaces the cap as `cap_reached`, not as an error", async () => {
     fetchMock.mockResolvedValue(
-      reply(409, { error: "cap_reached", cap: BAG_ITEM_CAP }),
+      reply(409, { error: "cap_reached", cap: 100 }),
     );
     await expect(createCloudItem("decks", "n", {})).resolves.toEqual({
       ok: false,
@@ -156,6 +156,33 @@ describe("createCloudItem", () => {
       ok: false,
       reason: "offline",
     });
+  });
+});
+
+describe("bulkImportCloudItems", () => {
+  it("POSTs both kinds to /bag/import in one request", async () => {
+    fetchMock.mockResolvedValue(reply(200, { imported: 2 }));
+
+    await expect(
+      bulkImportCloudItems({
+        decks: [{ name: "Bruce Lee", data: { id: "d1" } }],
+        maps: [{ name: "A map", data: { imgUrl: "u" } }],
+      }),
+    ).resolves.toEqual({ ok: true, value: null });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(`${API_URL}/bag/import`);
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body).decks).toHaveLength(1);
+    expect(JSON.parse(init.body).maps).toHaveLength(1);
+  });
+
+  it("reports the pre-#38 API's 404 as `not_found` so the caller can loop", async () => {
+    fetchMock.mockResolvedValue(reply(404, { error: "not_found" }));
+
+    await expect(
+      bulkImportCloudItems({ decks: [], maps: [] }),
+    ).resolves.toEqual({ ok: false, reason: "not_found" });
   });
 });
 
@@ -258,7 +285,9 @@ describe("copy helpers", () => {
       expect(message).toMatch(/[a-z]/);
       expect(message).not.toMatch(/\b[45]\d\d\b/);
     });
-    expect(cloudFailureMessage("cap_reached")).toContain(String(BAG_ITEM_CAP));
+    // #644 dropped the client's mirror of the server's item cap, so the copy
+    // no longer quotes a number it cannot know is still true.
+    expect(cloudFailureMessage("cap_reached")).not.toMatch(/\d/);
   });
 
   it("formats sizes and stamps for a table cell", () => {
