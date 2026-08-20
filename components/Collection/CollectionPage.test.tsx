@@ -24,7 +24,12 @@ import axios from "axios";
 import fs from "node:fs";
 import path from "node:path";
 
-import { CollectionPage, DISCLOSURE } from "./CollectionPage";
+import {
+  CollectionPage,
+  DISCLOSURE,
+  NO_POINTS_RULES,
+  NO_POINTS_TITLE,
+} from "./CollectionPage";
 import { API_URL } from "@/lib/account/apiUrl";
 import { __resetAccountStoreForTests } from "@/lib/account/useAccount";
 
@@ -165,6 +170,26 @@ describe("a signed-in player", () => {
     expect(within(points).getByText("1100 points to go")).toBeInTheDocument();
 
     expect(screen.getByTestId("collection-disclosure")).toHaveTextContent(DISCLOSURE);
+  });
+
+  // #636 — the anti-farm rules (telemetry #66) are stated where the balance
+  // is. A player whose forfeit paid nothing must be able to read why here.
+  it("states what doesn't count: forfeits, sub-5-turn human wins, casual bots", async () => {
+    wire({});
+    await renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId("collection-disclosure")).toBeInTheDocument(),
+    );
+    const disclosure = screen.getByTestId("collection-disclosure");
+    expect(within(disclosure).getByText(NO_POINTS_TITLE)).toBeInTheDocument();
+    // One list, not two: the casual-bot rule joins the new ones rather than
+    // starting a second block that says the same kind of thing.
+    const rules = within(disclosure).getAllByRole("listitem").map((li) => li.textContent);
+    expect(rules).toEqual(NO_POINTS_RULES);
+    expect(rules[0]).toMatch(/Forfeit/);
+    expect(rules[1]).toMatch(/under 5 turns/);
+    expect(rules[2]).toMatch(/Easy and medium bot games/);
   });
 
   it("renders a MIXED deck: the upgraded card wears the real rim, the rest don't", async () => {

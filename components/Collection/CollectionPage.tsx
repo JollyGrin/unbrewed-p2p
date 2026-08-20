@@ -62,6 +62,22 @@ import { COSMETIC_RIM_PAINTS } from "@/lib/pro/cosmetics";
 export const DISCLOSURE =
   "Points are earned from completed games. Accounts that farm points through suspicious game patterns may have points and upgrades reversed by admins.";
 
+/**
+ * The rest of that disclosure: the games that pay less than a player expects
+ * (#636, telemetry #66). Two accounts trading instant concedes was the farm
+ * this closes, so the rules are stated where the balance is — a player who
+ * conceded a game and saw nothing arrive deserves the reason on the page,
+ * not a guess. The forfeit rule is repeated in the concede confirmation
+ * itself (`ForfeitDialog`), which is the only place it can still change a
+ * decision.
+ */
+export const NO_POINTS_TITLE = "What doesn't count";
+export const NO_POINTS_RULES = [
+  "Forfeiting. Concede and that game earns you nothing at all; the player you conceded to is paid for playing it, without the win bonus.",
+  "Beating another player in under 5 turns. Paid for playing, no win bonus.",
+  "Easy and medium bot games. They are practice: no XP, and they never touch your win/loss record.",
+];
+
 const Shell = ({ children }: { children: React.ReactNode }) => (
   <AccountShell
     seo={{
@@ -146,15 +162,19 @@ const Stat = ({
 );
 
 const Disclosure = () => (
-  <Text
-    data-testid="collection-disclosure"
-    fontSize="0.75rem"
-    opacity={0.7}
-    mt="1.2rem"
-    maxW="42rem"
-  >
-    {DISCLOSURE}
-  </Text>
+  <Box data-testid="collection-disclosure" fontSize="0.75rem" opacity={0.7} mt="1.2rem" maxW="42rem">
+    <Text>{DISCLOSURE}</Text>
+    <Text mt="0.8rem" fontWeight={700}>
+      {NO_POINTS_TITLE}
+    </Text>
+    <Box as="ul" mt="0.2rem" pl="1.1rem">
+      {NO_POINTS_RULES.map((rule) => (
+        <Text as="li" key={rule}>
+          {rule}
+        </Text>
+      ))}
+    </Box>
+  </Box>
 );
 
 export const CollectionPage = () => {
