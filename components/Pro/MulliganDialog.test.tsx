@@ -85,3 +85,18 @@ describe("MulliganDialog — the move clock (issue #223)", () => {
     expect(screen.queryByLabelText("move timer")).not.toBeInTheDocument();
   });
 });
+
+describe("MulliganDialog — multiplayer rooms", () => {
+  it("drops the duel noun when three seats are at the table", () => {
+    render(<MulliganDialog {...props({ awaitingYou: false, options: [], decided: null, multiplayer: true })} />);
+    expect(screen.getByText("The other players are deciding…")).toBeInTheDocument();
+    expect(screen.queryByText(/Your opponent is deciding/)).not.toBeInTheDocument();
+  });
+
+  it("waits on the other players, not 'your opponent', after you answer", () => {
+    render(<MulliganDialog {...props({ awaitingYou: false, options: [], decided: "MULLIGAN", multiplayer: true })} />);
+    expect(
+      screen.getByText("You mulliganed your opening hand · waiting for the other players…")
+    ).toBeInTheDocument();
+  });
+});

@@ -4627,6 +4627,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
         options={mulliganAwaitsMe ? (mulliganPrompt?.options ?? []) : []}
         awaitingYou={mulliganAwaitsMe}
         decided={mulliganAnswer?.choice ?? null}
+        multiplayer={multiplayerView}
         timer={
           // Same gate the HUD plate uses for this seat's bar — the modal hides
           // that bar, so the clock rides along inside it while you decide.

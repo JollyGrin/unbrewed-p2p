@@ -47,6 +47,8 @@ export interface MulliganDialogProps {
   awaitingYou: boolean;
   /** what this seat already answered (local echo), null before answering */
   decided: MulliganChoice | null;
+  /** ffa/team room — "your opponent" is the wrong noun with three seats at the table */
+  multiplayer?: boolean;
   /**
    * This seat's running move clock (issue #223), when the room is timed and the
    * server armed one for THIS decision. The modal covers the HUD's own bar, so
@@ -65,11 +67,13 @@ export const MulliganDialog = ({
   options,
   awaitingYou,
   decided,
+  multiplayer = false,
   timer = null,
   onChoose,
 }: MulliganDialogProps) => {
   const focusRef = useRef<HTMLButtonElement>(null);
   const answered = !awaitingYou;
+  const others = multiplayer ? "the other players" : "your opponent";
 
   return (
     <AlertDialog
@@ -90,8 +94,9 @@ export const MulliganDialog = ({
           <AlertDialogBody>
             <Text mb="0.75rem" fontSize="0.95rem">
               Keep these five cards, or shuffle them back and draw five new ones.
-              One mulligan per game — your opponent decides at the same time and
-              neither of you sees the other&apos;s choice until both have.
+              One mulligan per game — {others} {multiplayer ? "decide" : "decides"} at
+              the same time, and nobody sees anyone else&apos;s choice until every
+              seat has answered.
             </Text>
 
             <Flex justifyContent="center" alignItems="flex-end" gap="0.4rem" flexWrap="wrap" mb="0.5rem">
@@ -111,8 +116,10 @@ export const MulliganDialog = ({
             {answered && (
               <Text mt="0.6rem" fontSize="0.9rem" opacity={0.8} textAlign="center">
                 {decided
-                  ? `${decidedLabel(decided)} · waiting for your opponent…`
-                  : "Your opponent is deciding…"}
+                  ? `${decidedLabel(decided)} · waiting for ${others}…`
+                  : multiplayer
+                    ? "The other players are deciding…"
+                    : "Your opponent is deciding…"}
               </Text>
             )}
           </AlertDialogBody>
