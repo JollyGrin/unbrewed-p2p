@@ -1,18 +1,21 @@
 import { Navbar } from "@/components/Navbar";
 import { PageSeo } from "@/components/Helmet/Head";
-import { LS_KEY } from "@/lib/hooks";
+import { clearDeviceCopy, stores } from "@/lib/bag/bagStore";
 import { Box, Button, HStack, Text, VStack } from "@chakra-ui/react";
 import { toast } from "react-hot-toast";
 
 export default function DebugPage() {
+  // Only this browser's copy — an account bag is not what a corrupted
+  // localStorage means, and blowing it away from a debug screen would be a
+  // very bad surprise (#644).
   function clearDecks() {
-    localStorage.removeItem(LS_KEY.DECKS);
-    toast.success("Decks cleared");
+    clearDeviceCopy(stores.decks);
+    toast.success("Decks cleared from this browser");
   }
 
   function clearMaps() {
-    localStorage.removeItem(LS_KEY.MAP_LIST);
-    toast.success("Maps cleared");
+    clearDeviceCopy(stores.maps);
+    toast.success("Maps cleared from this browser");
   }
   return (
     <Box h="100vh" bg="brand.secondary" color="brand.primary">
@@ -24,7 +27,8 @@ export default function DebugPage() {
         </Text>
         <Text>
           99% of the time, isses with the app come from a corrupted localStorage
-          of your deck or map data.
+          of your deck or map data. This clears only what this browser is
+          holding; anything saved to your account is untouched.
         </Text>
         <HStack gap="1rem">
           <Button onClick={clearDecks}>Clear Deck Storage</Button>

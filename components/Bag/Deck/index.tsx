@@ -193,11 +193,12 @@ const DeckRail = ({
       </Flex>
 
       <Box flex="1" overflowY="auto" minH={0}>
-        {isLoading ? (
+        {isLoading && count === 0 ? (
           /*
             An account bag arrives one round trip after mount. Showing the empty
             state in the meantime would tell a signed-in player their decks are
-            gone, so the rail waits instead of flashing (#644).
+            gone, so the rail waits instead of flashing (#644). Anything already
+            on the device is rendered immediately, spinner or not.
           */
           <Flex align="center" justify="center" gap="0.5rem" p="1.5rem 1rem">
             <Spinner size="sm" color="brand.secondary" />

@@ -104,7 +104,11 @@ export const useBagDecks = (): BagDeckView => {
     return subscribeStar(sync);
   }, []);
 
-  const decks = isLoading ? undefined : bagItems(store);
+  // The DEVICE half is available the moment localStorage is read, and is
+  // returned right away — a guest must never wait on the `/me` probe to see
+  // their own decks. `isLoading` says only that the ACCOUNT half may still be
+  // coming, which is what stops a picker from claiming the bag is empty.
+  const decks = store.localLoaded ? bagItems(store) : undefined;
 
   const setStar = useCallback((id: string) => writeStar(id), []);
 
@@ -175,7 +179,7 @@ export type BagMapView = {
 export const useBagMaps = (): BagMapView => {
   const mapStore = stores.maps;
   const { isLoading } = useKindStore(mapStore);
-  const data = isLoading ? [] : bagItems(mapStore);
+  const data = bagItems(mapStore);
 
   return {
     data,

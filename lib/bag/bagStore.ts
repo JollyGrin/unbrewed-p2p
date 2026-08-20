@@ -436,6 +436,17 @@ export const clearBag = async <T,>(store: KindStore<T>): Promise<void> => {
   }
 };
 
+/**
+ * Throw away this browser's copy of one kind WITHOUT touching the account —
+ * what /debug's "clear storage" means, and the only sanctioned way to do it.
+ * Removing the key behind the store's back would leave the in-memory copy
+ * stale, and the next write would put it all straight back.
+ */
+export const clearDeviceCopy = <T,>(store: KindStore<T>): void => {
+  loadLocal(store);
+  persistLocal(store, []);
+};
+
 /* -------------------------------------------------------------------- star */
 
 /**

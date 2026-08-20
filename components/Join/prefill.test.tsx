@@ -40,10 +40,18 @@ jest.mock("axios", () => ({ get: jest.fn().mockResolvedValue({ data: {} }) }));
 jest.mock("../../lib/hooks/useLocalStorage", () => ({
   DEFAULT_SERVER: "https://server.test",
   LS_KEY: { STAR_DECK: "star-deck" },
-  useLocalDeckStorage: () => ({ decks: [{ id: "d1", name: "A deck" }], star: "d1" }),
   useLocalServerStorage: () => ({
     activeServer: "https://server.test",
     setActiveServer: jest.fn(),
+  }),
+}));
+
+// The bag is account-first now (#644); this page only reads from it.
+jest.mock("../../lib/bag/useBag", () => ({
+  useBagDecks: () => ({
+    decks: [{ id: "d1", name: "A deck" }],
+    star: "d1",
+    setStar: jest.fn(),
   }),
 }));
 
