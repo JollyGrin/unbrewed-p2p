@@ -138,4 +138,41 @@ describe("diffIncomingMove", () => {
       path: ["c1", "c2"],
     });
   });
+
+  // LARGE (two-space) bodies, issue #658 / engine #415. `FIGHTER_MOVED.path` is the
+  // LEADING END's route and may start from EITHER body space (the mover picks which
+  // end leads); the trail is dragged into the lead's former space each step, so the
+  // opponent must see the WHOLE body glide, not just its head.
+  it("tweens a LARGE body's leading end and drags its trail one hop behind", () => {
+    const prev = view([fighter({ space: "b1", tailSpace: "b2", size: "LARGE" })]);
+    // The TAIL led: b2 → b3 → b4, so the head ends on b4 and the tail on b3.
+    const next = view([fighter({ space: "b4", tailSpace: "b3", size: "LARGE" })]);
+    const events: GameEvent[] = [
+      { type: "FIGHTER_MOVED", fighter: "p2/hero", path: ["b2", "b3", "b4"] },
+    ];
+    expect(diffIncomingMove(prev, next, events)).toEqual({
+      fighterId: "p2/hero",
+      path: ["b2", "b3", "b4"], // NOT prepended with b1 — b2 is a body space
+      trailPath: ["b1", "b2", "b3"], // starts on the space the lead did not
+    });
+  });
+
+  it("tweens a LARGE body whose HEAD led, keeping both routes in lockstep", () => {
+    const prev = view([fighter({ space: "b1", tailSpace: "b2", size: "LARGE" })]);
+    const next = view([fighter({ space: "b5", tailSpace: "b1", size: "LARGE" })]);
+    const events: GameEvent[] = [
+      { type: "FIGHTER_MOVED", fighter: "p2/hero", path: ["b1", "b5"] },
+    ];
+    expect(diffIncomingMove(prev, next, events)).toEqual({
+      fighterId: "p2/hero",
+      path: ["b1", "b5"],
+      trailPath: ["b2", "b1"],
+    });
+  });
+
+  it("omits trailPath entirely for a NORMAL fighter", () => {
+    const prev = view([fighter({ space: "b1" })]);
+    const next = view([fighter({ space: "b2" })]);
+    expect(diffIncomingMove(prev, next, [])).not.toHaveProperty("trailPath");
+  });
 });

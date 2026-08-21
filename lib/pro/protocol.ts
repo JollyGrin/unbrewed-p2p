@@ -656,6 +656,23 @@
  * Purely additive, so no PROTOCOL_VERSION bump: with both fields absent not one
  * message grows a key.
  *
+ * ## Additive fields (2026-08-21, no version bump): incremental LARGE movement
+ * Issue #415 (follow-up to #55 / #411), client ticket unbrewed-p2p#658. Both earlier
+ * passes omitted LARGE (two-space) bodies, so exactly the cards where the path
+ * matters most — Stampede ("each fighter you moved through takes 1", played by a
+ * LARGE hero) and Remote Control (moving the LARGE Batmobile) — were the ones still
+ * picking a destination in one click. A LARGE body SNAKE-STEPS (one end leads, the
+ * other is dragged into its former space), so its graph's nodes are ORDERED POSES:
+ * - `PlayerView.largeMoveGraphs?: LargeMoveGraph[]` — during MANEUVER_MOVE, active
+ *   seat only, absent when the seat has no LARGE body.
+ * - `ViewPrompt.largeMoveGraph?: LargeMoveGraph` — on the same move prompts that
+ *   carry `moveGraph` for a NORMAL mover, choosing seat only.
+ * Answers are unchanged: `MOVE_FIGHTER.path` and `RESPOND_PROMPT.path` already carry
+ * the LEADING END's path, which the server has always validated for a LARGE mover.
+ * `MoveGraph` / `moveGraphs` / `moveGraph` are untouched and stay NORMAL+SMALL only,
+ * and the tail is NEVER prompted for: it follows the head. Purely additive, so no
+ * PROTOCOL_VERSION bump — with both fields absent not one message grows a key.
+ *
  * ## v30 (2026-08-20): the opening-hand mulligan (engine #395)
  * After the opening hands are dealt and BEFORE the heroes are placed, each seat
  * gets a ONE-TIME keep-or-redraw choice: shuffle your whole hand back into your
@@ -750,6 +767,11 @@ export type Action =
   | { type: "COMMIT_DEFENSE_CARD"; player: PlayerId; card: CardInstanceId; attachItem?: boolean }
   | { type: "DECLINE_DEFENSE"; player: PlayerId }
   | { type: "DISCARD_TO_LIMIT"; player: PlayerId; card: CardInstanceId }
+  // `path` (issue #411, LARGE arm #415): the route the player actually walked on a
+  // move prompt that carries a `moveGraph` / `largeMoveGraph`. NORMAL mover: spaces
+  // from the mover's current space to `optionId`. LARGE mover: the LEADING END's
+  // path, whose final pose (path[n], path[n-1]) must be `optionId` (a pose key).
+  // Absent = the server's canonical shortest path, exactly as before.
   | { type: "RESPOND_PROMPT"; player: PlayerId; promptId: string; optionId: string; path?: SpaceId[] }
   // Concede (v9; multiplayer semantics 2026-07-12, issue #117). Legal for
   // whoever is on the clock during PLAY. Duel: the server ends the game with the
@@ -992,6 +1014,11 @@ export interface ViewPrompt {
    *  applied; other nodes are walk-through only. A client that ignores this
    *  keeps today's one-click-to-destination behavior. */
   moveGraph?: MoveGraph;
+  /** Issue #415 — the same affordance for a LARGE (two-space) mover, whose nodes
+   *  are ordered (lead, trail) POSES. Present on exactly the same prompts, for the
+   *  same seat, under the same `canStop` intersection; exactly one of `moveGraph` /
+   *  `largeMoveGraph` is ever present. See LargeMoveGraph. */
+  largeMoveGraph?: LargeMoveGraph;
 }
 
 // ---------------------------------------------------------------------------
@@ -1183,6 +1210,46 @@ export interface MoveGraph {
   edges: [SpaceId, SpaceId][];
 }
 
+// Incremental LARGE-fighter movement (issue #415). A LARGE (two-space) body
+// SNAKE-STEPS: one end leads and the other is DRAGGED into the lead's former space,
+// so the tail is never a free choice — there is no "place the tail" step, and the
+// old "click the second gold space to finish the move" click disappears. Its graph
+// therefore has ORDERED POSES for nodes rather than spaces.
+//
+// `canStop` = a legal END pose: both spaces free of other non-small fighters, not
+// the pose you started in, and — on a prompt — one of the destinations the effect
+// actually offered (so `awayFrom` / "must end adjacent to" / pins are folded in).
+// Poses that are only walked through stay in the list.
+export interface LargeMoveGraphPose {
+  lead: SpaceId;
+  trail: SpaceId;
+  canStop: boolean;
+}
+
+export interface LargeMoveGraph {
+  fighter: FighterId;
+  allowance: number; // max total steps (baseMove / MOVE override + applied maneuver boost)
+  // BOTH orientations of the current pose are listed — `(space, tailSpace)` and
+  // `(tailSpace, space)`. Choosing one is choosing which end leads; neither is
+  // `canStop` (a zero-net move is not a move — staying put is END_MANEUVER, or the
+  // prompt's `stay` / `Decline move` option).
+  poses: LargeMoveGraphPose[];
+  // Directed legal single snake steps `[[fromLead, fromTrail], [toLead, toTrail]]`,
+  // always with `toTrail === fromLead`. A step may never enter the body's own
+  // trailing space (it cannot pass through itself); revisiting a space is legal and
+  // only spends steps. One-way arrows are plain both-way edges for a LARGE body (the
+  // official ruling, issue #164) and secret passages are absent (large figures cannot
+  // use them) — both already baked in here.
+  edges: [[SpaceId, SpaceId], [SpaceId, SpaceId]][];
+}
+
+// Accumulate the LEADING END's path as you step — `[firstLead, next, next, ...]` —
+// and commit it as `MOVE_FIGHTER.path` (maneuver) or `RESPOND_PROMPT.path` (effect
+// move), exactly as for a NORMAL mover. The landing pose is `(path[n], path[n-1])`.
+// On an effect move the `optionId` you answer with is the destination's POSE KEY:
+// the two final spaces sorted ascending and joined with "|" (e.g. "a4|a5") — the id
+// the prompt already offers today.
+
 export interface ViewSelf {
   id: PlayerId;
   heroId: string;
@@ -1325,8 +1392,14 @@ export interface PlayerView {
   // Lets the client step a maneuver hop-by-hop locally and commit ONE MOVE_FIGHTER
   // with the accumulated path (the server accepts any legal path to a reachable
   // destination). A client that ignores this keeps today's one-click-to-destination
-  // behavior. LARGE fighters are omitted (still one-click). See MoveGraph.
+  // behavior. LARGE fighters are omitted here — they get `largeMoveGraphs` below.
+  // See MoveGraph.
   moveGraphs?: MoveGraph[];
+  // issue #415: the same, for this seat's LARGE (two-space) bodies — ordered
+  // (lead, trail) poses instead of spaces, because a snake step drags the tail.
+  // Same phase and same seat as `moveGraphs`, but ABSENT entirely when the seat has
+  // no LARGE fighter on the board. See LargeMoveGraph.
+  largeMoveGraphs?: LargeMoveGraph[];
   map: ProMapDef;
   catalog: Record<CardDefId, CardMeta>;
   fighters: ViewFighter[];

@@ -147,6 +147,10 @@ export interface ProDockProps {
   stepping: DockStepping | null;
   /** fighter names that could both move to the clicked space, when ambiguous */
   moveChoiceNames: string[] | null;
+  /** LARGE movers (issue #658): copy for the one genuinely ambiguous click in a
+   *  snake-step walk — a space both ends of the body could lead into, or a far
+   *  destination offered under several final poses. Null the rest of the time. */
+  poseChoiceHint?: string | null;
   selectedFighterName: string | null;
   /** true when the selected fighter moves hop-by-hop rather than straight there */
   stepwiseMoves: boolean;
@@ -193,6 +197,7 @@ export const ProDock = ({
   activeTurnLabel,
   disconnectedLabel,
   stepping,
+  poseChoiceHint = null,
   moveChoiceNames,
   selectedFighterName,
   stepwiseMoves,
@@ -402,7 +407,12 @@ export const ProDock = ({
           click which fighter should move (or tap the space again to cancel)
         </Text>
       )}
-      {!moveChoiceNames && !stepping && (highlightedCount > 0 || attackTargetCount > 0) && (
+      {poseChoiceHint && (
+        <Text fontSize="0.8rem" color="#C4B5FD" fontWeight="bold" textShadow="0 1px 3px rgba(0,0,0,0.6)">
+          {poseChoiceHint}
+        </Text>
+      )}
+      {!moveChoiceNames && !poseChoiceHint && !stepping && (highlightedCount > 0 || attackTargetCount > 0) && (
         <Text fontSize="0.8rem" color="brand.accent" textShadow="0 1px 3px rgba(0,0,0,0.6)">
           {selectedFighterName
             ? stepwiseMoves
