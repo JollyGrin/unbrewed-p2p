@@ -630,6 +630,49 @@
  * and `data/heroes/`). Purely additive, so no PROTOCOL_VERSION bump: with the
  * field absent not one message grows a key.
  *
+ * ## Additive fields (2026-08-21, no version bump): incremental EFFECT movement
+ * Issue #411 (extends #55), client ticket unbrewed-p2p#654. #55 made a MANEUVER
+ * steppable — you spend your move one space at a time and the PATH you walk is
+ * what the server records. Card and scheme movement stayed a teleport: the client
+ * picked an endpoint and the server picked which fighters you "moved through".
+ * For several cards the path IS the effect ("each fighter you moved through takes
+ * 1"), so effect moves now step the same way. Two additive fields, no new message:
+ * - `ViewPrompt.moveGraph?` — the same `MoveGraph` shape as
+ *   `PlayerView.moveGraphs`, attached to the CHOOSE_SPACE destination prompt of a
+ *   move (a `move` op, or a multi-fighter move's per-fighter destination pick).
+ *   Choosing seat only; omitted for LARGE (two-space) movers, which keep one-click
+ *   canonical poses. `canStop` is exactly the set of destinations this effect
+ *   offers — the prompt's non-`stay` option ids — so `awayFrom` /
+ *   "must end adjacent to" / occupancy filters are already folded in; every other
+ *   node is walk-through only. The mover's own space is a node and never a stop:
+ *   not moving is still the separate `stay` / `Decline move` option.
+ * - `RESPOND_PROMPT.path?` — the accumulated route, `path[0]` = the mover's
+ *   current space, `path[last]` = the `optionId` you are answering with. The
+ *   server validates it against that graph (every step an edge, length-1 <=
+ *   `allowance`, endpoint `canStop`) and REJECTS an illegal one with
+ *   `ILLEGAL_ACTION`; revisiting a space is legal, it just spends steps. Omit the
+ *   field and the server uses its canonical shortest path — byte-identical to
+ *   today, which is what bots and older clients keep doing.
+ * Purely additive, so no PROTOCOL_VERSION bump: with both fields absent not one
+ * message grows a key.
+ *
+ * ## Additive fields (2026-08-21, no version bump): incremental LARGE movement
+ * Issue #415 (follow-up to #55 / #411), client ticket unbrewed-p2p#658. Both earlier
+ * passes omitted LARGE (two-space) bodies, so exactly the cards where the path
+ * matters most — Stampede ("each fighter you moved through takes 1", played by a
+ * LARGE hero) and Remote Control (moving the LARGE Batmobile) — were the ones still
+ * picking a destination in one click. A LARGE body SNAKE-STEPS (one end leads, the
+ * other is dragged into its former space), so its graph's nodes are ORDERED POSES:
+ * - `PlayerView.largeMoveGraphs?: LargeMoveGraph[]` — during MANEUVER_MOVE, active
+ *   seat only, absent when the seat has no LARGE body.
+ * - `ViewPrompt.largeMoveGraph?: LargeMoveGraph` — on the same move prompts that
+ *   carry `moveGraph` for a NORMAL mover, choosing seat only.
+ * Answers are unchanged: `MOVE_FIGHTER.path` and `RESPOND_PROMPT.path` already carry
+ * the LEADING END's path, which the server has always validated for a LARGE mover.
+ * `MoveGraph` / `moveGraphs` / `moveGraph` are untouched and stay NORMAL+SMALL only,
+ * and the tail is NEVER prompted for: it follows the head. Purely additive, so no
+ * PROTOCOL_VERSION bump — with both fields absent not one message grows a key.
+ *
  * ## v30 (2026-08-20): the opening-hand mulligan (engine #395)
  * After the opening hands are dealt and BEFORE the heroes are placed, each seat
  * gets a ONE-TIME keep-or-redraw choice: shuffle your whole hand back into your
@@ -724,7 +767,12 @@ export type Action =
   | { type: "COMMIT_DEFENSE_CARD"; player: PlayerId; card: CardInstanceId; attachItem?: boolean }
   | { type: "DECLINE_DEFENSE"; player: PlayerId }
   | { type: "DISCARD_TO_LIMIT"; player: PlayerId; card: CardInstanceId }
-  | { type: "RESPOND_PROMPT"; player: PlayerId; promptId: string; optionId: string }
+  // `path` (issue #411, LARGE arm #415): the route the player actually walked on a
+  // move prompt that carries a `moveGraph` / `largeMoveGraph`. NORMAL mover: spaces
+  // from the mover's current space to `optionId`. LARGE mover: the LEADING END's
+  // path, whose final pose (path[n], path[n-1]) must be `optionId` (a pose key).
+  // Absent = the server's canonical shortest path, exactly as before.
+  | { type: "RESPOND_PROMPT"; player: PlayerId; promptId: string; optionId: string; path?: SpaceId[] }
   // Concede (v9; multiplayer semantics 2026-07-12, issue #117). Legal for
   // whoever is on the clock during PLAY. Duel: the server ends the game with the
   // OTHER player as winner and emits the replay bundle. Multiplayer: voluntary
@@ -956,6 +1004,21 @@ export interface ViewPrompt {
    *  summary isn't mechanically derivable (system prompts, or prompt kinds other
    *  than CHOOSE_TARGET/CHOOSE_SPACE). Public: never depends on hidden info. */
   description?: string;
+  /** Issue #411 — incremental EFFECT movement. Present ONLY on the CHOOSE_SPACE
+   *  destination prompt of a move (a card/scheme `move`, or a multi-fighter
+   *  move's per-fighter destination pick), only for the choosing seat, and only
+   *  when the mover is NORMAL-sized. Walk it locally exactly like
+   *  `PlayerView.moveGraphs` and answer with `RESPOND_PROMPT.path`. `canStop`
+   *  marks the destinations this effect actually offers (the same set as the
+   *  prompt's non-`stay` option ids), so every card-specific filter is already
+   *  applied; other nodes are walk-through only. A client that ignores this
+   *  keeps today's one-click-to-destination behavior. */
+  moveGraph?: MoveGraph;
+  /** Issue #415 — the same affordance for a LARGE (two-space) mover, whose nodes
+   *  are ordered (lead, trail) POSES. Present on exactly the same prompts, for the
+   *  same seat, under the same `canStop` intersection; exactly one of `moveGraph` /
+   *  `largeMoveGraph` is ever present. See LargeMoveGraph. */
+  largeMoveGraph?: LargeMoveGraph;
 }
 
 // ---------------------------------------------------------------------------
@@ -1147,6 +1210,46 @@ export interface MoveGraph {
   edges: [SpaceId, SpaceId][];
 }
 
+// Incremental LARGE-fighter movement (issue #415). A LARGE (two-space) body
+// SNAKE-STEPS: one end leads and the other is DRAGGED into the lead's former space,
+// so the tail is never a free choice — there is no "place the tail" step, and the
+// old "click the second gold space to finish the move" click disappears. Its graph
+// therefore has ORDERED POSES for nodes rather than spaces.
+//
+// `canStop` = a legal END pose: both spaces free of other non-small fighters, not
+// the pose you started in, and — on a prompt — one of the destinations the effect
+// actually offered (so `awayFrom` / "must end adjacent to" / pins are folded in).
+// Poses that are only walked through stay in the list.
+export interface LargeMoveGraphPose {
+  lead: SpaceId;
+  trail: SpaceId;
+  canStop: boolean;
+}
+
+export interface LargeMoveGraph {
+  fighter: FighterId;
+  allowance: number; // max total steps (baseMove / MOVE override + applied maneuver boost)
+  // BOTH orientations of the current pose are listed — `(space, tailSpace)` and
+  // `(tailSpace, space)`. Choosing one is choosing which end leads; neither is
+  // `canStop` (a zero-net move is not a move — staying put is END_MANEUVER, or the
+  // prompt's `stay` / `Decline move` option).
+  poses: LargeMoveGraphPose[];
+  // Directed legal single snake steps `[[fromLead, fromTrail], [toLead, toTrail]]`,
+  // always with `toTrail === fromLead`. A step may never enter the body's own
+  // trailing space (it cannot pass through itself); revisiting a space is legal and
+  // only spends steps. One-way arrows are plain both-way edges for a LARGE body (the
+  // official ruling, issue #164) and secret passages are absent (large figures cannot
+  // use them) — both already baked in here.
+  edges: [[SpaceId, SpaceId], [SpaceId, SpaceId]][];
+}
+
+// Accumulate the LEADING END's path as you step — `[firstLead, next, next, ...]` —
+// and commit it as `MOVE_FIGHTER.path` (maneuver) or `RESPOND_PROMPT.path` (effect
+// move), exactly as for a NORMAL mover. The landing pose is `(path[n], path[n-1])`.
+// On an effect move the `optionId` you answer with is the destination's POSE KEY:
+// the two final spaces sorted ascending and joined with "|" (e.g. "a4|a5") — the id
+// the prompt already offers today.
+
 export interface ViewSelf {
   id: PlayerId;
   heroId: string;
@@ -1289,8 +1392,14 @@ export interface PlayerView {
   // Lets the client step a maneuver hop-by-hop locally and commit ONE MOVE_FIGHTER
   // with the accumulated path (the server accepts any legal path to a reachable
   // destination). A client that ignores this keeps today's one-click-to-destination
-  // behavior. LARGE fighters are omitted (still one-click). See MoveGraph.
+  // behavior. LARGE fighters are omitted here — they get `largeMoveGraphs` below.
+  // See MoveGraph.
   moveGraphs?: MoveGraph[];
+  // issue #415: the same, for this seat's LARGE (two-space) bodies — ordered
+  // (lead, trail) poses instead of spaces, because a snake step drags the tail.
+  // Same phase and same seat as `moveGraphs`, but ABSENT entirely when the seat has
+  // no LARGE fighter on the board. See LargeMoveGraph.
+  largeMoveGraphs?: LargeMoveGraph[];
   map: ProMapDef;
   catalog: Record<CardDefId, CardMeta>;
   fighters: ViewFighter[];

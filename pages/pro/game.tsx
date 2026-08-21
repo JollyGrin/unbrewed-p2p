@@ -99,16 +99,25 @@ import { useFlag } from "@/lib/flags";
 import { maneuverBoostHint } from "@/lib/pro/maneuverHint";
 import { badgedFighterName, fighterName, squadBadges } from "@/lib/pro/squadNumbers";
 import { buildPoseIndex, parsePoseOptions, poseHighlights, resolvePoseClick } from "@/lib/pro/moveChoice";
-import { moveBudgetLine, unofferableMoveFeedback } from "@/lib/pro/moveFeedback";
+import { moveBudgetLine, steppingBudgetLine, unofferableMoveFeedback } from "@/lib/pro/moveFeedback";
 import { cardFaceOptions } from "@/lib/pro/cardOptions";
 import {
   applyClick as applyStepClick,
   canCommit as canCommitStep,
   commitPath as stepCommitPath,
+  commitTrailPath as stepCommitTrailPath,
   isFresh as isStepFresh,
+  isPoseGraph,
+  leadOf,
   legalNextSteps,
+  poseGraph,
+  poseNode,
+  poseStopKey,
+  previewPose,
   remaining as stepRemaining,
+  restrictStops,
   startStepping,
+  type PoseChoice,
   type StepState,
 } from "@/lib/pro/moveSteps";
 import { useGameFx, DamageArc } from "@/lib/pro/useGameFx";
@@ -2956,9 +2965,20 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   // re-selection. null = no preview in flight (fresh). Nothing is sent until the
   // move commits — the whole accumulated path lands as one MOVE_FIGHTER.
   const [step, setStep] = useState<{ fighter: FighterId; state: StepState } | null>(null);
+  // Incremental EFFECT movement (issue #654): the local walk of a CHOOSE_SPACE move
+  // prompt, keyed by promptId so a new prompt (or an answered one) always starts
+  // fresh. Nothing here has been sent — the route only reaches the server on commit.
+  const [promptStep, setPromptStep] = useState<{ promptId: string; state: StepState } | null>(null);
   // First space tapped in a two-tap LARGE-fighter move pick (issue #132), scoped
   // to the prompt it belongs to so a stale anchor never leaks into the next one.
   const [poseAnchor, setPoseAnchor] = useState<{ promptId: string; space: SpaceId } | null>(null);
+  // Snake-step disambiguation (issue #658). Walking a LARGE body is a single-choice
+  // gesture everywhere except one spot: a space BOTH ends of the body could lead
+  // into (or a far destination offered under several final poses). `space` is that
+  // click, `key` scopes it to the walk it belongs to (fighter id for a maneuver,
+  // promptId for an effect move) so it can never leak into the next one. The
+  // candidates themselves are recomputed from the graph, never cached.
+  const [poseChoice, setPoseChoice] = useState<{ key: string; space: SpaceId } | null>(null);
   // "Who would move here" cues (issue #320 follow-up). `hoveredSpace`/`hoveredFighter`
   // are pointer-only (touch never sets them). `moveChoice` is the touch-safe
   // ambiguity resolver: a move space reachable by >1 of your fighters anchors here
@@ -4062,21 +4082,105 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
           .map((o) => ({ ...o, label: boardObjectOptionLabel(o) }))
       : []
   );
-  const promptBoardHint =
-    poseIndex.size > 0
-      ? activePoseAnchor
-        ? "click the second gold space to finish the move"
-        : `click a gold space to move (${poseIndex.size} destination${poseIndex.size === 1 ? "" : "s"})`
-      : promptSpaceIds.length > 0
-        ? `click a gold space on the board (${promptSpaceIds.length} option${promptSpaceIds.length === 1 ? "" : "s"})`
-        : promptTargetIds.length > 0
-          ? "click a pulsing fighter on the board"
-          : null;
+  // ---- Incremental EFFECT movement (issue #654 ↔ engine #411) ----------------
+  // A CHOOSE_SPACE move prompt now carries the mover's own step graph, so a card /
+  // scheme move ("move up to 3 spaces") is WALKED one space at a time — exactly like
+  // a maneuver (#285) — and answered ONCE with the route taken, because for several
+  // cards (Chicken Legs, Stampede, Batman, Keaton) the route IS the effect. No graph
+  // (older server, placement/token prompt) ⇒ every line below goes null and the
+  // one-click prompt flow is byte-for-byte what it was.
+  // #658: a LARGE mover walks POSES, so its graph arrives under its own field and is
+  // folded into the very same MoveGraph shape (nodes keyed "<lead>|<trail>"). Exactly
+  // one of the two is ever present for a given prompt.
+  const promptLargeGraph =
+    promptForMe?.kind === "CHOOSE_SPACE" ? promptForMe.largeMoveGraph ?? null : null;
+  const promptGraphRaw =
+    promptForMe?.kind === "CHOOSE_SPACE"
+      ? promptForMe.moveGraph ?? (promptLargeGraph ? poseGraph(promptLargeGraph) : null)
+      : null;
+  // Where the mover's body starts: a space for a NORMAL fighter, the ordered pose
+  // (head, tail) for a LARGE one — which orientation leads is the first step's job.
+  const promptMover = promptGraphRaw
+    ? view.fighters.find((f) => f.id === promptGraphRaw.fighter) ?? null
+    : null;
+  const promptMoverNode =
+    promptMover?.space == null
+      ? null
+      : promptMover.tailSpace
+        ? poseNode(promptMover.space, promptMover.tailSpace)
+        : promptMover.space;
+  // The prompt's own OPTIONS are the authoritative resting places (the engine builds
+  // `canStop` from exactly that set); projecting them onto the graph means a space
+  // the prompt doesn't offer can never be committed to, whatever the graph says. A
+  // LARGE prompt offers POSES, so the projection is by order-independent pose key —
+  // the walked pose and the offered destination cover the same two spaces whichever
+  // end happened to lead.
+  const promptGraph =
+    promptGraphRaw && promptMoverNode
+      ? restrictStops(
+          promptGraphRaw,
+          promptLargeGraph
+            ? poseOptions.map((o) => poseStopKey(poseNode(o.spaces[0], o.spaces[1])))
+            : promptSpaceIds
+        )
+      : null;
+  const promptStepState: StepState | null =
+    promptGraph && promptForMe && promptMoverNode
+      ? promptStep &&
+        promptStep.promptId === promptForMe.promptId &&
+        promptStep.state.origin === promptMoverNode
+        ? promptStep.state
+        : startStepping(promptMoverNode)
+      : null;
+  // "Walking" = at least one hop previewed. Fresh, the prompt looks and behaves
+  // exactly as it did before this ticket.
+  const promptStepWalking = !!(promptGraph && promptStepState && !isStepFresh(promptStepState));
+  // While walking the board offers only the next legal hops (which include
+  // pass-through spaces you may cross but not stop on); fresh, it keeps the full
+  // offered-destination highlight so a far one-click still answers in one click.
+  const promptStepHighlights: SpaceId[] | null =
+    promptGraph && promptStepState && promptStepWalking
+      ? legalNextSteps(promptGraph, promptStepState).map(leadOf)
+      : null;
+  const promptStepRemaining =
+    promptGraph && promptStepState ? stepRemaining(promptGraph, promptStepState) : 0;
+  const promptStepCanCommit = !!(
+    promptGraph &&
+    promptStepState &&
+    canCommitStep(promptGraph, promptStepState)
+  );
+  // The ghost's route while walking — nothing sent, purely a local preview.
+  const promptPreviewMove: PendingMove | null =
+    promptGraph && promptStepState && promptStepWalking
+      ? {
+          fighterId: promptGraph.fighter,
+          path: stepCommitPath(promptStepState),
+          trailPath: stepCommitTrailPath(promptStepState),
+        }
+      : null;
+  /** The server's canonical path to `space`, from the option that offers it. A LARGE
+   *  prompt names its destinations by POSE, not by space, and carries no per-option
+   *  route — so a far one-click there keeps answering with the option id alone (the
+   *  server walks its own canonical path, exactly as it always has) and only the
+   *  near, one-hop clicks become a walk. */
+  const promptOptionPath = (space: SpaceId): SpaceId[] | null => {
+    if (promptLargeGraph) return null;
+    const optionId = promptUnambiguousSpaces.get(space);
+    const option = optionId ? promptForMe?.options.find((o) => o.id === optionId) : undefined;
+    const path = (option?.data as { path?: SpaceId[] } | undefined)?.path;
+    return Array.isArray(path) && path.length > 0 ? path : null;
+  };
+
   // issue #412: state the move budget on a CHOOSE_SPACE *move* prompt (the
   // "Move up to N spaces" summary rides in `prompt.description`). A LARGE mover's
   // pose prompt is always a move; other CHOOSE_SPACE prompts are detected by the
   // description's move verb. null for placement/token prompts (keep their copy).
-  const promptBudgetLine = moveBudgetLine(promptForMe, poseIndex.size > 0);
+  // While a route is being walked (#654) the same line also counts down what is
+  // LEFT, recomputed from the live step state after every hop.
+  const promptBudgetLineBase = moveBudgetLine(promptForMe, poseIndex.size > 0);
+  const promptBudgetLine = promptStepWalking
+    ? steppingBudgetLine(promptBudgetLineBase, promptStepRemaining)
+    : promptBudgetLineBase;
 
   // Prompt attribution (protocol v10, issue #35 / #147 / #151): `prompt.source`
   // names WHAT opened this prompt and is sent to BOTH players — a resolving card
@@ -4118,16 +4222,30 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   const focusFighter = selectedFighter ?? hoverPreviewFighter;
   // Incremental maneuver stepping (issue #285). Active ONLY during MANEUVER_MOVE
   // once a fighter is selected AND the server sent a move graph for it. Effect/
-  // scheme CHOOSE_SPACE moves, large fighters (omitted from the graph), and older
-  // servers all leave `moveGraph` null → today's one-click canonical-path move.
+  // scheme CHOOSE_SPACE moves and older servers leave `moveGraph` null → today's
+  // one-click canonical-path move.
+  // #658: LARGE (two-space) fighters step too — their graph is pose-shaped and rides
+  // its own field, folded here into the same MoveGraph the machine walks. The body's
+  // start "node" is the ordered pose (head, tail); the first hop picks which end leads.
+  const selectedBody = selectedFighter != null
+    ? view.fighters.find((f) => f.id === selectedFighter) ?? null
+    : null;
   const selectedOrigin =
-    selectedFighter != null
-      ? view.fighters.find((f) => f.id === selectedFighter)?.space ?? null
-      : null;
+    selectedBody?.space == null
+      ? null
+      : selectedBody.tailSpace
+        ? poseNode(selectedBody.space, selectedBody.tailSpace)
+        : selectedBody.space;
   const moveGraph =
     view.turnPhase === "MANEUVER_MOVE" && selectedFighter != null
-      ? view.moveGraphs?.find((g) => g.fighter === selectedFighter) ?? null
+      ? view.moveGraphs?.find((g) => g.fighter === selectedFighter) ??
+        (() => {
+          const large = view.largeMoveGraphs?.find((g) => g.fighter === selectedFighter);
+          return large ? poseGraph(large) : null;
+        })()
       : null;
+  /** True while the selected/prompted mover walks POSES rather than spaces. */
+  const largeStepping = !!(moveGraph && isPoseGraph(moveGraph));
   // The live preview state for the selected fighter — its own `step` if one is in
   // flight, else a fresh preview parked at the origin. Null unless stepping is on.
   const stepState: StepState | null =
@@ -4140,11 +4258,19 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   // position; when fresh, fall through to today's enumerated destinations so a
   // far one-click still commits the canonical path.
   const stepHighlights: SpaceId[] | null =
-    moveGraph && stepState && !isStepFresh(stepState) ? legalNextSteps(moveGraph, stepState) : null;
-  // The ghost's route (nothing sent yet) — only once at least one hop is taken.
+    moveGraph && stepState && !isStepFresh(stepState)
+      ? legalNextSteps(moveGraph, stepState).map(leadOf)
+      : null;
+  // The ghost's route (nothing sent yet) — only once at least one hop is taken. A
+  // LARGE walk also carries the previewed body's trailing end, so the ghost shows the
+  // whole two-space body rather than just the end that is leading.
   const previewMove: PendingMove | null =
     moveGraph && stepState && selectedFighter && !isStepFresh(stepState)
-      ? { fighterId: selectedFighter, path: stepCommitPath(stepState) }
+      ? {
+          fighterId: selectedFighter,
+          path: stepCommitPath(stepState),
+          trailPath: stepCommitTrailPath(stepState),
+        }
       : null;
   // Board-level stepping affordance state (issue #285): only meaningful once a
   // hop is previewed (previewMove non-null). `stepMovesLeft` counts remaining
@@ -4152,15 +4278,111 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   const stepMovesLeft = moveGraph && stepState ? stepRemaining(moveGraph, stepState) : 0;
   const stepCanEnd = !!(moveGraph && stepState && canCommitStep(moveGraph, stepState));
 
-  const highlightedSpaces = [
-    ...(stepHighlights ??
-      [...spaceActions.entries()]
-        .filter(([, actions]) => matchesFighter(actions, focusFighter).length > 0)
-        .map(([space]) => space)),
-    ...promptSpaceIds,
-    ...(poseIndex.size > 0 ? poseHighlights(poseIndex, activePoseAnchor) : []),
-  ];
-  const highlightedFighters = [...attackActions.keys(), ...movableFighters, ...promptTargetIds];
+  // ---- Snake-step disambiguation (issue #658 ↔ engine #415) -----------------
+  // Walking a LARGE body is a single-choice gesture everywhere but one click: a
+  // space BOTH ends could lead into (first hop only — after that the leading end is
+  // fixed and the trail just follows), or a far destination the server offers under
+  // several final poses. `applyClick` refuses to guess and hands back the candidate
+  // poses; the player settles it by clicking the space the body should KEEP.
+  /** Every MOVE_FIGHTER route the server enumerated to `space` for this mover. */
+  const canonicalManeuverPaths = (space: SpaceId): SpaceId[][] =>
+    (spaceActions.get(space) ?? []).flatMap((a) =>
+      a.type === "MOVE_FIGHTER" && a.fighter === selectedFighter ? [a.path] : []
+    );
+  /** The walk that currently owns board clicks: an open move prompt's, else the
+   *  selected fighter's maneuver. Null when nothing is being stepped. */
+  const stepWalk =
+    promptForMe && promptGraph && promptStepState
+      ? {
+          key: promptForMe.promptId,
+          graph: promptGraph,
+          state: promptStepState,
+          canonical: (space: SpaceId) => promptOptionPath(space),
+          commitFarJump: true,
+          advance: (st: StepState) => setPromptStep({ promptId: promptForMe.promptId, state: st }),
+          commit: (st: StepState) => commitPromptStep(st),
+        }
+      : moveGraph && stepState && selectedFighter
+        ? {
+            key: selectedFighter,
+            graph: moveGraph,
+            state: stepState,
+            canonical: canonicalManeuverPaths,
+            commitFarJump: false,
+            advance: (st: StepState) => setStep({ fighter: selectedFighter, state: st }),
+            commit: (st: StepState) => commitStep(st),
+          }
+        : null;
+  const resolveStepClick = (space: SpaceId) =>
+    stepWalk
+      ? applyStepClick(stepWalk.graph, stepWalk.state, space, stepWalk.canonical(space), {
+          commitFarJump: stepWalk.commitFarJump,
+        })
+      : null;
+  // The open pose pick, re-derived from the graph rather than cached: nothing about
+  // the walk can change while it is open, so the click that raised it still resolves
+  // to the same candidates.
+  const poseChoiceOptions: PoseChoice[] =
+    stepWalk && poseChoice?.key === stepWalk.key
+      ? (() => {
+          const res = resolveStepClick(poseChoice.space);
+          return res?.type === "choosePose" ? res.options : [];
+        })()
+      : [];
+  const poseChoiceHint =
+    poseChoiceOptions.length > 0
+      ? `this move can end with your body in ${poseChoiceOptions.length} positions — click the gold space it should KEEP`
+      : null;
+
+  // Board copy for an open prompt. #658: once a LARGE mover carries a pose graph the
+  // move is WALKED, so the old "click the second gold space to finish the move" is
+  // gone from the primary flow — it survives only while the two-tap fallback is
+  // actually anchored (a far head several poses could end on), and for a graph-less
+  // pose prompt (older server, placement/SETUP_TAIL), which still works exactly as
+  // it always did.
+  const promptBoardHint =
+    // A pose pick already has its own line in the dock — don't say it twice.
+    poseChoiceHint !== null
+      ? null
+      : poseIndex.size > 0
+        ? activePoseAnchor
+          ? "click the second gold space to finish the move"
+          : promptGraph
+            ? "click a near gold space to step one at a time, or a far one to move straight there"
+            : `click a gold space to move (${poseIndex.size} destination${poseIndex.size === 1 ? "" : "s"})`
+        : promptSpaceIds.length > 0
+          ? `click a gold space on the board (${promptSpaceIds.length} option${promptSpaceIds.length === 1 ? "" : "s"})`
+          : promptTargetIds.length > 0
+            ? "click a pulsing fighter on the board"
+            : null;
+
+  const highlightedSpaces =
+    // #658: an open pose pick owns the board outright — only the two (or more)
+    // spaces that answer it are lit, so the question can't be misread.
+    poseChoiceOptions.length > 0
+      ? poseChoiceOptions.map((o) => o.pose.trail)
+      : [
+          ...(stepHighlights ??
+            [...spaceActions.entries()]
+              .filter(([, actions]) => matchesFighter(actions, focusFighter).length > 0)
+              .map(([space]) => space)),
+          // #654: mid-route, the offered destinations give way to the next legal hops.
+          ...(promptStepHighlights ?? promptSpaceIds),
+          // #658: once the LARGE body is being WALKED the next legal hops are the
+          // whole story — the offered destinations (and the old two-tap pose pick,
+          // which survives only as the far-click fallback) step aside.
+          ...(poseIndex.size > 0 && !promptStepWalking
+            ? poseHighlights(poseIndex, activePoseAnchor)
+            : []),
+        ];
+  // While a pose pick is open the mover's own body spaces ARE the answer, so its
+  // token must forward clicks to the space beneath (ProBoard only does that for a
+  // token that isn't itself a click target) — drop it from the fighter highlights.
+  const highlightedFighters = [
+    ...attackActions.keys(),
+    ...movableFighters,
+    ...promptTargetIds,
+  ].filter((id) => poseChoiceOptions.length === 0 || id !== stepWalk?.graph.fighter);
 
   // "Who would move here" cues (issue #320 follow-up). Source = the anchored
   // ambiguous space if a chooser is open, else the pointer-hovered space. For a
@@ -4190,6 +4412,33 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   // of letting the affordance silently vanish once the fighters have moved.
   const boostHint = maneuverBoostHint(view, legalActions);
 
+  // Commit the walked effect-move route as ONE prompt answer (issue #654): the
+  // option we ended on plus the route actually taken, so `passedThrough` (the
+  // "each fighter it moved through" cards) reflects where the player really went.
+  // One answer = one prompt window, one log line, one undo unit, and one multi-hop
+  // FIGHTER_MOVED for the opponent's tween.
+  const commitPromptStep = (state: StepState) => {
+    if (!promptForMe || !promptGraph) return;
+    const path = stepCommitPath(state);
+    const dest = path[path.length - 1];
+    // A LARGE walk answers with the DESTINATION POSE's own option id (the two final
+    // spaces, whichever end led) — the id the prompt already offered; a NORMAL one
+    // answers with the destination space's.
+    const pose = previewPose(state);
+    const optionId = pose
+      ? poseIndex.optionFor(pose.lead, pose.trail)
+      : promptUnambiguousSpaces.get(dest);
+    if (!optionId || path.length < 2) return; // never answer with a route we can't name
+    respondToPrompt(promptForMe.promptId, optionId, path);
+    setPromptStep(null);
+    setPoseChoice(null);
+    setPendingMove({
+      fighterId: promptGraph.fighter,
+      path,
+      trailPath: stepCommitTrailPath(state),
+    });
+  };
+
   // Commit the accumulated incremental-maneuver walk as ONE MOVE_FIGHTER (issue
   // #285): the engine already accepts arbitrary legal paths incl. revisits, so
   // the opponent sees a single multi-hop tween and it's one undo unit. The path
@@ -4197,14 +4446,72 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   // send what the server offered".
   const commitStep = (state: StepState) => {
     if (!selectedFighter) return;
+    // For a LARGE body this is the LEADING END's route — the engine reads the final
+    // pose off its last two entries, so the tail needs no separate answer (#658).
     const path = stepCommitPath(state);
     sendAction({ type: "MOVE_FIGHTER", player: view.you, fighter: selectedFighter, path });
-    if (path.length >= 2) setPendingMove({ fighterId: selectedFighter, path });
+    if (path.length >= 2) {
+      setPendingMove({ fighterId: selectedFighter, path, trailPath: stepCommitTrailPath(state) });
+    }
     setStep(null);
+    setPoseChoice(null);
     setSelectedFighter(null);
   };
 
   const onSpaceClick = (space: SpaceId) => {
+    // #658: an open snake-step pose pick answers first — the click that raised it
+    // could be read two ways, and this one says which body position was meant.
+    if (poseChoiceOptions.length > 0 && stepWalk) {
+      const picked = poseChoiceOptions.find((o) => o.pose.trail === space);
+      setPoseChoice(null);
+      if (picked) {
+        if (picked.commit) stepWalk.commit(picked.state);
+        else stepWalk.advance(picked.state);
+        return;
+      }
+      // Not one of the two answers — the pick is dropped and the click is treated
+      // as a fresh one below.
+    }
+    // Incremental stepping (#285 maneuver, #654 effect move, #658 LARGE bodies) owns
+    // the board wherever the server sent a graph: a neighbouring space walks the
+    // ghost one hop (nothing sent), a far offered space still answers in ONE click,
+    // and only the commit talks to the server. It runs BEFORE the two-tap pose pick
+    // so a LARGE body's near click WALKS instead of anchoring — the two-tap survives
+    // (below) only as the fallback for a far head that several poses could end on.
+    if (stepWalk) {
+      const res = resolveStepClick(space);
+      if (res?.type === "step") {
+        setPoseAnchor(null); // the walk supersedes any half-made two-tap pick
+        if (res.commit) stepWalk.commit(res.state);
+        else stepWalk.advance(res.state);
+        return;
+      }
+      if (res?.type === "choosePose") {
+        setPoseAnchor(null);
+        setPoseChoice({ key: stepWalk.key, space });
+        return;
+      }
+      // Mid-route far jumps stay disabled (the client owns no pathfinding, and
+      // answering from the origin would silently throw the walked route away): say
+      // so rather than teleporting. For a LARGE mover that also has to cover the
+      // POSE ends, which the two-tap pick below would otherwise answer with —
+      // silently discarding the route walked so far. Everything else falls through:
+      // an unofferable space still gets #412's honest feedback below.
+      if (
+        promptForMe &&
+        promptStepWalking &&
+        (promptSpaceOptions.has(space) || poseIndex.spaces.has(space))
+      ) {
+        toast("Step one space at a time, or cancel the route to jump.", {
+          id: "pro-step-far",
+          icon: "👣",
+        });
+        return;
+      }
+      // A maneuver's graph owns its clicks outright — stepped, committed or ignored,
+      // it never falls through to the one-click commit at the bottom.
+      if (!promptForMe) return;
+    }
     // Two-space (LARGE fighter) move choice owns the board when present: a
     // uniquely-completing space commits at once, an ambiguous one anchors and
     // lights up its partners, and re-tapping the anchor cancels (issue #132).
@@ -4261,25 +4568,6 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
         toast(feedback, { id: "pro-move-unreachable", icon: "🚫" });
         return;
       }
-    }
-    // Incremental maneuver stepping (issue #285): once the server sends a move
-    // graph for the selected fighter, the graph OWNS its maneuver clicks. A click
-    // either advances the LOCAL preview one hop or — while fresh — adopts the
-    // server's canonical path to a far destination. Nothing is sent until the
-    // walk commits (auto on 0 remaining, or via the "End move" affordance).
-    if (moveGraph && stepState) {
-      const canonical = (spaceActions.get(space) ?? []).find(
-        (a): a is Extract<Action, { type: "MOVE_FIGHTER" }> =>
-          a.type === "MOVE_FIGHTER" && a.fighter === selectedFighter
-      );
-      const res = applyStepClick(moveGraph, stepState, space, canonical ? canonical.path : null);
-      if (res.type === "step") {
-        if (res.commit) commitStep(res.state);
-        else setStep({ fighter: selectedFighter as FighterId, state: res.state });
-      }
-      // Stepped, committed, or ignored — never fall through to the one-click
-      // commit below (mid-walk far jumps stay disabled; the client owns no paths).
-      return;
     }
     // Re-tapping the already-anchored ambiguous space cancels the chooser.
     if (moveChoice?.space === space) {
@@ -4350,7 +4638,9 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
       // while the ghost previews elsewhere, so clicking it steps BACK one hop
       // toward origin when that's legal (keeps back-and-forth reachable). If it
       // isn't an adjacent step, fall through to toggling the selection.
-      if (moveGraph && stepState && id === selectedFighter && !isStepFresh(stepState)) {
+      // A LARGE body has no step-back: the lead may never re-enter the trail's space
+      // (it would pass through itself), so its own token just toggles the selection.
+      if (moveGraph && stepState && !largeStepping && id === selectedFighter && !isStepFresh(stepState)) {
         const res = applyStepClick(moveGraph, stepState, stepState.origin, null);
         if (res.type === "step") {
           if (res.commit) commitStep(res.state);
@@ -4360,6 +4650,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
       }
       setSelectedFighter((cur) => (cur === id ? null : id));
       setStep(null); // selecting/deselecting always starts a fresh preview
+      setPoseChoice(null);
     }
   };
 
@@ -4463,7 +4754,10 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
           boardObjectOriginName={boardObjectOriginName}
           fx={boardFx}
           pendingMove={pendingMove ?? incomingMove}
-          previewMove={previewMove}
+          // #654: the effect-move ghost rides the same preview channel as the
+          // maneuver one — only one of the two can be live at a time (a prompt
+          // owns the board while it is open).
+          previewMove={previewMove ?? promptPreviewMove}
           onPendingMoveSettled={() => {
             setPendingMove(null);
             clearIncoming();
@@ -4555,11 +4849,30 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
                 movesLeft: stepMovesLeft,
                 canEnd: stepCanEnd,
                 onEnd: () => stepState && commitStep(stepState),
-                onCancel: () => setStep(null),
+                onCancel: () => {
+                  setStep(null);
+                  setPoseChoice(null);
+                },
               }
-            : null
+            : // Effect-move stepping (#654) reuses the very same controls; only the
+              // commit wording changes ("Commit here" answers the prompt, it doesn't
+              // end a maneuver), and Cancel drops the local route with nothing sent.
+              promptPreviewMove && promptStepState
+              ? {
+                  fighterName: badgedName(promptPreviewMove.fighterId),
+                  movesLeft: promptStepRemaining,
+                  canEnd: promptStepCanCommit,
+                  commitLabel: "Commit here",
+                  onEnd: () => commitPromptStep(promptStepState),
+                  onCancel: () => {
+                    setPromptStep(null);
+                    setPoseChoice(null);
+                  },
+                }
+              : null
         }
         moveChoiceNames={moveChoice ? moveChoice.candidates.map((id) => badgedName(id)) : null}
+        poseChoiceHint={poseChoiceHint}
         selectedFighterName={selectedFighter ? selectedFighter.split("/")[1] : null}
         stepwiseMoves={!!moveGraph}
         highlightedCount={highlightedSpaces.length}

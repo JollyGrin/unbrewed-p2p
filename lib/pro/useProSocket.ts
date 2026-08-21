@@ -34,6 +34,7 @@ import {
   ReplayBundle,
   RoomStatusSeat,
   ServerMsg,
+  SpaceId,
   UndoActionSummary,
   ViewPrompt,
 } from "./protocol";
@@ -168,7 +169,9 @@ export interface UseProSocketReturn {
   ) => void;
   joinRoom: (roomId: string, heroId: string) => void;
   sendAction: (action: Action) => void;
-  respondToPrompt: (promptId: string, optionId: string) => void;
+  /** `path` (issue #654): the route walked on a CHOOSE_SPACE move prompt that
+   *  carried a `moveGraph`. Omitted = the server's canonical path (unchanged). */
+  respondToPrompt: (promptId: string, optionId: string, path?: SpaceId[]) => void;
   /**
    * Undo (protocol v11). `requestUndo` asks the server to rewind our last
    * discrete action, pending the opponent's consent; `respondToUndo` answers an
@@ -759,14 +762,24 @@ export function useProSocket(
   // Protocol v1: prompt answers are a regular action through the single ACTION
   // path (the server enumerates them in legalActions too).
   const respondToPrompt = useCallback(
-    (promptId: string, optionId: string) => {
+    (promptId: string, optionId: string, path?: SpaceId[]) => {
       if (ownClockRef.current) ownClockRef.current.acted = true; // acted in-window (v#223)
       if (roomRef.current && youRef.current)
         send({
           v: PROTOCOL_VERSION,
           type: "ACTION",
           roomId: roomRef.current,
-          action: { type: "RESPOND_PROMPT", player: youRef.current, promptId, optionId },
+          action: {
+            type: "RESPOND_PROMPT",
+            player: youRef.current,
+            promptId,
+            optionId,
+            // Incremental EFFECT movement (#654 ↔ engine #411): the walked route
+            // rides along only when there IS one, so every other prompt answer —
+            // and every server that never sends a prompt `moveGraph` — keeps the
+            // exact wire shape it has always had.
+            ...(path && path.length > 0 ? { path } : {}),
+          },
         });
     },
     [send]

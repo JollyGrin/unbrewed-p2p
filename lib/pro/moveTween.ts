@@ -42,6 +42,7 @@ export function diffIncomingMove(
 ): PendingMove | null {
   if (!prev) return null;
   const prevSpace = new Map(prev.fighters.map((f) => [f.id, f.space]));
+  const prevTailSpace = new Map(prev.fighters.map((f) => [f.id, f.tailSpace ?? null]));
 
   // Opponent fighters that changed from one on-board space to another.
   const moved = next.fighters.filter((f) => {
@@ -61,19 +62,36 @@ export function diffIncomingMove(
   const chosen = moved.find((f) => paths.has(f.id)) ?? moved[0];
   const origin = prevSpace.get(chosen.id) as SpaceId;
   const dest = chosen.space as SpaceId;
+  // A LARGE (two-space) body's `path` is its LEADING END's route and may start from
+  // EITHER of the two spaces it occupied (issue #658 / engine #415): the mover picks
+  // which end leads, and the trail is dragged into the lead's former space each step.
+  // So the head's route starts wherever the lead started, and the trailing end walks
+  // the same route one space behind, having begun on the body's other space.
+  const prevTail = prevTailSpace.get(chosen.id) ?? null;
 
   // The event path may or may not include the fighter's starting space as
   // path[0] — prepend it if missing so the tween always begins where the token
   // actually is (same rule the local click handler applies).
   const eventPath = paths.get(chosen.id);
+  const startsOnBody = (p: SpaceId[]) => p[0] === origin || (!!prevTail && p[0] === prevTail);
   const path =
     eventPath && eventPath[eventPath.length - 1] === dest
-      ? eventPath[0] === origin
+      ? startsOnBody(eventPath)
         ? eventPath
         : [origin, ...eventPath]
       : [origin, dest];
 
-  return path.length >= 2 ? { fighterId: chosen.id, path } : null;
+  // The trailing end's lockstep route, when this is a two-space body: it starts on
+  // whichever space the lead did NOT, then follows the lead one hop behind. Omitted
+  // for NORMAL fighters (and when the previous pose is unknown), leaving the board's
+  // head-only tween exactly as it was.
+  const trailStart = prevTail ? (path[0] === prevTail ? origin : prevTail) : null;
+  const trailPath = trailStart ? [trailStart, ...path.slice(0, -1)] : null;
+
+  // Omitted entirely for a NORMAL mover, so its PendingMove stays byte-identical.
+  return path.length >= 2
+    ? { fighterId: chosen.id, path, ...(trailPath ? { trailPath } : {}) }
+    : null;
 }
 
 /**

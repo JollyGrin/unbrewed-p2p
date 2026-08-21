@@ -1,6 +1,7 @@
 import {
   isMovePrompt,
   moveBudgetLine,
+  steppingBudgetLine,
   unofferableMoveFeedback,
 } from "./moveFeedback";
 import type { ViewPrompt } from "./protocol";
@@ -48,6 +49,26 @@ describe("moveBudgetLine", () => {
   it("returns null for non-move prompts", () => {
     expect(moveBudgetLine(prompt({ description: "Place a totem" }), false)).toBeNull();
     expect(moveBudgetLine(null, false)).toBeNull();
+  });
+});
+
+describe("steppingBudgetLine (issue #654)", () => {
+  it("keeps the prompt's whole-allowance summary and appends what is left", () => {
+    expect(steppingBudgetLine("Move up to 3 spaces", 2)).toBe("Move up to 3 spaces · 2 moves left");
+  });
+
+  it("says it in the singular on the last hop", () => {
+    expect(steppingBudgetLine("Move up to 3 spaces", 1)).toBe("Move up to 3 spaces · 1 move left");
+  });
+
+  it("reads 'no moves left' when the allowance is spent (never a negative count)", () => {
+    expect(steppingBudgetLine("Move up to 2 spaces", 0)).toBe("Move up to 2 spaces · no moves left");
+    expect(steppingBudgetLine("Move up to 2 spaces", -1)).toBe("Move up to 2 spaces · no moves left");
+  });
+
+  it("stands alone when the prompt carried no budget line", () => {
+    expect(steppingBudgetLine(null, 2)).toBe("2 moves left");
+    expect(steppingBudgetLine("   ", 2)).toBe("2 moves left");
   });
 });
 

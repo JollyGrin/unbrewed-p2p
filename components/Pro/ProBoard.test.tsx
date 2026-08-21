@@ -838,6 +838,56 @@ describe("ProBoard incremental-maneuver preview (issue #285)", () => {
   });
 });
 
+// LARGE (two-space) bodies step the same way (issue #658): the preview has to show
+// the whole BODY — a ghost at each end plus the band that ties them — or the player
+// can only see half of where the move lands. `trailPath` carries the trailing end.
+describe("ProBoard two-space stepping preview (issue #658)", () => {
+  const large = fighter({ space: "s1", tailSpace: "s2", size: "LARGE" });
+
+  it("ghosts BOTH ends of the previewed body", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={LINE_MAP}
+          fighters={[large]}
+          previewMove={{ fighterId: "p1/hero", path: ["s2", "s3"], trailPath: ["s1", "s2"] }}
+        />
+      </ChakraProvider>
+    );
+    // One ghost on the leading end (s3), one on the trail it dragged into (s2).
+    expect(screen.getAllByTitle(/move preview/)).toHaveLength(2);
+  });
+
+  it("keeps a NORMAL fighter's preview a single ghost", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={LINE_MAP}
+          fighters={[fighter({ space: "s1" })]}
+          previewMove={{ fighterId: "p1/hero", path: ["s1", "s2"] }}
+        />
+      </ChakraProvider>
+    );
+    expect(screen.getAllByTitle(/move preview/)).toHaveLength(1);
+  });
+
+  it("tweens the trailing end alongside the head on a committed move", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={LINE_MAP}
+          fighters={[fighter({ space: "s3", tailSpace: "s2", size: "LARGE" })]}
+          pendingMove={{ fighterId: "p1/hero", path: ["s2", "s3"], trailPath: ["s1", "s2"] }}
+        />
+      </ChakraProvider>
+    );
+    // Head + tail tokens both exist; the band ties them. The tail is no longer a
+    // static token — it rides the same keyframed tween (framer writes both).
+    expect(screen.getAllByTitle(/The Mandalorian/).length).toBe(2);
+    expect(container.querySelectorAll("line").length).toBeGreaterThan(0);
+  });
+});
+
 // Step-highlight ambiguity matrix (issue #285, extends the issue #185 fix):
 // stepping re-highlights spaces that hold tokens far more often, so the exact
 // "select the fighter vs step onto its space" disambiguation must stay correct.
@@ -885,6 +935,32 @@ describe("ProBoard step-highlight over occupied spaces (issue #285 / #185)", () 
     );
     fireEvent.click(screen.getByTitle(/Thrall/));
     expect(onSpaceClick).toHaveBeenCalledWith("s2");
+    expect(onFighterClick).not.toHaveBeenCalled();
+  });
+
+  it("forwards a click on EITHER end of a two-space body when its own spaces answer", () => {
+    // Issue #658's one ambiguous click: both ends of the body could have led into
+    // the clicked space, and the answer is "which of my two spaces do I keep" — so
+    // the mover's own head AND tail tokens have to reach onSpaceClick. game.tsx
+    // drops the mover from `highlightedFighters` for exactly that beat.
+    const onFighterClick = jest.fn();
+    const onSpaceClick = jest.fn();
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={LINE_MAP}
+          fighters={[fighter({ id: "p1/hero", space: "s1", tailSpace: "s2", size: "LARGE" })]}
+          highlightedSpaces={["s1", "s2"]}
+          selectedFighter="p1/hero"
+          onFighterClick={onFighterClick}
+          onSpaceClick={onSpaceClick}
+        />
+      </ChakraProvider>
+    );
+    const [head, tail] = screen.getAllByTitle(/The Mandalorian/);
+    fireEvent.click(head);
+    fireEvent.click(tail);
+    expect(onSpaceClick.mock.calls.map(([id]) => id).sort()).toEqual(["s1", "s2"]);
     expect(onFighterClick).not.toHaveBeenCalled();
   });
 });
@@ -1550,5 +1626,137 @@ describe("ProBoard fighter token cosmetic rim", () => {
       const { container } = boardAt(1600, "SMALL");
       expect(container.querySelectorAll("[data-cosmetic-rim]")).toHaveLength(0);
     });
+  });
+});
+
+/**
+ * Incremental EFFECT movement (issue #654 ↔ engine #411) as the BOARD sees it. A
+ * card/scheme move prompt is now walked one space at a time, so the same step
+ * targets a maneuver produced (#285) arrive while a prompt owns the board — which
+ * puts them straight back into #185's line of fire: a step target under a fighter
+ * token must still be clickable, and nothing that merely decorates a space (a board
+ * object, an item badge, a passage keyhole, the ghost) may become a step target or
+ * swallow one.
+ */
+describe("ProBoard prompt-driven stepping targets (issues #654 / #185)", () => {
+  const mover = () => fighter({ id: "p1/hero", owner: "p1", space: "s1" });
+  const blocker = () =>
+    fighter({ id: "p2/hero", owner: "p2", name: "Kong", space: "s2" });
+  const circle = (container: HTMLElement, id: string) =>
+    container.querySelector(`[data-space-id="${id}"]`) as HTMLElement;
+
+  it("forwards a click on a fighter standing on a step target to onSpaceClick", () => {
+    // "Move up to 3, through fighters": s2 is a pass-through hop occupied by Kong.
+    const onSpaceClick = jest.fn();
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={LINE_MAP}
+          fighters={[mover(), blocker()]}
+          highlightedSpaces={["s2"]}
+          previewMove={{ fighterId: "p1/hero", path: ["s1"] }}
+          onSpaceClick={onSpaceClick}
+        />
+      </ChakraProvider>
+    );
+    fireEvent.click(screen.getByTitle(/Kong/));
+    expect(onSpaceClick).toHaveBeenCalledWith("s2");
+  });
+
+  it("forwards a click on the MOVER's own token when its origin is offered as a step back", () => {
+    // Mid-route the token sits at s1 while the ghost waits at s2; s1 comes back as a
+    // legal hop, and the token — not the circle under it — is what the player taps.
+    const onSpaceClick = jest.fn();
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={LINE_MAP}
+          fighters={[mover()]}
+          highlightedSpaces={["s1", "s3"]}
+          previewMove={{ fighterId: "p1/hero", path: ["s1", "s2"] }}
+          onSpaceClick={onSpaceClick}
+        />
+      </ChakraProvider>
+    );
+    fireEvent.click(screen.getByTitle(/The Mandalorian/));
+    expect(onSpaceClick).toHaveBeenCalledWith("s1");
+  });
+
+  it("still routes a prompt's fighter-target click to onFighterClick, never to a step", () => {
+    const onFighterClick = jest.fn();
+    const onSpaceClick = jest.fn();
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={LINE_MAP}
+          fighters={[mover(), blocker()]}
+          highlightedSpaces={["s2"]}
+          highlightedFighters={["p2/hero"]}
+          onFighterClick={onFighterClick}
+          onSpaceClick={onSpaceClick}
+        />
+      </ChakraProvider>
+    );
+    fireEvent.click(screen.getByTitle(/Kong/));
+    expect(onFighterClick).toHaveBeenCalledWith("p2/hero");
+    expect(onSpaceClick).not.toHaveBeenCalled();
+  });
+
+  it("keeps a board OBJECT out of the step targets — it never fires a space click", () => {
+    const onSpaceClick = jest.fn();
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={LINE_MAP}
+          fighters={[mover()]}
+          tokens={[{ id: "t1", kind: "totem", owner: "p2", space: "s2" }]}
+          highlightedSpaces={["s2"]}
+          onSpaceClick={onSpaceClick}
+        />
+      </ChakraProvider>
+    );
+    const totem = screen.getByTitle(/Totem/);
+    expect(getComputedStyle(totem).pointerEvents).toBe("none"); // clicks pass through it
+    fireEvent.click(totem);
+    expect(onSpaceClick).not.toHaveBeenCalled();
+  });
+
+  it("keeps an ITEM badge out of the step targets, and leaves its space clickable", () => {
+    const onSpaceClick = jest.fn();
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={ITEM_MAP}
+          fighters={[fighter({ space: "s3" })]}
+          itemTokens={{ s2: "bomb" }}
+          highlightedSpaces={["s2"]}
+          onSpaceClick={onSpaceClick}
+        />
+      </ChakraProvider>
+    );
+    fireEvent.click(screen.getByTitle("Bomb")); // the badge itself answers nothing
+    expect(onSpaceClick).not.toHaveBeenCalled();
+    fireEvent.click(screen.getAllByTitle("Secret passage")[0]); // nor does the keyhole
+    expect(onSpaceClick).not.toHaveBeenCalled();
+    fireEvent.click(circle(container, "s2")); // the hit-circle beneath still steps
+    expect(onSpaceClick).toHaveBeenCalledWith("s2");
+  });
+
+  it("leaves the route ghost non-interactive so the step target under it stays clickable", () => {
+    const onSpaceClick = jest.fn();
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={LINE_MAP}
+          fighters={[mover()]}
+          highlightedSpaces={["s1", "s3"]}
+          previewMove={{ fighterId: "p1/hero", path: ["s1", "s2"] }}
+          onSpaceClick={onSpaceClick}
+        />
+      </ChakraProvider>
+    );
+    expect(getComputedStyle(screen.getByTitle(/move preview/)).pointerEvents).toBe("none");
+    fireEvent.click(circle(container, "s3"));
+    expect(onSpaceClick).toHaveBeenCalledWith("s3");
   });
 });
