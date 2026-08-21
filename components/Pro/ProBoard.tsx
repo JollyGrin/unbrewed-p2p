@@ -62,6 +62,14 @@ const MotionFlex = chakra(motion.div, {
 export interface PendingMove {
   fighterId: FighterId;
   path: SpaceId[];
+  /** LARGE (two-space) movers, issue #658: the TRAILING end's route, in lockstep
+   *  with `path` (same length — the trail is dragged into the lead's former space,
+   *  so `trailPath[i] === path[i - 1]` after the first entry, which is the body's
+   *  other starting space). It makes a two-space body move as ONE thing: the tail
+   *  token tweens along it beside the head instead of snapping, and the stepping
+   *  ghost draws the whole previewed BODY rather than just its leading end. Absent
+   *  for NORMAL fighters, and ignorable — without it the head still animates. */
+  trailPath?: SpaceId[] | null;
 }
 
 /** One "who would move here" cue (issue #320 follow-up): a ghost of `fighterId`
@@ -599,11 +607,9 @@ export const ProBoard = ({
   // the HEAD token of the named fighter tweens through it — an
   // authoritative snapshot landing mid-flight is ignored (see fighterToken)
   // so the token never jumps to wherever the server says it ended up.
-  const pendingAnim = (() => {
-    if (!pendingMove) return null;
-    const nodes = pendingMove.path
-      .map((id) => spaceById.get(id))
-      .filter((s): s is ProMapSpace => !!s);
+  const routeAnim = (route: SpaceId[] | null | undefined) => {
+    if (!route) return null;
+    const nodes = route.map((id) => spaceById.get(id)).filter((s): s is ProMapSpace => !!s);
     if (nodes.length < 2) return null;
     // A portal move can cross frames (main board <-> region inset), whose %
     // coordinate systems are unrelated — tween only the leg inside the
@@ -616,11 +622,16 @@ export const ProBoard = ({
     const coords = nodes.slice(legStart);
     if (coords.length < 2) return null;
     return {
-      fighterId: pendingMove.fighterId,
+      fighterId: pendingMove!.fighterId,
       xs: coords.map((c) => c.x * 100),
       ys: coords.map((c) => c.y * 100),
     };
-  })();
+  };
+  const pendingAnim = pendingMove ? routeAnim(pendingMove.path) : null;
+  // A LARGE body moves as ONE thing (issue #658): its trailing end rides the same
+  // tween, one space behind the lead, instead of snapping to wherever the snapshot
+  // put it. Absent (NORMAL fighters, older callers) ⇒ exactly today's head-only tween.
+  const pendingTailAnim = pendingMove ? routeAnim(pendingMove.trailPath) : null;
 
   // One fighter token (head or tail segment). Clicking EITHER segment acts on
   // the fighter; target/selection styling lights both. Only the head carries
@@ -991,7 +1002,9 @@ export const ProBoard = ({
         // Transition object — the `any` sidesteps that, the runtime value
         // is a real framer-motion Transition.
         transition={{ duration, ease: "easeInOut", times } as any}
-        onAnimationComplete={anim ? () => onPendingMoveSettled?.() : undefined}
+        // One settle per move: the HEAD owns it, so a two-space body's tail tween
+        // (issue #658) can't clear the pending move out from under the head.
+        onAnimationComplete={anim && segment === "head" ? () => onPendingMoveSettled?.() : undefined}
         // v28: offsets are a PERCENTAGE OF THIS TOKEN'S OWN WIDTH, so the whole
         // cluster scales with the board and the zoom transform (see tokenStack.ts).
         transform={`translate(calc(-50% + ${slot.dx}%), calc(-50% + ${slot.dy}%))`}
@@ -1255,12 +1268,19 @@ export const ProBoard = ({
         .filter((s): s is ProMapSpace => !!s);
       if (!f || nodes.length < 2 || nodes.length !== previewMove.path.length) return null;
       const ghost = nodes[nodes.length - 1];
+      // A LARGE body previews as BOTH its spaces (issue #658) — the ghost head at
+      // the leading end plus a second ghost on the trail, tied by the same band the
+      // real two-space token wears, so the player sees where the whole body lands.
+      // Drawn only when the trail also lives in this frame (no cross-frame band).
+      const trailId = previewMove.trailPath?.[previewMove.trailPath.length - 1] ?? null;
+      const trail = trailId ? spaces.find((sp) => sp.id === trailId) ?? null : null;
       return {
         color: PLAYER_COLOR[f.owner] ?? "#999",
         initials: tokenInitials(f.name),
         isHero: f.kind === "HERO",
         x: ghost.x * 100,
         y: ghost.y * 100,
+        trail: trail ? { x: trail.x * 100, y: trail.y * 100 } : null,
         points: nodes.map((n) => `${n.x * 100},${n.y * 100}`).join(" "),
       };
     })();
@@ -1588,7 +1608,17 @@ export const ProBoard = ({
       {frameTwoSpace.flatMap((f) => {
         const tail = spaceById.get(f.tailSpace as SpaceId);
         return tail
-          ? [fighterToken(f, tail, slotFor(tail.id, `${f.id}-tail`), "tail", diam, layerPx)]
+          ? [
+              fighterToken(
+                f,
+                tail,
+                slotFor(tail.id, `${f.id}-tail`),
+                "tail",
+                diam,
+                layerPx,
+                pendingTailAnim?.fighterId === f.id ? pendingTailAnim : undefined
+              ),
+            ]
           : [];
       })}
 
@@ -1673,6 +1703,20 @@ export const ProBoard = ({
             zIndex: 3,
           }}
         >
+          {/* the previewed BODY of a two-space fighter — same band the real token
+              wears, drawn under the ghosts so the pair reads as one fighter. */}
+          {preview.trail && (
+            <line
+              x1={preview.x}
+              y1={preview.y}
+              x2={preview.trail.x}
+              y2={preview.trail.y}
+              stroke={preview.color}
+              strokeWidth={diam * 0.3}
+              strokeLinecap="round"
+              opacity={0.5}
+            />
+          )}
           <polyline
             points={preview.points}
             fill="none"
@@ -1685,11 +1729,16 @@ export const ProBoard = ({
           />
         </svg>
       )}
-      {preview && (
+      {preview &&
+        [
+          { at: { x: preview.x, y: preview.y }, end: "lead" },
+          ...(preview.trail ? [{ at: preview.trail, end: "trail" }] : []),
+        ].map(({ at, end }) => (
         <Box
+          key={`preview-${end}`}
           position="absolute"
-          left={`${preview.x}%`}
-          top={`${preview.y}%`}
+          left={`${at.x}%`}
+          top={`${at.y}%`}
           transform="translate(-50%, -50%)"
           w={`${diam * 0.82}%`}
           sx={{ aspectRatio: "1", pointerEvents: "none" }}
@@ -1701,7 +1750,7 @@ export const ProBoard = ({
           alignItems="center"
           justifyContent="center"
           zIndex={5}
-          title="move preview — click again to keep stepping, or End move to commit"
+          title="move preview — click a gold space to keep stepping, or commit to finish"
         >
           <Text
             fontSize="0.68rem"
@@ -1715,7 +1764,7 @@ export const ProBoard = ({
             {preview.initials}
           </Text>
         </Box>
-      )}
+      ))}
 
       {/* transient effects — impact ring + floating label, above everything */}
       {fx.flatMap((item) => {

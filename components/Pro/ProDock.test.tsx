@@ -242,3 +242,54 @@ describe("ProDock action rows (issue #514)", () => {
     expect(screen.getByText("Attack Kong with King")).toBeInTheDocument();
   });
 });
+
+// Incremental stepping controls — shared by maneuvers (#285) and card/scheme move
+// prompts (#654). The only thing the two disagree on is the commit wording.
+describe("ProDock stepping controls", () => {
+  const stepping = (over = {}) => ({
+    fighterName: "Baba Yaga",
+    movesLeft: 2,
+    canEnd: true,
+    onEnd: () => {},
+    onCancel: () => {},
+    ...over,
+  });
+
+  it("labels the commit 'End move here' for a maneuver (no commitLabel)", async () => {
+    render(<ProDock {...props({ stepping: stepping() })} />);
+    await act(async () => {});
+    expect(screen.getByRole("button", { name: "End move here" })).toBeInTheDocument();
+    expect(screen.getByText(/stepping Baba Yaga — 2 moves left/)).toBeInTheDocument();
+  });
+
+  it("uses the caller's wording for an effect move ('Commit here' answers the prompt)", async () => {
+    render(<ProDock {...props({ stepping: stepping({ commitLabel: "Commit here" }) })} />);
+    await act(async () => {});
+    expect(screen.getByRole("button", { name: "Commit here" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "End move here" })).not.toBeInTheDocument();
+  });
+
+  it("disables the commit on a space the route may not end on", async () => {
+    const onEnd = jest.fn();
+    render(
+      <ProDock {...props({ stepping: stepping({ canEnd: false, commitLabel: "Commit here", onEnd }) })} />
+    );
+    await act(async () => {});
+    const button = screen.getByRole("button", { name: "Commit here" });
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(onEnd).not.toHaveBeenCalled();
+  });
+
+  it("cancels the local route without committing anything", async () => {
+    const onCancel = jest.fn();
+    const onEnd = jest.fn();
+    render(
+      <ProDock {...props({ stepping: stepping({ commitLabel: "Commit here", onCancel, onEnd }) })} />
+    );
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onCancel).toHaveBeenCalled();
+    expect(onEnd).not.toHaveBeenCalled();
+  });
+});
