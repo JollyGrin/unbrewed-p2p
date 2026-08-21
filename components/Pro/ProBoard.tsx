@@ -1701,7 +1701,7 @@ export const ProBoard = ({
           alignItems="center"
           justifyContent="center"
           zIndex={5}
-          title="move preview — click again to keep stepping, or End move to commit"
+          title="move preview — click a gold space to keep stepping, or commit to finish"
         >
           <Text
             fontSize="0.68rem"

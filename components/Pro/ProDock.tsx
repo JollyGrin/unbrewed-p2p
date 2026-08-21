@@ -122,11 +122,16 @@ const DockTokenFace = ({
   );
 };
 
-/** Incremental-maneuver stepping state, when a local hop-by-hop preview runs. */
+/** Incremental stepping state, when a local hop-by-hop preview runs — a maneuver
+ *  (#285) or a card/scheme move prompt (#654); both walk the same way. */
 export interface DockStepping {
   fighterName: string;
   movesLeft: number;
   canEnd: boolean;
+  /** Commit-button copy. A maneuver ENDS with the walk ("End move here"); an
+   *  effect move ANSWERS a prompt with it ("Commit here"). Defaults to the
+   *  maneuver wording so the #285 call site is untouched. */
+  commitLabel?: string;
   onEnd: () => void;
   onCancel: () => void;
 }
@@ -347,11 +352,12 @@ export const ProDock = ({
       overflowY="auto"
       sx={{ "::-webkit-scrollbar": { display: "none" } }}
     >
-      {/* Incremental-maneuver stepping controls (issue #285): shown while a
-          local hop-by-hop preview is in flight. "End move here" commits the
-          accumulated path as one MOVE_FIGHTER (auto-commits when 0 moves are
-          left); "Cancel" resets the ghost to the origin — nothing was sent, so
-          the cancel is free. Addresses the awkward maneuver prompt in #169. */}
+      {/* Incremental stepping controls (issue #285; effect moves #654): shown while
+          a local hop-by-hop preview is in flight. The commit button sends the
+          accumulated path as ONE message — a MOVE_FIGHTER for a maneuver, a
+          RESPOND_PROMPT{optionId, path} for a card/scheme move — and auto-commits
+          when 0 moves are left; "Cancel" resets the ghost to the origin — nothing
+          was sent, so the cancel is free. Addresses the awkward prompt in #169. */}
       {stepping && (
         <Flex
           direction="column"
@@ -377,7 +383,7 @@ export const ProDock = ({
               isDisabled={!stepping.canEnd}
               onClick={stepping.onEnd}
             >
-              End move here
+              {stepping.commitLabel ?? "End move here"}
             </Button>
             <Button size="sm" flex={1} variant="outline" color="brand.parchment" onClick={stepping.onCancel}>
               Cancel

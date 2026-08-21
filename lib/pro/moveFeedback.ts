@@ -52,6 +52,20 @@ export const moveBudgetLine = (
   return desc && desc.length > 0 ? desc : "Choose where to move.";
 };
 
+/**
+ * The budget line WHILE a move prompt is being walked hop by hop (issue #654).
+ * `base` is whatever `moveBudgetLine` produced for the prompt ("Move up to 3
+ * spaces"); we keep it — the player still wants to know the whole allowance — and
+ * append what is left after the hops taken so far, recomputed from the live step
+ * state on every hop. `remaining` is clamped at 0 so a fully-spent walk reads
+ * "no moves left" rather than a negative count.
+ */
+export const steppingBudgetLine = (base: string | null, remaining: number): string => {
+  const left = Math.max(0, remaining);
+  const tail = left === 0 ? "no moves left" : `${left} move${left === 1 ? "" : "s"} left`;
+  return base && base.trim().length > 0 ? `${base.trim()} · ${tail}` : tail;
+};
+
 export interface MoveTapContext {
   /** the active prompt for this viewer, or null */
   prompt: ViewPrompt | null;
