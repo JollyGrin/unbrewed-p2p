@@ -17,8 +17,14 @@
  * edge derivation. This module is the stepping bookkeeping ONLY; `game.tsx` wires
  * it to clicks and the ghost, exactly like `moveChoice.ts` backs the pose picker.
  *
- * Scope: MANEUVER movement only. Effect/scheme moves (CHOOSE_SPACE prompts) are
- * teleports and keep their single-click behaviour — they never reach this module.
+ * Scope (widened 2026-08-21, issue #654 / engine #411): MANEUVER movement AND
+ * card/scheme EFFECT moves. A `CHOOSE_SPACE` move prompt now carries its own
+ * `ViewPrompt.moveGraph` in the very same shape, so the same state machine walks
+ * it — the only differences live at the call site: the graph comes from the prompt
+ * instead of `view.moveGraphs`, the commit is ONE `RESPOND_PROMPT{optionId, path}`
+ * instead of a `MOVE_FIGHTER`, and a far one-click commits straight away
+ * (`applyClick`'s `commitFarJump`) because that is what an effect-move click has
+ * always done. Nothing rules-shaped moved into this module.
  */
 import type { MoveGraph, SpaceId } from "./protocol";
 
@@ -35,6 +41,20 @@ export interface StepState {
 
 /** Begin stepping a fighter sitting at `origin` — no hops taken yet. */
 export const startStepping = (origin: SpaceId): StepState => ({ origin, path: [origin] });
+
+/**
+ * Narrow a graph's resting places to `allowed` (issue #654). The engine already
+ * promises that a prompt graph's `canStop` set IS the prompt's option set, so this
+ * is a belt-and-braces projection for the prompt call site: a node stays stoppable
+ * only if the prompt actually offers that space as an answer, and traversal (nodes,
+ * edges, allowance) is untouched — a space you may walk over but not end on keeps
+ * behaving like every other pass-through node. Never widens: a node the graph marks
+ * non-stoppable (the mover's own start space) stays non-stoppable.
+ */
+export const restrictStops = (g: MoveGraph, allowed: Iterable<SpaceId>): MoveGraph => {
+  const stops = new Set(allowed);
+  return { ...g, nodes: g.nodes.map((n) => ({ ...n, canStop: n.canStop && stops.has(n.space) })) };
+};
 
 /** Reset the preview back to the origin (full cancel — nothing was ever sent). */
 export const cancel = (s: StepState): StepState => ({ origin: s.origin, path: [s.origin] });
@@ -122,13 +142,25 @@ export type StepResult =
   | { type: "step"; state: StepState; commit: boolean }
   | { type: "ignore" };
 
+export interface ClickOptions {
+  /**
+   * Commit a FAR one-click immediately, even with budget left over (issue #654).
+   * Effect/scheme move prompts pass this: clicking a far offered destination has
+   * always answered the prompt on the spot, and #654 keeps that — only the near
+   * (one-hop) clicks become a walk. A maneuver leaves it off, so a far click there
+   * still lands the preview and lets the player keep stepping.
+   */
+  commitFarJump?: boolean;
+}
+
 export const applyClick = (
   g: MoveGraph,
   s: StepState,
   space: SpaceId,
-  /** The server-enumerated MOVE_FIGHTER path to `space` from the origin, if the
-   *  server offered a direct move there; null otherwise. */
+  /** The server-enumerated canonical path to `space` from the origin, if the server
+   *  offered a direct move/answer there; null otherwise. */
   canonicalPathFromOrigin: SpaceId[] | null,
+  opts: ClickOptions = {},
 ): StepResult => {
   const stepped = stepTo(g, s, space);
   if (stepped) return { type: "step", state: stepped, commit: remaining(g, stepped) <= 0 };
@@ -138,8 +170,9 @@ export const applyClick = (
     const path = raw[0] === s.origin ? [...raw] : [s.origin, ...raw];
     if (path[path.length - 1] !== space) return { type: "ignore" };
     if (path.length - 1 > g.allowance) return { type: "ignore" };
+    if (!canStopAt(g, space)) return { type: "ignore" };
     const state: StepState = { origin: s.origin, path };
-    return { type: "step", state, commit: remaining(g, state) <= 0 };
+    return { type: "step", state, commit: opts.commitFarJump === true || remaining(g, state) <= 0 };
   }
   return { type: "ignore" };
 };

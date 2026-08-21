@@ -630,6 +630,32 @@
  * and `data/heroes/`). Purely additive, so no PROTOCOL_VERSION bump: with the
  * field absent not one message grows a key.
  *
+ * ## Additive fields (2026-08-21, no version bump): incremental EFFECT movement
+ * Issue #411 (extends #55), client ticket unbrewed-p2p#654. #55 made a MANEUVER
+ * steppable — you spend your move one space at a time and the PATH you walk is
+ * what the server records. Card and scheme movement stayed a teleport: the client
+ * picked an endpoint and the server picked which fighters you "moved through".
+ * For several cards the path IS the effect ("each fighter you moved through takes
+ * 1"), so effect moves now step the same way. Two additive fields, no new message:
+ * - `ViewPrompt.moveGraph?` — the same `MoveGraph` shape as
+ *   `PlayerView.moveGraphs`, attached to the CHOOSE_SPACE destination prompt of a
+ *   move (a `move` op, or a multi-fighter move's per-fighter destination pick).
+ *   Choosing seat only; omitted for LARGE (two-space) movers, which keep one-click
+ *   canonical poses. `canStop` is exactly the set of destinations this effect
+ *   offers — the prompt's non-`stay` option ids — so `awayFrom` /
+ *   "must end adjacent to" / occupancy filters are already folded in; every other
+ *   node is walk-through only. The mover's own space is a node and never a stop:
+ *   not moving is still the separate `stay` / `Decline move` option.
+ * - `RESPOND_PROMPT.path?` — the accumulated route, `path[0]` = the mover's
+ *   current space, `path[last]` = the `optionId` you are answering with. The
+ *   server validates it against that graph (every step an edge, length-1 <=
+ *   `allowance`, endpoint `canStop`) and REJECTS an illegal one with
+ *   `ILLEGAL_ACTION`; revisiting a space is legal, it just spends steps. Omit the
+ *   field and the server uses its canonical shortest path — byte-identical to
+ *   today, which is what bots and older clients keep doing.
+ * Purely additive, so no PROTOCOL_VERSION bump: with both fields absent not one
+ * message grows a key.
+ *
  * ## v30 (2026-08-20): the opening-hand mulligan (engine #395)
  * After the opening hands are dealt and BEFORE the heroes are placed, each seat
  * gets a ONE-TIME keep-or-redraw choice: shuffle your whole hand back into your
@@ -724,7 +750,7 @@ export type Action =
   | { type: "COMMIT_DEFENSE_CARD"; player: PlayerId; card: CardInstanceId; attachItem?: boolean }
   | { type: "DECLINE_DEFENSE"; player: PlayerId }
   | { type: "DISCARD_TO_LIMIT"; player: PlayerId; card: CardInstanceId }
-  | { type: "RESPOND_PROMPT"; player: PlayerId; promptId: string; optionId: string }
+  | { type: "RESPOND_PROMPT"; player: PlayerId; promptId: string; optionId: string; path?: SpaceId[] }
   // Concede (v9; multiplayer semantics 2026-07-12, issue #117). Legal for
   // whoever is on the clock during PLAY. Duel: the server ends the game with the
   // OTHER player as winner and emits the replay bundle. Multiplayer: voluntary
@@ -956,6 +982,16 @@ export interface ViewPrompt {
    *  summary isn't mechanically derivable (system prompts, or prompt kinds other
    *  than CHOOSE_TARGET/CHOOSE_SPACE). Public: never depends on hidden info. */
   description?: string;
+  /** Issue #411 — incremental EFFECT movement. Present ONLY on the CHOOSE_SPACE
+   *  destination prompt of a move (a card/scheme `move`, or a multi-fighter
+   *  move's per-fighter destination pick), only for the choosing seat, and only
+   *  when the mover is NORMAL-sized. Walk it locally exactly like
+   *  `PlayerView.moveGraphs` and answer with `RESPOND_PROMPT.path`. `canStop`
+   *  marks the destinations this effect actually offers (the same set as the
+   *  prompt's non-`stay` option ids), so every card-specific filter is already
+   *  applied; other nodes are walk-through only. A client that ignores this
+   *  keeps today's one-click-to-destination behavior. */
+  moveGraph?: MoveGraph;
 }
 
 // ---------------------------------------------------------------------------

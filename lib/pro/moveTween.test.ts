@@ -110,6 +110,22 @@ describe("diffIncomingMove", () => {
     expect(diffIncomingMove(prev, next, [])).toBeNull();
   });
 
+  // Incremental EFFECT movement (issue #654): a card move is no longer a
+  // shortest-path teleport — the opponent may wander, so the spectator's tween has
+  // to play the WHOLE submitted route, revisits and all, even when the fighter ends
+  // up one space from where it started.
+  it("tweens a wandering effect-move route, not the straight line to its endpoint", () => {
+    const prev = view([fighter({ space: "b1" })]);
+    const next = view([fighter({ space: "b2" })]); // ended 1 away after 3 hops
+    const events: GameEvent[] = [
+      { type: "FIGHTER_MOVED", fighter: "p2/hero", path: ["b1", "b2", "b3", "b2"] },
+    ];
+    expect(diffIncomingMove(prev, next, events)).toEqual({
+      fighterId: "p2/hero",
+      path: ["b1", "b2", "b3", "b2"],
+    });
+  });
+
   it("tweens the event-backed fighter when several opponents move in one batch", () => {
     const hero = (space: string): ViewFighter => fighter({ id: "p2/hero", space });
     const kick = (space: string): ViewFighter => fighter({ id: "p2/sidekick-1", kind: "SIDEKICK", space });

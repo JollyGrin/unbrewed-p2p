@@ -7,6 +7,7 @@ import {
   isFresh,
   legalNextSteps,
   previewPosition,
+  restrictStops,
   remaining,
   startStepping,
   stepsTaken,
@@ -210,5 +211,90 @@ describe("moveSteps — cancel", () => {
     expect(previewPosition(s)).toBe("s0");
     expect(stepsTaken(s)).toBe(0);
     expect(isFresh(s)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Incremental EFFECT movement (issue #654 ↔ engine #411): the very same machine,
+// fed by a CHOOSE_SPACE prompt's `moveGraph` instead of `view.moveGraphs`.
+// ---------------------------------------------------------------------------
+
+describe("moveSteps — restrictStops (prompt options are the resting places)", () => {
+  it("keeps only the spaces the prompt offers as stoppable", () => {
+    const g = restrictStops(line(3), ["s1", "s3"]);
+    expect(canStopAt(g, "s1")).toBe(true);
+    expect(canStopAt(g, "s3")).toBe(true);
+    expect(canStopAt(g, "s2")).toBe(false); // traversable, but not an offered answer
+    expect(canStopAt(g, "s4")).toBe(false);
+  });
+
+  it("never widens: the mover's own start space stays non-stoppable", () => {
+    const g = restrictStops(line(3), ["s0", "s1"]);
+    expect(canStopAt(g, "s0")).toBe(false); // staying put is the `stay`/`decline` option
+    expect(canStopAt(g, "s1")).toBe(true);
+  });
+
+  it("leaves traversal untouched — a non-offered space is still walkable", () => {
+    const g = restrictStops(line(3), ["s3"]);
+    expect(g.allowance).toBe(3);
+    expect(g.edges).toEqual(line(3).edges);
+    const s = stepTo(g, startStepping("s0"), "s1")!; // rem 2 → may cross s2
+    expect(legalNextSteps(g, s)).toContain("s2");
+    expect(canCommit(g, stepTo(g, s, "s2")!)).toBe(false); // …but not stop there
+  });
+
+  it("does not mutate the graph it was handed", () => {
+    const g = line(3);
+    restrictStops(g, ["s1"]);
+    expect(canStopAt(g, "s3")).toBe(true);
+  });
+});
+
+describe("moveSteps — applyClick commitFarJump (effect-move prompts)", () => {
+  it("commits a far one-click immediately even with budget left over", () => {
+    const g = restrictStops(line(3), ["s1", "s2", "s3"]);
+    const r = applyClick(g, startStepping("s0"), "s2", ["s0", "s1", "s2"], { commitFarJump: true });
+    expect(r.type).toBe("step");
+    if (r.type !== "step") return;
+    expect(r.commit).toBe(true); // one click on a far offered space still answers at once
+    expect(commitPath(r.state)).toEqual(["s0", "s1", "s2"]);
+  });
+
+  it("still walks a ONE-HOP click instead of committing it (that is the whole feature)", () => {
+    const g = restrictStops(line(3), ["s1", "s2", "s3"]);
+    const r = applyClick(g, startStepping("s0"), "s1", ["s0", "s1"], { commitFarJump: true });
+    expect(r.type).toBe("step");
+    if (r.type !== "step") return;
+    expect(r.commit).toBe(false); // 2 left — the player keeps stepping
+    expect(remaining(g, r.state)).toBe(2);
+  });
+
+  it("refuses a far one-click onto a space the prompt does not offer", () => {
+    const g = restrictStops(line(3), ["s3"]); // only s3 is an answer
+    expect(applyClick(g, startStepping("s0"), "s2", ["s0", "s1", "s2"], { commitFarJump: true }).type).toBe(
+      "ignore",
+    );
+  });
+
+  it("walks a back-and-forth route and commits the ROUTE, not the shortest path", () => {
+    // "Move up to 3": s0 → s1 → s2 → s1, ending one space from home having crossed s2.
+    const g = restrictStops(line(3), ["s1", "s2", "s3", "s4", "s5"]);
+    let s = startStepping("s0");
+    for (const hop of ["s1", "s2", "s1"]) {
+      const r = applyClick(g, s, hop, null, { commitFarJump: true });
+      expect(r.type).toBe("step");
+      if (r.type !== "step") return;
+      s = r.state;
+    }
+    expect(canCommit(g, s)).toBe(true);
+    expect(commitPath(s)).toEqual(["s0", "s1", "s2", "s1"]);
+  });
+
+  it("cannot commit while parked at the origin (mandatory moves have a `stay` option instead)", () => {
+    const g = restrictStops(line(3), ["s1", "s2"]);
+    expect(canCommit(g, startStepping("s0"))).toBe(false);
+    let s = stepTo(g, startStepping("s0"), "s1")!;
+    s = stepTo(g, s, "s0")!; // wandered back home
+    expect(canCommit(g, s)).toBe(false);
   });
 });
