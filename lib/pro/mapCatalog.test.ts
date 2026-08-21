@@ -14,6 +14,7 @@ import islandOfDespairJson from "./fixtures/island-of-despair.map.json";
 import weathertopJson from "./fixtures/weathertop.map.json";
 import countsCastleJson from "./fixtures/counts-castle.map.json";
 import uscssNostromoJson from "./fixtures/uscss-nostromo.map.json";
+import theBogJson from "./fixtures/the-bog.map.json";
 
 const island = catalogEntry("island-of-despair")!;
 const mendedDrum = catalogEntry("mended-drum")!;
@@ -22,6 +23,7 @@ const polus = catalogEntry("polus")!;
 const weathertop = catalogEntry("weathertop")!;
 const countsCastle = catalogEntry("counts-castle")!;
 const nostromo = catalogEntry("uscss-nostromo")!;
+const theBog = catalogEntry("the-bog")!;
 const arena = catalogEntry("multiplayer-arena-playtest")!;
 
 describe("map catalog", () => {
@@ -34,6 +36,7 @@ describe("map catalog", () => {
       "weathertop",
       "counts-castle",
       "uscss-nostromo",
+      "the-bog",
       "multiplayer-arena-playtest",
     ]);
     expect(arena.title).toBe("Playtest Arena (synthetic)");
@@ -84,6 +87,15 @@ describe("map catalog", () => {
       expect(mapEligibleForFormat(nostromo.map, "team-2v2")).toBe(false);
       expect(ineligibleReason(nostromo.map, "ffa-3")).toBe("needs 3 start slots");
       expect(ineligibleReason(nostromo.map, "team-2v2")).toBe("needs 4 start slots");
+    });
+
+    it("The Bog is duel-only — an authored duel block, no 3rd/4th slot", () => {
+      expect(eligibleFormats(theBog.map)).toEqual(["duel"]);
+      expect(mapEligibleForFormat(theBog.map, "duel")).toBe(true);
+      expect(mapEligibleForFormat(theBog.map, "ffa-3")).toBe(false);
+      expect(mapEligibleForFormat(theBog.map, "team-2v2")).toBe(false);
+      expect(ineligibleReason(theBog.map, "ffa-3")).toBe("needs 3 start slots");
+      expect(ineligibleReason(theBog.map, "team-2v2")).toBe("needs 4 start slots");
     });
 
     it("The Mended Drum is duel-only via the printed slots 1&2 fallback", () => {
@@ -357,6 +369,117 @@ describe("uscss-nostromo fixture", () => {
 
   it("authors a single duel format with A1/B1 on slots 1 and 2", () => {
     const formats = nostromo.map.supportedFormats ?? [];
+    expect(formats.map((f) => f.formatId)).toEqual(["duel"]);
+    expect(Object.keys(formats[0].seats)).toEqual(["A1", "B1"]);
+    expect(Object.values(formats[0].seats).map((s) => s.startSlot)).toEqual([1, 2]);
+  });
+});
+
+describe("the-bog fixture", () => {
+  const spaces = theBogJson.spaces as Array<{
+    id: string;
+    zones: string[];
+    adjacentTo: string[];
+    oneWayTo?: string[];
+    start?: { slot: number };
+  }>;
+
+  /** The six printed arrows, `from->to`. Sand spaces drain INTO the bog only. */
+  const PRINTED_ARROWS = [
+    "s22->s16",
+    "s22->s17",
+    "s28->s18",
+    "s30->s19",
+    "s30->s23",
+    "s32->s23",
+  ];
+
+  it("normalizes clean (engine-native pass-through)", () => {
+    const map = normalizeMap(theBogJson);
+    expect(map.id).toBe("the-bog");
+    expect(map.meta.title).toBe("The Bog");
+    expect(map.spaces).toHaveLength(32);
+    const slots = new Set(map.spaces.flatMap((s) => (s.start ? [s.start.slot] : [])));
+    expect(slots).toEqual(new Set([1, 2]));
+  });
+
+  it("maps the two start slots to the expected spaces (s9/s14)", () => {
+    const slotOf = (slot: number) => spaces.find((s) => s.start?.slot === slot)?.id;
+    expect(slotOf(1)).toBe("s9");
+    expect(slotOf(2)).toBe("s14");
+  });
+
+  it("declares 7 zones, every one of them used by at least one space", () => {
+    const map = normalizeMap(theBogJson);
+    expect(map.zones).toHaveLength(7);
+    const used = new Set(spaces.flatMap((s) => s.zones));
+    expect(new Set(map.zones.map((z) => z.id))).toEqual(used);
+  });
+
+  it("carries the six one-way arrows through catalog load, unmirrored", () => {
+    // the board the picker actually ships as `customMap` — not a re-parse
+    const map = customMapForEntry(theBog)!;
+    const arrows = map.spaces
+      .filter((s) => s.oneWayTo?.length)
+      .flatMap((s) => s.oneWayTo!.map((to) => `${s.id}->${to}`))
+      .sort();
+    expect(arrows).toEqual([...PRINTED_ARROWS].sort());
+
+    // an arrow is strictly one-way: the destination must NOT list the source in
+    // its `adjacentTo` (that would make it a normal two-way edge) and must not
+    // point an arrow back either.
+    const byId = new Map(map.spaces.map((s) => [s.id, s]));
+    for (const arrow of PRINTED_ARROWS) {
+      const [from, to] = arrow.split("->");
+      expect(byId.get(to)!.adjacentTo).not.toContain(from);
+      expect(byId.get(to)!.oneWayTo ?? []).not.toContain(from);
+      // ...and the source doesn't double-list it as a two-way edge
+      expect(byId.get(from)!.adjacentTo).not.toContain(to);
+    }
+  });
+
+  it("only the four drop-in spaces carry arrows (s22/s28/s30/s32)", () => {
+    expect(spaces.filter((s) => s.oneWayTo?.length).map((s) => s.id)).toEqual([
+      "s22",
+      "s28",
+      "s30",
+      "s32",
+    ]);
+    // three of them are the printed sandbars, each straddling the bog water
+    // they drain into; s32 is the deadfall drop on the east shore.
+    for (const id of ["s22", "s28", "s30"]) {
+      expect(spaces.find((s) => s.id === id)!.zones).toEqual(
+        expect.arrayContaining(["z3", "z4"]),
+      );
+    }
+    expect(spaces.find((s) => s.id === "s32")!.zones).toEqual(["z5", "z7"]);
+  });
+
+  it("has a fully symmetric, fully connected two-way adjacency graph", () => {
+    const byId = new Map(spaces.map((s) => [s.id, s]));
+    for (const s of byId.values()) {
+      for (const to of s.adjacentTo) {
+        expect(byId.get(to)?.adjacentTo).toContain(s.id);
+      }
+    }
+    const seen = new Set(["s1"]);
+    const queue = ["s1"];
+    while (queue.length) {
+      for (const to of byId.get(queue.shift()!)!.adjacentTo) {
+        if (!seen.has(to)) (seen.add(to), queue.push(to));
+      }
+    }
+    // the arrows are a shortcut, not a lifeline: the board is already connected
+    // without them, so no seat can be stranded behind a one-way drop.
+    expect(seen.size).toBe(32);
+  });
+
+  it("serves its board image from the repo (no third-party host)", () => {
+    expect(theBogJson.meta.imageUrl).toBe("https://unbrewed.xyz/maps/community-the-bog.webp");
+  });
+
+  it("authors a single duel format with A1/B1 on slots 1 and 2", () => {
+    const formats = theBog.map.supportedFormats ?? [];
     expect(formats.map((f) => f.formatId)).toEqual(["duel"]);
     expect(Object.keys(formats[0].seats)).toEqual(["A1", "B1"]);
     expect(Object.values(formats[0].seats).map((s) => s.startSlot)).toEqual([1, 2]);
