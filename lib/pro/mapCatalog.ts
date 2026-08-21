@@ -22,6 +22,7 @@ import polusJson from "./fixtures/polus.map.json";
 import weathertopJson from "./fixtures/weathertop.map.json";
 import countsCastleJson from "./fixtures/counts-castle.map.json";
 import uscssNostromoJson from "./fixtures/uscss-nostromo.map.json";
+import theBogJson from "./fixtures/the-bog.map.json";
 
 /** A board's authored per-format seat mapping (present on multiplayer boards). */
 interface MapFormatSupport {
@@ -59,6 +60,7 @@ const polus = polusJson as unknown as CatalogMap;
 const weathertop = weathertopJson as unknown as CatalogMap;
 const countsCastle = countsCastleJson as unknown as CatalogMap;
 const uscssNostromo = uscssNostromoJson as unknown as CatalogMap;
+const theBog = theBogJson as unknown as CatalogMap;
 
 /**
  * Ordered built-in boards. The Mended Drum is the duel default (server board,
@@ -107,6 +109,12 @@ export const MAP_CATALOG: MapCatalogEntry[] = [
     title: uscssNostromo.meta.title,
     thumbnailUrl: uscssNostromo.meta.imageUrl ?? "",
     map: uscssNostromo,
+  },
+  {
+    id: theBog.id,
+    title: theBog.meta.title,
+    thumbnailUrl: theBog.meta.imageUrl ?? "",
+    map: theBog,
   },
   {
     id: MULTIPLAYER_PLAYTEST_MAP.id,
