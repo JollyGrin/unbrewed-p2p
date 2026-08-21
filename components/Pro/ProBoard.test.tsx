@@ -838,6 +838,56 @@ describe("ProBoard incremental-maneuver preview (issue #285)", () => {
   });
 });
 
+// LARGE (two-space) bodies step the same way (issue #658): the preview has to show
+// the whole BODY — a ghost at each end plus the band that ties them — or the player
+// can only see half of where the move lands. `trailPath` carries the trailing end.
+describe("ProBoard two-space stepping preview (issue #658)", () => {
+  const large = fighter({ space: "s1", tailSpace: "s2", size: "LARGE" });
+
+  it("ghosts BOTH ends of the previewed body", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={LINE_MAP}
+          fighters={[large]}
+          previewMove={{ fighterId: "p1/hero", path: ["s2", "s3"], trailPath: ["s1", "s2"] }}
+        />
+      </ChakraProvider>
+    );
+    // One ghost on the leading end (s3), one on the trail it dragged into (s2).
+    expect(screen.getAllByTitle(/move preview/)).toHaveLength(2);
+  });
+
+  it("keeps a NORMAL fighter's preview a single ghost", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={LINE_MAP}
+          fighters={[fighter({ space: "s1" })]}
+          previewMove={{ fighterId: "p1/hero", path: ["s1", "s2"] }}
+        />
+      </ChakraProvider>
+    );
+    expect(screen.getAllByTitle(/move preview/)).toHaveLength(1);
+  });
+
+  it("tweens the trailing end alongside the head on a committed move", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={LINE_MAP}
+          fighters={[fighter({ space: "s3", tailSpace: "s2", size: "LARGE" })]}
+          pendingMove={{ fighterId: "p1/hero", path: ["s2", "s3"], trailPath: ["s1", "s2"] }}
+        />
+      </ChakraProvider>
+    );
+    // Head + tail tokens both exist; the band ties them. The tail is no longer a
+    // static token — it rides the same keyframed tween (framer writes both).
+    expect(screen.getAllByTitle(/The Mandalorian/).length).toBe(2);
+    expect(container.querySelectorAll("line").length).toBeGreaterThan(0);
+  });
+});
+
 // Step-highlight ambiguity matrix (issue #285, extends the issue #185 fix):
 // stepping re-highlights spaces that hold tokens far more often, so the exact
 // "select the fighter vs step onto its space" disambiguation must stay correct.
@@ -885,6 +935,32 @@ describe("ProBoard step-highlight over occupied spaces (issue #285 / #185)", () 
     );
     fireEvent.click(screen.getByTitle(/Thrall/));
     expect(onSpaceClick).toHaveBeenCalledWith("s2");
+    expect(onFighterClick).not.toHaveBeenCalled();
+  });
+
+  it("forwards a click on EITHER end of a two-space body when its own spaces answer", () => {
+    // Issue #658's one ambiguous click: both ends of the body could have led into
+    // the clicked space, and the answer is "which of my two spaces do I keep" — so
+    // the mover's own head AND tail tokens have to reach onSpaceClick. game.tsx
+    // drops the mover from `highlightedFighters` for exactly that beat.
+    const onFighterClick = jest.fn();
+    const onSpaceClick = jest.fn();
+    render(
+      <ChakraProvider>
+        <ProBoard
+          map={LINE_MAP}
+          fighters={[fighter({ id: "p1/hero", space: "s1", tailSpace: "s2", size: "LARGE" })]}
+          highlightedSpaces={["s1", "s2"]}
+          selectedFighter="p1/hero"
+          onFighterClick={onFighterClick}
+          onSpaceClick={onSpaceClick}
+        />
+      </ChakraProvider>
+    );
+    const [head, tail] = screen.getAllByTitle(/The Mandalorian/);
+    fireEvent.click(head);
+    fireEvent.click(tail);
+    expect(onSpaceClick.mock.calls.map(([id]) => id).sort()).toEqual(["s1", "s2"]);
     expect(onFighterClick).not.toHaveBeenCalled();
   });
 });
