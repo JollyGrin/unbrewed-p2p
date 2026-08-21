@@ -96,3 +96,9 @@ the board image is not hosted — `meta.imageUrl` points at the path it will get
 
 The Nostromo fixture also pins the false-positive behaviour: the two art rings
 must be *floated for review*, never silently accepted as spaces.
+
+**Follow-up:** a third style, `plain`, plus one-way arrow detection landed in
+[map-translation-plain-art.md](./map-translation-plain-art.md) (#652). It also
+renamed this path's internal `DARK` flag to `RADIAL` (it now covers `dark` and
+`plain`) and moved the halo mask above circle detection so `auto` can probe it;
+the dark path's behaviour is unchanged.
