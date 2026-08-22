@@ -1,0 +1,22 @@
+{
+  "deckSlug": "37z5",
+  "tagline": "Walk the seams of the map, bank the signal, then buy the range to reach them",
+  "featuredCards": [
+    {
+      "title": "Glow Cloud (ALL HAIL)",
+      "caption": "Every zone Cecil stands in makes this hit harder, and it hands a Broadcast token back on the way out. The deck's whole thesis on one card: get paid for where you stand."
+    },
+    {
+      "title": "Good Night, Night Vale. Good Night.",
+      "caption": "Three copies of the biggest number in the deck, and the free three-space move after it is the engine — step onto fresh multi-zone ground and the tokens come to you."
+    },
+    {
+      "title": "Sheriff's Secret Police",
+      "caption": "Why you bank the tokens: buy enough range to swing from outside their reach, and the boost they hid on their card gets counted onto yours instead."
+    },
+    {
+      "title": "They do not exist and you should not know about them",
+      "caption": "The mind game. Declare any value you please — back it up from hand and their card's effects are cancelled with it, get caught inventing it and this is worth nothing at all."
+    }
+  ]
+}
