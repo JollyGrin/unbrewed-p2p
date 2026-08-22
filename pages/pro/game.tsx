@@ -135,6 +135,7 @@ import { useCombatValueFx, CombatValueFx, SlotValueFx } from "@/lib/pro/combatVa
 import { useTokenLife } from "@/lib/pro/tokenLife";
 import { resolveSpaceMove } from "@/lib/pro/moveResolve";
 import { useIncomingMoveTween } from "@/lib/pro/moveTween";
+import { usePositionSwaps } from "@/lib/pro/usePositionSwaps";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
 import { useAccount } from "@/lib/account/useAccount";
@@ -3062,6 +3063,12 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   // a pendingMove, so the enemy token used to teleport (issue #149). Derive one
   // by diffing snapshots; your own moves stay on the optimistic path above.
   const { incomingMove, clearIncoming } = useIncomingMoveTween(snapshot);
+
+  // Atomic position swaps (protocol v31 ↔ engine #445). A separate channel from
+  // the move tween on purpose: a swap has NO route, so it must not glide, and
+  // the tween above deliberately ignores the fighters named here. Both seats'
+  // figures play it — a swap is never a move the viewer committed.
+  const positionSwaps = usePositionSwaps(snapshot);
   // Custom-map playtest (create flow): raw JSON persists across a BAD_MAP bounce
   // so a power user can fix the board and retry without re-pasting.
   const [customMapJson, setCustomMapJson] = useState("");
@@ -4754,6 +4761,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
           boardObjectOriginName={boardObjectOriginName}
           fx={boardFx}
           pendingMove={pendingMove ?? incomingMove}
+          swaps={positionSwaps}
           // #654: the effect-move ghost rides the same preview channel as the
           // maneuver one — only one of the two can be live at a time (a prompt
           // owns the board while it is open).

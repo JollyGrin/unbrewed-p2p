@@ -16,6 +16,7 @@ import { BoardFxItem } from "@/lib/pro/useGameFx";
 import { TokenGestures, usePageHidden } from "@/lib/pro/tokenLife";
 import { ZoomPanInset, useZoomPan } from "@/lib/pro/useZoomPan";
 import { LARGE_REACH_TARGET_BLURB } from "@/lib/pro/largeReach";
+import { PendingSwap, SWAP_SECONDS, SWAP_TIMES } from "@/lib/pro/positionSwap";
 import { tokenInitials } from "./FighterTokenPortrait";
 import { TokenIdle, TokenLifeLayer, phaseSeed } from "./TokenLifeLayer";
 import { ItemBadge, PassageBadge } from "./ItemBadge";
@@ -266,6 +267,12 @@ export interface ProBoardProps {
   pendingMove?: PendingMove | null;
   /** fired once the tween finishes — caller clears its pendingMove state */
   onPendingMoveSettled?: () => void;
+  /** Atomic position swaps to play (protocol v31), derived by usePositionSwaps.
+   *  A swap is a TELEPORT: these tokens crossfade between the two spaces instead
+   *  of tweening a route, so the beat can never be mistaken for a walk. Both
+   *  segments of a LARGE body play it. Absent/empty = nothing extra drawn and
+   *  the token DOM is byte-identical to today. PRESENTATION ONLY. */
+  swaps?: PendingSwap[] | null;
   /** Incremental-maneuver LOCAL preview (issue #285): the ghost token's current
    *  route while the player steps hop-by-hop. `path[0]` is the fighter's real
    *  space (the token stays there), the last element is the ghost's position.
@@ -363,6 +370,7 @@ export const ProBoard = ({
   fx = [],
   pendingMove = null,
   onPendingMoveSettled,
+  swaps = null,
   previewMove = null,
   closedRegions = [],
   itemTokens = {},
@@ -632,6 +640,12 @@ export const ProBoard = ({
   // tween, one space behind the lead, instead of snapping to wherever the snapshot
   // put it. Absent (NORMAL fighters, older callers) ⇒ exactly today's head-only tween.
   const pendingTailAnim = pendingMove ? routeAnim(pendingMove.trailPath) : null;
+
+  // Atomic position swaps (protocol v31): the fighter's PRE-swap pose, keyed by
+  // id. Deliberately kept out of `routeAnim` — a swap has no route to walk, so
+  // the token crossfades between the two poses instead of tweening through
+  // them, and the beat can never be mistaken for a walk.
+  const swapByFighter = new Map((swaps ?? []).map((sw) => [sw.fighterId, sw]));
 
   // One fighter token (head or tail segment). Clicking EITHER segment acts on
   // the fighter; target/selection styling lights both. Only the head carries
@@ -936,11 +950,35 @@ export const ProBoard = ({
     // framer-motion only plays keyframes on updates; a mount snaps straight
     // to rest. The diagonal stacking `nudge` rides on `transform` instead of
     // `left`/`top` so those two stay plain percentages animation can tween.
-    const xs = anim ? anim.xs : [s.x * 100];
-    const ys = anim ? anim.ys : [s.y * 100];
+    //
+    // A SWAP (protocol v31) is the one relocation with no route: the two
+    // fighters exchanged spaces atomically, so there is nothing to walk. The
+    // token instead fades out at the pose it held BEFORE the swap, jumps while
+    // invisible, and fades back in where it landed — a beat that reads as a
+    // teleport rather than a walk, and needs no `transform` of its own (the
+    // diagonal stacking nudge lives there and must survive untouched). A `from`
+    // in a different positioning frame (region inset) has unrelated %
+    // coordinates, so it degrades to an in-place blink at the destination.
+    const swap = anim ? undefined : swapByFighter.get(f.id);
+    const swapFromSpace = swap
+      ? spaceById.get(segment === "tail" ? (swap.fromTail ?? swap.from) : swap.from)
+      : undefined;
+    const swapFrom =
+      swap && !reducedMotion
+        ? swapFromSpace && frameOf(swapFromSpace) === frameOf(s)
+          ? { x: swapFromSpace.x * 100, y: swapFromSpace.y * 100 }
+          : { x: s.x * 100, y: s.y * 100 }
+        : null;
+
+    const xs = anim ? anim.xs : swapFrom ? [swapFrom.x, swapFrom.x, s.x * 100, s.x * 100] : [s.x * 100];
+    const ys = anim ? anim.ys : swapFrom ? [swapFrom.y, swapFrom.y, s.y * 100, s.y * 100] : [s.y * 100];
     const steps = xs.length;
-    const times = steps > 1 ? Array.from({ length: steps }, (_, i) => i / (steps - 1)) : undefined;
-    const duration = anim ? (steps - 1) * MOVE_STEP_SECONDS : 0;
+    const times = swapFrom
+      ? SWAP_TIMES
+      : steps > 1
+        ? Array.from({ length: steps }, (_, i) => i / (steps - 1))
+        : undefined;
+    const duration = anim ? (steps - 1) * MOVE_STEP_SECONDS : swapFrom ? SWAP_SECONDS : 0;
 
     // The visible circle body. When `tokenLife` is on it moves onto the inner
     // gesture wrapper (so the whole token recoils/lunges as one unit) and the
@@ -954,6 +992,9 @@ export const ProBoard = ({
     const bodyBgHex = f.kind === "HERO" ? color : SURFACE_DIM;
     const bodyBorder = `2px solid ${f.kind === "HERO" ? "#fff" : color}`;
     const bodyOpacity = f.kind === "HERO" ? 1 : 0.92;
+    // What the token settles back to after an animated opacity beat — the same
+    // expression the `opacity` prop below renders at rest, on both token paths.
+    const restOpacity = tokenLifeOn ? 1 : bodyOpacity;
 
     // Idle vocabulary: selected/deciding fighter gets the "ready" bob (idle
     // breathing suppressed so the two never read as the same); a near-death
@@ -996,7 +1037,17 @@ export const ProBoard = ({
         }
         position="absolute"
         initial={false}
-        animate={{ left: xs.map((x) => `${x}%`), top: ys.map((y) => `${y}%`) }}
+        animate={{
+          left: xs.map((x) => `${x}%`),
+          top: ys.map((y) => `${y}%`),
+          // The swap crossfade (v31). Same keyframe count and `times` as
+          // left/top so the fade brackets the jump exactly; it settles back on
+          // the token's own resting opacity, so once the beat is over the
+          // inline value framer leaves behind matches the Chakra prop below.
+          ...(swapFrom
+            ? { opacity: [restOpacity, 0, 0, restOpacity] }
+            : {}),
+        }}
         // Chakra's own `transition` style shorthand (a CSS transition
         // string) collides in the merged prop type with framer-motion's
         // Transition object — the `any` sidesteps that, the runtime value

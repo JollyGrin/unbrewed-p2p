@@ -175,4 +175,42 @@ describe("diffIncomingMove", () => {
     const next = view([fighter({ space: "b2" })]);
     expect(diffIncomingMove(prev, next, [])).not.toHaveProperty("trailPath");
   });
+
+  // Protocol v31 (engine #445): a POSITIONS_SWAPPED relocation is a TELEPORT.
+  // Gliding it would show a walk that never happened — and a walk straight into
+  // the space the other fighter still visibly occupies. ProBoard plays the
+  // swap's own crossfade instead (lib/pro/positionSwap.ts).
+  describe("atomic position swaps are not walks (protocol v31)", () => {
+    const swap: GameEvent = {
+      type: "POSITIONS_SWAPPED",
+      a: "p1/hero",
+      b: "p2/hero",
+      aTo: ["b1"],
+      bTo: ["a1"],
+    };
+    const mine = (over: Partial<ViewFighter> = {}) =>
+      fighter({ id: "p1/hero", owner: "p1", name: "Skull Kid", space: "a1", ...over });
+
+    it("returns null for a swapped opponent fighter", () => {
+      const prev = view([mine({ space: "a1" }), fighter({ space: "b1" })]);
+      const next = view([mine({ space: "b1" }), fighter({ space: "a1" })]);
+      expect(diffIncomingMove(prev, next, [swap])).toBeNull();
+    });
+
+    it("still tweens a DIFFERENT opponent fighter that walked in the same batch", () => {
+      const larry = fighter({ id: "p2/sidekick-1", kind: "SIDEKICK", name: "Larry", space: "b7" });
+      const prev = view([mine({ space: "a1" }), fighter({ space: "b1" }), larry]);
+      const next = view([mine({ space: "b1" }), fighter({ space: "a1" }), { ...larry, space: "b8" }]);
+      expect(diffIncomingMove(prev, next, [swap])).toEqual({
+        fighterId: "p2/sidekick-1",
+        path: ["b7", "b8"],
+      });
+    });
+
+    it("tweens normally on a pre-v31 (event-free) batch", () => {
+      const prev = view([fighter({ space: "b1" })]);
+      const next = view([fighter({ space: "a1" })]);
+      expect(diffIncomingMove(prev, next, [])).toEqual({ fighterId: "p2/hero", path: ["b1", "a1"] });
+    });
+  });
 });

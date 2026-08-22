@@ -888,6 +888,71 @@ describe("ProBoard two-space stepping preview (issue #658)", () => {
   });
 });
 
+// Atomic position swaps (protocol v31 ↔ engine #445). A swap is a TELEPORT: the
+// two fighters exchanged spaces with no route, so the token must NOT walk one.
+// It crossfades instead — an animated `opacity` bracketing an instant jump back
+// to the pose it held before the swap — which is what distinguishes the beat
+// from the `pendingMove` tween above. `transform` stays untouched (the diagonal
+// stacking nudge lives there).
+describe("ProBoard position swaps (protocol v31)", () => {
+  const styleOf = (container: HTMLElement, name: string) =>
+    (container.querySelector(`[title*="${name}"]`) as HTMLElement | null)?.getAttribute("style") ?? "";
+
+  it("crossfades a swapped token instead of tweening a route", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={LINE_MAP}
+          fighters={[fighter({ space: "s3" })]}
+          swaps={[{ fighterId: "p1/hero", from: "s1", fromTail: null, key: 1 }]}
+        />
+      </ChakraProvider>
+    );
+    // The token settles on its LANDING space (the view already put it there)…
+    const style = styleOf(container, "The Mandalorian");
+    expect(style).toContain("left: 80%");
+    // …with an animated opacity, which only a swap adds.
+    expect(style).toContain("opacity");
+  });
+
+  it("leaves every other token exactly as it was", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={LINE_MAP}
+          fighters={[fighter({ space: "s3" })]}
+          swaps={[{ fighterId: "p2/hero", from: "s1", fromTail: null, key: 1 }]}
+        />
+      </ChakraProvider>
+    );
+    expect(styleOf(container, "The Mandalorian")).not.toContain("opacity");
+  });
+
+  it("renders identically to today when no swap is passed", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard map={LINE_MAP} fighters={[fighter({ space: "s3" })]} />
+      </ChakraProvider>
+    );
+    expect(styleOf(container, "The Mandalorian")).not.toContain("opacity");
+  });
+
+  it("plays the beat on BOTH segments of a LARGE body", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={LINE_MAP}
+          fighters={[fighter({ space: "s3", tailSpace: "s2", size: "LARGE" })]}
+          swaps={[{ fighterId: "p1/hero", from: "s1", fromTail: "s2", key: 1 }]}
+        />
+      </ChakraProvider>
+    );
+    const tokens = [...container.querySelectorAll('[title*="The Mandalorian"]')] as HTMLElement[];
+    expect(tokens).toHaveLength(2);
+    for (const t of tokens) expect(t.getAttribute("style")).toContain("opacity");
+  });
+});
+
 // Step-highlight ambiguity matrix (issue #285, extends the issue #185 fix):
 // stepping re-highlights spaces that hold tokens far more often, so the exact
 // "select the fighter vs step onto its space" disambiguation must stay correct.

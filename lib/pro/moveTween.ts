@@ -19,6 +19,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MOVE_STEP_SECONDS, PendingMove } from "@/components/Pro/ProBoard";
 import { GameEvent, PlayerView, SpaceId } from "./protocol";
+import { swappedFighters } from "./positionSwap";
 
 // Install the tween BEFORE the browser paints: the STATE view already shows the
 // opponent at the destination, so a post-paint (useEffect) hook would flash the
@@ -45,8 +46,15 @@ export function diffIncomingMove(
   const prevTailSpace = new Map(prev.fighters.map((f) => [f.id, f.tailSpace ?? null]));
 
   // Opponent fighters that changed from one on-board space to another.
+  // A `POSITIONS_SWAPPED` (protocol v31) relocation is NOT one of them: the two
+  // fighters exchanged spaces atomically with no route, so gliding either of
+  // them along a straight [from, to] line would show a walk that never happened
+  // — and a walk into a space the other fighter still visibly occupies. The
+  // board plays the swap's own crossfade instead (lib/pro/positionSwap.ts).
+  const swapped = swappedFighters(events);
   const moved = next.fighters.filter((f) => {
     if (f.owner === next.you) return false; // your own moves tween optimistically
+    if (swapped.has(f.id)) return false; // a teleport, not a walk
     const from = prevSpace.get(f.id);
     return !!from && !!f.space && from !== f.space;
   });

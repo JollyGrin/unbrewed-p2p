@@ -697,8 +697,24 @@
  * format the two events in the activity log. A room created by an older client
  * still opens the window — the prompt is an ordinary prompt, so a client that
  * renders unknown prompt kinds generically can already answer it.
+ *
+ * ## v31 (2026-08-22): atomic position swap (engine #445, DSL v0.46.0)
+ * One additive `GameEvent` variant, and the only wire change in that batch — the other
+ * four items (off-turn TURN_START/TURN_END triggers, the transient `reveal` op, card-filter
+ * parity, `move.chooser`) are entirely server-side and reuse shapes already here:
+ * `reveal` emits the existing `CARD_REVEALED`, and a redirected move prompt is an
+ * ordinary `CHOOSE_SPACE` addressed to the other seat, which the client already renders
+ * (it answers whatever prompt names it).
+ *
+ * - `POSITIONS_SWAPPED { a, b, aTo, bTo }` — two fighters exchanged spaces atomically.
+ *   A TELEPORT, not movement: no path, no "moved through", no accompanying
+ *   FIGHTER_MOVED, and it does NOT count as having moved this turn. `aTo`/`bTo` are the
+ *   landing poses (two spaces for a LARGE body). A client that does not know the variant
+ *   drops it and still sees both figures relocated in the next `PlayerView`.
+ * CLIENT SURFACE (unbrewed-p2p): an activity-log line and, ideally, a swap animation
+ * distinct from a walk. Nothing breaks without it.
  */
-export const PROTOCOL_VERSION = 30;
+export const PROTOCOL_VERSION = 31;
 
 /**
  * Scripted-AI strength preset (server-side budgets; client treats as opaque).
@@ -804,6 +820,13 @@ export type GameEvent =
   | { type: "FIGHTER_DEFEATED"; fighter: FighterId }
   | { type: "MOVE_BOOSTED"; player: PlayerId; card: CardInstanceId; boost: number }
   | { type: "FIGHTER_MOVED"; fighter: FighterId; path: SpaceId[] }
+  // v31 (DSL v0.46.0, engine #445): two fighters exchanged spaces atomically
+  // (`swapPositions`). A TELEPORT, NOT movement — there is no path, nothing "moved
+  // through", and no FIGHTER_MOVED accompanies it, so this is the only record of the
+  // exchange. `aTo`/`bTo` are each fighter's LANDING pose (two spaces for a LARGE body).
+  // A client that does not know the variant drops it and still sees both figures in
+  // their new spaces on the next `PlayerView`.
+  | { type: "POSITIONS_SWAPPED"; a: FighterId; b: FighterId; aTo: SpaceId[]; bTo: SpaceId[] }
   | { type: "FORM_CHANGED"; player: PlayerId; fighter: FighterId; form: DruidForm }
   | { type: "DIE_ROLLED"; player: PlayerId; sides: number; result: number; source: string }
   | { type: "SCHEME_PLAYED"; player: PlayerId; card: CardInstanceId }
