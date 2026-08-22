@@ -349,6 +349,33 @@ export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
     nameplate: { labelTemplate: "TIME {n}/{max}" },
     token: { icon: "⏳", title: "TIME", bg: "#2E0E4E", color: "#E7D6FF" },
   },
+  {
+    // Cecil Palmer's Broadcast dial (issue #668 ↔ engine #456). Engine counter key is
+    // `BROADCAST` (`counters: [{ name: 'BROADCAST', max: 6 }]` in
+    // cecil-palmer.rules.ts), earned 1 at a time whenever one of his fighters ends a
+    // movement on a multi-zone space, and SPENT — automatically, at declare time —
+    // to buy attack range.
+    //
+    // BOTH surfaces, per the Cairne lesson, and here the opponent's need is sharper
+    // than usual: the dial is literally the radius of Cecil's threat. A player who
+    // cannot see it cannot tell which of their fighters are safe, and the bought-range
+    // highlight on their own screen would be the first they hear of it. So the pill
+    // AND the token badge render on BOTH seats' plates.
+    //
+    // `outOf: 6` mirrors the declared max so both surfaces read "4/6" the way the rule
+    // card's "You have 6 Broadcast tokens" does. NO `showAtZero`: this is an UP
+    // counter starting empty, and "Cecil has no tokens" is the game's default state,
+    // not an event — the default hide-at-0 is exactly right, and matches the wire
+    // (the engine deletes a counter key when it empties, so 0 arrives as an absent
+    // key either way).
+    counter: "BROADCAST",
+    heroes: ["cecil-palmer"],
+    outOf: 6,
+    nameplate: { labelTemplate: "BROADCAST {n}/{max}" },
+    // Night Vale violet + the deck's own on-air motif, distinct from Skull Kid's
+    // deeper Majora purple and from Nancy's plum.
+    token: { icon: "📻", title: "BROADCAST", bg: "#653E7A", color: "#F6E8DD" },
+  },
 ];
 
 /** An entry's identity key — its counter name or its pile name. */

@@ -1,0 +1,316 @@
+{
+  "bgg_link": null,
+  "created_on": "Wed, 17 Sep 2025 16:31:30 GMT",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#fab00d",
+      "cardbackUrl": "/evergreen-decks/art/37z5/cardback.webp",
+      "highlightColour": "#653e7a",
+      "isPNP": false,
+      "patternName": ""
+    },
+    "cards": [
+      {
+        "afterText": "Move up to 3 spaces.",
+        "basicText": "",
+        "boost": 4,
+        "cardImage": {
+          "url": "/evergreen-decks/art/37z5/good-night-night-vale-good-night.webp"
+        },
+        "characterName": "CECIL",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/37z5/good-night-night-vale-good-night.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Good Night, Night Vale. Good Night.",
+        "type": "attack",
+        "value": 5
+      },
+      {
+        "afterText": "Draw 1 card and move your fighter up to 3 spaces. They may move through opposing fighters. If you entered the opposing fighter's zone during this movement, draw 2 cards instead.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/37z5/no-dogs-in-the-dog-park.webp"
+        },
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/37z5/no-dogs-in-the-dog-park.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "No Dogs in the dog park",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/37z5/mostly-void-partially-stars.webp"
+        },
+        "characterName": "ANY",
+        "duringText": "If your fighter is in more zones than the opposing fighter, you may swap the value of this card with the value of your opponent’s card.",
+        "imageUrl": "/evergreen-decks/art/37z5/mostly-void-partially-stars.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Mostly Void, Partially Stars",
+        "type": "attack",
+        "value": 1
+      },
+      {
+        "afterText": "🟥 FERAL DOGS\n_________________________________\n🟥 FERAL DOGS: Value 3 attack. DURING COMBAT: If Khoshekh shares no zones with the opposing fighter, this attack's value is 5 instead.\n",
+        "basicText": "",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/37z5/plastic-bags.webp"
+        },
+        "characterName": "KHOSHEKH",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/37z5/plastic-bags.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Plastic bags",
+        "type": "attack",
+        "value": 1
+      },
+      {
+        "afterText": "Shuffle a random card from your discard pile into your deck. Then, all opposing players with fighters in or adjacent to fighters in this combat must discard 1 card.",
+        "basicText": "",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/37z5/if-you-see-something-say-nothing-and-drink-to-forget.webp"
+        },
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/37z5/if-you-see-something-say-nothing-and-drink-to-forget.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "If you see something, say nothing and drink to forget ",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "If the value of this card matched the value of the opposing player's card, deal the opposing fighter 2 damage.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/37z5/kill-your-double.webp"
+        },
+        "characterName": "ANY",
+        "duringText": "You may raise or lower this card's value by 1.\n",
+        "imageUrl": "/evergreen-decks/art/37z5/kill-your-double.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Kill your double",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/37z5/sheriff-s-secret-police.webp"
+        },
+        "characterName": "CECIL",
+        "duringText": "If Cecil is not adjacent to the opposing fighter, add the BOOST value of the opposing fighter's card to this card's value.",
+        "imageUrl": "/evergreen-decks/art/37z5/sheriff-s-secret-police.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Sheriff's Secret Police",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "You may have Khoshekh and the opposing fighter swap spaces.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/37z5/here-s-something-odd.webp"
+        },
+        "characterName": "KHOSHEKH",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/37z5/here-s-something-odd.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Here's something odd",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "Gain 1 Broadcast token. ",
+        "basicText": "",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/37z5/glow-cloud-all-hail.webp"
+        },
+        "characterName": "ANY",
+        "duringText": "Add +1 to this card's value for each zone your fighter is in. ",
+        "imageUrl": "/evergreen-decks/art/37z5/glow-cloud-all-hail.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Glow Cloud (ALL HAIL)",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/37z5/they-do-not-exist-and-you-should-not-know-about-them.webp"
+        },
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/37z5/they-do-not-exist-and-you-should-not-know-about-them.webp",
+        "immediateText": "Choose this card's value. Your opponent may ask you to reveal a card in your hand with the same value. If you can, cancel an effect on the opponent's card. If you can't, this card's value is zero. ",
+        "quantity": 2,
+        "title": "They do not exist and you should not know about them",
+        "type": "versatile",
+        "value": 0
+      },
+      {
+        "afterText": "Move a fighter in this combat up to 4 spaces. That fighter may move through spaces containing opposing fighters.",
+        "basicText": "",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/37z5/interloper.webp"
+        },
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/37z5/interloper.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Interloper!",
+        "type": "defence",
+        "value": 2
+      },
+      {
+        "afterText": "Gain 1 Broadcast token. ",
+        "basicText": "",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/37z5/eternal-scout-badge.webp"
+        },
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/37z5/eternal-scout-badge.webp",
+        "immediateText": "Cancel all effects on your opponent's card.",
+        "quantity": 2,
+        "title": "Eternal Scout Badge",
+        "type": "defence",
+        "value": 2
+      },
+      {
+        "afterText": null,
+        "basicText": "Choose a number of effects equal to the number of zones Cecil currently occupies:\n • A friendly fighter recovers 1 health.\n • Gain 2 Broadcast tokens. \n • Draw up to 2 cards.",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/37z5/bloodstone-circle.webp"
+        },
+        "characterName": "CECIL",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/37z5/bloodstone-circle.webp",
+        "immediateText": null,
+        "quantity": 2,
+        "title": "Bloodstone Circle",
+        "type": "scheme",
+        "value": null
+      }
+    ],
+    "extraCharacters": [],
+    "hero": {
+      "hp": 13,
+      "isRanged": false,
+      "move": 2,
+      "name": "Cecil Palmer",
+      "specialAbility": "For each of your fighters that ends any movement on a multi-zone space that they did not previously occupy at the beginning of their movement, gain 1 Broadcast token. ",
+      "tokenImageUrl": "/evergreen-decks/art/37z5/token-cecil-palmer.webp"
+    },
+    "name": "",
+    "ruleCards": [
+      {
+        "content": "You have 6 Broadcast tokens. You start the game with all Broadcast tokens face down.\n\nWhen you declare an attack, you may spend any number of Broadcast tokens to increase your attack range by the same number of spaces.\n\nEffects that refer to \"multi-zone spaces\" refer to spaces that occupy 2 or more zones. ",
+        "title": "Broadcast tokens"
+      }
+    ],
+    "sidekick": {
+      "hp": 6,
+      "isRanged": false,
+      "name": "Khoshekh",
+      "quantity": 1,
+      "quote": null,
+      "tokenImageUrl": "/evergreen-decks/art/37z5/token-khoshekh.webp"
+    }
+  },
+  "deck_first_published_on": "Thu, 28 Jul 2022 14:05:57 GMT",
+  "deck_published": true,
+  "family_id": "37z5",
+  "id": "37z5",
+  "liked": false,
+  "likes": 24,
+  "name": "Cecil Palmer",
+  "note": "Rules-enforced Pro deck (server hero cecil-palmer), mirrored from unmatched.cards deck 37z5 “Cecil Palmer” by AndSushi, version OGgotQEeJ “Rework” — the SAME source the engine converted from (data/heroes/cecil-palmer.rules.ts cites it), so every rules-relevant field here is engine-exact. A LAB deck: engine JollyGrin/unbrewed-engine#456 (engine issue #455), so balance and mechanics are not final. ART comes from a DIFFERENT publication of the same deck — the author’s the-unmatched.club 13514, where the thirteen FINISHED full-card renders live (the club’s own 1488x2079 previews from /export/__data.json, not the author’s lower-resolution imgur replacements). Those faces are self-hosted under public/evergreen-decks/art/37z5/ and drawn FULL-BLEED via cardImage; this deck must never fall back to the generated card template, which cannot reproduce the author’s frame, and must never be routed to the art-generation pipeline. The hero card, the BROADCAST TOKENS rule card, the cover and the cardback are mirrored alongside; the board-token portraits are a square crop of the cardback’s eye-and-radio-tower motif (Cecil) and of the author’s Khoshekh illustration (the sidekick). Nothing here is fetched at runtime — the only URL left in this file is the attribution link, and per #665’s rule that link is the AUTHOR’S the-unmatched.club publication (13514), NOT the unmatched.cards mirror the rules text above came from: same deck, same author, but the club is where the finished art this snapshot ships was published, so that is the page the credit sends a reader to. The rules version this snapshot is locked to is still unmatched.cards 37z5 OGgotQEeJ, recorded above and in manifest.json. The two publications agree on all 13 stat tuples and on 30/30 cards; they diverge only in card WORDING (the club’s renders reword three cards) and in the trailing whitespace of one title — the 37z5 payload ends “If you see something, say nothing and drink to forget” with a NON-BREAKING space (U+00A0) where the engine rules file has an ordinary one. The title here is the ENGINE’S, verbatim; art is matched on norm() (lowercase + trim), which strips both, so the two can never disagree (the same quirk Baba Yaga’s “ Iron Teeth” already carries).",
+  "published": true,
+  "published_on": "Mon, 26 Jan 2026 04:09:03 GMT",
+  "tags": [
+    {
+      "name": "Melee Hero",
+      "slug": "melee-hero"
+    },
+    {
+      "name": "Fully-arted",
+      "slug": "fully-arted"
+    },
+    {
+      "name": "Ranged Hero",
+      "slug": "ranged-hero"
+    },
+    {
+      "name": "Single Sidekick",
+      "slug": "single-sidekick"
+    },
+    {
+      "name": "Horror",
+      "slug": "horror"
+    },
+    {
+      "name": "Podcast",
+      "slug": "podcast"
+    },
+    {
+      "name": "Book",
+      "slug": "book"
+    },
+    {
+      "name": "Welcome To Night Vale",
+      "slug": "welcome-to-night-vale"
+    },
+    {
+      "name": "Science fiction",
+      "slug": "science-fiction"
+    },
+    {
+      "name": "WTNV",
+      "slug": "wtnv"
+    },
+    {
+      "name": "Tested",
+      "slug": "tested"
+    },
+    {
+      "name": "Indie Rumble",
+      "slug": "indie-rumble"
+    },
+    {
+      "name": "Indie Rumble 2026",
+      "slug": "indie-rumble-2026"
+    }
+  ],
+  "updated_on": "Mon, 26 Jan 2026 04:09:03 GMT",
+  "user": "AndSushi",
+  "version_id": "OGgotQEeJ",
+  "version_name": "Rework",
+  "sourceUrl": "https://www.the-unmatched.club/c/heroes/cecil-palmer.13514"
+}

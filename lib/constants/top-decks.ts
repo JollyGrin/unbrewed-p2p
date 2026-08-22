@@ -734,4 +734,36 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl: "/evergreen-decks/art/zmGV/cardback.webp",
     sourceUrl: "https://www.the-unmatched.club/c/heroes/skull-kid-the-legend-of-zelda.2748",
   },
+  {
+    // Pro deck (unmatched.cards 37z5 / version OGgotQEeJ "Rework") — server hero
+    // cecil-palmer (issue #668 ↔ engine #456, engine issue #455). The BROADCAST
+    // TOKEN deck: a public 0→6 dial that Cecil earns by ending movement on
+    // multi-zone spaces and SPENDS to buy attack range.
+    //
+    // `sourceUrl` is the AUTHOR'S OWN publication on the-unmatched.club, not the
+    // unmatched.cards mirror the rules text was converted from — the #665 rule, and
+    // the club is where the finished art this deck ships was published.
+    // `deckAttributionHref` prefers an explicit `sourceUrl` over the id-derived
+    // link, so this one field credits the club on the tile, the hero preview modal
+    // and the splash at once. `original` stays off: the unmatched.cards page is real,
+    // it just isn't the credit.
+    //
+    // Engine serves this hero at tier `lab` — playable, balance not final — so the
+    // tile carries the caution badge and `tier` mirrors the server listing.
+    id: "37z5",
+    name: "Cecil Palmer (Welcome To Night Vale)",
+    hero: "Cecil Palmer",
+    author: "AndSushi",
+    likes: 24,
+    // Night Vale violet, off the deck's own `appearance.highlightColour`.
+    highlightColour: "#653e7a",
+    lab: true,
+    tier: "lab",
+    // Repo-relative (Kenshiro/Skull Kid precedent): the author's own cardback,
+    // mirrored off the imgur file BOTH publications point at — the club's `cardsBack`
+    // and 37z5's `appearance.cardbackUrl` are two URLs for the same bytes (identical
+    // md5), so there was no version to choose between.
+    cardbackUrl: "/evergreen-decks/art/37z5/cardback.webp",
+    sourceUrl: "https://www.the-unmatched.club/c/heroes/cecil-palmer.13514",
+  },
 ];

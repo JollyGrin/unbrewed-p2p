@@ -359,6 +359,18 @@
         "file": "data/heroes/skull-kid.rules.ts",
         "commit": "e8462ad"
       }
+    },
+    {
+      "heroId": "cecil-palmer",
+      "deckId": "37z5",
+      "version_id": "OGgotQEeJ",
+      "frozenAt": "2026-08-22",
+      "digest": "sha256:4ab27ce892128b1abdf1780cf4c476010bf07842b4e642a476d876672b717ed1",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/cecil-palmer.rules.ts",
+        "commit": "c38fbb1"
+      }
     }
   ]
 }

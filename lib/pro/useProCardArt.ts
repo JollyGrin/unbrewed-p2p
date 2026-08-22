@@ -151,6 +151,40 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // NOT registered (the registry is opt-in, so an unregistered counter renders
   // nowhere). No flags, no markers.
   "skull-kid": "zmGV",
+  // Cecil Palmer — Welcome To Night Vale (issue #668 ↔ engine #456/#455): community
+  // deck 37z5 by AndSushi, the BROADCAST TOKEN deck. The deck id is the real
+  // unmatched.cards one (version OGgotQEeJ "Rework"), which is also the source
+  // cecil-palmer.rules.ts was converted from, so the snapshot's rules fields are
+  // engine-exact.
+  //
+  // EVERGREEN IN THE STRICT SENSE (Dean, 2026-08-22): every image — 13 card faces,
+  // the hero card, the BROADCAST TOKENS rule card, the cover and the cardback — is
+  // mirrored under public/evergreen-decks/art/37z5/, with the snapshot's URLs
+  // rewritten to those local paths. Nothing about this deck touches a remote host at
+  // runtime.
+  //
+  // The ART, as with Kenshiro and Skull Kid, comes from a DIFFERENT publication of
+  // the same deck: the author's the-unmatched.club 13514, the only place the FINISHED
+  // full-card renders live. They are pulled from that page's /export/__data.json —
+  // the club's own rendered `cardPreviewUrls` at 1488x2079, NOT the author's
+  // lower-resolution imgur `replacementImage` set — self-hosted per #446 and drawn
+  // FULL-BLEED via cardImage. This deck must never fall back to the generated card
+  // template, which cannot reproduce the author's frame, and must never be routed to
+  // the art-generation pipeline.
+  //
+  // Two pairs of faces are separable only by reading them, so each render was mapped
+  // to its title by the title PRINTED ON THE FACE (and cross-checked against the club
+  // export's own card headings): Eternal Scout Badge and Interloper! are both DEFENCE
+  // 2/1 x2, and Kill your double / Here's something odd are both VERSATILE 3/2,
+  // separable only by count. A (type, value, boost, count) match would have silently
+  // swapped the first pair.
+  //
+  // Public state contract: ONE counter, `BROADCAST` (0 -> 6, max 6) — the dial the
+  // rule card prints, registered on BOTH nameplate and token in HERO_STATE_COUNTERS.
+  // No flags, no markers, no piles. The counter is ALSO the price of the deck's
+  // bought attack range (lib/pro/rangePurchase.ts) — the engine auto-deducts the
+  // shortfall on DECLARE_ATTACK, so the client explains the spend before and after.
+  "cecil-palmer": "37z5",
 };
 
 /**

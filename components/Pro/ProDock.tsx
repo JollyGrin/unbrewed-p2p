@@ -170,6 +170,11 @@ export interface ProDockProps {
   soleAction: Action | null;
   describe: (action: Action) => string;
   isExtendedReach: (action: Action) => boolean;
+  /** Price + tooltip for a DECLARE_ATTACK row the server offered only because
+   *  tokens will be spent to reach it (issue #668). Null for a free attack and
+   *  for every deck that buys no range; omit the prop entirely (tests, replays)
+   *  and attack rows are exactly what they were. */
+  rangePurchaseChip?: (action: Action) => { chip: string; blurb: string } | null;
   /** Board-token face for a fighter, so an attack row can show attacker → target
    *  in the same art the board draws (issue #514). Returns null when the fighter
    *  is unknown; a null `artUrl` falls back to the board's initials. Omit the
@@ -211,6 +216,7 @@ export const ProDock = ({
   soleAction,
   describe,
   isExtendedReach,
+  rangePurchaseChip,
   fighterFace,
   attackerBadge = {},
   onAction,
@@ -505,6 +511,20 @@ export const ProDock = ({
                     </Tag>
                   </Tooltip>
                 )}
+                {/* Bought attack range (issue #668). Same slot and shape as the
+                    large-reach chip above — both explain a reach the row's text
+                    cannot — but in the board's Broadcast violet, and carrying a
+                    PRICE: the engine deducts it the moment this row is clicked. */}
+                {(() => {
+                  const bought = rangePurchaseChip?.(a) ?? null;
+                  return bought ? (
+                    <Tooltip label={bought.blurb} hasArrow placement="top" openDelay={150}>
+                      <Tag size="sm" bg="#C58BE8" color="#241033" fontWeight={700} flexShrink={0}>
+                        {bought.chip}
+                      </Tag>
+                    </Tooltip>
+                  ) : null;
+                })()}
                 {/* Sole-option shortcut hint (issue #353): only the lone eligible
                     dock action carries it, and pressing space fires this action. */}
                 {a === soleAction && (

@@ -37,6 +37,18 @@ describe("deckAttributionHref", () => {
     expect(deckAttributionHref(skullKid)).not.toContain("unmatched.cards");
   });
 
+  it("credits Cecil Palmer to the author's the-unmatched.club page from day one", () => {
+    // #668: the club link is the credit on the tile, the hero preview modal and the
+    // splash at once, because all three resolve through this one function.
+    const cecil = tile("37z5");
+    expect(cecil.author).toBe("AndSushi");
+    expect(cecil.original).toBeUndefined(); // the unmatched.cards page is real, just not the credit
+    expect(deckAttributionHref(cecil)).toBe(
+      "https://www.the-unmatched.club/c/heroes/cecil-palmer.13514",
+    );
+    expect(deckAttributionHref(cecil)).not.toContain("unmatched.cards/decks");
+  });
+
   it("still derives the unmatched.cards page for a deck with no sourceUrl", () => {
     const derived = POPULAR_DECKS.find((d) => !d.sourceUrl && !d.original);
     expect(derived).toBeDefined();
