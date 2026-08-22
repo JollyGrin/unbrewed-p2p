@@ -21,6 +21,7 @@ import { sweptFighters } from "./sweep";
 import { swappedFighters } from "./positionSwap";
 import { combatOutcomeLogText } from "./combatOutcome";
 import { MITIGATION_COUNTER } from "./clockTower";
+import { rangeSpendLineFor } from "./rangePurchase";
 
 export interface ProLogLine {
   text: string;
@@ -307,7 +308,15 @@ const BOOKKEEPING_COUNTERS: ReadonlySet<string> = new Set([MITIGATION_COUNTER]);
 export function counterChangeLines(
   events: GameEvent[],
   priorValue: (player: PlayerId, name: string) => number,
-  whoOf: (player: PlayerId) => "you" | "opp"
+  whoOf: (player: PlayerId) => "you" | "opp",
+  /**
+   * Issue #668: bespoke wording for a DECREASE the generic line cannot explain,
+   * or null to keep the generic one. Today only Cecil Palmer's bought attack
+   * range, where "spent 2 BROADCAST (4 remaining)" tells a reader the number but
+   * not the reason, and the reason (an attack that was out of reach a moment
+   * ago) is the entire point. Optional, so every existing caller is unchanged.
+   */
+  spendText?: (player: PlayerId, name: string, amount: number) => string | null
 ): ProLogLine[] {
   const running = new Map<string, number>();
   const out: ProLogLine[] = [];
@@ -319,12 +328,14 @@ export function counterChangeLines(
     running.set(key, e.value);
     const delta = e.value - prior;
     if (delta === 0) continue;
+    const bespoke = delta < 0 ? (spendText?.(e.player, e.name, -delta) ?? null) : null;
     const text =
-      delta > 0
+      bespoke ??
+      (delta > 0
         ? `gained ${delta} ${e.name} (${e.value} total)`
         : e.value === 0
           ? `lost all ${e.name} (was ${prior})`
-          : `spent ${-delta} ${e.name} (${e.value} remaining)`;
+          : `spent ${-delta} ${e.name} (${e.value} remaining)`);
     out.push({ text, who: whoOf(e.player) });
   }
   return out;
@@ -479,11 +490,17 @@ export function diffViews(
   // measured against the pre-batch snapshot value (issue #485). Both seats see
   // both players' lines; counters are public. Absent on reconnect/resume
   // broadcasts (no events), so no lines double-fire.
+  // A range purchase (issue #668 ↔ engine #456) rides that same event stream: it is
+  // a decrease of the buyer's `rangePurchase` counter arriving BESIDE this batch's
+  // ATTACK_DECLARED, and the engine emits nothing else for it. Reworded here rather
+  // than in enrichLines because it REPLACES a diff line rather than annotating one —
+  // and both seats get it, since the counters and the reach are public.
   lines.push(
     ...counterChangeLines(
       events,
       (player, name) => prevPlayers.get(player)?.counters?.[name] ?? 0,
-      whoOf
+      whoOf,
+      (player, name, amount) => rangeSpendLineFor(events, player, name, amount, next)
     )
   );
 

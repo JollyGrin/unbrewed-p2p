@@ -88,6 +88,20 @@ const highlightPulse = keyframes`
   50% { box-shadow: 0 0 0 3px #e0a82e, 0 0 22px 6px rgba(224,168,46,0.5); }
 `;
 
+/**
+ * A target that COSTS something to reach (issue #668). Deliberately not the gold
+ * pulse above: a free adjacent target and a target three spaces away that will
+ * eat two Broadcast tokens are different offers, and a player must be able to
+ * tell them apart at a glance rather than by reading a chip. Broadcast violet
+ * (the deck's own #653e7a, lightened to stay legible against dark board art),
+ * plus a DASHED outer ring the free pulse never draws — so the difference
+ * survives colour-blindness and a washed-out board photo alike.
+ */
+const boughtRangePulse = keyframes`
+  0%, 100% { box-shadow: 0 0 0 2px #C58BE8, 0 0 12px 2px rgba(197,139,232,0.85); }
+  50% { box-shadow: 0 0 0 4px #C58BE8, 0 0 24px 7px rgba(197,139,232,0.45); }
+`;
+
 // transient board effects (damage numbers etc.) — pop in, drift up, fade out
 const fxFloat = keyframes`
   0%   { transform: translate(-50%, -40%) scale(0.7); opacity: 0; }
@@ -240,6 +254,15 @@ export interface ProBoardProps {
    *  legalActions; the board just annotates the pulsing token so a 2-space melee
    *  attack doesn't read as a bug. Absent/empty = no annotation. */
   extendedReachTargets?: FighterId[];
+  /** Attack targets the server offered only because tokens will be SPENT to reach
+   *  them (issue #668 ↔ engine #456 — Cecil Palmer's Broadcast dial), each with
+   *  the price the engine will auto-deduct on declaration. PRESENTATION ONLY: the
+   *  caller reprices the server's own legalActions (lib/pro/rangePurchase.ts) so
+   *  the cost is visible BEFORE the click, and gets a DISTINCT highlight from a
+   *  free adjacent target so the two never read alike. Attacker-side only — a
+   *  bought reach is never drawn on the opponent's board. Absent/empty = nothing
+   *  extra, exactly today's board. */
+  boughtRangeTargets?: { id: FighterId; chip: string; blurb: string }[];
   /** Portrait art for a fighter's token, clipped into its circle (issue #247).
    *  PRESENTATION ONLY — the caller resolves it client-side by hero id + kind
    *  (see useProCardArt.resolveFighterToken); the board just paints whatever URL
@@ -362,6 +385,7 @@ export const ProBoard = ({
   friendlyOwners = [],
   fighterBadges = {},
   extendedReachTargets = [],
+  boughtRangeTargets = [],
   fighterTokenArt,
   fighterTokenBadge,
   fighterTokenRim,
@@ -396,6 +420,7 @@ export const ProBoard = ({
   const highlightSet = new Set(highlightedSpaces);
   const highlightFighterSet = new Set(highlightedFighters);
   const extendedReachSet = new Set(extendedReachTargets);
+  const boughtRangeById = new Map(boughtRangeTargets.map((t) => [t.id, t]));
   const closedSet = new Set(closedRegions);
   const friendlySet = new Set(friendlyOwners);
 
@@ -668,6 +693,10 @@ export const ProBoard = ({
     // target ONLY because a LARGE fighter is involved (2-space melee reach). Mark
     // it so the 2-space attack doesn't read as a bug. Presentation only.
     const isExtendedReachTarget = isTarget && extendedReachSet.has(f.id);
+    // Bought-range target (issue #668): legal ONLY because tokens will be spent.
+    // `isTarget` gates it so a stale price can never light a token the server is
+    // not currently offering.
+    const boughtRange = isTarget ? (boughtRangeById.get(f.id) ?? null) : null;
     const isFriendly = friendlySet.has(f.owner);
     // A CHOOSE_SPACE prompt highlights the space *under* the token, and the
     // token (zIndex 4) sits above the space hit-circle (zIndex 3) — a click
@@ -940,6 +969,32 @@ export const ProBoard = ({
             reach 2
           </Flex>
         )}
+        {segment === "head" && boughtRange && (
+          <Flex
+            position="absolute"
+            top="-46%"
+            left="50%"
+            transform="translateX(-50%)"
+            // Violet chip on the violet ring, so the price and the ring that
+            // announces it read as one thing rather than two annotations.
+            bg="#C58BE8"
+            color="#241033"
+            borderRadius="999px"
+            px="0.45em"
+            fontSize="0.55rem"
+            fontWeight="bold"
+            letterSpacing="0.02em"
+            lineHeight="1.5"
+            whiteSpace="nowrap"
+            boxShadow="0 1px 3px rgba(0,0,0,0.7)"
+            // The whole point of the chip: the cost is legible BEFORE the click,
+            // because the engine deducts it the instant the attack is declared and
+            // there is no confirmation step to change your mind in.
+            title={boughtRange.blurb}
+          >
+            {boughtRange.chip}
+          </Flex>
+        )}
       </>
     );
 
@@ -1066,7 +1121,11 @@ export const ProBoard = ({
         border={tokenLifeOn ? "none" : bodyBorder}
         opacity={tokenLifeOn ? 1 : bodyOpacity}
         boxShadow={boxShadow}
-        animation={isTarget ? `${highlightPulse} 1.4s ease-in-out infinite` : undefined}
+        animation={
+          isTarget
+            ? `${boughtRange ? boughtRangePulse : highlightPulse} 1.4s ease-in-out infinite`
+            : undefined
+        }
         cursor={clickable || s.zones.length ? "pointer" : "default"}
         // Actionable tokens keep their action; a non-actionable token toggles the
         // zone preview for its space (issue #413) — occupied spaces sit under the
@@ -1091,9 +1150,11 @@ export const ProBoard = ({
         justifyContent="center"
         zIndex={4}
         title={
-          isExtendedReachTarget
-            ? `${f.name} — ${f.hp}/${f.maxHp} HP · ${LARGE_REACH_TARGET_BLURB}`
-            : `${f.name} — ${f.hp}/${f.maxHp} HP`
+          boughtRange
+            ? `${f.name} — ${f.hp}/${f.maxHp} HP · ${boughtRange.blurb}`
+            : isExtendedReachTarget
+              ? `${f.name} — ${f.hp}/${f.maxHp} HP · ${LARGE_REACH_TARGET_BLURB}`
+              : `${f.name} — ${f.hp}/${f.maxHp} HP`
         }
       >
         {body}

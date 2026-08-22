@@ -121,3 +121,102 @@ describe("Skull Kid (zmGV) art is committed, local and full-bleed", () => {
     expect(new Set(titles.map(norm)).size).toBe(cards.length);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Cecil Palmer's art is SELF-HOSTED and FULL-BLEED (issue #668), the same
+// contract Skull Kid ships under. Two of his thirteen faces are separable only
+// by reading them (Eternal Scout Badge / Interloper! are both DEFENCE 2/1 x2),
+// so a title that drifts here silently swaps two cards rather than blanking one.
+// ---------------------------------------------------------------------------
+
+describe("Cecil Palmer (37z5) art is committed, local and full-bleed", () => {
+  const deck = readDeck("37z5");
+  const cards = deck.deck_data.cards as {
+    title: string;
+    type: string;
+    value: number | null;
+    boost: number;
+    quantity: number;
+    imageUrl: string;
+    cardImage?: { url: string };
+  }[];
+
+  it("ships every card face as a file that actually exists in the repo", () => {
+    expect(cards).toHaveLength(13);
+    for (const card of cards) {
+      expect(card.cardImage?.url).toBe(card.imageUrl); // full-bleed AND template path agree
+      expect(card.imageUrl).toMatch(/^\/evergreen-decks\/art\/37z5\/[a-z0-9-]+\.webp$/);
+      expect(existsSync(join(DECKS_DIR, "..", card.imageUrl.replace(/^\//, "")))).toBe(true);
+    }
+  });
+
+  it("ships the cardback and BOTH token portraits locally", () => {
+    // The sidekick's portrait matters as much as the hero's here: Khoshekh is a
+    // real fighter on the board, and Plastic bags is his card.
+    for (const url of [
+      deck.deck_data.appearance.cardbackUrl as string,
+      deck.deck_data.hero.tokenImageUrl as string,
+      deck.deck_data.sidekick.tokenImageUrl as string,
+    ]) {
+      expect(url).toMatch(/^\/evergreen-decks\/art\/37z5\//);
+      expect(existsSync(join(DECKS_DIR, "..", url.replace(/^\//, "")))).toBe(true);
+    }
+  });
+
+  it("mirrors the hero card, the rule card and the cover alongside the faces", () => {
+    // Not referenced by the snapshot, but part of "every image mirrored": the
+    // deck must remain reproducible with the club offline.
+    for (const file of ["hero-card.webp", "broadcast-tokens.webp", "cover.webp"]) {
+      expect(existsSync(join(DECKS_DIR, "art", "37z5", file))).toBe(true);
+    }
+  });
+
+  it("leaves no remote asset URL anywhere in the shipped deck data", () => {
+    const urls = (JSON.stringify(deck).match(/https?:\\?\/\\?\/[^"\\]+/g) ?? []).map((u) =>
+      u.replace(/\\/g, "")
+    );
+    expect(urls).toEqual(["https://www.the-unmatched.club/c/heroes/cecil-palmer.13514"]);
+  });
+
+  it("keeps every verbatim title the art index is keyed on", () => {
+    const titles = cards.map((c) => c.title);
+    expect(titles).toEqual(
+      expect.arrayContaining([
+        "Good Night, Night Vale. Good Night.", // sentence-case "Night Vale.", the period included
+        "No Dogs in the dog park", // capital D on Dogs, lowercase dog park
+        "Here's something odd",
+        "Glow Cloud (ALL HAIL)",
+        "They do not exist and you should not know about them", // no comma; the club render prints one
+      ])
+    );
+    expect(new Set(cards.map((c) => c.imageUrl)).size).toBe(cards.length);
+    expect(new Set(titles.map(norm)).size).toBe(cards.length);
+  });
+
+  it("keeps the ENGINE's trailing space on 'drink to forget ', and norm() forgives it", () => {
+    // The engine rules.ts title ends in an ordinary space (U+0020); the 37z5 API
+    // payload ends the same title in a NON-BREAKING space (U+00A0). This snapshot
+    // follows the ENGINE, verbatim — and norm() trims both, so art resolution can
+    // never depend on which of the two a future re-pull happens to bring back.
+    const title = cards.map((c) => c.title).find((t) => t.startsWith("If you see something"))!;
+    expect(title).toBe("If you see something, say nothing and drink to forget ");
+    expect(title.endsWith("\u00A0")).toBe(false); // the payload's NBSP is NOT what shipped
+    expect(norm(title)).toBe(norm("If you see something, say nothing and drink to forget\u00A0"));
+  });
+
+  it("pairs each of the two look-alike faces with the right render", () => {
+    // Both are DEFENCE 2/1 x2; only the printed title separates them, and a
+    // (type, value, boost, count) match would have swapped them silently.
+    const bySlug = (slug: string) => cards.find((c) => c.imageUrl.endsWith(`/${slug}.webp`))!.title;
+    expect(bySlug("eternal-scout-badge")).toBe("Eternal Scout Badge");
+    expect(bySlug("interloper")).toBe("Interloper!");
+    // The other trap: both VERSATILE 3/2, separable only by COUNT.
+    const byTitle = (t: string) => cards.find((c) => c.title === t)!;
+    expect(byTitle("Kill your double").quantity).toBe(3);
+    expect(byTitle("Here's something odd").quantity).toBe(2);
+  });
+
+  it("totals 30 cards, the deck the engine converted", () => {
+    expect(cards.reduce((n, c) => n + c.quantity, 0)).toBe(30);
+  });
+});

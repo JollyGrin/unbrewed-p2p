@@ -143,6 +143,7 @@ import { formatChoice, PRO_FORMATS, ProFormatId, teamComposition } from "@/lib/p
 import { deriveTeams } from "@/lib/pro/teams";
 import { fighterTokenStateByOwner } from "@/lib/pro/heroStateFlags";
 import { clockTowerMitigationLine } from "@/lib/pro/clockTower";
+import { boughtRangeAttacks, boughtRangeBlurb, boughtRangeChip } from "@/lib/pro/rangePurchase";
 import { CosmeticRimTier } from "@/lib/pro/cosmetics";
 import { seatCosmetics, tokenRimForSeat } from "@/lib/pro/seatCosmetics";
 import { useHideOpponentCosmetics } from "@/lib/pro/useHideOpponentCosmetics";
@@ -4001,6 +4002,31 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
     legalActions.filter(isExtendedReach).map((a) => (a as { target: FighterId }).target)
   );
 
+  // Bought attack range (issue #668 ↔ engine #456). Cecil Palmer's rule card lets a
+  // declaration SPEND Broadcast tokens for extra reach, and engine RULING R5 keeps
+  // that off the wire entirely: `legalActions` just contains an attack on a fighter
+  // three spaces away, and the tokens are auto-deducted the instant it is declared.
+  // So the client reprices the server's own offers with the SAME predicate the engine
+  // enumerated them with (lib/pro/rangePurchase.ts), purely to say what it costs
+  // BEFORE the click. We explain what the server offered; we never re-check legality,
+  // and a cost we cannot derive simply annotates nothing.
+  const boughtRange = boughtRangeAttacks(view, legalActions);
+  const rangePurchaseChip = (a: Action) => {
+    if (a.type !== "DECLARE_ATTACK") return null;
+    const b = boughtRange.find((x) => x.attacker === a.attacker && x.target === a.target);
+    return b ? { chip: boughtRangeChip(b), blurb: boughtRangeBlurb(b) } : null;
+  };
+  // The BOARD price is looked up through `attackActions` rather than over the whole
+  // offer list, because a board click sends exactly ONE of a target's offers (that
+  // map is keyed by target, last write wins — the #161 ambiguity the dock exists to
+  // resolve). Pricing the same action the click will send is what keeps the chip
+  // honest when two of Cecil's fighters can reach one enemy at different prices —
+  // e.g. Khoshekh adjacent for free while Cecil pays 2 to cross the room.
+  const boughtRangeTargets = [...attackActions.values()].flatMap((a) => {
+    const priced = rangePurchaseChip(a);
+    return priced && a.type === "DECLARE_ATTACK" ? [{ id: a.target, ...priced }] : [];
+  });
+
   // Prompts answer via the board too: a CHOOSE_SPACE option names its space in
   // option.id (place ops), option.data.space, or option.label (token ops label
   // a token's space, e.g. destroy-totem); CHOOSE_TARGET options a fighter id.
@@ -4773,6 +4799,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
           friendlyOwners={friendlyOwners}
           fighterBadges={attackerBadge}
           extendedReachTargets={[...extendedReachTargets]}
+          boughtRangeTargets={boughtRangeTargets}
           fighterTokenArt={fighterTokenArt}
           fighterTokenBadge={(f) => ownerTokenState[f.owner]?.badge ?? null}
           fighterTokenRim={fighterTokenRim}
@@ -4950,6 +4977,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
         soleAction={sole}
         describe={(a) => describeAction(view.catalog, a, { nameOf, attackerBadge, itemLabelForSpace: liveItemLabel })}
         isExtendedReach={isExtendedReach}
+        rangePurchaseChip={rangePurchaseChip}
         fighterFace={fighterFace}
         attackerBadge={attackerBadge}
         onAction={sendAction}
