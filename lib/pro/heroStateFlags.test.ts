@@ -684,3 +684,63 @@ describe("Skull Kid's TIME counter (down counter, 5 → 0)", () => {
     expect(fighterTokenCounterBadgeFor("king-kong", { TIME: 3 })).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Cecil Palmer's BROADCAST dial (issue #668 ↔ engine #456) — an UP counter with a
+// ceiling, and the first whose value is also a RANGE: every token on it is one
+// more space his attacks can reach. Both surfaces, both seats, or the opponent
+// cannot tell which of their fighters are safe.
+// ---------------------------------------------------------------------------
+
+describe("Cecil Palmer's BROADCAST counter (up counter, 0 → 6)", () => {
+  it("registers BROADCAST on the exact engine key, with both surfaces and the printed max", () => {
+    const b = HERO_STATE_COUNTERS.find((e) => e.heroes.includes("cecil-palmer"));
+    expect(b).toBeDefined();
+    // cecil-palmer.rules.ts: counters: [{ name: 'BROADCAST', max: 6 }] — singular key,
+    // never the "Broadcast tokens" flavour the rule card prints.
+    expect(b!.counter).toBe("BROADCAST");
+    expect(b!.outOf).toBe(6);
+    expect(b!.nameplate?.labelTemplate).toBe("BROADCAST {n}/{max}");
+    expect(b!.token).toMatchObject({ title: "BROADCAST" });
+  });
+
+  it("reads the live dial as n/max on the nameplate and the token alike", () => {
+    expect(counterChipsFor("cecil-palmer", { BROADCAST: 4 })[0].chip.onLabel).toBe("BROADCAST 4/6");
+    expect(counterChipsFor("cecil-palmer", { BROADCAST: 6 })[0].chip.flag).toBe("counter:BROADCAST");
+    expect(fighterTokenCounterBadgeFor("cecil-palmer", { BROADCAST: 2 })).toMatchObject({
+      icon: "📻",
+      label: "2/6",
+      title: "BROADCAST: 2/6",
+      showLabel: true,
+    });
+  });
+
+  it("HIDES at 0 — unlike Skull Kid's clock, an empty dial is the opening state", () => {
+    // No `showAtZero`: Cecil starts with nothing and earns upward, so 0 is the
+    // default rather than a moment. (And the engine drops an emptied key anyway,
+    // so an absent BROADCAST and a zero one are the same wire state.)
+    expect(counterChipsFor("cecil-palmer", { BROADCAST: 0 })).toEqual([]);
+    expect(counterChipsFor("cecil-palmer", {})).toEqual([]);
+    expect(fighterTokenCounterBadgeFor("cecil-palmer", { BROADCAST: 0 })).toBeNull();
+  });
+
+  it("renders the dial on EITHER seat's token — the count is public (RULING R8)", () => {
+    // "Face down" in the rule card means UNEARNED, not secret: the opponent is
+    // entitled to know how far Cecil can currently reach.
+    const state = fighterTokenStateByOwner([
+      { id: "p1", heroId: "king-kong", counters: {} },
+      { id: "p2", heroId: "cecil-palmer", counters: { BROADCAST: 5 } },
+    ]);
+    expect(state.p2!.badge).toMatchObject({ label: "5/6", title: "BROADCAST: 5/6" });
+    expect(state.p1).toBeUndefined();
+  });
+
+  it("never leaks BROADCAST onto another hero's surfaces", () => {
+    expect(counterChipsFor("cairne-bloodhoof", { BROADCAST: 3 })).toEqual([]);
+    expect(fighterTokenCounterBadgeFor("nancy-drew", { BROADCAST: 3 })).toBeNull();
+    // Skull Kid's plate still shows only HIS dial, at its own showAtZero reading.
+    expect(counterChipsFor("skull-kid", { BROADCAST: 3 }).map((c) => c.chip.onLabel)).toEqual([
+      "TIME 0/5",
+    ]);
+  });
+});

@@ -1675,3 +1675,81 @@ describe("counterChangeLines suppresses engine bookkeeping counters", () => {
     ]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Cecil Palmer's bought attack range (issue #668 ↔ engine #456). The purchase has
+// no event of its own by design — it IS a COUNTER_CHANGED that happens to arrive
+// beside an ATTACK_DECLARED — so the log is the only place a player learns why
+// their dial dropped. The pairing logic lives in lib/pro/rangePurchase.ts; what is
+// pinned here is that diffViews actually routes through it, and that the generic
+// wording still governs everything else.
+// ---------------------------------------------------------------------------
+
+describe("range purchases in the activity feed", () => {
+  const CECIL = "cecil-palmer";
+  // `playersById` re-derives the viewer's row from `view.self`, so a fixture has to
+  // set BOTH or the counters it reads back are the empty defaults.
+  const base = view({});
+  const seats = (counters: Record<string, number>, heroId = CECIL): Partial<PlayerView> => ({
+    self: { ...base.self, heroId, counters },
+    opponent: { ...base.opponent!, heroId: "mandalorian" },
+    players: [
+      { ...base.players[0], heroId, counters },
+      { ...base.players[1], heroId: "mandalorian" },
+    ],
+  });
+  const fighters = [
+    fighter({ id: "p1/hero", owner: "p1", name: "Cecil Palmer" }),
+    fighter({ id: "p2/hero", owner: "p2", name: "Mandalorian", space: "s4" }),
+  ];
+  const attackBatch: GameEvent[] = [
+    { type: "ATTACK_DECLARED", attacker: "p1/hero", target: "p2/hero" },
+    { type: "COUNTER_CHANGED", player: "p1", name: "BROADCAST", value: 2 },
+  ];
+  const before = view({ ...seats({ BROADCAST: 4 }), fighters });
+  const after = view({
+    ...seats({ BROADCAST: 2 }),
+    fighters,
+    combat: combat({ attacker: "p1/hero", target: "p2/hero" }),
+  });
+
+  it("names the spend, the target and the reason — on BOTH seats", () => {
+    for (const you of ["p1", "p2"] as PlayerId[]) {
+      const lines = diffViews({ ...before, you }, { ...after, you }, label, attackBatch);
+      expect(lines.map((l) => l.text)).toContain(
+        "Cecil Palmer spent 2 Broadcast tokens to reach Mandalorian"
+      );
+      // and never the generic wording alongside it — one line, not two
+      expect(lines.map((l) => l.text)).not.toContain("spent 2 BROADCAST (2 remaining)");
+    }
+  });
+
+  it("leaves the GAIN generic — earning tokens is not a purchase", () => {
+    const gained = view({ ...seats({ BROADCAST: 5 }), fighters });
+    const lines = diffViews(before, gained, label, [
+      { type: "COUNTER_CHANGED", player: "p1", name: "BROADCAST", value: 5 },
+    ]);
+    expect(lines.map((l) => l.text)).toContain("gained 1 BROADCAST (5 total)");
+  });
+
+  it("leaves a BROADCAST drop with no attack in the batch generic", () => {
+    const lines = diffViews(before, view({ ...seats({ BROADCAST: 2 }), fighters }), label, [
+      { type: "COUNTER_CHANGED", player: "p1", name: "BROADCAST", value: 2 },
+    ]);
+    expect(lines.map((l) => l.text)).toContain("spent 2 BROADCAST (2 remaining)");
+  });
+
+  it("does not reword another deck's counter that happens to move during an attack", () => {
+    const rageBefore = view({ ...seats({ RAGE: 3 }, "cairne-bloodhoof"), fighters });
+    const rageAfter = view({
+      ...seats({ RAGE: 1 }, "cairne-bloodhoof"),
+      fighters,
+      combat: combat({ attacker: "p1/hero", target: "p2/hero" }),
+    });
+    const lines = diffViews(rageBefore, rageAfter, label, [
+      { type: "ATTACK_DECLARED", attacker: "p1/hero", target: "p2/hero" },
+      { type: "COUNTER_CHANGED", player: "p1", name: "RAGE", value: 1 },
+    ]);
+    expect(lines.map((l) => l.text)).toContain("spent 2 RAGE (1 remaining)");
+  });
+});
