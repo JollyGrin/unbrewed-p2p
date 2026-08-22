@@ -159,6 +159,8 @@ const ALL_EVENTS: GameEvent[] = [
   // v29 per-fighter markers (issue #596 ↔ engine #360).
   { type: "FIGHTER_MARKED", fighter: "p2/hero", name: "MERIDIAN", count: 1, total: 1, expiresAtTurn: null, expiresAt: null },
   { type: "FIGHTER_MARKS_CLEARED", fighter: "p2/hero", name: "MERIDIAN", removed: 1 },
+  // v31 atomic position swap (protocol v31 ↔ engine #445) — an allowlisted new-line event.
+  { type: "POSITIONS_SWAPPED", a: "p1/hero", b: "p2/hero", aTo: ["s2"], bTo: ["s1"] },
 ];
 
 // The allowlist — event types enrichLines is permitted to turn into new lines.
@@ -187,6 +189,7 @@ const ALLOWLIST = new Set([
   "HAND_KEPT",
   "FIGHTER_MARKED",
   "FIGHTER_MARKS_CLEARED",
+  "POSITIONS_SWAPPED",
 ]);
 
 describe("enrichLines", () => {
@@ -656,7 +659,7 @@ describe("enrichLines", () => {
       // A discard is an annotation-only type; add it so the roster is exhaustive.
       seen.add("CARD_DISCARDED");
       // Sanity: the allowlist is a subset of what the union offers.
-      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "COMBAT_VALUE_BREAKDOWN", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_REVEALED", "CARD_TUCKED", "CARD_RETURNED_FROM_PILE", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED", "FIGHTER_MARKED", "FIGHTER_MARKS_CLEARED", "MULLIGAN_TAKEN", "HAND_KEPT"]).toContain(t);
+      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "COMBAT_VALUE_BREAKDOWN", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_REVEALED", "CARD_TUCKED", "CARD_RETURNED_FROM_PILE", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED", "FIGHTER_MARKED", "FIGHTER_MARKS_CLEARED", "MULLIGAN_TAKEN", "HAND_KEPT", "POSITIONS_SWAPPED"]).toContain(t);
     });
   });
 
@@ -664,6 +667,104 @@ describe("enrichLines", () => {
   // gap the view-diff misses because up to three combats reuse the one state.combat
   // slot, so `!prev.combat` never fires for combats 2/3. ctx().fighter strips the
   // "<pid>/" prefix in these fixtures ("hero", "sidekick-1").
+  // v31 atomic position swap (protocol v31 ↔ engine #445, DSL v0.46.0). Modelled
+  // on the v27 FIGHTER_REMOVED case: the diff CANNOT narrate this correctly on
+  // its own (it sees two space changes and calls them two walks), so the event
+  // owns the line and the diff's move branch stands down for both fighters.
+  describe("POSITIONS_SWAPPED (protocol v31)", () => {
+    const swap: GameEvent = {
+      type: "POSITIONS_SWAPPED",
+      a: "p1/hero",
+      b: "p2/hero",
+      aTo: ["s2"],
+      bTo: ["s1"],
+    };
+
+    it("names both fighters in one neutral line", () => {
+      expect(enrichLines([], [swap], ctx())).toEqual([
+        { text: "hero and hero swapped places", who: "game" },
+      ]);
+    });
+
+    it("uses the view's fighter names, not raw ids", () => {
+      const named: EnrichContext = {
+        ...ctx(),
+        fighter: (id) => (id === "p1/hero" ? "Skull Kid" : "Thrall"),
+      };
+      expect(enrichLines([], [swap], named)[0].text).toBe("Skull Kid and Thrall swapped places");
+    });
+
+    it("replaces the two 'moved' lines rather than adding a third", () => {
+      // Both heroes exchange spaces in one batch. Without the suppression this
+      // read as two unrelated walks ("King Taranis moved" / "Thrall moved").
+      const before = view({});
+      const after = view({
+        fighters: [
+          fighter({ space: "s2" }),
+          fighter({ id: "p2/hero", owner: "p2", name: "Thrall", space: "s1" }),
+        ],
+      });
+      const lines = enrichLines(diffViews(before, after, label, [swap]), [swap], ctx());
+      expect(lines.some((l) => /moved$/.test(l.text))).toBe(false);
+      expect(lines).toContainEqual({ text: "hero and hero swapped places", who: "game" });
+    });
+
+    it("still narrates an ORDINARY move in the same batch", () => {
+      // A third fighter that walked is untouched by the swap suppression.
+      const larry = fighter({ id: "p1/sidekick-1", kind: "SIDEKICK", name: "Larry", space: "s3" });
+      const before = view({ fighters: [fighter({}), fighter({ id: "p2/hero", owner: "p2", name: "Thrall", space: "s2" }), larry] });
+      const after = view({
+        fighters: [
+          fighter({ space: "s2" }),
+          fighter({ id: "p2/hero", owner: "p2", name: "Thrall", space: "s1" }),
+          { ...larry, space: "s4" },
+        ],
+      });
+      const lines = diffViews(before, after, label, [swap]);
+      expect(lines).toContainEqual({ text: "Larry moved", who: "you" });
+      expect(lines.some((l) => /^(King Taranis|Thrall) moved$/.test(l.text))).toBe(false);
+    });
+
+    it("leaves the move lines alone on a pre-v31 (event-free) batch", () => {
+      const before = view({});
+      const after = view({
+        fighters: [
+          fighter({ space: "s2" }),
+          fighter({ id: "p2/hero", owner: "p2", name: "Thrall", space: "s1" }),
+        ],
+      });
+      const lines = diffViews(before, after, label, []);
+      expect(lines).toContainEqual({ text: "King Taranis moved", who: "you" });
+      expect(lines).toContainEqual({ text: "Thrall moved", who: "opp" });
+    });
+  });
+
+  // The transient `reveal` op (protocol v31 ↔ engine #445) emits the SAME
+  // CARD_REVEALED as revealCompareBoost, but now possibly with no combat open
+  // and from the deck top as well as from hand. The line is source-neutral by
+  // necessity — {player, card} is all the wire carries — so it reads correctly
+  // for both origins and claims neither.
+  describe("CARD_REVEALED outside combat (protocol v31)", () => {
+    it("narrates a reveal with no combat in the view", () => {
+      const out = enrichLines(diffViews(view({}), view({}), label, []), [
+        { type: "CARD_REVEALED", player: "p2", card: "skull-kid/the-clock-tower#1" },
+      ], ctx());
+      expect(out).toContainEqual({
+        text: "Opponent revealed the-clock-tower",
+        who: "opp",
+        cards: ["skull-kid/the-clock-tower#1"],
+      });
+    });
+
+    it("never claims an origin — a DECK_TOP reveal must not read 'from hand'", () => {
+      const out = enrichLines([], [
+        { type: "CARD_REVEALED", player: "p1", card: "skull-kid/the-clock-tower#1" },
+      ], ctx());
+      expect(out[0].text).toBe("You revealed the-clock-tower");
+      expect(out[0].text).not.toMatch(/from hand|top of deck/);
+    });
+  });
+
   describe("General Grievous nested combat (issue #288)", () => {
     const line = (event: GameEvent) => enrichLines([], [event], ctx())[0];
 
