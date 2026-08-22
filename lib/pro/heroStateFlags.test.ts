@@ -604,3 +604,83 @@ describe("HERO_STATE_FLAGS — Kenshiro's buff + condition pills", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Skull Kid's TIME dial (issue #663 ↔ engine #449) — the registry's first DOWN
+// counter, and the first with a declared ceiling. It is the deck's whole public
+// state, so both surfaces must read it for BOTH seats, including at 0 (the
+// instant of the Clock Tower strike).
+// ---------------------------------------------------------------------------
+
+describe("Skull Kid's TIME counter (down counter, 5 → 0)", () => {
+  it("registers TIME on the exact engine key, with both surfaces and the declared max", () => {
+    const time = HERO_STATE_COUNTERS.find((e) => e.heroes.includes("skull-kid"));
+    expect(time).toBeDefined();
+    // skull-kid.rules.ts: counters: [{ name: 'TIME', max: 5 }, { name: 'MITIGATION', max: 5 }]
+    expect(time!.counter).toBe("TIME");
+    expect(time!.outOf).toBe(5);
+    expect(time!.showAtZero).toBe(true);
+    expect(time!.nameplate?.labelTemplate).toBe("TIME {n}/{max}");
+    expect(time!.token).toMatchObject({ title: "TIME" });
+  });
+
+  it("never registers MITIGATION — engine bookkeeping, suppressed by omission", () => {
+    // The registry is opt-in, so "no row" IS the suppression: a MITIGATION value
+    // mid-strike must not reach either surface.
+    expect(HERO_STATE_COUNTERS.some((e) => e.counter === "MITIGATION")).toBe(false);
+    expect(counterChipsFor("skull-kid", { TIME: 0, MITIGATION: 3 })).toEqual([
+      expect.objectContaining({ chip: expect.objectContaining({ onLabel: "TIME 0/5" }) }),
+    ]);
+    expect(fighterTokenCounterBadgeFor("skull-kid", { TIME: 0, MITIGATION: 3 })).toMatchObject({
+      label: "0/5",
+    });
+  });
+
+  it("reads the live clock on the nameplate pill as n/max", () => {
+    expect(counterChipsFor("skull-kid", { TIME: 5, MITIGATION: 0 })[0].chip.onLabel).toBe("TIME 5/5");
+    expect(counterChipsFor("skull-kid", { TIME: 3, MITIGATION: 0 })[0].chip.onLabel).toBe("TIME 3/5");
+    expect(counterChipsFor("skull-kid", { TIME: 1, MITIGATION: 0 })[0].chip.flag).toBe("counter:TIME");
+  });
+
+  it("reads the live clock on the board token as n/max", () => {
+    expect(fighterTokenCounterBadgeFor("skull-kid", { TIME: 2 })).toMatchObject({
+      icon: "⏳",
+      label: "2/5",
+      title: "TIME: 2/5",
+      showLabel: true,
+    });
+  });
+
+  it("KEEPS both surfaces at 0 — the strike is the moment they matter most", () => {
+    expect(counterChipsFor("skull-kid", { TIME: 0 })).toHaveLength(1);
+    expect(fighterTokenCounterBadgeFor("skull-kid", { TIME: 0 })).not.toBeNull();
+  });
+
+  it("reads an ABSENT TIME key as 0 — that is how an emptied dial reaches the wire", () => {
+    // The engine deletes a counter key the moment it hits zero, so the whole Clock
+    // Tower strike is broadcast with no TIME at all. Reading that as "no clock" would
+    // blank both surfaces at exactly the wrong moment.
+    expect(counterChipsFor("skull-kid", { MITIGATION: 3 })[0].chip.onLabel).toBe("TIME 0/5");
+    expect(fighterTokenCounterBadgeFor("skull-kid", {})).toMatchObject({ label: "0/5" });
+  });
+
+  it("leaves every other counter deck hiding at 0 (showAtZero is opt-in)", () => {
+    expect(counterChipsFor("nancy-drew", { CLUE: 0 })).toEqual([]);
+    expect(counterChipsFor("cairne-bloodhoof", { RAGE: 0 })).toEqual([]);
+    expect(fighterTokenCounterBadgeFor("nancy-drew", { CLUE: 0 })).toBeNull();
+  });
+
+  it("renders the clock on EITHER seat's token — the counter is public", () => {
+    const state = fighterTokenStateByOwner([
+      { id: "p1", heroId: "skull-kid", counters: { TIME: 4, MITIGATION: 0 } },
+      { id: "p2", heroId: "king-kong", counters: {} },
+    ]);
+    expect(state.p1!.badge).toMatchObject({ label: "4/5", title: "TIME: 4/5" });
+    expect(state.p2).toBeUndefined();
+  });
+
+  it("never leaks TIME onto another hero's surfaces", () => {
+    expect(counterChipsFor("king-kong", { TIME: 3 })).toEqual([]);
+    expect(fighterTokenCounterBadgeFor("king-kong", { TIME: 3 })).toBeNull();
+  });
+});

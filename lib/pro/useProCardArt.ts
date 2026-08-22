@@ -120,6 +120,27 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // never be routed to the art-generation pipeline. The two publications disagree on
   // three boosts — the snapshot follows 6rDz/the engine; see the deck note.
   kenshiro: "6rDz",
+  // Skull Kid — Majora's Mask (issue #663 ↔ engine #449/#448): community deck zmGV
+  // by AndSushi with DreamCarver, the COUNTDOWN deck. The deck id is the real
+  // unmatched.cards one, which is also the source skull-kid.rules.ts was converted
+  // from, so the snapshot's rules fields are engine-exact.
+  //
+  // EVERGREEN IN THE STRICT SENSE (Dean, 2026-08-22): the author hotlinked every
+  // image on i.imgur.com, and all of it — 12 card faces, the hero card, the "The
+  // Clock Tower" rule card and the cardback — is mirrored under
+  // public/evergreen-decks/art/zmGV/, with the snapshot's URLs rewritten to those
+  // local paths. Nothing about this deck touches a remote host at runtime.
+  //
+  // The faces are loose ILLUSTRATIONS, not finished full-card renders, so they ride
+  // per-card `imageUrl` through the generated card template (Cairne precedent), NOT
+  // the full-bleed `cardImage` path Kenshiro/Luke/the Sith decks use.
+  //
+  // Public state contract: ONE counter, `TIME` (5 -> 0, max 5) — the Clock Tower
+  // dial, registered on BOTH nameplate and token in HERO_STATE_COUNTERS. The deck's
+  // second declared counter, `MITIGATION`, is engine bookkeeping and is deliberately
+  // NOT registered (the registry is opt-in, so an unregistered counter renders
+  // nowhere). No flags, no markers.
+  "skull-kid": "zmGV",
 };
 
 /**

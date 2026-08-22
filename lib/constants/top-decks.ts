@@ -698,4 +698,31 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl: "/evergreen-decks/art/6rDz/cardback.webp",
     sourceUrl: "https://unmatched.cards/decks/6rDz/versions/WvW4T24Nq",
   },
+  {
+    // Pro deck (unmatched.cards zmGV / version 8AgKtkkwX) — server hero skull-kid
+    // (issue #663 ↔ engine #449, engine issue #448). The COUNTDOWN deck: a public
+    // TIME dial ticks 5 -> 0 and the Clock Tower detonates for 5 on every opposing
+    // fighter. Real unmatched.cards page, so no `original` and the lobby deep-link
+    // is derived from `id` (Kenshiro precedent); `sourceUrl` pins the exact version
+    // the engine converted from.
+    //
+    // Engine serves this hero at tier `lab` — playable, balance not final — so the
+    // tile carries the caution badge and `tier` mirrors the server listing.
+    id: "zmGV",
+    name: "Skull Kid (Majora's Mask)",
+    hero: "Skull Kid",
+    // Co-authored on the source page: "This deck was created in collaboration with
+    // the user DreamCarver."
+    author: "AndSushi + DreamCarver",
+    likes: 10,
+    // Majora purple, off the deck's own cardback (the source deck's highlightColour).
+    highlightColour: "#2e0e4e",
+    lab: true,
+    tier: "lab",
+    // Repo-relative (Kenshiro/Luke/Vader precedent): the author's own cardback,
+    // mirrored off i.imgur.com so the tile renders on localhost and preview builds
+    // and the deck stays evergreen — the same file zmGV's appearance block hotlinks.
+    cardbackUrl: "/evergreen-decks/art/zmGV/cardback.webp",
+    sourceUrl: "https://unmatched.cards/decks/zmGV/versions/8AgKtkkwX",
+  },
 ];

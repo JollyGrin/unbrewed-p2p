@@ -347,6 +347,18 @@
         "file": "data/heroes/kenshiro.rules.ts",
         "commit": "885d585"
       }
+    },
+    {
+      "heroId": "skull-kid",
+      "deckId": "zmGV",
+      "version_id": "8AgKtkkwX",
+      "frozenAt": "2026-08-22",
+      "digest": "sha256:1c9435306faf8af9681291ae3100846ea9c94498e7e6e0fe43a723015b745763",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/skull-kid.rules.ts",
+        "commit": "2ac840a"
+      }
     }
   ]
 }

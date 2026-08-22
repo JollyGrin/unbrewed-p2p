@@ -1,0 +1,247 @@
+{
+  "bgg_link": null,
+  "created_on": "Mon, 04 Mar 2024 02:18:25 GMT",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#5af60a",
+      "cardbackUrl": "/evergreen-decks/art/zmGV/cardback.webp",
+      "highlightColour": "#2e0e4e",
+      "isPNP": false,
+      "patternName": ""
+    },
+    "cards": [
+      {
+        "afterText": "Draw 1 card. Your opponent may draw 2 cards. If they do, remove 1 Time from the Clock Tower. \n",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "SKULL KID",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/zmGV/you-re-running-out-of-time.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "You're running out of time",
+        "type": "attack",
+        "value": 5
+      },
+      {
+        "afterText": "Gain 1 action. Your opponent may move their fighter up to 3 spaces. If the opposing fighter is not adjacent to Skull Kid at the end of the current action, remove 1 Time.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "SKULL KID",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/zmGV/countdown.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Countdown",
+        "type": "attack",
+        "value": 2
+      },
+      {
+        "afterText": "If you won, remove 1 Time token from the Clock Tower. ",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "SKULL KID",
+        "duringText": "You may BOOST this card. ",
+        "imageUrl": "/evergreen-decks/art/zmGV/majora-s-flame.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Majora's Flame",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": "Your opponent returns the top card of their discard pile to their hand. Recover health equal to its BOOST value. ",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "SKULL KID",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/zmGV/you-ve-met-with-a-terrible-fate-haven-t-you.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "You've met with a terrible fate, haven't you",
+        "type": "versatile",
+        "value": 4
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "SKULL KID",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/zmGV/malevolence-and-mischief.webp",
+        "immediateText": "Swap the spaces of any 2 fighters. Then you may do so a second time. If you don't, draw 1 card.",
+        "quantity": 3,
+        "title": "Malevolence And Mischief",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "SKULL KID",
+        "duringText": "You may reveal your hand. If you do, ignore the value of your opponent's card. ",
+        "imageUrl": "/evergreen-decks/art/zmGV/your-true-face.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Your true Face",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "SKULL KID",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/zmGV/feint.webp",
+        "immediateText": "Cancel all effects on your opponent's card.",
+        "quantity": 2,
+        "title": "Feint",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "SKULL KID",
+        "duringText": "For every Time token currently removed from the Clock Tower, increase this card's value by +1.",
+        "imageUrl": "/evergreen-decks/art/zmGV/final-hour.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Final Hour",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "Draw 1 card. If you won, draw 2 cards instead.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "SKULL KID",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/zmGV/regroup.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Regroup",
+        "type": "versatile",
+        "value": 1
+      },
+      {
+        "afterText": "For every 2 points of damage Skull Kid received during this combat, remove 1 Time token from the Clock Tower.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "SKULL KID",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/zmGV/majora-s-wrath.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Majora's Wrath",
+        "type": "defence",
+        "value": 2
+      },
+      {
+        "afterText": null,
+        "basicText": "You and 1 opposing player of your choice each draw 1 card. Then reveal that player's hand. Choose 1 card in their hand and place it on the bottom of their deck.",
+        "boost": 3,
+        "characterName": "SKULL KID",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/zmGV/deku-curse.webp",
+        "immediateText": null,
+        "quantity": 2,
+        "title": "Deku Curse",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": null,
+        "basicText": "Choose a player. Reveal a random card from their hand. They choose 1 effect:\n• That player's hero takes damage equal to the revealed card's BOOST value. \n• Remove 2 Time from the Clock Tower. \n",
+        "boost": 2,
+        "characterName": "SKULL KID",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/zmGV/majora-s-thunder.webp",
+        "immediateText": null,
+        "quantity": 3,
+        "title": "Majora's Thunder",
+        "type": "scheme",
+        "value": null
+      }
+    ],
+    "extraCharacters": [],
+    "hero": {
+      "hp": 14,
+      "isRanged": false,
+      "move": 2,
+      "name": "Skull Kid",
+      "specialAbility": "DAWN OF THE FINAL DAY:\nAt the start of your turn remove 1 Time token from the Clock Tower.\n",
+      "tokenImageUrl": "/evergreen-decks/art/zmGV/token-skull-kid.webp"
+    },
+    "name": "Skull Kid",
+    "ruleCards": [
+      {
+        "content": "The 5 Time tokens start on this card.\n\nWhen all of the Time tokens have been removed from this card deal 5 damage to each opposing fighter. Your opponents may discard any number of cards to reduce the damage dealt to their own fighters by the sum of the BOOST values of the cards they discard this way. Then revert time (return all Time tokens to this card).\n",
+        "title": "The Clock Tower"
+      }
+    ],
+    "sidekick": {
+      "hp": null,
+      "isRanged": false,
+      "name": "Sidekick",
+      "quantity": 0,
+      "quote": ""
+    }
+  },
+  "deck_first_published_on": "Sat, 17 Jun 2023 16:41:04 GMT",
+  "deck_published": true,
+  "family_id": "zmGV",
+  "id": "zmGV",
+  "liked": false,
+  "likes": 10,
+  "name": "Skull Kid",
+  "note": "Rules-enforced Pro deck (server hero skull-kid), mirrored from unmatched.cards deck zmGV \"Skull Kid\" by AndSushi in collaboration with DreamCarver, version 8AgKtkkwX — the SAME source the engine converted from (data/heroes/skull-kid.rules.ts cites it), so every rules-relevant field here is engine-exact. A LAB deck: engine JollyGrin/unbrewed-engine#449 (engine issue #448), so balance and mechanics are not final. ART is the author’s own hotlinked image set, mirrored into public/evergreen-decks/art/zmGV/ so the deck renders with ZERO remote calls — not one remote image URL survives anywhere in the shipped data. Those images are loose ILLUSTRATIONS, not finished full-card renders, so each card rides the generated card template through per-card imageUrl (Cairne precedent), NOT the full-bleed cardImage path. The board-token portrait is a square crop of this deck’s own cardback; hero-card.webp and the-clock-tower.webp mirror the two character cards the API does not reference.",
+  "published": true,
+  "published_on": "Wed, 04 Feb 2026 03:49:49 GMT",
+  "tags": [
+    {
+      "name": "Melee Hero",
+      "slug": "melee-hero"
+    },
+    {
+      "name": "Feedback wanted",
+      "slug": "feedback-wanted"
+    },
+    {
+      "name": "Fully-arted",
+      "slug": "fully-arted"
+    },
+    {
+      "name": "Male Hero",
+      "slug": "male-hero"
+    },
+    {
+      "name": "Video game",
+      "slug": "video-game"
+    },
+    {
+      "name": "Fantasy",
+      "slug": "fantasy"
+    },
+    {
+      "name": "Legend of Zelda",
+      "slug": "legend-of-zelda"
+    },
+    {
+      "name": "Villain",
+      "slug": "villain"
+    },
+    {
+      "name": "Tested",
+      "slug": "tested"
+    }
+  ],
+  "updated_on": "Wed, 04 Feb 2026 03:49:49 GMT",
+  "user": "AndSushi",
+  "version_id": "8AgKtkkwX",
+  "version_name": "Initial version",
+  "sourceUrl": "https://unmatched.cards/decks/zmGV/versions/8AgKtkkwX"
+}
