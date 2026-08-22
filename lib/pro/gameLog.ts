@@ -18,6 +18,7 @@ import { boardObjectOriginFighter, boardObjectVisualFor } from "./boardObjects";
 import { FIGHTER_MARKER_BADGES } from "./fighterStatuses";
 import { deriveTeams, isViewerOnWinningTeam } from "./teams";
 import { sweptFighters } from "./sweep";
+import { swappedFighters } from "./positionSwap";
 import { combatOutcomeLogText } from "./combatOutcome";
 
 export interface ProLogLine {
@@ -371,10 +372,16 @@ export function diffViews(
   // with no DAMAGE_APPLIED — that hp change is bookkeeping, not combat, so skip
   // the phantom "took N damage" line and log a removal instead (issue #212).
   const swept = sweptFighters(events);
+  // A `POSITIONS_SWAPPED` (protocol v31) relocation is NOT a move: the two
+  // fighters exchanged spaces atomically, with no route and no FIGHTER_MOVED.
+  // Two bare "X moved" lines would report it as two unrelated walks, so the
+  // move branch skips them and the event's own line (below, in enrichLines)
+  // narrates the exchange as the single thing it was.
+  const swapped = swappedFighters(events);
   for (const f of next.fighters) {
     const was = prevFighters.get(f.id);
     if (!was) continue;
-    if (f.space !== was.space && f.space && was.space) {
+    if (f.space !== was.space && f.space && was.space && !swapped.has(f.id)) {
       lines.push({ text: `${f.name} moved`, who: whoOf(f.owner) });
     }
     if (f.hp < was.hp && !swept.has(f.id)) {
@@ -802,11 +809,31 @@ export function enrichLines(
         break;
       }
       case "CARD_REVEALED": {
+        // Emitted by `revealCompareBoost` since v12 and, since v31 (engine #445),
+        // by the generic transient `reveal` op too — which can fire OUTSIDE a
+        // combat window (Skull Kid's The Clock Tower, Cecil's They do not exist)
+        // and from the DECK TOP as well as from hand. Nothing here is
+        // combat-scoped, and the line names no origin: the wire event carries
+        // `{player, card}` only, so the client cannot know (and must not claim)
+        // whether the card came from a hand or off the top of a deck.
         const seat = ctx.seat(e.player);
         added.push({
           text: `${seat} revealed ${ctx.label(e.card)}`,
           who: whoOf(e.player),
           cards: [e.card],
+        });
+        break;
+      }
+
+      // v31 atomic position swap (protocol v31 ↔ engine #445). A TELEPORT, not a
+      // move: no path, no FIGHTER_MOVED, so this event is the ONLY record of the
+      // exchange — the diff's move branch above deliberately stays quiet for both
+      // fighters (see `swapped` in diffViews) and this is the line that replaces
+      // them. Mode 2 (a new line) because nothing it overlaps survives.
+      case "POSITIONS_SWAPPED": {
+        added.push({
+          text: `${ctx.fighter(e.a)} and ${ctx.fighter(e.b)} swapped places`,
+          who: "game",
         });
         break;
       }

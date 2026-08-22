@@ -119,6 +119,38 @@ describe("diffCombatCallouts", () => {
       const v = view({});
       expect(diffCombatCallouts(v, v, [])).toEqual([]);
     });
+
+    // Protocol v31 (engine #445): the new transient `reveal` op emits the SAME
+    // `CARD_REVEALED`, but it can fire with NO combat open at all (Skull Kid's
+    // The Clock Tower, Cecil's They do not exist) — until v31 the event only
+    // ever came out of `revealCompareBoost`, i.e. mid-combat. The overlay must
+    // not be combat-gated, and both seats must see it: the event reaches every
+    // seat unredacted by contract, and this differ is seat-agnostic.
+    it("fires an out-of-combat CARD_REVEALED for BOTH seats (v31 `reveal` op)", () => {
+      const events: GameEvent[] = [
+        { type: "CARD_REVEALED", player: "p2", card: "skull-kid/majoras-thunder#1" },
+      ];
+      const asP1 = view({ combat: null });
+      const asP2 = view({ you: "p2", combat: null });
+      expect(diffCombatCallouts(asP1, asP1, events)).toEqual([
+        { kind: "reveal", source: "skull-kid/majoras-thunder#1" },
+      ]);
+      expect(diffCombatCallouts(asP2, asP2, events)).toEqual([
+        { kind: "reveal", source: "skull-kid/majoras-thunder#1" },
+      ]);
+    });
+
+    it("fires a DECK_TOP reveal the same way — the wire event names no origin", () => {
+      const v = view({ combat: null });
+      // `reveal where:'DECK_TOP'` (The Clock Tower) is indistinguishable on the
+      // wire from a hand reveal: CARD_REVEALED carries {player, card} only.
+      const events: GameEvent[] = [
+        { type: "CARD_REVEALED", player: "p1", card: "skull-kid/the-clock-tower#2" },
+      ];
+      expect(diffCombatCallouts(v, v, events)).toEqual([
+        { kind: "reveal", source: "skull-kid/the-clock-tower#2" },
+      ]);
+    });
   });
 
   describe("effect ribbon — fired During/After-Combat effect (issue #380)", () => {
