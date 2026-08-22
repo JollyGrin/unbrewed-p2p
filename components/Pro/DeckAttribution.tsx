@@ -11,6 +11,11 @@ import type { PopularDeckMeta } from "@/lib/constants/top-decks";
  * — #428, #533). Otherwise community decks derive their unmatched.cards page
  * from the deck id. Evergreen originals with no source page return undefined and
  * the credit renders as plain text rather than a dead link.
+ *
+ * `sourceUrl` also wins for a deck that HAS an unmatched.cards page but is
+ * credited elsewhere: Skull Kid is mirrored from unmatched.cards `zmGV` yet is
+ * attributed to its authors' the-unmatched.club publication (#665), so the
+ * id-derived link must never override an explicit one.
  */
 export const deckAttributionHref = (deck: PopularDeckMeta): string | undefined =>
   deck.sourceUrl ??

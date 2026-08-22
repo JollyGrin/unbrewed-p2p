@@ -702,9 +702,18 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     // Pro deck (unmatched.cards zmGV / version 8AgKtkkwX) — server hero skull-kid
     // (issue #663 ↔ engine #449, engine issue #448). The COUNTDOWN deck: a public
     // TIME dial ticks 5 -> 0 and the Clock Tower detonates for 5 on every opposing
-    // fighter. Real unmatched.cards page, so no `original` and the lobby deep-link
-    // is derived from `id` (Kenshiro precedent); `sourceUrl` pins the exact version
-    // the engine converted from.
+    // fighter.
+    //
+    // ATTRIBUTION points at the AUTHORS' the-unmatched.club publication, not the
+    // unmatched.cards mirror the engine converted from (#665). Both pages are the
+    // same deck by the same authors; the club is where the FINISHED art this
+    // snapshot ships was published, so that is the page a reader should land on.
+    // `sourceUrl` wins over the id-derived unmatched.cards deep-link in
+    // deckAttributionHref, so every surface that credits this deck (the /pro
+    // roster tile, the /pro/game hero splash) links to the club — `original`
+    // stays off because the unmatched.cards page really does exist, it is just
+    // not the credit. The exact rules version the engine read (8AgKtkkwX) is
+    // recorded in the snapshot's `note` and in evergreen manifest.json instead.
     //
     // Engine serves this hero at tier `lab` — playable, balance not final — so the
     // tile carries the caution badge and `tier` mirrors the server listing.
@@ -723,6 +732,6 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     // mirrored off i.imgur.com so the tile renders on localhost and preview builds
     // and the deck stays evergreen — the same file zmGV's appearance block hotlinks.
     cardbackUrl: "/evergreen-decks/art/zmGV/cardback.webp",
-    sourceUrl: "https://unmatched.cards/decks/zmGV/versions/8AgKtkkwX",
+    sourceUrl: "https://www.the-unmatched.club/c/heroes/skull-kid-the-legend-of-zelda.2748",
   },
 ];

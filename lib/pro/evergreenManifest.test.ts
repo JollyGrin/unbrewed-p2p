@@ -93,11 +93,15 @@ describe("Skull Kid (zmGV) art is committed, local and full-bleed", () => {
 
   it("leaves no remote asset URL anywhere in the shipped deck data", () => {
     // The evergreen promise: zero remote calls at runtime. The ONLY URL that may
-    // survive is the attribution link, which is never fetched.
+    // survive is the attribution link, which is never fetched — and since #665
+    // that link is the AUTHORS' the-unmatched.club page, not the unmatched.cards
+    // mirror the rules text was converted from.
     const urls = (JSON.stringify(deck).match(/https?:\\?\/\\?\/[^"\\]+/g) ?? []).map((u) =>
       u.replace(/\\/g, "")
     );
-    expect(urls).toEqual(["https://unmatched.cards/decks/zmGV/versions/8AgKtkkwX"]);
+    expect(urls).toEqual([
+      "https://www.the-unmatched.club/c/heroes/skull-kid-the-legend-of-zelda.2748",
+    ]);
   });
 
   it("keeps every verbatim title the art index is keyed on", () => {
