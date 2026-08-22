@@ -125,6 +125,24 @@ const parseAbilities = (raw: string | undefined): Ability[] => {
     });
 };
 
+/**
+ * Rule cards ("The Clock Tower") carry the mechanic a hero ability only
+ * references, so they join the ability panel as further blocks — title as
+ * the heading, body collapsed to one paragraph.
+ */
+const parseRuleCards = (raw: unknown): Ability[] => {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((card) => card as Record<string, unknown>)
+    .map((card) => ({
+      name: String(card.title ?? "").trim().toUpperCase() || undefined,
+      text: String(card.content ?? "")
+        .replace(/\s+/g, " ")
+        .trim(),
+    }))
+    .filter((a) => a.text.length > 0);
+};
+
 const asCard = (raw: Record<string, unknown>): PromoCard => ({
   title: String(raw.title ?? ""),
   characterName: String(raw.characterName ?? ""),
@@ -205,7 +223,10 @@ export const loadDeckPromo = async (
       quote: String(hero.quote ?? "")
         .replace(/\s+/g, " ")
         .trim(),
-      abilities: parseAbilities(hero.specialAbility as string | undefined),
+      abilities: [
+        ...parseAbilities(hero.specialAbility as string | undefined),
+        ...parseRuleCards(data.ruleCards),
+      ],
       portraitUrl: resolveArt(hero.tokenImageUrl as string | undefined),
     },
     featured,
