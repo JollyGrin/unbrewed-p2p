@@ -24,6 +24,15 @@
  * `FighterTokenRim`) rather than a preview look-alike, so /collection, this
  * modal and the table can never drift apart on what a tier looks like.
  *
+ * Attribution (issue #665): the header carries the same shared `DeckAttribution`
+ * credit the /pro roster tile and the /pro/game hero splash render, resolved from
+ * the POPULAR_DECKS entry whose id IS this modal's `deckId` (both call sites pass
+ * a tile id). One resolver, `deckAttributionHref`, decides where it points, so a
+ * deck credited somewhere other than its unmatched.cards mirror — Skull Kid, whose
+ * authors published on the-unmatched.club — cannot link to the club on the tile and
+ * to unmatched.cards here. A served hero with no tile entry simply gets no credit
+ * line, exactly as before.
+ *
  * The loadout is strictly ADDITIVE and strictly late: `useHeroPreviewLoadout`
  * is gated on `isOpen`, never blocks a render, and answers null for a guest,
  * for a hero with nothing bought, and for an unreachable API — in all three the
@@ -48,6 +57,7 @@ import { keyframes } from "@emotion/react";
 import { GiFootprint, GiHearts } from "react-icons/gi";
 import { TbBow, TbSword } from "react-icons/tb";
 import { CardFace } from "./ProHand";
+import { DeckAttribution } from "./DeckAttribution";
 import { CardPreviewProvider } from "./CardPreview";
 import { FighterTokenPortrait } from "./FighterTokenPortrait";
 import { useHeroPreviewLoadout } from "@/lib/account/useHeroPreviewLoadout";
@@ -55,6 +65,7 @@ import { norm, withRimTier } from "@/lib/pro/cardAppearance";
 import { useDeckPreview } from "@/lib/pro/useDeckPreview";
 import { useDeckStats } from "@/lib/pro/useDeckStats";
 import { LARGE_FIGHTER_BLURB } from "@/lib/pro/largeReach";
+import { POPULAR_DECKS } from "@/lib/constants/top-decks";
 
 /**
  * Client-side registry of two-space (LARGE) HEROES — no pre-match field exposes
@@ -177,6 +188,10 @@ export const HeroPreviewModal = ({
           : "MELEE"
         : quickStats?.reach;
   const isLarge = !!heroId && LARGE_HERO_IDS.has(heroId);
+  // The tile entry behind this deck id, purely for the author credit. A hero the
+  // server serves without a POPULAR_DECKS row has nobody to credit — undefined,
+  // and the credit line is skipped.
+  const tile = deckId ? POPULAR_DECKS.find((d) => d.id === deckId) : undefined;
 
   const sidekick = deck?.sidekick;
   const hasSidekick =
@@ -252,6 +267,16 @@ export const HeroPreviewModal = ({
                         </Tag>
                       )}
                     </Flex>
+                  )}
+                  {tile && (
+                    <DeckAttribution
+                      deck={tile}
+                      fontSize="0.75rem"
+                      fontStyle="normal"
+                      opacity={0.7}
+                      mt="0.5rem"
+                      fontFamily="SpaceGrotesk"
+                    />
                   )}
                 </Box>
               </Flex>
