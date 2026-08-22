@@ -1,0 +1,23 @@
+{
+  "deckSlug": "6rDz",
+  "tagline": "Chain the Hundred Fists, mark the meridians — they're already dead",
+  "particleStyle": "aura",
+  "featuredCards": [
+    {
+      "title": "Hokuto: Hundred-Fist Rush",
+      "caption": "Four copies, and every one already in the discard buys another strike in the same combat. The chain keeps hitting after the first blow lands."
+    },
+    {
+      "title": "Hokuto: Dragon Form Breathing Technique",
+      "caption": "When they hurt your ally, the form answers — every HOKUTO card swings harder for the turn. Vengeance, mechanically enforced."
+    },
+    {
+      "title": "Death Omen Star",
+      "caption": "At 5 health the star rises: three Hokuto cards return from the discard, and the chain reloads exactly when the deck should be dying."
+    },
+    {
+      "title": "YOU ARE ALREADY DEAD!",
+      "caption": "Uncancelable. Half of everything they dealt you last turn, returned in one breath. The line every table sees coming and still cannot stop."
+    }
+  ]
+}

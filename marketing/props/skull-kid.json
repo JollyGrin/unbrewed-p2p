@@ -1,0 +1,23 @@
+{
+  "deckSlug": "zmGV",
+  "tagline": "Win or bleed, the clock ticks either way — and the moon falls on everyone",
+  "particleStyle": "embers",
+  "featuredCards": [
+    {
+      "title": "Countdown",
+      "caption": "A free action with a dare attached: they can run three spaces, but if they end up out of reach the clock loses a token. Stay and fight, or flee and hurry the end."
+    },
+    {
+      "title": "Majora's Flame",
+      "caption": "The bread-and-butter swing. Three copies, boostable, and every combat you win pulls another token off the tower."
+    },
+    {
+      "title": "Majora's Wrath",
+      "caption": "Losing feeds the clock too. Every 2 damage you eat behind this block ticks the tower — there is no safe way to hit Skull Kid."
+    },
+    {
+      "title": "Final Hour",
+      "caption": "The cash-out. Value grows by one for every token gone, so the same card that blocks for 2 on turn one blocks for 7 when the moon is falling."
+    }
+  ]
+}
