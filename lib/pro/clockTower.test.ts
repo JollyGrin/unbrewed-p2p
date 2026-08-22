@@ -87,7 +87,10 @@ describe("clockTowerMitigation", () => {
     expect(clockTowerMitigation(yesNo("p2"), striking(7))).toEqual({ reduced: 7, landing: 0 });
   });
 
-  it("reads MITIGATION banked on the CHOOSING seat too (engine #449 is moving to per-opponent)", () => {
+  it("reads MITIGATION banked on the CHOOSING seat too, not just the controller's", () => {
+    // The engine banks it controller-scoped today (e8462ad, inside `forEachOpponent`).
+    // This pins the other half of the defensive read, so a future move of the
+    // accumulator to the choosing seat cannot silently turn the line into "reduced by 0".
     const seats: ClockTowerSeat[] = [
       { id: "p1", heroId: "skull-kid", counters: { TIME: 0, MITIGATION: 0 } },
       { id: "p2", heroId: "king-kong", counters: { MITIGATION: 4 } },
@@ -96,6 +99,9 @@ describe("clockTowerMitigation", () => {
   });
 
   it("addresses each opposing seat independently in a multi-hostile format", () => {
+    // Engine e8462ad made this real: `forEachOpponent` offers the chain to EVERY
+    // opposing player, each buying down only the damage to their own fighters, with
+    // the accumulator cleared between passes. The line is per-seat by construction.
     const seats: ClockTowerSeat[] = [
       { id: "p1", heroId: "skull-kid", counters: { TIME: 0, MITIGATION: 0 } },
       { id: "p2", heroId: "king-kong", counters: { MITIGATION: 2 } },

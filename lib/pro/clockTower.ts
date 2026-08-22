@@ -17,12 +17,15 @@
  *    runs the whole mitigation chain, deals the damage, then reverts the dial to 5
  *    in the same run — so a parked prompt with an empty dial is always a Clock Tower
  *    prompt, and no wording change engine-side can break this gate.
- *  - The reduction banked so far is the `MITIGATION` counter. Today the engine banks
- *    it CONTROLLER-scoped (on Skull Kid's own seat, where the damage Amount reads
- *    it); engine #449 is being revised toward a per-opponent mitigation, which would
- *    bank it on the choosing seat instead. We read the larger of the two, so the line
- *    stays correct under either shape rather than silently reading 0 after the
- *    engine-side change.
+ *  - The reduction banked so far is the `MITIGATION` counter, which the engine banks
+ *    CONTROLLER-scoped — on Skull Kid's own seat, where the damage Amount reads it.
+ *    Since engine e8462ad the whole mitigation-plus-damage block runs inside a
+ *    `forEachOpponent` pass, one per living hostile player, and the counter is cleared
+ *    at the END of each pass — so during any given prompt it holds exactly the running
+ *    total for the player being asked, which is what this line needs. We still read the
+ *    larger of the controller's and the chooser's value: the accumulator has already
+ *    moved once in this deck's short life, and reading both costs nothing while a wrong
+ *    guess would silently print 0.
  *
  * Pure and view-shaped: no React, no protocol change, and nothing here fires unless a
  * Skull Kid seat is mid-strike.
