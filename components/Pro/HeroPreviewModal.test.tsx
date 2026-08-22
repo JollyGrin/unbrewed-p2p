@@ -15,6 +15,9 @@
  * badge and the shared blurb; a NORMAL hero renders neither. The copy assertion
  * imports LARGE_FIGHTER_BLURB rather than restating it — the wording is pinned
  * once, in lib/pro/largeReach.test.ts, and shared with three other surfaces.
+ *
+ * The second suite below pins the AUTHOR CREDIT the modal grew in #665, which is
+ * keyed on the deck id rather than the hero id.
  */
 import "@testing-library/jest-dom";
 import { ReactNode } from "react";
@@ -121,5 +124,55 @@ describe("HeroPreviewModal — LARGE fighter signal", () => {
     open("batman", "Batman");
     expect(screen.queryByText("LARGE — 2 spaces")).not.toBeInTheDocument();
     expect(screen.queryByText(LARGE_FIGHTER_BLURB)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Author credit (issue #665). The modal is a deck's detail surface and used to
+ * name nobody; it now renders the same shared `DeckAttribution` the roster tile
+ * and the hero splash do, off the same `deckAttributionHref` resolver — so a
+ * deck credited away from its unmatched.cards mirror can't link one way on the
+ * tile and another way here.
+ */
+describe("HeroPreviewModal — author credit", () => {
+  const openDeck = (deckId: string, heroName: string) => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <QueryClientProvider client={client}>
+        <ChakraProvider>
+          <HeroPreviewModal
+            isOpen
+            onClose={() => {}}
+            deckId={deckId}
+            heroName={heroName}
+            quickStats={QUICK_STATS}
+          />
+        </ChakraProvider>
+      </QueryClientProvider>
+    );
+  };
+
+  it("credits Skull Kid to his authors' the-unmatched.club page", () => {
+    openDeck("zmGV", "Skull Kid");
+    const link = screen.getByRole("link", {
+      name: /AndSushi \+ DreamCarver's deck on the-unmatched\.club/i,
+    });
+    expect(link).toHaveAttribute(
+      "href",
+      "https://www.the-unmatched.club/c/heroes/skull-kid-the-legend-of-zelda.2748"
+    );
+  });
+
+  it("still derives unmatched.cards for a deck with no explicit source page", () => {
+    openDeck("lDOM", "The Mandalorian");
+    expect(screen.getByRole("link", { name: /msw7c's deck/i })).toHaveAttribute(
+      "href",
+      "https://unmatched.cards/decks/lDOM"
+    );
+  });
+
+  it("shows no credit for a served hero with no tile entry", () => {
+    openDeck("deck-id", "Some Community Deck");
+    expect(screen.queryByText(/^by /)).not.toBeInTheDocument();
   });
 });
