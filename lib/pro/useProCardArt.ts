@@ -126,8 +126,8 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // from, so the snapshot's rules fields are engine-exact.
   //
   // EVERGREEN IN THE STRICT SENSE (Dean, 2026-08-22): the author hotlinked every
-  // image on i.imgur.com, and all of it — 12 card faces, the hero card, the "The
-  // Clock Tower" rule card and the cardback — is mirrored under
+  // image off a third-party image host, and all of it — 12 card faces, the hero
+  // card, the "The Clock Tower" rule card and the cardback — is mirrored under
   // public/evergreen-decks/art/zmGV/, with the snapshot's URLs rewritten to those
   // local paths. Nothing about this deck touches a remote host at runtime.
   //
