@@ -270,6 +270,18 @@ export interface HeroStateCounter {
   /** board-token corner badge. The badge `label` is the live value; `icon`,
    *  `title` prefix, and colors are fixed. Omit for nameplate-only counters. */
   token?: { icon: string; title: string; bg: string; color: string };
+  /** the counter's declared ceiling, when the resource reads as "n OF max" rather
+   *  than an open-ended pool. Substituted for `{max}` in `labelTemplate` and drawn
+   *  on the token badge as "n/max", so both surfaces say the same thing the printed
+   *  card does. Omit for open-ended counters (Nancy's CLUE, Cairne's RAGE), which
+   *  render the bare value exactly as before. */
+  outOf?: number;
+  /** render both surfaces AT ZERO instead of hiding them (issue #663). The default
+   *  is right for an UP counter — an empty pool is nothing to announce — and exactly
+   *  wrong for a DOWN counter, where 0 is the loudest state on the board: Skull Kid's
+   *  clock reads TIME 0/5 for the whole Clock Tower strike, which is the one moment
+   *  both players most need the pill. */
+  showAtZero?: boolean;
 }
 
 export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
@@ -306,6 +318,37 @@ export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
     nameplate: { labelTemplate: "TRAINING: {n}" },
     token: { icon: "🌱", title: "TRAINING", bg: "#2E6B48", color: "#ECFFF4" },
   },
+  {
+    // Skull Kid's Clock Tower dial (issue #663 ↔ engine #449). Engine counter key is
+    // `TIME` (`counters: [{ name: 'TIME', max: 5 }]` in skull-kid.rules.ts), seeded to
+    // 5 by setupOps and ticked DOWN; at 0 the tower deals 5 to every opposing fighter
+    // and the dial reverts to 5 in the same run.
+    //
+    // The deck is unreadable without this: every card in it is priced off "how close is
+    // the clock", and Final Hour literally reads its value off `5 - TIME`. So it is
+    // registered on BOTH surfaces — the nameplate pill AND the token badge — per the
+    // Cairne lesson: a counter on only one surface is a resource the OPPONENT cannot
+    // see, and this one is aimed squarely at them.
+    //
+    // `outOf: 5` mirrors the declared max so both surfaces read "3/5" the way the rule
+    // card does, and `showAtZero` keeps them up at TIME 0 — the instant of the strike,
+    // when the mitigation prompts are parked and the clock is the whole story. That 0 is
+    // an ABSENT key on the wire, not a zero value: the engine drops a counter key when
+    // it empties, so "no TIME on a Skull Kid seat" IS "TIME 0/5".
+    //
+    // The deck's OTHER declared counter, `MITIGATION`, is deliberately absent: it is
+    // engine bookkeeping, non-zero only between the mitigation discards and the damage
+    // inside a single strike run. This registry is OPT-IN — a counter with no row here
+    // renders on neither surface — so its absence IS the suppression. Its live value is
+    // surfaced in exactly one place where it is actionable: the mitigation prompt's own
+    // running-total line (lib/pro/clockTower.ts).
+    counter: "TIME",
+    heroes: ["skull-kid"],
+    outOf: 5,
+    showAtZero: true,
+    nameplate: { labelTemplate: "TIME {n}/{max}" },
+    token: { icon: "⏳", title: "TIME", bg: "#2E0E4E", color: "#E7D6FF" },
+  },
 ];
 
 /** An entry's identity key — its counter name or its pile name. */
@@ -322,6 +365,20 @@ const valueOf = (
   piles: Record<string, CardInstanceId[]> | undefined
 ): number =>
   e.pile ? piles?.[e.pile]?.length ?? 0 : counters?.[e.counter!] ?? 0;
+
+/**
+ * Does this entry render at value `n`? Every counter/pile is hidden at 0 — an empty
+ * resource or untucked pile reads as no chip and no badge — EXCEPT one that sets
+ * `showAtZero`, which is how a DOWN counter (Skull Kid's clock) keeps both surfaces
+ * up at its most significant reading.
+ *
+ * There is no "is the key present?" refinement to make here: the engine DELETES a
+ * counter key the moment it reaches 0 (engine/effects.ts `counter` op — "a zero result
+ * drops the key, COUNTER reads default to 0"), so an empty clock and an absent one are
+ * the same wire state by design. The `heroes` gate is what keeps the 0 reading off
+ * every other deck's plate.
+ */
+const rendersAt = (e: HeroStateCounter, n: number): boolean => n > 0 || !!e.showAtZero;
 
 const counterEntriesForHero = (heroId: string) =>
   HERO_STATE_COUNTERS.filter((e) => e.heroes.includes(heroId));
@@ -346,11 +403,13 @@ export const counterChipsFor = (
   for (const e of counterEntriesForHero(heroId)) {
     if (!e.nameplate) continue;
     const n = valueOf(e, counters, piles);
-    if (n <= 0) continue; // hidden at 0
+    if (!rendersAt(e, n)) continue; // hidden at 0 unless the entry opts in
     chips.push({
       chip: {
         flag: `${e.pile ? "pile" : "counter"}:${sourceKey(e)}`,
-        onLabel: e.nameplate.labelTemplate.replace("{n}", String(n)),
+        onLabel: e.nameplate.labelTemplate
+          .replace("{n}", String(n))
+          .replace("{max}", String(e.outOf ?? "")),
         offLabel: "",
         ...(e.pile ? { pile: e.pile, cards: [...(piles?.[e.pile] ?? [])] } : {}),
       },
@@ -377,11 +436,12 @@ export const fighterTokenCounterBadgeFor = (
   for (const e of counterEntriesForHero(heroId)) {
     if (!e.token) continue;
     const n = valueOf(e, counters, piles);
-    if (n <= 0) continue; // hidden at 0
+    if (!rendersAt(e, n)) continue; // hidden at 0 unless the entry opts in
+    const reading = e.outOf == null ? String(n) : `${n}/${e.outOf}`;
     return {
       icon: e.token.icon,
-      label: String(n),
-      title: `${e.token.title}: ${n}`,
+      label: reading,
+      title: `${e.token.title}: ${reading}`,
       bg: e.token.bg,
       color: e.token.color,
       showLabel: true,

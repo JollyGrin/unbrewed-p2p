@@ -1637,3 +1637,41 @@ describe("diffViews — counter change lines seeded from the snapshot baseline",
     expect(lines.some((l) => /RAGE/.test(l.text))).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Engine bookkeeping counters (issue #663). Skull Kid's MITIGATION is transient
+// within ONE Clock Tower resolution — the log must not narrate it.
+// ---------------------------------------------------------------------------
+
+describe("counterChangeLines suppresses engine bookkeeping counters", () => {
+  const whoOf = (p: PlayerId) => (p === "p1" ? ("you" as const) : ("opp" as const));
+
+  it("says nothing about MITIGATION, however it moves", () => {
+    const lines = counterChangeLines(
+      [
+        { type: "COUNTER_CHANGED", player: "p2", name: "MITIGATION", value: 2 },
+        { type: "COUNTER_CHANGED", player: "p2", name: "MITIGATION", value: 4 },
+        { type: "COUNTER_CHANGED", player: "p2", name: "MITIGATION", value: 0 },
+      ] as GameEvent[],
+      () => 0,
+      whoOf
+    );
+    expect(lines).toEqual([]);
+  });
+
+  it("still narrates the clock itself, and every other counter", () => {
+    const lines = counterChangeLines(
+      [
+        { type: "COUNTER_CHANGED", player: "p2", name: "TIME", value: 0 },
+        { type: "COUNTER_CHANGED", player: "p2", name: "MITIGATION", value: 3 },
+        { type: "COUNTER_CHANGED", player: "p2", name: "TIME", value: 5 },
+      ] as GameEvent[],
+      (_p, name) => (name === "TIME" ? 1 : 0),
+      whoOf
+    );
+    expect(lines.map((l) => l.text)).toEqual([
+      "lost all TIME (was 1)",
+      "gained 5 TIME (5 total)",
+    ]);
+  });
+});

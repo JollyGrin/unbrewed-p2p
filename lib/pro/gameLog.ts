@@ -20,6 +20,7 @@ import { deriveTeams, isViewerOnWinningTeam } from "./teams";
 import { sweptFighters } from "./sweep";
 import { swappedFighters } from "./positionSwap";
 import { combatOutcomeLogText } from "./combatOutcome";
+import { MITIGATION_COUNTER } from "./clockTower";
 
 export interface ProLogLine {
   text: string;
@@ -283,7 +284,26 @@ const COUNTER_KEY_SEP = "\u001f";
  *   - decrease to zero             → `lost all RAGE (was 2)`
  *   - increase                     → `gained 1 RAGE (2 total)`
  * A no-op (value unchanged) emits nothing.
+ *
+ * The one exception is `BOOKKEEPING_COUNTERS` — see below.
  */
+/**
+ * Engine-internal counters the log must NOT narrate (issue #663). Generic-by-key is
+ * the right default — it is why every counter deck surfaces here for free — but it
+ * assumes a counter is a RESOURCE, something a player holds between actions. Skull
+ * Kid's `MITIGATION` is not: it exists only between the Clock Tower's mitigation
+ * discards and the damage they reduce, all inside ONE resolution, and is zeroed in
+ * the same run. Narrating it emits up to six lines of a key printed on no card
+ * ("gained 2 MITIGATION … lost all MITIGATION") around each strike, on both seats'
+ * logs, burying the discards that actually happened.
+ *
+ * Its live value is not lost: it is shown where it is actionable, in the mitigation
+ * prompt's running-total line (lib/pro/clockTower.ts). This stays a deliberately
+ * SHORT denylist — a counter belongs here only if it is transient within a single
+ * resolution, never a resource a player can plan around.
+ */
+const BOOKKEEPING_COUNTERS: ReadonlySet<string> = new Set([MITIGATION_COUNTER]);
+
 export function counterChangeLines(
   events: GameEvent[],
   priorValue: (player: PlayerId, name: string) => number,
@@ -293,6 +313,7 @@ export function counterChangeLines(
   const out: ProLogLine[] = [];
   for (const e of events) {
     if (e.type !== "COUNTER_CHANGED") continue;
+    if (BOOKKEEPING_COUNTERS.has(e.name)) continue;
     const key = `${e.player}${COUNTER_KEY_SEP}${e.name}`;
     const prior = running.has(key) ? running.get(key)! : priorValue(e.player, e.name);
     running.set(key, e.value);

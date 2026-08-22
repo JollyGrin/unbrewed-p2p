@@ -142,6 +142,7 @@ import { useAccount } from "@/lib/account/useAccount";
 import { formatChoice, PRO_FORMATS, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
 import { deriveTeams } from "@/lib/pro/teams";
 import { fighterTokenStateByOwner } from "@/lib/pro/heroStateFlags";
+import { clockTowerMitigationLine } from "@/lib/pro/clockTower";
 import { CosmeticRimTier } from "@/lib/pro/cosmetics";
 import { seatCosmetics, tokenRimForSeat } from "@/lib/pro/seatCosmetics";
 import { useHideOpponentCosmetics } from "@/lib/pro/useHideOpponentCosmetics";
@@ -252,6 +253,7 @@ const PromptPanel = ({
   cardOptions,
   boardHint,
   budgetLine,
+  noteLine,
   previewInstance,
   sourceInstance,
   sourceLabel,
@@ -274,6 +276,12 @@ const PromptPanel = ({
    *  spaces aren't offered. null for non-move prompts (fall back to
    *  `prompt.description`). */
   budgetLine: string | null;
+  /** issue #663: a live SECONDARY line for a prompt whose engine label is static but
+   *  whose stakes are not — today only Skull Kid's Clock Tower mitigation, where the
+   *  running reduction is the whole decision ("currently reduced by 3, so 2 would
+   *  land"). Rendered under the primary line to chooser AND spectator alike, since
+   *  every number in it is public. null for every other prompt. */
+  noteLine: string | null;
   /**
    * Legacy best-effort card behind this prompt (issue #72 fix #2), used only when
    * the server sent no `source`: the caller approximates it from `option.data.card`
@@ -320,6 +328,11 @@ const PromptPanel = ({
           {sourceLabel}
         </Text>
       )
+    )}
+    {noteLine && (
+      <Text fontSize="0.85rem" fontWeight="bold" mb="0.5rem" color="brand.accent">
+        {noteLine}
+      </Text>
     )}
     {sourceInstance && (
       <Box w="6.5rem" sx={{ aspectRatio: "63 / 88" }} mb="0.5rem">
@@ -4189,6 +4202,12 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
     ? steppingBudgetLine(promptBudgetLineBase, promptStepRemaining)
     : promptBudgetLineBase;
 
+  // issue #663 — Skull Kid's Clock Tower. The five mitigation yes/no prompts all carry
+  // the SAME static engine label, so the client supplies the running reduction that
+  // makes them decidable. Pure and view-shaped: null for every prompt in every other
+  // game (see lib/pro/clockTower.ts), so it is computed unconditionally.
+  const promptNoteLine = clockTowerMitigationLine(prompt, view.players, view.you);
+
   // Prompt attribution (protocol v10, issue #35 / #147 / #151): `prompt.source`
   // names WHAT opened this prompt and is sent to BOTH players — a resolving card
   // (`{ card }`, face public to both) or a hero ability (`{ hero }`). We show the
@@ -4917,6 +4936,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
               cardOptions={promptCardOptions}
               boardHint={promptBoardHint}
               budgetLine={promptBudgetLine}
+              noteLine={promptNoteLine}
               previewInstance={promptCardInstance}
               sourceInstance={sourceCardInstance}
               sourceLabel={sourceLabel}

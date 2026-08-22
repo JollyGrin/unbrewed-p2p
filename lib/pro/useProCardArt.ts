@@ -120,6 +120,37 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // never be routed to the art-generation pipeline. The two publications disagree on
   // three boosts — the snapshot follows 6rDz/the engine; see the deck note.
   kenshiro: "6rDz",
+  // Skull Kid — Majora's Mask (issue #663 ↔ engine #449/#448): community deck zmGV
+  // by AndSushi with DreamCarver, the COUNTDOWN deck. The deck id is the real
+  // unmatched.cards one, which is also the source skull-kid.rules.ts was converted
+  // from, so the snapshot's rules fields are engine-exact.
+  //
+  // EVERGREEN IN THE STRICT SENSE (Dean, 2026-08-22): every image — 12 card faces,
+  // the hero card, the "The Clocktower" rule card and the cardback — is mirrored
+  // under public/evergreen-decks/art/zmGV/, with the snapshot's URLs rewritten to
+  // those local paths. Nothing about this deck touches a remote host at runtime.
+  //
+  // The ART, as with Kenshiro, comes from a DIFFERENT publication of the same deck:
+  // the authors' the-unmatched.club 2748, the only place the FINISHED full-card
+  // renders live (zmGV carries loose illustration crops instead). They are pulled
+  // from that page's /export/__data.json — the per-card `replacementImage` set, at
+  // the club's own 1488x2079 — self-hosted per #446 and drawn FULL-BLEED via
+  // cardImage. This deck must never fall back to the generated card template, which
+  // cannot reproduce the authors' frame, and must never be routed to the
+  // art-generation pipeline.
+  //
+  // The club export carries no card text and its quantities diverge from zmGV, so
+  // each render was mapped to its title by the title PRINTED ON THE FACE, not by its
+  // (type, value, boost, count) tuple — Final Hour and Your true Face are separable
+  // only by count, and the club's count is the one that disagrees. See the deck note
+  // for both divergences; the snapshot follows zmGV/the engine on each.
+  //
+  // Public state contract: ONE counter, `TIME` (5 -> 0, max 5) — the Clock Tower
+  // dial, registered on BOTH nameplate and token in HERO_STATE_COUNTERS. The deck's
+  // second declared counter, `MITIGATION`, is engine bookkeeping and is deliberately
+  // NOT registered (the registry is opt-in, so an unregistered counter renders
+  // nowhere). No flags, no markers.
+  "skull-kid": "zmGV",
 };
 
 /**
