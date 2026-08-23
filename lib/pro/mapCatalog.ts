@@ -128,6 +128,16 @@ export const MAP_CATALOG: MapCatalogEntry[] = [
 /** Sentinel id for the "paste your own JSON" option in the board picker. */
 export const CUSTOM_MAP_ID = "custom" as const;
 
+/**
+ * Sentinel id for the "Random" option in the board picker (issue #685).
+ *
+ * Selecting it does NOT pick a board — resolution is deferred to room-create
+ * time, where `rollRandomMap` draws from the format's pool and the create path
+ * then proceeds exactly as if that board's tile had been clicked (`serverDefault`
+ * / `customMapForEntry` semantics intact).
+ */
+export const RANDOM_MAP_ID = "random" as const;
+
 const printedSlots = (map: CatalogMap): Set<number> =>
   new Set(map.spaces.flatMap((s) => (s.start ? [s.start.slot] : [])));
 
@@ -175,6 +185,50 @@ export function catalogEntry(id: string): MapCatalogEntry | undefined {
 /** The default board id for a format: Mended Drum for duel, Island of Despair otherwise. */
 export function defaultMapIdForFormat(formatId: ProFormatId): string {
   return formatId === "duel" ? mendedDrum.id : islandOfDespair.id;
+}
+
+/**
+ * Largest board — by the board's own `meta.maxPlayers` — the Random tile will
+ * roll for a 1v1 (issue #685).
+ *
+ * A duel on a board authored for more than four players is a long walk to the
+ * first attack, so such a board stays hand-pickable but is never rolled onto
+ * anyone. Every board in the catalog today is 2/2 or 2/4, so ALL of them are in
+ * the 1v1 pool right now: the bound is here so a future big board excludes
+ * itself by its own metadata, with no catalog edit and nothing to remember.
+ */
+export const DUEL_RANDOM_MAX_PLAYERS = 4;
+
+/** Whether the Random tile may roll this board for a `duel`. */
+export function duelRandomEligible(map: CatalogMap): boolean {
+  return mapEligibleForFormat(map, "duel") && map.meta.maxPlayers <= DUEL_RANDOM_MAX_PLAYERS;
+}
+
+/**
+ * The boards the Random tile can roll for a format.
+ *
+ * `duel` draws from every visible duel board small enough to duel on
+ * (`duelRandomEligible`); the multiplayer formats draw uniformly over every
+ * visible board eligible for that format.
+ */
+export function randomMapPool(formatId: ProFormatId): MapCatalogEntry[] {
+  const visible = MAP_CATALOG.filter((e) => !e.hidden && mapEligibleForFormat(e.map, formatId));
+  return formatId === "duel" ? visible.filter((e) => duelRandomEligible(e.map)) : visible;
+}
+
+/**
+ * Roll a board for a format. Uniform over `randomMapPool`; falls back to the
+ * format's default board if a pool is ever empty (so the create path can never
+ * be left without a board).
+ */
+export function rollRandomMap(
+  formatId: ProFormatId,
+  rng: () => number = Math.random,
+): MapCatalogEntry {
+  const pool = randomMapPool(formatId);
+  if (pool.length === 0) return catalogEntry(defaultMapIdForFormat(formatId))!;
+  const i = Math.min(pool.length - 1, Math.max(0, Math.floor(rng() * pool.length)));
+  return pool[i];
 }
 
 /**

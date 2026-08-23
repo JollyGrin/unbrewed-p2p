@@ -7,6 +7,11 @@ import {
   eligibleFormats,
   ineligibleReason,
   mapEligibleForFormat,
+  DUEL_RANDOM_MAX_PLAYERS,
+  duelRandomEligible,
+  RANDOM_MAP_ID,
+  randomMapPool,
+  rollRandomMap,
   type CatalogMap,
 } from "./mapCatalog";
 import { normalizeMap } from "./normalizeMap";
@@ -163,6 +168,115 @@ describe("map catalog", () => {
     it("the custom sentinel id is not a real catalog entry", () => {
       expect(catalogEntry(CUSTOM_MAP_ID)).toBeUndefined();
     });
+
+    it("the random sentinel id is not a real catalog entry", () => {
+      expect(catalogEntry(RANDOM_MAP_ID)).toBeUndefined();
+    });
+  });
+});
+
+/**
+ * The Random tile (#685) resolves at room-create time. The 1v1 pool is bounded
+ * by the board's own `meta.maxPlayers`, NOT by a curated list: every catalog
+ * board today is 2/2 or 2/4, so all eight are rollable for a duel, and a future
+ * board authored for more than four players drops out on its own metadata.
+ */
+describe("random board pool", () => {
+  it("duel rolls every visible board — all eight are <= 4 players", () => {
+    expect(randomMapPool("duel").map((e) => e.id)).toEqual([
+      "mended-drum",
+      "island-of-despair",
+      "city-docks",
+      "polus",
+      "weathertop",
+      "counts-castle",
+      "uscss-nostromo",
+      "the-bog",
+    ]);
+    // the big four are IN the pool — the "(1-4)" bound is a player count
+    for (const id of ["weathertop", "counts-castle", "uscss-nostromo", "the-bog"]) {
+      expect(randomMapPool("duel").map((e) => e.id)).toContain(id);
+    }
+  });
+
+  it("excludes a board authored for more than four players, with no catalog edit", () => {
+    // The rule's whole purpose: a future big board opts itself out by metadata.
+    const bigBoard: CatalogMap = {
+      schemaVersion: "1.0",
+      id: "grand-melee",
+      meta: {
+        title: "Grand Melee",
+        minPlayers: 2,
+        maxPlayers: DUEL_RANDOM_MAX_PLAYERS + 1,
+        specialRules: false,
+      },
+      zones: [],
+      spaces: [
+        { id: "a", x: 0, y: 0, zones: [], adjacentTo: ["b"], start: { slot: 1 } },
+        { id: "b", x: 1, y: 1, zones: [], adjacentTo: ["a"], start: { slot: 2 } },
+      ],
+    };
+    // it CAN host a duel (printed slots 1 & 2) — it's the size that rules it out
+    expect(mapEligibleForFormat(bigBoard, "duel")).toBe(true);
+    expect(duelRandomEligible(bigBoard)).toBe(false);
+    // exactly at the bound it is back in
+    expect(
+      duelRandomEligible({
+        ...bigBoard,
+        meta: { ...bigBoard.meta, maxPlayers: DUEL_RANDOM_MAX_PLAYERS },
+      }),
+    ).toBe(true);
+    // ...and a board that can't seat a duel at all is out regardless of size
+    expect(duelRandomEligible({ ...bigBoard, meta: { ...bigBoard.meta, maxPlayers: 2 }, spaces: [] })).toBe(
+      false,
+    );
+    // every real catalog board agrees with the pool
+    for (const entry of MAP_CATALOG.filter((e) => !e.hidden)) {
+      expect([entry.id, duelRandomEligible(entry.map)]).toEqual([
+        entry.id,
+        randomMapPool("duel").includes(entry),
+      ]);
+    }
+  });
+
+  it("ffa-3 and 2v2 roll every visible board eligible for the format", () => {
+    for (const format of ["ffa-3", "team-2v2"] as const) {
+      const pool = randomMapPool(format);
+      expect(pool.map((e) => e.id)).toEqual([
+        "island-of-despair",
+        "city-docks",
+        "polus",
+        "weathertop",
+        "counts-castle",
+      ]);
+      // every rolled board can actually seat the format, and none is hidden
+      expect(pool.every((e) => mapEligibleForFormat(e.map, format))).toBe(true);
+      expect(pool.some((e) => e.hidden)).toBe(false);
+    }
+  });
+
+  it("never offers the hidden playtest arena", () => {
+    for (const format of ["duel", "ffa-3", "team-2v2"] as const) {
+      expect(randomMapPool(format).map((e) => e.id)).not.toContain("multiplayer-arena-playtest");
+    }
+  });
+
+  it("rolls uniformly across the pool and stays in bounds at rng()→1", () => {
+    const pool = randomMapPool("duel");
+    expect(pool.map((_, i) => rollRandomMap("duel", () => i / pool.length).id)).toEqual(
+      pool.map((e) => e.id),
+    );
+    // Math.random() is [0,1), but a degenerate rng must not index past the end
+    expect(rollRandomMap("duel", () => 1).id).toBe(pool[pool.length - 1].id);
+    expect(rollRandomMap("duel", () => 0).id).toBe(pool[0].id);
+  });
+
+  it("a rolled board carries the same customMap semantics as a clicked tile", () => {
+    // Mended Drum is the server-default board — rolling it must still send nothing
+    expect(customMapForEntry(rollRandomMap("duel", () => 0))).toBeUndefined();
+    const lastRoll = rollRandomMap("duel", () => 0.99);
+    expect(lastRoll.id).toBe("the-bog");
+    expect(customMapForEntry(lastRoll)!.id).toBe("the-bog");
   });
 });
 
