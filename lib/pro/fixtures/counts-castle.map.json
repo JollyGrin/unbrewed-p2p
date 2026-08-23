@@ -47,16 +47,16 @@
       "id": "team-2v2-counts-castle",
       "formatId": "team-2v2",
       "label": "2v2 Teams",
-      "description": "Outside/inside teams so teammates start far apart: Team A holds slot 1 (dead woods, s19 — outside the east wall) and slot 2 (shadowed keep, s70 — deep inside), 13 moves apart; Team B holds slot 3 (castle ramparts, s13 — the north-east battlement) and slot 4 (fountain court, s63 — the middle of the castle), 8 moves apart. The other two pairings would seat teammates only 4 moves apart (2&4) or 5 (1&3).",
+      "description": "Start slots follow the format's turn order (A1→1, B1→2, A2→3, B2→4): Team A holds slot 1 (dead woods, s19 — outside the east wall) and slot 3 (castle ramparts, s13 — the north-east battlement); Team B holds slot 2 (shadowed keep, s70 — deep inside) and slot 4 (fountain court, s63 — the middle of the castle).",
       "seats": {
         "A1": {
           "startSlot": 1
         },
         "A2": {
-          "startSlot": 2
+          "startSlot": 3
         },
         "B1": {
-          "startSlot": 3
+          "startSlot": 2
         },
         "B2": {
           "startSlot": 4
