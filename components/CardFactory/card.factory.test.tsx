@@ -216,3 +216,43 @@ describe("CardFactory sections: whitespace-only text (issue #495)", () => {
     expect(sectionTexts(container).map(headingOf)).toEqual(["AFTER COMBAT:"]);
   });
 });
+
+/**
+ * Art-free decks (issue #671). Boba Fett ships with NO card art — his author's
+ * faces are scraped third-party images across eight hosts, none mirrorable — so
+ * every card is `imageUrl: ""` and renders from the generated template until the
+ * deck-art pipeline ticket lands. `imageUri`'s fallback is `??`, so an empty
+ * string is NOT replaced by the picsum placeholder: the art window simply stays
+ * empty and the frame, title, value and body text carry the card. These pin that
+ * the empty string reaches the renderer as "no art" rather than as a broken
+ * request or a stray stock photo.
+ */
+describe("CardFactory with no art (issue #671)", () => {
+  const artless: DeckImportCardType = {
+    ...base,
+    characterName: "Boba Fett",
+    title: "Disintegration",
+    type: "attack",
+    value: 4,
+    boost: 4,
+    quantity: 3,
+    duringText:
+      "Add +1 to this card's value for each bounty currently active under your opponent's hero card.",
+    imageUrl: "" as DeckImportCardType["imageUrl"],
+  };
+
+  it("paints no art and never substitutes a stock placeholder", () => {
+    const { container } = render(<CardFactory card={artless} />);
+    const art = artLayer(container);
+    expect(art.style.backgroundImage).not.toContain("picsum");
+    expect(art.style.backgroundImage.replace(/url\(["']?["']?\)/, "")).toBe("");
+  });
+
+  it("still renders the card's title, value and body text", () => {
+    const { container } = render(<CardFactory card={artless} />);
+    const text = container.textContent ?? "";
+    expect(text).toContain("Disintegration");
+    expect(text).toContain("4");
+    expect(text).toContain("each bounty currently active");
+  });
+});
