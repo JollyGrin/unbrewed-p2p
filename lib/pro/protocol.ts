@@ -713,8 +713,40 @@
  *   drops it and still sees both figures relocated in the next `PlayerView`.
  * CLIENT SURFACE (unbrewed-p2p): an activity-log line and, ideally, a swap animation
  * distinct from a walk. Nothing breaks without it.
+ *
+ * ## v31 unchanged (2026-08-23): cross-player pile attach (engine #459, DSL v0.49.0)
+ * A card may now be tucked into ANOTHER player's set-aside pile and keep its controller
+ * ("tuck the card under the hero card of any opponent" — Boba Fett). Two purely additive
+ * OPTIONAL fields, both absent unless a pile actually mixes owners, so no message grows a
+ * key for any deck shipped before v0.49.0 and PROTOCOL_VERSION does not move:
+ *
+ * - `CARD_TUCKED.controller?` — see the variant below.
+ * - `ViewSelf.pileControllers` / `ViewOpponent` / `ViewPlayer` / `ReplayStepPlayer` —
+ *   `{ [pileName]: { [cardInstanceId]: PlayerId } }`, listing ONLY the entries whose
+ *   controller is not the seat holding the pile. Public exactly as `piles` is.
+ * CLIENT SURFACE (unbrewed-p2p): render a foreign-controlled pile entry under the HOST's
+ * nameplate (that is where `piles` puts it) but attributed to its controller — the whole
+ * point of a bounty is that it sits on your opponent and pays its owner. A client that
+ * ignores `pileControllers` shows the stack in the right place with the wrong owner
+ * colour; nothing breaks.
  */
-export const PROTOCOL_VERSION = 31;
+/**
+ * v32 (engine #463, DSL v0.56.0) — THE EFFECT-INITIATED ATTACK. One additive `GameEvent`
+ * variant, `EFFECT_ATTACK_INITIATED { attacker, target, card }`: a card effect opened a
+ * REAL combat outside any action, with a NAMED PRINTED card as the attack card and no
+ * action spent (Boba Fett *Slave I* → SEISMIC CHARGE). Everything after it is an ordinary
+ * combat from `COMMIT_DEFENSE` onward — the defender's `COMMIT_DEFENSE_CARD` /
+ * `DECLINE_DEFENSE` enumeration is unchanged, and there is no new action type, prompt kind
+ * or `LegalOption` shape.
+ *
+ * CLIENT SURFACE (unbrewed-p2p): `card` is a CardDef id that is NOT IN THE DECK LIST — it
+ * is a printed second face (`HeroDef.linkedCards`), so a client that resolves card art and
+ * text by deck membership will miss it and must fall back on the id. The combat itself
+ * arrives with `ViewCombat.attackerCard` already populated at `COMMIT_DEFENSE` — face-up
+ * before the defender commits — which is the same shape a "Fire, you fools!" sub-attack has
+ * had since v0.17.0, so that half needs nothing new.
+ */
+export const PROTOCOL_VERSION = 32;
 
 /**
  * Scripted-AI strength preset (server-side budgets; client treats as opaque).
@@ -879,7 +911,11 @@ export type GameEvent =
   // public pile ("under the hero card") instead of discarding, and the inverse —
   // a tucked card taken back to its owner's hand. Both are full information: the
   // pile's contents ride every seat's view (see ViewSelf.piles).
-  | { type: "CARD_TUCKED"; player: PlayerId; card: CardInstanceId; pile: string }
+  // v0.49.0 (engine #459): `controller` is present ONLY on a cross-player tuck ("tuck the
+  // card under the hero card of any opponent"). `player` is unchanged and still names the
+  // pile's HOST — where the card now sits, which is what a client renders; `controller`
+  // says whose card it still is. Purely additive: absent on every same-seat tuck.
+  | { type: "CARD_TUCKED"; player: PlayerId; card: CardInstanceId; pile: string; controller?: PlayerId }
   | { type: "CARD_RETURNED_FROM_PILE"; player: PlayerId; card: CardInstanceId; pile: string }
   | { type: "CARD_PLAYED_FROM_HAND"; player: PlayerId; card: CardInstanceId }
   | { type: "ADDITIONAL_DEFENSE_PLAYED"; player: PlayerId; card: CardInstanceId }
@@ -923,6 +959,10 @@ export type GameEvent =
   // v0.17.0 (Grievous batch D — "Fire, you fools!"): a chosen droid's fixed-value sub-attack
   // opens against `target`. Full information — the value is printed on card 210.
   | { type: "SUB_ATTACK_INITIATED"; attacker: FighterId; target: FighterId; value: number }
+  // v0.54.0 (#463): `{op:'attackWith'}` opened a REAL combat from an effect, outside any
+  // action — a named LINKED printed card (`card`) attacks `target`, no action spent. The
+  // combat that follows is an ordinary one from COMMIT_DEFENSE onward.
+  | { type: "EFFECT_ATTACK_INITIATED"; attacker: FighterId; target: FighterId; card: CardDefId }
   // v0.45.0 (#378): a whole-card cancel (Feint) landed on a synthetic sub-attack card, so the
   // rest of that card's chain — `severed` still-queued links — never opens. `card` is the
   // parent card whose text queued them. Narration only: the canceled link's own combat has
@@ -1289,12 +1329,27 @@ export interface ViewSelf {
   discard: CardInstanceId[];
   ongoingScheme?: CardInstanceId | null; // public face-up ongoing scheme, if any (older views may omit)
   piles?: Record<string, CardInstanceId[]>; // v25: named public set-aside piles ("tucked under the hero card"), card identities visible to EVERY viewer; absent when nothing is tucked
+  pileControllers?: Record<string, Record<CardInstanceId, PlayerId>>; // v0.49.0: for the pile entries whose CONTROLLER is not this seat (a card an opponent tucked under them). Public like `piles`; absent unless some entry is foreign
   committedCard: CardInstanceId | null; // own face-down commit (visible to self)
   counters: Record<string, number>;
   // v16: active named flags (setFlag op), keyed by flag name -> true. Generic
   // public-state primitive (tide today; stances/charges/forms in future decks) —
   // presence = currently active, mirroring engine PlayerState.flags. Public,
   // same for every viewer, no per-flag special-casing.
+  //
+  // RESERVED NAMESPACE (engine v0.51.0, #462 — NO protocol version change, since this
+  // map's shape and semantics are unchanged): a key prefixed `DENY:` is an ACTION
+  // DENIAL, not a hero state. `DENY:DRAW` / `DENY:MANEUVER` / `DENY:SCHEME` /
+  // `DENY:ATTACK` mean that player currently may not do that thing (the engine enforces
+  // it in the draw path and in the legal-action enumeration, so the client never has to);
+  // `DENY:TURN` means that player's NEXT turn is skipped (it is consumed when that turn
+  // opens, and the skipped turn arrives as an ordinary TURN_STARTED followed by
+  // TURN_END_FORCED); any other `DENY:<X>` means that player may not ENTER the flag
+  // `<X>`. NOTE the map collapses duplicates — denials APPEND in the engine, so two
+  // overlapping ones show as a single key; presence, not count, is what a client renders.
+  // A client that ignores the prefix keeps working — it just renders a flag chip with an
+  // odd name. Worth a HUD affordance: a denied seat's missing action, or a turn that
+  // opens and immediately ends, is otherwise unexplained.
   flags: Record<string, boolean>;
   // Won >=1 combat this turn (engine combatsWonThisTurn membership; also set by
   // markCombatWon off a loss). Public, turn-scoped — see the 2026-07-13 additive note.
@@ -1323,6 +1378,7 @@ export interface ViewOpponent {
   discard: CardInstanceId[]; // discard is public
   ongoingScheme?: CardInstanceId | null; // public face-up ongoing scheme, if any (older views may omit)
   piles?: Record<string, CardInstanceId[]>; // v25: named public set-aside piles ("tucked under the hero card"), card identities visible to EVERY viewer; absent when nothing is tucked
+  pileControllers?: Record<string, Record<CardInstanceId, PlayerId>>; // v0.49.0: for the pile entries whose CONTROLLER is not this seat (a card an opponent tucked under them). Public like `piles`; absent unless some entry is foreign
   hasCommitted: boolean; // face-down commit exists, identity hidden
   counters: Record<string, number>; // counters are public
   flags: Record<string, boolean>; // v16: active named flags, public (see ViewSelf.flags)
@@ -1361,6 +1417,7 @@ export interface ViewPlayer {
   discard: CardInstanceId[];
   ongoingScheme?: CardInstanceId | null; // public face-up ongoing scheme, if any (older views may omit)
   piles?: Record<string, CardInstanceId[]>; // v25: named public set-aside piles ("tucked under the hero card"), card identities visible to EVERY viewer; absent when nothing is tucked
+  pileControllers?: Record<string, Record<CardInstanceId, PlayerId>>; // v0.49.0: for the pile entries whose CONTROLLER is not this seat (a card an opponent tucked under them). Public like `piles`; absent unless some entry is foreign
   committedCard?: CardInstanceId | null; // own face-down commit, present only for self
   hasCommitted: boolean;
   counters: Record<string, number>;
@@ -1516,6 +1573,7 @@ export interface ReplayStepPlayer {
   discard: CardInstanceId[];
   ongoingScheme?: CardInstanceId | null; // public face-up ongoing scheme, if any (older views may omit)
   piles?: Record<string, CardInstanceId[]>; // v25: named public set-aside piles ("tucked under the hero card"), card identities visible to EVERY viewer; absent when nothing is tucked
+  pileControllers?: Record<string, Record<CardInstanceId, PlayerId>>; // v0.49.0: for the pile entries whose CONTROLLER is not this seat (a card an opponent tucked under them). Public like `piles`; absent unless some entry is foreign
   committedCard: CardInstanceId | null;
   counters: Record<string, number>;
 }
