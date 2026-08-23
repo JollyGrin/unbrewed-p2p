@@ -185,6 +185,50 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // bought attack range (lib/pro/rangePurchase.ts) — the engine auto-deducts the
   // shortfall on DECLARE_ATTACK, so the client explains the spend before and after.
   "cecil-palmer": "37z5",
+  // Boba Fett (issue #671 ↔ engine #477, epic engine#464): the-unmatched.club deck
+  // 7289 by Inforce — the BOUNTY deck. TUC decks have no unmatched.cards page, so
+  // the deck id is ours (Darth Vader / Luke precedent) and the committed snapshot is
+  // the only source. Rules fields (titles, types, values, boosts, quantities) are
+  // read off the club's `/print/__data.json` — the bare page route serves
+  // `cards: []`, only /print/ carries them.
+  //
+  // ⚠️ ART IS LAB-ONLY AND MUST NOT GRADUATE. The card faces are the AUTHOR'S OWN
+  // club renders (this deck's /export/__data.json `cardPreviewUrls`), mirrored under
+  // public/evergreen-decks/art/boba-fett/ so the deck can actually be SEEN and
+  // playtested on a local engine. The illustrations inside those renders are scraped
+  // third-party comic art across EIGHT hosts — Pinterest, a Bing image-search CDN, a
+  // Lucasfilm CDN, Reddit, two comic shops — none of it the author's to license and
+  // none of it ours. They are here to make the lab build legible, nothing else, and
+  // the deck-art pipeline ticket MUST replace every one of them before this hero
+  // leaves tier `lab`. Do NOT read this deck as an art precedent: Kenshiro, Skull Kid
+  // and Cecil mirror renders their authors actually made.
+  //
+  // One exception inside the exception: *Slave I: FiresPray Strife* has no usable
+  // club render (its preview hash 400s after a late edit), so it — and the SEISMIC
+  // CHARGE printed on it, which never had a face of its own — render through the
+  // GENERATED TEMPLATE with the author's illustration in the art panel, rather than
+  // full-bleed like the other thirteen.
+  //
+  // The cardback and the hero-token crop are the author's own and are the only two
+  // images here NOT on the replace-before-graduation list. Fennec Shand has no token
+  // art at all — her board token falls back to initials.
+  //
+  // Public state contract, verified against boba-fett.rules.ts @c3fa75a. NO
+  // counters. FOUR one-card set-aside piles, one per BOUNTY card (BOUNTY_PAYMENT /
+  // BOUNTY_INHIBITOR / BOUNTY_CARBONITE / BOUNTY_FLAMETHROWER — the engine's own
+  // BOBA_BOUNTY_PILES, which its header names as the client contract), registered
+  // in HERO_STATE_COUNTERS — and unlike every other pile in the registry these are
+  // HOSTED ON THE VICTIM'S SEAT, not Boba's (protocol v0.49.0 cross-player tuck),
+  // so they render under the OPPONENT's nameplate. ONE flag, `SLAVE_I` — Boba is
+  // off the board and lands next turn swinging SEISMIC CHARGE — registered
+  // nameplate-only, because while it is set he has no token to badge. Plus the
+  // DENY:* action-denial flags (INHIBITOR's `denyFlag DRAW`) and the generic PINNED
+  // fighter status (CARBONITE's `pin`), neither of which is Boba-specific.
+  //
+  // SEISMIC CHARGE is a printed attack that is NOT one of the 30 deck cards: it
+  // lives in the snapshot's `extraCards` so a face resolves for it without polluting
+  // the deck list, its stats or the rules-lock digest.
+  "boba-fett": "boba-fett",
 };
 
 /**
@@ -311,7 +355,13 @@ export function useProCardArt(
           if (!res) return;
           const deck = res.data;
           const byTitle: Record<string, DeckImportCardType> = {};
+          // The 30-card deck, plus (issue #671) any printed card the engine can
+          // put into a combat that is NOT in the deck — Boba's SEISMIC CHARGE,
+          // named by *Slave I*. `extraCards` is art-resolution ONLY: it never
+          // reaches the pool, the stats or the digest, but without it a real
+          // combat card would fall through to the raw-instance-id text fallback.
           for (const card of deck.deck_data.cards) byTitle[norm(card.title)] = card;
+          for (const card of deck.deck_data.extraCards ?? []) byTitle[norm(card.title)] = card;
           byHero[heroId] = {
             cards: byTitle,
             hero: deck.deck_data.hero,

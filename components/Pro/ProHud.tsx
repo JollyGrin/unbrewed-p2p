@@ -59,12 +59,19 @@ import { useAccount } from "@/lib/account/useAccount";
 import { seatNameplate } from "@/lib/pro/playerIdentity";
 import { BadgeGlyph, badgeArtName, isKnownBadge } from "@/components/Badges/BadgeGlyph";
 import { DeckImportHeroType, DeckImportRuleCardType } from "@/components/DeckPool/deck-import.type";
-import { CardInstanceId, PlayerId, PlayerView, ViewFighter, ViewPlayer } from "@/lib/pro/protocol";
+import { CardInstanceId, PileEntry, PlayerId, PlayerView, ViewFighter, ViewPlayer } from "@/lib/pro/protocol";
 import { isLargeFighter, LARGE_FIGHTER_BLURB } from "@/lib/pro/largeReach";
 import { deriveTeams } from "@/lib/pro/teams";
 import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { ResolveCard, ResolveHero, ResolveRuleCards } from "@/lib/pro/useProCardArt";
-import { FlagHudChip, flagChipsFor, counterChipsFor } from "@/lib/pro/heroStateFlags";
+import {
+  FlagHudChip,
+  flagChipsFor,
+  counterChipsFor,
+  pileDisplayName,
+  pileCardIds,
+  pileCreditFor,
+} from "@/lib/pro/heroStateFlags";
 import { DEFAULT_PLATE_LAYOUT, PlateLayout, PlateSeat, useHudPlates } from "@/lib/pro/useHudPlates";
 import { useCardPreview } from "./CardPreview";
 import { CardFace } from "./ProHand";
@@ -417,6 +424,7 @@ export const MoveTimerBar = ({
 };
 
 const SeatPlate = ({
+  seatId,
   label,
   hero,
   ruleCards,
@@ -426,6 +434,7 @@ const SeatPlate = ({
   flags,
   counters,
   piles,
+  nameOfPlayer,
   wonCombat,
   isLocal,
   isActive,
@@ -444,6 +453,9 @@ const SeatPlate = ({
   hydrated,
   onUpdate,
 }: {
+  /** WHOSE plate this is — the pile's HOST, which is what a bare pile entry means
+   *  (protocol v33). Needed to tell an own entry from a foreign one. */
+  seatId: PlayerId;
   label: string;
   hero: DeckImportHeroType | null;
   /** deck-level "extra rules" cards (issue #372) — e.g. Clone Troopers' board
@@ -462,7 +474,18 @@ const SeatPlate = ({
    *  hero card; PlayerView.piles, protocol v25). Drives the same pill + token
    *  badge as a counter, and makes the pill open the pile's card list. undefined
    *  on older servers, or when this seat has tucked nothing. */
-  piles?: Record<string, CardInstanceId[]>;
+  /** v33 (engine #481): each entry is a bare instance id — THIS seat controls the
+   *  card, which is every entry in the game before Boba Fett — or
+   *  `{card, controller}` for a card another seat tucked here. A card tucked under
+   *  an opponent's hero card (Boba Fett's bounties) sits in the HOST's `piles`,
+   *  which is where it renders, but it is still the tucker's card. Read entries
+   *  through `pileEntryCard` / `pileEntryController`, and NEVER key a pile list by
+   *  instance id: ids are minted per seat, so two same-deck seats can put the SAME
+   *  id in one pile (that is the bug #481 fixed). */
+  piles?: Record<string, PileEntry[]>;
+  /** seat label for a PlayerId — used only to attribute a foreign-controlled pile
+   *  ("2 by Boba Fett"). Omitted by callers with no seat table. */
+  nameOfPlayer?: (id: PlayerId) => string;
   /** won >=1 combat this turn (ViewPlayer.wonCombatThisTurn) — shows a "combat won"
    *  chip that explains why Grievous's conditional AFTER effects fire differently.
    *  Turn-scoped: clears at turn start. undefined on older servers → no chip. */
@@ -683,7 +706,17 @@ const SeatPlate = ({
 
   // The pile the plate is currently inspecting, resolved live off `piles` (not off
   // the chip snapshot) so an open overlay follows further tucks in the same game.
-  const openPileCards = openPile ? piles?.[openPile] ?? [] : [];
+  const openPileCards = openPile ? pileCardIds(piles?.[openPile]) : [];
+  // Cross-player tuck (protocol v0.49.0; v33 moved the fact onto the ENTRY): the
+  // pile SITS here, but some or all of its cards may still belong to whoever tucked
+  // them — Boba Fett's bounties sit under their victim. `piles` puts the stack in
+  // the right place; each entry's `controller` is what stops it reading as the
+  // host's own. Attribute by controller, distinct names in seat order, and say
+  // nothing at all when no entry is foreign (which is every pile in the game before
+  // this deck).
+  const openPileCredit = openPile
+    ? pileCreditFor(piles?.[openPile], seatId, nameOfPlayer)
+    : "";
 
   // "combat won ✓" chip (issue #288 ↔ engine #160): shown on the acting seat while
   // `wonCombatThisTurn` is set, so a player can see WHY a conditional AFTER effect
@@ -916,7 +949,9 @@ const SeatPlate = ({
           `label` leads the title because BOTH plates carry a pill: in a mirror the
           hero name alone can't say whose pile you opened. */}
       <CardListModal
-        title={`${label} · ${heroName} — ${openPile} (tucked under hero card)`}
+        title={`${label} · ${heroName} — ${
+          openPile ? pileDisplayName(openPile) : ""
+        }${openPileCredit} (tucked under hero card)`}
         cards={openPileCards}
         resolveCard={resolveCard}
         labelFor={labelFor}
@@ -1230,6 +1265,14 @@ export const ProHud = ({
   // player claimed one, otherwise today's "You"/"Opponent"/seat-id fallbacks —
   // so a guest seat, an older server and an old room all read exactly as before.
   const seatLabel = (seat: ViewPlayer) => seatNameplate(seat, seats.length);
+  // Label for an arbitrary seat id — the cross-player pile credit (v0.49.0) names
+  // the CONTROLLER of a foreign-tucked card, who is by definition not the seat
+  // whose plate is rendering. Falls back to the raw id for a seat that has left
+  // the view (a resolved elimination), which is still better than no attribution.
+  const nameOfPlayer = (id: PlayerId) => {
+    const seat = seats.find((s) => s.id === id);
+    return seat ? seatLabel(seat) : id;
+  };
   // Disconnect/auto-forfeit badge is a multiplayer feature (issue #222): duel
   // keeps its single top-of-HUD "opponent disconnected" chip and renders plates
   // exactly as before, so the presence lookup is gated on a multiplayer view.
@@ -1254,6 +1297,7 @@ export const ProHud = ({
         {seats.map((seat) => (
           <SeatPlate
             key={seat.id}
+            seatId={seat.id}
             label={seatLabel(seat)}
             hero={resolveHero(seat.heroId)}
             ruleCards={resolveRuleCards?.(seat.heroId) ?? []}
@@ -1263,6 +1307,7 @@ export const ProHud = ({
             flags={seat.flags}
             counters={seat.counters}
             piles={seat.piles}
+            nameOfPlayer={nameOfPlayer}
             wonCombat={seat.wonCombatThisTurn}
             isLocal={seat.you}
             isActive={showLiveTurnChrome(view) && view.activePlayer === seat.id}
