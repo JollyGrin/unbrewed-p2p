@@ -165,7 +165,14 @@ export interface UseProSocketReturn {
      * turns the window off for BOTH seats; `true`/undefined = on (the default),
      * and the field is omitted from the wire entirely.
      */
-    mulligan?: boolean
+    mulligan?: boolean,
+    /**
+     * Quick Match (issue #687 ↔ engine #391): this room was opened by the Quick
+     * Match flow rather than an explicit create. Telemetry only — the server
+     * counts it toward search_started/matched and nothing else — and OPTIONAL,
+     * so a server that predates it ignores the key. Omitted when false.
+     */
+    quickMatch?: boolean
   ) => void;
   joinRoom: (roomId: string, heroId: string) => void;
   sendAction: (action: Action) => void;
@@ -672,7 +679,8 @@ export function useProSocket(
       formatId?: string,
       botSeats?: BotSeatFill[],
       turnTimerSeconds?: number,
-      mulligan?: boolean
+      mulligan?: boolean,
+      quickMatch?: boolean
     ) => {
       setError(null); // clear any prior room/hero error on a fresh attempt
       setGameLost(false); // starting a brand-new game — no lost game to mourn
@@ -699,6 +707,9 @@ export function useProSocket(
         // only an explicit opt-OUT reaches the wire. Any other value (true,
         // undefined) omits the key and the room is byte-identical to today.
         ...(mulligan === false ? { mulligan: false } : {}),
+        // Quick Match (#687): additive optional flag, sent only when the room
+        // came from that flow. An engine that predates it drops the key.
+        ...(quickMatch ? { quickMatch: true } : {}),
         // Signed-in seat identity (#568): the Discord name is broadcast to the
         // other seat, the account id goes to telemetry only. `{}` for a guest.
         // The worn badge (#577) rides alongside the name, under the same gate.
