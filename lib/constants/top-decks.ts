@@ -564,11 +564,12 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/p82X/cardback.webp",
   },
   {
-    // In-the-lab Pro deck: Darth Vader — the-unmatched.club deck 4173 by Inforce
-    // (issue #533 ↔ engine #288). Like Grievous this is a TUC deck with no
-    // unmatched.cards page, so `original: true` suppresses the lobby deep-link
-    // and `sourceUrl` carries the real attribution target. Card faces are
-    // self-hosted full-bleed via the snapshot's per-card `cardImage`.
+    // Pro deck: Darth Vader — the-unmatched.club deck 4173 by Inforce (issue
+    // #533 ↔ engine #288). Graduated from the lab 2026-08-23 alongside the
+    // engine's tier promotion (engine #489). Like Grievous this is a TUC deck
+    // with no unmatched.cards page, so `original: true` suppresses the lobby
+    // deep-link and `sourceUrl` carries the real attribution target. Card faces
+    // are self-hosted full-bleed via the snapshot's per-card `cardImage`.
     id: "darth-vader",
     name: "Darth Vader",
     hero: "Darth Vader",
@@ -581,13 +582,13 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl: "/evergreen-decks/art/darth-vader/cardback.webp",
     original: true,
     sourceUrl: "https://www.the-unmatched.club/c/heroes/darth-vader.4173",
-    lab: true,
-    tier: "lab",
   },
   {
     // TUC community deck by Rogue RaiderOne (source ID 9090, engine PR #290).
-    // Sith Assassin action-economy hero, no sidekick. No unmatched.cards page
-    // (original: true suppresses the lobby deep-link); sourceUrl credits TUC.
+    // Sith Assassin action-economy hero, no sidekick. Graduated from the lab
+    // 2026-08-23 alongside the engine's tier promotion (engine #489). No
+    // unmatched.cards page (original: true suppresses the lobby deep-link);
+    // sourceUrl credits TUC.
     id: "darth-maul",
     name: "Darth Maul",
     hero: "Darth Maul",
@@ -597,19 +598,13 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl: "/evergreen-decks/art/darth-maul/cardback.webp",
     original: true,
     sourceUrl: "https://www.the-unmatched.club/c/heroes/darth-maul.9090",
-    // Engine serves this hero at tier `lab` (server/content.ts), so the landing
-    // already badges it from the live listing. These two mirror that locally for
-    // the consumers that read the tile instead: `lab` drives the create-screen
-    // caution badge (pages/pro/game.tsx), `tier` filters the deck out of the
-    // sandbox community picker (components/Bag/PopularDecks) and invite copy
-    // (lib/invite.ts) — same shape as the Darth Vader tile above.
-    lab: true,
-    tier: "lab",
   },
   {
     // TUC community deck 12306 by Rogue RaiderOne (engine #296) — the set-aside
-    // TRAINING pile hero, balanced by its author. No unmatched.cards page, so
-    // `original: true` suppresses the lobby deep-link and `sourceUrl` credits TUC.
+    // TRAINING pile hero, balanced by its author. Graduated from the lab
+    // 2026-08-23 alongside the engine's tier promotion (engine #489). No
+    // unmatched.cards page, so `original: true` suppresses the lobby deep-link
+    // and `sourceUrl` credits TUC.
     id: "luke-skywalker",
     name: "Luke Skywalker",
     hero: "Luke Skywalker",
@@ -621,10 +616,6 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl: "/evergreen-decks/art/luke-skywalker/cardback.webp",
     original: true,
     sourceUrl: "https://www.the-unmatched.club/c/heroes/luke-skywalker.12306",
-    // Engine serves this hero at tier `lab` (server/content.ts) — mirrored here
-    // for the tile-reading consumers, same as the two Sith tiles above.
-    lab: true,
-    tier: "lab",
   },
   {
     // Evergreen ORIGINAL: The Doppelgänger — server hero doppelganger (engine #303,
