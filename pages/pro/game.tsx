@@ -163,6 +163,20 @@ import {
 } from "@/lib/pro/mapCatalog";
 import type { MapCatalogEntry } from "@/lib/pro/mapCatalog";
 import { parseVsParam } from "@/lib/pro/vsParam";
+import {
+  advanceQuickMatch,
+  botFallbackHref,
+  isQuickMatchRetryable,
+  isQuickMatchWaiting,
+  lobbyHostName,
+  lobbyTimerLabel,
+  openLobbyCount,
+  quickMatchStep,
+  startQuickMatch,
+  waitingCountLabel,
+} from "@/lib/pro/quickMatch";
+import type { QuickMatchSearch } from "@/lib/pro/quickMatch";
+import { BadgeGlyph, badgeArtName, isKnownBadge } from "@/components/Badges/BadgeGlyph";
 
 /** same table felt the sandbox game uses (game.layout.tsx) */
 const TABLE_BG = "radial-gradient(ellipse at 50% 20%, #5A3263 0%, #48284F 50%, #2C1831 100%)";
@@ -2202,6 +2216,8 @@ const HeroSelectLobby = ({
   mulligan,
   onSelectMulligan,
   onConfirm,
+  onQuickMatch,
+  quickMatchArmed,
   customMapJson,
   onCustomMapJsonChange,
   selectedMapId,
@@ -2232,6 +2248,10 @@ const HeroSelectLobby = ({
   mulligan: boolean;
   onSelectMulligan: (on: boolean) => void;
   onConfirm: () => void;
+  /** Quick Match (#687), create flow only: find a game instead of configuring one. */
+  onQuickMatch?: () => void;
+  /** arrived from the landing's Quick Match CTA (`?quick=1`) — highlight it */
+  quickMatchArmed?: boolean;
   /** raw custom-map JSON (create flow only) — persisted in the parent */
   customMapJson: string;
   onCustomMapJsonChange: (json: string) => void;
@@ -2374,6 +2394,43 @@ const HeroSelectLobby = ({
       {createLabel}
     </Button>
   );
+
+  // Quick Match (#687) sits BESIDE Create, because it is the other answer to the
+  // same question — configure a room, or just get me a game. Same enablement as
+  // Create (a fighter is locked and the socket is up); everything else on this
+  // screen (board, timer, format) is deliberately ignored by it, so the room the
+  // next searcher joins is always a standard duel.
+  const quickMatchButton = (testId: string) =>
+    !onQuickMatch || room ? null : (
+      <Button
+        type="button"
+        data-testid={testId}
+        onClick={onQuickMatch}
+        isDisabled={!canConfirm}
+        title={
+          canConfirm
+            ? "Join whoever has waited longest — or open a room and wait"
+            : "Pick a fighter first"
+        }
+        h="auto"
+        py="0.55rem"
+        px="1.1rem"
+        borderRadius="0.6rem"
+        fontFamily="LeagueGothic"
+        fontSize="1rem"
+        letterSpacing="0.08em"
+        bg="transparent"
+        color="brand.accent"
+        border="1px solid"
+        borderColor={quickMatchArmed ? "brand.accent" : "whiteAlpha.400"}
+        boxShadow={quickMatchArmed ? "0 0 14px rgba(224,168,46,0.45)" : undefined}
+        _hover={{ bg: "whiteAlpha.200" }}
+        _active={{ bg: "whiteAlpha.300" }}
+        _disabled={{ opacity: 0.4, cursor: "not-allowed" }}
+      >
+        ⚡ Quick Match
+      </Button>
+    );
 
   // Player plates for the current format. Duel opponent + multiplayer seats share
   // the same Human/AI chips (SeatPlate); they just write to different parent
@@ -2900,6 +2957,7 @@ const HeroSelectLobby = ({
         </Flex>
         <Flex direction="column" justify="center" gap="0.4rem" minW="11rem" display={{ base: "none", lg: "flex" }}>
           {createButton}
+          {quickMatchButton("quick-match")}
           <Text textAlign="center" fontSize="0.72rem" color="whiteAlpha.600" fontFamily="SpaceGrotesk">
             {summary}
           </Text>
@@ -2994,6 +3052,7 @@ const HeroSelectLobby = ({
         <Text flex="1" fontSize="0.72rem" color="whiteAlpha.700" fontFamily="SpaceGrotesk" noOfLines={2}>
           {summary}
         </Text>
+        {quickMatchButton("quick-match-mobile")}
         {createButton}
       </Flex>
     </Box>
@@ -3004,7 +3063,7 @@ const HeroSelectLobby = ({
 // LIVE mode
 // ---------------------------------------------------------------------------
 
-const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; heroParam: string | null; vsBot: BotDifficulty | null; debug: boolean }) => {
+const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string | null; heroParam: string | null; vsBot: BotDifficulty | null; debug: boolean; quickParam: boolean }) => {
   const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, requestLobbies, setVisibility, serverRestarting, gameLost } =
     useProSocket(WS_URL, debug);
   // No extra request: the `/me` probe is a shared module-level store that
@@ -3019,6 +3078,11 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   // is for machine-driven narrowing that isn't a choice. See lib/pro/opponentSeat.ts.
   const { opponent, chooseOpponent, reviseOpponent } = useOpponentSeat(vsBot);
   const [selectedFormat, setSelectedFormat] = useState<ProFormatId>("duel");
+  // Quick Match (#687 ↔ engine #391): the search in flight — the hero we
+  // committed plus how far down the polled lobby list we have walked. Null the
+  // rest of the time, and null is what every "are we matchmaking?" branch below
+  // keys off. The stepping itself lives in lib/pro/quickMatch.ts.
+  const [quickSearch, setQuickSearch] = useState<QuickMatchSearch | null>(null);
   const [botSlotPlan, setBotSlotPlan] = useState<BotSlotPlan>({});
   // Chosen board in the create flow: a MAP_CATALOG id, CUSTOM_MAP_ID, or
   // RANDOM_MAP_ID. Starts on Random (#685) — it's eligible in every format, so
@@ -3440,13 +3504,108 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   }, [joined, room]);
 
   // Public-lobby browser: poll while sitting in the pre-join picker (cheap —
-  // one tiny message every 5s against the already-open socket).
+  // one tiny message every 5s against the already-open socket). Quick Match
+  // (#687) keeps the same poll running past the picker: the waiting screen shows
+  // a live count of who else is searching, and it is the list a re-try would
+  // walk. A boolean (not the search object) so an advance doesn't restart the
+  // interval.
+  const quickSearching = quickSearch !== null;
   useEffect(() => {
-    if (joined || room || status !== "open") return;
+    if (status !== "open") return;
+    if (!quickSearching && (joined || room)) return;
     requestLobbies();
     const timer = setInterval(requestLobbies, 5_000);
     return () => clearInterval(timer);
-  }, [joined, room, status, requestLobbies]);
+  }, [joined, room, status, requestLobbies, quickSearching]);
+
+  // Quick Match, step 1 of 2 — DRIVE the search. Each index either joins the
+  // longest-waiting lobby we haven't tried yet or, once the list is spent, opens
+  // our own room with `quickMatch: true`. The ref makes each index fire exactly
+  // once (the effect also re-runs on unrelated re-renders).
+  const quickStepRef = useRef(-1);
+  // The room id we held when a Quick Match CREATE_ROOM went out — `undefined`
+  // when nothing is armed. See the auto-publish effect below.
+  const quickCreatedFromRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!quickSearch) {
+      quickStepRef.current = -1;
+      return;
+    }
+    if (quickStepRef.current === quickSearch.index) return;
+    quickStepRef.current = quickSearch.index;
+    const step = quickMatchStep(quickSearch);
+    if (step.type === "join") {
+      joinRoom(step.roomId, quickSearch.heroId);
+    } else {
+      // A matchmade room is a standard duel: it ignores the picker's format and
+      // timer deliberately, so the room the next searcher joins is always the
+      // plain thing. The BOARD is rolled, not fixed — #685 made Random the
+      // default precisely so every lobby stops opening on The Mended Drum, and a
+      // Quick Match room is the one nobody hand-picks a board for. Same
+      // `rollRandomMap` + `customMapForEntry` pair the Create path uses, so the
+      // server-default board still sends no `customMap`.
+      const rolledEntry = rollRandomMap("duel");
+      setRolledMapId(rolledEntry.id); // …so the waiting screen names it (🎲)
+      createRoom(
+        quickSearch.heroId,
+        undefined,
+        customMapForEntry(rolledEntry),
+        "duel",
+        [],
+        0,
+        mulligan,
+        true,
+      );
+      // Arm the auto-publish below. We can't send SET_VISIBILITY yet: it needs
+      // the room id, which only arrives with ROOM_CREATED — so we remember the
+      // id we had (null, or the last lobby that raced away) and fire when it
+      // changes to our own.
+      quickCreatedFromRef.current = roomId;
+    }
+    setJoined(true);
+  }, [quickSearch, joinRoom, createRoom, mulligan, roomId]);
+
+  // A Quick Match room has to be findable by the NEXT searcher or matchmaking
+  // only ever pairs the second player with the first. Public-by-default is the
+  // engine ticket's half (#391); this is what makes the feature work against the
+  // engine as deployed today, and it is a harmless no-op once that lands.
+  useEffect(() => {
+    const armedFrom = quickCreatedFromRef.current;
+    if (armedFrom === undefined || !roomId || roomId === armedFrom) return;
+    quickCreatedFromRef.current = undefined; // one-shot per created room
+    setVisibility(true);
+  }, [roomId, setVisibility]);
+
+  // Quick Match, step 2 of 2 — ABSORB the race. A lobby that filled or vanished
+  // between the poll and our join answers ROOM_FULL / ROOM_NOT_FOUND; that is an
+  // ordinary matchmaking outcome, not something to show anyone, so we walk to the
+  // next candidate (and eventually to create). The ref consumes each error object
+  // exactly once — without it this effect would re-fire on the re-render its own
+  // advance causes and skip a candidate.
+  const quickErrorRef = useRef<typeof error>(null);
+  useEffect(() => {
+    if (!error) {
+      quickErrorRef.current = null;
+      return;
+    }
+    if (!quickSearch || quickErrorRef.current === error) return;
+    if (!isQuickMatchRetryable(error.code)) return;
+    quickErrorRef.current = error;
+    setQuickSearch(advanceQuickMatch(quickSearch));
+  }, [error, quickSearch]);
+
+  // "Play a bot instead" (#687). DROP-AND-CREATE: there is no engine message for
+  // adding a bot to a room that already exists, so we leave. A full navigation
+  // (not a router push) closes the socket, which the server reads as the host
+  // walking away, and the URL re-enters the ordinary `?vs=ai-*` create flow with
+  // our fighter already picked. Medium unless the server doesn't serve it for
+  // this hero — the tier list is server data, never a client constant (#458).
+  const playBotInstead = () => {
+    const heroId = selectedHeroId;
+    if (!heroId || typeof window === "undefined") return;
+    const tier = coerceBotTier("medium", availableBotTiers(heroes, [heroId]));
+    window.location.href = botFallbackHref(heroId, tier, { debug });
+  };
 
   // Preselect a hero once the server roster arrives: honor a valid `?hero=`
   // (invalid ids are ignored → manual pick), and auto-select when only one
@@ -3623,6 +3782,23 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
             if (mapError) setMapError(null);
           }}
           mapError={mapError}
+          quickMatchArmed={quickParam}
+          // Quick Match (#687): one button that finds you a game — join whoever
+          // has waited longest, else open a public room and wait. It is not a
+          // queue: every frame it sends is a JOIN_ROOM or a CREATE_ROOM this
+          // picker could also make by hand. `?quick=1` (the landing CTA) only
+          // highlights it — we never auto-fire, because the fighter pick is the
+          // one choice nobody can make for the player.
+          onQuickMatch={
+            room
+              ? undefined
+              : () => {
+                  if (!effectiveHeroId) return;
+                  setSelectedHeroId(effectiveHeroId);
+                  setSelectedFormat("duel"); // v1 matches duels only
+                  setQuickSearch(startQuickMatch(effectiveHeroId, lobbies));
+                }
+          }
           onConfirm={() => {
             if (!effectiveHeroId) return;
             if (room) {
@@ -3698,21 +3874,43 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
               Open lobbies — join someone waiting
             </Text>
             <Flex gap="0.5rem" flexWrap="wrap" justifyContent="center" maxW="42rem">
-              {lobbies.map((l) => (
-                <Button
-                  key={l.roomId}
-                  {...BTN_GOLD}
-                  onClick={() =>
-                    router.replace(
-                      { pathname: router.pathname, query: { ...router.query, room: l.roomId } },
-                      undefined,
-                      { shallow: true }
-                    )
-                  }
-                >
-                  vs {l.heroName} · room {l.roomId} · {agoLabel(Date.now() - l.ageMs)}
-                </Button>
-              ))}
+              {lobbies.map((l) => {
+                // Every enrichment below is OPTIONAL (engine #391) and simply
+                // absent against today's server — the row then reads exactly as
+                // it always has. An unknown badge id renders as nothing, and a
+                // host name is UNVERIFIED cosmetic text like any nameplate.
+                const hostName = lobbyHostName(l);
+                const timerLabel = lobbyTimerLabel(l);
+                const formatLabel =
+                  l.formatId && l.formatId !== "duel" ? formatChoice(l.formatId).label : null;
+                const badge = l.host?.badge;
+                return (
+                  <Button
+                    key={l.roomId}
+                    {...BTN_GOLD}
+                    display="inline-flex"
+                    alignItems="center"
+                    gap="0.35rem"
+                    onClick={() =>
+                      router.replace(
+                        { pathname: router.pathname, query: { ...router.query, room: l.roomId } },
+                        undefined,
+                        { shallow: true }
+                      )
+                    }
+                  >
+                    {badge && isKnownBadge(badge) && (
+                      <BadgeGlyph id={badge} size="0.9rem" title={badgeArtName(badge)} />
+                    )}
+                    <Text as="span">
+                      {hostName ? `${hostName} · ` : ""}vs {l.heroName}
+                      {formatLabel ? ` · ${formatLabel}` : ""}
+                      {timerLabel ? ` · ${timerLabel}` : ""} · room {l.roomId} ·{" "}
+                      {agoLabel(Date.now() - l.ageMs)}
+                    </Text>
+                  </Button>
+                );
+              })}
             </Flex>
           </Flex>
         )}
@@ -3740,7 +3938,9 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   // Room-level errors surface on a friendly screen with a create-new fallback.
   // (ROOM_LIMIT is handled earlier as a non-fatal bounce back to the landing
   // picker, so it never reaches this terminal screen.)
-  if (error && (error.code === "ROOM_NOT_FOUND" || error.code === "ROOM_FULL")) {
+  // (…unless Quick Match is mid-search: a full/vanished lobby is its normal
+  // fodder and the effect above is already walking to the next candidate.)
+  if (!quickSearch && error && (error.code === "ROOM_NOT_FOUND" || error.code === "ROOM_FULL")) {
     const msg = proErrorMessage(error.code);
     return (
       <Flex direction="column" alignItems="center" gap="1rem" pt="4rem" px="1rem" textAlign="center">
@@ -3765,6 +3965,26 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   // with no state yet shows this; the room id is also in the URL now, so
   // don't gate on its absence.)
   if (!snapshot) {
+    // Quick Match, still walking the list (#687): whatever room id is on screen
+    // is one we may be about to abandon for the next candidate, so show the
+    // search rather than a room. `roomInfo` is the exit — it only exists once the
+    // server has ACKED a seat for us (ROOM_JOINED/ROOM_CREATED), so a join that
+    // lands falls straight through to the waiting screen below, and so does the
+    // create at the end of the list. Without that gate, joining a room that is
+    // waiting for a THIRD party (or reconnecting to one) would sit on "trying
+    // lobby 1 of 1" forever, because no STATE is coming until the room fills.
+    if (quickSearch && !isQuickMatchWaiting(quickSearch) && !roomInfo) {
+      return (
+        <Flex direction="column" alignItems="center" gap="0.75rem" pt="6rem" px="1rem" textAlign="center">
+          <Text fontFamily="LeagueGothic" fontSize="2.5rem" letterSpacing="0.05em">
+            SEARCHING FOR AN OPPONENT…
+          </Text>
+          <Text opacity={0.75}>
+            Trying open lobby {quickSearch.index + 1} of {quickSearch.candidates.length}.
+          </Text>
+        </Flex>
+      );
+    }
     if (roomId) {
       const joinUrl =
         typeof window !== "undefined" ? `${window.location.origin}/pro/game?room=${roomId}` : "";
@@ -3777,6 +3997,27 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
             <Text fontFamily="BebasNeueRegular" fontSize="1.3rem" letterSpacing="0.05em" color="brand.accent">
               You are {heroNameOf(heroes, selectedHeroId)}
             </Text>
+          )}
+          {/* Quick Match (#687), settled state: no lobby was open (or all of them
+              raced away), so we ARE the lobby now. The count comes off the same
+              5s poll the picker uses and excludes our own room. */}
+          {quickSearch && (
+            <Flex direction="column" alignItems="center" gap="0.35rem">
+              <Tag
+                px="0.75rem"
+                py="0.4rem"
+                fontFamily="SpaceGrotesk"
+                letterSpacing="0.04em"
+                bg="brand.accent"
+                color="brand.surfaceDim"
+                data-testid="quick-match-searching"
+              >
+                ⚡ Quick Match · searching
+              </Tag>
+              <Text fontSize="0.85rem" opacity={0.7}>
+                {waitingCountLabel(openLobbyCount(lobbies, roomId))}
+              </Text>
+            </Flex>
           )}
           <Text opacity={0.8} textAlign="center">
             {(() => {
@@ -3897,6 +4138,11 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
           })()}
 
           {/* discoverability: invite privately or list publicly */}
+          {quickSearch && (
+            <Text fontFamily="BebasNeueRegular" fontSize="1.05rem" letterSpacing="0.08em" opacity={0.8}>
+              Waiting? Invite a friend directly
+            </Text>
+          )}
           <Flex gap="0.5rem" alignItems="center" flexWrap="wrap" justifyContent="center">
             <Tag fontFamily="mono" px="0.75rem" py="0.4rem">
               {joinUrl}
@@ -3912,6 +4158,13 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
             >
               {roomPublic ? "✓ public — listed in the lobby browser" : "make lobby public"}
             </Button>
+            {/* Tired of waiting? (#687) Drop this room and start a bot game —
+                see playBotInstead: there is no add-a-bot-here message. */}
+            {quickSearch && selectedHeroId && (
+              <Button {...BTN} data-testid="quick-match-bot" onClick={playBotInstead}>
+                play a bot instead
+              </Button>
+            )}
           </Flex>
           <Text fontSize="0.8rem" opacity={0.5}>
             {(roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers) > 2 ? "(testing solo? open that link in more browser tabs)" : "(testing solo? open that link in a second browser tab)"}
@@ -5304,10 +5557,18 @@ const ProGamePage = () => {
   // debug-only decks the server hides by default, in the picker and in random
   // bot picks. See lib/pro/protocol.ts v15/v18.
   const debug = router.query.debug !== undefined;
+  // `?quick` (any value, incl. bare `?quick`) is the pro landing's Quick Match
+  // CTA arriving: it highlights the Quick Match button on the picker. It never
+  // auto-fires — the fighter pick is the one choice we can't make for them.
+  const quickParam = router.query.quick !== undefined;
 
   return (
     <Box minH="100svh" bg={TABLE_BG} color="brand.parchment">
-      {WS_URL ? <LiveGame room={room} heroParam={heroParam} vsBot={vsBot} debug={debug} /> : <PreviewGame />}
+      {WS_URL ? (
+        <LiveGame room={room} heroParam={heroParam} vsBot={vsBot} debug={debug} quickParam={quickParam} />
+      ) : (
+        <PreviewGame />
+      )}
     </Box>
   );
 };
