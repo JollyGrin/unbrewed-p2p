@@ -7,6 +7,9 @@ import {
   eligibleFormats,
   ineligibleReason,
   mapEligibleForFormat,
+  RANDOM_MAP_ID,
+  randomMapPool,
+  rollRandomMap,
   type CatalogMap,
 } from "./mapCatalog";
 import { normalizeMap } from "./normalizeMap";
@@ -163,6 +166,74 @@ describe("map catalog", () => {
     it("the custom sentinel id is not a real catalog entry", () => {
       expect(catalogEntry(CUSTOM_MAP_ID)).toBeUndefined();
     });
+
+    it("the random sentinel id is not a real catalog entry", () => {
+      expect(catalogEntry(RANDOM_MAP_ID)).toBeUndefined();
+    });
+  });
+});
+
+/**
+ * The Random tile (#685) resolves at room-create time. 1v1 deliberately rolls
+ * only the SMALLER boards — the big four (Weathertop, Count's Castle, USCSS
+ * Nostromo, The Bog) stay hand-pickable but never land on a duel by chance.
+ */
+describe("random board pool", () => {
+  const BIG_BOARDS = ["weathertop", "counts-castle", "uscss-nostromo", "the-bog"];
+
+  it("duel rolls only the four flagged small boards", () => {
+    expect(randomMapPool("duel").map((e) => e.id)).toEqual([
+      "mended-drum",
+      "island-of-despair",
+      "city-docks",
+      "polus",
+    ]);
+  });
+
+  it("duel never rolls a big board", () => {
+    for (const id of BIG_BOARDS) {
+      expect(randomMapPool("duel").map((e) => e.id)).not.toContain(id);
+    }
+  });
+
+  it("ffa-3 and 2v2 roll every visible board eligible for the format", () => {
+    for (const format of ["ffa-3", "team-2v2"] as const) {
+      const pool = randomMapPool(format);
+      expect(pool.map((e) => e.id)).toEqual([
+        "island-of-despair",
+        "city-docks",
+        "polus",
+        "weathertop",
+        "counts-castle",
+      ]);
+      // every rolled board can actually seat the format, and none is hidden
+      expect(pool.every((e) => mapEligibleForFormat(e.map, format))).toBe(true);
+      expect(pool.some((e) => e.hidden)).toBe(false);
+    }
+  });
+
+  it("never offers the hidden playtest arena", () => {
+    for (const format of ["duel", "ffa-3", "team-2v2"] as const) {
+      expect(randomMapPool(format).map((e) => e.id)).not.toContain("multiplayer-arena-playtest");
+    }
+  });
+
+  it("rolls uniformly across the pool and stays in bounds at rng()→1", () => {
+    const pool = randomMapPool("duel");
+    expect(pool.map((_, i) => rollRandomMap("duel", () => i / pool.length).id)).toEqual(
+      pool.map((e) => e.id),
+    );
+    // Math.random() is [0,1), but a degenerate rng must not index past the end
+    expect(rollRandomMap("duel", () => 1).id).toBe(pool[pool.length - 1].id);
+    expect(rollRandomMap("duel", () => 0).id).toBe(pool[0].id);
+  });
+
+  it("a rolled board carries the same customMap semantics as a clicked tile", () => {
+    // Mended Drum is the server-default board — rolling it must still send nothing
+    expect(customMapForEntry(rollRandomMap("duel", () => 0))).toBeUndefined();
+    const polusRoll = rollRandomMap("duel", () => 0.99);
+    expect(polusRoll.id).toBe("polus");
+    expect(customMapForEntry(polusRoll)!.id).toBe("polus");
   });
 });
 

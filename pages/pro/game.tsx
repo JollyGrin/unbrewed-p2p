@@ -153,11 +153,13 @@ import { useHideOpponentCosmetics } from "@/lib/pro/useHideOpponentCosmetics";
 import {
   CUSTOM_MAP_ID,
   MAP_CATALOG,
+  RANDOM_MAP_ID,
   catalogEntry,
   customMapForEntry,
   defaultMapIdForFormat,
-  ineligibleReason,
   mapEligibleForFormat,
+  randomMapPool,
+  rollRandomMap,
 } from "@/lib/pro/mapCatalog";
 import type { MapCatalogEntry } from "@/lib/pro/mapCatalog";
 import { parseVsParam } from "@/lib/pro/vsParam";
@@ -2303,10 +2305,17 @@ const HeroSelectLobby = ({
     return h.name.toLowerCase().includes(q) || author.toLowerCase().includes(q);
   });
 
+  // Boards the Random tile can land on for the current format — shown as the
+  // tile's tooltip so "Random" is never a black box (#685).
+  const randomPoolTitles = randomMapPool(selectedFormat)
+    .map((e) => e.title)
+    .join(", ");
   const stageName =
     selectedMapId === CUSTOM_MAP_ID
       ? "Custom board"
-      : catalogEntry(selectedMapId)?.title ?? "Default board";
+      : selectedMapId === RANDOM_MAP_ID
+        ? "Random board"
+        : catalogEntry(selectedMapId)?.title ?? "Default board";
   const timerText = turnTimerSeconds > 0 ? `${clampTurnTimer(turnTimerSeconds)}s timer` : "no timer";
   const mulliganText = mulligan ? "mulligan on" : "no mulligan";
   const summary = effective
@@ -2695,33 +2704,78 @@ const HeroSelectLobby = ({
           {!room && (
             <Flex align="center" gap="0.7rem">
               <Text {...STRIP_LBL}>STAGE</Text>
-              <Flex gap="0.5rem" overflowX="auto" pb="0.25rem" flex="1">
-                {MAP_CATALOG.filter((e) => !e.hidden).map((entry) => {
-                  const reason = ineligibleReason(entry.map, selectedFormat);
-                  const eligible = reason === null;
+              {/* Wrapped grid, not a scroll strip (#685): every board — plus the
+                  Random and Custom tiles — has to be reachable without a
+                  horizontal scroll, or the tail of the catalog (The Bog) is
+                  invisible. Boards the current format can't host are hidden
+                  outright rather than dimmed with a reason: with the strip
+                  wrapped, a row of greyed-out cards is just noise, and the
+                  format chips above already say how many seats are needed. */}
+              <Flex gap="0.5rem" flexWrap="wrap" pb="0.25rem" flex="1">
+                {/* Random — resolves at create time from the format's pool
+                    (1v1 rolls only the smaller boards). */}
+                <Box
+                  as="button"
+                  type="button"
+                  onClick={() => onSelectMap(RANDOM_MAP_ID)}
+                  aria-pressed={selectedMapId === RANDOM_MAP_ID}
+                  aria-label={
+                    selectedFormat === "duel"
+                      ? "Random board — rolled from the smaller 1v1 boards when the room is created"
+                      : "Random board — rolled when the room is created"
+                  }
+                  title={`Rolled when the room is created: ${randomPoolTitles}`}
+                  flex="none"
+                  w="6.75rem"
+                  borderRadius="0.5rem"
+                  overflow="hidden"
+                  border="1px dashed"
+                  borderColor={selectedMapId === RANDOM_MAP_ID ? "brand.accent" : "whiteAlpha.300"}
+                  boxShadow={selectedMapId === RANDOM_MAP_ID ? "0 0 0 1px #E0A82E" : undefined}
+                  bg="rgba(0,0,0,0.18)"
+                  cursor="pointer"
+                  transition="border-color 0.15s"
+                  _hover={{ borderColor: "whiteAlpha.500" }}
+                >
+                  <Flex h="3.5rem" align="center" justify="center" fontSize="1.5rem" aria-hidden>
+                    🎲
+                  </Flex>
+                  <Text
+                    fontFamily="SpaceGrotesk"
+                    fontSize="0.56rem"
+                    letterSpacing="0.05em"
+                    textTransform="uppercase"
+                    textAlign="center"
+                    px="0.3rem"
+                    py="0.25rem"
+                  >
+                    Random
+                  </Text>
+                </Box>
+                {MAP_CATALOG.filter(
+                  (e) => !e.hidden && mapEligibleForFormat(e.map, selectedFormat),
+                ).map((entry) => {
                   const selected = selectedMapId === entry.id;
                   return (
                     <Box
                       as="button"
                       type="button"
                       key={entry.id}
-                      onClick={() => eligible && onSelectMap(entry.id)}
-                      disabled={!eligible}
-                      aria-pressed={selected && eligible}
-                      aria-label={`${entry.title}${eligible ? "" : ` — ${reason}`}`}
+                      onClick={() => onSelectMap(entry.id)}
+                      aria-pressed={selected}
+                      aria-label={entry.title}
                       position="relative"
                       flex="none"
                       w="6.75rem"
                       borderRadius="0.5rem"
                       overflow="hidden"
                       border="1px solid"
-                      borderColor={selected && eligible ? "brand.accent" : "whiteAlpha.200"}
-                      boxShadow={selected && eligible ? "0 0 0 1px #E0A82E" : undefined}
+                      borderColor={selected ? "brand.accent" : "whiteAlpha.200"}
+                      boxShadow={selected ? "0 0 0 1px #E0A82E" : undefined}
                       bg="rgba(0,0,0,0.22)"
-                      opacity={eligible ? 1 : 0.32}
-                      cursor={eligible ? "pointer" : "not-allowed"}
+                      cursor="pointer"
                       transition="border-color 0.15s, opacity 0.15s"
-                      _hover={eligible ? { borderColor: selected ? "brand.accent" : "whiteAlpha.400" } : {}}
+                      _hover={{ borderColor: selected ? "brand.accent" : "whiteAlpha.400" }}
                     >
                       <Box
                         h="3.5rem"
@@ -2781,22 +2835,6 @@ const HeroSelectLobby = ({
                       >
                         {entry.title}
                       </Text>
-                      {!eligible && (
-                        <Text
-                          position="absolute"
-                          top="1.1rem"
-                          left="0"
-                          right="0"
-                          fontSize="0.55rem"
-                          fontFamily="SpaceGrotesk"
-                          textAlign="center"
-                          bg="rgba(10,4,12,0.85)"
-                          py="0.15rem"
-                          color="#E0A06E"
-                        >
-                          {reason}
-                        </Text>
-                      )}
                     </Box>
                   );
                 })}
@@ -2987,10 +3025,14 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   const { opponent, chooseOpponent, reviseOpponent } = useOpponentSeat(vsBot);
   const [selectedFormat, setSelectedFormat] = useState<ProFormatId>("duel");
   const [botSlotPlan, setBotSlotPlan] = useState<BotSlotPlan>({});
-  // Chosen board in the create flow: a MAP_CATALOG id or CUSTOM_MAP_ID. Starts
-  // on the duel default (The Mended Drum) and follows the format's default when
-  // the format changes to one the current board can't host.
-  const [selectedMapId, setSelectedMapId] = useState<string>(defaultMapIdForFormat("duel"));
+  // Chosen board in the create flow: a MAP_CATALOG id, CUSTOM_MAP_ID, or
+  // RANDOM_MAP_ID. Starts on Random (#685) — it's eligible in every format, so
+  // it survives format switches; a hand-picked board that the new format can't
+  // host still falls back to `defaultMapIdForFormat`.
+  const [selectedMapId, setSelectedMapId] = useState<string>(RANDOM_MAP_ID);
+  // The board Random actually rolled at create time, so the lobby can name the
+  // real board instead of "Random". Null whenever the pick isn't a rolled one.
+  const [rolledMapId, setRolledMapId] = useState<string | null>(null);
   const [aiHeroId, setAiHeroId] = useState<string | null>(null);
   // A tier can stop being offered while it is armed — switch to a fighter the
   // server doesn't serve Expert for and the already-picked Expert seat would be
@@ -3437,6 +3479,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
       // Only a pasted custom board realistically fails validation; select the
       // Custom… option so its textarea (where the error renders) is visible.
       setSelectedMapId(CUSTOM_MAP_ID);
+      setRolledMapId(null);
       setMapError(error.message);
     }
     // ROOM_LIMIT (PR #103): the server is at its global room cap on create/join.
@@ -3555,7 +3598,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
             // Keep a still-eligible board (and a "Custom…" choice) selected;
             // otherwise fall back to the new format's default board.
             setSelectedMapId((prev) => {
-              if (prev === CUSTOM_MAP_ID) return prev;
+              if (prev === CUSTOM_MAP_ID || prev === RANDOM_MAP_ID) return prev;
               const entry = catalogEntry(prev);
               if (entry && mapEligibleForFormat(entry.map, format)) return prev;
               return defaultMapIdForFormat(format);
@@ -3581,6 +3624,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
           selectedMapId={selectedMapId}
           onSelectMap={(id) => {
             setSelectedMapId(id);
+            setRolledMapId(null);
             if (mapError) setMapError(null);
           }}
           mapError={mapError}
@@ -3597,7 +3641,15 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
             // Custom… option parses the pasted JSON just-in-time. Local errors
             // stay in the lobby; the server re-validates and answers BAD_MAP.
             let customMap: ProMapDef | undefined;
-            if (selectedMapId === CUSTOM_MAP_ID) {
+            let rolled: string | null = null;
+            if (selectedMapId === RANDOM_MAP_ID) {
+              // Deferred resolution (#685): roll now, then behave exactly as if
+              // that board's tile had been clicked — Mended Drum still sends no
+              // customMap, every other board sends its full ProMapDef.
+              const entry = rollRandomMap(selectedFormat);
+              rolled = entry.id;
+              customMap = customMapForEntry(entry);
+            } else if (selectedMapId === CUSTOM_MAP_ID) {
               const trimmed = customMapJson.trim();
               if (trimmed) {
                 try {
@@ -3618,6 +3670,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
               customMap = customMapForEntry(entry);
             }
             setMapError(null);
+            setRolledMapId(rolled);
             const bot =
               selectedFormat !== "duel" || opponent === "human"
                 ? undefined
@@ -3733,8 +3786,11 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
             {(() => {
               const required = roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers;
               const seated = roomInfo?.seats.length ?? 1;
-              const boardTitle =
-                selectedMapId === CUSTOM_MAP_ID
+              // A Random pick is already resolved by the time we get here, so
+              // the lobby names the board that was actually rolled (#685).
+              const boardTitle = rolledMapId
+                ? `${catalogEntry(rolledMapId)?.title ?? "the default board"} 🎲`
+                : selectedMapId === CUSTOM_MAP_ID
                   ? "a custom board"
                   : catalogEntry(selectedMapId)?.title ?? "the default board";
               const waiting =
@@ -3769,7 +3825,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
           {(() => {
             const comp = teamComposition(
               roomInfo?.formatId ?? selectedFormat,
-              catalogEntry(selectedMapId)?.map,
+              catalogEntry(rolledMapId ?? selectedMapId)?.map,
             );
             if (!comp) return null;
             const youSeat = roomInfo?.you;
@@ -3814,7 +3870,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
               hero as ROOM_STATUS arrives (issue #222). */}
           {(() => {
             const roster = roomInfo?.roster;
-            const isTeam = !!teamComposition(roomInfo?.formatId ?? selectedFormat, catalogEntry(selectedMapId)?.map);
+            const isTeam = !!teamComposition(roomInfo?.formatId ?? selectedFormat, catalogEntry(rolledMapId ?? selectedMapId)?.map);
             const required = roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers;
             if (!roster || isTeam || required <= 2) return null;
             const youSeat = roomInfo?.you;

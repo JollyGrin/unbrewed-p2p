@@ -51,6 +51,15 @@ export interface MapCatalogEntry {
    * board picker. Used for synthetic/dev-only boards like the playtest arena.
    */
   hidden?: boolean;
+  /**
+   * When true, this board is in the pool the synthetic "Random" tile rolls from
+   * for `duel` (issue #685). Deliberately an explicit per-entry flag, not a
+   * positional slice: 1v1 rolls only the SMALLER boards, so a big four-player
+   * board (Weathertop, Count's Castle, USCSS Nostromo, The Bog) is still
+   * pickable by hand but never lands on a player by chance. The multiplayer
+   * formats ignore this and roll over everything `mapEligibleForFormat` allows.
+   */
+  duelRandomPool?: boolean;
 }
 
 const mendedDrum = mendedDrumJson as unknown as CatalogMap;
@@ -72,6 +81,7 @@ export const MAP_CATALOG: MapCatalogEntry[] = [
     title: mendedDrum.meta.title,
     thumbnailUrl: mendedDrum.meta.imageUrl ?? "",
     map: mendedDrum,
+    duelRandomPool: true,
     serverDefault: true,
   },
   {
@@ -79,18 +89,21 @@ export const MAP_CATALOG: MapCatalogEntry[] = [
     title: islandOfDespair.meta.title,
     thumbnailUrl: islandOfDespair.meta.imageUrl ?? "",
     map: islandOfDespair,
+    duelRandomPool: true,
   },
   {
     id: cityDocks.id,
     title: cityDocks.meta.title,
     thumbnailUrl: cityDocks.meta.imageUrl ?? "",
     map: cityDocks,
+    duelRandomPool: true,
   },
   {
     id: polus.id,
     title: polus.meta.title,
     thumbnailUrl: polus.meta.imageUrl ?? "",
     map: polus,
+    duelRandomPool: true,
   },
   {
     id: weathertop.id,
@@ -127,6 +140,16 @@ export const MAP_CATALOG: MapCatalogEntry[] = [
 
 /** Sentinel id for the "paste your own JSON" option in the board picker. */
 export const CUSTOM_MAP_ID = "custom" as const;
+
+/**
+ * Sentinel id for the "Random" option in the board picker (issue #685).
+ *
+ * Selecting it does NOT pick a board — resolution is deferred to room-create
+ * time, where `rollRandomMap` draws from the format's pool and the create path
+ * then proceeds exactly as if that board's tile had been clicked (`serverDefault`
+ * / `customMapForEntry` semantics intact).
+ */
+export const RANDOM_MAP_ID = "random" as const;
 
 const printedSlots = (map: CatalogMap): Set<number> =>
   new Set(map.spaces.flatMap((s) => (s.start ? [s.start.slot] : [])));
@@ -175,6 +198,32 @@ export function catalogEntry(id: string): MapCatalogEntry | undefined {
 /** The default board id for a format: Mended Drum for duel, Island of Despair otherwise. */
 export function defaultMapIdForFormat(formatId: ProFormatId): string {
   return formatId === "duel" ? mendedDrum.id : islandOfDespair.id;
+}
+
+/**
+ * The boards the Random tile can roll for a format.
+ *
+ * `duel` draws only from the flagged small-board pool; the multiplayer formats
+ * draw uniformly over every visible board eligible for that format.
+ */
+export function randomMapPool(formatId: ProFormatId): MapCatalogEntry[] {
+  const visible = MAP_CATALOG.filter((e) => !e.hidden && mapEligibleForFormat(e.map, formatId));
+  return formatId === "duel" ? visible.filter((e) => e.duelRandomPool) : visible;
+}
+
+/**
+ * Roll a board for a format. Uniform over `randomMapPool`; falls back to the
+ * format's default board if a pool is ever empty (so the create path can never
+ * be left without a board).
+ */
+export function rollRandomMap(
+  formatId: ProFormatId,
+  rng: () => number = Math.random,
+): MapCatalogEntry {
+  const pool = randomMapPool(formatId);
+  if (pool.length === 0) return catalogEntry(defaultMapIdForFormat(formatId))!;
+  const i = Math.min(pool.length - 1, Math.max(0, Math.floor(rng() * pool.length)));
+  return pool[i];
 }
 
 /**
