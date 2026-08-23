@@ -201,13 +201,17 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // public/evergreen-decks/art/boba-fett/. Fennec Shand has no token art at all —
   // her board token falls back to initials.
   //
-  // Public state contract: NO counters. FOUR one-card set-aside piles, one per
-  // BOUNTY card (BOUNTY_PAYMENT / BOUNTY_INHIBITOR / BOUNTY_CARBONITE /
-  // BOUNTY_FLAMETHROWER), registered in HERO_STATE_COUNTERS — and unlike every
-  // other pile in the registry these are HOSTED ON THE VICTIM'S SEAT, not Boba's
-  // (protocol v0.49.0 cross-player tuck), so they render under the OPPONENT's
-  // nameplate. Plus the DENY:* action-denial flags (INHIBITOR) and the generic
-  // PINNED fighter status (CARBONITE), neither of which is Boba-specific.
+  // Public state contract, verified against boba-fett.rules.ts @c3fa75a. NO
+  // counters. FOUR one-card set-aside piles, one per BOUNTY card (BOUNTY_PAYMENT /
+  // BOUNTY_INHIBITOR / BOUNTY_CARBONITE / BOUNTY_FLAMETHROWER — the engine's own
+  // BOBA_BOUNTY_PILES, which its header names as the client contract), registered
+  // in HERO_STATE_COUNTERS — and unlike every other pile in the registry these are
+  // HOSTED ON THE VICTIM'S SEAT, not Boba's (protocol v0.49.0 cross-player tuck),
+  // so they render under the OPPONENT's nameplate. ONE flag, `SLAVE_I` — Boba is
+  // off the board and lands next turn swinging SEISMIC CHARGE — registered
+  // nameplate-only, because while it is set he has no token to badge. Plus the
+  // DENY:* action-denial flags (INHIBITOR's `denyFlag DRAW`) and the generic PINNED
+  // fighter status (CARBONITE's `pin`), neither of which is Boba-specific.
   //
   // SEISMIC CHARGE is a printed attack that is NOT one of the 30 deck cards: it
   // lives in the snapshot's `extraCards` so a face resolves for it without polluting

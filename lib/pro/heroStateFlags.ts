@@ -146,6 +146,23 @@ export const HERO_STATE_FLAGS: HeroStateFlag[] = [
     tokenArt: { on: "https://unbrewed.xyz/evergreen-decks/art/malfurion-stormrage/token-malfurion.webp" },
   },
   {
+    // Boba Fett's SLAVE I ambush (issue #671 ↔ engine #477). *Slave I: FiresPray
+    // Strife* removes Boba FROM THE BOARD and sets this flag; his TURN_START trigger
+    // clears it, places him in ANY space and opens a free combat with SEISMIC CHARGE
+    // (attack 6, no action spent). Engine flag key is `SLAVE_I`
+    // (`const SLAVE_I_FLAG = 'SLAVE_I'` in boba-fett.rules.ts @c3fa75a).
+    //
+    // NAMEPLATE ONLY, and this is the one entry in the registry where that is not a
+    // compromise: while the flag is set Boba HAS NO TOKEN ON THE BOARD, so a token
+    // badge would have nothing to sit on. The plate is the only surface left, which
+    // is precisely why the state needs one — an opponent watching a hero vanish
+    // otherwise has no way to learn that he is coming back next turn swinging a 6,
+    // anywhere on the map. It reads on BOTH plates for the usual reason.
+    flag: "SLAVE_I",
+    heroes: ["boba-fett"],
+    nameplate: { onLabel: "SLAVE I — INBOUND", offLabel: "", showWhenAbsent: false },
+  },
+  {
     // Kenshiro's NUNCHAKU turn buff (issue #596 ↔ engine #362). Engine flag key is
     // `NUNCHAKU` — the scheme grants "all of Kenshiro's attacks this turn are +1
     // value", which is otherwise INVISIBLE: the buff lands on a card that has not
@@ -312,8 +329,18 @@ export interface HeroStateCounter {
 /**
  * Boba Fett's four BOUNTY piles (issue #671 ↔ engine #477), one per BOUNTY card,
  * named for the effect its band prints. THE ONE PLACE these keys are written: the
- * registry entries below are generated from this list, so correcting a key when
- * engine #477 lands its `boba-fett.rules.ts` is a one-line edit here.
+ * registry entries below are generated from this list.
+ *
+ * VERIFIED VERBATIM against `data/heroes/boba-fett.rules.ts` @c3fa75a, where they
+ * are `BOBA_BOUNTY_PILES` and the header calls them out as the client contract:
+ * "The four pile names are part of the client contract — they are what the p2p
+ * heroStateFlags.ts entry renders under the *victim's* nameplate".
+ *
+ * FOUR PILES RATHER THAN ONE is the engine's doing and worth knowing here: the
+ * hero ability must resolve ONE NAMED band, `CARDS_IN_PILE` has no title filter,
+ * and `whileInPile` cannot "activate card X" — so identity is carried by giving
+ * each band its own pile. That is also why the client can render a band's presence
+ * as a bare pill and the total as one summed badge: the count IS the identity.
  *
  * Every one of them is hosted on the VICTIM's seat, never on Boba's.
  */
@@ -444,10 +471,10 @@ export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
   // the state lives on the OPPONENT, is invisible to them unless we draw it, and
   // decides how hard the next Disintegration hits.
   //
-  // PILE KEYS ARE PROVISIONAL until engine #477 lands its rules file — they follow
-  // the research doc's `BOUNTY_<n>` convention named for each card's bounty band.
-  // `BOUNTY_PILES` below is the single place to correct them, and a test pins the
-  // list so a rename is caught rather than silently rendering nothing.
+  // Pile keys, the hero id and every card stat are VERIFIED against
+  // boba-fett.rules.ts @c3fa75a (engine #477). `BOUNTY_PILES` is the single place
+  // they are written, and a test pins the list so an engine rename is caught rather
+  // than silently rendering nothing.
   ...BOUNTY_PILES.map(
     (b): HeroStateCounter => ({
       pile: b.pile,

@@ -913,3 +913,30 @@ describe("pileCreditFor (cross-player tuck attribution)", () => {
     expect(pileCreditFor({ "p1/bounty#1": "p1" }, undefined)).toBe("");
   });
 });
+
+describe("Boba Fett's SLAVE I ambush flag", () => {
+  it("announces the inbound attack on the nameplate, on either plate", () => {
+    expect(flagChipsFor("boba-fett", { SLAVE_I: true })).toEqual([
+      { chip: { flag: "SLAVE_I", onLabel: "SLAVE I — INBOUND", offLabel: "" }, on: true },
+    ]);
+  });
+
+  it("says nothing while Boba is on the board", () => {
+    expect(flagChipsFor("boba-fett", {})).toEqual([]);
+    expect(flagChipsFor("boba-fett", { SLAVE_I: false })).toEqual([]);
+    expect(flagChipsFor("boba-fett", undefined)).toEqual([]);
+  });
+
+  it("claims NO token surface — the flag means the token is off the board", () => {
+    // Every other flag entry drives a badge or a portrait. This one deliberately
+    // cannot: there is no token to decorate while Boba is removed from play.
+    expect(fighterTokenStateFor("boba-fett", { SLAVE_I: true })).toEqual({
+      badge: null,
+      heroArtUrl: null,
+    });
+  });
+
+  it("never leaks onto another hero's plate", () => {
+    expect(flagChipsFor("king-kong", { SLAVE_I: true })).toEqual([]);
+  });
+});

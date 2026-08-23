@@ -453,6 +453,74 @@ describe("enrichLines", () => {
       ]);
     });
 
+    // Cross-player tuck (v0.49.0, engine #459 — issue #671). Boba Fett's whole deck
+    // is this: `player` is the pile's HOST, `controller` is whose card it is.
+    it("CARD_TUCKED credits the CONTROLLER when the bounty lands on someone else", () => {
+      const out = enrichLines(
+        [],
+        [
+          {
+            type: "CARD_TUCKED",
+            player: "p2", // the victim hosts the pile
+            controller: "p1", // Boba still owns the card
+            card: "boba-fett/bounty-its-just-business#1",
+            pile: "BOUNTY_PAYMENT",
+          },
+        ],
+        ctx("p1") // read from Boba's seat
+      );
+      expect(out).toEqual([
+        {
+          text: "You tucked bounty-its-just-business under Opponent's hero card (BOUNTY_PAYMENT)",
+          who: "you",
+          cards: ["boba-fett/bounty-its-just-business#1"],
+        },
+      ]);
+    });
+
+    it("reads the same tuck correctly from the VICTIM's seat", () => {
+      const out = enrichLines(
+        [],
+        [
+          {
+            type: "CARD_TUCKED",
+            player: "p2",
+            controller: "p1",
+            card: "boba-fett/bounty-its-just-business#1",
+            pile: "BOUNTY_PAYMENT",
+          },
+        ],
+        ctx("p2") // you are the one being bountied
+      );
+      // The actor is the opponent and the hero card is YOURS — the line must not
+      // say "Opponent tucked … under their hero card", which is where it lands.
+      expect(out[0].text).toBe(
+        "Opponent tucked bounty-its-just-business under your hero card (BOUNTY_PAYMENT)"
+      );
+      expect(out[0].who).toBe("opp");
+    });
+
+    it("CARD_RETURNED_FROM_PILE names the HOST when the pile was someone else's", () => {
+      // v0.57.0 (engine #473): the exit routes to the CONTROLLER, so `player` is who
+      // gets the card and `host` is where it came from.
+      const out = enrichLines(
+        [],
+        [
+          {
+            type: "CARD_RETURNED_FROM_PILE",
+            player: "p1",
+            host: "p2",
+            card: "boba-fett/bounty-its-just-business#1",
+            pile: "BOUNTY_PAYMENT",
+          },
+        ],
+        ctx("p1")
+      );
+      expect(out[0].text).toBe(
+        "You took bounty-its-just-business back from Opponent's BOUNTY_PAYMENT to hand"
+      );
+    });
+
     it("CARD_RETURNED_FROM_PILE narrates the inverse move", () => {
       const out = enrichLines(
         [],

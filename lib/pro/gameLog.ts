@@ -881,21 +881,39 @@ export function enrichLines(
       // the diff sees a card leave hand and never arrive anywhere it tracks — it
       // would otherwise silently vanish from the log. The return is the inverse.
       // Allowlist (Mode 2): neither overlaps a diff line.
+      //
+      // CROSS-PLAYER TUCK (v0.49.0, engine #459 — issue #671). `player` is the pile's
+      // HOST: where the card now SITS. `controller`, present only when the two differ,
+      // is whose card it still IS. Boba Fett tucks every bounty under an OPPONENT, so
+      // reading `player` as the actor would credit the victim with playing the card
+      // and colour the line as their move — on the deck's core mechanic, every time.
       case "CARD_TUCKED": {
-        const seat = ctx.seat(e.player);
+        const actor = e.controller ?? e.player;
+        const under =
+          e.player === ctx.you
+            ? "your hero card"
+            : actor === e.player
+              ? "their hero card"
+              : `${ctx.seat(e.player)}'s hero card`;
         added.push({
-          text: `${seat} tucked ${ctx.label(e.card)} under ${
-            seat === "You" ? "your" : "their"
-          } hero card (${e.pile})`,
-          who: whoOf(e.player),
+          text: `${ctx.seat(actor)} tucked ${ctx.label(e.card)} under ${under} (${e.pile})`,
+          who: whoOf(actor),
           cards: [e.card],
         });
         break;
       }
+      // The inverse, and the same distinction (v0.57.0, engine #473): a card can now
+      // LEAVE a pile another player hosts and is routed to its CONTROLLER's hand, so
+      // `player` here is the controller and the OPTIONAL `host` says where the pile
+      // was. Boba taking a bounty back off an opponent is the consumer; a same-seat
+      // return (Luke's TRAINING) omits `host` and reads exactly as it always has.
       case "CARD_RETURNED_FROM_PILE": {
-        const seat = ctx.seat(e.player);
+        const from =
+          e.host && e.host !== e.player
+            ? `${e.host === ctx.you ? "your" : `${ctx.seat(e.host)}'s`} ${e.pile}`
+            : e.pile;
         added.push({
-          text: `${seat} took ${ctx.label(e.card)} back from ${e.pile} to hand`,
+          text: `${ctx.seat(e.player)} took ${ctx.label(e.card)} back from ${from} to hand`,
           who: whoOf(e.player),
           cards: [e.card],
         });
