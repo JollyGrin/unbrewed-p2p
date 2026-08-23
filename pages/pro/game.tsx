@@ -123,6 +123,8 @@ import {
 } from "@/lib/pro/moveSteps";
 import { useGameFx, DamageArc } from "@/lib/pro/useGameFx";
 import { useCombatCallouts, CombatCalloutItem } from "@/lib/pro/combatFx";
+import { defenderSwapText } from "@/lib/pro/combatDefender";
+import { useDefenderSwap } from "@/lib/pro/useDefenderSwap";
 import {
   useCombatStrike,
   CombatStrike,
@@ -1350,6 +1352,7 @@ const CombatPanel = ({
   clashRef,
   chain,
   effectAttack,
+  defenderSwap,
 }: {
   combat: ViewCombat;
   catalog: Record<string, CardMeta>;
@@ -1370,6 +1373,12 @@ const CombatPanel = ({
    *  was opened by `{op:'attackWith'}` with a LINKED printed card, outside any
    *  action. Null/undefined for every declared combat. */
   effectAttack?: EffectAttackTag | null;
+  /** defender substitution (#681 ↔ engine #494, protocol v34): a card moved the
+   *  DEFENDING FIGHTER mid-combat (Ripley's *GET BEHIND ME*), so the damage will
+   *  land on somebody other than the fighter that was attacked. The cards do not
+   *  move — the slots below are unchanged — which is precisely why the panel has
+   *  to say it in words. Null/undefined for every ordinary combat. */
+  defenderSwap?: { tag: string; full: string } | null;
 }) => {
   const attackerCommitted = combat.stage !== "COMMIT_ATTACK";
   const pastReveal = !["COMMIT_ATTACK", "COMMIT_DEFENSE"].includes(combat.stage);
@@ -1431,6 +1440,24 @@ const CombatPanel = ({
             aria-label={effectAttack.title}
           >
             {effectAttack.text}
+          </Tag>
+        )}
+        {/* Defender substitution (#681 ↔ engine #494, protocol v34). The combat
+            card slots do NOT move with the fighter — the committed defense card
+            stays where it was — so without this tag the only sign that a
+            different figure is about to eat the damage is the board arrow
+            quietly re-pointing between two frames. */}
+        {defenderSwap && (
+          <Tag
+            size="sm"
+            bg="#3B1D63"
+            color="#F2EAD3"
+            letterSpacing="0.03em"
+            cursor="help"
+            title={defenderSwap.full}
+            aria-label={defenderSwap.full}
+          >
+            {defenderSwap.tag}
           </Tag>
         )}
       </Flex>
@@ -3110,6 +3137,12 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
   // the tween above deliberately ignores the fighters named here. Both seats'
   // figures play it — a swap is never a move the viewer committed.
   const positionSwaps = usePositionSwaps(snapshot);
+  // Defender substitution (protocol v34 ↔ engine #494 — Ripley's *GET BEHIND
+  // ME*). The view already re-points `combat.target` on its own, so this channel
+  // exists to SAY SO: without it the attack arrow silently jumps to a fighter
+  // nobody attacked and the damage lands on the wrong-looking figure. Held for
+  // as long as the view agrees the substitution stands, not on a timer.
+  const defenderSwap = useDefenderSwap(snapshot);
   // Custom-map playtest (create flow): raw JSON persists across a BAD_MAP bounce
   // so a power user can fix the board and retry without re-pasting.
   const [customMapJson, setCustomMapJson] = useState("");
@@ -3979,6 +4012,14 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
     view.map.spaces.map((s) => [s.id, { adjacentTo: s.adjacentTo, zones: s.zones }])
   );
   const fighterById = new Map<FighterId, ViewFighter>(view.fighters.map((f) => [f.id, f]));
+  // The defender substitution, rendered (protocol v34 ↔ engine #494). One copy
+  // helper feeds all three surfaces — the board chip, the combat-panel tag and
+  // the log line — so they can never word the same fact differently. Names come
+  // from `badgedName`, which is what every other fighter-naming surface uses, so
+  // a substitution between two same-named sidekicks still names the right one.
+  const defenderSwapCopy = defenderSwap
+    ? defenderSwapText(badgedName(defenderSwap.from), badgedName(defenderSwap.to))
+    : null;
   // Board-token art for one fighter. Hoisted out of the <ProBoard> call so the
   // dock's attack rows (issue #514) paint the SAME face the board does — one
   // resolver, so a flag-driven portrait swap can never show two different heads.
@@ -4828,6 +4869,15 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
           highlightedFighters={[...new Set(highlightedFighters)]}
           selectedFighter={selectedFighter}
           attack={view.combat ? { attacker: view.combat.attacker, target: view.combat.target } : null}
+          defenderStepIn={
+            defenderSwap && defenderSwapCopy
+              ? {
+                  fighterId: defenderSwap.to,
+                  chip: defenderSwapCopy.chip,
+                  blurb: defenderSwapCopy.full,
+                }
+              : null
+          }
           friendlyOwners={friendlyOwners}
           fighterBadges={attackerBadge}
           extendedReachTargets={[...extendedReachTargets]}
@@ -4983,6 +5033,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
               clashRef={clashRef}
               chain={combatChain}
               effectAttack={combatEffectAttack}
+              defenderSwap={defenderSwapCopy}
             />
           ) : null
         }

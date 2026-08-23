@@ -229,6 +229,35 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // lives in the snapshot's `extraCards` so a face resolves for it without polluting
   // the deck list, its stats or the rules-lock digest.
   "boba-fett": "boba-fett",
+  // Ellen Ripley — Aliens (issue #681 ↔ engine #494/#493): the-unmatched.club deck
+  // 2304 by MrBrownieDL. A CLUB-ONLY deck — there is no unmatched.cards mirror at
+  // all — so the deck id is ours (Boba Fett / Darth Vader precedent) and the
+  // committed snapshot is the only source. Rules fields (titles, types, values,
+  // boosts, quantities) are read off the club's `/export/__data.json`, which is the
+  // one route that still serves the `cards` array to anonymous clients.
+  //
+  // ONE divergence from the published club record, and it is the AUTHOR'S OWN
+  // correction: FEINT is x2, not the x3 the record shows. The record sums to 31 and
+  // the engine refuses anything but 30; asked in the Discord thread MrBrownieDL
+  // answered x2 (2026-08-23). Everything else is field-for-field the club's.
+  //
+  // EVERGREEN IN THE STRICT SENSE: every image — 12 card faces, the hero card, the
+  // cardback and both board tokens — is the author's own artwork, mirrored under
+  // public/evergreen-decks/art/ellen-ripley/ off his own imgur uploads and the
+  // club's own file store, with every URL rewritten local. Nothing here touches a remote
+  // host at runtime. The faces are FULL-CARD renders drawn full-bleed via
+  // cardImage (Kenshiro / Skull Kid / Cecil precedent): this deck must never fall
+  // back to the generated template, which cannot reproduce the author's frame, and
+  // must never be routed to the art-generation pipeline. Ripley's board token is a
+  // crop of the author's cardback; Newt's is the author's own round portrait.
+  //
+  // Public state contract, verified against ellen-ripley.rules.ts @542900d: NOTHING.
+  // No counters, no flags, no piles, no markers, no rule cards — so there is no
+  // HERO_STATE_FLAGS / HERO_STATE_COUNTERS entry for this hero, deliberately.
+  // What IS new is a protocol event: v34's `COMBAT_DEFENDER_CHANGED`, which *GET
+  // BEHIND ME* emits when Ripley and Newt swap and the OTHER fighter becomes the
+  // defender (see lib/pro/combatDefender.ts).
+  "ellen-ripley": "ellen-ripley",
 };
 
 /**

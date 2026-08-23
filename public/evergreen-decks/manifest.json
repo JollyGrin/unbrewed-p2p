@@ -383,6 +383,18 @@
         "file": "data/heroes/boba-fett.rules.ts",
         "commit": "c3fa75a"
       }
+    },
+    {
+      "heroId": "ellen-ripley",
+      "deckId": "ellen-ripley",
+      "version_id": "evergreen-1",
+      "frozenAt": "2026-08-23",
+      "digest": "sha256:a5d81200a005517f2c71212bcbc5ee474155f7feb16f093ac32490712537eee7",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/ellen-ripley.rules.ts",
+        "commit": "542900d"
+      }
     }
   ]
 }

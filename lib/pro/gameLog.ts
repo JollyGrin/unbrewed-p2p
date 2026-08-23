@@ -19,6 +19,7 @@ import { FIGHTER_MARKER_BADGES } from "./fighterStatuses";
 import { deriveTeams, isViewerOnWinningTeam } from "./teams";
 import { sweptFighters } from "./sweep";
 import { swappedFighters } from "./positionSwap";
+import { defenderSwapText } from "./combatDefender";
 import { combatOutcomeLogText } from "./combatOutcome";
 import { MITIGATION_COUNTER } from "./clockTower";
 import { rangeSpendLineFor } from "./rangePurchase";
@@ -871,6 +872,22 @@ export function enrichLines(
       case "POSITIONS_SWAPPED": {
         added.push({
           text: `${ctx.fighter(e.a)} and ${ctx.fighter(e.b)} swapped places`,
+          who: "game",
+        });
+        break;
+      }
+
+      // v34 defender substitution (protocol v34 ↔ engine #494). The DEFENDING
+      // FIGHTER of the live combat changed mid-combat — Ripley's *GET BEHIND ME*
+      // ("if they do, the other fighter is now the defender"). The diff cannot see
+      // it: `combat.target` is not a field diffViews reads, the defending PLAYER is
+      // unchanged, and both revealed cards stay put — the only visible consequence
+      // is that the damage lands on a different figure. Allowlist (Mode 2): it
+      // overlaps nothing the diff prints, and it is the record the replay log needs
+      // to explain a hit that landed on somebody else.
+      case "COMBAT_DEFENDER_CHANGED": {
+        added.push({
+          text: defenderSwapText(ctx.fighter(e.from), ctx.fighter(e.to)).full,
           who: "game",
         });
         break;

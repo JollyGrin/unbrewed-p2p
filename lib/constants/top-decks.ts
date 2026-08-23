@@ -796,4 +796,33 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl: "/evergreen-decks/art/boba-fett/cardback.webp",
     sourceUrl: "https://www.the-unmatched.club/c/heroes/boba-fett.7289",
   },
+  {
+    // Ellen Ripley — Aliens, the-unmatched.club deck 2304 by MrBrownieDL (issue
+    // #681 ↔ engine #494). Ripley is RANGED with Newt at her side, and the deck's
+    // signature is *GET BEHIND ME*: the two may swap spaces mid-combat and THE
+    // OTHER FIGHTER BECOMES THE DEFENDER — protocol v34's one new event.
+    //
+    // Club-only, like Boba: no unmatched.cards page exists, so `original: true`
+    // suppresses the lobby deep-link and `sourceUrl` credits the club (Vader /
+    // Maul / Luke / Boba precedent). Engine serves the hero at tier `lab`, so
+    // `lab` drives the create-screen caution badge and `tier` keeps the deck out
+    // of the sandbox community picker and the invite copy.
+    id: "ellen-ripley",
+    name: "Ellen Ripley (Aliens)",
+    hero: "Ellen Ripley",
+    author: "MrBrownieDL",
+    likes: 0,
+    // The author's own deep Nostromo purple, off the card faces' banner panel and
+    // the cardback. No sibling tile sits this far into violet — Skull Kid's Majora
+    // purple (#2e0e4e) is darker and bluer.
+    highlightColour: "#3b1d63",
+    original: true,
+    lab: true,
+    tier: "lab",
+    // Repo-relative (Kenshiro/Skull Kid/Cecil/Boba precedent): the author's own
+    // cardback, mirrored off i.imgur.com so the tile renders on localhost and
+    // preview builds and the deck stays evergreen.
+    cardbackUrl: "/evergreen-decks/art/ellen-ripley/cardback.webp",
+    sourceUrl: "https://www.the-unmatched.club/c/heroes/ellen-ripley.2304",
+  },
 ];
