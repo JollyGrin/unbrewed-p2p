@@ -47,19 +47,19 @@
       "id": "team-2v2-city-docks",
       "formatId": "team-2v2",
       "label": "2v2 Teams",
-      "description": "Diagonal teams so teammates start apart (playtest-tunable): A on slots 1 (right wall) and 4 (left boardwalk), B on slots 2 (left rooftops) and 3 (right piers).",
+      "description": "Start slots follow the format's turn order (A1→1, B1→2, A2→3, B2→4): Team A holds slot 1 (right harbor wall) and slot 3 (right piers); Team B holds slot 2 (left rooftops) and slot 4 (left boardwalk).",
       "seats": {
         "A1": {
           "startSlot": 1
         },
         "A2": {
-          "startSlot": 4
+          "startSlot": 3
         },
         "B1": {
           "startSlot": 2
         },
         "B2": {
-          "startSlot": 3
+          "startSlot": 4
         }
       }
     }

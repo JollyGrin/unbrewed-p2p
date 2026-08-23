@@ -166,6 +166,51 @@ describe("map catalog", () => {
   });
 });
 
+/**
+ * Every authored 2v2 board binds its seats to the format's TURN ORDER
+ * (A1→1, B1→2, A2→3, B2→4) — engine #495 / client #682. Teammates therefore
+ * start on adjacent slots instead of the old "diagonal / far apart" heuristic,
+ * which seated fighters wherever the board author felt like. Catalog-wide on
+ * purpose: a future [map] ticket that registers a board must satisfy it too.
+ *
+ * The seat KEY order is deliberately not constrained here (see the per-fixture
+ * tests): the engine zips runtime players p1..p4 against `Object.keys(seats)`,
+ * so key order decides the team split (#264) while `startSlot` decides where a
+ * seat's fighter is placed.
+ */
+describe("2v2 seat bindings follow turn order (#682, engine #495)", () => {
+  const TURN_ORDER: Record<string, number> = { A1: 1, B1: 2, A2: 3, B2: 4 };
+
+  const teamSupports = MAP_CATALOG.flatMap((entry) =>
+    (entry.map.supportedFormats ?? [])
+      .filter((f) => f.formatId === "team-2v2")
+      .map((support) => [entry.id, support] as const),
+  );
+
+  it("finds every authored 2v2 board in the catalog", () => {
+    expect(teamSupports.map(([id]) => id)).toEqual([
+      "island-of-despair",
+      "city-docks",
+      "polus",
+      "weathertop",
+      "counts-castle",
+      "multiplayer-arena-playtest",
+    ]);
+  });
+
+  it.each(teamSupports.map(([id]) => id))("%s binds A1→1, B1→2, A2→3, B2→4", (id) => {
+    const support = teamSupports.find(([entryId]) => entryId === id)![1];
+    // exactly the four format seats, and all four printed slots used once each
+    expect(Object.keys(support.seats).slice().sort()).toEqual(["A1", "A2", "B1", "B2"]);
+    expect(new Set(Object.values(support.seats).map((s) => s.startSlot))).toEqual(
+      new Set([1, 2, 3, 4]),
+    );
+    for (const [seat, slot] of Object.entries(TURN_ORDER)) {
+      expect([seat, support.seats[seat]?.startSlot]).toEqual([seat, slot]);
+    }
+  });
+});
+
 describe("island-of-despair fixture", () => {
   it("normalizes clean (engine-native pass-through)", () => {
     const map = normalizeMap(islandOfDespairJson);
@@ -301,8 +346,8 @@ describe("counts-castle fixture", () => {
       (f) => f.formatId === "team-2v2",
     )!;
     expect(Object.keys(team.seats)).toEqual(["A1", "A2", "B1", "B2"]);
-    // teammates start furthest apart: A = slots 1+2 (13 moves), B = slots 3+4 (8)
-    expect(Object.values(team.seats).map((s) => s.startSlot)).toEqual([1, 2, 3, 4]);
+    // slots follow the format's turn order A1→1, B1→2, A2→3, B2→4 (#682)
+    expect(Object.values(team.seats).map((s) => s.startSlot)).toEqual([1, 3, 2, 4]);
   });
 });
 
