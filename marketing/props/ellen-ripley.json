@@ -1,0 +1,23 @@
+{
+  "deckSlug": "ellen-ripley",
+  "tagline": "A bodyguard duo — Newt powers your turns, and Ripley answers anyone who gets near her",
+  "featuredCards": [
+    {
+      "title": "M41A Pulse RIFLE",
+      "caption": "Your engine while Newt stands: every space between Ripley and the target is +1 to the shot — distance is ammunition."
+    },
+    {
+      "title": "GET BEHIND ME",
+      "caption": "The bodyguard move — mid-combat, Ripley and Newt swap spaces and Ripley becomes the defender instead."
+    },
+    {
+      "title": "M41A GRENADE LAUNCHER",
+      "caption": "When they bunch up in your zone, clear the room — 2 damage on the target and splash on everyone beside them."
+    },
+    {
+      "title": "GET AWAY FROM HER, YOU *****!",
+      "caption": "The line, as a finisher — it only boosts when they made the mistake of standing next to Newt."
+    }
+  ],
+  "particleStyle": "ash"
+}
