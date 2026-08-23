@@ -371,6 +371,18 @@
         "file": "data/heroes/cecil-palmer.rules.ts",
         "commit": "c38fbb1"
       }
+    },
+    {
+      "heroId": "boba-fett",
+      "deckId": "boba-fett",
+      "version_id": "evergreen-1",
+      "frozenAt": "2026-08-23",
+      "digest": "sha256:64d9a0725883da2c8d8acdeb069f1b606f955c2fdc689b4887968e465c506dd2",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/boba-fett.rules.ts",
+        "commit": "b39269f"
+      }
     }
   ]
 }

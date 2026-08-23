@@ -17,6 +17,12 @@ import {
   fighterTokenArtFor,
   fighterTokenStateFor,
   fighterTokenStateByOwner,
+  BOUNTY_PILES,
+  pileDisplayName,
+  pileCreditFor,
+  denyLabel,
+  denyChipsFor,
+  denyTokenBadgeFor,
 } from "./heroStateFlags";
 
 describe("HERO_STATE_FLAGS registry", () => {
@@ -742,5 +748,168 @@ describe("Cecil Palmer's BROADCAST counter (up counter, 0 → 6)", () => {
     expect(counterChipsFor("skull-kid", { BROADCAST: 3 }).map((c) => c.chip.onLabel)).toEqual([
       "TIME 0/5",
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Boba Fett's BOUNTY piles (issue #671 ↔ engine #477) — the registry's first
+// CROSS-SEAT piles: the engine tucks each BOUNTY card under the VICTIM's hero
+// card (protocol v0.49.0 / engine #459), so the pile arrives on the victim's
+// seat and must render under the OPPONENT's nameplate, whatever hero they are.
+// ---------------------------------------------------------------------------
+
+const bountyPiles = (n: number): Record<string, string[]> =>
+  Object.fromEntries(
+    BOUNTY_PILES.slice(0, n).map((b, i) => [b.pile, [`boba-fett/bounty-${i}#1`]])
+  );
+
+describe("Boba Fett bounty piles", () => {
+  it("registers all four bounty piles on BOTH surfaces, cross-seat", () => {
+    for (const { pile } of BOUNTY_PILES) {
+      const entry = HERO_STATE_COUNTERS.find((e) => e.pile === pile);
+      expect(entry).toBeDefined();
+      expect(entry!.heroes).toEqual(["boba-fett"]);
+      // The Cairne lesson: a state the OPPONENT cannot see is a state they cannot
+      // play around, and this one lives entirely on them.
+      expect(entry!.nameplate).toBeDefined();
+      expect(entry!.token).toBeDefined();
+      // The reason this deck needed a new field at all.
+      expect(entry!.hostedOnAnySeat).toBe(true);
+      expect(entry!.tokenGroup).toBe("boba-bounties");
+    }
+  });
+
+  it("pins the four pile keys (engine #477 renames land here first)", () => {
+    expect(BOUNTY_PILES.map((b) => b.pile)).toEqual([
+      "BOUNTY_PAYMENT",
+      "BOUNTY_INHIBITOR",
+      "BOUNTY_CARBONITE",
+      "BOUNTY_FLAMETHROWER",
+    ]);
+  });
+
+  it("renders the pills on the VICTIM's plate, whatever hero they are", () => {
+    // The victim here is King Kong: no bounty mechanic of his own, and every
+    // hero-gated entry in the registry misses him. The piles still render.
+    const chips = counterChipsFor("king-kong", undefined, bountyPiles(2));
+    expect(chips.map((c) => c.chip.onLabel)).toEqual([
+      "BOUNTY: PAYMENT",
+      "BOUNTY: INHIBITOR",
+    ]);
+    // Each pill opens ITS pile — the cards are public, so either seat may look.
+    expect(chips.map((c) => c.chip.pile)).toEqual(["BOUNTY_PAYMENT", "BOUNTY_INHIBITOR"]);
+    expect(chips[0].chip.cards).toEqual(["boba-fett/bounty-0#1"]);
+  });
+
+  it("shows nothing on a seat with no bounties, Boba's own included", () => {
+    expect(counterChipsFor("boba-fett", undefined, undefined)).toEqual([]);
+    expect(counterChipsFor("king-kong", undefined, {})).toEqual([]);
+    expect(fighterTokenCounterBadgeFor("king-kong", undefined, {})).toBeNull();
+  });
+
+  it("collapses the four piles into ONE token badge carrying the TOTAL", () => {
+    // Four pills, one number: the board has room for one badge, and the number
+    // that matters is the one Durasteel Armor and Disintegration read.
+    expect(fighterTokenCounterBadgeFor("king-kong", undefined, bountyPiles(3))).toMatchObject({
+      icon: "🎯",
+      label: "3",
+      title: "BOUNTIES: 3",
+      showLabel: true,
+    });
+    expect(fighterTokenCounterBadgeFor("king-kong", undefined, bountyPiles(1))).toMatchObject({
+      label: "1",
+    });
+  });
+
+  it("does not disturb a host seat's own counter", () => {
+    // Nancy bountied: her CLUE pill and the bounty pills coexist, and the CLUE
+    // badge still wins the token slot only because it comes first in the registry.
+    const chips = counterChipsFor("nancy-drew", { CLUE: 2 }, bountyPiles(1));
+    expect(chips.map((c) => c.chip.onLabel)).toEqual(["CLUES: 2", "BOUNTY: PAYMENT"]);
+  });
+
+  it("names a pile in player words for the inspection overlay", () => {
+    expect(pileDisplayName("BOUNTY_CARBONITE")).toBe("Bounty · CARBONITE");
+    // Luke's declares no label — the raw engine key is already readable.
+    expect(pileDisplayName("TRAINING")).toBe("TRAINING");
+    expect(pileDisplayName("WHATEVER")).toBe("WHATEVER");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Action denials — the `DENY:` reserved namespace (protocol v0.51.0, engine
+// #462). Boba's INHIBITOR bounty is the first consumer, but nothing here is
+// hero-gated: any deck may deny any seat.
+// ---------------------------------------------------------------------------
+
+describe("DENY: action-denial flags", () => {
+  it("names the denials the protocol reserves", () => {
+    expect(denyLabel("DENY:DRAW")).toBe("NO DRAW");
+    expect(denyLabel("DENY:MANEUVER")).toBe("NO MANEUVER");
+    expect(denyLabel("DENY:SCHEME")).toBe("NO SCHEME");
+    expect(denyLabel("DENY:ATTACK")).toBe("NO ATTACK");
+    expect(denyLabel("DENY:TURN")).toBe("TURN SKIPPED");
+  });
+
+  it("falls back to a generic wording for an unknown denial", () => {
+    // The namespace is open — `DENY:<X>` also means "may not enter flag X".
+    expect(denyLabel("DENY:SPEED_FORCE")).toBe("NO SPEED_FORCE");
+  });
+
+  it("chips every live denial on any hero, in a stable order", () => {
+    const chips = denyChipsFor({ "DENY:MANEUVER": true, "DENY:DRAW": true });
+    expect(chips.map((c) => c.chip.onLabel)).toEqual(["NO DRAW", "NO MANEUVER"]);
+    expect(chips.every((c) => c.on)).toBe(true);
+  });
+
+  it("ignores a cleared or absent denial", () => {
+    expect(denyChipsFor({ "DENY:DRAW": false })).toEqual([]);
+    expect(denyChipsFor({ HIGH_TIDE: true })).toEqual([]);
+    expect(denyChipsFor(undefined)).toEqual([]);
+    expect(denyTokenBadgeFor(undefined)).toBeNull();
+  });
+
+  it("badges the board token once, tooltipping every denial", () => {
+    expect(denyTokenBadgeFor({ "DENY:DRAW": true, "DENY:TURN": true })).toMatchObject({
+      icon: "🚫",
+      label: "NO DRAW",
+      title: "NO DRAW · TURN SKIPPED",
+    });
+  });
+
+  it("outranks a counter badge for the token slot, but only while it lasts", () => {
+    // INHIBITOR on a bountied seat: the transient denial takes the single slot for
+    // the turn; the bounty count is still spelled out on the plate and comes back.
+    const denied = fighterTokenStateByOwner([
+      { id: "p1", heroId: "king-kong", flags: { "DENY:DRAW": true }, piles: bountyPiles(2) },
+    ]);
+    expect(denied.p1!.badge).toMatchObject({ icon: "🚫" });
+    const clear = fighterTokenStateByOwner([
+      { id: "p1", heroId: "king-kong", flags: {}, piles: bountyPiles(2) },
+    ]);
+    expect(clear.p1!.badge).toMatchObject({ icon: "🎯", label: "2" });
+  });
+});
+
+describe("pileCreditFor (cross-player tuck attribution)", () => {
+  const nameOf = (id: string) => ({ p1: "Boba", p2: "You", p3: "Thetis" })[id] ?? id;
+
+  it("credits the player whose card is sitting in another seat's pile", () => {
+    expect(pileCreditFor({ "p1/bounty#1": "p1" }, nameOf)).toBe(" — Boba's cards");
+  });
+
+  it("credits every distinct controller once, in wire order", () => {
+    expect(
+      pileCreditFor({ "p1/a#1": "p1", "p3/b#1": "p3", "p1/c#1": "p1" }, nameOf)
+    ).toBe(" — Boba, Thetis's cards");
+  });
+
+  it("says nothing when no entry is foreign — every pre-v0.49.0 pile", () => {
+    // The field is absent unless a pile actually mixes owners, so Luke's TRAINING
+    // overlay title is byte-for-byte what it was before this deck existed.
+    expect(pileCreditFor(undefined, nameOf)).toBe("");
+    expect(pileCreditFor({}, nameOf)).toBe("");
+    // …and a caller with no seat table attributes nothing rather than printing ids.
+    expect(pileCreditFor({ "p1/bounty#1": "p1" }, undefined)).toBe("");
   });
 });

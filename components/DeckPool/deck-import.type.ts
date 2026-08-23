@@ -59,6 +59,19 @@ export type DeckImportDataType = {
   name: string;
   ruleCards?: DeckImportRuleCardType[];
   /**
+   * Printed cards that are NOT part of the shuffled deck (issue #671) — a card
+   * some other card NAMES and the engine can put into a combat, but which is
+   * never drawn, never counted in the 30, and has no entry in `cards`. Boba
+   * Fett's SEISMIC CHARGE is the first: *Slave I* opens a real combat with it.
+   *
+   * Kept as a SEPARATE array, not a `quantity: 0` member of `cards`, because
+   * `cards` is the deck: it drives the sandbox pool, the deck-stats breakdown,
+   * the preview list and the rules-lock digest, and none of those should move
+   * because a linked card exists. Art resolution merges the two (see
+   * useProCardArt) so a face still renders when the engine names one.
+   */
+  extraCards?: DeckImportCardType[];
+  /**
    * Character cards beyond the primary hero + sidekick (issue #500) — e.g.
    * Skeleton King's two summonable skeleton types, Victor Frankenstein's
    * Monster, One Punch Man's Genos. unmatched.cards' Maker emits them as
