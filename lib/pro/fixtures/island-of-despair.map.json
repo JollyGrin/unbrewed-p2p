@@ -34,12 +34,12 @@
       "id": "team-2v2-island-of-despair",
       "formatId": "team-2v2",
       "label": "2v2 Teams",
-      "description": "Diagonal teams so teammates start apart (playtest-tunable): A on slots 1 (right-center) and 4 (top-left), B on slots 2 (left) and 3 (top-right).",
+      "description": "Start slots follow the format's turn order (A1→1, B1→2, A2→3, B2→4): Team A holds slot 1 (right-center) and slot 3 (top-right); Team B holds slot 2 (left) and slot 4 (top-left).",
       "seats": {
         "A1": { "startSlot": 1 },
-        "A2": { "startSlot": 4 },
+        "A2": { "startSlot": 3 },
         "B1": { "startSlot": 2 },
-        "B2": { "startSlot": 3 }
+        "B2": { "startSlot": 4 }
       }
     }
   ],

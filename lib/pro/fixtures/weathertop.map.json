@@ -49,16 +49,16 @@
       "id": "team-2v2-weathertop",
       "formatId": "team-2v2",
       "label": "2v2 Teams",
-      "description": "Diagonal teams so teammates start far apart: Team A holds slot 1 (top-left grassy hollow, c6) and slot 2 (bottom-right deep woods, c30); Team B holds slot 3 (lower-left wraith-shadow, c22) and slot 4 (top-right still water, c4).",
+      "description": "Start slots follow the format's turn order (A1→1, B1→2, A2→3, B2→4): Team A holds slot 1 (top-left grassy hollow, c6) and slot 3 (lower-left wraith-shadow, c22); Team B holds slot 2 (bottom-right deep woods, c30) and slot 4 (top-right still water, c4).",
       "seats": {
         "A1": {
           "startSlot": 1
         },
         "A2": {
-          "startSlot": 2
+          "startSlot": 3
         },
         "B1": {
-          "startSlot": 3
+          "startSlot": 2
         },
         "B2": {
           "startSlot": 4

@@ -99,19 +99,19 @@
       "id": "team-2v2-polus",
       "formatId": "team-2v2",
       "label": "2v2 Teams",
-      "description": "Balanced diagonal teams so teammates start far apart: Team A holds slot 1 (top dropship, c2) and slot 4 (bottom-center office, c21); Team B holds slot 2 (bottom-left specimen, c24) and slot 3 (top-center comms, c8).",
+      "description": "Start slots follow the format's turn order (A1→1, B1→2, A2→3, B2→4): Team A holds slot 1 (top dropship, c2) and slot 3 (top-center comms, c8); Team B holds slot 2 (bottom-left specimen, c24) and slot 4 (bottom-center office, c21).",
       "seats": {
         "A1": {
           "startSlot": 1
         },
         "A2": {
-          "startSlot": 4
+          "startSlot": 3
         },
         "B1": {
           "startSlot": 2
         },
         "B2": {
-          "startSlot": 3
+          "startSlot": 4
         }
       }
     }
