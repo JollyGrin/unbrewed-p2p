@@ -893,24 +893,56 @@ describe("DENY: action-denial flags", () => {
 
 describe("pileCreditFor (cross-player tuck attribution)", () => {
   const nameOf = (id: string) => ({ p1: "Boba", p2: "You", p3: "Thetis" })[id] ?? id;
+  // The plate belongs to p2 — the HOST. A bare entry is p2's own; an object entry
+  // names somebody else (protocol v33 / engine #481).
+  const HOST = "p2" as const;
 
   it("credits the player whose card is sitting in another seat's pile", () => {
-    expect(pileCreditFor({ "p1/bounty#1": "p1" }, nameOf)).toBe(" — Boba's cards");
+    expect(
+      pileCreditFor([{ card: "p1/bounty#1", controller: "p1" }], HOST, nameOf)
+    ).toBe(" — Boba's cards");
   });
 
   it("credits every distinct controller once, in wire order", () => {
     expect(
-      pileCreditFor({ "p1/a#1": "p1", "p3/b#1": "p3", "p1/c#1": "p1" }, nameOf)
+      pileCreditFor(
+        [
+          { card: "p1/a#1", controller: "p1" },
+          { card: "p3/b#1", controller: "p3" },
+          { card: "p1/c#1", controller: "p1" },
+        ],
+        HOST,
+        nameOf
+      )
+    ).toBe(" — Boba, Thetis's cards");
+  });
+
+  it("credits BOTH seats when two same-deck players share an instance id (#481)", () => {
+    // The case the pre-v33 id-keyed map could not even hold: two Boba seats, one
+    // victim, the SAME `bounty#1` twice. Keyed by entry, so both are credited.
+    expect(
+      pileCreditFor(
+        [
+          { card: "boba-fett/bounty#1", controller: "p1" },
+          { card: "boba-fett/bounty#1", controller: "p3" },
+        ],
+        HOST,
+        nameOf
+      )
     ).toBe(" — Boba, Thetis's cards");
   });
 
   it("says nothing when no entry is foreign — every pre-v0.49.0 pile", () => {
-    // The field is absent unless a pile actually mixes owners, so Luke's TRAINING
-    // overlay title is byte-for-byte what it was before this deck existed.
-    expect(pileCreditFor(undefined, nameOf)).toBe("");
-    expect(pileCreditFor({}, nameOf)).toBe("");
+    // A bare-id entry means the host's own card, which is what every pile in the
+    // game carried before this deck — so Luke's TRAINING overlay title is
+    // byte-for-byte what it was.
+    expect(pileCreditFor(undefined, HOST, nameOf)).toBe("");
+    expect(pileCreditFor([], HOST, nameOf)).toBe("");
+    expect(pileCreditFor(["luke/training#1", "luke/training#2"], HOST, nameOf)).toBe("");
     // …and a caller with no seat table attributes nothing rather than printing ids.
-    expect(pileCreditFor({ "p1/bounty#1": "p1" }, undefined)).toBe("");
+    expect(
+      pileCreditFor([{ card: "p1/bounty#1", controller: "p1" }], HOST, undefined)
+    ).toBe("");
   });
 });
 

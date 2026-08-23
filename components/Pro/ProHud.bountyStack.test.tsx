@@ -16,9 +16,10 @@ import {
  * The registry mapping is unit-tested in lib/pro/heroStateFlags.test.ts. What is
  * pinned HERE is the thing the ticket is actually about: the stack renders under
  * the OPPONENT'S plate, not Boba's. The engine tucks each BOUNTY card into the
- * VICTIM's `piles` (protocol v0.49.0 cross-player tuck) and records the tucker in
- * `pileControllers`, so getting this wrong does not blank a pill — it puts the
- * opponent's debuff on Boba's own plate and makes the whole deck read backwards.
+ * VICTIM's `piles` (protocol v0.49.0 cross-player tuck) and records the tucker on
+ * the pile ENTRY (v33 / engine #481), so getting this wrong does not blank a pill —
+ * it puts the opponent's debuff on Boba's own plate and makes the deck read
+ * backwards.
  *
  * Also pinned: the INHIBITOR bounty's `DENY:DRAW` flag, which is what a denied
  * seat has instead of an explanation for the draw that did not happen.
@@ -93,7 +94,6 @@ const makeView = (players: ViewPlayer[], you: PlayerId): PlayerView => {
       committedCard: null,
       counters: self.counters,
       piles: self.piles,
-      pileControllers: self.pileControllers,
       flags: self.flags,
       wonCombatThisTurn: false,
       lostCombatThisTurn: false,
@@ -123,16 +123,15 @@ const renderHud = (view: PlayerView) =>
     </ChakraProvider>
   );
 
-/** A bountied victim: the piles sit on THEIR seat, the cards are still Boba's. */
+/**
+ * A bountied victim: the piles sit on THEIR seat, the cards are still Boba's —
+ * which since protocol v33 (engine #481) each ENTRY says for itself.
+ */
 const bountied = (id: PlayerId, you: boolean, heroId: string, boba: PlayerId) =>
   seat(id, you, heroId, {
     piles: {
-      BOUNTY_PAYMENT: [`${boba}/bounty-payment#1`],
-      BOUNTY_CARBONITE: [`${boba}/bounty-carbonite#1`],
-    },
-    pileControllers: {
-      BOUNTY_PAYMENT: { [`${boba}/bounty-payment#1`]: boba },
-      BOUNTY_CARBONITE: { [`${boba}/bounty-carbonite#1`]: boba },
+      BOUNTY_PAYMENT: [{ card: `${boba}/bounty-payment#1`, controller: boba }],
+      BOUNTY_CARBONITE: [{ card: `${boba}/bounty-carbonite#1`, controller: boba }],
     },
   });
 
@@ -195,8 +194,7 @@ describe("Boba Fett's bounty stack on the HUD plates", () => {
           seat("p1", true, "boba-fett"),
           bountied("p2", false, "king-kong", "p1"),
           seat("p3", false, "thetis", {
-            piles: { BOUNTY_FLAMETHROWER: ["p1/bounty-flamethrower#1"] },
-            pileControllers: { BOUNTY_FLAMETHROWER: { "p1/bounty-flamethrower#1": "p1" } },
+            piles: { BOUNTY_FLAMETHROWER: [{ card: "p1/bounty-flamethrower#1", controller: "p1" }] },
           }),
         ],
         "p1"

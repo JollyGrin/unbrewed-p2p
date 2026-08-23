@@ -724,11 +724,10 @@
  * - `ViewSelf.pileControllers` / `ViewOpponent` / `ViewPlayer` / `ReplayStepPlayer` —
  *   `{ [pileName]: { [cardInstanceId]: PlayerId } }`, listing ONLY the entries whose
  *   controller is not the seat holding the pile. Public exactly as `piles` is.
+ *   SUPERSEDED AND DELETED at v33 — the controller now rides the pile ENTRY. See below.
  * CLIENT SURFACE (unbrewed-p2p): render a foreign-controlled pile entry under the HOST's
  * nameplate (that is where `piles` puts it) but attributed to its controller — the whole
- * point of a bounty is that it sits on your opponent and pays its owner. A client that
- * ignores `pileControllers` shows the stack in the right place with the wrong owner
- * colour; nothing breaks.
+ * point of a bounty is that it sits on your opponent and pays its owner.
  *
  * ## v31 unchanged (2026-08-23): cross-player pile EXIT (engine #473, DSL v0.57.0)
  * The other direction of the same story: a card may now LEAVE a pile hosted by another
@@ -745,7 +744,7 @@
  *   exits, and the host's stack shrinking is already visible in `piles`.
  * CLIENT SURFACE (unbrewed-p2p): an activity-log line may now say "took their bounty back
  * from <host>". A client that ignores `host` logs the return without naming the host;
- * nothing breaks, and both `piles` and `pileControllers` still describe the new truth.
+ * nothing breaks, and `piles` still describes the new truth.
  */
 /**
  * v32 (engine #463, DSL v0.56.0) — THE EFFECT-INITIATED ATTACK. One additive `GameEvent`
@@ -763,7 +762,38 @@
  * before the defender commits — which is the same shape a "Fire, you fools!" sub-attack has
  * had since v0.17.0, so that half needs nothing new.
  */
-export const PROTOCOL_VERSION = 32;
+/**
+ * v33 (engine #481, DSL v0.60.0, SCHEMA_VERSION 5) — THE PILE ENTRY. A BREAKING shape
+ * change to one already-optional field, and a deletion.
+ *
+ * WHAT MOVED
+ * - `ViewSelf.piles` / `ViewOpponent.piles` / `ViewPlayer.piles` / `ReplayStepPlayer.piles`
+ *   are now `{ [pileName]: PileEntry[] }` instead of `{ [pileName]: CardInstanceId[] }`.
+ *   A `PileEntry` is either the bare instance id (this seat controls the card — what
+ *   EVERY entry was before v0.49.0 and what every own-pile tuck still emits) or
+ *   `{card, controller}` for a card another seat parked here and still owns.
+ * - `ViewSelf.pileControllers` / `ViewOpponent` / `ViewPlayer` / `ReplayStepPlayer` — the
+ *   v0.49.0 `{ [pileName]: { [cardInstanceId]: PlayerId } }` companion map — is DELETED.
+ *   Its information now rides the entry it describes.
+ * - Nothing else. `CARD_TUCKED.controller?` and `CARD_RETURNED_FROM_PILE.host?` are
+ *   unchanged, no action, prompt kind or `LegalOption` shape moves, and a seat that has
+ *   tucked nothing still carries no `piles` key at all.
+ *
+ * WHY (the bug it fixes): `CardInstanceId` is `<cardDefId>#<n>` minted PER SEAT, so two
+ * seats running the SAME deck hold identical ids. A pile is the only zone that mixes
+ * owners, so an id-keyed controller map cannot describe one host's pile holding two cards
+ * under one id — which two Boba Fett seats in ffa-3 / team-2v2 reach the moment both tuck
+ * a bounty under the same third player. The server used to throw a room-level
+ * `server_error` there rather than mis-attribute a card; it now represents it.
+ *
+ * CLIENT SURFACE (unbrewed-p2p): a client that renders piles MUST be updated — reading
+ * `piles[name][i]` as a string is now wrong for a foreign entry, and the bounty-stack
+ * render that keyed off `pileControllers` has to read `entry.controller` instead. Two
+ * concrete consequences: instance ids are NOT unique within a pile, so a pile list must be
+ * keyed by POSITION and never by card id; and the owner colour for an entry is
+ * `typeof e === "string" ? <the seat holding the pile> : e.controller`.
+ */
+export const PROTOCOL_VERSION = 33;
 
 /**
  * Scripted-AI strength preset (server-side budgets; client treats as opaque).
@@ -793,6 +823,19 @@ export type TeamId = string;
 export type FighterId = string; // '<playerId>/hero' | '<playerId>/sidekick-<n>'
 export type CardInstanceId = string; // '<cardDefId>#<n>'
 export type CardDefId = string; // 'king-kong/clobber'
+/**
+ * One entry in a public named set-aside pile (v33, engine #481). A BARE instance id means
+ * the card is controlled by the seat whose `piles` holds it; the OBJECT form names a
+ * different CONTROLLER — the card is parked under this seat but belongs to (and pays)
+ * another ("tuck it under the hero card of any opponent" — Boba Fett's bounties).
+ *
+ * Read it as `typeof e === "string" ? e : e.card` for the id and
+ * `typeof e === "string" ? host : e.controller` for the owner colour. Instance ids are
+ * NOT globally unique — they are minted per seat — so a pile CAN hold two entries with the
+ * same id and different controllers (two seats running the same deck, both tucking under a
+ * third). Never key a pile render by instance id; key it by position.
+ */
+export type PileEntry = CardInstanceId | { card: CardInstanceId; controller: PlayerId };
 export type SpaceId = string;
 export type Json =
   | string
@@ -1345,8 +1388,7 @@ export interface ViewSelf {
   deckCount: number;
   discard: CardInstanceId[];
   ongoingScheme?: CardInstanceId | null; // public face-up ongoing scheme, if any (older views may omit)
-  piles?: Record<string, CardInstanceId[]>; // v25: named public set-aside piles ("tucked under the hero card"), card identities visible to EVERY viewer; absent when nothing is tucked
-  pileControllers?: Record<string, Record<CardInstanceId, PlayerId>>; // v0.49.0: for the pile entries whose CONTROLLER is not this seat (a card an opponent tucked under them). Public like `piles`; absent unless some entry is foreign
+  piles?: Record<string, PileEntry[]>; // v25: named public set-aside piles ("tucked under the hero card"), card identities visible to EVERY viewer; absent when nothing is tucked. v33: each entry is a bare id (this seat controls it) or `{card, controller}` (an opponent tucked it here and still owns it) — see PileEntry
   committedCard: CardInstanceId | null; // own face-down commit (visible to self)
   counters: Record<string, number>;
   // v16: active named flags (setFlag op), keyed by flag name -> true. Generic
@@ -1394,8 +1436,7 @@ export interface ViewOpponent {
   deckCount: number;
   discard: CardInstanceId[]; // discard is public
   ongoingScheme?: CardInstanceId | null; // public face-up ongoing scheme, if any (older views may omit)
-  piles?: Record<string, CardInstanceId[]>; // v25: named public set-aside piles ("tucked under the hero card"), card identities visible to EVERY viewer; absent when nothing is tucked
-  pileControllers?: Record<string, Record<CardInstanceId, PlayerId>>; // v0.49.0: for the pile entries whose CONTROLLER is not this seat (a card an opponent tucked under them). Public like `piles`; absent unless some entry is foreign
+  piles?: Record<string, PileEntry[]>; // v25: named public set-aside piles ("tucked under the hero card"), card identities visible to EVERY viewer; absent when nothing is tucked. v33: each entry is a bare id (this seat controls it) or `{card, controller}` (an opponent tucked it here and still owns it) — see PileEntry
   hasCommitted: boolean; // face-down commit exists, identity hidden
   counters: Record<string, number>; // counters are public
   flags: Record<string, boolean>; // v16: active named flags, public (see ViewSelf.flags)
@@ -1433,8 +1474,7 @@ export interface ViewPlayer {
   deckCount: number;
   discard: CardInstanceId[];
   ongoingScheme?: CardInstanceId | null; // public face-up ongoing scheme, if any (older views may omit)
-  piles?: Record<string, CardInstanceId[]>; // v25: named public set-aside piles ("tucked under the hero card"), card identities visible to EVERY viewer; absent when nothing is tucked
-  pileControllers?: Record<string, Record<CardInstanceId, PlayerId>>; // v0.49.0: for the pile entries whose CONTROLLER is not this seat (a card an opponent tucked under them). Public like `piles`; absent unless some entry is foreign
+  piles?: Record<string, PileEntry[]>; // v25: named public set-aside piles ("tucked under the hero card"), card identities visible to EVERY viewer; absent when nothing is tucked. v33: each entry is a bare id (this seat controls it) or `{card, controller}` (an opponent tucked it here and still owns it) — see PileEntry
   committedCard?: CardInstanceId | null; // own face-down commit, present only for self
   hasCommitted: boolean;
   counters: Record<string, number>;
@@ -1589,8 +1629,7 @@ export interface ReplayStepPlayer {
   deckCount: number;
   discard: CardInstanceId[];
   ongoingScheme?: CardInstanceId | null; // public face-up ongoing scheme, if any (older views may omit)
-  piles?: Record<string, CardInstanceId[]>; // v25: named public set-aside piles ("tucked under the hero card"), card identities visible to EVERY viewer; absent when nothing is tucked
-  pileControllers?: Record<string, Record<CardInstanceId, PlayerId>>; // v0.49.0: for the pile entries whose CONTROLLER is not this seat (a card an opponent tucked under them). Public like `piles`; absent unless some entry is foreign
+  piles?: Record<string, PileEntry[]>; // v25: named public set-aside piles ("tucked under the hero card"), card identities visible to EVERY viewer; absent when nothing is tucked. v33: each entry is a bare id (this seat controls it) or `{card, controller}` (an opponent tucked it here and still owns it) — see PileEntry
   committedCard: CardInstanceId | null;
   counters: Record<string, number>;
 }

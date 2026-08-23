@@ -59,7 +59,7 @@ import { useAccount } from "@/lib/account/useAccount";
 import { seatNameplate } from "@/lib/pro/playerIdentity";
 import { BadgeGlyph, badgeArtName, isKnownBadge } from "@/components/Badges/BadgeGlyph";
 import { DeckImportHeroType, DeckImportRuleCardType } from "@/components/DeckPool/deck-import.type";
-import { CardInstanceId, PlayerId, PlayerView, ViewFighter, ViewPlayer } from "@/lib/pro/protocol";
+import { CardInstanceId, PileEntry, PlayerId, PlayerView, ViewFighter, ViewPlayer } from "@/lib/pro/protocol";
 import { isLargeFighter, LARGE_FIGHTER_BLURB } from "@/lib/pro/largeReach";
 import { deriveTeams } from "@/lib/pro/teams";
 import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
@@ -69,6 +69,7 @@ import {
   flagChipsFor,
   counterChipsFor,
   pileDisplayName,
+  pileCardIds,
   pileCreditFor,
 } from "@/lib/pro/heroStateFlags";
 import { DEFAULT_PLATE_LAYOUT, PlateLayout, PlateSeat, useHudPlates } from "@/lib/pro/useHudPlates";
@@ -423,6 +424,7 @@ export const MoveTimerBar = ({
 };
 
 const SeatPlate = ({
+  seatId,
   label,
   hero,
   ruleCards,
@@ -432,7 +434,6 @@ const SeatPlate = ({
   flags,
   counters,
   piles,
-  pileControllers,
   nameOfPlayer,
   wonCombat,
   isLocal,
@@ -452,6 +453,9 @@ const SeatPlate = ({
   hydrated,
   onUpdate,
 }: {
+  /** WHOSE plate this is — the pile's HOST, which is what a bare pile entry means
+   *  (protocol v33). Needed to tell an own entry from a foreign one. */
+  seatId: PlayerId;
   label: string;
   hero: DeckImportHeroType | null;
   /** deck-level "extra rules" cards (issue #372) — e.g. Clone Troopers' board
@@ -470,14 +474,15 @@ const SeatPlate = ({
    *  hero card; PlayerView.piles, protocol v25). Drives the same pill + token
    *  badge as a counter, and makes the pill open the pile's card list. undefined
    *  on older servers, or when this seat has tucked nothing. */
-  piles?: Record<string, CardInstanceId[]>;
-  /** for the pile entries on THIS seat whose CONTROLLER is another player
-   *  (ViewPlayer.pileControllers, protocol v0.49.0 / engine #459). A card tucked
-   *  under an opponent's hero card — Boba Fett's bounties — sits in the HOST's
-   *  `piles`, which is where it renders, but it is still the tucker's card. Absent
-   *  unless some entry is foreign, so every deck shipped before v0.49.0 is
-   *  unaffected. */
-  pileControllers?: Record<string, Record<CardInstanceId, PlayerId>>;
+  /** v33 (engine #481): each entry is a bare instance id — THIS seat controls the
+   *  card, which is every entry in the game before Boba Fett — or
+   *  `{card, controller}` for a card another seat tucked here. A card tucked under
+   *  an opponent's hero card (Boba Fett's bounties) sits in the HOST's `piles`,
+   *  which is where it renders, but it is still the tucker's card. Read entries
+   *  through `pileEntryCard` / `pileEntryController`, and NEVER key a pile list by
+   *  instance id: ids are minted per seat, so two same-deck seats can put the SAME
+   *  id in one pile (that is the bug #481 fixed). */
+  piles?: Record<string, PileEntry[]>;
   /** seat label for a PlayerId — used only to attribute a foreign-controlled pile
    *  ("2 by Boba Fett"). Omitted by callers with no seat table. */
   nameOfPlayer?: (id: PlayerId) => string;
@@ -701,15 +706,16 @@ const SeatPlate = ({
 
   // The pile the plate is currently inspecting, resolved live off `piles` (not off
   // the chip snapshot) so an open overlay follows further tucks in the same game.
-  const openPileCards = openPile ? piles?.[openPile] ?? [] : [];
-  // Cross-player tuck (protocol v0.49.0): the pile SITS here, but some or all of
-  // its cards may still belong to whoever tucked them — Boba Fett's bounties sit
-  // under their victim. `piles` puts the stack in the right place; `pileControllers`
-  // is what stops it reading as the host's own. Attribute by controller, distinct
-  // names in seat order, and say nothing at all when no entry is foreign (which is
-  // every pile in the game before this deck).
+  const openPileCards = openPile ? pileCardIds(piles?.[openPile]) : [];
+  // Cross-player tuck (protocol v0.49.0; v33 moved the fact onto the ENTRY): the
+  // pile SITS here, but some or all of its cards may still belong to whoever tucked
+  // them — Boba Fett's bounties sit under their victim. `piles` puts the stack in
+  // the right place; each entry's `controller` is what stops it reading as the
+  // host's own. Attribute by controller, distinct names in seat order, and say
+  // nothing at all when no entry is foreign (which is every pile in the game before
+  // this deck).
   const openPileCredit = openPile
-    ? pileCreditFor(pileControllers?.[openPile], nameOfPlayer)
+    ? pileCreditFor(piles?.[openPile], seatId, nameOfPlayer)
     : "";
 
   // "combat won ✓" chip (issue #288 ↔ engine #160): shown on the acting seat while
@@ -1214,7 +1220,6 @@ export const ProHud = ({
           hasCommitted: !!view.self.committedCard,
           counters: view.self.counters,
           piles: view.self.piles,
-          pileControllers: view.self.pileControllers,
           flags: view.self.flags,
           wonCombatThisTurn: view.self.wonCombatThisTurn,
           lostCombatThisTurn: view.self.lostCombatThisTurn,
@@ -1237,7 +1242,6 @@ export const ProHud = ({
               hasCommitted: view.opponent.hasCommitted,
               counters: view.opponent.counters,
               piles: view.opponent.piles,
-              pileControllers: view.opponent.pileControllers,
               flags: view.opponent.flags,
               wonCombatThisTurn: view.opponent.wonCombatThisTurn,
               lostCombatThisTurn: view.opponent.lostCombatThisTurn,
@@ -1293,6 +1297,7 @@ export const ProHud = ({
         {seats.map((seat) => (
           <SeatPlate
             key={seat.id}
+            seatId={seat.id}
             label={seatLabel(seat)}
             hero={resolveHero(seat.heroId)}
             ruleCards={resolveRuleCards?.(seat.heroId) ?? []}
@@ -1302,7 +1307,6 @@ export const ProHud = ({
             flags={seat.flags}
             counters={seat.counters}
             piles={seat.piles}
-            pileControllers={seat.pileControllers}
             nameOfPlayer={nameOfPlayer}
             wonCombat={seat.wonCombatThisTurn}
             isLocal={seat.you}
