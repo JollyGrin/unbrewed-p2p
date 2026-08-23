@@ -25,7 +25,7 @@
  *    `isDefault` entry when none is (an older snapshot may omit the form flag;
  *    Night Elf is the useful default so the surfaces still answer "what form?").
  */
-import { CardInstanceId, PlayerId } from "./protocol";
+import { CardInstanceId, PileEntry, PlayerId } from "./protocol";
 
 /** Board-token corner badge presentation (icon + label + colors). */
 export interface FlagTokenBadge {
@@ -502,7 +502,7 @@ const sourceKey = (e: HeroStateCounter): string => e.counter ?? e.pile ?? "";
 const valueOf = (
   e: HeroStateCounter,
   counters: Record<string, number> | undefined,
-  piles: Record<string, CardInstanceId[]> | undefined
+  piles: Record<string, PileEntry[]> | undefined
 ): number =>
   e.pile ? piles?.[e.pile]?.length ?? 0 : counters?.[e.counter!] ?? 0;
 
@@ -535,21 +535,45 @@ export const pileDisplayName = (pile: string): string =>
   HERO_STATE_COUNTERS.find((e) => e.pile === pile)?.pileLabel ?? pile;
 
 /**
- * Attribution suffix for a pile whose cards are not all the host seat's, from
- * `ViewPlayer.pileControllers` (protocol v0.49.0 / engine #459). A cross-player
- * tuck leaves the card SITTING on the host — which is where `piles` renders it —
- * while it still belongs to whoever tucked it: Boba Fett's bounties sit under
- * their victim. Empty string when nothing is foreign, which is every pile in the
- * game before this deck, so no existing overlay title changes.
+ * The card id of a pile entry (protocol v33 / engine #481). An entry is either the
+ * bare instance id — the host seat controls it, which is every entry in the game
+ * before Boba Fett — or `{card, controller}` for a card another seat tucked here.
+ */
+export const pileEntryCard = (entry: PileEntry): CardInstanceId =>
+  typeof entry === "string" ? entry : entry.card;
+
+/** Who controls a pile entry sitting on `host`. A bare id means the host does. */
+export const pileEntryController = (entry: PileEntry, host: PlayerId): PlayerId =>
+  typeof entry === "string" ? host : entry.controller;
+
+/** Just the card ids of a pile, in pile order. */
+export const pileCardIds = (entries: PileEntry[] | undefined): CardInstanceId[] =>
+  (entries ?? []).map(pileEntryCard);
+
+/**
+ * Attribution suffix for a pile whose cards are not all the host seat's, read off
+ * the pile ENTRIES (protocol v33 / engine #481; v0.49.0–v32 carried the same fact
+ * on a separate `pileControllers` id map, which could not tell two same-deck seats'
+ * identically-named cards apart). A cross-player tuck leaves the card SITTING on
+ * the host — which is where `piles` renders it — while it still belongs to whoever
+ * tucked it: Boba Fett's bounties sit under their victim. Empty string when nothing
+ * is foreign, which is every pile in the game before this deck, so no existing
+ * overlay title changes.
  *
  * Distinct controllers, in first-seen order (the wire's own), so a stack tucked by
- * two different players in an FFA credits both.
+ * two different players in an FFA credits both — and since v33 that includes two
+ * seats whose cards share an instance id, which is exactly the case the old id map
+ * could not represent.
  */
 export const pileCreditFor = (
-  controllers: Record<CardInstanceId, PlayerId> | undefined,
+  entries: PileEntry[] | undefined,
+  host: PlayerId | undefined,
   nameOf?: (id: PlayerId) => string
 ): string => {
-  const owners = [...new Set(Object.values(controllers ?? {}))];
+  if (!host) return "";
+  const owners = [
+    ...new Set((entries ?? []).map((e) => pileEntryController(e, host)).filter((o) => o !== host)),
+  ];
   if (owners.length === 0 || !nameOf) return "";
   return ` — ${owners.map(nameOf).join(", ")}'s cards`;
 };
@@ -568,7 +592,7 @@ export const pileCreditFor = (
 export const counterChipsFor = (
   heroId: string,
   counters: Record<string, number> | undefined,
-  piles?: Record<string, CardInstanceId[]>
+  piles?: Record<string, PileEntry[]>
 ): { chip: FlagHudChip; on: boolean }[] => {
   const chips: { chip: FlagHudChip; on: boolean }[] = [];
   for (const e of counterEntriesForHero(heroId)) {
@@ -582,7 +606,7 @@ export const counterChipsFor = (
           .replace("{n}", String(n))
           .replace("{max}", String(e.outOf ?? "")),
         offLabel: "",
-        ...(e.pile ? { pile: e.pile, cards: [...(piles?.[e.pile] ?? [])] } : {}),
+        ...(e.pile ? { pile: e.pile, cards: pileCardIds(piles?.[e.pile]) } : {}),
       },
       on: true,
     });
@@ -601,7 +625,7 @@ export const counterChipsFor = (
 export const fighterTokenCounterBadgeFor = (
   heroId: string | undefined,
   counters: Record<string, number> | undefined,
-  piles?: Record<string, CardInstanceId[]>
+  piles?: Record<string, PileEntry[]>
 ): FlagTokenBadge | null => {
   if (!heroId) return null;
   for (const e of counterEntriesForHero(heroId)) {
@@ -873,8 +897,8 @@ export const fighterTokenStateByOwner = (
     heroId: string;
     flags?: Record<string, boolean>;
     counters?: Record<string, number>;
-    /** v25 set-aside piles; absent on older servers / an untucked seat. */
-    piles?: Record<string, CardInstanceId[]>;
+    /** v25 set-aside piles (v33: entries, see PileEntry); absent on an untucked seat. */
+    piles?: Record<string, PileEntry[]>;
   }>
 ): Partial<Record<PlayerId, FighterTokenState>> =>
   Object.fromEntries(
