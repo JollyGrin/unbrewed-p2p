@@ -2712,18 +2712,13 @@ const HeroSelectLobby = ({
                   wrapped, a row of greyed-out cards is just noise, and the
                   format chips above already say how many seats are needed. */}
               <Flex gap="0.5rem" flexWrap="wrap" pb="0.25rem" flex="1">
-                {/* Random — resolves at create time from the format's pool
-                    (1v1 rolls only the smaller boards). */}
+                {/* Random — resolves at create time from the format's pool. */}
                 <Box
                   as="button"
                   type="button"
                   onClick={() => onSelectMap(RANDOM_MAP_ID)}
                   aria-pressed={selectedMapId === RANDOM_MAP_ID}
-                  aria-label={
-                    selectedFormat === "duel"
-                      ? "Random board — rolled from the smaller 1v1 boards when the room is created"
-                      : "Random board — rolled when the room is created"
-                  }
+                  aria-label="Random board — rolled when the room is created"
                   title={`Rolled when the room is created: ${randomPoolTitles}`}
                   flex="none"
                   w="6.75rem"
@@ -3645,7 +3640,8 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
             if (selectedMapId === RANDOM_MAP_ID) {
               // Deferred resolution (#685): roll now, then behave exactly as if
               // that board's tile had been clicked — Mended Drum still sends no
-              // customMap, every other board sends its full ProMapDef.
+              // customMap, every other board sends its full ProMapDef. The pool
+              // is the format's (`randomMapPool`), not the whole catalog.
               const entry = rollRandomMap(selectedFormat);
               rolled = entry.id;
               customMap = customMapForEntry(entry);

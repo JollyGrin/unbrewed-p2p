@@ -5,9 +5,9 @@
  * the only place the promise can be broken is the CREATE_ROOM frame. Two things
  * have to hold there and nowhere else:
  *
- *  - the board actually sent comes from the FORMAT'S pool — in 1v1 that's the
- *    four smaller boards only, so a duel never opens on Count's Castle by
- *    accident (the big boards stay hand-pickable, just never rolled);
+ *  - the board actually sent comes from the FORMAT'S pool — for 1v1 that's every
+ *    board authored for at most four players (all eight of them today), and a
+ *    format's pool must never leak a board that format can't seat;
  *  - a rolled board keeps the same `customMap` semantics as a clicked tile —
  *    The Mended Drum is the server's own default board and must still send NO
  *    customMap, exactly as it does when you click its card.
@@ -144,24 +144,27 @@ describe("Random stage tile", () => {
     expect(screen.getByLabelText(/^Random board/)).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("rolls a 1v1 board from the small-board pool only", async () => {
+  it("rolls every board in the 1v1 pool, and nothing outside it", async () => {
     const pool = randomMapPool("duel").map((e) => e.id);
-    // Sweep the whole [0,1) space: every roll must land inside the duel pool,
-    // and no roll may ever produce a big board.
-    for (const r of [0, 0.24, 0.26, 0.49, 0.51, 0.74, 0.76, 0.999]) {
-      jest.spyOn(Math, "random").mockReturnValue(r);
+    expect(pool).toHaveLength(8); // all eight authored boards seat <= 4 players
+    const rolls: string[] = [];
+    // One rng value per pool slot, nudged off the boundary, so the sweep both
+    // stays inside the pool AND actually reaches all eight boards.
+    for (let i = 0; i < pool.length; i++) {
+      jest.spyOn(Math, "random").mockReturnValue((i + 0.5) / pool.length);
       FakeWebSocket.reset();
       sent = [];
       await mountPicker();
       const msg = await createRoom();
       // The Mended Drum (the server-default board) sends no customMap at all.
-      const rolled = msg.customMap?.id ?? "mended-drum";
-      expect(pool).toContain(rolled);
-      expect(["weathertop", "counts-castle", "uscss-nostromo", "the-bog"]).not.toContain(rolled);
+      rolls.push(msg.customMap?.id ?? "mended-drum");
       jest.restoreAllMocks();
       document.body.innerHTML = "";
     }
-  });
+    expect(rolls).toEqual(pool);
+    // Eight full page mounts: slow on purpose (this is the REAL create flow),
+    // and well past Jest's 5s default once coverage instrumentation is on.
+  }, 60_000);
 
   it("keeps the server-default board's no-customMap wire when it is the one rolled", async () => {
     jest.spyOn(Math, "random").mockReturnValue(0); // → The Mended Drum
@@ -178,7 +181,7 @@ describe("Random stage tile", () => {
   });
 
   it("names the rolled board in the lobby, not 'Random'", async () => {
-    jest.spyOn(Math, "random").mockReturnValue(0.99); // → Polus
+    jest.spyOn(Math, "random").mockReturnValue(0.4); // → Polus, the 4th of 8
     const ws = await mountPicker();
     await createRoom();
     await act(async () => {
@@ -196,8 +199,8 @@ describe("Random stage tile", () => {
     expect(screen.queryByText(/playing on Random/)).not.toBeInTheDocument();
   });
 
-  it("still sends the hand-picked board when a big 1v1 board is clicked", async () => {
-    // Explicitly choosing a board the random pool excludes must be untouched.
+  it("still sends the hand-picked board when a board is clicked", async () => {
+    // Clicking a card must override the Random default and send that board.
     await mountPicker();
     await click(screen.getByLabelText("Count's Castle"));
     const msg = await createRoom();

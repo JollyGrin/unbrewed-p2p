@@ -51,15 +51,6 @@ export interface MapCatalogEntry {
    * board picker. Used for synthetic/dev-only boards like the playtest arena.
    */
   hidden?: boolean;
-  /**
-   * When true, this board is in the pool the synthetic "Random" tile rolls from
-   * for `duel` (issue #685). Deliberately an explicit per-entry flag, not a
-   * positional slice: 1v1 rolls only the SMALLER boards, so a big four-player
-   * board (Weathertop, Count's Castle, USCSS Nostromo, The Bog) is still
-   * pickable by hand but never lands on a player by chance. The multiplayer
-   * formats ignore this and roll over everything `mapEligibleForFormat` allows.
-   */
-  duelRandomPool?: boolean;
 }
 
 const mendedDrum = mendedDrumJson as unknown as CatalogMap;
@@ -81,7 +72,6 @@ export const MAP_CATALOG: MapCatalogEntry[] = [
     title: mendedDrum.meta.title,
     thumbnailUrl: mendedDrum.meta.imageUrl ?? "",
     map: mendedDrum,
-    duelRandomPool: true,
     serverDefault: true,
   },
   {
@@ -89,21 +79,18 @@ export const MAP_CATALOG: MapCatalogEntry[] = [
     title: islandOfDespair.meta.title,
     thumbnailUrl: islandOfDespair.meta.imageUrl ?? "",
     map: islandOfDespair,
-    duelRandomPool: true,
   },
   {
     id: cityDocks.id,
     title: cityDocks.meta.title,
     thumbnailUrl: cityDocks.meta.imageUrl ?? "",
     map: cityDocks,
-    duelRandomPool: true,
   },
   {
     id: polus.id,
     title: polus.meta.title,
     thumbnailUrl: polus.meta.imageUrl ?? "",
     map: polus,
-    duelRandomPool: true,
   },
   {
     id: weathertop.id,
@@ -201,14 +188,32 @@ export function defaultMapIdForFormat(formatId: ProFormatId): string {
 }
 
 /**
+ * Largest board — by the board's own `meta.maxPlayers` — the Random tile will
+ * roll for a 1v1 (issue #685).
+ *
+ * A duel on a board authored for more than four players is a long walk to the
+ * first attack, so such a board stays hand-pickable but is never rolled onto
+ * anyone. Every board in the catalog today is 2/2 or 2/4, so ALL of them are in
+ * the 1v1 pool right now: the bound is here so a future big board excludes
+ * itself by its own metadata, with no catalog edit and nothing to remember.
+ */
+export const DUEL_RANDOM_MAX_PLAYERS = 4;
+
+/** Whether the Random tile may roll this board for a `duel`. */
+export function duelRandomEligible(map: CatalogMap): boolean {
+  return mapEligibleForFormat(map, "duel") && map.meta.maxPlayers <= DUEL_RANDOM_MAX_PLAYERS;
+}
+
+/**
  * The boards the Random tile can roll for a format.
  *
- * `duel` draws only from the flagged small-board pool; the multiplayer formats
- * draw uniformly over every visible board eligible for that format.
+ * `duel` draws from every visible duel board small enough to duel on
+ * (`duelRandomEligible`); the multiplayer formats draw uniformly over every
+ * visible board eligible for that format.
  */
 export function randomMapPool(formatId: ProFormatId): MapCatalogEntry[] {
   const visible = MAP_CATALOG.filter((e) => !e.hidden && mapEligibleForFormat(e.map, formatId));
-  return formatId === "duel" ? visible.filter((e) => e.duelRandomPool) : visible;
+  return formatId === "duel" ? visible.filter((e) => duelRandomEligible(e.map)) : visible;
 }
 
 /**
