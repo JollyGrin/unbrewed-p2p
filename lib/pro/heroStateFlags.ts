@@ -146,6 +146,23 @@ export const HERO_STATE_FLAGS: HeroStateFlag[] = [
     tokenArt: { on: "https://unbrewed.xyz/evergreen-decks/art/malfurion-stormrage/token-malfurion.webp" },
   },
   {
+    // Boba Fett's SLAVE I ambush (issue #671 ↔ engine #477). *Slave I: FiresPray
+    // Strife* removes Boba FROM THE BOARD and sets this flag; his TURN_START trigger
+    // clears it, places him in ANY space and opens a free combat with SEISMIC CHARGE
+    // (attack 6, no action spent). Engine flag key is `SLAVE_I`
+    // (`const SLAVE_I_FLAG = 'SLAVE_I'` in boba-fett.rules.ts @c3fa75a).
+    //
+    // NAMEPLATE ONLY, and this is the one entry in the registry where that is not a
+    // compromise: while the flag is set Boba HAS NO TOKEN ON THE BOARD, so a token
+    // badge would have nothing to sit on. The plate is the only surface left, which
+    // is precisely why the state needs one — an opponent watching a hero vanish
+    // otherwise has no way to learn that he is coming back next turn swinging a 6,
+    // anywhere on the map. It reads on BOTH plates for the usual reason.
+    flag: "SLAVE_I",
+    heroes: ["boba-fett"],
+    nameplate: { onLabel: "SLAVE I — INBOUND", offLabel: "", showWhenAbsent: false },
+  },
+  {
     // Kenshiro's NUNCHAKU turn buff (issue #596 ↔ engine #362). Engine flag key is
     // `NUNCHAKU` — the scheme grants "all of Kenshiro's attacks this turn are +1
     // value", which is otherwise INVISIBLE: the buff lands on a card that has not
@@ -262,8 +279,33 @@ export interface HeroStateCounter {
    *  LENGTH, and its cards are inspectable. VERIFY against the engine's rules.ts —
    *  Luke's is `TRAINING`. Omit when `counter` is set. */
   pile?: string;
-  /** hero ids the counter applies to (the "has the mechanic" gate). */
+  /** hero ids the counter applies to (the "has the mechanic" gate). Ignored as a
+   *  gate when `hostedOnAnySeat` is set — see there. */
   heroes: string[];
+  /** the pile is HOSTED on a seat that is NOT the hero owning the mechanic
+   *  (protocol v0.49.0 / engine #459 cross-player tuck: `CARD_TUCKED.controller`
+   *  + `ViewPlayer.pileControllers`). Boba Fett tucks each BOUNTY card under the
+   *  VICTIM'S hero card, so the pile arrives on the victim's `piles` — and the
+   *  victim can be any hero at all. Gating on the host seat's `heroId` would
+   *  therefore render the stack nowhere.
+   *
+   *  When set, the `heroes` gate does not apply: the entry renders on WHICHEVER
+   *  seat carries the pile key, which is exactly the wire's own signal (the engine
+   *  creates the key only when something is tucked and prunes it when the pile
+   *  empties — see `rendersAt`). `heroes` still names the hero that OWNS the
+   *  mechanic, for provenance and for tests. */
+  hostedOnAnySeat?: boolean;
+  /** entries sharing a `tokenGroup` collapse into ONE token badge whose value is
+   *  the SUM of theirs, presented by the first grouped entry that declares
+   *  `token`. Boba's four one-card BOUNTY piles are four nameplate pills (a player
+   *  needs to know WHICH bounties are on them) but a single board badge reading
+   *  "3" — the board has room for one number, and the number that matters is how
+   *  many bounties are on that fighter, not whichever pile sorts first. */
+  tokenGroup?: string;
+  /** human-readable name for the pill's inspection overlay title, when the raw
+   *  engine pile key would read badly to a player (`BOUNTY_PAYMENT` ->
+   *  "Bounty · PAYMENT"). Falls back to the key. */
+  pileLabel?: string;
   /** HUD nameplate pill. `labelTemplate` substitutes `{n}` with the live value
    *  (e.g. "CLUES: {n}" -> "CLUES: 3"). Omit for token-only counters. */
   nameplate?: { labelTemplate: string };
@@ -283,6 +325,35 @@ export interface HeroStateCounter {
    *  both players most need the pill. */
   showAtZero?: boolean;
 }
+
+/**
+ * Boba Fett's four BOUNTY piles (issue #671 ↔ engine #477), one per BOUNTY card,
+ * named for the effect its band prints. THE ONE PLACE these keys are written: the
+ * registry entries below are generated from this list.
+ *
+ * VERIFIED VERBATIM against `data/heroes/boba-fett.rules.ts` @c3fa75a, where they
+ * are `BOBA_BOUNTY_PILES` and the header calls them out as the client contract:
+ * "The four pile names are part of the client contract — they are what the p2p
+ * heroStateFlags.ts entry renders under the *victim's* nameplate".
+ *
+ * FOUR PILES RATHER THAN ONE is the engine's doing and worth knowing here: the
+ * hero ability must resolve ONE NAMED band, `CARDS_IN_PILE` has no title filter,
+ * and `whileInPile` cannot "activate card X" — so identity is carried by giving
+ * each band its own pile. That is also why the client can render a band's presence
+ * as a bare pill and the total as one summed badge: the count IS the identity.
+ *
+ * Every one of them is hosted on the VICTIM's seat, never on Boba's.
+ */
+export const BOUNTY_PILES: { pile: string; name: string }[] = [
+  // Bounty: It's Just business — "PAYMENT: Reveal the top card of your deck."
+  { pile: "BOUNTY_PAYMENT", name: "PAYMENT" },
+  // Bounty: Supposed to pay me — "INHIBITOR: You can't draw cards this turn."
+  { pile: "BOUNTY_INHIBITOR", name: "INHIBITOR" },
+  // Bounty: No Good to me dead — "CARBONITE: Your hero cannot leave their space this turn."
+  { pile: "BOUNTY_CARBONITE", name: "CARBONITE" },
+  // BOUNTY: Never unarmed — "FLAMETHROWER: Deal 1 damage to 1 of your fighters."
+  { pile: "BOUNTY_FLAMETHROWER", name: "FLAMETHROWER" },
+];
 
 export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
   {
@@ -376,6 +447,48 @@ export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
     // deeper Majora purple and from Nancy's plum.
     token: { icon: "📻", title: "BROADCAST", bg: "#653E7A", color: "#F6E8DD" },
   },
+  // -------------------------------------------------------------------------
+  // Boba Fett's four BOUNTY piles (issue #671 ↔ engine #477, epic engine#464).
+  //
+  // These are the registry's FIRST cross-seat piles. Every pile above sits on the
+  // seat that owns the mechanic; a bounty sits on its VICTIM — Boba plays a BOUNTY
+  // card and tucks it under an OPPONENT'S hero card (protocol v0.49.0, engine
+  // #459), so the pile key arrives on the victim's `ViewPlayer.piles` and
+  // `pileControllers` records that the card is still Boba's. That is the whole
+  // point of a bounty and it is what `hostedOnAnySeat` expresses: the stack renders
+  // under the OPPONENT'S nameplate, and in ffa-3 / 2v2 each bountied opponent shows
+  // their own.
+  //
+  // FOUR entries, not one, because the four bounties are four different threats and
+  // the victim needs to know WHICH are on them: PAYMENT reveals, INHIBITOR denies a
+  // draw, CARBONITE pins the hero, FLAMETHROWER burns one of their fighters. Each
+  // BOUNTY card has quantity 1, so each pile holds 0 or 1 card and the pill is
+  // presence, not a count. They share a `tokenGroup` so the board token carries ONE
+  // badge with the TOTAL — which is also the number two of Boba's cards read
+  // (Durasteel Armor and Disintegration scale off the SUM of the four).
+  //
+  // BOTH surfaces per the Cairne lesson, and here the argument is at its strongest:
+  // the state lives on the OPPONENT, is invisible to them unless we draw it, and
+  // decides how hard the next Disintegration hits.
+  //
+  // Pile keys, the hero id and every card stat are VERIFIED against
+  // boba-fett.rules.ts @c3fa75a (engine #477). `BOUNTY_PILES` is the single place
+  // they are written, and a test pins the list so an engine rename is caught rather
+  // than silently rendering nothing.
+  ...BOUNTY_PILES.map(
+    (b): HeroStateCounter => ({
+      pile: b.pile,
+      pileLabel: `Bounty · ${b.name}`,
+      heroes: ["boba-fett"],
+      hostedOnAnySeat: true,
+      tokenGroup: "boba-bounties",
+      nameplate: { labelTemplate: `BOUNTY: ${b.name}` },
+      // Mandalorian-armour green on cream, the deck's own palette (the author's
+      // #028000 heal dial / rule card). One shared presentation: the token badge is
+      // the group's total, so all four must agree on it anyway.
+      token: { icon: "🎯", title: "BOUNTIES", bg: "#1F6B2A", color: "#F2EAD3" },
+    })
+  ),
 ];
 
 /** An entry's identity key — its counter name or its pile name. */
@@ -407,8 +520,39 @@ const valueOf = (
  */
 const rendersAt = (e: HeroStateCounter, n: number): boolean => n > 0 || !!e.showAtZero;
 
+/**
+ * The registry entries that can render on ONE seat's surfaces: the ones its hero
+ * owns, plus every cross-seat entry (`hostedOnAnySeat`), which is gated by the
+ * pile key's PRESENCE on that seat instead of by its heroId — see the field's doc.
+ * A cross-seat pile on a seat that has none simply reads 0 and hides.
+ */
 const counterEntriesForHero = (heroId: string) =>
-  HERO_STATE_COUNTERS.filter((e) => e.heroes.includes(heroId));
+  HERO_STATE_COUNTERS.filter((e) => e.hostedOnAnySeat || e.heroes.includes(heroId));
+
+/** Player-facing name for a pile's inspection overlay: the entry's `pileLabel`
+ *  when it declares one, else the raw engine key. */
+export const pileDisplayName = (pile: string): string =>
+  HERO_STATE_COUNTERS.find((e) => e.pile === pile)?.pileLabel ?? pile;
+
+/**
+ * Attribution suffix for a pile whose cards are not all the host seat's, from
+ * `ViewPlayer.pileControllers` (protocol v0.49.0 / engine #459). A cross-player
+ * tuck leaves the card SITTING on the host — which is where `piles` renders it —
+ * while it still belongs to whoever tucked it: Boba Fett's bounties sit under
+ * their victim. Empty string when nothing is foreign, which is every pile in the
+ * game before this deck, so no existing overlay title changes.
+ *
+ * Distinct controllers, in first-seen order (the wire's own), so a stack tucked by
+ * two different players in an FFA credits both.
+ */
+export const pileCreditFor = (
+  controllers: Record<CardInstanceId, PlayerId> | undefined,
+  nameOf?: (id: PlayerId) => string
+): string => {
+  const owners = [...new Set(Object.values(controllers ?? {}))];
+  if (owners.length === 0 || !nameOf) return "";
+  return ` — ${owners.map(nameOf).join(", ")}'s cards`;
+};
 
 /**
  * Nameplate chips a hero's counters/piles contribute, in the SAME `{ chip, on }[]`
@@ -462,8 +606,15 @@ export const fighterTokenCounterBadgeFor = (
   if (!heroId) return null;
   for (const e of counterEntriesForHero(heroId)) {
     if (!e.token) continue;
-    const n = valueOf(e, counters, piles);
-    if (!rendersAt(e, n)) continue; // hidden at 0 unless the entry opts in
+    // A grouped entry (Boba's four BOUNTY piles) badges the group's TOTAL, drawn
+    // once by the first grouped entry that declares a `token`. Scanning in registry
+    // order means the first member reached IS that one, so the later members are
+    // skipped rather than each drawing their own badge into the single slot.
+    const group = e.tokenGroup
+      ? counterEntriesForHero(heroId).filter((x) => x.tokenGroup === e.tokenGroup)
+      : [e];
+    const n = group.reduce((sum, x) => sum + valueOf(x, counters, piles), 0);
+    if (!group.some((x) => rendersAt(x, valueOf(x, counters, piles)))) continue;
     const reading = e.outOf == null ? String(n) : `${n}/${e.outOf}`;
     return {
       icon: e.token.icon,
@@ -539,7 +690,84 @@ export const flagChipsFor = (
       if (on || e.nameplate!.showWhenAbsent) chips.push({ chip: toChip(e), on });
     }
   }
+  chips.push(...denyChipsFor(flags));
   return chips;
+};
+
+// ---------------------------------------------------------------------------
+// Action-denial flags — the `DENY:` reserved namespace (protocol v0.51.0, engine
+// #462). NOT a hero mechanic: any seat can be denied by any deck, so these are
+// deliberately outside HERO_STATE_FLAGS' hero-gated registry.
+// ---------------------------------------------------------------------------
+
+/**
+ * The `flags` prefix that marks an ACTION DENIAL rather than a hero state. The
+ * protocol reserves it: `DENY:DRAW` / `DENY:MANEUVER` / `DENY:SCHEME` /
+ * `DENY:ATTACK` mean the seat may not do that thing (the engine enforces it, the
+ * client only has to SAY it), `DENY:TURN` means its next turn is skipped, and any
+ * other `DENY:<X>` means it may not enter the flag `<X>`.
+ */
+export const DENY_PREFIX = "DENY:";
+
+/** Player-facing words for the denials the protocol names. Anything else falls
+ *  back to `NO <X>` — the namespace is open, and an unrendered denial is worse
+ *  than a generically-worded one. */
+const DENY_LABELS: Record<string, string> = {
+  DRAW: "NO DRAW",
+  MANEUVER: "NO MANEUVER",
+  SCHEME: "NO SCHEME",
+  ATTACK: "NO ATTACK",
+  TURN: "TURN SKIPPED",
+};
+
+export const denyLabel = (flag: string): string => {
+  const what = flag.slice(DENY_PREFIX.length);
+  return DENY_LABELS[what] ?? `NO ${what}`;
+};
+
+/**
+ * Nameplate chips for every denial on a seat, in sorted-key order so two seats
+ * with the same denials read the same way. Boba Fett's INHIBITOR bounty is the
+ * first consumer (`DENY:DRAW` for the current turn), but nothing here is
+ * Boba-specific — the protocol reserved the namespace for Flash and the Black
+ * Knight too, and they get this for free.
+ *
+ * A denied seat is otherwise unexplained: a turn that opens and immediately ends,
+ * or a draw that silently does not happen, reads as a bug. Note the wire collapses
+ * duplicates (denials append in the engine, two overlapping ones arrive as one
+ * key), so this renders PRESENCE, never a count.
+ */
+export const denyChipsFor = (
+  flags: Record<string, boolean> | undefined
+): { chip: FlagHudChip; on: boolean }[] =>
+  Object.keys(flags ?? {})
+    .filter((f) => f.startsWith(DENY_PREFIX) && flags![f])
+    .sort()
+    .map((f) => ({ chip: { flag: f, onLabel: denyLabel(f), offLabel: "" }, on: true }));
+
+/**
+ * The board-token badge for a denied seat, or null. One badge however many
+ * denials are live — the board has a single badge slot and "this seat is under a
+ * denial" is the readable part; the nameplate pills name which. Sorted so the
+ * badge is deterministic.
+ */
+export const denyTokenBadgeFor = (
+  flags: Record<string, boolean> | undefined
+): FlagTokenBadge | null => {
+  const denials = Object.keys(flags ?? {})
+    .filter((f) => f.startsWith(DENY_PREFIX) && flags![f])
+    .sort();
+  if (denials.length === 0) return null;
+  return {
+    icon: "🚫",
+    label: denyLabel(denials[0]),
+    title: denials.map(denyLabel).join(" · "),
+    // Warning amber on near-black: not the cold slate of PINNED (which can sit on
+    // the very same token — CARBONITE pins while INHIBITOR denies), and not any
+    // deck's palette.
+    bg: "#7A4A0B",
+    color: "#FFE9C2",
+  };
 };
 
 /**
@@ -628,11 +856,16 @@ export const fighterTokenStateFor = (
  * `fighterTokenArt` props. Owners whose state has neither a badge nor an art
  * override are omitted.
  *
- * The corner badge merges both state families: a flag-driven badge (tide / druid
- * form) wins; otherwise a counter/pile-driven badge (Nancy's CLUE, Luke's TRAINING
- * pile) fills it. A hero today drives only one, so the precedence is academic —
- * but it keeps the single badge slot deterministic if a future hero ever declares
- * both.
+ * The corner badge merges three state families into the single slot, in this
+ * precedence: a flag-driven badge (tide / druid form) wins; then an ACTION DENIAL
+ * (`DENY:*`); then a counter/pile-driven badge (Nancy's CLUE, Luke's TRAINING pile,
+ * Boba's bounty count).
+ *
+ * Denial outranks the counter deliberately. A denial is transient — one turn, then
+ * gone — and unexplained if unseen, whereas a counter is durable and also on the
+ * nameplate pill, so it loses the slot for a turn and comes straight back. The one
+ * place this bites is a bountied seat that is ALSO inhibited: the board shows 🚫
+ * that turn instead of the bounty count, which the plate still spells out in full.
  */
 export const fighterTokenStateByOwner = (
   players: Array<{
@@ -650,6 +883,7 @@ export const fighterTokenStateByOwner = (
         const flagState = fighterTokenStateFor(p.heroId, p.flags);
         const badge =
           flagState.badge ??
+          denyTokenBadgeFor(p.flags) ??
           fighterTokenCounterBadgeFor(p.heroId, p.counters, p.piles);
         return [p.id, { badge, heroArtUrl: flagState.heroArtUrl }] as const;
       })

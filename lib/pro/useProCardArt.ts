@@ -185,6 +185,38 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // bought attack range (lib/pro/rangePurchase.ts) — the engine auto-deducts the
   // shortfall on DECLARE_ATTACK, so the client explains the spend before and after.
   "cecil-palmer": "37z5",
+  // Boba Fett (issue #671 ↔ engine #477, epic engine#464): the-unmatched.club deck
+  // 7289 by Inforce — the BOUNTY deck. TUC decks have no unmatched.cards page, so
+  // the deck id is ours (Darth Vader / Luke precedent) and the committed snapshot is
+  // the only source. Rules fields (titles, types, values, boosts, quantities) are
+  // read off the club's `/print/__data.json` — the bare page route serves
+  // `cards: []`, only /print/ carries them.
+  //
+  // ART IS DELIBERATELY ABSENT. The author's deck hotlinks scraped third-party
+  // images across EIGHT hosts (Pinterest thumbnails, a Bing image-search CDN, a
+  // Lucasfilm CDN); none of it is usable or mirrorable, so every card face renders
+  // from the GENERATED TEMPLATE (empty `imageUrl`, no `cardImage`) until the
+  // deck-art pipeline ticket lands. The only mirrored images are the author's own
+  // cardback and a crop of it for the hero token, both under
+  // public/evergreen-decks/art/boba-fett/. Fennec Shand has no token art at all —
+  // her board token falls back to initials.
+  //
+  // Public state contract, verified against boba-fett.rules.ts @c3fa75a. NO
+  // counters. FOUR one-card set-aside piles, one per BOUNTY card (BOUNTY_PAYMENT /
+  // BOUNTY_INHIBITOR / BOUNTY_CARBONITE / BOUNTY_FLAMETHROWER — the engine's own
+  // BOBA_BOUNTY_PILES, which its header names as the client contract), registered
+  // in HERO_STATE_COUNTERS — and unlike every other pile in the registry these are
+  // HOSTED ON THE VICTIM'S SEAT, not Boba's (protocol v0.49.0 cross-player tuck),
+  // so they render under the OPPONENT's nameplate. ONE flag, `SLAVE_I` — Boba is
+  // off the board and lands next turn swinging SEISMIC CHARGE — registered
+  // nameplate-only, because while it is set he has no token to badge. Plus the
+  // DENY:* action-denial flags (INHIBITOR's `denyFlag DRAW`) and the generic PINNED
+  // fighter status (CARBONITE's `pin`), neither of which is Boba-specific.
+  //
+  // SEISMIC CHARGE is a printed attack that is NOT one of the 30 deck cards: it
+  // lives in the snapshot's `extraCards` so a face resolves for it without polluting
+  // the deck list, its stats or the rules-lock digest.
+  "boba-fett": "boba-fett",
 };
 
 /**
@@ -311,7 +343,13 @@ export function useProCardArt(
           if (!res) return;
           const deck = res.data;
           const byTitle: Record<string, DeckImportCardType> = {};
+          // The 30-card deck, plus (issue #671) any printed card the engine can
+          // put into a combat that is NOT in the deck — Boba's SEISMIC CHARGE,
+          // named by *Slave I*. `extraCards` is art-resolution ONLY: it never
+          // reaches the pool, the stats or the digest, but without it a real
+          // combat card would fall through to the raw-instance-id text fallback.
           for (const card of deck.deck_data.cards) byTitle[norm(card.title)] = card;
+          for (const card of deck.deck_data.extraCards ?? []) byTitle[norm(card.title)] = card;
           byHero[heroId] = {
             cards: byTitle,
             hero: deck.deck_data.hero,

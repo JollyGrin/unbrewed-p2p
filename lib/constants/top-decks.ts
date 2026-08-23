@@ -766,4 +766,34 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl: "/evergreen-decks/art/37z5/cardback.webp",
     sourceUrl: "https://www.the-unmatched.club/c/heroes/cecil-palmer.13514",
   },
+  {
+    // Boba Fett — the-unmatched.club deck 7289 by Inforce (issue #671 ↔ engine
+    // #477, epic engine#464). The BOUNTY deck: BOUNTY cards stay in play tucked
+    // under an OPPONENT'S hero card, two combat cards scale on how many are down,
+    // and Boba "collects" by firing one tucked effect whenever he damages that hero.
+    //
+    // TUC decks have no unmatched.cards page, so `original: true` suppresses the
+    // lobby deep-link and `sourceUrl` credits the club (Vader / Maul / Luke
+    // precedent). Engine serves the hero at tier `lab`, so `lab` drives the
+    // create-screen caution badge and `tier` keeps the deck out of the sandbox
+    // community picker and the invite copy.
+    id: "boba-fett",
+    name: "Boba Fett",
+    hero: "Boba Fett",
+    author: "Inforce",
+    likes: 0,
+    // The author's own green, off the hero card's heal dial and the BOUNTIES rule
+    // card (`appearance.contentBg` #028000). Luke's is a much darker forest green.
+    highlightColour: "#028000",
+    original: true,
+    lab: true,
+    tier: "lab",
+    // Repo-relative (Kenshiro/Skull Kid/Cecil precedent): the author's own cardback,
+    // mirrored off i.imgur.com so the tile renders on localhost and preview builds.
+    // It is the ONLY art this deck ships — the 14 card faces render from the
+    // generated template until the deck-art pipeline ticket lands, because the
+    // author's faces are scraped third-party images across eight hosts.
+    cardbackUrl: "/evergreen-decks/art/boba-fett/cardback.webp",
+    sourceUrl: "https://www.the-unmatched.club/c/heroes/boba-fett.7289",
+  },
 ];

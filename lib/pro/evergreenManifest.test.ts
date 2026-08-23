@@ -1,8 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { computeDigest } from "../../scripts/lib/deckManifest";
+import { computeDigest, normalizeType } from "../../scripts/lib/deckManifest";
 import { EVERGREEN_MANIFEST } from "./evergreenManifest";
 import { HERO_DECK_IDS, norm } from "./useProCardArt";
+import { BOUNTY_PILES } from "./heroStateFlags";
 
 const DECKS_DIR = join(__dirname, "..", "..", "public", "evergreen-decks");
 
@@ -218,5 +219,247 @@ describe("Cecil Palmer (37z5) art is committed, local and full-bleed", () => {
 
   it("totals 30 cards, the deck the engine converted", () => {
     expect(cards.reduce((n, c) => n + c.quantity, 0)).toBe(30);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Boba Fett (issue #671 ↔ engine #477) is the opposite art contract from Skull
+// Kid and Cecil: NO card art at all. The author's deck hotlinks scraped
+// third-party images across eight hosts, so every face renders from the
+// GENERATED TEMPLATE until the deck-art pipeline ticket lands, and the only
+// mirrored images are the author's cardback and a crop of it for the hero token.
+// These pin the deck DATA, which is what the engine and the rules lock read.
+// ---------------------------------------------------------------------------
+
+describe("Boba Fett (boba-fett) deck data", () => {
+  const deck = readDeck("boba-fett");
+  type Card = {
+    title: string;
+    type: string;
+    value: number | null;
+    boost: number;
+    quantity: number;
+    basicText: string;
+    imageUrl: string;
+    cardImage?: { url: string };
+  };
+  const cards = deck.deck_data.cards as Card[];
+  const extraCards = (deck.deck_data.extraCards ?? []) as Card[];
+
+  it("is 14 unique / 30 total, the author's own count", () => {
+    expect(cards).toHaveLength(14);
+    expect(cards.reduce((n, c) => n + c.quantity, 0)).toBe(30);
+    expect(new Set(cards.map((c) => norm(c.title))).size).toBe(14);
+  });
+
+  it("carries the four BOUNTY cards as singletons with no boost pip", () => {
+    // Each bounty is quantity 1 and prints no boost — which is why each engine
+    // pile holds 0 or 1 card, and why the nameplate pills read presence not count.
+    const bounties = cards.filter((c) => /^bounty:/i.test(c.title));
+    expect(bounties.map((c) => c.title)).toEqual([
+      "Bounty: It's Just business",
+      "Bounty: Supposed to pay me",
+      "Bounty: No Good to me dead",
+      "BOUNTY: Never unarmed",
+    ]);
+    for (const b of bounties) {
+      expect(b.quantity).toBe(1);
+      expect(b.boost).toBe(0);
+    }
+  });
+
+  it("keeps the author's typos and casing — the art index is keyed on them", () => {
+    // norm() lowercases + trims and nothing else. "Fixing" FiresPray, the lowercase
+    // "business"/"dead", or the one shouted "BOUNTY:" would unhook that card's art
+    // the day it lands, and diverge from the engine's verbatim titles.
+    expect(cards.map((c) => c.title)).toEqual(
+      expect.arrayContaining([
+        "Slave I: FiresPray Strife", // Firespray, printed with a capital P
+        "Bounty: It's Just business",
+        "Bounty: No Good to me dead",
+        "BOUNTY: Never unarmed", // the one uppercase prefix of the four
+        "Daimyo of Mos Espa",
+      ])
+    );
+  });
+
+  it("prints each bounty band on its card, and drops the stray 'HA LOL'", () => {
+    const bandOf = (title: string) =>
+      cards.find((c) => norm(c.title) === norm(title))!.basicText;
+    expect(bandOf("Bounty: It's Just business")).toBe("PAYMENT: Reveal the top card of your deck.");
+    expect(bandOf("Bounty: Supposed to pay me")).toBe("INHIBITOR: You can't draw cards this turn.");
+    expect(bandOf("Bounty: No Good to me dead")).toContain(
+      "CARBONITE: Your hero cannot leave their space this turn."
+    );
+    expect(bandOf("BOUNTY: Never unarmed")).toBe("FLAMETHROWER: Deal 1 damage to 1 of your fighters.");
+    // The club's structured JSON carries "HA LOL" in It's Just business' default
+    // block; the author's own rendered image drops it, and so do we.
+    expect(JSON.stringify(deck)).not.toContain("HA LOL");
+    // PAYMENT follows the IMAGE ("Reveal"), which the author confirmed is canon —
+    // not the stale JSON's "Discard the top card of your deck".
+    expect(JSON.stringify(deck)).not.toContain("Discard the top card of your deck");
+  });
+
+  it("ships SEISMIC CHARGE as a linked card, OUTSIDE the deck", () => {
+    // A printed attack 6 that *Slave I* names and the engine opens a real combat
+    // with (engine #463). It is never drawn, so it must not be in `cards` — that
+    // array is the deck, the pool, the stats and the rules-lock digest.
+    expect(extraCards.map((c) => c.title)).toEqual(["Seismic Charge"]);
+    expect(extraCards[0]).toMatchObject({ type: "attack", value: 6, quantity: 0 });
+    expect(cards.some((c) => /seismic/i.test(c.title))).toBe(false);
+    // The digest projects `cards` only, so a linked card can never move the lock.
+    const withoutExtras = JSON.parse(JSON.stringify(deck));
+    delete withoutExtras.deck_data.extraCards;
+    expect(computeDigest(withoutExtras)).toBe(computeDigest(deck));
+  });
+
+  it("renders every face from the template — no card art exists yet", () => {
+    for (const card of [...cards, ...extraCards]) {
+      expect(card.imageUrl).toBe("");
+      expect(card.cardImage).toBeUndefined();
+    }
+  });
+
+  it("ships the cardback and the hero token locally, and no other remote URL", () => {
+    for (const url of [
+      deck.deck_data.appearance.cardbackUrl as string,
+      deck.deck_data.hero.tokenImageUrl as string,
+    ]) {
+      expect(url).toMatch(/^\/evergreen-decks\/art\/boba-fett\//);
+      expect(existsSync(join(DECKS_DIR, "..", url.replace(/^\//, "")))).toBe(true);
+    }
+    // Fennec Shand has NO token art — her board token falls back to initials until
+    // the deck-art ticket. Asserted so the omission reads as deliberate.
+    expect(deck.deck_data.sidekick.tokenImageUrl).toBeUndefined();
+    // The only remote URLs left are the attribution link and the same link quoted
+    // in the provenance note — never fetched. Not one image host survives; the
+    // author's imgur cardback is mirrored, and his eight card-art hosts are simply
+    // absent (Pinterest thumbnails, a Bing image-search CDN, a Lucasfilm CDN).
+    const urls = (JSON.stringify(deck).match(/https?:\\?\/\\?\/[^"\\ )]+/g) ?? []).map((u) =>
+      u.replace(/\\/g, "")
+    );
+    expect([...new Set(urls)]).toEqual(["https://www.the-unmatched.club/c/heroes/boba-fett.7289"]);
+  });
+
+  it("matches the hero and sidekick the engine will serve", () => {
+    expect(deck.deck_data.hero).toMatchObject({ hp: 14, move: 2, isRanged: true, name: "Boba Fett" });
+    expect(deck.deck_data.sidekick).toMatchObject({
+      hp: 8,
+      quantity: 1,
+      isRanged: true,
+      name: "Fennec Shand",
+    });
+  });
+});
+
+/**
+ * The snapshot vs the ENGINE (issue #671 ↔ engine #477, `boba-fett.rules.ts`
+ * @c3fa75a). The rules-lock digest only ever compares the snapshot to ITSELF, so
+ * nothing else in this repo would notice if the two drifted — and the engine repo
+ * is private, so the file cannot be imported. The table below is therefore
+ * transcribed from it, and this is the check that the two agree on every field the
+ * engine actually enforces.
+ *
+ * Order is the engine's `BOBA_FETT_CARDS` order, which the snapshot follows.
+ * `usableBy` maps to the snapshot's `characterName` (the club's banner name), and
+ * the engine's `boost: null` — "this card prints no boost pip" — is `0` here,
+ * because DeckImportCardType's `boost` is a number and the renderer draws the pip
+ * on a truthy value, so 0 and null produce the same face.
+ */
+describe("Boba Fett snapshot agrees with boba-fett.rules.ts @c3fa75a", () => {
+  const deck = readDeck("boba-fett");
+  // [title, type, value, boost, quantity, characterName]
+  const ENGINE: [string, string, number, number, number, string][] = [
+    ["Slave I: FiresPray Strife", "scheme", 0, 4, 1, "Boba Fett"],
+    ["Rule with Respect", "versatile", 3, 2, 3, "Fennec Shand"],
+    ["Claiming the Bounty", "attack", 2, 2, 3, "Any"],
+    ["Second Shot", "attack", 2, 3, 3, "Any"],
+    ["Daimyo of Mos Espa", "versatile", 3, 3, 2, "Any"],
+    ["Counter Strike", "versatile", 3, 2, 3, "Any"],
+    ["Durasteel Armor", "defense", 0, 2, 3, "Boba Fett"],
+    ["Master of the Hunt", "scheme", 0, 3, 2, "Boba Fett"],
+    ["Bounty: It's Just business", "defense", 0, 0, 1, "Boba Fett"],
+    ["Disintegration", "attack", 4, 4, 3, "Boba Fett"],
+    ["Leap Away", "versatile", 4, 2, 3, "Any"],
+    ["Bounty: Supposed to pay me", "versatile", 2, 0, 1, "Boba Fett"],
+    ["Bounty: No Good to me dead", "scheme", 0, 0, 1, "Boba Fett"],
+    ["BOUNTY: Never unarmed", "attack", 4, 0, 1, "Boba Fett"],
+  ];
+
+  it("matches every card's title, type, value, boost, quantity and character", () => {
+    const cards = deck.deck_data.cards as {
+      title: string;
+      type: string;
+      value: number;
+      boost: number;
+      quantity: number;
+      characterName: string;
+    }[];
+    expect(cards).toHaveLength(ENGINE.length);
+    cards.forEach((c, i) => {
+      const [title, type, value, boost, quantity, characterName] = ENGINE[i];
+      // normalizeType, because the snapshot spells it "defence" (the community-deck
+      // convention the card-type ICON is keyed on) and the engine spells it "defense".
+      expect([c.title, normalizeType(c.type), c.value, c.boost, c.quantity, c.characterName]).toEqual([
+        title,
+        type,
+        value,
+        boost,
+        quantity,
+        characterName,
+      ]);
+    });
+  });
+
+  it("matches SEISMIC CHARGE, the linked card outside the deck", () => {
+    // Engine: id boba-fett/seismic-charge, attack 6, boost null, quantity 0,
+    // usableBy HERO, blocks [] — "no rules text at all" is what the print has.
+    const extra = deck.deck_data.extraCards as {
+      title: string;
+      type: string;
+      value: number;
+      boost: number;
+      quantity: number;
+      characterName: string;
+    }[];
+    expect(extra).toHaveLength(1);
+    expect(extra[0]).toMatchObject({
+      title: "Seismic Charge",
+      type: "attack",
+      value: 6,
+      boost: 0,
+      quantity: 0,
+      characterName: "Boba Fett",
+    });
+    // The instance the engine mints is `<defId>#linked`, and art resolution keys on
+    // norm(title) after splitting the id — so this title is the join, and a period
+    // or a rename on either side would silently blank the combat face.
+    expect(norm(extra[0].title)).toBe(norm("Seismic Charge"));
+  });
+
+  it("matches the hero and sidekick stat lines", () => {
+    expect(deck.deck_data.hero).toMatchObject({ hp: 14, move: 2, isRanged: true });
+    expect(deck.deck_data.sidekick).toMatchObject({
+      name: "Fennec Shand",
+      hp: 8,
+      quantity: 1,
+      isRanged: true,
+    });
+  });
+
+  it("keeps the four bounty pile keys the engine names as the client contract", () => {
+    // BOBA_BOUNTY_PILES in the rules file, in its order. The registry generates its
+    // entries from this list, so a rename here is the whole of the client fix.
+    expect(BOUNTY_PILES.map((b) => b.pile)).toEqual([
+      "BOUNTY_PAYMENT",
+      "BOUNTY_INHIBITOR",
+      "BOUNTY_CARBONITE",
+      "BOUNTY_FLAMETHROWER",
+    ]);
+    // The "Bounty:" prefix the engine filters on (the COLON is load-bearing —
+    // "Claiming the Bounty" contains the word and is NOT a bounty card).
+    const cards = deck.deck_data.cards as { title: string }[];
+    expect(cards.filter((c) => norm(c.title).includes("bounty:"))).toHaveLength(4);
+    expect(cards.filter((c) => norm(c.title).includes("bounty"))).toHaveLength(5);
   });
 });
