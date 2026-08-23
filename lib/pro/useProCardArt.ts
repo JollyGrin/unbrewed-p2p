@@ -192,14 +192,26 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // read off the club's `/print/__data.json` — the bare page route serves
   // `cards: []`, only /print/ carries them.
   //
-  // ART IS DELIBERATELY ABSENT. The author's deck hotlinks scraped third-party
-  // images across EIGHT hosts (Pinterest thumbnails, a Bing image-search CDN, a
-  // Lucasfilm CDN); none of it is usable or mirrorable, so every card face renders
-  // from the GENERATED TEMPLATE (empty `imageUrl`, no `cardImage`) until the
-  // deck-art pipeline ticket lands. The only mirrored images are the author's own
-  // cardback and a crop of it for the hero token, both under
-  // public/evergreen-decks/art/boba-fett/. Fennec Shand has no token art at all —
-  // her board token falls back to initials.
+  // ⚠️ ART IS LAB-ONLY AND MUST NOT GRADUATE. The card faces are the AUTHOR'S OWN
+  // club renders (this deck's /export/__data.json `cardPreviewUrls`), mirrored under
+  // public/evergreen-decks/art/boba-fett/ so the deck can actually be SEEN and
+  // playtested on a local engine. The illustrations inside those renders are scraped
+  // third-party comic art across EIGHT hosts — Pinterest, a Bing image-search CDN, a
+  // Lucasfilm CDN, Reddit, two comic shops — none of it the author's to license and
+  // none of it ours. They are here to make the lab build legible, nothing else, and
+  // the deck-art pipeline ticket MUST replace every one of them before this hero
+  // leaves tier `lab`. Do NOT read this deck as an art precedent: Kenshiro, Skull Kid
+  // and Cecil mirror renders their authors actually made.
+  //
+  // One exception inside the exception: *Slave I: FiresPray Strife* has no usable
+  // club render (its preview hash 400s after a late edit), so it — and the SEISMIC
+  // CHARGE printed on it, which never had a face of its own — render through the
+  // GENERATED TEMPLATE with the author's illustration in the art panel, rather than
+  // full-bleed like the other thirteen.
+  //
+  // The cardback and the hero-token crop are the author's own and are the only two
+  // images here NOT on the replace-before-graduation list. Fennec Shand has no token
+  // art at all — her board token falls back to initials.
   //
   // Public state contract, verified against boba-fett.rules.ts @c3fa75a. NO
   // counters. FOUR one-card set-aside piles, one per BOUNTY card (BOUNTY_PAYMENT /

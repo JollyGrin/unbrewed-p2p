@@ -313,11 +313,50 @@ describe("Boba Fett (boba-fett) deck data", () => {
     expect(computeDigest(withoutExtras)).toBe(computeDigest(deck));
   });
 
-  it("renders every face from the template — no card art exists yet", () => {
+  // LAB-ONLY ART. The faces are the author's own club renders, mirrored so the deck
+  // can be seen and playtested locally; the illustrations inside them are scraped
+  // third-party comic art and the deck-art pipeline must replace every one before
+  // this hero leaves tier `lab`. What is pinned here is only that the wiring is
+  // sound and entirely LOCAL — nothing about it is a precedent to copy.
+  it("ships every card face as a file that actually exists in the repo", () => {
     for (const card of [...cards, ...extraCards]) {
-      expect(card.imageUrl).toBe("");
-      expect(card.cardImage).toBeUndefined();
+      expect(card.imageUrl).toMatch(/^\/evergreen-decks\/art\/boba-fett\/[a-z0-9-]+\.webp$/);
+      expect(existsSync(join(DECKS_DIR, "..", card.imageUrl.replace(/^\//, "")))).toBe(true);
     }
+  });
+
+  it("draws thirteen faces FULL-BLEED and the Slave I pair through the template", () => {
+    // *Slave I* is the one card with no usable club render — its preview hash 400s
+    // after a late edit — so it falls back to the generated template with the
+    // author's illustration in the art panel, and SEISMIC CHARGE (printed ON it,
+    // never rendered separately) borrows the same illustration.
+    const templated = ["Slave I: FiresPray Strife"];
+    for (const card of cards) {
+      if (templated.includes(card.title)) expect(card.cardImage).toBeUndefined();
+      else expect(card.cardImage?.url).toBe(card.imageUrl);
+    }
+    expect(cards.filter((c) => c.cardImage)).toHaveLength(13);
+    expect(extraCards[0].cardImage).toBeUndefined();
+    expect(extraCards[0].imageUrl).toBe(
+      cards.find((c) => c.title === "Slave I: FiresPray Strife")!.imageUrl
+    );
+  });
+
+  it("gives every card its OWN face — no two share a render, bar the Slave I pair", () => {
+    expect(new Set(cards.map((c) => c.imageUrl)).size).toBe(cards.length);
+  });
+
+  it("mirrors the hero card and the BOUNTIES rule card alongside the faces", () => {
+    for (const file of ["hero-card.webp", "bounties-rule-card.webp"]) {
+      expect(existsSync(join(DECKS_DIR, "art", "boba-fett", file))).toBe(true);
+    }
+  });
+
+  it("says in the deck note that the art is lab-only and must be replaced", () => {
+    // The provenance has to travel WITH the data, not only in a code comment: this
+    // deck must not graduate carrying scraped third-party illustrations.
+    expect(deck.note).toContain("LAB-ONLY AND TEMPORARY");
+    expect(deck.note).toContain("deck-art pipeline");
   });
 
   it("ships the cardback and the hero token locally, and no other remote URL", () => {
