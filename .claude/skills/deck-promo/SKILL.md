@@ -95,6 +95,16 @@ npm run dev                                       # Remotion Studio, to iterate 
 Outputs land in `marketing/out/`, which is **gitignored — commit the props
 file, never the mp4s.** Hand the mp4s to the user with the file tool.
 
+**Then archive them — every promo lives in `~/git/unbrewed/deck-promos/`:**
+
+```bash
+cp out/<name>.mp4 out/<name>-discord.mp4 ~/git/unbrewed/deck-promos/
+```
+
+`marketing/out/` is scratch and dies with a worktree; `deck-promos/` is the
+one folder Dean looks in for all deck videos. Do this before any worktree
+teardown, and not only on the final render — re-copy after every re-render.
+
 Duration is computed from the props: 3 cards → 1030f (34.3s), 4 cards → 1170f
 (39s) at 30fps. Both are inside the 20–40s brief; don't add a 5th card.
 
