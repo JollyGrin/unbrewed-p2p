@@ -991,6 +991,28 @@ export function enrichLines(
         break;
       }
 
+      // v32 (issue #671 ↔ engine #463): `{op:'attackWith'}` opened a REAL combat
+      // from a card effect, outside any action. The view diff already narrates the
+      // combat itself ("Boba Fett attacks King Kong" + the reveal line), so this
+      // line exists to answer the two questions those cannot: WHY a combat opened
+      // with nothing declared, and WHAT that attack card is — `card` is a CardDefId
+      // that is NOT in the deck list (`HeroDef.linkedCards`, printed on another
+      // card), so a reader scanning the opponent's 30 will never find it.
+      //
+      // `label` splits on "#" before it reads the catalog, so a bare def id resolves
+      // to "Seismic Charge (6/0)" exactly as an instance would; the catalog carries
+      // linked cards because the engine registers them into GameContext.cards.
+      case "EFFECT_ATTACK_INITIATED": {
+        added.push({
+          text: `${ctx.fighter(e.attacker)} attacks ${ctx.fighter(e.target)} with ${ctx.label(
+            e.card
+          )} — no action spent`,
+          who: "game",
+          cards: [e.card],
+        });
+        break;
+      }
+
       // Opening-hand mulligan (issue #622 ↔ protocol v30). Both events land only
       // when the window CLOSES, one per seat, which is the moment each player's
       // choice becomes public — until then the answers are redacted and there is

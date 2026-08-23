@@ -156,6 +156,8 @@ const ALL_EVENTS: GameEvent[] = [
   { type: "BONUS_ATTACK_STARTED", attacker: "p1/hero", target: "p2/hero" },
   { type: "BONUS_ATTACK_PASSED", player: "p1" },
   { type: "SUB_ATTACK_INITIATED", attacker: "p1/sidekick-1", target: "p2/hero", value: 4 },
+  // v32 effect-initiated attack (issue #671 ↔ engine #463) — an allowlisted new-line event.
+  { type: "EFFECT_ATTACK_INITIATED", attacker: "p1/hero", target: "p2/hero", card: "boba-fett/seismic-charge" },
   // v29 per-fighter markers (issue #596 ↔ engine #360).
   { type: "FIGHTER_MARKED", fighter: "p2/hero", name: "MERIDIAN", count: 1, total: 1, expiresAtTurn: null, expiresAt: null },
   { type: "FIGHTER_MARKS_CLEARED", fighter: "p2/hero", name: "MERIDIAN", removed: 1 },
@@ -185,6 +187,7 @@ const ALLOWLIST = new Set([
   "BONUS_ATTACK_STARTED",
   "BONUS_ATTACK_PASSED",
   "SUB_ATTACK_INITIATED",
+  "EFFECT_ATTACK_INITIATED",
   "MULLIGAN_TAKEN",
   "HAND_KEPT",
   "FIGHTER_MARKED",
@@ -659,7 +662,7 @@ describe("enrichLines", () => {
       // A discard is an annotation-only type; add it so the roster is exhaustive.
       seen.add("CARD_DISCARDED");
       // Sanity: the allowlist is a subset of what the union offers.
-      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "COMBAT_VALUE_BREAKDOWN", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_REVEALED", "CARD_TUCKED", "CARD_RETURNED_FROM_PILE", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED", "FIGHTER_MARKED", "FIGHTER_MARKS_CLEARED", "MULLIGAN_TAKEN", "HAND_KEPT", "POSITIONS_SWAPPED"]).toContain(t);
+      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "COMBAT_VALUE_BREAKDOWN", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_REVEALED", "CARD_TUCKED", "CARD_RETURNED_FROM_PILE", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED", "EFFECT_ATTACK_INITIATED", "FIGHTER_MARKED", "FIGHTER_MARKS_CLEARED", "MULLIGAN_TAKEN", "HAND_KEPT", "POSITIONS_SWAPPED"]).toContain(t);
     });
   });
 
@@ -813,6 +816,23 @@ describe("enrichLines", () => {
       }).text;
       expect(text).toBe("hero makes a bonus attack (3) against sidekick-1");
       expect(text).not.toContain("Blast 'em!");
+    });
+
+    // v32 (issue #671 ↔ engine #463). The view diff already says "hero attacks
+    // hero" and prints the reveal; what only the event can say is that nobody
+    // declared this and that the attack card is not in the deck.
+    it("EFFECT_ATTACK_INITIATED — names the linked card and says no action was spent", () => {
+      const l = line({
+        type: "EFFECT_ATTACK_INITIATED",
+        attacker: "p1/hero",
+        target: "p2/hero",
+        card: "boba-fett/seismic-charge",
+      });
+      expect(l.text).toBe("hero attacks hero with seismic-charge — no action spent");
+      expect(l.who).toBe("game");
+      // The def id rides along as a hoverable card, exactly as an instance would:
+      // `label` and the art resolver both split on "#" before reading the catalog.
+      expect(l.cards).toEqual(["boba-fett/seismic-charge"]);
     });
 
     it("SUB_ATTACK_INITIATED — a chain hit is prefixed with its progress (#596)", () => {

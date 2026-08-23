@@ -238,6 +238,7 @@ describe("Boba Fett (boba-fett) deck data", () => {
     value: number | null;
     boost: number;
     quantity: number;
+    basicText: string;
     imageUrl: string;
     cardImage?: { url: string };
   };
@@ -283,7 +284,7 @@ describe("Boba Fett (boba-fett) deck data", () => {
 
   it("prints each bounty band on its card, and drops the stray 'HA LOL'", () => {
     const bandOf = (title: string) =>
-      cards.find((c) => norm(c.title) === norm(title))!.basicText as string;
+      cards.find((c) => norm(c.title) === norm(title))!.basicText;
     expect(bandOf("Bounty: It's Just business")).toBe("PAYMENT: Reveal the top card of your deck.");
     expect(bandOf("Bounty: Supposed to pay me")).toBe("INHIBITOR: You can't draw cards this turn.");
     expect(bandOf("Bounty: No Good to me dead")).toContain(

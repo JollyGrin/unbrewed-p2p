@@ -82,6 +82,7 @@ import {
   parentCardTitle,
   subAttackChainProgress,
 } from "@/lib/pro/subAttackChain";
+import { effectAttackTagFor, type EffectAttackTag } from "@/lib/pro/effectAttack";
 import {
   AttachItem,
   cardAffordances,
@@ -1348,6 +1349,7 @@ const CombatPanel = ({
   valueFx,
   clashRef,
   chain,
+  effectAttack,
 }: {
   combat: ViewCombat;
   catalog: Record<string, CardMeta>;
@@ -1364,6 +1366,10 @@ const CombatPanel = ({
    *  synthetic followup: names the parent card and which hit of the chain this is.
    *  Null/undefined for an ordinary combat and for a lone unnamed sub-attack. */
   chain?: SubAttackChainProgress | null;
+  /** effect-initiated attack marker (#671 ↔ engine #463, protocol v32): this combat
+   *  was opened by `{op:'attackWith'}` with a LINKED printed card, outside any
+   *  action. Null/undefined for every declared combat. */
+  effectAttack?: EffectAttackTag | null;
 }) => {
   const attackerCommitted = combat.stage !== "COMMIT_ATTACK";
   const pastReveal = !["COMMIT_ATTACK", "COMMIT_DEFENSE"].includes(combat.stage);
@@ -1404,6 +1410,27 @@ const CombatPanel = ({
         {chain && (
           <Tag size="sm" bg="#B3232C" color="#FDF3E3" letterSpacing="0.03em">
             {chain.text}
+          </Tag>
+        )}
+        {/* Effect-initiated attack (#671 ↔ engine #463). Every other combat on this
+            panel was DECLARED by someone spending an action; this one opened on a
+            turn edge with nothing declared, and its attack card is printed on
+            another card rather than drawn — a defender who cannot find it in the
+            opponent's 30 needs to be told why. The face itself needs no special
+            path: the engine sends it face UP at COMMIT_DEFENSE, same as a drained
+            sub-attack, and it resolves art through the ordinary catalog+snapshot
+            route off the deck's `extraCards`. */}
+        {effectAttack && (
+          <Tag
+            size="sm"
+            bg="#1F6B2A"
+            color="#F2EAD3"
+            letterSpacing="0.03em"
+            cursor="help"
+            title={effectAttack.title}
+            aria-label={effectAttack.title}
+          >
+            {effectAttack.text}
           </Tag>
         )}
       </Flex>
@@ -3849,6 +3876,11 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
     chainCombat?.attackerCard && isSubAttackCard(chainCombat.attackerCard.instance)
       ? subAttackChainProgress(parentCardTitle(view.catalog, chain.parent), chain.hits)
       : null;
+  // Effect-initiated attack tag (#671 ↔ engine #463, protocol v32). Gated off the
+  // attack card's instance id, exactly as the chain tag is — a linked printed card
+  // is `<cardDefId>#linked` — so it needs no cross-batch bookkeeping and it follows
+  // the lingering combat through the strike beat for free.
+  const combatEffectAttack = effectAttackTagFor(view.catalog, panelCombat?.attackerCard?.instance);
   const myTurn = view.activePlayer === view.you;
   const multiplayerView = view.players.length > 2;
   // Forfeit is offered ONLY through the legal-action surface (unbrewed-engine
@@ -4950,6 +4982,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug }: { room: string | null; hero
               valueFx={visualOn && !reducedMotion ? combatValueFx : undefined}
               clashRef={clashRef}
               chain={combatChain}
+              effectAttack={combatEffectAttack}
             />
           ) : null
         }
