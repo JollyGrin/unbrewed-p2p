@@ -1,0 +1,23 @@
+{
+  "deckSlug": "boba-fett",
+  "tagline": "Hang bounties on their hero, then get paid every time you connect",
+  "particleStyle": "embers",
+  "featuredCards": [
+    {
+      "title": "Rule with Respect",
+      "caption": "The deck never has to wait on a draw. Dig a BOUNTY out of deck or discard and the whole plan starts on your terms."
+    },
+    {
+      "title": "Bounty: Supposed to pay me",
+      "caption": "Play it and it does not go to the discard — it stays tucked under their hero, a debt waiting to be called in on your next hit."
+    },
+    {
+      "title": "Disintegration",
+      "caption": "Every bounty still hanging on them adds a point to it. The longer they leave the paper on their head, the bigger the number gets."
+    },
+    {
+      "title": "Claiming the Bounty",
+      "caption": "Collection day. Every tucked effect fires at once and it hands the action back, so the hunt keeps moving after the payout."
+    }
+  ]
+}
