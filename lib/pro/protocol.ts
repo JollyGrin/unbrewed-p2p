@@ -793,7 +793,24 @@
  * keyed by POSITION and never by card id; and the owner colour for an entry is
  * `typeof e === "string" ? <the seat holding the pile> : e.controller`.
  */
-export const PROTOCOL_VERSION = 33;
+/**
+ * v34 (engine #493 — Ellen Ripley). ONE ADDITIVE EVENT, and it is the smallest kind of
+ * breaking change: a new `GameEvent` member.
+ *
+ * - `COMBAT_DEFENDER_CHANGED { from, to }` is emitted mid-combat when a card substitutes the
+ *   DEFENDING FIGHTER (`{op:'setCombatDefender'}` — *"Ripley and Newt may swap spaces; if
+ *   they do, the other fighter is now the defender"*). The combat, the defending PLAYER and
+ *   both revealed cards are unchanged; only which FIGHTER is defending moves.
+ * - Nothing else moves: no action, no prompt kind, no `LegalOption` shape, no view field.
+ *   Every other event is byte-identical.
+ *
+ * CLIENT SURFACE (unbrewed-p2p): a client rendering a live combat MUST re-point its
+ * defender slot at `to` when this arrives — `to` is the fighter that takes the damage, and
+ * the one every later DURING/AFTER effect, range check and adjacency test reads. A client
+ * that ignores the event will draw the damage landing on the wrong figure. It always
+ * arrives BEFORE `COMBAT_VALUE_BREAKDOWN` / `COMBAT_DAMAGE` for that combat.
+ */
+export const PROTOCOL_VERSION = 34;
 
 /**
  * Scripted-AI strength preset (server-side budgets; client treats as opaque).
@@ -926,6 +943,12 @@ export type GameEvent =
   | { type: "ATTACK_DECLARED"; attacker: FighterId; target: FighterId }
   | { type: "CARD_COMMITTED"; player: PlayerId }
   | { type: "CARDS_REVEALED"; attackerCard: CardInstanceId; defenderCard: CardInstanceId | null }
+  // v34 (#493): the DEFENDING FIGHTER changed mid-combat (`setCombatDefender` — Ellen Ripley
+  // *GET BEHIND ME*, "if they do, the other fighter is now the defender"). Same combat, same
+  // defending player, same revealed cards: the damage will land on `to` instead of `from`.
+  // A client showing the combat must re-point at `to` — it is the fighter that takes the
+  // damage and the one every later DURING/AFTER effect and range check reads.
+  | { type: "COMBAT_DEFENDER_CHANGED"; from: FighterId; to: FighterId }
   | { type: "COMBAT_DAMAGE"; amount: number }
   | { type: "COMBAT_RESOLVED"; outcome: CombatOutcome }
   | { type: "COMBAT_ENDED" }

@@ -502,3 +502,188 @@ describe("Boba Fett snapshot agrees with boba-fett.rules.ts @c3fa75a", () => {
     expect(cards.filter((c) => norm(c.title).includes("bounty"))).toHaveLength(5);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Ellen Ripley — Aliens (issue #681 ↔ engine #494/#493). CLUB-ONLY: there is no
+// unmatched.cards page for this deck at all, so the committed snapshot is the
+// only source and nothing can be re-fetched to check it against. Two things
+// therefore have to be pinned here — that the snapshot agrees with the engine
+// field for field, and that not one image URL points off this repo.
+// ---------------------------------------------------------------------------
+
+describe("Ellen Ripley (ellen-ripley) deck data", () => {
+  const deck = readDeck("ellen-ripley");
+  type Card = {
+    title: string;
+    type: string;
+    value: number | null;
+    boost: number;
+    quantity: number;
+    characterName: string;
+    imageUrl: string;
+    cardImage?: { url: string };
+  };
+  const cards = deck.deck_data.cards as Card[];
+
+  it("is 12 unique / 30 total — with FEINT at the author's corrected x2", () => {
+    // The club record as published sums to 31 (FEINT x3) and the engine refuses
+    // anything but 30. MrBrownieDL answered x2 in the Discord thread on
+    // 2026-08-23; that correction is the ONLY divergence from the record, and it
+    // is what makes this deck legal at all.
+    expect(cards).toHaveLength(12);
+    expect(cards.reduce((n, c) => n + c.quantity, 0)).toBe(30);
+    expect(new Set(cards.map((c) => norm(c.title))).size).toBe(12);
+    expect(cards.find((c) => c.title === "FEINT")!.quantity).toBe(2);
+  });
+
+  it("keeps the author's casing and punctuation — the art index is keyed on them", () => {
+    // norm() lowercases + trims and nothing else. "Fixing" the mixed-case Pulse,
+    // the asterisks or either exclamation mark would unhook that card's face and
+    // diverge from the engine's verbatim titles at the same time.
+    expect(cards.map((c) => c.title)).toEqual(
+      expect.arrayContaining([
+        "M41A Pulse RIFLE", // the one card that is not all-caps
+        "MOMMY!",
+        "GET AWAY FROM HER, YOU *****!", // five asterisks, as printed
+        "AYE-FIRMATIVE",
+      ])
+    );
+  });
+
+  it("ships every card face as a LOCAL file that exists, drawn full-bleed", () => {
+    // The author made real card renders, so every face is his own frame via
+    // cardImage — this deck must never fall through to the generated template.
+    for (const card of cards) {
+      expect(card.imageUrl).toMatch(/^\/evergreen-decks\/art\/ellen-ripley\/[a-z0-9-]+\.webp$/);
+      expect(card.cardImage?.url).toBe(card.imageUrl);
+      expect(existsSync(join(DECKS_DIR, "..", card.imageUrl.replace(/^\//, "")))).toBe(true);
+    }
+    expect(new Set(cards.map((c) => c.imageUrl)).size).toBe(cards.length);
+  });
+
+  it("mirrors the hero card, the cardback and BOTH board tokens locally", () => {
+    for (const file of ["hero-card.webp", "cardback.webp", "token-ellen-ripley.webp", "token-newt.webp"]) {
+      expect(existsSync(join(DECKS_DIR, "art", "ellen-ripley", file))).toBe(true);
+    }
+    for (const url of [
+      deck.deck_data.appearance.cardbackUrl as string,
+      deck.deck_data.hero.tokenImageUrl as string,
+      deck.deck_data.sidekick.tokenImageUrl as string,
+    ]) {
+      expect(url).toMatch(/^\/evergreen-decks\/art\/ellen-ripley\//);
+      expect(existsSync(join(DECKS_DIR, "..", url.replace(/^\//, "")))).toBe(true);
+    }
+  });
+
+  it("leaves NO remote URL in the shipped data but the attribution link", () => {
+    // The deck's images were published across i.imgur.com and the club's own
+    // /drive/ store; every one is mirrored, so neither host may survive here.
+    const urls = (JSON.stringify(deck).match(/https?:\\?\/\\?\/[^"\\ )]+/g) ?? []).map((u) =>
+      u.replace(/\\/g, "")
+    );
+    expect([...new Set(urls)]).toEqual([
+      "https://www.the-unmatched.club/c/heroes/ellen-ripley.2304",
+    ]);
+    expect(JSON.stringify(deck)).not.toContain("i.imgur.com");
+    expect(deck.sourceUrl).toBe("https://www.the-unmatched.club/c/heroes/ellen-ripley.2304");
+    expect(deck.user).toBe("MrBrownieDL");
+  });
+
+  it("carries no rule cards and no extra characters", () => {
+    // Stated rather than assumed: the hero ability is the whole of the deck's
+    // special text, and the engine registers no counters, flags or piles either.
+    expect(deck.deck_data.ruleCards ?? []).toEqual([]);
+    expect(deck.deck_data.extraCards).toBeUndefined();
+    expect(deck.deck_data.extraCharacters).toBeUndefined();
+  });
+});
+
+/**
+ * The snapshot vs the ENGINE (issue #681 ↔ engine #494, `ellen-ripley.rules.ts`
+ * @ee9c276). The rules-lock digest only ever compares the snapshot to ITSELF and
+ * the engine repo is private, so the table below is transcribed from that file and
+ * this is the check that the two agree on every field the engine enforces.
+ *
+ * Order is the engine's `ELLEN_RIPLEY_CARDS` order, which the snapshot follows.
+ * `usableBy` maps to `characterName` (the club's banner name): HERO → "Ellen
+ * Ripley", SIDEKICK → "Newt", ANY → "Any". The engine spells the two defence cards
+ * "defense"; the snapshot uses the community-deck "defence" the card-type icon is
+ * keyed on, and the digest normalizes the difference (see `normalizeType`).
+ */
+describe("Ellen Ripley snapshot agrees with ellen-ripley.rules.ts @ee9c276", () => {
+  const deck = readDeck("ellen-ripley");
+  // [title, type, value, boost, quantity, characterName]
+  const ENGINE: [string, string, number, number, number, string][] = [
+    ["P-5000 POWER LOADER", "attack", 3, 3, 2, "Ellen Ripley"],
+    ["MOTION TRACKER", "defense", 2, 2, 3, "Any"],
+    ["MOMMY!", "scheme", 0, 2, 2, "Newt"],
+    ["SKIRMISH", "versatile", 4, 1, 3, "Any"],
+    ["REGROUP", "versatile", 1, 2, 3, "Any"],
+    ["AYE-FIRMATIVE", "versatile", 3, 2, 3, "Any"],
+    ["FEINT", "versatile", 2, 3, 2, "Any"],
+    ["M41A GRENADE LAUNCHER", "scheme", 0, 3, 2, "Ellen Ripley"],
+    ["GET BEHIND ME", "defense", 2, 3, 3, "Any"],
+    ["RESOURCEFUL", "attack", 2, 1, 2, "Newt"],
+    ["M41A Pulse RIFLE", "attack", 2, 2, 3, "Any"],
+    ["GET AWAY FROM HER, YOU *****!", "attack", 4, 3, 2, "Ellen Ripley"],
+  ];
+
+  it("matches the engine card for card, in the engine's own order", () => {
+    const cards = deck.deck_data.cards as {
+      title: string;
+      type: string;
+      value: number | null;
+      boost: number;
+      quantity: number;
+      characterName: string;
+    }[];
+    expect(cards).toHaveLength(ENGINE.length);
+    cards.forEach((card, i) => {
+      const [title, type, value, boost, quantity, characterName] = ENGINE[i];
+      expect(card.title).toBe(title);
+      expect(normalizeType(card.type)).toBe(normalizeType(type));
+      expect(card.value ?? 0).toBe(value);
+      expect(card.boost).toBe(boost);
+      expect(card.quantity).toBe(quantity);
+      expect(card.characterName).toBe(characterName);
+    });
+  });
+
+  it("matches the hero and sidekick stat lines", () => {
+    expect(deck.deck_data.hero).toMatchObject({
+      hp: 14,
+      move: 2,
+      isRanged: true, // reach: 'RANGED'
+      name: "Ellen Ripley",
+    });
+    expect(deck.deck_data.sidekick).toMatchObject({
+      name: "Newt",
+      hp: 7,
+      quantity: 1,
+      isRanged: false, // reach: 'MELEE'
+    });
+  });
+
+  it("prints both clauses of SURROGATE MOTHER, in the printed order", () => {
+    // The order is rules-relevant on the second clause: discard FIRST, then the 2
+    // damage — which can defeat Ripley herself.
+    const ability = deck.deck_data.hero.specialAbility as string;
+    expect(ability).toContain("SURROGATE MOTHER");
+    expect(ability).toContain("if Newt is adjacent to an opposing fighter, gain 1 action");
+    expect(ability.indexOf("discard 2 cards")).toBeLessThan(ability.indexOf("2 damage to Ripley"));
+  });
+
+  it("prints the two clauses the client has to render prompts for", () => {
+    const textOf = (title: string) => {
+      const c = (deck.deck_data.cards as { title: string; immediateText: string; basicText: string }[]).find(
+        (x) => x.title === title
+      )!;
+      return `${c.immediateText} ${c.basicText}`;
+    };
+    // *GET BEHIND ME* — the v34 substitution, offered as an `optional` prompt.
+    expect(textOf("GET BEHIND ME")).toContain("the other fighter is now the defender");
+    // *MOMMY!* — the chooseOne the engine opens with the two printed options.
+    expect(textOf("MOMMY!")).toContain("Newt and Ripley each recover 1 health");
+    expect(textOf("MOMMY!")).toContain("Ripley recovers 2 health");
+  });
+});

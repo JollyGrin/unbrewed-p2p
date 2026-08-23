@@ -22,10 +22,12 @@ import { useProCardArt } from "@/lib/pro/useProCardArt";
 import { fighterTokenStateByOwner } from "@/lib/pro/heroStateFlags";
 import { seatCosmetics, tokenRimForSeat } from "@/lib/pro/seatCosmetics";
 import { combatOutcomeBannerText, isNoWinner } from "@/lib/pro/combatOutcome";
-import { squadBadges } from "@/lib/pro/squadNumbers";
+import { combatSidesLine } from "@/lib/pro/combatDefender";
+import { badgedFighterName, squadBadges } from "@/lib/pro/squadNumbers";
 import {
   CardInstanceId,
   CardMeta,
+  FighterId,
   PlayerId,
   ReplayExpansion,
   ViewFighter,
@@ -218,6 +220,10 @@ export const ReplayScrubber = ({
   const oppSeats = opponentSeats(step, focus);
   const markers = useMemo(() => turnMarkers(steps), [steps]);
   const labelFor = (c: CardInstanceId) => labelForCard(catalog, c);
+  // Same stable squad numbers the board paints, so "Clone Trooper 3" in the
+  // combat readout is the token wearing the 3.
+  const stepBadges = useMemo(() => squadBadges(view.fighters), [view.fighters]);
+  const fighterName = (id: FighterId) => badgedFighterName(view.fighters, stepBadges, id);
 
   // Play/pause: advance one frame per tick; stop at the end.
   const playRef = useRef(playing);
@@ -374,6 +380,15 @@ export const ReplayScrubber = ({
               <Tag colorScheme="red" size="sm">COMBAT</Tag>
               <Text fontSize="0.8rem" opacity={0.7}>{step.combat.stage.replace(/_/g, " ").toLowerCase()}</Text>
             </Flex>
+            {/* Who is fighting whom (protocol v34 ↔ engine #494). A replay step
+                carries a ViewCombat but NO events, so the mid-combat defender
+                substitution (*GET BEHIND ME*) has no beat to play here — the only
+                way it can be read while scrubbing is that the named DEFENDER
+                changes from one step to the next. Naming both sides is what makes
+                that visible; the cards alone never move. */}
+            <Text fontSize="0.8rem" mb="0.5rem" textAlign="center" color="brand.parchment" opacity={0.85}>
+              {combatSidesLine(fighterName(step.combat.attacker), fighterName(step.combat.target))}
+            </Text>
             <Flex gap="0.75rem" justifyContent="center">
               {(["attackerCard", "defenderCard"] as const).map((slot) => {
                 const card = step.combat![slot];

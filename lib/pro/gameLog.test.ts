@@ -163,6 +163,8 @@ const ALL_EVENTS: GameEvent[] = [
   { type: "FIGHTER_MARKS_CLEARED", fighter: "p2/hero", name: "MERIDIAN", removed: 1 },
   // v31 atomic position swap (protocol v31 ↔ engine #445) — an allowlisted new-line event.
   { type: "POSITIONS_SWAPPED", a: "p1/hero", b: "p2/hero", aTo: ["s2"], bTo: ["s1"] },
+  // v34 defender substitution (protocol v34 ↔ engine #494) — an allowlisted new-line event.
+  { type: "COMBAT_DEFENDER_CHANGED", from: "p1/hero", to: "p1/sidekick-1" },
 ];
 
 // The allowlist — event types enrichLines is permitted to turn into new lines.
@@ -193,6 +195,7 @@ const ALLOWLIST = new Set([
   "FIGHTER_MARKED",
   "FIGHTER_MARKS_CLEARED",
   "POSITIONS_SWAPPED",
+  "COMBAT_DEFENDER_CHANGED",
 ]);
 
 describe("enrichLines", () => {
@@ -730,7 +733,7 @@ describe("enrichLines", () => {
       // A discard is an annotation-only type; add it so the roster is exhaustive.
       seen.add("CARD_DISCARDED");
       // Sanity: the allowlist is a subset of what the union offers.
-      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "COMBAT_VALUE_BREAKDOWN", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_REVEALED", "CARD_TUCKED", "CARD_RETURNED_FROM_PILE", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED", "EFFECT_ATTACK_INITIATED", "FIGHTER_MARKED", "FIGHTER_MARKS_CLEARED", "MULLIGAN_TAKEN", "HAND_KEPT", "POSITIONS_SWAPPED"]).toContain(t);
+      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "COMBAT_VALUE_BREAKDOWN", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_REVEALED", "CARD_TUCKED", "CARD_RETURNED_FROM_PILE", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED", "EFFECT_ATTACK_INITIATED", "FIGHTER_MARKED", "FIGHTER_MARKS_CLEARED", "MULLIGAN_TAKEN", "HAND_KEPT", "POSITIONS_SWAPPED", "COMBAT_DEFENDER_CHANGED"]).toContain(t);
     });
   });
 
@@ -807,6 +810,50 @@ describe("enrichLines", () => {
       const lines = diffViews(before, after, label, []);
       expect(lines).toContainEqual({ text: "King Taranis moved", who: "you" });
       expect(lines).toContainEqual({ text: "Thrall moved", who: "opp" });
+    });
+  });
+
+  // v34 defender substitution (protocol v34 ↔ engine #494 — Ellen Ripley's *GET
+  // BEHIND ME*). Nothing the diff reads changes: same combat, same defending
+  // PLAYER, same two revealed cards, both cards still in their slots. The only
+  // consequence is that the damage lands on a DIFFERENT FIGHTER — so the event
+  // has to own a line, or the log shows a hit on somebody who was never attacked
+  // with nothing in between to explain it. This line is also the replay's record.
+  describe("COMBAT_DEFENDER_CHANGED (protocol v34)", () => {
+    const swap: GameEvent = { type: "COMBAT_DEFENDER_CHANGED", from: "p1/hero", to: "p1/sidekick-1" };
+
+    it("names who stepped in, who stepped back, and where the damage lands", () => {
+      const named: EnrichContext = {
+        ...ctx(),
+        fighter: (id) => (id === "p1/hero" ? "Ellen Ripley" : "Newt"),
+      };
+      expect(enrichLines([], [swap], named)).toEqual([
+        {
+          text: "Newt steps in as the defender (Ellen Ripley steps back) — the damage lands on Newt",
+          who: "game",
+        },
+      ]);
+    });
+
+    it("is neutral, not credited to either seat", () => {
+      // A defense card played by the OPPONENT can move THEIR defender; colouring
+      // the line by the viewer would be wrong half the time.
+      expect(enrichLines([], [swap], ctx())[0].who).toBe("game");
+    });
+
+    it("narrates a chain in order, so the last one named is the one defending", () => {
+      const second: GameEvent = {
+        type: "COMBAT_DEFENDER_CHANGED",
+        from: "p1/sidekick-1",
+        to: "p1/hero",
+      };
+      const texts = enrichLines([], [swap, second], ctx()).map((l) => l.text);
+      expect(texts).toHaveLength(2);
+      expect(texts[1]).toContain("the damage lands on hero");
+    });
+
+    it("adds nothing when the batch carries no substitution", () => {
+      expect(enrichLines([], [{ type: "COMBAT_ENDED" }], ctx())).toEqual([]);
     });
   });
 

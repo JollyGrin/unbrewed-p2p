@@ -102,6 +102,22 @@ const boughtRangePulse = keyframes`
   50% { box-shadow: 0 0 0 4px #C58BE8, 0 0 24px 7px rgba(197,139,232,0.45); }
 `;
 
+/**
+ * The DEFENDER SUBSTITUTION ring (protocol v34 ↔ engine #494 — Ripley's *GET
+ * BEHIND ME*). Deliberately its own look, not the gold target pulse: this token
+ * is not something the viewer can act on, it is the fighter that is ABOUT TO
+ * TAKE THE HIT after the defender changed under the attack. It opens with one
+ * hard flare (the substitution beat) and settles into a slow violet breath that
+ * lasts as long as the combat does, so a player looking away and back can still
+ * see who is defending.
+ */
+const defenderStepInPulse = keyframes`
+  0%   { box-shadow: 0 0 0 6px rgba(197,139,232,0.9), 0 0 26px 10px rgba(197,139,232,0.55); }
+  22%  { box-shadow: 0 0 0 3px #C58BE8, 0 0 16px 4px rgba(197,139,232,0.7); }
+  60%  { box-shadow: 0 0 0 2px #C58BE8, 0 0 10px 2px rgba(197,139,232,0.45); }
+  100% { box-shadow: 0 0 0 3px #C58BE8, 0 0 16px 4px rgba(197,139,232,0.7); }
+`;
+
 // transient board effects (damage numbers etc.) — pop in, drift up, fade out
 const fxFloat = keyframes`
   0%   { transform: translate(-50%, -40%) scale(0.7); opacity: 0; }
@@ -239,6 +255,14 @@ export interface ProBoardProps {
    *  clear who is attacking whom during the attack phase (issue #148). null = no
    *  combat in progress, no arrow. */
   attack?: { attacker: FighterId; target: FighterId } | null;
+  /** Defender substitution in the live combat (protocol v34 ↔ engine #494): a
+   *  card moved the DEFENDING FIGHTER, so the attack arrow now lands on a figure
+   *  that was never attacked. `fighterId` is the NEW defender — it gets the
+   *  violet "steps in" ring and chip, so the re-pointed arrow reads as a
+   *  substitution instead of a glitch. PRESENTATION ONLY: the caller
+   *  derives it from the event stream (lib/pro/useDefenderSwap.ts) and the board
+   *  just draws it. Absent/null = nothing extra, exactly today's board. */
+  defenderStepIn?: { fighterId: FighterId; chip: string; blurb: string } | null;
   /** Owner ids on the VIEWER's team, including the viewer (issue #195). Fighters
    *  owned by any of these get a subtle shared teal ring so allies read at a
    *  glance without touching per-seat identity colors. Empty/omitted in
@@ -382,6 +406,7 @@ export const ProBoard = ({
   highlightedFighters = [],
   selectedFighter = null,
   attack = null,
+  defenderStepIn = null,
   friendlyOwners = [],
   fighterBadges = {},
   extendedReachTargets = [],
@@ -697,6 +722,11 @@ export const ProBoard = ({
     // `isTarget` gates it so a stale price can never light a token the server is
     // not currently offering.
     const boughtRange = isTarget ? (boughtRangeById.get(f.id) ?? null) : null;
+    // Defender substitution (protocol v34): THIS fighter just stepped in as the
+    // defender of the live combat. Head segment only, like every other badge, and
+    // deliberately NOT gated on `isTarget` — the new defender is usually the
+    // viewer's OWN fighter, which the server never offers as a target.
+    const stepsInAsDefender = segment === "head" && defenderStepIn?.fighterId === f.id;
     const isFriendly = friendlySet.has(f.owner);
     // A CHOOSE_SPACE prompt highlights the space *under* the token, and the
     // token (zIndex 4) sits above the space hit-circle (zIndex 3) — a click
@@ -995,6 +1025,30 @@ export const ProBoard = ({
             {boughtRange.chip}
           </Flex>
         )}
+        {stepsInAsDefender && defenderStepIn && (
+          <Flex
+            position="absolute"
+            // Below the token rather than above it: the "reach 2" / price chips
+            // own the top, and a substitution can land on a token that is also a
+            // legal target, so the two must never draw on top of each other.
+            top="108%"
+            left="50%"
+            transform="translateX(-50%)"
+            bg="#C58BE8"
+            color="#241033"
+            borderRadius="999px"
+            px="0.45em"
+            fontSize="0.55rem"
+            fontWeight="bold"
+            letterSpacing="0.02em"
+            lineHeight="1.5"
+            whiteSpace="nowrap"
+            pointerEvents="none"
+            boxShadow="0 1px 3px rgba(0,0,0,0.7)"
+          >
+            {defenderStepIn.chip}
+          </Flex>
+        )}
       </>
     );
 
@@ -1122,9 +1176,14 @@ export const ProBoard = ({
         opacity={tokenLifeOn ? 1 : bodyOpacity}
         boxShadow={boxShadow}
         animation={
-          isTarget
-            ? `${boughtRange ? boughtRangePulse : highlightPulse} 1.4s ease-in-out infinite`
-            : undefined
+          // A substitution outranks the target pulse: "this is the fighter taking
+          // the hit" is the more urgent of the two facts, and the gold pulse is
+          // still explained by the sidebar row that offered the target.
+          stepsInAsDefender
+            ? `${defenderStepInPulse} 1.8s ease-in-out infinite alternate`
+            : isTarget
+              ? `${boughtRange ? boughtRangePulse : highlightPulse} 1.4s ease-in-out infinite`
+              : undefined
         }
         cursor={clickable || s.zones.length ? "pointer" : "default"}
         // Actionable tokens keep their action; a non-actionable token toggles the
@@ -1150,7 +1209,9 @@ export const ProBoard = ({
         justifyContent="center"
         zIndex={4}
         title={
-          boughtRange
+          stepsInAsDefender && defenderStepIn
+            ? `${f.name} — ${f.hp}/${f.maxHp} HP · ${defenderStepIn.blurb}`
+            : boughtRange
             ? `${f.name} — ${f.hp}/${f.maxHp} HP · ${boughtRange.blurb}`
             : isExtendedReachTarget
               ? `${f.name} — ${f.hp}/${f.maxHp} HP · ${LARGE_REACH_TARGET_BLURB}`
