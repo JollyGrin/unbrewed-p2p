@@ -600,7 +600,7 @@ describe("Ellen Ripley (ellen-ripley) deck data", () => {
 
 /**
  * The snapshot vs the ENGINE (issue #681 ↔ engine #494, `ellen-ripley.rules.ts`
- * @542900d). The rules-lock digest only ever compares the snapshot to ITSELF and
+ * @ee9c276). The rules-lock digest only ever compares the snapshot to ITSELF and
  * the engine repo is private, so the table below is transcribed from that file and
  * this is the check that the two agree on every field the engine enforces.
  *
@@ -610,7 +610,7 @@ describe("Ellen Ripley (ellen-ripley) deck data", () => {
  * "defense"; the snapshot uses the community-deck "defence" the card-type icon is
  * keyed on, and the digest normalizes the difference (see `normalizeType`).
  */
-describe("Ellen Ripley snapshot agrees with ellen-ripley.rules.ts @542900d", () => {
+describe("Ellen Ripley snapshot agrees with ellen-ripley.rules.ts @ee9c276", () => {
   const deck = readDeck("ellen-ripley");
   // [title, type, value, boost, quantity, characterName]
   const ENGINE: [string, string, number, number, number, string][] = [

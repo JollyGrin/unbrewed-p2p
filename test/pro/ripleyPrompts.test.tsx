@@ -47,7 +47,7 @@ const BASE_VIEW: PlayerView = JSON.parse(
 ).view;
 
 /** The engine's own label for the *GET BEHIND ME* offer — `{op:'optional'}`'s
- *  `label`, verbatim from ellen-ripley.rules.ts @542900d. */
+ *  `label`, verbatim from ellen-ripley.rules.ts @ee9c276. */
 const SWAP_LABEL = "Swap Ripley and Newt? (the other becomes the defender)";
 
 const swapPrompt = (): ViewPrompt => ({

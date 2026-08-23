@@ -251,7 +251,7 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // must never be routed to the art-generation pipeline. Ripley's board token is a
   // crop of the author's cardback; Newt's is the author's own round portrait.
   //
-  // Public state contract, verified against ellen-ripley.rules.ts @542900d: NOTHING.
+  // Public state contract, verified against ellen-ripley.rules.ts @ee9c276: NOTHING.
   // No counters, no flags, no piles, no markers, no rule cards — so there is no
   // HERO_STATE_FLAGS / HERO_STATE_COUNTERS entry for this hero, deliberately.
   // What IS new is a protocol event: v34's `COMBAT_DEFENDER_CHANGED`, which *GET
