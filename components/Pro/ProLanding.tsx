@@ -302,6 +302,29 @@ export const ProLanding = () => {
             >
               <Text>Challenge a friend</Text>
             </ChakraLink>
+            {/* Quick Match (#687): the "just find me a game" door. Lands on the
+                create screen with the button armed — the fighter pick still
+                belongs to the player, so it deliberately does not auto-fire. */}
+            <ChakraLink
+              as={Link}
+              href={withDebug("/pro/game?quick=1")}
+              display="inline-flex"
+              alignItems="center"
+              fontFamily="SpaceGrotesk"
+              fontSize="0.95rem"
+              letterSpacing="0.08em"
+              textTransform="uppercase"
+              px="1.6rem"
+              py="0.8rem"
+              border="1px solid"
+              borderColor="whiteAlpha.400"
+              color="brand.parchment"
+              _hover={{ bg: "whiteAlpha.200", textDecoration: "none" }}
+              transition="background 0.15s"
+              sx={skewChip()}
+            >
+              <Text>⚡ Quick Match</Text>
+            </ChakraLink>
           </Flex>
 
           <Flex

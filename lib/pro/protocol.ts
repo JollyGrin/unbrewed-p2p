@@ -810,6 +810,27 @@
  * that ignores the event will draw the damage landing on the wrong figure. It always
  * arrives BEFORE `COMBAT_VALUE_BREAKDOWN` / `COMBAT_DAMAGE` for that combat.
  */
+/**
+ * v34 unchanged (2026-08-23): matchmaking v1 (engine #391 ↔ unbrewed-p2p#687). Purely
+ * additive OPTIONAL fields on two existing messages, so PROTOCOL_VERSION does not move
+ * and a client built against this file still talks to a server that predates it (the
+ * fields simply never arrive / are ignored).
+ *
+ * - `LobbyListing.formatId?` — the room's format ("duel", "ffa-3", "team-2v2"). ABSENT on
+ *   an older server, where every listed room is a duel; read it as `formatId ?? "duel"`.
+ * - `LobbyListing.turnTimerSeconds?` — the room's per-decision move timer, same value
+ *   `CREATE_ROOM.turnTimerSeconds` set. Absent/0 = untimed.
+ * - `LobbyListing.host?` — `{ displayName?, badge? }`, the host seat's claimed identity
+ *   (issues #344/#347). COSMETIC and UNVERIFIED exactly like the seat fields it mirrors —
+ *   never key anything off it, and render an unknown badge id as nothing.
+ * - `CREATE_ROOM.quickMatch?` — this room was opened by the Quick Match flow rather than
+ *   an explicit create. Server-side telemetry only (search_started/matched/abandoned);
+ *   it changes NOTHING about the room the client can see. An older server ignores it,
+ *   which is why the client also sends `SET_VISIBILITY { public: true }` right after —
+ *   once the engine ships public-by-default rooms that toggle is a harmless no-op.
+ * CLIENT SURFACE (unbrewed-p2p#687): the lobby strip renders whichever of the three
+ * listing fields are present and looks exactly as it does today when they are absent.
+ */
 export const PROTOCOL_VERSION = 34;
 
 /**
@@ -1747,6 +1768,11 @@ export interface LobbyListing {
   heroId: string;
   heroName: string;
   ageMs: number; // time the lobby has been waiting (now − room creation); NOT reset by a visibility toggle
+  // Matchmaking v1 (engine #391) — every field below is OPTIONAL and absent on a
+  // server that predates it. See the v34-unchanged note above.
+  formatId?: string; // absent ⇒ "duel"
+  turnTimerSeconds?: number; // absent/0 ⇒ untimed
+  host?: { displayName?: string; badge?: string }; // cosmetic + UNVERIFIED
 }
 
 // One slot of a room's live fill state (ROOM_STATUS, issue #121). Public info
@@ -1808,7 +1834,7 @@ export type ClientMsg =
   // BAD_MESSAGE (it is not truncated). Echoed verbatim into `ViewPlayer` and
   // frozen into replay bundles; never parsed, never logged, never sent to
   // telemetry, never visible to a bot. See the 2026-08-18 header note.
-  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; mulligan?: boolean; pilot?: string; displayName?: string; badge?: string; playerId?: string; cosmetics?: string }
+  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; mulligan?: boolean; pilot?: string; displayName?: string; badge?: string; playerId?: string; cosmetics?: string; quickMatch?: boolean }
   | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string; pilot?: string; displayName?: string; badge?: string; playerId?: string; cosmetics?: string }
   | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }
