@@ -57,10 +57,14 @@ import { keyframes } from "@emotion/react";
 import { GiFootprint, GiHearts } from "react-icons/gi";
 import { TbBow, TbSword } from "react-icons/tb";
 import { CardFace } from "./ProHand";
+import type { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 import { DeckAttribution } from "./DeckAttribution";
 import { CardPreviewProvider } from "./CardPreview";
 import { FighterTokenPortrait } from "./FighterTokenPortrait";
-import { useHeroPreviewLoadout } from "@/lib/account/useHeroPreviewLoadout";
+import {
+  useHeroPreviewLoadout,
+  type HeroPreviewLoadout,
+} from "@/lib/account/useHeroPreviewLoadout";
 import { norm, withRimTier } from "@/lib/pro/cardAppearance";
 import { useDeckPreview } from "@/lib/pro/useDeckPreview";
 import { useDeckStats } from "@/lib/pro/useDeckStats";
@@ -131,6 +135,71 @@ const SectionHeading = ({ children }: { children: ReactNode }) => (
   </Flex>
 );
 
+/**
+ * The deck's card faces as a responsive grid of hand-card-sized tiles. Shared by
+ * the deck list and the LINKED-cards list (issue #671) so both read identically —
+ * same tile size, same hover lift, same cosmetic-rim seam.
+ */
+const CardGrid = ({
+  cards,
+  worn,
+}: {
+  cards: DeckImportCardType[];
+  worn: HeroPreviewLoadout | null;
+}) => (
+  <Box
+    display="grid"
+    gridTemplateColumns="repeat(auto-fill, minmax(8.5rem, 1fr))"
+    gap="0.7rem"
+  >
+    {cards.map((card, i) => (
+      <Box
+        key={`${card.title}-${i}`}
+        // The card SET key — `norm(title)`, the same key the art
+        // snapshot, the rim registry and the API's `cardKey` all
+        // agree on. Rendered so a test (and a human with devtools)
+        // can tell which cell is which without reading art.
+        data-card-key={norm(card.title)}
+        position="relative"
+        overflow="hidden"
+        borderRadius="0.55rem"
+        cursor="pointer"
+        transition="transform 0.18s ease, box-shadow 0.18s ease"
+        _hover={{
+          transform: "translateY(-0.4rem) scale(1.05) rotate(-1deg)",
+          zIndex: 5,
+          boxShadow: "0 12px 24px rgba(0,0,0,0.55)",
+        }}
+        sx={{
+          aspectRatio: "63 / 88",
+          "&::after": {
+            content: '""',
+            position: "absolute",
+            inset: 0,
+            background:
+              "linear-gradient(115deg, transparent 38%, rgba(255,255,255,0.28) 50%, transparent 62%)",
+            transform: "translateX(-130%)",
+            transition: "transform 0.55s ease",
+            pointerEvents: "none",
+            zIndex: 2,
+          },
+          "&:hover::after": { transform: "translateX(130%)" },
+        }}
+      >
+        {/* The REAL treatment, through the same seam /pro and
+            /collection paint through: `withRimTier` stamps the
+            tier and `Card` -> `CardRim` draws it. An un-upgraded
+            card (and every card with the toggle off) is handed
+            back untouched, by reference. */}
+        <CardFace
+          card={withRimTier(card, worn?.cardRims[norm(card.title)] ?? null)}
+          fallback={card.title}
+        />
+      </Box>
+    ))}
+  </Box>
+);
+
 /** Rounded stat chip grouping the icon + value into a pill next to the name. */
 const StatPill = ({ icon, children }: { icon: ReactNode; children: ReactNode }) => (
   <Flex
@@ -199,6 +268,10 @@ export const HeroPreviewModal = ({
 
   const cards = (deck?.cards ?? []).filter((c) => !c.isCharacterCard);
   const ruleCards = (deck?.ruleCards ?? []).filter((r) => r.content?.trim());
+  // Printed cards that are NOT in the deck (issue #671) — Boba Fett's SEISMIC
+  // CHARGE, which *Slave I* names. Never drawn, so they are listed apart rather
+  // than inflating the deck's own card count.
+  const extraCards = deck?.extraCards ?? [];
 
   return (
     // Provider hosts the full-res hover/press card preview (issue #167) that
@@ -400,62 +473,27 @@ export const HeroPreviewModal = ({
                     hovering. Hover (Ask B) lifts + tilts + shimmers the tile — the
                     "pick it up" feel — while CardFace's own hover fires the full-res
                     floating preview from the provider above for a comfortable read. */}
-                <Box
-                  display="grid"
-                  gridTemplateColumns="repeat(auto-fill, minmax(8.5rem, 1fr))"
-                  gap="0.7rem"
-                >
-                  {cards.map((card, i) => (
-                    <Box
-                      key={`${card.title}-${i}`}
-                      // The card SET key — `norm(title)`, the same key the art
-                      // snapshot, the rim registry and the API's `cardKey` all
-                      // agree on. Rendered so a test (and a human with devtools)
-                      // can tell which cell is which without reading art.
-                      data-card-key={norm(card.title)}
-                      position="relative"
-                      overflow="hidden"
-                      borderRadius="0.55rem"
-                      cursor="pointer"
-                      transition="transform 0.18s ease, box-shadow 0.18s ease"
-                      _hover={{
-                        transform: "translateY(-0.4rem) scale(1.05) rotate(-1deg)",
-                        zIndex: 5,
-                        boxShadow: "0 12px 24px rgba(0,0,0,0.55)",
-                      }}
-                      sx={{
-                        aspectRatio: "63 / 88",
-                        "&::after": {
-                          content: '""',
-                          position: "absolute",
-                          inset: 0,
-                          background:
-                            "linear-gradient(115deg, transparent 38%, rgba(255,255,255,0.28) 50%, transparent 62%)",
-                          transform: "translateX(-130%)",
-                          transition: "transform 0.55s ease",
-                          pointerEvents: "none",
-                          zIndex: 2,
-                        },
-                        "&:hover::after": { transform: "translateX(130%)" },
-                      }}
-                    >
-                      {/* The REAL treatment, through the same seam /pro and
-                          /collection paint through: `withRimTier` stamps the
-                          tier and `Card` -> `CardRim` draws it. An un-upgraded
-                          card (and every card with the toggle off) is handed
-                          back untouched, by reference. */}
-                      <CardFace
-                        card={withRimTier(card, worn?.cardRims[norm(card.title)] ?? null)}
-                        fallback={card.title}
-                      />
-                    </Box>
-                  ))}
-                </Box>
+                <CardGrid cards={cards} worn={worn} />
+              </Reveal>
+            )}
+
+            {/* Printed cards that are NOT in the deck (issue #671): Boba Fett's
+                SEISMIC CHARGE, which *Slave I* names and the engine opens a real
+                combat with. Listed apart from the deck so the "Cards (14)" count
+                stays the deck's own, but readable before the pick — a card that can
+                hit for 6 out of nowhere should not be a surprise. */}
+            {extraCards.length > 0 && (
+              <Reveal index={5}>
+                <SectionHeading>Linked cards ({extraCards.length})</SectionHeading>
+                <Text mb="0.5rem" fontSize="0.72rem" opacity={0.65}>
+                  Printed on another card, never shuffled into the deck.
+                </Text>
+                <CardGrid cards={extraCards} worn={worn} />
               </Reveal>
             )}
 
             {stats && (
-              <Reveal index={5}>
+              <Reveal index={6}>
                 <SectionHeading>Balance profile</SectionHeading>
                 <Flex direction="column" gap="0.2rem" fontSize="0.85rem">
                   {stats.archetype && <Text>Archetype: {stats.archetype}</Text>}

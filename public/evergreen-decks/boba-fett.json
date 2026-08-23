@@ -1,0 +1,250 @@
+{
+  "bgg_link": null,
+  "created_on": "2026-03-03T02:25:10.06855+00:00",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#028000",
+      "cardbackUrl": "/evergreen-decks/art/boba-fett/cardback.webp",
+      "highlightColour": "#028000",
+      "isPNP": false,
+      "patternName": "Death Star"
+    },
+    "cards": [
+      {
+        "afterText": "",
+        "basicText": "Remove Boba Fett from the board. At the start of your next turn, place Boba in any space and attack the hero with the most bounties with SEISMIC CHARGE.",
+        "boost": 4,
+        "characterName": "Boba Fett",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Slave I: FiresPray Strife",
+        "type": "scheme",
+        "value": 0
+      },
+      {
+        "afterText": "Draw 1 card. Then, you may look through your deck or discard pile for a BOUNTY card and add it to your hand. (If you looked through your deck, shuffle it.)",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "Fennec Shand",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Rule with Respect",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "Gain 1 action.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "Resolve all BOUNTY effects applied to the opponent's hero.",
+        "quantity": 3,
+        "title": "Claiming the Bounty",
+        "type": "attack",
+        "value": 2
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "Any",
+        "duringText": "You may BOOST this card.",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Second Shot",
+        "type": "attack",
+        "value": 2
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "Any",
+        "duringText": "If Boba played this card and the opposing fighter is a hero, or if Fennec played this card and the opposing fighter is a sidekick, the value of this card is 6 instead.",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Daimyo of Mos Espa",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "If you lost the combat, deal 2 damage to the opposing fighter.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Counter Strike",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "Boba Fett",
+        "duringText": "The value of this card is +1 for each bounty active under the opponent's hero card.",
+        "imageUrl": "",
+        "immediateText": "Cancel all effects on your opponent's card.",
+        "quantity": 3,
+        "title": "Durasteel Armor",
+        "type": "defence",
+        "value": 0
+      },
+      {
+        "afterText": "",
+        "basicText": "Gain 2 actions.",
+        "boost": 3,
+        "characterName": "Boba Fett",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Master of the Hunt",
+        "type": "scheme",
+        "value": 0
+      },
+      {
+        "afterText": "",
+        "basicText": "PAYMENT: Reveal the top card of your deck.",
+        "boost": 0,
+        "characterName": "Boba Fett",
+        "duringText": "Ignore the value of the opponent's card.",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Bounty: It's Just business",
+        "type": "defence",
+        "value": 0
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 4,
+        "characterName": "Boba Fett",
+        "duringText": "Add +1 to this card's value for each bounty currently active under your opponent's hero card.",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Disintegration",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "If you won the combat, choose one of the fighters in the combat and move them up to 4 spaces.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Leap Away",
+        "type": "versatile",
+        "value": 4
+      },
+      {
+        "afterText": "The opponent discards 1 random card.",
+        "basicText": "INHIBITOR: You can't draw cards this turn.",
+        "boost": 0,
+        "characterName": "Boba Fett",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Bounty: Supposed to pay me",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "",
+        "basicText": "Move all fighters up to 3 spaces.\nCARBONITE: Your hero cannot leave their space this turn.",
+        "boost": 0,
+        "characterName": "Boba Fett",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Bounty: No Good to me dead",
+        "type": "scheme",
+        "value": 0
+      },
+      {
+        "afterText": "Deal 1 damage to each opposing fighter in your zone.",
+        "basicText": "FLAMETHROWER: Deal 1 damage to 1 of your fighters.",
+        "boost": 0,
+        "characterName": "Boba Fett",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "BOUNTY: Never unarmed",
+        "type": "attack",
+        "value": 4
+      }
+    ],
+    "extraCards": [
+      {
+        "afterText": "",
+        "basicText": "Linked to Slave I: FiresPray Strife — the printed attack Boba opens with when he drops back onto the board. Never shuffled into the deck.",
+        "boost": 0,
+        "characterName": "Boba Fett",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 0,
+        "title": "Seismic Charge",
+        "type": "attack",
+        "value": 6
+      }
+    ],
+    "hero": {
+      "hp": 14,
+      "isRanged": true,
+      "move": 2,
+      "name": "Boba Fett",
+      "specialAbility": "THE BOUNTY HUNTER\nAfter playing a BOUNTY card, tuck the card under the hero card of any opponent.\nWhen Boba deals damage to an opponent's hero, choose and resolve 1 BOUNTY effect underneath that opponent's hero card.",
+      "tokenImageUrl": "/evergreen-decks/art/boba-fett/token-boba-fett.webp"
+    },
+    "name": "Boba Fett",
+    "ruleCards": [
+      {
+        "content": "BOUNTY EFFECTS\nBOUNTY effects only resolve when Boba Fett deals damage to an opponent's hero. When this happens, resolve a BOUNTY effect of your choice. Resolving BOUNTY effects due to damage may only happen once per combat.\n\nTRANSFERING BOUNTIES\nWhen a hero with a BOUNTY deals damage to another opponent's hero, they transfer 1 BOUNTY to that opponent. That hero cannot be on the same team as Boba Fett. When an opposing hero is defeated, discard all BOUNTIES underneath their hero card.",
+        "title": "Bounties"
+      }
+    ],
+    "sidekick": {
+      "hp": 8,
+      "isRanged": true,
+      "name": "Fennec Shand",
+      "quantity": 1,
+      "quote": ""
+    }
+  },
+  "deck_first_published_on": "2026-05-18T13:22:59.602383+00:00",
+  "deck_published": true,
+  "family_id": "boba-fett",
+  "id": "boba-fett",
+  "liked": false,
+  "likes": 0,
+  "name": "Boba Fett",
+  "note": "Rules-enforced Pro deck (server hero boba-fett), mirrored from the-unmatched.club deck 7289 \"Boba Fett\" by Inforce (https://www.the-unmatched.club/c/heroes/boba-fett.7289), version 2026.03.03.02.25.10 \"Initial\". Card titles, types, values, boosts and quantities are the author's, read off the club's /print/__data.json, and are VERIFIED field by field against the engine's data/heroes/boba-fett.rules.ts @c3fa75a (engine #477) by a test. Two spellings differ from the engine on purpose and neither is a rules difference: Durasteel Armor and Bounty: It's Just business are type \"defence\" here (the community-deck convention the card-type icon is keyed on; the digest normalizes it), and the five cards the engine gives boost null carry boost 0 here, because this client's card type has no null and the renderer draws a pip only on a truthy value. Card ART is NOT mirrored: the author's deck hotlinks scraped third-party images across eight hosts, none of it usable, so every card face renders from the generated template until the deck-art pipeline ticket lands. The cardback is the author's own (i.imgur.com/IflkGH8.png), mirrored locally; the hero token is a crop of it.",
+  "published": true,
+  "published_on": "2026-05-18T13:22:59.602383+00:00",
+  "sourceUrl": "https://www.the-unmatched.club/c/heroes/boba-fett.7289",
+  "tags": [],
+  "updated_on": "2026-07-22T05:00:13.071856+00:00",
+  "user": "Inforce",
+  "version_id": "evergreen-1",
+  "version_name": "Initial"
+}

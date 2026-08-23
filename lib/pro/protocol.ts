@@ -729,6 +729,23 @@
  * point of a bounty is that it sits on your opponent and pays its owner. A client that
  * ignores `pileControllers` shows the stack in the right place with the wrong owner
  * colour; nothing breaks.
+ *
+ * ## v31 unchanged (2026-08-23): cross-player pile EXIT (engine #473, DSL v0.57.0)
+ * The other direction of the same story: a card may now LEAVE a pile hosted by another
+ * player, and it is routed to its CONTROLLER's hand / discard / pile, never the host's
+ * (Boba Fett's bounty transfer and defeat sweep). Server-side vocabulary only —
+ * `returnFromPile.of`, `discardFromPile.of` and `discardFromPile.to.of` are DSL fields no
+ * message carries. One OPTIONAL additive event field, absent unless the pile was foreign,
+ * so no message grows a key for any deck shipped before v0.57.0 and PROTOCOL_VERSION does
+ * not move:
+ *
+ * - `CARD_RETURNED_FROM_PILE.host?` — WHERE the pile was, when that is not `player`.
+ *   The discard-routing exit deliberately keeps emitting a plain `CARD_DISCARDED` whose
+ *   `player` is the controller: pile provenance was never on that event even for own-pile
+ *   exits, and the host's stack shrinking is already visible in `piles`.
+ * CLIENT SURFACE (unbrewed-p2p): an activity-log line may now say "took their bounty back
+ * from <host>". A client that ignores `host` logs the return without naming the host;
+ * nothing breaks, and both `piles` and `pileControllers` still describe the new truth.
  */
 /**
  * v32 (engine #463, DSL v0.56.0) — THE EFFECT-INITIATED ATTACK. One additive `GameEvent`
@@ -916,7 +933,7 @@ export type GameEvent =
   // pile's HOST — where the card now sits, which is what a client renders; `controller`
   // says whose card it still is. Purely additive: absent on every same-seat tuck.
   | { type: "CARD_TUCKED"; player: PlayerId; card: CardInstanceId; pile: string; controller?: PlayerId }
-  | { type: "CARD_RETURNED_FROM_PILE"; player: PlayerId; card: CardInstanceId; pile: string }
+  | { type: "CARD_RETURNED_FROM_PILE"; player: PlayerId; card: CardInstanceId; pile: string; host?: PlayerId } // v0.57.0: `player` is the CONTROLLER (whose hand it lands in); OPTIONAL `host` names WHERE the pile was, and is absent unless that is somebody else
   | { type: "CARD_PLAYED_FROM_HAND"; player: PlayerId; card: CardInstanceId }
   | { type: "ADDITIONAL_DEFENSE_PLAYED"; player: PlayerId; card: CardInstanceId }
   | { type: "CARD_REVEALED"; player: PlayerId; card: CardInstanceId }
