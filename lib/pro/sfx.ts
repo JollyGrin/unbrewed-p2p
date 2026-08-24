@@ -23,11 +23,14 @@ export type SfxName =
   | "loss"
   // "The Snuff" (issue #346): a candle-snuff / fuse-fizzle "pfft" for the moment
   // a cancel-effects card (Feint, …) foils an opponent's card text.
-  | "snuff";
+  | "snuff"
+  // Lobby match-found (issue #689): the polite two-note chime a BACKGROUNDED
+  // waiting tab plays when the opponent lands and the game begins.
+  | "match-found";
 
 const NAMES: SfxName[] = [
   "flip", "commit", "draw", "hit", "hit-heavy", "blocked",
-  "defeat", "heal", "turn", "victory", "loss", "snuff",
+  "defeat", "heal", "turn", "victory", "loss", "snuff", "match-found",
 ];
 
 /** per-clip trim so impacts punch and UI dings stay polite */
@@ -41,6 +44,8 @@ const CLIP_GAIN: Partial<Record<SfxName, number>> = {
   turn: 0.5,
   loss: 0.8,
   snuff: 0.85,
+  // it plays into headphones from a tab nobody is looking at — keep it polite
+  "match-found": 0.6,
 };
 
 class SfxEngine {
@@ -88,7 +93,19 @@ class SfxEngine {
    */
   play(name: SfxName, opts?: { volume?: number; rate?: number; delayMs?: number }) {
     if (!this.ctx || !this.master) return;
-    if (this.ctx.state === "suspended") void this.ctx.resume();
+    // A backgrounded tab can have its context auto-suspended, and a source
+    // started against a suspended context is scheduled but silent-until-resume.
+    // Resume FIRST and schedule in the continuation so a lobby cue (#689) fired
+    // from a hidden tab is actually heard. The synchronous path is unchanged.
+    if (this.ctx.state === "suspended") {
+      void this.ctx.resume().then(() => this.schedule(name, opts)).catch(() => {});
+      return;
+    }
+    this.schedule(name, opts);
+  }
+
+  private schedule(name: SfxName, opts?: { volume?: number; rate?: number; delayMs?: number }) {
+    if (!this.ctx || !this.master) return;
     const buffer = this.buffers.get(name);
     if (!buffer) return;
     const src = this.ctx.createBufferSource();
