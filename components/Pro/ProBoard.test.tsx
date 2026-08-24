@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
-import { ProBoard } from "./ProBoard";
+import { ProBoard, itemBadgeTitle } from "./ProBoard";
 import { ProMapDef, ViewFighter, ViewToken } from "@/lib/pro/protocol";
 import { __resetFlagsForTest } from "@/lib/flags";
 import { squadBadges } from "@/lib/pro/squadNumbers";
@@ -746,13 +746,30 @@ describe("ProBoard battlefield item + passage badges", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders a scheme badge tooltip from the item label", () => {
+  it("renders a scheme badge tooltip from the item label alone when it carries no text", () => {
+    // Maps authored before p2p #693 have no `text` — they must look exactly as before.
     render(
       <ChakraProvider>
         <ProBoard map={ITEM_MAP} fighters={[fighter({})]} itemTokens={{ s2: "bomb" }} />
       </ChakraProvider>
     );
     expect(screen.getByTitle("Bomb")).toBeInTheDocument();
+  });
+
+  it("appends the authored effect text to a scheme badge tooltip (p2p #693)", () => {
+    const map: ProMapDef = {
+      ...ITEM_MAP,
+      items: [
+        ITEM_MAP.items![0],
+        { ...ITEM_MAP.items![1], label: "Wedding Cake", text: "Recover 2 health." },
+      ],
+    };
+    render(
+      <ChakraProvider>
+        <ProBoard map={map} fighters={[fighter({})]} itemTokens={{ s2: "bomb" }} />
+      </ChakraProvider>
+    );
+    expect(screen.getByTitle("Wedding Cake — Recover 2 health.")).toBeInTheDocument();
   });
 
   it("drives badges OFF itemTokens, not the static map def — a consumed token shows no badge", () => {
@@ -1823,5 +1840,26 @@ describe("ProBoard prompt-driven stepping targets (issues #654 / #185)", () => {
     expect(getComputedStyle(screen.getByTitle(/move preview/)).pointerEvents).toBe("none");
     fireEvent.click(circle(container, "s3"));
     expect(onSpaceClick).toHaveBeenCalledWith("s3");
+  });
+});
+
+// itemBadgeTitle is the one place a player learns what a scheme item does, so it
+// is asserted directly as well as through the board (p2p #693).
+describe("itemBadgeTitle", () => {
+  it("describes a combat item from its printed value", () => {
+    expect(itemBadgeTitle({ id: "i", kind: "combat", label: "Sword", value: 2 })).toBe(
+      "Sword — +2 to a combat card played from this space"
+    );
+  });
+  it("appends a scheme item's effect text", () => {
+    expect(
+      itemBadgeTitle({ id: "i", kind: "scheme", label: "Wedding Gifts", text: "Return a card from your discard pile to your hand." })
+    ).toBe("Wedding Gifts — Return a card from your discard pile to your hand.");
+  });
+  it("falls back to the bare label for maps written before the field existed", () => {
+    expect(itemBadgeTitle({ id: "i", kind: "scheme", label: "Bomb", ops: [] as never })).toBe("Bomb");
+  });
+  it("ignores a whitespace-only text rather than printing a dangling dash", () => {
+    expect(itemBadgeTitle({ id: "i", kind: "scheme", label: "Bomb", text: "   " })).toBe("Bomb");
   });
 });

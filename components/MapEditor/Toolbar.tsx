@@ -32,6 +32,8 @@ interface Props {
   setActiveZone: (z: string) => void;
   io: string;
   setIo: (s: string) => void;
+  /** blocking issues (p2p #693): the server would reject the map, so export is off */
+  errors: string[];
   warnings: string[];
   canUndo: boolean;
   canRedo: boolean;
@@ -52,7 +54,7 @@ interface Props {
 
 export const Toolbar = (props: Props) => {
   const {
-    doc, mode, setMode, activeZone, setActiveZone, io, setIo, warnings,
+    doc, mode, setMode, activeZone, setActiveZone, io, setIo, errors, warnings,
     canUndo, canRedo, undo, redo, beginEdit, endEdit,
     setMetaField, setZoneField, addZone, addItem, setItemField, removeItem,
     doExport, doImport, doReset,
@@ -144,6 +146,15 @@ export const Toolbar = (props: Props) => {
         spaces: {doc.spaces.length} · edges: {edges} · one-way: {oneWays}
       </Text>
 
+      {errors.length > 0 && (
+        <Box bg="rgba(229,62,62,0.28)" border="1px solid rgba(255,120,120,0.5)"
+          borderRadius="0.3rem" p="0.5rem" fontSize="0.7rem">
+          <Text fontWeight={700} mb="0.2rem">export blocked — the server would reject this map</Text>
+          {errors.slice(0, 8).map((e, i) => <Text key={i}>✖ {e}</Text>)}
+          {errors.length > 8 && <Text>…and {errors.length - 8} more</Text>}
+        </Box>
+      )}
+
       {warnings.length > 0 && (
         <Box bg="rgba(255,99,71,0.15)" borderRadius="0.3rem" p="0.5rem" fontSize="0.7rem">
           {warnings.slice(0, 12).map((w, i) => <Text key={i}>⚠ {w}</Text>)}
@@ -152,7 +163,9 @@ export const Toolbar = (props: Props) => {
       )}
 
       <Flex gap="0.3rem">
-        <Button {...BTN} onClick={doExport}>export → box</Button>
+        <Button {...BTN} isDisabled={errors.length > 0}
+          title={errors.length > 0 ? "fix the blocking errors above first" : undefined}
+          onClick={doExport}>export → box</Button>
         <Button {...BTN} onClick={doImport}>import ← box</Button>
         <Button size="xs" colorScheme="red" variant="outline" onClick={doReset}>reset</Button>
       </Flex>
@@ -165,7 +178,7 @@ export const Toolbar = (props: Props) => {
         href={mapSubmissionIssueUrl(toMapDef(doc), JSON.stringify(toMapDef(doc), null, 2))}
         target="_blank"
         rel="noopener noreferrer"
-        isDisabled={doc.spaces.length === 0}
+        isDisabled={doc.spaces.length === 0 || errors.length > 0}
       >
         submit map to unbrewed →
       </Button>

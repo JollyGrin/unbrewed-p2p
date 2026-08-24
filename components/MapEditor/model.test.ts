@@ -222,13 +222,19 @@ describe("validate", () => {
 });
 
 describe("battlefield item + passage mutations", () => {
-  it("adds a combat item (default value 1) and a scheme item (empty ops)", () => {
+  it("adds a combat item (default value 1) and a scheme item (default draw-1 effect)", () => {
     const { doc: d1, itemId: combatId } = addItem(doc(), "combat");
     expect(d1.items).toHaveLength(1);
     expect(d1.items![0]).toMatchObject({ id: combatId, kind: "combat", value: 1 });
     const { doc: d2, itemId: schemeId } = addItem(d1, "scheme");
     expect(d2.items).toHaveLength(2);
-    expect(d2.items![1]).toMatchObject({ id: schemeId, kind: "scheme", ops: [] });
+    // p2p #693: born valid — `ops: []` is a map the server refuses at room creation.
+    expect(d2.items![1]).toMatchObject({
+      id: schemeId,
+      kind: "scheme",
+      ops: [{ op: "draw", who: "SELF", amount: 1 }],
+      text: "Draw 1 card.",
+    });
     expect(combatId).not.toBe(schemeId); // unique ids
   });
 
