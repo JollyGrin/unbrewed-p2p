@@ -5,8 +5,11 @@
  * wrong fighter after it stopped being true.
  */
 import {
+  EMPTY_COMBAT_TARGETING,
+  advanceCombatTargeting,
   combatSidesLine,
   defenderChanges,
+  defenderRedirect,
   defenderSwapStillLive,
   defenderSwapText,
   latestDefenderChange,
@@ -115,5 +118,123 @@ describe("combatSidesLine", () => {
     // there because this defender name changes from one step to the next.
     expect(combatSidesLine("Thrall", "Ellen Ripley")).toBe("Thrall → Ellen Ripley");
     expect(combatSidesLine("Thrall", "Newt")).toBe("Thrall → Newt");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The DECLARED target (issue #694) — Grievous's Multi-Arm Barrage Combat 2, which
+// opens against a fighter nobody declared against and emits no v34 event at all.
+// ---------------------------------------------------------------------------
+
+const DECLARED: GameEvent = { type: "ATTACK_DECLARED", attacker: "p2/hero", target: "p1/hero" };
+const BONUS = (target: string): GameEvent => ({
+  type: "BONUS_ATTACK_STARTED",
+  attacker: "p2/hero",
+  target,
+});
+
+describe("advanceCombatTargeting", () => {
+  it("records the declaration", () => {
+    expect(advanceCombatTargeting(EMPTY_COMBAT_TARGETING, [DECLARED])).toEqual({
+      declared: "p1/hero",
+      attacker: "p2/hero",
+    });
+  });
+
+  it("HOLDS it through the same attacker's bonus attack — the whole point", () => {
+    // Combat 2's own target must not overwrite the declaration, or there is
+    // nothing left to compare it against.
+    const after = advanceCombatTargeting(EMPTY_COMBAT_TARGETING, [
+      DECLARED,
+      { type: "COMBAT_ENDED" },
+      BONUS("p1/sidekick-1"),
+    ]);
+    expect(after).toEqual({ declared: "p1/hero", attacker: "p2/hero" });
+  });
+
+  it("holds it across batches, since Combat 2 is usually a later broadcast", () => {
+    const first = advanceCombatTargeting(EMPTY_COMBAT_TARGETING, [DECLARED]);
+    expect(advanceCombatTargeting(first, [BONUS("p1/sidekick-1")]).declared).toBe("p1/hero");
+  });
+
+  it("takes a sub-attack / effect attack at its own word — nobody declared those", () => {
+    const declared = advanceCombatTargeting(EMPTY_COMBAT_TARGETING, [DECLARED]);
+    expect(
+      advanceCombatTargeting(declared, [
+        { type: "SUB_ATTACK_INITIATED", attacker: "p2/sidekick-1", target: "p1/sidekick-1", value: 3 },
+      ])
+    ).toEqual({ declared: "p1/sidekick-1", attacker: "p2/sidekick-1" });
+    expect(
+      advanceCombatTargeting(declared, [
+        { type: "EFFECT_ATTACK_INITIATED", attacker: "p2/hero", target: "p1/sidekick-1", card: "boba-fett/seismic-charge" },
+      ])
+    ).toEqual({ declared: "p1/sidekick-1", attacker: "p2/hero" });
+  });
+
+  it("does not claim provenance for another attacker's bonus attack", () => {
+    const declared = advanceCombatTargeting(EMPTY_COMBAT_TARGETING, [DECLARED]);
+    expect(
+      advanceCombatTargeting(declared, [
+        { type: "BONUS_ATTACK_STARTED", attacker: "p2/sidekick-1", target: "p1/sidekick-1" },
+      ])
+    ).toEqual({ declared: "p1/sidekick-1", attacker: "p2/sidekick-1" });
+  });
+
+  it("clears at the turn edge — an attack action cannot outlive its turn", () => {
+    const declared = advanceCombatTargeting(EMPTY_COMBAT_TARGETING, [DECLARED]);
+    expect(advanceCombatTargeting(declared, [{ type: "TURN_ENDED", player: "p2" }])).toEqual(
+      EMPTY_COMBAT_TARGETING
+    );
+  });
+});
+
+describe("defenderRedirect", () => {
+  const declared = advanceCombatTargeting(EMPTY_COMBAT_TARGETING, [DECLARED]);
+
+  it("names the move when the combat opened somewhere else", () => {
+    expect(defenderRedirect(declared, combat({ target: "p1/sidekick-1" }))).toEqual({
+      from: "p1/hero",
+      to: "p1/sidekick-1",
+    });
+  });
+
+  it("is silent on the declared target", () => {
+    expect(defenderRedirect(declared, combat())).toBeNull();
+  });
+
+  it("also covers the mid-combat substitution, which moves the same field", () => {
+    // One derivation for the whole family: `combat.target` moving off the declared
+    // fighter is what a `setCombatDefender` looks like from the view's side too.
+    expect(defenderRedirect(declared, combat({ target: "p1/sidekick-1", stage: "DURING" }))).toEqual(
+      { from: "p1/hero", to: "p1/sidekick-1" }
+    );
+  });
+
+  it("makes no claim about another attacker's combat", () => {
+    expect(
+      defenderRedirect(declared, combat({ attacker: "p2/sidekick-1", target: "p1/sidekick-1" }))
+    ).toBeNull();
+  });
+
+  it("stays silent with no declaration — a reconnect carries no events", () => {
+    expect(defenderRedirect(EMPTY_COMBAT_TARGETING, combat({ target: "p1/sidekick-1" }))).toBeNull();
+    expect(defenderRedirect(declared, null)).toBeNull();
+  });
+});
+
+describe("defenderSwapText — REDIRECTED", () => {
+  it("does NOT say 'steps in': nobody stepped in, the attack went elsewhere", () => {
+    const copy = defenderSwapText("Obi-Wan Kenobi", "Clone Trooper", "REDIRECTED");
+    expect(copy.chip).toBe("now defending");
+    expect(copy.tag).toBe("NOW DEFENDING: CLONE TROOPER");
+    expect(copy.full).toContain("Clone Trooper is defending this attack");
+    expect(copy.full).toContain("redirected away from Obi-Wan Kenobi");
+    expect(copy.full).toContain("damage lands on Clone Trooper");
+  });
+
+  it("keeps the substitution wording as the default, so v34 callers are untouched", () => {
+    expect(defenderSwapText("Ellen Ripley", "Newt")).toEqual(
+      defenderSwapText("Ellen Ripley", "Newt", "SUBSTITUTED")
+    );
   });
 });

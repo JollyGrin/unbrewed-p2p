@@ -264,13 +264,15 @@ export interface ProBoardProps {
    *  clear who is attacking whom during the attack phase (issue #148). null = no
    *  combat in progress, no arrow. */
   attack?: { attacker: FighterId; target: FighterId } | null;
-  /** Defender substitution in the live combat (protocol v34 ↔ engine #494): a
-   *  card moved the DEFENDING FIGHTER, so the attack arrow now lands on a figure
-   *  that was never attacked. `fighterId` is the NEW defender — it gets the
-   *  violet "steps in" ring and chip, so the re-pointed arrow reads as a
-   *  substitution instead of a glitch. PRESENTATION ONLY: the caller
-   *  derives it from the event stream (lib/pro/useDefenderSwap.ts) and the board
-   *  just draws it. Absent/null = nothing extra, exactly today's board. */
+  /** The live combat's defender is NOT the fighter that was attacked — either a
+   *  card moved the DEFENDING FIGHTER mid-combat (protocol v34 ↔ engine #494) or
+   *  the combat opened against somebody the attacker never declared against
+   *  (#694, Grievous's Multi-Arm Barrage Combat 2). Either way the attack arrow
+   *  lands on a figure nobody picked. `fighterId` is the fighter actually taking
+   *  the hit — it gets the violet ring and a chip, so the arrow reads as a
+   *  redirect instead of a glitch. PRESENTATION ONLY: the caller derives it
+   *  (lib/pro/combatDefender.ts + useDefenderSwap.ts) and the board just draws it,
+   *  chip text and all. Absent/null = nothing extra, exactly today's board. */
   defenderStepIn?: { fighterId: FighterId; chip: string; blurb: string } | null;
   /** Owner ids on the VIEWER's team, including the viewer (issue #195). Fighters
    *  owned by any of these get a subtle shared teal ring so allies read at a
@@ -731,8 +733,9 @@ export const ProBoard = ({
     // `isTarget` gates it so a stale price can never light a token the server is
     // not currently offering.
     const boughtRange = isTarget ? (boughtRangeById.get(f.id) ?? null) : null;
-    // Defender substitution (protocol v34): THIS fighter just stepped in as the
-    // defender of the live combat. Head segment only, like every other badge, and
+    // Defender substitution / redirect (protocol v34, #694): THIS fighter is the
+    // one actually defending the live combat, and it is not who was attacked.
+    // Head segment only, like every other badge, and
     // deliberately NOT gated on `isTarget` — the new defender is usually the
     // viewer's OWN fighter, which the server never offers as a target.
     const stepsInAsDefender = segment === "head" && defenderStepIn?.fighterId === f.id;

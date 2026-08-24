@@ -23,11 +23,18 @@
  * The event always arrives BEFORE `COMBAT_VALUE_BREAKDOWN` / `COMBAT_DAMAGE` for
  * its combat, so a beat derived here is on screen before the numbers land.
  *
+ * ISSUE #694 WIDENED THE QUESTION. "Who is actually defending?" is not only asked
+ * by a mid-combat substitution — Grievous's Multi-Arm Barrage opens Combat 2
+ * against a target chosen at commit time, which no `COMBAT_DEFENDER_CHANGED` ever
+ * describes. The second half of this module (`CombatTargeting` and friends) states
+ * the family generically: the live combat's target versus the target its attacker
+ * DECLARED. Same three channels, same copy helper, one extra wording.
+ *
  * Pure and React-free on purpose (the `positionSwap.ts` split): `gameLog.ts`
  * imports `defenderChanges` without pulling React into its graph, and the hook
  * lives next door in `useDefenderSwap.ts`.
  */
-import { FighterId, GameEvent, PlayerView } from "./protocol";
+import { FighterId, GameEvent, PlayerView, ViewCombat } from "./protocol";
 
 /** One `COMBAT_DEFENDER_CHANGED`: the defending fighter moved `from` → `to`. */
 export interface DefenderChange {
@@ -88,15 +95,137 @@ export function combatSidesLine(attackerName: string, defenderName: string): str
   return `${attackerName} → ${defenderName}`;
 }
 
+/**
+ * WHY the fighter taking this attack is not the one that was attacked. Two
+ * different beats that end in the same place — "the damage is landing over
+ * there" — and they must not be worded the same:
+ *
+ *  - `SUBSTITUTED`: the DEFENDER changed inside a live combat, cards already on
+ *    the table (`setCombatDefender` — Ripley's *GET BEHIND ME*). Somebody stepped
+ *    in front of a blow that was already swinging.
+ *  - `REDIRECTED`: the combat OPENED against somebody other than the fighter the
+ *    attacker declared this action against (Grievous's Multi-Arm Barrage Combat 2,
+ *    whose target is chosen at commit time, post-LUNGE). Nobody stepped in — the
+ *    attack simply went somewhere else, and "steps in" would misdescribe it.
+ */
+export type DefenderChangeKind = "SUBSTITUTED" | "REDIRECTED";
+
 /** Board/panel copy for a substitution, given the two fighters' display names.
  *  One function so the tag, the chip and the log line can never disagree. */
-export function defenderSwapText(fromName: string, toName: string) {
+export function defenderSwapText(
+  fromName: string,
+  toName: string,
+  kind: DefenderChangeKind = "SUBSTITUTED"
+) {
+  if (kind === "REDIRECTED") {
+    return {
+      /** compact chip on the board token */
+      chip: "now defending",
+      /** combat-panel tag */
+      tag: `NOW DEFENDING: ${toName.toUpperCase()}`,
+      /** hover title / aria label */
+      full: `${toName} is defending this attack — it was redirected away from ${fromName}, so the damage lands on ${toName}`,
+    };
+  }
   return {
-    /** compact chip on the board token */
     chip: "steps in",
-    /** combat-panel tag */
     tag: `${toName.toUpperCase()} STEPS IN`,
     /** hover title / aria label, and the log line's wording */
     full: `${toName} steps in as the defender (${fromName} steps back) — the damage lands on ${toName}`,
   };
+}
+
+// ---------------------------------------------------------------------------
+// The DECLARED target (issue #694) — the other half of the same question.
+// ---------------------------------------------------------------------------
+
+/**
+ * WHAT THIS ADDS OVER `COMBAT_DEFENDER_CHANGED`. The event above is the client's
+ * only signal for a substitution INSIDE one combat. It is not the only way the
+ * fighter eating an attack ends up different from the one the attacker picked:
+ * General Grievous's *Multi-Arm Barrage* commits a second attack face down during
+ * Combat 1 and only chooses its target at COMMIT time, after the LUNGE placement
+ * — so Combat 2 arrives as a WHOLE NEW combat (`BONUS_ATTACK_STARTED`) against
+ * somebody the player never declared against. No defender ever "changed": the
+ * second combat simply opened somewhere else, so nothing on the v34 path fires
+ * and, before this module, nothing on screen said the attack had moved (Discord
+ * bug report, 2026-08-23 — "nothing is rly showing that").
+ *
+ * The generic statement of the whole family is therefore NOT "an event told us"
+ * but: **the live combat's target is not the target this attacker declared**.
+ * That is derivable from the view plus the events that OPEN a combat, it is a
+ * standing fact rather than a one-frame beat (so it holds for the whole combat,
+ * through reveals and the damage step), and it covers the substitution case too —
+ * `combat.target` moves off the declared fighter there as well.
+ *
+ * Deliberately keyed on the ATTACKER: a droid's sub-attack ("Fire, you fools!")
+ * and an effect-initiated attack (Boba's SEISMIC CHARGE) open combats that were
+ * never declared by anybody, and calling those "redirected" would be a lie.
+ */
+export interface CombatTargeting {
+  /** the fighter the attacker DECLARED this attack action against, held across the
+   *  bonus attacks that action spawns. Null when nothing has been declared. */
+  declared: FighterId | null;
+  /** whose declaration `declared` is. A combat by anybody else makes no claim. */
+  attacker: FighterId | null;
+}
+
+export const EMPTY_COMBAT_TARGETING: CombatTargeting = { declared: null, attacker: null };
+
+/**
+ * Fold one STATE batch's events into the running declaration. Pure; the page holds
+ * the value across batches (the declaration is made in Combat 1's batch and read in
+ * Combat 2's, which can be a different broadcast entirely).
+ *
+ * - `ATTACK_DECLARED` is the declaration itself.
+ * - `SUB_ATTACK_INITIATED` / `EFFECT_ATTACK_INITIATED` open a combat that nobody
+ *   declared, so they REPLACE the declaration with their own target — that combat
+ *   is on-target by definition and must never wear a redirect tag.
+ * - `BONUS_ATTACK_STARTED` KEEPS the standing declaration when it is the same
+ *   attacker's (that is the Grievous case, and the whole point), and otherwise
+ *   falls back to its own target rather than inventing provenance.
+ * - `TURN_ENDED` clears it: an attack action cannot outlive its turn, and a stale
+ *   declaration must never colour next turn's combat.
+ */
+export function advanceCombatTargeting(prev: CombatTargeting, events: GameEvent[]): CombatTargeting {
+  let cur = prev;
+  for (const e of events) {
+    switch (e.type) {
+      case "ATTACK_DECLARED":
+      case "SUB_ATTACK_INITIATED":
+      case "EFFECT_ATTACK_INITIATED":
+        cur = { declared: e.target, attacker: e.attacker };
+        break;
+      case "BONUS_ATTACK_STARTED":
+        if (cur.attacker !== e.attacker) cur = { declared: e.target, attacker: e.attacker };
+        break;
+      case "TURN_ENDED":
+        cur = EMPTY_COMBAT_TARGETING;
+        break;
+      default:
+        break;
+    }
+  }
+  return cur;
+}
+
+/**
+ * The standing "this is not who was attacked" fact for `combat`, or null when the
+ * defender IS the declared target (the overwhelmingly common case) — or when the
+ * client cannot honestly say (a reconnect mid-combat carries no events, so there is
+ * no declaration to compare against, and silence is better than a guess).
+ *
+ * Takes a `ViewCombat` rather than the whole view so the caller can ask it of the
+ * combat it is actually RENDERING — the panel keeps a frozen combat on screen
+ * through the strike beat, which is the frame the damage lands in and precisely
+ * when "who is taking this?" is being asked.
+ */
+export function defenderRedirect(
+  targeting: CombatTargeting,
+  combat: ViewCombat | null | undefined
+): DefenderChange | null {
+  if (!combat || !targeting.declared) return null;
+  if (targeting.attacker !== combat.attacker) return null;
+  if (targeting.declared === combat.target) return null;
+  return { from: targeting.declared, to: combat.target };
 }
