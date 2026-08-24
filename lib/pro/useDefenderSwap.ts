@@ -15,10 +15,21 @@
  * view left to agree with. That beat still has to be seen — it is the frame the
  * damage lands in — so it lingers briefly, the same way the combat panel itself
  * lingers through the strike beat.
+ *
+ * `useCombatTargeting` at the bottom is the #694 companion: the standing "who was
+ * declared against" fold, which catches the family this event never describes (a
+ * bonus attack that OPENS somewhere else — Grievous's Multi-Arm Barrage).
  */
 import { useEffect, useRef, useState } from "react";
 import { GameEvent, PlayerView } from "./protocol";
-import { DefenderSwap, defenderSwapStillLive, latestDefenderChange } from "./combatDefender";
+import {
+  CombatTargeting,
+  DefenderSwap,
+  EMPTY_COMBAT_TARGETING,
+  advanceCombatTargeting,
+  defenderSwapStillLive,
+  latestDefenderChange,
+} from "./combatDefender";
 
 /** How long a substitution whose combat is already over stays on screen (ms).
  *  Matches the combat callouts' own lifetime so the two beats end together. */
@@ -68,4 +79,31 @@ export function useDefenderSwap(
   }, [snapshot]);
 
   return swap;
+}
+
+/**
+ * The standing DECLARED-target tracker (issue #694). Sibling of the hook above and
+ * deliberately much simpler: no timer, no key, no linger — it holds one fold of the
+ * event stream (`advanceCombatTargeting`) across batches and hands it back, so the
+ * page can ask `defenderRedirect` of whichever combat it is rendering.
+ *
+ * A ref rather than state for the running value, because the fold is the thing that
+ * must survive a batch that renders nothing; the state copy is what re-renders.
+ */
+export function useCombatTargeting(
+  snapshot: { view: PlayerView; events: GameEvent[] } | null
+): CombatTargeting {
+  const runningRef = useRef<CombatTargeting>(EMPTY_COMBAT_TARGETING);
+  const [targeting, setTargeting] = useState<CombatTargeting>(EMPTY_COMBAT_TARGETING);
+
+  useEffect(() => {
+    if (!snapshot) return;
+    const next = advanceCombatTargeting(runningRef.current, snapshot.events);
+    runningRef.current = next;
+    setTargeting((cur) =>
+      cur.declared === next.declared && cur.attacker === next.attacker ? cur : next
+    );
+  }, [snapshot]);
+
+  return targeting;
 }

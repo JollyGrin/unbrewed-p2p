@@ -123,8 +123,8 @@ import {
 } from "@/lib/pro/moveSteps";
 import { useGameFx, DamageArc } from "@/lib/pro/useGameFx";
 import { useCombatCallouts, CombatCalloutItem } from "@/lib/pro/combatFx";
-import { defenderSwapText } from "@/lib/pro/combatDefender";
-import { useDefenderSwap } from "@/lib/pro/useDefenderSwap";
+import { defenderRedirect, defenderSwapText } from "@/lib/pro/combatDefender";
+import { useCombatTargeting, useDefenderSwap } from "@/lib/pro/useDefenderSwap";
 import {
   useCombatStrike,
   CombatStrike,
@@ -1369,7 +1369,7 @@ const CombatPanel = ({
   clashRef,
   chain,
   effectAttack,
-  defenderSwap,
+  defenderCallout,
 }: {
   combat: ViewCombat;
   catalog: Record<string, CardMeta>;
@@ -1390,12 +1390,14 @@ const CombatPanel = ({
    *  was opened by `{op:'attackWith'}` with a LINKED printed card, outside any
    *  action. Null/undefined for every declared combat. */
   effectAttack?: EffectAttackTag | null;
-  /** defender substitution (#681 ↔ engine #494, protocol v34): a card moved the
-   *  DEFENDING FIGHTER mid-combat (Ripley's *GET BEHIND ME*), so the damage will
-   *  land on somebody other than the fighter that was attacked. The cards do not
-   *  move — the slots below are unchanged — which is precisely why the panel has
-   *  to say it in words. Null/undefined for every ordinary combat. */
-  defenderSwap?: { tag: string; full: string } | null;
+  /** the defender is not the fighter that was attacked. Two ways in: a card moved
+   *  the DEFENDING FIGHTER mid-combat (#681 ↔ engine #494, protocol v34 — Ripley's
+   *  *GET BEHIND ME*), or the combat OPENED against a fighter the attacker never
+   *  declared against (#694 — Grievous's Multi-Arm Barrage Combat 2, whose target
+   *  is picked at commit time). Either way the cards do not move — the slots below
+   *  are unchanged — which is precisely why the panel has to say it in words. The
+   *  caller picks the wording; this just draws it. Null for an ordinary combat. */
+  defenderCallout?: { tag: string; full: string } | null;
 }) => {
   const attackerCommitted = combat.stage !== "COMMIT_ATTACK";
   const pastReveal = !["COMMIT_ATTACK", "COMMIT_DEFENSE"].includes(combat.stage);
@@ -1425,7 +1427,10 @@ const CombatPanel = ({
       animation={strike ? `${strikeShake} 0.4s ease-in-out ${STRIKE_CONTACT_DELAY}s both` : undefined}
       sx={strike ? NO_MOTION : undefined}
     >
-      <Flex gap="0.5rem" alignItems="center" mb="0.5rem">
+      {/* The tag row wraps: a combat can wear several of these at once (chain +
+          effect-attack + "now defending: <fighter>"), and the redirect tag is the
+          long one — a name it cannot fit is a name the defender cannot read. */}
+      <Flex gap="0.5rem" alignItems="center" mb="0.5rem" flexWrap="wrap">
         <Tag colorScheme="red" size="sm">
           COMBAT
         </Tag>
@@ -1464,17 +1469,17 @@ const CombatPanel = ({
             stays where it was — so without this tag the only sign that a
             different figure is about to eat the damage is the board arrow
             quietly re-pointing between two frames. */}
-        {defenderSwap && (
+        {defenderCallout && (
           <Tag
             size="sm"
             bg="#3B1D63"
             color="#F2EAD3"
             letterSpacing="0.03em"
             cursor="help"
-            title={defenderSwap.full}
-            aria-label={defenderSwap.full}
+            title={defenderCallout.full}
+            aria-label={defenderCallout.full}
           >
-            {defenderSwap.tag}
+            {defenderCallout.tag}
           </Tag>
         )}
       </Flex>
@@ -3245,6 +3250,12 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // nobody attacked and the damage lands on the wrong-looking figure. Held for
   // as long as the view agrees the substitution stands, not on a timer.
   const defenderSwap = useDefenderSwap(snapshot);
+  // The DECLARED target of the live attack action (issue #694). The hook above only
+  // sees substitutions INSIDE a combat; this one is what catches an attack that
+  // opened somewhere else entirely — Grievous's Multi-Arm Barrage picks Combat 2's
+  // target at commit time, so the second combat arrives against a fighter the
+  // player never declared against and no v34 event is emitted at all.
+  const combatTargeting = useCombatTargeting(snapshot);
   // Custom-map playtest (create flow): raw JSON persists across a BAD_MAP bounce
   // so a power user can fix the board and retry without re-pasting.
   const [customMapJson, setCustomMapJson] = useState("");
@@ -4358,9 +4369,34 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // the log line — so they can never word the same fact differently. Names come
   // from `badgedName`, which is what every other fighter-naming surface uses, so
   // a substitution between two same-named sidekicks still names the right one.
+  //
+  // TWO SOURCES, ONE STATEMENT. `defenderSwap` is the mid-combat substitution beat
+  // (v34's event); `defenderRedirect` is the standing declared-vs-actual fact, which
+  // covers the bonus attack that opened elsewhere (#694). The substitution wins when
+  // both are live — it is the more specific description of the same fighter — and it
+  // is asked of the combat each surface actually draws: the panel keeps a frozen
+  // combat through the strike beat, the board follows the live view.
   const defenderSwapCopy = defenderSwap
     ? defenderSwapText(badgedName(defenderSwap.from), badgedName(defenderSwap.to))
     : null;
+  const redirectCopy = (combat: ViewCombat | null) => {
+    if (defenderSwapCopy) return null;
+    const r = defenderRedirect(combatTargeting, combat);
+    return r
+      ? { to: r.to, ...defenderSwapText(badgedName(r.from), badgedName(r.to), "REDIRECTED") }
+      : null;
+  };
+  const panelRedirect = redirectCopy(panelCombat);
+  const boardRedirect = redirectCopy(view.combat);
+  /** what the combat panel tags — substitution first, else the redirect. */
+  const combatDefenderTag = defenderSwapCopy ?? panelRedirect;
+  /** which board token gets the violet ring + chip, and what it says. */
+  const boardDefenderStepIn =
+    defenderSwap && defenderSwapCopy
+      ? { fighterId: defenderSwap.to, chip: defenderSwapCopy.chip, blurb: defenderSwapCopy.full }
+      : boardRedirect
+        ? { fighterId: boardRedirect.to, chip: boardRedirect.chip, blurb: boardRedirect.full }
+        : null;
   // Board-token art for one fighter. Hoisted out of the <ProBoard> call so the
   // dock's attack rows (issue #514) paint the SAME face the board does — one
   // resolver, so a flag-driven portrait swap can never show two different heads.
@@ -5210,15 +5246,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
           highlightedFighters={[...new Set(highlightedFighters)]}
           selectedFighter={selectedFighter}
           attack={view.combat ? { attacker: view.combat.attacker, target: view.combat.target } : null}
-          defenderStepIn={
-            defenderSwap && defenderSwapCopy
-              ? {
-                  fighterId: defenderSwap.to,
-                  chip: defenderSwapCopy.chip,
-                  blurb: defenderSwapCopy.full,
-                }
-              : null
-          }
+          defenderStepIn={boardDefenderStepIn}
           friendlyOwners={friendlyOwners}
           fighterBadges={attackerBadge}
           extendedReachTargets={[...extendedReachTargets]}
@@ -5374,7 +5402,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
               clashRef={clashRef}
               chain={combatChain}
               effectAttack={combatEffectAttack}
-              defenderSwap={defenderSwapCopy}
+              defenderCallout={combatDefenderTag}
             />
           ) : null
         }
