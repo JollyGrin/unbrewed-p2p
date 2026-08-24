@@ -8,11 +8,20 @@
  * original single-file editor so old drafts load and round-trips diff clean.
  */
 import type { ProMapDef, ProMapItem } from "@/lib/pro/protocol";
+import {
+  DEFAULT_SCHEME_EFFECT,
+  effectsFromOps,
+  effectsText,
+  isSchemeOpsValid,
+  opsFromEffects,
+  textForOps,
+} from "./schemeOps";
 
 export type Zone = { id: string; color: string; label: string };
 /** Battlefield item definition (engine #157 / protocol v17) — identical to the
- *  wire `ProMapItem`. Combat items carry `value` (≥1); scheme items carry raw `ops`
- *  JSON (no ops-builder in v1). */
+ *  wire `ProMapItem`. Combat items carry `value` (≥1); scheme items carry `ops`
+ *  (authored through the curated effect builder in ./schemeOps, or hand-written
+ *  behind the panel's Advanced toggle) plus the player-facing `text` (p2p #693). */
 export type MapItem = ProMapItem;
 export type Space = {
   id: string;
@@ -65,6 +74,21 @@ export const spaceById = (doc: MapDoc, id: string): Space | undefined =>
   doc.spaces.find((s) => s.id === id);
 
 /**
+ * Export normalization for ONE item (p2p #693). Combat items are already wire
+ * shape. Scheme items get the player-facing `text` filled in when the author
+ * hasn't typed one and the ops came out of the effect builder — that is how a map
+ * imported from before #693 (or repaired in the builder) picks up its tooltip
+ * sentence. An author-typed `text` always wins; an empty one is dropped rather
+ * than exported as `""`.
+ */
+const toExportItem = (item: MapItem): ProMapItem => {
+  const { text, ...rest } = item;
+  if (item.kind !== "scheme") return rest;
+  const finalText = (text ?? "").trim() || textForOps(item.ops);
+  return finalText ? { ...rest, text: finalText } : rest;
+};
+
+/**
  * Editor draft (`MapDoc`) -> engine-native `ProMapDef` (== server MapDef). This
  * is the shipped export shape: the pro-server ingests it directly and community
  * members paste it straight into /pro/game's custom-map box. minPlayers/maxPlayers
@@ -89,7 +113,7 @@ export const toMapDef = (doc: MapDoc): ProMapDef => {
       ...(doc.meta.license ? { license: doc.meta.license } : {}),
     },
     zones: doc.zones,
-    ...(doc.items && doc.items.length ? { items: doc.items } : {}),
+    ...(doc.items && doc.items.length ? { items: doc.items.map(toExportItem) } : {}),
     spaces: doc.spaces.map((s) => ({
       id: s.id,
       x: s.x,
@@ -314,13 +338,24 @@ export const nextItemId = (doc: MapDoc): string => {
   return `item${n}`;
 };
 
-/** Add a fresh item of `kind` — combat items default value 1, scheme items empty ops. */
+/**
+ * Add a fresh item of `kind`. Combat items default to value 1; scheme items are
+ * born with a real default effect (draw 1) rather than the `ops: []` that the
+ * server hard-rejects at room creation (p2p #693) — a new item is playable the
+ * moment it is placed, and the author swaps the effect from the menu.
+ */
 export const addItem = (doc: MapDoc, kind: MapItem["kind"]): { doc: MapDoc; itemId: string } => {
   const id = nextItemId(doc);
   const item: MapItem =
     kind === "combat"
       ? { id, kind, label: `Combat item ${id}`, value: 1 }
-      : { id, kind, label: `Scheme item ${id}`, ops: [] };
+      : {
+          id,
+          kind,
+          label: `Scheme item ${id}`,
+          ops: opsFromEffects([DEFAULT_SCHEME_EFFECT]),
+          text: effectsText([DEFAULT_SCHEME_EFFECT]),
+        };
   return { doc: { ...doc, items: [...(doc.items ?? []), item] }, itemId: id };
 };
 
@@ -360,10 +395,21 @@ export const addZone = (doc: MapDoc): { doc: MapDoc; zoneId: string } => {
 };
 
 // ---------------------------------------------------------------------------
-// Validation — same warnings the original editor surfaced.
+// Validation — the original editor's warnings, plus (p2p #693) a small set of
+// BLOCKING errors. The split exists because a warning is advice ("this space has
+// no zone") while an error means the pro-server will refuse the map outright at
+// room creation, so exporting it can only waste the author's time. Only the
+// scheme-item rules are blocking today; everything else stays advisory.
 // ---------------------------------------------------------------------------
 
-export const validate = (doc: MapDoc): string[] => {
+/** Blocking export errors vs advisory warnings. */
+export interface DocIssues {
+  errors: string[];
+  warnings: string[];
+}
+
+export const validateDoc = (doc: MapDoc): DocIssues => {
+  const e: string[] = [];
   const w: string[] = [];
   if (!doc.meta.title) w.push("meta.title is empty");
   if (!doc.meta.imageUrl) w.push("meta.imageUrl is empty");
@@ -384,34 +430,44 @@ export const validate = (doc: MapDoc): string[] => {
     });
   });
 
-  // Battlefield items (engine #157) — mirror engine validateMap so authors aren't
-  // surprised at room creation: well-formed for kind, unique ids, every space.item
-  // resolves + is used at most once, and no item is declared without a spawn space.
+  // Battlefield items (engine #157) — these mirror engine `validateMap`, and every
+  // one of them is a HARD server error: a map that trips any of them answers
+  // ERROR{BAD_MAP} at room creation and cannot be played at all. p2p #693 makes
+  // them blocking here too, so the author finds out in the editor rather than
+  // when a lobby refuses their file (they were advisory warnings before, which is
+  // how the reported map shipped with two unusable scheme items).
   const items = doc.items ?? [];
   const itemIds = new Set<string>();
   items.forEach((it) => {
-    if (!it.id.trim()) w.push("item id is empty");
-    else if (itemIds.has(it.id)) w.push(`duplicate item id: ${it.id}`);
+    if (!it.id.trim()) e.push("item id is empty");
+    else if (itemIds.has(it.id)) e.push(`duplicate item id: ${it.id}`);
     itemIds.add(it.id);
     if (it.kind === "combat") {
       if (typeof it.value !== "number" || !Number.isInteger(it.value) || it.value < 1)
-        w.push(`combat item ${it.id} needs an integer value ≥ 1`);
+        e.push(`combat item ${it.id} needs an integer value ≥ 1`);
     } else if (it.kind === "scheme") {
-      if (!Array.isArray(it.ops) || it.ops.length === 0)
-        w.push(`scheme item ${it.id} needs non-empty ops`);
+      if (!isSchemeOpsValid(it.ops))
+        e.push(`scheme item ${it.id} needs non-empty ops — pick an effect in the items panel`);
+      else if (effectsFromOps(it.ops) === null && !(it.text ?? "").trim())
+        // Advanced (hand-written) ops: nothing can generate the tooltip sentence,
+        // so the author has to supply it or players see a bare label in-game.
+        // Client-side only — the server doesn't read `text` — but an item nobody
+        // can read is the other half of the bug this ticket exists for.
+        e.push(`scheme item ${it.id} needs effect text (advanced ops can't generate it)`);
     }
   });
   const spawnedCount = new Map<string, number>();
   doc.spaces.forEach((s) => {
     if (s.item === undefined) return;
-    if (!itemIds.has(s.item)) w.push(`${s.id} assigns unknown item ${s.item}`);
+    if (!itemIds.has(s.item)) e.push(`${s.id} assigns unknown item ${s.item}`);
     spawnedCount.set(s.item, (spawnedCount.get(s.item) ?? 0) + 1);
   });
   spawnedCount.forEach((count, id) => {
-    if (count > 1) w.push(`item ${id} is assigned to ${count} spaces (use each item id on at most one space)`);
+    if (count > 1) e.push(`item ${id} is assigned to ${count} spaces (use each item id on at most one space)`);
   });
   items.forEach((it) => {
-    if (!spawnedCount.has(it.id)) w.push(`item ${it.id} is defined but unassigned to any space`);
+    if (!spawnedCount.has(it.id))
+      e.push(`item ${it.id} is defined but unassigned to any space — place it in the space inspector`);
   });
 
   // Secret passages (engine #156): a one-space network is unreachable-by-construction.
@@ -419,5 +475,12 @@ export const validate = (doc: MapDoc): string[] => {
   if (passageSpaces.length === 1)
     w.push(`${passageSpaces[0].id}: a secret-passage network needs at least 2 passage spaces`);
 
-  return w;
+  return { errors: e, warnings: w };
+};
+
+/** Every issue, errors first — the pre-#693 shape, kept for callers that don't
+ *  care about the distinction. */
+export const validate = (doc: MapDoc): string[] => {
+  const { errors, warnings } = validateDoc(doc);
+  return [...errors, ...warnings];
 };

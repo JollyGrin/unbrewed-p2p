@@ -1232,6 +1232,19 @@ export interface ProMapItem {
   label: string;
   value?: number; // combat items: the value bump
   ops?: Json; // scheme items: effect body (opaque to the client)
+  /**
+   * Human-readable effect text for a scheme item (p2p #693). Purely a CLIENT
+   * concern: `ops` is opaque here, so without this a player hovering a yellow
+   * scheme token sees a bare label and nothing about what using it does. Written
+   * by the map editor (auto-generated from the picked effects, or author-typed
+   * behind its Advanced escape hatch) and rendered in the item tooltip.
+   *
+   * Additive and server-ignored — the engine's map validator checks only
+   * id/kind/value/ops and passes unknown item fields through untouched, so a map
+   * carrying `text` loads exactly like one without it, and older maps (no `text`)
+   * fall back to the label alone.
+   */
+  text?: string;
 }
 
 export interface ProMapDef {
