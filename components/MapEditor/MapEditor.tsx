@@ -17,7 +17,7 @@ import { Flex } from "@chakra-ui/react";
 import { useMapHistory } from "./useMapHistory";
 import {
   MapDoc, MapItem, Zone, EdgeRef, EdgeState,
-  STORAGE_KEY, DEFAULT_DIAMETER, emptyDoc, toMapDef, toMapDoc, validate,
+  STORAGE_KEY, DEFAULT_DIAMETER, emptyDoc, toMapDef, toMapDoc, validateDoc,
   addSpace, moveSpace, deleteSpace, toggleZone, setStart, nudgeSpace,
   nextSpaceId, setTwoWay, applyEdgeState, edgeRef, edgeState, addZone as addZoneFn,
   addItem as addItemFn, setItemField, removeItem, setSpaceItem, setPassage, spaceById,
@@ -163,7 +163,12 @@ export const MapEditor = () => {
     setActiveZone(zoneId);
   }, [doc, commit]);
 
+  // Blocking export (p2p #693): a map the pro-server would refuse at room
+  // creation (today: a scheme item with empty/unusable ops) never reaches the
+  // box, so the author finds out here instead of at BAD_MAP. Buttons are also
+  // disabled — this guard is the belt to that suspenders.
   const doExport = useCallback(() => {
+    if (validateDoc(doc).errors.length > 0) return;
     setIo(JSON.stringify(toMapDef(doc), null, 2));
   }, [doc]);
 
@@ -186,7 +191,7 @@ export const MapEditor = () => {
     }
   }, [commit, clearSelection]);
 
-  const warnings = validate(doc);
+  const { errors, warnings } = validateDoc(doc);
 
   return (
     <Flex h="100vh" fontFamily="SpaceGrotesk">
@@ -198,6 +203,7 @@ export const MapEditor = () => {
         setActiveZone={setActiveZone}
         io={io}
         setIo={setIo}
+        errors={errors}
         warnings={warnings}
         canUndo={history.canUndo}
         canRedo={history.canRedo}
