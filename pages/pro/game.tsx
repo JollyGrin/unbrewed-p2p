@@ -163,6 +163,7 @@ import {
 } from "@/lib/pro/mapCatalog";
 import type { MapCatalogEntry } from "@/lib/pro/mapCatalog";
 import { parseVsParam } from "@/lib/pro/vsParam";
+import { useLobbyMatchCue } from "@/lib/pro/useLobbyMatchCue";
 import {
   advanceQuickMatch,
   botFallbackHref,
@@ -3307,6 +3308,26 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     { fighterEls: fighterElsRef, clashRef }
   );
 
+  // Lobby "match found" cue (issue #689): the waiting host tabbed away, so the
+  // moment the room fills and the game begins we chime and shout it from the tab
+  // title. The decision (who is waiting, when it fires, exactly once) is
+  // lobbyCue.ts; `soundOn` is the SAME setting the HUD's speaker chip flips, so
+  // a mute made in a match still holds in the next lobby.
+  const lobbyHasBot =
+    vsBot !== null ||
+    opponent !== "human" ||
+    Object.values(botSlotPlan).some((seat) => seat && seat !== "human") ||
+    !!roomInfo?.roster?.some((seat) => seat.bot);
+  useLobbyMatchCue({
+    roomId,
+    seated: !!roomInfo,
+    seatsFilled: roomInfo?.seats.length ?? 0,
+    requiredPlayers: roomInfo?.requiredPlayers ?? 0,
+    started: !!snapshot,
+    hasBot: lobbyHasBot,
+    soundOn,
+  });
+
   // Combat callouts (issue #162): full-screen turn/defend/reveal flourishes.
   // Decorative-only; a separate hook so the board-FX loop above stays
   // byte-identical.
@@ -4158,6 +4179,18 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
             >
               {roomPublic ? "✓ public — listed in the lobby browser" : "make lobby public"}
             </Button>
+            {/* Match-found chime (#689). Same `pro-sound-fx` setting the in-match
+                HUD chip flips — this is just where you reach for it, since this
+                is the screen you leave before tabbing away. Muting silences the
+                chime only; the tab title still shouts. */}
+            <Button
+              {...(soundOn ? BTN_GOLD : BTN)}
+              onClick={toggleSound}
+              data-testid="lobby-sound-toggle"
+              aria-label={soundOn ? "Mute the match-found chime" : "Unmute the match-found chime"}
+            >
+              {soundOn ? "🔊 chime on" : "🔇 chime muted"}
+            </Button>
             {/* Tired of waiting? (#687) Drop this room and start a bot game —
                 see playBotInstead: there is no add-a-bot-here message. */}
             {quickSearch && selectedHeroId && (
@@ -4166,6 +4199,9 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
               </Button>
             )}
           </Flex>
+          <Text fontSize="0.8rem" opacity={0.6} textAlign="center">
+            Go do something else — this tab chimes and renames itself the moment the game starts.
+          </Text>
           <Text fontSize="0.8rem" opacity={0.5}>
             {(roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers) > 2 ? "(testing solo? open that link in more browser tabs)" : "(testing solo? open that link in a second browser tab)"}
           </Text>
