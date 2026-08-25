@@ -5522,6 +5522,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
         }
         slowModeOn={slowMode}
         onToggleSlowMode={toggleSlowMode}
+        slowModeHolding={slowModeHolding}
         onReportBug={() => setReportBugOpen(true)}
       />
 

@@ -25,6 +25,7 @@ import ProGamePage from "@/pages/pro/game";
 import { PROTOCOL_VERSION } from "@/lib/pro/protocol";
 import type { GameEvent, PlayerView } from "@/lib/pro/protocol";
 import { SLOW_MODE_KEY } from "@/lib/pro/useSlowMode";
+import { SPOTLIGHT_Z } from "@/components/Pro/ActionSpotlight";
 import { FakeWebSocket, installFakeWebSocket, installPolyfills } from "@/scripts/renderFuzz/domEnv";
 
 const ROOM = "SLOW";
@@ -141,6 +142,11 @@ const mount = async () => {
 };
 
 const spotlight = () => screen.queryByTestId("action-spotlight");
+/** The HUD chip that turns slow mode off (its label flips with the setting). */
+const slowModeChip = () => screen.getByLabelText(/slow mode/i);
+/** The chip cluster, when it has been lifted over the spotlight's backdrop. */
+const liftedCluster = () =>
+  document.querySelector(`[style*="z-index: ${SPOTLIGHT_Z + 2}"]`) as HTMLElement | null;
 /** Everything the spotlight is telling the player right now. */
 const spotlightText = () => spotlight()?.textContent ?? "";
 /** Let the one-snapshot-per-tick flush drain. */
@@ -258,6 +264,38 @@ describe("slow mode ON", () => {
     // combat reveal away) — it just doesn't draw the card a second time.
     expect(spotlight()).not.toBeNull();
     expect(spotlightText()).not.toContain("Volley");
+  });
+
+  it("floats the HUD chips over the backdrop, so the toggle stays reachable", async () => {
+    const { state } = await mount();
+    // Nothing held yet: the cluster keeps its own z-index, unchanged from today.
+    expect(liftedCluster()).toBeNull();
+
+    await state(oppTurn("e2"), maneuver("e2"));
+    expect(spotlight()).not.toBeNull();
+    // Held: the cluster is lifted, and it is the one holding the slow-mode chip.
+    const lifted = liftedCluster();
+    expect(lifted).not.toBeNull();
+    expect(lifted).toContainElement(slowModeChip());
+
+    // …and it drops straight back once the spotlight clears.
+    fireEvent.click(screen.getByRole("button", { name: "OK" }));
+    await settle();
+    expect(liftedCluster()).toBeNull();
+  });
+
+  it("turning slow mode off from that chip flushes the backlog in order", async () => {
+    const { container, state } = await mount();
+    for (const n of [0, 1, 2]) await state(hit(n).view, hit(n).events);
+    expect(spotlightText()).toContain("1 damage"); // still on the first of three
+
+    fireEvent.click(slowModeChip());
+    await settle();
+
+    expect(spotlight()).toBeNull();
+    // Every held batch landed — the log is whole, not truncated at the flush.
+    const log = within(container).getByText("Activity").closest("div")?.parentElement;
+    for (const n of [1, 2, 3]) expect(log?.textContent ?? "").toContain(`${n} damage`);
   });
 
   it("never gets between the player and a prompt aimed at them", async () => {

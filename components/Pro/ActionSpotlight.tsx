@@ -49,8 +49,12 @@ export interface ActionSpotlightBatch {
  * could not reach. Sitting on top is safe because a held batch is the only thing
  * the player can act on: everything that needs their input flushes the queue and
  * never reaches this panel.
+ *
+ * The HUD's chip cluster is lifted just ABOVE both layers while a batch is held
+ * (see `ProHud`'s `slowModeHolding`), so the toggle that turns all of this off
+ * never ends up behind the backdrop it created.
  */
-const SPOTLIGHT_Z = 1490;
+export const SPOTLIGHT_Z = 1490;
 
 const LINE_COLOR: Record<ProLogLine["who"], string> = {
   you: colors.brand.secondary,

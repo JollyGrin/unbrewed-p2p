@@ -57,6 +57,7 @@ import {
   StatsPanel,
 } from "@/components/Game/Header/header.styles";
 import { InGameAccountChip } from "@/components/Account/AccountChip";
+import { SPOTLIGHT_Z } from "./ActionSpotlight";
 import { useAccount } from "@/lib/account/useAccount";
 import { seatNameplate } from "@/lib/pro/playerIdentity";
 import { BadgeGlyph, badgeArtName, isKnownBadge } from "@/components/Badges/BadgeGlyph";
@@ -1173,6 +1174,11 @@ export interface ProHudProps {
    *  the player clicks OK. The chip is hidden when the handler is omitted. */
   slowModeOn?: boolean;
   onToggleSlowMode?: () => void;
+  /** true while a paced batch is held on screen. The spotlight's click-anywhere
+   *  backdrop covers the whole viewport, which would otherwise bury the very chip
+   *  that turns slow mode off — so the cluster floats above it for that window
+   *  only. Omitted/false leaves ChipCluster's own z-index untouched. */
+  slowModeHolding?: boolean;
   /** opens the ReportBugDialog (issue #125/#138) — chip hidden when omitted */
   onReportBug?: () => void;
 }
@@ -1196,6 +1202,7 @@ export const ProHud = ({
   onToggleOpponentCosmetics,
   slowModeOn,
   onToggleSlowMode,
+  slowModeHolding,
   onReportBug,
 }: ProHudProps) => {
   const heroOf = (player: PlayerId) =>
@@ -1336,7 +1343,10 @@ export const ProHud = ({
           />
         ))}
       </HudOverlay>
-      <ChipCluster>
+      {/* Lifted above the action spotlight (#703) ONLY while it is holding, and
+          as an inline style so the styled-component's own z-index wins back the
+          moment it isn't — an ordinary game renders this exactly as before. */}
+      <ChipCluster {...(slowModeHolding ? { style: { zIndex: SPOTLIGHT_Z + 2 } } : {})}>
         {onToggleSound && (
           <Tooltip label={soundOn ? "Mute sound effects" : "Unmute sound effects"} hasArrow>
             <Flex
