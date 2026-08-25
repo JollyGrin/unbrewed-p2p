@@ -12,10 +12,11 @@
  * pair the hand and the log's hover preview use. If the two ever disagreed, the
  * log would be the thing players stopped trusting.
  *
- * Combat is deliberately NOT re-narrated with a card: CombatPanel and the #517
- * linger already show both revealed faces, so a spotlight over the top would be a
- * second, smaller copy of the same reveal. Those batches keep the text and drop
- * the face — see `isCombatRevealBatch`.
+ * Combat batches get faces too. They were skipped at first, on the reasoning that
+ * CombatPanel and the #517 linger already reveal both cards — but by the time this
+ * panel is being read that reveal has flown past, and the attack/defense/boost
+ * cards are exactly what an unfamiliar player wants to study. So every batch shows
+ * every public card it touched: the first large, the rest as thumbnails.
  */
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import { useReducedMotion } from "framer-motion";
@@ -23,7 +24,7 @@ import { useEffect } from "react";
 import { colors, fonts } from "@/styles/style";
 import { ProLogLine, ProLogPhase } from "@/lib/pro/gameLog";
 import { CardInstanceId, GameEvent } from "@/lib/pro/protocol";
-import { isCombatRevealBatch, spotlightCard } from "@/lib/pro/slowModeQueue";
+import { spotlightCards } from "@/lib/pro/slowModeQueue";
 import { ResolveCard } from "@/lib/pro/useProCardArt";
 import { CardFace } from "./ProHand";
 
@@ -82,13 +83,20 @@ export const ActionSpotlight = ({
 }: ActionSpotlightProps) => {
   const reducedMotion = !!useReducedMotion();
 
-  // Esc / Enter / Space advance, so the panel is dismissible without reaching for
-  // the mouse. Bound on the document rather than by focusing the button: the game's
-  // own hotkeys stay live, and nothing steals focus from whatever the player had.
+  // Esc / Enter advance, so the panel is dismissible without reaching for the
+  // mouse. Bound on the document rather than by focusing the button: nothing
+  // steals focus from whatever the player had.
+  //
+  // Space is deliberately NOT one of them. The dock's sole-action shortcut and the
+  // 1–9 row hotkeys are window listeners of their own (see pages/pro/game.tsx);
+  // `preventDefault` does not isolate sibling listeners, so a spacebar here would
+  // both advance the spotlight AND fire an action underneath it. Those two guards
+  // stand down on `[aria-modal="true"]`, which this panel sets — so while a batch
+  // is held, no game hotkey fires at all.
   useEffect(() => {
     if (!batch) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" && e.key !== "Enter" && e.key !== " ") return;
+      if (e.key !== "Escape" && e.key !== "Enter") return;
       const target = e.target as HTMLElement | null;
       // never hijack a key someone is typing into (the bug-report dialog, chat)
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
@@ -102,8 +110,9 @@ export const ActionSpotlight = ({
 
   if (!batch) return null;
 
-  // Combat's own reveal owns the cards for these batches (see the header note).
-  const card = isCombatRevealBatch(batch.events) ? null : spotlightCard(batch.events);
+  // The feed's own `cards` arrays widen the net past what the event union names.
+  const cards = spotlightCards(batch.events, batch.lines.flatMap((l) => l.cards ?? []));
+  const [lead, ...rest] = cards;
   const title = [batch.actor, batch.phase].filter(Boolean).join(" · ") || "Opponent action";
 
   return (
@@ -144,12 +153,13 @@ export const ActionSpotlight = ({
             : { animation: "unbrewedSpotlightIn 160ms ease-out", "@keyframes unbrewedSpotlightIn": { from: { opacity: 0, transform: "translateX(-50%) translateY(-0.4rem)" }, to: { opacity: 1, transform: "translateX(-50%) translateY(0)" } } }
         }
         role="dialog"
+        aria-modal="true"
         aria-label="Opponent action"
         data-testid="action-spotlight"
       >
-        {card && (
+        {lead && (
           <Box w="8.5rem" flexShrink={0} sx={{ aspectRatio: "63 / 88" }}>
-            <CardFace card={resolveCard(card)} fallback={labelFor(card)} />
+            <CardFace card={resolveCard(lead)} fallback={labelFor(lead)} />
           </Box>
         )}
         <Flex direction="column" justifyContent="space-between" gap="0.6rem" minW="0" flex="1">
@@ -185,6 +195,18 @@ export const ActionSpotlight = ({
                 Nothing visible changed.
               </Text>
             )}
+            {/* Everything else the batch touched — a defense card, the boosts
+                discarded under it, a card fetched from the deck. Small, but the
+                same faces, and they scroll rather than widening the panel. */}
+            {rest.length > 0 && (
+              <Flex gap="0.4rem" mt="0.55rem" overflowX="auto" pb="0.15rem">
+                {rest.map((c) => (
+                  <Box key={c} w="3.6rem" flexShrink={0} sx={{ aspectRatio: "63 / 88" }}>
+                    <CardFace card={resolveCard(c)} fallback={labelFor(c)} />
+                  </Box>
+                ))}
+              </Flex>
+            )}
           </Box>
           <Flex alignItems="center" justifyContent="flex-end" gap="0.6rem">
             {pending > 0 && (
@@ -215,7 +237,7 @@ export const ActionSpotlight = ({
                 onAdvance();
               }}
             >
-              OK
+              OK (Esc)
             </Button>
           </Flex>
         </Flex>

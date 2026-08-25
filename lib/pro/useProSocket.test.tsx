@@ -1113,11 +1113,14 @@ describe("useProSocket — slow mode pacing (issue #703)", () => {
    */
   const boot = (slowMode: boolean) => {
     const seen: string[] = [];
+    // `last` is tracked separately from the array so the join-view reset below
+    // can clear what was recorded without un-deduping the render after it.
+    let last: string | undefined;
     const hook = renderHook(
       ({ slow }: { slow: boolean }) => {
         const r = useProSocket("ws://test", false, slow);
         const tag = (r.snapshot?.view as { tag?: string } | undefined)?.tag;
-        if (tag && seen[seen.length - 1] !== tag) seen.push(tag);
+        if (tag && last !== tag) { last = tag; seen.push(tag); }
         return r;
       },
       { initialProps: { slow: slowMode } }
@@ -1125,6 +1128,18 @@ describe("useProSocket — slow mode pacing (issue #703)", () => {
     const ws = FakeWebSocket.last!;
     act(() => ws.open());
     act(() => ws.emit(roomJoined()));
+    // The join's own STATE — the authoritative first view every (re)connection
+    // gets. It is the ONE broadcast allowed to bypass the queue, so consume it
+    // here and let each test start from a settled, live game.
+    act(() =>
+      ws.emit({
+        type: "STATE",
+        view: { you: "p1", prompt: null, activePlayer: "p2", winner: null, tag: "join" },
+        legalActions: [],
+        events: [{ type: "TURN_STARTED", player: "p2", turnNumber: 1 }],
+      })
+    );
+    seen.length = 0;
     return { hook, ws, seen };
   };
 
@@ -1140,7 +1155,7 @@ describe("useProSocket — slow mode pacing (issue #703)", () => {
     act(() => ws.emit(oppState("c")));
 
     expect(seen).toEqual(["a", "b", "c"]);
-    expect(hook.result.current.slowModeHolding).toBe(false);
+    expect(hook.result.current.slowModeHeld).toBeNull();
     expect(hook.result.current.slowModePending).toBe(0);
   });
 
@@ -1151,7 +1166,7 @@ describe("useProSocket — slow mode pacing (issue #703)", () => {
     act(() => ws.emit(oppState("c")));
 
     expect(seen).toEqual(["a"]);
-    expect(hook.result.current.slowModeHolding).toBe(true);
+    expect(hook.result.current.slowModeHeld).not.toBeNull();
     expect(hook.result.current.slowModePending).toBe(2);
 
     act(() => hook.result.current.advanceSlowMode());
@@ -1160,10 +1175,10 @@ describe("useProSocket — slow mode pacing (issue #703)", () => {
 
     act(() => hook.result.current.advanceSlowMode());
     expect(seen).toEqual(["a", "b", "c"]);
-    expect(hook.result.current.slowModeHolding).toBe(true);
+    expect(hook.result.current.slowModeHeld).not.toBeNull();
 
     act(() => hook.result.current.advanceSlowMode());
-    expect(hook.result.current.slowModeHolding).toBe(false);
+    expect(hook.result.current.slowModeHeld).toBeNull();
   });
 
   it("'Skip all' drains the backlog one render each, so the log still sees every batch", () => {
@@ -1176,7 +1191,7 @@ describe("useProSocket — slow mode pacing (issue #703)", () => {
     settle();
 
     expect(seen).toEqual(["a", "b", "c"]);
-    expect(hook.result.current.slowModeHolding).toBe(false);
+    expect(hook.result.current.slowModeHeld).toBeNull();
     expect(hook.result.current.slowModePending).toBe(0);
   });
 
@@ -1190,7 +1205,7 @@ describe("useProSocket — slow mode pacing (issue #703)", () => {
     settle();
 
     expect(seen).toEqual(["a", "b", "mine"]);
-    expect(hook.result.current.slowModeHolding).toBe(false);
+    expect(hook.result.current.slowModeHeld).toBeNull();
   });
 
   it("never delays a prompt aimed at the viewer (defense mid-combat)", () => {
@@ -1208,7 +1223,7 @@ describe("useProSocket — slow mode pacing (issue #703)", () => {
     settle();
 
     expect(seen).toEqual(["a", "b", "defend"]);
-    expect(hook.result.current.slowModeHolding).toBe(false);
+    expect(hook.result.current.slowModeHeld).toBeNull();
     expect(hook.result.current.slowModePending).toBe(0);
   });
 
@@ -1223,7 +1238,7 @@ describe("useProSocket — slow mode pacing (issue #703)", () => {
     settle();
 
     expect(seen).toEqual(["a", "b", "c"]);
-    expect(hook.result.current.slowModeHolding).toBe(false);
+    expect(hook.result.current.slowModeHeld).toBeNull();
   });
 
   it("flushes when the game ends, so the result is never stuck behind a spotlight", () => {
@@ -1234,13 +1249,16 @@ describe("useProSocket — slow mode pacing (issue #703)", () => {
     settle();
 
     expect(seen).toEqual(["a", "b", "over"]);
-    expect(hook.result.current.slowModeHolding).toBe(false);
+    expect(hook.result.current.slowModeHeld).toBeNull();
   });
 
-  it("bypasses the queue for a resume STATE (no events)", () => {
+  it("bypasses the queue for a reconnection's own first view", () => {
     const { hook, ws, seen } = boot(true);
     act(() => ws.emit(oppState("a")));
     act(() => ws.emit(oppState("b")));
+    // A socket re-open is what marks the next STATE as authoritative — not the
+    // absence of events. Re-fire onopen to stand in for the reconnect.
+    act(() => ws.open());
     act(() =>
       ws.emit({
         type: "STATE",
@@ -1251,6 +1269,66 @@ describe("useProSocket — slow mode pacing (issue #703)", () => {
     settle();
 
     expect(seen).toEqual(["a", "b", "resume"]);
-    expect(hook.result.current.slowModeHolding).toBe(false);
+    expect(hook.result.current.slowModeHeld).toBeNull();
+  });
+
+  it("does NOT flush on a mid-game events-less broadcast (an accepted undo)", () => {
+    // Regression (#703 follow-up): the engine's `applyUndo` clears lastEvents and
+    // rebroadcasts, so a rewind is a mid-game STATE with an empty batch. Reading
+    // that as "must be a reconnection" flushed the queue and tore the spotlight
+    // off screen with no input from the player.
+    const { hook, ws, seen } = boot(true);
+    act(() => ws.emit(oppState("a")));
+    act(() => ws.emit(oppState("b")));
+    act(() =>
+      ws.emit({
+        type: "STATE",
+        view: { you: "p1", prompt: null, activePlayer: "p2", winner: null, tag: "rewind" },
+        legalActions: [],
+      })
+    );
+    settle();
+
+    expect(seen).toEqual(["a"]); // still on the batch the player is reading
+    expect(hook.result.current.slowModeHeld).not.toBeNull();
+    expect(hook.result.current.slowModePending).toBe(2);
+
+    // …and it never costs the player an OK of its own: the next acknowledgement
+    // shows `b`, and the one after pulls the silent rewind through and ends,
+    // rather than parking a "nothing visible changed" panel in the way.
+    act(() => hook.result.current.advanceSlowMode());
+    settle();
+    expect(seen).toEqual(["a", "b"]);
+    expect(hook.result.current.slowModeHeld?.view).toMatchObject({ tag: "b" });
+
+    act(() => hook.result.current.advanceSlowMode());
+    settle();
+    expect(seen).toEqual(["a", "b", "rewind"]);
+    expect(hook.result.current.slowModeHeld).toBeNull();
+  });
+
+  it("holds the SAME batch on screen when the cap overflows behind it", () => {
+    // The self-dismiss bug. A busy bot turn outruns a reading player; past the cap
+    // the oldest batches apply to keep the board moving — but what is HELD must
+    // not change, or the panel silently repaints with an action nobody chose.
+    const { hook, ws, seen } = boot(true);
+    act(() => ws.emit(oppState("first")));
+    for (let i = 0; i < 14; i += 1) act(() => ws.emit(oppState(`b${i}`)));
+    settle();
+
+    expect(hook.result.current.slowModeHeld?.view).toMatchObject({ tag: "first" });
+    // …and the overflow really did apply, in order, behind the panel.
+    expect(seen.slice(0, 5)).toEqual(["first", "b0", "b1", "b2", "b3"]);
+  });
+
+  it("drops the in-flight latch on ERROR, so a rejected action can't flush later", () => {
+    const { hook, ws, seen } = boot(true);
+    act(() => hook.result.current.sendAction({ type: "END_TURN", player: "p1" } as never));
+    act(() => ws.emit({ type: "ERROR", code: "ILLEGAL_ACTION", message: "nope" }));
+    act(() => ws.emit(oppState("theirs")));
+    settle();
+
+    expect(seen).toEqual(["theirs"]);
+    expect(hook.result.current.slowModeHeld).not.toBeNull(); // paced, not flushed
   });
 });

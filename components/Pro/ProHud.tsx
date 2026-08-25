@@ -38,7 +38,6 @@ import {
   TbFlask,
   TbBug,
   TbHourglass,
-  TbPlayerPlay,
 } from "react-icons/tb";
 import { GiFootprint, GiHearts, GiHighTide, GiLowTide } from "react-icons/gi";
 import { IoMdHand, IoMdVolumeHigh, IoMdVolumeOff } from "react-icons/io";
@@ -1414,26 +1413,56 @@ export const ProHud = ({
           </Tooltip>
         )}
         {onToggleSlowMode && (
+          // A LABELLED SWITCH, not another icon chip. The icon chips beside it are
+          // momentary-looking by design — they flip an effect you can immediately
+          // see or hear, so a dimmed icon is enough. Slow mode changes how the
+          // whole game is paced and is invisible until the opponent moves, so
+          // "which way is it set?" has to be answerable at a glance, without
+          // hovering. It keeps the cluster's pill shape and typography (same
+          // `chipStyles` as the `room XXXX` chip, which is also text-bearing).
           <Tooltip
             label={
               slowModeOn
-                ? "Slow mode is on — opponent actions wait for your OK"
-                : "Slow mode: pause on each opponent action so you can read it"
+                ? "Slow mode is ON — each opponent action waits for your OK"
+                : "Slow mode is OFF — opponent actions apply as they arrive"
             }
             hasArrow
           >
             <Flex
               {...chipStyles}
               as="button"
-              cursor="pointer"
-              _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
-              color="brand.highlight"
-              opacity={slowModeOn ? 1 : 0.55}
-              onClick={onToggleSlowMode}
+              type="button"
+              role="switch"
+              aria-checked={!!slowModeOn}
               aria-label={slowModeOn ? "Turn slow mode off" : "Turn slow mode on"}
-              aria-pressed={!!slowModeOn}
+              onClick={onToggleSlowMode}
+              cursor="pointer"
+              gap="0.4rem"
+              bg={slowModeOn ? "brand.accent" : "rgba(20, 8, 24, 0.55)"}
+              _hover={{ bg: slowModeOn ? "brand.accentDeep" : "rgba(20, 8, 24, 0.85)" }}
             >
-              {slowModeOn ? <TbHourglass size="0.85rem" /> : <TbPlayerPlay size="0.85rem" />}
+              <TbHourglass size="0.8rem" color={slowModeOn ? "#2C1831" : "#F1E0C1"} />
+              <Text
+                fontSize="0.65rem"
+                fontFamily="SpaceGrotesk"
+                whiteSpace="nowrap"
+                color={slowModeOn ? "brand.surfaceDim" : "brand.highlight"}
+                fontWeight={slowModeOn ? 700 : 400}
+              >
+                Slow mode
+              </Text>
+              {/* Purely the picture of the state — the chip itself is the control,
+                  so the Switch must not be a second focusable/clickable thing
+                  inside it (a nested label would double-fire the toggle). */}
+              <Switch
+                size="sm"
+                isChecked={!!slowModeOn}
+                isReadOnly
+                pointerEvents="none"
+                tabIndex={-1}
+                aria-hidden
+                sx={{ ".chakra-switch__track": { bg: slowModeOn ? "brand.surfaceDim" : "whiteAlpha.400" } }}
+              />
             </Flex>
           </Tooltip>
         )}

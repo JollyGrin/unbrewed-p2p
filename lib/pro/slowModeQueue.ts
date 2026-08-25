@@ -85,33 +85,26 @@ export function batchActor(events: GameEvent[]): PlayerId | null {
   return null;
 }
 
-/** Combat's own reveal (CombatPanel + the #517 linger) already narrates these, so
- *  the spotlight must not show a second copy of the cards. Exported for the
- *  overlay, which downgrades such a batch to text-only. */
-export function isCombatRevealBatch(events: GameEvent[]): boolean {
-  return events.some(
-    (e) =>
-      e.type === "ATTACK_DECLARED" ||
-      e.type === "CARDS_REVEALED" ||
-      e.type === "COMBAT_DAMAGE" ||
-      e.type === "COMBAT_RESOLVED" ||
-      e.type === "COMBAT_ENDED"
-  );
-}
-
 /**
- * The card the spotlight leads with, or null for a card-less action (a plain
- * maneuver, an end of turn). Priority order is "what did they DO", not "what
- * moved": a scheme's own card beats the card it made someone discard.
+ * Every DISTINCT, publicly-visible card the batch touched, most-important first.
  *
- * Redacted ids (the server masks a card in a zone you can't see — see
- * server/redact.ts) are skipped, so a hidden boost falls through to whatever
- * IS public rather than rendering an unresolvable face. Every real instance id
- * is `<hero>/<def>#<n>`, so the slash is the test.
+ * The spotlight leads with a large face for the first entry and shows the rest as
+ * thumbnails, so an unfamiliar player can study what actually happened: the attack
+ * card AND the defense AND the boosts that were discarded under them. Combat is
+ * included on purpose (#703 follow-up) — by the time this panel is read, the
+ * combat reveal has already flown past, and those are exactly the cards worth
+ * studying.
+ *
+ * Ordering is "what did they DO" first: a scheme's own card beats the card it made
+ * someone discard. Redacted ids (the server masks a card in a zone you cannot see —
+ * see server/redact.ts) are skipped, so a face-down boost never renders as an
+ * unresolvable blank. Every real instance id is `<hero>/<def>#<n>`, so the slash is
+ * the test.
  */
 const CARD_EVENT_PRIORITY = [
   "SCHEME_PLAYED",
   "CARD_PLAYED_FROM_HAND",
+  "CARDS_REVEALED",
   "ADDITIONAL_DEFENSE_PLAYED",
   "CARD_BOOSTED",
   "MOVE_BOOSTED",
@@ -122,31 +115,72 @@ const CARD_EVENT_PRIORITY = [
   "CARD_DISCARDED",
 ] as const;
 
-export function spotlightCard(events: GameEvent[]): CardInstanceId | null {
-  for (const type of CARD_EVENT_PRIORITY) {
-    for (const e of events) {
-      if (e.type !== type) continue;
-      const card = "card" in e ? (e.card as string) : null;
-      if (card && card.includes("/")) return card as CardInstanceId;
-    }
+/** Card-instance fields that appear across the event union. */
+const CARD_FIELDS = ["card", "attackerCard", "defenderCard"] as const;
+
+const isPublicCard = (v: unknown): v is CardInstanceId =>
+  typeof v === "string" && v.includes("/");
+
+const cardsOn = (e: GameEvent): CardInstanceId[] => {
+  const out: CardInstanceId[] = [];
+  for (const f of CARD_FIELDS) {
+    const v = (e as unknown as Record<string, unknown>)[f];
+    if (isPublicCard(v)) out.push(v);
   }
-  return null;
+  return out;
+};
+
+/**
+ * `extra` takes the `cards` arrays the batch's own log lines already carry, so a
+ * card the feed names but the events do not (or names through a variant this list
+ * hasn't learned) still gets a face.
+ */
+export function spotlightCards(
+  events: GameEvent[],
+  extra: readonly CardInstanceId[] = []
+): CardInstanceId[] {
+  const seen = new Set<CardInstanceId>();
+  const push = (c: CardInstanceId) => {
+    if (!seen.has(c)) seen.add(c);
+  };
+  for (const type of CARD_EVENT_PRIORITY)
+    for (const e of events) if (e.type === type) cardsOn(e).forEach(push);
+  for (const e of events) cardsOn(e).forEach(push); // anything the priority list missed
+  for (const c of extra) if (isPublicCard(c)) push(c);
+  return [...seen];
+}
+
+/** What the caller knows that the batch itself cannot say. */
+export interface PaceContext {
+  /** an action of ours is in flight — its result must never wait */
+  ownAction?: boolean;
+  /** this is the authoritative first view of a (re)connection: a join, a
+   *  RECONNECT or a RESUME_ROOM. See the `resume` note in `isPacedBatch`. */
+  resume?: boolean;
 }
 
 /**
  * Should this batch be PACED (held for an OK), or applied the moment it lands?
  *
  * Instant — and therefore flushing whatever is queued ahead of it — when:
- *  - it carries no events at all (join / reconnect / resume: not an action);
+ *  - it is a (re)connection's first view (`resume`): the server is re-sending the
+ *    whole authoritative state, so anything queued is already superseded;
  *  - it opens a prompt aimed at YOU (defense, target choice, mulligan…) — a paced
  *    batch must never sit between the player and a decision they owe;
- *  - YOU caused it (`actor === view.you`, or the caller knows an action of theirs
- *    is in flight via `ownAction`);
+ *  - YOU caused it (`actor === view.you`, or `ownAction`);
  *  - the game is decided (`view.winner`) — nothing after that is worth holding.
+ *
+ * `resume` is the caller's flag, NOT "the batch has no events" (#703 follow-up).
+ * Those used to be treated as the same thing, on the theory that only join/
+ * reconnect/resume omit events. They are not — the engine emits events-less
+ * broadcasts mid-turn (`applyUndo` clears `lastEvents` and rebroadcasts, and a
+ * live bot turn shows others) — and under the old rule each one silently flushed
+ * the queue and tore the spotlight off screen mid-read. Such a batch is now
+ * SILENT instead: applied in arrival order, never flushing and never demanding an
+ * OK of its own. See `isSilentBatch`.
  */
-export function isPacedBatch(batch: SlowModeBatch, ownAction = false): boolean {
-  if (ownAction) return false;
-  if (batch.events.length === 0) return false;
+export function isPacedBatch(batch: SlowModeBatch, ctx: PaceContext = {}): boolean {
+  if (ctx.ownAction || ctx.resume) return false;
   const view = batch.view;
   if (view.winner) return false;
   if (view.prompt && view.prompt.player === view.you) return false;
@@ -155,20 +189,40 @@ export function isPacedBatch(batch: SlowModeBatch, ownAction = false): boolean {
   return true;
 }
 
+/**
+ * A batch with nothing to narrate. It still has to be APPLIED — it is an
+ * authoritative view, and order is sacred — but it must never become a spotlight:
+ * holding one would put a panel reading "nothing visible changed" in front of the
+ * player and make them dismiss it.
+ */
+export function isSilentBatch(batch: SlowModeBatch): boolean {
+  return batch.events.length === 0;
+}
+
 export interface SlowModeState<T extends SlowModeBatch> {
   /** batches that have arrived but not been applied, in ARRIVAL order */
   queue: T[];
-  /** true while an applied batch is on screen waiting for the player's OK */
-  holding: boolean;
+  /**
+   * The batch currently ON SCREEN, waiting for the player's OK — null when
+   * nothing is held.
+   *
+   * This is the identity the spotlight renders from, and it is deliberately NOT
+   * "the last snapshot applied" (#703 follow-up). A cap overflow applies OLD
+   * batches to keep the board moving while the player reads; when the panel was
+   * keyed off the newest snapshot, each of those repainted it with a different
+   * action's text, which read exactly like the spotlight advancing itself. Only
+   * ADVANCE and a flush may change what is held.
+   */
+  held: T | null;
 }
 
 export function emptySlowModeState<T extends SlowModeBatch>(): SlowModeState<T> {
-  return { queue: [], holding: false };
+  return { queue: [], held: null };
 }
 
 export type SlowModeEvent<T extends SlowModeBatch> =
-  /** a STATE landed. `ownAction` = the client has one of its own actions in flight */
-  | { type: "STATE"; batch: T; slowMode: boolean; ownAction?: boolean }
+  /** a STATE landed; `ctx` carries what only the socket knows (see PaceContext) */
+  | ({ type: "STATE"; batch: T; slowMode: boolean } & PaceContext)
   /** the player clicked OK on the spotlight */
   | { type: "ADVANCE" }
   /** "Skip all" — drain everything now, in order */
@@ -189,7 +243,7 @@ const flush = <T extends SlowModeBatch>(
   state: SlowModeState<T>,
   ...trailing: T[]
 ): SlowModeStep<T> => ({
-  state: { queue: [], holding: false },
+  state: { queue: [], held: null },
   apply: [...state.queue, ...trailing],
 });
 
@@ -207,12 +261,18 @@ export function slowModeStep<T extends SlowModeBatch>(
       // in the same tick the player switched the toggle off must still land
       // behind anything already queued, never in front of it.
       if (!event.slowMode) return flush(state, event.batch);
-      if (!isPacedBatch(event.batch, event.ownAction)) return flush(state, event.batch);
-      // Nothing on screen and nothing waiting → this batch becomes the spotlight.
-      if (!state.holding && state.queue.length === 0)
-        return { state: { queue: [], holding: true }, apply: [event.batch] };
+      const { ownAction, resume } = event;
+      if (!isPacedBatch(event.batch, { ownAction, resume })) return flush(state, event.batch);
+      // Nothing on screen and nothing waiting → apply now. It becomes the
+      // spotlight unless there is nothing to say about it.
+      if (state.held === null && state.queue.length === 0)
+        return {
+          state: { queue: [], held: isSilentBatch(event.batch) ? null : event.batch },
+          apply: [event.batch],
+        };
       // Otherwise it waits its turn. Past the cap the oldest batches are applied
-      // un-spotlit so the backlog can't grow without bound.
+      // un-spotlit so the backlog can't grow without bound — `held` is untouched,
+      // so the description the player is still reading stays on screen.
       const queue = [...state.queue, event.batch];
       if (queue.length <= SLOW_MODE_QUEUE_CAP)
         return { state: { ...state, queue }, apply: [] };
@@ -220,9 +280,20 @@ export function slowModeStep<T extends SlowModeBatch>(
       return { state: { ...state, queue }, apply: overflow };
     }
     case "ADVANCE": {
-      if (state.queue.length === 0) return { state: { queue: [], holding: false }, apply: [] };
-      const [next, ...rest] = state.queue;
-      return { state: { queue: rest, holding: true }, apply: [next] };
+      // Apply forward until something is worth showing. Silent batches are pulled
+      // through with the OK the player already gave rather than costing one each.
+      const queue = [...state.queue];
+      const apply: T[] = [];
+      let held: T | null = null;
+      while (queue.length > 0) {
+        const next = queue.shift()!;
+        apply.push(next);
+        if (!isSilentBatch(next)) {
+          held = next;
+          break;
+        }
+      }
+      return { state: { queue, held }, apply };
     }
     case "SKIP_ALL":
     case "DISABLE":

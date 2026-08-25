@@ -3193,12 +3193,16 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // paces STATE batches with. Persisted per browser; OFF leaves the socket's queue
   // layer completely inert.
   const [slowMode, toggleSlowMode] = useSlowMode();
-  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, requestLobbies, setVisibility, serverRestarting, gameLost, slowModeHolding, slowModePending, advanceSlowMode, skipSlowMode } =
+  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, requestLobbies, setVisibility, serverRestarting, gameLost, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } =
     useProSocket(WS_URL, debug, slowMode);
-  // Read through a ref inside the log effect: adding `slowMode` to that effect's
-  // deps would re-run it on a toggle and append the last batch's lines twice.
+  // Read through refs inside the log effect: adding either to that effect's deps
+  // would re-run it without a new snapshot and append the last batch's lines
+  // twice. `slowModeHeldRef` is what pins the spotlight to the batch the player
+  // is actually reading — see the capture below.
   const slowModeRef = useRef(slowMode);
   slowModeRef.current = slowMode;
+  const slowModeHeldRef = useRef(slowModeHeld);
+  slowModeHeldRef.current = slowModeHeld;
   // No extra request: the `/me` probe is a shared module-level store that
   // `useProSocket` has already kicked off. Only the forfeit dialog reads it —
   // cosmetic points exist for signed-in players, so only they are told what
@@ -3328,7 +3332,9 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       const tag = el?.tagName.toLowerCase();
       if (tag === "input" || tag === "textarea" || tag === "select" || el?.isContentEditable) return;
       // A modal/dialog (ForfeitDialog, etc.) owns the keyboard while open — never
-      // fire the shortcut underneath one. Chakra portals mark them aria-modal.
+      // fire the shortcut underneath one. Chakra portals mark them aria-modal, and
+      // so does slow mode's action spotlight (#703): while the player is reading a
+      // held batch, no action may fire under it.
       if (typeof document !== "undefined" && document.querySelector('[aria-modal="true"]')) return;
       e.preventDefault(); // stop page scroll and a native re-fire if the button has focus
       sendAction(action);
@@ -3354,7 +3360,8 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       const el = e.target as HTMLElement | null;
       const tag = el?.tagName.toLowerCase();
       if (tag === "input" || tag === "textarea" || tag === "select" || el?.isContentEditable) return;
-      // A modal/dialog owns the keyboard while open — same guard as the spacebar.
+      // A modal/dialog — or the action spotlight (#703) — owns the keyboard while
+      // open. Same guard as the spacebar above.
       if (typeof document !== "undefined" && document.querySelector('[aria-modal="true"]')) return;
       e.preventDefault();
       sendAction(action);
@@ -3637,10 +3644,14 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     // Slow mode (issue #703): the action spotlight is rendered from THESE lines —
     // the feed's own text for this batch — so the two can never diverge. Captured
     // only while the toggle is on, so an ordinary session does no extra render
-    // work at all. Keyed by the snapshot object: `slowModeHolding` flips in the
-    // socket handler one commit before this effect runs, and the panel would
-    // otherwise show the previous action for a frame.
-    if (slowModeRef.current) {
+    // work at all.
+    //
+    // ONLY for the batch the socket is actually holding. Every other applied
+    // snapshot — a flush's trailing batches, and above all the cap overflow that
+    // keeps the board moving behind the panel — must leave the description the
+    // player is mid-read alone. Getting this wrong is what made the spotlight
+    // appear to advance on its own after a busy bot turn.
+    if (slowModeRef.current && slowModeHeldRef.current === snapshot) {
       const actor = batchActor(snapshot.events);
       setSpotlight({
         for: snapshot,
@@ -5522,7 +5533,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
         }
         slowModeOn={slowMode}
         onToggleSlowMode={toggleSlowMode}
-        slowModeHolding={slowModeHolding}
+        slowModeHolding={!!slowModeHeld}
         onReportBug={() => setReportBugOpen(true)}
       />
 
@@ -5530,7 +5541,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
           player clicks OK. Renders nothing at all when the socket isn't holding —
           which is always, with the toggle off. */}
       <ActionSpotlight
-        batch={slowModeHolding && spotlight?.for === snapshot ? spotlight.batch : null}
+        batch={slowModeHeld && spotlight?.for === slowModeHeld ? spotlight.batch : null}
         pending={slowModePending}
         resolveCard={resolveCard}
         labelFor={(c) => cardLabel(view.catalog, c)}

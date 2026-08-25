@@ -209,17 +209,17 @@ describe("slow mode ON", () => {
     expect(spotlightText()).toContain("1 damage");
     expect(spotlightText()).toContain("+2 more");
 
-    fireEvent.click(screen.getByRole("button", { name: "OK" }));
+    fireEvent.click(screen.getByRole("button", { name: /^OK/ }));
     await settle();
     expect(spotlightText()).toContain("2 damage");
     expect(spotlightText()).toContain("+1 more");
 
-    fireEvent.click(screen.getByRole("button", { name: "OK" }));
+    fireEvent.click(screen.getByRole("button", { name: /^OK/ }));
     await settle();
     expect(spotlightText()).toContain("3 damage");
     expect(spotlightText()).not.toContain("more");
 
-    fireEvent.click(screen.getByRole("button", { name: "OK" }));
+    fireEvent.click(screen.getByRole("button", { name: /^OK/ }));
     await settle();
     expect(spotlight()).toBeNull();
   });
@@ -253,17 +253,54 @@ describe("slow mode ON", () => {
     expect(spotlightText()).toContain("Dodge");
   });
 
-  it("leaves the cards to CombatPanel — no second reveal over a combat batch", async () => {
+  it("shows the whole combat — attack, defense and boost — not just one card", async () => {
+    // Combat used to be text-only, on the grounds that CombatPanel already
+    // revealed the cards. By the time this panel is read that reveal has flown
+    // past, and these are exactly the cards an unfamiliar player wants to study.
     const { state } = await mount();
     await state(oppTurn("e1"), [
       { type: "ATTACK_DECLARED", attacker: "p2/hero", target: "p1/hero" },
-      { type: "CARDS_REVEALED", attackerCard: "hero-b/volley#1", defenderCard: null },
+      { type: "CARDS_REVEALED", attackerCard: "hero-b/volley#1", defenderCard: "hero-a/guard#1" },
+      { type: "CARD_BOOSTED", role: "ATTACK", card: "hero-b/dodge#1", blind: false },
       { type: "COMBAT_DAMAGE", amount: 2 },
     ]);
-    // The batch is still paced (the panel is up, so the bot can't yank the
-    // combat reveal away) — it just doesn't draw the card a second time.
     expect(spotlight()).not.toBeNull();
-    expect(spotlightText()).not.toContain("Volley");
+    for (const title of ["Volley", "Guard", "Dodge"]) expect(spotlightText()).toContain(title);
+  });
+
+  it("never renders a redacted card id as a face", async () => {
+    const { state } = await mount();
+    await state(oppTurn("e1"), [
+      { type: "ACTION_SPENT", player: "p2", action: "MANEUVER" },
+      { type: "CARD_BOOSTED", role: "ATTACK", card: "(hidden)", blind: true },
+    ]);
+    expect(spotlightText()).not.toContain("(hidden)");
+  });
+
+  it("advances on Esc and Enter, but leaves Space to the game's own hotkeys", async () => {
+    const { state } = await mount();
+    await state(oppTurn("e2"), maneuver("e2"));
+
+    // Space must not touch it: the dock's sole-action shortcut and the 1–9 row
+    // hotkeys are sibling window listeners, and preventDefault does not isolate
+    // them — a spacebar here would advance AND fire an action underneath.
+    fireEvent.keyDown(document, { key: " ", code: "Space" });
+    await settle();
+    expect(spotlight()).not.toBeNull();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await settle();
+    expect(spotlight()).toBeNull();
+  });
+
+  it("marks itself aria-modal, which is what stands the game's hotkeys down", async () => {
+    // pages/pro/game.tsx's spacebar and digit guards both bail on
+    // `[aria-modal="true"]`. This attribute IS that contract — if it ever goes,
+    // an action can fire under a spotlight the player is only reading.
+    const { state } = await mount();
+    await state(oppTurn("e2"), maneuver("e2"));
+    expect(spotlight()).toHaveAttribute("aria-modal", "true");
+    expect(document.querySelector('[aria-modal="true"]')).toBe(spotlight());
   });
 
   it("floats the HUD chips over the backdrop, so the toggle stays reachable", async () => {
@@ -279,7 +316,7 @@ describe("slow mode ON", () => {
     expect(lifted).toContainElement(slowModeChip());
 
     // …and it drops straight back once the spotlight clears.
-    fireEvent.click(screen.getByRole("button", { name: "OK" }));
+    fireEvent.click(screen.getByRole("button", { name: /^OK/ }));
     await settle();
     expect(liftedCluster()).toBeNull();
   });
@@ -296,6 +333,36 @@ describe("slow mode ON", () => {
     // Every held batch landed — the log is whole, not truncated at the flush.
     const log = within(container).getByText("Activity").closest("div")?.parentElement;
     for (const n of [1, 2, 3]) expect(log?.textContent ?? "").toContain(`${n} damage`);
+  });
+
+  it("NEVER advances on its own, however far the bot outruns the reader", async () => {
+    // The self-dismiss bug, end to end. A busy bot turn overruns the queue cap;
+    // the overflow has to keep the board moving, but the description on screen is
+    // the one thing it must not touch. Zero input for the whole test.
+    const { state } = await mount();
+    await state(hit(0).view, hit(0).events);
+    const first = spotlightText();
+    expect(first).toContain("1 damage");
+
+    for (let n = 1; n < 14; n += 1) await state(hit(n).view, hit(n).events);
+    await settle();
+
+    expect(spotlight()).not.toBeNull();
+    expect(spotlightText()).toContain("1 damage"); // still the batch we were reading
+    expect(spotlightText()).not.toContain("2 damage");
+  });
+
+  it("is not torn away by an events-less mid-game broadcast (an accepted undo)", async () => {
+    const { state } = await mount();
+    await state(hit(0).view, hit(0).events);
+    await state(hit(1).view, hit(1).events);
+    // `applyUndo` clears lastEvents and rebroadcasts: a real mid-game STATE with
+    // an empty batch, which used to read as "must be a reconnection" and flush.
+    await state(hit(2).view, []);
+    await settle();
+
+    expect(spotlight()).not.toBeNull();
+    expect(spotlightText()).toContain("1 damage");
   });
 
   it("never gets between the player and a prompt aimed at them", async () => {
