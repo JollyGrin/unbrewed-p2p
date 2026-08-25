@@ -1074,3 +1074,183 @@ describe("useProSocket — equipped cosmetics on create/join", () => {
     expect(frame(ws, "RECONNECT")).not.toHaveProperty("cosmetics");
   });
 });
+
+describe("useProSocket — slow mode pacing (issue #703)", () => {
+  const realWS = global.WebSocket;
+  beforeEach(() => {
+    // @ts-expect-error — swap in the fake for the test
+    global.WebSocket = FakeWebSocket;
+    window.localStorage.clear();
+    jest.useFakeTimers();
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+    global.WebSocket = realWS;
+    FakeWebSocket.last = null;
+  });
+
+  /** An opponent action batch, tagged so the order snapshots land in is readable. */
+  const oppState = (tag: string, over: Record<string, unknown> = {}) => ({
+    type: "STATE",
+    view: { you: "p1", prompt: null, activePlayer: "p2", winner: null, tag, ...over },
+    legalActions: [],
+    events: [{ type: "ACTION_SPENT", player: "p2", action: "MANEUVER" }],
+  });
+
+  /** A batch caused by the viewer. */
+  const ownState = (tag: string) => ({
+    type: "STATE",
+    view: { you: "p1", prompt: null, activePlayer: "p1", winner: null, tag },
+    legalActions: [],
+    events: [{ type: "ACTION_SPENT", player: "p1", action: "ATTACK" }],
+  });
+
+  /**
+   * Boot into a game, recording EVERY distinct snapshot the hook hands React.
+   * That list is the acceptance bar: the activity log diffs consecutive
+   * snapshots, so a paced session must deliver exactly the same ones, in the
+   * same order, as an unpaced one — never a collapsed pair.
+   */
+  const boot = (slowMode: boolean) => {
+    const seen: string[] = [];
+    const hook = renderHook(
+      ({ slow }: { slow: boolean }) => {
+        const r = useProSocket("ws://test", false, slow);
+        const tag = (r.snapshot?.view as { tag?: string } | undefined)?.tag;
+        if (tag && seen[seen.length - 1] !== tag) seen.push(tag);
+        return r;
+      },
+      { initialProps: { slow: slowMode } }
+    );
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    act(() => ws.emit(roomJoined()));
+    return { hook, ws, seen };
+  };
+
+  /** Let the one-snapshot-per-tick drain finish. */
+  const settle = () => {
+    for (let i = 0; i < 20; i += 1) act(() => void jest.advanceTimersByTime(1));
+  };
+
+  it("is completely inert with slow mode OFF — every batch applies as it lands", () => {
+    const { hook, ws, seen } = boot(false);
+    act(() => ws.emit(oppState("a")));
+    act(() => ws.emit(oppState("b")));
+    act(() => ws.emit(oppState("c")));
+
+    expect(seen).toEqual(["a", "b", "c"]);
+    expect(hook.result.current.slowModeHolding).toBe(false);
+    expect(hook.result.current.slowModePending).toBe(0);
+  });
+
+  it("applies one opponent action at a time, advancing on OK", () => {
+    const { hook, ws, seen } = boot(true);
+    act(() => ws.emit(oppState("a")));
+    act(() => ws.emit(oppState("b")));
+    act(() => ws.emit(oppState("c")));
+
+    expect(seen).toEqual(["a"]);
+    expect(hook.result.current.slowModeHolding).toBe(true);
+    expect(hook.result.current.slowModePending).toBe(2);
+
+    act(() => hook.result.current.advanceSlowMode());
+    expect(seen).toEqual(["a", "b"]);
+    expect(hook.result.current.slowModePending).toBe(1);
+
+    act(() => hook.result.current.advanceSlowMode());
+    expect(seen).toEqual(["a", "b", "c"]);
+    expect(hook.result.current.slowModeHolding).toBe(true);
+
+    act(() => hook.result.current.advanceSlowMode());
+    expect(hook.result.current.slowModeHolding).toBe(false);
+  });
+
+  it("'Skip all' drains the backlog one render each, so the log still sees every batch", () => {
+    const { hook, ws, seen } = boot(true);
+    act(() => ws.emit(oppState("a")));
+    act(() => ws.emit(oppState("b")));
+    act(() => ws.emit(oppState("c")));
+
+    act(() => hook.result.current.skipSlowMode());
+    settle();
+
+    expect(seen).toEqual(["a", "b", "c"]);
+    expect(hook.result.current.slowModeHolding).toBe(false);
+    expect(hook.result.current.slowModePending).toBe(0);
+  });
+
+  it("flushes the queue before the viewer's own action, in arrival order", () => {
+    const { hook, ws, seen } = boot(true);
+    act(() => ws.emit(oppState("a")));
+    act(() => ws.emit(oppState("b")));
+
+    act(() => hook.result.current.sendAction({ type: "END_TURN", player: "p1" } as never));
+    act(() => ws.emit(ownState("mine")));
+    settle();
+
+    expect(seen).toEqual(["a", "b", "mine"]);
+    expect(hook.result.current.slowModeHolding).toBe(false);
+  });
+
+  it("never delays a prompt aimed at the viewer (defense mid-combat)", () => {
+    const { hook, ws, seen } = boot(true);
+    act(() => ws.emit(oppState("a")));
+    act(() => ws.emit(oppState("b")));
+
+    act(() =>
+      ws.emit(
+        oppState("defend", {
+          prompt: { promptId: "d1", player: "p1", kind: "COMMIT_DEFENSE", options: [] },
+        })
+      )
+    );
+    settle();
+
+    expect(seen).toEqual(["a", "b", "defend"]);
+    expect(hook.result.current.slowModeHolding).toBe(false);
+    expect(hook.result.current.slowModePending).toBe(0);
+  });
+
+  it("flushes when the toggle is switched off mid-queue", () => {
+    const { hook, ws, seen } = boot(true);
+    act(() => ws.emit(oppState("a")));
+    act(() => ws.emit(oppState("b")));
+    act(() => ws.emit(oppState("c")));
+    expect(seen).toEqual(["a"]);
+
+    act(() => hook.rerender({ slow: false }));
+    settle();
+
+    expect(seen).toEqual(["a", "b", "c"]);
+    expect(hook.result.current.slowModeHolding).toBe(false);
+  });
+
+  it("flushes when the game ends, so the result is never stuck behind a spotlight", () => {
+    const { hook, ws, seen } = boot(true);
+    act(() => ws.emit(oppState("a")));
+    act(() => ws.emit(oppState("b")));
+    act(() => ws.emit(oppState("over", { winner: "p2" })));
+    settle();
+
+    expect(seen).toEqual(["a", "b", "over"]);
+    expect(hook.result.current.slowModeHolding).toBe(false);
+  });
+
+  it("bypasses the queue for a resume STATE (no events)", () => {
+    const { hook, ws, seen } = boot(true);
+    act(() => ws.emit(oppState("a")));
+    act(() => ws.emit(oppState("b")));
+    act(() =>
+      ws.emit({
+        type: "STATE",
+        view: { you: "p1", prompt: null, activePlayer: "p2", winner: null, tag: "resume" },
+        legalActions: [],
+      })
+    );
+    settle();
+
+    expect(seen).toEqual(["a", "b", "resume"]);
+    expect(hook.result.current.slowModeHolding).toBe(false);
+  });
+});

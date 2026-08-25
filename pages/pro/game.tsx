@@ -151,6 +151,9 @@ import { boughtRangeAttacks, boughtRangeBlurb, boughtRangeChip } from "@/lib/pro
 import { CosmeticRimTier } from "@/lib/pro/cosmetics";
 import { seatCosmetics, tokenRimForSeat } from "@/lib/pro/seatCosmetics";
 import { useHideOpponentCosmetics } from "@/lib/pro/useHideOpponentCosmetics";
+import { useSlowMode } from "@/lib/pro/useSlowMode";
+import { batchActor } from "@/lib/pro/slowModeQueue";
+import { ActionSpotlight, ActionSpotlightBatch } from "@/components/Pro/ActionSpotlight";
 import {
   CUSTOM_MAP_ID,
   MAP_CATALOG,
@@ -3186,8 +3189,16 @@ const HeroSelectLobby = ({
 // ---------------------------------------------------------------------------
 
 const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string | null; heroParam: string | null; vsBot: BotDifficulty | null; debug: boolean; quickParam: boolean }) => {
-  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, requestLobbies, setVisibility, serverRestarting, gameLost } =
-    useProSocket(WS_URL, debug);
+  // Slow mode (issue #703) — read before the socket, because it is what the socket
+  // paces STATE batches with. Persisted per browser; OFF leaves the socket's queue
+  // layer completely inert.
+  const [slowMode, toggleSlowMode] = useSlowMode();
+  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, requestLobbies, setVisibility, serverRestarting, gameLost, slowModeHolding, slowModePending, advanceSlowMode, skipSlowMode } =
+    useProSocket(WS_URL, debug, slowMode);
+  // Read through a ref inside the log effect: adding `slowMode` to that effect's
+  // deps would re-run it on a toggle and append the last batch's lines twice.
+  const slowModeRef = useRef(slowMode);
+  slowModeRef.current = slowMode;
   // No extra request: the `/me` probe is a shared module-level store that
   // `useProSocket` has already kicked off. Only the forfeit dialog reads it —
   // cosmetic points exist for signed-in players, so only they are told what
@@ -3560,6 +3571,12 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
 
   // Activity feed: diff each view against the previous one (see gameLog.ts).
   const [logEntries, setLogEntries] = useState<ProLogEntry[]>([]);
+  // Slow mode (#703): the batch the action spotlight is describing, tagged with
+  // the snapshot it was computed from so the panel never renders stale text.
+  const [spotlight, setSpotlight] = useState<{
+    for: unknown;
+    batch: ActionSpotlightBatch;
+  } | null>(null);
   const prevViewRef = useRef<PlayerView | null>(null);
   // Live sub-attack chain (issue #596): the ref is the running value the next batch
   // advances from; the state copy is what the combat panel renders.
@@ -3616,9 +3633,27 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     // interrupted instead of minting an out-of-place TURN section (issue #522).
     const { turn, turnActor } = batchTurnTag(prevViewRef.current, next);
     prevViewRef.current = next;
+    const phase = batchPhase(snapshot.events);
+    // Slow mode (issue #703): the action spotlight is rendered from THESE lines —
+    // the feed's own text for this batch — so the two can never diverge. Captured
+    // only while the toggle is on, so an ordinary session does no extra render
+    // work at all. Keyed by the snapshot object: `slowModeHolding` flips in the
+    // socket handler one commit before this effect runs, and the panel would
+    // otherwise show the previous action for a frame.
+    if (slowModeRef.current) {
+      const actor = batchActor(snapshot.events);
+      setSpotlight({
+        for: snapshot,
+        batch: {
+          lines,
+          events: snapshot.events,
+          phase,
+          actor: actor ? seatLabel(next, actor) : null,
+        },
+      });
+    }
     if (lines.length === 0) return;
     const ts = Date.now();
-    const phase = batchPhase(snapshot.events);
     const batchId = logBatchRef.current++;
     // Prepend the batch whole (newest group on top) but keep the batch's lines
     // in emission order so a single action reads chronologically top-down —
@@ -5485,7 +5520,21 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
           // game, which is most of them.
           cosmetics.hasOpponentCosmetics ? toggleHideCosmetics : undefined
         }
+        slowModeOn={slowMode}
+        onToggleSlowMode={toggleSlowMode}
         onReportBug={() => setReportBugOpen(true)}
+      />
+
+      {/* Slow mode (issue #703): one opponent action at a time, held until the
+          player clicks OK. Renders nothing at all when the socket isn't holding —
+          which is always, with the toggle off. */}
+      <ActionSpotlight
+        batch={slowModeHolding && spotlight?.for === snapshot ? spotlight.batch : null}
+        pending={slowModePending}
+        resolveCard={resolveCard}
+        labelFor={(c) => cardLabel(view.catalog, c)}
+        onAdvance={advanceSlowMode}
+        onSkipAll={skipSlowMode}
       />
 
       {/* Floating decision dock — turn state, combat, prompts, actions. Owns

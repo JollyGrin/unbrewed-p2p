@@ -37,6 +37,8 @@ import {
   TbArrowBackUp,
   TbFlask,
   TbBug,
+  TbHourglass,
+  TbPlayerPlay,
 } from "react-icons/tb";
 import { GiFootprint, GiHearts, GiHighTide, GiLowTide } from "react-icons/gi";
 import { IoMdHand, IoMdVolumeHigh, IoMdVolumeOff } from "react-icons/io";
@@ -1167,6 +1169,10 @@ export interface ProHudProps {
    *  published a loadout. Your OWN cosmetics are never affected. */
   opponentCosmeticsHidden?: boolean;
   onToggleOpponentCosmetics?: () => void;
+  /** "Slow mode" (issue #703) — hold each opponent action in a spotlight until
+   *  the player clicks OK. The chip is hidden when the handler is omitted. */
+  slowModeOn?: boolean;
+  onToggleSlowMode?: () => void;
   /** opens the ReportBugDialog (issue #125/#138) — chip hidden when omitted */
   onReportBug?: () => void;
 }
@@ -1188,6 +1194,8 @@ export const ProHud = ({
   onToggleVisualFx,
   opponentCosmeticsHidden,
   onToggleOpponentCosmetics,
+  slowModeOn,
+  onToggleSlowMode,
   onReportBug,
 }: ProHudProps) => {
   const heroOf = (player: PlayerId) =>
@@ -1392,6 +1400,30 @@ export const ProHud = ({
               ) : (
                 <TbSparkles size="0.85rem" />
               )}
+            </Flex>
+          </Tooltip>
+        )}
+        {onToggleSlowMode && (
+          <Tooltip
+            label={
+              slowModeOn
+                ? "Slow mode is on — opponent actions wait for your OK"
+                : "Slow mode: pause on each opponent action so you can read it"
+            }
+            hasArrow
+          >
+            <Flex
+              {...chipStyles}
+              as="button"
+              cursor="pointer"
+              _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+              color="brand.highlight"
+              opacity={slowModeOn ? 1 : 0.55}
+              onClick={onToggleSlowMode}
+              aria-label={slowModeOn ? "Turn slow mode off" : "Turn slow mode on"}
+              aria-pressed={!!slowModeOn}
+            >
+              {slowModeOn ? <TbHourglass size="0.85rem" /> : <TbPlayerPlay size="0.85rem" />}
             </Flex>
           </Tooltip>
         )}
