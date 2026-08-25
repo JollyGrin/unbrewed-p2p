@@ -14,8 +14,8 @@ const hero = (heroId: string, over: Partial<HeroCosmetics> = {}): HeroCosmetics 
   adjusted: 0,
   available: 100,
   cards: [],
-  tokenRim: { unlockedTier: 0, enabled: false },
-  cardRims: { enabled: true },
+  tokenRim: { unlockedTier: 0, enabled: false, selectedTier: null },
+  cardRims: { enabled: true, selectedTier: null },
   ...over,
 });
 
@@ -59,8 +59,8 @@ describe("heroPickerSections", () => {
 
   it("carries each hero's unlocked rim tier as a real paint name", () => {
     const heroes = [
-      hero("thrall", { earned: 900, tokenRim: { unlockedTier: 2, enabled: true } }),
-      hero("batman", { earned: 100, tokenRim: { unlockedTier: 0, enabled: false } }),
+      hero("thrall", { earned: 900, tokenRim: { unlockedTier: 2, enabled: true, selectedTier: null } }),
+      hero("batman", { earned: 100, tokenRim: { unlockedTier: 0, enabled: false, selectedTier: null } }),
     ];
     const { ranked } = heroPickerSections(collectionRoster(["thrall", "batman"]), heroes);
     expect(ranked.map((row) => row.rim)).toEqual(["silver", null]);
@@ -87,7 +87,7 @@ describe("heroPickerSections", () => {
     // points — but "you have a history on these three" survives, and an outage
     // must never read as "you have no heroes".
     const heroes = ["kenshiro", "thrall", "batman"].map((id) =>
-      hero(id, { earned: null, available: null, tokenRim: { unlockedTier: null, enabled: true } }),
+      hero(id, { earned: null, available: null, tokenRim: { unlockedTier: null, enabled: true, selectedTier: null } }),
     );
     const { ranked, more } = heroPickerSections(
       collectionRoster(heroes.map((h) => h.heroId)),

@@ -935,8 +935,8 @@ describe("useProSocket — equipped cosmetics on create/join", () => {
     adjusted: 0,
     available: 900,
     cards: [],
-    tokenRim: { unlockedTier: 0, enabled: false },
-    cardRims: { enabled: true },
+    tokenRim: { unlockedTier: 0, enabled: false, selectedTier: null },
+    cardRims: { enabled: true, selectedTier: null },
     ...over,
   });
 
@@ -945,13 +945,13 @@ describe("useProSocket — equipped cosmetics on create/join", () => {
       row({
         heroId: "king-kong",
         cards: [{ key: "brute strength", tier: 3 }],
-        tokenRim: { unlockedTier: 2, enabled: true },
+        tokenRim: { unlockedTier: 2, enabled: true, selectedTier: null },
       }),
       // A hero with card rims but the token rim switched OFF on /collection.
       row({
         heroId: "thrall",
         cards: [{ key: "warchief", tier: 1 }],
-        tokenRim: { unlockedTier: 4, enabled: false },
+        tokenRim: { unlockedTier: 4, enabled: false, selectedTier: null },
       }),
     ];
   };
@@ -999,8 +999,8 @@ describe("useProSocket — equipped cosmetics on create/join", () => {
       row({
         heroId: "king-kong",
         cards: [{ key: "brute strength", tier: 3 }],
-        tokenRim: { unlockedTier: 2, enabled: true },
-        cardRims: { enabled: false },
+        tokenRim: { unlockedTier: 2, enabled: true, selectedTier: null },
+        cardRims: { enabled: false, selectedTier: null },
       }),
     ];
     const { hook, ws } = boot();
@@ -1020,8 +1020,8 @@ describe("useProSocket — equipped cosmetics on create/join", () => {
       row({
         heroId: "king-kong",
         cards: [{ key: "brute strength", tier: 3 }],
-        tokenRim: { unlockedTier: 4, enabled: false },
-        cardRims: { enabled: false },
+        tokenRim: { unlockedTier: 4, enabled: false, selectedTier: null },
+        cardRims: { enabled: false, selectedTier: null },
       }),
     ];
     const { hook, ws } = boot();

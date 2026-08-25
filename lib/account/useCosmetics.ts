@@ -17,8 +17,9 @@
  * 3. **Writes are never optimistic about money.** A spend moves nothing until
  *    the server has agreed, and its reply carries the hero's whole block, so
  *    there is no local arithmetic to get wrong and nothing to roll back. The
- *    display-pref TOGGLES are the one exception (booleans the server stores
- *    verbatim, no balance involved), and they roll back on failure.
+ *    display PREFS are the one exception (a boolean and a tier choice the
+ *    server stores verbatim, no balance involved), and they roll back on
+ *    failure.
  */
 import { useCallback, useEffect, useState } from "react";
 
@@ -61,10 +62,23 @@ export interface CosmeticsState {
   heroFor: (heroId: string) => HeroCosmetics;
   /** Buy one tier step. Resolves with the server's verdict for the caller to say. */
   upgrade: (heroId: string, cardKey: string, tier: number) => Promise<SpendResult>;
-  /** Show or hide this hero's token rim in games. */
-  setTokenRim: (heroId: string, enabled: boolean) => Promise<RimPrefResult>;
-  /** Show or hide ALL of this hero's bought card rims in games (#627). */
-  setCardRims: (heroId: string, enabled: boolean) => Promise<RimPrefResult>;
+  /**
+   * Show or hide this hero's token rim in games, and optionally pick WHICH
+   * unlocked tier it wears (#705). `selectedTier` omitted leaves that choice
+   * alone — a plain on/off flip must not silently re-pick a tier — while
+   * `null` means "latest", the default the API has always behaved as.
+   */
+  setTokenRim: (
+    heroId: string,
+    enabled: boolean,
+    selectedTier?: number | null,
+  ) => Promise<RimPrefResult>;
+  /** The same two controls for ALL of this hero's bought card rims (#627, #705). */
+  setCardRims: (
+    heroId: string,
+    enabled: boolean,
+    selectedTier?: number | null,
+  ) => Promise<RimPrefResult>;
 }
 
 const EMPTY: CosmeticsPayload = { heroes: [], constants: FALLBACK_CONSTANTS };
@@ -153,59 +167,88 @@ export const useCosmetics = (): CosmeticsState => {
   );
 
   /**
-   * The optimistic display-pref write, shared by both switches.
+   * The optimistic display-pref write, shared by both switches and both tier
+   * pickers (#705).
    *
-   * Optimistic, and only here: a pref is a stored boolean with no balance
-   * behind it, so the switch may move first and step back if the write fails.
-   * Nothing is spent either way. `set` patches one hero's row; `write` is the
-   * endpoint that agrees or doesn't.
+   * Optimistic, and only here: a pref is stored display state with no balance
+   * behind it, so the control may move first and step back if the write fails.
+   * Nothing is spent either way. `patch` produces the hero's row as the player
+   * just asked for it; `write` is the endpoint that agrees or doesn't.
+   *
+   * The rollback restores the row that was there BEFORE, rather than undoing
+   * one field: a pick and a flip both come through here, and re-flipping a
+   * boolean would leave a failed tier pick standing on screen as though it had
+   * saved. Restoring the whole row is right for either.
    */
   const setPref = useCallback(
     async (
       heroId: string,
-      enabled: boolean,
-      set: (row: HeroCosmetics, value: boolean) => HeroCosmetics,
-      write: (heroId: string, enabled: boolean) => Promise<RimPrefResult>,
+      patch: (row: HeroCosmetics) => HeroCosmetics,
+      write: () => Promise<RimPrefResult>,
     ): Promise<RimPrefResult> => {
-      const apply = (value: boolean) =>
+      const before = payload.heroes.find((row) => row.heroId === heroId) ?? null;
+      const apply = (next: (row: HeroCosmetics) => HeroCosmetics) =>
         setPayload((current) => {
           const known = current.heroes.some((row) => row.heroId === heroId);
           return {
             ...current,
             heroes: known
-              ? current.heroes.map((row) => (row.heroId === heroId ? set(row, value) : row))
-              : [...current.heroes, set(emptyHeroCosmetics(heroId, !failed), value)],
+              ? current.heroes.map((row) => (row.heroId === heroId ? next(row) : row))
+              : [...current.heroes, next(emptyHeroCosmetics(heroId, !failed))],
           };
         });
 
-      apply(enabled);
-      const result = await write(heroId, enabled);
-      if (!result.ok) apply(!enabled);
+      apply(patch);
+      const result = await write();
+      if (!result.ok) apply((row) => before ?? emptyHeroCosmetics(row.heroId, !failed));
       return result;
     },
-    [failed],
+    [failed, payload.heroes],
   );
 
   const setTokenRim = useCallback(
-    (heroId: string, enabled: boolean): Promise<RimPrefResult> =>
+    (
+      heroId: string,
+      enabled: boolean,
+      selectedTier?: number | null,
+    ): Promise<RimPrefResult> =>
       setPref(
         heroId,
-        enabled,
-        (row, value) => ({ ...row, tokenRim: { ...row.tokenRim, enabled: value } }),
-        putTokenRim,
+        (row) => ({
+          ...row,
+          tokenRim: {
+            ...row.tokenRim,
+            enabled,
+            // Only what the caller actually asked about moves. `unlockedTier`
+            // is telemetry's and is never touched here.
+            selectedTier:
+              selectedTier === undefined ? row.tokenRim.selectedTier : selectedTier,
+          },
+        }),
+        () => putTokenRim(heroId, enabled, selectedTier),
       ),
     [setPref],
   );
 
   const setCardRims = useCallback(
-    (heroId: string, enabled: boolean): Promise<RimPrefResult> =>
+    (
+      heroId: string,
+      enabled: boolean,
+      selectedTier?: number | null,
+    ): Promise<RimPrefResult> =>
       setPref(
         heroId,
-        enabled,
         // Only the pref moves: `cards` is the ledger of what the player owns,
-        // and hiding rims must never look like losing them.
-        (row, value) => ({ ...row, cardRims: { enabled: value } }),
-        putCardRims,
+        // and hiding or capping rims must never look like losing them.
+        (row) => ({
+          ...row,
+          cardRims: {
+            enabled,
+            selectedTier:
+              selectedTier === undefined ? row.cardRims.selectedTier : selectedTier,
+          },
+        }),
+        () => putCardRims(heroId, enabled, selectedTier),
       ),
     [setPref],
   );
