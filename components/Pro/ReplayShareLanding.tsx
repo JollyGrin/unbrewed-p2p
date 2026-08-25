@@ -10,6 +10,13 @@
  * validation + expansion by the engine's POST /replay → scrubber. A tampered or
  * incompatible bundle therefore lands on the error card below, never on a
  * half-rendered board.
+ *
+ * One shortcut, and it is the point of #701: if the stored bundle carries the
+ * `frames` frozen in at upload time, those are played directly and the engine is
+ * never asked. That is what stops a public link from rotting the next time the
+ * engine ships — see lib/pro/replayFrames.ts for the trade-off it makes. A
+ * bundle with no (or unreadable) frames takes the engine path exactly as before,
+ * which since engine #509 can also come back digest-verified or truncated.
  */
 import { useCallback, useEffect, useState } from "react";
 import Head from "next/head";
@@ -19,10 +26,16 @@ import { TbDeviceFloppy, TbDownload, TbPlayerPlay } from "react-icons/tb";
 import type { ReplayBundle, ReplayExpansion } from "@/lib/pro/protocol";
 import { fetchSharedReplay } from "@/lib/pro/replayCloud";
 import { fetchReplayExpansion } from "@/lib/pro/replayApi";
+import { expansionFromFrames, readFrames } from "@/lib/pro/replayFrames";
+import { replayVerificationNotice } from "@/lib/pro/replayVerification";
 import { assertBundle, downloadBundle, replayLabel } from "@/lib/pro/replayShare";
 import { saveReplay } from "@/lib/pro/replayStore";
 import { parseSharePath } from "@/lib/share/sharedItem";
 import { ReplayScrubber } from "@/components/Pro/ReplayScrubber";
+import {
+  ReplayDivergenceBanner,
+  ReplayVerifiedBadge,
+} from "@/components/Pro/ReplayVerificationNotice";
 import { replayCosmetics } from "@/lib/pro/seatCosmetics";
 
 const TABLE_BG = "radial-gradient(ellipse at 50% 20%, #5A3263 0%, #48284F 50%, #2C1831 100%)";
@@ -83,17 +96,35 @@ export const ReplayShareLanding = ({ id }: { id: string | null }) => {
         return;
       }
 
-      // Authoritative gate: the engine re-runs the action log and refuses an
-      // illegal or version-incompatible bundle.
+      const title = fetched.replay.title || replayLabel(bundle);
+
+      // Frames frozen in at upload time (#701) — play them and skip the engine
+      // entirely, which is what makes the link outlive engine releases.
+      const frames = readFrames(fetched.replay.bundle);
+      if (frames) {
+        setPhase({ status: "ready", loaded: { bundle, expansion: expansionFromFrames(frames), title } });
+        return;
+      }
+
+      // No frames (an upload from before #701, or a bundle whose frames didn't
+      // survive): authoritative gate: the engine re-runs the action log and
+      // refuses one it can neither match nor digest-verify.
       const expanded = await fetchReplayExpansion(bundle);
       if (!alive) return;
       if (!expanded.ok) {
-        setPhase({ status: "error", heading: "This replay couldn't be verified", message: expanded.message });
+        setPhase({
+          status: "error",
+          heading:
+            expanded.code === "VERSION_MISMATCH"
+              ? "This replay is too old to replay"
+              : "This replay couldn't be verified",
+          message: expanded.message,
+        });
         return;
       }
       setPhase({
         status: "ready",
-        loaded: { bundle, expansion: expanded.expansion, title: fetched.replay.title || replayLabel(bundle) },
+        loaded: { bundle, expansion: expanded.expansion, title },
       });
     })();
 
@@ -140,6 +171,9 @@ export const ReplayShareLanding = ({ id }: { id: string | null }) => {
   }
 
   const { loaded } = phase;
+  // Same notice the scrubber shows, so the recipient knows before pressing play
+  // whether they are about to watch the whole game (#701).
+  const notice = replayVerificationNotice(loaded.expansion);
 
   if (watching) {
     return (
@@ -153,18 +187,32 @@ export const ReplayShareLanding = ({ id }: { id: string | null }) => {
 
   return (
     <Shell>
-      <Text fontSize="0.8rem" letterSpacing="0.12em" opacity={0.6}>
-        SHARED REPLAY
-      </Text>
+      <Flex gap="0.5rem" align="center">
+        <Text fontSize="0.8rem" letterSpacing="0.12em" opacity={0.6}>
+          SHARED REPLAY
+        </Text>
+        <ReplayVerifiedBadge notice={notice} />
+      </Flex>
       <Heading fontFamily="LeagueGothic" fontWeight="normal" letterSpacing="0.05em" fontSize="2.5rem" maxW="34rem">
         {loaded.title}
       </Heading>
       <Text opacity={0.75} fontSize="0.9rem" maxW="30rem">
-        {loaded.bundle.meta.turns} turns · re-watch it in full God-view — every hand, deck, and token, step by step.
+        {notice.lastVerifiedTurn !== null
+          ? `${loaded.bundle.meta.turns} turns played, ${notice.lastVerifiedTurn} playable`
+          : `${loaded.bundle.meta.turns} turns`}{" "}
+        · re-watch it in full God-view — every hand, deck, and token, step by step.
       </Text>
 
+      <ReplayDivergenceBanner notice={notice} />
+
       <Flex gap="0.5rem" flexWrap="wrap" justify="center" mt="0.5rem">
-        <Button {...BTN_GOLD} leftIcon={<TbPlayerPlay />} onClick={() => setWatching(true)}>
+        {/* Nothing verified survived (#701) — no button that leads to an empty board. */}
+        <Button
+          {...BTN_GOLD}
+          leftIcon={<TbPlayerPlay />}
+          onClick={() => setWatching(true)}
+          isDisabled={notice.unplayable}
+        >
           Watch replay
         </Button>
         <Button {...BTN} leftIcon={<TbDeviceFloppy />} onClick={onSave} isDisabled={!!saved?.ok}>

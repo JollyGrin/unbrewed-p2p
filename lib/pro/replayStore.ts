@@ -15,6 +15,7 @@
  *  - near the byte cap, saveReplay evicts oldest UNSTARRED first to make room.
  */
 import type { ReplayBundle } from "./protocol";
+import { stripFrames } from "./replayFrames";
 import { replayHeroList } from "./replayHeroes";
 
 const INDEX_KEY = "unbrewed:pro:replays:index";
@@ -157,11 +158,16 @@ export interface SaveResult {
  * if needed to stay under the byte budget; never evicts a starred replay.
  */
 export function saveReplay(
-  bundle: ReplayBundle,
+  input: ReplayBundle,
   now: number = Date.now(),
   budgetBytes: number = STORAGE_BUDGET_BYTES,
 ): SaveResult {
   if (!hasWindow()) return { ok: false, id: "", evicted: [], error: "no storage" };
+  // A bundle read back from a share link carries the expansion frozen in at
+  // upload time (#701) — hundreds of KB against a 5 MB budget, and pointless
+  // locally, where the live engine can always re-expand the action log. Strip it
+  // here so no path into localStorage can smuggle frames in.
+  const bundle = stripFrames(input);
   const id = replayId(bundle);
   const serialized = JSON.stringify(bundle);
   const bytes = byteLength(serialized);
