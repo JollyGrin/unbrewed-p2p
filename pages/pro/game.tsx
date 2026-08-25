@@ -163,6 +163,7 @@ import {
   rollRandomMap,
 } from "@/lib/pro/mapCatalog";
 import type { MapCatalogEntry } from "@/lib/pro/mapCatalog";
+import { RANDOM_HERO_ID, resolveHeroPick } from "@/lib/pro/randomHero";
 import { parseVsParam } from "@/lib/pro/vsParam";
 import { useLobbyMatchCue } from "@/lib/pro/useLobbyMatchCue";
 import {
@@ -1851,6 +1852,77 @@ const RosterTile = ({
 };
 
 /**
+ * The "🎲 Random" roster tile (#697) — the fighter-side twin of the Random
+ * stage tile, and dashed for the same reason: it is a promise, not a picture.
+ * Nothing is chosen until Create/Join, where `resolveHeroPick` rolls over the
+ * fighters this grid is currently showing (so the reach filter and the search
+ * box narrow the roll). With every fighter filtered away there is nothing to
+ * roll, and the tile goes disabled rather than silently doing nothing.
+ */
+const RandomRosterTile = ({
+  selected,
+  disabled,
+  poolSize,
+  onSelect,
+  onHover,
+}: {
+  selected: boolean;
+  disabled: boolean;
+  /** how many fighters the roll would draw from right now — shown in the tooltip */
+  poolSize: number;
+  onSelect: () => void;
+  onHover: () => void;
+}) => (
+  <Box
+    as="button"
+    type="button"
+    onClick={disabled ? undefined : onSelect}
+    onMouseEnter={onHover}
+    onFocus={onHover}
+    disabled={disabled}
+    aria-pressed={selected}
+    aria-label="Random fighter — rolled when the game starts"
+    title={
+      disabled
+        ? "No fighters match — clear the search or filter"
+        : `Rolled when the game starts, from the ${poolSize} fighter${poolSize === 1 ? "" : "s"} shown`
+    }
+    position="relative"
+    w="100%"
+    sx={{ aspectRatio: "1", ...NO_MOTION }}
+    borderRadius="0.5rem"
+    overflow="hidden"
+    border="1px dashed"
+    borderColor={selected ? "brand.accent" : "whiteAlpha.300"}
+    bg="rgba(0,0,0,0.18)"
+    display="flex"
+    flexDirection="column"
+    alignItems="center"
+    justifyContent="center"
+    gap="0.15rem"
+    cursor={disabled ? "not-allowed" : "pointer"}
+    opacity={disabled ? 0.35 : 1}
+    transition="transform 0.12s ease, box-shadow 0.12s ease, border-color 0.15s"
+    boxShadow={selected ? GOLD_RING : undefined}
+    _hover={disabled ? undefined : { transform: "scale(1.06)", zIndex: 2, borderColor: "whiteAlpha.500" }}
+    _focusVisible={{ outline: "2px solid", outlineColor: "brand.accent", outlineOffset: "2px" }}
+  >
+    <Text fontSize="1.5rem" lineHeight="1" aria-hidden>
+      🎲
+    </Text>
+    <Text
+      fontFamily="BebasNeueRegular"
+      fontSize="0.72rem"
+      letterSpacing="0.04em"
+      lineHeight="1.1"
+      textAlign="center"
+    >
+      Random
+    </Text>
+  </Box>
+);
+
+/**
  * The left splash panel. Shows the hovered fighter live (preview state), reverts
  * to the locked pick on mouse-leave, and carries all the per-fighter info the
  * tiles no longer do: big name, author credit, stats, frozen-rules line, and the
@@ -2254,9 +2326,10 @@ const HeroSelectLobby = ({
   /** opening-hand mulligan for this room (engine #395); true = on (create flow only) */
   mulligan: boolean;
   onSelectMulligan: (on: boolean) => void;
-  onConfirm: () => void;
+  /** commit the room with this CONCRETE hero id — a Random pick is already rolled */
+  onConfirm: (heroId: string) => void;
   /** Quick Match (#687), create flow only: find a game instead of configuring one. */
-  onQuickMatch?: () => void;
+  onQuickMatch?: (heroId: string) => void;
   /** arrived from the landing's Quick Match CTA (`?quick=1`) — highlight it */
   quickMatchArmed?: boolean;
   /** raw custom-map JSON (create flow only) — persisted in the parent */
@@ -2274,7 +2347,6 @@ const HeroSelectLobby = ({
   // While the list is loading, a valid-looking `?hero=` stands in so the
   // creator isn't blocked; once the list arrives the real selection takes over.
   const effective = selectedHeroId ?? (heroes === null ? heroParam : null);
-  const canConfirm = status === "open" && !!effective;
   const format = formatChoice(selectedFormat);
   const multiplayer = selectedFormat !== "duel";
   const [previewHero, setPreviewHero] = useState<HeroListing>();
@@ -2293,15 +2365,26 @@ const HeroSelectLobby = ({
     () => turnTimerSeconds > 0 && !TURN_TIMER_STRIP_PRESETS.includes(turnTimerSeconds as never)
   );
 
-  const lockedHero = heroes?.find((h) => h.heroId === effective);
-  const lockedName = lockedHero?.name ?? (effective ? prettyHeroId(effective) : null);
+  // The Random tile (#697) is a selection without a fighter behind it: nothing
+  // is rolled until Create/Join, so there is no locked hero to splash or to ask
+  // bot tiers about — only a name for the summary line.
+  const randomPicked = effective === RANDOM_HERO_ID;
+  const lockedHero = randomPicked ? undefined : heroes?.find((h) => h.heroId === effective);
+  const lockedName = randomPicked
+    ? "Random fighter 🎲"
+    : lockedHero?.name ?? (effective ? prettyHeroId(effective) : null);
   // The bot tiers this server offers for the heroes THIS room names — the
   // creator's pick and, in a duel, the AI's named hero. Derived from the live
   // listing every render, so switching fighter swaps the strip immediately; a
   // server that advertises nothing (old, or the tier switched off) yields the
   // unchanged easy/medium/hard set. See lib/pro/botTiers.ts.
+  // A Random pick contributes no hero to the tier query (it isn't one yet), so
+  // the strip falls back to the server's unnarrowed set until it resolves.
   const seatChipStrip = seatChips(
-    botTierChoices(heroes, [effective, selectedFormat === "duel" ? aiHeroId : null]),
+    botTierChoices(heroes, [
+      randomPicked ? null : effective,
+      selectedFormat === "duel" ? aiHeroId : null,
+    ]),
   );
   const lockedCardback = lockedHero ? heroDeckMeta(lockedHero.heroId)?.cardbackUrl : undefined;
   // Splash shows the hover preview, else the locked pick. Hovering your own
@@ -2309,6 +2392,19 @@ const HeroSelectLobby = ({
   const splashHero = hoverHero ?? lockedHero;
   const splashLocked =
     !!splashHero && (!hoverHero || (!!lockedHero && hoverHero.heroId === lockedHero.heroId));
+
+  const visibleHeroes = (heroes ?? []).filter((h) => {
+    if (!matchesReachFilter(h, reachFilter)) return false;
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    const author = heroDeckMeta(h.heroId)?.author ?? "";
+    return h.name.toLowerCase().includes(q) || author.toLowerCase().includes(q);
+  });
+
+  // A Random pick with everything filtered away has nothing to roll, so it can't
+  // confirm — the same state that greys the tile greys Create/Quick Match.
+  const canConfirm =
+    status === "open" && !!effective && !(randomPicked && visibleHeroes.length === 0);
 
   // READY-TO-FIGHT pulse: fire the create button's gold pulse once, on the
   // transition from disabled → enabled (the moment a fighter is first locked).
@@ -2323,14 +2419,6 @@ const HeroSelectLobby = ({
     }
     wasConfirmable.current = canConfirm;
   }, [canConfirm]);
-
-  const visibleHeroes = (heroes ?? []).filter((h) => {
-    if (!matchesReachFilter(h, reachFilter)) return false;
-    const q = search.trim().toLowerCase();
-    if (!q) return true;
-    const author = heroDeckMeta(h.heroId)?.author ?? "";
-    return h.name.toLowerCase().includes(q) || author.toLowerCase().includes(q);
-  });
 
   // Boards the Random tile can land on for the current format — shown as the
   // tile's tooltip so "Random" is never a black box (#685).
@@ -2374,10 +2462,20 @@ const HeroSelectLobby = ({
     return turnTimerSeconds === Number(v);
   };
 
+  // Deferred resolution for the Random tile (#697), the fighter-side twin of the
+  // stage roll: the sentinel becomes a real hero HERE, at the click, drawn from
+  // the fighters the grid is showing — so the reach filter and search box are
+  // the roll's pool. Both commit buttons go through it, and each is disabled
+  // when there is nothing to roll (`canConfirm`).
+  const commitHeroId = () => resolveHeroPick(effective, visibleHeroes);
+
   const createButton = (
     <Button
       type="button"
-      onClick={onConfirm}
+      onClick={() => {
+        const heroId = commitHeroId();
+        if (heroId) onConfirm(heroId);
+      }}
       isDisabled={!canConfirm}
       h="auto"
       py="0.8rem"
@@ -2412,7 +2510,10 @@ const HeroSelectLobby = ({
       <Button
         type="button"
         data-testid={testId}
-        onClick={onQuickMatch}
+        onClick={() => {
+          const heroId = commitHeroId();
+          if (heroId) onQuickMatch(heroId);
+        }}
         isDisabled={!canConfirm}
         title={
           canConfirm
@@ -2738,26 +2839,40 @@ const HeroSelectLobby = ({
             <Text textAlign="center" opacity={0.7}>
               no heroes available — try again shortly
             </Text>
-          ) : visibleHeroes.length === 0 ? (
-            <Text textAlign="center" opacity={0.6} fontSize="0.85rem" py="1rem">
-              No fighters match — clear the search or filter.
-            </Text>
           ) : (
-            <Grid
-              templateColumns="repeat(auto-fill, minmax(5.25rem, 1fr))"
-              gap="0.5rem"
-              onMouseLeave={() => setHoverHero(undefined)}
-            >
-              {visibleHeroes.map((h) => (
-                <RosterTile
-                  key={h.heroId}
-                  hero={h}
-                  selected={effective === h.heroId}
-                  onSelect={() => onSelectHero(h.heroId)}
-                  onHover={() => setHoverHero(h)}
+            <>
+              {visibleHeroes.length === 0 && (
+                <Text textAlign="center" opacity={0.6} fontSize="0.85rem" py="1rem">
+                  No fighters match — clear the search or filter.
+                </Text>
+              )}
+              {/* The grid survives an empty filter result so the Random tile is
+                  still on screen (disabled) rather than blinking out of the
+                  layout — it is a roster control, not a fighter. */}
+              <Grid
+                templateColumns="repeat(auto-fill, minmax(5.25rem, 1fr))"
+                gap="0.5rem"
+                onMouseLeave={() => setHoverHero(undefined)}
+              >
+                {/* Random leads the grid, mirroring the stage strip (#685). */}
+                <RandomRosterTile
+                  selected={effective === RANDOM_HERO_ID}
+                  disabled={visibleHeroes.length === 0}
+                  poolSize={visibleHeroes.length}
+                  onSelect={() => onSelectHero(RANDOM_HERO_ID)}
+                  onHover={() => setHoverHero(undefined)}
                 />
-              ))}
-            </Grid>
+                {visibleHeroes.map((h) => (
+                  <RosterTile
+                    key={h.heroId}
+                    hero={h}
+                    selected={effective === h.heroId}
+                    onSelect={() => onSelectHero(h.heroId)}
+                    onHover={() => setHoverHero(h)}
+                  />
+                ))}
+              </Grid>
+            </>
           )}
 
           <Text fontSize="0.72rem" color="whiteAlpha.500" fontFamily="SpaceGrotesk">
@@ -3079,7 +3194,14 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // conceding costs (#636).
   const { status: accountStatus } = useAccount();
   const [joined, setJoined] = useState(false);
+  // `selectedHeroId` holds a real hero id — or RANDOM_HERO_ID (#697), which is
+  // resolved to one at the create/join click and written back here, so every
+  // downstream reader (lobby label, bot tiers, "play a bot instead") only ever
+  // sees a concrete fighter.
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
+  // Whether that fighter came out of the Random tile, so the waiting screen can
+  // say so (🎲) instead of pretending it was hand-picked.
+  const [rolledHero, setRolledHero] = useState(false);
   // Duel opponent seat. `chooseOpponent` is the player clicking a chip and locks
   // the seat against the post-hydration `?vs=` preset (#460/#593); `reviseOpponent`
   // is for machine-driven narrowing that isn't a choice. See lib/pro/opponentSeat.ts.
@@ -3674,6 +3796,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     if (error?.code === "UNKNOWN_HERO") {
       setJoined(false);
       setSelectedHeroId(null);
+      setRolledHero(false);
     }
     if (error?.code === "BAD_MAP") {
       setJoined(false);
@@ -3806,7 +3929,10 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
             });
           }}
           onSelectOpponent={chooseOpponent}
-          onSelectHero={setSelectedHeroId}
+          onSelectHero={(id) => {
+            setSelectedHeroId(id);
+            setRolledHero(false); // a fresh pick isn't a roll until one happens
+          }}
           aiHeroId={aiHeroId}
           onSelectAiHero={setAiHeroId}
           botSlotPlan={botSlotPlan}
@@ -3839,18 +3965,24 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
           onQuickMatch={
             room
               ? undefined
-              : () => {
-                  if (!effectiveHeroId) return;
-                  setSelectedHeroId(effectiveHeroId);
+              : (heroId) => {
+                  setSelectedHeroId(heroId);
+                  setRolledHero(heroId !== effectiveHeroId);
                   setSelectedFormat("duel"); // v1 matches duels only
-                  setQuickSearch(startQuickMatch(effectiveHeroId, lobbies));
+                  setQuickSearch(startQuickMatch(heroId, lobbies));
                 }
           }
-          onConfirm={() => {
-            if (!effectiveHeroId) return;
+          onConfirm={(heroId) => {
+            // `heroId` is always CONCRETE: the lobby has already resolved a
+            // Random pick (#697) against its filtered roster, so the sentinel
+            // never reaches CREATE_ROOM/JOIN_ROOM. It differing from what was
+            // selected is exactly the signal that a roll happened, which the
+            // waiting screen uses to mark the fighter with a 🎲.
+            const wasRolled = heroId !== effectiveHeroId;
             if (room) {
-              joinRoom(room, effectiveHeroId);
-              setSelectedHeroId(effectiveHeroId);
+              joinRoom(room, heroId);
+              setSelectedHeroId(heroId);
+              setRolledHero(wasRolled);
               setJoined(true);
               return;
             }
@@ -3903,8 +4035,9 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
             // Clamp to the engine's 10–300 bound at the wire (a mid-edit custom
             // value could sit outside it); 0 = off stays off.
             const timerSeconds = turnTimerSeconds > 0 ? clampTurnTimer(turnTimerSeconds) : 0;
-            createRoom(effectiveHeroId, bot, customMap, selectedFormat, botSeats, timerSeconds, mulligan);
-            setSelectedHeroId(effectiveHeroId); // lock it for the lobby label
+            createRoom(heroId, bot, customMap, selectedFormat, botSeats, timerSeconds, mulligan);
+            setSelectedHeroId(heroId); // lock it for the lobby label
+            setRolledHero(wasRolled);
             setJoined(true);
           }}
         />
@@ -4043,6 +4176,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
           {heroNameOf(heroes, selectedHeroId) && (
             <Text fontFamily="BebasNeueRegular" fontSize="1.3rem" letterSpacing="0.05em" color="brand.accent">
               You are {heroNameOf(heroes, selectedHeroId)}
+              {rolledHero ? " 🎲" : ""}
             </Text>
           )}
           {/* Quick Match (#687), settled state: no lobby was open (or all of them
