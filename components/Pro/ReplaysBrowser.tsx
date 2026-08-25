@@ -54,9 +54,11 @@ import {
   deleteCloudReplay,
   fetchSharedReplay,
   listCloudReplays,
+  shareReplayPath,
   shareReplayUrl,
-  uploadReplay,
 } from "@/lib/pro/replayCloud";
+import { classifyReplayId } from "@/lib/pro/replayIds";
+import { copyLink, shareReplayLink } from "@/lib/pro/replayShareLink";
 import { ReplayScrubber } from "@/components/Pro/ReplayScrubber";
 import { replayCosmetics } from "@/lib/pro/seatCosmetics";
 
@@ -75,18 +77,45 @@ const fmtIsoDate = (iso: string) => {
   return Number.isNaN(ms) ? "—" : fmtDate(ms);
 };
 
+// ---------------------------------------------------------------------------
+
 /**
- * Best-effort clipboard write. A blocked, absent, or permission-denied
- * clipboard must not throw or reject into the console — the toast shows the URL
- * either way, so it can always be copied by hand.
+ * What a recipient sees when they open someone else's `?open=<id>` link (#698).
+ *
+ * That link is a localStorage deep-link, not a share link: the bundle only
+ * exists in the browser that played or imported the match. Before this the miss
+ * was a silent no-op and the visitor got a blank page, so say plainly what went
+ * wrong and what to ask the sender for.
  */
-const copyLink = (url: string) => {
-  try {
-    void navigator.clipboard?.writeText(url)?.catch(() => {});
-  } catch {
-    /* ignore */
-  }
-};
+const MissingLocalReplay = ({ id, onDismiss }: { id: string; onDismiss: () => void }) => (
+  <Box
+    role="status"
+    bg="rgba(60,16,20,0.55)"
+    border="1px solid"
+    borderColor="#E06A5E"
+    borderRadius="0.6rem"
+    p="1rem"
+  >
+    <Flex justify="space-between" align="flex-start" gap="0.75rem" flexWrap="wrap">
+      <Box flex="1" minW="14rem">
+        <Text fontFamily="BebasNeueRegular" fontSize="1.1rem" letterSpacing="0.04em">
+          That replay isn&apos;t saved in this browser
+        </Text>
+        <Text fontSize="0.85rem" opacity={0.9} mt="0.3rem">
+          Replays are stored on the device that played the match, so a{" "}
+          <Text as="span" fontFamily="monospace">?open={id}</Text> link only opens for the player
+          whose browser holds it — it can&apos;t be shared.
+        </Text>
+        <Text fontSize="0.85rem" opacity={0.9} mt="0.3rem">
+          Ask whoever sent it for a <b>share link</b> (a <Text as="span" fontFamily="monospace">/share/replay/…</Text>{" "}
+          URL, which works for anyone) or for the exported <b>.json</b> file — you can drop that
+          into the import box below.
+        </Text>
+      </Box>
+      <Button {...BTN} onClick={onDismiss} flexShrink={0}>Dismiss</Button>
+    </Flex>
+  </Box>
+);
 
 // ---------------------------------------------------------------------------
 
@@ -172,12 +201,14 @@ const ReplayRow = ({
     </Tag>
 
     <Flex gap="0.25rem" flexShrink={0}>
-      <Button {...BTN_GOLD} onClick={onOpen} isLoading={busy} leftIcon={<TbPlayerPlay />}>Open</Button>
+      <Tooltip label="Watch it here — this copy lives in this browser only" hasArrow>
+        <Button {...BTN_GOLD} onClick={onOpen} isLoading={busy} leftIcon={<TbPlayerPlay />}>Open</Button>
+      </Tooltip>
       <Tooltip label="Download .json" hasArrow><Button {...BTN} onClick={onExport} px="0.5rem"><TbDownload /></Button></Tooltip>
       <Tooltip label="Copy compact code / share" hasArrow><Button {...BTN} onClick={onShare} px="0.5rem"><TbShare2 /></Button></Tooltip>
       {canUpload && (
-        <Tooltip label="Upload & copy link — anyone with it can watch" hasArrow>
-          <Button {...BTN} onClick={onUpload} isLoading={uploading} px="0.5rem" aria-label={`Upload & copy link for ${heroName(entry.heroes[0])} vs ${heroName(entry.heroes[1])}`}>
+        <Tooltip label="Copy share link — uploads a copy first, then anyone with the link can watch" hasArrow>
+          <Button {...BTN} onClick={onUpload} isLoading={uploading} px="0.5rem" aria-label={`Copy share link for ${heroName(entry.heroes[0])} vs ${heroName(entry.heroes[1])}`}>
             <TbCloudUpload />
           </Button>
         </Tooltip>
@@ -336,20 +367,45 @@ export const ReplaysBrowser = () => {
   );
 
   // Deep-link: /pro/replays?open=<id> auto-opens that saved replay once (issue
-  // #240 — the "View replay" link on the win/defeat screen lands here). Runs
-  // after the router is ready; if the id isn't found (e.g. opened on another
-  // device, or evicted) we fall through to the list without complaint.
+  // #240 — the "View your replay" link on the win/defeat screen lands here).
+  //
+  // The id namespaces are disjoint (lib/pro/replayIds.ts), so a uuid here is a
+  // CLOUD share id someone pasted into the wrong URL: hand it to the public
+  // landing that can actually fetch it rather than missing in localStorage. A
+  // genuine local miss says so out loud (#698) instead of leaving the visitor
+  // on an empty list, and a hit strips the param so copying the address bar
+  // can't propagate a browser-only link.
   const router = useRouter();
   const autoOpenedRef = useRef(false);
+  const [openMissId, setOpenMissId] = useState<string | null>(null);
+
+  const dropOpenParam = useCallback(() => {
+    const { open: _open, ...rest } = router.query;
+    void router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true });
+  }, [router]);
+
   useEffect(() => {
     if (!router.isReady || autoOpenedRef.current) return;
     const raw = router.query.open;
     const id = Array.isArray(raw) ? raw[0] : raw;
     if (!id) return;
     autoOpenedRef.current = true;
+
+    if (classifyReplayId(id) === "cloud") {
+      void router.replace(shareReplayPath(id));
+      return;
+    }
+
     const bundle = loadReplay(id);
-    if (bundle) void openBundle(bundle, { id });
-  }, [router.isReady, router.query.open, openBundle]);
+    if (!bundle) {
+      setOpenMissId(id);
+      return;
+    }
+    void openBundle(bundle, { id }).then((opened) => {
+      if (opened) dropOpenParam();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady, router.query.open, openBundle, dropOpenParam]);
 
   const doImport = useCallback(
     async (text: string) => {
@@ -408,19 +464,13 @@ export const ReplaysBrowser = () => {
         return;
       }
       setUploadingId(entry.id);
-      const res = await uploadReplay({ bundle, title: replayLabel(bundle) });
+      const res = await shareReplayLink(bundle, replayLabel(bundle));
       setUploadingId(null);
       if (!res.ok) {
-        toast({
-          title: res.reason === "cap_reached" ? "Cloud replays are full" : "Couldn't upload that replay",
-          description: res.message,
-          status: res.reason === "cap_reached" || res.reason === "too_large" ? "warning" : "error",
-          duration: 7000,
-        });
+        toast({ title: res.title, description: res.description, status: res.status, duration: 7000 });
         return;
       }
-      copyLink(res.url);
-      toast({ title: "Share link copied", description: res.url, status: "success", duration: 7000 });
+      toast({ title: res.title, description: res.description, status: "success", duration: 7000 });
       void refreshCloud();
     },
     [toast, refreshCloud],
@@ -508,6 +558,9 @@ export const ReplaysBrowser = () => {
         </Flex>
 
         <StorageBar meter={meter} />
+
+        {/* a shared ?open= link that this browser can't resolve (#698) */}
+        {openMissId && <MissingLocalReplay id={openMissId} onDismiss={() => setOpenMissId(null)} />}
 
         {/* import */}
         <Box bg="rgba(20,8,24,0.5)" border="1px solid" borderColor="whiteAlpha.200" borderRadius="0.6rem" p="1rem">
