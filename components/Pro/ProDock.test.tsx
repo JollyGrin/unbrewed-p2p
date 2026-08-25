@@ -293,3 +293,38 @@ describe("ProDock stepping controls", () => {
     expect(onEnd).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * The win screen hands out two different links (#698). The replay href reads
+ * localStorage, so it is labelled as this browser's copy; the shareable one is
+ * a separate action that uploads first, and only appears when a caller wires it
+ * (signed in, bundle held).
+ */
+describe("ProDock endgame links", () => {
+  const won = view({ winner: "p1" });
+
+  it("labels the local deep-link as the player's own copy", () => {
+    render(<ProDock {...props({ view: won, replayHref: "/pro/replays?open=r80279f0e" })} />);
+
+    const link = screen.getByRole("link", { name: /view your replay/i });
+    expect(link).toHaveAttribute("href", "/pro/replays?open=r80279f0e");
+    expect(screen.queryByRole("button", { name: /copy share link/i })).toBeNull();
+  });
+
+  it("offers Copy share link beside it when a handler is wired", () => {
+    const copied: number[] = [];
+    render(
+      <ProDock
+        {...props({
+          view: won,
+          replayHref: "/pro/replays?open=r80279f0e",
+          onCopyShareLink: () => copied.push(1),
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /copy share link/i }));
+    expect(copied).toEqual([1]);
+    expect(screen.getByRole("link", { name: /view your replay/i })).toBeInTheDocument();
+  });
+});

@@ -22,8 +22,25 @@ import { CLOUD_REPLAY_CAP } from "@/lib/pro/replayCloud";
 import { saveReplay } from "@/lib/pro/replayStore";
 import { __resetAccountStoreForTests } from "@/lib/account/useAccount";
 
+/**
+ * A router whose `query` each test can set before rendering, so the `?open=`
+ * deep-link paths (#698) are exercised through the real effect. `replace` is a
+ * spy: the fix both redirects a uuid to /share/replay and strips a resolved
+ * `open` param, and both are `router.replace` calls.
+ */
+let routerQuery: Record<string, string> = {};
+let replaced: unknown[] = [];
+
 jest.mock("next/router", () => ({
-  useRouter: () => ({ isReady: true, query: {} }),
+  useRouter: () => ({
+    isReady: true,
+    pathname: "/pro/replays",
+    query: routerQuery,
+    replace: (...args: unknown[]) => {
+      replaced.push(args[0]);
+      return Promise.resolve(true);
+    },
+  }),
 }));
 
 jest.mock("../../components/Pro/ReplayScrubber", () => ({
@@ -105,10 +122,12 @@ const renderBrowser = () =>
  * either way, and `ByLabelText` is a couple of orders of magnitude cheaper
  * than computing accessible names for every button on the page.
  */
-const uploadButton = () => screen.getByLabelText(/upload & copy link/i);
-const noUploadButton = () => screen.queryByLabelText(/upload & copy link/i);
+const uploadButton = () => screen.getByLabelText(/copy share link for King Kong vs Thrall/i);
+const noUploadButton = () => screen.queryByLabelText(/copy share link for King Kong vs Thrall/i);
 
 beforeEach(() => {
+  routerQuery = {};
+  replaced = [];
   window.localStorage.clear();
   __resetAccountStoreForTests();
   routes = { me: reply(200, { user: USER }) };
@@ -223,5 +242,83 @@ describe("ReplaysBrowser cloud upload", () => {
     expect(screen.getByText(/The Mended Drum/)).toBeInTheDocument();
     expect(global.fetch).toHaveBeenCalledWith(`${API_URL}/replays`, expect.anything());
     expect(noUploadButton()).toBeNull();
+  });
+});
+
+/**
+ * `?open=<id>` is a localStorage deep-link, not a share link (#698). A player
+ * copied one out of the address bar, sent it, and the recipient got a blank
+ * page: the miss was a silent no-op. These pin the three outcomes.
+ */
+describe("ReplaysBrowser ?open= deep-links", () => {
+  /** The id `saveReplay(bundle)` filed the fixture under. */
+  const savedId = () => JSON.parse(window.localStorage.getItem("unbrewed:pro:replays:index")!)[0].id;
+
+  it("explains the miss when the id isn't saved in this browser", async () => {
+    routerQuery = { open: "r80279f0e" };
+
+    renderBrowser();
+    await settle();
+
+    expect(screen.getByRole("status")).toHaveTextContent(/isn't saved in this browser/i);
+    expect(screen.getByRole("status")).toHaveTextContent(/share link/i);
+    expect(screen.getByRole("status")).toHaveTextContent(/\.json/i);
+    // Not a redirect, and the page still works underneath the notice.
+    expect(replaced).toEqual([]);
+    expect(screen.getByText(/The Mended Drum/)).toBeInTheDocument();
+  });
+
+  it("explains the miss for an id that is neither shape", async () => {
+    routerQuery = { open: "totally-bogus" };
+
+    renderBrowser();
+    await settle();
+
+    expect(screen.getByRole("status")).toHaveTextContent(/isn't saved in this browser/i);
+    expect(replaced).toEqual([]);
+  });
+
+  it("routes a uuid to the public share landing instead of missing locally", async () => {
+    routerQuery = { open: "3f2504e0-4f89-11d3-9a0c-0305e82c3301" };
+
+    renderBrowser();
+    await settle();
+
+    expect(replaced).toEqual(["/share/replay/3f2504e0-4f89-11d3-9a0c-0305e82c3301"]);
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("opens a saved replay and strips the local-only param from the URL", async () => {
+    const id = savedId();
+    routerQuery = { open: id };
+    // The scrubber renders off the engine's expansion; /replay is the gate.
+    const inner = global.fetch as unknown as jest.Mock;
+    global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
+      if (String(url).endsWith("/replay")) return reply(200, { ok: true, steps: [], catalog: {} });
+      return inner(url, init);
+    }) as unknown as typeof fetch;
+
+    renderBrowser();
+    await settle();
+
+    expect(screen.getByText("scrubber")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(replaced).toEqual([{ pathname: "/pro/replays", query: {} }]);
+  });
+
+  it("keeps the param when the replay fails to open, so nothing lies about success", async () => {
+    const id = savedId();
+    routerQuery = { open: id };
+    const inner = global.fetch as unknown as jest.Mock;
+    global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
+      if (String(url).endsWith("/replay")) return reply(500, { error: "boom" });
+      return inner(url, init);
+    }) as unknown as typeof fetch;
+
+    renderBrowser();
+    await settle();
+
+    expect(screen.queryByText("scrubber")).toBeNull();
+    expect(replaced).toEqual([]);
   });
 });
