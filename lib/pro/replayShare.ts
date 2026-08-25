@@ -7,6 +7,7 @@
  * falls back to "too long — use the file".
  */
 import type { ReplayBundle } from "./protocol";
+import { stripFrames } from "./replayFrames";
 import { replayHeroList } from "./replayHeroes";
 
 // Discord's message body cap is 2000 chars; stay under it with headroom for the
@@ -43,9 +44,10 @@ export function assertBundle(parsed: unknown): ReplayBundle {
   return parsed as ReplayBundle;
 }
 
-/** Minified single-line JSON — the "compact code" for a quick paste-share. */
+/** Minified single-line JSON — the "compact code" for a quick paste-share.
+ * Frames (#701) are stripped for the same reason the .json export drops them. */
 export function compactCode(bundle: ReplayBundle): string {
-  return JSON.stringify(bundle);
+  return JSON.stringify(stripFrames(bundle));
 }
 
 export interface CompactCodeResult {
@@ -85,10 +87,16 @@ export function bundleFilename(bundle: ReplayBundle): string {
   return `unbrewed-replay-${heroes.join("-vs-")}-${day}.json`;
 }
 
-/** Trigger a browser download of the bundle as pretty-printed JSON. */
+/**
+ * Trigger a browser download of the bundle as pretty-printed JSON.
+ *
+ * Frozen frames (#701) are stripped: an exported file is re-imported through the
+ * engine's /replay like any other, so the frames would be a few hundred KB of
+ * dead weight in something a player pastes into Discord.
+ */
 export function downloadBundle(bundle: ReplayBundle): void {
   if (typeof window === "undefined") return;
-  const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify(stripFrames(bundle), null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

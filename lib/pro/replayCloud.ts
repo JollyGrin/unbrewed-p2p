@@ -6,6 +6,8 @@
  *
  * Contract (cookie auth, `credentials: "include"`):
  *   POST   /replays        {title?, bundle} → 201 {id} | 409 {error:"cap_reached",cap} | 413
+ *     ("bundle" is stored opaquely, so since #701 it also carries the expanded
+ *      `frames` — no api-side schema change, see lib/pro/replayFrames.ts)
  *   GET    /replays        → {replays:[{id,title,bytes,createdAt}]}
  *   DELETE /replays/:id    → 204
  *   GET    /share/replays/:id  → {id,title,bundle,createdAt}   (PUBLIC, no auth)
@@ -16,10 +18,17 @@
  */
 import { API_URL } from "@/lib/account/apiUrl";
 import type { ReplayBundle } from "./protocol";
+import type { BundleWithFrames, ReplayFrames } from "./replayFrames";
 
 /** Server-side per-user cap; mirrored here only to render "N/50" and messages. */
 export const CLOUD_REPLAY_CAP = 50;
-/** Server-side per-bundle byte cap (2 MB); checked locally to skip a doomed POST. */
+/**
+ * Server-side per-bundle byte cap (2 MB — `MAX_BUNDLE_BYTES` in unbrewed-api's
+ * http/replays.ts); checked locally to skip a doomed POST. Embedded `frames`
+ * count toward it: a measured 27-turn / 187-action game is 26 KB of bundle plus
+ * 437 KB of frames, so the cap allows roughly four such games' worth of frames
+ * before the fallback in `uploadReplay` drops them (#701).
+ */
 export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 
 export interface CloudReplaySummary {
@@ -32,7 +41,13 @@ export interface CloudReplaySummary {
 export interface SharedReplay {
   id: string;
   title: string | null;
-  bundle: ReplayBundle;
+  /**
+   * As stored — which for an upload since #701 also carries `frames`, the
+   * God-view steps frozen in at upload time. The api treats the bundle as an
+   * opaque blob, so the extra key needs no schema change on its side; the reader
+   * validates it with `readFrames`.
+   */
+  bundle: BundleWithFrames;
   createdAt: string;
 }
 
@@ -117,15 +132,37 @@ export const shareReplayUrl = (id: string, origin?: string): string => {
 /**
  * Upload a bundle. `title` is optional; the caller passes the local replay's
  * label. Returns the new id plus its share URL.
+ *
+ * `frames` (#701) is the expansion frozen in at upload time so the share link
+ * renders forever, engine version rot or not. It rides INSIDE the bundle, which
+ * the api stores as an opaque blob — no api change, and an api that never heard
+ * of frames hands them straight back. Frames are a durability bonus, never a
+ * reason a share fails: if the payload wouldn't fit under the size cap they are
+ * dropped and the bundle uploads on its own, exactly as before.
  */
 export async function uploadReplay(input: {
   bundle: ReplayBundle;
   title?: string | null;
+  frames?: ReplayFrames | null;
   origin?: string;
-}): Promise<CloudResult<{ id: string; url: string }>> {
-  const serialized = JSON.stringify(input.bundle);
+}): Promise<CloudResult<{ id: string; url: string; framesIncluded: boolean; bytes: number }>> {
+  const withFrames: BundleWithFrames | null = input.frames
+    ? { ...input.bundle, frames: input.frames }
+    : null;
+
   // The server answers 413 anyway; refusing here saves pushing 2 MB uphill.
-  if (byteLength(serialized) > MAX_UPLOAD_BYTES) return fail("too_large");
+  let bundle: BundleWithFrames = input.bundle;
+  let bytes = byteLength(JSON.stringify(bundle));
+  let framesIncluded = false;
+  if (withFrames) {
+    const framedBytes = byteLength(JSON.stringify(withFrames));
+    if (framedBytes <= MAX_UPLOAD_BYTES) {
+      bundle = withFrames;
+      bytes = framedBytes;
+      framesIncluded = true;
+    }
+  }
+  if (bytes > MAX_UPLOAD_BYTES) return fail("too_large");
 
   let res: Response;
   try {
@@ -133,7 +170,7 @@ export async function uploadReplay(input: {
       method: "POST",
       credentials: "include",
       headers: { "content-type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ title: input.title ?? null, bundle: input.bundle }),
+      body: JSON.stringify({ title: input.title ?? null, bundle }),
     });
   } catch {
     return fail("offline");
@@ -142,7 +179,7 @@ export async function uploadReplay(input: {
   if (!res.ok) return failureFor(res.status, body);
   const id = (body as { id?: unknown } | null)?.id;
   if (typeof id !== "string" || !id) return fail("invalid");
-  return { ok: true, id, url: shareReplayUrl(id, input.origin) };
+  return { ok: true, id, url: shareReplayUrl(id, input.origin), framesIncluded, bytes };
 }
 
 /** The signed-in user's cloud replays, newest first. Never carries bundles. */
@@ -184,8 +221,9 @@ export async function deleteCloudReplay(id: string): Promise<{ ok: true } | Clou
 /**
  * Read a shared replay by id. PUBLIC — no cookie is sent, so this works for a
  * signed-out recipient on a clean browser profile. The bundle is returned
- * unvalidated: the caller runs it through the engine's /replay (the same gate
- * every imported bundle passes) before rendering anything.
+ * unvalidated: the caller either plays the `frames` frozen in at upload time
+ * (#701) or runs the bundle through the engine's /replay — the same gate every
+ * imported bundle passes — before rendering anything.
  */
 export async function fetchSharedReplay(id: string): Promise<CloudResult<{ replay: SharedReplay }>> {
   let res: Response;

@@ -58,6 +58,7 @@ import {
   shareReplayUrl,
 } from "@/lib/pro/replayCloud";
 import { classifyReplayId } from "@/lib/pro/replayIds";
+import { expansionFromFrames, readFrames, type BundleWithFrames } from "@/lib/pro/replayFrames";
 import { copyLink, shareReplayLink } from "@/lib/pro/replayShareLink";
 import { ReplayScrubber } from "@/components/Pro/ReplayScrubber";
 import { replayCosmetics } from "@/lib/pro/seatCosmetics";
@@ -330,15 +331,35 @@ export const ReplaysBrowser = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** Validate a bundle via the server /replay, and (optionally) save it. */
+  /**
+   * Validate a bundle via the server /replay, and (optionally) save it.
+   *
+   * A bundle that arrived from the cloud may carry the frames frozen in at
+   * upload time (#701); those are played as-is, the same shortcut the public
+   * share landing takes, so an uploaded replay keeps opening after an engine
+   * release the raw bundle can no longer be verified against. `saveReplay`
+   * strips them on the way into localStorage.
+   */
   const openBundle = useCallback(
-    async (bundle: ReplayBundle, opts: { save?: boolean; id?: string } = {}) => {
-      setBusyId(opts.id ?? "sample");
-      const res = await fetchReplayExpansion(bundle);
-      setBusyId(null);
-      if (!res.ok) {
-        toast({ title: "Couldn't load replay", description: res.message, status: "error", duration: 6000 });
-        return false;
+    async (bundle: BundleWithFrames, opts: { save?: boolean; id?: string } = {}) => {
+      const frames = readFrames(bundle);
+      let expanded: ReplayExpansion;
+      if (frames) {
+        expanded = expansionFromFrames(frames);
+      } else {
+        setBusyId(opts.id ?? "sample");
+        const res = await fetchReplayExpansion(bundle);
+        setBusyId(null);
+        if (!res.ok) {
+          toast({
+            title: res.code === "VERSION_MISMATCH" ? "That replay is too old to replay" : "Couldn't load replay",
+            description: res.message,
+            status: "error",
+            duration: 6000,
+          });
+          return false;
+        }
+        expanded = res.expansion;
       }
       if (opts.save) {
         const saved = saveReplay(bundle);
@@ -346,7 +367,7 @@ export const ReplaysBrowser = () => {
         refresh();
       }
       setReplayCosmeticBlobs(replayCosmetics(bundle));
-      setExpansion(res.expansion);
+      setExpansion(expanded);
       return true;
     },
     [toast, refresh],

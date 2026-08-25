@@ -36,6 +36,12 @@ import {
 import { boardObjectOriginFighter } from "@/lib/pro/boardObjects";
 import { opponentSeats, toPlayerView, turnMarkers } from "@/lib/pro/godView";
 import { replayHeroFor, replayHeroList, replaySeatIds } from "@/lib/pro/replayHeroes";
+import {
+  actionsForSteps,
+  replayVerificationNotice,
+  type ReplayVerificationNotice,
+} from "@/lib/pro/replayVerification";
+import { ReplayDivergenceBanner, ReplayVerifiedBadge } from "@/components/Pro/ReplayVerificationNotice";
 
 const TABLE_BG = "radial-gradient(ellipse at 50% 20%, #5A3263 0%, #48284F 50%, #2C1831 100%)";
 
@@ -142,12 +148,7 @@ const actionLabel = (action: ReplayAction, beforeStep?: ReplayFrameForLog): stri
 /** Milliseconds between frames while playing. */
 const PLAY_INTERVAL_MS = 700;
 
-export const ReplayScrubber = ({
-  expansion,
-  cosmetics: cosmeticBlobs,
-  onExit,
-  exitLabel = "← back to replays",
-}: {
+interface ScrubberProps {
   expansion: ReplayExpansion;
   /**
    * Per-seat cosmetics blobs frozen into the bundle (engine #392, issue #615),
@@ -160,9 +161,64 @@ export const ReplayScrubber = ({
   cosmetics?: Record<string, string>;
   onExit?: () => void;
   exitLabel?: string;
-}) => {
+}
+
+/**
+ * A verified expansion with nothing in it — the engine diverged before the end
+ * of the first turn (#701), so there is no faithful frame to show. Guarded out
+ * here in a hook-free wrapper rather than inside the scrubber, which indexes
+ * `steps[0]` on its first line.
+ */
+const NothingToScrub = ({
+  notice,
+  onExit,
+  exitLabel,
+}: {
+  notice: ReplayVerificationNotice;
+  onExit?: () => void;
+  exitLabel: string;
+}) => (
+  <Flex h="100svh" bg={TABLE_BG} color="brand.parchment" direction="column" align="center" justify="center" gap="1rem" px="1rem">
+    <ReplayDivergenceBanner notice={notice} />
+    {!notice.banner && <Text opacity={0.8}>This replay has no frames to show.</Text>}
+    {onExit && <Button {...BTN} onClick={onExit}>{exitLabel}</Button>}
+  </Flex>
+);
+
+export const ReplayScrubber = (props: ScrubberProps) => {
+  const notice = replayVerificationNotice(props.expansion);
+  // No hooks above this line, so the branch can't reorder any.
+  if (props.expansion.steps.length === 0) {
+    return (
+      <NothingToScrub
+        notice={notice}
+        onExit={props.onExit}
+        exitLabel={props.exitLabel ?? "← back to replays"}
+      />
+    );
+  }
+  return <ScrubberBody {...props} notice={notice} />;
+};
+
+const ScrubberBody = ({
+  expansion,
+  cosmetics: cosmeticBlobs,
+  onExit,
+  exitLabel = "← back to replays",
+  notice,
+}: ScrubberProps & { notice: ReplayVerificationNotice }) => {
   const { steps, catalog, map, meta } = expansion;
-  const actionLog = (expansion as ReplayExpansion & { actionLog?: ReplayAction[] }).actionLog ?? [];
+  // The log is clamped to the frames that exist: a diverged expansion still
+  // carries the whole action log, and listing actions past the last verified
+  // step would offer a row that can never be scrubbed to.
+  const actionLog = useMemo(
+    () =>
+      actionsForSteps(
+        (expansion as ReplayExpansion & { actionLog?: ReplayAction[] }).actionLog ?? [],
+        steps.length,
+      ),
+    [expansion, steps.length],
+  );
   const lastIndex = steps.length - 1;
   // Runtime-ordered seats from the bundle — 2 for a duel, 3+ for ffa/team.
   const seatList = useMemo(() => replaySeatIds(meta.heroes), [meta.heroes]);
@@ -258,12 +314,21 @@ export const ReplayScrubber = ({
         <Tag bg="rgba(20,8,24,0.65)" color="brand.parchment" fontSize="0.75rem">
           {heroList.map(heroName).join(" vs ")} · {meta.mapTitle}
         </Tag>
+        <ReplayVerifiedBadge notice={notice} />
         {onExit && (
           <Button {...BTN} onClick={onExit}>
             {exitLabel}
           </Button>
         )}
       </Flex>
+
+      {/* Why the timeline ends where it does (#701). Parked on the left so
+          it mirrors the right-hand step dock rather than covering the hand fans. */}
+      {notice.banner && (
+        <Box position="fixed" top="7.5rem" left="0.75rem" w="18.5rem" maxW="calc(100vw - 1.5rem)" zIndex={169}>
+          <ReplayDivergenceBanner notice={notice} compact />
+        </Box>
+      )}
 
       {/* every non-focus seat's hand, face-up at the top (God-view only). A duel
           shows one fan; ffa-3/team-2v2 fan each opponent side by side. */}

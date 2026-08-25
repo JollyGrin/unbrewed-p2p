@@ -6,7 +6,7 @@
  * incompatible one, and we surface that message instead of saving garbage.
  */
 import { PRO_WS_URL } from "./wsUrl";
-import type { ReplayBundle, ReplayExpansion, ReplayResponse } from "./protocol";
+import type { ReplayBundle, ReplayErrorCode, ReplayExpansion, ReplayResponse } from "./protocol";
 
 /** ws(s):// → http(s):// on the same host, so /replay hits the same server. */
 export function replayHttpBase(wsUrl: string = PRO_WS_URL): string {
@@ -15,7 +15,11 @@ export function replayHttpBase(wsUrl: string = PRO_WS_URL): string {
 
 export type ReplayFetchResult =
   | { ok: true; expansion: ReplayExpansion }
-  | { ok: false; message: string };
+  // `code` is the server's typed reason when it answered at all (absent for a
+  // network/parse failure). VERSION_MISMATCH is the one hard refusal left after
+  // engine #509 — a digest-less bundle recorded on an older engine — and callers
+  // title their toast differently for it.
+  | { ok: false; message: string; code?: ReplayErrorCode };
 
 /**
  * POST a bundle to `/replay`. Returns the expansion on success, or a
@@ -45,5 +49,9 @@ export async function fetchReplayExpansion(
     return { ok: false, message: `Replay server returned a non-JSON response (HTTP ${res.status}).` };
   }
   if (body && body.ok) return { ok: true, expansion: body };
-  return { ok: false, message: body?.message ?? `Replay rejected (HTTP ${res.status}).` };
+  return {
+    ok: false,
+    message: body?.message ?? `Replay rejected (HTTP ${res.status}).`,
+    code: body?.code,
+  };
 }

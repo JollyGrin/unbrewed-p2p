@@ -5,14 +5,19 @@
  *  - a tampered or rejected bundle lands on an error card, never a crash or a
  *    half-rendered board;
  *  - the page works with the `replays` beta flag OFF, because a link is usually
- *    the recipient's first contact with replays.
+ *    the recipient's first contact with replays;
+ *  - and since #701, that a stored `frames` blob is played WITHOUT asking the
+ *    engine (the whole point: a public link that survives engine releases),
+ *    while a frames-less bundle still takes the engine path and reports what
+ *    came back — verified, truncated, or refused outright.
  */
 import "@testing-library/jest-dom";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { ReplayShareLanding, sharedReplayIdFromPath } from "./ReplayShareLanding";
-import type { ReplayBundle } from "@/lib/pro/protocol";
-import { listReplays } from "@/lib/pro/replayStore";
+import type { ReplayBundle, ReplayExpansion, ReplayStep } from "@/lib/pro/protocol";
+import { listReplays, loadReplay } from "@/lib/pro/replayStore";
+import { framesFromExpansion } from "@/lib/pro/replayFrames";
 
 // The scrubber itself is covered by #122's tests; stub it so these cases stay
 // about loading and validation. (Relative specifier — the repo's jest setup
@@ -35,7 +40,22 @@ const bundle: ReplayBundle = {
   meta: { winner: "p2", heroes: { p1: "king-kong", p2: "thrall" }, turns: 5, endedAt: 1_720_000_000_000, mapTitle: "The Mended Drum" },
 };
 
-const EXPANSION = { ok: true, steps: [], catalog: {}, actionLog: [] };
+const step = (index: number, turnNumber: number) =>
+  ({ index, turnNumber }) as unknown as ReplayStep;
+
+const EXPANSION = { ok: true, steps: [step(0, 1), step(1, 1)], catalog: {}, actionLog: [] };
+
+/** A fully-expanded set of frames, as `shareReplayLink` embeds at upload. */
+const FRAMES = framesFromExpansion(bundle, {
+  ok: true,
+  engine: { schemaVersion: 1, dslVersion: "0.11.0" },
+  meta: bundle.meta,
+  map: bundle.config.map,
+  catalog: {},
+  heroes: bundle.meta.heroes,
+  steps: [step(0, 1), step(1, 1), step(2, 2)],
+  finalHash: "hash",
+} as ReplayExpansion);
 
 const reply = (status: number, body: unknown) =>
   ({ ok: status >= 200 && status < 300, status, json: async () => body }) as Response;
@@ -145,6 +165,128 @@ describe("ReplayShareLanding", () => {
 
     expect(await screen.findByText(/action 3 is illegal/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /watch replay/i })).toBeNull();
+  });
+
+  // --- verification states (#701 ↔ engine #509) ------------------------------
+
+  it("badges a replay the engine verified across versions", async () => {
+    engineReply = reply(200, {
+      ...EXPANSION,
+      verification: "digest-verified",
+      recordedEngine: { schemaVersion: 1, dslVersion: "0.11.0" },
+    });
+    wireFetch();
+
+    renderLanding();
+
+    expect(await screen.findByLabelText(/verified across engine versions/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /watch replay/i })).toBeEnabled();
+  });
+
+  it("explains a truncated replay before you press play, and still lets you", async () => {
+    engineReply = reply(200, {
+      ...EXPANSION,
+      verification: "diverged",
+      divergedAtTurn: 4,
+      recordedEngine: { schemaVersion: 1, dslVersion: "0.11.0" },
+    });
+    wireFetch();
+
+    renderLanding();
+
+    const banner = await screen.findByRole("status");
+    expect(banner).toHaveTextContent(/stops early/i);
+    expect(banner).toHaveTextContent(/from turn 4/);
+    expect(screen.getByText(/5 turns played, 3 playable/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /watch replay/i })).toBeEnabled();
+  });
+
+  it("offers no Watch button when the divergence left no frames", async () => {
+    engineReply = reply(200, { ...EXPANSION, steps: [], verification: "diverged", divergedAtTurn: 1 });
+    wireFetch();
+
+    renderLanding();
+
+    expect(await screen.findByRole("status")).toHaveTextContent(/no turns left/i);
+    expect(screen.getByRole("button", { name: /watch replay/i })).toBeDisabled();
+  });
+
+  it("names the old-bundle refusal for what it is", async () => {
+    engineReply = reply(400, {
+      ok: false,
+      code: "VERSION_MISMATCH",
+      message: "Recorded on an older engine version and can't be faithfully replayed.",
+    });
+    wireFetch();
+
+    renderLanding();
+
+    expect(await screen.findByText(/too old to replay/i)).toBeInTheDocument();
+    expect(screen.getByText(/can't be faithfully replayed/i)).toBeInTheDocument();
+  });
+
+  // --- frames-at-upload (#701) ----------------------------------------------
+
+  describe("stored frames", () => {
+    beforeEach(() => {
+      shareReply = reply(200, {
+        id: "the-id",
+        title: null,
+        bundle: { ...bundle, frames: FRAMES },
+        createdAt: "",
+      });
+      wireFetch();
+    });
+
+    it("plays the frames frozen in at upload without asking the engine", async () => {
+      renderLanding();
+
+      expect(await screen.findByRole("button", { name: /watch replay/i })).toBeInTheDocument();
+      // The whole point: no /replay round-trip, so an engine that has moved on
+      // can no longer break this link.
+      expect(engineCalls).toEqual([]);
+    });
+
+    it("falls back to the engine when the frames are unusable", async () => {
+      shareReply = reply(200, {
+        id: "the-id",
+        title: null,
+        bundle: { ...bundle, frames: { v: 1, steps: [] } },
+        createdAt: "",
+      });
+      wireFetch();
+
+      renderLanding();
+
+      expect(await screen.findByRole("button", { name: /watch replay/i })).toBeInTheDocument();
+      expect(engineCalls).toEqual([{ ...bundle, frames: { v: 1, steps: [] } }]);
+    });
+
+    it("carries the frames' own truncation notice through to the recipient", async () => {
+      shareReply = reply(200, {
+        id: "the-id",
+        title: null,
+        bundle: { ...bundle, frames: { ...FRAMES, verification: "diverged", divergedAtTurn: 4 } },
+        createdAt: "",
+      });
+      wireFetch();
+
+      renderLanding();
+
+      expect(await screen.findByRole("status")).toHaveTextContent(/from turn 4/);
+      expect(engineCalls).toEqual([]);
+    });
+
+    it("keeps the frames out of localStorage when saving to this device", async () => {
+      renderLanding();
+
+      fireEvent.click(await screen.findByRole("button", { name: /save to my device/i }));
+
+      await waitFor(() => expect(listReplays()).toHaveLength(1));
+      const saved = loadReplay(listReplays()[0].id) as ReplayBundle & { frames?: unknown };
+      expect(saved.frames).toBeUndefined();
+      expect(saved.actionLog).toEqual(bundle.actionLog);
+    });
   });
 
   it("keeps spinning while the router has not produced an id yet", () => {

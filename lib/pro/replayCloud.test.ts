@@ -53,6 +53,9 @@ describe("uploadReplay", () => {
       ok: true,
       id: "11111111-2222-3333-4444-555555555555",
       url: "https://unbrewed.xyz/share/replay/11111111-2222-3333-4444-555555555555",
+      // #701: no frames were offered, so none were stored.
+      framesIncluded: false,
+      bytes: expect.any(Number),
     });
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(`${API_URL}/replays`);
