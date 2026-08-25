@@ -37,6 +37,7 @@ import {
   TbArrowBackUp,
   TbFlask,
   TbBug,
+  TbHourglass,
 } from "react-icons/tb";
 import { GiFootprint, GiHearts, GiHighTide, GiLowTide } from "react-icons/gi";
 import { IoMdHand, IoMdVolumeHigh, IoMdVolumeOff } from "react-icons/io";
@@ -55,6 +56,7 @@ import {
   StatsPanel,
 } from "@/components/Game/Header/header.styles";
 import { InGameAccountChip } from "@/components/Account/AccountChip";
+import { SPOTLIGHT_Z } from "./ActionSpotlight";
 import { useAccount } from "@/lib/account/useAccount";
 import { seatNameplate } from "@/lib/pro/playerIdentity";
 import { BadgeGlyph, badgeArtName, isKnownBadge } from "@/components/Badges/BadgeGlyph";
@@ -1167,6 +1169,15 @@ export interface ProHudProps {
    *  published a loadout. Your OWN cosmetics are never affected. */
   opponentCosmeticsHidden?: boolean;
   onToggleOpponentCosmetics?: () => void;
+  /** "Slow mode" (issue #703) — hold each opponent action in a spotlight until
+   *  the player clicks OK. The chip is hidden when the handler is omitted. */
+  slowModeOn?: boolean;
+  onToggleSlowMode?: () => void;
+  /** true while a paced batch is held on screen. The spotlight's click-anywhere
+   *  backdrop covers the whole viewport, which would otherwise bury the very chip
+   *  that turns slow mode off — so the cluster floats above it for that window
+   *  only. Omitted/false leaves ChipCluster's own z-index untouched. */
+  slowModeHolding?: boolean;
   /** opens the ReportBugDialog (issue #125/#138) — chip hidden when omitted */
   onReportBug?: () => void;
 }
@@ -1188,6 +1199,9 @@ export const ProHud = ({
   onToggleVisualFx,
   opponentCosmeticsHidden,
   onToggleOpponentCosmetics,
+  slowModeOn,
+  onToggleSlowMode,
+  slowModeHolding,
   onReportBug,
 }: ProHudProps) => {
   const heroOf = (player: PlayerId) =>
@@ -1328,7 +1342,10 @@ export const ProHud = ({
           />
         ))}
       </HudOverlay>
-      <ChipCluster>
+      {/* Lifted above the action spotlight (#703) ONLY while it is holding, and
+          as an inline style so the styled-component's own z-index wins back the
+          moment it isn't — an ordinary game renders this exactly as before. */}
+      <ChipCluster {...(slowModeHolding ? { style: { zIndex: SPOTLIGHT_Z + 2 } } : {})}>
         {onToggleSound && (
           <Tooltip label={soundOn ? "Mute sound effects" : "Unmute sound effects"} hasArrow>
             <Flex
@@ -1392,6 +1409,60 @@ export const ProHud = ({
               ) : (
                 <TbSparkles size="0.85rem" />
               )}
+            </Flex>
+          </Tooltip>
+        )}
+        {onToggleSlowMode && (
+          // A LABELLED SWITCH, not another icon chip. The icon chips beside it are
+          // momentary-looking by design — they flip an effect you can immediately
+          // see or hear, so a dimmed icon is enough. Slow mode changes how the
+          // whole game is paced and is invisible until the opponent moves, so
+          // "which way is it set?" has to be answerable at a glance, without
+          // hovering. It keeps the cluster's pill shape and typography (same
+          // `chipStyles` as the `room XXXX` chip, which is also text-bearing).
+          <Tooltip
+            label={
+              slowModeOn
+                ? "Slow mode is ON — each opponent action waits for your OK"
+                : "Slow mode is OFF — opponent actions apply as they arrive"
+            }
+            hasArrow
+          >
+            <Flex
+              {...chipStyles}
+              as="button"
+              type="button"
+              role="switch"
+              aria-checked={!!slowModeOn}
+              aria-label={slowModeOn ? "Turn slow mode off" : "Turn slow mode on"}
+              onClick={onToggleSlowMode}
+              cursor="pointer"
+              gap="0.4rem"
+              bg={slowModeOn ? "brand.accent" : "rgba(20, 8, 24, 0.55)"}
+              _hover={{ bg: slowModeOn ? "brand.accentDeep" : "rgba(20, 8, 24, 0.85)" }}
+            >
+              <TbHourglass size="0.8rem" color={slowModeOn ? "#2C1831" : "#F1E0C1"} />
+              <Text
+                fontSize="0.65rem"
+                fontFamily="SpaceGrotesk"
+                whiteSpace="nowrap"
+                color={slowModeOn ? "brand.surfaceDim" : "brand.highlight"}
+                fontWeight={slowModeOn ? 700 : 400}
+              >
+                Slow mode
+              </Text>
+              {/* Purely the picture of the state — the chip itself is the control,
+                  so the Switch must not be a second focusable/clickable thing
+                  inside it (a nested label would double-fire the toggle). */}
+              <Switch
+                size="sm"
+                isChecked={!!slowModeOn}
+                isReadOnly
+                pointerEvents="none"
+                tabIndex={-1}
+                aria-hidden
+                sx={{ ".chakra-switch__track": { bg: slowModeOn ? "brand.surfaceDim" : "whiteAlpha.400" } }}
+              />
             </Flex>
           </Tooltip>
         )}

@@ -38,6 +38,12 @@ import {
   UndoActionSummary,
   ViewPrompt,
 } from "./protocol";
+import {
+  emptySlowModeState,
+  SlowModeEvent,
+  SlowModeState,
+  slowModeStep,
+} from "./slowModeQueue";
 import { useAccount } from "@/lib/account/useAccount";
 import { useBadges } from "@/lib/account/useBadges";
 import { useCosmetics } from "@/lib/account/useCosmetics";
@@ -239,6 +245,21 @@ export interface UseProSocketReturn {
    * apology instead of hanging on "waiting for game state".
    */
   gameLost: boolean;
+  /**
+   * Slow mode (issue #703). The batch currently held on screen awaiting the
+   * player's OK, or null. The action spotlight renders off THIS identity, not off
+   * `snapshot`: a cap overflow applies older batches behind the panel, and keying
+   * the panel to the newest snapshot made those repaint it — the spotlight
+   * appeared to advance itself. Always null when slow mode is off, so an OFF
+   * session never engages the layer.
+   */
+  slowModeHeld: ProGameSnapshot | null;
+  /** how many further opponent batches are queued behind the one on screen */
+  slowModePending: number;
+  /** the player clicked OK: apply the next queued batch (or clear the spotlight) */
+  advanceSlowMode: () => void;
+  /** "Skip all": apply every queued batch now, in arrival order, and stop holding */
+  skipSlowMode: () => void;
 }
 
 const MAX_RETRY_DELAY_MS = 10_000;
@@ -255,7 +276,14 @@ const RESUME_DEADLINE_MS = 45_000;
 
 export function useProSocket(
   wsUrl: string | undefined,
-  debug = false
+  debug = false,
+  /**
+   * Slow mode (issue #703) — hold each OPPONENT `STATE` batch until the player
+   * acknowledges it, instead of snapping the board the instant it lands. Read
+   * through a ref (like `debug`) so flipping it never re-creates `connect` and
+   * drops a live socket. `false` (the default) leaves the pacing layer inert.
+   */
+  slowMode = false
 ): UseProSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
   // Read via ref so toggling debug never re-creates `connect` (which would drop
@@ -311,6 +339,89 @@ export function useProSocket(
   const [roomId, setRoomId] = useState<string | null>(null);
   const [roomInfo, setRoomInfo] = useState<ProRoomInfo | null>(null);
   const [snapshot, setSnapshot] = useState<ProGameSnapshot | null>(null);
+  // --- Slow mode (issue #703) ------------------------------------------------
+  // The pacing decision itself lives in `slowModeQueue` (pure, unit-tested); this
+  // is only the plumbing: the live queue in a ref (the socket handler mutates it
+  // synchronously), two mirrored numbers for rendering, and a drain that hands
+  // React ONE snapshot per tick.
+  //
+  // That last part is the non-obvious bit. A flush can release several batches at
+  // once, and `setSnapshot(a); setSnapshot(b)` in a single tick collapses to one
+  // render — the activity log diffs views on `snapshot` changing, so `a` would
+  // never be logged. Applying one per macrotask keeps the log byte-identical to an
+  // unpaced session, which is the acceptance bar for this feature.
+  const slowModeRef = useRef(slowMode);
+  slowModeRef.current = slowMode;
+  const slowStateRef = useRef<SlowModeState<ProGameSnapshot>>(emptySlowModeState());
+  const [slowModeHeld, setSlowModeHeld] = useState<ProGameSnapshot | null>(null);
+  const [slowModePending, setSlowModePending] = useState(0);
+  // Armed whenever we (re)introduce ourselves to a room — a socket open, a create,
+  // a join, a reconnect — and disarmed by the first STATE that answers it. That
+  // one STATE is the server re-sending the whole authoritative view, and it is the
+  // ONLY thing allowed to bypass the queue on "this isn't really an action"
+  // grounds. Before this, "no events" stood in for it, which also caught an
+  // accepted undo's rewind broadcast and tore the spotlight away mid-read.
+  const resumeExpectedRef = useRef(true);
+  const applyQueueRef = useRef<ProGameSnapshot[]>([]);
+  const drainTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Armed when WE send an action, disarmed by the next STATE that carries events.
+  // Belt-and-braces next to `batchActor`: our own move must never wait behind a
+  // spotlight, even in a batch whose events name no actor.
+  const ownActionRef = useRef(false);
+
+  const drainApplyQueue = useCallback(function drain() {
+    drainTimerRef.current = null;
+    const next = applyQueueRef.current.shift();
+    if (!next) return;
+    setSnapshot(next);
+    if (applyQueueRef.current.length > 0) drainTimerRef.current = setTimeout(drain, 0);
+  }, []);
+
+  /** Apply these snapshots, in this order, one render each. */
+  const pushSnapshots = useCallback(
+    (batches: ProGameSnapshot[]) => {
+      if (batches.length === 0) return;
+      applyQueueRef.current.push(...batches);
+      // A drain already in flight will pick them up in order; otherwise the first
+      // one lands synchronously, exactly as an unpaced STATE always has.
+      if (drainTimerRef.current === null) drainApplyQueue();
+    },
+    [drainApplyQueue]
+  );
+
+  const runSlowStep = useCallback(
+    (event: SlowModeEvent<ProGameSnapshot>) => {
+      const step = slowModeStep(slowStateRef.current, event);
+      slowStateRef.current = step.state;
+      setSlowModeHeld(step.state.held);
+      setSlowModePending(step.state.queue.length);
+      pushSnapshots(step.apply);
+    },
+    [pushSnapshots]
+  );
+
+  const advanceSlowMode = useCallback(() => runSlowStep({ type: "ADVANCE" }), [runSlowStep]);
+  const skipSlowMode = useCallback(() => runSlowStep({ type: "SKIP_ALL" }), [runSlowStep]);
+
+  // Turning the toggle off mid-queue must not strand the pending batches behind a
+  // spotlight nobody can see any more: drain them, in order, immediately.
+  useEffect(() => {
+    if (slowMode) return;
+    const { held, queue } = slowStateRef.current;
+    if (held === null && queue.length === 0) return;
+    runSlowStep({ type: "DISABLE" });
+  }, [slowMode, runSlowStep]);
+
+  // Socket teardown / unmount: drop the queue and any scheduled drain.
+  useEffect(
+    () => () => {
+      if (drainTimerRef.current) clearTimeout(drainTimerRef.current);
+      drainTimerRef.current = null;
+      applyQueueRef.current = [];
+      slowStateRef.current = emptySlowModeState();
+    },
+    []
+  );
   const [opponentConnected, setOpponentConnected] = useState(true);
   // Seat-identified presence (v15): seats disconnected mid-game, with an optional
   // server auto-forfeit deadline. Keyed by runtime seat id; empty = all connected.
@@ -384,6 +495,9 @@ export function useProSocket(
     ws.onopen = () => {
       retryRef.current.attempts = 0;
       setStatus("open");
+      // Whatever we say next (RECONNECT or a pending join), the STATE that comes
+      // back is a fresh authoritative view — see resumeExpectedRef.
+      resumeExpectedRef.current = true;
       // Ask for the roster on every open (incl. reconnects) — one tiny message,
       // idempotent; the reply feeds the game page's hero picker. `debug` (v15)
       // includes debug-only heroes so a debug session can pick/preview them.
@@ -487,12 +601,26 @@ export function useProSocket(
             }
             return changed ? next : prev;
           });
-          setSnapshot({
-            view: msg.view,
-            legalActions: msg.legalActions,
-            prompt: msg.view.prompt,
-            events: msg.events ?? [],
-          });
+          {
+            // Slow mode (issue #703): the ONE place a snapshot reaches React.
+            // With the toggle off the queue is a pass-through — `slowModeStep`
+            // returns the batch for immediate application and never holds state,
+            // so this stays the single synchronous `setSnapshot` it always was.
+            const batch: ProGameSnapshot = {
+              view: msg.view,
+              legalActions: msg.legalActions,
+              prompt: msg.view.prompt,
+              events: msg.events ?? [],
+            };
+            const ownAction = ownActionRef.current;
+            const resume = resumeExpectedRef.current;
+            resumeExpectedRef.current = false; // this STATE answered the (re)join
+            // A reconnection's own view must not eat the latch; anything else
+            // does, INCLUDING an events-less broadcast, so a rejected action can
+            // never leave it armed for an opponent batch to trip over.
+            if (!resume) ownActionRef.current = false;
+            runSlowStep({ type: "STATE", batch, slowMode: slowModeRef.current, ownAction, resume });
+          }
           setServerRestarting(false); // a STATE means we're live again (resume done)
           clearResumeDeadline(); // resume landed (or never failed) — cancel the loss timer
           setGameLost(false); // a late-but-successful resume wins over a fired deadline
@@ -583,6 +711,10 @@ export function useProSocket(
           setUndoRejected(true);
           break;
         case "ERROR": {
+          // Whatever the code, our last action did NOT produce a STATE, so the
+          // in-flight latch would otherwise stay armed and make the next
+          // OPPONENT batch look like ours — flushing a spotlight mid-read.
+          ownActionRef.current = false;
           // Undo couldn't be honored (nothing to undo, or one already pending) —
           // a benign race despite canUndo-gating (double-request, or the undo
           // boundary shifted under us). Clear our pending-undo UI and surface a
@@ -653,7 +785,10 @@ export function useProSocket(
       retryRef.current.attempts += 1;
       retryRef.current.timer = setTimeout(connect, delay);
     };
-  }, [wsUrl, send, clearResumeDeadline, resolveOwnClock]);
+    // `runSlowStep` is referentially stable (its whole dependency chain bottoms
+    // out in a `[]` callback), so listing it here can never re-create `connect`
+    // and drop a live socket.
+  }, [wsUrl, send, clearResumeDeadline, resolveOwnClock, runSlowStep]);
 
   useEffect(() => {
     if (!wsUrl) {
@@ -684,6 +819,7 @@ export function useProSocket(
     ) => {
       setError(null); // clear any prior room/hero error on a fresh attempt
       setGameLost(false); // starting a brand-new game — no lost game to mourn
+      resumeExpectedRef.current = true; // the room's first STATE is authoritative
       setSeatPresence({}); // drop any presence carried over from a prior game
       setTurnTimer(null); // …and any move-timer bar from a prior game
       setOwnTimerExpired(false);
@@ -729,6 +865,7 @@ export function useProSocket(
     (room: string, heroId: string) => {
       setError(null); // clear any prior room/hero error on a fresh attempt
       setGameLost(false); // fresh join/resume attempt — drop any prior lost state
+      resumeExpectedRef.current = true; // the room's first STATE is authoritative
       clearResumeDeadline();
       roomRef.current = room;
       setRoomId(room);
@@ -764,6 +901,7 @@ export function useProSocket(
       // Move timer (issue #223): the viewer acted within their window, so a
       // later supersede of this clock is a normal move, never a timeout.
       if (ownClockRef.current) ownClockRef.current.acted = true;
+      ownActionRef.current = true; // slow mode (#703): our own result never waits
       if (roomRef.current)
         send({ v: PROTOCOL_VERSION, type: "ACTION", roomId: roomRef.current, action });
     },
@@ -775,6 +913,7 @@ export function useProSocket(
   const respondToPrompt = useCallback(
     (promptId: string, optionId: string, path?: SpaceId[]) => {
       if (ownClockRef.current) ownClockRef.current.acted = true; // acted in-window (v#223)
+      ownActionRef.current = true; // slow mode (#703): our own result never waits
       if (roomRef.current && youRef.current)
         send({
           v: PROTOCOL_VERSION,
@@ -870,5 +1009,9 @@ export function useProSocket(
     setVisibility,
     serverRestarting,
     gameLost,
+    slowModeHeld,
+    slowModePending,
+    advanceSlowMode,
+    skipSlowMode,
   };
 }
