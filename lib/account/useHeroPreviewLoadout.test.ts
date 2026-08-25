@@ -16,8 +16,8 @@ const hero = (over: Partial<HeroCosmetics> = {}): HeroCosmetics => ({
   adjusted: 0,
   available: 700,
   cards: [{ key: "feint", tier: 1 }],
-  tokenRim: { unlockedTier: 2, enabled: true },
-  cardRims: { enabled: true },
+  tokenRim: { unlockedTier: 2, enabled: true, selectedTier: null },
+  cardRims: { enabled: true, selectedTier: null },
   ...over,
 });
 
@@ -46,7 +46,7 @@ describe("previewLoadoutFor", () => {
 
   it("hides a token rim the player switched off, keeping their card rims", () => {
     expect(
-      previewLoadoutFor([hero({ tokenRim: { unlockedTier: 2, enabled: false } })], "thetis"),
+      previewLoadoutFor([hero({ tokenRim: { unlockedTier: 2, enabled: false, selectedTier: null } })], "thetis"),
     ).toEqual({ cardRims: { feint: "bronze" }, tokenRim: null });
   });
 
@@ -54,9 +54,27 @@ describe("previewLoadoutFor", () => {
     // `unlockedTier: null` is "we don't know", never "tier 0" — and painting a
     // tier we could not confirm is the one way this could show an unearned one.
     expect(
-      previewLoadoutFor([hero({ tokenRim: { unlockedTier: null, enabled: true } })], "thetis")
+      previewLoadoutFor([hero({ tokenRim: { unlockedTier: null, enabled: true, selectedTier: null } })], "thetis")
         ?.tokenRim,
     ).toBeNull();
+  });
+
+  it("paints the tier the player PICKED, not the one they unlocked (#705)", () => {
+    // The preview's whole job is "what will the table see?", so it goes
+    // through the same projection the wire does: pick silver on a gold hero
+    // and the preview says silver, immediately.
+    expect(
+      previewLoadoutFor(
+        [
+          hero({
+            cards: [{ key: "feint", tier: 3 }],
+            tokenRim: { unlockedTier: 3, enabled: true, selectedTier: 2 },
+            cardRims: { enabled: true, selectedTier: 2 },
+          }),
+        ],
+        "thetis",
+      ),
+    ).toEqual({ cardRims: { feint: "silver" }, tokenRim: "silver" });
   });
 
   it("falls a -spice remix back to its base hero's row", () => {
@@ -67,7 +85,7 @@ describe("previewLoadoutFor", () => {
   });
 
   it("answers null when there is nothing to paint", () => {
-    const nothing = { cards: [], tokenRim: { unlockedTier: 0, enabled: true } };
+    const nothing = { cards: [], tokenRim: { unlockedTier: 0, enabled: true, selectedTier: null } };
     expect(previewLoadoutFor([hero(nothing)], "thetis")).toBeNull();
     // Unknown hero, no hero, no ledger — all simply nothing.
     expect(previewLoadoutFor([hero()], "kenshiro")).toBeNull();
@@ -76,11 +94,11 @@ describe("previewLoadoutFor", () => {
   });
 
   it("answers null when every card row is off-ladder junk", () => {
-    // `wireLoadoutFor` would answer a non-null loadout here (it counts rows,
-    // not paints); a toggle over nothing is worse than no toggle.
+    // A hand-built row at tier 0 is not a rim; a toggle over nothing to paint
+    // is worse than no toggle. (`normalizeCosmetics` drops such rows too.)
     expect(
       previewLoadoutFor(
-        [hero({ cards: [{ key: "feint", tier: 0 }], tokenRim: { unlockedTier: 0, enabled: true } })],
+        [hero({ cards: [{ key: "feint", tier: 0 }], tokenRim: { unlockedTier: 0, enabled: true, selectedTier: null } })],
         "thetis",
       ),
     ).toBeNull();

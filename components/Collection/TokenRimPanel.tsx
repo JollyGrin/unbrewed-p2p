@@ -11,13 +11,20 @@
  * rather than by imagining. It shows the rim only while the toggle is ON —
  * otherwise the switch would appear to do nothing, and an honest preview of
  * "hidden" is a plain token.
+ *
+ * Since #705 there is a second choice here: WHICH of the unlocked tiers to
+ * wear. The preview paints `displayedTokenTier` — the same projection the wire
+ * publishes — so the token on this page and the token across the table are the
+ * same token by construction, not by two functions agreeing.
  */
 import { Box, Flex, Switch, Text } from "@chakra-ui/react";
 
 import { FighterTokenRim } from "@/components/Pro/FighterTokenRim";
+import { RimTierPicker } from "@/components/Collection/RimTierPicker";
 import {
   CosmeticConstants,
   HeroCosmetics,
+  displayedTokenTier,
   rimProgress,
   rimTierName,
 } from "@/lib/account/cosmetics";
@@ -88,18 +95,25 @@ export const TokenRimPanel = ({
   tokenUrl,
   initials,
   onToggle,
+  onPickTier,
 }: {
   hero: HeroCosmetics;
   constants: CosmeticConstants;
   tokenUrl: string | null;
   initials: string;
   onToggle: (enabled: boolean) => void;
+  /** Wear one of the unlocked tiers, or null to follow the unlocks (#705). */
+  onPickTier: (tier: number | null) => void;
 }) => {
   const unlocked = hero.tokenRim.unlockedTier;
   const enabled = hero.tokenRim.enabled;
   const progress = rimProgress(hero.earned, constants.tokenRimThresholds);
   const nextName = rimTierName((progress.tier ?? 0) + 1);
   const wornName = rimTierName(unlocked);
+  // What the table sees: the switch, then the choice, clamped to the unlock.
+  const displayed = displayedTokenTier(hero);
+  const displayedName = rimTierName(displayed);
+  const selected = hero.tokenRim.selectedTier;
   // The pref is the API's own storage and it accepts writes with telemetry
   // down, so an unknown tier (outage) still leaves the switch usable — the
   // player's rim is whatever it already was, and turning it off must work.
@@ -127,11 +141,7 @@ export const TokenRimPanel = ({
         Fighter token rim
       </Text>
       <Flex gap="1rem" align="center" flexWrap="wrap">
-        <TokenPreview
-          tokenUrl={tokenUrl}
-          initials={initials}
-          tier={enabled ? unlocked : 0}
-        />
+        <TokenPreview tokenUrl={tokenUrl} initials={initials} tier={displayed} />
         <Box flex="1" minW="14rem">
           <Text fontSize="0.9rem" fontWeight={600}>
             {unlocked === null
@@ -183,6 +193,27 @@ export const TokenRimPanel = ({
               Unlocked but hidden — nobody at the table sees it.
             </Text>
           )}
+          {/* Live even while the rim is hidden: the choice is stored either
+              way, so a player can set up the look they want and switch it on
+              afterwards rather than in the other order. */}
+          <RimTierPicker
+            id="token"
+            label="Rim to wear"
+            maxTier={unlocked ?? 0}
+            selectedTier={selected}
+            onSelect={onPickTier}
+            hint={
+              !enabled
+                ? "Saved for when you switch the rim back on."
+                : selected === null
+                  ? displayedName
+                    ? `Following your unlocks — ${COSMETIC_RIM_PAINTS[displayedName].label.toLowerCase()} today.`
+                    : undefined
+                  : displayedName
+                    ? `Wearing ${COSMETIC_RIM_PAINTS[displayedName].label.toLowerCase()} instead of your latest.`
+                    : undefined
+            }
+          />
         </Box>
       </Flex>
     </Box>

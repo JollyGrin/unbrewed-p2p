@@ -11,7 +11,11 @@
  */
 import {
   FALLBACK_CONSTANTS,
+  HeroCosmetics,
   cardTier,
+  displayedCardTier,
+  displayedCards,
+  displayedTokenTier,
   emptyHeroCosmetics,
   fetchCosmetics,
   nextTierCost,
@@ -21,6 +25,7 @@ import {
   putTokenRim,
   rimProgress,
   rimTierName,
+  topCardTier,
   wireLoadoutFor,
 } from "./cosmetics";
 import { encodeCosmetics } from "@/lib/pro/cosmeticsWire";
@@ -88,14 +93,15 @@ describe("normalizeCosmetics", () => {
     // existed must keep wearing them, so only an explicit `false` hides them.
     expect(normalizeCosmetics(okBody([heroBody()])).heroes[0].cardRims).toEqual({
       enabled: true,
+      selectedTier: null,
     });
     expect(
       normalizeCosmetics(okBody([heroBody({ cardRims: {} })])).heroes[0].cardRims,
-    ).toEqual({ enabled: true });
+    ).toEqual({ enabled: true, selectedTier: null });
     expect(
       normalizeCosmetics(okBody([heroBody({ cardRims: { enabled: false } })])).heroes[0]
         .cardRims,
-    ).toEqual({ enabled: false });
+    ).toEqual({ enabled: false, selectedTier: null });
   });
 
   it("drops junk rows and duplicate ids rather than rendering them twice", () => {
@@ -226,6 +232,32 @@ describe("putTokenRim", () => {
     mockFetch().mockResolvedValue(reply(503, {}));
     expect(await putTokenRim("thetis", true)).toEqual({ ok: false, reason: "unavailable" });
   });
+
+  /**
+   * The three-state tier field (#705). Which of them is sent decides whether a
+   * plain on/off flip quietly re-picks a player's tier, so it is pinned here
+   * rather than left to the caller to remember.
+   */
+  it("omits the tier when nothing was picked, and sends it when something was", async () => {
+    mockFetch().mockResolvedValue(reply(200, {}));
+    const bodyOf = (call: number) => JSON.parse(mockFetch().mock.calls[call][1].body);
+
+    await putTokenRim("thetis", true);
+    // ABSENT, not null: the server leaves the stored choice alone.
+    expect(bodyOf(0)).toEqual({ heroId: "thetis", enabled: true });
+    expect("selectedTier" in bodyOf(0)).toBe(false);
+
+    await putTokenRim("thetis", true, 2);
+    expect(bodyOf(1)).toEqual({ heroId: "thetis", enabled: true, selectedTier: 2 });
+
+    // Explicit null is the "latest" reset — a different thing from omitting.
+    await putTokenRim("thetis", true, null);
+    expect(bodyOf(2)).toEqual({ heroId: "thetis", enabled: true, selectedTier: null });
+
+    // A pick made while the rim is OFF is still stored.
+    await putCardRims("thetis", false, 1);
+    expect(bodyOf(3)).toEqual({ heroId: "thetis", enabled: false, selectedTier: 1 });
+  });
 });
 
 describe("putCardRims", () => {
@@ -288,6 +320,123 @@ describe("presentation helpers", () => {
       available: 0,
       tokenRim: { unlockedTier: 0, enabled: false },
     });
+  });
+});
+
+/**
+ * The tier PICKER (#705): a player who unlocked gold may keep wearing the
+ * silver they liked. Everything below is about that choice never becoming a
+ * claim — it may only ever take a rim DOWN, and the switch still wins.
+ */
+describe("the selected tier", () => {
+  const hero = (over: Record<string, unknown> = {}): HeroCosmetics =>
+    normalizeCosmetics(okBody([heroBody(over)])).heroes[0];
+
+  it("round-trips a stored choice, and reads an absent one as latest", () => {
+    const picked = hero({
+      tokenRim: { unlockedTier: 4, enabled: true, selectedTier: 2 },
+      cardRims: { enabled: true, selectedTier: 1 },
+    });
+    expect(picked.tokenRim.selectedTier).toBe(2);
+    expect(picked.cardRims.selectedTier).toBe(1);
+
+    // An API that predates the field — which is prod on the day this merges.
+    const legacy = hero();
+    expect(legacy.tokenRim.selectedTier).toBeNull();
+    expect(legacy.cardRims.selectedTier).toBeNull();
+
+    // Junk, an explicit null and a 0 all mean "latest" rather than "tier 0":
+    // there is no tier 0 to wear, and the ladder is 1-based everywhere else.
+    for (const value of [null, 0, -3, "2", NaN, {}]) {
+      expect(
+        hero({ tokenRim: { unlockedTier: 4, enabled: true, selectedTier: value } })
+          .tokenRim.selectedTier,
+      ).toBeNull();
+    }
+  });
+
+  it("clamps a selection ABOVE what was unlocked back down to the unlock", () => {
+    // The one case that would hand somebody a rim they never earned: a stale
+    // page, or a row written before a clawback.
+    expect(
+      displayedTokenTier(
+        hero({ tokenRim: { unlockedTier: 2, enabled: true, selectedTier: 4 } }),
+      ),
+    ).toBe(2);
+  });
+
+  it("wears the selection when it is below the unlock, and latest when there is none", () => {
+    expect(
+      displayedTokenTier(
+        hero({ tokenRim: { unlockedTier: 3, enabled: true, selectedTier: 1 } }),
+      ),
+    ).toBe(1);
+    // null = latest = exactly what shipped before this existed.
+    expect(
+      displayedTokenTier(hero({ tokenRim: { unlockedTier: 3, enabled: true } })),
+    ).toBe(3);
+  });
+
+  it("lets the switch win: enabled=false wears nothing, whatever was picked", () => {
+    expect(
+      displayedTokenTier(
+        hero({ tokenRim: { unlockedTier: 4, enabled: false, selectedTier: 2 } }),
+      ),
+    ).toBe(0);
+    const off = hero({ cardRims: { enabled: false, selectedTier: 2 } });
+    expect(displayedCardTier(off, 2)).toBe(0);
+    expect(displayedCards(off)).toEqual([]);
+  });
+
+  it("wears nothing on a rim telemetry could not confirm, selection or not", () => {
+    // `unlockedTier: null` is "we don't know". A stored choice is not evidence.
+    expect(
+      displayedTokenTier(
+        hero({ tokenRim: { unlockedTier: null, enabled: true, selectedTier: 3 } }),
+      ),
+    ).toBe(0);
+  });
+
+  it("caps card rims per card without ever promoting one", () => {
+    const capped = hero({
+      cards: [
+        { key: "undertow", tier: 4 },
+        { key: "riptide", tier: 1 },
+      ],
+      cardRims: { enabled: true, selectedTier: 2 },
+    });
+    // The tier-4 card drops to silver; the bronze card stays bronze — a
+    // ceiling, never a promotion.
+    expect(displayedCards(capped)).toEqual([
+      { key: "undertow", tier: 2 },
+      { key: "riptide", tier: 1 },
+    ]);
+    // And what was BOUGHT is untouched, so /collection keeps showing tier 4.
+    expect(cardTier(capped, "undertow")).toBe(4);
+    expect(topCardTier(capped)).toBe(4);
+  });
+
+  it("publishes the SELECTED tier to the other seat — the whole point (#705)", () => {
+    // No wire, protocol or opponent-render change: the number the encoder has
+    // always carried is "the tier to paint", so picking silver publishes
+    // silver and the opponent paints silver.
+    const picked = [
+      hero({
+        cards: [{ key: "undertow", tier: 4 }],
+        tokenRim: { unlockedTier: 4, enabled: true, selectedTier: 2 },
+        cardRims: { enabled: true, selectedTier: 2 },
+      }),
+    ];
+    expect(wireLoadoutFor(picked, "thetis")).toEqual({
+      tokenRimTier: 2,
+      cards: [{ key: "undertow", tier: 2 }],
+    });
+    // The encoder hashes card keys, so the blob is compared against the blob
+    // a player who had only ever OWNED silver would send: byte-identical, by
+    // construction — which is why the other seat needs no change at all.
+    expect(encodeCosmetics(wireLoadoutFor(picked, "thetis"))).toBe(
+      encodeCosmetics({ tokenRimTier: 2, cards: [{ key: "undertow", tier: 2 }] }),
+    );
   });
 });
 

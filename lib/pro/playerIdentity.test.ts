@@ -212,8 +212,8 @@ describe("cosmeticsField (epic #610, issue #615)", () => {
     adjusted: 0,
     available: 500,
     cards: [{ key: "feint", tier: 3 }],
-    tokenRim: { unlockedTier: 2, enabled: true },
-    cardRims: { enabled: true },
+    tokenRim: { unlockedTier: 2, enabled: true, selectedTier: null },
+    cardRims: { enabled: true, selectedTier: null },
     ...over,
   });
   const loadout = [hero()];
@@ -238,7 +238,7 @@ describe("cosmeticsField (epic #610, issue #615)", () => {
     expect(
       cosmeticsField(
         signedIn("JollyGrin"),
-        [hero({ heroId: "thetis", cards: [], tokenRim: { unlockedTier: 0, enabled: true } })],
+        [hero({ heroId: "thetis", cards: [], tokenRim: { unlockedTier: 0, enabled: true, selectedTier: null } })],
         "thetis",
       ),
     ).toEqual({});
@@ -247,18 +247,18 @@ describe("cosmeticsField (epic #610, issue #615)", () => {
   it("does not publish a rim the player switched off on /collection", () => {
     // The `enabled` pref is the opt-out; honouring it client-side is what makes
     // the collection toggle mean anything to the other seat.
-    const off = [hero({ cards: [], tokenRim: { unlockedTier: 4, enabled: false } })];
+    const off = [hero({ cards: [], tokenRim: { unlockedTier: 4, enabled: false, selectedTier: null } })];
     expect(cosmeticsField(signedIn("JollyGrin"), off, "kenshiro")).toEqual({});
   });
 
   it("does not publish a rim telemetry could not confirm", () => {
     // `unlockedTier: null` is "we don't know" on the API's degraded 503 body —
     // claiming a tier off it would show a rim nobody had earned.
-    const unknown = [hero({ cards: [], tokenRim: { unlockedTier: null, enabled: true } })];
+    const unknown = [hero({ cards: [], tokenRim: { unlockedTier: null, enabled: true, selectedTier: null } })];
     expect(cosmeticsField(signedIn("JollyGrin"), unknown, "kenshiro")).toEqual({});
     // The card rows are the API's OWN storage and survive the outage, so they
     // still publish.
-    const degraded = [hero({ tokenRim: { unlockedTier: null, enabled: true } })];
+    const degraded = [hero({ tokenRim: { unlockedTier: null, enabled: true, selectedTier: null } })];
     const { cosmetics } = cosmeticsField(signedIn("JollyGrin"), degraded, "kenshiro");
     expect(decodeCosmetics(cosmetics).tokenRim).toBeNull();
     expect(wireCardRim(decodeCosmetics(cosmetics), "Feint")).toBe("gold");
