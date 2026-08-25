@@ -1675,6 +1675,15 @@ export interface ReplayBundle {
   config: ReplayConfig;
   actionLog: Action[];
   meta: ReplayMeta;
+  // Per-turn digests of rules-visible state, hashed live by the server as the
+  // game was played (engine #509). They are what lets an OLD bundle be replayed
+  // on a NEWER engine: the server re-folds the log and compares its own digest
+  // at the end of every turn, so "this release didn't change this game" is
+  // VERIFIED rather than assumed. `v` stays 1 — both fields are optional and a
+  // bundle recorded before #509 simply has none (and keeps the hard
+  // VERSION_MISMATCH refusal across a version change).
+  digests?: string[];
+  digestVersion?: number;
 }
 
 // One player's full (unredacted) per-step state in a God-view replay.
@@ -1723,12 +1732,26 @@ export interface ReplayExpansion {
   heroes: Partial<Record<PlayerId, string>>;
   steps: ReplayStep[];
   finalHash: string; // FNV-1a of the final state — pins the exact game
+  // How much of this expansion the server could VOUCH for (engine #509):
+  //  - "exact": the bundle was recorded on this same engine build;
+  //  - "digest-verified": recorded on a different build, and every per-turn
+  //    digest still matched — the game re-simulates identically;
+  //  - "diverged": digests matched up to `divergedAtTurn`, where this engine's
+  //    rules produce a different state. `steps` then STOPS at the end of the
+  //    previous turn; the server never returns unverified frames.
+  // ABSENT on a pre-#509 server — the client treats that as "exact", which is
+  // what it effectively was (the old server refused every version mismatch).
+  verification?: ReplayVerification;
+  divergedAtTurn?: number; // only when verification === "diverged"
+  recordedEngine?: { schemaVersion: number; dslVersion: string }; // echo of bundle.engine
 }
+
+export type ReplayVerification = "exact" | "digest-verified" | "diverged";
 
 export type ReplayErrorCode =
   | "BAD_BUNDLE" // malformed JSON / missing required fields
   | "TOO_LARGE" // actionLog exceeds the server cap
-  | "VERSION_MISMATCH" // schemaVersion/dslVersion differs from this engine
+  | "VERSION_MISMATCH" // version differs AND the bundle carries no digests to verify against (engine #509)
   | "ILLEGAL_ACTION"; // the reducer rejected an action in the log
 
 export interface ReplayError {
