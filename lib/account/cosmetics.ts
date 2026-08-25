@@ -51,6 +51,18 @@ export interface CosmeticTokenRim {
   unlockedTier: number | null;
   /** The stored display pref. Storage, not telemetry — always known. */
   enabled: boolean;
+  /**
+   * Which of the unlocked tiers the player chose to WEAR (#705), or null for
+   * "whatever is latest" — the only behaviour that existed before, and still
+   * the default. Advancing to gold should not force you out of the silver you
+   * liked, so the choice is stored separately from the unlock and is never
+   * trimmed when the unlock moves: a player who picked silver, unlocked gold
+   * and then wants gold again picks "Latest" back.
+   *
+   * Storage, not telemetry, so it survives a 503 like `enabled` does. Absent
+   * on an API that predates the field ⇒ null ⇒ today's behaviour exactly.
+   */
+  selectedTier: number | null;
 }
 
 /**
@@ -70,6 +82,16 @@ export interface CosmeticCardRims {
    * "absent" reads as on, and only an explicit `false` turns them off.
    */
   enabled: boolean;
+  /**
+   * The CEILING this hero's card rims are worn at (#705), or null for "as
+   * bought". One number for the whole hero, like `enabled` and for the same
+   * reason: the ask is "let me play at silver again", not thirty ladders.
+   *
+   * It caps, it never promotes — a card bought at bronze under a gold
+   * selection is still bronze. `cards` stays the PURCHASED ledger either way,
+   * so nothing here can look like losing an upgrade.
+   */
+  selectedTier: number | null;
 }
 
 /** One hero's cosmetic standing. Telemetry-derived fields are nullable — see (2). */
@@ -172,6 +194,18 @@ const asNullableCount = (value: unknown): number | null =>
     ? Math.round(value)
     : null;
 
+/**
+ * A stored tier CHOICE: a positive integer, or null for "latest" (#705).
+ *
+ * Absent, null, 0 and junk all read as null, which is what lets this ship
+ * before the API does — an older deploy simply never sends the field, and
+ * every hero reads as "latest", i.e. the behaviour that is live today.
+ */
+const asSelectedTier = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) && value >= 1
+    ? Math.round(value)
+    : null;
+
 /** Any integer, including negative — a clawback adjustment is one. */
 const asInt = (value: unknown): number =>
   typeof value === "number" && Number.isFinite(value) ? Math.round(value) : 0;
@@ -198,6 +232,7 @@ const normalizeHero = (raw: unknown): HeroCosmetics | null => {
   const heroId = row ? asString(row.heroId) : null;
   if (!row || !heroId) return null;
   const rim = asRecord(row.tokenRim) ?? {};
+  const cardRims = asRecord(row.cardRims) ?? {};
   return {
     heroId,
     earned: asNullableCount(row.earned),
@@ -208,12 +243,16 @@ const normalizeHero = (raw: unknown): HeroCosmetics | null => {
     tokenRim: {
       unlockedTier: asNullableCount(rim.unlockedTier),
       enabled: rim.enabled === true,
+      selectedTier: asSelectedTier(rim.selectedTier),
     },
     // Note the asymmetry with `tokenRim.enabled` above, and that it is
     // deliberate: an absent token rim defaults OFF because it is a reward the
     // API opts you into, while absent card rims default ON because they are
     // upgrades you already paid for. Only an explicit `false` hides them.
-    cardRims: { enabled: asRecord(row.cardRims)?.enabled !== false },
+    cardRims: {
+      enabled: cardRims.enabled !== false,
+      selectedTier: asSelectedTier(cardRims.selectedTier),
+    },
   };
 };
 
@@ -372,13 +411,24 @@ const putRimPref = async (
   path: "token-rim" | "card-rims",
   heroId: string,
   enabled: boolean,
+  selectedTier?: number | null,
 ): Promise<RimPrefResult> => {
   try {
     const res = await fetch(`${API_URL}/me/cosmetics/${path}`, {
       method: "PUT",
       credentials: "include",
       headers: { Accept: "application/json", "Content-Type": "application/json" },
-      body: JSON.stringify({ heroId, enabled }),
+      // Three states, and the difference matters (#705): the field ABSENT
+      // leaves the stored choice alone (what a plain on/off flip means), an
+      // explicit `null` clears it back to "latest", and a number picks a tier.
+      // So the key is only added when the caller actually passed one — an
+      // undefined would serialise away and read as "unchanged" anyway, but
+      // saying it here is what keeps the two flows honestly distinct.
+      body: JSON.stringify(
+        selectedTier === undefined
+          ? { heroId, enabled }
+          : { heroId, enabled, selectedTier },
+      ),
     });
     return res.ok ? { ok: true } : { ok: false, reason: failureFor(res.status) };
   } catch {
@@ -386,9 +436,16 @@ const putRimPref = async (
   }
 };
 
-/** Turn a hero's token rim on or off. */
-export const putTokenRim = (heroId: string, enabled: boolean): Promise<RimPrefResult> =>
-  putRimPref("token-rim", heroId, enabled);
+/**
+ * Turn a hero's token rim on or off, and optionally pick which unlocked tier
+ * it wears (#705). Omit `selectedTier` to leave that choice as it stands.
+ */
+export const putTokenRim = (
+  heroId: string,
+  enabled: boolean,
+  selectedTier?: number | null,
+): Promise<RimPrefResult> =>
+  putRimPref("token-rim", heroId, enabled, selectedTier);
 
 /**
  * Turn ALL of a hero's bought card rims on or off (#627).
@@ -397,8 +454,12 @@ export const putTokenRim = (heroId: string, enabled: boolean): Promise<RimPrefRe
  * player may wear the rim they earned while playing with base card art, or the
  * other way round.
  */
-export const putCardRims = (heroId: string, enabled: boolean): Promise<RimPrefResult> =>
-  putRimPref("card-rims", heroId, enabled);
+export const putCardRims = (
+  heroId: string,
+  enabled: boolean,
+  selectedTier?: number | null,
+): Promise<RimPrefResult> =>
+  putRimPref("card-rims", heroId, enabled, selectedTier);
 
 // --- presentation helpers ----------------------------------------------------
 // Pure, so every number and label on the page is testable without a DOM.
@@ -416,10 +477,10 @@ export const emptyHeroCosmetics = (
   adjusted: 0,
   available: known ? 0 : null,
   cards: [],
-  tokenRim: { unlockedTier: known ? 0 : null, enabled: false },
+  tokenRim: { unlockedTier: known ? 0 : null, enabled: false, selectedTier: null },
   // On, like the API's own default — a hero with nothing bought has nothing to
   // hide, and this is the value a first purchase should inherit.
-  cardRims: { enabled: true },
+  cardRims: { enabled: true, selectedTier: null },
 });
 
 /** Tier bought on one card set; 0 for an un-upgraded one. */
@@ -480,6 +541,58 @@ export const rimProgress = (
   };
 };
 
+// --- the display math (#705) -------------------------------------------------
+// ONE place decides which tier is actually WORN, and everything that paints a
+// rim — the wire, the deck preview, this page's own token preview — asks it.
+// Two copies of this arithmetic would eventually disagree, and the way that
+// disagreement shows up is a player wearing one rim in the preview and another
+// one across the table.
+//
+// The shape of every rule below is the same: a selection may only ever take a
+// rim DOWN. It is a display choice over what you own, so it can never claim a
+// tier that was not unlocked or a card that was not bought — which is why the
+// clamp lives here and not in the picker, where a stale page or a hand-written
+// API row could route around it.
+
+/** Highest tier bought on ANY of this hero's cards; 0 when nothing is bought. */
+export const topCardTier = (hero: HeroCosmetics): number =>
+  hero.cards.reduce((top, card) => Math.max(top, card.tier), 0);
+
+/**
+ * The token rim tier this hero actually wears: 0 for none.
+ *
+ * `enabled: false` wins over any selection — a stored choice is not a claim
+ * that anything is being worn. `unlockedTier: null` (telemetry outage) is 0
+ * for the same reason it always was: we could not confirm the unlock, and a
+ * selection cannot confirm it either.
+ */
+export const displayedTokenTier = (hero: HeroCosmetics): number => {
+  if (!hero.tokenRim.enabled) return 0;
+  const unlocked = hero.tokenRim.unlockedTier ?? 0;
+  const selected = hero.tokenRim.selectedTier;
+  return selected === null ? unlocked : Math.max(0, Math.min(selected, unlocked));
+};
+
+/**
+ * The tier ONE card is worn at, given the tier it was bought at. The selection
+ * is a ceiling: a bronze card under a gold selection stays bronze.
+ */
+export const displayedCardTier = (hero: HeroCosmetics, purchased: number): number => {
+  if (!hero.cardRims.enabled) return 0;
+  const selected = hero.cardRims.selectedTier;
+  return selected === null ? purchased : Math.max(0, Math.min(purchased, selected));
+};
+
+/**
+ * Every card this hero wears a rim on, at the tier it is worn at — the same
+ * `{key, tier}` rows the wire and the preview want, with the ones that come
+ * out at 0 dropped, since "no rim" is an absent row rather than a tier.
+ */
+export const displayedCards = (hero: HeroCosmetics): CosmeticCard[] =>
+  hero.cards
+    .map((card) => ({ key: card.key, tier: displayedCardTier(hero, card.tier) }))
+    .filter((card) => card.tier > 0);
+
 // --- the equip wire (#615) ---------------------------------------------------
 
 /**
@@ -489,6 +602,13 @@ export const rimProgress = (
  * Two decisions live here rather than in the encoder, because both are facts
  * about what the API means rather than about the wire format:
  *
+ * 0. **What is published is the DISPLAYED tier, not the owned one (#705).**
+ *    A player who unlocked gold but chose to keep wearing silver publishes
+ *    silver, and that is the whole mechanism by which the /collection picker
+ *    reaches the other seat: the wire format, the encoder and the opponent's
+ *    renderer are untouched, because the number they carry was already "the
+ *    tier to paint" rather than "the tier they own". `displayedTokenTier` /
+ *    `displayedCards` above are that projection.
  * 1. **A rim the player switched OFF is not published.** `tokenRim.enabled` and
  *    `cardRims.enabled` (#627) are exactly those opt-outs, and honouring them
  *    client-side is what makes the /collection toggles mean something to the
@@ -525,8 +645,8 @@ export const wireLoadoutFor = (
       ? heroes.find((row) => row.heroId.trim().toLowerCase() === id.slice(0, -6))
       : undefined);
   if (!hero) return null;
-  const tokenRimTier = hero.tokenRim.enabled ? (hero.tokenRim.unlockedTier ?? 0) : 0;
-  const cards = hero.cardRims.enabled ? hero.cards : [];
+  const tokenRimTier = displayedTokenTier(hero);
+  const cards = displayedCards(hero);
   if (tokenRimTier <= 0 && cards.length === 0) return null;
   return { tokenRimTier, cards };
 };

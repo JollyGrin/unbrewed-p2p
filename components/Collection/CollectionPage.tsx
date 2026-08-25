@@ -3,15 +3,16 @@
  *
  * One page, four blocks: pick a hero, see what that hero has earned, spend it
  * on card art, and decide whether to WEAR what it bought — a switch for the
- * token rim, and one for the card rims (#627). It is the "currency + choice"
+ * token rim, and one for the card rims (#627), each with a picker for WHICH of
+ * the tiers already reached it wears (#705). It is the "currency + choice"
  * model of design doc §4c(b), which is exactly the phase §4f says needs a
  * screen of its own.
  *
- * Owning and wearing are separate, and this page is about OWNING: both
- * switches govern the play surfaces only, so the grid keeps rendering every
- * tier the player bought and every upgrade button stays live while a switch is
- * off. A management screen that hid your collection the moment you stopped
- * wearing it would be the wrong screen.
+ * Owning and wearing are separate, and this page is about OWNING: the switches
+ * and the pickers govern the play surfaces only, so the grid keeps rendering
+ * every tier the player bought and every upgrade button stays live while a
+ * switch is off or a lower tier is picked. A management screen that hid your
+ * collection the moment you stopped wearing it would be the wrong screen.
  *
  * The hero block is a PICKER, not a dropdown (#625): every hero states its own
  * points and its own rim at rest, because "where are my points?" is the
@@ -44,11 +45,12 @@ import NextLink from "next/link";
 import { AccountShell, Panel } from "@/components/Account/Shell";
 import { CardSetGrid, tierLabel } from "@/components/Collection/CardSetGrid";
 import { HeroPicker } from "@/components/Collection/HeroPicker";
+import { RimTierPicker } from "@/components/Collection/RimTierPicker";
 import { TokenRimPanel } from "@/components/Collection/TokenRimPanel";
 import { tokenInitials } from "@/components/Pro/FighterTokenPortrait";
 import { signInUrl, useAccount } from "@/lib/account/useAccount";
 import { useCosmetics } from "@/lib/account/useCosmetics";
-import { rimProgress, rimTierName } from "@/lib/account/cosmetics";
+import { rimProgress, rimTierName, topCardTier } from "@/lib/account/cosmetics";
 import { heroPickerSections } from "@/lib/collection/picker";
 import { collectionRoster } from "@/lib/collection/roster";
 import { CardSet, useHeroDeck } from "@/lib/collection/useHeroDeck";
@@ -223,7 +225,28 @@ export const CollectionPage = () => {
 
   const onToggleRim = async (enabled: boolean) => {
     if (!hero) return;
+    // No tier argument: flipping the switch must leave the player's tier
+    // CHOICE exactly as they left it, so switching back on restores the look
+    // they had rather than jumping them to their latest unlock.
     const result = await cosmetics.setTokenRim(hero.heroId, enabled);
+    if (!result.ok) notify("Couldn't save that right now — try again.", "error");
+  };
+
+  /**
+   * "Which rim do I wear?" (#705) — the tier picker under the token switch.
+   *
+   * It writes the same pref endpoint the switch does, with the switch's own
+   * value passed through unchanged: a pick while the rim is HIDDEN is stored
+   * and shows up the moment it is switched back on, which is what makes the
+   * two controls independent rather than one control in two halves.
+   */
+  const onPickTokenTier = async (tier: number | null) => {
+    if (!hero) return;
+    const result = await cosmetics.setTokenRim(
+      hero.heroId,
+      heroCosmetics.tokenRim.enabled,
+      tier,
+    );
     if (!result.ok) notify("Couldn't save that right now — try again.", "error");
   };
 
@@ -238,6 +261,26 @@ export const CollectionPage = () => {
   const onToggleCardRims = async (enabled: boolean) => {
     if (!hero) return;
     const result = await cosmetics.setCardRims(hero.heroId, enabled);
+    if (!result.ok) notify("Couldn't save that right now — try again.", "error");
+  };
+
+  /**
+   * The card-rim CEILING (#705). One choice for the hero, capped by the best
+   * tier bought on any of its cards — per-card selection is deliberately not
+   * offered, because the ask was "let me play at silver again" and thirty
+   * ladders would be a chore rather than an answer.
+   *
+   * It caps rather than promotes: the grid below still shows every card at the
+   * tier it was BOUGHT at, because owning and wearing are different things and
+   * this page is about owning.
+   */
+  const onPickCardTier = async (tier: number | null) => {
+    if (!hero) return;
+    const result = await cosmetics.setCardRims(
+      hero.heroId,
+      heroCosmetics.cardRims.enabled,
+      tier,
+    );
     if (!result.ok) notify("Couldn't save that right now — try again.", "error");
   };
 
@@ -349,6 +392,7 @@ export const CollectionPage = () => {
           tokenUrl={deck?.tokenUrl ?? null}
           initials={tokenInitials(deck?.heroName || hero.name)}
           onToggle={onToggleRim}
+          onPickTier={onPickTokenTier}
         />
       )}
 
@@ -383,6 +427,22 @@ export const CollectionPage = () => {
             </Text>
           </Flex>
         </Flex>
+        <RimTierPicker
+          id="cards"
+          label="Card rims to wear"
+          // Capped by the best tier bought on ANY of this hero's cards: a
+          // choice above it would be a promotion, and this only ever caps.
+          maxTier={topCardTier(heroCosmetics)}
+          selectedTier={heroCosmetics.cardRims.selectedTier}
+          onSelect={onPickCardTier}
+          hint={
+            !cardRimsOn
+              ? "Saved for when you switch card rims back on."
+              : heroCosmetics.cardRims.selectedTier === null
+                ? "Every card at the tier you bought it."
+                : "Cards bought above this wear it; the rest keep their own."
+          }
+        />
         {ownedRims > 0 && !cardRimsOn && (
           <Text fontSize="0.75rem" opacity={0.7} mb="0.6rem" data-testid="card-rims-hidden">
             Upgraded but hidden — your cards go to the table with base art. The

@@ -616,6 +616,165 @@ describe("the card-rims switch", () => {
   });
 });
 
+/**
+ * The tier PICKERS (#705) — "I liked silver on Grievous, and then I unlocked
+ * gold". What is pinned here is that they offer only what a player has already
+ * reached, that a pick reaches the preview (and therefore the table) at once,
+ * and that they never disturb the switch beside them.
+ */
+describe("the rim tier pickers", () => {
+  it("offers Latest plus every unlocked tier, and nothing above them", async () => {
+    wire({});
+    await renderPage();
+    await waitFor(() => expect(screen.getByTestId("token-preview")).toBeInTheDocument());
+
+    // Kenshiro is unlocked to tier 2 — so bronze and silver, and no gold.
+    expect(screen.getByTestId("token-tier-latest")).toBeInTheDocument();
+    expect(screen.getByTestId("token-tier-1")).toBeInTheDocument();
+    expect(screen.getByTestId("token-tier-2")).toBeInTheDocument();
+    expect(screen.queryByTestId("token-tier-3")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("token-tier-4")).not.toBeInTheDocument();
+    // "Latest" is the default — today's behaviour, still selected.
+    expect(screen.getByTestId("token-tier-latest")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("wears the picked tier at once, and sends it with the switch's own value", async () => {
+    const fetchMock = wire({});
+    await renderPage();
+    await waitFor(() => expect(screen.getByTestId("token-preview")).toBeInTheDocument());
+    expect(screen.getByTestId("token-preview")).toHaveAttribute("data-cosmetic-tier", "silver");
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("token-tier-1"));
+    });
+
+    const [, init] = fetchMock.mock.calls.find(
+      ([url]) => url === `${API_URL}/me/cosmetics/token-rim`,
+    )!;
+    expect(JSON.parse(init?.body as string)).toEqual({
+      heroId: "kenshiro",
+      // The switch was ON and stays ON: a pick is not a toggle.
+      enabled: true,
+      selectedTier: 1,
+    });
+    expect(screen.getByTestId("token-preview")).toHaveAttribute("data-cosmetic-tier", "bronze");
+    expect(screen.getByLabelText("Show my rim in games")).toBeChecked();
+    // The unlock itself is untouched — you still OWN silver.
+    expect(screen.getByText("Silver rim unlocked")).toBeInTheDocument();
+  });
+
+  it("stores a pick made while the rim is hidden, and paints nothing until it is back", async () => {
+    const fetchMock = wire({
+      cosmetics: reply(200, {
+        heroes: [heroBlock({ tokenRim: { unlockedTier: 2, enabled: false } })],
+        constants: CONSTANTS,
+      }),
+    });
+    await renderPage();
+    await waitFor(() => expect(screen.getByTestId("token-preview")).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("token-tier-1"));
+    });
+    const [, init] = fetchMock.mock.calls.find(
+      ([url]) => url === `${API_URL}/me/cosmetics/token-rim`,
+    )!;
+    expect(JSON.parse(init?.body as string)).toEqual({
+      heroId: "kenshiro",
+      enabled: false,
+      selectedTier: 1,
+    });
+    // Stored, not worn.
+    expect(screen.getByTestId("token-preview")).toHaveAttribute("data-cosmetic-tier", "none");
+    expect(screen.getByTestId("token-tier-1")).toHaveAttribute("aria-pressed", "true");
+
+    // Switching the rim back on wears the pick, and does NOT re-send a tier —
+    // an omitted field is what leaves the stored choice alone.
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Show my rim in games"));
+    });
+    expect(screen.getByTestId("token-preview")).toHaveAttribute("data-cosmetic-tier", "bronze");
+    const bodies = fetchMock.mock.calls
+      .filter(([url]) => url === `${API_URL}/me/cosmetics/token-rim`)
+      .map(([, opts]) => JSON.parse(opts?.body as string));
+    expect(bodies[1]).toEqual({ heroId: "kenshiro", enabled: true });
+  });
+
+  it("caps the card picker at the best tier bought on any of that hero's cards", async () => {
+    const fetchMock = wire({
+      cosmetics: reply(200, {
+        heroes: [
+          heroBlock({
+            cards: [
+              { key: "feint", tier: 3 },
+              { key: "nunchaku", tier: 1 },
+            ],
+          }),
+        ],
+        constants: CONSTANTS,
+      }),
+    });
+    await renderPage();
+    await waitFor(() => expect(screen.getByTestId("card-set-feint")).toBeInTheDocument());
+
+    expect(screen.getByTestId("cards-tier-3")).toBeInTheDocument();
+    // Nothing was bought at tier 4, so it is not a look this hero has reached.
+    expect(screen.queryByTestId("cards-tier-4")).not.toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("cards-tier-2"));
+    });
+    const [, init] = fetchMock.mock.calls.find(
+      ([url]) => url === `${API_URL}/me/cosmetics/card-rims`,
+    )!;
+    expect(JSON.parse(init?.body as string)).toEqual({
+      heroId: "kenshiro",
+      enabled: true,
+      selectedTier: 2,
+    });
+    // Owning is not wearing: the grid still shows what was BOUGHT, so capping
+    // the look never reads as losing the upgrade.
+    expect(screen.getByTestId("card-set-feint")).toHaveAttribute("data-tier", "3");
+    expect(within(screen.getByTestId("card-set-feint")).getByText(/^Antiqued gold/)).toBeInTheDocument();
+  });
+
+  it("shows no picker when there is only one look to choose", async () => {
+    wire({
+      cosmetics: reply(200, {
+        heroes: [
+          heroBlock({
+            cards: [{ key: "feint", tier: 1 }],
+            tokenRim: { unlockedTier: 1, enabled: true },
+          }),
+        ],
+        constants: CONSTANTS,
+      }),
+    });
+    await renderPage();
+    await waitFor(() => expect(screen.getByTestId("token-preview")).toBeInTheDocument());
+
+    // One unlocked tier and one bought tier: "Latest" is the only answer, and
+    // a picker whose options all mean the same thing is worse than none.
+    expect(screen.queryByTestId("token-tier-picker")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("cards-tier-picker")).not.toBeInTheDocument();
+  });
+
+  it("puts the previous pick back when the write fails", async () => {
+    wire({ tokenRim: reply(503, {}) });
+    await renderPage();
+    await waitFor(() => expect(screen.getByTestId("token-preview")).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("token-tier-1"));
+    });
+    expect(await screen.findByText(/Couldn't save that right now/)).toBeInTheDocument();
+    // Back on Latest, and back to painting silver — a refused pick must not
+    // sit on screen looking saved.
+    expect(screen.getByTestId("token-tier-latest")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("token-preview")).toHaveAttribute("data-cosmetic-tier", "silver");
+  });
+});
+
 describe("when stats are down", () => {
   const degraded = () =>
     wire({
