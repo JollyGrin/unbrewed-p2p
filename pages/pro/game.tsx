@@ -11,7 +11,7 @@
  *   verified without the backend. Clicking a fighter shows its movement
  *   out-edges (adjacentTo ∪ oneWayTo) — reading MAP data for display, not rules.
  */
-import { CSSProperties, Fragment, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, Fragment, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { useRouter } from "next/router";
 import { Box, Button, Flex, Grid, Input, Link, Menu, MenuButton, MenuItem, MenuList, NumberDecrementStepper, NumberIncrementStepper, NumberInput, NumberInputField, NumberInputStepper, Tag, Text, Textarea, Tooltip } from "@chakra-ui/react";
@@ -49,6 +49,7 @@ import {
 } from "@/lib/pro/boardObjects";
 import { buildPromptSpaceMap } from "@/lib/pro/promptSpaces";
 import { replayId, saveReplay } from "@/lib/pro/replayStore";
+import { shareReplayLink } from "@/lib/pro/replayShareLink";
 import { proErrorMessage } from "@/lib/pro/proErrors";
 import { ProConnectionStatus, useProSocket } from "@/lib/pro/useProSocket";
 import { normalizeMap } from "@/lib/pro/normalizeMap";
@@ -3396,6 +3397,20 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     }
   }, [replayBundle]);
 
+  // "Copy share link" on the win screen (#698). The replay link the dock hands
+  // out is a localStorage deep-link — honest for the player, useless to anyone
+  // they paste it to — so signed-in players get the shareable one right there:
+  // upload the bundle, copy the public /share/replay/<uuid> URL.
+  const [sharingReplay, setSharingReplay] = useState(false);
+  const copyReplayShareLink = useCallback(async () => {
+    if (!replayBundle) return;
+    setSharingReplay(true);
+    const res = await shareReplayLink(replayBundle);
+    setSharingReplay(false);
+    if (res.ok) toast.success(`Share link copied — ${res.url}`, { duration: 7000 });
+    else toast.error(`${res.title} — ${res.description}`, { duration: 7000 });
+  }, [replayBundle]);
+
   // Pinch/scroll zoom + drag pan on the board (issue #120), now the default
   // interaction: the board fills the whole stage and the fixed HUD/hand/dock
   // float over it (issue #450). Turning the flag off falls back to the old
@@ -5439,6 +5454,10 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
         iForfeited={iForfeited}
         multiplayerView={multiplayerView}
         replayHref={replayBundle ? `/pro/replays?open=${replayId(replayBundle)}` : null}
+        onCopyShareLink={
+          replayBundle && accountStatus === "signed-in" ? () => void copyReplayShareLink() : undefined
+        }
+        shareLinkBusy={sharingReplay}
         undoPending={undoPending}
         onUndo={requestUndo}
         canForfeit={canForfeit}

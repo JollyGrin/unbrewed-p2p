@@ -19,6 +19,7 @@ import {
   TbChevronUp,
   TbExternalLink,
   TbGripHorizontal,
+  TbLink,
   TbPlus,
 } from "react-icons/tb";
 import { Action, FighterId, PlayerView } from "@/lib/pro/protocol";
@@ -189,7 +190,12 @@ export interface ProDockProps {
   iForfeited: boolean;
   multiplayerView: boolean;
   /** ----- endgame / controls ----- */
+  /** Local deep-link into this browser's saved replay — labelled as such (#698). */
   replayHref: string | null;
+  /** Upload this match and copy its public share link. Omitted when there is
+   *  nothing to upload or nobody to upload as (signed out, bundle not held). */
+  onCopyShareLink?: () => void;
+  shareLinkBusy?: boolean;
   undoPending: boolean;
   onUndo: () => void;
   canForfeit: boolean;
@@ -225,6 +231,8 @@ export const ProDock = ({
   iForfeited,
   multiplayerView,
   replayHref,
+  onCopyShareLink,
+  shareLinkBusy = false,
   undoPending,
   onUndo,
   canForfeit,
@@ -568,20 +576,45 @@ export const ProDock = ({
           </Text>
           {/* Deep-link straight into this match's saved God-view replay
               (issue #240). /pro/replays?open=<id> auto-opens it, and the link
-              only renders once the bundle is held, so it always resolves. */}
+              only renders once the bundle is held, so it always resolves —
+              for US. It reads localStorage, so it resolves for nobody else,
+              which is why it says "your" and why the share link sits beside it
+              rather than behind a page the player has to go find (#698). */}
           {replayHref && (
-            <Link
-              href={replayHref}
-              color="brand.parchment"
-              opacity={0.85}
-              fontSize="0.9rem"
-              display="inline-flex"
-              alignItems="center"
-              gap="0.3rem"
-              _hover={{ opacity: 1, color: "brand.accent", textDecoration: "none" }}
-            >
-              View replay <TbExternalLink size="0.85rem" />
-            </Link>
+            <Tooltip label="Saved in this browser — this link only opens for you" hasArrow placement="top">
+              <Link
+                href={replayHref}
+                color="brand.parchment"
+                opacity={0.85}
+                fontSize="0.9rem"
+                display="inline-flex"
+                alignItems="center"
+                gap="0.3rem"
+                _hover={{ opacity: 1, color: "brand.accent", textDecoration: "none" }}
+              >
+                View your replay <TbExternalLink size="0.85rem" />
+              </Link>
+            </Tooltip>
+          )}
+          {/* Upload-then-copy in one action. Only wired when the player is
+              signed in and a bundle exists — otherwise there is nothing to
+              upload it to, and the local link above is the honest option. */}
+          {onCopyShareLink && (
+            <Tooltip label="Uploads a copy, then anyone with the link can watch" hasArrow placement="bottom">
+              <Button
+                variant="link"
+                color="brand.parchment"
+                opacity={0.85}
+                fontWeight="normal"
+                fontSize="0.9rem"
+                gap="0.3rem"
+                isLoading={shareLinkBusy}
+                onClick={onCopyShareLink}
+                _hover={{ opacity: 1, color: "brand.accent", textDecoration: "none" }}
+              >
+                <TbLink size="0.85rem" /> Copy share link
+              </Button>
+            </Tooltip>
           )}
           {/* Straight back into matchmaking so players can start another game
               without hand-navigating (issue #374). Bare href = full navigation,
