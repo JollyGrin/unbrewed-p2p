@@ -143,6 +143,8 @@ import { usePositionSwaps } from "@/lib/pro/usePositionSwaps";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
 import { useAccount } from "@/lib/account/useAccount";
+import { InGameAccountChip } from "@/components/Account/AccountChip";
+import { ChipCluster } from "@/components/Game/Header/header.styles";
 import { formatChoice, PRO_FORMATS, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
 import { deriveTeams } from "@/lib/pro/teams";
 import { fighterTokenStateByOwner } from "@/lib/pro/heroStateFlags";
@@ -2628,7 +2630,10 @@ const HeroSelectLobby = ({
   };
 
   return (
-    <Box maxW="78rem" mx="auto" px={{ base: "0.75rem", md: "1.25rem" }} pt="1.25rem" pb={{ base: "6rem", lg: "2.5rem" }}>
+    // pt leaves the fixed account chip (top-right, rendered by the page) a lane
+    // of its own: the rules strip below wraps and its first row can run all the
+    // way to the right edge, so overlaying the chip on it would collide.
+    <Box maxW="78rem" mx="auto" px={{ base: "0.75rem", md: "1.25rem" }} pt="2.75rem" pb={{ base: "6rem", lg: "2.5rem" }}>
       {/* ---------------- rules strip ---------------- */}
       <Flex
         align="center"
@@ -3948,6 +3953,13 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     };
     return (
       <>
+        {/* The lobby has no ProHud, so without this the account chip is
+            invisible until you're actually in a game. InGameAccountChip, not
+            the page AccountChip: the socket is already live here and its
+            same-tab OAuth hop would tear it down. */}
+        <ChipCluster>
+          <InGameAccountChip />
+        </ChipCluster>
         <HeroSelectLobby
           room={room}
           status={status}
