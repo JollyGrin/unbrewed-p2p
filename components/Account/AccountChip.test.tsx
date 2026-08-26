@@ -94,6 +94,37 @@ describe("AccountChip", () => {
     );
   });
 
+  it("lists Account, Collection, then Leaderboard, with Sign out last", async () => {
+    fetchMock.mockResolvedValue(reply(200, { user: USER }));
+    renderChip();
+    await screen.findByText("JollyGrin");
+
+    fireEvent.click(screen.getByLabelText("Account: JollyGrin"));
+
+    const items = await screen.findAllByRole("menuitem");
+    expect(items.map((i) => i.textContent)).toEqual([
+      "Account",
+      "Collection",
+      "Leaderboard",
+      "Sign out",
+    ]);
+    // Sign out is the one destructive item, so it stays at the bottom, past the
+    // divider, where a mis-tap is least likely.
+    expect(items[items.length - 1]).toHaveTextContent("Sign out");
+  });
+
+  it("links the menu's page items at their own routes", async () => {
+    fetchMock.mockResolvedValue(reply(200, { user: USER }));
+    renderChip();
+    await screen.findByText("JollyGrin");
+
+    fireEvent.click(screen.getByLabelText("Account: JollyGrin"));
+
+    expect(await screen.findByText("Account")).toHaveAttribute("href", "/account");
+    expect(screen.getByText("Collection")).toHaveAttribute("href", "/collection");
+    expect(screen.getByText("Leaderboard")).toHaveAttribute("href", "/leaderboard");
+  });
+
   it("signs out from the menu and reverts to the guest chip", async () => {
     fetchMock.mockResolvedValue(reply(200, { user: USER }));
     renderChip();
