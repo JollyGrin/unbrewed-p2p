@@ -425,7 +425,7 @@ export const MoveTimerBar = ({
   );
 };
 
-const SeatPlate = ({
+export const SeatPlate = ({
   seatId,
   label,
   hero,
@@ -454,6 +454,7 @@ const SeatPlate = ({
   layout,
   hydrated,
   onUpdate,
+  variant = "plate",
 }: {
   /** WHOSE plate this is — the pile's HOST, which is what a bare pile entry means
    *  (protocol v33). Needed to tell an own entry from a foreign one. */
@@ -524,6 +525,15 @@ const SeatPlate = ({
   layout: PlateLayout;
   hydrated: boolean;
   onUpdate: (partial: Partial<PlateLayout>) => void;
+  /**
+   * "plate" is the desktop floating card — draggable, collapsible, with the
+   * hero's rules text behind a hover tooltip. "sheet" (issue #708) is the same
+   * seat rendered full-width inside the mobile seat drawer: no drag, no
+   * collapse, and every hover-only fact — the hero ability, the deck's extra
+   * rules, the sidekick lines — spelled out inline, because a phone has no
+   * hover.
+   */
+  variant?: "plate" | "sheet";
 }) => {
   const [discardOpen, setDiscardOpen] = useState(false);
   // Which set-aside pile this plate is inspecting (v25), by pile name; null =
@@ -607,6 +617,52 @@ const SeatPlate = ({
       <PlayerName>{label}</PlayerName>
     );
 
+  // Hero rules text: the deck's special ability, its extra-rules cards, the
+  // standing LARGE rule and the sidekick lines. Desktop hangs it off the
+  // nameplate as a hover tooltip; the mobile seat sheet renders the very same
+  // node inline (issue #708), so the two can never drift.
+  const abilityContent =
+    hero?.specialAbility || isLargeHero || sidekicks.length || rules.length ? (
+      <Box maxW="18rem" p="0.25rem" whiteSpace="pre-wrap" fontSize="0.78rem">
+        <Text fontWeight="bold" mb="0.25rem" color="brand.accent">
+          {heroName}
+        </Text>
+        {hero?.specialAbility?.trim()}
+        {/* Deck-level "extra rules" cards (issue #372) — distinct from the
+            hero's own specialAbility above; each preserves its \n breaks. */}
+        {rules.map((rule, i) => (
+          <Box key={`${rule.title}-${i}`} mt={hero?.specialAbility || i > 0 ? "0.5rem" : 0}>
+            <Text as="span" fontWeight="bold" color="brand.accent">
+              {rule.title || "Extra rules"}:
+            </Text>{" "}
+            {rule.content.trim()}
+          </Box>
+        ))}
+        {/* Standing large-fighter rule (issue #235). Keyed on the live
+            two-space signal (heroFighter.tailSpace), so any future LARGE
+            hero inherits it without a code change. Copy is shared with the
+            attack-reach chip so the two never drift. */}
+        {isLargeHero && (
+          <Text mt={hero?.specialAbility ? "0.5rem" : 0} color="brand.accent">
+            {LARGE_FIGHTER_BLURB}
+          </Text>
+        )}
+        {sidekicks.map((s) => (
+          <Text key={s.id} mt="0.4rem" opacity={s.defeated ? 0.6 : 1}>
+            <Text as="span" fontWeight="bold" color="brand.accent">
+              Sidekick:
+            </Text>{" "}
+            {s.name} — {s.hp}/{s.maxHp} HP,{" "}
+            {s.reach === "RANGED" ? "ranged" : "melee"}
+            {isLargeFighter(s) ? " · large" : ""}
+            {s.defeated ? " (defeated)" : ""}
+          </Text>
+        ))}
+      </Box>
+    ) : (
+      "hero rules loading…"
+    );
+
   // ----- reusable pieces (shared by the live plate and the hover-peek) -----
   const renderNameBlock = (withAbility: boolean) => (
     <Box minW={0}>
@@ -616,48 +672,7 @@ const SeatPlate = ({
           placement="bottom-start"
           bg="brand.surfaceDim"
           color="brand.parchment"
-          label={
-            hero?.specialAbility || isLargeHero || sidekicks.length || rules.length ? (
-              <Box maxW="18rem" p="0.25rem" whiteSpace="pre-wrap" fontSize="0.78rem">
-                <Text fontWeight="bold" mb="0.25rem" color="brand.accent">
-                  {heroName}
-                </Text>
-                {hero?.specialAbility?.trim()}
-                {/* Deck-level "extra rules" cards (issue #372) — distinct from the
-                    hero's own specialAbility above; each preserves its \n breaks. */}
-                {rules.map((rule, i) => (
-                  <Box key={`${rule.title}-${i}`} mt={hero?.specialAbility || i > 0 ? "0.5rem" : 0}>
-                    <Text as="span" fontWeight="bold" color="brand.accent">
-                      {rule.title || "Extra rules"}:
-                    </Text>{" "}
-                    {rule.content.trim()}
-                  </Box>
-                ))}
-                {/* Standing large-fighter rule (issue #235). Keyed on the live
-                    two-space signal (heroFighter.tailSpace), so any future LARGE
-                    hero inherits it without a code change. Copy is shared with the
-                    attack-reach chip so the two never drift. */}
-                {isLargeHero && (
-                  <Text mt={hero?.specialAbility ? "0.5rem" : 0} color="brand.accent">
-                    {LARGE_FIGHTER_BLURB}
-                  </Text>
-                )}
-                {sidekicks.map((s) => (
-                  <Text key={s.id} mt="0.4rem" opacity={s.defeated ? 0.6 : 1}>
-                    <Text as="span" fontWeight="bold" color="brand.accent">
-                      Sidekick:
-                    </Text>{" "}
-                    {s.name} — {s.hp}/{s.maxHp} HP,{" "}
-                    {s.reach === "RANGED" ? "ranged" : "melee"}
-                    {isLargeFighter(s) ? " · large" : ""}
-                    {s.defeated ? " (defeated)" : ""}
-                  </Text>
-                ))}
-              </Box>
-            ) : (
-              "hero rules loading…"
-            )
-          }
+          label={abilityContent}
         >
           {nameLine}
         </Tooltip>
@@ -929,6 +944,36 @@ const SeatPlate = ({
     </StatContainer>
   );
 
+  // Mobile seat sheet (issue #708): every fact the desktop plate carries, laid
+  // out full-width for a drawer — including the two that were hover-only there
+  // (the hero rules text, and the pile/discard pills, which stay tap targets
+  // opening the same CardListModal above). No drag handle and no collapse: the
+  // drawer's own dismiss is the way out.
+  const sheetBody = (
+    <Box w="100%">
+      <Flex alignItems="flex-start" justifyContent="space-between" gap="0.5rem" px="0.85rem" pt="0.5rem" pb="0.4rem">
+        {renderNameBlock(false)}
+        <Flex alignItems="center" gap="0.3rem" flexWrap="wrap" justifyContent="flex-end">
+          {flagTags}
+          {combatWonTag}
+          {ongoingSchemeTag}
+          {presenceTag}
+          {allyTag}
+          {turnTag}
+        </Flex>
+      </Flex>
+      {presenceRow}
+      {statsPanel}
+      {sidekickRows}
+      {ongoingSchemeRow}
+      {pipFooter}
+      {timerBar}
+      <Box px="0.85rem" py="0.6rem" color="brand.parchment">
+        {abilityContent}
+      </Box>
+    </Box>
+  );
+
   // shared drag/handle props for the live plate's title bar
   const titleBarDrag = {
     onPointerDown: (e: React.PointerEvent) => dragControls.start(e),
@@ -960,6 +1005,9 @@ const SeatPlate = ({
         isOpen={openPile !== null}
         onClose={() => setOpenPile(null)}
       />
+      {variant === "sheet" ? (
+        sheetBody
+      ) : (
       <motion.div
         drag
         dragListener={false}
@@ -1035,6 +1083,7 @@ const SeatPlate = ({
           </StatContainer>
         )}
       </motion.div>
+      )}
     </>
   );
 };
@@ -1132,6 +1181,68 @@ const BetaFeaturesChip = () => {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * The seat list the HUD renders (issue #708 lifted it out of ProHud so the
+ * mobile match strip can build the same one).
+ *
+ * A live multi-seat view carries `players`; the duel path (and older servers)
+ * carries only `self`/`opponent`, so those are projected into the same
+ * ViewPlayer shape here rather than in two places.
+ */
+export const hudSeats = (view: PlayerView): ViewPlayer[] =>
+  view.players.length
+    ? view.players
+    : [
+        {
+          id: view.self.id,
+          heroId: view.self.heroId,
+          you: true,
+          // #568: the seat's claimed name, when this server broadcasts one.
+          displayName: view.self.displayName,
+          // #577: and the badge it claimed, same treatment.
+          badge: view.self.badge,
+          team: view.self.id,
+          hand: view.self.hand,
+          handCount: view.self.hand.length,
+          deckCount: view.self.deckCount,
+          discard: view.self.discard,
+          ongoingScheme: view.self.ongoingScheme ?? null,
+          committedCard: view.self.committedCard,
+          hasCommitted: !!view.self.committedCard,
+          counters: view.self.counters,
+          piles: view.self.piles,
+          flags: view.self.flags,
+          wonCombatThisTurn: view.self.wonCombatThisTurn,
+          lostCombatThisTurn: view.self.lostCombatThisTurn,
+          firstAttackThisTurn: view.self.firstAttackThisTurn,
+          playedACardThisTurn: view.self.playedACardThisTurn,
+          tookDamageThisTurn: view.self.tookDamageThisTurn,
+        },
+        ...(view.opponent
+          ? [{
+              id: view.opponent.id,
+              heroId: view.opponent.heroId,
+              you: false,
+              displayName: view.opponent.displayName,
+              badge: view.opponent.badge,
+              team: view.opponent.id,
+              handCount: view.opponent.handCount,
+              deckCount: view.opponent.deckCount,
+              discard: view.opponent.discard,
+              ongoingScheme: view.opponent.ongoingScheme ?? null,
+              hasCommitted: view.opponent.hasCommitted,
+              counters: view.opponent.counters,
+              piles: view.opponent.piles,
+              flags: view.opponent.flags,
+              wonCombatThisTurn: view.opponent.wonCombatThisTurn,
+              lostCombatThisTurn: view.opponent.lostCombatThisTurn,
+              firstAttackThisTurn: view.opponent.firstAttackThisTurn,
+              playedACardThisTurn: view.opponent.playedACardThisTurn,
+              tookDamageThisTurn: view.opponent.tookDamageThisTurn,
+            }]
+          : []),
+      ];
+
 export interface ProHudProps {
   view: PlayerView;
   status: ProConnectionStatus;
@@ -1213,58 +1324,7 @@ export const ProHud = ({
   // guest, an unreachable accounts API, or an account with no avatar set — all
   // of which render the plate exactly as it does today.
   const { account } = useAccount();
-  const seats: ViewPlayer[] = view.players.length
-    ? view.players
-    : [
-        {
-          id: view.self.id,
-          heroId: view.self.heroId,
-          you: true,
-          // #568: the seat's claimed name, when this server broadcasts one.
-          displayName: view.self.displayName,
-          // #577: and the badge it claimed, same treatment.
-          badge: view.self.badge,
-          team: view.self.id,
-          hand: view.self.hand,
-          handCount: view.self.hand.length,
-          deckCount: view.self.deckCount,
-          discard: view.self.discard,
-          ongoingScheme: view.self.ongoingScheme ?? null,
-          committedCard: view.self.committedCard,
-          hasCommitted: !!view.self.committedCard,
-          counters: view.self.counters,
-          piles: view.self.piles,
-          flags: view.self.flags,
-          wonCombatThisTurn: view.self.wonCombatThisTurn,
-          lostCombatThisTurn: view.self.lostCombatThisTurn,
-          firstAttackThisTurn: view.self.firstAttackThisTurn,
-          playedACardThisTurn: view.self.playedACardThisTurn,
-          tookDamageThisTurn: view.self.tookDamageThisTurn,
-        },
-        ...(view.opponent
-          ? [{
-              id: view.opponent.id,
-              heroId: view.opponent.heroId,
-              you: false,
-              displayName: view.opponent.displayName,
-              badge: view.opponent.badge,
-              team: view.opponent.id,
-              handCount: view.opponent.handCount,
-              deckCount: view.opponent.deckCount,
-              discard: view.opponent.discard,
-              ongoingScheme: view.opponent.ongoingScheme ?? null,
-              hasCommitted: view.opponent.hasCommitted,
-              counters: view.opponent.counters,
-              piles: view.opponent.piles,
-              flags: view.opponent.flags,
-              wonCombatThisTurn: view.opponent.wonCombatThisTurn,
-              lostCombatThisTurn: view.opponent.lostCombatThisTurn,
-              firstAttackThisTurn: view.opponent.firstAttackThisTurn,
-              playedACardThisTurn: view.opponent.playedACardThisTurn,
-              tookDamageThisTurn: view.opponent.tookDamageThisTurn,
-            }]
-          : []),
-      ];
+  const seats: ViewPlayer[] = hudSeats(view);
 
   // Team affiliation (issue #195). Inactive (no ALLY chips) unless the view is a
   // real team format — duel/ffa/older-server views derive `active: false` and

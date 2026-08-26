@@ -41,10 +41,12 @@ export const PageSeo = ({
     <Head>
       <title key="title">{title}</title>
       <meta key="description" name="description" content={description} />
+      {/* viewport-fit=cover lets the fixed /pro/game chrome pad itself with
+          env(safe-area-inset-*) instead of being clipped by a notch (#708). */}
       <meta
         key="viewport"
         name="viewport"
-        content="width=device-width, initial-scale=1"
+        content="width=device-width, initial-scale=1, viewport-fit=cover"
       />
       {noindex && (
         <meta key="robots" name="robots" content="noindex, nofollow" />
