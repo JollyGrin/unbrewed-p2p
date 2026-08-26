@@ -606,7 +606,11 @@ describe("Ellen Ripley (ellen-ripley) deck data", () => {
  *
  * Order is the engine's `ELLEN_RIPLEY_CARDS` order, which the snapshot follows.
  * `usableBy` maps to `characterName` (the club's banner name): HERO → "Ellen
- * Ripley", SIDEKICK → "Newt", ANY → "Any". The engine spells the two defence cards
+ * Ripley", SIDEKICK → "Newt", ANY → "Any". ONE row is newer than the @ee9c276 pin:
+ * "M41A Pulse RIFLE" was `usableBy: ANY` there, which let Newt attack with Ripley's
+ * rifle — a data-entry error in the club export (the author's own card art prints
+ * RIPLEY, confirmed on Discord 2026-08-26). Engine #515 fixes it to HERO and this
+ * client's issue #714 fixes the banner. The engine spells the two defence cards
  * "defense"; the snapshot uses the community-deck "defence" the card-type icon is
  * keyed on, and the digest normalizes the difference (see `normalizeType`).
  */
@@ -624,7 +628,7 @@ describe("Ellen Ripley snapshot agrees with ellen-ripley.rules.ts @ee9c276", () 
     ["M41A GRENADE LAUNCHER", "scheme", 0, 3, 2, "Ellen Ripley"],
     ["GET BEHIND ME", "defense", 2, 3, 3, "Any"],
     ["RESOURCEFUL", "attack", 2, 1, 2, "Newt"],
-    ["M41A Pulse RIFLE", "attack", 2, 2, 3, "Any"],
+    ["M41A Pulse RIFLE", "attack", 2, 2, 3, "Ellen Ripley"], // engine #515: usableBy ANY -> HERO
     ["GET AWAY FROM HER, YOU *****!", "attack", 4, 3, 2, "Ellen Ripley"],
   ];
 
