@@ -107,7 +107,16 @@ const mount = async () => {
       }),
     });
   });
-  return out;
+  return {
+    ...out,
+    state: async (view: PlayerView, legalActions: unknown[] = []) => {
+      await act(async () => {
+        ws.onmessage?.({
+          data: JSON.stringify({ v: PROTOCOL_VERSION, type: "STATE", view, legalActions }),
+        });
+      });
+    },
+  };
 };
 
 const chips = () => screen.queryByTestId(MOBILE_CHIPS_TEST_ID);
@@ -198,6 +207,40 @@ describe("portrait phone", () => {
     expect(screen.queryByTestId("pro-mobile-sheet")).toBeNull();
     fireEvent.click(screen.getByTestId("pro-mobile-more"));
     expect(screen.getByTestId("pro-mobile-sheet")).toBeInTheDocument();
+    // Opened by choice, so "tap away to dismiss" is real and gets a scrim.
+    expect(screen.getByTestId("pro-mobile-sheet-scrim")).toBeInTheDocument();
+  });
+
+  /**
+   * The blocker this test exists for: a prompt that says "click a gold space on
+   * the board" forces the sheet open, and a full-viewport `pointer-events:auto`
+   * scrim under it silently ate every board tap — the board rendered, the ring
+   * pulsed, and nothing happened. A forced sheet cannot be dismissed, so its
+   * scrim was pure obstruction; it must not exist.
+   */
+  it("never puts a scrim over the board while a prompt owns it", async () => {
+    setViewport("portrait");
+    const { state } = await mount();
+    await state(
+      {
+        ...BASE_VIEW,
+        prompt: {
+          promptId: "p-choose-space",
+          player: BASE_VIEW.you,
+          kind: "CHOOSE_SPACE",
+          options: [
+            { id: "o1", label: "w2" },
+            { id: "o2", label: "w3" },
+          ],
+        },
+      } as PlayerView,
+      []
+    );
+    // the sheet is up and locked open…
+    expect(screen.getByTestId("pro-mobile-sheet")).toBeInTheDocument();
+    expect(screen.getByLabelText(/decision is waiting/i)).toBeInTheDocument();
+    // …and the board underneath it is still reachable.
+    expect(screen.queryByTestId("pro-mobile-sheet-scrim")).toBeNull();
   });
 
   it("puts every seat fact behind a tap, including the hover-only hero rules", async () => {

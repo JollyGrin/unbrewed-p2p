@@ -899,18 +899,29 @@ export const ProDock = ({
       <>
         {/* Scrim. Dismissible only when the sheet was opened by choice — a
             forced decision has nowhere to dismiss TO. */}
-        {/* The z values in this branch are LOCAL to the mobile control
+        {/* Scrim — ONLY for a sheet the player opened by choice, because its
+            only job is "tap away to dismiss".
+        
+            A FORCED sheet must not have one: half the prompts it carries say
+            "click a gold space on the board", and a full-viewport
+            `pointer-events: auto` layer over the board silently eats every one
+            of those taps (the sheet's own dismiss is disabled while forced, so
+            the scrim was pure obstruction). This is the mobile shape of the
+            desktop rule that a prompt owns the board.
+        
+            The z values in this branch are LOCAL to the mobile control
             container the page pins at z 160 — inside it the order runs scrim,
             sheet, then the log/hand/overflow row, so nothing the player needs
             ends up underneath the sheet. */}
-        {!mobileHandOpen && (
+        {!mobileHandOpen && !sheetForced && (
           <Box
+            data-testid="pro-mobile-sheet-scrim"
             position="fixed"
             inset={0}
             zIndex={1}
             bg="rgba(12, 4, 16, 0.5)"
             pointerEvents="auto"
-            onClick={() => !sheetForced && setSheetOpen(false)}
+            onClick={() => setSheetOpen(false)}
           />
         )}
         <Flex

@@ -2107,6 +2107,87 @@ export const ProBoard = ({
     );
   };
 
+  // Region inset panels + the zone legend. Inside the frame they float over the
+  // board and scale with it; that is the desktop/landscape behaviour and it is
+  // untouched. In rotated portrait the caller renders this same node in the
+  // OUTER, untransformed box instead: they are self-contained HTML panels whose
+  // clicks are identity-based (`data-space-id`), so nothing about them needs the
+  // map's coordinate system — and pinning them to the screen is the only way a
+  // 230px panel reliably stays on a 390px one.
+  const screenOverlays = (
+    <>
+      {regions.some((r) => !panelPos[r.id]) && (
+        <Flex
+          position="absolute"
+          {...(upright
+            ? { left: "0.5rem", top: "0.5rem" }
+            : { right: "1.5%", bottom: "1.5%" })}
+          w={REGION_PANEL_W_CSS}
+          maxW="calc(100% - 1rem)"
+          direction="column"
+          gap="0.4rem"
+          zIndex={7}
+          pointerEvents="none"
+        >
+          {regions.filter((r) => !panelPos[r.id]).map((r) => regionPanel(r))}
+        </Flex>
+      )}
+      {regions
+        .filter((r) => panelPos[r.id])
+        .map((r) => (
+          <Box
+            key={r.id}
+            position="absolute"
+            left={upright ? "0.5rem" : `${panelPos[r.id].x}%`}
+            top={upright ? "0.5rem" : `${panelPos[r.id].y}%`}
+            w={REGION_PANEL_W_CSS}
+            maxW="calc(100% - 1rem)"
+            zIndex={7}
+            pointerEvents="none"
+          >
+            {regionPanel(r)}
+          </Box>
+        ))}
+
+      {/* zone-membership legend (issue #413): names the zone(s) the inspected
+          space belongs to, color-matched to the on-board rings, so a multi-zone
+          space is unambiguous. Non-interactive; shown only while a space is
+          hovered/selected and only when the map actually defines zones. */}
+      {hoveredZoneSet.size > 0 && (
+        <Flex
+          position="absolute"
+          top={upright ? "0.5rem" : "1.5%"}
+          {...(upright ? { right: "0.5rem" } : { left: "1.5%" })}
+          zIndex={8}
+          direction="column"
+          gap="0.15rem"
+          bg="blackAlpha.700"
+          px="0.4rem"
+          py="0.3rem"
+          borderRadius="0.4rem"
+          pointerEvents="none"
+        >
+          {map.zones
+            .filter((z) => hoveredZoneSet.has(z.id))
+            .map((z) => (
+              <Flex key={z.id} align="center" gap="0.35rem">
+                <Box
+                  w="0.7rem"
+                  h="0.7rem"
+                  borderRadius="2px"
+                  bg={z.color}
+                  border="1px solid rgba(255,255,255,0.6)"
+                />
+                <Box as="span" fontSize="0.7rem" color="white" whiteSpace="nowrap">
+                  {z.label || z.id}
+                </Box>
+              </Flex>
+            ))}
+        </Flex>
+      )}
+    </>
+  );
+
   return (
     // Outer box may be stretched by a parent grid/flex row; the INNER box is
     // the positioning context: it shrink-wraps the image exactly, so the
@@ -2153,84 +2234,19 @@ export const ProBoard = ({
 
       {spaceLayers(mainSpaces, diameter, framePx)}
 
-      {/* region inset panels (v9 — e.g. Baba Yaga's Hut), pinned bottom-right
-          and stacked upward; sized relative to the board so they scale with it.
-          The container ignores pointer events so the gaps between panels stay
-          clickable board (each panel re-enables its own). A dragged panel
-          leaves the stack and pins to wherever the player put it. */}
-      {regions.some((r) => !panelPos[r.id]) && (
-        <Flex
-          position="absolute"
-          right="1.5%"
-          bottom="1.5%"
-          transform={upright ? "rotate(-90deg)" : undefined}
-          transformOrigin="bottom right"
-          w={REGION_PANEL_W_CSS}
-          direction="column"
-          gap="0.4rem"
-          zIndex={7}
-          pointerEvents="none"
-        >
-          {regions.filter((r) => !panelPos[r.id]).map((r) => regionPanel(r))}
-        </Flex>
-      )}
-      {regions
-        .filter((r) => panelPos[r.id])
-        .map((r) => (
-          <Box
-            key={r.id}
-            position="absolute"
-            left={`${panelPos[r.id].x}%`}
-            top={`${panelPos[r.id].y}%`}
-            transform={upright ? "rotate(-90deg)" : undefined}
-            transformOrigin="top left"
-            w={REGION_PANEL_W_CSS}
-            zIndex={7}
-            pointerEvents="none"
-          >
-            {regionPanel(r)}
-          </Box>
-        ))}
-
-      {/* zone-membership legend (issue #413): names the zone(s) the inspected
-          space belongs to, color-matched to the on-board rings, so a multi-zone
-          space is unambiguous. Non-interactive; shown only while a space is
-          hovered/selected and only when the map actually defines zones. */}
-      {hoveredZoneSet.size > 0 && (
-        <Flex
-          position="absolute"
-          top="1.5%"
-          left="1.5%"
-          transform={upright ? "rotate(-90deg)" : undefined}
-          transformOrigin="top left"
-          zIndex={8}
-          direction="column"
-          gap="0.15rem"
-          bg="blackAlpha.700"
-          px="0.4rem"
-          py="0.3rem"
-          borderRadius="0.4rem"
-          pointerEvents="none"
-        >
-          {map.zones
-            .filter((z) => hoveredZoneSet.has(z.id))
-            .map((z) => (
-              <Flex key={z.id} align="center" gap="0.35rem">
-                <Box
-                  w="0.7rem"
-                  h="0.7rem"
-                  borderRadius="2px"
-                  bg={z.color}
-                  border="1px solid rgba(255,255,255,0.6)"
-                />
-                <Box as="span" fontSize="0.7rem" color="white" whiteSpace="nowrap">
-                  {z.label || z.id}
-                </Box>
-              </Flex>
-            ))}
-        </Flex>
-      )}
+      {/* region inset panels (v9 — e.g. Baba Yaga's Hut) and the zone legend.
+          Both are screen-oriented HTML, not board art — so when the frame takes
+          its portrait quarter-turn they are hoisted OUT of it entirely (see
+          `screenOverlays` below) rather than counter-rotated in place, which is
+          what swung the panel off the left edge of a phone. Unrotated, they
+          render here exactly as they always have. */}
+      {!upright && screenOverlays}
       </Box>
+
+      {/* Rotated portrait: the screen-oriented overlays live out here, in the
+          untransformed viewport box, so a region panel can never swing off the
+          edge of a phone. */}
+      {upright && screenOverlays}
 
       {/* reset-to-fit control — appears only once the view has moved off the
           initial fit. Sits in the outer (untransformed) box so it stays put on
