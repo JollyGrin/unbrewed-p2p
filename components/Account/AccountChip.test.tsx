@@ -123,6 +123,9 @@ describe("AccountChip", () => {
     expect(await screen.findByText("Account")).toHaveAttribute("href", "/account");
     expect(screen.getByText("Collection")).toHaveAttribute("href", "/collection");
     expect(screen.getByText("Leaderboard")).toHaveAttribute("href", "/leaderboard");
+    // The navbar has no socket to protect, so these stay same-tab; only the
+    // in-game chip opens them beside the game.
+    expect(screen.getByText("Account")).not.toHaveAttribute("target");
   });
 
   it("signs out from the menu and reverts to the guest chip", async () => {
@@ -147,10 +150,12 @@ describe("AccountChip", () => {
 });
 
 /**
- * The in-game chip rides the ProHud chip cluster, where a full-page OAuth hop
- * would kill the live socket and a new tab returning to this game URL would
- * open a second connection to the same room. These tests pin the escape
- * hatches that make it safe, plus the "costs nothing when idle" property.
+ * The in-game chip rides the /pro/game lobby and the ProHud chip cluster, where
+ * a full-page OAuth hop would kill the live socket and a new tab returning to
+ * this game URL would open a second connection to the same room. These tests
+ * pin the escape hatches that make it safe, the "costs nothing when idle"
+ * property, and (#712) that its dropdown is the navbar's menu item for item —
+ * only opened in a new tab, so a running game is never navigated away.
  */
 describe("InGameAccountChip", () => {
   const renderInGame = () =>
@@ -188,7 +193,7 @@ describe("InGameAccountChip", () => {
     expect(link.getAttribute("href")).not.toContain("game");
   });
 
-  it("shows the avatar and username with no sign-out menu mid-game", async () => {
+  it("shows the avatar and username once signed in", async () => {
     fetchMock.mockResolvedValue(reply(200, { user: USER }));
 
     renderInGame();
@@ -198,8 +203,77 @@ describe("InGameAccountChip", () => {
       "src",
       USER.avatarUrl,
     );
-    expect(screen.queryByRole("button")).toBeNull();
+    // Closed until asked for — the board must not carry a stray dropdown.
     expect(screen.queryByText("Sign out")).toBeNull();
+  });
+
+  it("opens the SAME menu as the navbar chip, in the same order", async () => {
+    fetchMock.mockResolvedValue(reply(200, { user: USER }));
+    renderInGame();
+    await screen.findByText("JollyGrin");
+
+    fireEvent.click(screen.getByLabelText("Signed in as JollyGrin"));
+
+    const items = await screen.findAllByRole("menuitem");
+    expect(items.map((i) => i.textContent)).toEqual([
+      "Account",
+      "Collection",
+      "Leaderboard",
+      "Sign out",
+    ]);
+  });
+
+  it("opens every menu link in a NEW tab, so the game keeps running", async () => {
+    fetchMock.mockResolvedValue(reply(200, { user: USER }));
+    renderInGame();
+    await screen.findByText("JollyGrin");
+
+    fireEvent.click(screen.getByLabelText("Signed in as JollyGrin"));
+
+    for (const [label, href] of [
+      ["Account", "/account"],
+      ["Collection", "/collection"],
+      ["Leaderboard", "/leaderboard"],
+    ] as const) {
+      const item = await screen.findByText(label);
+      expect(item).toHaveAttribute("href", href);
+      // Same precedent as the guest chip's Discord handoff: navigating away
+      // here would tear down the live game socket.
+      expect(item).toHaveAttribute("target", "_blank");
+      expect(item).toHaveAttribute("rel", expect.stringContaining("noopener"));
+    }
+    // Sign out is not a navigation, so it acts in place.
+    expect(screen.getByText("Sign out")).not.toHaveAttribute("target");
+  });
+
+  it("signs out in place from the in-game menu", async () => {
+    fetchMock.mockResolvedValue(reply(200, { user: USER }));
+    renderInGame();
+    await screen.findByText("JollyGrin");
+
+    fetchMock.mockImplementation(async (url: string) =>
+      url.endsWith("/auth/logout")
+        ? reply(204, null)
+        : reply(401, { user: null }),
+    );
+    fireEvent.click(screen.getByLabelText("Signed in as JollyGrin"));
+    fireEvent.click(await screen.findByText("Sign out"));
+
+    expect(await screen.findByLabelText("Sign in with Discord")).toBeVisible();
+  });
+
+  it("keeps the plain identity chip where a menu would nest (mobile HUD)", async () => {
+    fetchMock.mockResolvedValue(reply(200, { user: USER }));
+
+    render(
+      <ChakraProvider>
+        <InGameAccountChip withMenu={false} />
+      </ChakraProvider>,
+    );
+
+    expect(await screen.findByText("JollyGrin")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Signed in as JollyGrin"));
+    expect(screen.queryAllByRole("menuitem")).toHaveLength(0);
   });
 
   it("ignores window focus until the player actually starts a sign-in", async () => {
