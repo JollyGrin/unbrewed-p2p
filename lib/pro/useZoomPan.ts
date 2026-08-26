@@ -24,8 +24,18 @@ import {
   useState,
 } from "react";
 
+/** Floor for a USER zoom-out gesture. */
 export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 3;
+/**
+ * Floor for the COMPUTED initial fit (issue #708). A ~1024px map needs roughly
+ * 0.35 to fit a 358px-wide phone stage, so clamping the fit at ZOOM_MIN was
+ * what left the board cropped and drifting on mobile. The fit may go this low;
+ * a gesture still cannot zoom out past `min(ZOOM_MIN, fit)`, so the resting
+ * view stays reachable and desktop — whose fit sits well above 0.5 — is
+ * untouched.
+ */
+export const FIT_MIN = 0.05;
 
 // wheel deltaY -> multiplicative scale step (exp keeps zoom feel even across
 // devices; small constant = gentle). Trackpad pinch arrives as ctrl+wheel and
@@ -57,7 +67,14 @@ export interface ZoomPanInset {
   left?: number;
 }
 
-const clampScale = (s: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, s));
+/** Gesture clamp. The floor drops to the fit when the fit is the smaller of
+ *  the two, so a board that only fits at 0.35 can still be zoomed back out to
+ *  exactly that. */
+const clampScale = (s: number, floor = ZOOM_MIN) =>
+  Math.min(ZOOM_MAX, Math.max(Math.min(ZOOM_MIN, floor), s));
+
+/** Clamp for the computed fit itself — free to go below the gesture floor. */
+const clampFit = (s: number) => Math.min(ZOOM_MAX, Math.max(FIT_MIN, s));
 
 const same = (a: ZoomPanState, b: ZoomPanState) =>
   Math.abs(a.scale - b.scale) < 1e-3 && Math.abs(a.tx - b.tx) < 0.5 && Math.abs(a.ty - b.ty) < 0.5;
@@ -120,6 +137,9 @@ export function useZoomPan(
   // Set by any user gesture: until then the board keeps re-fitting on resize,
   // after it we leave the player's view alone.
   const touched = useRef(false);
+  // The resting fit's scale, read by the gesture clamp so zooming out can
+  // always return to a board that only fits below ZOOM_MIN.
+  const fitScaleRef = useRef(ZOOM_MIN);
 
   const { top = 0, right = 0, bottom = 0, left = 0 } = inset;
 
@@ -136,7 +156,7 @@ export function useZoomPan(
     if (!cw || !ch || !fw || !fh) return null;
     const availW = Math.max(cw - left - right, 1);
     const availH = Math.max(ch - top - bottom, 1);
-    const scale = clampScale(Math.min(availW / fw, availH / fh));
+    const scale = clampFit(Math.min(availW / fw, availH / fh));
     return {
       scale,
       tx: left + (availW - fw * scale) / 2,
@@ -155,6 +175,7 @@ export function useZoomPan(
     const apply = () => {
       const next = computeFit();
       if (!next) return;
+      fitScaleRef.current = next.scale;
       setFit((prev) => (same(prev, next) ? prev : next));
       if (!touched.current) setState((prev) => (same(prev, next) ? prev : next));
     };
@@ -175,7 +196,7 @@ export function useZoomPan(
       if (!el) return;
       const rect = el.getBoundingClientRect();
       setState((s) => {
-        const next = clampScale(s.scale * factor);
+        const next = clampScale(s.scale * factor, fitScaleRef.current);
         const k = next / s.scale;
         if (k === 1) return s;
         return {
@@ -213,6 +234,7 @@ export function useZoomPan(
   useEffect(() => {
     if (!enabled) {
       touched.current = false;
+      fitScaleRef.current = ZOOM_MIN;
       setState(IDENTITY);
       setFit(IDENTITY);
     }
@@ -220,7 +242,9 @@ export function useZoomPan(
 
   const reset = useCallback(() => {
     touched.current = false;
-    setState(computeFit() ?? fit);
+    const next = computeFit() ?? fit;
+    fitScaleRef.current = next.scale;
+    setState(next);
   }, [computeFit, fit]);
 
   // Active pointers (by id) for pinch; a press only becomes a pan once it

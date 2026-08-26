@@ -29,6 +29,7 @@ import { LARGE_FIGHTER_BLURB, LARGE_REACH_CHIP } from "@/lib/pro/largeReach";
 import { ItemGlyph } from "@/components/Pro/ItemBadge";
 import { tokenInitials } from "./FighterTokenPortrait";
 import { DockRow } from "@/lib/pro/actionDock";
+import { TAP_TARGET } from "@/lib/pro/mobileLayout";
 import { useDockLayout } from "@/lib/pro/useDockLayout";
 
 /** Width of the dock's default right-edge slot. */
@@ -200,6 +201,24 @@ export interface ProDockProps {
   onUndo: () => void;
   canForfeit: boolean;
   onForfeit: () => void;
+  /**
+   * Render one of the mobile shells instead of the floating desktop dock
+   * (issue #708, direction B). Same rows, same panels, same rule that a
+   * decision the engine is waiting on can never be tucked out of sight — what
+   * changes is the shell around them:
+   *
+   *  - "portrait": nothing permanent stands on the board, so at rest this is a
+   *    floating pill row (the primary action + "N more…"), and the full sheet
+   *    slides up over a scrim when the player asks for it or when the decision
+   *    is one the pill row cannot carry (a prompt, a combat, a walk in
+   *    progress, the endgame).
+   *  - "rail": the landscape decision rail — always open, inline, positioned by
+   *    the caller.
+   *
+   * Either way the drag handle, the fixed right-edge slot and the localStorage
+   * offset drop away, and the action rows grow to a 44px tap target.
+   */
+  mobile?: false | "portrait" | "rail";
 }
 
 export const ProDock = ({
@@ -237,9 +256,14 @@ export const ProDock = ({
   onUndo,
   canForfeit,
   onForfeit,
+  mobile = false,
 }: ProDockProps) => {
   const { layout, hydrated, update } = useDockLayout();
   const [dragging, setDragging] = useState(false);
+  // Portrait's sheet is CLOSED at rest, which is the opposite of the desktop
+  // dock's stored preference — so it gets its own local state rather than
+  // writing a mobile default into the layout every player shares.
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   // Drag transform lives on the motion wrapper, mirroring SeatPlate.
   const dragControls = useDragControls();
@@ -361,6 +385,99 @@ export const ProDock = ({
     </Flex>
   );
 
+  // Board hints as STRINGS, so the mobile pill row can carry the same sentence
+  // the sheet does without a second wording of it (issue #708). The desktop
+  // copy is untouched — these are the exact texts the body already rendered.
+  const moveChoiceLine = moveChoiceNames
+    ? // "both" was hardcoded when two candidates was the only case. Protocol
+      // v28 (SMALL fighters) makes four same-named Larrys reaching one space
+      // ordinary, so the count drives the wording. Names arrive pre-badged
+      // ("Larry 2") and the matching number is on the board token.
+      `${moveChoiceNames.join(" or ")} can ${
+        moveChoiceNames.length > 2 ? "all" : "both"
+      } move here — click which fighter should move (or tap the space again to cancel)`
+    : null;
+  const highlightHint =
+    !moveChoiceNames && !poseChoiceHint && !stepping && (highlightedCount > 0 || attackTargetCount > 0)
+      ? selectedFighterName
+        ? stepwiseMoves
+          ? `stepping ${selectedFighterName} — click a near gold space to step one at a time, or a far one to move straight there`
+          : `showing moves for ${selectedFighterName} — click a gold space (click the fighter again to unselect)`
+        : [
+            highlightedCount > 0 &&
+              `click a gold space to move there (${highlightedCount} option${
+                highlightedCount === 1 ? "" : "s"
+              })`,
+            attackTargetCount > 0 && "click a pulsing enemy to attack",
+          ]
+            .filter(Boolean)
+            .join(" · ")
+      : null;
+  const boardHint = moveChoiceLine ?? poseChoiceHint ?? highlightHint;
+
+  // ----- direction B mobile shells (issue #708) ------------------------------
+  //
+  // The sheet is FORCED open — and cannot be dismissed — for any decision the
+  // pill row below cannot itself carry: a prompt, a combat, a walk in progress,
+  // the endgame. That is the desktop `needsInput` guard reshaped for a layout
+  // where the dock is not permanently on screen; an ordinary "which of these
+  // three actions" turn is not forced, because the pill row is showing it.
+  const sheetForced = hasPrompt || !!combatPanel || !!view.winner || !!stepping;
+  const sheetShown = sheetForced || sheetOpen;
+
+  // The mobile sheet's grab bar: the turn chips (so the sheet answers "whose
+  // turn, how many actions left" the moment it opens) and a close affordance
+  // that is disabled while the sheet is forced.
+  const mobileBar = (
+    <Flex
+      as="button"
+      type="button"
+      aria-label={sheetForced ? "A decision is waiting — sheet stays open" : "Close actions"}
+      aria-expanded
+      disabled={sheetForced}
+      onClick={() => !sheetForced && setSheetOpen(false)}
+      alignItems="center"
+      justifyContent="space-between"
+      gap="0.5rem"
+      w="100%"
+      minH={TAP_TARGET}
+      px="0.75rem"
+      py="0.4rem"
+      textAlign="left"
+      borderBottom="1px solid rgba(231, 204, 152, 0.14)"
+      cursor={sheetForced ? "default" : "pointer"}
+      sx={{ userSelect: "none" }}
+    >
+      <Box minW={0} flex="1">
+        {/* `turnChips` is `false` outside live turn chrome (replay/pre-game), so
+            fall back with `||`, not `??`. */}
+        {turnChips || (
+          <Text
+            fontSize="0.68rem"
+            letterSpacing="0.08em"
+            textTransform="uppercase"
+            fontWeight={700}
+            color="rgba(231, 204, 152, 0.6)"
+          >
+            Actions
+          </Text>
+        )}
+      </Box>
+      <Flex
+        alignItems="center"
+        gap="0.3rem"
+        flexShrink={0}
+        color="rgba(231, 204, 152, 0.72)"
+        opacity={sheetForced ? 0.35 : 1}
+      >
+        <Text fontSize="0.68rem" fontWeight={700} letterSpacing="0.04em" whiteSpace="nowrap">
+          Close
+        </Text>
+        <TbChevronDown size="0.9rem" />
+      </Flex>
+    </Flex>
+  );
+
   const body = (
     <Flex
       direction="column"
@@ -410,15 +527,12 @@ export const ProDock = ({
           </Flex>
         </Flex>
       )}
-      {turnChips}
-      {moveChoiceNames && (
+      {/* On mobile the chips ride in the sheet's bar, where they stay readable
+          when it is collapsed — rendering them again here would just repeat. */}
+      {!mobile && turnChips}
+      {moveChoiceLine && (
         <Text fontSize="0.8rem" color="#C4B5FD" fontWeight="bold" textShadow="0 1px 3px rgba(0,0,0,0.6)">
-          {/* "both" was hardcoded when two candidates was the only case. Protocol
-              v28 (SMALL fighters) makes four same-named Larrys reaching one space
-              ordinary, so the count drives the wording. Names arrive pre-badged
-              ("Larry 2") and the matching number is on the board token. */}
-          {moveChoiceNames.join(" or ")} can {moveChoiceNames.length > 2 ? "all" : "both"} move here —
-          click which fighter should move (or tap the space again to cancel)
+          {moveChoiceLine}
         </Text>
       )}
       {poseChoiceHint && (
@@ -426,21 +540,9 @@ export const ProDock = ({
           {poseChoiceHint}
         </Text>
       )}
-      {!moveChoiceNames && !poseChoiceHint && !stepping && (highlightedCount > 0 || attackTargetCount > 0) && (
+      {highlightHint && (
         <Text fontSize="0.8rem" color="brand.accent" textShadow="0 1px 3px rgba(0,0,0,0.6)">
-          {selectedFighterName
-            ? stepwiseMoves
-              ? `stepping ${selectedFighterName} — click a near gold space to step one at a time, or a far one to move straight there`
-              : `showing moves for ${selectedFighterName} — click a gold space (click the fighter again to unselect)`
-            : [
-                highlightedCount > 0 &&
-                  `click a gold space to move there (${highlightedCount} option${
-                    highlightedCount === 1 ? "" : "s"
-                  })`,
-                attackTargetCount > 0 && "click a pulsing enemy to attack",
-              ]
-                .filter(Boolean)
-                .join(" · ")}
+          {highlightHint}
         </Text>
       )}
       {boostHint && (
@@ -463,7 +565,7 @@ export const ProDock = ({
               justifyContent="flex-start"
               whiteSpace="normal"
               height="auto"
-              minH="2rem"
+              minH={mobile ? TAP_TARGET : "2rem"}
               py="0.4rem"
               textAlign="left"
               onClick={() => onAction(a)}
@@ -662,6 +764,156 @@ export const ProDock = ({
       )}
     </Flex>
   );
+
+  // ----- rail (landscape): always open, inline, positioned by the caller -----
+  if (mobile === "rail")
+    return (
+      <Flex direction="column" minH={0} flex="1 1 auto" overflow="hidden">
+        <Box px="0.15rem" pb="0.4rem" flexShrink={0}>
+          {turnChips}
+        </Box>
+        {body}
+      </Flex>
+    );
+
+  // ----- portrait: pill row at rest, sheet over a scrim when it is needed ----
+  if (mobile === "portrait") {
+    // The one action the pill row promotes: the spacebar's sole action when the
+    // engine offers exactly one, otherwise the first row in the dock's own
+    // order (maneuver leads that order, which is what a player reaches for).
+    const primary = soleAction ?? rows[0]?.action ?? null;
+    const extra = Math.max(rows.length - (primary ? 1 : 0), 0);
+
+    if (!sheetShown)
+      return (
+        <Flex
+          data-testid="pro-mobile-pills"
+          direction="column"
+          alignItems="center"
+          gap="0.4rem"
+          pointerEvents="none"
+        >
+          {boardHint && (
+            <Text
+              maxW="20rem"
+              px="0.7rem"
+              py="0.25rem"
+              borderRadius="999px"
+              bg="rgba(20, 8, 24, 0.72)"
+              color="brand.accent"
+              fontSize="0.72rem"
+              textAlign="center"
+              noOfLines={2}
+              pointerEvents="none"
+            >
+              {boardHint}
+            </Text>
+          )}
+          <Flex alignItems="center" justifyContent="center" gap="0.5rem" maxW="100%" px="0.5rem">
+            {primary ? (
+              <Button
+                minH="3rem"
+                px="1.25rem"
+                borderRadius="999px"
+                bg="brand.accent"
+                color="brand.surfaceDim"
+                fontWeight={700}
+                fontSize="0.95rem"
+                boxShadow="0 6px 20px rgba(12,4,16,0.5)"
+                _hover={{ bg: "brand.accent" }}
+                _active={{ bg: "brand.accentDeep" }}
+                maxW="15rem"
+                overflow="hidden"
+                pointerEvents="auto"
+                onClick={() => onAction(primary)}
+              >
+                <Text as="span" noOfLines={1}>
+                  {describe(primary)}
+                </Text>
+              </Button>
+            ) : (
+              liveChrome && (
+                <Flex
+                  alignItems="center"
+                  minH="2.75rem"
+                  px="1rem"
+                  borderRadius="999px"
+                  bg="rgba(44, 24, 49, 0.9)"
+                  border="1px solid rgba(250, 235, 215, 0.3)"
+                  color="brand.parchment"
+                  fontSize="0.8rem"
+                  pointerEvents="none"
+                >
+                  {iAmSpectating
+                    ? iForfeited
+                      ? "You forfeited — spectating."
+                      : "Eliminated — spectating."
+                    : multiplayerView
+                      ? "waiting on another player…"
+                      : "waiting on opponent…"}
+                </Flex>
+              )
+            )}
+            <Button
+              data-testid="pro-mobile-more"
+              minH="3rem"
+              px="1rem"
+              borderRadius="999px"
+              bg="rgba(44, 24, 49, 0.9)"
+              color="brand.parchment"
+              border="1px solid rgba(250, 235, 215, 0.3)"
+              fontSize="0.8rem"
+              fontWeight={500}
+              _hover={{ bg: "rgba(20, 8, 24, 0.95)" }}
+              pointerEvents="auto"
+              onClick={() => setSheetOpen(true)}
+            >
+              {extra > 0 ? `${extra} more…` : "Details"}
+            </Button>
+          </Flex>
+        </Flex>
+      );
+
+    return (
+      <>
+        {/* Scrim. Dismissible only when the sheet was opened by choice — a
+            forced decision has nowhere to dismiss TO. */}
+        <Box
+          position="fixed"
+          inset={0}
+          zIndex={139}
+          bg="rgba(12, 4, 16, 0.5)"
+          pointerEvents="auto"
+          onClick={() => !sheetForced && setSheetOpen(false)}
+        />
+        <Flex
+          data-testid="pro-mobile-sheet"
+          position="fixed"
+          left={0}
+          right={0}
+          bottom={0}
+          zIndex={141}
+          direction="column"
+          minH={0}
+          // `svh`, never `vh`: the mobile URL bar makes `vh` taller than the
+          // visible viewport, which is what used to cut the bottom off a
+          // combat panel.
+          maxH="72svh"
+          borderTopRadius="1.1rem"
+          overflow="hidden"
+          borderTop="2px solid"
+          borderColor="brand.accent"
+          boxShadow="0 -8px 24px rgba(12, 4, 16, 0.55)"
+          bg="linear-gradient(180deg, rgba(58, 33, 64, 0.97), rgba(38, 20, 43, 0.99))"
+          pointerEvents="auto"
+          sx={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+        >
+          {mobileBar}
+          {body}
+        </Flex>
+      </>
+    );
+  }
 
   return (
     <motion.div
