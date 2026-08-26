@@ -39,10 +39,29 @@ export const HAND_CARD_W_FAN = "8.5rem";
 export const HAND_CARD_W_RAIL = "4rem";
 /** the fan-peek's three stacked card backs */
 export const HAND_PEEK_CARD_W = "4.6rem";
+/** …and the lane they own, so no pill ever stacks behind them */
+export const HAND_PEEK_H = "6.5rem";
 /** upper bound for a drawer card — a small hand should not render posters */
 export const HAND_DRAWER_CARD_MAX = "7.4rem";
 /** the fallback width when a huge hand falls back to horizontal scroll */
 export const HAND_DRAWER_CARD_SCROLL = "6.25rem";
+
+/**
+ * What a corner HP chip calls a seat.
+ *
+ * The hero's own name beats "You"/"Opponent" there — it is what the player is
+ * actually tracking, and the parchment rim already says which seat is theirs.
+ * A long one is cut to its leading word rather than ellipsed into nothing
+ * ("Cairne Bloodhoof" reads as CAIRNE, not as "OPPON…").
+ */
+export const CHIP_NAME_MAX = 11;
+export const chipSeatName = (heroName: string | undefined, fallback: string): string => {
+  const name = (heroName ?? "").trim();
+  if (!name) return fallback;
+  if (name.length <= CHIP_NAME_MAX) return name;
+  const [first] = name.split(/\s+/);
+  return first.length <= CHIP_NAME_MAX ? first : name.slice(0, CHIP_NAME_MAX);
+};
 
 /** Minimum tap target — every mobile control and action row clears it. */
 export const TAP_TARGET = "2.75rem";
@@ -69,21 +88,31 @@ export interface BoardInsetArgs {
   chipsH?: number;
   /** measured height of the persistent bottom controls (px) */
   controlsH?: number;
+  /**
+   * Measured height of the decision sheet while it is SHOWN (px), 0 otherwise.
+   *
+   * The sheet is the one overlay the fit does account for: it is force-open for
+   * whole stretches of a game (a prompt, a combat), and a board centred behind
+   * it renders half off-screen with a screenful of empty table above — which is
+   * exactly what the first direction-B build did. The hand drawer and the log
+   * sheet stay excluded: you are looking at THEM, not at the board, and they
+   * come and go too fast to move the map for.
+   */
+  sheetH?: number;
   /** measured width of the landscape rail (px) */
   railW?: number;
 }
 
 /**
- * px of the board stage hidden behind the PERSISTENT chrome, so the initial fit
- * centers the map in the part of the screen nothing is standing on. Overlays
- * (the decision sheet, the hand drawer, the log) are deliberately not counted:
- * they come and go with a single decision, and re-fitting the board under each
- * one would make the map jump every time a prompt opened.
+ * px of the board stage standing chrome hides, so the initial fit centers the
+ * map in the part of the screen the player can actually see: the HP chips on
+ * top, the floating controls (and the decision sheet, when it is up) below.
  */
 export const boardFitInsetFor = ({
   mode,
   chipsH = 0,
   controlsH = 0,
+  sheetH = 0,
   railW = 0,
 }: BoardInsetArgs): Required<ZoomPanInset> => {
   if (mode === "desktop")
@@ -105,7 +134,7 @@ export const boardFitInsetFor = ({
 
   return {
     top,
-    bottom: (controlsH || MOBILE_CONTROLS_H) + MOBILE_GUTTER,
+    bottom: Math.max(controlsH || MOBILE_CONTROLS_H, sheetH) + MOBILE_GUTTER,
     left: MOBILE_GUTTER,
     right: MOBILE_GUTTER,
   };

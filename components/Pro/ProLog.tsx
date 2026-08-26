@@ -47,7 +47,10 @@ const SheetPanel = styled(Box)`
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 146;
+  /* Above the mobile control container (160) — the log is a full-attention
+     overlay there, not a panel the hand row may sit on top of. Desktop's
+     floating Panel keeps its own 145. */
+  z-index: 171;
   max-height: 68svh;
   display: flex;
   flex-direction: column;
@@ -65,7 +68,7 @@ const SheetPanel = styled(Box)`
 const SheetScrim = styled(Box)`
   position: fixed;
   inset: 0;
-  z-index: 145;
+  z-index: 170;
   background: rgba(12, 4, 16, 0.5);
 `;
 

@@ -10,7 +10,7 @@
  * The one rule this component owns beyond layout: a collapsed dock must never
  * hide a decision the engine is waiting on. See `needsInput` below.
  */
-import { Fragment, ReactNode, useEffect, useRef, useState } from "react";
+import { Fragment, ReactNode, RefObject, useEffect, useRef, useState } from "react";
 import { Box, Button, Flex, Kbd, Link, Tag, Text, Tooltip } from "@chakra-ui/react";
 import { animate, motion, useDragControls, useMotionValue } from "framer-motion";
 import {
@@ -219,6 +219,17 @@ export interface ProDockProps {
    * offset drop away, and the action rows grow to a 44px tap target.
    */
   mobile?: false | "portrait" | "rail";
+  /**
+   * Portrait only: the hand drawer is open, so the sheet stands ON TOP of it
+   * rather than behind it. This is the "a prompt is asking about a card in your
+   * hand" case — the question belongs above the cards it is about.
+   */
+  mobileHandOpen?: boolean;
+  /** portrait only: attached to the sheet element so the page can measure it */
+  mobileSheetRef?: RefObject<HTMLDivElement>;
+  /** portrait only: told whenever the sheet appears/disappears, so the page can
+   *  re-fit the board into the space that is left */
+  onMobileSheetShown?: (shown: boolean) => void;
 }
 
 export const ProDock = ({
@@ -257,6 +268,9 @@ export const ProDock = ({
   canForfeit,
   onForfeit,
   mobile = false,
+  mobileHandOpen = false,
+  mobileSheetRef,
+  onMobileSheetShown,
 }: ProDockProps) => {
   const { layout, hydrated, update } = useDockLayout();
   const [dragging, setDragging] = useState(false);
@@ -424,6 +438,13 @@ export const ProDock = ({
   // three actions" turn is not forced, because the pill row is showing it.
   const sheetForced = hasPrompt || !!combatPanel || !!view.winner || !!stepping;
   const sheetShown = sheetForced || sheetOpen;
+  const portraitSheetShown = mobile === "portrait" && sheetShown;
+  useEffect(() => {
+    onMobileSheetShown?.(portraitSheetShown);
+    // `onMobileSheetShown` is a fresh closure each render; the boolean is the
+    // only thing worth reacting to.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [portraitSheetShown]);
 
   // The mobile sheet's grab bar: the turn chips (so the sheet answers "whose
   // turn, how many actions left" the moment it opens) and a close affordance
@@ -878,27 +899,36 @@ export const ProDock = ({
       <>
         {/* Scrim. Dismissible only when the sheet was opened by choice — a
             forced decision has nowhere to dismiss TO. */}
-        <Box
-          position="fixed"
-          inset={0}
-          zIndex={139}
-          bg="rgba(12, 4, 16, 0.5)"
-          pointerEvents="auto"
-          onClick={() => !sheetForced && setSheetOpen(false)}
-        />
+        {/* The z values in this branch are LOCAL to the mobile control
+            container the page pins at z 160 — inside it the order runs scrim,
+            sheet, then the log/hand/overflow row, so nothing the player needs
+            ends up underneath the sheet. */}
+        {!mobileHandOpen && (
+          <Box
+            position="fixed"
+            inset={0}
+            zIndex={1}
+            bg="rgba(12, 4, 16, 0.5)"
+            pointerEvents="auto"
+            onClick={() => !sheetForced && setSheetOpen(false)}
+          />
+        )}
         <Flex
+          ref={mobileSheetRef}
           data-testid="pro-mobile-sheet"
           position="fixed"
           left={0}
           right={0}
-          bottom={0}
-          zIndex={141}
+          bottom={mobileHandOpen ? "62svh" : 0}
+          // Above the hand drawer's scrim when it is lifted, so the question is
+          // legible over the cards it is asking about.
+          zIndex={mobileHandOpen ? 4 : 2}
           direction="column"
           minH={0}
           // `svh`, never `vh`: the mobile URL bar makes `vh` taller than the
           // visible viewport, which is what used to cut the bottom off a
           // combat panel.
-          maxH="72svh"
+          maxH={mobileHandOpen ? "34svh" : "72svh"}
           borderTopRadius="1.1rem"
           overflow="hidden"
           borderTop="2px solid"
@@ -906,7 +936,13 @@ export const ProDock = ({
           boxShadow="0 -8px 24px rgba(12, 4, 16, 0.55)"
           bg="linear-gradient(180deg, rgba(58, 33, 64, 0.97), rgba(38, 20, 43, 0.99))"
           pointerEvents="auto"
-          sx={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+          sx={{
+            // Room for the log / hand / overflow row that floats above this
+            // sheet, so the last action row is never tucked under it.
+            paddingBottom: mobileHandOpen
+              ? undefined
+              : "calc(7rem + env(safe-area-inset-bottom, 0px))",
+          }}
         >
           {mobileBar}
           {body}

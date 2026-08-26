@@ -366,6 +366,15 @@ export interface ProBoardProps {
    * parent box and that box becomes the pan/zoom viewport, so the parent must
    * give it a height (issue #450). */
   zoomable?: boolean;
+  /**
+   * Stand the map on end (issue #708, mobile portrait only). Unmatched maps are
+   * landscape art; on a phone held upright the unrotated fit is width-bound and
+   * leaves two thirds of the screen as empty table. `zoomable` only — the
+   * rotation rides the pan/zoom transform (see lib/pro/useZoomPan) so a drag
+   * still moves the board the way the finger went, and every token, badge and
+   * panel below counter-rotates so its text still reads upright.
+   */
+  rotated?: boolean;
   /** px of this box hidden behind the caller's fixed overlays (HUD, dock,
    *  hand). The initial fit centers the board in what's left, so the whole
    *  field is visible on load without any user interaction. `zoomable` only. */
@@ -441,6 +450,7 @@ export const ProBoard = ({
   moveHint = null,
   imgMaxH,
   zoomable = false,
+  rotated = false,
   fitInset,
   tokenLife = null,
   fighterEls,
@@ -481,7 +491,11 @@ export const ProBoard = ({
   // Pinch/scroll zoom + drag pan (issue #120). The transform rides the
   // shrink-wrap frame below so the art and every overlay move as one unit;
   // when `zoomable` is false the hook attaches nothing and returns no transform.
-  const zoom = useZoomPan(zoomable, frameRef, fitInset);
+  const zoom = useZoomPan(zoomable, frameRef, fitInset, zoomable && rotated);
+  // Appended to a piece of board content's OWN centring transform. Rotation is
+  // applied about the box's centre before the translate, so the anchor point is
+  // untouched and only what the box draws turns back upright.
+  const upright = zoomable && rotated ? " rotate(-90deg)" : "";
 
   // Layout width (px, BEFORE the zoom transform) of the shrink-wrap frame every
   // board overlay is positioned against. Read for one reason only: the cosmetic
@@ -1179,7 +1193,7 @@ export const ProBoard = ({
         onAnimationComplete={anim && segment === "head" ? () => onPendingMoveSettled?.() : undefined}
         // v28: offsets are a PERCENTAGE OF THIS TOKEN'S OWN WIDTH, so the whole
         // cluster scales with the board and the zoom transform (see tokenStack.ts).
-        transform={`translate(calc(-50% + ${slot.dx}%), calc(-50% + ${slot.dy}%))`}
+        transform={`translate(calc(-50% + ${slot.dx}%), calc(-50% + ${slot.dy}%))${upright}`}
         w={`${diam * slot.scale}%`}
         sx={{ aspectRatio: "1" }}
         borderRadius="50%"
@@ -1270,7 +1284,7 @@ export const ProBoard = ({
           position="absolute"
           left={`${s.x * 100}%`}
           top={`${s.y * 100}%`}
-          transform={`translate(${tx}, ${ty}) rotate(45deg)`}
+          transform={`translate(${tx}, ${ty}) rotate(45deg)${upright}`}
           w={`${diam * 0.55}%`}
           sx={{ aspectRatio: "1", pointerEvents: "none" }}
           bg="brand.surfaceDim"
@@ -1289,7 +1303,7 @@ export const ProBoard = ({
         position="absolute"
         left={`${s.x * 100}%`}
         top={`${s.y * 100}%`}
-        transform={`translate(${tx}, ${ty})`}
+        transform={`translate(${tx}, ${ty})${upright}`}
         w={`${diam * 0.62}%`}
         sx={{ aspectRatio: "1", pointerEvents: "none" }}
         zIndex={2}
@@ -1378,7 +1392,12 @@ export const ProBoard = ({
       left={`${s.x * 100}%`}
       top={`${s.y * 100}%`}
       w={`${diam * 0.82}%`}
-      sx={{ aspectRatio: "1" }}
+      sx={{
+        aspectRatio: "1",
+        // The topple animation owns this box's transform, so the counter-turn
+        // rides its children instead.
+        ...(upright ? { "& > *": { transform: "rotate(-90deg)" } } : {}),
+      }}
       borderRadius="50%"
       bg={g.isHero ? g.color : SURFACE_DIM}
       border={`2px solid ${g.isHero ? "#fff" : g.color}`}
@@ -1580,7 +1599,7 @@ export const ProBoard = ({
               position="absolute"
               left={`${s.x * 100}%`}
               top={`${s.y * 100}%`}
-              transform="translate(35%, -115%)"
+              transform={`translate(35%, -115%)${upright}`}
               w={`${badgeW}%`}
               sx={{ aspectRatio: "1" }}
               zIndex={5}
@@ -1596,7 +1615,7 @@ export const ProBoard = ({
               position="absolute"
               left={`${s.x * 100}%`}
               top={`${s.y * 100}%`}
-              transform="translate(-135%, -115%)"
+              transform={`translate(-135%, -115%)${upright}`}
               w={`${badgeW}%`}
               sx={{ aspectRatio: "1" }}
               zIndex={5}
@@ -1830,7 +1849,7 @@ export const ProBoard = ({
             position="absolute"
             left={`${to.x * 100}%`}
             top={`${to.y * 100}%`}
-            transform={`translate(calc(-50% + ${nudge}rem), calc(-50% + ${nudge}rem))`}
+            transform={`translate(calc(-50% + ${nudge}rem), calc(-50% + ${nudge}rem))${upright}`}
             w={`${diam * 0.82}%`}
             sx={{ aspectRatio: "1", pointerEvents: "none" }}
             borderRadius="50%"
@@ -1924,7 +1943,7 @@ export const ProBoard = ({
           position="absolute"
           left={`${at.x}%`}
           top={`${at.y}%`}
-          transform="translate(-50%, -50%)"
+          transform={`translate(-50%, -50%)${upright}`}
           w={`${diam * 0.82}%`}
           sx={{ aspectRatio: "1", pointerEvents: "none" }}
           borderRadius="50%"
@@ -2144,6 +2163,8 @@ export const ProBoard = ({
           position="absolute"
           right="1.5%"
           bottom="1.5%"
+          transform={upright ? "rotate(-90deg)" : undefined}
+          transformOrigin="bottom right"
           w={REGION_PANEL_W_CSS}
           direction="column"
           gap="0.4rem"
@@ -2161,6 +2182,8 @@ export const ProBoard = ({
             position="absolute"
             left={`${panelPos[r.id].x}%`}
             top={`${panelPos[r.id].y}%`}
+            transform={upright ? "rotate(-90deg)" : undefined}
+            transformOrigin="top left"
             w={REGION_PANEL_W_CSS}
             zIndex={7}
             pointerEvents="none"
@@ -2178,6 +2201,8 @@ export const ProBoard = ({
           position="absolute"
           top="1.5%"
           left="1.5%"
+          transform={upright ? "rotate(-90deg)" : undefined}
+          transformOrigin="top left"
           zIndex={8}
           direction="column"
           gap="0.15rem"

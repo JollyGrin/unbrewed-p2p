@@ -7,12 +7,14 @@
  * screen rather than a guess.
  */
 import {
+  CHIP_NAME_MAX,
   DESKTOP_INSET,
   MOBILE_CHIPS_H,
   MOBILE_CONTROLS_H,
   MOBILE_GUTTER,
   RAIL_WIDTH,
   boardFitInsetFor,
+  chipSeatName,
   handDrawerLayout,
 } from "./mobileLayout";
 import { proLayoutMode } from "./useProLayout";
@@ -95,6 +97,26 @@ describe("handDrawerLayout", () => {
 
   it("survives an empty hand", () => {
     expect(handDrawerLayout(0)).toEqual({ columns: 1, scroll: false });
+  });
+});
+
+describe("chipSeatName", () => {
+  it("prefers the hero the player is actually tracking", () => {
+    expect(chipSeatName("King Kong", "You")).toBe("King Kong");
+  });
+
+  it("cuts a long hero to its leading word rather than ellipsing it away", () => {
+    expect(chipSeatName("Cairne Bloodhoof", "Opponent")).toBe("Cairne");
+    expect(chipSeatName("Malfurion Stormrage", "Opponent")).toBe("Malfurion");
+  });
+
+  it("hard-truncates a long single word", () => {
+    expect(chipSeatName("Antidisestablishmentarian", "Opponent")).toHaveLength(CHIP_NAME_MAX);
+  });
+
+  it("falls back to the seat label before the hero is known", () => {
+    expect(chipSeatName(undefined, "Opponent")).toBe("Opponent");
+    expect(chipSeatName("   ", "You")).toBe("You");
   });
 });
 

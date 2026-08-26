@@ -3581,14 +3581,26 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // would make the board jump every time a prompt opened.
   const mobileChipsRef = useRef<HTMLDivElement>(null);
   const mobileControlsRef = useRef<HTMLDivElement>(null);
+  const mobileSheetRef = useRef<HTMLDivElement>(null);
+  const [mobileSheetShown, setMobileSheetShown] = useState(false);
   const mobileChipsH = useElementHeight(mobileChipsRef, mobile);
   const mobileControlsH = useElementHeight(mobileControlsRef, mobile && !rail);
+  // The decision sheet IS counted (unlike the hand drawer and the log): it is
+  // force-open for whole stretches of a game, and a board centred behind it
+  // sits half off-screen under a screenful of empty table.
+  const mobileSheetH = useElementHeight(mobileSheetRef, mobile && !rail && mobileSheetShown);
   // px of the stage hidden behind that chrome, so the initial fit centers the
   // board in the part of the screen nothing is standing on. Mirrors the padding
   // the non-zoom fallback below still uses.
   const boardFitInset = useMemo(
-    () => boardFitInsetFor({ mode, chipsH: mobileChipsH, controlsH: mobileControlsH }),
-    [mode, mobileChipsH, mobileControlsH]
+    () =>
+      boardFitInsetFor({
+        mode,
+        chipsH: mobileChipsH,
+        controlsH: mobileControlsH,
+        sheetH: mobileSheetH,
+      }),
+    [mode, mobileChipsH, mobileControlsH, mobileSheetH]
   );
   // The activity log floats permanently on desktop; on mobile it is a sheet the
   // Log button opens. The hand is a drawer on mobile portrait (direction B) —
@@ -5411,16 +5423,18 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   };
 
   // …and it opens itself when the decision on the table is about a card in YOUR
-  // hand: a prompt whose options name hand instances, or a hand card carrying a
-  // legal action while a prompt is open. Rising edge only, so a player who
-  // closes it again is not fought. Never during the mulligan, which puts the
+  // hand — a prompt whose own options name hand instances. Deliberately NOT
+  // "any hand card is playable while a prompt is open": a CHOOSE SPACE prompt
+  // leaves the hand playable too, and opening the drawer over the board for it
+  // is exactly the wrong move. Never during the mulligan, which puts the
   // opening hand on screen itself.
   const handDecision =
     mobile &&
     !!prompt &&
     !mulliganPrompt &&
-    (promptCardOptions.some((o) => view.self.hand.includes(o.instance)) ||
-      view.self.hand.some((c) => actionsForCard(c).length > 0));
+    promptCardOptions.some((o) => view.self.hand.includes(o.instance))
+      ? prompt.promptId
+      : null;
 
 
   // The HUD's data, built once and worn by whichever arrangement is mounted
@@ -5562,6 +5576,9 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       canForfeit={canForfeit}
       onForfeit={() => setForfeitOpen(true)}
       mobile={mobile ? (rail ? "rail" : "portrait") : false}
+      mobileHandOpen={handOpen}
+      mobileSheetRef={mobileSheetRef}
+      onMobileSheetShown={setMobileSheetShown}
     />
   );
 
@@ -5655,6 +5672,10 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
           moveHint={moveHint}
           imgMaxH={zoomMapOn ? undefined : "calc(100svh - 16rem)"}
           zoomable={zoomMapOn}
+          // Portrait phones only (issue #708): stand the landscape map on end
+          // so it uses the screen's long axis. Landscape is already the map's
+          // own orientation, and desktop never rotates.
+          rotated={mode === "portrait"}
           fitInset={boardFitInset}
           tokenLife={tokenLifeOn ? tokenGestures : null}
           fighterEls={fighterElsRef}
@@ -5840,7 +5861,17 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
           }}
         >
           {dockEl}
-          <Flex alignItems="flex-end" justifyContent="space-between" gap="0.5rem" px="0.6rem">
+          {/* Above the decision sheet inside this container, so the log, the
+              hand and the overflow menu stay reachable while a prompt holds
+              the sheet open. */}
+          <Flex
+            position="relative"
+            zIndex={3}
+            alignItems="flex-end"
+            justifyContent="space-between"
+            gap="0.5rem"
+            px="0.6rem"
+          >
             <Flex
               {...MOBILE_BTN}
               as="button"
@@ -5850,7 +5881,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
             >
               <TbList size="1rem" /> Log
             </Flex>
-            <HandDecisionWatcher active={handDecision} onOpen={() => setHandOpen(true)} />
+            <HandDecisionWatcher promptKey={handDecision} onOpen={() => setHandOpen(true)} />
             <ProMobileHand
               hand={view.self.hand}
               resolveCard={resolveCard}

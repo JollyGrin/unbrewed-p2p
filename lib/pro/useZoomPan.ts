@@ -122,11 +122,20 @@ export interface ZoomPan {
  *                 what keeps zoom anchored under the cursor as scale changes
  * @param inset    px of the container hidden behind the fixed overlays; the
  *                 initial fit centers the board in the remaining region
+ * @param rotated  quarter-turn the frame (issue #708, mobile portrait only).
+ *                 Unmatched maps are landscape art; stood on end they use a
+ *                 phone's long axis instead of wasting half the screen. The
+ *                 rotation is the INNERMOST step of the transform, so `tx`/`ty`
+ *                 and `scale` stay in plain screen coordinates and a drag still
+ *                 moves the board the way the finger went. Everything the
+ *                 frame draws that must read upright counter-rotates itself
+ *                 (see ProBoard's `uprightTransform`).
  */
 export function useZoomPan(
   enabled: boolean,
   frameRef: RefObject<HTMLElement>,
-  inset: ZoomPanInset = {}
+  inset: ZoomPanInset = {},
+  rotated = false
 ): ZoomPan {
   const containerRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<ZoomPanState>(IDENTITY);
@@ -151,8 +160,10 @@ export function useZoomPan(
     const ch = c.clientHeight;
     // offsetWidth/Height are LAYOUT sizes — unaffected by the transform we're
     // about to replace, so this is stable to run at any current zoom.
-    const fw = f.offsetWidth;
-    const fh = f.offsetHeight;
+    // A quarter-turned frame occupies its own height across the screen and its
+    // width down it — the fit has to be computed against THAT box.
+    const fw = rotated ? f.offsetHeight : f.offsetWidth;
+    const fh = rotated ? f.offsetWidth : f.offsetHeight;
     if (!cw || !ch || !fw || !fh) return null;
     const availW = Math.max(cw - left - right, 1);
     const availH = Math.max(ch - top - bottom, 1);
@@ -162,7 +173,7 @@ export function useZoomPan(
       tx: left + (availW - fw * scale) / 2,
       ty: top + (availH - fh * scale) / 2,
     };
-  }, [frameRef, top, right, bottom, left]);
+  }, [frameRef, top, right, bottom, left, rotated]);
 
   // Re-fit on any size change of the viewport box or the board frame. While the
   // player hasn't touched the view, the board follows along; once they have, we
@@ -227,6 +238,24 @@ export function useZoomPan(
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
   }, [enabled, zoomAt]);
+
+  // Turning the phone changes which way the map stands, so the player's old
+  // pan/zoom no longer means anything — drop back to the fresh fit rather than
+  // leaving them looking at a corner of a board that just rotated under them.
+  const firstRotation = useRef(true);
+  useEffect(() => {
+    if (firstRotation.current) {
+      firstRotation.current = false;
+      return;
+    }
+    touched.current = false;
+    const next = computeFit();
+    if (next) {
+      fitScaleRef.current = next.scale;
+      setFit(next);
+      setState(next);
+    }
+  }, [rotated, computeFit]);
 
   // Drop back to a bare identity if the feature is switched off, so no stale
   // transform lingers on the frame when the flag flips (the untransformed board
@@ -321,10 +350,12 @@ export function useZoomPan(
           const tx = s.tx + dx;
           const ty = s.ty + dy;
           if (!c || !f) return { ...s, tx, ty };
+          const spanX = (rotated ? f.offsetHeight : f.offsetWidth) * s.scale;
+          const spanY = (rotated ? f.offsetWidth : f.offsetHeight) * s.scale;
           return {
             ...s,
-            tx: clampAxis(tx, f.offsetWidth * s.scale, c.clientWidth),
-            ty: clampAxis(ty, f.offsetHeight * s.scale, c.clientHeight),
+            tx: clampAxis(tx, spanX, c.clientWidth),
+            ty: clampAxis(ty, spanY, c.clientHeight),
           };
         });
       }
@@ -342,7 +373,7 @@ export function useZoomPan(
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
     };
-  }, [enabled, zoomAt, frameRef]);
+  }, [enabled, zoomAt, frameRef, rotated]);
 
   // Capture-phase: if the gesture just panned, eat the click before it reaches
   // a hit-circle/fighter so panning never triggers an action.
@@ -356,7 +387,14 @@ export function useZoomPan(
 
   return {
     containerRef,
-    transform: enabled ? `translate(${state.tx}px, ${state.ty}px) scale(${state.scale})` : undefined,
+    // `rotate(90deg) translate(0, -100%)` lands the turned content back inside
+    // [0, h] x [0, w] with no measured pixel value: a translate percentage
+    // resolves against the element's OWN box, so this is pure CSS.
+    transform: enabled
+      ? `translate(${state.tx}px, ${state.ty}px) scale(${state.scale})${
+          rotated ? " rotate(90deg) translate(0, -100%)" : ""
+        }`
+      : undefined,
     transformOrigin: enabled ? "0 0" : undefined,
     handlers: enabled ? { onPointerDown, onClickCapture } : {},
     // The live scale as a NUMBER, for callers that need to know how big a piece

@@ -19,6 +19,7 @@ import { Action, CardInstanceId } from "@/lib/pro/protocol";
 import { ResolveCard } from "@/lib/pro/useProCardArt";
 import {
   HAND_CARD_W_RAIL,
+  HAND_PEEK_H,
   HAND_DRAWER_CARD_SCROLL,
   HAND_PEEK_CARD_W,
   TAP_TARGET,
@@ -61,7 +62,10 @@ export const HandFanPeek = ({
       onClick={onOpen}
       position="relative"
       w="9.4rem"
-      h={TAP_TARGET}
+      // The fan's own box is as tall as the fan, not just the tap strip: the
+      // action pills stack ABOVE this lane, and a card must never paint over
+      // one of them (Dean, 2026-08-26).
+      h={HAND_PEEK_H}
       flexShrink={0}
       pointerEvents="auto"
     >
@@ -69,7 +73,7 @@ export const HandFanPeek = ({
         <Box
           key={instance}
           position="absolute"
-          bottom="-1.5rem"
+          bottom={0}
           left={`${i * 1.9}rem`}
           w={HAND_PEEK_CARD_W}
           sx={{ aspectRatio: "63 / 88" }}
@@ -135,10 +139,15 @@ export const HandDrawer = ({
   const { columns, scroll } = handDrawerLayout(hand.length);
   return (
     <>
+      {/* The mobile control container the page pins at z 160 is
+          `pointer-events: none` so the board stays draggable between its
+          buttons — every surface that must actually receive taps turns them
+          back on for itself. */}
       <Box
         position="fixed"
         inset={0}
         zIndex={161}
+        pointerEvents="auto"
         bg="rgba(30, 15, 34, 0.6)"
         sx={{ backdropFilter: "blur(2px)", WebkitBackdropFilter: "blur(2px)" }}
         onClick={onClose}
@@ -150,6 +159,7 @@ export const HandDrawer = ({
         right={0}
         bottom={0}
         zIndex={162}
+        pointerEvents="auto"
         maxH="62svh"
         direction="column"
         gap="0.5rem"
@@ -245,26 +255,31 @@ export const RailHand = ({
 );
 
 /**
- * Opens the drawer for the player when the decision on the table is about a
- * card in their hand — rising edge only, so someone who closes it again is not
- * fought. A component rather than a hook in the page, because the page decides
- * this well past its own early returns and hooks may not live there.
+ * Opens the drawer when the decision on the table is about a card in the
+ * player's hand.
+ *
+ * Keyed by the PROMPT, not by a boolean: it fires once per question, so a
+ * player who closes the drawer to look at the board is not fought by the next
+ * snapshot, and the next question opens it again. A component rather than a
+ * hook in the page, because the page decides this well past its own early
+ * returns and hooks may not live there.
  */
 export const HandDecisionWatcher = ({
-  active,
+  promptKey,
   onOpen,
 }: {
-  active: boolean;
+  /** id of a prompt that names hand cards, or null when none does */
+  promptKey: string | null;
   onOpen: () => void;
 }) => {
-  const prev = useRef(false);
+  const seen = useRef<string | null>(null);
   useEffect(() => {
-    if (active && !prev.current) onOpen();
-    prev.current = active;
-    // `onOpen` is a fresh closure each render; the rising-edge guard is what keeps
-    // this from firing on every one.
+    if (promptKey && seen.current !== promptKey) onOpen();
+    seen.current = promptKey;
+    // `onOpen` is a fresh closure each render; the per-prompt guard is what
+    // keeps this from firing on every one.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active]);
+  }, [promptKey]);
   return null;
 };
 

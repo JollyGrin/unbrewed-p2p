@@ -7,7 +7,8 @@
  * Design:
  * - A single floating overlay (position: fixed, pointer-events: none) rendered
  *   once by `CardPreviewProvider`. It never reserves layout space, so the board
- *   and panels never shift or shrink.
+ *   and panels never shift or shrink. Hover parks it in a dead corner; a touch
+ *   peek is centred in the viewport and capped to fit it (issue #708).
  * - `useCardPreview(card)` returns handlers you spread onto any card trigger.
  *   Desktop: ~150ms hover enter delay (kills flicker on cursor pass-through),
  *   instant exit. Keyboard: focus shows it immediately (accessibility parity).
@@ -60,31 +61,67 @@ const fadeIn = keyframes`
   to   { opacity: 1; transform: translateY(0) scale(1); }
 `;
 
-/** The lone floating overlay. Anchored bottom-left on desktop (a dead corner
- *  next to the activity log), bottom-centre on touch where it can go bigger. */
-const PreviewOverlay = ({ card, source }: PreviewState) => (
-  <Box
-    position="fixed"
-    zIndex={2000}
-    pointerEvents="none"
-    bottom={{ base: "1rem", md: "1.5rem" }}
-    left={source === "touch" ? "50%" : { base: "50%", md: "1.5rem" }}
-    transform={source === "touch" ? "translateX(-50%)" : { base: "translateX(-50%)", md: "none" }}
-    animation={`${fadeIn} 0.16s ease-out both`}
-  >
+/**
+ * The lone floating overlay.
+ *
+ * Desktop hover keeps its dead corner next to the activity log. A TOUCH peek is
+ * centred in the viewport instead and capped to fit it (issue #708): the old
+ * bottom-anchored `min(80vh, 720px)` height works out to a ~483px-wide card on
+ * a 390px phone, which hung off both edges — and, caught mid-fade, read as a
+ * stray card fragment floating over the board. Sizing off `svh`/`svw` (not
+ * `vh`/`vw`) keeps it honest under the mobile URL bar.
+ */
+const PreviewOverlay = ({ card, source }: PreviewState) => {
+  if (source === "touch")
+    return (
+      <Box
+        position="fixed"
+        inset={0}
+        zIndex={2000}
+        pointerEvents="none"
+        display="grid"
+        placeItems="center"
+        animation={`${fadeIn} 0.16s ease-out both`}
+      >
+        <Box
+          // Whichever of "80% of the height" and "90% of the width" is the
+          // binding constraint wins, so the whole card is always on screen.
+          h="min(80svh, calc(90svw * 88 / 63))"
+          maxW="90svw"
+          sx={{ aspectRatio: "63 / 88" }}
+          borderRadius="0.75rem"
+          overflow="hidden"
+          bg="brand.surfaceDim"
+          boxShadow="0 16px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,0,0,0.4)"
+        >
+          <Card card={card} />
+        </Box>
+      </Box>
+    );
+
+  return (
     <Box
-      // Touch has no hover competing for the screen, so it can go larger.
-      h={source === "touch" ? "min(80vh, 720px)" : "min(60vh, 560px)"}
-      sx={{ aspectRatio: "63 / 88" }}
-      borderRadius="0.75rem"
-      overflow="hidden"
-      bg="brand.surfaceDim"
-      boxShadow="0 16px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,0,0,0.4)"
+      position="fixed"
+      zIndex={2000}
+      pointerEvents="none"
+      bottom={{ base: "1rem", md: "1.5rem" }}
+      left={{ base: "50%", md: "1.5rem" }}
+      transform={{ base: "translateX(-50%)", md: "none" }}
+      animation={`${fadeIn} 0.16s ease-out both`}
     >
-      <Card card={card} />
+      <Box
+        h="min(60vh, 560px)"
+        sx={{ aspectRatio: "63 / 88" }}
+        borderRadius="0.75rem"
+        overflow="hidden"
+        bg="brand.surfaceDim"
+        boxShadow="0 16px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,0,0,0.4)"
+      >
+        <Card card={card} />
+      </Box>
     </Box>
-  </Box>
-);
+  );
+};
 
 export const CardPreviewProvider = ({ children }: { children: ReactNode }) => {
   const [state, setState] = useState<PreviewState | null>(null);

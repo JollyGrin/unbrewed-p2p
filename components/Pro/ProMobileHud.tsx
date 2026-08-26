@@ -45,7 +45,7 @@ import { useHudPlates, DEFAULT_PLATE_LAYOUT } from "@/lib/pro/useHudPlates";
 import { deriveTeams } from "@/lib/pro/teams";
 import { seatNameplate } from "@/lib/pro/playerIdentity";
 import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
-import { RAIL_WIDTH_CSS, TAP_TARGET } from "@/lib/pro/mobileLayout";
+import { RAIL_WIDTH_CSS, TAP_TARGET, chipSeatName } from "@/lib/pro/mobileLayout";
 import type { PlayerId, ViewPlayer } from "@/lib/pro/protocol";
 import type { ProLayoutMode } from "@/lib/pro/useProLayout";
 import { MoveTimerBar, ProHudProps, SeatPlate, hudSeats } from "@/components/Pro/ProHud";
@@ -65,6 +65,9 @@ const STATUS_LABEL: Record<string, string> = {
   reconnecting: "Reconnecting…",
   closed: "Disconnected — reconnecting",
 };
+
+/** How many sidekick HPs a corner chip spells out before it summarises. */
+const SIDEKICKS_ON_CHIP = 2;
 
 /** Shared look for the small dark mobile buttons (log, overflow). */
 export const MOBILE_BTN = {
@@ -141,7 +144,8 @@ const HpChip = ({
       lineHeight={1}
       letterSpacing="0.05em"
       noOfLines={1}
-      minW={0}
+      // Never let a seat with four sidekicks squeeze its own name to nothing.
+      minW="2.5rem"
       opacity={local ? 1 : 0.85}
     >
       {label}
@@ -157,7 +161,10 @@ const HpChip = ({
     >
       ♥{heroHp ?? "–"}
     </Text>
-    {sidekickHps.map((s) => (
+    {/* A glance, not a roster: two sidekick hearts fit a corner chip, and a
+        deck that fields more gets a count. Every one of them is spelled out in
+        the seat sheet a tap away. */}
+    {sidekickHps.slice(0, SIDEKICKS_ON_CHIP).map((s) => (
       <Text
         key={s.id}
         fontFamily="SpaceGrotesk"
@@ -171,6 +178,11 @@ const HpChip = ({
         +♥{s.hp}
       </Text>
     ))}
+    {sidekickHps.length > SIDEKICKS_ON_CHIP && (
+      <Text fontFamily="SpaceGrotesk" fontSize="0.72rem" lineHeight={1} flexShrink={0} opacity={0.7}>
+        +{sidekickHps.length - SIDEKICKS_ON_CHIP}
+      </Text>
+    )}
     {offline && (
       <Box boxSize="0.45rem" borderRadius="999px" bg="#FF6347" flexShrink={0} title="disconnected" />
     )}
@@ -386,7 +398,7 @@ export const ProMobileHud = ({
               <HpChip
                 key={seat.id}
                 seat={seat.id}
-                label={seatLabel(seat)}
+                label={chipSeatName(hero?.name, seatLabel(seat))}
                 heroHp={hero ? hero.hp : null}
                 sidekickHps={sidekicksOf(seat.id).map((s) => ({
                   id: s.id,
