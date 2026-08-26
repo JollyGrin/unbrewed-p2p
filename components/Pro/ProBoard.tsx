@@ -366,6 +366,15 @@ export interface ProBoardProps {
    * parent box and that box becomes the pan/zoom viewport, so the parent must
    * give it a height (issue #450). */
   zoomable?: boolean;
+  /**
+   * Stand the map on end (issue #708, mobile portrait only). Unmatched maps are
+   * landscape art; on a phone held upright the unrotated fit is width-bound and
+   * leaves two thirds of the screen as empty table. `zoomable` only — the
+   * rotation rides the pan/zoom transform (see lib/pro/useZoomPan) so a drag
+   * still moves the board the way the finger went, and every token, badge and
+   * panel below counter-rotates so its text still reads upright.
+   */
+  rotated?: boolean;
   /** px of this box hidden behind the caller's fixed overlays (HUD, dock,
    *  hand). The initial fit centers the board in what's left, so the whole
    *  field is visible on load without any user interaction. `zoomable` only. */
@@ -441,6 +450,7 @@ export const ProBoard = ({
   moveHint = null,
   imgMaxH,
   zoomable = false,
+  rotated = false,
   fitInset,
   tokenLife = null,
   fighterEls,
@@ -481,7 +491,11 @@ export const ProBoard = ({
   // Pinch/scroll zoom + drag pan (issue #120). The transform rides the
   // shrink-wrap frame below so the art and every overlay move as one unit;
   // when `zoomable` is false the hook attaches nothing and returns no transform.
-  const zoom = useZoomPan(zoomable, frameRef, fitInset);
+  const zoom = useZoomPan(zoomable, frameRef, fitInset, zoomable && rotated);
+  // Appended to a piece of board content's OWN centring transform. Rotation is
+  // applied about the box's centre before the translate, so the anchor point is
+  // untouched and only what the box draws turns back upright.
+  const upright = zoomable && rotated ? " rotate(-90deg)" : "";
 
   // Layout width (px, BEFORE the zoom transform) of the shrink-wrap frame every
   // board overlay is positioned against. Read for one reason only: the cosmetic
@@ -1179,7 +1193,7 @@ export const ProBoard = ({
         onAnimationComplete={anim && segment === "head" ? () => onPendingMoveSettled?.() : undefined}
         // v28: offsets are a PERCENTAGE OF THIS TOKEN'S OWN WIDTH, so the whole
         // cluster scales with the board and the zoom transform (see tokenStack.ts).
-        transform={`translate(calc(-50% + ${slot.dx}%), calc(-50% + ${slot.dy}%))`}
+        transform={`translate(calc(-50% + ${slot.dx}%), calc(-50% + ${slot.dy}%))${upright}`}
         w={`${diam * slot.scale}%`}
         sx={{ aspectRatio: "1" }}
         borderRadius="50%"
@@ -1270,7 +1284,7 @@ export const ProBoard = ({
           position="absolute"
           left={`${s.x * 100}%`}
           top={`${s.y * 100}%`}
-          transform={`translate(${tx}, ${ty}) rotate(45deg)`}
+          transform={`translate(${tx}, ${ty}) rotate(45deg)${upright}`}
           w={`${diam * 0.55}%`}
           sx={{ aspectRatio: "1", pointerEvents: "none" }}
           bg="brand.surfaceDim"
@@ -1289,7 +1303,7 @@ export const ProBoard = ({
         position="absolute"
         left={`${s.x * 100}%`}
         top={`${s.y * 100}%`}
-        transform={`translate(${tx}, ${ty})`}
+        transform={`translate(${tx}, ${ty})${upright}`}
         w={`${diam * 0.62}%`}
         sx={{ aspectRatio: "1", pointerEvents: "none" }}
         zIndex={2}
@@ -1378,7 +1392,12 @@ export const ProBoard = ({
       left={`${s.x * 100}%`}
       top={`${s.y * 100}%`}
       w={`${diam * 0.82}%`}
-      sx={{ aspectRatio: "1" }}
+      sx={{
+        aspectRatio: "1",
+        // The topple animation owns this box's transform, so the counter-turn
+        // rides its children instead.
+        ...(upright ? { "& > *": { transform: "rotate(-90deg)" } } : {}),
+      }}
       borderRadius="50%"
       bg={g.isHero ? g.color : SURFACE_DIM}
       border={`2px solid ${g.isHero ? "#fff" : g.color}`}
@@ -1580,7 +1599,7 @@ export const ProBoard = ({
               position="absolute"
               left={`${s.x * 100}%`}
               top={`${s.y * 100}%`}
-              transform="translate(35%, -115%)"
+              transform={`translate(35%, -115%)${upright}`}
               w={`${badgeW}%`}
               sx={{ aspectRatio: "1" }}
               zIndex={5}
@@ -1596,7 +1615,7 @@ export const ProBoard = ({
               position="absolute"
               left={`${s.x * 100}%`}
               top={`${s.y * 100}%`}
-              transform="translate(-135%, -115%)"
+              transform={`translate(-135%, -115%)${upright}`}
               w={`${badgeW}%`}
               sx={{ aspectRatio: "1" }}
               zIndex={5}
@@ -1830,7 +1849,7 @@ export const ProBoard = ({
             position="absolute"
             left={`${to.x * 100}%`}
             top={`${to.y * 100}%`}
-            transform={`translate(calc(-50% + ${nudge}rem), calc(-50% + ${nudge}rem))`}
+            transform={`translate(calc(-50% + ${nudge}rem), calc(-50% + ${nudge}rem))${upright}`}
             w={`${diam * 0.82}%`}
             sx={{ aspectRatio: "1", pointerEvents: "none" }}
             borderRadius="50%"
@@ -1924,7 +1943,7 @@ export const ProBoard = ({
           position="absolute"
           left={`${at.x}%`}
           top={`${at.y}%`}
-          transform="translate(-50%, -50%)"
+          transform={`translate(-50%, -50%)${upright}`}
           w={`${diam * 0.82}%`}
           sx={{ aspectRatio: "1", pointerEvents: "none" }}
           borderRadius="50%"
@@ -2088,6 +2107,93 @@ export const ProBoard = ({
     );
   };
 
+  // Region inset panels + the zone legend. Inside the frame they float over the
+  // board and scale with it; that is the desktop/landscape behaviour and it is
+  // untouched. In rotated portrait the caller renders this same node in the
+  // OUTER, untransformed box instead: they are self-contained HTML panels whose
+  // clicks are identity-based (`data-space-id`), so nothing about them needs the
+  // map's coordinate system — and pinning them to the screen is the only way a
+  // 230px panel reliably stays on a 390px one.
+  // Rotated portrait pins these to the SCREEN, so they have to clear the
+  // floating HP chips themselves — `fitInset.top` is exactly the measured
+  // height of that chrome (see lib/pro/mobileLayout `boardFitInsetFor`), so
+  // starting a gutter below it is the one offset that stays right as the chips
+  // grow a timer bar or a notch's safe-area padding.
+  const screenTop = `calc(${fitInset?.top ?? 0}px + 0.5rem)`;
+  const screenOverlays = (
+    <>
+      {regions.some((r) => !panelPos[r.id]) && (
+        <Flex
+          position="absolute"
+          {...(upright
+            ? { left: "0.5rem", top: screenTop }
+            : { right: "1.5%", bottom: "1.5%" })}
+          w={REGION_PANEL_W_CSS}
+          maxW="calc(100% - 1rem)"
+          direction="column"
+          gap="0.4rem"
+          zIndex={7}
+          pointerEvents="none"
+        >
+          {regions.filter((r) => !panelPos[r.id]).map((r) => regionPanel(r))}
+        </Flex>
+      )}
+      {regions
+        .filter((r) => panelPos[r.id])
+        .map((r) => (
+          <Box
+            key={r.id}
+            position="absolute"
+            left={upright ? "0.5rem" : `${panelPos[r.id].x}%`}
+            top={upright ? screenTop : `${panelPos[r.id].y}%`}
+            w={REGION_PANEL_W_CSS}
+            maxW="calc(100% - 1rem)"
+            zIndex={7}
+            pointerEvents="none"
+          >
+            {regionPanel(r)}
+          </Box>
+        ))}
+
+      {/* zone-membership legend (issue #413): names the zone(s) the inspected
+          space belongs to, color-matched to the on-board rings, so a multi-zone
+          space is unambiguous. Non-interactive; shown only while a space is
+          hovered/selected and only when the map actually defines zones. */}
+      {hoveredZoneSet.size > 0 && (
+        <Flex
+          position="absolute"
+          top={upright ? screenTop : "1.5%"}
+          {...(upright ? { right: "0.5rem" } : { left: "1.5%" })}
+          zIndex={8}
+          direction="column"
+          gap="0.15rem"
+          bg="blackAlpha.700"
+          px="0.4rem"
+          py="0.3rem"
+          borderRadius="0.4rem"
+          pointerEvents="none"
+        >
+          {map.zones
+            .filter((z) => hoveredZoneSet.has(z.id))
+            .map((z) => (
+              <Flex key={z.id} align="center" gap="0.35rem">
+                <Box
+                  w="0.7rem"
+                  h="0.7rem"
+                  borderRadius="2px"
+                  bg={z.color}
+                  border="1px solid rgba(255,255,255,0.6)"
+                />
+                <Box as="span" fontSize="0.7rem" color="white" whiteSpace="nowrap">
+                  {z.label || z.id}
+                </Box>
+              </Flex>
+            ))}
+        </Flex>
+      )}
+    </>
+  );
+
   return (
     // Outer box may be stretched by a parent grid/flex row; the INNER box is
     // the positioning context: it shrink-wraps the image exactly, so the
@@ -2134,78 +2240,19 @@ export const ProBoard = ({
 
       {spaceLayers(mainSpaces, diameter, framePx)}
 
-      {/* region inset panels (v9 — e.g. Baba Yaga's Hut), pinned bottom-right
-          and stacked upward; sized relative to the board so they scale with it.
-          The container ignores pointer events so the gaps between panels stay
-          clickable board (each panel re-enables its own). A dragged panel
-          leaves the stack and pins to wherever the player put it. */}
-      {regions.some((r) => !panelPos[r.id]) && (
-        <Flex
-          position="absolute"
-          right="1.5%"
-          bottom="1.5%"
-          w={REGION_PANEL_W_CSS}
-          direction="column"
-          gap="0.4rem"
-          zIndex={7}
-          pointerEvents="none"
-        >
-          {regions.filter((r) => !panelPos[r.id]).map((r) => regionPanel(r))}
-        </Flex>
-      )}
-      {regions
-        .filter((r) => panelPos[r.id])
-        .map((r) => (
-          <Box
-            key={r.id}
-            position="absolute"
-            left={`${panelPos[r.id].x}%`}
-            top={`${panelPos[r.id].y}%`}
-            w={REGION_PANEL_W_CSS}
-            zIndex={7}
-            pointerEvents="none"
-          >
-            {regionPanel(r)}
-          </Box>
-        ))}
-
-      {/* zone-membership legend (issue #413): names the zone(s) the inspected
-          space belongs to, color-matched to the on-board rings, so a multi-zone
-          space is unambiguous. Non-interactive; shown only while a space is
-          hovered/selected and only when the map actually defines zones. */}
-      {hoveredZoneSet.size > 0 && (
-        <Flex
-          position="absolute"
-          top="1.5%"
-          left="1.5%"
-          zIndex={8}
-          direction="column"
-          gap="0.15rem"
-          bg="blackAlpha.700"
-          px="0.4rem"
-          py="0.3rem"
-          borderRadius="0.4rem"
-          pointerEvents="none"
-        >
-          {map.zones
-            .filter((z) => hoveredZoneSet.has(z.id))
-            .map((z) => (
-              <Flex key={z.id} align="center" gap="0.35rem">
-                <Box
-                  w="0.7rem"
-                  h="0.7rem"
-                  borderRadius="2px"
-                  bg={z.color}
-                  border="1px solid rgba(255,255,255,0.6)"
-                />
-                <Box as="span" fontSize="0.7rem" color="white" whiteSpace="nowrap">
-                  {z.label || z.id}
-                </Box>
-              </Flex>
-            ))}
-        </Flex>
-      )}
+      {/* region inset panels (v9 — e.g. Baba Yaga's Hut) and the zone legend.
+          Both are screen-oriented HTML, not board art — so when the frame takes
+          its portrait quarter-turn they are hoisted OUT of it entirely (see
+          `screenOverlays` below) rather than counter-rotated in place, which is
+          what swung the panel off the left edge of a phone. Unrotated, they
+          render here exactly as they always have. */}
+      {!upright && screenOverlays}
       </Box>
+
+      {/* Rotated portrait: the screen-oriented overlays live out here, in the
+          untransformed viewport box, so a region panel can never swing off the
+          edge of a phone. */}
+      {upright && screenOverlays}
 
       {/* reset-to-fit control — appears only once the view has moved off the
           initial fit. Sits in the outer (untransformed) box so it stays put on

@@ -8,7 +8,7 @@
  * header offers a CSV download of the whole feed (playtest feedback, #76).
  */
 import { Box, Flex, Text, Tooltip } from "@chakra-ui/react";
-import { ChevronDownIcon, ChevronRightIcon, ChevronUpIcon, DownloadIcon } from "@chakra-ui/icons";
+import { CloseIcon, ChevronDownIcon, ChevronRightIcon, ChevronUpIcon, DownloadIcon } from "@chakra-ui/icons";
 import { TbBug } from "react-icons/tb";
 import styled from "@emotion/styled";
 import { MouseEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -34,6 +34,42 @@ const Panel = styled(Box)`
   box-shadow: 0 6px 18px rgba(20, 8, 24, 0.35);
   overflow: hidden;
   opacity: 0.94;
+`;
+
+/**
+ * Mobile (issue #708): the same panel as a bottom sheet the match strip's log
+ * button opens, instead of a square permanently parked over the hand. It sits
+ * one rung above the decision sheet in the z ladder — the same rung the
+ * floating panel holds on desktop, relative to the dock.
+ */
+const SheetPanel = styled(Box)`
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* Above the mobile control container (160) — the log is a full-attention
+     overlay there, not a panel the hand row may sit on top of. Desktop's
+     floating Panel keeps its own 145. */
+  z-index: 171;
+  max-height: 68svh;
+  display: flex;
+  flex-direction: column;
+  background-color: ${colors.brand.parchment};
+  color: ${colors.brand.surfaceDim};
+  border-top: 1px solid rgba(72, 40, 79, 0.25);
+  border-top-left-radius: 0.9rem;
+  border-top-right-radius: 0.9rem;
+  box-shadow: 0 -10px 28px rgba(20, 8, 24, 0.45);
+  overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+`;
+
+/** Scrim behind the mobile log sheet — tapping it closes. */
+const SheetScrim = styled(Box)`
+  position: fixed;
+  inset: 0;
+  z-index: 170;
+  background: rgba(12, 4, 16, 0.5);
 `;
 
 const Header = styled(Flex)`
@@ -97,6 +133,9 @@ export const ProLog = ({
   resolveCard,
   labelFor,
   onReportBug,
+  mobile = false,
+  isOpen = false,
+  onClose,
 }: {
   entries: ProLogEntry[];
   /** when provided, lines that name cards preview them on hover */
@@ -104,6 +143,12 @@ export const ProLog = ({
   labelFor?: (instance: CardInstanceId) => string;
   /** when provided, a small bug icon in the header opens the report dialog (#87) */
   onReportBug?: () => void;
+  /** render as the mobile bottom sheet the match strip opens (issue #708) */
+  mobile?: boolean;
+  /** mobile only: whether the sheet is showing. Ignored on desktop, where the
+   *  panel floats permanently and owns its own collapse state. */
+  isOpen?: boolean;
+  onClose?: () => void;
 }) => {
   const [open, setOpen] = useState(true);
   // Per-section collapse overrides, keyed by the section's own id rather than
@@ -116,7 +161,7 @@ export const ProLog = ({
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
-  }, [entries.length, open]);
+  }, [entries.length, open, isOpen]);
 
   const sections = useMemo(() => groupLog(entries), [entries]);
   const latestSection = sections[0]?.id;
@@ -194,9 +239,56 @@ export const ProLog = ({
     </ActionBlock>
   );
 
-  return (
-    <Panel>
-      <Header onClick={() => setOpen((o) => !o)}>
+  // The sheet is never collapsed-in-place: it is either open or not rendered.
+  const bodyShown = mobile ? true : open;
+
+  const feed = (
+    <Box
+      ref={scrollRef}
+      maxH={mobile ? undefined : "11rem"}
+      flex={mobile ? "1" : undefined}
+      minH={mobile ? 0 : undefined}
+      overflowY="auto"
+      px="0.75rem"
+      py="0.4rem"
+    >
+      {entries.length === 0 ? (
+        <Text fontSize="0.72rem" opacity={0.55} py="0.25rem">
+          No actions yet
+        </Text>
+      ) : (
+        sections.map((section) => {
+          const collapsed = isSectionCollapsed(section.id);
+          return (
+            <Box key={section.id}>
+              <TurnHeader onClick={() => toggleSection(section.id)}>
+                {collapsed ? (
+                  <ChevronRightIcon boxSize="0.8rem" />
+                ) : (
+                  <ChevronDownIcon boxSize="0.8rem" />
+                )}
+                <Text
+                  fontFamily={fonts.SpaceGrotesk}
+                  fontWeight={700}
+                  fontSize="0.66rem"
+                  letterSpacing="0.06em"
+                  textTransform="uppercase"
+                >
+                  {section.turn != null ? `Turn ${section.turn}` : "Log"}
+                  {section.actor ? ` — ${section.actor}` : ""}
+                </Text>
+              </TurnHeader>
+              {!collapsed &&
+                section.groups.map((group, gi) => renderGroup(group, group.batchId ?? gi))}
+            </Box>
+          );
+        })
+      )}
+    </Box>
+  );
+
+  const header = (
+    <Header onClick={() => (mobile ? onClose?.() : setOpen((o) => !o))}>
         <Text
           fontFamily={fonts.SpaceGrotesk}
           fontWeight={700}
@@ -238,45 +330,34 @@ export const ProLog = ({
               />
             </Tooltip>
           )}
-          {open ? <ChevronUpIcon boxSize="1rem" /> : <ChevronDownIcon boxSize="1rem" />}
+          {mobile ? (
+            <CloseIcon boxSize="0.7rem" aria-label="Close activity log" />
+          ) : open ? (
+            <ChevronUpIcon boxSize="1rem" />
+          ) : (
+            <ChevronDownIcon boxSize="1rem" />
+          )}
         </Flex>
       </Header>
-      {open && (
-        <Box ref={scrollRef} maxH="11rem" overflowY="auto" px="0.75rem" py="0.4rem">
-          {entries.length === 0 ? (
-            <Text fontSize="0.72rem" opacity={0.55} py="0.25rem">
-              No actions yet
-            </Text>
-          ) : (
-            sections.map((section) => {
-              const collapsed = isSectionCollapsed(section.id);
-              return (
-                <Box key={section.id}>
-                  <TurnHeader onClick={() => toggleSection(section.id)}>
-                    {collapsed ? (
-                      <ChevronRightIcon boxSize="0.8rem" />
-                    ) : (
-                      <ChevronDownIcon boxSize="0.8rem" />
-                    )}
-                    <Text
-                      fontFamily={fonts.SpaceGrotesk}
-                      fontWeight={700}
-                      fontSize="0.66rem"
-                      letterSpacing="0.06em"
-                      textTransform="uppercase"
-                    >
-                      {section.turn != null ? `Turn ${section.turn}` : "Log"}
-                      {section.actor ? ` — ${section.actor}` : ""}
-                    </Text>
-                  </TurnHeader>
-                  {!collapsed &&
-                    section.groups.map((group, gi) => renderGroup(group, group.batchId ?? gi))}
-                </Box>
-              );
-            })
-          )}
-        </Box>
-      )}
+  );
+
+  if (mobile) {
+    if (!isOpen) return null;
+    return (
+      <>
+        <SheetScrim onClick={() => onClose?.()} />
+        <SheetPanel>
+          {header}
+          {feed}
+        </SheetPanel>
+      </>
+    );
+  }
+
+  return (
+    <Panel>
+      {header}
+      {bodyShown && feed}
     </Panel>
   );
 };

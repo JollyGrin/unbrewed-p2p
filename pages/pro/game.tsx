@@ -59,14 +59,24 @@ import { HERO_DECK_IDS, ResolveCard, heroIdsForArt, useProCardArt } from "@/lib/
 import { frozenAtForHero } from "@/lib/pro/evergreenManifest";
 import { POPULAR_DECKS, PopularDeckMeta } from "@/lib/constants/top-decks";
 import { GiFootprint, GiHearts } from "react-icons/gi";
-import { TbBow, TbChevronDown, TbExternalLink, TbInfoCircle, TbSword, TbZoomIn } from "react-icons/tb";
+import {
+  TbBow,
+  TbChevronDown,
+  TbExternalLink,
+  TbInfoCircle,
+  TbList,
+  TbSword,
+  TbZoomIn,
+} from "react-icons/tb";
 import { DeckAttribution } from "@/components/Pro/DeckAttribution";
 import { CardFace, ProHand } from "@/components/Pro/ProHand";
 import { CardPreviewProvider } from "@/components/Pro/CardPreview";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { MapPreviewModal } from "@/components/Pro/MapPreviewModal";
 import { ProDock } from "@/components/Pro/ProDock";
-import { ProHud } from "@/components/Pro/ProHud";
+import { ProHud, ProHudProps } from "@/components/Pro/ProHud";
+import { MOBILE_BTN, ProMobileHud, ProMobileMenu } from "@/components/Pro/ProMobileHud";
+import { HandDecisionWatcher, ProMobileHand, RailHand } from "@/components/Pro/ProMobileHand";
 import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
 import { ReportBugDialog } from "@/components/Pro/ReportBugDialog";
 import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
@@ -75,6 +85,8 @@ import { MulliganDialog } from "@/components/Pro/MulliganDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
 import { actionFallbackLine, batchPhase, batchTurnTag, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
 import { MulliganChoice, isMulliganPrompt, mulliganChoiceOf } from "@/lib/pro/mulligan";
+import { RAIL_WIDTH_CSS, TAP_TARGET, boardFitInsetFor } from "@/lib/pro/mobileLayout";
+import { useElementHeight, useProLayout } from "@/lib/pro/useProLayout";
 import {
   EMPTY_SUB_ATTACK_CHAIN,
   SubAttackChainProgress,
@@ -3561,25 +3573,45 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // float over it (issue #450). Turning the flag off falls back to the old
   // boxed, padded board — no transform, no gestures.
   const [zoomMapOn] = useFlag("zoomMap");
-  // The decision dock only reserves its 20rem column at lg and up (matches the
-  // `pr={{ base, lg }}` on the fallback board box below). Read via matchMedia
-  // rather than Chakra's useBreakpointValue, which touches `window` during the
-  // static prerender of this page and fails the export.
-  const [dockWide, setDockWide] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 62em)"); // Chakra's `lg`
-    const sync = () => setDockWide(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
-  // px of the stage hidden behind those fixed overlays, so the initial fit
-  // centers the board in the strip the player can actually see. Mirrors the
-  // padding the non-zoom fallback below still uses.
+  // Which arrangement this viewport gets (issue #708). Desktop (>= 62em) is the
+  // floating-overlay layout below, untouched; anything narrower mounts the
+  // mobile arrangement of the same components. Read via matchMedia rather than
+  // Chakra's useBreakpointValue, which touches `window` during the static
+  // prerender of this page and fails the export — see lib/pro/useProLayout.
+  const { mobile, rail, mode } = useProLayout();
+  // The PERSISTENT mobile chrome is measured, not assumed — the HP-chip row
+  // grows a timer bar, the bottom controls grow with the fan-peek. The decision
+  // sheet, hand drawer and log sheet are deliberately NOT measured: they are
+  // overlays over a full-bleed board, and re-fitting the map under each one
+  // would make the board jump every time a prompt opened.
+  const mobileChipsRef = useRef<HTMLDivElement>(null);
+  const mobileControlsRef = useRef<HTMLDivElement>(null);
+  const mobileSheetRef = useRef<HTMLDivElement>(null);
+  const [mobileSheetShown, setMobileSheetShown] = useState(false);
+  const mobileChipsH = useElementHeight(mobileChipsRef, mobile);
+  const mobileControlsH = useElementHeight(mobileControlsRef, mobile && !rail);
+  // The decision sheet IS counted (unlike the hand drawer and the log): it is
+  // force-open for whole stretches of a game, and a board centred behind it
+  // sits half off-screen under a screenful of empty table.
+  const mobileSheetH = useElementHeight(mobileSheetRef, mobile && !rail && mobileSheetShown);
+  // px of the stage hidden behind that chrome, so the initial fit centers the
+  // board in the part of the screen nothing is standing on. Mirrors the padding
+  // the non-zoom fallback below still uses.
   const boardFitInset = useMemo(
-    () => ({ top: 120, bottom: 136, left: 16, right: dockWide ? 320 : 16 }),
-    [dockWide]
+    () =>
+      boardFitInsetFor({
+        mode,
+        chipsH: mobileChipsH,
+        controlsH: mobileControlsH,
+        sheetH: mobileSheetH,
+      }),
+    [mode, mobileChipsH, mobileControlsH, mobileSheetH]
   );
+  // The activity log floats permanently on desktop; on mobile it is a sheet the
+  // Log button opens. The hand is a drawer on mobile portrait (direction B) —
+  // closed at rest, so the board keeps the whole screen.
+  const [logOpen, setLogOpen] = useState(false);
+  const [handOpen, setHandOpen] = useState(false);
 
   // Activity feed: diff each view against the previous one (see gameLog.ts).
   const [logEntries, setLogEntries] = useState<ProLogEntry[]>([]);
@@ -5393,6 +5425,175 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   const actionsForCard = (instance: CardInstanceId) =>
     cardAffordances(legalActions, instance, attachItemContext);
 
+  // Playing from the mobile hand drawer closes it (direction B): the card is
+  // gone from the hand and whatever the play triggers — a prompt, a combat —
+  // wants the screen. Desktop's fan has no drawer, so this is just `sendAction`
+  // there.
+  const playFromHand = (action: Action) => {
+    setHandOpen(false);
+    sendAction(action);
+  };
+
+  // …and it opens itself when the decision on the table is about a card in YOUR
+  // hand — a prompt whose own options name hand instances. Deliberately NOT
+  // "any hand card is playable while a prompt is open": a CHOOSE SPACE prompt
+  // leaves the hand playable too, and opening the drawer over the board for it
+  // is exactly the wrong move. Never during the mulligan, which puts the
+  // opening hand on screen itself.
+  const handDecision =
+    mobile &&
+    !!prompt &&
+    !mulliganPrompt &&
+    promptCardOptions.some((o) => view.self.hand.includes(o.instance))
+      ? prompt.promptId
+      : null;
+
+
+  // The HUD's data, built once and worn by whichever arrangement is mounted
+  // (issue #708): the desktop plates + chip cluster, or the mobile match strip,
+  // whose seat sheets render the very same SeatPlate.
+  const hudProps: ProHudProps = {
+    view,
+    status,
+    roomId,
+    seatPresence,
+    turnTimer,
+    turnTimerSeconds: roomInfo?.turnTimerSeconds,
+    resolveCard,
+    resolveHero,
+    resolveRuleCards,
+    labelFor: (c) => cardLabel(view.catalog, c),
+    soundOn,
+    visualFxOn: visualOn,
+    onToggleSound: toggleSound,
+    onToggleVisualFx: toggleVisual,
+    opponentCosmeticsHidden: hideCosmetics,
+    // Only offered once an opponent has actually published something —
+    // otherwise it is a chip that visibly does nothing in every guest
+    // game, which is most of them.
+    onToggleOpponentCosmetics: cosmetics.hasOpponentCosmetics ? toggleHideCosmetics : undefined,
+    slowModeOn: slowMode,
+    onToggleSlowMode: toggleSlowMode,
+    slowModeHolding: !!slowModeHeld,
+    onReportBug: () => setReportBugOpen(true),
+  };
+
+  // The decision dock/sheet, built once and placed by the arrangement: fixed
+  // at the right edge on desktop, or inside the mobile bottom container
+  // (portrait) / rail (landscape) further down (issue #708).
+  const dockEl = (
+    <ProDock
+      view={view}
+      myTurn={myTurn}
+      activeTurnLabel={activeTurnLabel}
+      disconnectedLabel={disconnectedLabel}
+      stepping={
+        previewMove
+          ? {
+              fighterName: selectedFighter?.split("/")[1] ?? "",
+              movesLeft: stepMovesLeft,
+              canEnd: stepCanEnd,
+              onEnd: () => stepState && commitStep(stepState),
+              onCancel: () => {
+                setStep(null);
+                setPoseChoice(null);
+              },
+            }
+          : // Effect-move stepping (#654) reuses the very same controls; only the
+            // commit wording changes ("Commit here" answers the prompt, it doesn't
+            // end a maneuver), and Cancel drops the local route with nothing sent.
+            promptPreviewMove && promptStepState
+            ? {
+                fighterName: badgedName(promptPreviewMove.fighterId),
+                movesLeft: promptStepRemaining,
+                canEnd: promptStepCanCommit,
+                commitLabel: "Commit here",
+                onEnd: () => commitPromptStep(promptStepState),
+                onCancel: () => {
+                  setPromptStep(null);
+                  setPoseChoice(null);
+                },
+              }
+            : null
+      }
+      moveChoiceNames={moveChoice ? moveChoice.candidates.map((id) => badgedName(id)) : null}
+      poseChoiceHint={poseChoiceHint}
+      selectedFighterName={selectedFighter ? selectedFighter.split("/")[1] : null}
+      stepwiseMoves={!!moveGraph}
+      highlightedCount={highlightedSpaces.length}
+      attackTargetCount={attackActions.size}
+      boostHint={boostHint}
+      combatPanel={
+        /* Strike beat (#381): while a combat that resolved+ended in one batch
+           lingers, keep rendering the panel from the frozen snapshot so the
+           slam can play — including OVER a freshly committed next combat while
+           the hold lasts (#602). Visual-fx off ⇒ no linger, no hold, no strike
+           (outcome still lives in the activity log); the panel just renders the
+           live combat and unmounts as before. */
+        (visualOn ? panelCombat : view.combat) ? (
+          <CombatPanel
+            combat={(visualOn ? panelCombat : view.combat)!}
+            catalog={view.catalog}
+            resolveCard={resolveCard}
+            you={view.you}
+            selfCommitted={view.self.committedCard}
+            strike={visualOn ? strike : null}
+            valueFx={visualOn && !reducedMotion ? combatValueFx : undefined}
+            clashRef={clashRef}
+            chain={combatChain}
+            effectAttack={combatEffectAttack}
+            defenderCallout={combatDefenderTag}
+          />
+        ) : null
+      }
+      promptPanel={
+        prompt && !mulliganPrompt ? (
+          <PromptPanel
+            prompt={prompt}
+            you={view.you}
+            onRespond={respondToPrompt}
+            buttonOptions={promptButtonOptions}
+            cardOptions={promptCardOptions}
+            boardHint={promptBoardHint}
+            budgetLine={promptBudgetLine}
+            noteLine={promptNoteLine}
+            previewInstance={promptCardInstance}
+            sourceInstance={sourceCardInstance}
+            sourceLabel={sourceLabel}
+            resolveCard={resolveCard}
+            catalog={view.catalog}
+          />
+        ) : null
+      }
+      hasPrompt={!!prompt}
+      rows={dockActionRows}
+      soleAction={sole}
+      describe={(a) => describeAction(view.catalog, a, { nameOf, attackerBadge, itemLabelForSpace: liveItemLabel })}
+      isExtendedReach={isExtendedReach}
+      rangePurchaseChip={rangePurchaseChip}
+      fighterFace={fighterFace}
+      attackerBadge={attackerBadge}
+      onAction={sendAction}
+      legalActionCount={legalActions.length}
+      iAmSpectating={iAmSpectating}
+      iForfeited={iForfeited}
+      multiplayerView={multiplayerView}
+      replayHref={replayBundle ? `/pro/replays?open=${replayId(replayBundle)}` : null}
+      onCopyShareLink={
+        replayBundle && accountStatus === "signed-in" ? () => void copyReplayShareLink() : undefined
+      }
+      shareLinkBusy={sharingReplay}
+      undoPending={undoPending}
+      onUndo={requestUndo}
+      canForfeit={canForfeit}
+      onForfeit={() => setForfeitOpen(true)}
+      mobile={mobile ? (rail ? "rail" : "portrait") : false}
+      mobileHandOpen={handOpen}
+      mobileSheetRef={mobileSheetRef}
+      onMobileSheetShown={setMobileSheetShown}
+    />
+  );
+
   return (
     <ProErrorBoundary
       roomId={roomId}
@@ -5483,6 +5684,10 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
           moveHint={moveHint}
           imgMaxH={zoomMapOn ? undefined : "calc(100svh - 16rem)"}
           zoomable={zoomMapOn}
+          // Portrait phones only (issue #708): stand the landscape map on end
+          // so it uses the screen's long axis. Landscape is already the map's
+          // own orientation, and desktop never rotates.
+          rotated={mode === "portrait"}
           fitInset={boardFitInset}
           tokenLife={tokenLifeOn ? tokenGestures : null}
           fighterEls={fighterElsRef}
@@ -5521,33 +5726,16 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
           report-bug chip (issue #125/#138) shares this row so it doesn't
           overlap the invite/connection chips — beta badge distinguishes it
           from the activity-log icon (#87); both open the same ReportBugDialog. */}
-      <ProHud
-        view={view}
-        status={status}
-        roomId={roomId}
-        seatPresence={seatPresence}
-        turnTimer={turnTimer}
-        turnTimerSeconds={roomInfo?.turnTimerSeconds}
-        resolveCard={resolveCard}
-        resolveHero={resolveHero}
-        resolveRuleCards={resolveRuleCards}
-        labelFor={(c) => cardLabel(view.catalog, c)}
-        soundOn={soundOn}
-        visualFxOn={visualOn}
-        onToggleSound={toggleSound}
-        onToggleVisualFx={toggleVisual}
-        opponentCosmeticsHidden={hideCosmetics}
-        onToggleOpponentCosmetics={
-          // Only offered once an opponent has actually published something —
-          // otherwise it is a chip that visibly does nothing in every guest
-          // game, which is most of them.
-          cosmetics.hasOpponentCosmetics ? toggleHideCosmetics : undefined
-        }
-        slowModeOn={slowMode}
-        onToggleSlowMode={toggleSlowMode}
-        slowModeHolding={!!slowModeHeld}
-        onReportBug={() => setReportBugOpen(true)}
-      />
+      {/* Top-of-screen HUD. Desktop keeps the floating plates + chip cluster;
+          a phone gets the one-line match strip, whose seat chips open the same
+          SeatPlate as a sheet (issue #708). Gated on the layout EFFECT, not a
+          per-element media query, so the static export's first paint is the
+          desktop one and hydration stays quiet. */}
+      {mobile ? (
+        <ProMobileHud {...hudProps} layoutMode={mode} chipsRef={mobileChipsRef} />
+      ) : (
+        <ProHud {...hudProps} />
+      )}
 
       {/* Slow mode (issue #703): one opponent action at a time, held until the
           player clicks OK. Renders nothing at all when the socket isn't holding —
@@ -5564,112 +5752,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       {/* Floating decision dock — turn state, combat, prompts, actions. Owns
           its own drag/collapse/persistence (issue #451); the two big inline
           panels ride in as slots so they can stay in this file. */}
-      <ProDock
-        view={view}
-        myTurn={myTurn}
-        activeTurnLabel={activeTurnLabel}
-        disconnectedLabel={disconnectedLabel}
-        stepping={
-          previewMove
-            ? {
-                fighterName: selectedFighter?.split("/")[1] ?? "",
-                movesLeft: stepMovesLeft,
-                canEnd: stepCanEnd,
-                onEnd: () => stepState && commitStep(stepState),
-                onCancel: () => {
-                  setStep(null);
-                  setPoseChoice(null);
-                },
-              }
-            : // Effect-move stepping (#654) reuses the very same controls; only the
-              // commit wording changes ("Commit here" answers the prompt, it doesn't
-              // end a maneuver), and Cancel drops the local route with nothing sent.
-              promptPreviewMove && promptStepState
-              ? {
-                  fighterName: badgedName(promptPreviewMove.fighterId),
-                  movesLeft: promptStepRemaining,
-                  canEnd: promptStepCanCommit,
-                  commitLabel: "Commit here",
-                  onEnd: () => commitPromptStep(promptStepState),
-                  onCancel: () => {
-                    setPromptStep(null);
-                    setPoseChoice(null);
-                  },
-                }
-              : null
-        }
-        moveChoiceNames={moveChoice ? moveChoice.candidates.map((id) => badgedName(id)) : null}
-        poseChoiceHint={poseChoiceHint}
-        selectedFighterName={selectedFighter ? selectedFighter.split("/")[1] : null}
-        stepwiseMoves={!!moveGraph}
-        highlightedCount={highlightedSpaces.length}
-        attackTargetCount={attackActions.size}
-        boostHint={boostHint}
-        combatPanel={
-          /* Strike beat (#381): while a combat that resolved+ended in one batch
-             lingers, keep rendering the panel from the frozen snapshot so the
-             slam can play — including OVER a freshly committed next combat while
-             the hold lasts (#602). Visual-fx off ⇒ no linger, no hold, no strike
-             (outcome still lives in the activity log); the panel just renders the
-             live combat and unmounts as before. */
-          (visualOn ? panelCombat : view.combat) ? (
-            <CombatPanel
-              combat={(visualOn ? panelCombat : view.combat)!}
-              catalog={view.catalog}
-              resolveCard={resolveCard}
-              you={view.you}
-              selfCommitted={view.self.committedCard}
-              strike={visualOn ? strike : null}
-              valueFx={visualOn && !reducedMotion ? combatValueFx : undefined}
-              clashRef={clashRef}
-              chain={combatChain}
-              effectAttack={combatEffectAttack}
-              defenderCallout={combatDefenderTag}
-            />
-          ) : null
-        }
-        promptPanel={
-          prompt && !mulliganPrompt ? (
-            <PromptPanel
-              prompt={prompt}
-              you={view.you}
-              onRespond={respondToPrompt}
-              buttonOptions={promptButtonOptions}
-              cardOptions={promptCardOptions}
-              boardHint={promptBoardHint}
-              budgetLine={promptBudgetLine}
-              noteLine={promptNoteLine}
-              previewInstance={promptCardInstance}
-              sourceInstance={sourceCardInstance}
-              sourceLabel={sourceLabel}
-              resolveCard={resolveCard}
-              catalog={view.catalog}
-            />
-          ) : null
-        }
-        hasPrompt={!!prompt}
-        rows={dockActionRows}
-        soleAction={sole}
-        describe={(a) => describeAction(view.catalog, a, { nameOf, attackerBadge, itemLabelForSpace: liveItemLabel })}
-        isExtendedReach={isExtendedReach}
-        rangePurchaseChip={rangePurchaseChip}
-        fighterFace={fighterFace}
-        attackerBadge={attackerBadge}
-        onAction={sendAction}
-        legalActionCount={legalActions.length}
-        iAmSpectating={iAmSpectating}
-        iForfeited={iForfeited}
-        multiplayerView={multiplayerView}
-        replayHref={replayBundle ? `/pro/replays?open=${replayId(replayBundle)}` : null}
-        onCopyShareLink={
-          replayBundle && accountStatus === "signed-in" ? () => void copyReplayShareLink() : undefined
-        }
-        shareLinkBusy={sharingReplay}
-        undoPending={undoPending}
-        onUndo={requestUndo}
-        canForfeit={canForfeit}
-        onForfeit={() => setForfeitOpen(true)}
-      />
+      {!mobile && dockEl}
 
 
       {/* concede confirmation (issue #140) — sends FORFEIT on confirm. In
@@ -5728,12 +5811,16 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
         }}
       />
 
-      {/* activity feed — bottom-left parchment panel, sandbox style */}
+      {/* activity feed — bottom-left parchment panel on desktop; on mobile the
+          same panel as a sheet the match strip's log button opens (#708). */}
       <ProLog
         entries={logEntries}
         resolveCard={resolveCard}
         labelFor={(c) => cardLabel(view.catalog, c)}
         onReportBug={() => setReportBugOpen(true)}
+        mobile={mobile}
+        isOpen={logOpen}
+        onClose={() => setLogOpen(false)}
       />
 
       {/* prefilled-GitHub-issue bug report with auto-captured game context (#87) */}
@@ -5746,17 +5833,133 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       />
 
       {/* hand — docked fan over the bottom edge, sandbox style */}
-      <Flex position="fixed" bottom="-0.75rem" left="0" right="0" justifyContent="center" zIndex={160} pointerEvents="none">
-        <Box pointerEvents="auto">
-          <ProHand
+      {!mobile && (
+        <Flex position="fixed" bottom="-0.75rem" left="0" right="0" justifyContent="center" zIndex={160} pointerEvents="none">
+          <Box pointerEvents="auto">
+            <ProHand
+              hand={view.self.hand}
+              resolveCard={resolveCard}
+              labelFor={(c) => cardLabel(view.catalog, c)}
+              actionsFor={actionsForCard}
+              onAction={sendAction}
+            />
+          </Box>
+        </Flex>
+      )}
+
+      {/* Mobile chrome (issue #708, direction B). Nothing here is a band the
+          board has to make room for: the pill row floats, the hand is a
+          fan-peek until it is tapped, and the log/overflow buttons sit in the
+          bottom corners. Portrait stacks them over the board's bottom edge;
+          landscape stands the decision stack + hand up as a right rail so the
+          board keeps everything to the left of it. */}
+      {mobile && !rail && (
+        <Flex
+          ref={mobileControlsRef}
+          data-testid="pro-mobile-controls"
+          position="fixed"
+          left={0}
+          right={0}
+          bottom={0}
+          zIndex={160}
+          direction="column"
+          gap="0.5rem"
+          pb="0.75rem"
+          pointerEvents="none"
+          sx={{
+            paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))",
+            paddingLeft: "env(safe-area-inset-left, 0px)",
+            paddingRight: "env(safe-area-inset-right, 0px)",
+          }}
+        >
+          {dockEl}
+          {/* Above the decision sheet inside this container, so the log, the
+              hand and the overflow menu stay reachable while a prompt holds
+              the sheet open. */}
+          <Flex
+            position="relative"
+            zIndex={3}
+            alignItems="flex-end"
+            justifyContent="space-between"
+            gap="0.5rem"
+            px="0.6rem"
+          >
+            <Flex
+              {...MOBILE_BTN}
+              as="button"
+              aria-label="Activity log"
+              pointerEvents="auto"
+              onClick={() => setLogOpen(true)}
+            >
+              <TbList size="1rem" /> Log
+            </Flex>
+            <HandDecisionWatcher promptKey={handDecision} onOpen={() => setHandOpen(true)} />
+            <ProMobileHand
+              hand={view.self.hand}
+              resolveCard={resolveCard}
+              labelFor={(c) => cardLabel(view.catalog, c)}
+              actionsFor={actionsForCard}
+              onAction={playFromHand}
+              deckCount={view.self.deckCount}
+              discardCount={view.self.discard.length}
+              isOpen={handOpen}
+              onOpen={() => setHandOpen(true)}
+              onClose={() => setHandOpen(false)}
+            />
+            <Box pointerEvents="auto">
+              <ProMobileMenu {...hudProps} placement="top-end" />
+            </Box>
+          </Flex>
+        </Flex>
+      )}
+
+      {/* Landscape rail: decision stack on top, compact hand strip below. */}
+      {mobile && rail && (
+        <Flex
+          data-testid="pro-mobile-rail"
+          position="fixed"
+          top={0}
+          right={0}
+          bottom={0}
+          width={RAIL_WIDTH_CSS}
+          zIndex={160}
+          direction="column"
+          gap="0.5rem"
+          p="0.5rem"
+          bg="rgba(30, 15, 34, 0.72)"
+          borderLeft="1px solid rgba(224, 168, 46, 0.3)"
+          sx={{
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            paddingTop: "calc(0.5rem + env(safe-area-inset-top, 0px))",
+            paddingRight: "calc(0.5rem + env(safe-area-inset-right, 0px))",
+            paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom, 0px))",
+          }}
+        >
+          <Flex alignItems="center" gap="0.4rem" flexShrink={0}>
+            <Flex
+              {...MOBILE_BTN}
+              as="button"
+              aria-label="Activity log"
+              minH={TAP_TARGET}
+              px="0.6rem"
+              onClick={() => setLogOpen(true)}
+            >
+              <TbList size="0.9rem" /> Log
+            </Flex>
+            <Box flex={1} />
+            <ProMobileMenu {...hudProps} placement="bottom-end" />
+          </Flex>
+          {dockEl}
+          <RailHand
             hand={view.self.hand}
             resolveCard={resolveCard}
             labelFor={(c) => cardLabel(view.catalog, c)}
             actionsFor={actionsForCard}
-            onAction={sendAction}
+            onAction={playFromHand}
           />
-        </Box>
-      </Flex>
+        </Flex>
+      )}
     </Box>
     </CardPreviewProvider>
     </ProErrorBoundary>

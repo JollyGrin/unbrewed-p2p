@@ -8,7 +8,7 @@
  */
 import { MutableRefObject, useRef } from "react";
 import { act, render, screen } from "@testing-library/react";
-import { ZOOM_MAX, ZOOM_MIN, ZoomPanInset, useZoomPan } from "./useZoomPan";
+import { FIT_MIN, ZOOM_MAX, ZOOM_MIN, ZoomPanInset, useZoomPan } from "./useZoomPan";
 
 // jsdom has no ResizeObserver; the hook only needs "call me once on observe",
 // because every later size change in these tests is explicit.
@@ -103,10 +103,29 @@ describe("useZoomPan initial fit (issue #450)", () => {
     expect(screen.queryByText("reset view")).toBeNull();
   });
 
-  it("never fits below the zoom floor", () => {
+  // Issue #708: the FIT is allowed below the gesture floor, because a phone's
+  // stage is genuinely smaller than a map — clamping it at ZOOM_MIN is exactly
+  // what left the board cropped and adrift on a 390px screen.
+  it("fits below the user zoom-out floor when that is what it takes", () => {
     render(<Harness inset={{ top: 390, bottom: 390 }} />); // 220px of usable height
-    expect(readTransform().scale).toBeGreaterThanOrEqual(ZOOM_MIN);
-    expect(readTransform().scale).toBeLessThanOrEqual(ZOOM_MAX);
+    const { scale } = readTransform();
+    expect(scale).toBeCloseTo(220 / BOARD.h, 3);
+    expect(scale).toBeLessThan(ZOOM_MIN);
+    expect(scale).toBeGreaterThanOrEqual(FIT_MIN);
+    expect(scale).toBeLessThanOrEqual(ZOOM_MAX);
+  });
+
+  it("still refuses to zoom out past that fit", () => {
+    render(<Harness inset={{ top: 390, bottom: 390 }} />);
+    const fit = readTransform().scale;
+    const vp = screen.getByTestId("viewport");
+    act(() => {
+      // a hard scroll-down = zoom out, well past any floor
+      vp.dispatchEvent(
+        new WheelEvent("wheel", { bubbles: true, deltaY: 5000, clientX: 800, clientY: 500 })
+      );
+    });
+    expect(readTransform().scale).toBeCloseTo(fit, 3);
   });
 });
 

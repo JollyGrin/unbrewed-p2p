@@ -32,7 +32,10 @@ import type { CardInstanceId, LegalOption } from "@/lib/pro/protocol";
 import type { ResolveCard } from "@/lib/pro/useProCardArt";
 import { MulliganChoice, decidedLabel, mulliganChoiceOf } from "@/lib/pro/mulligan";
 
-const CARD_W = "6.5rem";
+/** Five cards abreast at 6.5rem needs ~34rem; a 390px phone has ~23rem inside
+ *  the dialog, so the hand steps down under Chakra's `sm` (issue #708). Pure
+ *  CSS breakpoints — nothing here reads `window`, and >= 30em is unchanged. */
+const CARD_W = { base: "4.4rem", sm: "6.5rem" };
 
 export interface MulliganDialogProps {
   isOpen: boolean;
@@ -123,7 +126,16 @@ export const MulliganDialog = ({
               </Text>
             )}
           </AlertDialogBody>
-          <AlertDialogFooter gap="0.6rem" justifyContent="center">
+          {/* The server's option labels are whole sentences ("Shuffle your hand
+              back and draw a new one"), which at 390px overlapped each other in
+              a nowrap row. Stack them under `sm` and let each wrap to its own
+              full-width, growable button. */}
+          <AlertDialogFooter
+            gap="0.6rem"
+            justifyContent="center"
+            flexDirection={{ base: "column", sm: "row" }}
+            flexWrap="wrap"
+          >
             {awaitingYou ? (
               options.map((option, i) => {
                 const choice = mulliganChoiceOf(option);
@@ -134,6 +146,12 @@ export const MulliganDialog = ({
                     colorScheme={choice === "MULLIGAN" ? "orange" : "green"}
                     variant={choice === "MULLIGAN" ? "outline" : "solid"}
                     onClick={() => onChoose(option.id)}
+                    w={{ base: "100%", sm: "auto" }}
+                    whiteSpace="normal"
+                    height="auto"
+                    minH="2.5rem"
+                    py="0.5rem"
+                    lineHeight="1.2"
                   >
                     {option.label}
                   </Button>
