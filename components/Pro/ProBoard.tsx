@@ -2114,13 +2114,19 @@ export const ProBoard = ({
   // clicks are identity-based (`data-space-id`), so nothing about them needs the
   // map's coordinate system — and pinning them to the screen is the only way a
   // 230px panel reliably stays on a 390px one.
+  // Rotated portrait pins these to the SCREEN, so they have to clear the
+  // floating HP chips themselves — `fitInset.top` is exactly the measured
+  // height of that chrome (see lib/pro/mobileLayout `boardFitInsetFor`), so
+  // starting a gutter below it is the one offset that stays right as the chips
+  // grow a timer bar or a notch's safe-area padding.
+  const screenTop = `calc(${fitInset?.top ?? 0}px + 0.5rem)`;
   const screenOverlays = (
     <>
       {regions.some((r) => !panelPos[r.id]) && (
         <Flex
           position="absolute"
           {...(upright
-            ? { left: "0.5rem", top: "0.5rem" }
+            ? { left: "0.5rem", top: screenTop }
             : { right: "1.5%", bottom: "1.5%" })}
           w={REGION_PANEL_W_CSS}
           maxW="calc(100% - 1rem)"
@@ -2139,7 +2145,7 @@ export const ProBoard = ({
             key={r.id}
             position="absolute"
             left={upright ? "0.5rem" : `${panelPos[r.id].x}%`}
-            top={upright ? "0.5rem" : `${panelPos[r.id].y}%`}
+            top={upright ? screenTop : `${panelPos[r.id].y}%`}
             w={REGION_PANEL_W_CSS}
             maxW="calc(100% - 1rem)"
             zIndex={7}
@@ -2156,7 +2162,7 @@ export const ProBoard = ({
       {hoveredZoneSet.size > 0 && (
         <Flex
           position="absolute"
-          top={upright ? "0.5rem" : "1.5%"}
+          top={upright ? screenTop : "1.5%"}
           {...(upright ? { right: "0.5rem" } : { left: "1.5%" })}
           zIndex={8}
           direction="column"

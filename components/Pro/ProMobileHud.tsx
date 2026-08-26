@@ -144,8 +144,12 @@ const HpChip = ({
       lineHeight={1}
       letterSpacing="0.05em"
       noOfLines={1}
-      // Never let a seat with four sidekicks squeeze its own name to nothing.
-      minW="2.5rem"
+      // The NAME wins the width fight: it is the one thing that identifies the
+      // seat, so it takes what it needs (up to a cap) and the sidekick group
+      // below absorbs the squeeze — a chip reading "GENER…" beside three
+      // legible sidekick hearts has its priorities backwards.
+      flexShrink={0}
+      maxW="7rem"
       opacity={local ? 1 : 0.85}
     >
       {label}
@@ -164,25 +168,27 @@ const HpChip = ({
     {/* A glance, not a roster: two sidekick hearts fit a corner chip, and a
         deck that fields more gets a count. Every one of them is spelled out in
         the seat sheet a tap away. */}
-    {sidekickHps.slice(0, SIDEKICKS_ON_CHIP).map((s) => (
-      <Text
-        key={s.id}
-        fontFamily="SpaceGrotesk"
-        fontSize="0.72rem"
-        lineHeight={1}
-        flexShrink={0}
-        opacity={s.defeated ? 0.4 : 0.7}
-        textDecoration={s.defeated ? "line-through" : undefined}
-        sx={{ fontVariantNumeric: "tabular-nums" }}
-      >
-        +♥{s.hp}
-      </Text>
-    ))}
-    {sidekickHps.length > SIDEKICKS_ON_CHIP && (
-      <Text fontFamily="SpaceGrotesk" fontSize="0.72rem" lineHeight={1} flexShrink={0} opacity={0.7}>
-        +{sidekickHps.length - SIDEKICKS_ON_CHIP}
-      </Text>
-    )}
+    <Flex alignItems="center" gap="0.3rem" minW={0} overflow="hidden">
+      {sidekickHps.slice(0, SIDEKICKS_ON_CHIP).map((s) => (
+        <Text
+          key={s.id}
+          fontFamily="SpaceGrotesk"
+          fontSize="0.72rem"
+          lineHeight={1}
+          flexShrink={0}
+          opacity={s.defeated ? 0.4 : 0.7}
+          textDecoration={s.defeated ? "line-through" : undefined}
+          sx={{ fontVariantNumeric: "tabular-nums" }}
+        >
+          +♥{s.hp}
+        </Text>
+      ))}
+      {sidekickHps.length > SIDEKICKS_ON_CHIP && (
+        <Text fontFamily="SpaceGrotesk" fontSize="0.72rem" lineHeight={1} flexShrink={0} opacity={0.7}>
+          +{sidekickHps.length - SIDEKICKS_ON_CHIP}
+        </Text>
+      )}
+    </Flex>
     {offline && (
       <Box boxSize="0.45rem" borderRadius="999px" bg="#FF6347" flexShrink={0} title="disconnected" />
     )}

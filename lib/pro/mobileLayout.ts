@@ -51,16 +51,26 @@ export const HAND_DRAWER_CARD_SCROLL = "6.25rem";
  *
  * The hero's own name beats "You"/"Opponent" there — it is what the player is
  * actually tracking, and the parchment rim already says which seat is theirs.
- * A long one is cut to its leading word rather than ellipsed into nothing
- * ("Cairne Bloodhoof" reads as CAIRNE, not as "OPPON…").
+ * Fitting it into a corner chip goes, in order:
+ *
+ *  1. drop a leading article — "The Mandalorian" must never shorten to "THE",
+ *     which identifies nobody;
+ *  2. take the leading word if it carries the name ("Cairne Bloodhoof" →
+ *     CAIRNE, "Malfurion Stormrage" → MALFURION);
+ *  3. otherwise ellipsize, so a single long word still says something.
  */
 export const CHIP_NAME_MAX = 11;
+/** A leading word this short is a filler, not the name. */
+const CHIP_WORD_MIN = 3;
+
 export const chipSeatName = (heroName: string | undefined, fallback: string): string => {
-  const name = (heroName ?? "").trim();
-  if (!name) return fallback;
+  const raw = (heroName ?? "").trim();
+  if (!raw) return fallback;
+  const name = raw.replace(/^(the|a|an)\s+/i, "").trim() || raw;
   if (name.length <= CHIP_NAME_MAX) return name;
   const [first] = name.split(/\s+/);
-  return first.length <= CHIP_NAME_MAX ? first : name.slice(0, CHIP_NAME_MAX);
+  if (first.length >= CHIP_WORD_MIN && first.length <= CHIP_NAME_MAX) return first;
+  return `${name.slice(0, CHIP_NAME_MAX - 1)}…`;
 };
 
 /** Minimum tap target — every mobile control and action row clears it. */

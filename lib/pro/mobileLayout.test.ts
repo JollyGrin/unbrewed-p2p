@@ -108,10 +108,25 @@ describe("chipSeatName", () => {
   it("cuts a long hero to its leading word rather than ellipsing it away", () => {
     expect(chipSeatName("Cairne Bloodhoof", "Opponent")).toBe("Cairne");
     expect(chipSeatName("Malfurion Stormrage", "Opponent")).toBe("Malfurion");
+    expect(chipSeatName("General Grievous", "Opponent")).toBe("General");
   });
 
-  it("hard-truncates a long single word", () => {
+  // A bare "THE" identifies nobody — the article goes first, then the rules.
+  it("never shortens a hero to its leading article", () => {
+    expect(chipSeatName("The Mandalorian", "Opponent")).toBe("Mandalorian");
+    expect(chipSeatName("The Hollow Oak", "Opponent")).toBe("Hollow Oak");
+    expect(chipSeatName("The Doppelganger", "Opponent")).toBe("Doppelgang…");
+  });
+
+  it("ellipsizes a long single word instead of dropping it", () => {
+    expect(chipSeatName("Antidisestablishmentarian", "Opponent")).toBe("Antidisest…");
     expect(chipSeatName("Antidisestablishmentarian", "Opponent")).toHaveLength(CHIP_NAME_MAX);
+  });
+
+  it("leaves a name that already fits alone", () => {
+    expect(chipSeatName("Baba Yaga", "Opponent")).toBe("Baba Yaga");
+    expect(chipSeatName("Darth Maul", "Opponent")).toBe("Darth Maul");
+    expect(chipSeatName("R2-D2", "Opponent")).toBe("R2-D2");
   });
 
   it("falls back to the seat label before the hero is known", () => {
