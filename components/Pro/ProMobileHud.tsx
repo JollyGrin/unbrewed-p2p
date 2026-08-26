@@ -323,7 +323,10 @@ export const ProMobileMenu = ({
           )}
           <MenuDivider borderColor="whiteAlpha.200" />
           <Flex px="0.8rem" py="0.4rem">
-            <InGameAccountChip />
+            {/* No dropdown here (#712): this chip is already INSIDE a MenuList,
+                and a menu nested in a menu is a focus-management trap. The
+                mobile surface keeps the plain identity chip. */}
+            <InGameAccountChip withMenu={false} />
           </Flex>
         </MenuList>
       </Portal>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import {
   Box,
   Button,
@@ -22,6 +22,82 @@ import {
 } from "@/lib/account/useAccount";
 
 /**
+ * The canonical account menu, in canonical order (#712).
+ *
+ * One list, one order, every surface: the navbar chip, the /pro/game lobby chip
+ * and the in-game HUD chip all render this, so "where do I find my collection?"
+ * has the same answer wherever the player happens to be. The divider splits
+ * what's yours (Account, Collection) from the rest (Leaderboard, and Sign out
+ * last, where a mis-tap costs least).
+ */
+const ACCOUNT_MENU_LINKS = [
+  { href: "/account", label: "Account", dividerBefore: false },
+  { href: "/collection", label: "Collection", dividerBefore: false },
+  { href: "/leaderboard", label: "Leaderboard", dividerBefore: true },
+] as const;
+
+const menuItemStyles = {
+  bg: "transparent",
+  fontFamily: "ArchivoNarrow",
+  fontSize: "0.9rem",
+  _hover: { bg: "brand.surface" },
+  _focus: { bg: "brand.surface" },
+} as const;
+
+/**
+ * The signed-in dropdown, shared by every chip.
+ *
+ * `newTab` is what separates the in-game surfaces from the navbar: from a page
+ * with a live websocket (the lobby, a match) navigating away would tear the
+ * socket down mid-game, so those links open beside the game instead — the same
+ * precedent as the in-game guest chip's new-tab Discord handoff. Sign out is
+ * never a navigation, so it always acts in place.
+ *
+ * The dark surface is deliberate: it's the readable one on the /pro HUD, and
+ * the parchment navbar already renders this same dropdown today.
+ */
+const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => {
+  const [signingOut, setSigningOut] = useState(false);
+  const linkProps = newTab
+    ? { target: "_blank", rel: "noopener noreferrer" }
+    : {};
+
+  return (
+    <MenuList
+      bg="brand.surfaceDim"
+      borderColor="brand.accent"
+      color="brand.parchment"
+      minW="9rem"
+      py="0.25rem"
+      // Above the HUD's own chip/overlay ladder, so the menu isn't painted
+      // under the board furniture on /pro.
+      zIndex={210}
+    >
+      {ACCOUNT_MENU_LINKS.map((link) => (
+        <Fragment key={link.href}>
+          {link.dividerBefore && <MenuDivider borderColor="whiteAlpha.300" />}
+          <MenuItem as={NextLink} href={link.href} {...linkProps} {...menuItemStyles}>
+            {link.label}
+          </MenuItem>
+        </Fragment>
+      ))}
+      <MenuItem
+        {...menuItemStyles}
+        isDisabled={signingOut}
+        onClick={() => {
+          setSigningOut(true);
+          // signOut() never rejects; it refetches /me and pushes the result
+          // to every mounted chip.
+          signOut().finally(() => setSigningOut(false));
+        }}
+      >
+        Sign out
+      </MenuItem>
+    </MenuList>
+  );
+};
+
+/**
  * The optional Discord account affordance (issue #459) — a sign-in pill when
  * signed out, an avatar + username menu when signed in.
  *
@@ -30,8 +106,7 @@ import {
  * nav affordance at all, because the whole chip is already invisible to them
  * when the API is unreachable and is a sign-in pill when it isn't. (The board
  * itself needs no account — /account's own sign-in prompt links to it too, for
- * exactly that reason.) The divider splits what's yours (Account, Collection)
- * from the rest (Leaderboard, and Sign out last, where a mis-tap costs least).
+ * exactly that reason.)
  *
  * Deliberately renders NOTHING while the `/me` probe is in flight and when the
  * accounts API is unreachable: the site is a standalone static build first, so
@@ -45,7 +120,6 @@ import {
 export const AccountChip = () => {
   const { status, account } = useAccount();
   const router = useRouter();
-  const [signingOut, setSigningOut] = useState(false);
 
   if (status === "loading" || status === "offline") return null;
 
@@ -127,64 +201,7 @@ export const AccountChip = () => {
           </Text>
         </Box>
       </MenuButton>
-      <MenuList
-        bg="brand.surfaceDim"
-        borderColor="brand.accent"
-        color="brand.parchment"
-        minW="9rem"
-        py="0.25rem"
-      >
-        <MenuItem
-          as={NextLink}
-          href="/account"
-          bg="transparent"
-          fontFamily="ArchivoNarrow"
-          fontSize="0.9rem"
-          _hover={{ bg: "brand.surface" }}
-          _focus={{ bg: "brand.surface" }}
-        >
-          Account
-        </MenuItem>
-        <MenuItem
-          as={NextLink}
-          href="/collection"
-          bg="transparent"
-          fontFamily="ArchivoNarrow"
-          fontSize="0.9rem"
-          _hover={{ bg: "brand.surface" }}
-          _focus={{ bg: "brand.surface" }}
-        >
-          Collection
-        </MenuItem>
-        <MenuDivider borderColor="whiteAlpha.300" />
-        <MenuItem
-          as={NextLink}
-          href="/leaderboard"
-          bg="transparent"
-          fontFamily="ArchivoNarrow"
-          fontSize="0.9rem"
-          _hover={{ bg: "brand.surface" }}
-          _focus={{ bg: "brand.surface" }}
-        >
-          Leaderboard
-        </MenuItem>
-        <MenuItem
-          bg="transparent"
-          fontFamily="ArchivoNarrow"
-          fontSize="0.9rem"
-          isDisabled={signingOut}
-          _hover={{ bg: "brand.surface" }}
-          _focus={{ bg: "brand.surface" }}
-          onClick={() => {
-            setSigningOut(true);
-            // signOut() never rejects; it refetches /me and pushes the result
-            // to every mounted chip.
-            signOut().finally(() => setSigningOut(false));
-          }}
-        >
-          Sign out
-        </MenuItem>
-      </MenuList>
+      <AccountMenuList />
     </Menu>
   );
 };
@@ -201,13 +218,14 @@ const hudChipStyles = {
 } as const;
 
 /**
- * The in-game variant, for the /pro HUD chip cluster. Same probe, same store,
- * zero extra requests — but two deliberate differences from the page chip,
- * both because a live game and its websocket are at stake:
+ * The in-game variant, for the /pro/game lobby and the HUD chip cluster. Same
+ * probe, same store, zero extra requests — but two deliberate differences from
+ * the page chip, both because a live game and its websocket are at stake:
  *
- * 1. **Signed in is display-only** (no sign-out menu). ProHud is read-only by
- *    design and there is nothing account-shaped to do mid-match; a dropdown
- *    over the board is just another mis-tap.
+ * 1. **Every link opens in a new tab** (#712). The menu itself is the navbar's,
+ *    item for item, so the chip means the same thing everywhere; what changes
+ *    is that Account/Collection/Leaderboard open beside the game rather than
+ *    replacing it. Sign out is not a navigation, so it acts in place.
  * 2. **Signing in opens a new tab**, and it returns to `/pro`, never to this
  *    game URL. A same-tab OAuth hop would tear down the socket and drop the
  *    player out of a live match, and a new tab returning to `/pro/game?room=…`
@@ -218,8 +236,17 @@ const hudChipStyles = {
  *    game costs nothing. (Abandoning the Discord tab therefore doesn't leave a
  *    listener re-probing every time the player alt-tabs; clicking sign-in
  *    again re-arms it.)
+ *
+ * `withMenu={false}` is the one opt-out, for ProMobileHud: there the chip is
+ * already rendered INSIDE the game menu's `MenuList`, and a menu nested in a
+ * menu is a focus-management trap, so that surface keeps the plain identity
+ * chip it has today.
  */
-export const InGameAccountChip = () => {
+export const InGameAccountChip = ({
+  withMenu = true,
+}: {
+  withMenu?: boolean;
+} = {}) => {
   const { status, account } = useAccount();
   const [awaitingSignIn, setAwaitingSignIn] = useState(false);
 
@@ -258,8 +285,8 @@ export const InGameAccountChip = () => {
     );
   }
 
-  return (
-    <Flex {...hudChipStyles} aria-label={`Signed in as ${account.username}`}>
+  const identity = (
+    <>
       {account.avatarUrl ? (
         <Box
           as="img"
@@ -283,6 +310,32 @@ export const InGameAccountChip = () => {
       >
         {account.username}
       </Text>
-    </Flex>
+    </>
+  );
+
+  if (!withMenu) {
+    return (
+      <Flex {...hudChipStyles} aria-label={`Signed in as ${account.username}`}>
+        {identity}
+      </Flex>
+    );
+  }
+
+  return (
+    // isLazy: the board shouldn't carry a hidden dropdown's DOM on every frame,
+    // and a closed menu mid-match is genuinely closed.
+    <Menu placement="bottom-end" autoSelect={false} isLazy>
+      <MenuButton
+        as={Flex}
+        {...hudChipStyles}
+        display="inline-flex"
+        aria-label={`Signed in as ${account.username}`}
+        cursor="pointer"
+        _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+      >
+        {identity}
+      </MenuButton>
+      <AccountMenuList newTab />
+    </Menu>
   );
 };
