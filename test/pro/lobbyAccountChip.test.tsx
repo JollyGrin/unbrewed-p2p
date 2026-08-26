@@ -6,12 +6,14 @@
  * WHICH chip it is: the lobby already holds a live websocket, so sign-in has to
  * be the new-tab (InGameAccountChip) variant — the page AccountChip's same-tab
  * OAuth hop would tear the socket down before the player ever picks a fighter.
+ * Since #712 the chip also carries the navbar's dropdown here, with every link
+ * pointed at a new tab for the same reason.
  *
  * Mount recipe is the shared render-fuzz one (fake WebSocket, real page), same
  * as randomStagePick — this test lives entirely in the pre-room picker.
  */
 import "@testing-library/jest-dom";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterContext } from "next/dist/shared/lib/router-context";
@@ -113,6 +115,34 @@ describe("hero-select lobby account chip", () => {
 
     expect(await screen.findByLabelText("Signed in as JollyGrin")).toBeInTheDocument();
     expect(screen.getByTestId("account-avatar")).toHaveAttribute("src", USER.avatarUrl);
+  });
+
+  it("opens the shared account menu, every link in a new tab (#712)", async () => {
+    mockMe({ status: 200, body: { user: USER } });
+
+    await mountPicker();
+
+    const chip = await screen.findByLabelText("Signed in as JollyGrin");
+    await act(async () => {
+      fireEvent.click(chip);
+    });
+
+    // Scoped + `hidden` on purpose: the menu is open (aria-expanded), but its
+    // framer-motion enter animation never runs under jsdom, so the popper is
+    // still `visibility: hidden` and the default role query would skip it.
+    const menu = document.getElementById(chip.getAttribute("aria-controls") ?? "");
+    if (!menu) throw new Error("the chip never opened its menu");
+    const items = within(menu).getAllByRole("menuitem", { hidden: true });
+    expect(items.map((i) => i.textContent)).toEqual([
+      "Account",
+      "Collection",
+      "Leaderboard",
+      "Sign out",
+    ]);
+    // The lobby socket is already live, so a same-tab hop would drop it.
+    const collection = within(menu).getByText("Collection");
+    expect(collection).toHaveAttribute("href", "/collection");
+    expect(collection).toHaveAttribute("target", "_blank");
   });
 
   it("offers a guest the NEW-TAB Discord sign-in, so the lobby socket survives", async () => {
