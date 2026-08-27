@@ -13,7 +13,7 @@
  * on, and stay crisp from the 14px HUD chip to the 44px badge case tile.
  *
  * Every glyph is drawn inside one shared medallion — same disc, same rim, same
- * 24×24 frame — so fifteen badges read as one set at a glance and only the colour
+ * 24×24 frame — so nineteen badges read as one set at a glance and only the colour
  * and silhouette have to do the distinguishing work.
  */
 import { Box } from "@chakra-ui/react";
@@ -105,11 +105,51 @@ const deckFan = (tone: string) => (
 );
 
 /** One rung of the ladder: same art, one metal. */
-const deckBadge = (name: string, tone: string): BadgeArt => ({
+const deckBadge = (name: string, blurb: string, tone: string): BadgeArt => ({
   name,
+  blurb,
   tone,
   glyph: () => deckFan(tone),
 });
+
+/**
+ * The four map & matchup badges (#721) — where you win, and who you beat.
+ *
+ * Unlike the deck-completion ladder, these four are unrelated achievements, so
+ * they tell themselves apart by SILHOUETTE and not by tone: a folded map, a
+ * planted pin, a row of masks, two faces. They also read as two breadth-vs-depth
+ * pairs, the way Generalist and Specialist already do — a map of many boards
+ * against one pin in one place, a gallery of many faces against one face met
+ * again. Get that contrast into the art and the case teaches its own structure.
+ *
+ * Everything here is one solid light mass with its detail CUT OUT in the badge's
+ * own tone — the pin's hole, the masks' eyes, the map's folds. A cut-out costs
+ * nothing at 14px, where the mass still reads and a light-on-light hairline
+ * would only thicken the blob.
+ *
+ * Nothing load-bearing sits in the left third, because the HUD shelf (#718)
+ * overlaps discs by 32% and every badge but the first loses that much of its
+ * left edge. Each of these four survives it for its own reason: the pin is
+ * centred, the profiles are mirrored, and the map and the masks both repeat
+ * across the disc — clip a panel or a mask and what's left still says map, or
+ * still says a row of faces.
+ */
+
+/** Row of three masks, for Rogues' Gallery — one per hero beaten. */
+const MASK_CENTRES = [7.3, 12, 16.7] as const;
+
+/**
+ * One head-and-shoulders in profile, facing right, for Nemesis.
+ *
+ * Drawn once and mirrored about x=12, so the pair is exactly symmetric and the
+ * gap between the two noses stays even. The gap is the point: at 14px the two
+ * masses merge into one disc without it, and a seam down the middle is what
+ * says "two of them, facing".
+ */
+const NEMESIS_PROFILE =
+  "M8.2 7.4C9.9 7.4 11 8.8 11 10.4L10.3 11.3 11.5 12.5 10.2 13.1" +
+  "C10.5 13.8 10 14.5 9.1 14.7V15.5C9.1 16.2 9.8 16.6 10.6 17.4H4.9" +
+  "C4.9 16.2 5.7 15.4 7 15.1C6.1 14.2 5.4 12.6 5.4 11 5.4 8.9 6.5 7.4 8.2 7.4Z";
 
 export const BADGE_ART: Record<string, BadgeArt> = {
   // Won your first game — a single drop.
@@ -279,14 +319,107 @@ export const BADGE_ART: Record<string, BadgeArt> = {
     ),
   },
   // Whole deck at bronze rims.
-  "deck-bronze": deckBadge("Bronze Deck", "#8A5127"),
+  "deck-bronze": deckBadge(
+    "Bronze Deck",
+    "Took a whole deck to bronze rims",
+    "#8A5127",
+  ),
   // ...at silver.
-  "deck-silver": deckBadge("Silver Deck", "#7D858F"),
+  "deck-silver": deckBadge(
+    "Silver Deck",
+    "Took a whole deck to silver rims",
+    "#7D858F",
+  ),
   // ...at antiqued gold: darker and browner than seat gold, as on the rim.
-  "deck-gold": deckBadge("Gold Deck", "#6D5C22"),
+  "deck-gold": deckBadge(
+    "Gold Deck",
+    "Took a whole deck to gold rims",
+    "#6D5C22",
+  ),
   // ...and the top rung, iridescent — one flat cool tone standing in for a
   // paint that is nine pastels on a sweep.
-  "deck-iridescent": deckBadge("Iridescent Deck", "#6A73C6"),
+  "deck-iridescent": deckBadge(
+    "Iridescent Deck",
+    "Took a whole deck to iridescent rims",
+    "#6A73C6",
+  ),
+  // Won on five different boards — a folded map.
+  cartographer: {
+    name: "Cartographer",
+    blurb: "Won on five different boards",
+    tone: "#2F6E9E",
+    glyph: () => (
+      <g>
+        <path
+          d="M6 8.6 10 7.2 14 8.8 18 7.4V15.4L14 16.8 10 15.2 6 16.6Z"
+          fill={LIGHT}
+        />
+        <g stroke="#2F6E9E" strokeWidth={1} strokeLinecap="round">
+          <path d="M10 7.6v7.2" />
+          <path d="M14 9.2v7.2" />
+        </g>
+      </g>
+    ),
+  },
+  // Twenty-five wins on one board — one pin, planted, on its own patch of ground.
+  "local-knowledge": {
+    name: "Local Knowledge",
+    blurb: "Won 25 games on one board",
+    tone: "#57813A",
+    glyph: () => (
+      <g>
+        <ellipse
+          cx={12}
+          cy={17}
+          rx={3.7}
+          ry={1.15}
+          fill="none"
+          stroke={LIGHT}
+          strokeWidth={1.1}
+        />
+        <path
+          d="M12 5.9a3.8 3.8 0 0 0-3.8 3.8c0 2.8 3.8 5.9 3.8 5.9s3.8-3.1 3.8-5.9A3.8 3.8 0 0 0 12 5.9Z"
+          fill={LIGHT}
+        />
+        <circle cx={12} cy={9.6} r={1.45} fill="#57813A" />
+      </g>
+    ),
+  },
+  // Beaten ten different heroes — a row of masks, one face per hero.
+  "rogues-gallery": {
+    name: "Rogues' Gallery",
+    blurb: "Beat ten different heroes",
+    tone: "#7A3F5E",
+    glyph: () => (
+      <g>
+        {MASK_CENTRES.map((cx) => (
+          <path
+            key={cx}
+            d={`M${cx - 1.9} 9.2a1.9 1.9 0 0 1 3.8 0v2.4c0 2.1-1 3.6-1.9 3.6s-1.9-1.5-1.9-3.6Z`}
+            fill={LIGHT}
+          />
+        ))}
+        {MASK_CENTRES.map((cx) => (
+          <g key={`eyes-${cx}`} fill="#7A3F5E">
+            <circle cx={cx - 0.85} cy={11.1} r={0.62} />
+            <circle cx={cx + 0.85} cy={11.1} r={0.62} />
+          </g>
+        ))}
+      </g>
+    ),
+  },
+  // Ten wins over the same hero — two profiles, nose to nose.
+  nemesis: {
+    name: "Nemesis",
+    blurb: "Won ten games against the same hero",
+    tone: "#2E3A5C",
+    glyph: () => (
+      <g fill={LIGHT}>
+        <path d={NEMESIS_PROFILE} />
+        <path d={NEMESIS_PROFILE} transform="translate(24 0) scale(-1 1)" />
+      </g>
+    ),
+  },
 };
 
 /**
