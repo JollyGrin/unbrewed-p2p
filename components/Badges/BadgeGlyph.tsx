@@ -4,29 +4,51 @@
  * The catalog itself lives in the accounts API: it sends ids, names, blurbs and
  * unlock hints, and the engine passes a chosen id between seats without ever
  * interpreting it. So this file is the CLIENT's half of the contract and nothing
- * more — a map from id to a picture. Adding a badge server-side needs no deploy
- * here (it renders with the fallback glyph), and adding art here needs no deploy
- * there. That is the whole reason the id is opaque on the wire.
+ * more — a map from id to a picture. The id stays opaque on the wire either way,
+ * but the two halves are NOT symmetric, and it is worth being exact about which
+ * direction is free (issue #723):
+ *
+ *  - Adding art here needs no deploy there. An id the API has never heard of is
+ *    simply never sent, so the entry sits unused.
+ *  - Adding a badge SERVER-SIDE does need a deploy here. `isKnownBadge` gates the
+ *    two surfaces that learn an id off the wire — the leaderboard row and the HUD
+ *    shelf DROP an id they have no art for, rather than drawing the fallback (see
+ *    `isKnownBadge` for why) — so a new server-side badge is invisible on both
+ *    until its art lands in this file. The fallback glyph is reached only on
+ *    `/account`, where the API's own row supplies the name and blurb beside it.
+ *
+ * That asymmetry is how `clutch` and `speedrunner` went unrendered from #577 to
+ * #723: nothing was broken, they just weren't here. The catalog-coverage test in
+ * BadgeGlyph.test.tsx now fails for that instead of prod doing it quietly.
  *
  * v1 is inline SVG rather than hosted images, per the design draft: these are UI
  * chrome, not card art, so they cost no request, tint with the surface they sit
  * on, and stay crisp from the 14px HUD chip to the 44px badge case tile.
  *
  * Every glyph is drawn inside one shared medallion — same disc, same rim, same
- * 24×24 frame — so nineteen badges read as one set at a glance and only the colour
- * and silhouette have to do the distinguishing work.
+ * 24×24 frame — so twenty-one badges read as one set at a glance and only the
+ * colour and silhouette have to do the distinguishing work.
  */
 import { Box } from "@chakra-ui/react";
 
 interface BadgeArt {
-  /** Display name. Used only where the API's own name isn't to hand — i.e. the
-   *  HUD chip, which learns an id from the engine and nothing else. */
+  /**
+   * Display name. Used only where the API's own name isn't to hand — i.e. the
+   * HUD chip, which learns an id from the engine and nothing else.
+   *
+   * Byte for byte the API's name for that id, always (issue #723). Both names
+   * reach the screen — the badge case renders the API's row, the leaderboard
+   * tooltip and the HUD popover render this one — so a badge with two names is
+   * a badge the player sees called two things.
+   */
   name: string;
   /**
    * One line saying what the badge IS. Same reason as `name` (issue #718): the
    * engine sends the opponent's badge ids and nothing else, so the HUD has no
    * API catalog row to read a blurb off. Third person, because half the badges
-   * this file describes belong to the player on the other side of the board.
+   * this file describes belong to the player on the other side of the board —
+   * except where the API's own line is already third-person-neutral, which is
+   * then taken verbatim rather than paraphrased into a second wording.
    */
   blurb: string;
   /** Medallion fill. */
@@ -151,6 +173,34 @@ const NEMESIS_PROFILE =
   "C10.5 13.8 10 14.5 9.1 14.7V15.5C9.1 16.2 9.8 16.6 10.6 17.4H4.9" +
   "C4.9 16.2 5.7 15.4 7 15.1C6.1 14.2 5.4 12.6 5.4 11 5.4 8.9 6.5 7.4 8.2 7.4Z";
 
+/**
+ * The two bot-feat badges (#723) — the two ways of beating a hard bot that the
+ * scoreboard bothers to remember: surviving it, and not letting it get going.
+ *
+ * They arrived with the catalog in #577 and had no art here until now, which on
+ * the two gated surfaces meant no badge at all rather than a plain one. Both are
+ * live on the leaderboard's top three, so they are drawn to the #721 rule and not
+ * the #717 one: unrelated achievements, so they tell themselves apart by
+ * SILHOUETTE — a heart, a stopwatch — and their tones only have to be their own.
+ *
+ * Both are centred and near-symmetric, which is what the HUD shelf (#718) asks
+ * of anything but the first disc: it overlaps by 32%, and a heart or a watch face
+ * clipped down its left edge is still a heart or a watch face.
+ */
+
+/**
+ * The heart for On the Brink, drawn as an OUTLINE — the one glyph in the case
+ * that is mostly hollow, because what the badge is about is what is missing.
+ *
+ * The single filled pip inside it is the last HP. A solid heart would say
+ * "health" and stop there, and it would also collide with First Blood's drop at
+ * 14px; an outline with one dot in the middle of all that empty space says
+ * "nearly gone" without a number.
+ */
+const BRINK_HEART =
+  "M12 16.9C8.5 14.1 6.8 12.4 6.8 10.6 6.8 9.1 8 8 9.4 8 10.4 8 11.4 8.5 12 9.4" +
+  " 12.6 8.5 13.6 8 14.6 8 16 8 17.2 9.1 17.2 10.6 17.2 12.4 15.5 14.1 12 16.9Z";
+
 export const BADGE_ART: Record<string, BadgeArt> = {
   // Won your first game — a single drop.
   "first-win": {
@@ -231,6 +281,44 @@ export const BADGE_ART: Record<string, BadgeArt> = {
           d="M7.2 16.8 16.8 7.6"
           stroke={LIGHT}
           strokeWidth={1.5}
+          strokeLinecap="round"
+        />
+      </g>
+    ),
+  },
+  // Won on one HP against a hard or expert bot — a heart down to its last pip.
+  clutch: {
+    name: "On the Brink",
+    blurb: "Won a game with a single HP left against a hard or expert bot.",
+    tone: "#9E2B45",
+    glyph: () => (
+      <g>
+        <path
+          d={BRINK_HEART}
+          fill="none"
+          stroke={LIGHT}
+          strokeWidth={1.5}
+          strokeLinejoin="round"
+        />
+        <circle cx={12} cy={11.9} r={1.5} fill={LIGHT} />
+      </g>
+    ),
+  },
+  // Beat a hard or expert bot in five turns — a stopwatch, hand barely moved.
+  speedrunner: {
+    name: "Speedrunner",
+    blurb: "Beat a hard or expert bot in 5 turns or fewer.",
+    tone: "#7C9A2B",
+    glyph: () => (
+      <g>
+        {/* The pusher: one centred stem is the whole difference between a
+            stopwatch and Specialist's bullseye at 14px. */}
+        <rect x={11.1} y={6.2} width={1.8} height={1.8} rx={0.6} fill={LIGHT} />
+        <circle cx={12} cy={13.2} r={4.9} fill={LIGHT} />
+        <path
+          d="M12 13.2 14.6 10.7"
+          stroke="#7C9A2B"
+          strokeWidth={1.4}
           strokeLinecap="round"
         />
       </g>
@@ -319,28 +407,16 @@ export const BADGE_ART: Record<string, BadgeArt> = {
     ),
   },
   // Whole deck at bronze rims.
-  "deck-bronze": deckBadge(
-    "Bronze Deck",
-    "Took a whole deck to bronze rims",
-    "#8A5127",
-  ),
+  "deck-bronze": deckBadge("Burnished", "A whole deck in bronze.", "#8A5127"),
   // ...at silver.
-  "deck-silver": deckBadge(
-    "Silver Deck",
-    "Took a whole deck to silver rims",
-    "#7D858F",
-  ),
+  "deck-silver": deckBadge("Sterling", "A whole deck in silver.", "#7D858F"),
   // ...at antiqued gold: darker and browner than seat gold, as on the rim.
-  "deck-gold": deckBadge(
-    "Gold Deck",
-    "Took a whole deck to gold rims",
-    "#6D5C22",
-  ),
+  "deck-gold": deckBadge("Gilded", "A whole deck in antiqued gold.", "#6D5C22"),
   // ...and the top rung, iridescent — one flat cool tone standing in for a
   // paint that is nine pastels on a sweep.
   "deck-iridescent": deckBadge(
-    "Iridescent Deck",
-    "Took a whole deck to iridescent rims",
+    "Prismatic",
+    "A whole deck, every card iridescent.",
     "#6A73C6",
   ),
   // Won on five different boards — a folded map.
