@@ -39,7 +39,10 @@ const PROFILE = {
   level: 5,
   xp: 1800,
   xpForNext: 2100,
+  // #718: worn is an ordered list, and `selectedBadge` rides along as slot 1
+  // for a release. The header shows the whole cluster.
   selectedBadge: "first-win",
+  selectedBadges: ["first-win", "veteran"],
   badges: [
     {
       id: "first-win",
@@ -47,6 +50,13 @@ const PROFILE = {
       blurb: "Won your first game.",
       unlocked: true,
       unlockedWhy: "Win a game (1/1)",
+    },
+    {
+      id: "veteran",
+      name: "Veteran",
+      blurb: "A hundred games deep.",
+      unlocked: true,
+      unlockedWhy: "Play 100 games (123/100)",
     },
   ],
   stats: {
@@ -117,7 +127,9 @@ describe("/stats?u= — a player who exists", () => {
     expect(await screen.findByText("Emyrk")).toBeInTheDocument();
     // Level bar, badge case, record and match history all present.
     expect(screen.getByTestId("account-level-number")).toHaveTextContent("5");
-    expect(screen.getByTestId("account-badge-chip")).toHaveTextContent("First Blood");
+    const chip = screen.getByTestId("account-badge-chip");
+    expect(chip).toHaveTextContent("First Blood");
+    expect(chip).toHaveTextContent("Veteran");
     expect(screen.getByRole("heading", { name: "Record" })).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getAllByTestId("account-game-row")).toHaveLength(1),
@@ -144,8 +156,11 @@ describe("/stats?u= — a player who exists", () => {
     renderPage();
     await screen.findByText("Emyrk");
 
-    const tile = screen.getByTestId("account-badge");
-    expect(tile.tagName).not.toBe("BUTTON");
+    for (const tile of screen.getAllByTestId("account-badge")) {
+      expect(tile.tagName).not.toBe("BUTTON");
+    }
+    // And no worn strip: ordering is only meaningful where it can be changed.
+    expect(screen.queryByTestId("account-worn-strip")).not.toBeInTheDocument();
   });
 });
 

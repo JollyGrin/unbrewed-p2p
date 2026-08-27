@@ -22,6 +22,13 @@ interface BadgeArt {
   /** Display name. Used only where the API's own name isn't to hand — i.e. the
    *  HUD chip, which learns an id from the engine and nothing else. */
   name: string;
+  /**
+   * One line saying what the badge IS. Same reason as `name` (issue #718): the
+   * engine sends the opponent's badge ids and nothing else, so the HUD has no
+   * API catalog row to read a blurb off. Third person, because half the badges
+   * this file describes belong to the player on the other side of the board.
+   */
+  blurb: string;
   /** Medallion fill. */
   tone: string;
   /**
@@ -48,6 +55,7 @@ export const BADGE_ART: Record<string, BadgeArt> = {
   // Won your first game — a single drop.
   "first-win": {
     name: "First Blood",
+    blurb: "Won their first game",
     tone: "#A83A3A",
     glyph: () => (
       <path
@@ -59,6 +67,7 @@ export const BADGE_ART: Record<string, BadgeArt> = {
   // 25 games — a five-bar tally.
   regular: {
     name: "Regular",
+    blurb: "Played 25 games",
     tone: "#9C6B34",
     glyph: () => (
       <g fill={LIGHT}>
@@ -78,6 +87,7 @@ export const BADGE_ART: Record<string, BadgeArt> = {
   // 100 games — service chevrons.
   veteran: {
     name: "Veteran",
+    blurb: "Played 100 games",
     tone: "#4F6F82",
     glyph: () => (
       <g
@@ -96,6 +106,7 @@ export const BADGE_ART: Record<string, BadgeArt> = {
   // Five wins in a row — a flame.
   "streak-5": {
     name: "Hot Streak",
+    blurb: "Won five games in a row",
     tone: "#C9622A",
     glyph: () => (
       <path
@@ -107,6 +118,7 @@ export const BADGE_ART: Record<string, BadgeArt> = {
   // Beat the expert bot — a struck robot head.
   "bot-slayer": {
     name: "Bot Slayer",
+    blurb: "Beat the expert bot",
     tone: "#2E7D7D",
     glyph: () => (
       <g fill={LIGHT}>
@@ -127,6 +139,7 @@ export const BADGE_ART: Record<string, BadgeArt> = {
   // Ten games against humans — two figures.
   "people-person": {
     name: "People Person",
+    blurb: "Played ten games against other people",
     tone: "#B4527A",
     glyph: () => (
       <g fill={LIGHT}>
@@ -140,6 +153,7 @@ export const BADGE_ART: Record<string, BadgeArt> = {
   // Ten wins with one hero — a bullseye.
   specialist: {
     name: "Specialist",
+    blurb: "Won ten games with one hero",
     tone: "#5B4B9E",
     glyph: () => (
       <g fill="none" stroke={LIGHT} strokeWidth={1.4}>
@@ -152,6 +166,7 @@ export const BADGE_ART: Record<string, BadgeArt> = {
   // Wins with five heroes — five marks in a ring.
   generalist: {
     name: "Generalist",
+    blurb: "Won with five different heroes",
     tone: "#3F8F5B",
     glyph: () => (
       <g>
@@ -164,6 +179,7 @@ export const BADGE_ART: Record<string, BadgeArt> = {
   // Level 5 — a star.
   "level-5": {
     name: "Adept",
+    blurb: "Reached level 5",
     tone: "#7C8794",
     glyph: () => (
       <path
@@ -175,6 +191,7 @@ export const BADGE_ART: Record<string, BadgeArt> = {
   // Level 10 — a star in a wreath.
   "level-10": {
     name: "Expert",
+    blurb: "Reached level 10",
     tone: "#BE9333",
     glyph: () => (
       <g>
@@ -192,6 +209,7 @@ export const BADGE_ART: Record<string, BadgeArt> = {
   // Level 20 — a crown.
   "level-20": {
     name: "Grandmaster",
+    blurb: "Reached level 20",
     tone: "#7E4FB8",
     glyph: () => (
       <g fill={LIGHT}>
@@ -212,6 +230,9 @@ export const BADGE_ART: Record<string, BadgeArt> = {
  */
 const FALLBACK: BadgeArt = {
   name: "Badge",
+  // Never reached by the HUD popover — unknown ids are dropped before it, by
+  // `wornBadgeIds` — so this exists only to keep the shape total.
+  blurb: "",
   tone: "#6B5E72",
   glyph: () => <path d="M12 6.6 14.1 12 12 17.4 9.9 12Z" fill={LIGHT} />,
 };
@@ -232,6 +253,40 @@ export const isKnownBadge = (id: string | null | undefined): boolean =>
 export const badgeArtName = (id: string): string =>
   BADGE_ART[id]?.name ?? FALLBACK.name;
 
+/** The badge's one-line blurb as THIS build knows it. Same "no API row" case. */
+export const badgeArtBlurb = (id: string): string =>
+  BADGE_ART[id]?.blurb ?? FALLBACK.blurb;
+
+/**
+ * How many badges a player may wear at once (issue #718).
+ *
+ * Enforced in three places on purpose — here, in the accounts API's write, and
+ * in the engine's sanitizer — because the id array reaches a HUD from the OTHER
+ * client, and neither of the two hops in between is a trust boundary.
+ */
+export const MAX_WORN_BADGES = 3;
+
+/**
+ * The ids a shelf will actually draw, from whatever the wire carried.
+ *
+ * SLICE FIRST, then drop the unknowns. The cap is on what a seat may CLAIM — a
+ * hand-rolled client sending thirty ids gets three discs, not thirty — and the
+ * art check is a separate rule about what we are willing to draw. Filtering
+ * first would let a claim of thirty ids still fill the shelf by burying the
+ * unknown ones, which is exactly the shape the cap exists to refuse.
+ *
+ * `legacy` is the pre-#718 singular field, still populated by the engine for a
+ * release; it is read only when the array is absent or empty, so a newer server
+ * always wins.
+ */
+export const wornBadgeIds = (
+  badges: readonly string[] | null | undefined,
+  legacy?: string | null,
+): string[] => {
+  const claimed = badges?.length ? badges : legacy ? [legacy] : [];
+  return claimed.slice(0, MAX_WORN_BADGES).filter(isKnownBadge);
+};
+
 /**
  * One badge medallion.
  *
@@ -243,12 +298,19 @@ export const BadgeGlyph = ({
   id,
   size = "2.75rem",
   muted = false,
+  rim = false,
   title,
 }: {
   id: string;
   /** Any CSS length. The art is a viewBox, so it stays crisp at any of them. */
   size?: string;
   muted?: boolean;
+  /**
+   * Draw the separator ring (issue #718). Only wanted where medallions OVERLAP:
+   * without it two adjacent discs of similar tone mush into one shape. A badge
+   * sitting on its own doesn't need separating from anything.
+   */
+  rim?: boolean;
   /** Native tooltip. Omit where a visible label already says the same thing. */
   title?: string;
 }) => {
@@ -284,7 +346,78 @@ export const BadgeGlyph = ({
           strokeWidth={0.9}
         />
         {art.glyph()}
+        {/* Drawn LAST so it rides over the glyph as well as the disc — it is a
+            separator, not part of the art. */}
+        {rim ? (
+          <circle
+            cx={12}
+            cy={12}
+            r={11}
+            fill="none"
+            stroke="#2B1730"
+            strokeWidth={1.5}
+          />
+        ) : null}
       </svg>
+    </Box>
+  );
+};
+
+/**
+ * The worn-badge shelf (issue #718) — up to three medallions as one overlapping
+ * cluster, leftmost in front.
+ *
+ * The three numbers are settled on the design canvas and are not worth
+ * re-deriving here: 17px discs, 32% overlap, rim on. Below ~15% overlap the
+ * discs stop reading as a set and start reading as three separate chips; the
+ * rim is what keeps them from mushing together at 32%.
+ *
+ * Z-INDEX DESCENDS from the left, so slot 1 — the badge the player put first —
+ * is the one never occluded. That is the whole reason the picker is ordered.
+ *
+ * Renders nothing at all for an empty list: the row is absent, not empty. Empty
+ * slots are picker chrome; a plate with no badges must be exactly as tall as it
+ * is today.
+ */
+export const BadgeCluster = ({
+  ids,
+  size = 17,
+  title = true,
+}: {
+  /** Already filtered and capped — see `wornBadgeIds`. */
+  ids: readonly string[];
+  /** Disc diameter in px. The overlap scales with it. */
+  size?: number;
+  /** Native tooltips per disc. Off where a visible list already names them. */
+  title?: boolean;
+}) => {
+  if (ids.length === 0) return null;
+  const overlap = size * 0.32;
+  return (
+    <Box
+      as="span"
+      data-testid="badge-cluster"
+      display="inline-flex"
+      alignItems="center"
+      flexShrink={0}
+    >
+      {ids.map((id, i) => (
+        <Box
+          as="span"
+          key={id}
+          position="relative"
+          display="block"
+          zIndex={ids.length - i}
+          ml={i === 0 ? undefined : `-${overlap}px`}
+        >
+          <BadgeGlyph
+            id={id}
+            size={`${size}px`}
+            rim
+            title={title ? badgeArtName(id) : undefined}
+          />
+        </Box>
+      ))}
     </Box>
   );
 };

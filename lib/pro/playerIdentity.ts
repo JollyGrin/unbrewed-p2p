@@ -23,6 +23,7 @@
  * with a stray control character doesn't render one way locally and another
  * way after the round trip.
  */
+import { MAX_WORN_BADGES } from "@/components/Badges/BadgeGlyph";
 import type { HeroCosmetics } from "@/lib/account/cosmetics";
 import { wireLoadoutFor } from "@/lib/account/cosmetics";
 import type { AccountState } from "@/lib/account/useAccount";
@@ -71,6 +72,33 @@ export const sanitizeBadgeId = (raw: string): string | undefined => {
 };
 
 /**
+ * The worn badge ids for the wire, or undefined (issue #718).
+ *
+ * Each id goes through the same sanitizer as the singular field, and the list is
+ * capped at three — the same cap the accounts API applies on write and the
+ * engine applies on arrival. Enforcing it here too isn't belt-and-braces for its
+ * own sake: this is the only one of the three hops that knows the cap is a
+ * PRODUCT rule (a shelf holds three) rather than a defensive bound.
+ *
+ * Ids that sanitize to nothing are dropped rather than dropping the whole list,
+ * and duplicates are collapsed — two of the same disc is a rendering bug on the
+ * other seat's screen, not a statement anyone meant to make.
+ */
+export const sanitizeBadgeIds = (
+  raw: readonly string[] | null | undefined,
+): string[] | undefined => {
+  if (!raw?.length) return undefined;
+  const out: string[] = [];
+  for (const entry of raw) {
+    const id = typeof entry === "string" ? sanitizeBadgeId(entry) : undefined;
+    if (!id || out.includes(id)) continue;
+    out.push(id);
+    if (out.length === MAX_WORN_BADGES) break;
+  }
+  return out.length ? out : undefined;
+};
+
+/**
  * The identity fields to spread into a CREATE_ROOM/JOIN_ROOM message.
  *
  * `{}` for guest / loading / offline — a client that hasn't finished its `/me`
@@ -79,18 +107,28 @@ export const sanitizeBadgeId = (raw: string): string | undefined => {
  * the create flow needs a hero pick first, so in practice it has long since
  * settled.)
  *
- * `selectedBadge` (issue #577) rides along under the SAME gate: signed-in only.
- * A guest with a stale badge id in memory, or a signed-in player wearing
- * nothing, sends no `badge` key — so an unadorned room is byte-identical to a
- * pre-#347 one. The badge is never sent without the account it belongs to.
+ * `selectedBadges` (issues #577/#718) rides along under the SAME gate: signed-in
+ * only. A guest with stale badge ids in memory, or a signed-in player wearing
+ * nothing, sends no `badge`/`badges` key — so an unadorned room is
+ * byte-identical to a pre-#347 one. Badges never travel without the account
+ * they belong to.
  */
 export const identityFields = (
   state: AccountState,
-  selectedBadge?: string | null,
-): { displayName?: string; badge?: string; playerId?: string } => {
+  selectedBadges?: readonly string[] | null,
+): {
+  displayName?: string;
+  badge?: string;
+  badges?: string[];
+  playerId?: string;
+} => {
   if (state.status !== "signed-in" || !state.account) return {};
   const displayName = sanitizeDisplayName(state.account.username);
-  const badge = selectedBadge ? sanitizeBadgeId(selectedBadge) : undefined;
+  const badges = sanitizeBadgeIds(selectedBadges);
+  // The singular field rides along as slot 1 (issue #718): a server that hasn't
+  // taken engine #517 yet reads only this one, and the player's FIRST badge is
+  // the honest thing to show it — that is the disc they chose to lead with.
+  const badge = badges?.[0];
   // Over-long or control-bearing ids are DROPPED, never truncated: a truncated
   // pseudonymous token would attribute telemetry to the wrong player. The
   // server drops the field on the same rule (and keeps the join either way).
@@ -100,6 +138,7 @@ export const identityFields = (
   return {
     ...(displayName ? { displayName } : {}),
     ...(badge ? { badge } : {}),
+    ...(badges ? { badges } : {}),
     ...(playerId ? { playerId } : {}),
   };
 };

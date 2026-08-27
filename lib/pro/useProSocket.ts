@@ -298,11 +298,12 @@ export function useProSocket(
   const account = useAccount();
   const identityRef = useRef(account);
   identityRef.current = account;
-  // The badge the player chose to wear (issue #577), read through a ref for the
-  // same reason. `useBadges` asks the API nothing until the account probe says
-  // signed-in, so a guest still opens a Pro page with zero extra requests.
+  // The badges the player chose to wear (issues #577/#718), read through a ref
+  // for the same reason. `useBadges` asks the API nothing until the account
+  // probe says signed-in, so a guest still opens a Pro page with zero extra
+  // requests.
   const badges = useBadges();
-  const badgeRef = useRef(badges.selected);
+  const badgeRef = useRef<string[]>(badges.selected);
   badgeRef.current = badges.selected;
   // The equipped cosmetic loadout (epic #610, issue #615), read through a ref
   // for the same reason again. This is /collection's own hook (#614) — one
@@ -848,7 +849,7 @@ export function useProSocket(
         ...(quickMatch ? { quickMatch: true } : {}),
         // Signed-in seat identity (#568): the Discord name is broadcast to the
         // other seat, the account id goes to telemetry only. `{}` for a guest.
-        // The worn badge (#577) rides alongside the name, under the same gate.
+        // The worn badges (#577/#718) ride alongside the name, under the same gate.
         ...identityFields(identityRef.current, badgeRef.current),
         // The cosmetic loadout for THIS hero (#615) — an opaque ids-only blob
         // the engine stores and echoes and never parses. Absent for a guest, a

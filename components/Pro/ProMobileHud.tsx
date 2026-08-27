@@ -496,6 +496,7 @@ export const ProMobileHud = ({
               presence={presenceOf(sheetSeat)}
               timer={timerOf(sheetSeat)}
               badge={sheetSeat.badge}
+              badges={sheetSeat.badges}
               hand={sheetSeat.you ? sheetSeat.hand ?? view.self.hand : sheetSeat.handCount}
               deckCount={sheetSeat.deckCount}
               discard={sheetSeat.discard}

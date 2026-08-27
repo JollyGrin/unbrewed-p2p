@@ -34,6 +34,29 @@ beforeEach(() => {
   global.fetch = fetchMock as unknown as typeof fetch;
 });
 
+describe("normalizeLeaderboard — the worn badge", () => {
+  it("takes slot 1 off the ordered `selectedBadges` array (#718)", () => {
+    // A player may wear three; the board shows the one they lead with, because
+    // fifty dense rows with three discs each is noise where one is a fact.
+    const board = normalizeLeaderboard({
+      players: [row({ selectedBadges: ["veteran", "first-win"] })],
+    });
+    expect(board.players[0].selectedBadge).toBe("veteran");
+  });
+
+  it("falls back to the singular field an older API still sends", () => {
+    const board = normalizeLeaderboard({ players: [row()] });
+    expect(board.players[0].selectedBadge).toBe("first-win");
+  });
+
+  it("reads an empty array as wearing nothing", () => {
+    const board = normalizeLeaderboard({
+      players: [row({ selectedBadge: "first-win", selectedBadges: [] })],
+    });
+    expect(board.players[0].selectedBadge).toBeNull();
+  });
+});
+
 describe("normalizeLeaderboard", () => {
   it("keeps the API's order and its ranks", () => {
     const board = normalizeLeaderboard({

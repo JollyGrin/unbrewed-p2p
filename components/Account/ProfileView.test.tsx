@@ -26,10 +26,10 @@ import type { GameHistoryView } from "@/lib/account/useGameHistory";
 
 jest.mock("../../lib/pro/replayStore", () => ({ listReplays: () => [] }));
 
-const selectBadge = jest.fn();
+const toggleWornBadge = jest.fn();
 jest.mock("../../lib/account/useBadges", () => ({
   ...jest.requireActual("../../lib/account/useBadges"),
-  selectBadge: (...args: unknown[]) => selectBadge(...args),
+  toggleWornBadge: (...args: unknown[]) => toggleWornBadge(...args),
 }));
 
 const STATS: AccountStats = {
@@ -71,7 +71,7 @@ const BADGES: BadgeCaseState = {
       unlockedWhy: "Play 100 games (12/100)",
     },
   ],
-  selected: "first-win",
+  selected: ["first-win"],
   busy: false,
   notice: null,
 };
@@ -125,7 +125,7 @@ const badgeTile = (id: string) =>
     .getAllByTestId("account-badge")
     .find((tile) => tile.getAttribute("data-badge-id") === id)!;
 
-beforeEach(() => selectBadge.mockClear());
+beforeEach(() => toggleWornBadge.mockClear());
 
 describe("ProfileView — every mode", () => {
   it.each([true, false])("renders all four sections (owner=%s)", (owner) => {
@@ -160,8 +160,8 @@ describe("ProfileView — owner mode", () => {
     const tile = badgeTile("first-win");
     expect(tile.tagName).toBe("BUTTON");
     fireEvent.click(tile);
-    // Wearing the badge you already wear takes it off.
-    expect(selectBadge).toHaveBeenCalledWith(null);
+    // The tile names the id; wear/take-off/swap all live in the store (#718).
+    expect(toggleWornBadge).toHaveBeenCalledWith("first-win");
   });
 
   it("renders the owner-only extras and speaks in the first person", () => {
@@ -191,7 +191,7 @@ describe("ProfileView — read-only mode", () => {
     expect(unlocked.tagName).not.toBe("BUTTON");
     expect(within(unlocked).queryByRole("button")).toBeNull();
     fireEvent.click(unlocked);
-    expect(selectBadge).not.toHaveBeenCalled();
+    expect(toggleWornBadge).not.toHaveBeenCalled();
     // Still legible: the case shows what is worn, it just can't be changed.
     expect(unlocked).toHaveAttribute("data-selected", "true");
   });
