@@ -7,6 +7,7 @@ import {
   eligibleFormats,
   ineligibleReason,
   mapEligibleForFormat,
+  mapHasItems,
   DUEL_RANDOM_MAX_PLAYERS,
   duelRandomEligible,
   RANDOM_MAP_ID,
@@ -642,5 +643,67 @@ describe("the-bog fixture", () => {
     expect(formats.map((f) => f.formatId)).toEqual(["duel"]);
     expect(Object.keys(formats[0].seats)).toEqual(["A1", "B1"]);
     expect(Object.values(formats[0].seats).map((s) => s.startSlot)).toEqual([1, 2]);
+  });
+});
+
+/**
+ * mapHasItems (#725 ↔ engine #519) — the gate for the lobby's 🎁 ITEMS chip and
+ * the CREATE_ROOM.itemsEnabled opt-out. The load-bearing property is that every
+ * shipped board, the Random tile, and any garbage in the paste box read FALSE:
+ * hidden chip ⇒ absent field ⇒ the create flow stays byte-identical to today.
+ */
+describe("mapHasItems — the 🎁 ITEMS chip gate (#725)", () => {
+  /** A minimal engine-native board carrying one combat + one scheme item. */
+  const ITEMS_MAP = {
+    schemaVersion: "1.0",
+    id: "wedding-crashers",
+    meta: { title: "Wedding Crashers", minPlayers: 2, maxPlayers: 2, specialRules: false },
+    zones: [{ id: "z", color: "#fff", label: "Z" }],
+    items: [
+      { id: "gift", kind: "scheme", label: "Gift Bomb", ops: [{ op: "dealDamage", amount: 1 }] },
+      { id: "cake", kind: "combat", label: "Cake Knife", value: 2 },
+    ],
+    spaces: [
+      { id: "a", x: 0.1, y: 0.1, zones: ["z"], adjacentTo: ["b"], start: { slot: 1 }, item: "gift" },
+      { id: "b", x: 0.2, y: 0.2, zones: ["z"], adjacentTo: ["a"], start: { slot: 2 }, item: "cake" },
+    ],
+  };
+
+  it("is false for every shipped catalog board — none carries items", () => {
+    for (const entry of MAP_CATALOG) {
+      expect(mapHasItems(entry.id, "")).toBe(false);
+    }
+  });
+
+  it("is false for the Random tile — the roll resolves at create time", () => {
+    expect(mapHasItems(RANDOM_MAP_ID, "")).toBe(false);
+    // …even with an items map sitting in the paste box from an earlier Custom pick
+    expect(mapHasItems(RANDOM_MAP_ID, JSON.stringify(ITEMS_MAP))).toBe(false);
+  });
+
+  it("is false for Custom with a blank paste (falls back to a default board)", () => {
+    expect(mapHasItems(CUSTOM_MAP_ID, "")).toBe(false);
+    expect(mapHasItems(CUSTOM_MAP_ID, "   ")).toBe(false);
+  });
+
+  it("is true for a pasted engine-native map with items", () => {
+    expect(mapHasItems(CUSTOM_MAP_ID, JSON.stringify(ITEMS_MAP))).toBe(true);
+  });
+
+  it("is false for a pasted map WITHOUT items", () => {
+    const plain = JSON.stringify({ ...ITEMS_MAP, items: undefined, spaces: ITEMS_MAP.spaces.map(({ item: _item, ...s }) => s) });
+    expect(mapHasItems(CUSTOM_MAP_ID, plain)).toBe(false);
+    // an explicit empty array is just as item-less
+    expect(mapHasItems(CUSTOM_MAP_ID, JSON.stringify({ ...ITEMS_MAP, items: [] }))).toBe(false);
+  });
+
+  it("swallows malformed custom JSON — no throw, chip hidden", () => {
+    expect(mapHasItems(CUSTOM_MAP_ID, "{not json")).toBe(false);
+    expect(mapHasItems(CUSTOM_MAP_ID, "[1,2,3]")).toBe(false);
+    expect(mapHasItems(CUSTOM_MAP_ID, '{"spaces":[]}')).toBe(false); // parseable, but not a map
+  });
+
+  it("is false for an unknown board id (defensive — picker ids are catalog ids)", () => {
+    expect(mapHasItems("no-such-board", "")).toBe(false);
   });
 });
