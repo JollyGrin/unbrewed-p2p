@@ -19,7 +19,14 @@ export interface LeaderboardRow {
   avatarUrl: string | null;
   level: number | null;
   xp: number;
-  /** The badge this player is wearing, or null. */
+  /**
+   * The badge in the player's FIRST slot, or null.
+   *
+   * A player may wear three (#718), and the payload sends all of them as
+   * `selectedBadges`; the board deliberately shows only slot 1. These rows are
+   * dense — fifty of them, each already carrying an avatar, a name and four
+   * numbers — and three overlapping discs per row is noise where one is a fact.
+   */
   selectedBadge: string | null;
   gamesPlayed: number;
   wins: number;
@@ -75,7 +82,11 @@ const normalizeRow = (raw: unknown, index: number): LeaderboardRow | null => {
     // hides the column's value for that row rather than claiming a zero.
     level: asCount(row.level),
     xp: asCount(row.xp) ?? 0,
-    selectedBadge: asString(row.selectedBadge),
+    // `selectedBadges[0]` when this API has taken unbrewed-api#43, the singular
+    // field when it hasn't. Both are the same badge; only the shape differs.
+    selectedBadge: Array.isArray(row.selectedBadges)
+      ? asString(row.selectedBadges[0])
+      : asString(row.selectedBadge),
     gamesPlayed,
     // A row can't have won more than it played; clamp rather than print it.
     wins: Math.min(asCount(row.wins) ?? 0, gamesPlayed),

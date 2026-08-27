@@ -16,6 +16,12 @@ import {
   ModalContent,
   ModalHeader,
   ModalOverlay,
+  Popover,
+  PopoverArrow,
+  PopoverBody,
+  PopoverContent,
+  PopoverTrigger,
+  Portal,
   Switch,
   Tag,
   Text,
@@ -59,7 +65,13 @@ import { InGameAccountChip } from "@/components/Account/AccountChip";
 import { SPOTLIGHT_Z } from "./ActionSpotlight";
 import { useAccount } from "@/lib/account/useAccount";
 import { seatNameplate } from "@/lib/pro/playerIdentity";
-import { BadgeGlyph, badgeArtName, isKnownBadge } from "@/components/Badges/BadgeGlyph";
+import {
+  BadgeCluster,
+  BadgeGlyph,
+  badgeArtBlurb,
+  badgeArtName,
+  wornBadgeIds,
+} from "@/components/Badges/BadgeGlyph";
 import { DeckImportHeroType, DeckImportRuleCardType } from "@/components/DeckPool/deck-import.type";
 import { CardInstanceId, PileEntry, PlayerId, PlayerView, ViewFighter, ViewPlayer } from "@/lib/pro/protocol";
 import { isLargeFighter, LARGE_FIGHTER_BLURB } from "@/lib/pro/largeReach";
@@ -222,6 +234,121 @@ const CardListModal = ({
 // ---------------------------------------------------------------------------
 // One seat plate
 // ---------------------------------------------------------------------------
+
+/**
+ * The worn badges, spelled out: glyph, name, one line saying what it is.
+ *
+ * Every word comes from BADGE_ART, never from the accounts API, and that is the
+ * whole reason `blurb` lives there (#718). The engine hands this client a list
+ * of ids off the OTHER seat and nothing else — there is no catalog row to read
+ * for an opponent's badge, and there never will be one, because fetching a
+ * stranger's cosmetics mid-game to caption a disc is not a request worth making.
+ *
+ * Unknown ids are dropped upstream by `wornBadgeIds`, so nothing here needs
+ * fallback copy: if a badge reached this list, this build drew it and can name
+ * it.
+ */
+const BadgeReadout = ({ ids }: { ids: readonly string[] }) => (
+  <Box maxW="15rem" p="0.15rem">
+    {ids.map((id) => (
+      <Flex
+        key={id}
+        data-testid="badge-readout"
+        data-badge-id={id}
+        gap="0.45rem"
+        alignItems="flex-start"
+        py="0.2rem"
+      >
+        <BadgeGlyph id={id} size="1.2rem" />
+        <Box minW={0}>
+          <Text fontWeight="bold" fontSize="0.75rem" color="brand.accent" lineHeight="1.3">
+            {badgeArtName(id)}
+          </Text>
+          <Text fontSize="0.72rem" opacity={0.85} lineHeight="1.3">
+            {badgeArtBlurb(id)}
+          </Text>
+        </Box>
+      </Flex>
+    ))}
+  </Box>
+);
+
+/**
+ * The badge shelf: the seat's worn badges as one overlapping cluster, on its own
+ * row under the hero name (#718).
+ *
+ * Its OWN ROW, not the name line, is what makes this option work. The name line
+ * is the hero-rules tooltip's trigger, so a badge sitting inside it would put a
+ * click target inside a hover target — hovering to read a badge would open the
+ * hero rules, and there is no width left on a 240px plate to fit both anyway.
+ * `HeroName` is already a sibling OUTSIDE that tooltip; the shelf goes beside it.
+ *
+ * Reading a badge is a CLICK, following the pile chips rather than the hero
+ * tooltip: these plates are draggable and a phone has no hover. The pointerdown
+ * is swallowed for the same reason `FlagChip` swallows its own — otherwise the
+ * press that opens the popover also picks the plate up and drags it.
+ *
+ * `interactive` is off for the two places a popover has nowhere to open: the
+ * collapsed plate's hover-peek (already inside a tooltip) and the mobile seat
+ * sheet, which renders the readout inline instead.
+ */
+const BadgeShelf = ({
+  ids,
+  interactive,
+}: {
+  ids: readonly string[];
+  interactive: boolean;
+}) => {
+  // No badges, no row — not an empty one. A plate with nothing worn has to be
+  // exactly as tall as it was before this feature existed.
+  if (ids.length === 0) return null;
+
+  const cluster = <BadgeCluster ids={ids} />;
+  const row = (
+    <Box data-testid="plate-badges" mt="4px" lineHeight={0}>
+      {cluster}
+    </Box>
+  );
+  if (!interactive) return row;
+
+  return (
+    <Popover placement="bottom-start" isLazy>
+      <PopoverTrigger>
+        <Box
+          data-testid="plate-badges"
+          role="button"
+          tabIndex={0}
+          aria-label={`Badges worn: ${ids.map(badgeArtName).join(", ")}`}
+          mt="4px"
+          lineHeight={0}
+          w="fit-content"
+          cursor="pointer"
+          onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
+          onDoubleClick={(e: React.MouseEvent) => e.stopPropagation()}
+        >
+          {cluster}
+        </Box>
+      </PopoverTrigger>
+      {/* Portalled: the plate clips its own overflow, so an in-place popover
+          would be cut off by the frosted card it hangs from. */}
+      <Portal>
+        <PopoverContent
+          w="auto"
+          bg="brand.surfaceDim"
+          color="brand.parchment"
+          borderColor="rgba(231, 204, 152, 0.25)"
+          onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
+          _focusVisible={{ outline: "none" }}
+        >
+          <PopoverArrow bg="brand.surfaceDim" />
+          <PopoverBody p="0.5rem">
+            <BadgeReadout ids={ids} />
+          </PopoverBody>
+        </PopoverContent>
+      </Portal>
+    </Popover>
+  );
+};
 
 /** Tiny ghost icon button for the plate's collapse / reset controls. Its
  *  pointerdown is swallowed so it never starts a plate drag. */
@@ -445,6 +572,7 @@ export const SeatPlate = ({
   timer,
   avatarUrl,
   badge,
+  badges,
   hand,
   deckCount,
   discard,
@@ -510,11 +638,15 @@ export const SeatPlate = ({
    *  cross the protocol, so an opponent's plate never carries one. undefined =
    *  signed out, no avatar set, or the opponent's plate → nothing renders. */
   avatarUrl?: string | null;
-  /** This seat's broadcast badge id (issue #577, engine #347) — public, so it
-   *  renders on BOTH plates. Opaque and unverified: an id with no art here
-   *  renders nothing at all. undefined = the seat wears none, or an older
-   *  server → nothing renders. */
+  /** This seat's broadcast badge id (issue #577, engine #347) — the pre-#718
+   *  singular field, still populated by the engine as `badges[0]` for a release.
+   *  Read only when `badges` is absent. */
   badge?: string;
+  /** This seat's broadcast badge ids, in the wearer's order (issue #718, engine
+   *  #517) — public, so the shelf renders on BOTH plates. Opaque and unverified:
+   *  the list is sliced to three and any id with no art here is dropped.
+   *  undefined/[] = the seat wears none, or an older server → no shelf row. */
+  badges?: string[];
   /** own hand instances, or a count for the opponent */
   hand: CardInstanceId[] | number;
   deckCount: number;
@@ -575,46 +707,40 @@ export const SeatPlate = ({
   };
   const toggleCollapse = () => onUpdate({ collapsed: !collapsed });
 
-  // The seat's worn badge (issue #577), on BOTH plates — this is the first
-  // cosmetic the opponent can see, which is the whole point of putting it on
-  // the wire. Unlike the avatar it is NOT local: it comes from the seat's
-  // broadcast state, so your own plate shows it for the same reason theirs does.
+  // The seat's worn badges (issues #577/#718), on BOTH plates — this is the
+  // first cosmetic the opponent can see, which is the whole point of putting
+  // them on the wire. Unlike the avatar they are NOT local: they come from the
+  // seat's broadcast state, so your own plate shows them for the same reason
+  // theirs does.
   //
-  // An id this build has no art for renders NOTHING. The engine deliberately
-  // never validates the string, so a fallback glyph here would let any client
-  // put a shape on your screen by inventing one; a missing chip until the client
-  // catches up is the cheaper failure.
-  const badgeChip =
-    badge && isKnownBadge(badge) ? (
-      <Box data-testid="plate-badge" data-badge-id={badge} flexShrink={0}>
-        <BadgeGlyph id={badge} size="0.95rem" title={badgeArtName(badge)} />
-      </Box>
-    ) : null;
+  // `wornBadgeIds` slices the claim to three and then drops any id this build
+  // has no art for. The engine deliberately never validates these strings, so a
+  // fallback glyph would let any client put an arbitrary shape on your screen by
+  // inventing one; a missing disc until the client catches up is the cheaper
+  // failure, and the cluster closes up rather than leaving a hole where it was.
+  const shelfBadges = wornBadgeIds(badges, badge);
 
   // Your own Discord avatar beside your name (issue #568). Purely local: it is
   // read from `useAccount()` on this machine and never sent, so the opponent's
   // plate shows their NAME and no picture. Decorative (alt="") — the name is
   // right next to it.
   const nameLine =
-    avatarUrl || badgeChip ? (
-      <Flex alignItems="center" gap="0.35rem" minW={0}>
-        {avatarUrl ? (
-          <Box
-            as="img"
-            data-testid="plate-avatar"
-            src={avatarUrl}
-            alt=""
-            boxSize="1rem"
-            borderRadius="full"
-            objectFit="cover"
-            flexShrink={0}
-          />
-        ) : null}
+    avatarUrl ? (
+      <Flex data-testid="plate-name-line" alignItems="center" gap="0.35rem" minW={0}>
+        <Box
+          as="img"
+          data-testid="plate-avatar"
+          src={avatarUrl}
+          alt=""
+          boxSize="1rem"
+          borderRadius="full"
+          objectFit="cover"
+          flexShrink={0}
+        />
         <PlayerName>{label}</PlayerName>
-        {badgeChip}
       </Flex>
     ) : (
-      <PlayerName>{label}</PlayerName>
+      <PlayerName data-testid="plate-name-line">{label}</PlayerName>
     );
 
   // Hero rules text: the deck's special ability, its extra-rules cards, the
@@ -680,6 +806,13 @@ export const SeatPlate = ({
         nameLine
       )}
       {heroName && <HeroName>{heroName}</HeroName>}
+      {/* Deliberately OUTSIDE the hero-rules Tooltip above, which wraps only
+          `nameLine`: hovering the name still opens the rules, and clicking a
+          badge opens the badge popover and nothing else. */}
+      <BadgeShelf
+        ids={shelfBadges}
+        interactive={withAbility && variant !== "sheet"}
+      />
     </Box>
   );
 
@@ -970,6 +1103,13 @@ export const SeatPlate = ({
       {timerBar}
       <Box px="0.85rem" py="0.6rem" color="brand.parchment">
         {abilityContent}
+        {/* Same list the desktop popover shows, inline — a phone has no hover
+            and the drawer is already the place every hover-only fact lands. */}
+        {shelfBadges.length > 0 ? (
+          <Box mt="0.6rem">
+            <BadgeReadout ids={shelfBadges} />
+          </Box>
+        ) : null}
       </Box>
     </Box>
   );
@@ -1199,8 +1339,9 @@ export const hudSeats = (view: PlayerView): ViewPlayer[] =>
           you: true,
           // #568: the seat's claimed name, when this server broadcasts one.
           displayName: view.self.displayName,
-          // #577: and the badge it claimed, same treatment.
+          // #577/#718: and the badges it claimed, same treatment.
           badge: view.self.badge,
+          badges: view.self.badges,
           team: view.self.id,
           hand: view.self.hand,
           handCount: view.self.hand.length,
@@ -1225,6 +1366,7 @@ export const hudSeats = (view: PlayerView): ViewPlayer[] =>
               you: false,
               displayName: view.opponent.displayName,
               badge: view.opponent.badge,
+              badges: view.opponent.badges,
               team: view.opponent.id,
               handCount: view.opponent.handCount,
               deckCount: view.opponent.deckCount,
@@ -1390,6 +1532,7 @@ export const ProHud = ({
             timer={timerOf(seat)}
             avatarUrl={seat.you ? account?.avatarUrl : undefined}
             badge={seat.badge}
+            badges={seat.badges}
             hand={seat.you ? seat.hand ?? view.self.hand : seat.handCount}
             deckCount={seat.deckCount}
             discard={seat.discard}

@@ -42,7 +42,9 @@ const BOARD = {
       avatarUrl: null,
       level: 12,
       xp: 3400,
-      selectedBadge: "first-win",
+      // #718: this player wears three; the board draws slot 1 and no more.
+      selectedBadge: "veteran",
+      selectedBadges: ["veteran", "first-win", "bot-slayer"],
       gamesPlayed: 123,
       wins: 45,
     },

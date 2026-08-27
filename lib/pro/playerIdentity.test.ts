@@ -17,6 +17,7 @@ import {
   MAX_BADGE_ID,
   MAX_DISPLAY_NAME,
   sanitizeBadgeId,
+  sanitizeBadgeIds,
   sanitizeDisplayName,
   seatNameplate,
 } from "./playerIdentity";
@@ -145,23 +146,64 @@ describe("seatNameplate (fallback logic)", () => {
 });
 
 /**
- * The worn badge (issue #577, engine #347). It rides beside the name under the
- * SAME gate — signed-in only — so a room with nobody wearing anything is still
- * byte-identical to a pre-#347 one.
+ * The worn badges (issues #577/#718, engine #347/#517). They ride beside the
+ * name under the SAME gate — signed-in only — so a room with nobody wearing
+ * anything is still byte-identical to a pre-#347 one.
+ *
+ * The singular `badge` goes out alongside the array, carrying slot 1, for as
+ * long as a server that only reads that field might be on the other end.
  */
-describe("identityFields — the worn badge", () => {
-  it("sends the badge beside the name for a signed-in wearer", () => {
-    expect(identityFields(signedIn("JollyGrin"), "bot-slayer")).toEqual({
+describe("identityFields — the worn badges", () => {
+  it("sends the list beside the name for a signed-in wearer", () => {
+    expect(identityFields(signedIn("JollyGrin"), ["bot-slayer"])).toEqual({
       displayName: "JollyGrin",
       badge: "bot-slayer",
+      badges: ["bot-slayer"],
       playerId: "discord-user-1",
     });
   });
 
-  it("sends no badge key when the player is wearing nothing", () => {
-    for (const nothing of [null, undefined, ""]) {
+  it("keeps the order and populates the singular field from slot 1", () => {
+    // An engine that hasn't taken #517 reads only `badge`, and the honest thing
+    // to show it is the badge the player chose to lead with.
+    expect(
+      identityFields(signedIn("JollyGrin"), ["level-20", "streak-5", "bot-slayer"]),
+    ).toMatchObject({
+      badge: "level-20",
+      badges: ["level-20", "streak-5", "bot-slayer"],
+    });
+  });
+
+  it("caps the list at three, whatever the caller had in hand", () => {
+    const fields = identityFields(signedIn("JollyGrin"), [
+      "level-20",
+      "streak-5",
+      "bot-slayer",
+      "veteran",
+    ]);
+    expect(fields.badges).toEqual(["level-20", "streak-5", "bot-slayer"]);
+  });
+
+  it("collapses duplicates rather than drawing one disc twice", () => {
+    expect(
+      sanitizeBadgeIds(["level-20", "level-20", "streak-5"]),
+    ).toEqual(["level-20", "streak-5"]);
+  });
+
+  it("drops an entry that sanitizes to nothing, keeping the rest", () => {
+    // One junk id must not cost a player the badges either side of it.
+    expect(sanitizeBadgeIds(["level-20", "   ", "streak-5"])).toEqual([
+      "level-20",
+      "streak-5",
+    ]);
+    expect(sanitizeBadgeIds(["  ", ""])).toBeUndefined();
+  });
+
+  it("sends no badge key at all when the player is wearing nothing", () => {
+    for (const nothing of [null, undefined, []]) {
       const fields = identityFields(signedIn("JollyGrin"), nothing);
       expect(fields).not.toHaveProperty("badge");
+      expect(fields).not.toHaveProperty("badges");
       expect(fields).toEqual({
         displayName: "JollyGrin",
         playerId: "discord-user-1",
@@ -169,15 +211,15 @@ describe("identityFields — the worn badge", () => {
     }
   });
 
-  it("sends nothing at all for a guest, badge in hand or not", () => {
-    // The badge belongs to an account; it never travels without one. A stale id
-    // left in memory after a sign-out must not reach the wire.
+  it("sends nothing at all for a guest, badges in hand or not", () => {
+    // Badges belong to an account; they never travel without one. Ids left in
+    // memory after a sign-out must not reach the wire.
     for (const state of [
       { status: "guest", account: null },
       { status: "loading", account: null },
       { status: "offline", account: null },
     ] as const) {
-      expect(identityFields(state, "veteran")).toEqual({});
+      expect(identityFields(state, ["veteran"])).toEqual({});
     }
   });
 
@@ -189,7 +231,7 @@ describe("identityFields — the worn badge", () => {
     // engine truncates at the same 32, so what we send is what comes back.
     const long = "x".repeat(MAX_BADGE_ID + 10);
     expect(sanitizeBadgeId(long)).toHaveLength(MAX_BADGE_ID);
-    expect(identityFields(signedIn("JollyGrin"), long).badge).toHaveLength(
+    expect(identityFields(signedIn("JollyGrin"), [long]).badge).toHaveLength(
       MAX_BADGE_ID,
     );
   });
@@ -197,9 +239,9 @@ describe("identityFields — the worn badge", () => {
   it("sends an id it has no art for — the catalog is not ours", () => {
     // A badge added API-side must still reach the other seat; whether THAT
     // client can draw it is its own business.
-    expect(identityFields(signedIn("JollyGrin"), "moon-walker")).toMatchObject({
-      badge: "moon-walker",
-    });
+    expect(
+      identityFields(signedIn("JollyGrin"), ["moon-walker"]),
+    ).toMatchObject({ badge: "moon-walker", badges: ["moon-walker"] });
   });
 });
 

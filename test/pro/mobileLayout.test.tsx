@@ -14,7 +14,7 @@
  * token, a STATE frame over a real recorded view).
  */
 import "@testing-library/jest-dom";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterContext } from "next/dist/shared/lib/router-context";
@@ -254,6 +254,37 @@ describe("portrait phone", () => {
     // the rules text that lives in a hover tooltip on a mouse
     expect(sheet.textContent).toContain(`${hero.hp}/${hero.maxHp}`);
     expect(sheet.textContent).toContain(hero.name);
+  });
+
+  it("shows the badge shelf, and spells the badges out inline (#718)", async () => {
+    // The desktop plate hides the names and blurbs behind a click-to-open
+    // popover; a phone has no hover and the drawer is where every hover-only
+    // fact already lands, so the sheet renders the same list inline.
+    setViewport("portrait");
+    const { state } = await mount();
+    const view = JSON.parse(JSON.stringify(BASE_VIEW)) as PlayerView;
+    view.players.find((seat) => seat.id === "p2")!.badges = [
+      "first-win",
+      "bot-slayer",
+    ];
+    await state(view);
+
+    fireEvent.click(screen.getByTestId("seat-chip-p2"));
+    const sheet = screen.getByLabelText("Close seat details").parentElement!;
+
+    // The cluster, in the wearer's order…
+    expect(
+      within(within(sheet).getByTestId("plate-badges"))
+        .getAllByTestId("badge-glyph")
+        .map((node) => node.getAttribute("data-badge-id")),
+    ).toEqual(["first-win", "bot-slayer"]);
+    // …and the readout, without a tap.
+    expect(
+      within(sheet)
+        .getAllByTestId("badge-readout")
+        .map((row) => row.getAttribute("data-badge-id")),
+    ).toEqual(["first-win", "bot-slayer"]);
+    expect(sheet.textContent).toContain("Beat the expert bot");
   });
 
   it("opens the activity log as a sheet rather than floating it over the hand", async () => {

@@ -53,7 +53,7 @@ describe("normalizePublicProfile", () => {
     expect(profile.avatarUrl).toBe("https://cdn/x.png");
     // `selectedBadge` on the wire, `selected` in the badge-case shape the
     // components already speak.
-    expect(profile.badges.selected).toBe("first-win");
+    expect(profile.badges.selected).toEqual(["first-win"]);
     expect(profile.badges.badges).toHaveLength(1);
     expect(profile.stats.totalGames).toBe(12);
     expect(profile.stats.level).toBe(5);
@@ -86,7 +86,22 @@ describe("normalizePublicProfile", () => {
 
   it("survives a selection naming a badge the catalog didn't send", () => {
     const profile = normalizePublicProfile({ ...PAYLOAD, selectedBadge: "ghost" })!;
-    expect(profile.badges.selected).toBeNull();
+    expect(profile.badges.selected).toEqual([]);
+  });
+
+  it("prefers the ordered `selectedBadges` array when the API sends it", () => {
+    // #718: the plural field is the new shape; `selectedBadge` rides along as
+    // slot 1 for a release, and must lose to it.
+    const profile = normalizePublicProfile({
+      ...PAYLOAD,
+      badges: [
+        ...PAYLOAD.badges,
+        { id: "veteran", name: "Veteran", blurb: "", unlocked: true, unlockedWhy: "" },
+      ],
+      selectedBadge: "first-win",
+      selectedBadges: ["veteran", "first-win"],
+    })!;
+    expect(profile.badges.selected).toEqual(["veteran", "first-win"]);
   });
 });
 

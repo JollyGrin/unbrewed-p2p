@@ -87,11 +87,13 @@ export const normalizePublicProfile = (body: unknown): PublicProfile | null => {
   return {
     username,
     avatarUrl: asString(user.avatarUrl),
-    // The public payload spells the selection `selectedBadge`; the badge case
-    // normalizer wants `selected`, so rename rather than fork the parser.
+    // The public payload spells the selection `selectedBadges` (#718, plural and
+    // ordered) with the pre-#718 `selectedBadge` alongside it for a release; the
+    // badge case normalizer wants `selected`, so rename rather than fork the
+    // parser, and let it read whichever of the two this API sent.
     badges: normalizeBadgeCase({
       badges: root.badges,
-      selected: root.selectedBadge,
+      selected: root.selectedBadges ?? root.selectedBadge,
     }),
     stats: {
       ...stats,
