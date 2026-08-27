@@ -13,7 +13,7 @@
  * on, and stay crisp from the 14px HUD chip to the 44px badge case tile.
  *
  * Every glyph is drawn inside one shared medallion — same disc, same rim, same
- * 24×24 frame — so eleven badges read as one set at a glance and only the colour
+ * 24×24 frame — so fifteen badges read as one set at a glance and only the colour
  * and silhouette have to do the distinguishing work.
  */
 import { Box } from "@chakra-ui/react";
@@ -43,6 +43,66 @@ const RING_DOTS: ReadonlyArray<readonly [number, number]> = [
   [9.3, 15.72],
   [7.62, 10.58],
 ];
+
+/**
+ * The four deck-completion badges (#717) — a whole deck taken to one rim tier.
+ *
+ * These are ONE ladder in four metals: every other badge in the case tells
+ * itself apart by silhouette, and these deliberately don't. All four draw the
+ * same fanned stack of cards and change only `tone`, because what the player
+ * earned is the METAL — bronze, silver, antiqued gold, iridescent — and art
+ * that also changed shape per tier would read as four unrelated badges instead
+ * of four rungs. (The stack is the case's first card motif, which is what makes
+ * these four say "deck" at 14px without a word of text.)
+ *
+ * The tones echo `COSMETIC_RIM_PAINTS` (lib/pro/cosmetics) without importing
+ * it. A rim is a ten-stop conic sweep and a medallion is one flat fill plus a
+ * light glyph, so what has to carry across surfaces is the colour FAMILY, not
+ * the gradient — each tone here is a mid-stop lifted out of its own paint.
+ * Antiqued gold stays darker and browner than seat gold `#E0A82E`, for exactly
+ * the reason it does on the rim: it is the tier above silver, not a highlight.
+ * No hue cycling and no animation — a badge is chrome, and the iridescent rung
+ * earns its place by being the one cool tone in the ladder.
+ */
+const DECK_FAN_CARD = {
+  x: -3.1,
+  y: -4.2,
+  width: 6.2,
+  height: 8.4,
+  rx: 1.2,
+} as const;
+
+/**
+ * Three cards, each stepped down-right of the last and tilted a little further,
+ * so the stack fans instead of stacking flat.
+ *
+ * The two behind are outlines and the one in front is solid: three light-on-
+ * light cards separated only by a hairline merge into one blob at the 14px HUD
+ * chip, and an outline lets the medallion's own colour do the separating. That
+ * is also why every line here is either LIGHT or `tone` — the fan introduces no
+ * colour the badge doesn't already have.
+ */
+const deckFan = (tone: string) => (
+  <g strokeWidth={1} strokeLinejoin="round">
+    <g fill={tone} stroke={LIGHT}>
+      <rect {...DECK_FAN_CARD} transform="translate(9.7 10.4) rotate(-13)" />
+      <rect {...DECK_FAN_CARD} transform="translate(12 11.9)" />
+    </g>
+    <rect
+      {...DECK_FAN_CARD}
+      fill={LIGHT}
+      stroke={tone}
+      transform="translate(14.3 13.4) rotate(13)"
+    />
+  </g>
+);
+
+/** One rung of the ladder: same art, one metal. */
+const deckBadge = (name: string, tone: string): BadgeArt => ({
+  name,
+  tone,
+  glyph: () => deckFan(tone),
+});
 
 export const BADGE_ART: Record<string, BadgeArt> = {
   // Won your first game — a single drop.
@@ -200,6 +260,15 @@ export const BADGE_ART: Record<string, BadgeArt> = {
       </g>
     ),
   },
+  // Whole deck at bronze rims.
+  "deck-bronze": deckBadge("Bronze Deck", "#8A5127"),
+  // ...at silver.
+  "deck-silver": deckBadge("Silver Deck", "#7D858F"),
+  // ...at antiqued gold: darker and browner than seat gold, as on the rim.
+  "deck-gold": deckBadge("Gold Deck", "#6D5C22"),
+  // ...and the top rung, iridescent — one flat cool tone standing in for a
+  // paint that is nine pastels on a sweep.
+  "deck-iridescent": deckBadge("Iridescent Deck", "#6A73C6"),
 };
 
 /**
