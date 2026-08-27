@@ -1,17 +1,24 @@
 /**
- * `GET /me/badges` + `PUT /me/badge` transport (#577).
+ * `GET /me/badges` + `PUT /me/badges` transport (#577, widened to three in
+ * #718).
  *
- * The two things worth pinning hardest are the ones a player would actually
- * feel: a 503 must not cost a wearer the badge they already chose (the pick is
- * the API's own storage, not telemetry's), and a 422 must be a message rather
- * than an exception — the server owns the unlock check, so it disagreeing with
- * a page left open all afternoon is normal, not a bug.
+ * The things worth pinning hardest are the ones a player would actually feel: a
+ * 503 must not cost a wearer the badges they already chose (the pick is the
+ * API's own storage, not telemetry's), a 422 must be a message rather than an
+ * exception — the server owns the unlock check, so it disagreeing with a page
+ * left open all afternoon is normal, not a bug — and the ORDER of the list must
+ * survive every hop, because it is the player's choice about which badge sits in
+ * front on the HUD.
+ *
+ * The other half of #718 is reading BOTH shapes for a release: this client can
+ * be deployed against an API that still answers with a bare `selected` string.
  */
 import {
   badgeById,
   fetchBadgeCase,
   normalizeBadgeCase,
-  putSelectedBadge,
+  putWornBadges,
+  wornBadges,
 } from "./badges";
 
 const reply = (status: number, body: unknown) =>
@@ -38,7 +45,7 @@ const CATALOG = {
       unlockedWhy: "Play 100 games (12/100)",
     },
   ],
-  selected: "first-win",
+  selected: ["first-win"],
 };
 
 let fetchMock: jest.Mock;
@@ -57,7 +64,33 @@ describe("normalizeBadgeCase", () => {
     ]);
     expect(kase.badges[0].unlocked).toBe(true);
     expect(kase.badges[1].unlockedWhy).toBe("Play 100 games (12/100)");
-    expect(kase.selected).toBe("first-win");
+    expect(kase.selected).toEqual(["first-win"]);
+  });
+
+  it("keeps the worn list in the order the API sent it", () => {
+    // Never re-sorted, here or anywhere: slot 1 is the disc in front on the HUD
+    // and the order is the player's own statement about their badges.
+    const kase = normalizeBadgeCase({
+      badges: CATALOG.badges,
+      selected: ["veteran", "first-win"],
+    });
+    expect(kase.selected).toEqual(["veteran", "first-win"]);
+  });
+
+  it("reads the pre-#718 bare string as a one-badge list", () => {
+    const kase = normalizeBadgeCase({ badges: CATALOG.badges, selected: "veteran" });
+    expect(kase.selected).toEqual(["veteran"]);
+  });
+
+  it("caps a stored list at three and drops duplicates", () => {
+    // A list longer than the shelf can only have come from a client that wasn't
+    // this one; three is what we are prepared to render.
+    const ids = ["a", "b", "c", "d"];
+    const kase = normalizeBadgeCase({
+      badges: [...ids, "b"].map((id) => ({ id, unlocked: true })),
+      selected: ["a", "b", "b", "c", "d"],
+    });
+    expect(kase.selected).toEqual(["a", "b", "c"]);
   });
 
   it("keeps an id it has never heard of — the catalog is the server's", () => {
@@ -70,7 +103,7 @@ describe("normalizeBadgeCase", () => {
       selected: "moon-walker",
     });
     expect(kase.badges).toHaveLength(1);
-    expect(kase.selected).toBe("moon-walker");
+    expect(kase.selected).toEqual(["moon-walker"]);
   });
 
   it("drops rows with no id and de-duplicates the rest", () => {
@@ -86,17 +119,29 @@ describe("normalizeBadgeCase", () => {
     expect(kase.badges[0]).toMatchObject({ id: "regular", blurb: "", unlocked: false });
   });
 
-  it("reads a selection the catalog can't back as wearing nothing", () => {
-    // Unrenderable and unclearable as a tile; still stored server-side.
-    expect(normalizeBadgeCase({ badges: [], selected: "ghost" }).selected).toBeNull();
+  it("drops a selected id the catalog can't back, keeping the rest", () => {
+    // Unrenderable and unclearable as a tile; still stored server-side, and the
+    // badges either side of it are perfectly wearable.
+    expect(
+      normalizeBadgeCase({
+        badges: CATALOG.badges,
+        selected: ["first-win", "ghost", "veteran"],
+      }).selected,
+    ).toEqual(["first-win", "veteran"]);
+    expect(
+      normalizeBadgeCase({ badges: [], selected: "ghost" }).selected,
+    ).toEqual([]);
   });
 
   it("degrades a garbled body to an empty case rather than throwing", () => {
-    expect(normalizeBadgeCase(null)).toEqual({ badges: [], selected: null });
+    expect(normalizeBadgeCase(null)).toEqual({ badges: [], selected: [] });
     expect(normalizeBadgeCase({ badges: "nope" })).toEqual({
       badges: [],
-      selected: null,
+      selected: [],
     });
+    expect(normalizeBadgeCase({ badges: [], selected: [1, null] }).selected).toEqual(
+      [],
+    );
   });
 });
 
@@ -105,21 +150,24 @@ describe("fetchBadgeCase", () => {
     fetchMock.mockResolvedValue(reply(200, CATALOG));
     const result = await fetchBadgeCase();
     expect(result).toMatchObject({ ok: true });
-    expect(result.ok && result.value.selected).toBe("first-win");
+    expect(result.ok && result.value.selected).toEqual(["first-win"]);
     expect(fetchMock.mock.calls[0][1]).toMatchObject({ credentials: "include" });
   });
 
-  it("keeps the worn badge through a 503", async () => {
+  it("keeps the worn badges through a 503", async () => {
     // The API reports `selected` on its own 503 precisely so a wearer doesn't
-    // lose their chip while telemetry is down.
+    // lose their shelf while telemetry is down.
     fetchMock.mockResolvedValue(
-      reply(503, { error: "upstream_unavailable", selected: "streak-5" }),
+      reply(503, {
+        error: "upstream_unavailable",
+        selected: ["streak-5", "veteran"],
+      }),
     );
     const result = await fetchBadgeCase();
     expect(result).toEqual({
       ok: false,
       reason: "unavailable",
-      selected: "streak-5",
+      selected: ["streak-5", "veteran"],
     });
   });
 
@@ -133,7 +181,7 @@ describe("fetchBadgeCase", () => {
       await expect(fetchBadgeCase()).resolves.toEqual({
         ok: false,
         reason,
-        selected: null,
+        selected: [],
       });
     }
   });
@@ -143,7 +191,7 @@ describe("fetchBadgeCase", () => {
     await expect(fetchBadgeCase()).resolves.toEqual({
       ok: false,
       reason: "unavailable",
-      selected: null,
+      selected: [],
     });
   });
 
@@ -158,37 +206,48 @@ describe("fetchBadgeCase", () => {
     await expect(fetchBadgeCase()).resolves.toEqual({
       ok: false,
       reason: "unavailable",
-      selected: null,
+      selected: [],
     });
   });
 });
 
-describe("putSelectedBadge", () => {
-  it("sends the pick and trusts the server's echo", async () => {
-    fetchMock.mockResolvedValue(reply(200, { selected: "first-win" }));
-    await expect(putSelectedBadge("first-win")).resolves.toEqual({
+describe("putWornBadges", () => {
+  it("sends the whole ordered list and trusts the server's echo", async () => {
+    const ids = ["first-win", "veteran"];
+    fetchMock.mockResolvedValue(reply(200, { selected: ids }));
+    await expect(putWornBadges(ids)).resolves.toEqual({
       ok: true,
-      selected: "first-win",
+      selected: ids,
     });
-    const [, init] = fetchMock.mock.calls[0];
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toMatch(/\/me\/badges$/);
     expect(init).toMatchObject({ method: "PUT", credentials: "include" });
-    expect(JSON.parse(init.body)).toEqual({ id: "first-win" });
+    expect(JSON.parse(init.body)).toEqual({ ids });
   });
 
-  it("clears with an explicit null, not an omitted key", async () => {
+  it("clears with an explicit empty list, not an omitted key", async () => {
     // Clearing is the one write the API honours with telemetry down, and it
-    // only recognises `{"id":null}`.
-    fetchMock.mockResolvedValue(reply(200, { selected: null }));
-    await expect(putSelectedBadge(null)).resolves.toEqual({
+    // only recognises `{"ids":[]}`.
+    fetchMock.mockResolvedValue(reply(200, { selected: [] }));
+    await expect(putWornBadges([])).resolves.toEqual({
       ok: true,
-      selected: null,
+      selected: [],
     });
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ id: null });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ ids: [] });
+  });
+
+  it("takes the server's answer over its own when the two differ", async () => {
+    // Only happens if something moved under us — and the server's answer is the
+    // one that is actually stored.
+    fetchMock.mockResolvedValue(reply(200, { selected: ["veteran"] }));
+    await expect(
+      putWornBadges(["first-win", "veteran"]),
+    ).resolves.toEqual({ ok: true, selected: ["veteran"] });
   });
 
   it("reads a 422 as locked rather than as a failure to explain", async () => {
     fetchMock.mockResolvedValue(reply(422, { error: "not_unlocked" }));
-    await expect(putSelectedBadge("veteran")).resolves.toEqual({
+    await expect(putWornBadges(["veteran"])).resolves.toEqual({
       ok: false,
       reason: "locked",
     });
@@ -203,13 +262,13 @@ describe("putSelectedBadge", () => {
       [400, "unavailable"],
     ] as const) {
       fetchMock.mockResolvedValue(reply(status, {}));
-      await expect(putSelectedBadge("veteran")).resolves.toEqual({
+      await expect(putWornBadges(["veteran"])).resolves.toEqual({
         ok: false,
         reason,
       });
     }
     fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
-    await expect(putSelectedBadge("veteran")).resolves.toEqual({
+    await expect(putWornBadges(["veteran"])).resolves.toEqual({
       ok: false,
       reason: "unavailable",
     });
@@ -223,10 +282,27 @@ describe("putSelectedBadge", () => {
         throw new SyntaxError("no body");
       },
     } as unknown as Response);
-    await expect(putSelectedBadge("first-win")).resolves.toEqual({
+    await expect(putWornBadges(["first-win"])).resolves.toEqual({
       ok: true,
-      selected: "first-win",
+      selected: ["first-win"],
     });
+  });
+});
+
+describe("wornBadges", () => {
+  it("resolves the worn ids to catalog rows, in worn order", () => {
+    const { badges } = normalizeBadgeCase(CATALOG);
+    expect(
+      wornBadges(badges, ["veteran", "first-win"]).map((badge) => badge.name),
+    ).toEqual(["Veteran", "First Blood"]);
+  });
+
+  it("skips an id with no row rather than leaving a hole", () => {
+    const { badges } = normalizeBadgeCase(CATALOG);
+    expect(wornBadges(badges, ["ghost", "veteran"]).map((b) => b.id)).toEqual([
+      "veteran",
+    ]);
+    expect(wornBadges(badges, [])).toEqual([]);
   });
 });
 

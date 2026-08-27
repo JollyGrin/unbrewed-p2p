@@ -15,7 +15,7 @@ jest.mock("../account/useAccount", () => ({
 // The badge case (issue #577) is the second thing the hook reads. Stubbed for
 // the same reason: no test should reach `/me/badges`, and "wearing nothing" is
 // what every pre-#577 test assumes.
-let mockBadge: string | null = null;
+let mockBadge: string[] = [];
 jest.mock("../account/useBadges", () => ({
   useBadges: () => ({
     status: "ready",
@@ -718,7 +718,7 @@ describe("useProSocket — player identity on create/join", () => {
     window.localStorage.clear();
     window.sessionStorage.clear();
     mockAccount = { status: "guest", account: null };
-    mockBadge = null;
+    mockBadge = [];
   });
   afterEach(() => {
     global.WebSocket = realWS;
@@ -813,7 +813,7 @@ describe("useProSocket — player identity on create/join", () => {
  * and the frame must not grow the key — a badge id left over in a store after a
  * sign-out is the one way a guest's frame could stop being byte-identical.
  */
-describe("useProSocket — worn badge on create/join", () => {
+describe("useProSocket — worn badges on create/join", () => {
   const realWS = global.WebSocket;
   beforeEach(() => {
     // @ts-expect-error — swap in the fake for the test
@@ -821,7 +821,7 @@ describe("useProSocket — worn badge on create/join", () => {
     window.localStorage.clear();
     window.sessionStorage.clear();
     mockAccount = { status: "guest", account: null };
-    mockBadge = null;
+    mockBadge = [];
   });
   afterEach(() => {
     global.WebSocket = realWS;
@@ -847,23 +847,28 @@ describe("useProSocket — worn badge on create/join", () => {
 
   it("sends the badge on CREATE_ROOM when signed in and wearing one", () => {
     signIn();
-    mockBadge = "bot-slayer";
+    mockBadge = ["bot-slayer", "veteran"];
     const { hook, ws } = boot();
     act(() => hook.result.current.createRoom("king-kong"));
 
     expect(frame(ws, "CREATE_ROOM")).toMatchObject({
       displayName: "JollyGrin",
+      // The array is the new field; `badge` carries slot 1 for a release.
       badge: "bot-slayer",
+      badges: ["bot-slayer", "veteran"],
     });
   });
 
   it("sends it on JOIN_ROOM too, so the host's HUD gets the chip", () => {
     signIn();
-    mockBadge = "streak-5";
+    mockBadge = ["streak-5"];
     const { hook, ws } = boot();
     act(() => hook.result.current.joinRoom("R1", "king-kong"));
 
-    expect(frame(ws, "JOIN_ROOM")).toMatchObject({ badge: "streak-5" });
+    expect(frame(ws, "JOIN_ROOM")).toMatchObject({
+      badge: "streak-5",
+      badges: ["streak-5"],
+    });
   });
 
   it("omits the key entirely when signed in but wearing nothing", () => {
@@ -872,27 +877,31 @@ describe("useProSocket — worn badge on create/join", () => {
     act(() => hook.result.current.createRoom("king-kong"));
 
     expect(frame(ws, "CREATE_ROOM")).not.toHaveProperty("badge");
+    expect(frame(ws, "CREATE_ROOM")).not.toHaveProperty("badges");
   });
 
-  it("omits it for a guest even with a badge id still in the store", () => {
-    mockBadge = "veteran";
+  it("omits it for a guest even with badge ids still in the store", () => {
+    mockBadge = ["veteran"];
     const { hook, ws } = boot();
     act(() => hook.result.current.createRoom("king-kong"));
     act(() => hook.result.current.joinRoom("R1", "king-kong"));
 
     expect(frame(ws, "CREATE_ROOM")).not.toHaveProperty("badge");
+    expect(frame(ws, "CREATE_ROOM")).not.toHaveProperty("badges");
     expect(frame(ws, "JOIN_ROOM")).not.toHaveProperty("badge");
+    expect(frame(ws, "JOIN_ROOM")).not.toHaveProperty("badges");
   });
 
-  it("keeps the badge off RECONNECT — the server kept the seat and its chip", () => {
+  it("keeps the badges off RECONNECT — the server kept the seat and its chips", () => {
     signIn();
-    mockBadge = "veteran";
+    mockBadge = ["veteran"];
     const { hook, ws } = boot();
     act(() => hook.result.current.joinRoom("R1", "king-kong"));
     act(() => ws.emit({ type: "ROOM_JOINED", roomId: "R1", token: "tok", you: "p1" }));
 
     act(() => hook.result.current.joinRoom("R1", ""));
     expect(frame(ws, "RECONNECT")).not.toHaveProperty("badge");
+    expect(frame(ws, "RECONNECT")).not.toHaveProperty("badges");
   });
 });
 
@@ -913,7 +922,7 @@ describe("useProSocket — equipped cosmetics on create/join", () => {
     window.localStorage.clear();
     window.sessionStorage.clear();
     mockAccount = { status: "guest", account: null };
-    mockBadge = null;
+    mockBadge = [];
     mockCosmetics = [];
   });
   afterEach(() => {

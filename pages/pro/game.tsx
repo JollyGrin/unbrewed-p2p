@@ -4153,7 +4153,9 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
                 const timerLabel = lobbyTimerLabel(l);
                 const formatLabel =
                   l.formatId && l.formatId !== "duel" ? formatChoice(l.formatId).label : null;
-                const badge = l.host?.badge;
+                // Slot 1 only, like the leaderboard: a lobby row is one line of
+                // text and the badge is a garnish on it (#718).
+                const badge = l.host?.badges?.[0] ?? l.host?.badge;
                 return (
                   <Button
                     key={l.roomId}

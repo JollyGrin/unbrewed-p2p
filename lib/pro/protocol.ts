@@ -580,6 +580,17 @@
  * carry one. Purely additive, so no PROTOCOL_VERSION bump: with the field
  * absent not one message grows a key.
  *
+ * ## Additive fields (2026-08-27, no version bump): up to three seat badges
+ * Issue #718 (engine #517). A player may now wear THREE badges, ordered, so the
+ * single `badge?` widens to `badges?: string[]` on the same seven shapes:
+ * `CREATE_ROOM`, `JOIN_ROOM`, `RoomStatusSeat`, `RoomStatus.host`, `ViewSelf`,
+ * `ViewOpponent`, `ViewPlayer`. Order is the player's, not the server's — slot 0
+ * is the disc drawn in front — and the server preserves it verbatim, sanitizing
+ * each id exactly as it sanitizes `badge` today and slicing to the first 3.
+ * `badge?` stays populated as `badges[0]` for one release, so a client that
+ * reads only the singular field keeps showing one badge. Purely additive, no
+ * PROTOCOL_VERSION bump: with the field absent nothing changes.
+ *
  * ## v29 (2026-08-12): per-fighter durable markers (engine #360)
  * The engine gained per-FIGHTER durable state — named, stacking, PUBLIC marks that
  * outlive the effect that applied them (Kenshiro's 708-Meridian mark, Inigo Montoya's
@@ -1441,6 +1452,13 @@ export interface ViewSelf {
   // it to art and renders nothing for an unknown id. Public, cosmetic,
   // UNVERIFIED, and never sent to telemetry.
   badge?: string;
+  // #718 (engine #517): the seat's claimed badge ids, ordered — slot 0 is the
+  // disc that sits in front on the HUD shelf. Same treatment and same caveats
+  // as `badge` above: opaque, public, cosmetic, UNVERIFIED, never telemetry.
+  // Sanitized per id and sliced to 3 server-side; the client slices again,
+  // because the array reached the server from the other client. `badge` stays
+  // populated as `badges[0]` for one release, so an older client is unaffected.
+  badges?: string[];
   hand: CardInstanceId[];
   deckCount: number;
   discard: CardInstanceId[];
@@ -1489,6 +1507,13 @@ export interface ViewOpponent {
   // it to art and renders nothing for an unknown id. Public, cosmetic,
   // UNVERIFIED, and never sent to telemetry.
   badge?: string;
+  // #718 (engine #517): the seat's claimed badge ids, ordered — slot 0 is the
+  // disc that sits in front on the HUD shelf. Same treatment and same caveats
+  // as `badge` above: opaque, public, cosmetic, UNVERIFIED, never telemetry.
+  // Sanitized per id and sliced to 3 server-side; the client slices again,
+  // because the array reached the server from the other client. `badge` stays
+  // populated as `badges[0]` for one release, so an older client is unaffected.
+  badges?: string[];
   handCount: number;
   deckCount: number;
   discard: CardInstanceId[]; // discard is public
@@ -1516,6 +1541,13 @@ export interface ViewPlayer {
   // it to art and renders nothing for an unknown id. Public, cosmetic,
   // UNVERIFIED, and never sent to telemetry.
   badge?: string;
+  // #718 (engine #517): the seat's claimed badge ids, ordered — slot 0 is the
+  // disc that sits in front on the HUD shelf. Same treatment and same caveats
+  // as `badge` above: opaque, public, cosmetic, UNVERIFIED, never telemetry.
+  // Sanitized per id and sliced to 3 server-side; the client slices again,
+  // because the array reached the server from the other client. `badge` stays
+  // populated as `badges[0]` for one release, so an older client is unaffected.
+  badges?: string[];
   // #392: this seat's claimed cosmetics blob, echoed VERBATIM. Opaque — the
   // server never parses it, only caps it at 512 bytes on join; a client
   // resolves the ids inside against a runtime cosmetics manifest and renders
@@ -1808,7 +1840,7 @@ export interface LobbyListing {
   // server that predates it. See the v34-unchanged note above.
   formatId?: string; // absent ⇒ "duel"
   turnTimerSeconds?: number; // absent/0 ⇒ untimed
-  host?: { displayName?: string; badge?: string }; // cosmetic + UNVERIFIED
+  host?: { displayName?: string; badge?: string; badges?: string[] }; // cosmetic + UNVERIFIED
 }
 
 // One slot of a room's live fill state (ROOM_STATUS, issue #121). Public info
@@ -1827,6 +1859,13 @@ export interface RoomStatusSeat {
   // #347: the seat's claimed badge id, same treatment and same caveats as
   // `displayName`. Opaque to the server; unknown ids render as nothing.
   badge?: string;
+  // #718 (engine #517): the seat's claimed badge ids, ordered — slot 0 is the
+  // disc that sits in front on the HUD shelf. Same treatment and same caveats
+  // as `badge` above: opaque, public, cosmetic, UNVERIFIED, never telemetry.
+  // Sanitized per id and sliced to 3 server-side; the client slices again,
+  // because the array reached the server from the other client. `badge` stays
+  // populated as `badges[0]` for one release, so an older client is unaffected.
+  badges?: string[];
 }
 
 // A single rewound action, summarized for the UNDO_REQUESTED prompt (v11). Only
@@ -1870,8 +1909,8 @@ export type ClientMsg =
   // BAD_MESSAGE (it is not truncated). Echoed verbatim into `ViewPlayer` and
   // frozen into replay bundles; never parsed, never logged, never sent to
   // telemetry, never visible to a bot. See the 2026-08-18 header note.
-  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; mulligan?: boolean; pilot?: string; displayName?: string; badge?: string; playerId?: string; cosmetics?: string; quickMatch?: boolean }
-  | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string; pilot?: string; displayName?: string; badge?: string; playerId?: string; cosmetics?: string }
+  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; mulligan?: boolean; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string; quickMatch?: boolean }
+  | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string }
   | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }
   // v7: revive an in-memory room lost to a redeploy/crash. `token` is the opaque

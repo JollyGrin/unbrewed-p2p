@@ -8,8 +8,10 @@
  *    mount;
  *  - the grid's three states read differently (locked / unlocked / worn) and
  *    only an unlocked tile is a control at all;
- *  - selecting is a toggle, and a server that refuses the pick (422) leaves a
- *    sentence, not a broken page;
+ *  - selecting is a toggle, three fit, and a fourth pick swaps the last slot
+ *    (#718) — with the worn strip carrying the ORDER, which is the whole reason
+ *    it exists;
+ *  - a server that refuses the pick (422) leaves a sentence, not a broken page;
  *  - the level bar hides ENTIRELY on an API that doesn't send the block — the
  *    failure mode of a client deployed ahead of its API.
  */
@@ -63,7 +65,18 @@ const CATALOG = {
       unlockedWhy: "Play 100 games (12/100)",
     }),
   ],
-  selected: null,
+  selected: [],
+};
+
+/** Four unlocked badges — enough to fill the shelf and then pick a fourth. */
+const FOUR = {
+  badges: [
+    badge({}),
+    badge({ id: "regular", name: "Regular" }),
+    badge({ id: "streak-5", name: "Hot Streak" }),
+    badge({ id: "bot-slayer", name: "Bot Slayer" }),
+  ],
+  selected: [] as string[],
 };
 
 const reply = (status: number, body: unknown) =>
@@ -85,21 +98,31 @@ const install = (
   });
 };
 
-/** Signed in, an empty shelf, and whatever the test wants from the two new routes. */
+/**
+ * Signed in, an empty shelf, and whatever the test wants from the two new
+ * routes.
+ *
+ * `GET` and `PUT` share one URL since #718, so the handler dispatches on the
+ * METHOD — and the default write simply echoes back whatever was asked for,
+ * which is what the real API does on a legal pick.
+ */
 const signedIn = ({
   stats = () => reply(200, STATS),
   badges = () => reply(200, CATALOG),
-  write = () => reply(200, { selected: "first-win" }),
+  write = (body: { ids: string[] }) => reply(200, { selected: body.ids }),
 }: {
   stats?: () => Response;
   badges?: () => Response;
-  write?: (body: { id: string | null }) => Response;
+  write?: (body: { ids: string[] }) => Response;
 } = {}) =>
   install((url, init) => {
     if (url.endsWith("/me")) return reply(200, { user: USER });
     if (url.includes("/me/stats")) return stats();
-    if (url.endsWith("/me/badges")) return badges();
-    if (url.endsWith("/me/badge")) return write(JSON.parse(String(init?.body)));
+    if (url.endsWith("/me/badges")) {
+      return init?.method === "PUT"
+        ? write(JSON.parse(String(init.body)))
+        : badges();
+    }
     if (url.includes("/me/games")) return reply(200, { games: [], nextBefore: null });
     return undefined;
   });
@@ -119,11 +142,25 @@ const tile = (id: string) => {
   return found;
 };
 
-const badgeWrites = () =>
-  fetchMock.mock.calls.filter(([url]: [string]) => String(url).endsWith("/me/badge"));
+const badgeCalls = (method: "GET" | "PUT") =>
+  fetchMock.mock.calls.filter(
+    ([url, init]: [string, RequestInit | undefined]) =>
+      String(url).endsWith("/me/badges") &&
+      (init?.method ?? "GET") === method,
+  );
 
-const badgeReads = () =>
-  fetchMock.mock.calls.filter(([url]: [string]) => String(url).endsWith("/me/badges"));
+const badgeWrites = () => badgeCalls("PUT");
+
+const badgeReads = () => badgeCalls("GET");
+
+/** The `ids` body of the nth write. */
+const wrote = (n = 0) => JSON.parse(badgeWrites()[n][1].body).ids;
+
+/** The worn strip's slots, in order: the badge id in each, or null when empty. */
+const strip = () =>
+  screen
+    .getAllByTestId("account-worn-slot")
+    .map((slot) => slot.getAttribute("data-badge-id"));
 
 beforeEach(() => {
   __resetAccountStoreForTests();
@@ -171,7 +208,7 @@ describe("badge case — the grid", () => {
       badges: () =>
         reply(200, {
           badges: [badge({ id: "moon-walker", name: "Moon Walker" })],
-          selected: null,
+          selected: [],
         }),
     });
 
@@ -200,16 +237,15 @@ describe("badge case — wearing one", () => {
     await waitFor(() =>
       expect(tile("first-win")).toHaveAttribute("data-selected", "true"),
     );
-    expect(JSON.parse(badgeWrites()[0][1].body)).toEqual({ id: "first-win" });
+    expect(wrote()).toEqual(["first-win"]);
     const chip = screen.getByTestId("account-badge-chip");
     expect(within(chip).getByText("First Blood")).toBeInTheDocument();
+    // And it lands in slot 1 of the strip, which is the order the HUD reads.
+    expect(strip()).toEqual(["first-win", null, null]);
   });
 
   it("takes it off again when the worn badge is clicked", async () => {
-    signedIn({
-      badges: () => reply(200, { ...CATALOG, selected: "first-win" }),
-      write: () => reply(200, { selected: null }),
-    });
+    signedIn({ badges: () => reply(200, { ...CATALOG, selected: ["first-win"] }) });
 
     renderPage();
 
@@ -222,8 +258,9 @@ describe("badge case — wearing one", () => {
     await waitFor(() =>
       expect(screen.queryByTestId("account-badge-chip")).not.toBeInTheDocument(),
     );
-    // Clearing must send an explicit null — the only body the API reads as "off".
-    expect(JSON.parse(badgeWrites()[0][1].body)).toEqual({ id: null });
+    // Clearing must send an explicit empty list — the only body the API reads
+    // as "off", and the one write it honours with telemetry down.
+    expect(wrote()).toEqual([]);
   });
 
   it("says its piece and greys the tile when the server refuses (422)", async () => {
@@ -256,6 +293,148 @@ describe("badge case — wearing one", () => {
     expect(screen.queryByTestId("account-badge-chip")).not.toBeInTheDocument();
     // Still offered — this one is worth trying again.
     expect(tile("first-win")).not.toHaveAttribute("data-locked");
+  });
+});
+
+describe("badge case — the worn strip (#718)", () => {
+  const wearing = (ids: string[], over: Parameters<typeof signedIn>[0] = {}) =>
+    signedIn({ badges: () => reply(200, { ...FOUR, selected: ids }), ...over });
+
+  it("wears three, in order, and says which slot each tile is in", async () => {
+    wearing(["streak-5", "first-win", "bot-slayer"]);
+
+    renderPage();
+
+    await waitFor(() =>
+      expect(strip()).toEqual(["streak-5", "first-win", "bot-slayer"]),
+    );
+    // The grid says the same thing from the other direction.
+    expect(within(tile("streak-5")).getByText("1")).toBeInTheDocument();
+    expect(within(tile("bot-slayer")).getByText("3")).toBeInTheDocument();
+    // And the header chip is the same cluster in the same order.
+    const chip = screen.getByTestId("account-badge-chip");
+    expect(
+      within(chip)
+        .getAllByTestId("badge-glyph")
+        .map((node) => node.getAttribute("data-badge-id")),
+    ).toEqual(["streak-5", "first-win", "bot-slayer"]);
+  });
+
+  it("appends a second and third pick rather than replacing", async () => {
+    wearing(["first-win"]);
+
+    renderPage();
+
+    await waitFor(() => expect(strip()).toEqual(["first-win", null, null]));
+    fireEvent.click(tile("regular"));
+    await waitFor(() => expect(strip()).toEqual(["first-win", "regular", null]));
+    expect(wrote()).toEqual(["first-win", "regular"]);
+  });
+
+  it("swaps the LAST slot when a fourth is picked", async () => {
+    // Doing nothing would make a player go and find the badge to remove first;
+    // slots 1 and 2 are the ones they chose to lead with, so the tail goes.
+    wearing(["first-win", "regular", "streak-5"]);
+
+    renderPage();
+
+    await waitFor(() =>
+      expect(strip()).toEqual(["first-win", "regular", "streak-5"]),
+    );
+
+    fireEvent.click(tile("bot-slayer"));
+
+    await waitFor(() =>
+      expect(strip()).toEqual(["first-win", "regular", "bot-slayer"]),
+    );
+    expect(wrote()).toEqual(["first-win", "regular", "bot-slayer"]);
+  });
+
+  it("reorders by dragging one slot onto another", async () => {
+    wearing(["first-win", "regular", "streak-5"]);
+
+    renderPage();
+
+    await waitFor(() =>
+      expect(strip()).toEqual(["first-win", "regular", "streak-5"]),
+    );
+
+    const handle = (id: string) =>
+      within(
+        screen
+          .getAllByTestId("account-worn-slot")
+          .find((slot) => slot.getAttribute("data-badge-id") === id)!,
+      ).getByRole("button");
+
+    fireEvent.dragStart(handle("streak-5"));
+    fireEvent.drop(handle("first-win"));
+
+    await waitFor(() =>
+      expect(strip()).toEqual(["streak-5", "first-win", "regular"]),
+    );
+    // One write, carrying the whole order — never a per-slot delta.
+    expect(wrote()).toEqual(["streak-5", "first-win", "regular"]);
+  });
+
+  it("reorders from the keyboard too, since a drag has no keyboard equal", async () => {
+    wearing(["first-win", "regular"]);
+
+    renderPage();
+
+    await waitFor(() => expect(strip()).toEqual(["first-win", "regular", null]));
+
+    const slot = within(
+      screen
+        .getAllByTestId("account-worn-slot")
+        .find((node) => node.getAttribute("data-badge-id") === "regular")!,
+    ).getByRole("button");
+    fireEvent.keyDown(slot, { key: "ArrowLeft" });
+
+    await waitFor(() => expect(strip()).toEqual(["regular", "first-win", null]));
+  });
+
+  it("takes a badge off when its slot is pressed", async () => {
+    wearing(["first-win", "regular"]);
+
+    renderPage();
+
+    await waitFor(() => expect(strip()).toEqual(["first-win", "regular", null]));
+
+    fireEvent.click(
+      within(
+        screen
+          .getAllByTestId("account-worn-slot")
+          .find((node) => node.getAttribute("data-badge-id") === "first-win")!,
+      ).getByRole("button"),
+    );
+
+    await waitFor(() => expect(strip()).toEqual(["regular", null, null]));
+    expect(wrote()).toEqual(["regular"]);
+  });
+
+  it("shows three empty slots when nothing is worn", async () => {
+    wearing([]);
+
+    renderPage();
+
+    await waitFor(() => expect(strip()).toEqual([null, null, null]));
+    expect(badgeWrites()).toHaveLength(0);
+  });
+
+  it("greys the badge the server refuses, and keeps the others on", async () => {
+    // Only the id this write ADDED can be the one the server refused — the rest
+    // it handed us itself, moments ago.
+    wearing(["first-win"], { write: () => reply(422, { error: "not_unlocked" }) });
+
+    renderPage();
+
+    await waitFor(() => expect(strip()).toEqual(["first-win", null, null]));
+    fireEvent.click(tile("regular"));
+
+    await screen.findByTestId("account-badge-notice");
+    expect(tile("regular")).toHaveAttribute("data-locked", "true");
+    expect(tile("first-win")).not.toHaveAttribute("data-locked");
+    expect(strip()).toEqual(["first-win", null, null]);
   });
 });
 

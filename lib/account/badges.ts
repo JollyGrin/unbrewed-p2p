@@ -1,12 +1,12 @@
 /**
- * The badge case (issue #577) — the fetch layer for `GET /me/badges` and
- * `PUT /me/badge` on the accounts API.
+ * The badge case (issue #577; three worn, ordered, #718) — the fetch layer for
+ * `GET /me/badges` and `PUT /me/badges` on the accounts API.
  *
  * Same contract as the rest of lib/account: never throws, never logs, every
  * failure becomes a typed reason, and a 503 — the normal answer of a build with
  * no telemetry link — reads as "nothing to show", not as an error.
  *
- * Two things about this endpoint pair are worth knowing before reading the code:
+ * Three things about this endpoint pair are worth knowing before reading the code:
  *
  * 1. **The catalog is the server's, not ours.** Ids, names, blurbs and unlock
  *    hints all arrive evaluated; the predicates never leave the API. So this
@@ -15,9 +15,16 @@
  *    id when it goes looking for art (see components/Badges/BadgeGlyph).
  * 2. **A 503 still carries `selected`.** The player's pick is the API's own
  *    storage, not telemetry's, so it survives an upstream outage. We read it off
- *    the failure body too, which is what lets a wearer keep their badge on the
+ *    the failure body too, which is what lets a wearer keep their badges on the
  *    HUD while the badge case itself has nothing to show.
+ * 3. **`selected` is an ORDERED list** (#718). Slot 1 is the disc that sits in
+ *    front on the HUD shelf, so the array's order is the player's choice and is
+ *    never re-sorted — not here, not by the API, not by rarity. Showing off is
+ *    the point of a badge; letting someone lead with the one they are proud of
+ *    is the whole feature.
  */
+import { MAX_WORN_BADGES } from "@/components/Badges/BadgeGlyph";
+
 import { API_URL } from "./apiUrl";
 
 /** One badge as the API evaluated it for this player. */
@@ -32,8 +39,8 @@ export interface Badge {
 
 export interface BadgeCase {
   badges: Badge[];
-  /** The badge the player chose to wear, or null. */
-  selected: string | null;
+  /** The badges the player chose to wear, in the order they chose. `[]` = none. */
+  selected: string[];
 }
 
 /** Why the case didn't arrive. `unavailable` is the catch-all → quiet state. */
@@ -46,9 +53,9 @@ export type BadgesResult =
       reason: BadgesFailure;
       /**
        * The selection the API reported anyway. Present on its 503s — the pick is
-       * stored, not recomputed — and null whenever we couldn't reach it at all.
+       * stored, not recomputed — and `[]` whenever we couldn't reach it at all.
        */
-      selected: string | null;
+      selected: string[];
     };
 
 /**
@@ -66,7 +73,7 @@ export type SelectFailure =
   | "unavailable";
 
 export type SelectResult =
-  | { ok: true; selected: string | null }
+  | { ok: true; selected: string[] }
   | { ok: false; reason: SelectFailure };
 
 const asString = (value: unknown): string | null =>
@@ -77,9 +84,27 @@ const asRecord = (value: unknown): Record<string, unknown> | null =>
     ? (value as Record<string, unknown>)
     : null;
 
-/** `selected` off any body shape, including a failure body. */
-const readSelected = (body: unknown): string | null =>
-  asString(asRecord(body)?.selected);
+/**
+ * `selected` off any body shape, including a failure body.
+ *
+ * Reads BOTH shapes for a release (#718): the array this build asks for, and the
+ * bare string an API that hasn't taken unbrewed-api#43 yet still sends. Order is
+ * preserved verbatim — it is the player's — while junk entries, duplicates and
+ * anything past the third are dropped, because a stored list longer than the
+ * shelf can only have come from a client that wasn't this one.
+ */
+const readSelected = (body: unknown): string[] => {
+  const raw = asRecord(body)?.selected;
+  const list = Array.isArray(raw) ? raw : [raw];
+  const out: string[] = [];
+  for (const entry of list) {
+    const id = asString(entry);
+    if (!id || out.includes(id)) continue;
+    out.push(id);
+    if (out.length === MAX_WORN_BADGES) break;
+  }
+  return out;
+};
 
 /**
  * One catalog row. An entry without an id is dropped — everything else is keyed
@@ -116,13 +141,12 @@ export const normalizeBadgeCase = (body: unknown): BadgeCase => {
     seen.add(badge.id);
     badges.push(badge);
   }
-  const selected = readSelected(root);
   return {
     badges,
     // A selection naming a badge the catalog didn't send can't be rendered or
-    // cleared coherently, so it reads as "wearing nothing" here. It is still
-    // stored server-side; picking any badge overwrites it.
-    selected: selected && seen.has(selected) ? selected : null,
+    // cleared coherently, so that ENTRY reads as unworn — the rest of the list
+    // is untouched, and a write from the picker overwrites the stored value.
+    selected: readSelected(root).filter((id) => seen.has(id)),
   };
 };
 
@@ -146,7 +170,7 @@ export const fetchBadgeCase = async (): Promise<BadgesResult> => {
             : "unavailable";
       // The 503 body carries the stored selection; anything else may not, and a
       // body we can't read is simply no selection.
-      let selected: string | null = null;
+      let selected: string[] = [];
       try {
         selected = readSelected(await res.json());
       } catch {
@@ -156,26 +180,33 @@ export const fetchBadgeCase = async (): Promise<BadgesResult> => {
     }
     return { ok: true, value: normalizeBadgeCase(await res.json()) };
   } catch {
-    return { ok: false, reason: "unavailable", selected: null };
+    return { ok: false, reason: "unavailable", selected: [] };
   }
 };
 
 /**
- * Wear a badge, or `null` to take one off.
+ * Wear this exact list of badges, in this exact order. `[]` takes them all off.
+ *
+ * The whole shelf is sent every time rather than an add/remove delta: the order
+ * is part of the value, so "wearing these three, like this" is the only thing
+ * worth storing and the only thing that can't go out of sync with what the
+ * player just dragged.
  *
  * The server decides whether a badge is unlocked — the client's copy of the
  * catalog is a render hint, never the check — so a 422 here is the authority
- * disagreeing with a stale page, and the caller's job is to say so quietly.
+ * disagreeing with a stale page, and the caller's job is to say so quietly. It
+ * also refuses more than three, which is why nothing above this layer may treat
+ * the cap as advisory.
  */
-export const putSelectedBadge = async (
-  id: string | null,
+export const putWornBadges = async (
+  ids: readonly string[],
 ): Promise<SelectResult> => {
   try {
-    const res = await fetch(`${API_URL}/me/badge`, {
+    const res = await fetch(`${API_URL}/me/badges`, {
       method: "PUT",
       credentials: "include",
       headers: { Accept: "application/json", "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
+      body: JSON.stringify({ ids }),
     });
     if (!res.ok) {
       if (res.status === 422) return { ok: false, reason: "locked" };
@@ -185,7 +216,7 @@ export const putSelectedBadge = async (
     }
     // Trust the server's echo over what we asked for; they only differ if
     // something changed under us, and its answer is the one that's stored.
-    let selected: string | null = id;
+    let selected: string[] = [...ids];
     try {
       selected = readSelected(await res.json());
     } catch {
@@ -200,3 +231,9 @@ export const putSelectedBadge = async (
 /** The catalog row for an id, or undefined. */
 export const badgeById = (badges: Badge[], id: string | null): Badge | undefined =>
   id ? badges.find((badge) => badge.id === id) : undefined;
+
+/** The catalog rows for the worn list, in worn order. Ids with no row are skipped. */
+export const wornBadges = (badges: Badge[], selected: readonly string[]): Badge[] =>
+  selected
+    .map((id) => badges.find((badge) => badge.id === id))
+    .filter((badge): badge is Badge => !!badge);

@@ -1,12 +1,12 @@
 /**
- * Badge-case state (issue #577).
+ * Badge-case state (issue #577; three worn and ordered, #718).
  *
  * A module-level store rather than component state — the opposite choice from
  * `useAccountStats`, and for a concrete reason: the badge case has consumers on
  * two different pages. `/account` reads it to draw the grid AND the header chip,
  * and `useProSocket` reads only the SELECTION, so a signed-in player's chosen
- * badge can ride CREATE_ROOM/JOIN_ROOM. Sharing one probe means one request per
- * page load however many of those mount, and it means selecting a badge updates
+ * badges can ride CREATE_ROOM/JOIN_ROOM. Sharing one probe means one request per
+ * page load however many of those mount, and it means picking a badge updates
  * every consumer at once. This mirrors `useAccount`, which shares its `/me`
  * probe for the same reason.
  *
@@ -20,7 +20,9 @@
  */
 import { useEffect, useState } from "react";
 
-import { Badge, fetchBadgeCase, putSelectedBadge } from "./badges";
+import { MAX_WORN_BADGES } from "@/components/Badges/BadgeGlyph";
+
+import { Badge, fetchBadgeCase, putWornBadges } from "./badges";
 import { useAccount } from "./useAccount";
 
 /**
@@ -42,11 +44,12 @@ export interface BadgeCaseState {
   status: BadgeCaseStatus;
   badges: Badge[];
   /**
-   * The badge being worn. Survives an `unavailable` status: the API reports the
-   * stored pick even on its 503s, so a wearer keeps their chip on the HUD while
-   * the case itself has nothing to show.
+   * The badges being worn, in the player's own order — slot 1 first (#718).
+   * Survives an `unavailable` status: the API reports the stored pick even on
+   * its 503s, so a wearer keeps their shelf on the HUD while the case itself
+   * has nothing to show.
    */
-  selected: string | null;
+  selected: string[];
   /** A write is in flight — the grid disables itself rather than racing. */
   busy: boolean;
   notice: BadgeNotice | null;
@@ -55,7 +58,7 @@ export interface BadgeCaseState {
 const EMPTY: BadgeCaseState = {
   status: "loading",
   badges: [],
-  selected: null,
+  selected: [],
   busy: false,
   notice: null,
 };
@@ -105,17 +108,29 @@ const reset = (next: BadgeCaseState) => {
 };
 
 /**
- * Wear a badge, or `null` to take one off.
+ * Wear exactly these badges, in exactly this order. `[]` takes them all off.
+ *
+ * The whole shelf goes every time — see `putWornBadges`. Callers below compute
+ * the next list (toggle, swap, reorder) and hand it over; nothing here has an
+ * opinion about which operation produced it, which is what lets a drag and a
+ * click share one write path.
  *
  * Not optimistic: the server owns both the unlock check and the storage, so the
- * chip only moves once it has agreed. A refusal is a notice on the case, never
+ * shelf only moves once it has agreed. A refusal is a notice on the case, never
  * a thrown error or a console line — the worst outcome of a failed cosmetic
- * write is that the player's badge didn't change.
+ * write is that the player's badges didn't change.
  */
-export const selectBadge = async (id: string | null): Promise<void> => {
+export const setWornBadges = async (
+  next: readonly string[],
+): Promise<void> => {
   if (state.busy) return;
+  const ids = next.slice(0, MAX_WORN_BADGES);
+  // What this write ADDS. On a 422 the server won't say which id it refused,
+  // and it can only be refusing one we weren't already wearing — the others it
+  // handed us itself, moments ago.
+  const added = ids.filter((id) => !state.selected.includes(id));
   patch({ busy: true, notice: null });
-  const result = await putSelectedBadge(id);
+  const result = await putWornBadges(ids);
   if (result.ok) {
     patch({ busy: false, notice: null, selected: result.selected });
     return;
@@ -127,12 +142,27 @@ export const selectBadge = async (id: string | null): Promise<void> => {
       busy: false,
       notice: "locked",
       badges: state.badges.map((badge) =>
-        badge.id === id ? { ...badge, unlocked: false } : badge,
+        added.includes(badge.id) ? { ...badge, unlocked: false } : badge,
       ),
     });
     return;
   }
   patch({ busy: false, notice: "unsaved" });
+};
+
+/**
+ * Click a badge in the grid: wear it, or take it off if it is already on.
+ *
+ * With all three slots full, a fourth pick SWAPS THE LAST one rather than doing
+ * nothing. Doing nothing is the answer that makes a player hunt for the badge to
+ * remove first; swapping the tail keeps slots 1 and 2 — the ones they cared
+ * enough about to put in front — exactly where they were.
+ */
+export const toggleWornBadge = (id: string): Promise<void> => {
+  const worn = state.selected;
+  if (worn.includes(id)) return setWornBadges(worn.filter((row) => row !== id));
+  if (worn.length < MAX_WORN_BADGES) return setWornBadges([...worn, id]);
+  return setWornBadges([...worn.slice(0, MAX_WORN_BADGES - 1), id]);
 };
 
 /**
