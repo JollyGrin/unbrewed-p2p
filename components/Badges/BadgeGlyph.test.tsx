@@ -1,8 +1,13 @@
 /**
- * Badge art (#577, extended by #717 and #721) — the client's half of the badge
- * contract.
+ * Badge art (#577, extended by #717, #721 and #723) — the client's half of the
+ * badge contract.
  *
  * What these pin:
+ *  - the client has art for EVERY id the accounts API sends, and calls each one
+ *    by the API's own name. Both halves cost a player something real when they
+ *    slip: an id with no art is dropped outright by the leaderboard and the HUD
+ *    shelf (see `isKnownBadge`), and a name only this file believes in is a
+ *    badge that is called one thing in the badge case and another in the HUD;
  *  - every id this build claims to know draws its OWN art, at the 14px HUD chip
  *    and the 44px case tile alike (the art is a viewBox, so the two must agree);
  *  - an id it doesn't know still draws — the neutral fallback — but is not
@@ -29,6 +34,7 @@ import {
   badgeArtBlurb,
   badgeArtName,
   isKnownBadge,
+  wornBadgeIds,
 } from "./BadgeGlyph";
 
 const DECK_IDS = [
@@ -37,6 +43,63 @@ const DECK_IDS = [
   "deck-gold",
   "deck-iridescent",
 ] as const;
+
+/**
+ * The accounts API's badge catalog — every id it can send, with the name it
+ * sends for it. Captured verbatim from `GET /players?u=` against
+ * api.unbrewed.xyz on 2026-08-28, in the API's own catalog order.
+ *
+ * This is the checked-in copy of somebody else's list, and that is the point
+ * (#723): the client cannot discover a new server-side badge at runtime — it
+ * would simply drop the id — so the list has to live here, where adding a row
+ * fails a test until the art exists. Two ids sat in the API's catalog for four
+ * releases with no art and nobody noticed, which is exactly the failure this
+ * turns into a red test.
+ *
+ * Update it whenever the API's catalog changes, and add the art in the same
+ * commit.
+ */
+const API_BADGE_CATALOG: ReadonlyArray<{ id: string; name: string }> = [
+  { id: "first-win", name: "First Blood" },
+  { id: "regular", name: "Regular" },
+  { id: "veteran", name: "Veteran" },
+  { id: "streak-5", name: "Hot Streak" },
+  { id: "bot-slayer", name: "Bot Slayer" },
+  { id: "clutch", name: "On the Brink" },
+  { id: "speedrunner", name: "Speedrunner" },
+  { id: "people-person", name: "People Person" },
+  { id: "specialist", name: "Specialist" },
+  { id: "generalist", name: "Generalist" },
+  { id: "level-5", name: "Adept" },
+  { id: "level-10", name: "Expert" },
+  { id: "level-20", name: "Grandmaster" },
+  { id: "cartographer", name: "Cartographer" },
+  { id: "local-knowledge", name: "Local Knowledge" },
+  { id: "rogues-gallery", name: "Rogues' Gallery" },
+  { id: "nemesis", name: "Nemesis" },
+  { id: "deck-bronze", name: "Burnished" },
+  { id: "deck-silver", name: "Sterling" },
+  { id: "deck-gold", name: "Gilded" },
+  { id: "deck-iridescent", name: "Prismatic" },
+];
+
+/**
+ * The API's own blurbs, for the badges whose blurb this file mirrors verbatim.
+ *
+ * Not all twenty-one: the other fifteen are deliberately re-voiced in the third
+ * person, because the HUD popover describes the badge on the OTHER seat's plate
+ * ("Won their first game", not "Won your first game"). These six read the same
+ * either way, so there is no reason for a second wording of them to exist — and
+ * the deck four had one, which is half of what #723 was raised for.
+ */
+const API_BLURBS: Readonly<Record<string, string>> = {
+  clutch: "Won a game with a single HP left against a hard or expert bot.",
+  speedrunner: "Beat a hard or expert bot in 5 turns or fewer.",
+  "deck-bronze": "A whole deck in bronze.",
+  "deck-silver": "A whole deck in silver.",
+  "deck-gold": "A whole deck in antiqued gold.",
+  "deck-iridescent": "A whole deck, every card iridescent.",
+};
 
 const MAP_IDS = [
   "cartographer",
@@ -111,6 +174,76 @@ describe("badge art — the set", () => {
     expect(isKnownBadge("moon-walker")).toBe(false);
     expect(drawn("moon-walker").querySelector("circle")).toBeInTheDocument();
     expect(badgeArtName("moon-walker")).toBe("Badge");
+  });
+});
+
+describe("badge art — the API's catalog", () => {
+  it("has art for every id the API can send", () => {
+    // The check that would have caught `clutch` and `speedrunner` in #577.
+    // Listed, not counted: the failure has to name the id, because the fix is
+    // to draw that one badge and a number tells you nothing about which.
+    const missing = API_BADGE_CATALOG.map(({ id }) => id).filter(
+      (id) => !isKnownBadge(id),
+    );
+    expect(missing).toEqual([]);
+  });
+
+  it("calls every badge what the API calls it", () => {
+    // Both names reach a player: the badge case renders the API's row, and the
+    // leaderboard tooltip and HUD popover render this file's. They cannot be
+    // allowed to disagree — which they did, for the four deck badges (#723).
+    const expected = API_BADGE_CATALOG.map(({ id, name }) => `${id} → ${name}`);
+    const actual = API_BADGE_CATALOG.map(
+      ({ id }) => `${id} → ${badgeArtName(id)}`,
+    );
+    expect(actual).toEqual(expected);
+  });
+
+  it("carries the API's own blurb where it mirrors one, byte for byte", () => {
+    for (const [id, blurb] of Object.entries(API_BLURBS)) {
+      expect(badgeArtBlurb(id)).toBe(blurb);
+    }
+  });
+});
+
+describe("badge art — the two bot feats", () => {
+  // #723: both are worn on the live leaderboard's top three, and both rendered
+  // as nothing at all on the two surfaces that gate on `isKnownBadge`.
+  const BOT_FEAT_IDS = ["clutch", "speedrunner"] as const;
+
+  it("is claimed by the gate the leaderboard row and the HUD shelf use", () => {
+    for (const id of BOT_FEAT_IDS) expect(isKnownBadge(id)).toBe(true);
+    expect(wornBadgeIds([...BOT_FEAT_IDS])).toEqual([...BOT_FEAT_IDS]);
+  });
+
+  it("names On the Brink by its own name, which is not its id", () => {
+    // The one badge whose display name and id are different words.
+    expect(badgeArtName("clutch")).toBe("On the Brink");
+    expect(badgeArtName("speedrunner")).toBe("Speedrunner");
+  });
+
+  it("distinguishes by silhouette, not tone — the #721 rule, not the #717 one", () => {
+    // Two unrelated feats: neither may be the other in a different colour, and
+    // neither may borrow the deck ladder's shared fan.
+    expect(new Set(BOT_FEAT_IDS.map(silhouetteOf)).size).toBe(2);
+    expect(
+      new Set([...BOT_FEAT_IDS, ...DECK_IDS].map(silhouetteOf)).size,
+    ).toBe(3);
+  });
+
+  it("draws its own art in the shelf, at chip size", () => {
+    const { container } = render(<BadgeCluster ids={[...BOT_FEAT_IDS]} />);
+    const discs = [...container.querySelectorAll("[data-badge-id]")];
+    expect(discs.map((el) => el.getAttribute("data-badge-id"))).toEqual([
+      ...BOT_FEAT_IDS,
+    ]);
+
+    const unknown = artOf(drawn("no-such-badge"));
+    for (const disc of discs) {
+      const svg = disc.querySelector("svg");
+      expect(svg?.getAttribute("width")).toBe("17px");
+      expect(svg?.innerHTML).not.toEqual(unknown);
+    }
   });
 });
 
