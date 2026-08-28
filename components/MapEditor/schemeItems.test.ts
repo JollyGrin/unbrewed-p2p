@@ -3,8 +3,12 @@
  * born-valid items, the blocking export guard, and the acceptance fixture — the
  * reporter's "Wedding Crashers" map (`test/fixtures/weddingCrashers.map.json`),
  * whose two scheme items shipped with `ops: []` because the old panel had no way
- * to author one. The map is unmodified as attached to issue #693, so these tests
- * assert the real bug and the real repair rather than a reconstruction.
+ * to author one. The items are as attached to issue #693, so these tests assert
+ * the real bug and the real repair rather than a reconstruction. Only the board
+ * art has moved on: #729 took the author's finalized export — the same map with
+ * its spaces/connections photoshopped into the image and six coordinates nudged
+ * onto the baked-in circles — so `meta.imageUrl` and those six x/y pairs match
+ * the finalized art. The item bug is untouched.
  *
  * The repair's export is the board the catalog now ships
  * (`lib/pro/fixtures/wedding-crashers.map.json`, #727) — one committed copy, and
