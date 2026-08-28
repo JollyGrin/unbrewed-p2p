@@ -1,4 +1,5 @@
-import { Action, CardInstanceId, CardMeta, FighterId, SpaceId } from "./protocol";
+import { Action, CardInstanceId, CardMeta, FighterId, ProMapItem, SpaceId } from "./protocol";
+import { itemEffectText } from "./itemInfo";
 
 // ---------------------------------------------------------------------------
 // Action-dock presentation (pure). The dock renders EVERY affordance generically
@@ -28,10 +29,12 @@ export const cardLabel = (catalog: Record<string, CardMeta>, instance: CardInsta
 export interface DescribeCtx {
   nameOf: (id: FighterId) => string;
   attackerBadge?: Partial<Record<FighterId, number>>;
-  /** Label of the live scheme item on a space (view.itemTokens → map.items), so a
-   *  USE_SCHEME_ITEM action reads "Use <item label>" rather than a bare "Use item"
-   *  (protocol v17). Undefined = the space has no known item; falls back to "item". */
-  itemLabelForSpace?: (space: SpaceId) => string | undefined;
+  /** The live item on a space (view.itemTokens → map.items), so a USE_SCHEME_ITEM
+   *  action reads "Use <label> — <effect>" rather than a bare "Use item" (protocol
+   *  v17; effect text since p2p #731 — items are open information, and nobody
+   *  should commit to using something they were never told the effect of).
+   *  Undefined = the space has no known item; falls back to "item". */
+  itemForSpace?: (space: SpaceId) => ProMapItem | undefined;
 }
 
 /**
@@ -75,8 +78,14 @@ export const describeAction = (
       return "End maneuver";
     case "SCHEME":
       return `Scheme: ${cardLabel(catalog, a.card)}`;
-    case "USE_SCHEME_ITEM":
-      return `Use ${ctx?.itemLabelForSpace?.(a.space) ?? "item"}`;
+    case "USE_SCHEME_ITEM": {
+      // The effect rides in the label itself (p2p #731): a scheme item authored
+      // without `text` keeps the bare "Use <label>" it always had.
+      const item = ctx?.itemForSpace?.(a.space);
+      if (!item) return "Use item";
+      const effect = itemEffectText(item);
+      return effect ? `Use ${item.label} — ${effect}` : `Use ${item.label}`;
+    }
     case "DECLARE_ATTACK": {
       const targetName = ctx ? ctx.nameOf(a.target) : a.target.split("/")[1];
       const attackerName = ctx ? ctx.nameOf(a.attacker) : a.attacker.split("/")[1];

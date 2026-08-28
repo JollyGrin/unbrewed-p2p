@@ -51,6 +51,38 @@ describe("MapPreviewModal — 🎁 items tag", () => {
     expect(screen.getByText("Count's Castle")).toBeInTheDocument();
     expect(screen.queryByText("🎁 items")).not.toBeInTheDocument();
   });
+});
+
+// Items are open information (p2p #731): the preview lists what each item does
+// before a room is ever created, with the same badge glyph the board draws and
+// the same text the dock/popover print (lib/pro/itemInfo).
+describe("MapPreviewModal — items list", () => {
+  it("lists Wedding Crashers' items with glyph + label + effect text", () => {
+    open("wedding-crashers");
+    // every item of the map JSON, as "label — effect" text rows…
+    expect(screen.getByText("Rose Bouquet — +2 to a combat card played from this space")).toBeInTheDocument();
+    expect(screen.getByText("Wedding Cake — Recover 2 health.")).toBeInTheDocument();
+    expect(screen.getByText("Hand Gun — +1 to a combat card played from this space")).toBeInTheDocument();
+    expect(
+      screen.getByText("Wedding Gifts — Return a card from your discard pile to your hand.")
+    ).toBeInTheDocument();
+    // …each headed by the same badge square the board itself draws (title here,
+    // glyph square within).
+    for (const row of [
+      "Rose Bouquet — +2 to a combat card played from this space",
+      "Wedding Cake — Recover 2 health.",
+      "Hand Gun — +1 to a combat card played from this space",
+      "Wedding Gifts — Return a card from your discard pile to your hand.",
+    ]) {
+      expect(screen.getByTitle(row)).toBeInTheDocument();
+    }
+  });
+
+  it("lists nothing for an item-less board", () => {
+    open("counts-castle");
+    expect(screen.queryByText("🎁 Battlefield items")).not.toBeInTheDocument();
+    expect(screen.queryByText(/to a combat card played from this space/)).not.toBeInTheDocument();
+  });
 
   it("renders nothing board-specific when no entry is open", () => {
     render(

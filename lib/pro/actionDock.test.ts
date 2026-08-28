@@ -48,13 +48,38 @@ describe("actionDock — BOOST_MOVE renders and emits generically", () => {
 });
 
 describe("actionDock — v17 battlefield items", () => {
-  it("labels USE_SCHEME_ITEM with the item's label from the space", () => {
-    const use: Action = { type: "USE_SCHEME_ITEM", player: "p1", space: "s4" };
+  const use: Action = { type: "USE_SCHEME_ITEM", player: "p1", space: "s4" };
+
+  it("labels USE_SCHEME_ITEM with the item's label + effect (open information, p2p #731)", () => {
     expect(
-      describeAction(catalog, use, { nameOf, itemLabelForSpace: (sp) => (sp === "s4" ? "Fire Bomb" : undefined) })
+      describeAction(catalog, use, {
+        nameOf,
+        itemForSpace: (sp) =>
+          sp === "s4"
+            ? { id: "i", kind: "scheme", label: "Wedding Cake", text: "Recover 2 health." }
+            : undefined,
+      })
+    ).toBe("Use Wedding Cake — Recover 2 health.");
+  });
+
+  it("keeps the bare label for a scheme item authored without effect text", () => {
+    expect(
+      describeAction(catalog, use, {
+        nameOf,
+        itemForSpace: () => ({ id: "i", kind: "scheme", label: "Fire Bomb", ops: [] as never }),
+      })
     ).toBe("Use Fire Bomb");
     // No resolver → a graceful generic fallback (never a bare "undefined").
     expect(describeAction(catalog, use, { nameOf })).toBe("Use item");
+  });
+
+  it("describes a combat item from its printed value if the server ever offers one", () => {
+    expect(
+      describeAction(catalog, use, {
+        nameOf,
+        itemForSpace: () => ({ id: "i", kind: "combat", label: "Sword", value: 2 }),
+      })
+    ).toBe("Use Sword — +2 to a combat card played from this space");
   });
 
   it("surfaces plain + attach commit variants as two labeled affordances", () => {
