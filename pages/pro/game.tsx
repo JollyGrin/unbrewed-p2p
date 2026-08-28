@@ -176,6 +176,7 @@ import {
   customMapForEntry,
   defaultMapIdForFormat,
   mapEligibleForFormat,
+  mapHasItems,
   randomMapPool,
   rollRandomMap,
 } from "@/lib/pro/mapCatalog";
@@ -2311,6 +2312,8 @@ const HeroSelectLobby = ({
   onSelectTurnTimer,
   mulligan,
   onSelectMulligan,
+  itemsEnabled,
+  onSelectItemsEnabled,
   onConfirm,
   onQuickMatch,
   quickMatchArmed,
@@ -2343,6 +2346,13 @@ const HeroSelectLobby = ({
   /** opening-hand mulligan for this room (engine #395); true = on (create flow only) */
   mulligan: boolean;
   onSelectMulligan: (on: boolean) => void;
+  /**
+   * battlefield items for this room's map (engine #519, issue #725); true = on.
+   * Create flow only, and only meaningful when the chosen board carries items —
+   * the chip (and the wire field) are gated on `mapHasItems` below.
+   */
+  itemsEnabled: boolean;
+  onSelectItemsEnabled: (on: boolean) => void;
   /** commit the room with this CONCRETE hero id — a Random pick is already rolled */
   onConfirm: (heroId: string) => void;
   /** Quick Match (#687), create flow only: find a game instead of configuring one. */
@@ -2450,8 +2460,12 @@ const HeroSelectLobby = ({
         : catalogEntry(selectedMapId)?.title ?? "Default board";
   const timerText = turnTimerSeconds > 0 ? `${clampTurnTimer(turnTimerSeconds)}s timer` : "no timer";
   const mulliganText = mulligan ? "mulligan on" : "no mulligan";
+  // 🎁 items (#725): the chip — and the summary leg — exist only when the chosen
+  // board actually carries items, so an item-less create reads exactly as before.
+  const boardHasItems = mapHasItems(selectedMapId, customMapJson);
+  const itemsText = boardHasItems && !itemsEnabled ? " · no items" : "";
   const summary = effective
-    ? `${lockedName} · ${stageName} · ${timerText} · ${mulliganText}`
+    ? `${lockedName} · ${stageName} · ${timerText} · ${mulliganText}${itemsText}`
     : "Pick a fighter to preview — click a tile to lock in.";
 
   const createLabel = !effective
@@ -2736,6 +2750,25 @@ const HeroSelectLobby = ({
                 ]}
               />
             </Flex>
+            {/* Battlefield items (engine #519, issue #725). Rendered ONLY when
+                the chosen board carries items — every catalog board today is
+                item-less, so the strip reads exactly as before until the first
+                item board ships; hidden also means the opt-out never reaches
+                the wire (the create handler gates on the same predicate). */}
+            {boardHasItems && (
+              <Flex align="center" gap="0.5rem">
+                <Text {...STRIP_LBL}>🎁 ITEMS</Text>
+                <Segmented
+                  ariaLabel="Battlefield items"
+                  value={itemsEnabled ? "on" : "off"}
+                  onChange={(v) => onSelectItemsEnabled(v === "on")}
+                  options={[
+                    { value: "on", label: "On" },
+                    { value: "off", label: "Off" },
+                  ]}
+                />
+              </Flex>
+            )}
           </>
         )}
         <Box flex="1" minW="0" />
@@ -3290,6 +3323,10 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // engine defaults it ON for new games, so true is the default here too and
   // only an explicit opt-out puts `mulligan: false` on CREATE_ROOM.
   const [mulligan, setMulligan] = useState(true);
+  // Battlefield items (engine #519, issue #725), create flow only. Items are
+  // printed on the map, so ON is the default; the choice is only offered (and
+  // the opt-out only sent) when the chosen board actually carries items.
+  const [itemsEnabled, setItemsEnabled] = useState(true);
   const [selectedFighter, setSelectedFighter] = useState<FighterId | null>(null);
   // Incremental-maneuver stepping (issue #285): the LOCAL hop-by-hop preview for
   // the selected fighter, scoped to that fighter so it never leaks across a
@@ -4033,6 +4070,8 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
           onSelectTurnTimer={setTurnTimerSeconds}
           mulligan={mulligan}
           onSelectMulligan={setMulligan}
+          itemsEnabled={itemsEnabled}
+          onSelectItemsEnabled={setItemsEnabled}
           customMapJson={customMapJson}
           onCustomMapJsonChange={(json) => {
             setCustomMapJson(json);
@@ -4125,7 +4164,22 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
             // Clamp to the engine's 10–300 bound at the wire (a mid-edit custom
             // value could sit outside it); 0 = off stays off.
             const timerSeconds = turnTimerSeconds > 0 ? clampTurnTimer(turnTimerSeconds) : 0;
-            createRoom(heroId, bot, customMap, selectedFormat, botSeats, timerSeconds, mulligan);
+            // 🎁 items (#725): the opt-out rides only when the chosen board
+            // actually carries items (same predicate as the chip) — a hidden
+            // chip must never put the field on the wire, so item-less creates,
+            // the Random roll, and a blank Custom paste all stay byte-identical.
+            const itemsOptOut = mapHasItems(selectedMapId, customMapJson) && itemsEnabled === false;
+            createRoom(
+              heroId,
+              bot,
+              customMap,
+              selectedFormat,
+              botSeats,
+              timerSeconds,
+              mulligan,
+              undefined,
+              itemsOptOut ? false : undefined,
+            );
             setSelectedHeroId(heroId); // lock it for the lobby label
             setRolledHero(wasRolled);
             setJoined(true);

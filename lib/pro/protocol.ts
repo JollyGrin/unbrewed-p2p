@@ -842,6 +842,28 @@
  * CLIENT SURFACE (unbrewed-p2p#687): the lobby strip renders whichever of the three
  * listing fields are present and looks exactly as it does today when they are absent.
  */
+/**
+ * v34 unchanged (2026-08-27): battlefield items opt-out (engine #519 ↔ unbrewed-p2p#725).
+ * Community boards now print battlefield items ON the map (wedding crashers is the
+ * first), and items are fun but can be disruptive — so the room creator may switch
+ * them off for one game. ONE additive OPTIONAL field, so PROTOCOL_VERSION does not
+ * move and no message grows a key for any room that doesn't ask:
+ *
+ * - `CREATE_ROOM.itemsEnabled?` — per-room opt-OUT, the same idiom as `mulligan`
+ *   but with the polarity the map implies: items are PRINTED ON THE BOARD, so
+ *   ABSENT (or `true`) = ON, which is every room today, and `false` = the map's
+ *   items never spawn — no item tokens, no `USE_SCHEME_ITEM`, no combat-item
+ *   attach — a game byte-identical to the same map authored with its `items`
+ *   stripped. The board itself (spaces, zones, connections) is untouched, and the
+ *   flag composes with `customMap` (today the only way a map with items is
+ *   picked). Not echoed back: the client that set it knows, and both seats see the
+ *   effect the moment the board renders without its item badges. Anything but a
+ *   boolean (or absent) answers ERROR{BAD_MESSAGE}.
+ * CLIENT SURFACE (unbrewed-p2p#725): a 🎁 ITEMS On/Off chip in the create lobby's
+ * rules strip, rendered ONLY when the chosen board carries `items` — hidden means
+ * the field is never sent, so creates on every item-less board (and the Random
+ * tile, whose roll resolves at create time) stay byte-identical to today.
+ */
 export const PROTOCOL_VERSION = 34;
 
 /**
@@ -1896,6 +1918,10 @@ export type ClientMsg =
   // the room creator opts OUT with `false`, and an older client that never sends the
   // field gets the same game a new one does. Anything but a boolean (or absent)
   // answers ERROR{BAD_MESSAGE}. See the v30 header note.
+  // `itemsEnabled` (engine #519): battlefield items for this room's map. ABSENT = ON —
+  // `false` strips the map's items for this game only (no item tokens spawn; the game
+  // is byte-identical to the same map authored without `items`). Anything but a
+  // boolean (or absent) answers ERROR{BAD_MESSAGE}. See the v34-unchanged note above.
   // `pilot`: telemetry label for socket-driven seats. Omit/empty = human;
   // LLM agents should send llm:<model>.
   // `displayName`/`playerId` (issue #344): optional, client-claimed, UNVERIFIED
@@ -1909,7 +1935,7 @@ export type ClientMsg =
   // BAD_MESSAGE (it is not truncated). Echoed verbatim into `ViewPlayer` and
   // frozen into replay bundles; never parsed, never logged, never sent to
   // telemetry, never visible to a bot. See the 2026-08-18 header note.
-  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; mulligan?: boolean; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string; quickMatch?: boolean }
+  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; mulligan?: boolean; itemsEnabled?: boolean; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string; quickMatch?: boolean }
   | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string }
   | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }

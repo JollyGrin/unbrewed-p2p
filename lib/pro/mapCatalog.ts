@@ -15,6 +15,7 @@
  */
 import type { ProMapDef } from "./protocol";
 import { MULTIPLAYER_PLAYTEST_MAP, PRO_FORMATS, ProFormatId } from "./multiplayerPlaytest";
+import { normalizeMap } from "./normalizeMap";
 import mendedDrumJson from "./fixtures/mended-drum.map.json";
 import islandOfDespairJson from "./fixtures/island-of-despair.map.json";
 import cityDocksJson from "./fixtures/city-docks.map.json";
@@ -237,4 +238,33 @@ export function rollRandomMap(
  */
 export function customMapForEntry(entry: MapCatalogEntry): ProMapDef | undefined {
   return entry.serverDefault ? undefined : entry.map;
+}
+
+/**
+ * Whether the chosen board carries battlefield items (#725 ↔ engine #519) —
+ * gates the lobby's 🎁 ITEMS chip, and with it the `CREATE_ROOM.itemsEnabled`
+ * opt-out: hidden chip ⇒ the field is never put on the wire, so every create on
+ * an item-less board stays byte-identical to today.
+ *
+ * - catalog tile → the entry's own `items` array (none ships one yet; the first
+ *   community item board to join the catalog lights up automatically);
+ * - Custom… → a lenient parse of the pasted JSON through `normalizeMap`. Parse
+ *   errors are swallowed on purpose: a malformed board shows no chip (nothing to
+ *   toggle), and the create-click handler owns surfacing the real error;
+ * - Random → always false: the roll resolves at create time, so there is no
+ *   board to inspect and the player never had a say — items stay ON.
+ */
+export function mapHasItems(selectedMapId: string, customMapJson: string): boolean {
+  if (selectedMapId === RANDOM_MAP_ID) return false;
+  if (selectedMapId === CUSTOM_MAP_ID) {
+    const trimmed = customMapJson.trim();
+    if (!trimmed) return false;
+    try {
+      return (normalizeMap(JSON.parse(trimmed)).items?.length ?? 0) > 0;
+    } catch {
+      return false;
+    }
+  }
+  const entry = catalogEntry(selectedMapId);
+  return !!entry && (entry.map.items?.length ?? 0) > 0;
 }

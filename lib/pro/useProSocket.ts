@@ -178,7 +178,14 @@ export interface UseProSocketReturn {
      * counts it toward search_started/matched and nothing else — and OPTIONAL,
      * so a server that predates it ignores the key. Omitted when false.
      */
-    quickMatch?: boolean
+    quickMatch?: boolean,
+    /**
+     * Battlefield items (issue #725 ↔ engine #519), room config, creator-only.
+     * Items are printed on the map, so ON is the default; `false` strips the
+     * map's items for this game only, and `true`/undefined omits the field from
+     * the wire entirely (byte-identical to today).
+     */
+    itemsEnabled?: boolean
   ) => void;
   joinRoom: (roomId: string, heroId: string) => void;
   sendAction: (action: Action) => void;
@@ -816,7 +823,8 @@ export function useProSocket(
       botSeats?: BotSeatFill[],
       turnTimerSeconds?: number,
       mulligan?: boolean,
-      quickMatch?: boolean
+      quickMatch?: boolean,
+      itemsEnabled?: boolean
     ) => {
       setError(null); // clear any prior room/hero error on a fresh attempt
       setGameLost(false); // starting a brand-new game — no lost game to mourn
@@ -844,6 +852,11 @@ export function useProSocket(
         // only an explicit opt-OUT reaches the wire. Any other value (true,
         // undefined) omits the key and the room is byte-identical to today.
         ...(mulligan === false ? { mulligan: false } : {}),
+        // Battlefield items (engine #519, issue #725): same opt-out idiom, but
+        // the caller gates it — the field is passed only when the chosen board
+        // actually carries items (see the lobby's mapHasItems), so a hidden chip
+        // can never put the key on the wire.
+        ...(itemsEnabled === false ? { itemsEnabled: false } : {}),
         // Quick Match (#687): additive optional flag, sent only when the room
         // came from that flow. An engine that predates it drops the key.
         ...(quickMatch ? { quickMatch: true } : {}),

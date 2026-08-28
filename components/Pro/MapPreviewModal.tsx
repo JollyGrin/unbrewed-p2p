@@ -34,6 +34,10 @@ export const MapPreviewModal = ({ isOpen, onClose, entry }: MapPreviewModalProps
   if (meta?.license) attribution.push({ label: "License", value: meta.license });
 
   const formats = entry ? eligibleFormats(entry.map) : [];
+  // 🎁 items (#725): boards that print battlefield items say so beside their
+  // format pills. No catalog board carries items yet, so nothing changes today —
+  // the tag lights up automatically when the first item board joins.
+  const hasItems = !!entry && (entry.map.items?.length ?? 0) > 0;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="4xl" isCentered scrollBehavior="inside">
@@ -54,6 +58,17 @@ export const MapPreviewModal = ({ isOpen, onClose, entry }: MapPreviewModalProps
                 {FORMAT_BADGE[f]}
               </Tag>
             ))}
+            {hasItems && (
+              <Tag
+                size="sm"
+                bg="whiteAlpha.200"
+                color="brand.parchment"
+                fontWeight={700}
+                title="This board prints battlefield items — the creator can switch them off"
+              >
+                🎁 items
+              </Tag>
+            )}
           </Flex>
         </ModalHeader>
         <ModalCloseButton zIndex={2} />
