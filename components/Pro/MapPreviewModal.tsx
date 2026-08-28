@@ -35,8 +35,8 @@ export const MapPreviewModal = ({ isOpen, onClose, entry }: MapPreviewModalProps
 
   const formats = entry ? eligibleFormats(entry.map) : [];
   // 🎁 items (#725): boards that print battlefield items say so beside their
-  // format pills. No catalog board carries items yet, so nothing changes today —
-  // the tag lights up automatically when the first item board joins.
+  // format pills. Wedding Crashers (#727) is the first catalog board to print
+  // them; any later item board lights the tag up automatically.
   const hasItems = !!entry && (entry.map.items?.length ?? 0) > 0;
 
   return (

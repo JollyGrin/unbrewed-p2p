@@ -3,15 +3,16 @@
  * engine #519).
  *
  * The chip exists for exactly one audience: the creator who picked a board that
- * prints battlefield items (today only a pasted custom map — no catalog board
- * carries items) and wants them OFF for this game. Everywhere else it must be
- * invisible AND silent: hidden chip ⇒ no `itemsEnabled` key on CREATE_ROOM, so
- * every existing create stays byte-identical to today.
+ * prints battlefield items and wants them OFF for this game. Everywhere else it
+ * must be invisible AND silent: hidden chip ⇒ no `itemsEnabled` key on
+ * CREATE_ROOM, so every existing create stays byte-identical to today.
  *
  * The load-bearing assertions are therefore the NEGATIVE ones — Random default,
- * a hand-clicked catalog board, malformed paste JSON, and the join screen all
- * render no chip and send no field — plus the one positive path: paste an items
- * map, switch Off, and the CREATE_ROOM frame carries `itemsEnabled: false`.
+ * a hand-clicked item-less catalog board, malformed paste JSON, and the join
+ * screen all render no chip and send no field — plus the positive paths: an
+ * items board picked either way (pasted JSON, or the Wedding Crashers catalog
+ * tile since #727) switches Off and the CREATE_ROOM frame carries
+ * `itemsEnabled: false`.
  *
  * Mount recipe is the shared render-fuzz one (fake WebSocket, real page), same
  * as randomStagePick.test.tsx — this test lives entirely in the pre-room picker.
@@ -151,7 +152,7 @@ describe("🎁 ITEMS chip (issue #725)", () => {
     expect("itemsEnabled" in msg).toBe(false);
   });
 
-  it("is hidden on a hand-clicked catalog board (none carries items)", async () => {
+  it("is hidden on a hand-clicked item-less catalog board", async () => {
     await mountPicker();
     await click(screen.getByLabelText("Count's Castle"));
     expect(itemsChip()).not.toBeInTheDocument();
@@ -213,6 +214,60 @@ describe("🎁 ITEMS chip (issue #725)", () => {
     expect(sent.filter((m) => m.type === "CREATE_ROOM")).toHaveLength(0);
     // the textarea's helper line is swapped for the inline error
     expect(screen.queryByText(/only you set this up/)).not.toBeInTheDocument();
+  });
+
+  /**
+   * Wedding Crashers (#727) — the catalog's own items board. This is the path
+   * the chip was built for and could not exercise until the board shipped: no
+   * paste box, just a tile in the picker.
+   */
+  describe("Wedding Crashers — the catalog items board (#727)", () => {
+    it("shows the chip on the duel picker and ships the board with its four items", async () => {
+      await mountPicker();
+      await click(screen.getByLabelText("Wedding Crashers"));
+      expect(itemsChip()).toBeInTheDocument();
+      expect(within(itemsChip()!).getByRole("button", { name: "On" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+
+      const msg = await createRoom();
+      // a catalog board rides as customMap, exactly like a pasted one
+      expect(msg.customMap?.id).toBe("wedding-crashers");
+      expect(msg.customMap?.items?.map((i) => i.id)).toEqual([
+        "item1",
+        "item2",
+        "item3",
+        "item4",
+      ]);
+      expect(msg.customMap?.spaces.filter((sp) => sp.item)).toHaveLength(4);
+      // On is the default, so nothing goes on the wire
+      expect("itemsEnabled" in msg).toBe(false);
+    });
+
+    it("switching Off sends itemsEnabled: false with the catalog board", async () => {
+      await mountPicker();
+      await click(screen.getByLabelText("Wedding Crashers"));
+      await click(within(itemsChip()!).getByRole("button", { name: "Off" }));
+      const msg = await createRoom();
+      expect(msg.customMap?.id).toBe("wedding-crashers");
+      expect((msg as ClientMsg & { itemsEnabled?: boolean }).itemsEnabled).toBe(false);
+    });
+
+    // The preview modal's own 🎁 tag is covered in
+    // components/Pro/MapPreviewModal.test.tsx (Chakra's focus trap needs a stub
+    // that does not belong in this full-page create-flow suite).
+
+    it("is absent from the multiplayer pickers — two start slots, duel only", async () => {
+      await mountPicker();
+      expect(screen.getByLabelText("Wedding Crashers")).toBeInTheDocument();
+      for (const format of ["3P FFA", "2v2"]) {
+        await click(screen.getByRole("button", { name: format }));
+        expect(screen.queryByLabelText("Wedding Crashers")).not.toBeInTheDocument();
+      }
+      await click(screen.getByRole("button", { name: "Duel" }));
+      expect(screen.getByLabelText("Wedding Crashers")).toBeInTheDocument();
+    });
   });
 
   it("never renders on the join screen — creator-only like the rest of the strip", async () => {

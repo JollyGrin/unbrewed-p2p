@@ -5,9 +5,13 @@
  * whose two scheme items shipped with `ops: []` because the old panel had no way
  * to author one. The map is unmodified as attached to issue #693, so these tests
  * assert the real bug and the real repair rather than a reconstruction.
+ *
+ * The repair's export is the board the catalog now ships
+ * (`lib/pro/fixtures/wedding-crashers.map.json`, #727) — one committed copy, and
+ * this file is what keeps it equal to what the editor actually emits.
  */
 import weddingCrashers from "@/test/fixtures/weddingCrashers.map.json";
-import weddingCrashersRepaired from "@/test/fixtures/weddingCrashers.repaired.map.json";
+import weddingCrashersRepaired from "@/lib/pro/fixtures/wedding-crashers.map.json";
 import type { ProMapDef, ProMapItem } from "@/lib/pro/protocol";
 import {
   MapDoc,
@@ -29,15 +33,22 @@ const itemsOf = (def: ProMapDef): Record<string, ProMapItem> =>
 const authorEffects = (doc: MapDoc, id: string, effects: SchemeEffect[]): MapDoc =>
   setItemField(doc, id, { ops: opsFromEffects(effects), text: effectsText(effects) });
 
+/** Where the repaired board lives now that it is a catalog entry (#727). */
+const CATALOG_IMAGE_URL = "https://unbrewed.xyz/maps/community-wedding-crashers.webp";
+
 /**
  * The reporter's map as an author repairs it in the editor: both scheme effects
- * picked from the menu, and `item4` finally placed on a space (the fixture
- * declared it but never spawned it — dead content the engine also rejects).
- * `test/fixtures/weddingCrashers.repaired.map.json` is this map's export, and is
- * what the live pro-room verification for #693 was run against.
+ * picked from the menu, `item4` finally placed on a space (the fixture declared
+ * it but never spawned it — dead content the engine also rejects), and the board
+ * image re-pointed at unbrewed.xyz — the promotion to `MAP_CATALOG` (#727) moved
+ * it off the reporter's third-party image host.
+ * `lib/pro/fixtures/wedding-crashers.map.json` is this map's export — the single
+ * committed copy, shipped in the catalog, and what the live pro-room
+ * verification for #693 was run against.
  */
 const repaired = (): MapDoc => {
   let doc = toMapDoc(FIXTURE);
+  doc = { ...doc, meta: { ...doc.meta, imageUrl: CATALOG_IMAGE_URL } };
   doc = authorEffects(doc, "item2", [{ kind: "heal", amount: 2 }]);
   doc = authorEffects(doc, "item4", [{ kind: "search" }]);
   return setSpaceItem(doc, "s13", "item4");
@@ -176,10 +187,13 @@ describe("Wedding Crashers acceptance fixture (issue #693)", () => {
     expect(toMapDef(reimported)).toEqual(exported);
   });
 
-  it("the committed repaired fixture IS what the builder emits (byte-for-byte)", () => {
+  it("the committed catalog board IS what the builder emits (byte-for-byte)", () => {
     // The live pro-room check for #693 was driven off that file; this keeps it
-    // honest against the export path rather than a hand-edited copy.
+    // honest against the export path rather than a hand-edited copy. Since #727
+    // that file is also the shipped catalog board, so there is exactly one copy
+    // and no second one to drift.
     expect(toMapDef(repaired())).toEqual(weddingCrashersRepaired);
+    expect(weddingCrashersRepaired.meta.imageUrl).toBe(CATALOG_IMAGE_URL);
   });
 
   it("never exports an empty `text` key", () => {
