@@ -24,6 +24,7 @@ import weathertopJson from "./fixtures/weathertop.map.json";
 import countsCastleJson from "./fixtures/counts-castle.map.json";
 import uscssNostromoJson from "./fixtures/uscss-nostromo.map.json";
 import theBogJson from "./fixtures/the-bog.map.json";
+import weddingCrashersJson from "./fixtures/wedding-crashers.map.json";
 
 /** A board's authored per-format seat mapping (present on multiplayer boards). */
 interface MapFormatSupport {
@@ -62,6 +63,7 @@ const weathertop = weathertopJson as unknown as CatalogMap;
 const countsCastle = countsCastleJson as unknown as CatalogMap;
 const uscssNostromo = uscssNostromoJson as unknown as CatalogMap;
 const theBog = theBogJson as unknown as CatalogMap;
+const weddingCrashers = weddingCrashersJson as unknown as CatalogMap;
 
 /**
  * Ordered built-in boards. The Mended Drum is the duel default (server board,
@@ -116,6 +118,12 @@ export const MAP_CATALOG: MapCatalogEntry[] = [
     title: theBog.meta.title,
     thumbnailUrl: theBog.meta.imageUrl ?? "",
     map: theBog,
+  },
+  {
+    id: weddingCrashers.id,
+    title: weddingCrashers.meta.title,
+    thumbnailUrl: weddingCrashers.meta.imageUrl ?? "",
+    map: weddingCrashers,
   },
   {
     id: MULTIPLAYER_PLAYTEST_MAP.id,
@@ -246,8 +254,8 @@ export function customMapForEntry(entry: MapCatalogEntry): ProMapDef | undefined
  * opt-out: hidden chip ⇒ the field is never put on the wire, so every create on
  * an item-less board stays byte-identical to today.
  *
- * - catalog tile → the entry's own `items` array (none ships one yet; the first
- *   community item board to join the catalog lights up automatically);
+ * - catalog tile → the entry's own `items` array (Wedding Crashers is the first
+ *   catalog board to print items, #727; any later one lights up automatically);
  * - Custom… → a lenient parse of the pasted JSON through `normalizeMap`. Parse
  *   errors are swallowed on purpose: a malformed board shows no chip (nothing to
  *   toggle), and the create-click handler owns surfacing the real error;

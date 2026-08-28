@@ -2938,11 +2938,12 @@ const HeroSelectLobby = ({
               <Text {...STRIP_LBL}>STAGE</Text>
               {/* Wrapped grid, not a scroll strip (#685): every board — plus the
                   Random and Custom tiles — has to be reachable without a
-                  horizontal scroll, or the tail of the catalog (The Bog) is
-                  invisible. Boards the current format can't host are hidden
-                  outright rather than dimmed with a reason: with the strip
-                  wrapped, a row of greyed-out cards is just noise, and the
-                  format chips above already say how many seats are needed. */}
+                  horizontal scroll, or the tail of the catalog (Wedding
+                  Crashers) is invisible. Boards the current format can't host
+                  are hidden outright rather than dimmed with a reason: with
+                  the strip wrapped, a row of greyed-out cards is just noise,
+                  and the format chips above already say how many seats are
+                  needed. */}
               <Flex gap="0.5rem" flexWrap="wrap" pb="0.25rem" flex="1">
                 {/* Random — resolves at create time from the format's pool. */}
                 <Box

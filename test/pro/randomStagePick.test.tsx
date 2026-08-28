@@ -134,11 +134,13 @@ describe("Random stage tile", () => {
     // duel: everything is eligible, including the two duel-only boards
     expect(screen.getByLabelText("The Bog")).toBeInTheDocument();
     expect(screen.getByLabelText("USCSS Nostromo")).toBeInTheDocument();
+    expect(screen.getByLabelText("Wedding Crashers")).toBeInTheDocument();
     expect(screen.queryByText(/needs \d start slots/)).not.toBeInTheDocument();
 
     await click(screen.getByRole("button", { name: "2v2" }));
     expect(screen.queryByLabelText("The Bog")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("USCSS Nostromo")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Wedding Crashers")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Island of Despair")).toBeInTheDocument();
     // Random survives the format switch — it's eligible everywhere
     expect(screen.getByLabelText(/^Random board/)).toHaveAttribute("aria-pressed", "true");
@@ -146,10 +148,10 @@ describe("Random stage tile", () => {
 
   it("rolls every board in the 1v1 pool, and nothing outside it", async () => {
     const pool = randomMapPool("duel").map((e) => e.id);
-    expect(pool).toHaveLength(8); // all eight authored boards seat <= 4 players
+    expect(pool).toHaveLength(9); // all nine authored boards seat <= 4 players
     const rolls: string[] = [];
     // One rng value per pool slot, nudged off the boundary, so the sweep both
-    // stays inside the pool AND actually reaches all eight boards.
+    // stays inside the pool AND actually reaches all nine boards.
     for (let i = 0; i < pool.length; i++) {
       jest.spyOn(Math, "random").mockReturnValue((i + 0.5) / pool.length);
       FakeWebSocket.reset();
@@ -162,7 +164,7 @@ describe("Random stage tile", () => {
       document.body.innerHTML = "";
     }
     expect(rolls).toEqual(pool);
-    // Eight full page mounts: slow on purpose (this is the REAL create flow),
+    // Nine full page mounts: slow on purpose (this is the REAL create flow),
     // and well past Jest's 5s default once coverage instrumentation is on.
   }, 60_000);
 
@@ -181,7 +183,7 @@ describe("Random stage tile", () => {
   });
 
   it("names the rolled board in the lobby, not 'Random'", async () => {
-    jest.spyOn(Math, "random").mockReturnValue(0.4); // → Polus, the 4th of 8
+    jest.spyOn(Math, "random").mockReturnValue(0.4); // → Polus, the 4th of 9
     const ws = await mountPicker();
     await createRoom();
     await act(async () => {

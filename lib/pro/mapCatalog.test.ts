@@ -21,6 +21,7 @@ import weathertopJson from "./fixtures/weathertop.map.json";
 import countsCastleJson from "./fixtures/counts-castle.map.json";
 import uscssNostromoJson from "./fixtures/uscss-nostromo.map.json";
 import theBogJson from "./fixtures/the-bog.map.json";
+import weddingCrashersJson from "./fixtures/wedding-crashers.map.json";
 
 const island = catalogEntry("island-of-despair")!;
 const mendedDrum = catalogEntry("mended-drum")!;
@@ -30,6 +31,7 @@ const weathertop = catalogEntry("weathertop")!;
 const countsCastle = catalogEntry("counts-castle")!;
 const nostromo = catalogEntry("uscss-nostromo")!;
 const theBog = catalogEntry("the-bog")!;
+const weddingCrashers = catalogEntry("wedding-crashers")!;
 const arena = catalogEntry("multiplayer-arena-playtest")!;
 
 describe("map catalog", () => {
@@ -43,6 +45,7 @@ describe("map catalog", () => {
       "counts-castle",
       "uscss-nostromo",
       "the-bog",
+      "wedding-crashers",
       "multiplayer-arena-playtest",
     ]);
     expect(arena.title).toBe("Playtest Arena (synthetic)");
@@ -102,6 +105,18 @@ describe("map catalog", () => {
       expect(mapEligibleForFormat(theBog.map, "team-2v2")).toBe(false);
       expect(ineligibleReason(theBog.map, "ffa-3")).toBe("needs 3 start slots");
       expect(ineligibleReason(theBog.map, "team-2v2")).toBe("needs 4 start slots");
+    });
+
+    it("Wedding Crashers is duel-only via the printed slots 1&2 fallback", () => {
+      // no authored supportedFormats — the board prints start slots 1 and 2, so
+      // the server's own duel fallback is what makes it eligible.
+      expect((weddingCrashers.map as CatalogMap).supportedFormats).toBeUndefined();
+      expect(eligibleFormats(weddingCrashers.map)).toEqual(["duel"]);
+      expect(mapEligibleForFormat(weddingCrashers.map, "duel")).toBe(true);
+      expect(mapEligibleForFormat(weddingCrashers.map, "ffa-3")).toBe(false);
+      expect(mapEligibleForFormat(weddingCrashers.map, "team-2v2")).toBe(false);
+      expect(ineligibleReason(weddingCrashers.map, "ffa-3")).toBe("needs 3 start slots");
+      expect(ineligibleReason(weddingCrashers.map, "team-2v2")).toBe("needs 4 start slots");
     });
 
     it("The Mended Drum is duel-only via the printed slots 1&2 fallback", () => {
@@ -179,11 +194,11 @@ describe("map catalog", () => {
 /**
  * The Random tile (#685) resolves at room-create time. The 1v1 pool is bounded
  * by the board's own `meta.maxPlayers`, NOT by a curated list: every catalog
- * board today is 2/2 or 2/4, so all eight are rollable for a duel, and a future
+ * board today is 2/2 or 2/4, so all nine are rollable for a duel, and a future
  * board authored for more than four players drops out on its own metadata.
  */
 describe("random board pool", () => {
-  it("duel rolls every visible board — all eight are <= 4 players", () => {
+  it("duel rolls every visible board — all nine are <= 4 players", () => {
     expect(randomMapPool("duel").map((e) => e.id)).toEqual([
       "mended-drum",
       "island-of-despair",
@@ -193,6 +208,7 @@ describe("random board pool", () => {
       "counts-castle",
       "uscss-nostromo",
       "the-bog",
+      "wedding-crashers",
     ]);
     // the big four are IN the pool — the "(1-4)" bound is a player count
     for (const id of ["weathertop", "counts-castle", "uscss-nostromo", "the-bog"]) {
@@ -276,8 +292,8 @@ describe("random board pool", () => {
     // Mended Drum is the server-default board — rolling it must still send nothing
     expect(customMapForEntry(rollRandomMap("duel", () => 0))).toBeUndefined();
     const lastRoll = rollRandomMap("duel", () => 0.99);
-    expect(lastRoll.id).toBe("the-bog");
-    expect(customMapForEntry(lastRoll)!.id).toBe("the-bog");
+    expect(lastRoll.id).toBe("wedding-crashers");
+    expect(customMapForEntry(lastRoll)!.id).toBe("wedding-crashers");
   });
 });
 
@@ -647,10 +663,124 @@ describe("the-bog fixture", () => {
 });
 
 /**
+ * Wedding Crashers (#727) — the first catalog board that prints battlefield
+ * items, and so the first reachable board for the 🎁 ITEMS chip and the
+ * `CREATE_ROOM.itemsEnabled` opt-out (#725 ↔ engine #519).
+ *
+ * The shipped file is the REPAIRED board: `components/MapEditor/schemeItems.test.ts`
+ * pins it byte-for-byte against what the map editor emits from the reporter's
+ * original export, so there is one committed copy and no second one to drift.
+ * These tests guard the half that file cannot see — that the catalog ships it,
+ * that its items survive catalog load, and that none of them is the `ops: []`
+ * shape the server answers `BAD_MAP` on.
+ */
+describe("wedding-crashers fixture", () => {
+  const spaces = weddingCrashersJson.spaces as Array<{
+    id: string;
+    zones: string[];
+    adjacentTo: string[];
+    item?: string;
+    start?: { slot: number };
+  }>;
+
+  /** The four printed items, `space -> item`. */
+  const PRINTED_ITEMS: Record<string, string> = {
+    s2: "item1", // Rose Bouquet (combat 2)
+    s5: "item3", // Hand Gun (combat 1)
+    s13: "item4", // Wedding Gifts (scheme: search discard)
+    s16: "item2", // Wedding Cake (scheme: heal 2)
+  };
+
+  it("normalizes clean (engine-native pass-through)", () => {
+    const map = normalizeMap(weddingCrashersJson);
+    expect(map.id).toBe("wedding-crashers");
+    expect(map.meta.title).toBe("Wedding Crashers");
+    expect(map.spaces).toHaveLength(29);
+    const slots = new Set(map.spaces.flatMap((s) => (s.start ? [s.start.slot] : [])));
+    expect(slots).toEqual(new Set([1, 2]));
+  });
+
+  it("maps the two start slots to the expected spaces (s8/s26)", () => {
+    const slotOf = (slot: number) => spaces.find((s) => s.start?.slot === slot)?.id;
+    expect(slotOf(1)).toBe("s8");
+    expect(slotOf(2)).toBe("s26");
+  });
+
+  it("carries all four items through catalog load, each on its printed space", () => {
+    // the board the picker actually ships as `customMap` — not a re-parse
+    const map = customMapForEntry(weddingCrashers)!;
+    expect((map.items ?? []).map((i) => i.id)).toEqual(["item1", "item2", "item3", "item4"]);
+
+    const placed = Object.fromEntries(
+      map.spaces.filter((s) => s.item).map((s) => [s.id, s.item]),
+    );
+    expect(placed).toEqual(PRINTED_ITEMS);
+    // every declared item is spawned exactly once — the raw reporter export left
+    // item4 unplaced, which the engine rejects as dead content (#693).
+    expect(new Set(Object.values(placed))).toEqual(new Set((map.items ?? []).map((i) => i.id)));
+  });
+
+  it("ships the REPAIRED items — no scheme item with the BAD_MAP `ops: []`", () => {
+    const items = customMapForEntry(weddingCrashers)!.items ?? [];
+    const schemes = items.filter((i) => i.kind === "scheme");
+    expect(schemes.map((i) => i.id)).toEqual(["item2", "item4"]);
+    for (const item of schemes) {
+      expect(Array.isArray(item.ops) && item.ops.length > 0).toBe(true);
+      expect(item.text).toEqual(expect.any(String));
+      expect(item.text).not.toBe("");
+    }
+    // the combat pair is untouched by the repair
+    expect(items.filter((i) => i.kind === "combat").map((i) => [i.id, i.value])).toEqual([
+      ["item1", 2],
+      ["item3", 1],
+    ]);
+  });
+
+  it("declares 7 zones, 6 of them printed on the board", () => {
+    const map = normalizeMap(weddingCrashersJson);
+    expect(map.zones).toHaveLength(7);
+    const used = new Set(spaces.flatMap((s) => s.zones));
+    // z7 is an unused leftover from the author's palette — harmless (the engine
+    // accepted this board in the #693 live check), pinned here so a future
+    // cleanup is a deliberate edit rather than a surprise.
+    expect(new Set(map.zones.map((z) => z.id))).toEqual(new Set([...used, "z7"]));
+    expect(used).toEqual(new Set(["z1", "z2", "z3", "z4", "z5", "z6"]));
+  });
+
+  it("has a fully symmetric, fully connected adjacency graph (no arrows)", () => {
+    const byId = new Map(spaces.map((s) => [s.id, s]));
+    for (const s of byId.values()) {
+      for (const to of s.adjacentTo) {
+        expect(byId.get(to)?.adjacentTo).toContain(s.id);
+      }
+    }
+    const seen = new Set(["s1"]);
+    const queue = ["s1"];
+    while (queue.length) {
+      for (const to of byId.get(queue.shift()!)!.adjacentTo) {
+        if (!seen.has(to)) (seen.add(to), queue.push(to));
+      }
+    }
+    expect(seen.size).toBe(29);
+  });
+
+  it("serves its board image from the repo (no third-party host)", () => {
+    // it shipped pointing at i.ibb.co — a lobby board must not lose its tile to
+    // someone else's CDN (#727).
+    expect(weddingCrashersJson.meta.imageUrl).toBe(
+      "https://unbrewed.xyz/maps/community-wedding-crashers.webp",
+    );
+    expect(weddingCrashers.thumbnailUrl).toBe(weddingCrashersJson.meta.imageUrl);
+  });
+});
+
+/**
  * mapHasItems (#725 ↔ engine #519) — the gate for the lobby's 🎁 ITEMS chip and
  * the CREATE_ROOM.itemsEnabled opt-out. The load-bearing property is that every
- * shipped board, the Random tile, and any garbage in the paste box read FALSE:
- * hidden chip ⇒ absent field ⇒ the create flow stays byte-identical to today.
+ * item-less shipped board, the Random tile, and any garbage in the paste box
+ * read FALSE: hidden chip ⇒ absent field ⇒ a create on an item-less board stays
+ * byte-identical. Wedding Crashers (#727) is the first catalog board that reads
+ * TRUE — the chip's first reachable board through the picker.
  */
 describe("mapHasItems — the 🎁 ITEMS chip gate (#725)", () => {
   /** A minimal engine-native board carrying one combat + one scheme item. */
@@ -669,9 +799,16 @@ describe("mapHasItems — the 🎁 ITEMS chip gate (#725)", () => {
     ],
   };
 
-  it("is false for every shipped catalog board — none carries items", () => {
-    for (const entry of MAP_CATALOG) {
+  it("is TRUE for Wedding Crashers — the catalog's item board (#727)", () => {
+    expect(mapHasItems("wedding-crashers", "")).toBe(true);
+    // and it is the entry's OWN items array doing it, not the paste box
+    expect(weddingCrashers.map.items).toHaveLength(4);
+  });
+
+  it("is false for every other shipped catalog board — none carries items", () => {
+    for (const entry of MAP_CATALOG.filter((e) => e.id !== "wedding-crashers")) {
       expect(mapHasItems(entry.id, "")).toBe(false);
+      expect(entry.map.items ?? []).toHaveLength(0);
     }
   });
 
