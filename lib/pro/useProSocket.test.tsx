@@ -703,6 +703,76 @@ describe("useProSocket — mulligan opt-out wire (issue #631)", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Battlefield items opt-out (issue #725, engine #519). Same load-bearing shape
+// as mulligan: items are printed on the map, so ON is the default and only an
+// explicit opt-out may grow the CREATE_ROOM frame — and the caller (the lobby)
+// passes the flag only when the chosen board carries items at all.
+// ---------------------------------------------------------------------------
+
+describe("useProSocket — items opt-out wire (issue #725)", () => {
+  const realWS = global.WebSocket;
+  beforeEach(() => {
+    // @ts-expect-error — swap in the fake for the test
+    global.WebSocket = FakeWebSocket;
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+  });
+  afterEach(() => {
+    global.WebSocket = realWS;
+    FakeWebSocket.last = null;
+  });
+
+  const boot = () => {
+    const hook = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    return { hook, ws };
+  };
+
+  const created = (ws: FakeWebSocket) =>
+    ws.sent.map((raw) => JSON.parse(raw)).find((m) => m.type === "CREATE_ROOM");
+
+  it("sends itemsEnabled: false only when the creator turns items off", () => {
+    const { hook, ws } = boot();
+    act(() => hook.result.current.createRoom("hero-a", undefined, undefined, "duel", [], 0, undefined, undefined, false));
+    expect(created(ws).itemsEnabled).toBe(false);
+  });
+
+  it("omits the key for a default room (items on) — byte-identical to today", () => {
+    const { hook, ws } = boot();
+    act(() => hook.result.current.createRoom("hero-a", undefined, undefined, "duel", [], 0, undefined, undefined, true));
+    expect("itemsEnabled" in created(ws)).toBe(false);
+
+    ws.sent.length = 0;
+    act(() => hook.result.current.createRoom("hero-a")); // arg omitted entirely
+    expect("itemsEnabled" in created(ws)).toBe(false);
+  });
+
+  it("rides alongside the mulligan opt-out and a move timer", () => {
+    const { hook, ws } = boot();
+    act(() =>
+      hook.result.current.createRoom("hero-a", undefined, undefined, "duel", [], 30, false, undefined, false),
+    );
+    expect(created(ws)).toMatchObject({ turnTimerSeconds: 30, mulligan: false, itemsEnabled: false });
+  });
+
+  it("leaves a quickMatch room untouched — its rolled board was never offered the chip", () => {
+    const { hook, ws } = boot();
+    act(() => hook.result.current.createRoom("hero-a", undefined, undefined, "duel", [], 0, undefined, true));
+    expect(created(ws).quickMatch).toBe(true);
+    expect("itemsEnabled" in created(ws)).toBe(false);
+  });
+
+  it("never puts the flag on JOIN_ROOM — it is creator-only room config", () => {
+    const { hook, ws } = boot();
+    act(() => hook.result.current.joinRoom("R1", "hero-b"));
+    const join = ws.sent.map((raw) => JSON.parse(raw)).find((m) => m.type === "JOIN_ROOM");
+    expect(join).toBeDefined();
+    expect("itemsEnabled" in join).toBe(false);
+  });
+});
+
 /**
  * Optional player identity on the wire (issue #568, engine #344).
  *
