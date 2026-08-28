@@ -627,7 +627,16 @@ export const ProDock = ({
                     <DockTokenFace face={fighterFace(a.target)} />
                   </Flex>
                 )}
-                <Text as="span">{describe(a)}</Text>
+                {/* USE_SCHEME_ITEM carries the item's whole effect sentence in its
+                    label (p2p #731) — one line, ellipsized when narrow, with the
+                    full text kept in the native title so it stays reachable. */}
+                {a.type === "USE_SCHEME_ITEM" ? (
+                  <Text as="span" noOfLines={1} title={describe(a)}>
+                    {describe(a)}
+                  </Text>
+                ) : (
+                  <Text as="span">{describe(a)}</Text>
+                )}
                 {isExtendedReach(a) && (
                   <Tooltip label={LARGE_FIGHTER_BLURB} hasArrow placement="top" openDelay={150}>
                     <Tag
@@ -847,6 +856,9 @@ export const ProDock = ({
                 overflow="hidden"
                 pointerEvents="auto"
                 onClick={() => onAction(primary)}
+                // the pill truncates; the native title keeps whatever got cut
+                // (e.g. a scheme item's effect sentence, p2p #731) reachable
+                title={describe(primary)}
               >
                 <Text as="span" noOfLines={1}>
                   {describe(primary)}

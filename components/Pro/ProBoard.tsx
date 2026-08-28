@@ -11,7 +11,7 @@ import { Box, Button, Flex, Text, chakra, shouldForwardProp } from "@chakra-ui/r
 import { keyframes } from "@emotion/react";
 import { isValidMotionProp, motion, useReducedMotion } from "framer-motion";
 import { MutableRefObject, PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
-import { FighterId, PlayerId, ProMapDef, ProMapItem, ProMapRegion, ProMapSpace, SpaceId, ViewFighter, ViewToken } from "@/lib/pro/protocol";
+import { FighterId, PlayerId, ProMapDef, ProMapRegion, ProMapSpace, SpaceId, ViewFighter, ViewToken } from "@/lib/pro/protocol";
 import { BoardFxItem } from "@/lib/pro/useGameFx";
 import { TokenGestures, usePageHidden } from "@/lib/pro/tokenLife";
 import { ZoomPanInset, useZoomPan } from "@/lib/pro/useZoomPan";
@@ -19,7 +19,7 @@ import { LARGE_REACH_TARGET_BLURB } from "@/lib/pro/largeReach";
 import { PendingSwap, SWAP_SECONDS, SWAP_TIMES } from "@/lib/pro/positionSwap";
 import { tokenInitials } from "./FighterTokenPortrait";
 import { TokenIdle, TokenLifeLayer, phaseSeed } from "./TokenLifeLayer";
-import { ItemBadge, PassageBadge } from "./ItemBadge";
+import { ItemInspectBadge, PassageBadge } from "./ItemBadge";
 import type { FlagTokenBadge } from "@/lib/pro/heroStateFlags";
 import { fighterStatusBadgesFor } from "@/lib/pro/fighterStatuses";
 import {
@@ -37,21 +37,6 @@ import {
 import { useFlag } from "@/lib/flags";
 import type { CosmeticRimTier } from "@/lib/pro/cosmetics";
 import { COSMETIC_RIM_MIN_PX, FighterTokenRim } from "./FighterTokenRim";
-
-/**
- * Hover/long-press tooltip for a live item token, per the official wording.
- *
- * Combat items describe themselves from `value`. Scheme items can't — their `ops`
- * is server-side DSL the client never interprets — so p2p #693 added the optional
- * authored `text` and appends it here. Maps written before that (and any advanced
- * item whose author left it blank) keep today's bare label.
- */
-export const itemBadgeTitle = (item: ProMapItem): string => {
-  if (item.kind === "combat")
-    return `${item.label} — +${item.value ?? 0} to a combat card played from this space`;
-  const text = item.text?.trim();
-  return text ? `${item.label} — ${text}` : item.label;
-};
 
 const DEFAULT_DIAMETER = 0.021;
 
@@ -1604,7 +1589,7 @@ export const ProBoard = ({
               sx={{ aspectRatio: "1" }}
               zIndex={5}
             >
-              <ItemBadge kind={item.kind} title={itemBadgeTitle(item)} />
+              <ItemInspectBadge item={item} />
             </Box>
           );
         }

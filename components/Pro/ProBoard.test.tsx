@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
-import { ProBoard, itemBadgeTitle } from "./ProBoard";
+import { ProBoard } from "./ProBoard";
 import { ProMapDef, ViewFighter, ViewToken } from "@/lib/pro/protocol";
 import { __resetFlagsForTest } from "@/lib/flags";
 import { squadBadges } from "@/lib/pro/squadNumbers";
@@ -792,6 +792,106 @@ describe("ProBoard battlefield item + passage badges", () => {
     );
     // s2 and s3 are passage spaces → two keyhole badges, independent of itemTokens.
     expect(screen.getAllByTitle("Secret passage")).toHaveLength(2);
+  });
+});
+
+// Tap-to-inspect (p2p #731): items are open information, and the native title
+// hover is worth nothing on touch (iOS Safari never shows it). The badge itself
+// is now the inspect target — a popover with label, kind and effect text that
+// opens on click/tap — while the space's own click stays untouched.
+describe("ProBoard item badge tap-to-inspect (p2p #731)", () => {
+  const CAKE_MAP: ProMapDef = {
+    ...ITEM_MAP,
+    items: [
+      ITEM_MAP.items![0],
+      { ...ITEM_MAP.items![1], label: "Wedding Cake", text: "Recover 2 health." },
+    ],
+  };
+  const badgeTrigger = () =>
+    document.querySelector('[role="button"][aria-label^="Inspect"]') as HTMLElement;
+
+  it("opens a popover with the label, kind and effect text on tap", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={CAKE_MAP} fighters={[fighter({})]} itemTokens={{ s2: "bomb" }} />
+      </ChakraProvider>
+    );
+    expect(screen.queryByText("Recover 2 health.")).not.toBeInTheDocument(); // closed first
+    fireEvent.click(screen.getByTitle("Wedding Cake — Recover 2 health."));
+    expect(screen.getByText("Wedding Cake")).toBeInTheDocument();
+    expect(screen.getByText("Scheme item")).toBeInTheDocument();
+    expect(screen.getByText("Recover 2 health.")).toBeInTheDocument();
+  });
+
+  it("describes a combat item from its printed value", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={ITEM_MAP} fighters={[fighter({})]} itemTokens={{ s1: "sword" }} />
+      </ChakraProvider>
+    );
+    fireEvent.click(screen.getByTitle("Sword — +2 to a combat card played from this space"));
+    expect(screen.getByText("Sword")).toBeInTheDocument();
+    expect(screen.getByText("Combat item")).toBeInTheDocument();
+    expect(screen.getByText("+2 to a combat card played from this space")).toBeInTheDocument();
+  });
+
+  it("falls back to the label as the effect for a textless scheme item", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={ITEM_MAP} fighters={[fighter({})]} itemTokens={{ s2: "bomb" }} />
+      </ChakraProvider>
+    );
+    fireEvent.click(screen.getByTitle("Bomb"));
+    expect(screen.getByText("Scheme item")).toBeInTheDocument();
+    // label row + effect row both show the label — never an empty effect line
+    expect(screen.getAllByText("Bomb")).toHaveLength(2);
+  });
+
+  it("toggles closed on a second tap", () => {
+    render(
+      <ChakraProvider>
+        <ProBoard map={CAKE_MAP} fighters={[fighter({})]} itemTokens={{ s2: "bomb" }} />
+      </ChakraProvider>
+    );
+    fireEvent.click(screen.getByTitle("Wedding Cake — Recover 2 health."));
+    expect(screen.getByText("Recover 2 health.")).toBeInTheDocument();
+    fireEvent.click(screen.getByTitle("Wedding Cake — Recover 2 health."));
+    expect(screen.queryByText("Recover 2 health.")).not.toBeInTheDocument();
+  });
+
+  it("swallows its own pointerdown, so a tap never seeds a board pan", () => {
+    // The zoomable board's container tracks any pointerdown that reaches it as a
+    // potential drag; the inspect press must not (mirrors the ProHud badge shelf).
+    const outer = jest.fn();
+    render(
+      <ChakraProvider>
+        <div onPointerDown={outer}>
+          <ProBoard map={CAKE_MAP} fighters={[fighter({})]} itemTokens={{ s2: "bomb" }} />
+        </div>
+      </ChakraProvider>
+    );
+    fireEvent.pointerDown(badgeTrigger());
+    expect(outer).not.toHaveBeenCalled();
+  });
+
+  it("keeps the space beneath clickable — inspecting never steps onto it", () => {
+    const onSpaceClick = jest.fn();
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard
+          map={CAKE_MAP}
+          fighters={[fighter({})]}
+          itemTokens={{ s2: "bomb" }}
+          highlightedSpaces={["s2"]}
+          onSpaceClick={onSpaceClick}
+        />
+      </ChakraProvider>
+    );
+    fireEvent.click(badgeTrigger());
+    expect(onSpaceClick).not.toHaveBeenCalled();
+    // the hit-circle under the badge still answers for the space itself
+    fireEvent.click(container.querySelector('[data-space-id="s2"]') as HTMLElement);
+    expect(onSpaceClick).toHaveBeenCalledWith("s2");
   });
 });
 
@@ -1840,26 +1940,5 @@ describe("ProBoard prompt-driven stepping targets (issues #654 / #185)", () => {
     expect(getComputedStyle(screen.getByTitle(/move preview/)).pointerEvents).toBe("none");
     fireEvent.click(circle(container, "s3"));
     expect(onSpaceClick).toHaveBeenCalledWith("s3");
-  });
-});
-
-// itemBadgeTitle is the one place a player learns what a scheme item does, so it
-// is asserted directly as well as through the board (p2p #693).
-describe("itemBadgeTitle", () => {
-  it("describes a combat item from its printed value", () => {
-    expect(itemBadgeTitle({ id: "i", kind: "combat", label: "Sword", value: 2 })).toBe(
-      "Sword — +2 to a combat card played from this space"
-    );
-  });
-  it("appends a scheme item's effect text", () => {
-    expect(
-      itemBadgeTitle({ id: "i", kind: "scheme", label: "Wedding Gifts", text: "Return a card from your discard pile to your hand." })
-    ).toBe("Wedding Gifts — Return a card from your discard pile to your hand.");
-  });
-  it("falls back to the bare label for maps written before the field existed", () => {
-    expect(itemBadgeTitle({ id: "i", kind: "scheme", label: "Bomb", ops: [] as never })).toBe("Bomb");
-  });
-  it("ignores a whitespace-only text rather than printing a dangling dash", () => {
-    expect(itemBadgeTitle({ id: "i", kind: "scheme", label: "Bomb", text: "   " })).toBe("Bomb");
   });
 });

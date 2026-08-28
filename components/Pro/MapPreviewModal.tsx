@@ -13,6 +13,8 @@
 import { Box, Flex, Image, Modal, ModalBody, ModalCloseButton, ModalContent, ModalHeader, ModalOverlay, Tag, Text } from "@chakra-ui/react";
 import type { MapCatalogEntry } from "@/lib/pro/mapCatalog";
 import { FORMAT_BADGE, eligibleFormats } from "@/lib/pro/mapCatalog";
+import { ItemBadge } from "./ItemBadge";
+import { itemBadgeTitle } from "@/lib/pro/itemInfo";
 
 export interface MapPreviewModalProps {
   isOpen: boolean;
@@ -37,7 +39,8 @@ export const MapPreviewModal = ({ isOpen, onClose, entry }: MapPreviewModalProps
   // 🎁 items (#725): boards that print battlefield items say so beside their
   // format pills. Wedding Crashers (#727) is the first catalog board to print
   // them; any later item board lights the tag up automatically.
-  const hasItems = !!entry && (entry.map.items?.length ?? 0) > 0;
+  const items = entry?.map.items ?? [];
+  const hasItems = items.length > 0;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="4xl" isCentered scrollBehavior="inside">
@@ -93,6 +96,35 @@ export const MapPreviewModal = ({ isOpen, onClose, entry }: MapPreviewModalProps
             <Text opacity={0.6} fontSize="0.85rem">
               No image available for this board.
             </Text>
+          )}
+
+          {/* Items are open information (p2p #731): a player reads what the
+              board's items do HERE, before creating a room — same badge glyph
+              the board will draw, same effect text the dock and the tap-to-
+              inspect popover will print (lib/pro/itemInfo). */}
+          {hasItems && (
+            <Box mt="1rem">
+              <Text
+                fontFamily="SpaceGrotesk"
+                fontSize="0.72rem"
+                letterSpacing="0.06em"
+                textTransform="uppercase"
+                opacity={0.7}
+                mb="0.4rem"
+              >
+                🎁 Battlefield items
+              </Text>
+              <Flex direction="column" gap="0.4rem" fontSize="0.85rem">
+                {items.map((it) => (
+                  <Flex key={it.id} align="flex-start" gap="0.5rem">
+                    <Box boxSize="1.1rem" flexShrink={0} mt="0.1rem" title={itemBadgeTitle(it)}>
+                      <ItemBadge kind={it.kind} />
+                    </Box>
+                    <Text lineHeight={1.35}>{itemBadgeTitle(it)}</Text>
+                  </Flex>
+                ))}
+              </Flex>
+            </Box>
           )}
 
           {attribution.length > 0 && (
