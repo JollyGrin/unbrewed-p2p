@@ -10,8 +10,24 @@
  * The versatile + scheme glyph paths are copied VERBATIM from the card-factory
  * `IconSvg` (components/CardFactory/IconSvg.tsx) so the board badge and the printed
  * card icon can never drift. Callers size + position the badge; this only draws it.
+ *
+ * `ItemInspectBadge` additionally makes the badge TAP-TO-INSPECT (p2p #731):
+ * items are open information — both players may read them at any time, from any
+ * device — so the badge opens a small popover (label + kind + effect text) that
+ * works for pointer AND touch, where the native `title` hover is worth nothing.
  */
-import { Box } from "@chakra-ui/react";
+import {
+  Box,
+  Portal,
+  Popover,
+  PopoverArrow,
+  PopoverBody,
+  PopoverContent,
+  PopoverTrigger,
+  Text,
+} from "@chakra-ui/react";
+import type { ProMapItem } from "@/lib/pro/protocol";
+import { itemBadgeTitle, itemEffectText, itemKindLabel } from "@/lib/pro/itemInfo";
 
 export type ItemBadgeKind = "combat" | "scheme";
 
@@ -62,6 +78,72 @@ export const ItemBadge = ({ kind, title }: { kind: ItemBadgeKind; title?: string
   >
     <ItemGlyph kind={kind} />
   </Box>
+);
+
+/** The board's LIVE item badge, made tap-to-inspect (p2p #731). Items are open
+ *  information — inspectable by both players, at any time, from any device — so
+ *  the badge itself is the inspect target, not just a hoverable `title` (which
+ *  iOS Safari never shows at all). Fills its positioned parent exactly like the
+ *  plain badge; callers keep sizing/positioning it (see ProBoard's item layer).
+ *
+ *  The popover prints label + kind + effect text from the shared lib/pro/itemInfo
+ *  derivations, so what a player reads here can never drift from the dock row
+ *  or the map preview. Works for pointer AND touch: click/tap opens, click
+ *  outside or Esc closes. */
+export const ItemInspectBadge = ({ item }: { item: ProMapItem }) => (
+  <Popover placement="bottom" isLazy>
+    <PopoverTrigger>
+      <Box
+        w="100%"
+        h="100%"
+        cursor="pointer"
+        role="button"
+        tabIndex={0}
+        aria-label={`Inspect ${item.label} (${itemKindLabel(item.kind)})`}
+        // A press on the badge is an inspect, never the seed of a board pan —
+        // the zoomable board's container is an ancestor and would otherwise
+        // track this pointer as a potential drag (same swallow the ProHud badge
+        // cluster takes against its plate drag).
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <ItemBadge kind={item.kind} title={itemBadgeTitle(item)} />
+      </Box>
+    </PopoverTrigger>
+    {/* Portalled: the zoomable board clips its own overflow and takes the
+        portrait quarter-turn (#708), so an in-place popover could be cut off at
+        the board's edge or drawn sideways. Out here it always reads upright. */}
+    <Portal>
+      <PopoverContent
+        w="auto"
+        maxW="min(78vw, 18rem)"
+        bg="brand.surfaceDim"
+        color="brand.parchment"
+        borderColor="rgba(231, 204, 152, 0.25)"
+        boxShadow="0 8px 20px rgba(0, 0, 0, 0.55)"
+      >
+        <PopoverArrow bg="brand.surfaceDim" />
+        <PopoverBody p="0.55rem">
+          <Text
+            fontFamily="SpaceGrotesk"
+            fontWeight={700}
+            letterSpacing="0.02em"
+            fontSize="0.95rem"
+            lineHeight={1.2}
+          >
+            {item.label}
+          </Text>
+          <Text fontSize="0.68rem" opacity={0.7} mb="0.25rem">
+            {itemKindLabel(item.kind)}
+          </Text>
+          {/* Scheme items authored before `text` existed (or left blank) fall
+              back to the label — the badge never shows an empty effect line. */}
+          <Text fontSize="0.85rem" lineHeight={1.35}>
+            {itemEffectText(item) ?? item.label}
+          </Text>
+        </PopoverBody>
+      </PopoverContent>
+    </Portal>
+  </Popover>
 );
 
 /** A keyhole badge for a secret-passage space (engine #156). */

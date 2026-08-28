@@ -35,6 +35,7 @@ import {
   PlayerId,
   PlayerView,
   ProMapDef,
+  ProMapItem,
   ReplayBundle,
   SpaceId,
   ViewCombat,
@@ -5457,9 +5458,11 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // itemTokens + the offered attachItem commit variants). We never re-derive item
   // legality — the badge/label/attach control only surface what the server sent.
   const itemDefById = new Map((view.map.items ?? []).map((it) => [it.id, it]));
-  const liveItemLabel = (space: SpaceId): string | undefined => {
+  // Open information (p2p #731): the dock's "Use <label> — <effect>" row reads
+  // the whole item def off the same live token map the badge does.
+  const liveItemForSpace = (space: SpaceId): ProMapItem | undefined => {
     const id = view.itemTokens?.[space];
-    return (id ? itemDefById.get(id) : undefined)?.label;
+    return id ? itemDefById.get(id) : undefined;
   };
   // The COMBAT item the viewer may attach on THIS commit: the one on the committing
   // fighter's space (the attacker if we're attacking, else the target we're
@@ -5625,7 +5628,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       hasPrompt={!!prompt}
       rows={dockActionRows}
       soleAction={sole}
-      describe={(a) => describeAction(view.catalog, a, { nameOf, attackerBadge, itemLabelForSpace: liveItemLabel })}
+      describe={(a) => describeAction(view.catalog, a, { nameOf, attackerBadge, itemForSpace: liveItemForSpace })}
       isExtendedReach={isExtendedReach}
       rangePurchaseChip={rangePurchaseChip}
       fighterFace={fighterFace}
