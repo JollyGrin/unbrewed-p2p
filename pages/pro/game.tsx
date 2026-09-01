@@ -580,6 +580,26 @@ const HiddenRevealBack = () => (
   </Flex>
 );
 
+/** A deck's cardback filling the combat-slot card frame; the gold "?" back when
+ *  the deck has no cardback art. */
+const CardBackFace = ({ url }: { url?: string }) =>
+  url ? (
+    <Box
+      w="100%"
+      h="100%"
+      borderRadius="0.5rem"
+      border="1px solid"
+      borderColor="whiteAlpha.400"
+      bgImage={`url("${url}")`}
+      bgSize="cover"
+      bgPos="center"
+      boxShadow="0 2px 8px rgba(0,0,0,0.5)"
+      aria-label="face-down card"
+    />
+  ) : (
+    <HiddenRevealBack />
+  );
+
 /**
  * Shared card-callout primitive (issue #380). A card face that rises to center
  * screen, holds, then drifts up and fades — the motion the scheme reveal and the
@@ -1136,6 +1156,7 @@ const CombatSlot = ({
   facedownInstance,
   facedownState,
   catalog,
+  cardbackUrl,
   revealDelay = "0s",
   strikeAnimation,
   strikeVars,
@@ -1151,6 +1172,9 @@ const CombatSlot = ({
   facedownInstance: CardInstanceId | null;
   facedownState: "committed" | "deciding" | "none";
   catalog: Record<string, CardMeta>;
+  /** the committing player's deck cardback, shown while their card is committed
+   *  but unrevealed (#735); undefined ⇒ the gold "?" HiddenRevealBack fallback. */
+  cardbackUrl?: string;
   revealDelay?: string;
   /** strike beat (#381): a lunge/knockback animation applied to the card box, plus
    *  --kb/--tilt vars scaling the defense knockback with damage. */
@@ -1178,21 +1202,9 @@ const CombatSlot = ({
       style={strikeVars}
       sx={{ aspectRatio: "63 / 88", ...(strikeAnimation ? NO_MOTION : {}) }}
     >
-      {card ? (
-        // keyed by instance: mounts fresh at reveal, so the flip plays exactly once
-        <Box
-          key={card.instance}
-          w="100%"
-          h="100%"
-          animation={`${flipIn} 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.1) ${revealDelay} both`}
-        >
-          {isSubAttackCard(card.instance) ? (
-            <SubAttackFace title={subAttackFace?.title} note={subAttackFace?.note} />
-          ) : (
-            <CardFace card={resolveCard(card.instance)} fallback={cardLabel(catalog, card.instance)} />
-          )}
-        </Box>
-      ) : facedownInstance ? (
+      {facedownInstance ? (
+        // own committed instance: YOUR card shows its face — you know what you
+        // played; only the opponent's commit is hidden from you.
         <Box position="relative" w="100%" h="100%">
           <CardFace
             card={resolveCard(facedownInstance)}
@@ -1203,20 +1215,72 @@ const CombatSlot = ({
           </Tag>
         </Box>
       ) : (
-        <Flex
-          w="100%"
-          h="100%"
-          bg={facedownState === "committed" ? "brand.surface" : "transparent"}
-          border="1px dashed"
-          borderColor="whiteAlpha.400"
-          borderRadius="0.5rem"
-          alignItems="center"
-          justifyContent="center"
-        >
-          <Text fontSize="0.7rem" opacity={0.6}>
-            {facedownState === "committed" ? "face-down" : facedownState === "deciding" ? "deciding…" : "no card"}
-          </Text>
-        </Flex>
+        // Two-layer 3D flip (#735): back = the committing player's deck cardback
+        // while a card is committed (dashed placeholder otherwise), front = the
+        // revealed face. The container stays mounted across commit → reveal, so
+        // the rotation transition IS the flip — no remount keyframe. On initial
+        // mount with a card already revealed (e.g. a sub-attack arriving face up)
+        // no transition fires; the face just shows. When a new combat opens, the
+        // next committed card visibly flips back over (180°→0°).
+        <Box w="100%" h="100%" sx={{ perspective: "600px" }}>
+          <Box
+            position="relative"
+            w="100%"
+            h="100%"
+            transform={card ? "rotateY(180deg)" : "rotateY(0deg)"}
+            transition={`transform 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.1) ${revealDelay}`}
+            sx={{
+              transformStyle: "preserve-3d",
+              "@media (prefers-reduced-motion: reduce)": { transition: "none !important" },
+            }}
+          >
+            {/* back layer: cardback while committed, dashed placeholder otherwise */}
+            <Box position="absolute" inset={0} sx={{ backfaceVisibility: "hidden" }}>
+              {facedownState === "committed" ? (
+                <Box position="relative" w="100%" h="100%">
+                  <CardBackFace url={cardbackUrl} />
+                  <Tag
+                    position="absolute"
+                    top="-0.4rem"
+                    left="50%"
+                    transform="translateX(-50%)"
+                    size="sm"
+                  >
+                    face-down
+                  </Tag>
+                </Box>
+              ) : (
+                <Flex
+                  w="100%"
+                  h="100%"
+                  border="1px dashed"
+                  borderColor="whiteAlpha.400"
+                  borderRadius="0.5rem"
+                  alignItems="center"
+                  justifyContent="center"
+                >
+                  <Text fontSize="0.7rem" opacity={0.6}>
+                    {facedownState === "deciding" ? "deciding…" : "no card"}
+                  </Text>
+                </Flex>
+              )}
+            </Box>
+            {/* front layer: the revealed face (or sub-attack synthetic face) */}
+            <Box
+              position="absolute"
+              inset={0}
+              transform="rotateY(180deg)"
+              sx={{ backfaceVisibility: "hidden" }}
+            >
+              {card &&
+                (isSubAttackCard(card.instance) ? (
+                  <SubAttackFace title={subAttackFace?.title} note={subAttackFace?.note} />
+                ) : (
+                  <CardFace card={resolveCard(card.instance)} fallback={cardLabel(catalog, card.instance)} />
+                ))}
+            </Box>
+          </Box>
+        </Box>
       )}
     </Box>
     {card && (
@@ -1385,6 +1449,8 @@ const CombatPanel = ({
   resolveCard,
   you,
   selfCommitted,
+  attackerCardbackUrl,
+  defenderCardbackUrl,
   strike,
   valueFx,
   clashRef,
@@ -1397,6 +1463,11 @@ const CombatPanel = ({
   resolveCard: ResolveCard;
   you: PlayerView["you"];
   selfCommitted: CardInstanceId | null;
+  /** each side's deck cardback for the face-down slot (#735) — resolved by the
+   *  caller from the SAME combat this panel renders (may be the frozen hold
+   *  snapshot, not the live view's). */
+  attackerCardbackUrl?: string;
+  defenderCardbackUrl?: string;
   strike?: CombatStrike | null;
   /** math beat (#382): per-role chips + ticking pill value (undefined ⇒ off). */
   valueFx?: CombatValueFx;
@@ -1514,6 +1585,7 @@ const CombatPanel = ({
           }
           facedownState={attackerCommitted ? "committed" : "deciding"}
           catalog={catalog}
+          cardbackUrl={attackerCardbackUrl}
           subAttackFace={
             chain
               ? { title: chain.label, note: `chain hit ${chain.hit}${chain.max ? ` of up to ${chain.max}` : ""}` }
@@ -1533,6 +1605,7 @@ const CombatPanel = ({
           }
           facedownState={combat.stage === "COMMIT_DEFENSE" ? "deciding" : pastReveal ? "none" : "committed"}
           catalog={catalog}
+          cardbackUrl={defenderCardbackUrl}
           strikeAnimation={defenseAnim}
           strikeVars={strike?.variant === "win" ? strikeKnockVars(strike.damage) : undefined}
           valueFx={valueFx?.DEFENSE}
@@ -5538,6 +5611,15 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     onReportBug: () => setReportBugOpen(true),
   };
 
+  // Face-down combat slots show the committing player's deck cardback (#735),
+  // resolved from the SAME combat the panel renders — the frozen hold snapshot
+  // during a strike linger, the live combat otherwise — so the back matches the
+  // cards actually on the table.
+  const panelC = visualOn ? panelCombat : view.combat;
+  const cardbackFor = (pid: PlayerId | undefined): string | undefined => {
+    const heroId = pid ? viewHeroIdOf(view, pid) : null;
+    return heroId ? heroDeckMeta(heroId)?.cardbackUrl : undefined;
+  };
   // The decision dock/sheet, built once and placed by the arrangement: fixed
   // at the right edge on desktop, or inside the mobile bottom container
   // (portrait) / rail (landscape) further down (issue #708).
@@ -5597,6 +5679,8 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
             resolveCard={resolveCard}
             you={view.you}
             selfCommitted={view.self.committedCard}
+            attackerCardbackUrl={cardbackFor(panelC?.attackerPlayer)}
+            defenderCardbackUrl={cardbackFor(panelC?.defenderPlayer)}
             strike={visualOn ? strike : null}
             valueFx={visualOn && !reducedMotion ? combatValueFx : undefined}
             clashRef={clashRef}
