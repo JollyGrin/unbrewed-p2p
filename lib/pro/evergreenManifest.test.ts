@@ -770,6 +770,20 @@ describe("Appa + Momo (jw9q) deck data", () => {
     expect(existsSync(join(DECKS_DIR, "..", cardback.replace(/^\//, "")))).toBe(true);
   });
 
+  it("ships BOTH board token portraits locally", () => {
+    // Without these the board falls back to the "APP"/"MOM" initials and the
+    // promo's cold open flips the cardback onto a blank card (#739). Both are
+    // crops of the author's own PNGs — never generated, never hotlinked.
+    expect(deck.deck_data.hero.tokenImageUrl).toBe("/evergreen-decks/art/appa/token-appa.webp");
+    expect(deck.deck_data.sidekick.tokenImageUrl).toBe("/evergreen-decks/art/appa/token-momo.webp");
+    for (const url of [
+      deck.deck_data.hero.tokenImageUrl as string,
+      deck.deck_data.sidekick.tokenImageUrl as string,
+    ]) {
+      expect(existsSync(join(DECKS_DIR, "..", url.replace(/^\//, "")))).toBe(true);
+    }
+  });
+
   it("leaves NO remote URL in the shipped data but the attribution link", () => {
     // Every payload imageUrl pointed at a hotlinked third-party image (gstatic,
     // pinimg, fbcdn, a school newspaper). Not one may survive here.
