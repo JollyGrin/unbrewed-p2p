@@ -816,4 +816,30 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl: "/evergreen-decks/art/ellen-ripley/cardback.webp",
     sourceUrl: "https://www.the-unmatched.club/c/heroes/ellen-ripley.2304",
   },
+  {
+    // Appa + Momo — unmatched.cards deck jw9q by JBentz (issue #737 ↔ engine
+    // #522/#525). Appa is LARGE with reach and out-zones for +1; Momo is a SMALL
+    // sidekick at move 4. The deck's signature is *Hallucinations*, the second
+    // card ever to emit protocol v34's `COMBAT_DEFENDER_CHANGED` — and the first
+    // to fire it at the OPPONENT's fighters rather than its own.
+    //
+    // A real unmatched.cards page exists, so NO `original` flag: the lobby tile's
+    // attribution deep-links to unmatched.cards/decks/jw9q on its own. Engine
+    // serves the hero at tier `lab` pending the author's playtest, so `lab` drives
+    // the create-screen caution badge and `tier` keeps the deck out of the sandbox
+    // community picker and the invite copy.
+    id: "jw9q",
+    name: "Appa",
+    hero: "Appa",
+    author: "JBentz",
+    likes: 1,
+    // The deep Air Nomad blue sampled off the author's own cardback spiral. The
+    // nearest sibling blues are lighter (#236aa4) or more violet (#3657ae).
+    highlightColour: "#184a88",
+    lab: true,
+    tier: "lab",
+    // Repo-relative (Kenshiro/Skull Kid/Cecil/Boba/Ripley precedent): the author's
+    // own cardback, self-hosted so the tile renders on localhost and preview builds.
+    cardbackUrl: "/evergreen-decks/art/appa/cardback.webp",
+  },
 ];

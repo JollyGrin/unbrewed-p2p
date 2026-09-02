@@ -100,15 +100,51 @@ describe("defenderSwapStillLive", () => {
 describe("defenderSwapText", () => {
   it("words the same fact once for the chip, the tag and the log", () => {
     const copy = defenderSwapText("Ellen Ripley", "Newt");
-    expect(copy.chip).toBe("steps in");
-    expect(copy.tag).toBe("NEWT STEPS IN");
+    expect(copy.chip).toBe("defends instead");
+    expect(copy.tag).toBe("NEWT DEFENDS INSTEAD");
     expect(copy.full).toBe(
-      "Newt steps in as the defender (Ellen Ripley steps back) — the damage lands on Newt"
+      "Newt takes over from Ellen Ripley as the defender — the damage lands on Newt"
     );
   });
 
   it("says where the damage lands, which is the whole point of the event", () => {
     expect(defenderSwapText("Newt", "Ellen Ripley").full).toContain("damage lands on Ellen Ripley");
+  });
+
+  // Issue #737. Ripley's GET BEHIND ME is the DEFENDING seat protecting its own
+  // fighter; Appa's Hallucinations is the ATTACKING seat reaching across the table
+  // and substituting among the OPPONENT's fighters. Same event, opposite agency —
+  // so the one wording must not claim anybody volunteered.
+  it("never implies the new defender chose it — an attacker can force the swap", () => {
+    const copy = defenderSwapText("General Grievous", "Battle Droid 2");
+    for (const text of [copy.chip, copy.tag, copy.full]) {
+      expect(text.toLowerCase()).not.toContain("steps in");
+      expect(text.toLowerCase()).not.toContain("steps back");
+    }
+    expect(copy.full).toBe(
+      "Battle Droid 2 takes over from General Grievous as the defender — the damage lands on Battle Droid 2"
+    );
+  });
+
+  it("survives a name that ends in s — no \"Clone Troopers's\"", () => {
+    // Found in the live pair run: the Clone Troopers hero is NAMED "Clone
+    // Troopers", so any possessive in this sentence reads broken. The wording
+    // therefore carries none.
+    const copy = defenderSwapText("Clone Troopers", "Clone Trooper 1");
+    expect(copy.full).toBe(
+      "Clone Trooper 1 takes over from Clone Troopers as the defender — the damage lands on Clone Trooper 1",
+    );
+    expect(copy.full).not.toContain("'s");
+  });
+
+  it("stays seat-neutral: no viewer-relative pronoun in any of the three surfaces", () => {
+    // The board chip, the panel tag and the log line are all read by BOTH players
+    // (gameLog emits the substitution line as `who: "game"`), and Hallucinations
+    // makes "your"/"their" wrong for one of them whichever way it is written.
+    const copy = defenderSwapText("Appa", "Momo");
+    for (const text of [copy.chip, copy.tag, copy.full]) {
+      expect(text).not.toMatch(/\b(your|yours|their|theirs|you|they)\b/i);
+    }
   });
 });
 
@@ -223,7 +259,7 @@ describe("defenderRedirect", () => {
 });
 
 describe("defenderSwapText — REDIRECTED", () => {
-  it("does NOT say 'steps in': nobody stepped in, the attack went elsewhere", () => {
+  it("does NOT reuse the substitution wording: nothing was substituted here", () => {
     const copy = defenderSwapText("Obi-Wan Kenobi", "Clone Trooper", "REDIRECTED");
     expect(copy.chip).toBe("now defending");
     expect(copy.tag).toBe("NOW DEFENDING: CLONE TROOPER");

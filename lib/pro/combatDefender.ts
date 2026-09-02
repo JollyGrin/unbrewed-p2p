@@ -17,7 +17,7 @@
  * channels a Pro match speaks:
  *
  *   - the combat panel (`ProDock`) wears a tag naming who stepped in,
- *   - the board rings the NEW defender and chips it "steps in",
+ *   - the board rings the NEW defender and chips it "defends instead",
  *   - `gameLog.ts` prints one line, which is also the replay's log entry.
  *
  * The event always arrives BEFORE `COMBAT_VALUE_BREAKDOWN` / `COMBAT_DAMAGE` for
@@ -101,12 +101,32 @@ export function combatSidesLine(attackerName: string, defenderName: string): str
  * there" — and they must not be worded the same:
  *
  *  - `SUBSTITUTED`: the DEFENDER changed inside a live combat, cards already on
- *    the table (`setCombatDefender` — Ripley's *GET BEHIND ME*). Somebody stepped
- *    in front of a blow that was already swinging.
+ *    the table (`setCombatDefender` — Ripley's *GET BEHIND ME*, Appa's
+ *    *Hallucinations*). A different fighter is taking the blow that was already
+ *    swinging.
  *  - `REDIRECTED`: the combat OPENED against somebody other than the fighter the
  *    attacker declared this action against (Grievous's Multi-Arm Barrage Combat 2,
- *    whose target is chosen at commit time, post-LUNGE). Nobody stepped in — the
- *    attack simply went somewhere else, and "steps in" would misdescribe it.
+ *    whose target is chosen at commit time, post-LUNGE). Nothing was substituted —
+ *    the attack simply went somewhere else from the start.
+ *
+ * WHO CHOSE IS DELIBERATELY UNSAID (issue #737). The original wording was
+ * "<X> steps in as the defender (<Y> steps back)", written against Ripley, where
+ * the defending player plays GET BEHIND ME to protect their own fighter — a
+ * voluntary act, by the seat that owns both fighters. Appa's *Hallucinations* is
+ * the same event from the other side of the table: the ATTACKER plays it and
+ * substitutes among the OPPONENT's fighters. "Steps in" then describes an act of
+ * protection that nobody performed, and reads as if the defender chose it.
+ *
+ * The copy is otherwise seat-neutral already — it names fighters, never "your"
+ * or "their", and the log line is emitted `who: "game"` for exactly that reason —
+ * so the fix is one wording that states the FACT ("<X> takes over from <Y> as the
+ * defender") and leaves agency out of it. One helper, one wording, correct read
+ * from either seat and for either card; a second SUBSTITUTED phrasing keyed on
+ * who played the card would be two wordings for one event.
+ *
+ * "Takes over from" rather than "takes <Y>'s place": the possessive breaks on a
+ * name that already ends in s, and the Clone Troopers hero is literally named
+ * "Clone Troopers" — the live pair run printed "takes Clone Troopers's place".
  */
 export type DefenderChangeKind = "SUBSTITUTED" | "REDIRECTED";
 
@@ -128,10 +148,10 @@ export function defenderSwapText(
     };
   }
   return {
-    chip: "steps in",
-    tag: `${toName.toUpperCase()} STEPS IN`,
+    chip: "defends instead",
+    tag: `${toName.toUpperCase()} DEFENDS INSTEAD`,
     /** hover title / aria label, and the log line's wording */
-    full: `${toName} steps in as the defender (${fromName} steps back) — the damage lands on ${toName}`,
+    full: `${toName} takes over from ${fromName} as the defender — the damage lands on ${toName}`,
   };
 }
 

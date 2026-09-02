@@ -1,0 +1,262 @@
+{
+  "bgg_link": null,
+  "created_on": "Sun, 05 Jul 2026 21:59:58 GMT",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#5fb94e",
+      "cardbackUrl": "/evergreen-decks/art/appa/cardback.webp",
+      "highlightColour": "#583300",
+      "isPNP": false,
+      "patternName": "Formal Invitation"
+    },
+    "cards": [
+      {
+        "afterText": "Deal 1 damage to each opposing fighter adjacent to your fighter. If Momo shares a space with an opposing fighter, deal 1 damage to that fighter.",
+        "basicText": "",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/appa/play-fighting.webp"
+        },
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/appa/play-fighting.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "PLay Fighting",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "Draw 1 card. If Momo shares a space with another fighter, draw 2 cards instead.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/appa/reenact.webp"
+        },
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/appa/reenact.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Reenact",
+        "type": "versatile",
+        "value": 1
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/appa/lemur-in-trouble.webp"
+        },
+        "characterName": "MOMO",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/appa/lemur-in-trouble.webp",
+        "immediateText": "Cancel all effects on your opponent's card.",
+        "quantity": 3,
+        "title": "Lemur in Trouble",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/appa/fancy-flying.webp"
+        },
+        "characterName": "APPA",
+        "duringText": "If Appa shares no zones with the opposing fighter, ignore the value of your opponent's card.",
+        "imageUrl": "/evergreen-decks/art/appa/fancy-flying.webp",
+        "immediateText": "Move Appa up to 1 space.",
+        "quantity": 2,
+        "title": "Fancy Flying",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "Move a fighter up to 1 space for each combat damage dealt.",
+        "basicText": "",
+        "boost": 4,
+        "cardImage": {
+          "url": "/evergreen-decks/art/appa/the-last-sky-bison.webp"
+        },
+        "characterName": "APPA",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/appa/the-last-sky-bison.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "The Last Sky Bison",
+        "type": "attack",
+        "value": 5
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/appa/air-nomads.webp"
+        },
+        "characterName": "ANY",
+        "duringText": "If the opposing fighter shares all their zones with your fighter, this card's value becomes 5.",
+        "imageUrl": "/evergreen-decks/art/appa/air-nomads.webp",
+        "immediateText": "Move the opposing fighter up to 1 space.",
+        "quantity": 2,
+        "title": "Air Nomads",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": null,
+        "basicText": "Move each fighter up to 2 spaces. If Momo shares a space with another fighter, gain 1 action.",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/appa/team-avatar.webp"
+        },
+        "characterName": "APPA",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/appa/team-avatar.webp",
+        "immediateText": null,
+        "quantity": 3,
+        "title": "Team Avatar",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/appa/fight-or-flight.webp"
+        },
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/appa/fight-or-flight.webp",
+        "immediateText": "Place your fighter adjacent to another fighter.",
+        "quantity": 2,
+        "title": "Fight or Flight",
+        "type": "versatile",
+        "value": 4
+      },
+      {
+        "afterText": "Move your other fighter up to 2 spaces. Gain 1 action.",
+        "basicText": "",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/appa/yip-yip.webp"
+        },
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/appa/yip-yip.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Yip Yip!",
+        "type": "attack",
+        "value": 2
+      },
+      {
+        "afterText": "Appa recovers 3 health. Draw 1 card.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/appa/cool-drink-of-water.webp"
+        },
+        "characterName": "APPA",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/appa/cool-drink-of-water.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Cool Drink of Water",
+        "type": "defence",
+        "value": 0
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/appa/hallucinations.webp"
+        },
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/appa/hallucinations.webp",
+        "immediateText": "You may choose for a fighter to be in the combat instead of 1 of their friendly fighters in this combat.",
+        "quantity": 2,
+        "title": "Hallucinations",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/appa/animal-antics.webp"
+        },
+        "characterName": "ANY",
+        "duringText": "Reveal 1 card from the top of your opponent's deck for each zone their hero is in. Discard 1 of those cards, add its BOOST value to this card's value and put the rest back in any order.",
+        "imageUrl": "/evergreen-decks/art/appa/animal-antics.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Animal Antics",
+        "type": "attack",
+        "value": 1
+      }
+    ],
+    "extraCharacters": [],
+    "hero": {
+      "hp": 14,
+      "isRanged": false,
+      "move": 2,
+      "name": "Appa",
+      "specialAbility": "THE FIRST AIRBENDER\nAppa is a large fighter. (He can attack up to 2 spaces away.)\nAdd 1 to Appa's combat cards if he is in more zones than the opposing fighter.\nMomo is a small fighter and has a move value is 4."
+    },
+    "name": "",
+    "ruleCards": [],
+    "sidekick": {
+      "hp": 6,
+      "isRanged": false,
+      "name": "Momo",
+      "quantity": 1,
+      "quote": null
+    }
+  },
+  "deck_first_published_on": "Thu, 06 Aug 2026 20:37:52 GMT",
+  "deck_published": true,
+  "family_id": "jw9q",
+  "id": "jw9q",
+  "liked": false,
+  "likes": 1,
+  "name": "Appa",
+  "note": "Rules-enforced Pro deck (server hero appa), mirrored from unmatched.cards deck jw9q \"Appa\" by JBentz (https://unmatched.cards/decks/jw9q), version 6Dz_TJqPO, updated 2026-08-23. Card titles, types, values, boosts and quantities are the author's, and are VERIFIED card by card against the author's own finished card renders — the complete 14-file PNG set JBentz posted in the unbrewed Discord #pro-deck-request thread on 2026-08-23 — and against the engine's data/heroes/appa.rules.ts (engine #522/#525). Where a printed card disagreed with the unmatched.cards payload the CARD WINS: \"Sky Bison\" is printed THE LAST SKY BISON, Air Nomads' DURING clause reads \"shares all their zones with your fighter\" (singular) rather than the payload's \"your fighters\", Team Avatar reads \"shares a space with another fighter\" rather than the payload's \"a friendly fighter\", and the hero ability is headed THE FIRST AIRBENDER. \"PLay Fighting\" keeps the payload's capital L (the printed card is set in all caps, so it neither confirms nor denies it) and the ability's \"has a move value is 4\" keeps the card's own grammar — art matching is keyed on the verbatim title, and typos are never \"fixed\" here. Card faces are the author's own renders, self-hosted in public/evergreen-decks/art/appa and drawn full-bleed via cardImage; every URL is repo-relative (malfurion/Ripley precedent) so the art resolves on localhost and preview builds. The payload's own imageUrl fields — uncredited third-party hotlinks — are deliberately NOT carried over. Also mirrored but not referenced by any UI surface yet: art/appa/hero-card.webp, the author's character-card render.",
+  "published": true,
+  "published_on": "Thu, 06 Aug 2026 20:37:52 GMT",
+  "tags": [
+    {
+      "name": "Classic Clash 2026",
+      "slug": "classic-clash-2026"
+    },
+    {
+      "name": "Large Hero",
+      "slug": "large-hero"
+    },
+    {
+      "name": "Small Sidekick",
+      "slug": "small-sidekick"
+    }
+  ],
+  "updated_on": "Sun, 23 Aug 2026 21:16:34 GMT",
+  "user": "JBentz",
+  "version_id": "6Dz_TJqPO",
+  "version_name": "Appa",
+  "versions": [
+    {
+      "created_on": "Sun, 05 Jul 2026 21:59:58 GMT",
+      "id": "6Dz_TJqPO",
+      "name": "Appa",
+      "published": true,
+      "updated_on": "Sun, 23 Aug 2026 21:16:34 GMT",
+      "version_name": "Appa"
+    }
+  ]
+}
