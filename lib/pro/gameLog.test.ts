@@ -180,6 +180,7 @@ const ALLOWLIST = new Set([
   "EXHAUSTION_DAMAGE",
   "ACTIONS_GAINED",
   "CARD_RETURNED_TO_HAND",
+  "CARD_SHUFFLED_INTO_DECK",
   "CARD_REVEALED",
   "CARD_TUCKED",
   "CARD_RETURNED_FROM_PILE",
@@ -747,7 +748,7 @@ describe("enrichLines", () => {
       // A discard is an annotation-only type; add it so the roster is exhaustive.
       seen.add("CARD_DISCARDED");
       // Sanity: the allowlist is a subset of what the union offers.
-      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "COMBAT_VALUE_BREAKDOWN", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_REVEALED", "CARD_TUCKED", "CARD_RETURNED_FROM_PILE", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED", "EFFECT_ATTACK_INITIATED", "FIGHTER_MARKED", "FIGHTER_MARKS_CLEARED", "MULLIGAN_TAKEN", "HAND_KEPT", "POSITIONS_SWAPPED", "COMBAT_DEFENDER_CHANGED"]).toContain(t);
+      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "COMBAT_VALUE_BREAKDOWN", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_SHUFFLED_INTO_DECK", "CARD_REVEALED", "CARD_TUCKED", "CARD_RETURNED_FROM_PILE", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED", "EFFECT_ATTACK_INITIATED", "FIGHTER_MARKED", "FIGHTER_MARKS_CLEARED", "MULLIGAN_TAKEN", "HAND_KEPT", "POSITIONS_SWAPPED", "COMBAT_DEFENDER_CHANGED"]).toContain(t);
     });
   });
 
@@ -1074,6 +1075,67 @@ describe("enrichLines", () => {
 });
 
 
+describe("CARD_SHUFFLED_INTO_DECK (issue #741)", () => {
+  const returned = (player: PlayerId, card: CardInstanceId, from: "HAND" | "DISCARD"): GameEvent => ({
+    type: "CARD_SHUFFLED_INTO_DECK",
+    player,
+    card,
+    from,
+  });
+
+  it("narrates a discard → deck return for the deck owner", () => {
+    expect(enrichLines([], [returned("p1", "appa/momo#3", "DISCARD")], ctx())).toEqual([
+      { text: "You → deck: momo (returned from discard)", who: "you", cards: ["appa/momo#3"] },
+    ]);
+  });
+
+  it("names the card for the opponent too — a discard is public information", () => {
+    expect(enrichLines([], [returned("p1", "appa/momo#3", "DISCARD")], ctx("p2"))).toEqual([
+      { text: "Opponent → deck: momo (returned from discard)", who: "opp", cards: ["appa/momo#3"] },
+    ]);
+  });
+
+  it("names the seat by id in a >2p game", () => {
+    const seat3p = (p: string) => (p === "p1" ? "You" : p.toUpperCase());
+    const out = enrichLines([], [returned("p3", "appa/momo#3", "DISCARD")], ctx("p1", seat3p));
+    expect(out[0].text).toBe("P3 → deck: momo (returned from discard)");
+  });
+
+  it("stays silent on a return from hand — hand contents are private", () => {
+    expect(enrichLines([], [returned("p1", "appa/momo#3", "HAND")], ctx())).toEqual([]);
+    expect(enrichLines([], [returned("p1", "appa/momo#3", "HAND")], ctx("p2"))).toEqual([]);
+  });
+
+  it("balances Animal Antics: the mill discard and the returns both read", () => {
+    // "Reveal 3 from the top of your opponent's deck, discard 1, put the rest
+    // back": without the return lines this batch read as three discards.
+    const base = view({});
+    const before = view({ opponent: { ...base.opponent!, discard: [], deckCount: 12 } });
+    const after = view({ opponent: { ...base.opponent!, discard: ["appa/aang#1"], deckCount: 11 } });
+    const events: GameEvent[] = [
+      { type: "CARD_DISCARDED", player: "p2", card: "appa/aang#1", reason: "MILL" },
+      returned("p2", "appa/momo#2", "DISCARD"),
+      returned("p2", "appa/katara#3", "DISCARD"),
+    ];
+    const out = enrichLines(diffViews(before, after, label, events), events, ctx());
+    expect(out.map((l) => l.text)).toEqual([
+      "Opponent → discard: aang (milled)",
+      "Opponent → deck: momo (returned from discard)",
+      "Opponent → deck: katara (returned from discard)",
+    ]);
+  });
+
+  it("stays quiet inside a mulligan batch, whatever the origin", () => {
+    const events: GameEvent[] = [
+      { type: "MULLIGAN_TAKEN", player: "p1" },
+      returned("p1", "appa/momo#3", "DISCARD"),
+    ];
+    expect(enrichLines([], events, ctx())).toEqual([
+      { text: "You mulliganed your opening hand", who: "you" },
+    ]);
+  });
+});
+
 describe("opening-hand mulligan (issue #622 ↔ protocol v30)", () => {
   const mulliganed = (player: PlayerId): GameEvent => ({ type: "MULLIGAN_TAKEN", player });
   const kept = (player: PlayerId): GameEvent => ({ type: "HAND_KEPT", player });
@@ -1098,9 +1160,10 @@ describe("opening-hand mulligan (issue #622 ↔ protocol v30)", () => {
 
   it("stays two lines through the whole close batch the engine actually sends", () => {
     // Protocol v30 note: a MULLIGAN_TAKEN is followed by that seat's
-    // CARD_SHUFFLED_INTO_DECK batch, DECK_SHUFFLED and CARD_DRAWN batch. None of
-    // those is allowlisted, and the hand swap leaves the deck count where it was,
-    // so the feed must read as the two decisions and nothing else.
+    // CARD_SHUFFLED_INTO_DECK batch, DECK_SHUFFLED and CARD_DRAWN batch. Those
+    // returns are from HAND (and inside a mulligan batch, which is suppressed
+    // outright — issue #741), and the hand swap leaves the deck count where it
+    // was, so the feed must read as the two decisions and nothing else.
     const hand = ["a/x#1", "a/y#2", "a/z#3", "a/w#4", "a/v#5"];
     const fresh = ["a/k#6", "a/l#7", "a/m#8", "a/n#9", "a/o#10"];
     const before = view({ phase: "SETUP", self: { ...view({}).self, hand, deckCount: 30 } });
