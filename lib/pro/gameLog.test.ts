@@ -1113,7 +1113,7 @@ describe("CARD_SHUFFLED_INTO_DECK (issue #741)", () => {
     const before = view({ opponent: { ...base.opponent!, discard: [], deckCount: 12 } });
     const after = view({ opponent: { ...base.opponent!, discard: ["appa/aang#1"], deckCount: 11 } });
     const events: GameEvent[] = [
-      { type: "CARD_DISCARDED", player: "p2", card: "appa/aang#1", reason: "MILL", source: "appa/animal-antics#5" },
+      { type: "CARD_DISCARDED", player: "p2", card: "appa/aang#1", reason: "MILL" },
       returned("p2", "appa/momo#2", "DISCARD"),
       returned("p2", "appa/katara#3", "DISCARD"),
     ];
