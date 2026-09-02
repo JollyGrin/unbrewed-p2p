@@ -1195,6 +1195,89 @@ describe("opening-hand mulligan (issue #622 ↔ protocol v30)", () => {
   });
 });
 
+describe("draw counting (issue #743)", () => {
+  const opp = (over: Partial<NonNullable<PlayerView["opponent"]>>) => ({
+    ...view({}).opponent!,
+    ...over,
+  });
+
+  it("counts another seat's draws off CARD_DRAWN, not the deck-count delta", () => {
+    // Live on prod 2026-09-03 (room 2X5B): Appa's Animal Antics discarded the
+    // top card of King Kong's deck, then Kong's Regroup drew one after combat.
+    // One batch, deck 16 → 14, hand +1 — the delta heuristic read that as two
+    // draws and the feed claimed three cards left a two-card-lighter deck.
+    const prev = view({ opponent: opp({ handCount: 5, deckCount: 16 }) });
+    const next = view({
+      opponent: opp({ handCount: 6, deckCount: 14, discard: ["kong/eighth-wonder#8"] }),
+    });
+    const events: GameEvent[] = [
+      { type: "CARD_DISCARDED", player: "p2", card: "kong/eighth-wonder#8", reason: "EFFECT" },
+      { type: "CARD_DRAWN", player: "p2", card: "(hidden)" },
+    ];
+
+    const out = enrichLines(diffViews(prev, next, label, events), events, ctx());
+    expect(out.map((l) => l.text)).toEqual([
+      "Opponent drew 1 card",
+      "Opponent → discard: eighth-wonder (card effect)",
+    ]);
+  });
+
+  it("counts a multi-card draw exactly, mill or not", () => {
+    const prev = view({ opponent: opp({ handCount: 2, deckCount: 10 }) });
+    const next = view({ opponent: opp({ handCount: 4, deckCount: 8 }) });
+    const events: GameEvent[] = [
+      { type: "CARD_DRAWN", player: "p2", card: "(hidden)" },
+      { type: "CARD_DRAWN", player: "p2", card: "(hidden)" },
+    ];
+    expect(diffViews(prev, next, label, events).map((l) => l.text)).toEqual([
+      "Opponent drew 2 cards",
+    ]);
+  });
+
+  it("says nothing when the deck shrank with no draw at all (a bare mill)", () => {
+    // Deck -1 and hand +1 in one batch, but the card that left the deck went to
+    // the discard and the extra hand card came from somewhere else entirely.
+    const prev = view({ opponent: opp({ handCount: 3, deckCount: 10 }) });
+    const next = view({
+      opponent: opp({ handCount: 4, deckCount: 9, discard: ["kong/eighth-wonder#8"] }),
+    });
+    const events: GameEvent[] = [
+      { type: "CARD_DISCARDED", player: "p2", card: "kong/eighth-wonder#8", reason: "MILL" },
+    ];
+    expect(diffViews(prev, next, label, events).map((l) => l.text)).toEqual([
+      "Opponent → discard: eighth-wonder",
+    ]);
+  });
+
+  it("still falls back to the deck delta on an eventless snapshot", () => {
+    // Join / reconnect / resume broadcasts carry no events — the heuristic is
+    // all there is, and its output there is unchanged.
+    const prev = view({ opponent: opp({ handCount: 5, deckCount: 10 }) });
+    const next = view({ opponent: opp({ handCount: 6, deckCount: 9 }) });
+    expect(diffViews(prev, next, label, []).map((l) => l.text)).toEqual([
+      "Opponent drew 1 card",
+    ]);
+  });
+
+  it("leaves the viewer's own draw line on hand identity", () => {
+    // "You drew N" counts cards that appeared in the viewer's own hand, which is
+    // already exact — a mill off the top of YOUR deck never enters the hand.
+    const base = view({});
+    const prev = view({ self: { ...base.self, hand: ["a/x#1"], deckCount: 16 } });
+    const next = view({
+      self: { ...base.self, hand: ["a/x#1", "a/y#2"], deckCount: 14, discard: ["a/z#3"] },
+    });
+    const events: GameEvent[] = [
+      { type: "CARD_DISCARDED", player: "p1", card: "a/z#3", reason: "MILL" },
+      { type: "CARD_DRAWN", player: "p1", card: "a/y#2" },
+    ];
+    expect(diffViews(prev, next, label, events).map((l) => l.text)).toEqual([
+      "You drew 1 card",
+      "You → discard: z",
+    ]);
+  });
+});
+
 describe("multiplayer diffViews", () => {
   const players3 = (p3: Partial<PlayerView["players"][number]> = {}) => [
     { id: "p1" as const, heroId: "fixture-p1", you: true, hand: [], handCount: 0, deckCount: 10, discard: [], committedCard: null, hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false },
