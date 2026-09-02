@@ -448,11 +448,30 @@ export function diffViews(
   if (drewSelf > 0 && next.self.deckCount < prev.self.deckCount) {
     lines.push({ text: `You drew ${drewSelf} card${drewSelf === 1 ? "" : "s"}`, who: "you" });
   }
+  // Another seat has no hand identities, so the count comes off the event
+  // stream: CARD_DRAWN is emitted for EVERY seat (the other seat's card ids are
+  // redacted, the event itself is not), so counting it is exact. The old
+  // deck-count delta counted any card that left the deck for any reason, so a
+  // mill / deck-top discard riding the same batch as a real draw inflated the
+  // number — Animal Antics discarded the top of Kong's deck, Regroup then drew
+  // one, and the feed said "Opponent drew 2 cards" (issue #743). Join /
+  // reconnect / resume snapshots carry no events at all; only there does the
+  // delta heuristic still stand in.
+  const drewFromEvents = events.length
+    ? events.reduce<Map<PlayerId, number>>((acc, e) => {
+        if (e.type === "CARD_DRAWN") acc.set(e.player, (acc.get(e.player) ?? 0) + 1);
+        return acc;
+      }, new Map())
+    : null;
   for (const [player, nextPlayer] of nextPlayers) {
     if (player === next.you) continue;
     const prevPlayer = prevPlayers.get(player);
     if (!prevPlayer) continue;
-    const drew = prevPlayer.deckCount - nextPlayer.deckCount;
+    const drew = drewFromEvents
+      ? (drewFromEvents.get(player) ?? 0)
+      : prevPlayer.deckCount - nextPlayer.deckCount;
+    // The hand-growth gate stays: a hand that did not grow is a swap, not a draw
+    // (an opening-hand mulligan redraws five without the feed narrating it).
     if (drew > 0 && nextPlayer.handCount > prevPlayer.handCount) {
       lines.push({ text: `${seat(player)} drew ${drew} card${drew === 1 ? "" : "s"}`, who: "opp" });
     }
