@@ -1,0 +1,23 @@
+{
+  "deckSlug": "jw9q",
+  "tagline": "Air Nomad mobility — Momo slips into any space, Appa looms over two zones, and every shared space pays out",
+  "featuredCards": [
+    {
+      "title": "Team Avatar",
+      "caption": "The setup: shuffle every fighter on the board, park Momo beside anyone — friend or foe — and take the extra action."
+    },
+    {
+      "title": "Yip Yip!",
+      "caption": "The engine: a cheap swing that repositions your other fighter and refunds the action, so Momo is never out of reach."
+    },
+    {
+      "title": "Air Nomads",
+      "caption": "The payoff: trap the opposing fighter inside one of your fighters' zones and this 3 becomes a 5 — plus Appa's +1 when he out-covers them."
+    },
+    {
+      "title": "Hallucinations",
+      "caption": "The twist: your attack, their defender. Pick which of their fighters takes the hit — the defense they committed stays on the table."
+    }
+  ],
+  "particleStyle": "aura"
+}
