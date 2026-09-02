@@ -103,7 +103,7 @@ describe("defenderSwapText", () => {
     expect(copy.chip).toBe("defends instead");
     expect(copy.tag).toBe("NEWT DEFENDS INSTEAD");
     expect(copy.full).toBe(
-      "Newt takes Ellen Ripley's place as the defender — the damage lands on Newt"
+      "Newt takes over from Ellen Ripley as the defender — the damage lands on Newt"
     );
   });
 
@@ -122,8 +122,19 @@ describe("defenderSwapText", () => {
       expect(text.toLowerCase()).not.toContain("steps back");
     }
     expect(copy.full).toBe(
-      "Battle Droid 2 takes General Grievous's place as the defender — the damage lands on Battle Droid 2"
+      "Battle Droid 2 takes over from General Grievous as the defender — the damage lands on Battle Droid 2"
     );
+  });
+
+  it("survives a name that ends in s — no \"Clone Troopers's\"", () => {
+    // Found in the live pair run: the Clone Troopers hero is NAMED "Clone
+    // Troopers", so any possessive in this sentence reads broken. The wording
+    // therefore carries none.
+    const copy = defenderSwapText("Clone Troopers", "Clone Trooper 1");
+    expect(copy.full).toBe(
+      "Clone Trooper 1 takes over from Clone Troopers as the defender — the damage lands on Clone Trooper 1",
+    );
+    expect(copy.full).not.toContain("'s");
   });
 
   it("stays seat-neutral: no viewer-relative pronoun in any of the three surfaces", () => {

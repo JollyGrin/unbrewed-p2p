@@ -683,6 +683,20 @@ describe("enrichLines", () => {
       expect(out[0].text).toBe("Attack: 4 (gromnir, set, locked) = 4 · Defense: 2 (feint) = 2");
     });
 
+    // Issue #737. Appa stacks TWO independent modifiers on one card: *Air Nomads*
+    // OVERRIDES its value to 5, and FIRST AIRBENDER adds +1 when he out-zones the
+    // opposing fighter. `effectiveValue` adds the delta on top of the override, so
+    // the card reads 6 — and a 6 with no visible explanation is a bug report. The
+    // line must show both halves, not just the total.
+    it("shows an override and a delta stacking, not just the total", () => {
+      const out = enrichLines(
+        [],
+        [breakdown({ attack: side({ override: 5, delta: 1, total: 6 }), effectiveAttack: 6 })],
+        ctx()
+      );
+      expect(out[0].text).toBe("Attack: 5 (gromnir, set) + 1 = 6 · Defense: 2 (feint) = 2");
+    });
+
     it("reads out an undefended combat and an ignored defense differently", () => {
       const none = enrichLines([], [breakdown({ defense: [], effectiveDefense: 0 })], ctx());
       expect(none[0].text).toBe("Attack: 6 (gromnir) = 6 · Defense: none");
@@ -829,7 +843,7 @@ describe("enrichLines", () => {
       };
       expect(enrichLines([], [swap], named)).toEqual([
         {
-          text: "Newt takes Ellen Ripley's place as the defender — the damage lands on Newt",
+          text: "Newt takes over from Ellen Ripley as the defender — the damage lands on Newt",
           who: "game",
         },
       ]);

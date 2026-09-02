@@ -119,10 +119,14 @@ export function combatSidesLine(attackerName: string, defenderName: string): str
  *
  * The copy is otherwise seat-neutral already — it names fighters, never "your"
  * or "their", and the log line is emitted `who: "game"` for exactly that reason —
- * so the fix is one wording that states the FACT ("<X> takes <Y>'s place as the
+ * so the fix is one wording that states the FACT ("<X> takes over from <Y> as the
  * defender") and leaves agency out of it. One helper, one wording, correct read
  * from either seat and for either card; a second SUBSTITUTED phrasing keyed on
  * who played the card would be two wordings for one event.
+ *
+ * "Takes over from" rather than "takes <Y>'s place": the possessive breaks on a
+ * name that already ends in s, and the Clone Troopers hero is literally named
+ * "Clone Troopers" — the live pair run printed "takes Clone Troopers's place".
  */
 export type DefenderChangeKind = "SUBSTITUTED" | "REDIRECTED";
 
@@ -147,7 +151,7 @@ export function defenderSwapText(
     chip: "defends instead",
     tag: `${toName.toUpperCase()} DEFENDS INSTEAD`,
     /** hover title / aria label, and the log line's wording */
-    full: `${toName} takes ${fromName}'s place as the defender — the damage lands on ${toName}`,
+    full: `${toName} takes over from ${fromName} as the defender — the damage lands on ${toName}`,
   };
 }
 

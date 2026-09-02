@@ -179,7 +179,7 @@ describe("GET BEHIND ME — the defender changes mid-combat", () => {
       [defending("p1/sidekick-1"), [SUBSTITUTION]],
     ]);
     const tag = screen.getByText("NEWT DEFENDS INSTEAD");
-    expect(tag).toHaveAttribute("title", expect.stringContaining("Newt takes Ellen Ripley's place"));
+    expect(tag).toHaveAttribute("title", expect.stringContaining("Newt takes over from Ellen Ripley"));
     expect(tag).toHaveAttribute("title", expect.stringContaining("the damage lands on Newt"));
   });
 
@@ -198,7 +198,7 @@ describe("GET BEHIND ME — the defender changes mid-combat", () => {
       [defending("p1/sidekick-1"), [SUBSTITUTION]],
     ]);
     expect(
-      screen.getAllByText(/Newt takes Ellen Ripley's place as the defender .* the damage lands on Newt/)
+      screen.getAllByText(/Newt takes over from Ellen Ripley as the defender .* the damage lands on Newt/)
         .length
     ).toBeGreaterThan(0);
   });
@@ -311,7 +311,7 @@ describe("Hallucinations — the ATTACKER moves the defender, on the opposing se
     const tag = screen.getByText("BATTLE DROID 3 DEFENDS INSTEAD");
     expect(tag).toHaveAttribute(
       "title",
-      expect.stringContaining("Battle Droid 3 takes General Grievous's place as the defender"),
+      expect.stringContaining("Battle Droid 3 takes over from General Grievous as the defender"),
     );
     expect(tag).toHaveAttribute("title", expect.stringContaining("damage lands on Battle Droid 3"));
     expect(screen.queryByText(/sidekick-3/)).not.toBeInTheDocument();
@@ -332,7 +332,7 @@ describe("Hallucinations — the ATTACKER moves the defender, on the opposing se
     ]);
     expect(
       screen.getAllByText(
-        /Battle Droid 3 takes General Grievous's place as the defender .* the damage lands on Battle Droid 3/,
+        /Battle Droid 3 takes over from General Grievous as the defender .* the damage lands on Battle Droid 3/,
       ).length,
     ).toBeGreaterThan(0);
     expect(screen.queryByText(/steps in/i)).not.toBeInTheDocument();
