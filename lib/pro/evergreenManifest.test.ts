@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { computeDigest, normalizeType } from "../../scripts/lib/deckManifest";
 import { EVERGREEN_MANIFEST } from "./evergreenManifest";
 import { HERO_DECK_IDS, norm } from "./useProCardArt";
-import { BOUNTY_PILES } from "./heroStateFlags";
+import { BOUNTY_PILES, HERO_STATE_COUNTERS, HERO_STATE_FLAGS } from "./heroStateFlags";
 
 const DECKS_DIR = join(__dirname, "..", "..", "public", "evergreen-decks");
 
@@ -689,5 +689,119 @@ describe("Ellen Ripley snapshot agrees with ellen-ripley.rules.ts @ee9c276", () 
     // *MOMMY!* — the chooseOne the engine opens with the two printed options.
     expect(textOf("MOMMY!")).toContain("Newt and Ripley each recover 1 health");
     expect(textOf("MOMMY!")).toContain("Ripley recovers 2 health");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Appa + Momo (issue #737 ↔ engine #522/#525). unmatched.cards deck jw9q by
+// JBentz — a deck that DOES have a public page, so the payload is fetchable and
+// the snapshot could in principle be re-derived from it. It deliberately is not,
+// in three places: the author's own printed card renders (the 14-PNG set he
+// posted to Discord on 2026-08-23) overrule the payload wherever the two
+// disagree (Dean's ruling, 2026-09-02), and the payload's own imageUrl fields
+// are uncredited third-party hotlinks that must never ship.
+// ---------------------------------------------------------------------------
+
+describe("Appa + Momo (jw9q) deck data", () => {
+  const deck = readDeck("jw9q");
+  type Card = {
+    title: string;
+    type: string;
+    value: number | null;
+    boost: number;
+    quantity: number;
+    characterName: string;
+    imageUrl: string;
+    cardImage?: { url: string };
+    basicText: string;
+    duringText: string | null;
+  };
+  const cards = deck.deck_data.cards as Card[];
+  const byTitle = (t: string) => cards.find((c) => c.title === t)!;
+
+  it("is 12 unique / 30 total", () => {
+    expect(cards).toHaveLength(12);
+    expect(cards.reduce((n, c) => n + c.quantity, 0)).toBe(30);
+    expect(new Set(cards.map((c) => norm(c.title))).size).toBe(12);
+  });
+
+  it("keeps the printed titles verbatim — the art index is keyed on them", () => {
+    // norm() lowercases + trims and nothing else. "PLay Fighting" keeps the
+    // payload's capital L (the card is set in all caps, so it neither confirms
+    // nor denies it) and "Yip Yip!" keeps its exclamation mark. Fixing either
+    // unhooks that card's face AND diverges from the engine's verbatim CardDef.
+    expect(cards.map((c) => c.title)).toEqual(
+      expect.arrayContaining(["PLay Fighting", "Yip Yip!", "The Last Sky Bison"]),
+    );
+  });
+
+  it("takes the CARD over the payload wherever the two disagree", () => {
+    // The three rule-level differences the 14-PNG audit found. All three are
+    // being matched on the engine side in PR #524; if any is reverted here the
+    // snapshot and the rules.ts stop describing the same deck.
+    expect(byTitle("The Last Sky Bison")).toBeDefined(); // payload said "Sky Bison"
+    expect(cards.find((c) => c.title === "Sky Bison")).toBeUndefined();
+    // payload: "...with a friendly fighter" — the card counts ANY fighter.
+    expect(byTitle("Team Avatar").basicText).toContain("shares a space with another fighter");
+    // payload: "...with your fighterS" — the card is singular: ONE of your
+    // fighters must cover every zone the opposing fighter is in.
+    expect(byTitle("Air Nomads").duringText).toContain("shares all their zones with your fighter,");
+    expect(deck.deck_data.hero.specialAbility).toContain("THE FIRST AIRBENDER");
+  });
+
+  it("ships every card face as a LOCAL file that exists, drawn full-bleed", () => {
+    // The author made real card renders, so every face is his own frame via
+    // cardImage — this deck must never fall through to the generated template,
+    // and must never be routed to the art-generation pipeline.
+    for (const card of cards) {
+      expect(card.imageUrl).toMatch(/^\/evergreen-decks\/art\/appa\/[a-z0-9-]+\.webp$/);
+      expect(card.cardImage?.url).toBe(card.imageUrl);
+      expect(existsSync(join(DECKS_DIR, "..", card.imageUrl.replace(/^\//, "")))).toBe(true);
+    }
+    expect(new Set(cards.map((c) => c.imageUrl)).size).toBe(cards.length);
+  });
+
+  it("mirrors the cardback and the hero card locally", () => {
+    for (const file of ["cardback.webp", "hero-card.webp"]) {
+      expect(existsSync(join(DECKS_DIR, "art", "appa", file))).toBe(true);
+    }
+    const cardback = deck.deck_data.appearance.cardbackUrl as string;
+    expect(cardback).toBe("/evergreen-decks/art/appa/cardback.webp");
+    expect(existsSync(join(DECKS_DIR, "..", cardback.replace(/^\//, "")))).toBe(true);
+  });
+
+  it("leaves NO remote URL in the shipped data but the attribution link", () => {
+    // Every payload imageUrl pointed at a hotlinked third-party image (gstatic,
+    // pinimg, fbcdn, a school newspaper). Not one may survive here.
+    const urls = (JSON.stringify(deck).match(/https?:\\?\/\\?\/[^"\\ )]+/g) ?? []).map((u) =>
+      u.replace(/\\/g, ""),
+    );
+    expect([...new Set(urls)]).toEqual(["https://unmatched.cards/decks/jw9q"]);
+    expect(deck.user).toBe("JBentz");
+  });
+
+  it("carries the hero and sidekick stats the character card prints", () => {
+    expect(deck.deck_data.hero).toMatchObject({ hp: 14, move: 2, isRanged: false, name: "Appa" });
+    expect(deck.deck_data.sidekick).toMatchObject({ hp: 6, quantity: 1, name: "Momo" });
+    // Appa's LARGE size, his reach and Momo's move 4 are HeroDef/sidekick fields
+    // on the SERVER — the snapshot carries them only as ability prose.
+    expect(deck.deck_data.hero.specialAbility).toContain("large fighter");
+    expect(deck.deck_data.hero.specialAbility).toContain("move value is 4");
+  });
+
+  it("carries no rule cards and no extra characters", () => {
+    expect(deck.deck_data.ruleCards ?? []).toEqual([]);
+    expect(deck.deck_data.extraCharacters ?? []).toEqual([]);
+    expect(deck.deck_data.extraCards).toBeUndefined();
+  });
+
+  it("declares NO public hero state — the engine registers none", () => {
+    // Stated rather than assumed (the Cairne RAGE lesson: a counter with no
+    // registry row ships invisible). appa.rules.ts @b7ab6ca uses only
+    // if / optional / dealDamage / bindFighter / move / modifyValue / chooseOne —
+    // no setCounter, no flags, no piles. If that ever changes, this test is the
+    // reminder that heroStateFlags.ts needs a row on BOTH surfaces.
+    expect(HERO_STATE_FLAGS.filter((e) => e.heroes.includes("appa"))).toEqual([]);
+    expect(HERO_STATE_COUNTERS.filter((e) => e.heroes.includes("appa"))).toEqual([]);
   });
 });
