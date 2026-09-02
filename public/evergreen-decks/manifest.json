@@ -395,6 +395,18 @@
         "file": "data/heroes/ellen-ripley.rules.ts",
         "commit": "ee9c276"
       }
+    },
+    {
+      "heroId": "appa",
+      "deckId": "jw9q",
+      "version_id": "6Dz_TJqPO",
+      "frozenAt": "2026-09-02",
+      "digest": "sha256:d0453cf32f4a2126db4948ce6ef246bfbb5e7473872a12f827fb9d4d488d80db",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/appa.rules.ts",
+        "commit": "b7ab6ca"
+      }
     }
   ]
 }

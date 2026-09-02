@@ -258,6 +258,36 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // BEHIND ME* emits when Ripley and Newt swap and the OTHER fighter becomes the
   // defender (see lib/pro/combatDefender.ts).
   "ellen-ripley": "ellen-ripley",
+  // Appa + Momo (issue #737 ↔ engine #522/#525): community deck jw9q by JBentz,
+  // served at tier `lab` pending the author's playtest. Appa is LARGE with
+  // attacker-side reach (Kong precedent) and Momo is a SMALL sidekick at move 4;
+  // both are HeroDef/sidekick stats, not ops.
+  //
+  // ART: the author's OWN finished renders — the complete 14-file PNG set JBentz
+  // posted in the Discord #pro-deck-request thread on 2026-08-23 — converted to
+  // webp and self-hosted under public/evergreen-decks/art/appa/, drawn full-bleed
+  // via cardImage. The jw9q payload's own imageUrl fields are uncredited
+  // third-party hotlinks and are deliberately NOT carried over; this deck must
+  // never be routed to the art-generation pipeline.
+  //
+  // The printed cards are the source of truth where they disagree with the
+  // payload (Dean's ruling, 2026-09-02) — three rule-level differences, all three
+  // being fixed on the engine side in PR #524 so the two stay in step:
+  //   • "Sky Bison" is titled THE LAST SKY BISON on the card. That is the snapshot
+  //     title AND the string the art index is keyed on, so this one MUST land with
+  //     the engine rename or that card resolves no face.
+  //   • Air Nomads: "shares all their zones with your fighter" (singular), not the
+  //     payload's plural "your fighters".
+  //   • Team Avatar: "shares a space with another fighter", not "a friendly fighter".
+  //
+  // Public state contract, verified against appa.rules.ts @b7ab6ca: NOTHING. The
+  // deck's whole op vocabulary is if / optional / dealDamage / bindFighter / move /
+  // modifyValue / chooseOne — no counters, no flags, no piles, no markers, no rule
+  // cards — so there is deliberately no HERO_STATE_FLAGS / HERO_STATE_COUNTERS
+  // entry. What it DOES exercise is v34's `COMBAT_DEFENDER_CHANGED`, and from the
+  // other side of the table: *Hallucinations* substitutes among the OPPONENT's
+  // fighters (see lib/pro/combatDefender.ts).
+  appa: "jw9q",
 };
 
 /**

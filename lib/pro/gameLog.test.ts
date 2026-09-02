@@ -829,7 +829,7 @@ describe("enrichLines", () => {
       };
       expect(enrichLines([], [swap], named)).toEqual([
         {
-          text: "Newt steps in as the defender (Ellen Ripley steps back) — the damage lands on Newt",
+          text: "Newt takes Ellen Ripley's place as the defender — the damage lands on Newt",
           who: "game",
         },
       ]);
