@@ -74,6 +74,26 @@ describe("cardFaceOptions", () => {
     expect(cardFaceOptions(p)).toEqual([]);
   });
 
+  // Issue #737. Appa's *Animal Antics* returns revealed cards with an UNFILTERED
+  // `putInDeck` over the OPPONENT's whole discard, and `execPutInDeck` sends every
+  // option with `label` set to the bare CardInstanceId. If this gate ever stopped
+  // matching, the player would be asked to pick between buttons reading
+  // "kong/pounce#2" — captured verbatim off a live PUT_IN_DECK_CARD prompt.
+  it("turns a PUT_IN_DECK_CARD pick into faces, never raw instance-id labels", () => {
+    const p = prompt("CHOOSE_TARGET", [
+      cardOpt("king-kong/regroup#1"),
+      cardOpt("king-kong/jaw-of-the-beast#2"),
+      cardOpt("king-kong/the-king-is-coming#3"),
+      cardOpt("king-kong/pounce#1"),
+    ]);
+    const faces = cardFaceOptions(p);
+    expect(faces).toHaveLength(4);
+    expect(faces.map((f) => f.instance)).toEqual(p.options.map((o) => o.id));
+    // Every option the engine offered is renderable — none falls through to a
+    // button whose only text would be the instance id the engine used as a label.
+    expect(faces.map((f) => f.id)).toEqual(p.options.map((o) => o.id));
+  });
+
   it("ignores prompt kinds that never carry card options", () => {
     // e.g. a CHOOSE_SPACE pose prompt — options are `<space>|<space>` strings.
     const p = prompt("CHOOSE_SPACE", [{ id: "s12|s13", label: "s12|s13" }]);
