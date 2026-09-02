@@ -209,7 +209,8 @@
       "isRanged": false,
       "move": 2,
       "name": "Appa",
-      "specialAbility": "THE FIRST AIRBENDER\nAppa is a large fighter. (He can attack up to 2 spaces away.)\nAdd 1 to Appa's combat cards if he is in more zones than the opposing fighter.\nMomo is a small fighter and has a move value is 4."
+      "specialAbility": "THE FIRST AIRBENDER\nAppa is a large fighter. (He can attack up to 2 spaces away.)\nAdd 1 to Appa's combat cards if he is in more zones than the opposing fighter.\nMomo is a small fighter and has a move value is 4.",
+      "tokenImageUrl": "/evergreen-decks/art/appa/token-appa.webp"
     },
     "name": "",
     "ruleCards": [],
@@ -218,7 +219,8 @@
       "isRanged": false,
       "name": "Momo",
       "quantity": 1,
-      "quote": null
+      "quote": null,
+      "tokenImageUrl": "/evergreen-decks/art/appa/token-momo.webp"
     }
   },
   "deck_first_published_on": "Thu, 06 Aug 2026 20:37:52 GMT",
