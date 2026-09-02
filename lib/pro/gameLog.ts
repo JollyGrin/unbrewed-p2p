@@ -703,6 +703,10 @@ export function enrichLines(
   // Position of the next SUB_ATTACK_INITIATED within this batch — a drained
   // followup queue can dispatch more than one before a player has to act again.
   let subAttackOrdinal = 0;
+  // An opening-hand mulligan puts the whole hand back one CARD_SHUFFLED_INTO_DECK
+  // at a time (protocol v30). MULLIGAN_TAKEN already narrates that in one line, so
+  // the per-card returns must not spam the feed (issue #741).
+  const mulliganBatch = events.some((e) => e.type === "MULLIGAN_TAKEN");
 
   // A card instance rendered on a NEW line so the panel can hover its face.
   const sourceCards = (source: string): CardInstanceId[] | undefined =>
@@ -842,6 +846,27 @@ export function enrichLines(
         const seat = ctx.seat(e.player);
         added.push({
           text: `${seat} returned ${ctx.label(e.card)} to hand`,
+          who: whoOf(e.player),
+          cards: [e.card],
+        });
+        break;
+      }
+      // A card put BACK on/into the deck (issue #741). The diff pass only watches
+      // discard GROWTH, so a card leaving the discard for the deck — the second
+      // half of "reveal N, discard 1, put the rest back" (Appa's Animal Antics) —
+      // was completely silent, and a correct resolution read as N discards.
+      // Mode 2 (a new line): nothing in the snapshot narrates it.
+      //
+      // Only `from: 'DISCARD'` speaks. That pile is public on every seat's view,
+      // so the card can be named for both players. A `from: 'HAND'` return stays
+      // silent as before: hand contents are private, and naming the card would
+      // leak the opponent's hand. That also covers the mulligan batch, whose
+      // returns are all from hand — belt and braces, `mulliganBatch` below keeps
+      // this quiet inside one regardless of origin.
+      case "CARD_SHUFFLED_INTO_DECK": {
+        if (e.from !== "DISCARD" || mulliganBatch) break;
+        added.push({
+          text: `${ctx.seat(e.player)} → deck: ${ctx.label(e.card)} (returned from discard)`,
           who: whoOf(e.player),
           cards: [e.card],
         });
