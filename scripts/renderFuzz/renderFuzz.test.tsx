@@ -24,6 +24,11 @@ import { viewHash } from "./viewHash";
 import { findViewFiles, readViewFile, readRunDir, RenderJob } from "./runDir";
 import { findingFileName } from "./artifact";
 import { knownBadView } from "./sampleViews";
+import {
+  buildFixtureFiles,
+  describeFixtureDrift,
+  STALE_FIXTURE_HINT,
+} from "./fixtureFiles";
 import { parseBoundaryMarker, fallbackShownIn, BOUNDARY_MARKER } from "./detect";
 import type { PlayerView } from "@/lib/pro/protocol";
 
@@ -107,6 +112,29 @@ describe("runDir parsing", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+});
+
+// The trap this closes (unbrewed-p2p-505): sampleViews.ts and the committed
+// JSONL fixtures encode the same protocol shape in two places, and nothing used
+// to fail at the moment they diverged. The v22 sync (cfe0d3a) added fields to
+// the builders and left the fixtures a protocol version behind; the breakage
+// surfaced much later as a bare viewHash mismatch that read like a hashing bug.
+// Rebuilding the fixtures here from sampleViews.ts makes them derivable rather
+// than hand-kept, and puts the regen command in the failure output.
+describe("committed fixtures stay derivable from sampleViews.ts", () => {
+  for (const fixture of buildFixtureFiles()) {
+    it(`${fixture.relPath} matches a fresh regeneration`, () => {
+      const onDisk = readFileSync(join(REPO, ...fixture.relPath.split("/")), "utf8");
+      if (onDisk !== fixture.contents) {
+        throw new Error(
+          `${fixture.relPath} does not match a fresh regeneration from ` +
+            `scripts/renderFuzz/sampleViews.ts.\n\n${STALE_FIXTURE_HINT}\n\n` +
+            describeFixtureDrift(onDisk, fixture.contents)
+        );
+      }
+      expect(onDisk).toBe(fixture.contents);
+    });
+  }
 });
 
 describe("findingFileName", () => {
@@ -224,7 +252,17 @@ describe("render-fuzz CLI (real jsdom mount)", () => {
         expect(finding.error.componentStack).toContain("ProErrorBoundary");
         expect(finding.error.componentStack).toContain("ProBoard");
         expect(finding.view).toBeTruthy(); // self-contained: repro needs no server
-        expect(finding.viewHash).toBe(viewHash(knownBadView()));
+        // A mismatch here means the committed known-bad JSONL drifted from
+        // sampleViews.ts — the derivability test above says which line, this
+        // says which command fixes it.
+        const expectedHash = viewHash(knownBadView());
+        if (finding.viewHash !== expectedHash) {
+          throw new Error(
+            `the known-bad finding hashed ${finding.viewHash}, but ` +
+              `knownBadView() hashes ${expectedHash}.\n\n${STALE_FIXTURE_HINT}`
+          );
+        }
+        expect(finding.viewHash).toBe(expectedHash);
       } finally {
         rmSync(out, { recursive: true, force: true });
       }
