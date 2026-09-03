@@ -213,4 +213,32 @@ describe("diffIncomingMove", () => {
       expect(diffIncomingMove(prev, next, [])).toEqual({ fighterId: "p2/hero", path: ["b1", "a1"] });
     });
   });
+
+  // A maneuver-ORIGIN relocation (engine #535) — like every `place` — emits
+  // FIGHTER_MOVED with a ONE-ELEMENT path. The ≥2 path filter drops that event,
+  // which used to leave the fallback free to fabricate a straight [from, to]
+  // glide: a walk that never happened, for what the rules call a teleport. A
+  // sub-2 path now marks the teleport and the token snaps instead.
+  describe("one-element FIGHTER_MOVED paths are teleports, not walks (engine #535)", () => {
+    it("returns null for a relocated opponent fighter instead of inventing a glide", () => {
+      const prev = view([fighter({ space: "b1" })]);
+      const next = view([fighter({ space: "c3" })]);
+      const events: GameEvent[] = [{ type: "FIGHTER_MOVED", fighter: "p2/hero", path: ["c3"] }];
+      expect(diffIncomingMove(prev, next, events)).toBeNull();
+    });
+
+    it("still tweens a DIFFERENT opponent fighter that walked in the same batch", () => {
+      const larry = fighter({ id: "p2/sidekick-1", kind: "SIDEKICK", name: "Larry", space: "b7" });
+      const prev = view([fighter({ space: "b1" }), larry]);
+      const next = view([fighter({ space: "c3" }), { ...larry, space: "b8" }]);
+      const events: GameEvent[] = [
+        { type: "FIGHTER_MOVED", fighter: "p2/hero", path: ["c3"] },
+        { type: "FIGHTER_MOVED", fighter: "p2/sidekick-1", path: ["b7", "b8"] },
+      ];
+      expect(diffIncomingMove(prev, next, events)).toEqual({
+        fighterId: "p2/sidekick-1",
+        path: ["b7", "b8"],
+      });
+    });
+  });
 });

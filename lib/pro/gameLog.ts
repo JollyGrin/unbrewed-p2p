@@ -23,6 +23,7 @@ import { defenderSwapText } from "./combatDefender";
 import { combatOutcomeLogText } from "./combatOutcome";
 import { MITIGATION_COUNTER } from "./clockTower";
 import { rangeSpendLineFor } from "./rangePurchase";
+import { spaceLabel } from "./spaceLabel";
 
 export interface ProLogLine {
   text: string;
@@ -411,11 +412,21 @@ export function diffViews(
   // move branch skips them and the event's own line (below, in enrichLines)
   // narrates the exchange as the single thing it was.
   const swapped = swappedFighters(events);
+  // The once-per-maneuver relocation ledger (engine #535): a fighter that changed
+  // space in the very batch its id joined `maneuver.relocated` didn't WALK there —
+  // it started its maneuver somewhere new. The chosen origin is the point of the
+  // ability, so that fighter's line names it instead of the bare "moved".
+  const relocated = new Set(next.maneuver?.relocated ?? []);
   for (const f of next.fighters) {
     const was = prevFighters.get(f.id);
     if (!was) continue;
     if (f.space !== was.space && f.space && was.space && !swapped.has(f.id)) {
-      lines.push({ text: `${f.name} moved`, who: whoOf(f.owner) });
+      lines.push({
+        text: relocated.has(f.id)
+          ? `${f.name} started its maneuver from ${spaceLabel(was.space)}`
+          : `${f.name} moved`,
+        who: whoOf(f.owner),
+      });
     }
     if (f.hp < was.hp && !swept.has(f.id)) {
       lines.push({

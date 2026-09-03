@@ -159,6 +159,10 @@ export interface ProDockProps {
   highlightedCount: number;
   attackTargetCount: number;
   boostHint: string | null;
+  /** Maneuver-ORIGIN relocation (engine #535): one-liner for the dashed board
+   *  picks while the selected fighter may still start its maneuver elsewhere.
+   *  Null/omitted the rest of the time. */
+  relocateHint?: string | null;
   /** ----- panel slots (the big inline panels still live in game.tsx) ----- */
   combatPanel: ReactNode;
   promptPanel: ReactNode;
@@ -245,6 +249,7 @@ export const ProDock = ({
   highlightedCount,
   attackTargetCount,
   boostHint,
+  relocateHint = null,
   combatPanel,
   promptPanel,
   hasPrompt,
@@ -569,6 +574,11 @@ export const ProDock = ({
       {boostHint && (
         <Text fontSize="0.75rem" color="brand.parchment" opacity={0.85} textShadow="0 1px 3px rgba(0,0,0,0.6)">
           {boostHint}
+        </Text>
+      )}
+      {relocateHint && (
+        <Text fontSize="0.75rem" color="brand.parchment" opacity={0.85} textShadow="0 1px 3px rgba(0,0,0,0.6)">
+          {relocateHint}
         </Text>
       )}
       {combatPanel}

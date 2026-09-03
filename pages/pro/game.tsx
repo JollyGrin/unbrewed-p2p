@@ -104,6 +104,7 @@ import {
   cardTitle,
   describeAction,
   dockRows,
+  NON_DOCK_ACTION_TYPES,
   soleAction,
 } from "@/lib/pro/actionDock";
 import {
@@ -4668,15 +4669,16 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     : opponentConnected
     ? null
     : "opponent disconnected";
-  // RESPOND_PROMPT renders through the PromptPanel; MOVE_FIGHTER and
-  // PLACE_SIDEKICK render as clickable board spaces — listing one button per
-  // destination just floods the sidebar (and card actions live on the hand).
-  // FORFEIT: engine #32 enumerates it in legalActions during PLAY (its isMember
-  // gate needs it there), but we render it ONLY through the confirm-gated dock
-  // button — a raw one-click sidebar entry would be the exact misfire we guard.
-  const listActions = legalActions.filter(
-    (a) => !["RESPOND_PROMPT", "MOVE_FIGHTER", "PLACE_SIDEKICK", "FORFEIT"].includes(a.type)
-  );
+  // RESPOND_PROMPT renders through the PromptPanel; MOVE_FIGHTER,
+  // RELOCATE_FIGHTER (engine #535 — the server offers ONE PER candidate origin
+  // space) and PLACE_SIDEKICK render as clickable board spaces — listing one
+  // button per destination just floods the sidebar (and card actions live on
+  // the hand). FORFEIT: engine #32 enumerates it in legalActions during PLAY
+  // (its isMember gate needs it there), but we render it ONLY through the
+  // confirm-gated dock button — a raw one-click sidebar entry would be the
+  // exact misfire we guard. One shared list (lib/pro/actionDock) so this filter
+  // and `soleAction` can never disagree on what a dock action is.
+  const listActions = legalActions.filter((a) => !NON_DOCK_ACTION_TYPES.includes(a.type));
   // The one dock action a spacebar press may fire (issue #353): eligible only
   // when, ignoring FORFEIT, exactly one legal action remains and it's a dock
   // action with no prompt open. Synced into the ref the keydown listener reads.
@@ -4734,6 +4736,28 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     view.map.spaces.map((s) => [s.id, { adjacentTo: s.adjacentTo, zones: s.zones }])
   );
   const fighterById = new Map<FighterId, ViewFighter>(view.fighters.map((f) => [f.id, f]));
+  // Maneuver-ORIGIN relocation (engine #535 ↔ protocol 34): while maneuvering, the
+  // server offers one RELOCATE_FIGHTER per space the selected fighter may START its
+  // maneuver from. A teleport, not a step — so it rides its own highlight channel
+  // (the dashed cyan `relocateSpaces`), never the gold destination set, and its
+  // click is resolved before the step machine's. The pick deliberately omits the
+  // origins ADJACENT to the fighter: a step reaches those for free, and hijacking
+  // the everyday adjacent click for a once-per-maneuver teleport would read as a
+  // misfire. (The server validates whatever is sent; this only stages which of its
+  // offered spaces draw the pick.) Empty whenever the server offers none —
+  // eligibility is never computed here.
+  const relocateActions = new Map<SpaceId, Action>();
+  if (view.turnPhase === "MANEUVER_MOVE" && selectedFighter != null) {
+    const selSpace = fighterById.get(selectedFighter)?.space ?? null;
+    const adjacentToSel =
+      selSpace != null ? new Set(spaceReachById.get(selSpace)?.adjacentTo ?? []) : null;
+    for (const a of legalActions) {
+      if (a.type !== "RELOCATE_FIGHTER" || a.fighter !== selectedFighter) continue;
+      if (adjacentToSel?.has(a.space)) continue;
+      relocateActions.set(a.space, a);
+    }
+  }
+  const relocateSpaces = [...relocateActions.keys()];
   // The defender substitution, rendered (protocol v34 ↔ engine #494). One copy
   // helper feeds all three surfaces — the board chip, the combat-panel tag and
   // the log line — so they can never word the same fact differently. Names come
@@ -5283,6 +5307,12 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // Issue #85: say out loud why boost is (or is no longer) available, instead
   // of letting the affordance silently vanish once the fighters have moved.
   const boostHint = maneuverBoostHint(view, legalActions);
+  // Why the dashed rings are on the board (engine #535). Only while picks are up;
+  // never states a rule — the server already decided what is offered.
+  const relocateHint =
+    relocateSpaces.length > 0
+      ? `tip: click a dashed space to start the maneuver there instead`
+      : null;
 
   // Commit the walked effect-move route as ONE prompt answer (issue #654): the
   // option we ended on plus the route actually taken, so `passedThrough` (the
@@ -5331,6 +5361,17 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   };
 
   const onSpaceClick = (space: SpaceId) => {
+    // Maneuver-ORIGIN relocation (engine #535) answers first: it is its own
+    // gesture, never a hop — one click sends the server's exact offered action and
+    // the figure is PLACED. Resolved before the step machine because the maneuver
+    // walk owns clicks outright (below) and would swallow these; it can't steal a
+    // step, since origins adjacent to the fighter never draw the pick.
+    const relocate = relocateActions.get(space);
+    if (relocate) {
+      sendAction(relocate);
+      setStep(null); // any previewed walk is discarded — nothing was sent; the placement supersedes it
+      return;
+    }
     // #658: an open snake-step pose pick answers first — the click that raised it
     // could be read two ways, and this one says which body position was meant.
     if (poseChoiceOptions.length > 0 && stepWalk) {
@@ -5665,6 +5706,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       highlightedCount={highlightedSpaces.length}
       attackTargetCount={attackActions.size}
       boostHint={boostHint}
+      relocateHint={relocateHint}
       combatPanel={
         /* Strike beat (#381): while a combat that resolved+ended in one batch
            lingers, keep rendering the panel from the frozen snapshot so the
@@ -5795,6 +5837,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
           fighters={view.fighters}
           tokens={view.tokens}
           highlightedSpaces={[...new Set(highlightedSpaces)]}
+          relocateSpaces={relocateSpaces}
           highlightedFighters={[...new Set(highlightedFighters)]}
           selectedFighter={selectedFighter}
           attack={view.combat ? { attacker: view.combat.attacker, target: view.combat.target } : null}

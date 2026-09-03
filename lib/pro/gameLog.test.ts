@@ -828,6 +828,38 @@ describe("enrichLines", () => {
     });
   });
 
+  // Maneuver-ORIGIN relocation (engine #535 ↔ protocol 34): the once-per-maneuver
+  // ledger rides the view's `maneuver`, so the diff can narrate the placement as
+  // what it is — STARTING the maneuver somewhere else — instead of a bare walk.
+  describe("RELOCATE_FIGHTER (maneuver-origin relocation)", () => {
+    it("names the chosen origin when the ledger gains the fighter", () => {
+      const before = view({ fighters: [fighter({ space: "s1" })] });
+      const after = view({
+        turnPhase: "MANEUVER_MOVE",
+        maneuver: { boostApplied: 0, boosted: false, moved: [], relocated: ["p1/hero"] },
+        fighters: [fighter({ space: "c3" })],
+      });
+      const lines = diffViews(before, after, label, [
+        { type: "FIGHTER_MOVED", fighter: "p1/hero", path: ["c3"] },
+      ]);
+      expect(lines).toContainEqual({
+        text: "King Taranis started its maneuver from S1",
+        who: "you",
+      });
+      expect(lines.some((l) => l.text === "King Taranis moved")).toBe(false);
+    });
+
+    it("keeps the bare 'moved' line when the ledger is absent (older server, plain move)", () => {
+      const before = view({ fighters: [fighter({ space: "s1" })] });
+      const after = view({
+        turnPhase: "MANEUVER_MOVE",
+        fighters: [fighter({ space: "c3" })],
+      });
+      const lines = diffViews(before, after, label, []);
+      expect(lines).toContainEqual({ text: "King Taranis moved", who: "you" });
+    });
+  });
+
   // v34 defender substitution (protocol v34 ↔ engine #494 — Ellen Ripley's *GET
   // BEHIND ME*). Nothing the diff reads changes: same combat, same defending
   // PLAYER, same two revealed cards, both cards still in their slots. The only

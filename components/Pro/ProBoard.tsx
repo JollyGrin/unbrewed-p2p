@@ -170,6 +170,12 @@ const ARROW_COLOR = "#E23B3B"; // crimson — reads as "attack", distinct from b
 // box-shadow (which selection already owns).
 const MOVE_HINT_COLOR = "#A78BFA";
 
+// Maneuver-ORIGIN relocation pick (engine #535 ↔ unbrewed-p2p#747): a cold cyan
+// drawn DASHED — the board's only dashed affordance — so a teleport origin never
+// reads as the solid gold walk highlight, the white selection ring, the teal
+// ally ring (#39B7A8), or the periwinkle move hint above.
+const RELOCATE_COLOR = "#3ECFE0";
+
 // Zone-membership readability (issue #413): a subtle fill tint keyed to a zone's
 // own color. Append a low-alpha channel to a #rrggbb color (editor zone colors
 // are always hex); any non-hex value is returned untouched so it degrades to a
@@ -244,6 +250,13 @@ export interface ProBoardProps {
   highlightedSpaces?: SpaceId[];
   /** Fighters the current player can act on right now (attack targets, movable…) */
   highlightedFighters?: FighterId[];
+  /** Maneuver-ORIGIN relocation picks (engine #535 ↔ protocol 34): spaces the
+   *  selected fighter may START its maneuver from, offered by the server as
+   *  RELOCATE_FIGHTER actions. A teleport, not a step — drawn as a dashed cyan
+   *  ring, deliberately unlike the solid gold walk highlight — and one click
+   *  relocates. Adjacent origins never arrive here (the caller keeps those as
+   *  ordinary steps). Absent/empty = no pick, board unchanged. */
+  relocateSpaces?: SpaceId[];
   selectedFighter?: FighterId | null;
   /** Active combat pairing (view.combat) — draws an attacker→target arrow so it's
    *  clear who is attacking whom during the attack phase (issue #148). null = no
@@ -409,6 +422,7 @@ export const ProBoard = ({
   tokens = [],
   highlightedSpaces = [],
   highlightedFighters = [],
+  relocateSpaces = [],
   selectedFighter = null,
   attack = null,
   defenderStepIn = null,
@@ -450,6 +464,7 @@ export const ProBoard = ({
   const itemById = new Map((map.items ?? []).map((it) => [it.id, it]));
   const highlightSet = new Set(highlightedSpaces);
   const highlightFighterSet = new Set(highlightedFighters);
+  const relocateSet = new Set(relocateSpaces);
   const extendedReachSet = new Set(extendedReachTargets);
   const boughtRangeById = new Map(boughtRangeTargets.map((t) => [t.id, t]));
   const closedSet = new Set(closedRegions);
@@ -505,11 +520,14 @@ export const ProBoard = ({
 
   // A collapsed panel must never hide a required choice: any highlighted space
   // or targetable fighter INSIDE the region forces it open for the duration.
+  // Relocation picks ride along — not required (END_MANEUVER always exists) but
+  // a pick hidden behind a collapsed panel is a pick nobody can make.
   const regionActive = (regionId: string) =>
     map.spaces.some(
       (s) =>
         s.region === regionId &&
         (highlightSet.has(s.id) ||
+          relocateSet.has(s.id) ||
           fighters.some((f) => f.space === s.id && highlightFighterSet.has(f.id)))
     );
 
@@ -1490,6 +1508,7 @@ export const ProBoard = ({
       {/* space hit-circles */}
       {spaces.map((s) => {
         const isHighlighted = highlightSet.has(s.id);
+        const isRelocate = relocateSet.has(s.id);
         const zoneCols = zoneMemberColors(s);
         const inZone = zoneCols.length > 0;
         // Concentric per-zone rings (issue #413): one outset ring per zone this
@@ -1511,29 +1530,41 @@ export const ProBoard = ({
             w={`${diam}%`}
             sx={{ aspectRatio: "1" }}
             borderRadius="50%"
-            border={isHighlighted ? "2px solid #E0A82E" : "1px solid rgba(255,255,255,0.15)"}
+            // A relocation pick outranks a co-drawn gold highlight: where a space
+            // is both a step destination and a relocation origin, the dashed ring
+            // is what the click does (game.tsx resolves the relocate first), so
+            // the visuals must not promise otherwise.
+            border={
+              isRelocate ? `2px dashed ${RELOCATE_COLOR}`
+              : isHighlighted ? "2px solid #E0A82E"
+              : "1px solid rgba(255,255,255,0.15)"
+            }
             bg={
-              isHighlighted ? "rgba(224,168,46,0.45)"
+              isRelocate ? "rgba(62,207,224,0.30)"
+              : isHighlighted ? "rgba(224,168,46,0.45)"
               : inZone ? zoneTint(zoneCols[0])
               : "transparent"
             }
             boxShadow={zoneRings}
-            animation={isHighlighted ? `${highlightPulse} 1.4s ease-in-out infinite` : undefined}
+            animation={
+              isHighlighted || isRelocate ? `${highlightPulse} 1.4s ease-in-out infinite` : undefined
+            }
             cursor={
-              isHighlighted && onSpaceClick ? "pointer"
+              (isHighlighted || isRelocate) && onSpaceClick ? "pointer"
               : s.zones.length ? "pointer"
               : "default"
             }
-            // Actionable spaces commit the prompt (unchanged). Any other space
-            // toggles the zone-membership preview — the touch/click path; hover
-            // drives it on desktop.
+            // Actionable spaces commit the prompt (unchanged); a relocation pick
+            // relocates. Any other space toggles the zone-membership preview —
+            // the touch/click path; hover drives it on desktop.
             onClick={
-              isHighlighted && onSpaceClick
+              (isHighlighted || isRelocate) && onSpaceClick
                 ? () => onSpaceClick(s.id)
                 : () => setZoneHover((cur) => (cur === s.id ? null : s.id))
             }
-            // Hover previews this space's zones (any space); actionable spaces
-            // also fire the caller's "who would move here" cue, clearing on leave.
+            // Hover previews this space's zones (any space); gold spaces also fire
+            // the caller's "who would move here" cue, clearing on leave — a
+            // relocation pick is not a move, so it stays out of that cue.
             onMouseEnter={() => {
               setZoneHover(s.id);
               if (isHighlighted) onSpaceHover?.(s.id);
@@ -1542,7 +1573,7 @@ export const ProBoard = ({
               setZoneHover((cur) => (cur === s.id ? null : cur));
               if (isHighlighted) onSpaceHover?.(null);
             }}
-            zIndex={isHighlighted ? 3 : inZone ? 2 : 1}
+            zIndex={isHighlighted || isRelocate ? 3 : inZone ? 2 : 1}
           />
         );
       })}
