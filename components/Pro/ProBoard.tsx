@@ -254,9 +254,13 @@ export interface ProBoardProps {
    *  selected fighter may START its maneuver from, offered by the server as
    *  RELOCATE_FIGHTER actions. A teleport, not a step — drawn as a dashed cyan
    *  ring, deliberately unlike the solid gold walk highlight — and one click
-   *  relocates. Adjacent origins never arrive here (the caller keeps those as
-   *  ordinary steps). Absent/empty = no pick, board unchanged. */
+   *  relocates. The picks arrive only while the dock row has ARMED the mode
+   *  (review of #748); absent/empty = no pick, board unchanged. */
   relocateSpaces?: SpaceId[];
+  /** The relocate mode is ARMED: the dashed origins are the only clickable
+   *  spaces, and hovering one must not fire the "who would move here" walk
+   *  preview (review of #748). False = the board is exactly as on main. */
+  relocateArmed?: boolean;
   selectedFighter?: FighterId | null;
   /** Active combat pairing (view.combat) — draws an attacker→target arrow so it's
    *  clear who is attacking whom during the attack phase (issue #148). null = no
@@ -423,6 +427,7 @@ export const ProBoard = ({
   highlightedSpaces = [],
   highlightedFighters = [],
   relocateSpaces = [],
+  relocateArmed = false,
   selectedFighter = null,
   attack = null,
   defenderStepIn = null,
@@ -1530,10 +1535,10 @@ export const ProBoard = ({
             w={`${diam}%`}
             sx={{ aspectRatio: "1" }}
             borderRadius="50%"
-            // A relocation pick outranks a co-drawn gold highlight: where a space
-            // is both a step destination and a relocation origin, the dashed ring
-            // is what the click does (game.tsx resolves the relocate first), so
-            // the visuals must not promise otherwise.
+            // While the relocate mode is armed, a dashed pick outranks a co-drawn
+            // gold highlight outright: the dashed ring is the only clickable thing
+            // on the space (game.tsx resolves the armed relocate first), so the
+            // visuals must not promise the gold step.
             border={
               isRelocate ? `2px dashed ${RELOCATE_COLOR}`
               : isHighlighted ? "2px solid #E0A82E"
@@ -1550,28 +1555,31 @@ export const ProBoard = ({
               isHighlighted || isRelocate ? `${highlightPulse} 1.4s ease-in-out infinite` : undefined
             }
             cursor={
-              (isHighlighted || isRelocate) && onSpaceClick ? "pointer"
+              (relocateArmed ? isRelocate : isHighlighted || isRelocate) && onSpaceClick
+                ? "pointer"
               : s.zones.length ? "pointer"
               : "default"
             }
-            // Actionable spaces commit the prompt (unchanged); a relocation pick
-            // relocates. Any other space toggles the zone-membership preview —
-            // the touch/click path; hover drives it on desktop.
+            // Actionable spaces commit the prompt (unchanged); armed, only a
+            // relocation pick answers. Any other space toggles the zone-membership
+            // preview — the touch/click path; hover drives it on desktop.
             onClick={
-              (isHighlighted || isRelocate) && onSpaceClick
+              (relocateArmed ? isRelocate : isHighlighted || isRelocate) && onSpaceClick
                 ? () => onSpaceClick(s.id)
                 : () => setZoneHover((cur) => (cur === s.id ? null : s.id))
             }
             // Hover previews this space's zones (any space); gold spaces also fire
             // the caller's "who would move here" cue, clearing on leave — a
-            // relocation pick is not a move, so it stays out of that cue.
+            // relocation pick is not a move, so it stays out of that cue (and
+            // while the mode is armed it must not fire for the dashed space at
+            // all — no walk preview on a teleport).
             onMouseEnter={() => {
               setZoneHover(s.id);
-              if (isHighlighted) onSpaceHover?.(s.id);
+              if (isHighlighted && !(relocateArmed && isRelocate)) onSpaceHover?.(s.id);
             }}
             onMouseLeave={() => {
               setZoneHover((cur) => (cur === s.id ? null : cur));
-              if (isHighlighted) onSpaceHover?.(null);
+              if (isHighlighted && !(relocateArmed && isRelocate)) onSpaceHover?.(null);
             }}
             zIndex={isHighlighted || isRelocate ? 3 : inZone ? 2 : 1}
           />

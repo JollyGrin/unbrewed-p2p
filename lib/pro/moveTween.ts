@@ -57,11 +57,22 @@ export function diffIncomingMove(
   // simply put somewhere new. That one-element path is dropped by the ≥2 filter
   // below, which would leave the fallback to fabricate a straight [from, to]
   // glide for a walk that never happened — the exact falsehood the swap
-  // exclusion above exists to prevent — so a path shorter than 2 marks a
-  // teleport and the token snaps to its new space instead.
+  // exclusion above exists to prevent — so a short path marks a teleport and
+  // the token snaps to its new space instead. Deliberately SCOPED to the
+  // relocation itself: every existing `place` effect also emits one-element
+  // paths and has glided the straight [from, to] fallback since long before
+  // #535, and shipped decks keep that behaviour unchanged (review of #748).
+  // The relocation is identified the same way the log identifies it: the
+  // fighter's id newly joined `maneuver.relocated` in this batch.
+  const relocatedBefore = new Set(prev.maneuver?.relocated ?? []);
+  const newlyRelocated = new Set(
+    (next.maneuver?.relocated ?? []).filter((id) => !relocatedBefore.has(id))
+  );
   const teleported = new Set<FighterId>();
   for (const e of events) {
-    if (e.type === "FIGHTER_MOVED" && e.path.length < 2) teleported.add(e.fighter);
+    if (e.type === "FIGHTER_MOVED" && e.path.length < 2 && newlyRelocated.has(e.fighter)) {
+      teleported.add(e.fighter);
+    }
   }
   const moved = next.fighters.filter((f) => {
     if (f.owner === next.you) return false; // your own moves tween optimistically

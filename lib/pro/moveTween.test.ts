@@ -218,11 +218,23 @@ describe("diffIncomingMove", () => {
   // FIGHTER_MOVED with a ONE-ELEMENT path. The ≥2 path filter drops that event,
   // which used to leave the fallback free to fabricate a straight [from, to]
   // glide: a walk that never happened, for what the rules call a teleport. A
-  // sub-2 path now marks the teleport and the token snaps instead.
-  describe("one-element FIGHTER_MOVED paths are teleports, not walks (engine #535)", () => {
+  // sub-2 path marks the teleport and the token snaps instead — but ONLY for the
+  // relocation: shipped `place` effects emit one-element paths too and have
+  // always glided, so the guard keys on the fighter's id newly joining
+  // `maneuver.relocated` (review of #748: no behaviour change for existing decks).
+  describe("one-element FIGHTER_MOVED paths are teleports only for relocations (engine #535)", () => {
+    const maneuvering = (relocated: string[]) => ({
+      boostApplied: 0,
+      boosted: false,
+      moved: [] as string[],
+      relocated,
+    });
+
     it("returns null for a relocated opponent fighter instead of inventing a glide", () => {
       const prev = view([fighter({ space: "b1" })]);
-      const next = view([fighter({ space: "c3" })]);
+      const next = view([fighter({ space: "c3" })], {
+        maneuver: maneuvering(["p2/hero"]),
+      });
       const events: GameEvent[] = [{ type: "FIGHTER_MOVED", fighter: "p2/hero", path: ["c3"] }];
       expect(diffIncomingMove(prev, next, events)).toBeNull();
     });
@@ -230,7 +242,9 @@ describe("diffIncomingMove", () => {
     it("still tweens a DIFFERENT opponent fighter that walked in the same batch", () => {
       const larry = fighter({ id: "p2/sidekick-1", kind: "SIDEKICK", name: "Larry", space: "b7" });
       const prev = view([fighter({ space: "b1" }), larry]);
-      const next = view([fighter({ space: "c3" }), { ...larry, space: "b8" }]);
+      const next = view([fighter({ space: "c3" }), { ...larry, space: "b8" }], {
+        maneuver: maneuvering(["p2/hero"]),
+      });
       const events: GameEvent[] = [
         { type: "FIGHTER_MOVED", fighter: "p2/hero", path: ["c3"] },
         { type: "FIGHTER_MOVED", fighter: "p2/sidekick-1", path: ["b7", "b8"] },
@@ -238,6 +252,32 @@ describe("diffIncomingMove", () => {
       expect(diffIncomingMove(prev, next, events)).toEqual({
         fighterId: "p2/sidekick-1",
         path: ["b7", "b8"],
+      });
+    });
+
+    it("keeps gliding an existing place effect's one-element path exactly as on main", () => {
+      // Summon/reposition effects have emitted one-element paths forever and the
+      // fallback straight [from, to] glide is their shipped animation — the
+      // teleport guard must not swallow them just because the path is short.
+      const prev = view([fighter({ space: "b1" })]);
+      const next = view([fighter({ space: "c3" })]);
+      const events: GameEvent[] = [{ type: "FIGHTER_MOVED", fighter: "p2/hero", path: ["c3"] }];
+      expect(diffIncomingMove(prev, next, events)).toEqual({
+        fighterId: "p2/hero",
+        path: ["b1", "c3"],
+      });
+    });
+
+    it("glides a later move of an already-relocated fighter (the ledger diff, not the ledger)", () => {
+      // Once the id sits in BOTH snapshots the relocation happened in an earlier
+      // batch; whatever moves now is an ordinary move and animates like one.
+      const ledger = maneuvering(["p2/hero"]);
+      const prev = view([fighter({ space: "c3" })], { maneuver: ledger });
+      const next = view([fighter({ space: "d4" })], { maneuver: ledger });
+      const events: GameEvent[] = [{ type: "FIGHTER_MOVED", fighter: "p2/hero", path: ["d4"] }];
+      expect(diffIncomingMove(prev, next, events)).toEqual({
+        fighterId: "p2/hero",
+        path: ["c3", "d4"],
       });
     });
   });

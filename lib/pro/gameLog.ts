@@ -413,17 +413,24 @@ export function diffViews(
   // narrates the exchange as the single thing it was.
   const swapped = swappedFighters(events);
   // The once-per-maneuver relocation ledger (engine #535): a fighter that changed
-  // space in the very batch its id joined `maneuver.relocated` didn't WALK there —
-  // it started its maneuver somewhere new. The chosen origin is the point of the
-  // ability, so that fighter's line names it instead of the bare "moved".
-  const relocated = new Set(next.maneuver?.relocated ?? []);
+  // space in the very batch its id JOINED `maneuver.relocated` didn't WALK there —
+  // it started its maneuver somewhere new, and the chosen origin is the point of
+  // the ability, so that line names the space it now occupies — the same space the
+  // dock row and the replay scrubber name. Diffing the ledger (not just reading the
+  // next view) keeps every LATER step of the same maneuver a plain "moved": once
+  // the id sits in both snapshots the relocation already happened, and its walks
+  // must be logged as the walks they are.
+  const relocatedBefore = new Set(prev.maneuver?.relocated ?? []);
+  const relocated = new Set(
+    (next.maneuver?.relocated ?? []).filter((id) => !relocatedBefore.has(id))
+  );
   for (const f of next.fighters) {
     const was = prevFighters.get(f.id);
     if (!was) continue;
     if (f.space !== was.space && f.space && was.space && !swapped.has(f.id)) {
       lines.push({
         text: relocated.has(f.id)
-          ? `${f.name} started its maneuver from ${spaceLabel(was.space)}`
+          ? `${f.name} started its maneuver from ${spaceLabel(f.space)}`
           : `${f.name} moved`,
         who: whoOf(f.owner),
       });
