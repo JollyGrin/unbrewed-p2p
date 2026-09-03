@@ -931,6 +931,14 @@ export type Action =
   | { type: "BOOST_MOVE"; player: PlayerId; card: CardInstanceId }
   | { type: "MOVE_FIGHTER"; player: PlayerId; fighter: FighterId; path: SpaceId[] }
   | { type: "SHAPESHIFT"; player: PlayerId; form: DruidForm; via: "MANEUVER" | "OMEN" | "TRAVEL" }
+  // Maneuver-ORIGIN relocation (engine v0.69.0, #535 — `HeroDef.maneuverRelocate`; Jason
+  // Voorhees "you may start Jason's maneuver in any space in his zone"). A once-per-maneuver,
+  // action-free teleport taken inside the maneuver window BEFORE the fighter moves. Fully
+  // enumerated: the server offers one variant per candidate origin, so the client sends back
+  // exactly what it was offered. PURELY ADDITIVE — no PROTOCOL_VERSION bump: the variant only
+  // ever appears in `legalActions` for a seat whose hero declares the trait, and no shipped
+  // deck declares one, so an older client never sees it.
+  | { type: "RELOCATE_FIGHTER"; player: PlayerId; fighter: FighterId; space: SpaceId }
   | { type: "END_MANEUVER"; player: PlayerId }
   | { type: "SCHEME"; player: PlayerId; card: CardInstanceId }
   // Use a battlefield SCHEME item (v17 — Teen Spirit). The active fighter must
@@ -1634,7 +1642,13 @@ export interface PlayerView {
   actionsRemaining: number;
   turnPhase: "ACTION_SELECT" | "MANEUVER_MOVE" | "DISCARD_TO_LIMIT" | null;
   // Non-null only during MANEUVER_MOVE (which fighters already moved, boost applied).
-  maneuver: { boostApplied: number; boosted: boolean; moved: FighterId[] } | null;
+  // `relocated` (engine v0.69.0, #535) is the once-per-maneuver ledger for
+  // `RELOCATE_FIGHTER` — the fighters that have already taken their maneuver-ORIGIN
+  // relocation this maneuver. ABSENT-WHEN-EMPTY, never sent as `[]`, so the wire shape of
+  // every game whose roster declares no `maneuverRelocate` is byte-identical to v33 and
+  // PROTOCOL_VERSION stays 34. A client that ignores it loses nothing: the server still
+  // enumerates exactly the relocations that remain legal.
+  maneuver: { boostApplied: number; boosted: boolean; moved: FighterId[]; relocated?: FighterId[] } | null;
   // issue #55: per-fighter incremental-movement graphs, present ONLY for the active
   // player during MANEUVER_MOVE (absent for the opponent and in every other phase).
   // Lets the client step a maneuver hop-by-hop locally and commit ONE MOVE_FIGHTER
@@ -1764,7 +1778,10 @@ export interface ReplayStep {
   activePlayer: PlayerId;
   actionsRemaining: number;
   turnPhase: "ACTION_SELECT" | "MANEUVER_MOVE" | "DISCARD_TO_LIMIT" | null;
-  maneuver: { boostApplied: number; boosted: boolean; moved: FighterId[] } | null;
+  // Replay frames carry `relocated` too: replay steps are redacted through the same
+  // view path as PlayerView (engine server/replay.ts godStep ← redactFor), so a
+  // recorded relocation rides the frame. Same ABSENT-WHEN-EMPTY ledger as above.
+  maneuver: { boostApplied: number; boosted: boolean; moved: FighterId[]; relocated?: FighterId[] } | null;
   fighters: ViewFighter[];
   tokens: ViewToken[];
   combat: ViewCombat | null;

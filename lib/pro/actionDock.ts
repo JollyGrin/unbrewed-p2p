@@ -1,5 +1,6 @@
 import { Action, CardInstanceId, CardMeta, FighterId, ProMapItem, SpaceId } from "./protocol";
 import { itemEffectText } from "./itemInfo";
+import { spaceLabel } from "./spaceLabel";
 
 // ---------------------------------------------------------------------------
 // Action-dock presentation (pure). The dock renders EVERY affordance generically
@@ -70,6 +71,10 @@ export const describeAction = (
     }
     case "MOVE_FIGHTER":
       return `Move ${a.fighter.split("/")[1]}`;
+    case "RELOCATE_FIGHTER":
+      // Never a dock row (NON_DOCK_ACTION_TYPES — it's a board affordance like the
+      // move), but the activity log and tooltips read this (engine #535).
+      return `Start maneuver from ${spaceLabel(a.space)}`;
     case "SHAPESHIFT": {
       const formLabel = a.form === "Human" ? "Night Elf" : a.form;
       return `${a.via === "OMEN" ? "Omen: " : ""}Shapeshift to ${formLabel}`;
@@ -110,13 +115,16 @@ export const describeAction = (
 };
 
 /** Action types the sidebar never lists as a plain button: prompts render in the
- *  PromptPanel, board affordances (MOVE_FIGHTER / PLACE_SIDEKICK) render as
- *  clickable spaces, and FORFEIT is offered only through the confirm-gated dock
+ *  PromptPanel, board affordances (MOVE_FIGHTER / RELOCATE_FIGHTER / PLACE_SIDEKICK)
+ *  render as clickable spaces — the server offers one RELOCATE_FIGHTER per candidate
+ *  origin space (engine #535), so listing them would render N near-identical rows and
+ *  eat N hotkeys — and FORFEIT is offered only through the confirm-gated dock
  *  button. Kept here so `listActions` (game.tsx) and `soleAction` agree on what a
  *  "dock action" is. */
 export const NON_DOCK_ACTION_TYPES: ReadonlyArray<Action["type"]> = [
   "RESPOND_PROMPT",
   "MOVE_FIGHTER",
+  "RELOCATE_FIGHTER",
   "PLACE_SIDEKICK",
   "FORFEIT",
 ];
@@ -161,6 +169,7 @@ export const dockGroup = (a: Action): DockGroup => {
   switch (a.type) {
     case "MANEUVER":
     case "END_MANEUVER":
+    case "RELOCATE_FIGHTER":
       return "maneuver";
     case "DECLARE_ATTACK":
       return "attack";

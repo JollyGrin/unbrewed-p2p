@@ -18,7 +18,7 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MOVE_STEP_SECONDS, PendingMove } from "@/components/Pro/ProBoard";
-import { GameEvent, PlayerView, SpaceId } from "./protocol";
+import { FighterId, GameEvent, PlayerView, SpaceId } from "./protocol";
 import { swappedFighters } from "./positionSwap";
 
 // Install the tween BEFORE the browser paints: the STATE view already shows the
@@ -52,9 +52,31 @@ export function diffIncomingMove(
   // — and a walk into a space the other fighter still visibly occupies. The
   // board plays the swap's own crossfade instead (lib/pro/positionSwap.ts).
   const swapped = swappedFighters(events);
+  // A maneuver-ORIGIN relocation (engine #535) — like every `place` — emits
+  // FIGHTER_MOVED with a ONE-ELEMENT path: there is no route, the figure is
+  // simply put somewhere new. That one-element path is dropped by the ≥2 filter
+  // below, which would leave the fallback to fabricate a straight [from, to]
+  // glide for a walk that never happened — the exact falsehood the swap
+  // exclusion above exists to prevent — so a short path marks a teleport and
+  // the token snaps to its new space instead. Deliberately SCOPED to the
+  // relocation itself: every existing `place` effect also emits one-element
+  // paths and has glided the straight [from, to] fallback since long before
+  // #535, and shipped decks keep that behaviour unchanged (review of #748).
+  // The relocation is identified the same way the log identifies it: the
+  // fighter's id newly joined `maneuver.relocated` in this batch.
+  const relocatedBefore = new Set(prev.maneuver?.relocated ?? []);
+  const newlyRelocated = new Set(
+    (next.maneuver?.relocated ?? []).filter((id) => !relocatedBefore.has(id))
+  );
+  const teleported = new Set<FighterId>();
+  for (const e of events) {
+    if (e.type === "FIGHTER_MOVED" && e.path.length < 2 && newlyRelocated.has(e.fighter)) {
+      teleported.add(e.fighter);
+    }
+  }
   const moved = next.fighters.filter((f) => {
     if (f.owner === next.you) return false; // your own moves tween optimistically
-    if (swapped.has(f.id)) return false; // a teleport, not a walk
+    if (swapped.has(f.id) || teleported.has(f.id)) return false; // a teleport, not a walk
     const from = prevSpace.get(f.id);
     return !!from && !!f.space && from !== f.space;
   });

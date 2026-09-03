@@ -22,6 +22,7 @@ import { useProCardArt } from "@/lib/pro/useProCardArt";
 import { fighterTokenStateByOwner } from "@/lib/pro/heroStateFlags";
 import { seatCosmetics, tokenRimForSeat } from "@/lib/pro/seatCosmetics";
 import { combatOutcomeBannerText, isNoWinner } from "@/lib/pro/combatOutcome";
+import { spaceLabel } from "@/lib/pro/spaceLabel";
 import { combatSidesLine } from "@/lib/pro/combatDefender";
 import { badgedFighterName, squadBadges } from "@/lib/pro/squadNumbers";
 import {
@@ -93,7 +94,6 @@ type ReplayFrameForLog = { prompt?: ReplayPrompt | null };
 const shortId = (id: string) => id.split("/").pop()?.split("#")[0]?.replace(/-/g, " ") ?? id;
 const cardLabel = (card: CardInstanceId) => shortId(card);
 const fighterLabel = (fighter: string) => fighter.replace("/hero", " hero").replace("/sidekick-", " sidekick ");
-const spaceLabel = (space: string) => space.toUpperCase();
 
 const promptLabel = (action: ReplayAction, beforeStep?: ReplayFrameForLog): string => {
   const prompt = beforeStep?.prompt;
@@ -116,6 +116,10 @@ const actionLabel = (action: ReplayAction, beforeStep?: ReplayFrameForLog): stri
       const to = action.path?.[action.path.length - 1];
       return `${action.player ?? "?"}: move ${fighterLabel(action.fighter ?? "fighter")}${to ? ` to ${spaceLabel(to)}` : ""}`;
     }
+    case "RELOCATE_FIGHTER":
+      // The chosen origin is the point of the ability (engine #535) — name it,
+      // and word it as the maneuver-start it is rather than a move.
+      return `${action.player ?? "?"}: start maneuver from ${spaceLabel(action.space ?? "?")}`;
     case "SHAPESHIFT":
       return `${action.player ?? "?"}: shapeshift to ${action.form ?? "form"}`;
     case "END_MANEUVER":
