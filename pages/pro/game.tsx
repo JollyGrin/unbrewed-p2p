@@ -52,6 +52,7 @@ import { buildPromptSpaceMap } from "@/lib/pro/promptSpaces";
 import { replayId, saveReplay } from "@/lib/pro/replayStore";
 import { shareReplayLink } from "@/lib/pro/replayShareLink";
 import { proErrorMessage } from "@/lib/pro/proErrors";
+import { resolveRelocateBoardClick } from "@/lib/pro/relocateMode";
 import { ProConnectionStatus, useProSocket } from "@/lib/pro/useProSocket";
 import { normalizeMap } from "@/lib/pro/normalizeMap";
 import { mapSubmissionIssueUrl } from "@/lib/pro/mapIssue";
@@ -104,6 +105,7 @@ import {
   cardTitle,
   describeAction,
   dockRows,
+  NON_DOCK_ACTION_TYPES,
   soleAction,
 } from "@/lib/pro/actionDock";
 import {
@@ -3403,6 +3405,24 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // the opt-out only sent) when the chosen board actually carries items.
   const [itemsEnabled, setItemsEnabled] = useState(true);
   const [selectedFighter, setSelectedFighter] = useState<FighterId | null>(null);
+  // Dock-armed relocation (engine #535; review of #748): the board never
+  // relocates on a bare click — the dock's "Start maneuver elsewhere" row arms
+  // the mode, and only an armed click may send RELOCATE_FIGHTER. Auto-disarm
+  // whenever the offers end (deselect, commit, phase change, the
+  // once-per-maneuver ledger), so the mode never outlives its dock row. This
+  // hook lives with the others ON PURPOSE: the page's snapshot guard returns
+  // early below, and hooks must run on every render.
+  const [relocateArmed, setRelocateArmed] = useState(false);
+  useEffect(() => {
+    const stillOffered =
+      !!snapshot?.view &&
+      snapshot.view.turnPhase === "MANEUVER_MOVE" &&
+      selectedFighter != null &&
+      snapshot.legalActions.some(
+        (a) => a.type === "RELOCATE_FIGHTER" && a.fighter === selectedFighter
+      );
+    if (!stillOffered) setRelocateArmed(false);
+  }, [snapshot, selectedFighter]);
   // Incremental-maneuver stepping (issue #285): the LOCAL hop-by-hop preview for
   // the selected fighter, scoped to that fighter so it never leaks across a
   // re-selection. null = no preview in flight (fresh). Nothing is sent until the
@@ -4668,15 +4688,16 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     : opponentConnected
     ? null
     : "opponent disconnected";
-  // RESPOND_PROMPT renders through the PromptPanel; MOVE_FIGHTER and
-  // PLACE_SIDEKICK render as clickable board spaces — listing one button per
-  // destination just floods the sidebar (and card actions live on the hand).
-  // FORFEIT: engine #32 enumerates it in legalActions during PLAY (its isMember
-  // gate needs it there), but we render it ONLY through the confirm-gated dock
-  // button — a raw one-click sidebar entry would be the exact misfire we guard.
-  const listActions = legalActions.filter(
-    (a) => !["RESPOND_PROMPT", "MOVE_FIGHTER", "PLACE_SIDEKICK", "FORFEIT"].includes(a.type)
-  );
+  // RESPOND_PROMPT renders through the PromptPanel; MOVE_FIGHTER,
+  // RELOCATE_FIGHTER (engine #535 — the server offers ONE PER candidate origin
+  // space) and PLACE_SIDEKICK render as clickable board spaces — listing one
+  // button per destination just floods the sidebar (and card actions live on
+  // the hand). FORFEIT: engine #32 enumerates it in legalActions during PLAY
+  // (its isMember gate needs it there), but we render it ONLY through the
+  // confirm-gated dock button — a raw one-click sidebar entry would be the
+  // exact misfire we guard. One shared list (lib/pro/actionDock) so this filter
+  // and `soleAction` can never disagree on what a dock action is.
+  const listActions = legalActions.filter((a) => !NON_DOCK_ACTION_TYPES.includes(a.type));
   // The one dock action a spacebar press may fire (issue #353): eligible only
   // when, ignoring FORFEIT, exactly one legal action remains and it's a dock
   // action with no prompt open. Synced into the ref the keydown listener reads.
@@ -4734,6 +4755,33 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     view.map.spaces.map((s) => [s.id, { adjacentTo: s.adjacentTo, zones: s.zones }])
   );
   const fighterById = new Map<FighterId, ViewFighter>(view.fighters.map((f) => [f.id, f]));
+  // Maneuver-ORIGIN relocation (engine #535 ↔ protocol 34): while maneuvering, the
+  // server offers one RELOCATE_FIGHTER per space the selected fighter may START its
+  // maneuver from. A free teleport, not a step — and Dean's ruling keeps the
+  // server's offers the single source of truth, so the board never guesses: the
+  // dashed origin picks (the cyan `relocateSpaces`) exist ONLY while the dock's
+  // "Start maneuver elsewhere" row has armed the mode. Unarmed, the board behaves
+  // exactly as if the trait were absent — an adjacent origin stays an ordinary
+  // (free-step) click, and no relocation is ever sent from a bare board click.
+  // Every offered space draws the pick, adjacent ones included: a relocation is
+  // free, so "relocate next door, then walk" is a real line. Empty whenever
+  // disarmed — eligibility is never computed here.
+  const relocateActions = new Map<SpaceId, Action>();
+  if (relocateArmed && selectedFighter != null) {
+    for (const a of legalActions) {
+      if (a.type === "RELOCATE_FIGHTER" && a.fighter === selectedFighter) {
+        relocateActions.set(a.space, a);
+      }
+    }
+  }
+  const relocateSpaces = [...relocateActions.keys()];
+  // The arm row shows while the SELECTED fighter has at least one relocation
+  // origin. Anything that ends that state (deselect, commit, phase change, the
+  // once-per-maneuver ledger) takes the row — and the mode — with it.
+  const relocateArmable =
+    view.turnPhase === "MANEUVER_MOVE" &&
+    selectedFighter != null &&
+    legalActions.some((a) => a.type === "RELOCATE_FIGHTER" && a.fighter === selectedFighter);
   // The defender substitution, rendered (protocol v34 ↔ engine #494). One copy
   // helper feeds all three surfaces — the board chip, the combat-panel tag and
   // the log line — so they can never word the same fact differently. Names come
@@ -5283,6 +5331,12 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // Issue #85: say out loud why boost is (or is no longer) available, instead
   // of letting the affordance silently vanish once the fighters have moved.
   const boostHint = maneuverBoostHint(view, legalActions);
+  // Why the dashed rings are on the board (engine #535). Only while the mode is
+  // armed (the rings only exist then); never states a rule — the server already
+  // decided what is offered.
+  const relocateHint = relocateArmed
+    ? `tip: click a dashed space to start the maneuver there`
+    : null;
 
   // Commit the walked effect-move route as ONE prompt answer (issue #654): the
   // option we ended on plus the route actually taken, so `passedThrough` (the
@@ -5331,6 +5385,25 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   };
 
   const onSpaceClick = (space: SpaceId) => {
+    // Maneuver-ORIGIN relocation (engine #535) answers first ONLY while the dock
+    // row armed the mode: it is its own gesture, never a hop — one click sends the
+    // server's exact offered action, the figure is PLACED, and the mode disarms.
+    // Unarmed the board click is untouched — the step machine, pose picks and move
+    // answers below behave exactly as on main, and no relocation is ever sent
+    // from a bare board click (review of #748; the pure dispatch is unit-pinned
+    // in lib/pro/relocateMode).
+    const relocateClick = resolveRelocateBoardClick({
+      armed: relocateArmed,
+      space,
+      originActions: relocateActions,
+    });
+    if (relocateClick.kind === "relocate") {
+      sendAction(relocateClick.action);
+      setStep(null); // any previewed walk is discarded — nothing was sent; the placement supersedes it
+      setRelocateArmed(false);
+      return;
+    }
+    if (relocateClick.kind === "ignored") return; // armed: the dashed origins are the only clickable spaces
     // #658: an open snake-step pose pick answers first — the click that raised it
     // could be read two ways, and this one says which body position was meant.
     if (poseChoiceOptions.length > 0 && stepWalk) {
@@ -5665,6 +5738,12 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       highlightedCount={highlightedSpaces.length}
       attackTargetCount={attackActions.size}
       boostHint={boostHint}
+      relocateHint={relocateHint}
+      relocateArm={
+        relocateArmable
+          ? { armed: relocateArmed, onToggle: () => setRelocateArmed((v) => !v) }
+          : null
+      }
       combatPanel={
         /* Strike beat (#381): while a combat that resolved+ended in one batch
            lingers, keep rendering the panel from the frozen snapshot so the
@@ -5795,6 +5874,8 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
           fighters={view.fighters}
           tokens={view.tokens}
           highlightedSpaces={[...new Set(highlightedSpaces)]}
+          relocateSpaces={relocateSpaces}
+          relocateArmed={relocateArmed}
           highlightedFighters={[...new Set(highlightedFighters)]}
           selectedFighter={selectedFighter}
           attack={view.combat ? { attacker: view.combat.attacker, target: view.combat.target } : null}

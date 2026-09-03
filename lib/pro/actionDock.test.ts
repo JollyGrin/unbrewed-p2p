@@ -1,4 +1,4 @@
-import { cardAffordances, describeAction, dockRows, soleAction } from "./actionDock";
+import { cardAffordances, describeAction, dockGroup, dockRows, NON_DOCK_ACTION_TYPES, soleAction } from "./actionDock";
 import { Action, CardMeta } from "./protocol";
 
 // A minimal catalog so cardLabel prints a real "title (value/boost)" string.
@@ -267,6 +267,44 @@ describe("actionDock — dockRows ordering, dividers, hotkeys (issue #514)", () 
     const rows = dockRows([discard, maneuver]);
     expect(rows.map((r) => r.action)).toEqual([maneuver, discard]);
     expect(rows.map((r) => r.dividerBefore)).toEqual([false, true]);
+  });
+});
+
+describe("actionDock — RELOCATE_FIGHTER (maneuver-origin relocation, engine #535)", () => {
+  // The server offers ONE of these per candidate origin space, so it must never
+  // surface as dock rows — it is a board affordance like MOVE_FIGHTER, and the
+  // exact offered action is what the board click sends back.
+  const relocate: Action = { type: "RELOCATE_FIGHTER", player: "p1", fighter: "jason/jason", space: "c3" };
+
+  it("labels the origin pick after the shared space convention (uppercased id)", () => {
+    const text = describeAction(catalog, relocate, { nameOf });
+    expect(text.length).toBeGreaterThan(0); // never a blank dock/log label
+    expect(text).toBe("Start maneuver from C3");
+  });
+
+  it("bands with the maneuver rows, not 'other'", () => {
+    expect(dockGroup(relocate)).toBe("maneuver");
+  });
+
+  it("is a board affordance, not a dock row — the dock filter drops every origin variant", () => {
+    expect(NON_DOCK_ACTION_TYPES).toContain("RELOCATE_FIGHTER");
+    // Mirrors game.tsx `listActions`: the one filter standing between the
+    // server's N enumerated origins and the dock's rows.
+    const offers: Action[] = [
+      relocate,
+      { type: "RELOCATE_FIGHTER", player: "p1", fighter: "jason/jason", space: "d1" },
+      { type: "RELOCATE_FIGHTER", player: "p1", fighter: "jason/jason", space: "e2" },
+    ];
+    expect(offers.filter((a) => !NON_DOCK_ACTION_TYPES.includes(a.type))).toEqual([]);
+  });
+
+  it("never arms the spacebar, even as the only non-forfeit action", () => {
+    expect(soleAction([relocate], null)).toBeNull();
+    expect(soleAction([relocate, { type: "FORFEIT", player: "p1" }], null)).toBeNull();
+  });
+
+  it("carries no card, so hand affordances never claim it", () => {
+    expect(cardAffordances([relocate], "king-taranis/fireball#1")).toEqual([]);
   });
 });
 

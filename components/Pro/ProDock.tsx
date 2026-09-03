@@ -159,6 +159,17 @@ export interface ProDockProps {
   highlightedCount: number;
   attackTargetCount: number;
   boostHint: string | null;
+  /** Maneuver-ORIGIN relocation (engine #535): one-liner for the dashed board
+   *  picks while the selected fighter may still start its maneuver elsewhere.
+   *  Null/omitted the rest of the time. */
+  relocateHint?: string | null;
+  /** The SYNTHETIC relocate-arm row (engine #535; review of #748). Not a server
+   *  action — RELOCATE_FIGHTER offers stay out of `rows` (NON_DOCK_ACTION_TYPES) —
+   *  so the page hands the affordance over directly: present while the selected
+   *  fighter has relocation origins, toggling the armed origin-pick mode. Banded
+   *  with the maneuver rows, unnumbered (the server rows keep their digits).
+   *  Null = unavailable; no row renders. */
+  relocateArm?: { armed: boolean; onToggle: () => void } | null;
   /** ----- panel slots (the big inline panels still live in game.tsx) ----- */
   combatPanel: ReactNode;
   promptPanel: ReactNode;
@@ -245,6 +256,8 @@ export const ProDock = ({
   highlightedCount,
   attackTargetCount,
   boostHint,
+  relocateHint = null,
+  relocateArm = null,
   combatPanel,
   promptPanel,
   hasPrompt,
@@ -314,6 +327,33 @@ export const ProDock = ({
   // `rows` — both would slip through a turn-scoped check.
   const needsInput = hasPrompt || !!combatPanel || !!view.winner || legalActionCount > 0;
   const collapsed = layout.collapsed && !needsInput;
+
+  // The synthetic relocate-arm row (see prop doc). It closes the FIRST band —
+  // the maneuver band, per GROUP_ORDER — rendered after that band's last row,
+  // right before the first group divider. -1 means `rows` is empty and the row
+  // stands alone. Unnumbered by design: the server rows keep their hotkey
+  // digits and the keyboard dispatch untouched, and the spacebar (soleAction)
+  // can never fire it — it is not a server action.
+  const firstDivider = rows.findIndex((r) => r.dividerBefore);
+  const firstManeuverBandEnd = firstDivider === -1 ? rows.length - 1 : firstDivider - 1;
+  const relocateArmRow = relocateArm ? (
+    <Button
+      {...BTN}
+      bg={relocateArm.armed ? "rgba(62, 207, 224, 0.22)" : "rgba(20, 8, 24, 0.65)"}
+      border={relocateArm.armed ? "1px solid rgba(62, 207, 224, 0.8)" : undefined}
+      justifyContent="flex-start"
+      whiteSpace="normal"
+      height="auto"
+      minH={mobile ? TAP_TARGET : "2rem"}
+      py="0.4rem"
+      textAlign="left"
+      onClick={relocateArm.onToggle}
+    >
+      {relocateArm.armed
+        ? "Pick a dashed space to start from — click to cancel"
+        : "Start maneuver elsewhere"}
+    </Button>
+  ) : null;
 
   const liveChrome = showLiveTurnChrome(view);
 
@@ -571,9 +611,20 @@ export const ProDock = ({
           {boostHint}
         </Text>
       )}
+      {relocateHint && (
+        <Text fontSize="0.75rem" color="brand.parchment" opacity={0.85} textShadow="0 1px 3px rgba(0,0,0,0.6)">
+          {relocateHint}
+        </Text>
+      )}
       {combatPanel}
       {promptPanel}
       <Flex direction="column" gap="0.4rem">
+        {/* The synthetic relocate-arm row (see prop doc): it closes the FIRST
+            band — the maneuver band, per GROUP_ORDER — so it renders right under
+            "End maneuver", above the divider into boosts/attacks. When `rows`
+            is somehow empty it still renders (a lone row; the spacebar never
+            fires it — it is not a server action). */}
+        {relocateArmRow && firstManeuverBandEnd === -1 && relocateArmRow}
         {rows.map(({ action: a, hotkey, dividerBefore }, i) => (
           <Fragment key={i}>
             {/* Group divider (issue #514): a hairline between bands — maneuver,
@@ -681,6 +732,9 @@ export const ProDock = ({
                 )}
               </Flex>
             </Button>
+            {/* The relocate-arm row closes the maneuver band (see the consts
+                above) — after the band's last row, before the first divider. */}
+            {relocateArmRow && i === firstManeuverBandEnd && relocateArmRow}
           </Fragment>
         ))}
         {legalActionCount === 0 && !hasPrompt && liveChrome && (
