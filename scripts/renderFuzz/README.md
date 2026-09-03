@@ -122,3 +122,15 @@ stack runs through both `ProErrorBoundary` and `ProBoard`).
 regression test), mounts the real `ProErrorBoundary` around a throwing child to
 prove detection fires when the boundary swallows, and unit-tests the pure
 sampling/hashing/parsing/marker logic.
+
+**The fixtures are derived, not hand-kept** (unbrewed-p2p-505).
+`fixtureFiles.ts` builds their exact bytes from `sampleViews.ts`;
+`writeSampleRun.mts` writes those bytes to disk and `renderFuzz.test.tsx`
+rebuilds them in memory and diffs against what's committed. That closes the trap
+that bit us once already: the protocol v22 sync (`cfe0d3a`) added fields to the
+builders and left the JSONL a version behind, and nothing failed at the moment of
+divergence — it surfaced much later as an opaque `viewHash` mismatch that read
+like a hashing bug. Now a forgotten regen fails immediately, naming the drifted
+line, column, and the command that fixes it. **So: after any protocol sync that
+touches `sampleViews.ts`, run `npm run pro:render-fuzz:fixtures` and commit the
+regenerated JSONL in the same change.**

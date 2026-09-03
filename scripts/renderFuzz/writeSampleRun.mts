@@ -9,32 +9,23 @@
  *   sample/     — a clean multi-step, two-seat game (must render with 0 throws)
  *   known-bad/  — one view hand-mutated to throw in render (must be CAUGHT)
  *
- * Run this whenever the fixture builders in sampleViews.ts change.
+ * Run this whenever the fixture builders in sampleViews.ts change — including
+ * after a protocol sync that adds fields to them. `renderFuzz.test.tsx` rebuilds
+ * these same bytes in memory and fails if what's committed drifted, so a
+ * forgotten regen is caught at the moment it happens (unbrewed-p2p-505).
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { buildSampleGame, knownBadView } from "./sampleViews";
+import { buildFixtureFiles, FIXTURE_ROOT } from "./fixtureFiles";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const replaysDir = join(here, "..", "..", "test", "replays", "smokebot");
+const replaysDir = join(here, "..", "..", ...FIXTURE_ROOT);
 
-const writeRun = (sub: string, name: string, lines: string[]): void => {
-  const dir = join(replaysDir, sub);
+for (const f of buildFixtureFiles()) {
+  const dir = join(replaysDir, f.dir);
   mkdirSync(dir, { recursive: true });
-  const file = join(dir, `${name}.views.jsonl`);
-  writeFileSync(file, lines.join("\n") + "\n");
-  process.stdout.write(`wrote ${lines.length} views → ${file}\n`);
-};
-
-writeRun(
-  "sample",
-  "sample-game-0001",
-  buildSampleGame().map((s) =>
-    JSON.stringify({ game: "sample-game-0001", seat: s.seat, step: s.step, view: s.view, legalActions: [], events: [] })
-  )
-);
-
-writeRun("known-bad", "known-bad", [
-  JSON.stringify({ game: "known-bad", seat: "p1", step: 0, view: knownBadView(), legalActions: [], events: [] }),
-]);
+  const file = join(dir, f.name);
+  writeFileSync(file, f.contents);
+  process.stdout.write(`wrote ${f.viewCount} views → ${file}\n`);
+}
