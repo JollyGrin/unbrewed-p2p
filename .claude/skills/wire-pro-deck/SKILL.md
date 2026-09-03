@@ -24,11 +24,19 @@ description: Wire a newly rules-converted deck (from the private unbrewed-pro-se
 ## The wiring checklist
 
 **1. Data wiring — `node scripts/wire-deck.mjs <hero-id> <deckId> --name "…"
---author "…" --colour "#…" --cardback <url|path> --engine-commit <sha>` — then
-review its diff.** Idempotent: re-running with the same args changes nothing;
-re-running with changed flags updates only those fields; `--dry-run` previews
-the diff. For each step it prints what it does and aborts (naming the file and
-anchor) if the target file's shape changed:
+--hero "…" --author "…" --colour "#…" --cardback <url|path> --engine-commit
+<sha>` — then review its diff.** Idempotent: re-running with the same args
+changes nothing; re-running with changed flags updates only those fields
+(`--name` touches ONLY `name` — many entries deliberately carry a hero that
+differs from name; `--hero` touches only `hero`; `--engine-commit` updates
+`rulesVerified.commit` on an existing manifest entry in place); `--dry-run`
+previews the diff. The whole diff is computed — every anchor resolved, every
+payload built — before a single byte is written: a mid-plan abort (missing
+anchor, bad flag) leaves the tree untouched. Writes themselves are NOT rolled
+back: if the step-5 verify fails, the data writes stay on disk (intended —
+fix the cause and re-run, or `git checkout` the touched files to abandon).
+For each step it prints what it does and aborts (naming the file and anchor)
+if the target file's shape changed:
 
 - Fetches the deck JSON from the deck API (the `DEFAULT_DECK_API` default in
   `lib/evergreenDecks.ts:28`, currently `https://engine.unbrewed.xyz/api/unmatched-deck/`)
@@ -95,8 +103,9 @@ so it lights up automatically — just check it in Verification.
 
 ## Gotchas (hard-won, keep them)
 
-- Card art matches by **lowercased + trimmed verbatim title** (`norm()` in
-  `useProCardArt.ts`) — never "fix" casing or typos carried over from the
+- Card art matches by **lowercased + trimmed verbatim title** (`norm()`,
+  defined in `lib/pro/cardAppearance.ts:40` and re-exported by
+  `useProCardArt.ts:317`) — never "fix" casing or typos carried over from the
   engine rules file (e.g. `reCKLESS LUNGE`, `destoryed`).
 - Community-deck JSON spells the card type `"defence"`; the server/protocol
   spells it `"defense"` — `normalizeType` (`scripts/lib/deckManifest.js`)
@@ -107,8 +116,6 @@ so it lights up automatically — just check it in Verification.
   without `bump-rules` trips `npm run pro:decks:verify` and
   `evergreenManifest.test.ts`. Presentation edits (art, note, appearance,
   cardback, tokenImageUrl) never trip it.
-- `npm test` has one pre-existing unrelated failure in `Pool.spec.ts` that
-  reproduces on a clean `main` checkout — don't chase it.
 - Occupied-space `CHOOSE_SPACE` prompts: a click on a fighter token is
   forwarded to its space when the space is highlighted (`ProBoard.tsx`; issue
   #185, PR #186). When wiring a deck that targets occupied spaces, click-test
@@ -131,6 +138,7 @@ so it lights up automatically — just check it in Verification.
     sidekick, special ability, and full card list, on `/pro` and `/pro/game`.
   - Sandbox `/bag` → Popular decks: the tile fetches and saves the snapshot.
 - `npm run pro:decks:verify`, `npm run lint`, `npm run build`, `npm test` all
-  clean (modulo the pre-existing `Pool.spec.ts` failure above).
+  clean. (`Pool.spec.ts` failed historically; it does not fail on current
+  main — if it fails now, treat it as a real regression and chase it.)
 - That is the whole verification. The orchestrator does not re-verify unless
   the conversion report's new-mechanic scan had a YES.

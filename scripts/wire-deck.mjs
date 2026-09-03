@@ -285,23 +285,20 @@ function removeBooleanLine(entry, field) {
 }
 
 // Insert lines at the end of an object/array body (the text before its closing
-// "\n…};" / "\n];"), keeping any trailing full-line comments LAST (after the
-// new lines) and making sure the entry we land after keeps its trailing comma
-// (a missing one would break the insert).
+// "\n…};" / "\n];"). Any trailing full-line comment block stays LAST (the new
+// lines go above it), and the last code line gets its trailing comma if it's
+// missing (a missing comma would break the insert).
 function insertIntoBody(bodyPrefix, insertLines) {
   const lines = bodyPrefix.split("\n");
-  let last = lines.length - 1;
-  while (last >= 0 && !lines[last].trim()) last--;
-  if (last >= 0 && lines[last].trim().startsWith("//")) {
-    let first = last;
-    while (first - 1 >= 0 && lines[first - 1].trim().startsWith("//")) first--;
-    lines.splice(first, 0, ...insertLines);
-  } else {
-    if (last >= 0 && !lines[last].trimEnd().endsWith(",") && !/[{[]\s*$/.test(lines[last])) {
-      lines[last] = lines[last].trimEnd() + ",";
-    }
-    lines.splice(last + 1, 0, ...insertLines);
+  let code = lines.length - 1;
+  while (code >= 0 && (!lines[code].trim() || lines[code].trim().startsWith("//"))) code--;
+  if (code >= 0 && !lines[code].trimEnd().endsWith(",") && !/[{[]\s*$/.test(lines[code])) {
+    lines[code] = lines[code].trimEnd() + ",";
   }
+  let at = code + 1;
+  while (at < lines.length && !lines[at].trim()) at++;
+  if (!(at < lines.length && lines[at].trim().startsWith("//"))) at = lines.length;
+  lines.splice(at, 0, ...insertLines);
   return lines.join("\n");
 }
 
