@@ -236,6 +236,44 @@ export const HERO_STATE_FLAGS: HeroStateFlag[] = [
       },
     },
   },
+  {
+    // Jason Voorhees's *JASON LIVES* vanish (issue #749 ↔ engine #541). The defense
+    // snapshots Jason's pre-damage HP into the JASON_LIVES_HP counter, prevents the
+    // defeat and removes him FROM THE BOARD alive, setting this flag; his TURN_START
+    // trigger clears it and prompts a board-wide `place … 'ANYWHERE'` — the same
+    // removeFromBoard + flag + TURN_START-return shape as Boba Fett's SLAVE I above,
+    // except Jason stays ALIVE (`space === null`, `defeated` false), so this is a
+    // "where is he?" state, not an inbound-attack countdown. Engine flag key is
+    // `JASON_RETURN` (`const JASON_RETURN_FLAG = 'JASON_RETURN'` in
+    // jason-voorhees.rules.ts @6a8b87e).
+    //
+    // Nameplate + token badge, though the badge is defined for completeness: while
+    // the flag is set Jason has NO token on the board, so it has nothing to sit on
+    // (the reason SLAVE I is nameplate-only) — it can at most flash for one frame at
+    // the return instant, which is harmless. No `tokenArt`: template art for now
+    // (deck-art follow-up pending). The deck's OTHER engine state — the
+    // JASON_LIVES_HP pre-damage snapshot counter — is deliberately NOT registered:
+    // it is internal bookkeeping (the card's removeAll/gain pair), not a resource,
+    // and a HERO_STATE_COUNTERS row would render it as a pill (the Skull Kid
+    // MITIGATION suppression-by-omission pattern).
+    flag: "JASON_RETURN",
+    heroes: ["jason-voorhees"],
+    nameplate: {
+      onLabel: "Vanished — returns at turn start",
+      offLabel: "",
+      showWhenAbsent: false,
+    },
+    token: {
+      on: {
+        icon: "🔪",
+        label: "Vanished",
+        title: "Vanished — Jason returns at his turn start",
+        // The deck's own blood-red highlight (#7a0000), readable against the board.
+        bg: "#7A0000",
+        color: "#F5E9E9",
+      },
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------

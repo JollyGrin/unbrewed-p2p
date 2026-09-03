@@ -842,4 +842,20 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     // own cardback, self-hosted so the tile renders on localhost and preview builds.
     cardbackUrl: "/evergreen-decks/art/appa/cardback.webp",
   },
+  {
+    // Jason Voorhees — unmatched.cards deck DOPE, Hubaris's HSR remaster (issue #749 ↔
+    // engine #541/#543). Engine serves the hero at tier `lab`, so `lab` drives the
+    // create-screen caution badge and `tier` keeps the deck out of the sandbox
+    // community picker and the invite copy. No `original` flag — the tile deep-links
+    // to unmatched.cards/decks/DOPE. No cardback yet: template art, follow-up pending,
+    // and the payload's i.ibb.co hotlinks stay out per the #446 self-hosting rule.
+    id: "DOPE",
+    name: "Jason Voorhees",
+    hero: "Jason Voorhees",
+    author: "Hubaris",
+    likes: 0,
+    highlightColour: "#55ee39",
+    lab: true,
+    tier: "lab",
+  },
 ];
