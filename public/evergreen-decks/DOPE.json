@@ -4,7 +4,7 @@
   "deck_data": {
     "appearance": {
       "borderColour": "#55ee39",
-      "cardbackUrl": "",
+      "cardbackUrl": "/evergreen-decks/art/DOPE/cardback.webp",
       "highlightColour": "#7a0000",
       "isPNP": false,
       "patternName": "Topography"
@@ -14,9 +14,12 @@
         "afterText": "Draw 1 card. If you won the combat, recover 1 health.",
         "basicText": "",
         "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/DOPE/trophy.webp"
+        },
         "characterName": "JASON",
         "duringText": "",
-        "imageUrl": "",
+        "imageUrl": "/evergreen-decks/art/DOPE/trophy.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "TROPHY",
@@ -27,9 +30,12 @@
         "afterText": "",
         "basicText": "",
         "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/DOPE/ferocity.webp"
+        },
         "characterName": "JASON",
         "duringText": "",
-        "imageUrl": "",
+        "imageUrl": "/evergreen-decks/art/DOPE/ferocity.webp",
         "immediateText": "Cancel all effects on your opponent's card. If you're attacking a sidekick, also ignore its value.",
         "quantity": 2,
         "title": "FEROCITY",
@@ -40,9 +46,12 @@
         "afterText": "Place Jason on any empty space in his zone.",
         "basicText": "",
         "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/DOPE/hunt.webp"
+        },
         "characterName": "JASON",
         "duringText": "",
-        "imageUrl": "",
+        "imageUrl": "/evergreen-decks/art/DOPE/hunt.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "HUNT",
@@ -53,9 +62,12 @@
         "afterText": "",
         "basicText": "",
         "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/DOPE/cornered.webp"
+        },
         "characterName": "JASON",
         "duringText": "If both fighters are in the same zone together with no other fighters in their zone, this card's value is 5 instead.",
-        "imageUrl": "",
+        "imageUrl": "/evergreen-decks/art/DOPE/cornered.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "CORNERED",
@@ -66,9 +78,12 @@
         "afterText": "If you won the combat, move each of the fighters in the combat up to 2 spaces (in any order).\n",
         "basicText": "",
         "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/DOPE/terrorize.webp"
+        },
         "characterName": "JASON",
         "duringText": "",
-        "imageUrl": "",
+        "imageUrl": "/evergreen-decks/art/DOPE/terrorize.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "TERRORIZE",
@@ -79,9 +94,12 @@
         "afterText": "",
         "basicText": "",
         "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/DOPE/ambush.webp"
+        },
         "characterName": "JASON",
         "duringText": "Your opponent discards 1 random card. Add its BOOST value to this card's attack value.",
-        "imageUrl": "",
+        "imageUrl": "/evergreen-decks/art/DOPE/ambush.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "AMBUSH",
@@ -92,9 +110,12 @@
         "afterText": "The opposing fighter takes damage equal to the damage they took this combat. Then if they have 2 or less health, defeat them.",
         "basicText": "",
         "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/DOPE/brutality.webp"
+        },
         "characterName": "JASON",
         "duringText": "",
-        "imageUrl": "",
+        "imageUrl": "/evergreen-decks/art/DOPE/brutality.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "BRUTALITY",
@@ -105,9 +126,12 @@
         "afterText": "If you won the combat, deal 1 damage to each fighter adjacent to Jason.",
         "basicText": "",
         "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/DOPE/savagery.webp"
+        },
         "characterName": "JASON",
         "duringText": "",
-        "imageUrl": "",
+        "imageUrl": "/evergreen-decks/art/DOPE/savagery.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "SAVAGERY",
@@ -118,9 +142,12 @@
         "afterText": "The opposing fighter has 0 Move until your next turn (they may still BOOST to increase their Move).",
         "basicText": "",
         "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/DOPE/killer.webp"
+        },
         "characterName": "JASON",
         "duringText": "",
-        "imageUrl": "",
+        "imageUrl": "/evergreen-decks/art/DOPE/killer.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "KILLER",
@@ -131,9 +158,12 @@
         "afterText": "",
         "basicText": "",
         "boost": 4,
+        "cardImage": {
+          "url": "/evergreen-decks/art/DOPE/jason-lives.webp"
+        },
         "characterName": "JASON",
         "duringText": "If Jason would be defeated, instead prevent all damage and remove Jason from the board. At the start your next turn, place Jason in any space. ",
-        "imageUrl": "",
+        "imageUrl": "/evergreen-decks/art/DOPE/jason-lives.webp",
         "immediateText": "",
         "quantity": 1,
         "title": "JASON LIVES",
@@ -144,9 +174,12 @@
         "afterText": "Move Jason up to 4 spaces. Then if Jason is adjacent to an opposing fighter, he recovers 2 health. ",
         "basicText": "This effect always resolves last.",
         "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/DOPE/unstoppable.webp"
+        },
         "characterName": "JASON",
         "duringText": "",
-        "imageUrl": "",
+        "imageUrl": "/evergreen-decks/art/DOPE/unstoppable.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "UNSTOPPABLE",
@@ -157,9 +190,12 @@
         "afterText": null,
         "basicText": "If you lost a combat this turn, gain 2 actions. Otherwise move Jason up to 2 spaces and gain 1 action.",
         "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/DOPE/furious-zeal.webp"
+        },
         "characterName": "JASON",
         "duringText": null,
-        "imageUrl": "",
+        "imageUrl": "/evergreen-decks/art/DOPE/furious-zeal.webp",
         "immediateText": null,
         "quantity": 2,
         "title": "FURIOUS ZEAL",
@@ -170,9 +206,12 @@
         "afterText": null,
         "basicText": "Draw 2 cards. If Jason is the only fighter in his zone, Jason recovers 2 health.",
         "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/DOPE/grim-omen.webp"
+        },
         "characterName": "JASON",
         "duringText": null,
-        "imageUrl": "",
+        "imageUrl": "/evergreen-decks/art/DOPE/grim-omen.webp",
         "immediateText": null,
         "quantity": 2,
         "title": "GRIM OMEN",
@@ -186,7 +225,8 @@
       "isRanged": false,
       "move": 2,
       "name": "Jason Voorhees",
-      "specialAbility": "When Jason maneuvers, if there are no opposing fighters in Jason's zone, you may start Jason's maneuver in any space in his zone."
+      "specialAbility": "When Jason maneuvers, if there are no opposing fighters in Jason's zone, you may start Jason's maneuver in any space in his zone.",
+      "tokenImageUrl": "/evergreen-decks/art/DOPE/token-jason-voorhees.webp"
     },
     "name": "",
     "ruleCards": [],
@@ -205,7 +245,7 @@
   "liked": false,
   "likes": 25,
   "name": "Jason Voorhees",
-  "note": "HSR Remastered: You can download the newest, Remastered files at the following link: https://drive.google.com/drive/folders/1hMfd1o1Eab6ZK195024Cldi3LdyKeEjN\n\nThe Character Ability, Cornered, Grim Omen and Jason Lives based on JackNorth's original design; thanks Jack! (Published with permission)\nSee it here (or on the front page): https://unmatched.cards/decks/RnYZ/versions/e-GhOj2\n\n------\n\nPart of Hack/Slash/Repeat vol.1\nChucky and Tiffany: https://unmatched.cards/decks/Den8/versions/N_dmI_n6\"\nGhostface: https://unmatched.cards/decks/6G31/versions/d_d1hG1B\nGinger and Brigitte: https://unmatched.cards/decks/kdJK/versions/WX5xaOK4\nJason Voorhees: https://unmatched.cards/decks/DOPE/versions/_yGrHv7J",
+  "note": "HSR Remastered: You can download the newest, Remastered files at the following link: https://drive.google.com/drive/folders/1hMfd1o1Eab6ZK195024Cldi3LdyKeEjN\n\nThe Character Ability, Cornered, Grim Omen and Jason Lives based on JackNorth's original design; thanks Jack! (Published with permission)\nSee it here (or on the front page): https://unmatched.cards/decks/RnYZ/versions/e-GhOj2\n\n------\n\nPart of Hack/Slash/Repeat vol.1\nChucky and Tiffany: https://unmatched.cards/decks/Den8/versions/N_dmI_n6\"\nGhostface: https://unmatched.cards/decks/6G31/versions/d_d1hG1B\nGinger and Brigitte: https://unmatched.cards/decks/kdJK/versions/WX5xaOK4\nJason Voorhees: https://unmatched.cards/decks/DOPE/versions/_yGrHv7J\n\n------\n\nART NOTE (unbrewed, 2026-09-04): The finished card faces, the cardback and the hero-card render are the author Hubaris's own renders, published via Calton White's the-unmatched.club deck 13452 (https://www.the-unmatched.club/c/heroes/jason-voorhees.13452) so unbrewed could mirror them. They are self-hosted under public/evergreen-decks/art/DOPE (upstream they are i.ibb.co hotlinks; #446 standard) and the finished faces are drawn full-bleed via cardImage — never through the generated card template. UPDATE 2026-09-04 (later): Calton published finished renders for the two schemes too — FURIOUS ZEAL (club card 134197) and GRIM OMEN (134198) — so all 13 faces are now the author's renders, mirrored the same way. The two scheme sources are smaller (464×640 vs 1559×2150 — a lower-resolution upload by Calton; a re-export from him/the author would sharpen them) and are mirrored at the same 1116-wide webp as the rest, upscaled from those sources so the set stays dimensionally uniform. token-jason-voorhees.webp is a bust cropped from the cardback; hero-card.webp is the club `customImage`, mirrored but not referenced by any UI surface yet (Luke precedent). Author attribution stays this deck's unmatched.cards page (https://unmatched.cards/decks/DOPE).",
   "published": true,
   "published_on": "Sat, 30 Aug 2025 04:43:25 GMT",
   "tags": [
