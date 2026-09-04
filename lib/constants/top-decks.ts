@@ -863,7 +863,9 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     // (https://www.the-unmatched.club/c/heroes/jason-voorhees.13452) and mirrored
     // into public/evergreen-decks/art/DOPE per the #446 self-hosting rule (upstream
     // they are i.ibb.co hotlinks). All 13 faces carry the author's renders — Calton
-    // published the two schemes (FURIOUS ZEAL, GRIM OMEN) in a later club update.
+    // published the two schemes (FURIOUS ZEAL, GRIM OMEN) in a later club update,
+    // mirrored at the same 1116 width as the rest but upscaled from their
+    // 464×640 sources (a lower-resolution upload; a re-export would sharpen them).
     // Attribution stays this deck's unmatched.cards page — no `sourceUrl`, the club
     // is the art source only (#665 is the inverse shape).
     cardbackUrl: "/evergreen-decks/art/DOPE/cardback.webp",
