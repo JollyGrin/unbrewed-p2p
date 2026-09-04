@@ -26,6 +26,7 @@ import { ChakraProvider } from "@chakra-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HeroPreviewModal } from "./HeroPreviewModal";
 import { LARGE_FIGHTER_BLURB } from "@/lib/pro/largeReach";
+import { DeckImportDataType } from "@/components/DeckPool/deck-import.type";
 
 // Chakra's modal focus trap probes the DOM with `:not(:disabled):not([disabled])`,
 // which the nwsapi bundled with jsdom 20 rejects as invalid. The trap is not what
@@ -38,9 +39,12 @@ jest.mock("react-focus-lock", () => ({
 
 // Both hooks are network-backed (deck snapshot JSON + the balance digest) and
 // neither is under test here. `data: null` is a real state for both — the modal
-// falls back to `quickStats` for the header, which is all the badge needs.
+// falls back to `quickStats` for the header, which is all the badge needs. The
+// holder lets the SIDEKICK suite install a deck snapshot per test; the arrow reads
+// it at render time, so tests swap `.data` freely.
+const mockPreview: { data: DeckImportDataType | null } = { data: null };
 jest.mock("../../lib/pro/useDeckPreview", () => ({
-  useDeckPreview: () => ({ data: null, isLoading: false }),
+  useDeckPreview: () => ({ data: mockPreview.data, isLoading: false }),
 }));
 jest.mock("../../lib/pro/useDeckStats", () => ({
   useDeckStats: () => ({ data: null }),
@@ -174,5 +178,90 @@ describe("HeroPreviewModal — author credit", () => {
   it("shows no credit for a served hero with no tile entry", () => {
     openDeck("deck-id", "Some Community Deck");
     expect(screen.queryByText(/^by /)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * The SIDEKICK section gate (issue #749 pair test). Two "no sidekick" shapes ride
+ * the wire — the unmatched.cards API's BLANK stub (name "", hp null, quantity 0)
+ * and the Maker's NAMED stub (name "Sidekick", quantity 0) — and the old gate
+ * (`name !== "Sidekick" || (hp && quantity)`) rendered a phantom section for the
+ * blank one: a "?" portrait and the sidekick quote with no fighter behind it.
+ * The fixtures below carry the REAL snapshot values (DOPE / kdKM / DJQB / jw9q).
+ */
+describe("HeroPreviewModal — sidekick section gate", () => {
+  afterEach(() => {
+    mockPreview.data = null;
+  });
+
+  const deckWith = (sidekick: DeckImportDataType["sidekick"]): DeckImportDataType => ({
+    appearance: {
+      borderColour: "#000000",
+      cardbackUrl: "",
+      highlightColour: "#000000",
+      isPNP: false,
+      patternName: "Topography",
+    },
+    cards: [],
+    hero: {
+      hp: 17,
+      isRanged: false,
+      move: 2,
+      name: "Test Hero",
+      specialAbility: "",
+    },
+    sidekick,
+    name: "Test Deck",
+  });
+
+  const openDeck = (deck: DeckImportDataType | null) => {
+    mockPreview.data = deck;
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <QueryClientProvider client={client}>
+        <ChakraProvider>
+          <HeroPreviewModal
+            isOpen
+            onClose={() => {}}
+            deckId="deck-id"
+            heroName="Test Hero"
+            quickStats={QUICK_STATS}
+          />
+        </ChakraProvider>
+      </QueryClientProvider>
+    );
+  };
+
+  it("renders NO section for the blank API stub (Jason Voorhees: name '', qty 0)", () => {
+    openDeck(
+      deckWith({
+        name: "",
+        hp: null,
+        quantity: 0,
+        isRanged: false,
+        // A phantom would even quote — the section gate, not the data, is what stops it.
+        quote: "Jason's out there...",
+      }),
+    );
+    expect(screen.queryByText("Sidekick")).not.toBeInTheDocument();
+    expect(screen.queryByText("Jason's out there...")).not.toBeInTheDocument();
+  });
+
+  it("renders NO section for the Maker stub (King Kong: name 'Sidekick', qty 0)", () => {
+    openDeck(deckWith({ name: "Sidekick", hp: null, quantity: 0, isRanged: false, quote: "" }));
+    expect(screen.queryByText("Sidekick")).not.toBeInTheDocument();
+  });
+
+  it("renders the section for nameless tokens (Clone Troopers: name '', quantity 6)", () => {
+    openDeck(deckWith({ name: "", hp: 3, quantity: 6, isRanged: true, quote: "" }));
+    expect(screen.getByText("Sidekick")).toBeInTheDocument();
+    expect(screen.getByText("×6")).toBeInTheDocument();
+  });
+
+  it("renders the section for a normal named sidekick with hp (Momo: hp 6)", () => {
+    openDeck(deckWith({ name: "Momo", hp: 6, quantity: 1, isRanged: false, quote: "" }));
+    expect(screen.getByText("Sidekick")).toBeInTheDocument();
+    expect(screen.getByText("Momo")).toBeInTheDocument();
+    expect(screen.getByText("6")).toBeInTheDocument();
   });
 });

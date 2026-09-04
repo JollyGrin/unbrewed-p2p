@@ -263,8 +263,16 @@ export const HeroPreviewModal = ({
   const tile = deckId ? POPULAR_DECKS.find((d) => d.id === deckId) : undefined;
 
   const sidekick = deck?.sidekick;
+  // Two "no sidekick" shapes ride the wire: the unmatched.cards API emits a BLANK
+  // stub ({ name: "", hp: null, quantity: 0 } — Jason Voorhees, DOPE) while the
+  // Maker emits a NAMED one ({ name: "Sidekick", quantity: 0 } — King Kong, kdKM).
+  // The old test (name !== "Sidekick" || (hp && quantity)) showed a phantom section
+  // for the blank stub: a "?" portrait and the hero quote with no fighter behind it.
+  // A real sidekick has fighters on the board (clone tokens: nameless, quantity 6)
+  // or is a named, non-"Sidekick" character (Momo: name + hp).
   const hasSidekick =
-    !!sidekick && (sidekick.name !== "Sidekick" || (!!sidekick.hp && !!sidekick.quantity));
+    !!sidekick &&
+    ((sidekick.quantity ?? 0) > 0 || (!!sidekick.name?.trim() && sidekick.name !== "Sidekick"));
 
   const cards = (deck?.cards ?? []).filter((c) => !c.isCharacterCard);
   const ruleCards = (deck?.ruleCards ?? []).filter((r) => r.content?.trim());
