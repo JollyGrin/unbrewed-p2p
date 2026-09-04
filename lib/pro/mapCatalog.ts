@@ -26,6 +26,10 @@ import uscssNostromoJson from "./fixtures/uscss-nostromo.map.json";
 import theBogJson from "./fixtures/the-bog.map.json";
 import weddingCrashersJson from "./fixtures/wedding-crashers.map.json";
 import pyramidsJson from "./fixtures/pyramids.map.json";
+import secludedTempleJson from "./fixtures/secluded-temple.map.json";
+import unseenUniversityJson from "./fixtures/unseen-university.map.json";
+import riverCruiseJson from "./fixtures/river-cruise.map.json";
+import theAltarJson from "./fixtures/the-altar.map.json";
 
 /** A board's authored per-format seat mapping (present on multiplayer boards). */
 interface MapFormatSupport {
@@ -66,6 +70,10 @@ const uscssNostromo = uscssNostromoJson as unknown as CatalogMap;
 const theBog = theBogJson as unknown as CatalogMap;
 const weddingCrashers = weddingCrashersJson as unknown as CatalogMap;
 const pyramids = pyramidsJson as unknown as CatalogMap;
+const secludedTemple = secludedTempleJson as unknown as CatalogMap;
+const unseenUniversity = unseenUniversityJson as unknown as CatalogMap;
+const riverCruise = riverCruiseJson as unknown as CatalogMap;
+const theAltar = theAltarJson as unknown as CatalogMap;
 
 /**
  * Ordered built-in boards. The Mended Drum is the duel default (server board,
@@ -132,6 +140,30 @@ export const MAP_CATALOG: MapCatalogEntry[] = [
     title: pyramids.meta.title,
     thumbnailUrl: pyramids.meta.imageUrl ?? "",
     map: pyramids,
+  },
+  {
+    id: secludedTemple.id,
+    title: secludedTemple.meta.title,
+    thumbnailUrl: secludedTemple.meta.imageUrl ?? "",
+    map: secludedTemple,
+  },
+  {
+    id: unseenUniversity.id,
+    title: unseenUniversity.meta.title,
+    thumbnailUrl: unseenUniversity.meta.imageUrl ?? "",
+    map: unseenUniversity,
+  },
+  {
+    id: riverCruise.id,
+    title: riverCruise.meta.title,
+    thumbnailUrl: riverCruise.meta.imageUrl ?? "",
+    map: riverCruise,
+  },
+  {
+    id: theAltar.id,
+    title: theAltar.meta.title,
+    thumbnailUrl: theAltar.meta.imageUrl ?? "",
+    map: theAltar,
   },
   {
     id: MULTIPLAYER_PLAYTEST_MAP.id,
