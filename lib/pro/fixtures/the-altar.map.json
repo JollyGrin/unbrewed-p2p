@@ -1,0 +1,688 @@
+{
+  "schemaVersion": "1.0",
+  "id": "the-altar",
+  "meta": {
+    "title": "The Altar",
+    "minPlayers": 2,
+    "maxPlayers": 4,
+    "specialRules": false,
+    "imageUrl": "https://unbrewed.xyz/maps/community-the-altar.webp",
+    "imageWidth": 2500,
+    "imageHeight": 1400,
+    "spaceDiameter": 0.057,
+    "source": "AndSushi (original battlemap art by Eightfold Paper) — submitted via https://github.com/JollyGrin/unbrewed-p2p/issues/754",
+    "license": "community map — credit the author (AndSushi; original battlemap by Eightfold Paper)"
+  },
+  "supportedFormats": [
+    {
+      "id": "duel-the-altar",
+      "formatId": "duel",
+      "label": "Duel",
+      "description": "Start slots 1 and 2 for a standard 1v1.",
+      "seats": {
+        "A1": {
+          "startSlot": 1
+        },
+        "B1": {
+          "startSlot": 2
+        }
+      }
+    },
+    {
+      "id": "ffa-3-the-altar",
+      "formatId": "ffa-3",
+      "label": "3 Player Free For All",
+      "description": "Three independent players use start slots 1, 2, and 3.",
+      "seats": {
+        "A1": {
+          "startSlot": 1
+        },
+        "B1": {
+          "startSlot": 2
+        },
+        "C1": {
+          "startSlot": 3
+        }
+      }
+    },
+    {
+      "id": "team-2v2-the-altar",
+      "formatId": "team-2v2",
+      "label": "2v2 Teams",
+      "description": "Start slots follow the format's turn order: A1 takes slot 1, B1 slot 2, A2 slot 3, B2 slot 4.",
+      "seats": {
+        "A1": {
+          "startSlot": 1
+        },
+        "A2": {
+          "startSlot": 3
+        },
+        "B1": {
+          "startSlot": 2
+        },
+        "B2": {
+          "startSlot": 4
+        }
+      }
+    }
+  ],
+  "zones": [
+    {
+      "id": "z1",
+      "color": "#7b493d",
+      "label": "terracotta hall"
+    },
+    {
+      "id": "z2",
+      "color": "#341c0d",
+      "label": "timber gallery"
+    },
+    {
+      "id": "z3",
+      "color": "#796844",
+      "label": "gilded study"
+    },
+    {
+      "id": "z4",
+      "color": "#383d58",
+      "label": "violet nave"
+    },
+    {
+      "id": "z5",
+      "color": "#333739",
+      "label": "ash-stone crossing"
+    },
+    {
+      "id": "z6",
+      "color": "#88575b",
+      "label": "rose cobbles"
+    },
+    {
+      "id": "z7",
+      "color": "#1a3548",
+      "label": "altar sanctum"
+    }
+  ],
+  "spaces": [
+    {
+      "id": "s1",
+      "x": 0.3785,
+      "y": 0.1448,
+      "zones": [
+        "z2",
+        "z1"
+      ],
+      "adjacentTo": [
+        "s3",
+        "s4",
+        "s5",
+        "s11",
+        "s12"
+      ]
+    },
+    {
+      "id": "s2",
+      "x": 0.573,
+      "y": 0.1454,
+      "zones": [
+        "z2"
+      ],
+      "adjacentTo": [
+        "s5",
+        "s6",
+        "s7",
+        "s13"
+      ]
+    },
+    {
+      "id": "s3",
+      "x": 0.2375,
+      "y": 0.1541,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s1",
+        "s10"
+      ]
+    },
+    {
+      "id": "s4",
+      "x": 0.309,
+      "y": 0.2232,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s1",
+        "s10",
+        "s11"
+      ]
+    },
+    {
+      "id": "s5",
+      "x": 0.4566,
+      "y": 0.1625,
+      "zones": [
+        "z2"
+      ],
+      "adjacentTo": [
+        "s1",
+        "s2",
+        "s6",
+        "s12"
+      ],
+      "start": {
+        "slot": 3
+      }
+    },
+    {
+      "id": "s6",
+      "x": 0.5142,
+      "y": 0.2446,
+      "zones": [
+        "z2"
+      ],
+      "adjacentTo": [
+        "s2",
+        "s5",
+        "s17"
+      ]
+    },
+    {
+      "id": "s7",
+      "x": 0.6562,
+      "y": 0.1846,
+      "zones": [
+        "z2",
+        "z3"
+      ],
+      "adjacentTo": [
+        "s2",
+        "s13"
+      ]
+    },
+    {
+      "id": "s8",
+      "x": 0.7406,
+      "y": 0.1761,
+      "zones": [
+        "z3"
+      ],
+      "adjacentTo": [
+        "s9",
+        "s14"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s9",
+      "x": 0.8241,
+      "y": 0.177,
+      "zones": [
+        "z3"
+      ],
+      "adjacentTo": [
+        "s8",
+        "s14"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s10",
+      "x": 0.2585,
+      "y": 0.3287,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s3",
+        "s4",
+        "s11"
+      ]
+    },
+    {
+      "id": "s11",
+      "x": 0.3549,
+      "y": 0.3427,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s1",
+        "s4",
+        "s10",
+        "s12"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s12",
+      "x": 0.4306,
+      "y": 0.3089,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s1",
+        "s5",
+        "s11"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s13",
+      "x": 0.6078,
+      "y": 0.3096,
+      "zones": [
+        "z2"
+      ],
+      "adjacentTo": [
+        "s2",
+        "s7"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s14",
+      "x": 0.7789,
+      "y": 0.3048,
+      "zones": [
+        "z3"
+      ],
+      "adjacentTo": [
+        "s8",
+        "s9"
+      ]
+    },
+    {
+      "id": "s15",
+      "x": 0.0836,
+      "y": 0.3164,
+      "zones": [
+        "z4"
+      ],
+      "adjacentTo": [
+        "s16",
+        "s18"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s16",
+      "x": 0.1551,
+      "y": 0.3595,
+      "zones": [
+        "z4",
+        "z1"
+      ],
+      "adjacentTo": [
+        "s15",
+        "s18",
+        "s19"
+      ]
+    },
+    {
+      "id": "s17",
+      "x": 0.5103,
+      "y": 0.4016,
+      "zones": [
+        "z5"
+      ],
+      "adjacentTo": [
+        "s6",
+        "s22",
+        "s23"
+      ]
+    },
+    {
+      "id": "s18",
+      "x": 0.0826,
+      "y": 0.4939,
+      "zones": [
+        "z4"
+      ],
+      "adjacentTo": [
+        "s15",
+        "s16",
+        "s19",
+        "s26",
+        "s29"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s19",
+      "x": 0.1878,
+      "y": 0.4854,
+      "zones": [
+        "z4"
+      ],
+      "adjacentTo": [
+        "s16",
+        "s18",
+        "s20",
+        "s26"
+      ]
+    },
+    {
+      "id": "s20",
+      "x": 0.2731,
+      "y": 0.4927,
+      "zones": [
+        "z4",
+        "z5"
+      ],
+      "adjacentTo": [
+        "s19",
+        "s21"
+      ]
+    },
+    {
+      "id": "s21",
+      "x": 0.3722,
+      "y": 0.4968,
+      "zones": [
+        "z5"
+      ],
+      "adjacentTo": [
+        "s20",
+        "s22"
+      ],
+      "start": {
+        "slot": 2
+      }
+    },
+    {
+      "id": "s22",
+      "x": 0.4546,
+      "y": 0.4939,
+      "zones": [
+        "z5"
+      ],
+      "adjacentTo": [
+        "s17",
+        "s21",
+        "s23",
+        "s27"
+      ]
+    },
+    {
+      "id": "s23",
+      "x": 0.5606,
+      "y": 0.4932,
+      "zones": [
+        "z5",
+        "z7"
+      ],
+      "adjacentTo": [
+        "s17",
+        "s22",
+        "s27"
+      ]
+    },
+    {
+      "id": "s24",
+      "x": 0.718,
+      "y": 0.5136,
+      "zones": [
+        "z7"
+      ],
+      "adjacentTo": [
+        "s25",
+        "s28",
+        "s35"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s25",
+      "x": 0.8086,
+      "y": 0.5061,
+      "zones": [
+        "z7"
+      ],
+      "adjacentTo": [
+        "s24",
+        "s35",
+        "s36"
+      ]
+    },
+    {
+      "id": "s26",
+      "x": 0.1553,
+      "y": 0.6216,
+      "zones": [
+        "z4",
+        "z6"
+      ],
+      "adjacentTo": [
+        "s18",
+        "s19",
+        "s29"
+      ]
+    },
+    {
+      "id": "s27",
+      "x": 0.5106,
+      "y": 0.5846,
+      "zones": [
+        "z5"
+      ],
+      "adjacentTo": [
+        "s22",
+        "s23",
+        "s33"
+      ]
+    },
+    {
+      "id": "s28",
+      "x": 0.6347,
+      "y": 0.5634,
+      "zones": [
+        "z7"
+      ],
+      "adjacentTo": [
+        "s24",
+        "s35"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s29",
+      "x": 0.0806,
+      "y": 0.6782,
+      "zones": [
+        "z4"
+      ],
+      "adjacentTo": [
+        "s18",
+        "s26"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s30",
+      "x": 0.3328,
+      "y": 0.6814,
+      "zones": [
+        "z6"
+      ],
+      "adjacentTo": [
+        "s38"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s31",
+      "x": 0.2469,
+      "y": 0.7188,
+      "zones": [
+        "z6"
+      ],
+      "adjacentTo": [
+        "s37",
+        "s38"
+      ]
+    },
+    {
+      "id": "s32",
+      "x": 0.4174,
+      "y": 0.6932,
+      "zones": [
+        "z6"
+      ],
+      "adjacentTo": [
+        "s38",
+        "s39"
+      ],
+      "passage": true
+    },
+    {
+      "id": "s33",
+      "x": 0.5109,
+      "y": 0.7441,
+      "zones": [
+        "z6"
+      ],
+      "adjacentTo": [
+        "s27",
+        "s39",
+        "s40"
+      ]
+    },
+    {
+      "id": "s34",
+      "x": 0.6438,
+      "y": 0.7132,
+      "zones": [
+        "z7"
+      ],
+      "adjacentTo": [
+        "s35",
+        "s40",
+        "s41"
+      ]
+    },
+    {
+      "id": "s35",
+      "x": 0.7431,
+      "y": 0.6687,
+      "zones": [
+        "z7"
+      ],
+      "adjacentTo": [
+        "s24",
+        "s25",
+        "s28",
+        "s34",
+        "s36",
+        "s41",
+        "s42"
+      ]
+    },
+    {
+      "id": "s36",
+      "x": 0.8344,
+      "y": 0.66,
+      "zones": [
+        "z7"
+      ],
+      "adjacentTo": [
+        "s25",
+        "s35",
+        "s42"
+      ],
+      "start": {
+        "slot": 1
+      }
+    },
+    {
+      "id": "s37",
+      "x": 0.241,
+      "y": 0.8611,
+      "zones": [
+        "z6"
+      ],
+      "adjacentTo": [
+        "s31",
+        "s38"
+      ]
+    },
+    {
+      "id": "s38",
+      "x": 0.3466,
+      "y": 0.8311,
+      "zones": [
+        "z6"
+      ],
+      "adjacentTo": [
+        "s30",
+        "s31",
+        "s32",
+        "s37",
+        "s39"
+      ],
+      "start": {
+        "slot": 4
+      }
+    },
+    {
+      "id": "s39",
+      "x": 0.447,
+      "y": 0.8532,
+      "zones": [
+        "z6"
+      ],
+      "adjacentTo": [
+        "s32",
+        "s33",
+        "s38",
+        "s40"
+      ]
+    },
+    {
+      "id": "s40",
+      "x": 0.5829,
+      "y": 0.8409,
+      "zones": [
+        "z6",
+        "z7"
+      ],
+      "adjacentTo": [
+        "s33",
+        "s34",
+        "s39",
+        "s41"
+      ]
+    },
+    {
+      "id": "s41",
+      "x": 0.703,
+      "y": 0.8225,
+      "zones": [
+        "z7"
+      ],
+      "adjacentTo": [
+        "s34",
+        "s35",
+        "s40",
+        "s42"
+      ]
+    },
+    {
+      "id": "s42",
+      "x": 0.8086,
+      "y": 0.8189,
+      "zones": [
+        "z7"
+      ],
+      "adjacentTo": [
+        "s35",
+        "s36",
+        "s41"
+      ],
+      "passage": true
+    }
+  ]
+}
