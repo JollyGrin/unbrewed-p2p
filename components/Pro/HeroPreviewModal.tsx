@@ -69,6 +69,7 @@ import { norm, withRimTier } from "@/lib/pro/cardAppearance";
 import { useDeckPreview } from "@/lib/pro/useDeckPreview";
 import { useDeckStats } from "@/lib/pro/useDeckStats";
 import { LARGE_FIGHTER_BLURB } from "@/lib/pro/largeReach";
+import { hasFieldedSidekick } from "@/components/DeckPool/PoolFns";
 import { POPULAR_DECKS } from "@/lib/constants/top-decks";
 
 /**
@@ -263,8 +264,13 @@ export const HeroPreviewModal = ({
   const tile = deckId ? POPULAR_DECKS.find((d) => d.id === deckId) : undefined;
 
   const sidekick = deck?.sidekick;
-  const hasSidekick =
-    !!sidekick && (sidekick.name !== "Sidekick" || (!!sidekick.hp && !!sidekick.quantity));
+  // Shared section gate (issue #749 pair test): two "no sidekick" shapes ride the
+  // wire — the unmatched.cards API's BLANK stub ({ name: "", hp: null, quantity: 0 }
+  // — Jason Voorhees, DOPE) and the Maker's PLACEHOLDER one ({ name: "Sidekick",
+  // quantity: 0 } — King Kong, kdKM) — and the old test (name !== "Sidekick" ||
+  // (hp && quantity)) showed a phantom section for the blank stub. The /bag deck
+  // view gates through the same helper so the two surfaces can never disagree.
+  const hasSidekick = hasFieldedSidekick(sidekick);
 
   const cards = (deck?.cards ?? []).filter((c) => !c.isCharacterCard);
   const ruleCards = (deck?.ruleCards ?? []).filter((r) => r.content?.trim());

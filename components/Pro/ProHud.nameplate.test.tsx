@@ -34,7 +34,13 @@ const MAP: ProMapDef = {
   spaces: [],
 };
 
-const seat = (id: PlayerId, you: boolean, displayName?: string): ViewPlayer => ({
+const seat = (
+  id: PlayerId,
+  you: boolean,
+  displayName?: string,
+  /** escape hatch for the flag-chip suites: heroId + flags drive the pills */
+  overrides?: Partial<ViewPlayer>,
+): ViewPlayer => ({
   id,
   heroId: `${id}-hero`,
   you,
@@ -48,6 +54,7 @@ const seat = (id: PlayerId, you: boolean, displayName?: string): ViewPlayer => (
   hasCommitted: false,
   counters: {},
   flags: {},
+  ...overrides,
   wonCombatThisTurn: false,
   lostCombatThisTurn: false,
   firstAttackThisTurn: false,
@@ -190,5 +197,53 @@ describe("ProHud nameplate avatar — local only (issue #568)", () => {
 
     expect(screen.queryAllByTestId("plate-avatar")).toHaveLength(0);
     expect(screen.getAllByText("Dean").length).toBeGreaterThan(0);
+  });
+});
+
+// issue #749 polish: a registry entry may carry a long-form `nameplate.title`
+// (the sentence the short upper-case pill label cannot hold). FlagChip renders
+// it as the pill's native tooltip ONLY when present — the assertion here is the
+// pass-through, not the registry content (pinned in heroStateFlags.test.ts).
+describe("ProHud nameplate flag chips — title tooltip pass-through (issue #749)", () => {
+  it("renders the JASON_RETURN pill with its long-form title attribute", () => {
+    renderHud(
+      makeView(
+        [
+          seat("p1", true, "Dean", {
+            heroId: "jason-voorhees",
+            flags: { JASON_RETURN: true },
+          }),
+          seat("p2", false),
+        ],
+        "p1",
+      ),
+    );
+
+    // A plate renders its name block twice (live plate + hover-peek), so the
+    // pill can appear more than once — every instance must carry the tooltip.
+    const pills = screen.getAllByText("VANISHED — RETURNS NEXT TURN");
+    expect(pills.length).toBeGreaterThan(0);
+    pills.forEach((pill) =>
+      expect(pill).toHaveAttribute("title", "Vanished — returns at turn start"),
+    );
+  });
+
+  it("renders no title attribute for a flag entry without one (EQUILIBRIUM)", () => {
+    renderHud(
+      makeView(
+        [
+          seat("p1", true, "Dean", {
+            heroId: "doppelganger",
+            flags: { EQUILIBRIUM: true },
+          }),
+          seat("p2", false),
+        ],
+        "p1",
+      ),
+    );
+
+    const pills = screen.getAllByText("EQUILIBRIUM");
+    expect(pills.length).toBeGreaterThan(0);
+    pills.forEach((pill) => expect(pill).not.toHaveAttribute("title"));
   });
 });

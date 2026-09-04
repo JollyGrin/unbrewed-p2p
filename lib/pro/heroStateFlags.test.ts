@@ -972,3 +972,74 @@ describe("Boba Fett's SLAVE I ambush flag", () => {
     expect(flagChipsFor("king-kong", { SLAVE_I: true })).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Jason Voorhees's JASON_RETURN vanish (issue #749 ↔ engine #541). *JASON LIVES*
+// removes him from the board ALIVE with the flag set; his TURN_START trigger
+// clears it and prompts a board-wide `place` — Boba Fett's SLAVE I shape, but a
+// "where is he?" state rather than an inbound-attack countdown.
+// ---------------------------------------------------------------------------
+
+describe("Jason Voorhees's JASON_RETURN flag", () => {
+  it("registers on the exact engine flag key, gated to jason-voorhees", () => {
+    const e = HERO_STATE_FLAGS.find((entry) => entry.flag === "JASON_RETURN");
+    expect(e).toBeDefined();
+    // jason-voorhees.rules.ts @6a8b87e: const JASON_RETURN_FLAG = 'JASON_RETURN' —
+    // set beside removeFromBoard on *JASON LIVES*, consumed by the TURN_START trigger.
+    expect(e!.heroes).toEqual(["jason-voorhees"]);
+    expect(e!.nameplate).toMatchObject({
+      onLabel: "VANISHED — RETURNS NEXT TURN",
+      showWhenAbsent: false,
+      // The long sentence lives on the pill's tooltip; the label stays short
+      // upper-case because the pill is flexShrink: 0 and would never wrap.
+      title: "Vanished — returns at turn start",
+    });
+    // One-sided, like EQUILIBRIUM: an on-board Jason is the default state.
+    expect(e!.token?.off).toBeUndefined();
+    expect(e!.group).toBeUndefined();
+    // Template art for now — no portrait swap until the deck-art follow-up lands.
+    expect(e!.tokenArt).toBeUndefined();
+  });
+
+  it("shows the nameplate pill only while Jason is off the board", () => {
+    const chips = flagChipsFor("jason-voorhees", { JASON_RETURN: true });
+    expect(chips).toHaveLength(1);
+    expect(chips[0].chip.flag).toBe("JASON_RETURN");
+    expect(chips[0].on).toBe(true);
+    expect(flagChipsFor("jason-voorhees", { JASON_RETURN: false })).toEqual([]);
+    expect(flagChipsFor("jason-voorhees", {})).toEqual([]);
+    expect(flagChipsFor("jason-voorhees", undefined)).toEqual([]);
+  });
+
+  it("defines the token badge for completeness — it cannot render while he is off-board", () => {
+    // The badge is resolvable for the flag state but unreachable, not merely
+    // rare: while the flag is set Jason HAS no token on the board, and when the
+    // engine's TURN_START trigger fires it clears the flag BEFORE the `place`
+    // op, so the return prompt opens with the pill already gone — no view ever
+    // has both a Jason token and this flag. Unlike SLAVE I, the entry still
+    // defines the badge.
+    expect(fighterTokenBadgeFor("jason-voorhees", { JASON_RETURN: true })).toMatchObject({
+      icon: "🔪",
+      label: "Vanished",
+    });
+    expect(fighterTokenBadgeFor("jason-voorhees", { JASON_RETURN: false })).toBeNull();
+    expect(fighterTokenBadgeFor("jason-voorhees", {})).toBeNull();
+    // No portrait swap: the deck's fixed (template) art stands.
+    expect(fighterTokenArtFor("jason-voorhees", { JASON_RETURN: true })).toBeNull();
+  });
+
+  it("registers NO counter row for the JASON_LIVES_HP snapshot — internal bookkeeping", () => {
+    // The pre-damage HP snapshot (counter removeAll/gain inside *JASON LIVES*) is
+    // declared on the HeroDef for the cap, not as a resource. Suppression is by
+    // omission — the Skull Kid MITIGATION pattern — so it can never render as a pill.
+    expect(HERO_STATE_COUNTERS.find((e) => e.counter === "JASON_LIVES_HP")).toBeUndefined();
+    expect(HERO_STATE_COUNTERS.filter((e) => e.heroes.includes("jason-voorhees"))).toEqual([]);
+    expect(counterChipsFor("jason-voorhees", { JASON_LIVES_HP: 17 })).toEqual([]);
+    expect(fighterTokenCounterBadgeFor("jason-voorhees", { JASON_LIVES_HP: 17 })).toBeNull();
+  });
+
+  it("never leaks onto another hero's surfaces", () => {
+    expect(flagChipsFor("king-kong", { JASON_RETURN: true })).toEqual([]);
+    expect(fighterTokenBadgeFor("king-kong", { JASON_RETURN: true })).toBeNull();
+  });
+});
