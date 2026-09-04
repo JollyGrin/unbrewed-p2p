@@ -847,8 +847,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     // engine #541/#543). Engine serves the hero at tier `lab`, so `lab` drives the
     // create-screen caution badge and `tier` keeps the deck out of the sandbox
     // community picker and the invite copy. No `original` flag — the tile deep-links
-    // to unmatched.cards/decks/DOPE. No cardback yet: template art, follow-up pending,
-    // and the payload's i.ibb.co hotlinks stay out per the #446 self-hosting rule.
+    // to unmatched.cards/decks/DOPE.
     id: "DOPE",
     name: "Jason Voorhees",
     hero: "Jason Voorhees",
@@ -857,5 +856,16 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     highlightColour: "#55ee39",
     lab: true,
     tier: "lab",
+    // Repo-relative (Kenshiro/Skull Kid/Cecil/Boba/Ripley precedent): self-hosted so
+    // the tile renders on localhost and preview builds. The card art, cardback and
+    // hero render are the author's own finished renders, published via Calton
+    // White's the-unmatched.club deck 13452
+    // (https://www.the-unmatched.club/c/heroes/jason-voorhees.13452) and mirrored
+    // into public/evergreen-decks/art/DOPE per the #446 self-hosting rule (upstream
+    // they are i.ibb.co hotlinks). FURIOUS ZEAL and GRIM OMEN have no finished
+    // render on the club yet and keep the template. Attribution stays this deck's
+    // unmatched.cards page — no `sourceUrl`, the club is the art source only
+    // (#665 is the inverse shape).
+    cardbackUrl: "/evergreen-decks/art/DOPE/cardback.webp",
   },
 ];
