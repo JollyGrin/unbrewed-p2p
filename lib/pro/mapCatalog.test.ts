@@ -22,6 +22,7 @@ import countsCastleJson from "./fixtures/counts-castle.map.json";
 import uscssNostromoJson from "./fixtures/uscss-nostromo.map.json";
 import theBogJson from "./fixtures/the-bog.map.json";
 import weddingCrashersJson from "./fixtures/wedding-crashers.map.json";
+import pyramidsJson from "./fixtures/pyramids.map.json";
 
 const island = catalogEntry("island-of-despair")!;
 const mendedDrum = catalogEntry("mended-drum")!;
@@ -32,6 +33,7 @@ const countsCastle = catalogEntry("counts-castle")!;
 const nostromo = catalogEntry("uscss-nostromo")!;
 const theBog = catalogEntry("the-bog")!;
 const weddingCrashers = catalogEntry("wedding-crashers")!;
+const pyramids = catalogEntry("pyramids")!;
 const arena = catalogEntry("multiplayer-arena-playtest")!;
 
 describe("map catalog", () => {
@@ -46,6 +48,7 @@ describe("map catalog", () => {
       "uscss-nostromo",
       "the-bog",
       "wedding-crashers",
+      "pyramids",
       "multiplayer-arena-playtest",
     ]);
     expect(arena.title).toBe("Playtest Arena (synthetic)");
@@ -117,6 +120,13 @@ describe("map catalog", () => {
       expect(mapEligibleForFormat(weddingCrashers.map, "team-2v2")).toBe(false);
       expect(ineligibleReason(weddingCrashers.map, "ffa-3")).toBe("needs 3 start slots");
       expect(ineligibleReason(weddingCrashers.map, "team-2v2")).toBe("needs 4 start slots");
+    });
+
+    it("Pyramids supports all three formats via authored supportedFormats", () => {
+      expect(eligibleFormats(pyramids.map)).toEqual(["duel", "ffa-3", "team-2v2"]);
+      expect(mapEligibleForFormat(pyramids.map, "duel")).toBe(true);
+      expect(mapEligibleForFormat(pyramids.map, "ffa-3")).toBe(true);
+      expect(mapEligibleForFormat(pyramids.map, "team-2v2")).toBe(true);
     });
 
     it("The Mended Drum is duel-only via the printed slots 1&2 fallback", () => {
@@ -194,11 +204,11 @@ describe("map catalog", () => {
 /**
  * The Random tile (#685) resolves at room-create time. The 1v1 pool is bounded
  * by the board's own `meta.maxPlayers`, NOT by a curated list: every catalog
- * board today is 2/2 or 2/4, so all nine are rollable for a duel, and a future
+ * board today is 2/2 or 2/4, so all ten are rollable for a duel, and a future
  * board authored for more than four players drops out on its own metadata.
  */
 describe("random board pool", () => {
-  it("duel rolls every visible board — all nine are <= 4 players", () => {
+  it("duel rolls every visible board — all ten are <= 4 players", () => {
     expect(randomMapPool("duel").map((e) => e.id)).toEqual([
       "mended-drum",
       "island-of-despair",
@@ -209,6 +219,7 @@ describe("random board pool", () => {
       "uscss-nostromo",
       "the-bog",
       "wedding-crashers",
+      "pyramids",
     ]);
     // the big four are IN the pool — the "(1-4)" bound is a player count
     for (const id of ["weathertop", "counts-castle", "uscss-nostromo", "the-bog"]) {
@@ -265,6 +276,7 @@ describe("random board pool", () => {
         "polus",
         "weathertop",
         "counts-castle",
+        "pyramids",
       ]);
       // every rolled board can actually seat the format, and none is hidden
       expect(pool.every((e) => mapEligibleForFormat(e.map, format))).toBe(true);
@@ -292,8 +304,8 @@ describe("random board pool", () => {
     // Mended Drum is the server-default board — rolling it must still send nothing
     expect(customMapForEntry(rollRandomMap("duel", () => 0))).toBeUndefined();
     const lastRoll = rollRandomMap("duel", () => 0.99);
-    expect(lastRoll.id).toBe("wedding-crashers");
-    expect(customMapForEntry(lastRoll)!.id).toBe("wedding-crashers");
+    expect(lastRoll.id).toBe("pyramids");
+    expect(customMapForEntry(lastRoll)!.id).toBe("pyramids");
   });
 });
 
@@ -325,6 +337,7 @@ describe("2v2 seat bindings follow turn order (#682, engine #495)", () => {
       "polus",
       "weathertop",
       "counts-castle",
+      "pyramids",
       "multiplayer-arena-playtest",
     ]);
   });
@@ -771,6 +784,73 @@ describe("wedding-crashers fixture", () => {
       "https://unbrewed.xyz/maps/community-wedding-crashers.webp",
     );
     expect(weddingCrashers.thumbnailUrl).toBe(weddingCrashersJson.meta.imageUrl);
+  });
+});
+
+/**
+ * Pyramids (#758) — a community board by AndSushi via the-unmatched.club
+ * (#755), registered like City Docks / The Bog before it: a generated
+ * `ProMapDef` with an authored `supportedFormats` block for all three formats.
+ * The board also prints a fifth start slot no format uses, so none encodes one.
+ */
+describe("pyramids fixture", () => {
+  const spaces = pyramidsJson.spaces as Array<{
+    id: string;
+    zones: string[];
+    adjacentTo: string[];
+    start?: { slot: number };
+  }>;
+
+  it("normalizes clean (engine-native pass-through)", () => {
+    const map = normalizeMap(pyramidsJson);
+    expect(map.id).toBe("pyramids");
+    expect(map.meta.title).toBe("Pyramids");
+    expect(map.spaces).toHaveLength(49);
+    const slots = new Set(map.spaces.flatMap((s) => (s.start ? [s.start.slot] : [])));
+    expect(slots).toEqual(new Set([1, 2, 3, 4]));
+  });
+
+  it("maps the four start slots to the expected spaces (s14/s36/s37/s12)", () => {
+    const slotOf = (slot: number) => spaces.find((s) => s.start?.slot === slot)?.id;
+    expect(slotOf(1)).toBe("s14");
+    expect(slotOf(2)).toBe("s36");
+    expect(slotOf(3)).toBe("s37");
+    expect(slotOf(4)).toBe("s12");
+  });
+
+  it("declares 9 zones, every one of them used by at least one space", () => {
+    const map = normalizeMap(pyramidsJson);
+    expect(map.zones).toHaveLength(9);
+    const used = new Set(spaces.flatMap((s) => s.zones));
+    expect(new Set(map.zones.map((z) => z.id))).toEqual(used);
+  });
+
+  it("has a fully symmetric, fully connected adjacency graph", () => {
+    const byId = new Map(spaces.map((s) => [s.id, s]));
+    for (const s of byId.values()) {
+      for (const to of s.adjacentTo) {
+        expect(byId.get(to)?.adjacentTo).toContain(s.id);
+      }
+    }
+    const seen = new Set(["s1"]);
+    const queue = ["s1"];
+    while (queue.length) {
+      for (const to of byId.get(queue.shift()!)!.adjacentTo) {
+        if (!seen.has(to)) (seen.add(to), queue.push(to));
+      }
+    }
+    expect(seen.size).toBe(49);
+  });
+
+  it("serves its board image from the repo, attribution intact (no third-party host)", () => {
+    expect(pyramidsJson.meta.imageUrl).toBe(
+      "https://unbrewed.xyz/maps/community-pyramids-289.webp",
+    );
+    expect(pyramids.thumbnailUrl).toBe(pyramidsJson.meta.imageUrl);
+    // AndSushi / the-unmatched.club credit must survive any future edit (#755)
+    expect(pyramidsJson.meta.source).toBe("https://www.the-unmatched.club/c/maps/pyramids.289");
+    expect(pyramidsJson.meta.license).toContain("AndSushi");
+    expect(pyramidsJson.meta.license).toContain("the-unmatched.club");
   });
 });
 

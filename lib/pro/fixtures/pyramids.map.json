@@ -1,0 +1,798 @@
+{
+  "schemaVersion": "1.0",
+  "id": "pyramids",
+  "meta": {
+    "title": "Pyramids",
+    "minPlayers": 2,
+    "maxPlayers": 4,
+    "specialRules": false,
+    "imageUrl": "https://unbrewed.xyz/maps/community-pyramids-289.webp",
+    "imageWidth": 1024,
+    "imageHeight": 833,
+    "spaceDiameter": 0.0757,
+    "source": "https://www.the-unmatched.club/c/maps/pyramids.289",
+    "license": "Fan battlefield 'Pyramids' designed by AndSushi (the-unmatched.club). Source: https://www.the-unmatched.club/c/maps/pyramids.289 — credit AndSushi and the-unmatched.club."
+  },
+  "supportedFormats": [
+    {
+      "id": "duel-pyramids",
+      "formatId": "duel",
+      "label": "Duel",
+      "description": "Start slots 1 and 2 for a standard 1v1.",
+      "seats": {
+        "A1": {
+          "startSlot": 1
+        },
+        "B1": {
+          "startSlot": 2
+        }
+      }
+    },
+    {
+      "id": "ffa-3-pyramids",
+      "formatId": "ffa-3",
+      "label": "3 Player Free For All",
+      "description": "Three independent players use start slots 1, 2, and 3.",
+      "seats": {
+        "A1": {
+          "startSlot": 1
+        },
+        "B1": {
+          "startSlot": 2
+        },
+        "C1": {
+          "startSlot": 3
+        }
+      }
+    },
+    {
+      "id": "team-2v2-pyramids",
+      "formatId": "team-2v2",
+      "label": "2v2 Teams",
+      "description": "Start slots follow the format's turn order: A1 on slot 1, B1 on slot 2, A2 on slot 3, B2 on slot 4 (engine#495).",
+      "seats": {
+        "A1": {
+          "startSlot": 1
+        },
+        "A2": {
+          "startSlot": 3
+        },
+        "B1": {
+          "startSlot": 2
+        },
+        "B2": {
+          "startSlot": 4
+        }
+      }
+    }
+  ],
+  "zones": [
+    {
+      "id": "z1",
+      "color": "#d8a327",
+      "label": "golden dunes"
+    },
+    {
+      "id": "z2",
+      "color": "#1f789a",
+      "label": "river"
+    },
+    {
+      "id": "z3",
+      "color": "#fdc982",
+      "label": "sandstone court"
+    },
+    {
+      "id": "z4",
+      "color": "#63afba",
+      "label": "oasis"
+    },
+    {
+      "id": "z5",
+      "color": "#746fa2",
+      "label": "temple"
+    },
+    {
+      "id": "z6",
+      "color": "#507e5b",
+      "label": "palm garden"
+    },
+    {
+      "id": "z7",
+      "color": "#ddc177",
+      "label": "brick wall"
+    },
+    {
+      "id": "z8",
+      "color": "#ac7855",
+      "label": "sand drifts"
+    },
+    {
+      "id": "z9",
+      "color": "#c5513d",
+      "label": "red ruins"
+    }
+  ],
+  "spaces": [
+    {
+      "id": "s1",
+      "x": 0.2143,
+      "y": 0.0663,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s2",
+        "s7"
+      ]
+    },
+    {
+      "id": "s2",
+      "x": 0.3373,
+      "y": 0.0833,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s1",
+        "s8",
+        "s9"
+      ]
+    },
+    {
+      "id": "s3",
+      "x": 0.4498,
+      "y": 0.0661,
+      "zones": [
+        "z5",
+        "z1"
+      ],
+      "adjacentTo": [
+        "s4",
+        "s9"
+      ]
+    },
+    {
+      "id": "s4",
+      "x": 0.5752,
+      "y": 0.0695,
+      "zones": [
+        "z5",
+        "z6"
+      ],
+      "adjacentTo": [
+        "s3",
+        "s5",
+        "s10",
+        "s11"
+      ]
+    },
+    {
+      "id": "s5",
+      "x": 0.7197,
+      "y": 0.0674,
+      "zones": [
+        "z5"
+      ],
+      "adjacentTo": [
+        "s4",
+        "s12"
+      ]
+    },
+    {
+      "id": "s6",
+      "x": 0.8605,
+      "y": 0.0721,
+      "zones": [
+        "z5"
+      ],
+      "adjacentTo": [
+        "s12",
+        "s13"
+      ]
+    },
+    {
+      "id": "s7",
+      "x": 0.1017,
+      "y": 0.1253,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s1",
+        "s14",
+        "s15"
+      ]
+    },
+    {
+      "id": "s8",
+      "x": 0.2628,
+      "y": 0.2115,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s2",
+        "s9",
+        "s15"
+      ]
+    },
+    {
+      "id": "s9",
+      "x": 0.4015,
+      "y": 0.2142,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s2",
+        "s3",
+        "s8",
+        "s18"
+      ]
+    },
+    {
+      "id": "s10",
+      "x": 0.5067,
+      "y": 0.204,
+      "zones": [
+        "z6"
+      ],
+      "adjacentTo": [
+        "s4",
+        "s11",
+        "s19"
+      ]
+    },
+    {
+      "id": "s11",
+      "x": 0.6414,
+      "y": 0.2033,
+      "zones": [
+        "z5",
+        "z7",
+        "z6"
+      ],
+      "adjacentTo": [
+        "s4",
+        "s10",
+        "s19"
+      ]
+    },
+    {
+      "id": "s12",
+      "x": 0.761,
+      "y": 0.2116,
+      "zones": [
+        "z7",
+        "z5"
+      ],
+      "adjacentTo": [
+        "s5",
+        "s6",
+        "s16",
+        "s20"
+      ],
+      "start": {
+        "slot": 4
+      }
+    },
+    {
+      "id": "s13",
+      "x": 0.93,
+      "y": 0.197,
+      "zones": [
+        "z5",
+        "z7"
+      ],
+      "adjacentTo": [
+        "s6",
+        "s16"
+      ]
+    },
+    {
+      "id": "s14",
+      "x": 0.0606,
+      "y": 0.2845,
+      "zones": [
+        "z8",
+        "z1"
+      ],
+      "adjacentTo": [
+        "s7",
+        "s15",
+        "s21"
+      ],
+      "start": {
+        "slot": 1
+      }
+    },
+    {
+      "id": "s15",
+      "x": 0.1662,
+      "y": 0.2558,
+      "zones": [
+        "z1",
+        "z8"
+      ],
+      "adjacentTo": [
+        "s7",
+        "s8",
+        "s14"
+      ]
+    },
+    {
+      "id": "s16",
+      "x": 0.8632,
+      "y": 0.3068,
+      "zones": [
+        "z7"
+      ],
+      "adjacentTo": [
+        "s12",
+        "s13",
+        "s22"
+      ]
+    },
+    {
+      "id": "s17",
+      "x": 0.2993,
+      "y": 0.3708,
+      "zones": [
+        "z2"
+      ],
+      "adjacentTo": [
+        "s18",
+        "s21",
+        "s25"
+      ]
+    },
+    {
+      "id": "s18",
+      "x": 0.4332,
+      "y": 0.3513,
+      "zones": [
+        "z2",
+        "z6"
+      ],
+      "adjacentTo": [
+        "s9",
+        "s17",
+        "s19",
+        "s26"
+      ]
+    },
+    {
+      "id": "s19",
+      "x": 0.5727,
+      "y": 0.3503,
+      "zones": [
+        "z6"
+      ],
+      "adjacentTo": [
+        "s10",
+        "s11",
+        "s18",
+        "s20"
+      ]
+    },
+    {
+      "id": "s20",
+      "x": 0.6996,
+      "y": 0.3424,
+      "zones": [
+        "z7",
+        "z6"
+      ],
+      "adjacentTo": [
+        "s12",
+        "s19",
+        "s28"
+      ]
+    },
+    {
+      "id": "s21",
+      "x": 0.1248,
+      "y": 0.3921,
+      "zones": [
+        "z8"
+      ],
+      "adjacentTo": [
+        "s14",
+        "s17",
+        "s23",
+        "s24"
+      ]
+    },
+    {
+      "id": "s22",
+      "x": 0.937,
+      "y": 0.4192,
+      "zones": [
+        "z7"
+      ],
+      "adjacentTo": [
+        "s16",
+        "s34"
+      ]
+    },
+    {
+      "id": "s23",
+      "x": 0.0612,
+      "y": 0.524,
+      "zones": [
+        "z8",
+        "z9"
+      ],
+      "adjacentTo": [
+        "s21",
+        "s24",
+        "s35"
+      ]
+    },
+    {
+      "id": "s24",
+      "x": 0.1862,
+      "y": 0.5004,
+      "zones": [
+        "z8"
+      ],
+      "adjacentTo": [
+        "s21",
+        "s23",
+        "s25",
+        "s29",
+        "s30"
+      ]
+    },
+    {
+      "id": "s25",
+      "x": 0.309,
+      "y": 0.501,
+      "zones": [
+        "z1",
+        "z2",
+        "z8"
+      ],
+      "adjacentTo": [
+        "s17",
+        "s24",
+        "s26"
+      ]
+    },
+    {
+      "id": "s26",
+      "x": 0.4752,
+      "y": 0.501,
+      "zones": [
+        "z2"
+      ],
+      "adjacentTo": [
+        "s18",
+        "s25",
+        "s27",
+        "s31"
+      ]
+    },
+    {
+      "id": "s27",
+      "x": 0.6335,
+      "y": 0.5011,
+      "zones": [
+        "z6",
+        "z3",
+        "z2"
+      ],
+      "adjacentTo": [
+        "s26",
+        "s28"
+      ]
+    },
+    {
+      "id": "s28",
+      "x": 0.7926,
+      "y": 0.5027,
+      "zones": [
+        "z7",
+        "z4",
+        "z2"
+      ],
+      "adjacentTo": [
+        "s20",
+        "s27",
+        "s33"
+      ]
+    },
+    {
+      "id": "s29",
+      "x": 0.2096,
+      "y": 0.663,
+      "zones": [
+        "z8",
+        "z9"
+      ],
+      "adjacentTo": [
+        "s24",
+        "s30",
+        "s37",
+        "s38"
+      ]
+    },
+    {
+      "id": "s30",
+      "x": 0.3165,
+      "y": 0.6519,
+      "zones": [
+        "z2"
+      ],
+      "adjacentTo": [
+        "s24",
+        "s29",
+        "s31",
+        "s38"
+      ]
+    },
+    {
+      "id": "s31",
+      "x": 0.435,
+      "y": 0.6569,
+      "zones": [
+        "z3",
+        "z2"
+      ],
+      "adjacentTo": [
+        "s26",
+        "s30",
+        "s32",
+        "s39"
+      ]
+    },
+    {
+      "id": "s32",
+      "x": 0.5735,
+      "y": 0.6502,
+      "zones": [
+        "z3"
+      ],
+      "adjacentTo": [
+        "s31",
+        "s33",
+        "s40",
+        "s41"
+      ]
+    },
+    {
+      "id": "s33",
+      "x": 0.6857,
+      "y": 0.6626,
+      "zones": [
+        "z4"
+      ],
+      "adjacentTo": [
+        "s28",
+        "s32",
+        "s36"
+      ]
+    },
+    {
+      "id": "s34",
+      "x": 0.9376,
+      "y": 0.6027,
+      "zones": [
+        "z4"
+      ],
+      "adjacentTo": [
+        "s22",
+        "s36",
+        "s44"
+      ]
+    },
+    {
+      "id": "s35",
+      "x": 0.074,
+      "y": 0.6858,
+      "zones": [
+        "z9"
+      ],
+      "adjacentTo": [
+        "s23",
+        "s37",
+        "s42"
+      ]
+    },
+    {
+      "id": "s36",
+      "x": 0.8357,
+      "y": 0.7068,
+      "zones": [
+        "z4"
+      ],
+      "adjacentTo": [
+        "s33",
+        "s34",
+        "s43",
+        "s44"
+      ],
+      "start": {
+        "slot": 2
+      }
+    },
+    {
+      "id": "s37",
+      "x": 0.1587,
+      "y": 0.783,
+      "zones": [
+        "z9"
+      ],
+      "adjacentTo": [
+        "s29",
+        "s35",
+        "s38",
+        "s42",
+        "s45"
+      ],
+      "start": {
+        "slot": 3
+      }
+    },
+    {
+      "id": "s38",
+      "x": 0.2668,
+      "y": 0.7987,
+      "zones": [
+        "z3",
+        "z9"
+      ],
+      "adjacentTo": [
+        "s29",
+        "s30",
+        "s37",
+        "s39",
+        "s45"
+      ]
+    },
+    {
+      "id": "s39",
+      "x": 0.394,
+      "y": 0.7969,
+      "zones": [
+        "z3",
+        "z2"
+      ],
+      "adjacentTo": [
+        "s31",
+        "s38",
+        "s46"
+      ]
+    },
+    {
+      "id": "s40",
+      "x": 0.5101,
+      "y": 0.7998,
+      "zones": [
+        "z3"
+      ],
+      "adjacentTo": [
+        "s32",
+        "s41",
+        "s47"
+      ]
+    },
+    {
+      "id": "s41",
+      "x": 0.6361,
+      "y": 0.8006,
+      "zones": [
+        "z4",
+        "z3"
+      ],
+      "adjacentTo": [
+        "s32",
+        "s40",
+        "s47"
+      ]
+    },
+    {
+      "id": "s42",
+      "x": 0.0595,
+      "y": 0.8558,
+      "zones": [
+        "z9"
+      ],
+      "adjacentTo": [
+        "s35",
+        "s37",
+        "s45"
+      ]
+    },
+    {
+      "id": "s43",
+      "x": 0.7725,
+      "y": 0.8241,
+      "zones": [
+        "z4"
+      ],
+      "adjacentTo": [
+        "s36",
+        "s48",
+        "s49"
+      ]
+    },
+    {
+      "id": "s44",
+      "x": 0.9203,
+      "y": 0.8099,
+      "zones": [
+        "z4"
+      ],
+      "adjacentTo": [
+        "s34",
+        "s36",
+        "s49"
+      ]
+    },
+    {
+      "id": "s45",
+      "x": 0.207,
+      "y": 0.9266,
+      "zones": [
+        "z9"
+      ],
+      "adjacentTo": [
+        "s37",
+        "s38",
+        "s42"
+      ]
+    },
+    {
+      "id": "s46",
+      "x": 0.4387,
+      "y": 0.9378,
+      "zones": [
+        "z3"
+      ],
+      "adjacentTo": [
+        "s39",
+        "s47"
+      ]
+    },
+    {
+      "id": "s47",
+      "x": 0.5726,
+      "y": 0.9336,
+      "zones": [
+        "z3"
+      ],
+      "adjacentTo": [
+        "s40",
+        "s41",
+        "s46",
+        "s48"
+      ]
+    },
+    {
+      "id": "s48",
+      "x": 0.6884,
+      "y": 0.9318,
+      "zones": [
+        "z4"
+      ],
+      "adjacentTo": [
+        "s43",
+        "s47"
+      ]
+    },
+    {
+      "id": "s49",
+      "x": 0.8919,
+      "y": 0.9323,
+      "zones": [
+        "z4"
+      ],
+      "adjacentTo": [
+        "s43",
+        "s44"
+      ]
+    }
+  ]
+}

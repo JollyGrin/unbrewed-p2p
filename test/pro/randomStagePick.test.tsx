@@ -148,10 +148,10 @@ describe("Random stage tile", () => {
 
   it("rolls every board in the 1v1 pool, and nothing outside it", async () => {
     const pool = randomMapPool("duel").map((e) => e.id);
-    expect(pool).toHaveLength(9); // all nine authored boards seat <= 4 players
+    expect(pool).toHaveLength(10); // all ten authored boards seat <= 4 players
     const rolls: string[] = [];
     // One rng value per pool slot, nudged off the boundary, so the sweep both
-    // stays inside the pool AND actually reaches all nine boards.
+    // stays inside the pool AND actually reaches all ten boards.
     for (let i = 0; i < pool.length; i++) {
       jest.spyOn(Math, "random").mockReturnValue((i + 0.5) / pool.length);
       FakeWebSocket.reset();
@@ -164,7 +164,7 @@ describe("Random stage tile", () => {
       document.body.innerHTML = "";
     }
     expect(rolls).toEqual(pool);
-    // Nine full page mounts: slow on purpose (this is the REAL create flow),
+    // Ten full page mounts: slow on purpose (this is the REAL create flow),
     // and well past Jest's 5s default once coverage instrumentation is on.
   }, 60_000);
 
@@ -183,7 +183,7 @@ describe("Random stage tile", () => {
   });
 
   it("names the rolled board in the lobby, not 'Random'", async () => {
-    jest.spyOn(Math, "random").mockReturnValue(0.4); // → Polus, the 4th of 9
+    jest.spyOn(Math, "random").mockReturnValue(0.35); // → Polus, the 4th of 10
     const ws = await mountPicker();
     await createRoom();
     await act(async () => {
