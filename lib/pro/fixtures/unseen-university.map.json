@@ -1,0 +1,588 @@
+{
+  "schemaVersion": "1.0",
+  "id": "unseen-university",
+  "meta": {
+    "title": "Unseen University",
+    "minPlayers": 2,
+    "maxPlayers": 4,
+    "specialRules": false,
+    "imageUrl": "https://unbrewed.xyz/maps/community-unseen-university.webp",
+    "imageWidth": 2500,
+    "imageHeight": 1731,
+    "spaceDiameter": 0.056,
+    "source": "AndSushi (original battlemap art by Eightfold Paper) — submitted via https://github.com/JollyGrin/unbrewed-p2p/issues/752",
+    "license": "community map — credit the author (AndSushi; original battlemap by Eightfold Paper)"
+  },
+  "supportedFormats": [
+    {
+      "id": "duel-unseen-university",
+      "formatId": "duel",
+      "label": "Duel",
+      "description": "Start slots 1 and 2 for a standard 1v1.",
+      "seats": {
+        "A1": {
+          "startSlot": 1
+        },
+        "B1": {
+          "startSlot": 2
+        }
+      }
+    },
+    {
+      "id": "ffa-3-unseen-university",
+      "formatId": "ffa-3",
+      "label": "3 Player Free For All",
+      "description": "Three independent players use start slots 1, 2, and 3.",
+      "seats": {
+        "A1": {
+          "startSlot": 1
+        },
+        "B1": {
+          "startSlot": 2
+        },
+        "C1": {
+          "startSlot": 3
+        }
+      }
+    },
+    {
+      "id": "team-2v2-unseen-university",
+      "formatId": "team-2v2",
+      "label": "2v2 Teams",
+      "description": "Start slots follow the format's turn order: A1 takes slot 1, B1 slot 2, A2 slot 3, B2 slot 4.",
+      "seats": {
+        "A1": {
+          "startSlot": 1
+        },
+        "A2": {
+          "startSlot": 3
+        },
+        "B1": {
+          "startSlot": 2
+        },
+        "B2": {
+          "startSlot": 4
+        }
+      }
+    }
+  ],
+  "zones": [
+    {
+      "id": "z1",
+      "color": "#8e4a2b",
+      "label": "oak floor"
+    },
+    {
+      "id": "z2",
+      "color": "#7e5765",
+      "label": "rose tiles"
+    },
+    {
+      "id": "z3",
+      "color": "#405687",
+      "label": "skylight"
+    },
+    {
+      "id": "z4",
+      "color": "#767c8c",
+      "label": "grey flagstones"
+    },
+    {
+      "id": "z5",
+      "color": "#2b8286",
+      "label": "arcane teal"
+    },
+    {
+      "id": "z6",
+      "color": "#7e5416",
+      "label": "gold parquet"
+    },
+    {
+      "id": "z7",
+      "color": "#642819",
+      "label": "scarlet weave"
+    }
+  ],
+  "spaces": [
+    {
+      "id": "s1",
+      "x": 0.2986,
+      "y": 0.1707,
+      "zones": [
+        "z2"
+      ],
+      "adjacentTo": [
+        "s2",
+        "s8"
+      ]
+    },
+    {
+      "id": "s2",
+      "x": 0.2218,
+      "y": 0.2441,
+      "zones": [
+        "z1",
+        "z2"
+      ],
+      "adjacentTo": [
+        "s1",
+        "s7",
+        "s12"
+      ]
+    },
+    {
+      "id": "s3",
+      "x": 0.4105,
+      "y": 0.2044,
+      "zones": [
+        "z2"
+      ],
+      "adjacentTo": [
+        "s8",
+        "s13"
+      ]
+    },
+    {
+      "id": "s4",
+      "x": 0.5238,
+      "y": 0.2181,
+      "zones": [
+        "z3"
+      ],
+      "adjacentTo": [
+        "s9",
+        "s14"
+      ]
+    },
+    {
+      "id": "s5",
+      "x": 0.6483,
+      "y": 0.2096,
+      "zones": [
+        "z5",
+        "z3"
+      ],
+      "adjacentTo": [
+        "s6",
+        "s10",
+        "s11"
+      ]
+    },
+    {
+      "id": "s6",
+      "x": 0.7358,
+      "y": 0.2556,
+      "zones": [
+        "z5",
+        "z3"
+      ],
+      "adjacentTo": [
+        "s5",
+        "s11"
+      ]
+    },
+    {
+      "id": "s7",
+      "x": 0.1565,
+      "y": 0.3563,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s2",
+        "s12",
+        "s15"
+      ]
+    },
+    {
+      "id": "s8",
+      "x": 0.3311,
+      "y": 0.2852,
+      "zones": [
+        "z2"
+      ],
+      "adjacentTo": [
+        "s1",
+        "s3",
+        "s13"
+      ]
+    },
+    {
+      "id": "s9",
+      "x": 0.4593,
+      "y": 0.2985,
+      "zones": [
+        "z2",
+        "z3"
+      ],
+      "adjacentTo": [
+        "s4",
+        "s14"
+      ],
+      "start": {
+        "slot": 3
+      }
+    },
+    {
+      "id": "s10",
+      "x": 0.6098,
+      "y": 0.3198,
+      "zones": [
+        "z3"
+      ],
+      "adjacentTo": [
+        "s5",
+        "s11",
+        "s14"
+      ]
+    },
+    {
+      "id": "s11",
+      "x": 0.691,
+      "y": 0.3619,
+      "zones": [
+        "z5"
+      ],
+      "adjacentTo": [
+        "s5",
+        "s6",
+        "s10",
+        "s20",
+        "s21"
+      ]
+    },
+    {
+      "id": "s12",
+      "x": 0.2541,
+      "y": 0.3725,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s2",
+        "s7",
+        "s15"
+      ]
+    },
+    {
+      "id": "s13",
+      "x": 0.4055,
+      "y": 0.3768,
+      "zones": [
+        "z2"
+      ],
+      "adjacentTo": [
+        "s3",
+        "s8",
+        "s18"
+      ]
+    },
+    {
+      "id": "s14",
+      "x": 0.5299,
+      "y": 0.3696,
+      "zones": [
+        "z3"
+      ],
+      "adjacentTo": [
+        "s4",
+        "s9",
+        "s10",
+        "s18",
+        "s19"
+      ]
+    },
+    {
+      "id": "s15",
+      "x": 0.1513,
+      "y": 0.5013,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s7",
+        "s12",
+        "s16",
+        "s22",
+        "s23"
+      ],
+      "start": {
+        "slot": 2
+      }
+    },
+    {
+      "id": "s16",
+      "x": 0.2443,
+      "y": 0.501,
+      "zones": [
+        "z4",
+        "z1"
+      ],
+      "adjacentTo": [
+        "s15",
+        "s17"
+      ]
+    },
+    {
+      "id": "s17",
+      "x": 0.3413,
+      "y": 0.4996,
+      "zones": [
+        "z4"
+      ],
+      "adjacentTo": [
+        "s16",
+        "s18",
+        "s25"
+      ]
+    },
+    {
+      "id": "s18",
+      "x": 0.4349,
+      "y": 0.5013,
+      "zones": [
+        "z4"
+      ],
+      "adjacentTo": [
+        "s13",
+        "s14",
+        "s17",
+        "s19",
+        "s25",
+        "s26"
+      ]
+    },
+    {
+      "id": "s19",
+      "x": 0.5298,
+      "y": 0.5017,
+      "zones": [
+        "z4"
+      ],
+      "adjacentTo": [
+        "s14",
+        "s18",
+        "s20",
+        "s26"
+      ]
+    },
+    {
+      "id": "s20",
+      "x": 0.6227,
+      "y": 0.5007,
+      "zones": [
+        "z4",
+        "z5"
+      ],
+      "adjacentTo": [
+        "s11",
+        "s19",
+        "s28"
+      ]
+    },
+    {
+      "id": "s21",
+      "x": 0.7438,
+      "y": 0.4994,
+      "zones": [
+        "z5"
+      ],
+      "adjacentTo": [
+        "s11",
+        "s31"
+      ],
+      "start": {
+        "slot": 1
+      }
+    },
+    {
+      "id": "s22",
+      "x": 0.1542,
+      "y": 0.6438,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s15",
+        "s23",
+        "s29"
+      ]
+    },
+    {
+      "id": "s23",
+      "x": 0.2522,
+      "y": 0.6248,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s15",
+        "s22",
+        "s29"
+      ]
+    },
+    {
+      "id": "s24",
+      "x": 0.3293,
+      "y": 0.6746,
+      "zones": [
+        "z6"
+      ],
+      "adjacentTo": [
+        "s32",
+        "s33"
+      ]
+    },
+    {
+      "id": "s25",
+      "x": 0.4005,
+      "y": 0.6171,
+      "zones": [
+        "z6"
+      ],
+      "adjacentTo": [
+        "s17",
+        "s18",
+        "s30",
+        "s33"
+      ]
+    },
+    {
+      "id": "s26",
+      "x": 0.5251,
+      "y": 0.618,
+      "zones": [
+        "z7"
+      ],
+      "adjacentTo": [
+        "s18",
+        "s19",
+        "s30",
+        "s34"
+      ]
+    },
+    {
+      "id": "s27",
+      "x": 0.6063,
+      "y": 0.681,
+      "zones": [
+        "z7"
+      ],
+      "adjacentTo": [
+        "s28",
+        "s35"
+      ]
+    },
+    {
+      "id": "s28",
+      "x": 0.6767,
+      "y": 0.6301,
+      "zones": [
+        "z5"
+      ],
+      "adjacentTo": [
+        "s20",
+        "s27",
+        "s31",
+        "s35"
+      ]
+    },
+    {
+      "id": "s29",
+      "x": 0.2193,
+      "y": 0.7428,
+      "zones": [
+        "z1",
+        "z6"
+      ],
+      "adjacentTo": [
+        "s22",
+        "s23",
+        "s32"
+      ]
+    },
+    {
+      "id": "s30",
+      "x": 0.461,
+      "y": 0.6964,
+      "zones": [
+        "z6",
+        "z7"
+      ],
+      "adjacentTo": [
+        "s25",
+        "s26",
+        "s33",
+        "s34"
+      ],
+      "start": {
+        "slot": 4
+      }
+    },
+    {
+      "id": "s31",
+      "x": 0.7227,
+      "y": 0.7344,
+      "zones": [
+        "z7",
+        "z5"
+      ],
+      "adjacentTo": [
+        "s21",
+        "s28",
+        "s35"
+      ]
+    },
+    {
+      "id": "s32",
+      "x": 0.2973,
+      "y": 0.7951,
+      "zones": [
+        "z6"
+      ],
+      "adjacentTo": [
+        "s24",
+        "s29"
+      ]
+    },
+    {
+      "id": "s33",
+      "x": 0.4011,
+      "y": 0.7812,
+      "zones": [
+        "z6"
+      ],
+      "adjacentTo": [
+        "s24",
+        "s25",
+        "s30"
+      ]
+    },
+    {
+      "id": "s34",
+      "x": 0.525,
+      "y": 0.7738,
+      "zones": [
+        "z7"
+      ],
+      "adjacentTo": [
+        "s26",
+        "s30"
+      ]
+    },
+    {
+      "id": "s35",
+      "x": 0.6533,
+      "y": 0.7847,
+      "zones": [
+        "z7",
+        "z5"
+      ],
+      "adjacentTo": [
+        "s27",
+        "s28",
+        "s31"
+      ]
+    }
+  ]
+}

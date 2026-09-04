@@ -1,0 +1,425 @@
+{
+  "schemaVersion": "1.0",
+  "id": "river-cruise",
+  "meta": {
+    "title": "River Cruise",
+    "minPlayers": 2,
+    "maxPlayers": 2,
+    "specialRules": false,
+    "imageUrl": "https://unbrewed.xyz/maps/community-river-cruise.webp",
+    "imageWidth": 2500,
+    "imageHeight": 1420,
+    "spaceDiameter": 0.056,
+    "source": "AndSushi (original battlemap art by Eightfold Paper) — submitted via https://github.com/JollyGrin/unbrewed-p2p/issues/753",
+    "license": "community map — credit the author (AndSushi; original battlemap by Eightfold Paper)"
+  },
+  "supportedFormats": [
+    {
+      "id": "duel-river-cruise",
+      "formatId": "duel",
+      "label": "Duel",
+      "description": "Start slots 1 and 2 for a standard 1v1.",
+      "seats": {
+        "A1": {
+          "startSlot": 1
+        },
+        "B1": {
+          "startSlot": 2
+        }
+      }
+    }
+  ],
+  "zones": [
+    {
+      "id": "z1",
+      "color": "#785939",
+      "label": "foredeck"
+    },
+    {
+      "id": "z2",
+      "color": "#53799a",
+      "label": "upper deck"
+    },
+    {
+      "id": "z3",
+      "color": "#bda78b",
+      "label": "lower deck"
+    },
+    {
+      "id": "z4",
+      "color": "#7c362e",
+      "label": "tiled roof"
+    },
+    {
+      "id": "z5",
+      "color": "#836a63",
+      "label": "stern deck"
+    }
+  ],
+  "spaces": [
+    {
+      "id": "s1",
+      "x": 0.7519,
+      "y": 0.1879,
+      "zones": [
+        "z4",
+        "z2"
+      ],
+      "adjacentTo": [
+        "s5",
+        "s6"
+      ]
+    },
+    {
+      "id": "s2",
+      "x": 0.4626,
+      "y": 0.3264,
+      "zones": [
+        "z2"
+      ],
+      "adjacentTo": [
+        "s3",
+        "s12",
+        "s13"
+      ]
+    },
+    {
+      "id": "s3",
+      "x": 0.5414,
+      "y": 0.3102,
+      "zones": [
+        "z2"
+      ],
+      "adjacentTo": [
+        "s2",
+        "s4"
+      ]
+    },
+    {
+      "id": "s4",
+      "x": 0.6206,
+      "y": 0.3088,
+      "zones": [
+        "z2"
+      ],
+      "adjacentTo": [
+        "s3",
+        "s5"
+      ]
+    },
+    {
+      "id": "s5",
+      "x": 0.6991,
+      "y": 0.3086,
+      "zones": [
+        "z2"
+      ],
+      "adjacentTo": [
+        "s1",
+        "s4"
+      ]
+    },
+    {
+      "id": "s6",
+      "x": 0.7938,
+      "y": 0.3194,
+      "zones": [
+        "z4"
+      ],
+      "adjacentTo": [
+        "s1",
+        "s7",
+        "s9",
+        "s15"
+      ]
+    },
+    {
+      "id": "s7",
+      "x": 0.8774,
+      "y": 0.3116,
+      "zones": [
+        "z5"
+      ],
+      "adjacentTo": [
+        "s6",
+        "s16"
+      ]
+    },
+    {
+      "id": "s8",
+      "x": 0.3198,
+      "y": 0.368,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s10",
+        "s11",
+        "s12"
+      ]
+    },
+    {
+      "id": "s9",
+      "x": 0.7442,
+      "y": 0.4349,
+      "zones": [
+        "z4"
+      ],
+      "adjacentTo": [
+        "s6",
+        "s14",
+        "s15"
+      ]
+    },
+    {
+      "id": "s10",
+      "x": 0.1994,
+      "y": 0.4996,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s8",
+        "s11",
+        "s17"
+      ]
+    },
+    {
+      "id": "s11",
+      "x": 0.2766,
+      "y": 0.5004,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s8",
+        "s10",
+        "s12",
+        "s17"
+      ],
+      "start": {
+        "slot": 2
+      }
+    },
+    {
+      "id": "s12",
+      "x": 0.3802,
+      "y": 0.5004,
+      "zones": [
+        "z3",
+        "z1",
+        "z2"
+      ],
+      "adjacentTo": [
+        "s2",
+        "s8",
+        "s11",
+        "s13",
+        "s17",
+        "s21"
+      ]
+    },
+    {
+      "id": "s13",
+      "x": 0.4714,
+      "y": 0.4996,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s2",
+        "s12",
+        "s21"
+      ]
+    },
+    {
+      "id": "s14",
+      "x": 0.6422,
+      "y": 0.4475,
+      "zones": [
+        "z3",
+        "z2"
+      ],
+      "adjacentTo": [
+        "s9",
+        "s18",
+        "s19"
+      ]
+    },
+    {
+      "id": "s15",
+      "x": 0.8202,
+      "y": 0.4933,
+      "zones": [
+        "z5",
+        "z4"
+      ],
+      "adjacentTo": [
+        "s6",
+        "s9",
+        "s16",
+        "s19",
+        "s20",
+        "s25"
+      ],
+      "start": {
+        "slot": 1
+      }
+    },
+    {
+      "id": "s16",
+      "x": 0.8926,
+      "y": 0.4468,
+      "zones": [
+        "z5"
+      ],
+      "adjacentTo": [
+        "s7",
+        "s15",
+        "s20"
+      ]
+    },
+    {
+      "id": "s17",
+      "x": 0.3186,
+      "y": 0.6285,
+      "zones": [
+        "z1"
+      ],
+      "adjacentTo": [
+        "s10",
+        "s11",
+        "s12"
+      ]
+    },
+    {
+      "id": "s18",
+      "x": 0.579,
+      "y": 0.5468,
+      "zones": [
+        "z3",
+        "z2"
+      ],
+      "adjacentTo": [
+        "s14"
+      ],
+      "oneWayTo": [
+        "s13"
+      ]
+    },
+    {
+      "id": "s19",
+      "x": 0.7438,
+      "y": 0.5651,
+      "zones": [
+        "z4"
+      ],
+      "adjacentTo": [
+        "s14",
+        "s15",
+        "s25"
+      ]
+    },
+    {
+      "id": "s20",
+      "x": 0.8902,
+      "y": 0.5694,
+      "zones": [
+        "z5"
+      ],
+      "adjacentTo": [
+        "s15",
+        "s16",
+        "s26"
+      ]
+    },
+    {
+      "id": "s21",
+      "x": 0.4502,
+      "y": 0.6644,
+      "zones": [
+        "z3"
+      ],
+      "adjacentTo": [
+        "s12",
+        "s13",
+        "s22"
+      ]
+    },
+    {
+      "id": "s22",
+      "x": 0.5299,
+      "y": 0.685,
+      "zones": [
+        "z3"
+      ],
+      "adjacentTo": [
+        "s21",
+        "s23"
+      ]
+    },
+    {
+      "id": "s23",
+      "x": 0.615,
+      "y": 0.6877,
+      "zones": [
+        "z3"
+      ],
+      "adjacentTo": [
+        "s22",
+        "s24"
+      ]
+    },
+    {
+      "id": "s24",
+      "x": 0.6958,
+      "y": 0.6884,
+      "zones": [
+        "z3"
+      ],
+      "adjacentTo": [
+        "s23",
+        "s27"
+      ]
+    },
+    {
+      "id": "s25",
+      "x": 0.7938,
+      "y": 0.6792,
+      "zones": [
+        "z4"
+      ],
+      "adjacentTo": [
+        "s15",
+        "s19",
+        "s26",
+        "s27"
+      ]
+    },
+    {
+      "id": "s26",
+      "x": 0.8782,
+      "y": 0.6996,
+      "zones": [
+        "z5"
+      ],
+      "adjacentTo": [
+        "s20",
+        "s25"
+      ]
+    },
+    {
+      "id": "s27",
+      "x": 0.743,
+      "y": 0.8165,
+      "zones": [
+        "z3",
+        "z4"
+      ],
+      "adjacentTo": [
+        "s24",
+        "s25"
+      ]
+    }
+  ]
+}

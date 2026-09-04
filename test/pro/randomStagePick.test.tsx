@@ -6,7 +6,7 @@
  * have to hold there and nowhere else:
  *
  *  - the board actually sent comes from the FORMAT'S pool — for 1v1 that's every
- *    board authored for at most four players (all eight of them today), and a
+ *    board authored for at most four players (all fourteen of them today), and a
  *    format's pool must never leak a board that format can't seat;
  *  - a rolled board keeps the same `customMap` semantics as a clicked tile —
  *    The Mended Drum is the server's own default board and must still send NO
@@ -148,10 +148,10 @@ describe("Random stage tile", () => {
 
   it("rolls every board in the 1v1 pool, and nothing outside it", async () => {
     const pool = randomMapPool("duel").map((e) => e.id);
-    expect(pool).toHaveLength(10); // all ten authored boards seat <= 4 players
+    expect(pool).toHaveLength(14); // all fourteen authored boards seat <= 4 players
     const rolls: string[] = [];
     // One rng value per pool slot, nudged off the boundary, so the sweep both
-    // stays inside the pool AND actually reaches all ten boards.
+    // stays inside the pool AND actually reaches all fourteen boards.
     for (let i = 0; i < pool.length; i++) {
       jest.spyOn(Math, "random").mockReturnValue((i + 0.5) / pool.length);
       FakeWebSocket.reset();
@@ -164,7 +164,7 @@ describe("Random stage tile", () => {
       document.body.innerHTML = "";
     }
     expect(rolls).toEqual(pool);
-    // Ten full page mounts: slow on purpose (this is the REAL create flow),
+    // Fourteen full page mounts: slow on purpose (this is the REAL create flow),
     // and well past Jest's 5s default once coverage instrumentation is on.
   }, 60_000);
 
@@ -183,7 +183,7 @@ describe("Random stage tile", () => {
   });
 
   it("names the rolled board in the lobby, not 'Random'", async () => {
-    jest.spyOn(Math, "random").mockReturnValue(0.35); // → Polus, the 4th of 10
+    jest.spyOn(Math, "random").mockReturnValue(0.25); // → Polus, the 4th of 14
     const ws = await mountPicker();
     await createRoom();
     await act(async () => {

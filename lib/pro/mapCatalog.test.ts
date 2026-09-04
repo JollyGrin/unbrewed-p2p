@@ -34,6 +34,10 @@ const nostromo = catalogEntry("uscss-nostromo")!;
 const theBog = catalogEntry("the-bog")!;
 const weddingCrashers = catalogEntry("wedding-crashers")!;
 const pyramids = catalogEntry("pyramids")!;
+const secludedTemple = catalogEntry("secluded-temple")!;
+const unseenUniversity = catalogEntry("unseen-university")!;
+const riverCruise = catalogEntry("river-cruise")!;
+const theAltar = catalogEntry("the-altar")!;
 const arena = catalogEntry("multiplayer-arena-playtest")!;
 
 describe("map catalog", () => {
@@ -49,6 +53,10 @@ describe("map catalog", () => {
       "the-bog",
       "wedding-crashers",
       "pyramids",
+      "secluded-temple",
+      "unseen-university",
+      "river-cruise",
+      "the-altar",
       "multiplayer-arena-playtest",
     ]);
     expect(arena.title).toBe("Playtest Arena (synthetic)");
@@ -127,6 +135,39 @@ describe("map catalog", () => {
       expect(mapEligibleForFormat(pyramids.map, "duel")).toBe(true);
       expect(mapEligibleForFormat(pyramids.map, "ffa-3")).toBe(true);
       expect(mapEligibleForFormat(pyramids.map, "team-2v2")).toBe(true);
+      expect(mapEligibleForFormat(pyramids.map, "team-2v2")).toBe(true);
+    });
+
+    it("Secluded Temple is duel-only — an authored duel block, no 3rd/4th slot", () => {
+      expect(eligibleFormats(secludedTemple.map)).toEqual(["duel"]);
+      expect(mapEligibleForFormat(secludedTemple.map, "duel")).toBe(true);
+      expect(mapEligibleForFormat(secludedTemple.map, "ffa-3")).toBe(false);
+      expect(mapEligibleForFormat(secludedTemple.map, "team-2v2")).toBe(false);
+      expect(ineligibleReason(secludedTemple.map, "ffa-3")).toBe("needs 3 start slots");
+      expect(ineligibleReason(secludedTemple.map, "team-2v2")).toBe("needs 4 start slots");
+    });
+
+    it("Unseen University supports all three formats via authored supportedFormats", () => {
+      expect(eligibleFormats(unseenUniversity.map)).toEqual(["duel", "ffa-3", "team-2v2"]);
+      expect(mapEligibleForFormat(unseenUniversity.map, "duel")).toBe(true);
+      expect(mapEligibleForFormat(unseenUniversity.map, "ffa-3")).toBe(true);
+      expect(mapEligibleForFormat(unseenUniversity.map, "team-2v2")).toBe(true);
+    });
+
+    it("River Cruise is duel-only — an authored duel block, no 3rd/4th slot", () => {
+      expect(eligibleFormats(riverCruise.map)).toEqual(["duel"]);
+      expect(mapEligibleForFormat(riverCruise.map, "duel")).toBe(true);
+      expect(mapEligibleForFormat(riverCruise.map, "ffa-3")).toBe(false);
+      expect(mapEligibleForFormat(riverCruise.map, "team-2v2")).toBe(false);
+      expect(ineligibleReason(riverCruise.map, "ffa-3")).toBe("needs 3 start slots");
+      expect(ineligibleReason(riverCruise.map, "team-2v2")).toBe("needs 4 start slots");
+    });
+
+    it("The Altar supports all three formats via authored supportedFormats", () => {
+      expect(eligibleFormats(theAltar.map)).toEqual(["duel", "ffa-3", "team-2v2"]);
+      expect(mapEligibleForFormat(theAltar.map, "duel")).toBe(true);
+      expect(mapEligibleForFormat(theAltar.map, "ffa-3")).toBe(true);
+      expect(mapEligibleForFormat(theAltar.map, "team-2v2")).toBe(true);
     });
 
     it("The Mended Drum is duel-only via the printed slots 1&2 fallback", () => {
@@ -204,11 +245,12 @@ describe("map catalog", () => {
 /**
  * The Random tile (#685) resolves at room-create time. The 1v1 pool is bounded
  * by the board's own `meta.maxPlayers`, NOT by a curated list: every catalog
- * board today is 2/2 or 2/4, so all ten are rollable for a duel, and a future
- * board authored for more than four players drops out on its own metadata.
+ * board today is 2/2 or 2/4, so all fourteen are rollable for a duel, and a
+ * future board authored for more than four players drops out on its own
+ * metadata.
  */
 describe("random board pool", () => {
-  it("duel rolls every visible board — all ten are <= 4 players", () => {
+  it("duel rolls every visible board — all fourteen are <= 4 players", () => {
     expect(randomMapPool("duel").map((e) => e.id)).toEqual([
       "mended-drum",
       "island-of-despair",
@@ -220,6 +262,10 @@ describe("random board pool", () => {
       "the-bog",
       "wedding-crashers",
       "pyramids",
+      "secluded-temple",
+      "unseen-university",
+      "river-cruise",
+      "the-altar",
     ]);
     // the big four are IN the pool — the "(1-4)" bound is a player count
     for (const id of ["weathertop", "counts-castle", "uscss-nostromo", "the-bog"]) {
@@ -277,6 +323,8 @@ describe("random board pool", () => {
         "weathertop",
         "counts-castle",
         "pyramids",
+        "unseen-university",
+        "the-altar",
       ]);
       // every rolled board can actually seat the format, and none is hidden
       expect(pool.every((e) => mapEligibleForFormat(e.map, format))).toBe(true);
@@ -304,8 +352,8 @@ describe("random board pool", () => {
     // Mended Drum is the server-default board — rolling it must still send nothing
     expect(customMapForEntry(rollRandomMap("duel", () => 0))).toBeUndefined();
     const lastRoll = rollRandomMap("duel", () => 0.99);
-    expect(lastRoll.id).toBe("pyramids");
-    expect(customMapForEntry(lastRoll)!.id).toBe("pyramids");
+    expect(lastRoll.id).toBe("the-altar");
+    expect(customMapForEntry(lastRoll)!.id).toBe("the-altar");
   });
 });
 
@@ -338,6 +386,8 @@ describe("2v2 seat bindings follow turn order (#682, engine #495)", () => {
       "weathertop",
       "counts-castle",
       "pyramids",
+      "unseen-university",
+      "the-altar",
       "multiplayer-arena-playtest",
     ]);
   });
@@ -851,6 +901,56 @@ describe("pyramids fixture", () => {
     expect(pyramidsJson.meta.source).toBe("https://www.the-unmatched.club/c/maps/pyramids.289");
     expect(pyramidsJson.meta.license).toContain("AndSushi");
     expect(pyramidsJson.meta.license).toContain("the-unmatched.club");
+  });
+});
+
+/**
+ * River Cruise (#753) — the first duel-only AndSushi board, whose roof walk is a
+ * strictly one-way drop: `s18` (tiled roof) may step DOWN to `s13`, never back.
+ */
+describe("river-cruise fixture", () => {
+  it("carries the s18→s13 one-way link through catalog load, unmirrored", () => {
+    // the board the picker actually ships as `customMap` — not a re-parse
+    const map = customMapForEntry(riverCruise)!;
+    const arrows = map.spaces
+      .filter((s) => s.oneWayTo?.length)
+      .flatMap((s) => s.oneWayTo!.map((to) => `${s.id}->${to}`));
+    expect(arrows).toEqual(["s18->s13"]);
+
+    // an arrow is strictly one-way: the destination must NOT list the source in
+    // its `adjacentTo` (that would make it a normal two-way edge) and must not
+    // point an arrow back either.
+    const byId = new Map(map.spaces.map((s) => [s.id, s]));
+    expect(byId.get("s13")!.adjacentTo).not.toContain("s18");
+    expect(byId.get("s13")!.oneWayTo ?? []).not.toContain("s18");
+    // ...and the source doesn't double-list it as a two-way edge
+    expect(byId.get("s18")!.adjacentTo).not.toContain("s13");
+  });
+});
+
+/**
+ * The Altar (#754) — the passage-heavy AndSushi board: 13 of its 42 spaces are
+ * printed secret passages, so those must survive catalog load intact.
+ */
+describe("the-altar fixture", () => {
+  it("carries the 13 printed secret passages through catalog load", () => {
+    // the board the picker actually ships as `customMap` — not a re-parse
+    const map = customMapForEntry(theAltar)!;
+    expect(map.spaces.filter((s) => s.passage).map((s) => s.id)).toEqual([
+      "s8",
+      "s9",
+      "s11",
+      "s12",
+      "s13",
+      "s15",
+      "s18",
+      "s24",
+      "s28",
+      "s29",
+      "s30",
+      "s32",
+      "s42",
+    ]);
   });
 });
 
