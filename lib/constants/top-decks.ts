@@ -853,7 +853,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     name: "Jason Voorhees",
     hero: "Jason Voorhees",
     author: "Hubaris",
-    likes: 0,
+    likes: 25,
     highlightColour: "#55ee39",
     lab: true,
     tier: "lab",

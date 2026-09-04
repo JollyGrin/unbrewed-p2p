@@ -253,7 +253,8 @@ describe("HeroPreviewModal — sidekick section gate", () => {
   });
 
   it("renders the section for nameless tokens (Clone Troopers: name '', quantity 6)", () => {
-    openDeck(deckWith({ name: "", hp: 3, quantity: 6, isRanged: true, quote: "" }));
+    // DJQB's real values: the nameless clone tokens carry NO hp at all.
+    openDeck(deckWith({ name: "", hp: null, quantity: 6, isRanged: true, quote: "" }));
     expect(screen.getByText("Sidekick")).toBeInTheDocument();
     expect(screen.getByText("×6")).toBeInTheDocument();
   });

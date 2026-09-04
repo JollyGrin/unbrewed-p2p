@@ -75,6 +75,29 @@ export const hasSidekick = (sidekick?: PoolSidekick | null): boolean =>
   !!sidekick?.name && (sidekick.quantity ?? 0) > 0;
 
 /**
+ * Display gate for the sidekick SECTION (issue #749 pair test): true when the
+ * slot actually renders fighters. Two stub shapes must stay hidden — the
+ * unmatched.cards API's BLANK one (`{ name: "", hp: null, quantity: 0 }`,
+ * Jason Voorhees / DOPE) and the Maker's PLACEHOLDER one (`{ name: "Sidekick",
+ * quantity: 0 }`, King Kong / kdKM) — while a real sidekick either has fighters
+ * on the wire (Clone Troopers' nameless tokens: name "", quantity 6) or is a
+ * named, non-"Sidekick" character (Momo: name + hp). Distinct from
+ * {@link hasSidekick}, which also requires a NAME and would hide the nameless
+ * clone tokens. HeroPreviewModal's preview section and the /bag deck view both
+ * gate through this so a solo hero never renders a phantom sidekick row.
+ */
+export const hasFieldedSidekick = (
+  sidekick?: {
+    name?: string | null;
+    hp?: number | null;
+    quantity?: number | null;
+  } | null
+): boolean =>
+  !!sidekick &&
+  ((sidekick.quantity ?? 0) > 0 ||
+    (!!sidekick.name?.trim() && sidekick.name !== "Sidekick"));
+
+/**
  * Extra character cards (issue #500) narrowed to the fields the pool carries.
  *
  * Same narrow copy as the primary hero/sidekick, and for the same reason: the

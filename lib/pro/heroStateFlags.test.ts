@@ -988,8 +988,11 @@ describe("Jason Voorhees's JASON_RETURN flag", () => {
     // set beside removeFromBoard on *JASON LIVES*, consumed by the TURN_START trigger.
     expect(e!.heroes).toEqual(["jason-voorhees"]);
     expect(e!.nameplate).toMatchObject({
-      onLabel: "Vanished — returns at turn start",
+      onLabel: "VANISHED — RETURNS NEXT TURN",
       showWhenAbsent: false,
+      // The long sentence lives on the pill's tooltip; the label stays short
+      // upper-case because the pill is flexShrink: 0 and would never wrap.
+      title: "Vanished — returns at turn start",
     });
     // One-sided, like EQUILIBRIUM: an on-board Jason is the default state.
     expect(e!.token?.off).toBeUndefined();
@@ -1009,9 +1012,12 @@ describe("Jason Voorhees's JASON_RETURN flag", () => {
   });
 
   it("defines the token badge for completeness — it cannot render while he is off-board", () => {
-    // The badge is resolvable for the flag state, but while the flag is set Jason
-    // HAS no token on the board, so nothing draws it; at most it flashes for one
-    // frame at the return instant. Unlike SLAVE I, the entry still defines it.
+    // The badge is resolvable for the flag state but unreachable, not merely
+    // rare: while the flag is set Jason HAS no token on the board, and when the
+    // engine's TURN_START trigger fires it clears the flag BEFORE the `place`
+    // op, so the return prompt opens with the pill already gone — no view ever
+    // has both a Jason token and this flag. Unlike SLAVE I, the entry still
+    // defines the badge.
     expect(fighterTokenBadgeFor("jason-voorhees", { JASON_RETURN: true })).toMatchObject({
       icon: "🔪",
       label: "Vanished",
