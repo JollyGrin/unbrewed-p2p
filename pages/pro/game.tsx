@@ -55,7 +55,7 @@ import { proErrorMessage } from "@/lib/pro/proErrors";
 import { resolveRelocateBoardClick } from "@/lib/pro/relocateMode";
 import { ProConnectionStatus, useProSocket } from "@/lib/pro/useProSocket";
 import { normalizeMap } from "@/lib/pro/normalizeMap";
-import { mapSubmissionIssueUrl } from "@/lib/pro/mapIssue";
+import { SubmitMapDialog } from "@/components/Pro/SubmitMapDialog";
 import { RecentRoom, getTabToken, listRecentRooms } from "@/lib/pro/recentRooms";
 import { HERO_DECK_IDS, ResolveCard, heroIdsForArt, useProCardArt } from "@/lib/pro/useProCardArt";
 import { frozenAtForHero } from "@/lib/pro/evergreenManifest";
@@ -3550,17 +3550,21 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // so a power user can fix the board and retry without re-pasting.
   const [customMapJson, setCustomMapJson] = useState("");
   const [mapError, setMapError] = useState<string | null>(null);
-  // Prefilled "submit this map" GitHub issue URL — only when THIS player created
-  // the room with a (server-accepted) custom board. null otherwise.
-  const mapSubmitUrl = useMemo(() => {
+  // The board behind the "submit this map" link — only when THIS player created
+  // the room with a (server-accepted) custom board. null otherwise. The JSON is
+  // re-serialized from the normalized map so what lands on the clipboard is the
+  // same engine-native shape the editor's export box produces (#756).
+  const mapSubmit = useMemo(() => {
     const t = customMapJson.trim();
     if (!t) return null;
     try {
-      return mapSubmissionIssueUrl(normalizeMap(JSON.parse(t)), t);
+      const map = normalizeMap(JSON.parse(t));
+      return { map, json: JSON.stringify(map, null, 2) };
     } catch {
       return null;
     }
   }, [customMapJson]);
+  const [submitMapOpen, setSubmitMapOpen] = useState(false);
   // Art fetch (unbrewed-api, matched by title against the server catalog) —
   // must run unconditionally; no-ops until the first STATE arrives.
   // Equipped cosmetics, decoded once per snapshot from each seat's opaque
@@ -4606,10 +4610,11 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
           <Text fontSize="0.8rem" opacity={0.5}>
             {(roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers) > 2 ? "(testing solo? open that link in more browser tabs)" : "(testing solo? open that link in a second browser tab)"}
           </Text>
-          {mapSubmitUrl && (
+          {mapSubmit && (
             <Link
-              href={mapSubmitUrl}
-              isExternal
+              as="button"
+              onClick={() => setSubmitMapOpen(true)}
+              bg="transparent"
               fontFamily="SpaceGrotesk"
               fontSize="0.75rem"
               letterSpacing="0.06em"
@@ -4621,6 +4626,14 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
             >
               happy with this board? submit it to unbrewed <TbExternalLink size="0.8rem" />
             </Link>
+          )}
+          {mapSubmit && (
+            <SubmitMapDialog
+              isOpen={submitMapOpen}
+              onClose={() => setSubmitMapOpen(false)}
+              map={mapSubmit.map}
+              json={mapSubmit.json}
+            />
           )}
         </Flex>
       );
@@ -5833,10 +5846,11 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       {/* Playtesting a custom board (this player created it): a near-invisible
           link to submit it to unbrewed. Covers the AI case, where the pre-game
           waiting screen — which also offers this — is never shown. */}
-      {mapSubmitUrl && (
+      {mapSubmit && (
         <Link
-          href={mapSubmitUrl}
-          isExternal
+          as="button"
+          onClick={() => setSubmitMapOpen(true)}
+          bg="transparent"
           position="fixed"
           top="0.5rem"
           left="50%"
@@ -5853,6 +5867,14 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
         >
           submit this map to unbrewed <TbExternalLink size="0.7rem" />
         </Link>
+      )}
+      {mapSubmit && (
+        <SubmitMapDialog
+          isOpen={submitMapOpen}
+          onClose={() => setSubmitMapOpen(false)}
+          map={mapSubmit.map}
+          json={mapSubmit.json}
+        />
       )}
 
       {/* Board stage. With zoom on (the default) the board fills this box edge
