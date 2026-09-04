@@ -9,8 +9,9 @@
  * (typing a title, dragging the slider) folds into ONE undo entry instead of
  * one per keystroke.
  */
+import { useMemo, useState } from "react";
 import { Box, Button, Flex, Input, Text, Textarea } from "@chakra-ui/react";
-import { mapSubmissionIssueUrl } from "@/lib/pro/mapIssue";
+import { SubmitMapDialog } from "@/components/Pro/SubmitMapDialog";
 import type { MapDoc, MapItem, Zone } from "./model";
 import { DEFAULT_DIAMETER, toMapDef } from "./model";
 import type { EditorMode } from "./MapCanvas";
@@ -59,6 +60,11 @@ export const Toolbar = (props: Props) => {
     setMetaField, setZoneField, addZone, addItem, setItemField, removeItem,
     doExport, doImport, doReset,
   } = props;
+
+  // The submit dialog owns the copy→open gate (#756); the toolbar only holds
+  // "is it open", since every real edit still routes through the history layer.
+  const [submitOpen, setSubmitOpen] = useState(false);
+  const mapDef = useMemo(() => toMapDef(doc), [doc]);
 
   const diameter = doc.meta.spaceDiameter ?? DEFAULT_DIAMETER;
   const edges = doc.spaces.reduce((n, s) => n + s.adjacentTo.length, 0) / 2;
@@ -174,14 +180,20 @@ export const Toolbar = (props: Props) => {
 
       <Button
         {...BTN}
-        as="a"
-        href={mapSubmissionIssueUrl(toMapDef(doc), JSON.stringify(toMapDef(doc), null, 2))}
-        target="_blank"
-        rel="noopener noreferrer"
+        onClick={() => setSubmitOpen(true)}
         isDisabled={doc.spaces.length === 0 || errors.length > 0}
+        title={errors.length > 0 ? "fix the blocking errors above first" : undefined}
       >
         submit map to unbrewed →
       </Button>
+
+      <SubmitMapDialog
+        isOpen={submitOpen}
+        onClose={() => setSubmitOpen(false)}
+        map={mapDef}
+        json={JSON.stringify(mapDef, null, 2)}
+        onCopy={doExport}
+      />
     </Flex>
   );
 };
