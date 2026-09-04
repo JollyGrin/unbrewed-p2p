@@ -407,6 +407,18 @@
         "file": "data/heroes/appa.rules.ts",
         "commit": "8104f2d"
       }
+    },
+    {
+      "heroId": "jason-voorhees",
+      "deckId": "DOPE",
+      "version_id": "ZY7DT_B7v",
+      "frozenAt": "2026-09-03",
+      "digest": "sha256:2cb1b3003ee83337eb15dc3e811ee9b648c7b267b3a61af705aa218f92c05e2d",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/jason-voorhees.rules.ts",
+        "commit": "c99693f"
+      }
     }
   ]
 }

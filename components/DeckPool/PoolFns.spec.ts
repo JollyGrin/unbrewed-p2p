@@ -1,7 +1,7 @@
 import { mockDeck as _mockDeck } from "@/_mocks_/deck";
 import { clone } from "lodash";
 import { DeckImportCardType } from "./deck-import.type";
-import { PoolType, newPool, shuffleRandomDiscardIntoDeck } from "./PoolFns";
+import { PoolType, hasFieldedSidekick, newPool, shuffleRandomDiscardIntoDeck } from "./PoolFns";
 
 describe("newPool", () => {
   test("copies the deck meta and fighters", () => {
@@ -236,5 +236,42 @@ describe("shuffleRandomDiscardIntoDeck", () => {
       picks.add(shuffleRandomDiscardIntoDeck(pool, 1)[0].title!);
     }
     expect(picks.size).toBeGreaterThan(1);
+  });
+});
+
+// issue #749 pair test: the sidekick SECTION gate, shared by HeroPreviewModal and
+// the /bag deck view. The fixtures carry the REAL snapshot values (DOPE / kdKM /
+// DJQB / jw9q) — the two stub shapes must hide, the two fielded shapes must show.
+describe("hasFieldedSidekick", () => {
+  test("hides the unmatched.cards blank stub (Jason Voorhees / DOPE)", () => {
+    expect(
+      hasFieldedSidekick({ name: "", hp: null, quantity: 0 })
+    ).toBe(false);
+  });
+
+  test("hides the Maker placeholder stub (King Kong / kdKM)", () => {
+    expect(
+      hasFieldedSidekick({ name: "Sidekick", hp: null, quantity: 0 })
+    ).toBe(false);
+  });
+
+  test("shows nameless tokens with fighters on the wire (Clone Troopers / DJQB)", () => {
+    // hasSidekick requires a name and would hide these — that is why this gate
+    // exists alongside it.
+    expect(
+      hasFieldedSidekick({ name: "", hp: null, quantity: 6 })
+    ).toBe(true);
+  });
+
+  test("shows a named sidekick with hp (Momo / jw9q)", () => {
+    expect(
+      hasFieldedSidekick({ name: "Momo", hp: 6, quantity: 1 })
+    ).toBe(true);
+  });
+
+  test("absent and blank-name-with-whitespace slots stay hidden", () => {
+    expect(hasFieldedSidekick(undefined)).toBe(false);
+    expect(hasFieldedSidekick(null)).toBe(false);
+    expect(hasFieldedSidekick({ name: "  ", quantity: 0 })).toBe(false);
   });
 });

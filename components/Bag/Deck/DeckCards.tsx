@@ -1,6 +1,6 @@
 import { Card } from "@/components/CardFactory/Card";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
-import { toPoolExtraCharacters } from "@/components/DeckPool/PoolFns";
+import { hasFieldedSidekick, toPoolExtraCharacters } from "@/components/DeckPool/PoolFns";
 import { Flex, Box, Text, HStack, Tooltip } from "@chakra-ui/react";
 
 import { FaHeart } from "react-icons/fa";
@@ -85,8 +85,10 @@ const HeroCard = ({ deck }: { deck: DeckImportType }) => {
   const extraCharacters = toPoolExtraCharacters(
     deck?.deck_data?.extraCharacters,
   );
-  const isSidekick =
-    sidekick?.name !== "Sidekick" || (!!sidekick.hp && !!sidekick.quantity);
+  // Shared section gate (issue #749 pair test): the blank API stub a solo hero
+  // carries (Jason Voorhees / DOPE — name "", hp null, quantity 0) must not
+  // render an empty sidekick row here, same as in HeroPreviewModal.
+  const isSidekick = hasFieldedSidekick(sidekick);
   return (
     <Box w="408px" bg="brand.highlight" borderRadius="0.25rem" p="0.5rem">
       <Flex justifyContent="space-between">

@@ -160,7 +160,9 @@ const FlagChip = ({
               }
             },
           }
-        : {})}
+        : chip.title
+          ? { title: chip.title }
+          : {})}
       style={{
         cursor: onClick ? "pointer" : undefined,
         display: "inline-flex",

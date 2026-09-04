@@ -50,6 +50,10 @@ export interface FlagNameplate {
    *  tide). Ignored for exclusive-group entries (the active member always shows
    *  its `onLabel`). */
   showWhenAbsent: boolean;
+  /** long-form sentence surfaced as the pill's native `title` tooltip. The label
+   *  itself stays short upper-case — the pill is flexShrink: 0 and would never
+   *  wrap, so anything explanatory lives here instead. */
+  title?: string;
 }
 
 export interface HeroStateFlag {
@@ -233,6 +237,48 @@ export const HERO_STATE_FLAGS: HeroStateFlag[] = [
         // Silvered-glass slate, distinct from tide blue and the druid-form palettes.
         bg: "#55636F",
         color: "#F0F4F8",
+      },
+    },
+  },
+  {
+    // Jason Voorhees's *JASON LIVES* vanish (issue #749 ↔ engine #541). The defense
+    // snapshots Jason's pre-damage HP into the JASON_LIVES_HP counter, prevents the
+    // defeat and removes him FROM THE BOARD alive, setting this flag; his TURN_START
+    // trigger clears it and prompts a board-wide `place … 'ANYWHERE'` — the same
+    // removeFromBoard + flag + TURN_START-return shape as Boba Fett's SLAVE I above,
+    // except Jason stays ALIVE (`space === null`, `defeated` false), so this is a
+    // "where is he?" state, not an inbound-attack countdown. Engine flag key is
+    // `JASON_RETURN` (`const JASON_RETURN_FLAG = 'JASON_RETURN'` in
+    // jason-voorhees.rules.ts @6a8b87e).
+    //
+    // Nameplate + token badge, though the badge is UNREACHABLE, not merely rare:
+    // while the flag is set Jason has NO token on the board, so there is nothing
+    // for it to sit on (the reason SLAVE I is nameplate-only). And the pill drops
+    // exactly when Jason returns — the engine's TURN_START trigger runs
+    // `setFlag CLEAR` BEFORE the `place` op lands, so the return CHOOSE_SPACE
+    // prompt opens with the flag already off; no view ever has both a Jason token
+    // and this flag set. The badge is defined for completeness only. No
+    // `tokenArt`: template art for now (deck-art follow-up pending). The deck's
+    // OTHER engine state — the JASON_LIVES_HP pre-damage snapshot counter — is
+    // deliberately NOT registered: it is internal bookkeeping (the card's
+    // removeAll/gain pair), not a resource, and a HERO_STATE_COUNTERS row would
+    // render it as a pill (the Skull Kid MITIGATION suppression-by-omission pattern).
+    flag: "JASON_RETURN",
+    heroes: ["jason-voorhees"],
+    nameplate: {
+      onLabel: "VANISHED — RETURNS NEXT TURN",
+      offLabel: "",
+      showWhenAbsent: false,
+      title: "Vanished — returns at turn start",
+    },
+    token: {
+      on: {
+        icon: "🔪",
+        label: "Vanished",
+        title: "Vanished — Jason returns at his turn start",
+        // The deck's own blood-red highlight (#7a0000), readable against the board.
+        bg: "#7A0000",
+        color: "#F5E9E9",
       },
     },
   },
@@ -673,6 +719,9 @@ export interface FlagHudChip {
   flag: string;
   onLabel: string;
   offLabel: string;
+  /** native tooltip for a NON-clickable pill (registry `nameplate.title`). A
+   *  pile-sourced chip renders its own pile title instead. */
+  title?: string;
   /** set-aside pile this chip counts (protocol v25) — present ONLY for
    *  pile-sourced chips. Its presence is what turns the pill into a clickable
    *  inspection affordance; `cards` are the tucked instances to show. */
@@ -684,6 +733,7 @@ const toChip = (e: HeroStateFlag): FlagHudChip => ({
   flag: e.flag,
   onLabel: e.nameplate!.onLabel,
   offLabel: e.nameplate!.offLabel,
+  title: e.nameplate!.title,
 });
 
 /**

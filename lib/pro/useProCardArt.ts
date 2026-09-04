@@ -288,6 +288,12 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // other side of the table: *Hallucinations* substitutes among the OPPONENT's
   // fighters (see lib/pro/combatDefender.ts).
   appa: "jw9q",
+  // Jason Voorhees (issue #749 ↔ engine #541/#543): community deck DOPE, Hubaris's
+  // HSR remaster (vZY7DT_B7v), served at tier `lab`. SOLO hero — no sidekick, no
+  // LARGE, no ranged. Template art for now: the payload's i.ibb.co imageUrls and
+  // cardback are uncredited third-party hotlinks and are deliberately NOT carried
+  // over (jw9q precedent); all-caps verbatim titles are the deck's print, not a bug.
+  "jason-voorhees": "DOPE",
 };
 
 /**

@@ -819,3 +819,93 @@ describe("Appa + Momo (jw9q) deck data", () => {
     expect(HERO_STATE_COUNTERS.filter((e) => e.heroes.includes("appa"))).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Jason Voorhees (issue #762). unmatched.cards deck DOPE by Hubaris — a deck
+// with a public page, like jw9q above, and likewise NOT re-derived from it:
+// all 13 faces, the cardback and the hero-card are the author's own finished
+// renders, published via Calton White's the-unmatched.club deck 13452 and
+// mirrored into public/evergreen-decks/art/DOPE (upstream they are i.ibb.co
+// hotlinks that must never ship). The two scheme faces (FURIOUS ZEAL, GRIM
+// OMEN) landed in a later club update at 464×640 and are committed upscaled
+// to the same 1116-wide webp as the other eleven. Attribution stays the
+// unmatched.cards DOPE page — no `sourceUrl`, the club is the art source only.
+// ---------------------------------------------------------------------------
+
+describe("Jason Voorhees (DOPE) deck data", () => {
+  const deck = readDeck("DOPE");
+  type Card = {
+    title: string;
+    imageUrl: string;
+    cardImage?: { url: string };
+  };
+  const cards = deck.deck_data.cards as Card[];
+
+  it("is 13 unique faces — all 13 now have the author's finished renders", () => {
+    // The two schemes (FURIOUS ZEAL, GRIM OMEN) were template-only until
+    // Calton published their renders; if a face ever regresses to template
+    // art its imageUrl/cardImage assertions below fail first.
+    expect(cards).toHaveLength(13);
+    expect(new Set(cards.map((c) => c.title))).toEqual(
+      new Set([
+        "UNSTOPPABLE", "JASON LIVES", "KILLER", "SAVAGERY", "BRUTALITY",
+        "AMBUSH", "TERRORIZE", "CORNERED", "HUNT", "FEROCITY", "TROPHY",
+        "FURIOUS ZEAL", "GRIM OMEN",
+      ]),
+    );
+  });
+
+  it("ships every card face as a LOCAL file that exists, drawn full-bleed", () => {
+    for (const card of cards) {
+      expect(card.imageUrl).toMatch(/^\/evergreen-decks\/art\/DOPE\/[a-z0-9-]+\.webp$/);
+      expect(card.cardImage?.url).toBe(card.imageUrl);
+      expect(existsSync(join(DECKS_DIR, "..", card.imageUrl.replace(/^\//, "")))).toBe(true);
+    }
+    expect(new Set(cards.map((c) => c.imageUrl)).size).toBe(cards.length);
+  });
+
+  it("mirrors the cardback and the hero card locally", () => {
+    for (const file of ["cardback.webp", "hero-card.webp"]) {
+      expect(existsSync(join(DECKS_DIR, "art", "DOPE", file))).toBe(true);
+    }
+    // appearance.cardbackUrl feeds the SNAPSHOT consumers (PoolFns backfills
+    // each card's cardBackUrl from it; Bag and Connect read it too) — without
+    // it the board renders the house back face-down. The tile's separate
+    // cardbackUrl lives in lib/constants/top-decks.ts.
+    const cardback = deck.deck_data.appearance.cardbackUrl as string;
+    expect(cardback).toBe("/evergreen-decks/art/DOPE/cardback.webp");
+    expect(existsSync(join(DECKS_DIR, "..", cardback.replace(/^\//, "")))).toBe(true);
+  });
+
+  it("ships the board token portrait locally", () => {
+    const token = deck.deck_data.hero.tokenImageUrl as string;
+    expect(token).toBe("/evergreen-decks/art/DOPE/token-jason-voorhees.webp");
+    expect(existsSync(join(DECKS_DIR, "..", token.replace(/^\//, "")))).toBe(true);
+  });
+
+  it("leaves NO remote image URL and only the note's provenance links remote", () => {
+    // Every shipped image field is asserted local above; this set-equality is
+    // the tripwire for any future edit: the ONLY https URLs allowed anywhere
+    // in the payload are the snapshot note's provenance/attribution links
+    // (the original deck page and its siblings, the author's drive folder,
+    // and the-unmatched.club art source — i.ibb.co is mentioned as bare text
+    // only and must never appear as a URL).
+    const urls = (JSON.stringify(deck).match(/https?:\\?\/\\?\/[^"\\ )]+/g) ?? []).map((u) =>
+      u.replace(/\\/g, ""),
+    );
+    expect([...new Set(urls)].sort()).toEqual(
+      [
+        "https://drive.google.com/drive/folders/1hMfd1o1Eab6ZK195024Cldi3LdyKeEjN",
+        "https://unmatched.cards/decks/6G31/versions/d_d1hG1B",
+        "https://unmatched.cards/decks/Den8/versions/N_dmI_n6",
+        "https://unmatched.cards/decks/DOPE",
+        "https://unmatched.cards/decks/DOPE/versions/_yGrHv7J",
+        "https://unmatched.cards/decks/RnYZ/versions/e-GhOj2",
+        "https://unmatched.cards/decks/kdJK/versions/WX5xaOK4",
+        "https://www.the-unmatched.club/c/heroes/jason-voorhees.13452",
+      ].sort(),
+    );
+    expect(deck.user).toBe("Hubaris");
+    expect(deck.sourceUrl).toBeUndefined();
+  });
+});
