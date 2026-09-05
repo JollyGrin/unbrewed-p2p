@@ -163,13 +163,15 @@ export interface ProDockProps {
    *  picks while the selected fighter may still start its maneuver elsewhere.
    *  Null/omitted the rest of the time. */
   relocateHint?: string | null;
-  /** The SYNTHETIC relocate-arm row (engine #535; review of #748). Not a server
-   *  action — RELOCATE_FIGHTER offers stay out of `rows` (NON_DOCK_ACTION_TYPES) —
-   *  so the page hands the affordance over directly: present while the selected
-   *  fighter has relocation origins, toggling the armed origin-pick mode. Banded
-   *  with the maneuver rows, unnumbered (the server rows keep their digits).
-   *  Null = unavailable; no row renders. */
-  relocateArm?: { armed: boolean; onToggle: () => void } | null;
+  /** The SYNTHETIC relocate-arm rows (engine #535; review of #748, #764). Not
+   *  server actions — RELOCATE_FIGHTER offers stay out of `rows`
+   *  (NON_DOCK_ACTION_TYPES) — so the page hands the affordance over directly:
+   *  one row per fighter the server is offering a relocation origin for, each
+   *  toggling that fighter's armed origin-pick mode. Present the moment the
+   *  maneuver starts, with no token click first (#764). Banded with the maneuver
+   *  rows, unnumbered (the server rows keep their digits). Empty/omitted =
+   *  unavailable; no row renders and the dock DOM is unchanged. */
+  relocateArmRows?: { label: string; armed: boolean; onToggle: () => void }[];
   /** ----- panel slots (the big inline panels still live in game.tsx) ----- */
   combatPanel: ReactNode;
   promptPanel: ReactNode;
@@ -257,7 +259,7 @@ export const ProDock = ({
   attackTargetCount,
   boostHint,
   relocateHint = null,
-  relocateArm = null,
+  relocateArmRows = [],
   combatPanel,
   promptPanel,
   hasPrompt,
@@ -328,31 +330,34 @@ export const ProDock = ({
   const needsInput = hasPrompt || !!combatPanel || !!view.winner || legalActionCount > 0;
   const collapsed = layout.collapsed && !needsInput;
 
-  // The synthetic relocate-arm row (see prop doc). It closes the FIRST band —
+  // The synthetic relocate-arm rows (see prop doc). They close the FIRST band —
   // the maneuver band, per GROUP_ORDER — rendered after that band's last row,
-  // right before the first group divider. -1 means `rows` is empty and the row
-  // stands alone. Unnumbered by design: the server rows keep their hotkey
+  // right before the first group divider. -1 means `rows` is empty and they
+  // stand alone. Unnumbered by design: the server rows keep their hotkey
   // digits and the keyboard dispatch untouched, and the spacebar (soleAction)
-  // can never fire it — it is not a server action.
+  // can never fire one — they are not server actions.
   const firstDivider = rows.findIndex((r) => r.dividerBefore);
   const firstManeuverBandEnd = firstDivider === -1 ? rows.length - 1 : firstDivider - 1;
-  const relocateArmRow = relocateArm ? (
-    <Button
-      {...BTN}
-      bg={relocateArm.armed ? "rgba(62, 207, 224, 0.22)" : "rgba(20, 8, 24, 0.65)"}
-      border={relocateArm.armed ? "1px solid rgba(62, 207, 224, 0.8)" : undefined}
-      justifyContent="flex-start"
-      whiteSpace="normal"
-      height="auto"
-      minH={mobile ? TAP_TARGET : "2rem"}
-      py="0.4rem"
-      textAlign="left"
-      onClick={relocateArm.onToggle}
-    >
-      {relocateArm.armed
-        ? "Pick a dashed space to start from — click to cancel"
-        : "Start maneuver elsewhere"}
-    </Button>
+  const relocateArmBand = relocateArmRows.length ? (
+    <>
+      {relocateArmRows.map((r) => (
+        <Button
+          key={r.label}
+          {...BTN}
+          bg={r.armed ? "rgba(62, 207, 224, 0.22)" : "rgba(20, 8, 24, 0.65)"}
+          border={r.armed ? "1px solid rgba(62, 207, 224, 0.8)" : undefined}
+          justifyContent="flex-start"
+          whiteSpace="normal"
+          height="auto"
+          minH={mobile ? TAP_TARGET : "2rem"}
+          py="0.4rem"
+          textAlign="left"
+          onClick={r.onToggle}
+        >
+          {r.label}
+        </Button>
+      ))}
+    </>
   ) : null;
 
   const liveChrome = showLiveTurnChrome(view);
@@ -619,12 +624,12 @@ export const ProDock = ({
       {combatPanel}
       {promptPanel}
       <Flex direction="column" gap="0.4rem">
-        {/* The synthetic relocate-arm row (see prop doc): it closes the FIRST
-            band — the maneuver band, per GROUP_ORDER — so it renders right under
+        {/* The synthetic relocate-arm rows (see prop doc): they close the FIRST
+            band — the maneuver band, per GROUP_ORDER — so they render right under
             "End maneuver", above the divider into boosts/attacks. When `rows`
-            is somehow empty it still renders (a lone row; the spacebar never
-            fires it — it is not a server action). */}
-        {relocateArmRow && firstManeuverBandEnd === -1 && relocateArmRow}
+            is somehow empty they still render (alone; the spacebar never fires
+            them — they are not server actions). */}
+        {relocateArmBand && firstManeuverBandEnd === -1 && relocateArmBand}
         {rows.map(({ action: a, hotkey, dividerBefore }, i) => (
           <Fragment key={i}>
             {/* Group divider (issue #514): a hairline between bands — maneuver,
@@ -732,9 +737,9 @@ export const ProDock = ({
                 )}
               </Flex>
             </Button>
-            {/* The relocate-arm row closes the maneuver band (see the consts
+            {/* The relocate-arm rows close the maneuver band (see the consts
                 above) — after the band's last row, before the first divider. */}
-            {relocateArmRow && i === firstManeuverBandEnd && relocateArmRow}
+            {relocateArmBand && i === firstManeuverBandEnd && relocateArmBand}
           </Fragment>
         ))}
         {legalActionCount === 0 && !hasPrompt && liveChrome && (
