@@ -2576,9 +2576,13 @@ const HeroSelectLobby = ({
   // when there is nothing to roll (`canConfirm`).
   const commitHeroId = () => resolveHeroPick(effective, visibleHeroes);
 
+  // One element, two mounts (desktop dock + mobile bar below): CSS picks the
+  // visible copy per breakpoint, so neither is ever shown twice on screen
+  // (#765) — the render test pins the count.
   const createButton = (
     <Button
       type="button"
+      data-testid="pro-create-button"
       onClick={() => {
         const heroId = commitHeroId();
         if (heroId) onConfirm(heroId);
@@ -3191,28 +3195,63 @@ const HeroSelectLobby = ({
         entry={previewMap}
       />
 
-      {/* ---------------- player plates ---------------- */}
+      {/* ---------------- player plates + desktop dock ---------------- */}
+      {/* lg+ docks this bar to the viewport bottom (sticky, #765): the roster
+          and stage grids grow a row per ~9 heroes / ~7 boards, which used to
+          push the Create button and the seat plates below the fold. Sticky —
+          not fixed like the mobile bar — so the bar costs nothing while the
+          page is short, and the content that FOLLOWS it (AI hero menu,
+          custom-map textarea, server line) is never trapped underneath: once
+          you scroll to the very end the bar settles back into its in-flow
+          spot above them. The translucent gradient + blur only apply at lg,
+          where the bar actually floats over scrolled content. */}
       <Flex
         mt="1.25rem"
         p="0.85rem 1rem"
         borderRadius="0.9rem"
-        bg="linear-gradient(180deg, #432a4a, #2a1630)"
+        position={{ base: "relative", lg: "sticky" }}
+        bottom={{ lg: 0 }}
+        zIndex={{ lg: 10 }}
+        data-testid="pro-create-dock"
+        bg={{
+          base: "linear-gradient(180deg, #432a4a, #2a1630)",
+          lg: "linear-gradient(180deg, rgba(67,42,74,0.92), rgba(42,22,48,0.92))",
+        }}
         border="1px solid"
         borderColor="whiteAlpha.200"
         boxShadow="0 12px 30px rgba(0,0,0,0.45)"
         align="stretch"
         gap="0.9rem"
         flexWrap="wrap"
+        sx={{ lg: { backdropFilter: "blur(8px)" } }}
       >
         <Flex flex="1" gap="0.6rem" align="center" flexWrap="wrap" minW="0">
           {renderPlates()}
         </Flex>
-        <Flex direction="column" justify="center" gap="0.4rem" minW="11rem" display={{ base: "none", lg: "flex" }}>
-          {createButton}
-          {quickMatchButton("quick-match")}
-          <Text textAlign="center" fontSize="0.72rem" color="whiteAlpha.600" fontFamily="SpaceGrotesk">
+        {/* Compact dock row (plates left, summary + buttons right, one line
+            tall) — the old stacked column made the docked bar ~3 lines of
+            viewport. Mirrors the mobile bar's arrangement. */}
+        <Flex
+          direction={{ base: "column", lg: "row" }}
+          align={{ base: "stretch", lg: "center" }}
+          justify={{ lg: "flex-end" }}
+          gap="0.6rem"
+          minW="0"
+          display={{ base: "none", lg: "flex" }}
+        >
+          <Text
+            flex="1"
+            textAlign={{ lg: "right" }}
+            fontSize="0.72rem"
+            color="whiteAlpha.600"
+            fontFamily="SpaceGrotesk"
+            noOfLines={2}
+            minW="0"
+          >
             {summary}
           </Text>
+          {quickMatchButton("quick-match")}
+          {createButton}
         </Flex>
       </Flex>
 
@@ -3287,6 +3326,7 @@ const HeroSelectLobby = ({
       {/* ---------------- mobile fixed create bar ---------------- */}
       <Flex
         display={{ base: "flex", lg: "none" }}
+        data-testid="pro-mobile-create-bar"
         position="fixed"
         left="0"
         right="0"
