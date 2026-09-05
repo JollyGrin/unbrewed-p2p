@@ -20,7 +20,7 @@
  * entirely in the pre-room picker.
  */
 import "@testing-library/jest-dom";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterContext } from "next/dist/shared/lib/router-context";
@@ -89,9 +89,23 @@ const click = async (el: Element) => {
   });
 };
 
-/** Lock a fighter and press Create; returns the CREATE_ROOM frame that went out. */
+/**
+ * The open board popover (#768). The setup rail shows Random plus the first
+ * three eligible boards; every other board lives in the popover, and the scope
+ * this returns keeps the rail's identically-labelled tiles out of a query.
+ */
+const boards = async () => {
+  if (!screen.queryByRole("dialog", { name: "Choose a board" })) {
+    await click(screen.getByRole("button", { name: /All \d+ boards/ }));
+  }
+  return within(screen.getByRole("dialog", { name: "Choose a board" }));
+};
+
+/** Lock a fighter and press Create; returns the CREATE_ROOM frame that went out.
+ *  `getAll` because a hero can be on screen twice — the roster and, once this
+ *  browser has played it, the "Recently played" row. */
 const createRoom = async (label = "Create") => {
-  await click(screen.getByLabelText(/Ellen Ripley/));
+  await click(screen.getAllByLabelText(/Ellen Ripley/)[0]);
   await click(screen.getByRole("button", { name: label }));
   const created = sent.filter((m) => m.type === "CREATE_ROOM");
   expect(created).toHaveLength(1);
@@ -132,18 +146,38 @@ describe("Random stage tile", () => {
   it("hides boards the current format can't host instead of dimming them", async () => {
     await mountPicker();
     // duel: everything is eligible, including the two duel-only boards
-    expect(screen.getByLabelText("The Bog")).toBeInTheDocument();
-    expect(screen.getByLabelText("USCSS Nostromo")).toBeInTheDocument();
-    expect(screen.getByLabelText("Wedding Crashers")).toBeInTheDocument();
+    expect((await boards()).getByLabelText("The Bog")).toBeInTheDocument();
+    expect((await boards()).getByLabelText("USCSS Nostromo")).toBeInTheDocument();
+    expect((await boards()).getByLabelText("Wedding Crashers")).toBeInTheDocument();
     expect(screen.queryByText(/needs \d start slots/)).not.toBeInTheDocument();
 
     await click(screen.getByRole("button", { name: "2v2" }));
-    expect(screen.queryByLabelText("The Bog")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("USCSS Nostromo")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Wedding Crashers")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Island of Despair")).toBeInTheDocument();
+    expect((await boards()).queryByLabelText("The Bog")).not.toBeInTheDocument();
+    expect((await boards()).queryByLabelText("USCSS Nostromo")).not.toBeInTheDocument();
+    expect((await boards()).queryByLabelText("Wedding Crashers")).not.toBeInTheDocument();
+    expect((await boards()).getByLabelText("Island of Despair")).toBeInTheDocument();
     // Random survives the format switch — it's eligible everywhere
-    expect(screen.getByLabelText(/^Random board/)).toHaveAttribute("aria-pressed", "true");
+    expect((await boards()).getByLabelText(/^Random board/)).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("keeps every eligible board reachable from the popover, and closes on a pick", async () => {
+    await mountPicker();
+    // the rail itself shows Random + the first three boards, no more
+    const rail = screen.getByLabelText(/^Random board/).parentElement!;
+    expect(rail.childElementCount).toBe(1 + 3);
+
+    const picker = await boards();
+    // Random + every duel-eligible board, all in one wrapped grid
+    for (const entry of randomMapPool("duel")) {
+      expect(picker.getByLabelText(entry.title)).toBeInTheDocument();
+    }
+    // picking one closes the popover and moves that board into the rail
+    await click(picker.getByLabelText("Count's Castle"));
+    expect(screen.queryByRole("dialog", { name: "Choose a board" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Count's Castle")).toHaveAttribute("aria-pressed", "true");
   });
 
   it("rolls every board in the 1v1 pool, and nothing outside it", async () => {
@@ -155,6 +189,7 @@ describe("Random stage tile", () => {
     for (let i = 0; i < pool.length; i++) {
       jest.spyOn(Math, "random").mockReturnValue((i + 0.5) / pool.length);
       FakeWebSocket.reset();
+      window.localStorage.clear(); // each mount starts with an empty "recently played" row
       sent = [];
       await mountPicker();
       const msg = await createRoom();
@@ -204,7 +239,7 @@ describe("Random stage tile", () => {
   it("still sends the hand-picked board when a board is clicked", async () => {
     // Clicking a card must override the Random default and send that board.
     await mountPicker();
-    await click(screen.getByLabelText("Count's Castle"));
+    await click((await boards()).getByLabelText("Count's Castle"));
     const msg = await createRoom();
     expect(msg.customMap?.id).toBe("counts-castle");
   });

@@ -1,18 +1,18 @@
 /**
- * The lobby's Create bar on desktop (issue #765).
+ * The lobby's Create block on desktop (issue #765, rehomed by #768).
  *
  * The roster grid grows a row every ~9 heroes and the stage grid one every ~7
  * boards, which used to push the Create button and the seat plates below the
- * fold on lg+. The plates bar is now a sticky dock on desktop — but it must be
- * exactly ONE bar: the same JSX serves the in-flow and docked states (sticky),
- * and the mobile fixed bar keeps its own copy of the buttons behind
- * `display: lg: none`. So the DOM legitimately holds two Create buttons (one
- * per breakpoint's bar) — what it must never hold is a THIRD: a duplicated
- * desktop dock from keeping the old in-flow bar alongside a new fixed one.
+ * fold on lg+. #765 answered that with a sticky dock; #768 moved the whole
+ * setup into the left rail instead, where the same block is PINNED to the
+ * rail's foot by a `1fr` grid row and so never moves at all. Either way the
+ * invariant this file exists for is unchanged: exactly ONE desktop block, and
+ * with the mobile fixed bar's own copy that is exactly TWO Create buttons in
+ * the DOM — never a third from a duplicated bar.
  *
  * Mount recipe is the render-fuzz one shared with quickMatch.test.tsx (fake
- * WebSocket, fake router); jsdom can't measure sticky, so this pins presence
- * and count, not geometry.
+ * WebSocket, fake router); jsdom measures no layout, so this pins presence and
+ * count, not geometry.
  */
 import "@testing-library/jest-dom";
 import { act, render, screen, within } from "@testing-library/react";
@@ -108,11 +108,11 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-describe("desktop create dock (#765)", () => {
-  it("renders the desktop dock exactly once, carrying plates and both commit buttons", async () => {
+describe("desktop create block (#765 → the #768 rail)", () => {
+  it("renders the desktop block exactly once, carrying plates and both commit buttons", async () => {
     await mountPicker();
 
-    // The dock is ONE element — not the old in-flow bar plus a new fixed one.
+    // ONE element — not a rail block plus a leftover in-flow/sticky bar.
     const docks = screen.getAllByTestId("pro-create-dock");
     expect(docks).toHaveLength(1);
     const dock = docks[0];
@@ -130,8 +130,8 @@ describe("desktop create dock (#765)", () => {
     expect(mobileBars).toHaveLength(1);
     expect(within(mobileBars[0]).getByTestId("pro-create-button")).toBeInTheDocument();
 
-    // Two Create buttons in the DOM — one per breakpoint's bar, and not one
-    // more: a duplicated desktop bar (the #765 failure mode) would make three.
+    // Two Create buttons in the DOM — the rail's and the mobile bar's, and not
+    // one more: a duplicated desktop bar (the #765 failure mode) makes three.
     expect(screen.getAllByTestId("pro-create-button")).toHaveLength(2);
     expect(within(mobileBars[0]).queryByTestId("pro-create-dock")).toBeNull();
   });
