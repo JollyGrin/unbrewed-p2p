@@ -98,3 +98,42 @@ export function forgetRoom(roomId: string): void {
   const next = listRecentRooms().filter((r) => r.roomId !== roomId);
   localStorage.setItem(RECENT_KEY, JSON.stringify(next));
 }
+
+// ---------------------------------------------------------------------------
+// Recently-played fighters (issue #768)
+// ---------------------------------------------------------------------------
+//
+// The lobby's "Recently played" roster row. Purely a browser convenience — the
+// server neither reads nor writes it — so it lives beside the recent-rooms
+// index rather than behind the account API: a signed-out player gets the row
+// too, and no create/join frame changes shape because of it.
+//
+// Only CONCRETE hero ids are stored: the Random sentinel is resolved before
+// create/join, so what lands here is always the fighter actually played.
+
+const RECENT_HEROES_KEY = "unbrewed-pro-recent-heroes";
+/** Kept a little longer than the row shows (4) so a stale/removed hero can drop
+ *  out without instantly shortening the row. */
+const MAX_RECENT_HEROES = 8;
+
+/** Hero ids this browser has played, most recent first. */
+export function listRecentHeroes(): string[] {
+  if (!canStore()) return [];
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(RECENT_HEROES_KEY) ?? "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((h): h is string => typeof h === "string" && h.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+/** Record a fighter as just-played (dedup, most recent first). */
+export function rememberHero(heroId: string): void {
+  if (!canStore() || !heroId) return;
+  const next = [heroId, ...listRecentHeroes().filter((h) => h !== heroId)].slice(
+    0,
+    MAX_RECENT_HEROES,
+  );
+  localStorage.setItem(RECENT_HEROES_KEY, JSON.stringify(next));
+}

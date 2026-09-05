@@ -14,7 +14,7 @@
 import { CSSProperties, Fragment, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { useRouter } from "next/router";
-import { Box, Button, Flex, Grid, Input, Link, Menu, MenuButton, MenuItem, MenuList, NumberDecrementStepper, NumberIncrementStepper, NumberInput, NumberInputField, NumberInputStepper, Tag, Text, Textarea, Tooltip } from "@chakra-ui/react";
+import { Box, Button, Flex, Grid, Input, InputGroup, InputLeftElement, Link, Menu, MenuButton, MenuItem, MenuList, NumberDecrementStepper, NumberIncrementStepper, NumberInput, NumberInputField, NumberInputStepper, Tag, Text, Textarea, Tooltip } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
 import { motion, useReducedMotion } from "framer-motion";
 import { MOVE_STEP_SECONDS, MoveHint, PendingMove, ProBoard } from "@/components/Pro/ProBoard";
@@ -56,18 +56,27 @@ import { deriveRelocateMode, resolveRelocateBoardClick } from "@/lib/pro/relocat
 import { ProConnectionStatus, useProSocket } from "@/lib/pro/useProSocket";
 import { normalizeMap } from "@/lib/pro/normalizeMap";
 import { SubmitMapDialog } from "@/components/Pro/SubmitMapDialog";
-import { RecentRoom, getTabToken, listRecentRooms } from "@/lib/pro/recentRooms";
+import {
+  RecentRoom,
+  getTabToken,
+  listRecentHeroes,
+  listRecentRooms,
+  rememberHero,
+} from "@/lib/pro/recentRooms";
 import { HERO_DECK_IDS, ResolveCard, heroIdsForArt, useProCardArt } from "@/lib/pro/useProCardArt";
-import { frozenAtForHero } from "@/lib/pro/evergreenManifest";
 import { POPULAR_DECKS, PopularDeckMeta } from "@/lib/constants/top-decks";
 import { GiFootprint, GiHearts } from "react-icons/gi";
 import {
+  TbArrowsSort,
   TbBow,
   TbChevronDown,
   TbExternalLink,
   TbInfoCircle,
   TbList,
+  TbSearch,
   TbSword,
+  TbUsers,
+  TbX,
   TbZoomIn,
 } from "react-icons/tb";
 import { DeckAttribution } from "@/components/Pro/DeckAttribution";
@@ -1765,7 +1774,7 @@ const heroDeckMeta = (heroId: string): PopularDeckMeta | undefined => {
   return POPULAR_DECKS.find((d) => d.id === deckId);
 };
 
-const LabDeckTag = ({ compact = false }: { compact?: boolean }) => (
+const LabDeckTag = () => (
   <Tag
     size="sm"
     variant="subtle"
@@ -1774,17 +1783,122 @@ const LabDeckTag = ({ compact = false }: { compact?: boolean }) => (
     border="1px solid rgba(224,168,46,0.35)"
     borderRadius="999px"
     fontFamily="SpaceGrotesk"
-    fontSize={compact ? "0.48rem" : "0.58rem"}
+    fontSize="0.58rem"
     fontWeight={700}
     letterSpacing="0.12em"
     textTransform="uppercase"
-    px={compact ? "0.3rem" : "0.45rem"}
+    px="0.45rem"
     py="0.05rem"
     boxShadow="0 2px 6px rgba(0,0,0,0.35)"
   >
     In the lab
   </Tag>
 );
+
+/**
+ * The tile-corner lab marker (#768). `LabDeckTag` above spells "In the lab" and
+ * is ~9rem wide — on a 5.25rem roster tile it reads as a banner laid across the
+ * art, swallowing the name strip on the busiest cards (Boba Fett, Ellen Ripley,
+ * Appa). The tile gets this three-letter pill instead; the full tag stays on the
+ * splash panel and in HeroPreviewModal where there is room for the words.
+ */
+const LabCornerPill = () => (
+  <Box
+    position="absolute"
+    top="5px"
+    right="5px"
+    zIndex={3}
+    px="5px"
+    py="2px"
+    borderRadius="4px"
+    bg="rgba(224,168,46,0.92)"
+    color="brand.surfaceDim"
+    fontFamily="SpaceGrotesk"
+    fontSize="8px"
+    fontWeight={600}
+    letterSpacing="0.08em"
+    lineHeight="1"
+    pointerEvents="none"
+  >
+    LAB
+  </Box>
+);
+
+/**
+ * Playtest-tier fighter. The server's own `tier` is authoritative when it sends
+ * one; the client deck table is the fallback for servers that predate it (and
+ * is what the "In the lab" section is counted from today).
+ */
+const isLabHero = (hero: HeroListing) =>
+  hero.tier === "lab" || !!heroDeckMeta(hero.heroId)?.lab;
+
+// --- roster sorting (#768) --------------------------------------------------
+
+type RosterSort = "az" | "recent" | "newest";
+const ROSTER_SORTS: { v: RosterSort; label: string }[] = [
+  { v: "az", label: "A\u2013Z" },
+  { v: "recent", label: "Recently played" },
+  { v: "newest", label: "Newest" },
+];
+
+/**
+ * "Newest" order. There is no per-deck ship date on the wire or in the deck
+ * table, but POPULAR_DECKS is append-ordered — every wire-a-deck ticket pushes
+ * its entry onto the end — so a deck's index in it IS its arrival order. A hero
+ * with no deck-table row (a server-only listing) has no arrival order and sorts
+ * last, then alphabetically.
+ */
+const DECK_ARRIVAL = new Map(POPULAR_DECKS.map((d, i) => [d.id, i]));
+const arrivalOf = (hero: HeroListing) =>
+  DECK_ARRIVAL.get(HERO_DECK_IDS[hero.heroId] ?? "") ?? -1;
+
+const byName = (a: HeroListing, b: HeroListing) => a.name.localeCompare(b.name);
+
+/** Order a roster group. A–Z is the default and the tie-break for the others. */
+const sortRoster = (
+  heroes: HeroListing[],
+  sort: RosterSort,
+  recentHeroIds: string[],
+): HeroListing[] => {
+  const list = [...heroes];
+  if (sort === "newest") return list.sort((a, b) => arrivalOf(b) - arrivalOf(a) || byName(a, b));
+  if (sort === "recent") {
+    const rank = (h: HeroListing) => {
+      const i = recentHeroIds.indexOf(h.heroId);
+      return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+    };
+    return list.sort((a, b) => rank(a) - rank(b) || byName(a, b));
+  }
+  return list.sort(byName);
+};
+
+// --- stage splash preview (#768) --------------------------------------------
+
+/**
+ * What the splash panel is previewing while a board tile is hovered/focused.
+ * `random` has no board behind it yet (it rolls at create time), so it previews
+ * the pool text the tile used to carry as a tooltip.
+ */
+type StagePreview =
+  | { kind: "random"; pool: string }
+  | { kind: "board"; entry: MapCatalogEntry };
+
+/**
+ * Provenance word for a board, read off the image the catalog already ships:
+ * `/maps/legacy-*` are the original Unbrewed boards, `/maps/community-*` the
+ * fan battlefields. Anything else stays an unqualified "board" rather than
+ * claiming a lineage we can't see.
+ */
+const boardKindWord = (entry: MapCatalogEntry): string => {
+  const url = entry.map.meta.imageUrl ?? entry.thumbnailUrl ?? "";
+  if (url.includes("/maps/legacy-")) return "Legacy board";
+  if (url.includes("/maps/community-")) return "Community board";
+  return "Board";
+};
+
+const boardSpaceCount = (entry: MapCatalogEntry) => entry.map.spaces.length;
+const boardSeatCount = (entry: MapCatalogEntry) => entry.map.meta.maxPlayers;
+const boardHasItemsOn = (entry: MapCatalogEntry) => (entry.map.items?.length ?? 0) > 0;
 
 const skeletonPulse = keyframes`
   0%, 100% { opacity: 0.35; }
@@ -1809,6 +1923,21 @@ const createArm = keyframes`
 /** Spread into an animated element's `sx` to honor prefers-reduced-motion. */
 const NO_MOTION = {
   "@media (prefers-reduced-motion: reduce)": { animation: "none !important" },
+} as const;
+
+/** Board tiles the setup rail shows inline; the rest live in the popover (#768). */
+const RAIL_STAGE_TILES = 3;
+/** Tiles in the roster's "Recently played" row (#768) — exactly one row. */
+const RECENT_ROSTER_TILES = 4;
+/**
+ * Roster mosaic columns. Eight across on the desktop rail layout (the redesign
+ * mockup's grid); below it the tiles keep their old intrinsic minimum so a
+ * phone gets four and a tablet as many as fit.
+ */
+const ROSTER_GRID_COLUMNS = {
+  base: "repeat(auto-fill, minmax(5.25rem, 1fr))",
+  lg: "repeat(7, minmax(0, 1fr))",
+  xl: "repeat(8, minmax(0, 1fr))",
 } as const;
 
 /** Gold selection ring for a locked roster tile (brand.accent = #E0A82E). */
@@ -1914,11 +2043,7 @@ const RosterTile = ({
           P1
         </Flex>
       )}
-      {deck?.lab && (
-        <Flex position="absolute" top="0.3rem" right="0.3rem" zIndex={3}>
-          <LabDeckTag compact />
-        </Flex>
-      )}
+      {(deck?.lab || hero.tier === "lab") && <LabCornerPill />}
       <Text
         position="absolute"
         left="0"
@@ -1944,6 +2069,45 @@ const RosterTile = ({
     </Box>
   );
 };
+
+/**
+ * A roster section rule (#768): "BALANCED DECKS · 22", "IN THE LAB · 9 ·
+ * playtest tier, balance may change". The count is the section's own, after
+ * filtering — so it always agrees with the tiles under it.
+ */
+const RosterSectionHeading = ({
+  label,
+  count,
+  note,
+}: {
+  label: string;
+  count?: number;
+  note?: string;
+}) => (
+  <Flex align="center" gap="0.5rem" mb="0.4rem">
+    <Text
+      fontFamily="SpaceGrotesk"
+      fontSize="10px"
+      letterSpacing="0.16em"
+      textTransform="uppercase"
+      color="whiteAlpha.600"
+      whiteSpace="nowrap"
+    >
+      {label}
+    </Text>
+    {count !== undefined && (
+      <Text fontSize="10px" color="whiteAlpha.400" sx={{ fontVariantNumeric: "tabular-nums" }}>
+        {count}
+      </Text>
+    )}
+    {note && (
+      <Text fontSize="10px" color="whiteAlpha.400" fontFamily="SpaceGrotesk" noOfLines={1}>
+        · {note}
+      </Text>
+    )}
+    <Box flex="1" h="1px" bg="whiteAlpha.200" />
+  </Flex>
+);
 
 /**
  * The "🎲 Random" roster tile (#697) — the fighter-side twin of the Random
@@ -2017,51 +2181,182 @@ const RandomRosterTile = ({
 );
 
 /**
+ * The splash body for a hovered STAGE tile (#768) — the board's own answer to
+ * the fighter splash: art behind, "click to lock in" above the title, and the
+ * three facts a creator actually picks a board on (kind + size, seats, whether
+ * it prints items). The Random tile has no board yet, so it shows the pool it
+ * will roll from — the text that used to hide in a `title` tooltip.
+ */
+const StageSplashBody = ({
+  stage,
+  onViewBoard,
+}: {
+  stage: StagePreview;
+  onViewBoard?: () => void;
+}) => {
+  const entry = stage.kind === "board" ? stage.entry : undefined;
+  return (
+    <Flex
+      position="relative"
+      direction="column"
+      mt="auto"
+      p={{ base: "0.85rem", lg: "0 1rem 0.875rem" }}
+      gap="4px"
+      w="100%"
+      minW="0"
+    >
+      <Text
+        fontFamily="SpaceGrotesk"
+        fontSize="0.62rem"
+        letterSpacing="0.16em"
+        color="brand.accent"
+      >
+        PREVIEW — CLICK TO LOCK IN
+      </Text>
+      <Text
+        key={entry?.id ?? "random"}
+        fontFamily="LeagueGothic"
+        fontSize={{ base: "1.5rem", lg: "2.125rem" }}
+        lineHeight="1"
+        noOfLines={2}
+        sx={{
+          transform: "skewX(-4deg)",
+          transformOrigin: "left",
+          animation: `${namePop} 0.28s ease`,
+          ...NO_MOTION,
+        }}
+      >
+        {entry ? entry.title : "Random board"}
+      </Text>
+      <Text fontSize="0.75rem" fontStyle="italic" color="rgba(250,235,215,0.8)" noOfLines={2}>
+        {entry
+          ? `${boardKindWord(entry)} · ${boardSpaceCount(entry)} spaces · ${boardSeatCount(entry)} players`
+          : `Rolled when the room is created: ${stage.kind === "random" ? stage.pool : ""}`}
+      </Text>
+      {entry && (
+        <Flex gap="0.875rem" mt="6px" align="center" fontSize="0.8rem" fontWeight={600}>
+          <Flex align="center" gap="5px">
+            <TbUsers size="14px" aria-hidden />
+            <Text>
+              {boardSeatCount(entry)} seat{boardSeatCount(entry) === 1 ? "" : "s"}
+            </Text>
+          </Flex>
+          {boardHasItemsOn(entry) && (
+            <Flex
+              align="center"
+              gap="4px"
+              color="brand.accent"
+              title="This board prints battlefield items — the creator can switch them off"
+            >
+              🎁 items
+            </Flex>
+          )}
+          <Box flex="1" minW="0" />
+          {onViewBoard && (
+            <Button
+              type="button"
+              onClick={onViewBoard}
+              display={{ base: "none", lg: "inline-flex" }}
+              size="xs"
+              h="auto"
+              py="4px"
+              px="9px"
+              fontSize="0.7rem"
+              fontFamily="SpaceGrotesk"
+              variant="outline"
+              leftIcon={<TbZoomIn />}
+              bg="transparent"
+              borderColor="whiteAlpha.400"
+              color="brand.parchment"
+              _hover={{ borderColor: "brand.accent", color: "brand.accent" }}
+            >
+              View board
+            </Button>
+          )}
+        </Flex>
+      )}
+    </Flex>
+  );
+};
+
+/**
  * The left splash panel. Shows the hovered fighter live (preview state), reverts
  * to the locked pick on mouse-leave, and carries all the per-fighter info the
- * tiles no longer do: big name, author credit, stats, frozen-rules line, and the
- * deck-preview link. Collapses to a short wide banner under `lg`.
+ * tiles no longer do: big name, author credit, stats and the deck-preview link
+ * (which shares the stat row). Collapses to a short wide banner under `lg`.
+ *
+ * The rules-freeze date the panel used to print moved out with the #768
+ * redesign: it is still on the /pro landing tile and in the bag's deck list,
+ * and the rail has 300px for the whole panel.
  */
 const SplashPanel = ({
   hero,
   locked,
   onViewDeck,
+  stage,
+  onViewBoard,
 }: {
   hero: HeroListing | undefined;
   /** true → showing the committed pick ("P1 · locked in"); false → live preview */
   locked: boolean;
   onViewDeck: () => void;
+  /**
+   * A hovered/focused STAGE tile (#768). When present it takes the panel over
+   * from the fighter for as long as the pointer is on the tile — boards get the
+   * same "preview here, click to lock in" treatment fighters have had since
+   * #301, which is what let the per-tile magnifiers go.
+   */
+  stage?: StagePreview;
+  onViewBoard?: () => void;
 }) => {
   const deck = hero ? heroDeckMeta(hero.heroId) : undefined;
   const cardback = deck?.cardbackUrl;
-  const frozenAt = hero ? frozenAtForHero(hero.heroId) : undefined;
+  const stageArt = stage?.kind === "board" ? stage.entry.thumbnailUrl : undefined;
+  const art = stage ? stageArt : cardback;
   return (
     <Flex
       direction={{ base: "row", lg: "column" }}
       position="relative"
       borderRadius="0.9rem"
       overflow="hidden"
-      minH={{ base: "9rem", lg: "28rem" }}
+      data-testid="pro-splash"
+      // Sized for the rail (#768): 19rem when the viewport has the room, shrinking
+      // to 13rem when it doesn't, so the seats + Create block below always clears
+      // the fold. On mobile it is the short wide banner it has always been.
+      minH={{ base: "9rem", lg: "13rem" }}
+      h={{ lg: "19rem" }}
+      maxH={{ lg: "19rem" }}
+      flex={{ lg: "0 1 auto" }}
       border="1px solid"
-      borderColor="whiteAlpha.200"
+      borderColor={stage ? "brand.accent" : "whiteAlpha.200"}
       bg="brand.surfaceDim"
       boxShadow="0 14px 34px rgba(0,0,0,0.5)"
     >
-      {hero && cardback && (
+      {art && (
         <Box
           position="absolute"
           inset="0"
-          bgImage={`url("${cardback}")`}
+          bgImage={`url("${art}")`}
           bgSize="cover"
-          bgPos="center"
+          // Cardbacks put the face in the upper third; board photographs are
+          // centre-weighted.
+          bgPos={stage ? "center" : "center 30%"}
         />
       )}
+      {/* Board art is busier than a hero cardback (a photograph of a board
+          covered in coloured discs), so a stage preview gets the heavier scrim. */}
       <Box
         position="absolute"
         inset="0"
-        bg="linear-gradient(180deg, rgba(12,5,14,0.15) 30%, rgba(12,5,14,0.93) 85%)"
+        bg={
+          stage
+            ? "linear-gradient(180deg, rgba(20,9,24,0) 40%, rgba(20,9,24,0.94) 100%)"
+            : "linear-gradient(180deg, rgba(20,9,24,0) 35%, rgba(20,9,24,0.92) 100%)"
+        }
       />
-      {!hero ? (
+      {stage ? (
+        <StageSplashBody stage={stage} onViewBoard={onViewBoard} />
+      ) : !hero ? (
         <Flex
           position="relative"
           flex="1"
@@ -2088,15 +2383,15 @@ const SplashPanel = ({
           position="relative"
           direction="column"
           mt="auto"
-          p={{ base: "0.85rem", lg: "1.1rem" }}
-          gap="0.15rem"
+          p={{ base: "0.85rem", lg: "0 1rem 0.875rem" }}
+          gap="4px"
           w="100%"
           minW="0"
         >
           <Text
             fontFamily="SpaceGrotesk"
             fontSize="0.62rem"
-            letterSpacing="0.18em"
+            letterSpacing="0.16em"
             color={locked ? "brand.accent" : "whiteAlpha.600"}
           >
             {locked ? "P1 · LOCKED IN" : "PREVIEW — CLICK TO LOCK IN"}
@@ -2104,8 +2399,8 @@ const SplashPanel = ({
           <Text
             key={hero.heroId}
             fontFamily="LeagueGothic"
-            fontSize={{ base: "1.5rem", lg: "2.1rem" }}
-            lineHeight="1.02"
+            fontSize={{ base: "1.5rem", lg: "2.125rem" }}
+            lineHeight="1"
             noOfLines={2}
             sx={{
               transform: "skewX(-4deg)",
@@ -2123,40 +2418,139 @@ const SplashPanel = ({
             </Flex>
           )}
           {deck && <DeckAttribution deck={deck} />}
-          <Flex gap="0.9rem" mt="0.45rem" align="center" color="brand.parchment" sx={{ fontVariantNumeric: "tabular-nums" }}>
+          {/* Stats and "View deck" share one line (the mockup's splash foot):
+              the rail has 300px of height for the whole panel, and the deck
+              link is a garnish on the stat row, not a block of its own. */}
+          <Flex
+            gap="0.875rem"
+            mt="6px"
+            align="center"
+            color="brand.parchment"
+            fontSize="0.875rem"
+            fontWeight={600}
+            sx={{ fontVariantNumeric: "tabular-nums" }}
+          >
             <StatPip icon={<GiHearts color="#C0392B" size="15px" />} label={String(hero.hp)} />
             <StatPip icon={<GiFootprint size="14px" />} label={String(hero.move)} />
-            <Flex align="center" gap="0.3rem" fontSize="0.8rem" fontWeight="bold">
+            <Flex align="center" gap="0.3rem">
               {reachIsRanged(hero.reach) ? <TbBow size="15px" /> : <TbSword size="15px" />}
               <Text>{reachWord(hero.reach)}</Text>
             </Flex>
+            <Box flex="1" minW="0" />
+            <Button
+              type="button"
+              onClick={onViewDeck}
+              display={{ base: "none", lg: "inline-flex" }}
+              size="xs"
+              h="auto"
+              py="4px"
+              px="9px"
+              fontSize="0.7rem"
+              fontFamily="SpaceGrotesk"
+              fontWeight={600}
+              variant="outline"
+              leftIcon={<TbInfoCircle />}
+              bg="transparent"
+              borderColor="whiteAlpha.400"
+              color="brand.parchment"
+              _hover={{ borderColor: "brand.accent", color: "brand.accent" }}
+            >
+              View deck
+            </Button>
           </Flex>
-          {frozenAt && (
-            <Text fontSize="0.6rem" opacity={0.55} mt="0.35rem" fontFamily="SpaceGrotesk">
-              rules version frozen {frozenAt}
-            </Text>
-          )}
-          <Button
-            type="button"
-            onClick={onViewDeck}
-            display={{ base: "none", lg: "inline-flex" }}
-            mt="0.7rem"
-            alignSelf="flex-start"
-            size="xs"
-            variant="outline"
-            leftIcon={<TbInfoCircle />}
-            bg="transparent"
-            borderColor="whiteAlpha.300"
-            color="brand.parchment"
-            _hover={{ borderColor: "brand.accent", color: "brand.accent" }}
-          >
-            View deck
-          </Button>
         </Flex>
       )}
     </Flex>
   );
 };
+
+/**
+ * One board tile in the stage row / board popover (#768).
+ *
+ * Hover or focus previews the board in the splash panel (`onHover`), which is
+ * what replaced the per-tile magnifier button: the inspect affordance moved to
+ * the splash's "View board", so the tile is a single, whole click target again
+ * and the art is never covered by a control.
+ */
+const StageTile = ({
+  ariaLabel,
+  title,
+  thumbnailUrl,
+  glyph,
+  selected,
+  dashed,
+  onSelect,
+  onHover,
+  onLeave,
+}: {
+  ariaLabel: string;
+  title: string;
+  /** board art; omitted for the Random / Custom tiles, which show `glyph` */
+  thumbnailUrl?: string;
+  glyph?: string;
+  selected: boolean;
+  dashed?: boolean;
+  onSelect: () => void;
+  onHover?: () => void;
+  onLeave?: () => void;
+}) => (
+  <Box
+    as="button"
+    type="button"
+    onClick={onSelect}
+    onMouseEnter={onHover}
+    onFocus={onHover}
+    onMouseLeave={onLeave}
+    onBlur={onLeave}
+    aria-pressed={selected}
+    aria-label={ariaLabel}
+    position="relative"
+    w="100%"
+    borderRadius="8px"
+    overflow="hidden"
+    border={dashed ? "1px dashed" : "1px solid"}
+    borderColor={selected ? "brand.accent" : "whiteAlpha.300"}
+    boxShadow={selected ? "0 0 0 1px #E0A82E" : undefined}
+    bg="rgba(0,0,0,0.18)"
+    cursor="pointer"
+    transition="border-color 0.15s, transform 0.12s ease, box-shadow 0.12s ease"
+    _hover={{
+      borderColor: "brand.accent",
+      transform: "scale(1.06)",
+      zIndex: 2,
+      boxShadow: "0 0 0 2px #E0A82E, 0 8px 18px rgba(0,0,0,0.55)",
+    }}
+    _focusVisible={{ outline: "2px solid", outlineColor: "brand.accent", outlineOffset: "2px" }}
+  >
+    {thumbnailUrl ? (
+      <Box
+        h="56px"
+        bgImage={`url("${thumbnailUrl}")`}
+        bgSize="cover"
+        bgPosition="center"
+        bgColor="rgba(0,0,0,0.4)"
+      />
+    ) : (
+      <Flex h="56px" align="center" justify="center" fontSize="1.5rem" color="whiteAlpha.700" aria-hidden>
+        {glyph}
+      </Flex>
+    )}
+    <Text
+      fontFamily="SpaceGrotesk"
+      fontSize="9px"
+      letterSpacing="0.05em"
+      textTransform="uppercase"
+      textAlign="center"
+      px="3px"
+      py="4px"
+      lineHeight="1.25"
+      minH="22px"
+      noOfLines={2}
+    >
+      {title}
+    </Text>
+  </Box>
+);
 
 /** A generic gold/ghost segmented control (aria-pressed, keyboard-operable). */
 function Segmented<T extends string>({
@@ -2270,67 +2664,66 @@ const SeatPlate = ({
   role,
   you,
   heroName,
-  cardback,
   occupant,
   onChange,
   teamAccent,
   chips,
+  footer,
 }: {
   tag: string;
   role?: string;
   you?: boolean;
   heroName?: string | null;
-  cardback?: string;
   occupant?: OpponentChoice;
   onChange?: (v: OpponentChoice) => void;
   teamAccent?: boolean;
   /** Who-fills-this-seat chips, built from the server's advertised bot tiers. */
   chips?: SeatChip[];
+  /** extra content inside the plate — the duel AI-hero picker folds in here */
+  footer?: ReactNode;
 }) => {
   const isAi = !!occupant && occupant !== "human";
   return (
     <Flex
-      minW="10.5rem"
-      flex={{ base: "1 1 10.5rem", md: "0 1 auto" }}
-      borderRadius="0.6rem"
+      // Rail plate (#768): 320px has to hold P1 · VS · P2, so the plate is a
+      // column that shrinks to nothing rather than the wide skewed card #301
+      // put in the page-wide bar. Tinted by role — gold for your seat, purple
+      // for everyone else's.
+      direction="column"
+      gap="6px"
+      flex="1 1 0"
+      minW="0"
+      borderRadius="8px"
       border="1px solid"
-      borderColor={you ? "brand.accentDeep" : isAi ? "brand.accent" : teamAccent ? ALLY_ACCENT : "whiteAlpha.200"}
-      bg={you ? "linear-gradient(105deg, rgba(224,168,46,0.14), rgba(0,0,0,0.3) 60%)" : "rgba(0,0,0,0.3)"}
-      p="0.55rem 0.65rem"
-      gap="0.6rem"
-      align="center"
+      borderColor={
+        you ? "rgba(224,168,46,0.35)" : teamAccent ? ALLY_ACCENT : "rgba(255,255,255,0.12)"
+      }
+      bg={you ? "rgba(224,168,46,0.08)" : "rgba(122,80,180,0.14)"}
+      p="8px 10px"
       overflow="hidden"
-      sx={{ transform: "skewX(-3deg)", "& > *": { transform: "skewX(3deg)" } }}
     >
-      <Flex
-        w="2.6rem"
-        h="2.6rem"
-        flex="none"
-        borderRadius="0.4rem"
-        overflow="hidden"
-        border="1px solid"
-        borderColor="whiteAlpha.200"
-        bg="brand.surfaceDim"
-        align="center"
-        justify="center"
-        fontSize="1.1rem"
-        color="whiteAlpha.700"
-        bgImage={you && cardback ? `url("${cardback}")` : undefined}
-        bgSize="cover"
-        bgPos="center"
+      <Text
+        fontFamily="SpaceGrotesk"
+        fontSize="10px"
+        letterSpacing="0.16em"
+        textTransform="uppercase"
+        color={you ? "brand.accent" : "whiteAlpha.600"}
+        noOfLines={1}
       >
-        {you ? (cardback ? "" : "?") : isAi ? "🤖" : "👤"}
-      </Flex>
-      <Box minW="0" flex="1">
-        <Text fontFamily="SpaceGrotesk" fontSize="0.6rem" letterSpacing="0.14em" color={you ? "brand.accent" : "whiteAlpha.600"}>
-          {tag}
-          {role ? ` · ${role}` : ""}
+        {tag}
+        {role ? ` · ${role}` : ""}
+      </Text>
+      {/* Only your own seat names a fighter; every other seat is described by
+          its chips (which one is lit says human / which bot tier). */}
+      {you && (
+        <Text fontFamily="BebasNeueRegular" fontSize="16px" letterSpacing="0.03em" noOfLines={1}>
+          {heroName ?? "Pick a fighter"}
         </Text>
-        <Text fontFamily="BebasNeueRegular" fontSize="0.95rem" letterSpacing="0.03em" noOfLines={1}>
-          {you ? heroName ?? "Pick a fighter" : isAi ? `AI · ${occupant}` : "Open seat"}
-        </Text>
-        {!you && onChange && <PlateChips value={occupant ?? "human"} onChange={onChange} chips={chips ?? FALLBACK_SEAT_CHIPS} />}
-      </Box>
+      )}
+      {!you && onChange && (
+        <PlateChips value={occupant ?? "human"} onChange={onChange} chips={chips ?? FALLBACK_SEAT_CHIPS} />
+      )}
+      {footer}
     </Flex>
   );
 };
@@ -2338,12 +2731,12 @@ const SeatPlate = ({
 const VsBadge = () => (
   <Flex
     align="center"
-    px="0.2rem"
-    color="brand.accent"
+    alignSelf="center"
+    px="0.1rem"
+    color="whiteAlpha.500"
     fontFamily="LeagueGothic"
-    fontSize="1.4rem"
-    letterSpacing="0.04em"
-    textShadow="0 2px 10px rgba(224,168,46,0.4)"
+    fontSize="1rem"
+    letterSpacing="0.08em"
   >
     VS
   </Flex>
@@ -2460,6 +2853,22 @@ const HeroSelectLobby = ({
   const [hoverHero, setHoverHero] = useState<HeroListing>();
   const [search, setSearch] = useState("");
   const [reachFilter, setReachFilter] = useState<ReachFilter>("all");
+  // #768 roster controls: the LAB chip narrows to playtest-tier fighters, the
+  // sort menu reorders every section, and the stage popover / stage hover drive
+  // the rail's board row and the splash respectively.
+  const [labOnly, setLabOnly] = useState(false);
+  const [rosterSort, setRosterSort] = useState<RosterSort>("az");
+  const [stagePickerOpen, setStagePickerOpen] = useState(false);
+  const [stageHover, setStageHover] = useState<StagePreview>();
+  // Recently-played fighters (localStorage, this browser only). Read after mount
+  // so a static export's HTML and the first client render still match.
+  const [recentHeroIds, setRecentHeroIds] = useState<string[]>([]);
+  useEffect(() => setRecentHeroIds(listRecentHeroes()), []);
+  // The roster's bottom fade is a scroll HINT, so it only appears when there is
+  // actually something below the fold — with a short catalog (or a narrow
+  // filter) the region doesn't scroll and a fade would just be a smudge.
+  const rosterRef = useRef<HTMLDivElement>(null);
+  const [rosterScrolls, setRosterScrolls] = useState(false);
 
   // Timer chips: "Off" is the first chip (the on/off toggle is gone); "…" opens
   // an inline seconds field for any value in the engine's 10–300 range. Seeded
@@ -2489,7 +2898,6 @@ const HeroSelectLobby = ({
       selectedFormat === "duel" ? aiHeroId : null,
     ]),
   );
-  const lockedCardback = lockedHero ? heroDeckMeta(lockedHero.heroId)?.cardbackUrl : undefined;
   // Splash shows the hover preview, else the locked pick. Hovering your own
   // locked tile keeps the "locked" wording (matches the mockup).
   const splashHero = hoverHero ?? lockedHero;
@@ -2498,16 +2906,56 @@ const HeroSelectLobby = ({
 
   const visibleHeroes = (heroes ?? []).filter((h) => {
     if (!matchesReachFilter(h, reachFilter)) return false;
+    if (labOnly && !isLabHero(h)) return false;
     const q = search.trim().toLowerCase();
     if (!q) return true;
     const author = heroDeckMeta(h.heroId)?.author ?? "";
     return h.name.toLowerCase().includes(q) || author.toLowerCase().includes(q);
   });
 
+  // The three roster sections (#768). They partition the SAME `visibleHeroes`
+  // the Random tile rolls over, so search / reach / LAB narrow all of them at
+  // once and the roll pool never disagrees with what is on screen.
+  const sortedVisible = sortRoster(visibleHeroes, rosterSort, recentHeroIds);
+  const labHeroes = sortedVisible.filter(isLabHero);
+  const balancedHeroes = sortedVisible.filter((h) => !isLabHero(h));
+  // Recently played: this browser's own history, newest first, capped at one
+  // row. Fighters that fell out of the roster (or the current filter) simply
+  // don't appear — the row is a shortcut, never a second source of truth.
+  const recentHeroes = recentHeroIds
+    .map((id) => visibleHeroes.find((h) => h.heroId === id))
+    .filter((h): h is HeroListing => !!h)
+    .slice(0, RECENT_ROSTER_TILES);
+
   // A Random pick with everything filtered away has nothing to roll, so it can't
   // confirm — the same state that greys the tile greys Create/Quick Match.
   const canConfirm =
     status === "open" && !!effective && !(randomPicked && visibleHeroes.length === 0);
+
+  useEffect(() => {
+    const el = rosterRef.current;
+    if (!el) return;
+    const update = () => setRosterScrolls(el.scrollHeight - el.clientHeight > 8);
+    update();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
+
+  // Escape closes the board popover — it covers the roster, so there has to be
+  // a keyboard way out that isn't "tab to the ✕".
+  useEffect(() => {
+    if (!stagePickerOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setStagePickerOpen(false);
+        setStageHover(undefined);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [stagePickerOpen]);
 
   // READY-TO-FIGHT pulse: fire the create button's gold pulse once, on the
   // transition from disabled → enabled (the moment a fighter is first locked).
@@ -2523,11 +2971,29 @@ const HeroSelectLobby = ({
     wasConfirmable.current = canConfirm;
   }, [canConfirm]);
 
-  // Boards the Random tile can land on for the current format — shown as the
-  // tile's tooltip so "Random" is never a black box (#685).
+  // Boards the Random tile can land on for the current format. Since #768 this
+  // is splash copy, not a tooltip: hovering Random previews the pool it rolls
+  // from, so "Random" is never a black box (#685).
   const randomPoolTitles = randomMapPool(selectedFormat)
     .map((e) => e.title)
     .join(", ");
+  const randomStage: StagePreview = { kind: "random", pool: randomPoolTitles };
+
+  // Every board this format can seat. Boards it can't host are hidden outright
+  // rather than dimmed (#685) — the format chips above already say how many
+  // seats are needed.
+  const eligibleBoards = MAP_CATALOG.filter(
+    (e) => !e.hidden && mapEligibleForFormat(e.map, selectedFormat),
+  );
+  const selectedEntry = eligibleBoards.find((e) => e.id === selectedMapId);
+  // The rail row shows a handful of boards; the rest live in the popover. A
+  // board picked in there takes the first slot so the rail always shows what is
+  // actually selected without opening anything.
+  const railHead = eligibleBoards.slice(0, RAIL_STAGE_TILES);
+  const railBoards =
+    selectedEntry && !railHead.includes(selectedEntry)
+      ? [selectedEntry, ...railHead.slice(0, RAIL_STAGE_TILES - 1)]
+      : railHead;
   const stageName =
     selectedMapId === CUSTOM_MAP_ID
       ? "Custom board"
@@ -2589,12 +3055,13 @@ const HeroSelectLobby = ({
       }}
       isDisabled={!canConfirm}
       h="auto"
-      py="0.8rem"
-      px="1.4rem"
-      borderRadius="0.6rem"
+      py="13px"
+      px="18px"
+      borderRadius="6px"
       fontFamily="LeagueGothic"
-      fontSize="1.15rem"
+      fontSize="20px"
       letterSpacing="0.08em"
+      textTransform="uppercase"
       bg="linear-gradient(180deg, #F0C874, #E0A82E 45%, #C48F1E)"
       color="#2c1a10"
       boxShadow="0 4px 0 #8a6420, 0 10px 22px rgba(0,0,0,0.45)"
@@ -2632,12 +3099,13 @@ const HeroSelectLobby = ({
             : "Pick a fighter first"
         }
         h="auto"
-        py="0.55rem"
-        px="1.1rem"
-        borderRadius="0.6rem"
+        py="9px"
+        px="16px"
+        borderRadius="6px"
         fontFamily="LeagueGothic"
-        fontSize="1rem"
+        fontSize="15px"
         letterSpacing="0.08em"
+        textTransform="uppercase"
         bg="transparent"
         color="brand.accent"
         border="1px solid"
@@ -2654,16 +3122,62 @@ const HeroSelectLobby = ({
   // Player plates for the current format. Duel opponent + multiplayer seats share
   // the same Human/AI chips (SeatPlate); they just write to different parent
   // state (`opponent` vs `botSlotPlan`), preserving the existing create-time wire.
+  // The duel AI's deck. Since #768 this folds into the P2 plate instead of
+  // sitting in its own centred row below the fold — same Menu, same wire (a
+  // `null` pick means the server rolls the bot's deck).
+  const aiHeroPicker = (
+    <Menu placement="bottom-start">
+      <MenuButton
+        as={Button}
+        {...BTN}
+        mt="0.3rem"
+        h="1.5rem"
+        px="0.45rem"
+        w="100%"
+        fontSize="0.62rem"
+        fontFamily="SpaceGrotesk"
+        fontWeight="normal"
+        textAlign="left"
+        rightIcon={<TbChevronDown />}
+        isDisabled={heroes === null}
+        title={
+          aiHeroId
+            ? "the AI plays this hero — the game starts instantly"
+            : "the server picks the AI's deck at random — the game starts instantly"
+        }
+      >
+        AI hero: {aiHeroId ? heroNameOf(heroes, aiHeroId) : "Random"}
+      </MenuButton>
+      <MenuList bg="brand.surface" borderColor="whiteAlpha.300" maxH="16rem" overflowY="auto">
+        <MenuItem onClick={() => onSelectAiHero(null)} bg="transparent" _hover={{ bg: "whiteAlpha.100" }}>
+          Random
+        </MenuItem>
+        {(heroes ?? []).map((h) => (
+          <MenuItem key={h.heroId} onClick={() => onSelectAiHero(h.heroId)} bg="transparent" _hover={{ bg: "whiteAlpha.100" }}>
+            {h.name}
+          </MenuItem>
+        ))}
+      </MenuList>
+    </Menu>
+  );
+
   const renderPlates = () => {
     if (room) {
-      return <SeatPlate tag="P1" role="You" you heroName={lockedName} cardback={lockedCardback} />;
+      return <SeatPlate tag="P1" role="You" you heroName={lockedName} />;
     }
     if (selectedFormat === "duel") {
       return (
         <>
-          <SeatPlate tag="P1" role="You" you heroName={lockedName} cardback={lockedCardback} />
+          <SeatPlate tag="P1" role="You" you heroName={lockedName} />
           <VsBadge />
-          <SeatPlate tag="P2" role="Opponent" occupant={opponent} onChange={onSelectOpponent} chips={seatChipStrip} />
+          <SeatPlate
+            tag="P2"
+            role="Opponent"
+            occupant={opponent}
+            onChange={onSelectOpponent}
+            chips={seatChipStrip}
+            footer={opponent !== "human" ? aiHeroPicker : undefined}
+          />
         </>
       );
     }
@@ -2703,7 +3217,6 @@ const HeroSelectLobby = ({
                       role={you ? "You" : mine ? "Ally" : "Foe"}
                       you={you}
                       heroName={you ? lockedName : undefined}
-                      cardback={you ? lockedCardback : undefined}
                       teamAccent={mine}
                       occupant={you ? undefined : botSlotPlan[seat] ?? "human"}
                       onChange={you ? undefined : (v) => onChangeBotSlot(seat, v)}
@@ -2720,7 +3233,7 @@ const HeroSelectLobby = ({
     // ffa-3: independent seats (P1 you + the assignable others)
     return (
       <>
-        <SeatPlate tag="P1" role="You" you heroName={lockedName} cardback={lockedCardback} />
+        <SeatPlate tag="P1" role="You" you heroName={lockedName} />
         <VsBadge />
         {assignableSeats(selectedFormat).map((seat) => (
           <SeatPlate
@@ -2739,7 +3252,7 @@ const HeroSelectLobby = ({
     // pt leaves the fixed account chip (top-right, rendered by the page) a lane
     // of its own: the rules strip below wraps and its first row can run all the
     // way to the right edge, so overlaying the chip on it would collide.
-    <Box maxW="78rem" mx="auto" px={{ base: "0.75rem", md: "1.25rem" }} pt="2.75rem" pb={{ base: "6rem", lg: "2.5rem" }}>
+    <Box maxW="78rem" mx="auto" px={{ base: "0.75rem", md: "1.25rem" }} pt="2.75rem" pb={{ base: "6rem", lg: "0.75rem" }}>
       {/* ---------------- rules strip ---------------- */}
       <Flex
         align="center"
@@ -2879,35 +3392,179 @@ const HeroSelectLobby = ({
             ))}
           </Flex>
         )}
+        {/* Connection state rides the rules strip since #768 — the rail below is
+            all setup, and this is the one thing on the screen that is about the
+            server rather than the room being built. */}
+        <Flex align="center" gap="0.3rem" fontSize="0.7rem" color="whiteAlpha.600" fontFamily="SpaceGrotesk">
+          <Box as="span" color={status === "open" ? ALLY_ACCENT : "whiteAlpha.500"} fontSize="0.6rem">
+            ●
+          </Box>
+          {status === "open" ? "connected" : status}
+        </Flex>
       </Flex>
 
-      {/* ---------------- splash + roster ---------------- */}
-      <Grid templateColumns={{ base: "1fr", lg: "20rem 1fr" }} gap={{ base: "1rem", lg: "1.4rem" }} alignItems="stretch">
-        <SplashPanel
-          hero={splashHero}
-          locked={splashLocked}
-          onViewDeck={() => splashHero && setPreviewHero(splashHero)}
-        />
+      {/* ---------------- setup rail + roster ---------------- */}
+      {/* Desktop (#768): two columns that together fill what is left of the
+          viewport. The rail owns the whole setup — splash, stage, seats, Create
+          — so the primary action never leaves the fold no matter how big the
+          catalog grows; only the roster on the right scrolls. Below `lg` the
+          height cap and the scroll region both drop away and everything is back
+          in flow under the fixed create bar. */}
+      {/* Named areas, not nested columns, because the two layouts want DIFFERENT
+          orders: the rail reads splash → stage → seats top-to-bottom, while a
+          phone wants the roster right under the splash and the seats after it
+          (the fixed create bar is the phone's primary action). The `gap` row is
+          what pins the seats block to the rail's foot. */}
+      <Grid
+        templateAreas={{
+          base: `"splash" "stage" "roster" "seats"`,
+          lg: `"splash roster" "stage roster" "gap roster" "seats roster"`,
+        }}
+        templateColumns={{ base: "1fr", lg: "20rem 1fr" }}
+        templateRows={{ lg: "auto auto 1fr auto" }}
+        columnGap={{ lg: "1.4rem" }}
+        rowGap="1rem"
+        alignItems="stretch"
+        h={{ lg: "calc(100vh - 8.5rem)" }}
+      >
+        {/* ---------------- setup rail ---------------- */}
+        <Box gridArea="splash" minW="0" minH="0" display="flex" flexDirection="column">
+          <SplashPanel
+            hero={splashHero}
+            locked={splashLocked}
+            onViewDeck={() => splashHero && setPreviewHero(splashHero)}
+            stage={stageHover}
+            onViewBoard={() =>
+              stageHover?.kind === "board" ? setPreviewMap(stageHover.entry) : undefined
+            }
+          />
+        </Box>
 
-        <Flex direction="column" gap="0.9rem" minW="0">
-          <Flex align="center" justify="space-between" gap="0.75rem" flexWrap="wrap">
-            <Text fontFamily="LeagueGothic" fontSize="1.25rem" letterSpacing="0.1em" color="brand.accent">
-              SELECT YOUR HERO
+        {/* ---------------- stage row ---------------- */}
+        <Box gridArea="stage" minW="0">
+          {!room && (
+            <Box onMouseLeave={() => setStageHover(undefined)}>
+              <Flex align="center" justify="space-between" gap="0.5rem" mb="0.35rem">
+                <Text {...STRIP_LBL}>STAGE</Text>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="xs"
+                  onClick={() => setStagePickerOpen((open) => !open)}
+                  aria-expanded={stagePickerOpen}
+                  rightIcon={<TbChevronDown />}
+                  color="brand.accent"
+                  fontSize="11px"
+                  fontFamily="SpaceGrotesk"
+                  fontWeight="normal"
+                  _hover={{ color: "brand.accentDeep" }}
+                >
+                  {stagePickerOpen ? "Show fewer" : `All ${eligibleBoards.length} boards`}
+                </Button>
+              </Flex>
+              {/* Four tiles wide, which is the whole rail. Every OTHER board is
+                  one click away in the popover — #685's "no board is unreachable
+                  without a horizontal scroll" is kept there, by a wrapped grid. */}
+              <Grid templateColumns="repeat(4, minmax(0, 1fr))" gap="6px">
+                <StageTile
+                  ariaLabel="Random board — rolled when the room is created"
+                  title="Random"
+                  glyph="🎲"
+                  dashed
+                  selected={selectedMapId === RANDOM_MAP_ID}
+                  onSelect={() => onSelectMap(RANDOM_MAP_ID)}
+                  onHover={() => setStageHover(randomStage)}
+                  onLeave={() => setStageHover(undefined)}
+                />
+                {railBoards.map((entry) => (
+                  <StageTile
+                    key={entry.id}
+                    ariaLabel={entry.title}
+                    title={entry.title}
+                    thumbnailUrl={entry.thumbnailUrl}
+                      selected={selectedMapId === entry.id}
+                    onSelect={() => onSelectMap(entry.id)}
+                    onHover={() => setStageHover({ kind: "board", entry })}
+                    onLeave={() => setStageHover(undefined)}
+                  />
+                ))}
+                {/* A chosen Custom… board keeps a home in the rail; clicking it
+                    reopens the popover, which is where its JSON now lives. */}
+                {selectedMapId === CUSTOM_MAP_ID && (
+                  <StageTile
+                    ariaLabel="Edit custom board JSON"
+                    title="Custom…"
+                    glyph="+"
+                    dashed
+                      selected
+                    onSelect={() => setStagePickerOpen(true)}
+                  />
+                )}
+              </Grid>
+              <Text mt="0.35rem" fontSize="0.6rem" color="whiteAlpha.500" fontFamily="SpaceGrotesk">
+                Random rolls from the {format.label.toLowerCase()} pool · hover any board to
+                preview it above
+              </Text>
+            </Box>
+          )}
+        </Box>
+
+        {/* ---------------- seats + create ---------------- */}
+        <Flex
+          gridArea="seats"
+          data-testid="pro-create-dock"
+          minW="0"
+          direction="column"
+          gap="8px"
+        >
+          <Flex gap="8px" align="stretch" minW="0">
+            {renderPlates()}
+          </Flex>
+          <Flex direction="column" gap="0.4rem" display={{ base: "none", lg: "flex" }}>
+            {createButton}
+            {quickMatchButton("quick-match")}
+            <Text textAlign="center" fontSize="0.72rem" color="whiteAlpha.600" fontFamily="SpaceGrotesk">
+              {summary}
             </Text>
+          </Flex>
+          {!room && multiplayer && (
+            <Text fontSize="0.66rem" opacity={0.6} textAlign="center" fontFamily="SpaceGrotesk">
+              Bot seats are filled by the server · human seats join with the room link.
+            </Text>
+          )}
+        </Flex>
+
+        {/* ---------------- roster ---------------- */}
+        <Flex gridArea="roster" direction="column" gap="0.7rem" minW="0" minH="0" position="relative">
+          <Flex align="center" justify="space-between" gap="0.75rem" flexWrap="wrap" flex="none">
+            <Flex align="baseline" gap="0.5rem">
+              <Text fontFamily="LeagueGothic" fontSize="1.25rem" letterSpacing="0.1em" color="brand.accent">
+                SELECT YOUR HERO
+              </Text>
+              {heroes !== null && (
+                <Text fontSize="0.72rem" color="whiteAlpha.600" fontFamily="SpaceGrotesk">
+                  {visibleHeroes.length} fighter{visibleHeroes.length === 1 ? "" : "s"}
+                </Text>
+              )}
+            </Flex>
             <Flex gap="0.4rem" align="center" flexWrap="wrap">
-              <Input
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search…"
-                aria-label="Search fighters"
-                size="sm"
-                w="9rem"
-                bg="rgba(0,0,0,0.25)"
-                borderColor="whiteAlpha.200"
-                _hover={{ borderColor: "whiteAlpha.300" }}
-                _focus={{ borderColor: "brand.accent" }}
-              />
+              <InputGroup size="sm" w="150px">
+                <InputLeftElement pointerEvents="none" color="whiteAlpha.500">
+                  <TbSearch size="14px" />
+                </InputLeftElement>
+                <Input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search…"
+                  aria-label="Search fighters"
+                  borderRadius="6px"
+                  bg="rgba(0,0,0,0.25)"
+                  borderColor="whiteAlpha.200"
+                  _hover={{ borderColor: "whiteAlpha.300" }}
+                  _focus={{ borderColor: "brand.accent" }}
+                />
+              </InputGroup>
               {REACH_FILTERS.map((f) => {
                 const active = reachFilter === f.v;
                 return (
@@ -2930,249 +3587,372 @@ const HeroSelectLobby = ({
                   </Button>
                 );
               })}
+              {/* LAB chip (#768) — the playtest tier as a filter, not just a
+                  badge: "show me only the decks that are still moving". */}
+              <Button
+                type="button"
+                size="sm"
+                aria-pressed={labOnly}
+                aria-label="Lab decks only"
+                onClick={() => setLabOnly((v) => !v)}
+                borderRadius="999px"
+                fontFamily="SpaceGrotesk"
+                letterSpacing="0.08em"
+                bg={labOnly ? "brand.accent" : "transparent"}
+                color={labOnly ? "brand.surfaceDim" : "brand.parchment"}
+                border="1px solid"
+                borderColor={labOnly ? "brand.accent" : "whiteAlpha.200"}
+                _hover={{ borderColor: labOnly ? "brand.accentDeep" : "whiteAlpha.400" }}
+                rightIcon={
+                  <Box as="span" fontSize="0.6rem" color={labOnly ? "brand.surfaceDim" : "brand.accent"}>
+                    ●
+                  </Box>
+                }
+              >
+                LAB
+              </Button>
+              <Menu placement="bottom-end">
+                <MenuButton
+                  as={Button}
+                  type="button"
+                  size="sm"
+                  aria-label="Sort fighters"
+                  leftIcon={<TbArrowsSort size="14px" />}
+                  rightIcon={<TbChevronDown />}
+                  borderRadius="999px"
+                  fontFamily="SpaceGrotesk"
+                  fontWeight="normal"
+                  bg="transparent"
+                  color="brand.parchment"
+                  border="1px solid"
+                  borderColor="whiteAlpha.200"
+                  _hover={{ borderColor: "whiteAlpha.400" }}
+                  _active={{ borderColor: "whiteAlpha.400" }}
+                >
+                  {ROSTER_SORTS.find((o) => o.v === rosterSort)?.label}
+                </MenuButton>
+                <MenuList bg="brand.surface" borderColor="whiteAlpha.300" minW="10rem">
+                  {ROSTER_SORTS.map((o) => (
+                    <MenuItem
+                      key={o.v}
+                      onClick={() => setRosterSort(o.v)}
+                      bg="transparent"
+                      fontSize="0.85rem"
+                      _hover={{ bg: "whiteAlpha.100" }}
+                    >
+                      {o.label}
+                    </MenuItem>
+                  ))}
+                </MenuList>
+              </Menu>
             </Flex>
           </Flex>
 
-          {heroes === null ? (
-            <Grid
-              templateColumns="repeat(auto-fill, minmax(5.25rem, 1fr))"
-              gap="0.5rem"
+          {/* The roster is its own scroll region on desktop — the page behind it
+              stays put, so Create/seats/stage never move. The fade at the foot
+              is the only hint that there is more below. */}
+          <Box position="relative" flex="1" minH="0">
+            <Box
+              ref={rosterRef}
+              data-testid="pro-roster-scroll"
+              h="100%"
+              overflowY={{ base: "visible", lg: "auto" }}
+              pr={{ lg: "0.4rem" }}
+              pb={{ lg: "1.5rem" }}
               onMouseLeave={() => setHoverHero(undefined)}
+              sx={{
+                "&::-webkit-scrollbar": { width: "5px" },
+                "&::-webkit-scrollbar-thumb": {
+                  background: "rgba(255,255,255,0.28)",
+                  borderRadius: "3px",
+                },
+                "&::-webkit-scrollbar-track": { background: "transparent" },
+              }}
             >
-              {heroParam ? (
-                <Box
-                  position="relative"
-                  w="100%"
-                  sx={{ aspectRatio: "1" }}
-                  borderRadius="0.5rem"
-                  border="1px solid"
-                  borderColor="brand.accent"
-                  bg="brand.surface"
-                  display="flex"
-                  alignItems="center"
-                  justifyContent="center"
-                  p="0.4rem"
-                >
-                  <Text fontFamily="BebasNeueRegular" fontSize="0.72rem" textAlign="center" noOfLines={2}>
-                    {prettyHeroId(heroParam)}
-                  </Text>
-                </Box>
-              ) : (
-                <>
-                  <SkeletonTile />
-                  <SkeletonTile />
-                  <SkeletonTile />
-                  <SkeletonTile />
-                  <SkeletonTile />
-                  <SkeletonTile />
-                </>
-              )}
-            </Grid>
-          ) : heroes.length === 0 ? (
-            <Text textAlign="center" opacity={0.7}>
-              no heroes available — try again shortly
-            </Text>
-          ) : (
-            <>
-              {visibleHeroes.length === 0 && (
-                <Text textAlign="center" opacity={0.6} fontSize="0.85rem" py="1rem">
-                  No fighters match — clear the search or filter.
+              {heroes === null ? (
+                <Grid templateColumns={ROSTER_GRID_COLUMNS} gap="0.5rem">
+                  {heroParam ? (
+                    <Box
+                      position="relative"
+                      w="100%"
+                      sx={{ aspectRatio: "1" }}
+                      borderRadius="0.5rem"
+                      border="1px solid"
+                      borderColor="brand.accent"
+                      bg="brand.surface"
+                      display="flex"
+                      alignItems="center"
+                      justifyContent="center"
+                      p="0.4rem"
+                    >
+                      <Text fontFamily="BebasNeueRegular" fontSize="0.72rem" textAlign="center" noOfLines={2}>
+                        {prettyHeroId(heroParam)}
+                      </Text>
+                    </Box>
+                  ) : (
+                    <>
+                      <SkeletonTile />
+                      <SkeletonTile />
+                      <SkeletonTile />
+                      <SkeletonTile />
+                      <SkeletonTile />
+                      <SkeletonTile />
+                    </>
+                  )}
+                </Grid>
+              ) : heroes.length === 0 ? (
+                <Text textAlign="center" opacity={0.7}>
+                  no heroes available — try again shortly
                 </Text>
+              ) : (
+                <Flex direction="column" gap="0.6rem">
+                  {visibleHeroes.length === 0 && (
+                    <Text textAlign="center" opacity={0.6} fontSize="0.85rem" py="1rem">
+                      No fighters match — clear the search or filter.
+                    </Text>
+                  )}
+
+                  {/* Recently played (#768) — this browser's own history, so the
+                      row is simply absent until you have finished configuring a
+                      room once. Filtered like every other section. */}
+                  {recentHeroes.length > 0 && (
+                    <Box data-testid="roster-section-recent">
+                      <RosterSectionHeading label="Recently played" />
+                      <Grid templateColumns={ROSTER_GRID_COLUMNS} gap="0.5rem">
+                        {recentHeroes.map((h) => (
+                          <RosterTile
+                            key={`recent-${h.heroId}`}
+                            hero={h}
+                            selected={effective === h.heroId}
+                            onSelect={() => onSelectHero(h.heroId)}
+                            onHover={() => setHoverHero(h)}
+                          />
+                        ))}
+                      </Grid>
+                    </Box>
+                  )}
+
+                  {/* Balanced decks. The Random tile leads it, mirroring the
+                      stage row (#685) — and it survives an empty filter result
+                      (disabled) rather than blinking out of the layout, because
+                      it is a roster control, not a fighter (#697). */}
+                  {(balancedHeroes.length > 0 || labHeroes.length === 0) && (
+                    <Box data-testid="roster-section-balanced">
+                      <RosterSectionHeading label="Balanced decks" count={balancedHeroes.length} />
+                      <Grid templateColumns={ROSTER_GRID_COLUMNS} gap="0.5rem">
+                        <RandomRosterTile
+                          selected={effective === RANDOM_HERO_ID}
+                          disabled={visibleHeroes.length === 0}
+                          poolSize={visibleHeroes.length}
+                          onSelect={() => onSelectHero(RANDOM_HERO_ID)}
+                          onHover={() => setHoverHero(undefined)}
+                        />
+                        {balancedHeroes.map((h) => (
+                          <RosterTile
+                            key={h.heroId}
+                            hero={h}
+                            selected={effective === h.heroId}
+                            onSelect={() => onSelectHero(h.heroId)}
+                            onHover={() => setHoverHero(h)}
+                          />
+                        ))}
+                      </Grid>
+                    </Box>
+                  )}
+
+                  {labHeroes.length > 0 && (
+                    <Box data-testid="roster-section-lab">
+                      <RosterSectionHeading
+                        label="In the lab"
+                        count={labHeroes.length}
+                        note="playtest tier, balance may change"
+                      />
+                      <Grid templateColumns={ROSTER_GRID_COLUMNS} gap="0.5rem">
+                        {/* With the LAB chip on there is no balanced section to
+                            host it, so Random leads here instead. */}
+                        {balancedHeroes.length === 0 && (
+                          <RandomRosterTile
+                            selected={effective === RANDOM_HERO_ID}
+                            disabled={visibleHeroes.length === 0}
+                            poolSize={visibleHeroes.length}
+                            onSelect={() => onSelectHero(RANDOM_HERO_ID)}
+                            onHover={() => setHoverHero(undefined)}
+                          />
+                        )}
+                        {labHeroes.map((h) => (
+                          <RosterTile
+                            key={h.heroId}
+                            hero={h}
+                            selected={effective === h.heroId}
+                            onSelect={() => onSelectHero(h.heroId)}
+                            onHover={() => setHoverHero(h)}
+                          />
+                        ))}
+                      </Grid>
+                    </Box>
+                  )}
+
+                </Flex>
               )}
-              {/* The grid survives an empty filter result so the Random tile is
-                  still on screen (disabled) rather than blinking out of the
-                  layout — it is a roster control, not a fighter. */}
-              <Grid
-                templateColumns="repeat(auto-fill, minmax(5.25rem, 1fr))"
-                gap="0.5rem"
-                onMouseLeave={() => setHoverHero(undefined)}
-              >
-                {/* Random leads the grid, mirroring the stage strip (#685). */}
-                <RandomRosterTile
-                  selected={effective === RANDOM_HERO_ID}
-                  disabled={visibleHeroes.length === 0}
-                  poolSize={visibleHeroes.length}
-                  onSelect={() => onSelectHero(RANDOM_HERO_ID)}
-                  onHover={() => setHoverHero(undefined)}
-                />
-                {visibleHeroes.map((h) => (
-                  <RosterTile
-                    key={h.heroId}
-                    hero={h}
-                    selected={effective === h.heroId}
-                    onSelect={() => onSelectHero(h.heroId)}
-                    onHover={() => setHoverHero(h)}
-                  />
-                ))}
-              </Grid>
-            </>
-          )}
-
-          <Text fontSize="0.72rem" color="whiteAlpha.500" fontFamily="SpaceGrotesk">
-            ♥ health · ⚑ fighters · ⚔ / 🏹 attack style shown in the splash panel.
-          </Text>
-
-          {/* ---------------- stage row ---------------- */}
-          {!room && (
-            <Flex align="center" gap="0.7rem">
-              <Text {...STRIP_LBL}>STAGE</Text>
-              {/* Wrapped grid, not a scroll strip (#685): every board — plus the
-                  Random and Custom tiles — has to be reachable without a
-                  horizontal scroll, or the tail of the catalog (Wedding
-                  Crashers) is invisible. Boards the current format can't host
-                  are hidden outright rather than dimmed with a reason: with
-                  the strip wrapped, a row of greyed-out cards is just noise,
-                  and the format chips above already say how many seats are
-                  needed. */}
-              <Flex gap="0.5rem" flexWrap="wrap" pb="0.25rem" flex="1">
-                {/* Random — resolves at create time from the format's pool. */}
+            </Box>
+            {rosterScrolls && (
+              <Box
+                position="absolute"
+                left="0"
+                right="0"
+                bottom="0"
+                h="70px"
+                pointerEvents="none"
+                display={{ base: "none", lg: "block" }}
+                bgGradient="linear(to-t, rgba(58,33,64,0.95), rgba(58,33,64,0))"
+              />
+            )}
+            {/* ---------------- board popover ---------------- */}
+            {/* Over the roster, not below the rail: the full catalog needs room to
+                wrap, and the rail is 20rem wide. Scrim closes; so does Escape and
+                picking a board. Custom… is the one choice that leaves it open —
+                its JSON box lives inside. */}
+            {!room && stagePickerOpen && (
+              <Box position="absolute" inset="0" zIndex={20} onMouseLeave={() => setStageHover(undefined)}>
+                {/* Scrim: the roster behind reads as parked, and a click anywhere
+                    off the panel closes — the popover has no OK/Cancel. */}
                 <Box
-                  as="button"
-                  type="button"
-                  onClick={() => onSelectMap(RANDOM_MAP_ID)}
-                  aria-pressed={selectedMapId === RANDOM_MAP_ID}
-                  aria-label="Random board — rolled when the room is created"
-                  title={`Rolled when the room is created: ${randomPoolTitles}`}
-                  flex="none"
-                  w="6.75rem"
-                  borderRadius="0.5rem"
-                  overflow="hidden"
-                  border="1px dashed"
-                  borderColor={selectedMapId === RANDOM_MAP_ID ? "brand.accent" : "whiteAlpha.300"}
-                  boxShadow={selectedMapId === RANDOM_MAP_ID ? "0 0 0 1px #E0A82E" : undefined}
-                  bg="rgba(0,0,0,0.18)"
-                  cursor="pointer"
-                  transition="border-color 0.15s"
-                  _hover={{ borderColor: "whiteAlpha.500" }}
+                  position="absolute"
+                  inset="0"
+                  bg="rgba(20,9,24,0.66)"
+                  onClick={() => {
+                    setStagePickerOpen(false);
+                    setStageHover(undefined);
+                  }}
+                />
+                <Flex
+                  role="dialog"
+                  aria-label="Choose a board"
+                  aria-modal={false}
+                  direction="column"
+                  position="relative"
+                  maxH="100%"
+                  overflowY="auto"
+                  borderRadius="12px"
+                  border="1px solid"
+                  borderColor="rgba(255,255,255,0.18)"
+                  bg="brand.surfaceDim"
+                  boxShadow="0 20px 50px rgba(0,0,0,0.6)"
+                  p="14px"
+                  gap="10px"
                 >
-                  <Flex h="3.5rem" align="center" justify="center" fontSize="1.5rem" aria-hidden>
-                    🎲
-                  </Flex>
-                  <Text
-                    fontFamily="SpaceGrotesk"
-                    fontSize="0.56rem"
-                    letterSpacing="0.05em"
-                    textTransform="uppercase"
-                    textAlign="center"
-                    px="0.3rem"
-                    py="0.25rem"
-                  >
-                    Random
-                  </Text>
-                </Box>
-                {MAP_CATALOG.filter(
-                  (e) => !e.hidden && mapEligibleForFormat(e.map, selectedFormat),
-                ).map((entry) => {
-                  const selected = selectedMapId === entry.id;
-                  return (
+                  <Flex align="center" gap="10px" flexWrap="wrap">
+                    <Text fontFamily="LeagueGothic" fontSize="18px" letterSpacing="0.08em" color="brand.accent">
+                      CHOOSE A BOARD
+                    </Text>
+                    <Text fontSize="11px" color="whiteAlpha.500" fontFamily="SpaceGrotesk">
+                      {format.label.toLowerCase()} · {eligibleBoards.length} boards + random
+                    </Text>
+                    <Box flex="1" minW="0" />
+                    <Button
+                      type="button"
+                      size="xs"
+                      aria-pressed={selectedMapId === CUSTOM_MAP_ID}
+                      aria-label="Custom board — paste map JSON"
+                      onClick={() => onSelectMap(CUSTOM_MAP_ID)}
+                      borderRadius="6px"
+                      fontSize="12px"
+                      fontWeight={600}
+                      px="11px"
+                      py="5px"
+                      h="auto"
+                      fontFamily="SpaceGrotesk"
+                      bg={selectedMapId === CUSTOM_MAP_ID ? "brand.accent" : "transparent"}
+                      color={selectedMapId === CUSTOM_MAP_ID ? "brand.surfaceDim" : "brand.parchment"}
+                      border="1px solid"
+                      borderColor={selectedMapId === CUSTOM_MAP_ID ? "brand.accent" : "rgba(255,255,255,0.2)"}
+                      _hover={{ borderColor: "brand.accent" }}
+                    >
+                      Custom JSON…
+                    </Button>
                     <Box
                       as="button"
                       type="button"
-                      key={entry.id}
-                      onClick={() => onSelectMap(entry.id)}
-                      aria-pressed={selected}
-                      aria-label={entry.title}
-                      position="relative"
-                      flex="none"
-                      w="6.75rem"
-                      borderRadius="0.5rem"
-                      overflow="hidden"
-                      border="1px solid"
-                      borderColor={selected ? "brand.accent" : "whiteAlpha.200"}
-                      boxShadow={selected ? "0 0 0 1px #E0A82E" : undefined}
-                      bg="rgba(0,0,0,0.22)"
-                      cursor="pointer"
-                      transition="border-color 0.15s, opacity 0.15s"
-                      _hover={{ borderColor: selected ? "brand.accent" : "whiteAlpha.400" }}
+                      aria-label="Close board picker"
+                      onClick={() => {
+                        setStagePickerOpen(false);
+                        setStageHover(undefined);
+                      }}
+                      px="6px"
+                      borderRadius="4px"
+                      color="whiteAlpha.500"
+                      _hover={{ color: "brand.accent", bg: "whiteAlpha.100" }}
                     >
-                      <Box
-                        h="3.5rem"
-                        bgImage={`url("${entry.thumbnailUrl}")`}
-                        bgSize="cover"
-                        bgPosition="center"
-                        bgColor="rgba(0,0,0,0.4)"
-                      />
-                      {/* Inspect affordance — opens the full board image + attribution
-                          without committing to the pick. stopPropagation keeps the
-                          card's own onClick (select) from firing (issue #316). It's a
-                          span (not a <button>) because the card itself is a <button>
-                          and buttons can't nest. */}
-                      <Box
-                        as="span"
-                        role="button"
-                        tabIndex={0}
-                        aria-label={`Preview ${entry.title}`}
-                        title="Preview board"
-                        position="absolute"
-                        top="0.2rem"
-                        right="0.2rem"
-                        w="1.35rem"
-                        h="1.35rem"
-                        display="flex"
-                        alignItems="center"
-                        justifyContent="center"
-                        borderRadius="0.35rem"
-                        bg="rgba(10,4,12,0.7)"
-                        color="brand.parchment"
-                        cursor="pointer"
-                        _hover={{ bg: "rgba(10,4,12,0.9)", color: "brand.accent" }}
-                        onClick={(e: ReactMouseEvent) => {
-                          e.stopPropagation();
-                          setPreviewMap(entry);
-                        }}
-                        onKeyDown={(e: ReactKeyboardEvent) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setPreviewMap(entry);
-                          }
-                        }}
-                      >
-                        <TbZoomIn size="0.85rem" />
-                      </Box>
-                      <Text
-                        fontFamily="SpaceGrotesk"
-                        fontSize="0.56rem"
-                        letterSpacing="0.05em"
-                        textTransform="uppercase"
-                        textAlign="center"
-                        px="0.3rem"
-                        py="0.25rem"
-                        lineHeight="1.2"
-                        noOfLines={2}
-                      >
-                        {entry.title}
-                      </Text>
+                      <TbX size="16px" />
                     </Box>
-                  );
-                })}
-                <Box
-                  as="button"
-                  type="button"
-                  onClick={() => onSelectMap(CUSTOM_MAP_ID)}
-                  aria-pressed={selectedMapId === CUSTOM_MAP_ID}
-                  aria-label="Custom board — paste map JSON"
-                  flex="none"
-                  w="6.75rem"
-                  borderRadius="0.5rem"
-                  overflow="hidden"
-                  border="1px dashed"
-                  borderColor={selectedMapId === CUSTOM_MAP_ID ? "brand.accent" : "whiteAlpha.300"}
-                  bg="rgba(0,0,0,0.18)"
-                  cursor="pointer"
-                  transition="border-color 0.15s"
-                  _hover={{ borderColor: "whiteAlpha.500" }}
-                >
-                  <Flex h="3.5rem" align="center" justify="center" fontSize="1.3rem" color="whiteAlpha.500">
-                    +
                   </Flex>
-                  <Text fontFamily="SpaceGrotesk" fontSize="0.56rem" letterSpacing="0.05em" textTransform="uppercase" textAlign="center" px="0.3rem" py="0.25rem">
-                    Custom…
-                  </Text>
-                </Box>
-              </Flex>
-            </Flex>
-          )}
+
+                  <Grid templateColumns={{ base: "repeat(4, minmax(0, 1fr))", md: "repeat(8, minmax(0, 1fr))" }} gap="8px">
+                    <StageTile
+                      ariaLabel="Random board — rolled when the room is created"
+                      title="Random"
+                      glyph="🎲"
+                      dashed
+                      selected={selectedMapId === RANDOM_MAP_ID}
+                      onSelect={() => {
+                        onSelectMap(RANDOM_MAP_ID);
+                        setStagePickerOpen(false);
+                        setStageHover(undefined);
+                      }}
+                      onHover={() => setStageHover(randomStage)}
+                      onLeave={() => setStageHover(undefined)}
+                    />
+                    {eligibleBoards.map((entry) => (
+                      <StageTile
+                        key={entry.id}
+                        ariaLabel={entry.title}
+                        title={entry.title}
+                        thumbnailUrl={entry.thumbnailUrl}
+                        selected={selectedMapId === entry.id}
+                        onSelect={() => {
+                          onSelectMap(entry.id);
+                          setStagePickerOpen(false);
+                          setStageHover(undefined);
+                        }}
+                        onHover={() => setStageHover({ kind: "board", entry })}
+                        onLeave={() => setStageHover(undefined)}
+                      />
+                    ))}
+                  </Grid>
+
+                  {/* Custom board: the paste-JSON textarea, revealed only when the
+                      Custom… chip is selected. Behavior (validation, BAD_MAP
+                      bounce) unchanged — only its address moved. */}
+                  {selectedMapId === CUSTOM_MAP_ID && (
+                    <Flex direction="column" gap="0.4rem" maxW="32rem">
+                      <Textarea
+                        value={customMapJson}
+                        onChange={(e) => onCustomMapJsonChange(e.target.value)}
+                        placeholder="paste map JSON exported from /dev/map-editor — leave blank for the default board"
+                        rows={4}
+                        fontFamily="monospace"
+                        fontSize="0.65rem"
+                        bg="rgba(0,0,0,0.3)"
+                        borderColor="whiteAlpha.200"
+                        _hover={{ borderColor: "whiteAlpha.300" }}
+                        _focus={{ borderColor: "brand.accent" }}
+                        color="brand.parchment"
+                      />
+                      {mapError ? (
+                        <Text color="#E06A5E" fontSize="0.65rem" fontFamily="SpaceGrotesk">
+                          {mapError}
+                        </Text>
+                      ) : (
+                        <Text fontSize="0.6rem" opacity={0.4} fontFamily="SpaceGrotesk">
+                          only you set this up · other players just join the room link
+                        </Text>
+                      )}
+                    </Flex>
+                  )}
+                </Flex>
+              </Box>
+            )}
+          </Box>
         </Flex>
       </Grid>
 
@@ -3194,134 +3974,6 @@ const HeroSelectLobby = ({
         onClose={() => setPreviewMap(null)}
         entry={previewMap}
       />
-
-      {/* ---------------- player plates + desktop dock ---------------- */}
-      {/* lg+ docks this bar to the viewport bottom (sticky, #765): the roster
-          and stage grids grow a row per ~9 heroes / ~7 boards, which used to
-          push the Create button and the seat plates below the fold. Sticky —
-          not fixed like the mobile bar — so the bar costs nothing while the
-          page is short, and the content that FOLLOWS it (AI hero menu,
-          custom-map textarea, server line) is never trapped underneath: once
-          you scroll to the very end the bar settles back into its in-flow
-          spot above them. The translucent gradient + blur only apply at lg,
-          where the bar actually floats over scrolled content. */}
-      <Flex
-        mt="1.25rem"
-        p="0.85rem 1rem"
-        borderRadius="0.9rem"
-        position={{ base: "relative", lg: "sticky" }}
-        bottom={{ lg: 0 }}
-        zIndex={{ lg: 10 }}
-        data-testid="pro-create-dock"
-        bg={{
-          base: "linear-gradient(180deg, #432a4a, #2a1630)",
-          lg: "linear-gradient(180deg, rgba(67,42,74,0.92), rgba(42,22,48,0.92))",
-        }}
-        border="1px solid"
-        borderColor="whiteAlpha.200"
-        boxShadow="0 12px 30px rgba(0,0,0,0.45)"
-        align="stretch"
-        gap="0.9rem"
-        flexWrap="wrap"
-        sx={{ lg: { backdropFilter: "blur(8px)" } }}
-      >
-        <Flex flex="1" gap="0.6rem" align="center" flexWrap="wrap" minW="0">
-          {renderPlates()}
-        </Flex>
-        {/* Compact dock row (plates left, summary + buttons right, one line
-            tall) — the old stacked column made the docked bar ~3 lines of
-            viewport. Mirrors the mobile bar's arrangement. */}
-        <Flex
-          direction={{ base: "column", lg: "row" }}
-          align={{ base: "stretch", lg: "center" }}
-          justify={{ lg: "flex-end" }}
-          gap="0.6rem"
-          minW="0"
-          display={{ base: "none", lg: "flex" }}
-        >
-          <Text
-            flex="1"
-            textAlign={{ lg: "right" }}
-            fontSize="0.72rem"
-            color="whiteAlpha.600"
-            fontFamily="SpaceGrotesk"
-            noOfLines={2}
-            minW="0"
-          >
-            {summary}
-          </Text>
-          {quickMatchButton("quick-match")}
-          {createButton}
-        </Flex>
-      </Flex>
-
-      {/* Duel AI hero picker — optional specific deck for the server bot. Only
-          when a duel opponent is set to AI; unchanged from the old Opponent row. */}
-      {!room && !multiplayer && opponent !== "human" && (
-        <Flex direction="column" alignItems="center" gap="0.3rem" mt="0.75rem">
-          <Menu placement="bottom">
-            <MenuButton as={Button} {...BTN} size="sm" rightIcon={<TbChevronDown />} isDisabled={heroes === null}>
-              AI hero: {aiHeroId ? heroNameOf(heroes, aiHeroId) : "Random"}
-            </MenuButton>
-            <MenuList bg="brand.surface" borderColor="whiteAlpha.300" maxH="16rem" overflowY="auto">
-              <MenuItem onClick={() => onSelectAiHero(null)} bg="transparent" _hover={{ bg: "whiteAlpha.100" }}>
-                Random
-              </MenuItem>
-              {(heroes ?? []).map((h) => (
-                <MenuItem key={h.heroId} onClick={() => onSelectAiHero(h.heroId)} bg="transparent" _hover={{ bg: "whiteAlpha.100" }}>
-                  {h.name}
-                </MenuItem>
-              ))}
-            </MenuList>
-          </Menu>
-          <Text fontSize="0.7rem" opacity={0.55}>
-            {aiHeroId
-              ? "the AI plays this hero — the game starts instantly"
-              : "the server picks the AI's deck at random — the game starts instantly"}
-          </Text>
-        </Flex>
-      )}
-
-      {!room && multiplayer && (
-        <Text mt="0.6rem" fontSize="0.7rem" opacity={0.6} textAlign="center" fontFamily="SpaceGrotesk">
-          Bot seats are filled by the server · human seats join with the room link.
-        </Text>
-      )}
-
-      {/* Custom board: the paste-JSON textarea, revealed only when the Custom…
-          stage is selected. Behavior (validation, BAD_MAP bounce) unchanged. */}
-      {!room && selectedMapId === CUSTOM_MAP_ID && (
-        <Box maxW="28rem" w="100%" mx="auto" mt="0.85rem">
-          <Flex direction="column" gap="0.4rem">
-            <Textarea
-              value={customMapJson}
-              onChange={(e) => onCustomMapJsonChange(e.target.value)}
-              placeholder="paste map JSON exported from /dev/map-editor — leave blank for the default board"
-              rows={4}
-              fontFamily="monospace"
-              fontSize="0.65rem"
-              bg="rgba(0,0,0,0.3)"
-              borderColor="whiteAlpha.200"
-              _hover={{ borderColor: "whiteAlpha.300" }}
-              _focus={{ borderColor: "brand.accent" }}
-              color="brand.parchment"
-            />
-            {mapError ? (
-              <Text color="#E06A5E" fontSize="0.65rem" fontFamily="SpaceGrotesk">
-                {mapError}
-              </Text>
-            ) : (
-              <Text fontSize="0.6rem" opacity={0.4} fontFamily="SpaceGrotesk">
-                only you set this up · other players just join the room link
-              </Text>
-            )}
-          </Flex>
-        </Box>
-      )}
-
-      <Text mt="0.85rem" fontSize="0.75rem" opacity={0.5} textAlign="center">
-        server: {status === "open" ? "connected" : status}
-      </Text>
 
       {/* ---------------- mobile fixed create bar ---------------- */}
       <Flex
@@ -4240,6 +4892,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
                   setSelectedHeroId(heroId);
                   setRolledHero(heroId !== effectiveHeroId);
                   setSelectedFormat("duel"); // v1 matches duels only
+                  rememberHero(heroId); // "Recently played" row (#768)
                   setQuickSearch(startQuickMatch(heroId, lobbies));
                 }
           }
@@ -4250,6 +4903,10 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
             // selected is exactly the signal that a roll happened, which the
             // waiting screen uses to mark the fighter with a 🎲.
             const wasRolled = heroId !== effectiveHeroId;
+            // Feed the lobby's "Recently played" row (#768). Browser-local and
+            // purely cosmetic — nothing here touches the frame we're about to
+            // send, and the id is already concrete (a Random pick is resolved).
+            rememberHero(heroId);
             if (room) {
               joinRoom(room, heroId);
               setSelectedHeroId(heroId);

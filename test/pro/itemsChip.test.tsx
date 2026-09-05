@@ -107,18 +107,41 @@ const click = async (el: Element) => {
 /** The 🎁 ITEMS segmented control, or null when the chip is (correctly) hidden. */
 const itemsChip = () => screen.queryByRole("group", { name: "Battlefield items" });
 
+/**
+ * The open board popover (#768). Every board past the setup rail's first three
+ * lives in there now, so a test that clicks one opens it first; the returned
+ * scope keeps the rail's own tiles — which carry the same labels — out of the
+ * query.
+ */
+const boards = async () => {
+  if (!screen.queryByRole("dialog", { name: "Choose a board" })) {
+    await click(screen.getByRole("button", { name: /All \d+ boards/ }));
+  }
+  return within(screen.getByRole("dialog", { name: "Choose a board" }));
+};
+
+/** Click a board by title, wherever it lives. */
+const pickBoard = async (title: string) => {
+  await click((await boards()).getByLabelText(title));
+};
+
 /** Select the Custom… stage and put `json` in the paste box. */
 const pasteCustomMap = async (json: string) => {
-  await click(screen.getByLabelText(/Custom board/));
+  await click((await boards()).getByLabelText(/Custom board/));
   const box = screen.getByPlaceholderText(/paste map JSON/);
   await act(async () => {
     fireEvent.change(box, { target: { value: json } });
   });
 };
 
+/** Lock a fighter. A hero can be on screen twice (roster + "Recently played"). */
+const pickFighter = async () => {
+  await click(screen.getAllByLabelText(/Ellen Ripley/)[0]);
+};
+
 /** Lock a fighter and press Create; returns the CREATE_ROOM frame that went out. */
 const createRoom = async (label = "Create") => {
-  await click(screen.getByLabelText(/Ellen Ripley/));
+  await pickFighter();
   await click(screen.getByRole("button", { name: label }));
   const created = sent.filter((m) => m.type === "CREATE_ROOM");
   expect(created).toHaveLength(1);
@@ -154,7 +177,7 @@ describe("🎁 ITEMS chip (issue #725)", () => {
 
   it("is hidden on a hand-clicked item-less catalog board", async () => {
     await mountPicker();
-    await click(screen.getByLabelText("Count's Castle"));
+    await pickBoard("Count's Castle");
     expect(itemsChip()).not.toBeInTheDocument();
     const msg = await createRoom();
     expect("itemsEnabled" in msg).toBe(false);
@@ -184,7 +207,7 @@ describe("🎁 ITEMS chip (issue #725)", () => {
     await click(within(itemsChip()!).getByRole("button", { name: "Off" }));
     // the room summary names the opted-out board ("no items"), like "no mulligan"
     // (rendered twice: the desktop plate area and the mobile fixed bar)
-    await click(screen.getByLabelText(/Ellen Ripley/));
+    await pickFighter();
     expect(screen.getAllByText(/no items/).length).toBeGreaterThan(0);
     const msg = await createRoom();
     expect(msg.customMap?.id).toBe("wedding-crashers");
@@ -197,7 +220,7 @@ describe("🎁 ITEMS chip (issue #725)", () => {
     await pasteCustomMap(ITEMS_MAP_JSON);
     await click(within(itemsChip()!).getByRole("button", { name: "Off" }));
     // …then switch to a catalog board: the chip hides and the field must not ride.
-    await click(screen.getByLabelText("Count's Castle"));
+    await pickBoard("Count's Castle");
     expect(itemsChip()).not.toBeInTheDocument();
     const msg = await createRoom();
     expect(msg.customMap?.id).toBe("counts-castle");
@@ -209,7 +232,7 @@ describe("🎁 ITEMS chip (issue #725)", () => {
     await pasteCustomMap("{not json");
     expect(itemsChip()).not.toBeInTheDocument();
     // the create click surfaces the parse error instead of sending anything
-    await click(screen.getByLabelText(/Ellen Ripley/));
+    await pickFighter();
     await click(screen.getByRole("button", { name: "Create" }));
     expect(sent.filter((m) => m.type === "CREATE_ROOM")).toHaveLength(0);
     // the textarea's helper line is swapped for the inline error
@@ -224,7 +247,7 @@ describe("🎁 ITEMS chip (issue #725)", () => {
   describe("Wedding Crashers — the catalog items board (#727)", () => {
     it("shows the chip on the duel picker and ships the board with its four items", async () => {
       await mountPicker();
-      await click(screen.getByLabelText("Wedding Crashers"));
+      await pickBoard("Wedding Crashers");
       expect(itemsChip()).toBeInTheDocument();
       expect(within(itemsChip()!).getByRole("button", { name: "On" })).toHaveAttribute(
         "aria-pressed",
@@ -247,7 +270,7 @@ describe("🎁 ITEMS chip (issue #725)", () => {
 
     it("switching Off sends itemsEnabled: false with the catalog board", async () => {
       await mountPicker();
-      await click(screen.getByLabelText("Wedding Crashers"));
+      await pickBoard("Wedding Crashers");
       await click(within(itemsChip()!).getByRole("button", { name: "Off" }));
       const msg = await createRoom();
       expect(msg.customMap?.id).toBe("wedding-crashers");
@@ -260,13 +283,13 @@ describe("🎁 ITEMS chip (issue #725)", () => {
 
     it("is absent from the multiplayer pickers — two start slots, duel only", async () => {
       await mountPicker();
-      expect(screen.getByLabelText("Wedding Crashers")).toBeInTheDocument();
+      expect((await boards()).getByLabelText("Wedding Crashers")).toBeInTheDocument();
       for (const format of ["3P FFA", "2v2"]) {
         await click(screen.getByRole("button", { name: format }));
-        expect(screen.queryByLabelText("Wedding Crashers")).not.toBeInTheDocument();
+        expect((await boards()).queryByLabelText("Wedding Crashers")).not.toBeInTheDocument();
       }
       await click(screen.getByRole("button", { name: "Duel" }));
-      expect(screen.getByLabelText("Wedding Crashers")).toBeInTheDocument();
+      expect((await boards()).getByLabelText("Wedding Crashers")).toBeInTheDocument();
     });
   });
 
