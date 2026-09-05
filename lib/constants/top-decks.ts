@@ -706,8 +706,8 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     // not the credit. The exact rules version the engine read (8AgKtkkwX) is
     // recorded in the snapshot's `note` and in evergreen manifest.json instead.
     //
-    // Engine serves this hero at tier `lab` — playable, balance not final — so the
-    // tile carries the caution badge and `tier` mirrors the server listing.
+    // Graduated from the lab 2026-09-05 alongside the engine's tier promotion
+    // (engine #551 — the TIME countdown dial settled in live play).
     id: "zmGV",
     name: "Skull Kid (Majora's Mask)",
     hero: "Skull Kid",
@@ -717,8 +717,6 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     likes: 10,
     // Majora purple, off the deck's own cardback (the source deck's highlightColour).
     highlightColour: "#2e0e4e",
-    lab: true,
-    tier: "lab",
     // Repo-relative (Kenshiro/Luke/Vader precedent): the author's own cardback,
     // mirrored off i.imgur.com so the tile renders on localhost and preview builds
     // and the deck stays evergreen — the same file zmGV's appearance block hotlinks.
@@ -739,8 +737,8 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     // and the splash at once. `original` stays off: the unmatched.cards page is real,
     // it just isn't the credit.
     //
-    // Engine serves this hero at tier `lab` — playable, balance not final — so the
-    // tile carries the caution badge and `tier` mirrors the server listing.
+    // Graduated from the lab 2026-09-05 alongside the engine's tier promotion
+    // (engine #551 — the BROADCAST dial settled in live play).
     id: "37z5",
     name: "Cecil Palmer (Welcome To Night Vale)",
     hero: "Cecil Palmer",
@@ -748,8 +746,6 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     likes: 24,
     // Night Vale violet, off the deck's own `appearance.highlightColour`.
     highlightColour: "#653e7a",
-    lab: true,
-    tier: "lab",
     // Repo-relative (Kenshiro/Skull Kid precedent): the author's own cardback,
     // mirrored off the imgur file BOTH publications point at — the club's `cardsBack`
     // and 37z5's `appearance.cardbackUrl` are two URLs for the same bytes (identical
