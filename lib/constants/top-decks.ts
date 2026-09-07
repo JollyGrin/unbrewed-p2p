@@ -791,9 +791,9 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     //
     // Club-only, like Boba: no unmatched.cards page exists, so `original: true`
     // suppresses the lobby deep-link and `sourceUrl` credits the club (Vader /
-    // Maul / Luke / Boba precedent). Engine serves the hero at tier `lab`, so
-    // `lab` drives the create-screen caution badge and `tier` keeps the deck out
-    // of the sandbox community picker and the invite copy.
+    // Maul / Luke / Boba precedent). Graduated from the lab 2026-09-08 alongside
+    // the engine's tier promotion (engine #557 — the defender swap and the
+    // prompting death reaction settled in live play).
     id: "ellen-ripley",
     name: "Ellen Ripley (Aliens)",
     hero: "Ellen Ripley",
@@ -804,8 +804,6 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     // purple (#2e0e4e) is darker and bluer.
     highlightColour: "#3b1d63",
     original: true,
-    lab: true,
-    tier: "lab",
     // Repo-relative (Kenshiro/Skull Kid/Cecil/Boba precedent): the author's own
     // cardback, mirrored off i.imgur.com so the tile renders on localhost and
     // preview builds and the deck stays evergreen.
