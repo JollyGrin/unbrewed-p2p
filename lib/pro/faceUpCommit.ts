@@ -66,9 +66,8 @@ export const FACE_UP_TITLE =
  *
  * The engine leaves `ViewSelf.committedCard` null and `ViewOpponent.hasCommitted`
  * false for a face-up commit — the card is public on `combat.attackerCard` instead —
- * so every "has this seat committed?" derivation that reads those two fields would
- * otherwise show the attacker as still deciding while their card sits face up on the
- * panel. Callers OR this in.
+ * so every "has this seat committed?" derivation that reads those two fields answers
+ * "no" for a seat that has visibly committed. Callers OR this in.
  */
 export const faceUpCommitter = (view: PlayerView): PlayerId | null =>
   isFaceUpPreRevealAttack(view.combat) ? view.combat!.attackerPlayer : null;
@@ -77,9 +76,13 @@ export const faceUpCommitter = (view: PlayerView): PlayerId | null =>
  * Stamp `hasCommitted` on the seat holding a face-up commit.
  *
  * The two seat projections (gameLog, fxEvents) and the HUD's plate list all build a
- * `ViewPlayer` per seat out of fields that go EMPTY for a face-up play, and all three
- * would otherwise show the attacker as still deciding over their own played card. A
- * >2-player seat is the case the per-field fix misses: its `ViewPlayer` comes off the
+ * `ViewPlayer` per seat out of fields that go EMPTY for a face-up play, so all three
+ * would otherwise describe the attacker as uncommitted. Today the only consumer that
+ * acts on it is fxEvents' commit beat — no plate draws a commit indicator, and the
+ * panel's face-down tile keys on `combat.stage` — so this is about the projections
+ * agreeing with each other and with the wire, not about a pixel.
+ *
+ * A >2-player seat is the case a per-field fix misses: its `ViewPlayer` comes off the
  * wire whole, so the correction has to be applied to the map, not to the projection.
  *
  * Returns the same map, mutated in place (every caller has just built it privately).

@@ -303,7 +303,8 @@ describe("the action dock", () => {
 
   it("labels the OPTIONAL card's two variants apart", () => {
     expect(describeAction(CATALOG, plain)).toBe("Commit Crushing Blow (5/1)");
-    expect(describeAction(CATALOG, faceUp)).toBe("Commit Crushing Blow (5/1) (face up)");
+    // A middot, not a second bracket — the label already ends in a "(5/1)" stat block.
+    expect(describeAction(CATALOG, faceUp)).toBe("Commit Crushing Blow (5/1) · face up");
   });
 
   it("offers both hand affordances, the face-up one marked", () => {
@@ -322,7 +323,7 @@ describe("the action dock", () => {
   it("offers the MANDATORY card alone — one row, still marked", () => {
     const rows = dockRows([faceUp]);
     expect(rows).toHaveLength(1);
-    expect(describeAction(CATALOG, rows[0].action)).toContain("(face up)");
+    expect(describeAction(CATALOG, rows[0].action)).toContain("· face up");
   });
 
   it("leaves a plain commit's label untouched", () => {

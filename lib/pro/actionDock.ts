@@ -101,9 +101,11 @@ export const describeAction = (
       // `faceUp` (#772 ↔ engine #555): the server enumerates the face-up commit as
       // its own variant of the same card, so the two rows must not read alike — the
       // choice they offer is whether the defender gets to see the attack. A card
-      // whose def makes it MANDATORY is offered ONLY this way, and the suffix is then
-      // the only thing that says why the opponent is about to see it.
-      return `Commit ${cardLabel(catalog, a.card)}${a.faceUp ? " (face up)" : ""}`;
+      // whose def makes it MANDATORY is offered ONLY this way, and the marker is then
+      // the only thing that says why the opponent is about to see it. Set off with a
+      // MIDDOT, not a second bracket: `cardLabel` already ends in "(5/1)", and
+      // "(5/1) (face up)" reads as two halves of one stat block.
+      return `Commit ${cardLabel(catalog, a.card)}${a.faceUp ? " · face up" : ""}`;
     case "COMMIT_DEFENSE_CARD":
       return `Defend with ${cardLabel(catalog, a.card)}`;
     case "DECLINE_DEFENSE":

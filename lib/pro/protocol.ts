@@ -1510,7 +1510,7 @@ export interface ViewSelf {
   discard: CardInstanceId[];
   ongoingScheme?: CardInstanceId | null; // public face-up ongoing scheme, if any (older views may omit)
   piles?: Record<string, PileEntry[]>; // v25: named public set-aside piles ("tucked under the hero card"), card identities visible to EVERY viewer; absent when nothing is tucked. v33: each entry is a bare id (this seat controls it) or `{card, controller}` (an opponent tucked it here and still owns it) — see PileEntry
-  committedCard: CardInstanceId | null; // own face-down commit (visible to self); NULL for a face-up commit (engine v0.78.0) — that card is public on `combat.attackerCard`
+  committedCard: CardInstanceId | null; // own face-down commit (visible to self)
   counters: Record<string, number>;
   // v16: active named flags (setFlag op), keyed by flag name -> true. Generic
   // public-state primitive (tide today; stances/charges/forms in future decks) —

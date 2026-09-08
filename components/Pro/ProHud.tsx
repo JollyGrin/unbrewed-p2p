@@ -1327,10 +1327,18 @@ const BetaFeaturesChip = () => {
 /**
  * #772 ↔ engine #555: a FACE-UP commit leaves `ViewSelf.committedCard` null and the
  * opponent's `hasCommitted` false — the card is public on `combat.attackerCard`
- * instead — so the attacker's own plate would read "still deciding" over a card
- * everyone can already see. A live multi-seat view carries its `ViewPlayer`s whole
- * off the wire, so THAT branch needs the same correction the duel projection below
- * makes field by field.
+ * instead — so this stamps the committing seat back to `hasCommitted: true`.
+ *
+ * NOTHING ON THE PLATE DRAWS IT TODAY. The seat plates render no commit state, and
+ * the combat panel's face-down cardback tile keys on `combat.stage`, not on this
+ * flag; the only live consumer of the projected `hasCommitted` is fxEvents' commit
+ * beat. The stamp is here so the ViewPlayer these projections hand out describes the
+ * seat truthfully — a future plate indicator, log line or god-view reader inherits
+ * the right answer instead of re-deriving it — and so `hudSeats` cannot disagree
+ * with the two sibling projections in gameLog.ts and fxEvents.ts.
+ *
+ * A live multi-seat view carries its `ViewPlayer`s whole off the wire, so THAT branch
+ * needs the same correction the duel projection below makes field by field.
  */
 const faceUpSeats = (view: PlayerView, seats: ViewPlayer[]): ViewPlayer[] => {
   const committer = faceUpCommitter(view);

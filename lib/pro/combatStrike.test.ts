@@ -390,6 +390,26 @@ describe("useCombatStrike", () => {
     expect(result.current.lingeringCombat).toBeNull();
   });
 
+  it.each([
+    ["a synthetic sub-attack (Grievous)", "sub-attack:p1/hero"],
+    ["a linked effect attack (Boba's SEISMIC CHARGE)", "boba-fett/seismic-charge#linked"],
+  ])("takes the panel at once for %s at COMMIT_DEFENSE", (_name, instance) => {
+    // The SHIPPED pre-reveal faces. Both arrive at COMMIT_DEFENSE with the attack slot
+    // already filled and both have always outranked a frozen snapshot on the spot —
+    // #772's face-up inference must not quietly reclassify either into the new "this
+    // is only a commit, keep holding" arm. Pinned at the HOOK, not just in
+    // combatHasRevealed, because the hold is what a player actually sees.
+    const { result, rerender } = renderHook((props: { s: ReturnType<typeof snap> }) => useCombatStrike(props.s), {
+      initialProps: { s: snap(view({ combat: combat({ stage: "DURING" }) })) },
+    });
+    act(() => rerender({ s: snap(view({ combat: null }), resolvedEnded("ATTACKER_WON", 2)) }));
+    expect(result.current.lingeringCombat).not.toBeNull();
+
+    const fresh = combat({ stage: "COMMIT_DEFENSE", attackerCard: card(instance), defenderCard: null });
+    act(() => rerender({ s: snap(view({ combat: fresh })) }));
+    expect(result.current.lingeringCombat).toBeNull();
+  });
+
   it("HOLDS the linger under a new combat whose attack card is only face UP (#772)", () => {
     const { result, rerender } = renderHook((props: { s: ReturnType<typeof snap> }) => useCombatStrike(props.s), {
       initialProps: { s: snap(view({ combat: combat({ stage: "DURING" }) })) },
