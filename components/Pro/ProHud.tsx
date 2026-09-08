@@ -64,6 +64,7 @@ import {
 import { InGameAccountChip } from "@/components/Account/AccountChip";
 import { SPOTLIGHT_Z } from "./ActionSpotlight";
 import { useAccount } from "@/lib/account/useAccount";
+import { faceUpCommitter } from "@/lib/pro/faceUpCommit";
 import { seatNameplate } from "@/lib/pro/playerIdentity";
 import {
   BadgeCluster,
@@ -1324,6 +1325,21 @@ const BetaFeaturesChip = () => {
 // ---------------------------------------------------------------------------
 
 /**
+ * #772 ↔ engine #555: a FACE-UP commit leaves `ViewSelf.committedCard` null and the
+ * opponent's `hasCommitted` false — the card is public on `combat.attackerCard`
+ * instead — so the attacker's own plate would read "still deciding" over a card
+ * everyone can already see. A live multi-seat view carries its `ViewPlayer`s whole
+ * off the wire, so THAT branch needs the same correction the duel projection below
+ * makes field by field.
+ */
+const faceUpSeats = (view: PlayerView, seats: ViewPlayer[]): ViewPlayer[] => {
+  const committer = faceUpCommitter(view);
+  return committer
+    ? seats.map((s) => (s.id === committer ? { ...s, hasCommitted: true } : s))
+    : seats;
+};
+
+/**
  * The seat list the HUD renders (issue #708 lifted it out of ProHud so the
  * mobile match strip can build the same one).
  *
@@ -1333,7 +1349,7 @@ const BetaFeaturesChip = () => {
  */
 export const hudSeats = (view: PlayerView): ViewPlayer[] =>
   view.players.length
-    ? view.players
+    ? faceUpSeats(view, view.players)
     : [
         {
           id: view.self.id,
@@ -1351,7 +1367,7 @@ export const hudSeats = (view: PlayerView): ViewPlayer[] =>
           discard: view.self.discard,
           ongoingScheme: view.self.ongoingScheme ?? null,
           committedCard: view.self.committedCard,
-          hasCommitted: !!view.self.committedCard,
+          hasCommitted: !!view.self.committedCard || faceUpCommitter(view) === view.self.id,
           counters: view.self.counters,
           piles: view.self.piles,
           flags: view.self.flags,
@@ -1374,7 +1390,8 @@ export const hudSeats = (view: PlayerView): ViewPlayer[] =>
               deckCount: view.opponent.deckCount,
               discard: view.opponent.discard,
               ongoingScheme: view.opponent.ongoingScheme ?? null,
-              hasCommitted: view.opponent.hasCommitted,
+              hasCommitted:
+                view.opponent.hasCommitted || faceUpCommitter(view) === view.opponent.id,
               counters: view.opponent.counters,
               piles: view.opponent.piles,
               flags: view.opponent.flags,

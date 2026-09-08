@@ -949,7 +949,22 @@ export type Action =
   // attachItem (v17): the attacker may attach the COMBAT item on its space to this
   // card — decided BEFORE the defender's defend decision, and public. The server
   // offers both the plain and attach variants; absent = no attach.
-  | { type: "COMMIT_ATTACK_CARD"; player: PlayerId; card: CardInstanceId; attachItem?: boolean }
+  // faceUp (engine v0.78.0, #555 — `CardDef.faceUp`): commit this attack card FACE UP. The
+  // card lands on `combat.attackerCard` at COMMIT_DEFENSE, public to EVERY viewer (the same
+  // pre-reveal shape as a sub-attack / linked card), `hasCommitted` stays false for the
+  // attacker, and `CARD_COMMITTED` carries `card`. Fully enumerated like attachItem: an
+  // OPTIONAL card is offered both ways (× attachItem), a MANDATORY card ONLY face up; the
+  // client sends back exactly what it was offered. PURELY ADDITIVE — PROTOCOL_VERSION stays
+  // 34 under the v0.69.0 stance above: the variant only ever appears in `legalActions` for a
+  // card whose def declares `faceUp`, no shipped deck declares one, and no existing message
+  // grows a key. An older client degrades safely: it never sees the variant until a consumer
+  // deck ships (gated on p2p #772); if it did, its plain `{card}` for a MANDATORY card is
+  // refused by the server's membership check (it cannot play the card and cannot cheat), and
+  // it already renders a populated pre-reveal `attackerCard`. What the p2p side must do:
+  // sync this file; offer the "(face up)" variant in the action dock; decide "revealed" from
+  // `combat.stage`, not from `attackerCard` becoming non-null; draw the face-up card with a
+  // badge for every viewer at COMMIT_DEFENSE; show the known attack above the defense picker.
+  | { type: "COMMIT_ATTACK_CARD"; player: PlayerId; card: CardInstanceId; attachItem?: boolean; faceUp?: true }
   // attachItem (v17): the defender may attach the COMBAT item on its space.
   | { type: "COMMIT_DEFENSE_CARD"; player: PlayerId; card: CardInstanceId; attachItem?: boolean }
   | { type: "DECLINE_DEFENSE"; player: PlayerId }
@@ -1003,7 +1018,8 @@ export type GameEvent =
   | { type: "SCHEME_PLAYED"; player: PlayerId; card: CardInstanceId }
   | { type: "CARD_DISCARDED"; player: PlayerId; card: CardInstanceId; reason: "HAND_LIMIT" | "BOOST" | "COMBAT" | "EFFECT" | "MILL" }
   | { type: "ATTACK_DECLARED"; attacker: FighterId; target: FighterId }
-  | { type: "CARD_COMMITTED"; player: PlayerId }
+  // `card` (engine v0.78.0, #555) is present ONLY for a FACE-UP commit — public to every seat.
+  | { type: "CARD_COMMITTED"; player: PlayerId; card?: CardInstanceId }
   | { type: "CARDS_REVEALED"; attackerCard: CardInstanceId; defenderCard: CardInstanceId | null }
   // v34 (#493): the DEFENDING FIGHTER changed mid-combat (`setCombatDefender` — Ellen Ripley
   // *GET BEHIND ME*, "if they do, the other fighter is now the defender"). Same combat, same
@@ -1494,7 +1510,7 @@ export interface ViewSelf {
   discard: CardInstanceId[];
   ongoingScheme?: CardInstanceId | null; // public face-up ongoing scheme, if any (older views may omit)
   piles?: Record<string, PileEntry[]>; // v25: named public set-aside piles ("tucked under the hero card"), card identities visible to EVERY viewer; absent when nothing is tucked. v33: each entry is a bare id (this seat controls it) or `{card, controller}` (an opponent tucked it here and still owns it) — see PileEntry
-  committedCard: CardInstanceId | null; // own face-down commit (visible to self)
+  committedCard: CardInstanceId | null; // own face-down commit (visible to self); NULL for a face-up commit (engine v0.78.0) — that card is public on `combat.attackerCard`
   counters: Record<string, number>;
   // v16: active named flags (setFlag op), keyed by flag name -> true. Generic
   // public-state primitive (tide today; stances/charges/forms in future decks) —
@@ -1549,7 +1565,7 @@ export interface ViewOpponent {
   discard: CardInstanceId[]; // discard is public
   ongoingScheme?: CardInstanceId | null; // public face-up ongoing scheme, if any (older views may omit)
   piles?: Record<string, PileEntry[]>; // v25: named public set-aside piles ("tucked under the hero card"), card identities visible to EVERY viewer; absent when nothing is tucked. v33: each entry is a bare id (this seat controls it) or `{card, controller}` (an opponent tucked it here and still owns it) — see PileEntry
-  hasCommitted: boolean; // face-down commit exists, identity hidden
+  hasCommitted: boolean; // face-down commit exists, identity hidden — FALSE for a face-up commit (engine v0.78.0), whose card is public on `combat.attackerCard`
   counters: Record<string, number>; // counters are public
   flags: Record<string, boolean>; // v16: active named flags, public (see ViewSelf.flags)
   wonCombatThisTurn: boolean; // public, turn-scoped (see ViewSelf.wonCombatThisTurn)
@@ -1594,8 +1610,8 @@ export interface ViewPlayer {
   discard: CardInstanceId[];
   ongoingScheme?: CardInstanceId | null; // public face-up ongoing scheme, if any (older views may omit)
   piles?: Record<string, PileEntry[]>; // v25: named public set-aside piles ("tucked under the hero card"), card identities visible to EVERY viewer; absent when nothing is tucked. v33: each entry is a bare id (this seat controls it) or `{card, controller}` (an opponent tucked it here and still owns it) — see PileEntry
-  committedCard?: CardInstanceId | null; // own face-down commit, present only for self
-  hasCommitted: boolean;
+  committedCard?: CardInstanceId | null; // own face-down commit, present only for self (null for a face-up commit — the card is on `combat.attackerCard`)
+  hasCommitted: boolean; // face-down commit exists — false for a face-up commit (engine v0.78.0)
   counters: Record<string, number>;
   flags: Record<string, boolean>; // v16: active named flags, public (see ViewSelf.flags)
   wonCombatThisTurn: boolean; // public, turn-scoped (see ViewSelf.wonCombatThisTurn)
@@ -1626,7 +1642,11 @@ export interface ViewCombat {
     | "AFTER"
     | "HERO_POST"
     | "CLEANUP";
-  // Revealed cards only — null before reveal / if defender declined.
+  // PUBLIC cards only — null before reveal / if defender declined. `attackerCard` may be
+  // populated at COMMIT_DEFENSE, before the defender acts, when it is public: a sub-attack
+  // (`sub-attack:` id), a linked printed card (v32), or — engine v0.78.0 — a hand card the
+  // attacker played FACE UP (an ordinary `<id>#n`; tell it apart from a revealed card by
+  // `stage === 'COMMIT_DEFENSE'`, never by the slot becoming non-null).
   attackerCard: ViewCombatCard | null;
   defenderCard: ViewCombatCard | null;
   additionalDefenseCard: ViewCombatCard | null;

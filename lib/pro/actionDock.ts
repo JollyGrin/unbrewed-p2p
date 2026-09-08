@@ -98,7 +98,12 @@ export const describeAction = (
       return `Attack ${targetName} with ${attackerName}${badge != null ? ` ${badge}` : ""}`;
     }
     case "COMMIT_ATTACK_CARD":
-      return `Commit ${cardLabel(catalog, a.card)}`;
+      // `faceUp` (#772 ↔ engine #555): the server enumerates the face-up commit as
+      // its own variant of the same card, so the two rows must not read alike — the
+      // choice they offer is whether the defender gets to see the attack. A card
+      // whose def makes it MANDATORY is offered ONLY this way, and the suffix is then
+      // the only thing that says why the opponent is about to see it.
+      return `Commit ${cardLabel(catalog, a.card)}${a.faceUp ? " (face up)" : ""}`;
     case "COMMIT_DEFENSE_CARD":
       return `Defend with ${cardLabel(catalog, a.card)}`;
     case "DECLINE_DEFENSE":
@@ -249,6 +254,11 @@ export interface AttachItem {
  * labeled "<verb> + <item> (+N)" so the opt-in is explicit. The attach decision is
  * the server's to offer (attacker commits before the defender decides); this only
  * labels what was offered.
+ *
+ * v0.78.0 face-up commits (#772 ↔ engine #555) ride the SAME pattern one axis over:
+ * an OPTIONAL face-up card is offered both ways (× attachItem, so up to four
+ * entries), a MANDATORY one only face up, and the face-up entry is labeled
+ * "<verb> … (face up)". Nothing is decided here either — the server enumerated it.
  */
 export const cardAffordances = (
   legalActions: Action[],
@@ -269,6 +279,9 @@ export const cardAffordances = (
               : "Discard"; // DISCARD_TO_LIMIT — the only remaining card-carrying type
     const attaches =
       (a.type === "COMMIT_ATTACK_CARD" || a.type === "COMMIT_DEFENSE_CARD") && a.attachItem === true;
-    const label = attaches && attachItem ? `${base} + ${attachItem.label} (+${attachItem.value})` : base;
+    const withItem =
+      attaches && attachItem ? `${base} + ${attachItem.label} (+${attachItem.value})` : base;
+    const label =
+      a.type === "COMMIT_ATTACK_CARD" && a.faceUp ? `${withItem} (face up)` : withItem;
     return [{ action: a, label }];
   });

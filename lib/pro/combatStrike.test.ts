@@ -379,11 +379,34 @@ describe("useCombatStrike", () => {
     expect(result.current.lingeringCombat).not.toBeNull();
     expect(result.current.lingeringCombat?.attackDamageDealt).toBe(2);
 
-    // A brand-new live combat arrives before the linger TTL carrying a revealed
+    // A brand-new live combat arrives before the linger TTL carrying a REVEALED
     // attacker face — a resolving combat outranks the frozen one, so no hold (#602).
-    const fresh = combat({ stage: "COMMIT_DEFENSE", attackerCard: card("king-kong/uppercut#7"), defenderCard: null });
+    // The face has to come with a stage past the commit windows: since engine
+    // v0.78.0 a hand card sitting in the attack slot at COMMIT_DEFENSE is a face-up
+    // COMMIT (#772), one decision short of a reveal, and the case below pins that it
+    // holds instead — which is the whole reason "revealed" now reads the stage.
+    const fresh = combat({ stage: "DURING", attackerCard: card("king-kong/uppercut#7"), defenderCard: null });
     act(() => rerender({ s: snap(view({ combat: fresh })) }));
     expect(result.current.lingeringCombat).toBeNull();
+  });
+
+  it("HOLDS the linger under a new combat whose attack card is only face UP (#772)", () => {
+    const { result, rerender } = renderHook((props: { s: ReturnType<typeof snap> }) => useCombatStrike(props.s), {
+      initialProps: { s: snap(view({ combat: combat({ stage: "DURING" }) })) },
+    });
+    act(() => rerender({ s: snap(view({ combat: null }), resolvedEnded("ATTACKER_WON", 2)) }));
+    expect(result.current.lingeringCombat).not.toBeNull();
+
+    // Combat 2's attacker commits FACE UP inside combat 1's hold window. Nothing is
+    // revealed there yet, so combat 1's damage beat keeps the panel exactly as it does
+    // for a face-DOWN commit — a face-up commit must not yank it away early.
+    const faceUp = combat({
+      stage: "COMMIT_DEFENSE",
+      attackerCard: card("king-kong/uppercut#7"),
+      defenderCard: null,
+    });
+    act(() => rerender({ s: snap(view({ combat: faceUp })) }));
+    expect(result.current.lingeringCombat).not.toBeNull();
   });
 
   it("lingers the panel for a Feint that ends combat WITHOUT firing a strike (issue #147)", () => {
@@ -702,7 +725,14 @@ describe("combatHasRevealed", () => {
   });
 
   it("is true once the view carries a face, an outcome, or a post-commit stage", () => {
-    expect(combatHasRevealed(combat({ stage: "COMMIT_DEFENSE", defenderCard: null }), [])).toBe(true);
+    // A DEFENSE face is only ever public after the reveal, so it still settles it on
+    // its own. The attacker's slot no longer does when the card is a hand card at
+    // COMMIT_DEFENSE — that is engine v0.78.0's face-up commit (#772), covered in
+    // faceUpCommit.test.ts — so this case names the stage that makes it a reveal.
+    expect(combatHasRevealed(combat({ stage: "DURING", defenderCard: null }), [])).toBe(true);
+    expect(
+      combatHasRevealed(combat({ stage: "COMMIT_DEFENSE", attackerCard: null }), []),
+    ).toBe(true);
     expect(
       combatHasRevealed(combat({ stage: "COMMIT_DEFENSE", attackerCard: null, defenderCard: null, outcome: "UNKNOWN" }), [])
     ).toBe(true);

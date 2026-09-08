@@ -19,6 +19,7 @@ import type {
   ReplayStep,
   ViewPlayer,
 } from "./protocol";
+import { isFaceUpPreRevealAttack } from "./faceUpCommit";
 import { RUNTIME_PLAYER_IDS } from "./replayHeroes";
 
 /** Runtime-ordered seat ids present in a step (duel → [p1,p2]; ffa-3 → [p1,p2,p3]). */
@@ -52,6 +53,10 @@ export function toPlayerView(
   const me = requireStepPlayer(step, focus);
   const oppId = firstOpponent(step, focus);
   const opp = oppId ? requireStepPlayer(step, oppId) : null;
+  // The seat whose attack card is on the table FACE UP at this step, if any (#772).
+  const faceUpCommitterId = isFaceUpPreRevealAttack(step.combat)
+    ? step.combat!.attackerPlayer
+    : null;
   // Every seat in runtime order — ProHud renders one plate per entry, so an
   // ffa-3/team-2v2 replay shows all seats. Non-self seats carry counts only
   // (the plate never fans a non-local hand), matching the live redacted view.
@@ -69,7 +74,9 @@ export function toPlayerView(
       // Replay bundles before protocol v21 lack ongoingScheme; default null so
       // old replays still scrub while new ones show face-up ongoing schemes.
       ongoingScheme: p.ongoingScheme ?? null,
-      hasCommitted: p.committedCard !== null,
+      // #772: a FACE-UP commit is never in `committedCard` — the bundle records it
+      // on the step's combat, public, exactly as the live view does.
+      hasCommitted: p.committedCard !== null || faceUpCommitterId === id,
       counters: p.counters,
       // Set-aside piles (protocol v25). Bundles predate the field; spreading keeps
       // it ABSENT for an old replay, which is exactly how the live view encodes
@@ -129,7 +136,7 @@ export function toPlayerView(
             deckCount: opp.deckCount,
             discard: opp.discard,
             ongoingScheme: opp.ongoingScheme ?? null,
-            hasCommitted: opp.committedCard !== null,
+            hasCommitted: opp.committedCard !== null || faceUpCommitterId === oppId,
             counters: opp.counters,
             ...(opp.piles ? { piles: opp.piles } : {}),
             flags: {},
