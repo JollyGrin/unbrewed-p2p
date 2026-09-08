@@ -103,10 +103,16 @@ import {
   SubAttackChainProgress,
   SubAttackChainState,
   advanceSubAttackChain,
+  isSubAttackInstance,
   parentCardTitle,
   subAttackChainProgress,
 } from "@/lib/pro/subAttackChain";
 import { effectAttackTagFor, type EffectAttackTag } from "@/lib/pro/effectAttack";
+import {
+  FACE_UP_BADGE,
+  FACE_UP_TITLE,
+  isFaceUpPreRevealAttack,
+} from "@/lib/pro/faceUpCommit";
 import {
   AttachItem,
   cardAffordances,
@@ -1133,7 +1139,6 @@ const COMPARE_DUR = { gold: 1.1, dim: 1.0, neutral: 1.0 } as const;
  * engine #359 lets one card open three of these in a row and the synthetic faces are
  * otherwise indistinguishable.
  */
-const isSubAttackCard = (instance: CardInstanceId) => instance.startsWith("sub-attack:");
 const SubAttackFace = ({ title, note }: { title?: string; note?: string }) => (
   <Flex
     w="100%"
@@ -1174,6 +1179,7 @@ const CombatSlot = ({
   valueFx,
   comparePulse,
   subAttackFace,
+  faceUp,
 }: {
   label: string;
   card: ViewCombat["attackerCard"];
@@ -1200,6 +1206,11 @@ const CombatSlot = ({
   /** labels for a SYNTHETIC sub-attack face in this slot (#596). Ignored unless the
    *  revealed card is one; absent ⇒ the Grievous "Blast 'em!" default. */
   subAttackFace?: { title?: string; note?: string };
+  /** this face is on the table because the attacker played it FACE UP (#772), with
+   *  the defender still to answer — badged so nobody reads a pre-reveal face as a
+   *  reveal that already happened. Every viewer sees it: both seats, spectators and
+   *  the replay scrubber. */
+  faceUp?: boolean;
 }) => (
   <Box textAlign="center">
     <Text opacity={0.6} fontSize="0.75rem" mb="0.25rem">
@@ -1284,7 +1295,7 @@ const CombatSlot = ({
               sx={{ backfaceVisibility: "hidden" }}
             >
               {card &&
-                (isSubAttackCard(card.instance) ? (
+                (isSubAttackInstance(card.instance) ? (
                   <SubAttackFace title={subAttackFace?.title} note={subAttackFace?.note} />
                 ) : (
                   <CardFace card={resolveCard(card.instance)} fallback={cardLabel(catalog, card.instance)} />
@@ -1292,6 +1303,30 @@ const CombatSlot = ({
             </Box>
           </Box>
         </Box>
+      )}
+      {/* FACE-UP badge (#772 ↔ engine #555). The slot already knows how to draw a
+          pre-reveal face — a sub-attack and a linked effect attack have arrived that
+          way for ages — but a face-up commit is a HAND card, and without a marker the
+          defender reads their opponent's still-undefended attack as a reveal that has
+          already happened. Drawn OUTSIDE the flip container (whose front layer is
+          mirrored) so it reads right way round, and mirroring the "face-down" tag's
+          placement so the two states occupy the same spot. */}
+      {faceUp && card && (
+        <Tag
+          position="absolute"
+          top="-0.4rem"
+          left="50%"
+          transform="translateX(-50%)"
+          size="sm"
+          zIndex={2}
+          bg="#1F6B2A"
+          color="#F2EAD3"
+          cursor="help"
+          title={FACE_UP_TITLE}
+          aria-label={FACE_UP_TITLE}
+        >
+          {FACE_UP_BADGE}
+        </Tag>
       )}
     </Box>
     {card && (
@@ -1504,6 +1539,10 @@ const CombatPanel = ({
 }) => {
   const attackerCommitted = combat.stage !== "COMMIT_ATTACK";
   const pastReveal = !["COMMIT_ATTACK", "COMMIT_DEFENSE"].includes(combat.stage);
+  // The attacker played their card FACE UP (#772 ↔ engine #555): it is on the table,
+  // public to everyone, with the defender still to choose. Inferred from the view's
+  // shape — the wire carries no marker — by the one shared helper.
+  const faceUpAttack = isFaceUpPreRevealAttack(combat);
   const attackAnim = strike
     ? `${STRIKE_ATTACK_KF[strike.variant]} ${STRIKE_LUNGE_DUR}s cubic-bezier(0.3, 0, 0.2, 1) ${STRIKE_DELAY}s both`
     : undefined;
@@ -1586,10 +1625,29 @@ const CombatPanel = ({
           </Tag>
         )}
       </Flex>
+      {/* The defense picker's whole reason to exist (#772): when the attack was played
+          FACE UP the defender is choosing with information, so the panel says WHAT they
+          are defending against in words, above their hand, instead of making them read
+          it off a card face they have never been shown before the reveal. "printed" is
+          literal — `effectiveValue` at COMMIT_DEFENSE carries no boosts, and a hidden
+          ability boost is deliberately invisible on the wire. */}
+      {faceUpAttack && combat.defenderPlayer === you && combat.attackerCard && (
+        <Text
+          fontSize="0.8rem"
+          mb="0.5rem"
+          textAlign="center"
+          color="brand.parchment"
+          opacity={0.85}
+        >
+          Played face up: {cardTitle(catalog, combat.attackerCard.instance)} — printed value{" "}
+          {combat.attackerCard.effectiveValue}. Choose your defense knowing it.
+        </Text>
+      )}
       <Flex gap="1rem" justifyContent="center" position="relative">
         <CombatSlot
           label="attack"
           card={combat.attackerCard}
+          faceUp={faceUpAttack}
           resolveCard={resolveCard}
           facedownInstance={
             !combat.attackerCard && combat.attackerPlayer === you ? selfCommitted : null
@@ -5361,7 +5419,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   const panelCombat = panelCombatFor(view.combat, lingeringCombat, lingerHold);
   const chainCombat = panelCombat;
   const combatChain =
-    chainCombat?.attackerCard && isSubAttackCard(chainCombat.attackerCard.instance)
+    chainCombat?.attackerCard && isSubAttackInstance(chainCombat.attackerCard.instance)
       ? subAttackChainProgress(parentCardTitle(view.catalog, chain.parent), chain.hits)
       : null;
   // Effect-initiated attack tag (#671 ↔ engine #463, protocol v32). Gated off the
