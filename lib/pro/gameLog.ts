@@ -21,6 +21,7 @@ import { sweptFighters } from "./sweep";
 import { swappedFighters } from "./positionSwap";
 import { defenderSwapText } from "./combatDefender";
 import { combatOutcomeLogText } from "./combatOutcome";
+import { isFaceUpPreRevealAttack, withFaceUpCommit } from "./faceUpCommit";
 import { MITIGATION_COUNTER } from "./clockTower";
 import { rangeSpendLineFor } from "./rangePurchase";
 import { spaceLabel } from "./spaceLabel";
@@ -249,7 +250,7 @@ const playersById = (view: PlayerView): Map<PlayerId, ViewPlayer> => {
       tookDamageThisTurn: view.opponent.tookDamageThisTurn,
     });
   }
-  return players;
+  return withFaceUpCommit(players, view);
 };
 
 /**
@@ -381,7 +382,17 @@ export function diffViews(
       who: whoOf(next.combat.attackerPlayer),
     });
   }
-  if (next.combat?.attackerCard && !prev.combat?.attackerCard) {
+  // "Reveal" is the moment the DEFENDER's answer is known, which used to be the same
+  // moment `attackerCard` went non-null. Since engine v0.78.0 it isn't: a face-up
+  // commit (#772) puts the attack card there one decision EARLIER, at COMMIT_DEFENSE,
+  // and printing "Reveal: X vs no defense" then would announce a defense the defender
+  // has not had the chance to choose. So the pre-reveal face-up slot doesn't count as
+  // a reveal, and a slot that was already showing one still fires the line when the
+  // stage moves on. Every other combat — including a sub-attack or a linked effect
+  // attack, whose faces are pre-reveal too — reads exactly as it did before.
+  const nextFaceUp = isFaceUpPreRevealAttack(next.combat);
+  const prevShowedReveal = !!prev.combat?.attackerCard && !isFaceUpPreRevealAttack(prev.combat);
+  if (next.combat?.attackerCard && !nextFaceUp && !prevShowedReveal) {
     const def = next.combat.defenderCard;
     lines.push({
       text: `Reveal: ${label(next.combat.attackerCard.instance)} vs ${def ? label(def.instance) : "no defense"}`,
@@ -1017,6 +1028,22 @@ export function enrichLines(
         const seat = ctx.seat(e.player);
         added.push({
           text: `${seat} returned ${ctx.label(e.card)} to hand`,
+          who: whoOf(e.player),
+          cards: [e.card],
+        });
+        break;
+      }
+      // A FACE-UP commit (#772 ↔ engine #555, DSL v0.78.0). `card` rides the event
+      // only for that case — an ordinary face-down commit stays card-less and keeps
+      // logging nothing, exactly as it always has — so the presence of `card` is the
+      // whole trigger. The line lands in the COMMIT batch, one batch ahead of the
+      // "Reveal: …" the defender's answer produces, which is the order the table
+      // actually plays in.
+      case "CARD_COMMITTED": {
+        if (!e.card) break;
+        const seat = ctx.seat(e.player);
+        added.push({
+          text: `${seat} played ${ctx.label(e.card)} face up`,
           who: whoOf(e.player),
           cards: [e.card],
         });

@@ -24,6 +24,7 @@ import { seatCosmetics, tokenRimForSeat } from "@/lib/pro/seatCosmetics";
 import { combatOutcomeBannerText, isNoWinner } from "@/lib/pro/combatOutcome";
 import { spaceLabel } from "@/lib/pro/spaceLabel";
 import { combatSidesLine } from "@/lib/pro/combatDefender";
+import { FACE_UP_BADGE, FACE_UP_TITLE, isFaceUpPreRevealAttack } from "@/lib/pro/faceUpCommit";
 import { badgedFighterName, squadBadges } from "@/lib/pro/squadNumbers";
 import {
   CardInstanceId,
@@ -445,9 +446,18 @@ const ScrubberBody = ({
 
         {step.combat && (
           <Box bg="brand.surface" border="1px solid" borderColor="whiteAlpha.300" borderRadius="0.5rem" p="0.75rem">
-            <Flex gap="0.5rem" alignItems="center" mb="0.5rem">
+            <Flex gap="0.5rem" alignItems="center" mb="0.5rem" flexWrap="wrap">
               <Tag colorScheme="red" size="sm">COMBAT</Tag>
               <Text fontSize="0.8rem" opacity={0.7}>{step.combat.stage.replace(/_/g, " ").toLowerCase()}</Text>
+              {/* A face-up commit (#772 ↔ engine #555) is the one way an ATTACK card
+                  can be on screen at COMMIT_DEFENSE from a hand. A scrubber step
+                  carries no events, so without this badge the step reads as a reveal
+                  whose defense slot is mysteriously empty. */}
+              {isFaceUpPreRevealAttack(step.combat) && (
+                <Tag size="sm" bg="#1F6B2A" color="#F2EAD3" title={FACE_UP_TITLE} aria-label={FACE_UP_TITLE}>
+                  {FACE_UP_BADGE}
+                </Tag>
+              )}
             </Flex>
             {/* Who is fighting whom (protocol v34 ↔ engine #494). A replay step
                 carries a ViewCombat but NO events, so the mid-combat defender

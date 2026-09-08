@@ -10,6 +10,7 @@ import { FighterId, GameEvent, PlayerId, PlayerView, SpaceId, ViewPlayer } from 
 import { isViewerOnWinningTeam } from "./teams";
 import { sweptFighters } from "./sweep";
 import { isNoWinner } from "./combatOutcome";
+import { faceUpCommitter, isFaceUpPreRevealAttack, withFaceUpCommit } from "./faceUpCommit";
 
 export type FxEvent =
   /** combat card(s) flipped face-up — count 2 means attack+defense revealed together */
@@ -73,7 +74,7 @@ const playersById = (view: PlayerView): Map<PlayerId, ViewPlayer> => {
       tookDamageThisTurn: view.opponent.tookDamageThisTurn,
     });
   }
-  return players;
+  return withFaceUpCommit(players, view);
 };
 
 export function diffFxEvents(
@@ -91,14 +92,25 @@ export function diffFxEvents(
 
   // Combat commits/reveals first: the flip is the cause, damage the consequence,
   // so the sounds should layer in that order.
-  const selfCommitted = !!next.self.committedCard && !prev.self.committedCard;
+  const selfCommitted =
+    (!!next.self.committedCard && !prev.self.committedCard) ||
+    (faceUpCommitter(next) === next.you && faceUpCommitter(prev) !== next.you);
   const otherCommitted = [...nextPlayers].some(([player, nextPlayer]) => {
     if (player === next.you) return false;
     return nextPlayer.hasCommitted && !prevPlayers.get(player)?.hasCommitted;
   });
   if (selfCommitted || otherCommitted) events.push({ type: "commit" });
 
-  const attackerFlipped = !!next.combat?.attackerCard && !prev.combat?.attackerCard;
+  // The flip sound belongs to the REVEAL. A face-up commit (#772) fills the attack
+  // slot one decision earlier, at COMMIT_DEFENSE — that batch gets the commit beat
+  // above instead — and the reveal beat then fires on the batch that leaves that
+  // stage, even though the slot never changed from null. A sub-attack / linked-card
+  // face is untouched: it was, and stays, a reveal the moment it appears.
+  const nextFaceUp = isFaceUpPreRevealAttack(next.combat);
+  const attackerFlipped =
+    !!next.combat?.attackerCard &&
+    !nextFaceUp &&
+    (!prev.combat?.attackerCard || isFaceUpPreRevealAttack(prev.combat));
   const defenderFlipped = !!next.combat?.defenderCard && !prev.combat?.defenderCard;
   if (attackerFlipped || defenderFlipped) {
     events.push({ type: "reveal", count: attackerFlipped && defenderFlipped ? 2 : 1 });

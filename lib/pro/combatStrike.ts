@@ -26,6 +26,7 @@ import {
 } from "./protocol";
 import { LINGER_HOLD_MS, LINGER_TTL_MS, STRIKE_TTL_MS } from "./combatTiming";
 import { isNoWinner } from "./combatOutcome";
+import { isFaceUpPreRevealAttack } from "./faceUpCommit";
 
 /** win = attacker dealt damage (defense knocked back); blocked = defender won / 0
  *  damage (attack bounces off a shield); tie = resolved but neither side dealt
@@ -70,8 +71,9 @@ const combatKey = (attackerCard: string | null, defenderCard: string | null): st
  * stale cards over a combat that is resolving right now.
  *
  * Event-first (the batch that reveals is authoritative even before the view catches
- * up), then the view: any outcome, a revealed attacker face (the view carries
- * revealed cards only), or a stage past the two COMMIT stages.
+ * up), then the view: any outcome, a revealed attacker face (the view carries public
+ * cards, which before the reveal means a sub-attack, a linked card or — #772 — a
+ * face-up commit), or a stage past the two COMMIT stages.
  */
 export function combatHasRevealed(combat: ViewCombat, events: GameEvent[]): boolean {
   if (
@@ -84,7 +86,13 @@ export function combatHasRevealed(combat: ViewCombat, events: GameEvent[]): bool
   )
     return true;
   if (combat.outcome !== null || combat.attackDamageDealt !== null) return true;
-  if (combat.attackerCard || combat.defenderCard) return true;
+  // A pre-reveal FACE-UP attack card (#772 ↔ engine #555) is a commit, not a reveal:
+  // it lands at COMMIT_DEFENSE with the defender still to answer, so counting it here
+  // would collapse the previous combat's strike hold a whole decision early. The two
+  // OTHER pre-reveal faces — a synthetic sub-attack and a linked effect attack — keep
+  // counting as revealed exactly as they did before.
+  if (combat.attackerCard && !isFaceUpPreRevealAttack(combat)) return true;
+  if (combat.defenderCard) return true;
   return combat.stage !== "COMMIT_ATTACK" && combat.stage !== "COMMIT_DEFENSE";
 }
 
