@@ -838,18 +838,16 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
   },
   {
     // Jason Voorhees — unmatched.cards deck DOPE, Hubaris's HSR remaster (issue #749 ↔
-    // engine #541/#543). Engine serves the hero at tier `lab`, so `lab` drives the
-    // create-screen caution badge and `tier` keeps the deck out of the sandbox
-    // community picker and the invite copy. No `original` flag — the tile deep-links
-    // to unmatched.cards/decks/DOPE.
+    // engine #541/#543). Graduated from the lab 2026-09-08 alongside the engine's
+    // tier promotion (engine #563 — the author's playtest came back clean once
+    // `resolveOrder:'LAST'` landed as engine #560). No `original` flag — the tile
+    // deep-links to unmatched.cards/decks/DOPE.
     id: "DOPE",
     name: "Jason Voorhees",
     hero: "Jason Voorhees",
     author: "Hubaris",
     likes: 25,
     highlightColour: "#55ee39",
-    lab: true,
-    tier: "lab",
     // Repo-relative (Kenshiro/Skull Kid/Cecil/Boba/Ripley precedent): self-hosted so
     // the tile renders on localhost and preview builds. The card art, cardback and
     // hero render are the author's own finished renders, published via Calton

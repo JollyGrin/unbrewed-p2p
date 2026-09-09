@@ -17,7 +17,7 @@
  * the roster pushed as a HEROES frame: this suite lives entirely in the
  * pre-room picker. Hero ids are REAL ones, because "in the lab" is read from
  * the client deck table (lib/constants/top-decks) for servers that don't send a
- * tier — Batman and Jason Voorhees are lab decks there, King Kong and The
+ * tier — Batman and Clone Troopers are lab decks there, King Kong and The
  * Mandalorian are not.
  */
 import "@testing-library/jest-dom";
@@ -36,7 +36,7 @@ const HEROES = [
   { heroId: "king-kong", name: "King Kong", hp: 18, move: 2, reach: "MELEE" },
   { heroId: "batman", name: "Batman", hp: 14, move: 3, reach: "MELEE" },
   { heroId: "the-mandalorian", name: "The Mandalorian", hp: 14, move: 3, reach: "RANGED" },
-  { heroId: "jason-voorhees", name: "Jason Voorhees", hp: 20, move: 2, reach: "MELEE" },
+  { heroId: "clone-troopers", name: "Clone Troopers", hp: 2, move: 2, reach: "RANGED" },
 ];
 
 const fakeRouter = () =>
@@ -170,7 +170,7 @@ describe("roster sections (#768)", () => {
       "King Kong",
       "The Mandalorian",
     ]);
-    expect(tileNames("lab")).toEqual(["Batman", "Jason Voorhees"]);
+    expect(tileNames("lab")).toEqual(["Batman", "Clone Troopers"]);
 
     // the header counts the whole filtered pool, the sections their own share
     expect(screen.getByText("4 fighters")).toBeInTheDocument();
@@ -178,15 +178,16 @@ describe("roster sections (#768)", () => {
 
   it("orders every section A–Z by default", async () => {
     await mountPicker();
-    expect(tileNames("lab")).toEqual(["Batman", "Jason Voorhees"]);
+    expect(tileNames("lab")).toEqual(["Batman", "Clone Troopers"]);
   });
 
   it("reorders every section by arrival under Newest", async () => {
     await mountPicker();
-    // Newest = arrival order in the deck table, latest first: Jason Voorhees is
-    // the most recently wired deck, Batman one of the first.
+    // Newest = arrival order in the deck table, latest first: Clone Troopers is
+    // the most recently wired deck in the fixture, Batman one of the first —
+    // the opposite of the A–Z order above, so this actually discriminates.
     await sortBy("Newest");
-    expect(tileNames("lab")).toEqual(["Jason Voorhees", "Batman"]);
+    expect(tileNames("lab")).toEqual(["Clone Troopers", "Batman"]);
     expect(tileNames("balanced")).toEqual(["Random fighter", "King Kong", "The Mandalorian"]);
   });
 
@@ -214,7 +215,7 @@ describe("roster sections (#768)", () => {
     expect(tileNames("lab")).toEqual([
       "Random fighter",
       "Batman",
-      "Jason Voorhees",
+      "Clone Troopers",
     ]);
 
     await click(screen.getByRole("button", { name: "Lab decks only" }));
@@ -225,12 +226,12 @@ describe("roster sections (#768)", () => {
     await mountPicker();
     const search = screen.getByLabelText("Search fighters");
     await act(async () => {
-      fireEvent.change(search, { target: { value: "jason" } });
+      fireEvent.change(search, { target: { value: "clone" } });
     });
     expect(section("balanced")).toBeNull();
     expect(tileNames("lab")).toEqual([
       "Random fighter",
-      "Jason Voorhees",
+      "Clone Troopers",
     ]);
   });
 });
@@ -254,12 +255,13 @@ describe("recently played row (#768)", () => {
   it("renders the stored history as its own row, newest first", async () => {
     window.localStorage.setItem(
       "unbrewed-pro-recent-heroes",
-      JSON.stringify(["jason-voorhees", "king-kong"]),
+      JSON.stringify(["clone-troopers", "king-kong"]),
     );
     await mountPicker();
-    expect(tileNames("recent")).toEqual(["Jason Voorhees", "King Kong"]);
+    expect(tileNames("recent")).toEqual(["Clone Troopers", "King Kong"]);
     // …and they stay in their real section too — the row is a shortcut, not a move
     expect(tileNames("balanced")).toContain("King Kong");
+    expect(tileNames("lab")).toContain("Clone Troopers");
   });
 });
 
