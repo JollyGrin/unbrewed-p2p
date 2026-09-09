@@ -917,8 +917,12 @@ describe("Jason Voorhees (DOPE) deck data", () => {
 // when this landed (#566 in progress), so the ENGINE table below is the engine's
 // Gate-0 draft, field for field, and must be re-verified against
 // leon-s-kennedy.rules.ts at the pair merge (like the Boba/Ripley tables, but
-// against the draft until then). Template art: the payload's imageUrls and
-// cardback are uncredited third-party hotlinks and are blanked, not mirrored.
+// against the draft until then). INTERIM art (issue #784, Dean's call
+// 2026-09-09): the payload's plain illustrations — third-party RE4 screenshots/
+// wiki imagery the unmatched.cards template draws INSIDE the card frame — are
+// mirrored into public/evergreen-decks/art/NQ5XP per the #446 self-hosting
+// rule, wired as imageUrl ONLY (never cardImage); an unbrewed art pass
+// replaces them later.
 // ---------------------------------------------------------------------------
 
 describe("Leon S. Kennedy (NQ5XP) deck data", () => {
@@ -990,16 +994,49 @@ describe("Leon S. Kennedy (NQ5XP) deck data", () => {
     expect(rule[0].content).toContain("8 cost: Rocket Launcher");
   });
 
-  it("blanks every payload imageUrl and the cardback — template art until the deck-art pipeline", () => {
-    // The author's payload hotlinked third-party art across nine hosts (srcdn,
-    // fandom, capcom, ytimg, twimg, gstatic, gameranx, …) — deliberately blanked
-    // per the #446 self-hosting rule, nothing mirrored. Every face renders the
-    // generated template and the board the house cardback until the follow-up.
-    for (const card of cards) expect(card.imageUrl).toBe("");
-    expect(deck.deck_data.appearance.cardbackUrl).toBe("");
-    // and the note says why, so the omission travels with the data
-    expect(deck.note).toContain("TEMPLATE FALLBACK");
-    expect(deck.note).toContain("deck-art pipeline");
+  it("ships 14 of 15 faces as LOCAL interim illustrations that exist, imageUrl only", () => {
+    // Interim art (issue #784, Dean's call 2026-09-09): the payload's plain
+    // illustrations (third-party RE4 imagery the unmatched.cards template draws
+    // INSIDE the card frame) are mirrored into public/evergreen-decks/art/NQ5XP
+    // per the #446 self-hosting rule. They are illustrations, not the author's
+    // finished full-card renders, so they wire as imageUrl ONLY — cardImage
+    // stays unset so the template keeps rendering title/value/text around the
+    // picture (the Jason DOPE deck is the inverse shape).
+    for (const card of cards) {
+      expect(card.cardImage).toBeUndefined();
+      if (card.title === "Riot Gun") continue; // asserted alone below
+      expect(card.imageUrl).toMatch(/^\/evergreen-decks\/art\/NQ5XP\/[a-z0-9-]+\.webp$/);
+      expect(existsSync(join(DECKS_DIR, "..", card.imageUrl.replace(/^\//, "")))).toBe(true);
+    }
+    // Riot Gun alone stays on the generated template: its primagames source
+    // 403s even with a Referer and no substitute is permitted — the note says so.
+    expect(cards.find((c) => c.title === "Riot Gun")!.imageUrl).toBe("");
+    // every wired face is a DISTINCT local file
+    expect(new Set(cards.filter((c) => c.imageUrl !== "").map((c) => c.imageUrl)).size).toBe(14);
+  });
+
+  it("mirrors the cardback locally on the snapshot surface", () => {
+    // appearance.cardbackUrl feeds the SNAPSHOT consumers (PoolFns backfills
+    // each card's cardBackUrl from it; Bag and Connect read it too); the tile's
+    // separate cardbackUrl lives in lib/constants/top-decks.ts.
+    const cardback = deck.deck_data.appearance.cardbackUrl as string;
+    expect(cardback).toBe("/evergreen-decks/art/NQ5XP/cardback.webp");
+    expect(existsSync(join(DECKS_DIR, "..", cardback.replace(/^\//, "")))).toBe(true);
+  });
+
+  it("ships the board token portrait locally — a square crop of the cardback", () => {
+    // The cardback is a real image (unlike several fan_heroes covers), so the
+    // 512×512 token is its square crop centred on Leon's walking figure — the
+    // Jason token's "red field + silhouette" shape (#763 exemplar).
+    const token = deck.deck_data.hero.tokenImageUrl as string;
+    expect(token).toBe("/evergreen-decks/art/NQ5XP/token-leon-s-kennedy.webp");
+    expect(existsSync(join(DECKS_DIR, "..", token.replace(/^\//, "")))).toBe(true);
+  });
+
+  it("says the art is interim in the note, so the ruling travels with the data", () => {
+    expect(deck.note).toContain("INTERIM");
+    expect(deck.note).toContain("unbrewed art pass");
+    expect(deck.note).toContain("Riot Gun");
   });
 
   it("leaves NO remote URL anywhere in the shipped data", () => {
