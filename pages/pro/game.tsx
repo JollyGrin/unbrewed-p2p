@@ -11,7 +11,7 @@
  *   verified without the backend. Clicking a fighter shows its movement
  *   out-edges (adjacentTo ∪ oneWayTo) — reading MAP data for display, not rules.
  */
-import { CSSProperties, Fragment, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, FocusEvent as ReactFocusEvent, Fragment, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { useRouter } from "next/router";
 import { Box, Button, Flex, Grid, Input, InputGroup, InputLeftElement, Link, Menu, MenuButton, MenuItem, MenuList, NumberDecrementStepper, NumberIncrementStepper, NumberInput, NumberInputField, NumberInputStepper, Tag, Text, Textarea, Tooltip } from "@chakra-ui/react";
@@ -2248,9 +2248,16 @@ const RandomRosterTile = ({
 const StageSplashBody = ({
   stage,
   onViewBoard,
+  viewBoardRef,
 }: {
   stage: StagePreview;
   onViewBoard?: () => void;
+  /**
+   * The rail hands keyboard focus here when Tab walks off the end of the stage
+   * row (#781) — the button is in the splash, which precedes the row in the
+   * DOM, so forward Tab would otherwise skip the only way into the map preview.
+   */
+  viewBoardRef?: RefObject<HTMLButtonElement>;
 }) => {
   const entry = stage.kind === "board" ? stage.entry : undefined;
   return (
@@ -2312,6 +2319,7 @@ const StageSplashBody = ({
           <Box flex="1" minW="0" />
           {onViewBoard && (
             <Button
+              ref={viewBoardRef}
               type="button"
               onClick={onViewBoard}
               display={{ base: "none", lg: "inline-flex" }}
@@ -2353,6 +2361,7 @@ const SplashPanel = ({
   onViewDeck,
   stage,
   onViewBoard,
+  viewBoardRef,
 }: {
   hero: HeroListing | undefined;
   /** true → showing the committed pick ("P1 · locked in"); false → live preview */
@@ -2366,6 +2375,7 @@ const SplashPanel = ({
    */
   stage?: StagePreview;
   onViewBoard?: () => void;
+  viewBoardRef?: RefObject<HTMLButtonElement>;
 }) => {
   const deck = hero ? heroDeckMeta(hero.heroId) : undefined;
   const cardback = deck?.cardbackUrl;
@@ -2413,7 +2423,7 @@ const SplashPanel = ({
         }
       />
       {stage ? (
-        <StageSplashBody stage={stage} onViewBoard={onViewBoard} />
+        <StageSplashBody stage={stage} onViewBoard={onViewBoard} viewBoardRef={viewBoardRef} />
       ) : !hero ? (
         <Flex
           position="relative"
@@ -2529,6 +2539,13 @@ const SplashPanel = ({
  * what replaced the per-tile magnifier button: the inspect affordance moved to
  * the splash's "View board", so the tile is a single, whole click target again
  * and the art is never covered by a control.
+ *
+ * The tile deliberately does NOT tear the preview down on mouse-leave (#781).
+ * "View board" lives in the splash, several hundred pixels of dead grid away,
+ * so a per-tile `onMouseLeave` unmounted the button while the pointer was still
+ * travelling towards it. Clearing is the rail's job now — see
+ * `clearStagePreview` in the picker — and the tile only reports a blur, which
+ * the rail ignores while focus is still somewhere inside it.
  */
 const StageTile = ({
   ariaLabel,
@@ -2539,7 +2556,7 @@ const StageTile = ({
   dashed,
   onSelect,
   onHover,
-  onLeave,
+  onBlurAway,
 }: {
   ariaLabel: string;
   title: string;
@@ -2550,7 +2567,8 @@ const StageTile = ({
   dashed?: boolean;
   onSelect: () => void;
   onHover?: () => void;
-  onLeave?: () => void;
+  /** blur handler; the rail decides from `relatedTarget` whether to clear */
+  onBlurAway?: (e: ReactFocusEvent<HTMLElement>) => void;
 }) => (
   <Box
     as="button"
@@ -2558,8 +2576,7 @@ const StageTile = ({
     onClick={onSelect}
     onMouseEnter={onHover}
     onFocus={onHover}
-    onMouseLeave={onLeave}
-    onBlur={onLeave}
+    onBlur={onBlurAway}
     aria-pressed={selected}
     aria-label={ariaLabel}
     position="relative"
@@ -2918,6 +2935,42 @@ const HeroSelectLobby = ({
   const [rosterSort, setRosterSort] = useState<RosterSort>("az");
   const [stagePickerOpen, setStagePickerOpen] = useState(false);
   const [stageHover, setStageHover] = useState<StagePreview>();
+  // #781: the board preview is sticky across the WHOLE rail, not per tile. The
+  // only way into the full-map modal is "View board" inside the splash, so the
+  // preview has to outlive the trip from a tile to that button — it is torn
+  // down when the pointer/focus reaches somewhere that is plainly not the
+  // preview (the roster, the seats block, or off the setup grid entirely).
+  const splashRef = useRef<HTMLDivElement>(null);
+  const stageRowRef = useRef<HTMLDivElement>(null);
+  const boardPickerRef = useRef<HTMLDivElement>(null);
+  const viewBoardRef = useRef<HTMLButtonElement>(null);
+  const clearStagePreview = () => setStageHover(undefined);
+  /** true while `related` is still inside the splash / stage row / popover */
+  const insideStageRegion = (related: EventTarget | null) => {
+    if (!(related instanceof Node)) return false;
+    return [splashRef, stageRowRef, boardPickerRef].some((r) => !!r.current?.contains(related));
+  };
+  /**
+   * Keyboard mirror of the sticky hover: Tab off a tile towards "View board"
+   * fires the tile's blur first, and clearing there unmounted the button before
+   * focus could land on it.
+   */
+  const onStageTileBlur = (e: ReactFocusEvent<HTMLElement>) => {
+    if (!insideStageRegion(e.relatedTarget)) clearStagePreview();
+  };
+  /**
+   * The splash sits BEFORE the stage row in the DOM (it is above it on screen),
+   * so Shift+Tab out of the row already walks back to "View board"; forward Tab
+   * off the end of the row would sail past the splash entirely. Hand it over
+   * instead — but only from the last tile, so Tab still steps through the row.
+   */
+  const handoffTabToViewBoard = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Tab" || e.shiftKey) return;
+    const tiles = e.currentTarget.querySelectorAll("button");
+    if (e.target !== tiles[tiles.length - 1]) return;
+    viewBoardRef.current?.focus();
+    if (document.activeElement === viewBoardRef.current) e.preventDefault();
+  };
   // Recently-played fighters (localStorage, this browser only). Read after mount
   // so a static export's HTML and the first client render still match.
   const [recentHeroIds, setRecentHeroIds] = useState<string[]>([]);
@@ -3484,9 +3537,10 @@ const HeroSelectLobby = ({
         rowGap="1rem"
         alignItems="stretch"
         h={{ lg: "calc(100vh - 8.5rem)" }}
+        onMouseLeave={clearStagePreview}
       >
         {/* ---------------- setup rail ---------------- */}
-        <Box gridArea="splash" minW="0" minH="0" display="flex" flexDirection="column">
+        <Box ref={splashRef} gridArea="splash" minW="0" minH="0" display="flex" flexDirection="column">
           <SplashPanel
             hero={splashHero}
             locked={splashLocked}
@@ -3495,13 +3549,14 @@ const HeroSelectLobby = ({
             onViewBoard={() =>
               stageHover?.kind === "board" ? setPreviewMap(stageHover.entry) : undefined
             }
+            viewBoardRef={viewBoardRef}
           />
         </Box>
 
         {/* ---------------- stage row ---------------- */}
         <Box gridArea="stage" minW="0">
           {!room && (
-            <Box onMouseLeave={() => setStageHover(undefined)}>
+            <Box ref={stageRowRef}>
               <Flex align="center" justify="space-between" gap="0.5rem" mb="0.35rem">
                 <Text {...STRIP_LBL}>STAGE</Text>
                 <Button
@@ -3523,7 +3578,11 @@ const HeroSelectLobby = ({
               {/* Four tiles wide, which is the whole rail. Every OTHER board is
                   one click away in the popover — #685's "no board is unreachable
                   without a horizontal scroll" is kept there, by a wrapped grid. */}
-              <Grid templateColumns="repeat(4, minmax(0, 1fr))" gap="6px">
+              <Grid
+                templateColumns="repeat(4, minmax(0, 1fr))"
+                gap="6px"
+                onKeyDown={handoffTabToViewBoard}
+              >
                 <StageTile
                   ariaLabel="Random board — rolled when the room is created"
                   title="Random"
@@ -3532,7 +3591,7 @@ const HeroSelectLobby = ({
                   selected={selectedMapId === RANDOM_MAP_ID}
                   onSelect={() => onSelectMap(RANDOM_MAP_ID)}
                   onHover={() => setStageHover(randomStage)}
-                  onLeave={() => setStageHover(undefined)}
+                  onBlurAway={onStageTileBlur}
                 />
                 {railBoards.map((entry) => (
                   <StageTile
@@ -3543,7 +3602,7 @@ const HeroSelectLobby = ({
                       selected={selectedMapId === entry.id}
                     onSelect={() => onSelectMap(entry.id)}
                     onHover={() => setStageHover({ kind: "board", entry })}
-                    onLeave={() => setStageHover(undefined)}
+                    onBlurAway={onStageTileBlur}
                   />
                 ))}
                 {/* A chosen Custom… board keeps a home in the rail; clicking it
@@ -3574,6 +3633,7 @@ const HeroSelectLobby = ({
           minW="0"
           direction="column"
           gap="8px"
+          onMouseEnter={clearStagePreview}
         >
           <Flex gap="8px" align="stretch" minW="0">
             {renderPlates()}
@@ -3593,7 +3653,19 @@ const HeroSelectLobby = ({
         </Flex>
 
         {/* ---------------- roster ---------------- */}
-        <Flex gridArea="roster" direction="column" gap="0.7rem" minW="0" minH="0" position="relative">
+        {/* Entering the roster is the #781 revert: the pointer has left the
+            board preview for the fighters, so the splash goes back to the
+            locked pick. The board popover lives inside this region and is the
+            one exception — its own tiles re-arm the preview on the way in. */}
+        <Flex
+          gridArea="roster"
+          direction="column"
+          gap="0.7rem"
+          minW="0"
+          minH="0"
+          position="relative"
+          onMouseEnter={clearStagePreview}
+        >
           <Flex align="center" justify="space-between" gap="0.75rem" flexWrap="wrap" flex="none">
             <Flex align="baseline" gap="0.5rem">
               <Text fontFamily="LeagueGothic" fontSize="1.25rem" letterSpacing="0.1em" color="brand.accent">
@@ -3871,7 +3943,7 @@ const HeroSelectLobby = ({
                 picking a board. Custom… is the one choice that leaves it open —
                 its JSON box lives inside. */}
             {!room && stagePickerOpen && (
-              <Box position="absolute" inset="0" zIndex={20} onMouseLeave={() => setStageHover(undefined)}>
+              <Box ref={boardPickerRef} position="absolute" inset="0" zIndex={20}>
                 {/* Scrim: the roster behind reads as parked, and a click anywhere
                     off the panel closes — the popover has no OK/Cancel. */}
                 <Box
@@ -3958,7 +4030,7 @@ const HeroSelectLobby = ({
                         setStageHover(undefined);
                       }}
                       onHover={() => setStageHover(randomStage)}
-                      onLeave={() => setStageHover(undefined)}
+                      onBlurAway={onStageTileBlur}
                     />
                     {eligibleBoards.map((entry) => (
                       <StageTile
@@ -3973,7 +4045,7 @@ const HeroSelectLobby = ({
                           setStageHover(undefined);
                         }}
                         onHover={() => setStageHover({ kind: "board", entry })}
-                        onLeave={() => setStageHover(undefined)}
+                        onBlurAway={onStageTileBlur}
                       />
                     ))}
                   </Grid>
