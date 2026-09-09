@@ -909,3 +909,186 @@ describe("Jason Voorhees (DOPE) deck data", () => {
     expect(deck.sourceUrl).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Leon S. Kennedy (issue #780 ↔ engine #566). unmatched.cards deck NQ5XP by
+// Grovelsey — the Resident Evil 4 deck with the Merchant shop. PAIRED with the
+// engine's `feature/leon` branch: the rules file was NOT yet on that branch
+// when this landed (#566 in progress), so the ENGINE table below is the engine's
+// Gate-0 draft, field for field, and must be re-verified against
+// leon-s-kennedy.rules.ts at the pair merge (like the Boba/Ripley tables, but
+// against the draft until then). Template art: the payload's imageUrls and
+// cardback are uncredited third-party hotlinks and are blanked, not mirrored.
+// ---------------------------------------------------------------------------
+
+describe("Leon S. Kennedy (NQ5XP) deck data", () => {
+  const deck = readDeck("NQ5XP");
+  type Card = {
+    title: string;
+    type: string;
+    value: number | null;
+    boost: number;
+    quantity: number;
+    basicText: string;
+    imageUrl: string;
+    cardImage?: { url: string };
+  };
+  const cards = deck.deck_data.cards as Card[];
+  const shopCards = () => cards.filter((c) => /^shop - /i.test(c.title));
+  const drawable = () => cards.filter((c) => !/^shop - /i.test(c.title));
+
+  it("is 15 unique / 34 total — 30 DRAWABLE + the 4-card Merchant stock", () => {
+    // 34 is CORRECT and does not violate the 30-card deck rule: the four
+    // `Shop - …` cards begin the game OUTSIDE the draw deck (engine
+    // `startsInPile:'SHOP'`, DSL v0.75.0) — the Merchant's opening stock. There
+    // is no global deck-size assertion anywhere in this repo (deck-manifest.mjs
+    // verify checks only the rules lock; the `toBe(30)` tests on the decks above
+    // are per-deck), so nothing else had to change to accept it — but this test
+    // pins the split so the 34 can never be misread as a bloated draw deck.
+    expect(cards).toHaveLength(15);
+    expect(cards.reduce((n, c) => n + c.quantity, 0)).toBe(34);
+    expect(shopCards().reduce((n, c) => n + c.quantity, 0)).toBe(4);
+    expect(drawable().reduce((n, c) => n + c.quantity, 0)).toBe(30);
+  });
+
+  it("carries the four SHOP cards as singletons outside the drawable deck", () => {
+    expect(shopCards().map((c) => c.title)).toEqual([
+      "shop - rocket Launcher", // the lowercase `shop - ` is the print, not a typo
+      "Shop - Tactical vest",
+      "Shop - Red 9 Handgun",
+      "Shop - Attache case", // no accent, unlike the rule card's "Attaché Case"
+    ]);
+    for (const s of shopCards()) expect(s.quantity).toBe(1);
+    // the draw deck itself never contains a shop card, by construction
+    expect(drawable().some((c) => /^shop - /i.test(c.title))).toBe(false);
+  });
+
+  it("keeps the verbatim titles the art index is keyed on", () => {
+    // norm() lowercases + trims and nothing else. The lowercase `shop - rocket
+    // Launcher`, the lowercase `Staggering shot`, the run-together `HandCannon`
+    // and the accent-less `Attache case` are the payload's/engine's print —
+    // "fixing" any of them unhooks that card's face the day art lands.
+    expect(cards.map((c) => c.title)).toEqual(
+      expect.arrayContaining([
+        "shop - rocket Launcher",
+        "Shop - Attache case",
+        "Staggering shot",
+        "HandCannon",
+        "Treasure Hunting",
+        "Pointless Backflip",
+      ])
+    );
+  });
+
+  it("keeps the Merchant rule card, which prints the shop menu the hero prompts", () => {
+    // Six purchasable items (Ammo restock is a service, not a card) + "Leave the
+    // Merchant" is the 7-option CHOOSE_OPTION the engine opens post-action.
+    const rule = (deck.deck_data.ruleCards ?? []) as { title: string; content: string }[];
+    expect(rule).toHaveLength(1);
+    expect(rule[0].title).toBe("The Merchant");
+    expect(rule[0].content).toContain("All shop cards start outside your deck");
+    expect(rule[0].content).toContain("8 cost: Rocket Launcher");
+  });
+
+  it("blanks every payload imageUrl and the cardback — template art until the deck-art pipeline", () => {
+    // The author's payload hotlinked third-party art across nine hosts (srcdn,
+    // fandom, capcom, ytimg, twimg, gstatic, gameranx, …) — deliberately blanked
+    // per the #446 self-hosting rule, nothing mirrored. Every face renders the
+    // generated template and the board the house cardback until the follow-up.
+    for (const card of cards) expect(card.imageUrl).toBe("");
+    expect(deck.deck_data.appearance.cardbackUrl).toBe("");
+    // and the note says why, so the omission travels with the data
+    expect(deck.note).toContain("TEMPLATE FALLBACK");
+    expect(deck.note).toContain("deck-art pipeline");
+  });
+
+  it("leaves NO remote URL anywhere in the shipped data", () => {
+    // Stricter than the neighbours (which keep an attribution link): the deck
+    // page lives on unmatched.cards, which POPULAR_DECKS deep-links by id, so
+    // the snapshot itself carries no https URL at all.
+    const urls = (JSON.stringify(deck).match(/https?:\\?\/\\?\/[^"\\ )]+/g) ?? []).map((u) =>
+      u.replace(/\\/g, "")
+    );
+    expect(urls).toEqual([]);
+  });
+
+  it("matches the hero and sidekick stat lines — solo, ranged, no sidekick fighter", () => {
+    expect(deck.deck_data.hero).toMatchObject({ hp: 14, move: 2, isRanged: true, name: "Leon S. Kennedy" });
+    // The importer's quantity-0 sidekick is the "no sidekick" encoding — no
+    // phantom fighter may spawn from it (hp null, quantity 0).
+    expect(deck.deck_data.sidekick).toMatchObject({ name: "Sidekick", hp: null, quantity: 0 });
+    expect(deck.deck_data.extraCards).toBeUndefined();
+  });
+});
+
+/**
+ * The snapshot vs the ENGINE (issue #780 ↔ engine #566). The engine rules file
+ * was not on `feature/leon` when this landed, so the table below is the Gate-0
+ * draft the conversion is building against — re-verify at the pair merge. Order
+ * is the draft's card order, which the snapshot follows. The engine spells the
+ * two defence cards "defense"; the snapshot uses the community-deck "defence"
+ * and the digest normalizes the difference (`normalizeType`).
+ */
+describe("Leon S. Kennedy snapshot agrees with the engine's Gate-0 draft (pending #566)", () => {
+  const deck = readDeck("NQ5XP");
+  // [title, type, value, boost, quantity, shop?]
+  const ENGINE: [string, string, number | null, number, number, boolean][] = [
+    ["shop - rocket Launcher", "attack", 6, 0, 1, true],
+    ["Shop - Tactical vest", "scheme", null, 0, 1, true],
+    ["Shop - Red 9 Handgun", "scheme", null, 0, 1, true],
+    ["Shop - Attache case", "scheme", null, 0, 1, true],
+    ["Parry", "defence", 2, 2, 3, false],
+    ["Snark", "versatile", 3, 2, 3, false],
+    ["Pointless Backflip", "defence", 4, 2, 2, false],
+    ["Treasure Hunting", "scheme", null, 2, 3, false],
+    ["Piercing Shot", "attack", 2, 2, 3, false],
+    ["Suplex", "attack", 4, 2, 2, false],
+    ["Roundhouse Kick", "versatile", 2, 3, 3, false],
+    ["Takedown", "versatile", 3, 3, 2, false],
+    ["Riot Gun", "versatile", 3, 2, 3, false],
+    ["HandCannon", "attack", 4, 1, 2, false],
+    ["Staggering shot", "attack", 1, 1, 4, false],
+  ];
+
+  it("matches every card's title, type, value, boost and quantity, in the draft's order", () => {
+    const cards = deck.deck_data.cards as {
+      title: string;
+      type: string;
+      value: number | null;
+      boost: number;
+      quantity: number;
+    }[];
+    expect(cards).toHaveLength(ENGINE.length);
+    cards.forEach((card, i) => {
+      const [title, type, value, boost, quantity] = ENGINE[i];
+      expect(card.title).toBe(title);
+      expect(normalizeType(card.type)).toBe(normalizeType(type));
+      expect(card.value).toBe(value);
+      expect(card.boost).toBe(boost);
+      expect(card.quantity).toBe(quantity);
+    });
+  });
+
+  it("matches the hero and sidekick stat lines", () => {
+    expect(deck.deck_data.hero).toMatchObject({
+      hp: 14,
+      move: 2,
+      isRanged: true, // reach: RANGED
+      name: "Leon S. Kennedy",
+    });
+    expect(deck.deck_data.sidekick).toMatchObject({ hp: null, quantity: 0, name: "Sidekick" });
+  });
+
+  it("prints the Treasure economy the client renders pills for", () => {
+    // The hero ability is the whole economy: win a combat → bank the winning
+    // card's boost; stop on a starting space → spend to buy.
+    const ability = deck.deck_data.hero.specialAbility as string;
+    expect(ability).toContain("Treasure");
+    expect(ability).toContain("The Merchant");
+    // *Treasure Hunting* is the second source.
+    const card = (deck.deck_data.cards as { title: string; boost: number }[]).find(
+      (c) => c.title === "Treasure Hunting"
+    )!;
+    expect(card.boost).toBe(2);
+  });
+});
