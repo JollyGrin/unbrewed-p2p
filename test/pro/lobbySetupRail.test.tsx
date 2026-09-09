@@ -25,11 +25,26 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterContext } from "next/dist/shared/lib/router-context";
+import type { ReactNode } from "react";
 import { theme } from "@/styles/style";
 import ProGamePage from "@/pages/pro/game";
 import { PROTOCOL_VERSION } from "@/lib/pro/protocol";
 import type { ClientMsg } from "@/lib/pro/protocol";
 import { FakeWebSocket, installFakeWebSocket, installPolyfills } from "@/scripts/renderFuzz/domEnv";
+
+/**
+ * Chakra's <Modal> traps focus with react-focus-lock, and its focusable-element
+ * selector (`input:not(:disabled):not([disabled])`) is one the pinned
+ * jsdom/nwsapi pair cannot parse: opening any modal throws
+ * `':disabled):not([disabled]' is not a valid selector` out of a layout effect,
+ * before a single assertion runs. The trap is a browser concern with nothing to
+ * verify here, so it is stubbed to a passthrough — the modal's own markup, which
+ * is what the #781 tests read, renders exactly as it does in the app.
+ */
+jest.mock("@chakra-ui/focus-lock", () => ({
+  __esModule: true,
+  FocusLock: ({ children }: { children: ReactNode }) => children,
+}));
 
 /** Two balanced decks, two lab decks — in neither alphabetical nor arrival order. */
 const HEROES = [
@@ -99,6 +114,17 @@ const hover = async (el: Element) => {
 const unhover = async (el: Element) => {
   await act(async () => {
     fireEvent.mouseOut(el);
+  });
+};
+/**
+ * Move the pointer from one element to another. `relatedTarget` is the whole
+ * point: React derives enter/leave from it, so only the handlers OUTSIDE the
+ * pair's common ancestor fire — which is exactly what makes the #781 preview
+ * survive a trip across the rail but not a trip into the roster.
+ */
+const moveTo = async (from: Element, to: Element) => {
+  await act(async () => {
+    fireEvent.mouseOut(from, { relatedTarget: to });
   });
 };
 
@@ -281,11 +307,16 @@ describe("stage hover preview (#768)", () => {
     // the base (mobile) declaration, so it reads as display:none here.
     expect(splash().getByText("View board")).toBeInTheDocument();
 
-    await unhover(drum);
-    expect(splash().queryByText("PREVIEW — CLICK TO LOCK IN")).not.toBeInTheDocument();
+    // #781: the preview is sticky across the RAIL, so it takes leaving the rail
+    // — not leaving the tile — to clear it. (The heading stays "PREVIEW — CLICK
+    // TO LOCK IN": the roster tile the pointer landed on is now previewing its
+    // own fighter there, so the board's title is what discriminates.)
+    await moveTo(drum, screen.getByLabelText(/King Kong/));
+    expect(splash().queryByText("The Mended Drum")).not.toBeInTheDocument();
+    expect(splash().queryByText("View board")).not.toBeInTheDocument();
   });
 
-  it("reverts to the locked fighter when the pointer leaves the board", async () => {
+  it("reverts to the locked fighter when the pointer leaves the rail", async () => {
     await mountPicker();
     await click(screen.getByLabelText(/King Kong/));
     expect(splash().getByText("P1 · LOCKED IN")).toBeInTheDocument();
@@ -293,8 +324,68 @@ describe("stage hover preview (#768)", () => {
     const drum = screen.getByLabelText("The Mended Drum");
     await hover(drum);
     expect(splash().queryByText("P1 · LOCKED IN")).not.toBeInTheDocument();
-    await unhover(drum);
+    // off the tile but still in the rail: the board is still previewed
+    await moveTo(drum, screen.getByTestId("pro-splash"));
+    expect(splash().queryByText("P1 · LOCKED IN")).not.toBeInTheDocument();
+    // into the roster: back to the fighter
+    await moveTo(screen.getByTestId("pro-splash"), screen.getByLabelText(/King Kong/));
     expect(splash().getByText("P1 · LOCKED IN")).toBeInTheDocument();
+  });
+
+  // #781: before this, the tile's own onMouseLeave cleared `stageHover` the
+  // instant the pointer stepped off it — the splash reverted to the fighter and
+  // "View board" unmounted under the travelling cursor, which left the lobby
+  // with NO path to the map preview at all.
+  it("survives the trip from a rail tile to View board, and opens the map preview", async () => {
+    await mountPicker();
+    const drum = screen.getByLabelText("The Mended Drum");
+    await hover(drum);
+    await moveTo(drum, screen.getByTestId("pro-splash"));
+
+    // still the board, and the button is still mounted to be clicked
+    expect(splash().getByText("The Mended Drum")).toBeInTheDocument();
+    await click(splash().getByText("View board"));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("The Mended Drum")).toBeInTheDocument();
+  });
+
+  it("does the same from the All-boards popover", async () => {
+    await mountPicker();
+    const picker = await boards();
+    const wedding = picker.getByLabelText("Wedding Crashers");
+    await hover(wedding);
+    await moveTo(wedding, screen.getByTestId("pro-splash"));
+
+    expect(splash().getByText("Wedding Crashers")).toBeInTheDocument();
+    await click(splash().getByText("View board"));
+    // two dialogs are up now — the board picker and the map preview over it
+    const modal = (await screen.findAllByRole("dialog")).find(
+      (d) => d.getAttribute("aria-label") !== "Choose a board",
+    );
+    expect(within(modal!).getByText("Wedding Crashers")).toBeInTheDocument();
+  });
+
+  it("holds the preview while focus travels into the splash", async () => {
+    await mountPicker();
+    const drum = screen.getByLabelText("The Mended Drum");
+    await act(async () => {
+      fireEvent.focusIn(drum);
+    });
+    expect(splash().getByText("The Mended Drum")).toBeInTheDocument();
+
+    // Tab towards "View board": blur fires first, and clearing there is what
+    // used to pull the button out from under the arriving focus.
+    await act(async () => {
+      fireEvent.focusOut(drum, { relatedTarget: screen.getByTestId("pro-splash") });
+    });
+    expect(splash().getByText("The Mended Drum")).toBeInTheDocument();
+
+    // focus leaving the rail altogether still reverts
+    await act(async () => {
+      fireEvent.focusOut(drum, { relatedTarget: screen.getByLabelText(/King Kong/) });
+    });
+    expect(splash().queryByText("The Mended Drum")).not.toBeInTheDocument();
   });
 
   it("badges a board that prints items, and previews the Random pool as text", async () => {
