@@ -535,6 +535,54 @@ export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
       token: { icon: "🎯", title: "BOUNTIES", bg: "#1F6B2A", color: "#F2EAD3" },
     })
   ),
+  // -------------------------------------------------------------------------
+  // Leon S. Kennedy's Treasure economy + Merchant shop (issue #780 ↔ engine
+  // #566, PAIRED with the engine's `feature/leon` branch). THREE entries:
+  //
+  //  - `TREASURE`, a plain counter — the hero ability banks each winning
+  //    combat card's boost into it, and *Treasure Hunting* adds more; it is
+  //    spent at starting spaces to buy from the Merchant. Unbounded (no max in
+  //    the rules), so no `outOf` — it renders the bare value like CLUE/RAGE.
+  //  - The `SHOP` pile — the Merchant's stock. The four `Shop - …` cards start
+  //    the game OUTSIDE the draw deck (engine `startsInPile:'SHOP'`, DSL
+  //    v0.75.0), so this pile begins at 4 and shrinks as items are bought. The
+  //    value is the pile's LENGTH, and the pill opens the pile so either player
+  //    can read what is left to buy — that behaviour is generic to the `pile`
+  //    kind (ProHud's <FlagChip> renders every pile-sourced chip as a
+  //    clickable inspection affordance; no per-hero code).
+  //  - The `EQUIPMENT` pile — worn items (*Shop - Tactical vest* → +1 defence,
+  //    *Shop - Red 9 Handgun* → +1 attack; permanent, the card self-tucks when
+  //    played). Public like SHOP, so the opponent can read the +1s.
+  //
+  // All three are Leon's OWN piles — they arrive on his seat's `piles`, so the
+  // plain `heroes` gate applies (no `hostedOnAnySeat`, unlike Boba's bounties).
+  // Each hides at 0 by the default: an empty STOCK or nothing worn yet reads as
+  // no pill/badge, and the engine prunes an emptied pile's key anyway. The
+  // engine rules file was not on `feature/leon` when this landed (issue #566 in
+  // progress) — the keys are the engine's Gate-0 draft, field for field, and
+  // must be re-verified against leon-s-kennedy.rules.ts at the pair merge.
+  //
+  // Palettes are the deck's own RE4 green (#273d2c border) plus two neighbouring
+  // tones — distinct from Luke's TRAINING green (#2E6B48) and Boba's bounty
+  // green (#1F6B2A) on the same board.
+  {
+    counter: "TREASURE",
+    heroes: ["leon-s-kennedy"],
+    nameplate: { labelTemplate: "TREASURE: {n}" },
+    token: { icon: "💰", title: "TREASURE", bg: "#273d2c", color: "#E9F3EB" },
+  },
+  {
+    pile: "SHOP",
+    heroes: ["leon-s-kennedy"],
+    nameplate: { labelTemplate: "MERCHANT: {n}" },
+    token: { icon: "🛒", title: "MERCHANT", bg: "#7A5A2E", color: "#F7EFD8" },
+  },
+  {
+    pile: "EQUIPMENT",
+    heroes: ["leon-s-kennedy"],
+    nameplate: { labelTemplate: "EQUIPPED: {n}" },
+    token: { icon: "🦺", title: "EQUIPPED", bg: "#4A3B22", color: "#F0E9DA" },
+  },
 ];
 
 /** An entry's identity key — its counter name or its pile name. */
