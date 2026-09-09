@@ -1043,3 +1043,194 @@ describe("Jason Voorhees's JASON_RETURN flag", () => {
     expect(fighterTokenBadgeFor("king-kong", { JASON_RETURN: true })).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Leon S. Kennedy (issue #780 ↔ engine #566, PAIRED with the engine's
+// `feature/leon` branch). THREE entries in HERO_STATE_COUNTERS: the TREASURE
+// counter (the hero ability banks each winning card's boost into it; spent at
+// starting spaces to buy from the Merchant) and TWO public piles — SHOP (the
+// Merchant's stock: the four `Shop - …` cards start OUTSIDE the draw deck via
+// the engine's startsInPile, so the pile begins at 4 and shrinks as items are
+// bought) and EQUIPMENT (worn items that permanently buff him). Like TRAINING,
+// a pile-sourced pill carries the card ids so it opens the inspection overlay —
+// the zone is public, so every assertion below is deliberately owner-agnostic.
+// ---------------------------------------------------------------------------
+
+describe("HERO_STATE_COUNTERS registry — Leon's TREASURE counter + SHOP/EQUIPMENT piles", () => {
+  const leonEntries = () => HERO_STATE_COUNTERS.filter((e) => e.heroes.includes("leon-s-kennedy"));
+
+  it("registers TREASURE as a counter on the exact engine key, with no pile", () => {
+    const e = leonEntries().find((x) => x.counter === "TREASURE");
+    expect(e).toBeDefined();
+    // The engine's key is TREASURE (the hero ability + *Treasure Hunting* bank
+    // into it). It is an int resource, NOT a card zone — `pile` must stay unset
+    // or the projection would read the wrong protocol field.
+    expect(e!.pile).toBeUndefined();
+    // Unbounded: the rules declare no max, so it renders the bare value like
+    // CLUE/RAGE — no outOf, and no showAtZero (an empty pool is the default
+    // state, not an event).
+    expect(e!.outOf).toBeUndefined();
+    expect(e!.showAtZero).toBeUndefined();
+    expect(e!.nameplate?.labelTemplate).toBe("TREASURE: {n}");
+    expect(e!.token).toMatchObject({ title: "TREASURE" });
+  });
+
+  it("registers SHOP and EQUIPMENT as piles on the exact engine pile keys, with no counter", () => {
+    const shop = leonEntries().find((x) => x.pile === "SHOP");
+    const equipment = leonEntries().find((x) => x.pile === "EQUIPMENT");
+    expect(shop).toBeDefined();
+    expect(equipment).toBeDefined();
+    // Card zones, NOT counters — `counter` must stay unset on both.
+    expect(shop!.counter).toBeUndefined();
+    expect(equipment!.counter).toBeUndefined();
+    expect(shop!.nameplate?.labelTemplate).toBe("MERCHANT: {n}");
+    expect(equipment!.nameplate?.labelTemplate).toBe("EQUIPPED: {n}");
+    expect(shop!.token).toMatchObject({ title: "MERCHANT" });
+    expect(equipment!.token).toMatchObject({ title: "EQUIPPED" });
+    // Exactly three entries, nothing else on this hero.
+    expect(leonEntries().map((x) => x.counter ?? x.pile).sort()).toEqual([
+      "EQUIPMENT",
+      "SHOP",
+      "TREASURE",
+    ]);
+  });
+});
+
+describe("counterChipsFor — Leon's Treasure economy (HUD nameplate)", () => {
+  // The Merchant's opening stock: the four `Shop - …` cards, which the engine
+  // deals to the SHOP pile instead of the draw deck (startsInPile, DSL v0.75.0).
+  const SHOP_STOCK = [
+    "leon-s-kennedy/shop-tactical-vest#1",
+    "leon-s-kennedy/shop-red-9-handgun#1",
+    "leon-s-kennedy/shop-attache-case#1",
+    "leon-s-kennedy/shop-rocket-launcher#1",
+  ];
+  const treasureChip = (chips: ReturnType<typeof counterChipsFor>) =>
+    chips.find((c) => c.chip.flag === "counter:TREASURE");
+
+  it("shows a TREASURE pill with the live value", () => {
+    const chips = counterChipsFor("leon-s-kennedy", { TREASURE: 7 });
+    expect(treasureChip(chips)!.chip.onLabel).toBe("TREASURE: 7");
+    expect(treasureChip(chips)!.on).toBe(true);
+  });
+
+  it("hides the TREASURE pill at 0 (and when the counter is absent)", () => {
+    expect(treasureChip(counterChipsFor("leon-s-kennedy", { TREASURE: 0 }))).toBeUndefined();
+    expect(treasureChip(counterChipsFor("leon-s-kennedy", {}))).toBeUndefined();
+    expect(treasureChip(counterChipsFor("leon-s-kennedy", undefined))).toBeUndefined();
+  });
+
+  it("shows a MERCHANT pill counting the SHOP pile, and carries the card ids so the pill can open the inspection overlay", () => {
+    const chips = counterChipsFor("leon-s-kennedy", { TREASURE: 3 }, { SHOP: SHOP_STOCK });
+    const merchant = chips.find((c) => c.chip.flag === "pile:SHOP");
+    expect(merchant!.chip.onLabel).toBe("MERCHANT: 4");
+    expect(merchant!.chip.pile).toBe("SHOP");
+    expect(merchant!.chip.cards).toEqual(SHOP_STOCK);
+  });
+
+  it("reads the SHOP pile down as items are bought — 3 left, then hidden when the stock empties", () => {
+    const three = counterChipsFor("leon-s-kennedy", undefined, { SHOP: SHOP_STOCK.slice(1) });
+    expect(three.find((c) => c.chip.flag === "pile:SHOP")!.chip.onLabel).toBe("MERCHANT: 3");
+    expect(counterChipsFor("leon-s-kennedy", undefined, { SHOP: [] })).toEqual([]);
+    expect(counterChipsFor("leon-s-kennedy", undefined, {})).toEqual([]);
+    // pre-v25 server: no `piles` field at all
+    expect(counterChipsFor("leon-s-kennedy", undefined, undefined)).toEqual([]);
+  });
+
+  it("shows an EQUIPPED pill while items are worn, and hides it at 0 (nothing worn yet)", () => {
+    const worn = counterChipsFor(
+      "leon-s-kennedy",
+      undefined,
+      { EQUIPMENT: ["leon-s-kennedy/shop-tactical-vest#1"] }
+    );
+    const equipped = worn.find((c) => c.chip.flag === "pile:EQUIPMENT");
+    expect(equipped!.chip.onLabel).toBe("EQUIPPED: 1");
+    // only EQUIPMENT was passed, so it is the only pill — SHOP's absence hides
+    // its own rather than being read as an empty stock
+    expect(worn.map((c) => c.chip.flag)).toEqual(["pile:EQUIPMENT"]);
+    expect(counterChipsFor("leon-s-kennedy", undefined, { EQUIPMENT: [] })).toEqual([]);
+  });
+
+  it("renders one pill per positive entry, in registry order, when all three are live", () => {
+    const chips = counterChipsFor(
+      "leon-s-kennedy",
+      { TREASURE: 5 },
+      { SHOP: SHOP_STOCK, EQUIPMENT: ["leon-s-kennedy/shop-attache-case#1"] }
+    );
+    expect(chips.map((c) => c.chip.onLabel)).toEqual([
+      "TREASURE: 5",
+      "MERCHANT: 4",
+      "EQUIPPED: 1",
+    ]);
+    // piles are inspectable; the counter is not
+    expect(chips[0].chip.pile).toBeUndefined();
+    expect(chips[1].chip.pile).toBe("SHOP");
+    expect(chips[2].chip.pile).toBe("EQUIPMENT");
+  });
+
+  it("renders identically for EITHER seat — counters and piles are public, so the projection is owner-agnostic", () => {
+    const self = counterChipsFor("leon-s-kennedy", { TREASURE: 2 }, { SHOP: SHOP_STOCK });
+    const opponent = counterChipsFor("leon-s-kennedy", { TREASURE: 2 }, { SHOP: SHOP_STOCK });
+    expect(opponent).toEqual(self);
+  });
+
+  it("renders no chip for a non-registered hero, even with all three keys present", () => {
+    expect(
+      counterChipsFor("king-kong", { TREASURE: 5 }, { SHOP: SHOP_STOCK, EQUIPMENT: ["x#1"] })
+    ).toEqual([]);
+  });
+});
+
+describe("fighterTokenCounterBadgeFor — Leon's Treasure economy (board token)", () => {
+  const SHOP_STOCK = [
+    "leon-s-kennedy/shop-tactical-vest#1",
+    "leon-s-kennedy/shop-red-9-handgun#1",
+    "leon-s-kennedy/shop-attache-case#1",
+    "leon-s-kennedy/shop-rocket-launcher#1",
+  ];
+
+  it("badges Leon's token with the live TREASURE count", () => {
+    expect(fighterTokenCounterBadgeFor("leon-s-kennedy", { TREASURE: 3 })).toMatchObject({
+      icon: "💰",
+      label: "3",
+      title: "TREASURE: 3",
+      // the count must read off the BOARD, not just the badge tooltip
+      showLabel: true,
+    });
+  });
+
+  it("falls through to the MERCHANT badge when the stock is live but the treasure is not", () => {
+    // ONE badge slot: the first positive entry in registry order wins, so the
+    // SHOP pile badges only while TREASURE sits at 0/absent.
+    expect(fighterTokenCounterBadgeFor("leon-s-kennedy", undefined, { SHOP: SHOP_STOCK })).toMatchObject({
+      icon: "🛒",
+      label: "4",
+      title: "MERCHANT: 4",
+      showLabel: true,
+    });
+  });
+
+  it("hides the badge when nothing is live / on a pre-v25 server", () => {
+    expect(fighterTokenCounterBadgeFor("leon-s-kennedy", { TREASURE: 0 })).toBeNull();
+    expect(fighterTokenCounterBadgeFor("leon-s-kennedy", undefined, { SHOP: [] })).toBeNull();
+    expect(fighterTokenCounterBadgeFor("leon-s-kennedy", undefined, undefined)).toBeNull();
+  });
+
+  it("does not badge non-registered heroes", () => {
+    expect(fighterTokenCounterBadgeFor("king-kong", { TREASURE: 5 }, { SHOP: SHOP_STOCK })).toBeNull();
+    expect(fighterTokenCounterBadgeFor(undefined, { TREASURE: 5 }, { SHOP: SHOP_STOCK })).toBeNull();
+  });
+});
+
+describe("fighterTokenStateByOwner — Leon", () => {
+  it("resolves the badge from counters AND piles for either owner, hidden when nothing is live", () => {
+    const state = fighterTokenStateByOwner([
+      { id: "p1", heroId: "leon-s-kennedy", counters: { TREASURE: 2 } },
+      { id: "p2", heroId: "leon-s-kennedy", piles: { SHOP: ["leon-s-kennedy/shop-tactical-vest#1"] } },
+      { id: "p3", heroId: "leon-s-kennedy" }, // nothing live yet → no keys
+    ]);
+    expect(state.p1!.badge).toMatchObject({ icon: "💰", label: "2" });
+    expect(state.p2!.badge).toMatchObject({ icon: "🛒", label: "1" });
+    expect(state.p3).toBeUndefined();
+  });
+});

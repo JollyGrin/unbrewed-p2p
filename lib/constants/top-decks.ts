@@ -862,4 +862,22 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     // is the art source only (#665 is the inverse shape).
     cardbackUrl: "/evergreen-decks/art/DOPE/cardback.webp",
   },
+  {
+    // Leon S. Kennedy — unmatched.cards deck NQ5XP, Grovelsey's Resident Evil 4
+    // deck (issue #780 ↔ engine #566; PAIRED with the engine's `feature/leon`
+    // branch, DRAFT until the pair merge). Served at tier `lab`. No `original`
+    // flag — the tile deep-links to unmatched.cards/decks/NQ5XP. Template art
+    // for now: the payload's imageUrls and cardback are uncredited third-party
+    // hotlinks and are deliberately blanked, not mirrored (#446) — art is a
+    // separate deck-art-pipeline follow-up, so no `cardbackUrl` here either.
+    id: "NQ5XP",
+    name: "Leon S. Kennedy",
+    hero: "Leon S. Kennedy",
+    author: "Grovelsey",
+    likes: 0,
+    // The deck's own borderColour from the author's appearance block.
+    highlightColour: "#273d2c",
+    lab: true,
+    tier: "lab",
+  },
 ];

@@ -294,6 +294,15 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // cardback are uncredited third-party hotlinks and are deliberately NOT carried
   // over (jw9q precedent); all-caps verbatim titles are the deck's print, not a bug.
   "jason-voorhees": "DOPE",
+  // Leon S. Kennedy (issue #780 ↔ engine #566): unmatched.cards deck NQ5XP by
+  // Grovelsey (the requester; author OK), served at tier `lab`. PAIRED with the
+  // engine's `feature/leon` branch (#565 shop-window DSL is on it; #566 is the
+  // data) — this client PR lands as DRAFT and pair-merges with it. RANGED solo
+  // hero, no sidekick. The Treasure tracker + Merchant shop ride one counter
+  // (TREASURE) and two public piles (SHOP, EQUIPMENT) — see HERO_STATE_COUNTERS.
+  // Template art for now: the payload's imageUrls and cardback are uncredited
+  // third-party hotlinks and are deliberately blanked, not mirrored (#446).
+  "leon-s-kennedy": "NQ5XP",
 };
 
 /**
