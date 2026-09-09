@@ -1,0 +1,282 @@
+{
+  "bgg_link": null,
+  "created_on": "Sun, 23 Aug 2026 08:58:34 GMT",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#273d2c",
+      "cardbackUrl": "",
+      "highlightColour": "#010313",
+      "isPNP": false,
+      "patternName": "None"
+    },
+    "cards": [
+      {
+        "afterText": "",
+        "basicText": "This card must be played face up. ",
+        "boost": 0,
+        "characterName": "LEON ",
+        "duringText": "Deal 1 damage to all fighters in the opposing fighters zone. ",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "shop - rocket Launcher",
+        "type": "attack",
+        "value": 6
+      },
+      {
+        "afterText": null,
+        "basicText": "Recover 1 health. \nONGOING: +1 to all Defence values for the rest of the game.  \n",
+        "boost": 0,
+        "characterName": "LEON ",
+        "duringText": null,
+        "imageUrl": "",
+        "immediateText": null,
+        "quantity": 1,
+        "title": "Shop - Tactical vest",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": null,
+        "basicText": "Search your discard pile for a Staggering Shot card. Add it to your hand. \nONGOING: +1 to all Attack values for the rest of the game.  \n",
+        "boost": 0,
+        "characterName": "LEON",
+        "duringText": null,
+        "imageUrl": "",
+        "immediateText": null,
+        "quantity": 1,
+        "title": "Shop - Red 9 Handgun",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": null,
+        "basicText": "Draw 3 cards. \n\n",
+        "boost": 0,
+        "characterName": "LEON",
+        "duringText": null,
+        "imageUrl": "",
+        "immediateText": null,
+        "quantity": 1,
+        "title": "Shop - Attache case",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "LEON",
+        "duringText": "If you win this combat, deal an opposing adjacent fighter 1 damage. ",
+        "imageUrl": "",
+        "immediateText": "Cancel all effects on your opponent's card.",
+        "quantity": 3,
+        "title": "Parry",
+        "type": "defence",
+        "value": 2
+      },
+      {
+        "afterText": "If your fighter is adjacent to the opposing fighter, draw 1 card.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "LEON",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Snark",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "Move your fighter 1 space. ",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "LEON",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Pointless Backflip",
+        "type": "defence",
+        "value": 4
+      },
+      {
+        "afterText": null,
+        "basicText": "Move your fighter up to 3 spaces, you may move through opposing fighters. Add this cards boost value to the treasure tracker. \n \n",
+        "boost": 2,
+        "characterName": "LEON",
+        "duringText": null,
+        "imageUrl": "",
+        "immediateText": null,
+        "quantity": 3,
+        "title": "Treasure Hunting",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "Draw 2 cards.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "LEON",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Piercing Shot",
+        "type": "attack",
+        "value": 2
+      },
+      {
+        "afterText": "",
+        "basicText": "You must be adjacent to the opposing fighter to play this card. ",
+        "boost": 2,
+        "characterName": "LEON",
+        "duringText": "If the top card of your discard pile is 'Staggering Shot' this card's value is 6. ",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Suplex",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "If you're adjacent to any opposing fighters, move them all up to 2 spaces away.",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "LEON",
+        "duringText": "If the top card of your discard pile is 'Staggering Shot', ignore your opponents card value. ",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Roundhouse Kick",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "If you're adjacent to the opposing fighter, deal 1 damage to them. ",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "LEON",
+        "duringText": "If the top card of your discard pile is 'Staggering Shot', your opponent must discard a card.",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Takedown",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "Move the opposing fighter back 2 spaces. ",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "LEON",
+        "duringText": "If the opposing fighter is adjacent, this cards value is a 5.",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Riot Gun",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "LEON",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "HandCannon",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "Gain 1 free action to attack if you moved adjacent to the opposing fighter this combat.  ",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "LEON",
+        "duringText": "",
+        "imageUrl": "",
+        "immediateText": "If you're not adjacent to the opposing fighter, you may move up to 3 spaces. ",
+        "quantity": 4,
+        "title": "Staggering shot",
+        "type": "attack",
+        "value": 1
+      }
+    ],
+    "extraCharacters": [],
+    "hero": {
+      "hp": 14,
+      "isRanged": true,
+      "move": 2,
+      "name": "Leon S. Kennedy",
+      "specialAbility": "Whenever Leon wins a combat, add his winning card's boost value to the Treasure’s tracker. When you stop in a starting space on your turn, you may use Treasure’s to buy items from The Merchant. \n\n"
+    },
+    "name": "",
+    "ruleCards": [
+      {
+        "content": "All shop cards start outside your deck. \n3 cost: Ammo restock - Draw 1 card\n4 cost: Green herb - Heal 1 health\n4 cost: Attaché Case - Add this card to your hand. \n6 cost: Tactical Vest - Add this card to your hand. \n6 cost: Red 9 Handgun - Add this card to your hand. \n8 cost: Rocket Launcher - Add this card to your hand. \n\n",
+        "title": "The Merchant"
+      }
+    ],
+    "sidekick": {
+      "hp": null,
+      "isRanged": false,
+      "name": "Sidekick",
+      "quantity": 0,
+      "quote": "\n\"What're ya buyin'?\" - The Merchant"
+    }
+  },
+  "deck_first_published_on": "Mon, 31 Aug 2026 09:43:31 GMT",
+  "deck_published": true,
+  "family_id": "NQ5XP",
+  "id": "NQ5XP",
+  "liked": false,
+  "likes": 0,
+  "name": "Leon S. Kennedy",
+  "note": "Art is TEMPLATE FALLBACK for now: every payload imageUrl and the cardback are uncredited third-party hotlinks (srcdn, fandom, capcom, ytimg, twimg, gstatic, supabase fan_heroes) and were deliberately blanked per the #446 self-hosting rule — nothing is mirrored. Art is a separate follow-up (deck-art pipeline); until then every face renders the generated template and the board renders the house cardback. Verbatim titles (shop - rocket Launcher, Shop - Tactical vest, Shop - Red 9 Handgun, Shop - Attache case, Staggering shot, HandCannon) are the print the engine carries — do not fix.",
+  "published": true,
+  "published_on": "Mon, 31 Aug 2026 09:43:31 GMT",
+  "tags": [
+    {
+      "name": "Ranged Hero",
+      "slug": "ranged-hero"
+    },
+    {
+      "name": "Solo Fighter",
+      "slug": "solo-fighter"
+    },
+    {
+      "name": "Tested",
+      "slug": "tested"
+    },
+    {
+      "name": "Fully-arted",
+      "slug": "fully-arted"
+    },
+    {
+      "name": "Resident Evil",
+      "slug": "resident-evil"
+    },
+    {
+      "name": "Video game",
+      "slug": "video-game"
+    }
+  ],
+  "updated_on": "Mon, 31 Aug 2026 09:43:31 GMT",
+  "user": "Grovelsey",
+  "version_id": "ZYZD4hA632",
+  "version_name": "Initial version",
+  "versions": [
+    {
+      "created_on": "Sun, 23 Aug 2026 08:58:34 GMT",
+      "id": "ZYZD4hA632",
+      "name": "Leon S. Kennedy",
+      "published": true,
+      "updated_on": "Mon, 31 Aug 2026 09:43:31 GMT",
+      "version_name": "Initial version"
+    }
+  ]
+}
