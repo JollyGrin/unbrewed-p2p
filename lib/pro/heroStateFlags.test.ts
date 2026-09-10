@@ -1071,7 +1071,11 @@ describe("HERO_STATE_COUNTERS registry — Leon's TREASURE counter + SHOP/EQUIPM
     // state, not an event).
     expect(e!.outOf).toBeUndefined();
     expect(e!.showAtZero).toBeUndefined();
-    expect(e!.nameplate?.labelTemplate).toBe("TREASURE: {n}");
+    // COMPACT label (issue #786): the pill shows the emoji the token badge
+    // already uses, and `longLabelTemplate` keeps the full word for the hover
+    // title + aria-label.
+    expect(e!.nameplate?.labelTemplate).toBe("💰 {n}");
+    expect(e!.nameplate?.longLabelTemplate).toBe("TREASURE: {n}");
     expect(e!.token).toMatchObject({ title: "TREASURE" });
   });
 
@@ -1083,8 +1087,10 @@ describe("HERO_STATE_COUNTERS registry — Leon's TREASURE counter + SHOP/EQUIPM
     // Card zones, NOT counters — `counter` must stay unset on both.
     expect(shop!.counter).toBeUndefined();
     expect(equipment!.counter).toBeUndefined();
-    expect(shop!.nameplate?.labelTemplate).toBe("MERCHANT: {n}");
-    expect(equipment!.nameplate?.labelTemplate).toBe("EQUIPPED: {n}");
+    expect(shop!.nameplate?.labelTemplate).toBe("🛒 {n}");
+    expect(shop!.nameplate?.longLabelTemplate).toBe("MERCHANT: {n}");
+    expect(equipment!.nameplate?.labelTemplate).toBe("🦺 {n}");
+    expect(equipment!.nameplate?.longLabelTemplate).toBe("EQUIPPED: {n}");
     expect(shop!.token).toMatchObject({ title: "MERCHANT" });
     expect(equipment!.token).toMatchObject({ title: "EQUIPPED" });
     // Exactly three entries, nothing else on this hero.
@@ -1110,7 +1116,7 @@ describe("counterChipsFor — Leon's Treasure economy (HUD nameplate)", () => {
 
   it("shows a TREASURE pill with the live value", () => {
     const chips = counterChipsFor("leon-s-kennedy", { TREASURE: 7 });
-    expect(treasureChip(chips)!.chip.onLabel).toBe("TREASURE: 7");
+    expect(treasureChip(chips)!.chip.onLabel).toBe("💰 7");
     expect(treasureChip(chips)!.on).toBe(true);
   });
 
@@ -1123,14 +1129,17 @@ describe("counterChipsFor — Leon's Treasure economy (HUD nameplate)", () => {
   it("shows a MERCHANT pill counting the SHOP pile, and carries the card ids so the pill can open the inspection overlay", () => {
     const chips = counterChipsFor("leon-s-kennedy", { TREASURE: 3 }, { SHOP: SHOP_STOCK });
     const merchant = chips.find((c) => c.chip.flag === "pile:SHOP");
-    expect(merchant!.chip.onLabel).toBe("MERCHANT: 4");
+    expect(merchant!.chip.onLabel).toBe("🛒 4");
+    // compact pill keeps the full word reachable (issue #786): the title/aria
+    // reading comes off `fullLabel`, and the click affordance is intact
+    expect(merchant!.chip.fullLabel).toBe("MERCHANT: 4");
     expect(merchant!.chip.pile).toBe("SHOP");
     expect(merchant!.chip.cards).toEqual(SHOP_STOCK);
   });
 
   it("reads the SHOP pile down as items are bought — 3 left, then hidden when the stock empties", () => {
     const three = counterChipsFor("leon-s-kennedy", undefined, { SHOP: SHOP_STOCK.slice(1) });
-    expect(three.find((c) => c.chip.flag === "pile:SHOP")!.chip.onLabel).toBe("MERCHANT: 3");
+    expect(three.find((c) => c.chip.flag === "pile:SHOP")!.chip.onLabel).toBe("🛒 3");
     expect(counterChipsFor("leon-s-kennedy", undefined, { SHOP: [] })).toEqual([]);
     expect(counterChipsFor("leon-s-kennedy", undefined, {})).toEqual([]);
     // pre-v25 server: no `piles` field at all
@@ -1144,7 +1153,8 @@ describe("counterChipsFor — Leon's Treasure economy (HUD nameplate)", () => {
       { EQUIPMENT: ["leon-s-kennedy/shop-tactical-vest#1"] }
     );
     const equipped = worn.find((c) => c.chip.flag === "pile:EQUIPMENT");
-    expect(equipped!.chip.onLabel).toBe("EQUIPPED: 1");
+    expect(equipped!.chip.onLabel).toBe("🦺 1");
+    expect(equipped!.chip.fullLabel).toBe("EQUIPPED: 1");
     // only EQUIPMENT was passed, so it is the only pill — SHOP's absence hides
     // its own rather than being read as an empty stock
     expect(worn.map((c) => c.chip.flag)).toEqual(["pile:EQUIPMENT"]);
@@ -1157,7 +1167,9 @@ describe("counterChipsFor — Leon's Treasure economy (HUD nameplate)", () => {
       { TREASURE: 5 },
       { SHOP: SHOP_STOCK, EQUIPMENT: ["leon-s-kennedy/shop-attache-case#1"] }
     );
-    expect(chips.map((c) => c.chip.onLabel)).toEqual([
+    expect(chips.map((c) => c.chip.onLabel)).toEqual(["💰 5", "🛒 4", "🦺 1"]);
+    // every compact pill still spells its word out for hover / screen readers
+    expect(chips.map((c) => c.chip.fullLabel)).toEqual([
       "TREASURE: 5",
       "MERCHANT: 4",
       "EQUIPPED: 1",
@@ -1178,6 +1190,58 @@ describe("counterChipsFor — Leon's Treasure economy (HUD nameplate)", () => {
     expect(
       counterChipsFor("king-kong", { TREASURE: 5 }, { SHOP: SHOP_STOCK, EQUIPMENT: ["x#1"] })
     ).toEqual([]);
+  });
+});
+
+// Issue #786: with TREASURE + MERCHANT + EQUIPPED + TURN all up, Leon's worded
+// chips overflowed the 15rem plate and squeezed the player name — the
+// hero-ability tooltip's only trigger — to zero. The pills are now compact
+// (emoji + count, the token badges' own glyphs) while `fullLabel` keeps the
+// full word on the hover title and aria-label. These tests pin BOTH halves:
+// the compact rendering AND the long-label projection that makes it readable.
+describe("Leon's compact chips + long-label path (issue #786)", () => {
+  const SHOP_STOCK = ["leon-s-kennedy/shop-tactical-vest#1"];
+
+  it("carries fullLabel on every Leon chip, word-for-word, alongside the compact label", () => {
+    const chips = counterChipsFor(
+      "leon-s-kennedy",
+      { TREASURE: 2 },
+      { SHOP: SHOP_STOCK, EQUIPMENT: SHOP_STOCK }
+    );
+    expect(chips.map((c) => [c.chip.onLabel, c.chip.fullLabel])).toEqual([
+      ["💰 2", "TREASURE: 2"],
+      ["🛒 1", "MERCHANT: 1"],
+      ["🦺 1", "EQUIPPED: 1"],
+    ]);
+  });
+
+  it("substitutes {n} into the long label the same way as the compact one", () => {
+    const chips = counterChipsFor("leon-s-kennedy", { TREASURE: 12 });
+    expect(chips[0].chip.onLabel).toBe("💰 12");
+    expect(chips[0].chip.fullLabel).toBe("TREASURE: 12");
+  });
+
+  it("leaves every other hero's labels alone — no compact pills, no fullLabel", () => {
+    // one representative per non-Leon template shape: a plain counter, a
+    // pile, and an outOf counter
+    const samples = [
+      counterChipsFor("nancy-drew", { CLUE: 3 }),
+      counterChipsFor("luke-skywalker", undefined, { TRAINING: ["x#1"] }),
+      counterChipsFor("skull-kid", { TIME: 2 }),
+    ];
+    for (const chips of samples) {
+      expect(chips.length).toBeGreaterThan(0);
+      for (const { chip } of chips) {
+        expect(chip.fullLabel).toBeUndefined();
+      }
+    }
+  });
+
+  it("still turns the pile pills into inspection affordances", () => {
+    const chips = counterChipsFor("leon-s-kennedy", undefined, { SHOP: SHOP_STOCK });
+    const merchant = chips.find((c) => c.chip.flag === "pile:SHOP")!;
+    expect(merchant.chip.pile).toBe("SHOP");
+    expect(merchant.chip.cards).toEqual(SHOP_STOCK);
   });
 });
 
