@@ -354,7 +354,16 @@ export interface HeroStateCounter {
   pileLabel?: string;
   /** HUD nameplate pill. `labelTemplate` substitutes `{n}` with the live value
    *  (e.g. "CLUES: {n}" -> "CLUES: 3"). Omit for token-only counters. */
-  nameplate?: { labelTemplate: string };
+  nameplate?: {
+    labelTemplate: string;
+    /** Full-word form of the same reading, for when `labelTemplate` is
+     *  COMPACTED to an emoji + count to keep a crowded title bar from squeezing
+     *  the player name out (issue #786, Leon). Substituted identically; ProHud
+     *  surfaces it as the chip's `title` tooltip and `aria-label` so the word
+     *  ("MERCHANT: 4") stays reachable even though the pill only shows "🛒 4".
+     *  Omit when `labelTemplate` already IS the full word (every other hero). */
+    longLabelTemplate?: string;
+  };
   /** board-token corner badge. The badge `label` is the live value; `icon`,
    *  `title` prefix, and colors are fixed. Omit for nameplate-only counters. */
   token?: { icon: string; title: string; bg: string; color: string };
@@ -568,19 +577,25 @@ export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
   {
     counter: "TREASURE",
     heroes: ["leon-s-kennedy"],
-    nameplate: { labelTemplate: "TREASURE: {n}" },
+    // COMPACT labels (issue #786): with all three chips + the TURN tag up, the
+    // words ("TREASURE: 2") overflowed the 15rem plate and squeezed the player
+    // name — the hero-ability tooltip's only trigger — down to nothing. The
+    // emoji are the SAME glyphs the token badges already use, so the board and
+    // the plate read identically; `longLabelTemplate` keeps the full word on
+    // the hover title and aria-label.
+    nameplate: { labelTemplate: "💰 {n}", longLabelTemplate: "TREASURE: {n}" },
     token: { icon: "💰", title: "TREASURE", bg: "#273d2c", color: "#E9F3EB" },
   },
   {
     pile: "SHOP",
     heroes: ["leon-s-kennedy"],
-    nameplate: { labelTemplate: "MERCHANT: {n}" },
+    nameplate: { labelTemplate: "🛒 {n}", longLabelTemplate: "MERCHANT: {n}" },
     token: { icon: "🛒", title: "MERCHANT", bg: "#7A5A2E", color: "#F7EFD8" },
   },
   {
     pile: "EQUIPMENT",
     heroes: ["leon-s-kennedy"],
-    nameplate: { labelTemplate: "EQUIPPED: {n}" },
+    nameplate: { labelTemplate: "🦺 {n}", longLabelTemplate: "EQUIPPED: {n}" },
     token: { icon: "🦺", title: "EQUIPPED", bg: "#4A3B22", color: "#F0E9DA" },
   },
 ];
@@ -693,13 +708,18 @@ export const counterChipsFor = (
     if (!e.nameplate) continue;
     const n = valueOf(e, counters, piles);
     if (!rendersAt(e, n)) continue; // hidden at 0 unless the entry opts in
+    const fill = (t: string) =>
+      t.replace("{n}", String(n)).replace("{max}", String(e.outOf ?? ""));
     chips.push({
       chip: {
         flag: `${e.pile ? "pile" : "counter"}:${sourceKey(e)}`,
-        onLabel: e.nameplate.labelTemplate
-          .replace("{n}", String(n))
-          .replace("{max}", String(e.outOf ?? "")),
+        onLabel: fill(e.nameplate.labelTemplate),
         offLabel: "",
+        // A compacted pill carries the full-word reading so the hover title and
+        // aria-label still say "MERCHANT: 4" while the pill shows "🛒 4".
+        ...(e.nameplate.longLabelTemplate
+          ? { fullLabel: fill(e.nameplate.longLabelTemplate) }
+          : {}),
         ...(e.pile ? { pile: e.pile, cards: pileCardIds(piles?.[e.pile]) } : {}),
       },
       on: true,
@@ -770,6 +790,11 @@ export interface FlagHudChip {
   /** native tooltip for a NON-clickable pill (registry `nameplate.title`). A
    *  pile-sourced chip renders its own pile title instead. */
   title?: string;
+  /** full-word reading of a COMPACTED label (issue #786): what the pill would
+   *  say if the words fit ("TREASURE: 2" behind "💰 2"). Feeds the pill's
+   *  `aria-label` and, for clickable pile pills, the pile-inspection title.
+   *  Absent when the label already is the full word — the default. */
+  fullLabel?: string;
   /** set-aside pile this chip counts (protocol v25) — present ONLY for
    *  pile-sourced chips. Its presence is what turns the pill into a clickable
    *  inspection affordance; `cards` are the tucked instances to show. */
