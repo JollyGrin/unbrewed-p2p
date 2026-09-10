@@ -866,10 +866,13 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     // Leon S. Kennedy — unmatched.cards deck NQ5XP, Grovelsey's Resident Evil 4
     // deck (issue #780 ↔ engine #566; PAIRED with the engine's `feature/leon`
     // branch, DRAFT until the pair merge). Served at tier `lab`. No `original`
-    // flag — the tile deep-links to unmatched.cards/decks/NQ5XP. Template art
-    // for now: the payload's imageUrls and cardback are uncredited third-party
-    // hotlinks and are deliberately blanked, not mirrored (#446) — art is a
-    // separate deck-art-pipeline follow-up, so no `cardbackUrl` here either.
+    // flag — the tile deep-links to unmatched.cards/decks/NQ5XP. INTERIM art
+    // (Dean's call 2026-09-09, issue #784): the payload's plain illustrations
+    // (third-party RE4 screenshots/wiki imagery — NOT finished full-card renders,
+    // so they wire as imageUrl only, never cardImage) are mirrored into
+    // public/evergreen-decks/art/NQ5XP per the #446 self-hosting rule; an
+    // unbrewed art pass replaces them later. Riot Gun's primagames source 403s,
+    // so that one face stays on the template.
     id: "NQ5XP",
     name: "Leon S. Kennedy",
     hero: "Leon S. Kennedy",
@@ -879,5 +882,8 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     highlightColour: "#273d2c",
     lab: true,
     tier: "lab",
+    // Interim cardback mirrored from the payload's supabase fan_heroes cover
+    // (Kenshiro/Luke/Jason precedent) — see the interim-art note above.
+    cardbackUrl: "/evergreen-decks/art/NQ5XP/cardback.webp",
   },
 ];
