@@ -139,18 +139,21 @@ const FlagChip = ({
   const icons = FLAG_CHIP_ICONS[chip.flag];
   const Icon = icons ? (on ? icons.on : icons.off) : null;
   const label = on ? chip.onLabel : chip.offLabel;
+  // A compacted pill (issue #786) shows "🛒 4" but must still be READ as
+  // "MERCHANT: 4" — by a screen reader, and on hover via the pile title.
+  const spoken = chip.fullLabel ?? label;
   const pal = flagChipPalette(on);
   return (
     <motion.div
       initial={{ scale: 0.6, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: "spring", stiffness: 520, damping: 20 }}
-      aria-label={label}
+      aria-label={spoken}
       {...(onClick
         ? {
             role: "button",
             tabIndex: 0,
-            title: `${label} — view the tucked cards`,
+            title: `${spoken} — view the tucked cards`,
             onPointerDown: (e: React.PointerEvent) => e.stopPropagation(),
             onDoubleClick: (e: React.MouseEvent) => e.stopPropagation(),
             onClick,
@@ -161,8 +164,8 @@ const FlagChip = ({
               }
             },
           }
-        : chip.title
-          ? { title: chip.title }
+        : chip.title || chip.fullLabel
+          ? { title: chip.title ?? chip.fullLabel }
           : {})}
       style={{
         cursor: onClick ? "pointer" : undefined,
@@ -793,8 +796,13 @@ export const SeatPlate = ({
     );
 
   // ----- reusable pieces (shared by the live plate and the hover-peek) -----
+  // flexShrink 0 (issue #786): the name line is the hero-ability tooltip's ONLY
+  // trigger, so the chip cluster must never squeeze it to nothing. Its children
+  // are width-capped (PlayerName/HeroName max-width 9.5rem with ellipsis), so
+  // the block can never outgrow the bar on its own; when the row is tight the
+  // chip cluster wraps instead. minW={0} stays harmless alongside it.
   const renderNameBlock = (withAbility: boolean) => (
-    <Box minW={0}>
+    <Box minW={0} flexShrink={0} data-testid="plate-name-block">
       {withAbility ? (
         <Tooltip
           hasArrow
@@ -1062,7 +1070,16 @@ export const SeatPlate = ({
     <StatContainer isLocal={isLocal} sx={{ cursor: "default" }}>
       <PlayerTitleBar>
         {renderNameBlock(false)}
-        <Flex alignItems="center" gap="0.3rem" flexShrink={0}>
+        {/* Wraps rather than shrinks the name out of the plate (issue #786) —
+            same guard as the live title bars below. */}
+        <Flex
+          alignItems="center"
+          gap="0.3rem"
+          flexWrap="wrap"
+          justifyContent="flex-end"
+          minW={0}
+          data-testid="plate-chip-cluster"
+        >
           {flagTags}
           {combatWonTag}
           {ongoingSchemeTag}
@@ -1179,7 +1196,17 @@ export const SeatPlate = ({
             <StatContainer isLocal={isLocal}>
               <PlayerTitleBar {...titleBarDrag}>
                 {renderNameBlock(true)}
-                <Flex alignItems="center" gap="0.4rem" flexShrink={0}>
+                {/* Wraps rather than shrinks the name out of the plate
+                    (issue #786): the cluster gives ground, the name keeps its
+                    natural width. */}
+                <Flex
+                  alignItems="center"
+                  gap="0.4rem"
+                  flexWrap="wrap"
+                  justifyContent="flex-end"
+                  minW={0}
+                  data-testid="plate-chip-cluster"
+                >
                   <Flex alignItems="center" gap="0.25rem" color="brand.parchment">
                     <GiHearts color="#C0392B" size="14px" />
                     <Text
@@ -1207,7 +1234,17 @@ export const SeatPlate = ({
           <StatContainer isLocal={isLocal}>
             <PlayerTitleBar {...titleBarDrag}>
               {renderNameBlock(true)}
-              <Flex alignItems="center" gap="0.3rem" flexShrink={0}>
+              {/* Wraps rather than shrinks the name out of the plate (issue
+                  #786): the cluster gives ground, the name keeps its natural
+                  width so the hero-ability tooltip stays hoverable. */}
+              <Flex
+                alignItems="center"
+                gap="0.3rem"
+                flexWrap="wrap"
+                justifyContent="flex-end"
+                minW={0}
+                data-testid="plate-chip-cluster"
+              >
                 {flagTags}
                 {combatWonTag}
                 {ongoingSchemeTag}

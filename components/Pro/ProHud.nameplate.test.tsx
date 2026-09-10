@@ -247,3 +247,53 @@ describe("ProHud nameplate flag chips — title tooltip pass-through (issue #749
     pills.forEach((pill) => expect(pill).not.toHaveAttribute("title"));
   });
 });
+
+// Issue #786: Leon's TREASURE/MERCHANT/EQUIPPED chips + the TURN tag used to
+// squeeze the player name — the hero-ability tooltip's only trigger — out of
+// the fixed 15rem plate. Two guards pinned here: the title-bar chip cluster
+// WRAPS instead of claiming the whole row (jsdom can't lay out flex, so the
+// style contract is the assertion), and the name block itself is unshrinkable.
+// The compact pills keep their full word on title/aria — pinned alongside.
+describe("ProHud title bar — chip wrap guard + compact pills (issue #786)", () => {
+  const leonSeat = () =>
+    seat("p1", true, "Dean", {
+      heroId: "leon-s-kennedy",
+      counters: { TREASURE: 2 },
+      piles: { SHOP: ["leon-s-kennedy/shop-tactical-vest#1"], EQUIPMENT: ["leon-s-kennedy/shop-red-9-handgun#1"] },
+    });
+
+  it("lets the chip cluster wrap and keeps the name block unshrinkable", () => {
+    renderHud(makeView([leonSeat(), seat("p2", false)], "p1"));
+
+    for (const cluster of screen.getAllByTestId("plate-chip-cluster")) {
+      expect(cluster).toHaveStyle({ "flex-wrap": "wrap" });
+    }
+    for (const block of screen.getAllByTestId("plate-name-block")) {
+      expect(block).toHaveStyle({ "flex-shrink": "0" });
+    }
+    // the name itself stays in the plate at every size
+    expect(screen.getAllByText("Dean").length).toBeGreaterThan(0);
+  });
+
+  it("renders Leon's compact pile pill with the full-word title and aria-label", () => {
+    renderHud(makeView([leonSeat(), seat("p2", false)], "p1"));
+
+    // clickable pile pill: hover still reads "MERCHANT: 1 — view the tucked
+    // cards", and a screen reader hears "MERCHANT: 1", not "🛒 1"
+    const merchants = screen.getAllByText("🛒 1");
+    expect(merchants.length).toBeGreaterThan(0);
+    merchants.forEach((pill) => {
+      expect(pill).toHaveAttribute("title", "MERCHANT: 1 — view the tucked cards");
+      expect(pill).toHaveAttribute("aria-label", "MERCHANT: 1");
+    });
+
+    // the TREASURE counter pill is not clickable, but it still spells itself
+    // out on hover (fullLabel becomes its native title)
+    const treasures = screen.getAllByText("💰 2");
+    expect(treasures.length).toBeGreaterThan(0);
+    treasures.forEach((pill) => {
+      expect(pill).toHaveAttribute("title", "TREASURE: 2");
+      expect(pill).toHaveAttribute("aria-label", "TREASURE: 2");
+    });
+  });
+});
