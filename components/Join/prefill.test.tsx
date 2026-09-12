@@ -58,7 +58,7 @@ jest.mock("../../lib/bag/useBag", () => ({
 jest.mock("../../lib/invite", () => ({
   fetchDeckById: jest.fn().mockResolvedValue({ id: "d1", name: "A deck" }),
   isValidServerUrl: () => true,
-  persistAndStarDeck: jest.fn(),
+  persistAndStarDeck: jest.fn().mockResolvedValue(true),
   randomPlayerName: () => "RandomGuest",
   randomPopularDeck: () => ({ id: "pop1", name: "Popular deck" }),
 }));

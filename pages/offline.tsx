@@ -55,7 +55,11 @@ const Offline = () => {
   // Fetched deck lands: add it to the bag and star it.
   useEffect(() => {
     if (!data) return;
-    void pushDeck(data).then(() => setStar(data.id));
+    // Only star what actually landed — a refused deck (blocked author,
+    // device full) was already toasted and isn't in the bag to resolve.
+    void pushDeck(data).then((added) => {
+      if (added) setStar(data.id);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 

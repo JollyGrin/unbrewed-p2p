@@ -20,6 +20,8 @@ import { API_URL } from "@/lib/account/apiUrl";
 import { __resetAccountStoreForTests } from "@/lib/account/useAccount";
 import { LS_KEY } from "@/lib/hooks/useLocalStorage";
 import { readStarredDeck } from "@/lib/sandbox/initGame";
+import { toast } from "react-hot-toast";
+
 import { __resetBagStoresForTests, setStar } from "./bagStore";
 import { useBagDecks, useBagMaps } from "./useBag";
 
@@ -251,5 +253,96 @@ describe("a signed-in user", () => {
     // — which holds no decks at all here.
     expect(localStorage.getItem(LS_KEY.DECKS)).toBeNull();
     expect(readStarredDeck()?.id).toBe("d1");
+  });
+});
+
+describe("a blocked-author deck (#790)", () => {
+  const BLOCKED_MESSAGE =
+    "Decks by JOWEE can't be imported — the author has asked that their decks not be importable into Unbrewed.";
+  const byJowee = (id: string) => ({ ...deck(id, "Death"), user: "  JOWEE " });
+
+  beforeEach(() => (toast.error as jest.Mock).mockClear());
+
+  it("is refused by pushDeck for a guest: toasted, not stored, not starred", async () => {
+    install(() => reply(401, { user: null }));
+    const { result } = renderHook(() => useBagDecks());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      expect(await result.current.pushDeck(byJowee("zPmA"))).toBe(false);
+    });
+
+    expect(toast.error).toHaveBeenCalledWith(BLOCKED_MESSAGE);
+    expect(localStorage.getItem(LS_KEY.DECKS)).toBeNull();
+    expect(localStorage.getItem(LS_KEY.STAR_DECK)).toBeNull();
+    expect(result.current.decks).toEqual([]);
+  });
+
+  it("is refused by pushDeck for a signed-in user without an upload", async () => {
+    const server = signedInApi();
+    const { result } = renderHook(() => useBagDecks());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      expect(await result.current.pushDeck(byJowee("zPmA"))).toBe(false);
+    });
+
+    expect(toast.error).toHaveBeenCalledWith(BLOCKED_MESSAGE);
+    expect(server.created).toEqual([]);
+    expect(paths().some((path) => path.startsWith("POST"))).toBe(false);
+  });
+
+  it("is filtered out of importDecks while the rest import as before", async () => {
+    install(() => reply(401, { user: null }));
+    const { result } = renderHook(() => useBagDecks());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    let added = -1;
+    await act(async () => {
+      added = await result.current.importDecks([
+        byJowee("zPmA"),
+        { ...deck("d1", "Bruce Lee"), user: "JollyGrin" },
+        { ...byJowee("zPmB"), user: "jowee" },
+      ]);
+    });
+
+    expect(added).toBe(1);
+    // one toast per author, however many of their decks were in the backup
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(toast.error).toHaveBeenCalledWith(BLOCKED_MESSAGE);
+    const stored = JSON.parse(localStorage.getItem(LS_KEY.DECKS)!);
+    expect(stored.map((d: any) => d.id)).toEqual(["d1"]);
+    expect(localStorage.getItem(LS_KEY.STAR_DECK)).toBe("d1");
+  });
+
+  it("imports nothing and stars nothing when every deck is blocked", async () => {
+    install(() => reply(401, { user: null }));
+    const { result } = renderHook(() => useBagDecks());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    let added = -1;
+    await act(async () => {
+      added = await result.current.importDecks([byJowee("zPmA")]);
+    });
+
+    expect(added).toBe(0);
+    expect(toast.error).toHaveBeenCalledWith(BLOCKED_MESSAGE);
+    expect(localStorage.getItem(LS_KEY.DECKS)).toBeNull();
+    expect(localStorage.getItem(LS_KEY.STAR_DECK)).toBeNull();
+  });
+
+  it("leaves TTS/image-built decks (user: \"you\") alone", async () => {
+    install(() => reply(401, { user: null }));
+    const { result } = renderHook(() => useBagDecks());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      expect(
+        await result.current.pushDeck({ ...deck("tts1", "Mine"), user: "you" }),
+      ).toBe(true);
+    });
+
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem(LS_KEY.DECKS)!)).toHaveLength(1);
   });
 });

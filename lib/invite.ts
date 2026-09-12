@@ -1,4 +1,7 @@
+import { toast } from "react-hot-toast";
+
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
+import { blockedAuthorMessage, isImportBlocked } from "@/lib/decks/blockedAuthors";
 import { POPULAR_DECKS, PopularDeckMeta } from "@/lib/constants/top-decks";
 import { DEFAULT_SERVER } from "@/lib/hooks/useLocalStorage";
 import {
@@ -102,12 +105,22 @@ export const randomPopularDeck = (): PopularDeckMeta => {
  * (or an unreachable API) gets the identical synchronous localStorage write
  * this has always done. The star is set first: it is a local pointer either
  * way, and a slow upload must not leave the player deckless at the table.
+ *
+ * Join and Share call this directly rather than through `useBagDecks`, so it
+ * repeats the blocked-author check (#790): a refused deck is toasted, never
+ * starred or stored, and `false` tells the caller not to report success or
+ * navigate on.
  */
 export const persistAndStarDeck = async (
   deck: DeckImportType,
-): Promise<void> => {
+): Promise<boolean> => {
+  if (isImportBlocked(deck)) {
+    toast.error(blockedAuthorMessage(deck.user));
+    return false;
+  }
   setStar(deck.id);
   loadLocal(stores.decks);
   const already = bagItems(stores.decks).some((d) => d?.id === deck.id);
   if (!already) await addItem(stores.decks, deck);
+  return true;
 };

@@ -212,7 +212,8 @@ const DeckPreview = ({ preview }: { preview: SharedDeckPreview }) => {
               // Same write the invite flow uses, so the deck is there the
               // moment the user navigates on — the account's copy when they
               // are signed in, this browser's when they aren't.
-              await persistAndStarDeck(preview.deck);
+              // False = refused (blocked author), already toasted.
+              if (!(await persistAndStarDeck(preview.deck))) return;
               setAdded(true);
               toast.success(`${preview.name} is in your bag, ready to play`);
             }}

@@ -16,9 +16,11 @@
  * See lib/bag/bagStore.ts for the backends themselves.
  */
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "react-hot-toast";
 
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { useAccount } from "@/lib/account/useAccount";
+import { blockedAuthorMessage, isImportBlocked } from "@/lib/decks/blockedAuthors";
 import { MapData } from "@/lib/hooks/useLocalStorage";
 import {
   BagSource,
@@ -85,7 +87,7 @@ export type BagDeckView = {
   /** The account row id, for a share link. Undefined for a device deck. */
   cloudIdOf: (id: string) => string | undefined;
   setStar: (id: string) => void;
-  /** False only when nothing was stored at all (device full). */
+  /** False when nothing was stored: device full, or a blocked author (#790). */
   pushDeck: (deck: DeckImportType) => Promise<boolean>;
   removeDeckbyId: (id: string) => Promise<void>;
   updateDeck: (deck: DeckImportType) => Promise<void>;
@@ -114,6 +116,12 @@ export const useBagDecks = (): BagDeckView => {
 
   const pushDeck = useCallback(
     async (deck: DeckImportType) => {
+      // An author who asked not to be importable (#790) is refused before
+      // anything is written, whichever add path the deck came through.
+      if (isImportBlocked(deck)) {
+        toast.error(blockedAuthorMessage(deck.user));
+        return false;
+      }
       const outcome = await addItem(store, deck);
       // A refusal that still landed on the device is a success for the user;
       // only "nothing was stored" is a failure the caller must not toast over.
@@ -148,9 +156,21 @@ export const useBagDecks = (): BagDeckView => {
     ),
     importDecks: useCallback(
       async (incoming: DeckImportType[]) => {
-        const added = await importItems(store, incoming);
+        // A backup can mix allowed decks with blocked-author ones (#790):
+        // import the rest, and say once per author what was left out.
+        const blocked = incoming.filter(isImportBlocked);
+        const allowed = incoming.filter((deck) => !isImportBlocked(deck));
+        const blockedAuthors = new Map<string, string>();
+        for (const deck of blocked) {
+          const key = deck.user.trim().toLowerCase();
+          if (!blockedAuthors.has(key)) blockedAuthors.set(key, deck.user);
+        }
+        blockedAuthors.forEach((user) => toast.error(blockedAuthorMessage(user)));
+        if (blocked.length > 0 && allowed.length === 0) return 0;
+
+        const added = await importItems(store, allowed);
         if (added > 0 && !loadStar()) {
-          const first = incoming.find((deck) => deck?.id);
+          const first = allowed.find((deck) => deck?.id);
           if (first) writeStar(first.id);
         }
         return added;

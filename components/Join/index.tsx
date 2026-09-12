@@ -171,7 +171,11 @@ export const JoinPage = () => {
         const deck =
           remoteDeck ??
           (await fetchDeckById(invitedDeckId ?? randomMeta?.id ?? ""));
-        await persistAndStarDeck(deck);
+        // Refused (blocked author, already toasted): stay on the join form.
+        if (!(await persistAndStarDeck(deck))) {
+          setJoining(false);
+          return;
+        }
       } else {
         setStar(deckChoice);
       }
