@@ -120,15 +120,6 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl: "https://i.imgur.com/NY00l5g.png",
   },
   {
-    id: "zPmA",
-    name: "Death (Puss in Boots)",
-    hero: "Death",
-    author: "Jowee",
-    likes: 96,
-    highlightColour: "#860001",
-    cardbackUrl: "https://i.imgur.com/NhatNHz.png",
-  },
-  {
     id: "l91K",
     name: "Darth Vader",
     hero: "Darth Vader",
