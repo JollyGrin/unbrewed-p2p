@@ -19,7 +19,6 @@ import {
 } from "@/components/DeckPool/deck-import.type";
 import {
   PoolType,
-  boostFromTopDeck,
   commitCard,
   deckCard,
   deckCardBottom,
@@ -43,12 +42,14 @@ import {
 import { DeckLabel } from "@/components/Game/CommandMenu/deckCommands";
 import {
   IRL_OPENING_HAND,
+  boostFromHand,
+  cancelBoosts,
   deckHasCards,
   discardInPlay,
+  inPlayBoosts,
   initIrlPool,
   removeCommitted,
   returnCommitToHand,
-  undoDeckBoost,
 } from "@/lib/irl/irlPool";
 import { IrlCounter } from "@/lib/irl/irlCharacters";
 import { clearIrlPool, loadIrlPool, saveIrlPool } from "@/lib/irl/irlStorage";
@@ -207,7 +208,7 @@ export const IrlGameProvider = ({
 const titleOf = (card?: DeckImportCardType | null) => card?.title || "a card";
 
 /**
- * Every tray action as one call. Draws and boosts are guarded here so
+ * Every tray action as one call. Draws are guarded here so
  * PoolFns' native `alert("No cards left")` can never fire on a phone.
  */
 export const useIrlActions = () => {
@@ -281,16 +282,23 @@ export const useIrlActions = () => {
           ? `Revealed ${titleOf(p.commit.main)}`
           : "Turned their card in play face-down",
       ),
-    boost: () =>
-      needsDeck(() =>
-        apply(
-          boostFromTopDeck,
-          (p) =>
-            `Boosted from deck: ${titleOf(p.commit.boost)} (+${p.commit.boost?.boost ?? 0})`,
-        ),
+    // Rules §5.4: a boost is a card from HAND — never the top of the deck.
+    boostFromHand: (index: number) =>
+      apply(
+        (p) => {
+          const card = p.hand[index];
+          const before = inPlayBoosts(p).length;
+          boostFromHand(p, index);
+          return inPlayBoosts(p).length > before ? card : undefined;
+        },
+        (p, card) =>
+          !card
+            ? ""
+            : p.commit.reveal
+              ? `Boosted with ${titleOf(card)} (+${card.boost})`
+              : "Added a boost face-down",
       ),
-    cancelBoost: () =>
-      apply(undoDeckBoost, "Put the boost back on top of their deck"),
+    cancelBoost: () => apply(cancelBoosts, "Took their boost back into hand"),
     discardInPlay: () => apply(discardInPlay, "Discarded the card in play"),
     returnInPlay: () =>
       apply(returnCommitToHand, "Took the card in play back into hand"),

@@ -31,6 +31,9 @@ export type PoolType = {
     main: DeckImportCardType | null;
     reveal: boolean;
     boost: DeckImportCardType | null;
+    /** boosts past the first (IRL Mode, #798): separately granted boosts
+     *  stack. Absent on every other surface, which only fills `boost`. */
+    extraBoosts?: DeckImportCardType[];
   };
 };
 export type PawnInfo = {
@@ -544,10 +547,12 @@ export const returnRemoved = (pool: PoolType, cardIndex: number): PoolType => {
  * The pool.commit zone (commitCard / boostCard / boostFromTopDeck / cancelBoost
  * / revealCommit / discardCommit / cancelCommit) is owned by IRL Mode (issue
  * #798, components/Irl): `{ main, reveal, boost }` is exactly paper combat —
- * commit face-down, reveal, boost from the top of the deck, discard both. On
+ * commit face-down, boost with a card FROM HAND when a card grants it (rules
+ * §5.4; IRL stacks further grants in `extraBoosts`), reveal, discard both. On
  * /game it also still backs the legacy commit modal, which is superseded by
  * playing cards to the table (face-down card tokens); retiring that modal
- * must NOT delete this family while IRL Mode uses it.
+ * must NOT delete this family while IRL Mode uses it. (`boostFromTopDeck` is
+ * that modal's alone — IRL never boosts off the deck.)
  */
 export const commitCard = (pool: PoolType, cardIndex: number): PoolType => {
   if (!pool?.hand || pool?.commit?.main) return pool;

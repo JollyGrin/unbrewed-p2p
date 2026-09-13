@@ -1,6 +1,7 @@
 import { Box, Flex, Grid, chakra } from "@chakra-ui/react";
 import { useState } from "react";
 import { useProLayout } from "@/lib/pro/useProLayout";
+import { boostChoices } from "@/lib/irl/irlPool";
 import { useIrlActions, useIrlGame } from "./irlGame";
 import {
   CardFace,
@@ -18,29 +19,43 @@ import {
  * Hand → "All" (issue #798 §2): every card in hand, 2-up on a phone, 4-up on
  * desktop. "Show to opponent" drops the controls so the phone can be handed
  * across the table — the hand IS what they look at.
+ *
+ * With `pick` it is the boost picker (rules §5.4 — a boost comes from hand):
+ * cards without a positive BOOST value are dimmed and can't be chosen.
  */
 export const IrlHandGrid = ({
   onOpenCard,
   onClose,
+  pick,
+  zIndex,
 }: {
-  onOpenCard: (index: number) => void;
+  onOpenCard?: (index: number) => void;
   onClose: () => void;
+  pick?: { onPick: (index: number) => void };
+  zIndex?: number;
 }) => {
   const { pool } = useIrlGame();
   const actions = useIrlActions();
   const { mobile } = useProLayout();
   const [showing, setShowing] = useState(false);
   const hand = pool?.hand ?? [];
+  const pickable = new Set(boostChoices(pool));
+
+  const sub = pick
+    ? "Choose a card to boost with"
+    : showing
+      ? `${hand.length} cards`
+      : `${hand.length} ${hand.length === 1 ? "card" : "cards"} · tap a card to play it`;
 
   return (
-    <IrlSheet label="Hand" maxW={mobile ? undefined : "960px"}>
+    <IrlSheet
+      label={pick ? "Choose a boost" : "Hand"}
+      maxW={mobile ? undefined : "960px"}
+      zIndex={zIndex}
+    >
       <TopBar
-        title={showing ? "Your hand" : "Hand"}
-        sub={
-          showing
-            ? `${hand.length} cards`
-            : `${hand.length} ${hand.length === 1 ? "card" : "cards"} · tap a card to play it`
-        }
+        title={pick ? "Boost" : showing ? "Your hand" : "Hand"}
+        sub={sub}
         onBack={onClose}
         right={<CloseButton onClick={onClose} />}
       />
@@ -54,23 +69,34 @@ export const IrlHandGrid = ({
             justifyItems="center"
             alignContent="start"
           >
-            {hand.map((card, index) => (
-              <chakra.button
-                type="button"
-                key={`${card.title}-${index}`}
-                w="100%"
-                maxW={mobile ? "172px" : "210px"}
-                lineHeight={0}
-                cursor={showing ? "default" : "pointer"}
-                aria-label={`${card.title} — view`}
-                disabled={showing}
-                _disabled={{ cursor: "default" }}
-                onClick={() => onOpenCard(index)}
-                sx={{ WebkitTapHighlightColor: "transparent" }}
-              >
-                <CardFace card={card} width="100%" />
-              </chakra.button>
-            ))}
+            {hand.map((card, index) => {
+              const offered = !pick || pickable.has(index);
+              return (
+                <chakra.button
+                  type="button"
+                  key={`${card.title}-${index}`}
+                  w="100%"
+                  maxW={mobile ? "172px" : "210px"}
+                  lineHeight={0}
+                  cursor={showing || !offered ? "default" : "pointer"}
+                  opacity={offered ? 1 : 0.35}
+                  filter={offered ? undefined : "grayscale(0.6)"}
+                  aria-label={
+                    pick
+                      ? offered
+                        ? `${card.title} — boost with +${card.boost}`
+                        : `${card.title} — no boost value`
+                      : `${card.title} — view`
+                  }
+                  disabled={showing || !offered}
+                  _disabled={{ cursor: "default" }}
+                  onClick={() => (pick ? pick.onPick(index) : onOpenCard?.(index))}
+                  sx={{ WebkitTapHighlightColor: "transparent" }}
+                >
+                  <CardFace card={card} width="100%" />
+                </chakra.button>
+              );
+            })}
           </Grid>
         )}
       </Box>
@@ -82,7 +108,11 @@ export const IrlHandGrid = ({
         flexShrink={0}
         bg="linear-gradient(180deg, rgba(44, 24, 49, 0), rgba(44, 24, 49, 0.9))"
       >
-        {showing ? (
+        {pick ? (
+          <PillButton flex="1" onClick={onClose}>
+            Cancel — no boost
+          </PillButton>
+        ) : showing ? (
           <PillButton flex="1" onClick={() => setShowing(false)}>
             Done showing
           </PillButton>

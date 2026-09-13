@@ -1,11 +1,10 @@
 import { Box, Flex, Input, Text } from "@chakra-ui/react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   DeckCommand,
   buildDeckCommands,
 } from "@/components/Game/CommandMenu/deckCommands";
 import { useGameMenus } from "@/components/Game/GameMenus/game-menus";
-import { useProLayout } from "@/lib/pro/useProLayout";
 import { useIrlGame } from "./irlGame";
 import {
   CloseButton,
@@ -38,8 +37,17 @@ export const IrlPalette = ({
 }) => {
   const { pool, act } = useIrlGame();
   const menus = useGameMenus();
-  const { mobile } = useProLayout();
   const [query, setQuery] = useState("");
+  const input = useRef<HTMLInputElement>(null);
+
+  // Keyboard-first devices only: on a phone, focusing the field would pop
+  // the on-screen keyboard over the list. (useProLayout can't decide this —
+  // it reports "desktop" on its first render, which is when autoFocus runs.)
+  useEffect(() => {
+    if (window.matchMedia?.("(hover: hover) and (pointer: fine)").matches) {
+      input.current?.focus();
+    }
+  }, []);
 
   const commands = buildDeckCommands({
     act,
@@ -73,7 +81,7 @@ export const IrlPalette = ({
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search — draw, shuffle, discard…"
           aria-label="Search actions"
-          autoFocus={!mobile}
+          ref={input}
           h="44px"
           bg="brand.parchment"
           color="brand.surfaceDim"

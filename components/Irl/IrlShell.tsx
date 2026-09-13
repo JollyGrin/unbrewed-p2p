@@ -109,13 +109,14 @@ const IrlTray = () => {
         setSheet((open) => (open === "palette" ? null : "palette"));
         return;
       }
-      if ((e.target as HTMLElement | null)?.closest?.("input, textarea")) return;
       if (e.key === "Escape") {
         if (menu) setMenu(null);
         else if (cardView) setCardView(null);
         else if (sheet) setSheet(null);
         return;
       }
+      // arrows belong to a focused field (the palette's search)
+      if ((e.target as HTMLElement | null)?.closest?.("input, textarea")) return;
       if (overlayOpen) return;
       if (e.key === "ArrowLeft") setHandIndex((i) => Math.max(0, i - 1));
       if (e.key === "ArrowRight") setHandIndex((i) => i + 1);
@@ -175,9 +176,6 @@ const IrlTray = () => {
     { id: "shuffle", label: "Shuffle deck", icon: <IconShuffle />, onSelect: actions.shuffle },
     { id: "scry", label: "Look at the top cards…", onSelect: () => setScryOpen(true), disabled: !deckCount },
     { id: "mill", label: "Discard the top card", icon: <IconTrash />, onSelect: actions.discardTop },
-    ...(inPlay && !pool.commit.boost
-      ? [{ id: "boost", label: "Boost the card in play from the top", onSelect: actions.boost }]
-      : []),
     {
       id: "search",
       label: "Look through deck (shuffles after)",

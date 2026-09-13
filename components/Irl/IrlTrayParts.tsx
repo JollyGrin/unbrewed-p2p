@@ -314,7 +314,7 @@ export const PileTile = ({
 
 /**
  * The deck: the strip draws (the mockup's "Draw"), the pile itself opens
- * the deck menu — Draw 2/3, shuffle, scry, mill, boost, look through.
+ * the deck menu — Draw 2/3, shuffle, scry, mill, look through.
  */
 export const DeckTile = ({
   count,

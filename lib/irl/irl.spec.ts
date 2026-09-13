@@ -1,21 +1,26 @@
 import { mockDeck as _mockDeck } from "@/_mocks_/deck";
 import { cloneDeep } from "lodash";
 import {
+  PoolType,
   adjustExtraCharacterHp,
   adjustHp,
-  boostFromTopDeck,
   commitCard,
   removeCard,
   revealCommit,
 } from "@/components/DeckPool/PoolFns";
 import {
   IRL_OPENING_HAND,
+  boostChoices,
+  boostFromHand,
+  boostTotal,
+  cancelBoosts,
   deckHasCards,
   discardInPlay,
+  inPlayBoosts,
   initIrlPool,
+  isBoostable,
   removeCommitted,
   returnCommitToHand,
-  undoDeckBoost,
 } from "./irlPool";
 import {
   clearIrlPool,
@@ -25,8 +30,33 @@ import {
 } from "./irlStorage";
 
 const deck = () => cloneDeep(_mockDeck);
+const titles = (cards?: { title: string }[] | null) =>
+  (cards ?? []).map((c) => c.title);
 
 beforeEach(() => window.localStorage.clear());
+
+/** hand boost values; card 2 (0) and card 3 (null) can't boost */
+const BOOSTS = [3, 2, 0, null, 1];
+
+/** A fresh game whose five-card hand is distinct, known cards. */
+const table = (): PoolType => {
+  const pool = initIrlPool(deck());
+  pool.hand = pool.hand.map((card, i) => ({
+    ...card,
+    title: `card ${i}`,
+    boost: BOOSTS[i] as number,
+  }));
+  return pool;
+};
+
+/** card 0 played face-down; hand left: card 1 (+2), card 2 (0), card 3 (null), card 4 (+1) */
+const played = (): PoolType => {
+  const pool = table();
+  commitCard(pool, 0);
+  return pool;
+};
+
+const EMPTY_COMMIT = { main: null, reveal: false, boost: null };
 
 describe("initIrlPool", () => {
   test("opens with a five-card hand drawn off a shuffled deck", () => {
@@ -50,17 +80,100 @@ describe("deckHasCards", () => {
   });
 });
 
+describe("boosts come from hand (rules §5.4)", () => {
+  test("isBoostable: only a positive BOOST value", () => {
+    expect(table().hand.map(isBoostable)).toEqual([true, true, false, false, true]);
+    expect(isBoostable(undefined)).toBe(false);
+  });
+
+  test("unboostable cards are never offered", () => {
+    expect(boostChoices(played())).toEqual([0, 3]); // card 1, card 4
+  });
+
+  test("boost from hand moves exactly one hand card into the boost slot", () => {
+    const pool = played();
+    const deckBefore = titles(pool.deck);
+    boostFromHand(pool, 0);
+    expect(pool.commit.boost?.title).toBe("card 1");
+    expect(titles(pool.hand)).toEqual(["card 2", "card 3", "card 4"]);
+    expect(titles(pool.deck)).toEqual(deckBefore); // never the deck
+    expect(pool.discard).toEqual([]);
+  });
+
+  test("an unboostable card is refused", () => {
+    const pool = played();
+    boostFromHand(pool, 1); // boost 0
+    boostFromHand(pool, 2); // boost null
+    expect(pool.commit.boost).toBeNull();
+    expect(pool.hand).toHaveLength(4);
+  });
+
+  test("no card in play, no boost", () => {
+    const pool = table();
+    boostFromHand(pool, 0);
+    expect(pool.commit.boost).toBeNull();
+    expect(pool.hand).toHaveLength(5);
+  });
+
+  test("a second boost stacks, and the total sums both", () => {
+    const pool = played();
+    boostFromHand(pool, 0); // card 1, +2
+    boostFromHand(pool, 2); // card 4, +1
+    expect(titles(inPlayBoosts(pool))).toEqual(["card 1", "card 4"]);
+    expect(boostTotal(pool)).toBe(3);
+    expect(titles(pool.hand)).toEqual(["card 2", "card 3"]);
+  });
+
+  test("cancel boost returns every boost card to hand, none to the deck", () => {
+    const pool = played();
+    const deckBefore = titles(pool.deck);
+    boostFromHand(pool, 0);
+    boostFromHand(pool, 2);
+    cancelBoosts(pool);
+    expect(inPlayBoosts(pool)).toEqual([]);
+    expect(pool.commit.extraBoosts).toBeUndefined();
+    expect(titles(pool.hand).sort()).toEqual(["card 1", "card 2", "card 3", "card 4"]);
+    expect(titles(pool.deck)).toEqual(deckBefore);
+    expect(pool.commit.main?.title).toBe("card 0"); // the played card stays
+  });
+
+  test("return to hand brings back the card and every boost", () => {
+    const pool = played();
+    boostFromHand(pool, 0);
+    boostFromHand(pool, 2);
+    returnCommitToHand(pool);
+    expect(pool.commit).toEqual(EMPTY_COMMIT);
+    expect(pool.commit.extraBoosts).toBeUndefined();
+    expect(titles(pool.hand).sort()).toEqual(["card 0", "card 1", "card 2", "card 3", "card 4"]);
+  });
+
+  test("discard spends main, then each boost, onto the END of the discard", () => {
+    const pool = played();
+    pool.discard = [{ ...pool.hand[1], title: "older" }];
+    boostFromHand(pool, 0);
+    boostFromHand(pool, 2);
+    discardInPlay(pool);
+    expect(titles(pool.discard)).toEqual(["older", "card 0", "card 1", "card 4"]);
+    expect(pool.commit).toEqual(EMPTY_COMMIT);
+    expect(pool.commit.extraBoosts).toBeUndefined();
+  });
+
+  test("discard without a boost spends just the card", () => {
+    const pool = played();
+    discardInPlay(pool);
+    expect(titles(pool.discard)).toEqual(["card 0"]);
+  });
+});
+
 describe("removeCommitted", () => {
-  test("the card in play leaves the game, its boost goes to the discard", () => {
-    const pool = initIrlPool(deck());
-    const played = pool.hand[0].title;
-    commitCard(pool, 0);
-    boostFromTopDeck(pool);
-    const boost = pool.commit.boost?.title;
+  test("the card in play leaves the game, its boosts go to the discard", () => {
+    const pool = played();
+    boostFromHand(pool, 0);
+    boostFromHand(pool, 2);
     removeCommitted(pool);
-    expect(pool.removed?.map((c) => c.title)).toEqual([played]);
-    expect(pool.discard.map((c) => c.title)).toEqual([boost]);
-    expect(pool.commit).toEqual({ main: null, reveal: false, boost: null });
+    expect(titles(pool.removed)).toEqual(["card 0"]);
+    expect(titles(pool.discard)).toEqual(["card 1", "card 4"]);
+    expect(pool.commit).toEqual(EMPTY_COMMIT);
   });
 
   test("no card in play is a no-op", () => {
@@ -70,64 +183,14 @@ describe("removeCommitted", () => {
   });
 });
 
-describe("the in-play loop", () => {
-  const played = () => {
-    const pool = initIrlPool(deck());
-    commitCard(pool, 0);
-    return pool;
-  };
-
-  test("undoDeckBoost puts the boost back on top of the deck, not in hand", () => {
-    const pool = played();
-    const deckBefore = pool.deck?.map((c) => c.title);
-    const handBefore = pool.hand.length;
-    boostFromTopDeck(pool);
-    undoDeckBoost(pool);
-    expect(pool.commit.boost).toBeNull();
-    expect(pool.deck?.map((c) => c.title)).toEqual(deckBefore);
-    expect(pool.hand).toHaveLength(handBefore);
-  });
-
-  test("returnCommitToHand returns the played card and re-decks the boost", () => {
-    const pool = played();
-    const main = pool.commit.main?.title;
-    const deckBefore = pool.deck?.length ?? 0;
-    boostFromTopDeck(pool);
-    returnCommitToHand(pool);
-    expect(pool.commit).toEqual({ main: null, reveal: false, boost: null });
-    expect(pool.hand).toHaveLength(IRL_OPENING_HAND);
-    expect(pool.hand[pool.hand.length - 1].title).toBe(main);
-    expect(pool.deck).toHaveLength(deckBefore);
-  });
-
-  test("discardInPlay spends main then boost onto the END of the discard", () => {
-    const pool = played();
-    pool.discard.push(pool.hand.pop()!); // an older discard
-    const older = pool.discard[0].title;
-    const main = pool.commit.main?.title;
-    boostFromTopDeck(pool);
-    const boost = pool.commit.boost?.title;
-    discardInPlay(pool);
-    expect(pool.discard.map((c) => c.title)).toEqual([older, main, boost]);
-    expect(pool.commit).toEqual({ main: null, reveal: false, boost: null });
-  });
-
-  test("discardInPlay without a boost spends just the card", () => {
-    const pool = played();
-    const main = pool.commit.main?.title;
-    discardInPlay(pool);
-    expect(pool.discard.map((c) => c.title)).toEqual([main]);
-  });
-});
-
 describe("irl session persistence (write → reload → read)", () => {
   test("restores hand, deck order, discard, removed, commit and counters", () => {
-    const pool = initIrlPool(deck());
-    commitCard(pool, 0);
+    const pool = played();
     revealCommit(pool);
-    boostFromTopDeck(pool);
-    removeCard(pool, 0);
-    pool.discard.push(pool.hand.pop()!);
+    boostFromHand(pool, 0);
+    boostFromHand(pool, 2); // a stacked boost rides along too
+    removeCard(pool, 0); // hand left: card 3
+    pool.discard.push(pool.deck!.pop()!);
     adjustHp(pool, "hero", -3);
     adjustHp(pool, "sidekick", -1);
     pool.extraCharacters = [
@@ -143,11 +206,12 @@ describe("irl session persistence (write → reload → read)", () => {
     const restored = loadIrlPool("J-kyHqVXg");
 
     expect(restored).toEqual(JSON.parse(JSON.stringify(pool)));
+    expect(titles(restored?.hand)).toEqual(["card 3"]);
     expect(restored?.deck?.map((c) => c.title)).toEqual(
       pool.deck?.map((c) => c.title),
     );
     expect(restored?.commit.reveal).toBe(true);
-    expect(restored?.commit.boost).not.toBeNull();
+    expect(titles(inPlayBoosts(restored))).toEqual(["card 1", "card 4"]);
     expect(restored?.hero.hp).toBe((_mockDeck.deck_data.hero.hp ?? 0) - 3);
     expect(restored?.extraCharacters[0].hero.hp).toBe(1);
     expect(restored?.removed).toHaveLength(1);
