@@ -2,6 +2,7 @@ import { Box, Flex, Text } from "@chakra-ui/react";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { animate, motion, useMotionValue, useTransform } from "framer-motion";
 import { CardBack } from "@/components/CardFactory/card.back";
+import { irlAnchor } from "@/lib/irl/irlAnchors";
 import { boostChoices, boostTotal, inPlayBoosts } from "@/lib/irl/irlPool";
 import {
   IRL_MOTION,
@@ -128,7 +129,8 @@ const HandCardView = ({
         right={<CloseButton onClick={onClose} />}
       />
       <Flex ref={area} flex="1" minH={0} align="center" justify="center" px="12px">
-        <Box {...swipe} sx={{ touchAction: "pan-y" }} cursor="grab">
+        {/* the card being looked at is "the hand card" a flight leaves from */}
+        <Box {...swipe} {...irlAnchor("hand-card")} sx={{ touchAction: "pan-y" }} cursor="grab">
           <CardFace card={card} width={width} />
         </Box>
       </Flex>
@@ -459,7 +461,13 @@ const InPlayView = ({ onClose }: { onClose: () => void }) => {
           </motion.div>
         )}
         <Flex align="flex-end" gap="10px">
-          <Box {...swipe} sx={{ touchAction: "pan-y" }} cursor="grab" aria-label={revealed ? main.title : "Face-down card"}>
+          <Box
+            {...swipe}
+            {...irlAnchor("in-play-card")}
+            sx={{ touchAction: "pan-y" }}
+            cursor="grab"
+            aria-label={revealed ? main.title : "Face-down card"}
+          >
             <FlipCard
               revealed={revealed}
               width={width}
@@ -473,7 +481,11 @@ const InPlayView = ({ onClose }: { onClose: () => void }) => {
           {boosts.length > 0 && (
             <Flex direction="column" align="center" gap="6px">
               {boosts.map((boost, i) => (
-                <Box key={`${boost.title}-${i}`} aria-label={revealed ? `Boost: ${boost.title}` : "Face-down boost"}>
+                <Box
+                  key={`${boost.title}-${i}`}
+                  {...irlAnchor(`boost-slot-${i}`)}
+                  aria-label={revealed ? `Boost: ${boost.title}` : "Face-down boost"}
+                >
                   {/* the boost stays hidden while the card it boosts is hidden */}
                   <FlipCard
                     revealed={revealed}

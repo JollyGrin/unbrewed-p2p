@@ -11,7 +11,6 @@ import {
   isValidMotionProp,
   motion,
   useIsPresent,
-  useReducedMotion,
 } from "framer-motion";
 import Link from "next/link";
 import {
@@ -25,17 +24,11 @@ import {
 } from "react";
 import { Card } from "@/components/CardFactory/Card";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
+import { irlAnchor } from "@/lib/irl/irlAnchors";
+import { IRL_MOTION, useIrlReducedMotion } from "@/lib/irl/irlMotion";
 import { colors, fonts } from "@/styles/style";
 
-// --- motion tuning (#810; #811 moves these into lib/irl/irlMotion.ts) -------
-/** Full-screen sheets slide in from the right / menus slide up. */
-export const SHEET_MS = 220;
-/** Menu backdrop fade, and the reduced-motion fade for sheets and menus. */
-export const FADE_MS = 150;
-/** Digit ticker swap. */
-export const TICKER_MS = 180;
-const EASE_OUT = [0.22, 1, 0.36, 1];
-const EASE_IN = [0.55, 0, 1, 0.45];
+const { ease } = IRL_MOTION;
 
 /**
  * A slide from "100%" keeps its % unit, so at rest framer would leave
@@ -258,10 +251,10 @@ export const IrlSheet = ({
   zIndex?: number;
   maxW?: string;
 }) => {
-  const reduce = !!useReducedMotion();
+  const reduce = useIrlReducedMotion();
   // a sheet sliding away must not take the taps meant for the tray under it
   const present = useIsPresent();
-  const ms = (reduce ? FADE_MS : SHEET_MS) / 1000;
+  const dur = reduce ? IRL_MOTION.fade.dur : IRL_MOTION.sheet.dur;
   return (
     <MotionDiv
       role="dialog"
@@ -283,13 +276,13 @@ export const IrlSheet = ({
       initial={reduce ? { opacity: 0 } : { x: "100%" }}
       animate={
         reduce
-          ? { opacity: 1, transition: { duration: ms } }
-          : { x: 0, transition: { duration: ms, ease: EASE_OUT } }
+          ? { opacity: 1, transition: { duration: dur } }
+          : { x: 0, transition: { duration: dur, ease: ease.out } }
       }
       exit={
         reduce
-          ? { opacity: 0, transition: { duration: ms } }
-          : { x: "100%", transition: { duration: ms, ease: EASE_IN } }
+          ? { opacity: 0, transition: { duration: dur } }
+          : { x: "100%", transition: { duration: dur, ease: ease.in } }
       }
     >
       <Flex direction="column" w="100%" maxW={maxW} mx="auto" minH={0}>
@@ -330,10 +323,11 @@ const ActionSheetPanel = ({
   onClose,
   actions,
 }: Omit<ActionSheetProps, "isOpen">) => {
-  const reduce = !!useReducedMotion();
+  const reduce = useIrlReducedMotion();
   // closing: the menu's buttons must not fire twice while it slides away
   const present = useIsPresent();
-  const fade = { duration: FADE_MS / 1000 };
+  const fade = { duration: IRL_MOTION.fade.dur };
+  const slide = { duration: IRL_MOTION.sheet.dur };
   return (
     <Box
       position="fixed"
@@ -380,12 +374,12 @@ const ActionSheetPanel = ({
         animate={
           reduce
             ? { opacity: 1, transition: fade }
-            : { y: 0, transition: { duration: SHEET_MS / 1000, ease: EASE_OUT } }
+            : { y: 0, transition: { ...slide, ease: ease.out } }
         }
         exit={
           reduce
             ? { opacity: 0, transition: fade }
-            : { y: "100%", transition: { duration: SHEET_MS / 1000, ease: EASE_IN } }
+            : { y: "100%", transition: { ...slide, ease: ease.in } }
         }
       >
         <Text
@@ -447,7 +441,7 @@ const tickerVariants = {
  * parent. Under reduced motion the digits just swap.
  */
 export const Ticker = ({ value }: { value: number }) => {
-  const reduce = !!useReducedMotion();
+  const reduce = useIrlReducedMotion();
   const [last, setLast] = useState(value);
   const [dir, setDir] = useState<TickDir>(1);
   if (value !== last) {
@@ -481,7 +475,7 @@ const TickerValue = ({ value, dir }: { value: number; dir: TickDir }) => {
       initial="enter"
       animate="shown"
       exit="leave"
-      transition={{ duration: TICKER_MS / 1000, ease: EASE_OUT }}
+      transition={{ duration: IRL_MOTION.ticker.dur, ease: ease.out }}
       style={{ gridArea: "1 / 1" }}
       // the outgoing number is on its way out, not a second value
       aria-hidden={present ? undefined : true}
@@ -491,19 +485,25 @@ const TickerValue = ({ value, dir }: { value: number; dir: TickDir }) => {
   );
 };
 
-/** A rendered card at a fixed width; the SVG template sizes itself 63×88. */
+/**
+ * A rendered card at a fixed width; the SVG template sizes itself 63×88.
+ * `anchor` names it for the card flights (lib/irl/irlAnchors, #811).
+ */
 export const CardFace = ({
   card,
   width,
+  anchor,
 }: {
   card: DeckImportCardType;
   width: number | string;
+  anchor?: string;
 }) => (
   <Box
     w={typeof width === "number" ? `${width}px` : width}
     flexShrink={0}
     lineHeight={0}
     filter="drop-shadow(0 2px 8px rgba(44, 24, 49, 0.35))"
+    {...(anchor ? irlAnchor(anchor) : {})}
   >
     <Card card={card} />
   </Box>
@@ -553,12 +553,17 @@ export const useElementSize = <T extends HTMLElement>() => {
  * gets the final offset and fling velocity (px/s) once the pointer lifts —
  * also after a tap, a long-press or a cancelled gesture, so the follower
  * can always settle.
+ *
+ * `onHold(true)` fires as a long-press starts counting down (the tray card's
+ * ring, #811), `onHold(false)` once it fires or is let go — on release, a
+ * move, a cancel or unmount.
  */
 export const useSwipe = ({
   onSwipeLeft,
   onSwipeRight,
   onTap,
   onLongPress,
+  onHold,
   onDrag,
   onDragEnd,
 }: {
@@ -566,6 +571,7 @@ export const useSwipe = ({
   onSwipeRight?: () => void;
   onTap?: () => void;
   onLongPress?: () => void;
+  onHold?: (holding: boolean) => void;
   onDrag?: (dx: number) => void;
   onDragEnd?: (dx: number, velocityX: number) => void;
 }) => {
@@ -574,10 +580,14 @@ export const useSwipe = ({
   const pressed = useRef(false);
   /** recent pointer x samples, for the release velocity */
   const trail = useRef<{ x: number; t: number }[]>([]);
+  const hold = useRef(onHold);
+  hold.current = onHold;
 
   const clear = useCallback(() => {
-    if (timer.current) clearTimeout(timer.current);
+    if (!timer.current) return;
+    clearTimeout(timer.current);
     timer.current = undefined;
+    hold.current?.(false);
   }, []);
   useEffect(() => clear, [clear]);
 
@@ -606,9 +616,12 @@ export const useSwipe = ({
       if (onDrag) e.currentTarget.setPointerCapture?.(e.pointerId);
       if (onLongPress) {
         timer.current = setTimeout(() => {
+          timer.current = undefined;
+          hold.current?.(false);
           pressed.current = true;
           onLongPress();
-        }, 550);
+        }, IRL_MOTION.longPress.dur * 1000);
+        hold.current?.(true);
       }
     },
     onPointerMove: (e: ReactPointerEvent) => {

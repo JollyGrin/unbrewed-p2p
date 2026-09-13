@@ -66,7 +66,11 @@ export const IrlDiscard = ({ onClose }: { onClose: () => void }) => {
           </EmptyNote>
         )}
         {rows.map(({ card, index }) => (
-          <Row key={`${card.title}-${index}`} card={card}>
+          <Row
+            key={`${card.title}-${index}`}
+            card={card}
+            anchor={tab === "discard" ? `discard-row-${index}` : undefined}
+          >
             {tab === "discard" ? (
               <>
                 <RowButton onClick={() => actions.discardToHand(index)}>
@@ -115,11 +119,14 @@ export const IrlDiscard = ({ onClose }: { onClose: () => void }) => {
   );
 };
 
+/** One card and its moves; `anchor` names its card for the flights (#811). */
 const Row = ({
   card,
+  anchor,
   children,
 }: {
   card: DeckImportCardType;
+  anchor?: string;
   children: ReactNode;
 }) => (
   <Flex
@@ -131,7 +138,7 @@ const Row = ({
     color="brand.surfaceDim"
     flexShrink={0}
   >
-    <CardFace card={card} width={96} />
+    <CardFace card={card} width={96} anchor={anchor} />
     <Flex direction="column" gap="6px" flex="1" minW={0}>
       <Text
         fontFamily={BEBAS}
