@@ -7,7 +7,6 @@ import {
   motion,
   useIsomorphicLayoutEffect,
   useMotionValue,
-  useReducedMotion,
   useTransform,
 } from "framer-motion";
 import {
@@ -33,10 +32,14 @@ import { ModalContainer } from "@/components/Game/game.modal-template";
 import { useDeckOpenWarning } from "@/components/Game/useDeckOpenWarning";
 import { ModalType } from "@/pages/game";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
+import { irlAnchor } from "@/lib/irl/irlAnchors";
 import { irlCharacterCount, irlCounters } from "@/lib/irl/irlCharacters";
+import { IRL_MOTION, useIrlReducedMotion } from "@/lib/irl/irlMotion";
+import { colors } from "@/styles/style";
 import { IrlCardView, CardViewMode } from "./IrlCardView";
 import { IrlCharacters } from "./IrlCharacters";
 import { IrlDiscard } from "./IrlDiscard";
+import { IrlFlights } from "./IrlFlightLayer";
 import { IrlHandGrid } from "./IrlHandGrid";
 import { IrlPalette } from "./IrlPalette";
 import { CounterChip, DeckTile, HandBar, PileTile } from "./IrlTrayParts";
@@ -77,30 +80,21 @@ import {
  * move is a PoolFns call through {@link useIrlActions}.
  */
 
-// --- motion tuning (#810; #811 moves these into lib/irl/irlMotion.ts) -------
-/** A drag past this many px, or a fling faster than this, turns the card. */
-const SWIPE_PX = 40;
-const FLING_PX_S = 500;
-/** Rubber band past the first / last card. */
-const EDGE_RESIST = 0.3;
-const CAROUSEL_SPRING = {
-  type: "spring",
-  stiffness: 380,
-  damping: 36,
-  restDelta: 0.002,
-} as const;
-/** Neighbours sit smaller and dimmer — the one on the left is the peek. */
-const SIDE_SCALE = 0.9;
-const SIDE_OPACITY = 0.35;
+// the carousel's motion tuning lives in IRL_MOTION.carousel; its layout here
+const { carousel } = IRL_MOTION;
 const PEEK_W = 22;
 const CARD_GAP = 12;
 /** Room inside the carousel's clip box for the card's drop shadow. */
 const SHADOW_PAD = 10;
+
 export const IrlShell = ({ deck }: { deck: DeckImportType }) => (
   <IrlGameProvider initialDeck={deck}>
-    <GameMenusProvider>
-      <IrlTray />
-    </GameMenusProvider>
+    {/* inside the provider: the flight layer listens to its fx bus */}
+    <IrlFlights>
+      <GameMenusProvider>
+        <IrlTray />
+      </GameMenusProvider>
+    </IrlFlights>
   </IrlGameProvider>
 );
 
@@ -112,6 +106,10 @@ const IrlTray = () => {
   const actions = useIrlActions();
   const game = useWebGame();
   const menus = useGameMenus();
+  const reduce = useIrlReducedMotion();
+  // after a play, the in-play view waits for the card's flight to land
+  const inPlaySoon = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(inPlaySoon.current), []);
 
   const [handIndex, setHandIndex] = useState(0);
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -208,14 +206,32 @@ const IrlTray = () => {
     setHandIndex(before); // show the card just drawn
     if (deckCount) setDrawn(({ seq }) => ({ seq: seq + 1, length: before + 1 }));
   };
+  /**
+   * Open the in-play view. Right after a play it slides in as the played
+   * card's flight (#811) lands, so the card is seen going face-down first;
+   * whatever else the player opens meanwhile wins.
+   */
+  const openInPlay = (afterPlay: boolean) => {
+    clearTimeout(inPlaySoon.current);
+    if (!afterPlay || reduce) {
+      setCardView({ kind: "play" });
+      return;
+    }
+    setCardView(null);
+    const { flight, sheet } = IRL_MOTION;
+    inPlaySoon.current = setTimeout(
+      () => setCardView((open) => open ?? { kind: "play" }),
+      Math.max(0, flight.dur - sheet.dur) * 1000,
+    );
+  };
   const play = () => {
     if (inPlay) {
-      setCardView({ kind: "play" });
+      openInPlay(false);
       return;
     }
     if (!card) return;
     actions.play(index);
-    setCardView({ kind: "play" });
+    openInPlay(true);
   };
 
   const deckActions: SheetAction[] = [
@@ -292,12 +308,13 @@ const IrlTray = () => {
 
         <Flex gap="8px" px="12px" pt="12px" flexShrink={0}>
           <PileTile label="Characters" count={irlCharacterCount(deck)} action="View" onClick={() => setSheet("characters")} />
-          <PileTile label="Hand" count={hand.length} action="View" onClick={() => setSheet("grid")} />
+          <PileTile label="Hand" count={hand.length} action="View" anchor="hand-tile" onClick={() => setSheet("grid")} />
           <PileTile
             label="Discard"
             count={pool.discard.length}
             sub={removedCount ? `${removedCount} removed` : undefined}
             action="View"
+            anchor="discard-tile"
             onClick={() => setSheet("discard")}
           />
           <DeckTile count={deckCount} onDraw={draw} onMenu={() => setMenu("deck")} />
@@ -378,7 +395,7 @@ const IrlTray = () => {
       {cardView && (
         <IrlCardView
           mode={cardView}
-          onMode={setCardView}
+          onMode={(next) => (next.kind === "play" ? openInPlay(true) : setCardView(next))}
           onClose={() => setCardView(null)}
         />
       )}
@@ -452,15 +469,17 @@ const HandCarousel = ({
   onOpen: () => void;
   onMenu: () => void;
 }) => {
-  const reduce = !!useReducedMotion();
+  const reduce = useIrlReducedMotion();
   const pos = useMotionValue(index);
   const running = useRef<AnimationPlaybackControls>();
   const dragFrom = useRef<number | null>(null);
   const [transit, setTransit] = useState<Transit | null>(null);
+  // the long-press ring is filling
+  const [holding, setHolding] = useState(false);
   const last = useRef({ index, length: hand.length, card: hand[index] });
   // centre-to-centre distance that leaves a scaled neighbour's near edge
   // CARD_GAP from the card — the previous one ends exactly at the peek
-  const pitch = cardW * ((1 + SIDE_SCALE) / 2) + CARD_GAP;
+  const pitch = cardW * ((1 + carousel.sideScale) / 2) + CARD_GAP;
   const card = hand[index];
 
   const settle = useCallback(
@@ -473,7 +492,7 @@ const HandCarousel = ({
         return;
       }
       running.current = animate(pos, to, {
-        ...CAROUSEL_SPRING,
+        ...carousel.spring,
         onComplete: () => setTransit(null),
       });
     },
@@ -516,6 +535,7 @@ const HandCarousel = ({
   const swipe = useSwipe({
     onTap: onOpen,
     onLongPress: onMenu,
+    onHold: setHolding,
     // reduced motion: no follow — the old swipe that just changes the card
     ...(reduce
       ? {
@@ -531,16 +551,16 @@ const HandCarousel = ({
             }
             const max = hand.length - 1;
             let next = dragFrom.current - dx / pitch;
-            if (next < 0) next *= EDGE_RESIST;
-            else if (next > max) next = max + (next - max) * EDGE_RESIST;
+            if (next < 0) next *= carousel.edgeResist;
+            else if (next > max) next = max + (next - max) * carousel.edgeResist;
             pos.set(Math.min(index + 1, Math.max(index - 1, next)));
           },
           onDragEnd: (dx: number, velocityX: number) => {
             dragFrom.current = null;
             const turn =
-              Math.abs(velocityX) > FLING_PX_S
+              Math.abs(velocityX) > carousel.flingPxS
                 ? -Math.sign(velocityX)
-                : Math.abs(dx) > SWIPE_PX
+                : Math.abs(dx) > carousel.swipePx
                 ? -Math.sign(dx)
                 : 0;
             const target = Math.min(hand.length - 1, Math.max(0, index + turn));
@@ -596,9 +616,11 @@ const HandCarousel = ({
         visibility={index > 0 ? "visible" : "hidden"}
         onClick={() => onIndex(Math.max(0, index - 1))}
       />
-      {/* the card's hit area stays put while the art moves under it */}
+      {/* the card's hit area stays put while the art moves under it — and
+          is the tray card's flight anchor (#811) */}
       <Box
         {...swipe}
+        {...irlAnchor("hand-card")}
         role="button"
         tabIndex={0}
         aria-label={`${card.title} — tap to view, hold for more`}
@@ -613,8 +635,54 @@ const HandCarousel = ({
           if (e.key === "Enter" || e.key === " ") onOpen();
         }}
         sx={{ touchAction: "pan-y", WebkitTouchCallout: "none" }}
-      />
+      >
+        {holding && <PressRing width={cardW} height={cardH} />}
+      </Box>
     </Box>
+  );
+};
+
+/** a rounded rect's outline, from the middle of its top edge, clockwise */
+const ringPath = (x: number, y: number, w: number, h: number, r: number) =>
+  [
+    `M${x + w / 2} ${y}`,
+    `H${x + w - r}A${r} ${r} 0 0 1 ${x + w} ${y + r}`,
+    `V${y + h - r}A${r} ${r} 0 0 1 ${x + w - r} ${y + h}`,
+    `H${x + r}A${r} ${r} 0 0 1 ${x} ${y + h - r}`,
+    `V${y + r}A${r} ${r} 0 0 1 ${x + r} ${y}`,
+    "Z",
+  ].join("");
+
+/**
+ * The long-press ring (#811): a thin line runs round the tray card over the
+ * hold, so the player knows a menu is coming. An affordance, not decoration —
+ * it fills under reduced motion too.
+ */
+const PressRing = ({ width, height }: { width: number; height: number }) => {
+  const out = 5;
+  const stroke = 3;
+  const w = width + out * 2;
+  const h = height + out * 2;
+  const inset = stroke / 2;
+  return (
+    <svg
+      aria-hidden
+      data-testid="irl-press-ring"
+      width={w}
+      height={h}
+      style={{ position: "absolute", left: -out, top: -out, pointerEvents: "none" }}
+    >
+      <motion.path
+        d={ringPath(inset, inset, w - stroke, h - stroke, width * 0.05 + out)}
+        fill="none"
+        stroke={colors.brand.accent}
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        initial={{ pathLength: 0 }}
+        animate={{ pathLength: 1 }}
+        transition={{ duration: IRL_MOTION.longPress.dur, ease: "linear" }}
+      />
+    </svg>
   );
 };
 
@@ -637,8 +705,8 @@ const CarouselSlot = ({
 }) => {
   const away = (p: number) => Math.min(1, Math.abs(at - p));
   const x = useTransform(pos, (p) => (at - p) * pitch);
-  const scale = useTransform(pos, (p) => 1 - (1 - SIDE_SCALE) * away(p));
-  const opacity = useTransform(pos, (p) => 1 - (1 - SIDE_OPACITY) * away(p));
+  const scale = useTransform(pos, (p) => 1 - (1 - carousel.sideScale) * away(p));
+  const opacity = useTransform(pos, (p) => 1 - (1 - carousel.sideOpacity) * away(p));
   return (
     <motion.div
       aria-hidden

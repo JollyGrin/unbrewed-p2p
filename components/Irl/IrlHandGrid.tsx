@@ -1,6 +1,9 @@
 import { Box, Flex, Grid, chakra } from "@chakra-ui/react";
+import { AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import { useProLayout } from "@/lib/pro/useProLayout";
+import { irlAnchor } from "@/lib/irl/irlAnchors";
+import { IRL_MOTION, useIrlReducedMotion } from "@/lib/irl/irlMotion";
 import { boostChoices } from "@/lib/irl/irlPool";
 import { useIrlActions, useIrlGame } from "./irlGame";
 import {
@@ -10,6 +13,7 @@ import {
   IconEye,
   IconShuffle,
   IrlSheet,
+  MotionDiv,
   PillButton,
   SAFE_BOTTOM,
   TopBar,
@@ -22,6 +26,8 @@ import {
  *
  * With `pick` it is the boost picker (rules §5.4 — a boost comes from hand):
  * cards without a positive BOOST value are dimmed and can't be chosen.
+ *
+ * Each card is a flight anchor, `hand-grid-card-<index>` (#811).
  */
 export const IrlHandGrid = ({
   onOpenCard,
@@ -59,6 +65,7 @@ export const IrlHandGrid = ({
         onBack={onClose}
         right={<CloseButton onClick={onClose} />}
       />
+      <Box position="relative" flex="1" minH={0} display="flex" overflow="hidden">
       <Box flex="1" minH={0} overflowY="auto" px="12px" pt="8px" pb="24px">
         {hand.length === 0 ? (
           <EmptyNote>Your hand is empty — draw from the deck.</EmptyNote>
@@ -92,6 +99,7 @@ export const IrlHandGrid = ({
                   _disabled={{ cursor: "default" }}
                   onClick={() => (pick ? pick.onPick(index) : onOpenCard?.(index))}
                   sx={{ WebkitTapHighlightColor: "transparent" }}
+                  {...irlAnchor(`hand-grid-card-${index}`)}
                 >
                   <CardFace card={card} width="100%" />
                 </chakra.button>
@@ -99,6 +107,8 @@ export const IrlHandGrid = ({
             })}
           </Grid>
         )}
+      </Box>
+      <AnimatePresence>{showing && <ShowingVignette key="vignette" />}</AnimatePresence>
       </Box>
       <Flex
         gap="8px"
@@ -130,5 +140,29 @@ export const IrlHandGrid = ({
         )}
       </Flex>
     </IrlSheet>
+  );
+};
+
+/**
+ * "Show to opponent" (#811): a soft vignette settles over the hand while the
+ * phone is across the table, and lifts on "Done showing". Reduced motion:
+ * it only fades.
+ */
+const ShowingVignette = () => {
+  const reduce = useIrlReducedMotion();
+  const { vignette, ease } = IRL_MOTION;
+  const fade = { duration: vignette.dur, ease: ease.out };
+  return (
+    <MotionDiv
+      data-testid="irl-show-vignette"
+      aria-hidden
+      position="absolute"
+      inset={0}
+      pointerEvents="none"
+      bg="radial-gradient(ellipse at 50% 42%, rgba(20, 8, 24, 0) 48%, rgba(20, 8, 24, 0.62) 100%)"
+      initial={reduce ? { opacity: 0 } : { opacity: 0, scale: vignette.scaleFrom }}
+      animate={{ opacity: 1, scale: 1, transition: fade }}
+      exit={{ opacity: 0, transition: fade }}
+    />
   );
 };

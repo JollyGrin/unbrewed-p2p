@@ -52,7 +52,12 @@ import {
   returnCommitToHand,
 } from "@/lib/irl/irlPool";
 import { IrlCounter, irlCounters } from "@/lib/irl/irlCharacters";
-import { IrlFxContext, IrlFxEvent, createIrlFxBus } from "@/lib/irl/irlFx";
+import {
+  IrlFxContext,
+  IrlFxEvent,
+  IrlFxMoved,
+  createIrlFxBus,
+} from "@/lib/irl/irlFx";
 import { clearIrlPool, loadIrlPool, saveIrlPool } from "@/lib/irl/irlStorage";
 
 type WebGameValue = NonNullable<ContextType<typeof WebGameContext>>;
@@ -134,7 +139,7 @@ export const IrlGameProvider = ({
     (from: DeckImportType) => {
       const fresh = initIrlPool(from);
       publish(fresh);
-      fx.emit({ type: "deal", count: fresh.hand.length });
+      fx.emit({ type: "deal", count: fresh.hand.length }, { cards: fresh.hand });
     },
     [publish, fx],
   );
@@ -223,6 +228,10 @@ export const IrlGameProvider = ({
 
 const titleOf = (card?: DeckImportCardType | null) => card?.title || "a card";
 
+/** the cards that are there, for an event's `moved` */
+const cardsOf = (...cards: (DeckImportCardType | null | undefined)[]) =>
+  cards.filter((card): card is DeckImportCardType => !!card);
+
 /**
  * Every tray action as one call. Draws are guarded here so
  * PoolFns' native `alert("No cards left")` can never fire on a phone.
@@ -230,7 +239,9 @@ const titleOf = (card?: DeckImportCardType | null) => card?.title || "a card";
  * Each action announces what it did on the fx bus (lib/irl/irlFx) once the
  * move went through: its mutation reports what actually moved, and a move
  * that didn't happen (empty deck, unboostable card, nothing in play) is
- * announced as nothing.
+ * announced as nothing. Beside the event goes what moved (#811) — the cards,
+ * and the hand or discard index a single card left from — so a card flight
+ * can draw them.
  */
 export const useIrlActions = () => {
   const { deck, pool, apply } = useIrlGame();
@@ -241,34 +252,46 @@ export const useIrlActions = () => {
     mutate: (pool: PoolType) => R,
     label: DeckLabel<R>,
     event: (result: R) => IrlFxEvent | false | null | undefined,
+    moved?: (result: R) => IrlFxMoved,
   ) => {
-    let moved = false;
+    let ran = false;
     let result: R | undefined;
     apply((p) => {
       result = mutate(p);
-      moved = true;
+      ran = true;
       return result;
     }, label);
-    const emitted = moved && event(result as R);
-    if (emitted) fx?.emit(emitted);
+    const emitted = ran && event(result as R);
+    if (emitted) fx?.emit(emitted, moved?.(result as R));
   };
 
   const needsDeck = (go: () => void) => {
     if (deckHasCards(pool)) go();
-    else toast.error("Your deck is empty", { id: "irl-deck-empty" });
+    else {
+      toast.error("Your deck is empty", { id: "irl-deck-empty" });
+      fx?.refuse({ type: "deckEmpty" });
+    }
   };
 
+  /** run `go`; the cards it added to the hand */
   const drawn = (p: PoolType, go: () => void) => {
     const before = p.hand.length;
     go();
-    return p.hand.length - before;
+    return p.hand.slice(before);
   };
 
-  /** run `go`; report whether `card` (read before it ran) was there to move */
-  const had = (card: unknown, go: () => void) => {
+  /** run `go`; `card` (read before it ran) if it was there to move */
+  const had = <C,>(card: C | null | undefined, go: () => void) => {
     go();
-    return !!card;
+    return card ?? undefined;
   };
+
+  /** a single card and where it came from */
+  const one = (index: number) => (card: DeckImportCardType | undefined) => ({
+    cards: cardsOf(card),
+    index,
+  });
+  const all = (cards: DeckImportCardType[]) => ({ cards });
 
   return {
     draw: () =>
@@ -276,7 +299,8 @@ export const useIrlActions = () => {
         run(
           (p) => drawn(p, () => draw(p)),
           "Drew a card",
-          (count) => count > 0 && { type: "draw", count },
+          (cards) => cards.length > 0 && { type: "draw", count: cards.length },
+          all,
         ),
       ),
     drawMany: (count: number) =>
@@ -284,10 +308,18 @@ export const useIrlActions = () => {
         run(
           (p) => drawn(p, () => drawMultiple(p, count)),
           `Drew ${count} cards`,
-          (n) => n > 0 && { type: "draw", count: n },
+          (cards) => cards.length > 0 && { type: "draw", count: cards.length },
+          all,
         ),
       ),
-    shuffle: () => run(shuffleDeck, "Shuffled their deck", () => ({ type: "shuffle" })),
+    shuffle: () =>
+      run(
+        shuffleDeck,
+        "Shuffled their deck",
+        () => ({ type: "shuffle" }),
+        // the riffle wears the deck's own backs
+        (p) => ({ cards: (p.deck ?? []).slice(-3) }),
+      ),
     discardTop: () =>
       needsDeck(() =>
         run(
@@ -297,6 +329,7 @@ export const useIrlActions = () => {
           },
           (_p, card) => `Discarded the top card of their deck: ${titleOf(card)}`,
           (card) => !!card && { type: "mill" },
+          (card) => ({ cards: cardsOf(card) }),
         ),
       ),
     reorderTop: (top: DeckImportCardType[], bottom: DeckImportCardType[]) =>
@@ -304,15 +337,23 @@ export const useIrlActions = () => {
 
     toDeckTop: (index: number) =>
       run(
-        (p) => deckCard(p, index),
+        (p) => {
+          const card = p.hand[index];
+          return deckCard(p, index) ? card : undefined;
+        },
         "Placed a card on top of their deck",
-        (done) => !!done && { type: "toDeck", where: "top", from: "hand" },
+        (card) => !!card && { type: "toDeck", where: "top", from: "hand" },
+        one(index),
       ),
     toDeckBottom: (index: number) =>
       run(
-        (p) => deckCardBottom(p, index),
+        (p) => {
+          const card = p.hand[index];
+          return deckCardBottom(p, index) ? card : undefined;
+        },
         "Placed a card on the bottom of their deck",
-        (done) => !!done && { type: "toDeck", where: "bottom", from: "hand" },
+        (card) => !!card && { type: "toDeck", where: "bottom", from: "hand" },
+        one(index),
       ),
     discard: (index: number) =>
       run(
@@ -323,16 +364,21 @@ export const useIrlActions = () => {
         },
         (_p, card) => `Discarded ${titleOf(card)}`,
         (card) => !!card && { type: "discard", from: "hand", count: 1 },
+        one(index),
       ),
     discardRandom: () =>
       run(
         (p) => {
-          const before = p.hand.length;
+          const before = [...p.hand];
           discardRandomCard(p);
-          return p.hand.length < before ? p.discard[p.discard.length - 1] : undefined;
+          if (p.hand.length === before.length) return undefined;
+          // the first place the hand changed is where the card came out
+          const index = before.findIndex((card, i) => card !== p.hand[i]);
+          return { card: before[index], index };
         },
-        (_p, card) => (card ? `Discarded a random card: ${titleOf(card)}` : ""),
-        (card) => !!card && { type: "discard", from: "hand", count: 1 },
+        (_p, took) => (took ? `Discarded a random card: ${titleOf(took.card)}` : ""),
+        (took) => !!took && { type: "discard", from: "hand", count: 1 },
+        (took) => ({ cards: cardsOf(took?.card), index: took?.index }),
       ),
     removeFromHand: (index: number) =>
       run(
@@ -343,13 +389,15 @@ export const useIrlActions = () => {
         },
         (_p, card) => `Removed ${titleOf(card)} from the game`,
         (card) => !!card && { type: "remove", from: "hand" },
+        one(index),
       ),
 
     play: (index: number) =>
       run(
-        (p) => !p.commit?.main && had(p.hand[index], () => commitCard(p, index)),
+        (p) => (p.commit?.main ? undefined : had(p.hand[index], () => commitCard(p, index))),
         "Played a card face-down",
-        (played) => played && { type: "play" },
+        (played) => !!played && { type: "play" },
+        one(index),
       ),
     toggleReveal: () =>
       run(
@@ -376,57 +424,69 @@ export const useIrlActions = () => {
               ? `Boosted with ${titleOf(card)} (+${card.boost})`
               : "Added a boost face-down",
         (card) => !!card && { type: "boost", index },
+        one(index),
       ),
     cancelBoost: () =>
       run(
         (p) => {
-          const count = inPlayBoosts(p).length;
+          const boosts = inPlayBoosts(p);
           cancelBoosts(p);
-          return count;
+          return boosts;
         },
         "Took their boost back into hand",
-        (count) => count > 0 && { type: "cancelBoost", count },
+        (boosts) => boosts.length > 0 && { type: "cancelBoost", count: boosts.length },
+        all,
       ),
     discardInPlay: () =>
       run(
         (p) => {
-          const count = p.commit.main ? 1 + inPlayBoosts(p).length : 0;
+          const spent = cardsOf(p.commit.main, ...inPlayBoosts(p));
           discardInPlay(p);
-          return count;
+          return spent;
         },
         "Discarded the card in play",
-        (count) => count > 0 && { type: "discard", from: "play", count },
+        (spent) => spent.length > 0 && { type: "discard", from: "play", count: spent.length },
+        all,
       ),
     returnInPlay: () =>
       run(
-        (p) => had(p.commit.main, () => returnCommitToHand(p)),
+        (p) => {
+          const back = cardsOf(p.commit.main, ...inPlayBoosts(p));
+          returnCommitToHand(p);
+          return back;
+        },
         "Took the card in play back into hand",
-        (done) => done && { type: "toHand", from: "play" },
+        (back) => back.length > 0 && { type: "toHand", from: "play" },
+        all,
       ),
     removeInPlay: () =>
       run(
         (p) => had(p.commit.main, () => removeCommitted(p)),
         "Removed the card in play from the game",
-        (done) => done && { type: "remove", from: "play" },
+        (card) => !!card && { type: "remove", from: "play" },
+        (card) => ({ cards: cardsOf(card) }),
       ),
 
     discardToHand: (index: number) =>
       run(
         (p) => had(p.discard[index], () => drawDiscard(p, index)),
         "Returned a card from discard to hand",
-        (done) => done && { type: "toHand", from: "discard" },
+        (card) => !!card && { type: "toHand", from: "discard" },
+        one(index),
       ),
     discardToTop: (index: number) =>
       run(
         (p) => had(p.deck && p.discard[index], () => discardToDeckTop(p, index)),
         "Put a discarded card on top of their deck",
-        (done) => done && { type: "toDeck", where: "top", from: "discard" },
+        (card) => !!card && { type: "toDeck", where: "top", from: "discard" },
+        one(index),
       ),
     discardToBottom: (index: number) =>
       run(
         (p) => had(p.deck && p.discard[index], () => discardToDeckBottom(p, index)),
         "Put a discarded card on the bottom of their deck",
-        (done) => done && { type: "toDeck", where: "bottom", from: "discard" },
+        (card) => !!card && { type: "toDeck", where: "bottom", from: "discard" },
+        one(index),
       ),
     removeDiscarded: (index: number) =>
       run(
@@ -437,6 +497,7 @@ export const useIrlActions = () => {
         },
         (_p, card) => `Removed ${titleOf(card)} from the game`,
         (card) => !!card && { type: "remove", from: "discard" },
+        one(index),
       ),
     returnRemoved: (index: number) =>
       apply(
@@ -446,12 +507,13 @@ export const useIrlActions = () => {
     shuffleDiscardIn: () =>
       run(
         (p) => {
-          const count = p.deck ? p.discard.length : 0;
+          const moved = p.deck ? [...p.discard] : [];
           shuffleDiscardIntoDeck(p);
-          return count;
+          return moved;
         },
         "Shuffled their discard into their deck",
-        (count) => count > 0 && { type: "shuffleIn", count },
+        (moved) => moved.length > 0 && { type: "shuffleIn", count: moved.length },
+        all,
       ),
     shuffleRandomIn: (count: number) =>
       run(
@@ -461,6 +523,7 @@ export const useIrlActions = () => {
             ? `Shuffled ${titleOf(moved[0])} from discard into their deck`
             : `Shuffled ${moved.length} random discards into their deck`,
         (moved) => moved.length > 0 && { type: "shuffleIn", count: moved.length },
+        all,
       ),
 
     adjust: (counter: IrlCounter, delta: number) =>

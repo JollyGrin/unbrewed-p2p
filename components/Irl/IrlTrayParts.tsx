@@ -1,12 +1,12 @@
 import { Box, Flex, Text, chakra } from "@chakra-ui/react";
-import {
-  AnimatePresence,
-  useAnimationControls,
-  useReducedMotion,
-} from "framer-motion";
+import { AnimatePresence, useAnimationControls } from "framer-motion";
 import { useEffect, useRef } from "react";
+import { irlAnchor } from "@/lib/irl/irlAnchors";
 import { IrlCounter } from "@/lib/irl/irlCharacters";
+import { useIrlRefusals } from "@/lib/irl/irlFx";
+import { IRL_MOTION, useIrlReducedMotion } from "@/lib/irl/irlMotion";
 import { colors } from "@/styles/style";
+import { useLandedCount } from "./IrlFlightLayer";
 import {
   BEBAS,
   GOLD_GRADIENT,
@@ -27,25 +27,7 @@ import {
  * the Main mockup (research/irl-mode-2026-09-13/mockups).
  */
 
-// --- motion tuning (#810; #811 moves these into lib/irl/irlMotion.ts) -------
-/** Counter border flash: red on −, green on +. Kept under reduced motion. */
-const FLASH_MS = 300;
-/** Heart beat on damage. */
-const HEART_MS = 320;
-const HEART_SCALE = 1.35;
-/** The once-only wobble when a character hits 0 HP. */
-const SHAKE_MS = 360;
-const SHAKE_X = [0, -6, 5, -3, 2, 0];
-/** Fade into / out of the knocked-out look. */
-const KO_MS = 250;
-const KO_OPACITY = 0.6;
-const KO_FILTER = "grayscale(0.6)";
-/** Pile tile bump whenever its count changes. */
-const PULSE_MS = 200;
-const PULSE_SCALE = 1.06;
-/** Pager: the active dot's width, and a new card's dot popping in. */
-const DOT_SPRING = { type: "spring", stiffness: 520, damping: 34 } as const;
-const DOT_POP = { type: "spring", stiffness: 640, damping: 16 } as const;
+const { flash: borderFlash, heart: beat, shake, knockOut, pulse: bump, dots } = IRL_MOTION;
 
 /** Calls `react(was, now)` after `value` changes — never on mount. */
 const useOnChange = (
@@ -65,16 +47,17 @@ const useOnChange = (
 
 /**
  * A tile's 1 → 1.06 → 1 bump. Reacts to the count itself, not to a click, so
- * anything that moves cards (and #811's card flights landing) pulses it.
+ * anything that moves cards pulses it — a card flying in (#811) holds the
+ * count back until it lands, so the bump comes with the landing.
  */
 const useCountPulse = (count: number) => {
-  const reduce = !!useReducedMotion();
+  const reduce = useIrlReducedMotion();
   const controls = useAnimationControls();
   useOnChange(count, () => {
     if (reduce) return;
     controls.start({
-      scale: [1, PULSE_SCALE, 1],
-      transition: { duration: PULSE_MS / 1000, ease: "easeOut" },
+      scale: [1, bump.scale, 1],
+      transition: { duration: bump.dur, ease: "easeOut" },
     });
   });
   return controls;
@@ -114,7 +97,7 @@ export const CounterChip = ({
   onAdjust: (delta: number) => void;
 }) => {
   const isHp = counter.kind === "hp";
-  const reduce = !!useReducedMotion();
+  const reduce = useIrlReducedMotion();
   const chip = useAnimationControls();
   const heart = useAnimationControls();
   const knockedOut = isHp && counter.value <= 0;
@@ -126,21 +109,21 @@ export const CounterChip = ({
     chip.start({
       borderColor: [flash, flash, colors.brand.accent],
       ...(nowOut !== wasOut && {
-        opacity: nowOut ? KO_OPACITY : 1,
-        filter: nowOut ? KO_FILTER : "grayscale(0)",
+        opacity: nowOut ? knockOut.opacity : 1,
+        filter: nowOut ? knockOut.filter : "grayscale(0)",
       }),
-      ...(nowOut && !wasOut && !reduce && { x: SHAKE_X }),
+      ...(nowOut && !wasOut && !reduce && { x: [...shake.x] }),
       transition: {
-        borderColor: { duration: FLASH_MS / 1000, times: [0, 0.4, 1] },
-        opacity: { duration: KO_MS / 1000 },
-        filter: { duration: KO_MS / 1000 },
-        x: { duration: SHAKE_MS / 1000, ease: "easeOut" },
+        borderColor: { duration: borderFlash.dur, times: [0, 0.4, 1] },
+        opacity: { duration: knockOut.dur },
+        filter: { duration: knockOut.dur },
+        x: { duration: shake.dur, ease: "easeOut" },
       },
     });
     if (isHp && now < was && !reduce) {
       heart.start({
-        scale: [1, HEART_SCALE, 1],
-        transition: { duration: HEART_MS / 1000, ease: "easeOut" },
+        scale: [1, beat.scale, 1],
+        transition: { duration: beat.dur, ease: "easeOut" },
       });
     }
   });
@@ -233,8 +216,8 @@ export const CounterChip = ({
     boxShadow: "0 4px 14px rgba(12, 4, 16, 0.45)",
     fontFamily: GROTESK,
     initial: {
-      opacity: knockedOut ? KO_OPACITY : 1,
-      filter: knockedOut ? KO_FILTER : "grayscale(0)",
+      opacity: knockedOut ? knockOut.opacity : 1,
+      filter: knockedOut ? knockOut.filter : "grayscale(0)",
     },
     animate: chip,
   };
@@ -383,20 +366,26 @@ const TileFace = ({
   </>
 );
 
-/** Characters / Hand / Discard: the whole tile is one "View" button. */
+/**
+ * Characters / Hand / Discard: the whole tile is one "View" button. With an
+ * `anchor` (#811) it is where card flights leave from and land.
+ */
 export const PileTile = ({
   label,
-  count,
+  count: real,
   sub,
   action,
+  anchor,
   onClick,
 }: {
   label: string;
   count: number;
   sub?: string;
   action: string;
+  anchor?: string;
   onClick: () => void;
 }) => {
+  const count = useLandedCount(anchor, real);
   const pulse = useCountPulse(count);
   return (
     <chakra.button
@@ -409,7 +398,11 @@ export const PileTile = ({
       aria-label={`${label}: ${count}${sub ? `, ${sub}` : ""}. ${action}`}
       onClick={onClick}
     >
-      <MotionSpan {...tileBox(false)} animate={pulse}>
+      <MotionSpan
+        {...tileBox(false)}
+        {...(anchor ? irlAnchor(anchor) : {})}
+        animate={pulse}
+      >
         <TileFace label={label} count={count} sub={sub} />
       </MotionSpan>
       <Box as="span" {...tileStrip}>
@@ -421,10 +414,11 @@ export const PileTile = ({
 
 /**
  * The deck: the strip draws (the mockup's "Draw"), the pile itself opens
- * the deck menu — Draw 2/3, shuffle, scry, mill, look through.
+ * the deck menu — Draw 2/3, shuffle, scry, mill, look through. Asked for a
+ * card it hasn't got, it wobbles (#811).
  */
 export const DeckTile = ({
-  count,
+  count: real,
   onDraw,
   onMenu,
 }: {
@@ -432,12 +426,22 @@ export const DeckTile = ({
   onDraw: () => void;
   onMenu: () => void;
 }) => {
-  const pulse = useCountPulse(count);
+  const reduce = useIrlReducedMotion();
+  const count = useLandedCount("deck-tile", real);
+  const tile = useCountPulse(count);
+  useIrlRefusals((refusal) => {
+    if (refusal.type !== "deckEmpty" || reduce) return;
+    const { wobble } = IRL_MOTION;
+    tile.start({
+      rotate: [...wobble.rotate],
+      transition: { duration: wobble.dur, ease: "easeOut" },
+    });
+  });
   return (
     <Flex direction="column" gap="6px" flex="1 1 0" minW={0}>
       {/* the pulse scales a wrapper: on the button it would pin its inline
           transform and swallow the button's own :active press */}
-      <MotionDiv animate={pulse}>
+      <MotionDiv animate={tile} {...irlAnchor("deck-tile")}>
         <chakra.button
           {...pressableTile}
           {...tileBox(true)}
@@ -459,7 +463,7 @@ export const DeckTile = ({
 
 /** The mockup's HAND bar with its dot pager. */
 export const HandBar = ({ count, index }: { count: number; index: number }) => {
-  const reduce = !!useReducedMotion();
+  const reduce = useIrlReducedMotion();
   return (
     <Flex
       align="center"
@@ -498,7 +502,7 @@ export const HandBar = ({ count, index }: { count: number; index: number }) => {
                   scale: 1,
                   transition: reduce
                     ? { duration: 0 }
-                    : { width: DOT_SPRING, scale: DOT_POP },
+                    : { width: dots.spring, scale: dots.pop },
                 }}
                 exit={reduce ? undefined : { width: 0, scale: 0 }}
               />
