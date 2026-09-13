@@ -1,4 +1,5 @@
 import { Button, Grid, Spinner, Text, VStack } from "@chakra-ui/react";
+import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
@@ -85,6 +86,19 @@ const Irl = () => {
   return (
     <>
       <PageSeo path="/irl" title="IRL Mode — Unbrewed" noindex />
+      {/* Installable to the home screen (#800). Only this page links the
+          manifest, so only /irl can be installed; its scope is "/irl".
+          theme-color and viewport-fit=cover already come from PageSeo. */}
+      <Head>
+        <link rel="manifest" href="/irl.webmanifest" />
+        <link rel="apple-touch-icon" href="/irl-icons/apple-touch-icon.png" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta
+          name="apple-mobile-web-app-status-bar-style"
+          content="black-translucent"
+        />
+        <meta name="apple-mobile-web-app-title" content="IRL Mode" />
+      </Head>
       {deck && query.name ? (
         <OfflineGameProvider>
           <IrlShell deck={deck} />

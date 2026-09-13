@@ -1,0 +1,16 @@
+{
+  "name": "Unbrewed IRL Mode",
+  "short_name": "IRL Mode",
+  "description": "Playtest an Unmatched fan deck at a real table — hand, deck, discard and health on your phone.",
+  "start_url": "/irl",
+  "scope": "/irl",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#2C1831",
+  "theme_color": "#48284F",
+  "icons": [
+    { "src": "/irl-icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/irl-icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/irl-icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
