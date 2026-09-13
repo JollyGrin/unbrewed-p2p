@@ -100,8 +100,12 @@ export const HandFan: React.FC<CardWrapperProps> = ({
 
     const start = { x: e.clientX, y: e.clientY };
     let active = false;
+    // The listeners are window-wide: only the pointer that pressed this card
+    // may move or drop it, so a second finger can't fire this card's drop.
+    const { pointerId } = e;
 
     const onMove = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
       lastPointer.current = { x: ev.clientX, y: ev.clientY };
       if (
         !active &&
@@ -122,6 +126,7 @@ export const HandFan: React.FC<CardWrapperProps> = ({
     };
 
     const onUp = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
       const wasActive = active;
       cleanup();
       if (!wasActive) return;
@@ -135,7 +140,9 @@ export const HandFan: React.FC<CardWrapperProps> = ({
         screenPos: { x: ev.clientX, y: ev.clientY },
       });
     };
-    const onCancel = () => cleanup();
+    const onCancel = (ev: PointerEvent) => {
+      if (ev.pointerId === pointerId) cleanup();
+    };
 
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);

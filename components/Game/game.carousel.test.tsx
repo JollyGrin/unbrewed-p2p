@@ -18,11 +18,14 @@ jest.mock("../BoardCanvas/boardTransform", () => ({
 }));
 
 // jsdom has no PointerEvent; a MouseEvent carries the coordinates we need.
+type PointerInit = MouseEventInit & { pointerType?: string; pointerId?: number };
 class FakePointerEvent extends MouseEvent {
   pointerType: string;
-  constructor(type: string, init: MouseEventInit & { pointerType?: string } = {}) {
+  pointerId: number;
+  constructor(type: string, init: PointerInit = {}) {
     super(type, init);
     this.pointerType = init.pointerType ?? "mouse";
+    this.pointerId = init.pointerId ?? 1;
   }
 }
 beforeAll(() => {
@@ -44,9 +47,11 @@ const fns = (playFn: jest.Mock) => ({
   playFn,
 });
 
-const pointer = (type: string, x: number) =>
+const pointer = (type: string, x: number, pointerId = 1) =>
   act(() => {
-    window.dispatchEvent(new FakePointerEvent(type, { clientX: x, clientY: 0 }));
+    window.dispatchEvent(
+      new FakePointerEvent(type, { clientX: x, clientY: 0, pointerId }),
+    );
   });
 
 /** Press on `title`, drag past the threshold, then let `midDrag` run. */
@@ -81,6 +86,28 @@ describe("HandFan drag-to-table", () => {
     rerender(<HandFan cards={[BOLT]} functions={fns(play)} />);
     pointer("pointerup", 50);
     expect(play).not.toHaveBeenCalled();
+  });
+
+  it("ignores a second finger: only the pressing pointer can drop the card", () => {
+    const play = jest.fn();
+    render(<HandFan cards={[ACE, BOLT]} functions={fns(play)} />);
+    // finger 1 picks up Ace and is mid-drag
+    fireEvent.pointerDown(screen.getByText("Ace"), {
+      clientX: 0,
+      clientY: 0,
+      pointerType: "touch",
+      pointerId: 1,
+    });
+    pointer("pointermove", 50, 1);
+
+    // finger 2 taps elsewhere: its move and release belong to no drag
+    pointer("pointermove", 400, 2);
+    pointer("pointerup", 400, 2);
+    expect(play).not.toHaveBeenCalled();
+
+    pointer("pointerup", 60, 1);
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(play).toHaveBeenCalledWith(0, { screenPos: { x: 60, y: 0 } });
   });
 
   it("plays the original slot when nothing changed", () => {

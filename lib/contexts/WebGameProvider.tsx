@@ -176,10 +176,11 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
   // I know nothing about my own blobs until the relay's join replay lands, so
   // sends before that are held: the hand's auto-init (or a starter-token seed)
   // would otherwise overwrite the very pool/board the replay is about to hand
-  // back. A held playerstate send is re-sent from the adopted pool once synced.
+  // back. A held playerstate send is re-sent once synced; `heldStateRef.pool`
+  // keeps the latest pool any held send carried, for when the replay has none.
   const hasStateSnapshotRef = useRef(false);
   const hasPositionsSnapshotRef = useRef(false);
-  const resendStateAfterSyncRef = useRef(false);
+  const heldStateRef = useRef<{ pool?: PoolType }>();
 
   // Exposed position setter: commit, render, then send.
   const setPlayerPosition = useRef((blob: PositionBlob) => {
@@ -322,7 +323,9 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
   const broadcast = useCallback(
     (state: PlayerState) => {
       if (!hasStateSnapshotRef.current) {
-        resendStateAfterSyncRef.current = true;
+        heldStateRef.current = {
+          pool: state.pool ?? heldStateRef.current?.pool,
+        };
         return;
       }
       const blob = commitOwn(
@@ -976,12 +979,16 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connectionStatus]);
 
-  // A playerstate send attempted before the join replay was held; now that
-  // the replay has seeded my pool, send it (carrying the map/log stamps).
+  // A playerstate send attempted before the join replay was held. Now that the
+  // replay has landed, send once (carrying the map/log stamps): the replayed
+  // pool when there is one — a rejoin, which the held auto-init would clobber
+  // — else the held pool, so a fresh joiner's hand auto-init goes out as its
+  // first update instead of trailing a pool-less one.
   useEffect(() => {
-    if (!parsedGameState || !resendStateAfterSyncRef.current) return;
-    resendStateAfterSyncRef.current = false;
-    broadcast({ pool: readLocalPool() });
+    const held = heldStateRef.current;
+    if (!parsedGameState || !held) return;
+    heldStateRef.current = undefined;
+    broadcast({ pool: readLocalPool() ?? held.pool });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parsedGameState]);
 
