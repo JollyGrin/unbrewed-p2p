@@ -926,6 +926,37 @@ describe("river-cruise fixture", () => {
     // ...and the source doesn't double-list it as a two-way edge
     expect(byId.get("s18")!.adjacentTo).not.toContain("s13");
   });
+
+  it("carries the three faded printed paths as normal two-way edges (#794)", () => {
+    // the board prints s2-s8, s17-s21 and s5-s24 as faded olive strokes — a
+    // design choice, not deck-railing art — so they are ordinary paths.
+    const map = customMapForEntry(riverCruise)!;
+    const byId = new Map(map.spaces.map((s) => [s.id, s]));
+    for (const [a, b] of [
+      ["s2", "s8"],
+      ["s17", "s21"],
+      ["s5", "s24"],
+    ]) {
+      expect(byId.get(a)!.adjacentTo).toContain(b);
+      expect(byId.get(b)!.adjacentTo).toContain(a);
+    }
+
+    // every two-way edge is listed on both sides (one-way arrows live in
+    // `oneWayTo`, not here)
+    const asymmetric = map.spaces.flatMap((s) =>
+      s.adjacentTo
+        .filter((to) => !byId.get(to)?.adjacentTo.includes(s.id))
+        .map((to) => `${s.id}->${to}`),
+    );
+    expect(asymmetric).toEqual([]);
+
+    const edges = new Set(
+      map.spaces.flatMap((s) =>
+        s.adjacentTo.map((to) => [s.id, to].sort().join("-")),
+      ),
+    );
+    expect(edges.size).toBe(42);
+  });
 });
 
 /**
