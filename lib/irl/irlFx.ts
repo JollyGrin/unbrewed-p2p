@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef } from "react";
+import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 
 /**
  * IRL Mode's effect-event spine (issue #809). Every tray action already knows
@@ -30,24 +31,61 @@ export type IrlFxEvent =
   | { type: "mill" }
   | { type: "hp"; counterId: string; delta: number; value: number };
 
-export type IrlFxHandler = (event: IrlFxEvent) => void;
-
-export type IrlFxBus = {
-  emit: IrlFxHandler;
-  subscribe: (handler: IrlFxHandler) => () => void;
+/**
+ * What an event moved (issue #811) — what a card flight draws. Rides beside
+ * the event rather than in it, so the event stays the move's name.
+ */
+export type IrlFxMoved = {
+  /**
+   * The cards that moved, in the order they moved (a discard from play: the
+   * main card, then each boost). A shuffle lends the top of the deck, for
+   * its back art.
+   */
+  cards: DeckImportCardType[];
+  /** the hand or discard index a single card left from, when it has one */
+  index?: number;
 };
 
-/** One bus per IrlGameProvider — no globals, no window events. */
-export const createIrlFxBus = (): IrlFxBus => {
-  const handlers = new Set<IrlFxHandler>();
+/**
+ * A move that was asked for and refused (issue #811) — the deck tile's
+ * wobble. Its own channel: a refused move is not a move, so it never reaches
+ * `useIrlFx`.
+ */
+export type IrlFxRefusal = { type: "deckEmpty" };
+
+export type IrlFxHandler = (event: IrlFxEvent, moved: IrlFxMoved) => void;
+export type IrlFxRefusalHandler = (refusal: IrlFxRefusal) => void;
+
+export type IrlFxBus = {
+  emit: (event: IrlFxEvent, moved?: IrlFxMoved) => void;
+  subscribe: (handler: IrlFxHandler) => () => void;
+  refuse: IrlFxRefusalHandler;
+  subscribeRefusals: (handler: IrlFxRefusalHandler) => () => void;
+};
+
+const channel = <H extends (...args: never[]) => void>() => {
+  const handlers = new Set<H>();
   return {
-    emit: (event) => handlers.forEach((handler) => handler(event)),
-    subscribe: (handler) => {
+    each: (call: (handler: H) => void) => handlers.forEach(call),
+    subscribe: (handler: H) => {
       handlers.add(handler);
       return () => {
         handlers.delete(handler);
       };
     },
+  };
+};
+
+/** One bus per IrlGameProvider — no globals, no window events. */
+export const createIrlFxBus = (): IrlFxBus => {
+  const events = channel<IrlFxHandler>();
+  const refusals = channel<IrlFxRefusalHandler>();
+  return {
+    emit: (event, moved = { cards: [] }) =>
+      events.each((handler) => handler(event, moved)),
+    subscribe: events.subscribe,
+    refuse: (refusal) => refusals.each((handler) => handler(refusal)),
+    subscribeRefusals: refusals.subscribe,
   };
 };
 
@@ -61,5 +99,19 @@ export const useIrlFx = (handler: IrlFxHandler) => {
   const bus = useContext(IrlFxContext);
   const latest = useRef(handler);
   latest.current = handler;
-  useEffect(() => bus?.subscribe((event) => latest.current(event)), [bus]);
+  useEffect(
+    () => bus?.subscribe((event, moved) => latest.current(event, moved)),
+    [bus],
+  );
+};
+
+/** Hear every refused move, like {@link useIrlFx}. */
+export const useIrlRefusals = (handler: IrlFxRefusalHandler) => {
+  const bus = useContext(IrlFxContext);
+  const latest = useRef(handler);
+  latest.current = handler;
+  useEffect(
+    () => bus?.subscribeRefusals((refusal) => latest.current(refusal)),
+    [bus],
+  );
 };
