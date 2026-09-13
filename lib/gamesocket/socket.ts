@@ -87,6 +87,10 @@ export const initializeWebsocket = ({
   };
   connect();
 
+  // Sends while the socket is down are dropped, not queued: both blobs are
+  // whole-state and last-write-wins, so WebGameProvider re-sends its committed
+  // copies when the status flips back to "open" (issue #496) — which delivers
+  // anything done during the blip, both channels together.
   const send = (message: WebsocketMessage): void => {
     if (ws.readyState !== WebSocket.OPEN) {
       console.warn("websocket not open, message dropped", message.msgtype);

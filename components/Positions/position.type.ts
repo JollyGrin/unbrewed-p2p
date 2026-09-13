@@ -94,6 +94,8 @@ export type PositionBlob = {
   /** The player's color — every disc/icon token they own tints with it. */
   color?: string;
   tokens: BoardToken[];
+  /** Owner's per-send revision (lib/sandbox/ownBlob.ts, issue #496). */
+  rev?: number;
 };
 
 /** A token annotated with its owner's name and color, counter resolved. */
