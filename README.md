@@ -78,7 +78,7 @@ You can run the server on your own machine — free, and independent of Unbrewed
 4. In a new terminal: `yarn grok` and copy the public URL it prints
 5. Paste that URL at [unbrewed.xyz/settings](https://unbrewed.xyz/settings) — and share it with your friends so they connect to the same server
 
-Want to run a 24/7 public server for the community? Open an issue or PR so we can add it to the default server list. (`fly.toml` and `Dockerfile.gameserver` are included if you like [Fly.io](https://fly.io) or containers.)
+Want to run a 24/7 public server for the community? Open an issue or PR so we can add it to the default server list. (`Dockerfile.gameserver` is included if you like containers — it's what the default relay on [Railway](https://railway.com) builds from.)
 
 ## 🏗️ How it works
 
