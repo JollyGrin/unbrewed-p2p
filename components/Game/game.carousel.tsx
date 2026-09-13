@@ -44,6 +44,17 @@ type CardWrapperProps = {
 };
 
 /**
+ * Where a card picked up at `index` sits in `cards` now: the same slot if it
+ * is still there, else wherever that same object moved to, else -1 (it left
+ * the hand mid-drag — played, discarded, or wiped by a reset).
+ */
+export const resolveHandIndex = (
+  cards: DeckImportCardType[] | undefined,
+  card: DeckImportCardType,
+  index: number,
+): number => (cards?.[index] === card ? index : cards?.indexOf(card) ?? -1);
+
+/**
  * Hand of cards fanned in an arc, floating over the board like a
  * physical hand held at the table edge.
  *
@@ -59,7 +70,18 @@ export const HandFan: React.FC<CardWrapperProps> = ({
 }) => {
   const ghostRef = useRef<HTMLDivElement | null>(null);
   const lastPointer = useRef<{ x: number; y: number } | null>(null);
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [drag, setDrag] = useState<{
+    card: DeckImportCardType;
+    index: number;
+  } | null>(null);
+  // A drop fires long after the render its drag started in (issue #496).
+  // Read the hand and handlers through refs so pointerup plays the card that
+  // was picked up — found by identity — with the current handlers, not the
+  // ones (and the pool they close over) from pointerdown.
+  const cardsRef = useRef(cards);
+  cardsRef.current = cards;
+  const functionsRef = useRef(functions);
+  functionsRef.current = functions;
 
   const positionGhost = (el: HTMLDivElement | null, x: number, y: number) => {
     if (!el) return;
@@ -73,6 +95,8 @@ export const HandFan: React.FC<CardWrapperProps> = ({
     if (e.pointerType === "mouse" && e.button !== 0) return;
     // presses on the hover action buttons stay clicks, never drags
     if ((e.target as Element).closest?.(".actions")) return;
+    const card = cards?.[index];
+    if (!card) return;
 
     const start = { x: e.clientX, y: e.clientY };
     let active = false;
@@ -84,7 +108,7 @@ export const HandFan: React.FC<CardWrapperProps> = ({
         Math.hypot(ev.clientX - start.x, ev.clientY - start.y) > DRAG_THRESHOLD
       ) {
         active = true;
-        setDragIndex(index);
+        setDrag({ card, index });
       }
       if (active) positionGhost(ghostRef.current, ev.clientX, ev.clientY);
     };
@@ -94,7 +118,7 @@ export const HandFan: React.FC<CardWrapperProps> = ({
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onCancel);
       lastPointer.current = null;
-      setDragIndex(null);
+      setDrag(null);
     };
 
     const onUp = (ev: PointerEvent) => {
@@ -104,11 +128,12 @@ export const HandFan: React.FC<CardWrapperProps> = ({
       // ghost is pointer-events:none, so this hits whatever is underneath
       const el = document.elementFromPoint(ev.clientX, ev.clientY);
       const svg = getBoardSvg();
-      if (svg && el && svg.contains(el)) {
-        functions.playFn?.(index, {
-          screenPos: { x: ev.clientX, y: ev.clientY },
-        });
-      }
+      if (!svg || !el || !svg.contains(el)) return;
+      const at = resolveHandIndex(cardsRef.current, card, index);
+      if (at < 0) return; // it left the hand mid-drag — nothing to play
+      functionsRef.current.playFn?.(at, {
+        screenPos: { x: ev.clientX, y: ev.clientY },
+      });
     };
     const onCancel = () => cleanup();
 
@@ -128,6 +153,7 @@ export const HandFan: React.FC<CardWrapperProps> = ({
       : 0;
   const fanWidth = spacing * (count - 1) + CARD_WIDTH;
   const tiltPerCard = Math.min(4, 26 / count);
+  const dragAt = drag ? resolveHandIndex(cards, drag.card, drag.index) : -1;
 
   return (
     <>
@@ -152,8 +178,8 @@ export const HandFan: React.FC<CardWrapperProps> = ({
               onPointerDown={(e: React.PointerEvent) =>
                 onCardPointerDown(e, index)
               }
-              data-dragging={dragIndex != null}
-              data-drag-source={dragIndex === index}
+              data-dragging={drag != null}
+              data-drag-source={dragAt === index}
               style={fanVars}
             >
               <Box className="lift">
@@ -200,7 +226,7 @@ export const HandFan: React.FC<CardWrapperProps> = ({
           );
         })}
       </FanContainer>
-      {dragIndex != null && cards[dragIndex] && (
+      {drag && (
         <DragGhost
           ref={(el: HTMLDivElement | null) => {
             ghostRef.current = el;
@@ -208,7 +234,7 @@ export const HandFan: React.FC<CardWrapperProps> = ({
               positionGhost(el, lastPointer.current.x, lastPointer.current.y);
           }}
         >
-          <Card card={cards[dragIndex]} />
+          <Card card={drag.card} />
         </DragGhost>
       )}
     </>
