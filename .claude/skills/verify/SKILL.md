@@ -11,7 +11,7 @@ description: Build, run, and drive the Unbrewed game board end-to-end to verify 
 2. `npm run dev` — Next dev server; picks the next free port if 3000 is taken (watch the "ready" line).
 3. Relay: a local gameserver usually runs on `:1111` (`lsof -nP -iTCP:1111`); otherwise `cd gameserver && go run .`.
 4. **Rooms must be created before the websocket join**: `curl http://localhost:1111/lobby/<gid>` first, or the ws handshake 500s with "Unable to find the game room socket".
-5. The default relay is `https://unbrewed-v2.fly.dev`; to force local, seed localStorage before page scripts run: `localStorage.setItem("SERVER_ACTIVE", "http://localhost:1111")`.
+5. The default relay is `https://unbrewed-relay-production.up.railway.app` (Railway, built from `Dockerfile.gameserver`; the old fly.dev relay is retired, #805); to force local, seed localStorage before page scripts run: `localStorage.setItem("SERVER_ACTIVE", "http://localhost:1111")`.
 
 ## Drive
 
@@ -30,5 +30,5 @@ description: Build, run, and drive the Unbrewed game board end-to-end to verify 
 
 - puppeteer `waitUntil: "networkidle2"` never settles on /game (live websocket) — use `"domcontentloaded"` plus a `waitForFunction` that a known button exists AND has a non-zero boundingRect (hydration + lazy icon chunk can lag several seconds on first compile).
 
-- The fly.dev relay may be unreachable from a sandboxed/offline env — the header chip shows "Disconnected — reconnecting" and no tokens render (they render from the server echo, not locally).
+- The Railway relay may be unreachable from a sandboxed/offline env — the header chip shows "Disconnected — reconnecting" and no tokens render (they render from the server echo, not locally).
 - Port 3000 is often occupied by an unrelated app; don't assume.

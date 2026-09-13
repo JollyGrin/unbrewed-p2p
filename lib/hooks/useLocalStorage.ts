@@ -17,7 +17,42 @@ export const LS_KEY = {
   MAP_LIST: "MAP_LIST",
 };
 
-export const DEFAULT_SERVER = "https://unbrewed-v2.fly.dev";
+export const DEFAULT_SERVER = "https://unbrewed-relay-production.up.railway.app";
+
+/**
+ * The old default relay (#805). Fly can no longer deploy, so it is frozen on a
+ * pre-July relay build; anyone still pinned to it is moved to DEFAULT_SERVER.
+ */
+export const RETIRED_DEFAULT_SERVER = "https://unbrewed-v2.fly.dev";
+
+const isRetiredServer = (server: string) =>
+  server.replace(/\/+$/, "") === RETIRED_DEFAULT_SERVER;
+
+/**
+ * Moves a device off the retired Fly relay: an active server equal to it is
+ * cleared (so the new default applies) and it is swapped for the new default
+ * in the saved list. Any other custom server is left alone. Idempotent.
+ */
+export const migrateRetiredServer = (storage: Storage) => {
+  const active = storage.getItem(LS_KEY.SERVER_ACTIVE);
+  if (active && isRetiredServer(active)) {
+    storage.removeItem(LS_KEY.SERVER_ACTIVE);
+  }
+
+  const rawList = storage.getItem(LS_KEY.SERVER_LIST);
+  if (!rawList) return;
+  let list: unknown;
+  try {
+    list = JSON.parse(rawList);
+  } catch {
+    return;
+  }
+  if (!Array.isArray(list) || !list.some(isRetiredServer)) return;
+  const migrated = Array.from(
+    new Set(list.map((s) => (isRetiredServer(s) ? DEFAULT_SERVER : s))),
+  );
+  storage.setItem(LS_KEY.SERVER_LIST, JSON.stringify(migrated));
+};
 
 export const useLocalServerStorage = () => {
   const defaultServer = DEFAULT_SERVER;
@@ -25,6 +60,7 @@ export const useLocalServerStorage = () => {
   const [serverList, setServerList] = useState<string[]>([]);
 
   useEffect(() => {
+    migrateRetiredServer(localStorage);
     const localActiveServer: string | null = localStorage.getItem(
       LS_KEY.SERVER_ACTIVE,
     );
