@@ -752,9 +752,10 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     //
     // TUC decks have no unmatched.cards page, so `original: true` suppresses the
     // lobby deep-link and `sourceUrl` credits the club (Vader / Maul / Luke
-    // precedent). Engine serves the hero at tier `lab`, so `lab` drives the
-    // create-screen caution badge and `tier` keeps the deck out of the sandbox
-    // community picker and the invite copy.
+    // precedent). Graduated from the lab 2026-09-13 alongside the engine's tier
+    // promotion (engine #575 — a tier-only change: the one known engine limit,
+    // the two-Boba pile collision #481, closed at v0.60.0, and all six author
+    // rulings are answered in the rules header).
     id: "boba-fett",
     name: "Boba Fett",
     hero: "Boba Fett",
@@ -764,8 +765,6 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     // card (`appearance.contentBg` #028000). Luke's is a much darker forest green.
     highlightColour: "#028000",
     original: true,
-    lab: true,
-    tier: "lab",
     // Repo-relative (Kenshiro/Skull Kid/Cecil precedent): the author's own cardback,
     // mirrored off i.imgur.com so the tile renders on localhost and preview builds.
     // It is the ONLY art this deck ships — the 14 card faces render from the
