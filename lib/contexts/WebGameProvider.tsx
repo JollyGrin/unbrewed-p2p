@@ -57,6 +57,13 @@ import {
   requiredVoters,
   resolveResetEpoch,
 } from "@/lib/sandbox/gameReset";
+import {
+  commitOwn,
+  newOwnChannel,
+  receiveOwn,
+  releaseOwn,
+  takeHeld,
+} from "@/lib/sandbox/ownBlob";
 import { toast } from "react-hot-toast";
 
 /**
@@ -131,6 +138,12 @@ interface WebGameProviderValue {
 // Claims the owner never answers (offline) expire after this long.
 const CLAIM_TTL_MS = 60_000;
 
+// How long after the socket opens a send made before the join replay stays
+// held waiting for it. A release path, never a gate (#807): a relay is not
+// obliged to replay anything, and a hard gate on that is what took every
+// table down (research/incident-2026-09-13-relay-gate-797.md).
+export const JOIN_REPLAY_GRACE_MS = 1500;
+
 // How many recent actions each player keeps on their blob.
 const ACTION_LOG_LIMIT = 25;
 
@@ -149,16 +162,42 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
 
   const { activeServer } = useLocalServerStorage();
 
-  // gameState is updated from the websocket return.
-  const [gameState, setGameState] = useState<string>();
-  const [gamePositions, setGamePositions] = useState<string>();
+  // The latest inbound frames, parsed once on arrival. My OWN blob inside
+  // them is never served as-is — see ownStateRef below.
+  const [parsedGameState, setParsedGameState] = useState<WebsocketMessage>();
+  const [parsedGamePositions, setParsedGamePositions] =
+    useState<WebsocketMessage>();
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>("connecting");
 
   // Raw senders, populated once the socket connects. Held in refs so the
   // map-sync effects below can reach them without re-subscribing on reconnect.
   const updatePlayerStateRef = useRef((_: PlayerState) => {});
-  const setPlayerPosition = useRef((_: PositionBlob) => {});
+  const sendPositionRef = useRef((_: PositionBlob) => {});
+
+  // My two relay blobs, owned by this client (issues #496/#807, see
+  // lib/sandbox/ownBlob.ts). Every send commits here first, and inbound
+  // frames only overwrite them when strictly newer — so a frame the relay
+  // built before my latest write can't revert it. The `*View` state mirrors
+  // each ref so a commit re-renders without waiting for an echo.
+  //
+  // Pool sends made before the join replay (the hand's auto-init, the map
+  // re-send on open) are held and flushed when it lands, or
+  // JOIN_REPLAY_GRACE_MS after the socket opens without one. The board is
+  // never held: its only early send, the join seed, already waits for a real
+  // frame — and a held board would lose a reset wipe on join to the replay.
+  const ownStateRef = useRef(newOwnChannel<PlayerState>());
+  const ownPositionRef = useRef(newOwnChannel<PositionBlob>(true));
+  const [ownStateView, setOwnStateView] = useState<PlayerState>();
+  const [ownPositionView, setOwnPositionView] = useState<PositionBlob>();
+
+  // Exposed position setter: commit, render, then send.
+  const setPlayerPosition = useRef((blob: PositionBlob) => {
+    const own = ownPositionRef.current;
+    const wire = commitOwn(own, blob);
+    setOwnPositionView(own.current);
+    if (wire) sendPositionRef.current(wire);
+  });
 
   // Shared-map state. `mapUpdatedAt` is a logical clock: it tracks the highest
   // timestamp we've seen across the room, so a local change (seen + 1) always
@@ -204,26 +243,39 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
   const hasSeededResetRef = useRef(false);
   const [resetStatus, setResetStatus] = useState<ResetStatus>({ epoch: 0 });
 
-  const parsedGamePositions = useMemo(
-    () =>
-      typeof gamePositions === "string"
-        ? (JSON.parse(gamePositions) as WebsocketMessage)
-        : gamePositions,
-    [gamePositions],
-  );
-  const parsedGameState = useMemo(
-    () =>
-      typeof gameState === "string"
-        ? (JSON.parse(gameState) as WebsocketMessage)
-        : gameState,
-    [gameState],
-  );
+  // What the UI sees: the inbound frames with MY blob swapped for the
+  // committed copy. Every consumer (hand, modals, header, board) reads and
+  // mutates `players[self].pool` / `blobs[self]` from here, so what it sends
+  // back is derived from my last write — never from an echo. No gamestate is
+  // invented before the first real one: the board's join seed keys off it.
+  const selfName = slug?.name?.toString();
+  const gameState = useMemo((): WebsocketMessage | undefined => {
+    const content = parsedGameState?.content as GameState | undefined;
+    if (!parsedGameState || !content || !selfName || !ownStateView)
+      return parsedGameState;
+    return {
+      ...parsedGameState,
+      content: {
+        ...content,
+        players: { ...content.players, [selfName]: ownStateView },
+      },
+    };
+  }, [parsedGameState, ownStateView, selfName]);
+  const gamePositions = useMemo((): WebsocketMessage | undefined => {
+    if (!selfName || !ownPositionView) return parsedGamePositions;
+    const content = (parsedGamePositions?.content ?? {}) as PositionState;
+    return {
+      msgtype: "playerposition",
+      error: "",
+      ...parsedGamePositions,
+      content: { ...content, [selfName]: ownPositionView },
+    };
+  }, [parsedGamePositions, ownPositionView, selfName]);
 
-  // Keep the freshest parsed state reachable from effects that shouldn't
-  // re-run every time it changes (e.g. reading the local player's pool when
-  // broadcasting a map change).
+  // Keep the freshest state reachable from effects that shouldn't re-run
+  // every time it changes (e.g. counting the voters for a reset).
   const latestGameStateRef = useRef<WebsocketMessage | undefined>();
-  latestGameStateRef.current = parsedGameState;
+  latestGameStateRef.current = gameState;
 
   // Stamp every outgoing player blob with our current view of the shared map,
   // so the map survives normal pool updates and is present for late joiners.
@@ -277,22 +329,26 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
   // The one way out: every playerstate send carries every stamp. The map
   // effects used to call the raw sender with partial blobs, which clobbered
   // the log/roll (and would clobber escrows) until the next stamped send.
+  // Each send commits as my own blob before it goes (held before the replay).
   const broadcast = useCallback(
     (state: PlayerState) => {
-      updatePlayerStateRef.current(
+      const own = ownStateRef.current;
+      const wire = commitOwn(
+        own,
         stampReset(stampHandoff(stampRoll(stampLog(stampMap(state))))),
       );
+      setOwnStateView(own.current);
+      if (wire) updatePlayerStateRef.current(wire);
     },
     [stampReset, stampHandoff, stampRoll, stampLog, stampMap],
   );
 
-  const readLocalPool = useCallback((): PoolType | undefined => {
-    const name = slug?.name?.toString();
-    if (!name) return undefined;
-    const players = (latestGameStateRef.current?.content as GameState | undefined)
-      ?.players;
-    return players?.[name]?.pool;
-  }, [slug?.name]);
+  // My committed pool — the same object the UI renders and mutates, so a
+  // "re-send the current pool" (log, dice, handoff…) can't undo a play.
+  const readLocalPool = useCallback(
+    (): PoolType | undefined => ownStateRef.current.current?.pool,
+    [],
+  );
 
   // This should only happen once
   useEffect(() => {
@@ -307,22 +363,37 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
     }
 
     const serverURL = new URL(activeServer);
+    const name = slug.name.toString();
+    // Reconcile my own blob out of each frame BEFORE it renders, so nothing
+    // downstream ever sees an echo older than my last write.
     const { updateMyPlayerState, updateMyPlayerPosition, close } =
       initializeWebsocket({
-        name: slug.name.toString(),
+        name,
         gid: slug.gid.toString(),
         connectURL: serverURL,
-        onGameState: (state: string) => {
-          setGameState(state);
+        onGameState: (raw: string) => {
+          const msg = JSON.parse(raw) as WebsocketMessage;
+          const own = ownStateRef.current;
+          const echo = (msg.content as GameState | undefined)?.players?.[name];
+          // A replayed blob without a pool is the relay's `{}` for a new
+          // player: a held auto-init pool is the better first state.
+          if (receiveOwn(own, echo, (e) => !e?.pool))
+            setOwnStateView(own.current);
+          setParsedGameState(msg);
         },
-        onGamePositions: (state: string) => {
-          setGamePositions(state);
+        onGamePositions: (raw: string) => {
+          const msg = JSON.parse(raw) as WebsocketMessage;
+          const own = ownPositionRef.current;
+          const echo = (msg.content as PositionState | undefined)?.[name];
+          if (receiveOwn(own, echo as PositionBlob | undefined))
+            setOwnPositionView(own.current);
+          setParsedGamePositions(msg);
         },
         onStatus: setConnectionStatus,
       });
 
     updatePlayerStateRef.current = updateMyPlayerState;
-    setPlayerPosition.current = updateMyPlayerPosition;
+    sendPositionRef.current = updateMyPlayerPosition;
 
     return () => close();
   }, [router.isReady, slug.name, slug.gid, activeServer]);
@@ -559,11 +630,16 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
     const now = Date.now();
 
     // The adopt rule (see gameReset.ts) — the only thing that triggers a wipe.
+    // A pool still held from before the join replay is one nobody has seen
+    // — not a board to wipe. Judge a joiner by what the relay replayed.
+    const hasPool = ownStateRef.current.held
+      ? !!players[self]?.pool
+      : !!readLocalPool();
     const { epoch, action, by } = resolveResetEpoch({
       players,
       self,
       myEpoch: resetEpochRef.current,
-      hasPool: !!readLocalPool(),
+      hasPool,
     });
     if (action === "wipe") {
       applyReset(epoch, by ?? "another player");
@@ -808,7 +884,9 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
     // below), token deletion after — the card is never in zero places, and
     // the deterministic `take-<tokenId>` id makes a re-run harmless.
     const posBlobs = (parsedGamePositions?.content ?? {}) as PositionState;
-    const myBlob = migrateBlob(posBlobs[self]);
+    // My tokens from the committed blob, not the echo: the filtered list is
+    // sent back below, and a stale echo would drop or resurrect tokens.
+    const myBlob = migrateBlob(ownPositionRef.current.current);
     const claimsByToken = new Map<
       string,
       { claimant: string; claimedAt: number }[]
@@ -898,20 +976,47 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.query.mapUrl, router.isReady]);
 
-  // Re-broadcast our map when the socket (re)connects, covering players who set
-  // a map before joining or who never send a pool update.
+  // Re-send both of my blobs whenever the socket (re)opens (#496). The socket
+  // drops sends while it is down, so a play made during a blip lives only in
+  // the committed copies — this delivers it, both channels together. It also
+  // covers a map set before joining: on the first open the pool isn't synced
+  // yet, so that send is held and goes out with the join replay (or its grace
+  // period).
   useEffect(() => {
     if (connectionStatus !== "open") return;
-    if (mapSyncRef.current.updatedAt <= 0) return;
-    broadcast({ pool: readLocalPool() });
+    if (ownStateRef.current.current || mapSyncRef.current.updatedAt > 0)
+      broadcast({ pool: readLocalPool() });
+    const position = ownPositionRef.current.current;
+    if (position) setPlayerPosition.current(position);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connectionStatus]);
+
+  // The pool hold's release paths (see ownStateRef). The flush on the replay
+  // is declared AFTER the reset and handoff reconciles so it carries the
+  // epoch and escrows they seed from that same frame.
+  useEffect(() => {
+    if (takeHeld(ownStateRef.current)) broadcast({ pool: readLocalPool() });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parsedGameState]);
+  // Never a gate: when no replay lands within the grace period, stop waiting
+  // and send. Re-armed on every open, so a drop mid-wait can't strand it.
+  useEffect(() => {
+    if (connectionStatus !== "open") return;
+    const state = ownStateRef.current;
+    if (state.synced) return;
+    const timer = setTimeout(() => {
+      releaseOwn(state);
+      if (takeHeld(state)) broadcast({ pool: readLocalPool() });
+    }, JOIN_REPLAY_GRACE_MS);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connectionStatus]);
 
   return (
     <WebGameContext.Provider
       value={{
-        gamePositions: parsedGamePositions,
-        gameState: parsedGameState,
+        gamePositions,
+        gameState,
         connectionStatus,
         // Call setPlayerState to update the player state on the serverside.
         setPlayerState: setPlayerState,
