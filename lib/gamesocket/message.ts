@@ -33,11 +33,6 @@ export interface ActionLogEntry {
 // PlayerState can be w/e json payload the game wants to send.
 // The golang backend just passes this to all clients.
 export interface PlayerState {
-  // Per-player monotonic revision, stamped by the owning client on every send
-  // (lib/sandbox/ownBlob.ts, issue #496). The relay stores the blob as opaque
-  // JSON, so it rides along; only the owner reads it back — to tell its own
-  // stale echo (older than an in-flight write) from a newer copy of itself.
-  rev?: number;
   pool?: PoolType;
   // Shared map, carried on every player blob so any player can change it and
   // the rest of the room converges on it. mapUpdatedAt is a logical clock

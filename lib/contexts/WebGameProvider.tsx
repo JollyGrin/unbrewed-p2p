@@ -57,7 +57,6 @@ import {
   requiredVoters,
   resolveResetEpoch,
 } from "@/lib/sandbox/gameReset";
-import { adoptOwnEcho, commitOwn, newOwnBlob } from "@/lib/sandbox/ownBlob";
 import { toast } from "react-hot-toast";
 
 /**
@@ -150,45 +149,16 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
 
   const { activeServer } = useLocalServerStorage();
 
-  // The latest inbound frames, parsed once on arrival. My OWN blob inside
-  // them is never trusted as-is — see ownStateRef below.
-  const [parsedGameState, setParsedGameState] = useState<WebsocketMessage>();
-  const [parsedGamePositions, setParsedGamePositions] =
-    useState<WebsocketMessage>();
+  // gameState is updated from the websocket return.
+  const [gameState, setGameState] = useState<string>();
+  const [gamePositions, setGamePositions] = useState<string>();
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>("connecting");
 
   // Raw senders, populated once the socket connects. Held in refs so the
   // map-sync effects below can reach them without re-subscribing on reconnect.
   const updatePlayerStateRef = useRef((_: PlayerState) => {});
-  const sendPositionRef = useRef((_: PositionBlob) => {});
-
-  // My two relay blobs, owned by this client (issue #496; see
-  // lib/sandbox/ownBlob.ts). Every send commits here first, and inbound frames
-  // only seed or overwrite them when strictly newer — so a frame the relay
-  // built before my latest write can't revert it. The `*View` state mirrors
-  // each ref so a commit re-renders right away instead of waiting for the echo.
-  const ownStateRef = useRef(newOwnBlob<PlayerState>());
-  const ownPositionRef = useRef(newOwnBlob<PositionBlob>());
-  const [ownStateView, setOwnStateView] = useState<PlayerState>();
-  const [ownPositionView, setOwnPositionView] = useState<PositionBlob>();
-
-  // I know nothing about my own blobs until the relay's join replay lands, so
-  // sends before that are held: the hand's auto-init (or a starter-token seed)
-  // would otherwise overwrite the very pool/board the replay is about to hand
-  // back. A held playerstate send is re-sent once synced; `heldStateRef.pool`
-  // keeps the latest pool any held send carried, for when the replay has none.
-  const hasStateSnapshotRef = useRef(false);
-  const hasPositionsSnapshotRef = useRef(false);
-  const heldStateRef = useRef<{ pool?: PoolType }>();
-
-  // Exposed position setter: commit, render, then send.
-  const setPlayerPosition = useRef((blob: PositionBlob) => {
-    if (!hasPositionsSnapshotRef.current) return;
-    const stamped = commitOwn(ownPositionRef.current, blob);
-    setOwnPositionView(stamped);
-    sendPositionRef.current(stamped);
-  });
+  const setPlayerPosition = useRef((_: PositionBlob) => {});
 
   // Shared-map state. `mapUpdatedAt` is a logical clock: it tracks the highest
   // timestamp we've seen across the room, so a local change (seen + 1) always
@@ -234,32 +204,20 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
   const hasSeededResetRef = useRef(false);
   const [resetStatus, setResetStatus] = useState<ResetStatus>({ epoch: 0 });
 
-  // What the UI sees: the inbound frames with MY blob swapped for the
-  // committed copy. Every consumer (hand, modals, header, board) reads and
-  // mutates `players[self].pool` / `blobs[self]` from here, so what they send
-  // back is always derived from my last write — never from an echo.
-  const self = slug?.name?.toString();
-  const gameState = useMemo(() => {
-    const content = parsedGameState?.content as GameState | undefined;
-    if (!parsedGameState || !content?.players || !self || !ownStateView)
-      return parsedGameState;
-    return {
-      ...parsedGameState,
-      content: {
-        ...content,
-        players: { ...content.players, [self]: ownStateView },
-      },
-    };
-  }, [parsedGameState, ownStateView, self]);
-  const gamePositions = useMemo(() => {
-    if (!parsedGamePositions || !self || !ownPositionView)
-      return parsedGamePositions;
-    const content = (parsedGamePositions.content ?? {}) as PositionState;
-    return {
-      ...parsedGamePositions,
-      content: { ...content, [self]: ownPositionView },
-    };
-  }, [parsedGamePositions, ownPositionView, self]);
+  const parsedGamePositions = useMemo(
+    () =>
+      typeof gamePositions === "string"
+        ? (JSON.parse(gamePositions) as WebsocketMessage)
+        : gamePositions,
+    [gamePositions],
+  );
+  const parsedGameState = useMemo(
+    () =>
+      typeof gameState === "string"
+        ? (JSON.parse(gameState) as WebsocketMessage)
+        : gameState,
+    [gameState],
+  );
 
   // Keep the freshest parsed state reachable from effects that shouldn't
   // re-run every time it changes (e.g. reading the local player's pool when
@@ -319,31 +277,22 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
   // The one way out: every playerstate send carries every stamp. The map
   // effects used to call the raw sender with partial blobs, which clobbered
   // the log/roll (and would clobber escrows) until the next stamped send.
-  // Each send is committed as my own blob (with the next `rev`) before it goes.
   const broadcast = useCallback(
     (state: PlayerState) => {
-      if (!hasStateSnapshotRef.current) {
-        heldStateRef.current = {
-          pool: state.pool ?? heldStateRef.current?.pool,
-        };
-        return;
-      }
-      const blob = commitOwn(
-        ownStateRef.current,
+      updatePlayerStateRef.current(
         stampReset(stampHandoff(stampRoll(stampLog(stampMap(state))))),
       );
-      setOwnStateView(blob);
-      updatePlayerStateRef.current(blob);
     },
     [stampReset, stampHandoff, stampRoll, stampLog, stampMap],
   );
 
-  // My committed pool — the same object the UI renders and mutates, so a
-  // "re-send the current pool" (log, dice, handoff…) can't undo a play.
-  const readLocalPool = useCallback(
-    (): PoolType | undefined => ownStateRef.current.current?.pool,
-    [],
-  );
+  const readLocalPool = useCallback((): PoolType | undefined => {
+    const name = slug?.name?.toString();
+    if (!name) return undefined;
+    const players = (latestGameStateRef.current?.content as GameState | undefined)
+      ?.players;
+    return players?.[name]?.pool;
+  }, [slug?.name]);
 
   // This should only happen once
   useEffect(() => {
@@ -358,36 +307,22 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
     }
 
     const serverURL = new URL(activeServer);
-    const name = slug.name.toString();
-    // Reconcile my own blob out of each frame BEFORE it renders, so nothing
-    // downstream ever sees an echo older than my last write.
     const { updateMyPlayerState, updateMyPlayerPosition, close } =
       initializeWebsocket({
-        name,
+        name: slug.name.toString(),
         gid: slug.gid.toString(),
         connectURL: serverURL,
-        onGameState: (raw: string) => {
-          const msg = JSON.parse(raw) as WebsocketMessage;
-          const own = ownStateRef.current;
-          const echo = (msg.content as GameState | undefined)?.players?.[name];
-          if (adoptOwnEcho(own, echo)) setOwnStateView(own.current);
-          hasStateSnapshotRef.current = true;
-          setParsedGameState(msg);
+        onGameState: (state: string) => {
+          setGameState(state);
         },
-        onGamePositions: (raw: string) => {
-          const msg = JSON.parse(raw) as WebsocketMessage;
-          const own = ownPositionRef.current;
-          const echo = (msg.content as PositionState | undefined)?.[name];
-          if (adoptOwnEcho(own, echo as PositionBlob | undefined))
-            setOwnPositionView(own.current);
-          hasPositionsSnapshotRef.current = true;
-          setParsedGamePositions(msg);
+        onGamePositions: (state: string) => {
+          setGamePositions(state);
         },
         onStatus: setConnectionStatus,
       });
 
     updatePlayerStateRef.current = updateMyPlayerState;
-    sendPositionRef.current = updateMyPlayerPosition;
+    setPlayerPosition.current = updateMyPlayerPosition;
 
     return () => close();
   }, [router.isReady, slug.name, slug.gid, activeServer]);
@@ -873,9 +808,7 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
     // below), token deletion after — the card is never in zero places, and
     // the deterministic `take-<tokenId>` id makes a re-run harmless.
     const posBlobs = (parsedGamePositions?.content ?? {}) as PositionState;
-    // My tokens from the committed blob, not the echo: the filtered list is
-    // sent back below, and a stale echo would drop or resurrect tokens.
-    const myBlob = migrateBlob(ownPositionRef.current.current);
+    const myBlob = migrateBlob(posBlobs[self]);
     const claimsByToken = new Map<
       string,
       { claimant: string; claimedAt: number }[]
@@ -965,38 +898,20 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.query.mapUrl, router.isReady]);
 
-  // Re-send both of my blobs whenever the socket (re)opens (issue #496). The
-  // socket drops sends while it is down, so a play made during a blip lives
-  // only in the committed copies — this is what delivers it, both channels
-  // together. It also covers a map set before joining. On the very first open
-  // nothing is committed yet (broadcast holds until the join replay).
+  // Re-broadcast our map when the socket (re)connects, covering players who set
+  // a map before joining or who never send a pool update.
   useEffect(() => {
     if (connectionStatus !== "open") return;
-    if (ownStateRef.current.current || mapSyncRef.current.updatedAt > 0)
-      broadcast({ pool: readLocalPool() });
-    const position = ownPositionRef.current.current;
-    if (position) setPlayerPosition.current(migrateBlob(position));
+    if (mapSyncRef.current.updatedAt <= 0) return;
+    broadcast({ pool: readLocalPool() });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connectionStatus]);
-
-  // A playerstate send attempted before the join replay was held. Now that the
-  // replay has landed, send once (carrying the map/log stamps): the replayed
-  // pool when there is one — a rejoin, which the held auto-init would clobber
-  // — else the held pool, so a fresh joiner's hand auto-init goes out as its
-  // first update instead of trailing a pool-less one.
-  useEffect(() => {
-    const held = heldStateRef.current;
-    if (!parsedGameState || !held) return;
-    heldStateRef.current = undefined;
-    broadcast({ pool: readLocalPool() ?? held.pool });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [parsedGameState]);
 
   return (
     <WebGameContext.Provider
       value={{
-        gamePositions,
-        gameState,
+        gamePositions: parsedGamePositions,
+        gameState: parsedGameState,
         connectionStatus,
         // Call setPlayerState to update the player state on the serverside.
         setPlayerState: setPlayerState,
