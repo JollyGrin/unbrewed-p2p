@@ -20,6 +20,7 @@ import { IrlHandGrid } from "./IrlHandGrid";
 import { IrlPalette } from "./IrlPalette";
 import { CounterChip, DeckTile, HandBar, PileTile } from "./IrlTrayParts";
 import { IrlGameProvider, useIrlActions, useIrlGame } from "./irlGame";
+import { warmIrlDeck } from "./irlOffline";
 import {
   ActionSheet,
   CARD_ASPECT,
@@ -101,6 +102,13 @@ const IrlTray = () => {
   useEffect(() => {
     document.title = `${deck.name} — IRL Mode · Unbrewed`;
   }, [deck.name]);
+
+  // Here, not in pages/irl.tsx: "Change deck…" swaps the deck in place, and
+  // that deck must work offline too (#801).
+  useEffect(() => {
+    warmIrlDeck(deck);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deck.id]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

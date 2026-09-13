@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { PageSeo } from "@/components/Helmet/Head";
 import { IrlShell } from "@/components/Irl/IrlShell";
 import { IRL_SEAT } from "@/components/Irl/irlGame";
+import { isOfflineError, useIrlServiceWorker } from "@/components/Irl/irlOffline";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { OfflineGameProvider } from "@/lib/contexts/OfflineGameProvider";
 import { useBagDecks } from "@/lib/bag/useBag";
@@ -28,6 +29,12 @@ const Irl = () => {
   const { decks, starredDeck, isLoading, pushDeck, setStar } = useBagDecks();
   const { data, error, setDeckId } = useUnmatchedDeck();
   const failed = !!error;
+  // No signal and a deck this phone has never opened (#801).
+  const uncached = failed && isOfflineError(error);
+
+  // Works offline at the table (#801): the worker keeps the assets, #798's
+  // localStorage pool keeps the game.
+  useIrlServiceWorker();
 
   // The shared game components read "self" from ?name=, and the offline
   // provider's one seat is keyed "offline" — so that is the name to set.
@@ -112,20 +119,24 @@ const Irl = () => {
           placeItems="center"
         >
           <VStack spacing="0.75rem" textAlign="center">
-            {!noDeck && <Spinner size="xl" />}
+            {!noDeck && !failed && <Spinner size="xl" />}
             <Text fontFamily="heading" fontSize="1.5rem" fontWeight={700}>
               {noDeck
                 ? "Star a deck to playtest it"
-                : failed
-                  ? "Couldn't load that deck"
-                  : "Loading your deck…"}
+                : uncached
+                  ? "This deck isn't cached"
+                  : failed
+                    ? "Couldn't load that deck"
+                    : "Loading your deck…"}
             </Text>
             {(failed || noDeck) && (
               <>
                 <Text fontSize="0.9rem" opacity={0.8}>
                   {noDeck
                     ? "Star a deck in your bag to play it at a real table."
-                    : "Check the link or grab a deck from your bag."}
+                    : uncached
+                      ? "Connect once to load it — after that it plays with no signal."
+                      : "Check the link or grab a deck from your bag."}
                 </Text>
                 <Button as={Link} href="/bag" bg="brand.accent" color="brand.surfaceDim">
                   Open your bag
