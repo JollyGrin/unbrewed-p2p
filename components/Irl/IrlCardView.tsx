@@ -1,7 +1,13 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
-import { useEffect, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
+import { animate, motion, useMotionValue, useTransform } from "framer-motion";
 import { CardBack } from "@/components/CardFactory/card.back";
 import { boostChoices, boostTotal, inPlayBoosts } from "@/lib/irl/irlPool";
+import {
+  IRL_MOTION,
+  useIrlFxPause,
+  useIrlReducedMotion,
+} from "@/lib/irl/irlMotion";
 import { IrlHandGrid } from "./IrlHandGrid";
 import { useIrlActions, useIrlGame } from "./irlGame";
 import {
@@ -166,13 +172,187 @@ const HandCardView = ({
   );
 };
 
+// --- the reveal (issue #809) ------------------------------------------------
+
+/** iOS Safari ignores the unprefixed property */
+const BACKFACE_HIDDEN = {
+  backfaceVisibility: "hidden",
+  WebkitBackfaceVisibility: "hidden",
+} as const;
+
+/**
+ * One card with both faces mounted, turned over on Y between them. The
+ * `initial={false}` is what keeps a mount still: opening the view on a card
+ * that is already face-up (or reloading mid-reveal) shows that face as is.
+ * Reduced motion swaps the turn for a crossfade.
+ */
+const FlipCard = ({
+  revealed,
+  width,
+  back,
+  face,
+  delay,
+  hold,
+  reduced,
+}: {
+  revealed: boolean;
+  width: number;
+  back: ReactNode;
+  face: ReactNode;
+  /** seconds after the toggle this card starts to turn */
+  delay: number;
+  /** dev `?fxPause`: hold the turn at this fraction of its travel */
+  hold: number | null;
+  reduced: boolean;
+}) => {
+  const { flip, fade } = IRL_MOTION;
+  const size = { w: `${width}px`, h: `${width * CARD_ASPECT}px` };
+  const faceLayer = { position: "absolute", top: 0, left: 0 } as const;
+
+  if (reduced) {
+    const crossfade = { duration: fade.dur };
+    return (
+      <Box position="relative" {...size}>
+        <motion.div
+          initial={false}
+          animate={{ opacity: revealed ? 0 : 1 }}
+          transition={crossfade}
+          aria-hidden={revealed}
+        >
+          {back}
+        </motion.div>
+        <motion.div
+          initial={false}
+          animate={{ opacity: revealed ? 1 : 0 }}
+          transition={crossfade}
+          style={faceLayer}
+          aria-hidden={!revealed}
+        >
+          {face}
+        </motion.div>
+      </Box>
+    );
+  }
+
+  const from = revealed ? 0 : 180;
+  const to = revealed ? 180 : 0;
+  return (
+    <Box position="relative" {...size} sx={{ perspective: `${Math.round(width * 4)}px` }}>
+      <motion.div
+        initial={false}
+        animate={{ rotateY: hold === null ? to : from + (to - from) * hold }}
+        transition={{ type: "spring", duration: flip.dur, bounce: flip.bounce, delay }}
+        style={{ position: "relative", width: "100%", height: "100%", transformStyle: "preserve-3d" }}
+      >
+        <div style={{ ...BACKFACE_HIDDEN, transform: "rotateY(0deg)" }} aria-hidden={revealed}>
+          {back}
+        </div>
+        <div
+          style={{ ...BACKFACE_HIDDEN, ...faceLayer, transform: "rotateY(180deg)" }}
+          aria-hidden={!revealed}
+        >
+          {face}
+        </div>
+      </motion.div>
+    </Box>
+  );
+};
+
+/**
+ * Pop in once the turn lands — or, mounted on a card that was already up,
+ * just be there. Keyed by the reveal it belongs to, so each reveal replays it.
+ */
+const Landing = ({
+  punch,
+  delay,
+  scaleFrom,
+  duration,
+  hold,
+  reduced,
+  children,
+}: {
+  /** false = no reveal happened while mounted: render still */
+  punch: boolean;
+  delay: number;
+  scaleFrom: number;
+  duration: number;
+  hold: boolean;
+  reduced: boolean;
+  children: ReactNode;
+}) => {
+  // reduced motion: nothing scales, it only fades in
+  const from = { opacity: 0, scale: reduced ? 1 : scaleFrom };
+  return (
+    <motion.div
+      initial={punch ? from : false}
+      animate={punch && hold ? from : { opacity: 1, scale: 1 }}
+      transition={
+        reduced
+          ? { duration: IRL_MOTION.fade.dur }
+          : { duration, delay, ease: "easeOut" }
+      }
+    >
+      {children}
+    </motion.div>
+  );
+};
+
+/**
+ * The Total figure. On a fresh reveal with a boost it counts up from the
+ * printed value to the boosted one while the row punches in; any later change
+ * (a boost added face-up) just shows the new sum.
+ */
+const TotalCount = ({
+  printed,
+  sum,
+  countUp,
+  delay,
+}: {
+  printed: number;
+  sum: number;
+  countUp: boolean;
+  delay: number;
+}) => {
+  const count = useMotionValue(countUp ? printed : sum);
+  const shown = useTransform(count, (v) => Math.round(v));
+  // the one count-up this mount owes; strict-mode safe (a re-run restarts it)
+  const owed = useRef<number | null>(countUp ? sum : null);
+
+  useEffect(() => {
+    if (owed.current !== sum) {
+      owed.current = null;
+      count.set(sum);
+      return;
+    }
+    count.set(printed);
+    const controls = animate(count, sum, {
+      duration: IRL_MOTION.punch.dur,
+      delay,
+      ease: "easeOut",
+      onComplete: () => {
+        owed.current = null;
+      },
+    });
+    return () => controls.stop();
+    // `printed` / `delay` are fixed for this mount — only `sum` moves
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sum]);
+
+  return <motion.span>{shown}</motion.span>;
+};
+
 const quiet = { flex: "1 1 0", px: "8px", fontSize: "11px", lineHeight: 1.15 };
+
+/** The in-play card's width, face-down or up — it must not change mid-turn. */
+const IN_PLAY_MAX_W = 236;
 
 const InPlayView = ({ onClose }: { onClose: () => void }) => {
   const { pool } = useIrlGame();
   const actions = useIrlActions();
   const [area, size] = useElementSize<HTMLDivElement>();
   const [picking, setPicking] = useState(false);
+  const reduced = useIrlReducedMotion();
+  const pause = useIrlFxPause();
   const main = pool?.commit?.main;
   const boosts = inPlayBoosts(pool);
   const revealed = !!pool?.commit?.reveal;
@@ -183,6 +363,17 @@ const InPlayView = ({ onClose }: { onClose: () => void }) => {
     onSwipeRight: actions.toggleReveal,
   });
   const [hint, setHint] = useState(true);
+
+  // Turns seen while this view is open. Counted during render (not in an
+  // effect) so the frame that flips the card is the same one that arms the
+  // Total punch — mounting on a face-up card counts nothing, so it sits still.
+  const [seen, setSeen] = useState(revealed);
+  const [turns, setTurns] = useState({ any: 0, reveals: 0 });
+  if (seen !== revealed) {
+    setSeen(revealed);
+    setTurns((t) => ({ any: t.any + 1, reveals: t.reveals + (revealed ? 1 : 0) }));
+  }
+  const hold = pause !== null && turns.any > 0 ? pause : null;
 
   useEffect(() => {
     if (!main) onClose();
@@ -202,15 +393,11 @@ const InPlayView = ({ onClose }: { onClose: () => void }) => {
 
   if (!main || !pool) return null;
 
+  const { flip, punch, fade } = IRL_MOTION;
   const total = boostTotal(pool);
   const canBoost = boostChoices(pool).length > 0;
   const boostW = boosts.length > 2 ? 56 : boosts.length > 1 ? 72 : 96;
-  const width = fitCard(
-    size,
-    24 + (boosts.length ? boostW + 10 : 0),
-    80,
-    revealed ? 236 : 250,
-  );
+  const width = fitCard(size, 24 + (boosts.length ? boostW + 10 : 0), 80, IN_PLAY_MAX_W);
   const height = width * CARD_ASPECT;
   const value = typeof main.value === "number" ? main.value : null;
   const plural = boosts.length === 1 ? "" : "s";
@@ -221,6 +408,13 @@ const InPlayView = ({ onClose }: { onClose: () => void }) => {
     run();
     onClose();
   };
+
+  // main card first, each boost one stagger after the last; the Total lands
+  // with the last card, the boost pill as the last boost shows its face
+  const stagger = reduced ? 0 : flip.stagger;
+  const landAt = reduced ? 0 : flip.dur + boosts.length * stagger;
+  const pillAt = reduced ? 0 : boosts.length * stagger + flip.dur / 2;
+  const punching = turns.reveals > 0;
 
   return (
     <IrlSheet label="Card in play" zIndex={1060}>
@@ -241,94 +435,145 @@ const InPlayView = ({ onClose }: { onClose: () => void }) => {
         minH={0}
         px="12px"
       >
-        {!revealed && hint && (
-          <Flex
-            align="center"
-            gap="8px"
-            fontSize="12px"
-            fontWeight={600}
-            color="rgba(231, 204, 152, 0.7)"
-            onClick={() => setHint(false)}
+        {/* faded rather than unmounted on reveal, so the card doesn't jump
+            while it turns */}
+        {hint && (
+          <motion.div
+            initial={false}
+            animate={{ opacity: revealed ? 0 : 1 }}
+            transition={{ duration: fade.dur }}
+            style={{ pointerEvents: revealed ? "none" : undefined }}
+            aria-hidden={revealed}
           >
-            <IconEyeOff />
-            <span>Hidden. Flip when both players reveal.</span>
-          </Flex>
+            <Flex
+              align="center"
+              gap="8px"
+              fontSize="12px"
+              fontWeight={600}
+              color="rgba(231, 204, 152, 0.7)"
+              onClick={() => setHint(false)}
+            >
+              <IconEyeOff />
+              <span>Hidden. Flip when both players reveal.</span>
+            </Flex>
+          </motion.div>
         )}
         <Flex align="flex-end" gap="10px">
           <Box {...swipe} sx={{ touchAction: "pan-y" }} cursor="grab" aria-label={revealed ? main.title : "Face-down card"}>
-            {revealed ? (
-              <CardFace card={main} width={width} />
-            ) : (
-              <CardBack width={`${width}px`} height={`${height}px`} imageUrl={main.cardBackUrl} />
-            )}
+            <FlipCard
+              revealed={revealed}
+              width={width}
+              delay={0}
+              hold={hold}
+              reduced={reduced}
+              back={<CardBack width={`${width}px`} height={`${height}px`} imageUrl={main.cardBackUrl} />}
+              face={<CardFace card={main} width={width} />}
+            />
           </Box>
           {boosts.length > 0 && (
             <Flex direction="column" align="center" gap="6px">
               {boosts.map((boost, i) => (
-                <Box key={`${boost.title}-${i}`} position="relative" aria-label={revealed ? `Boost: ${boost.title}` : "Face-down boost"}>
+                <Box key={`${boost.title}-${i}`} aria-label={revealed ? `Boost: ${boost.title}` : "Face-down boost"}>
                   {/* the boost stays hidden while the card it boosts is hidden */}
-                  {revealed ? (
-                    <CardFace card={boost} width={boostW} />
-                  ) : (
-                    <CardBack
-                      width={`${boostW}px`}
-                      height={`${boostW * CARD_ASPECT}px`}
-                      imageUrl={boost.cardBackUrl}
-                    />
-                  )}
-                  {revealed && (
-                    <Box position="absolute" inset={0} borderRadius="4px" bg="rgba(44, 24, 49, 0.35)" />
-                  )}
+                  <FlipCard
+                    revealed={revealed}
+                    width={boostW}
+                    delay={(i + 1) * stagger}
+                    hold={hold}
+                    reduced={reduced}
+                    back={
+                      <CardBack
+                        width={`${boostW}px`}
+                        height={`${boostW * CARD_ASPECT}px`}
+                        imageUrl={boost.cardBackUrl}
+                      />
+                    }
+                    face={
+                      <Box position="relative">
+                        <CardFace card={boost} width={boostW} />
+                        <Box position="absolute" inset={0} borderRadius="4px" bg="rgba(44, 24, 49, 0.35)" />
+                      </Box>
+                    }
+                  />
                 </Box>
               ))}
-              <Flex
-                align="center"
-                gap="4px"
-                px="10px"
-                py="4px"
-                borderRadius="999px"
-                bg="brand.accent"
-                color="brand.surfaceDim"
-                fontSize="12px"
-                fontWeight={700}
-                whiteSpace="nowrap"
+              <Landing
+                key={`pill-${turns.reveals}`}
+                punch={punching && revealed}
+                delay={pillAt}
+                scaleFrom={0.6}
+                duration={punch.dur}
+                hold={hold !== null}
+                reduced={reduced}
               >
-                <IconBolt size={14} />
-                <span>{revealed ? `boost +${total}` : `${boosts.length} boost${plural}`}</span>
-              </Flex>
+                <Flex
+                  align="center"
+                  gap="4px"
+                  px="10px"
+                  py="4px"
+                  borderRadius="999px"
+                  bg="brand.accent"
+                  color="brand.surfaceDim"
+                  fontSize="12px"
+                  fontWeight={700}
+                  whiteSpace="nowrap"
+                >
+                  <IconBolt size={14} />
+                  <span>{revealed ? `boost +${total}` : `${boosts.length} boost${plural}`}</span>
+                </Flex>
+              </Landing>
             </Flex>
           )}
         </Flex>
-        {revealed && value !== null ? (
-          <Flex align="baseline" gap="10px" color="brand.parchment">
-            <Text fontSize="12px" fontWeight={600} letterSpacing="0.1em" textTransform="uppercase" opacity={0.7}>
-              Total
-            </Text>
-            <Text fontFamily={BEBAS} fontSize="44px" lineHeight={1} color="brand.primary" sx={{ fontVariantNumeric: "tabular-nums" }}>
-              {value + total}
-            </Text>
-            <Text fontSize="12px" opacity={0.7}>
-              {boosts.length
-                ? `${value} + ${boosts.map((b) => b.boost).join(" + ")} boost`
-                : "no boost"}
-            </Text>
-          </Flex>
-        ) : (
-          <Flex
-            align="center"
-            gap="6px"
-            px="14px"
-            py="6px"
-            borderRadius="999px"
-            bg="rgba(44, 24, 49, 0.6)"
-            border="1px solid rgba(250, 235, 215, 0.2)"
-            color="brand.parchment"
-            fontSize="12px"
-            fontWeight={600}
-          >
-            Hand {pool.hand.length} · Deck {pool.deck?.length ?? 0} · Discard {pool.discard.length}
-          </Flex>
-        )}
+        {/* one fixed-height slot, so trading the pile counts for the Total
+            doesn't move the card */}
+        <Flex minH="44px" align="center" justify="center">
+          {revealed && value !== null ? (
+            <Landing
+              key={`total-${turns.reveals}`}
+              punch={punching}
+              delay={landAt}
+              scaleFrom={punch.scaleFrom}
+              duration={punch.dur}
+              hold={hold !== null}
+              reduced={reduced}
+            >
+              <Flex align="baseline" gap="10px" color="brand.parchment">
+                <Text fontSize="12px" fontWeight={600} letterSpacing="0.1em" textTransform="uppercase" opacity={0.7}>
+                  Total
+                </Text>
+                <Text fontFamily={BEBAS} fontSize="44px" lineHeight={1} color="brand.primary" sx={{ fontVariantNumeric: "tabular-nums" }}>
+                  <TotalCount
+                    printed={value}
+                    sum={value + total}
+                    countUp={punching && !reduced && boosts.length > 0 && hold === null}
+                    delay={landAt}
+                  />
+                </Text>
+                <Text fontSize="12px" opacity={0.7}>
+                  {boosts.length
+                    ? `${value} + ${boosts.map((b) => b.boost).join(" + ")} boost`
+                    : "no boost"}
+                </Text>
+              </Flex>
+            </Landing>
+          ) : (
+            <Flex
+              align="center"
+              gap="6px"
+              px="14px"
+              py="6px"
+              borderRadius="999px"
+              bg="rgba(44, 24, 49, 0.6)"
+              border="1px solid rgba(250, 235, 215, 0.2)"
+              color="brand.parchment"
+              fontSize="12px"
+              fontWeight={600}
+            >
+              Hand {pool.hand.length} · Deck {pool.deck?.length ?? 0} · Discard {pool.discard.length}
+            </Flex>
+          )}
+        </Flex>
       </Flex>
       <Flex direction="column" gap="10px" px="12px" pt="10px" pb={SAFE_BOTTOM} flexShrink={0}>
         {revealed ? (
