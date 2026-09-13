@@ -983,6 +983,30 @@ describe("the-altar fixture", () => {
       "s42",
     ]);
   });
+
+  it("carries the faded printed path s7-s8 as a normal two-way edge (#796)", () => {
+    // the board prints s7-s8 as a faded arc over the wall pillar — the gilded
+    // study's (s8/s9/s14) only walking link; the keyhole-badge flourishes on
+    // s8/s9 end at a wall, not a rim, so they stay out of `adjacentTo`.
+    const map = customMapForEntry(theAltar)!;
+    const byId = new Map(map.spaces.map((s) => [s.id, s]));
+    expect(byId.get("s7")!.adjacentTo).toContain("s8");
+    expect(byId.get("s8")!.adjacentTo).toContain("s7");
+
+    const asymmetric = map.spaces.flatMap((s) =>
+      s.adjacentTo
+        .filter((to) => !byId.get(to)?.adjacentTo.includes(s.id))
+        .map((to) => `${s.id}->${to}`),
+    );
+    expect(asymmetric).toEqual([]);
+
+    const edges = new Set(
+      map.spaces.flatMap((s) =>
+        s.adjacentTo.map((to) => [s.id, to].sort().join("-")),
+      ),
+    );
+    expect(edges.size).toBe(65);
+  });
 });
 
 /**
