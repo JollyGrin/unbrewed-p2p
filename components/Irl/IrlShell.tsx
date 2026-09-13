@@ -1,6 +1,27 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
-import { ReactNode, useEffect, useState } from "react";
-import { DeckImportType } from "@/components/DeckPool/deck-import.type";
+import {
+  AnimatePresence,
+  AnimationPlaybackControls,
+  MotionValue,
+  animate,
+  motion,
+  useIsomorphicLayoutEffect,
+  useMotionValue,
+  useReducedMotion,
+  useTransform,
+} from "framer-motion";
+import {
+  MutableRefObject,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import {
+  DeckImportCardType,
+  DeckImportType,
+} from "@/components/DeckPool/deck-import.type";
 import { ActionLog } from "@/components/Game/ActionLog/action-log";
 import { ScryModal } from "@/components/Game/CommandMenu/scry.modal";
 import {
@@ -55,6 +76,26 @@ import {
  * Mounted under the unchanged OfflineGameProvider (pages/irl.tsx). Every pile
  * move is a PoolFns call through {@link useIrlActions}.
  */
+
+// --- motion tuning (#810; #811 moves these into lib/irl/irlMotion.ts) -------
+/** A drag past this many px, or a fling faster than this, turns the card. */
+const SWIPE_PX = 40;
+const FLING_PX_S = 500;
+/** Rubber band past the first / last card. */
+const EDGE_RESIST = 0.3;
+const CAROUSEL_SPRING = {
+  type: "spring",
+  stiffness: 380,
+  damping: 36,
+  restDelta: 0.002,
+} as const;
+/** Neighbours sit smaller and dimmer — the one on the left is the peek. */
+const SIDE_SCALE = 0.9;
+const SIDE_OPACITY = 0.35;
+const PEEK_W = 22;
+const CARD_GAP = 12;
+/** Room inside the carousel's clip box for the card's drop shadow. */
+const SHADOW_PAD = 10;
 export const IrlShell = ({ deck }: { deck: DeckImportType }) => (
   <IrlGameProvider initialDeck={deck}>
     <GameMenusProvider>
@@ -80,6 +121,11 @@ const IrlTray = () => {
   const [deckModal, setDeckModal] = useState<ModalType>(false);
   const [activity, setActivity] = useState(false);
   const [cardArea, areaSize] = useElementSize<HTMLDivElement>();
+  // the Draw button's card slides into the carousel; `length` is the hand
+  // size that draw produces, so the slide waits for the pool to catch up
+  const [drawn, setDrawn] = useState({ seq: 0, length: 0 });
+  // here, not in the carousel: it remounts when the hand empties
+  const seenDraw = useRef(0);
 
   // The reused look-through modal also carries the /game commit modal's
   // auto-open, which asks for "commit" whenever a card is in play — IRL has
@@ -133,13 +179,6 @@ const IrlTray = () => {
     return () => window.removeEventListener("keydown", onKey);
   }, [menu, cardView, sheet, overlayOpen]);
 
-  const swipe = useSwipe({
-    onSwipeLeft: () => setHandIndex((i) => Math.min(hand.length - 1, i + 1)),
-    onSwipeRight: () => setHandIndex((i) => Math.max(0, i - 1)),
-    onTap: () => card && setCardView({ kind: "hand", index }),
-    onLongPress: () => card && setMenu("hand"),
-  });
-
   if (!pool) return <Box h="100svh" bg={IRL_BG} />;
 
   const counters = irlCounters(deck, pool);
@@ -167,6 +206,7 @@ const IrlTray = () => {
     const before = hand.length;
     actions.draw();
     setHandIndex(before); // show the card just drawn
+    if (deckCount) setDrawn(({ seq }) => ({ seq: seq + 1, length: before + 1 }));
   };
   const play = () => {
     if (inPlay) {
@@ -268,39 +308,17 @@ const IrlTray = () => {
         <Flex ref={cardArea} flex="1" minH={0} align="center" justify="center" gap="12px" px="12px" pt="8px">
           {card ? (
             <>
-              {/* peek of the previous card — tap to go back */}
-              <Box
-                as="button"
-                aria-label="Previous card"
-                w="22px"
-                h={`${cardH * 0.9}px`}
-                borderRadius="6px"
-                bg="rgba(0, 0, 0, 0.25)"
-                overflow="hidden"
-                flexShrink={0}
-                visibility={index > 0 ? "visible" : "hidden"}
-                onClick={() => setHandIndex(Math.max(0, index - 1))}
-              >
-                {index > 0 && (
-                  <Box opacity={0.35} ml={`${-cardW / 2}px`} pointerEvents="none">
-                    <CardFace card={hand[index - 1]} width={cardW} />
-                  </Box>
-                )}
-              </Box>
-              <Box
-                {...swipe}
-                role="button"
-                tabIndex={0}
-                aria-label={`${card.title} — tap to view, hold for more`}
-                cursor="pointer"
-                userSelect="none"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") setCardView({ kind: "hand", index });
-                }}
-                sx={{ touchAction: "pan-y", WebkitTouchCallout: "none" }}
-              >
-                <CardFace card={card} width={cardW} />
-              </Box>
+              <HandCarousel
+                hand={hand}
+                index={index}
+                cardW={cardW}
+                cardH={cardH}
+                drawn={drawn}
+                seenDraw={seenDraw}
+                onIndex={setHandIndex}
+                onOpen={() => setCardView({ kind: "hand", index })}
+                onMenu={() => setMenu("hand")}
+              />
               <Flex direction="column" gap="10px" flexShrink={0}>
                 <SideButton label="All" onClick={() => setSheet("grid")}>
                   <IconGrid />
@@ -332,22 +350,31 @@ const IrlTray = () => {
         </Flex>
       </Flex>
 
-      {sheet === "grid" && (
-        <IrlHandGrid
-          onOpenCard={(i) => setCardView({ kind: "hand", index: i })}
-          onClose={() => setSheet(null)}
-        />
-      )}
-      {sheet === "characters" && <IrlCharacters onClose={() => setSheet(null)} />}
-      {sheet === "discard" && <IrlDiscard onClose={() => setSheet(null)} />}
-      {sheet === "palette" && (
-        <IrlPalette
-          onClose={() => setSheet(null)}
-          onOpenDeck={() => deckWarning.requestModal("deck")}
-          onOpenDiscard={() => setSheet("discard")}
-          onOpenScry={() => setScryOpen(true)}
-        />
-      )}
+      {/* keeps a closed sheet mounted while it slides back out */}
+      <AnimatePresence>
+        {sheet === "grid" && (
+          <IrlHandGrid
+            key="grid"
+            onOpenCard={(i) => setCardView({ kind: "hand", index: i })}
+            onClose={() => setSheet(null)}
+          />
+        )}
+        {sheet === "characters" && (
+          <IrlCharacters key="characters" onClose={() => setSheet(null)} />
+        )}
+        {sheet === "discard" && (
+          <IrlDiscard key="discard" onClose={() => setSheet(null)} />
+        )}
+        {sheet === "palette" && (
+          <IrlPalette
+            key="palette"
+            onClose={() => setSheet(null)}
+            onOpenDeck={() => deckWarning.requestModal("deck")}
+            onOpenDiscard={() => setSheet("discard")}
+            onOpenScry={() => setScryOpen(true)}
+          />
+        )}
+      </AnimatePresence>
       {cardView && (
         <IrlCardView
           mode={cardView}
@@ -388,6 +415,245 @@ const IrlTray = () => {
       />
       {activity && <ActionLog />}
     </Box>
+  );
+};
+
+type Transit = { card: DeckImportCardType; at: number };
+
+/**
+ * The tray's hand card as a carousel. One motion value, `pos`, is the hand
+ * index being looked at, as a float: the card follows the finger by moving
+ * it, and every way of turning the card (drag, fling, arrow keys, the peek,
+ * Draw) springs it to the new index. Each card sits at `(at - pos) * pitch`,
+ * so the previous card IS the peek and slides along with the drag.
+ *
+ * A jump of more than one card (Draw from the front of the hand) shows the
+ * card left behind as the neighbour for the slide (`transit`), so the drawn
+ * card still arrives from the right instead of scrolling through the hand.
+ */
+const HandCarousel = ({
+  hand,
+  index,
+  cardW,
+  cardH,
+  drawn,
+  seenDraw,
+  onIndex,
+  onOpen,
+  onMenu,
+}: {
+  hand: DeckImportCardType[];
+  index: number;
+  cardW: number;
+  cardH: number;
+  drawn: { seq: number; length: number };
+  seenDraw: MutableRefObject<number>;
+  onIndex: (index: number) => void;
+  onOpen: () => void;
+  onMenu: () => void;
+}) => {
+  const reduce = !!useReducedMotion();
+  const pos = useMotionValue(index);
+  const running = useRef<AnimationPlaybackControls>();
+  const dragFrom = useRef<number | null>(null);
+  const [transit, setTransit] = useState<Transit | null>(null);
+  const last = useRef({ index, length: hand.length, card: hand[index] });
+  // centre-to-centre distance that leaves a scaled neighbour's near edge
+  // CARD_GAP from the card — the previous one ends exactly at the peek
+  const pitch = cardW * ((1 + SIDE_SCALE) / 2) + CARD_GAP;
+  const card = hand[index];
+
+  const settle = useCallback(
+    (to: number, from?: number) => {
+      running.current?.stop();
+      if (from !== undefined) pos.jump(from);
+      if (reduce) {
+        pos.jump(to);
+        setTransit(null);
+        return;
+      }
+      running.current = animate(pos, to, {
+        ...CAROUSEL_SPRING,
+        onComplete: () => setTransit(null),
+      });
+    },
+    [pos, reduce],
+  );
+
+  // Layout effect: a new index and its slide start in the same frame.
+  useIsomorphicLayoutEffect(() => {
+    const prev = last.current;
+    last.current = { index, length: hand.length, card: hand[index] };
+
+    if (drawn.seq !== seenDraw.current && hand.length >= drawn.length) {
+      seenDraw.current = drawn.seq;
+      const left = prev.card;
+      const outgoing =
+        left && left !== hand[index] && left !== hand[index - 1] ? left : null;
+      setTransit(outgoing ? { card: outgoing, at: index - 1 } : null);
+      settle(index, index - 1);
+      return;
+    }
+    if (index === prev.index) return;
+    if (hand.length < prev.length) {
+      // a card left the hand and the index clamped: no slide (#811 flies it)
+      running.current?.stop();
+      setTransit(null);
+      pos.jump(index);
+      return;
+    }
+    const step = index - prev.index;
+    if (Math.abs(step) === 1) {
+      setTransit(null);
+      settle(index);
+      return;
+    }
+    const dir = Math.sign(step);
+    setTransit(prev.card ? { card: prev.card, at: index - dir } : null);
+    settle(index, index - dir);
+  }, [index, hand, drawn, seenDraw, settle, pos]);
+
+  const swipe = useSwipe({
+    onTap: onOpen,
+    onLongPress: onMenu,
+    // reduced motion: no follow — the old swipe that just changes the card
+    ...(reduce
+      ? {
+          onSwipeLeft: () => onIndex(Math.min(hand.length - 1, index + 1)),
+          onSwipeRight: () => onIndex(Math.max(0, index - 1)),
+        }
+      : {
+          onDrag: (dx: number) => {
+            if (dragFrom.current === null) {
+              // grabbing a card mid-slide catches it where it is
+              running.current?.stop();
+              dragFrom.current = pos.get();
+            }
+            const max = hand.length - 1;
+            let next = dragFrom.current - dx / pitch;
+            if (next < 0) next *= EDGE_RESIST;
+            else if (next > max) next = max + (next - max) * EDGE_RESIST;
+            pos.set(Math.min(index + 1, Math.max(index - 1, next)));
+          },
+          onDragEnd: (dx: number, velocityX: number) => {
+            dragFrom.current = null;
+            const turn =
+              Math.abs(velocityX) > FLING_PX_S
+                ? -Math.sign(velocityX)
+                : Math.abs(dx) > SWIPE_PX
+                ? -Math.sign(dx)
+                : 0;
+            const target = Math.min(hand.length - 1, Math.max(0, index + turn));
+            // a new index springs from the layout effect, drag velocity and all
+            if (target !== index) onIndex(target);
+            else settle(index);
+          },
+        }),
+  });
+
+  const slots: (Transit & { key: string })[] = [];
+  for (let at = index - 2; at <= index + 2; at++) {
+    const moving = transit?.at === at ? transit.card : undefined;
+    const shown = moving ?? hand[at];
+    if (shown) slots.push({ key: moving ? `out:${at}` : `${at}`, card: shown, at });
+  }
+  const left = PEEK_W + CARD_GAP;
+
+  return (
+    <Box
+      position="relative"
+      flexShrink={0}
+      overflow="hidden"
+      w={`${left + cardW + SHADOW_PAD}px`}
+      h={`${cardH + SHADOW_PAD * 2}px`}
+      // the shadow room overlaps the gaps around it instead of pushing the
+      // side buttons over — the layout is the pre-carousel one
+      my={`${-SHADOW_PAD}px`}
+      mr={`${-SHADOW_PAD}px`}
+    >
+      {slots.map((slot) => (
+        <CarouselSlot
+          key={slot.key}
+          card={slot.card}
+          at={slot.at}
+          pos={pos}
+          pitch={pitch}
+          left={left}
+          top={SHADOW_PAD}
+          width={cardW}
+        />
+      ))}
+      {/* the peek — tap to go back */}
+      <Box
+        as="button"
+        aria-label="Previous card"
+        position="absolute"
+        left={0}
+        top={`${SHADOW_PAD + cardH * 0.05}px`}
+        w={`${PEEK_W}px`}
+        h={`${cardH * 0.9}px`}
+        borderRadius="6px"
+        visibility={index > 0 ? "visible" : "hidden"}
+        onClick={() => onIndex(Math.max(0, index - 1))}
+      />
+      {/* the card's hit area stays put while the art moves under it */}
+      <Box
+        {...swipe}
+        role="button"
+        tabIndex={0}
+        aria-label={`${card.title} — tap to view, hold for more`}
+        position="absolute"
+        left={`${left}px`}
+        top={`${SHADOW_PAD}px`}
+        w={`${cardW}px`}
+        h={`${cardH}px`}
+        cursor="pointer"
+        userSelect="none"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") onOpen();
+        }}
+        sx={{ touchAction: "pan-y", WebkitTouchCallout: "none" }}
+      />
+    </Box>
+  );
+};
+
+const CarouselSlot = ({
+  card,
+  at,
+  pos,
+  pitch,
+  left,
+  top,
+  width,
+}: {
+  card: DeckImportCardType;
+  at: number;
+  pos: MotionValue<number>;
+  pitch: number;
+  left: number;
+  top: number;
+  width: number;
+}) => {
+  const away = (p: number) => Math.min(1, Math.abs(at - p));
+  const x = useTransform(pos, (p) => (at - p) * pitch);
+  const scale = useTransform(pos, (p) => 1 - (1 - SIDE_SCALE) * away(p));
+  const opacity = useTransform(pos, (p) => 1 - (1 - SIDE_OPACITY) * away(p));
+  return (
+    <motion.div
+      aria-hidden
+      style={{
+        position: "absolute",
+        left,
+        top,
+        x,
+        scale,
+        opacity,
+        pointerEvents: "none",
+      }}
+    >
+      <CardFace card={card} width={width} />
+    </motion.div>
   );
 };
 

@@ -4,7 +4,15 @@ import {
   HTMLChakraProps,
   Text,
   chakra,
+  shouldForwardProp,
 } from "@chakra-ui/react";
+import {
+  AnimatePresence,
+  isValidMotionProp,
+  motion,
+  useIsPresent,
+  useReducedMotion,
+} from "framer-motion";
 import Link from "next/link";
 import {
   MouseEvent as ReactMouseEvent,
@@ -18,6 +26,39 @@ import {
 import { Card } from "@/components/CardFactory/Card";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 import { colors, fonts } from "@/styles/style";
+
+// --- motion tuning (#810; #811 moves these into lib/irl/irlMotion.ts) -------
+/** Full-screen sheets slide in from the right / menus slide up. */
+export const SHEET_MS = 220;
+/** Menu backdrop fade, and the reduced-motion fade for sheets and menus. */
+export const FADE_MS = 150;
+/** Digit ticker swap. */
+export const TICKER_MS = 180;
+const EASE_OUT = [0.22, 1, 0.36, 1];
+const EASE_IN = [0.55, 0, 1, 0.45];
+
+/**
+ * A slide from "100%" keeps its % unit, so at rest framer would leave
+ * `translateX(0%) translateZ(0)` behind — a transform on an open sheet makes
+ * it the containing block of every fixed sheet nested in it (the boost
+ * picker) and pins a compositor layer. Settled means no transform at all.
+ */
+const noTransformAtRest = (
+  { x = 0, y = 0 }: { x?: string | number; y?: string | number },
+  generated: string,
+) => (parseFloat(String(x)) === 0 && parseFloat(String(y)) === 0 ? "none" : generated);
+
+const motionProps = {
+  shouldForwardProp: (prop: string) =>
+    isValidMotionProp(prop) || shouldForwardProp(prop),
+};
+/**
+ * Chakra style props on a framer element. Like ProBoard's MotionFlex these
+ * are plain elements — no `display: flex` default, and `direction` / `align`
+ * are Flex-only shorthands, so spell out `flexDirection` / `alignItems`.
+ */
+export const MotionDiv = chakra(motion.div, motionProps);
+export const MotionSpan = chakra(motion.span, motionProps);
 
 /**
  * IRL Mode atoms (issue #798). Every value here is lifted from the phone
@@ -201,6 +242,10 @@ export const CloseButton = ({
  * Full-screen sheet over the tray. Deliberately not a Chakra Modal: sheets
  * stack (Hand grid → Card view), share the tray's background, and a Modal's
  * focus lock fights the swipe handlers on touch.
+ *
+ * Slides in from the right on plain mount; the slide back out only plays
+ * when a parent `AnimatePresence` keeps it mounted for its exit (IrlShell's
+ * sheets do — the card view closes instantly).
  */
 export const IrlSheet = ({
   label,
@@ -212,26 +257,47 @@ export const IrlSheet = ({
   children: ReactNode;
   zIndex?: number;
   maxW?: string;
-}) => (
-  <Flex
-    role="dialog"
-    aria-modal="true"
-    aria-label={label}
-    position="fixed"
-    top={0}
-    left={0}
-    right={0}
-    h="100svh"
-    zIndex={zIndex}
-    bg={IRL_BG}
-    color="brand.parchment"
-    fontFamily={GROTESK}
-  >
-    <Flex direction="column" w="100%" maxW={maxW} mx="auto" minH={0}>
-      {children}
-    </Flex>
-  </Flex>
-);
+}) => {
+  const reduce = !!useReducedMotion();
+  // a sheet sliding away must not take the taps meant for the tray under it
+  const present = useIsPresent();
+  const ms = (reduce ? FADE_MS : SHEET_MS) / 1000;
+  return (
+    <MotionDiv
+      role="dialog"
+      aria-modal="true"
+      aria-label={label}
+      display="flex"
+      position="fixed"
+      top={0}
+      left={0}
+      right={0}
+      h="100svh"
+      zIndex={zIndex}
+      bg={IRL_BG}
+      color="brand.parchment"
+      fontFamily={GROTESK}
+      boxShadow="-12px 0 32px rgba(12, 4, 16, 0.45)"
+      pointerEvents={present ? undefined : "none"}
+      transformTemplate={noTransformAtRest}
+      initial={reduce ? { opacity: 0 } : { x: "100%" }}
+      animate={
+        reduce
+          ? { opacity: 1, transition: { duration: ms } }
+          : { x: 0, transition: { duration: ms, ease: EASE_OUT } }
+      }
+      exit={
+        reduce
+          ? { opacity: 0, transition: { duration: ms } }
+          : { x: "100%", transition: { duration: ms, ease: EASE_IN } }
+      }
+    >
+      <Flex direction="column" w="100%" maxW={maxW} mx="auto" minH={0}>
+        {children}
+      </Flex>
+    </MotionDiv>
+  );
+};
 
 export type SheetAction = {
   id: string;
@@ -242,32 +308,56 @@ export type SheetAction = {
   tone?: "danger";
 };
 
-/** Bottom action sheet — the long-press / ⋯ menus. */
-export const ActionSheet = ({
-  title,
-  isOpen,
-  onClose,
-  actions,
-}: {
+type ActionSheetProps = {
   title: string;
   isOpen: boolean;
   onClose: () => void;
   actions: SheetAction[];
-}) =>
-  isOpen ? (
+};
+
+/**
+ * Bottom action sheet — the long-press / ⋯ menus. The backdrop fades while
+ * the panel slides up; closing plays both in reverse before unmounting.
+ */
+export const ActionSheet = ({ isOpen, ...props }: ActionSheetProps) => (
+  <AnimatePresence>
+    {isOpen && <ActionSheetPanel key="sheet" {...props} />}
+  </AnimatePresence>
+);
+
+const ActionSheetPanel = ({
+  title,
+  onClose,
+  actions,
+}: Omit<ActionSheetProps, "isOpen">) => {
+  const reduce = !!useReducedMotion();
+  // closing: the menu's buttons must not fire twice while it slides away
+  const present = useIsPresent();
+  const fade = { duration: FADE_MS / 1000 };
+  return (
     <Box
       position="fixed"
       inset={0}
       zIndex={1100}
-      bg="rgba(20, 8, 24, 0.55)"
-      backdropFilter="blur(4px)"
-      onClick={onClose}
+      pointerEvents={present ? undefined : "none"}
     >
-      <Flex
+      {/* sibling, not parent, of the panel — its fade must not fade the panel */}
+      <MotionDiv
+        position="absolute"
+        inset={0}
+        bg="rgba(20, 8, 24, 0.55)"
+        backdropFilter="blur(4px)"
+        onClick={onClose}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1, transition: fade }}
+        exit={{ opacity: 0, transition: fade }}
+      />
+      <MotionDiv
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        direction="column"
+        display="flex"
+        flexDirection="column"
         gap="8px"
         position="absolute"
         left={0}
@@ -285,7 +375,18 @@ export const ActionSheet = ({
         pt="12px"
         pb={SAFE_BOTTOM}
         fontFamily={GROTESK}
-        onClick={(e) => e.stopPropagation()}
+        transformTemplate={noTransformAtRest}
+        initial={reduce ? { opacity: 0 } : { y: "100%" }}
+        animate={
+          reduce
+            ? { opacity: 1, transition: fade }
+            : { y: 0, transition: { duration: SHEET_MS / 1000, ease: EASE_OUT } }
+        }
+        exit={
+          reduce
+            ? { opacity: 0, transition: fade }
+            : { y: "100%", transition: { duration: SHEET_MS / 1000, ease: EASE_IN } }
+        }
       >
         <Text
           fontFamily={BEBAS}
@@ -327,9 +428,68 @@ export const ActionSheet = ({
         <PillButton mt="4px" onClick={onClose}>
           Cancel
         </PillButton>
-      </Flex>
+      </MotionDiv>
     </Box>
-  ) : null;
+  );
+};
+
+type TickDir = 1 | -1;
+const tickerVariants = {
+  // up: the new number rises in from below; down mirrors it
+  enter: (dir: TickDir) => ({ y: dir > 0 ? "100%" : "-100%" }),
+  shown: { y: "0%" },
+  leave: (dir: TickDir) => ({ y: dir > 0 ? "-100%" : "100%" }),
+};
+
+/**
+ * A number that ticks: the old value slides out as the new one slides in,
+ * upward on an increase and downward on a decrease. Takes its font from the
+ * parent. Under reduced motion the digits just swap.
+ */
+export const Ticker = ({ value }: { value: number }) => {
+  const reduce = !!useReducedMotion();
+  const [last, setLast] = useState(value);
+  const [dir, setDir] = useState<TickDir>(1);
+  if (value !== last) {
+    setLast(value);
+    setDir(value > last ? 1 : -1);
+  }
+  return (
+    <chakra.span
+      display="inline-grid"
+      overflow="hidden"
+      verticalAlign="bottom"
+      data-testid="irl-ticker"
+    >
+      {reduce ? (
+        <span>{value}</span>
+      ) : (
+        <AnimatePresence initial={false} custom={dir}>
+          <TickerValue key={value} value={value} dir={dir} />
+        </AnimatePresence>
+      )}
+    </chakra.span>
+  );
+};
+
+const TickerValue = ({ value, dir }: { value: number; dir: TickDir }) => {
+  const present = useIsPresent();
+  return (
+    <motion.span
+      custom={dir}
+      variants={tickerVariants}
+      initial="enter"
+      animate="shown"
+      exit="leave"
+      transition={{ duration: TICKER_MS / 1000, ease: EASE_OUT }}
+      style={{ gridArea: "1 / 1" }}
+      // the outgoing number is on its way out, not a second value
+      aria-hidden={present ? undefined : true}
+    >
+      {value}
+    </motion.span>
+  );
+};
 
 /** A rendered card at a fixed width; the SVG template sizes itself 63×88. */
 export const CardFace = ({
@@ -387,21 +547,33 @@ export const useElementSize = <T extends HTMLElement>() => {
  * Tap / swipe / long-press on one element, from pointer events so mouse and
  * touch share a path. Needs `touch-action: pan-y` on the element so the
  * browser hands horizontal drags to us instead of scrolling.
+ *
+ * `onDrag` / `onDragEnd` are for drag-follow (the tray's hand carousel):
+ * `onDrag` gets the live horizontal offset on every move, and `onDragEnd`
+ * gets the final offset and fling velocity (px/s) once the pointer lifts —
+ * also after a tap, a long-press or a cancelled gesture, so the follower
+ * can always settle.
  */
 export const useSwipe = ({
   onSwipeLeft,
   onSwipeRight,
   onTap,
   onLongPress,
+  onDrag,
+  onDragEnd,
 }: {
   onSwipeLeft?: () => void;
   onSwipeRight?: () => void;
   onTap?: () => void;
   onLongPress?: () => void;
+  onDrag?: (dx: number) => void;
+  onDragEnd?: (dx: number, velocityX: number) => void;
 }) => {
   const start = useRef<{ x: number; y: number } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>();
   const pressed = useRef(false);
+  /** recent pointer x samples, for the release velocity */
+  const trail = useRef<{ x: number; t: number }[]>([]);
 
   const clear = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -409,12 +581,29 @@ export const useSwipe = ({
   }, []);
   useEffect(() => clear, [clear]);
 
+  const velocity = () => {
+    const samples = trail.current;
+    if (samples.length < 2) return 0;
+    const first = samples[0];
+    const last = samples[samples.length - 1];
+    const dt = last.t - first.t;
+    return dt > 0 ? ((last.x - first.x) / dt) * 1000 : 0;
+  };
+  const sample = (x: number) => {
+    const t = performance.now();
+    trail.current = [...trail.current.filter((s) => t - s.t < 100), { x, t }];
+  };
+
   return {
     onPointerDown: (e: ReactPointerEvent) => {
       if (e.button !== 0) return;
       start.current = { x: e.clientX, y: e.clientY };
       pressed.current = false;
+      trail.current = [];
+      sample(e.clientX);
       clear();
+      // a mouse drag that outruns the element keeps reporting to it
+      if (onDrag) e.currentTarget.setPointerCapture?.(e.pointerId);
       if (onLongPress) {
         timer.current = setTimeout(() => {
           pressed.current = true;
@@ -427,14 +616,24 @@ export const useSwipe = ({
       const dx = e.clientX - start.current.x;
       const dy = e.clientY - start.current.y;
       if (Math.hypot(dx, dy) > 10) clear();
+      if (onDrag && !pressed.current) {
+        sample(e.clientX);
+        onDrag(dx);
+      }
     },
     onPointerUp: (e: ReactPointerEvent) => {
       clear();
       const from = start.current;
       start.current = null;
-      if (!from || pressed.current) return;
+      if (!from) return;
       const dx = e.clientX - from.x;
       const dy = e.clientY - from.y;
+      if (onDragEnd) {
+        sample(e.clientX);
+        const horizontal = !pressed.current && Math.abs(dx) > Math.abs(dy);
+        onDragEnd(horizontal ? dx : 0, horizontal ? velocity() : 0);
+      }
+      if (pressed.current) return;
       if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
         if (dx < 0) onSwipeLeft?.();
         else onSwipeRight?.();
@@ -444,6 +643,8 @@ export const useSwipe = ({
     },
     onPointerCancel: () => {
       clear();
+      // the browser took the gesture (a vertical scroll): settle back
+      if (start.current) onDragEnd?.(0, 0);
       start.current = null;
     },
     onContextMenu: (e: ReactMouseEvent) => {
