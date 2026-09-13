@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Link from "next/link";
 import {
   Box,
   Button,
@@ -394,6 +395,18 @@ const DeckActions = ({
         }}
       >
         ★ Use this deck
+      </Button>
+      {/* IRL Mode (#798): the phone as a deck tray at a real table */}
+      <Button
+        size="sm"
+        variant="outline"
+        color="brand.primary"
+        borderColor="rgba(255,255,255,0.25)"
+        _hover={{ bg: "rgba(255,255,255,0.08)" }}
+        as={Link}
+        href={{ pathname: "/irl", query: { deckId: selectedDeckId } }}
+      >
+        Playtest in person
       </Button>
       <Button
         size="sm"

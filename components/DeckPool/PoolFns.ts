@@ -22,10 +22,18 @@ export type PoolType = {
   extraCharacters: PoolExtraCharacterType[];
   hand: DeckImportCardType[];
   discard: DeckImportCardType[];
+  /** cards removed from the game (issue #798) — "remove this card from the
+   *  game", one-shot schemes. Never shuffled back into the deck. Optional
+   *  because pools built before the zone existed (a peer on an older client,
+   *  a saved /game session) arrive without it; read it as `removed ?? []`. */
+  removed?: DeckImportCardType[];
   commit: {
     main: DeckImportCardType | null;
     reveal: boolean;
     boost: DeckImportCardType | null;
+    /** boosts past the first (IRL Mode, #798): separately granted boosts
+     *  stack. Absent on every other surface, which only fills `boost`. */
+    extraBoosts?: DeckImportCardType[];
   };
 };
 export type PawnInfo = {
@@ -174,6 +182,7 @@ export const newPool = (deckData: DeckImportType): PoolType => {
     extraCharacters: toPoolExtraCharacters(deck_data.extraCharacters),
     hand: [],
     discard: [],
+    removed: [],
     commit: {
       main: null,
       reveal: false,
@@ -242,6 +251,24 @@ export const adjustSidekickQuantity = (
   if (!pool || !pool.sidekick.quantity) return pool;
   const quantity = pool.sidekick.quantity ?? 0;
   pool.sidekick.quantity = quantity + adjustAmount;
+  return pool;
+};
+
+/**
+ * HP counter for an extra character (issue #500) — Skeleton King's skeletons,
+ * Victor's Monster — the `adjustHp` of `pool.extraCharacters[index]`. A pawn
+ * with no printed hp (the Maker's empty sidekick stub) is left alone, so a
+ * stray tap can't conjure a health value onto a character that has none.
+ */
+export const adjustExtraCharacterHp = (
+  pool: PoolType,
+  index: number,
+  selectedPawn: "hero" | "sidekick",
+  adjustAmount: number,
+): PoolType => {
+  const pawn = pool?.extraCharacters?.[index]?.[selectedPawn];
+  if (adjustAmount === 0 || !pawn || pawn.hp === null) return pool;
+  pawn.hp = pawn.hp + adjustAmount;
   return pool;
 };
 
@@ -477,12 +504,55 @@ export const addCardToDeckBottom = (
   return pool;
 };
 
+//   /**
+//    * Remove hand[cardIndex] from the game (issue #798): into `removed`, which
+//    * no shuffle ever reads, so a one-shot card can't drift back into the deck.
+//    */
+export const removeCard = (pool: PoolType, cardIndex: number): PoolType => {
+  const card = pool?.hand?.[cardIndex];
+  if (!card) return pool;
+  pool.removed = [...(pool.removed ?? []), card];
+  pool.hand.splice(cardIndex, 1);
+  return pool;
+};
+
+//   /**
+//    * Remove discard[cardIndex] from the game — e.g. a scheme that removes
+//    * itself after resolving, discarded before anyone remembered.
+//    */
+export const removeFromDiscard = (
+  pool: PoolType,
+  cardIndex: number,
+): PoolType => {
+  const card = pool?.discard?.[cardIndex];
+  if (!card) return pool;
+  pool.removed = [...(pool.removed ?? []), card];
+  pool.discard.splice(cardIndex, 1);
+  return pool;
+};
+
+//   /**
+//    * Put removed[cardIndex] back into the discard pile — the undo for a
+//    * mis-tapped "Remove from game".
+//    */
+export const returnRemoved = (pool: PoolType, cardIndex: number): PoolType => {
+  const card = pool?.removed?.[cardIndex];
+  if (!card || !pool.removed) return pool;
+  pool.discard.push(card);
+  pool.removed.splice(cardIndex, 1);
+  return pool;
+};
+
 /**
- * @deprecated The pool.commit zone (commitCard / boostCard / boostFromTopDeck /
- * cancelBoost / revealCommit / discardCommit / cancelCommit) backs the commit
- * modal, which is superseded by playing cards to the table (face-down card
- * tokens). Kept functional while the modal still exists for stray commits;
- * delete the family together when the modal goes.
+ * The pool.commit zone (commitCard / boostCard / boostFromTopDeck / cancelBoost
+ * / revealCommit / discardCommit / cancelCommit) is owned by IRL Mode (issue
+ * #798, components/Irl): `{ main, reveal, boost }` is exactly paper combat —
+ * commit face-down, boost with a card FROM HAND when a card grants it (rules
+ * §5.4; IRL stacks further grants in `extraBoosts`), reveal, discard both. On
+ * /game it also still backs the legacy commit modal, which is superseded by
+ * playing cards to the table (face-down card tokens); retiring that modal
+ * must NOT delete this family while IRL Mode uses it. (`boostFromTopDeck` is
+ * that modal's alone — IRL never boosts off the deck.)
  */
 export const commitCard = (pool: PoolType, cardIndex: number): PoolType => {
   if (!pool?.hand || pool?.commit?.main) return pool;

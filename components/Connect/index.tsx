@@ -260,7 +260,7 @@ export const ConnectPage = () => {
             borderColor="brand.secondary"
             _hover={{ bg: "brand.secondary", color: "brand.primary" }}
             as={Link}
-            href={{ pathname: "/offline" }}
+            href={{ pathname: "/irl" }}
           >
             Play Offline without Map
           </Button>
