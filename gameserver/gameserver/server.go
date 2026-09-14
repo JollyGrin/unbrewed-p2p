@@ -251,9 +251,14 @@ func NewGameState(gid string) *GameState {
 }
 
 type Room struct {
-	GameID  string
-	WS      *websocket.Upgrader
-	Clients map[string]*PlayerConn
+	GameID string
+	WS     *websocket.Upgrader
+	// Every live connection, keyed by the connection itself — not by player
+	// name. Two tabs (or a phone and a laptop) under one name are two
+	// connections to one blob; keyed by name, the newer one silently evicted
+	// the older from every broadcast, which then acted on a board it could no
+	// longer see (issue #807).
+	Clients map[*PlayerConn]struct{}
 
 	PlayerPositions map[string]json.RawMessage
 	FieldState      *GameState
@@ -281,7 +286,7 @@ func NewRoom(gid string, ctx context.Context) *Room {
 		EnableCompression: true,
 	}
 	r.ctx, r.stop = context.WithCancel(ctx)
-	r.Clients = make(map[string]*PlayerConn)
+	r.Clients = make(map[*PlayerConn]struct{})
 	r.openedAt = time.Now()
 
 	return r
@@ -289,7 +294,7 @@ func NewRoom(gid string, ctx context.Context) *Room {
 
 func (r *Room) Close() {
 	r.stop()
-	for _, c := range r.Clients {
+	for c := range r.Clients {
 		_ = c.Close()
 	}
 }
@@ -312,11 +317,7 @@ func (r *Room) PlayerJoin(c *websocket.Conn, name string) error {
 
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
-	_, ok := r.Clients[name]
-	if ok {
-		// return fmt.Errorf("player name taken")
-	}
-	r.Clients[name] = player
+	r.Clients[player] = struct{}{}
 	if _, ok := r.FieldState.Players[name]; !ok {
 		r.FieldState.Players[name] = []byte("{}")
 		r.FieldState.LastUpdate = time.Now()
@@ -407,10 +408,15 @@ func (r *Room) BroadcastAll(mt int, msg []byte) {
 }
 
 func (r *Room) broadcastAll(mt int, msg []byte) {
-	for _, c := range r.Clients {
+	for c := range r.Clients {
 		err := c.Send(mt, msg)
 		if err != nil {
-			log.WithError(err).Error("write failed")
+			// A failed write leaves the conn unusable, and a dead-but-open one
+			// would cost every later broadcast the full write deadline. Drop
+			// it; its read loop errors out next and PlayerExit is a no-op.
+			log.WithError(err).Error("write failed: dropping connection")
+			delete(r.Clients, c)
+			_ = c.Close()
 		}
 	}
 }
@@ -418,17 +424,14 @@ func (r *Room) broadcastAll(mt int, msg []byte) {
 func (r *Room) PlayerExit(c *PlayerConn) bool {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
-	cur, ok := r.Clients[c.Name]
-	// Only remove the map entry if it is still THIS connection. On a page
-	// refresh the new connection can join before the old one's read loop
-	// notices the close — deleting by name alone would evict the fresh
-	// connection from all future broadcasts.
-	if ok && cur == c {
-		delete(r.Clients, c.Name)
-		return true
+	// Removes only THIS connection: on a page refresh the new one can join
+	// before the old one's read loop notices the close, and a second tab
+	// under the same name keeps its own entry.
+	if _, ok := r.Clients[c]; !ok {
+		return false
 	}
-
-	return false
+	delete(r.Clients, c)
+	return true
 }
 
 func (r *Room) GetPlayerPositions() []byte {
