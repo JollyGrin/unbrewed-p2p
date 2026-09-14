@@ -91,7 +91,8 @@ export const IrlShell = ({ deck }: { deck: DeckImportType }) => (
   <IrlGameProvider initialDeck={deck}>
     {/* inside the provider: the flight layer listens to its fx bus */}
     <IrlFlights>
-      <GameMenusProvider>
+      {/* solo and saved per deck, so Change deck may send you to /bag */}
+      <GameMenusProvider linkToBag>
         <IrlTray />
       </GameMenusProvider>
     </IrlFlights>
