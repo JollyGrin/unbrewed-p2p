@@ -47,7 +47,10 @@ const Irl = () => {
   }, [isReady, query.name]);
 
   // Resolve the requested deck: star it if it's already in the bag, otherwise
-  // fetch it.
+  // fetch it. A deck found on the device is starred straight away, but "not in
+  // the bag" waits for the WHOLE bag (#825): a signed-in user's account half
+  // lands a beat after the device half, and a fetch fired before then can fail
+  // on its own and toast "Error fetching deck" over a deck that then loads.
   useEffect(() => {
     if (!isReady || !deckId || !decks) return;
     const local = decks.find(
@@ -57,9 +60,10 @@ const Irl = () => {
       setStar(local.id);
       return;
     }
+    if (isLoading) return;
     setDeckId(deckId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isReady, deckId, decks]);
+  }, [isReady, deckId, decks, isLoading]);
 
   // Fetched deck lands: add it to the bag and star it — then drop the query,
   // which otherwise refetches (and re-toasts "Deck fetched!" over the header)
