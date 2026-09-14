@@ -424,12 +424,12 @@
       "heroId": "leon-s-kennedy",
       "deckId": "NQ5XP",
       "version_id": "ZYZD4hA632",
-      "frozenAt": "2026-09-09",
-      "digest": "sha256:640b597c4b048c72215b08098d22b379efc377101b3036ce9a8995fb09584f1b",
+      "frozenAt": "2026-09-14",
+      "digest": "sha256:5955b075c35bb1508f583d33e69cf7e2115bf05b31cc0886384f2b7460177a30",
       "rulesVerified": {
         "repo": "unbrewed-pro-server",
         "file": "data/heroes/leon-s-kennedy.rules.ts",
-        "commit": "7c033c9"
+        "commit": "06a7e71"
       }
     }
   ]

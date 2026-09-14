@@ -1098,10 +1098,10 @@ describe("Leon S. Kennedy (NQ5XP) deck data", () => {
 });
 
 /**
- * The snapshot vs the ENGINE (issue #780 ↔ engine #566). The engine rules file
- * was not on `feature/leon` when this landed, so the table below is the Gate-0
- * draft the conversion is building against — re-verify at the pair merge. Order
- * is the draft's card order, which the snapshot follows. The engine spells the
+ * The snapshot vs the ENGINE (issue #780 ↔ engine #566; frozen by #808 ↔ engine
+ * #579). Re-verified field for field against leon-s-kennedy.rules.ts at the
+ * engine merge 06a7e71 (PR #580) — the manifest's rulesVerified commit. Order is
+ * the rules file's card order, which the snapshot follows. The engine spells the
  * two defence cards "defense"; the snapshot uses the community-deck "defence"
  * and the digest normalizes the difference (`normalizeType`).
  */
