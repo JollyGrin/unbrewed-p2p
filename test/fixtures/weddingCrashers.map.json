@@ -6,7 +6,7 @@
     "minPlayers": 2,
     "maxPlayers": 2,
     "specialRules": false,
-    "imageUrl": "https://i.ibb.co/7tgb5HGt/Wedding-Crashers-1-1.png",
+    "imageUrl": "https://i.imgur.com/SpUtdNu.png",
     "spaceDiameter": 0.063,
     "source": "2minutetabletop",
     "license": "community map \u2014 credit the author"
@@ -91,8 +91,8 @@
     },
     {
       "id": "s2",
-      "x": 0.9143312619214472,
-      "y": 0.5076486152358273,
+      "x": 0.9110138640061448,
+      "y": 0.5053693570451436,
       "zones": [
         "z2"
       ],
@@ -121,8 +121,8 @@
     },
     {
       "id": "s4",
-      "x": 0.2431487641974435,
-      "y": 0.9487322292877935,
+      "x": 0.24048266932893034,
+      "y": 0.9471888105798645,
       "zones": [
         "z3",
         "z1"
@@ -290,7 +290,8 @@
       "adjacentTo": [
         "s12",
         "s18",
-        "s26x"
+        "s26x",
+        "s30"
       ]
     },
     {
@@ -302,7 +303,8 @@
       ],
       "adjacentTo": [
         "s17",
-        "s19"
+        "s19",
+        "s30"
       ]
     },
     {
@@ -420,7 +422,8 @@
       ],
       "adjacentTo": [
         "s19",
-        "s26"
+        "s26",
+        "s30"
       ]
     },
     {
@@ -471,6 +474,19 @@
       "adjacentTo": [
         "s28",
         "s3"
+      ]
+    },
+    {
+      "id": "s30",
+      "x": 0.752159840329498,
+      "y": 0.05894761753610283,
+      "zones": [
+        "z6"
+      ],
+      "adjacentTo": [
+        "s17",
+        "s18",
+        "s27"
       ]
     }
   ]

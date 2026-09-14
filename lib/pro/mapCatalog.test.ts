@@ -758,7 +758,7 @@ describe("wedding-crashers fixture", () => {
     const map = normalizeMap(weddingCrashersJson);
     expect(map.id).toBe("wedding-crashers");
     expect(map.meta.title).toBe("Wedding Crashers");
-    expect(map.spaces).toHaveLength(29);
+    expect(map.spaces).toHaveLength(30);
     const slots = new Set(map.spaces.flatMap((s) => (s.start ? [s.start.slot] : [])));
     expect(slots).toEqual(new Set([1, 2]));
   });
@@ -824,7 +824,30 @@ describe("wedding-crashers fixture", () => {
         if (!seen.has(to)) (seen.add(to), queue.push(to));
       }
     }
-    expect(seen.size).toBe(29);
+    expect(seen.size).toBe(30);
+  });
+
+  it("no single fighter can pin a start — no one space cuts s26 off from s8 (#817)", () => {
+    // Until the author's 2.0 export, P2's start (s26) sat in a two-space pocket
+    // with s27 whose only way out was s19: P1 could stand there turn 1 and P2
+    // could not do anything. 2.0 adds s30 (s17/s18/s27) as a second exit. Block
+    // every other space in turn and require a path between the two starts.
+    const byId = new Map(spaces.map((s) => [s.id, s]));
+    const reaches = (from: string, to: string, blocked: string) => {
+      const seen = new Set([from]);
+      const queue = [from];
+      while (queue.length) {
+        for (const next of byId.get(queue.shift()!)!.adjacentTo) {
+          if (next !== blocked && !seen.has(next)) (seen.add(next), queue.push(next));
+        }
+      }
+      return seen.has(to);
+    };
+    expect(byId.get("s30")?.adjacentTo).toEqual(["s17", "s18", "s27"]);
+    for (const blocked of byId.keys()) {
+      if (blocked === "s26" || blocked === "s8") continue;
+      expect({ blocked, reaches: reaches("s26", "s8", blocked) }).toEqual({ blocked, reaches: true });
+    }
   });
 
   it("serves its board image from the repo (no third-party host)", () => {

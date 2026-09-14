@@ -8,7 +8,9 @@
  * art has moved on: #729 took the author's finalized export — the same map with
  * its spaces/connections photoshopped into the image and six coordinates nudged
  * onto the baked-in circles — so `meta.imageUrl` and those six x/y pairs match
- * the finalized art. The item bug is untouched.
+ * the finalized art. #817 took the author's 2.0 export the same way: new art, a
+ * new space s30 that un-pins P2's start, and two more nudged coordinates. The
+ * item bug is untouched.
  *
  * The repair's export is the board the catalog now ships
  * (`lib/pro/fixtures/wedding-crashers.map.json`, #727) — one committed copy, and
