@@ -4,6 +4,7 @@ import { computeDigest, normalizeType } from "../../scripts/lib/deckManifest";
 import { EVERGREEN_MANIFEST } from "./evergreenManifest";
 import { HERO_DECK_IDS, norm } from "./useProCardArt";
 import { BOUNTY_PILES, HERO_STATE_COUNTERS, HERO_STATE_FLAGS } from "./heroStateFlags";
+import { POPULAR_DECKS } from "../constants/top-decks";
 
 const DECKS_DIR = join(__dirname, "..", "..", "public", "evergreen-decks");
 
@@ -917,12 +918,14 @@ describe("Jason Voorhees (DOPE) deck data", () => {
 // when this landed (#566 in progress), so the ENGINE table below is the engine's
 // Gate-0 draft, field for field, and must be re-verified against
 // leon-s-kennedy.rules.ts at the pair merge (like the Boba/Ripley tables, but
-// against the draft until then). INTERIM art (issue #784, Dean's call
-// 2026-09-09): the payload's plain illustrations — third-party RE4 screenshots/
-// wiki imagery the unmatched.cards template draws INSIDE the card frame — are
-// mirrored into public/evergreen-decks/art/NQ5XP per the #446 self-hosting
-// rule, wired as imageUrl ONLY (never cardImage); an unbrewed art pass
-// replaces them later.
+// against the draft until then). FROZEN by the author after the lab playtest
+// (issue #808 ↔ engine #579, 2026-09-13): HandCannon → *LE5 - submachine Gun*
+// (2/1 with an UNLOAD! second attack), Shop - Red 9 Handgun → *Shop - BlackTail
+// Handgun*. FINAL art: the author's own illustrations from their
+// the-unmatched.club deck (hero 14131) replace the #784 interim mirror —
+// plain illustrations the template draws INSIDE the card frame, mirrored into
+// public/evergreen-decks/art/NQ5XP per the #446 self-hosting rule and wired as
+// imageUrl ONLY (never cardImage).
 // ---------------------------------------------------------------------------
 
 describe("Leon S. Kennedy (NQ5XP) deck data", () => {
@@ -959,7 +962,7 @@ describe("Leon S. Kennedy (NQ5XP) deck data", () => {
     expect(shopCards().map((c) => c.title)).toEqual([
       "shop - rocket Launcher", // the lowercase `shop - ` is the print, not a typo
       "Shop - Tactical vest",
-      "Shop - Red 9 Handgun",
+      "Shop - BlackTail Handgun", // frozen #808 (was Shop - Red 9 Handgun)
       "Shop - Attache case", // no accent, unlike the rule card's "Attaché Case"
     ]);
     for (const s of shopCards()) expect(s.quantity).toBe(1);
@@ -969,18 +972,31 @@ describe("Leon S. Kennedy (NQ5XP) deck data", () => {
 
   it("keeps the verbatim titles the art index is keyed on", () => {
     // norm() lowercases + trims and nothing else. The lowercase `shop - rocket
-    // Launcher`, the lowercase `Staggering shot`, the run-together `HandCannon`
-    // and the accent-less `Attache case` are the payload's/engine's print —
-    // "fixing" any of them unhooks that card's face the day art lands.
+    // Launcher`, the lowercase `Staggering shot`, the lowercase `submachine` in
+    // `LE5 - submachine Gun`, the camel-case `BlackTail` and the accent-less
+    // `Attache case` are the payload's/engine's print — "fixing" any of them
+    // unhooks that card's face.
     expect(cards.map((c) => c.title)).toEqual(
       expect.arrayContaining([
         "shop - rocket Launcher",
         "Shop - Attache case",
+        "Shop - BlackTail Handgun",
         "Staggering shot",
-        "HandCannon",
+        "LE5 - submachine Gun",
         "Treasure Hunting",
         "Pointless Backflip",
       ])
+    );
+  });
+
+  it("carries the author's frozen titles, not the pre-playtest ones (#808)", () => {
+    const titles = cards.map((c) => c.title);
+    expect(titles).not.toContain("HandCannon");
+    expect(titles).not.toContain("Shop - Red 9 Handgun");
+    const le5 = deck.deck_data.cards.find((c: Card) => c.title === "LE5 - submachine Gun");
+    expect(le5).toMatchObject({ type: "attack", value: 2, boost: 1, quantity: 2 });
+    expect(le5.afterText).toBe(
+      "UNLOAD! Make a second attack of value 2 against the opposing fighter (it can be defended). This card can only ever add 1 Treasure."
     );
   });
 
@@ -994,25 +1010,31 @@ describe("Leon S. Kennedy (NQ5XP) deck data", () => {
     expect(rule[0].content).toContain("8 cost: Rocket Launcher");
   });
 
-  it("ships 14 of 15 faces as LOCAL interim illustrations that exist, imageUrl only", () => {
-    // Interim art (issue #784, Dean's call 2026-09-09): the payload's plain
-    // illustrations (third-party RE4 imagery the unmatched.cards template draws
-    // INSIDE the card frame) are mirrored into public/evergreen-decks/art/NQ5XP
-    // per the #446 self-hosting rule. They are illustrations, not the author's
-    // finished full-card renders, so they wire as imageUrl ONLY — cardImage
-    // stays unset so the template keeps rendering title/value/text around the
-    // picture (the Jason DOPE deck is the inverse shape).
+  it("ships all 15 faces as the author's LOCAL final illustrations, imageUrl only", () => {
+    // Final art (issue #808): the author's own illustrations from their
+    // the-unmatched.club deck, mirrored into public/evergreen-decks/art/NQ5XP
+    // per the #446 self-hosting rule. They are illustrations the club template
+    // draws INSIDE the card frame, not finished full-card renders, so they wire
+    // as imageUrl ONLY — cardImage stays unset so the template keeps rendering
+    // title/value/text around the picture (the Jason DOPE deck is the inverse
+    // shape). Riot Gun, template-only under the #784 interim mirror, has a face.
     for (const card of cards) {
       expect(card.cardImage).toBeUndefined();
-      if (card.title === "Riot Gun") continue; // asserted alone below
       expect(card.imageUrl).toMatch(/^\/evergreen-decks\/art\/NQ5XP\/[a-z0-9-]+\.webp$/);
       expect(existsSync(join(DECKS_DIR, "..", card.imageUrl.replace(/^\//, "")))).toBe(true);
     }
-    // Riot Gun alone stays on the generated template: its primagames source
-    // 403s even with a Referer and no substitute is permitted — the note says so.
-    expect(cards.find((c) => c.title === "Riot Gun")!.imageUrl).toBe("");
-    // every wired face is a DISTINCT local file
-    expect(new Set(cards.filter((c) => c.imageUrl !== "").map((c) => c.imageUrl)).size).toBe(14);
+    // every face is a DISTINCT local file
+    expect(new Set(cards.map((c) => c.imageUrl)).size).toBe(15);
+    // the art files are keyed by the FROZEN titles; the pre-playtest files are gone
+    expect(cards.find((c) => c.title === "LE5 - submachine Gun")!.imageUrl).toBe(
+      "/evergreen-decks/art/NQ5XP/le5-submachine-gun.webp"
+    );
+    expect(cards.find((c) => c.title === "Shop - BlackTail Handgun")!.imageUrl).toBe(
+      "/evergreen-decks/art/NQ5XP/shop-blacktail-handgun.webp"
+    );
+    for (const retired of ["handcannon.webp", "shop-red-9-handgun.webp"]) {
+      expect(existsSync(join(DECKS_DIR, "art", "NQ5XP", retired))).toBe(false);
+    }
   });
 
   it("mirrors the cardback locally on the snapshot surface", () => {
@@ -1025,28 +1047,45 @@ describe("Leon S. Kennedy (NQ5XP) deck data", () => {
   });
 
   it("ships the board token portrait locally — a square crop of the cardback", () => {
-    // The cardback is a real image (unlike several fan_heroes covers), so the
-    // 512×512 token is its square crop centred on Leon's walking figure — the
-    // Jason token's "red field + silhouette" shape (#763 exemplar).
+    // The author's final cardback features Leon's face, so the 512×512 token is
+    // its square crop on his face, framed just BELOW centre so the dead-centre
+    // initials label sits on his hair rather than his eyes.
     const token = deck.deck_data.hero.tokenImageUrl as string;
     expect(token).toBe("/evergreen-decks/art/NQ5XP/token-leon-s-kennedy.webp");
     expect(existsSync(join(DECKS_DIR, "..", token.replace(/^\//, "")))).toBe(true);
   });
 
-  it("says the art is interim in the note, so the ruling travels with the data", () => {
-    expect(deck.note).toContain("INTERIM");
-    expect(deck.note).toContain("unbrewed art pass");
-    expect(deck.note).toContain("Riot Gun");
+  it("says the art is final and the author's in the note, so the provenance travels with the data", () => {
+    expect(deck.note).toContain("FINAL");
+    expect(deck.note).toContain("Grovelsey");
+    expect(deck.note).toContain("the-unmatched.club");
+    expect(deck.note).toContain("LE5 - submachine Gun");
+    expect(deck.note).toContain("Shop - BlackTail Handgun");
+    expect(deck.note).not.toContain("INTERIM");
   });
 
   it("leaves NO remote URL anywhere in the shipped data", () => {
-    // Stricter than the neighbours (which keep an attribution link): the deck
-    // page lives on unmatched.cards, which POPULAR_DECKS deep-links by id, so
-    // the snapshot itself carries no https URL at all.
+    // Stricter than the neighbours (which keep an attribution link): the tile's
+    // `sourceUrl` in POPULAR_DECKS carries the club credit, so the snapshot
+    // itself carries no https URL at all.
     const urls = (JSON.stringify(deck).match(/https?:\\?\/\\?\/[^"\\ )]+/g) ?? []).map((u) =>
       u.replace(/\\/g, "")
     );
     expect(urls).toEqual([]);
+  });
+
+  it("wires the tile surface: local cardback, club credit, author Grovelsey", () => {
+    const tile = POPULAR_DECKS.find((d) => d.id === "NQ5XP")!;
+    expect(tile.author).toBe("Grovelsey");
+    expect(tile.cardbackUrl).toBe(deck.deck_data.appearance.cardbackUrl);
+    expect(existsSync(join(DECKS_DIR, "..", tile.cardbackUrl!.replace(/^\//, "")))).toBe(true);
+    // the author's own club publication is the canonical source (#665 rule)
+    expect(tile.sourceUrl).toBe("https://www.the-unmatched.club/c/heroes/leon-s-kennedy.14131");
+    // no remote IMAGE URL on the tile — the only https string is the page credit
+    const remoteImages = Object.values(tile).filter(
+      (v) => typeof v === "string" && /^https?:/.test(v) && v !== tile.sourceUrl
+    );
+    expect(remoteImages).toEqual([]);
   });
 
   it("matches the hero and sidekick stat lines — solo, ranged, no sidekick fighter", () => {
@@ -1059,10 +1098,10 @@ describe("Leon S. Kennedy (NQ5XP) deck data", () => {
 });
 
 /**
- * The snapshot vs the ENGINE (issue #780 ↔ engine #566). The engine rules file
- * was not on `feature/leon` when this landed, so the table below is the Gate-0
- * draft the conversion is building against — re-verify at the pair merge. Order
- * is the draft's card order, which the snapshot follows. The engine spells the
+ * The snapshot vs the ENGINE (issue #780 ↔ engine #566; frozen by #808 ↔ engine
+ * #579). Re-verified field for field against leon-s-kennedy.rules.ts at the
+ * engine merge 06a7e71 (PR #580) — the manifest's rulesVerified commit. Order is
+ * the rules file's card order, which the snapshot follows. The engine spells the
  * two defence cards "defense"; the snapshot uses the community-deck "defence"
  * and the digest normalizes the difference (`normalizeType`).
  */
@@ -1072,7 +1111,7 @@ describe("Leon S. Kennedy snapshot agrees with the engine's Gate-0 draft (pendin
   const ENGINE: [string, string, number | null, number, number, boolean][] = [
     ["shop - rocket Launcher", "attack", 6, 0, 1, true],
     ["Shop - Tactical vest", "scheme", null, 0, 1, true],
-    ["Shop - Red 9 Handgun", "scheme", null, 0, 1, true],
+    ["Shop - BlackTail Handgun", "scheme", null, 0, 1, true],
     ["Shop - Attache case", "scheme", null, 0, 1, true],
     ["Parry", "defence", 2, 2, 3, false],
     ["Snark", "versatile", 3, 2, 3, false],
@@ -1083,7 +1122,7 @@ describe("Leon S. Kennedy snapshot agrees with the engine's Gate-0 draft (pendin
     ["Roundhouse Kick", "versatile", 2, 3, 3, false],
     ["Takedown", "versatile", 3, 3, 2, false],
     ["Riot Gun", "versatile", 3, 2, 3, false],
-    ["HandCannon", "attack", 4, 1, 2, false],
+    ["LE5 - submachine Gun", "attack", 2, 1, 2, false], // frozen #808 ↔ engine #579 (was HandCannon 4/1)
     ["Staggering shot", "attack", 1, 1, 4, false],
   ];
 

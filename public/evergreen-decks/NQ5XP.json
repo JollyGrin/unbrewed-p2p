@@ -42,10 +42,10 @@
         "boost": 0,
         "characterName": "LEON",
         "duringText": null,
-        "imageUrl": "/evergreen-decks/art/NQ5XP/shop-red-9-handgun.webp",
+        "imageUrl": "/evergreen-decks/art/NQ5XP/shop-blacktail-handgun.webp",
         "immediateText": null,
         "quantity": 1,
-        "title": "Shop - Red 9 Handgun",
+        "title": "Shop - BlackTail Handgun",
         "type": "scheme",
         "value": null
       },
@@ -172,7 +172,7 @@
         "boost": 2,
         "characterName": "LEON",
         "duringText": "If the opposing fighter is adjacent, this cards value is a 5.",
-        "imageUrl": "",
+        "imageUrl": "/evergreen-decks/art/NQ5XP/riot-gun.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Riot Gun",
@@ -180,17 +180,17 @@
         "value": 3
       },
       {
-        "afterText": "",
+        "afterText": "UNLOAD! Make a second attack of value 2 against the opposing fighter (it can be defended). This card can only ever add 1 Treasure.",
         "basicText": "",
         "boost": 1,
         "characterName": "LEON",
         "duringText": "",
-        "imageUrl": "/evergreen-decks/art/NQ5XP/handcannon.webp",
+        "imageUrl": "/evergreen-decks/art/NQ5XP/le5-submachine-gun.webp",
         "immediateText": "",
         "quantity": 2,
-        "title": "HandCannon",
+        "title": "LE5 - submachine Gun",
         "type": "attack",
-        "value": 4
+        "value": 2
       },
       {
         "afterText": "Gain 1 free action to attack if you moved adjacent to the opposing fighter this combat.  ",
@@ -237,7 +237,7 @@
   "liked": false,
   "likes": 0,
   "name": "Leon S. Kennedy",
-  "note": "Art is INTERIM, self-hosted: the 14 fetched faces, the cardback and the hero token are mirrored from the author's original unmatched.cards payload (third-party RE4 screenshots and wiki imagery) into public/evergreen-decks/art/NQ5XP per the #446 self-hosting rule — wired as plain illustrations (imageUrl only, never cardImage) to be replaced by an unbrewed art pass later. Riot Gun's primagames source 403s, so that one face stays on the generated template. Verbatim titles (shop - rocket Launcher, Shop - Tactical vest, Shop - Red 9 Handgun, Shop - Attache case, Staggering shot, HandCannon) are the print the engine carries — do not fix.",
+  "note": "Art is FINAL, self-hosted: all 15 card illustrations, the cardback and the hero token (a square crop of that cardback) are the final illustrations by the author (Grovelsey), hosted from the author's the-unmatched.club deck (hero 14131, export 2026-09-13) and mirrored into public/evergreen-decks/art/NQ5XP per the #446 self-hosting rule — wired as plain illustrations (imageUrl only, never cardImage) that the generated template draws inside the card frame. Titles frozen by the author after the lab playtest (2026-09-13): HandCannon became LE5 - submachine Gun (2/1, UNLOAD! second attack) and Shop - Red 9 Handgun became Shop - BlackTail Handgun. Verbatim titles (shop - rocket Launcher, Shop - Tactical vest, Shop - BlackTail Handgun, Shop - Attache case, Staggering shot, LE5 - submachine Gun) are the print the engine carries — do not fix.",
   "published": true,
   "published_on": "Mon, 31 Aug 2026 09:43:31 GMT",
   "tags": [

@@ -300,8 +300,10 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // data) — this client PR lands as DRAFT and pair-merges with it. RANGED solo
   // hero, no sidekick. The Treasure tracker + Merchant shop ride one counter
   // (TREASURE) and two public piles (SHOP, EQUIPMENT) — see HERO_STATE_COUNTERS.
-  // Template art for now: the payload's imageUrls and cardback are uncredited
-  // third-party hotlinks and are deliberately blanked, not mirrored (#446).
+  // Titles frozen by the author after the lab playtest (#808 ↔ engine #579: LE5 -
+  // submachine Gun, Shop - BlackTail Handgun); all 15 faces + cardback are the
+  // author's final illustrations from their the-unmatched.club deck, self-hosted
+  // under public/evergreen-decks/art/NQ5XP (#446) and wired as imageUrl only.
   "leon-s-kennedy": "NQ5XP",
 };
 
