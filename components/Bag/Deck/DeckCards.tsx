@@ -90,7 +90,7 @@ const HeroCard = ({ deck }: { deck: DeckImportType }) => {
   // render an empty sidekick row here, same as in HeroPreviewModal.
   const isSidekick = hasFieldedSidekick(sidekick);
   return (
-    <Box w="408px" bg="brand.highlight" borderRadius="0.25rem" p="0.5rem">
+    <Box w="408px" maxW="100%" bg="brand.highlight" borderRadius="0.25rem" p="0.5rem">
       <Flex justifyContent="space-between">
         <Text fontWeight={700}>{hero?.name}</Text>
         <HStack>

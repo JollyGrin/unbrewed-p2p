@@ -68,7 +68,7 @@ const asRows = (saved: SavedToken[]): BoardToken[] =>
 
 const rowIndex = (id: string) => Number(id.split("#")[1]);
 
-const EditSavedTokensModal = ({
+export const EditSavedTokensModal = ({
   deck,
   onSave,
   isOpen,
