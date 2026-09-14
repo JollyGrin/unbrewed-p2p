@@ -79,12 +79,21 @@ const FEATURES = [
       href: "https://www.reddit.com/r/Unmatched/search/?q=custom+map&type=link&cId=abc80961-6c74-4572-9733-5a250b2586e5&iId=d9eb7d0d-a5a9-420d-ae4b-e14c1417699a",
     },
   },
+  {
+    Icon: IconCardDraw,
+    title: "Playtesting at the table?",
+    text: "Open IRL mode on your phone or tablet — it's your hand, deck and discard with no map and no opponent. Add it to your home screen and it works offline.",
+    button: {
+      text: "Open IRL mode",
+      href: "/irl",
+    },
+  },
 ];
 
 const FAQS: { q: string; a: string }[] = [
   {
     q: "Is Unbrewed free?",
-    a: "Yes. Unbrewed is completely free and open-source. There are no accounts, subscriptions, or paywalls — you play straight from your web browser.",
+    a: "Yes. Unbrewed is completely free and open-source. There are no subscriptions or paywalls and no account is required — you play straight from your web browser.",
   },
   {
     q: "What is the fastest way to start playing?",
@@ -117,6 +126,14 @@ const FAQS: { q: string; a: string }[] = [
   {
     q: "Can I use my own map?",
     a: "Yes. Any image URL can become a battle map. Browse community maps on r/Unmatched or drop in your own.",
+  },
+  {
+    q: "Can I use Unbrewed to playtest a deck in person?",
+    a: "Yes. IRL mode at unbrewed.xyz/irl turns your phone or tablet into a deck tray — draw, play, boost and discard from a real table with no map and no opponent needed. Add it to your home screen and it works offline.",
+  },
+  {
+    q: "Do my decks sync between my phone and my computer?",
+    a: "Sign in with Discord (optional) and the decks in your bag are shared across every device you sign in on. Without signing in, your bag stays local to that browser.",
   },
 ];
 
@@ -210,6 +227,8 @@ export const LandingPage = () => {
             download, no setup. Grab a starter deck, open a lobby, and send a
             friend the invite link. When you want more, it imports decks from
             Unmatched.cards, the-unmatched.club, Tabletop Simulator and beyond.
+            Playtesting at a real table? IRL mode turns your phone or tablet
+            into a deck tray.
           </Text>
 
           <SimpleGrid mt="1.75rem" columns={{ base: 1, md: 3 }} spacing="1rem">
@@ -294,7 +313,8 @@ const Features = () => (
       Starter decks get you playing today — but Unbrewed is built for the decks
       and maps you make yourself.
     </Text>
-    <SimpleGrid mt="1.25rem" columns={{ base: 1, md: 3 }} spacing="1rem">
+    {/* 2×2 at md+: four cards across the 880px column get too narrow */}
+    <SimpleGrid mt="1.25rem" columns={{ base: 1, md: 2 }} spacing="1rem">
       {FEATURES.map((feature, i) => (
         <SlideFade key={feature.title} in offsetY="20px" delay={i * 0.06}>
           <StepCard {...feature} />
