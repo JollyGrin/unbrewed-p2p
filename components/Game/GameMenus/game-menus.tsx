@@ -40,7 +40,16 @@ export const useGameMenus = (): GameMenus | undefined =>
  * switcher) and hands every surface — the PlayerBox control row and the ⌘
  * Actions palette — the same two entry points, so the two never fork.
  */
-export const GameMenusProvider = ({ children }: PropsWithChildren) => {
+export const GameMenusProvider = ({
+  children,
+  linkToBag = false,
+}: PropsWithChildren<{
+  /**
+   * Let the deck switcher link out to /bag. Only IRL Mode sets it — there's no
+   * lobby to drop out of (issue #821).
+   */
+  linkToBag?: boolean;
+}>) => {
   const { query } = useRouter();
   const self = (Array.isArray(query?.name) ? query.name[0] : query?.name) ?? "";
   const { gameState, resetStatus } = useWebGame();
@@ -124,6 +133,7 @@ export const GameMenusProvider = ({ children }: PropsWithChildren) => {
       <ChangeDeckModal
         isOpen={changeDeckOpen}
         onClose={() => setChangeDeckOpen(false)}
+        linkToBag={linkToBag}
       />
     </GameMenusContext.Provider>
   );

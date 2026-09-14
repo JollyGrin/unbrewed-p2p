@@ -24,11 +24,18 @@ import { colors, fonts } from "@/styles/style";
  * deck's loadout on the table, and a log line the opponent sees.
  *
  * The picker itself is /connect's `SelectedDeckContainer`, with its /bag links
- * turned off so a mis-click can't navigate out of the game.
+ * turned off by default so a mis-click can't navigate out of the game.
  */
 export const ChangeDeckModal = (props: {
   isOpen: boolean;
   onClose: () => void;
+  /**
+   * Offer the picker's /bag links. Off for networked games (leaving strands
+   * the player's lobby); IRL Mode turns it on — solo, on-device, with its
+   * session saved, so a trip to /bag to import another deck loses nothing
+   * (issue #821).
+   */
+  linkToBag?: boolean;
 }) => {
   const { decks, starredDeck, setStar } = useBagDecks();
   const { switchDeck } = useWebGame();
@@ -69,7 +76,7 @@ export const ChangeDeckModal = (props: {
             decks={decks}
             starredDeck={selected}
             setStar={setSelectedId}
-            linkToBag={false}
+            linkToBag={props.linkToBag ?? false}
           />
           <Box mt="1rem" fontSize="0.85rem" opacity={0.8}>
             <Text>
