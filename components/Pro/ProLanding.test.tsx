@@ -283,7 +283,7 @@ describe("ProLanding — sections that replaced the roadmap", () => {
   it("shows parallel mode cards, not a numbered sequence", () => {
     const { container } = renderLanding();
     expect(screen.getByText("Pick your mode")).toBeInTheDocument();
-    expect(screen.getByText("Bots at three levels")).toBeInTheDocument();
+    expect(screen.getByText("Bots at four levels")).toBeInTheDocument();
     expect(screen.queryByText("The road to the arena")).not.toBeInTheDocument();
     expect(container.textContent ?? "").not.toMatch(/\b01\b/);
   });
@@ -309,5 +309,37 @@ describe("ProLanding — sections that replaced the roadmap", () => {
       "href",
       "/pro/scenarios",
     );
+  });
+});
+
+/**
+ * #828: Expert has been live (alpha) for weeks; the page used to pitch it as an
+ * unreleased "next brain … in its gauntlet". These pin the refreshed framing.
+ */
+describe("ProLanding — the bot ladder as it actually ships", () => {
+  it("sells Expert as a live alpha tier, not a future upgrade", () => {
+    const { container } = renderLanding();
+    const copy = container.textContent ?? "";
+    expect(screen.getByText(/challenge Expert, an alpha search bot/)).toBeInTheDocument();
+    expect(screen.getByText("AI TRAINING")).toBeInTheDocument();
+    expect(screen.getByText(/Expert is live \(alpha\)/)).toBeInTheDocument();
+    expect(copy).not.toMatch(/gauntlet/i);
+    expect(copy).not.toMatch(/next brain/i);
+  });
+
+  it("closes the page with the six-beat 'how the AI works' deep dive", () => {
+    renderLanding();
+    const section = screen.getByRole("region", { name: "How the AI actually works" });
+    expect(within(section).getByText(/no LLM, no cloud model/i)).toBeInTheDocument();
+    expect(within(section).getAllByRole("listitem")).toHaveLength(6);
+    expect(within(section).getByText(/determinization/)).toBeInTheDocument();
+    expect(within(section).getByText(/about 7 times in 10/)).toBeInTheDocument();
+  });
+
+  it("never claims Expert carries its search tree between moves", () => {
+    // ismctsBot.ts discards the tree after every decision (§7) — "remembers
+    // between moves" was in the brief and is false.
+    const { container } = renderLanding();
+    expect(container.textContent ?? "").not.toMatch(/between moves|last turn/i);
   });
 });

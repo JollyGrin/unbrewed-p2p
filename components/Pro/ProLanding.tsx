@@ -660,6 +660,56 @@ export const ProLanding = () => {
             plays all 40+ decks today — it just trusts you with the rulebook.
           </Text>
         </Box>
+
+        {/* how the AI works — the deep dive, last on the page */}
+        <Box as="section" mt="4rem" aria-labelledby="pro-ai-deep-dive">
+          <SectionHead id="pro-ai-deep-dive" mb="0.4rem">
+            How the AI actually works
+          </SectionHead>
+          <Text
+            fontFamily="ArchivoNarrow"
+            fontSize="1rem"
+            fontStyle="italic"
+            opacity={0.75}
+            maxW="44rem"
+          >
+            No LLM, no cloud model — a search algorithm that plays out games in
+            its head. Here&apos;s the real mechanism, in plain terms.
+          </Text>
+          <Grid
+            as="ol"
+            listStyleType="none"
+            templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }}
+            gap="0.75rem"
+            mt="1.25rem"
+          >
+            {/* An ordered list (the beats build on each other) but deliberately
+                un-numbered on screen — the page retired its numbered roadmap. */}
+            {AI_DEEP_DIVE.map((beat) => (
+              <Box
+                as="li"
+                key={beat.title}
+                p="1rem"
+                borderRadius="0.5rem"
+                bg="rgba(250,235,215,0.05)"
+                border="1px solid rgba(250,235,215,0.12)"
+              >
+                <Text
+                  fontFamily="BebasNeueRegular"
+                  fontSize="1.2rem"
+                  letterSpacing="0.05em"
+                  lineHeight="1.15"
+                  color="brand.accent"
+                >
+                  {beat.title}
+                </Text>
+                <Text fontFamily="ArchivoNarrow" fontSize="0.95rem" opacity={0.8} mt="0.35rem">
+                  {beat.text}
+                </Text>
+              </Box>
+            ))}
+          </Grid>
+        </Box>
       </Box>
 
       {/* A served hero with no tile entry has no deck JSON to fetch (deckId
@@ -682,8 +732,17 @@ export const ProLanding = () => {
   );
 };
 
-const SectionHead = ({ children, mb = "1rem" }: { children: React.ReactNode; mb?: string }) => (
+const SectionHead = ({
+  children,
+  mb = "1rem",
+  id,
+}: {
+  children: React.ReactNode;
+  mb?: string;
+  id?: string;
+}) => (
   <Text
+    id={id}
     fontFamily="BebasNeueRegular"
     fontSize={{ base: "1.6rem", md: "2rem" }}
     letterSpacing="0.06em"
@@ -700,8 +759,8 @@ const MODES = [
     text: "Duel 1v1, 3-player free-for-all, and 2v2 teams. An optional 30/60/90s move timer keeps games brisk.",
   },
   {
-    title: "Bots at three levels",
-    text: "Warm up on Easy, spar Medium, sweat against Hard's Monte-Carlo brain. Solo matches start instantly.",
+    title: "Bots at four levels",
+    text: "Warm up on Easy, spar Medium, grind Hard's Monte-Carlo search — or challenge Expert, an alpha search bot (ISMCTS) that beats Hard 8 times in 10 in simulation. Real players still beat it more often than not — it's the one we're actively training.",
   },
   {
     title: "Fourteen boards — or yours",
@@ -715,8 +774,8 @@ const MODES = [
 
 const WHATS_NEXT = [
   {
-    tag: "TRAINING",
-    text: "A harder AI. The next brain (ISMCTS) is in its gauntlet now — it graduates when it beats the current champ.",
+    tag: "AI TRAINING",
+    text: "Expert is live (alpha) and already tougher than Hard — but real duels expose real gaps: passive defense, missed schemes, deck-specific blind spots. We're closing them with real-game data, not more simulation.",
   },
   {
     tag: "MATCHMAKING",
@@ -729,6 +788,45 @@ const WHATS_NEXT = [
   {
     tag: "ROSTER",
     text: "More fighters. New conversions land as they clear testing.",
+  },
+];
+
+/**
+ * "How the AI actually works" (#828). Player-facing, but every claim is checked
+ * against the engine (unbrewed-engine): tiers and budgets from ai/registry.ts
+ * (easy=random, medium=mc@16, hard=mc@64, expert=ismcts@512, ~1.5s/decision);
+ * 82.6% is expert@512 vs hard-64 (#239 arm6); the honesty mechanism is
+ * docs/plans/ai-player.md §1/§3; the human numbers (447 of 638 decided duels
+ * won by humans) and the weaknesses come from the 2026-09-09 human-telemetry
+ * report (F2/F5/F7/F8). Two things the copy must NOT claim: the ISMCTS tree is
+ * discarded after every decision (ismctsBot.ts §7 — it doesn't carry anything
+ * between moves), and the shuffle-the-hand honesty A/B is designed but still
+ * listed as deferred, so it's described as the test, not as a result.
+ */
+const AI_DEEP_DIVE = [
+  {
+    title: "Four tiers, one codebase — tuned by how hard it thinks",
+    text: "Easy picks a legal move at random. Medium and Hard run the same search — Monte Carlo simulation — just with a bigger budget: Hard mentally plays out roughly 4x more games than Medium before it moves. Expert (alpha) runs a different, smarter search called ISMCTS on about the same time budget as Hard, which is why it's stronger without being slower.",
+  },
+  {
+    title: "What “Monte Carlo simulation” means",
+    text: "Before Medium or Hard commits to a move, it doesn't calculate a “best” answer directly — it guesses. For every move it's allowed to make, it plays out dozens of quick, semi-random games to the end (or close to it) and checks who tends to win. The move that wins the most imagined games is the one it actually plays.",
+  },
+  {
+    title: "What makes Expert different: it thinks in lines, not single moves",
+    text: "Medium and Hard judge each possible move on its own: try it, play out a game, score it. Expert builds a search tree — ISMCTS, “Information Set Monte Carlo Tree Search” — that branches into the follow-ups too: this move, then that one, then the next. Its imagined games feed back into the tree, so it spends its thinking on the lines that keep looking promising and can spot plays that only pay off a few moves later. In testing, Expert beat Hard in 82.6% of games at about the same time per move (~1.5 seconds) — it wins by thinking better, not longer.",
+  },
+  {
+    title: "It can't peek at your hand — here's how that's enforced",
+    text: "Unmatched runs on hidden information: face-down cards, hidden hands, shuffled decks. Before every decision, the bot takes only what it's actually allowed to know — your hand's size, not its contents; both discard piles; whatever has been revealed — and invents a plausible version of the hidden parts, a technique called “determinization.” It plays out its imagined games against that invented hand, never your real one, and the code only lets the bot see hidden cards through that invention step. The test that proves it is simple: shuffle the opponent's real hand before every bot decision. A bot that was peeking gets measurably worse; an honest one doesn't even notice.",
+  },
+  {
+    title: "The honest gap: it's stronger against bots than against you",
+    text: "Expert crushes Hard in simulation, but real players still beat Expert about 7 times in 10. That's not a contradiction — Expert's weaknesses are human-shaped, not bot-shaped. It defends more than winning players do (they'll take a hit to keep a good card), it's slower to commit to scheme-based plays than good players are, and it doesn't always catch the deck-specific tells experienced players exploit on sight. Bot-vs-bot testing never surfaces that, because bots don't play those angles either.",
+  },
+  {
+    title: "What we're doing about it",
+    text: "Rather than chase a bigger search budget — expensive, and not the actual gap — we're using real games to find and fix the patterns above, starting with capturing full replays of live human-vs-bot matches, so tuning is driven by how people actually beat it rather than by simulated self-play. That work is under way now.",
   },
 ];
 
