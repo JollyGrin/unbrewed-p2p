@@ -89,7 +89,7 @@ const HouseBackPlaceholder = () => (
   </Flex>
 );
 
-const EditCardbackModal = ({
+export const EditCardbackModal = ({
   deck,
   onSave,
   isOpen,

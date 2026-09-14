@@ -77,7 +77,7 @@ const toNullableNum = (value: string): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-const EditHeroModal = ({
+export const EditHeroModal = ({
   deck,
   onSave,
   isOpen,
