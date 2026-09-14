@@ -560,7 +560,7 @@ export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
   //    kind (ProHud's <FlagChip> renders every pile-sourced chip as a
   //    clickable inspection affordance; no per-hero code).
   //  - The `EQUIPMENT` pile — worn items (*Shop - Tactical vest* → +1 defence,
-  //    *Shop - Red 9 Handgun* → +1 attack; permanent, the card self-tucks when
+  //    *Shop - BlackTail Handgun* → +1 attack; permanent, the card self-tucks when
   //    played). Public like SHOP, so the opponent can read the +1s.
   //
   // All three are Leon's OWN piles — they arrive on his seat's `piles`, so the

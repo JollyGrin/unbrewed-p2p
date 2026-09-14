@@ -854,15 +854,22 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
   },
   {
     // Leon S. Kennedy — unmatched.cards deck NQ5XP, Grovelsey's Resident Evil 4
-    // deck (issue #780 ↔ engine #566; PAIRED with the engine's `feature/leon`
-    // branch, DRAFT until the pair merge). Served at tier `lab`. No `original`
-    // flag — the tile deep-links to unmatched.cards/decks/NQ5XP. INTERIM art
-    // (Dean's call 2026-09-09, issue #784): the payload's plain illustrations
-    // (third-party RE4 screenshots/wiki imagery — NOT finished full-card renders,
-    // so they wire as imageUrl only, never cardImage) are mirrored into
-    // public/evergreen-decks/art/NQ5XP per the #446 self-hosting rule; an
-    // unbrewed art pass replaces them later. Riot Gun's primagames source 403s,
-    // so that one face stays on the template.
+    // deck (issue #780 ↔ engine #566). Served at tier `lab`. Frozen by the author
+    // after the lab playtest (issue #808 ↔ engine #579, 2026-09-13: LE5 -
+    // submachine Gun, Shop - BlackTail Handgun). FINAL art: all 15 card
+    // illustrations and the cardback are the author's own, published on their
+    // the-unmatched.club deck (hero 14131 — now the canonical source; the
+    // unmatched.cards NQ5XP payload is stale) and mirrored into
+    // public/evergreen-decks/art/NQ5XP per the #446 self-hosting rule (upstream
+    // they are i.ibb.co hotlinks). They are illustrations the template draws
+    // inside the frame, so they wire as imageUrl only, never cardImage.
+    //
+    // `sourceUrl` is the club deck the author's final version is published on
+    // (club account "Jah"; Cecil precedent, the #665 rule): `deckAttributionHref`
+    // prefers it over the id-derived unmatched.cards link, so it credits the club
+    // on the tile, the preview modal and the splash.
+    // `original` stays off — the unmatched.cards page is real, it just isn't the
+    // credit.
     id: "NQ5XP",
     name: "Leon S. Kennedy",
     hero: "Leon S. Kennedy",
@@ -872,8 +879,10 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     highlightColour: "#273d2c",
     lab: true,
     tier: "lab",
-    // Interim cardback mirrored from the payload's supabase fan_heroes cover
-    // (Kenshiro/Luke/Jason precedent) — see the interim-art note above.
+    // Repo-relative (Kenshiro/Skull Kid/Cecil/Boba/Ripley precedent): the author's
+    // own cardback from the club deck, self-hosted so the tile renders on
+    // localhost and preview builds.
     cardbackUrl: "/evergreen-decks/art/NQ5XP/cardback.webp",
+    sourceUrl: "https://www.the-unmatched.club/c/heroes/leon-s-kennedy.14131",
   },
 ];
