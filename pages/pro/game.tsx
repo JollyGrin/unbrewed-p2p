@@ -6561,8 +6561,12 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // Mobile step 3: while a combat holds the portrait sheet, the hand fan peek
   // stands over the defense/attack card picker — and the picker already shows
   // those hand cards. Hide the peek for the combat; a hand prompt brings it back.
-  const handPeekHidden =
-    mobile && !rail && !!(visualOn ? panelCombat : view.combat) && !handOpen && !handDecision;
+  const sheetCombat = visualOn ? panelCombat : view.combat;
+  // Once the combat is decided and its strike beat has played, its result is a
+  // one-liner and the phone sheet lets go of the board (mobile polish).
+  const combatSummary =
+    sheetCombat?.outcome && !strike ? combatOutcomeBannerText(sheetCombat.outcome, sheetCombat.attackDamageDealt) : null;
+  const handPeekHidden = mobile && !rail && !!sheetCombat && !combatSummary && !handOpen && !handDecision;
 
   const dockEl = (
     <ProDock
@@ -6701,6 +6705,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       onMobileSheetShown={setMobileSheetShown}
       boardPickHint={prompt && !mulliganPrompt && promptBoardHint ? (mobile ? touchCopy(promptBoardHint) : promptBoardHint) : null}
       mobileHandPeekHidden={handPeekHidden}
+      combatSummary={mobile ? combatSummary : null}
       renderCard={(card) => <CardFace card={resolveCard(card)} fallback={cardLabel(view.catalog, card)} />}
     />
   );

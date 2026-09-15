@@ -261,4 +261,31 @@ describe("ProDock portrait board-pick bar (mobile step 1)", () => {
     fireEvent.click(within(picker).getByRole("button", { name: "Don't defend" }));
     expect(onAction).toHaveBeenCalledWith(DECLINE);
   });
+
+  describe("after the combat is decided (mobile polish)", () => {
+    it("gives the board back while the other side resolves after-combat effects", () => {
+      render(<ProDock {...props({ combatPanel: <div>COMBAT</div>, combatSummary: "Attacker wins · 1 dmg", rows: [] })} />);
+
+      expect(screen.queryByTestId("pro-mobile-sheet")).toBeNull();
+      expect(screen.getByTestId("pro-mobile-pills")).toHaveTextContent("Attacker wins · 1 dmg");
+    });
+
+    it("keeps the sheet while the combat is still undecided", () => {
+      render(<ProDock {...props({ combatPanel: <div>COMBAT</div>, combatSummary: null })} />);
+
+      expect(screen.getByTestId("pro-mobile-sheet")).toBeInTheDocument();
+    });
+
+    it("uses the slim bar for an after-combat move picked on the board", () => {
+      render(<ProDock {...props({ combatPanel: <div>COMBAT</div>, combatSummary: "Defender wins · 0 dmg", hasPrompt: true, highlightedCount: 3 })} />);
+
+      expect(screen.getByTestId("pro-mobile-pickbar")).toBeInTheDocument();
+    });
+  });
+
+  it("writes one action left in the singular", () => {
+    render(<ProDock {...props({ view: { ...view, actionsRemaining: 1 } as unknown as PlayerView, hasPrompt: true })} />);
+
+    expect(screen.getByTestId("pro-mobile-sheet")).toHaveTextContent("1 action left");
+  });
 });

@@ -260,6 +260,10 @@ export interface ProDockProps {
   /** portrait only: the page hid the hand fan peek (a combat holds the sheet),
    *  so the sheet needs less reserved room at the bottom and may grow taller. */
   mobileHandPeekHidden?: boolean;
+  /** phones: the decided combat's one-line result ("Attacker wins · 1 dmg"),
+   *  or null while it is still undecided. A decided combat stops holding the
+   *  sheet open, so the board is visible for the after-combat moves. */
+  combatSummary?: string | null;
 }
 
 export const ProDock = ({
@@ -306,6 +310,7 @@ export const ProDock = ({
   boardPickHint = null,
   renderCard,
   mobileHandPeekHidden = false,
+  combatSummary = null,
 }: ProDockProps) => {
   const { layout, hydrated, update } = useDockLayout();
   const [dragging, setDragging] = useState(false);
@@ -404,7 +409,7 @@ export const ProDock = ({
             turn {view.turnNumber}
           </Tag>
           <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
-            {view.actionsRemaining} actions left
+            {view.actionsRemaining} action{view.actionsRemaining === 1 ? "" : "s"} left
           </Tag>
         </>
       )}
@@ -513,14 +518,17 @@ export const ProDock = ({
   // the endgame. That is the desktop `needsInput` guard reshaped for a layout
   // where the dock is not permanently on screen; an ordinary "which of these
   // three actions" turn is not forced, because the pill row is showing it.
-  const sheetForced = hasPrompt || !!combatPanel || !!view.winner || !!stepping;
+  // A decided combat no longer holds the phone sheet (mobile polish): its result
+  // rides on the pill row while the after-combat effects play out on the board.
+  const combatOpen = !!combatPanel && !(mobile && combatSummary);
+  const sheetForced = hasPrompt || combatOpen || !!view.winner || !!stepping;
   const sheetShown = sheetForced || sheetOpen;
 
   // Mobile step 1: a forced prompt whose answer is a tap ON the board gets a slim
   // bar instead of the tall sheet — the sheet would cover the very spaces it asks
   // for. "Options" expands the full sheet (skip/decline buttons live there).
   const boardPicks = highlightedCount > 0 || attackTargetCount > 0;
-  const boardPickPrompt = hasPrompt && boardPicks && !combatPanel && !view.winner && !stepping && !mobileHandOpen;
+  const boardPickPrompt = hasPrompt && boardPicks && !combatOpen && !view.winner && !stepping && !mobileHandOpen;
   // Expansion belongs to ONE prompt: the next board-pick prompt starts slim again,
   // even when the server replaces prompt A with prompt B in a single update.
   const promptKey = view.prompt?.promptId ?? "prompt";
@@ -1199,6 +1207,20 @@ export const ProDock = ({
               pointerEvents="none"
             >
               {boardHint}
+            </Text>
+          )}
+          {!boardHint && combatSummary && (
+            <Text
+              px="0.8rem"
+              py="0.3rem"
+              borderRadius="999px"
+              bg="rgba(20, 8, 24, 0.85)"
+              color="brand.parchment"
+              fontSize="0.8rem"
+              fontWeight={700}
+              pointerEvents="none"
+            >
+              {combatSummary}
             </Text>
           )}
           <Flex alignItems="center" justifyContent="center" gap="0.5rem" maxW="100%" px="0.5rem">
