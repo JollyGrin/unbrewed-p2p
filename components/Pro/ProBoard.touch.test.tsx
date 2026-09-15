@@ -94,4 +94,14 @@ describe("ProBoard board picks (mobile step 1)", () => {
       window.matchMedia = original;
     }
   });
+
+  it("labels every fighter token, so the board can frame a combat's two sides", () => {
+    const { getByTitle } = render(
+      <ChakraProvider>
+        <ProBoard map={MAP} fighters={[enemy]} focusFighters={["p2/hero"]} />
+      </ChakraProvider>
+    );
+
+    expect(getByTitle(/Baba Yaga/)).toHaveAttribute("data-fighter-id", "p2/hero");
+  });
 });

@@ -6779,6 +6779,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
           relocateSpaces={relocateSpaces}
           relocateArmed={relocateMode.armedTarget != null}
           highlightedFighters={[...new Set(highlightedFighters)]}
+          focusFighters={mobile && !rail && sheetCombat && !combatSummary ? [sheetCombat.attacker, sheetCombat.target] : undefined}
           selectedFighter={selectedFighter}
           attack={view.combat ? { attacker: view.combat.attacker, target: view.combat.target } : null}
           defenderStepIn={boardDefenderStepIn}

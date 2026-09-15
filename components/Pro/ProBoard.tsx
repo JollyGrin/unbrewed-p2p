@@ -252,6 +252,9 @@ export interface ProBoardProps {
   highlightedSpaces?: SpaceId[];
   /** Fighters the current player can act on right now (attack targets, movable…) */
   highlightedFighters?: FighterId[];
+  /** phones: fighters to zoom onto when there is nothing to pick — the two
+   *  sides of a live combat (mobile polish). Board picks always win. */
+  focusFighters?: FighterId[];
   /** Maneuver-ORIGIN relocation picks (engine #535 ↔ protocol 34): spaces the
    *  selected fighter may START its maneuver from, offered by the server as
    *  RELOCATE_FIGHTER actions. A teleport, not a step — drawn as a dashed cyan
@@ -428,6 +431,7 @@ export const ProBoard = ({
   tokens = [],
   highlightedSpaces = [],
   highlightedFighters = [],
+  focusFighters = [],
   relocateSpaces = [],
   relocateArmed = false,
   selectedFighter = null,
@@ -529,14 +533,19 @@ export const ProBoard = ({
           },
         };
   };
-  const pickKey = `${highlightedSpaces.join(",")}|${relocateSpaces.join(",")}|${highlightedFighters.join(",")}`;
+  const pickKey = `${highlightedSpaces.join(",")}|${relocateSpaces.join(",")}|${highlightedFighters.join(",")}|${focusFighters.join(",")}`;
   const { containerRef: zoomContainerRef, focusOn, releaseFocus } = zoom;
   useEffect(() => {
     if (!zoomable || !coarsePointer) return;
     // Measure after paint, so the gold rings of the new prompt are in the DOM.
     const raf = requestAnimationFrame(() => {
-      const picks = Array.from(zoomContainerRef.current?.querySelectorAll<HTMLElement>("[data-pick]") ?? []);
-      const rects = picks.map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0);
+      const container = zoomContainerRef.current;
+      const picks = Array.from(container?.querySelectorAll<HTMLElement>("[data-pick]") ?? []);
+      // Nothing to pick: frame the fighters the page asked for (a live combat).
+      const targets = picks.length
+        ? picks
+        : focusFighters.flatMap((id) => Array.from(container?.querySelectorAll<HTMLElement>(`[data-fighter-id="${id}"]`) ?? []));
+      const rects = targets.map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0);
       if (rects.length === 0) {
         releaseFocus();
         return;
@@ -1279,6 +1288,7 @@ export const ProBoard = ({
         transform={`translate(calc(-50% + ${slot.dx}%), calc(-50% + ${slot.dy}%))${upright}`}
         w={`${diam * slot.scale}%`}
         data-pick={fighterClickable ? "" : undefined}
+        data-fighter-id={f.id}
         sx={{ aspectRatio: "1", ...(clickable ? touchHitSx(s.id, (layerPx * diam * slot.scale) / 100) : {}) }}
         borderRadius="50%"
         bg={tokenLifeOn ? "transparent" : bodyBgToken}
