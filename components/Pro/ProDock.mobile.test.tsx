@@ -283,6 +283,50 @@ describe("ProDock portrait board-pick bar (mobile step 1)", () => {
     });
   });
 
+  describe("landscape rail (mobile polish)", () => {
+    const BOOST = { type: "BOOST_MOVE", card: "c1" } as unknown as Action;
+    const ATTACK_A = { type: "DECLARE_ATTACK", attacker: "f1", target: "f2" } as unknown as Action;
+    const ATTACK_B = { type: "DECLARE_ATTACK", attacker: "f1", target: "f3" } as unknown as Action;
+    const rowsOf = (...actions: Action[]) => actions.map((action) => ({ action, hotkey: null, dividerBefore: false }));
+
+    it("leads the open rail with the action tiles", () => {
+      const onAction = jest.fn();
+      render(<ProDock {...props({ mobile: "rail", onAction })} />);
+
+      expect(screen.getByTestId("pro-action-tiles")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /^maneuver/i }));
+      expect(onAction).toHaveBeenCalledWith(MANEUVER);
+    });
+
+    it("shows card choices as card faces in the rail", () => {
+      const onAction = jest.fn();
+      const describe = (a: Action) => (a as { type: string }).type;
+      render(<ProDock {...props({ mobile: "rail", onAction, rows: rowsOf(BOOST), describe, renderCard: (c: string) => <span>{c}</span> })} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Pick: BOOST_MOVE" }));
+      fireEvent.click(screen.getByRole("button", { name: "BOOST_MOVE" }));
+
+      expect(onAction).toHaveBeenCalledWith(BOOST);
+    });
+
+    it("drops an opened tile's narrowed list once the legal actions change", () => {
+      const rows = rowsOf(MANEUVER, ATTACK_A, ATTACK_B);
+      const { rerender } = render(<ProDock {...props({ mobile: "rail", rows })} />);
+      fireEvent.click(screen.getByRole("button", { name: /attack.*2 targets/i }));
+      expect(screen.getByRole("button", { name: /all actions/i })).toBeInTheDocument();
+
+      rerender(<ProDock {...props({ mobile: "rail", rows: rowsOf(MANEUVER, ATTACK_A) })} />);
+
+      expect(screen.getByTestId("pro-action-tiles")).toBeInTheDocument();
+    });
+
+    it("keeps the tiles out of a forced decision", () => {
+      render(<ProDock {...props({ mobile: "rail", hasPrompt: true })} />);
+
+      expect(screen.queryByTestId("pro-action-tiles")).toBeNull();
+    });
+  });
+
   it("writes one action left in the singular", () => {
     render(<ProDock {...props({ view: { ...view, actionsRemaining: 1 } as unknown as PlayerView, hasPrompt: true })} />);
 

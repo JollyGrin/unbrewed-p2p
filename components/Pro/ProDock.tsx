@@ -544,11 +544,15 @@ export const ProDock = ({
 
   // Mobile step 2: the optional portrait sheet leads with Maneuver / Scheme /
   // Attack tiles. A tile with several legal choices narrows the list to them.
-  const tiles = mobile === "portrait" && !sheetForced ? actionTilesFor(rows.map((r) => r.action)) : [];
+  // The landscape rail is always open, so it leads with them whenever nothing is forced.
+  const tiles = mobile && !sheetForced ? actionTilesFor(rows.map((r) => r.action)) : [];
+  const rowsKey = rows.map((r) => JSON.stringify(r.action)).join("|");
   const [tileFilter, setTileFilter] = useState<TileKind | null>(null);
   useEffect(() => {
-    if (!sheetShown) setTileFilter(null);
-  }, [sheetShown]);
+    // The rail never closes, so a new set of legal actions is what ends a tile's
+    // narrowed list there (the portrait sheet also closes after an action).
+    setTileFilter(null);
+  }, [sheetShown, rowsKey]);
   // Mobile step 2: card choices as card faces. Picking a card reveals one
   // confirm button per legal action for it (a face-up commit is its own action).
   const cardGroups = mobile && renderCard ? cardChoiceGroups(rows.map((r) => r.action)) : [];
@@ -583,7 +587,7 @@ export const ProDock = ({
                 aria-pressed={isPicked}
                 onClick={() => setPickedCard(isPicked ? null : choice.card)}
                 flex="0 0 auto"
-                w="7.25rem"
+                w={mobile === "rail" ? "6rem" : "7.25rem"}
                 borderRadius="0.55rem"
                 outline={isPicked ? "3px solid" : "1px solid"}
                 outlineColor={isPicked ? "brand.accent" : "rgba(250, 235, 215, 0.2)"}
@@ -667,6 +671,7 @@ export const ProDock = ({
     scheme: { label: "Scheme", icon: <TbCards size="1.5rem" /> },
     attack: { label: "Attack", icon: <TbSwords size="1.5rem" /> },
   };
+  const railTiles = mobile === "rail";
   const tilesEl =
     tiles.length > 0 &&
     (tileFilter ? (
@@ -682,20 +687,26 @@ export const ProDock = ({
         All actions
       </Button>
     ) : (
-      <Flex data-testid="pro-action-tiles" gap="0.5rem">
+      // Three across fits the portrait sheet; the 230px rail stacks them as
+      // rows (icon, label, subline) so the labels never wrap mid-word.
+      <Flex data-testid="pro-action-tiles" gap={railTiles ? "0.35rem" : "0.5rem"} direction={railTiles ? "column" : "row"}>
         {tiles.map((tile) => {
           const available = tile.actions.length > 0;
           const lead = tile.kind === "maneuver" && available;
           return (
             <Button
               key={tile.kind}
-              flex="1 1 0"
+              flex={railTiles ? "0 0 auto" : "1 1 0"}
               minW={0}
               h="auto"
-              minH="6rem"
-              py="0.6rem"
-              px="0.4rem"
-              display="flex"
+              minH={railTiles ? TAP_TARGET : "6rem"}
+              py={railTiles ? "0.4rem" : "0.6rem"}
+              px={railTiles ? "0.6rem" : "0.4rem"}
+              display={railTiles ? "grid" : "flex"}
+              gridTemplateColumns={railTiles ? "auto 1fr" : undefined}
+              columnGap={railTiles ? "0.55rem" : undefined}
+              justifyItems={railTiles ? "start" : undefined}
+              textAlign={railTiles ? "left" : "center"}
               flexDirection="column"
               gap="0.3rem"
               whiteSpace="normal"
@@ -710,7 +721,7 @@ export const ProDock = ({
                 tile.actions.length === 1 ? onAction(tile.actions[0]) : setTileFilter(tile.kind)
               }
             >
-              <Box as="span" color={available ? "brand.accent" : "inherit"}>
+              <Box as="span" color={available ? "brand.accent" : "inherit"} gridRow={railTiles ? "span 2" : undefined}>
                 {TILE_META[tile.kind].icon}
               </Box>
               <Text as="span" fontWeight={700} fontSize="0.9rem">
