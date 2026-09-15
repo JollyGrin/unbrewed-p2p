@@ -186,7 +186,8 @@
       "isRanged": false,
       "move": 2,
       "name": "The Narrator",
-      "specialAbility": "LIVE THROUGH STORIES\nThe Narrator may attack opposing fighter's adjacent to friendly fighters.\n"
+      "specialAbility": "LIVE THROUGH STORIES\nThe Narrator may attack opposing fighter's adjacent to friendly fighters.\n",
+      "tokenImageUrl": "/evergreen-decks/art/narrator/token-the-narrator.webp"
     },
     "name": "",
     "ruleCards": [],
@@ -195,7 +196,8 @@
       "isRanged": false,
       "name": "Adventurers",
       "quantity": 3,
-      "quote": null
+      "quote": null,
+      "tokenImageUrl": "/evergreen-decks/art/narrator/token-adventurer.webp"
     }
   },
   "deck_first_published_on": "Tue, 15 Sep 2026 00:30:27 GMT",
