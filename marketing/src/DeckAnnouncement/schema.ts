@@ -42,6 +42,15 @@ export const deckAnnouncementSchema = z.object({
    * (falling dark flakes). Omit unless a deck clearly wants one.
    */
   particleStyle: z.enum(PARTICLE_STYLES).optional(),
+  /**
+   * Overrides the deck borderColour as the video's base colour only; omit to
+   * keep the deck's own. For decks whose border colour fights their card art
+   * in full-screen backdrops — the in-game border stays untouched.
+   */
+  backdropColour: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/, "backdropColour must be a #rrggbb hex string")
+    .optional(),
 });
 
 export type DeckAnnouncementInput = z.infer<typeof deckAnnouncementSchema>;

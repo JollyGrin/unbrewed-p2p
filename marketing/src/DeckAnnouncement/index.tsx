@@ -56,6 +56,7 @@ export const DeckAnnouncement: React.FC<DeckAnnouncementProps> = ({
   tagline,
   musicTrack,
   particleStyle,
+  backdropColour,
   deck,
 }) => {
   if (!deck) {
@@ -64,7 +65,7 @@ export const DeckAnnouncement: React.FC<DeckAnnouncementProps> = ({
     );
   }
 
-  const palette = paletteFor(deck);
+  const palette = paletteFor(deck, backdropColour);
   const hasQuote = Boolean(deck.hero.quote);
   const timeline = promoTimeline(deck.featured.length, hasQuote);
   const { coldOpen, niche, cards, cta } = timeline;
