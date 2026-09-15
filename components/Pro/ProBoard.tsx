@@ -16,7 +16,7 @@ import { BoardFxItem } from "@/lib/pro/useGameFx";
 import { TokenGestures, usePageHidden } from "@/lib/pro/tokenLife";
 import { ZoomPanInset, useZoomPan } from "@/lib/pro/useZoomPan";
 import { useCoarsePointer } from "@/lib/pro/useCoarsePointer";
-import { touchHitPercent } from "@/lib/pro/touchTargets";
+import { nearestNeighbourPx, touchHitPercent } from "@/lib/pro/touchTargets";
 import { LARGE_REACH_TARGET_BLURB } from "@/lib/pro/largeReach";
 import { PendingSwap, SWAP_SECONDS, SWAP_TIMES } from "@/lib/pro/positionSwap";
 import { tokenInitials } from "./FighterTokenPortrait";
@@ -509,9 +509,11 @@ export const ProBoard = ({
   // screen, and the board zooms onto the picks when they are too small to hit.
   // Fine pointers (mouse, trackpad) keep today's exact hit circles and view.
   const coarsePointer = useCoarsePointer();
-  /** sx for an invisible, centred hit area around an actionable circle. */
-  const touchHitSx = (renderedDiameterPx: number) => {
-    const pct = coarsePointer ? touchHitPercent(renderedDiameterPx) : null;
+  /** sx for an invisible, centred hit area around an actionable circle on the
+   *  main board. Region insets get none: their spacing is not measured here. */
+  const touchHitSx = (spaceId: SpaceId, renderedDiameterPx: number) => {
+    const maxPx = mainPickCaps.get(spaceId);
+    const pct = coarsePointer && maxPx !== undefined ? touchHitPercent(renderedDiameterPx, maxPx) : null;
     return pct === null
       ? {}
       : {
@@ -560,10 +562,15 @@ export const ProBoard = ({
   // 0 = not measured yet (SSR, or a DOM with no ResizeObserver) and is treated
   // as UNKNOWN, never as "tiny".
   const [frameW, setFrameW] = useState(0);
+  // Height alongside it, for the on-screen spacing between touch picks.
+  const [frameH, setFrameH] = useState(0);
   useEffect(() => {
     const f = frameRef.current;
     if (!f || typeof ResizeObserver === "undefined") return;
-    const apply = () => setFrameW((prev) => (prev === f.offsetWidth ? prev : f.offsetWidth));
+    const apply = () => {
+      setFrameW((prev) => (prev === f.offsetWidth ? prev : f.offsetWidth));
+      setFrameH((prev) => (prev === f.offsetHeight ? prev : f.offsetHeight));
+    };
     apply();
     const ro = new ResizeObserver(apply);
     ro.observe(f);
@@ -572,6 +579,24 @@ export const ProBoard = ({
   // On-screen width of the main board frame. Region inset panels are a fixed
   // fraction of it (REGION_PANEL_W below), so each layer passes its own.
   const framePx = frameW * zoom.scale;
+  // Distance (on-screen px) from each main-board pick to its nearest other pick:
+  // a hit area stops there, so two close gold spaces never swallow each other's
+  // taps. A target token counts at its space's centre.
+  const mainPickCaps = new Map<SpaceId, number>();
+  if (coarsePointer) {
+    const mainIds = new Set(mainSpaces.map((sp) => sp.id));
+    const pickIds = new Set<SpaceId>(
+      [
+        ...(relocateArmed ? relocateSpaces : [...highlightedSpaces, ...relocateSpaces]),
+        ...fighters
+          .filter((f) => highlightFighterSet.has(f.id))
+          .flatMap((f) => [f.space, f.tailSpace].filter((id): id is SpaceId => !!id)),
+      ].filter((id) => mainIds.has(id))
+    );
+    const pickSpaces = mainSpaces.filter((sp) => pickIds.has(sp.id));
+    const points = pickSpaces.map((sp) => ({ x: sp.x * frameW * zoom.scale, y: sp.y * frameH * zoom.scale }));
+    pickSpaces.forEach((sp, i) => mainPickCaps.set(sp.id, nearestNeighbourPx(points, i)));
+  }
 
   // A collapsed panel must never hide a required choice: any highlighted space
   // or targetable fighter INSIDE the region forces it open for the duration.
@@ -1254,7 +1279,7 @@ export const ProBoard = ({
         transform={`translate(calc(-50% + ${slot.dx}%), calc(-50% + ${slot.dy}%))${upright}`}
         w={`${diam * slot.scale}%`}
         data-pick={fighterClickable ? "" : undefined}
-        sx={{ aspectRatio: "1", ...(clickable ? touchHitSx((layerPx * diam * slot.scale) / 100) : {}) }}
+        sx={{ aspectRatio: "1", ...(clickable ? touchHitSx(s.id, (layerPx * diam * slot.scale) / 100) : {}) }}
         borderRadius="50%"
         bg={tokenLifeOn ? "transparent" : bodyBgToken}
         border={tokenLifeOn ? "none" : bodyBorder}
@@ -1586,7 +1611,7 @@ export const ProBoard = ({
             top={`${s.y * 100}%`}
             transform="translate(-50%, -50%)"
             w={`${diam}%`}
-            sx={{ aspectRatio: "1", ...(spaceActionable ? touchHitSx((layerPx * diam) / 100) : {}) }}
+            sx={{ aspectRatio: "1", ...(spaceActionable ? touchHitSx(s.id, (layerPx * diam) / 100) : {}) }}
             borderRadius="50%"
             // While the relocate mode is armed, a dashed pick outranks a co-drawn
             // gold highlight outright: the dashed ring is the only clickable thing

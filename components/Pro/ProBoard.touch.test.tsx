@@ -70,4 +70,28 @@ describe("ProBoard board picks (mobile step 1)", () => {
 
     expect(getByTitle(/Baba Yaga/)).toHaveAttribute("data-pick");
   });
+
+  it("renders and stays clickable on a touch screen (coarse pointer)", () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: query === "(pointer: coarse)",
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+    try {
+      const onSpaceClick = jest.fn();
+      const { container } = render(
+        <ChakraProvider>
+          <ProBoard map={MAP} fighters={[enemy]} highlightedSpaces={["s1"]} highlightedFighters={["p2/hero"]}
+            onSpaceClick={onSpaceClick} onFighterClick={jest.fn()} zoomable />
+        </ChakraProvider>
+      );
+
+      fireEvent.click(space(container, "s1"));
+      expect(onSpaceClick).toHaveBeenCalledWith("s1");
+    } finally {
+      window.matchMedia = original;
+    }
+  });
 });

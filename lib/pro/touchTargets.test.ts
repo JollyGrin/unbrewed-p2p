@@ -1,5 +1,5 @@
 import { describe, expect, test } from "@jest/globals";
-import { MIN_TOUCH_PX, focusTransform, shouldAutoFocus, touchHitPercent, touchHitSize } from "./touchTargets";
+import { MIN_TOUCH_PX, focusTransform, nearestNeighbourPx, shouldAutoFocus, touchHitPercent, touchHitSize } from "./touchTargets";
 
 describe("touchHitSize", () => {
   test("keeps the layout diameter when it already renders above the minimum", () => {
@@ -111,5 +111,29 @@ describe("touchHitPercent", () => {
 
   test("returns null when the size is unmeasured, rather than guessing", () => {
     expect(touchHitPercent(0)).toBeNull();
+  });
+});
+
+describe("touchHitPercent with a neighbour limit", () => {
+  test("never grows past the distance to the nearest other pick, so hit areas do not overlap", () => {
+    // 18px circles 30px apart: each hit area stops at 30px, meeting at the midpoint.
+    expect(touchHitPercent(18, 30)).toBeCloseTo((30 / 18) * 100);
+  });
+
+  test("returns null when the neighbour is so close there is no room to grow", () => {
+    expect(touchHitPercent(18, 12)).toBeNull();
+  });
+});
+
+describe("nearestNeighbourPx", () => {
+  test("measures the closest other point", () => {
+    const points = [{ x: 0, y: 0 }, { x: 30, y: 40 }, { x: 100, y: 0 }];
+
+    expect(nearestNeighbourPx(points, 0)).toBe(50);
+    expect(nearestNeighbourPx(points, 2)).toBeCloseTo(Math.hypot(70, 40));
+  });
+
+  test("ignores points at the same spot (a token on its own gold space)", () => {
+    expect(nearestNeighbourPx([{ x: 5, y: 5 }, { x: 5, y: 5 }], 0)).toBe(Infinity);
   });
 });

@@ -106,4 +106,16 @@ describe("ProDock portrait board-pick bar (mobile step 1)", () => {
     expect(screen.queryByTestId("pro-mobile-sheet")).toBeNull();
     expect(screen.getByTestId("pro-mobile-pills")).toBeInTheDocument();
   });
+
+  it("brings the slim bar back for the next board-pick prompt after Options was used", () => {
+    const withPrompt = (promptId: string) =>
+      props({ hasPrompt: true, highlightedCount: 2, view: { ...view, prompt: { promptId } } as unknown as PlayerView });
+    const { rerender } = render(<ProDock {...withPrompt("a")} />);
+    fireEvent.click(screen.getByRole("button", { name: /options/i }));
+    expect(screen.getByTestId("pro-mobile-sheet")).toBeInTheDocument();
+
+    rerender(<ProDock {...withPrompt("b")} />);
+
+    expect(screen.getByTestId("pro-mobile-pickbar")).toBeInTheDocument();
+  });
 });

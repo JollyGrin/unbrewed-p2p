@@ -494,11 +494,11 @@ export const ProDock = ({
   // for. "Options" expands the full sheet (skip/decline buttons live there).
   const boardPicks = highlightedCount > 0 || attackTargetCount > 0;
   const boardPickPrompt = hasPrompt && boardPicks && !combatPanel && !view.winner && !stepping && !mobileHandOpen;
-  const [pickSheetExpanded, setPickSheetExpanded] = useState(false);
-  useEffect(() => {
-    if (!boardPickPrompt) setPickSheetExpanded(false);
-  }, [boardPickPrompt]);
-  const boardPickCompact = mobile === "portrait" && boardPickPrompt && !pickSheetExpanded;
+  // Expansion belongs to ONE prompt: the next board-pick prompt starts slim again,
+  // even when the server replaces prompt A with prompt B in a single update.
+  const promptKey = view.prompt?.promptId ?? "prompt";
+  const [expandedPrompt, setExpandedPrompt] = useState<string | null>(null);
+  const boardPickCompact = mobile === "portrait" && boardPickPrompt && expandedPrompt !== promptKey;
   // An action picked from the optional sheet that lights the board (a maneuver's
   // gold spaces) gets the board back: the open sheet would hide the picks.
   const hadBoardPicks = useRef(boardPicks);
@@ -939,7 +939,7 @@ export const ProDock = ({
               fontSize="0.8rem"
               fontWeight={500}
               _hover={{ bg: "rgba(20, 8, 24, 0.95)" }}
-              onClick={() => setPickSheetExpanded(true)}
+              onClick={() => setExpandedPrompt(promptKey)}
             >
               Options
             </Button>

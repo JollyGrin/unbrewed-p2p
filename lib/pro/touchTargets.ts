@@ -48,12 +48,30 @@ export function touchHitSize(layoutDiameterPx: number, scale: number): number {
 
 /**
  * Size of an invisible hit area, as a percentage of a circle's own size, that
- * makes a circle rendering at `renderedDiameterPx` tappable at MIN_TOUCH_PX.
- * Null when no enlargement is needed or the size is not measured yet (0).
+ * makes a circle rendering at `renderedDiameterPx` tappable at MIN_TOUCH_PX —
+ * but never wider than `maxDiameterPx` (the distance to the nearest other pick),
+ * so neighbouring hit areas meet at most at the midpoint and never overlap.
+ * Null when no enlargement is needed, possible, or the size is unmeasured (0).
  */
-export function touchHitPercent(renderedDiameterPx: number): number | null {
-  if (!(renderedDiameterPx > 0) || renderedDiameterPx >= MIN_TOUCH_PX) return null;
-  return (MIN_TOUCH_PX / renderedDiameterPx) * 100;
+export function touchHitPercent(renderedDiameterPx: number, maxDiameterPx = Infinity): number | null {
+  if (!(renderedDiameterPx > 0)) return null;
+  const target = Math.min(MIN_TOUCH_PX, maxDiameterPx);
+  if (target <= renderedDiameterPx) return null;
+  return (target / renderedDiameterPx) * 100;
+}
+
+export interface ScreenPoint {
+  x: number;
+  y: number;
+}
+
+/** Distance to the closest other point; points at the same spot are ignored. */
+export function nearestNeighbourPx(points: ScreenPoint[], index: number): number {
+  const self = points[index];
+  return points.reduce((nearest, p, i) => {
+    const d = Math.hypot(p.x - self.x, p.y - self.y);
+    return i === index || d === 0 ? nearest : Math.min(nearest, d);
+  }, Infinity);
 }
 
 /** Zoom only when it helps: picks too small to hit, or clustered in a corner. */
