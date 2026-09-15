@@ -584,20 +584,18 @@ export const ProDock = ({
                 onClick={() => setPickedCard(isPicked ? null : choice.card)}
                 flex="0 0 auto"
                 w="7.25rem"
-                sx={{ aspectRatio: "63 / 88", scrollSnapAlign: "center" }}
                 borderRadius="0.55rem"
                 outline={isPicked ? "3px solid" : "1px solid"}
                 outlineColor={isPicked ? "brand.accent" : "rgba(250, 235, 215, 0.2)"}
                 outlineOffset="2px"
                 transform={isPicked ? "translateY(-4px)" : undefined}
                 transition="transform 0.12s ease"
+                // A press-and-hold reads the card large; stop iOS from offering
+                // to save the art or select text instead.
+                userSelect="none"
+                sx={{ aspectRatio: "63 / 88", scrollSnapAlign: "center", WebkitTouchCallout: "none" }}
               >
-                {/* The face is inert: the button owns the tap. CardFace's own
-                    press/focus preview would otherwise pop a full-size card
-                    over the picker on every tap. */}
-                <Box w="100%" h="100%" pointerEvents="none">
-                  {renderCard?.(choice.card)}
-                </Box>
+                {renderCard?.(choice.card)}
               </Box>
             );
           })}
@@ -637,7 +635,7 @@ export const ProDock = ({
             </Flex>
           ) : (
             <Text fontSize="0.75rem" color="brand.parchment" opacity={0.7}>
-              Tap a card to choose it
+              Tap a card to choose it · hold to read it
             </Text>
           )}
           {decline && (

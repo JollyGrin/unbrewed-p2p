@@ -6706,7 +6706,9 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       boardPickHint={prompt && !mulliganPrompt && promptBoardHint ? (mobile ? touchCopy(promptBoardHint) : promptBoardHint) : null}
       mobileHandPeekHidden={handPeekHidden}
       combatSummary={mobile ? combatSummary : null}
-      renderCard={(card) => <CardFace card={resolveCard(card)} fallback={cardLabel(view.catalog, card)} />}
+      renderCard={(card) => (
+        <CardFace card={resolveCard(card)} fallback={cardLabel(view.catalog, card)} touchPeekOnly />
+      )}
     />
   );
 
