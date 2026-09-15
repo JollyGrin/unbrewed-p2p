@@ -276,6 +276,14 @@ describe("ProDock portrait board-pick bar (mobile step 1)", () => {
       expect(screen.getByTestId("pro-mobile-sheet")).toBeInTheDocument();
     });
 
+    it("shrinks the decided combat to its result line above an after-combat question", () => {
+      render(<ProDock {...props({ combatPanel: <div>COMBAT</div>, combatSummary: "Attacker wins · 2 dmg", hasPrompt: true })} />);
+
+      expect(screen.queryByText("COMBAT")).toBeNull();
+      expect(screen.getByTestId("pro-combat-summary")).toHaveTextContent("Attacker wins · 2 dmg");
+      expect(screen.getByText("PROMPT PANEL")).toBeInTheDocument();
+    });
+
     it("uses the slim bar for an after-combat move picked on the board", () => {
       render(<ProDock {...props({ combatPanel: <div>COMBAT</div>, combatSummary: "Defender wins · 0 dmg", hasPrompt: true, highlightedCount: 3 })} />);
 

@@ -81,6 +81,7 @@ import {
 } from "react-icons/tb";
 import { DeckAttribution } from "@/components/Pro/DeckAttribution";
 import { CardFace, ProHand } from "@/components/Pro/ProHand";
+import { cardChoiceGroups } from "@/lib/pro/cardChoices";
 import { CardPreviewProvider } from "@/components/Pro/CardPreview";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { MapPreviewModal } from "@/components/Pro/MapPreviewModal";
@@ -6567,6 +6568,9 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // (mobile step 3 + polish) — over the combat card picker, the action tiles,
   // the confirm buttons. Hide it while one is up; a hand prompt brings it back.
   const handPeekHidden = mobile && !rail && mobileSheetShown && !handOpen && !handDecision;
+  // The rail's card picker already shows the cards in question as faces; the
+  // hand strip under it would only squeeze the picker below the fold.
+  const railPickerOpen = mobile && rail && cardChoiceGroups(dockActionRows.map((r) => r.action)).length > 0;
 
   const dockEl = (
     <ProDock
@@ -7083,6 +7087,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
             <ProMobileMenu {...hudProps} placement="bottom-end" onForfeit={canForfeit && view.phase === "PLAY" && !view.winner ? () => setForfeitOpen(true) : undefined} />
           </Flex>
           {dockEl}
+          {!railPickerOpen && (
           <RailHand
             hand={view.self.hand}
             resolveCard={resolveCard}
@@ -7090,6 +7095,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
             actionsFor={actionsForCard}
             onAction={playFromHand}
           />
+          )}
         </Flex>
       )}
     </Box>

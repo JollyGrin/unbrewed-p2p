@@ -617,6 +617,14 @@ export const ProDock = ({
           py="0.35rem"
           bg="#26142b"
           boxShadow="0 -8px 12px -6px rgba(12, 4, 16, 0.8)"
+          // The sheet keeps bottom padding for the controls row, and sticky
+          // stops above it: cover that strip too, or the cards scroll through
+          // underneath the buttons.
+          _after={
+            mobile === "portrait"
+              ? { content: '""', position: "absolute", top: "100%", left: 0, right: 0, h: "4rem", bg: "#26142b" }
+              : undefined
+          }
         >
           {picked ? (
             <Flex direction="column" gap="0.35rem">
@@ -687,28 +695,24 @@ export const ProDock = ({
         All actions
       </Button>
     ) : (
-      // Three across fits the portrait sheet; the 230px rail stacks them as
-      // rows (icon, label, subline) so the labels never wrap mid-word.
-      <Flex data-testid="pro-action-tiles" gap={railTiles ? "0.35rem" : "0.5rem"} direction={railTiles ? "column" : "row"}>
+      // Three across in both layouts; the short landscape rail drops the
+      // subline so the tiles stay one compact row above the fold.
+      <Flex data-testid="pro-action-tiles" gap={railTiles ? "0.3rem" : "0.5rem"}>
         {tiles.map((tile) => {
           const available = tile.actions.length > 0;
           const lead = tile.kind === "maneuver" && available;
           return (
             <Button
               key={tile.kind}
-              flex={railTiles ? "0 0 auto" : "1 1 0"}
+              flex="1 1 0"
               minW={0}
               h="auto"
-              minH={railTiles ? TAP_TARGET : "6rem"}
-              py={railTiles ? "0.4rem" : "0.6rem"}
-              px={railTiles ? "0.6rem" : "0.4rem"}
-              display={railTiles ? "grid" : "flex"}
-              gridTemplateColumns={railTiles ? "auto 1fr" : undefined}
-              columnGap={railTiles ? "0.55rem" : undefined}
-              justifyItems={railTiles ? "start" : undefined}
-              textAlign={railTiles ? "left" : "center"}
+              minH={railTiles ? "3.4rem" : "6rem"}
+              py={railTiles ? "0.35rem" : "0.6rem"}
+              px={railTiles ? "0.2rem" : "0.4rem"}
+              display="flex"
               flexDirection="column"
-              gap="0.3rem"
+              gap={railTiles ? "0.15rem" : "0.3rem"}
               whiteSpace="normal"
               borderRadius="0.8rem"
               border={lead ? "2px solid" : "1px solid"}
@@ -721,15 +725,22 @@ export const ProDock = ({
                 tile.actions.length === 1 ? onAction(tile.actions[0]) : setTileFilter(tile.kind)
               }
             >
-              <Box as="span" color={available ? "brand.accent" : "inherit"} gridRow={railTiles ? "span 2" : undefined}>
+              <Box as="span" color={available ? "brand.accent" : "inherit"}>
                 {TILE_META[tile.kind].icon}
               </Box>
-              <Text as="span" fontWeight={700} fontSize="0.9rem">
+              <Text as="span" fontWeight={700} fontSize={railTiles ? "0.72rem" : "0.9rem"}>
                 {TILE_META[tile.kind].label}
               </Text>
-              <Text as="span" fontWeight={400} fontSize="0.68rem" opacity={0.75} noOfLines={2}>
-                {tileSubline(tile)}
-              </Text>
+              {railTiles ? (
+                // Kept for screen readers and tests; the narrow rail has no room.
+                <Text as="span" srOnly>
+                  {tileSubline(tile)}
+                </Text>
+              ) : (
+                <Text as="span" fontWeight={400} fontSize="0.68rem" opacity={0.75} noOfLines={2}>
+                  {tileSubline(tile)}
+                </Text>
+              )}
             </Button>
           );
         })}
@@ -873,7 +884,15 @@ export const ProDock = ({
           {relocateHint}
         </Text>
       )}
-      {combatPanel}
+      {/* A decided combat shrinks to its result line on phones, so an
+          after-combat question sits right under it instead of below the fold. */}
+      {mobile && combatSummary && combatPanel ? (
+        <Text data-testid="pro-combat-summary" fontSize="0.9rem" fontWeight={700} color="brand.parchment">
+          {combatSummary}
+        </Text>
+      ) : (
+        combatPanel
+      )}
       {promptPanel}
       {tilesEl}
       {cardPickerEl}
