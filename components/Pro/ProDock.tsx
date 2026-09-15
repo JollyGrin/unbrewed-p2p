@@ -570,7 +570,12 @@ export const ProDock = ({
                 transform={isPicked ? "translateY(-4px)" : undefined}
                 transition="transform 0.12s ease"
               >
-                {renderCard?.(choice.card)}
+                {/* The face is inert: the button owns the tap. CardFace's own
+                    press/focus preview would otherwise pop a full-size card
+                    over the picker on every tap. */}
+                <Box w="100%" h="100%" pointerEvents="none">
+                  {renderCard?.(choice.card)}
+                </Box>
               </Box>
             );
           })}
