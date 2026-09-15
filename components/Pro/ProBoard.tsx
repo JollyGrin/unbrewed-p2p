@@ -1578,8 +1578,11 @@ export const ProBoard = ({
         </Box>
       )}
       <Text
+        // Same label size as the live token, but NOT its `labelShift`: the ghost
+        // has no HP chip to clear, and its children carry the portrait
+        // counter-rotation on `transform` (see the sx above) — a second
+        // transform here would replace it and the initials would fall sideways.
         fontSize={(coarsePointer ? TOKEN_CHROME.coarse : TOKEN_CHROME.fine).label}
-        transform={(coarsePointer ? TOKEN_CHROME.coarse : TOKEN_CHROME.fine).labelShift}
         fontWeight="bold"
         letterSpacing="-0.02em"
         color="brand.parchment"
