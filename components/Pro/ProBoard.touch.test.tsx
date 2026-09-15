@@ -228,3 +228,84 @@ describe("ProBoard auto-focus with region panels (#834)", () => {
     expect(readTransform(frame)).toEqual({ tx: 0, ty: 0, scale: 1 });
   });
 });
+/**
+ * Token chrome on a touch screen (issue #836): a phone renders a token at
+ * 20–30px, where the rem-sized initials and HP chip collided. Coarse pointers
+ * size both off the token's own diameter (cqw, the token being the query
+ * container); fine pointers keep the rem sizes byte-for-byte.
+ */
+describe("ProBoard token chrome (mobile step 2)", () => {
+  const withCoarsePointer = (coarse: boolean, run: () => void) => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: coarse && query === "(pointer: coarse)",
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+    try {
+      run();
+    } finally {
+      window.matchMedia = original;
+    }
+  };
+  const tokenParts = (getByTitle: (m: RegExp) => HTMLElement, name: RegExp) => {
+    const token = getByTitle(name);
+    const leaves = Array.from(token.querySelectorAll("*")).filter((el) => el.children.length === 0 && el.textContent?.trim());
+    const label = leaves.find((el) => /^[A-Z]{1,3}$/.test(el.textContent!.trim())) as HTMLElement;
+    const hp = leaves.find((el) => /^\d+$/.test(el.textContent!.trim())) as HTMLElement;
+    return { token, label, hp };
+  };
+  // jsdom's computed style drops `container-type` and cqw values, so read the
+  // element's own injected Emotion rules instead.
+  const cssFor = (el: Element) => {
+    const sheet = Array.from(document.querySelectorAll("style"))
+      .map((s) => s.textContent ?? "")
+      .join("");
+    return Array.from(el.classList)
+      .flatMap((c) => Array.from(sheet.matchAll(new RegExp(`\\.${c}\\{([^}]*)\\}`, "g"))).map((m) => m[1]))
+      .join(";");
+  };
+  // Short and long names both reduce to 1–3 initials; the chip must clear all of them.
+  const short: ViewFighter = { ...enemy, id: "p2/short", name: "Yu", space: "s1" };
+
+  it("keeps the desktop token chrome untouched on a fine pointer", () => {
+    withCoarsePointer(false, () => {
+      const { getByTitle } = render(
+        <ChakraProvider>
+          <ProBoard map={MAP} fighters={[enemy]} />
+        </ChakraProvider>
+      );
+      const { token, label, hp } = tokenParts(getByTitle, /Baba Yaga/);
+      expect(cssFor(token)).not.toContain("container-type");
+      expect(cssFor(label)).toContain("font-size:0.68rem");
+      expect(cssFor(label)).not.toContain("transform");
+      expect(cssFor(hp)).toContain("font-size:0.7rem");
+      expect(cssFor(hp)).toContain("line-height:1.4");
+      expect(cssFor(hp)).toContain("bottom:-18%");
+      expect(cssFor(hp)).toContain("right:-18%");
+    });
+  });
+
+  it("sizes the initials and HP chip off the token itself on a touch screen", () => {
+    withCoarsePointer(true, () => {
+      const { getByTitle } = render(
+        <ChakraProvider>
+          <ProBoard map={MAP} fighters={[enemy, short]} />
+        </ChakraProvider>
+      );
+      for (const name of [/Baba Yaga/, /^Yu /]) {
+        const { token, label, hp } = tokenParts(getByTitle, name);
+        expect(cssFor(token)).toContain("container-type:inline-size");
+        expect(cssFor(label)).toContain("font-size:32cqw");
+        expect(cssFor(label)).toContain("transform:translateY(-15%)");
+        expect(cssFor(hp)).toContain("font-size:28cqw");
+        expect(cssFor(hp)).toContain("line-height:1.2");
+        // The chip sits further out than on desktop, below the label row.
+        expect(cssFor(hp)).toContain("bottom:-26%");
+        expect(cssFor(hp)).toContain("right:-26%");
+      }
+      expect(tokenParts(getByTitle, /^Yu /).label.textContent).toBe("YU");
+    });
+  });
+});
