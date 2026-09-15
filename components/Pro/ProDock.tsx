@@ -243,6 +243,10 @@ export interface ProDockProps {
   /** portrait only: told whenever the sheet appears/disappears, so the page can
    *  re-fit the board into the space that is left */
   onMobileSheetShown?: (shown: boolean) => void;
+  /** portrait only: the open prompt's own board instruction ("click a gold space
+   *  on the board (3 options)"), shown in the slim board-pick bar. Falls back to
+   *  the dock's generic board hint. */
+  boardPickHint?: string | null;
 }
 
 export const ProDock = ({
@@ -286,6 +290,7 @@ export const ProDock = ({
   mobileHandOpen = false,
   mobileSheetRef,
   onMobileSheetShown,
+  boardPickHint = null,
 }: ProDockProps) => {
   const { layout, hydrated, update } = useDockLayout();
   const [dragging, setDragging] = useState(false);
@@ -483,6 +488,24 @@ export const ProDock = ({
   // three actions" turn is not forced, because the pill row is showing it.
   const sheetForced = hasPrompt || !!combatPanel || !!view.winner || !!stepping;
   const sheetShown = sheetForced || sheetOpen;
+
+  // Mobile step 1: a forced prompt whose answer is a tap ON the board gets a slim
+  // bar instead of the tall sheet — the sheet would cover the very spaces it asks
+  // for. "Options" expands the full sheet (skip/decline buttons live there).
+  const boardPicks = highlightedCount > 0 || attackTargetCount > 0;
+  const boardPickPrompt = hasPrompt && boardPicks && !combatPanel && !view.winner && !stepping && !mobileHandOpen;
+  // Expansion belongs to ONE prompt: the next board-pick prompt starts slim again,
+  // even when the server replaces prompt A with prompt B in a single update.
+  const promptKey = view.prompt?.promptId ?? "prompt";
+  const [expandedPrompt, setExpandedPrompt] = useState<string | null>(null);
+  const boardPickCompact = mobile === "portrait" && boardPickPrompt && expandedPrompt !== promptKey;
+  // An action picked from the optional sheet that lights the board (a maneuver's
+  // gold spaces) gets the board back: the open sheet would hide the picks.
+  const hadBoardPicks = useRef(boardPicks);
+  useEffect(() => {
+    if (boardPicks && !hadBoardPicks.current && mobile === "portrait") setSheetOpen(false);
+    hadBoardPicks.current = boardPicks;
+  }, [boardPicks, mobile]);
   const portraitSheetShown = mobile === "portrait" && sheetShown;
   useEffect(() => {
     onMobileSheetShown?.(portraitSheetShown);
@@ -872,6 +895,57 @@ export const ProDock = ({
     // order (maneuver leads that order, which is what a player reaches for).
     const primary = soleAction ?? rows[0]?.action ?? null;
     const extra = Math.max(rows.length - (primary ? 1 : 0), 0);
+
+    if (boardPickCompact)
+      return (
+        <Flex
+          ref={mobileSheetRef}
+          data-testid="pro-mobile-pickbar"
+          position="fixed"
+          left={0}
+          right={0}
+          bottom={0}
+          zIndex={2}
+          px="0.75rem"
+          pointerEvents="none"
+          // Same reserved room as the full sheet: the log / hand / overflow row
+          // floats in it, and the page measures this element to fit the board.
+          sx={{ paddingBottom: "calc(7rem + env(safe-area-inset-bottom, 0px))" }}
+        >
+          <Flex
+            flex="1"
+            alignItems="center"
+            gap="0.6rem"
+            px="0.85rem"
+            py="0.5rem"
+            borderRadius="0.9rem"
+            border="2px solid"
+            borderColor="brand.accent"
+            boxShadow="0 -6px 20px rgba(12, 4, 16, 0.5)"
+            bg="linear-gradient(180deg, rgba(58, 33, 64, 0.97), rgba(38, 20, 43, 0.99))"
+            pointerEvents="auto"
+          >
+            <Text flex="1" minW={0} fontSize="0.85rem" fontWeight={600} color="brand.accent" noOfLines={2}>
+              {boardPickHint ?? boardHint ?? "Choose on the board"}
+            </Text>
+            <Button
+              minH={TAP_TARGET}
+              px="0.9rem"
+              flexShrink={0}
+              borderRadius="999px"
+              bg="rgba(44, 24, 49, 0.9)"
+              color="brand.parchment"
+              border="1px solid rgba(250, 235, 215, 0.3)"
+              fontSize="0.8rem"
+              fontWeight={500}
+              _hover={{ bg: "rgba(20, 8, 24, 0.95)" }}
+              onClick={() => setExpandedPrompt(promptKey)}
+            >
+              Options
+            </Button>
+          </Flex>
+        </Flex>
+      );
 
     if (!sheetShown)
       return (

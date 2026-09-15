@@ -6670,6 +6670,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       mobileHandOpen={handOpen}
       mobileSheetRef={mobileSheetRef}
       onMobileSheetShown={setMobileSheetShown}
+      boardPickHint={prompt && !mulliganPrompt ? promptBoardHint : null}
     />
   );
 

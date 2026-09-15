@@ -236,10 +236,13 @@ describe("portrait phone", () => {
       } as PlayerView,
       []
     );
-    // the sheet is up and locked open…
+    // the answer is on the board, so only the slim pick bar stands over it…
+    expect(screen.getByTestId("pro-mobile-pickbar")).toBeInTheDocument();
+    expect(screen.queryByTestId("pro-mobile-sheet-scrim")).toBeNull();
+    // …and expanded to the full sheet it is locked open, still without a scrim.
+    fireEvent.click(screen.getByRole("button", { name: /^options$/i }));
     expect(screen.getByTestId("pro-mobile-sheet")).toBeInTheDocument();
     expect(screen.getByLabelText(/decision is waiting/i)).toBeInTheDocument();
-    // …and the board underneath it is still reachable.
     expect(screen.queryByTestId("pro-mobile-sheet-scrim")).toBeNull();
   });
 
