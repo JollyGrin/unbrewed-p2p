@@ -541,7 +541,7 @@ export const ProDock = ({
   const [pickedCard, setPickedCard] = useState<CardInstanceId | null>(null);
   useEffect(() => {
     setPickedCard(null);
-  }, [cardKey]);
+  }, [cardKey, sheetShown]);
   const cardPickerEl = cardGroups.map((group) => {
     const picked = group.cards.find((c) => c.card === pickedCard) ?? null;
     return (

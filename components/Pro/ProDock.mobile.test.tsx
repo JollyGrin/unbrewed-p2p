@@ -223,4 +223,19 @@ describe("ProDock portrait board-pick bar (mobile step 1)", () => {
       expect(screen.getByRole("button", { name: "BOOST_MOVE c1" })).toBeInTheDocument();
     });
   });
+
+  it("forgets a picked card when the optional sheet is closed", () => {
+    const BOOST = { type: "BOOST_MOVE", card: "c1" } as unknown as Action;
+    const renderCard = (card: string) => <span>{card}</span>;
+    const rows = [MANEUVER, BOOST].map((action) => ({ action, hotkey: null, dividerBefore: false }));
+    render(<ProDock {...props({ rows, renderCard, describe: (a) => (a as { type: string }).type })} />);
+    fireEvent.click(screen.getByTestId("pro-mobile-more"));
+    fireEvent.click(screen.getByRole("button", { name: "Pick: BOOST_MOVE" }));
+    expect(screen.getByRole("button", { name: "BOOST_MOVE" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /close actions/i }));
+    fireEvent.click(screen.getByTestId("pro-mobile-more"));
+
+    expect(screen.queryByRole("button", { name: "BOOST_MOVE" })).toBeNull();
+  });
 });

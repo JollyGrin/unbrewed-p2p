@@ -46,7 +46,7 @@ import { useHudPlates, DEFAULT_PLATE_LAYOUT } from "@/lib/pro/useHudPlates";
 import { deriveTeams } from "@/lib/pro/teams";
 import { seatNameplate } from "@/lib/pro/playerIdentity";
 import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
-import { turnStripFor } from "@/lib/pro/turnStrip";
+import { turnStripFor, yourTurnCueDue } from "@/lib/pro/turnStrip";
 import { RAIL_WIDTH_CSS, TAP_TARGET, chipSeatName } from "@/lib/pro/mobileLayout";
 import type { PlayerId, ViewPlayer } from "@/lib/pro/protocol";
 import type { ProLayoutMode } from "@/lib/pro/useProLayout";
@@ -398,17 +398,16 @@ export const ProMobileHud = ({
   // the landscape rail keeps its own turn chips). Inside the measured chips box,
   // so the board fit clears it.
   const strip = layoutMode === "portrait" ? turnStripFor(view, (id) => chipSeatName(heroOf(id)?.name, nameOfPlayer(id))) : null;
-  // "Your turn" cue when the turn passes to this seat mid-game: a toast, plus a
-  // short buzz where the browser has a vibration API (Android; not iOS Safari).
-  const myTurnNow = view.phase === "PLAY" && !view.winner && view.activePlayer === view.you;
-  const wasMyTurn = useRef(myTurnNow);
+  // "Your turn" cue when the turn is handed to this seat mid-game: a toast, plus
+  // a short buzz where the browser has a vibration API (Android; not iOS Safari).
+  const prevView = useRef<typeof view | null>(null);
   useEffect(() => {
-    if (myTurnNow && !wasMyTurn.current) {
+    if (yourTurnCueDue(prevView.current, view)) {
       toast("Your turn", { id: "pro-your-turn", icon: "⚔️", duration: 2200 });
       if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") navigator.vibrate(60);
     }
-    wasMyTurn.current = myTurnNow;
-  }, [myTurnNow]);
+    prevView.current = view;
+  }, [view]);
 
   // Your chip leads (top-left, parchment); everyone else trails to the right.
   const ordered = [...seats].sort((a, b) => Number(b.you) - Number(a.you));

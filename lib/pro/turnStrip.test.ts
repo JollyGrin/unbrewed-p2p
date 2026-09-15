@@ -1,5 +1,5 @@
 import { describe, expect, test } from "@jest/globals";
-import { turnStripFor } from "./turnStrip";
+import { turnStripFor, yourTurnCueDue } from "./turnStrip";
 import type { PlayerView } from "./protocol";
 
 const view = (over: Partial<PlayerView>): PlayerView =>
@@ -21,5 +21,28 @@ describe("turnStripFor", () => {
 
   test("disappears once the game has a winner", () => {
     expect(turnStripFor(view({ winner: "p1" } as Partial<PlayerView>), nameOf)).toBeNull();
+  });
+});
+
+describe("yourTurnCueDue", () => {
+  const at = (activePlayer: string, turnNumber: number, over: Partial<PlayerView> = {}) =>
+    view({ activePlayer, turnNumber, ...over } as Partial<PlayerView>);
+
+  test("fires when the turn passes from another seat to me", () => {
+    expect(yourTurnCueDue(at("p2", 3), at("p1", 4))).toBe(true);
+  });
+
+  test("stays quiet while it simply remains my turn", () => {
+    expect(yourTurnCueDue(at("p1", 4), at("p1", 4))).toBe(false);
+  });
+
+  test("stays quiet when snapshots step back to an earlier turn (undo / replayed catch-up)", () => {
+    expect(yourTurnCueDue(at("p2", 4), at("p1", 3))).toBe(false);
+  });
+
+  test("stays quiet on the first view, during setup and once the game is won", () => {
+    expect(yourTurnCueDue(null, at("p1", 4))).toBe(false);
+    expect(yourTurnCueDue(at("p2", 0, { phase: "SETUP" }), at("p1", 0, { phase: "SETUP" }))).toBe(false);
+    expect(yourTurnCueDue(at("p2", 3), at("p1", 4, { winner: "p1" } as Partial<PlayerView>))).toBe(false);
   });
 });
