@@ -27,7 +27,8 @@ import {
   TbWalk,
 } from "react-icons/tb";
 import { ActionTile, TileKind, actionTilesFor, tileKindOf } from "@/lib/pro/actionTiles";
-import { Action, FighterId, PlayerView } from "@/lib/pro/protocol";
+import { cardChoiceGroups, isCardChoice } from "@/lib/pro/cardChoices";
+import { Action, CardInstanceId, FighterId, PlayerView } from "@/lib/pro/protocol";
 import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { isViewerOnWinningTeam } from "@/lib/pro/teams";
 import { LARGE_FIGHTER_BLURB, LARGE_REACH_CHIP } from "@/lib/pro/largeReach";
@@ -252,6 +253,9 @@ export interface ProDockProps {
    *  on the board (3 options)"), shown in the slim board-pick bar. Falls back to
    *  the dock's generic board hint. */
   boardPickHint?: string | null;
+  /** mobile only: draws a card face, so card choices (boost, commit, discard)
+   *  render as cards to pick instead of text rows. Omit to keep the rows. */
+  renderCard?: (card: CardInstanceId) => ReactNode;
 }
 
 export const ProDock = ({
@@ -296,6 +300,7 @@ export const ProDock = ({
   mobileSheetRef,
   onMobileSheetShown,
   boardPickHint = null,
+  renderCard,
 }: ProDockProps) => {
   const { layout, hydrated, update } = useDockLayout();
   const [dragging, setDragging] = useState(false);
@@ -529,6 +534,75 @@ export const ProDock = ({
   useEffect(() => {
     if (!sheetShown) setTileFilter(null);
   }, [sheetShown]);
+  // Mobile step 2: card choices as card faces. Picking a card reveals one
+  // confirm button per legal action for it (a face-up commit is its own action).
+  const cardGroups = mobile && renderCard ? cardChoiceGroups(rows.map((r) => r.action)) : [];
+  const cardKey = cardGroups.map((g) => `${g.type}:${g.cards.map((c) => c.card).join(",")}`).join("|");
+  const [pickedCard, setPickedCard] = useState<CardInstanceId | null>(null);
+  useEffect(() => {
+    setPickedCard(null);
+  }, [cardKey]);
+  const cardPickerEl = cardGroups.map((group) => {
+    const picked = group.cards.find((c) => c.card === pickedCard) ?? null;
+    return (
+      <Flex key={group.type} data-testid="pro-card-picker" direction="column" gap="0.45rem">
+        <Text fontSize="0.72rem" fontWeight={700} letterSpacing="0.08em" textTransform="uppercase" color="brand.accent">
+          {group.title}
+        </Text>
+        <Flex gap="0.5rem" overflowX="auto" pb="0.3rem" sx={{ scrollSnapType: "x mandatory", "::-webkit-scrollbar": { display: "none" } }}>
+          {group.cards.map((choice) => {
+            const isPicked = choice.card === pickedCard;
+            return (
+              <Box
+                key={choice.card}
+                as="button"
+                type="button"
+                aria-label={`Pick: ${describe(choice.actions[0])}`}
+                aria-pressed={isPicked}
+                onClick={() => setPickedCard(isPicked ? null : choice.card)}
+                flex="0 0 auto"
+                w="7.25rem"
+                sx={{ aspectRatio: "63 / 88", scrollSnapAlign: "center" }}
+                borderRadius="0.55rem"
+                outline={isPicked ? "3px solid" : "1px solid"}
+                outlineColor={isPicked ? "brand.accent" : "rgba(250, 235, 215, 0.2)"}
+                outlineOffset="2px"
+                transform={isPicked ? "translateY(-4px)" : undefined}
+                transition="transform 0.12s ease"
+              >
+                {renderCard?.(choice.card)}
+              </Box>
+            );
+          })}
+        </Flex>
+        {picked ? (
+          <Flex direction="column" gap="0.35rem">
+            {picked.actions.map((action, i) => (
+              <Button
+                key={i}
+                minH={TAP_TARGET}
+                whiteSpace="normal"
+                h="auto"
+                py="0.5rem"
+                bg={i === 0 ? "brand.accent" : "rgba(20, 8, 24, 0.65)"}
+                color={i === 0 ? "brand.surfaceDim" : "brand.parchment"}
+                border={i === 0 ? undefined : "1px solid rgba(250, 235, 215, 0.3)"}
+                _hover={{ opacity: 0.92 }}
+                onClick={() => onAction(action)}
+              >
+                {describe(action)}
+              </Button>
+            ))}
+          </Flex>
+        ) : (
+          <Text fontSize="0.75rem" color="brand.parchment" opacity={0.7}>
+            Tap a card to choose it
+          </Text>
+        )}
+      </Flex>
+    );
+  });
+
   const tileSubline = (tile: ActionTile) => {
     const n = tile.actions.length;
     if (n === 0) return "Not available";
@@ -739,6 +813,7 @@ export const ProDock = ({
       {combatPanel}
       {promptPanel}
       {tilesEl}
+      {cardPickerEl}
       <Flex direction="column" gap="0.4rem">
         {/* The synthetic relocate-arm rows (see prop doc): they close the FIRST
             band — the maneuver band, per GROUP_ORDER — so they render right under
@@ -752,7 +827,8 @@ export const ProDock = ({
           // its slot either way.
           const kind = tileKindOf(a);
           const hiddenByTiles = tiles.length > 0 && (tileFilter ? kind !== tileFilter : kind !== null);
-          if (hiddenByTiles)
+          const hiddenByCards = cardGroups.length > 0 && isCardChoice(a);
+          if (hiddenByTiles || hiddenByCards)
             return <Fragment key={i}>{relocateArmBand && i === firstManeuverBandEnd && relocateArmBand}</Fragment>;
           return (
             <Fragment key={i}>

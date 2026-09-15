@@ -177,4 +177,50 @@ describe("ProDock portrait board-pick bar (mobile step 1)", () => {
       expect(screen.queryByTestId("pro-action-tiles")).toBeNull();
     });
   });
+
+  describe("card choices as card faces (mobile step 2)", () => {
+    const BOOST_1 = { type: "BOOST_MOVE", card: "c1" } as unknown as Action;
+    const BOOST_2 = { type: "BOOST_MOVE", card: "c2" } as unknown as Action;
+    const END = { type: "END_MANEUVER" } as unknown as Action;
+    const COMMIT_DOWN = { type: "COMMIT_ATTACK_CARD", card: "c7" } as unknown as Action;
+    const COMMIT_UP = { type: "COMMIT_ATTACK_CARD", card: "c7", faceUp: true } as unknown as Action;
+    const rowsOf = (...actions: Action[]) => actions.map((action) => ({ action, hotkey: null, dividerBefore: false }));
+    const label = (a: Action) => {
+      const x = a as { type: string; card?: string; faceUp?: boolean };
+      return x.card ? `${x.type} ${x.card}${x.faceUp ? " up" : ""}` : x.type;
+    };
+    const renderCard = (card: string) => <span data-testid={`face-${card}`}>{card}</span>;
+
+    it("shows the cards to pick instead of text rows, and plays the picked one", () => {
+      const onAction = jest.fn();
+      render(<ProDock {...props({ onAction, rows: rowsOf(END, BOOST_1, BOOST_2), describe: label, renderCard })} />);
+      fireEvent.click(screen.getByTestId("pro-mobile-more"));
+
+      expect(screen.getByText("Boost your move")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "BOOST_MOVE c2" })).toBeNull();
+
+      fireEvent.click(screen.getByRole("button", { name: "Pick: BOOST_MOVE c2" }));
+      fireEvent.click(screen.getByRole("button", { name: "BOOST_MOVE c2" }));
+
+      expect(onAction).toHaveBeenCalledWith(BOOST_2);
+    });
+
+    it("offers each variant of the picked card as its own confirm button", () => {
+      const onAction = jest.fn();
+      render(<ProDock {...props({ onAction, hasPrompt: false, combatPanel: <div>COMBAT</div>, rows: rowsOf(COMMIT_DOWN, COMMIT_UP), describe: label, renderCard })} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Pick: COMMIT_ATTACK_CARD c7" }));
+      fireEvent.click(screen.getByRole("button", { name: "COMMIT_ATTACK_CARD c7 up" }));
+
+      expect(onAction).toHaveBeenCalledWith(COMMIT_UP);
+      expect(screen.getByRole("button", { name: "COMMIT_ATTACK_CARD c7" })).toBeInTheDocument();
+    });
+
+    it("keeps the plain text rows when no card renderer is given", () => {
+      render(<ProDock {...props({ rows: rowsOf(END, BOOST_1), describe: label })} />);
+      fireEvent.click(screen.getByTestId("pro-mobile-more"));
+
+      expect(screen.getByRole("button", { name: "BOOST_MOVE c1" })).toBeInTheDocument();
+    });
+  });
 });

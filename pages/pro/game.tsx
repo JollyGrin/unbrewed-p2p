@@ -6671,6 +6671,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       mobileSheetRef={mobileSheetRef}
       onMobileSheetShown={setMobileSheetShown}
       boardPickHint={prompt && !mulliganPrompt ? promptBoardHint : null}
+      renderCard={(card) => <CardFace card={resolveCard(card)} fallback={cardLabel(view.catalog, card)} />}
     />
   );
 
