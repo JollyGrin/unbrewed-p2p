@@ -245,6 +245,18 @@ export interface UseProSocketReturn {
    */
   illegalAction: boolean;
   acknowledgeIllegalAction: () => void;
+  /**
+   * Stale-view recovery (p2p #848). One ILLEGAL_ACTION is expected now and then
+   * (a late double-tap that #840's guard let through), but a client whose view
+   * has genuinely drifted from the server would keep sending stale actions and
+   * keep getting toasted — with no STATE ever arriving to fix it. After
+   * ILLEGAL_ACTION_RESYNC_AFTER consecutive rejections with no STATE in
+   * between, the hook re-sends RECONNECT on the live socket: the server rebinds
+   * the same seat and answers with a fresh authoritative STATE (the existing
+   * protocol already does this — no new message type). True from that send
+   * until the STATE lands, so the UI can show a "refreshing the board" notice.
+   */
+  resyncing: boolean;
   /** ask the server for the current public-lobby list (poll while browsing) */
   requestLobbies: () => void;
   /** list/unlist our current room in the public lobby browser */
@@ -295,6 +307,23 @@ const MAX_RETRY_DELAY_MS = 10_000;
  * unable to repeat an action.
  */
 export const ACTION_IN_FLIGHT_MS = 4_000;
+
+/**
+ * Stale-view resync (p2p #848): how many ILLEGAL_ACTION replies in a row — with
+ * no STATE in between — before the hook asks the server for a fresh view. ONE
+ * is the ordinary late double-tap (#840: the STATE for tap one landed, tap two
+ * went out against the now-old decision) and only toasts. TWO means the player
+ * acted on the same unchanged view again and the server still disagreed: the
+ * view is not the server's, and no toast will ever fix that.
+ */
+export const ILLEGAL_ACTION_RESYNC_AFTER = 2;
+/**
+ * Minimum gap between two automatic resyncs. A client that is rejected even
+ * AFTER a fresh STATE has a bug, not a stale view — keep toasting it rather
+ * than hammering the server with RECONNECTs (each one rebinds the seat and
+ * re-sends the whole view).
+ */
+export const RESYNC_COOLDOWN_MS = 10_000;
 
 /**
  * After a SERVER_RESTARTING, how long we wait for the game to come back (a STATE
@@ -503,6 +532,11 @@ export function useProSocket(
   // expires on its own after ACTION_IN_FLIGHT_MS. Keyed per payload so only a
   // REPEAT of an in-flight action is dropped (#847), never a different one.
   const actionsInFlightRef = useRef<Map<string, number>>(new Map());
+  // Stale-view resync (p2p #848): consecutive ILLEGAL_ACTION replies since the
+  // last STATE, and when the last automatic RECONNECT went out (throttle).
+  const illegalStreakRef = useRef(0);
+  const lastResyncAtRef = useRef(0);
+  const [resyncing, setResyncing] = useState(false);
 
   const send = useCallback((msg: ClientMsg) => {
     const ws = wsRef.current;
@@ -624,6 +658,8 @@ export function useProSocket(
           seatRef.current = view.you;
           hadStateRef.current = true; // we're genuinely mid-match now
           actionsInFlightRef.current.clear(); // the server answered — the next tap may send (#840)
+          illegalStreakRef.current = 0; // a fresh view: rejections start counting anew (#848)
+          setResyncing(false); // …and if we asked for one, this is it
           // v15: when an auto-forfeit actually fires, the server injects a FORFEIT
           // and this STATE shows the seat eliminated (or the whole game over) — but
           // it does NOT send an all-clear (the player is still gone). Drop such a
@@ -794,6 +830,29 @@ export function useProSocket(
           // terminal path would flag `gameLost` on the player's OWN turn with no
           // later STATE to clear it — stuck on the apology screen until reload.
           if (msg.code === "ILLEGAL_ACTION") {
+            // Stale-view resync (p2p #848). The Nth rejection in a row with no
+            // STATE between them means the board the player is acting on is not
+            // the server's; toasting again cannot fix that. Re-send RECONNECT on
+            // this same live socket: the server rebinds the seat and answers
+            // with a fresh authoritative STATE (ROOM_JOINED + STATE, exactly the
+            // post-drop path), which resets the streak. Throttled so a client
+            // that is STILL rejected after a fresh view (a bug, not staleness)
+            // degrades to the plain toast instead of a RECONNECT loop.
+            illegalStreakRef.current += 1;
+            const room = roomRef.current;
+            const token = room ? getToken(room) : null;
+            const now = Date.now();
+            const due = illegalStreakRef.current >= ILLEGAL_ACTION_RESYNC_AFTER;
+            const cooled = now - lastResyncAtRef.current >= RESYNC_COOLDOWN_MS;
+            if (due && cooled && room && token) {
+              illegalStreakRef.current = 0;
+              lastResyncAtRef.current = now;
+              resumeExpectedRef.current = true; // the answering STATE is a whole fresh view (#703)
+              setIllegalAction(false); // the "refreshing" notice supersedes the per-rejection toast
+              setResyncing(true);
+              send({ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token });
+              break;
+            }
             setIllegalAction(true);
             break;
           }
@@ -829,6 +888,8 @@ export function useProSocket(
       if (wsRef.current !== ws) return; // superseded by a newer socket
       setStatus("closed");
       actionsInFlightRef.current.clear(); // whatever was in flight is gone with the socket (#840)
+      illegalStreakRef.current = 0; // the next socket's open re-sends RECONNECT anyway (#848)
+      setResyncing(false);
       // Exponential backoff with FULL JITTER (issue #209). A server that closed us
       // for RATE_LIMITED (or a redeploy that drops every socket at once) would be
       // hammered by a fleet of clients all reconnecting on the same doubling
@@ -1099,6 +1160,7 @@ export function useProSocket(
     acknowledgeRateLimited,
     illegalAction,
     acknowledgeIllegalAction,
+    resyncing,
     requestLobbies,
     setVisibility,
     serverRestarting,

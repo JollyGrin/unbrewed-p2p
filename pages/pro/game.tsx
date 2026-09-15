@@ -4164,7 +4164,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // paces STATE batches with. Persisted per browser; OFF leaves the socket's queue
   // layer completely inert.
   const [slowMode, toggleSlowMode] = useSlowMode();
-  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, requestLobbies, setVisibility, serverRestarting, gameLost, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } =
+  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } =
     useProSocket(WS_URL, debug, slowMode);
   // Read through refs inside the log effect: adding either to that effect's deps
   // would re-run it without a new snapshot and append the last batch's lines
@@ -4957,6 +4957,25 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     toast.error(proErrorMessage("ILLEGAL_ACTION"), { id: "pro-illegal-action" });
     acknowledgeIllegalAction();
   }, [illegalAction, acknowledgeIllegalAction]);
+
+  // Stale-view resync (p2p #848): repeated rejections with no STATE in between
+  // made useProSocket ask the server for a fresh view (a RECONNECT on the live
+  // socket). Hold a "refreshing" toast until that STATE lands, then flip the
+  // same toast to a one-line all-clear so the player knows why the board moved.
+  // Mirrors the reconnecting-toast pattern above; never the loss screen.
+  const wasResyncingRef = useRef(false);
+  useEffect(() => {
+    const id = "pro-resync";
+    if (resyncing) {
+      toast.dismiss("pro-illegal-action"); // superseded — the resync IS the answer
+      toast.loading("Board out of date — refreshing from the server…", { id });
+      wasResyncingRef.current = true;
+    } else if (wasResyncingRef.current) {
+      wasResyncingRef.current = false;
+      toast.success("Board refreshed.", { id });
+    }
+    return () => toast.dismiss(id);
+  }, [resyncing]);
 
   // Move timer (issue #223): the viewer's OWN clock ran out and the server played
   // a move for them. The move itself renders through the ordinary STATE flow (the

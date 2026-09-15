@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import type { AccountState } from "../account/useAccount";
 import type { HeroCosmetics } from "../account/cosmetics";
 import { decodeCosmetics, wireCardRim } from "./cosmeticsWire";
-import { ACTION_IN_FLIGHT_MS, useProSocket } from "./useProSocket";
+import { ACTION_IN_FLIGHT_MS, ILLEGAL_ACTION_RESYNC_AFTER, RESYNC_COOLDOWN_MS, useProSocket } from "./useProSocket";
 
 // The hook reads the optional Discord account (issue #568) to decide whether to
 // claim a seat identity. Stubbed here so no test hits `/me`; the default is a
@@ -339,6 +339,135 @@ describe("useProSocket — double-tap in flight + ILLEGAL_ACTION resilience (p2p
       // Well inside ACTION_IN_FLIGHT_MS of the lost send, yet the player can act.
       act(() => hook.result.current.sendAction(MANEUVER));
       expect(actionsSent(next)).toBe(1);
+    } finally {
+      randSpy.mockRestore();
+    }
+  });
+});
+
+
+describe("useProSocket — stale-view resync after repeated ILLEGAL_ACTION (p2p #848)", () => {
+  const realWS = global.WebSocket;
+  beforeEach(() => {
+    // @ts-expect-error — swap in the fake for the test
+    global.WebSocket = FakeWebSocket;
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    jest.useFakeTimers();
+  });
+  afterEach(() => {
+    global.WebSocket = realWS;
+    FakeWebSocket.last = null;
+    jest.useRealTimers();
+  });
+
+  const bootIntoGame = () => {
+    const hook = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    act(() => ws.emit(roomJoined()));
+    act(() => ws.emit(minimalState()));
+    // The open handshake sent one RECONNECT-free hello; count from here.
+    expect(ws.sentTypes.filter((t) => t === "RECONNECT")).toHaveLength(0);
+    return { hook, ws };
+  };
+  const MANEUVER = { type: "MANEUVER", player: "p1" } as never;
+  const reconnects = (ws: FakeWebSocket) => ws.sentTypes.filter((t) => t === "RECONNECT").length;
+  const reject = (ws: FakeWebSocket) =>
+    act(() => ws.emit({ type: "ERROR", code: "ILLEGAL_ACTION", message: "not legal" }));
+  // Tap → rejected. The ERROR frees the in-flight guard, so the next tap sends.
+  const tapAndGetRejected = (hook: ReturnType<typeof bootIntoGame>["hook"], ws: FakeWebSocket) => {
+    act(() => hook.result.current.sendAction(MANEUVER));
+    reject(ws);
+  };
+
+  it("one rejection is the ordinary late double-tap: toast only, no resync (#840 unchanged)", () => {
+    const { hook, ws } = bootIntoGame();
+    tapAndGetRejected(hook, ws);
+
+    expect(hook.result.current.illegalAction).toBe(true);
+    expect(hook.result.current.resyncing).toBe(false);
+    expect(reconnects(ws)).toBe(0);
+    expect(hook.result.current.gameLost).toBe(false);
+  });
+
+  it("rejections separated by a STATE never add up to a resync", () => {
+    const { hook, ws } = bootIntoGame();
+    for (let i = 0; i < ILLEGAL_ACTION_RESYNC_AFTER + 1; i++) {
+      tapAndGetRejected(hook, ws);
+      act(() => hook.result.current.acknowledgeIllegalAction());
+      act(() => ws.emit(minimalState())); // a fresh view lands in between each time
+    }
+    expect(reconnects(ws)).toBe(0);
+    expect(hook.result.current.resyncing).toBe(false);
+  });
+
+  it("consecutive rejections with no STATE between them re-send RECONNECT once and latch `resyncing`", () => {
+    const { hook, ws } = bootIntoGame();
+    for (let i = 0; i < ILLEGAL_ACTION_RESYNC_AFTER; i++) tapAndGetRejected(hook, ws);
+
+    expect(reconnects(ws)).toBe(1);
+    const frame = JSON.parse(ws.sent[ws.sent.length - 1]);
+    expect(frame).toMatchObject({ type: "RECONNECT", roomId: "R1", token: "tok" });
+    expect(hook.result.current.resyncing).toBe(true);
+    // The resync replaces the per-rejection toast for the rejection that triggered it.
+    expect(hook.result.current.illegalAction).toBe(false);
+    expect(hook.result.current.gameLost).toBe(false);
+    expect(hook.result.current.error).toBeNull();
+
+    // The server answers a RECONNECT with ROOM_JOINED + a fresh STATE: resync done.
+    act(() => ws.emit(roomJoined()));
+    act(() => ws.emit(minimalState()));
+    expect(hook.result.current.resyncing).toBe(false);
+    expect(hook.result.current.snapshot).not.toBeNull();
+
+    // Back to a clean slate: a single later rejection is a toast again, not a resync.
+    tapAndGetRejected(hook, ws);
+    expect(reconnects(ws)).toBe(1);
+    expect(hook.result.current.illegalAction).toBe(true);
+  });
+
+  it("a client still rejected right after a fresh view is throttled to the toast, then may resync again", () => {
+    const { hook, ws } = bootIntoGame();
+    for (let i = 0; i < ILLEGAL_ACTION_RESYNC_AFTER; i++) tapAndGetRejected(hook, ws);
+    expect(reconnects(ws)).toBe(1);
+    act(() => ws.emit(roomJoined()));
+    act(() => ws.emit(minimalState()));
+
+    // Inside the cooldown: the streak fills again but no second RECONNECT goes out.
+    act(() => jest.advanceTimersByTime(RESYNC_COOLDOWN_MS - 1));
+    for (let i = 0; i < ILLEGAL_ACTION_RESYNC_AFTER; i++) tapAndGetRejected(hook, ws);
+    expect(reconnects(ws)).toBe(1);
+    expect(hook.result.current.resyncing).toBe(false);
+    expect(hook.result.current.illegalAction).toBe(true); // the plain notice still fires
+
+    // Once the cooldown has passed, the next rejection in the streak resyncs again.
+    act(() => jest.advanceTimersByTime(2));
+    tapAndGetRejected(hook, ws);
+    expect(reconnects(ws)).toBe(2);
+    expect(hook.result.current.resyncing).toBe(true);
+  });
+
+  it("a socket close mid-resync drops the latch — the next socket's open re-syncs anyway", () => {
+    const randSpy = jest.spyOn(Math, "random").mockReturnValue(0.5);
+    try {
+      const { hook, ws } = bootIntoGame();
+      for (let i = 0; i < ILLEGAL_ACTION_RESYNC_AFTER; i++) tapAndGetRejected(hook, ws);
+      expect(hook.result.current.resyncing).toBe(true);
+
+      act(() => ws.close());
+      expect(hook.result.current.resyncing).toBe(false);
+      act(() => jest.advanceTimersByTime(501));
+      const next = FakeWebSocket.last!;
+      expect(next).not.toBe(ws);
+      act(() => next.open());
+      expect(next.sentTypes).toContain("RECONNECT"); // the ordinary post-drop path
+      act(() => next.emit(roomJoined()));
+      act(() => next.emit(minimalState()));
+      // Fresh socket, fresh streak: one rejection is a toast, not a resync.
+      tapAndGetRejected(hook, next);
+      expect(reconnects(next)).toBe(1);
+      expect(hook.result.current.illegalAction).toBe(true);
     } finally {
       randSpy.mockRestore();
     }
