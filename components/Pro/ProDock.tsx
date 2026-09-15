@@ -587,7 +587,7 @@ export const ProDock = ({
                 aria-pressed={isPicked}
                 onClick={() => setPickedCard(isPicked ? null : choice.card)}
                 flex="0 0 auto"
-                w={mobile === "rail" ? "6rem" : "7.25rem"}
+                w={mobile === "rail" ? "4.75rem" : "7.25rem"}
                 borderRadius="0.55rem"
                 outline={isPicked ? "3px solid" : "1px solid"}
                 outlineColor={isPicked ? "brand.accent" : "rgba(250, 235, 215, 0.2)"}
@@ -609,7 +609,8 @@ export const ProDock = ({
         <Flex
           direction="column"
           gap="0.35rem"
-          position="sticky"
+          // The short landscape rail has no room to pin it over the cards.
+          position={mobile === "rail" ? "static" : "sticky"}
           bottom={0}
           // Above the lifted (transformed) picked card, and opaque, so the card
           // scrolling under it never shows through the buttons.
@@ -646,9 +647,11 @@ export const ProDock = ({
               ))}
             </Flex>
           ) : (
-            <Text fontSize="0.75rem" color="brand.parchment" opacity={0.7}>
-              Tap a card to choose it · hold to read it
-            </Text>
+            mobile === "portrait" && (
+              <Text fontSize="0.75rem" color="brand.parchment" opacity={0.7}>
+                Tap a card to choose it · hold to read it
+              </Text>
+            )
           )}
           {decline && (
             <Button
@@ -874,7 +877,7 @@ export const ProDock = ({
           {mobile ? touchCopy(highlightHint) : highlightHint}
         </Text>
       )}
-      {boostHint && (
+      {boostHint && !cardGroups.some((g) => g.type === "BOOST_MOVE") && (
         <Text fontSize="0.75rem" color="brand.parchment" opacity={0.85} textShadow="0 1px 3px rgba(0,0,0,0.6)">
           {boostHint}
         </Text>
