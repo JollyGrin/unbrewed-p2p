@@ -188,10 +188,13 @@ export interface UseProSocketReturn {
     itemsEnabled?: boolean
   ) => void;
   joinRoom: (roomId: string, heroId: string) => void;
-  sendAction: (action: Action) => void;
+  /** Sends one ACTION; false when it did NOT go out (no room / socket closed /
+   *  the same action is already in flight — #840, #847). */
+  sendAction: (action: Action) => boolean;
   /** `path` (issue #654): the route walked on a CHOOSE_SPACE move prompt that
-   *  carried a `moveGraph`. Omitted = the server's canonical path (unchanged). */
-  respondToPrompt: (promptId: string, optionId: string, path?: SpaceId[]) => void;
+   *  carried a `moveGraph`. Omitted = the server's canonical path (unchanged).
+   *  Returns whether the answer went out — same boolean contract as sendAction. */
+  respondToPrompt: (promptId: string, optionId: string, path?: SpaceId[]) => boolean;
   /**
    * Undo (protocol v11). `requestUndo` asks the server to rewind our last
    * discrete action, pending the opponent's consent; `respondToUndo` answers an
@@ -281,11 +284,15 @@ export interface UseProSocketReturn {
 
 const MAX_RETRY_DELAY_MS = 10_000;
 /**
- * In-flight action guard (p2p #840): once an ACTION is on the wire, further
- * ACTIONs are dropped until the server answers (STATE or ERROR). A thumb-bounce
- * double-tap on a one-tap tile otherwise sends the same action twice and the
- * second is ILLEGAL_ACTION. The window is time-boxed so a reply that never
- * comes (a silently dropped frame) can't leave the player unable to act.
+ * In-flight action guard (p2p #840, narrowed in #847): once an ACTION is on the
+ * wire, a REPEAT of that same action (identical payload) is dropped until the
+ * server answers (STATE or ERROR). A thumb-bounce double-tap on a one-tap tile
+ * otherwise sends the same action twice and the second is ILLEGAL_ACTION. A
+ * genuinely different action sent while one is in flight goes out normally —
+ * the socket preserves order, so the server applies both in sequence (two rapid
+ * hotkeys, tap-then-tap on two different tiles). The window is time-boxed so a
+ * reply that never comes (a silently dropped frame) can't leave the player
+ * unable to repeat an action.
  */
 export const ACTION_IN_FLIGHT_MS = 4_000;
 
@@ -490,9 +497,12 @@ export function useProSocket(
   // Illegal-action latch (p2p #840): ERROR{ ILLEGAL_ACTION } with the socket
   // open. A light notice, never the loss path — the view is intact.
   const [illegalAction, setIllegalAction] = useState(false);
-  // When our last ACTION went out (0 = none in flight). Cleared by the server's
-  // reply (STATE or ERROR) and by a socket close; see ACTION_IN_FLIGHT_MS.
-  const actionSentAtRef = useRef(0);
+  // The ACTIONs on the wire since the server last answered, keyed by their
+  // JSON payload → the ms they went out (empty = none in flight). Cleared by
+  // the server's reply (STATE or ERROR) and by a socket close; each entry also
+  // expires on its own after ACTION_IN_FLIGHT_MS. Keyed per payload so only a
+  // REPEAT of an in-flight action is dropped (#847), never a different one.
+  const actionsInFlightRef = useRef<Map<string, number>>(new Map());
 
   const send = useCallback((msg: ClientMsg) => {
     const ws = wsRef.current;
@@ -613,7 +623,7 @@ export function useProSocket(
           youRef.current = view.you;
           seatRef.current = view.you;
           hadStateRef.current = true; // we're genuinely mid-match now
-          actionSentAtRef.current = 0; // the server answered — the next tap may send (#840)
+          actionsInFlightRef.current.clear(); // the server answered — the next tap may send (#840)
           // v15: when an auto-forfeit actually fires, the server injects a FORFEIT
           // and this STATE shows the seat eliminated (or the whole game over) — but
           // it does NOT send an all-clear (the player is still gone). Drop such a
@@ -748,7 +758,7 @@ export function useProSocket(
           // in-flight latch would otherwise stay armed and make the next
           // OPPONENT batch look like ours — flushing a spotlight mid-read.
           ownActionRef.current = false;
-          actionSentAtRef.current = 0; // …and the in-flight guard (#840): a rejected action is answered
+          actionsInFlightRef.current.clear(); // …and the in-flight guard (#840): a rejected action is answered
           // Undo couldn't be honored (nothing to undo, or one already pending) —
           // a benign race despite canUndo-gating (double-request, or the undo
           // boundary shifted under us). Clear our pending-undo UI and surface a
@@ -818,7 +828,7 @@ export function useProSocket(
     ws.onclose = () => {
       if (wsRef.current !== ws) return; // superseded by a newer socket
       setStatus("closed");
-      actionSentAtRef.current = 0; // whatever was in flight is gone with the socket (#840)
+      actionsInFlightRef.current.clear(); // whatever was in flight is gone with the socket (#840)
       // Exponential backoff with FULL JITTER (issue #209). A server that closed us
       // for RATE_LIMITED (or a redeploy that drops every socket at once) would be
       // hammered by a fleet of clients all reconnecting on the same doubling
@@ -947,57 +957,71 @@ export function useProSocket(
     [send, clearResumeDeadline]
   );
 
-  // In-flight guard (p2p #840): lets exactly one ACTION through per server
-  // reply. Arms the guard as a side effect when it says yes.
-  const claimActionSlot = useCallback(() => {
+  // In-flight guard (p2p #840, narrowed in #847): lets an ACTION through unless
+  // an IDENTICAL one is already on the wire awaiting the server's reply. Arms
+  // the guard for that payload as a side effect when it says yes.
+  const claimActionSlot = useCallback((action: Action) => {
     // Nothing goes out on a socket that isn't open (see `send`), so don't arm
     // the guard for a frame that was never sent.
     if (wsRef.current?.readyState !== WebSocket.OPEN) return false;
     const now = Date.now();
-    if (actionSentAtRef.current && now - actionSentAtRef.current < ACTION_IN_FLIGHT_MS) return false;
-    actionSentAtRef.current = now;
+    const inFlight = actionsInFlightRef.current;
+    // Time-box each entry on its own: a reply that never comes frees only the
+    // action it was for, and never blocks a different one.
+    for (const [key, sentAt] of inFlight) if (now - sentAt >= ACTION_IN_FLIGHT_MS) inFlight.delete(key);
+    // Every caller builds the action the same way each time (a tile's offered
+    // action, a prompt answer), so a double-tap is byte-identical JSON; a
+    // different action never collides.
+    const key = JSON.stringify(action);
+    if (inFlight.has(key)) return false;
+    inFlight.set(key, now);
     return true;
   }, []);
 
+  // Sends one ACTION. Returns whether the frame actually went out: false when
+  // there is no room, the socket isn't open, or the SAME action is already in
+  // flight (#840) — so a caller's optimistic UI (a move tween, closing the hand
+  // drawer, clearing a selection) can skip running for a send that never
+  // happened (#847).
   const sendAction = useCallback(
-    (action: Action) => {
-      if (!roomRef.current) return;
-      // A second tap before the first one's STATE would only ever be rejected
-      // as ILLEGAL_ACTION — drop it here instead (#840).
-      if (!claimActionSlot()) return;
+    (action: Action): boolean => {
+      if (!roomRef.current) return false;
+      // A repeat tap before the first one's STATE would only ever be rejected
+      // as ILLEGAL_ACTION — drop it here instead (#840). A DIFFERENT action
+      // goes out behind it, in order (#847).
+      if (!claimActionSlot(action)) return false;
       // Move timer (issue #223): the viewer acted within their window, so a
       // later supersede of this clock is a normal move, never a timeout.
       if (ownClockRef.current) ownClockRef.current.acted = true;
       ownActionRef.current = true; // slow mode (#703): our own result never waits
       send({ v: PROTOCOL_VERSION, type: "ACTION", roomId: roomRef.current, action });
+      return true;
     },
     [send, claimActionSlot]
   );
 
   // Protocol v1: prompt answers are a regular action through the single ACTION
-  // path (the server enumerates them in legalActions too).
+  // path (the server enumerates them in legalActions too). Same boolean
+  // contract as sendAction.
   const respondToPrompt = useCallback(
-    (promptId: string, optionId: string, path?: SpaceId[]) => {
-      if (!roomRef.current || !youRef.current) return;
-      if (!claimActionSlot()) return; // same double-tap guard as sendAction (#840)
+    (promptId: string, optionId: string, path?: SpaceId[]): boolean => {
+      if (!roomRef.current || !youRef.current) return false;
+      const action: Action = {
+        type: "RESPOND_PROMPT",
+        player: youRef.current,
+        promptId,
+        optionId,
+        // Incremental EFFECT movement (#654 ↔ engine #411): the walked route
+        // rides along only when there IS one, so every other prompt answer —
+        // and every server that never sends a prompt `moveGraph` — keeps the
+        // exact wire shape it has always had.
+        ...(path && path.length > 0 ? { path } : {}),
+      };
+      if (!claimActionSlot(action)) return false; // same double-tap guard as sendAction (#840)
       if (ownClockRef.current) ownClockRef.current.acted = true; // acted in-window (v#223)
       ownActionRef.current = true; // slow mode (#703): our own result never waits
-      send({
-        v: PROTOCOL_VERSION,
-        type: "ACTION",
-        roomId: roomRef.current,
-        action: {
-          type: "RESPOND_PROMPT",
-          player: youRef.current,
-          promptId,
-          optionId,
-          // Incremental EFFECT movement (#654 ↔ engine #411): the walked route
-          // rides along only when there IS one, so every other prompt answer —
-          // and every server that never sends a prompt `moveGraph` — keeps the
-          // exact wire shape it has always had.
-          ...(path && path.length > 0 ? { path } : {}),
-        },
-      });
+      send({ v: PROTOCOL_VERSION, type: "ACTION", roomId: roomRef.current, action });
+      return true;
     },
     [send, claimActionSlot]
   );
