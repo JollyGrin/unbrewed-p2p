@@ -601,9 +601,12 @@ export const ProDock = ({
           gap="0.35rem"
           position="sticky"
           bottom={0}
-          zIndex={1}
+          // Above the lifted (transformed) picked card, and opaque, so the card
+          // scrolling under it never shows through the buttons.
+          zIndex={3}
           py="0.35rem"
-          bg="rgba(38, 20, 43, 0.97)"
+          bg="#26142b"
+          boxShadow="0 -8px 12px -6px rgba(12, 4, 16, 0.8)"
         >
           {picked ? (
             <Flex direction="column" gap="0.35rem">
