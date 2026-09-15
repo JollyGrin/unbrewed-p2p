@@ -891,10 +891,11 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     // tier `lab`. PAIRED with the engine's `feature/narrator` branch
     // (b6958dc, deck-only conversion): this client PR is DRAFT against
     // feature/narrator and pair-merges with it, so the deck only appears on
-    // the deployed roster once both halves land on main. Art: 13 faces
-    // self-hosted under public/evergreen-decks/art/narrator (#733/#734 plus
-    // one payload mirror); the cardback is the author's own, from the deck's
-    // appearance block.
+    // the deployed roster once both halves land on main. Art: 13 faces plus
+    // the cardback self-hosted under public/evergreen-decks/art/narrator
+    // (#733/#734 plus one payload mirror and the cardback from the deck's
+    // appearance block) — repo-relative so the tile renders on localhost and
+    // preview builds.
     id: "5jBEXsA55e",
     name: "The Narrator",
     hero: "The Narrator",
@@ -903,6 +904,8 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     highlightColour: "#000ecc",
     lab: true,
     tier: "lab",
-    cardbackUrl: "https://i.imgur.com/V4pyVQc.png",
+    // Repo-relative (Kenshiro/Skull Kid/Cecil/Boba/Ripley precedent): the
+    // author's own cardback, mirrored from the deck's appearance block.
+    cardbackUrl: "/evergreen-decks/art/narrator/cardback.webp",
   },
 ];

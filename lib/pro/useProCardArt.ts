@@ -316,16 +316,16 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // NARRATOR_OBSERVING flag (per-player bookkeeping — no HERO_STATE_FLAGS
   // entry, nothing board-visible), PROTOCOL_VERSION unchanged.
   //
-  // ART: 13 faces self-hosted under public/evergreen-decks/art/narrator/,
-  // wired as imageUrl only (loose illustrations the template frames; Leon
-  // precedent). 12 are the author's artgen run mirrored by #733/#734 — note
-  // `the-plays-the-thing.webp` is *The Story's The Thing*'s render (the
-  // artgen deck's title drift; its phantom Rising-Action-versatile variant is
-  // unused) — plus *The Climax*, which the artgen run skipped, mirrored from
-  // the deck payload's own imgur render with the #734 treatment (cwebp -q 80,
-  // 1600w). The cardback is the author's own, on the deck's appearance block
-  // (imgur hotlink — #733 scoped cardback assets out), passed through
-  // --cardback to the POPULAR_DECKS tile.
+  // ART: 14 files self-hosted under public/evergreen-decks/art/narrator/ —
+  // 13 faces wired as imageUrl only (loose illustrations the template frames;
+  // Leon precedent) plus the cardback. 12 faces are the author's artgen run
+  // mirrored by #733/#734 — note `the-plays-the-thing.webp` is *The Story's
+  // The Thing*'s render (the artgen deck's title drift) — plus *The Climax*,
+  // which the artgen run skipped, mirrored from the deck payload's own imgur
+  // render with the #734 treatment (cwebp -q 80, 1600w); the drop's phantom
+  // rising-action-versatile.webp was deleted, never wired. The cardback is
+  // the author's own, mirrored from the deck's appearance block (imgur), so
+  // the whole deck is repo-relative and remote-free at runtime.
   "the-narrator": "5jBEXsA55e",
 };
 
