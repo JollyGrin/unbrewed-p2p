@@ -854,9 +854,10 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
   },
   {
     // Leon S. Kennedy — unmatched.cards deck NQ5XP, Grovelsey's Resident Evil 4
-    // deck (issue #780 ↔ engine #566). Served at tier `lab`. Frozen by the author
-    // after the lab playtest (issue #808 ↔ engine #579, 2026-09-13: LE5 -
-    // submachine Gun, Shop - BlackTail Handgun). FINAL art: all 15 card
+    // deck (issue #780 ↔ engine #566). Graduated from the lab 2026-09-15
+    // alongside the engine's tier promotion (engine #600 — a tier-only change).
+    // Frozen by the author after the lab playtest (issue #808 ↔ engine #579,
+    // 2026-09-13: LE5 - submachine Gun, Shop - BlackTail Handgun). FINAL art: all 15 card
     // illustrations and the cardback are the author's own, published on their
     // the-unmatched.club deck (hero 14131 — now the canonical source; the
     // unmatched.cards NQ5XP payload is stale) and mirrored into
@@ -877,8 +878,6 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     likes: 0,
     // The deck's own borderColour from the author's appearance block.
     highlightColour: "#273d2c",
-    lab: true,
-    tier: "lab",
     // Repo-relative (Kenshiro/Skull Kid/Cecil/Boba/Ripley precedent): the author's
     // own cardback from the club deck, self-hosted so the tile renders on
     // localhost and preview builds.
