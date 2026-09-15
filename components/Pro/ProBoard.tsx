@@ -2335,6 +2335,10 @@ export const ProBoard = ({
         userSelect="none"
         transform={zoom.transform}
         transformOrigin={zoom.transformOrigin}
+        // Programmatic view moves (auto-focus, its release, reset) ease; a
+        // gesture clears this so a drag tracks the finger exactly (#835).
+        transition={zoom.transition}
+        sx={zoom.transition ? { "@media (prefers-reduced-motion: reduce)": { transition: "none" } } : undefined}
       >
       <Box
         as="img"

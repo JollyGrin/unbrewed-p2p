@@ -23,13 +23,19 @@ import {
   useRef,
   useState,
 } from "react";
-import { ScreenBox, focusTransform, shouldAutoFocus } from "./touchTargets";
+import { ScreenBox, focusTransform, rebaseBox, shouldAutoFocus } from "./touchTargets";
 
 /** Margin around auto-focused picks, as a multiple of one pick's on-screen diameter. */
 const FOCUS_PADDING_PICKS = 0.75;
 /** Auto-focus never zooms past picks rendering at this size (px): big enough
  *  for a thumb, small enough to keep the fighters around them on screen. */
 export const FOCUS_MAX_PICK_PX = 64;
+/**
+ * How a PROGRAMMATIC view change (auto-focus, its release, "reset view") moves:
+ * a short ease-out, so the board glides onto the picks instead of hard-snapping
+ * (#835). Gestures never ease — a drag must track the finger exactly.
+ */
+export const VIEW_TRANSITION = "transform 320ms cubic-bezier(0.22, 1, 0.36, 1)";
 
 /** Floor for a USER zoom-out gesture. */
 export const ZOOM_MIN = 0.5;
@@ -108,6 +114,9 @@ export interface ZoomPan {
   /** put on the shrink-wrap frame; `undefined` when disabled (no transform at all) */
   transform: string | undefined;
   transformOrigin: string | undefined;
+  /** CSS `transition` for the frame: VIEW_TRANSITION while the last view change
+   *  was programmatic, `undefined` (snap) while it was a gesture or a re-fit */
+  transition: string | undefined;
   /** pointer/click handlers for the outer container (empty object when disabled) */
   handlers: {
     onPointerDown?: (e: ReactPointerEvent) => void;
@@ -168,6 +177,10 @@ export function useZoomPan(
   // gesture it does NOT set `touched`, but it does stop resize re-fits from
   // yanking the board back out mid-decision.
   const autoFocused = useRef(false);
+  // Whether the frame should EASE to the current transform. Set by the
+  // programmatic moves (focus / release / reset) and cleared by any gesture or
+  // re-fit, so a pan never lags behind the finger.
+  const [eased, setEased] = useState(false);
   // The live transform for callbacks that must not change identity on every
   // pan frame (focusOn is an effect dependency in the board).
   const stateRef = useRef(state);
@@ -213,7 +226,10 @@ export function useZoomPan(
       if (!next) return;
       fitScaleRef.current = next.scale;
       setFit((prev) => (same(prev, next) ? prev : next));
-      if (!touched.current && !autoFocused.current) setState((prev) => (same(prev, next) ? prev : next));
+      if (!touched.current && !autoFocused.current && !same(stateRef.current, next)) {
+        setEased(false);
+        setState(next);
+      }
     };
     apply();
     const ro = new ResizeObserver(apply);
@@ -258,6 +274,7 @@ export function useZoomPan(
       if (insideRegionPanel(e.target)) return;
       e.preventDefault();
       touched.current = true;
+      setEased(false);
       zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * WHEEL_ZOOM_SPEED));
     };
     el.addEventListener("wheel", onWheel, { passive: false });
@@ -279,6 +296,7 @@ export function useZoomPan(
     if (next) {
       fitScaleRef.current = next.scale;
       setFit(next);
+      setEased(false);
       setState(next);
     }
   }, [rotated, computeFit]);
@@ -291,6 +309,7 @@ export function useZoomPan(
       touched.current = false;
       autoFocused.current = false;
       fitScaleRef.current = ZOOM_MIN;
+      setEased(false);
       setState(IDENTITY);
       setFit(IDENTITY);
     }
@@ -301,41 +320,54 @@ export function useZoomPan(
     autoFocused.current = false;
     const next = computeFit() ?? fit;
     fitScaleRef.current = next.scale;
+    setEased(true);
     setState(next);
   }, [computeFit, fit]);
 
   const focusOn = useCallback(
     (clientBox: ScreenBox, pickDiameterPx: number) => {
       const c = containerRef.current;
-      if (!enabled || !c || touched.current) return;
+      const f = frameRef.current;
+      if (!enabled || !c || !f || touched.current) return;
       const rect = c.getBoundingClientRect();
-      const box = {
-        left: clientBox.left - rect.left,
-        top: clientBox.top - rect.top,
-        right: clientBox.right - rect.left,
-        bottom: clientBox.bottom - rect.top,
-      };
+      const current = stateRef.current;
+      // The picks were measured from the DOM, which may still be easing towards
+      // `current` (a new prompt mid-transition): re-express them as they will
+      // sit once the frame lands there, so the focus math never chases a frame
+      // that is still moving.
+      const live = f.getBoundingClientRect();
+      const rebased = rebaseBox(
+        {
+          left: clientBox.left - rect.left,
+          top: clientBox.top - rect.top,
+          right: clientBox.right - rect.left,
+          bottom: clientBox.bottom - rect.top,
+        },
+        { left: live.left - rect.left, top: live.top - rect.top, width: live.width, height: live.height },
+        {
+          left: current.tx,
+          top: current.ty,
+          width: (rotated ? f.offsetHeight : f.offsetWidth) * current.scale,
+          height: (rotated ? f.offsetWidth : f.offsetHeight) * current.scale,
+        }
+      );
+      const box = rebased.box;
+      const pickPx = pickDiameterPx * rebased.factor;
       const avail = {
         left,
         top,
         width: Math.max(c.clientWidth - left - right, 1),
         height: Math.max(c.clientHeight - top - bottom, 1),
       };
-      // Judge the picks as they would sit at the RESTING fit: once zoomed in,
-      // every pick looks big and spread, so judging the live view would keep the
+      // Judge the picks at the size they would render at the RESTING fit: once
+      // zoomed in, every pick looks big, so judging the live view would keep the
       // board zoomed onto a stale spot when the next prompt's picks are elsewhere.
-      const current = stateRef.current;
       const rest = computeFit() ?? fit;
       const k = rest.scale / current.scale;
-      const atRest = {
-        left: rest.tx + k * (box.left - current.tx),
-        right: rest.tx + k * (box.right - current.tx),
-        top: rest.ty + k * (box.top - current.ty),
-        bottom: rest.ty + k * (box.bottom - current.ty),
-      };
-      if (!shouldAutoFocus({ box: atRest, avail, pickDiameterPx: pickDiameterPx * k })) {
+      if (!shouldAutoFocus(pickPx * k)) {
         if (!autoFocused.current) return;
         autoFocused.current = false;
+        setEased(true);
         setState((prev) => (same(prev, rest) ? prev : rest));
         return;
       }
@@ -344,16 +376,17 @@ export function useZoomPan(
         current,
         box,
         avail,
-        padding: pickDiameterPx * FOCUS_PADDING_PICKS,
+        padding: pickPx * FOCUS_PADDING_PICKS,
         minScale: fitScaleRef.current,
         maxScale: Math.max(
           fitScaleRef.current,
-          Math.min(ZOOM_MAX, (current.scale * FOCUS_MAX_PICK_PX) / Math.max(pickDiameterPx, 1))
+          Math.min(ZOOM_MAX, (current.scale * FOCUS_MAX_PICK_PX) / Math.max(pickPx, 1))
         ),
       });
+      setEased(true);
       setState((prev) => (same(prev, next) ? prev : next));
     },
-    [enabled, top, right, bottom, left, computeFit, fit]
+    [enabled, frameRef, rotated, top, right, bottom, left, computeFit, fit]
   );
 
   const releaseFocus = useCallback(() => {
@@ -361,6 +394,7 @@ export function useZoomPan(
     autoFocused.current = false;
     if (touched.current) return;
     const next = computeFit() ?? fit;
+    setEased(true);
     setState((prev) => (same(prev, next) ? prev : next));
   }, [computeFit, fit]);
 
@@ -416,6 +450,7 @@ export function useZoomPan(
         pinchDist.current = dist;
         didPan.current = true;
         touched.current = true;
+        setEased(false);
         return;
       }
 
@@ -427,6 +462,7 @@ export function useZoomPan(
       if (panning.current) {
         didPan.current = true;
         touched.current = true;
+        setEased(false);
         // translate() sits outside scale() in the transform, so a screen-pixel
         // drag maps 1:1 to the translate regardless of zoom. The result is
         // clamped so a chunk of the board always stays on screen — with the
@@ -484,6 +520,7 @@ export function useZoomPan(
         }`
       : undefined,
     transformOrigin: enabled ? "0 0" : undefined,
+    transition: enabled && eased ? VIEW_TRANSITION : undefined,
     handlers: enabled ? { onPointerDown, onClickCapture } : {},
     // The live scale as a NUMBER, for callers that need to know how big a piece
     // of the board actually lands on screen (the cosmetic rim retires below a
