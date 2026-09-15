@@ -6694,7 +6694,9 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       hasPrompt={!!prompt}
       rows={dockActionRows}
       soleAction={sole}
-      describe={(a) => describeAction(view.catalog, a, { nameOf, attackerBadge, itemForSpace: liveItemForSpace })}
+      describe={(a) =>
+        describeAction(view.catalog, a, { nameOf, attackerBadge, itemForSpace: liveItemForSpace, attachItem: attachItemContext })
+      }
       isExtendedReach={isExtendedReach}
       rangePurchaseChip={rangePurchaseChip}
       fighterFace={fighterFace}

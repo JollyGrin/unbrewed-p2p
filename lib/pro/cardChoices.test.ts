@@ -27,4 +27,19 @@ describe("cardChoiceGroups", () => {
 
     expect(cardChoiceGroups([down, up])[0].cards).toEqual([{ card: "c7", actions: [down, up] }]);
   });
+
+  test("keeps the plain and the item-attach commit of one defense card together, in the order offered (#841)", () => {
+    // The picker renders one confirm button per action, so BOTH must survive the
+    // grouping — and it's describeAction's job to make them read differently.
+    const plain = a("COMMIT_DEFENSE_CARD", { card: "c3" });
+    const withItem = a("COMMIT_DEFENSE_CARD", { card: "c3", attachItem: true });
+    const other = a("COMMIT_DEFENSE_CARD", { card: "c4" });
+
+    expect(cardChoiceGroups([plain, withItem, other])).toEqual([
+      { type: "COMMIT_DEFENSE_CARD", title: "Choose your defense card", cards: [
+        { card: "c3", actions: [plain, withItem] },
+        { card: "c4", actions: [other] },
+      ] },
+    ]);
+  });
 });
