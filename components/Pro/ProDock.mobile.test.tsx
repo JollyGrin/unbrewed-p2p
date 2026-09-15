@@ -6,7 +6,8 @@ import "@testing-library/jest-dom";
 import { createRef } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { ProDock, ProDockProps, TAP_LATCH_MS } from "./ProDock";
-import { Action, PlayerView } from "@/lib/pro/protocol";
+import { Action, CardMeta, PlayerView } from "@/lib/pro/protocol";
+import { describeAction } from "@/lib/pro/actionDock";
 
 const view = { you: "p1", activePlayer: "p1", phase: "PLAY", turnNumber: 3, actionsRemaining: 2, winner: null,
   combat: null, canUndo: false, catalog: {}, players: [{ id: "p1" }, { id: "p2" }], fighters: [], self: {},
@@ -214,6 +215,37 @@ describe("ProDock portrait board-pick bar (mobile step 1)", () => {
 
       expect(onAction).toHaveBeenCalledWith(COMMIT_UP);
       expect(screen.getByRole("button", { name: "COMMIT_ATTACK_CARD c7" })).toBeInTheDocument();
+    });
+
+    it("tells a plain defense apart from its item-attach twin, and only the second spends the item (#841)", () => {
+      // Real describeAction, as the page wires it: the picker is the only way to
+      // answer a defense on phones, so the two confirm buttons must read differently.
+      const catalog: Record<string, CardMeta> = { "k/clobber": { title: "Clobber", type: "versatile", value: 3, boost: 1 } };
+      const PLAIN = { type: "COMMIT_DEFENSE_CARD", player: "p1", card: "k/clobber#1" } as unknown as Action;
+      const WITH_ITEM = { type: "COMMIT_DEFENSE_CARD", player: "p1", card: "k/clobber#1", attachItem: true } as unknown as Action;
+      const onAction = jest.fn();
+      const describe = (a: Action) =>
+        describeAction(catalog, a, { nameOf: (id) => id, attachItem: { label: "Shield", value: 1 } });
+      render(<ProDock {...props({ onAction, hasPrompt: false, combatPanel: <div>COMBAT</div>, rows: rowsOf(PLAIN, WITH_ITEM), describe, renderCard })} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Pick: Defend with Clobber (3/1)" }));
+      const picker = within(screen.getByTestId("pro-card-picker"));
+      const plainButton = picker.getByRole("button", { name: "Defend with Clobber (3/1)" });
+      const itemButton = picker.getByRole("button", { name: "Defend with Clobber (3/1) + Shield (+1)" });
+      expect(plainButton).not.toBe(itemButton);
+
+      jest.useFakeTimers();
+      try {
+        fireEvent.click(plainButton);
+        expect(onAction).toHaveBeenLastCalledWith(PLAIN);
+        // Past the double-tap latch (#840): in real play a STATE lands between
+        // the two taps and resets it; here nothing does.
+        jest.advanceTimersByTime(TAP_LATCH_MS + 1);
+        fireEvent.click(itemButton);
+        expect(onAction).toHaveBeenLastCalledWith(WITH_ITEM);
+      } finally {
+        jest.useRealTimers();
+      }
     });
 
     it("keeps the plain text rows when no card renderer is given", () => {
