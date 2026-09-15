@@ -8,7 +8,7 @@
  */
 import { MutableRefObject, useRef } from "react";
 import { act, render, screen } from "@testing-library/react";
-import { FIT_MIN, FOCUS_MAX_PICK_PX, ZOOM_MAX, ZOOM_MIN, ZoomPanInset, useZoomPan } from "./useZoomPan";
+import { FIT_MIN, FOCUS_MAX_PICK_PX, VIEW_TRANSITION, ZOOM_MAX, ZOOM_MIN, ZoomPanInset, useZoomPan } from "./useZoomPan";
 
 // jsdom has no ResizeObserver; the hook only needs "call me once on observe",
 // because every later size change in these tests is explicit.
@@ -185,9 +185,28 @@ describe("useZoomPan pan clamping (issue #450)", () => {
   });
 });
 
+const rectEdges = (r: { left: number; top: number; width: number; height: number }) => ({
+  x: r.left,
+  y: r.top,
+  right: r.left + r.width,
+  bottom: r.top + r.height,
+  toJSON: () => r,
+});
+
 /** Harness variant exposing the auto-focus API (mobile step 1). */
 type Box = { left: number; top: number; right: number; bottom: number };
-const FocusHarness = ({ box, pick, next }: { box: Box; pick: number; next?: { box: Box; pick: number } }) => {
+const FocusHarness = ({
+  box,
+  pick,
+  next,
+  liveFrame,
+}: {
+  box: Box;
+  pick: number;
+  next?: { box: Box; pick: number };
+  /** where the frame's DOM rect reports itself (jsdom: 0×0 = "unmeasured") */
+  liveFrame?: { left: number; top: number; width: number; height: number };
+}) => {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const zoom = useZoomPan(true, frameRef);
   return (
@@ -203,11 +222,13 @@ const FocusHarness = ({ box, pick, next }: { box: Box; pick: number; next?: { bo
         data-testid="frame"
         ref={(el) => {
           if (el) size(el, "offset", BOARD.w, BOARD.h);
+          if (el && liveFrame) el.getBoundingClientRect = () => ({ ...liveFrame, ...rectEdges(liveFrame) }) as DOMRect;
           frameRef.current = el;
         }}
-        style={{ transform: zoom.transform, transformOrigin: zoom.transformOrigin }}
+        style={{ transform: zoom.transform, transformOrigin: zoom.transformOrigin, transition: zoom.transition }}
       />
       <button onClick={() => zoom.focusOn(box, pick)}>focus</button>
+      {zoom.active && <button onClick={zoom.reset}>reset view</button>}
       {next && <button onClick={() => zoom.focusOn(next.box, next.pick)}>focus next</button>}
       <button onClick={zoom.releaseFocus}>release</button>
     </div>
@@ -298,6 +319,62 @@ describe("useZoomPan auto-focus on board picks (mobile step 1)", () => {
     expect(back.scale).toBeCloseTo(fit.scale, 3);
     expect(back.tx).toBeCloseTo(fit.tx, 1);
     expect(back.ty).toBeCloseTo(fit.ty, 1);
+  });
+
+  it("does not zoom onto touch-sized picks that only span a corner of the board (iPad landscape, #835)", () => {
+    // A maneuver's 2-4 spaces beside the fighter, already ~50px on screen.
+    render(<FocusHarness box={{ left: 100, top: 100, right: 300, bottom: 300 }} pick={50} />);
+    const fit = readTransform();
+
+    act(() => screen.getByText("focus").click());
+
+    expect(readTransform()).toEqual(fit);
+    expect(screen.getByTestId("frame").style.transition).toBe("");
+  });
+
+  it("eases programmatic moves (focus, release, reset) and snaps for gestures (#835)", () => {
+    render(<FocusHarness box={SMALL_PICKS} pick={20} />);
+    const frame = screen.getByTestId("frame");
+    expect(frame.style.transition).toBe("");
+
+    act(() => screen.getByText("focus").click());
+    expect(frame.style.transition).toBe(VIEW_TRANSITION);
+
+    act(() => screen.getByText("release").click());
+    expect(frame.style.transition).toBe(VIEW_TRANSITION);
+
+    drag([500, 400], [540, 430]);
+    expect(frame.style.transition).toBe("");
+
+    act(() => screen.getByText("reset view").click());
+    expect(frame.style.transition).toBe(VIEW_TRANSITION);
+  });
+
+  it("rebases picks measured while the previous focus is still easing (#835)", () => {
+    // The DOM still reports the frame at the resting fit (scale 1, tx 0, ty 50)
+    // when the next prompt's picks are measured, although the hook has already
+    // committed the zoom onto the first picks. The new picks must be read as
+    // fit-coordinates, so the second focus lands exactly where a focus from
+    // rest would have.
+    const Z = ZOOM_MAX;
+    const nextPicks = { left: 600, top: 500, right: 800, bottom: 700 };
+    render(
+      <FocusHarness
+        box={SMALL_PICKS}
+        pick={20}
+        next={{ box: nextPicks, pick: 20 }}
+        liveFrame={{ left: 0, top: 50, width: BOARD.w, height: BOARD.h }}
+      />
+    );
+
+    act(() => screen.getByText("focus").click());
+    expect(readTransform().scale).toBeCloseTo(Z, 3);
+    act(() => screen.getByText("focus next").click());
+
+    const { tx, ty, scale } = readTransform();
+    expect(scale).toBeCloseTo(Z, 3);
+    expect(tx).toBeCloseTo(800 + Z * (0 - 700), 1);
+    expect(ty).toBeCloseTo(500 + Z * (50 - 600), 1);
   });
 
   it("stops zooming once the picks are comfortably tappable, keeping the surroundings in view", () => {

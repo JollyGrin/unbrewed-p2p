@@ -1,5 +1,5 @@
 import { describe, expect, test } from "@jest/globals";
-import { MIN_TOUCH_PX, focusTransform, nearestNeighbourPx, shouldAutoFocus, touchHitPercent, touchHitSize } from "./touchTargets";
+import { MIN_TOUCH_PX, focusTransform, nearestNeighbourPx, rebaseBox, shouldAutoFocus, touchHitPercent, touchHitSize } from "./touchTargets";
 
 describe("touchHitSize", () => {
   test("keeps the layout diameter when it already renders above the minimum", () => {
@@ -22,24 +22,49 @@ describe("touchHitSize", () => {
 });
 
 describe("shouldAutoFocus", () => {
-  const avail = { left: 0, top: 60, width: 390, height: 600 };
-
   test("focuses when the picks render below the touch minimum", () => {
-    const box = { left: 100, top: 200, right: 200, bottom: 260 };
-
-    expect(shouldAutoFocus({ box, avail, pickDiameterPx: 18 })).toBe(true);
+    // Phone portrait: a ~1024px map fits at ~0.35, so a 50px space is ~18px.
+    expect(shouldAutoFocus(18)).toBe(true);
   });
 
-  test("focuses when the picks are big enough but huddle in a small part of the board", () => {
-    const box = { left: 150, top: 300, right: 230, bottom: 360 };
-
-    expect(shouldAutoFocus({ box, avail, pickDiameterPx: 50 })).toBe(true);
+  test("focuses on picks just under the minimum", () => {
+    expect(shouldAutoFocus(MIN_TOUCH_PX - 1)).toBe(true);
   });
 
-  test("does not focus when picks are touch-sized and already spread over the free area", () => {
-    const box = { left: 10, top: 80, right: 380, bottom: 640 };
+  test("does not focus when the picks already render at the touch minimum, however few they are (#835)", () => {
+    // iPad landscape: the spaces are a comfortable ~50px, and an ordinary
+    // maneuver is 2-4 of them beside the fighter — they only ever span a corner
+    // of the free area, which must NOT be a reason to zoom.
+    expect(shouldAutoFocus(MIN_TOUCH_PX)).toBe(false);
+    expect(shouldAutoFocus(50)).toBe(false);
+  });
+});
 
-    expect(shouldAutoFocus({ box, avail, pickDiameterPx: 50 })).toBe(false);
+describe("rebaseBox", () => {
+  const box = { left: 100, top: 100, right: 140, bottom: 140 };
+
+  test("returns the box unchanged when the frame is where the transform says it is", () => {
+    const frame = { left: 0, top: 50, width: 1000, height: 800 };
+
+    expect(rebaseBox(box, frame, frame)).toEqual({ box, factor: 1 });
+  });
+
+  test("moves and scales a box measured mid-transition onto the destination frame", () => {
+    // Measured while the frame sat at (0,0) scale 1; it is easing to (−100,−50) scale 2.
+    const measured = { left: 0, top: 0, width: 1000, height: 800 };
+    const target = { left: -100, top: -50, width: 2000, height: 1600 };
+
+    expect(rebaseBox(box, measured, target)).toEqual({
+      box: { left: 100, top: 150, right: 180, bottom: 230 },
+      factor: 2,
+    });
+  });
+
+  test("leaves an unmeasured (0-size) frame alone instead of dividing by zero", () => {
+    const measured = { left: 0, top: 0, width: 0, height: 0 };
+    const target = { left: 10, top: 10, width: 500, height: 400 };
+
+    expect(rebaseBox(box, measured, target)).toEqual({ box, factor: 1 });
   });
 });
 

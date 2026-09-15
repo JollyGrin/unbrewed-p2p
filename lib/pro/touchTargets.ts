@@ -13,9 +13,6 @@
 /** Apple HIG minimum tap target (44pt); Material's 48dp is close enough. */
 export const MIN_TOUCH_PX = 44;
 
-/** Below this share of the free area (on the larger axis) the picks feel "huddled". */
-const HUDDLED_SHARE = 0.6;
-
 export interface ScreenBox {
   left: number;
   top: number;
@@ -74,20 +71,48 @@ export function nearestNeighbourPx(points: ScreenPoint[], index: number): number
   }, Infinity);
 }
 
-/** Zoom only when it helps: picks too small to hit, or clustered in a corner. */
-export function shouldAutoFocus({
-  box,
-  avail,
-  pickDiameterPx,
-}: {
-  box: ScreenBox;
-  avail: FreeArea;
-  pickDiameterPx: number;
-}): boolean {
-  if (pickDiameterPx < MIN_TOUCH_PX) return true;
-  const shareW = (box.right - box.left) / Math.max(avail.width, 1);
-  const shareH = (box.bottom - box.top) / Math.max(avail.height, 1);
-  return Math.max(shareW, shareH) < HUDDLED_SHARE;
+/**
+ * Zoom only when it helps: the picks render below the touch minimum at the
+ * resting fit. Picks that are already tappable are left alone however few of
+ * them there are or wherever they sit — an ordinary maneuver is two to four
+ * spaces beside the fighter, so a "they only span a corner" rule fired on
+ * nearly every prompt, even on an iPad in landscape where the spaces are a
+ * comfortable ~50px (#835).
+ */
+export function shouldAutoFocus(pickDiameterPx: number): boolean {
+  return pickDiameterPx < MIN_TOUCH_PX;
+}
+
+export interface FrameRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Re-express a box measured on screen while the board frame occupied
+ * `measured` as where it sits once the frame occupies `target`, plus the size
+ * factor between the two. Picks are measured from the DOM after paint, and a
+ * new prompt can land while the previous focus is still easing, so the DOM is
+ * mid-animation and the hook's own transform is the destination. Both ends of
+ * the ease share one function list (translate, scale, fixed rotation), so every
+ * intermediate frame is an axis-aligned box and this mapping is exact. An
+ * unmeasured (0-size) frame returns the box untouched.
+ */
+export function rebaseBox(box: ScreenBox, measured: FrameRect, target: FrameRect): { box: ScreenBox; factor: number } {
+  if (!(measured.width > 0) || !(measured.height > 0)) return { box, factor: 1 };
+  const kx = target.width / measured.width;
+  const ky = target.height / measured.height;
+  return {
+    box: {
+      left: target.left + (box.left - measured.left) * kx,
+      right: target.left + (box.right - measured.left) * kx,
+      top: target.top + (box.top - measured.top) * ky,
+      bottom: target.top + (box.bottom - measured.top) * ky,
+    },
+    factor: Math.min(kx, ky),
+  };
 }
 
 /**
