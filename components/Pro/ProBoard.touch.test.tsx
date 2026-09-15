@@ -7,7 +7,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { ProBoard } from "./ProBoard";
 import { ProMapDef, ViewFighter } from "@/lib/pro/protocol";
-import { ZOOM_MAX } from "@/lib/pro/useZoomPan";
+import { VIEW_TRANSITION, ZOOM_MAX } from "@/lib/pro/useZoomPan";
 
 const MAP: ProMapDef = {
   schemaVersion: "1",
@@ -94,6 +94,16 @@ describe("ProBoard board picks (mobile step 1)", () => {
     } finally {
       window.matchMedia = original;
     }
+  });
+
+  it("labels every fighter token, so the board can frame a combat's two sides", () => {
+    const { getByTitle } = render(
+      <ChakraProvider>
+        <ProBoard map={MAP} fighters={[enemy]} focusFighters={["p2/hero"]} />
+      </ChakraProvider>
+    );
+
+    expect(getByTitle(/Baba Yaga/)).toHaveAttribute("data-fighter-id", "p2/hero");
   });
 });
 
@@ -225,6 +235,102 @@ describe("ProBoard auto-focus with region panels (#834)", () => {
 
     // Nothing on the board itself to zoom onto: the panel is screen-pinned and
     // already tappable, so the board must not lurch onto whatever sits under it.
+    expect(readTransform(frame)).toEqual({ tx: 0, ty: 0, scale: 1 });
+  });
+});
+
+// Combat framing on the same map (#852). With nothing to pick, the board frames
+// the two combatants instead — and a combatant standing on a hut space renders
+// its token inside the screen-pinned panel, so the fighter path must be scoped
+// to the frame exactly like the pick path, or #834's leak re-enters through it.
+describe("ProBoard combat framing with region panels (#852)", () => {
+  const VIEWPORT = { w: 900, h: 1600 };
+  const BOARD = { w: 1600, h: 900 };
+  const ON_BOARD = { left: 100, top: 100, side: 20 }; // the attacker's token on s1
+  const IN_HUT = { left: 8, top: 1200, side: 40 }; // the defender's token in the pinned panel
+
+  const attacker: ViewFighter = { ...enemy, id: "p1/hero", owner: "p1", name: "Sherlock Holmes", space: "s1" };
+  const inHut: ViewFighter = { ...enemy, space: "hut-1" };
+  const inHutToo: ViewFighter = { ...attacker, space: "hut-2" };
+  const token = (container: HTMLElement, id: string) =>
+    container.querySelector(`[data-fighter-id="${id}"]`) as HTMLElement;
+
+  let originalMatchMedia: typeof window.matchMedia;
+  let originalRO: unknown;
+  beforeEach(() => {
+    originalMatchMedia = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: query === "(pointer: coarse)",
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+    originalRO = (global as unknown as { ResizeObserver: unknown }).ResizeObserver;
+    (global as unknown as { ResizeObserver: unknown }).ResizeObserver = StubResizeObserver;
+    resizeCallbacks.length = 0;
+  });
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+    (global as unknown as { ResizeObserver: unknown }).ResizeObserver = originalRO;
+  });
+
+  /** Mounts the rotated, zoomable Hut board with both fighters placed and no
+   *  combat yet, sizes and fits it. Returns a rerender that starts the fight. */
+  const mountFitted = async (fighters: ViewFighter[]) => {
+    const ui = (focus: string[] | undefined) => (
+      <ChakraProvider>
+        <ProBoard map={REGION_MAP} fighters={fighters} focusFighters={focus} zoomable rotated />
+      </ChakraProvider>
+    );
+    const { container, rerender } = render(ui(undefined));
+    const frame = screen.getByAltText("Touch Map").parentElement as HTMLElement;
+    const viewport = frame.parentElement as HTMLElement;
+    size(viewport, "client", VIEWPORT.w, VIEWPORT.h);
+    size(frame, "offset", BOARD.w, BOARD.h);
+    act(() => resizeCallbacks.forEach((cb) => cb()));
+    await nextFrame();
+    expect(readTransform(frame)).toEqual({ tx: 0, ty: 0, scale: 1 });
+    expect(getComputedStyle(frame).transition).not.toBe(VIEW_TRANSITION);
+    for (const f of fighters) {
+      rectAt(token(container, f.id), ...(f.space === "s1" ? [ON_BOARD.left, ON_BOARD.top, ON_BOARD.side] : [IN_HUT.left, IN_HUT.top, IN_HUT.side]) as [number, number, number]);
+    }
+    return { container, frame, fight: () => rerender(ui(fighters.map((f) => f.id))) };
+  };
+
+  it("renders a combatant on a hut space inside the pinned panel, outside the frame (the layout under test)", async () => {
+    const { container, frame } = await mountFitted([attacker, inHut]);
+    expect(frame.contains(token(container, "p1/hero"))).toBe(true);
+    expect(frame.contains(token(container, "p2/hero"))).toBe(false);
+    expect(token(container, "p2/hero").closest("[data-region-panel]")).not.toBeNull();
+    expect(container.querySelector("[data-pick]")).toBeNull();
+  });
+
+  it("frames the on-board combatant alone when the other stands on a hut space", async () => {
+    const { frame, fight } = await mountFitted([attacker, inHut]);
+    fight();
+    await nextFrame();
+
+    // Same box as #834's pick test: the on-board token's centre (110, 110) lands
+    // on the viewport centre at the maximum zoom. The hut token's screen spot
+    // (far down, under the panel) plays no part, so the view is neither dragged
+    // toward it nor zoomed out to span the two.
+    const { tx, ty, scale } = readTransform(frame);
+    expect(scale).toBeCloseTo(ZOOM_MAX, 3);
+    expect(tx).toBeCloseTo(450 + ZOOM_MAX * (0 - 110), 1);
+    expect(ty).toBeCloseTo(800 + ZOOM_MAX * (0 - 110), 1);
+  });
+
+  it("eases onto the combatants instead of snapping (#835 via the shared focus path)", async () => {
+    const { frame, fight } = await mountFitted([attacker, inHut]);
+    fight();
+    await nextFrame();
+    expect(getComputedStyle(frame).transition).toBe(VIEW_TRANSITION);
+  });
+
+  it("keeps the resting fit when both combatants stand inside the hut panel", async () => {
+    const { frame, fight } = await mountFitted([inHutToo, inHut]);
+    fight();
+    await nextFrame();
     expect(readTransform(frame)).toEqual({ tx: 0, ty: 0, scale: 1 });
   });
 });
