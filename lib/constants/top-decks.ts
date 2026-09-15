@@ -885,4 +885,27 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl: "/evergreen-decks/art/NQ5XP/cardback.webp",
     sourceUrl: "https://www.the-unmatched.club/c/heroes/leon-s-kennedy.14131",
   },
+  {
+    // The Narrator — unmatched.cards VERSION id 5jBEXsA55e (the family id
+    // mGY6w 404s), Inforce's deck (issue #844 ↔ engine PR #596). Served at
+    // tier `lab`. PAIRED with the engine's `feature/narrator` branch
+    // (b6958dc, deck-only conversion): this client PR is DRAFT against
+    // feature/narrator and pair-merges with it, so the deck only appears on
+    // the deployed roster once both halves land on main. Art: 13 faces plus
+    // the cardback self-hosted under public/evergreen-decks/art/narrator
+    // (#733/#734 plus one payload mirror and the cardback from the deck's
+    // appearance block) — repo-relative so the tile renders on localhost and
+    // preview builds.
+    id: "5jBEXsA55e",
+    name: "The Narrator",
+    hero: "The Narrator",
+    author: "Inforce",
+    likes: 0,
+    highlightColour: "#000ecc",
+    lab: true,
+    tier: "lab",
+    // Repo-relative (Kenshiro/Skull Kid/Cecil/Boba/Ripley precedent): the
+    // author's own cardback, mirrored from the deck's appearance block.
+    cardbackUrl: "/evergreen-decks/art/narrator/cardback.webp",
+  },
 ];
