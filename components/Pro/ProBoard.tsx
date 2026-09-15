@@ -42,6 +42,57 @@ import { COSMETIC_RIM_MIN_PX, FighterTokenRim } from "./FighterTokenRim";
 
 const DEFAULT_DIAMETER = 0.021;
 
+/**
+ * Fighter-token chrome sizing: the initials label and the edge badges (HP chip,
+ * hero-state / status / number badges, reach + price pills).
+ *
+ * A token is a percentage of the board frame, but its chrome is rem-sized and
+ * proportioned for the 40–60px tokens a desktop frame yields. A phone frame
+ * (~360px) renders the same map's tokens at 20–30px, so an 11px label and a
+ * 16px HP chip no longer fit around each other: the chip lands on the initials
+ * and neither reads (issue #836). Coarse pointers therefore make the token a
+ * CSS query container and size every piece of chrome in `cqw` — a fixed
+ * fraction of the token's OWN diameter — so the cluster keeps one layout at any
+ * frame width, and scales as one under the auto-focus zoom (#831) exactly like
+ * the rem sizes do. Fine pointers keep the rem sizes, byte-identical.
+ *
+ * Coarse geometry, measured on a 24px token (100 = its outer diameter; the
+ * fixed 2px body border and 1.5px chip borders are a real share at this size):
+ * the 3-letter label (32, nudged up 15% of its height) spans about x 16–84 /
+ * y 29–61; the HP chip (28, line-height 1.2, inset −26%) starts at about
+ * x 52 / y 68, seated on the bottom-right rim below the label. The corner
+ * badges (24, inset −34%) end by y 26 (top row) or start at y 74 (bottom
+ * row), clear of the label either way. The reach/price pills sit above the
+ * circle as before. Every offset is a percentage, so the layout is the same at
+ * any zoom and only gets roomier on a bigger token.
+ */
+export const TOKEN_CHROME = {
+  fine: {
+    label: "0.68rem",
+    labelShift: undefined,
+    hp: "0.7rem",
+    hpLine: "1.4",
+    hpInset: "-18%",
+    badge: "0.68rem",
+    stateInset: "-20%",
+    numberInset: "-18%",
+    statusInset: "-20%",
+    pill: "0.55rem",
+  },
+  coarse: {
+    label: "32cqw",
+    labelShift: "translateY(-15%)",
+    hp: "28cqw",
+    hpLine: "1.2",
+    hpInset: "-26%",
+    badge: "24cqw",
+    stateInset: "-34%",
+    numberInset: "-34%",
+    statusInset: "-34%",
+    pill: "26cqw",
+  },
+} as const;
+
 // Duration of ONE hop in a multi-step move tween (see PendingMove below).
 // Exported so callers can size a fallback timeout around the same value.
 export const MOVE_STEP_SECONDS = 0.28;
@@ -829,6 +880,8 @@ export const ProBoard = ({
     const color = PLAYER_COLOR[f.owner] ?? "#999";
     const isSelected = f.id === selectedFighter;
     const isTarget = highlightFighterSet.has(f.id);
+    // Label + badge sizes: token-relative on a touch screen, rem on desktop.
+    const chrome = coarsePointer ? TOKEN_CHROME.coarse : TOKEN_CHROME.fine;
     // Extended-reach attack target (issue #235): the pulsing token is a legal
     // target ONLY because a LARGE fighter is involved (2-space melee reach). Mark
     // it so the 2-space attack doesn't read as a bug. Presentation only.
@@ -938,7 +991,9 @@ export const ProBoard = ({
           // rem, not vw: the label lives inside the zoom-transformed frame, so
           // a viewport-relative size would fight the zoom (text stays put while
           // the token scales). rem scales with the transform like the art.
-          fontSize="0.68rem"
+          // (Coarse pointers use cqw — see TOKEN_CHROME — which scales the same.)
+          fontSize={chrome.label}
+          transform={chrome.labelShift}
           fontWeight="bold"
           letterSpacing="-0.02em"
           // Over art, drop to a uniform light label + dark shadow: the per-kind
@@ -965,17 +1020,17 @@ export const ProBoard = ({
           // swallows the click — decorative chrome must never be a click target.
           <Flex
             position="absolute"
-            bottom="-18%"
-            right="-18%"
+            bottom={chrome.hpInset}
+            right={chrome.hpInset}
             pointerEvents="none"
             bg="brand.surfaceDim"
             color="brand.parchment"
             border={`1.5px solid ${color}`}
             borderRadius="999px"
             px="0.3em"
-            fontSize="0.7rem"
+            fontSize={chrome.hp}
             fontWeight="bold"
-            lineHeight="1.4"
+            lineHeight={chrome.hpLine}
           >
             {f.hp}
           </Flex>
@@ -983,8 +1038,8 @@ export const ProBoard = ({
         {tokenBadge && (
           <Flex
             position="absolute"
-            top="-20%"
-            right="-20%"
+            top={chrome.stateInset}
+            right={chrome.stateInset}
             pointerEvents="none"
             minWidth="1.45em"
             h="1.45em"
@@ -996,7 +1051,7 @@ export const ProBoard = ({
             color={tokenBadge.color}
             border="1.5px solid #fff"
             borderRadius="999px"
-            fontSize="0.68rem"
+            fontSize={chrome.badge}
             fontWeight="bold"
             lineHeight="1"
             boxShadow="0 1px 4px rgba(0,0,0,0.75)"
@@ -1022,8 +1077,8 @@ export const ProBoard = ({
           // second status kind just adds another badge with no repositioning.
           <Flex
             position="absolute"
-            bottom="-20%"
-            left="-20%"
+            bottom={chrome.statusInset}
+            left={chrome.statusInset}
             pointerEvents="none"
             direction="column-reverse"
             alignItems="flex-start"
@@ -1043,7 +1098,7 @@ export const ProBoard = ({
                 color={b.color}
                 border="1.5px solid #fff"
                 borderRadius="999px"
-                fontSize="0.68rem"
+                fontSize={chrome.badge}
                 fontWeight="bold"
                 lineHeight="1"
                 boxShadow="0 1px 4px rgba(0,0,0,0.75)"
@@ -1067,8 +1122,8 @@ export const ProBoard = ({
         {segment === "head" && fighterBadges[f.id] != null && (
           <Flex
             position="absolute"
-            top="-18%"
-            left="-18%"
+            top={chrome.numberInset}
+            left={chrome.numberInset}
             pointerEvents="none"
             bg={color}
             color="#fff"
@@ -1076,7 +1131,7 @@ export const ProBoard = ({
             borderRadius="999px"
             minWidth="1.3em"
             px="0.25em"
-            fontSize="0.68rem"
+            fontSize={chrome.badge}
             fontWeight="bold"
             lineHeight="1.5"
             boxShadow="0 1px 3px rgba(0,0,0,0.7)"
@@ -1099,7 +1154,7 @@ export const ProBoard = ({
             color="brand.surfaceDim"
             borderRadius="999px"
             px="0.45em"
-            fontSize="0.55rem"
+            fontSize={chrome.pill}
             fontWeight="bold"
             letterSpacing="0.02em"
             lineHeight="1.5"
@@ -1127,7 +1182,7 @@ export const ProBoard = ({
             color="#241033"
             borderRadius="999px"
             px="0.45em"
-            fontSize="0.55rem"
+            fontSize={chrome.pill}
             fontWeight="bold"
             letterSpacing="0.02em"
             lineHeight="1.5"
@@ -1154,7 +1209,7 @@ export const ProBoard = ({
             color="#241033"
             borderRadius="999px"
             px="0.45em"
-            fontSize="0.55rem"
+            fontSize={chrome.pill}
             fontWeight="bold"
             letterSpacing="0.02em"
             lineHeight="1.5"
@@ -1286,7 +1341,13 @@ export const ProBoard = ({
         transform={`translate(calc(-50% + ${slot.dx}%), calc(-50% + ${slot.dy}%))${upright}`}
         w={`${diam * slot.scale}%`}
         data-pick={fighterClickable ? "" : undefined}
-        sx={{ aspectRatio: "1", ...(clickable ? touchHitSx(s.id, (layerPx * diam * slot.scale) / 100) : {}) }}
+        sx={{
+          aspectRatio: "1",
+          // Touch screens: the token is the query container its cqw-sized
+          // chrome measures against (TOKEN_CHROME). Desktop adds nothing.
+          ...(coarsePointer ? { containerType: "inline-size" } : {}),
+          ...(clickable ? touchHitSx(s.id, (layerPx * diam * slot.scale) / 100) : {}),
+        }}
         borderRadius="50%"
         bg={tokenLifeOn ? "transparent" : bodyBgToken}
         border={tokenLifeOn ? "none" : bodyBorder}
@@ -1485,6 +1546,7 @@ export const ProBoard = ({
       w={`${diam * 0.82}%`}
       sx={{
         aspectRatio: "1",
+        ...(coarsePointer ? { containerType: "inline-size" } : {}),
         // The topple animation owns this box's transform, so the counter-turn
         // rides its children instead.
         ...(upright ? { "& > *": { transform: "rotate(-90deg)" } } : {}),
@@ -1516,7 +1578,11 @@ export const ProBoard = ({
         </Box>
       )}
       <Text
-        fontSize="0.68rem"
+        // Same label size as the live token, but NOT its `labelShift`: the ghost
+        // has no HP chip to clear, and its children carry the portrait
+        // counter-rotation on `transform` (see the sx above) — a second
+        // transform here would replace it and the initials would fall sideways.
+        fontSize={(coarsePointer ? TOKEN_CHROME.coarse : TOKEN_CHROME.fine).label}
         fontWeight="bold"
         letterSpacing="-0.02em"
         color="brand.parchment"
