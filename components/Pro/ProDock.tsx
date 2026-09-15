@@ -549,8 +549,15 @@ export const ProDock = ({
   useEffect(() => {
     setPickedCard(null);
   }, [cardKey, sheetShown]);
+  // "Don't defend" is the other answer to the defense-card question, so it lives
+  // with the defense cards rather than at the bottom of the list.
+  const declineDefense =
+    cardGroups.some((g) => g.type === "COMMIT_DEFENSE_CARD")
+      ? rows.find((r) => r.action.type === "DECLINE_DEFENSE")?.action ?? null
+      : null;
   const cardPickerEl = cardGroups.map((group) => {
     const picked = group.cards.find((c) => c.card === pickedCard) ?? null;
+    const decline = group.type === "COMMIT_DEFENSE_CARD" ? declineDefense : null;
     return (
       <Flex key={group.type} data-testid="pro-card-picker" direction="column" gap="0.45rem">
         <Text fontSize="0.72rem" fontWeight={700} letterSpacing="0.08em" textTransform="uppercase" color="brand.accent">
@@ -587,30 +594,54 @@ export const ProDock = ({
             );
           })}
         </Flex>
-        {picked ? (
-          <Flex direction="column" gap="0.35rem">
-            {picked.actions.map((action, i) => (
-              <Button
-                key={i}
-                minH={TAP_TARGET}
-                whiteSpace="normal"
-                h="auto"
-                py="0.5rem"
-                bg={i === 0 ? "brand.accent" : "rgba(20, 8, 24, 0.65)"}
-                color={i === 0 ? "brand.surfaceDim" : "brand.parchment"}
-                border={i === 0 ? undefined : "1px solid rgba(250, 235, 215, 0.3)"}
-                _hover={{ opacity: 0.92 }}
-                onClick={() => onAction(action)}
-              >
-                {describe(action)}
-              </Button>
-            ))}
-          </Flex>
-        ) : (
-          <Text fontSize="0.75rem" color="brand.parchment" opacity={0.7}>
-            Tap a card to choose it
-          </Text>
-        )}
+        {/* Sticky, so the confirm stays on screen when the combat panel above
+            pushes the picker past the fold of the scrolling sheet. */}
+        <Flex
+          direction="column"
+          gap="0.35rem"
+          position="sticky"
+          bottom={0}
+          zIndex={1}
+          py="0.35rem"
+          bg="rgba(38, 20, 43, 0.97)"
+        >
+          {picked ? (
+            <Flex direction="column" gap="0.35rem">
+              {picked.actions.map((action, i) => (
+                <Button
+                  key={i}
+                  minH={TAP_TARGET}
+                  whiteSpace="normal"
+                  h="auto"
+                  py="0.5rem"
+                  bg={i === 0 ? "brand.accent" : "rgba(20, 8, 24, 0.65)"}
+                  color={i === 0 ? "brand.surfaceDim" : "brand.parchment"}
+                  border={i === 0 ? undefined : "1px solid rgba(250, 235, 215, 0.3)"}
+                  _hover={{ opacity: 0.92 }}
+                  onClick={() => onAction(action)}
+                >
+                  {describe(action)}
+                </Button>
+              ))}
+            </Flex>
+          ) : (
+            <Text fontSize="0.75rem" color="brand.parchment" opacity={0.7}>
+              Tap a card to choose it
+            </Text>
+          )}
+          {decline && (
+            <Button
+              minH={TAP_TARGET}
+              variant="outline"
+              color="brand.parchment"
+              borderColor="rgba(250, 235, 215, 0.35)"
+              _hover={{ bg: "rgba(20, 8, 24, 0.65)" }}
+              onClick={() => onAction(decline)}
+            >
+              {describe(decline)}
+            </Button>
+          )}
+        </Flex>
       </Flex>
     );
   });
@@ -839,7 +870,7 @@ export const ProDock = ({
           // its slot either way.
           const kind = tileKindOf(a);
           const hiddenByTiles = tiles.length > 0 && (tileFilter ? kind !== tileFilter : kind !== null);
-          const hiddenByCards = cardGroups.length > 0 && isCardChoice(a);
+          const hiddenByCards = cardGroups.length > 0 && (isCardChoice(a) || a === declineDefense);
           if (hiddenByTiles || hiddenByCards)
             return <Fragment key={i}>{relocateArmBand && i === firstManeuverBandEnd && relocateArmBand}</Fragment>;
           return (

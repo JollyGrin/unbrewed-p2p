@@ -4,7 +4,7 @@
  */
 import "@testing-library/jest-dom";
 import { createRef } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { ProDock, ProDockProps } from "./ProDock";
 import { Action, PlayerView } from "@/lib/pro/protocol";
 
@@ -237,5 +237,28 @@ describe("ProDock portrait board-pick bar (mobile step 1)", () => {
     fireEvent.click(screen.getByTestId("pro-mobile-more"));
 
     expect(screen.queryByRole("button", { name: "BOOST_MOVE" })).toBeNull();
+  });
+
+  it("keeps Don't defend next to the defense cards instead of down in the list", () => {
+    const COMMIT = { type: "COMMIT_DEFENSE_CARD", card: "c3" } as unknown as Action;
+    const DECLINE = { type: "DECLINE_DEFENSE" } as unknown as Action;
+    const onAction = jest.fn();
+    const rows = [COMMIT, DECLINE].map((action) => ({ action, hotkey: null, dividerBefore: false }));
+    render(
+      <ProDock
+        {...props({
+          rows,
+          onAction,
+          combatPanel: <div>COMBAT</div>,
+          renderCard: (card: string) => <span>{card}</span>,
+          describe: (a) => ((a as { type: string }).type === "DECLINE_DEFENSE" ? "Don't defend" : "Defend with c3"),
+        })}
+      />
+    );
+
+    const picker = screen.getByTestId("pro-card-picker");
+    expect(screen.getAllByRole("button", { name: "Don't defend" })).toHaveLength(1);
+    fireEvent.click(within(picker).getByRole("button", { name: "Don't defend" }));
+    expect(onAction).toHaveBeenCalledWith(DECLINE);
   });
 });
