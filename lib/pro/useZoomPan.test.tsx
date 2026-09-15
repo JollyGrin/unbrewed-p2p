@@ -8,7 +8,7 @@
  */
 import { MutableRefObject, useRef } from "react";
 import { act, render, screen } from "@testing-library/react";
-import { FIT_MIN, ZOOM_MAX, ZOOM_MIN, ZoomPanInset, useZoomPan } from "./useZoomPan";
+import { FIT_MIN, FOCUS_MAX_PICK_PX, ZOOM_MAX, ZOOM_MIN, ZoomPanInset, useZoomPan } from "./useZoomPan";
 
 // jsdom has no ResizeObserver; the hook only needs "call me once on observe",
 // because every later size change in these tests is explicit.
@@ -182,5 +182,130 @@ describe("useZoomPan pan clamping (issue #450)", () => {
     const after = readTransform();
     expect(after.tx).toBeCloseTo(before.tx + 40, 1);
     expect(after.ty).toBeCloseTo(before.ty + 30, 1);
+  });
+});
+
+/** Harness variant exposing the auto-focus API (mobile step 1). */
+type Box = { left: number; top: number; right: number; bottom: number };
+const FocusHarness = ({ box, pick, next }: { box: Box; pick: number; next?: { box: Box; pick: number } }) => {
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const zoom = useZoomPan(true, frameRef);
+  return (
+    <div
+      data-testid="viewport"
+      ref={(el) => {
+        if (el) size(el, "client", VIEWPORT.w, VIEWPORT.h);
+        (zoom.containerRef as MutableRefObject<HTMLDivElement | null>).current = el;
+      }}
+      {...zoom.handlers}
+    >
+      <div
+        data-testid="frame"
+        ref={(el) => {
+          if (el) size(el, "offset", BOARD.w, BOARD.h);
+          frameRef.current = el;
+        }}
+        style={{ transform: zoom.transform, transformOrigin: zoom.transformOrigin }}
+      />
+      <button onClick={() => zoom.focusOn(box, pick)}>focus</button>
+      {next && <button onClick={() => zoom.focusOn(next.box, next.pick)}>focus next</button>}
+      <button onClick={zoom.releaseFocus}>release</button>
+    </div>
+  );
+};
+
+describe("useZoomPan auto-focus on board picks (mobile step 1)", () => {
+  // jsdom rects are all 0, so client coordinates equal container coordinates.
+  const SMALL_PICKS = { left: 100, top: 100, right: 300, bottom: 300 };
+
+  it("zooms onto small picks, capped at the maximum zoom, centred in the viewport", () => {
+    render(<FocusHarness box={SMALL_PICKS} pick={20} />);
+
+    act(() => screen.getByText("focus").click());
+
+    const { tx, ty, scale } = readTransform();
+    expect(scale).toBeCloseTo(ZOOM_MAX, 3);
+    // box centre (200,200) lands on the viewport centre (800,500)
+    // (fit is scale 1, tx 0, ty 50 — see the first fit test)
+    expect(tx).toBeCloseTo(800 + ZOOM_MAX * (0 - 200), 1);
+    expect(ty).toBeCloseTo(500 + ZOOM_MAX * (50 - 200), 1);
+  });
+
+  it("returns to the resting fit when the picks are released", () => {
+    render(<FocusHarness box={SMALL_PICKS} pick={20} />);
+    const fit = readTransform();
+
+    act(() => screen.getByText("focus").click());
+    act(() => screen.getByText("release").click());
+
+    const back = readTransform();
+    expect(back.scale).toBeCloseTo(fit.scale, 3);
+    expect(back.tx).toBeCloseTo(fit.tx, 1);
+    expect(back.ty).toBeCloseTo(fit.ty, 1);
+  });
+
+  it("leaves the view alone on release when the player moved it meanwhile", () => {
+    render(<FocusHarness box={SMALL_PICKS} pick={20} />);
+
+    act(() => screen.getByText("focus").click());
+    drag([500, 400], [540, 430]);
+    const moved = readTransform();
+    act(() => screen.getByText("release").click());
+
+    expect(readTransform()).toEqual(moved);
+  });
+
+  it("does not auto-zoom once the player has moved the view themselves", () => {
+    render(<FocusHarness box={SMALL_PICKS} pick={20} />);
+    drag([500, 400], [540, 430]);
+    const moved = readTransform();
+
+    act(() => screen.getByText("focus").click());
+
+    expect(readTransform()).toEqual(moved);
+  });
+
+  it("does not zoom when the picks are touch-sized and spread over the board", () => {
+    render(<FocusHarness box={{ left: 20, top: 20, right: 1580, bottom: 980 }} pick={60} />);
+    const fit = readTransform();
+
+    act(() => screen.getByText("focus").click());
+
+    expect(readTransform()).toEqual(fit);
+  });
+
+  it("judges new picks against the resting fit, not the zoomed-in view", () => {
+    // Zoomed onto small picks first; the next prompt's picks span the whole board.
+    // On the ZOOMED screen they look big, but at the resting fit (scale 1, tx 0,
+    // ty 50) they are touch-sized and spread — so the view returns to the fit.
+    const Z = ZOOM_MAX;
+    const zoomed = { scale: Z, tx: 800 + Z * (0 - 200), ty: 500 + Z * (50 - 200) };
+    const fitSpread = { left: 20, top: 70, right: 1580, bottom: 930 };
+    const onScreen = {
+      left: zoomed.tx + Z * fitSpread.left,
+      right: zoomed.tx + Z * fitSpread.right,
+      top: zoomed.ty + Z * (fitSpread.top - 50),
+      bottom: zoomed.ty + Z * (fitSpread.bottom - 50),
+    };
+    render(<FocusHarness box={SMALL_PICKS} pick={20} next={{ box: onScreen, pick: 60 * Z }} />);
+    const fit = readTransform();
+
+    act(() => screen.getByText("focus").click());
+    expect(readTransform().scale).toBeCloseTo(Z, 3);
+    act(() => screen.getByText("focus next").click());
+
+    const back = readTransform();
+    expect(back.scale).toBeCloseTo(fit.scale, 3);
+    expect(back.tx).toBeCloseTo(fit.tx, 1);
+    expect(back.ty).toBeCloseTo(fit.ty, 1);
+  });
+
+  it("stops zooming once the picks are comfortably tappable, keeping the surroundings in view", () => {
+    // One 30px pick: filling the screen with it would lose the whole board.
+    render(<FocusHarness box={{ left: 185, top: 185, right: 215, bottom: 215 }} pick={30} />);
+
+    act(() => screen.getByText("focus").click());
+
+    expect(readTransform().scale).toBeCloseTo(FOCUS_MAX_PICK_PX / 30, 3);
   });
 });

@@ -15,14 +15,21 @@ import { Box, Button, Flex, Kbd, Link, Tag, Text, Tooltip } from "@chakra-ui/rea
 import { animate, motion, useDragControls, useMotionValue } from "framer-motion";
 import {
   TbArrowNarrowRight,
+  TbCards,
   TbChevronDown,
+  TbChevronLeft,
   TbChevronUp,
   TbExternalLink,
   TbGripHorizontal,
   TbLink,
   TbPlus,
+  TbSwords,
+  TbWalk,
 } from "react-icons/tb";
-import { Action, FighterId, PlayerView } from "@/lib/pro/protocol";
+import { ActionTile, TileKind, actionTilesFor, tileKindOf } from "@/lib/pro/actionTiles";
+import { cardChoiceGroups, isCardChoice } from "@/lib/pro/cardChoices";
+import { touchCopy } from "@/lib/pro/touchCopy";
+import { Action, CardInstanceId, FighterId, PlayerView } from "@/lib/pro/protocol";
 import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { isViewerOnWinningTeam } from "@/lib/pro/teams";
 import { LARGE_FIGHTER_BLURB, LARGE_REACH_CHIP } from "@/lib/pro/largeReach";
@@ -243,6 +250,20 @@ export interface ProDockProps {
   /** portrait only: told whenever the sheet appears/disappears, so the page can
    *  re-fit the board into the space that is left */
   onMobileSheetShown?: (shown: boolean) => void;
+  /** portrait only: the open prompt's own board instruction ("click a gold space
+   *  on the board (3 options)"), shown in the slim board-pick bar. Falls back to
+   *  the dock's generic board hint. */
+  boardPickHint?: string | null;
+  /** mobile only: draws a card face, so card choices (boost, commit, discard)
+   *  render as cards to pick instead of text rows. Omit to keep the rows. */
+  renderCard?: (card: CardInstanceId) => ReactNode;
+  /** portrait only: the page hid the hand fan peek (a combat holds the sheet),
+   *  so the sheet needs less reserved room at the bottom and may grow taller. */
+  mobileHandPeekHidden?: boolean;
+  /** phones: the decided combat's one-line result ("Attacker wins · 1 dmg"),
+   *  or null while it is still undecided. A decided combat stops holding the
+   *  sheet open, so the board is visible for the after-combat moves. */
+  combatSummary?: string | null;
 }
 
 export const ProDock = ({
@@ -286,6 +307,10 @@ export const ProDock = ({
   mobileHandOpen = false,
   mobileSheetRef,
   onMobileSheetShown,
+  boardPickHint = null,
+  renderCard,
+  mobileHandPeekHidden = false,
+  combatSummary = null,
 }: ProDockProps) => {
   const { layout, hydrated, update } = useDockLayout();
   const [dragging, setDragging] = useState(false);
@@ -365,19 +390,29 @@ export const ProDock = ({
   // Key-info band — the one thing a collapsed dock still shows.
   const turnChips = liveChrome && (
     <Flex gap="0.4rem" alignItems="center" flexWrap="wrap">
-      <Tag
-        size="sm"
-        bg={myTurn ? "brand.accent" : "whiteAlpha.300"}
-        color={myTurn ? "brand.surfaceDim" : "brand.parchment"}
-      >
-        {activeTurnLabel}
-      </Tag>
-      <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
-        turn {view.turnNumber}
-      </Tag>
-      <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
-        {view.actionsRemaining} actions left
-      </Tag>
+      {view.phase === "SETUP" ? (
+        // Placement is not anyone's turn yet: "OPPONENT'S TURN · turn 0 · 0
+        // actions left" read as if the game had skipped the player (mobile step 2).
+        <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
+          SETUP
+        </Tag>
+      ) : (
+        <>
+          <Tag
+            size="sm"
+            bg={myTurn ? "brand.accent" : "whiteAlpha.300"}
+            color={myTurn ? "brand.surfaceDim" : "brand.parchment"}
+          >
+            {activeTurnLabel}
+          </Tag>
+          <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
+            turn {view.turnNumber}
+          </Tag>
+          <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
+            {view.actionsRemaining} action{view.actionsRemaining === 1 ? "" : "s"} left
+          </Tag>
+        </>
+      )}
       {/* The per-seat presence badge + countdown live in ProHud — this chip is
           just the at-a-glance banner (issue #222). */}
       {disconnectedLabel && (
@@ -472,7 +507,9 @@ export const ProDock = ({
             .filter(Boolean)
             .join(" · ")
       : null;
-  const boardHint = moveChoiceLine ?? poseChoiceHint ?? highlightHint;
+  const boardHintRaw = moveChoiceLine ?? poseChoiceHint ?? highlightHint;
+  // Phones say "tap" (mobile step 3); desktop copy is untouched.
+  const boardHint = boardHintRaw && mobile ? touchCopy(boardHintRaw) : boardHintRaw;
 
   // ----- direction B mobile shells (issue #708) ------------------------------
   //
@@ -481,8 +518,237 @@ export const ProDock = ({
   // the endgame. That is the desktop `needsInput` guard reshaped for a layout
   // where the dock is not permanently on screen; an ordinary "which of these
   // three actions" turn is not forced, because the pill row is showing it.
-  const sheetForced = hasPrompt || !!combatPanel || !!view.winner || !!stepping;
+  // A decided combat no longer holds the phone sheet (mobile polish): its result
+  // rides on the pill row while the after-combat effects play out on the board.
+  const combatOpen = !!combatPanel && !(mobile && combatSummary);
+  const sheetForced = hasPrompt || combatOpen || !!view.winner || !!stepping;
   const sheetShown = sheetForced || sheetOpen;
+
+  // Mobile step 1: a forced prompt whose answer is a tap ON the board gets a slim
+  // bar instead of the tall sheet — the sheet would cover the very spaces it asks
+  // for. "Options" expands the full sheet (skip/decline buttons live there).
+  const boardPicks = highlightedCount > 0 || attackTargetCount > 0;
+  const boardPickPrompt = hasPrompt && boardPicks && !combatOpen && !view.winner && !stepping && !mobileHandOpen;
+  // Expansion belongs to ONE prompt: the next board-pick prompt starts slim again,
+  // even when the server replaces prompt A with prompt B in a single update.
+  const promptKey = view.prompt?.promptId ?? "prompt";
+  const [expandedPrompt, setExpandedPrompt] = useState<string | null>(null);
+  const boardPickCompact = mobile === "portrait" && boardPickPrompt && expandedPrompt !== promptKey;
+  // An action picked from the optional sheet that lights the board (a maneuver's
+  // gold spaces) gets the board back: the open sheet would hide the picks.
+  const hadBoardPicks = useRef(boardPicks);
+  useEffect(() => {
+    if (boardPicks && !hadBoardPicks.current && mobile === "portrait") setSheetOpen(false);
+    hadBoardPicks.current = boardPicks;
+  }, [boardPicks, mobile]);
+
+  // Mobile step 2: the optional portrait sheet leads with Maneuver / Scheme /
+  // Attack tiles. A tile with several legal choices narrows the list to them.
+  // The landscape rail is always open, so it leads with them whenever nothing is forced.
+  const tiles = mobile && !sheetForced ? actionTilesFor(rows.map((r) => r.action)) : [];
+  const rowsKey = rows.map((r) => JSON.stringify(r.action)).join("|");
+  const [tileFilter, setTileFilter] = useState<TileKind | null>(null);
+  useEffect(() => {
+    // The rail never closes, so a new set of legal actions is what ends a tile's
+    // narrowed list there (the portrait sheet also closes after an action).
+    setTileFilter(null);
+  }, [sheetShown, rowsKey]);
+  // Mobile step 2: card choices as card faces. Picking a card reveals one
+  // confirm button per legal action for it (a face-up commit is its own action).
+  const cardGroups = mobile && renderCard ? cardChoiceGroups(rows.map((r) => r.action)) : [];
+  const cardKey = cardGroups.map((g) => `${g.type}:${g.cards.map((c) => c.card).join(",")}`).join("|");
+  const [pickedCard, setPickedCard] = useState<CardInstanceId | null>(null);
+  useEffect(() => {
+    setPickedCard(null);
+  }, [cardKey, sheetShown]);
+  // "Don't defend" is the other answer to the defense-card question, so it lives
+  // with the defense cards rather than at the bottom of the list.
+  const declineDefense =
+    cardGroups.some((g) => g.type === "COMMIT_DEFENSE_CARD")
+      ? rows.find((r) => r.action.type === "DECLINE_DEFENSE")?.action ?? null
+      : null;
+  const cardPickerEl = cardGroups.map((group) => {
+    const picked = group.cards.find((c) => c.card === pickedCard) ?? null;
+    const decline = group.type === "COMMIT_DEFENSE_CARD" ? declineDefense : null;
+    return (
+      <Flex key={group.type} data-testid="pro-card-picker" direction="column" gap="0.45rem">
+        <Text fontSize="0.72rem" fontWeight={700} letterSpacing="0.08em" textTransform="uppercase" color="brand.accent">
+          {group.title}
+        </Text>
+        <Flex gap="0.5rem" overflowX="auto" pb="0.3rem" sx={{ scrollSnapType: "x mandatory", "::-webkit-scrollbar": { display: "none" } }}>
+          {group.cards.map((choice) => {
+            const isPicked = choice.card === pickedCard;
+            return (
+              <Box
+                key={choice.card}
+                as="button"
+                type="button"
+                aria-label={`Pick: ${describe(choice.actions[0])}`}
+                aria-pressed={isPicked}
+                onClick={() => setPickedCard(isPicked ? null : choice.card)}
+                flex="0 0 auto"
+                w={mobile === "rail" ? "4.75rem" : "7.25rem"}
+                borderRadius="0.55rem"
+                outline={isPicked ? "3px solid" : "1px solid"}
+                outlineColor={isPicked ? "brand.accent" : "rgba(250, 235, 215, 0.2)"}
+                outlineOffset="2px"
+                transform={isPicked ? "translateY(-4px)" : undefined}
+                transition="transform 0.12s ease"
+                // A press-and-hold reads the card large; stop iOS from offering
+                // to save the art or select text instead.
+                userSelect="none"
+                sx={{ aspectRatio: "63 / 88", scrollSnapAlign: "center", WebkitTouchCallout: "none" }}
+              >
+                {renderCard?.(choice.card)}
+              </Box>
+            );
+          })}
+        </Flex>
+        {/* Sticky, so the confirm stays on screen when the combat panel above
+            pushes the picker past the fold of the scrolling sheet. */}
+        <Flex
+          direction="column"
+          gap="0.35rem"
+          // The short landscape rail has no room to pin it over the cards.
+          position={mobile === "rail" ? "static" : "sticky"}
+          bottom={0}
+          // Above the lifted (transformed) picked card, and opaque, so the card
+          // scrolling under it never shows through the buttons.
+          zIndex={3}
+          py="0.35rem"
+          bg="#26142b"
+          boxShadow="0 -8px 12px -6px rgba(12, 4, 16, 0.8)"
+          // The sheet keeps bottom padding for the controls row, and sticky
+          // stops above it: cover that strip too, or the cards scroll through
+          // underneath the buttons.
+          _after={
+            mobile === "portrait"
+              ? { content: '""', position: "absolute", top: "100%", left: 0, right: 0, h: "4rem", bg: "#26142b" }
+              : undefined
+          }
+        >
+          {picked ? (
+            <Flex direction="column" gap="0.35rem">
+              {picked.actions.map((action, i) => (
+                <Button
+                  key={i}
+                  minH={TAP_TARGET}
+                  whiteSpace="normal"
+                  h="auto"
+                  py="0.5rem"
+                  bg={i === 0 ? "brand.accent" : "rgba(20, 8, 24, 0.65)"}
+                  color={i === 0 ? "brand.surfaceDim" : "brand.parchment"}
+                  border={i === 0 ? undefined : "1px solid rgba(250, 235, 215, 0.3)"}
+                  _hover={{ opacity: 0.92 }}
+                  onClick={() => onAction(action)}
+                >
+                  {describe(action)}
+                </Button>
+              ))}
+            </Flex>
+          ) : (
+            mobile === "portrait" && (
+              <Text fontSize="0.75rem" color="brand.parchment" opacity={0.7}>
+                Tap a card to choose it · hold to read it
+              </Text>
+            )
+          )}
+          {decline && (
+            <Button
+              minH={TAP_TARGET}
+              variant="outline"
+              color="brand.parchment"
+              borderColor="rgba(250, 235, 215, 0.35)"
+              _hover={{ bg: "rgba(20, 8, 24, 0.65)" }}
+              onClick={() => onAction(decline)}
+            >
+              {describe(decline)}
+            </Button>
+          )}
+        </Flex>
+      </Flex>
+    );
+  });
+
+  const tileSubline = (tile: ActionTile) => {
+    const n = tile.actions.length;
+    if (n === 0) return "Not available";
+    if (tile.kind === "maneuver") return "Draw a card, then move";
+    if (tile.kind === "attack") return n === 1 ? describe(tile.actions[0]) : `${n} targets`;
+    return n === 1 ? describe(tile.actions[0]) : `${n} cards`;
+  };
+  const TILE_META: Record<TileKind, { label: string; icon: ReactNode }> = {
+    maneuver: { label: "Maneuver", icon: <TbWalk size="1.5rem" /> },
+    scheme: { label: "Scheme", icon: <TbCards size="1.5rem" /> },
+    attack: { label: "Attack", icon: <TbSwords size="1.5rem" /> },
+  };
+  const railTiles = mobile === "rail";
+  const tilesEl =
+    tiles.length > 0 &&
+    (tileFilter ? (
+      <Button
+        size="sm"
+        variant="ghost"
+        alignSelf="flex-start"
+        color="brand.parchment"
+        leftIcon={<TbChevronLeft />}
+        minH={TAP_TARGET}
+        onClick={() => setTileFilter(null)}
+      >
+        All actions
+      </Button>
+    ) : (
+      // Three across in both layouts; the short landscape rail drops the
+      // subline so the tiles stay one compact row above the fold.
+      <Flex data-testid="pro-action-tiles" gap={railTiles ? "0.3rem" : "0.5rem"}>
+        {tiles.map((tile) => {
+          const available = tile.actions.length > 0;
+          const lead = tile.kind === "maneuver" && available;
+          return (
+            <Button
+              key={tile.kind}
+              flex="1 1 0"
+              minW={0}
+              h="auto"
+              minH={railTiles ? "3.4rem" : "6rem"}
+              py={railTiles ? "0.35rem" : "0.6rem"}
+              px={railTiles ? "0.2rem" : "0.4rem"}
+              display="flex"
+              flexDirection="column"
+              gap={railTiles ? "0.15rem" : "0.3rem"}
+              whiteSpace="normal"
+              borderRadius="0.8rem"
+              border={lead ? "2px solid" : "1px solid"}
+              borderColor={lead ? "brand.accent" : "rgba(250, 235, 215, 0.22)"}
+              bg={lead ? "rgba(224, 168, 46, 0.14)" : "rgba(20, 8, 24, 0.55)"}
+              color="brand.parchment"
+              _hover={{ bg: "rgba(224, 168, 46, 0.2)" }}
+              isDisabled={!available}
+              onClick={() =>
+                tile.actions.length === 1 ? onAction(tile.actions[0]) : setTileFilter(tile.kind)
+              }
+            >
+              <Box as="span" color={available ? "brand.accent" : "inherit"}>
+                {TILE_META[tile.kind].icon}
+              </Box>
+              <Text as="span" fontWeight={700} fontSize={railTiles ? "0.72rem" : "0.9rem"}>
+                {TILE_META[tile.kind].label}
+              </Text>
+              {railTiles ? (
+                // Kept for screen readers and tests; the narrow rail has no room.
+                <Text as="span" srOnly>
+                  {tileSubline(tile)}
+                </Text>
+              ) : (
+                <Text as="span" fontWeight={400} fontSize="0.68rem" opacity={0.75} noOfLines={2}>
+                  {tileSubline(tile)}
+                </Text>
+              )}
+            </Button>
+          );
+        })}
+      </Flex>
+    ));
   const portraitSheetShown = mobile === "portrait" && sheetShown;
   useEffect(() => {
     onMobileSheetShown?.(portraitSheetShown);
@@ -598,20 +864,20 @@ export const ProDock = ({
       {!mobile && turnChips}
       {moveChoiceLine && (
         <Text fontSize="0.8rem" color="#C4B5FD" fontWeight="bold" textShadow="0 1px 3px rgba(0,0,0,0.6)">
-          {moveChoiceLine}
+          {mobile ? touchCopy(moveChoiceLine) : moveChoiceLine}
         </Text>
       )}
       {poseChoiceHint && (
         <Text fontSize="0.8rem" color="#C4B5FD" fontWeight="bold" textShadow="0 1px 3px rgba(0,0,0,0.6)">
-          {poseChoiceHint}
+          {mobile ? touchCopy(poseChoiceHint) : poseChoiceHint}
         </Text>
       )}
       {highlightHint && (
         <Text fontSize="0.8rem" color="brand.accent" textShadow="0 1px 3px rgba(0,0,0,0.6)">
-          {highlightHint}
+          {mobile ? touchCopy(highlightHint) : highlightHint}
         </Text>
       )}
-      {boostHint && (
+      {boostHint && !cardGroups.some((g) => g.type === "BOOST_MOVE") && (
         <Text fontSize="0.75rem" color="brand.parchment" opacity={0.85} textShadow="0 1px 3px rgba(0,0,0,0.6)">
           {boostHint}
         </Text>
@@ -621,8 +887,18 @@ export const ProDock = ({
           {relocateHint}
         </Text>
       )}
-      {combatPanel}
+      {/* A decided combat shrinks to its result line on phones, so an
+          after-combat question sits right under it instead of below the fold. */}
+      {mobile && combatSummary && combatPanel ? (
+        <Text data-testid="pro-combat-summary" fontSize="0.9rem" fontWeight={700} color="brand.parchment">
+          {combatSummary}
+        </Text>
+      ) : (
+        combatPanel
+      )}
       {promptPanel}
+      {tilesEl}
+      {cardPickerEl}
       <Flex direction="column" gap="0.4rem">
         {/* The synthetic relocate-arm rows (see prop doc): they close the FIRST
             band — the maneuver band, per GROUP_ORDER — so they render right under
@@ -630,118 +906,128 @@ export const ProDock = ({
             is somehow empty they still render (alone; the spacebar never fires
             them — they are not server actions). */}
         {relocateArmBand && firstManeuverBandEnd === -1 && relocateArmBand}
-        {rows.map(({ action: a, hotkey, dividerBefore }, i) => (
-          <Fragment key={i}>
-            {/* Group divider (issue #514): a hairline between bands — maneuver,
-                combat, schemes — so the eye lands on the right family of rows
-                instead of scanning one undifferentiated stack. */}
-            {dividerBefore && <Box h="1px" bg="rgba(231, 204, 152, 0.16)" mx="0.15rem" my="0.1rem" />}
-            <Button
-              {...BTN}
-              bg="rgba(20, 8, 24, 0.65)"
-              justifyContent="flex-start"
-              whiteSpace="normal"
-              height="auto"
-              minH={mobile ? TAP_TARGET : "2rem"}
-              py="0.4rem"
-              textAlign="left"
-              onClick={() => onAction(a)}
-            >
-              <Flex as="span" align="center" gap="0.4rem" flexWrap="wrap">
-                {/* Number hotkey (issue #514): the digit that fires this row, in
-                    rendered order. Only present with 2+ rows — the 1-row case is
-                    the spacebar's (#353), whose chip renders on the right below. */}
-                {hotkey != null && (
-                  <Kbd
-                    flexShrink={0}
-                    bg="rgba(255,255,255,0.08)"
-                    borderColor="rgba(255,255,255,0.25)"
-                    color="brand.parchment"
-                    fontSize="0.68rem"
-                    px="0.35rem"
-                  >
-                    {hotkey}
-                  </Kbd>
-                )}
-                {/* Scheme-item use (v17): a leading yellow lightning glyph marks
-                    this as a BOARD item action, visually distinct from a hand
-                    scheme card. The item's label rides in the describe() text. */}
-                {a.type === "USE_SCHEME_ITEM" && (
-                  <Box as="span" display="inline-flex" boxSize="1.1rem" flexShrink={0}>
-                    <ItemGlyph kind="scheme" fill="#E4B106" />
-                  </Box>
-                )}
-                {/* Attack rows show WHO hits WHOM in the board's own token art
-                    (issue #514), so picking the right attacker is a glance rather
-                    than a name-match. The text label stays — the faces annotate it. */}
-                {a.type === "DECLARE_ATTACK" && fighterFace && (
-                  <Flex as="span" align="center" gap="0.15rem" flexShrink={0}>
-                    <DockTokenFace face={fighterFace(a.attacker)} badge={attackerBadge[a.attacker]} />
-                    <Box as="span" color="#E36B6B" display="inline-flex">
-                      <TbArrowNarrowRight size="0.95rem" />
-                    </Box>
-                    <DockTokenFace face={fighterFace(a.target)} />
-                  </Flex>
-                )}
-                {/* USE_SCHEME_ITEM carries the item's whole effect sentence in its
-                    label (p2p #731) — one line, ellipsized when narrow, with the
-                    full text kept in the native title so it stays reachable. */}
-                {a.type === "USE_SCHEME_ITEM" ? (
-                  <Text as="span" noOfLines={1} title={describe(a)}>
-                    {describe(a)}
-                  </Text>
-                ) : (
-                  <Text as="span">{describe(a)}</Text>
-                )}
-                {isExtendedReach(a) && (
-                  <Tooltip label={LARGE_FIGHTER_BLURB} hasArrow placement="top" openDelay={150}>
-                    <Tag
-                      size="sm"
-                      bg="brand.accent"
-                      color="brand.surfaceDim"
-                      fontWeight={700}
-                      letterSpacing="0.01em"
+        {rows.map(({ action: a, hotkey, dividerBefore }, i) => {
+          // Rows a tile already stands for stay out of the list (or, with a tile
+          // opened, everything but that tile's rows) — the relocate band keeps
+          // its slot either way.
+          const kind = tileKindOf(a);
+          const hiddenByTiles = tiles.length > 0 && (tileFilter ? kind !== tileFilter : kind !== null);
+          const hiddenByCards = cardGroups.length > 0 && (isCardChoice(a) || a === declineDefense);
+          if (hiddenByTiles || hiddenByCards)
+            return <Fragment key={i}>{relocateArmBand && i === firstManeuverBandEnd && relocateArmBand}</Fragment>;
+          return (
+            <Fragment key={i}>
+              {/* Group divider (issue #514): a hairline between bands — maneuver,
+                  combat, schemes — so the eye lands on the right family of rows
+                  instead of scanning one undifferentiated stack. */}
+              {dividerBefore && <Box h="1px" bg="rgba(231, 204, 152, 0.16)" mx="0.15rem" my="0.1rem" />}
+              <Button
+                {...BTN}
+                bg="rgba(20, 8, 24, 0.65)"
+                justifyContent="flex-start"
+                whiteSpace="normal"
+                height="auto"
+                minH={mobile ? TAP_TARGET : "2rem"}
+                py="0.4rem"
+                textAlign="left"
+                onClick={() => onAction(a)}
+              >
+                <Flex as="span" align="center" gap="0.4rem" flexWrap="wrap">
+                  {/* Number hotkey (issue #514): the digit that fires this row, in
+                      rendered order. Only present with 2+ rows — the 1-row case is
+                      the spacebar's (#353), whose chip renders on the right below. */}
+                  {hotkey != null && (
+                    <Kbd
                       flexShrink={0}
+                      bg="rgba(255,255,255,0.08)"
+                      borderColor="rgba(255,255,255,0.25)"
+                      color="brand.parchment"
+                      fontSize="0.68rem"
+                      px="0.35rem"
                     >
-                      {LARGE_REACH_CHIP}
-                    </Tag>
-                  </Tooltip>
-                )}
-                {/* Bought attack range (issue #668). Same slot and shape as the
-                    large-reach chip above — both explain a reach the row's text
-                    cannot — but in the board's Broadcast violet, and carrying a
-                    PRICE: the engine deducts it the moment this row is clicked. */}
-                {(() => {
-                  const bought = rangePurchaseChip?.(a) ?? null;
-                  return bought ? (
-                    <Tooltip label={bought.blurb} hasArrow placement="top" openDelay={150}>
-                      <Tag size="sm" bg="#C58BE8" color="#241033" fontWeight={700} flexShrink={0}>
-                        {bought.chip}
+                      {hotkey}
+                    </Kbd>
+                  )}
+                  {/* Scheme-item use (v17): a leading yellow lightning glyph marks
+                      this as a BOARD item action, visually distinct from a hand
+                      scheme card. The item's label rides in the describe() text. */}
+                  {a.type === "USE_SCHEME_ITEM" && (
+                    <Box as="span" display="inline-flex" boxSize="1.1rem" flexShrink={0}>
+                      <ItemGlyph kind="scheme" fill="#E4B106" />
+                    </Box>
+                  )}
+                  {/* Attack rows show WHO hits WHOM in the board's own token art
+                      (issue #514), so picking the right attacker is a glance rather
+                      than a name-match. The text label stays — the faces annotate it. */}
+                  {a.type === "DECLARE_ATTACK" && fighterFace && (
+                    <Flex as="span" align="center" gap="0.15rem" flexShrink={0}>
+                      <DockTokenFace face={fighterFace(a.attacker)} badge={attackerBadge[a.attacker]} />
+                      <Box as="span" color="#E36B6B" display="inline-flex">
+                        <TbArrowNarrowRight size="0.95rem" />
+                      </Box>
+                      <DockTokenFace face={fighterFace(a.target)} />
+                    </Flex>
+                  )}
+                  {/* USE_SCHEME_ITEM carries the item's whole effect sentence in its
+                      label (p2p #731) — one line, ellipsized when narrow, with the
+                      full text kept in the native title so it stays reachable. */}
+                  {a.type === "USE_SCHEME_ITEM" ? (
+                    <Text as="span" noOfLines={1} title={describe(a)}>
+                      {describe(a)}
+                    </Text>
+                  ) : (
+                    <Text as="span">{describe(a)}</Text>
+                  )}
+                  {isExtendedReach(a) && (
+                    <Tooltip label={LARGE_FIGHTER_BLURB} hasArrow placement="top" openDelay={150}>
+                      <Tag
+                        size="sm"
+                        bg="brand.accent"
+                        color="brand.surfaceDim"
+                        fontWeight={700}
+                        letterSpacing="0.01em"
+                        flexShrink={0}
+                      >
+                        {LARGE_REACH_CHIP}
                       </Tag>
                     </Tooltip>
-                  ) : null;
-                })()}
-                {/* Sole-option shortcut hint (issue #353): only the lone eligible
-                    dock action carries it, and pressing space fires this action. */}
-                {a === soleAction && (
-                  <Kbd
-                    ml="auto"
-                    flexShrink={0}
-                    bg="rgba(255,255,255,0.08)"
-                    borderColor="rgba(255,255,255,0.25)"
-                    color="brand.parchment"
-                    fontSize="0.7rem"
-                  >
-                    space
-                  </Kbd>
-                )}
-              </Flex>
-            </Button>
-            {/* The relocate-arm rows close the maneuver band (see the consts
-                above) — after the band's last row, before the first divider. */}
-            {relocateArmBand && i === firstManeuverBandEnd && relocateArmBand}
-          </Fragment>
-        ))}
+                  )}
+                  {/* Bought attack range (issue #668). Same slot and shape as the
+                      large-reach chip above — both explain a reach the row's text
+                      cannot — but in the board's Broadcast violet, and carrying a
+                      PRICE: the engine deducts it the moment this row is clicked. */}
+                  {(() => {
+                    const bought = rangePurchaseChip?.(a) ?? null;
+                    return bought ? (
+                      <Tooltip label={bought.blurb} hasArrow placement="top" openDelay={150}>
+                        <Tag size="sm" bg="#C58BE8" color="#241033" fontWeight={700} flexShrink={0}>
+                          {bought.chip}
+                        </Tag>
+                      </Tooltip>
+                    ) : null;
+                  })()}
+                  {/* Sole-option shortcut hint (issue #353): only the lone eligible
+                      dock action carries it, and pressing space fires this action. */}
+                  {a === soleAction && (
+                    <Kbd
+                      ml="auto"
+                      flexShrink={0}
+                      bg="rgba(255,255,255,0.08)"
+                      borderColor="rgba(255,255,255,0.25)"
+                      color="brand.parchment"
+                      fontSize="0.7rem"
+                    >
+                      space
+                    </Kbd>
+                  )}
+                </Flex>
+              </Button>
+              {/* The relocate-arm rows close the maneuver band (see the consts
+                  above) — after the band's last row, before the first divider. */}
+              {relocateArmBand && i === firstManeuverBandEnd && relocateArmBand}
+            </Fragment>
+          );
+        })}
         {legalActionCount === 0 && !hasPrompt && liveChrome && (
           <Text opacity={0.7} fontSize="0.9rem" color="brand.parchment">
             {iAmSpectating
@@ -846,7 +1132,9 @@ export const ProDock = ({
           legal-action check, so it appears on your own clock and vanishes
           once you're eliminated. Destructive, so it's red and confirm-gated;
           the phase/winner gates stay as belt-and-suspenders. */}
-      {view.phase === "PLAY" && !view.winner && canForfeit && (
+      {/* Phones reach Forfeit through the ⋮ game menu instead (mobile step 2):
+          next to the turn's actions it was one mistap from a lost game. */}
+      {!mobile && view.phase === "PLAY" && !view.winner && canForfeit && (
         <Button size="sm" mt="0.4rem" colorScheme="red" variant="outline" onClick={onForfeit}>
           Forfeit
         </Button>
@@ -871,7 +1159,65 @@ export const ProDock = ({
     // engine offers exactly one, otherwise the first row in the dock's own
     // order (maneuver leads that order, which is what a player reaches for).
     const primary = soleAction ?? rows[0]?.action ?? null;
+    // Ending a move is never the thing to reach for first (mobile step 2): it
+    // stays on the pill row, but as an outline pill, not the gold one.
+    const primaryIsFinish = primary?.type === "END_MANEUVER";
     const extra = Math.max(rows.length - (primary ? 1 : 0), 0);
+
+    if (boardPickCompact)
+      return (
+        <Flex
+          ref={mobileSheetRef}
+          data-testid="pro-mobile-pickbar"
+          position="fixed"
+          left={0}
+          right={0}
+          bottom={0}
+          zIndex={2}
+          px="0.75rem"
+          pointerEvents="none"
+          // Same reserved room as the full sheet: the log / hand / overflow row
+          // floats in it, and the page measures this element to fit the board.
+          sx={{
+            paddingBottom: mobileHandPeekHidden
+              ? "calc(4rem + env(safe-area-inset-bottom, 0px))"
+              : "calc(7rem + env(safe-area-inset-bottom, 0px))",
+          }}
+        >
+          <Flex
+            flex="1"
+            alignItems="center"
+            gap="0.6rem"
+            px="0.85rem"
+            py="0.5rem"
+            borderRadius="0.9rem"
+            border="2px solid"
+            borderColor="brand.accent"
+            boxShadow="0 -6px 20px rgba(12, 4, 16, 0.5)"
+            bg="linear-gradient(180deg, rgba(58, 33, 64, 0.97), rgba(38, 20, 43, 0.99))"
+            pointerEvents="auto"
+          >
+            <Text flex="1" minW={0} fontSize="0.85rem" fontWeight={600} color="brand.accent" noOfLines={2}>
+              {boardPickHint ?? boardHint ?? "Choose on the board"}
+            </Text>
+            <Button
+              minH={TAP_TARGET}
+              px="0.9rem"
+              flexShrink={0}
+              borderRadius="999px"
+              bg="rgba(44, 24, 49, 0.9)"
+              color="brand.parchment"
+              border="1px solid rgba(250, 235, 215, 0.3)"
+              fontSize="0.8rem"
+              fontWeight={500}
+              _hover={{ bg: "rgba(20, 8, 24, 0.95)" }}
+              onClick={() => setExpandedPrompt(promptKey)}
+            >
+              Options
+            </Button>
+          </Flex>
+        </Flex>
+      );
 
     if (!sheetShown)
       return (
@@ -898,19 +1244,37 @@ export const ProDock = ({
               {boardHint}
             </Text>
           )}
+          {!boardHint && combatSummary && (
+            <Text
+              px="0.8rem"
+              py="0.3rem"
+              borderRadius="999px"
+              bg="rgba(20, 8, 24, 0.85)"
+              color="brand.parchment"
+              fontSize="0.8rem"
+              fontWeight={700}
+              pointerEvents="none"
+            >
+              {combatSummary}
+            </Text>
+          )}
           <Flex alignItems="center" justifyContent="center" gap="0.5rem" maxW="100%" px="0.5rem">
             {primary ? (
               <Button
+                data-testid="pro-mobile-primary"
+                data-emphasis={primaryIsFinish ? "secondary" : "primary"}
                 minH="3rem"
                 px="1.25rem"
                 borderRadius="999px"
-                bg="brand.accent"
-                color="brand.surfaceDim"
+                bg={primaryIsFinish ? "rgba(44, 24, 49, 0.92)" : "brand.accent"}
+                color={primaryIsFinish ? "brand.accent" : "brand.surfaceDim"}
+                border={primaryIsFinish ? "2px solid" : undefined}
+                borderColor={primaryIsFinish ? "brand.accent" : undefined}
                 fontWeight={700}
                 fontSize="0.95rem"
                 boxShadow="0 6px 20px rgba(12,4,16,0.5)"
-                _hover={{ bg: "brand.accent" }}
-                _active={{ bg: "brand.accentDeep" }}
+                _hover={{ bg: primaryIsFinish ? "rgba(20, 8, 24, 0.95)" : "brand.accent" }}
+                _active={{ bg: primaryIsFinish ? "rgba(20, 8, 24, 0.95)" : "brand.accentDeep" }}
                 maxW="15rem"
                 overflow="hidden"
                 pointerEvents="auto"
@@ -924,7 +1288,9 @@ export const ProDock = ({
                 </Text>
               </Button>
             ) : (
-              liveChrome && (
+              // Whose turn it is lives in the turn strip under the chips now
+              // (mobile step 2); only the spectating state still needs saying here.
+              liveChrome && iAmSpectating && (
                 <Flex
                   alignItems="center"
                   minH="2.75rem"
@@ -936,13 +1302,7 @@ export const ProDock = ({
                   fontSize="0.8rem"
                   pointerEvents="none"
                 >
-                  {iAmSpectating
-                    ? iForfeited
-                      ? "You forfeited — spectating."
-                      : "Eliminated — spectating."
-                    : multiplayerView
-                      ? "waiting on another player…"
-                      : "waiting on opponent…"}
+                  {iForfeited ? "You forfeited — spectating." : "Eliminated — spectating."}
                 </Flex>
               )
             )}
@@ -1010,7 +1370,7 @@ export const ProDock = ({
           // `svh`, never `vh`: the mobile URL bar makes `vh` taller than the
           // visible viewport, which is what used to cut the bottom off a
           // combat panel.
-          maxH={mobileHandOpen ? "34svh" : "72svh"}
+          maxH={mobileHandOpen ? "34svh" : mobileHandPeekHidden ? "80svh" : "72svh"}
           borderTopRadius="1.1rem"
           overflow="hidden"
           borderTop="2px solid"
@@ -1023,7 +1383,9 @@ export const ProDock = ({
             // sheet, so the last action row is never tucked under it.
             paddingBottom: mobileHandOpen
               ? undefined
-              : "calc(7rem + env(safe-area-inset-bottom, 0px))",
+              : mobileHandPeekHidden
+                ? "calc(4rem + env(safe-area-inset-bottom, 0px))"
+                : "calc(7rem + env(safe-area-inset-bottom, 0px))",
           }}
         >
           {mobileBar}

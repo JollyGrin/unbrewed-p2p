@@ -81,12 +81,14 @@ import {
 } from "react-icons/tb";
 import { DeckAttribution } from "@/components/Pro/DeckAttribution";
 import { CardFace, ProHand } from "@/components/Pro/ProHand";
+import { cardChoiceGroups } from "@/lib/pro/cardChoices";
 import { CardPreviewProvider } from "@/components/Pro/CardPreview";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { MapPreviewModal } from "@/components/Pro/MapPreviewModal";
 import { ProDock } from "@/components/Pro/ProDock";
 import { ProHud, ProHudProps } from "@/components/Pro/ProHud";
 import { MOBILE_BTN, ProMobileHud, ProMobileMenu } from "@/components/Pro/ProMobileHud";
+import { touchCopy } from "@/lib/pro/touchCopy";
 import { HandDecisionWatcher, ProMobileHand, RailHand } from "@/components/Pro/ProMobileHand";
 import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
 import { ReportBugDialog } from "@/components/Pro/ReportBugDialog";
@@ -1180,6 +1182,7 @@ const CombatSlot = ({
   comparePulse,
   subAttackFace,
   faceUp,
+  width = "6.5rem",
 }: {
   label: string;
   card: ViewCombat["attackerCard"];
@@ -1211,13 +1214,15 @@ const CombatSlot = ({
    *  reveal that already happened. Every viewer sees it: both seats, spectators and
    *  the replay scrubber. */
   faceUp?: boolean;
+  /** slot card width; the phone sheet shrinks it until the reveal (mobile step 3) */
+  width?: string;
 }) => (
   <Box textAlign="center">
     <Text opacity={0.6} fontSize="0.75rem" mb="0.25rem">
       {label}
     </Text>
     <Box
-      w="6.5rem"
+      w={width}
       mx="auto"
       position="relative"
       animation={strikeAnimation}
@@ -1503,6 +1508,8 @@ const CombatPanel = ({
   chain,
   effectAttack,
   defenderCallout,
+  compact = false,
+  fighterName,
 }: {
   combat: ViewCombat;
   catalog: Record<string, CardMeta>;
@@ -1536,6 +1543,10 @@ const CombatPanel = ({
    *  are unchanged — which is precisely why the panel has to say it in words. The
    *  caller picks the wording; this just draws it. Null for an ordinary combat. */
   defenderCallout?: { tag: string; full: string } | null;
+  /** phone sheet (mobile step 3): smaller slots until the reveal, so the card
+   *  picker under the panel still fits, plus a "who attacks whom" line. */
+  compact?: boolean;
+  fighterName?: (id: FighterId) => string;
 }) => {
   const attackerCommitted = combat.stage !== "COMMIT_ATTACK";
   const pastReveal = !["COMMIT_ATTACK", "COMMIT_DEFENSE"].includes(combat.stage);
@@ -1643,9 +1654,19 @@ const CombatPanel = ({
           {combat.attackerCard.effectiveValue}. Choose your defense knowing it.
         </Text>
       )}
+      {compact && fighterName && (
+        <Text fontSize="0.85rem" fontWeight={700} mb="0.35rem" noOfLines={2}>
+          {fighterName(combat.attacker)}{" "}
+          <Text as="span" color="#E36B6B" fontWeight={600}>
+            attacks
+          </Text>{" "}
+          {fighterName(combat.target)}
+        </Text>
+      )}
       <Flex gap="1rem" justifyContent="center" position="relative">
         <CombatSlot
           label="attack"
+          width={compact && !pastReveal ? "5.25rem" : undefined}
           card={combat.attackerCard}
           faceUp={faceUpAttack}
           resolveCard={resolveCard}
@@ -1666,6 +1687,7 @@ const CombatPanel = ({
         />
         <CombatSlot
           label="defense"
+          width={compact && !pastReveal ? "5.25rem" : undefined}
           card={combat.defenderCard}
           revealDelay="0.18s"
           resolveCard={resolveCard}
@@ -6537,6 +6559,19 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // The decision dock/sheet, built once and placed by the arrangement: fixed
   // at the right edge on desktop, or inside the mobile bottom container
   // (portrait) / rail (landscape) further down (issue #708).
+  const sheetCombat = visualOn ? panelCombat : view.combat;
+  // Once the combat is decided and its strike beat has played, its result is a
+  // one-liner and the phone sheet lets go of the board (mobile polish).
+  const combatSummary =
+    sheetCombat?.outcome && !strike ? combatOutcomeBannerText(sheetCombat.outcome, sheetCombat.attackDamageDealt) : null;
+  // The hand fan peek stands over the bottom of any portrait sheet or pick bar
+  // (mobile step 3 + polish) — over the combat card picker, the action tiles,
+  // the confirm buttons. Hide it while one is up; a hand prompt brings it back.
+  const handPeekHidden = mobile && !rail && mobileSheetShown && !handOpen && !handDecision;
+  // The rail's card picker already shows the cards in question as faces; the
+  // hand strip under it would only squeeze the picker below the fold.
+  const railPickerOpen = mobile && rail && cardChoiceGroups(dockActionRows.map((r) => r.action)).length > 0;
+
   const dockEl = (
     <ProDock
       view={view}
@@ -6622,6 +6657,8 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
             chain={combatChain}
             effectAttack={combatEffectAttack}
             defenderCallout={combatDefenderTag}
+            compact={mobile && !rail}
+            fighterName={nameOf}
           />
         ) : null
       }
@@ -6633,7 +6670,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
             onRespond={respondToPrompt}
             buttonOptions={promptButtonOptions}
             cardOptions={promptCardOptions}
-            boardHint={promptBoardHint}
+            boardHint={promptBoardHint && mobile ? touchCopy(promptBoardHint) : promptBoardHint}
             budgetLine={promptBudgetLine}
             noteLine={promptNoteLine}
             previewInstance={promptCardInstance}
@@ -6670,6 +6707,12 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       mobileHandOpen={handOpen}
       mobileSheetRef={mobileSheetRef}
       onMobileSheetShown={setMobileSheetShown}
+      boardPickHint={prompt && !mulliganPrompt && promptBoardHint ? (mobile ? touchCopy(promptBoardHint) : promptBoardHint) : null}
+      mobileHandPeekHidden={handPeekHidden}
+      combatSummary={mobile ? combatSummary : null}
+      renderCard={(card) => (
+        <CardFace card={resolveCard(card)} fallback={cardLabel(view.catalog, card)} touchPeekOnly />
+      )}
     />
   );
 
@@ -6742,6 +6785,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
           relocateSpaces={relocateSpaces}
           relocateArmed={relocateMode.armedTarget != null}
           highlightedFighters={[...new Set(highlightedFighters)]}
+          focusFighters={mobile && !rail && sheetCombat && !combatSummary ? [sheetCombat.attacker, sheetCombat.target] : undefined}
           selectedFighter={selectedFighter}
           attack={view.combat ? { attacker: view.combat.attacker, target: view.combat.target } : null}
           defenderStepIn={boardDefenderStepIn}
@@ -6984,20 +7028,22 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
               <TbList size="1rem" /> Log
             </Flex>
             <HandDecisionWatcher promptKey={handDecision} onOpen={() => setHandOpen(true)} />
-            <ProMobileHand
-              hand={view.self.hand}
-              resolveCard={resolveCard}
-              labelFor={(c) => cardLabel(view.catalog, c)}
-              actionsFor={actionsForCard}
-              onAction={playFromHand}
-              deckCount={view.self.deckCount}
-              discardCount={view.self.discard.length}
-              isOpen={handOpen}
-              onOpen={() => setHandOpen(true)}
-              onClose={() => setHandOpen(false)}
-            />
+            {!handPeekHidden && (
+              <ProMobileHand
+                hand={view.self.hand}
+                resolveCard={resolveCard}
+                labelFor={(c) => cardLabel(view.catalog, c)}
+                actionsFor={actionsForCard}
+                onAction={playFromHand}
+                deckCount={view.self.deckCount}
+                discardCount={view.self.discard.length}
+                isOpen={handOpen}
+                onOpen={() => setHandOpen(true)}
+                onClose={() => setHandOpen(false)}
+              />
+            )}
             <Box pointerEvents="auto">
-              <ProMobileMenu {...hudProps} placement="top-end" />
+              <ProMobileMenu {...hudProps} placement="top-end" onForfeit={canForfeit && view.phase === "PLAY" && !view.winner ? () => setForfeitOpen(true) : undefined} />
             </Box>
           </Flex>
         </Flex>
@@ -7038,9 +7084,10 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
               <TbList size="0.9rem" /> Log
             </Flex>
             <Box flex={1} />
-            <ProMobileMenu {...hudProps} placement="bottom-end" />
+            <ProMobileMenu {...hudProps} placement="bottom-end" onForfeit={canForfeit && view.phase === "PLAY" && !view.winner ? () => setForfeitOpen(true) : undefined} />
           </Flex>
           {dockEl}
+          {!railPickerOpen && (
           <RailHand
             hand={view.self.hand}
             resolveCard={resolveCard}
@@ -7048,6 +7095,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
             actionsFor={actionsForCard}
             onAction={playFromHand}
           />
+          )}
         </Flex>
       )}
     </Box>
