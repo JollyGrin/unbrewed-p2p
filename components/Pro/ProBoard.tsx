@@ -15,6 +15,8 @@ import { FighterId, PlayerId, ProMapDef, ProMapRegion, ProMapSpace, SpaceId, Vie
 import { BoardFxItem } from "@/lib/pro/useGameFx";
 import { TokenGestures, usePageHidden } from "@/lib/pro/tokenLife";
 import { ZoomPanInset, useZoomPan } from "@/lib/pro/useZoomPan";
+import { useCoarsePointer } from "@/lib/pro/useCoarsePointer";
+import { touchHitPercent } from "@/lib/pro/touchTargets";
 import { LARGE_REACH_TARGET_BLURB } from "@/lib/pro/largeReach";
 import { PendingSwap, SWAP_SECONDS, SWAP_TIMES } from "@/lib/pro/positionSwap";
 import { tokenInitials } from "./FighterTokenPortrait";
@@ -501,6 +503,54 @@ export const ProBoard = ({
   // applied about the box's centre before the translate, so the anchor point is
   // untouched and only what the box draws turns back upright.
   const upright = zoomable && rotated ? " rotate(-90deg)" : "";
+
+  // Phones (mobile step 1): a gold space can render at ~18px, far below a
+  // fingertip. Actionable circles get an invisible hit area of at least 44px on
+  // screen, and the board zooms onto the picks when they are too small to hit.
+  // Fine pointers (mouse, trackpad) keep today's exact hit circles and view.
+  const coarsePointer = useCoarsePointer();
+  /** sx for an invisible, centred hit area around an actionable circle. */
+  const touchHitSx = (renderedDiameterPx: number) => {
+    const pct = coarsePointer ? touchHitPercent(renderedDiameterPx) : null;
+    return pct === null
+      ? {}
+      : {
+          "&::before": {
+            content: '""',
+            position: "absolute",
+            left: "50%",
+            top: "50%",
+            width: `${pct}%`,
+            height: `${pct}%`,
+            transform: "translate(-50%, -50%)",
+            borderRadius: "50%",
+          },
+        };
+  };
+  const pickKey = `${highlightedSpaces.join(",")}|${relocateSpaces.join(",")}|${highlightedFighters.join(",")}`;
+  const { containerRef: zoomContainerRef, focusOn, releaseFocus } = zoom;
+  useEffect(() => {
+    if (!zoomable || !coarsePointer) return;
+    // Measure after paint, so the gold rings of the new prompt are in the DOM.
+    const raf = requestAnimationFrame(() => {
+      const picks = Array.from(zoomContainerRef.current?.querySelectorAll<HTMLElement>("[data-pick]") ?? []);
+      const rects = picks.map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0);
+      if (rects.length === 0) {
+        releaseFocus();
+        return;
+      }
+      focusOn(
+        {
+          left: Math.min(...rects.map((r) => r.left)),
+          top: Math.min(...rects.map((r) => r.top)),
+          right: Math.max(...rects.map((r) => r.right)),
+          bottom: Math.max(...rects.map((r) => r.bottom)),
+        },
+        Math.min(...rects.map((r) => Math.min(r.width, r.height)))
+      );
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [pickKey, zoomable, coarsePointer, zoomContainerRef, focusOn, releaseFocus]);
 
   // Layout width (px, BEFORE the zoom transform) of the shrink-wrap frame every
   // board overlay is positioned against. Read for one reason only: the cosmetic
@@ -1203,7 +1253,8 @@ export const ProBoard = ({
         // cluster scales with the board and the zoom transform (see tokenStack.ts).
         transform={`translate(calc(-50% + ${slot.dx}%), calc(-50% + ${slot.dy}%))${upright}`}
         w={`${diam * slot.scale}%`}
-        sx={{ aspectRatio: "1" }}
+        data-pick={fighterClickable ? "" : undefined}
+        sx={{ aspectRatio: "1", ...(clickable ? touchHitSx((layerPx * diam * slot.scale) / 100) : {}) }}
         borderRadius="50%"
         bg={tokenLifeOn ? "transparent" : bodyBgToken}
         border={tokenLifeOn ? "none" : bodyBorder}
@@ -1524,16 +1575,18 @@ export const ProBoard = ({
         const zoneRings = inZone
           ? zoneCols.map((c, i) => `0 0 0 ${2 * (i + 1)}px ${c}`).join(", ")
           : undefined;
+        const spaceActionable = (relocateArmed ? isRelocate : isHighlighted || isRelocate) && !!onSpaceClick;
         return (
           <Box
             key={s.id}
             data-space-id={s.id}
+            data-pick={spaceActionable ? "" : undefined}
             position="absolute"
             left={`${s.x * 100}%`}
             top={`${s.y * 100}%`}
             transform="translate(-50%, -50%)"
             w={`${diam}%`}
-            sx={{ aspectRatio: "1" }}
+            sx={{ aspectRatio: "1", ...(spaceActionable ? touchHitSx((layerPx * diam) / 100) : {}) }}
             borderRadius="50%"
             // While the relocate mode is armed, a dashed pick outranks a co-drawn
             // gold highlight outright: the dashed ring is the only clickable thing
@@ -1555,7 +1608,7 @@ export const ProBoard = ({
               isHighlighted || isRelocate ? `${highlightPulse} 1.4s ease-in-out infinite` : undefined
             }
             cursor={
-              (relocateArmed ? isRelocate : isHighlighted || isRelocate) && onSpaceClick
+              spaceActionable
                 ? "pointer"
               : s.zones.length ? "pointer"
               : "default"
@@ -1564,7 +1617,7 @@ export const ProBoard = ({
             // relocation pick answers. Any other space toggles the zone-membership
             // preview — the touch/click path; hover drives it on desktop.
             onClick={
-              (relocateArmed ? isRelocate : isHighlighted || isRelocate) && onSpaceClick
+              spaceActionable && onSpaceClick
                 ? () => onSpaceClick(s.id)
                 : () => setZoneHover((cur) => (cur === s.id ? null : s.id))
             }

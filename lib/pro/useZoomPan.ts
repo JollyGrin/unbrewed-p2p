@@ -23,6 +23,13 @@ import {
   useRef,
   useState,
 } from "react";
+import { ScreenBox, focusTransform, shouldAutoFocus } from "./touchTargets";
+
+/** Margin around auto-focused picks, as a multiple of one pick's on-screen diameter. */
+const FOCUS_PADDING_PICKS = 0.75;
+/** Auto-focus never zooms past picks rendering at this size (px): big enough
+ *  for a thumb, small enough to keep the fighters around them on screen. */
+export const FOCUS_MAX_PICK_PX = 64;
 
 /** Floor for a USER zoom-out gesture. */
 export const ZOOM_MIN = 0.5;
@@ -114,6 +121,14 @@ export interface ZoomPan {
   active: boolean;
   /** snap back to the computed initial fit */
   reset: () => void;
+  /**
+   * Touch helper (mobile step 1): zoom onto a box of board picks given in
+   * CLIENT px, when they would otherwise be too small or huddled to tap. A
+   * no-op once the player has moved the view themselves.
+   */
+  focusOn: (clientBox: ScreenBox, pickDiameterPx: number) => void;
+  /** undo an auto-focus, unless the player moved the view since it happened */
+  releaseFocus: () => void;
 }
 
 /**
@@ -149,6 +164,16 @@ export function useZoomPan(
   // The resting fit's scale, read by the gesture clamp so zooming out can
   // always return to a board that only fits below ZOOM_MIN.
   const fitScaleRef = useRef(ZOOM_MIN);
+  // True while the view is an automatic zoom onto board picks. Unlike a user
+  // gesture it does NOT set `touched`, but it does stop resize re-fits from
+  // yanking the board back out mid-decision.
+  const autoFocused = useRef(false);
+  // The live transform for callbacks that must not change identity on every
+  // pan frame (focusOn is an effect dependency in the board).
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   const { top = 0, right = 0, bottom = 0, left = 0 } = inset;
 
@@ -188,7 +213,7 @@ export function useZoomPan(
       if (!next) return;
       fitScaleRef.current = next.scale;
       setFit((prev) => (same(prev, next) ? prev : next));
-      if (!touched.current) setState((prev) => (same(prev, next) ? prev : next));
+      if (!touched.current && !autoFocused.current) setState((prev) => (same(prev, next) ? prev : next));
     };
     apply();
     const ro = new ResizeObserver(apply);
@@ -249,6 +274,7 @@ export function useZoomPan(
       return;
     }
     touched.current = false;
+    autoFocused.current = false;
     const next = computeFit();
     if (next) {
       fitScaleRef.current = next.scale;
@@ -263,6 +289,7 @@ export function useZoomPan(
   useEffect(() => {
     if (!enabled) {
       touched.current = false;
+      autoFocused.current = false;
       fitScaleRef.current = ZOOM_MIN;
       setState(IDENTITY);
       setFit(IDENTITY);
@@ -271,9 +298,70 @@ export function useZoomPan(
 
   const reset = useCallback(() => {
     touched.current = false;
+    autoFocused.current = false;
     const next = computeFit() ?? fit;
     fitScaleRef.current = next.scale;
     setState(next);
+  }, [computeFit, fit]);
+
+  const focusOn = useCallback(
+    (clientBox: ScreenBox, pickDiameterPx: number) => {
+      const c = containerRef.current;
+      if (!enabled || !c || touched.current) return;
+      const rect = c.getBoundingClientRect();
+      const box = {
+        left: clientBox.left - rect.left,
+        top: clientBox.top - rect.top,
+        right: clientBox.right - rect.left,
+        bottom: clientBox.bottom - rect.top,
+      };
+      const avail = {
+        left,
+        top,
+        width: Math.max(c.clientWidth - left - right, 1),
+        height: Math.max(c.clientHeight - top - bottom, 1),
+      };
+      // Judge the picks as they would sit at the RESTING fit: once zoomed in,
+      // every pick looks big and spread, so judging the live view would keep the
+      // board zoomed onto a stale spot when the next prompt's picks are elsewhere.
+      const current = stateRef.current;
+      const rest = computeFit() ?? fit;
+      const k = rest.scale / current.scale;
+      const atRest = {
+        left: rest.tx + k * (box.left - current.tx),
+        right: rest.tx + k * (box.right - current.tx),
+        top: rest.ty + k * (box.top - current.ty),
+        bottom: rest.ty + k * (box.bottom - current.ty),
+      };
+      if (!shouldAutoFocus({ box: atRest, avail, pickDiameterPx: pickDiameterPx * k })) {
+        if (!autoFocused.current) return;
+        autoFocused.current = false;
+        setState((prev) => (same(prev, rest) ? prev : rest));
+        return;
+      }
+      autoFocused.current = true;
+      const next = focusTransform({
+        current,
+        box,
+        avail,
+        padding: pickDiameterPx * FOCUS_PADDING_PICKS,
+        minScale: fitScaleRef.current,
+        maxScale: Math.max(
+          fitScaleRef.current,
+          Math.min(ZOOM_MAX, (current.scale * FOCUS_MAX_PICK_PX) / Math.max(pickDiameterPx, 1))
+        ),
+      });
+      setState((prev) => (same(prev, next) ? prev : next));
+    },
+    [enabled, top, right, bottom, left, computeFit, fit]
+  );
+
+  const releaseFocus = useCallback(() => {
+    if (!autoFocused.current) return;
+    autoFocused.current = false;
+    if (touched.current) return;
+    const next = computeFit() ?? fit;
+    setState((prev) => (same(prev, next) ? prev : next));
   }, [computeFit, fit]);
 
   // Active pointers (by id) for pinch; a press only becomes a pan once it
@@ -405,5 +493,7 @@ export function useZoomPan(
     // the fit itself is the resting view, however far from identity it sits.
     active: enabled && !same(state, fit),
     reset,
+    focusOn,
+    releaseFocus,
   };
 }
