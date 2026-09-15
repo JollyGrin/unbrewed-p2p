@@ -28,6 +28,7 @@ import {
 } from "react-icons/tb";
 import { ActionTile, TileKind, actionTilesFor, tileKindOf } from "@/lib/pro/actionTiles";
 import { cardChoiceGroups, isCardChoice } from "@/lib/pro/cardChoices";
+import { touchCopy } from "@/lib/pro/touchCopy";
 import { Action, CardInstanceId, FighterId, PlayerView } from "@/lib/pro/protocol";
 import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { isViewerOnWinningTeam } from "@/lib/pro/teams";
@@ -256,6 +257,9 @@ export interface ProDockProps {
   /** mobile only: draws a card face, so card choices (boost, commit, discard)
    *  render as cards to pick instead of text rows. Omit to keep the rows. */
   renderCard?: (card: CardInstanceId) => ReactNode;
+  /** portrait only: the page hid the hand fan peek (a combat holds the sheet),
+   *  so the sheet needs less reserved room at the bottom and may grow taller. */
+  mobileHandPeekHidden?: boolean;
 }
 
 export const ProDock = ({
@@ -301,6 +305,7 @@ export const ProDock = ({
   onMobileSheetShown,
   boardPickHint = null,
   renderCard,
+  mobileHandPeekHidden = false,
 }: ProDockProps) => {
   const { layout, hydrated, update } = useDockLayout();
   const [dragging, setDragging] = useState(false);
@@ -497,7 +502,9 @@ export const ProDock = ({
             .filter(Boolean)
             .join(" · ")
       : null;
-  const boardHint = moveChoiceLine ?? poseChoiceHint ?? highlightHint;
+  const boardHintRaw = moveChoiceLine ?? poseChoiceHint ?? highlightHint;
+  // Phones say "tap" (mobile step 3); desktop copy is untouched.
+  const boardHint = boardHintRaw && mobile ? touchCopy(boardHintRaw) : boardHintRaw;
 
   // ----- direction B mobile shells (issue #708) ------------------------------
   //
@@ -792,17 +799,17 @@ export const ProDock = ({
       {!mobile && turnChips}
       {moveChoiceLine && (
         <Text fontSize="0.8rem" color="#C4B5FD" fontWeight="bold" textShadow="0 1px 3px rgba(0,0,0,0.6)">
-          {moveChoiceLine}
+          {mobile ? touchCopy(moveChoiceLine) : moveChoiceLine}
         </Text>
       )}
       {poseChoiceHint && (
         <Text fontSize="0.8rem" color="#C4B5FD" fontWeight="bold" textShadow="0 1px 3px rgba(0,0,0,0.6)">
-          {poseChoiceHint}
+          {mobile ? touchCopy(poseChoiceHint) : poseChoiceHint}
         </Text>
       )}
       {highlightHint && (
         <Text fontSize="0.8rem" color="brand.accent" textShadow="0 1px 3px rgba(0,0,0,0.6)">
-          {highlightHint}
+          {mobile ? touchCopy(highlightHint) : highlightHint}
         </Text>
       )}
       {boostHint && (
@@ -1272,7 +1279,7 @@ export const ProDock = ({
           // `svh`, never `vh`: the mobile URL bar makes `vh` taller than the
           // visible viewport, which is what used to cut the bottom off a
           // combat panel.
-          maxH={mobileHandOpen ? "34svh" : "72svh"}
+          maxH={mobileHandOpen ? "34svh" : mobileHandPeekHidden ? "80svh" : "72svh"}
           borderTopRadius="1.1rem"
           overflow="hidden"
           borderTop="2px solid"
@@ -1285,7 +1292,9 @@ export const ProDock = ({
             // sheet, so the last action row is never tucked under it.
             paddingBottom: mobileHandOpen
               ? undefined
-              : "calc(7rem + env(safe-area-inset-bottom, 0px))",
+              : mobileHandPeekHidden
+                ? "calc(4rem + env(safe-area-inset-bottom, 0px))"
+                : "calc(7rem + env(safe-area-inset-bottom, 0px))",
           }}
         >
           {mobileBar}

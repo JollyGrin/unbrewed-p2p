@@ -46,7 +46,7 @@ import { useHudPlates, DEFAULT_PLATE_LAYOUT } from "@/lib/pro/useHudPlates";
 import { deriveTeams } from "@/lib/pro/teams";
 import { seatNameplate } from "@/lib/pro/playerIdentity";
 import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
-import { turnStripFor, yourTurnCueDue } from "@/lib/pro/turnStrip";
+import { defenseCueDue, turnStripFor, yourTurnCueDue } from "@/lib/pro/turnStrip";
 import { RAIL_WIDTH_CSS, TAP_TARGET, chipSeatName } from "@/lib/pro/mobileLayout";
 import type { PlayerId, ViewPlayer } from "@/lib/pro/protocol";
 import type { ProLayoutMode } from "@/lib/pro/useProLayout";
@@ -398,14 +398,13 @@ export const ProMobileHud = ({
   // the landscape rail keeps its own turn chips). Inside the measured chips box,
   // so the board fit clears it.
   const strip = layoutMode === "portrait" ? turnStripFor(view, (id) => chipSeatName(heroOf(id)?.name, nameOfPlayer(id))) : null;
-  // "Your turn" cue when the turn is handed to this seat mid-game: a toast, plus
-  // a short buzz where the browser has a vibration API (Android; not iOS Safari).
+  // Mobile step 3: a short buzz (where the browser has a vibration API — Android,
+  // not iOS Safari) when the turn is handed to this seat or it is asked to
+  // defend. The on-screen part is the existing YOUR TURN / DEFEND! callouts.
   const prevView = useRef<typeof view | null>(null);
   useEffect(() => {
-    if (yourTurnCueDue(prevView.current, view)) {
-      toast("Your turn", { id: "pro-your-turn", icon: "⚔️", duration: 2200 });
-      if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") navigator.vibrate(60);
-    }
+    const due = yourTurnCueDue(prevView.current, view) || defenseCueDue(prevView.current, view);
+    if (due && typeof navigator !== "undefined" && typeof navigator.vibrate === "function") navigator.vibrate(60);
     prevView.current = view;
   }, [view]);
 

@@ -32,3 +32,9 @@ export function yourTurnCueDue(prev: PlayerView | null, next: PlayerView): boole
   if (!prev || next.phase !== "PLAY" || next.winner) return false;
   return next.activePlayer === next.you && prev.activePlayer !== prev.you && next.turnNumber >= prev.turnNumber;
 }
+
+/** Whether `next` is the moment a combat starts asking this seat to defend. */
+export function defenseCueDue(prev: PlayerView | null, next: PlayerView): boolean {
+  const asking = (v: PlayerView | null) => v?.combat?.stage === "COMMIT_DEFENSE" && v.combat.defenderPlayer === v.you;
+  return !!prev && asking(next) && !asking(prev);
+}

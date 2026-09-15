@@ -350,6 +350,75 @@ describe("portrait phone — turn strip and action bar (mobile step 2)", () => {
   });
 });
 
+describe("portrait phone — combat (mobile step 3)", () => {
+  const P1 = BASE_VIEW.you;
+  const P2 = BASE_VIEW.players.find((p) => p.id !== P1)!.id;
+  const hero = (player: string) => BASE_VIEW.fighters.find((f) => f.owner === player && f.kind === "HERO")!;
+  const defending = (): PlayerView =>
+    ({
+      ...BASE_VIEW,
+      phase: "PLAY",
+      activePlayer: P2,
+      prompt: null,
+      winner: null,
+      combat: {
+        attackerPlayer: P2,
+        defenderPlayer: P1,
+        attacker: hero(P2).id,
+        target: hero(P1).id,
+        stage: "COMMIT_DEFENSE",
+        attackerCard: null,
+        defenderCard: null,
+        additionalDefenseCard: null,
+        outcome: null,
+        attackDamageDealt: null,
+      },
+    }) as PlayerView;
+
+  it("names who attacks whom and clears the hand peek off the defense cards", async () => {
+    setViewport("portrait");
+    const { state } = await mount();
+    await state(defending(), [
+      { type: "COMMIT_DEFENSE_CARD", player: P1, card: BASE_VIEW.self.hand[0] },
+      { type: "DECLINE_DEFENSE", player: P1 },
+    ]);
+
+    const sheet = screen.getByTestId("pro-mobile-sheet");
+    expect(sheet).toHaveTextContent(new RegExp(`${hero(P2).name} attacks ${hero(P1).name}`, "i"));
+    expect(screen.queryByTestId("hand-fan-peek")).toBeNull();
+    expect(within(sheet).getByRole("button", { name: /don't defend/i })).toBeInTheDocument();
+  });
+
+  it("brings the hand peek back once the combat is over", async () => {
+    setViewport("portrait");
+    const { state } = await mount();
+    await state(defending(), [{ type: "DECLINE_DEFENSE", player: P1 }]);
+    await state({ ...defending(), combat: null } as PlayerView, []);
+
+    expect(screen.getByTestId("hand-fan-peek")).toBeInTheDocument();
+  });
+
+  it("says tap, not click, in board hints", async () => {
+    setViewport("portrait");
+    const { state } = await mount();
+    await state(
+      {
+        ...BASE_VIEW,
+        phase: "PLAY",
+        activePlayer: P1,
+        combat: null,
+        winner: null,
+        prompt: { promptId: "p-space", player: P1, kind: "CHOOSE_SPACE", options: [{ id: "o1", label: "w2" }] },
+      } as PlayerView,
+      []
+    );
+
+    const bar = screen.getByTestId("pro-mobile-pickbar");
+    expect(bar).toHaveTextContent(/^tap /i);
+    expect(bar).not.toHaveTextContent(/click/i);
+  });
+});
+
 describe("landscape phone", () => {
   it("stands the decision stack + hand up as a right rail", async () => {
     setViewport("rail");

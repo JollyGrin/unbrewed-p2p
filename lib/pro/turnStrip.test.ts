@@ -1,5 +1,5 @@
 import { describe, expect, test } from "@jest/globals";
-import { turnStripFor, yourTurnCueDue } from "./turnStrip";
+import { defenseCueDue, turnStripFor, yourTurnCueDue } from "./turnStrip";
 import type { PlayerView } from "./protocol";
 
 const view = (over: Partial<PlayerView>): PlayerView =>
@@ -44,5 +44,20 @@ describe("yourTurnCueDue", () => {
     expect(yourTurnCueDue(null, at("p1", 4))).toBe(false);
     expect(yourTurnCueDue(at("p2", 0, { phase: "SETUP" }), at("p1", 0, { phase: "SETUP" }))).toBe(false);
     expect(yourTurnCueDue(at("p2", 3), at("p1", 4, { winner: "p1" } as Partial<PlayerView>))).toBe(false);
+  });
+});
+
+describe("defenseCueDue", () => {
+  const combat = (defenderPlayer: string, stage: string) => ({ defenderPlayer, stage }) as unknown as PlayerView["combat"];
+
+  test("fires when a combat starts asking this seat for a defense", () => {
+    expect(defenseCueDue(view({ combat: null }), view({ combat: combat("p1", "COMMIT_DEFENSE") }))).toBe(true);
+  });
+
+  test("stays quiet while the same defense decision is still open, or for someone else's defense", () => {
+    const asking = view({ combat: combat("p1", "COMMIT_DEFENSE") });
+    expect(defenseCueDue(asking, asking)).toBe(false);
+    expect(defenseCueDue(view({ combat: null }), view({ combat: combat("p2", "COMMIT_DEFENSE") }))).toBe(false);
+    expect(defenseCueDue(null, asking)).toBe(false);
   });
 });
