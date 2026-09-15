@@ -1,0 +1,243 @@
+{
+  "bgg_link": null,
+  "created_on": "Fri, 28 Aug 2026 03:08:23 GMT",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#7f854d",
+      "cardbackUrl": "https://i.imgur.com/V4pyVQc.png",
+      "highlightColour": "#000ecc",
+      "isPNP": false,
+      "patternName": "Wallpaper"
+    },
+    "cards": [
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "NARRATOR",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/narrator/red-herring.webp",
+        "immediateText": "Discard your opponent's card. They reveal cards from their deck until they reveal a defense or versatile card they can play. They play that card and randomly put the rest of the revealed cards on the bottom of their deck.",
+        "quantity": 2,
+        "title": "PLOT DEVICE: Red Herring",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "Place the opposing fighter in any space.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ADVENTURERS",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/narrator/a-heros-journey.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "A Hero's Journey",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "Summon an adventurer in The Narrator's zone. Then, move each of your fighters up to 2 spaces.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "NARRATOR",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/narrator/rising-action-attack.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Rising Action",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "If you won the combat, The Narrator recovers health equal to the damage dealt.",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "NARRATOR",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/narrator/happily-ever-after.webp",
+        "immediateText": "If this attack defeats the opposing fighter, return them to the box.",
+        "quantity": 2,
+        "title": "Happily Ever After",
+        "type": "attack",
+        "value": 5
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "Reveal the top card of your opponent's deck. Add its BOOST value to the value of this card.",
+        "imageUrl": "/evergreen-decks/art/narrator/the-climax.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "The Climax",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "Your opponent reveals 1 random card. The Narrator recovers health equal to its BOOST value.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/narrator/the-plays-the-thing.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "The Story's The Thing",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "Look at your opponent's hand and choose 1 card for them to discard. Draw 1 card.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/narrator/plot-twist.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Plot Twist",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "ADVENTURERS",
+        "duringText": "The value of this card is +2 for each friendly fighter adjacent to the opposing fighter.",
+        "imageUrl": "/evergreen-decks/art/narrator/harrying-strike.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Harrying Strike",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "Draw 1 card. If you won the combat, draw 2 cards instead.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/narrator/regroup.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Regroup",
+        "type": "versatile",
+        "value": 1
+      },
+      {
+        "afterText": "All players draw 1 card. End the turn.",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "NARRATOR",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/narrator/deus-ex-machina.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Plot Device: Deus Ex Machina",
+        "type": "defence",
+        "value": 4
+      },
+      {
+        "afterText": null,
+        "basicText": "Each player reveals the top card of their deck. Choose 1 player to draw that card. Their hero takes damage equal to the BOOST value of that card.",
+        "boost": 3,
+        "characterName": "NARRATOR",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/narrator/foreshadowing.webp",
+        "immediateText": null,
+        "quantity": 2,
+        "title": "Plot Device: Forshadowing",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": null,
+        "basicText": "The Narrator may swap spaces with another friendly fighter.\n\nThen, choose a PLOT DEVICE card in your discard pile. Return it to your hand.\n",
+        "boost": 3,
+        "characterName": "NARRATOR",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/narrator/advance-the-plot.webp",
+        "immediateText": null,
+        "quantity": 2,
+        "title": "Advance The Plot",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": null,
+        "basicText": "Remove The Narrator from the board. At the start of your next turn, summon an Adventurer in any space, then place The Narrator adjacent to them.",
+        "boost": 1,
+        "characterName": "NARRATOR",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/narrator/to-observe-from-beyond.webp",
+        "immediateText": null,
+        "quantity": 2,
+        "title": "To Observe From Beyond",
+        "type": "scheme",
+        "value": null
+      }
+    ],
+    "extraCharacters": [],
+    "hero": {
+      "hp": 13,
+      "isRanged": false,
+      "move": 2,
+      "name": "The Narrator",
+      "specialAbility": "LIVE THROUGH STORIES\nThe Narrator may attack opposing fighter's adjacent to friendly fighters.\n"
+    },
+    "name": "",
+    "ruleCards": [],
+    "sidekick": {
+      "hp": null,
+      "isRanged": false,
+      "name": "Adventurers",
+      "quantity": 3,
+      "quote": null
+    }
+  },
+  "deck_first_published_on": "Tue, 15 Sep 2026 00:30:27 GMT",
+  "deck_published": true,
+  "family_id": "mGY6w",
+  "id": "mGY6w",
+  "liked": false,
+  "likes": 0,
+  "name": "The Narrator",
+  "note": "The Narrator is a character who supercharges his opponent's deck draw with each plot device he writes into the story, telling the story from afar while he writes his adventurers to walk their hero's journey.\n\nWARNING: This deck uses (temporary) AI art. Created as a test and feature of ArtGen's capabilities for the Unbrewed fan-site, developed trained and programmed by @JollyGrin. I am currently drawing my own art by hand for this deck in the meanwhile.",
+  "published": true,
+  "published_on": "Tue, 15 Sep 2026 00:30:27 GMT",
+  "tags": [
+    {
+      "name": "Melee Hero",
+      "slug": "melee-hero"
+    },
+    {
+      "name": "Original characters",
+      "slug": "original-characters"
+    },
+    {
+      "name": "Multiple Sidekicks",
+      "slug": "multiple-sidekicks"
+    },
+    {
+      "name": "Fables",
+      "slug": "fables"
+    }
+  ],
+  "updated_on": "Tue, 15 Sep 2026 01:50:41 GMT",
+  "user": "Inforce",
+  "version_id": "5jBEXsA55e",
+  "version_name": "Initial version",
+  "versions": [
+    {
+      "created_on": "Fri, 28 Aug 2026 03:08:23 GMT",
+      "id": "5jBEXsA55e",
+      "name": "The Narrator",
+      "published": true,
+      "updated_on": "Tue, 15 Sep 2026 01:50:41 GMT",
+      "version_name": "Initial version"
+    }
+  ]
+}

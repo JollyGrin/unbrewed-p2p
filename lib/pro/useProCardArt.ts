@@ -305,6 +305,28 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // author's final illustrations from their the-unmatched.club deck, self-hosted
   // under public/evergreen-decks/art/NQ5XP (#446) and wired as imageUrl only.
   "leon-s-kennedy": "NQ5XP",
+  // The Narrator (issue #844 ↔ engine PR #596): unmatched.cards VERSION id
+  // 5jBEXsA55e — the family id mGY6w 404s, so the version id is the deck id
+  // everywhere — by Inforce, served at tier `lab`. PAIRED with the engine's
+  // `feature/narrator` branch (b6958dc, deck-only conversion at DSL 0.81.0):
+  // this client PR landed as DRAFT against feature/narrator and pair-merges
+  // with it, so nothing here can verify against the deployed engine until that
+  // merge. No protocol surface: the hero ability is the v0.80.0
+  // `allyAdjacentAttack` trait, *To Observe From Beyond* rides the PRIVATE
+  // NARRATOR_OBSERVING flag (per-player bookkeeping — no HERO_STATE_FLAGS
+  // entry, nothing board-visible), PROTOCOL_VERSION unchanged.
+  //
+  // ART: 13 faces self-hosted under public/evergreen-decks/art/narrator/,
+  // wired as imageUrl only (loose illustrations the template frames; Leon
+  // precedent). 12 are the author's artgen run mirrored by #733/#734 — note
+  // `the-plays-the-thing.webp` is *The Story's The Thing*'s render (the
+  // artgen deck's title drift; its phantom Rising-Action-versatile variant is
+  // unused) — plus *The Climax*, which the artgen run skipped, mirrored from
+  // the deck payload's own imgur render with the #734 treatment (cwebp -q 80,
+  // 1600w). The cardback is the author's own, on the deck's appearance block
+  // (imgur hotlink — #733 scoped cardback assets out), passed through
+  // --cardback to the POPULAR_DECKS tile.
+  "the-narrator": "5jBEXsA55e",
 };
 
 /**
