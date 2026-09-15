@@ -81,12 +81,14 @@ import {
 } from "react-icons/tb";
 import { DeckAttribution } from "@/components/Pro/DeckAttribution";
 import { CardFace, ProHand } from "@/components/Pro/ProHand";
+import { cardChoiceGroups } from "@/lib/pro/cardChoices";
 import { CardPreviewProvider } from "@/components/Pro/CardPreview";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { MapPreviewModal } from "@/components/Pro/MapPreviewModal";
 import { ProDock } from "@/components/Pro/ProDock";
 import { ProHud, ProHudProps } from "@/components/Pro/ProHud";
 import { MOBILE_BTN, ProMobileHud, ProMobileMenu } from "@/components/Pro/ProMobileHud";
+import { touchCopy } from "@/lib/pro/touchCopy";
 import { HandDecisionWatcher, ProMobileHand, RailHand } from "@/components/Pro/ProMobileHand";
 import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
 import { ReportBugDialog } from "@/components/Pro/ReportBugDialog";
@@ -1180,6 +1182,7 @@ const CombatSlot = ({
   comparePulse,
   subAttackFace,
   faceUp,
+  width = "6.5rem",
 }: {
   label: string;
   card: ViewCombat["attackerCard"];
@@ -1211,13 +1214,15 @@ const CombatSlot = ({
    *  reveal that already happened. Every viewer sees it: both seats, spectators and
    *  the replay scrubber. */
   faceUp?: boolean;
+  /** slot card width; the phone sheet shrinks it until the reveal (mobile step 3) */
+  width?: string;
 }) => (
   <Box textAlign="center">
     <Text opacity={0.6} fontSize="0.75rem" mb="0.25rem">
       {label}
     </Text>
     <Box
-      w="6.5rem"
+      w={width}
       mx="auto"
       position="relative"
       animation={strikeAnimation}
@@ -1503,6 +1508,8 @@ const CombatPanel = ({
   chain,
   effectAttack,
   defenderCallout,
+  compact = false,
+  fighterName,
 }: {
   combat: ViewCombat;
   catalog: Record<string, CardMeta>;
@@ -1536,6 +1543,10 @@ const CombatPanel = ({
    *  are unchanged — which is precisely why the panel has to say it in words. The
    *  caller picks the wording; this just draws it. Null for an ordinary combat. */
   defenderCallout?: { tag: string; full: string } | null;
+  /** phone sheet (mobile step 3): smaller slots until the reveal, so the card
+   *  picker under the panel still fits, plus a "who attacks whom" line. */
+  compact?: boolean;
+  fighterName?: (id: FighterId) => string;
 }) => {
   const attackerCommitted = combat.stage !== "COMMIT_ATTACK";
   const pastReveal = !["COMMIT_ATTACK", "COMMIT_DEFENSE"].includes(combat.stage);
@@ -1643,9 +1654,19 @@ const CombatPanel = ({
           {combat.attackerCard.effectiveValue}. Choose your defense knowing it.
         </Text>
       )}
+      {compact && fighterName && (
+        <Text fontSize="0.85rem" fontWeight={700} mb="0.35rem" noOfLines={2}>
+          {fighterName(combat.attacker)}{" "}
+          <Text as="span" color="#E36B6B" fontWeight={600}>
+            attacks
+          </Text>{" "}
+          {fighterName(combat.target)}
+        </Text>
+      )}
       <Flex gap="1rem" justifyContent="center" position="relative">
         <CombatSlot
           label="attack"
+          width={compact && !pastReveal ? "5.25rem" : undefined}
           card={combat.attackerCard}
           faceUp={faceUpAttack}
           resolveCard={resolveCard}
@@ -1666,6 +1687,7 @@ const CombatPanel = ({
         />
         <CombatSlot
           label="defense"
+          width={compact && !pastReveal ? "5.25rem" : undefined}
           card={combat.defenderCard}
           revealDelay="0.18s"
           resolveCard={resolveCard}
@@ -4142,7 +4164,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // paces STATE batches with. Persisted per browser; OFF leaves the socket's queue
   // layer completely inert.
   const [slowMode, toggleSlowMode] = useSlowMode();
-  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, requestLobbies, setVisibility, serverRestarting, gameLost, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } =
+  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } =
     useProSocket(WS_URL, debug, slowMode);
   // Read through refs inside the log effect: adding either to that effect's deps
   // would re-run it without a new snapshot and append the last batch's lines
@@ -4925,6 +4947,35 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     toast(proErrorMessage("RATE_LIMITED"), { id: "pro-rate-limited", icon: "🐢" });
     acknowledgeRateLimited();
   }, [rateLimited, acknowledgeRateLimited]);
+
+  // Illegal action (p2p #840): the reducer rejected our last action — a stale
+  // view, or a double-tap's second send. The socket is open and the board is
+  // exactly as it was, so this is a one-shot notice like SERVER_ERROR, never
+  // the "We lost your game" screen. Stable id: a tap burst makes one toast.
+  useEffect(() => {
+    if (!illegalAction) return;
+    toast.error(proErrorMessage("ILLEGAL_ACTION"), { id: "pro-illegal-action" });
+    acknowledgeIllegalAction();
+  }, [illegalAction, acknowledgeIllegalAction]);
+
+  // Stale-view resync (p2p #848): repeated rejections with no STATE in between
+  // made useProSocket ask the server for a fresh view (a RECONNECT on the live
+  // socket). Hold a "refreshing" toast until that STATE lands, then flip the
+  // same toast to a one-line all-clear so the player knows why the board moved.
+  // Mirrors the reconnecting-toast pattern above; never the loss screen.
+  const wasResyncingRef = useRef(false);
+  useEffect(() => {
+    const id = "pro-resync";
+    if (resyncing) {
+      toast.dismiss("pro-illegal-action"); // superseded — the resync IS the answer
+      toast.loading("Board out of date — refreshing from the server…", { id });
+      wasResyncingRef.current = true;
+    } else if (wasResyncingRef.current) {
+      wasResyncingRef.current = false;
+      toast.success("Board refreshed.", { id });
+    }
+    return () => toast.dismiss(id);
+  }, [resyncing]);
 
   // Move timer (issue #223): the viewer's OWN clock ran out and the server played
   // a move for them. The move itself renders through the ordinary STATE flow (the
@@ -6196,7 +6247,8 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       ? poseIndex.optionFor(pose.lead, pose.trail)
       : promptUnambiguousSpaces.get(dest);
     if (!optionId || path.length < 2) return; // never answer with a route we can't name
-    respondToPrompt(promptForMe.promptId, optionId, path);
+    // A dropped repeat of the answer already in flight (#847) gets no tween.
+    if (!respondToPrompt(promptForMe.promptId, optionId, path)) return;
     setPromptStep(null);
     setPoseChoice(null);
     setPendingMove({
@@ -6216,8 +6268,10 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     // For a LARGE body this is the LEADING END's route — the engine reads the final
     // pose off its last two entries, so the tail needs no separate answer (#658).
     const path = stepCommitPath(state);
-    sendAction({ type: "MOVE_FIGHTER", player: view.you, fighter: selectedFighter, path });
-    if (path.length >= 2) {
+    // A send the hook dropped (a repeat of the move already in flight, #847)
+    // gets no tween: nothing went out, so nothing is about to arrive.
+    const sent = sendAction({ type: "MOVE_FIGHTER", player: view.you, fighter: selectedFighter, path });
+    if (sent && path.length >= 2) {
       setPendingMove({ fighterId: selectedFighter, path, trailPath: stepCommitTrailPath(state) });
     }
     setStep(null);
@@ -6378,9 +6432,11 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     setSelectedFighter(null);
   };
   // Send one resolved board action; if it's a MOVE_FIGHTER, start the tween from
-  // the fighter's real space (the server path may omit it as path[0]).
+  // the fighter's real space (the server path may omit it as path[0]). No tween
+  // for a send the hook dropped (#847) — a phantom one would only clear via
+  // usePendingMoveTimeout, not because the fighter arrived.
   const commitMoveOrAction = (action: Action, _space: SpaceId) => {
-    sendAction(action);
+    if (!sendAction(action)) return;
     if (action.type === "MOVE_FIGHTER") {
       const origin = view.fighters.find((f) => f.id === action.fighter)?.space;
       const fullPath = origin && action.path[0] !== origin ? [origin, ...action.path] : action.path;
@@ -6416,9 +6472,12 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     }
     const attack = attackActions.get(id);
     if (attack) {
-      sendAction(attack);
-      setSelectedFighter(null);
-      setStep(null);
+      // A dropped repeat of the in-flight attack (#847) leaves the selection
+      // and any previewed walk exactly as they were: nothing new was sent.
+      if (sendAction(attack)) {
+        setSelectedFighter(null);
+        setStep(null);
+      }
     } else if (movableFighters.has(id)) {
       // Stepping (issue #285): the selected fighter's token stays at its ORIGIN
       // while the ghost previews elsewhere, so clicking it steps BACK one hop
@@ -6477,8 +6536,9 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // wants the screen. Desktop's fan has no drawer, so this is just `sendAction`
   // there.
   const playFromHand = (action: Action) => {
-    setHandOpen(false);
-    sendAction(action);
+    // Only a send that really went out closes the drawer (#847): a dropped
+    // repeat of the play already in flight would otherwise shut it for nothing.
+    if (sendAction(action)) setHandOpen(false);
   };
 
   // …and it opens itself when the decision on the table is about a card in YOUR
@@ -6537,6 +6597,19 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // The decision dock/sheet, built once and placed by the arrangement: fixed
   // at the right edge on desktop, or inside the mobile bottom container
   // (portrait) / rail (landscape) further down (issue #708).
+  const sheetCombat = visualOn ? panelCombat : view.combat;
+  // Once the combat is decided and its strike beat has played, its result is a
+  // one-liner and the phone sheet lets go of the board (mobile polish).
+  const combatSummary =
+    sheetCombat?.outcome && !strike ? combatOutcomeBannerText(sheetCombat.outcome, sheetCombat.attackDamageDealt) : null;
+  // The hand fan peek stands over the bottom of any portrait sheet or pick bar
+  // (mobile step 3 + polish) — over the combat card picker, the action tiles,
+  // the confirm buttons. Hide it while one is up; a hand prompt brings it back.
+  const handPeekHidden = mobile && !rail && mobileSheetShown && !handOpen && !handDecision;
+  // The rail's card picker already shows the cards in question as faces; the
+  // hand strip under it would only squeeze the picker below the fold.
+  const railPickerOpen = mobile && rail && cardChoiceGroups(dockActionRows.map((r) => r.action)).length > 0;
+
   const dockEl = (
     <ProDock
       view={view}
@@ -6622,6 +6695,8 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
             chain={combatChain}
             effectAttack={combatEffectAttack}
             defenderCallout={combatDefenderTag}
+            compact={mobile && !rail}
+            fighterName={nameOf}
           />
         ) : null
       }
@@ -6633,7 +6708,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
             onRespond={respondToPrompt}
             buttonOptions={promptButtonOptions}
             cardOptions={promptCardOptions}
-            boardHint={promptBoardHint}
+            boardHint={promptBoardHint && mobile ? touchCopy(promptBoardHint) : promptBoardHint}
             budgetLine={promptBudgetLine}
             noteLine={promptNoteLine}
             previewInstance={promptCardInstance}
@@ -6647,7 +6722,9 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       hasPrompt={!!prompt}
       rows={dockActionRows}
       soleAction={sole}
-      describe={(a) => describeAction(view.catalog, a, { nameOf, attackerBadge, itemForSpace: liveItemForSpace })}
+      describe={(a) =>
+        describeAction(view.catalog, a, { nameOf, attackerBadge, itemForSpace: liveItemForSpace, attachItem: attachItemContext })
+      }
       isExtendedReach={isExtendedReach}
       rangePurchaseChip={rangePurchaseChip}
       fighterFace={fighterFace}
@@ -6670,7 +6747,12 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       mobileHandOpen={handOpen}
       mobileSheetRef={mobileSheetRef}
       onMobileSheetShown={setMobileSheetShown}
-      boardPickHint={prompt && !mulliganPrompt ? promptBoardHint : null}
+      boardPickHint={prompt && !mulliganPrompt && promptBoardHint ? (mobile ? touchCopy(promptBoardHint) : promptBoardHint) : null}
+      mobileHandPeekHidden={handPeekHidden}
+      combatSummary={mobile ? combatSummary : null}
+      renderCard={(card) => (
+        <CardFace card={resolveCard(card)} fallback={cardLabel(view.catalog, card)} touchPeekOnly />
+      )}
     />
   );
 
@@ -6743,6 +6825,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
           relocateSpaces={relocateSpaces}
           relocateArmed={relocateMode.armedTarget != null}
           highlightedFighters={[...new Set(highlightedFighters)]}
+          focusFighters={mobile && !rail && sheetCombat && !combatSummary ? [sheetCombat.attacker, sheetCombat.target] : undefined}
           selectedFighter={selectedFighter}
           attack={view.combat ? { attacker: view.combat.attacker, target: view.combat.target } : null}
           defenderStepIn={boardDefenderStepIn}
@@ -6985,20 +7068,22 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
               <TbList size="1rem" /> Log
             </Flex>
             <HandDecisionWatcher promptKey={handDecision} onOpen={() => setHandOpen(true)} />
-            <ProMobileHand
-              hand={view.self.hand}
-              resolveCard={resolveCard}
-              labelFor={(c) => cardLabel(view.catalog, c)}
-              actionsFor={actionsForCard}
-              onAction={playFromHand}
-              deckCount={view.self.deckCount}
-              discardCount={view.self.discard.length}
-              isOpen={handOpen}
-              onOpen={() => setHandOpen(true)}
-              onClose={() => setHandOpen(false)}
-            />
+            {!handPeekHidden && (
+              <ProMobileHand
+                hand={view.self.hand}
+                resolveCard={resolveCard}
+                labelFor={(c) => cardLabel(view.catalog, c)}
+                actionsFor={actionsForCard}
+                onAction={playFromHand}
+                deckCount={view.self.deckCount}
+                discardCount={view.self.discard.length}
+                isOpen={handOpen}
+                onOpen={() => setHandOpen(true)}
+                onClose={() => setHandOpen(false)}
+              />
+            )}
             <Box pointerEvents="auto">
-              <ProMobileMenu {...hudProps} placement="top-end" />
+              <ProMobileMenu {...hudProps} placement="top-end" onForfeit={canForfeit && view.phase === "PLAY" && !view.winner ? () => setForfeitOpen(true) : undefined} />
             </Box>
           </Flex>
         </Flex>
@@ -7039,9 +7124,10 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
               <TbList size="0.9rem" /> Log
             </Flex>
             <Box flex={1} />
-            <ProMobileMenu {...hudProps} placement="bottom-end" />
+            <ProMobileMenu {...hudProps} placement="bottom-end" onForfeit={canForfeit && view.phase === "PLAY" && !view.winner ? () => setForfeitOpen(true) : undefined} />
           </Flex>
           {dockEl}
+          {!railPickerOpen && (
           <RailHand
             hand={view.self.hand}
             resolveCard={resolveCard}
@@ -7049,6 +7135,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
             actionsFor={actionsForCard}
             onAction={playFromHand}
           />
+          )}
         </Flex>
       )}
     </Box>

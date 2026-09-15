@@ -303,6 +303,9 @@ export interface ProBoardProps {
   highlightedSpaces?: SpaceId[];
   /** Fighters the current player can act on right now (attack targets, movable…) */
   highlightedFighters?: FighterId[];
+  /** phones: fighters to zoom onto when there is nothing to pick — the two
+   *  sides of a live combat (mobile polish). Board picks always win. */
+  focusFighters?: FighterId[];
   /** Maneuver-ORIGIN relocation picks (engine #535 ↔ protocol 34): spaces the
    *  selected fighter may START its maneuver from, offered by the server as
    *  RELOCATE_FIGHTER actions. A teleport, not a step — drawn as a dashed cyan
@@ -479,6 +482,7 @@ export const ProBoard = ({
   tokens = [],
   highlightedSpaces = [],
   highlightedFighters = [],
+  focusFighters = [],
   relocateSpaces = [],
   relocateArmed = false,
   selectedFighter = null,
@@ -580,21 +584,28 @@ export const ProBoard = ({
           },
         };
   };
-  const pickKey = `${highlightedSpaces.join(",")}|${relocateSpaces.join(",")}|${highlightedFighters.join(",")}`;
+  const pickKey = `${highlightedSpaces.join(",")}|${relocateSpaces.join(",")}|${highlightedFighters.join(",")}|${focusFighters.join(",")}`;
   const { focusOn, releaseFocus } = zoom;
   useEffect(() => {
     if (!zoomable || !coarsePointer) return;
     // Measure after paint, so the gold rings of the new prompt are in the DOM.
     const raf = requestAnimationFrame(() => {
-      // Only picks INSIDE the transformed board frame count: they are the ones
-      // the zoom actually moves. A region inset panel (Baba Yaga's Hut) is
+      // Only elements INSIDE the transformed board frame count: they are the
+      // ones the zoom actually moves. A region inset panel (Baba Yaga's Hut) is
       // hoisted out of the frame and pinned to the screen in rotated portrait,
       // so its picks sit at panel-relative screen spots that have nothing to do
       // with the board — folding them in zoomed the board onto whatever lay
       // under the panel (#834). Unrotated, the panel rides inside the frame and
-      // its picks are measured like any other.
-      const picks = Array.from(frameRef.current?.querySelectorAll<HTMLElement>("[data-pick]") ?? []);
-      const rects = picks.map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0);
+      // its picks are measured like any other. The same scoping guards the
+      // combat fallback below: a combatant standing on a Hut space renders a
+      // token in the pinned panel too, and it must not corrupt the box (#852).
+      const frame = frameRef.current;
+      const picks = Array.from(frame?.querySelectorAll<HTMLElement>("[data-pick]") ?? []);
+      // Nothing to pick: frame the fighters the page asked for (a live combat).
+      const targets = picks.length
+        ? picks
+        : focusFighters.flatMap((id) => Array.from(frame?.querySelectorAll<HTMLElement>(`[data-fighter-id="${id}"]`) ?? []));
+      const rects = targets.map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0);
       if (rects.length === 0) {
         releaseFocus();
         return;
@@ -1341,6 +1352,7 @@ export const ProBoard = ({
         transform={`translate(calc(-50% + ${slot.dx}%), calc(-50% + ${slot.dy}%))${upright}`}
         w={`${diam * slot.scale}%`}
         data-pick={fighterClickable ? "" : undefined}
+        data-fighter-id={f.id}
         sx={{
           aspectRatio: "1",
           // Touch screens: the token is the query container its cqw-sized
