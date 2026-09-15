@@ -431,6 +431,18 @@
         "file": "data/heroes/leon-s-kennedy.rules.ts",
         "commit": "06a7e71"
       }
+    },
+    {
+      "heroId": "the-narrator",
+      "deckId": "5jBEXsA55e",
+      "version_id": "5jBEXsA55e",
+      "frozenAt": "2026-09-15",
+      "digest": "sha256:706db74cca3a0f3e34847a64dd67b015bbfb66ea34298658516c7238f22f58b6",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/the-narrator.rules.ts",
+        "commit": "b6958dc1a92489fa734686460e4bbcb32b6b31cc"
+      }
     }
   ]
 }
