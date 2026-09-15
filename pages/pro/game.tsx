@@ -4164,7 +4164,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // paces STATE batches with. Persisted per browser; OFF leaves the socket's queue
   // layer completely inert.
   const [slowMode, toggleSlowMode] = useSlowMode();
-  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, requestLobbies, setVisibility, serverRestarting, gameLost, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } =
+  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, requestLobbies, setVisibility, serverRestarting, gameLost, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } =
     useProSocket(WS_URL, debug, slowMode);
   // Read through refs inside the log effect: adding either to that effect's deps
   // would re-run it without a new snapshot and append the last batch's lines
@@ -4947,6 +4947,16 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     toast(proErrorMessage("RATE_LIMITED"), { id: "pro-rate-limited", icon: "🐢" });
     acknowledgeRateLimited();
   }, [rateLimited, acknowledgeRateLimited]);
+
+  // Illegal action (p2p #840): the reducer rejected our last action — a stale
+  // view, or a double-tap's second send. The socket is open and the board is
+  // exactly as it was, so this is a one-shot notice like SERVER_ERROR, never
+  // the "We lost your game" screen. Stable id: a tap burst makes one toast.
+  useEffect(() => {
+    if (!illegalAction) return;
+    toast.error(proErrorMessage("ILLEGAL_ACTION"), { id: "pro-illegal-action" });
+    acknowledgeIllegalAction();
+  }, [illegalAction, acknowledgeIllegalAction]);
 
   // Move timer (issue #223): the viewer's OWN clock ran out and the server played
   // a move for them. The move itself renders through the ordinary STATE flow (the

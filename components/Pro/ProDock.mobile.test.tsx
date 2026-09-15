@@ -5,7 +5,7 @@
 import "@testing-library/jest-dom";
 import { createRef } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { ProDock, ProDockProps } from "./ProDock";
+import { ProDock, ProDockProps, TAP_LATCH_MS } from "./ProDock";
 import { Action, PlayerView } from "@/lib/pro/protocol";
 
 const view = { you: "p1", activePlayer: "p1", phase: "PLAY", turnNumber: 3, actionsRemaining: 2, winner: null,
@@ -260,6 +260,81 @@ describe("ProDock portrait board-pick bar (mobile step 1)", () => {
     expect(screen.getAllByRole("button", { name: "Don't defend" })).toHaveLength(1);
     fireEvent.click(within(picker).getByRole("button", { name: "Don't defend" }));
     expect(onAction).toHaveBeenCalledWith(DECLINE);
+  });
+
+  describe("double-tap latch (p2p #840)", () => {
+    const COMMIT = { type: "COMMIT_DEFENSE_CARD", card: "c3" } as unknown as Action;
+    const DECLINE = { type: "DECLINE_DEFENSE" } as unknown as Action;
+    const defenseProps = (onAction: jest.Mock, over: Partial<ProDockProps> = {}) =>
+      props({
+        rows: [COMMIT, DECLINE].map((action) => ({ action, hotkey: null, dividerBefore: false })),
+        onAction,
+        combatPanel: <div>COMBAT</div>,
+        renderCard: (card: string) => <span>{card}</span>,
+        describe: (a) => ((a as { type: string }).type === "DECLINE_DEFENSE" ? "Don't defend" : "Defend with c3"),
+        ...over,
+      });
+    const doubleTap = (el: HTMLElement) => {
+      fireEvent.click(el);
+      fireEvent.click(el);
+    };
+
+    it("sends a one-tap tile's action once when it is double-tapped before the next STATE", () => {
+      const onAction = jest.fn();
+      const { rerender } = render(<ProDock {...props({ onAction })} />);
+      fireEvent.click(screen.getByTestId("pro-mobile-more"));
+
+      doubleTap(screen.getByRole("button", { name: /^maneuver/i }));
+      expect(onAction).toHaveBeenCalledTimes(1);
+      expect(onAction).toHaveBeenCalledWith(MANEUVER);
+
+      // The answering STATE hands the dock a new view: the next tap is a new decision.
+      rerender(<ProDock {...props({ onAction, view: { ...view, actionsRemaining: 1 } as unknown as PlayerView })} />);
+      fireEvent.click(screen.getByRole("button", { name: /^maneuver/i }));
+      expect(onAction).toHaveBeenCalledTimes(2);
+    });
+
+    it("sends Don't defend once when it is double-tapped", () => {
+      const onAction = jest.fn();
+      render(<ProDock {...defenseProps(onAction)} />);
+
+      const picker = screen.getByTestId("pro-card-picker");
+      doubleTap(within(picker).getByRole("button", { name: "Don't defend" }));
+      expect(onAction).toHaveBeenCalledTimes(1);
+      expect(onAction).toHaveBeenCalledWith(DECLINE);
+    });
+
+    it("sends a card-picker confirm once when it is double-tapped", () => {
+      const onAction = jest.fn();
+      render(<ProDock {...defenseProps(onAction)} />);
+
+      const picker = screen.getByTestId("pro-card-picker");
+      fireEvent.click(within(picker).getByRole("button", { name: /^Pick: Defend with c3/ }));
+      doubleTap(within(picker).getByRole("button", { name: "Defend with c3" }));
+      expect(onAction).toHaveBeenCalledTimes(1);
+      expect(onAction).toHaveBeenCalledWith(COMMIT);
+    });
+
+    it("lets a deliberate retry through once the latch grace has passed (no STATE after a rejection)", () => {
+      jest.useFakeTimers();
+      try {
+        const onAction = jest.fn();
+        render(<ProDock {...defenseProps(onAction)} />);
+        const picker = screen.getByTestId("pro-card-picker");
+        const decline = within(picker).getByRole("button", { name: "Don't defend" });
+
+        fireEvent.click(decline);
+        jest.advanceTimersByTime(TAP_LATCH_MS - 1);
+        fireEvent.click(decline);
+        expect(onAction).toHaveBeenCalledTimes(1);
+
+        jest.advanceTimersByTime(2);
+        fireEvent.click(decline);
+        expect(onAction).toHaveBeenCalledTimes(2);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
   });
 
   describe("after the combat is decided (mobile polish)", () => {
