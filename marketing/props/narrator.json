@@ -1,0 +1,23 @@
+{
+  "deckSlug": "5jBEXsA55e",
+  "tagline": "Strike from wherever your adventurers stand, then rewrite the ending",
+  "backdropColour": "#3d2f8a",
+  "featuredCards": [
+    {
+      "title": "Rising Action",
+      "caption": "The cast walks on. An adventurer appears at The Narrator's side, then the whole party moves, and every new position is another doorway for the next attack."
+    },
+    {
+      "title": "Harrying Strike",
+      "caption": "Surround them and the numbers climb. Three friends standing beside the target turn a humble 2 into an 8."
+    },
+    {
+      "title": "PLOT DEVICE: Red Herring",
+      "caption": "Their chosen defence goes in the bin and their own deck picks the replacement. Whatever turns up first is what they block with."
+    },
+    {
+      "title": "Happily Ever After",
+      "caption": "The final page. Win the fight and The Narrator heals for all of the damage, overkill included, so finishing off a sidekick pays out in full."
+    }
+  ]
+}

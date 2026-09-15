@@ -1168,3 +1168,27 @@ describe("Leon S. Kennedy snapshot agrees with the engine's Gate-0 draft (pendin
     expect(card.boost).toBe(2);
   });
 });
+
+describe("The Narrator (5jBEXsA55e) board tokens are committed and local", () => {
+  const deck = readDeck("5jBEXsA55e");
+
+  it("ships BOTH board token portraits locally", () => {
+    // Without these the board falls back to "NAR"/"ADV" initials and the promo's
+    // cold open flips the cardback onto a blank card (#854 — the same miss Appa
+    // had in #739). Both are crops of the creator-approved 2026-08-28 run art —
+    // never generated, never hotlinked.
+    expect(deck.deck_data.hero.tokenImageUrl).toBe(
+      "/evergreen-decks/art/narrator/token-the-narrator.webp",
+    );
+    expect(deck.deck_data.sidekick.tokenImageUrl).toBe(
+      "/evergreen-decks/art/narrator/token-adventurer.webp",
+    );
+    for (const url of [
+      deck.deck_data.hero.tokenImageUrl as string,
+      deck.deck_data.sidekick.tokenImageUrl as string,
+    ]) {
+      expect(url).toMatch(/^\/evergreen-decks\//); // local-only, never a hotlink
+      expect(existsSync(join(DECKS_DIR, "..", url.replace(/^\//, "")))).toBe(true);
+    }
+  });
+});

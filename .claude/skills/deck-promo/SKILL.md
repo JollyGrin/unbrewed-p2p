@@ -141,7 +141,10 @@ built from `promoTimeline()`, so retiming a scene retimes its sound.
 - **Light deck colours**: `borderColour` is a card-border colour, and some
   decks are fluorescent (thrall `#86d41a`, cairne `#60f10f`). `paletteFor()`
   mixes a light base down onto the brand's dark surface and lifts a too-dark
-  accent. Don't "fix" a deck's palette in the props — there is no palette prop.
+  accent. Don't "fix" a deck's palette in the props — but `backdropColour`
+  now exists for decks whose border colour fights their art (e.g. narrator's
+  olive `#7f854d`): it replaces the raw base for the video only, same
+  pull-down, and the deck's in-game border stays untouched.
 - **Failures are loud and specific**, before frame 0: a bad `deckSlug` is a 404
   with the path, a bad card title lists every real title, off-schema props are
   a ZodError. Read the message; do not go hunting.
