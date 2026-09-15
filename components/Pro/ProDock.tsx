@@ -15,13 +15,18 @@ import { Box, Button, Flex, Kbd, Link, Tag, Text, Tooltip } from "@chakra-ui/rea
 import { animate, motion, useDragControls, useMotionValue } from "framer-motion";
 import {
   TbArrowNarrowRight,
+  TbCards,
   TbChevronDown,
+  TbChevronLeft,
   TbChevronUp,
   TbExternalLink,
   TbGripHorizontal,
   TbLink,
   TbPlus,
+  TbSwords,
+  TbWalk,
 } from "react-icons/tb";
+import { ActionTile, TileKind, actionTilesFor, tileKindOf } from "@/lib/pro/actionTiles";
 import { Action, FighterId, PlayerView } from "@/lib/pro/protocol";
 import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { isViewerOnWinningTeam } from "@/lib/pro/teams";
@@ -516,6 +521,83 @@ export const ProDock = ({
     if (boardPicks && !hadBoardPicks.current && mobile === "portrait") setSheetOpen(false);
     hadBoardPicks.current = boardPicks;
   }, [boardPicks, mobile]);
+
+  // Mobile step 2: the optional portrait sheet leads with Maneuver / Scheme /
+  // Attack tiles. A tile with several legal choices narrows the list to them.
+  const tiles = mobile === "portrait" && !sheetForced ? actionTilesFor(rows.map((r) => r.action)) : [];
+  const [tileFilter, setTileFilter] = useState<TileKind | null>(null);
+  useEffect(() => {
+    if (!sheetShown) setTileFilter(null);
+  }, [sheetShown]);
+  const tileSubline = (tile: ActionTile) => {
+    const n = tile.actions.length;
+    if (n === 0) return "Not available";
+    if (tile.kind === "maneuver") return "Draw a card, then move";
+    if (tile.kind === "attack") return n === 1 ? describe(tile.actions[0]) : `${n} targets`;
+    return n === 1 ? describe(tile.actions[0]) : `${n} cards`;
+  };
+  const TILE_META: Record<TileKind, { label: string; icon: ReactNode }> = {
+    maneuver: { label: "Maneuver", icon: <TbWalk size="1.5rem" /> },
+    scheme: { label: "Scheme", icon: <TbCards size="1.5rem" /> },
+    attack: { label: "Attack", icon: <TbSwords size="1.5rem" /> },
+  };
+  const tilesEl =
+    tiles.length > 0 &&
+    (tileFilter ? (
+      <Button
+        size="sm"
+        variant="ghost"
+        alignSelf="flex-start"
+        color="brand.parchment"
+        leftIcon={<TbChevronLeft />}
+        minH={TAP_TARGET}
+        onClick={() => setTileFilter(null)}
+      >
+        All actions
+      </Button>
+    ) : (
+      <Flex data-testid="pro-action-tiles" gap="0.5rem">
+        {tiles.map((tile) => {
+          const available = tile.actions.length > 0;
+          const lead = tile.kind === "maneuver" && available;
+          return (
+            <Button
+              key={tile.kind}
+              flex="1 1 0"
+              minW={0}
+              h="auto"
+              minH="6rem"
+              py="0.6rem"
+              px="0.4rem"
+              display="flex"
+              flexDirection="column"
+              gap="0.3rem"
+              whiteSpace="normal"
+              borderRadius="0.8rem"
+              border={lead ? "2px solid" : "1px solid"}
+              borderColor={lead ? "brand.accent" : "rgba(250, 235, 215, 0.22)"}
+              bg={lead ? "rgba(224, 168, 46, 0.14)" : "rgba(20, 8, 24, 0.55)"}
+              color="brand.parchment"
+              _hover={{ bg: "rgba(224, 168, 46, 0.2)" }}
+              isDisabled={!available}
+              onClick={() =>
+                tile.actions.length === 1 ? onAction(tile.actions[0]) : setTileFilter(tile.kind)
+              }
+            >
+              <Box as="span" color={available ? "brand.accent" : "inherit"}>
+                {TILE_META[tile.kind].icon}
+              </Box>
+              <Text as="span" fontWeight={700} fontSize="0.9rem">
+                {TILE_META[tile.kind].label}
+              </Text>
+              <Text as="span" fontWeight={400} fontSize="0.68rem" opacity={0.75} noOfLines={2}>
+                {tileSubline(tile)}
+              </Text>
+            </Button>
+          );
+        })}
+      </Flex>
+    ));
   const portraitSheetShown = mobile === "portrait" && sheetShown;
   useEffect(() => {
     onMobileSheetShown?.(portraitSheetShown);
@@ -656,6 +738,7 @@ export const ProDock = ({
       )}
       {combatPanel}
       {promptPanel}
+      {tilesEl}
       <Flex direction="column" gap="0.4rem">
         {/* The synthetic relocate-arm rows (see prop doc): they close the FIRST
             band — the maneuver band, per GROUP_ORDER — so they render right under
@@ -663,118 +746,127 @@ export const ProDock = ({
             is somehow empty they still render (alone; the spacebar never fires
             them — they are not server actions). */}
         {relocateArmBand && firstManeuverBandEnd === -1 && relocateArmBand}
-        {rows.map(({ action: a, hotkey, dividerBefore }, i) => (
-          <Fragment key={i}>
-            {/* Group divider (issue #514): a hairline between bands — maneuver,
-                combat, schemes — so the eye lands on the right family of rows
-                instead of scanning one undifferentiated stack. */}
-            {dividerBefore && <Box h="1px" bg="rgba(231, 204, 152, 0.16)" mx="0.15rem" my="0.1rem" />}
-            <Button
-              {...BTN}
-              bg="rgba(20, 8, 24, 0.65)"
-              justifyContent="flex-start"
-              whiteSpace="normal"
-              height="auto"
-              minH={mobile ? TAP_TARGET : "2rem"}
-              py="0.4rem"
-              textAlign="left"
-              onClick={() => onAction(a)}
-            >
-              <Flex as="span" align="center" gap="0.4rem" flexWrap="wrap">
-                {/* Number hotkey (issue #514): the digit that fires this row, in
-                    rendered order. Only present with 2+ rows — the 1-row case is
-                    the spacebar's (#353), whose chip renders on the right below. */}
-                {hotkey != null && (
-                  <Kbd
-                    flexShrink={0}
-                    bg="rgba(255,255,255,0.08)"
-                    borderColor="rgba(255,255,255,0.25)"
-                    color="brand.parchment"
-                    fontSize="0.68rem"
-                    px="0.35rem"
-                  >
-                    {hotkey}
-                  </Kbd>
-                )}
-                {/* Scheme-item use (v17): a leading yellow lightning glyph marks
-                    this as a BOARD item action, visually distinct from a hand
-                    scheme card. The item's label rides in the describe() text. */}
-                {a.type === "USE_SCHEME_ITEM" && (
-                  <Box as="span" display="inline-flex" boxSize="1.1rem" flexShrink={0}>
-                    <ItemGlyph kind="scheme" fill="#E4B106" />
-                  </Box>
-                )}
-                {/* Attack rows show WHO hits WHOM in the board's own token art
-                    (issue #514), so picking the right attacker is a glance rather
-                    than a name-match. The text label stays — the faces annotate it. */}
-                {a.type === "DECLARE_ATTACK" && fighterFace && (
-                  <Flex as="span" align="center" gap="0.15rem" flexShrink={0}>
-                    <DockTokenFace face={fighterFace(a.attacker)} badge={attackerBadge[a.attacker]} />
-                    <Box as="span" color="#E36B6B" display="inline-flex">
-                      <TbArrowNarrowRight size="0.95rem" />
-                    </Box>
-                    <DockTokenFace face={fighterFace(a.target)} />
-                  </Flex>
-                )}
-                {/* USE_SCHEME_ITEM carries the item's whole effect sentence in its
-                    label (p2p #731) — one line, ellipsized when narrow, with the
-                    full text kept in the native title so it stays reachable. */}
-                {a.type === "USE_SCHEME_ITEM" ? (
-                  <Text as="span" noOfLines={1} title={describe(a)}>
-                    {describe(a)}
-                  </Text>
-                ) : (
-                  <Text as="span">{describe(a)}</Text>
-                )}
-                {isExtendedReach(a) && (
-                  <Tooltip label={LARGE_FIGHTER_BLURB} hasArrow placement="top" openDelay={150}>
-                    <Tag
-                      size="sm"
-                      bg="brand.accent"
-                      color="brand.surfaceDim"
-                      fontWeight={700}
-                      letterSpacing="0.01em"
+        {rows.map(({ action: a, hotkey, dividerBefore }, i) => {
+          // Rows a tile already stands for stay out of the list (or, with a tile
+          // opened, everything but that tile's rows) — the relocate band keeps
+          // its slot either way.
+          const kind = tileKindOf(a);
+          const hiddenByTiles = tiles.length > 0 && (tileFilter ? kind !== tileFilter : kind !== null);
+          if (hiddenByTiles)
+            return <Fragment key={i}>{relocateArmBand && i === firstManeuverBandEnd && relocateArmBand}</Fragment>;
+          return (
+            <Fragment key={i}>
+              {/* Group divider (issue #514): a hairline between bands — maneuver,
+                  combat, schemes — so the eye lands on the right family of rows
+                  instead of scanning one undifferentiated stack. */}
+              {dividerBefore && <Box h="1px" bg="rgba(231, 204, 152, 0.16)" mx="0.15rem" my="0.1rem" />}
+              <Button
+                {...BTN}
+                bg="rgba(20, 8, 24, 0.65)"
+                justifyContent="flex-start"
+                whiteSpace="normal"
+                height="auto"
+                minH={mobile ? TAP_TARGET : "2rem"}
+                py="0.4rem"
+                textAlign="left"
+                onClick={() => onAction(a)}
+              >
+                <Flex as="span" align="center" gap="0.4rem" flexWrap="wrap">
+                  {/* Number hotkey (issue #514): the digit that fires this row, in
+                      rendered order. Only present with 2+ rows — the 1-row case is
+                      the spacebar's (#353), whose chip renders on the right below. */}
+                  {hotkey != null && (
+                    <Kbd
                       flexShrink={0}
+                      bg="rgba(255,255,255,0.08)"
+                      borderColor="rgba(255,255,255,0.25)"
+                      color="brand.parchment"
+                      fontSize="0.68rem"
+                      px="0.35rem"
                     >
-                      {LARGE_REACH_CHIP}
-                    </Tag>
-                  </Tooltip>
-                )}
-                {/* Bought attack range (issue #668). Same slot and shape as the
-                    large-reach chip above — both explain a reach the row's text
-                    cannot — but in the board's Broadcast violet, and carrying a
-                    PRICE: the engine deducts it the moment this row is clicked. */}
-                {(() => {
-                  const bought = rangePurchaseChip?.(a) ?? null;
-                  return bought ? (
-                    <Tooltip label={bought.blurb} hasArrow placement="top" openDelay={150}>
-                      <Tag size="sm" bg="#C58BE8" color="#241033" fontWeight={700} flexShrink={0}>
-                        {bought.chip}
+                      {hotkey}
+                    </Kbd>
+                  )}
+                  {/* Scheme-item use (v17): a leading yellow lightning glyph marks
+                      this as a BOARD item action, visually distinct from a hand
+                      scheme card. The item's label rides in the describe() text. */}
+                  {a.type === "USE_SCHEME_ITEM" && (
+                    <Box as="span" display="inline-flex" boxSize="1.1rem" flexShrink={0}>
+                      <ItemGlyph kind="scheme" fill="#E4B106" />
+                    </Box>
+                  )}
+                  {/* Attack rows show WHO hits WHOM in the board's own token art
+                      (issue #514), so picking the right attacker is a glance rather
+                      than a name-match. The text label stays — the faces annotate it. */}
+                  {a.type === "DECLARE_ATTACK" && fighterFace && (
+                    <Flex as="span" align="center" gap="0.15rem" flexShrink={0}>
+                      <DockTokenFace face={fighterFace(a.attacker)} badge={attackerBadge[a.attacker]} />
+                      <Box as="span" color="#E36B6B" display="inline-flex">
+                        <TbArrowNarrowRight size="0.95rem" />
+                      </Box>
+                      <DockTokenFace face={fighterFace(a.target)} />
+                    </Flex>
+                  )}
+                  {/* USE_SCHEME_ITEM carries the item's whole effect sentence in its
+                      label (p2p #731) — one line, ellipsized when narrow, with the
+                      full text kept in the native title so it stays reachable. */}
+                  {a.type === "USE_SCHEME_ITEM" ? (
+                    <Text as="span" noOfLines={1} title={describe(a)}>
+                      {describe(a)}
+                    </Text>
+                  ) : (
+                    <Text as="span">{describe(a)}</Text>
+                  )}
+                  {isExtendedReach(a) && (
+                    <Tooltip label={LARGE_FIGHTER_BLURB} hasArrow placement="top" openDelay={150}>
+                      <Tag
+                        size="sm"
+                        bg="brand.accent"
+                        color="brand.surfaceDim"
+                        fontWeight={700}
+                        letterSpacing="0.01em"
+                        flexShrink={0}
+                      >
+                        {LARGE_REACH_CHIP}
                       </Tag>
                     </Tooltip>
-                  ) : null;
-                })()}
-                {/* Sole-option shortcut hint (issue #353): only the lone eligible
-                    dock action carries it, and pressing space fires this action. */}
-                {a === soleAction && (
-                  <Kbd
-                    ml="auto"
-                    flexShrink={0}
-                    bg="rgba(255,255,255,0.08)"
-                    borderColor="rgba(255,255,255,0.25)"
-                    color="brand.parchment"
-                    fontSize="0.7rem"
-                  >
-                    space
-                  </Kbd>
-                )}
-              </Flex>
-            </Button>
-            {/* The relocate-arm rows close the maneuver band (see the consts
-                above) — after the band's last row, before the first divider. */}
-            {relocateArmBand && i === firstManeuverBandEnd && relocateArmBand}
-          </Fragment>
-        ))}
+                  )}
+                  {/* Bought attack range (issue #668). Same slot and shape as the
+                      large-reach chip above — both explain a reach the row's text
+                      cannot — but in the board's Broadcast violet, and carrying a
+                      PRICE: the engine deducts it the moment this row is clicked. */}
+                  {(() => {
+                    const bought = rangePurchaseChip?.(a) ?? null;
+                    return bought ? (
+                      <Tooltip label={bought.blurb} hasArrow placement="top" openDelay={150}>
+                        <Tag size="sm" bg="#C58BE8" color="#241033" fontWeight={700} flexShrink={0}>
+                          {bought.chip}
+                        </Tag>
+                      </Tooltip>
+                    ) : null;
+                  })()}
+                  {/* Sole-option shortcut hint (issue #353): only the lone eligible
+                      dock action carries it, and pressing space fires this action. */}
+                  {a === soleAction && (
+                    <Kbd
+                      ml="auto"
+                      flexShrink={0}
+                      bg="rgba(255,255,255,0.08)"
+                      borderColor="rgba(255,255,255,0.25)"
+                      color="brand.parchment"
+                      fontSize="0.7rem"
+                    >
+                      space
+                    </Kbd>
+                  )}
+                </Flex>
+              </Button>
+              {/* The relocate-arm rows close the maneuver band (see the consts
+                  above) — after the band's last row, before the first divider. */}
+              {relocateArmBand && i === firstManeuverBandEnd && relocateArmBand}
+            </Fragment>
+          );
+        })}
         {legalActionCount === 0 && !hasPrompt && liveChrome && (
           <Text opacity={0.7} fontSize="0.9rem" color="brand.parchment">
             {iAmSpectating

@@ -127,4 +127,54 @@ describe("ProDock portrait board-pick bar (mobile step 1)", () => {
     expect(sheet).toHaveTextContent("SETUP");
     expect(sheet).not.toHaveTextContent(/turn 0|OPPONENT'S TURN/);
   });
+
+  describe("action tiles in the optional sheet (mobile step 2)", () => {
+    const ATTACK_A = { type: "DECLARE_ATTACK", attacker: "f1", target: "f2" } as unknown as Action;
+    const ATTACK_B = { type: "DECLARE_ATTACK", attacker: "f1", target: "f3" } as unknown as Action;
+    const rowsOf = (...actions: Action[]) => actions.map((action) => ({ action, hotkey: null, dividerBefore: false }));
+    const openSheet = () => fireEvent.click(screen.getByTestId("pro-mobile-more"));
+
+    it("leads with Maneuver / Scheme / Attack tiles, a missing one disabled", () => {
+      const onAction = jest.fn();
+      render(<ProDock {...props({ onAction })} />);
+      openSheet();
+
+      expect(screen.getByRole("button", { name: /attack.*not available/i })).toBeDisabled();
+      fireEvent.click(screen.getByRole("button", { name: /^maneuver/i }));
+      expect(onAction).toHaveBeenCalledWith(MANEUVER);
+    });
+
+    it("does not list a tile's action a second time underneath", () => {
+      render(<ProDock {...props({ describe: (a) => `row ${(a as { type: string }).type}` })} />);
+      openSheet();
+
+      expect(screen.queryByRole("button", { name: "row MANEUVER" })).toBeNull();
+    });
+
+    it("opens a tile with several choices into just those rows", () => {
+      const onAction = jest.fn();
+      render(
+        <ProDock
+          {...props({
+            onAction,
+            rows: rowsOf(MANEUVER, ATTACK_A, ATTACK_B),
+            describe: (a) => ((a as { target?: string }).target ? `hit ${(a as { target: string }).target}` : "move"),
+          })}
+        />
+      );
+      openSheet();
+
+      fireEvent.click(screen.getByRole("button", { name: /attack.*2 targets/i }));
+      fireEvent.click(screen.getByRole("button", { name: "hit f3" }));
+
+      expect(onAction).toHaveBeenCalledWith(ATTACK_B);
+      expect(screen.getByRole("button", { name: /all actions/i })).toBeInTheDocument();
+    });
+
+    it("shows no tiles on a forced decision", () => {
+      render(<ProDock {...props({ hasPrompt: true })} />);
+
+      expect(screen.queryByTestId("pro-action-tiles")).toBeNull();
+    });
+  });
 });
