@@ -6228,7 +6228,8 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       ? poseIndex.optionFor(pose.lead, pose.trail)
       : promptUnambiguousSpaces.get(dest);
     if (!optionId || path.length < 2) return; // never answer with a route we can't name
-    respondToPrompt(promptForMe.promptId, optionId, path);
+    // A dropped repeat of the answer already in flight (#847) gets no tween.
+    if (!respondToPrompt(promptForMe.promptId, optionId, path)) return;
     setPromptStep(null);
     setPoseChoice(null);
     setPendingMove({
@@ -6248,8 +6249,10 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     // For a LARGE body this is the LEADING END's route — the engine reads the final
     // pose off its last two entries, so the tail needs no separate answer (#658).
     const path = stepCommitPath(state);
-    sendAction({ type: "MOVE_FIGHTER", player: view.you, fighter: selectedFighter, path });
-    if (path.length >= 2) {
+    // A send the hook dropped (a repeat of the move already in flight, #847)
+    // gets no tween: nothing went out, so nothing is about to arrive.
+    const sent = sendAction({ type: "MOVE_FIGHTER", player: view.you, fighter: selectedFighter, path });
+    if (sent && path.length >= 2) {
       setPendingMove({ fighterId: selectedFighter, path, trailPath: stepCommitTrailPath(state) });
     }
     setStep(null);
@@ -6410,9 +6413,11 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     setSelectedFighter(null);
   };
   // Send one resolved board action; if it's a MOVE_FIGHTER, start the tween from
-  // the fighter's real space (the server path may omit it as path[0]).
+  // the fighter's real space (the server path may omit it as path[0]). No tween
+  // for a send the hook dropped (#847) — a phantom one would only clear via
+  // usePendingMoveTimeout, not because the fighter arrived.
   const commitMoveOrAction = (action: Action, _space: SpaceId) => {
-    sendAction(action);
+    if (!sendAction(action)) return;
     if (action.type === "MOVE_FIGHTER") {
       const origin = view.fighters.find((f) => f.id === action.fighter)?.space;
       const fullPath = origin && action.path[0] !== origin ? [origin, ...action.path] : action.path;
@@ -6448,9 +6453,12 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     }
     const attack = attackActions.get(id);
     if (attack) {
-      sendAction(attack);
-      setSelectedFighter(null);
-      setStep(null);
+      // A dropped repeat of the in-flight attack (#847) leaves the selection
+      // and any previewed walk exactly as they were: nothing new was sent.
+      if (sendAction(attack)) {
+        setSelectedFighter(null);
+        setStep(null);
+      }
     } else if (movableFighters.has(id)) {
       // Stepping (issue #285): the selected fighter's token stays at its ORIGIN
       // while the ghost previews elsewhere, so clicking it steps BACK one hop
@@ -6509,8 +6517,9 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // wants the screen. Desktop's fan has no drawer, so this is just `sendAction`
   // there.
   const playFromHand = (action: Action) => {
-    setHandOpen(false);
-    sendAction(action);
+    // Only a send that really went out closes the drawer (#847): a dropped
+    // repeat of the play already in flight would otherwise shut it for nothing.
+    if (sendAction(action)) setHandOpen(false);
   };
 
   // …and it opens itself when the decision on the table is about a card in YOUR

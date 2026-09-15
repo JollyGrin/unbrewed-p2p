@@ -200,6 +200,93 @@ describe("useProSocket — double-tap in flight + ILLEGAL_ACTION resilience (p2p
     expect(actionsSent(ws)).toBe(1);
   });
 
+  // #847: the guard is a DUPLICATE guard, not a one-action-per-reply gate.
+  const END_TURN = { type: "END_TURN", player: "p1" } as never;
+  const actionPayloads = (ws: FakeWebSocket) =>
+    ws.sent.map((f) => JSON.parse(f)).filter((m) => m.type === "ACTION").map((m) => m.action);
+
+  it("two DIFFERENT actions before the STATE reply both go out, in order (#847)", () => {
+    const { hook, ws } = bootIntoGame();
+    // Two rapid hotkeys: Maneuver then End turn, no STATE in between.
+    act(() => hook.result.current.sendAction(MANEUVER));
+    act(() => hook.result.current.sendAction(END_TURN));
+    expect(actionPayloads(ws)).toEqual([MANEUVER, END_TURN]);
+    expect(hook.result.current.gameLost).toBe(false);
+  });
+
+  it("still drops a repeat of an in-flight action, even with another action sent between", () => {
+    const { hook, ws } = bootIntoGame();
+    act(() => hook.result.current.sendAction(MANEUVER));
+    act(() => hook.result.current.sendAction(END_TURN));
+    act(() => hook.result.current.sendAction(MANEUVER)); // bounce of the first tap
+    act(() => hook.result.current.sendAction(END_TURN)); // bounce of the second
+    expect(actionPayloads(ws)).toEqual([MANEUVER, END_TURN]);
+
+    // The reply frees both: the same actions may be sent again for the next decision.
+    act(() => ws.emit(minimalState()));
+    act(() => hook.result.current.sendAction(MANEUVER));
+    expect(actionsSent(ws)).toBe(3);
+  });
+
+  it("dedupes on the payload, not the object: an equal action built fresh is the same tap", () => {
+    const { hook, ws } = bootIntoGame();
+    act(() => hook.result.current.sendAction({ type: "MANEUVER", player: "p1" } as never));
+    act(() => hook.result.current.sendAction({ type: "MANEUVER", player: "p1" } as never));
+    expect(actionsSent(ws)).toBe(1);
+  });
+
+  it("guards prompt answers per option: a different answer goes out, the same one is dropped", () => {
+    const { hook, ws } = bootIntoGame();
+    act(() => hook.result.current.respondToPrompt("pr1", "yes"));
+    act(() => hook.result.current.respondToPrompt("pr1", "no"));
+    act(() => hook.result.current.respondToPrompt("pr1", "yes"));
+    expect(actionPayloads(ws).map((a) => a.optionId)).toEqual(["yes", "no"]);
+  });
+
+  it("tells the caller whether the frame went out, so optimistic UI can skip a dropped send", () => {
+    jest.useFakeTimers(); // the close below schedules a reconnect — keep it off real timers
+    const { hook, ws } = bootIntoGame();
+    let first = false;
+    let repeat = true;
+    let other = false;
+    let prompt = false;
+    let promptRepeat = true;
+    act(() => {
+      first = hook.result.current.sendAction(MANEUVER);
+      repeat = hook.result.current.sendAction(MANEUVER);
+      other = hook.result.current.sendAction(END_TURN);
+      prompt = hook.result.current.respondToPrompt("pr1", "yes");
+      promptRepeat = hook.result.current.respondToPrompt("pr1", "yes");
+    });
+    expect([first, repeat, other, prompt, promptRepeat]).toEqual([true, false, true, true, false]);
+    expect(actionsSent(ws)).toBe(3);
+
+    // Nothing goes out on a closed socket either — and the caller hears that too.
+    act(() => ws.close());
+    let closed = true;
+    act(() => {
+      closed = hook.result.current.sendAction(MANEUVER);
+    });
+    expect(closed).toBe(false);
+    expect(actionsSent(ws)).toBe(3);
+  });
+
+  it("times out each in-flight action on its own, never a different one with it", () => {
+    jest.useFakeTimers();
+    const { hook, ws } = bootIntoGame();
+    act(() => hook.result.current.sendAction(MANEUVER));
+    act(() => jest.advanceTimersByTime(ACTION_IN_FLIGHT_MS / 2));
+    act(() => hook.result.current.sendAction(END_TURN));
+    expect(actionsSent(ws)).toBe(2);
+
+    // The first action's window has lapsed; the second's has not.
+    act(() => jest.advanceTimersByTime(ACTION_IN_FLIGHT_MS / 2 + 1));
+    act(() => hook.result.current.sendAction(END_TURN));
+    expect(actionsSent(ws)).toBe(2);
+    act(() => hook.result.current.sendAction(MANEUVER));
+    expect(actionsSent(ws)).toBe(3);
+  });
+
   it("treats ERROR{ILLEGAL_ACTION} as non-fatal: notice latched, board live, no loss screen", () => {
     const { hook, ws } = bootIntoGame();
     act(() => hook.result.current.sendAction(MANEUVER));
