@@ -6558,15 +6558,15 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // The decision dock/sheet, built once and placed by the arrangement: fixed
   // at the right edge on desktop, or inside the mobile bottom container
   // (portrait) / rail (landscape) further down (issue #708).
-  // Mobile step 3: while a combat holds the portrait sheet, the hand fan peek
-  // stands over the defense/attack card picker — and the picker already shows
-  // those hand cards. Hide the peek for the combat; a hand prompt brings it back.
   const sheetCombat = visualOn ? panelCombat : view.combat;
   // Once the combat is decided and its strike beat has played, its result is a
   // one-liner and the phone sheet lets go of the board (mobile polish).
   const combatSummary =
     sheetCombat?.outcome && !strike ? combatOutcomeBannerText(sheetCombat.outcome, sheetCombat.attackDamageDealt) : null;
-  const handPeekHidden = mobile && !rail && !!sheetCombat && !combatSummary && !handOpen && !handDecision;
+  // The hand fan peek stands over the bottom of any portrait sheet or pick bar
+  // (mobile step 3 + polish) — over the combat card picker, the action tiles,
+  // the confirm buttons. Hide it while one is up; a hand prompt brings it back.
+  const handPeekHidden = mobile && !rail && mobileSheetShown && !handOpen && !handDecision;
 
   const dockEl = (
     <ProDock

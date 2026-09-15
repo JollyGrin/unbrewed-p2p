@@ -1147,7 +1147,11 @@ export const ProDock = ({
           pointerEvents="none"
           // Same reserved room as the full sheet: the log / hand / overflow row
           // floats in it, and the page measures this element to fit the board.
-          sx={{ paddingBottom: "calc(7rem + env(safe-area-inset-bottom, 0px))" }}
+          sx={{
+            paddingBottom: mobileHandPeekHidden
+              ? "calc(4rem + env(safe-area-inset-bottom, 0px))"
+              : "calc(7rem + env(safe-area-inset-bottom, 0px))",
+          }}
         >
           <Flex
             flex="1"

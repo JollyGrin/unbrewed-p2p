@@ -398,6 +398,21 @@ describe("portrait phone — combat (mobile step 3)", () => {
     expect(screen.getByTestId("hand-fan-peek")).toBeInTheDocument();
   });
 
+  it("keeps the hand peek off any open sheet, and back once it closes", async () => {
+    setViewport("portrait");
+    const { state } = await mount();
+    await state({ ...BASE_VIEW, phase: "PLAY", activePlayer: P1, combat: null, prompt: null, winner: null } as PlayerView, [
+      { type: "MANEUVER", player: P1 },
+      { type: "SCHEME", player: P1, card: BASE_VIEW.self.hand[0] },
+    ]);
+
+    fireEvent.click(screen.getByTestId("pro-mobile-more"));
+    expect(screen.queryByTestId("hand-fan-peek")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("pro-mobile-sheet-scrim"));
+    expect(screen.getByTestId("hand-fan-peek")).toBeInTheDocument();
+  });
+
   it("says tap, not click, in board hints", async () => {
     setViewport("portrait");
     const { state } = await mount();
