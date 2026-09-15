@@ -530,12 +530,19 @@ export const ProBoard = ({
         };
   };
   const pickKey = `${highlightedSpaces.join(",")}|${relocateSpaces.join(",")}|${highlightedFighters.join(",")}`;
-  const { containerRef: zoomContainerRef, focusOn, releaseFocus } = zoom;
+  const { focusOn, releaseFocus } = zoom;
   useEffect(() => {
     if (!zoomable || !coarsePointer) return;
     // Measure after paint, so the gold rings of the new prompt are in the DOM.
     const raf = requestAnimationFrame(() => {
-      const picks = Array.from(zoomContainerRef.current?.querySelectorAll<HTMLElement>("[data-pick]") ?? []);
+      // Only picks INSIDE the transformed board frame count: they are the ones
+      // the zoom actually moves. A region inset panel (Baba Yaga's Hut) is
+      // hoisted out of the frame and pinned to the screen in rotated portrait,
+      // so its picks sit at panel-relative screen spots that have nothing to do
+      // with the board — folding them in zoomed the board onto whatever lay
+      // under the panel (#834). Unrotated, the panel rides inside the frame and
+      // its picks are measured like any other.
+      const picks = Array.from(frameRef.current?.querySelectorAll<HTMLElement>("[data-pick]") ?? []);
       const rects = picks.map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0);
       if (rects.length === 0) {
         releaseFocus();
@@ -552,7 +559,7 @@ export const ProBoard = ({
       );
     });
     return () => cancelAnimationFrame(raf);
-  }, [pickKey, zoomable, coarsePointer, zoomContainerRef, focusOn, releaseFocus]);
+  }, [pickKey, zoomable, coarsePointer, focusOn, releaseFocus]);
 
   // Layout width (px, BEFORE the zoom transform) of the shrink-wrap frame every
   // board overlay is positioned against. Read for one reason only: the cosmetic
