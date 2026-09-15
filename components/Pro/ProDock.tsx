@@ -41,6 +41,12 @@ import { useDockLayout } from "@/lib/pro/useDockLayout";
 
 /** Width of the dock's default right-edge slot. */
 const DOCK_WIDTH = "18.5rem";
+/**
+ * How long a one-tap target ignores a repeat tap with no new view in between
+ * (p2p #840). Longer than any thumb-bounce double-tap, shorter than a player's
+ * deliberate retry after the server rejected the first send.
+ */
+export const TAP_LATCH_MS = 700;
 
 const BTN = {
   size: "sm" as const,
@@ -547,6 +553,22 @@ export const ProDock = ({
   // The landscape rail is always open, so it leads with them whenever nothing is forced.
   const tiles = mobile && !sheetForced ? actionTilesFor(rows.map((r) => r.action)) : [];
   const rowsKey = rows.map((r) => JSON.stringify(r.action)).join("|");
+  // Double-tap latch (p2p #840): a thumb-bounce on a one-tap target fires
+  // twice before the answering STATE re-renders the dock, and the second send
+  // is ILLEGAL_ACTION. The first tap sends; repeats are ignored until a new
+  // view / legal set arrives (the STATE landed) or a short grace passes (the
+  // server said no, so no STATE is coming). The socket has its own in-flight
+  // guard; this keeps the tap from even reaching it.
+  const lastTapRef = useRef(0);
+  useEffect(() => {
+    lastTapRef.current = 0;
+  }, [view, rowsKey]);
+  const tapOnce = (action: Action) => {
+    const now = Date.now();
+    if (now - lastTapRef.current < TAP_LATCH_MS) return;
+    lastTapRef.current = now;
+    onAction(action);
+  };
   const [tileFilter, setTileFilter] = useState<TileKind | null>(null);
   useEffect(() => {
     // The rail never closes, so a new set of legal actions is what ends a tile's
@@ -640,7 +662,7 @@ export const ProDock = ({
                   color={i === 0 ? "brand.surfaceDim" : "brand.parchment"}
                   border={i === 0 ? undefined : "1px solid rgba(250, 235, 215, 0.3)"}
                   _hover={{ opacity: 0.92 }}
-                  onClick={() => onAction(action)}
+                  onClick={() => tapOnce(action)}
                 >
                   {describe(action)}
                 </Button>
@@ -660,7 +682,7 @@ export const ProDock = ({
               color="brand.parchment"
               borderColor="rgba(250, 235, 215, 0.35)"
               _hover={{ bg: "rgba(20, 8, 24, 0.65)" }}
-              onClick={() => onAction(decline)}
+              onClick={() => tapOnce(decline)}
             >
               {describe(decline)}
             </Button>
@@ -725,7 +747,7 @@ export const ProDock = ({
               _hover={{ bg: "rgba(224, 168, 46, 0.2)" }}
               isDisabled={!available}
               onClick={() =>
-                tile.actions.length === 1 ? onAction(tile.actions[0]) : setTileFilter(tile.kind)
+                tile.actions.length === 1 ? tapOnce(tile.actions[0]) : setTileFilter(tile.kind)
               }
             >
               <Box as="span" color={available ? "brand.accent" : "inherit"}>

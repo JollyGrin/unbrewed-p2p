@@ -232,6 +232,16 @@ export interface UseProSocketReturn {
    */
   rateLimited: boolean;
   acknowledgeRateLimited: () => void;
+  /**
+   * Non-fatal: the reducer rejected our last action (ERROR{ ILLEGAL_ACTION }) —
+   * a stale view or a duplicate send (p2p #840: a thumb-bounce double-tap on a
+   * one-tap tile lands a second ACTION before the first one's STATE). The socket
+   * stays open and the game is intact, so like SERVER_ERROR this latches a light
+   * "that move isn't allowed" notice and keeps the board live — never the
+   * loss screen. Call `acknowledgeIllegalAction` after showing it.
+   */
+  illegalAction: boolean;
+  acknowledgeIllegalAction: () => void;
   /** ask the server for the current public-lobby list (poll while browsing) */
   requestLobbies: () => void;
   /** list/unlist our current room in the public lobby browser */
@@ -270,6 +280,14 @@ export interface UseProSocketReturn {
 }
 
 const MAX_RETRY_DELAY_MS = 10_000;
+/**
+ * In-flight action guard (p2p #840): once an ACTION is on the wire, further
+ * ACTIONs are dropped until the server answers (STATE or ERROR). A thumb-bounce
+ * double-tap on a one-tap tile otherwise sends the same action twice and the
+ * second is ILLEGAL_ACTION. The window is time-boxed so a reply that never
+ * comes (a silently dropped frame) can't leave the player unable to act.
+ */
+export const ACTION_IN_FLIGHT_MS = 4_000;
 
 /**
  * After a SERVER_RESTARTING, how long we wait for the game to come back (a STATE
@@ -469,6 +487,12 @@ export function useProSocket(
   // intact — never the disconnect/loss path. If the client keeps breaching, the
   // server closes the socket and the jittered reconnect loop takes over.
   const [rateLimited, setRateLimited] = useState(false);
+  // Illegal-action latch (p2p #840): ERROR{ ILLEGAL_ACTION } with the socket
+  // open. A light notice, never the loss path — the view is intact.
+  const [illegalAction, setIllegalAction] = useState(false);
+  // When our last ACTION went out (0 = none in flight). Cleared by the server's
+  // reply (STATE or ERROR) and by a socket close; see ACTION_IN_FLIGHT_MS.
+  const actionSentAtRef = useRef(0);
 
   const send = useCallback((msg: ClientMsg) => {
     const ws = wsRef.current;
@@ -589,6 +613,7 @@ export function useProSocket(
           youRef.current = view.you;
           seatRef.current = view.you;
           hadStateRef.current = true; // we're genuinely mid-match now
+          actionSentAtRef.current = 0; // the server answered — the next tap may send (#840)
           // v15: when an auto-forfeit actually fires, the server injects a FORFEIT
           // and this STATE shows the seat eliminated (or the whole game over) — but
           // it does NOT send an all-clear (the player is still gone). Drop such a
@@ -723,6 +748,7 @@ export function useProSocket(
           // in-flight latch would otherwise stay armed and make the next
           // OPPONENT batch look like ours — flushing a spotlight mid-read.
           ownActionRef.current = false;
+          actionSentAtRef.current = 0; // …and the in-flight guard (#840): a rejected action is answered
           // Undo couldn't be honored (nothing to undo, or one already pending) —
           // a benign race despite canUndo-gating (double-request, or the undo
           // boundary shifted under us). Clear our pending-undo UI and surface a
@@ -749,6 +775,16 @@ export function useProSocket(
           // fresh sockets is exactly what it punishes.
           if (msg.code === "RATE_LIMITED") {
             setRateLimited(true);
+            break;
+          }
+          // ILLEGAL_ACTION (p2p #840): the reducer rejected the action — a stale
+          // view, or a duplicate that slipped past the in-flight guard. The socket
+          // stays open and no STATE follows, so the board is exactly as it was:
+          // NON-FATAL, same treatment as SERVER_ERROR. Falling through to the
+          // terminal path would flag `gameLost` on the player's OWN turn with no
+          // later STATE to clear it — stuck on the apology screen until reload.
+          if (msg.code === "ILLEGAL_ACTION") {
+            setIllegalAction(true);
             break;
           }
           // A room lost to a redeploy answers ROOM_NOT_FOUND (room gone) or
@@ -782,6 +818,7 @@ export function useProSocket(
     ws.onclose = () => {
       if (wsRef.current !== ws) return; // superseded by a newer socket
       setStatus("closed");
+      actionSentAtRef.current = 0; // whatever was in flight is gone with the socket (#840)
       // Exponential backoff with FULL JITTER (issue #209). A server that closed us
       // for RATE_LIMITED (or a redeploy that drops every socket at once) would be
       // hammered by a fleet of clients all reconnecting on the same doubling
@@ -910,43 +947,59 @@ export function useProSocket(
     [send, clearResumeDeadline]
   );
 
+  // In-flight guard (p2p #840): lets exactly one ACTION through per server
+  // reply. Arms the guard as a side effect when it says yes.
+  const claimActionSlot = useCallback(() => {
+    // Nothing goes out on a socket that isn't open (see `send`), so don't arm
+    // the guard for a frame that was never sent.
+    if (wsRef.current?.readyState !== WebSocket.OPEN) return false;
+    const now = Date.now();
+    if (actionSentAtRef.current && now - actionSentAtRef.current < ACTION_IN_FLIGHT_MS) return false;
+    actionSentAtRef.current = now;
+    return true;
+  }, []);
+
   const sendAction = useCallback(
     (action: Action) => {
+      if (!roomRef.current) return;
+      // A second tap before the first one's STATE would only ever be rejected
+      // as ILLEGAL_ACTION — drop it here instead (#840).
+      if (!claimActionSlot()) return;
       // Move timer (issue #223): the viewer acted within their window, so a
       // later supersede of this clock is a normal move, never a timeout.
       if (ownClockRef.current) ownClockRef.current.acted = true;
       ownActionRef.current = true; // slow mode (#703): our own result never waits
-      if (roomRef.current)
-        send({ v: PROTOCOL_VERSION, type: "ACTION", roomId: roomRef.current, action });
+      send({ v: PROTOCOL_VERSION, type: "ACTION", roomId: roomRef.current, action });
     },
-    [send]
+    [send, claimActionSlot]
   );
 
   // Protocol v1: prompt answers are a regular action through the single ACTION
   // path (the server enumerates them in legalActions too).
   const respondToPrompt = useCallback(
     (promptId: string, optionId: string, path?: SpaceId[]) => {
+      if (!roomRef.current || !youRef.current) return;
+      if (!claimActionSlot()) return; // same double-tap guard as sendAction (#840)
       if (ownClockRef.current) ownClockRef.current.acted = true; // acted in-window (v#223)
       ownActionRef.current = true; // slow mode (#703): our own result never waits
-      if (roomRef.current && youRef.current)
-        send({
-          v: PROTOCOL_VERSION,
-          type: "ACTION",
-          roomId: roomRef.current,
-          action: {
-            type: "RESPOND_PROMPT",
-            player: youRef.current,
-            promptId,
-            optionId,
-            // Incremental EFFECT movement (#654 ↔ engine #411): the walked route
-            // rides along only when there IS one, so every other prompt answer —
-            // and every server that never sends a prompt `moveGraph` — keeps the
-            // exact wire shape it has always had.
-            ...(path && path.length > 0 ? { path } : {}),
-          },
-        });
+      send({
+        v: PROTOCOL_VERSION,
+        type: "ACTION",
+        roomId: roomRef.current,
+        action: {
+          type: "RESPOND_PROMPT",
+          player: youRef.current,
+          promptId,
+          optionId,
+          // Incremental EFFECT movement (#654 ↔ engine #411): the walked route
+          // rides along only when there IS one, so every other prompt answer —
+          // and every server that never sends a prompt `moveGraph` — keeps the
+          // exact wire shape it has always had.
+          ...(path && path.length > 0 ? { path } : {}),
+        },
+      });
     },
-    [send]
+    [send, claimActionSlot]
   );
 
   // Undo (v11): meta-negotiation, sent OUTSIDE the ACTION path so it never enters
@@ -975,6 +1028,7 @@ export function useProSocket(
   const acknowledgeUndoUnavailable = useCallback(() => setUndoUnavailable(false), []);
   const acknowledgeServerError = useCallback(() => setServerError(false), []);
   const acknowledgeRateLimited = useCallback(() => setRateLimited(false), []);
+  const acknowledgeIllegalAction = useCallback(() => setIllegalAction(false), []);
 
   const requestLobbies = useCallback(() => {
     send({ v: PROTOCOL_VERSION, type: "LIST_LOBBIES" });
@@ -1019,6 +1073,8 @@ export function useProSocket(
     acknowledgeServerError,
     rateLimited,
     acknowledgeRateLimited,
+    illegalAction,
+    acknowledgeIllegalAction,
     requestLobbies,
     setVisibility,
     serverRestarting,
