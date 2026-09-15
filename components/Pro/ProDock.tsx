@@ -370,19 +370,29 @@ export const ProDock = ({
   // Key-info band — the one thing a collapsed dock still shows.
   const turnChips = liveChrome && (
     <Flex gap="0.4rem" alignItems="center" flexWrap="wrap">
-      <Tag
-        size="sm"
-        bg={myTurn ? "brand.accent" : "whiteAlpha.300"}
-        color={myTurn ? "brand.surfaceDim" : "brand.parchment"}
-      >
-        {activeTurnLabel}
-      </Tag>
-      <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
-        turn {view.turnNumber}
-      </Tag>
-      <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
-        {view.actionsRemaining} actions left
-      </Tag>
+      {view.phase === "SETUP" ? (
+        // Placement is not anyone's turn yet: "OPPONENT'S TURN · turn 0 · 0
+        // actions left" read as if the game had skipped the player (mobile step 2).
+        <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
+          SETUP
+        </Tag>
+      ) : (
+        <>
+          <Tag
+            size="sm"
+            bg={myTurn ? "brand.accent" : "whiteAlpha.300"}
+            color={myTurn ? "brand.surfaceDim" : "brand.parchment"}
+          >
+            {activeTurnLabel}
+          </Tag>
+          <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
+            turn {view.turnNumber}
+          </Tag>
+          <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
+            {view.actionsRemaining} actions left
+          </Tag>
+        </>
+      )}
       {/* The per-seat presence badge + countdown live in ProHud — this chip is
           just the at-a-glance banner (issue #222). */}
       {disconnectedLabel && (
@@ -869,7 +879,9 @@ export const ProDock = ({
           legal-action check, so it appears on your own clock and vanishes
           once you're eliminated. Destructive, so it's red and confirm-gated;
           the phase/winner gates stay as belt-and-suspenders. */}
-      {view.phase === "PLAY" && !view.winner && canForfeit && (
+      {/* Phones reach Forfeit through the ⋮ game menu instead (mobile step 2):
+          next to the turn's actions it was one mistap from a lost game. */}
+      {!mobile && view.phase === "PLAY" && !view.winner && canForfeit && (
         <Button size="sm" mt="0.4rem" colorScheme="red" variant="outline" onClick={onForfeit}>
           Forfeit
         </Button>
@@ -894,6 +906,9 @@ export const ProDock = ({
     // engine offers exactly one, otherwise the first row in the dock's own
     // order (maneuver leads that order, which is what a player reaches for).
     const primary = soleAction ?? rows[0]?.action ?? null;
+    // Ending a move is never the thing to reach for first (mobile step 2): it
+    // stays on the pill row, but as an outline pill, not the gold one.
+    const primaryIsFinish = primary?.type === "END_MANEUVER";
     const extra = Math.max(rows.length - (primary ? 1 : 0), 0);
 
     if (boardPickCompact)
@@ -975,16 +990,20 @@ export const ProDock = ({
           <Flex alignItems="center" justifyContent="center" gap="0.5rem" maxW="100%" px="0.5rem">
             {primary ? (
               <Button
+                data-testid="pro-mobile-primary"
+                data-emphasis={primaryIsFinish ? "secondary" : "primary"}
                 minH="3rem"
                 px="1.25rem"
                 borderRadius="999px"
-                bg="brand.accent"
-                color="brand.surfaceDim"
+                bg={primaryIsFinish ? "rgba(44, 24, 49, 0.92)" : "brand.accent"}
+                color={primaryIsFinish ? "brand.accent" : "brand.surfaceDim"}
+                border={primaryIsFinish ? "2px solid" : undefined}
+                borderColor={primaryIsFinish ? "brand.accent" : undefined}
                 fontWeight={700}
                 fontSize="0.95rem"
                 boxShadow="0 6px 20px rgba(12,4,16,0.5)"
-                _hover={{ bg: "brand.accent" }}
-                _active={{ bg: "brand.accentDeep" }}
+                _hover={{ bg: primaryIsFinish ? "rgba(20, 8, 24, 0.95)" : "brand.accent" }}
+                _active={{ bg: primaryIsFinish ? "rgba(20, 8, 24, 0.95)" : "brand.accentDeep" }}
                 maxW="15rem"
                 overflow="hidden"
                 pointerEvents="auto"
@@ -998,7 +1017,9 @@ export const ProDock = ({
                 </Text>
               </Button>
             ) : (
-              liveChrome && (
+              // Whose turn it is lives in the turn strip under the chips now
+              // (mobile step 2); only the spectating state still needs saying here.
+              liveChrome && iAmSpectating && (
                 <Flex
                   alignItems="center"
                   minH="2.75rem"
@@ -1010,13 +1031,7 @@ export const ProDock = ({
                   fontSize="0.8rem"
                   pointerEvents="none"
                 >
-                  {iAmSpectating
-                    ? iForfeited
-                      ? "You forfeited — spectating."
-                      : "Eliminated — spectating."
-                    : multiplayerView
-                      ? "waiting on another player…"
-                      : "waiting on opponent…"}
+                  {iForfeited ? "You forfeited — spectating." : "Eliminated — spectating."}
                 </Flex>
               )
             )}

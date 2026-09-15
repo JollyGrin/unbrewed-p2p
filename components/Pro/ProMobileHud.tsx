@@ -16,7 +16,7 @@
  * so the relative order desktop has — dock 140, log 145/146, hud 150, hand 160,
  * callouts 200+, card preview 2000 — is unchanged.
  */
-import { RefObject, useState } from "react";
+import { RefObject, useEffect, useRef, useState } from "react";
 import {
   Box,
   Flex,
@@ -32,6 +32,7 @@ import { LinkIcon } from "@chakra-ui/icons";
 import {
   TbBug,
   TbDotsVertical,
+  TbFlag,
   TbEyeOff,
   TbHourglass,
   TbSparkles,
@@ -45,6 +46,7 @@ import { useHudPlates, DEFAULT_PLATE_LAYOUT } from "@/lib/pro/useHudPlates";
 import { deriveTeams } from "@/lib/pro/teams";
 import { seatNameplate } from "@/lib/pro/playerIdentity";
 import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
+import { turnStripFor } from "@/lib/pro/turnStrip";
 import { RAIL_WIDTH_CSS, TAP_TARGET, chipSeatName } from "@/lib/pro/mobileLayout";
 import type { PlayerId, ViewPlayer } from "@/lib/pro/protocol";
 import type { ProLayoutMode } from "@/lib/pro/useProLayout";
@@ -222,6 +224,7 @@ export const ProMobileMenu = ({
   slowModeOn,
   onToggleSlowMode,
   onReportBug,
+  onForfeit,
   placement = "top-end",
 }: Pick<
   ProHudProps,
@@ -236,7 +239,12 @@ export const ProMobileMenu = ({
   | "slowModeOn"
   | "onToggleSlowMode"
   | "onReportBug"
-> & { placement?: "top-end" | "bottom-end" }) => {
+> & {
+  placement?: "top-end" | "bottom-end";
+  /** mobile step 2: forfeit lives here, not next to the turn's actions; opens
+   *  the page's confirmation dialog. Omit when the engine does not offer it. */
+  onForfeit?: () => void;
+}) => {
   const item = {
     bg: "brand.surfaceDim",
     color: "brand.parchment",
@@ -313,6 +321,14 @@ export const ProMobileMenu = ({
               Slow mode — {slowModeOn ? "on" : "off"}
             </MenuItem>
           )}
+          {onForfeit && (
+            <>
+              <MenuDivider borderColor="whiteAlpha.200" />
+              <MenuItem {...item} color="red.300" icon={<TbFlag />} onClick={onForfeit}>
+                Forfeit…
+              </MenuItem>
+            </>
+          )}
           {onReportBug && (
             <>
               <MenuDivider borderColor="whiteAlpha.200" />
@@ -378,6 +394,22 @@ export const ProMobileHud = ({
   const runningTimer = seats.map(timerOf).find(Boolean) ?? null;
   const sheetSeat = openSeat ? seats.find((s) => s.id === openSeat) ?? null : null;
 
+  // Mobile step 2: whose turn / actions left, under the chips (portrait only —
+  // the landscape rail keeps its own turn chips). Inside the measured chips box,
+  // so the board fit clears it.
+  const strip = layoutMode === "portrait" ? turnStripFor(view, (id) => chipSeatName(heroOf(id)?.name, nameOfPlayer(id))) : null;
+  // "Your turn" cue when the turn passes to this seat mid-game: a toast, plus a
+  // short buzz where the browser has a vibration API (Android; not iOS Safari).
+  const myTurnNow = view.phase === "PLAY" && !view.winner && view.activePlayer === view.you;
+  const wasMyTurn = useRef(myTurnNow);
+  useEffect(() => {
+    if (myTurnNow && !wasMyTurn.current) {
+      toast("Your turn", { id: "pro-your-turn", icon: "⚔️", duration: 2200 });
+      if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") navigator.vibrate(60);
+    }
+    wasMyTurn.current = myTurnNow;
+  }, [myTurnNow]);
+
   // Your chip leads (top-left, parchment); everyone else trails to the right.
   const ordered = [...seats].sort((a, b) => Number(b.you) - Number(a.you));
 
@@ -422,6 +454,35 @@ export const ProMobileHud = ({
             );
           })}
         </Flex>
+        {strip && (
+          <Flex
+            data-testid="pro-turn-strip"
+            mx="0.6rem"
+            mt="0.4rem"
+            px="0.7rem"
+            minH="1.8rem"
+            alignItems="center"
+            gap="0.5rem"
+            borderRadius="0.6rem"
+            fontSize="0.72rem"
+            fontWeight={700}
+            letterSpacing="0.06em"
+            bg={strip.tone === "mine" ? "brand.accent" : "rgba(44, 24, 49, 0.9)"}
+            color={strip.tone === "mine" ? "brand.surfaceDim" : "brand.parchment"}
+            border={strip.tone === "mine" ? "none" : "1px solid rgba(231, 204, 152, 0.18)"}
+          >
+            <Text as="span" noOfLines={1}>
+              {strip.label}
+            </Text>
+            {strip.pips > 0 && (
+              <Flex ml="auto" gap="0.25rem" aria-label={`${strip.pips} action${strip.pips === 1 ? "" : "s"} left`}>
+                {Array.from({ length: strip.pips }, (_, i) => (
+                  <Box key={i} data-testid="pro-turn-pip" w="0.5rem" h="0.5rem" borderRadius="50%" bg="brand.surfaceDim" />
+                ))}
+              </Flex>
+            )}
+          </Flex>
+        )}
         {runningTimer && (
           <Box mt="0.4rem" pointerEvents="none">
             <MoveTimerBar

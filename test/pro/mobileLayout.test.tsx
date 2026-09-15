@@ -299,6 +299,57 @@ describe("portrait phone", () => {
   });
 });
 
+describe("portrait phone — turn strip and action bar (mobile step 2)", () => {
+  const P1 = BASE_VIEW.you;
+  const P2 = BASE_VIEW.players.find((p) => p.id !== P1)!.id;
+  const playView = (over: Partial<PlayerView>): PlayerView =>
+    ({ ...BASE_VIEW, phase: "PLAY", prompt: null, combat: null, winner: null, ...over }) as PlayerView;
+
+  it("puts whose turn it is and the actions left in a strip under the chips", async () => {
+    setViewport("portrait");
+    const { state } = await mount();
+    await state(playView({ activePlayer: P1, turnNumber: 3, actionsRemaining: 2 }), [{ type: "MANEUVER", player: P1 }]);
+
+    const strip = screen.getByTestId("pro-turn-strip");
+    expect(strip).toHaveTextContent("YOUR TURN · TURN 3");
+    expect(within(strip).getAllByTestId("pro-turn-pip")).toHaveLength(2);
+    expect(chips()).toContainElement(strip);
+  });
+
+  it("says who is on turn in the strip instead of a waiting pill over the board", async () => {
+    setViewport("portrait");
+    const { state } = await mount();
+    await state(playView({ activePlayer: P2 }), []);
+
+    expect(screen.getByTestId("pro-turn-strip")).toHaveTextContent(/'S TURN…/);
+    expect(screen.queryByText(/waiting on (opponent|another player)/i)).toBeNull();
+  });
+
+  it("never promotes End maneuver to the gold primary pill", async () => {
+    setViewport("portrait");
+    const { state } = await mount();
+    await state(playView({ activePlayer: P1 }), [{ type: "END_MANEUVER", player: P1 }]);
+
+    expect(screen.getByTestId("pro-mobile-primary")).toHaveAttribute("data-emphasis", "secondary");
+  });
+
+  it("moves Forfeit out of the sheet into the game menu, still behind the confirmation", async () => {
+    setViewport("portrait");
+    const { state } = await mount();
+    await state(playView({ activePlayer: P1 }), [
+      { type: "MANEUVER", player: P1 },
+      { type: "FORFEIT", player: P1 },
+    ]);
+
+    fireEvent.click(screen.getByTestId("pro-mobile-more"));
+    expect(within(screen.getByTestId("pro-mobile-sheet")).queryByRole("button", { name: /^forfeit$/i })).toBeNull();
+
+    fireEvent.click(screen.getByLabelText("Game menu"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /forfeit/i }));
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+  });
+});
+
 describe("landscape phone", () => {
   it("stands the decision stack + hand up as a right rail", async () => {
     setViewport("rail");

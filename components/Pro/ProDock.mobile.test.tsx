@@ -118,4 +118,13 @@ describe("ProDock portrait board-pick bar (mobile step 1)", () => {
 
     expect(screen.getByTestId("pro-mobile-pickbar")).toBeInTheDocument();
   });
+
+  it("labels setup as SETUP instead of a turn-0 opponent turn", () => {
+    const setup = { ...view, phase: "SETUP", turnNumber: 0, activePlayer: "p2" } as unknown as PlayerView;
+    render(<ProDock {...props({ view: setup, myTurn: false, activeTurnLabel: "OPPONENT'S TURN", hasPrompt: true })} />);
+
+    const sheet = screen.getByTestId("pro-mobile-sheet");
+    expect(sheet).toHaveTextContent("SETUP");
+    expect(sheet).not.toHaveTextContent(/turn 0|OPPONENT'S TURN/);
+  });
 });

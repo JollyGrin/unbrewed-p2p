@@ -6998,7 +6998,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
               onClose={() => setHandOpen(false)}
             />
             <Box pointerEvents="auto">
-              <ProMobileMenu {...hudProps} placement="top-end" />
+              <ProMobileMenu {...hudProps} placement="top-end" onForfeit={canForfeit && view.phase === "PLAY" && !view.winner ? () => setForfeitOpen(true) : undefined} />
             </Box>
           </Flex>
         </Flex>
@@ -7039,7 +7039,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
               <TbList size="0.9rem" /> Log
             </Flex>
             <Box flex={1} />
-            <ProMobileMenu {...hudProps} placement="bottom-end" />
+            <ProMobileMenu {...hudProps} placement="bottom-end" onForfeit={canForfeit && view.phase === "PLAY" && !view.winner ? () => setForfeitOpen(true) : undefined} />
           </Flex>
           {dockEl}
           <RailHand
