@@ -1,5 +1,5 @@
 import { cardFaceOptions, optionCardId } from "./cardOptions";
-import type { LegalOption, PromptKind, ViewPrompt } from "./protocol";
+import type { LegalOption, PlayerId, PromptKind, ViewPrompt } from "./protocol";
 
 const prompt = (kind: PromptKind, options: LegalOption[]): ViewPrompt => ({
   promptId: "p1",
@@ -98,5 +98,82 @@ describe("cardFaceOptions", () => {
     // e.g. a CHOOSE_SPACE pose prompt — options are `<space>|<space>` strings.
     const p = prompt("CHOOSE_SPACE", [{ id: "s12|s13", label: "s12|s13" }]);
     expect(cardFaceOptions(p)).toEqual([]);
+  });
+});
+
+import { optionPlayerId, revealedPlayerPickOptions, type RevealedCard } from "./cardOptions";
+
+const playerOpt = (id: string, player: string): LegalOption => ({
+  id,
+  label: player.toUpperCase(),
+  data: { player },
+});
+
+const rev = (player: PlayerId, card: string): RevealedCard => ({ player, card });
+
+describe("optionPlayerId", () => {
+  it("reads data.player from an option", () => {
+    expect(optionPlayerId(playerOpt("a1", "p1"))).toBe("p1");
+  });
+
+  it("returns null when the option carries no player", () => {
+    expect(optionPlayerId(cardOpt("card_042#1"))).toBeNull();
+  });
+});
+
+describe("revealedPlayerPickOptions (issue #861 — Foreshadowing pick-a-player)", () => {
+  it("duel: 2 reveals enrich both options as card faces", () => {
+    const p = prompt("CHOOSE_TARGET", [playerOpt("a1", "p1"), playerOpt("b1", "p2")]);
+    expect(revealedPlayerPickOptions(p, [rev("p1", "card_001#1"), rev("p2", "card_002#2")])).toEqual([
+      { id: "a1", instance: "card_001#1", player: "p1" },
+      { id: "b1", instance: "card_002#2", player: "p2" },
+    ]);
+  });
+
+  it("team-2v2: 4 reveals enrich all four options", () => {
+    const p = prompt("CHOOSE_TARGET", [
+      playerOpt("a1", "p1"),
+      playerOpt("b1", "p2"),
+      playerOpt("a2", "p3"),
+      playerOpt("b2", "p4"),
+    ]);
+    expect(
+      revealedPlayerPickOptions(p, [
+        rev("p1", "card_001#1"),
+        rev("p2", "card_002#1"),
+        rev("p3", "card_003#1"),
+        rev("p4", "card_004#1"),
+      ]),
+    ).toEqual([
+      { id: "a1", instance: "card_001#1", player: "p1" },
+      { id: "b1", instance: "card_002#1", player: "p2" },
+      { id: "a2", instance: "card_003#1", player: "p3" },
+      { id: "b2", instance: "card_004#1", player: "p4" },
+    ]);
+  });
+
+  it("falls back to plain buttons when a data.player prompt has no reveals in its batch (Choose Opponent)", () => {
+    const p = prompt("CHOOSE_TARGET", [playerOpt("a1", "p1"), playerOpt("b1", "p2")]);
+    expect(revealedPlayerPickOptions(p, [])).toEqual([]);
+  });
+
+  it("a stale reveal from an earlier batch must not attach (keyed by promptId upstream)", () => {
+    const p = prompt("CHOOSE_TARGET", [playerOpt("a1", "p1"), playerOpt("b1", "p2")]);
+    expect(revealedPlayerPickOptions(p, [rev("p1", "card_001#1")])).toEqual([]);
+  });
+
+  it("falls back when only SOME players have reveals", () => {
+    const p = prompt("CHOOSE_TARGET", [playerOpt("a1", "p1"), playerOpt("b1", "p2")]);
+    expect(revealedPlayerPickOptions(p, [rev("p1", "card_001#1"), rev("p2", "card_002#1"), rev("p3", "card_003#1")])).toEqual(
+      [
+        { id: "a1", instance: "card_001#1", player: "p1" },
+        { id: "b1", instance: "card_002#1", player: "p2" },
+      ],
+    );
+  });
+
+  it("a fighter-target CHOOSE_TARGET (no data.player) keeps its board flow", () => {
+    const p = prompt("CHOOSE_TARGET", [{ id: "f1", label: "Cecil", data: { fighter: "f1" } }]);
+    expect(revealedPlayerPickOptions(p, [rev("p1", "card_001#1")])).toEqual([]);
   });
 });

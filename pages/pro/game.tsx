@@ -134,7 +134,8 @@ import { maneuverBoostHint } from "@/lib/pro/maneuverHint";
 import { badgedFighterName, fighterName, squadBadges } from "@/lib/pro/squadNumbers";
 import { buildPoseIndex, parsePoseOptions, poseHighlights, resolvePoseClick } from "@/lib/pro/moveChoice";
 import { moveBudgetLine, steppingBudgetLine, unofferableMoveFeedback } from "@/lib/pro/moveFeedback";
-import { cardFaceOptions } from "@/lib/pro/cardOptions";
+import { cardFaceOptions, revealedPlayerPickOptions, type RevealedCard } from "@/lib/pro/cardOptions";
+import { seatNameplate } from "@/lib/pro/playerIdentity";
 import {
   applyClick as applyStepClick,
   canCommit as canCommitStep,
@@ -329,7 +330,7 @@ const PromptPanel = ({
   /** hand-card options rendered as clickable card faces (issue #288 — Multi-Arm
    *  Barrage second-attack commit): each `{ id, instance }` shows the offered card;
    *  clicking answers with its option id. The sentinel stays in `buttonOptions`. */
-  cardOptions: { id: string; instance: CardInstanceId }[];
+  cardOptions: { id: string; instance: CardInstanceId; caption?: string }[];
   /** set when some options are answered by clicking the board */
   boardHint: string | null;
   /** issue #412: the step budget line for a CHOOSE_SPACE *move* prompt ("Move
@@ -415,19 +416,27 @@ const PromptPanel = ({
         {cardOptions.length > 0 && (
           <Flex gap="0.5rem" flexWrap="wrap" mb="0.5rem">
             {cardOptions.map((c) => (
-              <Box
-                key={c.id}
-                as="button"
+              <Flex key={c.id} as="button" direction="column" alignItems="center" gap="0.25rem"
                 w="5rem"
-                sx={{ aspectRatio: "63 / 88" }}
-                borderRadius="0.35rem"
-                transition="transform 0.1s, box-shadow 0.1s"
-                _hover={{ transform: "translateY(-3px)", boxShadow: "0 0 0 2px var(--chakra-colors-brand-accent)" }}
-                onClick={() => onRespond(prompt.promptId, c.id)}
-                aria-label={`Choose ${cardLabel(catalog, c.instance)}`}
+                sx={{ "@media (max-width: 420px)": { w: "4.25rem" } }}
               >
-                <CardFace card={resolveCard(c.instance)} fallback={cardLabel(catalog, c.instance)} />
-              </Box>
+                <Box
+                  w="100%"
+                  sx={{ aspectRatio: "63 / 88" }}
+                  borderRadius="0.35rem"
+                  transition="transform 0.1s, box-shadow 0.1s"
+                  _hover={{ transform: "translateY(-3px)", boxShadow: "0 0 0 2px var(--chakra-colors-brand-accent)" }}
+                  onClick={() => onRespond(prompt.promptId, c.id)}
+                  aria-label={`Choose ${cardLabel(catalog, c.instance)}`}
+                >
+                  <CardFace card={resolveCard(c.instance)} fallback={cardLabel(catalog, c.instance)} />
+                </Box>
+                {c.caption && (
+                  <Text fontSize="0.7rem" lineHeight="1.1" textAlign="center" color="brand.parchment" whiteSpace="normal">
+                    {c.caption}
+                  </Text>
+                )}
+              </Flex>
             ))}
           </Flex>
         )}
@@ -4596,6 +4605,24 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   const [logOpen, setLogOpen] = useState(false);
   const [handOpen, setHandOpen] = useState(false);
 
+  // Choose-a-player card faces (issue #861 — The Narrator's Foreshadowing): the
+  // CARD_REVEALEDs from the SAME STATE batch that opened the current prompt,
+  // keyed by promptId so an older batch's reveal can never attach to a later
+  // prompt and a mid-prompt reconnect (no events replayed) simply finds none.
+  const [promptReveals, setPromptReveals] = useState<{ promptId: string; reveals: RevealedCard[] } | null>(null);
+  useEffect(() => {
+    const p = snapshot?.prompt;
+    const mine = p && p.player === snapshot?.view.you ? p : null;
+    const reveals: RevealedCard[] = (snapshot?.events ?? []).flatMap((e) =>
+      e.type === "CARD_REVEALED" ? [{ player: e.player, card: e.card }] : [],
+    );
+    setPromptReveals((prev) => {
+      if (!mine) return null;
+      if (prev?.promptId === mine.promptId) return reveals.length ? { promptId: mine.promptId, reveals } : prev;
+      return reveals.length ? { promptId: mine.promptId, reveals } : null;
+    });
+  }, [snapshot]);
+
   // Activity feed: diff each view against the previous one (see gameLog.ts).
   const [logEntries, setLogEntries] = useState<ProLogEntry[]>([]);
   // Slow mode (#703): the batch the action spotlight is describing, tagged with
@@ -5864,6 +5891,23 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // `#` instance id and fall through to panel buttons, and fighter/space
   // CHOOSE_TARGETs carry no data.card so their board-click flow is untouched.
   const promptCardOptions = cardFaceOptions(promptForMe);
+  // Pick-a-player reveals (issue #861): a CHOOSE_TARGET whose options ALL name a
+  // player (option.data.player) and whose batch carried a CARD_REVEALED for each
+  // of those players — The Narrator's Foreshadowing shape. Render each target's
+  // revealed card as a face with a seat caption instead of an A1/B1 button.
+  // Anything else (Choose Opponent with no reveals in its batch, fighter/space
+  // targets) yields [] and keeps today's rendering.
+  const promptRevealMatches =
+    promptReveals && promptForMe && promptReveals.promptId === promptForMe.promptId
+      ? revealedPlayerPickOptions(promptForMe, promptReveals.reveals)
+      : [];
+  const promptRevealCardOptions = promptRevealMatches.map((o) => {
+    const seat = view.players.find((p) => p.id === o.player);
+    const name = seat ? seatNameplate(seat, view.players.length) : o.player.toUpperCase();
+    const rel = deriveTeams(view.players, view.you).relationOf(o.player);
+    const suffix = rel === "ally" ? " (ally)" : "";
+    return { id: o.id, instance: o.instance, caption: `${name}${suffix}` };
+  });
   // Two-space (LARGE fighter) move choice (issue #132): a card's "move up to N
   // spaces" effect on Triceratops emits CHOOSE_SPACE options encoded as
   // "<head>|<tail>" pairs, which optionSpace can't resolve — so instead of a wall
@@ -5880,6 +5924,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     ...promptTargetIds,
     ...poseOptions.map((p) => p.optionId),
     ...promptCardOptions.map((c) => c.id),
+    ...promptRevealCardOptions.map((c) => c.id),
   ]);
   const promptButtonOptions = disambiguateLabels(
     promptForMe
@@ -6707,7 +6752,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
             you={view.you}
             onRespond={respondToPrompt}
             buttonOptions={promptButtonOptions}
-            cardOptions={promptCardOptions}
+            cardOptions={[...promptCardOptions, ...promptRevealCardOptions]}
             boardHint={promptBoardHint && mobile ? touchCopy(promptBoardHint) : promptBoardHint}
             budgetLine={promptBudgetLine}
             noteLine={promptNoteLine}

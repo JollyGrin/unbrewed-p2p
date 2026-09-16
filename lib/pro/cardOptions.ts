@@ -18,7 +18,7 @@
  * CHOOSE_TARGETs don't carry `data.card` either, so the board-click flow is
  * untouched.
  */
-import type { CardInstanceId, LegalOption, ViewPrompt } from "./protocol";
+import type { CardInstanceId, LegalOption, PlayerId, ViewPrompt } from "./protocol";
 
 export interface CardOption {
   /** the RESPOND_PROMPT option id to send when this card is picked */
@@ -50,4 +50,58 @@ export const cardFaceOptions = (prompt: ViewPrompt | null): CardOption[] => {
     const instance = optionCardId(o);
     return instance ? [{ id: o.id, instance }] : [];
   });
+};
+
+/** A CARD_REVEALED event distilled to the two fields the pick matcher needs. */
+export interface RevealedCard {
+  player: PlayerId;
+  card: CardInstanceId;
+}
+
+/** A CHOOSE_TARGET option whose target player's revealed card is known. */
+export interface PlayerRevealOption {
+  /** the RESPOND_PROMPT option id to send when this card is picked */
+  id: string;
+  /** the revealed card, resolved for the face picker */
+  instance: CardInstanceId;
+  /** the seat the revealed card belongs to */
+  player: PlayerId;
+}
+
+/** The seat an option targets via `data.player`, or null. */
+export const optionPlayerId = (o: LegalOption): PlayerId | null => {
+  const p = (o.data as { player?: unknown } | undefined)?.player;
+  return typeof p === "string" ? (p as PlayerId) : null;
+};
+
+/**
+ * Match a CHOOSE_TARGET's player options against the CARD_REVEALEDs from the
+ * SAME event batch that opened the prompt (issue #861 — The Narrator's
+ * Foreshadowing: every seat reveals their top card, then you pick a player).
+ * The caller passes only reveals captured under the prompt's own promptId, so a
+ * stale reveal from an earlier batch can never attach to a later prompt.
+ *
+ * All-or-nothing: returns enriched options only when EVERY option names a player
+ * (option.data.player) AND that player has a reveal in the batch — which is
+ * exactly Foreshadowing's shape. Anything else (a Choose-Opponent prompt with
+ * data.player options but no reveals in its batch, a prompt whose options name
+ * fighters or spaces, or a mid-prompt reconnect where the reveal events are
+ * gone) returns [] and the prompt keeps its ordinary button rendering.
+ */
+export const revealedPlayerPickOptions = (
+  prompt: ViewPrompt | null,
+  reveals: readonly RevealedCard[],
+): PlayerRevealOption[] => {
+  if (!prompt || prompt.kind !== "CHOOSE_TARGET" || prompt.options.length === 0) return [];
+  const byPlayer = new Map(reveals.map((r) => [r.player, r.card]));
+  const out: PlayerRevealOption[] = [];
+  for (const o of prompt.options) {
+    const p = optionPlayerId(o);
+    if (!p) return [];
+    const card = byPlayer.get(p);
+    // Same `#` guard as optionCardId: an instance id, not a bare def id.
+    if (!card || !card.includes("#")) return [];
+    out.push({ id: o.id, instance: card, player: p });
+  }
+  return out;
 };
