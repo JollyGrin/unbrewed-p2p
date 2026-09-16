@@ -1192,3 +1192,41 @@ describe("The Narrator (5jBEXsA55e) board tokens are committed and local", () =>
     }
   });
 });
+
+describe("The Narrator (5jBEXsA55e) card faces use the club's full composed card renders", () => {
+  // #859 — 12 of the 13 faces are the-unmatched.club's own composed card images
+  // (border, banner, rules text baked in) wired via cardImage, same shape as
+  // Cecil Palmer (37z5). Filenames are unchanged from the #854 illustration drop.
+  const deck = readDeck("5jBEXsA55e");
+  const cards = deck.deck_data.cards as {
+    title: string;
+    imageUrl: string;
+    cardImage?: { url: string };
+  }[];
+
+  it("ships cardImage on 12 faces, matching imageUrl, with files that exist", () => {
+    const withCardImage = cards.filter((c) => c.cardImage);
+    expect(withCardImage).toHaveLength(12);
+    for (const card of withCardImage) {
+      expect(card.cardImage?.url).toBe(card.imageUrl); // full-bleed AND template path agree
+      expect(card.imageUrl).toMatch(/^\/evergreen-decks\/art\/narrator\/[a-z0-9-]+\.webp$/);
+      expect(existsSync(join(DECKS_DIR, "..", card.imageUrl.replace(/^\//, "")))).toBe(true);
+    }
+  });
+
+  it("leaves Plot Device: Forshadowing illustration-only (its club render is dead)", () => {
+    // the club's action-136471 render returns 400 not_found (verified 2026-09-16);
+    // it renders through the generated template via imageUrl alone.
+    const f = cards.find((c) => c.title === "Plot Device: Forshadowing");
+    expect(f).toBeDefined();
+    expect(f!.cardImage).toBeUndefined();
+    expect(existsSync(join(DECKS_DIR, "..", f!.imageUrl.replace(/^\//, "")))).toBe(true);
+  });
+
+  it("replaced the cardback with the club's cardsBack art at the same path", () => {
+    expect(deck.deck_data.appearance.cardbackUrl).toBe(
+      "/evergreen-decks/art/narrator/cardback.webp",
+    );
+    expect(existsSync(join(DECKS_DIR, "art", "narrator", "cardback.webp"))).toBe(true);
+  });
+});
