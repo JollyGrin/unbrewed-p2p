@@ -155,8 +155,15 @@ type PreviewHandlers = {
  * Handlers to spread onto a card trigger element. Pass the resolved card (or
  * null for a hidden / face-down card — hidden cards get no preview and stay
  * inert). Returns `{}` when there's no card or no surrounding provider.
+ *
+ * `touchOnly` keeps just the press-and-hold peek, for a card that sits inside
+ * its own button (the mobile card picker): a tap focuses that button, and the
+ * focus preview would otherwise pop a full-size card over the picker.
  */
-export const useCardPreview = (card: DeckImportCardType | null): PreviewHandlers => {
+export const useCardPreview = (
+  card: DeckImportCardType | null,
+  { touchOnly = false }: { touchOnly?: boolean } = {}
+): PreviewHandlers => {
   const api = useContext(CardPreviewContext);
   const enterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shown = useRef(false);
@@ -192,16 +199,7 @@ export const useCardPreview = (card: DeckImportCardType | null): PreviewHandlers
     }
   };
 
-  return {
-    tabIndex: 0,
-    onMouseEnter: () => {
-      clearTimer();
-      enterTimer.current = setTimeout(() => showNow("hover"), HOVER_ENTER_MS);
-    },
-    onMouseLeave: hideNow,
-    // Keyboard focus mirrors hover, minus the anti-flicker delay.
-    onFocus: () => showNow("hover"),
-    onBlur: hideNow,
+  const touch = {
     onTouchStart: () => {
       clearTimer();
       enterTimer.current = setTimeout(() => showNow("touch"), TOUCH_HOLD_MS);
@@ -213,5 +211,19 @@ export const useCardPreview = (card: DeckImportCardType | null): PreviewHandlers
       hideNow();
     },
     onTouchCancel: hideNow,
+  };
+  if (touchOnly) return touch;
+
+  return {
+    tabIndex: 0,
+    onMouseEnter: () => {
+      clearTimer();
+      enterTimer.current = setTimeout(() => showNow("hover"), HOVER_ENTER_MS);
+    },
+    onMouseLeave: hideNow,
+    // Keyboard focus mirrors hover, minus the anti-flicker delay.
+    onFocus: () => showNow("hover"),
+    onBlur: hideNow,
+    ...touch,
   };
 };
