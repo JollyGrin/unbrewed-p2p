@@ -21,7 +21,10 @@
         "quantity": 2,
         "title": "PLOT DEVICE: Red Herring",
         "type": "attack",
-        "value": 4
+        "value": 4,
+        "cardImage": {
+          "url": "/evergreen-decks/art/narrator/red-herring.webp"
+        }
       },
       {
         "afterText": "Place the opposing fighter in any space.",
@@ -34,7 +37,10 @@
         "quantity": 3,
         "title": "A Hero's Journey",
         "type": "attack",
-        "value": 4
+        "value": 4,
+        "cardImage": {
+          "url": "/evergreen-decks/art/narrator/a-heros-journey.webp"
+        }
       },
       {
         "afterText": "Summon an adventurer in The Narrator's zone. Then, move each of your fighters up to 2 spaces.",
@@ -47,7 +53,10 @@
         "quantity": 3,
         "title": "Rising Action",
         "type": "attack",
-        "value": 4
+        "value": 4,
+        "cardImage": {
+          "url": "/evergreen-decks/art/narrator/rising-action-attack.webp"
+        }
       },
       {
         "afterText": "If you won the combat, The Narrator recovers health equal to the damage dealt.",
@@ -60,7 +69,10 @@
         "quantity": 2,
         "title": "Happily Ever After",
         "type": "attack",
-        "value": 5
+        "value": 5,
+        "cardImage": {
+          "url": "/evergreen-decks/art/narrator/happily-ever-after.webp"
+        }
       },
       {
         "afterText": "",
@@ -73,7 +85,10 @@
         "quantity": 2,
         "title": "The Climax",
         "type": "versatile",
-        "value": 3
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/narrator/the-climax.webp"
+        }
       },
       {
         "afterText": "Your opponent reveals 1 random card. The Narrator recovers health equal to its BOOST value.",
@@ -86,7 +101,10 @@
         "quantity": 2,
         "title": "The Story's The Thing",
         "type": "versatile",
-        "value": 3
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/narrator/the-plays-the-thing.webp"
+        }
       },
       {
         "afterText": "Look at your opponent's hand and choose 1 card for them to discard. Draw 1 card.",
@@ -99,7 +117,10 @@
         "quantity": 2,
         "title": "Plot Twist",
         "type": "versatile",
-        "value": 2
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/narrator/plot-twist.webp"
+        }
       },
       {
         "afterText": "",
@@ -112,7 +133,10 @@
         "quantity": 3,
         "title": "Harrying Strike",
         "type": "versatile",
-        "value": 2
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/narrator/harrying-strike.webp"
+        }
       },
       {
         "afterText": "Draw 1 card. If you won the combat, draw 2 cards instead.",
@@ -125,7 +149,10 @@
         "quantity": 3,
         "title": "Regroup",
         "type": "versatile",
-        "value": 1
+        "value": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/narrator/regroup.webp"
+        }
       },
       {
         "afterText": "All players draw 1 card. End the turn.",
@@ -138,7 +165,10 @@
         "quantity": 2,
         "title": "Plot Device: Deus Ex Machina",
         "type": "defence",
-        "value": 4
+        "value": 4,
+        "cardImage": {
+          "url": "/evergreen-decks/art/narrator/deus-ex-machina.webp"
+        }
       },
       {
         "afterText": null,
@@ -164,7 +194,10 @@
         "quantity": 2,
         "title": "Advance The Plot",
         "type": "scheme",
-        "value": null
+        "value": null,
+        "cardImage": {
+          "url": "/evergreen-decks/art/narrator/advance-the-plot.webp"
+        }
       },
       {
         "afterText": null,
@@ -177,7 +210,10 @@
         "quantity": 2,
         "title": "To Observe From Beyond",
         "type": "scheme",
-        "value": null
+        "value": null,
+        "cardImage": {
+          "url": "/evergreen-decks/art/narrator/to-observe-from-beyond.webp"
+        }
       }
     ],
     "extraCharacters": [],
