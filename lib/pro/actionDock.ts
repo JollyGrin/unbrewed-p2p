@@ -36,7 +36,23 @@ export interface DescribeCtx {
    *  should commit to using something they were never told the effect of).
    *  Undefined = the space has no known item; falls back to "item". */
   itemForSpace?: (space: SpaceId) => ProMapItem | undefined;
+  /** The combat item the viewer may attach on THIS commit (label + value), so an
+   *  `attachItem: true` COMMIT_* variant reads "… + Sword (+2)" next to its plain
+   *  twin. Without it the variant still says "… + item": on phones the card
+   *  picker is the ONLY way to answer a defense (#833 hides the hand peek), and
+   *  two identical buttons there means one silently spends the item (#841). */
+  attachItem?: AttachItem;
 }
+
+/** " + Sword (+2)" for an `attachItem: true` commit variant (#841), so it never
+ *  reads the same as the plain commit of the same card. Sits before the face-up
+ *  marker, matching `cardAffordances` — the item is part of what you commit,
+ *  the face-up flag is how you commit it. */
+const attachSuffix = (a: { attachItem?: boolean }, ctx?: DescribeCtx): string => {
+  if (a.attachItem !== true) return "";
+  const item = ctx?.attachItem;
+  return item ? ` + ${item.label} (+${item.value})` : " + item";
+};
 
 /**
  * Presentational label for a server-offered action (sidebar list).
@@ -105,9 +121,9 @@ export const describeAction = (
       // the only thing that says why the opponent is about to see it. Set off with a
       // MIDDOT, not a second bracket: `cardLabel` already ends in "(5/1)", and
       // "(5/1) (face up)" reads as two halves of one stat block.
-      return `Commit ${cardLabel(catalog, a.card)}${a.faceUp ? " · face up" : ""}`;
+      return `Commit ${cardLabel(catalog, a.card)}${attachSuffix(a, ctx)}${a.faceUp ? " · face up" : ""}`;
     case "COMMIT_DEFENSE_CARD":
-      return `Defend with ${cardLabel(catalog, a.card)}`;
+      return `Defend with ${cardLabel(catalog, a.card)}${attachSuffix(a, ctx)}`;
     case "DECLINE_DEFENSE":
       return "Don't defend";
     case "DISCARD_TO_LIMIT":

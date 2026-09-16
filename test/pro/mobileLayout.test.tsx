@@ -236,10 +236,13 @@ describe("portrait phone", () => {
       } as PlayerView,
       []
     );
-    // the sheet is up and locked open…
+    // the answer is on the board, so only the slim pick bar stands over it…
+    expect(screen.getByTestId("pro-mobile-pickbar")).toBeInTheDocument();
+    expect(screen.queryByTestId("pro-mobile-sheet-scrim")).toBeNull();
+    // …and expanded to the full sheet it is locked open, still without a scrim.
+    fireEvent.click(screen.getByRole("button", { name: /^options$/i }));
     expect(screen.getByTestId("pro-mobile-sheet")).toBeInTheDocument();
     expect(screen.getByLabelText(/decision is waiting/i)).toBeInTheDocument();
-    // …and the board underneath it is still reachable.
     expect(screen.queryByTestId("pro-mobile-sheet-scrim")).toBeNull();
   });
 
@@ -293,6 +296,141 @@ describe("portrait phone", () => {
     expect(screen.queryByText("Activity")).toBeNull();
     fireEvent.click(screen.getByLabelText("Activity log"));
     expect(screen.getByText("Activity")).toBeInTheDocument();
+  });
+});
+
+describe("portrait phone — turn strip and action bar (mobile step 2)", () => {
+  const P1 = BASE_VIEW.you;
+  const P2 = BASE_VIEW.players.find((p) => p.id !== P1)!.id;
+  const playView = (over: Partial<PlayerView>): PlayerView =>
+    ({ ...BASE_VIEW, phase: "PLAY", prompt: null, combat: null, winner: null, ...over }) as PlayerView;
+
+  it("puts whose turn it is and the actions left in a strip under the chips", async () => {
+    setViewport("portrait");
+    const { state } = await mount();
+    await state(playView({ activePlayer: P1, turnNumber: 3, actionsRemaining: 2 }), [{ type: "MANEUVER", player: P1 }]);
+
+    const strip = screen.getByTestId("pro-turn-strip");
+    expect(strip).toHaveTextContent("YOUR TURN · TURN 3");
+    expect(within(strip).getAllByTestId("pro-turn-pip")).toHaveLength(2);
+    expect(chips()).toContainElement(strip);
+  });
+
+  it("says who is on turn in the strip instead of a waiting pill over the board", async () => {
+    setViewport("portrait");
+    const { state } = await mount();
+    await state(playView({ activePlayer: P2 }), []);
+
+    expect(screen.getByTestId("pro-turn-strip")).toHaveTextContent(/'S TURN…/);
+    expect(screen.queryByText(/waiting on (opponent|another player)/i)).toBeNull();
+  });
+
+  it("never promotes End maneuver to the gold primary pill", async () => {
+    setViewport("portrait");
+    const { state } = await mount();
+    await state(playView({ activePlayer: P1 }), [{ type: "END_MANEUVER", player: P1 }]);
+
+    expect(screen.getByTestId("pro-mobile-primary")).toHaveAttribute("data-emphasis", "secondary");
+  });
+
+  it("moves Forfeit out of the sheet into the game menu, still behind the confirmation", async () => {
+    setViewport("portrait");
+    const { state } = await mount();
+    await state(playView({ activePlayer: P1 }), [
+      { type: "MANEUVER", player: P1 },
+      { type: "FORFEIT", player: P1 },
+    ]);
+
+    fireEvent.click(screen.getByTestId("pro-mobile-more"));
+    expect(within(screen.getByTestId("pro-mobile-sheet")).queryByRole("button", { name: /^forfeit$/i })).toBeNull();
+
+    fireEvent.click(screen.getByLabelText("Game menu"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /forfeit/i }));
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+  });
+});
+
+describe("portrait phone — combat (mobile step 3)", () => {
+  const P1 = BASE_VIEW.you;
+  const P2 = BASE_VIEW.players.find((p) => p.id !== P1)!.id;
+  const hero = (player: string) => BASE_VIEW.fighters.find((f) => f.owner === player && f.kind === "HERO")!;
+  const defending = (): PlayerView =>
+    ({
+      ...BASE_VIEW,
+      phase: "PLAY",
+      activePlayer: P2,
+      prompt: null,
+      winner: null,
+      combat: {
+        attackerPlayer: P2,
+        defenderPlayer: P1,
+        attacker: hero(P2).id,
+        target: hero(P1).id,
+        stage: "COMMIT_DEFENSE",
+        attackerCard: null,
+        defenderCard: null,
+        additionalDefenseCard: null,
+        outcome: null,
+        attackDamageDealt: null,
+      },
+    }) as PlayerView;
+
+  it("names who attacks whom and clears the hand peek off the defense cards", async () => {
+    setViewport("portrait");
+    const { state } = await mount();
+    await state(defending(), [
+      { type: "COMMIT_DEFENSE_CARD", player: P1, card: BASE_VIEW.self.hand[0] },
+      { type: "DECLINE_DEFENSE", player: P1 },
+    ]);
+
+    const sheet = screen.getByTestId("pro-mobile-sheet");
+    expect(sheet).toHaveTextContent(new RegExp(`${hero(P2).name} attacks ${hero(P1).name}`, "i"));
+    expect(screen.queryByTestId("hand-fan-peek")).toBeNull();
+    expect(within(sheet).getByRole("button", { name: /don't defend/i })).toBeInTheDocument();
+  });
+
+  it("brings the hand peek back once the combat is over", async () => {
+    setViewport("portrait");
+    const { state } = await mount();
+    await state(defending(), [{ type: "DECLINE_DEFENSE", player: P1 }]);
+    await state({ ...defending(), combat: null } as PlayerView, []);
+
+    expect(screen.getByTestId("hand-fan-peek")).toBeInTheDocument();
+  });
+
+  it("keeps the hand peek off any open sheet, and back once it closes", async () => {
+    setViewport("portrait");
+    const { state } = await mount();
+    await state({ ...BASE_VIEW, phase: "PLAY", activePlayer: P1, combat: null, prompt: null, winner: null } as PlayerView, [
+      { type: "MANEUVER", player: P1 },
+      { type: "SCHEME", player: P1, card: BASE_VIEW.self.hand[0] },
+    ]);
+
+    fireEvent.click(screen.getByTestId("pro-mobile-more"));
+    expect(screen.queryByTestId("hand-fan-peek")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("pro-mobile-sheet-scrim"));
+    expect(screen.getByTestId("hand-fan-peek")).toBeInTheDocument();
+  });
+
+  it("says tap, not click, in board hints", async () => {
+    setViewport("portrait");
+    const { state } = await mount();
+    await state(
+      {
+        ...BASE_VIEW,
+        phase: "PLAY",
+        activePlayer: P1,
+        combat: null,
+        winner: null,
+        prompt: { promptId: "p-space", player: P1, kind: "CHOOSE_SPACE", options: [{ id: "o1", label: "w2" }] },
+      } as PlayerView,
+      []
+    );
+
+    const bar = screen.getByTestId("pro-mobile-pickbar");
+    expect(bar).toHaveTextContent(/^tap /i);
+    expect(bar).not.toHaveTextContent(/click/i);
   });
 });
 

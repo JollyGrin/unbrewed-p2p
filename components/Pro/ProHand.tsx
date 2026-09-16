@@ -47,14 +47,17 @@ const CARD_W = HAND_CARD_W_FAN;
 export const CardFace = ({
   card,
   fallback,
+  touchPeekOnly = false,
 }: {
   card: DeckImportCardType | null;
   fallback: string;
+  /** Only press-and-hold peeks (no hover/focus preview, not focusable). */
+  touchPeekOnly?: boolean;
 }) => {
   // Hover / press / focus preview (issue #167). No-op outside a
   // CardPreviewProvider or for a hidden card, so this stays inert in
   // lobby/replay surfaces and never previews a face-down opponent card.
-  const preview = useCardPreview(card);
+  const preview = useCardPreview(card, { touchOnly: touchPeekOnly });
   return card ? (
     <Box
       w="100%"

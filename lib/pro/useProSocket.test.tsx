@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import type { AccountState } from "../account/useAccount";
 import type { HeroCosmetics } from "../account/cosmetics";
 import { decodeCosmetics, wireCardRim } from "./cosmeticsWire";
-import { useProSocket } from "./useProSocket";
+import { ACTION_IN_FLIGHT_MS, ILLEGAL_ACTION_RESYNC_AFTER, RESYNC_COOLDOWN_MS, useProSocket } from "./useProSocket";
 
 // The hook reads the optional Discord account (issue #568) to decide whether to
 // claim a seat identity. Stubbed here so no test hits `/me`; the default is a
@@ -146,10 +146,331 @@ describe("useProSocket — SERVER_ERROR resilience (issue #178)", () => {
 
   it("does not reroute other ERROR codes through the SERVER_ERROR path", () => {
     const { hook, ws } = bootIntoGame();
-    act(() => ws.emit({ type: "ERROR", code: "ILLEGAL_ACTION", message: "nope" }));
+    act(() => ws.emit({ type: "ERROR", code: "NOT_YOUR_SEAT", message: "nope" }));
 
     expect(hook.result.current.serverError).toBe(false);
-    expect(hook.result.current.error).toEqual({ code: "ILLEGAL_ACTION", message: "nope" });
+    expect(hook.result.current.error).toEqual({ code: "NOT_YOUR_SEAT", message: "nope" });
+  });
+});
+
+describe("useProSocket — double-tap in flight + ILLEGAL_ACTION resilience (p2p #840)", () => {
+  const realWS = global.WebSocket;
+  beforeEach(() => {
+    // @ts-expect-error — swap in the fake for the test
+    global.WebSocket = FakeWebSocket;
+    window.localStorage.clear();
+  });
+  afterEach(() => {
+    global.WebSocket = realWS;
+    FakeWebSocket.last = null;
+    jest.useRealTimers();
+  });
+
+  const bootIntoGame = () => {
+    const hook = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    act(() => ws.emit(roomJoined()));
+    act(() => ws.emit(minimalState()));
+    return { hook, ws };
+  };
+  const MANEUVER = { type: "MANEUVER", player: "p1" } as never;
+  const actionsSent = (ws: FakeWebSocket) => ws.sentTypes.filter((t) => t === "ACTION").length;
+
+  it("a second tap before the STATE reply sends the action once, and never trips the loss screen", () => {
+    const { hook, ws } = bootIntoGame();
+
+    // Thumb-bounce: two rapid taps on the Maneuver tile, no STATE in between.
+    act(() => hook.result.current.sendAction(MANEUVER));
+    act(() => hook.result.current.sendAction(MANEUVER));
+    expect(actionsSent(ws)).toBe(1);
+    expect(hook.result.current.gameLost).toBe(false);
+    expect(hook.result.current.error).toBeNull();
+
+    // The STATE that answers the first tap re-arms the guard for the next decision.
+    act(() => ws.emit(minimalState()));
+    act(() => hook.result.current.sendAction({ type: "END_TURN", player: "p1" } as never));
+    expect(actionsSent(ws)).toBe(2);
+  });
+
+  it("guards prompt answers the same way", () => {
+    const { hook, ws } = bootIntoGame();
+    act(() => hook.result.current.respondToPrompt("pr1", "yes"));
+    act(() => hook.result.current.respondToPrompt("pr1", "yes"));
+    expect(actionsSent(ws)).toBe(1);
+  });
+
+  // #847: the guard is a DUPLICATE guard, not a one-action-per-reply gate.
+  const END_TURN = { type: "END_TURN", player: "p1" } as never;
+  const actionPayloads = (ws: FakeWebSocket) =>
+    ws.sent.map((f) => JSON.parse(f)).filter((m) => m.type === "ACTION").map((m) => m.action);
+
+  it("two DIFFERENT actions before the STATE reply both go out, in order (#847)", () => {
+    const { hook, ws } = bootIntoGame();
+    // Two rapid hotkeys: Maneuver then End turn, no STATE in between.
+    act(() => hook.result.current.sendAction(MANEUVER));
+    act(() => hook.result.current.sendAction(END_TURN));
+    expect(actionPayloads(ws)).toEqual([MANEUVER, END_TURN]);
+    expect(hook.result.current.gameLost).toBe(false);
+  });
+
+  it("still drops a repeat of an in-flight action, even with another action sent between", () => {
+    const { hook, ws } = bootIntoGame();
+    act(() => hook.result.current.sendAction(MANEUVER));
+    act(() => hook.result.current.sendAction(END_TURN));
+    act(() => hook.result.current.sendAction(MANEUVER)); // bounce of the first tap
+    act(() => hook.result.current.sendAction(END_TURN)); // bounce of the second
+    expect(actionPayloads(ws)).toEqual([MANEUVER, END_TURN]);
+
+    // The reply frees both: the same actions may be sent again for the next decision.
+    act(() => ws.emit(minimalState()));
+    act(() => hook.result.current.sendAction(MANEUVER));
+    expect(actionsSent(ws)).toBe(3);
+  });
+
+  it("dedupes on the payload, not the object: an equal action built fresh is the same tap", () => {
+    const { hook, ws } = bootIntoGame();
+    act(() => hook.result.current.sendAction({ type: "MANEUVER", player: "p1" } as never));
+    act(() => hook.result.current.sendAction({ type: "MANEUVER", player: "p1" } as never));
+    expect(actionsSent(ws)).toBe(1);
+  });
+
+  it("guards prompt answers per option: a different answer goes out, the same one is dropped", () => {
+    const { hook, ws } = bootIntoGame();
+    act(() => hook.result.current.respondToPrompt("pr1", "yes"));
+    act(() => hook.result.current.respondToPrompt("pr1", "no"));
+    act(() => hook.result.current.respondToPrompt("pr1", "yes"));
+    expect(actionPayloads(ws).map((a) => a.optionId)).toEqual(["yes", "no"]);
+  });
+
+  it("tells the caller whether the frame went out, so optimistic UI can skip a dropped send", () => {
+    jest.useFakeTimers(); // the close below schedules a reconnect — keep it off real timers
+    const { hook, ws } = bootIntoGame();
+    let first = false;
+    let repeat = true;
+    let other = false;
+    let prompt = false;
+    let promptRepeat = true;
+    act(() => {
+      first = hook.result.current.sendAction(MANEUVER);
+      repeat = hook.result.current.sendAction(MANEUVER);
+      other = hook.result.current.sendAction(END_TURN);
+      prompt = hook.result.current.respondToPrompt("pr1", "yes");
+      promptRepeat = hook.result.current.respondToPrompt("pr1", "yes");
+    });
+    expect([first, repeat, other, prompt, promptRepeat]).toEqual([true, false, true, true, false]);
+    expect(actionsSent(ws)).toBe(3);
+
+    // Nothing goes out on a closed socket either — and the caller hears that too.
+    act(() => ws.close());
+    let closed = true;
+    act(() => {
+      closed = hook.result.current.sendAction(MANEUVER);
+    });
+    expect(closed).toBe(false);
+    expect(actionsSent(ws)).toBe(3);
+  });
+
+  it("times out each in-flight action on its own, never a different one with it", () => {
+    jest.useFakeTimers();
+    const { hook, ws } = bootIntoGame();
+    act(() => hook.result.current.sendAction(MANEUVER));
+    act(() => jest.advanceTimersByTime(ACTION_IN_FLIGHT_MS / 2));
+    act(() => hook.result.current.sendAction(END_TURN));
+    expect(actionsSent(ws)).toBe(2);
+
+    // The first action's window has lapsed; the second's has not.
+    act(() => jest.advanceTimersByTime(ACTION_IN_FLIGHT_MS / 2 + 1));
+    act(() => hook.result.current.sendAction(END_TURN));
+    expect(actionsSent(ws)).toBe(2);
+    act(() => hook.result.current.sendAction(MANEUVER));
+    expect(actionsSent(ws)).toBe(3);
+  });
+
+  it("treats ERROR{ILLEGAL_ACTION} as non-fatal: notice latched, board live, no loss screen", () => {
+    const { hook, ws } = bootIntoGame();
+    act(() => hook.result.current.sendAction(MANEUVER));
+    act(() => ws.emit({ type: "ERROR", code: "ILLEGAL_ACTION", message: "not legal" }));
+
+    expect(hook.result.current.illegalAction).toBe(true);
+    expect(hook.result.current.gameLost).toBe(false);
+    expect(hook.result.current.error).toBeNull();
+    expect(hook.result.current.serverError).toBe(false); // its own notice, not SERVER_ERROR's
+    expect(hook.result.current.snapshot).not.toBeNull();
+
+    // The rejection answered the in-flight action: the player can act again at once.
+    act(() => hook.result.current.sendAction({ type: "END_TURN", player: "p1" } as never));
+    expect(actionsSent(ws)).toBe(2);
+
+    act(() => hook.result.current.acknowledgeIllegalAction());
+    expect(hook.result.current.illegalAction).toBe(false);
+  });
+
+  it("a reply that never comes cannot leave the player unable to act", () => {
+    jest.useFakeTimers();
+    const { hook, ws } = bootIntoGame();
+    act(() => hook.result.current.sendAction(MANEUVER));
+    act(() => jest.advanceTimersByTime(ACTION_IN_FLIGHT_MS - 1));
+    act(() => hook.result.current.sendAction(MANEUVER));
+    expect(actionsSent(ws)).toBe(1);
+
+    act(() => jest.advanceTimersByTime(2));
+    act(() => hook.result.current.sendAction(MANEUVER));
+    expect(actionsSent(ws)).toBe(2);
+  });
+
+  it("a socket close drops the in-flight guard with the socket", () => {
+    jest.useFakeTimers();
+    const randSpy = jest.spyOn(Math, "random").mockReturnValue(0.5);
+    try {
+      const { hook, ws } = bootIntoGame();
+      act(() => hook.result.current.sendAction(MANEUVER));
+      expect(actionsSent(ws)).toBe(1);
+
+      // The socket drops with the action unanswered; the jittered backoff
+      // (random=0.5 → 500ms) opens a fresh one, whose first STATE is the resume.
+      act(() => ws.close());
+      act(() => jest.advanceTimersByTime(501));
+      const next = FakeWebSocket.last!;
+      expect(next).not.toBe(ws);
+      act(() => next.open());
+      act(() => next.emit(minimalState()));
+
+      // Well inside ACTION_IN_FLIGHT_MS of the lost send, yet the player can act.
+      act(() => hook.result.current.sendAction(MANEUVER));
+      expect(actionsSent(next)).toBe(1);
+    } finally {
+      randSpy.mockRestore();
+    }
+  });
+});
+
+
+describe("useProSocket — stale-view resync after repeated ILLEGAL_ACTION (p2p #848)", () => {
+  const realWS = global.WebSocket;
+  beforeEach(() => {
+    // @ts-expect-error — swap in the fake for the test
+    global.WebSocket = FakeWebSocket;
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    jest.useFakeTimers();
+  });
+  afterEach(() => {
+    global.WebSocket = realWS;
+    FakeWebSocket.last = null;
+    jest.useRealTimers();
+  });
+
+  const bootIntoGame = () => {
+    const hook = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    act(() => ws.emit(roomJoined()));
+    act(() => ws.emit(minimalState()));
+    // The open handshake sent one RECONNECT-free hello; count from here.
+    expect(ws.sentTypes.filter((t) => t === "RECONNECT")).toHaveLength(0);
+    return { hook, ws };
+  };
+  const MANEUVER = { type: "MANEUVER", player: "p1" } as never;
+  const reconnects = (ws: FakeWebSocket) => ws.sentTypes.filter((t) => t === "RECONNECT").length;
+  const reject = (ws: FakeWebSocket) =>
+    act(() => ws.emit({ type: "ERROR", code: "ILLEGAL_ACTION", message: "not legal" }));
+  // Tap → rejected. The ERROR frees the in-flight guard, so the next tap sends.
+  const tapAndGetRejected = (hook: ReturnType<typeof bootIntoGame>["hook"], ws: FakeWebSocket) => {
+    act(() => hook.result.current.sendAction(MANEUVER));
+    reject(ws);
+  };
+
+  it("one rejection is the ordinary late double-tap: toast only, no resync (#840 unchanged)", () => {
+    const { hook, ws } = bootIntoGame();
+    tapAndGetRejected(hook, ws);
+
+    expect(hook.result.current.illegalAction).toBe(true);
+    expect(hook.result.current.resyncing).toBe(false);
+    expect(reconnects(ws)).toBe(0);
+    expect(hook.result.current.gameLost).toBe(false);
+  });
+
+  it("rejections separated by a STATE never add up to a resync", () => {
+    const { hook, ws } = bootIntoGame();
+    for (let i = 0; i < ILLEGAL_ACTION_RESYNC_AFTER + 1; i++) {
+      tapAndGetRejected(hook, ws);
+      act(() => hook.result.current.acknowledgeIllegalAction());
+      act(() => ws.emit(minimalState())); // a fresh view lands in between each time
+    }
+    expect(reconnects(ws)).toBe(0);
+    expect(hook.result.current.resyncing).toBe(false);
+  });
+
+  it("consecutive rejections with no STATE between them re-send RECONNECT once and latch `resyncing`", () => {
+    const { hook, ws } = bootIntoGame();
+    for (let i = 0; i < ILLEGAL_ACTION_RESYNC_AFTER; i++) tapAndGetRejected(hook, ws);
+
+    expect(reconnects(ws)).toBe(1);
+    const frame = JSON.parse(ws.sent[ws.sent.length - 1]);
+    expect(frame).toMatchObject({ type: "RECONNECT", roomId: "R1", token: "tok" });
+    expect(hook.result.current.resyncing).toBe(true);
+    // The resync replaces the per-rejection toast for the rejection that triggered it.
+    expect(hook.result.current.illegalAction).toBe(false);
+    expect(hook.result.current.gameLost).toBe(false);
+    expect(hook.result.current.error).toBeNull();
+
+    // The server answers a RECONNECT with ROOM_JOINED + a fresh STATE: resync done.
+    act(() => ws.emit(roomJoined()));
+    act(() => ws.emit(minimalState()));
+    expect(hook.result.current.resyncing).toBe(false);
+    expect(hook.result.current.snapshot).not.toBeNull();
+
+    // Back to a clean slate: a single later rejection is a toast again, not a resync.
+    tapAndGetRejected(hook, ws);
+    expect(reconnects(ws)).toBe(1);
+    expect(hook.result.current.illegalAction).toBe(true);
+  });
+
+  it("a client still rejected right after a fresh view is throttled to the toast, then may resync again", () => {
+    const { hook, ws } = bootIntoGame();
+    for (let i = 0; i < ILLEGAL_ACTION_RESYNC_AFTER; i++) tapAndGetRejected(hook, ws);
+    expect(reconnects(ws)).toBe(1);
+    act(() => ws.emit(roomJoined()));
+    act(() => ws.emit(minimalState()));
+
+    // Inside the cooldown: the streak fills again but no second RECONNECT goes out.
+    act(() => jest.advanceTimersByTime(RESYNC_COOLDOWN_MS - 1));
+    for (let i = 0; i < ILLEGAL_ACTION_RESYNC_AFTER; i++) tapAndGetRejected(hook, ws);
+    expect(reconnects(ws)).toBe(1);
+    expect(hook.result.current.resyncing).toBe(false);
+    expect(hook.result.current.illegalAction).toBe(true); // the plain notice still fires
+
+    // Once the cooldown has passed, the next rejection in the streak resyncs again.
+    act(() => jest.advanceTimersByTime(2));
+    tapAndGetRejected(hook, ws);
+    expect(reconnects(ws)).toBe(2);
+    expect(hook.result.current.resyncing).toBe(true);
+  });
+
+  it("a socket close mid-resync drops the latch — the next socket's open re-syncs anyway", () => {
+    const randSpy = jest.spyOn(Math, "random").mockReturnValue(0.5);
+    try {
+      const { hook, ws } = bootIntoGame();
+      for (let i = 0; i < ILLEGAL_ACTION_RESYNC_AFTER; i++) tapAndGetRejected(hook, ws);
+      expect(hook.result.current.resyncing).toBe(true);
+
+      act(() => ws.close());
+      expect(hook.result.current.resyncing).toBe(false);
+      act(() => jest.advanceTimersByTime(501));
+      const next = FakeWebSocket.last!;
+      expect(next).not.toBe(ws);
+      act(() => next.open());
+      expect(next.sentTypes).toContain("RECONNECT"); // the ordinary post-drop path
+      act(() => next.emit(roomJoined()));
+      act(() => next.emit(minimalState()));
+      // Fresh socket, fresh streak: one rejection is a toast, not a resync.
+      tapAndGetRejected(hook, next);
+      expect(reconnects(next)).toBe(1);
+      expect(hook.result.current.illegalAction).toBe(true);
+    } finally {
+      randSpy.mockRestore();
+    }
   });
 });
 

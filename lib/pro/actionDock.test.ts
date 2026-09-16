@@ -114,6 +114,38 @@ describe("actionDock — v17 battlefield items", () => {
   });
 });
 
+describe("actionDock — describeAction names the item-attach commit variant (#841)", () => {
+  // The mobile card picker labels its confirm buttons with describeAction, and on
+  // phones it is the ONLY way to answer a defense: a plain and an attachItem
+  // commit of the same card must never read alike, or one silently spends the item.
+  const card = "king-taranis/fireball#1";
+  const plain: Action = { type: "COMMIT_DEFENSE_CARD", player: "p2", card };
+  const attach: Action = { type: "COMMIT_DEFENSE_CARD", player: "p2", card, attachItem: true };
+
+  it("suffixes the attach variant with the item label and value, leaving the plain one alone", () => {
+    const ctx = { nameOf, attachItem: { label: "Shield", value: 1 } };
+    expect(describeAction(catalog, plain, ctx)).toBe("Defend with Fireball (3/2)");
+    expect(describeAction(catalog, attach, ctx)).toBe("Defend with Fireball (3/2) + Shield (+1)");
+  });
+
+  it("still tells the two apart when the page has no item context", () => {
+    expect(describeAction(catalog, plain, { nameOf })).toBe("Defend with Fireball (3/2)");
+    expect(describeAction(catalog, attach, { nameOf })).toBe("Defend with Fireball (3/2) + item");
+    expect(describeAction(catalog, attach)).toBe("Defend with Fireball (3/2) + item");
+  });
+
+  it("puts the item before the face-up marker on an attack commit, like the hand menu does", () => {
+    const up: Action = { type: "COMMIT_ATTACK_CARD", player: "p1", card, attachItem: true, faceUp: true };
+    expect(describeAction(catalog, up, { nameOf, attachItem: { label: "Sword", value: 2 } })).toBe(
+      "Commit Fireball (3/2) + Sword (+2) · face up"
+    );
+    // A plain face-up commit is untouched.
+    expect(describeAction(catalog, { type: "COMMIT_ATTACK_CARD", player: "p1", card, faceUp: true }, { nameOf })).toBe(
+      "Commit Fireball (3/2) · face up"
+    );
+  });
+});
+
 
 describe("actionDock — soleAction (spacebar eligibility, issue #353)", () => {
   it("returns the sole action when only Maneuver is legal", () => {

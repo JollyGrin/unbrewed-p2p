@@ -15,6 +15,8 @@ import { FighterId, PlayerId, ProMapDef, ProMapRegion, ProMapSpace, SpaceId, Vie
 import { BoardFxItem } from "@/lib/pro/useGameFx";
 import { TokenGestures, usePageHidden } from "@/lib/pro/tokenLife";
 import { ZoomPanInset, useZoomPan } from "@/lib/pro/useZoomPan";
+import { useCoarsePointer } from "@/lib/pro/useCoarsePointer";
+import { nearestNeighbourPx, touchHitPercent } from "@/lib/pro/touchTargets";
 import { LARGE_REACH_TARGET_BLURB } from "@/lib/pro/largeReach";
 import { PendingSwap, SWAP_SECONDS, SWAP_TIMES } from "@/lib/pro/positionSwap";
 import { tokenInitials } from "./FighterTokenPortrait";
@@ -39,6 +41,57 @@ import type { CosmeticRimTier } from "@/lib/pro/cosmetics";
 import { COSMETIC_RIM_MIN_PX, FighterTokenRim } from "./FighterTokenRim";
 
 const DEFAULT_DIAMETER = 0.021;
+
+/**
+ * Fighter-token chrome sizing: the initials label and the edge badges (HP chip,
+ * hero-state / status / number badges, reach + price pills).
+ *
+ * A token is a percentage of the board frame, but its chrome is rem-sized and
+ * proportioned for the 40–60px tokens a desktop frame yields. A phone frame
+ * (~360px) renders the same map's tokens at 20–30px, so an 11px label and a
+ * 16px HP chip no longer fit around each other: the chip lands on the initials
+ * and neither reads (issue #836). Coarse pointers therefore make the token a
+ * CSS query container and size every piece of chrome in `cqw` — a fixed
+ * fraction of the token's OWN diameter — so the cluster keeps one layout at any
+ * frame width, and scales as one under the auto-focus zoom (#831) exactly like
+ * the rem sizes do. Fine pointers keep the rem sizes, byte-identical.
+ *
+ * Coarse geometry, measured on a 24px token (100 = its outer diameter; the
+ * fixed 2px body border and 1.5px chip borders are a real share at this size):
+ * the 3-letter label (32, nudged up 15% of its height) spans about x 16–84 /
+ * y 29–61; the HP chip (28, line-height 1.2, inset −26%) starts at about
+ * x 52 / y 68, seated on the bottom-right rim below the label. The corner
+ * badges (24, inset −34%) end by y 26 (top row) or start at y 74 (bottom
+ * row), clear of the label either way. The reach/price pills sit above the
+ * circle as before. Every offset is a percentage, so the layout is the same at
+ * any zoom and only gets roomier on a bigger token.
+ */
+export const TOKEN_CHROME = {
+  fine: {
+    label: "0.68rem",
+    labelShift: undefined,
+    hp: "0.7rem",
+    hpLine: "1.4",
+    hpInset: "-18%",
+    badge: "0.68rem",
+    stateInset: "-20%",
+    numberInset: "-18%",
+    statusInset: "-20%",
+    pill: "0.55rem",
+  },
+  coarse: {
+    label: "32cqw",
+    labelShift: "translateY(-15%)",
+    hp: "28cqw",
+    hpLine: "1.2",
+    hpInset: "-26%",
+    badge: "24cqw",
+    stateInset: "-34%",
+    numberInset: "-34%",
+    statusInset: "-34%",
+    pill: "26cqw",
+  },
+} as const;
 
 // Duration of ONE hop in a multi-step move tween (see PendingMove below).
 // Exported so callers can size a fallback timeout around the same value.
@@ -250,6 +303,9 @@ export interface ProBoardProps {
   highlightedSpaces?: SpaceId[];
   /** Fighters the current player can act on right now (attack targets, movable…) */
   highlightedFighters?: FighterId[];
+  /** phones: fighters to zoom onto when there is nothing to pick — the two
+   *  sides of a live combat (mobile polish). Board picks always win. */
+  focusFighters?: FighterId[];
   /** Maneuver-ORIGIN relocation picks (engine #535 ↔ protocol 34): spaces the
    *  selected fighter may START its maneuver from, offered by the server as
    *  RELOCATE_FIGHTER actions. A teleport, not a step — drawn as a dashed cyan
@@ -426,6 +482,7 @@ export const ProBoard = ({
   tokens = [],
   highlightedSpaces = [],
   highlightedFighters = [],
+  focusFighters = [],
   relocateSpaces = [],
   relocateArmed = false,
   selectedFighter = null,
@@ -502,6 +559,70 @@ export const ProBoard = ({
   // untouched and only what the box draws turns back upright.
   const upright = zoomable && rotated ? " rotate(-90deg)" : "";
 
+  // Phones (mobile step 1): a gold space can render at ~18px, far below a
+  // fingertip. Actionable circles get an invisible hit area of at least 44px on
+  // screen, and the board zooms onto the picks when they are too small to hit.
+  // Fine pointers (mouse, trackpad) keep today's exact hit circles and view.
+  const coarsePointer = useCoarsePointer();
+  /** sx for an invisible, centred hit area around an actionable circle on the
+   *  main board. Region insets get none: their spacing is not measured here. */
+  const touchHitSx = (spaceId: SpaceId, renderedDiameterPx: number) => {
+    const maxPx = mainPickCaps.get(spaceId);
+    const pct = coarsePointer && maxPx !== undefined ? touchHitPercent(renderedDiameterPx, maxPx) : null;
+    return pct === null
+      ? {}
+      : {
+          "&::before": {
+            content: '""',
+            position: "absolute",
+            left: "50%",
+            top: "50%",
+            width: `${pct}%`,
+            height: `${pct}%`,
+            transform: "translate(-50%, -50%)",
+            borderRadius: "50%",
+          },
+        };
+  };
+  const pickKey = `${highlightedSpaces.join(",")}|${relocateSpaces.join(",")}|${highlightedFighters.join(",")}|${focusFighters.join(",")}`;
+  const { focusOn, releaseFocus } = zoom;
+  useEffect(() => {
+    if (!zoomable || !coarsePointer) return;
+    // Measure after paint, so the gold rings of the new prompt are in the DOM.
+    const raf = requestAnimationFrame(() => {
+      // Only elements INSIDE the transformed board frame count: they are the
+      // ones the zoom actually moves. A region inset panel (Baba Yaga's Hut) is
+      // hoisted out of the frame and pinned to the screen in rotated portrait,
+      // so its picks sit at panel-relative screen spots that have nothing to do
+      // with the board — folding them in zoomed the board onto whatever lay
+      // under the panel (#834). Unrotated, the panel rides inside the frame and
+      // its picks are measured like any other. The same scoping guards the
+      // combat fallback below: a combatant standing on a Hut space renders a
+      // token in the pinned panel too, and it must not corrupt the box (#852).
+      const frame = frameRef.current;
+      const picks = Array.from(frame?.querySelectorAll<HTMLElement>("[data-pick]") ?? []);
+      // Nothing to pick: frame the fighters the page asked for (a live combat).
+      const targets = picks.length
+        ? picks
+        : focusFighters.flatMap((id) => Array.from(frame?.querySelectorAll<HTMLElement>(`[data-fighter-id="${id}"]`) ?? []));
+      const rects = targets.map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0);
+      if (rects.length === 0) {
+        releaseFocus();
+        return;
+      }
+      focusOn(
+        {
+          left: Math.min(...rects.map((r) => r.left)),
+          top: Math.min(...rects.map((r) => r.top)),
+          right: Math.max(...rects.map((r) => r.right)),
+          bottom: Math.max(...rects.map((r) => r.bottom)),
+        },
+        Math.min(...rects.map((r) => Math.min(r.width, r.height)))
+      );
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [pickKey, zoomable, coarsePointer, focusOn, releaseFocus]);
+
   // Layout width (px, BEFORE the zoom transform) of the shrink-wrap frame every
   // board overlay is positioned against. Read for one reason only: the cosmetic
   // fighter-token rim (#613) auto-retires below a rendered pixel size, and a
@@ -510,10 +631,15 @@ export const ProBoard = ({
   // 0 = not measured yet (SSR, or a DOM with no ResizeObserver) and is treated
   // as UNKNOWN, never as "tiny".
   const [frameW, setFrameW] = useState(0);
+  // Height alongside it, for the on-screen spacing between touch picks.
+  const [frameH, setFrameH] = useState(0);
   useEffect(() => {
     const f = frameRef.current;
     if (!f || typeof ResizeObserver === "undefined") return;
-    const apply = () => setFrameW((prev) => (prev === f.offsetWidth ? prev : f.offsetWidth));
+    const apply = () => {
+      setFrameW((prev) => (prev === f.offsetWidth ? prev : f.offsetWidth));
+      setFrameH((prev) => (prev === f.offsetHeight ? prev : f.offsetHeight));
+    };
     apply();
     const ro = new ResizeObserver(apply);
     ro.observe(f);
@@ -522,6 +648,24 @@ export const ProBoard = ({
   // On-screen width of the main board frame. Region inset panels are a fixed
   // fraction of it (REGION_PANEL_W below), so each layer passes its own.
   const framePx = frameW * zoom.scale;
+  // Distance (on-screen px) from each main-board pick to its nearest other pick:
+  // a hit area stops there, so two close gold spaces never swallow each other's
+  // taps. A target token counts at its space's centre.
+  const mainPickCaps = new Map<SpaceId, number>();
+  if (coarsePointer) {
+    const mainIds = new Set(mainSpaces.map((sp) => sp.id));
+    const pickIds = new Set<SpaceId>(
+      [
+        ...(relocateArmed ? relocateSpaces : [...highlightedSpaces, ...relocateSpaces]),
+        ...fighters
+          .filter((f) => highlightFighterSet.has(f.id))
+          .flatMap((f) => [f.space, f.tailSpace].filter((id): id is SpaceId => !!id)),
+      ].filter((id) => mainIds.has(id))
+    );
+    const pickSpaces = mainSpaces.filter((sp) => pickIds.has(sp.id));
+    const points = pickSpaces.map((sp) => ({ x: sp.x * frameW * zoom.scale, y: sp.y * frameH * zoom.scale }));
+    pickSpaces.forEach((sp, i) => mainPickCaps.set(sp.id, nearestNeighbourPx(points, i)));
+  }
 
   // A collapsed panel must never hide a required choice: any highlighted space
   // or targetable fighter INSIDE the region forces it open for the duration.
@@ -747,6 +891,8 @@ export const ProBoard = ({
     const color = PLAYER_COLOR[f.owner] ?? "#999";
     const isSelected = f.id === selectedFighter;
     const isTarget = highlightFighterSet.has(f.id);
+    // Label + badge sizes: token-relative on a touch screen, rem on desktop.
+    const chrome = coarsePointer ? TOKEN_CHROME.coarse : TOKEN_CHROME.fine;
     // Extended-reach attack target (issue #235): the pulsing token is a legal
     // target ONLY because a LARGE fighter is involved (2-space melee reach). Mark
     // it so the 2-space attack doesn't read as a bug. Presentation only.
@@ -856,7 +1002,9 @@ export const ProBoard = ({
           // rem, not vw: the label lives inside the zoom-transformed frame, so
           // a viewport-relative size would fight the zoom (text stays put while
           // the token scales). rem scales with the transform like the art.
-          fontSize="0.68rem"
+          // (Coarse pointers use cqw — see TOKEN_CHROME — which scales the same.)
+          fontSize={chrome.label}
+          transform={chrome.labelShift}
           fontWeight="bold"
           letterSpacing="-0.02em"
           // Over art, drop to a uniform light label + dark shadow: the per-kind
@@ -883,17 +1031,17 @@ export const ProBoard = ({
           // swallows the click — decorative chrome must never be a click target.
           <Flex
             position="absolute"
-            bottom="-18%"
-            right="-18%"
+            bottom={chrome.hpInset}
+            right={chrome.hpInset}
             pointerEvents="none"
             bg="brand.surfaceDim"
             color="brand.parchment"
             border={`1.5px solid ${color}`}
             borderRadius="999px"
             px="0.3em"
-            fontSize="0.7rem"
+            fontSize={chrome.hp}
             fontWeight="bold"
-            lineHeight="1.4"
+            lineHeight={chrome.hpLine}
           >
             {f.hp}
           </Flex>
@@ -901,8 +1049,8 @@ export const ProBoard = ({
         {tokenBadge && (
           <Flex
             position="absolute"
-            top="-20%"
-            right="-20%"
+            top={chrome.stateInset}
+            right={chrome.stateInset}
             pointerEvents="none"
             minWidth="1.45em"
             h="1.45em"
@@ -914,7 +1062,7 @@ export const ProBoard = ({
             color={tokenBadge.color}
             border="1.5px solid #fff"
             borderRadius="999px"
-            fontSize="0.68rem"
+            fontSize={chrome.badge}
             fontWeight="bold"
             lineHeight="1"
             boxShadow="0 1px 4px rgba(0,0,0,0.75)"
@@ -940,8 +1088,8 @@ export const ProBoard = ({
           // second status kind just adds another badge with no repositioning.
           <Flex
             position="absolute"
-            bottom="-20%"
-            left="-20%"
+            bottom={chrome.statusInset}
+            left={chrome.statusInset}
             pointerEvents="none"
             direction="column-reverse"
             alignItems="flex-start"
@@ -961,7 +1109,7 @@ export const ProBoard = ({
                 color={b.color}
                 border="1.5px solid #fff"
                 borderRadius="999px"
-                fontSize="0.68rem"
+                fontSize={chrome.badge}
                 fontWeight="bold"
                 lineHeight="1"
                 boxShadow="0 1px 4px rgba(0,0,0,0.75)"
@@ -985,8 +1133,8 @@ export const ProBoard = ({
         {segment === "head" && fighterBadges[f.id] != null && (
           <Flex
             position="absolute"
-            top="-18%"
-            left="-18%"
+            top={chrome.numberInset}
+            left={chrome.numberInset}
             pointerEvents="none"
             bg={color}
             color="#fff"
@@ -994,7 +1142,7 @@ export const ProBoard = ({
             borderRadius="999px"
             minWidth="1.3em"
             px="0.25em"
-            fontSize="0.68rem"
+            fontSize={chrome.badge}
             fontWeight="bold"
             lineHeight="1.5"
             boxShadow="0 1px 3px rgba(0,0,0,0.7)"
@@ -1017,7 +1165,7 @@ export const ProBoard = ({
             color="brand.surfaceDim"
             borderRadius="999px"
             px="0.45em"
-            fontSize="0.55rem"
+            fontSize={chrome.pill}
             fontWeight="bold"
             letterSpacing="0.02em"
             lineHeight="1.5"
@@ -1045,7 +1193,7 @@ export const ProBoard = ({
             color="#241033"
             borderRadius="999px"
             px="0.45em"
-            fontSize="0.55rem"
+            fontSize={chrome.pill}
             fontWeight="bold"
             letterSpacing="0.02em"
             lineHeight="1.5"
@@ -1072,7 +1220,7 @@ export const ProBoard = ({
             color="#241033"
             borderRadius="999px"
             px="0.45em"
-            fontSize="0.55rem"
+            fontSize={chrome.pill}
             fontWeight="bold"
             letterSpacing="0.02em"
             lineHeight="1.5"
@@ -1203,7 +1351,15 @@ export const ProBoard = ({
         // cluster scales with the board and the zoom transform (see tokenStack.ts).
         transform={`translate(calc(-50% + ${slot.dx}%), calc(-50% + ${slot.dy}%))${upright}`}
         w={`${diam * slot.scale}%`}
-        sx={{ aspectRatio: "1" }}
+        data-pick={fighterClickable ? "" : undefined}
+        data-fighter-id={f.id}
+        sx={{
+          aspectRatio: "1",
+          // Touch screens: the token is the query container its cqw-sized
+          // chrome measures against (TOKEN_CHROME). Desktop adds nothing.
+          ...(coarsePointer ? { containerType: "inline-size" } : {}),
+          ...(clickable ? touchHitSx(s.id, (layerPx * diam * slot.scale) / 100) : {}),
+        }}
         borderRadius="50%"
         bg={tokenLifeOn ? "transparent" : bodyBgToken}
         border={tokenLifeOn ? "none" : bodyBorder}
@@ -1402,6 +1558,7 @@ export const ProBoard = ({
       w={`${diam * 0.82}%`}
       sx={{
         aspectRatio: "1",
+        ...(coarsePointer ? { containerType: "inline-size" } : {}),
         // The topple animation owns this box's transform, so the counter-turn
         // rides its children instead.
         ...(upright ? { "& > *": { transform: "rotate(-90deg)" } } : {}),
@@ -1433,7 +1590,11 @@ export const ProBoard = ({
         </Box>
       )}
       <Text
-        fontSize="0.68rem"
+        // Same label size as the live token, but NOT its `labelShift`: the ghost
+        // has no HP chip to clear, and its children carry the portrait
+        // counter-rotation on `transform` (see the sx above) — a second
+        // transform here would replace it and the initials would fall sideways.
+        fontSize={(coarsePointer ? TOKEN_CHROME.coarse : TOKEN_CHROME.fine).label}
         fontWeight="bold"
         letterSpacing="-0.02em"
         color="brand.parchment"
@@ -1524,16 +1685,18 @@ export const ProBoard = ({
         const zoneRings = inZone
           ? zoneCols.map((c, i) => `0 0 0 ${2 * (i + 1)}px ${c}`).join(", ")
           : undefined;
+        const spaceActionable = (relocateArmed ? isRelocate : isHighlighted || isRelocate) && !!onSpaceClick;
         return (
           <Box
             key={s.id}
             data-space-id={s.id}
+            data-pick={spaceActionable ? "" : undefined}
             position="absolute"
             left={`${s.x * 100}%`}
             top={`${s.y * 100}%`}
             transform="translate(-50%, -50%)"
             w={`${diam}%`}
-            sx={{ aspectRatio: "1" }}
+            sx={{ aspectRatio: "1", ...(spaceActionable ? touchHitSx(s.id, (layerPx * diam) / 100) : {}) }}
             borderRadius="50%"
             // While the relocate mode is armed, a dashed pick outranks a co-drawn
             // gold highlight outright: the dashed ring is the only clickable thing
@@ -1555,7 +1718,7 @@ export const ProBoard = ({
               isHighlighted || isRelocate ? `${highlightPulse} 1.4s ease-in-out infinite` : undefined
             }
             cursor={
-              (relocateArmed ? isRelocate : isHighlighted || isRelocate) && onSpaceClick
+              spaceActionable
                 ? "pointer"
               : s.zones.length ? "pointer"
               : "default"
@@ -1564,7 +1727,7 @@ export const ProBoard = ({
             // relocation pick answers. Any other space toggles the zone-membership
             // preview — the touch/click path; hover drives it on desktop.
             onClick={
-              (relocateArmed ? isRelocate : isHighlighted || isRelocate) && onSpaceClick
+              spaceActionable && onSpaceClick
                 ? () => onSpaceClick(s.id)
                 : () => setZoneHover((cur) => (cur === s.id ? null : s.id))
             }
@@ -2250,6 +2413,10 @@ export const ProBoard = ({
         userSelect="none"
         transform={zoom.transform}
         transformOrigin={zoom.transformOrigin}
+        // Programmatic view moves (auto-focus, its release, reset) ease; a
+        // gesture clears this so a drag tracks the finger exactly (#835).
+        transition={zoom.transition}
+        sx={zoom.transition ? { "@media (prefers-reduced-motion: reduce)": { transition: "none" } } : undefined}
       >
       <Box
         as="img"
