@@ -333,7 +333,7 @@ export const RESYNC_COOLDOWN_MS = 10_000;
  * was only slow. A resume that succeeds clears the deadline the moment its STATE
  * (or revived ROOM_JOINED) arrives.
  */
-const RESUME_DEADLINE_MS = 45_000;
+export const RESUME_DEADLINE_MS = 45_000;
 
 export function useProSocket(
   wsUrl: string | undefined,
@@ -552,6 +552,22 @@ export function useProSocket(
     }
   }, []);
 
+  // Arms (replacing any existing one) the terminal-failure deadline: if no
+  // STATE/ROOM_JOINED lands within RESUME_DEADLINE_MS of THIS call, the game is
+  // declared lost (issue #133). Shared by the SERVER_RESTARTING handler (arms
+  // it the moment the warning lands) and the resume-on-visibility effect below
+  // (re-arms it fresh the moment the player actually returns — a deadline
+  // started before a suspend/freeze would otherwise count down against a clock
+  // the page was never running on).
+  const armResumeDeadline = useCallback(() => {
+    clearResumeDeadline();
+    resumeDeadlineRef.current = setTimeout(() => {
+      resumeDeadlineRef.current = null;
+      setServerRestarting(false); // drop the "reconnecting…" toast — it's over
+      setGameLost(true);
+    }, RESUME_DEADLINE_MS);
+  }, [clearResumeDeadline]);
+
   // Move timer (issue #223): a running own-clock has been superseded (a new
   // TURN_TIMER, or a STATE that resolved the decision). If the viewer never acted
   // in that window AND the wall clock is past the deadline, the server timed them
@@ -733,11 +749,7 @@ export function useProSocket(
           // within RESUME_DEADLINE_MS the game is declared lost (issue #133).
           // Only meaningful once we've actually been in a live game.
           if (hadStateRef.current && !resumeDeadlineRef.current) {
-            resumeDeadlineRef.current = setTimeout(() => {
-              resumeDeadlineRef.current = null;
-              setServerRestarting(false); // drop the "reconnecting…" toast — it's over
-              setGameLost(true);
-            }, RESUME_DEADLINE_MS);
+            armResumeDeadline();
           }
           break;
         case "REPLAY_BUNDLE":
@@ -904,7 +916,7 @@ export function useProSocket(
     // `runSlowStep` is referentially stable (its whole dependency chain bottoms
     // out in a `[]` callback), so listing it here can never re-create `connect`
     // and drop a live socket.
-  }, [wsUrl, send, clearResumeDeadline, resolveOwnClock, runSlowStep]);
+  }, [wsUrl, send, clearResumeDeadline, armResumeDeadline, resolveOwnClock, runSlowStep]);
 
   useEffect(() => {
     if (!wsUrl) {
@@ -921,6 +933,78 @@ export function useProSocket(
       ws?.close();
     };
   }, [wsUrl, connect, clearResumeDeadline]);
+
+  // Reconnect-on-resume (an iPhone Safari tab, backgrounded or locked, gets its
+  // whole JS execution — including `setTimeout` — suspended, not just throttled).
+  // Two failure modes fall out of that: the backoff timer in `ws.onclose` above
+  // may never fire again once the page is frozen (the socket dies, nothing ever
+  // retries), and even where it does eventually fire it can be hopelessly stale
+  // — scheduled against a delay computed before the freeze, with no idea how long
+  // the phone sat locked. `visibilitychange`/`focus`/`pageshow` are the one signal
+  // a suspended tab is guaranteed to receive promptly on return (`focus` and
+  // `pageshow` are belt-and-braces for a resume that fires one without the other
+  // — `pageshow` in particular covers a bfcache restore on iOS — mirroring
+  // useLobbyMatchCue's idiom), so coming back to the tab is treated as "assume
+  // the worst, verify immediately" rather than trusting whatever `status` says.
+  useEffect(() => {
+    if (!wsUrl) return;
+    const onResume = () => {
+      if (typeof document !== "undefined" && document.hidden) return; // only the RETURN edge
+      // Re-arm a pending resume deadline FIRST, before anything below might
+      // short-circuit — whatever the socket happens to be doing at the moment
+      // of return (open, mid-reconnect, or dead), a deadline armed before the
+      // tab suspended was counting down against a clock the page was never
+      // actually running on, and the player deserves a full fresh budget from
+      // the moment they're actually back (issue #133).
+      if (resumeDeadlineRef.current) armResumeDeadline();
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        // The socket reports open, but a suspended phone can silently drop the
+        // underlying connection without ever firing `close` — the exact "looks
+        // connected, isn't" case players fear most. Ask the server for a fresh
+        // authoritative STATE on this same socket — the identical trick the
+        // stale-view resync (p2p #848) uses — which is harmless if the socket
+        // really is fine and the only way to notice if it silently isn't. Shares
+        // #848's cooldown so the two triggers can never pile RECONNECTs on
+        // each other.
+        const room = roomRef.current;
+        const token = room ? getToken(room) : null;
+        const now = Date.now();
+        if (
+          room &&
+          token &&
+          hadStateRef.current &&
+          now - lastResyncAtRef.current >= RESYNC_COOLDOWN_MS
+        ) {
+          lastResyncAtRef.current = now;
+          resumeExpectedRef.current = true; // the answering STATE is a whole fresh view (#703)
+          setResyncing(true);
+          send({ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token });
+        }
+        return;
+      }
+      if (ws && ws.readyState === WebSocket.CONNECTING) return; // already retrying
+      // Not open: the backoff timer that would otherwise retry may itself be a
+      // suspended timer that never runs, or one that only fires now, absurdly
+      // overdue. Cancel it and retry at full speed — a returning player should
+      // not wait out a schedule computed for a socket that, as far as the page
+      // is concerned, has been dead for an indeterminate age.
+      if (retryRef.current.timer) {
+        clearTimeout(retryRef.current.timer);
+        retryRef.current.timer = 0;
+      }
+      retryRef.current.attempts = 0;
+      connect();
+    };
+    document.addEventListener("visibilitychange", onResume);
+    window.addEventListener("focus", onResume);
+    window.addEventListener("pageshow", onResume);
+    return () => {
+      document.removeEventListener("visibilitychange", onResume);
+      window.removeEventListener("focus", onResume);
+      window.removeEventListener("pageshow", onResume);
+    };
+  }, [wsUrl, connect, send, armResumeDeadline]);
 
   const createRoom = useCallback(
     (

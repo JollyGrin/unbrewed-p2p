@@ -1272,7 +1272,11 @@ export const SeatPlate = ({
 // Top-right chips (mirrors the sandbox invite/connection cluster)
 // ---------------------------------------------------------------------------
 
-const STATUS_DISPLAY: Record<ProConnectionStatus, { color: string; label: string }> = {
+// Exported (not just local to the HUD) so the pre-game "waiting for game
+// state" screen in pages/pro/game.tsx can show the same friendly wording
+// instead of the raw `status` value — one vocabulary for "what's the
+// connection doing" everywhere the player might see it.
+export const STATUS_DISPLAY: Record<ProConnectionStatus, { color: string; label: string }> = {
   open: { color: "#2F9E68", label: "Connected" },
   connecting: { color: "#E7CC98", label: "Connecting…" },
   reconnecting: { color: "#E7CC98", label: "Reconnecting…" },
