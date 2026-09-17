@@ -268,6 +268,32 @@ describe("diffFxEvents", () => {
     expect(diffFxEvents(view({}), view({ activePlayer: "p2", turnNumber: 2 }))).toEqual([]);
   });
 
+  it("announces a defense the moment the combat asks YOU for one", () => {
+    const attacked = view({
+      activePlayer: "p2",
+      combat: combat({ attackerPlayer: "p2", defenderPlayer: "p1", stage: "COMMIT_ATTACK" }),
+    });
+    const asked = view({
+      activePlayer: "p2",
+      combat: combat({ attackerPlayer: "p2", defenderPlayer: "p1", stage: "COMMIT_DEFENSE" }),
+    });
+    expect(diffFxEvents(attacked, asked)).toEqual([{ type: "defend" }]);
+  });
+
+  it("stays silent when the combat asks the OPPONENT to defend", () => {
+    const attacked = view({ combat: combat({ stage: "COMMIT_ATTACK" }) });
+    const asked = view({ combat: combat({ stage: "COMMIT_DEFENSE" }) });
+    expect(diffFxEvents(attacked, asked)).toEqual([]);
+  });
+
+  it("asks for a defense once, not on every batch while it waits", () => {
+    const asked = view({
+      activePlayer: "p2",
+      combat: combat({ attackerPlayer: "p2", defenderPlayer: "p1", stage: "COMMIT_DEFENSE" }),
+    });
+    expect(diffFxEvents(asked, asked)).toEqual([]);
+  });
+
   it("prefers victory/loss over a turn cue when the game ends", () => {
     const prev = view({ activePlayer: "p2" });
     expect(diffFxEvents(prev, view({ winner: "p1" }))).toEqual([{ type: "victory" }]);
