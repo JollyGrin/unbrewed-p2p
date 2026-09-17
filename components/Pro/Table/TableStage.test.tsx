@@ -6,8 +6,24 @@
  * drives (see TableStage's header comment for why that separation matters).
  */
 import { act, render, screen } from "@testing-library/react";
+import { useReducedMotion } from "framer-motion";
 import { TableStage } from "./TableStage";
-import { DEFAULT_TILT_DEG, boardTransform } from "@/lib/pro/tableProjection";
+import { DEFAULT_TILT_DEG, TABLE_YAW_DEG, boardTransform } from "@/lib/pro/tableProjection";
+
+// TableStage's only use of framer-motion is `useReducedMotion` (phase-5
+// target #5's gate). Mocking the module directly — rather than driving the
+// real hook via `window.matchMedia` — sidesteps that hook's own module-level
+// "have we already initialized" latch (see framer-motion's
+// `initPrefersReducedMotion`), which only ever runs ONCE per test file and
+// would otherwise make the "on" and "off" cases order-dependent on which
+// test happens to render first.
+jest.mock("framer-motion", () => ({
+  // Chakra itself depends on other framer-motion exports (`motion`,
+  // `AnimatePresence`, ...) internally — spread the REAL module through and
+  // override only the one hook this test file needs to control.
+  ...jest.requireActual("framer-motion"),
+  useReducedMotion: jest.fn(() => false),
+}));
 
 // jsdom reports every layout box as 0×0; stub just enough of ResizeObserver +
 // offsetWidth/Height for TableStage's frameW/frameH measurement to run, the
@@ -47,14 +63,14 @@ describe("TableStage", () => {
     expect(seenTilt).toBe(DEFAULT_TILT_DEG);
   });
 
-  it("puts the tilt transform on a data-table-stage-plane element, never on the pan/zoom frame itself", () => {
+  it("puts the tilt (+ default yaw) transform on a data-table-stage-plane element, never on the pan/zoom frame itself", () => {
     const { container } = render(
       <TableStage imageUrl="/board.png" imageAlt="Test board" zoomable tiltDeg={40}>
         {() => null}
       </TableStage>
     );
     const plane = container.querySelector("[data-table-stage-plane]") as HTMLElement;
-    expect(plane.style.transform).toBe(boardTransform(40));
+    expect(plane.style.transform).toBe(boardTransform(40, TABLE_YAW_DEG));
   });
 
   it("measures the frame's layout width/height and passes them to children", () => {
@@ -171,5 +187,63 @@ describe("TableStage auto-focus with a depth-varying pick set (phase-3 fault #2)
     // toward the OLD ceiling (FOCUS_MAX_PICK_PX / 15 ≈ 4.3, clamped to
     // ZOOM_MAX = 3): comfortably distinguishable from "stayed at rest".
     expect(readScale(frame)).toBeCloseTo(1, 1);
+  });
+});
+
+describe("camera yaw (phase-5 target #5 — 'not perfectly square to the viewer')", () => {
+  afterEach(() => {
+    (useReducedMotion as jest.Mock).mockReturnValue(false);
+  });
+
+  it("applies TABLE_YAW_DEG when the player has not asked for reduced motion", () => {
+    (useReducedMotion as jest.Mock).mockReturnValue(false);
+    const { container } = render(
+      <TableStage imageUrl="/board.png" imageAlt="Test board" tiltDeg={40}>
+        {() => null}
+      </TableStage>
+    );
+    const plane = container.querySelector("[data-table-stage-plane]") as HTMLElement;
+    expect(plane.style.transform).toContain("rotateY");
+    expect(plane.style.transform).toBe(boardTransform(40, TABLE_YAW_DEG));
+  });
+
+  it("drops the yaw entirely under prefers-reduced-motion — renders byte-identical to the tilt-only transform", () => {
+    (useReducedMotion as jest.Mock).mockReturnValue(true);
+    const { container } = render(
+      <TableStage imageUrl="/board.png" imageAlt="Test board" tiltDeg={40}>
+        {() => null}
+      </TableStage>
+    );
+    const plane = container.querySelector("[data-table-stage-plane]") as HTMLElement;
+    expect(plane.style.transform).not.toContain("rotateY");
+    expect(plane.style.transform).toBe(boardTransform(40));
+  });
+});
+
+describe("TableBoardEdge (phase-5 target #1 — 'the board has no thickness')", () => {
+  it("renders inside the same stage plane the board image and its tilt live in", () => {
+    Object.defineProperty(HTMLElement.prototype, "offsetWidth", { value: 800, configurable: true });
+    Object.defineProperty(HTMLElement.prototype, "offsetHeight", { value: 300, configurable: true });
+    try {
+      const { container } = render(
+        <TableStage imageUrl="/board.png" imageAlt="Test board">
+          {() => null}
+        </TableStage>
+      );
+      const plane = container.querySelector("[data-table-stage-plane]") as HTMLElement;
+      // The edge face is the extruded flap: hinged at the plane's own bottom
+      // edge and folded with rotateX(-EDGE_FOLD_DEG deg) — see
+      // TableBoardEdge.tsx's own header for why that combination, applied
+      // inside this SAME preserve-3d plane, is what gives the board a real
+      // side rather than a texture.
+      const edge = Array.from(plane.children).find(
+        (el) => (el as HTMLElement).style.transform === "rotateX(-45deg)"
+      ) as HTMLElement | undefined;
+      expect(edge).toBeTruthy();
+      expect(edge!.style.transformOrigin).toBe("top");
+    } finally {
+      delete (HTMLElement.prototype as { offsetWidth?: number }).offsetWidth;
+      delete (HTMLElement.prototype as { offsetHeight?: number }).offsetHeight;
+    }
   });
 });

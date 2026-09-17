@@ -25,11 +25,20 @@
  * same image drawn inside the tilted stage (browsers dedupe the request from
  * cache, so this costs no extra network fetch).
  */
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Button } from "@chakra-ui/react";
+import { useReducedMotion } from "framer-motion";
 import { useZoomPan, ZoomPanInset } from "@/lib/pro/useZoomPan";
 import { useCoarsePointer } from "@/lib/pro/useCoarsePointer";
-import { DEFAULT_TILT_DEG, boardTransform, perspectivePx, tableFocusCapDiameterPx } from "@/lib/pro/tableProjection";
+import {
+  DEFAULT_TILT_DEG,
+  TABLE_YAW_DEG,
+  boardEdgeFitReservePx,
+  boardTransform,
+  perspectivePx,
+  tableFocusCapDiameterPx,
+} from "@/lib/pro/tableProjection";
+import { TableBoardEdge } from "./TableBoardEdge";
 
 /** What a `TableStage` child render-prop needs to place content correctly:
  *  the frame's LAYOUT (pre-zoom) pixel size, for sizing anything that must
@@ -75,13 +84,15 @@ export const TableStage = ({
   children,
 }: TableStageProps) => {
   const frameRef = useRef<HTMLDivElement | null>(null);
-  const zoom = useZoomPan(zoomable, frameRef, fitInset, zoomable && rotated);
-  const coarsePointer = useCoarsePointer();
 
   // Same measuring pattern as ProBoard's own frameW/frameH (issue #613's cosmetic
   // rim gate): LAYOUT px, read before the zoom transform, so table content can
   // convert the map's normalized x/y into true on-screen-shaped px regardless of
   // the board image's own aspect ratio (see TableSpace's header comment).
+  //
+  // Measured BEFORE `useZoomPan` is called (not after, as before phase 5) so
+  // `frameW` is available to size the extra fit-inset below — see
+  // `effectiveFitInset`'s own comment for why the fit itself now needs it.
   const [frameW, setFrameW] = useState(0);
   const [frameH, setFrameH] = useState(0);
   useEffect(() => {
@@ -96,6 +107,33 @@ export const TableStage = ({
     ro.observe(f);
     return () => ro.disconnect();
   }, []);
+
+  // The fit calculation (inside useZoomPan) knows nothing about
+  // TableBoardEdge's own extruded thickness — it fits purely against the
+  // board's FLAT layout box. `boardEdgeFitReservePx` pads the BOTTOM inset by
+  // the edge's own approximate on-screen extent so the fit leaves it room to
+  // render instead of clipping it against a cramped mobile viewport (phase-5
+  // fault #1 — see tableProjection.ts's own comment on this constant for the
+  // full "why"). `frameW` is 0 until the ResizeObserver above has fired once;
+  // `boardEdgeFitReservePx` degrades to a negligible value at that width, so
+  // the only visible effect is the SAME one-time "the fit tightens up
+  // slightly once real measurements land" adjustment `TableStage` already
+  // tolerates elsewhere (see the auto-focus effect's own `frameW` gating
+  // below) — never a wrong-then-jumping-back-wrong oscillation.
+  const effectiveFitInset: ZoomPanInset = useMemo(
+    () => ({ ...fitInset, bottom: (fitInset?.bottom ?? 0) + boardEdgeFitReservePx(frameW) }),
+    [fitInset, frameW]
+  );
+  const zoom = useZoomPan(zoomable, frameRef, effectiveFitInset, zoomable && rotated);
+  const coarsePointer = useCoarsePointer();
+  // Camera life (phase-5 target #5 — see tableProjection.ts's header). A
+  // static yaw, not an animation, so there is nothing here for
+  // `prefers-reduced-motion` to interrupt mid-transition — but the brief is
+  // explicit that the WHOLE effect (not just a future drag-parallax) should
+  // be absent for a player who has asked for reduced motion, so it is gated
+  // the same way the pendingMove tween is in TableBoard.tsx.
+  const reducedMotion = !!useReducedMotion();
+  const yawDeg = reducedMotion ? 0 : TABLE_YAW_DEG;
 
   // Same mobile auto-focus-zoom ProBoard runs (issue #831): with nothing to
   // pick, a whole-board fit is correct — but the instant a prompt offers gold
@@ -171,17 +209,20 @@ export const TableStage = ({
       position={zoomable ? "relative" : undefined}
       overflow={zoomable ? "hidden" : undefined}
       sx={zoomable ? { touchAction: "none", cursor: "grab" } : undefined}
-      // Fault #4, second half: even auto-focused, the frame the board sits in
-      // is bigger than the board's own bounding box (aspect ratio, insets for
-      // the fixed HUD). A flat void there reads as "unfinished"; a soft
-      // radial vignette reads as "the rest of the table" instead — cheap,
-      // GPU-composited (a background-image, nothing to animate), and never
-      // competes with the board art itself for attention.
-      bg={
-        zoomable
-          ? "radial-gradient(ellipse 70% 60% at 50% 45%, rgba(58,28,54,0.35) 0%, rgba(20,8,22,0.55) 70%, rgba(10,4,12,0.75) 100%)"
-          : undefined
-      }
+      // The table surface (phase-5 target #4 — "the surround is flat dead
+      // colour"). A flat void around the board reads as "unfinished"; a
+      // soft, warm vignette reads as "the rest of the table the board is
+      // resting on" instead — cheap, GPU-composited (a background-image,
+      // nothing to animate) and deliberately DESATURATED/darker than
+      // anything on the board itself, so the eye still goes to the map, not
+      // the surface it sits on. Warmer (wood/felt-adjacent) than the app's
+      // own brand-purple chrome around it, specifically so the table reads
+      // as a distinct surface rather than a continuation of the UI
+      // background. Unconditional now (used to be `zoomable`-only, phase-2)
+      // — the non-zoomable/inset context wants the same grounding cue, and
+      // this is a background-image on an otherwise-plain Box either way, so
+      // there is no zoomable-only layout reason to withhold it.
+      bg="radial-gradient(ellipse 72% 62% at 50% 45%, rgba(64,44,30,0.28) 0%, rgba(38,24,18,0.5) 60%, rgba(16,10,9,0.72) 100%)"
       {...zoom.handlers}
     >
       <Box
@@ -226,7 +267,7 @@ export const TableStage = ({
             position="relative"
             w="100%"
             h="100%"
-            style={{ transform: boardTransform(tiltDeg), transformStyle: "preserve-3d" }}
+            style={{ transform: boardTransform(tiltDeg, yawDeg), transformStyle: "preserve-3d" }}
           >
             <Box
               as="img"
@@ -240,6 +281,12 @@ export const TableStage = ({
               borderRadius="0.5rem"
               sx={{ objectFit: "fill" }}
             />
+            {/* The board's own thickness (phase-5 target #1) — a real side
+                face extruded from the board's near edge, sharing this same
+                `preserve-3d` frame and tilt/yaw so it tilts as one rigid
+                object with the board it is attached to. See
+                TableBoardEdge.tsx's own header for how the extrusion works. */}
+            <TableBoardEdge frameW={frameW} frameH={frameH} />
             {children({ frameW, frameH, tiltDeg })}
           </Box>
         </Box>

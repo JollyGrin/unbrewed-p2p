@@ -48,6 +48,62 @@
  * head, sitting inside the plate untouched). `standeeArtTransform` below
  * fixes this with a further, deliberate zoom.
  *
+ * PHASE 5. The owner's own words: "mehr 3d, die figuren müssen besser
+ * gesetzt werden auf dem brett" (more three-dimensionality, and the figures
+ * must sit better on the board). Four faults, none of them about the tilt
+ * itself (phase 2 already fixed that) — about what the tilted plane was
+ * still missing to read as a physical object:
+ *
+ * FAULT #1 — the board itself was a zero-depth decal: the tilted plane drew
+ * the map, and nothing else, so the whole thing read as a sheet of paper
+ * lying at an angle, not a slab resting on a table. `TableBoardEdge.tsx`
+ * extrudes a real side face from the board's own near edge using the same
+ * fold-a-flap-out-of-the-local-UNTILTED-plane idea this file's own header
+ * already documents for a flat disc, then lets the ambient `rotateX` (below)
+ * carry it along as part of the same rigid object — but folded PART way
+ * (`EDGE_FOLD_DEG`), not to a true 90°; see the "Board thickness" section
+ * further down for why a perpendicular cube face does not survive this
+ * project's own required verification engine, and measures instead as a
+ * deliberate, tuned bevel. `boardThicknessPx` / `EDGE_FOLD_DEG` /
+ * `Z_BOARD_EDGE` are its geometry knobs.
+ *
+ * FAULT #2 — a standee's BASE disc (`TableStandeeAnchor`) was sized off the
+ * FIGURE's own plate width, not off the space it stood on. Those two numbers
+ * have no relationship: `PLATE_WIDTH_FACTOR` (TableFighterStandee.tsx)
+ * deliberately makes the plate wider than the token footprint "so a portrait
+ * plate doesn't feel cramped standing on the same footprint" — so a base
+ * derived from it was never going to match the space underneath, and the
+ * close-up screenshot this phase started from shows exactly that: an
+ * oversized, off-center base disagreeing with the space ellipse it should
+ * be sitting inside. `standeeBaseDiameterPx` below derives the base from the
+ * SAME `diamPx` `TableSpace` itself renders its disc at, so the two numbers
+ * are the same number by construction and can't drift again. The base disc
+ * itself also used to pre-squash its own ellipse (a hand-tuned 0.4
+ * height:width ratio) BEFORE the ambient tilt — double-foreshortening it
+ * relative to the space's disc, which (like every flat circle in this file)
+ * needs no manual squash at all. `TableStandeeAnchor` now draws it as a
+ * plain circle, exactly like `TableSpace` already does.
+ *
+ * FAULT #3 — every standee's contact shadow was anchored as a PERCENTAGE OF
+ * THE PLATE'S OWN HEIGHT (`bottom: -6%` / `-11%` of a tall plate box), not
+ * of anything tied to the board plane. That pushed both the base and the
+ * shadow away from the space's true centre by an amount that changed with
+ * the plate's own proportions, and gave every piece a slightly different
+ * effective offset — the opposite of "one light source, one offset,
+ * everywhere". `SHADOW_OFFSET_X`/`SHADOW_OFFSET_Y` below are now a single
+ * fixed fraction of the BASE's own diameter, applied identically to every
+ * standee, and the base itself carries zero offset (concentric with the
+ * space, per fault #2) — only the shadow leans.
+ *
+ * FAULT #4 — the tilted board sat in a flat, dead-coloured field with no
+ * yaw, no surface treatment, and (per fault #1) no edge — nothing marked it
+ * as an object resting on something else. `TABLE_YAW_DEG` gives the whole
+ * scene (board AND pieces, since it is the outermost, camera-level rotation
+ * — see `boardTransform`'s own comment) a restrained turn so it is not
+ * perfectly square to the viewer; the surface/vignette treatment itself
+ * lives in TableStage.tsx, since it paints AROUND the board rather than
+ * projecting anything onto it.
+ *
  * PHASE 3. Two faults the phase-2 report's own screenshot audit missed
  * because it never measured actual playing size:
  *
@@ -145,9 +201,29 @@ export const convergenceRatio = (
   return (p + zNear) / (p - zNear);
 };
 
-/** The board frame's own transform — the plane everything else lives in. */
-export const boardTransform = (tiltDeg: number): string =>
-  `rotateX(${clampTilt(tiltDeg)}deg)`;
+/**
+ * The board frame's own transform — the plane everything else lives in.
+ *
+ * `yawDeg` (phase-5 target #5 — see the file header) composes OUTSIDE the
+ * tilt: it is the LEFT function in the string, so — per the CSS transform
+ * spec's right-to-left application order — it is the LAST one applied. The
+ * board tilts back in its own local frame first, and the already-tilted
+ * result is then turned a little about the WORLD vertical axis, the same
+ * way a camera positioned slightly to one side would see it. Composing it
+ * the other way (yaw first, tilt second) would instead spin the board like
+ * a record on its own already-tilted axis — the board twisting, not the
+ * camera moving. Everything inside this plane (the board image, spaces,
+ * lines, AND every standee — none of which counter-rotate Y, only
+ * `standeeTransform`'s own X) yaws together, which is what makes it read as
+ * the whole camera shifting rather than the board art skewing on its own.
+ *
+ * Omitted (0) `yawDeg` renders byte-identical to the pre-phase-5 output —
+ * TableStage only ever passes a non-zero yaw once it has confirmed the
+ * player has not asked for reduced motion. */
+export const boardTransform = (tiltDeg: number, yawDeg: number = 0): string => {
+  const tilt = `rotateX(${clampTilt(tiltDeg)}deg)`;
+  return yawDeg ? `rotateY(${yawDeg}deg) ${tilt}` : tilt;
+};
 
 /**
  * A standee's counter-rotation. Applied about `transform-origin: 50% 100%`
@@ -467,3 +543,204 @@ export const TABLE_FOCUS_CAP_FLOOR_PX = 48;
 
 export const tableFocusCapDiameterPx = (measuredMaxPickPx: number): number =>
   Math.max(measuredMaxPickPx, TABLE_FOCUS_CAP_FLOOR_PX);
+
+// ---------------------------------------------------------------------------
+// Board thickness (phase-5 fault #1 — see the file header). The extrusion
+// itself lives in TableBoardEdge.tsx; these are its only geometry knobs.
+//
+// WHY A 45° FOLD, NOT A TRUE 90° CUBE FACE. The textbook CSS technique for a
+// slab's edge is to fold a flap by EXACTLY -90° from its parent's local
+// frame — geometrically correct, and what this file's own header describes
+// for the "billboard" trick. It does not survive contact with this
+// project's own required verification engine. A from-scratch, minimal
+// isolated repro (a bare `perspective` + `rotateX` box, no app code
+// involved) proved that Playwright's bundled WebKit — the exact engine the
+// task's own screenshot gate runs against — renders `perspective` as a
+// total no-op: a page with `perspective: 1200px` and one WITHOUT it produce
+// byte-identical screenshots, at any perspective value, headed or headless.
+// Every 3D transform in this view still WORKS (`rotateX`'s own Y/Z rotation
+// composes and paints correctly — that's how the board's tilt and every
+// standee's counter-rotation already render) — but the engine falls back to
+// pure ORTHOGRAPHIC projection for it, with no perspective convergence.
+// Orthographic projection of a plane folded to EXACTLY 90° from the camera
+// is, by definition, a zero-width line — not "hard to see", mathematically
+// zero px, confirmed by sweeping the fold angle in the isolated repro (90°
+// → 0 rows painted; 80° → a clean, predictable non-zero band; the measured
+// heights track `cos(fold)` almost exactly). `standeeScale`/`DEPTH_SCALE_FAR`
+// above already work around this same gap for standees — CSS perspective
+// was assumed to carry the board's own near/far convergence and only
+// standees needed a manual correction; this repro shows that assumption
+// does not hold in the verification engine either, but reworking every flat
+// element's convergence is a bigger change than this phase's brief covers.
+// For THIS one face, the fix is to stop asking for something perspective
+// alone can sell: `EDGE_FOLD_DEG` folds the flap only PART way — a
+// chamfered/beveled edge instead of a perpendicular cliff face. A shallower
+// fold reads as "the board's side, angled back and down" under BOTH
+// projection methods (this engine's orthographic fallback AND a real
+// device's correct perspective compositing, which would simply add extra
+// convergence on top) and, empirically, keeps a comfortably visible band —
+// roughly a third to two-thirds of the flap's own flat thickness — across
+// the tilt's entire supported range (checked at `MIN_TILT_DEG`,
+// `DEFAULT_TILT_DEG`, and `MAX_TILT_DEG`, with `TABLE_YAW_DEG` layered on
+// top, in the same isolated repro).
+// ---------------------------------------------------------------------------
+
+/** Board slab thickness as a fraction of the board's own rendered WIDTH — a
+ *  ratio, not a flat px figure, for the same reason `PERSPECTIVE_RATIO` is
+ *  one (see its own comment above): a phone and a desktop render this view
+ *  at very different pixel widths, and a fixed px thickness would look
+ *  right on only one of them. Larger than a first pass at this ratio
+ *  (0.022, close to a space's own printed diameter) because `EDGE_FOLD_DEG`
+ *  below only ever shows a FRACTION of this flat figure once folded — 0.035
+ *  is tuned so the worst case (`MAX_TILT_DEG`, the shallowest remaining
+ *  band) still renders a clearly legible edge rather than a hairline. */
+export const BOARD_THICKNESS_RATIO = 0.035;
+
+export const boardThicknessPx = (frameWidthPx: number): number =>
+  Math.max(1, frameWidthPx) * BOARD_THICKNESS_RATIO;
+
+/**
+ * How far the edge flap folds out of the board's own local, untilted plane —
+ * see this section's header comment for why this stops well short of a true
+ * 90° perpendicular face. Measured from FLAT (0° would lie invisibly behind
+ * the board's own face; 90° is the degenerate, verification-engine-invisible
+ * cube face): 45° is the midpoint, chosen because it held up across the
+ * whole isolated repro sweep (comfortably visible at every combination of
+ * `MIN_TILT_DEG`/`DEFAULT_TILT_DEG`/`MAX_TILT_DEG` and `TABLE_YAW_DEG` that
+ * was tested) with no need to special-case any particular tilt.
+ */
+export const EDGE_FOLD_DEG = 45;
+
+/**
+ * Extra BOTTOM margin `TableStage` reserves in its fit-to-screen calculation
+ * so `TableBoardEdge`'s extrusion actually has room to render inside the
+ * viewport instead of being clipped by it. Without this, the fit scale is
+ * computed purely from the board's own FLAT image dimensions — which is
+ * exactly right for the flat board, and was fine here too before this phase,
+ * since a tilted-but-flat plane's rendered height is always SHORTER than the
+ * flat layout box it's fit against (`rotateX` foreshortens, never stretches).
+ * The extruded edge breaks that assumption: it adds real rendered height
+ * BELOW the board's own bottom edge, and on a cramped landscape phone layout
+ * — where the fit already uses nearly all the vertical room the HUD leaves
+ * — that extra height has nowhere to go but off the bottom of the screen.
+ *
+ * Because the fold (above) only ever SHRINKS the flat thickness — never
+ * grows it, since this view no longer depends on perspective-driven growth
+ * for this face — the edge's true on-screen extent can never exceed
+ * `boardThicknessPx` itself. A reserve modestly over 1 is therefore already
+ * generous; this is not the "cover a perspective-inflated near edge" figure
+ * an earlier pass at this constant used (that reasoning no longer applies
+ * once the face stopped relying on perspective to look right).
+ */
+export const BOARD_EDGE_FIT_RESERVE_FACTOR = 1.8;
+
+export const boardEdgeFitReservePx = (frameWidthPx: number): number =>
+  boardThicknessPx(frameWidthPx) * BOARD_EDGE_FIT_RESERVE_FACTOR;
+
+/** Stacking for the board's own extruded side face. Must stay under
+ *  `Z_BASE` (10) — there is no scenario where the board's own body should
+ *  paint in front of a piece standing near its front edge — but otherwise
+ *  needs no `y`-derived range the way standees get: the whole board has one
+ *  edge face at one depth, not many pieces at many depths. */
+export const Z_BOARD_EDGE = 1;
+
+// ---------------------------------------------------------------------------
+// Standee base geometry (phase-5 fault #2 — see the file header). Applied
+// in TableStandeeAnchor.tsx.
+// ---------------------------------------------------------------------------
+
+/**
+ * A standee's base disc, as a fraction of the SPACE's own rendered diameter
+ * — the same `diamPx` every caller already computes for `TableSpace` itself
+ * (see TableBoard.tsx). Deriving the base from the space's own footprint,
+ * rather than from the FIGURE's plate width (the pre-phase-5 recipe), is
+ * the actual fix: the plate is deliberately WIDER than the space it stands
+ * on (`PLATE_WIDTH_FACTOR` in TableFighterStandee.tsx — "so a portrait
+ * plate doesn't feel cramped standing on the same footprint"), so a base
+ * sized off the plate could never end up matching the space underneath it —
+ * the two numbers had no relationship to drift back into. Basing both on
+ * the space makes them the same number by construction.
+ *
+ * Kept a little SHORT of 1 (not flush with the space's own printed edge) so
+ * the space's own highlight/relocate ring and zone-color rim stay visible
+ * around the base — a base that exactly matched the space's outer edge
+ * would bury that ring under an opaque disc.
+ *
+ * ON THE FIGURE'S OWN SILHOUETTE: a hero's flared shoulders/cloak
+ * (`STANDEE_FOOT_HALF_WIDTH`, the silhouette's own widest keypoint) can
+ * still extend past this base at the widest point — that is deliberate and
+ * matches a real miniature on a round base, whose model routinely overhangs
+ * its own base at the shoulders. It is the BASE, not the whole silhouette,
+ * that has to agree with the space; the pre-phase-5 code instead tried to
+ * keep the base wider than the silhouette's own feet, which is exactly
+ * backwards from what the phase-5 screenshot flagged (an oversized base,
+ * not dangling feet).
+ */
+export const BASE_TO_SPACE_DIAMETER_RATIO = 0.9;
+
+export const standeeBaseDiameterPx = (spaceDiamPx: number): number =>
+  Math.max(0, spaceDiamPx) * BASE_TO_SPACE_DIAMETER_RATIO;
+
+// ---------------------------------------------------------------------------
+// Contact shadow (phase-5 fault #3 — see the file header). Applied in
+// TableStandeeAnchor.tsx.
+// ---------------------------------------------------------------------------
+
+/**
+ * The shadow's displacement from its own base's centre, as a fraction of
+ * the BASE's own diameter, along each axis of the board's LOCAL (untilted)
+ * plane — the same plane `TableSpace`'s disc and the base disc itself live
+ * in, so the ambient `rotateX` foreshortens this offset exactly the way it
+ * foreshortens everything else in that plane, with no separate trig needed
+ * here either (see this file's header comment on that same effect for a
+ * flat disc).
+ *
+ * ONE fixed vector, reused for every piece on the board, is what makes it
+ * read as a single light source rather than a per-piece drop shadow: every
+ * standee's shadow leans the same way, by a proportional amount, regardless
+ * of the piece's own size or position on the board. The direction (up-board
+ * and toward the left) is a conventional upper-left key light — the same
+ * convention most card/board game art and product photography already use,
+ * so it reads as "normal" lighting rather than a stylistic choice that
+ * fights the map art under it.
+ */
+export const SHADOW_OFFSET_X = -0.16;
+export const SHADOW_OFFSET_Y = -0.22;
+
+/**
+ * How much farther a shadow's offset reaches at the far edge (y=0) versus
+ * the near edge (y=1) — a deliberate, cheap ATMOSPHERIC cue (a single real
+ * light source would not actually lengthen a shadow with camera distance),
+ * not a physically exact one. `TableStandeeAnchor` also widens the shadow's
+ * own soft-edge falloff by this same factor, so a farther piece reads with
+ * both a longer AND a softer shadow — keeping distance legible even once
+ * `standeeScale`'s own size falloff (deliberately under-corrected, see its
+ * own comment above) has already done most of that job. Implemented as a
+ * layered `radial-gradient` fill rather than `filter: blur()` — the softer
+ * edge costs one extra gradient color stop, not a per-element GPU blur pass
+ * (see TableStandeeAnchor.tsx's own comment on why that trade matters on a
+ * board with a dozen-plus pieces on screen on a phone).
+ */
+export const SHADOW_STRETCH_FAR = 1.6;
+
+export const standeeShadowStretch = (y: number): number => {
+  const clamped = Math.min(1, Math.max(0, y));
+  return SHADOW_STRETCH_FAR - (SHADOW_STRETCH_FAR - 1) * clamped;
+};
+
+// ---------------------------------------------------------------------------
+// Camera life (phase-5 fault #4 — see the file header). Applied in
+// TableStage.tsx, gated on `useReducedMotion`.
+// ---------------------------------------------------------------------------
+
+/**
+ * A restrained yaw, in degrees — enough that the board reads as photographed
+ * from a camera slightly off to one side rather than a flat diagram square
+ * to the viewer, short of anything a player would call "tilted" or
+ * "crooked". Chosen by eye against a real screenshot: below this the effect
+ * was imperceptible; much above it the board's own rectangular edges (once
+ * `TableBoardEdge` gives it visible ones) started reading as an odd
+ * trapezoid rather than a photograph. See `boardTransform`'s own comment for
+ * how this composes with the tilt.
+ */
+export const TABLE_YAW_DEG = 2.5;

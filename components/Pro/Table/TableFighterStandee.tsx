@@ -23,7 +23,6 @@ import {
   standeeArtTransform,
   standeeSilhouettePath,
   STANDEE_ART_TRANSFORM_ORIGIN,
-  STANDEE_FOOT_HALF_WIDTH,
 } from "@/lib/pro/tableProjection";
 import { TableAnchorAnim, TableStandeeAnchor } from "./TableStandeeAnchor";
 import { TableFighterBadges } from "./TableFighterBadges";
@@ -182,17 +181,16 @@ export const TableFighterStandee = ({
       tiltDeg={tiltDeg}
       widthPx={widthPx}
       heightPx={heightPx}
-      // Wider than the silhouette's own flared feet (STANDEE_FOOT_HALF_WIDTH
-      // * 2 — the widest keypoint since the phase-4 reorder, see
-      // tableProjection.ts) by a clear margin, so the base unmistakably
-      // reads as something the figure is STANDING ON rather than merely a
-      // same-size shadow under it. Computed from the constant, not a second
-      // hand-tuned literal, so the two can never drift back out of sync the
-      // way they did when the silhouette's widest point moved (phase-4
-      // fault #1) and this factor was left at its old, now too-narrow value.
-      // +0.12 matches the same additive margin phase-3 tuned in (0.88 base
-      // vs. the old foot fraction of 0.76).
-      shadowWidthFactor={STANDEE_FOOT_HALF_WIDTH * 2 + 0.12}
+      // The base is now derived from the SPACE's own footprint (`diamPx`),
+      // not from this plate's (deliberately wider — `PLATE_WIDTH_FACTOR`)
+      // own width — phase-5 target #2, see TableStandeeAnchor's and
+      // tableProjection.ts's own comments for why that's what keeps the
+      // base concentric with the space instead of drifting off it. The
+      // silhouette's own flared feet (`STANDEE_FOOT_HALF_WIDTH`) can still
+      // extend past this smaller base at the widest point — deliberate, see
+      // `standeeBaseDiameterPx`'s own comment on why that's normal for a
+      // standing figure on a round base, not a bug.
+      spaceDiamPx={diamPx}
       baseAccent={playerColor}
       anim={anim}
       onAnimComplete={onAnimComplete}
