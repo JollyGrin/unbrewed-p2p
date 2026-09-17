@@ -250,6 +250,23 @@ describe("portrait phone", () => {
     expect(screen.queryByTestId("pro-mobile-sheet-scrim")).toBeNull();
   });
 
+  it("opens both discard piles from the controls row (player feedback)", async () => {
+    setViewport("portrait");
+    await mount();
+
+    fireEvent.click(screen.getByLabelText("Discard piles"));
+
+    const sheet = screen.getByTestId("pro-discards");
+    expect(sheet).toBeInTheDocument();
+    for (const seat of BASE_VIEW.players) {
+      const hero = BASE_VIEW.fighters.find((f) => f.owner === seat.id && f.kind === "HERO")!;
+      expect(sheet).toHaveTextContent(hero.name);
+    }
+
+    fireEvent.click(screen.getByLabelText("Close discard piles"));
+    expect(screen.queryByTestId("pro-discards")).toBeNull();
+  });
+
   it("puts every seat fact behind a tap, including the hover-only hero rules", async () => {
     setViewport("portrait");
     await mount();
