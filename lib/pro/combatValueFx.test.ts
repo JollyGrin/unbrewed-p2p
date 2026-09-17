@@ -190,3 +190,38 @@ describe("useCombatValueFx", () => {
     expect(result.current.ATTACK.chips).toHaveLength(1);
   });
 });
+
+/** Combat pace (lib/pro/pace.ts): the math beat's count-up cadence and chip
+ *  lifetime stretch too, not just the strike/arc — issue #382's "everywhere
+ *  the sequence is timed". */
+describe("useCombatValueFx at a slower pace", () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  const snap = (v: PlayerView, events: GameEvent[] = []) => ({ view: v, events });
+
+  it("ticks the pill up more slowly at factor 2 — the 1× window is not enough", () => {
+    const first = snap(view({ combat: combat({}) }));
+    const { result, rerender } = renderHook(
+      (p: { s: ReturnType<typeof snap> }) => useCombatValueFx(p.s, 2),
+      { initialProps: { s: first } }
+    );
+
+    const next = view({ combat: combat({ attackerCard: card("king-kong/clobber#1", { effectiveValue: 6 }) }) });
+    const events: GameEvent[] = [{ type: "VALUE_MODIFIED", role: "ATTACK", delta: 3, newEffective: 6 }];
+    act(() => rerender({ s: snap(next, events) }));
+    expect(result.current.ATTACK.displayValue).toBe(3);
+    act(() => jest.advanceTimersByTime(0));
+    expect(result.current.ATTACK.chips).toHaveLength(1);
+
+    // At 1× this exact window (500ms) finishes the count-up (see the sibling test
+    // above). At factor 2 the same 3-unit count-up is NOT done yet — it reads
+    // slower, which is the entire point of the setting.
+    act(() => jest.advanceTimersByTime(500));
+    expect(result.current.ATTACK.displayValue).not.toBe(6);
+
+    // …but it does finish once the scaled window has fully elapsed.
+    act(() => jest.advanceTimersByTime(500));
+    expect(result.current.ATTACK.displayValue).toBe(6);
+  });
+});

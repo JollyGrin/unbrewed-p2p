@@ -1,4 +1,5 @@
-import { diffCombatCallouts } from "./combatFx";
+import { act, renderHook } from "@testing-library/react";
+import { diffCombatCallouts, useCombatCallouts } from "./combatFx";
 import { GameEvent, PlayerView, ViewCombat } from "./protocol";
 
 const combat = (over: Partial<ViewCombat>): ViewCombat => ({
@@ -321,5 +322,34 @@ describe("diffCombatCallouts", () => {
       { kind: "turn", mine: true },
       { kind: "reveal", source: "king-kong/plan#1" },
     ]);
+  });
+});
+
+/** Combat pace (lib/pro/pace.ts): a callout's own on-screen life stretches too —
+ *  the reveal/defend/turn banners are part of "the whole sequence", not just
+ *  the arc and the strike. */
+describe("useCombatCallouts at a slower pace", () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  const snap = (v: PlayerView, events: GameEvent[] = []) => ({ view: v, events });
+
+  it("keeps a callout mounted past its 1× TTL, and clears it once the scaled TTL elapses", () => {
+    const prev = view({ activePlayer: "p2" });
+    const next = view({ activePlayer: "p1" });
+    const { result, rerender } = renderHook(
+      (p: { s: ReturnType<typeof snap> }) => useCombatCallouts(p.s, 2),
+      { initialProps: { s: snap(prev) } }
+    );
+    act(() => rerender({ s: snap(next) }));
+    expect(result.current).toEqual([{ kind: "turn", mine: true, key: expect.any(String) }]);
+
+    // 1900ms is the turn banner's 1× TTL (combatFx.ts's TTL_MS.turn) — at 2× it
+    // must still be on screen.
+    act(() => jest.advanceTimersByTime(1900));
+    expect(result.current).toHaveLength(1);
+
+    act(() => jest.advanceTimersByTime(2000));
+    expect(result.current).toHaveLength(0);
   });
 });
