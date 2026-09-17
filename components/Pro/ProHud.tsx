@@ -44,6 +44,7 @@ import {
   TbFlask,
   TbBug,
   TbHourglass,
+  TbPerspective,
   TbGauge,
   TbBellRinging,
   TbBellOff,
@@ -95,6 +96,7 @@ import { useCardPreview } from "./CardPreview";
 import { CardFace } from "./ProHand";
 import { ProConnectionStatus, SeatPresence, TurnTimer } from "@/lib/pro/useProSocket";
 import { Pace, paceOption } from "@/lib/pro/pace";
+import { BoardView, BOARD_VIEW_LABEL } from "@/lib/pro/boardView";
 import { FLAGS, useFlags } from "@/lib/flags";
 
 // Team-affiliation accent (issue #195). A teal that reads clearly as "friendly"
@@ -1505,6 +1507,11 @@ export interface ProHudProps {
    *  mode paces how fast server batches apply. */
   pace?: Pace;
   onCyclePace?: () => void;
+  /** Board presentation — flat (default) or tabletop (issue: tabletop board
+   *  view phase 1). A one-tap cycle between the two, same gesture as the pace
+   *  chip beside it. The chip is hidden when the handler is omitted. */
+  boardView?: BoardView;
+  onToggleBoardView?: () => void;
   /** true while a paced batch is held on screen. The spotlight's click-anywhere
    *  backdrop covers the whole viewport, which would otherwise bury the very chip
    *  that turns slow mode off — so the cluster floats above it for that window
@@ -1541,6 +1548,8 @@ export const ProHud = ({
   slowModeHolding,
   pace,
   onCyclePace,
+  boardView,
+  onToggleBoardView,
   turnReminderOn,
   onToggleTurnReminder,
   onReportBug,
@@ -1799,6 +1808,28 @@ export const ProHud = ({
               <TbGauge size="0.85rem" />
               <Text fontSize="0.65rem" fontFamily="SpaceGrotesk" whiteSpace="nowrap">
                 {paceOption(pace).label}
+              </Text>
+            </Flex>
+          </Tooltip>
+        )}
+        {onToggleBoardView && boardView && (
+          // Same one-tap cycling gesture as the pace chip beside it — there are
+          // only two board views, so a cycle needs no dropdown either.
+          <Tooltip label={`Board: ${BOARD_VIEW_LABEL[boardView]} — click to switch`} hasArrow>
+            <Flex
+              {...chipStyles}
+              as="button"
+              type="button"
+              cursor="pointer"
+              _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+              color="brand.highlight"
+              opacity={boardView === "flat" ? 0.55 : 1}
+              onClick={onToggleBoardView}
+              aria-label={`Board view: ${BOARD_VIEW_LABEL[boardView]}. Click to switch.`}
+            >
+              <TbPerspective size="0.85rem" />
+              <Text fontSize="0.65rem" fontFamily="SpaceGrotesk" whiteSpace="nowrap">
+                {BOARD_VIEW_LABEL[boardView]}
               </Text>
             </Flex>
           </Tooltip>

@@ -17,7 +17,9 @@ import { useRouter } from "next/router";
 import { Box, Button, Flex, Grid, Input, InputGroup, InputLeftElement, Link, Menu, MenuButton, MenuItem, MenuList, NumberDecrementStepper, NumberIncrementStepper, NumberInput, NumberInputField, NumberInputStepper, Tag, Text, Textarea, Tooltip } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
 import { motion, useReducedMotion } from "framer-motion";
-import { MOVE_STEP_SECONDS, MoveHint, PendingMove, ProBoard } from "@/components/Pro/ProBoard";
+import { MOVE_STEP_SECONDS, MoveHint, PendingMove, ProBoard, ProBoardProps } from "@/components/Pro/ProBoard";
+import { TableBoard } from "@/components/Pro/Table/TableBoard";
+import { useBoardView } from "@/lib/pro/useBoardView";
 import { ProErrorBoundary } from "@/components/Pro/ProErrorBoundary";
 import { assignableSeats, BotSlotPlan, SlotOccupant } from "@/components/Pro/CreateSeats";
 import { availableBotTiers, botTierChoices, BotTierChoice, coerceBotTier } from "@/lib/pro/botTiers";
@@ -4668,6 +4670,10 @@ const LiveGame = ({
   // float over it (issue #450). Turning the flag off falls back to the old
   // boxed, padded board — no transform, no gestures.
   const [zoomMapOn] = useFlag("zoomMap");
+  // Board presentation (tabletop board view phase 1): flat (default) or
+  // tabletop, per device — same game, same socket, same handlers; only which
+  // board component renders below changes.
+  const [boardView, toggleBoardView] = useBoardView();
   // Which arrangement this viewport gets (issue #708). Desktop (>= 62em) is the
   // floating-overlay layout below, untouched; anything narrower mounts the
   // mobile arrangement of the same components. Read via matchMedia rather than
@@ -6779,6 +6785,8 @@ const LiveGame = ({
     slowModeHolding: !!slowModeHeld,
     pace,
     onCyclePace: cyclePace,
+    boardView,
+    onToggleBoardView: toggleBoardView,
     turnReminderOn,
     onToggleTurnReminder: toggleTurnReminder,
     onReportBug: () => setReportBugOpen(true),
@@ -6808,6 +6816,60 @@ const LiveGame = ({
   // The rail's card picker already shows the cards in question as faces; the
   // hand strip under it would only squeeze the picker below the fold.
   const railPickerOpen = mobile && rail && cardChoiceGroups(dockActionRows.map((r) => r.action)).length > 0;
+
+  // The board's data, built once and worn by whichever presentation is mounted
+  // (tabletop board view phase 1): the flat board or the tabletop one. Kept as
+  // one object so the two stay wired identically — a prop added here reaches
+  // both without hunting down two call sites.
+  const boardProps: ProBoardProps = {
+    map: view.map,
+    fighters: view.fighters,
+    tokens: view.tokens,
+    highlightedSpaces: [...new Set(highlightedSpaces)],
+    relocateSpaces,
+    relocateArmed: relocateMode.armedTarget != null,
+    highlightedFighters: [...new Set(highlightedFighters)],
+    focusFighters: mobile && !rail && sheetCombat && !combatSummary ? [sheetCombat.attacker, sheetCombat.target] : undefined,
+    selectedFighter,
+    attack: view.combat ? { attacker: view.combat.attacker, target: view.combat.target } : null,
+    defenderStepIn: boardDefenderStepIn,
+    friendlyOwners,
+    fighterBadges: attackerBadge,
+    extendedReachTargets: [...extendedReachTargets],
+    boughtRangeTargets,
+    fighterTokenArt,
+    fighterTokenBadge: (f) => ownerTokenState[f.owner]?.badge ?? null,
+    fighterTokenRim,
+    boardObjectArt,
+    boardObjectOriginName,
+    fx: boardFx,
+    pendingMove: pendingMove ?? incomingMove,
+    swaps: positionSwaps,
+    // #654: the effect-move ghost rides the same preview channel as the
+    // maneuver one — only one of the two can be live at a time (a prompt
+    // owns the board while it is open).
+    previewMove: previewMove ?? promptPreviewMove,
+    onPendingMoveSettled: () => {
+      setPendingMove(null);
+      clearIncoming();
+    },
+    closedRegions: view.closedRegions,
+    itemTokens: view.itemTokens,
+    onSpaceClick,
+    onFighterClick,
+    onSpaceHover: setHoveredSpace,
+    onFighterHover: setHoveredFighter,
+    moveHint,
+    imgMaxH: zoomMapOn ? undefined : "calc(100svh - 16rem)",
+    zoomable: zoomMapOn,
+    // Portrait phones only (issue #708): stand the landscape map on end so it
+    // uses the screen's long axis. Landscape is already the map's own
+    // orientation, and desktop never rotates.
+    rotated: mode === "portrait",
+    fitInset: boardFitInset,
+    tokenLife: tokenLifeOn ? tokenGestures : null,
+    fighterEls: fighterElsRef,
+  };
 
   const dockEl = (
     <ProDock
@@ -7018,55 +7080,10 @@ const LiveGame = ({
         pb={zoomMapOn ? 0 : "8.5rem"}
         pr={zoomMapOn ? 0 : { base: "1rem", lg: "20rem" }}
       >
-        <ProBoard
-          map={view.map}
-          fighters={view.fighters}
-          tokens={view.tokens}
-          highlightedSpaces={[...new Set(highlightedSpaces)]}
-          relocateSpaces={relocateSpaces}
-          relocateArmed={relocateMode.armedTarget != null}
-          highlightedFighters={[...new Set(highlightedFighters)]}
-          focusFighters={mobile && !rail && sheetCombat && !combatSummary ? [sheetCombat.attacker, sheetCombat.target] : undefined}
-          selectedFighter={selectedFighter}
-          attack={view.combat ? { attacker: view.combat.attacker, target: view.combat.target } : null}
-          defenderStepIn={boardDefenderStepIn}
-          friendlyOwners={friendlyOwners}
-          fighterBadges={attackerBadge}
-          extendedReachTargets={[...extendedReachTargets]}
-          boughtRangeTargets={boughtRangeTargets}
-          fighterTokenArt={fighterTokenArt}
-          fighterTokenBadge={(f) => ownerTokenState[f.owner]?.badge ?? null}
-          fighterTokenRim={fighterTokenRim}
-          boardObjectArt={boardObjectArt}
-          boardObjectOriginName={boardObjectOriginName}
-          fx={boardFx}
-          pendingMove={pendingMove ?? incomingMove}
-          swaps={positionSwaps}
-          // #654: the effect-move ghost rides the same preview channel as the
-          // maneuver one — only one of the two can be live at a time (a prompt
-          // owns the board while it is open).
-          previewMove={previewMove ?? promptPreviewMove}
-          onPendingMoveSettled={() => {
-            setPendingMove(null);
-            clearIncoming();
-          }}
-          closedRegions={view.closedRegions}
-          itemTokens={view.itemTokens}
-          onSpaceClick={onSpaceClick}
-          onFighterClick={onFighterClick}
-          onSpaceHover={setHoveredSpace}
-          onFighterHover={setHoveredFighter}
-          moveHint={moveHint}
-          imgMaxH={zoomMapOn ? undefined : "calc(100svh - 16rem)"}
-          zoomable={zoomMapOn}
-          // Portrait phones only (issue #708): stand the landscape map on end
-          // so it uses the screen's long axis. Landscape is already the map's
-          // own orientation, and desktop never rotates.
-          rotated={mode === "portrait"}
-          fitInset={boardFitInset}
-          tokenLife={tokenLifeOn ? tokenGestures : null}
-          fighterEls={fighterElsRef}
-        />
+        {/* One prop object feeds whichever board component is mounted (tabletop
+            board view phase 1) — same game, same socket, same handlers; only
+            the presentation differs. See lib/pro/boardView.ts. */}
+        {boardView === "table" ? <TableBoard {...boardProps} /> : <ProBoard {...boardProps} />}
       </Flex>
 
       {/* red vignette flash when your hero takes damage (useGameFx) */}
