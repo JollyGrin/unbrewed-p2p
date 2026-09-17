@@ -11,6 +11,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { GameEvent, PlayerView } from "./protocol";
+import { mustDefend } from "./defenseTurn";
 
 /** One derived flourish. `turn`/`defend` come from the view alone (work pre-v10);
  *  `reveal` needs the v10 `events` and carries the source card's instance id (or
@@ -92,8 +93,6 @@ const REVEAL_SLOTS = 4;
 /** The defender is on the clock: combat has reached its commit-defense stage and
  *  YOU are the one who must answer. Precise enough to never fire while you are the
  *  attacker committing an attack card (both share the COMMIT_COMBAT_CARD prompt). */
-const mustDefend = (v: PlayerView): boolean =>
-  v.combat?.stage === "COMMIT_DEFENSE" && v.combat.defenderPlayer === v.you;
 
 /**
  * Diff consecutive snapshots into decorative callouts. Pure and view-derived

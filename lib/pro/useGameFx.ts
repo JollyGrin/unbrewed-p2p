@@ -10,6 +10,7 @@ import { FighterId, GameEvent, PlayerView, SpaceId } from "./protocol";
 import { diffFxEvents } from "./fxEvents";
 import { ARC_FLIGHT_MS, ARC_LAUNCH_MS } from "./combatTiming";
 import { sfx } from "./sfx";
+import { defendCueBeats } from "./defendCue";
 import { combatZeroDamageCallout } from "./combatOutcome";
 
 /** one transient overlay on the board, anchored to a space */
@@ -222,6 +223,11 @@ export function useGameFx(
           break;
         case "turn":
           if (sound) sfx.play("turn");
+          break;
+        case "defend":
+          // Its own cue, not the turn ding: see defendCue.ts for why it is the
+          // turn clip struck twice and pitched down.
+          if (sound) for (const beat of defendCueBeats()) sfx.play(beat.name, beat.opts);
           break;
         case "cancel":
           // "The Snuff" (#346) — the fuse-fizzle punctuating a cancelled card.
