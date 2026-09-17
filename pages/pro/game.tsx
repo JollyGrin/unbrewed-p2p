@@ -189,6 +189,7 @@ import { useHideOpponentCosmetics } from "@/lib/pro/useHideOpponentCosmetics";
 import { useSlowMode } from "@/lib/pro/useSlowMode";
 import { usePace } from "@/lib/pro/usePace";
 import { paceFactor } from "@/lib/pro/pace";
+import { scaledCombatAnimTiming, CombatAnimTiming } from "@/lib/pro/combatAnimTiming";
 import { batchActor } from "@/lib/pro/slowModeQueue";
 import { ActionSpotlight, ActionSpotlightBatch } from "@/components/Pro/ActionSpotlight";
 import {
@@ -996,15 +997,14 @@ const flipIn = keyframes`
 // by useCombatStrike so it plays exactly once. Wrapped in NO_MOTION at every use.
 // ---------------------------------------------------------------------------
 
-/** Wind-up before the lunge — 0.18s defender delay + 0.55s flip + a beat. */
-const STRIKE_DELAY = 0.85;
-/** The attack card's lunge/recoil. Lengthened (#382 pacing feedback: the beats
- *  felt rushed) so the slam reads with weight rather than snapping. */
-const STRIKE_LUNGE_DUR = 0.68;
-/** The defense reaction begins as the attack arrives (~55% through the lunge). */
-const STRIKE_CONTACT_DELAY = STRIKE_DELAY + STRIKE_LUNGE_DUR * 0.44;
-/** The defense card's knockback/brace/shove. Lengthened alongside the lunge. */
-const STRIKE_REACT_DUR = 0.68;
+// Durations/delays (STRIKE_DELAY, STRIKE_LUNGE_DUR, STRIKE_REACT_DUR, the derived
+// STRIKE_CONTACT_DELAY, the flip transition, the chip fly, the compare beat) used to
+// live here as fixed 1× constants — CSS animation-delay/duration sequenced off the
+// flip, but deaf to the player's Combat pace setting (only the JS-side linger/hold
+// in combatTiming.ts stretched, so a slower pace held the pose longer without the
+// motion itself taking any longer to play). They now live in combatAnimTiming.ts,
+// derived once per render via `scaledCombatAnimTiming(factor)` in CombatPanel and
+// threaded down as props — see CombatPanel/CombatSlot/StrikeRing below.
 
 // Attack card — win: lunge across into contact, follow through, settle back home.
 const strikeLungeWin = keyframes`
@@ -1098,10 +1098,10 @@ const strikeKnockVars = (damage: number): CSSProperties =>
 // the loser — sequenced by CSS delay off the strike's contact moment.
 // ---------------------------------------------------------------------------
 
-/** Chip on-screen lifetime — matches CHIP_TTL_MS in combatValueFx so the fly-in +
- *  fade covers exactly the window the hook keeps the chip mounted. */
-const CHIP_FLY_DUR = 0.9;
-/** A modifier chip flies in from up-right and settles onto the value pill. */
+/** A modifier chip flies in from up-right and settles onto the value pill. Its
+ *  duration is CHIP_FLY_DUR (combatAnimTiming.ts), which matches CHIP_TTL_MS in
+ *  combatValueFx.ts — both scaled by the SAME pace factor — so the fly-in + fade
+ *  still covers exactly the window the hook keeps the chip mounted at any pace. */
 const chipFly = keyframes`
   0%   { opacity: 0; transform: translate(1.5rem, -0.6rem) scale(0.7); }
   35%  { opacity: 1; transform: translate(0.45rem, -0.25rem) scale(1.08); }
@@ -1130,12 +1130,6 @@ const neutralPulse = keyframes`
   50%  { transform: scale(1.2); text-shadow: 0 0 12px rgba(240,230,210,0.75); }
   100% { transform: scale(1); }
 `;
-
-/** Comparison beat begins just after the (now-longer) strike lands. */
-const COMPARE_DELAY = STRIKE_CONTACT_DELAY + 0.15;
-/** Comparison pulse durations — lengthened with the rest of the sequence so the
- *  resolved values hold their pose rather than blinking. Keyed by CompareBeat. */
-const COMPARE_DUR = { gold: 1.1, dim: 1.0, neutral: 1.0 } as const;
 
 /**
  * Synthetic sub-attack combat card (issue #288 — engine batch D; extended to chains
@@ -1194,6 +1188,7 @@ const CombatSlot = ({
   subAttackFace,
   faceUp,
   width = "6.5rem",
+  anim,
 }: {
   label: string;
   card: ViewCombat["attackerCard"];
@@ -1227,6 +1222,11 @@ const CombatSlot = ({
   faceUp?: boolean;
   /** slot card width; the phone sheet shrinks it until the reveal (mobile step 3) */
   width?: string;
+  /** the combat sequence's CSS clock at the player's pace (combatAnimTiming.ts),
+   *  derived ONCE by CombatPanel and passed down — the flip transition, the chip
+   *  fly, the compare pulse and its delay all read from here instead of a fixed
+   *  1× literal, so a slower pace genuinely slows the motion, not just its dwell. */
+  anim: CombatAnimTiming;
 }) => (
   <Box textAlign="center">
     <Text opacity={0.6} fontSize="0.75rem" mb="0.25rem">
@@ -1266,7 +1266,7 @@ const CombatSlot = ({
             w="100%"
             h="100%"
             transform={card ? "rotateY(180deg)" : "rotateY(0deg)"}
-            transition={`transform 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.1) ${revealDelay}`}
+            transition={`transform ${anim.flipTransitionDur}s cubic-bezier(0.2, 0.9, 0.3, 1.1) ${revealDelay}`}
             sx={{
               transformStyle: "preserve-3d",
               "@media (prefers-reduced-motion: reduce)": { transition: "none !important" },
@@ -1373,7 +1373,7 @@ const CombatSlot = ({
             boxShadow="0 2px 8px rgba(0,0,0,0.6)"
             pointerEvents="none"
             zIndex={3}
-            animation={`${chipFly} ${CHIP_FLY_DUR}s cubic-bezier(0.2, 0.8, 0.3, 1) both`}
+            animation={`${chipFly} ${anim.chipFlyDur}s cubic-bezier(0.2, 0.8, 0.3, 1) both`}
             sx={NO_MOTION}
             title={chip.source ? cardLabel(catalog, chip.source) : undefined}
           >
@@ -1388,13 +1388,13 @@ const CombatSlot = ({
           color="brand.accent"
           animation={
             comparePulse === "gold"
-              ? `${snuffValuePulse} ${COMPARE_DUR.gold}s ease-out ${COMPARE_DELAY}s both`
+              ? `${snuffValuePulse} ${anim.compareDur.gold}s ease-out ${anim.compareDelay}s both`
               : comparePulse === "dim"
-                ? `${loserDim} ${COMPARE_DUR.dim}s ease-out ${COMPARE_DELAY}s both`
+                ? `${loserDim} ${anim.compareDur.dim}s ease-out ${anim.compareDelay}s both`
                 : comparePulse === "neutral"
-                  ? `${neutralPulse} ${COMPARE_DUR.neutral}s ease-out ${COMPARE_DELAY}s both`
+                  ? `${neutralPulse} ${anim.compareDur.neutral}s ease-out ${anim.compareDelay}s both`
                   : valueFx?.displayValue != null
-                    ? `${valueTick} 0.28s ease-out both`
+                    ? `${valueTick} ${anim.valueTickDur}s ease-out both`
                     : undefined
           }
           sx={comparePulse || valueFx?.displayValue != null ? NO_MOTION : undefined}
@@ -1413,14 +1413,17 @@ const CombatSlot = ({
 );
 
 /** A decorative ring flashed at the strike's contact point / on the blocked card.
- *  `pointerEvents="none"`; mounts with the strike so its 0.5s animation plays once. */
+ *  `pointerEvents="none"`; mounts with the strike so its animation plays once. */
 const StrikeRing = ({
   variant,
   delay,
+  dur,
   left,
 }: {
   variant: StrikeVariant;
   delay: number;
+  /** the ring's own animation duration (STRIKE_RING_DUR, scaled by pace). */
+  dur: number;
   left: string;
 }) => {
   const shield = variant === "blocked";
@@ -1437,7 +1440,7 @@ const StrikeRing = ({
       pointerEvents="none"
       zIndex={2}
       opacity={0}
-      animation={`${shield ? strikeShield : strikeImpact} 0.5s ease-out ${delay}s both`}
+      animation={`${shield ? strikeShield : strikeImpact} ${dur}s ease-out ${delay}s both`}
       sx={NO_MOTION}
     />
   );
@@ -1503,8 +1506,12 @@ const CombatStageTicker = ({ stage }: { stage: ViewCombat["stage"] }) => {
 /** The reveal beat + running combat math, straight from the server view. The
  *  strike beat (#381) rides on top: when `strike` is set, the attack card lunges
  *  and slams the defense card, the panel shakes, and a ring flashes — all sequenced
- *  by CSS delay off the flip and gated on the caller (visual-fx off ⇒ null). The
- *  stage ticker (#380) sits below the slots; the outcome line reads from combatOutcome.ts (incl. the no-winner case, #545). */
+ *  by CSS delay off the flip and gated on the caller (visual-fx off ⇒ null). Every
+ *  one of those durations/delays is derived ONCE from `factor` via
+ *  `scaledCombatAnimTiming` (combatAnimTiming.ts) and threaded down, so a slower
+ *  Combat pace genuinely slows the motion, not just how long the panel lingers
+ *  after it. The stage ticker (#380) sits below the slots; the outcome line reads
+ *  from combatOutcome.ts (incl. the no-winner case, #545). */
 const CombatPanel = ({
   combat,
   catalog,
@@ -1521,6 +1528,7 @@ const CombatPanel = ({
   defenderCallout,
   compact = false,
   fighterName,
+  factor = 1,
 }: {
   combat: ViewCombat;
   catalog: Record<string, CardMeta>;
@@ -1558,6 +1566,12 @@ const CombatPanel = ({
    *  picker under the panel still fits, plus a "who attacks whom" line. */
   compact?: boolean;
   fighterName?: (id: FighterId) => string;
+  /** Combat pace (lib/pro/pace.ts) as a plain multiplier — 1 = today's pace. The
+   *  ONE place the panel derives its CSS clock (combatAnimTiming.ts) from the
+   *  player's setting; every animation below reads from `anim` instead of a fixed
+   *  1× literal, so a slower pace stretches the motion itself, not just how long
+   *  the panel stays mounted (that's combatTiming.ts, a separate clock). */
+  factor?: number;
 }) => {
   const attackerCommitted = combat.stage !== "COMMIT_ATTACK";
   const pastReveal = !["COMMIT_ATTACK", "COMMIT_DEFENSE"].includes(combat.stage);
@@ -1565,18 +1579,20 @@ const CombatPanel = ({
   // public to everyone, with the defender still to choose. Inferred from the view's
   // shape — the wire carries no marker — by the one shared helper.
   const faceUpAttack = isFaceUpPreRevealAttack(combat);
+  const anim = scaledCombatAnimTiming(factor);
   const attackAnim = strike
-    ? `${STRIKE_ATTACK_KF[strike.variant]} ${STRIKE_LUNGE_DUR}s cubic-bezier(0.3, 0, 0.2, 1) ${STRIKE_DELAY}s both`
+    ? `${STRIKE_ATTACK_KF[strike.variant]} ${anim.strikeLungeDur}s cubic-bezier(0.3, 0, 0.2, 1) ${anim.strikeDelay}s both`
     : undefined;
   const defenseAnim = strike
-    ? `${STRIKE_DEFENSE_KF[strike.variant]} ${STRIKE_REACT_DUR}s cubic-bezier(0.2, 0.8, 0.3, 1) ${STRIKE_CONTACT_DELAY}s both`
+    ? `${STRIKE_DEFENSE_KF[strike.variant]} ${anim.strikeReactDur}s cubic-bezier(0.2, 0.8, 0.3, 1) ${anim.strikeContactDelay}s both`
     : undefined;
   // The panel shakes at the contact moment; the ring flashes there too. Blocked
   // flashes a shield on the defense card (right), win/tie an impact ring at the seam.
   const ring = strike ? (
     <StrikeRing
       variant={strike.variant}
-      delay={STRIKE_CONTACT_DELAY}
+      delay={anim.strikeContactDelay}
+      dur={anim.strikeRingDur}
       left={strike.variant === "blocked" ? "72%" : "50%"}
     />
   ) : null;
@@ -1588,7 +1604,9 @@ const CombatPanel = ({
       borderRadius="0.5rem"
       p="0.75rem"
       position="relative"
-      animation={strike ? `${strikeShake} 0.4s ease-in-out ${STRIKE_CONTACT_DELAY}s both` : undefined}
+      animation={
+        strike ? `${strikeShake} ${anim.strikeShakeDur}s ease-in-out ${anim.strikeContactDelay}s both` : undefined
+      }
       sx={strike ? NO_MOTION : undefined}
     >
       {/* The tag row wraps: a combat can wear several of these at once (chain +
@@ -1695,12 +1713,13 @@ const CombatPanel = ({
           strikeAnimation={attackAnim}
           valueFx={valueFx?.ATTACK}
           comparePulse={comparePulseFor(strike?.variant, "ATTACK")}
+          anim={anim}
         />
         <CombatSlot
           label="defense"
           width={compact && !pastReveal ? "5.25rem" : undefined}
           card={combat.defenderCard}
-          revealDelay="0.18s"
+          revealDelay={`${anim.defenseFlipDelay}s`}
           resolveCard={resolveCard}
           facedownInstance={
             !combat.defenderCard && combat.defenderPlayer === you && !pastReveal ? selfCommitted : null
@@ -1712,6 +1731,7 @@ const CombatPanel = ({
           strikeVars={strike?.variant === "win" ? strikeKnockVars(strike.damage) : undefined}
           valueFx={valueFx?.DEFENSE}
           comparePulse={comparePulseFor(strike?.variant, "DEFENSE")}
+          anim={anim}
         />
         {ring}
         {/* Clash point — the seam between the two cards. Zero-size marker whose
@@ -6759,6 +6779,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
             defenderCallout={combatDefenderTag}
             compact={mobile && !rail}
             fighterName={nameOf}
+            factor={paceScale}
           />
         ) : null
       }

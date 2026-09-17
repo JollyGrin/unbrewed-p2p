@@ -5,11 +5,12 @@
  * `scale()` helper that turns a duration into its paced equivalent.
  *
  * Deliberately just a multiplier, not new timing numbers. Every module that
- * owns a piece of the combat sequence's clock (combatTiming.ts, combatFx.ts's
- * reveal stagger, battleTimeline.ts's lead cap, useGameFx.ts's board-FX life)
- * keeps deriving its own values exactly as it does today — see the #517
- * invariant in combatTiming.ts — and only multiplies its inputs by this
- * factor. Pace never mutates an exported constant.
+ * owns a piece of the combat sequence's clock (combatTiming.ts, combatAnimTiming.ts's
+ * CSS strike/flip/chip/compare durations, combatFx.ts's reveal stagger,
+ * battleTimeline.ts's lead cap, useGameFx.ts's board-FX life) keeps deriving its
+ * own values exactly as it does today — see the #517 invariant in
+ * combatTiming.ts — and only multiplies its inputs by this factor. Pace never
+ * mutates an exported constant.
  */
 
 export type Pace = "normal" | "relaxed" | "slow";
