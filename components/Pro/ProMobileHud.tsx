@@ -34,6 +34,7 @@ import {
   TbDotsVertical,
   TbFlag,
   TbEyeOff,
+  TbGauge,
   TbHourglass,
   TbSparkles,
   TbWand,
@@ -48,6 +49,7 @@ import { seatNameplate } from "@/lib/pro/playerIdentity";
 import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { defenseCueDue, turnStripFor, yourTurnCueDue } from "@/lib/pro/turnStrip";
 import { RAIL_WIDTH_CSS, TAP_TARGET, chipSeatName } from "@/lib/pro/mobileLayout";
+import { paceOption } from "@/lib/pro/pace";
 import type { PlayerId, ViewPlayer } from "@/lib/pro/protocol";
 import type { ProLayoutMode } from "@/lib/pro/useProLayout";
 import { MoveTimerBar, ProHudProps, SeatPlate, hudSeats } from "@/components/Pro/ProHud";
@@ -223,6 +225,8 @@ export const ProMobileMenu = ({
   onToggleOpponentCosmetics,
   slowModeOn,
   onToggleSlowMode,
+  pace,
+  onCyclePace,
   onReportBug,
   onForfeit,
   placement = "top-end",
@@ -238,6 +242,8 @@ export const ProMobileMenu = ({
   | "onToggleOpponentCosmetics"
   | "slowModeOn"
   | "onToggleSlowMode"
+  | "pace"
+  | "onCyclePace"
   | "onReportBug"
 > & {
   placement?: "top-end" | "bottom-end";
@@ -319,6 +325,14 @@ export const ProMobileMenu = ({
           {onToggleSlowMode && (
             <MenuItem {...item} icon={<TbHourglass />} onClick={onToggleSlowMode}>
               Slow mode — {slowModeOn ? "on" : "off"}
+            </MenuItem>
+          )}
+          {onCyclePace && pace && (
+            // One tap steps to the next option — matches the desktop chip cluster's
+            // cycling gesture, keeping it a single compact control rather than a
+            // second menu nested in this one.
+            <MenuItem {...item} icon={<TbGauge />} onClick={onCyclePace}>
+              Combat pace — {paceOption(pace).label}
             </MenuItem>
           )}
           {onForfeit && (

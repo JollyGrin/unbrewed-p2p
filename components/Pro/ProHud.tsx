@@ -44,6 +44,7 @@ import {
   TbFlask,
   TbBug,
   TbHourglass,
+  TbGauge,
 } from "react-icons/tb";
 import { GiFootprint, GiHearts, GiHighTide, GiLowTide } from "react-icons/gi";
 import { IoMdHand, IoMdVolumeHigh, IoMdVolumeOff } from "react-icons/io";
@@ -91,6 +92,7 @@ import { DEFAULT_PLATE_LAYOUT, PlateLayout, PlateSeat, useHudPlates } from "@/li
 import { useCardPreview } from "./CardPreview";
 import { CardFace } from "./ProHand";
 import { ProConnectionStatus, SeatPresence, TurnTimer } from "@/lib/pro/useProSocket";
+import { Pace, paceOption } from "@/lib/pro/pace";
 import { FLAGS, useFlags } from "@/lib/flags";
 
 // Team-affiliation accent (issue #195). A teal that reads clearly as "friendly"
@@ -1490,6 +1492,13 @@ export interface ProHudProps {
    *  the player clicks OK. The chip is hidden when the handler is omitted. */
   slowModeOn?: boolean;
   onToggleSlowMode?: () => void;
+  /** Combat pace (player feedback: combat reads too fast) — the current option
+   *  plus a one-tap cycle to the next (Normal → Relaxed → Slow → Normal). The
+   *  chip is hidden when the handler is omitted. NOT the same setting as slow
+   *  mode: pace scales how long the client's own combat animations take, slow
+   *  mode paces how fast server batches apply. */
+  pace?: Pace;
+  onCyclePace?: () => void;
   /** true while a paced batch is held on screen. The spotlight's click-anywhere
    *  backdrop covers the whole viewport, which would otherwise bury the very chip
    *  that turns slow mode off — so the cluster floats above it for that window
@@ -1519,6 +1528,8 @@ export const ProHud = ({
   slowModeOn,
   onToggleSlowMode,
   slowModeHolding,
+  pace,
+  onCyclePace,
   onReportBug,
 }: ProHudProps) => {
   const heroOf = (player: PlayerId) =>
@@ -1730,6 +1741,29 @@ export const ProHud = ({
                 aria-hidden
                 sx={{ ".chakra-switch__track": { bg: slowModeOn ? "brand.surfaceDim" : "whiteAlpha.400" } }}
               />
+            </Flex>
+          </Tooltip>
+        )}
+        {onCyclePace && pace && (
+          // A one-tap cycling chip, not a dropdown (#382 pacing feedback: "keep it
+          // one compact control") — same gesture as the sound/visual icon chips,
+          // just naming the current option since there are three states, not two.
+          <Tooltip label={`Combat pace: ${paceOption(pace).label} — click to cycle`} hasArrow>
+            <Flex
+              {...chipStyles}
+              as="button"
+              type="button"
+              cursor="pointer"
+              _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+              color="brand.highlight"
+              opacity={pace === "normal" ? 0.55 : 1}
+              onClick={onCyclePace}
+              aria-label={`Combat pace: ${paceOption(pace).label}. Click to change.`}
+            >
+              <TbGauge size="0.85rem" />
+              <Text fontSize="0.65rem" fontFamily="SpaceGrotesk" whiteSpace="nowrap">
+                {paceOption(pace).label}
+              </Text>
             </Flex>
           </Tooltip>
         )}
