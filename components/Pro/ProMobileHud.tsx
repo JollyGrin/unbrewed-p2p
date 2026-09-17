@@ -36,6 +36,7 @@ import {
   TbEyeOff,
   TbGauge,
   TbHourglass,
+  TbPerspective,
   TbSparkles,
   TbWand,
   TbWandOff,
@@ -52,6 +53,7 @@ import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { defenseCueDue, turnStripFor, yourTurnCueDue } from "@/lib/pro/turnStrip";
 import { RAIL_WIDTH_CSS, TAP_TARGET, chipSeatName } from "@/lib/pro/mobileLayout";
 import { paceOption } from "@/lib/pro/pace";
+import { BOARD_VIEW_LABEL } from "@/lib/pro/boardView";
 import type { PlayerId, ViewPlayer } from "@/lib/pro/protocol";
 import type { ProLayoutMode } from "@/lib/pro/useProLayout";
 import { MoveTimerBar, ProHudProps, SeatPlate, hudSeats } from "@/components/Pro/ProHud";
@@ -229,6 +231,8 @@ export const ProMobileMenu = ({
   onToggleSlowMode,
   pace,
   onCyclePace,
+  boardView,
+  onToggleBoardView,
   turnReminderOn,
   onToggleTurnReminder,
   onReportBug,
@@ -248,6 +252,8 @@ export const ProMobileMenu = ({
   | "onToggleSlowMode"
   | "pace"
   | "onCyclePace"
+  | "boardView"
+  | "onToggleBoardView"
   | "turnReminderOn"
   | "onToggleTurnReminder"
   | "onReportBug"
@@ -348,6 +354,11 @@ export const ProMobileMenu = ({
             // second menu nested in this one.
             <MenuItem {...item} icon={<TbGauge />} onClick={onCyclePace}>
               Combat pace — {paceOption(pace).label}
+            </MenuItem>
+          )}
+          {onToggleBoardView && boardView && (
+            <MenuItem {...item} icon={<TbPerspective />} onClick={onToggleBoardView}>
+              Board — {BOARD_VIEW_LABEL[boardView]}
             </MenuItem>
           )}
           {onForfeit && (
