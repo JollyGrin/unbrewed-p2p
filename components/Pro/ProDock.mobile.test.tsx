@@ -398,6 +398,44 @@ describe("ProDock portrait board-pick bar (mobile step 1)", () => {
     });
   });
 
+  describe("minimizing a forced sheet (player feedback)", () => {
+    it("puts an after-combat question on the slim bar and opens it again", () => {
+      render(<ProDock {...props({ hasPrompt: true, promptPanel: <div>KING KONG&apos;S ABILITY</div> })} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /minimize/i }));
+
+      expect(screen.queryByText("KING KONG'S ABILITY")).toBeNull();
+      const bar = screen.getByTestId("pro-mobile-pickbar");
+      expect(bar).toHaveTextContent("A decision is waiting");
+
+      fireEvent.click(within(bar).getByRole("button", { name: /open/i }));
+
+      expect(screen.getByText("KING KONG'S ABILITY")).toBeInTheDocument();
+    });
+
+    it("keeps the combat panel reachable after minimizing it", () => {
+      render(<ProDock {...props({ combatPanel: <div>COMBAT</div> })} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /minimize/i }));
+      expect(screen.queryByText("COMBAT")).toBeNull();
+
+      fireEvent.click(within(screen.getByTestId("pro-mobile-pickbar")).getByRole("button", { name: /open/i }));
+      expect(screen.getByText("COMBAT")).toBeInTheDocument();
+    });
+
+    it("brings the sheet back for the next decision", () => {
+      const view1 = { ...view, prompt: { promptId: "p1" } } as unknown as PlayerView;
+      const view2 = { ...view, prompt: { promptId: "p2" } } as unknown as PlayerView;
+      const { rerender } = render(<ProDock {...props({ view: view1, hasPrompt: true })} />);
+      fireEvent.click(screen.getByRole("button", { name: /minimize/i }));
+      expect(screen.getByTestId("pro-mobile-pickbar")).toBeInTheDocument();
+
+      rerender(<ProDock {...props({ view: view2, hasPrompt: true })} />);
+
+      expect(screen.getByTestId("pro-mobile-sheet")).toBeInTheDocument();
+    });
+  });
+
   describe("landscape rail (mobile polish)", () => {
     const BOOST = { type: "BOOST_MOVE", card: "c1" } as unknown as Action;
     const ATTACK_A = { type: "DECLARE_ATTACK", attacker: "f1", target: "f2" } as unknown as Action;

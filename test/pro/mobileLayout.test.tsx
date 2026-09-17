@@ -215,8 +215,8 @@ describe("portrait phone", () => {
    * The blocker this test exists for: a prompt that says "click a gold space on
    * the board" forces the sheet open, and a full-viewport `pointer-events:auto`
    * scrim under it silently ate every board tap — the board rendered, the ring
-   * pulsed, and nothing happened. A forced sheet cannot be dismissed, so its
-   * scrim was pure obstruction; it must not exist.
+   * pulsed, and nothing happened. A forced sheet only minimizes (it is never
+   * dismissed outright), so its scrim was pure obstruction; it must not exist.
    */
   it("never puts a scrim over the board while a prompt owns it", async () => {
     setViewport("portrait");
@@ -242,7 +242,11 @@ describe("portrait phone", () => {
     // …and expanded to the full sheet it is locked open, still without a scrim.
     fireEvent.click(screen.getByRole("button", { name: /^options$/i }));
     expect(screen.getByTestId("pro-mobile-sheet")).toBeInTheDocument();
-    expect(screen.getByLabelText(/decision is waiting/i)).toBeInTheDocument();
+    expect(screen.queryByTestId("pro-mobile-sheet-scrim")).toBeNull();
+    // Minimizing hands the board back (player feedback) — the decision waits on
+    // the slim bar instead of being lost or locking the screen.
+    fireEvent.click(screen.getByLabelText(/minimize/i));
+    expect(screen.getByTestId("pro-mobile-pickbar")).toBeInTheDocument();
     expect(screen.queryByTestId("pro-mobile-sheet-scrim")).toBeNull();
   });
 
