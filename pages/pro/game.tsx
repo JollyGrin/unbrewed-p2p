@@ -86,7 +86,7 @@ import { CardPreviewProvider } from "@/components/Pro/CardPreview";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { MapPreviewModal } from "@/components/Pro/MapPreviewModal";
 import { ProDock } from "@/components/Pro/ProDock";
-import { ProHud, ProHudProps } from "@/components/Pro/ProHud";
+import { ProHud, ProHudProps, STATUS_DISPLAY } from "@/components/Pro/ProHud";
 import { MOBILE_BTN, ProMobileHud, ProMobileMenu } from "@/components/Pro/ProMobileHud";
 import { touchCopy } from "@/lib/pro/touchCopy";
 import { HandDecisionWatcher, ProMobileHand, RailHand } from "@/components/Pro/ProMobileHand";
@@ -5548,7 +5548,12 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     }
     return (
       <Text pt="4rem" textAlign="center" opacity={0.7}>
-        waiting for game state… ({status}
+        {/* Same "Connected"/"Reconnecting…" vocabulary as the in-match HUD chip
+            (issue #133 follow-up): a phone returning from the background before
+            ever seeing a STATE — e.g. a reconnect still climbing back onto the
+            room — reads the same status words here as it does in a live game,
+            instead of the raw internal status string. */}
+        waiting for game state… ({(STATUS_DISPLAY[status] ?? STATUS_DISPLAY.connecting).label}
         {roomId ? `, room ${roomId}` : ""})
       </Text>
     );

@@ -2,7 +2,13 @@ import { act, renderHook } from "@testing-library/react";
 import type { AccountState } from "../account/useAccount";
 import type { HeroCosmetics } from "../account/cosmetics";
 import { decodeCosmetics, wireCardRim } from "./cosmeticsWire";
-import { ACTION_IN_FLIGHT_MS, ILLEGAL_ACTION_RESYNC_AFTER, RESYNC_COOLDOWN_MS, useProSocket } from "./useProSocket";
+import {
+  ACTION_IN_FLIGHT_MS,
+  ILLEGAL_ACTION_RESYNC_AFTER,
+  RESUME_DEADLINE_MS,
+  RESYNC_COOLDOWN_MS,
+  useProSocket,
+} from "./useProSocket";
 
 // The hook reads the optional Discord account (issue #568) to decide whether to
 // claim a seat identity. Stubbed here so no test hits `/me`; the default is a
@@ -1730,5 +1736,324 @@ describe("useProSocket — slow mode pacing (issue #703)", () => {
 
     expect(seen).toEqual(["theirs"]);
     expect(hook.result.current.slowModeHeld).not.toBeNull(); // paced, not flushed
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reconnect-on-resume: an iPhone Safari tab backgrounded or locked mid-match
+// (the App Switcher, the lock button, a phone call). Chrome kills the socket
+// and freezes the page's own JS — `setTimeout`, `ws.onclose`'s exponential
+// backoff included — so nothing on the page can retry on its own no matter how
+// long the phone sits locked. The only reliable signal a suspended tab gets on
+// return is `visibilitychange`/`focus`/`pageshow`, which is what these tests
+// drive instead of the fake clock (advancing the fake clock models time a
+// running page actually experienced — a frozen tab experiences none of it,
+// which is the whole bug).
+// ---------------------------------------------------------------------------
+
+describe("useProSocket — reconnect on resume (iOS Safari suspend/resume)", () => {
+  const realWS = global.WebSocket;
+
+  // jsdom's `document.hidden` is a read-only getter on the prototype; override
+  // it with a mutable backing value, same idiom as useLobbyMatchCue.test.tsx.
+  let hiddenFlag = false;
+  beforeAll(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => hiddenFlag });
+  });
+
+  beforeEach(() => {
+    // @ts-expect-error — swap in the fake for the test
+    global.WebSocket = FakeWebSocket;
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    hiddenFlag = false;
+  });
+  afterEach(() => {
+    global.WebSocket = realWS;
+    FakeWebSocket.last = null;
+    jest.useRealTimers();
+  });
+
+  const backgroundThenReturn = () => {
+    hiddenFlag = true;
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    hiddenFlag = false;
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+  };
+
+  const bootIntoGame = () => {
+    const hook = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    act(() => ws.emit(roomJoined()));
+    act(() => ws.emit(minimalState()));
+    return { hook, ws };
+  };
+
+  it("a dead socket reconnects the instant the tab returns — no waiting out the backoff timer", () => {
+    // Full jitter (issue #209): random=0.5 → a 500ms delay is scheduled. On a
+    // real phone that timer is exactly what a freeze can strand forever; here
+    // we simply never advance the fake clock through it, which is the honest
+    // model of "the page never got to run while the tab was suspended" —
+    // whether that suspension lasted 30 seconds or 20 minutes makes no
+    // difference to a timer that never fires at all.
+    jest.useFakeTimers();
+    const randSpy = jest.spyOn(Math, "random").mockReturnValue(0.5);
+    try {
+      const { ws } = bootIntoGame();
+      const before = FakeWebSocket.instances;
+      act(() => ws.close()); // the phone's OS tears the socket down while backgrounded
+
+      backgroundThenReturn();
+
+      // A fresh socket exists synchronously — the return itself was the retry,
+      // not the (never-advanced, possibly-frozen) 500ms backoff timer.
+      expect(FakeWebSocket.instances).toBe(before + 1);
+      const next = FakeWebSocket.last!;
+      expect(next).not.toBe(ws);
+
+      // …and the original backoff timer was actually cancelled, not merely
+      // raced: advancing well past its 500ms delay must not spawn a THIRD
+      // socket behind the one already open.
+      act(() => jest.advanceTimersByTime(2000));
+      expect(FakeWebSocket.instances).toBe(before + 1);
+    } finally {
+      randSpy.mockRestore();
+    }
+  });
+
+  it("covers a short (<1 min), a medium (~5 min) and a long (~20 min) absence identically", () => {
+    // The fix has no notion of "how long" — a frozen timer never fires
+    // regardless of duration, so the return path is the same whether the
+    // phone was locked for 45 seconds or 20 minutes. This just exercises the
+    // same recovery three times back to back to nail that down.
+    jest.useFakeTimers();
+    try {
+      let { hook, ws } = bootIntoGame();
+      for (const _absence of ["short", "medium", "long"]) {
+        const before = FakeWebSocket.instances;
+        act(() => ws.close());
+        backgroundThenReturn();
+        expect(FakeWebSocket.instances).toBe(before + 1);
+        ws = FakeWebSocket.last!;
+        act(() => ws.open());
+        act(() => ws.emit(roomJoined()));
+        act(() => ws.emit(minimalState()));
+        expect(hook.result.current.status).toBe("open");
+        expect(hook.result.current.gameLost).toBe(false);
+      }
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("a socket that LOOKS open on return is treated with suspicion: a fresh RECONNECT verifies it", () => {
+    // The other half of the fear: a phone that silently drops the transport
+    // without ever firing `close`, leaving `status` stuck reporting "open" for
+    // a connection that's actually dead. The fix can't tell the difference
+    // from inside the page, so it asks the server for a fresh STATE on return
+    // — the identical trick p2p #848 already uses for a stale view — which
+    // both fixes the silently-dead case and is a harmless no-op for a
+    // genuinely fine one.
+    const { hook, ws } = bootIntoGame();
+    expect(ws.sentTypes.filter((t) => t === "RECONNECT")).toHaveLength(0);
+    const before = FakeWebSocket.instances;
+
+    backgroundThenReturn();
+
+    expect(ws.sentTypes.filter((t) => t === "RECONNECT")).toHaveLength(1);
+    expect(hook.result.current.resyncing).toBe(true);
+    // No new transport — this is a resync on the SAME socket, not a reconnect.
+    expect(FakeWebSocket.instances).toBe(before);
+
+    // The server answers exactly as a live RECONNECT always does; the board
+    // never shows a loss for what was only a verification round-trip.
+    act(() => ws.emit(roomJoined()));
+    act(() => ws.emit(minimalState()));
+    expect(hook.result.current.resyncing).toBe(false);
+    expect(hook.result.current.gameLost).toBe(false);
+  });
+
+  it("never verifies an open socket before the game has actually started (nothing to resync yet)", () => {
+    // Pre-game / lobby wait: `hadStateRef` is still false, so a tab-return here
+    // must not fire a RECONNECT the server has no room-with-a-seat to answer.
+    const hook = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    act(() =>
+      ws.emit({ type: "ROOM_CREATED", roomId: "R1", token: "tok", you: "p1", formatId: "duel", seats: ["p1"], requiredPlayers: 2 })
+    );
+
+    backgroundThenReturn();
+
+    expect(ws.sentTypes.filter((t) => t === "RECONNECT")).toHaveLength(0);
+    expect(hook.result.current.resyncing).toBe(false);
+  });
+
+  it("does not spam RECONNECT for a rapid flurry of app-switches (shares #848's cooldown)", () => {
+    jest.useFakeTimers();
+    try {
+      const { ws } = bootIntoGame();
+      backgroundThenReturn();
+      expect(ws.sentTypes.filter((t) => t === "RECONNECT")).toHaveLength(1);
+
+      // Same STATE never landed yet (server hasn't answered) and the player
+      // flicks back to the app and away again inside the cooldown window.
+      act(() => jest.advanceTimersByTime(RESYNC_COOLDOWN_MS - 1));
+      backgroundThenReturn();
+      expect(ws.sentTypes.filter((t) => t === "RECONNECT")).toHaveLength(1);
+
+      // Once the cooldown has actually elapsed, a further return may verify again.
+      act(() => jest.advanceTimersByTime(2));
+      backgroundThenReturn();
+      expect(ws.sentTypes.filter((t) => t === "RECONNECT")).toHaveLength(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it.each(["focus", "pageshow"])(
+    "`%s` retries a dead socket just like `visibilitychange` (belt-and-braces)",
+    (eventName) => {
+      jest.useFakeTimers();
+      try {
+        const { ws } = bootIntoGame();
+        const before = FakeWebSocket.instances;
+        act(() => ws.close());
+        act(() => window.dispatchEvent(new Event(eventName)));
+        expect(FakeWebSocket.instances).toBe(before + 1);
+      } finally {
+        jest.useRealTimers();
+      }
+    }
+  );
+
+  it("two resume signals firing together (visibilitychange + focus) never open a second socket", () => {
+    jest.useFakeTimers();
+    try {
+      const { ws } = bootIntoGame();
+      const before = FakeWebSocket.instances;
+      act(() => ws.close());
+      act(() => {
+        hiddenFlag = false;
+        document.dispatchEvent(new Event("visibilitychange"));
+        window.dispatchEvent(new Event("focus"));
+      });
+      // The second signal finds the first socket already CONNECTING and backs off.
+      expect(FakeWebSocket.instances).toBe(before + 1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("re-arms a stale SERVER_RESTARTING resume deadline fresh on return — a long freeze must not eat the whole budget", () => {
+    // issue #133's RESUME_DEADLINE_MS is deliberately generous so a slow-but-ok
+    // resume never reads as a loss. But the countdown is a plain `setTimeout`
+    // armed the moment SERVER_RESTARTING is processed — if the tab freezes
+    // moments later, the ENTIRE budget elapses while the page cannot even
+    // attempt a reconnect, and whatever's left (nothing) is what the returning
+    // player actually gets. The fix re-arms a fresh RESUME_DEADLINE_MS the
+    // moment the player is actually back and able to retry.
+    jest.useFakeTimers();
+    try {
+      const { hook, ws } = bootIntoGame();
+      act(() => ws.emit({ type: "SERVER_RESTARTING" }));
+      expect(hook.result.current.serverRestarting).toBe(true);
+
+      // Most of the original deadline is already "spent" by the time the
+      // player returns (the freeze itself, standing in for the locked phone).
+      act(() => jest.advanceTimersByTime(RESUME_DEADLINE_MS - 100));
+      expect(hook.result.current.gameLost).toBe(false);
+
+      backgroundThenReturn(); // re-arms a fresh RESUME_DEADLINE_MS from here
+
+      // Advancing PAST where the ORIGINAL deadline would have fired (total
+      // elapsed since SERVER_RESTARTING is now over RESUME_DEADLINE_MS) must
+      // NOT declare the game lost — the stale timer was cancelled, not merely
+      // outraced.
+      act(() => jest.advanceTimersByTime(200));
+      expect(hook.result.current.gameLost).toBe(false);
+
+      // The fresh deadline still protects against a game that truly never
+      // comes back — advance it the rest of the way out.
+      act(() => jest.advanceTimersByTime(RESUME_DEADLINE_MS));
+      expect(hook.result.current.gameLost).toBe(true);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("a slow first STATE after a resume-triggered reconnect never trips the loss screen early", () => {
+    // The resume itself may take a beat (a fresh TCP/WS handshake, a server
+    // under load) — that is a slow resume, not a failed one, and #133's
+    // contract is explicit: only a fired deadline with nothing behind it is a
+    // loss. This nails down that the resume-on-visibility path honors the
+    // exact same contract as the ordinary redeploy path.
+    jest.useFakeTimers();
+    const randSpy = jest.spyOn(Math, "random").mockReturnValue(0.5);
+    try {
+      const { hook, ws } = bootIntoGame();
+      act(() => ws.emit({ type: "SERVER_RESTARTING" }));
+      act(() => ws.close());
+
+      backgroundThenReturn(); // reconnects immediately, re-arms the deadline
+
+      const next = FakeWebSocket.last!;
+      expect(next).not.toBe(ws);
+      // The new socket takes its time to actually open and answer — well
+      // inside the freshly re-armed deadline — and the player must see no
+      // loss screen for any of it.
+      act(() => jest.advanceTimersByTime(RESUME_DEADLINE_MS - 1000));
+      expect(hook.result.current.gameLost).toBe(false);
+
+      act(() => next.open());
+      act(() => next.emit(roomJoined()));
+      act(() => next.emit(minimalState()));
+      expect(hook.result.current.gameLost).toBe(false);
+      expect(hook.result.current.serverRestarting).toBe(false);
+      expect(hook.result.current.snapshot).not.toBeNull();
+    } finally {
+      randSpy.mockRestore();
+      jest.useRealTimers();
+    }
+  });
+
+  it("resets the backoff attempt counter on a resume reconnect — a returning player retries at full speed", () => {
+    // Without a reset, a phone that had already grown its backoff toward
+    // MAX_RETRY_DELAY_MS before being backgrounded would carry that inflated
+    // delay into every retry AFTER the resume-triggered one too, for no
+    // reason the player caused. Grow the backoff first, then confirm the
+    // reconnect a SECOND close schedules (post-resume) is back to the
+    // shortest delay.
+    jest.useFakeTimers();
+    const randSpy = jest.spyOn(Math, "random").mockReturnValue(1); // no jitter shrinkage — exact cap
+    try {
+      const { ws } = bootIntoGame();
+      // Grow the backoff: several closes in a row without ever reopening.
+      act(() => ws.close());
+      act(() => jest.advanceTimersByTime(1000)); // attempts: 0 → 1, delay was capped(1000·2^0)=1000
+      const second = FakeWebSocket.last!;
+      act(() => second.close());
+      act(() => jest.advanceTimersByTime(2000)); // attempts: 1 → 2, delay was capped(1000·2^1)=2000
+      const third = FakeWebSocket.last!;
+
+      const before = FakeWebSocket.instances;
+      act(() => third.close()); // attempts now 3 — next backoff would be capped(1000·2^2)=4000
+      backgroundThenReturn(); // resume reconnects immediately AND resets attempts to 0
+      expect(FakeWebSocket.instances).toBe(before + 1);
+      const fourth = FakeWebSocket.last!;
+
+      // Close the resumed socket: if attempts had carried over, the next
+      // scheduled delay would be capped(1000·2^3)=8000; reset, it's back to
+      // capped(1000·2^0)=1000 — advancing exactly 1000ms must reconnect.
+      act(() => fourth.close());
+      act(() => jest.advanceTimersByTime(999));
+      expect(FakeWebSocket.instances).toBe(before + 1);
+      act(() => jest.advanceTimersByTime(1));
+      expect(FakeWebSocket.instances).toBe(before + 2);
+    } finally {
+      randSpy.mockRestore();
+      jest.useRealTimers();
+    }
   });
 });
