@@ -27,15 +27,42 @@
  * rectangle"): this base existed in phase 2 but was too subtle to survive at
  * actual playing size — a 1.5px rim on a disc no wider than the figure's own
  * silhouette blended straight into a same-colored highlighted space
- * underneath it. It is now sized wider than the figure's silhouette (each
- * caller passes its own `shadowWidthFactor`, tuned against its own
- * silhouette's footprint) and its rim/outer-ring contrast is bumped, so the
- * base — never the figure — is the one place a piece's owner-color reads.
+ * underneath it. It was widened and its rim/outer-ring contrast bumped, so
+ * the base — never the figure — is the one place a piece's owner-color
+ * reads.
+ *
+ * PHASE 5 (targets #2/#3 — see tableProjection.ts's own header for the full
+ * fault writeup). Two faults a real close-up screenshot exposed that the
+ * phase-3 fix above didn't: the base was sized off the FIGURE's own plate
+ * width (via a per-caller `shadowWidthFactor`), which has no relationship to
+ * the SPACE the piece is actually standing on, so the two visibly
+ * disagreed — oversized, off-center, "swamping" the space rather than
+ * sitting inside it. And the base disc pre-squashed its own ellipse by a
+ * hand-tuned ratio BEFORE the ambient tilt, double-foreshortening it. Both
+ * are fixed the same way `TableSpace`'s own disc already works: draw a
+ * PLAIN CIRCLE sized directly off the space's own rendered diameter
+ * (`spaceDiamPx`, `standeeBaseDiameterPx`) and let the shared ancestor's
+ * `rotateX` do 100% of the foreshortening, with zero manual offset — so the
+ * base is now geometrically CONCENTRIC with the space underneath it, not
+ * approximately so. The contact shadow keeps a deliberate offset (the one
+ * that actually reads as "cast by a light", fault #3), now expressed as a
+ * single fixed fraction of the base's OWN diameter (`SHADOW_OFFSET_X/Y`)
+ * instead of a percentage of the (unrelated) plate height, and softened via
+ * a layered `radial-gradient` rather than `filter: blur()` — cheap enough to
+ * put on every piece on the board without costing a GPU blur pass per piece
+ * (a real concern on a phone with a dozen-plus standees visible at once).
  */
 import { ReactNode } from "react";
 import { Box, chakra, shouldForwardProp } from "@chakra-ui/react";
 import { isValidMotionProp, motion } from "framer-motion";
-import { placeStandee, standeeTransform } from "@/lib/pro/tableProjection";
+import {
+  placeStandee,
+  standeeBaseDiameterPx,
+  standeeShadowStretch,
+  standeeTransform,
+  SHADOW_OFFSET_X,
+  SHADOW_OFFSET_Y,
+} from "@/lib/pro/tableProjection";
 
 // motion.div wrapped in Chakra's style-prop system (same recipe as ProBoard's
 // own MotionFlex) — lets the anchor keep every Chakra layout prop while also
@@ -59,9 +86,14 @@ export interface TableStandeeAnchorProps {
   tiltDeg: number;
   widthPx: number;
   heightPx: number;
-  /** Fraction of `widthPx` the base disc + contact shadow span — a standee's
-   *  footprint reads best a little narrower than the figure standing on it. */
-  shadowWidthFactor?: number;
+  /** The SPACE's own rendered token diameter (px) — the same number
+   *  `TableSpace` sizes its own disc from (see TableBoard.tsx's `diamPx`).
+   *  The base disc and its contact shadow are both derived from THIS, not
+   *  from `widthPx`/`heightPx` (the FIGURE's own plate size), which is what
+   *  keeps the base concentric with, and sized to, the space underneath it
+   *  regardless of how wide any given piece's own plate/token happens to be
+   *  (phase-5 target #2 — see tableProjection.ts's header). */
+  spaceDiamPx: number;
   /** Rim color for the in-plane base disc — a player's own token color reads
    *  as "whose piece is this" even before the figure billboards into view.
    *  Defaults to a neutral parchment tone for pieces with no owner color
@@ -93,7 +125,7 @@ export const TableStandeeAnchor = ({
   tiltDeg,
   widthPx,
   heightPx,
-  shadowWidthFactor = 0.7,
+  spaceDiamPx,
   baseAccent = "rgba(250, 240, 222, 0.55)",
   anim = null,
   onAnimComplete,
@@ -106,12 +138,34 @@ export const TableStandeeAnchor = ({
   ...rest
 }: TableStandeeAnchorProps) => {
   const placement = placeStandee(y, tiltDeg);
-  const baseW = widthPx * shadowWidthFactor;
-  // A standee's base reads as an ELLIPSE lying flat, not a circle — same
-  // foreshortening a space's own disc gets from the ambient tilt (see the
-  // header comment), so no extra maths: a shape roughly 0.4× as tall as it is
-  // wide looks right across the whole tilt range this feature supports.
-  const baseH = baseW * 0.4;
+  // A PLAIN CIRCLE, sized off the space's own diameter — exactly how
+  // `TableSpace` draws its own disc. The ambient `rotateX` on the shared
+  // ancestor stage plane foreshortens this into the correctly-proportioned
+  // ellipse "for free" (see tableProjection.ts's header comment on this same
+  // effect), so — unlike the pre-phase-5 version — nothing here pre-squashes
+  // it: a manual squash would double up with that ambient foreshortening and
+  // produce the wrong shape, which is exactly what made the base disagree
+  // with the space ellipse it should read as sitting inside.
+  const baseDiamPx = standeeBaseDiameterPx(spaceDiamPx);
+
+  // Contact shadow (phase-5 target #3): ONE fixed direction, applied as a
+  // fraction of the base's OWN diameter so it scales with the piece the way
+  // everything else here does, then stretched (both farther AND softer) the
+  // deeper into the board a piece stands — see `standeeShadowStretch`'s own
+  // comment on why this is a deliberate atmospheric cue rather than a
+  // physically exact one.
+  const shadowStretch = standeeShadowStretch(y);
+  const shadowDiamPx = baseDiamPx * 0.92;
+  const shadowOffsetXPx = baseDiamPx * SHADOW_OFFSET_X * shadowStretch;
+  const shadowOffsetYPx = baseDiamPx * SHADOW_OFFSET_Y * shadowStretch;
+  // The gradient's own inner/outer split softens as `shadowStretch` grows —
+  // a lower peak alpha and a wider low-alpha ring read as "softer-edged" at
+  // no extra paint cost over the sharper near-edge version, since both are
+  // the same single `radial-gradient` fill (never a `filter: blur()` — see
+  // this file's own header comment on why that matters on a phone with many
+  // standees on screen at once).
+  const shadowPeakAlpha = 0.5 / shadowStretch;
+  const shadowGradient = `radial-gradient(ellipse, rgba(0,0,0,${shadowPeakAlpha.toFixed(3)}) 0%, rgba(0,0,0,${(shadowPeakAlpha * 0.45).toFixed(3)}) 55%, rgba(0,0,0,0) 100%)`;
 
   const steps = anim ? anim.xs.length : 1;
   const animate = anim
@@ -145,22 +199,24 @@ export const TableStandeeAnchor = ({
       {...rest}
     >
       {/* Contact shadow — flat, in-plane, foreshortened by the SAME ancestor
-          tilt as a space's disc, never counter-rotated. Offset further "away"
-          (down-board) than the base disc itself so it reads as light falling
-          from up-board rather than sitting dead-center under the figure —
-          the SAME offset direction for every standee on the board, so the
-          whole scene reads as one consistent light source rather than a
-          per-piece special effect (phase-3 "contact shadow" requirement). */}
+          tilt as a space's disc, never counter-rotated. Centered on the SAME
+          anchor point as the base below (bottom:0 + translate(-50%,+50%) —
+          see the base's own comment for why that combination lands exactly
+          on-center), then nudged by the fixed `SHADOW_OFFSET_X/Y` vector so
+          it reads as light falling from one consistent direction rather than
+          sitting dead-center under the figure — the SAME offset for every
+          standee on the board (phase-3 "contact shadow" requirement; the
+          offset itself and its distance-based stretch are phase-5 target
+          #3 — see tableProjection.ts's header). */}
       <Box
         position="absolute"
-        bottom="-11%"
+        bottom="0"
         left="50%"
-        w={`${baseW}px`}
-        h={`${baseH * 0.85}px`}
-        style={{ transform: "translate(-50%, 0)" }}
+        w={`${shadowDiamPx}px`}
+        h={`${shadowDiamPx}px`}
+        style={{ transform: `translate(calc(-50% + ${shadowOffsetXPx.toFixed(2)}px), calc(50% + ${shadowOffsetYPx.toFixed(2)}px))` }}
         borderRadius="50%"
-        bg="rgba(0,0,0,0.55)"
-        filter="blur(3px)"
+        bg={shadowGradient}
         pointerEvents="none"
       />
       {/* The standee BASE — a flat plastic-disc stand-in, IN the board plane
@@ -172,14 +228,22 @@ export const TableStandeeAnchor = ({
           TableFighterStandee), so the rim here is thicker and paired with a
           dark outer ring that reads regardless of what's under it, making
           the base — not a border around the whole plate — the one and only
-          place ownership shows. */}
+          place ownership shows.
+          `bottom:0` puts the disc's OWN bottom edge at the anchor's bottom
+          edge (the (x,y) point every other piece here is placed at);
+          `translate(-50%, +50%)` then centers it exactly ON that point (the
+          Y half shifts it down by half of the disc's OWN height, same
+          convention `TableSpace` uses via `translate(-50%,-50%)` off a
+          top/left-positioned box) — phase-5 target #2's concentricity fix:
+          zero hand-tuned offset, so nothing can push the base off-center
+          from the space it stands on again. */}
       <Box
         position="absolute"
-        bottom="-6%"
+        bottom="0"
         left="50%"
-        w={`${baseW}px`}
-        h={`${baseH}px`}
-        style={{ transform: "translate(-50%, 0)" }}
+        w={`${baseDiamPx}px`}
+        h={`${baseDiamPx}px`}
+        style={{ transform: "translate(-50%, 50%)" }}
         borderRadius="50%"
         bg="radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.28) 0%, rgba(20,10,24,0.82) 65%, rgba(8,4,10,0.95) 100%)"
         border={`2.5px solid ${baseAccent}`}

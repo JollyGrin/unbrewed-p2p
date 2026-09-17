@@ -74,7 +74,9 @@ export const TableSidekickToken = ({
       tiltDeg={tiltDeg}
       widthPx={sizePx}
       heightPx={sizePx}
-      shadowWidthFactor={0.85}
+      // Base derived from the space's own footprint, not this token's own
+      // (slightly larger, `SIDEKICK_WIDTH_FACTOR`) size — phase-5 target #2.
+      spaceDiamPx={diamPx}
       baseAccent={playerColor}
       anim={anim}
       onAnimComplete={onAnimComplete}

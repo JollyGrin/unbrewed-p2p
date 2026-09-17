@@ -1,7 +1,12 @@
 import {
+  BASE_TO_SPACE_DIAMETER_RATIO,
+  BOARD_EDGE_FIT_RESERVE_FACTOR,
+  BOARD_THICKNESS_RATIO,
   DEFAULT_TILT_DEG,
+  EDGE_FOLD_DEG,
   MAX_TILT_DEG,
   PERSPECTIVE_RATIO,
+  SHADOW_STRETCH_FAR,
   STANDEE_ART_TRANSFORM_ORIGIN,
   STANDEE_ART_ZOOM,
   STANDEE_DOME_Y,
@@ -11,8 +16,12 @@ import {
   STANDEE_WAIST_Y,
   TABLE_FOCUS_CAP_FLOOR_PX,
   TABLE_HIT_PAD_FAR,
+  TABLE_YAW_DEG,
   Z_BASE,
+  Z_BOARD_EDGE,
   Z_RANGE,
+  boardEdgeFitReservePx,
+  boardThicknessPx,
   boardTransform,
   clampTilt,
   convergenceRatio,
@@ -22,7 +31,9 @@ import {
   placeStandee,
   standeeArtTransform,
   standeeArtVisibleTopFraction,
+  standeeBaseDiameterPx,
   standeeScale,
+  standeeShadowStretch,
   standeeSilhouettePath,
   standeeTransform,
   standeeZIndex,
@@ -336,5 +347,124 @@ describe("tableFocusCapDiameterPx (phase-3 fault #2 — 'the tilted view zooms i
 
   it("is exactly the floor at the boundary", () => {
     expect(tableFocusCapDiameterPx(TABLE_FOCUS_CAP_FLOOR_PX)).toBe(TABLE_FOCUS_CAP_FLOOR_PX);
+  });
+});
+
+describe("boardThicknessPx (phase-5 fault #1 — 'the board has no thickness')", () => {
+  it("scales with the board's own rendered width, like PERSPECTIVE_RATIO does", () => {
+    expect(boardThicknessPx(800)).toBe(boardThicknessPx(400) * 2);
+    expect(boardThicknessPx(1300)).toBeCloseTo(1300 * BOARD_THICKNESS_RATIO, 10);
+  });
+
+  it("never collapses to zero, which would erase the edge entirely", () => {
+    expect(boardThicknessPx(0)).toBeGreaterThan(0);
+    expect(boardThicknessPx(-50)).toBeGreaterThan(0);
+  });
+
+  it("stays a slab, not a box-lid — comparable to, not many times, a space's own diameter", () => {
+    // DEFAULT_DIAMETER in TableBoard.tsx (0.021) is the space-diameter fraction
+    // this was tuned to land near — a board noticeably thicker than its own
+    // pieces would read as a lid, not a board.
+    expect(BOARD_THICKNESS_RATIO).toBeGreaterThan(0.01);
+    expect(BOARD_THICKNESS_RATIO).toBeLessThan(0.04);
+  });
+});
+
+describe("EDGE_FOLD_DEG (phase-5 fault #1 — a bevel the verification engine can actually render)", () => {
+  it("folds only part way — short of the perpendicular 90° a true cube face would need", () => {
+    expect(EDGE_FOLD_DEG).toBeGreaterThan(0);
+    expect(EDGE_FOLD_DEG).toBeLessThan(90);
+  });
+
+  it("keeps a comfortable margin either side of the degenerate values", () => {
+    // The verification engine's isolated repro (see this file's "Board
+    // thickness" comment) pinned the failure to the CHILD's OWN local fold
+    // value landing at exactly 90° — not to any angle "net" of the ambient
+    // tilt/yaw it composes with (a fold well short of 90°, like this one,
+    // stayed visible at every `MIN_TILT_DEG`/`MAX_TILT_DEG`/`TABLE_YAW_DEG`
+    // combination tried). 45° sits at the midpoint, as far from the "flap
+    // invisible behind the board's own face" end (0°) as from the
+    // degenerate end (90°).
+    expect(EDGE_FOLD_DEG).toBeGreaterThan(15);
+    expect(EDGE_FOLD_DEG).toBeLessThan(75);
+  });
+});
+
+describe("boardEdgeFitReservePx (phase-5 fault #1 — 'the edge gets clipped by a cramped mobile fit')", () => {
+  it("reserves MORE than the flat thickness — the edge's own on-screen extent, not its unprojected depth", () => {
+    expect(boardEdgeFitReservePx(1000)).toBeGreaterThan(boardThicknessPx(1000));
+    expect(boardEdgeFitReservePx(1000)).toBe(boardThicknessPx(1000) * BOARD_EDGE_FIT_RESERVE_FACTOR);
+  });
+
+  it("scales with the board's own rendered width", () => {
+    expect(boardEdgeFitReservePx(800)).toBe(boardEdgeFitReservePx(400) * 2);
+  });
+
+  it("stays a deliberately generous multiple, not a barely-over-1 margin", () => {
+    expect(BOARD_EDGE_FIT_RESERVE_FACTOR).toBeGreaterThan(1.2);
+  });
+});
+
+describe("Z_BOARD_EDGE (phase-5 fault #1)", () => {
+  it("stays under the standee stacking band, so a piece never renders behind the board's own body", () => {
+    expect(Z_BOARD_EDGE).toBeLessThan(Z_BASE);
+  });
+});
+
+describe("standeeBaseDiameterPx (phase-5 fault #2 — 'the base and the space don't agree')", () => {
+  it("derives directly from the space's own rendered diameter, not a fixed constant", () => {
+    expect(standeeBaseDiameterPx(40)).toBe(40 * BASE_TO_SPACE_DIAMETER_RATIO);
+    expect(standeeBaseDiameterPx(80)).toBe(standeeBaseDiameterPx(40) * 2);
+  });
+
+  it("sits INSIDE the space's own footprint rather than swamping it", () => {
+    expect(BASE_TO_SPACE_DIAMETER_RATIO).toBeLessThan(1);
+    // ...but not so far inside that it reads as a stray marker instead of a
+    // base the figure is visibly standing on.
+    expect(BASE_TO_SPACE_DIAMETER_RATIO).toBeGreaterThan(0.7);
+  });
+
+  it("never returns a negative diameter for a degenerate (zero or negative) space size", () => {
+    expect(standeeBaseDiameterPx(0)).toBe(0);
+    expect(standeeBaseDiameterPx(-10)).toBe(0);
+  });
+});
+
+describe("standeeShadowStretch (phase-5 fault #3 — 'cast shadows... softening/lengthening with distance')", () => {
+  it("is exactly 1 (baseline) at the near edge", () => {
+    expect(standeeShadowStretch(1)).toBe(1);
+  });
+
+  it("reaches the full stretch budget at the far edge", () => {
+    expect(standeeShadowStretch(0)).toBe(SHADOW_STRETCH_FAR);
+  });
+
+  it("grows monotonically as a piece recedes", () => {
+    expect(standeeShadowStretch(0.2)).toBeGreaterThan(standeeShadowStretch(0.8));
+  });
+
+  it("clamps coordinates that stray outside the board image", () => {
+    expect(standeeShadowStretch(-3)).toBe(SHADOW_STRETCH_FAR);
+    expect(standeeShadowStretch(9)).toBe(1);
+  });
+
+  it("always stretches farther, never shrinks a shadow below its near-edge baseline", () => {
+    expect(SHADOW_STRETCH_FAR).toBeGreaterThan(1);
+  });
+});
+
+describe("boardTransform with yaw (phase-5 fault #4 — 'perfectly square to the viewer')", () => {
+  it("renders byte-identical to the pre-phase-5 output when yaw is omitted", () => {
+    expect(boardTransform(48)).toBe("rotateX(48deg)");
+    expect(boardTransform(48, 0)).toBe("rotateX(48deg)");
+  });
+
+  it("composes the yaw OUTSIDE (to the left of) the tilt, so it applies last — a camera move, not a spin", () => {
+    expect(boardTransform(48, TABLE_YAW_DEG)).toBe(`rotateY(${TABLE_YAW_DEG}deg) rotateX(48deg)`);
+  });
+
+  it("stays restrained — perceptible without reading as crooked", () => {
+    expect(TABLE_YAW_DEG).toBeGreaterThan(0);
+    expect(TABLE_YAW_DEG).toBeLessThan(6);
   });
 });

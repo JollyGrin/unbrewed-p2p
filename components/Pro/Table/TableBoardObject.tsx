@@ -45,7 +45,9 @@ export const TableBoardObject = ({
       tiltDeg={tiltDeg}
       widthPx={sizePx}
       heightPx={sizePx}
-      shadowWidthFactor={0.8}
+      // Base derived from the space's own footprint, not this object's own
+      // (slightly smaller, `OBJECT_WIDTH_FACTOR`) size — phase-5 target #2.
+      spaceDiamPx={diamPx}
       baseAccent={playerColor}
       title={title}
     >
