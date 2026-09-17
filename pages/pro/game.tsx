@@ -72,6 +72,7 @@ import {
   TbChevronDown,
   TbExternalLink,
   TbInfoCircle,
+  TbCards,
   TbList,
   TbSearch,
   TbSword,
@@ -80,6 +81,7 @@ import {
   TbZoomIn,
 } from "react-icons/tb";
 import { DeckAttribution } from "@/components/Pro/DeckAttribution";
+import { ProDiscardsSheet } from "@/components/Pro/ProDiscardsSheet";
 import { CardFace, ProHand } from "@/components/Pro/ProHand";
 import { cardChoiceGroups } from "@/lib/pro/cardChoices";
 import { CardPreviewProvider } from "@/components/Pro/CardPreview";
@@ -4639,6 +4641,10 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // Log button opens. The hand is a drawer on mobile portrait (direction B) —
   // closed at rest, so the board keeps the whole screen.
   const [logOpen, setLogOpen] = useState(false);
+  // "Which cards are gone?" is asked all game and decides whether an attack is
+  // safe. Both piles are public; on a phone they used to sit two taps deep in a
+  // seat sheet, so they get their own button next to the log (player feedback).
+  const [discardsOpen, setDiscardsOpen] = useState(false);
   const [handOpen, setHandOpen] = useState(false);
 
   // Choose-a-player card faces (issue #861 — The Narrator's Foreshadowing): the
@@ -7071,6 +7077,19 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
 
       {/* activity feed — bottom-left parchment panel on desktop; on mobile the
           same panel as a sheet the match strip's log button opens (#708). */}
+      <ProDiscardsSheet
+        isOpen={discardsOpen}
+        onClose={() => setDiscardsOpen(false)}
+        seats={view.players.map((seat) => ({
+          id: seat.id,
+          name: view.fighters.find((f) => f.owner === seat.id && f.kind === "HERO")?.name ?? seat.id.toUpperCase(),
+          discard: seat.discard,
+          you: seat.id === view.you,
+        }))}
+        resolveCard={resolveCard}
+        labelFor={(c) => cardLabel(view.catalog, c)}
+      />
+
       <ProLog
         entries={logEntries}
         resolveCard={resolveCard}
@@ -7151,6 +7170,15 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
             >
               <TbList size="1rem" /> Log
             </Flex>
+            <Flex
+              {...MOBILE_BTN}
+              as="button"
+              aria-label="Discard piles"
+              pointerEvents="auto"
+              onClick={() => setDiscardsOpen(true)}
+            >
+              <TbCards size="1rem" /> Played
+            </Flex>
             <HandDecisionWatcher promptKey={handDecision} onOpen={() => setHandOpen(true)} />
             {!handPeekHidden && (
               <ProMobileHand
@@ -7206,6 +7234,16 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
               onClick={() => setLogOpen(true)}
             >
               <TbList size="0.9rem" /> Log
+            </Flex>
+            <Flex
+              {...MOBILE_BTN}
+              as="button"
+              aria-label="Discard piles"
+              minH={TAP_TARGET}
+              px="0.6rem"
+              onClick={() => setDiscardsOpen(true)}
+            >
+              <TbCards size="0.9rem" /> Played
             </Flex>
             <Box flex={1} />
             <ProMobileMenu {...hudProps} placement="bottom-end" onForfeit={canForfeit && view.phase === "PLAY" && !view.winner ? () => setForfeitOpen(true) : undefined} />
