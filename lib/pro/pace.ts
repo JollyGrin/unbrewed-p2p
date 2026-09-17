@@ -33,7 +33,14 @@ export const PACE_OPTIONS: readonly PaceOption[] = [
   { id: "slow", label: "Slow", factor: 2 },
 ];
 
-export const DEFAULT_PACE: Pace = "normal";
+/** The pace a first-time player sees before ever opening the menu (issue: player
+ *  feedback — "make the animation itself slow enough to read the card, without
+ *  having to change a setting first"). The MIDDLE option, not the fastest: a
+ *  player who has never touched the setting should be able to read a combat on
+ *  the first try. "Normal" keeps meaning the author's original 1× timing — it is
+ *  still the first, fastest option a player can dial back down to; it is simply
+ *  no longer the untouched default. */
+export const DEFAULT_PACE: Pace = "relaxed";
 
 const OPTION_BY_ID: Record<Pace, PaceOption> = Object.fromEntries(
   PACE_OPTIONS.map((option) => [option.id, option])

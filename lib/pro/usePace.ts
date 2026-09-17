@@ -5,11 +5,14 @@
  * `lib/voice/voiceStorage.ts` so a private window / blocked storage can never
  * throw.
  *
- * Defaults to Normal (today's pace) — a player who never touches the setting
- * must see the game exactly as it played before this feature. The stored
- * value is the pace id; anything that doesn't name a real pace (an older
- * build, a hand-edited entry) falls back to the default rather than being
- * trusted.
+ * Defaults to Relaxed (DEFAULT_PACE, pace.ts) — player feedback after Combat
+ * pace shipped was that even a first-time player, who has never opened this
+ * menu, needs the slower reveal to read a card before it's gone. A returning
+ * player who explicitly dialed back to Normal still gets exactly today's
+ * (Normal's) 1× timing — the default only changes what an UNTOUCHED device
+ * sees. The stored value is the pace id; anything that doesn't name a real
+ * pace (an older build, a hand-edited entry) falls back to the default
+ * rather than being trusted.
  *
  * The setting itself does nothing here — it is read by the page and threaded
  * as a scale factor into useGameFx / useCombatCallouts / useCombatStrike /
