@@ -682,6 +682,49 @@ describe("useCombatStrike", () => {
   });
 });
 
+/** Combat pace (lib/pro/pace.ts): a slower factor must stretch how long the
+ *  strike and the frozen panel stay up, not just how they look — this is the
+ *  #517 invariant playing out through the hook's own timers. */
+describe("useCombatStrike at a slower pace", () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  const snap = (v: PlayerView, events: GameEvent[] = []) => ({ view: v, events });
+
+  it("keeps the strike alive past the 1× TTL, and clears it once the scaled TTL elapses", () => {
+    const { result, rerender } = renderHook(
+      (props: { s: ReturnType<typeof snap> }) => useCombatStrike(props.s, 2),
+      { initialProps: { s: snap(view({ combat: combat({ stage: "DURING" }) })) } }
+    );
+    act(() => rerender({ s: snap(view({ combat: null }), resolvedEnded("ATTACKER_WON", 3)) }));
+    expect(result.current.strike?.variant).toBe("win");
+
+    // The unscaled (1×) TTL alone must NOT be enough at factor 2 — this is the
+    // whole point of the feature: the same beat now reads twice as long.
+    act(() => jest.advanceTimersByTime(STRIKE_TTL_MS + 20));
+    expect(result.current.strike).not.toBeNull();
+
+    // The rest of the scaled TTL (~2× total) does clear it.
+    act(() => jest.advanceTimersByTime(STRIKE_TTL_MS));
+    expect(result.current.strike).toBeNull();
+  });
+
+  it("lingers the panel past the 1× linger TTL at factor 2", () => {
+    const { result, rerender } = renderHook(
+      (props: { s: ReturnType<typeof snap> }) => useCombatStrike(props.s, 2),
+      { initialProps: { s: snap(view({ combat: combat({ stage: "DURING" }) })) } }
+    );
+    act(() => rerender({ s: snap(view({ combat: null }), resolvedEnded("ATTACKER_WON", 2)) }));
+    expect(result.current.lingeringCombat).not.toBeNull();
+
+    act(() => jest.advanceTimersByTime(LINGER_TTL_MS + 20));
+    expect(result.current.lingeringCombat).not.toBeNull();
+
+    act(() => jest.advanceTimersByTime(LINGER_TTL_MS));
+    expect(result.current.lingeringCombat).toBeNull();
+  });
+});
+
 /**
  * #602's invariant, the same rule #520 set for `LINGER_TTL_MS`: the hold window is
  * DERIVED from the arc's clock, never hand-tuned. These fail the moment someone

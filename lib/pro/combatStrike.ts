@@ -24,7 +24,7 @@ import {
   ViewCombat,
   ViewCombatCard,
 } from "./protocol";
-import { LINGER_HOLD_MS, LINGER_TTL_MS, STRIKE_TTL_MS } from "./combatTiming";
+import { LINGER_HOLD_MS, LINGER_TTL_MS, STRIKE_TTL_MS, scaledCombatTiming } from "./combatTiming";
 import { isNoWinner } from "./combatOutcome";
 import { isFaceUpPreRevealAttack } from "./faceUpCommit";
 
@@ -347,7 +347,13 @@ export function captureLingeringCombat(
  *    reveals or resolves, so presentation never lags more than one combat behind.
  */
 export function useCombatStrike(
-  snapshot: { view: PlayerView; events: GameEvent[] } | null
+  snapshot: { view: PlayerView; events: GameEvent[] } | null,
+  /** Combat pace (lib/pro/pace.ts) as a plain multiplier — 1 = today's pace
+   *  (the module-level LINGER_HOLD_MS/LINGER_TTL_MS/STRIKE_TTL_MS below).
+   *  Stretches the strike's on-screen life and the panel's linger/hold
+   *  proportionally with the arc and damage beat those numbers are derived
+   *  from (see `scaledCombatTiming` in combatTiming.ts). */
+  paceFactor = 1
 ): {
   strike: CombatStrike | null;
   lingeringCombat: ViewCombat | null;
@@ -373,6 +379,10 @@ export function useCombatStrike(
    *  closes, so a combat that has been waiting behind the hold takes the panel on
    *  that timer rather than on the next server batch. */
   const liveCombatRef = useRef(false);
+  // Latest pace, read without re-subscribing the diff effect — a pace change
+  // mid-sequence applies to the NEXT combat's timers, not the ones in flight.
+  const paceRef = useRef(paceFactor);
+  paceRef.current = paceFactor;
 
   /** Drop the frozen panel and every timer attached to it — the live combat (or an
    *  empty panel) takes over on this render. */
@@ -401,6 +411,9 @@ export function useCombatStrike(
     const next = snapshot.view;
     prevViewRef.current = next;
     liveCombatRef.current = !!next.combat;
+    // The clock this batch's timers are set against — factor 1 reproduces the
+    // module-level LINGER_HOLD_MS/LINGER_TTL_MS/STRIKE_TTL_MS exactly.
+    const timing = scaledCombatTiming(paceRef.current);
 
     // A live combat on screen used to cancel the frozen one on the spot — which is
     // exactly the chained-attack bug (#602): combat 2's COMMIT lands 1-2s after
@@ -430,7 +443,7 @@ export function useCombatStrike(
       if (!s.suppressStrike) {
         setStrike(s);
         if (strikeTimerRef.current) clearTimeout(strikeTimerRef.current);
-        strikeTimerRef.current = setTimeout(() => setStrike(null), STRIKE_TTL_MS);
+        strikeTimerRef.current = setTimeout(() => setStrike(null), timing.strikeTtlMs);
       }
     }
 
@@ -474,12 +487,12 @@ export function useCombatStrike(
       // own linger.
       if (liveCombatRef.current) dropLinger();
       else setLingerHold(false);
-    }, LINGER_HOLD_MS);
+    }, timing.lingerHoldMs);
     lingerTimerRef.current = setTimeout(() => {
       lingerTimerRef.current = null;
       setLingeringCombat(null);
       setLingerHold(false);
-    }, LINGER_TTL_MS);
+    }, timing.lingerTtlMs);
   }, [snapshot]);
 
   return { strike, lingeringCombat, lingerHold };
