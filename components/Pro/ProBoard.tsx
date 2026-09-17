@@ -18,6 +18,7 @@ import { ZoomPanInset, useZoomPan } from "@/lib/pro/useZoomPan";
 import { useCoarsePointer } from "@/lib/pro/useCoarsePointer";
 import { nearestNeighbourPx, touchHitPercent } from "@/lib/pro/touchTargets";
 import { LARGE_REACH_TARGET_BLURB } from "@/lib/pro/largeReach";
+import { bandLabelText, bandMidpoint } from "@/lib/pro/twoSpaceBand";
 import { PendingSwap, SWAP_SECONDS, SWAP_TIMES } from "@/lib/pro/positionSwap";
 import { tokenInitials } from "./FighterTokenPortrait";
 import { TokenIdle, TokenLifeLayer, phaseSeed } from "./TokenLifeLayer";
@@ -1816,7 +1817,10 @@ export const ProBoard = ({
 
       {/* two-space fighter bands — the "string" tying head and tail together.
           viewBox 0-100 with preserveAspectRatio="none" maps the normalized
-          space coords straight onto the stretched image. */}
+          space coords straight onto the stretched image. Widths bumped from
+          the original 0.52/0.36 (real player feedback: at phone zoom the band
+          was too thin to register as "these two tokens are joined" rather
+          than "two tokens that happen to sit next to each other"). */}
       {frameTwoSpace.length > 0 && (
         <svg
           viewBox="0 0 100 100"
@@ -1844,7 +1848,7 @@ export const ProBoard = ({
                 x2={tail.x * 100}
                 y2={tail.y * 100}
                 stroke="#fff"
-                strokeWidth={diam * 0.52}
+                strokeWidth={diam * 0.58}
                 strokeLinecap="round"
                 opacity={0.9}
               />,
@@ -1855,13 +1859,57 @@ export const ProBoard = ({
                 x2={tail.x * 100}
                 y2={tail.y * 100}
                 stroke={color}
-                strokeWidth={diam * 0.36}
+                strokeWidth={diam * 0.42}
                 strokeLinecap="round"
               />,
             ];
           })}
         </svg>
       )}
+
+      {/* two-space fighter identity label — real player feedback: a LARGE
+          body's head and tail tokens are the same color and (since issue
+          #247) both already carry the fighter's initials, but two
+          identically-lettered circles joined by a band still read as "two
+          fighters that happen to match" at phone zoom, and a LARGE
+          attacker's 2-space melee reach (largeReach.ts) means either circle
+          can be a live attack target — so "which one is actually Appa" was a
+          genuine in-play question. Anchored at the band's own midpoint (the
+          one spot that belongs to neither token alone) so it reads as "this
+          ties these two into one fighter" independent of whether the
+          initials match is even noticed. `pointerEvents: none` — this is a
+          read-only label, never a third click target. */}
+      {frameTwoSpace.map((f) => {
+        const head = spaceById.get(f.space as SpaceId);
+        const tail = spaceById.get(f.tailSpace as SpaceId);
+        if (!head || !tail) return null;
+        const mid = bandMidpoint(head, tail);
+        const color = PLAYER_COLOR[f.owner] ?? "#999";
+        return (
+          <Flex
+            key={`${f.id}-band-label`}
+            position="absolute"
+            left={`${mid.x * 100}%`}
+            top={`${mid.y * 100}%`}
+            transform={`translate(-50%, -50%)${upright}`}
+            pointerEvents="none"
+            bg="brand.surfaceDim"
+            color="brand.parchment"
+            border={`1.5px solid ${color}`}
+            borderRadius="999px"
+            px="0.4em"
+            fontSize="0.62rem"
+            fontWeight="bold"
+            letterSpacing="-0.01em"
+            lineHeight="1.5"
+            whiteSpace="nowrap"
+            boxShadow="0 1px 3px rgba(0,0,0,0.75)"
+            zIndex={4}
+          >
+            {bandLabelText(f.name)}
+          </Flex>
+        );
+      })}
 
       {/* attack arrow (issue #148): attacker -> target, so the board shows who is
           hitting whom while the combat panel resolves. Sits just under the tokens
