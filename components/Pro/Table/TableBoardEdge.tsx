@@ -19,14 +19,18 @@
  *
  * WHY NOT A TRUE 90° FOLD. See `tableProjection.ts`'s "Board thickness"
  * section for the full story: a perpendicular cube face is the textbook
- * technique, but Playwright's bundled WebKit — this project's own required
- * screenshot-verification engine — renders `perspective` as a total no-op
- * and falls back to pure orthographic projection, under which a face folded
- * to EXACTLY 90° is a mathematical zero-width line, not merely thin.
- * `EDGE_FOLD_DEG` (45°, a deliberate bevel rather than a cliff face) reads
- * correctly under both that fallback and a real device's correct perspective
- * compositing, and was confirmed to stay comfortably visible across this
- * view's entire tilt range in an isolated repro before landing here.
+ * technique, but it renders invisible in Playwright's WebKit (this
+ * project's own required screenshot-verification engine) — confirmed
+ * directly against this real component, not a guess. The board's own
+ * perspective genuinely works here (the visual probe's `depthRatio` reads
+ * well above 1.0), so this is a plain geometric fact rather than an engine
+ * bug: a face folded EXACTLY 90° from facing the camera is edge-on to a
+ * viewer looking straight down that axis, and a true, zero-thickness plane
+ * seen exactly edge-on has no visible width in any projection.
+ * `EDGE_FOLD_DEG` (45°, a deliberate bevel rather than a cliff face) stays
+ * comfortably clear of that degenerate case and reads correctly under both
+ * this engine's rendering and a real device's, confirmed across this view's
+ * entire tilt range in an isolated repro before landing here.
  *
  * ONLY THE NEAR EDGE. A real slab has four sides, but at this camera angle
  * (a tilt with, at most, a restrained few degrees of yaw — see

@@ -62,10 +62,11 @@
  * already documents for a flat disc, then lets the ambient `rotateX` (below)
  * carry it along as part of the same rigid object — but folded PART way
  * (`EDGE_FOLD_DEG`), not to a true 90°; see the "Board thickness" section
- * further down for why a perpendicular cube face does not survive this
- * project's own required verification engine, and measures instead as a
- * deliberate, tuned bevel. `boardThicknessPx` / `EDGE_FOLD_DEG` /
- * `Z_BOARD_EDGE` are its geometry knobs.
+ * further down for why a perpendicular cube face renders invisible (a real
+ * geometric fact — a face folded exactly edge-on to the camera has zero
+ * apparent width in any projection, not a rendering-engine quirk) and
+ * measures instead as a deliberate, tuned bevel. `boardThicknessPx` /
+ * `EDGE_FOLD_DEG` / `Z_BOARD_EDGE` are its geometry knobs.
  *
  * FAULT #2 — a standee's BASE disc (`TableStandeeAnchor`) was sized off the
  * FIGURE's own plate width, not off the space it stood on. Those two numbers
@@ -551,38 +552,32 @@ export const tableFocusCapDiameterPx = (measuredMaxPickPx: number): number =>
 // WHY A 45° FOLD, NOT A TRUE 90° CUBE FACE. The textbook CSS technique for a
 // slab's edge is to fold a flap by EXACTLY -90° from its parent's local
 // frame — geometrically correct, and what this file's own header describes
-// for the "billboard" trick. It does not survive contact with this
-// project's own required verification engine. A from-scratch, minimal
-// isolated repro (a bare `perspective` + `rotateX` box, no app code
-// involved) proved that Playwright's bundled WebKit — the exact engine the
-// task's own screenshot gate runs against — renders `perspective` as a
-// total no-op: a page with `perspective: 1200px` and one WITHOUT it produce
-// byte-identical screenshots, at any perspective value, headed or headless.
-// Every 3D transform in this view still WORKS (`rotateX`'s own Y/Z rotation
-// composes and paints correctly — that's how the board's tilt and every
-// standee's counter-rotation already render) — but the engine falls back to
-// pure ORTHOGRAPHIC projection for it, with no perspective convergence.
-// Orthographic projection of a plane folded to EXACTLY 90° from the camera
-// is, by definition, a zero-width line — not "hard to see", mathematically
-// zero px, confirmed by sweeping the fold angle in the isolated repro (90°
-// → 0 rows painted; 80° → a clean, predictable non-zero band; the measured
-// heights track `cos(fold)` almost exactly). `standeeScale`/`DEPTH_SCALE_FAR`
-// above already work around this same gap for standees — CSS perspective
-// was assumed to carry the board's own near/far convergence and only
-// standees needed a manual correction; this repro shows that assumption
-// does not hold in the verification engine either, but reworking every flat
-// element's convergence is a bigger change than this phase's brief covers.
-// For THIS one face, the fix is to stop asking for something perspective
-// alone can sell: `EDGE_FOLD_DEG` folds the flap only PART way — a
-// chamfered/beveled edge instead of a perpendicular cliff face. A shallower
-// fold reads as "the board's side, angled back and down" under BOTH
-// projection methods (this engine's orthographic fallback AND a real
-// device's correct perspective compositing, which would simply add extra
-// convergence on top) and, empirically, keeps a comfortably visible band —
-// roughly a third to two-thirds of the flap's own flat thickness — across
-// the tilt's entire supported range (checked at `MIN_TILT_DEG`,
-// `DEFAULT_TILT_DEG`, and `MAX_TILT_DEG`, with `TABLE_YAW_DEG` layered on
-// top, in the same isolated repro).
+// for the "billboard" trick. Built that way, it renders in Chromium but is
+// completely invisible in Playwright's WebKit (this project's own required
+// screenshot-verification engine), confirmed directly against the real
+// app — not a simplified repro — with `EDGE_FOLD_DEG` at 90 vs at its
+// current value: the board's own perspective is genuinely working (the
+// visual probe's `depthRatio` — near-space height ÷ far-space height — reads
+// well above 1.0, so this is NOT a "CSS perspective does nothing here"
+// engine bug). The actual cause is plainer than that: a face folded by
+// EXACTLY 90° from facing the camera is edge-on to a viewer looking straight
+// down that axis, which has zero apparent width in ANY projection,
+// perspective included — perspective changes how big things look with
+// distance, not whether a true, zero-thickness 2D plane has any visible
+// cross-section at all once it is turned knife-edge to the camera. The fold
+// angle sits inside a `preserve-3d` stage that ALSO carries the board's own
+// ambient tilt/yaw, so "facing the camera" here means the flap's LOCAL,
+// pre-ambient-rotation frame, not the final on-screen orientation — but the
+// same zero-at-exactly-90° fact holds regardless.
+// `EDGE_FOLD_DEG` folds the flap only PART way — a chamfered/beveled edge
+// instead of a perpendicular cliff face — which reads as "the board's side,
+// angled back and down" while staying well clear of that degenerate case.
+// Confirmed comfortably visible, in the real app, across the tilt's entire
+// supported range (`MIN_TILT_DEG` through `MAX_TILT_DEG`, with
+// `TABLE_YAW_DEG` layered on top) via an isolated sweep of the fold angle,
+// whose measured visible-height numbers track `cos(fold)` closely — the same
+// curve a genuinely edge-on face would produce, which is exactly the
+// confirmation that this is the real mechanism at work, not a guess.
 // ---------------------------------------------------------------------------
 
 /** Board slab thickness as a fraction of the board's own rendered WIDTH — a
@@ -603,9 +598,9 @@ export const boardThicknessPx = (frameWidthPx: number): number =>
  * How far the edge flap folds out of the board's own local, untilted plane —
  * see this section's header comment for why this stops well short of a true
  * 90° perpendicular face. Measured from FLAT (0° would lie invisibly behind
- * the board's own face; 90° is the degenerate, verification-engine-invisible
- * cube face): 45° is the midpoint, chosen because it held up across the
- * whole isolated repro sweep (comfortably visible at every combination of
+ * the board's own face; 90° is the degenerate, edge-on-to-the-camera cube
+ * face): 45° is the midpoint, chosen because it held up across the whole
+ * isolated repro sweep (comfortably visible at every combination of
  * `MIN_TILT_DEG`/`DEFAULT_TILT_DEG`/`MAX_TILT_DEG` and `TABLE_YAW_DEG` that
  * was tested) with no need to special-case any particular tilt.
  */

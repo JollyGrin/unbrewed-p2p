@@ -60,6 +60,7 @@ export const TableFighterTail = ({
       // Base derived from the space's own footprint, not this token's own
       // (slightly larger, `TAIL_WIDTH_FACTOR`) size — phase-5 target #2.
       spaceDiamPx={diamPx}
+      spaceId={fighter.tailSpace}
       baseAccent={playerColor}
       anim={anim}
       onAnimComplete={onAnimComplete}

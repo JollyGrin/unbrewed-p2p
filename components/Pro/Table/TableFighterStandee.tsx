@@ -191,6 +191,7 @@ export const TableFighterStandee = ({
       // `standeeBaseDiameterPx`'s own comment on why that's normal for a
       // standing figure on a round base, not a bug.
       spaceDiamPx={diamPx}
+      spaceId={fighter.space}
       baseAccent={playerColor}
       anim={anim}
       onAnimComplete={onAnimComplete}
