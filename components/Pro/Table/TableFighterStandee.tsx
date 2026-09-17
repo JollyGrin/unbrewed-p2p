@@ -19,7 +19,12 @@ import type { FighterId, ViewFighter } from "@/lib/pro/protocol";
 import type { FlagTokenBadge } from "@/lib/pro/heroStateFlags";
 import { fighterStatusBadgesFor } from "@/lib/pro/fighterStatuses";
 import { tokenInitials } from "@/components/Pro/FighterTokenPortrait";
-import { standeeSilhouettePath } from "@/lib/pro/tableProjection";
+import {
+  standeeArtTransform,
+  standeeSilhouettePath,
+  STANDEE_ART_TRANSFORM_ORIGIN,
+  STANDEE_FOOT_HALF_WIDTH,
+} from "@/lib/pro/tableProjection";
 import { TableAnchorAnim, TableStandeeAnchor } from "./TableStandeeAnchor";
 import { TableFighterBadges } from "./TableFighterBadges";
 
@@ -64,6 +69,56 @@ const targetPulse = keyframes`
   0%, 100% { filter: drop-shadow(0 0 3px rgba(224,168,46,0.95)) drop-shadow(0 0 6px rgba(224,168,46,0.7)) drop-shadow(0 4px 8px rgba(0,0,0,0.65)); }
   50% { filter: drop-shadow(0 0 3px rgba(224,168,46,0.45)) drop-shadow(0 0 6px rgba(224,168,46,0.25)) drop-shadow(0 4px 8px rgba(0,0,0,0.65)); }
 `;
+
+/**
+ * ART FIT (phase-4 fault #2 — a correctly-shaped silhouette still looked
+ * like "a picture lying on the space" because the square portrait inside it
+ * was never actually fitted to it). `object-fit: cover` alone leaves the
+ * source image's full height sitting in the plate untouched for this
+ * aspect-ratio pairing (see `standeeArtTransform`'s own comment in
+ * tableProjection.ts for the exact reason) — including whatever card
+ * background sits above the character's head. `standeeArtTransform` adds
+ * the extra zoom that crops that background away; this constant is its
+ * `transform-origin` counterpart, imported alongside it so the two are
+ * always applied as the matched pair they have to be.
+ */
+const artStyle = {
+  objectFit: "cover" as const,
+  objectPosition: "center top" as const,
+  transform: standeeArtTransform(),
+  transformOrigin: STANDEE_ART_TRANSFORM_ORIGIN,
+};
+
+/**
+ * Bottom fade — feathers the art into the standee BASE (TableStandeeAnchor)
+ * instead of ending on the silhouette's hard foot edge. Without this, the
+ * clip-path's flat foot line reads as the art being SLICED off, which is
+ * the opposite of "standing in a base". Deepened from the phase-3 version
+ * (which only reached 55% opacity, tuned for legibility of badges near the
+ * bottom, not for blending into the base) to a near-opaque tone close to the
+ * base disc's own darkest stop (`rgba(8,4,10,0.95)` in TableStandeeAnchor)
+ * so the two visually meet rather than jump in tone at the clip edge.
+ */
+const artBaseFade =
+  "linear-gradient(180deg, rgba(0,0,0,0) 45%, rgba(10,5,12,0.55) 80%, rgba(8,4,10,0.9) 100%)";
+
+/**
+ * Edge vignette — darkens the art toward the silhouette's own outline. These
+ * token portraits are painted on a solid card background (pale cream for
+ * King Kong, forest green for Malfurion — every hero's own color, never the
+ * same two colors), and `standeeArtTransform`'s crop cannot remove all of it
+ * without also cropping into the character (a wide head like antlers, or
+ * shoulders reaching close to the frame's own edges, can leave a sliver of
+ * that background at the very edge of the plate). Rather than chase a crop
+ * tight enough for every current and future hero's own framing, this
+ * darkens exactly the region where any leftover background would sit — the
+ * silhouette's own edge — so it reads as shadow/falloff around the figure
+ * instead of as a patch of the card it was cut from. Transparent through the
+ * center (over the face) so it never dims the part of the portrait doing
+ * the most work to read as "a figure".
+ */
+const artVignette =
+  "radial-gradient(ellipse 60% 55% at 50% 35%, rgba(0,0,0,0) 55%, rgba(6,3,8,0.6) 100%)";
 
 export interface TableFighterStandeeProps {
   fighter: ViewFighter;
@@ -128,10 +183,16 @@ export const TableFighterStandee = ({
       widthPx={widthPx}
       heightPx={heightPx}
       // Wider than the silhouette's own flared feet (STANDEE_FOOT_HALF_WIDTH
-      // * 2 = 0.76 of the plate's width — see tableProjection.ts) by a clear
-      // margin, so the base unmistakably reads as something the figure is
-      // STANDING ON rather than merely a same-size shadow under it.
-      shadowWidthFactor={0.88}
+      // * 2 — the widest keypoint since the phase-4 reorder, see
+      // tableProjection.ts) by a clear margin, so the base unmistakably
+      // reads as something the figure is STANDING ON rather than merely a
+      // same-size shadow under it. Computed from the constant, not a second
+      // hand-tuned literal, so the two can never drift back out of sync the
+      // way they did when the silhouette's widest point moved (phase-4
+      // fault #1) and this factor was left at its old, now too-narrow value.
+      // +0.12 matches the same additive margin phase-3 tuned in (0.88 base
+      // vs. the old foot fraction of 0.76).
+      shadowWidthFactor={STANDEE_FOOT_HALF_WIDTH * 2 + 0.12}
       baseAccent={playerColor}
       anim={anim}
       onAnimComplete={onAnimComplete}
@@ -163,13 +224,20 @@ export const TableFighterStandee = ({
               inset={0}
               w="100%"
               h="100%"
-              sx={{ objectFit: "cover", objectPosition: "center top" }}
+              sx={artStyle}
             />
-            <Box
-              position="absolute"
-              inset={0}
-              bg="linear-gradient(180deg, rgba(0,0,0,0) 55%, rgba(0,0,0,0.55) 100%)"
-            />
+            {/* Edge vignette UNDER the base fade: both are semi-transparent
+                overlays stacked on top of the art, and the vignette's own
+                darkening needs to read all the way to the plate's sides,
+                which the base fade (a top-to-bottom gradient only) doesn't
+                touch. Order between the two doesn't change what either
+                looks like on its own — they occupy different regions (edges
+                vs. bottom) — but keeping the vignette first mirrors "shadow
+                closest to the art, base-blend on top" from the ground up,
+                the same stacking logic TableStandeeAnchor already uses for
+                the contact shadow vs. the base disc beneath the figure. */}
+            <Box position="absolute" inset={0} bg={artVignette} />
+            <Box position="absolute" inset={0} bg={artBaseFade} />
           </>
         ) : (
           <Box position="absolute" inset={0} display="flex" alignItems="center" justifyContent="center">
