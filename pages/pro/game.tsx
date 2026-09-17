@@ -205,6 +205,9 @@ import type { MapCatalogEntry } from "@/lib/pro/mapCatalog";
 import { RANDOM_HERO_ID, resolveHeroPick } from "@/lib/pro/randomHero";
 import { parseVsParam } from "@/lib/pro/vsParam";
 import { useLobbyMatchCue } from "@/lib/pro/useLobbyMatchCue";
+import { useTurnReminder } from "@/lib/pro/useTurnReminder";
+import { useTurnReminderSetting } from "@/lib/pro/useTurnReminderSetting";
+import { TurnReminderCue } from "@/components/Pro/TurnReminderCue";
 import {
   advanceQuickMatch,
   botFallbackHref,
@@ -4173,6 +4176,11 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // paces STATE batches with. Persisted per browser; OFF leaves the socket's queue
   // layer completely inert.
   const [slowMode, toggleSlowMode] = useSlowMode();
+  // Turn reminder (player request: "I play matches alongside other things and
+  // forget it's my move") — the per-device setting, default ON. The hook that
+  // actually times the wait and fires the nudge is wired up below, once `view`
+  // and `soundOn` (useGameFx) exist.
+  const [turnReminderOn, toggleTurnReminder] = useTurnReminderSetting();
   const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } =
     useProSocket(WS_URL, debug, slowMode);
   // Read through refs inside the log effect: adding either to that effect's deps
@@ -4486,6 +4494,20 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     requiredPlayers: roomInfo?.requiredPlayers ?? 0,
     started: !!snapshot,
     hasBot: lobbyHasBot,
+    soundOn,
+  });
+
+  // Turn reminder (player request: "I play matches alongside other things and
+  // forget it's my move") — nudges this seat once its turn, or a combat
+  // defense it owes, has sat untouched for a while. `soundOn` is the SAME
+  // setting the HUD's speaker chip flips; `turnReminderOn` is its own
+  // per-device toggle (default ON, surfaced in the HUD as a bell chip).
+  // `snapshot?.view ?? null` rather than destructuring — this hook has to run
+  // unconditionally, before the pre-game early return below ever narrows
+  // `snapshot`.
+  const { pulse: turnReminderPulse } = useTurnReminder({
+    view: snapshot?.view ?? null,
+    enabled: turnReminderOn,
     soundOn,
   });
 
@@ -6627,6 +6649,8 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     slowModeOn: slowMode,
     onToggleSlowMode: toggleSlowMode,
     slowModeHolding: !!slowModeHeld,
+    turnReminderOn,
+    onToggleTurnReminder: toggleTurnReminder,
     onReportBug: () => setReportBugOpen(true),
   };
 
@@ -6940,6 +6964,14 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
         combatCallouts.map((item) => (
           <CombatCalloutOverlay key={item.key} item={item} view={view} resolveCard={resolveCard} />
         ))}
+
+      {/* Turn reminder's foreground cue (player request: nudge someone who
+          forgot it's their move) — a small, repeatable pulse, deliberately NOT
+          gated on pro-visual-fx like the callouts above: it is the on-screen
+          half of a three-channel nudge (vibration/sound/title carry the rest),
+          not decorative juice, so turning visual-fx off must not silence it
+          too. Its own dedicated toggle (turnReminderOn) is what turns it off. */}
+      <TurnReminderCue pulse={turnReminderPulse} />
 
       {/* floating player plates + room/connection chips (sandbox HUD DNA);
           report-bug chip (issue #125/#138) shares this row so it doesn't
