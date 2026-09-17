@@ -303,6 +303,15 @@ describe("ProDock stepping controls", () => {
 describe("ProDock endgame links", () => {
   const won = view({ winner: "p1" });
 
+  it("offers a Rematch link only once the rematch href is ready", () => {
+    const { rerender } = render(<ProDock {...props({ view: won })} />);
+    expect(screen.queryByRole("link", { name: /rematch/i })).toBeNull();
+
+    rerender(<ProDock {...props({ view: won, rematchHref: "/pro/game?rematch=1&hero=GINGERBREAD" })} />);
+    const link = screen.getByRole("link", { name: /rematch/i });
+    expect(link).toHaveAttribute("href", "/pro/game?rematch=1&hero=GINGERBREAD");
+  });
+
   it("labels the local deep-link as the player's own copy", () => {
     render(<ProDock {...props({ view: won, replayHref: "/pro/replays?open=r80279f0e" })} />);
 
