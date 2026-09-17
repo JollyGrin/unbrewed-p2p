@@ -448,3 +448,24 @@ describe("ProDock portrait board-pick bar (mobile step 1)", () => {
     expect(screen.getByTestId("pro-mobile-sheet")).toHaveTextContent("1 action left");
   });
 });
+
+// Phone-first (issue #TBD): the endgame sheet is force-open the moment
+// view.winner is set (see sheetForced above), so on a phone the Rematch
+// button is never behind a "tap to expand" step — it's on screen the instant
+// the game ends, same as VICTORY!/DEFEAT itself.
+describe("ProDock portrait — one-tap rematch", () => {
+  it("surfaces the Rematch button inside the force-open endgame sheet", () => {
+    render(
+      <ProDock
+        {...props({
+          view: { ...view, winner: "p1", phase: "GAME_OVER" } as unknown as PlayerView,
+          rematchHref: "/pro/game?rematch=1&hero=GINGERBREAD",
+        })}
+      />,
+    );
+
+    const sheet = screen.getByTestId("pro-mobile-sheet");
+    const link = within(sheet).getByRole("link", { name: /rematch/i });
+    expect(link).toHaveAttribute("href", "/pro/game?rematch=1&hero=GINGERBREAD");
+  });
+});
