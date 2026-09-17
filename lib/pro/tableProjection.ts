@@ -25,6 +25,29 @@
  * is strictly "further up the image = further away", so we derive the stacking
  * order from `y` directly and never depend on the 3D sort.
  *
+ * PHASE 4. One fault left once the silhouette existed at all (phase 3 below
+ * drew a non-rectangular clip, but drew it upside down) plus the art-fit
+ * problem that made even a correctly-shaped clip look like a masked
+ * rectangle:
+ *
+ * FAULT #1 — the silhouette was WIDEST at the top and tapered DOWN to the
+ * base: a funnel, or a badminton shuttlecock, not a standing figure. The
+ * root cause was `STANDEE_SHOULDER_HALF_WIDTH` being the LARGEST of the
+ * three half-widths (see `standeeSilhouettePath`'s own comment for the
+ * ordering fix) — a real standee (cardboard or a real body) is widest at
+ * its base, where it actually contacts the ground and needs to be stable,
+ * not at the head/shoulder dome near the top.
+ *
+ * FAULT #2 — a correctly-shaped clip still looked like "a picture lying on
+ * the space" rather than "a figure standing on it", because the PORTRAIT
+ * ART inside that clip was never fitted to it: `object-fit: cover` alone
+ * only crops the plate's excess WIDTH (these token portraits are square,
+ * the plate is tall — see `TableFighterStandee`'s own comment on why cover
+ * binds on height for that aspect ratio and leaves the full square,
+ * including a large expanse of pale card background above the character's
+ * head, sitting inside the plate untouched). `standeeArtTransform` below
+ * fixes this with a further, deliberate zoom.
+ *
  * PHASE 3. Two faults the phase-2 report's own screenshot audit missed
  * because it never measured actual playing size:
  *
@@ -262,29 +285,48 @@ export const pieSlicePath = (cx: number, cy: number, r: number, startDeg: number
  * same number for the left side, so the shape is always bilaterally
  * symmetric (an asymmetric standee would read as a rendering bug, not a
  * design choice). Y fractions are plain top-down fractions of the full
- * height. Ordering the three half-widths SHOULDER > FOOT > WAIST is what
- * makes this read as "a figure standing" rather than a lozenge or a blob: a
- * real standee is widest at the shoulders, and a waist strictly narrower
- * than the feet gives the outline a visible "stance" instead of tapering
- * smoothly to a point.
+ * height.
+ *
+ * PHASE 4 FIX (fault #1 — see the file header): the ordering used to be
+ * SHOULDER > FOOT > WAIST, which draws a shape that is WIDEST right under
+ * the domed head (near the top, `STANDEE_DOME_Y` down) and then tapers all
+ * the way down to the base — a funnel, or a badminton shuttlecock, not a
+ * figure standing on a space. A standing figure (human, gorilla, whatever
+ * the hero is) is narrowest at the head, flares out through the shoulders,
+ * may pinch in at the waist, and is WIDEST at its own base — the feet, or
+ * for a cardboard standee, the card's own footprint — because that is the
+ * part of the shape actually touching the ground and needing to look
+ * stable. The correct ordering is therefore FOOT > SHOULDER > WAIST: the
+ * dome-to-shoulder arc at the top stays a believable head/shoulder width,
+ * the waist still pinches in for a visible stance, and the flare below the
+ * waist now ends WIDER than the shoulders, at the plate's base, instead of
+ * narrower.
+ *
+ * The waist pinch keeps a wide margin against BOTH neighbors (not just the
+ * shoulder, as the phase-3 gap-widening fix addressed) for the same reason
+ * that fix documented: the counter-rotated billboard doesn't project with
+ * perfectly uniform scale top-to-bottom, so a pinch that looks clear in the
+ * flat path data can read as subtle once actually rendered. Re-verified
+ * against a real WebKit screenshot at actual playing size after this
+ * reorder (see the phase-4 report) rather than trusting the abstract
+ * geometry alone.
  */
-export const STANDEE_SHOULDER_HALF_WIDTH = 0.46;
-export const STANDEE_FOOT_HALF_WIDTH = 0.38;
+export const STANDEE_SHOULDER_HALF_WIDTH = 0.4;
 /**
- * Widened the gap from a first attempt at 0.3 (fault #1's own follow-up
- * check): a real WebKit screenshot at actual playing size (a hero plate
- * inside the billboard's `rotateX`+`perspective` counter-rotation) showed the
- * waist pinch this shape relies on to read as "a figure, not a lozenge" was
- * present but SUBTLE — the counter-rotated billboard doesn't project with
- * perfectly uniform scale top-to-bottom the way the flat (un-rotated) SVG
- * math alone predicts, so the pinch needs a wider margin than the abstract
- * geometry would suggest to still read clearly once it has gone through that
- * transform. Pixel-measured on that same screenshot (a ~95px-wide plate):
- * shoulder ≈107px, foot ≈95px, waist ≈75px at the OLD 0.3 — correctly
- * ordered, but only a ~30% narrowing at the waist. 0.24 was chosen to widen
- * that margin without the waist reading as a hard pinch/notch.
+ * The single WIDEST keypoint — see the ordering rationale above. This is
+ * also the figure's own footprint at the point it meets the base disc
+ * (TableStandeeAnchor), so `TableFighterStandee`'s `shadowWidthFactor` must
+ * stay comfortably wider than `STANDEE_FOOT_HALF_WIDTH * 2` or the base
+ * would read narrower than the feet standing on it.
  */
-export const STANDEE_WAIST_HALF_WIDTH = 0.24;
+export const STANDEE_FOOT_HALF_WIDTH = 0.46;
+/**
+ * The narrowest keypoint — the waist pinch that gives the outline a visible
+ * stance instead of tapering smoothly to a point. See the ordering
+ * rationale above for why this needs a wide margin against both neighbors,
+ * not just the shoulder.
+ */
+export const STANDEE_WAIST_HALF_WIDTH = 0.2;
 /** Dome → shoulder transition, as a fraction of the plate's height. */
 export const STANDEE_DOME_Y = 0.22;
 /** Shoulder → waist transition, as a fraction of the plate's height. */
@@ -331,6 +373,75 @@ export const standeeSilhouettePath = (widthPx: number, heightPx: number): string
     "Z",
   ].join(" ");
 };
+
+// ---------------------------------------------------------------------------
+// Standee art fit (phase-4 fault #2 — see the file header). A silhouette
+// clip alone does not make a square card-art crop read as a figure: the
+// PORTRAIT inside it still has to be scaled and anchored so the subject —
+// not the card's own background — fills that silhouette.
+// ---------------------------------------------------------------------------
+
+/**
+ * How far a hero's portrait zooms in, on top of a plain `object-fit: cover`
+ * fit, anchored at the BOTTOM of the plate.
+ *
+ * WHY cover alone is not enough: these token portraits are square (1200×1200
+ * in every deck this project ships), but a standee plate is tall
+ * (`PLATE_ASPECT` in TableFighterStandee.tsx) — plate width:height is 1:1.5.
+ * `object-fit: cover` picks whichever axis needs the LARGER scale factor to
+ * fully cover the box; for a box taller than the image, that is always the
+ * height axis, which means cover fits the image's full height (0% to 100%
+ * of the square, top to bottom) into the plate with NO vertical cropping at
+ * all — only the sides get cropped. For a portrait framed the way these
+ * decks draw them (character's head some way down from the top, a solid
+ * band of card background above it — see the phase-4 report's source-image
+ * crops), that leaves the pale/colored card background sitting untouched at
+ * the top of the plate, which is exactly the "picture lying on the space"
+ * look this phase exists to fix.
+ *
+ * WHY scale + bottom-anchored transform-origin fixes it generally, not just
+ * for one hero: a `transform: scale()` applied AFTER cover has already fit
+ * the image zooms in on top of that baseline fit, and `transform-origin: 50%
+ * 100%` (bottom center) keeps the BOTTOM edge of the image — where cover
+ * already anchors the character's torso/base for a portrait shot from the
+ * chest up — fixed in place while the extra zoom crops away background from
+ * the TOP. The fraction of image height this crops away works out to
+ * `1 - 1/STANDEE_ART_ZOOM` (see standeeArtVisibleTopFraction below) — at
+ * 1.3 that is ~23%, which matches, to within a few percent, the measured
+ * card-background band above the head on BOTH King Kong's and Malfurion's
+ * shipped token art despite the two portraits framing their subject
+ * completely differently (a close top-down gorilla portrait vs. antlers
+ * reaching the frame's own top edge) — see the phase-4 report for the crop
+ * previews this was checked against. It will not be pixel-perfect for
+ * every hero in the roster, but it systematically pulls the subject toward
+ * the top of the plate (a head near where a head belongs) instead of
+ * leaving a fixed amount of background sitting above it on every hero.
+ */
+export const STANDEE_ART_ZOOM = 1.3;
+
+/** `transform-origin` for the zoom above — bottom center, so the torso stays
+ *  anchored to the plate's own base while the extra zoom crops away
+ *  background from the top. Exported as a named constant (not inlined at
+ *  every call site) because the transform and the origin are a matched
+ *  pair: changing one without the other silently changes what part of the
+ *  portrait ends up visible. */
+export const STANDEE_ART_TRANSFORM_ORIGIN = "50% 100%";
+
+/** The CSS `transform` for a standee's portrait `<img>`, applied ON TOP OF
+ *  `object-fit: cover` (never as a replacement for it — cover still does the
+ *  baseline horizontal-crop-and-fill job; this only adds the extra vertical
+ *  zoom cover's own math can't provide for a square image in a tall box). */
+export const standeeArtTransform = (): string => `scale(${STANDEE_ART_ZOOM})`;
+
+/**
+ * The fraction of the source image's own height that stays visible after
+ * `standeeArtTransform`, expressed as [visible-top, 1] (the bottom is always
+ * 1 — see the transform-origin rationale above). Nothing in the renderer
+ * calls this; it exists so the "how much background does this actually crop
+ * away" claim in `STANDEE_ART_ZOOM`'s own comment is a checked number (see
+ * tableProjection.test.ts) instead of an assertion.
+ */
+export const standeeArtVisibleTopFraction = (): number => 1 - 1 / STANDEE_ART_ZOOM;
 
 // ---------------------------------------------------------------------------
 // Auto-focus-zoom cap (phase-3 fault #2 — see the file header).
