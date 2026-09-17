@@ -63,6 +63,10 @@ export const CardFace = ({
       w="100%"
       h="100%"
       outline="none"
+      // Holding a card to read it must not also select its rules text or offer
+      // iOS's "save image" callout (player feedback).
+      userSelect="none"
+      sx={{ WebkitTouchCallout: "none" }}
       _focusVisible={{ boxShadow: "0 0 0 2px var(--chakra-colors-brand-accent)", borderRadius: "0.5rem" }}
       {...preview}
     >

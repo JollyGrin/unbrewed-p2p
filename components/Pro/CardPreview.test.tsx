@@ -22,6 +22,57 @@ const renderPickerCard = (onPick: () => void) =>
     </ChakraProvider>
   );
 
+describe("on a touch screen (player feedback)", () => {
+  const realMatchMedia = window.matchMedia;
+  beforeEach(() => {
+    jest.useFakeTimers();
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes("coarse"),
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+    window.matchMedia = realMatchMedia;
+  });
+
+  const renderHandCard = () =>
+    render(
+      <ChakraProvider>
+        <CardPreviewProvider>
+          <CardFace card={card} fallback="Feint" />
+        </CardPreviewProvider>
+      </ChakraProvider>
+    );
+
+  it("never peeks on focus, so a tap cannot park a half-hidden card behind the dock", () => {
+    renderHandCard();
+
+    fireEvent.focus(screen.getByTestId("card-render").parentElement as HTMLElement);
+
+    expect(screen.getAllByTestId("card-render")).toHaveLength(1);
+  });
+
+  it("still reads the card large while held", () => {
+    renderHandCard();
+    const face = screen.getByTestId("card-render");
+
+    fireEvent.touchStart(face);
+    act(() => jest.advanceTimersByTime(300));
+
+    expect(screen.getAllByTestId("card-render")).toHaveLength(2);
+  });
+
+  it("holds the card without selecting its text", () => {
+    renderHandCard();
+
+    const face = screen.getByTestId("card-render").parentElement as HTMLElement;
+
+    expect(window.getComputedStyle(face).webkitUserSelect || window.getComputedStyle(face).userSelect).toBe("none");
+  });
+});
+
 describe("touch-only card peek (mobile card picker)", () => {
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
