@@ -94,6 +94,15 @@ export interface TableStandeeAnchorProps {
    *  regardless of how wide any given piece's own plate/token happens to be
    *  (phase-5 target #2 — see tableProjection.ts's header). */
   spaceDiamPx: number;
+  /** The id of the space this piece's base actually sits on (the fighter's
+   *  own `space`/`tailSpace`, or a board object's `space`) — tagged onto the
+   *  base disc as `data-space-id` alongside `data-fighter-base` so
+   *  `scripts/visual-probe/tableBoard.cjs` can pair a piece's base with the
+   *  space underneath it and measure concentricity as a real number instead
+   *  of a screenshot impression (phase-5 target #2). Optional only because
+   *  TypeScript's `SpaceId` can be `null` on the wire (an off-board token);
+   *  omitting it just means this one piece is left out of that measurement. */
+  spaceId?: string | null;
   /** Rim color for the in-plane base disc — a player's own token color reads
    *  as "whose piece is this" even before the figure billboards into view.
    *  Defaults to a neutral parchment tone for pieces with no owner color
@@ -126,6 +135,7 @@ export const TableStandeeAnchor = ({
   widthPx,
   heightPx,
   spaceDiamPx,
+  spaceId,
   baseAccent = "rgba(250, 240, 222, 0.55)",
   anim = null,
   onAnimComplete,
@@ -249,6 +259,8 @@ export const TableStandeeAnchor = ({
         border={`2.5px solid ${baseAccent}`}
         boxShadow={`0 0 0 1px rgba(0,0,0,0.75), 0 2px 5px rgba(0,0,0,0.7)`}
         pointerEvents="none"
+        data-fighter-base=""
+        data-space-id={spaceId ?? undefined}
       />
       {/* The billboard: counter-rotated about its own feet so it stands
           upright and faces the camera regardless of the board's tilt. */}

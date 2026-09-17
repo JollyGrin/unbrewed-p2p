@@ -77,6 +77,7 @@ export const TableSidekickToken = ({
       // Base derived from the space's own footprint, not this token's own
       // (slightly larger, `SIDEKICK_WIDTH_FACTOR`) size — phase-5 target #2.
       spaceDiamPx={diamPx}
+      spaceId={fighter.space}
       baseAccent={playerColor}
       anim={anim}
       onAnimComplete={onAnimComplete}

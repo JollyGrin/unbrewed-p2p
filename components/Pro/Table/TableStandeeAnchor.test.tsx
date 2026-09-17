@@ -89,4 +89,42 @@ describe("TableStandeeAnchor", () => {
     // arbitrary hand-tuned percentage offset.
     expect(base.style.transform).toBe("translate(-50%, 50%)");
   });
+
+  it("tags the base disc with data-fighter-base + data-space-id so the visual probe can measure seating", () => {
+    // scripts/visual-probe/tableBoard.cjs (added to main after this branch
+    // started) pairs a piece's base with the space underneath it by querying
+    // `[data-fighter-base][data-space-id]` — without both attributes on the
+    // SAME element, seating concentricity is unmeasurable, not just untested.
+    const { container } = render(
+      <ChakraProvider>
+        <TableStandeeAnchor
+          x={0.5}
+          y={0.5}
+          tiltDeg={48}
+          widthPx={40}
+          heightPx={50}
+          spaceDiamPx={30}
+          spaceId="space-7"
+        >
+          <div />
+        </TableStandeeAnchor>
+      </ChakraProvider>
+    );
+    const base = container.querySelector("[data-fighter-base]") as HTMLElement | null;
+    expect(base).not.toBeNull();
+    expect(base!.getAttribute("data-space-id")).toBe("space-7");
+  });
+
+  it("omits data-space-id (not an empty string) when no spaceId is given", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <TableStandeeAnchor x={0.5} y={0.5} tiltDeg={48} widthPx={40} heightPx={50} spaceDiamPx={30}>
+          <div />
+        </TableStandeeAnchor>
+      </ChakraProvider>
+    );
+    const base = container.querySelector("[data-fighter-base]") as HTMLElement | null;
+    expect(base).not.toBeNull();
+    expect(base!.hasAttribute("data-space-id")).toBe(false);
+  });
 });

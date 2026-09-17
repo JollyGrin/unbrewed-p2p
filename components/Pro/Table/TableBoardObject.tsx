@@ -48,6 +48,7 @@ export const TableBoardObject = ({
       // Base derived from the space's own footprint, not this object's own
       // (slightly smaller, `OBJECT_WIDTH_FACTOR`) size — phase-5 target #2.
       spaceDiamPx={diamPx}
+      spaceId={token.space}
       baseAccent={playerColor}
       title={title}
     >
