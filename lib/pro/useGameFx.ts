@@ -8,7 +8,7 @@
 import { MutableRefObject, RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { FighterId, GameEvent, PlayerView, SpaceId } from "./protocol";
 import { diffFxEvents } from "./fxEvents";
-import { ARC_FLIGHT_MS, ARC_LAUNCH_MS } from "./combatTiming";
+import { scaledCombatTiming } from "./combatTiming";
 import { sfx } from "./sfx";
 import { combatZeroDamageCallout } from "./combatOutcome";
 
@@ -42,6 +42,10 @@ export interface DamageArc {
   flightMs: number;
 }
 
+/** How long a board overlay (−N / +N / BLOCKED / K.O.) stays legible before it's
+ *  removed. Scaled by pace exactly like the arc and the panel-linger below — a
+ *  slower pace that stretched the arc's flight but left this fixed would have the
+ *  "−N" vanish before the (now slower) arc even finished landing it. */
 const BOARD_FX_TTL_MS = 1600;
 
 /* The arc's clock lives in combatTiming.ts alongside the panel-linger TTL that must
@@ -94,7 +98,11 @@ const useStoredToggle = (storageKey: string): [boolean, () => void] => {
 
 export function useGameFx(
   snapshot: { view: PlayerView; events?: GameEvent[] } | null,
-  refs?: GameFxRefs
+  refs?: GameFxRefs,
+  /** Combat pace (see lib/pro/pace.ts) as a plain multiplier — 1 = today's
+   *  pace. Stretches the arc's launch/flight and how long a board overlay
+   *  stays legible, proportionally with the rest of the sequence. */
+  paceFactor = 1
 ) {
   const [soundOn, toggleSoundStored] = useStoredToggle("pro-sound-fx");
   const [visualOn, toggleVisual] = useStoredToggle("pro-visual-fx");
@@ -115,6 +123,9 @@ export function useGameFx(
   soundRef.current = soundOn;
   const visualRef = useRef(visualOn);
   visualRef.current = visualOn;
+  // ditto for pace — a mid-sequence pace change never has to re-diff the batch
+  const paceRef = useRef(paceFactor);
+  paceRef.current = paceFactor;
 
   useEffect(() => {
     sfx.init();
@@ -137,6 +148,11 @@ export function useGameFx(
 
     const sound = soundRef.current;
     const visual = visualRef.current;
+    // The whole sequence's clock at the player's chosen pace (lib/pro/pace.ts).
+    // Recomputed per batch rather than memoized — cheap, and it means a pace
+    // change mid-game applies to the NEXT combat rather than needing a remount.
+    const timing = scaledCombatTiming(paceRef.current);
+    const boardFxTtlMs = Math.round(BOARD_FX_TTL_MS * paceRef.current);
 
     // Add one board overlay + schedule its expiry (batched-friendly: each add is
     // its own state update, but they coalesce within a render tick).
@@ -145,7 +161,7 @@ export function useGameFx(
       const item: BoardFxItem = { key: `fx-${seqRef.current++}`, space, kind, label };
       setBoardFx((cur) => [...cur, item]);
       timersRef.current.push(
-        setTimeout(() => setBoardFx((cur) => cur.filter((i) => i.key !== item.key)), BOARD_FX_TTL_MS)
+        setTimeout(() => setBoardFx((cur) => cur.filter((i) => i.key !== item.key)), boardFxTtlMs)
       );
     };
     // The full "a hit landed" beat: floating number + ring + hit sound + (own hero)
@@ -236,11 +252,13 @@ export function useGameFx(
       }
     }
 
-    // Schedule the projectile: at ARC_LAUNCH_MS measure both endpoints (do NOT track
-    // a moving/zooming target — snapshot the rects here), spawn the fixed-position
-    // arc, and land the board damage beat + sound at ARC_FLIGHT_MS. If either rect
-    // is gone by launch (panel unmounted / token off-screen), the beat fires then,
-    // undelayed relative to launch — no dropped damage indicator, no duplicate.
+    // Schedule the projectile: at timing.arcLaunchMs measure both endpoints (do NOT
+    // track a moving/zooming target — snapshot the rects here), spawn the fixed-
+    // position arc, and land the board damage beat + sound at timing.arcFlightMs
+    // later. Both legs are the pace-scaled clock (1× = ARC_LAUNCH_MS/ARC_FLIGHT_MS,
+    // unchanged). If either rect is gone by launch (panel unmounted / token
+    // off-screen), the beat fires then, undelayed relative to launch — no dropped
+    // damage indicator, no duplicate.
     function launchArc(
       e: Extract<(typeof events)[number], { type: "damage" }>,
       defId: FighterId
@@ -259,14 +277,14 @@ export function useGameFx(
             to: centerOf(defRect),
             amount: e.amount,
             heavy: e.amount >= 3,
-            flightMs: ARC_FLIGHT_MS,
+            flightMs: timing.arcFlightMs,
           };
           setArcs((cur) => [...cur, arc]);
           timersRef.current.push(
-            setTimeout(() => setArcs((cur) => cur.filter((a) => a.key !== arc.key)), ARC_FLIGHT_MS)
+            setTimeout(() => setArcs((cur) => cur.filter((a) => a.key !== arc.key)), timing.arcFlightMs)
           );
-          timersRef.current.push(setTimeout(() => emitDamageBeat(e), ARC_FLIGHT_MS));
-        }, ARC_LAUNCH_MS)
+          timersRef.current.push(setTimeout(() => emitDamageBeat(e), timing.arcFlightMs));
+        }, timing.arcLaunchMs)
       );
     }
   }, [snapshot]);

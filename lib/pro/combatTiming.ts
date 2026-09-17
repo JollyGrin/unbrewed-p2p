@@ -63,3 +63,50 @@ export const STRIKE_POSE_SLACK_MS = 120;
 
 /** How long the strike descriptor stays live (ms) — kept just PAST the linger. */
 export const STRIKE_TTL_MS = LINGER_TTL_MS + STRIKE_POSE_SLACK_MS;
+
+/**
+ * Every leg of the combat sequence's clock, scaled by an arbitrary factor
+ * (issue: player feedback that combat reads too fast — see lib/pro/pace.ts
+ * for the player-facing pace options). This module stays agnostic of the
+ * pace UI itself — `factor` is a plain multiplier, 1 meaning today's pace —
+ * so combatTiming.ts owns only the clock, never the settings surface.
+ */
+export interface CombatTiming {
+  arcLaunchMs: number;
+  arcFlightMs: number;
+  damageBeatMs: number;
+  settleDwellMs: number;
+  lingerTtlMs: number;
+  lingerHoldMs: number;
+  strikePoseSlackMs: number;
+  strikeTtlMs: number;
+}
+
+/**
+ * Derive the whole combat clock at `factor`. Every value here is computed the
+ * SAME WAY the module-level constants above are: summed from the already-
+ * scaled legs, never hand-tuned against a target. That keeps the #517
+ * invariant (the panel outlives the arc + beat + dwell it launched) intact at
+ * EVERY factor by construction — `combatTiming.test.ts` checks this at 1× and
+ * at a slower pace, not only for the base constants.
+ */
+export function scaledCombatTiming(factor: number): CombatTiming {
+  const arcLaunchMs = Math.round(ARC_LAUNCH_MS * factor);
+  const arcFlightMs = Math.round(ARC_FLIGHT_MS * factor);
+  const damageBeatMs = Math.round(DAMAGE_BEAT_MS * factor);
+  const settleDwellMs = Math.round(SETTLE_DWELL_MS * factor);
+  const lingerTtlMs = arcLaunchMs + arcFlightMs + damageBeatMs + settleDwellMs;
+  const lingerHoldMs = arcLaunchMs + arcFlightMs + damageBeatMs;
+  const strikePoseSlackMs = Math.round(STRIKE_POSE_SLACK_MS * factor);
+  const strikeTtlMs = lingerTtlMs + strikePoseSlackMs;
+  return {
+    arcLaunchMs,
+    arcFlightMs,
+    damageBeatMs,
+    settleDwellMs,
+    lingerTtlMs,
+    lingerHoldMs,
+    strikePoseSlackMs,
+    strikeTtlMs,
+  };
+}

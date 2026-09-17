@@ -187,6 +187,8 @@ import { CosmeticRimTier } from "@/lib/pro/cosmetics";
 import { seatCosmetics, tokenRimForSeat } from "@/lib/pro/seatCosmetics";
 import { useHideOpponentCosmetics } from "@/lib/pro/useHideOpponentCosmetics";
 import { useSlowMode } from "@/lib/pro/useSlowMode";
+import { usePace } from "@/lib/pro/usePace";
+import { paceFactor } from "@/lib/pro/pace";
 import { batchActor } from "@/lib/pro/slowModeQueue";
 import { ActionSpotlight, ActionSpotlightBatch } from "@/components/Pro/ActionSpotlight";
 import {
@@ -4173,6 +4175,14 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // paces STATE batches with. Persisted per browser; OFF leaves the socket's queue
   // layer completely inert.
   const [slowMode, toggleSlowMode] = useSlowMode();
+  // Combat pace (player feedback: combat reads too fast to follow) — a per-device
+  // multiplier applied to the VISUAL combat sequence (reveal, damage arc, damage
+  // beat, settle dwell, math-beat chips). Deliberately separate from slow mode:
+  // slow mode paces how fast SERVER batches apply (queuing), pace scales how long
+  // the client's own animations take once a batch has already landed — see the
+  // gotcha note in lib/pro/useProSocket.ts's drainApplyQueue.
+  const [pace, cyclePace] = usePace();
+  const paceScale = paceFactor(pace);
   const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } =
     useProSocket(WS_URL, debug, slowMode);
   // Read through refs inside the log effect: adding either to that effect's deps
@@ -4463,10 +4473,12 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   const clashRef = useRef<HTMLDivElement | null>(null);
 
   // Sounds + transient board visuals, derived by diffing snapshots (useGameFx). The
-  // refs let the damage-arc (#382) measure its endpoints at launch.
+  // refs let the damage-arc (#382) measure its endpoints at launch. `paceScale`
+  // stretches the arc's launch/flight and how long a board overlay stays legible.
   const { boardFx, arcs, hurtKey, soundOn, visualOn, toggleSound, toggleVisual } = useGameFx(
     snapshot,
-    { fighterEls: fighterElsRef, clashRef }
+    { fighterEls: fighterElsRef, clashRef },
+    paceScale
   );
 
   // Lobby "match found" cue (issue #689): the waiting host tabbed away, so the
@@ -4491,20 +4503,23 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
 
   // Combat callouts (issue #162): full-screen turn/defend/reveal flourishes.
   // Decorative-only; a separate hook so the board-FX loop above stays
-  // byte-identical.
-  const combatCallouts = useCombatCallouts(snapshot);
+  // byte-identical. `paceScale` stretches the reveal stagger + each callout's
+  // on-screen life.
+  const combatCallouts = useCombatCallouts(snapshot, paceScale);
 
   // The strike beat (issue #381): after the flip settles, the attack card slams
   // the defense card and it reacts by outcome. `lingeringCombat` freezes a combat
   // that resolves+ends in one batch so the panel survives long enough to play it.
-  const { strike, lingeringCombat, lingerHold } = useCombatStrike(snapshot);
+  // `paceScale` stretches the strike's life and the panel's linger/hold together —
+  // the #517 invariant holds at every pace (see scaledCombatTiming).
+  const { strike, lingeringCombat, lingerHold } = useCombatStrike(snapshot, paceScale);
 
   // The math beat (issue #382): value modifiers fly in as chips onto the value
   // pill, which ticks toward the effective value; paced through the shared battle
   // timeline. Purely decorative — gated off (raw values shown) when visual-fx is
   // off OR reduced motion is requested (the count-up is motion too), exactly like
-  // the strike.
-  const combatValueFx = useCombatValueFx(snapshot);
+  // the strike. `paceScale` stretches the chip run and count-up cadence too.
+  const combatValueFx = useCombatValueFx(snapshot, paceScale);
   const reducedMotion = !!useReducedMotion();
 
   // Lively tokens (issue #320): per-fighter recoil/lunge/brace/topple gestures,
@@ -6627,6 +6642,8 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     slowModeOn: slowMode,
     onToggleSlowMode: toggleSlowMode,
     slowModeHolding: !!slowModeHeld,
+    pace,
+    onCyclePace: cyclePace,
     onReportBug: () => setReportBugOpen(true),
   };
 

@@ -540,6 +540,15 @@ export const ProDock = ({
   const promptKey = view.prompt?.promptId ?? "prompt";
   const [expandedPrompt, setExpandedPrompt] = useState<string | null>(null);
   const boardPickCompact = mobile === "portrait" && boardPickPrompt && expandedPrompt !== promptKey;
+  // A forced sheet can be put out of the way (player feedback: an after-combat
+  // question left the board unreachable with no way to close the sheet). It
+  // minimises to the same slim bar a board pick uses, and the bar opens it
+  // again — the decision is never lost, it just stops owning the screen.
+  const forcedKey =
+    view.prompt?.promptId ?? (combatOpen ? "combat" : view.winner ? "winner" : stepping ? "stepping" : "sheet");
+  const [minimizedKey, setMinimizedKey] = useState<string | null>(null);
+  const forcedMinimized = mobile === "portrait" && sheetForced && minimizedKey === forcedKey;
+  const compactBar = forcedMinimized || boardPickCompact;
   // An action picked from the optional sheet that lights the board (a maneuver's
   // gold spaces) gets the board back: the open sheet would hide the picks.
   const hadBoardPicks = useRef(boardPicks);
@@ -786,10 +795,9 @@ export const ProDock = ({
     <Flex
       as="button"
       type="button"
-      aria-label={sheetForced ? "A decision is waiting — sheet stays open" : "Close actions"}
+      aria-label={sheetForced ? "Minimize — the decision waits on a slim bar" : "Close actions"}
       aria-expanded
-      disabled={sheetForced}
-      onClick={() => !sheetForced && setSheetOpen(false)}
+      onClick={() => (sheetForced ? setMinimizedKey(forcedKey) : setSheetOpen(false))}
       alignItems="center"
       justifyContent="space-between"
       gap="0.5rem"
@@ -799,7 +807,7 @@ export const ProDock = ({
       py="0.4rem"
       textAlign="left"
       borderBottom="1px solid rgba(231, 204, 152, 0.14)"
-      cursor={sheetForced ? "default" : "pointer"}
+      cursor="pointer"
       sx={{ userSelect: "none" }}
     >
       <Box minW={0} flex="1">
@@ -822,10 +830,9 @@ export const ProDock = ({
         gap="0.3rem"
         flexShrink={0}
         color="rgba(231, 204, 152, 0.72)"
-        opacity={sheetForced ? 0.35 : 1}
       >
         <Text fontSize="0.68rem" fontWeight={700} letterSpacing="0.04em" whiteSpace="nowrap">
-          Close
+          {sheetForced ? "Minimize" : "Close"}
         </Text>
         <TbChevronDown size="0.9rem" />
       </Flex>
@@ -1186,7 +1193,7 @@ export const ProDock = ({
     const primaryIsFinish = primary?.type === "END_MANEUVER";
     const extra = Math.max(rows.length - (primary ? 1 : 0), 0);
 
-    if (boardPickCompact)
+    if (compactBar)
       return (
         <Flex
           ref={mobileSheetRef}
@@ -1220,7 +1227,7 @@ export const ProDock = ({
             pointerEvents="auto"
           >
             <Text flex="1" minW={0} fontSize="0.85rem" fontWeight={600} color="brand.accent" noOfLines={2}>
-              {boardPickHint ?? boardHint ?? "Choose on the board"}
+              {boardPickHint ?? boardHint ?? (forcedMinimized ? "A decision is waiting" : "Choose on the board")}
             </Text>
             <Button
               minH={TAP_TARGET}
@@ -1233,9 +1240,12 @@ export const ProDock = ({
               fontSize="0.8rem"
               fontWeight={500}
               _hover={{ bg: "rgba(20, 8, 24, 0.95)" }}
-              onClick={() => setExpandedPrompt(promptKey)}
+              onClick={() => {
+                setMinimizedKey(null);
+                setExpandedPrompt(promptKey);
+              }}
             >
-              Options
+              {forcedMinimized ? "Open" : "Options"}
             </Button>
           </Flex>
         </Flex>

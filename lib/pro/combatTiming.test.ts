@@ -2,10 +2,12 @@ import {
   ARC_FLIGHT_MS,
   ARC_LAUNCH_MS,
   DAMAGE_BEAT_MS,
+  LINGER_HOLD_MS,
   LINGER_TTL_MS,
   SETTLE_DWELL_MS,
   STRIKE_POSE_SLACK_MS,
   STRIKE_TTL_MS,
+  scaledCombatTiming,
 } from "./combatTiming";
 
 /**
@@ -34,5 +36,52 @@ describe("combat sequence timing", () => {
     // The arc leaves the panel well after the slam, never on top of it (#382 pacing).
     expect(ARC_LAUNCH_MS).toBeGreaterThan(1000);
     expect(ARC_FLIGHT_MS).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * The combat pace feature (player feedback: combat reads too fast). Pace never
+ * hand-tunes a new number — it scales the SAME legs by a factor — so these
+ * tests re-check the #517 invariant at 1× (must match the base constants
+ * exactly) and at a slower factor (the invariant must still hold, and the
+ * panel must actually stay up longer, not merely as long).
+ */
+describe("scaledCombatTiming", () => {
+  it("is the identity at factor 1 — the pace a player who never touches the setting sees", () => {
+    const t = scaledCombatTiming(1);
+    expect(t.arcLaunchMs).toBe(ARC_LAUNCH_MS);
+    expect(t.arcFlightMs).toBe(ARC_FLIGHT_MS);
+    expect(t.damageBeatMs).toBe(DAMAGE_BEAT_MS);
+    expect(t.settleDwellMs).toBe(SETTLE_DWELL_MS);
+    expect(t.lingerTtlMs).toBe(LINGER_TTL_MS);
+    expect(t.lingerHoldMs).toBe(LINGER_HOLD_MS);
+    expect(t.strikePoseSlackMs).toBe(STRIKE_POSE_SLACK_MS);
+    expect(t.strikeTtlMs).toBe(STRIKE_TTL_MS);
+  });
+
+  it("keeps the #517 invariant at a slower pace: the panel outlives the arc + beat + dwell", () => {
+    const t = scaledCombatTiming(2);
+    expect(t.lingerTtlMs).toBeGreaterThanOrEqual(
+      t.arcLaunchMs + t.arcFlightMs + t.damageBeatMs + t.settleDwellMs
+    );
+    expect(t.strikeTtlMs).toBeGreaterThan(t.lingerTtlMs);
+    expect(t.strikeTtlMs - t.lingerTtlMs).toBe(t.strikePoseSlackMs);
+  });
+
+  it("actually slows down: every leg at a slower pace is longer, not just proportioned differently", () => {
+    const normal = scaledCombatTiming(1);
+    const slow = scaledCombatTiming(2);
+    expect(slow.arcLaunchMs).toBeGreaterThan(normal.arcLaunchMs);
+    expect(slow.arcFlightMs).toBeGreaterThan(normal.arcFlightMs);
+    expect(slow.damageBeatMs).toBeGreaterThan(normal.damageBeatMs);
+    expect(slow.settleDwellMs).toBeGreaterThan(normal.settleDwellMs);
+    expect(slow.lingerTtlMs).toBeGreaterThan(normal.lingerTtlMs);
+    expect(slow.lingerHoldMs).toBeGreaterThan(normal.lingerHoldMs);
+  });
+
+  it("holds the invariant at a non-integer factor too (Relaxed, 1.5×)", () => {
+    const t = scaledCombatTiming(1.5);
+    expect(t.lingerTtlMs).toBe(t.arcLaunchMs + t.arcFlightMs + t.damageBeatMs + t.settleDwellMs);
+    expect(t.lingerHoldMs).toBe(t.arcLaunchMs + t.arcFlightMs + t.damageBeatMs);
   });
 });
