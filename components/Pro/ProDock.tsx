@@ -23,6 +23,7 @@ import {
   TbGripHorizontal,
   TbLink,
   TbPlus,
+  TbRepeat,
   TbSwords,
   TbWalk,
 } from "react-icons/tb";
@@ -217,6 +218,15 @@ export interface ProDockProps {
   iForfeited: boolean;
   multiplayerView: boolean;
   /** ----- endgame / controls ----- */
+  /**
+   * One-tap rematch (issue #TBD): a `/pro/game?rematch=1&...` link carrying the
+   * SAME heroes/map/format/timer/mulligan this game was played with (a fresh
+   * seed — it's a new game, not a replay). Null until the room/replay data the
+   * link is built from has landed, so the button simply doesn't render yet
+   * rather than firing a broken CREATE_ROOM. See lib/pro/rematch.ts for what
+   * does and doesn't carry over (battlefield items can't — see that file).
+   */
+  rematchHref?: string | null;
   /** Local deep-link into this browser's saved replay — labelled as such (#698). */
   replayHref: string | null;
   /** Upload this match and copy its public share link. Omitted when there is
@@ -302,6 +312,7 @@ export const ProDock = ({
   iAmSpectating,
   iForfeited,
   multiplayerView,
+  rematchHref = null,
   replayHref,
   onCopyShareLink,
   shareLinkBusy = false,
@@ -1073,6 +1084,32 @@ export const ProDock = ({
           >
             {isViewerOnWinningTeam(view) ? "VICTORY!" : "DEFEAT"}
           </Text>
+          {/* One-tap rematch (#TBD): the PRIMARY endgame action — a big, gold,
+              thumb-reachable button, because the whole point is cutting a
+              phone rematch down from "walk back through the lobby, pick
+              heroes, share a new link" to this one tap. It fires an ordinary
+              CREATE_ROOM (via the /pro/game?rematch=1 link's own page load —
+              see lib/pro/rematch.ts), so from here it behaves exactly like
+              starting any other room: the presser lands on the new room's
+              waiting screen with the invite link ready to hand off. */}
+          {rematchHref && (
+            <Button
+              as={Link}
+              href={rematchHref}
+              minH={TAP_TARGET}
+              px="1.4rem"
+              mt="0.3rem"
+              mb="0.15rem"
+              bg="brand.accent"
+              color="brand.surfaceDim"
+              fontWeight={700}
+              leftIcon={<TbRepeat size="1.1rem" />}
+              _hover={{ bg: "brand.accentDeep", textDecoration: "none" }}
+              _active={{ bg: "brand.accentDeep" }}
+            >
+              Rematch — same setup
+            </Button>
+          )}
           {/* Deep-link straight into this match's saved God-view replay
               (issue #240). /pro/replays?open=<id> auto-opens it, and the link
               only renders once the bundle is held, so it always resolves —

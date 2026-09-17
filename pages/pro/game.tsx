@@ -204,7 +204,17 @@ import {
 import type { MapCatalogEntry } from "@/lib/pro/mapCatalog";
 import { RANDOM_HERO_ID, resolveHeroPick } from "@/lib/pro/randomHero";
 import { parseVsParam } from "@/lib/pro/vsParam";
+import {
+  buildFinishedGameSetup,
+  ParsedRematch,
+  parseRematchQuery,
+  rematchCreateRoomArgs,
+  rematchQuery,
+} from "@/lib/pro/rematch";
 import { useLobbyMatchCue } from "@/lib/pro/useLobbyMatchCue";
+import { useTurnReminder } from "@/lib/pro/useTurnReminder";
+import { useTurnReminderSetting } from "@/lib/pro/useTurnReminderSetting";
+import { TurnReminderCue } from "@/components/Pro/TurnReminderCue";
 import {
   advanceQuickMatch,
   botFallbackHref,
@@ -4168,11 +4178,31 @@ const HeroSelectLobby = ({
 // LIVE mode
 // ---------------------------------------------------------------------------
 
-const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string | null; heroParam: string | null; vsBot: BotDifficulty | null; debug: boolean; quickParam: boolean }) => {
+const LiveGame = ({
+  room,
+  heroParam,
+  vsBot,
+  debug,
+  quickParam,
+  rematch,
+}: {
+  room: string | null;
+  heroParam: string | null;
+  vsBot: BotDifficulty | null;
+  debug: boolean;
+  quickParam: boolean;
+  /** parsed `?rematch=1` payload (lib/pro/rematch.ts), or null on any normal load */
+  rematch: ParsedRematch | null;
+}) => {
   // Slow mode (issue #703) — read before the socket, because it is what the socket
   // paces STATE batches with. Persisted per browser; OFF leaves the socket's queue
   // layer completely inert.
   const [slowMode, toggleSlowMode] = useSlowMode();
+  // Turn reminder (player request: "I play matches alongside other things and
+  // forget it's my move") — the per-device setting, default ON. The hook that
+  // actually times the wait and fires the nudge is wired up below, once `view`
+  // and `soundOn` (useGameFx) exist.
+  const [turnReminderOn, toggleTurnReminder] = useTurnReminderSetting();
   const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } =
     useProSocket(WS_URL, debug, slowMode);
   // Read through refs inside the log effect: adding either to that effect's deps
@@ -4489,6 +4519,20 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     soundOn,
   });
 
+  // Turn reminder (player request: "I play matches alongside other things and
+  // forget it's my move") — nudges this seat once its turn, or a combat
+  // defense it owes, has sat untouched for a while. `soundOn` is the SAME
+  // setting the HUD's speaker chip flips; `turnReminderOn` is its own
+  // per-device toggle (default ON, surfaced in the HUD as a bell chip).
+  // `snapshot?.view ?? null` rather than destructuring — this hook has to run
+  // unconditionally, before the pre-game early return below ever narrows
+  // `snapshot`.
+  const { pulse: turnReminderPulse } = useTurnReminder({
+    view: snapshot?.view ?? null,
+    enabled: turnReminderOn,
+    soundOn,
+  });
+
   // Combat callouts (issue #162): full-screen turn/defend/reveal flourishes.
   // Decorative-only; a separate hook so the board-FX loop above stays
   // byte-identical.
@@ -4559,6 +4603,27 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     if (res.ok) toast.success(`Share link copied — ${res.url}`, { duration: 7000 });
     else toast.error(`${res.title} — ${res.description}`, { duration: 7000 });
   }, [replayBundle]);
+
+  // One-tap rematch (issue #TBD): the winner screen's Rematch button target —
+  // a /pro/game?rematch=1&... link encoding this SAME game's setup (see
+  // lib/pro/rematch.ts for exactly what carries over, and what can't). Built
+  // from the two sources every seat gets, not just the host — the live room
+  // roster (ROOM_STATUS) and the replay bundle both seats receive at
+  // GAME_OVER — so whoever presses it, winner or loser, gets an equally
+  // faithful rematch. Null until both have landed, which the dock treats as
+  // "not ready yet" rather than rendering a broken link.
+  const rematchHref = useMemo(() => {
+    if (!replayBundle || !roomInfo?.roster || !roomInfo.you) return null;
+    const setup = buildFinishedGameSetup({
+      roster: roomInfo.roster,
+      you: roomInfo.you,
+      formatId: roomInfo.formatId,
+      turnTimerSeconds: roomInfo.turnTimerSeconds,
+      mulliganWasOn: replayBundle.config.options?.mulligan === true,
+      mapId: replayBundle.config.mapId ?? null,
+    });
+    return setup ? `/pro/game?${new URLSearchParams(rematchQuery(setup)).toString()}` : null;
+  }, [replayBundle, roomInfo]);
 
   // Pinch/scroll zoom + drag pan on the board (issue #120), now the default
   // interaction: the board fills the whole stage and the fixed HUD/hand/dock
@@ -4880,6 +4945,36 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       setSelectedHeroId(heroes[0].heroId);
     }
   }, [heroes, heroParam, selectedHeroId]);
+
+  // One-tap rematch (issue #TBD): fire the CREATE_ROOM a rematch link encoded,
+  // exactly once, the moment this page mounts with one. Mirrors what the
+  // create-lobby's own submit does alongside `createRoom` — `setSelectedHeroId`
+  // + `setJoined(true)` — so every `joined`-gated effect below (and the
+  // waiting room's own "playing on <board>" line) behaves as if the player
+  // had picked all of this by hand, and the picker never flashes on screen.
+  // `customMap` is resolved from `rematch.mapId` here (not in lib/pro/rematch,
+  // which stays protocol-only) via the same catalog helpers onConfirm uses; a
+  // pasted-custom board has no mapId and rematches onto the format's default.
+  const rematchFiredRef = useRef(false);
+  useEffect(() => {
+    if (!rematch || rematchFiredRef.current) return;
+    rematchFiredRef.current = true;
+    const args = rematchCreateRoomArgs(rematch);
+    const mapEntry = rematch.mapId ? catalogEntry(rematch.mapId) : undefined;
+    createRoom(
+      args.heroId,
+      args.bot,
+      mapEntry ? customMapForEntry(mapEntry) : undefined,
+      args.formatId,
+      args.botSeats,
+      args.turnTimerSeconds,
+      args.mulligan,
+    );
+    setSelectedHeroId(args.heroId);
+    setSelectedFormat(rematch.formatId as ProFormatId);
+    if (rematch.mapId) setSelectedMapId(rematch.mapId);
+    setJoined(true);
+  }, [rematch, createRoom]);
 
   // UNKNOWN_HERO shouldn't happen when picking from the server list, but if the
   // server rejects the hero, drop back to the picker instead of a dead end.
@@ -5319,8 +5414,16 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       );
     }
     if (roomId) {
+      // A rematch link's `joinHero` (lib/pro/rematch.ts) pre-fills the invite
+      // we're about to hand the previous game's other seat, so joining this
+      // rematch is a hero-picker-free tap for them too — the same courtesy
+      // `?hero=` already does for any other invite link.
       const joinUrl =
-        typeof window !== "undefined" ? `${window.location.origin}/pro/game?room=${roomId}` : "";
+        typeof window !== "undefined"
+          ? `${window.location.origin}/pro/game?room=${roomId}${
+              rematch?.joinHeroId ? `&hero=${encodeURIComponent(rematch.joinHeroId)}` : ""
+            }`
+          : "";
       return (
         <Flex direction="column" alignItems="center" gap="1rem" pt="4rem" px="1rem">
           <Text fontFamily="LeagueGothic" fontSize="2.5rem" letterSpacing="0.05em">
@@ -6627,6 +6730,8 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     slowModeOn: slowMode,
     onToggleSlowMode: toggleSlowMode,
     slowModeHolding: !!slowModeHeld,
+    turnReminderOn,
+    onToggleTurnReminder: toggleTurnReminder,
     onReportBug: () => setReportBugOpen(true),
   };
 
@@ -6779,6 +6884,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       iAmSpectating={iAmSpectating}
       iForfeited={iForfeited}
       multiplayerView={multiplayerView}
+      rematchHref={rematchHref}
       replayHref={replayBundle ? `/pro/replays?open=${replayId(replayBundle)}` : null}
       onCopyShareLink={
         replayBundle && accountStatus === "signed-in" ? () => void copyReplayShareLink() : undefined
@@ -6940,6 +7046,14 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
         combatCallouts.map((item) => (
           <CombatCalloutOverlay key={item.key} item={item} view={view} resolveCard={resolveCard} />
         ))}
+
+      {/* Turn reminder's foreground cue (player request: nudge someone who
+          forgot it's their move) — a small, repeatable pulse, deliberately NOT
+          gated on pro-visual-fx like the callouts above: it is the on-screen
+          half of a three-channel nudge (vibration/sound/title carry the rest),
+          not decorative juice, so turning visual-fx off must not silence it
+          too. Its own dedicated toggle (turnReminderOn) is what turns it off. */}
+      <TurnReminderCue pulse={turnReminderPulse} />
 
       {/* floating player plates + room/connection chips (sandbox HUD DNA);
           report-bug chip (issue #125/#138) shares this row so it doesn't
@@ -7265,6 +7379,11 @@ const ProGamePage = () => {
   const router = useRouter();
   const room = typeof router.query.room === "string" ? router.query.room : null;
   const heroParam = typeof router.query.hero === "string" ? router.query.hero : null;
+  // One-tap rematch (issue #TBD): `/pro/game?rematch=1&...` carries a whole
+  // CREATE_ROOM's worth of settings from a just-finished game's winner screen
+  // — see lib/pro/rematch.ts. Null on every ordinary page load (no `rematch`
+  // key), so this is a no-op for the entire rest of the app.
+  const rematch = parseRematchQuery(router.query);
   // `?vs=ai[-easy|-medium|-hard]` presets the duel opponent seat to a bot, so
   // the landing's "Play vs AI" CTA lands one click from a solo match (#460).
   // Independent of `?hero=` — both compose.
@@ -7281,7 +7400,14 @@ const ProGamePage = () => {
   return (
     <Box minH="100svh" bg={TABLE_BG} color="brand.parchment">
       {WS_URL ? (
-        <LiveGame room={room} heroParam={heroParam} vsBot={vsBot} debug={debug} quickParam={quickParam} />
+        <LiveGame
+          room={room}
+          heroParam={heroParam}
+          vsBot={vsBot}
+          debug={debug}
+          quickParam={quickParam}
+          rematch={rematch}
+        />
       ) : (
         <PreviewGame />
       )}
