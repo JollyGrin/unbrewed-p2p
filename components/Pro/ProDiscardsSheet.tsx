@@ -47,7 +47,10 @@ export const ProDiscardsSheet = ({
       <Box
         position="fixed"
         inset={0}
-        zIndex={5}
+        // Above the page's mobile control container (z 160) and the hand
+        // drawer inside it (161/162): this sheet is the front-most surface
+        // while it is open.
+        zIndex={170}
         bg="rgba(12, 4, 16, 0.6)"
         pointerEvents="auto"
         onClick={onClose}
@@ -59,7 +62,7 @@ export const ProDiscardsSheet = ({
         left={0}
         right={0}
         bottom={0}
-        zIndex={6}
+        zIndex={171}
         direction="column"
         maxH="82svh"
         borderTopRadius="1.1rem"
