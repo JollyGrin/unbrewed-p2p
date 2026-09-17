@@ -100,6 +100,7 @@ import { actionFallbackLine, batchPhase, batchTurnTag, diffViews, enrichLines, s
 import { MulliganChoice, isMulliganPrompt, mulliganChoiceOf } from "@/lib/pro/mulligan";
 import { RAIL_WIDTH_CSS, TAP_TARGET, boardFitInsetFor } from "@/lib/pro/mobileLayout";
 import { useElementHeight, useProLayout } from "@/lib/pro/useProLayout";
+import { usePageZoomGuard } from "@/lib/pro/usePageZoomGuard";
 import {
   EMPTY_SUB_ATTACK_CHAIN,
   SubAttackChainProgress,
@@ -7301,6 +7302,9 @@ const PreviewGame = () => {
 
 const ProGamePage = () => {
   const router = useRouter();
+  // The board brings its own pinch-zoom; a pinch that lands beside it must not
+  // scale the whole page with the cards and the dock in it (player feedback).
+  usePageZoomGuard();
   const room = typeof router.query.room === "string" ? router.query.room : null;
   const heroParam = typeof router.query.hero === "string" ? router.query.hero : null;
   // `?vs=ai[-easy|-medium|-hard]` presets the duel opponent seat to a bot, so
