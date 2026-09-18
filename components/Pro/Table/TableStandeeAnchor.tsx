@@ -81,6 +81,13 @@ export interface TableAnchorAnim {
 }
 
 export interface TableStandeeAnchorProps {
+  /** Hands the anchor's ROOT element to the caller. `pages/pro/game.tsx` keeps a
+   *  registry of fighter elements (`fighterEls`) that the damage-arc layer reads
+   *  to find where a hit landed on screen; without it an arc has no token to fly
+   *  to, which is why combat arcs did nothing in this view. Deliberately the
+   *  root and not the billboard: the root sits at the piece's FEET, which is the
+   *  same anchor point the flat board registers. */
+  innerRef?: (el: HTMLElement | null) => void;
   x: number;
   y: number;
   tiltDeg: number;
@@ -144,6 +151,7 @@ export const TableStandeeAnchor = ({
   onMouseEnter,
   onMouseLeave,
   title,
+  innerRef,
   children,
   ...rest
 }: TableStandeeAnchorProps) => {
@@ -206,6 +214,7 @@ export const TableStandeeAnchor = ({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       data-pick={pick ? "" : undefined}
+      ref={innerRef}
       {...rest}
     >
       {/* Contact shadow — flat, in-plane, foreshortened by the SAME ancestor
