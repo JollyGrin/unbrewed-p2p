@@ -739,3 +739,34 @@ export const standeeShadowStretch = (y: number): number => {
  * how this composes with the tilt.
  */
 export const TABLE_YAW_DEG = 2.5;
+
+// ---------------------------------------------------------------------------
+// Combat FX placement
+// ---------------------------------------------------------------------------
+//
+// A combat beat on this board splits into two things that want OPPOSITE
+// treatment, which is the whole reason they get their own bands:
+//
+//  - The shockwave ring is a mark ON the board. It stays in the board plane,
+//    foreshortened with everything else, and belongs UNDER the pieces — a ring
+//    drawn over a figure's feet would read as a halo around it rather than as
+//    something happening on the ground.
+//  - The damage number is INFORMATION. It billboards upright so it can be read
+//    at all, and it is deliberately lifted clear of every piece: losing a "−3"
+//    behind a nearer figure loses the one fact the player needed from that beat.
+//    Spatial honesty is the right default on this board, and this is the place
+//    it is worth breaking.
+
+/** Ground effects sit below the piece band — see Z_BASE's own note. */
+export const fxRingZIndex = (): number => Z_BASE - 1;
+
+/**
+ * Damage numbers get a band of their own ABOVE every piece, while keeping their
+ * relative order so two simultaneous beats still stack front-to-back sensibly.
+ */
+export const Z_FX_LABEL_BASE = Z_BASE + Z_RANGE + 1;
+
+export const fxLabelZIndex = (y: number): number => {
+  const clamped = Math.min(1, Math.max(0, y));
+  return Z_FX_LABEL_BASE + Math.round(clamped * Z_RANGE);
+};

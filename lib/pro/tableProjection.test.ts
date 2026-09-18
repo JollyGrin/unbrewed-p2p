@@ -24,6 +24,8 @@ import {
   boardThicknessPx,
   boardTransform,
   clampTilt,
+  fxLabelZIndex,
+  fxRingZIndex,
   convergenceRatio,
   perspectivePx,
   pieSliceAngles,
@@ -466,5 +468,25 @@ describe("boardTransform with yaw (phase-5 fault #4 — 'perfectly square to the
   it("stays restrained — perceptible without reading as crooked", () => {
     expect(TABLE_YAW_DEG).toBeGreaterThan(0);
     expect(TABLE_YAW_DEG).toBeLessThan(6);
+  });
+});
+
+describe("combat FX placement", () => {
+  it("keeps a ground shockwave below every piece, where a mark on the board belongs", () => {
+    expect(fxRingZIndex()).toBeLessThan(Z_BASE);
+  });
+
+  it("lifts damage numbers above every piece, because a number hidden behind a figure is lost", () => {
+    // The nearest possible piece still sits below the farthest possible label.
+    expect(fxLabelZIndex(0)).toBeGreaterThan(standeeZIndex(1));
+  });
+
+  it("still orders labels among themselves by distance", () => {
+    expect(fxLabelZIndex(0.9)).toBeGreaterThan(fxLabelZIndex(0.1));
+  });
+
+  it("clamps coordinates that stray outside the board image", () => {
+    expect(fxLabelZIndex(-3)).toBe(fxLabelZIndex(0));
+    expect(fxLabelZIndex(4)).toBe(fxLabelZIndex(1));
   });
 });

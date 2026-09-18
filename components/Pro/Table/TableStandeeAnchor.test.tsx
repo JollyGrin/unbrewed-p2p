@@ -127,4 +127,33 @@ describe("TableStandeeAnchor", () => {
     expect(base).not.toBeNull();
     expect(base!.hasAttribute("data-space-id")).toBe(false);
   });
+
+  it("hands its root element to innerRef, which is what gives a damage arc a target", () => {
+    // Without this registry the arc layer has no on-screen token to fly to, so
+    // combat arcs did nothing at all in the tabletop view.
+    const seen: (HTMLElement | null)[] = [];
+    const { unmount, container } = render(
+      <ChakraProvider>
+        <TableStandeeAnchor
+          x={0.5}
+          y={0.5}
+          tiltDeg={48}
+          widthPx={40}
+          heightPx={50}
+          spaceDiamPx={30}
+          innerRef={(el) => seen.push(el)}
+        >
+          <div data-testid="figure-content" />
+        </TableStandeeAnchor>
+      </ChakraProvider>
+    );
+    const figureContent = container.querySelector('[data-testid="figure-content"]') as HTMLElement;
+    const anchorEl = (figureContent.parentElement as HTMLElement).parentElement;
+    expect(seen[0]).toBe(anchorEl);
+
+    // …and releases it again, so a defeated fighter does not leave a stale
+    // element behind for an arc to aim at.
+    unmount();
+    expect(seen[seen.length - 1]).toBeNull();
+  });
 });

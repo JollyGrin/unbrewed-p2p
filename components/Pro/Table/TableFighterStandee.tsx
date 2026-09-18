@@ -120,6 +120,8 @@ const artVignette =
   "radial-gradient(ellipse 60% 55% at 50% 35%, rgba(0,0,0,0) 55%, rgba(6,3,8,0.6) 100%)";
 
 export interface TableFighterStandeeProps {
+  /** Forwarded to the anchor's root — see TableStandeeAnchor's own note. */
+  innerRef?: (el: HTMLElement | null) => void;
   fighter: ViewFighter;
   x: number;
   y: number;
@@ -163,6 +165,7 @@ export const TableFighterStandee = ({
   onClick,
   onSpaceFallbackClick,
   onHoverChange,
+  innerRef,
 }: TableFighterStandeeProps) => {
   const widthPx = diamPx * PLATE_WIDTH_FACTOR;
   const heightPx = widthPx * PLATE_ASPECT;
@@ -176,6 +179,7 @@ export const TableFighterStandee = ({
 
   return (
     <TableStandeeAnchor
+      innerRef={innerRef}
       x={x}
       y={y}
       tiltDeg={tiltDeg}

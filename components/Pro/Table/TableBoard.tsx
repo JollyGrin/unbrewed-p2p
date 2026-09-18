@@ -40,6 +40,7 @@ import { bandLabelText, bandMidpoint } from "@/lib/pro/twoSpaceBand";
 import { MOVE_STEP_SECONDS, type ProBoardProps } from "@/components/Pro/ProBoard";
 import { TableAnchorAnim, tableBillboardTransform } from "./TableStandeeAnchor";
 import { TableStage } from "./TableStage";
+import { TableBoardFx } from "./TableBoardFx";
 import { TableBoardLines } from "./TableBoardLines";
 import { TableSpace } from "./TableSpace";
 import { TableFighterStandee } from "./TableFighterStandee";
@@ -90,6 +91,11 @@ export const TableBoard = ({
   itemTokens = {},
   pendingMove = null,
   onPendingMoveSettled,
+  // Combat beats and the damage-arc registry. Both arrive on every render
+  // and were simply dropped by this view's first pass, which is why a hit
+  // landed here in silence and an arc had no token to fly to.
+  fx = [],
+  fighterEls,
   onSpaceClick,
   onFighterClick,
   onSpaceHover,
@@ -313,6 +319,17 @@ export const TableBoard = ({
                 artUrl={fighterTokenArt?.(f)}
                 anim={headAnim}
                 onAnimComplete={headAnim ? onPendingMoveSettled : undefined}
+                // Same registry, same rule as the flat board (ProBoard registers
+                // only the HEAD segment of a LARGE fighter): the damage-arc layer
+                // looks a fighter up here to know where on screen to land a hit.
+                innerRef={
+                  fighterEls
+                    ? (el) => {
+                        if (el) fighterEls.current.set(f.id, el);
+                        else fighterEls.current.delete(f.id);
+                      }
+                    : undefined
+                }
                 {...common}
               />
             ) : (
@@ -393,6 +410,14 @@ export const TableBoard = ({
               </Fragment>
             );
           })}
+
+          <TableBoardFx
+            fx={fx}
+            spaces={mainSpaces}
+            diamPct={diameterPct * 1.5}
+            tiltDeg={tiltDeg}
+            reducedMotion={reducedMotion}
+          />
         </>
       )}
     </TableStage>
