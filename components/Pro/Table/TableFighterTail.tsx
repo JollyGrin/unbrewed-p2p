@@ -6,17 +6,14 @@
  * every status only on the `segment === "head"` pass) and this mirrors it, so
  * a two-space fighter never looks like two independent characters.
  *
- * Billboarded like every other standee (TableStandeeAnchor), so the tail
- * stands upright on its own base exactly like the head does.
+ * It lies flat on its space like the head's own token (see TableFlatToken
+ * for why pieces without a miniature lie flat); with a miniature it is only
+ * a base, since the figure stands between the two spaces.
  */
-import { Box } from "@chakra-ui/react";
 import type { FighterId, ViewFighter } from "@/lib/pro/protocol";
+import { standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
 import { TableAnchorAnim, TableStandeeAnchor } from "./TableStandeeAnchor";
-
-/** A tail token's footprint, as a multiple of the space's own printed
- *  diameter (px) — the same size class as a sidekick token, since visually a
- *  LARGE fighter's tail is "a big plain circle", not a plate. */
-const TAIL_WIDTH_FACTOR = 1.15;
+import { TableFlatToken } from "./TableFlatToken";
 
 export interface TableFighterTailProps {
   fighter: ViewFighter;
@@ -52,7 +49,7 @@ export const TableFighterTail = ({
   targetable,
   bodyHidden = false,
 }: TableFighterTailProps) => {
-  const sizePx = diamPx * TAIL_WIDTH_FACTOR;
+  const sizePx = standeeBaseDiameterPx(diamPx);
   const clickable = targetable && !!onClick;
 
   return (
@@ -62,11 +59,23 @@ export const TableFighterTail = ({
       tiltDeg={tiltDeg}
       widthPx={sizePx}
       heightPx={sizePx}
-      // Base derived from the space's own footprint, not this token's own
-      // (slightly larger, `TAIL_WIDTH_FACTOR`) size — phase-5 target #2.
       spaceDiamPx={diamPx}
       spaceId={fighter.tailSpace}
       baseAccent={playerColor}
+      // Behind a miniature only the base; otherwise the token is the base.
+      base={bodyHidden}
+      ground={
+        bodyHidden ? undefined : (
+          <TableFlatToken
+            sizePx={sizePx}
+            rim="#fff"
+            fill={playerColor}
+            spaceId={fighter.tailSpace}
+            selected={selected}
+            faceAttrs={{ "data-tail-body": "" }}
+          />
+        )
+      }
       anim={anim}
       onAnimComplete={onAnimComplete}
       pick={clickable}
@@ -74,19 +83,7 @@ export const TableFighterTail = ({
       title={`${fighter.name} (trailing body)`}
       data-fighter-id={`${fighter.id}-tail`}
     >
-      {!bodyHidden && (
-        <Box
-          data-tail-body=""
-          position="relative"
-          w="100%"
-          h="100%"
-          borderRadius="50%"
-          bg={playerColor}
-          border="2px solid #fff"
-          opacity={0.92}
-          boxShadow={selected ? "0 0 0 3px #fff, 0 4px 8px rgba(0,0,0,0.6)" : "0 4px 8px rgba(0,0,0,0.6)"}
-        />
-      )}
+      {null}
     </TableStandeeAnchor>
   );
 };
