@@ -11,6 +11,7 @@ import { isViewerOnWinningTeam } from "./teams";
 import { sweptFighters } from "./sweep";
 import { isNoWinner } from "./combatOutcome";
 import { faceUpCommitter, isFaceUpPreRevealAttack, withFaceUpCommit } from "./faceUpCommit";
+import { mustDefend } from "./defenseTurn";
 
 export type FxEvent =
   /** combat card(s) flipped face-up — count 2 means attack+defense revealed together */
@@ -29,6 +30,11 @@ export type FxEvent =
   | { type: "defeated"; fighter: FighterId; space: SpaceId | null; mine: boolean }
   /** it just became your turn */
   | { type: "turn" }
+  /** the live combat just asked YOU to commit a defense. Its own beat, not a
+   *  `turn`: a defense is demanded DURING the opponent's turn, so the turn cue
+   *  never fires for it, and the two ask for very different things — one is
+   *  "the board is yours", the other "answer this now". */
+  | { type: "defend" }
   /** a cancel-effects card (Feint, …) snuffed an opponent's card text (#346) */
   | { type: "cancel" }
   | { type: "victory" }
@@ -198,6 +204,10 @@ export function diffFxEvents(
     events.push({ type: isViewerOnWinningTeam(next) ? "victory" : "loss" });
   } else if (prev.activePlayer !== next.activePlayer && next.activePlayer === next.you) {
     events.push({ type: "turn" });
+  } else if (mustDefend(next) && !mustDefend(prev)) {
+    // The edge only — a combat sits in COMMIT_DEFENSE across many batches while
+    // the defender thinks, and every one of them would otherwise re-ring.
+    events.push({ type: "defend" });
   }
 
   return events;

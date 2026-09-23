@@ -39,6 +39,8 @@ import {
   TbSparkles,
   TbWand,
   TbWandOff,
+  TbBellRinging,
+  TbBellOff,
 } from "react-icons/tb";
 import { IoMdVolumeHigh, IoMdVolumeOff } from "react-icons/io";
 import toast from "react-hot-toast";
@@ -227,6 +229,8 @@ export const ProMobileMenu = ({
   onToggleSlowMode,
   pace,
   onCyclePace,
+  turnReminderOn,
+  onToggleTurnReminder,
   onReportBug,
   onForfeit,
   placement = "top-end",
@@ -244,6 +248,8 @@ export const ProMobileMenu = ({
   | "onToggleSlowMode"
   | "pace"
   | "onCyclePace"
+  | "turnReminderOn"
+  | "onToggleTurnReminder"
   | "onReportBug"
 > & {
   placement?: "top-end" | "bottom-end";
@@ -311,6 +317,15 @@ export const ProMobileMenu = ({
               onClick={onToggleVisualFx}
             >
               Visual effects — {visualFxOn ? "on" : "off"}
+            </MenuItem>
+          )}
+          {onToggleTurnReminder && (
+            <MenuItem
+              {...item}
+              icon={turnReminderOn ? <TbBellRinging /> : <TbBellOff />}
+              onClick={onToggleTurnReminder}
+            >
+              Turn reminder — {turnReminderOn ? "on" : "off"}
             </MenuItem>
           )}
           {onToggleOpponentCosmetics && (
