@@ -38,6 +38,8 @@ import { ItemGlyph } from "@/components/Pro/ItemBadge";
 import { tokenInitials } from "./FighterTokenPortrait";
 import { DockRow } from "@/lib/pro/actionDock";
 import { TAP_TARGET } from "@/lib/pro/mobileLayout";
+import { HexId, tableHudBanner, tableHudControls } from "@/lib/pro/tableHud";
+import { TableHudDock } from "@/components/Pro/Table/Hud/TableHudDock";
 import { useDockLayout } from "@/lib/pro/useDockLayout";
 
 /** Width of the dock's default right-edge slot. */
@@ -251,10 +253,17 @@ export interface ProDockProps {
    *  - "rail": the landscape decision rail — always open, inline, positioned by
    *    the caller.
    *
+   *  - "hud": the tabletop HUD on a landscape phone (lib/pro/tableHud) — a
+   *    banner between the player plates and hexagons in the bottom-right
+   *    corner at rest, and the full body as a sheet along the right edge only
+   *    while a decision needs it. It follows the portrait sheet's rules for
+   *    WHEN the sheet shows, except that a walk in progress is finished from
+   *    the hexagons rather than forcing the sheet over the board it walks on.
+   *
    * Either way the drag handle, the fixed right-edge slot and the localStorage
    * offset drop away, and the action rows grow to a 44px tap target.
    */
-  mobile?: false | "portrait" | "rail";
+  mobile?: false | "portrait" | "rail" | "hud";
   /**
    * Portrait only: the hand drawer is open, so the sheet stands ON TOP of it
    * rather than behind it. This is the "a prompt is asking about a card in your
@@ -538,7 +547,7 @@ export const ProDock = ({
   // A decided combat no longer holds the phone sheet (mobile polish): its result
   // rides on the pill row while the after-combat effects play out on the board.
   const combatOpen = !!combatPanel && !(mobile && combatSummary);
-  const sheetForced = hasPrompt || combatOpen || !!view.winner || !!stepping;
+  const sheetForced = hasPrompt || combatOpen || !!view.winner || (!!stepping && mobile !== "hud");
   const sheetShown = sheetForced || sheetOpen;
 
   // Mobile step 1: a forced prompt whose answer is a tap ON the board gets a slim
@@ -550,7 +559,13 @@ export const ProDock = ({
   // even when the server replaces prompt A with prompt B in a single update.
   const promptKey = view.prompt?.promptId ?? "prompt";
   const [expandedPrompt, setExpandedPrompt] = useState<string | null>(null);
-  const boardPickCompact = mobile === "portrait" && boardPickPrompt && expandedPrompt !== promptKey;
+  // The two shells whose sheet comes and goes (the rail and the desktop dock
+  // are always open) share its rules for when it shows.
+  const sheetShell = mobile === "portrait" || mobile === "hud";
+  // The narrow shells — the rail and the HUD's side sheet — size cards and
+  // tiles for a 230px column.
+  const narrow = mobile === "rail" || mobile === "hud";
+  const boardPickCompact = sheetShell && boardPickPrompt && expandedPrompt !== promptKey;
   // A forced sheet can be put out of the way (player feedback: an after-combat
   // question left the board unreachable with no way to close the sheet). It
   // minimises to the same slim bar a board pick uses, and the bar opens it
@@ -558,15 +573,15 @@ export const ProDock = ({
   const forcedKey =
     view.prompt?.promptId ?? (combatOpen ? "combat" : view.winner ? "winner" : stepping ? "stepping" : "sheet");
   const [minimizedKey, setMinimizedKey] = useState<string | null>(null);
-  const forcedMinimized = mobile === "portrait" && sheetForced && minimizedKey === forcedKey;
+  const forcedMinimized = sheetShell && sheetForced && minimizedKey === forcedKey;
   const compactBar = forcedMinimized || boardPickCompact;
   // An action picked from the optional sheet that lights the board (a maneuver's
   // gold spaces) gets the board back: the open sheet would hide the picks.
   const hadBoardPicks = useRef(boardPicks);
   useEffect(() => {
-    if (boardPicks && !hadBoardPicks.current && mobile === "portrait") setSheetOpen(false);
+    if (boardPicks && !hadBoardPicks.current && sheetShell) setSheetOpen(false);
     hadBoardPicks.current = boardPicks;
-  }, [boardPicks, mobile]);
+  }, [boardPicks, sheetShell]);
 
   // Mobile step 2: the optional portrait sheet leads with Maneuver / Scheme /
   // Attack tiles. A tile with several legal choices narrows the list to them.
@@ -629,7 +644,7 @@ export const ProDock = ({
                 aria-pressed={isPicked}
                 onClick={() => setPickedCard(isPicked ? null : choice.card)}
                 flex="0 0 auto"
-                w={mobile === "rail" ? "4.75rem" : "7.25rem"}
+                w={narrow ? "4.75rem" : "7.25rem"}
                 borderRadius="0.55rem"
                 outline={isPicked ? "3px solid" : "1px solid"}
                 outlineColor={isPicked ? "brand.accent" : "rgba(250, 235, 215, 0.2)"}
@@ -652,7 +667,7 @@ export const ProDock = ({
           direction="column"
           gap="0.35rem"
           // The short landscape rail has no room to pin it over the cards.
-          position={mobile === "rail" ? "static" : "sticky"}
+          position={narrow ? "static" : "sticky"}
           bottom={0}
           // Above the lifted (transformed) picked card, and opaque, so the card
           // scrolling under it never shows through the buttons.
@@ -724,7 +739,7 @@ export const ProDock = ({
     scheme: { label: "Scheme", icon: <TbCards size="1.5rem" /> },
     attack: { label: "Attack", icon: <TbSwords size="1.5rem" /> },
   };
-  const railTiles = mobile === "rail";
+  const railTiles = narrow;
   const tilesEl =
     tiles.length > 0 &&
     (tileFilter ? (
@@ -791,7 +806,9 @@ export const ProDock = ({
         })}
       </Flex>
     ));
-  const portraitSheetShown = mobile === "portrait" && sheetShown;
+  // The HUD's side sheet counts too: the page makes room for it (fit, fan).
+  const portraitSheetShown =
+    (mobile === "portrait" && sheetShown) || (mobile === "hud" && sheetShown && !compactBar);
   useEffect(() => {
     onMobileSheetShown?.(portraitSheetShown);
     // `onMobileSheetShown` is a fresh closure each render; the boolean is the
@@ -1219,16 +1236,75 @@ export const ProDock = ({
       </Flex>
     );
 
+  // The one action the pill row (portrait) or the big hexagon (hud) promotes:
+  // the spacebar's sole action when the engine offers exactly one, otherwise
+  // the first row in the dock's own order (maneuver leads that order, which is
+  // what a player reaches for).
+  const primary = soleAction ?? rows[0]?.action ?? null;
+  const extra = Math.max(rows.length - (primary ? 1 : 0), 0);
+
+  // ----- hud (tabletop, landscape): banner + hexagons, sheet only on demand ---
+  if (mobile === "hud") {
+    const hudSheetShown = sheetShown && !compactBar;
+    const controls = tableHudControls(
+      {
+        stepping: stepping ? { canEnd: stepping.canEnd, commitLabel: stepping.commitLabel } : null,
+        sheetShown: hudSheetShown,
+        compact: forcedMinimized ? "minimized" : boardPickCompact ? "board-pick" : null,
+        primary,
+        extra,
+        canUndo: view.phase === "PLAY" && !view.winner && !!view.canUndo,
+        undoPending,
+      },
+      describe
+    );
+    const onControl = (id: HexId) => {
+      if (id === "primary" && primary) tapOnce(primary);
+      else if (id === "more") setSheetOpen(true);
+      else if (id === "undo") onUndo();
+      else if (id === "end-move") stepping?.onEnd();
+      else if (id === "cancel-move") stepping?.onCancel();
+      else if (id === "open-sheet") {
+        setMinimizedKey(null);
+        setExpandedPrompt(promptKey);
+      }
+    };
+    const mine = myTurn && view.phase !== "SETUP";
+    const banner = tableHudBanner({
+      hint: boardPickHint ?? boardHint,
+      combatSummary,
+      stepping: stepping ? { fighterName: stepping.fighterName, movesLeft: stepping.movesLeft } : null,
+      turn: liveChrome
+        ? {
+            mine,
+            pips: mine ? Math.max(view.actionsRemaining, 0) : 0,
+            label: view.phase === "SETUP" ? "Setup" : mine ? "Your turn" : activeTurnLabel,
+          }
+        : null,
+    });
+    return (
+      <TableHudDock
+        banner={banner}
+        controls={controls}
+        primaryTitle={primary ? describe(primary) : undefined}
+        sheet={
+          hudSheetShown ? (
+            <>
+              {mobileBar}
+              {body}
+            </>
+          ) : null
+        }
+        onControl={onControl}
+      />
+    );
+  }
+
   // ----- portrait: pill row at rest, sheet over a scrim when it is needed ----
   if (mobile === "portrait") {
-    // The one action the pill row promotes: the spacebar's sole action when the
-    // engine offers exactly one, otherwise the first row in the dock's own
-    // order (maneuver leads that order, which is what a player reaches for).
-    const primary = soleAction ?? rows[0]?.action ?? null;
     // Ending a move is never the thing to reach for first (mobile step 2): it
     // stays on the pill row, but as an outline pill, not the gold one.
     const primaryIsFinish = primary?.type === "END_MANEUVER";
-    const extra = Math.max(rows.length - (primary ? 1 : 0), 0);
 
     if (compactBar)
       return (

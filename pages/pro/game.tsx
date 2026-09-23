@@ -94,6 +94,9 @@ import { ProHud, ProHudProps, STATUS_DISPLAY } from "@/components/Pro/ProHud";
 import { MOBILE_BTN, ProMobileHud, ProMobileMenu } from "@/components/Pro/ProMobileHud";
 import { touchCopy } from "@/lib/pro/touchCopy";
 import { HandDecisionWatcher, ProMobileHand, RailHand } from "@/components/Pro/ProMobileHand";
+import { TableHudHand } from "@/components/Pro/Table/Hud/TableHudHand";
+import { TableHudSideButtons } from "@/components/Pro/Table/Hud/TableHudSideButtons";
+import { HUD_RESET_VIEW_SPOT, tableHudFitInset } from "@/lib/pro/tableHud";
 import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
 import { ReportBugDialog } from "@/components/Pro/ReportBugDialog";
 import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
@@ -4686,6 +4689,10 @@ const LiveGame = ({
   // Chakra's useBreakpointValue, which touches `window` during the static
   // prerender of this page and fails the export — see lib/pro/useProLayout.
   const { mobile, rail, mode } = useProLayout();
+  // The tabletop HUD (lib/pro/tableHud): a landscape phone looking at the
+  // tabletop board gets plates, a banner, a fanned hand and a hexagon instead
+  // of the decision rail. The flat board keeps its rail, untouched.
+  const hud = rail && boardView === "table";
   // The PERSISTENT mobile chrome is measured, not assumed — the HP-chip row
   // grows a timer bar, the bottom controls grow with the fan-peek. The decision
   // sheet, hand drawer and log sheet are deliberately NOT measured: they are
@@ -4706,13 +4713,15 @@ const LiveGame = ({
   // the non-zoom fallback below still uses.
   const boardFitInset = useMemo(
     () =>
-      boardFitInsetFor({
-        mode,
-        chipsH: mobileChipsH,
-        controlsH: mobileControlsH,
-        sheetH: mobileSheetH,
-      }),
-    [mode, mobileChipsH, mobileControlsH, mobileSheetH]
+      hud
+        ? tableHudFitInset({ sheetShown: mobileSheetShown })
+        : boardFitInsetFor({
+            mode,
+            chipsH: mobileChipsH,
+            controlsH: mobileControlsH,
+            sheetH: mobileSheetH,
+          }),
+    [hud, mode, mobileChipsH, mobileControlsH, mobileSheetH, mobileSheetShown]
   );
   // The activity log floats permanently on desktop; on mobile it is a sheet the
   // Log button opens. The hand is a drawer on mobile portrait (direction B) —
@@ -7012,7 +7021,7 @@ const LiveGame = ({
       onUndo={requestUndo}
       canForfeit={canForfeit}
       onForfeit={() => setForfeitOpen(true)}
-      mobile={mobile ? (rail ? "rail" : "portrait") : false}
+      mobile={mobile ? (hud ? "hud" : rail ? "rail" : "portrait") : false}
       mobileHandOpen={handOpen}
       mobileSheetRef={mobileSheetRef}
       onMobileSheetShown={setMobileSheetShown}
@@ -7093,6 +7102,7 @@ const LiveGame = ({
           <TableBoard
             {...boardProps}
             fighterFigure={(f) => (f.kind === "HERO" ? figureFor(figureManifest, ownerHeroIds[f.owner], f.owner) : null)}
+            resetViewSpot={hud ? HUD_RESET_VIEW_SPOT : undefined}
           />
         ) : (
           <ProBoard {...boardProps} />
@@ -7145,7 +7155,16 @@ const LiveGame = ({
           per-element media query, so the static export's first paint is the
           desktop one and hydration stays quiet. */}
       {mobile ? (
-        <ProMobileHud {...hudProps} layoutMode={mode} chipsRef={mobileChipsRef} />
+        <ProMobileHud
+          {...hudProps}
+          layoutMode={mode}
+          chipsRef={mobileChipsRef}
+          hud={hud}
+          portraitFor={(seat) => {
+            const hero = view.fighters.find((f) => f.owner === seat && f.kind === "HERO");
+            return hero ? fighterTokenArt(hero) : null;
+          }}
+        />
       ) : (
         <ProHud {...hudProps} />
       )}
@@ -7350,8 +7369,42 @@ const LiveGame = ({
         </Flex>
       )}
 
+      {/* Tabletop HUD (landscape, tabletop board): the dock renders its own
+          banner, hexagons and side sheet; the hand fans over the bottom edge
+          and the log / discards / menu stand in a column on the left. */}
+      {hud && (
+        <>
+          {dockEl}
+          <HandDecisionWatcher promptKey={handDecision} onOpen={() => setHandOpen(true)} />
+          <TableHudHand
+            besideSheet={mobileSheetShown}
+            hand={view.self.hand}
+            resolveCard={resolveCard}
+            labelFor={(c) => cardLabel(view.catalog, c)}
+            actionsFor={actionsForCard}
+            onAction={playFromHand}
+            deckCount={view.self.deckCount}
+            discardCount={view.self.discard.length}
+            isOpen={handOpen}
+            onOpen={() => setHandOpen(true)}
+            onClose={() => setHandOpen(false)}
+          />
+          <TableHudSideButtons
+            onOpenLog={() => setLogOpen(true)}
+            onOpenDiscards={() => setDiscardsOpen(true)}
+            menu={
+              <ProMobileMenu
+                {...hudProps}
+                placement="right-start"
+                onForfeit={canForfeit && view.phase === "PLAY" && !view.winner ? () => setForfeitOpen(true) : undefined}
+              />
+            }
+          />
+        </>
+      )}
+
       {/* Landscape rail: decision stack on top, compact hand strip below. */}
-      {mobile && rail && (
+      {mobile && rail && !hud && (
         <Flex
           data-testid="pro-mobile-rail"
           position="fixed"

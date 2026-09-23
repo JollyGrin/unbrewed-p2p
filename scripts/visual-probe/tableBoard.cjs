@@ -105,7 +105,22 @@ const collect = () => {
   // rail) passed `offscreenPicks` for as long as it measured against the pane.
   const railEl = document.querySelector('[data-testid="pro-mobile-rail"]');
   const visibleRight = railEl ? railEl.getBoundingClientRect().left : pane.width;
-  const hidden = (r) => r.cy < 0 || r.cx < 0 || r.cy > pane.height || r.cx > visibleRight;
+  // The tabletop HUD has no rail; its chrome floats OVER the board instead —
+  // plates, banner, hexagons, the fanned hand, the side buttons and, while a
+  // decision needs it, the side sheet. A point under any of them is as
+  // unreachable as one under the rail. Bounding boxes, so a tilted fan card
+  // counts a little more than it covers: the error is on the safe side.
+  const HUD_OCCLUDERS = [
+    "[data-table-hud-plate]",
+    "[data-table-hud-banner]",
+    "[data-hud-hex]",
+    "[data-hud-fan-card]",
+    "[data-table-hud-side] > *",
+    '[data-testid="table-hud-sheet"]',
+  ].join(",");
+  const occluders = [...document.querySelectorAll(HUD_OCCLUDERS)].map((el) => el.getBoundingClientRect());
+  const underHud = (x, y) => occluders.some((o) => x >= o.left && x <= o.right && y >= o.top && y <= o.bottom);
+  const hidden = (r) => r.cy < 0 || r.cx < 0 || r.cy > pane.height || r.cx > visibleRight || underHud(r.cx, r.cy);
   const picks = [...document.querySelectorAll("[data-pick]")].map(rect);
   const offscreen = picks.filter(hidden).length;
   const fighters = [...plane.querySelectorAll("[data-fighter-id]")].map((el) => ({
@@ -116,7 +131,16 @@ const collect = () => {
   // badge is under the rail is a standee whose health the player cannot read.
   const clipped = (r) =>
     r.cx - r.w / 2 < 0 || r.cy - r.h / 2 < 0 || r.cx + r.w / 2 > visibleRight || r.cy + r.h / 2 > pane.height;
-  const hiddenFighters = fighters.filter(clipped).map((f) => f.id);
+  // Against the HUD a fighter is judged by its whole box too: a standee whose
+  // HP badge peeks out from under the banner is one whose health is hidden.
+  const overlapsHud = (r) =>
+    occluders.some(
+      (o) => r.cx - r.w / 2 < o.right && r.cx + r.w / 2 > o.left && r.cy - r.h / 2 < o.bottom && r.cy + r.h / 2 > o.top
+    );
+  const hiddenFighters = fighters.filter((f) => clipped(f) || overlapsHud(f)).map((f) => f.id);
+  // Spaces whose centre sits under the HUD. At rest this must be 0: the HUD
+  // may cover table and frame, never the board's printed spaces.
+  const hudCoveredSpaces = spaces.filter((sp) => underHud(sp.cx, sp.cy)).map((sp) => sp.id);
 
   // Seating: a fighter's base disc should sit concentric with the space it
   // occupies. Measured as centre-to-centre distance over the space's width, so
@@ -135,7 +159,19 @@ const collect = () => {
     };
   });
 
+  // Where the drawn board (plane + its edge) actually lands, in viewport px —
+  // to tell "the fit is height-bound" from "something else is in the box".
+  const box = (sel) => {
+    const el = document.querySelector(sel);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return [r.left, r.top, r.right, r.bottom].map(Math.round);
+  };
+
   return {
+    viewport: [Math.round(pane.width), Math.round(pane.height)],
+    boardBox: box("[data-table-stage-plane]"),
+    boardEdgeBox: box("[data-table-board-edge]"),
     perspective: getComputedStyle(wrap).perspective,
     planeTransform: getComputedStyle(plane).transform,
     spaceCount: spaces.length,
@@ -149,6 +185,7 @@ const collect = () => {
     offscreenPicks: offscreen,
     fighterCount: fighters.length,
     hiddenFighters,
+    hudCoveredSpaces,
     // An empty list means the renderer does not expose the contract this probe
     // needs, NOT that the pieces are seated perfectly — say so out loud rather
     // than reporting a silent pass.

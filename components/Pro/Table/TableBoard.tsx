@@ -69,6 +69,8 @@ const PLAYER_COLOR: Record<string, string> = {
  */
 export type TableBoardProps = ProBoardProps & {
   fighterFigure?: (fighter: ViewFighter) => Figure | null;
+  /** see TableStage — moved out from under the tabletop HUD's side buttons */
+  resetViewSpot?: { left: string; bottom: string };
 };
 
 export const TableBoard = ({
@@ -116,6 +118,7 @@ export const TableBoard = ({
   rotated = false,
   fitInset,
   fighterFigure,
+  resetViewSpot,
 }: TableBoardProps) => {
   const zoneColorMap = useMemo(() => new Map(map.zones.map((z) => [z.id, z.color])), [map.zones]);
   const zoneColor = (id: string) => zoneColorMap.get(id) ?? "#8878A0";
@@ -258,6 +261,7 @@ export const TableBoard = ({
       fitInset={fitInset}
       tiltDeg={DEFAULT_TILT_DEG}
       pickKey={pickKey}
+      resetViewSpot={resetViewSpot}
     >
       {({ frameW, frameH, tiltDeg }) => (
         <>

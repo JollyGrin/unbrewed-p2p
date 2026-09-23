@@ -71,6 +71,9 @@ export interface TableStageProps {
    *  prompt change (acceptable for a caller with no picks, e.g. a
    *  read-only board preview). */
   pickKey?: string;
+  /** Where "reset view" stands, when the default spot (the fit inset's
+   *  bottom-left corner) is taken — the tabletop HUD's side buttons are there. */
+  resetViewSpot?: { left: string; bottom: string };
   children: (metrics: TableStageMetrics) => ReactNode;
 }
 
@@ -83,6 +86,7 @@ export const TableStage = ({
   fitInset,
   tiltDeg = DEFAULT_TILT_DEG,
   pickKey,
+  resetViewSpot,
   children,
 }: TableStageProps) => {
   const frameRef = useRef<HTMLDivElement | null>(null);
@@ -300,8 +304,8 @@ export const TableStage = ({
         <Button
           size="xs"
           position="absolute"
-          bottom={`${(fitInset?.bottom ?? 0) + 8}px`}
-          left={`${(fitInset?.left ?? 0) + 8}px`}
+          bottom={resetViewSpot?.bottom ?? `${(fitInset?.bottom ?? 0) + 8}px`}
+          left={resetViewSpot?.left ?? `${(fitInset?.left ?? 0) + 8}px`}
           zIndex={8}
           bg="whiteAlpha.300"
           color="brand.parchment"
