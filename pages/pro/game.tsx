@@ -97,6 +97,7 @@ import { HandDecisionWatcher, ProMobileHand, RailHand } from "@/components/Pro/P
 import { TableHudHand } from "@/components/Pro/Table/Hud/TableHudHand";
 import { TableHudSideButtons } from "@/components/Pro/Table/Hud/TableHudSideButtons";
 import { HUD_RESET_VIEW_SPOT, tableHudFitInset } from "@/lib/pro/tableHud";
+import { useSafeAreaInsets } from "@/lib/pro/useSafeAreaInsets";
 import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
 import { ReportBugDialog } from "@/components/Pro/ReportBugDialog";
 import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
@@ -4693,6 +4694,8 @@ const LiveGame = ({
   // tabletop board gets plates, a banner, a fanned hand and a hexagon instead
   // of the decision rail. The flat board keeps its rail, untouched.
   const hud = rail && boardView === "table";
+  // The HUD's fit is arithmetic, so it needs the notch's width as a number.
+  const safeArea = useSafeAreaInsets(hud);
   // The PERSISTENT mobile chrome is measured, not assumed — the HP-chip row
   // grows a timer bar, the bottom controls grow with the fan-peek. The decision
   // sheet, hand drawer and log sheet are deliberately NOT measured: they are
@@ -4714,14 +4717,14 @@ const LiveGame = ({
   const boardFitInset = useMemo(
     () =>
       hud
-        ? tableHudFitInset({ sheetShown: mobileSheetShown })
+        ? tableHudFitInset({ sheetShown: mobileSheetShown, safe: safeArea })
         : boardFitInsetFor({
             mode,
             chipsH: mobileChipsH,
             controlsH: mobileControlsH,
             sheetH: mobileSheetH,
           }),
-    [hud, mode, mobileChipsH, mobileControlsH, mobileSheetH, mobileSheetShown]
+    [hud, mode, mobileChipsH, mobileControlsH, mobileSheetH, mobileSheetShown, safeArea]
   );
   // The activity log floats permanently on desktop; on mobile it is a sheet the
   // Log button opens. The hand is a drawer on mobile portrait (direction B) —

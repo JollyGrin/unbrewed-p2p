@@ -9,6 +9,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { TableBoard } from "./TableBoard";
 import { ProMapDef, ViewFighter, ViewToken } from "@/lib/pro/protocol";
+import { LARGE_FIGURE_SCALE } from "@/lib/pro/figures";
 
 const MAP: ProMapDef = {
   schemaVersion: "1",
@@ -258,6 +259,53 @@ describe("TableBoard figures", () => {
     const { container } = renderBoard({ fighters: [fighter({})], fighterFigure });
     expect(fighterFigure).toHaveBeenCalledWith(expect.objectContaining({ id: "p1/hero" }));
     expect(container.querySelector("img[data-table-figure]")?.getAttribute("src")).toBe(figure.url);
+  });
+
+  describe("a LARGE (two-space) hero with a miniature", () => {
+    const LARGE_MAP: ProMapDef = {
+      ...MAP,
+      spaces: [...MAP.spaces, { id: "s4", x: 0.35, y: 0.35, zones: [], adjacentTo: ["s3"] }],
+    };
+    const kong = fighter({ id: "p1/kong", name: "King Kong", space: "s3", tailSpace: "s4", size: "LARGE" });
+    const renderKong = () =>
+      render(
+        <ChakraProvider>
+          <TableBoard map={LARGE_MAP} fighters={[kong]} fighterFigure={() => figure} />
+        </ChakraProvider>
+      );
+    const anchorOf = (face: Element) => face.parentElement!.parentElement as HTMLElement;
+
+    it("stands the figure between its two spaces, like a big miniature on a real table", () => {
+      const { container } = renderKong();
+      const anchor = anchorOf(container.querySelector('[data-fighter-id="p1/kong"]')!);
+      // Head s3 (0.5, 0.5), tail s4 (0.35, 0.35): the midpoint is (0.425, 0.425).
+      expect(anchor.style.left).toBe("42.5%");
+      expect(anchor.style.top).toBe("42.5%");
+    });
+
+    it("keeps a seat-coloured base centred on each of the two spaces", () => {
+      const { container } = renderKong();
+      expect(container.querySelectorAll('[data-fighter-base][data-space-id="s3"]')).toHaveLength(1);
+      expect(container.querySelectorAll('[data-fighter-base][data-space-id="s4"]')).toHaveLength(1);
+    });
+
+    it("drops the upright tail disc and the name band — the figure says who it is", () => {
+      const { container } = renderKong();
+      expect(container.querySelector('[data-fighter-id="p1/kong-tail"]')).toBeTruthy();
+      expect(container.querySelector("[data-tail-body]")).toBeNull();
+      expect(screen.queryByText("King Kong")).toBeNull();
+    });
+
+    it("draws the two-space miniature larger than a one-space one", () => {
+      const width = (el: Element | null) => parseFloat((el as HTMLElement).style.width);
+      const large = width(renderKong().container.querySelector("img[data-table-figure]"));
+      const single = width(
+        renderBoard({ fighters: [fighter({})], fighterFigure: () => figure }).container.querySelector(
+          "img[data-table-figure]"
+        )
+      );
+      expect(large / single).toBeCloseTo(LARGE_FIGURE_SCALE);
+    });
   });
 
   it("keeps the token standee when no figure is resolved", () => {

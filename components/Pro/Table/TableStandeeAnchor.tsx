@@ -115,6 +115,10 @@ export interface TableStandeeAnchorProps {
    *  Defaults to a neutral parchment tone for pieces with no owner color
    *  (board objects, some sidekick contexts). */
   baseAccent?: string;
+  /** Draw the in-plane base disc (default). Off for a figure that stands
+   *  BETWEEN two spaces — each of those spaces carries its own base, drawn by
+   *  a separate anchor, so both stay concentric with the space under them. */
+  base?: boolean;
   /** A just-committed move to tween through instead of snapping straight to
    *  (x, y) — deferred-item "pendingMove tweening" from the phase-2 report.
    *  Absent/null = static placement, byte-identical to before. */
@@ -144,6 +148,7 @@ export const TableStandeeAnchor = ({
   spaceDiamPx,
   spaceId,
   baseAccent = "rgba(250, 240, 222, 0.55)",
+  base = true,
   anim = null,
   onAnimComplete,
   pick = false,
@@ -256,21 +261,23 @@ export const TableStandeeAnchor = ({
           top/left-positioned box) — phase-5 target #2's concentricity fix:
           zero hand-tuned offset, so nothing can push the base off-center
           from the space it stands on again. */}
-      <Box
-        position="absolute"
-        bottom="0"
-        left="50%"
-        w={`${baseDiamPx}px`}
-        h={`${baseDiamPx}px`}
-        style={{ transform: "translate(-50%, 50%)" }}
-        borderRadius="50%"
-        bg="radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.28) 0%, rgba(20,10,24,0.82) 65%, rgba(8,4,10,0.95) 100%)"
-        border={`2.5px solid ${baseAccent}`}
-        boxShadow={`0 0 0 1px rgba(0,0,0,0.75), 0 2px 5px rgba(0,0,0,0.7)`}
-        pointerEvents="none"
-        data-fighter-base=""
-        data-space-id={spaceId ?? undefined}
-      />
+      {base && (
+        <Box
+          position="absolute"
+          bottom="0"
+          left="50%"
+          w={`${baseDiamPx}px`}
+          h={`${baseDiamPx}px`}
+          style={{ transform: "translate(-50%, 50%)" }}
+          borderRadius="50%"
+          bg="radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.28) 0%, rgba(20,10,24,0.82) 65%, rgba(8,4,10,0.95) 100%)"
+          border={`2.5px solid ${baseAccent}`}
+          boxShadow={`0 0 0 1px rgba(0,0,0,0.75), 0 2px 5px rgba(0,0,0,0.7)`}
+          pointerEvents="none"
+          data-fighter-base=""
+          data-space-id={spaceId ?? undefined}
+        />
+      )}
       {/* The billboard: counter-rotated about its own feet so it stands
           upright and faces the camera regardless of the board's tilt. */}
       <Box
