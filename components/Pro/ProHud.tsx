@@ -45,6 +45,8 @@ import {
   TbBug,
   TbHourglass,
   TbGauge,
+  TbBellRinging,
+  TbBellOff,
 } from "react-icons/tb";
 import { GiFootprint, GiHearts, GiHighTide, GiLowTide } from "react-icons/gi";
 import { IoMdHand, IoMdVolumeHigh, IoMdVolumeOff } from "react-icons/io";
@@ -1504,6 +1506,11 @@ export interface ProHudProps {
    *  that turns slow mode off — so the cluster floats above it for that window
    *  only. Omitted/false leaves ChipCluster's own z-index untouched. */
   slowModeHolding?: boolean;
+  /** Turn reminder (player request: nudge someone who forgot it's their move)
+   *  — the per-device setting (useTurnReminderSetting), default ON. The chip
+   *  is hidden when the handler is omitted. */
+  turnReminderOn?: boolean;
+  onToggleTurnReminder?: () => void;
   /** opens the ReportBugDialog (issue #125/#138) — chip hidden when omitted */
   onReportBug?: () => void;
 }
@@ -1530,6 +1537,8 @@ export const ProHud = ({
   slowModeHolding,
   pace,
   onCyclePace,
+  turnReminderOn,
+  onToggleTurnReminder,
   onReportBug,
 }: ProHudProps) => {
   const heroOf = (player: PlayerId) =>
@@ -1656,6 +1665,29 @@ export const ProHud = ({
               aria-label={visualFxOn ? "Hide visual effects" : "Show visual effects"}
             >
               {visualFxOn ? <TbWand size="0.85rem" /> : <TbWandOff size="0.85rem" />}
+            </Flex>
+          </Tooltip>
+        )}
+        {onToggleTurnReminder && (
+          <Tooltip
+            label={
+              turnReminderOn
+                ? "Turn reminder is ON — you'll be nudged if your turn sits idle"
+                : "Turn reminder is OFF"
+            }
+            hasArrow
+          >
+            <Flex
+              {...chipStyles}
+              as="button"
+              cursor="pointer"
+              _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+              color="brand.highlight"
+              opacity={turnReminderOn ? 1 : 0.55}
+              onClick={onToggleTurnReminder}
+              aria-label={turnReminderOn ? "Turn off turn reminders" : "Turn on turn reminders"}
+            >
+              {turnReminderOn ? <TbBellRinging size="0.85rem" /> : <TbBellOff size="0.85rem" />}
             </Flex>
           </Tooltip>
         )}
