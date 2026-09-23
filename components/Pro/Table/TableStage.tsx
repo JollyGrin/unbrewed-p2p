@@ -29,6 +29,7 @@ import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Button } from "@chakra-ui/react";
 import { useReducedMotion } from "framer-motion";
 import { useZoomPan, ZoomPanInset } from "@/lib/pro/useZoomPan";
+import { tableFocusBox } from "@/lib/pro/tableFocus";
 import { useCoarsePointer } from "@/lib/pro/useCoarsePointer";
 import {
   DEFAULT_TILT_DEG,
@@ -174,27 +175,18 @@ export const TableStage = ({
     if (!zoomable || !coarsePointer || !frameW) return;
     const raf = requestAnimationFrame(() => {
       const frame = frameRef.current;
-      const picks = Array.from(frame?.querySelectorAll<HTMLElement>("[data-pick]") ?? []);
-      if (picks.length === 0) {
-        releaseFocus();
-        return;
-      }
-      const rects = picks.map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0);
-      if (rects.length === 0) {
+      const boxesOf = (selector: string) =>
+        Array.from(frame?.querySelectorAll<HTMLElement>(selector) ?? []).map((el) => el.getBoundingClientRect());
+      const rects = boxesOf("[data-pick]").filter((r) => r.width > 0);
+      // Picks PLUS every fighter — see lib/pro/tableFocus for why a pick-only
+      // frame hid the opponent under the landscape rail.
+      const box = tableFocusBox(rects, boxesOf("[data-fighter-id]"));
+      if (!box) {
         releaseFocus();
         return;
       }
       const diameters = rects.map((r) => Math.min(r.width, r.height));
-      focusOn(
-        {
-          left: Math.min(...rects.map((r) => r.left)),
-          top: Math.min(...rects.map((r) => r.top)),
-          right: Math.max(...rects.map((r) => r.right)),
-          bottom: Math.max(...rects.map((r) => r.bottom)),
-        },
-        Math.min(...diameters),
-        tableFocusCapDiameterPx(Math.max(...diameters))
-      );
+      focusOn(box, Math.min(...diameters), tableFocusCapDiameterPx(Math.max(...diameters)));
     });
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- pickKey stands in for the picks list itself
