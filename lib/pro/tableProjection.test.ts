@@ -76,16 +76,21 @@ describe("convergenceRatio", () => {
   // fit measured what the board actually draws, the playable area shrank.
   const REFERENCE_EDGE_RATIO = 1.25;
 
-  it("converges like the reference app on a typical wide board", () => {
+  // Our boards are flat top-down art; the reference's are painted for its
+  // camera. So the target is AT or modestly ABOVE the reference — never the
+  // ~2.4 fisheye, never flatter than the reference itself.
+  const MAX_EDGE_RATIO = 1.5;
+
+  it("converges at least as much as the reference app on a typical wide board", () => {
     const ratio = convergenceRatio(TYPICAL_BOARD_W, TYPICAL_BOARD_H, DEFAULT_TILT_DEG);
-    expect(ratio).toBeGreaterThan(REFERENCE_EDGE_RATIO - 0.15);
-    expect(ratio).toBeLessThan(REFERENCE_EDGE_RATIO + 0.15);
+    expect(ratio).toBeGreaterThan(REFERENCE_EDGE_RATIO - 0.05);
+    expect(ratio).toBeLessThan(MAX_EDGE_RATIO);
   });
 
-  it("converges like the reference app on a squarer board (Secluded Temple, ~1.65:1)", () => {
+  it("stays short of a fisheye on a squarer board (Secluded Temple, ~1.65:1)", () => {
     const ratio = convergenceRatio(750, 455, DEFAULT_TILT_DEG);
-    expect(ratio).toBeGreaterThan(REFERENCE_EDGE_RATIO - 0.15);
-    expect(ratio).toBeLessThan(REFERENCE_EDGE_RATIO + 0.15);
+    expect(ratio).toBeGreaterThan(REFERENCE_EDGE_RATIO);
+    expect(ratio).toBeLessThan(MAX_EDGE_RATIO);
   });
 
   it("grows as PERSPECTIVE_RATIO shrinks (camera moves closer)", () => {

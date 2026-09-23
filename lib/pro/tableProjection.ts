@@ -134,8 +134,15 @@
 export const MIN_TILT_DEG = 0;
 /** Past this the near row of spaces squashes into unreadable slivers. */
 export const MAX_TILT_DEG = 62;
-/** Matches the tabletop feel of the reference screenshots without hiding the far rank. */
-export const DEFAULT_TILT_DEG = 48;
+/**
+ * Measured from the official app rather than eyeballed: its board is drawn at
+ * ~0.76 of its true depth, i.e. tipped back ~40°. At 48° our flat, top-down
+ * board art squashed to 0.67 of its depth and read as a squeezed picture
+ * (owner feedback, 2026-09-23: "verzerrt"); at 40° the board is drawn 17%
+ * taller in the same width, and the mean space width is unchanged (probe
+ * sweep on Secluded Temple, iPhone 14 landscape).
+ */
+export const DEFAULT_TILT_DEG = 40;
 
 /**
  * Perspective distance as a multiple of the board's rendered WIDTH, so the
@@ -149,11 +156,17 @@ export const DEFAULT_TILT_DEG = 48;
  * that fitting what the board actually draws (lib/pro/fitContent) shrank the
  * playable spaces by a quarter (mean space width 32px vs 42px at 1.75 on an
  * iPhone 14 in landscape, same board, same fit). 1.75 gives ~1.3 on a
- * Secluded-Temple-shaped board — the reference, within tolerance. What read
- * as "flat" in phase 2 was the missing thickness, shadows and seating, all
- * added since; depth now comes from those, not from a fisheye camera.
+ * Secluded-Temple-shaped board — the reference, within tolerance.
+ *
+ * 1.1 (same day, owner feedback "not really 3D"): the reference's boards are
+ * PAINTED for its camera — walls and trees drawn with their own depth — while
+ * ours are flat top-down art, which needs a little more convergence to read
+ * as receding. 1.1 gives ~1.43 on Secluded Temple (1.24 on a wide 2.7:1
+ * board) for a mean space width of 40.3px vs 42.3px at 1.75 — a small price;
+ * the bigger depth cues are the table and light around the board
+ * (TableSurface.tsx), not the lens.
  */
-export const PERSPECTIVE_RATIO = 1.75;
+export const PERSPECTIVE_RATIO = 1.1;
 
 /**
  * Stacking band for standees. Board decoration sits below `Z_BASE`; anything
