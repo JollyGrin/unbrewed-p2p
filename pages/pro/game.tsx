@@ -103,6 +103,8 @@ import { GameLostScreen } from "@/components/Pro/GameLostScreen";
 import { actionFallbackLine, batchPhase, batchTurnTag, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
 import { MulliganChoice, isMulliganPrompt, mulliganChoiceOf } from "@/lib/pro/mulligan";
 import { RAIL_WIDTH_CSS, TAP_TARGET, boardFitInsetFor } from "@/lib/pro/mobileLayout";
+import { figureFor } from "@/lib/pro/figures";
+import { useFigureManifest } from "@/lib/pro/useFigureManifest";
 import { useElementHeight, useProLayout } from "@/lib/pro/useProLayout";
 import { usePageZoomGuard } from "@/lib/pro/usePageZoomGuard";
 import {
@@ -4512,6 +4514,10 @@ const LiveGame = ({
     for (const p of snapshot?.view.players ?? []) m[p.id] = p.heroId;
     return m;
   }, [snapshot]);
+  // Pre-rendered miniatures for the tabletop view (lib/pro/figures). A local,
+  // git-ignored folder that ships only with the owner's own deploy; null — and
+  // every hero keeps its token standee — anywhere it is absent.
+  const figureManifest = useFigureManifest();
   // owner seat -> { badge, heroArtUrl }: one map feeding BOTH the token badge and
   // the flag-driven portrait swap (Thetis tide), resolved from the same
   // HERO_STATE_FLAGS entry. Rebuilt per snapshot so mid-game flag flips re-render.
@@ -7083,7 +7089,14 @@ const LiveGame = ({
         {/* One prop object feeds whichever board component is mounted (tabletop
             board view phase 1) — same game, same socket, same handlers; only
             the presentation differs. See lib/pro/boardView.ts. */}
-        {boardView === "table" ? <TableBoard {...boardProps} /> : <ProBoard {...boardProps} />}
+        {boardView === "table" ? (
+          <TableBoard
+            {...boardProps}
+            fighterFigure={(f) => (f.kind === "HERO" ? figureFor(figureManifest, ownerHeroIds[f.owner], f.owner) : null)}
+          />
+        ) : (
+          <ProBoard {...boardProps} />
+        )}
       </Flex>
 
       {/* red vignette flash when your hero takes damage (useGameFx) */}

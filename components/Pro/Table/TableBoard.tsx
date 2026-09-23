@@ -38,6 +38,7 @@ import type { FighterId, ProMapSpace, SpaceId, ViewFighter } from "@/lib/pro/pro
 import { DEFAULT_TILT_DEG } from "@/lib/pro/tableProjection";
 import { bandLabelText, bandMidpoint } from "@/lib/pro/twoSpaceBand";
 import { MOVE_STEP_SECONDS, type ProBoardProps } from "@/components/Pro/ProBoard";
+import type { Figure } from "@/lib/pro/figures";
 import { TableAnchorAnim, tableBillboardTransform } from "./TableStandeeAnchor";
 import { TableStage } from "./TableStage";
 import { TableBoardFx } from "./TableBoardFx";
@@ -59,6 +60,15 @@ const PLAYER_COLOR: Record<string, string> = {
   p2: "#3B8BEB",
   p3: "#2F9E68",
   p4: "#C0449E",
+};
+
+/**
+ * The flat board's props plus what only the tabletop draws. `fighterFigure`
+ * resolves a hero's pre-rendered miniature for its seat (lib/pro/figures);
+ * it is null for every hero on a deploy without local figures.
+ */
+export type TableBoardProps = ProBoardProps & {
+  fighterFigure?: (fighter: ViewFighter) => Figure | null;
 };
 
 export const TableBoard = ({
@@ -105,7 +115,8 @@ export const TableBoard = ({
   zoomable = false,
   rotated = false,
   fitInset,
-}: ProBoardProps) => {
+  fighterFigure,
+}: TableBoardProps) => {
   const zoneColorMap = useMemo(() => new Map(map.zones.map((z) => [z.id, z.color])), [map.zones]);
   const zoneColor = (id: string) => zoneColorMap.get(id) ?? "#8878A0";
   const itemById = useMemo(() => new Map((map.items ?? []).map((it) => [it.id, it])), [map.items]);
@@ -317,6 +328,7 @@ export const TableBoard = ({
                 diamPx={diamPx}
                 playerColor={PLAYER_COLOR[f.owner] ?? "#999"}
                 artUrl={fighterTokenArt?.(f)}
+                figure={fighterFigure?.(f) ?? null}
                 anim={headAnim}
                 onAnimComplete={headAnim ? onPendingMoveSettled : undefined}
                 // Same registry, same rule as the flat board (ProBoard registers

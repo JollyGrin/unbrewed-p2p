@@ -249,3 +249,19 @@ describe("TableBoard pendingMove tweening (phase-1 deferred item)", () => {
     expect(container.querySelector('[data-fighter-id="p1/hero"]')).toBeTruthy();
   });
 });
+
+describe("TableBoard figures", () => {
+  const figure = { anchor: { x: 0.5, y: 0.75 }, imageWidthMm: 80, footprintMm: 60, aspect: 1.5, url: "/figures/x.p1.webp" };
+
+  it("stands a hero's miniature on the board when the page resolves one", () => {
+    const fighterFigure = jest.fn(() => figure);
+    const { container } = renderBoard({ fighters: [fighter({})], fighterFigure });
+    expect(fighterFigure).toHaveBeenCalledWith(expect.objectContaining({ id: "p1/hero" }));
+    expect(container.querySelector("img[data-table-figure]")?.getAttribute("src")).toBe(figure.url);
+  });
+
+  it("keeps the token standee when no figure is resolved", () => {
+    const { container } = renderBoard({ fighters: [fighter({})], fighterFigure: () => null });
+    expect(container.querySelector("img[data-table-figure]")).toBeNull();
+  });
+});

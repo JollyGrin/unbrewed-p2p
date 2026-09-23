@@ -21,9 +21,12 @@ import { fighterStatusBadgesFor } from "@/lib/pro/fighterStatuses";
 import { tokenInitials } from "@/components/Pro/FighterTokenPortrait";
 import {
   standeeArtTransform,
+  standeeBaseDiameterPx,
   standeeSilhouettePath,
   STANDEE_ART_TRANSFORM_ORIGIN,
 } from "@/lib/pro/tableProjection";
+import type { Figure } from "@/lib/pro/figures";
+import { TableFigureSprite } from "./TableFigureSprite";
 import { TableAnchorAnim, TableStandeeAnchor } from "./TableStandeeAnchor";
 import { TableFighterBadges } from "./TableFighterBadges";
 
@@ -143,6 +146,10 @@ export interface TableFighterStandeeProps {
   onClick?: (id: FighterId) => void;
   onSpaceFallbackClick?: () => void;
   onHoverChange?: (id: FighterId | null) => void;
+  /** A pre-rendered miniature for this hero in this seat's tint (see
+   *  lib/pro/figures). When set it replaces the token-art plate; badges,
+   *  glow and picking are unchanged. */
+  figure?: Figure | null;
 }
 
 export const TableFighterStandee = ({
@@ -166,6 +173,7 @@ export const TableFighterStandee = ({
   onSpaceFallbackClick,
   onHoverChange,
   innerRef,
+  figure = null,
 }: TableFighterStandeeProps) => {
   const widthPx = diamPx * PLATE_WIDTH_FACTOR;
   const heightPx = widthPx * PLATE_ASPECT;
@@ -175,7 +183,9 @@ export const TableFighterStandee = ({
   // Computed at THIS plate's own render size (see standeeSilhouettePath's own
   // comment on why it needs actual px, not a percentage) — every hero on the
   // board gets the identical silhouette, just scaled to its own diamPx.
-  const clipPath = `path('${standeeSilhouettePath(widthPx, heightPx)}')`;
+  // A miniature has its own outline, so it is drawn unclipped and without the
+  // plate's backdrop; only the token-art plate needs the silhouette.
+  const clipPath = figure ? undefined : `path('${standeeSilhouettePath(widthPx, heightPx)}')`;
 
   return (
     <TableStandeeAnchor
@@ -209,14 +219,21 @@ export const TableFighterStandee = ({
         position="relative"
         w="100%"
         h="100%"
-        style={{ clipPath }}
-        bg="radial-gradient(circle at 50% 30%, #3d2249 0%, var(--chakra-colors-brand-surfaceDim) 80%)"
+        style={clipPath ? { clipPath } : undefined}
+        bg={figure ? undefined : "radial-gradient(circle at 50% 30%, #3d2249 0%, var(--chakra-colors-brand-surfaceDim) 80%)"}
         filter={plateFilter(selected, friendly)}
         animation={targetable && !selected ? `${targetPulse} 1.4s ease-in-out infinite` : undefined}
         sx={{ "@media (prefers-reduced-motion: reduce)": { animation: "none" } }}
         data-fighter-id={fighter.id}
       >
-        {artUrl ? (
+        {figure ? (
+          <TableFigureSprite
+            figure={figure}
+            baseDiamPx={standeeBaseDiameterPx(diamPx)}
+            plateW={widthPx}
+            plateH={heightPx}
+          />
+        ) : artUrl ? (
           <>
             <Box
               as="img"
