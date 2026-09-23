@@ -18,6 +18,9 @@ type Props = { roomId: string; role: VoiceRole };
 
 const DOCK_Z_INDEX = 1500;
 
+/** A landscape phone: short, however wide (mirrors lib/pro/useProLayout's rail query's height half). */
+const RAIL_QUERY_SHORT = "(max-height: 30em) and (orientation: landscape)";
+
 const panelStyle = {
   mt: "0.5rem",
   w: "min(20rem, calc(100vw - 2rem))",
@@ -86,6 +89,18 @@ export default function VoiceDock({ roomId, role }: Props) {
       display="flex"
       flexDirection="column"
       alignItems={{ base: "flex-start", md: "center" }}
+      // A phone on its side is wider than `md` (an iPhone 15 Pro is 852px),
+      // so the width breakpoints alone put the pill top-centre — right over
+      // the game's own prompt. A short screen is a phone whatever its width:
+      // it keeps the phone spot, clear of the camera notch.
+      sx={{
+        [`@media ${RAIL_QUERY_SHORT}`]: {
+          top: "calc(6.2rem + env(safe-area-inset-top, 0px))",
+          left: "calc(0.6rem + env(safe-area-inset-left, 0px))",
+          transform: "none",
+          alignItems: "flex-start",
+        },
+      }}
     >
       {!voiceUrl ? (
         <>
