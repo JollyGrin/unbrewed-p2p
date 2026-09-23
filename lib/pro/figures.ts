@@ -109,3 +109,34 @@ export const figureSpriteBox = (figure: Figure, baseDiamPx: number): SpriteBox =
   const height = width * figure.aspect;
   return { width, height, left: -figure.anchor.x * width, top: -figure.anchor.y * height };
 };
+
+/**
+ * How much larger a LARGE (two-space) fighter's miniature is drawn than a
+ * one-space one. Its base is sized off one space's base disc like every other
+ * figure, then scaled by this so the model reaches across onto both spaces it
+ * occupies, the way a big miniature straddles two spaces on a real table.
+ */
+export const LARGE_FIGURE_SCALE = 1.5;
+
+/** A tween through board points, in the tabletop's normalized 0–1 coordinates. */
+export interface BoardPathAnim {
+  xs: number[];
+  ys: number[];
+  durationSec: number;
+}
+
+/**
+ * The glide of a figure that stands BETWEEN a LARGE fighter's two spaces: the
+ * midpoint of the head's and the tail's paths, step by step. The two paths of
+ * a snake-step move are equally long (the tail follows the head); when they
+ * are not — or one is missing — the figure snaps, like the pieces do, rather
+ * than inventing a route between spaces nobody walked.
+ */
+export const straddleAnim = (head: BoardPathAnim | null, tail: BoardPathAnim | null): BoardPathAnim | null => {
+  if (!head || !tail || head.xs.length !== tail.xs.length || head.xs.length < 2) return null;
+  return {
+    xs: head.xs.map((x, i) => (x + tail.xs[i]) / 2),
+    ys: head.ys.map((y, i) => (y + tail.ys[i]) / 2),
+    durationSec: head.durationSec,
+  };
+};

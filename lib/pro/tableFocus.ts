@@ -39,3 +39,18 @@ export const tableFocusBox = (
     bottom: Math.max(...all.map((b) => b.bottom)),
   };
 };
+
+/**
+ * How big a pick is under a thumb (px) — what decides whether the focus zoom
+ * fires at all (lib/pro/touchTargets `shouldAutoFocus`, 44px).
+ *
+ * The flat board's picks are circles, so the short side of their box was the
+ * honest size. A tilted board foreshortens every space into an ellipse about
+ * 0.7 as tall as it is wide: a 60 x 40 space is easy to hit, but judged by its
+ * 40px height it triggered the zoom anyway — which, on a wide phone, enlarged
+ * the board by 14% and slid a whole column of spaces off the left edge and
+ * under the HUD's buttons (owner's screenshot, 2026-09-23). The diameter of a
+ * circle of the same area judges the ellipse by what a fingertip meets.
+ */
+export const pickTapSizePx = ({ width, height }: { width: number; height: number }): number =>
+  Math.sqrt(Math.max(width, 0) * Math.max(height, 0));

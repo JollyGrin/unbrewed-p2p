@@ -59,6 +59,16 @@ fs.mkdirSync(OUT, { recursive: true });
 const BASE = process.env.PROBE_URL || "http://localhost:3000";
 /** The board every run measures (override with PROBE_MAP to compare maps). */
 const PROBE_MAP = process.env.PROBE_MAP || "Secluded Temple";
+/**
+ * Optional viewport override, "WxH" in CSS px (the device profile stays
+ * iPhone 14 landscape). Playwright cannot emulate env(safe-area-inset-*), so
+ * a phone's notch is simulated by its USABLE area: every piece of chrome and
+ * the fit are positioned from the safe edges. An iPhone 15 Pro in full-screen
+ * landscape (852x393, 59px cut-out each side, 21px home bar) is 734x372.
+ */
+const PROBE_VIEWPORT = process.env.PROBE_VIEWPORT
+  ? (([width, height]) => ({ width, height }))(process.env.PROBE_VIEWPORT.split("x").map(Number))
+  : null;
 
 /** Runs in the page: everything we want to know, read off the real DOM. */
 const collect = () => {
@@ -197,7 +207,10 @@ const collect = () => {
 
 (async () => {
   const b = await pw.webkit.launch();
-  const ctx = await b.newContext({ ...pw.devices["iPhone 14 landscape"] });
+  const ctx = await b.newContext({
+    ...pw.devices["iPhone 14 landscape"],
+    ...(PROBE_VIEWPORT ? { viewport: PROBE_VIEWPORT } : {}),
+  });
   const p = await ctx.newPage();
   p.on("pageerror", (e) => console.error("[page error]", e.message));
 

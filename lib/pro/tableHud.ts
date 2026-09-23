@@ -21,6 +21,7 @@ import { tileKindOf } from "./actionTiles";
 import type { Action } from "./protocol";
 import type { ZoomPanInset } from "./useZoomPan";
 import { RAIL_WIDTH } from "./mobileLayout";
+import { SafeAreaInsets, ZERO_INSETS } from "./useSafeAreaInsets";
 
 /**
  * Seat colours. The same four the flat board and the tabletop board ring
@@ -76,14 +77,26 @@ export const HUD_HAND_VISIBLE_PX = 36;
  * rather than derived from the chrome's boxes, which overlap the board by
  * design.
  */
-export const tableHudFitInset = ({ sheetShown = false }: { sheetShown?: boolean } = {}): Required<ZoomPanInset> => ({
-  top: HUD_TOP_RESERVE_PX,
-  bottom: HUD_HAND_VISIBLE_PX,
-  left: HUD_GUTTER,
+export interface TableHudInsetArgs {
+  /** the decision sheet stands along the right edge */
+  sheetShown?: boolean;
+  /** the device's safe-area insets (lib/pro/useSafeAreaInsets) */
+  safe?: SafeAreaInsets;
+}
+
+export const tableHudFitInset = ({ sheetShown = false, safe = ZERO_INSETS }: TableHudInsetArgs = {}): Required<
+  ZoomPanInset
+> => ({
+  // Every edge also clears the device's own unusable strip: the page covers
+  // the whole screen, and an iPhone on its side has its camera cut-out 59px in
+  // from one side — the board used to fill the width right into it.
+  top: HUD_TOP_RESERVE_PX + safe.top,
+  bottom: HUD_HAND_VISIBLE_PX + safe.bottom,
+  left: HUD_GUTTER + safe.left,
   // The decision sheet is the one piece of chrome the fit makes room for, as
   // the portrait layout does: it stays up for a whole prompt, and a prompt's
   // gold spaces must not be framed underneath it.
-  right: sheetShown ? RAIL_WIDTH + 2 * HUD_GUTTER : HUD_GUTTER,
+  right: (sheetShown ? RAIL_WIDTH + 2 * HUD_GUTTER : HUD_GUTTER) + safe.right,
 });
 
 /**
@@ -91,7 +104,10 @@ export const tableHudFitInset = ({ sheetShown = false }: { sheetShown?: boolean 
  * the fit's bottom-left corner, is where the side buttons end — so it moves
  * right of them, into the strip left of the hand fan.
  */
-export const HUD_RESET_VIEW_SPOT = { left: "4.4rem", bottom: "0.75rem" } as const;
+export const HUD_RESET_VIEW_SPOT = {
+  left: "calc(4.4rem + env(safe-area-inset-left, 0px))",
+  bottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))",
+} as const;
 
 /** Where the decision sheet's top edge sits: just under the plates (about 4rem tall). */
 export const HUD_SHEET_TOP = "4.4rem";

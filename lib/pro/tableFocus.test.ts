@@ -1,4 +1,4 @@
-import { tableFocusBox } from "./tableFocus";
+import { pickTapSizePx, tableFocusBox } from "./tableFocus";
 
 const box = (left: number, top: number, right: number, bottom: number) => ({ left, top, right, bottom });
 
@@ -27,5 +27,20 @@ describe("tableFocusBox", () => {
 
   test("returns null when every pick is zero-size", () => {
     expect(tableFocusBox([box(5, 5, 5, 5)], [box(0, 0, 10, 10)])).toBeNull();
+  });
+});
+
+describe("pickTapSizePx", () => {
+  test("a foreshortened space counts by its area, not its short side", () => {
+    // 60 x 40 on screen: comfortable under a thumb, though only 40 tall.
+    expect(pickTapSizePx({ width: 60, height: 40 })).toBeCloseTo(48.99, 1);
+  });
+
+  test("a round pick is simply its diameter", () => {
+    expect(pickTapSizePx({ width: 44, height: 44 })).toBe(44);
+  });
+
+  test("a sliver is still small, however long it is", () => {
+    expect(pickTapSizePx({ width: 90, height: 10 })).toBe(30);
   });
 });

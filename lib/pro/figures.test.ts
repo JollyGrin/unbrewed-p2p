@@ -1,4 +1,4 @@
-import { FIGURES_BASE_URL, figureFor, figureSpriteBox, parseFigureManifest } from "./figures";
+import { FIGURES_BASE_URL, LARGE_FIGURE_SCALE, figureFor, figureSpriteBox, parseFigureManifest, straddleAnim } from "./figures";
 
 const kong = {
   anchor: { x: 0.5, y: 0.74 },
@@ -66,5 +66,27 @@ describe("figureSpriteBox", () => {
     const box = figureSpriteBox(fig, 40);
     expect(box.left + fig.anchor.x * box.width).toBeCloseTo(0);
     expect(box.top + fig.anchor.y * box.height).toBeCloseTo(0);
+  });
+});
+
+describe("LARGE fighters' figures", () => {
+  test("a two-space figure is drawn larger than a one-space one", () => {
+    expect(LARGE_FIGURE_SCALE).toBeGreaterThan(1);
+  });
+
+  test("the straddling figure glides along the midpoints of head and tail", () => {
+    const head = { xs: [0.1, 0.2, 0.3], ys: [0.5, 0.5, 0.6], durationSec: 1 };
+    const tail = { xs: [0.0, 0.1, 0.2], ys: [0.5, 0.5, 0.5], durationSec: 1 };
+    const mid = straddleAnim(head, tail);
+    expect(mid?.xs.map((v) => +v.toFixed(3))).toEqual([0.05, 0.15, 0.25]);
+    expect(mid?.ys.map((v) => +v.toFixed(3))).toEqual([0.5, 0.5, 0.55]);
+    expect(mid?.durationSec).toBe(1);
+  });
+
+  test("snaps rather than guessing when the two paths do not pair up", () => {
+    const head = { xs: [0.1, 0.2], ys: [0.5, 0.5], durationSec: 0.5 };
+    expect(straddleAnim(head, null)).toBeNull();
+    expect(straddleAnim(head, { xs: [0.1], ys: [0.5], durationSec: 0 })).toBeNull();
+    expect(straddleAnim(null, null)).toBeNull();
   });
 });

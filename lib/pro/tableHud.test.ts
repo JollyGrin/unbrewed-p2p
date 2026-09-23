@@ -46,6 +46,17 @@ describe("tableHudFitInset", () => {
     expect(tableHudFitInset({ sheetShown: false }).right).toBe(HUD_GUTTER);
   });
 
+  test("keeps the board out of the camera cut-out and off the home indicator", () => {
+    const safe = { top: 0, right: 59, bottom: 21, left: 59 };
+    expect(tableHudFitInset({ safe })).toEqual({
+      top: HUD_TOP_RESERVE_PX,
+      bottom: HUD_HAND_VISIBLE_PX + 21,
+      left: HUD_GUTTER + 59,
+      right: HUD_GUTTER + 59,
+    });
+    expect(tableHudFitInset({ safe, sheetShown: true }).right).toBe(RAIL_WIDTH + 2 * HUD_GUTTER + 59);
+  });
+
   test("reserves less than the plates are tall: their corners are table, not board", () => {
     const PLATE_H_PX = 60;
     expect(HUD_TOP_RESERVE_PX).toBeLessThan(PLATE_H_PX);

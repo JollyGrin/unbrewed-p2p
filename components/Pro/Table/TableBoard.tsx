@@ -38,8 +38,8 @@ import type { FighterId, ProMapSpace, SpaceId, ViewFighter } from "@/lib/pro/pro
 import { DEFAULT_TILT_DEG } from "@/lib/pro/tableProjection";
 import { bandLabelText, bandMidpoint } from "@/lib/pro/twoSpaceBand";
 import { MOVE_STEP_SECONDS, type ProBoardProps } from "@/components/Pro/ProBoard";
-import type { Figure } from "@/lib/pro/figures";
-import { TableAnchorAnim, tableBillboardTransform } from "./TableStandeeAnchor";
+import { LARGE_FIGURE_SCALE, straddleAnim, type Figure } from "@/lib/pro/figures";
+import { TableAnchorAnim, TableStandeeAnchor, tableBillboardTransform } from "./TableStandeeAnchor";
 import { TableStage } from "./TableStage";
 import { TableBoardFx } from "./TableBoardFx";
 import { TableBoardLines } from "./TableBoardLines";
@@ -216,6 +216,18 @@ export const TableBoard = ({
       durationSec: (nodes.length - 1) * MOVE_STEP_SECONDS,
     };
   };
+  // Each hero's miniature, resolved once per render (null = token standee).
+  // A LARGE hero WITH a miniature STRADDLES its two spaces, as a big figure
+  // does on a real table: the figure stands at their midpoint and each space
+  // keeps its own base disc. Before this, the figure stood on the head space
+  // and the tail kept its upright disc and name band beside it — which read as
+  // "the figure is off its space, next to a cut-off circle" (owner, 2026-09-23).
+  const figureOf = new Map(
+    boardFighters.map((f) => [f.id, f.kind === "HERO" ? fighterFigure?.(f) ?? null : null] as const)
+  );
+  const straddles = (f: ViewFighter) =>
+    !!figureOf.get(f.id) && !!f.tailSpace && mainSpaceIds.has(f.tailSpace);
+
   const pendingHeadAnim = pendingMove ? routeAnim(pendingMove.path) : null;
   const pendingTailAnim = pendingMove ? routeAnim(pendingMove.trailPath) : null;
   // One settle per move — the HEAD segment owns it, exactly like ProBoard,
@@ -322,32 +334,57 @@ export const TableBoard = ({
             const diamPx = (diameterPct / 100) * Math.max(frameW, 1);
             const common = fighterProps(f);
             const headAnim = animFor(f.id, "head");
+            const straddling = straddles(f);
+            const stand = straddling ? bandMidpoint(space, spaceById.get(f.tailSpace as SpaceId)!) : space;
+            const standAnim = straddling ? straddleAnim(headAnim, animFor(f.id, "tail")) : headAnim;
             return f.kind === "HERO" ? (
-              <TableFighterStandee
-                key={f.id}
-                fighter={f}
-                x={space.x}
-                y={space.y}
-                tiltDeg={tiltDeg}
-                diamPx={diamPx}
-                playerColor={PLAYER_COLOR[f.owner] ?? "#999"}
-                artUrl={fighterTokenArt?.(f)}
-                figure={fighterFigure?.(f) ?? null}
-                anim={headAnim}
-                onAnimComplete={headAnim ? onPendingMoveSettled : undefined}
-                // Same registry, same rule as the flat board (ProBoard registers
-                // only the HEAD segment of a LARGE fighter): the damage-arc layer
-                // looks a fighter up here to know where on screen to land a hit.
-                innerRef={
-                  fighterEls
-                    ? (el) => {
-                        if (el) fighterEls.current.set(f.id, el);
-                        else fighterEls.current.delete(f.id);
-                      }
-                    : undefined
-                }
-                {...common}
-              />
+              <Fragment key={f.id}>
+                {straddling && (
+                  // The head space's own base. It carries the head's tween and
+                  // settles the move (the head owns the settle, as below), so a
+                  // move the straddling figure cannot follow still completes.
+                  <TableStandeeAnchor
+                    x={space.x}
+                    y={space.y}
+                    tiltDeg={tiltDeg}
+                    widthPx={0}
+                    heightPx={0}
+                    spaceDiamPx={diamPx}
+                    spaceId={f.space}
+                    baseAccent={PLAYER_COLOR[f.owner] ?? "#999"}
+                    anim={headAnim}
+                    onAnimComplete={headAnim ? onPendingMoveSettled : undefined}
+                  >
+                    {null}
+                  </TableStandeeAnchor>
+                )}
+                <TableFighterStandee
+                  fighter={f}
+                  x={stand.x}
+                  y={stand.y}
+                  tiltDeg={tiltDeg}
+                  diamPx={diamPx}
+                  playerColor={PLAYER_COLOR[f.owner] ?? "#999"}
+                  artUrl={fighterTokenArt?.(f)}
+                  figure={figureOf.get(f.id) ?? null}
+                  figureScale={straddling ? LARGE_FIGURE_SCALE : 1}
+                  baseHidden={straddling}
+                  anim={standAnim}
+                  onAnimComplete={standAnim && !straddling ? onPendingMoveSettled : undefined}
+                  // Same registry, same rule as the flat board (ProBoard registers
+                  // only the HEAD segment of a LARGE fighter): the damage-arc layer
+                  // looks a fighter up here to know where on screen to land a hit.
+                  innerRef={
+                    fighterEls
+                      ? (el) => {
+                          if (el) fighterEls.current.set(f.id, el);
+                          else fighterEls.current.delete(f.id);
+                        }
+                      : undefined
+                  }
+                  {...common}
+                />
+              </Fragment>
             ) : (
               <TableSidekickToken
                 key={f.id}
@@ -398,31 +435,34 @@ export const TableBoard = ({
                   anim={tailAnim}
                   onAnimComplete={tailAnim ? onPendingMoveSettled : undefined}
                   onClick={onFighterClick}
+                  bodyHidden={straddles(f)}
                 />
-                <Flex
-                  position="absolute"
-                  left={`${mid.x * 100}%`}
-                  top={`${mid.y * 100}%`}
-                  align="center"
-                  justify="center"
-                  pointerEvents="none"
-                  bg="brand.surfaceDim"
-                  color="brand.parchment"
-                  border={`1.5px solid ${color}`}
-                  borderRadius="999px"
-                  px="0.4em"
-                  fontSize="0.62rem"
-                  fontWeight="bold"
-                  whiteSpace="nowrap"
-                  boxShadow="0 1px 3px rgba(0,0,0,0.75)"
-                  zIndex={4}
-                  style={{
-                    transform: `translate(-50%, -50%) ${tableBillboardTransform(tiltDeg)}`,
-                    transformOrigin: "50% 50%",
-                  }}
-                >
-                  {bandLabelText(f.name)}
-                </Flex>
+                {!straddles(f) && (
+                  <Flex
+                    position="absolute"
+                    left={`${mid.x * 100}%`}
+                    top={`${mid.y * 100}%`}
+                    align="center"
+                    justify="center"
+                    pointerEvents="none"
+                    bg="brand.surfaceDim"
+                    color="brand.parchment"
+                    border={`1.5px solid ${color}`}
+                    borderRadius="999px"
+                    px="0.4em"
+                    fontSize="0.62rem"
+                    fontWeight="bold"
+                    whiteSpace="nowrap"
+                    boxShadow="0 1px 3px rgba(0,0,0,0.75)"
+                    zIndex={4}
+                    style={{
+                      transform: `translate(-50%, -50%) ${tableBillboardTransform(tiltDeg)}`,
+                      transformOrigin: "50% 50%",
+                    }}
+                  >
+                    {bandLabelText(f.name)}
+                  </Flex>
+                )}
               </Fragment>
             );
           })}

@@ -32,6 +32,10 @@ export interface TableFighterTailProps {
    *  either segment acts on the whole fighter, matching ProBoard. */
   onClick?: (id: FighterId) => void;
   targetable: boolean;
+  /** Only the base (and the tap target): the fighter's miniature stands
+   *  between its two spaces, so an upright disc here would be a second,
+   *  competing figure — the "cut-off circle" next to King Kong. */
+  bodyHidden?: boolean;
 }
 
 export const TableFighterTail = ({
@@ -46,6 +50,7 @@ export const TableFighterTail = ({
   onAnimComplete,
   onClick,
   targetable,
+  bodyHidden = false,
 }: TableFighterTailProps) => {
   const sizePx = diamPx * TAIL_WIDTH_FACTOR;
   const clickable = targetable && !!onClick;
@@ -69,16 +74,19 @@ export const TableFighterTail = ({
       title={`${fighter.name} (trailing body)`}
       data-fighter-id={`${fighter.id}-tail`}
     >
-      <Box
-        position="relative"
-        w="100%"
-        h="100%"
-        borderRadius="50%"
-        bg={playerColor}
-        border="2px solid #fff"
-        opacity={0.92}
-        boxShadow={selected ? "0 0 0 3px #fff, 0 4px 8px rgba(0,0,0,0.6)" : "0 4px 8px rgba(0,0,0,0.6)"}
-      />
+      {!bodyHidden && (
+        <Box
+          data-tail-body=""
+          position="relative"
+          w="100%"
+          h="100%"
+          borderRadius="50%"
+          bg={playerColor}
+          border="2px solid #fff"
+          opacity={0.92}
+          boxShadow={selected ? "0 0 0 3px #fff, 0 4px 8px rgba(0,0,0,0.6)" : "0 4px 8px rgba(0,0,0,0.6)"}
+        />
+      )}
     </TableStandeeAnchor>
   );
 };

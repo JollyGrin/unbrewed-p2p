@@ -150,6 +150,12 @@ export interface TableFighterStandeeProps {
    *  lib/pro/figures). When set it replaces the token-art plate; badges,
    *  glow and picking are unchanged. */
   figure?: Figure | null;
+  /** How much larger than a one-space miniature to draw `figure` — a LARGE
+   *  fighter's straddles its two spaces (lib/pro/figures LARGE_FIGURE_SCALE). */
+  figureScale?: number;
+  /** Stand without a base of its own: the piece is placed BETWEEN two spaces
+   *  and each of them draws its own (see TableBoard's LARGE figures). */
+  baseHidden?: boolean;
 }
 
 export const TableFighterStandee = ({
@@ -174,6 +180,8 @@ export const TableFighterStandee = ({
   onHoverChange,
   innerRef,
   figure = null,
+  figureScale = 1,
+  baseHidden = false,
 }: TableFighterStandeeProps) => {
   const widthPx = diamPx * PLATE_WIDTH_FACTOR;
   const heightPx = widthPx * PLATE_ASPECT;
@@ -207,6 +215,7 @@ export const TableFighterStandee = ({
       spaceDiamPx={diamPx}
       spaceId={fighter.space}
       baseAccent={playerColor}
+      base={!baseHidden}
       anim={anim}
       onAnimComplete={onAnimComplete}
       pick={fighterClickable}
@@ -229,7 +238,7 @@ export const TableFighterStandee = ({
         {figure ? (
           <TableFigureSprite
             figure={figure}
-            baseDiamPx={standeeBaseDiameterPx(diamPx)}
+            baseDiamPx={standeeBaseDiameterPx(diamPx) * figureScale}
             plateW={widthPx}
             plateH={heightPx}
           />

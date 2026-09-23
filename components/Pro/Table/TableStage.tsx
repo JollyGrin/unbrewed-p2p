@@ -29,7 +29,7 @@ import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Box, Button } from "@chakra-ui/react";
 import { useReducedMotion } from "framer-motion";
 import { useZoomPan, ZoomPanInset } from "@/lib/pro/useZoomPan";
-import { tableFocusBox } from "@/lib/pro/tableFocus";
+import { pickTapSizePx, tableFocusBox } from "@/lib/pro/tableFocus";
 import { ContentBox, contentBoxFromRects } from "@/lib/pro/fitContent";
 import { useCoarsePointer } from "@/lib/pro/useCoarsePointer";
 import {
@@ -195,7 +195,9 @@ export const TableStage = ({
         releaseFocus();
         return;
       }
-      const diameters = rects.map((r) => Math.min(r.width, r.height));
+      // Tap size by area (see pickTapSizePx): a foreshortened ellipse's short
+      // side undersells it and zoomed the board for picks that were fine.
+      const diameters = rects.map(pickTapSizePx);
       focusOn(box, Math.min(...diameters), tableFocusCapDiameterPx(Math.max(...diameters)));
     });
     return () => cancelAnimationFrame(raf);
