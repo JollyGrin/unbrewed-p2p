@@ -25,16 +25,16 @@
  * same image drawn inside the tilted stage (browsers dedupe the request from
  * cache, so this costs no extra network fetch).
  */
-import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Box, Button } from "@chakra-ui/react";
 import { useReducedMotion } from "framer-motion";
 import { useZoomPan, ZoomPanInset } from "@/lib/pro/useZoomPan";
 import { tableFocusBox } from "@/lib/pro/tableFocus";
+import { ContentBox, contentBoxFromRects } from "@/lib/pro/fitContent";
 import { useCoarsePointer } from "@/lib/pro/useCoarsePointer";
 import {
   DEFAULT_TILT_DEG,
   TABLE_YAW_DEG,
-  boardEdgeFitReservePx,
   boardTransform,
   perspectivePx,
   tableFocusCapDiameterPx,
@@ -109,23 +109,6 @@ export const TableStage = ({
     return () => ro.disconnect();
   }, []);
 
-  // The fit calculation (inside useZoomPan) knows nothing about
-  // TableBoardEdge's own extruded thickness — it fits purely against the
-  // board's FLAT layout box. `boardEdgeFitReservePx` pads the BOTTOM inset by
-  // the edge's own approximate on-screen extent so the fit leaves it room to
-  // render instead of clipping it against a cramped mobile viewport (phase-5
-  // fault #1 — see tableProjection.ts's own comment on this constant for the
-  // full "why"). `frameW` is 0 until the ResizeObserver above has fired once;
-  // `boardEdgeFitReservePx` degrades to a negligible value at that width, so
-  // the only visible effect is the SAME one-time "the fit tightens up
-  // slightly once real measurements land" adjustment `TableStage` already
-  // tolerates elsewhere (see the auto-focus effect's own `frameW` gating
-  // below) — never a wrong-then-jumping-back-wrong oscillation.
-  const effectiveFitInset: ZoomPanInset = useMemo(
-    () => ({ ...fitInset, bottom: (fitInset?.bottom ?? 0) + boardEdgeFitReservePx(frameW) }),
-    [fitInset, frameW]
-  );
-  const zoom = useZoomPan(zoomable, frameRef, effectiveFitInset, zoomable && rotated);
   const coarsePointer = useCoarsePointer();
   // Camera life (phase-5 target #5 — see tableProjection.ts's header). A
   // static yaw, not an animation, so there is nothing here for
@@ -135,6 +118,28 @@ export const TableStage = ({
   // the same way the pendingMove tween is in TableBoard.tsx.
   const reducedMotion = !!useReducedMotion();
   const yawDeg = reducedMotion ? 0 : TABLE_YAW_DEG;
+
+  // Fit what the board DRAWS, not its flat layout box (see
+  // lib/pro/fitContent). Tipped back ~48°, the plane is drawn at about two
+  // thirds of its layout height, so fitting the layout box scaled the board
+  // down for height it never uses. The extruded edge hangs below the plane,
+  // so it is part of the drawn box too — which is what replaced the old
+  // hand-tuned bottom reserve for it. Pieces are deliberately NOT measured:
+  // the resting fit must not shift every time a standee's head moves.
+  //
+  // `frameW`/`tiltDeg` are deps only so a resize or a tilt change hands the
+  // hook a new callback and it re-fits; the body reads the live DOM.
+  const measureContent = useCallback((): ContentBox | null => {
+    const frame = frameRef.current;
+    if (!frame || !frameW) return null;
+    const drawn = Array.from(
+      frame.querySelectorAll<HTMLElement>("[data-table-stage-plane], [data-table-board-edge]")
+    ).map((el) => el.getBoundingClientRect());
+    const layoutW = rotated && zoomable ? frame.offsetHeight : frame.offsetWidth;
+    return contentBoxFromRects(frame.getBoundingClientRect(), layoutW, drawn);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- frameW/tiltDeg/yawDeg stand in for "the drawing changed"
+  }, [frameW, frameH, tiltDeg, yawDeg, rotated, zoomable]);
+  const zoom = useZoomPan(zoomable, frameRef, fitInset, zoomable && rotated, measureContent);
 
   // Same mobile auto-focus-zoom ProBoard runs (issue #831): with nothing to
   // pick, a whole-board fit is correct — but the instant a prompt offers gold

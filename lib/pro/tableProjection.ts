@@ -142,19 +142,18 @@ export const DEFAULT_TILT_DEG = 48;
  * strength of the effect is identical on a phone and on a desktop instead of
  * scaling with pixels. Lower = more dramatic convergence.
  *
- * TUNING HISTORY (fault #1 of the phase-2 report): the original 1.75 put the
- * camera so far back that the projection was nearly parallel — a screenshot
- * audit measured the far rank rendering at ~same size as the near rank, which
- * reads as "squashed flat", not "tilted". `convergenceRatio` below is the
- * pure-math model of the SAME scale-with-depth the browser's `perspective` +
- * `rotateX` chain produces; at the old ratio it works out to roughly a 1.2×
- * near/far difference on a typical (~2.7:1) Unmatched board. 0.55 was chosen
- * by raising that to a clearly photograph-like ~1.6–1.7× and then confirming
- * against a real rendered screenshot (see the table-board phase-2 report for
- * the measured before/after pixel numbers) that the near rank still reads
- * clearly and nothing clips off the frame.
+ * TUNING HISTORY. 1.75 was the first value. A phase-2 screenshot audit
+ * judged it "squashed flat" and it went to 0.55 — by eye, with no reference.
+ * Measured against the official app (2026-09-23): its board's near edge is
+ * 1.25× its far edge; 0.55 made ours ~2.4× at the edges, a near rim so wide
+ * that fitting what the board actually draws (lib/pro/fitContent) shrank the
+ * playable spaces by a quarter (mean space width 32px vs 42px at 1.75 on an
+ * iPhone 14 in landscape, same board, same fit). 1.75 gives ~1.3 on a
+ * Secluded-Temple-shaped board — the reference, within tolerance. What read
+ * as "flat" in phase 2 was the missing thickness, shadows and seating, all
+ * added since; depth now comes from those, not from a fisheye camera.
  */
-export const PERSPECTIVE_RATIO = 0.55;
+export const PERSPECTIVE_RATIO = 1.75;
 
 /**
  * Stacking band for standees. Board decoration sits below `Z_BASE`; anything
@@ -606,31 +605,11 @@ export const boardThicknessPx = (frameWidthPx: number): number =>
  */
 export const EDGE_FOLD_DEG = 45;
 
-/**
- * Extra BOTTOM margin `TableStage` reserves in its fit-to-screen calculation
- * so `TableBoardEdge`'s extrusion actually has room to render inside the
- * viewport instead of being clipped by it. Without this, the fit scale is
- * computed purely from the board's own FLAT image dimensions — which is
- * exactly right for the flat board, and was fine here too before this phase,
- * since a tilted-but-flat plane's rendered height is always SHORTER than the
- * flat layout box it's fit against (`rotateX` foreshortens, never stretches).
- * The extruded edge breaks that assumption: it adds real rendered height
- * BELOW the board's own bottom edge, and on a cramped landscape phone layout
- * — where the fit already uses nearly all the vertical room the HUD leaves
- * — that extra height has nowhere to go but off the bottom of the screen.
- *
- * Because the fold (above) only ever SHRINKS the flat thickness — never
- * grows it, since this view no longer depends on perspective-driven growth
- * for this face — the edge's true on-screen extent can never exceed
- * `boardThicknessPx` itself. A reserve modestly over 1 is therefore already
- * generous; this is not the "cover a perspective-inflated near edge" figure
- * an earlier pass at this constant used (that reasoning no longer applies
- * once the face stopped relying on perspective to look right).
- */
-export const BOARD_EDGE_FIT_RESERVE_FACTOR = 1.8;
-
-export const boardEdgeFitReservePx = (frameWidthPx: number): number =>
-  boardThicknessPx(frameWidthPx) * BOARD_EDGE_FIT_RESERVE_FACTOR;
+// The fit used to reserve a bottom margin for the extruded edge here
+// (BOARD_EDGE_FIT_RESERVE_FACTOR), because it fitted the FLAT layout box and
+// could not see the edge. TableStage now measures what the board actually
+// draws — plane and edge together — and fits that (lib/pro/fitContent), so
+// the edge is inside the fitted box by construction.
 
 /** Stacking for the board's own extruded side face. Must stay under
  *  `Z_BASE` (10) — there is no scenario where the board's own body should
