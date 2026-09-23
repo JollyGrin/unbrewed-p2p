@@ -14,7 +14,10 @@
  *   depthRatio        near-rank space height ÷ far-rank space height.
  *                     1.0 means there is NO perspective, whatever the DOM says.
  *   boardFillFraction how much of the pane's width the board actually occupies.
- *   offscreenPicks    prompt targets the player cannot see or tap.
+ *   offscreenPicks    prompt targets the player cannot see or tap (off the
+ *                     pane, or under the landscape rail).
+ *   hiddenFighters    fighters the player cannot see, by the same rule — the
+ *                     focus zoom must never push a piece out of view.
  *   baseConcentricity how far a fighter's base disc sits from its space centre,
  *                     as a fraction of the space's own width (0 = seated dead
  *                     centre).
@@ -70,10 +73,25 @@ const collect = () => {
   const near = mean(spaces.slice(-3).map((s) => s.h));
 
   const boardRect = plane.getBoundingClientRect();
+  // The playable area is the pane MINUS the landscape rail: the rail is a
+  // translucent fixed panel over the board, so a piece that slides under it is
+  // still "on screen" by the pane's numbers while the player cannot read or
+  // tap it. That exact case (the focus zoom pushing the opponent under the
+  // rail) passed `offscreenPicks` for as long as it measured against the pane.
+  const railEl = document.querySelector('[data-testid="pro-mobile-rail"]');
+  const visibleRight = railEl ? railEl.getBoundingClientRect().left : pane.width;
+  const hidden = (r) => r.cy < 0 || r.cx < 0 || r.cy > pane.height || r.cx > visibleRight;
   const picks = [...document.querySelectorAll("[data-pick]")].map(rect);
-  const offscreen = picks.filter(
-    (p) => p.cy < 0 || p.cx < 0 || p.cy > pane.height || p.cx > pane.width
-  ).length;
+  const offscreen = picks.filter(hidden).length;
+  const fighters = [...plane.querySelectorAll("[data-fighter-id]")].map((el) => ({
+    id: el.getAttribute("data-fighter-id"),
+    ...rect(el),
+  }));
+  // A fighter is judged by its WHOLE box, not its centre: a standee whose HP
+  // badge is under the rail is a standee whose health the player cannot read.
+  const clipped = (r) =>
+    r.cx - r.w / 2 < 0 || r.cy - r.h / 2 < 0 || r.cx + r.w / 2 > visibleRight || r.cy + r.h / 2 > pane.height;
+  const hiddenFighters = fighters.filter(clipped).map((f) => f.id);
 
   // Seating: a fighter's base disc should sit concentric with the space it
   // occupies. Measured as centre-to-centre distance over the space's width, so
@@ -102,6 +120,8 @@ const collect = () => {
     boardFillFraction: +(boardRect.width / (pane.width || 1)).toFixed(2),
     pickCount: picks.length,
     offscreenPicks: offscreen,
+    fighterCount: fighters.length,
+    hiddenFighters,
     // An empty list means the renderer does not expose the contract this probe
     // needs, NOT that the pieces are seated perfectly — say so out loud rather
     // than reporting a silent pass.
