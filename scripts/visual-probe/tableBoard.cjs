@@ -48,6 +48,8 @@ const OUT = argOut > -1 ? process.argv[argOut + 1] : path.join(require("os").tmp
 fs.mkdirSync(OUT, { recursive: true });
 
 const BASE = process.env.PROBE_URL || "http://localhost:3000";
+/** The board every run measures (override with PROBE_MAP to compare maps). */
+const PROBE_MAP = process.env.PROBE_MAP || "Secluded Temple";
 
 /** Runs in the page: everything we want to know, read off the real DOM. */
 const collect = () => {
@@ -141,6 +143,21 @@ const collect = () => {
   await p.waitForTimeout(6000);
   await p.getByRole("button", { name: "AI·E", exact: true }).tap();
   await p.getByRole("button", { name: /^King Kong by/ }).first().tap();
+  // ONE fixed board. The lobby defaults to "Random", and every metric here is
+  // a property of the map as much as of the renderer — the same build measured
+  // depthRatio 1.4, 1.86 and 2.16 on three random boards. A number that moves
+  // when nothing changed can't tell you whether a change helped.
+  const stage = p.getByRole("button", { name: PROBE_MAP, exact: true });
+  if (!(await stage.count())) {
+    const more = p.getByRole("button", { name: /^All \d+ boards$/ });
+    if (await more.count()) await more.first().tap();
+  }
+  if (!(await stage.count())) {
+    console.error(`could not find the "${PROBE_MAP}" stage tile — was it renamed?`);
+    await b.close();
+    process.exit(1);
+  }
+  await stage.first().tap();
   await p.getByRole("button", { name: "PLAY VS AI" }).tap();
   await p.waitForTimeout(12000);
   const keep = p.getByRole("button", { name: /keep your opening hand/i });
