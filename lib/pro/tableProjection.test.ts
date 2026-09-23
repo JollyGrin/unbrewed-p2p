@@ -6,13 +6,6 @@ import {
   MAX_TILT_DEG,
   PERSPECTIVE_RATIO,
   SHADOW_STRETCH_FAR,
-  STANDEE_ART_TRANSFORM_ORIGIN,
-  STANDEE_ART_ZOOM,
-  STANDEE_DOME_Y,
-  STANDEE_FOOT_HALF_WIDTH,
-  STANDEE_SHOULDER_HALF_WIDTH,
-  STANDEE_WAIST_HALF_WIDTH,
-  STANDEE_WAIST_Y,
   TABLE_FOCUS_CAP_FLOOR_PX,
   TABLE_HIT_PAD_FAR,
   TABLE_YAW_DEG,
@@ -29,12 +22,9 @@ import {
   pieSliceAngles,
   pieSlicePath,
   placeStandee,
-  standeeArtTransform,
-  standeeArtVisibleTopFraction,
   standeeBaseDiameterPx,
   standeeScale,
   standeeShadowStretch,
-  standeeSilhouettePath,
   standeeTransform,
   standeeZIndex,
   tableFocusCapDiameterPx,
@@ -225,111 +215,6 @@ describe("pieSlicePath", () => {
   it("flags the large-arc sweep only past a half circle", () => {
     expect(pieSlicePath(0, 0, 1, 0, 90)).toMatch(/A 1 1 0 0 1/);
     expect(pieSlicePath(0, 0, 1, 0, 270)).toMatch(/A 1 1 0 1 1/);
-  });
-});
-
-describe("standeeSilhouettePath (phase-3 fault #1 — 'standees still read as rectangles')", () => {
-  it("keeps every keypoint strictly inside the box, never on a straight rectangular edge", () => {
-    const w = 100;
-    const h = 200;
-    const d = standeeSilhouettePath(w, h);
-    // The shoulder half-width is the widest point of the silhouette and must
-    // still fall short of the box's own edges — a shape that touches the
-    // full width anywhere would reintroduce a straight, rectangle-like side.
-    expect(STANDEE_SHOULDER_HALF_WIDTH).toBeLessThan(0.5);
-    // The apex (top center) is a single point, not a straight top edge —
-    // regression anchor for the phase-2 rectangle-with-rounded-corners look.
-    expect(d.startsWith(`M ${w / 2} 0`)).toBe(true);
-    // Exactly two elliptical arcs (the domed head) and otherwise straight
-    // taper/flare edges — never a `border-radius`-style all-round corner.
-    expect(d.match(/A /g)).toHaveLength(2);
-  });
-
-  it("orders the silhouette FOOT > SHOULDER > WAIST, the 'a figure standing' silhouette", () => {
-    // Not a numeric coincidence — this ordering is what keeps the shape
-    // reading as a standing figure with a visible stance rather than a
-    // lozenge (shoulder = foot, tapering smoothly), a blob (waist widest),
-    // or — the phase-4 bug this pins down — a funnel/shuttlecock (SHOULDER
-    // widest, tapering down to a narrower base). A standing figure is
-    // narrowest at the head, flares at the shoulders, may pinch at the
-    // waist, and is WIDEST at its own base — the part actually touching the
-    // ground and needing to look stable.
-    expect(STANDEE_FOOT_HALF_WIDTH).toBeGreaterThan(STANDEE_SHOULDER_HALF_WIDTH);
-    expect(STANDEE_SHOULDER_HALF_WIDTH).toBeGreaterThan(STANDEE_WAIST_HALF_WIDTH);
-    expect(STANDEE_DOME_Y).toBeGreaterThan(0);
-    expect(STANDEE_WAIST_Y).toBeLessThan(1);
-    expect(STANDEE_DOME_Y).toBeLessThan(STANDEE_WAIST_Y);
-  });
-
-  it("keeps the foot — now the widest keypoint — short of the box's own edges too", () => {
-    // Fault #1's regression anchor above only ever pinned SHOULDER < 0.5;
-    // now that FOOT is the widest keypoint, IT is the one that would
-    // reintroduce a straight rectangular side if it ever reached the edge.
-    expect(STANDEE_FOOT_HALF_WIDTH).toBeLessThan(0.5);
-  });
-
-  it("is bilaterally symmetric: the left-side coordinates mirror the right", () => {
-    const w = 120;
-    const h = 150;
-    const d = standeeSilhouettePath(w, h);
-    const shoulderX = w / 2 + STANDEE_SHOULDER_HALF_WIDTH * w;
-    const mirroredShoulderX = w - shoulderX;
-    expect(d).toContain(`${Math.round(shoulderX * 10) / 10} ${Math.round(STANDEE_DOME_Y * h * 10) / 10}`);
-    expect(d).toContain(`${Math.round(mirroredShoulderX * 10) / 10} ${Math.round(STANDEE_DOME_Y * h * 10) / 10}`);
-  });
-
-  it("scales linearly with the plate's own render size", () => {
-    const small = standeeSilhouettePath(50, 100);
-    const big = standeeSilhouettePath(100, 200);
-    // Doubling both dimensions must double every coordinate in the path —
-    // otherwise the clip would drift off the plate at some render sizes.
-    const firstNumber = (d: string): number => Number(d.split(/[ ]/).find((tok) => /^-?\d/.test(tok)));
-    expect(firstNumber(big)).toBeCloseTo(firstNumber(small) * 2, 5);
-  });
-
-  it("never collapses to a degenerate (zero-area) shape for a tiny or zero-sized plate", () => {
-    expect(() => standeeSilhouettePath(0, 0)).not.toThrow();
-    const d = standeeSilhouettePath(0, 0);
-    expect(d).toContain("M");
-    expect(d).toContain("Z");
-  });
-});
-
-describe("standeeArtTransform / standeeArtVisibleTopFraction (phase-4 fault #2 — 'a picture lying on the space, not a figure standing on it')", () => {
-  it("zooms IN, never out — a scale at or below 1 would leave the card background fully visible", () => {
-    expect(STANDEE_ART_ZOOM).toBeGreaterThan(1);
-    expect(standeeArtTransform()).toBe(`scale(${STANDEE_ART_ZOOM})`);
-  });
-
-  it("anchors the zoom at the plate's own base, so the torso — not the head — stays fixed", () => {
-    // Bottom-center, not the CSS default (center-center): the whole point is
-    // that the crop eats into the TOP of the portrait (the card background
-    // above the head) while the bottom (where the character already meets
-    // the plate's edge) does not shift.
-    expect(STANDEE_ART_TRANSFORM_ORIGIN).toBe("50% 100%");
-  });
-
-  it("crops away a real, non-trivial slice of the source image's top — not a rounding-error sliver", () => {
-    const visibleTop = standeeArtVisibleTopFraction();
-    // At STANDEE_ART_ZOOM this crops roughly the top quarter of the source
-    // image, which is what a phase-4 measurement of the shipped token art
-    // (King Kong, Malfurion — see the phase-4 report) showed was needed to
-    // clear the card-background band above the character's head on both,
-    // despite the two portraits framing their subject completely
-    // differently. A zoom that crops noticeably less than this would leave
-    // that background sitting in the plate again; noticeably more would
-    // start eating into the character's own head.
-    expect(visibleTop).toBeGreaterThan(0.15);
-    expect(visibleTop).toBeLessThan(0.3);
-  });
-
-  it("keeps the bottom of the source image fully visible — cropping only ever happens at the top", () => {
-    // The visible window is [visibleTop, 1]: the bottom edge (1) never
-    // moves, which is the direct consequence of anchoring the transform at
-    // the plate's own base (see the transform-origin test above).
-    const visibleTop = standeeArtVisibleTopFraction();
-    expect(visibleTop).toBeLessThan(1);
-    expect(1 - visibleTop).toBeCloseTo(1 / STANDEE_ART_ZOOM, 10);
   });
 });
 

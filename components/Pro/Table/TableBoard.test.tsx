@@ -119,7 +119,7 @@ describe("TableBoard zones", () => {
 });
 
 describe("TableBoard fighters", () => {
-  it("renders a HERO as a masked figure silhouette and a SIDEKICK as a round token", () => {
+  it("lays a HERO without a miniature and a SIDEKICK on their spaces as round tokens", () => {
     const { container } = renderBoard({
       fighters: [
         fighter({ id: "p1/hero", kind: "HERO", space: "s1" }),
@@ -130,13 +130,12 @@ describe("TableBoard fighters", () => {
     const kick = container.querySelector('[data-fighter-id="p1/kick"]')!;
     expect(hero).toBeTruthy();
     expect(kick).toBeTruthy();
-    // Phase 3: a HERO plate is clipped to a non-rectangular standee
-    // silhouette (`clip-path: path(...)`, see standeeSilhouettePath), no
-    // longer a `border-radius` rectangle — that clip is the one visible
-    // signal the brief specifically asks for. The SIDEKICK token stays a
-    // plain circle, unchanged.
-    expect(getComputedStyle(hero).clipPath).toContain("path(");
-    expect(getComputedStyle(kick).borderRadius).toBe("50%");
+    // Both are the deck's own round token, flat in the board plane (the
+    // anchor's ground layer) — the author's piece, like on the flat board.
+    for (const token of [hero, kick]) {
+      expect(token.closest("[data-standee-ground]")).toBeTruthy();
+      expect(getComputedStyle(token).borderRadius).toBe("50%");
+    }
   });
 
   it("does not place a fighter whose space does not exist on the main board (e.g. a region space, unsupported in phase 1)", () => {
@@ -210,6 +209,20 @@ describe("TableBoard LARGE (two-space) fighters", () => {
       </ChakraProvider>
     );
     expect(screen.getByText("King Kong")).toBeTruthy();
+  });
+
+  it("lays a LARGE fighter's tail flat on its space too, as a plain token in the owner's colour", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <TableBoard
+          map={LARGE_MAP}
+          fighters={[fighter({ id: "p1/kong", name: "King Kong", space: "s3", tailSpace: "s4", size: "LARGE" })]}
+        />
+      </ChakraProvider>
+    );
+    const body = container.querySelector("[data-tail-body]") as HTMLElement;
+    expect(body.closest("[data-standee-ground]")).toBeTruthy();
+    expect(container.querySelectorAll('[data-fighter-base][data-space-id="s4"]')).toHaveLength(1);
   });
 
   it("does not render a tail or band for a NORMAL fighter (no tailSpace)", () => {

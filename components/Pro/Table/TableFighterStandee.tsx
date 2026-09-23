@@ -1,64 +1,37 @@
 /**
- * A HERO's standee: an upright, framed portrait plate — the "good-looking
- * fallback, never a copied asset" the brief asks for when no real cardboard
- * cut-out art exists in this project (it doesn't; `fighterTokenArt` is the
- * same circular token art the flat board already uses, resolved by the
- * caller exactly the way `useProCardArt.resolveFighterToken` always has).
- * Standing it up as a plate rather than clipping it to a circle (the flat
- * board's own shape) is what reads as "a figure on the table" instead of
- * "a chip lying on the table".
+ * A HERO on the table. With a miniature (lib/pro/figures) it stands upright
+ * on its base; without one it is the deck's own round token — the author's
+ * piece, the same circle the flat board draws — lying flat on its space like
+ * a sidekick (see TableFlatToken). The owner asked for exactly that
+ * (2026-09-23): the portrait cut into an upright silhouette this used to draw
+ * read as neither the author's piece nor a figure.
  *
  * Everything about WHERE and how big this renders — position, billboard
  * counter-rotation, depth scale, stacking order, contact shadow — is
- * `TableStandeeAnchor` + tableProjection.ts; this file only draws the plate's
- * face and its badges.
+ * `TableStandeeAnchor` + tableProjection.ts; this file only draws the piece
+ * and its badges.
  */
 import { Box, Flex, Text } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
 import type { FighterId, ViewFighter } from "@/lib/pro/protocol";
 import type { FlagTokenBadge } from "@/lib/pro/heroStateFlags";
 import { fighterStatusBadgesFor } from "@/lib/pro/fighterStatuses";
-import { tokenInitials } from "@/components/Pro/FighterTokenPortrait";
-import {
-  standeeArtTransform,
-  standeeBaseDiameterPx,
-  standeeSilhouettePath,
-  STANDEE_ART_TRANSFORM_ORIGIN,
-} from "@/lib/pro/tableProjection";
+import { standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
 import type { Figure } from "@/lib/pro/figures";
 import { TableFigureGround, TableFigureSprite } from "./TableFigureSprite";
 import { TableAnchorAnim, TableStandeeAnchor } from "./TableStandeeAnchor";
 import { TableFighterBadges } from "./TableFighterBadges";
+import { TableFlatToken, TOKEN_BADGE_PLATE_HEIGHT } from "./TableFlatToken";
 
-/** Plate proportions — noticeably TALLER than it is wide, so a standee reads
- *  as a figure standing on a space, not a token the same size as the space
- *  it occupies (phase-3 "Size" requirement). */
+/** A miniature's upright plate, which anchors its badges: taller than wide,
+ *  like the figure standing in it (the figure itself overflows it freely). */
 const PLATE_ASPECT = 1.5;
-/** Plate width as a multiple of the space's own printed diameter (px) — wider
- *  than the flat board's circular token so a portrait plate doesn't feel
- *  cramped standing on the same footprint. */
+/** That plate's width as a multiple of the space's own printed diameter. */
 const PLATE_WIDTH_FACTOR = 1.55;
 
 /**
- * SILHOUETTE MASK (phase-3 fault #1 — the plate still read as a rectangle).
- * Phase 2's fix was a `border-radius` arch: it rounds the box's CORNERS, but
- * every SIDE stayed a dead-straight vertical line, and a hard 2px owner-color
- * border traced that same rectangle on top. At the tens-of-pixels a standee
- * actually renders at, that reads as "a rounded ID card", not "a figure".
- *
- * `clip-path: path(...)` replaces it with `standeeSilhouettePath` — a real,
- * non-rectangular outline (domed head, tapered waist, flared feet; see
- * tableProjection.ts) computed at THIS plate's own render size, so the mask
- * scales correctly whatever `widthPx`/`heightPx` the caller passes. The hard
- * owner-color border is gone entirely: ownership now reads off the STANDEE
- * BASE's rim (TableStandeeAnchor), exactly like a real cardboard standee
- * slotted into a colored plastic base — the figure itself needs no border.
- *
- * `clip-path` also clips ordinary `box-shadow` (it lies outside the clipped
- * silhouette, so it would vanish rather than outline it), which is why the
- * selection/target/depth cues below are `filter: drop-shadow(...)` instead —
- * a `filter` runs on the element's already-clipped, rasterized output, so it
- * hugs the actual silhouette edge rather than the box's rectangular bounds.
+ * Highlight for a miniature. It is a `filter`, not a `box-shadow`, so the
+ * glow hugs the model's own outline rather than its image's rectangle.
  */
 const plateFilter = (selected: boolean, friendly: boolean): string => {
   const depth = "drop-shadow(0 4px 8px rgba(0,0,0,0.65))";
@@ -71,56 +44,6 @@ const targetPulse = keyframes`
   0%, 100% { filter: drop-shadow(0 0 3px rgba(224,168,46,0.95)) drop-shadow(0 0 6px rgba(224,168,46,0.7)) drop-shadow(0 4px 8px rgba(0,0,0,0.65)); }
   50% { filter: drop-shadow(0 0 3px rgba(224,168,46,0.45)) drop-shadow(0 0 6px rgba(224,168,46,0.25)) drop-shadow(0 4px 8px rgba(0,0,0,0.65)); }
 `;
-
-/**
- * ART FIT (phase-4 fault #2 — a correctly-shaped silhouette still looked
- * like "a picture lying on the space" because the square portrait inside it
- * was never actually fitted to it). `object-fit: cover` alone leaves the
- * source image's full height sitting in the plate untouched for this
- * aspect-ratio pairing (see `standeeArtTransform`'s own comment in
- * tableProjection.ts for the exact reason) — including whatever card
- * background sits above the character's head. `standeeArtTransform` adds
- * the extra zoom that crops that background away; this constant is its
- * `transform-origin` counterpart, imported alongside it so the two are
- * always applied as the matched pair they have to be.
- */
-const artStyle = {
-  objectFit: "cover" as const,
-  objectPosition: "center top" as const,
-  transform: standeeArtTransform(),
-  transformOrigin: STANDEE_ART_TRANSFORM_ORIGIN,
-};
-
-/**
- * Bottom fade — feathers the art into the standee BASE (TableStandeeAnchor)
- * instead of ending on the silhouette's hard foot edge. Without this, the
- * clip-path's flat foot line reads as the art being SLICED off, which is
- * the opposite of "standing in a base". Deepened from the phase-3 version
- * (which only reached 55% opacity, tuned for legibility of badges near the
- * bottom, not for blending into the base) to a near-opaque tone close to the
- * base disc's own darkest stop (`rgba(8,4,10,0.95)` in TableStandeeAnchor)
- * so the two visually meet rather than jump in tone at the clip edge.
- */
-const artBaseFade =
-  "linear-gradient(180deg, rgba(0,0,0,0) 45%, rgba(10,5,12,0.55) 80%, rgba(8,4,10,0.9) 100%)";
-
-/**
- * Edge vignette — darkens the art toward the silhouette's own outline. These
- * token portraits are painted on a solid card background (pale cream for
- * King Kong, forest green for Malfurion — every hero's own color, never the
- * same two colors), and `standeeArtTransform`'s crop cannot remove all of it
- * without also cropping into the character (a wide head like antlers, or
- * shoulders reaching close to the frame's own edges, can leave a sliver of
- * that background at the very edge of the plate). Rather than chase a crop
- * tight enough for every current and future hero's own framing, this
- * darkens exactly the region where any leftover background would sit — the
- * silhouette's own edge — so it reads as shadow/falloff around the figure
- * instead of as a patch of the card it was cut from. Transparent through the
- * center (over the face) so it never dims the part of the portrait doing
- * the most work to read as "a figure".
- */
-const artVignette =
-  "radial-gradient(ellipse 60% 55% at 50% 35%, rgba(0,0,0,0) 55%, rgba(6,3,8,0.6) 100%)";
 
 export interface TableFighterStandeeProps {
   /** Forwarded to the anchor's root — see TableStandeeAnchor's own note. */
@@ -183,18 +106,15 @@ export const TableFighterStandee = ({
   figureScale = 1,
   baseHidden = false,
 }: TableFighterStandeeProps) => {
-  const widthPx = diamPx * PLATE_WIDTH_FACTOR;
-  const heightPx = widthPx * PLATE_ASPECT;
+  const tokenPx = standeeBaseDiameterPx(diamPx);
+  // A miniature's plate is tall; a flat token's is a low strip that only
+  // lifts its badges above the token's rim.
+  const widthPx = figure ? diamPx * PLATE_WIDTH_FACTOR : tokenPx;
+  const heightPx = figure ? widthPx * PLATE_ASPECT : tokenPx * TOKEN_BADGE_PLATE_HEIGHT;
   const statusBadges = fighterStatusBadgesFor(fighter);
   const fighterClickable = targetable && !!onClick;
   const clickHandler = fighterClickable ? () => onClick!(fighter.id) : onSpaceFallbackClick;
-  // Computed at THIS plate's own render size (see standeeSilhouettePath's own
-  // comment on why it needs actual px, not a percentage) — every hero on the
-  // board gets the identical silhouette, just scaled to its own diamPx.
-  // A miniature has its own outline, so it is drawn unclipped and without the
-  // plate's backdrop; only the token-art plate needs the silhouette.
-  const clipPath = figure ? undefined : `path('${standeeSilhouettePath(widthPx, heightPx)}')`;
-  const figureBaseDiamPx = standeeBaseDiameterPx(diamPx) * figureScale;
+  const figureBaseDiamPx = tokenPx * figureScale;
 
   return (
     <TableStandeeAnchor
@@ -204,19 +124,13 @@ export const TableFighterStandee = ({
       tiltDeg={tiltDeg}
       widthPx={widthPx}
       heightPx={heightPx}
-      // The base is now derived from the SPACE's own footprint (`diamPx`),
-      // not from this plate's (deliberately wider — `PLATE_WIDTH_FACTOR`)
-      // own width — phase-5 target #2, see TableStandeeAnchor's and
-      // tableProjection.ts's own comments for why that's what keeps the
-      // base concentric with the space instead of drifting off it. The
-      // silhouette's own flared feet (`STANDEE_FOOT_HALF_WIDTH`) can still
-      // extend past this smaller base at the widest point — deliberate, see
-      // `standeeBaseDiameterPx`'s own comment on why that's normal for a
-      // standing figure on a round base, not a bug.
+      // The base is derived from the SPACE's own footprint (`diamPx`), never
+      // from the plate, so it stays concentric with the space (phase-5 #2).
+      // A flat token is its own base.
       spaceDiamPx={diamPx}
       spaceId={fighter.space}
       baseAccent={playerColor}
-      base={!baseHidden}
+      base={!!figure && !baseHidden}
       ground={
         figure ? (
           <TableFigureGround
@@ -225,7 +139,19 @@ export const TableFighterStandee = ({
             tiltDeg={tiltDeg}
             filter={plateFilter(selected, friendly)}
           />
-        ) : undefined
+        ) : (
+          <TableFlatToken
+            sizePx={tokenPx}
+            rim={playerColor}
+            spaceId={fighter.space}
+            name={fighter.name}
+            artUrl={artUrl}
+            selected={selected}
+            targetable={targetable}
+            friendly={friendly}
+            faceAttrs={{ "data-fighter-id": fighter.id }}
+          />
+        )
       }
       anim={anim}
       onAnimComplete={onAnimComplete}
@@ -235,67 +161,21 @@ export const TableFighterStandee = ({
       onMouseLeave={onHoverChange ? () => onHoverChange(null) : undefined}
       title={`${fighter.name} — ${fighter.hp}/${fighter.maxHp} HP`}
     >
-      <Box
-        position="relative"
-        w="100%"
-        h="100%"
-        style={clipPath ? { clipPath } : undefined}
-        bg={figure ? undefined : "radial-gradient(circle at 50% 30%, #3d2249 0%, var(--chakra-colors-brand-surfaceDim) 80%)"}
-        filter={plateFilter(selected, friendly)}
-        animation={targetable && !selected ? `${targetPulse} 1.4s ease-in-out infinite` : undefined}
-        sx={{ "@media (prefers-reduced-motion: reduce)": { animation: "none" } }}
-        data-fighter-id={fighter.id}
-      >
-        {figure ? (
-          <TableFigureSprite
-            figure={figure}
-            baseDiamPx={figureBaseDiamPx}
-            plateW={widthPx}
-            plateH={heightPx}
-          />
-        ) : artUrl ? (
-          <>
-            <Box
-              as="img"
-              src={artUrl}
-              alt=""
-              draggable={false}
-              position="absolute"
-              inset={0}
-              w="100%"
-              h="100%"
-              sx={artStyle}
-            />
-            {/* Edge vignette UNDER the base fade: both are semi-transparent
-                overlays stacked on top of the art, and the vignette's own
-                darkening needs to read all the way to the plate's sides,
-                which the base fade (a top-to-bottom gradient only) doesn't
-                touch. Order between the two doesn't change what either
-                looks like on its own — they occupy different regions (edges
-                vs. bottom) — but keeping the vignette first mirrors "shadow
-                closest to the art, base-blend on top" from the ground up,
-                the same stacking logic TableStandeeAnchor already uses for
-                the contact shadow vs. the base disc beneath the figure. */}
-            <Box position="absolute" inset={0} bg={artVignette} />
-            <Box position="absolute" inset={0} bg={artBaseFade} />
-          </>
-        ) : (
-          <Box position="absolute" inset={0} display="flex" alignItems="center" justifyContent="center">
-            <Text fontFamily="BebasNeueRegular" fontSize="1.4rem" color="brand.parchment">
-              {tokenInitials(fighter.name)}
-            </Text>
-          </Box>
-        )}
-      </Box>
+      {figure && (
+        <Box
+          position="relative"
+          w="100%"
+          h="100%"
+          filter={plateFilter(selected, friendly)}
+          animation={targetable && !selected ? `${targetPulse} 1.4s ease-in-out infinite` : undefined}
+          sx={{ "@media (prefers-reduced-motion: reduce)": { animation: "none" } }}
+          data-fighter-id={fighter.id}
+        >
+          <TableFigureSprite figure={figure} baseDiamPx={figureBaseDiamPx} plateW={widthPx} plateH={heightPx} />
+        </Box>
+      )}
 
-      {/* Everything below is a SIBLING of the clipped face box above, not a
-          child of it — `clip-path` clips an element's entire painted
-          subtree, so a badge that needs to survive OUTSIDE the silhouette
-          (the dome's cut-off top corners, in particular) has to live here
-          instead. The HP heart / reach glyph (TableFighterBadges), the
-          extended-reach chip and the identity-number chip all follow this
-          same "sibling, offset outside the plate's own edge" pattern the HP
-          badge already used before this phase. */}
+      {/* Badges stand in the upright plate, offset outside its edges. */}
       <TableFighterBadges fighter={fighter} size="hero" />
 
       {extendedReach && (

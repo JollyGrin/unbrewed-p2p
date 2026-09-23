@@ -135,10 +135,18 @@ describe("TableFighterStandee with a figure", () => {
     expect(face.contains(ground)).toBe(false);
   });
 
-  it("keeps the token-art standee when there is no figure for this hero", () => {
+  it("without a figure, lies on its space as the author's round token, not an upright cut-out", () => {
     const { container } = standee({ figure: null });
     const face = container.querySelector('[data-fighter-id="p1/hero"]') as HTMLElement;
-    expect(face.style.clipPath).toContain("path(");
+    const ground = container.querySelector("[data-standee-ground]") as HTMLElement;
+    expect(ground.contains(face)).toBe(true);
+    expect(face.style.clipPath).toBe("");
+    expect(face.querySelector("img")?.getAttribute("src")).toBe("/token/kong.png");
     expect(container.querySelector("img[data-table-figure]")).toBeNull();
+    // The token is the base: exactly one, in the owner's colour, on the space.
+    const bases = container.querySelectorAll("[data-fighter-base]");
+    expect(bases).toHaveLength(1);
+    expect((bases[0] as HTMLElement).style.borderColor.toLowerCase()).toBe("#e0a82e");
+    expect(bases[0].getAttribute("data-space-id")).toBe("s1");
   });
 });
