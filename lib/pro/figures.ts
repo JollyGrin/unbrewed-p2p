@@ -21,6 +21,8 @@
  * renders one image per seat and the manifest lists them.
  */
 
+import { clampTilt } from "./tableProjection";
+
 export const FIGURES_BASE_URL = "/figures";
 export const FIGURES_MANIFEST_URL = `${FIGURES_BASE_URL}/manifest.json`;
 
@@ -108,6 +110,44 @@ export const figureSpriteBox = (figure: Figure, baseDiamPx: number): SpriteBox =
   const width = figure.imageWidthMm * (baseDiamPx / figure.footprintMm);
   const height = width * figure.aspect;
   return { width, height, left: -figure.anchor.x * width, top: -figure.anchor.y * height };
+};
+
+/** The strip of a figure image that lies below its feet, laid in the board plane. */
+export interface GroundSlice {
+  /** The strip, in board-plane px from the feet: it starts on the feet line. */
+  left: number;
+  width: number;
+  height: number;
+  /** The whole image inside the strip, stretched along the board's depth. */
+  imageTop: number;
+  imageHeight: number;
+}
+
+/**
+ * Where the part of a figure's render BELOW its ground point goes.
+ *
+ * WHY. The render shows the miniature from the table camera's angle, so the
+ * front half of its base sits below the ground point in the image. On the
+ * table the image stands upright (billboarded) about that point, and in a
+ * `preserve-3d` scene everything of it below the feet is behind the board's
+ * surface: the owner saw every base sliced off flat at its centre line
+ * (2026-09-23, again after the LARGE fix). That strip is therefore drawn
+ * lying IN the board plane instead, starting at the feet line. The board
+ * shows an in-plane length at cos(tilt) of its size, so the strip is laid out
+ * 1/cos(tilt) deeper and looks, on screen, exactly like the image it
+ * continues.
+ */
+export const figureGroundSlice = (box: SpriteBox, tiltDeg: number): GroundSlice | null => {
+  const belowFeet = box.top + box.height;
+  if (belowFeet <= 0) return null;
+  const stretch = 1 / Math.cos((clampTilt(tiltDeg) * Math.PI) / 180);
+  return {
+    left: box.left,
+    width: box.width,
+    height: belowFeet * stretch,
+    imageTop: box.top * stretch,
+    imageHeight: box.height * stretch,
+  };
 };
 
 /**

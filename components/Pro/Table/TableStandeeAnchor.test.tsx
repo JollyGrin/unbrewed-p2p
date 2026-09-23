@@ -7,7 +7,7 @@
 import { render } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { TableStandeeAnchor } from "./TableStandeeAnchor";
-import { standeeTransform } from "@/lib/pro/tableProjection";
+import { placeStandee, standeeTransform } from "@/lib/pro/tableProjection";
 
 describe("TableStandeeAnchor", () => {
   it("counter-rotates the billboard (figure) but leaves the base disc in-plane", () => {
@@ -155,5 +155,43 @@ describe("TableStandeeAnchor", () => {
     // element behind for an arc to aim at.
     unmount();
     expect(seen[seen.length - 1]).toBeNull();
+  });
+  it("draws `ground` content in the board plane at the feet, scaled like the billboard", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <TableStandeeAnchor
+          x={0.5}
+          y={0.3}
+          tiltDeg={40}
+          widthPx={40}
+          heightPx={50}
+          spaceDiamPx={30}
+          ground={<div data-testid="ground-content" />}
+        >
+          <div data-testid="figure-content" />
+        </TableStandeeAnchor>
+      </ChakraProvider>
+    );
+    const groundContent = container.querySelector('[data-testid="ground-content"]') as HTMLElement;
+    const ground = groundContent.parentElement as HTMLElement;
+    expect(ground.hasAttribute("data-standee-ground")).toBe(true);
+    // In-plane: the same depth scale as the billboard, and no counter-rotation.
+    expect(ground.style.transform).toBe(`scale(${placeStandee(0.3, 40).scale})`);
+    expect(ground.style.transform).not.toContain("rotateX");
+    // A sibling of the billboard, not inside it.
+    const billboard = container.querySelector('[data-testid="figure-content"]')!.parentElement as HTMLElement;
+    expect(billboard.contains(groundContent)).toBe(false);
+    expect(ground.parentElement).toBe(billboard.parentElement);
+  });
+
+  it("draws no ground layer when there is nothing to put on the ground", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <TableStandeeAnchor x={0.5} y={0.5} tiltDeg={40} widthPx={40} heightPx={50} spaceDiamPx={30}>
+          <div />
+        </TableStandeeAnchor>
+      </ChakraProvider>
+    );
+    expect(container.querySelector("[data-standee-ground]")).toBeNull();
   });
 });

@@ -119,6 +119,11 @@ export interface TableStandeeAnchorProps {
    *  BETWEEN two spaces — each of those spaces carries its own base, drawn by
    *  a separate anchor, so both stay concentric with the space under them. */
   base?: boolean;
+  /** Content that lies IN the board plane at the piece's feet, drawn over the
+   *  base and under the billboard: the front of a miniature's own base, or a
+   *  flat token. Its origin is the feet point, in unscaled px — it gets the
+   *  billboard's depth scale, so both halves of a figure stay the same size. */
+  ground?: ReactNode;
   /** A just-committed move to tween through instead of snapping straight to
    *  (x, y) — deferred-item "pendingMove tweening" from the phase-2 report.
    *  Absent/null = static placement, byte-identical to before. */
@@ -149,6 +154,7 @@ export const TableStandeeAnchor = ({
   spaceId,
   baseAccent = "rgba(250, 240, 222, 0.55)",
   base = true,
+  ground,
   anim = null,
   onAnimComplete,
   pick = false,
@@ -277,6 +283,24 @@ export const TableStandeeAnchor = ({
           data-fighter-base=""
           data-space-id={spaceId ?? undefined}
         />
+      )}
+      {/* The ground layer: flat on the board like the base, but in front of it.
+          A zero-size box at the feet (the anchor's bottom centre) so whatever
+          lies here positions itself from that point. `preserve-3d` lets a
+          flat token lift off the board with translateZ. */}
+      {ground && (
+        <Box
+          position="absolute"
+          left="50%"
+          top="100%"
+          w={0}
+          h={0}
+          pointerEvents="none"
+          style={{ transform: `scale(${placement.scale})`, transformOrigin: "0 0", transformStyle: "preserve-3d" }}
+          data-standee-ground=""
+        >
+          {ground}
+        </Box>
       )}
       {/* The billboard: counter-rotated about its own feet so it stands
           upright and faces the camera regardless of the board's tilt. */}
