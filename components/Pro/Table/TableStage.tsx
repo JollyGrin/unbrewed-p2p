@@ -40,6 +40,7 @@ import {
   tableFocusCapDiameterPx,
 } from "@/lib/pro/tableProjection";
 import { TableBoardEdge } from "./TableBoardEdge";
+import { TableBoardLight, TableSurface } from "./TableSurface";
 
 /** What a `TableStage` child render-prop needs to place content correctly:
  *  the frame's LAYOUT (pre-zoom) pixel size, for sizing anything that must
@@ -266,6 +267,9 @@ export const TableStage = ({
             h="100%"
             style={{ transform: boardTransform(tiltDeg, yawDeg), transformStyle: "preserve-3d" }}
           >
+            {/* The table the board stands on — behind and below everything
+                in this plane (see TableSurface.tsx). */}
+            <TableSurface frameW={frameW} />
             <Box
               as="img"
               src={imageUrl}
@@ -278,6 +282,7 @@ export const TableStage = ({
               borderRadius="0.5rem"
               sx={{ objectFit: "fill" }}
             />
+            <TableBoardLight />
             {/* The board's own thickness (phase-5 target #1) — a real side
                 face extruded from the board's near edge, sharing this same
                 `preserve-3d` frame and tilt/yaw so it tilts as one rigid

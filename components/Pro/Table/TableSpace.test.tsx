@@ -5,7 +5,7 @@
  */
 import { render } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
-import { TableSpace, zoneAlphaFill } from "./TableSpace";
+import { TABLE_SPACE_OUTLINE, TABLE_SPACE_SEAM, TABLE_SPACE_SHADE, TableSpace, zoneAlphaFill } from "./TableSpace";
 import type { ProMapSpace } from "@/lib/pro/protocol";
 
 const space = (over: Partial<ProMapSpace> = {}): ProMapSpace => ({
@@ -64,7 +64,10 @@ describe("TableSpace translucency", () => {
     expect(shadow).toContain("#c0392b");
   });
 
-  it("gives each pie wedge of a multi-zone space its own translucent fill AND a crisp full-color stroke", () => {
+  it("gives each pie wedge its own translucent fill, split by a thin dark seam rather than a saturated stroke", () => {
+    // Saturated wedge strokes are what made the spaces read as a diagram laid
+    // over the art instead of discs printed on the board (owner feedback,
+    // 2026-09-23: "nicht clean"). The fill still carries the zone.
     const { container } = render(
       <ChakraProvider>
         <TableSpace
@@ -78,9 +81,49 @@ describe("TableSpace translucency", () => {
         />
       </ChakraProvider>
     );
-    const paths = container.querySelectorAll('[data-space-id="s1"] svg path');
+    const paths = Array.from(container.querySelectorAll('[data-space-id="s1"] svg path'));
     expect(paths).toHaveLength(2);
-    const fireWedge = Array.from(paths).find((p) => p.getAttribute("stroke") === "#c0392b")!;
-    expect(fireWedge.getAttribute("fill")).toBe(zoneAlphaFill("#c0392b"));
+    expect(paths.map((p) => p.getAttribute("fill"))).toContain(zoneAlphaFill("#c0392b"));
+    for (const p of paths) expect(p.getAttribute("stroke")).toBe(TABLE_SPACE_SEAM);
+  });
+
+  it("outlines the disc in dark ink so it reads as printed on the board", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <TableSpace
+          space={space({ zones: ["fire", "ice"] })}
+          zoneColor={zoneColor}
+          diameterPct={4}
+          frameW={1000}
+          highlighted={false}
+          relocateOrigin={false}
+          relocateArmed={false}
+        />
+      </ChakraProvider>
+    );
+    const disc = container.querySelector('[data-space-id="s1"]')!.firstElementChild as HTMLElement;
+    expect(getComputedStyle(disc).boxShadow).toContain(TABLE_SPACE_OUTLINE);
+  });
+
+  it("shades the disc like a shallow dish, lit from the upper left", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <TableSpace
+          space={space()}
+          zoneColor={zoneColor}
+          diameterPct={4}
+          frameW={1000}
+          highlighted={false}
+          relocateOrigin={false}
+          relocateArmed={false}
+        />
+      </ChakraProvider>
+    );
+    const shade = container.querySelector('[data-space-id="s1"] [data-space-shade]') as HTMLElement | null;
+    expect(shade).not.toBeNull();
+    // jsdom drops multi-gradient values, so the recipe itself is checked as
+    // data: a light stop toward the upper left, a dark one toward the lower right.
+    expect(TABLE_SPACE_SHADE).toMatch(/circle at 3\d% 2\d%, rgba\(255/);
+    expect(TABLE_SPACE_SHADE).toMatch(/circle at 6\d% 7\d%, rgba\(8/);
   });
 });

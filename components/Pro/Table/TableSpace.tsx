@@ -62,6 +62,23 @@ const alphaHex = (pct: number): string =>
     .padStart(2, "0");
 const ZONE_FILL_SUFFIX = alphaHex(ZONE_FILL_ALPHA);
 
+/**
+ * The disc's dark ink outline. The board art prints its spaces as discs with
+ * a dark edge; without one ours read as flat stickers laid over the art
+ * (owner feedback, 2026-09-23: "nicht clean"). Outside the disc, so it never
+ * eats into the zone fill.
+ */
+export const TABLE_SPACE_OUTLINE = "0 0 0 1.5px rgba(12, 6, 12, 0.75)";
+/** The seam between the wedges of a multi-zone space: thin and dark, like a
+ *  printed divider (see the wedge comment below for why not the zone color). */
+export const TABLE_SPACE_SEAM = "rgba(12, 6, 12, 0.55)";
+/** A shallow dish lit from the upper left — the same light every standee
+ *  shadow assumes (SHADOW_OFFSET_X/Y) — so a space reads as part of the board
+ *  surface rather than a flat overlay. */
+export const TABLE_SPACE_SHADE =
+  "radial-gradient(circle at 34% 28%, rgba(255, 244, 225, 0.2) 0%, rgba(255, 244, 225, 0) 45%), " +
+  "radial-gradient(circle at 66% 74%, rgba(8, 4, 8, 0.32) 0%, rgba(8, 4, 8, 0) 60%)";
+
 /** Translucent interior wash for a zone's own hex color; non-hex colors (there
  *  are none in practice — see above) degrade to the solid input rather than
  *  throwing, so a malformed map still renders something legible. */
@@ -121,11 +138,12 @@ export const TableSpace = ({
   // Fault #2 (phase-2 report): translucent interior + crisp rim instead of a
   // flat opaque fill, so the board art shows through while zone identity
   // stays unmistakable. The rim is INSET (never collides with the ringed
-  // highlight's own OUTSET outline); the thin dark ring below is dropped once
-  // a zone rim is already carrying the edge, so the two never double up.
+  // highlight's own OUTSET outline). The dark ink outline sits OUTSIDE the
+  // disc, and only when no pick ring is drawn: a highlighted space's gold or
+  // cyan ring already separates it from the art, and two rings read as noise.
   const zoneRimShadow = singleZoneColor ? `inset 0 0 0 ${ZONE_RIM_PX}px ${singleZoneColor}` : undefined;
-  const legibilityShadow = ringed || zoneRimShadow ? undefined : "0 0 0 1px rgba(0,0,0,0.35)";
-  const discShadow = [zoneRimShadow, legibilityShadow].filter(Boolean).join(", ") || undefined;
+  const outline = ringed ? undefined : TABLE_SPACE_OUTLINE;
+  const discShadow = [zoneRimShadow, outline].filter(Boolean).join(", ") || undefined;
 
   return (
     <Box
@@ -183,18 +201,21 @@ export const TableSpace = ({
                   key={zoneId}
                   d={pieSlicePath(50, 50, 49, start, end)}
                   fill={zoneAlphaFill(color)}
-                  // A crisp, full-saturation stroke on EACH wedge (fault #2):
-                  // with a translucent fill alone, two adjacent low-alpha
-                  // wedges can blur into one one indistinct blob on a busy
-                  // multi-zone map. The stroke is what keeps "how many zones,
-                  // and which is which" legible at a glance even translucent.
-                  stroke={color}
-                  strokeWidth={1.5}
+                  // A seam on EACH wedge (fault #2): with a translucent fill
+                  // alone, two adjacent low-alpha wedges blur into one blob
+                  // on a busy multi-zone map. It used to be a full-saturation
+                  // stroke in the zone's own color, which kept the wedges
+                  // apart but drew a colored asterisk over every shared
+                  // space. A thin dark seam separates them just as clearly
+                  // and reads as a printed divider.
+                  stroke={TABLE_SPACE_SEAM}
+                  strokeWidth={1}
                 />
               );
             })}
           </svg>
         )}
+        <Box data-space-shade position="absolute" inset={0} borderRadius="50%" style={{ backgroundImage: TABLE_SPACE_SHADE }} />
       </Box>
 
       {/* Item / secret-passage badge — same registry components the flat
