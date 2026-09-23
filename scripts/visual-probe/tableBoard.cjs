@@ -11,8 +11,17 @@
  *
  * So this script answers the questions a render can't be trusted on:
  *
- *   depthRatio        near-rank space height ÷ far-rank space height.
- *                     1.0 means there is NO perspective, whatever the DOM says.
+ *   edgeRatio         the board's near edge ÷ its far edge, read off four
+ *                     marker dots the probe pins to the plane's corners. 1.0
+ *                     means NO perspective, whatever the DOM says. The
+ *                     official app measures 1.25 — that is the target.
+ *   meanSpaceWidth    the average on-screen width of a space, px. This is
+ *                     what a thumb has to hit; bigger is better.
+ *   depthRatio        near-rank space height ÷ far-rank space height. Kept
+ *                     for continuity, but NOT a perspective gauge: far spaces
+ *                     get deliberately padded hit areas, so this mixes the
+ *                     camera with the padding. It once rewarded a fisheye
+ *                     camera (target ≥2.0) that shrank the playable board.
  *   boardFillFraction how much of the pane's width the board actually occupies.
  *   offscreenPicks    prompt targets the player cannot see or tap (off the
  *                     pane, or under the landscape rail).
@@ -74,6 +83,20 @@ const collect = () => {
   const far = mean(spaces.slice(0, 3).map((s) => s.h));
   const near = mean(spaces.slice(-3).map((s) => s.h));
 
+  // Four zero-size markers at the plane's corners: their on-screen positions
+  // ARE the projected trapezoid, which no bounding box can give you.
+  const corner = (x, y) => {
+    const m = document.createElement("div");
+    m.style.cssText = `position:absolute;left:${x}%;top:${y}%;width:1px;height:1px;pointer-events:none`;
+    plane.appendChild(m);
+    const r = m.getBoundingClientRect();
+    m.remove();
+    return { x: r.left, y: r.top };
+  };
+  const [tl, tr, bl, br] = [corner(0, 0), corner(100, 0), corner(0, 100), corner(100, 100)];
+  const edgeRatio = Math.hypot(br.x - bl.x, br.y - bl.y) / (Math.hypot(tr.x - tl.x, tr.y - tl.y) || 1);
+  const meanSpaceWidth = mean(spaces.map((s) => s.w));
+
   const boardRect = plane.getBoundingClientRect();
   // The playable area is the pane MINUS the landscape rail: the rail is a
   // translucent fixed panel over the board, so a piece that slides under it is
@@ -118,6 +141,8 @@ const collect = () => {
     spaceCount: spaces.length,
     farSpaceHeight: +far.toFixed(1),
     nearSpaceHeight: +near.toFixed(1),
+    edgeRatio: +edgeRatio.toFixed(2),
+    meanSpaceWidth: +meanSpaceWidth.toFixed(1),
     depthRatio: +(near / (far || 1)).toFixed(2),
     boardFillFraction: +(boardRect.width / (pane.width || 1)).toFixed(2),
     pickCount: picks.length,

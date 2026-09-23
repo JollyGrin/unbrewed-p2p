@@ -65,6 +65,7 @@ export const TableBoardEdge = ({ frameW, frameH }: TableBoardEdgeProps) => {
 
   return (
     <Box
+      data-table-board-edge
       position="absolute"
       // Hinged exactly at the plane's own bottom edge, in LOCAL px (not a
       // "100%" percentage) — matches the sizing spacer's own box, and keeps

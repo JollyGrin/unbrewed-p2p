@@ -24,6 +24,7 @@ import {
   useState,
 } from "react";
 import { ScreenBox, focusTransform, rebaseBox, shouldAutoFocus } from "./touchTargets";
+import { ContentBox, fitContent } from "./fitContent";
 
 /** Margin around auto-focused picks, as a multiple of one pick's on-screen diameter. */
 const FOCUS_PADDING_PICKS = 0.75;
@@ -171,12 +172,17 @@ export interface ZoomPan {
  *                 moves the board the way the finger went. Everything the
  *                 frame draws that must read upright counter-rotates itself
  *                 (see ProBoard's `uprightTransform`).
+ * @param measureContent optional: the box the frame actually DRAWS, in the
+ *                 frame's unscaled units (see lib/pro/fitContent). The initial
+ *                 fit places that box instead of the layout box. Keep it a
+ *                 stable callback — the fit recomputes when its identity changes.
  */
 export function useZoomPan(
   enabled: boolean,
   frameRef: RefObject<HTMLElement>,
   inset: ZoomPanInset = {},
-  rotated = false
+  rotated = false,
+  measureContent?: () => ContentBox | null
 ): ZoomPan {
   const containerRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<ZoomPanState>(IDENTITY);
@@ -220,15 +226,14 @@ export function useZoomPan(
     const fw = rotated ? f.offsetHeight : f.offsetWidth;
     const fh = rotated ? f.offsetWidth : f.offsetHeight;
     if (!cw || !ch || !fw || !fh) return null;
-    const availW = Math.max(cw - left - right, 1);
-    const availH = Math.max(ch - top - bottom, 1);
-    const scale = clampFit(Math.min(availW / fw, availH / fh));
-    return {
-      scale,
-      tx: left + (availW - fw * scale) / 2,
-      ty: top + (availH - fh * scale) / 2,
-    };
-  }, [frameRef, top, right, bottom, left, rotated]);
+    // What the frame DRAWS, when the caller knows it differs from the layout
+    // box (the tilted table board — see lib/pro/fitContent). Without it, or
+    // before the drawing has any size, the layout box is the content: the
+    // classic fit, unchanged for every other caller.
+    const content = measureContent?.() ?? { left: 0, top: 0, width: fw, height: fh };
+    const next = fitContent({ w: cw, h: ch }, { top, right, bottom, left }, content, ZOOM_MAX);
+    return { ...next, scale: clampFit(next.scale) };
+  }, [frameRef, top, right, bottom, left, rotated, measureContent]);
 
   // Re-fit on any size change of the viewport box or the board frame. While the
   // player hasn't touched the view, the board follows along; once they have, we

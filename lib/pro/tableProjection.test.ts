@@ -1,6 +1,5 @@
 import {
   BASE_TO_SPACE_DIAMETER_RATIO,
-  BOARD_EDGE_FIT_RESERVE_FACTOR,
   BOARD_THICKNESS_RATIO,
   DEFAULT_TILT_DEG,
   EDGE_FOLD_DEG,
@@ -20,7 +19,6 @@ import {
   Z_BASE,
   Z_BOARD_EDGE,
   Z_RANGE,
-  boardEdgeFitReservePx,
   boardThicknessPx,
   boardTransform,
   clampTilt,
@@ -70,32 +68,24 @@ describe("convergenceRatio", () => {
   const TYPICAL_BOARD_W = 1300;
   const TYPICAL_BOARD_H = 480;
 
-  it("is barely more than a parallel projection at the OLD, too-far camera distance", () => {
-    // Regression anchor for fault #1: PERSPECTIVE_RATIO used to be 1.75, which
-    // an actual screenshot audit showed read as "squashed flat" rather than
-    // "tilted" — the far rank was nearly the same size as the near rank. This
-    // pins that failure mode to a number so nobody re-introduces it by
-    // accident while tuning something else.
-    const oldRatio = convergenceRatio(TYPICAL_BOARD_W, TYPICAL_BOARD_H, DEFAULT_TILT_DEG);
-    // (computed at the CURRENT, retuned PERSPECTIVE_RATIO below — this test
-    // only documents what the old constant would have produced, via the pure
-    // formula, not by reimporting a removed export)
-    const p = TYPICAL_BOARD_W * 1.75;
-    const halfH = TYPICAL_BOARD_H / 2;
-    const zNear = halfH * Math.sin((DEFAULT_TILT_DEG * Math.PI) / 180);
-    const legacyRatio = (p + zNear) / (p - zNear);
-    expect(legacyRatio).toBeLessThan(1.25);
-    // The retuned constant must be a real, measurable improvement over that.
-    expect(oldRatio).toBeGreaterThan(legacyRatio);
+  // The official Unmatched mobile app is the reference, measured rather than
+  // remembered: on a 2622px landscape screenshot of its tabletop board the
+  // near edge spans 1315px and the far edge 1050px — a near/far ratio of
+  // 1.25. An earlier pass pushed this view to ~2.4 at the board's own edges
+  // chasing "more 3D"; the near rim then took so much width that, once the
+  // fit measured what the board actually draws, the playable area shrank.
+  const REFERENCE_EDGE_RATIO = 1.25;
+
+  it("converges like the reference app on a typical wide board", () => {
+    const ratio = convergenceRatio(TYPICAL_BOARD_W, TYPICAL_BOARD_H, DEFAULT_TILT_DEG);
+    expect(ratio).toBeGreaterThan(REFERENCE_EDGE_RATIO - 0.15);
+    expect(ratio).toBeLessThan(REFERENCE_EDGE_RATIO + 0.15);
   });
 
-  it("reads as a clearly photograph-like tilt at the current PERSPECTIVE_RATIO", () => {
-    const ratio = convergenceRatio(TYPICAL_BOARD_W, TYPICAL_BOARD_H, DEFAULT_TILT_DEG);
-    // Documents the tuned target from the phase-2 report: strong enough to
-    // unmistakably read as a receding table, short of the near rank
-    // ballooning or the far rank vanishing.
-    expect(ratio).toBeGreaterThan(1.5);
-    expect(ratio).toBeLessThan(2.2);
+  it("converges like the reference app on a squarer board (Secluded Temple, ~1.65:1)", () => {
+    const ratio = convergenceRatio(750, 455, DEFAULT_TILT_DEG);
+    expect(ratio).toBeGreaterThan(REFERENCE_EDGE_RATIO - 0.15);
+    expect(ratio).toBeLessThan(REFERENCE_EDGE_RATIO + 0.15);
   });
 
   it("grows as PERSPECTIVE_RATIO shrinks (camera moves closer)", () => {
@@ -389,21 +379,6 @@ describe("EDGE_FOLD_DEG (phase-5 fault #1 — a bevel the verification engine ca
     // degenerate end (90°).
     expect(EDGE_FOLD_DEG).toBeGreaterThan(15);
     expect(EDGE_FOLD_DEG).toBeLessThan(75);
-  });
-});
-
-describe("boardEdgeFitReservePx (phase-5 fault #1 — 'the edge gets clipped by a cramped mobile fit')", () => {
-  it("reserves MORE than the flat thickness — the edge's own on-screen extent, not its unprojected depth", () => {
-    expect(boardEdgeFitReservePx(1000)).toBeGreaterThan(boardThicknessPx(1000));
-    expect(boardEdgeFitReservePx(1000)).toBe(boardThicknessPx(1000) * BOARD_EDGE_FIT_RESERVE_FACTOR);
-  });
-
-  it("scales with the board's own rendered width", () => {
-    expect(boardEdgeFitReservePx(800)).toBe(boardEdgeFitReservePx(400) * 2);
-  });
-
-  it("stays a deliberately generous multiple, not a barely-over-1 margin", () => {
-    expect(BOARD_EDGE_FIT_RESERVE_FACTOR).toBeGreaterThan(1.2);
   });
 });
 
