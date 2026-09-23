@@ -15,9 +15,14 @@
     "jsx": "preserve",
     "incremental": true,
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      // moduleResolution "node" doesn't read package.json "exports" maps, so it can't
+      // find partytracks' subpath types on its own — point tsc at them directly. Webpack
+      // (Next's bundler) resolves the real "exports" map fine at build/runtime already.
+      "partytracks/client": ["./node_modules/partytracks/dist/client/index.d.ts"],
+      "partytracks/server": ["./node_modules/partytracks/dist/server/index.d.ts"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "marketing"]
+  "exclude": ["node_modules", "marketing", "voice-worker"]
 }

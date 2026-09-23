@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "unbrewed-voice",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-09-23",
+  "vars": {
+    "ALLOWED_ORIGINS": "https://unbrewed.xyz,http://localhost:3000",
+  },
+  // Slows down guessing the voice password: 10 join attempts a minute per IP.
+  "ratelimits": [
+    { "name": "JOIN_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
+  ],
+  "durable_objects": {
+    "bindings": [
+      { "name": "VOICE_ROOM", "class_name": "VoiceRoom" },
+    ],
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["VoiceRoom"] },
+  ],
+  // Secrets (never committed — set with `npx wrangler secret put <NAME>`):
+  //   SFU_APP_ID      Cloudflare Realtime SFU app id
+  //   SFU_APP_TOKEN   Cloudflare Realtime SFU app token
+  //   VOICE_PASSWORD  shared voice password checked by POST /join
+  //   TICKET_SECRET   HMAC key used to sign/verify join tickets
+  //   TURN_APP_ID     optional — Cloudflare TURN app id
+  //   TURN_APP_TOKEN  optional — Cloudflare TURN app token
+}

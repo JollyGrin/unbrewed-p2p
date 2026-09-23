@@ -14,6 +14,11 @@ const config = {
   setupFiles: ["<rootDir>/jest.setup.js"],
 
   testEnvironment: "jest-environment-jsdom",
+
+  // voice-worker/ is a standalone Cloudflare Worker package (own package.json,
+  // tsconfig, vitest) — it is not part of the Next app and uses vitest imports
+  // Jest can't resolve.
+  testPathIgnorePatterns: ["<rootDir>/node_modules/", "<rootDir>/voice-worker/"],
 };
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async

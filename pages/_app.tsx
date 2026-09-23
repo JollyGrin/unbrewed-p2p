@@ -12,6 +12,7 @@ import {
 } from "@tanstack/react-query";
 import "@/styles/fonts.css";
 import { Toaster } from "react-hot-toast";
+import { VoiceMount } from "@/components/Voice/VoiceMount";
 
 export default function App({ Component, pageProps }: AppProps) {
   const [queryClient] = useState(() => new QueryClient());
@@ -40,6 +41,7 @@ export default function App({ Component, pageProps }: AppProps) {
             />
             {/* @ts-ignore */}
             <Component {...pageProps} />
+            <VoiceMount />
           </ChakraProvider>
         </Hydrate>
       </QueryClientProvider>
