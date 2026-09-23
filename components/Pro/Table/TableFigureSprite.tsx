@@ -12,9 +12,23 @@
  * The render already contains the base drawn at roughly the table camera's
  * angle (40°), so the in-plane base disc under it reads as the seat-colored
  * rim of the miniature's own base rather than a second, separate disc.
+ *
+ * TWO HALVES. Only the part of the image above the feet stands upright here;
+ * the part below them (the front of the model's base) would stand below the
+ * board's surface and be hidden by it — see `figureGroundSlice`. That part is
+ * `TableFigureGround`, which lies in the board plane via the anchor's
+ * `ground` slot. The two meet on the feet line.
  */
 import { Box } from "@chakra-ui/react";
-import { Figure, figureSpriteBox } from "@/lib/pro/figures";
+import { Figure, figureGroundSlice, figureSpriteBox } from "@/lib/pro/figures";
+
+/**
+ * How far each half reaches past the feet line into the other, px. Two edges
+ * meeting exactly on a sub-pixel line leave a hairline gap on WebKit; the
+ * upright half's overlap sinks into the board anyway and the flat half's is
+ * covered by the upright one.
+ */
+const SEAM_OVERLAP_PX = 0.75;
 
 export interface TableFigureSpriteProps {
   figure: Figure;
@@ -27,22 +41,74 @@ export interface TableFigureSpriteProps {
 
 export const TableFigureSprite = ({ figure, baseDiamPx, plateW, plateH }: TableFigureSpriteProps) => {
   const box = figureSpriteBox(figure, baseDiamPx);
+  const aboveFeet = Math.min(box.height, -box.top + SEAM_OVERLAP_PX);
   return (
     <Box
-      as="img"
-      data-table-figure=""
-      src={figure.url}
-      alt=""
-      draggable={false}
       position="absolute"
-      maxW="none"
       pointerEvents="none"
       style={{
+        overflow: "hidden",
         width: `${box.width}px`,
-        height: `${box.height}px`,
+        height: `${aboveFeet}px`,
         left: `${plateW / 2 + box.left}px`,
         top: `${plateH + box.top}px`,
       }}
-    />
+    >
+      <Box
+        as="img"
+        data-table-figure=""
+        src={figure.url}
+        alt=""
+        draggable={false}
+        position="absolute"
+        maxW="none"
+        style={{ width: `${box.width}px`, height: `${box.height}px`, left: 0, top: 0 }}
+      />
+    </Box>
+  );
+};
+
+export interface TableFigureGroundProps {
+  figure: Figure;
+  /** Same as the sprite's: the in-plane base disc's diameter, px. */
+  baseDiamPx: number;
+  /** The board's tilt — how much the flat strip must be stretched. */
+  tiltDeg: number;
+  /** The same highlight filter as the upright half, so both glow together. */
+  filter?: string;
+}
+
+/** The front of the miniature's base, lying on the board (see file header). */
+export const TableFigureGround = ({ figure, baseDiamPx, tiltDeg, filter }: TableFigureGroundProps) => {
+  const slice = figureGroundSlice(figureSpriteBox(figure, baseDiamPx), tiltDeg);
+  if (!slice) return null;
+  return (
+    <Box
+      position="absolute"
+      filter={filter}
+      style={{
+        overflow: "hidden",
+        left: `${slice.left}px`,
+        top: `${-SEAM_OVERLAP_PX}px`,
+        width: `${slice.width}px`,
+        height: `${slice.height + SEAM_OVERLAP_PX}px`,
+      }}
+    >
+      <Box
+        as="img"
+        data-table-figure-ground=""
+        src={figure.url}
+        alt=""
+        draggable={false}
+        position="absolute"
+        maxW="none"
+        style={{
+          left: 0,
+          top: `${slice.imageTop + SEAM_OVERLAP_PX}px`,
+          width: `${slice.width}px`,
+          height: `${slice.imageHeight}px`,
+        }}
+      />
+    </Box>
   );
 };

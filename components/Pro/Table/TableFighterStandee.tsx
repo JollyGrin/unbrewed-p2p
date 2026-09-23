@@ -26,7 +26,7 @@ import {
   STANDEE_ART_TRANSFORM_ORIGIN,
 } from "@/lib/pro/tableProjection";
 import type { Figure } from "@/lib/pro/figures";
-import { TableFigureSprite } from "./TableFigureSprite";
+import { TableFigureGround, TableFigureSprite } from "./TableFigureSprite";
 import { TableAnchorAnim, TableStandeeAnchor } from "./TableStandeeAnchor";
 import { TableFighterBadges } from "./TableFighterBadges";
 
@@ -194,6 +194,7 @@ export const TableFighterStandee = ({
   // A miniature has its own outline, so it is drawn unclipped and without the
   // plate's backdrop; only the token-art plate needs the silhouette.
   const clipPath = figure ? undefined : `path('${standeeSilhouettePath(widthPx, heightPx)}')`;
+  const figureBaseDiamPx = standeeBaseDiameterPx(diamPx) * figureScale;
 
   return (
     <TableStandeeAnchor
@@ -216,6 +217,16 @@ export const TableFighterStandee = ({
       spaceId={fighter.space}
       baseAccent={playerColor}
       base={!baseHidden}
+      ground={
+        figure ? (
+          <TableFigureGround
+            figure={figure}
+            baseDiamPx={figureBaseDiamPx}
+            tiltDeg={tiltDeg}
+            filter={plateFilter(selected, friendly)}
+          />
+        ) : undefined
+      }
       anim={anim}
       onAnimComplete={onAnimComplete}
       pick={fighterClickable}
@@ -238,7 +249,7 @@ export const TableFighterStandee = ({
         {figure ? (
           <TableFigureSprite
             figure={figure}
-            baseDiamPx={standeeBaseDiameterPx(diamPx) * figureScale}
+            baseDiamPx={figureBaseDiamPx}
             plateW={widthPx}
             plateH={heightPx}
           />

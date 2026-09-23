@@ -1,4 +1,4 @@
-import { FIGURES_BASE_URL, LARGE_FIGURE_SCALE, figureFor, figureSpriteBox, parseFigureManifest, straddleAnim } from "./figures";
+import { FIGURES_BASE_URL, LARGE_FIGURE_SCALE, figureFor, figureGroundSlice, figureSpriteBox, parseFigureManifest, straddleAnim } from "./figures";
 
 const kong = {
   anchor: { x: 0.5, y: 0.74 },
@@ -66,6 +66,32 @@ describe("figureSpriteBox", () => {
     const box = figureSpriteBox(fig, 40);
     expect(box.left + fig.anchor.x * box.width).toBeCloseTo(0);
     expect(box.top + fig.anchor.y * box.height).toBeCloseTo(0);
+  });
+});
+
+describe("figureGroundSlice", () => {
+  const box = { width: 80, height: 120, left: -40, top: -90 }; // 30px below the feet
+
+  test("lays the part of the image below the feet flat on the board, stretched against the tilt", () => {
+    const slice = figureGroundSlice(box, 60)!;
+    // cos(60°) = 0.5: the board shows an in-plane length at half size, so the
+    // strip is laid out twice as deep as the 30px it must show on screen.
+    expect(slice.left).toBe(-40);
+    expect(slice.width).toBe(80);
+    expect(slice.height).toBeCloseTo(60);
+    expect(slice.imageTop).toBeCloseTo(-180);
+    expect(slice.imageHeight).toBeCloseTo(240);
+  });
+
+  test("puts the image's feet line on the strip's top edge", () => {
+    const slice = figureGroundSlice(box, 40)!;
+    const stretch = 1 / Math.cos((40 * Math.PI) / 180);
+    expect(slice.imageTop + 0.75 * slice.imageHeight).toBeCloseTo(0);
+    expect(slice.height).toBeCloseTo(30 * stretch);
+  });
+
+  test("is not needed when nothing of the model reaches below its feet", () => {
+    expect(figureGroundSlice({ ...box, top: -120 }, 40)).toBeNull();
   });
 });
 
