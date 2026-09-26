@@ -320,7 +320,10 @@ export const TableStandeeAnchor = ({
           left="50%"
           w={`${baseDiamPx}px`}
           h={`${baseDiamPx}px`}
-          style={{ transform: "translate(-50%, 50%)" }}
+          // Lifted with the ground layer on a shared space: otherwise a SMALL
+          // miniature's base lies UNDER the flat NORMAL token it is ringed
+          // onto, and that token's face swallows the taps meant for it.
+          style={{ transform: `translate(-50%, 50%)${stack?.liftPx ? ` translateZ(${stack.liftPx}px)` : ""}` }}
           borderRadius="50%"
           bg="radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.28) 0%, rgba(20,10,24,0.82) 65%, rgba(8,4,10,0.95) 100%)"
           border={`2.5px solid ${baseAccent}`}

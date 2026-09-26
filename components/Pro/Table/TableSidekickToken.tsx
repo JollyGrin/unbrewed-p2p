@@ -5,7 +5,7 @@
 import type { FighterId, ViewFighter } from "@/lib/pro/protocol";
 import { standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
 import { TableAnchorAnim, TableStandeeAnchor, type TableStackDepth } from "./TableStandeeAnchor";
-import { TableFighterBadges } from "./TableFighterBadges";
+import { TableFighterBadges, TableFighterPickMarks } from "./TableFighterBadges";
 import { TableFlatToken, TOKEN_BADGE_PLATE_HEIGHT } from "./TableFlatToken";
 
 export interface TableSidekickTokenProps {
@@ -24,6 +24,11 @@ export interface TableSidekickTokenProps {
   selected: boolean;
   targetable: boolean;
   friendly: boolean;
+  /** Pick marks, as on the hero plate: a reach-2 target, a numbered pick and
+   *  a bought-range / step-in chip (see TableFighterPickMarks). */
+  extendedReach?: boolean;
+  badgeNumber?: number;
+  chipText?: string | null;
   /** A just-committed move to glide through (deferred-item pendingMove
    *  tweening). Absent/null = static. */
   anim?: TableAnchorAnim | null;
@@ -47,6 +52,9 @@ export const TableSidekickToken = ({
   selected,
   targetable,
   friendly,
+  extendedReach = false,
+  badgeNumber,
+  chipText,
   anim = null,
   onAnimComplete,
   onClick,
@@ -93,6 +101,12 @@ export const TableSidekickToken = ({
       title={`${fighter.name} — ${fighter.hp}/${fighter.maxHp} HP`}
     >
       <TableFighterBadges fighter={fighter} size="sidekick" />
+      <TableFighterPickMarks
+        extendedReach={extendedReach}
+        badgeNumber={badgeNumber}
+        chipText={chipText}
+        playerColor={playerColor ?? "rgba(250, 240, 222, 0.55)"}
+      />
     </TableStandeeAnchor>
   );
 };
