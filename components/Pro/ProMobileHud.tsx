@@ -235,6 +235,7 @@ export const ProMobileMenu = ({
   onCyclePace,
   boardView,
   onToggleBoardView,
+  boardViewLockedHint,
   turnReminderOn,
   onToggleTurnReminder,
   onReportBug,
@@ -256,6 +257,7 @@ export const ProMobileMenu = ({
   | "onCyclePace"
   | "boardView"
   | "onToggleBoardView"
+  | "boardViewLockedHint"
   | "turnReminderOn"
   | "onToggleTurnReminder"
   | "onReportBug"
@@ -359,8 +361,18 @@ export const ProMobileMenu = ({
             </MenuItem>
           )}
           {onToggleBoardView && boardView && (
-            <MenuItem {...item} icon={<TbPerspective />} onClick={onToggleBoardView}>
+            <MenuItem
+              {...item}
+              icon={<TbPerspective />}
+              onClick={onToggleBoardView}
+              isDisabled={!!boardViewLockedHint}
+            >
               Board — {BOARD_VIEW_LABEL[boardView]}
+              {boardViewLockedHint && (
+                <Text as="span" display="block" fontSize="0.65rem" opacity={0.75}>
+                  {boardViewLockedHint}
+                </Text>
+              )}
             </MenuItem>
           )}
           {onForfeit && (
