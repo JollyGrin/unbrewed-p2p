@@ -1,5 +1,5 @@
 import { render } from "@testing-library/react";
-import { GAME_TOUCH_ACTION, ZOOM_GUARD_STYLE_ID, usePageZoomGuard } from "./usePageZoomGuard";
+import { GAME_TOUCH_ACTION, ZOOM_GUARD_STYLE_ID, matchBoardOnScreen, usePageZoomGuard } from "./usePageZoomGuard";
 
 const Harness = ({ on = true }: { on?: boolean }) => {
   usePageZoomGuard(on);
@@ -36,5 +36,22 @@ describe("usePageZoomGuard", () => {
 
     expect(pinch()).toBe(false);
     expect(document.getElementById(ZOOM_GUARD_STYLE_ID)).toBeNull();
+  });
+});
+
+describe("matchBoardOnScreen (#893)", () => {
+  const inMatch = { joined: true, snapshot: {}, gameLost: false, error: null };
+
+  it("is true only while the live page draws a match board", () => {
+    expect(matchBoardOnScreen(inMatch)).toBe(true);
+  });
+
+  it.each([
+    ["the lobby / hero picker (not joined)", { joined: false }],
+    ["the waiting room (no STATE yet)", { snapshot: null }],
+    ["the game-lost screen", { gameLost: true }],
+    ["an error screen", { error: { code: "ROOM_NOT_FOUND", message: "" } }],
+  ])("is false on %s", (_label, patch) => {
+    expect(matchBoardOnScreen({ ...inMatch, ...patch })).toBe(false);
   });
 });
