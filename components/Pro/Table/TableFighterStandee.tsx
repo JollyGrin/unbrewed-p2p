@@ -11,16 +11,25 @@
  * `TableStandeeAnchor` + tableProjection.ts; this file only draws the piece
  * and its badges.
  */
-import { Box, Text } from "@chakra-ui/react";
+import { Box } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
 import type { FighterId, ViewFighter } from "@/lib/pro/protocol";
 import type { FlagTokenBadge } from "@/lib/pro/heroStateFlags";
 import { fighterStatusBadgesFor } from "@/lib/pro/fighterStatuses";
-import { standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
+import { flatTokenTopPx, standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
 import type { Figure } from "@/lib/pro/figures";
 import { TableFigureGround, TableFigureSprite } from "./TableFigureSprite";
 import { TableAnchorAnim, TableStandeeAnchor, type TableStackDepth } from "./TableStandeeAnchor";
-import { TableFighterBadges, TableFighterPickMarks } from "./TableFighterBadges";
+import {
+  fighterBadgesLowestPx,
+  flagBadgeLowestPx,
+  pickMarksLowestPx,
+  statusRowLowestPx,
+  TableFighterBadges,
+  TableFighterFlagBadge,
+  TableFighterPickMarks,
+  TableFighterStatusBadges,
+} from "./TableFighterBadges";
 import { TableFlatToken, TOKEN_BADGE_PLATE_HEIGHT } from "./TableFlatToken";
 
 /** A miniature's upright plate, which anchors its badges: taller than wide,
@@ -85,6 +94,10 @@ export interface TableFighterStandeeProps {
    *  stands over the spaces BEHIND it, so while any space can be tapped the
    *  body passes taps through and the fighter is reached by its base (#873). */
   spacePicksLive?: boolean;
+  /** The table plane's size — lets the badge layer stay on its pixels while
+   *  it slides clear of the token (see TableStandeeAnchor's `badges`). */
+  frameW?: number;
+  frameH?: number;
 }
 
 export const TableFighterStandee = ({
@@ -113,6 +126,8 @@ export const TableFighterStandee = ({
   figureScale = 1,
   baseHidden = false,
   spacePicksLive = false,
+  frameW,
+  frameH,
 }: TableFighterStandeeProps) => {
   const tokenPx = standeeBaseDiameterPx(diamPx);
   // A miniature's plate is tall; a flat token's is a low strip that only
@@ -123,9 +138,16 @@ export const TableFighterStandee = ({
   const fighterClickable = targetable && !!onClick;
   const clickHandler = fighterClickable ? () => onClick!(fighter.id) : onSpaceFallbackClick;
   const figureBaseDiamPx = tokenPx * figureScale;
+  const badgeLowestPx = Math.min(
+    fighterBadgesLowestPx(heightPx, "hero"),
+    pickMarksLowestPx({ extendedReach, badgeNumber, chipText }),
+    badge ? flagBadgeLowestPx(heightPx) : Infinity,
+    statusBadges.length > 0 ? statusRowLowestPx() : Infinity
+  );
 
   return (
     <TableStandeeAnchor
+      badgeOwner={fighter.id}
       stack={stack}
       innerRef={innerRef}
       x={x}
@@ -169,6 +191,25 @@ export const TableFighterStandee = ({
       onMouseEnter={onHoverChange ? () => onHoverChange(fighter.id) : undefined}
       onMouseLeave={onHoverChange ? () => onHoverChange(null) : undefined}
       title={`${fighter.name} — ${fighter.hp}/${fighter.maxHp} HP`}
+      frameW={frameW}
+      frameH={frameH}
+      // A miniature stands on a flat base; a flat token is its own layers.
+      groundTopPx={figure ? 0 : flatTokenTopPx(tokenPx)}
+      badgeLowestPx={badgeLowestPx}
+      badges={
+        <>
+          {/* Offset outside the plate's edges, like the flat board's. */}
+          <TableFighterBadges fighter={fighter} size="hero" />
+          <TableFighterPickMarks
+            extendedReach={extendedReach}
+            badgeNumber={badgeNumber}
+            chipText={chipText}
+            playerColor={playerColor}
+          />
+          {badge && <TableFighterFlagBadge badge={badge} />}
+          {statusBadges.length > 0 && <TableFighterStatusBadges badges={statusBadges} />}
+        </>
+      }
     >
       {figure && (
         <Box
@@ -190,63 +231,6 @@ export const TableFighterStandee = ({
         </Box>
       )}
 
-      {/* Badges stand in the upright plate, offset outside its edges. */}
-      <TableFighterBadges fighter={fighter} size="hero" />
-
-      <TableFighterPickMarks
-        extendedReach={extendedReach}
-        badgeNumber={badgeNumber}
-        chipText={chipText}
-        playerColor={playerColor}
-      />
-
-      {badge && (
-        <Box
-          position="absolute"
-          top="-0.5rem"
-          left="-0.5rem"
-          minW="1.4rem"
-          h="1.4rem"
-          px="0.15rem"
-          borderRadius="999px"
-          bg={badge.bg}
-          color={badge.color}
-          border="1.5px solid #fff"
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-          fontSize="0.6rem"
-          fontWeight="bold"
-          title={badge.title}
-          zIndex={2}
-        >
-          {badge.icon}
-          {badge.showLabel && <Text as="span">{badge.label}</Text>}
-        </Box>
-      )}
-
-      {statusBadges.length > 0 && (
-        <Box position="absolute" bottom="-0.4rem" left="50%" transform="translateX(-50%)" display="flex" gap="0.15rem" zIndex={2}>
-          {statusBadges.map((sb) => (
-            <Box
-              key={sb.key}
-              w="1.1rem"
-              h="1.1rem"
-              borderRadius="50%"
-              bg={sb.bg}
-              color={sb.color}
-              border="1px solid #fff"
-              display="flex"
-              alignItems="center"
-              justifyContent="center"
-              fontSize="0.55rem"
-              title={sb.title}
-            >
-              {sb.icon}
-            </Box>
-          ))}
-        </Box>
-      )}
     </TableStandeeAnchor>
   );
 };

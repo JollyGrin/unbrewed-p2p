@@ -56,6 +56,7 @@ import { ReactNode } from "react";
 import { Box, chakra, shouldForwardProp } from "@chakra-ui/react";
 import { isValidMotionProp, motion } from "framer-motion";
 import {
+  badgeLayerSlide,
   placeStandee,
   standeeBaseDiameterPx,
   standeeShadowStretch,
@@ -156,6 +157,25 @@ export interface TableStandeeAnchorProps {
    *  body sits behind the smalls on it, as on the flat board, instead of a
    *  ring slot at 12 o'clock sliding under it by painter's order. */
   stack?: TableStackDepth;
+  /** The fighter whose badges this piece carries — tagged on the root as
+   *  `data-badge-owner` so the occlusion probe can crop a token with them. */
+  badgeOwner?: string;
+  /** The piece's badges (HP, reach, flag, status, pick marks). They stand in
+   *  a layer of their own that shares the upright plate's box and billboard
+   *  but is slid toward the camera until nothing on the ground can cover it
+   *  (#902, `badgeLayerSlide`). Never takes pointer events. */
+  badges?: ReactNode;
+  /** The badges' lowest pixel, px above the foot in plate units (negative =
+   *  below it) — see TableFighterBadges' `*LowestPx` helpers. */
+  badgeLowestPx?: number;
+  /** How high this piece's own ground piece stands off the board before any
+   *  `stack.liftPx`, px: a flat token's thickness, 0 for a miniature's flat
+   *  base. The badges clear this plus the stack lift. */
+  groundTopPx?: number;
+  /** The table plane's size (TableStage's frameW/H): where the eye is, so the
+   *  badge layer can slide along its own eye ray and not drift on screen. */
+  frameW?: number;
+  frameH?: number;
   children: ReactNode;
 }
 
@@ -194,11 +214,27 @@ export const TableStandeeAnchor = ({
   title,
   innerRef,
   stack,
+  badgeOwner,
+  badges,
+  badgeLowestPx = Infinity,
+  groundTopPx = 0,
+  frameW = 0,
+  frameH = 0,
   children,
   ...rest
 }: TableStandeeAnchorProps) => {
   const placement = placeStandee(stack ? stack.depthY : y, tiltDeg);
   const zIndex = placement.zIndex + (stack?.order ?? 0);
+  const badgeSlide = badgeLayerSlide({
+    x,
+    y,
+    frameW,
+    frameH,
+    tiltDeg,
+    plateScale: placement.scale,
+    tokenTopPx: Math.max(0, groundTopPx) + (stack?.liftPx ?? 0),
+    lowestPx: badgeLowestPx,
+  });
   // An inert piece (the walk ghost) never opts its base back in: the root is
   // already click-through, so this is what keeps the gold step under it live.
   const interactive = !inert && !!(onClick || onMouseEnter || onMouseLeave);
@@ -271,6 +307,7 @@ export const TableStandeeAnchor = ({
       // a target. Their clicks still bubble up to this root's `onClick`.
       pointerEvents="none"
       ref={innerRef}
+      data-badge-owner={badgeOwner}
       {...rest}
     >
       {/* Contact shadow — flat, in-plane, foreshortened by the SAME ancestor
@@ -374,6 +411,30 @@ export const TableStandeeAnchor = ({
       >
         {children}
       </Box>
+      {/* The badge layer: the SAME box and billboard as the plate, then slid
+          toward the camera along its own eye ray (#902). On screen it sits
+          exactly where the plate would draw it; in depth it stands above the
+          token's top face, which is the only thing the preserve-3d plane
+          sorts by — z-index alone let the disc bite the reach glyph and bury
+          the pick marks. */}
+      {badges && (
+        <Box
+          position="absolute"
+          left={0}
+          top={0}
+          w="100%"
+          h="100%"
+          pointerEvents="none"
+          style={{
+            transform: `${placement.transform} ${badgeSlide.transform}`.trim(),
+            transformOrigin: "50% 100%",
+          }}
+          data-standee-badges=""
+          data-badge-forward={badgeSlide.forwardPx.toFixed(2)}
+        >
+          {badges}
+        </Box>
+      )}
     </MotionBox>
   );
 };
