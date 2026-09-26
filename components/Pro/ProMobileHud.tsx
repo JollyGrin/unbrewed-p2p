@@ -54,6 +54,8 @@ import { defenseCueDue, turnStripFor, yourTurnCueDue } from "@/lib/pro/turnStrip
 import { RAIL_WIDTH_CSS, TAP_TARGET, chipSeatName } from "@/lib/pro/mobileLayout";
 import { paceOption } from "@/lib/pro/pace";
 import { BOARD_VIEW_LABEL } from "@/lib/pro/boardView";
+import { FIGURE_STYLE_LABEL } from "@/lib/pro/figures";
+import { GiChessKnight } from "react-icons/gi";
 import type { PlayerId, ViewPlayer } from "@/lib/pro/protocol";
 import type { ProLayoutMode } from "@/lib/pro/useProLayout";
 import { MoveTimerBar, ProHudProps, SeatPlate, hudSeats } from "@/components/Pro/ProHud";
@@ -236,6 +238,8 @@ export const ProMobileMenu = ({
   boardView,
   onToggleBoardView,
   boardViewLockedHint,
+  figureStyle,
+  onCycleFigureStyle,
   turnReminderOn,
   onToggleTurnReminder,
   onReportBug,
@@ -258,6 +262,8 @@ export const ProMobileMenu = ({
   | "boardView"
   | "onToggleBoardView"
   | "boardViewLockedHint"
+  | "figureStyle"
+  | "onCycleFigureStyle"
   | "turnReminderOn"
   | "onToggleTurnReminder"
   | "onReportBug"
@@ -375,6 +381,14 @@ export const ProMobileMenu = ({
               )}
             </MenuItem>
           )}
+          {onCycleFigureStyle && figureStyle && (
+            // Right under the board item it belongs to: which miniatures the
+            // tabletop's heroes stand as (#903). Only offered when it changes
+            // something on this board.
+            <MenuItem {...item} icon={<GiChessKnight />} onClick={onCycleFigureStyle}>
+              Heroes — {FIGURE_STYLE_LABEL[figureStyle]}
+            </MenuItem>
+          )}
           {onForfeit && (
             <>
               <MenuDivider borderColor="whiteAlpha.200" />
@@ -431,6 +445,7 @@ export const ProMobileHud = ({
   chipsRef,
   hud = false,
   portraitFor,
+  figureCreditFor,
 }: ProMobileHudProps) => {
   const [openSeat, setOpenSeat] = useState<PlayerId | null>(null);
   const { plates, hydrated, update } = useHudPlates();
@@ -665,6 +680,7 @@ export const ProMobileHud = ({
               hero={resolveHero(sheetSeat.heroId)}
               ruleCards={resolveRuleCards?.(sheetSeat.heroId) ?? []}
               heroId={sheetSeat.heroId}
+              figureCredit={figureCreditFor?.(sheetSeat.id) ?? null}
               heroFighter={heroOf(sheetSeat.id)}
               sidekicks={sidekicksOf(sheetSeat.id)}
               flags={sheetSeat.flags}

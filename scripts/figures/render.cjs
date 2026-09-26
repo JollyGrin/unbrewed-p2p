@@ -35,12 +35,27 @@
  * than the disc that the disc's front half showed empty. 40° keeps the model's
  * base close to the disc's shape and the figure upright.
  *
+ * THE OPEN SET (unbrewed-p2p-903). `--open` renders the second, committed
+ * set instead: open-licence models (CC0 / CC-BY / CC-BY-SA) whose renders may
+ * be redistributed. Its config is `scripts/figures/figures-open.json` (in the
+ * repo); its models are read from the given folder (NOT in the repo — see
+ * scripts/figures/README.md for where each one comes from); its output is
+ * `public/figures-open/`, which IS committed and deployed. Every open entry
+ * must also carry its attribution (`modelName`, `creator`, `sourceUrl`) —
+ * CC-BY requires the credit the app shows. The same clearance applies: an
+ * entry missing any field is not rendered, and the app drops it too.
+ *
  * Usage (needs a Playwright install; three.js comes from node_modules):
  *   PW_PATH=~/.npm/_npx/<hash>/node_modules/playwright \
  *     node scripts/figures/render.cjs [~/Developer/unbrewed-figures]
+ *   PW_PATH=... node scripts/figures/render.cjs --open <folder with the open models>
+ *
+ * Models may be STL, 3MF or glTF (.glb/.gltf). Optional per figure: "mesh"
+ * (glTF only — render just the meshes whose name contains it), "rx" / "rz"
+ * (stand a model up that was not published upright, degrees).
  */
 const fs = require("fs");
-const { clearanceBlockers } = require("./clearance.cjs");
+const { clearanceBlockers, openRenderBlockers } = require("./clearance.cjs");
 const path = require("path");
 const os = require("os");
 
@@ -51,9 +66,20 @@ if (!PW_PATH) {
 }
 const pw = require(PW_PATH);
 
-const SOURCE = path.resolve(process.argv[2] || path.join(os.homedir(), "Developer", "unbrewed-figures"));
+const OPEN = process.argv.includes("--open");
+const sourceArg = process.argv.slice(2).find((a) => !a.startsWith("--"));
+if (OPEN && !sourceArg) {
+  console.error("--open needs the folder holding the open models (they are not in the repo).");
+  process.exit(2);
+}
+const SOURCE = path.resolve(sourceArg || path.join(os.homedir(), "Developer", "unbrewed-figures"));
 const REPO = path.resolve(__dirname, "..", "..");
-const OUT = path.join(REPO, "public", "figures");
+const OUT = path.join(REPO, "public", OPEN ? "figures-open" : "figures");
+const CONFIG = OPEN ? path.join(__dirname, "figures-open.json") : path.join(SOURCE, "figures.json");
+/** What each manifest entry carries besides its geometry and seats. */
+const DECLARED = OPEN
+  ? ["license", "redistributable", "officialHero", "modelName", "creator", "sourceUrl"]
+  : ["license", "redistributable", "officialHero"];
 // three.js is not a direct dependency; it arrives with another package. Fine
 // for a local tool — if it ever disappears, `yarn add -D three` restores it.
 const THREE_DIR = path.dirname(path.dirname(require.resolve("three", { paths: [REPO] })));
@@ -66,10 +92,13 @@ const THREE_DIR = path.dirname(path.dirname(require.resolve("three", { paths: [R
 const SEAT_TINTS = { p1: "#b8893a", p2: "#5a7fae", p3: "#4f8f6a", p4: "#a0578a" };
 
 const HOST = "http://figures.local";
-const mime = (f) => ({ ".html": "text/html", ".js": "text/javascript", ".stl": "model/stl", ".3mf": "model/3mf" })[path.extname(f)] ?? "application/octet-stream";
+const mime = (f) =>
+  ({ ".html": "text/html", ".js": "text/javascript", ".stl": "model/stl", ".3mf": "model/3mf", ".glb": "model/gltf-binary", ".gltf": "model/gltf+json" })[
+    path.extname(f)
+  ] ?? "application/octet-stream";
 
 const readConfig = () => {
-  const file = path.join(SOURCE, "figures.json");
+  const file = CONFIG;
   if (!fs.existsSync(file)) {
     console.error(`No ${file}. Create it — see the header of this script for the format.`);
     process.exit(2);
@@ -79,7 +108,7 @@ const readConfig = () => {
   const cleared = [];
   for (const f of figures) {
     if (!/^[a-z0-9-]+$/.test(f.heroId ?? "")) throw new Error(`bad heroId: ${JSON.stringify(f.heroId)}`);
-    const blockers = clearanceBlockers(f);
+    const blockers = OPEN ? openRenderBlockers(f) : clearanceBlockers(f);
     if (blockers.length > 0) {
       console.warn(`${f.heroId}: skipped, not cleared (${blockers.join("; ")})`);
       // A render left over from before the gate must not outlive it.
@@ -101,7 +130,7 @@ const readConfig = () => {
     console.log(`no cleared figures: wrote an empty manifest to ${path.relative(REPO, OUT)}/`);
     return;
   }
-  const browser = await pw.chromium.launch({ args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
+  const browser = await pw.chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
   const page = await browser.newPage();
   page.on("pageerror", (e) => console.error("[page]", e.message));
   // Serve the page, three.js and the models from disk without a web server.
@@ -120,6 +149,8 @@ const readConfig = () => {
   const renderOne = async (fig, tint) => {
     const q = new URLSearchParams({ model: `/model/${fig.model}`, tint, elev: String(fig.elev ?? 40), az: String(fig.az ?? 0) });
     if (fig.footprintMm) q.set("footprintMm", String(fig.footprintMm));
+    if (fig.mesh) q.set("mesh", fig.mesh);
+    for (const k of ["rx", "rz"]) if (fig[k]) q.set(k, String(fig[k]));
     await page.goto(`${HOST}/render.html?${q}`);
     await page.waitForFunction(() => window.__result, null, { timeout: 300000 });
     return page.evaluate(() => window.__result);
@@ -141,8 +172,8 @@ const readConfig = () => {
     }
     // Belt and braces: the app re-checks these fields and drops the entry
     // without them (lib/pro/figures.ts).
-    const { license, redistributable, officialHero } = fig;
-    manifest.figures[fig.heroId] = { ...geometry, seats, license, redistributable, officialHero };
+    const declared = Object.fromEntries(DECLARED.filter((k) => fig[k] !== undefined).map((k) => [k, fig[k]]));
+    manifest.figures[fig.heroId] = { ...geometry, seats, ...declared };
     console.log(`${fig.heroId}: footprint ${geometry.footprintMm.toFixed(1)}mm, anchor ${geometry.anchor.x.toFixed(3)}/${geometry.anchor.y.toFixed(3)}`);
   }
   fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 2));

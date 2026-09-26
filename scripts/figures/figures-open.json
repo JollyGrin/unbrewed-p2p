@@ -1,0 +1,25 @@
+{
+  "figures": [
+    {
+      "heroId": "triceratops",
+      "model": "triceratops-horridus-marsh-150k.glb",
+      "rz": 90,
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "Triceratops Horridus Marsh",
+      "creator": "Smithsonian Institution",
+      "sourceUrl": "https://sketchfab.com/3d-models/triceratops-horridus-marsh-e9c507f179ed4455aac3b208c9e6c973"
+    },
+    {
+      "heroId": "baba-yaga",
+      "model": "witch-minis-witch-2.stl",
+      "license": "CC-BY-SA-4.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "Witch Minis (Witch 2)",
+      "creator": "mz4250",
+      "sourceUrl": "https://www.thingiverse.com/thing:6694128"
+    }
+  ]
+}

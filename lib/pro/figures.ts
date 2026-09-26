@@ -22,6 +22,16 @@
  * accident — serving figures on a deploy is an explicit opt-in (see
  * scripts/figures/README.md).
  *
+ * TWO SETS (unbrewed-p2p-903). Beside that private set there is a second,
+ * COMMITTED one: open-licence models (CC0 / CC-BY / CC-BY-SA) rendered into
+ * `public/figures-open/`, which every checkout and deploy carries. It is a
+ * separate tree with its own manifest, so the private tree's ignore rules stay
+ * one plain path, and it passes the same gate PLUS attribution: an open entry
+ * without `modelName`, `creator` and an https `sourceUrl` is dropped, because
+ * CC-BY obliges us to show that credit (FigureCredits). The viewer picks which
+ * set the tabletop draws — or plain tokens — with the figure-style toggle
+ * (`figureStyleOptions`).
+ *
  * WHY PER-SEAT RENDERS. A miniature is tinted in its seat's color (gold, blue,
  * green, magenta), so ownership reads from the whole figure, not only from the
  * ring under it. CSS cannot recolor a lit render faithfully, so the script
@@ -30,8 +40,47 @@
 
 import { clampTilt } from "./tableProjection";
 
-export const FIGURES_BASE_URL = "/figures";
-export const FIGURES_MANIFEST_URL = `${FIGURES_BASE_URL}/manifest.json`;
+/** "private": the owner's local, never-shipped renders. "open": the
+ *  committed open-licence set. */
+export type FigureSet = "private" | "open";
+
+export const FIGURE_SET_BASE_URL: Record<FigureSet, string> = { private: "/figures", open: "/figures-open" };
+export const figureManifestUrl = (set: FigureSet): string => `${FIGURE_SET_BASE_URL[set]}/manifest.json`;
+export const FIGURES_BASE_URL = FIGURE_SET_BASE_URL.private;
+export const FIGURES_MANIFEST_URL = figureManifestUrl("private");
+
+/**
+ * The licence deeds the credit links to, by SPDX id. CC BY / BY-SA 4.0
+ * s3(a)(1) require a link to (or the text of) the licence with the credit;
+ * an OPEN-set entry whose licence is not listed here is dropped, because the
+ * app could not meet that obligation. Mirrors OPEN_LICENSE_DEEDS in
+ * scripts/figures/clearance.cjs (figures.open.test.ts keeps them equal).
+ */
+export const LICENSE_DEEDS: Record<string, string> = {
+  "CC0-1.0": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "CC-BY-4.0": "https://creativecommons.org/licenses/by/4.0/",
+  "CC-BY-SA-4.0": "https://creativecommons.org/licenses/by-sa/4.0/",
+};
+
+/** Licences under which our renders are NOT modifications we must declare:
+ *  public domain. Every other licence gets the modification notice. */
+const NO_NOTICE_LICENSES = new Set(["CC0-1.0"]);
+
+/** Who made a model, under what licence, and where it came from — what the
+ *  hero's info shows for the miniature on the table. */
+export interface FigureCredit {
+  modelName: string;
+  creator: string;
+  license: string;
+  /** The licence deed (LICENSE_DEEDS), or null for a licence not listed there
+   *  (private set only: the open set requires one). */
+  licenseUrl: string | null;
+  /** Always https (checked when the manifest is read). */
+  sourceUrl: string;
+  /** The renders modify the model (lit, recoloured, flattened to images) and
+   *  its licence asks that to be indicated — true for everything but CC0. */
+  modified: boolean;
+}
 
 export interface FigureEntry {
   /** Where the ground point under the model's centre lands in the image, as
@@ -51,6 +100,8 @@ export interface FigureEntry {
   redistributable: true;
   /** The hero is an official character. Always false here: those get no figure. */
   officialHero: false;
+  /** Attribution. Required in the open set; optional in the private one. */
+  credit?: FigureCredit;
 }
 
 export interface FigureManifest {
@@ -59,8 +110,12 @@ export interface FigureManifest {
 }
 
 /** One hero's figure, resolved for one seat — what a standee renders. */
-export interface Figure extends Omit<FigureEntry, "seats" | "license" | "redistributable" | "officialHero"> {
+export interface Figure extends Omit<FigureEntry, "seats" | "license" | "redistributable" | "officialHero" | "credit"> {
   url: string;
+  /** Which set it came from (absent in hand-built test figures). */
+  set?: FigureSet;
+  /** The model's attribution, when its entry declares one. */
+  credit?: FigureCredit | null;
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -75,9 +130,32 @@ const isFileName = (v: unknown): v is string => typeof v === "string" && /^[A-Za
 export const isCleared = (raw: Record<string, unknown>): raw is Record<string, unknown> & { license: string } =>
   typeof raw.license === "string" && raw.license.trim() !== "" && raw.redistributable === true && raw.officialHero === false;
 
-const parseEntry = (raw: unknown): FigureEntry | null => {
+const isFilled = (v: unknown): v is string => typeof v === "string" && v.trim() !== "";
+
+/** The credit an entry declares, or null when any part of it is missing.
+ *  Mirrors `attributionBlockers` in scripts/figures/clearance.cjs. */
+export const creditOf = (raw: Record<string, unknown>): FigureCredit | null => {
+  const { modelName, creator, license, sourceUrl } = raw;
+  if (!isFilled(modelName) || !isFilled(creator) || !isFilled(license)) return null;
+  if (typeof sourceUrl !== "string" || !/^https:\/\/\S+$/.test(sourceUrl)) return null;
+  const id = license.trim();
+  return {
+    modelName: modelName.trim(),
+    creator: creator.trim(),
+    license: id,
+    licenseUrl: LICENSE_DEEDS[id] ?? null,
+    sourceUrl,
+    modified: !NO_NOTICE_LICENSES.has(id),
+  };
+};
+
+const parseEntry = (raw: unknown, set: FigureSet): FigureEntry | null => {
   if (!isRecord(raw) || !isRecord(raw.anchor) || !isRecord(raw.seats)) return null;
   if (!isCleared(raw)) return null;
+  const credit = creditOf(raw);
+  // The committed set ships to everyone: its licences oblige the credit,
+  // including a link to the licence itself.
+  if (set === "open" && !credit?.licenseUrl) return null;
   const { anchor, imageWidthMm, footprintMm, aspect, seats, license } = raw;
   if (!isFraction(anchor.x) || !isFraction(anchor.y)) return null;
   if (!isPositive(imageWidthMm) || !isPositive(footprintMm) || !isPositive(aspect)) return null;
@@ -92,16 +170,17 @@ const parseEntry = (raw: unknown): FigureEntry | null => {
     license,
     redistributable: true,
     officialHero: false,
+    ...(credit ? { credit } : {}),
   };
 };
 
-/** Validate `/figures/manifest.json`. A bad entry is dropped, not fatal: one
+/** Validate a set's manifest.json. A bad entry is dropped, not fatal: one
  *  broken render must not take every other figure down with it. */
-export const parseFigureManifest = (raw: unknown): FigureManifest | null => {
+export const parseFigureManifest = (raw: unknown, set: FigureSet): FigureManifest | null => {
   if (!isRecord(raw) || raw.version !== 1 || !isRecord(raw.figures)) return null;
   const figures: Record<string, FigureEntry> = {};
   for (const [heroId, entry] of Object.entries(raw.figures)) {
-    const parsed = parseEntry(entry);
+    const parsed = parseEntry(entry, set);
     if (parsed) figures[heroId] = parsed;
   }
   return { version: 1, figures };
@@ -110,13 +189,82 @@ export const parseFigureManifest = (raw: unknown): FigureManifest | null => {
 export const figureFor = (
   manifest: FigureManifest | null,
   heroId: string | undefined,
-  seat: string
+  seat: string,
+  set: FigureSet
 ): Figure | null => {
   const entry = heroId ? manifest?.figures[heroId] : undefined;
   const file = entry?.seats[seat];
   if (!entry || !file) return null;
   const { anchor, imageWidthMm, footprintMm, aspect } = entry;
-  return { anchor, imageWidthMm, footprintMm, aspect, url: `${FIGURES_BASE_URL}/${file}` };
+  return { anchor, imageWidthMm, footprintMm, aspect, url: `${FIGURE_SET_BASE_URL[set]}/${file}`, set, credit: entry.credit ?? null };
+};
+
+/**
+ * How the tabletop shows heroes (unbrewed-p2p-903): one of the two figure
+ * sets, or every hero as its flat token. A per-viewer display preference.
+ * A style draws ONLY its own set — a hero without a figure in it lies as its
+ * token — so the choice never shows one set's model under the other's name.
+ */
+export type FigureStyle = FigureSet | "token";
+
+/** Preference order when the viewer has not chosen, or chose a style this
+ *  board cannot show: the owner's own renders first where they are loaded. */
+const FIGURE_STYLE_ORDER: FigureStyle[] = ["private", "open", "token"];
+
+export const isFigureStyle = (v: unknown): v is FigureStyle => FIGURE_STYLE_ORDER.includes(v as FigureStyle);
+
+export type FigureManifests = Record<FigureSet, FigureManifest | null>;
+
+/** The seats' heroes on this board. */
+export interface HeroSeat {
+  heroId: string | undefined;
+  seat: string;
+}
+
+export const figureForStyle = (
+  manifests: FigureManifests,
+  style: FigureStyle,
+  heroId: string | undefined,
+  seat: string
+): Figure | null => (style === "token" ? null : figureFor(manifests[style], heroId, seat, style));
+
+/**
+ * The styles worth offering on THIS board: each one must draw something
+ * different from every style before it. A set with no figure for any hero
+ * here looks exactly like tokens, so it is not offered; when nothing but
+ * tokens is possible the answer is empty and no toggle is shown at all.
+ */
+export const figureStyleOptions = (manifests: FigureManifests, heroes: HeroSeat[]): FigureStyle[] => {
+  const outcomeOf = (style: FigureStyle) =>
+    heroes.map((h) => figureForStyle(manifests, style, h.heroId, h.seat)?.url ?? "").join("|");
+  // Tokens are the baseline every set is measured against, offered last.
+  const seen = new Set<string>([outcomeOf("token")]);
+  const options: FigureStyle[] = [];
+  for (const style of FIGURE_STYLE_ORDER) {
+    if (style === "token") continue;
+    const outcome = outcomeOf(style);
+    if (seen.has(outcome)) continue;
+    seen.add(outcome);
+    options.push(style);
+  }
+  return options.length > 0 ? [...options, "token"] : [];
+};
+
+/** The style actually drawn: the viewer's choice when this board offers it,
+ *  else the first option (else tokens). */
+export const effectiveFigureStyle = (preferred: FigureStyle | null, options: FigureStyle[]): FigureStyle =>
+  preferred && options.includes(preferred) ? preferred : options[0] ?? "token";
+
+/** The next style a tap on the toggle switches to. */
+export const nextFigureStyle = (current: FigureStyle, options: FigureStyle[]): FigureStyle => {
+  const i = options.indexOf(current);
+  return options[(i + 1) % options.length] ?? current;
+};
+
+export const FIGURE_STYLE_LABEL: Record<FigureStyle, string> = {
+  open: "Open-licence minis",
+  private: "Private minis",
+  token: "Tokens",
 };
 
 export interface SpriteBox {
@@ -208,3 +356,11 @@ export const straddleAnim = (head: BoardPathAnim | null, tail: BoardPathAnim | n
     durationSec: head.durationSec,
   };
 };
+
+/**
+ * The figurine a hero-view surface (the hero preview) shows: the owner's own
+ * render where it is loaded, else the open set's, in the first seat's tint.
+ * Null — no figurine, no credit — for a hero with neither.
+ */
+export const heroViewFigure = (manifests: FigureManifests, heroId: string | undefined): Figure | null =>
+  figureForStyle(manifests, "private", heroId, "p1") ?? figureForStyle(manifests, "open", heroId, "p1");
