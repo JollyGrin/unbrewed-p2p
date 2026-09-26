@@ -12,22 +12,21 @@ import {
 } from "@tanstack/react-query";
 import "@/styles/fonts.css";
 import { Toaster } from "react-hot-toast";
-import { extendTheme } from "@chakra-ui/react";
+import { Global } from "@emotion/react";
 import { Space_Grotesk } from "next/font/google";
 
 // Self-hosted Space Grotesk via next/font — replaces the fonts.googleapis.com
-// <link> that used to live in PageSeo and tripped a Next.js warning. The font
-// loader only works inside Next's build (not the renderFuzz CLI), so it lives
-// here rather than in styles/style.ts where the theme token is declared.
+// <link> that used to live in PageSeo and tripped a Next.js warning. The
+// loader call must live in this file for Next to emit its @font-face CSS
+// (a shared-module import doesn't). We expose the family as a :root CSS var
+// via a global style (works for Chakra portals, which mount on <body> with
+// no wrapper ancestor) — styles/style.ts `fonts.SpaceGrotesk` resolves
+// through `var(--font-space-grotesk)`, so both the Chakra theme token and
+// every direct `fonts.SpaceGrotesk` import get the self-hosted face.
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
   weight: ["300", "400", "700"],
   display: "swap",
-});
-const themeWithGrotesk = extendTheme(theme, {
-  fonts: {
-    SpaceGrotesk: `${spaceGrotesk.style.fontFamily}, sans-serif`,
-  },
 });
 
 export default function App({ Component, pageProps }: AppProps) {
@@ -35,10 +34,13 @@ export default function App({ Component, pageProps }: AppProps) {
 
   return (
     <>
+      <Global
+        styles={`:root { --font-space-grotesk: ${spaceGrotesk.style.fontFamily}; }`}
+      />
       <QueryClientProvider client={queryClient}>
         <Hydrate state={pageProps.dehydratedState}>
           <DocumentHeader />
-          <ChakraProvider theme={themeWithGrotesk}>
+          <ChakraProvider theme={theme}>
             <Toaster
               position="top-center"
               reverseOrder={false}
