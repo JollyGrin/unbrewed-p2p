@@ -24,6 +24,8 @@ export const fonts = {
   BebasNeueRegular: `'BebasNeueRegular', sans-serif`,
   ArchivoNarrow: `'ArchivoNarrow', sans-serif`,
   LeagueGothic: `'LeagueGothic', sans-serif`,
+  // Family injected at runtime by pages/_app.tsx via next/font/google
+  // (self-hosted, replaces the old fonts.googleapis.com <link>).
   SpaceGrotesk: `'Space Grotesk', sans-serif`,
 };
 

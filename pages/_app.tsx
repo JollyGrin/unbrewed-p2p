@@ -12,6 +12,23 @@ import {
 } from "@tanstack/react-query";
 import "@/styles/fonts.css";
 import { Toaster } from "react-hot-toast";
+import { extendTheme } from "@chakra-ui/react";
+import { Space_Grotesk } from "next/font/google";
+
+// Self-hosted Space Grotesk via next/font — replaces the fonts.googleapis.com
+// <link> that used to live in PageSeo and tripped a Next.js warning. The font
+// loader only works inside Next's build (not the renderFuzz CLI), so it lives
+// here rather than in styles/style.ts where the theme token is declared.
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  weight: ["300", "400", "700"],
+  display: "swap",
+});
+const themeWithGrotesk = extendTheme(theme, {
+  fonts: {
+    SpaceGrotesk: `${spaceGrotesk.style.fontFamily}, sans-serif`,
+  },
+});
 
 export default function App({ Component, pageProps }: AppProps) {
   const [queryClient] = useState(() => new QueryClient());
@@ -21,7 +38,7 @@ export default function App({ Component, pageProps }: AppProps) {
       <QueryClientProvider client={queryClient}>
         <Hydrate state={pageProps.dehydratedState}>
           <DocumentHeader />
-          <ChakraProvider theme={theme}>
+          <ChakraProvider theme={themeWithGrotesk}>
             <Toaster
               position="top-center"
               reverseOrder={false}

@@ -109,7 +109,9 @@ const TurnHeader = styled(Flex)`
 /** One player action's lines, bordered + indented so an attack's reveal, damage
  *  and discard lines read as a single block. Neutral (no-action) batches get a
  *  lighter, label-less treatment. */
-const ActionBlock = styled(Box)<{ neutral?: boolean }>`
+const ActionBlock = styled(Box, {
+  shouldForwardProp: (prop) => prop !== "neutral",
+})<{ neutral?: boolean }>`
   margin: 0.15rem 0 0.15rem 0.35rem;
   padding: 0.1rem 0 0.1rem 0.45rem;
   border-left: 2px solid
