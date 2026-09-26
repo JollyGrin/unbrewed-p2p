@@ -41,6 +41,7 @@ import { TAP_TARGET } from "@/lib/pro/mobileLayout";
 import { HexId, tableHudBanner, tableHudControls } from "@/lib/pro/tableHud";
 import { TableHudDock } from "@/components/Pro/Table/Hud/TableHudDock";
 import { useDockLayout } from "@/lib/pro/useDockLayout";
+import { isNewCombat } from "@/lib/pro/combatInstance";
 
 /** Width of the dock's default right-edge slot. */
 const DOCK_WIDTH = "18.5rem";
@@ -150,6 +151,9 @@ export interface DockStepping {
    *  effect move ANSWERS a prompt with it ("Commit here"). Defaults to the
    *  maneuver wording so the #285 call site is untouched. */
   commitLabel?: string;
+  /** Which walk this is (fighter + start space), so minimising one walk's
+   *  sheet never carries into the next (#874). */
+  instanceKey?: string;
   onEnd: () => void;
   onCancel: () => void;
 }
@@ -570,9 +574,34 @@ export const ProDock = ({
   // question left the board unreachable with no way to close the sheet). It
   // minimises to the same slim bar a board pick uses, and the bar opens it
   // again — the decision is never lost, it just stops owning the screen.
+  //
+  // The key names ONE decision, so a minimise never outlives it (#874). A prompt
+  // has its own id; a prompt-less combat or walk gets a per-instance identity —
+  // the wire has no combat id, and a chained attack follows the first with no
+  // un-forced frame between them, so the combat's key counts combats as they
+  // start (`isNewCombat`). Idempotent across a double render: the second pass
+  // sees the combat it already counted.
+  const combatSerial = useRef({ prev: null as PlayerView["combat"], n: 0 });
+  if (combatSerial.current.prev !== view.combat) {
+    if (isNewCombat(combatSerial.current.prev, view.combat)) combatSerial.current.n += 1;
+    combatSerial.current.prev = view.combat;
+  }
   const forcedKey =
-    view.prompt?.promptId ?? (combatOpen ? "combat" : view.winner ? "winner" : stepping ? "stepping" : "sheet");
+    view.prompt?.promptId ??
+    (combatOpen
+      ? `combat:${combatSerial.current.n}`
+      : view.winner
+        ? "winner"
+        : stepping
+          ? `stepping:${stepping.instanceKey ?? stepping.fighterName}`
+          : "sheet");
   const [minimizedKey, setMinimizedKey] = useState<string | null>(null);
+  // A prompt-less combat or walk has a constant key, so the minimise lasts only
+  // while that sheet stays forced: once it lets go, the next combat / walk
+  // opens in full instead of inheriting a stale "A decision is waiting" (#874).
+  useEffect(() => {
+    if (!sheetForced) setMinimizedKey(null);
+  }, [sheetForced]);
   const forcedMinimized = sheetShell && sheetForced && minimizedKey === forcedKey;
   const compactBar = forcedMinimized || boardPickCompact;
   // An action picked from the optional sheet that lights the board (a maneuver's
