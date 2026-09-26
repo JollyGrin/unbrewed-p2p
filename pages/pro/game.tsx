@@ -227,6 +227,7 @@ import {
   rematchQuery,
   withoutRematchQuery,
 } from "@/lib/pro/rematch";
+import type { RematchNegotiation } from "@/components/Pro/RematchOfferPanel";
 import { useLobbyMatchCue } from "@/lib/pro/useLobbyMatchCue";
 import { useTurnReminder } from "@/lib/pro/useTurnReminder";
 import { useTurnReminderSetting } from "@/lib/pro/useTurnReminderSetting";
@@ -4246,7 +4247,7 @@ const LiveGame = ({
   // actually times the wait and fires the nudge is wired up below, once `view`
   // and `soundOn` (useGameFx) exist.
   const [turnReminderOn, toggleTurnReminder] = useTurnReminderSetting();
-  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } =
+  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } =
     useProSocket(WS_URL, debug, slowMode);
   // Read through refs inside the log effect: adding either to that effect's deps
   // would re-run it without a new snapshot and append the last batch's lines
@@ -4664,10 +4665,10 @@ const LiveGame = ({
   // get (#876) — so whoever presses it, winner or loser, vs AI or not, gets an
   // equally faithful rematch. Null until the bundle lands, which the dock
   // treats as "not ready yet" rather than rendering a broken link.
-  const rematchHref = useMemo(() => {
+  const finishedSetup = useMemo(() => {
     if (!replayBundle || !roomInfo?.you) return null;
     const { config } = replayBundle;
-    const setup = buildFinishedGameSetup({
+    return buildFinishedGameSetup({
       players: config.players,
       bots: roomInfo.bots ?? {},
       you: roomInfo.you,
@@ -4677,8 +4678,52 @@ const LiveGame = ({
       itemsWereOff: config.options?.itemsDisabled === true,
       mapId: config.mapId ?? null,
     });
-    return setup ? `/pro/game?${new URLSearchParams(rematchQuery(setup)).toString()}` : null;
   }, [replayBundle, roomInfo]);
+  const rematchHref = useMemo(
+    () => (finishedSetup ? `/pro/game?${new URLSearchParams(rematchQuery(finishedSetup)).toString()}` : null),
+    [finishedSetup]
+  );
+
+  // Rematch offer/confirm (p2p #880): with another HUMAN at the table and an
+  // engine that serves the negotiation (bound at v35 — see lib/pro/wireVersion),
+  // Rematch asks them instead of creating a room of our own; two separate
+  // one-tap rooms is what split players apart before. Vs AI there is nobody to
+  // ask, and a v34 engine can't carry the question, so both keep the link.
+  // Built from the view + the room's recorded bot seats, NOT the replay bundle:
+  // the server rebuilds the setup itself, and a reload into a finished room
+  // gets no second bundle — the requester who refreshes mid-offer must still
+  // see "Waiting…". Bot seats unknown (never recorded here) → the link.
+  const rematchView = snapshot?.view ?? null;
+  const rematchNegotiation = useMemo<RematchNegotiation | null>(() => {
+    const bots = roomInfo?.bots;
+    if (!rematchNegotiable || !rematchView?.winner || !bots) return null;
+    const humans = rematchView.players.filter((p) => p.id !== rematchView.you && !bots[p.id]);
+    if (humans.length === 0) return null;
+    const nameOf = (player: PlayerId) =>
+      seatNameplate(
+        { ...rematchView.players.find((p) => p.id === player), id: player, you: player === rematchView.you },
+        rematchView.players.length
+      );
+    return {
+      state: rematchOffer,
+      nameOf,
+      waitingFor: humans.length === 1 ? nameOf(humans[0].id) : "the other players",
+      onOffer: offerRematch,
+      onCancel: cancelRematch,
+      onRespond: respondToRematch,
+    };
+  }, [rematchNegotiable, roomInfo, rematchView, rematchOffer, offerRematch, cancelRematch, respondToRematch]);
+
+  // Everyone agreed: the server built the room and seated us (its token is
+  // stored). A full page load onto it RECONNECTs like any refresh does —
+  // nothing of this finished game's socket state follows us in.
+  const rematchReadyRoom = rematchOffer.phase === "ready" ? rematchOffer.roomId : null;
+  useEffect(() => {
+    if (!rematchReadyRoom) return;
+    const query = new URLSearchParams({ room: rematchReadyRoom });
+    if (debug) query.set("debug", "");
+    window.location.href = `/pro/game?${query.toString()}`;
+  }, [rematchReadyRoom, debug]);
 
   // Pinch/scroll zoom + drag pan on the board (issue #120), now the default
   // interaction: the board fills the whole stage and the fixed HUD/hand/dock
@@ -7043,6 +7088,7 @@ const LiveGame = ({
       iForfeited={iForfeited}
       multiplayerView={multiplayerView}
       rematchHref={rematchHref}
+      rematchNegotiation={rematchNegotiation}
       replayHref={replayBundle ? `/pro/replays?open=${replayId(replayBundle)}` : null}
       onCopyShareLink={
         replayBundle && accountStatus === "signed-in" ? () => void copyReplayShareLink() : undefined
