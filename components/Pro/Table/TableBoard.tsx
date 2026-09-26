@@ -35,7 +35,7 @@ import { Fragment, useMemo } from "react";
 import { Flex, Text } from "@chakra-ui/react";
 import { useReducedMotion } from "framer-motion";
 import type { FighterId, ProMapSpace, SpaceId, ViewFighter } from "@/lib/pro/protocol";
-import { DEFAULT_TILT_DEG } from "@/lib/pro/tableProjection";
+import { DEFAULT_TILT_DEG, bandLabelZIndex } from "@/lib/pro/tableProjection";
 import { bandLabelText, bandMidpoint } from "@/lib/pro/twoSpaceBand";
 import { MOVE_STEP_SECONDS, type ProBoardProps } from "@/components/Pro/ProBoard";
 import { LARGE_FIGURE_SCALE, straddleAnim, type Figure } from "@/lib/pro/figures";
@@ -420,7 +420,8 @@ export const TableBoard = ({
             const diamPx = (diameterPct / 100) * Math.max(frameW, 1);
             const color = PLAYER_COLOR[f.owner] ?? "#999";
             const tailAnim = animFor(f.id, "tail");
-            const mid = bandMidpoint(spaceById.get(f.space)!, tailSpace);
+            const headSpace = spaceById.get(f.space)!;
+            const mid = bandMidpoint(headSpace, tailSpace);
             return (
               <Fragment key={`${f.id}-band`}>
                 <TableFighterTail
@@ -432,8 +433,10 @@ export const TableBoard = ({
                   playerColor={color}
                   selected={f.id === selectedFighter}
                   targetable={highlightFighterSet.has(f.id)}
+                  // No onAnimComplete: the HEAD segment alone owns the settle
+                  // (see `animFor`) — a second, late settle from the tail would
+                  // clear a new incoming move that landed in between.
                   anim={tailAnim}
-                  onAnimComplete={tailAnim ? onPendingMoveSettled : undefined}
                   onClick={onFighterClick}
                   bodyHidden={straddles(f)}
                 />
@@ -454,7 +457,10 @@ export const TableBoard = ({
                     fontWeight="bold"
                     whiteSpace="nowrap"
                     boxShadow="0 1px 3px rgba(0,0,0,0.75)"
-                    zIndex={4}
+                    // Above both band ends (standees sort by y), so neither
+                    // of the fighter's own pieces clips it. Still
+                    // pointer-events:none: a pick space under it gets the tap.
+                    zIndex={bandLabelZIndex(headSpace.y, tailSpace.y)}
                     style={{
                       transform: `translate(-50%, -50%) ${tableBillboardTransform(tiltDeg)}`,
                       transformOrigin: "50% 50%",
