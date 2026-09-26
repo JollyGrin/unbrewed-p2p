@@ -18,7 +18,7 @@ import { Box, Button, Flex, Grid, Input, InputGroup, InputLeftElement, Link, Men
 import { keyframes } from "@emotion/react";
 import { motion, useReducedMotion } from "framer-motion";
 import { MOVE_STEP_SECONDS, MoveHint, PendingMove, ProBoard, ProBoardProps } from "@/components/Pro/ProBoard";
-import { TableBoard } from "@/components/Pro/Table/TableBoard";
+import { useLazyTableBoard } from "@/lib/pro/useLazyTableBoard";
 import { useBoardView } from "@/lib/pro/useBoardView";
 import { resolveBoardView, TABLETOP_NEEDS_LANDSCAPE } from "@/lib/pro/boardView";
 import { ProErrorBoundary } from "@/components/Pro/ProErrorBoundary";
@@ -111,7 +111,7 @@ import { RAIL_WIDTH_CSS, TAP_TARGET, boardFitInsetFor, handDecisionKeyFor } from
 import { figureFor } from "@/lib/pro/figures";
 import { useFigureManifest } from "@/lib/pro/useFigureManifest";
 import { useElementHeight, useProLayout } from "@/lib/pro/useProLayout";
-import { usePageZoomGuard } from "@/lib/pro/usePageZoomGuard";
+import { matchBoardOnScreen, usePageZoomGuard } from "@/lib/pro/usePageZoomGuard";
 import {
   EMPTY_SUB_ATTACK_CHAIN,
   SubAttackChainProgress,
@@ -4263,6 +4263,11 @@ const LiveGame = ({
   // conceding costs (#636).
   const { status: accountStatus } = useAccount();
   const [joined, setJoined] = useState(false);
+  // The board brings its own pinch-zoom; a pinch that lands beside it must not
+  // scale the whole page with the cards and the dock in it (player feedback).
+  // Only while a match board is actually on screen (#893): the lobby, hero
+  // picker and waiting room keep the browser's zoom, an accessibility tool.
+  usePageZoomGuard(matchBoardOnScreen({ joined, snapshot, gameLost, error }));
   // `selectedHeroId` holds a real hero id — or RANDOM_HERO_ID (#697), which is
   // resolved to one at the create/join click and written back here, so every
   // downstream reader (lobby label, bot tiers, "play a bot instead") only ever
@@ -4740,7 +4745,13 @@ const LiveGame = ({
   // A portrait phone always draws the flat board (#870): the tabletop has no
   // counter-rotation for the 90°-turned portrait frame. The stored preference
   // is untouched, so turning back to landscape returns to the tabletop.
-  const boardView = resolveBoardView(preferredBoardView, mode);
+  const wantedBoardView = resolveBoardView(preferredBoardView, mode);
+  // The tabletop's code is its own chunk (#893): fetched the first time the
+  // tabletop is wanted — at mount for a device that stored it, which is still
+  // in the lobby — and the flat board stays up until it has arrived, so the
+  // switch never shows an empty stage.
+  const TableBoard = useLazyTableBoard(wantedBoardView === "table");
+  const boardView = wantedBoardView === "table" && !TableBoard ? "flat" : wantedBoardView;
   // Pre-rendered miniatures for the tabletop view (lib/pro/figures). A local,
   // git-ignored folder that ships only with the owner's own deploy; null — and
   // every hero keeps its token standee — anywhere it is absent. Fetched only
@@ -7177,7 +7188,7 @@ const LiveGame = ({
         {/* One prop object feeds whichever board component is mounted (tabletop
             board view phase 1) — same game, same socket, same handlers; only
             the presentation differs. See lib/pro/boardView.ts. */}
-        {boardView === "table" ? (
+        {boardView === "table" && TableBoard ? (
           <TableBoard
             {...boardProps}
             fighterFigure={(f) => (f.kind === "HERO" ? figureFor(figureManifest, ownerHeroIds[f.owner], f.owner) : null)}
@@ -7561,6 +7572,8 @@ const previewFighters = (map: ProMapDef): ViewFighter[] => {
 };
 
 const PreviewGame = () => {
+  // The demo is nothing but a board, so it is guarded whenever it is up.
+  usePageZoomGuard();
   const [fighters, setFighters] = useState<ViewFighter[]>(() => previewFighters(PREVIEW_MAP));
   const [selected, setSelected] = useState<FighterId | null>(null);
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
@@ -7620,9 +7633,6 @@ const PreviewGame = () => {
 
 const ProGamePage = () => {
   const router = useRouter();
-  // The board brings its own pinch-zoom; a pinch that lands beside it must not
-  // scale the whole page with the cards and the dock in it (player feedback).
-  usePageZoomGuard();
   const room = typeof router.query.room === "string" ? router.query.room : null;
   const heroParam = typeof router.query.hero === "string" ? router.query.hero : null;
   // One-tap rematch (issue #TBD): `/pro/game?rematch=1&...` carries a whole
