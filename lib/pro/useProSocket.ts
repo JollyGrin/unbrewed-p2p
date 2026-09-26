@@ -806,17 +806,22 @@ export function useProSocket(
           // Rematch (p2p #880): a seat bound at v34 (a first visit, before this
           // tab had seen the engine's version) can neither offer nor be offered.
           // At game over, re-bind it at v35 on this same socket — the same
-          // in-socket RECONNECT the #848 resync uses; its identical STATE reply
-          // is absorbed by the resync-reply check just below.
-          if (view.winner && wsUrl && engineSpeaksRematch(wsUrl) && boundVersionRef.current < REMATCH_PROTOCOL_VERSION) {
+          // in-socket RECONNECT the #848 resync uses. It is sent only once THIS
+          // STATE is fully handled (both exits below): the flags it arms belong
+          // to the RECONNECT's reply, which the resync-reply check then absorbs.
+          // Armed any earlier, the winner STATE itself would consume them — be
+          // taken for a resume, keep the own-action latch — and the real reply
+          // would land as a fresh batch that resets the undo UI (p2p #894).
+          const rebindForRematch = () => {
+            if (!view.winner || !wsUrl || !engineSpeaksRematch(wsUrl)) return;
+            if (boundVersionRef.current >= REMATCH_PROTOCOL_VERSION) return;
             const room = roomRef.current;
             const token = room ? getToken(room) : null;
-            if (room && token) {
-              resumeExpectedRef.current = true;
-              resyncReplyRef.current = true;
-              sendBind({ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token }, REMATCH_PROTOCOL_VERSION);
-            }
-          }
+            if (!room || !token) return;
+            resumeExpectedRef.current = true;
+            resyncReplyRef.current = true;
+            sendBind({ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token }, REMATCH_PROTOCOL_VERSION);
+          };
           {
             // A resync's answer that says nothing new (p2p #869): the view we
             // already hold, re-sent. Leave pacing and any undo negotiation be.
@@ -829,6 +834,7 @@ export function useProSocket(
               setServerRestarting(false);
               clearResumeDeadline();
               setGameLost(false);
+              rebindForRematch();
               break;
             }
           }
@@ -889,6 +895,7 @@ export function useProSocket(
           // it. Either way, drop the pending/incoming undo UI.
           setUndoPending(false);
           setIncomingUndo(null);
+          rebindForRematch();
           break;
         }
         case "RESUME_TOKEN":
@@ -1438,17 +1445,20 @@ export function useProSocket(
   );
 
   // Rematch offer/confirm (p2p #880). Meta messages like undo — never actions.
-  // Each is gated on the phase it belongs to, so a double tap sends one frame.
+  // Each is gated on the phase it belongs to, so a double tap sends one frame,
+  // and on the seat being bound at v35 (#894) — `rematchNegotiable`, read from
+  // the ref so no caller has to trust the panel's render gate: a v34 engine
+  // answers REMATCH_* with ERROR{VERSION}, and a v34-bound seat can't negotiate.
   const offerRematch = useCallback(() => {
     const room = roomRef.current;
-    if (!room || rematchOfferRef.current.phase !== "idle") return;
+    if (!room || boundVersionRef.current < REMATCH_PROTOCOL_VERSION || rematchOfferRef.current.phase !== "idle") return;
     stepRematch({ type: "OFFER" });
     send({ v: REMATCH_PROTOCOL_VERSION, type: "REMATCH_OFFER", roomId: room });
   }, [send, stepRematch]);
 
   const cancelRematch = useCallback(() => {
     const room = roomRef.current;
-    if (!room || rematchOfferRef.current.phase !== "offering") return;
+    if (!room || boundVersionRef.current < REMATCH_PROTOCOL_VERSION || rematchOfferRef.current.phase !== "offering") return;
     stepRematch({ type: "CANCEL" });
     send({ v: REMATCH_PROTOCOL_VERSION, type: "REMATCH_CANCEL", roomId: room });
   }, [send, stepRematch]);
@@ -1456,7 +1466,7 @@ export function useProSocket(
   const respondToRematch = useCallback(
     (accept: boolean) => {
       const room = roomRef.current;
-      if (!room || rematchOfferRef.current.phase !== "incoming") return;
+      if (!room || boundVersionRef.current < REMATCH_PROTOCOL_VERSION || rematchOfferRef.current.phase !== "incoming") return;
       stepRematch({ type: accept ? "ACCEPT" : "DECLINE" });
       send({ v: REMATCH_PROTOCOL_VERSION, type: "REMATCH_RESPOND", roomId: room, accept });
     },
