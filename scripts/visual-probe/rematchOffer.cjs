@@ -14,7 +14,8 @@
  *   BASE=http://localhost:3880 ENGINE=ws://localhost:8880 OUT=/tmp/rematch \
  *     node scripts/visual-probe/rematchOffer.cjs [scenario ...]
  *
- * Scenarios: accept decline cancel refresh left both vsai v34
+ * Scenarios: accept decline cancel refresh left both vsai v34 rebind
+ * (`rebind`, #894: the wire around the first-visit seat's game-over re-bind.)
  * PHONE_B="iPhone 14" (or "iPhone 14 landscape") puts seat B on a phone.
  * (`v34` expects a v34 engine: PvP must show the one-tap link and send no
  * REMATCH_*; `left` waits out the engine's 30s disconnect grace.)
@@ -45,7 +46,7 @@ const HOOK = `(() => {
       desc.set.call(this, fn && function (e) {
         if (!engine(this)) return fn.call(this, e);
         try { const m = JSON.parse(e.data); window.__frames.push({ dir: "in", type: m.type, v: m.v, code: m.code, roomId: m.roomId, reason: m.reason, from: m.from, player: m.player });
-          if (m.type === "STATE") window.__lastState = m; } catch {}
+          if (m.type === "STATE") { window.__lastState = m; (window.__views ||= []).push(JSON.stringify(m.view)); } } catch {}
         return fn.call(this, e);
       });
     },
@@ -95,7 +96,7 @@ async function mint({ bot = false } = {}) {
 // ---- the pages -------------------------------------------------------------
 // `bots` = what the page that created/joined the room would have recorded
 // (ROOM_STATUS writes `{}` for PvP) — a room minted over the wire has none.
-async function seat(browser, room, token, label, bots = {}) {
+async function seat(browser, room, token, label, bots = {}, extraInit = "") {
   // PHONE_B="iPhone 14" (any Playwright device name) puts seat B on a phone.
   const phone = label === "B" && process.env.PHONE_B ? require(process.env.PW_PATH || "playwright").devices[process.env.PHONE_B] : null;
   const ctx = await browser.newContext(phone ?? { viewport: { width: 1456, height: 830 } });
@@ -103,7 +104,8 @@ async function seat(browser, room, token, label, bots = {}) {
     `sessionStorage.setItem("unbrewed-pro-token-${room}", ${JSON.stringify(token)});` +
       `localStorage.setItem("unbrewed-pro-token-${room}", ${JSON.stringify(token)});` +
       `localStorage.setItem("unbrewed-pro-bots-${room}", ${JSON.stringify(JSON.stringify(bots))});` +
-      HOOK
+      HOOK +
+      extraInit
   );
   const page = await ctx.newPage();
   page.label = label;
@@ -167,9 +169,9 @@ async function waitRoomChange(page, from, ms = 20000) {
   throw new Error(`${page.label}: never moved off ${from} (url ${page.url()})`);
 }
 
-async function finished(browser, tag) {
+async function finished(browser, tag, extraInitA = "") {
   const m = await mint();
-  const A = await seat(browser, m.room, m.tokA, "A");
+  const A = await seat(browser, m.room, m.tokA, "A", {}, extraInitA);
   const B = await seat(browser, m.room, m.tokB, "B");
   await sleep(1500);
   await forfeitFrom([B.page, A.page], m.room);
@@ -296,8 +298,70 @@ const SCENARIOS = {
     await sleep(1500);
     await shot(A.page, "vsai-1-newroom");
     const f = await frames(A.page);
-    return { noOfferButton, newRoom, createRoomSent: f.some((x) => x.type === "CREATE_ROOM"), rematchFrames: f.filter((x) => /^REMATCH_/.test(x.type)).length };
+    return {
+      engineV: m.engineV,
+      noOfferButton, newRoom, createRoomSent: f.some((x) => x.type === "CREATE_ROOM"), rematchFrames: f.filter((x) => /^REMATCH_/.test(x.type)).length,
+      allSentV: [...new Set(f.filter((x) => x.dir === "out").map((x) => x.v))],
+    };
   },
+};
+
+// rebind (#894): a first-visit seat binds at 34, and at game over re-binds at
+// 35 on the same socket. The winner STATE must come BEFORE that RECONNECT, and
+// the RECONNECT's reply must re-send exactly the view already held — the
+// condition under which the hook absorbs it as a resync reply.
+// A dev page hears the engine's HEROES before it binds, so it binds at 35
+// straight away. To reach the re-bind path, seat A is shown `v: 34` on every
+// engine frame until its first bind has gone out — a first visit that bound
+// before it learned the version. The engine itself really binds the seat at 34.
+const BIND_BEFORE_LEARNING = `(() => {
+  const send = WebSocket.prototype.send;
+  WebSocket.prototype.send = function (d) {
+    try { if (/^(CREATE_ROOM|JOIN_ROOM|RECONNECT|RESUME_ROOM)$/.test(JSON.parse(d).type)) window.__bound = true; } catch {}
+    return send.call(this, d);
+  };
+  const desc = Object.getOwnPropertyDescriptor(WebSocket.prototype, "onmessage");
+  Object.defineProperty(WebSocket.prototype, "onmessage", {
+    configurable: true, get: desc.get,
+    set(fn) {
+      desc.set.call(this, fn && function (e) {
+        if (window.__bound || /_next/.test(this.url)) return fn.call(this, e);
+        try { return fn.call(this, { data: JSON.stringify({ ...JSON.parse(e.data), v: 34 }) }); } catch { return fn.call(this, e); }
+      });
+    },
+  });
+})();`;
+SCENARIOS.rebind = async (browser) => {
+  const { m, A, B } = await finished(browser, "rebind", BIND_BEFORE_LEARNING);
+  await sleep(1500);
+  const f = await frames(A.page);
+  const views = await A.page.evaluate(() => window.__views);
+  const seq = f.filter((x) => ["STATE", "RECONNECT", "ROOM_JOINED"].includes(x.type)).map((x) => `${x.dir}:${x.type}@${x.v}`);
+  const winnerAt = f.findIndex((x) => x.dir === "in" && x.type === "STATE" && JSON.parse(views[f.slice(0, f.indexOf(x) + 1).filter((y) => y.dir === "in" && y.type === "STATE").length - 1]).winner);
+  const rebindAt = f.findIndex((x) => x.dir === "out" && x.type === "RECONNECT" && x.v === 35);
+  const after = f.slice(rebindAt + 1).filter((x) => x.dir === "in" && ["ROOM_JOINED", "STATE"].includes(x.type)).map((x) => x.type);
+  const out = {
+    firstBindV: f.find((x) => x.type === "RECONNECT")?.v,
+    rebindsAt35: f.filter((x) => x.type === "RECONNECT" && x.v === 35).length,
+    winnerStateBeforeRebind: winnerAt >= 0 && winnerAt < rebindAt,
+    replyFrames: after,
+    replyViewIdenticalToWinner: views.length >= 2 && views.at(-1) === views.at(-2),
+    tail: seq.slice(-6),
+    offerButton: await A.page.getByRole("button", { name: /rematch — same setup/i }).count(),
+  };
+  // …and the re-bound seat negotiates: it offers, the other seat accepts.
+  await button(A.page, /rematch — same setup/i).click();
+  out.aWaits = await waitText(A.page, /Waiting for .* to accept/);
+  await waitText(B.page, /wants a rematch/);
+  await shot(A.page, "rebind-1-A-waiting");
+  await button(B.page, /^accept$/i).click();
+  const [ra, rb] = await Promise.all([waitRoomChange(A.page, m.room), waitRoomChange(B.page, m.room)]);
+  await shot(A.page, "rebind-2-A-newroom");
+  out.sameNewRoom = ra === rb;
+  out.errors = (await frames(A.page)).filter((x) => x.type === "ERROR").map((x) => x.code);
+  await A.ctx.close();
+  await B.ctx.close();
+  return out;
 };
 
 // v34: the offer button must NOT appear — PvP keeps the link.
