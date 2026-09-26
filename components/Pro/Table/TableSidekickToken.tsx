@@ -4,7 +4,7 @@
  */
 import type { FighterId, ViewFighter } from "@/lib/pro/protocol";
 import { standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
-import { TableAnchorAnim, TableStandeeAnchor } from "./TableStandeeAnchor";
+import { TableAnchorAnim, TableStandeeAnchor, type TableStackDepth } from "./TableStandeeAnchor";
 import { TableFighterBadges } from "./TableFighterBadges";
 import { TableFlatToken, TOKEN_BADGE_PLATE_HEIGHT } from "./TableFlatToken";
 
@@ -13,6 +13,8 @@ export interface TableSidekickTokenProps {
   x: number;
   y: number;
   tiltDeg: number;
+  /** Set when this piece shares its space — see TableStandeeAnchor. */
+  stack?: TableStackDepth;
   diamPx: number;
   artUrl?: string | null;
   /** Owner's token color — carried onto the base disc (fault #3) so a
@@ -36,6 +38,7 @@ export const TableSidekickToken = ({
   x,
   y,
   tiltDeg,
+  stack,
   diamPx,
   artUrl,
   playerColor,
@@ -54,6 +57,7 @@ export const TableSidekickToken = ({
 
   return (
     <TableStandeeAnchor
+      stack={stack}
       x={x}
       y={y}
       tiltDeg={tiltDeg}

@@ -19,7 +19,7 @@ import { fighterStatusBadgesFor } from "@/lib/pro/fighterStatuses";
 import { standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
 import type { Figure } from "@/lib/pro/figures";
 import { TableFigureGround, TableFigureSprite } from "./TableFigureSprite";
-import { TableAnchorAnim, TableStandeeAnchor } from "./TableStandeeAnchor";
+import { TableAnchorAnim, TableStandeeAnchor, type TableStackDepth } from "./TableStandeeAnchor";
 import { TableFighterBadges } from "./TableFighterBadges";
 import { TableFlatToken, TOKEN_BADGE_PLATE_HEIGHT } from "./TableFlatToken";
 
@@ -52,6 +52,8 @@ export interface TableFighterStandeeProps {
   x: number;
   y: number;
   tiltDeg: number;
+  /** Set when this piece shares its space — see TableStandeeAnchor. */
+  stack?: TableStackDepth;
   diamPx: number;
   playerColor: string;
   artUrl?: string | null;
@@ -86,6 +88,7 @@ export const TableFighterStandee = ({
   x,
   y,
   tiltDeg,
+  stack,
   diamPx,
   playerColor,
   artUrl,
@@ -118,6 +121,7 @@ export const TableFighterStandee = ({
 
   return (
     <TableStandeeAnchor
+      stack={stack}
       innerRef={innerRef}
       x={x}
       y={y}

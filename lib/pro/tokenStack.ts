@@ -126,3 +126,68 @@ export const stackLayout = (occupants: StackOccupant[]): Map<string, StackSlot> 
  */
 export const objectStackOffsets = (n: number): { dx: number; dy: number }[] =>
   ringOffsets(n, RING_RADIUS_PCT);
+
+/** A board object's drawn width as a multiple of the space diameter, by shape —
+ *  the flat board's sizes. Ring offsets are a percentage of THIS width, so a view
+ *  that places objects in board units (the tabletop) needs it to land on the same
+ *  points the flat board does. */
+export const OBJECT_SCALE_BY_SHAPE = { disc: 0.62, diamond: 0.55 } as const;
+
+/** What a stack needs to know about a fighter. `ViewFighter` satisfies it. */
+export interface StackFighter {
+  id: string;
+  size?: StackOccupant["size"] | null;
+  space?: string | null;
+  tailSpace?: string | null;
+}
+
+/**
+ * Every space's fighter layout, keyed `<fighterId>` for a head segment and
+ * `<fighterId>-tail` for a LARGE tail, so BOTH body spaces of a large fighter
+ * participate: a small standing on Kong's tail rings around the tail exactly as
+ * one on its head rings around the head. Occupant order is the input order
+ * (`view.fighters` order, stable across renders), so a token does not hop
+ * between ring positions on an unrelated state change. The caller filters out
+ * off-board/defeated fighters first.
+ */
+export const fighterStackBySpace = (fighters: StackFighter[]): Map<string, Map<string, StackSlot>> => {
+  const occupantsBySpace = new Map<string, StackOccupant[]>();
+  const add = (space: string, occupant: StackOccupant) => {
+    const list = occupantsBySpace.get(space) ?? [];
+    list.push(occupant);
+    occupantsBySpace.set(space, list);
+  };
+  for (const f of fighters) {
+    if (!f.space) continue;
+    add(f.space, { key: f.id, size: f.size ?? "NORMAL" });
+    // The tail is the same body: it is the ONE non-small on its space too.
+    if (f.tailSpace) add(f.tailSpace, { key: `${f.id}-tail`, size: f.size ?? "NORMAL" });
+  }
+  const out = new Map<string, Map<string, StackSlot>>();
+  for (const [space, occupants] of occupantsBySpace) out.set(space, stackLayout(occupants));
+  return out;
+};
+
+/** This token's slot; centred full-size if the space/key is unknown. */
+export const slotIn = (stack: Map<string, Map<string, StackSlot>>, space: string, key: string): StackSlot =>
+  stack.get(space)?.get(key) ?? { dx: 0, dy: 0, scale: SCALE_BY_SIZE.NORMAL, order: 0 };
+
+/**
+ * A stack offset (percent of the token's own width, as the flat board applies it
+ * through `translate(%)`) converted to BOARD UNITS — the 0–1 fractions of the
+ * board's width (x) and height (y) that `space.x/space.y` are in. A view that
+ * positions pieces by an anchor point (the tabletop) adds this to the space
+ * centre and lands every piece exactly where the flat board draws it.
+ *
+ * `tokenWidth` is the token's width as a fraction of the board WIDTH (space
+ * diameter × slot scale); `aspect` is board width ÷ height, because a y offset
+ * measured in widths must be rescaled into a fraction of the height.
+ */
+export const stackOffsetInBoardUnits = (
+  offset: { dx: number; dy: number },
+  tokenWidth: number,
+  aspect: number
+): { x: number; y: number } => ({
+  x: (offset.dx / 100) * tokenWidth,
+  y: (offset.dy / 100) * tokenWidth * aspect,
+});

@@ -35,16 +35,31 @@ import { Fragment, useMemo } from "react";
 import { Flex, Text } from "@chakra-ui/react";
 import { useReducedMotion } from "framer-motion";
 import type { FighterId, ProMapSpace, SpaceId, ViewFighter } from "@/lib/pro/protocol";
-import { DEFAULT_TILT_DEG, bandLabelZIndex } from "@/lib/pro/tableProjection";
+import { DEFAULT_TILT_DEG, bandLabelZIndex, standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
 import { bandLabelText, bandMidpoint } from "@/lib/pro/twoSpaceBand";
 import { MOVE_STEP_SECONDS, type ProBoardProps } from "@/components/Pro/ProBoard";
 import { LARGE_FIGURE_SCALE, straddleAnim, type Figure } from "@/lib/pro/figures";
-import { TableAnchorAnim, TableStandeeAnchor, tableBillboardTransform } from "./TableStandeeAnchor";
+import { boardObjectVisualFor } from "@/lib/pro/boardObjects";
+import {
+  fighterStackBySpace,
+  OBJECT_SCALE_BY_SHAPE,
+  objectStackOffsets,
+  SCALE_BY_SIZE,
+  slotIn,
+  stackOffsetInBoardUnits,
+} from "@/lib/pro/tokenStack";
+import {
+  TableAnchorAnim,
+  TableStandeeAnchor,
+  tableBillboardTransform,
+  type TableStackDepth,
+} from "./TableStandeeAnchor";
 import { TableStage } from "./TableStage";
 import { TableBoardFx } from "./TableBoardFx";
 import { TableBoardLines } from "./TableBoardLines";
 import { TableSpace } from "./TableSpace";
 import { TableFighterStandee } from "./TableFighterStandee";
+import { TOKEN_THICKNESS } from "./TableFlatToken";
 import { TableFighterTail } from "./TableFighterTail";
 import { TableSidekickToken } from "./TableSidekickToken";
 import { TableBoardObject } from "./TableBoardObject";
@@ -165,6 +180,59 @@ export const TableBoard = ({
   const boardFighters = fighters.filter((f): f is ViewFighter & { space: SpaceId } => !!f.space && mainSpaceIds.has(f.space));
   const boardTokens = tokens.filter((t) => mainSpaceIds.has(t.space));
 
+  // Shared spaces (protocol v28: up to 4 smalls + 1 non-small; corpses and
+  // totems stack too). Laid out by the SAME lib/pro/tokenStack.ts helpers the
+  // flat board uses, from the same occupant set (on-board, not defeated), so a
+  // crowd lands on exactly the flat board's points.
+  const fighterStack = fighterStackBySpace(fighters.filter((f) => f.space && !f.defeated));
+  const objectsBySpace = new Map<string, typeof boardTokens>();
+  for (const t of boardTokens) objectsBySpace.set(t.space, [...(objectsBySpace.get(t.space) ?? []), t]);
+
+  /**
+   * Where a piece on `space` stands: the flat board's stack offset (percent of
+   * the token's own width, `tokenScale` × the space diameter wide) turned into
+   * board units and added to the space centre. The frame size is needed because
+   * that offset is in token WIDTHS while y is a fraction of the board's HEIGHT.
+   * `stack` is set only on a SHARED space, so a lone piece renders as before.
+   */
+  const placeIn = (
+    space: ProMapSpace,
+    offset: { dx: number; dy: number },
+    tokenScale: number,
+    depth: TableStackDepth | undefined,
+    frameW: number,
+    frameH: number
+  ) => {
+    const aspect = frameW > 0 && frameH > 0 ? frameW / frameH : 1;
+    const off = stackOffsetInBoardUnits(offset, (diameterPct / 100) * tokenScale, aspect);
+    return { x: space.x + off.x, y: space.y + off.y, stack: depth };
+  };
+  /** A fighter segment's place plus its diameter (`spaceDiamPx` × the slot's
+   *  scale relative to a normal token — a SMALL is drawn small, as on the flat
+   *  board). `key` is `<id>` for a head, `<id>-tail` for a LARGE tail. */
+  const fighterPlace = (space: ProMapSpace, key: string, spaceDiamPx: number, frameW: number, frameH: number) => {
+    const slot = slotIn(fighterStack, space.id, key);
+    const shared = (fighterStack.get(space.id)?.size ?? 0) > 1;
+    // Each later slot lies one FULL token's thickness (+1px) higher than the
+    // one before, so it tops whatever it overlaps (see TableStackDepth.liftPx).
+    const liftPx = slot.order * (Math.round(standeeBaseDiameterPx(spaceDiamPx) * TOKEN_THICKNESS) + 1);
+    const depth = shared ? { depthY: space.y, order: slot.order, liftPx } : undefined;
+    return {
+      ...placeIn(space, slot, slot.scale, depth, frameW, frameH),
+      diamPx: spaceDiamPx * (slot.scale / SCALE_BY_SIZE.NORMAL),
+    };
+  };
+  /** A board object's place: objects ring among themselves (the flat board's
+   *  `objectStackOffsets`) and sort BEHIND every fighter on their space
+   *  (negative order), as they draw below fighters there. */
+  const objectPlace = (token: (typeof boardTokens)[number], space: ProMapSpace, frameW: number, frameH: number) => {
+    const here = objectsBySpace.get(token.space) ?? [token];
+    const i = Math.max(0, here.indexOf(token));
+    const depth = here.length > 1 ? { depthY: space.y, order: i - here.length, liftPx: 0 } : undefined;
+    const scale = OBJECT_SCALE_BY_SHAPE[boardObjectVisualFor(token).shape];
+    return placeIn(space, objectStackOffsets(here.length)[i], scale, depth, frameW, frameH);
+  };
+
   const fighterProps = (f: ViewFighter & { space: SpaceId }) => {
     const isSelected = f.id === selectedFighter;
     const isTarget = highlightFighterSet.has(f.id);
@@ -233,9 +301,16 @@ export const TableBoard = ({
   // One settle per move — the HEAD segment owns it, exactly like ProBoard,
   // so a two-space body's tail tween can't clear pendingMove out from under
   // the head's own (possibly still-running) animation.
-  const animFor = (fighterId: FighterId, segment: "head" | "tail"): TableAnchorAnim | null => {
+  // A route tweens through space CENTRES; the last keyframe is moved onto the
+  // piece's stack slot (`at`) so it settles where it then rests.
+  const animFor = (
+    fighterId: FighterId,
+    segment: "head" | "tail",
+    at: { x: number; y: number }
+  ): TableAnchorAnim | null => {
     if (!pendingMove || pendingMove.fighterId !== fighterId) return null;
-    return segment === "head" ? pendingHeadAnim : pendingTailAnim;
+    const anim = segment === "head" ? pendingHeadAnim : pendingTailAnim;
+    return anim && { ...anim, xs: [...anim.xs.slice(0, -1), at.x], ys: [...anim.ys.slice(0, -1), at.y] };
   };
 
   // Fault #4 (phase-2 report): re-run the auto-focus-zoom effect whenever the
@@ -314,12 +389,14 @@ export const TableBoard = ({
             const space = spaceById.get(token.space);
             if (!space) return null;
             const diamPx = (diameterPct / 100) * Math.max(frameW, 1);
+            const place = objectPlace(token, space, frameW, frameH);
             return (
               <TableBoardObject
                 key={token.id}
                 token={token}
-                x={space.x}
-                y={space.y}
+                x={place.x}
+                y={place.y}
+                stack={place.stack}
                 tiltDeg={tiltDeg}
                 diamPx={diamPx}
                 playerColor={PLAYER_COLOR[token.owner] ?? "#999"}
@@ -331,12 +408,15 @@ export const TableBoard = ({
 
           {boardFighters.map((f) => {
             const space = spaceById.get(f.space)!;
-            const diamPx = (diameterPct / 100) * Math.max(frameW, 1);
+            const head = fighterPlace(space, f.id, (diameterPct / 100) * Math.max(frameW, 1), frameW, frameH);
             const common = fighterProps(f);
-            const headAnim = animFor(f.id, "head");
+            const headAnim = animFor(f.id, "head", head);
             const straddling = straddles(f);
-            const stand = straddling ? bandMidpoint(space, spaceById.get(f.tailSpace as SpaceId)!) : space;
-            const standAnim = straddling ? straddleAnim(headAnim, animFor(f.id, "tail")) : headAnim;
+            const tailSpace = straddling ? spaceById.get(f.tailSpace as SpaceId)! : null;
+            const stand = tailSpace ? bandMidpoint(space, tailSpace) : head;
+            const standAnim = tailSpace
+              ? straddleAnim(headAnim, animFor(f.id, "tail", fighterPlace(tailSpace, `${f.id}-tail`, 0, frameW, frameH)))
+              : headAnim;
             return f.kind === "HERO" ? (
               <Fragment key={f.id}>
                 {straddling && (
@@ -344,12 +424,13 @@ export const TableBoard = ({
                   // settles the move (the head owns the settle, as below), so a
                   // move the straddling figure cannot follow still completes.
                   <TableStandeeAnchor
-                    x={space.x}
-                    y={space.y}
+                    x={head.x}
+                    y={head.y}
+                    stack={head.stack}
                     tiltDeg={tiltDeg}
                     widthPx={0}
                     heightPx={0}
-                    spaceDiamPx={diamPx}
+                    spaceDiamPx={head.diamPx}
                     spaceId={f.space}
                     baseAccent={PLAYER_COLOR[f.owner] ?? "#999"}
                     anim={headAnim}
@@ -362,8 +443,9 @@ export const TableBoard = ({
                   fighter={f}
                   x={stand.x}
                   y={stand.y}
+                  stack={straddling ? undefined : head.stack}
                   tiltDeg={tiltDeg}
-                  diamPx={diamPx}
+                  diamPx={head.diamPx}
                   playerColor={PLAYER_COLOR[f.owner] ?? "#999"}
                   artUrl={fighterTokenArt?.(f)}
                   figure={figureOf.get(f.id) ?? null}
@@ -389,10 +471,11 @@ export const TableBoard = ({
               <TableSidekickToken
                 key={f.id}
                 fighter={f}
-                x={space.x}
-                y={space.y}
+                x={head.x}
+                y={head.y}
+                stack={head.stack}
                 tiltDeg={tiltDeg}
-                diamPx={diamPx}
+                diamPx={head.diamPx}
                 artUrl={fighterTokenArt?.(f)}
                 playerColor={PLAYER_COLOR[f.owner] ?? "#999"}
                 selected={common.selected}
@@ -417,19 +500,20 @@ export const TableBoard = ({
           {twoSpaceFighters.map((f) => {
             const tailSpace = spaceById.get(f.tailSpace as SpaceId);
             if (!tailSpace) return null;
-            const diamPx = (diameterPct / 100) * Math.max(frameW, 1);
+            const tail = fighterPlace(tailSpace, `${f.id}-tail`, (diameterPct / 100) * Math.max(frameW, 1), frameW, frameH);
             const color = PLAYER_COLOR[f.owner] ?? "#999";
-            const tailAnim = animFor(f.id, "tail");
+            const tailAnim = animFor(f.id, "tail", tail);
             const headSpace = spaceById.get(f.space)!;
             const mid = bandMidpoint(headSpace, tailSpace);
             return (
               <Fragment key={`${f.id}-band`}>
                 <TableFighterTail
                   fighter={f}
-                  x={tailSpace.x}
-                  y={tailSpace.y}
+                  x={tail.x}
+                  y={tail.y}
+                  stack={tail.stack}
                   tiltDeg={tiltDeg}
-                  diamPx={diamPx}
+                  diamPx={tail.diamPx}
                   playerColor={color}
                   selected={f.id === selectedFighter}
                   targetable={highlightFighterSet.has(f.id)}
