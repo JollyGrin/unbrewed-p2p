@@ -236,9 +236,16 @@ export const TableBoard = ({
   /** A fighter segment's place plus its diameter (`spaceDiamPx` × the slot's
    *  scale relative to a normal token — a SMALL is drawn small, as on the flat
    *  board). `key` is `<id>` for a head, `<id>-tail` for a LARGE tail. */
-  const fighterPlace = (space: ProMapSpace, key: string, spaceDiamPx: number, frameW: number, frameH: number) => {
-    const slot = slotIn(fighterStack, space.id, key);
-    const shared = (fighterStack.get(space.id)?.size ?? 0) > 1;
+  const fighterPlace = (
+    space: ProMapSpace,
+    key: string,
+    spaceDiamPx: number,
+    frameW: number,
+    frameH: number,
+    stack = fighterStack
+  ) => {
+    const slot = slotIn(stack, space.id, key);
+    const shared = (stack.get(space.id)?.size ?? 0) > 1;
     // Each later slot lies one FULL token's thickness (+1px) higher than the
     // one before, so it tops whatever it overlaps (see TableStackDepth.liftPx).
     const liftPx = slot.order * (Math.round(standeeBaseDiameterPx(spaceDiamPx) * TOKEN_THICKNESS) + 1);
@@ -338,16 +345,57 @@ export const TableBoard = ({
   // One settle per move — the HEAD segment owns it, exactly like ProBoard,
   // so a two-space body's tail tween can't clear pendingMove out from under
   // the head's own (possibly still-running) animation.
-  // A route tweens through space CENTRES; the last keyframe is moved onto the
-  // piece's stack slot (`at`) so it settles where it then rests.
+  // The stack as it stood BEFORE a relocation, rebuilt by putting each moved
+  // fighter back where it came from: a piece that shared a space left from
+  // its ring slot there, not from the centre (on top of the other piece).
+  const stackBefore = (from: Map<FighterId, { space: SpaceId; tailSpace?: SpaceId | null }>) =>
+    fighterStackBySpace(
+      fighters.filter((f) => f.space && !f.defeated).map((f) => (from.has(f.id) ? { ...f, ...from.get(f.id) } : f))
+    );
+  const moveStack = pendingMove
+    ? stackBefore(
+        new Map([
+          [
+            pendingMove.fighterId,
+            { space: pendingMove.path[0], ...(pendingMove.trailPath?.length ? { tailSpace: pendingMove.trailPath[0] } : {}) },
+          ],
+        ])
+      )
+    : fighterStack;
+  /** Where a segment stood before the relocation: its slot in `stack` on `spaceId`. */
+  const placeBefore = (
+    stack: typeof fighterStack,
+    spaceId: SpaceId | undefined,
+    key: string,
+    frameW: number,
+    frameH: number
+  ) => {
+    const space = spaceId ? spaceById.get(spaceId) : undefined;
+    return space ? fighterPlace(space, key, 0, frameW, frameH, stack) : undefined;
+  };
+
+  // A route tweens through space CENTRES; its ends are moved onto the piece's
+  // stack slots — the first onto the slot it left (see `stackBefore`), the
+  // last onto the slot it lands in (`at`) — so it neither jumps to the centre
+  // when it sets off nor when it settles.
   const animFor = (
     fighterId: FighterId,
     segment: "head" | "tail",
-    at: { x: number; y: number }
+    at: { x: number; y: number },
+    frameW: number,
+    frameH: number
   ): TableAnchorAnim | null => {
     if (!pendingMove || pendingMove.fighterId !== fighterId) return null;
     const anim = segment === "head" ? pendingHeadAnim : pendingTailAnim;
-    return anim && { ...anim, xs: [...anim.xs.slice(0, -1), at.x], ys: [...anim.ys.slice(0, -1), at.y] };
+    if (!anim) return null;
+    const route = segment === "head" ? pendingMove.path : pendingMove.trailPath;
+    const key = segment === "head" ? fighterId : `${fighterId}-tail`;
+    const start = placeBefore(moveStack, route?.[0], key, frameW, frameH) ?? { x: anim.xs[0], y: anim.ys[0] };
+    return {
+      ...anim,
+      xs: [start.x, ...anim.xs.slice(1, -1), at.x],
+      ys: [start.y, ...anim.ys.slice(1, -1), at.y],
+    };
   };
 
   // Atomic position swaps (protocol v31) — ProBoard's crossfade on the table.
@@ -358,6 +406,9 @@ export const TableBoard = ({
   // never settles `pendingMove` (it isn't one). A straddling LARGE miniature
   // fades between the midpoints of its two poses.
   const swapByFighter = new Map((swaps ?? []).map((sw) => [sw.fighterId, sw]));
+  const swapStack = swapByFighter.size
+    ? stackBefore(new Map([...swapByFighter].map(([id, sw]) => [id, { space: sw.from, tailSpace: sw.fromTail ?? null }])))
+    : fighterStack;
   const swapAnim = (
     from: { x: number; y: number } | undefined,
     to: { x: number; y: number }
@@ -371,16 +422,24 @@ export const TableBoard = ({
           durationSec: SWAP_SECONDS,
         }
       : null;
-  const swapFor = (f: ViewFighter, segment: "head" | "tail" | "stand", to: { x: number; y: number }) => {
+  // A head or tail fades out at the ring SLOT it held before the swap (see
+  // `stackBefore`); a straddling figure between its two old space centres.
+  const swapFor = (
+    f: ViewFighter,
+    segment: "head" | "tail" | "stand",
+    to: { x: number; y: number },
+    frameW: number,
+    frameH: number
+  ) => {
     const sw = swapByFighter.get(f.id);
     if (!sw) return null;
     const fromHead = spaceById.get(sw.from);
     const fromTail = spaceById.get(sw.fromTail ?? sw.from);
     const from =
       segment === "head"
-        ? fromHead
+        ? placeBefore(swapStack, sw.from, f.id, frameW, frameH)
         : segment === "tail"
-          ? fromTail
+          ? placeBefore(swapStack, sw.fromTail ?? sw.from, `${f.id}-tail`, frameW, frameH)
           : fromHead && fromTail
             ? bandMidpoint(fromHead, fromTail)
             : undefined;
@@ -550,16 +609,19 @@ export const TableBoard = ({
             const space = spaceById.get(f.space)!;
             const head = fighterPlace(space, f.id, (diameterPct / 100) * Math.max(frameW, 1), frameW, frameH);
             const common = fighterProps(f);
-            const headAnim = animFor(f.id, "head", head);
+            const headAnim = animFor(f.id, "head", head, frameW, frameH);
             const straddling = straddles(f);
             const tailSpace = straddling ? spaceById.get(f.tailSpace as SpaceId)! : null;
             const stand = tailSpace ? bandMidpoint(space, tailSpace) : head;
             const standAnim = tailSpace
-              ? straddleAnim(headAnim, animFor(f.id, "tail", fighterPlace(tailSpace, `${f.id}-tail`, 0, frameW, frameH)))
+              ? straddleAnim(
+                  headAnim,
+                  animFor(f.id, "tail", fighterPlace(tailSpace, `${f.id}-tail`, 0, frameW, frameH), frameW, frameH)
+                )
               : headAnim;
             // A swap plays only where no move tween does (see `swapFor`).
-            const headSwap = headAnim ? null : swapFor(f, "head", head);
-            const standSwap = standAnim ? null : swapFor(f, straddling ? "stand" : "head", stand);
+            const headSwap = headAnim ? null : swapFor(f, "head", head, frameW, frameH);
+            const standSwap = standAnim ? null : swapFor(f, straddling ? "stand" : "head", stand, frameW, frameH);
             return f.kind === "HERO" ? (
               <Fragment key={f.id}>
                 {straddling && (
@@ -579,10 +641,14 @@ export const TableBoard = ({
                     anim={headAnim ?? headSwap}
                     onAnimComplete={headAnim ? onPendingMoveSettled : undefined}
                     // This base is the head space's tap target, like a
-                    // one-space figure's own base (#873).
+                    // one-space figure's own base (#873) — and, like the tail
+                    // and the flat board's head, it reports hover (#895).
+                    pick={common.targetable && !!common.onClick}
                     onClick={
                       common.targetable && common.onClick ? () => common.onClick!(f.id) : common.onSpaceFallbackClick
                     }
+                    onMouseEnter={common.onHoverChange ? () => common.onHoverChange!(f.id) : undefined}
+                    onMouseLeave={common.onHoverChange ? () => common.onHoverChange!(null) : undefined}
                   >
                     {null}
                   </TableStandeeAnchor>
@@ -621,6 +687,9 @@ export const TableBoard = ({
                 selected={common.selected}
                 targetable={common.targetable}
                 friendly={common.friendly}
+                extendedReach={common.extendedReach}
+                badgeNumber={common.badgeNumber}
+                chipText={common.chipText}
                 anim={headAnim ?? headSwap}
                 onAnimComplete={headAnim ? onPendingMoveSettled : undefined}
                 onClick={common.onClick}
@@ -643,7 +712,7 @@ export const TableBoard = ({
             if (!tailSpace) return null;
             const tail = fighterPlace(tailSpace, `${f.id}-tail`, (diameterPct / 100) * Math.max(frameW, 1), frameW, frameH);
             const color = SEAT_COLOR[f.owner] ?? "#999";
-            const tailAnim = animFor(f.id, "tail", tail);
+            const tailAnim = animFor(f.id, "tail", tail, frameW, frameH);
             const headSpace = spaceById.get(f.space)!;
             const mid = bandMidpoint(headSpace, tailSpace);
             return (
@@ -661,7 +730,7 @@ export const TableBoard = ({
                   // No onAnimComplete: the HEAD segment alone owns the settle
                   // (see `animFor`) — a second, late settle from the tail would
                   // clear a new incoming move that landed in between.
-                  anim={tailAnim ?? swapFor(f, "tail", tail)}
+                  anim={tailAnim ?? swapFor(f, "tail", tail, frameW, frameH)}
                   onClick={onFighterClick}
                   // The tail's face covers its own space, so when that space
                   // is a pick the tap commits it — ProBoard's fallback (#873).

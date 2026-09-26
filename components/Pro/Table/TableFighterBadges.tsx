@@ -9,7 +9,7 @@
  * use for reach (`TbBow` ranged, `TbSword` melee/lunge) — no new art, no new
  * dependency.
  */
-import { Flex, Text } from "@chakra-ui/react";
+import { Box, Flex, Text } from "@chakra-ui/react";
 import { TbBow, TbSword } from "react-icons/tb";
 import type { ViewFighter } from "@/lib/pro/protocol";
 
@@ -69,3 +69,82 @@ export const TableFighterBadges = ({ fighter, size = "hero" }: TableFighterBadge
     </Flex>
   );
 };
+
+export interface TableFighterPickMarksProps {
+  /** A reach-2 target (extended reach) — the flat board's "reach 2" tag. */
+  extendedReach?: boolean;
+  /** A numbered pick (e.g. an ordered multi-target prompt). */
+  badgeNumber?: number;
+  /** The target's chip — a bought-range cost or a defender step-in note. */
+  chipText?: string | null;
+  playerColor: string;
+}
+
+/**
+ * The per-pick marks a fighter carries while it is a target: the "reach 2"
+ * tag, the pick number and the cost/step-in chip. Shared by the hero plate
+ * and the sidekick token so a sidekick target reads exactly like a hero one,
+ * as it does on the flat board (#895 — the sidekick dropped all three).
+ */
+export const TableFighterPickMarks = ({ extendedReach, badgeNumber, chipText, playerColor }: TableFighterPickMarksProps) => (
+  <>
+    {extendedReach && (
+      <Box
+        position="absolute"
+        bottom="-0.35rem"
+        right="-0.35rem"
+        bg="rgba(56,217,232,0.9)"
+        color="#0A1418"
+        borderRadius="0.2rem"
+        px="0.2rem"
+        fontSize="0.5rem"
+        fontWeight="bold"
+        zIndex={2}
+        data-pick-mark="reach"
+      >
+        reach 2
+      </Box>
+    )}
+
+    {badgeNumber != null && (
+      <Flex
+        position="absolute"
+        bottom="-0.35rem"
+        left="-0.35rem"
+        w="1.1rem"
+        h="1.1rem"
+        borderRadius="50%"
+        align="center"
+        justify="center"
+        bg="brand.surfaceDim"
+        color="brand.parchment"
+        border={`1.5px solid ${playerColor}`}
+        fontSize="0.55rem"
+        fontWeight="bold"
+        zIndex={2}
+        data-pick-mark="number"
+      >
+        {badgeNumber}
+      </Flex>
+    )}
+
+    {chipText && (
+      <Text
+        position="absolute"
+        bottom="-1.3rem"
+        left="50%"
+        transform="translateX(-50%)"
+        whiteSpace="nowrap"
+        fontSize="0.55rem"
+        bg="rgba(20,8,24,0.85)"
+        color="brand.highlight"
+        px="0.3rem"
+        borderRadius="0.2rem"
+        zIndex={2}
+        data-pick-mark="chip"
+      >
+        {chipText}
+      </Text>
+    )}
+  </>
+);

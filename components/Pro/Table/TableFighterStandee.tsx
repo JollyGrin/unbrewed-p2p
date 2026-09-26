@@ -11,7 +11,7 @@
  * `TableStandeeAnchor` + tableProjection.ts; this file only draws the piece
  * and its badges.
  */
-import { Box, Flex, Text } from "@chakra-ui/react";
+import { Box, Text } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
 import type { FighterId, ViewFighter } from "@/lib/pro/protocol";
 import type { FlagTokenBadge } from "@/lib/pro/heroStateFlags";
@@ -20,7 +20,7 @@ import { standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
 import type { Figure } from "@/lib/pro/figures";
 import { TableFigureGround, TableFigureSprite } from "./TableFigureSprite";
 import { TableAnchorAnim, TableStandeeAnchor, type TableStackDepth } from "./TableStandeeAnchor";
-import { TableFighterBadges } from "./TableFighterBadges";
+import { TableFighterBadges, TableFighterPickMarks } from "./TableFighterBadges";
 import { TableFlatToken, TOKEN_BADGE_PLATE_HEIGHT } from "./TableFlatToken";
 
 /** A miniature's upright plate, which anchors its badges: taller than wide,
@@ -193,43 +193,12 @@ export const TableFighterStandee = ({
       {/* Badges stand in the upright plate, offset outside its edges. */}
       <TableFighterBadges fighter={fighter} size="hero" />
 
-      {extendedReach && (
-        <Box
-          position="absolute"
-          bottom="-0.35rem"
-          right="-0.35rem"
-          bg="rgba(56,217,232,0.9)"
-          color="#0A1418"
-          borderRadius="0.2rem"
-          px="0.2rem"
-          fontSize="0.5rem"
-          fontWeight="bold"
-          zIndex={2}
-        >
-          reach 2
-        </Box>
-      )}
-
-      {badgeNumber != null && (
-        <Flex
-          position="absolute"
-          bottom="-0.35rem"
-          left="-0.35rem"
-          w="1.1rem"
-          h="1.1rem"
-          borderRadius="50%"
-          align="center"
-          justify="center"
-          bg="brand.surfaceDim"
-          color="brand.parchment"
-          border={`1.5px solid ${playerColor}`}
-          fontSize="0.55rem"
-          fontWeight="bold"
-          zIndex={2}
-        >
-          {badgeNumber}
-        </Flex>
-      )}
+      <TableFighterPickMarks
+        extendedReach={extendedReach}
+        badgeNumber={badgeNumber}
+        chipText={chipText}
+        playerColor={playerColor}
+      />
 
       {badge && (
         <Box
@@ -277,24 +246,6 @@ export const TableFighterStandee = ({
             </Box>
           ))}
         </Box>
-      )}
-
-      {chipText && (
-        <Text
-          position="absolute"
-          bottom="-1.3rem"
-          left="50%"
-          transform="translateX(-50%)"
-          whiteSpace="nowrap"
-          fontSize="0.55rem"
-          bg="rgba(20,8,24,0.85)"
-          color="brand.highlight"
-          px="0.3rem"
-          borderRadius="0.2rem"
-          zIndex={2}
-        >
-          {chipText}
-        </Text>
       )}
     </TableStandeeAnchor>
   );

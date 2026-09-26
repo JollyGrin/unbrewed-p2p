@@ -23,7 +23,6 @@
  * exactly like the flat board — the browser hit-tests the RENDERED (tilted)
  * shape, so this needs no coordinate math of its own to work under zoom/pan.
  */
-import { ReactNode } from "react";
 import { Box } from "@chakra-ui/react";
 import type { ProMapItem, ProMapSpace, SpaceId } from "@/lib/pro/protocol";
 import { pieSliceAngles, pieSlicePath, tableHitDiameter, tableHitPx } from "@/lib/pro/tableProjection";
@@ -100,11 +99,6 @@ export interface TableSpaceProps {
   hitCapPx?: number;
   onClick?: (id: SpaceId) => void;
   onHoverChange?: (id: SpaceId | null) => void;
-  /** Extra content anchored at the space's centre, above the disc (fighters
-   *  stacked here forward their click to the space when it's the only target —
-   *  same ProBoard convention — but that wiring lives in the fighter/standee
-   *  component; this slot is for board-object tokens sharing the space). */
-  children?: ReactNode;
 }
 
 export const TableSpace = ({
@@ -119,7 +113,6 @@ export const TableSpace = ({
   hitCapPx,
   onClick,
   onHoverChange,
-  children,
 }: TableSpaceProps) => {
   const diamPx = (diameterPct / 100) * Math.max(frameW, 1);
   const paddedPx = (tableHitDiameter(diameterPct, space.y) / 100) * Math.max(frameW, 1);
@@ -221,8 +214,6 @@ export const TableSpace = ({
         )}
         <Box data-space-shade position="absolute" inset={0} borderRadius="50%" style={{ backgroundImage: TABLE_SPACE_SHADE }} />
       </Box>
-
-      {children}
     </Box>
   );
 };
