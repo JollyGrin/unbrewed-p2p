@@ -394,7 +394,10 @@ const FigureCreditChip = ({ credit }: { credit: FigureCredit }) => (
       </Flex>
     </PopoverTrigger>
     <Portal>
+      {/* rootProps: Chakra's popper wrapper otherwise sits at z 10, UNDER
+          the HUD plates (150) it hangs from. */}
       <PopoverContent
+        rootProps={{ zIndex: "popover" }}
         w="auto"
         maxW="18rem"
         bg="brand.surfaceDim"
@@ -1192,7 +1195,7 @@ export const SeatPlate = ({
           </Box>
         ) : null}
         {figureCredit && (
-          <Box mt="0.6rem">
+          <Box mt="0.6rem" px="0.25rem">
             <FigureCredits credit={figureCredit} />
           </Box>
         )}
