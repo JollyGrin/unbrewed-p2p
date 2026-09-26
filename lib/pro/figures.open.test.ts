@@ -8,6 +8,7 @@ import path from "path";
 import {
   FIGURE_SET_BASE_URL,
   FigureManifests,
+  LICENSE_DEEDS,
   effectiveFigureStyle,
   figureFor,
   figureForStyle,
@@ -16,8 +17,9 @@ import {
   nextFigureStyle,
   parseFigureManifest,
 } from "./figures";
-const { openRenderBlockers } = require("../../scripts/figures/clearance.cjs") as {
+const { openRenderBlockers, OPEN_LICENSE_DEEDS } = require("../../scripts/figures/clearance.cjs") as {
   openRenderBlockers: (entry: unknown) => string[];
+  OPEN_LICENSE_DEEDS: Record<string, string>;
 };
 
 const tri = {
@@ -53,6 +55,8 @@ const NOT_CLEARED_OPEN: Record<string, unknown> = {
   "no sourceUrl": without("sourceUrl"),
   "an http (not https) sourceUrl": { ...tri, sourceUrl: "http://example.org/x" },
   "a javascript: sourceUrl": { ...tri, sourceUrl: "javascript:alert(1)" },
+  "a licence with no version (no deed to link)": { ...tri, license: "CC-BY-SA" },
+  "a named licence with no deed": { ...tri, license: "Standard Digital File License" },
 };
 
 const openManifest = (figures: Record<string, unknown>) => parseFigureManifest({ version: 1, figures }, "open");
@@ -66,8 +70,22 @@ describe("open-set gate", () => {
       modelName: "Triceratops Horridus Marsh",
       creator: "Smithsonian Institution",
       license: "CC0-1.0",
+      licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/",
       sourceUrl: "https://example.org/triceratops",
+      modified: false,
     });
+  });
+
+  // CC BY / BY-SA 4.0 s3(a)(1): the credit links the licence, and a render
+  // (lit, recoloured, flattened) is a change that must be indicated.
+  test("a BY-SA entry links its deed and declares the renders modified", () => {
+    const fig = figureFor(openManifest({ witch: { ...tri, license: "CC-BY-SA-4.0" } }), "witch", "p1", "open");
+    expect(fig?.credit?.licenseUrl).toBe("https://creativecommons.org/licenses/by-sa/4.0/");
+    expect(fig?.credit?.modified).toBe(true);
+  });
+
+  test("the app and render.cjs link the same licence deeds", () => {
+    expect(LICENSE_DEEDS).toEqual(OPEN_LICENSE_DEEDS);
   });
 
   test.each(Object.entries(NOT_CLEARED_OPEN))("drops an open entry with %s", (_why, entry) => {
@@ -84,8 +102,13 @@ describe("open-set gate", () => {
   // The private set predates attribution: an entry there needs none, but
   // keeps it when it has one.
   test("the private set does not require attribution", () => {
-    const m = parseFigureManifest({ version: 1, figures: { triceratops: without("creator") } });
-    expect(figureFor(m, "triceratops", "p1")?.credit).toBeNull();
+    const m = parseFigureManifest({ version: 1, figures: { triceratops: without("creator") } }, "private");
+    expect(figureFor(m, "triceratops", "p1", "private")?.credit).toBeNull();
+  });
+
+  test("a private entry keeps a credit whose licence has no deed, unlinked", () => {
+    const m = parseFigureManifest({ version: 1, figures: { triceratops: { ...tri, license: "LOCAL" } } }, "private");
+    expect(figureFor(m, "triceratops", "p1", "private")?.credit).toMatchObject({ license: "LOCAL", licenseUrl: null, modified: true });
   });
 });
 
@@ -115,7 +138,7 @@ describe("the committed open set", () => {
 describe("figure style", () => {
   const privateTri = { ...tri, seats: { p1: "triceratops.p1.webp" } };
   const both: FigureManifests = {
-    private: parseFigureManifest({ version: 1, figures: { triceratops: privateTri } }),
+    private: parseFigureManifest({ version: 1, figures: { triceratops: privateTri } }, "private"),
     open: openManifest({ triceratops: tri, "baba-yaga": { ...tri, seats: { p2: "baba-yaga.p2.webp" } } }),
   };
   const board = [

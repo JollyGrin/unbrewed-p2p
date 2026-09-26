@@ -49,14 +49,37 @@ export const figureManifestUrl = (set: FigureSet): string => `${FIGURE_SET_BASE_
 export const FIGURES_BASE_URL = FIGURE_SET_BASE_URL.private;
 export const FIGURES_MANIFEST_URL = figureManifestUrl("private");
 
+/**
+ * The licence deeds the credit links to, by SPDX id. CC BY / BY-SA 4.0
+ * s3(a)(1) require a link to (or the text of) the licence with the credit;
+ * an OPEN-set entry whose licence is not listed here is dropped, because the
+ * app could not meet that obligation. Mirrors OPEN_LICENSE_DEEDS in
+ * scripts/figures/clearance.cjs (figures.open.test.ts keeps them equal).
+ */
+export const LICENSE_DEEDS: Record<string, string> = {
+  "CC0-1.0": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "CC-BY-4.0": "https://creativecommons.org/licenses/by/4.0/",
+  "CC-BY-SA-4.0": "https://creativecommons.org/licenses/by-sa/4.0/",
+};
+
+/** Licences under which our renders are NOT modifications we must declare:
+ *  public domain. Every other licence gets the modification notice. */
+const NO_NOTICE_LICENSES = new Set(["CC0-1.0"]);
+
 /** Who made a model, under what licence, and where it came from — what the
  *  hero's info shows for the miniature on the table. */
 export interface FigureCredit {
   modelName: string;
   creator: string;
   license: string;
+  /** The licence deed (LICENSE_DEEDS), or null for a licence not listed there
+   *  (private set only: the open set requires one). */
+  licenseUrl: string | null;
   /** Always https (checked when the manifest is read). */
   sourceUrl: string;
+  /** The renders modify the model (lit, recoloured, flattened to images) and
+   *  its licence asks that to be indicated — true for everything but CC0. */
+  modified: boolean;
 }
 
 export interface FigureEntry {
@@ -115,15 +138,24 @@ export const creditOf = (raw: Record<string, unknown>): FigureCredit | null => {
   const { modelName, creator, license, sourceUrl } = raw;
   if (!isFilled(modelName) || !isFilled(creator) || !isFilled(license)) return null;
   if (typeof sourceUrl !== "string" || !/^https:\/\/\S+$/.test(sourceUrl)) return null;
-  return { modelName: modelName.trim(), creator: creator.trim(), license: license.trim(), sourceUrl };
+  const id = license.trim();
+  return {
+    modelName: modelName.trim(),
+    creator: creator.trim(),
+    license: id,
+    licenseUrl: LICENSE_DEEDS[id] ?? null,
+    sourceUrl,
+    modified: !NO_NOTICE_LICENSES.has(id),
+  };
 };
 
 const parseEntry = (raw: unknown, set: FigureSet): FigureEntry | null => {
   if (!isRecord(raw) || !isRecord(raw.anchor) || !isRecord(raw.seats)) return null;
   if (!isCleared(raw)) return null;
   const credit = creditOf(raw);
-  // The committed set ships to everyone: its licences oblige the credit.
-  if (set === "open" && !credit) return null;
+  // The committed set ships to everyone: its licences oblige the credit,
+  // including a link to the licence itself.
+  if (set === "open" && !credit?.licenseUrl) return null;
   const { anchor, imageWidthMm, footprintMm, aspect, seats, license } = raw;
   if (!isFraction(anchor.x) || !isFraction(anchor.y)) return null;
   if (!isPositive(imageWidthMm) || !isPositive(footprintMm) || !isPositive(aspect)) return null;
@@ -144,7 +176,7 @@ const parseEntry = (raw: unknown, set: FigureSet): FigureEntry | null => {
 
 /** Validate a set's manifest.json. A bad entry is dropped, not fatal: one
  *  broken render must not take every other figure down with it. */
-export const parseFigureManifest = (raw: unknown, set: FigureSet = "private"): FigureManifest | null => {
+export const parseFigureManifest = (raw: unknown, set: FigureSet): FigureManifest | null => {
   if (!isRecord(raw) || raw.version !== 1 || !isRecord(raw.figures)) return null;
   const figures: Record<string, FigureEntry> = {};
   for (const [heroId, entry] of Object.entries(raw.figures)) {
@@ -158,7 +190,7 @@ export const figureFor = (
   manifest: FigureManifest | null,
   heroId: string | undefined,
   seat: string,
-  set: FigureSet = "private"
+  set: FigureSet
 ): Figure | null => {
   const entry = heroId ? manifest?.figures[heroId] : undefined;
   const file = entry?.seats[seat];

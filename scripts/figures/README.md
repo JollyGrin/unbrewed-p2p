@@ -82,6 +82,11 @@ attribution** the app shows in the hero's info (CC-BY requires it):
 | `modelName` | the model's title as published |
 | `creator` | who made it, as credited on the source page |
 | `sourceUrl` | the source page, `https://` |
+| `license` | an SPDX id the app links to a deed for (`LICENSE_DEEDS`: `CC0-1.0`, `CC-BY-4.0`, `CC-BY-SA-4.0`) |
+
+The credit links the licence to its deed and, for anything but CC0, adds
+"Rendered and recoloured for Unbrewed." — CC BY / BY-SA 4.0 s3(a)(1) ask
+for both.
 
 An open entry missing any of them is not rendered (`openRenderBlockers` in
 `clearance.cjs`) and is dropped by the app (`parseFigureManifest(…, "open")`
@@ -106,7 +111,7 @@ Games decks (Dean, 2026-09-26) — so every entry declares
 | Hero (`heroId`) | Model | Creator | Licence (as seen on the source page) | Source | Checked | Model file |
 |---|---|---|---|---|---|---|
 | `triceratops` | Triceratops Horridus Marsh | Smithsonian Institution | CC0 Public Domain | [sketchfab.com](https://sketchfab.com/3d-models/triceratops-horridus-marsh-e9c507f179ed4455aac3b208c9e6c973) | 2026-09-26 | the same 150k-triangle scan, downloaded without an account from the Smithsonian's 3D API: `https://3d-api.si.edu/content/document/3d_package:d8c623be-4ebc-11ea-b77f-2e728ce88125/resources/Triceratops_horridus_Marsh_1889-150k-4096.glb` → `triceratops-horridus-marsh-150k.glb`. The fossil is mounted lying on its side, as found; `rz: 90` sets it on the ground. |
-| `baba-yaga` | Witch Minis (Witch 2) | mz4250 | CC BY-SA (Thingiverse: "Creative Commons - Attribution - Share Alike"; no version stated) | [thingiverse.com/thing:6694128](https://www.thingiverse.com/thing:6694128) | 2026-09-26 | `files/Witch_2.stl` from the thing's "Download all files" zip → `witch-minis-witch-2.stl`. ShareAlike: the renders are CC BY-SA too. The same model on Printables (model/941392) is labelled CC-BY; we follow the stricter Thingiverse licence. |
+| `baba-yaga` | Witch Minis (Witch 2) | mz4250 | CC BY-SA 4.0 (Thingiverse: "Creative Commons - Attribution - Share Alike", linked to creativecommons.org/licenses/by-sa/4.0/) | [thingiverse.com/thing:6694128](https://www.thingiverse.com/thing:6694128) | 2026-09-26 | `files/Witch_2.stl` (listed on the thing's Files tab) from its "Download all files" zip → `witch-minis-witch-2.stl`. ShareAlike: the renders are CC BY-SA too. The same model on Printables (model/941392) is labelled CC-BY; we follow the stricter Thingiverse licence. |
 
 ## Setup (private set)
 

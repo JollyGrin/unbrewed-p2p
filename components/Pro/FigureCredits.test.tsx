@@ -13,6 +13,7 @@ import { ChakraProvider } from "@chakra-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HeroPreviewModal } from "./HeroPreviewModal";
 import { SeatPlate } from "./ProHud";
+import { FigureCredits } from "./FigureCredits";
 import { ProMobileMenu } from "./ProMobileHud";
 import { FigureCredit } from "@/lib/pro/figures";
 import { resetFigureManifestCache } from "@/lib/pro/useFigureManifest";
@@ -88,11 +89,17 @@ const openPreview = (heroId: string, heroName: string) =>
 const expectCredits = () => {
   expect(screen.getByText("Test Horned Skeleton")).toBeInTheDocument();
   expect(screen.getByText(/by Test Museum/)).toBeInTheDocument();
-  expect(screen.getByText(/Licence: CC-BY-4\.0/)).toBeInTheDocument();
+  // CC BY 4.0 s3(a)(1): the licence is a link to its deed…
+  expect(screen.getByRole("link", { name: "CC-BY-4.0", hidden: true })).toHaveAttribute(
+    "href",
+    "https://creativecommons.org/licenses/by/4.0/"
+  );
   expect(screen.getByRole("link", { name: /Source/, hidden: true })).toHaveAttribute(
     "href",
     "https://example.org/horned-skeleton"
   );
+  // …and the renders' changes are indicated.
+  expect(screen.getByTestId("figure-modified-notice")).toHaveTextContent("Rendered and recoloured for Unbrewed.");
 };
 
 describe("hero preview — figurine and credits", () => {
@@ -117,7 +124,9 @@ const CREDIT: FigureCredit = {
   modelName: "Test Horned Skeleton",
   creator: "Test Museum",
   license: "CC-BY-4.0",
+  licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
   sourceUrl: "https://example.org/horned-skeleton",
+  modified: true,
 };
 
 const plate = (variant: "plate" | "sheet", figureCredit: FigureCredit | null) =>
@@ -161,6 +170,26 @@ describe("in-game seat info — credits for the figure on the table", () => {
     fireEvent.click(chips[0]);
     await screen.findByText("Test Horned Skeleton");
     expectCredits();
+  });
+
+  it("a public-domain (CC0) model links its deed and needs no modification notice", () => {
+    render(
+      <ChakraProvider>
+        <FigureCredits
+          credit={{
+            ...CREDIT,
+            license: "CC0-1.0",
+            licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/",
+            modified: false,
+          }}
+        />
+      </ChakraProvider>
+    );
+    expect(screen.getByRole("link", { name: "CC0-1.0" })).toHaveAttribute(
+      "href",
+      "https://creativecommons.org/publicdomain/zero/1.0/"
+    );
+    expect(screen.queryByTestId("figure-modified-notice")).not.toBeInTheDocument();
   });
 
   it("says nothing for a hero shown as its token", () => {

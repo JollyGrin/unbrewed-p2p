@@ -1,6 +1,7 @@
 /**
  * The credit for a hero's miniature (unbrewed-p2p-903) — model, creator,
- * licence and a link to the source — plus the figurine itself for hero-view
+ * licence (linked to its deed), a link to the source and, for any licence
+ * but CC0, a notice that the renders modify the model — plus the figurine itself for hero-view
  * surfaces. One component for every place it appears (the hero preview on
  * /pro and /pro/game, and the in-game seat info), so the credit can never
  * drift between them. CC-BY makes showing it a licence obligation, which is
@@ -22,11 +23,26 @@ export const FigureCredits = ({ credit, compact = false }: { credit: FigureCredi
       by {credit.creator}
     </Text>
     <Text opacity={0.85}>
-      Licence: {credit.license} ·{" "}
+      Licence:{" "}
+      {credit.licenseUrl ? (
+        <Link href={credit.licenseUrl} isExternal textDecoration="underline" color="brand.highlight">
+          {credit.license}
+        </Link>
+      ) : (
+        credit.license
+      )}{" "}
+      ·{" "}
       <Link href={credit.sourceUrl} isExternal textDecoration="underline" color="brand.highlight">
         Source
       </Link>
     </Text>
+    {/* CC BY / BY-SA ask that changes be indicated: the renders light,
+        recolour and flatten the model. Public-domain models need no notice. */}
+    {credit.modified && (
+      <Text opacity={0.7} fontStyle="italic" data-testid="figure-modified-notice">
+        Rendered and recoloured for Unbrewed.
+      </Text>
+    )}
   </Box>
 );
 
