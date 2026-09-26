@@ -260,6 +260,14 @@ export const standeeZIndex = (y: number): number => {
 };
 
 /**
+ * Painter's order for a LARGE fighter's name pill, floating at the midpoint of
+ * its two spaces: one above BOTH band ends, so the fighter's own head and tail
+ * pieces (each at `standeeZIndex` of its space) never clip the label.
+ */
+export const bandLabelZIndex = (headY: number, tailY: number): number =>
+  Math.max(standeeZIndex(headY), standeeZIndex(tailY)) + 1;
+
+/**
  * How much a piece at normalized `y` shrinks with distance.
  *
  * CSS perspective already scales the board's own surface, but a standee is
