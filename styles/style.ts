@@ -24,7 +24,10 @@ export const fonts = {
   BebasNeueRegular: `'BebasNeueRegular', sans-serif`,
   ArchivoNarrow: `'ArchivoNarrow', sans-serif`,
   LeagueGothic: `'LeagueGothic', sans-serif`,
-  SpaceGrotesk: `'Space Grotesk', sans-serif`,
+  // Self-hosted Space Grotesk via next/font — the `--font-space-grotesk`
+  // var is defined at :root by the emotion <Global> in pages/_app.tsx.
+  // A plain var string stays importable outside Next (renderFuzz CLI).
+  SpaceGrotesk: `var(--font-space-grotesk), 'Space Grotesk', sans-serif`,
 };
 
 export const shadows = {

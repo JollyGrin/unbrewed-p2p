@@ -207,7 +207,7 @@ export const useCardPreview = (
     onTouchEnd: (e: TouchEvent) => {
       // A held press already peeked: swallow the trailing click so release just
       // dismisses. A quick tap never showed anything, so its click plays on.
-      if (shown.current) e.preventDefault();
+      if (shown.current && e.cancelable) e.preventDefault();
       hideNow();
     },
     onTouchCancel: hideNow,
