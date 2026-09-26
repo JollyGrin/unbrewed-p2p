@@ -1512,6 +1512,10 @@ export interface ProHudProps {
    *  chip beside it. The chip is hidden when the handler is omitted. */
   boardView?: BoardView;
   onToggleBoardView?: () => void;
+  /** set when the board view cannot be switched on this layout (a portrait
+   *  phone always draws the flat board, #870): the toggle renders disabled
+   *  with this hint instead. */
+  boardViewLockedHint?: string;
   /** true while a paced batch is held on screen. The spotlight's click-anywhere
    *  backdrop covers the whole viewport, which would otherwise bury the very chip
    *  that turns slow mode off — so the cluster floats above it for that window

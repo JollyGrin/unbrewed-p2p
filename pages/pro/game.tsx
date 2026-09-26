@@ -20,6 +20,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { MOVE_STEP_SECONDS, MoveHint, PendingMove, ProBoard, ProBoardProps } from "@/components/Pro/ProBoard";
 import { TableBoard } from "@/components/Pro/Table/TableBoard";
 import { useBoardView } from "@/lib/pro/useBoardView";
+import { resolveBoardView, TABLETOP_NEEDS_LANDSCAPE } from "@/lib/pro/boardView";
 import { ProErrorBoundary } from "@/components/Pro/ProErrorBoundary";
 import { assignableSeats, BotSlotPlan, SlotOccupant } from "@/components/Pro/CreateSeats";
 import { availableBotTiers, botTierChoices, BotTierChoice, coerceBotTier } from "@/lib/pro/botTiers";
@@ -4683,13 +4684,17 @@ const LiveGame = ({
   // Board presentation (tabletop board view phase 1): flat (default) or
   // tabletop, per device — same game, same socket, same handlers; only which
   // board component renders below changes.
-  const [boardView, toggleBoardView] = useBoardView();
+  const [preferredBoardView, toggleBoardView] = useBoardView();
   // Which arrangement this viewport gets (issue #708). Desktop (>= 62em) is the
   // floating-overlay layout below, untouched; anything narrower mounts the
   // mobile arrangement of the same components. Read via matchMedia rather than
   // Chakra's useBreakpointValue, which touches `window` during the static
   // prerender of this page and fails the export — see lib/pro/useProLayout.
   const { mobile, rail, mode } = useProLayout();
+  // A portrait phone always draws the flat board (#870): the tabletop has no
+  // counter-rotation for the 90°-turned portrait frame. The stored preference
+  // is untouched, so turning back to landscape returns to the tabletop.
+  const boardView = resolveBoardView(preferredBoardView, mode);
   // The tabletop HUD (lib/pro/tableHud): a landscape phone looking at the
   // tabletop board gets plates, a banner, a fanned hand and a hexagon instead
   // of the decision rail. The flat board keeps its rail, untouched.
@@ -6805,6 +6810,7 @@ const LiveGame = ({
     onCyclePace: cyclePace,
     boardView,
     onToggleBoardView: toggleBoardView,
+    boardViewLockedHint: mode === "portrait" ? TABLETOP_NEEDS_LANDSCAPE : undefined,
     turnReminderOn,
     onToggleTurnReminder: toggleTurnReminder,
     onReportBug: () => setReportBugOpen(true),
