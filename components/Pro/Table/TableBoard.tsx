@@ -36,6 +36,8 @@ import { Flex, Text } from "@chakra-ui/react";
 import { useReducedMotion } from "framer-motion";
 import type { FighterId, ProMapSpace, SpaceId, ViewFighter } from "@/lib/pro/protocol";
 import { DEFAULT_TILT_DEG, bandLabelZIndex, standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
+import { nearestNeighbourPx } from "@/lib/pro/touchTargets";
+import { useCoarsePointer } from "@/lib/pro/useCoarsePointer";
 import { bandLabelText, bandMidpoint } from "@/lib/pro/twoSpaceBand";
 import { MOVE_STEP_SECONDS, type ProBoardProps } from "@/components/Pro/ProBoard";
 import { tokenInitials } from "@/components/Pro/FighterTokenPortrait";
@@ -59,7 +61,7 @@ import {
 import { TableStage } from "./TableStage";
 import { TableBoardFx } from "./TableBoardFx";
 import { TableBoardLines } from "./TableBoardLines";
-import { TableSpace } from "./TableSpace";
+import { TableSpace, TableSpaceBadge } from "./TableSpace";
 import { TableFighterStandee } from "./TableFighterStandee";
 import { TOKEN_THICKNESS } from "./TableFlatToken";
 import { TableFighterTail } from "./TableFighterTail";
@@ -413,6 +415,32 @@ export const TableBoard = ({
   // Fault #4 (phase-2 report): re-run the auto-focus-zoom effect whenever the
   // set of currently-pickable spaces/fighters changes — same key shape as
   // ProBoard's own `pickKey`.
+  // Touch hit circles (#873): distance, in board-plane px, from each pick to
+  // its nearest other pick — TableSpace never pads a hit circle past it, so
+  // two close gold spaces can't swallow each other's taps. Mirrors ProBoard's
+  // `mainPickCaps`, including a target fighter counting at its space(s).
+  // Built once per frame size: the stage's render prop asks per space.
+  const coarsePointer = useCoarsePointer();
+  const hitCapsBySize = new Map<string, Map<SpaceId, number>>();
+  const pickHitCaps = (frameW: number, frameH: number): Map<SpaceId, number> => {
+    const key = `${frameW}x${frameH}`;
+    const cached = hitCapsBySize.get(key);
+    if (cached) return cached;
+    const caps = new Map<SpaceId, number>();
+    hitCapsBySize.set(key, caps);
+    if (!coarsePointer) return caps;
+    const pickIds = new Set<SpaceId>([
+      ...(relocateArmed ? relocateSpaces : [...highlightedSpaces, ...relocateSpaces]),
+      ...boardFighters
+        .filter((f) => highlightFighterSet.has(f.id))
+        .flatMap((f) => [f.space, f.tailSpace].filter((id): id is SpaceId => !!id)),
+    ]);
+    const picks = mainSpaces.filter((sp) => pickIds.has(sp.id));
+    const points = picks.map((sp) => ({ x: sp.x * frameW, y: sp.y * frameH }));
+    picks.forEach((sp, i) => caps.set(sp.id, nearestNeighbourPx(points, i)));
+    return caps;
+  };
+
   const pickKey = `${highlightedSpaces.join(",")}|${relocateSpaces.join(",")}|${highlightedFighters.join(",")}`;
 
   // Regions refusal (phase-2 report, deferred item "Regions"): rather than
@@ -461,26 +489,39 @@ export const TableBoard = ({
             }
           />
 
+          {mainSpaces.map((space: ProMapSpace) => (
+            <TableSpace
+              key={space.id}
+              space={space}
+              zoneColor={zoneColor}
+              diameterPct={diameterPct}
+              frameW={frameW}
+              highlighted={highlightSet.has(space.id)}
+              relocateOrigin={relocateSet.has(space.id)}
+              relocateArmed={relocateArmed}
+              coarsePointer={coarsePointer}
+              hitCapPx={pickHitCaps(frameW, frameH).get(space.id)}
+              onClick={onSpaceClick}
+              onHoverChange={onSpaceHover}
+            />
+          ))}
+
+          {/* Item / passage badges: their own layer, beside each disc, so a
+              badge is inspectable without committing the space (#873).
+              Item badges are driven STRICTLY off live server state
+              (itemTokens), never off the static map.items/space.item —
+              matching ProBoard's own rule (protocol v17): a badge exists
+              exactly while its space is in this map. */}
           {mainSpaces.map((space: ProMapSpace) => {
-            // Item badges are driven STRICTLY off live server state
-            // (itemTokens), never off the static map.items/space.item —
-            // matching ProBoard's own rule (protocol v17): a badge exists
-            // exactly while its space is in this map.
             const liveItemId = itemTokens[space.id];
             return (
-              <TableSpace
-                key={space.id}
+              <TableSpaceBadge
+                key={`${space.id}-badge`}
                 space={space}
-                zoneColor={zoneColor}
                 diameterPct={diameterPct}
                 frameW={frameW}
-                highlighted={highlightSet.has(space.id)}
-                relocateOrigin={relocateSet.has(space.id)}
-                relocateArmed={relocateArmed}
                 item={liveItemId ? (itemById.get(liveItemId) ?? null) : null}
                 passage={!!space.passage}
-                onClick={onSpaceClick}
-                onHoverChange={onSpaceHover}
               />
             );
           })}
@@ -538,6 +579,11 @@ export const TableBoard = ({
                     baseAccent={PLAYER_COLOR[f.owner] ?? "#999"}
                     anim={headAnim ?? headSwap}
                     onAnimComplete={headAnim ? onPendingMoveSettled : undefined}
+                    // This base is the head space's tap target, like a
+                    // one-space figure's own base (#873).
+                    onClick={
+                      common.targetable && common.onClick ? () => common.onClick!(f.id) : common.onSpaceFallbackClick
+                    }
                   >
                     {null}
                   </TableStandeeAnchor>
@@ -554,6 +600,7 @@ export const TableBoard = ({
                   figure={figureOf.get(f.id) ?? null}
                   figureScale={straddling ? LARGE_FIGURE_SCALE : 1}
                   baseHidden={straddling}
+                  spacePicksLive={highlightSet.size > 0 || relocateSet.size > 0}
                   anim={standAnim ?? standSwap}
                   onAnimComplete={standAnim && !straddling ? onPendingMoveSettled : undefined}
                   // Same registry, same rule as the flat board (ProBoard registers
@@ -625,6 +672,11 @@ export const TableBoard = ({
                   // clear a new incoming move that landed in between.
                   anim={tailAnim ?? swapFor(f, "tail", tail)}
                   onClick={onFighterClick}
+                  // The tail's face covers its own space, so when that space
+                  // is a pick the tap commits it — ProBoard's fallback (#873).
+                  onSpaceFallbackClick={
+                    highlightSet.has(tailSpace.id) && onSpaceClick ? () => onSpaceClick(tailSpace.id) : undefined
+                  }
                   bodyHidden={straddles(f)}
                 />
                 {!straddles(f) && (

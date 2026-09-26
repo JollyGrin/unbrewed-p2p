@@ -271,6 +271,13 @@ export const TableStage = ({
             position="relative"
             w="100%"
             h="100%"
+            // Out of hit-testing, and the board image with it (#873): in a
+            // preserve-3d context the browser orders COPLANAR layers by their
+            // computed depth, and float error let the plane or the image win
+            // some gold spaces' taps outright. Only the pieces meant to be
+            // tapped (spaces, badges, tokens) opt back in. A press on bare
+            // board still reaches the pan/zoom handlers on the container.
+            pointerEvents="none"
             style={{ transform: boardTransform(tiltDeg, yawDeg), transformStyle: "preserve-3d" }}
           >
             {/* The table the board stands on — behind and below everything

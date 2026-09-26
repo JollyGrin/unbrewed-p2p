@@ -343,6 +343,18 @@ export const tableHitDiameter = (spaceDiameterPct: number, y: number): number =>
   spaceDiameterPct * (1 + tableHitPadFraction(y));
 
 /**
+ * The hit circle a pick actually gets, px (#873). The depth padding above is
+ * a TOUCH aid, so a fine pointer (mouse, trackpad) hits the disc exactly, the
+ * way ProBoard does. On touch the padded circle is capped at `capPx`, the
+ * distance to the nearest other pick in the same (board-plane) px: two
+ * neighbouring circles then meet at most at the midpoint and never overlap,
+ * so a tap on one space can't commit the one next to it. Never smaller than
+ * the visible disc.
+ */
+export const tableHitPx = (diamPx: number, paddedPx: number, coarsePointer: boolean, capPx = Infinity): number =>
+  coarsePointer ? Math.max(diamPx, Math.min(paddedPx, capPx)) : diamPx;
+
+/**
  * Evenly divides a circle into `count` wedges for a multi-zone space (SET
  * semantics — one wedge per zone, in the map's own `zones` order), starting
  * at 12 o'clock and going clockwise so the first zone always reads at the

@@ -29,6 +29,7 @@ import {
   standeeZIndex,
   tableFocusCapDiameterPx,
   tableHitDiameter,
+  tableHitPx,
   tableHitPadFraction,
 } from "./tableProjection";
 
@@ -353,5 +354,21 @@ describe("combat FX placement", () => {
   it("clamps coordinates that stray outside the board image", () => {
     expect(fxLabelZIndex(-3)).toBe(fxLabelZIndex(0));
     expect(fxLabelZIndex(4)).toBe(fxLabelZIndex(1));
+  });
+});
+
+describe("tableHitPx (#873)", () => {
+  it("is exactly the disc for a fine pointer, however deep the space sits", () => {
+    expect(tableHitPx(40, 90, false)).toBe(40);
+    expect(tableHitPx(40, 90, false, 200)).toBe(40);
+  });
+
+  it("pads for depth on touch, up to the nearest other pick", () => {
+    expect(tableHitPx(40, 90, true)).toBe(90);
+    expect(tableHitPx(40, 90, true, 48)).toBe(48);
+  });
+
+  it("never shrinks below the visible disc when picks crowd each other", () => {
+    expect(tableHitPx(40, 90, true, 30)).toBe(40);
   });
 });

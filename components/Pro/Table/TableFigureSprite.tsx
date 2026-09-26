@@ -37,9 +37,13 @@ export interface TableFigureSpriteProps {
   /** The billboarded plate's own size, px — its bottom centre is the feet. */
   plateW: number;
   plateH: number;
+  /** Let the figure's body take taps (#873). Only while the fighter itself is
+   *  a target: the body stands over the space behind it, so otherwise a tap
+   *  there belongs to that space. */
+  hitTarget?: boolean;
 }
 
-export const TableFigureSprite = ({ figure, baseDiamPx, plateW, plateH }: TableFigureSpriteProps) => {
+export const TableFigureSprite = ({ figure, baseDiamPx, plateW, plateH, hitTarget = false }: TableFigureSpriteProps) => {
   const box = figureSpriteBox(figure, baseDiamPx);
   const aboveFeet = Math.min(box.height, -box.top + SEAM_OVERLAP_PX);
   return (
@@ -62,6 +66,7 @@ export const TableFigureSprite = ({ figure, baseDiamPx, plateW, plateH }: TableF
         draggable={false}
         position="absolute"
         maxW="none"
+        pointerEvents={hitTarget ? "auto" : "none"}
         style={{ width: `${box.width}px`, height: `${box.height}px`, left: 0, top: 0 }}
       />
     </Box>
