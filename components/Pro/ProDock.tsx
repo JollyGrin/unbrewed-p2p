@@ -573,6 +573,12 @@ export const ProDock = ({
   const forcedKey =
     view.prompt?.promptId ?? (combatOpen ? "combat" : view.winner ? "winner" : stepping ? "stepping" : "sheet");
   const [minimizedKey, setMinimizedKey] = useState<string | null>(null);
+  // A prompt-less combat or walk has a constant key, so the minimise lasts only
+  // while that sheet stays forced: once it lets go, the next combat / walk
+  // opens in full instead of inheriting a stale "A decision is waiting" (#874).
+  useEffect(() => {
+    if (!sheetForced) setMinimizedKey(null);
+  }, [sheetForced]);
   const forcedMinimized = sheetShell && sheetForced && minimizedKey === forcedKey;
   const compactBar = forcedMinimized || boardPickCompact;
   // An action picked from the optional sheet that lights the board (a maneuver's

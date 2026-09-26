@@ -106,7 +106,7 @@ import { MulliganDialog } from "@/components/Pro/MulliganDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
 import { actionFallbackLine, batchPhase, batchTurnTag, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
 import { MulliganChoice, isMulliganPrompt, mulliganChoiceOf } from "@/lib/pro/mulligan";
-import { RAIL_WIDTH_CSS, TAP_TARGET, boardFitInsetFor } from "@/lib/pro/mobileLayout";
+import { RAIL_WIDTH_CSS, TAP_TARGET, boardFitInsetFor, handDecisionKeyFor } from "@/lib/pro/mobileLayout";
 import { figureFor } from "@/lib/pro/figures";
 import { useFigureManifest } from "@/lib/pro/useFigureManifest";
 import { useElementHeight, useProLayout } from "@/lib/pro/useProLayout";
@@ -6766,13 +6766,14 @@ const LiveGame = ({
   // leaves the hand playable too, and opening the drawer over the board for it
   // is exactly the wrong move. Never during the mulligan, which puts the
   // opening hand on screen itself.
-  const handDecision =
-    mobile &&
-    !!prompt &&
-    !mulliganPrompt &&
-    promptCardOptions.some((o) => view.self.hand.includes(o.instance))
-      ? prompt.promptId
-      : null;
+  // Not in the tabletop HUD, whose drawer would cover the question (#874).
+  const handDecision = handDecisionKeyFor({
+    shell: mobile ? (hud ? "hud" : rail ? "rail" : "portrait") : false,
+    promptId: prompt?.promptId ?? null,
+    mulligan: !!mulliganPrompt,
+    optionInstances: promptCardOptions.map((o) => o.instance),
+    hand: view.self.hand,
+  });
 
 
   // The HUD's data, built once and worn by whichever arrangement is mounted
@@ -7378,7 +7379,6 @@ const LiveGame = ({
       {hud && (
         <>
           {dockEl}
-          <HandDecisionWatcher promptKey={handDecision} onOpen={() => setHandOpen(true)} />
           <TableHudHand
             besideSheet={mobileSheetShown}
             hand={view.self.hand}

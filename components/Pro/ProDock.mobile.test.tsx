@@ -434,6 +434,46 @@ describe("ProDock portrait board-pick bar (mobile step 1)", () => {
 
       expect(screen.getByTestId("pro-mobile-sheet")).toBeInTheDocument();
     });
+
+    // #874: a prompt-less combat / walk has a constant key ("combat",
+    // "stepping"), so one minimise used to collapse every later one.
+    it("opens the next combat in full after the last one was minimized", () => {
+      const { rerender } = render(<ProDock {...props({ combatPanel: <div>COMBAT 1</div> })} />);
+      fireEvent.click(screen.getByRole("button", { name: /minimize/i }));
+      expect(screen.queryByText("COMBAT 1")).toBeNull();
+
+      rerender(<ProDock {...props({ combatPanel: null })} />);
+      rerender(<ProDock {...props({ combatPanel: <div>COMBAT 2</div> })} />);
+
+      expect(screen.getByTestId("pro-mobile-sheet")).toBeInTheDocument();
+      expect(screen.getByText("COMBAT 2")).toBeInTheDocument();
+    });
+
+    it("opens the next walk's End/Cancel sheet in full after the last one was minimized", () => {
+      const walk = (fighterName: string) => ({
+        fighterName, movesLeft: 3, canEnd: true, onEnd: () => {}, onCancel: () => {},
+      });
+      const { rerender } = render(<ProDock {...props({ stepping: walk("King Kong") })} />);
+      fireEvent.click(screen.getByRole("button", { name: /minimize/i }));
+      expect(screen.queryByRole("button", { name: /end move here/i })).toBeNull();
+
+      rerender(<ProDock {...props({ stepping: null })} />);
+      rerender(<ProDock {...props({ stepping: walk("King Kong") })} />);
+
+      expect(screen.getByTestId("pro-mobile-sheet")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /end move here/i })).toBeInTheDocument();
+    });
+
+    it("opens the next combat in full in the landscape HUD too", () => {
+      const { rerender } = render(<ProDock {...props({ mobile: "hud", combatPanel: <div>COMBAT 1</div> })} />);
+      fireEvent.click(screen.getByRole("button", { name: /minimize/i }));
+      expect(screen.queryByText("COMBAT 1")).toBeNull();
+
+      rerender(<ProDock {...props({ mobile: "hud", combatPanel: null })} />);
+      rerender(<ProDock {...props({ mobile: "hud", combatPanel: <div>COMBAT 2</div> })} />);
+
+      expect(screen.getByText("COMBAT 2")).toBeInTheDocument();
+    });
   });
 
   describe("landscape rail (mobile polish)", () => {
