@@ -24,6 +24,7 @@ import {
   useState,
 } from "react";
 import { ScreenBox, focusTransform, rebaseBox, shouldAutoFocus } from "./touchTargets";
+import { ContentBox, fitContent } from "./fitContent";
 
 /** Margin around auto-focused picks, as a multiple of one pick's on-screen diameter. */
 const FOCUS_PADDING_PICKS = 0.75;
@@ -134,8 +135,25 @@ export interface ZoomPan {
    * Touch helper (mobile step 1): zoom onto a box of board picks given in
    * CLIENT px, when they would otherwise be too small or huddled to tap. A
    * no-op once the player has moved the view themselves.
+   *
+   * `pickDiameterPx` is the SMALLEST current pick — it decides whether to
+   * zoom AT ALL (any pick under the touch minimum should trigger a focus).
+   * `capDiameterPx` (phase-3 fault #2, added for the tilted table view; see
+   * tableProjection.ts's file header for the full "why") is a SEPARATE,
+   * optional diameter that decides how FAR to zoom: the padding and the zoom
+   * ceiling are computed from it instead of `pickDiameterPx`. On a flat
+   * board every pick renders roughly the same size, so the two numbers were
+   * always equal in practice — omitting `capDiameterPx` (it defaults to
+   * `pickDiameterPx`) reproduces that exactly, so this is a no-op for every
+   * existing caller. On a TILTED board a far-rank pick can render a third
+   * the size of a near-rank one on the very same prompt; driving the zoom
+   * ceiling off the smallest of them tries to enlarge the far pick until it
+   * hits FOCUS_MAX_PICK_PX, which blows the near pick — and the board
+   * itself — off the edge of the screen. A caller with depth-varying picks
+   * should pass the LARGEST current pick as `capDiameterPx` so the ceiling
+   * is judged by "don't zoom past what the near pick can tolerate" instead.
    */
-  focusOn: (clientBox: ScreenBox, pickDiameterPx: number) => void;
+  focusOn: (clientBox: ScreenBox, pickDiameterPx: number, capDiameterPx?: number) => void;
   /** undo an auto-focus, unless the player moved the view since it happened */
   releaseFocus: () => void;
 }
@@ -154,12 +172,17 @@ export interface ZoomPan {
  *                 moves the board the way the finger went. Everything the
  *                 frame draws that must read upright counter-rotates itself
  *                 (see ProBoard's `uprightTransform`).
+ * @param measureContent optional: the box the frame actually DRAWS, in the
+ *                 frame's unscaled units (see lib/pro/fitContent). The initial
+ *                 fit places that box instead of the layout box. Keep it a
+ *                 stable callback — the fit recomputes when its identity changes.
  */
 export function useZoomPan(
   enabled: boolean,
   frameRef: RefObject<HTMLElement>,
   inset: ZoomPanInset = {},
-  rotated = false
+  rotated = false,
+  measureContent?: () => ContentBox | null
 ): ZoomPan {
   const containerRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<ZoomPanState>(IDENTITY);
@@ -203,15 +226,14 @@ export function useZoomPan(
     const fw = rotated ? f.offsetHeight : f.offsetWidth;
     const fh = rotated ? f.offsetWidth : f.offsetHeight;
     if (!cw || !ch || !fw || !fh) return null;
-    const availW = Math.max(cw - left - right, 1);
-    const availH = Math.max(ch - top - bottom, 1);
-    const scale = clampFit(Math.min(availW / fw, availH / fh));
-    return {
-      scale,
-      tx: left + (availW - fw * scale) / 2,
-      ty: top + (availH - fh * scale) / 2,
-    };
-  }, [frameRef, top, right, bottom, left, rotated]);
+    // What the frame DRAWS, when the caller knows it differs from the layout
+    // box (the tilted table board — see lib/pro/fitContent). Without it, or
+    // before the drawing has any size, the layout box is the content: the
+    // classic fit, unchanged for every other caller.
+    const content = measureContent?.() ?? { left: 0, top: 0, width: fw, height: fh };
+    const next = fitContent({ w: cw, h: ch }, { top, right, bottom, left }, content, ZOOM_MAX);
+    return { ...next, scale: clampFit(next.scale) };
+  }, [frameRef, top, right, bottom, left, rotated, measureContent]);
 
   // Re-fit on any size change of the viewport box or the board frame. While the
   // player hasn't touched the view, the board follows along; once they have, we
@@ -325,7 +347,7 @@ export function useZoomPan(
   }, [computeFit, fit]);
 
   const focusOn = useCallback(
-    (clientBox: ScreenBox, pickDiameterPx: number) => {
+    (clientBox: ScreenBox, pickDiameterPx: number, capDiameterPx?: number) => {
       const c = containerRef.current;
       const f = frameRef.current;
       if (!enabled || !c || !f || touched.current) return;
@@ -353,6 +375,10 @@ export function useZoomPan(
       );
       const box = rebased.box;
       const pickPx = pickDiameterPx * rebased.factor;
+      // See the `focusOn` doc comment on the `ZoomPan` interface: defaults to
+      // `pickPx` so a 2-arg caller (ProBoard, and every existing test) sees
+      // byte-identical behaviour to before this parameter existed.
+      const capPx = (capDiameterPx ?? pickDiameterPx) * rebased.factor;
       const avail = {
         left,
         top,
@@ -376,11 +402,11 @@ export function useZoomPan(
         current,
         box,
         avail,
-        padding: pickPx * FOCUS_PADDING_PICKS,
+        padding: capPx * FOCUS_PADDING_PICKS,
         minScale: fitScaleRef.current,
         maxScale: Math.max(
           fitScaleRef.current,
-          Math.min(ZOOM_MAX, (current.scale * FOCUS_MAX_PICK_PX) / Math.max(pickPx, 1))
+          Math.min(ZOOM_MAX, (current.scale * FOCUS_MAX_PICK_PX) / Math.max(capPx, 1))
         ),
       });
       setEased(true);

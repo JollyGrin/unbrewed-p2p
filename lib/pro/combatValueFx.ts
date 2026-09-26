@@ -57,7 +57,9 @@ export interface ValueBeats {
   DEFENSE: RoleValueBeats | null;
 }
 
-/** Timeline occupancy of one chip (fly-in + a short hold) before the next starts. */
+/** Timeline occupancy of one chip (fly-in + a short hold) before the next starts.
+ *  Scaled by pace in useCombatValueFx below — this is the 1× (today's pace)
+ *  value everything else derives from. */
 export const CHIP_DURATION_MS = 640;
 /** How long a chip lingers on screen after it appears. */
 const CHIP_TTL_MS = 900;
@@ -182,9 +184,16 @@ const EMPTY_SLOT: SlotValueFx = { chips: [], displayValue: null };
  * stepping the pill toward the chip's target as it lands. When the run finishes the
  * displayed value is released back to null so the pill reads the (now-final) view
  * value. All timers are owned by the shared timeline hook, so they clear on unmount.
+ *
+ * `paceFactor` is the PLAYER'S combat-pace setting (lib/pro/pace.ts, 1 = today's
+ * pace) — not to be confused with the "pace the chips through the timeline"
+ * language above. Every chip's timeline duration, its on-screen lifetime and the
+ * count-up step cadence scale by it, and the run's own lead cap
+ * (BATTLE_MAX_LEAD_MS) scales too so a slower run still fits its bound.
  */
 export function useCombatValueFx(
-  snapshot: { view: PlayerView; events: GameEvent[] } | null
+  snapshot: { view: PlayerView; events: GameEvent[] } | null,
+  paceFactor = 1
 ): CombatValueFx {
   const [attack, setAttack] = useState<SlotValueFx>(EMPTY_SLOT);
   const [defense, setDefense] = useState<SlotValueFx>(EMPTY_SLOT);
@@ -194,6 +203,10 @@ export function useCombatValueFx(
   // Count-up interval per role (stepping the pill one unit at a time). Cleared when
   // a new tick starts for that role or when a new combat cancels everything.
   const countTimersRef = useRef<ReturnType<typeof setInterval>[]>([]);
+  // Latest pace, read without re-subscribing the diff effect — see useGameFx.ts
+  // for the same pattern.
+  const paceRef = useRef(paceFactor);
+  paceRef.current = paceFactor;
 
   const setFor = useCallback((role: CombatRole, fn: (s: SlotValueFx) => SlotValueFx) => {
     (role === "ATTACK" ? setAttack : setDefense)(fn);
@@ -209,6 +222,7 @@ export function useCombatValueFx(
   // Step a pill's displayed value one unit at a time toward `target`.
   const countTo = useCallback(
     (role: CombatRole, target: number) => {
+      const stepMs = Math.round(COUNT_STEP_MS * paceRef.current);
       const timer = setInterval(() => {
         let done = false;
         setFor(role, (s) => {
@@ -222,7 +236,7 @@ export function useCombatValueFx(
           return { ...s, displayValue: nextVal };
         });
         if (done) clearInterval(timer);
-      }, COUNT_STEP_MS);
+      }, stepMs);
       countTimersRef.current.push(timer);
     },
     [setFor]
@@ -239,22 +253,29 @@ export function useCombatValueFx(
     cancel();
     clearCounts();
 
+    const factor = paceRef.current;
+    const chipTtlMs = Math.round(CHIP_TTL_MS * factor);
+
     const runRole = (role: CombatRole, plan: RoleValueBeats | null) => {
       if (!plan) return;
       // Show the pre-modifier value immediately; the chips will tick it up.
       setFor(role, () => ({ chips: [], displayValue: plan.startValue }));
-      const scheduled = scheduleBeats(plan.chips, { maxLeadMs: BATTLE_MAX_LEAD_MS });
+      // Scale each chip's timeline occupancy by the player's pace BEFORE scheduling
+      // — deriveValueBeats stays pace-agnostic (and its tests keep asserting the 1×
+      // CHIP_DURATION_MS) while the schedule itself reads slower end-to-end.
+      const pacedChips = plan.chips.map((c) => ({ ...c, duration: Math.round(c.duration * factor) }));
+      const scheduled = scheduleBeats(pacedChips, { maxLeadMs: Math.round(BATTLE_MAX_LEAD_MS * factor) });
       run(scheduled.scheduled, (chip) => {
         const key = `chip-${seqRef.current++}`;
         setFor(role, (s) => ({ ...s, chips: [...s.chips, { ...chip, key }] }));
         countTo(role, chip.toValue);
         // Remove the chip after its lifetime (tracked timer → cleared on cancel/unmount).
-        run([{ item: key, delay: CHIP_TTL_MS }], (k) =>
+        run([{ item: key, delay: chipTtlMs }], (k) =>
           setFor(role, (s) => ({ ...s, chips: s.chips.filter((c) => c.key !== k) }))
         );
       });
       // Release the pill back to the view value once the whole run has played out.
-      run([{ item: null, delay: scheduled.endMs + CHIP_TTL_MS }], () =>
+      run([{ item: null, delay: scheduled.endMs + chipTtlMs }], () =>
         setFor(role, (s) => ({ ...s, displayValue: null }))
       );
     };

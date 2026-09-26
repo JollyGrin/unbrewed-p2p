@@ -35,6 +35,7 @@ import {
   useState,
 } from "react";
 import { Card } from "@/components/CardFactory/Card";
+import { useCoarsePointer } from "@/lib/pro/useCoarsePointer";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 
 /** ~150ms kills flicker when the cursor merely passes over a card. */
@@ -159,12 +160,18 @@ type PreviewHandlers = {
  * `touchOnly` keeps just the press-and-hold peek, for a card that sits inside
  * its own button (the mobile card picker): a tap focuses that button, and the
  * focus preview would otherwise pop a full-size card over the picker.
+ *
+ * A finger gets that same treatment everywhere (player feedback): a tap used to
+ * focus the card and park the HOVER preview in its dead corner, where the hand
+ * drawer and the dock cut it in half. On a touch screen only the hold peeks,
+ * and it is centred and sized to fit.
  */
 export const useCardPreview = (
   card: DeckImportCardType | null,
   { touchOnly = false }: { touchOnly?: boolean } = {}
 ): PreviewHandlers => {
   const api = useContext(CardPreviewContext);
+  const coarsePointer = useCoarsePointer();
   const enterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shown = useRef(false);
 
@@ -212,7 +219,7 @@ export const useCardPreview = (
     },
     onTouchCancel: hideNow,
   };
-  if (touchOnly) return touch;
+  if (touchOnly || coarsePointer) return touch;
 
   return {
     tabIndex: 0,
