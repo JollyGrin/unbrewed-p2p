@@ -1740,8 +1740,10 @@ export interface ReplayConfig {
   // `mulligan` (v30, engine #395): the game was played with the opening-hand
   // mulligan window open, so its action log carries the window's own prompt
   // answers. Absent = the pre-v30 flow; every bundle from a mulligan-free game is
-  // byte-identical to a pre-v30 one.
-  options?: { allowNonstandardDeck?: boolean; startingHandSize?: number; mulligan?: boolean };
+  // byte-identical to a pre-v30 one. `itemsDisabled` (engine #519, server/replay.ts
+  // buildReplayBundle): the room opted OUT of its board's battlefield items; like
+  // `mulligan` it rides only on its non-default side.
+  options?: { allowNonstandardDeck?: boolean; startingHandSize?: number; mulligan?: boolean; itemsDisabled?: boolean };
   players: { p1: ReplayPlayerSetup; p2: ReplayPlayerSetup } & Partial<Record<PlayerId, ReplayPlayerSetup>>;
   formatId?: string;
   map: ProMapDef;
