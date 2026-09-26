@@ -11,6 +11,8 @@
  * screen (which also forgets it).
  */
 
+import type { RoomBots } from "./rematch";
+
 export interface RecentRoom {
   roomId: string;
   ts: number; // last time this browser was seated (ms epoch)
@@ -22,6 +24,11 @@ const TOKEN_PREFIX = "unbrewed-pro-token-";
 // the in-memory room) can be revived via RESUME_ROOM. localStorage, not
 // sessionStorage — it must survive a full reload and "resume tomorrow".
 const RESUME_PREFIX = "unbrewed-pro-resume-";
+// Which seats of a room are AI (#876). Only ROOM_STATUS says so on the wire, and
+// a bot room (started straight from CREATE_ROOM) or a mid-game RECONNECT never
+// receives one — so what this browser learned is kept per room, beside the
+// token, for the winner screen's Rematch link to read back after a reload.
+const BOTS_PREFIX = "unbrewed-pro-bots-";
 const RECENT_KEY = "unbrewed-pro-recent-rooms";
 const MAX_RECENT = 5;
 const MAX_AGE_MS = 24 * 60 * 60 * 1000; // in-memory server rooms never outlive this
@@ -68,6 +75,25 @@ export function getResumeToken(roomId: string): string | null {
   return localStorage.getItem(RESUME_PREFIX + roomId);
 }
 
+/** Record which seats of a room are bots (seat → difficulty). */
+export function setRoomBots(roomId: string, bots: RoomBots): void {
+  if (!canStore()) return;
+  localStorage.setItem(BOTS_PREFIX + roomId, JSON.stringify(bots));
+}
+
+/** The recorded bot seats of a room, or null when this browser never learned
+ *  them (a garbled entry reads as unknown, never as "no bots"). */
+export function getRoomBots(roomId: string): RoomBots | null {
+  if (!canStore()) return null;
+  try {
+    const raw = localStorage.getItem(BOTS_PREFIX + roomId);
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as RoomBots) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function listRecentRooms(): RecentRoom[] {
   if (!canStore()) return [];
   let parsed: RecentRoom[] = [];
@@ -95,6 +121,7 @@ export function forgetRoom(roomId: string): void {
   localStorage.removeItem(TOKEN_PREFIX + roomId);
   sessionStorage.removeItem(TOKEN_PREFIX + roomId);
   localStorage.removeItem(RESUME_PREFIX + roomId);
+  localStorage.removeItem(BOTS_PREFIX + roomId);
   const next = listRecentRooms().filter((r) => r.roomId !== roomId);
   localStorage.setItem(RECENT_KEY, JSON.stringify(next));
 }

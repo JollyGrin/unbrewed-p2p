@@ -225,6 +225,7 @@ import {
   parseRematchQuery,
   rematchCreateRoomArgs,
   rematchQuery,
+  withoutRematchQuery,
 } from "@/lib/pro/rematch";
 import { useLobbyMatchCue } from "@/lib/pro/useLobbyMatchCue";
 import { useTurnReminder } from "@/lib/pro/useTurnReminder";
@@ -4657,21 +4658,24 @@ const LiveGame = ({
 
   // One-tap rematch (issue #TBD): the winner screen's Rematch button target —
   // a /pro/game?rematch=1&... link encoding this SAME game's setup (see
-  // lib/pro/rematch.ts for exactly what carries over, and what can't). Built
-  // from the two sources every seat gets, not just the host — the live room
-  // roster (ROOM_STATUS) and the replay bundle both seats receive at
-  // GAME_OVER — so whoever presses it, winner or loser, gets an equally
-  // faithful rematch. Null until both have landed, which the dock treats as
-  // "not ready yet" rather than rendering a broken link.
+  // lib/pro/rematch.ts for exactly what carries over). Built from the replay
+  // bundle every seat receives at GAME_OVER plus the room's recorded bot seats
+  // — NOT the ROOM_STATUS roster, which a bot room and a mid-game reload never
+  // get (#876) — so whoever presses it, winner or loser, vs AI or not, gets an
+  // equally faithful rematch. Null until the bundle lands, which the dock
+  // treats as "not ready yet" rather than rendering a broken link.
   const rematchHref = useMemo(() => {
-    if (!replayBundle || !roomInfo?.roster || !roomInfo.you) return null;
+    if (!replayBundle || !roomInfo?.you) return null;
+    const { config } = replayBundle;
     const setup = buildFinishedGameSetup({
-      roster: roomInfo.roster,
+      players: config.players,
+      bots: roomInfo.bots ?? {},
       you: roomInfo.you,
-      formatId: roomInfo.formatId,
+      formatId: config.formatId ?? roomInfo.formatId,
       turnTimerSeconds: roomInfo.turnTimerSeconds,
-      mulliganWasOn: replayBundle.config.options?.mulligan === true,
-      mapId: replayBundle.config.mapId ?? null,
+      mulliganWasOn: config.options?.mulligan === true,
+      itemsWereOff: config.options?.itemsDisabled === true,
+      mapId: config.mapId ?? null,
     });
     return setup ? `/pro/game?${new URLSearchParams(rematchQuery(setup)).toString()}` : null;
   }, [replayBundle, roomInfo]);
@@ -4882,11 +4886,13 @@ const LiveGame = ({
   // URL never had it, so a refresh dumped them to the lobby with no way back
   // (playtest feedback). With the id in the URL + the localStorage token, a
   // refresh reconnects either seat.
+  // A rematch link's own keys are dropped on the way (#876): left beside
+  // `room=`, a refresh would read them as a fresh rematch and CREATE_ROOM again.
   const router = useRouter();
   useEffect(() => {
     if (!roomId || router.query.room === roomId) return;
     router.replace(
-      { pathname: router.pathname, query: { ...router.query, room: roomId } },
+      { pathname: router.pathname, query: { ...withoutRematchQuery(router.query), room: roomId } },
       undefined,
       { shallow: true }
     );
@@ -5026,10 +5032,21 @@ const LiveGame = ({
   // `customMap` is resolved from `rematch.mapId` here (not in lib/pro/rematch,
   // which stays protocol-only) via the same catalog helpers onConfirm uses; a
   // pasted-custom board has no mapId and rematches onto the format's default.
+  // The link's params come straight off the URL the moment it fires (#876):
+  // the page's own `room=` takes over from there, so a refresh or a copied URL
+  // RECONNECTs to this room instead of minting another empty one. What the
+  // waiting room still needs from the link (`joinHero`) is kept in state.
   const rematchFiredRef = useRef(false);
+  const [firedRematch, setFiredRematch] = useState<ParsedRematch | null>(null);
   useEffect(() => {
     if (!rematch || rematchFiredRef.current) return;
     rematchFiredRef.current = true;
+    setFiredRematch(rematch);
+    router.replace(
+      { pathname: router.pathname, query: withoutRematchQuery(router.query) },
+      undefined,
+      { shallow: true }
+    );
     const args = rematchCreateRoomArgs(rematch);
     const mapEntry = rematch.mapId ? catalogEntry(rematch.mapId) : undefined;
     createRoom(
@@ -5040,12 +5057,15 @@ const LiveGame = ({
       args.botSeats,
       args.turnTimerSeconds,
       args.mulligan,
+      undefined,
+      args.itemsEnabled,
     );
     setSelectedHeroId(args.heroId);
     setSelectedFormat(rematch.formatId as ProFormatId);
     if (rematch.mapId) setSelectedMapId(rematch.mapId);
+    if (args.itemsEnabled === false) setItemsEnabled(false);
     setJoined(true);
-  }, [rematch, createRoom]);
+  }, [rematch, createRoom, router]);
 
   // UNKNOWN_HERO shouldn't happen when picking from the server list, but if the
   // server rejects the hero, drop back to the picker instead of a dead end.
@@ -5492,7 +5512,7 @@ const LiveGame = ({
       const joinUrl =
         typeof window !== "undefined"
           ? `${window.location.origin}/pro/game?room=${roomId}${
-              rematch?.joinHeroId ? `&hero=${encodeURIComponent(rematch.joinHeroId)}` : ""
+              firedRematch?.joinHeroId ? `&hero=${encodeURIComponent(firedRematch.joinHeroId)}` : ""
             }`
           : "";
       return (

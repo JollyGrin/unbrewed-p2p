@@ -17,19 +17,18 @@
  * its own; that would need a server feature this client can't add.
  *
  * What carries over exactly, and why:
- *  - hero (yours), format, timer, mulligan, the map, and every bot seat's
- *    difficulty + hero: all of it is either broadcast to EVERY seat during
- *    the game (ROOM_STATUS's roster, echoed formatId/turnTimerSeconds) or
- *    lands in the REPLAY_BUNDLE both seats get at GAME_OVER (mulligan,
- *    mapId) — so any seat, not just the host, can propose a faithful
- *    rematch.
- *  - the battlefield-items opt-out is the one setting that genuinely can't
- *    be recovered: `CREATE_ROOM.itemsEnabled` is "not echoed back" by design
- *    (protocol.ts's own v34 note) — the creator's client knows because it
- *    set it, and nobody else ever learns the boolean, only its on-board
- *    effect. A rematch therefore always plays with items ON (the server
- *    default), even if the original game had them off. Documented, not
- *    silently wrong.
+ *  - hero (yours), format, timer, mulligan, items on/off, the map, and every
+ *    bot seat's difficulty + hero. The heroes, format, map, mulligan and the
+ *    items opt-out all ride the REPLAY_BUNDLE every seat gets at GAME_OVER
+ *    (`config.players`, `config.options.{mulligan,itemsDisabled}`), and the
+ *    timer is echoed on ROOM_CREATED/JOINED — so any seat, not just the host,
+ *    can propose a faithful rematch, even after a mid-game reload (#876).
+ *  - which seats are BOTS is the one thing no in-game message says: only
+ *    ROOM_STATUS's roster carries it, and a bot room (started straight from
+ *    CREATE_ROOM) or a mid-game RECONNECT never gets one. So the socket hook
+ *    records the bot seats this browser learned — from its own CREATE_ROOM, or
+ *    from any ROOM_STATUS — per room (recentRooms `setRoomBots`), and that
+ *    record survives a reload (`ProRoomInfo.bots`).
  *  - the seed is deliberately NEVER carried over — a rematch is a new game.
  */
 import { BotDifficulty, BotSeatFill, PlayerId } from "./protocol";
@@ -46,6 +45,8 @@ export interface RematchRosterSeat {
  *  ended. `otherSeats` excludes the presser's own seat. */
 export interface FinishedGameSetup {
   formatId: string;
+  /** the game was played with its board's battlefield items switched OFF */
+  itemsWereOff: boolean;
   /** catalog board id, or null for a pasted custom board (map.mapId is only
    *  ever set for a catalog pick — see ReplayConfig.mapId in protocol.ts) */
   mapId: string | null;
@@ -56,27 +57,53 @@ export interface FinishedGameSetup {
   otherSeats: RematchRosterSeat[];
 }
 
-/** Assemble `FinishedGameSetup` from the live room roster + the replay
- *  bundle's recorded config — the two sources every seat receives. Returns
- *  null when the presser's own seat isn't in the roster (defensive: an
- *  incomplete ROOM_STATUS should never offer a rematch it can't seed). */
+/** Which seats are AI, by seat id — the one piece of a rematch the replay
+ *  bundle doesn't carry (see the header). */
+export type RoomBots = Partial<Record<PlayerId, BotDifficulty>>;
+
+/** The bot seats a CREATE_ROOM asks for, as a `RoomBots` record: duel's single
+ *  `bot` always fills p2 (protocol v3), every other format names its seats in
+ *  `botSeats[]`. What the socket hook remembers per room at create time. */
+export function botsFromCreateRoom(
+  bot: { difficulty: BotDifficulty } | undefined,
+  botSeats: BotSeatFill[] | undefined,
+): RoomBots {
+  const bots: RoomBots = {};
+  if (bot) bots.p2 = bot.difficulty;
+  for (const s of botSeats ?? []) bots[s.player] = s.difficulty;
+  return bots;
+}
+
+/** Assemble `FinishedGameSetup` from the replay bundle every seat receives at
+ *  GAME_OVER (`config.players` gives every seat's concrete hero — a Random pick
+ *  already resolved) plus the room's known bot seats. No ROOM_STATUS roster is
+ *  needed, so the Rematch button shows vs AI and after a mid-game reload
+ *  (#876). Returns null when the presser's own seat isn't in the bundle
+ *  (defensive: never offer a rematch it can't seed). */
 export function buildFinishedGameSetup(input: {
-  roster: RematchRosterSeat[];
+  players: Partial<Record<PlayerId, { heroId: string }>>;
+  bots: RoomBots;
   you: PlayerId;
   formatId: string;
   turnTimerSeconds: number | undefined;
   mulliganWasOn: boolean;
+  itemsWereOff: boolean;
   mapId: string | null;
 }): FinishedGameSetup | null {
-  const mine = input.roster.find((s) => s.player === input.you);
+  const mine = input.players[input.you];
   if (!mine) return null;
+  const otherSeats: RematchRosterSeat[] = (Object.keys(input.players) as PlayerId[])
+    .filter((player) => player !== input.you && !!input.players[player])
+    .sort()
+    .map((player) => ({ player, heroId: input.players[player]!.heroId, bot: input.bots[player] ?? null }));
   return {
     formatId: input.formatId,
+    itemsWereOff: input.itemsWereOff,
     mapId: input.mapId,
     turnTimerSeconds: input.turnTimerSeconds ?? 0,
     mulliganWasOn: input.mulliganWasOn,
     yourHeroId: mine.heroId,
-    otherSeats: input.roster.filter((s) => s.player !== input.you),
+    otherSeats,
   };
 }
 
@@ -92,6 +119,7 @@ export function rematchQuery(setup: FinishedGameSetup): RematchQueryParams {
   if (setup.mapId) query.map = setup.mapId;
   if (setup.turnTimerSeconds > 0) query.timer = String(setup.turnTimerSeconds);
   if (!setup.mulliganWasOn) query.mulligan = "0";
+  if (setup.itemsWereOff) query.items = "0";
 
   // Bot seats ride the link so the presser's rematch starts with the SAME AI
   // teammates/opponent already seated — no re-adding them by hand. Encoded as
@@ -117,8 +145,8 @@ export function rematchQuery(setup: FinishedGameSetup): RematchQueryParams {
 }
 
 /** A rematch link's payload, decoded back out of `router.query`. Null when
- *  the query isn't a rematch link at all (no `rematch=1`) or is missing the
- *  one field with no sane default (`hero`) — either way the page should fall
+ *  the query isn't a rematch link at all (no `rematch=1`), already names a
+ *  `room=`, or is missing the one field with no sane default (`hero`) — either way the page should fall
  *  back to its normal boot path instead of firing a broken CREATE_ROOM. */
 export interface ParsedRematch {
   heroId: string;
@@ -126,6 +154,7 @@ export interface ParsedRematch {
   mapId: string | null;
   turnTimerSeconds: number;
   mulligan: boolean;
+  itemsEnabled: boolean;
   botSeats: BotSeatFill[];
   joinHeroId: string | null;
 }
@@ -137,6 +166,9 @@ export function parseRematchQuery(
   query: Record<string, string | string[] | undefined>,
 ): ParsedRematch | null {
   if (oneString(query.rematch) !== "1") return null;
+  // A URL that already names a room wins (#876): that room is where this
+  // player sits, so a stale `rematch=1` beside it must RECONNECT, never create.
+  if (oneString(query.room)) return null;
   const heroId = oneString(query.hero);
   if (!heroId) return null;
 
@@ -163,6 +195,7 @@ export function parseRematchQuery(
     mapId: oneString(query.map),
     turnTimerSeconds: Number.isFinite(timer) && timer > 0 ? timer : 0,
     mulligan: oneString(query.mulligan) !== "0",
+    itemsEnabled: oneString(query.items) !== "0",
     botSeats,
     joinHeroId: oneString(query.joinHero),
   };
@@ -184,6 +217,8 @@ export interface RematchCreateRoomArgs {
   turnTimerSeconds?: number;
   /** undefined omits the field — absent/true = on, the default */
   mulligan?: boolean;
+  /** undefined omits the field — absent/true = items on, the default */
+  itemsEnabled?: boolean;
 }
 
 export function rematchCreateRoomArgs(parsed: ParsedRematch): RematchCreateRoomArgs {
@@ -198,5 +233,31 @@ export function rematchCreateRoomArgs(parsed: ParsedRematch): RematchCreateRoomA
     formatId: isDuel ? undefined : parsed.formatId,
     turnTimerSeconds: parsed.turnTimerSeconds > 0 ? parsed.turnTimerSeconds : undefined,
     mulligan: parsed.mulligan ? undefined : false,
+    itemsEnabled: parsed.itemsEnabled ? undefined : false,
   };
+}
+
+/** Every query key a rematch link can carry (`rematchQuery`'s output). */
+export const REMATCH_QUERY_KEYS = [
+  "rematch",
+  "hero",
+  "format",
+  "map",
+  "timer",
+  "mulligan",
+  "items",
+  "bots",
+  "joinHero",
+] as const;
+
+/** `query` with a rematch link's keys removed — what the URL becomes once the
+ *  rematch's CREATE_ROOM has fired, so a refresh (or a copied URL) RECONNECTs
+ *  to the room it made instead of creating yet another one (#876). A query
+ *  that isn't a rematch link (no `rematch` key) comes back untouched: an
+ *  ordinary invite's `?hero=` preset is not ours to strip. */
+export function withoutRematchQuery<Q extends Record<string, string | string[] | undefined>>(query: Q): Q {
+  if (query.rematch === undefined) return query;
+  const rest = { ...query };
+  for (const key of REMATCH_QUERY_KEYS) delete rest[key];
+  return rest;
 }
