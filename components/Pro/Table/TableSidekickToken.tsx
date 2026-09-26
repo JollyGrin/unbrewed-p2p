@@ -3,9 +3,14 @@
  * (see TableFlatToken for why flat). The HP badge stands up above it.
  */
 import type { FighterId, ViewFighter } from "@/lib/pro/protocol";
-import { standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
+import { flatTokenTopPx, standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
 import { TableAnchorAnim, TableStandeeAnchor, type TableStackDepth } from "./TableStandeeAnchor";
-import { TableFighterBadges, TableFighterPickMarks } from "./TableFighterBadges";
+import {
+  fighterBadgesLowestPx,
+  pickMarksLowestPx,
+  TableFighterBadges,
+  TableFighterPickMarks,
+} from "./TableFighterBadges";
 import { TableFlatToken, TOKEN_BADGE_PLATE_HEIGHT } from "./TableFlatToken";
 
 export interface TableSidekickTokenProps {
@@ -38,6 +43,9 @@ export interface TableSidekickTokenProps {
   onHoverChange?: (id: FighterId | null) => void;
   /** Registers the token in the damage-arc registry (see TableBoard). */
   innerRef?: (el: HTMLElement | null) => void;
+  /** The table plane's size — see TableFighterStandee's. */
+  frameW?: number;
+  frameH?: number;
 }
 
 export const TableSidekickToken = ({
@@ -61,19 +69,23 @@ export const TableSidekickToken = ({
   onSpaceFallbackClick,
   onHoverChange,
   innerRef,
+  frameW,
+  frameH,
 }: TableSidekickTokenProps) => {
   const sizePx = standeeBaseDiameterPx(diamPx);
+  const plateHeightPx = sizePx * TOKEN_BADGE_PLATE_HEIGHT;
   const fighterClickable = targetable && !!onClick;
   const clickHandler = fighterClickable ? () => onClick!(fighter.id) : onSpaceFallbackClick;
 
   return (
     <TableStandeeAnchor
+      badgeOwner={fighter.id}
       stack={stack}
       x={x}
       y={y}
       tiltDeg={tiltDeg}
       widthPx={sizePx}
-      heightPx={sizePx * TOKEN_BADGE_PLATE_HEIGHT}
+      heightPx={plateHeightPx}
       spaceDiamPx={diamPx}
       spaceId={fighter.space}
       baseAccent={playerColor}
@@ -99,14 +111,26 @@ export const TableSidekickToken = ({
       onMouseEnter={onHoverChange ? () => onHoverChange(fighter.id) : undefined}
       onMouseLeave={onHoverChange ? () => onHoverChange(null) : undefined}
       title={`${fighter.name} — ${fighter.hp}/${fighter.maxHp} HP`}
+      frameW={frameW}
+      frameH={frameH}
+      groundTopPx={flatTokenTopPx(sizePx)}
+      badgeLowestPx={Math.min(
+        fighterBadgesLowestPx(plateHeightPx, "sidekick"),
+        pickMarksLowestPx({ extendedReach, badgeNumber, chipText })
+      )}
+      badges={
+        <>
+          <TableFighterBadges fighter={fighter} size="sidekick" />
+          <TableFighterPickMarks
+            extendedReach={extendedReach}
+            badgeNumber={badgeNumber}
+            chipText={chipText}
+            playerColor={playerColor ?? "rgba(250, 240, 222, 0.55)"}
+          />
+        </>
+      }
     >
-      <TableFighterBadges fighter={fighter} size="sidekick" />
-      <TableFighterPickMarks
-        extendedReach={extendedReach}
-        badgeNumber={badgeNumber}
-        chipText={chipText}
-        playerColor={playerColor ?? "rgba(250, 240, 222, 0.55)"}
-      />
+      {null}
     </TableStandeeAnchor>
   );
 };

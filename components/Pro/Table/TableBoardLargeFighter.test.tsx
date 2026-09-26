@@ -14,7 +14,7 @@ import { ChakraProvider } from "@chakra-ui/react";
 import { TableBoard } from "./TableBoard";
 import type { TableFighterTailProps } from "./TableFighterTail";
 import { ProMapDef, ViewFighter } from "@/lib/pro/protocol";
-import { BAND_LABEL_CLEARANCE_PX, standeeZIndex } from "@/lib/pro/tableProjection";
+import { BAND_LABEL_CLEARANCE_PX, BAND_LABEL_OVER_BADGES_PX, standeeZIndex } from "@/lib/pro/tableProjection";
 
 // Spy on the tail's props while still rendering the real component.
 const tailProps: TableFighterTailProps[] = [];
@@ -159,6 +159,17 @@ describe("TableBoard LARGE fighter name pill", () => {
     // clearance — otherwise the check is vacuous.
     expect(topOf(head)).toBeGreaterThan(topOf(larryFace) + BAND_LABEL_CLEARANCE_PX);
     expect(heightPx(screen.getByText("King Kong"))).toBeGreaterThan(topOf(head));
+  });
+
+  it("stands nearer the camera than the head token's slid badges, so they never cover it (#902)", () => {
+    const { container } = renderKong();
+    const pill = screen.getByText("King Kong");
+    const slid = [...pill.style.transform.matchAll(/translate3d\([^,]+, [^,]+, (-?[\d.]+)px\)/g)];
+    expect(slid).toHaveLength(1);
+    const badges = container.querySelector('[data-badge-owner="p1/kong"] [data-standee-badges]')!;
+    const badgesForward = Number(badges.getAttribute("data-badge-forward"));
+    expect(badgesForward).toBeGreaterThan(0);
+    expect(Number(slid[0][1])).toBeGreaterThanOrEqual(badgesForward + BAND_LABEL_OVER_BADGES_PX);
   });
 
   it("stays click-through, so a pick space under it still takes the tap", () => {
