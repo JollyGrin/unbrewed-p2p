@@ -3,13 +3,18 @@
  * pill at the band's midpoint must paint above BOTH of the fighter's own
  * pieces, and only the HEAD segment may settle a pending move — a second,
  * late settle from the tail would clear a new incoming move.
+ *
+ * The plane is preserve-3d, so the browser orders the pill by 3D DEPTH, not
+ * z-index (#899): the pill has to stand on its foot ABOVE the tokens' tops.
+ * jsdom can't render that; the real pixels are checked by
+ * scripts/visual-probe/tableTextOcclusion.cjs.
  */
 import { render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { TableBoard } from "./TableBoard";
 import type { TableFighterTailProps } from "./TableFighterTail";
 import { ProMapDef, ViewFighter } from "@/lib/pro/protocol";
-import { standeeZIndex } from "@/lib/pro/tableProjection";
+import { BAND_LABEL_CLEARANCE_PX, standeeZIndex } from "@/lib/pro/tableProjection";
 
 // Spy on the tail's props while still rendering the real component.
 const tailProps: TableFighterTailProps[] = [];
@@ -59,11 +64,44 @@ const renderKong = (props: Partial<React.ComponentProps<typeof TableBoard>> = {}
 
 const zOf = (el: Element) => Number(getComputedStyle(el).zIndex);
 
+/** How high above the board `el` sits: every translateZ on it and its ancestors. */
+const heightPx = (el: Element | null): number => {
+  let z = 0;
+  for (let n = el as HTMLElement | null; n; n = n.parentElement) {
+    for (const m of (n.style?.transform ?? "").matchAll(/translateZ\((-?[\d.]+)px\)/g)) z += Number(m[1]);
+  }
+  return z;
+};
+/** The top of the tallest piece inside `root` (its highest token layer). */
+const topOf = (root: Element): number =>
+  Math.max(heightPx(root), ...[...root.querySelectorAll("*")].map(heightPx));
+
 beforeEach(() => {
   tailProps.length = 0;
 });
 
 describe("TableBoard LARGE fighter name pill", () => {
+  // A real-sized frame, so tokens get their real thickness (a 0×0 jsdom frame
+  // draws every token 1px thick and hides a missing stack lift).
+  let restore: (() => void) | null = null;
+  beforeEach(() => {
+    const w = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetWidth");
+    const h = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetHeight");
+    Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, get: () => 1200 });
+    Object.defineProperty(HTMLElement.prototype, "offsetHeight", { configurable: true, get: () => 800 });
+    const RO = (global as { ResizeObserver?: unknown }).ResizeObserver;
+    (global as { ResizeObserver?: unknown }).ResizeObserver = class {
+      observe() {}
+      disconnect() {}
+    };
+    restore = () => {
+      if (w) Object.defineProperty(HTMLElement.prototype, "offsetWidth", w);
+      if (h) Object.defineProperty(HTMLElement.prototype, "offsetHeight", h);
+      (global as { ResizeObserver?: unknown }).ResizeObserver = RO;
+    };
+  });
+  afterEach(() => restore?.());
+
   it("paints above the standeeZIndex of both band ends", () => {
     renderKong();
     const pillZ = zOf(screen.getByText("King Kong"));
@@ -81,6 +119,46 @@ describe("TableBoard LARGE fighter name pill", () => {
     expect(zOf(head)).toBeGreaterThan(0);
     expect(pillZ).toBeGreaterThan(zOf(tail));
     expect(pillZ).toBeGreaterThan(zOf(head));
+  });
+
+  it("stands on its foot above the tops of both band tokens, so depth can't sink it under them (#899)", () => {
+    const { container } = renderKong();
+    const pill = screen.getByText("King Kong");
+    const head = container.querySelector('[data-fighter-id="p1/kong"]')!;
+    const tail = container.querySelector('[data-fighter-id="p1/kong-tail"]')!;
+    // Foot-pinned: a centre pivot sinks the pill's lower half into the board.
+    expect(pill.style.transformOrigin).toBe("50% 100%");
+    expect(topOf(head)).toBeGreaterThan(0);
+    expect(topOf(tail)).toBeGreaterThan(0);
+    expect(heightPx(pill)).toBeGreaterThan(topOf(head));
+    expect(heightPx(pill)).toBeGreaterThan(topOf(tail));
+  });
+
+  it("clears a band end lifted by a shared-space stack", () => {
+    const larry: ViewFighter = {
+      id: "p2/larry",
+      owner: "p2",
+      kind: "SIDEKICK",
+      name: "Larry",
+      space: "s3",
+      tailSpace: null,
+      hp: 3,
+      maxHp: 3,
+      reach: "MELEE",
+      size: "NORMAL",
+      defeated: false,
+    };
+    const { container } = render(
+      <ChakraProvider>
+        <TableBoard map={MAP} fighters={[larry, kong]} />
+      </ChakraProvider>
+    );
+    const head = container.querySelector('[data-fighter-id="p1/kong"]')!;
+    const larryFace = container.querySelector('[data-fighter-id="p2/larry"]')!;
+    // Kong's head is the lifted slot on s3 here, by more than the pill's own
+    // clearance — otherwise the check is vacuous.
+    expect(topOf(head)).toBeGreaterThan(topOf(larryFace) + BAND_LABEL_CLEARANCE_PX);
+    expect(heightPx(screen.getByText("King Kong"))).toBeGreaterThan(topOf(head));
   });
 
   it("stays click-through, so a pick space under it still takes the tap", () => {
