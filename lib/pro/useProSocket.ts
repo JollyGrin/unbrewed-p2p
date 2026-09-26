@@ -13,12 +13,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   forgetRoom,
   getResumeToken,
+  getRoomBots,
   getTabToken,
   getToken,
   rememberRoom,
   setResumeToken,
+  setRoomBots,
   setToken,
 } from "./recentRooms";
+import { botsFromCreateRoom, RoomBots } from "./rematch";
 import {
   Action,
   BotDifficulty,
@@ -74,6 +77,12 @@ export interface ProRoomInfo {
    *  real heroes). null until the first ROOM_STATUS arrives — an older server, or
    *  the moment right after create/join — and the panel falls back to seat ids. */
   roster?: RoomStatusSeat[];
+  /** which seats are AI (seat → difficulty), as far as this browser knows: from
+   *  its own CREATE_ROOM or any ROOM_STATUS, persisted per room so it survives a
+   *  mid-game reload (#876 — a bot room never receives a ROOM_STATUS, and a
+   *  RECONNECT doesn't either). undefined = never learned. Feeds the winner
+   *  screen's Rematch link. */
+  bots?: RoomBots;
   /** per-decision move timer setting for this room (issue #223): the seconds each
    *  seat has to act, echoed by the server on ROOM_CREATED/JOINED/ROOM_STATUS.
    *  undefined = untimed room (the default; no TURN_TIMER is ever sent). Lets the
@@ -422,6 +431,9 @@ export function useProSocket(
   const [status, setStatus] = useState<ProConnectionStatus>("idle");
   const [roomId, setRoomId] = useState<string | null>(null);
   const [roomInfo, setRoomInfo] = useState<ProRoomInfo | null>(null);
+  // The bot seats of the CREATE_ROOM in flight, until its ROOM_CREATED names
+  // the room to record them against (#876).
+  const pendingCreateBotsRef = useRef<RoomBots | null>(null);
   const [snapshot, setSnapshot] = useState<ProGameSnapshot | null>(null);
   // --- Slow mode (issue #703) ------------------------------------------------
   // The pacing decision itself lives in `slowModeQueue` (pure, unit-tested); this
@@ -679,12 +691,16 @@ export function useProSocket(
           // we learned on ROOM_CREATED/JOINED (ROOM_STATUS omits it). Destructure
           // first: msg is not narrowed inside the setState callback closure.
           const { formatId, requiredPlayers, seats, turnTimerSeconds } = msg;
+          const bots: RoomBots = {};
+          for (const seat of seats) if (seat.bot) bots[seat.player] = seat.bot;
+          setRoomBots(msg.roomId, bots);
           setRoomInfo((prev) => ({
             formatId,
             seats: seats.map((s) => s.player),
             requiredPlayers,
             you: prev?.you ?? seatRef.current ?? seats[0]?.player ?? ("p1" as PlayerId),
             roster: seats,
+            bots,
             turnTimerSeconds,
           }));
           break;
@@ -694,7 +710,14 @@ export function useProSocket(
           roomRef.current = msg.roomId;
           seatRef.current = msg.you;
           setRoomId(msg.roomId);
+          // The bot seats our own CREATE_ROOM asked for — recorded against the
+          // room it made, so a reload mid-game still knows who the AI is.
+          if (msg.type === "ROOM_CREATED" && pendingCreateBotsRef.current) {
+            setRoomBots(msg.roomId, pendingCreateBotsRef.current);
+            pendingCreateBotsRef.current = null;
+          }
           {
+            const bots = getRoomBots(msg.roomId) ?? undefined;
             // Destructure first: msg is not narrowed inside the setState callback.
             const { formatId, seats, requiredPlayers, you, turnTimerSeconds } = msg;
             setRoomInfo((prev) => ({
@@ -705,6 +728,7 @@ export function useProSocket(
               // keep any roster we already have (a ROOM_STATUS can race ahead of a
               // revive's ROOM_JOINED); the next ROOM_STATUS refreshes it anyway.
               roster: prev?.roster,
+              bots,
               turnTimerSeconds,
             }));
           }
@@ -1135,6 +1159,7 @@ export function useProSocket(
       gameOverRef.current = false;
       lastViewRef.current = null;
       clearResumeDeadline();
+      pendingCreateBotsRef.current = botsFromCreateRoom(bot, botSeats);
       const msg: ClientMsg = {
         v: PROTOCOL_VERSION,
         type: "CREATE_ROOM",

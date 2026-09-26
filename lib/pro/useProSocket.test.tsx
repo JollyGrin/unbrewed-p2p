@@ -2261,3 +2261,77 @@ describe("useProSocket — tab-return verify only after a real absence (p2p #869
     expect(hook.result.current.slowModePending).toBe(1);
   });
 });
+
+// #876: which seats are AI only ever arrives on ROOM_STATUS, which a bot room
+// (started straight from CREATE_ROOM) and a mid-game RECONNECT never get — so
+// the hook records the bot seats it learned per room, and reads them back on
+// the next ROOM_JOINED, for the winner screen's Rematch link.
+describe("useProSocket — room bot seats survive a reload (#876)", () => {
+  const realWS = global.WebSocket;
+  beforeEach(() => {
+    // @ts-expect-error — swap in the fake for the test
+    global.WebSocket = FakeWebSocket;
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+  });
+  afterEach(() => {
+    global.WebSocket = realWS;
+    FakeWebSocket.last = null;
+  });
+
+  const boot = () => {
+    const hook = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    return { hook, ws };
+  };
+
+  it("a bot room with no ROOM_STATUS still knows its AI seat, then again after a reload", () => {
+    const first = boot();
+    act(() => first.hook.result.current.createRoom("hero-a", { difficulty: "medium" }));
+    act(() => first.ws.emit({ type: "ROOM_CREATED", roomId: "BOT1", token: "tok", you: "p1" }));
+    expect(first.hook.result.current.roomInfo?.bots).toEqual({ p2: "medium" });
+    first.hook.unmount();
+
+    // A fresh page: RECONNECT answers ROOM_JOINED and no ROOM_STATUS.
+    const second = boot();
+    act(() => second.hook.result.current.joinRoom("BOT1", ""));
+    act(() => second.ws.emit({ type: "ROOM_JOINED", roomId: "BOT1", token: "tok2", you: "p1" }));
+    expect(second.hook.result.current.roomInfo?.bots).toEqual({ p2: "medium" });
+  });
+
+  it("a human-only create records no bots, and never inherits another room's", () => {
+    const { hook, ws } = boot();
+    act(() => hook.result.current.createRoom("hero-a", { difficulty: "hard" }));
+    act(() => ws.emit({ type: "ROOM_CREATED", roomId: "BOT1", token: "t", you: "p1" }));
+    act(() => hook.result.current.createRoom("hero-a"));
+    act(() => ws.emit({ type: "ROOM_CREATED", roomId: "PVP1", token: "t", you: "p1" }));
+    expect(hook.result.current.roomInfo?.bots).toEqual({});
+  });
+
+  it("a joiner learns bot seats from ROOM_STATUS and keeps them across a reload", () => {
+    const first = boot();
+    act(() => first.hook.result.current.joinRoom("MP1", "hero-b"));
+    act(() => first.ws.emit({ type: "ROOM_JOINED", roomId: "MP1", token: "tok", you: "p2" }));
+    act(() =>
+      first.ws.emit({
+        type: "ROOM_STATUS",
+        roomId: "MP1",
+        formatId: "ffa3",
+        requiredPlayers: 3,
+        seats: [
+          { player: "p1", heroId: "A", connected: true, bot: null },
+          { player: "p2", heroId: "B", connected: true, bot: null },
+          { player: "p3", heroId: "C", connected: true, bot: "easy" },
+        ],
+      }),
+    );
+    expect(first.hook.result.current.roomInfo?.bots).toEqual({ p3: "easy" });
+    first.hook.unmount();
+
+    const second = boot();
+    act(() => second.hook.result.current.joinRoom("MP1", ""));
+    act(() => second.ws.emit({ type: "ROOM_JOINED", roomId: "MP1", token: "tok", you: "p2" }));
+    expect(second.hook.result.current.roomInfo?.bots).toEqual({ p3: "easy" });
+  });
+});
