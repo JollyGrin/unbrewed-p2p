@@ -1,0 +1,13 @@
+IGNORED under public/: [ 'public/figures' ]
+UPLOADED figure files:
+  public/figures-open/CREDITS.md
+  public/figures-open/baba-yaga.p1.webp
+  public/figures-open/baba-yaga.p2.webp
+  public/figures-open/baba-yaga.p3.webp
+  public/figures-open/baba-yaga.p4.webp
+  public/figures-open/manifest.json
+  public/figures-open/triceratops.p1.webp
+  public/figures-open/triceratops.p2.webp
+  public/figures-open/triceratops.p3.webp
+  public/figures-open/triceratops.p4.webp
+exit=0 (1 => the open files are NOT ignored; the private probe line printed above IS)
