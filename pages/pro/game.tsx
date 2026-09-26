@@ -6902,6 +6902,7 @@ const LiveGame = ({
               fighterName: selectedFighter?.split("/")[1] ?? "",
               movesLeft: stepMovesLeft,
               canEnd: stepCanEnd,
+              instanceKey: `${selectedFighter}@${selectedOrigin}`,
               onEnd: () => stepState && commitStep(stepState),
               onCancel: () => {
                 setStep(null);

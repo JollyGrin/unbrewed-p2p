@@ -464,6 +464,52 @@ describe("ProDock portrait board-pick bar (mobile step 1)", () => {
       expect(screen.getByRole("button", { name: /end move here/i })).toBeInTheDocument();
     });
 
+    // A chained attack (a second combat straight after the first, the frozen
+    // combat-1 panel held over combat 2's commit) never has an un-forced frame
+    // in between, so the reset alone can't catch it: the key itself must change.
+    it("opens a chained combat in full with no un-forced frame between the two", () => {
+      const combat = (attacker: string, stage: string, card: string | null) =>
+        ({ ...view, combat: { attackerPlayer: "p1", defenderPlayer: "p2", attacker, target: "p2/hero", stage,
+          attackerCard: card ? { instance: card } : null, defenderCard: null } }) as unknown as PlayerView;
+      const { rerender } = render(
+        <ProDock {...props({ view: combat("p1/hero", "COMMIT_DEFENSE", null), combatPanel: <div>COMBAT 1</div> })} />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: /minimize/i }));
+      rerender(<ProDock {...props({ view: combat("p1/hero", "AFTER", "c1#1"), combatPanel: <div>COMBAT 1</div> })} />);
+      expect(screen.queryByText("COMBAT 1")).toBeNull();
+
+      // Same attacker, same target, same turn — only the restarted stage says it's a new combat.
+      rerender(<ProDock {...props({ view: combat("p1/hero", "COMMIT_DEFENSE", null), combatPanel: <div>COMBAT 2</div> })} />);
+
+      expect(screen.getByText("COMBAT 2")).toBeInTheDocument();
+    });
+
+    it("keeps one combat minimized through its own reveal", () => {
+      const combat = (stage: string, card: string | null) =>
+        ({ ...view, combat: { attackerPlayer: "p1", defenderPlayer: "p2", attacker: "p1/hero", target: "p2/hero", stage,
+          attackerCard: card ? { instance: card } : null, defenderCard: null } }) as unknown as PlayerView;
+      const { rerender } = render(<ProDock {...props({ view: combat("COMMIT_DEFENSE", null), combatPanel: <div>COMBAT</div> })} />);
+      fireEvent.click(screen.getByRole("button", { name: /minimize/i }));
+
+      rerender(<ProDock {...props({ view: combat("DURING", "c1#1"), combatPanel: <div>COMBAT</div> })} />);
+      rerender(<ProDock {...props({ view: combat("DAMAGE", "c1#1"), combatPanel: <div>COMBAT</div> })} />);
+
+      expect(screen.queryByText("COMBAT")).toBeNull();
+      expect(screen.getByTestId("pro-mobile-pickbar")).toHaveTextContent("A decision is waiting");
+    });
+
+    it("opens the next walk in full when a new walk replaces the minimized one directly", () => {
+      const walk = (instanceKey: string) => ({
+        fighterName: "Kenshiro", movesLeft: 2, canEnd: true, onEnd: () => {}, onCancel: () => {}, instanceKey,
+      });
+      const { rerender } = render(<ProDock {...props({ stepping: walk("p1/hero@s1") })} />);
+      fireEvent.click(screen.getByRole("button", { name: /minimize/i }));
+
+      rerender(<ProDock {...props({ stepping: walk("p1/hero@s4") })} />);
+
+      expect(screen.getByRole("button", { name: /end move here/i })).toBeInTheDocument();
+    });
+
     it("opens the next combat in full in the landscape HUD too", () => {
       const { rerender } = render(<ProDock {...props({ mobile: "hud", combatPanel: <div>COMBAT 1</div> })} />);
       fireEvent.click(screen.getByRole("button", { name: /minimize/i }));
