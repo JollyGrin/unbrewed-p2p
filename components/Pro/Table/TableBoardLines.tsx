@@ -34,6 +34,12 @@ export interface TableBoardLinesProps {
    *  line between two board points is still a straight line under the
    *  ancestor's `rotateX`, so this needs no billboarding of its own. */
   twoSpaceBands?: { head: SpaceId; tail: SpaceId; color: string }[];
+  /** The walk / effect-move preview's route (issue #285 on the flat board,
+   *  #871 here): the hops taken so far, `path[0]` the fighter's real space and
+   *  the last entry the ghost's. Drawn as ProBoard's dashed gold trail, flat
+   *  in the board plane. `trail` is a LARGE body's previewed second space —
+   *  tied to the lead ghost by the same translucent band the real body wears. */
+  previewRoute?: { path: SpaceId[]; trail: SpaceId | null; color: string } | null;
 }
 
 export const TableBoardLines = ({
@@ -43,6 +49,7 @@ export const TableBoardLines = ({
   attack,
   moveHintEdges = [],
   twoSpaceBands = [],
+  previewRoute = null,
 }: TableBoardLinesProps) => {
   if (!frameW || !frameH) return null;
   const bySpace = new Map(spaces.map((s) => [s.id, s]));
@@ -62,6 +69,17 @@ export const TableBoardLines = ({
       edges.push({ from: pt(s), to: pt(other) });
     }
   }
+
+  const previewNodes = previewRoute ? previewRoute.path.map((id) => bySpace.get(id)) : [];
+  const preview =
+    previewRoute && previewNodes.length >= 2 && previewNodes.every((n): n is ProMapSpace => !!n)
+      ? {
+          points: previewNodes.map((n) => `${pt(n!).x},${pt(n!).y}`).join(" "),
+          lead: pt(previewNodes[previewNodes.length - 1]!),
+          trail: previewRoute.trail && bySpace.get(previewRoute.trail) ? pt(bySpace.get(previewRoute.trail)!) : null,
+          color: previewRoute.color,
+        }
+      : null;
 
   const attackFrom = attack ? bySpace.get(attack.attackerSpace) : null;
   const attackTo = attack ? bySpace.get(attack.targetSpace) : null;
@@ -106,6 +124,29 @@ export const TableBoardLines = ({
           return <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />;
         })}
       </g>
+      {preview && (
+        <g data-move-preview-route="" strokeLinecap="round" strokeLinejoin="round">
+          {preview.trail && (
+            <line
+              x1={preview.lead.x}
+              y1={preview.lead.y}
+              x2={preview.trail.x}
+              y2={preview.trail.y}
+              stroke={preview.color}
+              strokeWidth={Math.max(3, frameW * 0.012)}
+              opacity={0.5}
+            />
+          )}
+          <polyline
+            points={preview.points}
+            fill="none"
+            stroke="#E0A82E"
+            strokeWidth={Math.max(2, frameW * 0.004)}
+            strokeDasharray={`${Math.max(4, frameW * 0.007)} ${Math.max(4, frameW * 0.007)}`}
+            opacity={0.85}
+          />
+        </g>
+      )}
       {attackFrom && attackTo && (
         <g>
           <defs>
