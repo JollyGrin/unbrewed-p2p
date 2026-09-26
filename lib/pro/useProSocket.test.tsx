@@ -11,6 +11,7 @@ import {
   RESYNC_COOLDOWN_MS,
   useProSocket,
 } from "./useProSocket";
+import { resetEngineVersions } from "./wireVersion";
 
 // The hook reads the optional Discord account (issue #568) to decide whether to
 // claim a seat identity. Stubbed here so no test hits `/me`; the default is a
@@ -2333,5 +2334,116 @@ describe("useProSocket — room bot seats survive a reload (#876)", () => {
     act(() => second.hook.result.current.joinRoom("MP1", ""));
     act(() => second.ws.emit({ type: "ROOM_JOINED", roomId: "MP1", token: "tok", you: "p2" }));
     expect(second.hook.result.current.roomInfo?.bots).toEqual({ p3: "easy" });
+  });
+});
+
+// #894: the game-over re-bind at v35 (#880) arms the resync-reply flags for the
+// RECONNECT's reply — so they must be armed AFTER the winner STATE that triggers
+// it has been handled, or that STATE consumes them itself.
+describe("useProSocket — game-over re-bind at v35 (p2p #894)", () => {
+  const realWS = global.WebSocket;
+  beforeEach(() => {
+    // @ts-expect-error — swap in the fake for the test
+    global.WebSocket = FakeWebSocket;
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    jest.useFakeTimers();
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+    global.WebSocket = realWS;
+    FakeWebSocket.last = null;
+    resetEngineVersions();
+  });
+
+  /** A seat bound at 34 on an engine whose frames carry `engineV`. */
+  const boot = (engineV: number, slowMode = false) => {
+    let snapshots = 0;
+    let last: unknown = null;
+    const hook = renderHook(() => {
+      const r = useProSocket("ws://test", false, slowMode);
+      if (r.snapshot && r.snapshot !== last) { last = r.snapshot; snapshots += 1; }
+      return r;
+    });
+    const ws = FakeWebSocket.last!;
+    const emit = (msg: Record<string, unknown>) => act(() => ws.emit({ v: engineV, ...msg }));
+    act(() => ws.open());
+    emit({ type: "HEROES", heroes: [] });
+    emit(roomJoined());
+    emit({
+      type: "STATE",
+      view: { you: "p1", prompt: null, activePlayer: "p1", winner: null, tag: "live" },
+      legalActions: [],
+      events: [],
+    });
+    return { hook, ws, emit, snapshots: () => snapshots };
+  };
+  const winnerState = (events: unknown[]) => ({
+    type: "STATE",
+    view: { you: "p1", prompt: null, activePlayer: "p1", winner: "p1", phase: "GAME_OVER", tag: "over" },
+    legalActions: [],
+    events,
+  });
+  const sentOf = (ws: FakeWebSocket, type: string) =>
+    ws.sent.map((s) => JSON.parse(s)).filter((m) => m.type === type);
+
+  it("handles the winner STATE as a normal batch and absorbs the RECONNECT's reply as the resync reply", () => {
+    const { hook, ws, emit, snapshots } = boot(35, true);
+    // An opponent batch is on screen (paced) when our own winning blow goes out.
+    emit({
+      type: "STATE",
+      view: { you: "p1", prompt: null, activePlayer: "p2", winner: null, tag: "opp" },
+      legalActions: [],
+      events: [{ type: "ACTION_SPENT", player: "p2", action: "MANEUVER" }],
+    });
+    act(() => hook.result.current.sendAction({ type: "ATTACK", player: "p1" } as never));
+    emit(winnerState([{ type: "ACTION_SPENT", player: "p1", action: "ATTACK" }]));
+
+    expect(hook.result.current.snapshot?.view).toMatchObject({ tag: "over", winner: "p1" });
+    // The re-bind went out after the winner STATE, at 35, exactly once.
+    const reconnects = sentOf(ws, "RECONNECT");
+    expect(reconnects).toEqual([{ v: 35, type: "RECONNECT", roomId: "R1", token: "tok" }]);
+    expect(hook.result.current.rematchNegotiable).toBe(true);
+
+    // Something is open on the result screen when the reply lands.
+    act(() => hook.result.current.requestUndo());
+    expect(hook.result.current.undoPending).toBe(true);
+    const held = hook.result.current.snapshot;
+    const before = snapshots();
+
+    // The RECONNECT's reply: ROOM_JOINED + the view we already hold, re-sent.
+    emit(roomJoined());
+    emit(winnerState([]));
+    act(() => void jest.advanceTimersByTime(50));
+
+    expect(hook.result.current.undoPending).toBe(true); // no undo-UI reset
+    expect(hook.result.current.snapshot).toBe(held); // no extra batch applied
+    expect(snapshots()).toBe(before);
+    expect(sentOf(ws, "RECONNECT")).toHaveLength(1); // and no second re-bind
+  });
+
+  it("the three rematch actions do nothing on a seat bound at v34", () => {
+    const { hook, ws, emit } = boot(34);
+    emit(winnerState([]));
+    expect(sentOf(ws, "RECONNECT")).toHaveLength(0); // a v34 engine is never re-bound
+    expect(hook.result.current.rematchNegotiable).toBe(false);
+
+    act(() => hook.result.current.offerRematch());
+    expect(hook.result.current.rematchOffer.phase).toBe("idle");
+
+    // Even with the offer state forced by the wire, nothing goes out.
+    emit({ type: "REMATCH_OFFERED", from: "p1" });
+    expect(hook.result.current.rematchOffer.phase).toBe("offering");
+    act(() => hook.result.current.cancelRematch());
+    expect(hook.result.current.rematchOffer.phase).toBe("offering");
+
+    emit({ type: "REMATCH_CLOSED", reason: "cancelled" });
+    emit({ type: "REMATCH_OFFERED", from: "p2" });
+    expect(hook.result.current.rematchOffer.phase).toBe("incoming");
+    act(() => hook.result.current.respondToRematch(true));
+    act(() => hook.result.current.respondToRematch(false));
+    expect(hook.result.current.rematchOffer.phase).toBe("incoming");
+
+    expect(ws.sent.map((s) => JSON.parse(s)).filter((m) => String(m.type).startsWith("REMATCH_"))).toEqual([]);
   });
 });
