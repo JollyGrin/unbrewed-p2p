@@ -29,3 +29,16 @@ export const BOARD_VIEW_LABEL: Record<BoardView, string> = {
 
 export const nextBoardView = (current: BoardView): BoardView =>
   current === "flat" ? "table" : "flat";
+
+/**
+ * The view actually drawn, given the stored preference and the layout (#870).
+ * The tabletop board is built for an unrotated frame — its tilt, standees and
+ * badges have no counter-rotation — so a portrait phone, whose board frame is
+ * turned 90°, always gets the flat board. The stored preference is left alone:
+ * turning the phone back to landscape returns to the tabletop.
+ */
+export const resolveBoardView = (preferred: BoardView, layoutMode: string): BoardView =>
+  layoutMode === "portrait" ? "flat" : preferred;
+
+/** Why the Board toggle is unavailable in portrait (#870). */
+export const TABLETOP_NEEDS_LANDSCAPE = "Tabletop needs landscape";

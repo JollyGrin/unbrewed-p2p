@@ -3,6 +3,7 @@ import {
   DEFAULT_BOARD_VIEW,
   isBoardView,
   nextBoardView,
+  resolveBoardView,
 } from "./boardView";
 
 describe("boardView", () => {
@@ -24,5 +25,19 @@ describe("boardView", () => {
   it("labels both views for the chip that switches them", () => {
     expect(BOARD_VIEW_LABEL.flat).toBeTruthy();
     expect(BOARD_VIEW_LABEL.table).toBeTruthy();
+  });
+
+  // #870: the tabletop frame has no counter-rotation, so a portrait phone
+  // (whose board frame is turned 90°) must draw the flat board.
+  it("draws the flat board in portrait whatever the stored preference", () => {
+    expect(resolveBoardView("table", "portrait")).toBe("flat");
+    expect(resolveBoardView("flat", "portrait")).toBe("flat");
+  });
+
+  it("honours the stored preference on desktop and landscape phones", () => {
+    expect(resolveBoardView("table", "rail")).toBe("table");
+    expect(resolveBoardView("table", "desktop")).toBe("table");
+    expect(resolveBoardView("flat", "rail")).toBe("flat");
+    expect(resolveBoardView("flat", "desktop")).toBe("flat");
   });
 });
