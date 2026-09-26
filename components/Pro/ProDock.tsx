@@ -42,6 +42,7 @@ import { HexId, tableHudBanner, tableHudControls } from "@/lib/pro/tableHud";
 import { TableHudDock } from "@/components/Pro/Table/Hud/TableHudDock";
 import { useDockLayout } from "@/lib/pro/useDockLayout";
 import { isNewCombat } from "@/lib/pro/combatInstance";
+import { RematchNegotiation, RematchOfferPanel } from "@/components/Pro/RematchOfferPanel";
 
 /** Width of the dock's default right-edge slot. */
 const DOCK_WIDTH = "18.5rem";
@@ -233,6 +234,12 @@ export interface ProDockProps {
    * does and doesn't carry over (battlefield items can't — see that file).
    */
   rematchHref?: string | null;
+  /**
+   * Rematch offer/confirm (p2p #880): set for a PvP room on a v35 engine, and
+   * then it REPLACES the one-tap link — pressing Rematch asks the other player
+   * instead of creating a room of our own. Null/absent: the link as before.
+   */
+  rematchNegotiation?: RematchNegotiation | null;
   /** Local deep-link into this browser's saved replay — labelled as such (#698). */
   replayHref: string | null;
   /** Upload this match and copy its public share link. Omitted when there is
@@ -326,6 +333,7 @@ export const ProDock = ({
   iForfeited,
   multiplayerView,
   rematchHref = null,
+  rematchNegotiation = null,
   replayHref,
   onCopyShareLink,
   shareLinkBusy = false,
@@ -569,6 +577,7 @@ export const ProDock = ({
   // The narrow shells — the rail and the HUD's side sheet — size cards and
   // tiles for a 230px column.
   const narrow = mobile === "rail" || mobile === "hud";
+  const rematchLine = !!rematchNegotiation && (rematchNegotiation.state.phase !== "idle" || !!rematchNegotiation.state.notice);
   const boardPickCompact = sheetShell && boardPickPrompt && expandedPrompt !== promptKey;
   // A forced sheet can be put out of the way (player feedback: an after-combat
   // question left the board unreachable with no way to close the sheet). It
@@ -1130,7 +1139,10 @@ export const ProDock = ({
         <Flex direction="column" align="center" gap="0.15rem">
           <Text
             fontFamily="LeagueGothic"
-            fontSize="3rem"
+            // The landscape rail's dock is a short box: when the rematch panel
+            // adds a line ("… wants a rematch", "Waiting for …", a notice), the
+            // title gives up the room so Accept / Decline stay on screen (#880).
+            fontSize={narrow && rematchLine ? "1.9rem" : "3rem"}
             color="brand.accent"
             textShadow="0 2px 12px rgba(224,168,46,0.5)"
             lineHeight="1"
@@ -1145,7 +1157,9 @@ export const ProDock = ({
               see lib/pro/rematch.ts), so from here it behaves exactly like
               starting any other room: the presser lands on the new room's
               waiting screen with the invite link ready to hand off. */}
-          {rematchHref && (
+          {rematchNegotiation ? (
+            <RematchOfferPanel negotiation={rematchNegotiation} compact={narrow} />
+          ) : rematchHref && (
             <Button
               as={Link}
               href={rematchHref}
