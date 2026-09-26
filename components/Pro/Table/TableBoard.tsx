@@ -38,6 +38,8 @@ import type { FighterId, ProMapSpace, SpaceId, ViewFighter } from "@/lib/pro/pro
 import { DEFAULT_TILT_DEG, bandLabelZIndex, standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
 import { bandLabelText, bandMidpoint } from "@/lib/pro/twoSpaceBand";
 import { MOVE_STEP_SECONDS, type ProBoardProps } from "@/components/Pro/ProBoard";
+import { tokenInitials } from "@/components/Pro/FighterTokenPortrait";
+import { SWAP_SECONDS, SWAP_TIMES } from "@/lib/pro/positionSwap";
 import { LARGE_FIGURE_SCALE, straddleAnim, type Figure } from "@/lib/pro/figures";
 import { boardObjectVisualFor } from "@/lib/pro/boardObjects";
 import {
@@ -63,6 +65,7 @@ import { TOKEN_THICKNESS } from "./TableFlatToken";
 import { TableFighterTail } from "./TableFighterTail";
 import { TableSidekickToken } from "./TableSidekickToken";
 import { TableBoardObject } from "./TableBoardObject";
+import { TableMoveGhost } from "./TableMoveGhost";
 
 /** Mirrors ProBoard's own `DEFAULT_DIAMETER` (not exported there — see the
  *  table-board report for why this is a deliberate small duplication rather
@@ -78,11 +81,33 @@ const PLAYER_COLOR: Record<string, string> = {
 };
 
 /**
+ * ProBoard props this view does NOT draw yet, each for a stated reason. They
+ * are cut out of `TableBoardProps` below and the component destructures every
+ * prop that is left, then asserts nothing else remains (see `unread` in the
+ * body) — so a prop ProBoard gains later fails `tsc` here until it is either
+ * drawn or added to this list, instead of being dropped in silence (#871).
+ *
+ *  - `focusFighters` — the live-combat auto-zoom; TableStage re-focuses on
+ *    PICKS only (see the note where the props are destructured).
+ *  - `fighterTokenBadge` / `fighterTokenRim` — hero-state flag badge and the
+ *    cosmetic metal rim; decorative, neither gates a legal action.
+ *  - `tokenLife` — the #320 beta "lively tokens" layer (recoil / lunge /
+ *    brace / breathing + the K.O. topple ghost). Its whole vocabulary is 2D
+ *    transforms in % of a flat token CIRCLE (TokenLifeLayer); a tabletop piece
+ *    is split into an in-plane ground token and an upright billboard under a
+ *    3D tilt, so reusing it would slide the ground token through the board
+ *    plane and bob the miniature off its base. It needs its own 3D-aware
+ *    gesture pass. Off by default (opt-in beta flag), so nobody loses a beat
+ *    they had.
+ */
+export type TableBoardDeferredProp = "focusFighters" | "fighterTokenBadge" | "fighterTokenRim" | "tokenLife";
+
+/**
  * The flat board's props plus what only the tabletop draws. `fighterFigure`
  * resolves a hero's pre-rendered miniature for its seat (lib/pro/figures);
  * it is null for every hero on a deploy without local figures.
  */
-export type TableBoardProps = ProBoardProps & {
+export type TableBoardProps = Omit<ProBoardProps, TableBoardDeferredProp> & {
   fighterFigure?: (fighter: ViewFighter) => Figure | null;
   /** see TableStage — moved out from under the tabletop HUD's side buttons */
   resetViewSpot?: { left: string; bottom: string };
@@ -118,6 +143,8 @@ export const TableBoard = ({
   itemTokens = {},
   pendingMove = null,
   onPendingMoveSettled,
+  swaps = null,
+  previewMove = null,
   // Combat beats and the damage-arc registry. Both arrive on every render
   // and were simply dropped by this view's first pass, which is why a hit
   // landed here in silence and an arc had no token to fly to.
@@ -134,7 +161,16 @@ export const TableBoard = ({
   fitInset,
   fighterFigure,
   resetViewSpot,
+  // Whatever the caller spread in that this view deliberately doesn't draw
+  // (TableBoardDeferredProp). Typed as the REST of TableBoardProps, so it is
+  // `{}` exactly when every non-deferred prop is destructured above.
+  ...unread
 }: TableBoardProps) => {
+  // Compile-time guard (#871): a ProBoard prop that is neither destructured
+  // above nor listed in TableBoardDeferredProp lands in `unread`'s type and
+  // makes this assignment fail. Runtime no-op.
+  const _allPropsRead: Record<string, never> = unread;
+  void _allPropsRead;
   const zoneColorMap = useMemo(() => new Map(map.zones.map((z) => [z.id, z.color])), [map.zones]);
   const zoneColor = (id: string) => zoneColorMap.get(id) ?? "#8878A0";
   const itemById = useMemo(() => new Map((map.items ?? []).map((it) => [it.id, it])), [map.items]);
@@ -313,6 +349,67 @@ export const TableBoard = ({
     return anim && { ...anim, xs: [...anim.xs.slice(0, -1), at.x], ys: [...anim.ys.slice(0, -1), at.y] };
   };
 
+  // Atomic position swaps (protocol v31) — ProBoard's crossfade on the table.
+  // A swap has no route to walk, so the piece fades out at the pose it held
+  // BEFORE the swap, jumps while invisible and fades back in where it landed:
+  // a teleport, never mistakable for a walk. A committed move tween on the same
+  // piece wins (as on the flat board), reduced motion just snaps, and a swap
+  // never settles `pendingMove` (it isn't one). A straddling LARGE miniature
+  // fades between the midpoints of its two poses.
+  const swapByFighter = new Map((swaps ?? []).map((sw) => [sw.fighterId, sw]));
+  const swapAnim = (
+    from: { x: number; y: number } | undefined,
+    to: { x: number; y: number }
+  ): TableAnchorAnim | null =>
+    from && !reducedMotion
+      ? {
+          xs: [from.x, from.x, to.x, to.x],
+          ys: [from.y, from.y, to.y, to.y],
+          times: SWAP_TIMES,
+          opacity: [1, 0, 0, 1],
+          durationSec: SWAP_SECONDS,
+        }
+      : null;
+  const swapFor = (f: ViewFighter, segment: "head" | "tail" | "stand", to: { x: number; y: number }) => {
+    const sw = swapByFighter.get(f.id);
+    if (!sw) return null;
+    const fromHead = spaceById.get(sw.from);
+    const fromTail = spaceById.get(sw.fromTail ?? sw.from);
+    const from =
+      segment === "head"
+        ? fromHead
+        : segment === "tail"
+          ? fromTail
+          : fromHead && fromTail
+            ? bandMidpoint(fromHead, fromTail)
+            : undefined;
+    return swapAnim(from, to);
+  };
+
+  // Walk / effect-move preview (issue #285's ghost, #871 on this board): the
+  // stepping fighter's route so far and a translucent ghost where it ends now.
+  // Same rules as ProBoard — the real piece stays put, the whole path must
+  // resolve (a path through a missing space draws nothing), and a LARGE body
+  // also ghosts its trailing space. PRESENTATION ONLY and inert.
+  const preview = (() => {
+    if (!previewMove) return null;
+    const f = fighters.find((x) => x.id === previewMove.fighterId);
+    const nodes = previewMove.path.map((id) => spaceById.get(id));
+    if (!f || nodes.length < 2 || !nodes.every((n): n is ProMapSpace => !!n)) return null;
+    const lead = nodes[nodes.length - 1] as ProMapSpace;
+    const trailId = previewMove.trailPath?.[previewMove.trailPath.length - 1] ?? null;
+    const trail = trailId ? (spaceById.get(trailId) ?? null) : null;
+    return {
+      fighterId: f.id,
+      path: previewMove.path,
+      lead,
+      trail,
+      color: PLAYER_COLOR[f.owner] ?? "#999",
+      initials: tokenInitials(f.name),
+      isHero: f.kind === "HERO",
+    };
+  })();
+
   // Fault #4 (phase-2 report): re-run the auto-focus-zoom effect whenever the
   // set of currently-pickable spaces/fighters changes — same key shape as
   // ProBoard's own `pickKey`.
@@ -359,6 +456,9 @@ export const TableBoard = ({
             attack={attackSpaces}
             moveHintEdges={moveHintEdges}
             twoSpaceBands={twoSpaceBands}
+            previewRoute={
+              preview ? { path: preview.path, trail: preview.trail?.id ?? null, color: preview.color } : null
+            }
           />
 
           {mainSpaces.map((space: ProMapSpace) => {
@@ -417,6 +517,9 @@ export const TableBoard = ({
             const standAnim = tailSpace
               ? straddleAnim(headAnim, animFor(f.id, "tail", fighterPlace(tailSpace, `${f.id}-tail`, 0, frameW, frameH)))
               : headAnim;
+            // A swap plays only where no move tween does (see `swapFor`).
+            const headSwap = headAnim ? null : swapFor(f, "head", head);
+            const standSwap = standAnim ? null : swapFor(f, straddling ? "stand" : "head", stand);
             return f.kind === "HERO" ? (
               <Fragment key={f.id}>
                 {straddling && (
@@ -433,7 +536,7 @@ export const TableBoard = ({
                     spaceDiamPx={head.diamPx}
                     spaceId={f.space}
                     baseAccent={PLAYER_COLOR[f.owner] ?? "#999"}
-                    anim={headAnim}
+                    anim={headAnim ?? headSwap}
                     onAnimComplete={headAnim ? onPendingMoveSettled : undefined}
                   >
                     {null}
@@ -451,7 +554,7 @@ export const TableBoard = ({
                   figure={figureOf.get(f.id) ?? null}
                   figureScale={straddling ? LARGE_FIGURE_SCALE : 1}
                   baseHidden={straddling}
-                  anim={standAnim}
+                  anim={standAnim ?? standSwap}
                   onAnimComplete={standAnim && !straddling ? onPendingMoveSettled : undefined}
                   // Same registry, same rule as the flat board (ProBoard registers
                   // only the HEAD segment of a LARGE fighter): the damage-arc layer
@@ -481,7 +584,7 @@ export const TableBoard = ({
                 selected={common.selected}
                 targetable={common.targetable}
                 friendly={common.friendly}
-                anim={headAnim}
+                anim={headAnim ?? headSwap}
                 onAnimComplete={headAnim ? onPendingMoveSettled : undefined}
                 onClick={common.onClick}
                 onSpaceFallbackClick={common.onSpaceFallbackClick}
@@ -520,7 +623,7 @@ export const TableBoard = ({
                   // No onAnimComplete: the HEAD segment alone owns the settle
                   // (see `animFor`) — a second, late settle from the tail would
                   // clear a new incoming move that landed in between.
-                  anim={tailAnim}
+                  anim={tailAnim ?? swapFor(f, "tail", tail)}
                   onClick={onFighterClick}
                   bodyHidden={straddles(f)}
                 />
@@ -556,6 +659,26 @@ export const TableBoard = ({
               </Fragment>
             );
           })}
+
+          {preview &&
+            [
+              { at: preview.lead, end: "lead" as const },
+              ...(preview.trail ? [{ at: preview.trail, end: "trail" as const }] : []),
+            ].map(({ at, end }) => (
+              <TableMoveGhost
+                key={`preview-${end}`}
+                fighterId={preview.fighterId}
+                end={end}
+                x={at.x}
+                y={at.y}
+                spaceId={at.id}
+                tiltDeg={tiltDeg}
+                diamPx={(diameterPct / 100) * Math.max(frameW, 1)}
+                color={preview.color}
+                initials={preview.initials}
+                isHero={preview.isHero}
+              />
+            ))}
 
           <TableBoardFx
             fx={fx}
