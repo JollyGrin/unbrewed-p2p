@@ -78,6 +78,13 @@ export interface TableAnchorAnim {
   xs: number[];
   ys: number[];
   durationSec: number;
+  /** Keyframe stops (0–1), one per xs/ys entry. Absent = evenly spaced, which
+   *  is what a walk wants; a swap's crossfade brackets its jump instead. */
+  times?: number[];
+  /** Opacity keyframes, same count as xs/ys — the swap crossfade (protocol
+   *  v31) fades out, jumps while invisible and fades back in. Absent = the
+   *  piece stays opaque, exactly as a walk renders. */
+  opacity?: number[];
 }
 
 export interface TableStandeeAnchorProps {
@@ -136,6 +143,9 @@ export interface TableStandeeAnchorProps {
    *  (TableStage) — the SAME `[data-pick]` convention ProBoard's fighter
    *  tokens use. Phase-2 fault #4. */
   pick?: boolean;
+  /** Takes no pointer events at all — a preview ghost that must let a tap
+   *  through to the gold step highlight underneath it. */
+  inert?: boolean;
   onClick?: () => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
@@ -178,6 +188,7 @@ export const TableStandeeAnchor = ({
   anim = null,
   onAnimComplete,
   pick = false,
+  inert = false,
   onClick,
   onMouseEnter,
   onMouseLeave,
@@ -223,9 +234,10 @@ export const TableStandeeAnchor = ({
     ? {
         left: anim.xs.map((v) => `${v * 100}%`),
         top: anim.ys.map((v) => `${v * 100}%`),
+        ...(anim.opacity ? { opacity: anim.opacity } : {}),
       }
     : { left: `${x * 100}%`, top: `${y * 100}%` };
-  const times = steps > 1 ? Array.from({ length: steps }, (_, i) => i / (steps - 1)) : undefined;
+  const times = anim?.times ?? (steps > 1 ? Array.from({ length: steps }, (_, i) => i / (steps - 1)) : undefined);
 
   return (
     <MotionBox
@@ -242,6 +254,7 @@ export const TableStandeeAnchor = ({
       style={{ transform: "translate(-50%, -100%)", transformStyle: "preserve-3d" }}
       zIndex={zIndex}
       cursor={onClick ? "pointer" : undefined}
+      pointerEvents={inert ? "none" : undefined}
       title={title}
       onClick={onClick}
       onMouseEnter={onMouseEnter}
