@@ -34,6 +34,7 @@ import {
   TurnReminderState,
 } from "./turnReminder";
 import type { PlayerView } from "./protocol";
+import { seatOwesDecision } from "./turnChrome";
 
 /** How often the wall clock is re-checked between view changes. Coarser than
  *  the reminder's own thresholds (see turnReminder.ts) on purpose — this only
@@ -59,6 +60,9 @@ export interface UseTurnReminderOptions {
    *  unconditionally, ahead of the page's own "no snapshot yet" early return,
    *  same shape as useGameFx's nullable `snapshot`. */
   view: PlayerView | null;
+  /** how many legal actions the engine offers this seat (the STATE message's
+   *  `legalActions.length`, 0 before the first STATE) — see owedReasonOf. */
+  legalActionCount: number;
   /** the per-device setting (useTurnReminderSetting.ts). Off means silence on
    *  every channel, including the title — unlike sound-only mute elsewhere in
    *  Pro, a player who turned this off asked not to be reminded at all. */
@@ -81,15 +85,21 @@ const isHidden = (): boolean => typeof document !== "undefined" && document.hidd
  * special cases: a spectator's (a "god view") view carries no seat flagged
  * `you: true` (see teams.ts), `phase !== "PLAY"` covers setup, and `winner`
  * covers game-over.
+ *
+ * "turn" needs more than `activePlayer === you` (issue #875): inside this
+ * seat's own turn the game can be waiting on the OPPONENT — their defense
+ * choice, or a prompt they own — and nudging "still your turn" then is wrong.
+ * So it also asks seatOwesDecision, the same test behind the dock's "waiting
+ * on opponent…" line.
  */
-function owedReasonOf(view: PlayerView | null): TurnReminderReason | null {
+function owedReasonOf(view: PlayerView | null, legalActionCount: number): TurnReminderReason | null {
   if (!view) return null;
   if (view.phase !== "PLAY" || view.winner) return null;
   if (!view.players.some((p) => p.you)) return null;
   if (view.combat?.stage === "COMMIT_DEFENSE" && view.combat.defenderPlayer === view.you) {
     return "defense";
   }
-  if (view.activePlayer === view.you) return "turn";
+  if (view.activePlayer === view.you && seatOwesDecision(view, legalActionCount)) return "turn";
   return null;
 }
 
@@ -103,10 +113,12 @@ function progressKeyOf(view: PlayerView, reason: TurnReminderReason): string {
   return `turn:${view.turnNumber}:${view.actionsRemaining}:${view.turnPhase}:${view.prompt?.promptId ?? ""}`;
 }
 
-export function useTurnReminder({ view, enabled, soundOn }: UseTurnReminderOptions): TurnReminderStatus {
+export function useTurnReminder({ view, legalActionCount, enabled, soundOn }: UseTurnReminderOptions): TurnReminderStatus {
   const stateRef = useRef<TurnReminderState>(initialTurnReminderState());
   const viewRef = useRef(view);
   viewRef.current = view;
+  const legalCountRef = useRef(legalActionCount);
+  legalCountRef.current = legalActionCount;
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
   const soundRef = useRef(soundOn);
@@ -124,7 +136,7 @@ export function useTurnReminder({ view, enabled, soundOn }: UseTurnReminderOptio
   const check = useCallback(() => {
     if (!enabledRef.current) return;
     const v = viewRef.current;
-    const reason = owedReasonOf(v);
+    const reason = owedReasonOf(v, legalCountRef.current);
     const signals = {
       owed: reason,
       progressKey: reason && v ? progressKeyOf(v, reason) : "",
@@ -149,7 +161,7 @@ export function useTurnReminder({ view, enabled, soundOn }: UseTurnReminderOptio
   // a real event: re-check whenever a new view lands
   useEffect(() => {
     check();
-  }, [view, check]);
+  }, [view, legalActionCount, check]);
 
   // …and a ticking interval, since a player who has stopped acting produces
   // no new views at all — the interval is what notices that silence.

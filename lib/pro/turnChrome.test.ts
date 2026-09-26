@@ -4,7 +4,7 @@
  * winner is set, in duel AND multiplayer.
  */
 import type { PlayerId, PlayerView } from "./protocol";
-import { showLiveTurnChrome } from "./turnChrome";
+import { seatOwesDecision, showLiveTurnChrome } from "./turnChrome";
 
 // Minimal PlayerView — only the fields showLiveTurnChrome reads plus enough to
 // stand up the type. `seats` controls duel vs. multiplayer; `winner` the state.
@@ -52,5 +52,39 @@ describe("showLiveTurnChrome", () => {
   it("hides chrome at multiplayer game-over regardless of seat count", () => {
     expect(showLiveTurnChrome(view("p1", 3))).toBe(false);
     expect(showLiveTurnChrome(view("p3", 4))).toBe(false);
+  });
+});
+
+// Issue #875: the shared "is the engine waiting on THIS seat?" test behind the
+// dock's "waiting on opponent…" line and the turn reminder.
+describe("seatOwesDecision", () => {
+  const live = (prompt: PlayerView["prompt"]): PlayerView => ({ ...view(null, 2), activePlayer: "p1", prompt });
+  const promptFor = (player: PlayerId, options: number): PlayerView["prompt"] =>
+    ({
+      promptId: "pr",
+      player,
+      kind: "CHOOSE_TARGET",
+      options: Array.from({ length: options }, (_, i) => ({ id: `o${i}`, label: `o${i}` })),
+    } as unknown as PlayerView["prompt"]);
+
+  it("is true when any action is on offer", () => {
+    expect(seatOwesDecision(live(null), 1)).toBe(true);
+  });
+
+  it("is true for this seat's own prompt", () => {
+    expect(seatOwesDecision(live(promptFor("p1", 2)), 0)).toBe(true);
+  });
+
+  it("is false with no actions and no prompt (e.g. the opponent choosing a defense)", () => {
+    expect(seatOwesDecision(live(null), 0)).toBe(false);
+  });
+
+  it("is false for the redacted summary of an opponent-owned prompt", () => {
+    expect(seatOwesDecision(live(promptFor("p2", 0)), 0)).toBe(false);
+  });
+
+  it("is false for an opponent-owned prompt even when its options are visible", () => {
+    // a god/replay view carries the chooser's full option set — still not ours
+    expect(seatOwesDecision(live(promptFor("p2", 2)), 0)).toBe(false);
   });
 });

@@ -44,6 +44,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView =>
 
 const props = (over: Partial<UseTurnReminderOptions> = {}): UseTurnReminderOptions => ({
   view: view(),
+  legalActionCount: 1,
   enabled: true,
   soundOn: true,
   ...over,
@@ -178,9 +179,63 @@ describe("useTurnReminder", () => {
           activePlayer: "p2",
           combat: { stage: "COMMIT_DEFENSE", defenderPlayer: "p1", attacker: "f1", target: "f2" },
         } as Partial<PlayerView>),
+        legalActionCount: 0,
       }),
     });
     act(() => jest.advanceTimersByTime(FIRST_NUDGE_MS));
     expect(result.current.pulse).toEqual({ key: 1, reason: "defense" });
+  });
+
+  // Issue #875: inside this seat's own turn the game can be waiting on the
+  // OPPONENT — the reminder must not claim "still your turn" then.
+  describe("own turn, but the game waits on the opponent", () => {
+    const opponentDefending = () =>
+      view({
+        combat: { stage: "COMMIT_DEFENSE", defenderPlayer: "p2", attacker: "f1", target: "f2" },
+        prompt: { promptId: "pr1", player: "p2", kind: "COMMIT_DEFENSE", options: [] },
+      } as unknown as Partial<PlayerView>);
+
+    it("never nudges (pulse, sound, vibration, title) while the opponent picks a defense", () => {
+      const { result } = renderHook((p: UseTurnReminderOptions) => useTurnReminder(p), {
+        initialProps: props({ view: opponentDefending(), legalActionCount: 0 }),
+      });
+      setHidden(true);
+      act(() => jest.advanceTimersByTime(FIRST_NUDGE_MS * 3));
+      expect(result.current.pulse).toBeNull();
+      expect(played).toEqual([]);
+      expect(vibrate).not.toHaveBeenCalled();
+      expect(document.title).toBe("Unbrewed Pro");
+    });
+
+    it("never nudges while an opponent-owned prompt is open", () => {
+      const { result } = renderHook((p: UseTurnReminderOptions) => useTurnReminder(p), {
+        initialProps: props({
+          view: view({
+            prompt: { promptId: "pr2", player: "p2", kind: "CHOOSE_TARGET", options: [] },
+          } as unknown as Partial<PlayerView>),
+          legalActionCount: 0,
+        }),
+      });
+      act(() => jest.advanceTimersByTime(FIRST_NUDGE_MS * 3));
+      expect(result.current.pulse).toBeNull();
+    });
+
+    it("still says \"turn\" for this seat's own prompt, even with no other action on offer", () => {
+      const { result } = renderHook((p: UseTurnReminderOptions) => useTurnReminder(p), {
+        initialProps: props({
+          view: view({
+            prompt: {
+              promptId: "pr3",
+              player: "p1",
+              kind: "CHOOSE_TARGET",
+              options: [{ id: "o1", label: "f2" }],
+            },
+          } as unknown as Partial<PlayerView>),
+          legalActionCount: 0,
+        }),
+      });
+      act(() => jest.advanceTimersByTime(FIRST_NUDGE_MS));
+      expect(result.current.pulse).toEqual({ key: 1, reason: "turn" });
+    });
   });
 });

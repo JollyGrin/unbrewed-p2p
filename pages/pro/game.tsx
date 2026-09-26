@@ -4578,6 +4578,7 @@ const LiveGame = ({
   // `snapshot`.
   const { pulse: turnReminderPulse } = useTurnReminder({
     view: snapshot?.view ?? null,
+    legalActionCount: snapshot?.legalActions.length ?? 0,
     enabled: turnReminderOn,
     soundOn,
   });
