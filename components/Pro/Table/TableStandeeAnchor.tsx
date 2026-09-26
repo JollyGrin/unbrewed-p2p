@@ -200,6 +200,9 @@ export const TableStandeeAnchor = ({
 }: TableStandeeAnchorProps) => {
   const placement = placeStandee(stack ? stack.depthY : y, tiltDeg);
   const zIndex = placement.zIndex + (stack?.order ?? 0);
+  // An inert piece (the walk ghost) never opts its base back in: the root is
+  // already click-through, so this is what keeps the gold step under it live.
+  const interactive = !inert && !!(onClick || onMouseEnter || onMouseLeave);
   // A PLAIN CIRCLE, sized off the space's own diameter — exactly how
   // `TableSpace` draws its own disc. The ambient `rotateX` on the shared
   // ancestor stage plane foreshortens this into the correctly-proportioned
@@ -254,12 +257,20 @@ export const TableStandeeAnchor = ({
       style={{ transform: "translate(-50%, -100%)", transformStyle: "preserve-3d" }}
       zIndex={zIndex}
       cursor={onClick ? "pointer" : undefined}
-      pointerEvents={inert ? "none" : undefined}
       title={title}
       onClick={onClick}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       data-pick={pick ? "" : undefined}
+      // CLICK ROUTING (#873). The anchor's box is the billboarded plate's
+      // footprint — for a miniature 1.55 × 2.33 space diameters, so it
+      // reaches over the space BEHIND the figure. Letting it hit-test ate
+      // taps meant for that space (or committed the figure's own space via
+      // the fallback). Only the parts that sit ON this piece's own space
+      // take pointer events: the flat token's face (TableFlatToken), the
+      // in-plane base below, and a figure's body while the fighter itself is
+      // a target. Their clicks still bubble up to this root's `onClick`.
+      pointerEvents="none"
       ref={innerRef}
       {...rest}
     >
@@ -314,7 +325,9 @@ export const TableStandeeAnchor = ({
           bg="radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.28) 0%, rgba(20,10,24,0.82) 65%, rgba(8,4,10,0.95) 100%)"
           border={`2.5px solid ${baseAccent}`}
           boxShadow={`0 0 0 1px rgba(0,0,0,0.75), 0 2px 5px rgba(0,0,0,0.7)`}
-          pointerEvents="none"
+          // The base is the piece's tap target on its own space (#873) — but
+          // only when the piece has something to do with a tap or hover.
+          pointerEvents={interactive ? "auto" : "none"}
           data-fighter-base=""
           data-space-id={spaceId ?? undefined}
         />
@@ -343,17 +356,19 @@ export const TableStandeeAnchor = ({
       )}
       {/* The billboard: counter-rotated about its own feet so it stands
           upright and faces the camera regardless of the board's tilt. */}
-      {/* On a SHARED space the upright plate (transparent but for its
-          badges) stands up through the ring slots behind it and would
-          swallow a click meant for the piece lying there, so it lets the
-          pointer through; the flat token and the root still take the tap. */}
+      {/* The upright plate (transparent but for its badges) stands up
+          through the space behind it — on a SHARED space, through the ring
+          slots too — so it always lets the pointer through (#873); the flat
+          token or base takes the tap and it bubbles to the root's onClick.
+          `data-stacked-plate` marks the shared-space case. */}
       <Box
         position="relative"
         w="100%"
         h="100%"
-        pointerEvents={stack ? "none" : undefined}
+        pointerEvents="none"
         data-stacked-plate={stack ? "" : undefined}
         style={{ transform: placement.transform, transformOrigin: "50% 100%" }}
+        data-standee-upright=""
       >
         {children}
       </Box>

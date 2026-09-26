@@ -30,6 +30,10 @@ export interface TableFighterTailProps {
   /** The tail forwards a click to the SAME fighter id as the head — clicking
    *  either segment acts on the whole fighter, matching ProBoard. */
   onClick?: (id: FighterId) => void;
+  /** Commits the tail's own space when it is a pick and the fighter isn't a
+   *  target: the tail's face covers that space, so without this the space
+   *  can't be tapped at all (#873). Same fallback as the head's. */
+  onSpaceFallbackClick?: () => void;
   targetable: boolean;
   /** Only the base (and the tap target): the fighter's miniature stands
    *  between its two spaces, so an upright disc here would be a second,
@@ -49,6 +53,7 @@ export const TableFighterTail = ({
   anim = null,
   onAnimComplete,
   onClick,
+  onSpaceFallbackClick,
   targetable,
   bodyHidden = false,
 }: TableFighterTailProps) => {
@@ -83,7 +88,7 @@ export const TableFighterTail = ({
       anim={anim}
       onAnimComplete={onAnimComplete}
       pick={clickable}
-      onClick={clickable ? () => onClick!(fighter.id) : undefined}
+      onClick={clickable ? () => onClick!(fighter.id) : onSpaceFallbackClick}
       title={`${fighter.name} (trailing body)`}
       data-fighter-id={`${fighter.id}-tail`}
     >

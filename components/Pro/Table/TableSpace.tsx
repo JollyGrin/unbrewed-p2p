@@ -26,7 +26,7 @@
 import { ReactNode } from "react";
 import { Box } from "@chakra-ui/react";
 import type { ProMapItem, ProMapSpace, SpaceId } from "@/lib/pro/protocol";
-import { pieSliceAngles, pieSlicePath, tableHitDiameter } from "@/lib/pro/tableProjection";
+import { pieSliceAngles, pieSlicePath, tableHitDiameter, tableHitPx } from "@/lib/pro/tableProjection";
 import { ItemInspectBadge, PassageBadge } from "@/components/Pro/ItemBadge";
 
 /** Fallback fill for a space that belongs to no zone (most maps have some —
@@ -93,8 +93,11 @@ export interface TableSpaceProps {
   highlighted: boolean;
   relocateOrigin: boolean;
   relocateArmed: boolean;
-  item?: ProMapItem | null;
-  passage?: boolean;
+  /** Touch device: pad the hit circle for depth (see `tableHitPx`). */
+  coarsePointer?: boolean;
+  /** Distance (board-plane px) to the nearest other pick — the padded hit
+   *  circle never grows past it, so adjacent picks never overlap (#873). */
+  hitCapPx?: number;
   onClick?: (id: SpaceId) => void;
   onHoverChange?: (id: SpaceId | null) => void;
   /** Extra content anchored at the space's centre, above the disc (fighters
@@ -112,14 +115,15 @@ export const TableSpace = ({
   highlighted,
   relocateOrigin,
   relocateArmed,
-  item,
-  passage,
+  coarsePointer = false,
+  hitCapPx,
   onClick,
   onHoverChange,
   children,
 }: TableSpaceProps) => {
   const diamPx = (diameterPct / 100) * Math.max(frameW, 1);
-  const hitPx = (tableHitDiameter(diameterPct, space.y) / 100) * Math.max(frameW, 1);
+  const paddedPx = (tableHitDiameter(diameterPct, space.y) / 100) * Math.max(frameW, 1);
+  const hitPx = tableHitPx(diamPx, paddedPx, coarsePointer, hitCapPx);
   // Relocate mode ARMED makes non-origin spaces inert (protocol/dock review of
   // #748): only the dashed origins are clickable, and hovering anything else
   // must not fire the "who would move here" preview — mirrors ProBoard exactly.
@@ -218,20 +222,50 @@ export const TableSpace = ({
         <Box data-space-shade position="absolute" inset={0} borderRadius="50%" style={{ backgroundImage: TABLE_SPACE_SHADE }} />
       </Box>
 
-      {/* Item / secret-passage badge — same registry components the flat
-          board uses, just re-sized to this space's own disc. */}
-      {item && (
-        <Box position="absolute" top="50%" left="50%" w={`${diamPx * 0.55}px`} h={`${diamPx * 0.55}px`} transform="translate(-50%, -50%)">
-          <ItemInspectBadge item={item} />
-        </Box>
-      )}
-      {!item && passage && (
-        <Box position="absolute" top="50%" left="50%" w={`${diamPx * 0.55}px`} h={`${diamPx * 0.55}px`} transform="translate(-50%, -50%)">
-          <PassageBadge />
-        </Box>
-      )}
-
       {children}
+    </Box>
+  );
+};
+
+/** Badge size and offset, as fractions of the space's own diameter. The
+ *  badge's centre sits up-and-right of the space's centre, far enough out
+ *  (0.6d, with a 0.4d badge) that it clears the inner 80% of the disc. */
+const BADGE_SIZE = 0.4;
+const BADGE_OFFSET = 0.6 / Math.SQRT2;
+
+export interface TableSpaceBadgeProps {
+  space: ProMapSpace;
+  diameterPct: number;
+  frameW: number;
+  item?: ProMapItem | null;
+  passage?: boolean;
+}
+
+/**
+ * A space's item or secret-passage badge (#873). It used to sit at the
+ * centre of the space's own hit circle, which made it unreachable: a space
+ * that isn't a pick is `pointerEvents: none` (so the badge was too), and on a
+ * pick one tap both committed the move and opened the popover. Like ProBoard's
+ * badges it now lies beside the disc in its own layer, up and to the right,
+ * and always takes its own taps. Same registry components the flat board uses.
+ */
+export const TableSpaceBadge = ({ space, diameterPct, frameW, item, passage }: TableSpaceBadgeProps) => {
+  if (!item && !passage) return null;
+  const diamPx = (diameterPct / 100) * Math.max(frameW, 1);
+  const sizePx = diamPx * BADGE_SIZE;
+  const offsetPx = diamPx * BADGE_OFFSET;
+  return (
+    <Box
+      position="absolute"
+      left={`${space.x * 100}%`}
+      top={`${space.y * 100}%`}
+      w={`${sizePx}px`}
+      h={`${sizePx}px`}
+      style={{ transform: `translate(calc(-50% + ${offsetPx.toFixed(2)}px), calc(-50% - ${offsetPx.toFixed(2)}px))` }}
+      pointerEvents="auto"
+      data-space-badge={space.id}
+    >
+      {item ? <ItemInspectBadge item={item} /> : <PassageBadge />}
     </Box>
   );
 };

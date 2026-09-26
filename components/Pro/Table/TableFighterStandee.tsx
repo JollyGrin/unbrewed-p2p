@@ -81,6 +81,10 @@ export interface TableFighterStandeeProps {
   /** Stand without a base of its own: the piece is placed BETWEEN two spaces
    *  and each of them draws its own (see TableBoard's LARGE figures). */
   baseHidden?: boolean;
+  /** Some space on the board is a pick right now. A miniature's upright body
+   *  stands over the spaces BEHIND it, so while any space can be tapped the
+   *  body passes taps through and the fighter is reached by its base (#873). */
+  spacePicksLive?: boolean;
 }
 
 export const TableFighterStandee = ({
@@ -108,6 +112,7 @@ export const TableFighterStandee = ({
   figure = null,
   figureScale = 1,
   baseHidden = false,
+  spacePicksLive = false,
 }: TableFighterStandeeProps) => {
   const tokenPx = standeeBaseDiameterPx(diamPx);
   // A miniature's plate is tall; a flat token's is a low strip that only
@@ -175,7 +180,13 @@ export const TableFighterStandee = ({
           sx={{ "@media (prefers-reduced-motion: reduce)": { animation: "none" } }}
           data-fighter-id={fighter.id}
         >
-          <TableFigureSprite figure={figure} baseDiamPx={figureBaseDiamPx} plateW={widthPx} plateH={heightPx} />
+          <TableFigureSprite
+            figure={figure}
+            baseDiamPx={figureBaseDiamPx}
+            plateW={widthPx}
+            plateH={heightPx}
+            hitTarget={fighterClickable && !spacePicksLive}
+          />
         </Box>
       )}
 
