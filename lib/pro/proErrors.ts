@@ -24,6 +24,7 @@ const MESSAGES: Record<ErrorCode, string> = {
   RESUME_FAILED: "This game couldn't be restored.",
   RESUME_TOO_LARGE: "This game is too large to restore after a server restart.",
   UNDO_UNAVAILABLE: "Nothing to undo.",
+  REMATCH_UNAVAILABLE: "A rematch can't be arranged right now — your opponent may need to refresh.",
   // PR #103 additions — the two this ticket wires up with friendly handling.
   ROOM_LIMIT: "Server is full — try again in a few minutes.",
   RATE_LIMITED: "Slowing down — too many actions at once.",

@@ -34,6 +34,7 @@ import {
   PlayerId,
   ProMapDef,
   PROTOCOL_VERSION,
+  REMATCH_PROTOCOL_VERSION,
   ReplayBundle,
   RoomStatusSeat,
   ServerMsg,
@@ -51,6 +52,13 @@ import { useAccount } from "@/lib/account/useAccount";
 import { useBadges } from "@/lib/account/useBadges";
 import { useCosmetics } from "@/lib/account/useCosmetics";
 import { cosmeticsField, identityFields } from "./playerIdentity";
+import {
+  REMATCH_IDLE,
+  RematchOfferEvent,
+  RematchOfferState,
+  rematchOfferReducer,
+} from "./rematchOffer";
+import { engineSpeaksRematch, forgetEngineVersion, rememberEngineVersion, wireVersionFor } from "./wireVersion";
 
 /** An incoming undo request pushed to the opponent (protocol v11). */
 export interface IncomingUndo {
@@ -289,6 +297,21 @@ export interface UseProSocketReturn {
    */
   gameLost: boolean;
   /**
+   * Rematch offer/confirm (p2p #880, protocol v35). True once this seat is bound
+   * at v35 on an engine that serves the negotiation — only then may the winner
+   * screen offer a rematch through the server instead of the one-tap
+   * `?rematch=` link. Always false against a v34 engine.
+   */
+  rematchNegotiable: boolean;
+  /** where the negotiation stands — see lib/pro/rematchOffer.ts */
+  rematchOffer: RematchOfferState;
+  /** offer the other player(s) a rematch of this finished room */
+  offerRematch: () => void;
+  /** withdraw our own pending offer */
+  cancelRematch: () => void;
+  /** answer the other player's offer */
+  respondToRematch: (accept: boolean) => void;
+  /**
    * Slow mode (issue #703). The batch currently held on screen awaiting the
    * player's OK, or null. The action spotlight renders off THIS identity, not off
    * `snapshot`: a cap overflow applies older batches behind the panel, and keying
@@ -417,6 +440,19 @@ export function useProSocket(
   const seatRef = useRef<PlayerId | null>(null);
   // Message we replay when a fresh socket opens (join intent or reconnect).
   const pendingHelloRef = useRef<ClientMsg | null>(null);
+  // The `v` the current seat was bound with, and the bind message itself (p2p
+  // #880): the engine decides whether a seat can take REMATCH_* from the version
+  // of the message that bound it, so every bind goes through `sendBind`.
+  const boundVersionRef = useRef<number>(PROTOCOL_VERSION);
+  const lastBindRef = useRef<ClientMsg | null>(null);
+  const [rematchNegotiable, setRematchNegotiable] = useState(false);
+  const [rematchOffer, setRematchOffer] = useState<RematchOfferState>(REMATCH_IDLE);
+  const rematchOfferRef = useRef<RematchOfferState>(REMATCH_IDLE);
+  const stepRematch = useCallback((event: RematchOfferEvent) => {
+    const next = rematchOfferReducer(rematchOfferRef.current, event);
+    rematchOfferRef.current = next;
+    setRematchOffer(next);
+  }, []);
   // True while a RESUME_ROOM is in flight — so a resume that itself fails (bad
   // blob / diverged game) surfaces the error instead of looping back into resume.
   const resumingRef = useRef(false);
@@ -599,6 +635,22 @@ export function useProSocket(
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
   }, []);
 
+  // Every message that binds a seat (CREATE/JOIN/RECONNECT/RESUME) goes out at
+  // the version this tab knows the engine speaks (p2p #880, lib/pro/wireVersion):
+  // 35 for an engine whose frames said so, else 34 — so a v34 prod engine sees
+  // exactly the frames it always has.
+  const sendBind = useCallback(
+    (msg: ClientMsg, version?: number) => {
+      const v = version ?? (wsUrl ? wireVersionFor(wsUrl) : PROTOCOL_VERSION);
+      const out = { ...msg, v } as ClientMsg;
+      boundVersionRef.current = v;
+      lastBindRef.current = out;
+      setRematchNegotiable(v >= REMATCH_PROTOCOL_VERSION);
+      send(out);
+    },
+    [wsUrl, send]
+  );
+
   // Cancel the pending "game lost" deadline — a resume succeeded (or we're
   // starting fresh), so the terminal-failure timer must not fire.
   const clearResumeDeadline = useCallback(() => {
@@ -657,9 +709,9 @@ export function useProSocket(
       const room = roomRef.current;
       const token = room ? getToken(room) : null;
       if (room && token) {
-        send({ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token });
+        sendBind({ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token });
       } else if (pendingHelloRef.current) {
-        send(pendingHelloRef.current);
+        sendBind(pendingHelloRef.current);
         pendingHelloRef.current = null;
       }
     };
@@ -674,6 +726,9 @@ export function useProSocket(
       } catch {
         return;
       }
+      // Every frame stamps the engine's version — how the tab learns it may
+      // speak v35 (p2p #880; /healthz has no CORS header to read it from).
+      if (wsUrl) rememberEngineVersion(wsUrl, (msg as { v?: unknown }).v);
       switch (msg.type) {
         case "HEROES":
           setHeroes(msg.heroes);
@@ -748,6 +803,20 @@ export function useProSocket(
           illegalStreakRef.current = 0; // a fresh view: rejections start counting anew (#848)
           setResyncing(false); // …and if we asked for one, this is it
           gameOverRef.current = !!view.winner;
+          // Rematch (p2p #880): a seat bound at v34 (a first visit, before this
+          // tab had seen the engine's version) can neither offer nor be offered.
+          // At game over, re-bind it at v35 on this same socket — the same
+          // in-socket RECONNECT the #848 resync uses; its identical STATE reply
+          // is absorbed by the resync-reply check just below.
+          if (view.winner && wsUrl && engineSpeaksRematch(wsUrl) && boundVersionRef.current < REMATCH_PROTOCOL_VERSION) {
+            const room = roomRef.current;
+            const token = room ? getToken(room) : null;
+            if (room && token) {
+              resumeExpectedRef.current = true;
+              resyncReplyRef.current = true;
+              sendBind({ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token }, REMATCH_PROTOCOL_VERSION);
+            }
+          }
           {
             // A resync's answer that says nothing new (p2p #869): the view we
             // already hold, re-sent. Leave pacing and any undo negotiation be.
@@ -888,6 +957,30 @@ export function useProSocket(
           setUndoPending(false);
           setUndoRejected(true);
           break;
+        // Rematch offer/confirm (p2p #880, protocol v35).
+        case "REMATCH_OFFERED":
+          stepRematch({ type: "OFFERED", from: msg.from, me: seatRef.current });
+          break;
+        case "REMATCH_READY": {
+          const from = roomRef.current;
+          const alreadyHere = from !== null && msg.roomId.toUpperCase() === from.toUpperCase();
+          if (!alreadyHere) {
+            // Seat ourselves in the new room before the page moves there: its
+            // RECONNECT reads this token, and the next Rematch reads the bots.
+            setToken(msg.roomId, msg.token);
+            const bots = from ? getRoomBots(from) : null;
+            if (bots) setRoomBots(msg.roomId, bots);
+          }
+          stepRematch({ type: "READY", roomId: msg.roomId, currentRoom: from });
+          break;
+        }
+        case "REMATCH_CLOSED":
+          stepRematch({
+            type: "CLOSED",
+            reason: msg.reason,
+            ...(msg.player !== undefined ? { player: msg.player } : {}),
+          });
+          break;
         case "ERROR": {
           // Whatever the code, our last action did NOT produce a STATE, so the
           // in-flight latch would otherwise stay armed and make the next
@@ -903,6 +996,19 @@ export function useProSocket(
           // a benign race despite canUndo-gating (double-request, or the undo
           // boundary shifted under us). Clear our pending-undo UI and surface a
           // light "nothing to undo" notice, NOT the terminal error / loss path.
+          // A REMATCH_* the room can't take right now (p2p #880) — most often
+          // the other seat is on a client too old to answer. Not a game error.
+          if (msg.code === "REMATCH_UNAVAILABLE") {
+            stepRematch({ type: "REFUSED", message: msg.message });
+            break;
+          }
+          // The engine refused a v35 bind: this tab remembered a version the
+          // engine no longer speaks (a rollback). Forget it and bind at 34.
+          if (msg.code === "VERSION" && wsUrl && lastBindRef.current && lastBindRef.current.v > PROTOCOL_VERSION) {
+            forgetEngineVersion(wsUrl);
+            sendBind(lastBindRef.current, PROTOCOL_VERSION);
+            break;
+          }
           if (msg.code === "UNDO_UNAVAILABLE") {
             setUndoPending(false);
             setUndoUnavailable(true);
@@ -955,7 +1061,7 @@ export function useProSocket(
               resyncReplyRef.current = true;
               setIllegalAction(false); // the "refreshing" notice supersedes the per-rejection toast
               setResyncing(true);
-              send({ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token });
+              sendBind({ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token });
               break;
             }
             setIllegalAction(true);
@@ -978,7 +1084,7 @@ export function useProSocket(
           const blob = room ? getResumeToken(room) : null;
           if (recoverable && blob && !resumingRef.current) {
             resumingRef.current = true;
-            send({ v: PROTOCOL_VERSION, type: "RESUME_ROOM", token: blob });
+            sendBind({ v: PROTOCOL_VERSION, type: "RESUME_ROOM", token: blob });
             break; // don't surface an error — a resume attempt is underway
           }
           // Resume genuinely failed, or nothing to resume: forget a dead room and show it.
@@ -1019,7 +1125,7 @@ export function useProSocket(
     // `runSlowStep` is referentially stable (its whole dependency chain bottoms
     // out in a `[]` callback), so listing it here can never re-create `connect`
     // and drop a live socket.
-  }, [wsUrl, send, clearResumeDeadline, armResumeDeadline, resolveOwnClock, runSlowStep, clearResumeReplyDeadline]);
+  }, [wsUrl, send, sendBind, stepRematch, clearResumeDeadline, armResumeDeadline, resolveOwnClock, runSlowStep, clearResumeReplyDeadline]);
 
   useEffect(() => {
     if (!wsUrl) {
@@ -1100,7 +1206,7 @@ export function useProSocket(
           lastResyncAtRef.current = now;
           resumeExpectedRef.current = true; // the answering STATE is a whole fresh view (#703)
           resyncReplyRef.current = true; // …unless it is the view we already hold (#869)
-          send({ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token });
+          sendBind({ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token });
           clearResumeReplyDeadline();
           resumeReplyTimerRef.current = setTimeout(() => {
             resumeReplyTimerRef.current = null;
@@ -1134,7 +1240,7 @@ export function useProSocket(
       document.removeEventListener("visibilitychange", onResume);
       window.removeEventListener("pageshow", onResume);
     };
-  }, [wsUrl, connect, send, armResumeDeadline, clearResumeReplyDeadline]);
+  }, [wsUrl, connect, sendBind, armResumeDeadline, clearResumeReplyDeadline]);
 
   const createRoom = useCallback(
     (
@@ -1160,6 +1266,8 @@ export function useProSocket(
       lastViewRef.current = null;
       clearResumeDeadline();
       pendingCreateBotsRef.current = botsFromCreateRoom(bot, botSeats);
+      rematchOfferRef.current = REMATCH_IDLE; // a new room has no rematch in flight
+      setRematchOffer(REMATCH_IDLE);
       const msg: ClientMsg = {
         v: PROTOCOL_VERSION,
         type: "CREATE_ROOM",
@@ -1194,10 +1302,10 @@ export function useProSocket(
         // hero with nothing equipped, and an API that didn't answer.
         ...cosmeticsField(identityRef.current, cosmeticsRef.current, heroId),
       };
-      if (wsRef.current?.readyState === WebSocket.OPEN) send(msg);
+      if (wsRef.current?.readyState === WebSocket.OPEN) sendBind(msg);
       else pendingHelloRef.current = msg;
     },
-    [send, clearResumeDeadline]
+    [sendBind, clearResumeDeadline]
   );
 
   const joinRoom = useCallback(
@@ -1210,6 +1318,8 @@ export function useProSocket(
       clearResumeDeadline();
       roomRef.current = room;
       setRoomId(room);
+      rematchOfferRef.current = REMATCH_IDLE;
+      setRematchOffer(REMATCH_IDLE);
       // heroId === "" is an explicit resume (refresh flow / recent-rooms strip)
       // and may use any token this browser holds. A join WITH a hero only
       // reclaims THIS TAB's seat — never a token another tab wrote, or the
@@ -1231,10 +1341,10 @@ export function useProSocket(
             // the server kept the seat, and with it the blob it claimed on join.
             ...cosmeticsField(identityRef.current, cosmeticsRef.current, heroId),
           };
-      if (wsRef.current?.readyState === WebSocket.OPEN) send(msg);
+      if (wsRef.current?.readyState === WebSocket.OPEN) sendBind(msg);
       else pendingHelloRef.current = msg;
     },
-    [send, clearResumeDeadline]
+    [sendBind, clearResumeDeadline]
   );
 
   // In-flight guard (p2p #840, narrowed in #847): lets an ACTION through unless
@@ -1327,6 +1437,32 @@ export function useProSocket(
     [send]
   );
 
+  // Rematch offer/confirm (p2p #880). Meta messages like undo — never actions.
+  // Each is gated on the phase it belongs to, so a double tap sends one frame.
+  const offerRematch = useCallback(() => {
+    const room = roomRef.current;
+    if (!room || rematchOfferRef.current.phase !== "idle") return;
+    stepRematch({ type: "OFFER" });
+    send({ v: REMATCH_PROTOCOL_VERSION, type: "REMATCH_OFFER", roomId: room });
+  }, [send, stepRematch]);
+
+  const cancelRematch = useCallback(() => {
+    const room = roomRef.current;
+    if (!room || rematchOfferRef.current.phase !== "offering") return;
+    stepRematch({ type: "CANCEL" });
+    send({ v: REMATCH_PROTOCOL_VERSION, type: "REMATCH_CANCEL", roomId: room });
+  }, [send, stepRematch]);
+
+  const respondToRematch = useCallback(
+    (accept: boolean) => {
+      const room = roomRef.current;
+      if (!room || rematchOfferRef.current.phase !== "incoming") return;
+      stepRematch({ type: accept ? "ACCEPT" : "DECLINE" });
+      send({ v: REMATCH_PROTOCOL_VERSION, type: "REMATCH_RESPOND", roomId: room, accept });
+    },
+    [send, stepRematch]
+  );
+
   const acknowledgeOwnTimerExpired = useCallback(() => setOwnTimerExpired(false), []);
   const acknowledgeUndoRejected = useCallback(() => setUndoRejected(false), []);
   const acknowledgeUndoUnavailable = useCallback(() => setUndoUnavailable(false), []);
@@ -1384,6 +1520,11 @@ export function useProSocket(
     setVisibility,
     serverRestarting,
     gameLost,
+    rematchNegotiable,
+    rematchOffer,
+    offerRematch,
+    cancelRematch,
+    respondToRematch,
     slowModeHeld,
     slowModePending,
     advanceSlowMode,
