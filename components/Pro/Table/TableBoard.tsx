@@ -37,7 +37,11 @@ import { useReducedMotion } from "framer-motion";
 import type { FighterId, ProMapSpace, SpaceId, ViewFighter } from "@/lib/pro/protocol";
 import {
   DEFAULT_TILT_DEG,
+  BAND_LABEL_OVER_BADGES_PX,
+  badgeLayerSlide,
   bandLabelLiftPx,
+  eyeRaySlide,
+  flatTokenTopPx,
   bandLabelTransform,
   bandLabelZIndex,
   standeeBaseDiameterPx,
@@ -69,7 +73,9 @@ import { TableBoardFx } from "./TableBoardFx";
 import { TableBoardLines } from "./TableBoardLines";
 import { TableSpace, TableSpaceBadge } from "./TableSpace";
 import { TableFighterStandee } from "./TableFighterStandee";
-import { TOKEN_THICKNESS } from "./TableFlatToken";
+import { TOKEN_BADGE_PLATE_HEIGHT, TOKEN_THICKNESS } from "./TableFlatToken";
+import { heroBadgesDeepestPx } from "./TableFighterBadges";
+import { BADGE_PROBE_CHIP, BADGE_PROBE_FLAG, BADGE_PROBE_STATUS, useTableBadgeProbe } from "@/lib/pro/tableBadgeProbe";
 import { TableFighterTail } from "./TableFighterTail";
 import { TableSidekickToken } from "./TableSidekickToken";
 import { TableBoardObject } from "./TableBoardObject";
@@ -170,6 +176,8 @@ export const TableBoard = ({
   const zoneColor = (id: string) => zoneColorMap.get(id) ?? "#8878A0";
   const itemById = useMemo(() => new Map((map.items ?? []).map((it) => [it.id, it])), [map.items]);
   const reducedMotion = !!useReducedMotion();
+  // Dev-only: every fighter wears every badge, for the occlusion probe.
+  const badgeProbe = useTableBadgeProbe();
 
   // Regions are normalized to their OWN inset image, not the main board (see
   // the header comment). Phase 1 silently filtered their spaces out of
@@ -295,9 +303,9 @@ export const TableBoard = ({
       selected: isSelected,
       targetable: isTarget,
       friendly: isFriendly,
-      extendedReach: isExtendedReachTarget,
-      chipText,
-      badgeNumber: fighterBadges[f.id],
+      extendedReach: isExtendedReachTarget || badgeProbe,
+      chipText: chipText ?? (badgeProbe ? BADGE_PROBE_CHIP : null),
+      badgeNumber: fighterBadges[f.id] ?? (badgeProbe ? 1 : undefined),
       onClick: onFighterClick,
       onSpaceFallbackClick: spaceHighlighted ? () => onSpaceClick!(f.space) : undefined,
       onHoverChange: onFighterHover,
@@ -659,7 +667,7 @@ export const TableBoard = ({
                   </TableStandeeAnchor>
                 )}
                 <TableFighterStandee
-                  fighter={f}
+                  fighter={badgeProbe ? { ...f, statuses: [...(f.statuses ?? []), BADGE_PROBE_STATUS] } : f}
                   x={stand.x}
                   y={stand.y}
                   stack={straddling ? undefined : head.stack}
@@ -673,7 +681,9 @@ export const TableBoard = ({
                   spacePicksLive={highlightSet.size > 0 || relocateSet.size > 0}
                   anim={standAnim ?? standSwap}
                   onAnimComplete={standAnim && !straddling ? onPendingMoveSettled : undefined}
-                  badge={fighterTokenBadge?.(f)}
+                  badge={fighterTokenBadge?.(f) ?? (badgeProbe ? BADGE_PROBE_FLAG : null)}
+                  frameW={frameW}
+                  frameH={frameH}
                   innerRef={registerFighterEl(f.id)}
                   {...common}
                 />
@@ -701,6 +711,8 @@ export const TableBoard = ({
                 onSpaceFallbackClick={common.onSpaceFallbackClick}
                 onHoverChange={common.onHoverChange}
                 innerRef={registerFighterEl(f.id)}
+                frameW={frameW}
+                frameH={frameH}
               />
             );
           })}
@@ -723,9 +735,34 @@ export const TableBoard = ({
             // The pill stands above the TALLER end: a flat token's own
             // thickness plus whatever a shared space lifted it by (#899).
             const head = fighterPlace(headSpace, f.id, (diameterPct / 100) * Math.max(frameW, 1), frameW, frameH);
-            const tokenTopPx =
-              Math.max(1, Math.round(standeeBaseDiameterPx(tail.diamPx) * TOKEN_THICKNESS)) +
-              Math.max(head.stack?.liftPx ?? 0, tail.stack?.liftPx ?? 0);
+            const tokenTopPx = flatTokenTopPx(
+              standeeBaseDiameterPx(tail.diamPx),
+              Math.max(head.stack?.liftPx ?? 0, tail.stack?.liftPx ?? 0)
+            );
+            // The head token's badges slide toward the camera to clear it
+            // (#902); the pill slides further, so where they overlap it is
+            // still the pill that reads — by depth, like everything here.
+            // Bounded by the deepest the head's badges can ever hang.
+            const headTokenPx = standeeBaseDiameterPx(head.diamPx);
+            const headBadgesForwardPx = badgeLayerSlide({
+              x: head.x,
+              y: head.y,
+              frameW,
+              frameH,
+              tiltDeg,
+              plateScale: 1,
+              tokenTopPx: flatTokenTopPx(headTokenPx, head.stack?.liftPx ?? 0),
+              lowestPx: heroBadgesDeepestPx(headTokenPx * TOKEN_BADGE_PLATE_HEIGHT),
+            }).forwardPx;
+            const pillSlide = eyeRaySlide({
+              x: mid.x,
+              y: mid.y,
+              frameW,
+              frameH,
+              tiltDeg,
+              plateScale: 1,
+              forwardPx: headBadgesForwardPx + BAND_LABEL_OVER_BADGES_PX,
+            });
             return (
               <Fragment key={`${f.id}-band`}>
                 <TableFighterTail
@@ -777,7 +814,7 @@ export const TableBoard = ({
                     zIndex={bandLabelZIndex(headSpace.y, tailSpace.y)}
                     data-band-label={f.id}
                     style={{
-                      transform: bandLabelTransform(tiltDeg, bandLabelLiftPx(tokenTopPx)),
+                      transform: `${bandLabelTransform(tiltDeg, bandLabelLiftPx(tokenTopPx))} ${pillSlide.transform}`.trim(),
                       transformOrigin: "50% 100%",
                     }}
                   >

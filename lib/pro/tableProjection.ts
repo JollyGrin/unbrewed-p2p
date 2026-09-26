@@ -291,6 +291,151 @@ export const bandLabelLiftPx = (tokenTopPx: number): number =>
   Math.max(0, tokenTopPx) + BAND_LABEL_CLEARANCE_PX;
 
 /**
+ * Where a fighter's BADGE LAYER goes (#902) — the HP heart, reach glyph, flag,
+ * status dots and pick marks. They hang off the edges of the anchor's upright
+ * plate, whose foot is the token's centre. A point `h` px up that plate stands
+ * only `h·sin(tilt)` off the board, and a mark hanging BELOW the foot (h < 0)
+ * is under the board — so on a flat token (a plate ~0.6 of the token tall)
+ * the token's own disc bit the reach glyph and swallowed every pick mark and
+ * status dot, whatever their z-index (see `bandLabelLiftPx` on why depth).
+ *
+ * THE FIX: slide the whole layer toward the camera ALONG ITS OWN EYE RAY, and
+ * shrink it by the same perspective ratio. A point moved along the ray from
+ * the eye through it lands on the same pixel, and the shrink undoes the
+ * nearer layer's magnification, so the badges draw exactly where they always
+ * did, at the same size — but now `forwardPx` nearer the camera, far enough
+ * that their LOWEST pixel stands `bandLabelLiftPx(tokenTopPx)` off the board:
+ * above the token's top face (thickness + stack lift), so neither the token
+ * nor the board can cover any of them. A plain `translateZ` toward the camera
+ * would lift them too, but it also magnifies them about the stage centre, so
+ * a badge near the board's edge drifted off its token by ~10px.
+ *
+ * Geometry (CSS px, the camera rig in TableStage): the plane is `frameW ×
+ * frameH`, tilted by `rotateX(tilt)` about its centre, seen from `perspectivePx
+ * (frameW)` in front of that centre. The foot at normalized (x, y) sits at
+ * X = (x−½)·W, Y = (y−½)·H·cos t, Z = (y−½)·H·sin t. The plate (counter-rotated
+ * back to face the camera and scaled by `plateScale`) is screen-parallel, so
+ * its local x/y are screen x/y and its local z points at the camera. Sliding by
+ * `d` toward the eye and scaling by m = (P−Z−d)/(P−Z) about the foot needs a
+ * lateral shift of −(X, Y)·d/(P−Z), which in the plate's scaled units is that
+ * over `plateScale`. A point `h` up the layer then stands
+ *   s·h·sin t + d·(cos t + (Y − s·h)·sin t / (P − Z))
+ * off the board; `d` solves that for the lowest point = the clearance lift.
+ *
+ * `lowestPx` is the layer's lowest pixel, px above the foot in the plate's own
+ * units (negative = below it; +Infinity = no badges). The height guarantee
+ * does not depend on the stage's small yaw (it only moves X); the "same pixel"
+ * one is exact at yaw 0 and off by a fraction of a pixel at TABLE_YAW_DEG.
+ */
+export interface BadgeLayerInput {
+  /** The foot's normalized board position (the anchor's x, y). */
+  x: number;
+  y: number;
+  frameW: number;
+  frameH: number;
+  tiltDeg: number;
+  /** The plate's own depth scale (`placeStandee(...).scale`). */
+  plateScale: number;
+  /** The token top the badges must clear, px off the board (`flatTokenTopPx`). */
+  tokenTopPx: number;
+  lowestPx: number;
+}
+
+export interface BadgeLayerSlide {
+  /** How far toward the camera the layer moves, px. */
+  forwardPx: number;
+  /** The lateral shift that keeps it on the same pixels, plate px. */
+  shiftXPx: number;
+  shiftYPx: number;
+  /** The shrink that keeps it the same size. */
+  scale: number;
+  /** Appended after the plate's own transform, about the same foot origin. */
+  transform: string;
+}
+
+const NO_SLIDE: BadgeLayerSlide = { forwardPx: 0, shiftXPx: 0, shiftYPx: 0, scale: 1, transform: "" };
+
+/** Where the eye sees a point on the tilted plane from, and how far away. */
+const eyeFrame = (x: number, y: number, frameW: number, frameH: number, tiltDeg: number) => {
+  const t = (clampTilt(tiltDeg) * Math.PI) / 180;
+  // No frame measured yet (first render, a unit test): no perspective to
+  // correct for, so a slide is a plain move toward the camera.
+  if (!(frameW > 0)) return { sin: Math.sin(t), cos: Math.cos(t), X: 0, Y: 0, depth: Infinity };
+  const v = (y - 0.5) * Math.max(0, frameH);
+  return {
+    sin: Math.sin(t),
+    cos: Math.cos(t),
+    X: (x - 0.5) * frameW,
+    Y: v * Math.cos(t),
+    depth: perspectivePx(frameW) - v * Math.sin(t),
+  };
+};
+
+export interface EyeRaySlideInput {
+  /** The billboard's foot, normalized on the board. */
+  x: number;
+  y: number;
+  frameW: number;
+  frameH: number;
+  tiltDeg: number;
+  /** The billboard's own 2D scale (its local px per screen-parallel px). */
+  plateScale: number;
+  forwardPx: number;
+}
+
+/**
+ * Slides a camera-facing billboard `forwardPx` toward the camera along the eye
+ * ray through its foot, shrunk by the same perspective ratio, so it draws on
+ * exactly the same pixels, only nearer (see `badgeLayerSlide`). Appended after
+ * the billboard's own counter-rotation, about its foot.
+ */
+export const eyeRaySlide = ({ x, y, frameW, frameH, tiltDeg, plateScale, forwardPx }: EyeRaySlideInput): BadgeLayerSlide => {
+  if (!(forwardPx > 0)) return NO_SLIDE;
+  const { X, Y, depth } = eyeFrame(x, y, frameW, frameH, tiltDeg);
+  if (depth <= 0) return NO_SLIDE;
+  const s = plateScale > 0 ? plateScale : 1;
+  // Never more than half-way to the eye, whatever a degenerate input says.
+  const d = Math.min(forwardPx, depth / 2);
+  const finite = Number.isFinite(depth);
+  const scale = finite ? (depth - d) / depth : 1;
+  const shiftXPx = finite ? (-X * d) / (depth * s) : 0;
+  const shiftYPx = finite ? (-Y * d) / (depth * s) : 0;
+  return {
+    forwardPx: d,
+    shiftXPx,
+    shiftYPx,
+    scale,
+    transform: `translate3d(${shiftXPx.toFixed(2)}px, ${shiftYPx.toFixed(2)}px, ${d.toFixed(2)}px) scale(${scale.toFixed(4)})`,
+  };
+};
+
+export const badgeLayerSlide = ({
+  x,
+  y,
+  frameW,
+  frameH,
+  tiltDeg,
+  plateScale,
+  tokenTopPx,
+  lowestPx,
+}: BadgeLayerInput): BadgeLayerSlide => {
+  if (!Number.isFinite(lowestPx)) return NO_SLIDE;
+  const { sin, cos, Y, depth } = eyeFrame(x, y, frameW, frameH, tiltDeg);
+  const s = plateScale > 0 ? plateScale : 1;
+  const need = bandLabelLiftPx(tokenTopPx) - s * lowestPx * sin;
+  if (need <= 0 || depth <= 0) return NO_SLIDE;
+  // How much height each px of slide buys. Always positive in practice: the
+  // eye is above the board, so its ray climbs off it toward the camera.
+  const perPx = cos + (Number.isFinite(depth) ? ((Y - s * lowestPx) * sin) / depth : 0);
+  return eyeRaySlide({ x, y, frameW, frameH, tiltDeg, plateScale: s, forwardPx: need / Math.max(perPx, 0.05) });
+};
+
+/** How much nearer the camera than the band ends' badge layers a LARGE
+ *  fighter's name pill stands, px — so the pill still wins where the head
+ *  token's badges overlap it (#902 must not bring back "King Kon"). */
+export const BAND_LABEL_OVER_BADGES_PX = 4;
+
+/**
  * The name pill's transform, about `transform-origin: 50% 100%` (its foot): it
  * stands upright facing the camera (the same counter-rotation a standee uses),
  * foot on the band midpoint, `liftPx` above the board and a hair toward the
@@ -559,6 +704,20 @@ export const BASE_TO_SPACE_DIAMETER_RATIO = 0.9;
 
 export const standeeBaseDiameterPx = (spaceDiamPx: number): number =>
   Math.max(0, spaceDiamPx) * BASE_TO_SPACE_DIAMETER_RATIO;
+
+/** A flat token's thickness as a fraction of its diameter — about a 2mm board
+ *  on a 25mm token. TableFlatToken draws it as a stack of layers, 1px apart. */
+export const TOKEN_THICKNESS = 0.08;
+
+/**
+ * How high a flat token's top face stands off the board, px: its own layers
+ * (TableFlatToken draws `max(1, round(tokenPx × TOKEN_THICKNESS))` of them)
+ * plus the shared-space `stack.liftPx` it is raised by (#888). Everything that
+ * has to stand clear of a token — a LARGE fighter's name pill (#899), a
+ * fighter's badges (#902) — measures from this one number.
+ */
+export const flatTokenTopPx = (tokenPx: number, stackLiftPx: number = 0): number =>
+  Math.max(1, Math.round(Math.max(0, tokenPx) * TOKEN_THICKNESS)) + Math.max(0, stackLiftPx);
 
 // ---------------------------------------------------------------------------
 // Contact shadow (phase-5 fault #3 — see the file header). Applied in
