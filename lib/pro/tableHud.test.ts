@@ -1,5 +1,6 @@
 import type { Action } from "./protocol";
 import { RAIL_WIDTH } from "./mobileLayout";
+import { SEAT_COLOR } from "./seatColors";
 import {
   HUD_FAN_MAX_SPREAD_REM,
   HUD_FAN_STEP_REM,
@@ -7,7 +8,6 @@ import {
   HUD_GUTTER,
   HUD_HAND_VISIBLE_PX,
   HUD_TOP_RESERVE_PX,
-  SEAT_COLOR,
   handFanLayout,
   hexLabelFor,
   tableHudBanner,

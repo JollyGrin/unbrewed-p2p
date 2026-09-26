@@ -326,3 +326,57 @@ describe("TableBoard figures", () => {
     expect(container.querySelector("img[data-table-figure]")).toBeNull();
   });
 });
+
+describe("TableBoard parity with the flat board (#877)", () => {
+  const LARGE_MAP: ProMapDef = {
+    ...MAP,
+    spaces: [...MAP.spaces, { id: "s4", x: 0.35, y: 0.35, zones: [], adjacentTo: ["s3"] }],
+  };
+
+  it("registers a SIDEKICK in the damage-arc registry, as it does a hero", () => {
+    const fighterEls = { current: new Map<string, HTMLElement>() };
+    const sidekick = fighter({ id: "p1/sk", kind: "SIDEKICK", name: "Grogu", space: "s2" });
+    renderBoard({ fighters: [fighter({}), sidekick], fighterEls });
+    expect([...fighterEls.current.keys()].sort()).toEqual(["p1/hero", "p1/sk"]);
+    // It registers the piece's own anchor — the element that holds its face.
+    expect(fighterEls.current.get("p1/sk")!.querySelector('[data-fighter-id="p1/sk"]')).toBeTruthy();
+  });
+
+  it("draws the hero-state badge (tide, druid form, a counter) on the hero's standee", () => {
+    const fighterTokenBadge = jest.fn((f: ViewFighter) =>
+      f.kind === "HERO" ? { icon: "🌊", label: "3", title: "Tide: High", bg: "#123", color: "#fff", showLabel: true } : null
+    );
+    renderBoard({ fighters: [fighter({})], fighterTokenBadge });
+    expect(fighterTokenBadge).toHaveBeenCalledWith(expect.objectContaining({ id: "p1/hero" }));
+    const badge = screen.getByTitle("Tide: High");
+    expect(badge.textContent).toBe("🌊3");
+  });
+
+  it("draws the badge over a hero's miniature too", () => {
+    const figure = { anchor: { x: 0.5, y: 0.75 }, imageWidthMm: 80, footprintMm: 60, aspect: 1.5, url: "/f.webp" };
+    renderBoard({
+      fighters: [fighter({})],
+      fighterFigure: () => figure,
+      fighterTokenBadge: () => ({ icon: "🐻", label: "Bear", title: "Druid form: Bear", bg: "#321", color: "#fff" }),
+    });
+    expect(screen.getByTitle("Druid form: Bear")).toBeTruthy();
+  });
+
+  it("reports a hover on a LARGE fighter's tail as the fighter itself, like ProBoard", () => {
+    const onFighterHover = jest.fn();
+    const { container } = render(
+      <ChakraProvider>
+        <TableBoard
+          map={LARGE_MAP}
+          fighters={[fighter({ id: "p1/kong", name: "King Kong", space: "s3", tailSpace: "s4", size: "LARGE" })]}
+          onFighterHover={onFighterHover}
+        />
+      </ChakraProvider>
+    );
+    const tail = container.querySelector('[data-fighter-id="p1/kong-tail"]') as HTMLElement;
+    fireEvent.mouseEnter(tail);
+    expect(onFighterHover).toHaveBeenLastCalledWith("p1/kong");
+    fireEvent.mouseLeave(tail);
+    expect(onFighterHover).toHaveBeenLastCalledWith(null);
+  });
+});

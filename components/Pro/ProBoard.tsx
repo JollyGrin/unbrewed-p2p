@@ -39,9 +39,8 @@ import {
 } from "@/lib/pro/tokenStack";
 import { useFlag } from "@/lib/flags";
 import type { CosmeticRimTier } from "@/lib/pro/cosmetics";
+import { DEFAULT_SPACE_DIAMETER, SEAT_COLOR } from "@/lib/pro/seatColors";
 import { COSMETIC_RIM_MIN_PX, FighterTokenRim } from "./FighterTokenRim";
-
-const DEFAULT_DIAMETER = 0.021;
 
 /**
  * Fighter-token chrome sizing: the initials label and the edge badges (HP chip,
@@ -450,13 +449,6 @@ export interface ProBoardProps {
   fighterEls?: MutableRefObject<Map<FighterId, HTMLElement>>;
 }
 
-const PLAYER_COLOR: Record<string, string> = {
-  p1: "#E0A82E", // gold
-  p2: "#3B8BEB", // blue
-  p3: "#2F9E68", // green
-  p4: "#C0449E", // magenta
-};
-
 // Raw hex for the token body when the `tokenLife` layer paints the circle via
 // inline style (Chakra tokens don't resolve there). Must match styles/style.ts.
 const SURFACE_DIM = "#2C1831";
@@ -521,7 +513,7 @@ export const ProBoard = ({
   const tokenLifeOn = !!tokenLife;
   const reducedMotion = !!useReducedMotion();
   const pageHidden = usePageHidden();
-  const diameter = (map.meta.spaceDiameter ?? DEFAULT_DIAMETER) * 100; // % of width
+  const diameter = (map.meta.spaceDiameter ?? DEFAULT_SPACE_DIAMETER) * 100; // % of width
   // Static item definitions (kind + label + value), keyed by id — looked up from
   // the LIVE itemTokens map so a badge renders only while the token is on the board.
   const itemById = new Map((map.items ?? []).map((it) => [it.id, it]));
@@ -803,7 +795,7 @@ export const ProBoard = ({
       fresh.push({
         key: `ko-${id}-${g.key}`,
         space,
-        color: PLAYER_COLOR[f.owner] ?? "#999",
+        color: SEAT_COLOR[f.owner] ?? "#999",
         art: fighterTokenArt?.(f) ?? null,
         initials: tokenInitials(f.name),
         isHero: f.kind === "HERO",
@@ -869,7 +861,7 @@ export const ProBoard = ({
     layerPx: number,
     anim?: { xs: number[]; ys: number[] }
   ) => {
-    const color = PLAYER_COLOR[f.owner] ?? "#999";
+    const color = SEAT_COLOR[f.owner] ?? "#999";
     const isSelected = f.id === selectedFighter;
     const isTarget = highlightFighterSet.has(f.id);
     // Label + badge sizes: token-relative on a touch screen, rem on desktop.
@@ -1414,7 +1406,7 @@ export const ProBoard = ({
     diam: number
   ) => {
     const visual = boardObjectVisualFor(t);
-    const color = PLAYER_COLOR[t.owner] ?? "#999";
+    const color = SEAT_COLOR[t.owner] ?? "#999";
     const countdown = boardObjectCountdown(t);
     const title = boardObjectTitle(t, t.owner, boardObjectOriginName?.(t));
     const art = visual.muted ? boardObjectArt?.(t) : null;
@@ -1629,7 +1621,7 @@ export const ProBoard = ({
       const trailId = previewMove.trailPath?.[previewMove.trailPath.length - 1] ?? null;
       const trail = trailId ? spaces.find((sp) => sp.id === trailId) ?? null : null;
       return {
-        color: PLAYER_COLOR[f.owner] ?? "#999",
+        color: SEAT_COLOR[f.owner] ?? "#999",
         initials: tokenInitials(f.name),
         isHero: f.kind === "HERO",
         x: ghost.x * 100,
@@ -1647,7 +1639,7 @@ export const ProBoard = ({
       const to = spaces.find((sp) => sp.id === h.to);
       const f = fighters.find((x) => x.id === h.fighterId);
       if (!from || !to || !f) return [];
-      return [{ h, from, to, color: PLAYER_COLOR[f.owner] ?? "#999", initials: tokenInitials(f.name), isHero: f.kind === "HERO", art: fighterTokenArt?.(f) ?? null }];
+      return [{ h, from, to, color: SEAT_COLOR[f.owner] ?? "#999", initials: tokenInitials(f.name), isHero: f.kind === "HERO", art: fighterTokenArt?.(f) ?? null }];
     });
     const stackIndex = new Map<SpaceId, number>();
     return (
@@ -1818,7 +1810,7 @@ export const ProBoard = ({
             const head = spaceById.get(f.space as SpaceId);
             const tail = spaceById.get(f.tailSpace as SpaceId);
             if (!head || !tail) return [];
-            const color = PLAYER_COLOR[f.owner] ?? "#999";
+            const color = SEAT_COLOR[f.owner] ?? "#999";
             // white outer + colored inner stroke, echoing the hero token look
             return [
               <line
@@ -1864,7 +1856,7 @@ export const ProBoard = ({
         const tail = spaceById.get(f.tailSpace as SpaceId);
         if (!head || !tail) return null;
         const mid = bandMidpoint(head, tail);
-        const color = PLAYER_COLOR[f.owner] ?? "#999";
+        const color = SEAT_COLOR[f.owner] ?? "#999";
         return (
           <Flex
             key={`${f.id}-band-label`}
@@ -2237,7 +2229,7 @@ export const ProBoard = ({
   // dead panel can still be collapsed or dragged out of the way.
   const regionPanel = (r: ProMapRegion) => {
     const closed = closedSet.has(r.id);
-    const rDiam = (r.spaceDiameter ?? map.meta.spaceDiameter ?? DEFAULT_DIAMETER) * 100;
+    const rDiam = (r.spaceDiameter ?? map.meta.spaceDiameter ?? DEFAULT_SPACE_DIAMETER) * 100;
     const isCollapsed = !!collapsed[r.id] && !regionActive(r.id);
     return (
       <Box
