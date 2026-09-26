@@ -49,7 +49,7 @@ import {
   TbBellRinging,
   TbBellOff,
 } from "react-icons/tb";
-import { GiFootprint, GiHearts, GiHighTide, GiLowTide } from "react-icons/gi";
+import { GiChessKnight, GiFootprint, GiHearts, GiHighTide, GiLowTide } from "react-icons/gi";
 import { IoMdHand, IoMdVolumeHigh, IoMdVolumeOff } from "react-icons/io";
 import { IconType } from "react-icons";
 import {
@@ -97,6 +97,8 @@ import { CardFace } from "./ProHand";
 import { ProConnectionStatus, SeatPresence, TurnTimer } from "@/lib/pro/useProSocket";
 import { Pace, paceOption } from "@/lib/pro/pace";
 import { BoardView, BOARD_VIEW_LABEL } from "@/lib/pro/boardView";
+import { FIGURE_STYLE_LABEL, type FigureCredit, type FigureStyle } from "@/lib/pro/figures";
+import { FigureCredits } from "./FigureCredits";
 import { FLAGS, useFlags } from "@/lib/flags";
 
 // Team-affiliation accent (issue #195). A teal that reads clearly as "friendly"
@@ -362,6 +364,57 @@ const BadgeShelf = ({
   );
 };
 
+/**
+ * The credit for the miniature this seat's hero stands as on the tabletop
+ * (#903). A click-to-open popover like the badge shelf's — the hero-rules
+ * TOOLTIP cannot hold a link anyone can reach — and, like it, portalled and
+ * swallowing the press so it never drags the plate. Absent when the hero is a
+ * token (no credit to give).
+ */
+const FigureCreditChip = ({ credit }: { credit: FigureCredit }) => (
+  <Popover placement="bottom-start" isLazy>
+    <PopoverTrigger>
+      <Flex
+        as="button"
+        type="button"
+        data-testid="plate-figure-credit"
+        aria-label={`Miniature credits: ${credit.modelName} by ${credit.creator}`}
+        align="center"
+        gap="0.2rem"
+        mt="4px"
+        fontSize="0.6rem"
+        color="brand.highlight"
+        opacity={0.8}
+        _hover={{ opacity: 1 }}
+        onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
+        onDoubleClick={(e: React.MouseEvent) => e.stopPropagation()}
+      >
+        <GiChessKnight size="0.7rem" />
+        <Text as="span">Mini credits</Text>
+      </Flex>
+    </PopoverTrigger>
+    <Portal>
+      {/* rootProps: Chakra's popper wrapper otherwise sits at z 10, UNDER
+          the HUD plates (150) it hangs from. */}
+      <PopoverContent
+        rootProps={{ zIndex: "popover" }}
+        w="auto"
+        maxW="18rem"
+        bg="brand.surfaceDim"
+        color="brand.parchment"
+        borderColor="rgba(231, 204, 152, 0.25)"
+        onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
+        _focusVisible={{ outline: "none" }}
+      >
+        <PopoverArrow bg="brand.surfaceDim" />
+        <PopoverBody p="0.5rem">
+          <FigureCredits credit={credit} />
+        </PopoverBody>
+      </PopoverContent>
+    </Portal>
+  </Popover>
+);
+
 /** Tiny ghost icon button for the plate's collapse / reset controls. Its
  *  pointerdown is swallowed so it never starts a plate drag. */
 const CtrlBtn = ({
@@ -595,6 +648,7 @@ export const SeatPlate = ({
   hydrated,
   onUpdate,
   variant = "plate",
+  figureCredit = null,
 }: {
   /** WHOSE plate this is — the pile's HOST, which is what a bare pile entry means
    *  (protocol v33). Needed to tell an own entry from a foreign one. */
@@ -678,6 +732,9 @@ export const SeatPlate = ({
    * hover.
    */
   variant?: "plate" | "sheet";
+  /** The credit for the miniature this hero stands as on the tabletop, or
+   *  null when it is a token (#903). */
+  figureCredit?: FigureCredit | null;
 }) => {
   const [discardOpen, setDiscardOpen] = useState(false);
   // Which set-aside pile this plate is inspecting (v25), by pile name; null =
@@ -830,6 +887,7 @@ export const SeatPlate = ({
         ids={shelfBadges}
         interactive={withAbility && variant !== "sheet"}
       />
+      {figureCredit && withAbility && variant !== "sheet" && <FigureCreditChip credit={figureCredit} />}
     </Box>
   );
 
@@ -1136,6 +1194,11 @@ export const SeatPlate = ({
             <BadgeReadout ids={shelfBadges} />
           </Box>
         ) : null}
+        {figureCredit && (
+          <Box mt="0.6rem" px="0.25rem">
+            <FigureCredits credit={figureCredit} />
+          </Box>
+        )}
       </Box>
     </Box>
   );
@@ -1516,6 +1579,15 @@ export interface ProHudProps {
    *  phone always draws the flat board, #870): the toggle renders disabled
    *  with this hint instead. */
   boardViewLockedHint?: string;
+  /** Tabletop figure style (#903) — which miniature set the heroes stand as,
+   *  or tokens — plus a one-tap cycle through the styles that change
+   *  something on this board. Set only in the tabletop view and only when
+   *  there is a choice; the chip is hidden otherwise. */
+  figureStyle?: FigureStyle;
+  onCycleFigureStyle?: () => void;
+  /** The credit for the miniature a seat's hero is shown as on the table, or
+   *  null when it lies as its token (#903). Rendered with the hero's rules. */
+  figureCreditFor?: (seatId: PlayerId) => FigureCredit | null;
   /** true while a paced batch is held on screen. The spotlight's click-anywhere
    *  backdrop covers the whole viewport, which would otherwise bury the very chip
    *  that turns slow mode off — so the cluster floats above it for that window
@@ -1554,6 +1626,9 @@ export const ProHud = ({
   onCyclePace,
   boardView,
   onToggleBoardView,
+  figureStyle,
+  onCycleFigureStyle,
+  figureCreditFor,
   turnReminderOn,
   onToggleTurnReminder,
   onReportBug,
@@ -1619,6 +1694,7 @@ export const ProHud = ({
             hero={resolveHero(seat.heroId)}
             ruleCards={resolveRuleCards?.(seat.heroId) ?? []}
             heroId={seat.heroId}
+            figureCredit={figureCreditFor?.(seat.id) ?? null}
             heroFighter={heroOf(seat.id)}
             sidekicks={sidekicksOf(seat.id)}
             flags={seat.flags}
@@ -1834,6 +1910,27 @@ export const ProHud = ({
               <TbPerspective size="0.85rem" />
               <Text fontSize="0.65rem" fontFamily="SpaceGrotesk" whiteSpace="nowrap">
                 {BOARD_VIEW_LABEL[boardView]}
+              </Text>
+            </Flex>
+          </Tooltip>
+        )}
+        {onCycleFigureStyle && figureStyle && (
+          // Beside the board chip it belongs to, with the same cycling gesture.
+          <Tooltip label={`Heroes as: ${FIGURE_STYLE_LABEL[figureStyle]} — click to switch`} hasArrow>
+            <Flex
+              {...chipStyles}
+              as="button"
+              type="button"
+              cursor="pointer"
+              _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+              color="brand.highlight"
+              opacity={figureStyle === "token" ? 0.55 : 1}
+              onClick={onCycleFigureStyle}
+              aria-label={`Heroes as: ${FIGURE_STYLE_LABEL[figureStyle]}. Click to switch.`}
+            >
+              <GiChessKnight size="0.85rem" />
+              <Text fontSize="0.65rem" fontFamily="SpaceGrotesk" whiteSpace="nowrap">
+                {FIGURE_STYLE_LABEL[figureStyle]}
               </Text>
             </Flex>
           </Tooltip>

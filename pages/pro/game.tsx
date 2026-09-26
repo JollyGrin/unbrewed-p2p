@@ -108,8 +108,14 @@ import { GameLostScreen } from "@/components/Pro/GameLostScreen";
 import { actionFallbackLine, batchPhase, batchTurnTag, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
 import { MulliganChoice, isMulliganPrompt, mulliganChoiceOf } from "@/lib/pro/mulligan";
 import { RAIL_WIDTH_CSS, TAP_TARGET, boardFitInsetFor, handDecisionKeyFor } from "@/lib/pro/mobileLayout";
-import { figureFor } from "@/lib/pro/figures";
-import { useFigureManifest } from "@/lib/pro/useFigureManifest";
+import {
+  effectiveFigureStyle,
+  figureForStyle,
+  figureStyleOptions,
+  nextFigureStyle,
+} from "@/lib/pro/figures";
+import { useFigureManifests } from "@/lib/pro/useFigureManifest";
+import { useFigureStyle } from "@/lib/pro/useFigureStyle";
 import { useElementHeight, useProLayout } from "@/lib/pro/useProLayout";
 import { matchBoardOnScreen, usePageZoomGuard } from "@/lib/pro/usePageZoomGuard";
 import {
@@ -4752,11 +4758,27 @@ const LiveGame = ({
   // switch never shows an empty stage.
   const TableBoard = useLazyTableBoard(wantedBoardView === "table");
   const boardView = wantedBoardView === "table" && !TableBoard ? "flat" : wantedBoardView;
-  // Pre-rendered miniatures for the tabletop view (lib/pro/figures). A local,
-  // git-ignored folder that ships only with the owner's own deploy; null — and
-  // every hero keeps its token standee — anywhere it is absent. Fetched only
-  // once the tabletop is shown: the flat board draws no figures (#877).
-  const figureManifest = useFigureManifest(boardView === "table");
+  // Pre-rendered miniatures for the tabletop view (lib/pro/figures): the
+  // owner's private set (git-ignored, absent on every deploy) and the
+  // committed open-licence set (#903). A hero without a figure keeps its
+  // token standee. Fetched only once the tabletop is shown: the flat board
+  // draws no figures (#877).
+  const { private: privateFigures, open: openFigures } = useFigureManifests(boardView === "table");
+  const figureManifests = useMemo(() => ({ private: privateFigures, open: openFigures }), [privateFigures, openFigures]);
+  // The viewer's figure style (#903): which set to draw, or tokens. Offered
+  // only as the choices that change something on THIS board — none at all
+  // when every hero here would be a token anyway.
+  const [preferredFigureStyle, chooseFigureStyle] = useFigureStyle();
+  const figureStyles = useMemo(
+    () =>
+      figureStyleOptions(
+        figureManifests,
+        Object.entries(ownerHeroIds).map(([seat, heroId]) => ({ heroId, seat }))
+      ),
+    [figureManifests, ownerHeroIds]
+  );
+  const figureStyle = effectiveFigureStyle(preferredFigureStyle, figureStyles);
+  const heroFigure = (seat: string) => figureForStyle(figureManifests, figureStyle, ownerHeroIds[seat], seat);
   // The tabletop HUD (lib/pro/tableHud): a landscape phone looking at the
   // tabletop board gets plates, a banner, a fanned hand and a hexagon instead
   // of the decision rail. The flat board keeps its rail, untouched.
@@ -6890,6 +6912,13 @@ const LiveGame = ({
     boardView,
     onToggleBoardView: toggleBoardView,
     boardViewLockedHint: mode === "portrait" ? TABLETOP_NEEDS_LANDSCAPE : undefined,
+    figureStyle: boardView === "table" && figureStyles.length > 0 ? figureStyle : undefined,
+    onCycleFigureStyle:
+      boardView === "table" && figureStyles.length > 0
+        ? () => chooseFigureStyle(nextFigureStyle(figureStyle, figureStyles))
+        : undefined,
+    // The credit for the miniature each seat's hero stands as on the table.
+    figureCreditFor: boardView === "table" ? (seat: string) => heroFigure(seat)?.credit ?? null : undefined,
     turnReminderOn,
     onToggleTurnReminder: toggleTurnReminder,
     onReportBug: () => setReportBugOpen(true),
@@ -7191,7 +7220,7 @@ const LiveGame = ({
         {boardView === "table" && TableBoard ? (
           <TableBoard
             {...boardProps}
-            fighterFigure={(f) => (f.kind === "HERO" ? figureFor(figureManifest, ownerHeroIds[f.owner], f.owner) : null)}
+            fighterFigure={(f) => (f.kind === "HERO" ? heroFigure(f.owner) : null)}
             resetViewSpot={hud ? HUD_RESET_VIEW_SPOT : undefined}
           />
         ) : (
