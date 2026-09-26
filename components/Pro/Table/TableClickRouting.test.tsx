@@ -149,6 +149,30 @@ describe("#873 fix 1 — standee boxes don't swallow taps", () => {
     fireEvent.click(base);
     expect(onFighterClick).toHaveBeenCalledWith("p1/hero");
   });
+  it("on a SHARED space (#872's ring slots), the fighter's face commits the space and the totem beside it takes nothing", () => {
+    const onSpaceClick = jest.fn();
+    const token: ViewToken = { id: "t1", kind: "totem", owner: "p1", space: "s3" };
+    const { container } = renderBoard({
+      fighters: [fighter({})],
+      tokens: [token],
+      highlightedSpaces: ["s3"],
+      onSpaceClick,
+    });
+    const face = container.querySelector('[data-standee-ground] [data-fighter-id="p1/hero"]')!;
+    expect(effectivePointerEvents(face)).toBe("auto");
+    fireEvent.click(face);
+    expect(onSpaceClick).toHaveBeenCalledWith("s3");
+    // Every upright plate on the space lets the pointer through.
+    const plates = Array.from(container.querySelectorAll("[data-standee-upright]"));
+    expect(plates.length).toBeGreaterThan(1);
+    expect(plates.map(effectivePointerEvents)).toEqual(plates.map(() => "none"));
+    // The totem's whole piece is inert.
+    const totemBase = Array.from(container.querySelectorAll('[data-fighter-base][data-space-id="s3"]')).find(
+      (b) => !b.closest("[data-standee-ground]")
+    )!;
+    const totem = totemBase.parentElement!;
+    expect([totem, ...Array.from(totem.querySelectorAll("*"))].map(effectivePointerEvents).filter((v) => v !== "none")).toEqual([]);
+  });
 });
 
 describe("#873 fix 2 — adjacent tap areas never overlap", () => {
