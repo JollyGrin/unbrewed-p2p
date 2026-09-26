@@ -21,7 +21,7 @@ import { FighterTokenPortrait } from "@/components/Pro/FighterTokenPortrait";
 
 /** The token's thickness as a fraction of its diameter — about a 2mm board
  *  on a 25mm token. It is drawn as a stack of layers, one px apart. */
-const TOKEN_THICKNESS = 0.08;
+export const TOKEN_THICKNESS = 0.08;
 /** The token's side, seen between its layers: the board's own dark ink. */
 const TOKEN_EDGE_FILL = "#1b0f1f";
 /** The rim: the owner's colour, like the base disc under a miniature. */

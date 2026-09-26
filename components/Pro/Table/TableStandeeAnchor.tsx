@@ -141,7 +141,27 @@ export interface TableStandeeAnchorProps {
   onMouseLeave?: () => void;
   title?: string;
   "data-fighter-id"?: string;
+  /** This piece is one of several sharing a space (lib/pro/tokenStack): it is
+   *  drawn off-centre at (x, y), but sorts and depth-scales as if it stood at
+   *  the SPACE's own centre, tie-broken by the stack's `order` — so the big
+   *  body sits behind the smalls on it, as on the flat board, instead of a
+   *  ring slot at 12 o'clock sliding under it by painter's order. */
+  stack?: TableStackDepth;
   children: ReactNode;
+}
+
+export interface TableStackDepth {
+  /** The space centre's normalized y — what depth is measured from. */
+  depthY: number;
+  /** The stack slot's render order (ascending = nearer the viewer). */
+  order: number;
+  /** How far the piece's ground layer (its flat token) rises off the board,
+   *  px. The board plane is `preserve-3d`, so the browser orders flat tokens
+   *  by their real height, NOT by z-index: a small ringed onto a full-size
+   *  token's rim sat under that token's thicker top face and vanished. Lifted
+   *  by the thickness of what it stands on, it lies ON the body, as it would
+   *  on a real table. */
+  liftPx: number;
 }
 
 export const TableStandeeAnchor = ({
@@ -163,10 +183,12 @@ export const TableStandeeAnchor = ({
   onMouseLeave,
   title,
   innerRef,
+  stack,
   children,
   ...rest
 }: TableStandeeAnchorProps) => {
-  const placement = placeStandee(y, tiltDeg);
+  const placement = placeStandee(stack ? stack.depthY : y, tiltDeg);
+  const zIndex = placement.zIndex + (stack?.order ?? 0);
   // A PLAIN CIRCLE, sized off the space's own diameter — exactly how
   // `TableSpace` draws its own disc. The ambient `rotateX` on the shared
   // ancestor stage plane foreshortens this into the correctly-proportioned
@@ -218,7 +240,7 @@ export const TableStandeeAnchor = ({
       transition={{ duration: anim ? anim.durationSec : 0, ease: "easeInOut", times } as never}
       onAnimationComplete={anim ? onAnimComplete : undefined}
       style={{ transform: "translate(-50%, -100%)", transformStyle: "preserve-3d" }}
-      zIndex={placement.zIndex}
+      zIndex={zIndex}
       cursor={onClick ? "pointer" : undefined}
       title={title}
       onClick={onClick}
@@ -296,7 +318,11 @@ export const TableStandeeAnchor = ({
           w={0}
           h={0}
           pointerEvents="none"
-          style={{ transform: `scale(${placement.scale})`, transformOrigin: "0 0", transformStyle: "preserve-3d" }}
+          style={{
+            transform: `${stack?.liftPx ? `translateZ(${stack.liftPx}px) ` : ""}scale(${placement.scale})`,
+            transformOrigin: "0 0",
+            transformStyle: "preserve-3d",
+          }}
           data-standee-ground=""
         >
           {ground}
@@ -304,10 +330,16 @@ export const TableStandeeAnchor = ({
       )}
       {/* The billboard: counter-rotated about its own feet so it stands
           upright and faces the camera regardless of the board's tilt. */}
+      {/* On a SHARED space the upright plate (transparent but for its
+          badges) stands up through the ring slots behind it and would
+          swallow a click meant for the piece lying there, so it lets the
+          pointer through; the flat token and the root still take the tap. */}
       <Box
         position="relative"
         w="100%"
         h="100%"
+        pointerEvents={stack ? "none" : undefined}
+        data-stacked-plate={stack ? "" : undefined}
         style={{ transform: placement.transform, transformOrigin: "50% 100%" }}
       >
         {children}
