@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "figures": {
+    "triceratops": {
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5559732312307593
+      },
+      "imageWidthMm": 6.127122802734375,
+      "footprintMm": 2.825296849012375,
+      "aspect": 1.5,
+      "seats": {
+        "p1": "triceratops.p1.webp",
+        "p2": "triceratops.p2.webp",
+        "p3": "triceratops.p3.webp",
+        "p4": "triceratops.p4.webp"
+      },
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "Triceratops Horridus Marsh",
+      "creator": "Smithsonian Institution",
+      "sourceUrl": "https://sketchfab.com/3d-models/triceratops-horridus-marsh-e9c507f179ed4455aac3b208c9e6c973"
+    },
+    "baba-yaga": {
+      "anchor": {
+        "x": 0.5,
+        "y": 0.7803631284083992
+      },
+      "imageWidthMm": 27.01519256591797,
+      "footprintMm": 25.248001098632812,
+      "aspect": 1.5,
+      "seats": {
+        "p1": "baba-yaga.p1.webp",
+        "p2": "baba-yaga.p2.webp",
+        "p3": "baba-yaga.p3.webp",
+        "p4": "baba-yaga.p4.webp"
+      },
+      "license": "CC-BY-SA",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "Witch Minis (Witch 2)",
+      "creator": "mz4250",
+      "sourceUrl": "https://www.thingiverse.com/thing:6694128"
+    }
+  }
+}

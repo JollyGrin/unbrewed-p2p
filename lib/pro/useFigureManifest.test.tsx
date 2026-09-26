@@ -1,5 +1,5 @@
 import { renderHook, waitFor } from "@testing-library/react";
-import { resetFigureManifestCache, useFigureManifest } from "./useFigureManifest";
+import { resetFigureManifestCache, useFigureManifest, useFigureManifests } from "./useFigureManifest";
 
 const manifest = {
   version: 1,
@@ -12,7 +12,7 @@ const manifest = {
   },
 };
 
-const mockFetch = (impl: () => Promise<unknown>) => {
+const mockFetch = (impl: (...args: unknown[]) => Promise<unknown>) => {
   const fn = jest.fn(impl);
   (global as unknown as { fetch: unknown }).fetch = fn;
   return fn;
@@ -77,5 +77,35 @@ describe("useFigureManifest", () => {
     await waitFor(() => expect(a.result.current).not.toBeNull());
     await waitFor(() => expect(b.result.current).not.toBeNull());
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+// #903: the committed open set is a second manifest beside the private one.
+describe("useFigureManifests", () => {
+  const openManifest = {
+    version: 1,
+    figures: {
+      "baba-yaga": { ...manifest.figures["king-kong"], seats: { p1: "baba-yaga.p1.webp" },
+        modelName: "Test Witch", creator: "Test Maker", sourceUrl: "https://example.org/witch" },
+    },
+  };
+
+  test("loads both sets, each from its own folder", async () => {
+    const fetch = mockFetch(async (...args: unknown[]) => {
+      const url = args[0] as string;
+      return { ok: true, json: async () => (url === "/figures-open/manifest.json" ? openManifest : manifest) };
+    });
+    const { result } = renderHook(() => useFigureManifests());
+    await waitFor(() => expect(result.current.open?.figures["baba-yaga"]).toBeDefined());
+    await waitFor(() => expect(result.current.private?.figures["king-kong"]).toBeDefined());
+    expect(fetch.mock.calls.map((c) => c[0]).sort()).toEqual(["/figures-open/manifest.json", "/figures/manifest.json"]);
+  });
+
+  // #877 still holds for the second set: the flat board requests neither.
+  test("requests neither manifest while disabled", async () => {
+    const fetch = mockFetch(async () => ({ ok: true, json: async () => manifest }));
+    renderHook(() => useFigureManifests(false));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

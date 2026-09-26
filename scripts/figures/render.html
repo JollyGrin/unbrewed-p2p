@@ -19,6 +19,7 @@
 import * as THREE from "three";
 import { STLLoader } from "three/addons/loaders/STLLoader.js";
 import { ThreeMFLoader } from "three/addons/loaders/3MFLoader.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { mergeBufferGeometries, mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
 
 const q = new URLSearchParams(location.search);
@@ -28,23 +29,34 @@ const az = +(q.get("az") ?? 0);
 const tint = q.get("tint");
 const W = +(q.get("w") ?? 600), H = +(q.get("h") ?? 900);
 const footprintOverride = q.get("footprintMm") ? +q.get("footprintMm") : null;
+// glTF only: keep just the meshes whose name contains this (a multi-character
+// pack such as a kit of zombies holds several figures in one file).
+const meshFilter = q.get("mesh");
+// Turns about the printed frame's X / Z axes, degrees, for a model that was
+// not published standing up (a museum scan in its own survey frame).
+const rx = +(q.get("rx") ?? 0), rz = +(q.get("rz") ?? 0);
 
-/** STL is one mesh; 3MF is a scene of meshes with their own transforms. Either
- *  way the result is one position-only geometry, Z-up as printed. */
+/** STL is one mesh; 3MF and glTF are scenes of meshes with their own
+ *  transforms. Either way the result is one position-only geometry, Z-up as
+ *  printed. */
 const loadGeometry = async () => {
   if (/\.stl$/i.test(file)) return new STLLoader().loadAsync(file);
-  const group = await new ThreeMFLoader().loadAsync(file);
+  const isGltf = /\.(glb|gltf)$/i.test(file);
+  const group = isGltf ? (await new GLTFLoader().loadAsync(file)).scene : await new ThreeMFLoader().loadAsync(file);
   group.updateMatrixWorld(true);
   const parts = [];
   group.traverse((o) => {
     if (!o.isMesh) return;
+    if (meshFilter && !o.name.includes(meshFilter)) return;
     const g = o.geometry.clone();
     g.applyMatrix4(o.matrixWorld);
     for (const name of Object.keys(g.attributes)) if (name !== "position") g.deleteAttribute(name);
     parts.push(g.index ? g.toNonIndexed() : g);
   });
-  // The 3MF loader already turns the file's Z-up into three's Y-up; undo it
-  // so both formats reach the shared path below in the same, printed, frame.
+  // The 3MF loader already turns the file's Z-up into three's Y-up, and glTF
+  // is Y-up by definition; undo it so every format reaches the shared path
+  // below in the same, printed, frame.
+  if (parts.length === 0) throw new Error(`no mesh${meshFilter ? ` named like "${meshFilter}"` : ""} in ${file}`);
   const merged = mergeBufferGeometries(parts);
   merged.rotateX(Math.PI / 2);
   return merged;
@@ -60,6 +72,8 @@ let geo = await loadGeometry();
 if (geo.attributes.normal) geo.deleteAttribute("normal");
 geo = mergeVertices(geo, 1e-4);
 geo.computeVertexNormals();
+if (rx) geo.rotateX((rx * Math.PI) / 180);
+if (rz) geo.rotateZ((rz * Math.PI) / 180);
 geo.rotateX(-Math.PI / 2); // printed Z-up -> three's Y-up
 geo.computeBoundingBox();
 {
