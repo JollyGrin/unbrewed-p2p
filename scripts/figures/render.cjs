@@ -10,17 +10,21 @@
  *     figures.json                        which hero uses which model
  *     models/*.stl | *.3mf
  *
- *   public/figures/                       (git-ignored, NOT vercel-ignored)
+ *   public/figures/                       (git-ignored AND vercel-ignored)
  *     <heroId>.<seat>.webp, manifest.json
  *
- * `public/figures/` ships with the owner's own `vercel --prod` (the CLI
- * uploads the working tree) so friends see the figures live, and is absent
- * from every git checkout — where the app finds no manifest and keeps its
+ * `public/figures/` is absent from every git checkout and, via .vercelignore,
+ * from every ordinary deploy — where the app finds no manifest and keeps its
  * token standees. See lib/pro/figures.ts for the runtime side.
  *
+ * THE LICENCE GATE (unbrewed-p2p-879). An entry is rendered only when it
+ * declares a licence that allows redistribution and a hero that is not
+ * official (scripts/figures/clearance.cjs). Anything else is skipped, its old
+ * renders are deleted, and it is left out of manifest.json. Fail closed.
+ *
  * figures.json:
- *   { "figures": [ { "heroId": "king-kong", "model": "models/king-kong.stl" },
- *                  { "heroId": "thrall", "model": "models/thrall.3mf", "az": 10 } ] }
+ *   { "figures": [ { "heroId": "king-kong", "model": "models/king-kong.stl",
+ *                    "license": "CC-BY-4.0", "redistributable": true, "officialHero": false } ] }
  * Optional per figure: "elev" (camera elevation, default 40°), "az" (turn the
  * camera around the model, default 0 = its front), "footprintMm" (base width,
  * default measured from the model).
@@ -36,6 +40,7 @@
  *     node scripts/figures/render.cjs [~/Developer/unbrewed-figures]
  */
 const fs = require("fs");
+const { clearanceBlockers } = require("./clearance.cjs");
 const path = require("path");
 const os = require("os");
 
@@ -71,16 +76,31 @@ const readConfig = () => {
   }
   const config = JSON.parse(fs.readFileSync(file, "utf8"));
   const figures = Array.isArray(config.figures) ? config.figures : [];
+  const cleared = [];
   for (const f of figures) {
     if (!/^[a-z0-9-]+$/.test(f.heroId ?? "")) throw new Error(`bad heroId: ${JSON.stringify(f.heroId)}`);
+    const blockers = clearanceBlockers(f);
+    if (blockers.length > 0) {
+      console.warn(`${f.heroId}: skipped, not cleared (${blockers.join("; ")})`);
+      // A render left over from before the gate must not outlive it.
+      for (const seat of Object.keys(SEAT_TINTS)) fs.rmSync(path.join(OUT, `${f.heroId}.${seat}.webp`), { force: true });
+      continue;
+    }
     if (!fs.existsSync(path.join(SOURCE, f.model ?? ""))) throw new Error(`${f.heroId}: model not found: ${f.model}`);
+    cleared.push(f);
   }
-  return figures;
+  return cleared;
 };
 
 (async () => {
-  const figures = readConfig();
   fs.mkdirSync(OUT, { recursive: true });
+  const figures = readConfig();
+  if (figures.length === 0) {
+    // Still overwrite the manifest, so no earlier entry outlives the gate.
+    fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify({ version: 1, figures: {} }, null, 2));
+    console.log(`no cleared figures: wrote an empty manifest to ${path.relative(REPO, OUT)}/`);
+    return;
+  }
   const browser = await pw.chromium.launch({ args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
   const page = await browser.newPage();
   page.on("pageerror", (e) => console.error("[page]", e.message));
@@ -119,7 +139,10 @@ const readConfig = () => {
       seats[seat] = name;
       geometry = { anchor: r.anchor, imageWidthMm: r.imageWidthMm, footprintMm: r.footprintMm, aspect: r.aspect };
     }
-    manifest.figures[fig.heroId] = { ...geometry, seats };
+    // Belt and braces: the app re-checks these fields and drops the entry
+    // without them (lib/pro/figures.ts).
+    const { license, redistributable, officialHero } = fig;
+    manifest.figures[fig.heroId] = { ...geometry, seats, license, redistributable, officialHero };
     console.log(`${fig.heroId}: footprint ${geometry.footprintMm.toFixed(1)}mm, anchor ${geometry.anchor.x.toFixed(3)}/${geometry.anchor.y.toFixed(3)}`);
   }
   fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 2));

@@ -1,0 +1,7 @@
+# Hero miniatures rendered from third-party 3D models (scripts/figures/).
+# Licence gate, unbrewed-p2p-879: a local render must never ship by accident.
+# The `vercel` CLI uploads the working tree and ignores .gitignore, so this is
+# the file that keeps public/figures/ off a deploy. Serving figures is an
+# explicit opt-in — see "Serving figures on a deploy" in
+# scripts/figures/README.md.
+/public/figures

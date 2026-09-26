@@ -3,17 +3,24 @@
  *
  * WHERE THEY COME FROM. The owner supplies 3D models (STL/3MF) of heroes; they
  * live OUTSIDE this repo (~/Developer/unbrewed-figures) and are rendered by
- * `scripts/figures/render.cjs` into `public/figures/` — a folder that is
- * git-ignored but NOT vercel-ignored. That split is the whole point: the
- * figures ship with the owner's own Vercel deploy so friends see them live,
- * and never reach GitHub, the public PR fork, or the upstream author's game.
- * Many of the heroes are official Unmatched characters, and those must never
- * be committed anywhere.
+ * `scripts/figures/render.cjs` into `public/figures/` — a folder that is both
+ * git-ignored and vercel-ignored, so neither a commit nor an ordinary deploy
+ * carries a render.
  *
- * So the code here is generic — it knows nothing about any hero. It reads
+ * The code here is generic — it knows nothing about any hero. It reads
  * `/figures/manifest.json` at runtime; a deploy or checkout without the
  * folder simply has no figures, and every standee falls back to its token
  * art exactly as before.
+ *
+ * THE LICENCE GATE (unbrewed-p2p-879). A figure is shown only when there is
+ * no licence conflict: never for an official hero, never from a model whose
+ * licence forbids redistribution. Each manifest entry declares `license`,
+ * `redistributable: true` and `officialHero: false`; an entry missing any of
+ * them, or declaring otherwise, is dropped and that hero keeps its token.
+ * `scripts/figures/render.cjs` refuses the same entries at build time, and
+ * `public/figures/` is in `.vercelignore`, so a local render never ships by
+ * accident — serving figures on a deploy is an explicit opt-in (see
+ * scripts/figures/README.md).
  *
  * WHY PER-SEAT RENDERS. A miniature is tinted in its seat's color (gold, blue,
  * green, magenta), so ownership reads from the whole figure, not only from the
@@ -38,6 +45,12 @@ export interface FigureEntry {
   aspect: number;
   /** Seat id → image file name inside FIGURES_BASE_URL. */
   seats: Record<string, string>;
+  /** The model's licence: an SPDX id or a named licence. */
+  license: string;
+  /** The licence allows redistributing the model's renders. Always true here. */
+  redistributable: true;
+  /** The hero is an official character. Always false here: those get no figure. */
+  officialHero: false;
 }
 
 export interface FigureManifest {
@@ -46,7 +59,7 @@ export interface FigureManifest {
 }
 
 /** One hero's figure, resolved for one seat — what a standee renders. */
-export interface Figure extends Omit<FigureEntry, "seats"> {
+export interface Figure extends Omit<FigureEntry, "seats" | "license" | "redistributable" | "officialHero"> {
   url: string;
 }
 
@@ -57,14 +70,29 @@ const isFraction = (v: unknown): v is number => typeof v === "number" && Number.
  *  the owner generates, but it is still external data to the app. */
 const isFileName = (v: unknown): v is string => typeof v === "string" && /^[A-Za-z0-9._-]+$/.test(v) && !v.includes("..");
 
+/** The licence gate. Fail closed: only an explicit, complete clearance passes
+ *  — a missing field means no figure. Mirrors scripts/figures/clearance.cjs. */
+export const isCleared = (raw: Record<string, unknown>): raw is Record<string, unknown> & { license: string } =>
+  typeof raw.license === "string" && raw.license.trim() !== "" && raw.redistributable === true && raw.officialHero === false;
+
 const parseEntry = (raw: unknown): FigureEntry | null => {
   if (!isRecord(raw) || !isRecord(raw.anchor) || !isRecord(raw.seats)) return null;
-  const { anchor, imageWidthMm, footprintMm, aspect, seats } = raw;
+  if (!isCleared(raw)) return null;
+  const { anchor, imageWidthMm, footprintMm, aspect, seats, license } = raw;
   if (!isFraction(anchor.x) || !isFraction(anchor.y)) return null;
   if (!isPositive(imageWidthMm) || !isPositive(footprintMm) || !isPositive(aspect)) return null;
   const goodSeats = Object.fromEntries(Object.entries(seats).filter(([, file]) => isFileName(file))) as Record<string, string>;
   if (Object.keys(goodSeats).length === 0) return null;
-  return { anchor: { x: anchor.x, y: anchor.y }, imageWidthMm, footprintMm, aspect, seats: goodSeats };
+  return {
+    anchor: { x: anchor.x, y: anchor.y },
+    imageWidthMm,
+    footprintMm,
+    aspect,
+    seats: goodSeats,
+    license,
+    redistributable: true,
+    officialHero: false,
+  };
 };
 
 /** Validate `/figures/manifest.json`. A bad entry is dropped, not fatal: one
@@ -87,8 +115,8 @@ export const figureFor = (
   const entry = heroId ? manifest?.figures[heroId] : undefined;
   const file = entry?.seats[seat];
   if (!entry || !file) return null;
-  const { seats: _seats, ...geometry } = entry;
-  return { ...geometry, url: `${FIGURES_BASE_URL}/${file}` };
+  const { anchor, imageWidthMm, footprintMm, aspect } = entry;
+  return { anchor, imageWidthMm, footprintMm, aspect, url: `${FIGURES_BASE_URL}/${file}` };
 };
 
 export interface SpriteBox {
