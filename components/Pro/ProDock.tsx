@@ -31,7 +31,7 @@ import { ActionTile, TileKind, actionTilesFor, tileKindOf } from "@/lib/pro/acti
 import { cardChoiceGroups, isCardChoice } from "@/lib/pro/cardChoices";
 import { touchCopy } from "@/lib/pro/touchCopy";
 import { Action, CardInstanceId, FighterId, PlayerView } from "@/lib/pro/protocol";
-import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
+import { seatOwesDecision, showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { isViewerOnWinningTeam } from "@/lib/pro/teams";
 import { LARGE_FIGHTER_BLURB, LARGE_REACH_CHIP } from "@/lib/pro/largeReach";
 import { ItemGlyph } from "@/components/Pro/ItemBadge";
@@ -1114,7 +1114,7 @@ export const ProDock = ({
             </Fragment>
           );
         })}
-        {legalActionCount === 0 && !hasPrompt && liveChrome && (
+        {!seatOwesDecision(view, legalActionCount) && !hasPrompt && liveChrome && (
           <Text opacity={0.7} fontSize="0.9rem" color="brand.parchment">
             {iAmSpectating
               ? iForfeited
