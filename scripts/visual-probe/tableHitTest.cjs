@@ -202,6 +202,21 @@ const pickIds = (p) => p.$$eval("[data-table-stage-plane] [data-pick][data-space
         .catch(() => null);
       report.tailIsPick = !!report.tailSpace && report.prompts.maneuver.picks.includes(report.tailSpace);
       await p.screenshot({ path: path.join(OUT, `${DEVICE}-maneuver.png`) });
+
+    // 3. Mid-walk: take one step, so the walk ghost stands on the board over
+    // the next gold steps, and measure again.
+    const step = await p.$eval("[data-table-stage-plane] [data-pick][data-space-id][title]", (el) => {
+      const r = el.firstElementChild.getBoundingClientRect();
+      return { id: el.getAttribute("data-space-id"), x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    }).catch(() => null);
+    if (step) {
+      await tap(p, step.x, step.y);
+      await p.waitForTimeout(1500);
+      report.prompts.midWalk = await p.evaluate(hitTest, [RIM_FRACTION, NEIGHBOUR_RANGE]);
+      report.midWalkStep = step.id;
+      report.ghosts = await p.$$eval("[data-move-ghost]", (els) => els.map((e) => e.getAttribute("data-ghost-space-id")));
+      await p.screenshot({ path: path.join(OUT, `${DEVICE}-mid-walk.png`) });
+    }
     } else {
       report.prompts.maneuver = { error: "no Maneuver action appeared", text: (await bodyText(p)).slice(0, 600) };
     }
