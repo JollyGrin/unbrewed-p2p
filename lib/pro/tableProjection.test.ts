@@ -1,4 +1,6 @@
 import {
+  BAND_LABEL_CLEARANCE_PX,
+  BAND_LABEL_FORWARD_PX,
   BASE_TO_SPACE_DIAMETER_RATIO,
   BOARD_THICKNESS_RATIO,
   DEFAULT_TILT_DEG,
@@ -12,6 +14,8 @@ import {
   Z_BASE,
   Z_BOARD_EDGE,
   Z_RANGE,
+  bandLabelLiftPx,
+  bandLabelTransform,
   boardThicknessPx,
   boardTransform,
   clampTilt,
@@ -107,6 +111,26 @@ describe("standeeTransform", () => {
 
   it("is a no-op on a flat board", () => {
     expect(standeeTransform(0)).toBe("rotateX(0deg)");
+  });
+});
+
+describe("bandLabelLiftPx / bandLabelTransform (#899 — the LARGE name pill sank under its own tokens)", () => {
+  it("stands the pill clear of the tallest token top at its band's ends", () => {
+    expect(BAND_LABEL_CLEARANCE_PX).toBeGreaterThan(0);
+    expect(bandLabelLiftPx(3)).toBe(3 + BAND_LABEL_CLEARANCE_PX);
+    expect(bandLabelLiftPx(9)).toBeGreaterThan(9);
+    expect(bandLabelLiftPx(-4)).toBe(BAND_LABEL_CLEARANCE_PX);
+  });
+
+  it("stands on its foot, lifted, a hair toward the camera, facing the camera", () => {
+    expect(BAND_LABEL_FORWARD_PX).toBeGreaterThan(0);
+    expect(bandLabelTransform(40, 7)).toBe(
+      `translate(-50%, -100%) translateY(${BAND_LABEL_FORWARD_PX}px) translateZ(7px) rotateX(-40deg)`
+    );
+  });
+
+  it("never sinks below the board", () => {
+    expect(bandLabelTransform(40, -5)).toContain("translateZ(0px)");
   });
 });
 
