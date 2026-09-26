@@ -59,7 +59,6 @@ import {
   placeStandee,
   standeeBaseDiameterPx,
   standeeShadowStretch,
-  standeeTransform,
   SHADOW_OFFSET_X,
   SHADOW_OFFSET_Y,
 } from "@/lib/pro/tableProjection";
@@ -379,8 +378,3 @@ export const TableStandeeAnchor = ({
   );
 };
 
-/** Re-exported for callers (TableBoard) that need to hand-roll the same
- *  "cancel the board's tilt" transform outside a full anchor — e.g. a
- *  two-space band's midpoint label, which billboards but doesn't stand on a
- *  base the way a figure does. */
-export const tableBillboardTransform = standeeTransform;

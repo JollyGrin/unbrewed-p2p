@@ -35,7 +35,13 @@ import { Fragment, useMemo } from "react";
 import { Flex, Text } from "@chakra-ui/react";
 import { useReducedMotion } from "framer-motion";
 import type { FighterId, ProMapSpace, SpaceId, ViewFighter } from "@/lib/pro/protocol";
-import { DEFAULT_TILT_DEG, bandLabelZIndex, standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
+import {
+  DEFAULT_TILT_DEG,
+  bandLabelLiftPx,
+  bandLabelTransform,
+  bandLabelZIndex,
+  standeeBaseDiameterPx,
+} from "@/lib/pro/tableProjection";
 import { nearestNeighbourPx } from "@/lib/pro/touchTargets";
 import { useCoarsePointer } from "@/lib/pro/useCoarsePointer";
 import { bandLabelText, bandMidpoint } from "@/lib/pro/twoSpaceBand";
@@ -56,7 +62,6 @@ import {
 import {
   TableAnchorAnim,
   TableStandeeAnchor,
-  tableBillboardTransform,
   type TableStackDepth,
 } from "./TableStandeeAnchor";
 import { TableStage } from "./TableStage";
@@ -704,9 +709,9 @@ export const TableBoard = ({
               + the identity label at the band's own midpoint, reusing
               lib/pro/twoSpaceBand.ts exactly as ProBoard does. The label
               billboards to face the camera (same `standeeTransform` a
-              standee uses) but is centre-pinned, not foot-pinned — it floats
-              at the midpoint between two spaces, it doesn't stand on either
-              one, so it has no base of its own. */}
+              standee uses) and stands on its foot at the midpoint between
+              the two spaces, lifted just clear of the band's tokens (#899) —
+              it has no base of its own. */}
           {twoSpaceFighters.map((f) => {
             const tailSpace = spaceById.get(f.tailSpace as SpaceId);
             if (!tailSpace) return null;
@@ -715,6 +720,12 @@ export const TableBoard = ({
             const tailAnim = animFor(f.id, "tail", tail, frameW, frameH);
             const headSpace = spaceById.get(f.space)!;
             const mid = bandMidpoint(headSpace, tailSpace);
+            // The pill stands above the TALLER end: a flat token's own
+            // thickness plus whatever a shared space lifted it by (#899).
+            const head = fighterPlace(headSpace, f.id, (diameterPct / 100) * Math.max(frameW, 1), frameW, frameH);
+            const tokenTopPx =
+              Math.max(1, Math.round(standeeBaseDiameterPx(tail.diamPx) * TOKEN_THICKNESS)) +
+              Math.max(head.stack?.liftPx ?? 0, tail.stack?.liftPx ?? 0);
             return (
               <Fragment key={`${f.id}-band`}>
                 <TableFighterTail
@@ -757,13 +768,17 @@ export const TableBoard = ({
                     fontWeight="bold"
                     whiteSpace="nowrap"
                     boxShadow="0 1px 3px rgba(0,0,0,0.75)"
-                    // Above both band ends (standees sort by y), so neither
-                    // of the fighter's own pieces clips it. Still
+                    // The plane is preserve-3d, so it is DEPTH that puts the
+                    // pill over both band ends, not z-index (#899): it stands
+                    // on its foot, lifted clear of the tokens' tops — see
+                    // bandLabelLiftPx. The z-index only orders it for a
+                    // browser that flattens the plane. Still
                     // pointer-events:none: a pick space under it gets the tap.
                     zIndex={bandLabelZIndex(headSpace.y, tailSpace.y)}
+                    data-band-label={f.id}
                     style={{
-                      transform: `translate(-50%, -50%) ${tableBillboardTransform(tiltDeg)}`,
-                      transformOrigin: "50% 50%",
+                      transform: bandLabelTransform(tiltDeg, bandLabelLiftPx(tokenTopPx)),
+                      transformOrigin: "50% 100%",
                     }}
                   >
                     {bandLabelText(f.name)}

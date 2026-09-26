@@ -267,6 +267,38 @@ export const standeeZIndex = (y: number): number => {
 export const bandLabelZIndex = (headY: number, tailY: number): number =>
   Math.max(standeeZIndex(headY), standeeZIndex(tailY)) + 1;
 
+/** Air between the top of the band's tokens and the pill's foot, px. */
+export const BAND_LABEL_CLEARANCE_PX = 2;
+/** How far the pill stands in front of the band axis (toward the camera), px
+ *  in the plane: clear of the band ends' own upright badge plates, which on a
+ *  left-right band stand in exactly the plane the pill would otherwise share. */
+export const BAND_LABEL_FORWARD_PX = 2;
+
+/**
+ * How high a LARGE fighter's name pill has to stand for NOTHING at its band's
+ * ends to cover it (#899), px above the board: the top of the tallest flat
+ * token there (`tokenTopPx` — the token's own thickness plus any shared-space
+ * stack lift) plus a little air.
+ *
+ * WHY DEPTH, NOT Z-INDEX. The tabletop plane is `preserve-3d`, so the browser
+ * orders its pieces by 3D depth and ignores z-index between them (#868 raised
+ * the z-index and the pill still read "King Kon"). A pill billboarded about
+ * its own centre also sinks its lower half below the board, where the band's
+ * tokens and the board itself cover it. Standing it on its FOOT, lifted above
+ * the tokens, puts every pixel of it above and in front of both ends.
+ */
+export const bandLabelLiftPx = (tokenTopPx: number): number =>
+  Math.max(0, tokenTopPx) + BAND_LABEL_CLEARANCE_PX;
+
+/**
+ * The name pill's transform, about `transform-origin: 50% 100%` (its foot): it
+ * stands upright facing the camera (the same counter-rotation a standee uses),
+ * foot on the band midpoint, `liftPx` above the board and a hair toward the
+ * camera — so on screen it sits just above the band, not across it.
+ */
+export const bandLabelTransform = (tiltDeg: number, liftPx: number): string =>
+  `translate(-50%, -100%) translateY(${BAND_LABEL_FORWARD_PX}px) translateZ(${Math.max(0, liftPx)}px) ${standeeTransform(tiltDeg)}`;
+
 /**
  * How much a piece at normalized `y` shrinks with distance.
  *
