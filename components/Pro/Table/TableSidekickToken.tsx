@@ -31,6 +31,8 @@ export interface TableSidekickTokenProps {
   onClick?: (id: FighterId) => void;
   onSpaceFallbackClick?: () => void;
   onHoverChange?: (id: FighterId | null) => void;
+  /** Registers the token in the damage-arc registry (see TableBoard). */
+  innerRef?: (el: HTMLElement | null) => void;
 }
 
 export const TableSidekickToken = ({
@@ -50,6 +52,7 @@ export const TableSidekickToken = ({
   onClick,
   onSpaceFallbackClick,
   onHoverChange,
+  innerRef,
 }: TableSidekickTokenProps) => {
   const sizePx = standeeBaseDiameterPx(diamPx);
   const fighterClickable = targetable && !!onClick;
@@ -67,6 +70,7 @@ export const TableSidekickToken = ({
       spaceId={fighter.space}
       baseAccent={playerColor}
       base={false}
+      innerRef={innerRef}
       ground={
         <TableFlatToken
           sizePx={sizePx}

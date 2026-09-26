@@ -23,17 +23,6 @@ import type { ZoomPanInset } from "./useZoomPan";
 import { RAIL_WIDTH } from "./mobileLayout";
 import { SafeAreaInsets, ZERO_INSETS } from "./useSafeAreaInsets";
 
-/**
- * Seat colours. The same four the flat board and the tabletop board ring
- * their fighters with, so a plate's portrait rim matches its figure's base.
- */
-export const SEAT_COLOR: Record<string, string> = {
-  p1: "#E0A82E",
-  p2: "#3B8BEB",
-  p3: "#2F9E68",
-  p4: "#C0449E",
-};
-
 /** Breathing room between the board and the HUD. */
 export const HUD_GUTTER = 8;
 

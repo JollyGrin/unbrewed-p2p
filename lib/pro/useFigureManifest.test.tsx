@@ -32,6 +32,18 @@ describe("useFigureManifest", () => {
     await waitFor(() => expect(result.current?.figures["king-kong"]).toBeDefined());
   });
 
+  // #877: the flat board draws no figures, so it must not request them.
+  test("makes no request while disabled, then loads once enabled", async () => {
+    const fetch = mockFetch(async () => ({ ok: true, json: async () => manifest }));
+    const { result, rerender } = renderHook(({ on }) => useFigureManifest(on), { initialProps: { on: false } });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(fetch).not.toHaveBeenCalled();
+    expect(result.current).toBeNull();
+    rerender({ on: true });
+    await waitFor(() => expect(result.current?.figures["king-kong"]).toBeDefined());
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   test("is null when the deploy has no figures folder (404)", async () => {
     const fetch = mockFetch(async () => ({ ok: false, json: async () => ({}) }));
     const { result } = renderHook(() => useFigureManifest());

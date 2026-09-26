@@ -44,6 +44,7 @@ import { tokenInitials } from "@/components/Pro/FighterTokenPortrait";
 import { SWAP_SECONDS, SWAP_TIMES } from "@/lib/pro/positionSwap";
 import { LARGE_FIGURE_SCALE, straddleAnim, type Figure } from "@/lib/pro/figures";
 import { boardObjectVisualFor } from "@/lib/pro/boardObjects";
+import { DEFAULT_SPACE_DIAMETER, SEAT_COLOR } from "@/lib/pro/seatColors";
 import {
   fighterStackBySpace,
   OBJECT_SCALE_BY_SHAPE,
@@ -69,19 +70,6 @@ import { TableSidekickToken } from "./TableSidekickToken";
 import { TableBoardObject } from "./TableBoardObject";
 import { TableMoveGhost } from "./TableMoveGhost";
 
-/** Mirrors ProBoard's own `DEFAULT_DIAMETER` (not exported there — see the
- *  table-board report for why this is a deliberate small duplication rather
- *  than an edit to the flat board). Keep the two numbers in sync. */
-const DEFAULT_DIAMETER = 0.021;
-
-/** Mirrors ProBoard's own PLAYER_COLOR (same values, same reason as above). */
-const PLAYER_COLOR: Record<string, string> = {
-  p1: "#E0A82E",
-  p2: "#3B8BEB",
-  p3: "#2F9E68",
-  p4: "#C0449E",
-};
-
 /**
  * ProBoard props this view does NOT draw yet, each for a stated reason. They
  * are cut out of `TableBoardProps` below and the component destructures every
@@ -91,8 +79,8 @@ const PLAYER_COLOR: Record<string, string> = {
  *
  *  - `focusFighters` — the live-combat auto-zoom; TableStage re-focuses on
  *    PICKS only (see the note where the props are destructured).
- *  - `fighterTokenBadge` / `fighterTokenRim` — hero-state flag badge and the
- *    cosmetic metal rim; decorative, neither gates a legal action.
+ *  - `fighterTokenRim` — the cosmetic metal rim; decorative, it gates no
+ *    legal action.
  *  - `tokenLife` — the #320 beta "lively tokens" layer (recoil / lunge /
  *    brace / breathing + the K.O. topple ghost). Its whole vocabulary is 2D
  *    transforms in % of a flat token CIRCLE (TokenLifeLayer); a tabletop piece
@@ -102,7 +90,7 @@ const PLAYER_COLOR: Record<string, string> = {
  *    gesture pass. Off by default (opt-in beta flag), so nobody loses a beat
  *    they had.
  */
-export type TableBoardDeferredProp = "focusFighters" | "fighterTokenBadge" | "fighterTokenRim" | "tokenLife";
+export type TableBoardDeferredProp = "focusFighters" | "fighterTokenRim" | "tokenLife";
 
 /**
  * The flat board's props plus what only the tabletop draws. `fighterFigure`
@@ -138,9 +126,9 @@ export const TableBoard = ({
   extendedReachTargets = [],
   boughtRangeTargets = [],
   fighterTokenArt,
-  // PHASE 1: `fighterTokenBadge` (hero-state flags like tide/druid form) and
-  // `fighterTokenRim` (the cosmetic metal rim) are deferred — both are
-  // purely decorative and neither gates a legal action.
+  // Hero-state flags and counters (Thetis's tide, druid form, …): drawn on
+  // the hero's standee, as ProBoard draws them on the head token (#877).
+  fighterTokenBadge,
   closedRegions: _closedRegions,
   itemTokens = {},
   pendingMove = null,
@@ -199,7 +187,7 @@ export const TableBoard = ({
   const boughtRangeById = useMemo(() => new Map(boughtRangeTargets.map((t) => [t.id, t])), [boughtRangeTargets]);
   const friendlySet = useMemo(() => new Set(friendlyOwners), [friendlyOwners]);
 
-  const diameterPct = (map.meta.spaceDiameter ?? DEFAULT_DIAMETER) * 100;
+  const diameterPct = (map.meta.spaceDiameter ?? DEFAULT_SPACE_DIAMETER) * 100;
 
   const attackSpaces = useMemo(() => {
     if (!attack) return null;
@@ -271,6 +259,17 @@ export const TableBoard = ({
     return placeIn(space, objectStackOffsets(here.length)[i], scale, depth, frameW, frameH);
   };
 
+  // The damage-arc registry (useGameFx looks a defender up here to know where
+  // on screen to land a hit). Same rule as the flat board: every fighter's
+  // HEAD registers, hero or sidekick (#877 — sidekicks were missed).
+  const registerFighterEl = (id: FighterId) =>
+    fighterEls
+      ? (el: HTMLElement | null) => {
+          if (el) fighterEls.current.set(id, el);
+          else fighterEls.current.delete(id);
+        }
+      : undefined;
+
   const fighterProps = (f: ViewFighter & { space: SpaceId }) => {
     const isSelected = f.id === selectedFighter;
     const isTarget = highlightFighterSet.has(f.id);
@@ -301,7 +300,7 @@ export const TableBoard = ({
   const twoSpaceBands = twoSpaceFighters.map((f) => ({
     head: f.space,
     tail: f.tailSpace as SpaceId,
-    color: PLAYER_COLOR[f.owner] ?? "#999",
+    color: SEAT_COLOR[f.owner] ?? "#999",
   }));
 
   // `pendingMove` tweening (phase-1 deferred item: fighters teleported
@@ -406,7 +405,7 @@ export const TableBoard = ({
       path: previewMove.path,
       lead,
       trail,
-      color: PLAYER_COLOR[f.owner] ?? "#999",
+      color: SEAT_COLOR[f.owner] ?? "#999",
       initials: tokenInitials(f.name),
       isHero: f.kind === "HERO",
     };
@@ -540,7 +539,7 @@ export const TableBoard = ({
                 stack={place.stack}
                 tiltDeg={tiltDeg}
                 diamPx={diamPx}
-                playerColor={PLAYER_COLOR[token.owner] ?? "#999"}
+                playerColor={SEAT_COLOR[token.owner] ?? "#999"}
                 artUrl={boardObjectArt?.(token)}
                 originName={boardObjectOriginName?.(token)}
               />
@@ -576,7 +575,7 @@ export const TableBoard = ({
                     heightPx={0}
                     spaceDiamPx={head.diamPx}
                     spaceId={f.space}
-                    baseAccent={PLAYER_COLOR[f.owner] ?? "#999"}
+                    baseAccent={SEAT_COLOR[f.owner] ?? "#999"}
                     anim={headAnim ?? headSwap}
                     onAnimComplete={headAnim ? onPendingMoveSettled : undefined}
                     // This base is the head space's tap target, like a
@@ -595,7 +594,7 @@ export const TableBoard = ({
                   stack={straddling ? undefined : head.stack}
                   tiltDeg={tiltDeg}
                   diamPx={head.diamPx}
-                  playerColor={PLAYER_COLOR[f.owner] ?? "#999"}
+                  playerColor={SEAT_COLOR[f.owner] ?? "#999"}
                   artUrl={fighterTokenArt?.(f)}
                   figure={figureOf.get(f.id) ?? null}
                   figureScale={straddling ? LARGE_FIGURE_SCALE : 1}
@@ -603,17 +602,8 @@ export const TableBoard = ({
                   spacePicksLive={highlightSet.size > 0 || relocateSet.size > 0}
                   anim={standAnim ?? standSwap}
                   onAnimComplete={standAnim && !straddling ? onPendingMoveSettled : undefined}
-                  // Same registry, same rule as the flat board (ProBoard registers
-                  // only the HEAD segment of a LARGE fighter): the damage-arc layer
-                  // looks a fighter up here to know where on screen to land a hit.
-                  innerRef={
-                    fighterEls
-                      ? (el) => {
-                          if (el) fighterEls.current.set(f.id, el);
-                          else fighterEls.current.delete(f.id);
-                        }
-                      : undefined
-                  }
+                  badge={fighterTokenBadge?.(f)}
+                  innerRef={registerFighterEl(f.id)}
                   {...common}
                 />
               </Fragment>
@@ -627,7 +617,7 @@ export const TableBoard = ({
                 tiltDeg={tiltDeg}
                 diamPx={head.diamPx}
                 artUrl={fighterTokenArt?.(f)}
-                playerColor={PLAYER_COLOR[f.owner] ?? "#999"}
+                playerColor={SEAT_COLOR[f.owner] ?? "#999"}
                 selected={common.selected}
                 targetable={common.targetable}
                 friendly={common.friendly}
@@ -636,6 +626,7 @@ export const TableBoard = ({
                 onClick={common.onClick}
                 onSpaceFallbackClick={common.onSpaceFallbackClick}
                 onHoverChange={common.onHoverChange}
+                innerRef={registerFighterEl(f.id)}
               />
             );
           })}
@@ -651,7 +642,7 @@ export const TableBoard = ({
             const tailSpace = spaceById.get(f.tailSpace as SpaceId);
             if (!tailSpace) return null;
             const tail = fighterPlace(tailSpace, `${f.id}-tail`, (diameterPct / 100) * Math.max(frameW, 1), frameW, frameH);
-            const color = PLAYER_COLOR[f.owner] ?? "#999";
+            const color = SEAT_COLOR[f.owner] ?? "#999";
             const tailAnim = animFor(f.id, "tail", tail);
             const headSpace = spaceById.get(f.space)!;
             const mid = bandMidpoint(headSpace, tailSpace);
@@ -677,6 +668,7 @@ export const TableBoard = ({
                   onSpaceFallbackClick={
                     highlightSet.has(tailSpace.id) && onSpaceClick ? () => onSpaceClick(tailSpace.id) : undefined
                   }
+                  onHoverChange={onFighterHover}
                   bodyHidden={straddles(f)}
                 />
                 {!straddles(f) && (

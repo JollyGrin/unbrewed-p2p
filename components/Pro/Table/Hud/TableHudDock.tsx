@@ -110,8 +110,7 @@ export const TableHudDock = ({ banner, controls, primaryTitle, sheet, onControl 
         transform="translateX(-50%)"
         zIndex={150}
         // Between the plates (at most 13.5rem each) with a little air, so a
-        // long hint ellipsizes (its full text is the title) instead of
-        // running under the opponent's plate.
+        // long hint wraps instead of running under the opponent's plate.
         w="max-content"
         maxW="min(28rem, calc(100vw - 29rem))"
         minW="10rem"
@@ -125,17 +124,20 @@ export const TableHudDock = ({ banner, controls, primaryTitle, sheet, onControl 
         borderBottom="2px solid"
         borderColor={banner.tone === "mine" ? "brand.accent" : "rgba(250, 235, 215, 0.2)"}
         // The banner hangs from the top edge with bevelled sides, like the
-        // reference app's — a tab, not a floating toast. ONE line, dots beside
-        // the text: every pixel it hangs down covers the far row, where
-        // standees rise highest (the probe's hiddenFighters caught a two-line
-        // banner sitting on a far-row hero's HP badge).
+        // reference app's — a tab, not a floating toast. Dots beside the
+        // text. At most TWO lines (#877): one line cut the instruction off
+        // mid-sentence on an iPhone 14 ("Tap a gold space on the board (2…"),
+        // and two lines of this size plus padding hang ~42px — inside
+        // HUD_TOP_RESERVE_PX (48), the strip the board's fit keeps clear, so
+        // it still sits above the far row's HP badges. Two lines of the OLD
+        // 1.2 line-height at the old reserve (30px) is what once hid one.
         sx={{
           clipPath: "polygon(0 0, 100% 0, calc(100% - 0.9rem) 100%, 0.9rem 100%)",
           paddingTop: "calc(0.35rem + env(safe-area-inset-top, 0px))",
         }}
         title={banner.detail ? `${banner.title} · ${banner.detail}` : banner.title}
       >
-        <Text fontSize="0.74rem" fontWeight={700} lineHeight={1.2} noOfLines={1} minW={0}>
+        <Text fontSize="0.74rem" fontWeight={700} lineHeight={1.15} noOfLines={2} minW={0} textAlign="center">
           {banner.title}
         </Text>
         {(banner.pips > 0 || banner.detail) && (
