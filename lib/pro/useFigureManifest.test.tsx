@@ -4,7 +4,11 @@ import { resetFigureManifestCache, useFigureManifest } from "./useFigureManifest
 const manifest = {
   version: 1,
   figures: {
-    "king-kong": { anchor: { x: 0.5, y: 0.7 }, imageWidthMm: 80, footprintMm: 60, aspect: 1.5, seats: { p1: "king-kong.p1.webp" } },
+    "king-kong": { anchor: { x: 0.5, y: 0.7 }, imageWidthMm: 80, footprintMm: 60, aspect: 1.5, seats: { p1: "king-kong.p1.webp" },
+      license: "CC-BY-4.0",
+      redistributable: true,
+      officialHero: false,
+    },
   },
 };
 

@@ -1,4 +1,16 @@
-import { FIGURES_BASE_URL, LARGE_FIGURE_SCALE, figureFor, figureGroundSlice, figureSpriteBox, parseFigureManifest, straddleAnim } from "./figures";
+import {
+  FIGURES_BASE_URL,
+  LARGE_FIGURE_SCALE,
+  figureFor,
+  figureGroundSlice,
+  figureSpriteBox,
+  isCleared,
+  parseFigureManifest,
+  straddleAnim,
+} from "./figures";
+const { clearanceBlockers } = require("../../scripts/figures/clearance.cjs") as {
+  clearanceBlockers: (entry: unknown) => string[];
+};
 
 const kong = {
   anchor: { x: 0.5, y: 0.74 },
@@ -6,7 +18,49 @@ const kong = {
   footprintMm: 62.8,
   aspect: 1.5,
   seats: { p1: "king-kong.p1.webp", p2: "king-kong.p2.webp" },
+  // A made-up clearance for the fixture: no real model's status is decided here.
+  license: "CC-BY-4.0",
+  redistributable: true,
+  officialHero: false,
 };
+
+const { license: _l, redistributable: _r, officialHero: _o, ...uncleared } = kong;
+
+/** Every way an entry can fail the licence gate (unbrewed-p2p-879). */
+const NOT_CLEARED: Record<string, unknown> = {
+  "no licence fields at all": uncleared,
+  "no license": { ...uncleared, redistributable: true, officialHero: false },
+  "an empty license": { ...kong, license: "  " },
+  "a non-string license": { ...kong, license: 1 },
+  "no redistributable": { ...uncleared, license: "CC-BY-4.0", officialHero: false },
+  "redistributable: false": { ...kong, redistributable: false },
+  'redistributable: "true" (not the boolean)': { ...kong, redistributable: "true" },
+  "no officialHero": { ...uncleared, license: "CC-BY-4.0", redistributable: true },
+  "officialHero: true": { ...kong, officialHero: true },
+  "officialHero: 0 (not the boolean false)": { ...kong, officialHero: 0 },
+};
+
+describe("licence gate", () => {
+  test("a cleared entry survives, with its declarations", () => {
+    const m = parseFigureManifest({ version: 1, figures: { "king-kong": kong } });
+    expect(m?.figures["king-kong"]).toMatchObject({ license: "CC-BY-4.0", redistributable: true, officialHero: false });
+  });
+
+  test.each(Object.entries(NOT_CLEARED))("drops an entry with %s", (_why, entry) => {
+    const m = parseFigureManifest({ version: 1, figures: { "king-kong": kong, gated: entry } });
+    expect(Object.keys(m?.figures ?? {})).toEqual(["king-kong"]);
+    expect(figureFor(m, "gated", "p1")).toBeNull();
+  });
+
+  test("render.cjs clears exactly what the app clears", () => {
+    expect(clearanceBlockers(kong)).toEqual([]);
+    for (const entry of Object.values(NOT_CLEARED)) {
+      expect(clearanceBlockers(entry).length).toBeGreaterThan(0);
+      expect(isCleared(entry as Record<string, unknown>)).toBe(false);
+    }
+    expect(clearanceBlockers(null)).toHaveLength(3);
+  });
+});
 
 describe("parseFigureManifest", () => {
   test("accepts a well-formed manifest", () => {
