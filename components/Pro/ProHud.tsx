@@ -44,6 +44,10 @@ import {
   TbFlask,
   TbBug,
   TbHourglass,
+  TbPerspective,
+  TbGauge,
+  TbBellRinging,
+  TbBellOff,
 } from "react-icons/tb";
 import { GiFootprint, GiHearts, GiHighTide, GiLowTide } from "react-icons/gi";
 import { IoMdHand, IoMdVolumeHigh, IoMdVolumeOff } from "react-icons/io";
@@ -91,6 +95,8 @@ import { DEFAULT_PLATE_LAYOUT, PlateLayout, PlateSeat, useHudPlates } from "@/li
 import { useCardPreview } from "./CardPreview";
 import { CardFace } from "./ProHand";
 import { ProConnectionStatus, SeatPresence, TurnTimer } from "@/lib/pro/useProSocket";
+import { Pace, paceOption } from "@/lib/pro/pace";
+import { BoardView, BOARD_VIEW_LABEL } from "@/lib/pro/boardView";
 import { FLAGS, useFlags } from "@/lib/flags";
 
 // Team-affiliation accent (issue #195). A teal that reads clearly as "friendly"
@@ -1272,7 +1278,11 @@ export const SeatPlate = ({
 // Top-right chips (mirrors the sandbox invite/connection cluster)
 // ---------------------------------------------------------------------------
 
-const STATUS_DISPLAY: Record<ProConnectionStatus, { color: string; label: string }> = {
+// Exported (not just local to the HUD) so the pre-game "waiting for game
+// state" screen in pages/pro/game.tsx can show the same friendly wording
+// instead of the raw `status` value — one vocabulary for "what's the
+// connection doing" everywhere the player might see it.
+export const STATUS_DISPLAY: Record<ProConnectionStatus, { color: string; label: string }> = {
   open: { color: "#2F9E68", label: "Connected" },
   connecting: { color: "#E7CC98", label: "Connecting…" },
   reconnecting: { color: "#E7CC98", label: "Reconnecting…" },
@@ -1490,11 +1500,28 @@ export interface ProHudProps {
    *  the player clicks OK. The chip is hidden when the handler is omitted. */
   slowModeOn?: boolean;
   onToggleSlowMode?: () => void;
+  /** Combat pace (player feedback: combat reads too fast) — the current option
+   *  plus a one-tap cycle to the next (Normal → Relaxed → Slow → Normal). The
+   *  chip is hidden when the handler is omitted. NOT the same setting as slow
+   *  mode: pace scales how long the client's own combat animations take, slow
+   *  mode paces how fast server batches apply. */
+  pace?: Pace;
+  onCyclePace?: () => void;
+  /** Board presentation — flat (default) or tabletop (issue: tabletop board
+   *  view phase 1). A one-tap cycle between the two, same gesture as the pace
+   *  chip beside it. The chip is hidden when the handler is omitted. */
+  boardView?: BoardView;
+  onToggleBoardView?: () => void;
   /** true while a paced batch is held on screen. The spotlight's click-anywhere
    *  backdrop covers the whole viewport, which would otherwise bury the very chip
    *  that turns slow mode off — so the cluster floats above it for that window
    *  only. Omitted/false leaves ChipCluster's own z-index untouched. */
   slowModeHolding?: boolean;
+  /** Turn reminder (player request: nudge someone who forgot it's their move)
+   *  — the per-device setting (useTurnReminderSetting), default ON. The chip
+   *  is hidden when the handler is omitted. */
+  turnReminderOn?: boolean;
+  onToggleTurnReminder?: () => void;
   /** opens the ReportBugDialog (issue #125/#138) — chip hidden when omitted */
   onReportBug?: () => void;
 }
@@ -1519,6 +1546,12 @@ export const ProHud = ({
   slowModeOn,
   onToggleSlowMode,
   slowModeHolding,
+  pace,
+  onCyclePace,
+  boardView,
+  onToggleBoardView,
+  turnReminderOn,
+  onToggleTurnReminder,
   onReportBug,
 }: ProHudProps) => {
   const heroOf = (player: PlayerId) =>
@@ -1648,6 +1681,29 @@ export const ProHud = ({
             </Flex>
           </Tooltip>
         )}
+        {onToggleTurnReminder && (
+          <Tooltip
+            label={
+              turnReminderOn
+                ? "Turn reminder is ON — you'll be nudged if your turn sits idle"
+                : "Turn reminder is OFF"
+            }
+            hasArrow
+          >
+            <Flex
+              {...chipStyles}
+              as="button"
+              cursor="pointer"
+              _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+              color="brand.highlight"
+              opacity={turnReminderOn ? 1 : 0.55}
+              onClick={onToggleTurnReminder}
+              aria-label={turnReminderOn ? "Turn off turn reminders" : "Turn on turn reminders"}
+            >
+              {turnReminderOn ? <TbBellRinging size="0.85rem" /> : <TbBellOff size="0.85rem" />}
+            </Flex>
+          </Tooltip>
+        )}
         {onToggleOpponentCosmetics && (
           <Tooltip
             label={
@@ -1730,6 +1786,51 @@ export const ProHud = ({
                 aria-hidden
                 sx={{ ".chakra-switch__track": { bg: slowModeOn ? "brand.surfaceDim" : "whiteAlpha.400" } }}
               />
+            </Flex>
+          </Tooltip>
+        )}
+        {onCyclePace && pace && (
+          // A one-tap cycling chip, not a dropdown (#382 pacing feedback: "keep it
+          // one compact control") — same gesture as the sound/visual icon chips,
+          // just naming the current option since there are three states, not two.
+          <Tooltip label={`Combat pace: ${paceOption(pace).label} — click to cycle`} hasArrow>
+            <Flex
+              {...chipStyles}
+              as="button"
+              type="button"
+              cursor="pointer"
+              _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+              color="brand.highlight"
+              opacity={pace === "normal" ? 0.55 : 1}
+              onClick={onCyclePace}
+              aria-label={`Combat pace: ${paceOption(pace).label}. Click to change.`}
+            >
+              <TbGauge size="0.85rem" />
+              <Text fontSize="0.65rem" fontFamily="SpaceGrotesk" whiteSpace="nowrap">
+                {paceOption(pace).label}
+              </Text>
+            </Flex>
+          </Tooltip>
+        )}
+        {onToggleBoardView && boardView && (
+          // Same one-tap cycling gesture as the pace chip beside it — there are
+          // only two board views, so a cycle needs no dropdown either.
+          <Tooltip label={`Board: ${BOARD_VIEW_LABEL[boardView]} — click to switch`} hasArrow>
+            <Flex
+              {...chipStyles}
+              as="button"
+              type="button"
+              cursor="pointer"
+              _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+              color="brand.highlight"
+              opacity={boardView === "flat" ? 0.55 : 1}
+              onClick={onToggleBoardView}
+              aria-label={`Board view: ${BOARD_VIEW_LABEL[boardView]}. Click to switch.`}
+            >
+              <TbPerspective size="0.85rem" />
+              <Text fontSize="0.65rem" fontFamily="SpaceGrotesk" whiteSpace="nowrap">
+                {BOARD_VIEW_LABEL[boardView]}
+              </Text>
             </Flex>
           </Tooltip>
         )}
