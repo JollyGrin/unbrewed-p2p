@@ -12,7 +12,7 @@
  */
 import type { FighterId, ViewFighter } from "@/lib/pro/protocol";
 import { standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
-import { TableAnchorAnim, TableStandeeAnchor } from "./TableStandeeAnchor";
+import { TableAnchorAnim, TableStandeeAnchor, type TableStackDepth } from "./TableStandeeAnchor";
 import { TableFlatToken } from "./TableFlatToken";
 
 export interface TableFighterTailProps {
@@ -20,6 +20,8 @@ export interface TableFighterTailProps {
   x: number;
   y: number;
   tiltDeg: number;
+  /** Set when this piece shares its space — see TableStandeeAnchor. */
+  stack?: TableStackDepth;
   diamPx: number;
   playerColor: string;
   selected: boolean;
@@ -40,6 +42,7 @@ export const TableFighterTail = ({
   x,
   y,
   tiltDeg,
+  stack,
   diamPx,
   playerColor,
   selected,
@@ -54,6 +57,7 @@ export const TableFighterTail = ({
 
   return (
     <TableStandeeAnchor
+      stack={stack}
       x={x}
       y={y}
       tiltDeg={tiltDeg}

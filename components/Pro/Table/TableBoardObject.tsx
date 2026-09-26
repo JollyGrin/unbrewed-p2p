@@ -8,7 +8,7 @@
 import { Box } from "@chakra-ui/react";
 import type { ViewToken } from "@/lib/pro/protocol";
 import { BOARD_OBJECT_VISUALS, UNKNOWN_OBJECT } from "@/lib/pro/boardObjects";
-import { TableStandeeAnchor } from "./TableStandeeAnchor";
+import { TableStandeeAnchor, type TableStackDepth } from "./TableStandeeAnchor";
 
 /** A board object's footprint, smaller than even a sidekick's. */
 const OBJECT_WIDTH_FACTOR = 0.85;
@@ -18,6 +18,8 @@ export interface TableBoardObjectProps {
   x: number;
   y: number;
   tiltDeg: number;
+  /** Set when this piece shares its space — see TableStandeeAnchor. */
+  stack?: TableStackDepth;
   diamPx: number;
   playerColor: string;
   artUrl?: string | null;
@@ -29,6 +31,7 @@ export const TableBoardObject = ({
   x,
   y,
   tiltDeg,
+  stack,
   diamPx,
   playerColor,
   artUrl,
@@ -40,6 +43,7 @@ export const TableBoardObject = ({
 
   return (
     <TableStandeeAnchor
+      stack={stack}
       x={x}
       y={y}
       tiltDeg={tiltDeg}

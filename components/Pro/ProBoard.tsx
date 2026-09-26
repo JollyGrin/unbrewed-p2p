@@ -31,10 +31,10 @@ import {
   boardObjectVisualFor,
 } from "@/lib/pro/boardObjects";
 import {
+  fighterStackBySpace,
+  OBJECT_SCALE_BY_SHAPE,
   objectStackOffsets,
-  SCALE_BY_SIZE,
-  stackLayout,
-  StackOccupant,
+  slotIn,
   StackSlot,
 } from "@/lib/pro/tokenStack";
 import { useFlag } from "@/lib/flags";
@@ -729,32 +729,12 @@ export const ProBoard = ({
     bySpace.set(f.space as SpaceId, list);
   }
 
-  // Per-space stack layout (protocol v28 — SMALL fighters share spaces). Keyed by
-  // `<fighterId>` for a head segment and `<fighterId>-tail` for a LARGE tail, so
-  // BOTH body spaces of a large fighter participate: a small standing on Kong's
-  // tail rings around the tail exactly as one on its head rings around the head.
-  // Occupant order is `view.fighters` order, which is stable across renders, so a
-  // token does not hop between ring positions on an unrelated state change.
-  const stackBySpace = new Map<SpaceId, Map<string, StackSlot>>();
-  {
-    const occupantsBySpace = new Map<SpaceId, StackOccupant[]>();
-    const add = (space: SpaceId, occupant: StackOccupant) => {
-      const list = occupantsBySpace.get(space) ?? [];
-      list.push(occupant);
-      occupantsBySpace.set(space, list);
-    };
-    for (const f of fightersOnBoard) {
-      add(f.space as SpaceId, { key: f.id, size: f.size ?? "NORMAL" });
-      // The tail is the same body: it is the ONE non-small on its space too.
-      if (f.tailSpace) add(f.tailSpace, { key: `${f.id}-tail`, size: f.size ?? "NORMAL" });
-    }
-    for (const [space, occupants] of occupantsBySpace) {
-      stackBySpace.set(space, stackLayout(occupants));
-    }
-  }
+  // Per-space stack layout (protocol v28 — SMALL fighters share spaces), a LARGE
+  // fighter's tail space included. Shared with the tabletop view via
+  // lib/pro/tokenStack.ts so both boards put a crowd in the same places.
+  const stackBySpace = fighterStackBySpace(fightersOnBoard);
   /** This token's drawn position + scale; centred full-size if the space is unknown. */
-  const slotFor = (space: SpaceId, key: string): StackSlot =>
-    stackBySpace.get(space)?.get(key) ?? { dx: 0, dy: 0, scale: SCALE_BY_SIZE.NORMAL, order: 0 };
+  const slotFor = (space: SpaceId, key: string): StackSlot => slotIn(stackBySpace, space, key);
 
   // v6 two-space (LARGE) fighters: `space` is the head, `tailSpace` the second
   // body space. The head renders through the normal per-space pass below;
@@ -1450,7 +1430,7 @@ export const ProBoard = ({
           left={`${s.x * 100}%`}
           top={`${s.y * 100}%`}
           transform={`translate(${tx}, ${ty}) rotate(45deg)${upright}`}
-          w={`${diam * 0.55}%`}
+          w={`${diam * OBJECT_SCALE_BY_SHAPE.diamond}%`}
           sx={{ aspectRatio: "1", pointerEvents: "none" }}
           bg="brand.surfaceDim"
           border={`2px solid ${color}`}
@@ -1469,7 +1449,7 @@ export const ProBoard = ({
         left={`${s.x * 100}%`}
         top={`${s.y * 100}%`}
         transform={`translate(${tx}, ${ty})${upright}`}
-        w={`${diam * 0.62}%`}
+        w={`${diam * OBJECT_SCALE_BY_SHAPE.disc}%`}
         sx={{ aspectRatio: "1", pointerEvents: "none" }}
         zIndex={2}
       >
