@@ -34,6 +34,9 @@ export interface TableFighterTailProps {
    *  target: the tail's face covers that space, so without this the space
    *  can't be tapped at all (#873). Same fallback as the head's. */
   onSpaceFallbackClick?: () => void;
+  /** Hovering the tail reports the SAME fighter id as the head, as ProBoard's
+   *  tail does — so the hover card shows for either segment. */
+  onHoverChange?: (id: FighterId | null) => void;
   targetable: boolean;
   /** Only the base (and the tap target): the fighter's miniature stands
    *  between its two spaces, so an upright disc here would be a second,
@@ -54,6 +57,7 @@ export const TableFighterTail = ({
   onAnimComplete,
   onClick,
   onSpaceFallbackClick,
+  onHoverChange,
   targetable,
   bodyHidden = false,
 }: TableFighterTailProps) => {
@@ -89,6 +93,8 @@ export const TableFighterTail = ({
       onAnimComplete={onAnimComplete}
       pick={clickable}
       onClick={clickable ? () => onClick!(fighter.id) : onSpaceFallbackClick}
+      onMouseEnter={onHoverChange ? () => onHoverChange(fighter.id) : undefined}
+      onMouseLeave={onHoverChange ? () => onHoverChange(null) : undefined}
       title={`${fighter.name} (trailing body)`}
       data-fighter-id={`${fighter.id}-tail`}
     >

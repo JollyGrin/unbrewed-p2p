@@ -4,6 +4,11 @@
  * file on this deploy, a network error, malformed JSON — resolves to `null`,
  * which means "no figures": the tabletop falls back to token art, and the
  * game never notices.
+ *
+ * `enabled` is false while the flat board is up: only the tabletop draws
+ * figures, and on a deploy without the folder every flat-board game would
+ * otherwise log a 404 for nothing (#877). The request goes out the first time
+ * the tabletop is shown and is cached from then on.
  */
 import { useEffect, useState } from "react";
 import { FIGURES_MANIFEST_URL, FigureManifest, parseFigureManifest } from "./figures";
@@ -26,9 +31,10 @@ export const resetFigureManifestCache = (): void => {
   cached = null;
 };
 
-export const useFigureManifest = (): FigureManifest | null => {
+export const useFigureManifest = (enabled = true): FigureManifest | null => {
   const [manifest, setManifest] = useState<FigureManifest | null>(null);
   useEffect(() => {
+    if (!enabled) return;
     let alive = true;
     load().then((m) => {
       if (alive) setManifest(m);
@@ -36,6 +42,6 @@ export const useFigureManifest = (): FigureManifest | null => {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [enabled]);
   return manifest;
 };

@@ -4521,10 +4521,6 @@ const LiveGame = ({
     for (const p of snapshot?.view.players ?? []) m[p.id] = p.heroId;
     return m;
   }, [snapshot]);
-  // Pre-rendered miniatures for the tabletop view (lib/pro/figures). A local,
-  // git-ignored folder that ships only with the owner's own deploy; null — and
-  // every hero keeps its token standee — anywhere it is absent.
-  const figureManifest = useFigureManifest();
   // owner seat -> { badge, heroArtUrl }: one map feeding BOTH the token badge and
   // the flag-driven portrait swap (Thetis tide), resolved from the same
   // HERO_STATE_FLAGS entry. Rebuilt per snapshot so mid-game flag flips re-render.
@@ -4745,6 +4741,11 @@ const LiveGame = ({
   // counter-rotation for the 90°-turned portrait frame. The stored preference
   // is untouched, so turning back to landscape returns to the tabletop.
   const boardView = resolveBoardView(preferredBoardView, mode);
+  // Pre-rendered miniatures for the tabletop view (lib/pro/figures). A local,
+  // git-ignored folder that ships only with the owner's own deploy; null — and
+  // every hero keeps its token standee — anywhere it is absent. Fetched only
+  // once the tabletop is shown: the flat board draws no figures (#877).
+  const figureManifest = useFigureManifest(boardView === "table");
   // The tabletop HUD (lib/pro/tableHud): a landscape phone looking at the
   // tabletop board gets plates, a banner, a fanned hand and a hexagon instead
   // of the decision rail. The flat board keeps its rail, untouched.

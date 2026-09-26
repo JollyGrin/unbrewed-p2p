@@ -58,7 +58,7 @@ import type { PlayerId, ViewPlayer } from "@/lib/pro/protocol";
 import type { ProLayoutMode } from "@/lib/pro/useProLayout";
 import { MoveTimerBar, ProHudProps, SeatPlate, hudSeats } from "@/components/Pro/ProHud";
 import { TableHudPlate } from "@/components/Pro/Table/Hud/TableHudPlate";
-import { SEAT_COLOR } from "@/lib/pro/tableHud";
+import { SEAT_COLOR } from "@/lib/pro/seatColors";
 
 export const MOBILE_CHIPS_TEST_ID = "pro-mobile-chips";
 

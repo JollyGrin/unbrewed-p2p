@@ -77,6 +77,11 @@ export interface TableStageProps {
   children: (metrics: TableStageMetrics) => ReactNode;
 }
 
+/** The table's warm vignette (see where it is applied). Inline, not a Chakra
+ *  prop: Chakra's gradient parser throws on `ellipse … at …` syntax. */
+const STAGE_VIGNETTE =
+  "radial-gradient(ellipse 72% 62% at 50% 45%, rgba(64,44,30,0.28) 0%, rgba(38,24,18,0.5) 60%, rgba(16,10,9,0.72) 100%)";
+
 export const TableStage = ({
   imageUrl,
   imageAlt,
@@ -226,7 +231,15 @@ export const TableStage = ({
       // — the non-zoomable/inset context wants the same grounding cue, and
       // this is a background-image on an otherwise-plain Box either way, so
       // there is no zoomable-only layout reason to withhold it.
-      bg="radial-gradient(ellipse 72% 62% at 50% 45%, rgba(64,44,30,0.28) 0%, rgba(38,24,18,0.5) 60%, rgba(16,10,9,0.72) 100%)"
+      //
+      // The vignette is translucent, so it needs an OPAQUE colour under it
+      // (#877): the table surface is a trapezoid once tilted (its far edge
+      // converges), and wherever it doesn't reach — the far corners, on a
+      // wide desktop screen — the app's purple showed through as a wedge.
+      // The base is the surface's own faded-edge tone (TableSurface's outer
+      // fade), so the corners read as more of the same dim table.
+      bg="#120A0C"
+      style={{ backgroundImage: STAGE_VIGNETTE }}
       {...zoom.handlers}
     >
       <Box
