@@ -253,7 +253,8 @@ export const TableMini3D = ({
   // ---- motion (#962): the timeline, its inputs, and the one sampler.
   const reduced = !!useReducedMotion();
   const motionRef = useRef<MiniMotion | null>(null);
-  motionRef.current ??= createMotion(performance.now());
+  // (Not `??=`: this repo's SWC build leaves a helper undeclared for it.)
+  if (!motionRef.current) motionRef.current = createMotion(performance.now());
   const aspect = frameW > 0 && frameH > 0 ? frameW / frameH : 1;
   const walkPath = animating && walk && walk.xs.length > 1 ? walk : null;
   const input = useRef({ x, y, animating, walkPath, aspect, baseX: 0, baseY: 0, reduced });

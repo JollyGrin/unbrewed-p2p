@@ -20,11 +20,15 @@
  *   dpr     the five reference crops at pixel-ratio cap 2 vs 3.
  *   zoom    canvas density before/after zooming the board in mid-pick.
  *
+ *   motion  #962's motion set as frame sequences (hop, attack, defeat,
+ *           select lift, drop) + a per-frame pose trace, via CDP screencast.
  *   smoke   one screenshot + the renderer's stats.
  *
  * Env: PROBE_ARGS = extra Chromium flags. Headless Chromium has NO WebGL by
  * default; "--use-angle=metal --enable-gpu --ignore-gpu-blocklist" gives it the
  * Mac's GPU, "--use-angle=swiftshader --enable-unsafe-swiftshader" software GL.
+ * PROBE_DEVICE=desktop runs a 1440×900 mouse desktop instead of the phone;
+ * PROBE_REDUCED=1 emulates prefers-reduced-motion.
  * PROBE_SYNC=1 (perf) waits for the GPU after each render. PROBE_LODS is a
  * comma list of manifest detail levels (default "play", the only committed
  * one; other levels need local files the manifest names). PROBE_HEADED=1 shows the
@@ -43,9 +47,16 @@ const BASE = process.env.PROBE_URL || "http://localhost:3107";
 const MAP = process.env.PROBE_MAP || "Secluded Temple";
 const LODS = (process.env.PROBE_LODS || "play").split(",");
 
+const DEVICE =
+  process.env.PROBE_DEVICE === "desktop"
+    ? { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, hasTouch: false }
+    : pw.devices["iPhone 14 landscape"];
+/** Tap on the phone, click on the desktop. */
+const press = (loc) => (DEVICE.hasTouch ? loc.tap() : loc.click());
+
 const launch = async (extraArgs = []) => {
   const browser = await pw.chromium.launch({ headless: !process.env.PROBE_HEADED, args: extraArgs });
-  const ctx = await browser.newContext({ ...pw.devices["iPhone 14 landscape"] });
+  const ctx = await browser.newContext({ ...DEVICE, ...(process.env.PROBE_REDUCED ? { reducedMotion: "reduce" } : {}) });
   await ctx.addInitScript(() => {
     try {
       localStorage.setItem("pro-board-view", "table");
@@ -62,19 +73,19 @@ const launch = async (extraArgs = []) => {
 const startGame = async (page, query) => {
   await page.goto(`${BASE}/pro/game?${query}`, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForTimeout(5000);
-  await page.getByRole("button", { name: "AI·E", exact: true }).tap();
-  await page.getByRole("button", { name: /^King Taranis by/ }).first().tap();
+  await press(page.getByRole("button", { name: "AI·E", exact: true }));
+  await press(page.getByRole("button", { name: /^King Taranis by/ }).first());
   const stage = page.getByRole("button", { name: MAP, exact: true });
   if (!(await stage.count())) {
     const more = page.getByRole("button", { name: /^All \d+ boards$/ });
-    if (await more.count()) await more.first().tap();
+    if (await more.count()) await press(more.first());
   }
-  await stage.first().tap();
-  await page.getByRole("button", { name: "PLAY VS AI" }).tap();
+  await press(stage.first());
+  await press(page.getByRole("button", { name: "PLAY VS AI" }));
   await page.waitForSelector("[data-table-stage-plane]", { timeout: 60000 });
   await page.waitForTimeout(4000);
   const keep = page.getByRole("button", { name: /keep your opening hand/i });
-  if (await keep.count()) await keep.first().tap().catch(() => {});
+  if (await keep.count()) await press(keep.first()).catch(() => {});
   await page.waitForTimeout(1500);
   const reset = page.getByRole("button", { name: /reset view/i });
   if (await reset.count()) await reset.first().evaluate((el) => el.click());
@@ -108,7 +119,7 @@ const referenceSpaces = (page) =>
 const probe = (page, pieces) =>
   page.evaluate((p) => window.dispatchEvent(new CustomEvent("table-mini3d-probe", { detail: { pieces: p } })), pieces);
 
-module.exports = { launch, startGame, referenceSpaces, probe, OUT, LODS, BASE };
+module.exports = { launch, startGame, referenceSpaces, probe, press, DEVICE, OUT, LODS, BASE };
 
 if (require.main === module) {
   require(path.join(__dirname, "tableMini3d", `${MODE}.cjs`))().catch((e) => {
