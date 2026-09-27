@@ -83,6 +83,9 @@ import { TableFighterTail } from "./TableFighterTail";
 import { TableSidekickToken } from "./TableSidekickToken";
 import { TableBoardObject } from "./TableBoardObject";
 import { TableMoveGhost } from "./TableMoveGhost";
+import { TableMini3dProbe } from "./TableMini3dProbe";
+import { mini3dFor } from "@/lib/pro/minis3d/manifest";
+import { useMinis3dManifest, useMinis3dSwitch } from "@/lib/pro/minis3d/useMinis3dManifest";
 
 /**
  * ProBoard props this view does NOT draw yet, each for a stated reason. They
@@ -113,6 +116,10 @@ export type TableBoardDeferredProp = "focusFighters" | "fighterTokenRim" | "toke
  */
 export type TableBoardProps = Omit<ProBoardProps, TableBoardDeferredProp> & {
   fighterFigure?: (fighter: ViewFighter) => Figure | null;
+  /** WebGL minis spike (#931): which 3D mini a fighter stands as (a hero's id
+   *  today; any fighter may have one). Used only under the `?minis3d=1`
+   *  dev switch, and only for ids in public/minis3d/manifest.json. */
+  fighterMiniId?: (fighter: ViewFighter) => string | undefined;
   /** see TableStage — moved out from under the tabletop HUD's side buttons */
   resetViewSpot?: { left: string; bottom: string };
 };
@@ -164,6 +171,7 @@ export const TableBoard = ({
   rotated = false,
   fitInset,
   fighterFigure,
+  fighterMiniId,
   resetViewSpot,
   // Whatever the caller spread in that this view deliberately doesn't draw
   // (TableBoardDeferredProp). Typed as the REST of TableBoardProps, so it is
@@ -183,6 +191,11 @@ export const TableBoard = ({
   const badgeProbe = useTableBadgeProbe();
   // Dev-only: where the figure probe stands the one-space miniatures (#926).
   const figureProbe = useTableFigureProbe();
+  // WebGL minis spike (#931): dev switch `?minis3d=1`.
+  const minis3d = useMinis3dSwitch();
+  const minis3dManifest = useMinis3dManifest(minis3d.on);
+  const mini3dOf = (f: ViewFighter) =>
+    minis3d.on ? mini3dFor(minis3dManifest, fighterMiniId?.(f), f.owner, minis3d.variant) : null;
 
   // A region's spaces are normalized to their OWN inset image, not the main
   // board (see the header comment) — excluded from `mainSpaces` here, then
@@ -582,7 +595,7 @@ export const TableBoard = ({
       regionOverlay={regionOverlay}
       regionFrameRef={frameRef}
     >
-      {({ frameW, frameH, tiltDeg }) => (
+      {({ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio }) => (
         <>
           <TableBoardLines
             spaces={mainSpaces}
@@ -721,6 +734,9 @@ export const TableBoard = ({
                   badge={fighterTokenBadge?.(f) ?? (badgeProbe ? BADGE_PROBE_FLAG : null)}
                   frameW={frameW}
                   frameH={frameH}
+                  // A straddling LARGE figure keeps its sprite in the spike.
+                  mini3d={straddling ? null : mini3dOf(f)}
+                  rig={{ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio }}
                   innerRef={registerFighterEl(f.id)}
                   {...common}
                 />
@@ -753,6 +769,16 @@ export const TableBoard = ({
               />
             );
           })}
+
+          {minis3d.on && (
+            <TableMini3dProbe
+              spaceById={spaceById}
+              spaceDiamPx={(diameterPct / 100) * Math.max(frameW, 1)}
+              rig={{ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio }}
+              manifest={minis3dManifest}
+              variant={minis3d.variant}
+            />
+          )}
 
           {/* LARGE (two-space) fighters' trailing body (phase-1 deferred item)
               + the identity label at the band's own midpoint, reusing

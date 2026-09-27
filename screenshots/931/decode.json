@@ -1,0 +1,116 @@
+[
+  {
+    "variant": "150k.draco",
+    "status": "ready",
+    "importMs": 203.70000000298023,
+    "first": {
+      "url": "/minis3d/king-taranis.150k.draco.glb",
+      "codec": "draco",
+      "bytes": 430356,
+      "fetchMs": 94.90000000596046,
+      "decodeMs": 199.19999999552965,
+      "triangles": 149976
+    },
+    "warm": [
+      49.29999999701977,
+      57,
+      44.69999999552965,
+      41.100000001490116
+    ]
+  },
+  {
+    "variant": "30k.draco",
+    "status": "ready",
+    "importMs": 198.60000000149012,
+    "first": {
+      "url": "/minis3d/king-taranis.30k.draco.glb",
+      "codec": "draco",
+      "bytes": 96992,
+      "fetchMs": 75,
+      "decodeMs": 161.70000000298023,
+      "triangles": 29990
+    },
+    "warm": [
+      12.399999998509884,
+      9.199999995529652,
+      10.399999998509884,
+      8.899999998509884
+    ]
+  },
+  {
+    "variant": "15k.draco",
+    "status": "ready",
+    "importMs": 194.69999999552965,
+    "first": {
+      "url": "/minis3d/king-taranis.15k.draco.glb",
+      "codec": "draco",
+      "bytes": 52084,
+      "fetchMs": 86.5,
+      "decodeMs": 196.29999999701977,
+      "triangles": 14992
+    },
+    "warm": [
+      7.899999998509884,
+      6.200000002980232,
+      6.200000002980232,
+      6.799999997019768
+    ]
+  },
+  {
+    "variant": "150k.meshopt",
+    "status": "ready",
+    "importMs": 235.09999999403954,
+    "first": {
+      "url": "/minis3d/king-taranis.150k.meshopt.glb",
+      "codec": "meshopt",
+      "bytes": 652728,
+      "fetchMs": 39.600000001490116,
+      "decodeMs": 56.600000001490116,
+      "triangles": 149976
+    },
+    "warm": [
+      42.100000001490116,
+      42.899999998509884,
+      30,
+      27.900000005960464
+    ]
+  },
+  {
+    "variant": "30k.meshopt",
+    "status": "ready",
+    "importMs": 200,
+    "first": {
+      "url": "/minis3d/king-taranis.30k.meshopt.glb",
+      "codec": "meshopt",
+      "bytes": 137888,
+      "fetchMs": 16.200000002980232,
+      "decodeMs": 42.79999999701977,
+      "triangles": 29990
+    },
+    "warm": [
+      6.9000000059604645,
+      6.5999999940395355,
+      7.700000002980232,
+      6.100000001490116
+    ]
+  },
+  {
+    "variant": "15k.meshopt",
+    "status": "ready",
+    "importMs": 197.89999999850988,
+    "first": {
+      "url": "/minis3d/king-taranis.15k.meshopt.glb",
+      "codec": "meshopt",
+      "bytes": 70744,
+      "fetchMs": 86.39999999850988,
+      "decodeMs": 25.100000001490116,
+      "triangles": 14992
+    },
+    "warm": [
+      11.899999998509884,
+      6.5,
+      5.200000002980232,
+      5.199999995529652
+    ]
+  }
+]

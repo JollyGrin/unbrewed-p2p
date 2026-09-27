@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "minis": {
+    "king-taranis": {
+      "files": {
+        "150k.draco": "king-taranis.150k.draco.glb",
+        "150k.meshopt": "king-taranis.150k.meshopt.glb",
+        "30k.draco": "king-taranis.30k.draco.glb",
+        "30k.meshopt": "king-taranis.30k.meshopt.glb",
+        "15k.draco": "king-taranis.15k.draco.glb",
+        "15k.meshopt": "king-taranis.15k.meshopt.glb"
+      },
+      "defaultVariant": "150k.draco",
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "King Taranis (Meshy AI)",
+      "creator": "JollyGrin",
+      "sourceUrl": "https://unbrewed.xyz"
+    },
+    "king-taranis-spice": {
+      "files": {
+        "150k.draco": "king-taranis.150k.draco.glb",
+        "150k.meshopt": "king-taranis.150k.meshopt.glb",
+        "30k.draco": "king-taranis.30k.draco.glb",
+        "30k.meshopt": "king-taranis.30k.meshopt.glb",
+        "15k.draco": "king-taranis.15k.draco.glb",
+        "15k.meshopt": "king-taranis.15k.meshopt.glb"
+      },
+      "defaultVariant": "150k.draco",
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "King Taranis (Meshy AI)",
+      "creator": "JollyGrin",
+      "sourceUrl": "https://unbrewed.xyz"
+    }
+  }
+}

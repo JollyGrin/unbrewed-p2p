@@ -16,8 +16,11 @@ import { keyframes } from "@emotion/react";
 import type { FighterId, ViewFighter } from "@/lib/pro/protocol";
 import type { FlagTokenBadge } from "@/lib/pro/heroStateFlags";
 import { fighterStatusBadgesFor } from "@/lib/pro/fighterStatuses";
-import { flatTokenTopPx, standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
+import { flatTokenTopPx, placeStandee, standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
 import { figureSilhouetteBox, type Figure } from "@/lib/pro/figures";
+import type { Mini3d } from "@/lib/pro/minis3d/manifest";
+import type { TableRig } from "@/lib/pro/minis3d/camera";
+import { TableMini3D, useMinis3dStatus } from "./TableMini3D";
 import { TableFigureGround, TableFigureSprite } from "./TableFigureSprite";
 import { TableAnchorAnim, TableStandeeAnchor, type TableStackDepth } from "./TableStandeeAnchor";
 import {
@@ -116,6 +119,11 @@ export interface TableFighterStandeeProps {
    *  it slides clear of the token (see TableStandeeAnchor's `badges`). */
   frameW?: number;
   frameH?: number;
+  /** WebGL minis spike (#931, `?minis3d=1`): a real 3D model to stand here
+   *  instead of `figure`'s sprite, drawn for the CSS camera `rig`. Falls back
+   *  to the sprite (or token) whenever WebGL is unavailable or lost. */
+  mini3d?: Mini3d | null;
+  rig?: TableRig | null;
 }
 
 export const TableFighterStandee = ({
@@ -140,16 +148,26 @@ export const TableFighterStandee = ({
   onSpaceFallbackClick,
   onHoverChange,
   innerRef,
-  figure = null,
+  figure: spriteFigure = null,
   figureScale = 1,
   baseHidden = false,
   spacePicksLive = false,
   frameW,
   frameH,
+  mini3d = null,
+  rig = null,
 }: TableFighterStandeeProps) => {
+  const minis3dStatus = useMinis3dStatus(!!mini3d);
+  // A 3D mini only while the shared renderer is up; otherwise exactly the
+  // sprite/token path below.
+  const use3d = !!mini3d && !!rig && minis3dStatus === "ready";
+  const figure = use3d ? null : spriteFigure;
   const tokenPx = standeeBaseDiameterPx(diamPx);
   const figureBaseDiamPx = tokenPx * figureScale;
-  const { widthPx, heightPx } = heroPlateSize(figure, tokenPx, figureBaseDiamPx);
+  // A 3D mini's badges hug the same hero's sprite silhouette (same model, same
+  // base) — the spike's stand-in until the renderer reports its own (#931).
+  const upright = !!figure || use3d;
+  const { widthPx, heightPx } = heroPlateSize(use3d ? spriteFigure : figure, tokenPx, figureBaseDiamPx);
   const statusBadges = fighterStatusBadgesFor(fighter);
   const fighterClickable = targetable && !!onClick;
   const clickHandler = fighterClickable ? () => onClick!(fighter.id) : onSpaceFallbackClick;
@@ -176,9 +194,20 @@ export const TableFighterStandee = ({
       spaceDiamPx={diamPx}
       spaceId={fighter.space}
       baseAccent={playerColor}
-      base={!!figure && !baseHidden}
+      base={upright && !baseHidden}
       ground={
-        figure ? (
+        use3d ? (
+          <TableMini3D
+            mini={mini3d!}
+            rig={rig!}
+            x={x}
+            y={y}
+            baseDiamPx={figureBaseDiamPx}
+            groundScale={placeStandee(stack ? stack.depthY : y, tiltDeg).scale}
+            animating={!!anim}
+            filter={plateFilter(selected, friendly)}
+          />
+        ) : figure ? (
           <TableFigureGround
             figure={figure}
             baseDiamPx={figureBaseDiamPx}
@@ -209,7 +238,7 @@ export const TableFighterStandee = ({
       frameW={frameW}
       frameH={frameH}
       // A miniature stands on a flat base; a flat token is its own layers.
-      groundTopPx={figure ? 0 : flatTokenTopPx(tokenPx)}
+      groundTopPx={upright ? 0 : flatTokenTopPx(tokenPx)}
       badgeLowestPx={badgeLowestPx}
       badges={
         <>

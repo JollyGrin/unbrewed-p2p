@@ -1,0 +1,1016 @@
+{
+  "gl": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Max, Unspecified Version)",
+  "gpuSyncedTiming": false,
+  "cpuThrottle": 4,
+  "device": "iPhone 14 landscape (emulated)",
+  "runs": [
+    {
+      "mode": "sprite",
+      "minis": 2,
+      "placeRenderMs": {
+        "n": 0,
+        "median": null,
+        "p95": null,
+        "max": null
+      },
+      "idleFrameMs": {
+        "n": 122,
+        "median": 8.3,
+        "p95": 9.2,
+        "max": 12.8
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 181,
+          "median": 8.3,
+          "p95": 9,
+          "max": 9.3
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 0,
+          "median": null,
+          "p95": null,
+          "max": null
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 182,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 17.4
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 0,
+          "median": null,
+          "p95": null,
+          "max": null
+        }
+      },
+      "rendererStatus": "ready",
+      "canvases": 0
+    },
+    {
+      "mode": "sprite",
+      "minis": 4,
+      "placeRenderMs": {
+        "n": 0,
+        "median": null,
+        "p95": null,
+        "max": null
+      },
+      "idleFrameMs": {
+        "n": 121,
+        "median": 8.3,
+        "p95": 9.2,
+        "max": 16.9
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 181,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 9.4
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 0,
+          "median": null,
+          "p95": null,
+          "max": null
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 182,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 9.3
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 0,
+          "median": null,
+          "p95": null,
+          "max": null
+        }
+      },
+      "rendererStatus": "ready",
+      "canvases": 0
+    },
+    {
+      "mode": "sprite",
+      "minis": 8,
+      "placeRenderMs": {
+        "n": 0,
+        "median": null,
+        "p95": null,
+        "max": null
+      },
+      "idleFrameMs": {
+        "n": 122,
+        "median": 8.3,
+        "p95": 9.1,
+        "max": 9.3
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 180,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 16.9
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 0,
+          "median": null,
+          "p95": null,
+          "max": null
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 181,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 16.7
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 0,
+          "median": null,
+          "p95": null,
+          "max": null
+        }
+      },
+      "rendererStatus": "ready",
+      "canvases": 0
+    },
+    {
+      "mode": "150k.draco",
+      "minis": 2,
+      "placeRenderMs": {
+        "n": 2,
+        "median": 1,
+        "p95": 1,
+        "max": 1
+      },
+      "idleFrameMs": {
+        "n": 121,
+        "median": 8.3,
+        "p95": 9.2,
+        "max": 17.1
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 181,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 9.3
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 146,
+          "median": 0.5,
+          "p95": 1,
+          "max": 1.3
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 182,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 9.4
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 293,
+          "median": 0.1,
+          "p95": 0.9,
+          "max": 1
+        }
+      },
+      "rendererStatus": "ready",
+      "canvases": 2
+    },
+    {
+      "mode": "150k.draco",
+      "minis": 4,
+      "placeRenderMs": {
+        "n": 4,
+        "median": 1.1,
+        "p95": 3.7,
+        "max": 3.7
+      },
+      "idleFrameMs": {
+        "n": 121,
+        "median": 8.3,
+        "p95": 9.2,
+        "max": 17.3
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 181,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 9.4
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 146,
+          "median": 0.2,
+          "p95": 0.9,
+          "max": 1.1
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 182,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 9.3
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 584,
+          "median": 0.1,
+          "p95": 0.7,
+          "max": 0.9
+        }
+      },
+      "rendererStatus": "ready",
+      "canvases": 4
+    },
+    {
+      "mode": "150k.draco",
+      "minis": 8,
+      "placeRenderMs": {
+        "n": 8,
+        "median": 0.1,
+        "p95": 1.2,
+        "max": 1.2
+      },
+      "idleFrameMs": {
+        "n": 121,
+        "median": 8.3,
+        "p95": 8.9,
+        "max": 16.8
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 178,
+          "median": 8.4,
+          "p95": 9.2,
+          "max": 17.2
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 146,
+          "median": 0.3,
+          "p95": 0.8,
+          "max": 1
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 177,
+          "median": 8.3,
+          "p95": 9.3,
+          "max": 16.8
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 1136,
+          "median": 0,
+          "p95": 0.7,
+          "max": 1
+        }
+      },
+      "rendererStatus": "ready",
+      "canvases": 8
+    },
+    {
+      "mode": "30k.draco",
+      "minis": 2,
+      "placeRenderMs": {
+        "n": 2,
+        "median": 2.6,
+        "p95": 2.6,
+        "max": 2.6
+      },
+      "idleFrameMs": {
+        "n": 121,
+        "median": 8.3,
+        "p95": 9.3,
+        "max": 16
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 181,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 9.3
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 147,
+          "median": 0.2,
+          "p95": 1,
+          "max": 1.2
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 182,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 9.3
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 293,
+          "median": 0,
+          "p95": 0.7,
+          "max": 1
+        }
+      },
+      "rendererStatus": "ready",
+      "canvases": 2
+    },
+    {
+      "mode": "30k.draco",
+      "minis": 4,
+      "placeRenderMs": {
+        "n": 4,
+        "median": 0.1,
+        "p95": 0.4,
+        "max": 0.4
+      },
+      "idleFrameMs": {
+        "n": 122,
+        "median": 8.3,
+        "p95": 9.2,
+        "max": 9.4
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 181,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 9.4
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 146,
+          "median": 0.2,
+          "p95": 0.9,
+          "max": 1.1
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 182,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 9.3
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 584,
+          "median": 0,
+          "p95": 0.7,
+          "max": 0.9
+        }
+      },
+      "rendererStatus": "ready",
+      "canvases": 4
+    },
+    {
+      "mode": "30k.draco",
+      "minis": 8,
+      "placeRenderMs": {
+        "n": 8,
+        "median": 0.1,
+        "p95": 0.7,
+        "max": 0.7
+      },
+      "idleFrameMs": {
+        "n": 121,
+        "median": 8.3,
+        "p95": 9.3,
+        "max": 16.9
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 181,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 13.67
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 146,
+          "median": 0.2,
+          "p95": 0.9,
+          "max": 1.2
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 181,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 17.5
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 1160,
+          "median": 0,
+          "p95": 0.6,
+          "max": 0.9
+        }
+      },
+      "rendererStatus": "ready",
+      "canvases": 8
+    },
+    {
+      "mode": "15k.draco",
+      "minis": 2,
+      "placeRenderMs": {
+        "n": 2,
+        "median": 1.6,
+        "p95": 1.6,
+        "max": 1.6
+      },
+      "idleFrameMs": {
+        "n": 122,
+        "median": 8.4,
+        "p95": 9,
+        "max": 9.3
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 181,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 9.4
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 147,
+          "median": 0.5,
+          "p95": 0.9,
+          "max": 1
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 182,
+          "median": 8.3,
+          "p95": 9,
+          "max": 9.3
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 292,
+          "median": 0.2,
+          "p95": 0.9,
+          "max": 1.1
+        }
+      },
+      "rendererStatus": "ready",
+      "canvases": 2
+    },
+    {
+      "mode": "15k.draco",
+      "minis": 4,
+      "placeRenderMs": {
+        "n": 4,
+        "median": 0.5,
+        "p95": 0.5,
+        "max": 0.5
+      },
+      "idleFrameMs": {
+        "n": 121,
+        "median": 8.3,
+        "p95": 9.1,
+        "max": 13.4
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 181,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 9.3
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 146,
+          "median": 0.1,
+          "p95": 0.8,
+          "max": 1.1
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 181,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 16.8
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 584,
+          "median": 0,
+          "p95": 0.6,
+          "max": 0.9
+        }
+      },
+      "rendererStatus": "ready",
+      "canvases": 4
+    },
+    {
+      "mode": "15k.draco",
+      "minis": 8,
+      "placeRenderMs": {
+        "n": 8,
+        "median": 0.1,
+        "p95": 1,
+        "max": 1
+      },
+      "idleFrameMs": {
+        "n": 121,
+        "median": 8.3,
+        "p95": 9.2,
+        "max": 16.9
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 180,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 13.57
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 147,
+          "median": 0.4,
+          "p95": 0.9,
+          "max": 1.3
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 170,
+          "median": 8.4,
+          "p95": 16,
+          "max": 17.2
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 1108,
+          "median": 0,
+          "p95": 0.7,
+          "max": 1.2
+        }
+      },
+      "rendererStatus": "ready",
+      "canvases": 8
+    },
+    {
+      "mode": "150k.meshopt",
+      "minis": 2,
+      "placeRenderMs": {
+        "n": 2,
+        "median": 2.6,
+        "p95": 2.6,
+        "max": 2.6
+      },
+      "idleFrameMs": {
+        "n": 122,
+        "median": 8.3,
+        "p95": 9.1,
+        "max": 9.3
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 181,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 9.4
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 147,
+          "median": 0.2,
+          "p95": 0.8,
+          "max": 1
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 182,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 9.4
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 292,
+          "median": 0.1,
+          "p95": 0.8,
+          "max": 0.9
+        }
+      },
+      "rendererStatus": "ready",
+      "canvases": 2
+    },
+    {
+      "mode": "150k.meshopt",
+      "minis": 4,
+      "placeRenderMs": {
+        "n": 4,
+        "median": 0.6,
+        "p95": 0.8,
+        "max": 0.8
+      },
+      "idleFrameMs": {
+        "n": 121,
+        "median": 8.3,
+        "p95": 9.2,
+        "max": 17
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 182,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 9.3
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 146,
+          "median": 0.1,
+          "p95": 0.8,
+          "max": 1
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 181,
+          "median": 8.3,
+          "p95": 9.1,
+          "max": 16.4
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 584,
+          "median": 0.1,
+          "p95": 0.8,
+          "max": 1.2
+        }
+      },
+      "rendererStatus": "ready",
+      "canvases": 4
+    },
+    {
+      "mode": "150k.meshopt",
+      "minis": 8,
+      "placeRenderMs": {
+        "n": 8,
+        "median": 0.6,
+        "p95": 0.8,
+        "max": 0.8
+      },
+      "idleFrameMs": {
+        "n": 121,
+        "median": 8.3,
+        "p95": 9,
+        "max": 16.9
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 180,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 14.27
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 147,
+          "median": 0.3,
+          "p95": 0.9,
+          "max": 1.1
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 180,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 17.2
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 1152,
+          "median": 0,
+          "p95": 0.6,
+          "max": 1.1
+        }
+      },
+      "rendererStatus": "ready",
+      "canvases": 8
+    },
+    {
+      "mode": "30k.meshopt",
+      "minis": 2,
+      "placeRenderMs": {
+        "n": 2,
+        "median": 2.3,
+        "p95": 2.3,
+        "max": 2.3
+      },
+      "idleFrameMs": {
+        "n": 121,
+        "median": 8.3,
+        "p95": 9.2,
+        "max": 16.1
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 181,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 9.6
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 147,
+          "median": 0.1,
+          "p95": 0.8,
+          "max": 0.9
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 182,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 9.4
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 292,
+          "median": 0.1,
+          "p95": 0.8,
+          "max": 1
+        }
+      },
+      "rendererStatus": "ready",
+      "canvases": 2
+    },
+    {
+      "mode": "30k.meshopt",
+      "minis": 4,
+      "placeRenderMs": {
+        "n": 4,
+        "median": 0.5,
+        "p95": 0.6,
+        "max": 0.6
+      },
+      "idleFrameMs": {
+        "n": 121,
+        "median": 8.3,
+        "p95": 9.2,
+        "max": 17.7
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 181,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 9.4
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 147,
+          "median": 0.1,
+          "p95": 0.8,
+          "max": 1
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 183,
+          "median": 8.3,
+          "p95": 9.1,
+          "max": 16.5
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 589,
+          "median": 0,
+          "p95": 0.7,
+          "max": 1.1
+        }
+      },
+      "rendererStatus": "ready",
+      "canvases": 4
+    },
+    {
+      "mode": "30k.meshopt",
+      "minis": 8,
+      "placeRenderMs": {
+        "n": 8,
+        "median": 0,
+        "p95": 0.2,
+        "max": 0.2
+      },
+      "idleFrameMs": {
+        "n": 131,
+        "median": 8,
+        "p95": 9.2,
+        "max": 13.4
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 181,
+          "median": 7.7,
+          "p95": 9.93,
+          "max": 33.3
+        },
+        "over20ms": 6,
+        "renderMs": {
+          "n": 152,
+          "median": 0.2,
+          "p95": 0.9,
+          "max": 1.1
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 180,
+          "median": 8.3,
+          "p95": 9.9,
+          "max": 17.3
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 1168,
+          "median": 0,
+          "p95": 0.7,
+          "max": 1.1
+        }
+      },
+      "rendererStatus": "ready",
+      "canvases": 8
+    },
+    {
+      "mode": "15k.meshopt",
+      "minis": 2,
+      "placeRenderMs": {
+        "n": 2,
+        "median": 1,
+        "p95": 1,
+        "max": 1
+      },
+      "idleFrameMs": {
+        "n": 122,
+        "median": 8.3,
+        "p95": 9.1,
+        "max": 12.3
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 181,
+          "median": 8.3,
+          "p95": 9,
+          "max": 9.3
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 147,
+          "median": 0.3,
+          "p95": 0.8,
+          "max": 1
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 188,
+          "median": 7.9,
+          "p95": 10.7,
+          "max": 14.1
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 305,
+          "median": 0.1,
+          "p95": 0.7,
+          "max": 1
+        }
+      },
+      "rendererStatus": "ready",
+      "canvases": 2
+    },
+    {
+      "mode": "15k.meshopt",
+      "minis": 4,
+      "placeRenderMs": {
+        "n": 4,
+        "median": 0.2,
+        "p95": 0.5,
+        "max": 0.5
+      },
+      "idleFrameMs": {
+        "n": 122,
+        "median": 8.3,
+        "p95": 9.1,
+        "max": 9.3
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 181,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 9.4
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 147,
+          "median": 0.1,
+          "p95": 0.8,
+          "max": 1
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 182,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 9.4
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 586,
+          "median": 0,
+          "p95": 0.6,
+          "max": 0.9
+        }
+      },
+      "rendererStatus": "ready",
+      "canvases": 4
+    },
+    {
+      "mode": "15k.meshopt",
+      "minis": 8,
+      "placeRenderMs": {
+        "n": 8,
+        "median": 0.1,
+        "p95": 0.5,
+        "max": 0.5
+      },
+      "idleFrameMs": {
+        "n": 121,
+        "median": 8.3,
+        "p95": 9.2,
+        "max": 16.5
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 180,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 13.27
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 146,
+          "median": 0.1,
+          "p95": 0.9,
+          "max": 1.2
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 179,
+          "median": 8.3,
+          "p95": 9.3,
+          "max": 17.6
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 1160,
+          "median": 0,
+          "p95": 0.6,
+          "max": 0.9
+        }
+      },
+      "rendererStatus": "ready",
+      "canvases": 8
+    }
+  ]
+}
