@@ -30,7 +30,7 @@
  * for a keyboard than no control at all.
  */
 import { useState } from "react";
-import { Box, Flex, Text } from "@chakra-ui/react";
+import { Box, BoxProps, Flex, Text } from "@chakra-ui/react";
 
 import {
   BadgeCluster,
@@ -362,45 +362,63 @@ export const AccountBadgeCase = ({
   state,
   readOnly = false,
   name,
+  embedded = false,
+  gridColumns = "repeat(auto-fill, minmax(7.5rem, 1fr))",
 }: {
   state: BadgeCaseState;
   /** True on a public profile: the grid displays, nothing selects. */
   readOnly?: boolean;
   /** Whose case this is. Only used when `readOnly` is true. */
   name?: string;
+  /**
+   * True when a host card already draws the panel and the "Badge case"
+   * heading (the /stats player dashboard, #948): drops this component's own
+   * parchment panel, heading and count line so only the case itself renders.
+   */
+  embedded?: boolean;
+  /** The grid's columns. Defaults to as many 7.5rem tiles as fit. */
+  gridColumns?: BoxProps["gridTemplateColumns"];
 }) => {
   const { status, badges, selected, busy, notice } = state;
   const unlocked = badges.filter((badge) => badge.unlocked).length;
 
   return (
     <Box
-      as="section"
-      aria-labelledby="account-badges-heading"
-      bg="brand.parchment"
-      borderRadius="0.75rem"
-      p="1.1rem"
-      boxShadow="0 2px 8px rgba(20, 8, 24, 0.25)"
-      mb="1rem"
+      {...(embedded
+        ? { "data-testid": "account-badge-case" }
+        : {
+            as: "section" as const,
+            "aria-labelledby": "account-badges-heading",
+            bg: "brand.parchment",
+            borderRadius: "0.75rem",
+            p: "1.1rem",
+            boxShadow: "0 2px 8px rgba(20, 8, 24, 0.25)",
+            mb: "1rem",
+          })}
     >
-      <Text
-        id="account-badges-heading"
-        as="h2"
-        fontFamily="SpaceGrotesk"
-        fontWeight={700}
-        fontSize="1.15rem"
-        mb="0.2rem"
-      >
-        Badge case
-      </Text>
-      <Text fontSize="0.8rem" opacity={0.65} mb="0.7rem">
-        {status === "ready" && badges.length > 0
-          ? readOnly
-            ? `${unlocked} of ${badges.length} unlocked. The ones being worn show beside the name — including to an opponent in a Pro game.`
-            : `${unlocked} of ${badges.length} unlocked. Wear up to three and they show beside your name — including to your opponent in a Pro game.`
-          : readOnly
-            ? `Badges ${name ?? "this player"} unlocked by playing Pro games.`
-            : "Badges you unlock by playing Pro games while signed in."}
-      </Text>
+      {embedded ? null : (
+        <>
+          <Text
+            id="account-badges-heading"
+            as="h2"
+            fontFamily="SpaceGrotesk"
+            fontWeight={700}
+            fontSize="1.15rem"
+            mb="0.2rem"
+          >
+            Badge case
+          </Text>
+          <Text fontSize="0.8rem" opacity={0.65} mb="0.7rem">
+            {status === "ready" && badges.length > 0
+              ? readOnly
+                ? `${unlocked} of ${badges.length} unlocked. The ones being worn show beside the name — including to an opponent in a Pro game.`
+                : `${unlocked} of ${badges.length} unlocked. Wear up to three and they show beside your name — including to your opponent in a Pro game.`
+              : readOnly
+                ? `Badges ${name ?? "this player"} unlocked by playing Pro games.`
+                : "Badges you unlock by playing Pro games while signed in."}
+          </Text>
+        </>
+      )}
 
       {status === "loading" ? <Quiet>Opening the case…</Quiet> : null}
 
@@ -424,7 +442,7 @@ export const AccountBadgeCase = ({
           )}
           <Box
             display="grid"
-            gridTemplateColumns="repeat(auto-fill, minmax(7.5rem, 1fr))"
+            gridTemplateColumns={gridColumns}
             gap="0.5rem"
           >
             {badges.map((badge) => {
