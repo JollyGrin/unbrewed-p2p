@@ -303,7 +303,7 @@ describe("unrated matchups (issue #949: list every opponent)", () => {
   });
 });
 
-describe("collapsed matchups view (issue #949: every opponent, rated group only collapses)", () => {
+describe("collapsed matchups view (issue #949: unrated rows fill leftover slots up to 12)", () => {
   const opponents = (n: number, games: number): HeroMatchup[] =>
     Array.from({ length: n }, (_, i) => ({
       opponentHeroId: `rated-${i}`,
@@ -322,21 +322,23 @@ describe("collapsed matchups view (issue #949: every opponent, rated group only 
       draws: 0,
     }));
 
-  it("Cecil's month: 1 rated + 12 unrated — the rated row shows, everything else is one summary line", () => {
+  it("Cecil's month: 1 rated + 12 unrated — 12 rows shown, 1 more folded into the summary", () => {
     const rated = matchupBars(opponents(1, 3));
     const rows = unratedMatchups(unrated(12));
     const view = collapsedMatchupsView(rated, rows);
     expect(view.top).toHaveLength(1);
     expect(view.bottom).toHaveLength(0);
-    expect(view.shownUnrated).toHaveLength(0);
-    expect(view.summaryCount).toBe(12);
+    expect(view.shownUnrated).toHaveLength(11);
+    expect(view.summaryCount).toBe(1);
     expect(view.total).toBe(13);
     expect(view.hasMore).toBe(true);
   });
 
-  it("0 rated, few unrated: every opponent shows directly, nothing to expand", () => {
+  it("0 rated, 5 unrated: all 5 show directly, nothing hidden, no Show all", () => {
     const rows = unratedMatchups(unrated(5));
     const view = collapsedMatchupsView([], rows);
+    expect(view.top).toHaveLength(0);
+    expect(view.bottom).toHaveLength(0);
     expect(view.shownUnrated).toHaveLength(5);
     expect(view.summaryCount).toBe(0);
     expect(view.total).toBe(5);
@@ -352,7 +354,7 @@ describe("collapsed matchups view (issue #949: every opponent, rated group only 
     expect(view.hasMore).toBe(true);
   });
 
-  it("14 rated + 5 unrated: rated splits 6/6, unrated folds into one summary line", () => {
+  it("14 rated + 5 unrated: rated both-ends fills all 12 slots, unrated folds into one summary line", () => {
     const rated = matchupBars(opponents(14, 100));
     const rows = unratedMatchups(unrated(5));
     const view = collapsedMatchupsView(rated, rows);
@@ -361,6 +363,17 @@ describe("collapsed matchups view (issue #949: every opponent, rated group only 
     expect(view.shownUnrated).toHaveLength(0);
     expect(view.summaryCount).toBe(5);
     expect(view.total).toBe(19);
+    expect(view.hasMore).toBe(true);
+  });
+
+  it("rated alone fills every slot: no unrated shown or summarised", () => {
+    const rated = matchupBars(opponents(12, 100));
+    const rows = unratedMatchups(unrated(3));
+    const view = collapsedMatchupsView(rated, rows);
+    expect(view.top).toHaveLength(12);
+    expect(view.bottom).toHaveLength(0);
+    expect(view.shownUnrated).toHaveLength(0);
+    expect(view.summaryCount).toBe(3);
     expect(view.hasMore).toBe(true);
   });
 });

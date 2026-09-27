@@ -409,7 +409,11 @@ const Matchups = ({ bars, unrated, name }: { bars: MatchupBar[]; unrated: Matchu
             {top.map((bar) => (
               <MatchupLine key={bar.opponentHeroId} bar={bar} />
             ))}
-            {bottom.length > 0 && <Box data-testid="matchup-divider" role="separator" h="1px" my="2px" bg={RULE} />}
+            {/* Either the rated group's own both-ends split, or the boundary before the
+                unrated rows filling its leftover slots — the two never both apply. */}
+            {(bottom.length > 0 || (top.length > 0 && shownUnrated.length > 0)) && (
+              <Box data-testid="matchup-divider" role="separator" h="1px" my="2px" bg={RULE} />
+            )}
             {bottom.map((bar) => (
               <MatchupLine key={bar.opponentHeroId} bar={bar} />
             ))}

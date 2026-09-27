@@ -292,33 +292,35 @@ export interface MatchupsView {
   /** Rated rows shown in the collapsed view (both-ends split, or all when ≤ MATCHUPS_SHOWN). */
   top: MatchupBar[];
   bottom: MatchupBar[];
-  /** Unrated rows shown directly in the collapsed view — only when there are no rated rows. */
+  /** Unrated rows filling any slots left over up to MATCHUPS_SHOWN total rows. */
   shownUnrated: MatchupRecordRow[];
-  /** Unrated rows folded into the muted summary line in the collapsed view; 0 hides the line. */
+  /** Unrated rows still hidden behind the muted summary line; 0 hides the line. */
   summaryCount: number;
   /** rated.length + unrated.length, for "Show all N". */
   total: number;
-  /** Whether the collapsed view hides anything (rated split, or any unrated at all). */
+  /** Whether the collapsed view hides anything at all. */
   hasMore: boolean;
 }
 
 /**
  * Combines the ≥3-game both-ends split with the <3-game rows (ruling for
- * #949): the both-ends rule applies to the rated group only, and whenever
- * there is at least one rated row, ALL unrated rows fold into one muted
- * summary line while collapsed. Only when there are no rated rows at all do
- * up to MATCHUPS_SHOWN unrated rows show directly, with any remainder
- * summarised.
+ * #949, refined): the both-ends rule (6 best + 6 worst, divider, when the
+ * rated group alone exceeds MATCHUPS_SHOWN) applies to the rated group only.
+ * Whatever rated rows the collapsed view shows, the <3-game rows (games
+ * desc, then name) fill the REMAINING slots up to MATCHUPS_SHOWN total rows
+ * — so Cecil Palmer's 1 rated + 12 unrated fills all 12 slots instead of
+ * hiding everything behind one summary line. Only the unrated rows that
+ * still don't fit are folded into the muted summary line, and "Show all N"
+ * only appears when something is actually hidden.
  */
 export const collapsedMatchupsView = (rated: MatchupBar[], unrated: MatchupRecordRow[]): MatchupsView => {
   const total = rated.length + unrated.length;
-  if (rated.length === 0) {
-    const shownUnrated = unrated.slice(0, MATCHUPS_SHOWN);
-    const summaryCount = Math.max(0, unrated.length - MATCHUPS_SHOWN);
-    return { top: [], bottom: [], shownUnrated, summaryCount, total, hasMore: summaryCount > 0 };
-  }
   const { top, bottom } = collapsedMatchups(rated);
-  return { top, bottom, shownUnrated: [], summaryCount: unrated.length, total, hasMore: unrated.length > 0 || bottom.length > 0 };
+  const remainingSlots = Math.max(0, MATCHUPS_SHOWN - (top.length + bottom.length));
+  const shownUnrated = unrated.slice(0, remainingSlots);
+  const summaryCount = unrated.length - shownUnrated.length;
+  const shownCount = top.length + bottom.length + shownUnrated.length;
+  return { top, bottom, shownUnrated, summaryCount, total, hasMore: total > shownCount };
 };
 
 // --- crown -------------------------------------------------------------------
