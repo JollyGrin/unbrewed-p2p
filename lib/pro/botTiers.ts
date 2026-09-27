@@ -32,7 +32,7 @@ import type { BotDifficulty, HeroListing } from "./protocol";
 export const FALLBACK_BOT_TIERS: readonly BotDifficulty[] = ["easy", "medium", "hard"];
 
 /** Weakest → strongest. Drives render order regardless of the server's ordering. */
-const TIER_ORDER: readonly BotDifficulty[] = ["easy", "medium", "hard", "expert", "jev"];
+const TIER_ORDER: readonly BotDifficulty[] = ["easy", "medium", "hard", "expert", "jev", "jevx3"];
 
 export interface BotTierChoice {
   id: BotDifficulty;
@@ -44,6 +44,11 @@ export interface BotTierChoice {
   badge?: string;
   /** Hover copy for the badge. Player-facing and neutral — no internal names. */
   tooltip?: string;
+  /** Offered by the server but not yet earned by this player (#933): the chip
+   *  renders, but picking it is a no-op. Set by lib/pro/tierUnlock.ts. */
+  locked?: boolean;
+  /** Why it is locked / how far along the player is. Shown instead of `tooltip`. */
+  lockHint?: string;
 }
 
 const TIER_META: Record<BotDifficulty, BotTierChoice> = {
@@ -63,6 +68,13 @@ const TIER_META: Record<BotDifficulty, BotTierChoice> = {
     chip: "AI·J",
     badge: "preview",
     tooltip: "AI-driven experimental bot — may be slow or unavailable",
+  },
+  jevx3: {
+    id: "jevx3",
+    label: "JEV x3 bot",
+    chip: "AI·J3",
+    badge: "alpha",
+    tooltip: "experimental - the strongest bot yet",
   },
 };
 

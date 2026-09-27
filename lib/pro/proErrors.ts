@@ -28,6 +28,9 @@ const MESSAGES: Record<ErrorCode, string> = {
   ROOM_LIMIT: "Server is full — try again in a few minutes.",
   RATE_LIMITED: "Slowing down — too many actions at once.",
   SERVER_ERROR: "The server couldn't process that action — try again or take a different action.",
+  // v35 (engine #607). This client binds at 34 so it is never sent today; the
+  // Record type still needs copy for every code in the union.
+  REMATCH_UNAVAILABLE: "A rematch isn't available for this game.",
 };
 
 const GENERIC = "Something went wrong. Please try again.";

@@ -919,7 +919,15 @@
  *
  * Detection: `PROTOCOL_VERSION >= 35`, or `rematch: true` in the `/healthz` JSON.
  */
-export const PROTOCOL_VERSION = 35;
+/**
+ * CLIENT-ONLY PIN (p2p #880) — keep at 34 when re-syncing this file from the engine.
+ * The engine is at v35 (rematch, above), but this client does not speak REMATCH_* yet:
+ * the seat binds with `v`, and the server only sends REMATCH_* to a seat bound at 35+,
+ * so binding at 34 is what keeps a v35 server from starting a negotiation this client
+ * can't answer. The v35 types stay in this file for #880 to build on; bump the pin
+ * there, together with the client that handles them — never in a verbatim re-sync.
+ */
+export const PROTOCOL_VERSION = 34;
 
 /**
  * Scripted-AI strength preset (server-side budgets; client treats as opaque).
@@ -940,8 +948,14 @@ export const PROTOCOL_VERSION = 35;
  *   normal case.
  * - PRESENT `botTiers` is authoritative. The client must render any tier
  *   the server lists without knowing what it does.
+ *
+ * ## jevx3 (client-only, unbrewed-p2p#933)
+ * `jevx3` is advertised only behind the engine's `EXPOSE_JEV=1` switch. It is a
+ * CLIENT-ONLY addition: purely additive, so the deliberate `PROTOCOL_VERSION = 34`
+ * pin above is unchanged. The client gates SELECTING it on the player's record vs
+ * Expert (or a build-time allowlist) — see lib/pro/tierUnlock.ts. `jev` is not gated.
  */
-export type BotDifficulty = "easy" | "medium" | "hard" | "expert" | "jev";
+export type BotDifficulty = "easy" | "medium" | "hard" | "expert" | "jev" | "jevx3";
 
 export interface BotSeatFill {
   player: PlayerId;
@@ -1907,12 +1921,15 @@ export interface ReplayExpansion {
   //    divergence is returned, because past it the frames are a different game.
   // ABSENT = a pre-#509 server, which only ever answered same-version bundles:
   // clients treat an absent field as "exact".
-  verification?: "exact" | "digest-verified" | "diverged";
+  verification?: ReplayVerification;
   divergedAtTurn?: number; // present only when verification === "diverged"
   // Echo of the bundle's own version block, so a viewer can say WHICH engine the
   // game was recorded on next to the one that replayed it (`engine`, above).
   recordedEngine?: { schemaVersion: number; dslVersion: string };
 }
+
+// CLIENT-ONLY named export (lib/pro/replayVerification.ts imports it) — keep on re-sync.
+export type ReplayVerification = "exact" | "digest-verified" | "diverged";
 
 export type ReplayErrorCode =
   | "BAD_BUNDLE" // malformed JSON / missing required fields
