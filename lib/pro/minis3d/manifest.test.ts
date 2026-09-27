@@ -88,10 +88,23 @@ describe("the 3D minis manifest", () => {
   });
 
   test("dev params: 3D is no longer switched on from the URL, only tooling extras are read", () => {
-    expect(readMinis3dDevParams("")).toEqual({ probe: false, lod: null, maxPixelRatio: null });
-    expect(readMinis3dDevParams("?minis3d=1")).toEqual({ probe: false, lod: null, maxPixelRatio: null });
-    expect(readMinis3dDevParams("?minis3dProbe=1&minis3dLod=15k&minis3dDpr=3")).toEqual({ probe: true, lod: "15k", maxPixelRatio: 3 });
+    const base = { probe: false, lod: null, maxPixelRatio: null, roughness: null, metalness: null };
+    expect(readMinis3dDevParams("")).toEqual(base);
+    expect(readMinis3dDevParams("?minis3d=1")).toEqual(base);
+    expect(readMinis3dDevParams("?minis3dProbe=1&minis3dLod=15k&minis3dDpr=3")).toEqual({
+      ...base,
+      probe: true,
+      lod: "15k",
+      maxPixelRatio: 3,
+    });
     expect(readMinis3dDevParams("?minis3dDpr=99").maxPixelRatio).toBeNull();
+  });
+
+  test("dev params: roughness/metalness override (#963)", () => {
+    expect(readMinis3dDevParams("?minis3dRough=0.8")).toMatchObject({ roughness: 0.8, metalness: 0.15 });
+    expect(readMinis3dDevParams("?minis3dRough=0.8&minis3dMetal=0.05")).toMatchObject({ roughness: 0.8, metalness: 0.05 });
+    expect(readMinis3dDevParams("?minis3dRough=1.5")).toMatchObject({ roughness: null, metalness: null });
+    expect(readMinis3dDevParams("?minis3dMetal=0.05")).toMatchObject({ roughness: null, metalness: null });
   });
 
   describe("the painted variant (`paint`)", () => {

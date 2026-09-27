@@ -18,14 +18,14 @@ const loadManifest = () =>
     .then(parseMini3dManifest)
     .catch(() => null));
 
-const NO_DEV_PARAMS: Minis3dDevParams = { probe: false, lod: null, maxPixelRatio: null };
+const NO_DEV_PARAMS: Minis3dDevParams = { probe: false, lod: null, maxPixelRatio: null, roughness: null, metalness: null };
 
 /** The URL's dev tooling params, read after mount (SSR has no location). */
 export const useMinis3dDevParams = (): Minis3dDevParams => {
   const [params, setParams] = useState<Minis3dDevParams>(NO_DEV_PARAMS);
   useEffect(() => {
     const next = readMinis3dDevParams(window.location.search);
-    if (next.probe || next.lod || next.maxPixelRatio) setParams(next);
+    if (next.probe || next.lod || next.maxPixelRatio || next.roughness != null) setParams(next);
   }, []);
   return params;
 };

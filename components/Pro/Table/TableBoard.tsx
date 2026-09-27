@@ -205,6 +205,18 @@ export const TableBoard = ({
   // only dev tooling: the canvas density cap and the measuring probe.
   const minis3d = useMinis3dDevParams();
   const probeManifest = useMinis3dManifest(!!TableMini3dProbe && minis3d.probe);
+  // Dev-only (#963): `?minis3dRough=`/`&minis3dMetal=` let a human compare
+  // material tweaks live instead of through a screenshot probe. Dynamic
+  // import: the renderer module is otherwise never pulled into this file's
+  // bundle (see useMinis3dSource.ts's header) — only fetched when the param
+  // is actually present.
+  useEffect(() => {
+    if (minis3d.roughness == null) return;
+    const roughness = minis3d.roughness, metalness = minis3d.metalness ?? 0.15;
+    import("@/lib/pro/minis3d/renderer").then(({ setMinis3dMaterialOverride }) =>
+      setMinis3dMaterialOverride({ roughness, metalness })
+    );
+  }, [minis3d.roughness, minis3d.metalness]);
   const mini3dOf = (f: ViewFighter) => fighterMini3d?.(f) ?? null;
 
   // A region's spaces are normalized to their OWN inset image, not the main

@@ -116,12 +116,17 @@ export const ensureMinis3d = (): Promise<boolean> => {
   return starting;
 };
 
-/** Probe-only (#963): `window.__minis3d.setMaterialOverride` lets a probe
- *  try a different roughness/metalness on the SAME geometry, e.g. to check
- *  whether flat shading's speckled body is a specular response a rougher
- *  paint would kill. Inert (`null`) in the live app — nothing here changes
- *  default rendering. */
+/** Dev/probe-only (#963): overrides the material's roughness/metalness
+ *  board-wide, e.g. to check whether flat shading's speckled body is a
+ *  specular response a rougher paint would kill. Reachable from a script
+ *  (`window.__minis3d.setMaterialOverride`) and from the URL
+ *  (`?minis3dRough=`/`&minis3dMetal=`, see manifest.ts
+ *  `readMinis3dDevParams`). Inert (`null`) by default in the live app —
+ *  nothing here changes default rendering unless one of those sets it. */
 let materialOverride: { roughness: number; metalness: number } | null = null;
+export const setMinis3dMaterialOverride = (o: { roughness: number; metalness: number } | null): void => {
+  materialOverride = o;
+};
 
 const materialFor = (g: Gl, tint: string, flat: boolean): Material => {
   const roughness = materialOverride?.roughness ?? 0.42;
@@ -240,8 +245,6 @@ const exposeDebug = () => {
     load: loadMiniModel,
     loseContext: () => gl?.loseExt?.loseContext(),
     restoreContext: () => gl?.loseExt?.restoreContext(),
-    setMaterialOverride: (o: { roughness: number; metalness: number } | null) => {
-      materialOverride = o;
-    },
+    setMaterialOverride: setMinis3dMaterialOverride,
   };
 };

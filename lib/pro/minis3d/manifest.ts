@@ -138,20 +138,38 @@ export const mini3dFor = (
  * `?minis3dLod=` picks another detail level (a local file the manifest
  * names), `?minis3dDpr=` overrides the canvas pixel-ratio cap, and
  * `?minis3dProbe=1` mounts the measuring probe (TableMini3dProbe, dev builds
- * only). Read once from the URL, so nothing on a normal page changes.
+ * only). `?minis3dRough=` / `&minis3dMetal=` (#963) override the material's
+ * roughness/metalness board-wide — the same probe-only knob
+ * `renderer.ts`'s `setMinis3dMaterialOverride` exposes to scripts, reachable
+ * from a URL so a human can compare it live instead of through a screenshot
+ * probe. Read once from the URL, so nothing on a normal page changes.
  */
 export interface Minis3dDevParams {
   probe: boolean;
   lod: string | null;
   maxPixelRatio: number | null;
+  /** Both present, or both null: a half-set override is ambiguous. */
+  roughness: number | null;
+  metalness: number | null;
 }
 
 export const readMinis3dDevParams = (search: string): Minis3dDevParams => {
   const q = new URLSearchParams(search);
   const dpr = Number(q.get("minis3dDpr"));
+  // 0 is a valid roughness/metalness value, unlike dpr's >=1 floor, so an
+  // absent param (q.get returns null, Number(null) === 0) must be told
+  // apart from an explicit "0" before checking range.
+  const roughRaw = q.get("minis3dRough");
+  const metalRaw = q.get("minis3dMetal");
+  const rough = Number(roughRaw);
+  const metal = Number(metalRaw);
+  const hasRough = roughRaw != null && Number.isFinite(rough) && rough >= 0 && rough <= 1;
+  const hasMetal = metalRaw != null && Number.isFinite(metal) && metal >= 0 && metal <= 1;
   return {
     probe: q.get("minis3dProbe") === "1",
     lod: q.get("minis3dLod"),
     maxPixelRatio: Number.isFinite(dpr) && dpr >= 1 && dpr <= 4 ? dpr : null,
+    roughness: hasRough ? rough : null,
+    metalness: hasRough ? (hasMetal ? metal : 0.15) : null,
   };
 };
