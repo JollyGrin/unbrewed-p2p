@@ -118,6 +118,20 @@ describe("open-set gate", () => {
     expect(fig?.bounds).toBeUndefined();
   });
 
+  // unbrewed-p2p-965: an alias shares the canonical id's renders — its
+  // manifest entry's seats just name that id's files, nothing physically
+  // duplicated. `parseFigureManifest` only checks a seat value is a plain
+  // file name, never that it matches the entry's own key.
+  test("a seat may name another id's file (alias sharing)", () => {
+    const m = openManifest({
+      "king-taranis": tri,
+      "king-taranis-spice": { ...tri, seats: tri.seats },
+    });
+    const spice = figureFor(m, "king-taranis-spice", "p2", "open");
+    expect(spice?.url).toBe(`${FIGURE_SET_BASE_URL.open}/${tri.seats.p2}`);
+    expect(spice?.url).toBe(figureFor(m, "king-taranis", "p2", "open")?.url);
+  });
+
   test("the private set does not require attribution", () => {
     const m = parseFigureManifest({ version: 1, figures: { triceratops: without("creator") } }, "private");
     expect(figureFor(m, "triceratops", "p1", "private")?.credit).toBeNull();
