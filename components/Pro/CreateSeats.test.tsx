@@ -232,3 +232,55 @@ describe("assignableSeats — bot-eligible seats per format", () => {
     expect(assignableSeats("duel")).toEqual([]);
   });
 });
+
+describe("CreateSeats — jevx3 unlock gate (#933)", () => {
+  const JEV = ["easy", "medium", "hard", "expert", "jevx3"] as BotDifficulty[];
+
+  it("fails closed with no progress: jevx3 renders locked, a click is a no-op, hint exposed", () => {
+    const onChange = jest.fn();
+    renderPanel("ffa-3", { onChange, heroes: [listing("hero-a", JEV)], selectedHeroId: "hero-a" });
+    const locked = screen.getAllByTestId("bot-tier-jevx3")[0];
+    expect(locked).toHaveAttribute("aria-disabled", "true");
+    expect(locked).not.toBeDisabled();
+    expect(locked).toHaveAccessibleName(/vs Expert to unlock/);
+    fireEvent.click(locked);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("shows N/15 progress for a signed-in player short of the bar", () => {
+    const onChange = jest.fn();
+    render(
+      <ChakraProvider>
+        <CreateSeats
+          selectedFormat="ffa-3"
+          botSlotPlan={{}}
+          onChangeBotSlot={onChange}
+          heroes={[listing("hero-a", JEV)]}
+          selectedHeroId="hero-a"
+          tierUnlock={{ unlocked: false, wins: 12, hint: "12/15 wins vs Expert to unlock" }}
+        />
+      </ChakraProvider>,
+    );
+    expect(screen.getAllByTestId("bot-tier-jevx3")[0]).toHaveAccessibleName(/12\/15 wins vs Expert to unlock/);
+  });
+
+  it("unlocked: jevx3 is selectable like any tier", () => {
+    const onChange = jest.fn();
+    render(
+      <ChakraProvider>
+        <CreateSeats
+          selectedFormat="ffa-3"
+          botSlotPlan={{}}
+          onChangeBotSlot={onChange}
+          heroes={[listing("hero-a", JEV)]}
+          selectedHeroId="hero-a"
+          tierUnlock={{ unlocked: true, wins: 15 }}
+        />
+      </ChakraProvider>,
+    );
+    const open = screen.getAllByTestId("bot-tier-jevx3")[0];
+    expect(open).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(open);
+    expect(onChange).toHaveBeenCalledWith("p2", "jevx3");
+  });
+});

@@ -1,6 +1,8 @@
+import { LockIcon } from "@chakra-ui/icons";
 import { Button, Flex, Grid, Text, Tooltip } from "@chakra-ui/react";
 import { BotDifficulty, HeroListing, PlayerId } from "@/lib/pro/protocol";
 import { botTierChoices } from "@/lib/pro/botTiers";
+import { applyTierLocks, TierUnlockProgress, tierUnlockProgress } from "@/lib/pro/tierUnlock";
 import { ProFormatId, TeamSeatSource, teamComposition } from "@/lib/pro/multiplayerPlaytest";
 
 /** Who fills a create-screen seat: a human (via the room link) or a server bot. */
@@ -75,6 +77,7 @@ export const CreateSeats = ({
   onChangeBotSlot,
   heroes,
   selectedHeroId,
+  tierUnlock,
 }: {
   selectedFormat: ProFormatId;
   /** The chosen board, so the team split mirrors the engine's seat-order zip.
@@ -87,24 +90,39 @@ export const CreateSeats = ({
   heroes?: HeroListing[] | null;
   /** The creator's locked hero: `expert` is gated on it too, not just the bot's. */
   selectedHeroId?: string | null;
+  /** Progress toward gated tiers (#933). Absent fails closed: gated tiers render locked. */
+  tierUnlock?: TierUnlockProgress;
 }) => {
   const comp = teamComposition(selectedFormat, selectedMap);
   // The creator always holds P1, so their team is whichever contains p1.
   const youSeat: PlayerId = "p1";
   // Recomputed every render, so flipping heroes swaps the offered tiers live.
-  const tierChoices = botTierChoices(heroes, [selectedHeroId]);
+  const tierChoices = applyTierLocks(
+    botTierChoices(heroes, [selectedHeroId]),
+    tierUnlock ?? tierUnlockProgress("loading", null),
+  );
 
   // One bot button. A tier with provenance (today: Expert) carries a small
   // badge + hover copy so nobody mistakes it for a finished ladder rung.
   const tierButton = (choice: (typeof tierChoices)[number], active: boolean, onPick: () => void) => {
+    // Locked (#933): focusable, aria-disabled, no-op — not isDisabled, which
+    // would stop the hint tooltip from ever opening. Mirrors PlateChips.
+    const locked = !!choice.locked;
+    const tip = locked ? choice.lockHint : choice.tooltip;
     const btn = (
       <Button
         key={choice.id}
         {...(active ? BTN_GOLD : BTN)}
         size="xs"
         data-testid={`bot-tier-${choice.id}`}
-        onClick={onPick}
+        aria-disabled={locked || undefined}
+        aria-label={locked && choice.lockHint ? `${choice.label} (locked): ${choice.lockHint}` : undefined}
+        data-locked={locked || undefined}
+        onClick={locked ? undefined : onPick}
+        opacity={locked ? 0.5 : undefined}
+        cursor={locked ? "not-allowed" : undefined}
       >
+        {locked && <LockIcon boxSize="0.6rem" mr="0.3rem" aria-hidden />}
         {choice.label}
         {choice.badge && (
           <Text as="span" ml="0.3rem" fontSize="0.55rem" letterSpacing="0.06em" opacity={0.8} textTransform="uppercase">
@@ -113,8 +131,8 @@ export const CreateSeats = ({
         )}
       </Button>
     );
-    return choice.tooltip ? (
-      <Tooltip key={choice.id} label={choice.tooltip} openDelay={200} fontSize="0.7rem">
+    return tip ? (
+      <Tooltip key={choice.id} label={tip} openDelay={locked ? 0 : 200} fontSize="0.7rem">
         {btn}
       </Tooltip>
     ) : (

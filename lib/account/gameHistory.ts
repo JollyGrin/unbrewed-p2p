@@ -16,6 +16,7 @@
  */
 import { API_URL } from "./apiUrl";
 import { catalogEntry } from "@/lib/pro/mapCatalog";
+import { knownBotTierMeta } from "@/lib/pro/botTiers";
 
 /** Page size we ask for. The API caps at 50 and defaults to 20 itself. */
 export const GAMES_PAGE_SIZE = 20;
@@ -189,9 +190,6 @@ export const heroLabel = (
 
 const TIERS = new Set(["easy", "medium", "hard", "expert"]);
 
-const capitalize = (word: string): string =>
-  `${word.charAt(0).toUpperCase()}${word.slice(1)}`;
-
 /**
  * The parenthetical after an opponent's hero: which kind of pilot it was.
  * Humans get nothing — "vs Thrall" already reads as a person.
@@ -209,9 +207,10 @@ export const pilotLabel = (opponent: AccountGameOpponent): string | null => {
     : "";
   if (pilot.startsWith("llm")) return suffix ? `LLM · ${suffix}` : "LLM";
   if (pilot !== "bot" && !pilot.startsWith("bot:")) return null;
-  // Matches the lobby's tier wording (lib/pro/botTiers.ts): "Hard bot".
+  // The lobby's own tier wording (lib/pro/botTiers.ts): "Hard bot". Never the
+  // raw wire id (#933) — a tier the client doesn't show is just "Bot".
   const tier = opponent.botDifficulty ?? (TIERS.has(suffix) ? suffix : null);
-  return tier ? `${capitalize(tier)} bot` : "Bot";
+  return (tier && knownBotTierMeta(tier)?.label) || "Bot";
 };
 
 /** "Thrall (Hard bot)" — the full opponent phrase for one seat. */

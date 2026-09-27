@@ -201,6 +201,15 @@ describe("row labels", () => {
     expect(opponentLabel(game.opponents[0])).toBe("King Kong (Hard bot)");
   });
 
+  it("names jevx3 by its display name and never prints a hidden tier's id (#933)", () => {
+    expect(
+      pilotLabel({ ...game.opponents[0], pilot: "bot:jevx3", botDifficulty: "jevx3" }),
+    ).toBe("Familiar 3");
+    expect(
+      pilotLabel({ ...game.opponents[0], pilot: "bot:jev", botDifficulty: "jev" }),
+    ).toBe("Bot");
+  });
+
   it("falls back through heroName → heroId → a neutral word", () => {
     expect(heroLabel({ heroId: "thrall", heroName: "Thrall" })).toBe("Thrall");
     expect(heroLabel({ heroId: "thrall", heroName: null })).toBe("thrall");

@@ -85,9 +85,16 @@ jobs:
         # falls back to https://api.unbrewed.xyz. The account chip hides itself
         # whenever that host doesn't answer, so an unset/undeployed API leaves
         # the site exactly as it is today.
+        #
+        # NEXT_PUBLIC_JEVX3_ALLOWLIST (issue #933): comma-separated account ids
+        # and/or usernames (usernames case-insensitive) that may pick the gated
+        # jevx3 bot tier without 15 wins vs Expert. Unset/empty = nobody, the
+        # default. It is baked into the PUBLIC bundle — ids/usernames only,
+        # never secrets. Read once, in lib/pro/tierUnlock.ts.
         env:
           NEXT_PUBLIC_PRO_WS_URL: ${{ vars.NEXT_PUBLIC_PRO_WS_URL }}
           NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_JEVX3_ALLOWLIST: ${{ vars.NEXT_PUBLIC_JEVX3_ALLOWLIST }}
           # Short commit hash surfaced in in-game bug reports (issue #87).
           NEXT_PUBLIC_COMMIT_SHA: ${{ github.sha }}
         run: ${{ steps.detect-package-manager.outputs.runner }} next build
