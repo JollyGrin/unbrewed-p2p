@@ -20,6 +20,26 @@
       "modelName": "Witch Minis (Witch 2)",
       "creator": "mz4250",
       "sourceUrl": "https://www.thingiverse.com/thing:6694128"
+    },
+    {
+      "heroId": "hollow-oak",
+      "model": "hollow-oak-meshy.glb",
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "Autumn Treant (Meshy AI, Hollow Oak)",
+      "creator": "Dean Masley",
+      "sourceUrl": "https://unbrewed.xyz"
+    },
+    {
+      "heroId": "hollow-oak-spice",
+      "model": "hollow-oak-meshy.glb",
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "Autumn Treant (Meshy AI, Hollow Oak)",
+      "creator": "Dean Masley",
+      "sourceUrl": "https://unbrewed.xyz"
     }
   ]
 }
