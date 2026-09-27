@@ -12,6 +12,7 @@ import { Box, Button } from "@chakra-ui/react";
 import NextLink from "next/link";
 import { FaPlay } from "react-icons/fa";
 
+import { AccountBadgeCase } from "@/components/Account/AccountBadges";
 import {
   AccountGame,
   formatDuration,
@@ -473,29 +474,19 @@ export const BadgeCase = ({ player }: { player: StatsPlayer }) => {
           ))}
         </>
       ) : null}
-      <Caption mt={chase.length > 0 ? "4px" : undefined}>Unlocked</Caption>
-      {unlocked.length > 0 ? (
-        <Box as="ul" listStyleType="none" m={0} p={0} display="flex" flexWrap="wrap" gap="8px">
-          {unlocked.map((b) => (
-            <Box
-              as="li"
-              key={b.id}
-              title={b.blurb}
-              data-testid="badge-unlocked"
-              fontSize="13px"
-              fontWeight={500}
-              p="8px 14px"
-              borderRadius="18px"
-              bg={INK}
-              color={BAND_INK}
-            >
-              {b.name}
-            </Box>
-          ))}
-        </Box>
-      ) : (
-        <Note>None yet.</Note>
-      )}
+      {chase.length > 0 ? <Caption mt="4px">All badges</Caption> : null}
+      {/* The same case /account draws (#948): every badge with its glyph and
+          blurb, locked ones greyed with their progress, worn ones marked with
+          their slot. Read-only here — wearing is /account's job. */}
+      <AccountBadgeCase
+        embedded
+        readOnly
+        name={player.username}
+        // Five across at desktop like the old /stats case; the full-width card
+        // would otherwise fit eight thin tiles.
+        gridColumns={{ base: "repeat(auto-fill, minmax(7.5rem, 1fr))", lg: "repeat(5, minmax(0, 1fr))" }}
+        state={{ status: "ready", badges, selected: player.badges.selected, busy: false, notice: null }}
+      />
     </DashCard>
   );
 };

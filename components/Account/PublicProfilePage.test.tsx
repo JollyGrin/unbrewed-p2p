@@ -179,7 +179,8 @@ describe("/stats?u= — a player who exists", () => {
     renderPage();
     await screen.findByRole("heading", { level: 1, name: "Emyrk" });
 
-    expect(screen.getAllByTestId("badge-unlocked").every((b) => b.tagName === "LI")).toBe(true);
+    // The /account grid, read-only (#948): tiles are plain divs, never buttons.
+    expect(screen.getAllByTestId("account-badge").every((b) => b.tagName === "DIV")).toBe(true);
     expect(screen.queryByRole("button", { name: /wear|select/i })).toBeNull();
   });
 });
