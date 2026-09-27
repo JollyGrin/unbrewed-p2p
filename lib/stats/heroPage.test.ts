@@ -1,0 +1,224 @@
+import {
+  crownLine,
+  formatRate,
+  gamesOnHero,
+  heroesHref,
+  heroIdFromQuery,
+  heroIndexRows,
+  heroRankTrack,
+  isMostPlayed,
+  matchupBars,
+  ordinal,
+  pilotGapLine,
+  pilotRows,
+  shareOfAllGames,
+  windowFromQuery,
+  winRate,
+} from "./heroPage";
+import { ROSTER_SIZE } from "./roster";
+import type { CommunityHero, HeroPilot } from "./types";
+
+const pilot = (username: string, wins: number, games: number): HeroPilot => ({
+  username,
+  avatarUrl: null,
+  wins,
+  games,
+  draws: 0,
+});
+
+describe("query parsing and the window toggle", () => {
+  it("reads ?h= as a trimmed lower-case id", () => {
+    expect(heroIdFromQuery(" The-Mandalorian ")).toBe("the-mandalorian");
+    expect(heroIdFromQuery(["appa", "thrall"])).toBe("appa");
+    expect(heroIdFromQuery("")).toBeNull();
+    expect(heroIdFromQuery(undefined)).toBeNull();
+  });
+
+  it("defaults to this month; only `all` switches", () => {
+    expect(windowFromQuery(undefined)).toBe("month");
+    expect(windowFromQuery("month")).toBe("month");
+    expect(windowFromQuery("bogus")).toBe("month");
+    expect(windowFromQuery("all")).toBe("all");
+  });
+
+  it("builds hrefs that only carry window=all", () => {
+    expect(heroesHref("appa", "month")).toBe("/heroes?h=appa");
+    expect(heroesHref("appa", "all")).toBe("/heroes?h=appa&window=all");
+    expect(heroesHref(null, "month")).toBe("/heroes");
+    expect(heroesHref(null, "all")).toBe("/heroes?window=all");
+  });
+});
+
+describe("rates and shares", () => {
+  it("needs 3 games for a win rate", () => {
+    expect(winRate(2, 2)).toBeNull();
+    expect(winRate(2, 3)).toBe(67);
+    expect(formatRate(null)).toBe("·");
+    expect(formatRate(54)).toBe("54%");
+  });
+
+  it("share of all games is null when the total wasn't sent", () => {
+    expect(shareOfAllGames(212, 1482)).toBe(14);
+    expect(shareOfAllGames(0, 0)).toBe(0);
+    expect(shareOfAllGames(5, null)).toBeNull();
+  });
+
+  it("most played needs the single top hero with games", () => {
+    const heroes = [
+      { heroId: "appa", games: 3 },
+      { heroId: "the-mandalorian", games: 212 },
+    ] as CommunityHero[];
+    expect(isMostPlayed("the-mandalorian", heroes)).toBe(true);
+    expect(isMostPlayed("appa", heroes)).toBe(false);
+    expect(isMostPlayed("appa", null)).toBe(false);
+    expect(isMostPlayed("appa", [{ heroId: "appa", games: 0 } as CommunityHero])).toBe(false);
+  });
+});
+
+describe("ordinal", () => {
+  it.each([
+    [1, "1st"],
+    [2, "2nd"],
+    [3, "3rd"],
+    [4, "4th"],
+    [6, "6th"],
+    [11, "11th"],
+    [12, "12th"],
+    [13, "13th"],
+    [21, "21st"],
+    [22, "22nd"],
+    [101, "101st"],
+    [111, "111th"],
+  ])("%i → %s", (n, text) => expect(ordinal(n)).toBe(text));
+});
+
+describe("hero rank track", () => {
+  it("matches the mockup at 24 games", () => {
+    const track = heroRankTrack(24, "The Mandalorian");
+    expect(track.sentence).toBe("24 games as The Mandalorian. One more game makes Silver.");
+    expect(track.fill).toBe(49);
+    expect(track.steps.map((s) => s.caption)).toEqual([
+      "1 game · done",
+      "5 games · done",
+      "25 games · 1 to go",
+      "100 games",
+    ]);
+  });
+
+  it("counts down in plural and tops out at Gold", () => {
+    expect(heroRankTrack(7, "Appa").sentence).toBe("7 games as Appa. 18 more games make Silver.");
+    expect(heroRankTrack(1, "Appa").sentence).toBe("1 game as Appa. 4 more games make Bronze.");
+    const gold = heroRankTrack(140, "Appa");
+    expect(gold.sentence).toBe("140 games as Appa. Gold. The top rank.");
+    expect(gold.fill).toBe(100);
+    expect(gold.steps.every((s) => s.reached)).toBe(true);
+  });
+
+  it("has an inviting zero state", () => {
+    const track = heroRankTrack(0, "Appa");
+    expect(track.sentence).toBe("No games as Appa yet. One game makes Tried.");
+    expect(track.fill).toBe(0);
+    expect(track.steps[0].caption).toBe("1 game · 1 to go");
+  });
+
+  it("sums the viewer's byHero rows for the hero", () => {
+    const byHero = [
+      { heroId: "appa", games: 3 },
+      { heroId: "thrall", games: 9 },
+      { heroId: "appa", games: 2 },
+    ];
+    expect(gamesOnHero(byHero, "appa")).toBe(5);
+    expect(gamesOnHero(null, "appa")).toBe(0);
+  });
+});
+
+describe("top pilots", () => {
+  const pilots = [
+    pilot("TinCanTom", 71, 118),
+    pilot("pawnstorm", 38, 66),
+    pilot("Dunmore", 19, 38),
+    pilot("JollyGrin", 15, 24),
+    pilot("Brindle", 12, 2),
+  ];
+
+  it("ranks in api order, tiers by games, marks the viewer case-insensitively", () => {
+    const rows = pilotRows(pilots, "jollygrin");
+    expect(rows.map((r) => r.rank)).toEqual([1, 2, 3, 4, 5]);
+    expect(rows[0].tier).toBe("Gold hero rank");
+    expect(rows[3]).toMatchObject({ you: true, tier: "Bronze hero rank", rate: 63 });
+    expect(rows[4].rate).toBeNull();
+  });
+
+  it("gap line names the row above and its place", () => {
+    expect(pilotGapLine(pilotRows(pilots, "JollyGrin"))).toBe(
+      "You are 4 wins behind Dunmore for 3rd.",
+    );
+    expect(pilotGapLine(pilotRows(pilots, "pawnstorm"))).toBe(
+      "You are 33 wins behind TinCanTom for 1st.",
+    );
+  });
+
+  it("singular and tie wording", () => {
+    const rows = pilotRows([pilot("a", 5, 9), pilot("b", 4, 9), pilot("c", 4, 12)], "b");
+    expect(pilotGapLine(rows)).toBe("You are 1 win behind a for 1st.");
+    expect(pilotGapLine(pilotRows([pilot("a", 5, 9), pilot("c", 5, 12)], "c"))).toBe(
+      "You are level on wins with a for 1st.",
+    );
+  });
+
+  it("no gap line for #1, a viewer off the list, or a guest", () => {
+    expect(pilotGapLine(pilotRows(pilots, "TinCanTom"))).toBeNull();
+    expect(pilotGapLine(pilotRows(pilots, "nobody"))).toBeNull();
+    expect(pilotGapLine(pilotRows(pilots, null))).toBeNull();
+  });
+});
+
+describe("matchups", () => {
+  const bars = matchupBars([
+    { opponentHeroId: "king-kong", opponentHeroName: null, games: 22, wins: 15, draws: 0 },
+    { opponentHeroId: "kenshiro", opponentHeroName: null, games: 21, wins: 7, draws: 0 },
+    { opponentHeroId: "appa", opponentHeroName: null, games: 2, wins: 2, draws: 0 },
+    { opponentHeroId: "zzz-new", opponentHeroName: "New Hero", games: 4, wins: 2, draws: 0 },
+  ]);
+
+  it("drops opponents under 3 games and sorts by win rate", () => {
+    expect(bars.map((b) => b.opponentHeroId)).toEqual(["king-kong", "zzz-new", "kenshiro"]);
+  });
+
+  it("diverges from 50% with a capped width", () => {
+    expect(bars[0]).toMatchObject({ rate: 68, side: "win", width: 90, tip: "68% over 22 games" });
+    expect(bars[1]).toMatchObject({ rate: 50, side: "win", width: 0, name: "New Hero" });
+    expect(bars[2]).toMatchObject({ rate: 33, side: "loss", width: 85 });
+    const lopsided = matchupBars([
+      { opponentHeroId: "thrall", opponentHeroName: null, games: 10, wins: 0, draws: 0 },
+    ]);
+    expect(lopsided[0].width).toBe(100);
+  });
+});
+
+describe("crown and index", () => {
+  it("crown line", () => {
+    expect(crownLine({ wins: 71, games: 118 })).toBe("71 wins in 118 games.");
+    expect(crownLine({ wins: 1, games: 1 })).toBe("1 win in 1 game.");
+  });
+
+  it("lists every roster hero, most played first, unplayed last", () => {
+    const rows = heroIndexRows([
+      { heroId: "thrall", heroName: null, games: 40, wins: 20, draws: 0, crown: null },
+      { heroId: "appa", heroName: null, games: 90, wins: 50, draws: 0, crown: { username: "x", avatarUrl: null, wins: 9, games: 12 } },
+      { heroId: "thetis", heroName: null, games: 500, wins: 1, draws: 0, crown: null },
+    ]);
+    expect(rows).toHaveLength(ROSTER_SIZE);
+    expect(rows.map((r) => r.heroId).slice(0, 3)).toEqual(["appa", "thrall", "baba-yaga"]);
+    expect(rows[0]).toMatchObject({ rate: 56, played: true, crown: { username: "x" } });
+    expect(rows[2]).toMatchObject({ played: false, games: 0, rate: null });
+    expect(rows.some((r) => r.heroId === "thetis")).toBe(false);
+  });
+
+  it("with no community data it is the roster alphabetically", () => {
+    const rows = heroIndexRows(null);
+    expect(rows).toHaveLength(ROSTER_SIZE);
+    expect(rows.every((r) => !r.played)).toBe(true);
+    expect(rows[0].name).toBe("Appa");
+  });
+});
