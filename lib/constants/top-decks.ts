@@ -894,7 +894,11 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     // the cardback self-hosted under public/evergreen-decks/art/narrator
     // (#733/#734 plus one payload mirror and the cardback from the deck's
     // appearance block) — repo-relative so the tile renders on localhost and
-    // preview builds.
+    // preview builds. Token art corrected in #857: inforce flagged the #855
+    // crops (ArtGen pipeline run) as the wrong art, so both tokens are now
+    // re-cropped from the deck's own club-export illustration (the Rising
+    // Action art, i.imgur.com/8l65WR1.jpeg, referenced by the club payload).
+    sourceUrl: "https://www.the-unmatched.club/c/heroes/the-narrator.13659",
     id: "5jBEXsA55e",
     name: "The Narrator",
     hero: "The Narrator",
