@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import {
   captureLingeringCombat,
+  combatForStrike,
   combatHasRevealed,
   comparePulseFor,
   diffCombatStrike,
@@ -764,6 +765,51 @@ describe("panelCombatFor", () => {
   it("falls back to the linger with no live combat, and to nothing at all", () => {
     expect(panelCombatFor(null, frozen, false)).toBe(frozen);
     expect(panelCombatFor(null, null, true)).toBeNull();
+  });
+});
+
+describe("combatForStrike (#962 review)", () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+  const snap = (v: PlayerView, events: GameEvent[] = []) => ({ view: v, events });
+
+  it("pairs the strike with the combat that carries its own cards, never a chained next one", () => {
+    const frozen = combat({ stage: "CLEANUP" });
+    const strike = { key: "strike:king-kong/clobber#1->baba-yaga/dodge#1" };
+    expect(combatForStrike(strike, frozen, null)).toBe(frozen);
+    expect(combatForStrike(strike, null, frozen)).toBe(frozen);
+    const other = combat({ target: "p2/sk", attackerCard: card("king-kong/uppercut#7"), defenderCard: null });
+    expect(combatForStrike(strike, null, other)).toBeNull();
+    // A declined defense keys "none" on both sides.
+    const declined = combat({ defenderCard: null });
+    expect(combatForStrike({ key: "strike:king-kong/clobber#1->none" }, null, declined)).toBe(declined);
+  });
+
+  it("a chained attack on a DIFFERENT target: once the linger drops, the still-live strike pairs with nothing", () => {
+    const { result, rerender } = renderHook((props: { s: ReturnType<typeof snap> }) => useCombatStrike(props.s), {
+      initialProps: { s: snap(view({ combat: combat({ stage: "DURING" }) })) },
+    });
+    act(() => rerender({ s: snap(view({ combat: null }), resolvedEnded("ATTACKER_WON", 2)) }));
+    const s1 = result.current.strike!;
+    expect(combatForStrike(s1, result.current.lingeringCombat, null)?.target).toBe("p2/hero");
+
+    // Combat 2 attacks the sidekick and reveals at once → the linger drops, the strike does not.
+    const combat2 = combat({
+      stage: "DURING",
+      target: "p2/sk",
+      attackerCard: card("king-kong/uppercut#7"),
+      defenderCard: card("baba-yaga/parry#4", { role: "DEFENSE" }),
+    });
+    act(() =>
+      rerender({
+        s: snap(view({ combat: combat2 }), [
+          { type: "CARDS_REVEALED", attackerCard: "king-kong/uppercut#7", defenderCard: "baba-yaga/parry#4" },
+        ]),
+      })
+    );
+    expect(result.current.lingeringCombat).toBeNull();
+    expect(result.current.strike?.key).toBe(s1.key);
+    expect(combatForStrike(result.current.strike!, result.current.lingeringCombat, combat2)).toBeNull();
   });
 });
 

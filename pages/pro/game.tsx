@@ -182,6 +182,7 @@ import {
   comparePulseFor,
   CompareBeat,
   panelCombatFor,
+  combatForStrike,
 } from "@/lib/pro/combatStrike";
 import { combatOutcomeBannerText, isNoWinner } from "@/lib/pro/combatOutcome";
 import { useCombatValueFx, CombatValueFx, SlotValueFx } from "@/lib/pro/combatValueFx";
@@ -4660,7 +4661,8 @@ const LiveGame = ({
   // the cards. Presentation only.
   const liveCombat = snapshot?.view.combat ?? null;
   const tableStrike = useMemo((): TableStrike | null => {
-    const pair = lingeringCombat ?? liveCombat;
+    // Only the combat the strike itself resolved — never a chained next one.
+    const pair = strike ? combatForStrike(strike, lingeringCombat, liveCombat) : null;
     if (!strike || !pair) return null;
     const t = scaledCombatAnimTiming(paceScale);
     return {
