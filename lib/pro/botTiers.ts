@@ -32,7 +32,7 @@ import type { BotDifficulty, HeroListing } from "./protocol";
 export const FALLBACK_BOT_TIERS: readonly BotDifficulty[] = ["easy", "medium", "hard"];
 
 /** Weakest → strongest. Drives render order regardless of the server's ordering. */
-const TIER_ORDER: readonly BotDifficulty[] = ["easy", "medium", "hard", "expert"];
+const TIER_ORDER: readonly BotDifficulty[] = ["easy", "medium", "hard", "expert", "jev"];
 
 export interface BotTierChoice {
   id: BotDifficulty;
@@ -56,6 +56,13 @@ const TIER_META: Record<BotDifficulty, BotTierChoice> = {
     chip: "AI·X",
     badge: "alpha",
     tooltip: "experimental - beware",
+  },
+  jev: {
+    id: "jev",
+    label: "JEV bot",
+    chip: "AI·J",
+    badge: "preview",
+    tooltip: "AI-driven experimental bot — may be slow or unavailable",
   },
 };
 
