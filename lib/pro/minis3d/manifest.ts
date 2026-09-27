@@ -50,6 +50,11 @@ export interface Mini3d {
   credit: FigureCredit;
 }
 
+/** An OWN key only: a mini id or detail level like "constructor" must never
+ *  resolve to something inherited from Object.prototype. */
+const own = <T>(o: Record<string, T> | undefined, k: string | null | undefined): T | undefined =>
+  o && k != null && Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined;
+
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 /** The pipeline's base footprint: 1 model unit (see the header). */
 export const DEFAULT_BASE_DIAMETER = 1;
@@ -67,7 +72,7 @@ export const parseMini3dManifest = (raw: unknown): Mini3dManifest | null => {
     const credit = creditOf(entry);
     if (!credit?.licenseUrl) continue;
     const files = Object.fromEntries(Object.entries(entry.files).filter(([, f]) => isFileName(f))) as Record<string, string>;
-    const defaultLod = typeof entry.defaultLod === "string" && files[entry.defaultLod] ? entry.defaultLod : Object.keys(files)[0];
+    const defaultLod = typeof entry.defaultLod === "string" && own(files, entry.defaultLod) ? entry.defaultLod : Object.keys(files)[0];
     if (!defaultLod) continue;
     minis[id] = { files, defaultLod, baseDiameter: baseDiameterOf(entry.baseDiameter), credit };
   }
@@ -84,9 +89,9 @@ export const mini3dFor = (
   seat: string,
   lod?: string | null
 ): Mini3d | null => {
-  const entry = miniId ? manifest?.minis[miniId] : undefined;
+  const entry = own(manifest?.minis, miniId);
   if (!entry || !miniId) return null;
-  const key = lod && entry.files[lod] ? lod : entry.defaultLod;
+  const key = own(entry.files, lod) ? lod! : entry.defaultLod;
   return {
     id: `${miniId}@${key}`,
     url: `${MINIS3D_BASE_URL}/${entry.files[key]}`,

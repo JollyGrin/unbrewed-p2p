@@ -79,6 +79,14 @@ describe("the 3D minis manifest", () => {
     expect(mini3dFor(m, undefined, "p1")).toBeNull();
   });
 
+  test("inherited keys never resolve: a mini id or detail level like 'constructor'", () => {
+    const m = parse(entry());
+    for (const id of ["constructor", "toString", "__proto__", "hasOwnProperty"]) expect(mini3dFor(m, id, "p1")).toBeNull();
+    // An unknown detail level falls back to the default, never Object.prototype's.
+    for (const lod of ["constructor", "toString", "__proto__"]) expect(mini3dFor(m, "kt", "p1", lod)?.url).toBe("/minis3d/kt.30k.meshopt.glb");
+    expect(parse(entry({ defaultLod: "constructor" }))?.minis.kt?.defaultLod).toBe("30k");
+  });
+
   test("the dev switch is off unless ?minis3d=1", () => {
     expect(readMinis3dSwitch("")).toEqual({ on: false, lod: null, maxPixelRatio: null });
     expect(readMinis3dSwitch("?minis3d=true").on).toBe(false);
