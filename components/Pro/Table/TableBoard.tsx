@@ -32,7 +32,7 @@
  * fell back to the entire flat board before this component ever mounted —
  * superseded: `resolveBoardView` now resolves `"table"` for these maps too.
  */
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { Flex } from "@chakra-ui/react";
 import { useReducedMotion } from "framer-motion";
 import type { FighterId, ProMapSpace, SpaceId, ViewFighter } from "@/lib/pro/protocol";
@@ -83,6 +83,17 @@ import { TableFighterTail } from "./TableFighterTail";
 import { TableSidekickToken } from "./TableSidekickToken";
 import { TableBoardObject } from "./TableBoardObject";
 import { TableMoveGhost } from "./TableMoveGhost";
+import { mini3dFor } from "@/lib/pro/minis3d/manifest";
+import { useMinis3dManifest, useMinis3dSwitch } from "@/lib/pro/minis3d/useMinis3d";
+
+// Dev-only measuring aid for scripts/visual-probe/tableMini3d (#931). The
+// NODE_ENV check is a build-time constant, so a production build drops the
+// import() and never emits the probe's chunk. (React.lazy, not next/dynamic:
+// next/dynamic's runtime stayed in the tabletop chunk even with the branch gone.)
+const TableMini3dProbe =
+  process.env.NODE_ENV !== "production"
+    ? lazy(() => import("./TableMini3dProbe").then((m) => ({ default: m.TableMini3dProbe })))
+    : null;
 
 /**
  * ProBoard props this view does NOT draw yet, each for a stated reason. They
@@ -113,6 +124,11 @@ export type TableBoardDeferredProp = "focusFighters" | "fighterTokenRim" | "toke
  */
 export type TableBoardProps = Omit<ProBoardProps, TableBoardDeferredProp> & {
   fighterFigure?: (fighter: ViewFighter) => Figure | null;
+  /** Which 3D mini a fighter stands as (#945): a hero's id today; any
+   *  fighter may have one (a sidekick needs only an answer here and a manifest
+   *  entry). Used only under the `?minis3d=1` dev switch, and only for ids in
+   *  public/minis3d/manifest.json. */
+  fighterMiniId?: (fighter: ViewFighter) => string | undefined;
   /** see TableStage — moved out from under the tabletop HUD's side buttons */
   resetViewSpot?: { left: string; bottom: string };
 };
@@ -164,6 +180,7 @@ export const TableBoard = ({
   rotated = false,
   fitInset,
   fighterFigure,
+  fighterMiniId,
   resetViewSpot,
   // Whatever the caller spread in that this view deliberately doesn't draw
   // (TableBoardDeferredProp). Typed as the REST of TableBoardProps, so it is
@@ -183,6 +200,11 @@ export const TableBoard = ({
   const badgeProbe = useTableBadgeProbe();
   // Dev-only: where the figure probe stands the one-space miniatures (#926).
   const figureProbe = useTableFigureProbe();
+  // 3D minis (#945): only behind the dev switch `?minis3d=1` for now.
+  const minis3d = useMinis3dSwitch();
+  const minis3dManifest = useMinis3dManifest(minis3d.on);
+  const mini3dOf = (f: ViewFighter) =>
+    minis3d.on ? mini3dFor(minis3dManifest, fighterMiniId?.(f), f.owner, minis3d.lod) : null;
 
   // A region's spaces are normalized to their OWN inset image, not the main
   // board (see the header comment) — excluded from `mainSpaces` here, then
@@ -582,7 +604,7 @@ export const TableBoard = ({
       regionOverlay={regionOverlay}
       regionFrameRef={frameRef}
     >
-      {({ frameW, frameH, tiltDeg }) => (
+      {({ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio }) => (
         <>
           <TableBoardLines
             spaces={mainSpaces}
@@ -721,6 +743,10 @@ export const TableBoard = ({
                   badge={fighterTokenBadge?.(f) ?? (badgeProbe ? BADGE_PROBE_FLAG : null)}
                   frameW={frameW}
                   frameH={frameH}
+                  // A straddling LARGE figure keeps its sprite (for now).
+                  mini3d={straddling ? null : mini3dOf(f)}
+                  rig={{ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio }}
+                  mini3dMaxPixelRatio={minis3d.maxPixelRatio}
                   innerRef={registerFighterEl(f.id)}
                   {...common}
                 />
@@ -750,9 +776,25 @@ export const TableBoard = ({
                 innerRef={registerFighterEl(f.id)}
                 frameW={frameW}
                 frameH={frameH}
+                // Tokens unless `fighterMiniId` names a mini for this sidekick.
+                mini3d={mini3dOf(f)}
+                rig={{ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio }}
               />
             );
           })}
+
+          {TableMini3dProbe && minis3d.on && (
+            <Suspense fallback={null}>
+              <TableMini3dProbe
+                spaceById={spaceById}
+                spaceDiamPx={(diameterPct / 100) * Math.max(frameW, 1)}
+                rig={{ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio }}
+                manifest={minis3dManifest}
+                lod={minis3d.lod}
+                maxPixelRatio={minis3d.maxPixelRatio}
+              />
+            </Suspense>
+          )}
 
           {/* LARGE (two-space) fighters' trailing body (phase-1 deferred item)
               + the identity label at the band's own midpoint, reusing

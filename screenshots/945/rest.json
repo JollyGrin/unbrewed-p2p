@@ -1,0 +1,134 @@
+{
+  "gl": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Max, Unspecified Version)",
+  "rest": {
+    "windowMs": 3000,
+    "page": {
+      "glDrawCalls": 0,
+      "renders": 0,
+      "schedulerFrames": 0,
+      "schedulerJobs": 0,
+      "canvases": 0,
+      "status": "ready"
+    },
+    "trace": {
+      "fireAnimationFrame": 0,
+      "glDrawInGpuProcess": 0,
+      "topGpuEvents": [
+        [
+          "Scheduler::RunTask",
+          36
+        ],
+        [
+          "GpuChannel::ExecuteDeferredRequest",
+          36
+        ],
+        [
+          "SharedImageStub::OnDestroySharedImage",
+          36
+        ],
+        [
+          "Scheduler::FinishTask",
+          15
+        ],
+        [
+          "Scheduler::ScheduleTask",
+          9
+        ],
+        [
+          "GpuChannelMessageFilter::FlushDeferredRequests",
+          1
+        ]
+      ]
+    }
+  },
+  "walking": {
+    "windowMs": 3000,
+    "page": {
+      "glDrawCalls": 146,
+      "renders": 146,
+      "schedulerFrames": 147,
+      "schedulerJobs": 146,
+      "canvases": 0,
+      "status": "ready"
+    },
+    "trace": {
+      "fireAnimationFrame": 295,
+      "glDrawInGpuProcess": 0,
+      "topGpuEvents": [
+        [
+          "Scheduler::RunTask",
+          1376
+        ],
+        [
+          "CommandBufferStub::PerformWork",
+          1347
+        ],
+        [
+          "CommandBufferProxyImpl::OrderingBarrier",
+          1024
+        ],
+        [
+          "CommandBuffer::OrderingBarrier",
+          982
+        ],
+        [
+          "GpuChannel::ExecuteDeferredRequest",
+          906
+        ],
+        [
+          "Scheduler::ScheduleTask",
+          885
+        ],
+        [
+          "IOSurfaceImageBacking::WaitForCommandsToBeScheduled",
+          752
+        ],
+        [
+          "CommandBuffer::Flush",
+          705
+        ]
+      ]
+    }
+  },
+  "restAfterWalk": {
+    "windowMs": 3000,
+    "page": {
+      "glDrawCalls": 0,
+      "renders": 0,
+      "schedulerFrames": 0,
+      "schedulerJobs": 0,
+      "canvases": 0,
+      "status": "ready"
+    },
+    "trace": {
+      "fireAnimationFrame": 0,
+      "glDrawInGpuProcess": 0,
+      "topGpuEvents": [
+        [
+          "Scheduler::RunTask",
+          6
+        ],
+        [
+          "GpuChannel::ExecuteDeferredRequest",
+          6
+        ],
+        [
+          "SharedImageStub::OnDestroySharedImage",
+          6
+        ],
+        [
+          "Scheduler::FinishTask",
+          4
+        ],
+        [
+          "GpuChannelMessageFilter::FlushDeferredRequests",
+          2
+        ],
+        [
+          "Scheduler::ScheduleTask",
+          2
+        ]
+      ]
+    }
+  }
+}

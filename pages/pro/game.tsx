@@ -7224,6 +7224,7 @@ const LiveGame = ({
           <TableBoard
             {...boardProps}
             fighterFigure={(f) => (f.kind === "HERO" ? heroFigure(f.owner) : null)}
+            fighterMiniId={(f) => (f.kind === "HERO" ? ownerHeroIds[f.owner] : undefined)}
             resetViewSpot={hud ? HUD_RESET_VIEW_SPOT : undefined}
           />
         ) : (

@@ -1,0 +1,30 @@
+{
+  "disableWebgl": {
+    "status": "failed",
+    "mini3dCanvases": 0,
+    "spriteFigures": 1,
+    "flatTokens": 4,
+    "renders": 0
+  },
+  "before": {
+    "status": "ready",
+    "mini3dCanvases": 1,
+    "spriteFigures": 0,
+    "flatTokens": 2,
+    "renders": 1
+  },
+  "lost": {
+    "status": "lost",
+    "mini3dCanvases": 0,
+    "spriteFigures": 1,
+    "flatTokens": 4,
+    "renders": 1
+  },
+  "restored": {
+    "status": "ready",
+    "mini3dCanvases": 1,
+    "spriteFigures": 0,
+    "flatTokens": 2,
+    "renders": 2
+  }
+}

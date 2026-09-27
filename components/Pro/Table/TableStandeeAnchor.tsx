@@ -307,6 +307,7 @@ export const TableStandeeAnchor = ({
       // a target. Their clicks still bubble up to this root's `onClick`.
       pointerEvents="none"
       ref={innerRef}
+      data-standee-root=""
       data-badge-owner={badgeOwner}
       {...rest}
     >
