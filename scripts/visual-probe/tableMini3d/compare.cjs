@@ -53,14 +53,31 @@ const MINI_ID = process.env.MINI_ID || "king-taranis";
 const CANDIDATES_DIR =
   process.env.CANDIDATES_DIR || path.join(os.homedir(), "git", "unbrewed", ".grove", "mini-mesh-quality", "candidates");
 const PROBE_ARGS = (process.env.PROBE_ARGS || "").split(" ").filter(Boolean);
-/** Candidates pinned right after "play", in this order, before the rest
- *  (alphabetical). Everything else is a normal alphabetical candidate. */
-const PINNED_FIRST = ["C0-nonormals"];
+/** File-backed candidates pinned right after "play", in this order, before
+ *  the rest (alphabetical). Everything else is a normal alphabetical
+ *  candidate. Per the 2026-09-28 orchestrator note. */
+const PINNED_FIRST = ["C0-nonormals", "C7-on-C5base", "C2-30-budget", "C2-45-budget"];
+/** Renderer-only rows (#963 2026-09-28): the SAME geometry as `baseId`, a
+ *  different `MeshStandardMaterial` roughness/metalness via the probe-only
+ *  `window.__minis3d.setMaterialOverride` hook (renderer.ts) — checking
+ *  whether flat shading's speckled body is a specular response a rougher
+ *  paint would kill. Each gets its OWN staged file (a byte-identical copy of
+ *  `baseId`'s), not just a different render of the same manifest entry: the
+ *  scheduler dedups a redraw whose camera/tint/model.url didn't change
+ *  (TableMini3D.tsx `camKey`), so re-probing the same lod without a URL
+ *  change would silently reuse the previous frame. Inserted right after
+ *  `baseId` in the row order. */
+const MATERIAL_VARIANTS = {
+  "C0-nonormals-rough65": { baseId: "C0-nonormals", roughness: 0.65, metalness: 0.05 },
+  "C0-nonormals-rough80": { baseId: "C0-nonormals", roughness: 0.8, metalness: 0.05 },
+};
 
 const compareUrl = (id) => (id === "play" ? "/minis3d/king-taranis.play.glb" : `/minis3d/compare-${id}.glb`);
 const label = (id) => {
   if (id === "play") return "C0 (committed play.glb)";
   if (id === "C0-nonormals") return "C0-nonormals (= R-flat: NORMAL stripped, re-meshopt — GLTFLoader flat-shades it)";
+  const v = MATERIAL_VARIANTS[id];
+  if (v) return `${id} (${v.baseId}'s mesh, renderer-only: roughness ${v.roughness}, metalness ${v.metalness})`;
   return id;
 };
 
@@ -75,17 +92,35 @@ const discoverCandidates = () => {
   return [...pinned, ...rest];
 };
 
-/** Copy candidates into public/minis3d/ and register them as local LODs.
- *  Returns a restore() that undoes both, safe to call more than once. */
+/** "play", every file-backed candidate (pinned first), and a material
+ *  variant right after its baseId — the full row order for the sheet. */
+const buildIds = (fileIds) => {
+  const ids = ["play"];
+  for (const id of fileIds) {
+    ids.push(id);
+    for (const [variantId, v] of Object.entries(MATERIAL_VARIANTS)) {
+      if (v.baseId === id) ids.push(variantId);
+    }
+  }
+  return ids;
+};
+
+/** Copy candidates (and material-variant duplicates) into public/minis3d/
+ *  and register them as local LODs. Returns a restore() that undoes both,
+ *  safe to call more than once. */
 const stageManifest = (candidateIds) => {
   const backup = fs.readFileSync(MANIFEST_PATH, "utf8");
   const manifest = JSON.parse(backup);
   const copied = [];
-  for (const id of candidateIds) {
+  const stageFrom = (id, srcId) => {
     const dest = path.join(MINIS_DIR, `compare-${id}.glb`);
-    fs.copyFileSync(path.join(CANDIDATES_DIR, `${id}.glb`), dest);
+    fs.copyFileSync(path.join(CANDIDATES_DIR, `${srcId}.glb`), dest);
     copied.push(dest);
     manifest.minis[MINI_ID].files[id] = `compare-${id}.glb`;
+  };
+  for (const id of candidateIds) stageFrom(id, id);
+  for (const [variantId, v] of Object.entries(MATERIAL_VARIANTS)) {
+    if (candidateIds.includes(v.baseId)) stageFrom(variantId, v.baseId);
   }
   fs.writeFileSync(MANIFEST_PATH, JSON.stringify(manifest, null, 2));
   let done = false;
@@ -120,6 +155,7 @@ const captureCrops = async (ids, results) => {
 
   // Phase 1: unzoomed (play + lod).
   for (const id of ids) {
+    await page.evaluate((o) => window.__minis3d?.setMaterialOverride?.(o), MATERIAL_VARIANTS[id] ?? null);
     await probe(page, [{ space: nearLeft, mode: "3d", seat: "p1", miniId: MINI_ID, lod: id }]);
     await page.waitForTimeout(2000);
     const box = await canvasBox(page, OWNER);
@@ -154,6 +190,7 @@ const captureCrops = async (ids, results) => {
     }
     await page.waitForTimeout(1000);
     for (const id of ids) {
+      await page.evaluate((o) => window.__minis3d?.setMaterialOverride?.(o), MATERIAL_VARIANTS[id] ?? null);
       await probe(page, [{ space: nearLeft, mode: "3d", seat: "p1", miniId: MINI_ID, lod: id }]);
       await page.waitForTimeout(1500);
       const z = await canvasBox(page, OWNER);
@@ -200,7 +237,9 @@ const decodeMs = async (ids, results) => {
 
 const fileStats = (ids, results) => {
   for (const id of ids) {
-    const file = id === "play" ? path.join(MINIS_DIR, "king-taranis.play.glb") : path.join(CANDIDATES_DIR, `${id}.glb`);
+    // A material variant has no source file of its own — same bytes as its baseId.
+    const srcId = MATERIAL_VARIANTS[id]?.baseId ?? id;
+    const file = srcId === "play" ? path.join(MINIS_DIR, "king-taranis.play.glb") : path.join(CANDIDATES_DIR, `${srcId}.glb`);
     const bytes = fs.statSync(file).size;
     const gzipBytes = zlib.gzipSync(fs.readFileSync(file), { level: 9 }).length;
     const triangles = results[id].firstLoad?.triangles ?? results[id].decode?.first?.triangles ?? null;
@@ -351,7 +390,7 @@ ${rows.join("\n")}
 
 module.exports = async () => {
   const candidateIds = discoverCandidates();
-  const ids = ["play", ...candidateIds];
+  const ids = buildIds(candidateIds);
   const results = Object.fromEntries(ids.map((id) => [id, {}]));
   const restore = stageManifest(candidateIds);
   const onExit = () => restore();
