@@ -1,4 +1,5 @@
 import {
+  collapsedMatchups,
   crownLine,
   formatRate,
   gamesOnHero,
@@ -7,6 +8,7 @@ import {
   heroIndexRows,
   heroRankTrack,
   isMostPlayed,
+  MATCHUPS_SHOWN,
   matchupBars,
   ordinal,
   pilotGapLine,
@@ -16,7 +18,7 @@ import {
   winRate,
 } from "./heroPage";
 import { ROSTER_SIZE } from "./roster";
-import type { CommunityHero, HeroPilot } from "./types";
+import type { CommunityHero, HeroMatchup, HeroPilot } from "./types";
 
 const pilot = (username: string, wins: number, games: number): HeroPilot => ({
   username,
@@ -193,6 +195,74 @@ describe("matchups", () => {
       { opponentHeroId: "thrall", opponentHeroName: null, games: 10, wins: 0, draws: 0 },
     ]);
     expect(lopsided[0].width).toBe(100);
+  });
+});
+
+describe("collapsed matchups (issue #944, both ends)", () => {
+  // Distinct win rates (100 games each, wins = i) so sort order is
+  // unambiguous: opponent-0 is the worst matchup, opponent-(n-1) the best.
+  const opponents = (n: number): HeroMatchup[] =>
+    Array.from({ length: n }, (_, i) => ({
+      opponentHeroId: `opponent-${i}`,
+      opponentHeroName: null,
+      games: 100,
+      wins: i,
+      draws: 0,
+    }));
+
+  it("12 opponents: unchanged, nothing cut", () => {
+    const bars = matchupBars(opponents(12));
+    const { top, bottom } = collapsedMatchups(bars);
+    expect(bars).toHaveLength(MATCHUPS_SHOWN);
+    expect(top).toEqual(bars);
+    expect(bottom).toEqual([]);
+  });
+
+  it("13 opponents: the 6 best and the 6 worst, the middle row cut", () => {
+    const bars = matchupBars(opponents(13));
+    const { top, bottom } = collapsedMatchups(bars);
+    expect(top).toHaveLength(6);
+    expect(bottom).toHaveLength(6);
+    // Best-first throughout, and still descending across the divider.
+    expect(top.map((b) => b.opponentHeroId)).toEqual([
+      "opponent-12",
+      "opponent-11",
+      "opponent-10",
+      "opponent-9",
+      "opponent-8",
+      "opponent-7",
+    ]);
+    expect(bottom.map((b) => b.opponentHeroId)).toEqual([
+      "opponent-5",
+      "opponent-4",
+      "opponent-3",
+      "opponent-2",
+      "opponent-1",
+      "opponent-0",
+    ]);
+    // opponent-6 (the middle, 7th-best of 13) is the one row collapsed hides.
+    expect([...top, ...bottom].some((b) => b.opponentHeroId === "opponent-6")).toBe(false);
+  });
+
+  it("30 opponents: still just the 6 best and 6 worst", () => {
+    const bars = matchupBars(opponents(30));
+    const { top, bottom } = collapsedMatchups(bars);
+    expect(top.map((b) => b.opponentHeroId)).toEqual([
+      "opponent-29",
+      "opponent-28",
+      "opponent-27",
+      "opponent-26",
+      "opponent-25",
+      "opponent-24",
+    ]);
+    expect(bottom.map((b) => b.opponentHeroId)).toEqual([
+      "opponent-5",
+      "opponent-4",
+      "opponent-3",
+      "opponent-2",
+      "opponent-1",
+      "opponent-0",
+    ]);
   });
 });
 
