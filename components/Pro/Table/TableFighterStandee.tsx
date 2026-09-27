@@ -16,8 +16,12 @@ import { keyframes } from "@emotion/react";
 import type { FighterId, ViewFighter } from "@/lib/pro/protocol";
 import type { FlagTokenBadge } from "@/lib/pro/heroStateFlags";
 import { fighterStatusBadgesFor } from "@/lib/pro/fighterStatuses";
-import { flatTokenTopPx, standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
+import { flatTokenTopPx, placeStandee, standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
 import { figureSilhouetteBox, type Figure } from "@/lib/pro/figures";
+import type { Mini3d } from "@/lib/pro/minis3d/manifest";
+import type { TableRig } from "@/lib/pro/minis3d/camera";
+import { standingPose } from "@/lib/pro/minis3d/pose";
+import { mini3dPlateSize, TableMini3D, useTableMini3d } from "./TableMini3D";
 import { TableFigureGround, TableFigureSprite } from "./TableFigureSprite";
 import { TableAnchorAnim, TableStandeeAnchor, type TableStackDepth } from "./TableStandeeAnchor";
 import {
@@ -60,14 +64,14 @@ export const heroPlateSize = (
  * Highlight for a miniature. It is a `filter`, not a `box-shadow`, so the
  * glow hugs the model's own outline rather than its image's rectangle.
  */
-const plateFilter = (selected: boolean, friendly: boolean): string => {
+export const plateFilter = (selected: boolean, friendly: boolean): string => {
   const depth = "drop-shadow(0 4px 8px rgba(0,0,0,0.65))";
   if (selected) return `drop-shadow(0 0 2px #fff) drop-shadow(0 0 5px #fff) ${depth}`;
   if (friendly) return `drop-shadow(0 0 2px #39B7A8) drop-shadow(0 0 5px #39B7A8) ${depth}`;
   return depth;
 };
 
-const targetPulse = keyframes`
+export const targetPulse = keyframes`
   0%, 100% { filter: drop-shadow(0 0 3px rgba(224,168,46,0.95)) drop-shadow(0 0 6px rgba(224,168,46,0.7)) drop-shadow(0 4px 8px rgba(0,0,0,0.65)); }
   50% { filter: drop-shadow(0 0 3px rgba(224,168,46,0.45)) drop-shadow(0 0 6px rgba(224,168,46,0.25)) drop-shadow(0 4px 8px rgba(0,0,0,0.65)); }
 `;
@@ -116,6 +120,13 @@ export interface TableFighterStandeeProps {
    *  it slides clear of the token (see TableStandeeAnchor's `badges`). */
   frameW?: number;
   frameH?: number;
+  /** A real 3D model to stand here instead of `figure`'s sprite (#945,
+   *  `?minis3d=1`), drawn for the CSS camera `rig`. Falls back to the sprite
+   *  (or token) while it loads and whenever WebGL is unavailable or lost. */
+  mini3d?: Mini3d | null;
+  rig?: TableRig | null;
+  /** Canvas pixel-ratio cap for the 3D mini (dev switch `?minis3dDpr=`). */
+  mini3dMaxPixelRatio?: number | null;
 }
 
 export const TableFighterStandee = ({
@@ -140,16 +151,30 @@ export const TableFighterStandee = ({
   onSpaceFallbackClick,
   onHoverChange,
   innerRef,
-  figure = null,
+  figure: spriteFigure = null,
   figureScale = 1,
   baseHidden = false,
   spacePicksLive = false,
   frameW,
   frameH,
+  mini3d = null,
+  rig = null,
+  mini3dMaxPixelRatio = null,
 }: TableFighterStandeeProps) => {
+  // A 3D mini only while the shared renderer is up and the model decoded;
+  // otherwise exactly the sprite/token path below.
+  const model3d = useTableMini3d(mini3d, rig);
+  const use3d = !!model3d;
+  const figure = use3d ? null : spriteFigure;
   const tokenPx = standeeBaseDiameterPx(diamPx);
   const figureBaseDiamPx = tokenPx * figureScale;
-  const { widthPx, heightPx } = heroPlateSize(figure, tokenPx, figureBaseDiamPx);
+  const upright = !!figure || use3d;
+  const groundScale = placeStandee(stack ? stack.depthY : y, tiltDeg).scale;
+  // A 3D mini's badges hang off the model's own projected bounds (#929).
+  const strip = heroPlateSize(null, tokenPx, figureBaseDiamPx);
+  const { widthPx, heightPx } = use3d
+    ? mini3dPlateSize(model3d, mini3d!, rig!, standingPose(x, y), figureBaseDiamPx, groundScale, strip.widthPx, strip.heightPx)
+    : heroPlateSize(figure, tokenPx, figureBaseDiamPx);
   const statusBadges = fighterStatusBadgesFor(fighter);
   const fighterClickable = targetable && !!onClick;
   const clickHandler = fighterClickable ? () => onClick!(fighter.id) : onSpaceFallbackClick;
@@ -176,9 +201,25 @@ export const TableFighterStandee = ({
       spaceDiamPx={diamPx}
       spaceId={fighter.space}
       baseAccent={playerColor}
-      base={!!figure && !baseHidden}
+      base={upright && !baseHidden}
       ground={
-        figure ? (
+        use3d ? (
+          <TableMini3D
+            mini={mini3d!}
+            model={model3d}
+            rig={rig!}
+            x={x}
+            y={y}
+            baseDiamPx={figureBaseDiamPx}
+            groundScale={groundScale}
+            animating={!!anim}
+            filter={plateFilter(selected, friendly)}
+            animation={targetable && !selected ? `${targetPulse} 1.4s ease-in-out infinite` : undefined}
+            hitTarget={fighterClickable && !spacePicksLive}
+            maxPixelRatio={mini3dMaxPixelRatio}
+            canvasAttrs={{ "data-fighter-id": fighter.id }}
+          />
+        ) : figure ? (
           <TableFigureGround
             figure={figure}
             baseDiamPx={figureBaseDiamPx}
@@ -209,7 +250,7 @@ export const TableFighterStandee = ({
       frameW={frameW}
       frameH={frameH}
       // A miniature stands on a flat base; a flat token is its own layers.
-      groundTopPx={figure ? 0 : flatTokenTopPx(tokenPx)}
+      groundTopPx={upright ? 0 : flatTokenTopPx(tokenPx)}
       badgeLowestPx={badgeLowestPx}
       badges={
         <>

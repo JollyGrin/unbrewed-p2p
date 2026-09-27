@@ -40,6 +40,26 @@
       "modelName": "Autumn Treant (Meshy AI, Hollow Oak)",
       "creator": "JollyGrin",
       "sourceUrl": "https://unbrewed.xyz"
+    },
+    {
+      "heroId": "king-taranis",
+      "model": "king-taranis-meshy.glb",
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "King Taranis (Meshy AI)",
+      "creator": "JollyGrin",
+      "sourceUrl": "https://unbrewed.xyz"
+    },
+    {
+      "heroId": "king-taranis-spice",
+      "model": "king-taranis-meshy.glb",
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "King Taranis (Meshy AI)",
+      "creator": "JollyGrin",
+      "sourceUrl": "https://unbrewed.xyz"
     }
   ]
 }

@@ -112,6 +112,62 @@
       "modelName": "Autumn Treant (Meshy AI, Hollow Oak)",
       "creator": "JollyGrin",
       "sourceUrl": "https://unbrewed.xyz"
+    },
+    "king-taranis": {
+      "anchor": {
+        "x": 0.5,
+        "y": 0.7037031078194541
+      },
+      "imageWidthMm": 1.3855545043945312,
+      "footprintMm": 1.3322639465332031,
+      "aspect": 1.5,
+      "elevDeg": 50,
+      "bounds": {
+        "left": 0.0183,
+        "top": 0.0522,
+        "right": 0.9817,
+        "bottom": 0.9478
+      },
+      "seats": {
+        "p1": "king-taranis.p1.webp",
+        "p2": "king-taranis.p2.webp",
+        "p3": "king-taranis.p3.webp",
+        "p4": "king-taranis.p4.webp"
+      },
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "King Taranis (Meshy AI)",
+      "creator": "JollyGrin",
+      "sourceUrl": "https://unbrewed.xyz"
+    },
+    "king-taranis-spice": {
+      "anchor": {
+        "x": 0.5,
+        "y": 0.7037031078194541
+      },
+      "imageWidthMm": 1.3855545043945312,
+      "footprintMm": 1.3322639465332031,
+      "aspect": 1.5,
+      "elevDeg": 50,
+      "bounds": {
+        "left": 0.0183,
+        "top": 0.0522,
+        "right": 0.9817,
+        "bottom": 0.9478
+      },
+      "seats": {
+        "p1": "king-taranis-spice.p1.webp",
+        "p2": "king-taranis-spice.p2.webp",
+        "p3": "king-taranis-spice.p3.webp",
+        "p4": "king-taranis-spice.p4.webp"
+      },
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "King Taranis (Meshy AI)",
+      "creator": "JollyGrin",
+      "sourceUrl": "https://unbrewed.xyz"
     }
   }
 }

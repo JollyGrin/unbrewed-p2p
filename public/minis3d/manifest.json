@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "minis": {
+    "king-taranis": {
+      "files": {
+        "play": "king-taranis.play.glb"
+      },
+      "defaultLod": "play",
+      "baseDiameter": 0.9672,
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "King Taranis (Meshy AI)",
+      "creator": "JollyGrin",
+      "sourceUrl": "https://unbrewed.xyz"
+    },
+    "king-taranis-spice": {
+      "files": {
+        "play": "king-taranis.play.glb"
+      },
+      "defaultLod": "play",
+      "baseDiameter": 0.9672,
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "King Taranis (Meshy AI)",
+      "creator": "JollyGrin",
+      "sourceUrl": "https://unbrewed.xyz"
+    }
+  }
+}

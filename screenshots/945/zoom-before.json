@@ -1,0 +1,29 @@
+{
+  "before": {
+    "cssPx": [
+      26.5,
+      36.9
+    ],
+    "backingPx": [
+      61,
+      84
+    ],
+    "backingPerCssPx": 2.3,
+    "renders": 1,
+    "prompt": "Tap a gold space to move there (7 options)"
+  },
+  "zoomed": {
+    "cssPx": [
+      111.7,
+      155.6
+    ],
+    "backingPx": [
+      61,
+      84
+    ],
+    "backingPerCssPx": 0.55,
+    "renders": 1,
+    "prompt": "Tap a gold space to move there (7 options)"
+  },
+  "zoomFactor": 4.22
+}

@@ -37,6 +37,7 @@ import {
   TABLE_YAW_DEG,
   boardTransform,
   perspectivePx,
+  PERSPECTIVE_RATIO,
   tableFocusCapDiameterPx,
 } from "@/lib/pro/tableProjection";
 import { TableBoardEdge } from "./TableBoardEdge";
@@ -50,6 +51,15 @@ export interface TableStageMetrics {
   frameW: number;
   frameH: number;
   tiltDeg: number;
+  /** The rig's yaw as actually applied (0 under reduced motion) and its
+   *  perspective ratio — what a WebGL mini needs to match the CSS camera
+   *  (unbrewed-p2p-931, lib/pro/minis3d/camera). */
+  yawDeg: number;
+  perspectiveRatio: number;
+  /** The pan/zoom frame's live scale (useZoomPan `scale`, 1 when not
+   *  zoomable): how big the plane is on screen, for a 3D mini's canvas
+   *  density (#945). */
+  screenScale: number;
 }
 
 export interface TableStageProps {
@@ -331,7 +341,7 @@ export const TableStage = ({
                 object with the board it is attached to. See
                 TableBoardEdge.tsx's own header for how the extrusion works. */}
             <TableBoardEdge frameW={frameW} frameH={frameH} />
-            {children({ frameW, frameH, tiltDeg })}
+            {children({ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio: PERSPECTIVE_RATIO, screenScale: zoom.scale })}
           </Box>
         </Box>
 
