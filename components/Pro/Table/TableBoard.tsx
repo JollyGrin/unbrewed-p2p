@@ -85,8 +85,8 @@ import { TableBoardObject } from "./TableBoardObject";
 import { TableMoveGhost } from "./TableMoveGhost";
 import type { Mini3d } from "@/lib/pro/minis3d/manifest";
 import { useMinis3dDevParams, useMinis3dManifest } from "@/lib/pro/minis3d/useMinis3dSource";
-import { TOPPLE_MS } from "@/lib/pro/minis3d/pose";
 import { TableFallenMini } from "./TableFallenMini";
+import { toppleFor, useFallenMinis, type StandingMini } from "./useFallenMinis";
 import { miniCuesFor, type TableStrike } from "./tableMiniCues";
 
 // Dev-only measuring aid for scripts/visual-probe/tableMini3d (#931). The
@@ -118,10 +118,6 @@ const TableMini3dProbe =
  *    gesture pass. Off by default (opt-in beta flag), so nobody loses a beat
  *    they had.
  */
-/** How long a defeated 3D mini waits for its combat's strike beat before it
- *  falls on its own (#962). The strike is set a render after the defeat. */
-const FALL_GRACE_MS = 150;
-
 export type TableBoardDeferredProp = "focusFighters" | "fighterTokenRim" | "tokenLife";
 
 /**
@@ -208,16 +204,6 @@ export const TableBoard = ({
   const itemById = useMemo(() => new Map((map.items ?? []).map((it) => [it.id, it])), [map.items]);
   const reducedMotion = !!useReducedMotion();
 
-  // Defeat topple (#962). A defeated fighter leaves the board in the batch
-  // that defeats it, so its 3D mini is kept here, on the space it fell on,
-  // for the topple's length. Only a fighter that stood as a 3D mini; never
-  // under reduced motion (the piece just goes, as a sprite does).
-  const [fallen, setFallen] = useState<
-    { fighter: ViewFighter & { space: SpaceId }; mini: Mini3d; key: string; foe: FighterId | null; now: boolean }[]
-  >([]);
-  const standingRef = useRef(new Map<FighterId, { fighter: ViewFighter & { space: SpaceId }; mini: Mini3d }>());
-  const fallSeq = useRef(0);
-  const lastFoeRef = useRef(new Map<FighterId, FighterId>());
   // Dev-only: every fighter wears every badge, for the occlusion probe.
   const badgeProbe = useTableBadgeProbe();
   // Dev-only: where the figure probe stands the one-space miniatures (#926).
@@ -266,44 +252,14 @@ export const TableBoard = ({
   const boardFighters = fighters.filter((f): f is ViewFighter & { space: SpaceId } => !!f.space && mainSpaceIds.has(f.space));
   const boardTokens = tokens.filter((t) => mainSpaceIds.has(t.space));
 
-  // Defeat topple, continued: who each fighter last fought (its facing as it
-  // falls), and the stand-ins for 3D minis that just left the board defeated.
-  const strikeRef = useRef(fighterStrike);
-  strikeRef.current = fighterStrike;
-  useEffect(() => {
-    if (attack) lastFoeRef.current.set(attack.target, attack.attacker);
-  }, [attack]);
-  const fallTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  useEffect(() => () => fallTimers.current.forEach(clearTimeout), []);
-  useEffect(() => {
-    const was = standingRef.current;
-    const next = new Map<FighterId, { fighter: ViewFighter & { space: SpaceId }; mini: Mini3d }>();
-    for (const f of boardFighters) {
-      const m = !f.tailSpace || f.kind !== "HERO" ? mini3dOf(f) : null;
-      if (m) next.set(f.id, { fighter: f, mini: m });
-    }
-    standingRef.current = next;
-    if (reducedMotion) return;
-    const falls = [...was.entries()]
-      .filter(([id]) => !next.has(id) && fighters.find((x) => x.id === id)?.defeated)
-      .map(([id, s]) => ({ ...s, key: `fall-${id}-${fallSeq.current++}`, foe: lastFoeRef.current.get(id) ?? null, now: false }));
-    if (!falls.length) return;
-    const keys = new Set(falls.map((x) => x.key));
-    setFallen((cur) => [...cur, ...falls]);
-    // A combat K.O. falls on the strike's contact — its strike arrives a
-    // render after the defeat. Anything else (no strike by then) falls now.
-    fallTimers.current.push(
-      setTimeout(() => {
-        setFallen((cur) => cur.map((x) => (keys.has(x.key) ? { ...x, now: true } : x)));
-        const strike = strikeRef.current;
-        const wait = falls.some((x) => strike?.target === x.fighter.id) ? strike!.contactMs : 0;
-        fallTimers.current.push(
-          setTimeout(() => setFallen((cur) => cur.filter((x) => !keys.has(x.key))), wait + TOPPLE_MS + 300)
-        );
-      }, FALL_GRACE_MS)
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the view's fighters only
-  }, [fighters]);
+  // Defeat topple (#962): the ghosts of 3D minis that just left the board
+  // defeated (never under reduced motion).
+  const standingMinis = new Map<FighterId, StandingMini>();
+  for (const f of boardFighters) {
+    const m = !f.tailSpace || f.kind !== "HERO" ? mini3dOf(f) : null;
+    if (m) standingMinis.set(f.id, { fighter: f, mini: m });
+  }
+  const fallen = useFallenMinis({ fighters, standing: standingMinis, attack, strike: fighterStrike, reducedMotion });
 
   // Shared spaces (protocol v28: up to 4 smalls + 1 non-small; corpses and
   // totems stack too). Laid out by the SAME lib/pro/tokenStack.ts helpers the
@@ -880,12 +836,11 @@ export const TableBoard = ({
             const space = spaceById.get(x.fighter.space);
             if (!space) return null;
             const at = fighterPlace(space, x.fighter.id, (diameterPct / 100) * Math.max(frameW, 1), frameW, frameH);
-            const strike = fighterStrike?.target === x.fighter.id ? fighterStrike : null;
             return (
               <TableFallenMini
                 key={x.key}
                 fighterId={x.fighter.id}
-                topple={strike ? { key: x.key, delayMs: strike.contactMs } : x.now ? { key: x.key, delayMs: 0 } : null}
+                topple={toppleFor(x, fighterStrike)}
                 mini={x.mini}
                 rig={{ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio, screenScale }}
                 x={at.x}
