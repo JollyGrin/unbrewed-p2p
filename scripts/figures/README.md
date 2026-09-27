@@ -124,6 +124,7 @@ Games decks (Dean, 2026-09-26) — so every entry declares
 | `triceratops` | Triceratops Horridus Marsh | Smithsonian Institution | CC0 Public Domain | [sketchfab.com](https://sketchfab.com/3d-models/triceratops-horridus-marsh-e9c507f179ed4455aac3b208c9e6c973) | 2026-09-26 | the same 150k-triangle scan, downloaded without an account from the Smithsonian's 3D API: `https://3d-api.si.edu/content/document/3d_package:d8c623be-4ebc-11ea-b77f-2e728ce88125/resources/Triceratops_horridus_Marsh_1889-150k-4096.glb` → `triceratops-horridus-marsh-150k.glb`. The fossil is mounted lying on its side, as found; `rz: 90` sets it on the ground. |
 | `baba-yaga` | Witch Minis (Witch 2) | mz4250 | CC BY-SA 4.0 (Thingiverse: "Creative Commons - Attribution - Share Alike", linked to creativecommons.org/licenses/by-sa/4.0/) | [thingiverse.com/thing:6694128](https://www.thingiverse.com/thing:6694128) | 2026-09-26 | `files/Witch_2.stl` (listed on the thing's Files tab) from its "Download all files" zip → `witch-minis-witch-2.stl`. ShareAlike: the renders are CC BY-SA too. The same model on Printables (model/941392) is labelled CC-BY; we follow the stricter Thingiverse licence. |
 | `hollow-oak`, `hollow-oak-spice` | Autumn Treant (Meshy AI, Hollow Oak) | JollyGrin | CC0 1.0 — Dean's own generated model of his own original hero | https://unbrewed.xyz (no external page; self-generated, see [Adding a self-generated model](#adding-a-self-generated-meshy--mini-pipeline-model) below) | 2026-09-27 | Generated via the local `mini-pipeline` tool (Meshy AI) from `~/git/unbrewed/mini-pipeline/out/hollow-oak-painted/`, file `Meshy_AI_Autumn_Treant_0927103643_texture.glb` → `hollow-oak-meshy.glb`. Both heroIds share the one model, same as the private set's precedent. |
+| `king-taranis`, `king-taranis-spice` | King Taranis (Meshy AI) | JollyGrin | CC0 1.0 — Dean's own generated model of an original reskin (not an official hero) | https://unbrewed.xyz (self-generated) | 2026-09-27 | `~/git/unbrewed/.grove/webgl-minis-inbox/king-taranis/web.glb` (Draco) decoded with `npx @gltf-transform/cli weld` → `king-taranis-meshy.glb` (render.html has no Draco loader). The same model ships as the 3D mini `public/minis3d/king-taranis.play.glb` (#945; the pipeline's Stage D `play.glb`, 24,996 triangles). |
 
 ## Adding a self-generated (Meshy / mini-pipeline) model
 
@@ -169,7 +170,12 @@ every future self-generated model, not just Hollow Oak (unbrewed-p2p-923).
 4. Add the row to [`CREDITS.md`](../../public/figures-open/CREDITS.md) and to
    the table above.
 5. Raw `.glb` files are never committed, either set — only the rendered
-   `.webp`s and `manifest.json` are.
+   `.webp`s and `manifest.json` are. The one exception is the 3D minis
+   (#945): play-tier GLBs of **self-generated, gated** models are committed
+   under `public/minis3d/` — one ~25–30K-triangle Meshopt play-tier file per mini
+   (`<miniId>.play.glb`, ≤ ~140 KB, normalised by the pipeline: base on y = 0, footprint 1.0, centred), listed in
+   `public/minis3d/manifest.json` behind the same licence gate. Nothing else
+   is: no source models, no other detail levels, no Draco files.
 
 ## Setup (private set)
 

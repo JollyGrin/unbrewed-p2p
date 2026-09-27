@@ -8,7 +8,7 @@
 import { act, render, screen } from "@testing-library/react";
 import { useReducedMotion } from "framer-motion";
 import { TableStage } from "./TableStage";
-import { DEFAULT_TILT_DEG, TABLE_YAW_DEG, boardTransform } from "@/lib/pro/tableProjection";
+import { DEFAULT_TILT_DEG, PERSPECTIVE_RATIO, TABLE_YAW_DEG, boardTransform } from "@/lib/pro/tableProjection";
 
 // TableStage's only use of framer-motion is `useReducedMotion` (phase-5
 // target #5's gate). Mocking the module directly — rather than driving the
@@ -89,7 +89,8 @@ describe("TableStage", () => {
           }}
         </TableStage>
       );
-      expect(seen).toEqual({ frameW: 800, frameH: 600, tiltDeg: DEFAULT_TILT_DEG });
+      // The rig itself too (#931): a WebGL mini matches the CSS camera from it.
+      expect(seen).toEqual({ frameW: 800, frameH: 600, tiltDeg: DEFAULT_TILT_DEG, yawDeg: TABLE_YAW_DEG, perspectiveRatio: PERSPECTIVE_RATIO, screenScale: 1 });
     } finally {
       delete (HTMLElement.prototype as { offsetWidth?: number }).offsetWidth;
       delete (HTMLElement.prototype as { offsetHeight?: number }).offsetHeight;
