@@ -25,7 +25,7 @@
  * same image drawn inside the tilted stage (browsers dedupe the request from
  * cache, so this costs no extra network fetch).
  */
-import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { MutableRefObject, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Box, Button } from "@chakra-ui/react";
 import { useReducedMotion } from "framer-motion";
 import { useZoomPan, ZoomPanInset } from "@/lib/pro/useZoomPan";
@@ -74,6 +74,20 @@ export interface TableStageProps {
   /** Where "reset view" stands, when the default spot (the fit inset's
    *  bottom-left corner) is taken — the tabletop HUD's side buttons are there. */
   resetViewSpot?: { left: string; bottom: string };
+  /**
+   * A flat 2D overlay (region inset panels, unbrewed-p2p#922) rendered as a
+   * sibling of the tilted `stagePlane`, inside the same zoom/pan `frameRef` —
+   * so it pans/scales with the board exactly like the 3D content, but never
+   * inherits the tilt/perspective transform itself. Absolutely positioned and
+   * `pointer-events: none` at this wrapper's own level; content that needs
+   * clicks (a panel's own art/header) opts back in itself, the same way
+   * `ProBoard`'s region panels do.
+   */
+  regionOverlay?: ReactNode;
+  /** The element `regionOverlay`'s own drag handlers (useRegionPanels) measure
+   *  against — its rect is exactly `frameRef`'s (see where it's attached
+   *  below), so a panel clamps to the same board frame ProBoard's does. */
+  regionFrameRef?: MutableRefObject<HTMLDivElement | null>;
   children: (metrics: TableStageMetrics) => ReactNode;
 }
 
@@ -92,6 +106,8 @@ export const TableStage = ({
   tiltDeg = DEFAULT_TILT_DEG,
   pickKey,
   resetViewSpot,
+  regionOverlay,
+  regionFrameRef,
   children,
 }: TableStageProps) => {
   const frameRef = useRef<HTMLDivElement | null>(null);
@@ -318,6 +334,18 @@ export const TableStage = ({
             {children({ frameW, frameH, tiltDeg })}
           </Box>
         </Box>
+
+        {/* Flat 2D overlay (region inset panels, #922) — a sibling of the
+            perspective box above, NOT a child of it, so it rides `frameRef`'s
+            own zoom/pan transform (pans and scales with the board) without
+            ever inheriting the 3D tilt. `inset:0` matches `frameRef`'s own
+            fit-content box exactly, which is also what a panel's drag handler
+            measures against (see useRegionPanels' `frameRef`). */}
+        {regionOverlay && (
+          <Box ref={regionFrameRef} position="absolute" inset={0} pointerEvents="none">
+            {regionOverlay}
+          </Box>
+        )}
       </Box>
 
       {/* "reset view" — same placement/behaviour as ProBoard's, so a player
