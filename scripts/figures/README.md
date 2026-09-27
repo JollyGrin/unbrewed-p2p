@@ -121,6 +121,11 @@ generated model, so there is no licence to check — it goes straight into the
 **open set** rather than the private one, and its render ships on every
 checkout.
 
+**Attribution convention:** a self-generated / owner-authored model is
+credited as `"creator": "JollyGrin"` — Dean's public handle — never his real
+name. Dean doesn't want his real name exposed publicly; this applies to
+every future self-generated model, not just Hollow Oak (unbrewed-p2p-923).
+
 1. Generate the model locally with `mini-pipeline` (outside this repo). The
    output lands at `~/git/unbrewed/mini-pipeline/out/<run>/*.glb`.
 2. Add an entry per heroId to `scripts/figures/figures-open.json` (reuse one
@@ -134,7 +139,8 @@ checkout.
    ```
    `officialHero` is `false` for any Evergreen original. There is no source
    page for a self-generated model, so `sourceUrl` is `https://unbrewed.xyz`
-   unless Dean says otherwise on review.
+   unless Dean says otherwise on review. `creator` is `"JollyGrin"` per the
+   convention above, never Dean's real name.
 3. Copy (don't move) the `.glb` into a folder by itself — or alongside the
    other open models if re-rendering the whole set — under the filename the
    config references, then render just that hero:
