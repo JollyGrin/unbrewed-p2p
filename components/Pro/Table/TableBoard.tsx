@@ -85,6 +85,9 @@ import { TableBoardObject } from "./TableBoardObject";
 import { TableMoveGhost } from "./TableMoveGhost";
 import type { Mini3d } from "@/lib/pro/minis3d/manifest";
 import { useMinis3dDevParams, useMinis3dManifest } from "@/lib/pro/minis3d/useMinis3dSource";
+import { TOPPLE_MS } from "@/lib/pro/minis3d/pose";
+import { TableFallenMini } from "./TableFallenMini";
+import { miniCuesFor, type TableStrike } from "./tableMiniCues";
 
 // Dev-only measuring aid for scripts/visual-probe/tableMini3d (#931). The
 // NODE_ENV check is a build-time constant, so a production build drops the
@@ -115,6 +118,10 @@ const TableMini3dProbe =
  *    gesture pass. Off by default (opt-in beta flag), so nobody loses a beat
  *    they had.
  */
+/** How long a defeated 3D mini waits for its combat's strike beat before it
+ *  falls on its own (#962). The strike is set a render after the defeat. */
+const FALL_GRACE_MS = 150;
+
 export type TableBoardDeferredProp = "focusFighters" | "fighterTokenRim" | "tokenLife";
 
 /**
@@ -131,6 +138,9 @@ export type TableBoardProps = Omit<ProBoardProps, TableBoardDeferredProp> & {
   fighterMini3d?: (fighter: ViewFighter) => Mini3d | null;
   /** see TableStage — moved out from under the tabletop HUD's side buttons */
   resetViewSpot?: { left: string; bottom: string };
+  /** The combat strike beat that is playing (#962): 3D minis lunge, recoil
+   *  and face each other on the combat panel's own clock. */
+  fighterStrike?: TableStrike | null;
 };
 
 export const TableBoard = ({
@@ -182,6 +192,7 @@ export const TableBoard = ({
   fighterFigure,
   fighterMini3d,
   resetViewSpot,
+  fighterStrike = null,
   // Whatever the caller spread in that this view deliberately doesn't draw
   // (TableBoardDeferredProp). Typed as the REST of TableBoardProps, so it is
   // `{}` exactly when every non-deferred prop is destructured above.
@@ -196,6 +207,17 @@ export const TableBoard = ({
   const zoneColor = (id: string) => zoneColorMap.get(id) ?? "#8878A0";
   const itemById = useMemo(() => new Map((map.items ?? []).map((it) => [it.id, it])), [map.items]);
   const reducedMotion = !!useReducedMotion();
+
+  // Defeat topple (#962). A defeated fighter leaves the board in the batch
+  // that defeats it, so its 3D mini is kept here, on the space it fell on,
+  // for the topple's length. Only a fighter that stood as a 3D mini; never
+  // under reduced motion (the piece just goes, as a sprite does).
+  const [fallen, setFallen] = useState<
+    { fighter: ViewFighter & { space: SpaceId }; mini: Mini3d; key: string; foe: FighterId | null; now: boolean }[]
+  >([]);
+  const standingRef = useRef(new Map<FighterId, { fighter: ViewFighter & { space: SpaceId }; mini: Mini3d }>());
+  const fallSeq = useRef(0);
+  const lastFoeRef = useRef(new Map<FighterId, FighterId>());
   // Dev-only: every fighter wears every badge, for the occlusion probe.
   const badgeProbe = useTableBadgeProbe();
   // Dev-only: where the figure probe stands the one-space miniatures (#926).
@@ -243,6 +265,45 @@ export const TableBoard = ({
   // (currently unsupported) region.
   const boardFighters = fighters.filter((f): f is ViewFighter & { space: SpaceId } => !!f.space && mainSpaceIds.has(f.space));
   const boardTokens = tokens.filter((t) => mainSpaceIds.has(t.space));
+
+  // Defeat topple, continued: who each fighter last fought (its facing as it
+  // falls), and the stand-ins for 3D minis that just left the board defeated.
+  const strikeRef = useRef(fighterStrike);
+  strikeRef.current = fighterStrike;
+  useEffect(() => {
+    if (attack) lastFoeRef.current.set(attack.target, attack.attacker);
+  }, [attack]);
+  const fallTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => fallTimers.current.forEach(clearTimeout), []);
+  useEffect(() => {
+    const was = standingRef.current;
+    const next = new Map<FighterId, { fighter: ViewFighter & { space: SpaceId }; mini: Mini3d }>();
+    for (const f of boardFighters) {
+      const m = !f.tailSpace || f.kind !== "HERO" ? mini3dOf(f) : null;
+      if (m) next.set(f.id, { fighter: f, mini: m });
+    }
+    standingRef.current = next;
+    if (reducedMotion) return;
+    const falls = [...was.entries()]
+      .filter(([id]) => !next.has(id) && fighters.find((x) => x.id === id)?.defeated)
+      .map(([id, s]) => ({ ...s, key: `fall-${id}-${fallSeq.current++}`, foe: lastFoeRef.current.get(id) ?? null, now: false }));
+    if (!falls.length) return;
+    const keys = new Set(falls.map((x) => x.key));
+    setFallen((cur) => [...cur, ...falls]);
+    // A combat K.O. falls on the strike's contact — its strike arrives a
+    // render after the defeat. Anything else (no strike by then) falls now.
+    fallTimers.current.push(
+      setTimeout(() => {
+        setFallen((cur) => cur.map((x) => (keys.has(x.key) ? { ...x, now: true } : x)));
+        const strike = strikeRef.current;
+        const wait = falls.some((x) => strike?.target === x.fighter.id) ? strike!.contactMs : 0;
+        fallTimers.current.push(
+          setTimeout(() => setFallen((cur) => cur.filter((x) => !keys.has(x.key))), wait + TOPPLE_MS + 300)
+        );
+      }, FALL_GRACE_MS)
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the view's fighters only
+  }, [fighters]);
 
   // Shared spaces (protocol v28: up to 4 smalls + 1 non-small; corpses and
   // totems stack too). Laid out by the SAME lib/pro/tokenStack.ts helpers the
@@ -537,6 +598,33 @@ export const TableBoard = ({
     return caps;
   };
 
+  // Where each on-board fighter stands (its head slot), per frame size — the
+  // 3D minis' combat facing reads it (#962).
+  const positionsBySize = new Map<string, Map<FighterId, { x: number; y: number }>>();
+  const fighterPositions = (frameW: number, frameH: number) => {
+    const key = `${frameW}x${frameH}`;
+    let m = positionsBySize.get(key);
+    if (!m) {
+      m = new Map();
+      for (const f of boardFighters) {
+        const sp = spaceById.get(f.space);
+        if (sp) m.set(f.id, fighterPlace(sp, f.id, 0, frameW, frameH));
+      }
+      positionsBySize.set(key, m);
+    }
+    return m;
+  };
+  const miniMotion = (f: ViewFighter & { space: SpaceId }, common: { selected: boolean; targetable: boolean }, frameW: number, frameH: number) =>
+    miniCuesFor({
+      fighter: f,
+      selected: common.selected,
+      targetable: common.targetable,
+      attack,
+      strike: fighterStrike,
+      positions: fighterPositions(frameW, frameH),
+      fx,
+    });
+
   const pickKey = `${highlightedSpaces.join(",")}|${relocateSpaces.join(",")}|${highlightedFighters.join(",")}`;
 
   // Baba Yaga's Hut, hybrid (unbrewed-p2p#922): a region's own spaces render
@@ -748,6 +836,7 @@ export const TableBoard = ({
                   mini3d={straddling ? null : mini3dOf(f)}
                   rig={{ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio, screenScale }}
                   mini3dMaxPixelRatio={minis3d.maxPixelRatio}
+                  mini3dMotion={miniMotion(f, common, frameW, frameH)}
                   innerRef={registerFighterEl(f.id)}
                   {...common}
                 />
@@ -781,7 +870,29 @@ export const TableBoard = ({
                 mini3d={mini3dOf(f)}
                 rig={{ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio, screenScale }}
                 mini3dMaxPixelRatio={minis3d.maxPixelRatio}
+                mini3dMotion={miniMotion(f, common, frameW, frameH)}
                 spacePicksLive={highlightSet.size > 0 || relocateSet.size > 0}
+              />
+            );
+          })}
+
+          {fallen.map((x) => {
+            const space = spaceById.get(x.fighter.space);
+            if (!space) return null;
+            const at = fighterPlace(space, x.fighter.id, (diameterPct / 100) * Math.max(frameW, 1), frameW, frameH);
+            const strike = fighterStrike?.target === x.fighter.id ? fighterStrike : null;
+            return (
+              <TableFallenMini
+                key={x.key}
+                fighterId={x.fighter.id}
+                topple={strike ? { key: x.key, delayMs: strike.contactMs } : x.now ? { key: x.key, delayMs: 0 } : null}
+                mini={x.mini}
+                rig={{ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio, screenScale }}
+                x={at.x}
+                y={at.y}
+                diamPx={at.diamPx}
+                faceToward={x.foe ? (fighterPositions(frameW, frameH).get(x.foe) ?? null) : null}
+                maxPixelRatio={minis3d.maxPixelRatio}
               />
             );
           })}

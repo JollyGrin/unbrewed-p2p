@@ -126,8 +126,8 @@ export interface MiniMotionCues {
   recoil?: MiniBeatCue | null;
   /** HP dropped: a short shake (keyed by the damage beat). */
   flinch?: { key: string } | null;
-  /** Defeated: tip over and fade. */
-  topple?: { key: string } | null;
+  /** Defeated: tip over and fade (`delayMs` after it first arrives). */
+  topple?: { key: string; delayMs?: number } | null;
 }
 
 /** A tween's path when it is a walk — a swap's crossfade (it carries
@@ -320,6 +320,7 @@ export const TableMini3D = ({
   // plays once, even across re-renders.
   const seenBeats = useRef(new Set<string>());
   const dropped = useRef(false);
+  const primed = useRef(false);
   const faceX = motion?.faceToward?.x, faceY = motion?.faceToward?.y;
   useLayoutEffect(() => {
     const before = motionRef.current!;
@@ -331,7 +332,7 @@ export const TableMini3D = ({
     beat(motion?.lunge, "lunge");
     beat(motion?.recoil, "recoil");
     if (motion?.flinch) beats.push([`flinch:${motion.flinch.key}`, () => addClip(m, "flinch", now, FLINCH_MS)]);
-    if (motion?.topple) beats.push([`topple:${motion.topple.key}`, () => addClip(m, "topple", now, TOPPLE_MS)]);
+    if (motion?.topple) beats.push([`topple:${motion.topple.key}`, () => addClip(m, "topple", now, TOPPLE_MS, motion.topple!.delayMs ?? 0)]);
     if (!dropped.current && motion?.dropIn) {
       dropped.current = true;
       if (!reduced) m = addClip(m, "drop", now, DROP_MS);
@@ -345,7 +346,11 @@ export const TableMini3D = ({
     const rest =
       faceX === undefined || faceY === undefined ? REST_FACING_DEG : headingDeg(faceX - x, faceY - y, aspect);
     m = setWalking(m, !!walkPath && !reduced, now, rest);
-    if (!m.walking) m = faceTo(m, rest, now);
+    if (!primed.current) {
+      // A mini that appears already facing someone stands that way at once.
+      primed.current = true;
+      m = { ...m, turn: { from: rest, to: rest, start: now, dur: 0 } };
+    } else if (!m.walking) m = faceTo(m, rest, now);
     m = holdLift(m, !!motion?.held, now);
     if (m !== before) {
       motionRef.current = m;
