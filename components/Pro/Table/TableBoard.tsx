@@ -15,14 +15,6 @@
  * affect the legality of what a player can do — only how a few purely
  * cosmetic beats are (or aren't yet) animated.
  *
- * Regions (Baba Yaga's Hut) are the one exception with a rules-visible
- * effect: a region's spaces are normalized to the REGION image, not the main
- * board, so this view — like the piece below that filters them out — cannot
- * place them correctly without also building the inset-panel equivalent
- * (deferred). Rather than silently render such a map with pieces missing
- * (what phase 1 did), this view REFUSES it outright (phase-2 report) with an
- * English message pointing at the flat board, which plays it correctly.
- *
  * PHASE 2 additions (see the phase-2 report for the full before/after):
  * heavier perspective convergence and translucent zone fills (tableProjection
  * + TableSpace), a real standee silhouette with an in-plane base
@@ -30,9 +22,18 @@
  * (TableStage), `pendingMove` tweening, and LARGE (two-space) fighters' tail
  * token + connecting band (this file, reusing lib/pro/twoSpaceBand.ts exactly
  * as the flat board does).
+ *
+ * HYBRID REGIONS (unbrewed-p2p#922). A region's spaces (Baba Yaga's Hut) are
+ * normalized to their OWN inset image, not the main board — excluded from
+ * `mainSpaces`/`boardFighters` below (so the 3D board never tries to place
+ * them) and drawn instead as the SAME floating 2D panel `ProBoard` uses
+ * (`useRegionPanels`, extracted from it), positioned over this 3D frame by
+ * `TableStage`'s `regionOverlay` slot. Previously (#914/#915) a region map
+ * fell back to the entire flat board before this component ever mounted —
+ * superseded: `resolveBoardView` now resolves `"table"` for these maps too.
  */
-import { Fragment, useMemo } from "react";
-import { Flex, Text } from "@chakra-ui/react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Flex } from "@chakra-ui/react";
 import { useReducedMotion } from "framer-motion";
 import type { FighterId, ProMapSpace, SpaceId, ViewFighter } from "@/lib/pro/protocol";
 import {
@@ -54,7 +55,7 @@ import { tokenInitials } from "@/components/Pro/FighterTokenPortrait";
 import { SWAP_SECONDS, SWAP_TIMES } from "@/lib/pro/positionSwap";
 import { LARGE_FIGURE_SCALE, straddleAnim, type Figure } from "@/lib/pro/figures";
 import { boardObjectVisualFor } from "@/lib/pro/boardObjects";
-import { mapHasRegions } from "@/lib/pro/boardView";
+import { useRegionPanels } from "@/components/Pro/RegionPanels";
 import { DEFAULT_SPACE_DIAMETER, SEAT_COLOR } from "@/lib/pro/seatColors";
 import {
   fighterStackBySpace,
@@ -141,7 +142,7 @@ export const TableBoard = ({
   // Hero-state flags and counters (Thetis's tide, druid form, …): drawn on
   // the hero's standee, as ProBoard draws them on the head token (#877).
   fighterTokenBadge,
-  closedRegions: _closedRegions,
+  closedRegions = [],
   itemTokens = {},
   pendingMove = null,
   onPendingMoveSettled,
@@ -180,13 +181,10 @@ export const TableBoard = ({
   // Dev-only: every fighter wears every badge, for the occlusion probe.
   const badgeProbe = useTableBadgeProbe();
 
-  // Regions are normalized to their OWN inset image, not the main board (see
-  // the header comment). Phase 1 silently filtered their spaces out of
-  // `mainSpaces` below, which is how a Baba Yaga's Hut map ended up playable
-  // here with pieces missing. Phase 2 refuses the whole view instead — see
-  // the early return after every hook, once `hasRegions` is known.
+  // A region's spaces are normalized to their OWN inset image, not the main
+  // board (see the header comment) — excluded from `mainSpaces` here, then
+  // drawn as the floating 2D panel `regionOverlay` renders below (#922).
   const regionIds = useMemo(() => new Set((map.regions ?? []).map((r) => r.id)), [map.regions]);
-  const hasRegions = mapHasRegions(map);
   const mainSpaces = useMemo(
     () => (regionIds.size ? map.spaces.filter((s) => !s.region || !regionIds.has(s.region)) : map.spaces),
     [map.spaces, regionIds]
@@ -515,30 +513,57 @@ export const TableBoard = ({
 
   const pickKey = `${highlightedSpaces.join(",")}|${relocateSpaces.join(",")}|${highlightedFighters.join(",")}`;
 
-  // Regions refusal (phase-2 report, deferred item "Regions"): rather than
-  // silently drop a Hut's pieces off the board (phase 1's behaviour), refuse
-  // the whole tabletop view for a map that has one, in plain English, pointed
-  // at the view that DOES play it correctly. This runs after every hook
-  // above so the hook order never changes between a normal map and this one.
-  //
-  // Unreachable from the game page since #914: `resolveBoardView` draws the
-  // flat board for such a map before this component is ever mounted. Kept as
-  // a guard for any other caller — a refusal beats a board with pieces
-  // missing.
-  if (hasRegions) {
-    return (
-      <Flex direction="column" align="center" justify="center" h="100%" p="2rem" gap="0.75rem" textAlign="center">
-        <Text fontFamily="BebasNeueRegular" fontSize="1.4rem" color="brand.parchment">
-          This map isn&rsquo;t ready for the tabletop view yet
-        </Text>
-        <Text fontSize="0.9rem" maxW="28rem" color="brand.parchment" opacity={0.8}>
-          &ldquo;{map.meta.title}&rdquo; uses a region (like Baba Yaga&rsquo;s Hut) that the tabletop view can&rsquo;t
-          place correctly yet — its pieces would be missing from the board. Switch to the flat board (the ⋮ menu) to
-          play this map with every piece visible.
-        </Text>
-      </Flex>
-    );
-  }
+  // Baba Yaga's Hut, hybrid (unbrewed-p2p#922): a region's own spaces render
+  // as the SAME 2D inset panel `ProBoard` uses (useRegionPanels, extracted
+  // from it) floating over the 3D main board below. `frameRef`/`framePx` mirror
+  // ProBoard's own measuring pattern, on a wrapper TableStage renders inside
+  // its zoom/pan frame but OUTSIDE the 3D tilt (see TableStage's `regionOverlay`).
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const [framePx, setFramePx] = useState(0);
+  useEffect(() => {
+    const f = frameRef.current;
+    if (!f || typeof ResizeObserver === "undefined") return;
+    const apply = () => setFramePx((prev) => (prev === f.offsetWidth ? prev : f.offsetWidth));
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(f);
+    return () => ro.disconnect();
+  }, []);
+  const { screenOverlays: regionOverlay } = useRegionPanels({
+    map,
+    fighters,
+    tokens,
+    boardObjectArt,
+    boardObjectOriginName,
+    highlightedSpaces,
+    highlightedFighters,
+    relocateSpaces,
+    relocateArmed,
+    selectedFighter,
+    attack,
+    defenderStepIn,
+    friendlyOwners,
+    fighterBadges,
+    extendedReachTargets,
+    boughtRangeTargets,
+    fighterTokenArt,
+    fighterTokenBadge,
+    fx,
+    pendingMove,
+    onPendingMoveSettled,
+    swaps,
+    previewMove,
+    closedRegions,
+    itemTokens,
+    onSpaceClick,
+    onFighterClick,
+    onSpaceHover,
+    onFighterHover,
+    moveHint,
+    fighterEls,
+    frameRef,
+    framePx,
+  });
 
   return (
     <TableStage
@@ -551,6 +576,8 @@ export const TableBoard = ({
       tiltDeg={DEFAULT_TILT_DEG}
       pickKey={pickKey}
       resetViewSpot={resetViewSpot}
+      regionOverlay={regionOverlay}
+      regionFrameRef={frameRef}
     >
       {({ frameW, frameH, tiltDeg }) => (
         <>

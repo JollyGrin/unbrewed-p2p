@@ -4,9 +4,7 @@ import {
   DEFAULT_BOARD_VIEW,
   isBoardView,
   nextBoardView,
-  mapHasRegions,
   resolveBoardView,
-  TABLETOP_CANNOT_SHOW_MAP,
   TABLETOP_NEEDS_LANDSCAPE,
 } from "./boardView";
 
@@ -45,38 +43,27 @@ describe("boardView", () => {
     expect(resolveBoardView("flat", "desktop")).toBe("flat");
   });
 
-  // #914: a region's spaces sit on their own inset image, which the tabletop
-  // cannot place — such a map (Baba Yaga's Hut) draws the flat board.
+  it("locks the Board toggle only in portrait", () => {
+    expect(boardViewLockedHint("portrait")).toBe(TABLETOP_NEEDS_LANDSCAPE);
+    expect(boardViewLockedHint("desktop")).toBeUndefined();
+    expect(boardViewLockedHint("rail")).toBeUndefined();
+  });
+
+  // #922 (hybrid): a region map (Baba Yaga's Hut) no longer falls back to the
+  // flat board — TableBoard renders its main spaces in 3D and floats the
+  // region as its own 2D inset panel over that frame. `resolveBoardView`
+  // never distinguished region maps from any other, so there is nothing left
+  // here for it to special-case (see TableBoard.tsx's own `regionIds` for the
+  // "which spaces are main vs region" split it still needs).
   describe("maps with regions", () => {
-    const HUT_MAP = { regions: [{ id: "hut", label: "Baba Yaga's Hut" }] };
-
-    it("knows a map with a region from one without", () => {
-      expect(mapHasRegions(HUT_MAP)).toBe(true);
-      expect(mapHasRegions({ regions: [] })).toBe(false);
-      expect(mapHasRegions({})).toBe(false);
-      expect(mapHasRegions(null)).toBe(false);
-      expect(mapHasRegions(undefined)).toBe(false);
+    it("resolves a region map to the tabletop view exactly like any other map", () => {
+      expect(resolveBoardView("table", "desktop")).toBe("table");
+      expect(resolveBoardView("table", "rail")).toBe("table");
+      expect(resolveBoardView("flat", "desktop")).toBe("flat");
     });
 
-    it("draws the flat board for a region map whatever the stored preference", () => {
-      expect(resolveBoardView("table", "desktop", HUT_MAP)).toBe("flat");
-      expect(resolveBoardView("table", "rail", HUT_MAP)).toBe("flat");
-      expect(resolveBoardView("flat", "desktop", HUT_MAP)).toBe("flat");
-    });
-
-    it("leaves an ordinary map, or no map yet, on the stored preference", () => {
-      expect(resolveBoardView("table", "desktop", {})).toBe("table");
-      expect(resolveBoardView("table", "rail", { regions: [] })).toBe("table");
-      expect(resolveBoardView("table", "desktop", null)).toBe("table");
-    });
-
-    it("locks the Board toggle with the reason, the map before the layout", () => {
-      expect(boardViewLockedHint("desktop", HUT_MAP)).toBe(TABLETOP_CANNOT_SHOW_MAP);
-      expect(boardViewLockedHint("portrait", HUT_MAP)).toBe(TABLETOP_CANNOT_SHOW_MAP);
-      expect(boardViewLockedHint("portrait", {})).toBe(TABLETOP_NEEDS_LANDSCAPE);
-      expect(boardViewLockedHint("portrait")).toBe(TABLETOP_NEEDS_LANDSCAPE);
-      expect(boardViewLockedHint("desktop", {})).toBeUndefined();
-      expect(boardViewLockedHint("rail")).toBeUndefined();
+    it("still forces the flat board for a region map in portrait", () => {
+      expect(resolveBoardView("table", "portrait")).toBe("flat");
     });
   });
 });

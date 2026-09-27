@@ -4750,12 +4750,11 @@ const LiveGame = ({
   const { mobile, rail, mode } = useProLayout();
   // A portrait phone always draws the flat board (#870): the tabletop has no
   // counter-rotation for the 90°-turned portrait frame. The stored preference
-  // is untouched, so turning back to landscape returns to the tabletop.
-  // A map with a region (Baba Yaga's Hut) draws the flat board too (#914):
-  // resolved HERE, not inside TableBoard, so the chrome around the board —
-  // HUD, figure chips, reset-view spot — is the flat board's as well.
-  const boardMap = snapshot?.view.map;
-  const wantedBoardView = resolveBoardView(preferredBoardView, mode, boardMap);
+  // is untouched, so turning back to landscape returns to the tabletop. A map
+  // with a region (Baba Yaga's Hut) no longer forces the flat board (#922):
+  // TableBoard renders its main spaces in 3D and floats the region as its own
+  // 2D inset panel.
+  const wantedBoardView = resolveBoardView(preferredBoardView, mode);
   // The tabletop's code is its own chunk (#893): fetched the first time the
   // tabletop is wanted — at mount for a device that stored it, which is still
   // in the lobby — and the flat board stays up until it has arrived, so the
@@ -6915,7 +6914,7 @@ const LiveGame = ({
     onCyclePace: cyclePace,
     boardView,
     onToggleBoardView: toggleBoardView,
-    boardViewLockedHint: boardViewLockedHint(mode, boardMap),
+    boardViewLockedHint: boardViewLockedHint(mode),
     figureStyle: boardView === "table" && figureStyles.length > 0 ? figureStyle : undefined,
     onCycleFigureStyle:
       boardView === "table" && figureStyles.length > 0

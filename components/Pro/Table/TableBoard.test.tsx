@@ -162,7 +162,7 @@ describe("TableBoard fighters", () => {
     }
   });
 
-  it("does not place a fighter whose space does not exist on the main board (e.g. a region space, unsupported in phase 1)", () => {
+  it("does not place a fighter whose space does not exist anywhere on the map", () => {
     renderBoard({ fighters: [fighter({ space: "nowhere" as never })] });
     expect(screen.queryByTitle(/The Mandalorian/)).toBeNull();
   });
@@ -255,20 +255,53 @@ describe("TableBoard LARGE (two-space) fighters", () => {
   });
 });
 
-describe("TableBoard regions (phase-2 deferred item)", () => {
-  it("refuses the tabletop view for a map with regions, pointing at the flat board", () => {
-    const REGION_MAP: ProMapDef = {
-      ...MAP,
-      regions: [{ id: "hut", label: "Baba Yaga's Hut" }],
-      spaces: [...MAP.spaces, { id: "hut-1", x: 0.5, y: 0.5, zones: [], adjacentTo: [], region: "hut" }],
-    };
+describe("TableBoard regions, hybrid 3D + 2D inset panel (unbrewed-p2p#922)", () => {
+  const REGION_MAP: ProMapDef = {
+    ...MAP,
+    regions: [{ id: "hut", label: "Baba Yaga's Hut" }],
+    spaces: [...MAP.spaces, { id: "hut-1", x: 0.5, y: 0.5, zones: [], adjacentTo: [], region: "hut" }],
+  };
+
+  it("never shows the old refusal card, for a region map or otherwise", () => {
     render(
       <ChakraProvider>
         <TableBoard map={REGION_MAP} fighters={[]} />
       </ChakraProvider>
     );
-    expect(screen.getByText(/isn.t ready for the tabletop view yet/i)).toBeTruthy();
-    expect(screen.getByText(/flat board/i)).toBeTruthy();
+    expect(screen.queryByText(/isn.t ready for the tabletop view/i)).toBeNull();
+  });
+
+  it("still renders the main board's own spaces (in 3D) for a map with a region", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <TableBoard map={REGION_MAP} fighters={[]} />
+      </ChakraProvider>
+    );
+    expect(container.querySelector('[data-space-id="s1"]')).toBeTruthy();
+    expect(container.querySelector('[data-space-id="s2"]')).toBeTruthy();
+  });
+
+  it("floats the region as its own labeled 2D inset panel, not as a main-board space", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <TableBoard map={REGION_MAP} fighters={[]} />
+      </ChakraProvider>
+    );
+    expect(screen.getByText("Baba Yaga's Hut")).toBeTruthy();
+    expect(container.querySelector('[data-region-panel="hut"]')).toBeTruthy();
+    // The region's own space renders inside the panel, and only once — the 3D
+    // board's own space/line layers (mainSpaces) never place it a second time.
+    expect(container.querySelectorAll('[data-space-id="hut-1"]')).toHaveLength(1);
+    expect(container.querySelector('[data-region-panel="hut"] [data-space-id="hut-1"]')).toBeTruthy();
+  });
+
+  it("renders a fighter placed inside the region only in the inset panel", () => {
+    render(
+      <ChakraProvider>
+        <TableBoard map={REGION_MAP} fighters={[fighter({ space: "hut-1" as never })]} />
+      </ChakraProvider>
+    );
+    expect(screen.getByTitle(/The Mandalorian/)).toBeTruthy();
   });
 
   it("renders normally for a map with no regions", () => {
