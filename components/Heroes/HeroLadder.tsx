@@ -17,20 +17,22 @@ import { GOLD, GOLD_DEEP, INK, INK_SOFT, RULE } from "@/components/Stats/tokens"
 import { profileHref } from "@/lib/account/publicProfile";
 import { useAccount } from "@/lib/account/useAccount";
 import {
-  collapsedMatchups,
+  collapsedMatchupsView,
   crownLine,
   formatRate,
   gamesOnHero,
   heroesHref,
   heroRankTrack,
   isMostPlayed,
-  MATCHUPS_SHOWN,
   matchupBars,
   MatchupBar,
+  MatchupRecordRow,
   pilotGapLine,
   pilotRows,
   PilotRow,
   shareOfAllGames,
+  unratedMatchups,
+  unratedSummaryLine,
   winRate,
 } from "@/lib/stats/heroPage";
 import { useCommunity, useHeroStats, useStatsPlayer } from "@/lib/stats/hooks";
@@ -340,9 +342,39 @@ const MatchupLine = ({ bar }: { bar: MatchupBar }) => (
   </Box>
 );
 
-const Matchups = ({ bars, name }: { bars: MatchupBar[]; name: string }) => {
+const MatchupRecordLine = ({ row }: { row: MatchupRecordRow }) => (
+  <Box
+    data-testid="matchup-row-unrated"
+    title={row.tip}
+    aria-label={`${row.name}: ${row.tip}`}
+    role="listitem"
+    display="flex"
+    gap="10px"
+    alignItems="center"
+    minH="40px"
+  >
+    <HeroToken heroId={row.opponentHeroId} heroName={row.name} size={36} decorative />
+    <Box w={NAME_W} flexShrink={0} fontSize="14px" fontWeight={500} whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
+      {row.name}
+    </Box>
+    <Box flexGrow={1} minW={0} />
+    <Box
+      w={RATE_W}
+      flexShrink={0}
+      textAlign="right"
+      fontSize="14px"
+      fontWeight={700}
+      color={INK_SOFT}
+      sx={{ fontVariantNumeric: "tabular-nums" }}
+    >
+      {row.record}
+    </Box>
+  </Box>
+);
+
+const Matchups = ({ bars, unrated, name }: { bars: MatchupBar[]; unrated: MatchupRecordRow[]; name: string }) => {
   const [expanded, setExpanded] = useState(false);
-  const { top, bottom } = collapsedMatchups(bars);
+  const { top, bottom, shownUnrated, summaryCount, total, hasMore } = collapsedMatchupsView(bars, unrated);
   return (
     <DashCard
       title="Matchups"
@@ -364,20 +396,39 @@ const Matchups = ({ bars, name }: { bars: MatchupBar[]; name: string }) => {
       </Box>
       <Box role="list" display="flex" flexDirection="column" gap="6px">
         {expanded ? (
-          bars.map((bar) => <MatchupLine key={bar.opponentHeroId} bar={bar} />)
+          <>
+            {bars.map((bar) => (
+              <MatchupLine key={bar.opponentHeroId} bar={bar} />
+            ))}
+            {unrated.map((row) => (
+              <MatchupRecordLine key={row.opponentHeroId} row={row} />
+            ))}
+          </>
         ) : (
           <>
             {top.map((bar) => (
               <MatchupLine key={bar.opponentHeroId} bar={bar} />
             ))}
-            {bottom.length > 0 && <Box data-testid="matchup-divider" role="separator" h="1px" my="2px" bg={RULE} />}
+            {/* Either the rated group's own both-ends split, or the boundary before the
+                unrated rows filling its leftover slots — the two never both apply. */}
+            {(bottom.length > 0 || (top.length > 0 && shownUnrated.length > 0)) && (
+              <Box data-testid="matchup-divider" role="separator" h="1px" my="2px" bg={RULE} />
+            )}
             {bottom.map((bar) => (
               <MatchupLine key={bar.opponentHeroId} bar={bar} />
+            ))}
+            {shownUnrated.map((row) => (
+              <MatchupRecordLine key={row.opponentHeroId} row={row} />
             ))}
           </>
         )}
       </Box>
-      {bars.length > MATCHUPS_SHOWN && (
+      {!expanded && summaryCount > 0 && (
+        <Box data-testid="matchup-unrated-summary" fontSize="13px" color={INK_SOFT}>
+          {unratedSummaryLine(summaryCount)}
+        </Box>
+      )}
+      {hasMore && (
         <Button
           alignSelf="flex-start"
           variant="ghost"
@@ -390,7 +441,7 @@ const Matchups = ({ bars, name }: { bars: MatchupBar[]; name: string }) => {
           onClick={() => setExpanded((open) => !open)}
           aria-expanded={expanded}
         >
-          {expanded ? "Show fewer" : `Show all ${bars.length}`}
+          {expanded ? "Show fewer" : `Show all ${total}`}
         </Button>
       )}
     </DashCard>
@@ -462,6 +513,7 @@ export const HeroLadder = ({ heroId, window }: { heroId: string; window: StatsWi
   const name = heroDisplayName(heroId, data?.heroName);
   const mostPlayed = month.status === "ready" && isMostPlayed(heroId, month.data?.heroes ?? null);
   const bars = data?.matchups ? matchupBars(data.matchups) : [];
+  const unratedRows = data?.matchups ? unratedMatchups(data.matchups) : [];
   const kinds = data?.byOpponentKind ?? null;
   const kindSum = kinds ? kinds.human + kinds.hardExpert + kinds.casual : 0;
   const pilots = data?.pilots ?? null;
@@ -517,7 +569,7 @@ export const HeroLadder = ({ heroId, window }: { heroId: string; window: StatsWi
       }
     >
       {myGames !== null && <YourRank heroId={heroId} name={name} games={myGames} />}
-      {(pilots || bars.length > 0) && (
+      {(pilots || bars.length > 0 || unratedRows.length > 0) && (
         <Box
           display="flex"
           flexDirection={{ base: "column", lg: "row" }}
@@ -525,13 +577,13 @@ export const HeroLadder = ({ heroId, window }: { heroId: string; window: StatsWi
           alignItems={{ base: "stretch", lg: "flex-start" }}
         >
           {data && pilots && (
-            <Box w={{ base: "100%", lg: bars.length > 0 ? "640px" : "100%" }} flexShrink={0} minW={0}>
+            <Box w={{ base: "100%", lg: bars.length > 0 || unratedRows.length > 0 ? "640px" : "100%" }} flexShrink={0} minW={0}>
               <TopPilots hero={{ ...data, pilots }} name={name} viewer={viewer} />
             </Box>
           )}
-          {bars.length > 0 && (
+          {(bars.length > 0 || unratedRows.length > 0) && (
             <Box flexGrow={1} minW={0}>
-              <Matchups key={`${heroId}:${window}`} bars={bars} name={name} />
+              <Matchups key={`${heroId}:${window}`} bars={bars} unrated={unratedRows} name={name} />
             </Box>
           )}
         </Box>
