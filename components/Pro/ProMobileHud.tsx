@@ -24,7 +24,9 @@ import {
   MenuButton,
   MenuDivider,
   MenuItem,
+  MenuItemOption,
   MenuList,
+  MenuOptionGroup,
   Portal,
   Text,
 } from "@chakra-ui/react";
@@ -55,8 +57,7 @@ import { RAIL_WIDTH_CSS, TAP_TARGET, chipSeatName } from "@/lib/pro/mobileLayout
 import { paceOption } from "@/lib/pro/pace";
 import { BOARD_VIEW_LABEL } from "@/lib/pro/boardView";
 import { MENU_FIT_MODIFIERS, MENU_MAX_H_VAR } from "@/lib/pro/menuFit";
-import { FIGURE_STYLE_LABEL } from "@/lib/pro/figures";
-import { GiChessKnight } from "react-icons/gi";
+import { FIGURE_STYLE_LABEL, type FigureStyle } from "@/lib/pro/figures";
 import type { PlayerId, ViewPlayer } from "@/lib/pro/protocol";
 import type { ProLayoutMode } from "@/lib/pro/useProLayout";
 import { MoveTimerBar, ProHudProps, SeatPlate, hudSeats } from "@/components/Pro/ProHud";
@@ -240,7 +241,8 @@ export const ProMobileMenu = ({
   onToggleBoardView,
   boardViewLockedHint,
   figureStyle,
-  onCycleFigureStyle,
+  figureStyles,
+  onChooseFigureStyle,
   turnReminderOn,
   onToggleTurnReminder,
   onReportBug,
@@ -264,7 +266,8 @@ export const ProMobileMenu = ({
   | "onToggleBoardView"
   | "boardViewLockedHint"
   | "figureStyle"
-  | "onCycleFigureStyle"
+  | "figureStyles"
+  | "onChooseFigureStyle"
   | "turnReminderOn"
   | "onToggleTurnReminder"
   | "onReportBug"
@@ -389,13 +392,26 @@ export const ProMobileMenu = ({
               )}
             </MenuItem>
           )}
-          {onCycleFigureStyle && figureStyle && (
-            // Right under the board item it belongs to: which miniatures the
-            // tabletop's heroes stand as (#903). Only offered when it changes
-            // something on this board.
-            <MenuItem {...item} icon={<GiChessKnight />} onClick={onCycleFigureStyle}>
-              Heroes — {FIGURE_STYLE_LABEL[figureStyle]}
-            </MenuItem>
+          {onChooseFigureStyle && figureStyle && figureStyles && figureStyles.length > 0 && (
+            // Right under the board item it belongs to: how the tabletop's
+            // heroes stand (#903, #953) — a titled radio group, not a menu
+            // nested in this menu (a focus-management trap, see below). Only
+            // the styles that change something on this board.
+            <MenuOptionGroup
+              type="radio"
+              title="Heroes"
+              value={figureStyle}
+              onChange={(v) => onChooseFigureStyle(v as FigureStyle)}
+              fontSize="0.7rem"
+              color="brand.highlight"
+              mx="0.8rem"
+            >
+              {figureStyles.map((s) => (
+                <MenuItemOption key={s} {...item} value={s} closeOnSelect={false}>
+                  {FIGURE_STYLE_LABEL[s]}
+                </MenuItemOption>
+              ))}
+            </MenuOptionGroup>
           )}
           {onForfeit && (
             <>

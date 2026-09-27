@@ -58,6 +58,7 @@ const mini: Mini3d = {
   url: model.url,
   baseDiameter: 1,
   tint: "#b8893a",
+  variant: "unpainted",
   credit: { modelName: "m", creator: "c", license: "CC0-1.0", sourceUrl: "https://x" } as Mini3d["credit"],
 };
 const rig: TableRig = { frameW: 800, frameH: 560, tiltDeg: 40, yawDeg: 2.5, perspectiveRatio: 1.1 };

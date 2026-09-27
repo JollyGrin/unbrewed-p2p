@@ -60,7 +60,7 @@ module.exports = async () => {
           };
       }
   });
-  await startGame(page, "minis3d=1");
+  await startGame(page, "minis3dProbe=1");
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
   await page.waitForTimeout(2500);

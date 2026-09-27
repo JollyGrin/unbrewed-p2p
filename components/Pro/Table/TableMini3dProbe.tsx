@@ -2,7 +2,7 @@
  * 3D minis — DEV-ONLY measuring aid for scripts/visual-probe/tableMini3d/
  * (#931, kept by #945). TableBoard loads it only outside production builds
  * (`next/dynamic` behind a NODE_ENV check), so it never reaches the app
- * bundle, and mounts it only under `?minis3d=1`. Stands extra King Taranis pieces (or any mini id) on
+ * bundle, and mounts it only under `?minis3dProbe=1`. Stands extra King Taranis pieces (or any mini id) on
  * chosen spaces, as the 3D mini or as the sprite, so the probe script can
  * compare them on the same space and load the board with 2/4/8 minis:
  *

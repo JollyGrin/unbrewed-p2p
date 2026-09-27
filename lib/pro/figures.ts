@@ -29,8 +29,8 @@
  * one plain path, and it passes the same gate PLUS attribution: an open entry
  * without `modelName`, `creator` and an https `sourceUrl` is dropped, because
  * CC-BY obliges us to show that credit (FigureCredits). The viewer picks which
- * set the tabletop draws — or plain tokens — with the figure-style toggle
- * (`figureStyleOptions`).
+ * set the tabletop draws — or a 3D mini (lib/pro/minis3d), or plain tokens —
+ * with the figure-style dropdown (`figureStyleOptions`).
  *
  * WHY PER-SEAT RENDERS. A miniature is tinted in its seat's color (gold, blue,
  * green, magenta), so ownership reads from the whole figure, not only from the
@@ -39,6 +39,9 @@
  */
 
 import { clampTilt } from "./tableProjection";
+// Functions only, called at run time — the import cycle with minis3d/manifest
+// (which reads `isCleared`/`creditOf` from here) is safe.
+import { mini3dFor, type Mini3d, type Mini3dManifest, type Mini3dVariant } from "./minis3d/manifest";
 
 /** "private": the owner's local, never-shipped renders. "open": the
  *  committed open-licence set. */
@@ -246,20 +249,41 @@ export const figureFor = (
 };
 
 /**
- * How the tabletop shows heroes (unbrewed-p2p-903): one of the two figure
- * sets, or every hero as its flat token. A per-viewer display preference.
- * A style draws ONLY its own set — a hero without a figure in it lies as its
- * token — so the choice never shows one set's model under the other's name.
+ * How the tabletop shows heroes (unbrewed-p2p-903, #953): a 3D mini (plain,
+ * or its painted variant), one of the two sprite sets, or every hero as its
+ * flat token. A per-viewer display preference, picked from one dropdown.
+ *
+ * A SPRITE style draws ONLY its own set — a hero without a figure in it lies
+ * as its token — so the choice never shows one set's model under the other's
+ * name. A 3D style falls back PER FIGHTER instead: 3D mini → sprite mini (the
+ * owner's private render, else the open one) → token, so a board with one 3D
+ * hero and one sprite-only hero shows each at its best under "3D minis". The
+ * painted style likewise falls back to the plain 3D mini first.
  */
-export type FigureStyle = FigureSet | "token";
+export type FigureStyle = FigureSet | "3d" | "3d-painted" | "token";
 
-/** Preference order when the viewer has not chosen, or chose a style this
- *  board cannot show: the owner's own renders first where they are loaded. */
-const FIGURE_STYLE_ORDER: FigureStyle[] = ["private", "open", "token"];
+/** Every style, in the order a stored choice the board cannot show falls
+ *  down (painted → plain 3D → the owner's own renders → open → tokens). The
+ *  default for a viewer who never chose is the board's FIRST option instead
+ *  (`figureStyleOptions` lists plain 3D first): painted is an explicit pick
+ *  (a future unlock), never the default. */
+const FIGURE_STYLE_ORDER: FigureStyle[] = ["3d-painted", "3d", "private", "open", "token"];
+const SPRITE_SETS: FigureSet[] = ["private", "open"];
 
 export const isFigureStyle = (v: unknown): v is FigureStyle => FIGURE_STYLE_ORDER.includes(v as FigureStyle);
 
 export type FigureManifests = Record<FigureSet, FigureManifest | null>;
+
+/**
+ * Where 3D minis can come from on this device: the minis3d manifest and the
+ * dev switch's detail level. `null` when 3D cannot be shown at all — WebGL is
+ * unavailable, the shared renderer failed, or the tabletop is not open — so
+ * no 3D option is offered and a stored 3D choice falls back per fighter.
+ */
+export interface Minis3dSource {
+  manifest: Mini3dManifest | null;
+  lod?: string | null;
+}
 
 /** The seats' heroes on this board. */
 export interface HeroSeat {
@@ -267,27 +291,87 @@ export interface HeroSeat {
   seat: string;
 }
 
+const variantOf = (style: FigureStyle): Mini3dVariant | null =>
+  style === "3d" ? "unpainted" : style === "3d-painted" ? "painted" : null;
+
+/** The sprite a style draws for a hero (the 3D styles' sprite fallback
+ *  included), or null for its token. */
 export const figureForStyle = (
   manifests: FigureManifests,
   style: FigureStyle,
   heroId: string | undefined,
   seat: string
-): Figure | null => (style === "token" ? null : figureFor(manifests[style], heroId, seat, style));
+): Figure | null => {
+  if (style === "token") return null;
+  if (style === "private" || style === "open") return figureFor(manifests[style], heroId, seat, style);
+  return figureFor(manifests.private, heroId, seat, "private") ?? figureFor(manifests.open, heroId, seat, "open");
+};
+
+/** The 3D mini a style draws for a hero, or null (sprite/token styles, no
+ *  model, no WebGL). The painted style falls back to the plain mini. */
+export const mini3dForStyle = (
+  minis3d: Minis3dSource | null,
+  style: FigureStyle,
+  heroId: string | undefined,
+  seat: string
+): Mini3d | null => {
+  const variant = variantOf(style);
+  if (!variant || !minis3d) return null;
+  const { manifest, lod } = minis3d;
+  return (
+    (variant === "painted" ? mini3dFor(manifest, heroId, seat, lod, "painted") : null) ??
+    mini3dFor(manifest, heroId, seat, lod, "unpainted")
+  );
+};
+
+/** What one hero stands as under a style: its 3D mini when it has one (the
+ *  sprite still rides along, drawn whenever the renderer is not ready), else
+ *  its sprite, else neither — its token. */
+export interface HeroPiece {
+  mini3d: Mini3d | null;
+  figure: Figure | null;
+}
+
+export const pieceForStyle = (
+  manifests: FigureManifests,
+  minis3d: Minis3dSource | null,
+  style: FigureStyle,
+  heroId: string | undefined,
+  seat: string
+): HeroPiece => ({
+  mini3d: mini3dForStyle(minis3d, style, heroId, seat),
+  figure: figureForStyle(manifests, style, heroId, seat),
+});
+
+/** The credit for what a hero actually stands as: the 3D mini's, else the sprite's. */
+export const pieceCredit = (piece: HeroPiece): FigureCredit | null =>
+  piece.mini3d?.credit ?? piece.figure?.credit ?? null;
 
 /**
  * The styles worth offering on THIS board: each one must draw something
- * different from every style before it. A set with no figure for any hero
- * here looks exactly like tokens, so it is not offered; when nothing but
- * tokens is possible the answer is empty and no toggle is shown at all.
+ * different from every style before it. "3D minis" only when a hero here has
+ * a 3D model (and `minis3d` says 3D can be shown at all); "Painted" only when
+ * one has a painted variant. A sprite set with no figure for any hero here
+ * looks exactly like tokens, so it is not offered; when nothing but tokens is
+ * possible the answer is empty and no control is shown at all.
  */
-export const figureStyleOptions = (manifests: FigureManifests, heroes: HeroSeat[]): FigureStyle[] => {
+export const figureStyleOptions = (
+  manifests: FigureManifests,
+  heroes: HeroSeat[],
+  minis3d: Minis3dSource | null = null
+): FigureStyle[] => {
+  const options: FigureStyle[] = [];
+  if (minis3d) {
+    const has = (variant: Mini3dVariant) =>
+      heroes.some((h) => mini3dFor(minis3d.manifest, h.heroId, h.seat, minis3d.lod, variant));
+    if (has("unpainted")) options.push("3d");
+    if (has("painted")) options.push("3d-painted");
+  }
   const outcomeOf = (style: FigureStyle) =>
     heroes.map((h) => figureForStyle(manifests, style, h.heroId, h.seat)?.url ?? "").join("|");
   // Tokens are the baseline every set is measured against, offered last.
   const seen = new Set<string>([outcomeOf("token")]);
-  const options: FigureStyle[] = [];
-  for (const style of FIGURE_STYLE_ORDER) {
-    if (style === "token") continue;
+  for (const style of SPRITE_SETS) {
     const outcome = outcomeOf(style);
     if (seen.has(outcome)) continue;
     seen.add(outcome);
@@ -296,19 +380,24 @@ export const figureStyleOptions = (manifests: FigureManifests, heroes: HeroSeat[
   return options.length > 0 ? [...options, "token"] : [];
 };
 
-/** The style actually drawn: the viewer's choice when this board offers it,
- *  else the first option (else tokens). */
-export const effectiveFigureStyle = (preferred: FigureStyle | null, options: FigureStyle[]): FigureStyle =>
-  preferred && options.includes(preferred) ? preferred : options[0] ?? "token";
-
-/** The next style a tap on the toggle switches to. */
-export const nextFigureStyle = (current: FigureStyle, options: FigureStyle[]): FigureStyle => {
-  const i = options.indexOf(current);
-  return options[(i + 1) % options.length] ?? current;
+/**
+ * The style actually drawn: the viewer's choice when this board offers it.
+ * Otherwise the next offered style down the preference order (painted → plain
+ * 3D → sprites), so a stored 3D choice on a board without WebGL lands on
+ * sprites — never on tokens the viewer did not pick; failing that the board's
+ * first option (else tokens). No choice yet = the board's best option.
+ */
+export const effectiveFigureStyle = (preferred: FigureStyle | null, options: FigureStyle[]): FigureStyle => {
+  if (preferred && options.includes(preferred)) return preferred;
+  const after = preferred ? FIGURE_STYLE_ORDER.slice(FIGURE_STYLE_ORDER.indexOf(preferred) + 1) : [];
+  return after.find((s) => s !== "token" && options.includes(s)) ?? options[0] ?? "token";
 };
 
+/** Short plain labels for the dropdown. */
 export const FIGURE_STYLE_LABEL: Record<FigureStyle, string> = {
-  open: "Open-licence minis",
+  "3d": "3D minis",
+  "3d-painted": "Painted 3D minis",
+  open: "Minis",
   private: "Private minis",
   token: "Tokens",
 };

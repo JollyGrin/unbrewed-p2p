@@ -29,7 +29,7 @@ const read = (page) =>
 
 module.exports = async () => {
   const { browser, page } = await launch((process.env.PROBE_ARGS || "").split(" ").filter(Boolean));
-  await startGame(page, "minis3d=1");
+  await startGame(page, "minis3dProbe=1");
   await page.waitForTimeout(2000);
   const out = { before: await read(page) };
   const b = out.before.box;

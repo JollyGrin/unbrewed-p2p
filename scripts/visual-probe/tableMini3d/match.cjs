@@ -77,7 +77,7 @@ const ANALYZE = async ([a, b, c, scale]) => {
 
 module.exports = async () => {
   const { browser, page } = await launch((process.env.PROBE_ARGS || "").split(" ").filter(Boolean));
-  await startGame(page, "minis3d=1");
+  await startGame(page, "minis3dProbe=1");
   await page.addStyleTag({ content: "*,*::before,*::after{animation:none!important;transition:none!important} [data-badge-owner^='probe'] [data-standee-badges]{display:none!important} [data-badge-owner^='probe'] *{filter:none!important;box-shadow:none!important}" });
   const spaces = await referenceSpaces(page);
   const scale = 3; // iPhone 14 deviceScaleFactor

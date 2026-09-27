@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { mini3dFor, parseMini3dManifest, readMinis3dSwitch } from "./manifest";
+import { mini3dFor, parseMini3dManifest, readMinis3dDevParams } from "./manifest";
 
 const entry = (over: Record<string, unknown> = {}) => ({
   files: { "30k": "kt.30k.meshopt.glb", "15k": "kt.15k.meshopt.glb" },
@@ -87,11 +87,51 @@ describe("the 3D minis manifest", () => {
     expect(parse(entry({ defaultLod: "constructor" }))?.minis.kt?.defaultLod).toBe("30k");
   });
 
-  test("the dev switch is off unless ?minis3d=1", () => {
-    expect(readMinis3dSwitch("")).toEqual({ on: false, lod: null, maxPixelRatio: null });
-    expect(readMinis3dSwitch("?minis3d=true").on).toBe(false);
-    expect(readMinis3dSwitch("?minis3d=1&minis3dLod=15k&minis3dDpr=3")).toEqual({ on: true, lod: "15k", maxPixelRatio: 3 });
-    expect(readMinis3dSwitch("?minis3d=1&minis3dDpr=99").maxPixelRatio).toBeNull();
+  test("dev params: 3D is no longer switched on from the URL, only tooling extras are read", () => {
+    expect(readMinis3dDevParams("")).toEqual({ probe: false, lod: null, maxPixelRatio: null });
+    expect(readMinis3dDevParams("?minis3d=1")).toEqual({ probe: false, lod: null, maxPixelRatio: null });
+    expect(readMinis3dDevParams("?minis3dProbe=1&minis3dLod=15k&minis3dDpr=3")).toEqual({ probe: true, lod: "15k", maxPixelRatio: 3 });
+    expect(readMinis3dDevParams("?minis3dDpr=99").maxPixelRatio).toBeNull();
+  });
+
+  describe("the painted variant (`paint`)", () => {
+    const paint = (over: Record<string, unknown> = {}) =>
+      entry({ paint: { ...entry({ files: { play: "kt.painted.glb" }, defaultLod: "play" }), ...over } });
+
+    test("an entry without `paint` is unpainted only: asking for painted is null, never a silent swap", () => {
+      const m = parse(entry());
+      expect(m?.minis.kt?.paint).toBeUndefined();
+      expect(mini3dFor(m, "kt", "p1")).toMatchObject({ variant: "unpainted" });
+      expect(mini3dFor(m, "kt", "p1", null, "painted")).toBeNull();
+    });
+
+    test("a cleared paint entry resolves to its own file and credit; the mesh's base is shared", () => {
+      const m = parse({ ...paint({ creator: "A Painter" }), baseDiameter: 0.9 });
+      expect(mini3dFor(m, "kt", "p2", null, "painted")).toMatchObject({
+        id: "kt+painted@play",
+        url: "/minis3d/kt.painted.glb",
+        variant: "painted",
+        baseDiameter: 0.9,
+        credit: { creator: "A Painter" },
+      });
+      // The unpainted mini is untouched by it.
+      expect(mini3dFor(m, "kt", "p2")).toMatchObject({ id: "kt@30k", variant: "unpainted", credit: { creator: "JollyGrin" } });
+    });
+
+    test.each([
+      ["not an object", "kt.painted.glb"],
+      ["uncleared (official hero)", { officialHero: true }],
+      ["not redistributable", { redistributable: false }],
+      ["without its credit", { sourceUrl: "http://insecure" }],
+      ["a licence the app cannot link", { license: "LicenseRef-Custom" }],
+      ["no usable file", { files: { play: "../x.glb" } }],
+    ])("drops a paint entry that is %s — fail closed, the mini stays", (_, over) => {
+      const e = typeof over === "string" ? entry({ paint: over }) : paint(over);
+      const m = parse(e);
+      expect(m?.minis.kt).toBeDefined();
+      expect(m?.minis.kt?.paint).toBeUndefined();
+      expect(mini3dFor(m, "kt", "p1", null, "painted")).toBeNull();
+    });
   });
 
   test("every committed entry passes the gate, ships ONE play-tier file, and that file is committed beside it", () => {

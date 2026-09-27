@@ -9,6 +9,7 @@ import { animate, motion, useDragControls, useMotionValue } from "framer-motion"
 import { keyframes } from "@emotion/react";
 import {
   Box,
+  chakra,
   Flex,
   Modal,
   ModalBody,
@@ -26,6 +27,7 @@ import {
   Tag,
   Text,
   Tooltip,
+  VisuallyHidden,
 } from "@chakra-ui/react";
 import { toast } from "react-hot-toast";
 import { LinkIcon } from "@chakra-ui/icons";
@@ -1579,12 +1581,14 @@ export interface ProHudProps {
    *  portrait phone, #870, and a map with a region, #914, always draw the
    *  flat board): the toggle renders disabled with this hint instead. */
   boardViewLockedHint?: string;
-  /** Tabletop figure style (#903) — which miniature set the heroes stand as,
-   *  or tokens — plus a one-tap cycle through the styles that change
-   *  something on this board. Set only in the tabletop view and only when
-   *  there is a choice; the chip is hidden otherwise. */
+  /** Tabletop figure style (#903, #953) — 3D minis, a sprite set, or tokens —
+   *  shown as ONE dropdown of `figureStyles`, the styles that change
+   *  something on this board (lib/pro/figures `figureStyleOptions`). Set only
+   *  in the tabletop view and only when there is a choice; the control is
+   *  hidden otherwise. */
   figureStyle?: FigureStyle;
-  onCycleFigureStyle?: () => void;
+  figureStyles?: FigureStyle[];
+  onChooseFigureStyle?: (style: FigureStyle) => void;
   /** The credit for the miniature a seat's hero is shown as on the table, or
    *  null when it lies as its token (#903). Rendered with the hero's rules. */
   figureCreditFor?: (seatId: PlayerId) => FigureCredit | null;
@@ -1628,7 +1632,8 @@ export const ProHud = ({
   onToggleBoardView,
   boardViewLockedHint,
   figureStyle,
-  onCycleFigureStyle,
+  figureStyles,
+  onChooseFigureStyle,
   figureCreditFor,
   turnReminderOn,
   onToggleTurnReminder,
@@ -1934,26 +1939,41 @@ export const ProHud = ({
             </Flex>
           </Tooltip>
         )}
-        {onCycleFigureStyle && figureStyle && (
-          // Beside the board chip it belongs to, with the same cycling gesture.
-          <Tooltip label={`Heroes as: ${FIGURE_STYLE_LABEL[figureStyle]} — click to switch`} hasArrow>
-            <Flex
-              {...chipStyles}
-              as="button"
-              type="button"
+        {onChooseFigureStyle && figureStyle && figureStyles && figureStyles.length > 0 && (
+          // Beside the board chip it belongs to: one labelled native select
+          // (#953), so the keyboard and screen readers get the platform's own
+          // listbox. Only the styles that change something on this board.
+          <Flex
+            {...chipStyles}
+            as="label"
+            color="brand.highlight"
+            _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+            _focusWithin={{ boxShadow: "0 0 0 2px var(--chakra-colors-brand-highlight)" }}
+            opacity={figureStyle === "token" ? 0.7 : 1}
+            title="How the heroes stand on the table"
+          >
+            <GiChessKnight size="0.85rem" aria-hidden />
+            <VisuallyHidden>Heroes as</VisuallyHidden>
+            <chakra.select
+              data-testid="figure-style-select"
+              value={figureStyle}
+              onChange={(e) => onChooseFigureStyle(e.target.value as FigureStyle)}
+              bg="transparent"
+              color="inherit"
+              border="none"
+              outline="none"
               cursor="pointer"
-              _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
-              color="brand.highlight"
-              opacity={figureStyle === "token" ? 0.55 : 1}
-              onClick={onCycleFigureStyle}
-              aria-label={`Heroes as: ${FIGURE_STYLE_LABEL[figureStyle]}. Click to switch.`}
+              fontSize="0.65rem"
+              fontFamily="SpaceGrotesk"
+              sx={{ option: { bg: "brand.surfaceDim", color: "brand.parchment" } }}
             >
-              <GiChessKnight size="0.85rem" />
-              <Text fontSize="0.65rem" fontFamily="SpaceGrotesk" whiteSpace="nowrap">
-                {FIGURE_STYLE_LABEL[figureStyle]}
-              </Text>
-            </Flex>
-          </Tooltip>
+              {figureStyles.map((s) => (
+                <option key={s} value={s}>
+                  {FIGURE_STYLE_LABEL[s]}
+                </option>
+              ))}
+            </chakra.select>
+          </Flex>
         )}
         <BetaFeaturesChip />
         {roomId && (

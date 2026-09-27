@@ -5,7 +5,7 @@
  * Given a 3D mini (`mini3d`, #945) it stands as that model instead, drawn by
  * the same renderer as a hero's (TableMini3D), sized to its own base. None
  * are wired yet: sidekicks keep their tokens until a manifest entry and a
- * `fighterMiniId` answer name one.
+ * `fighterMini3d` answer name one.
  */
 import type { FighterId, ViewFighter } from "@/lib/pro/protocol";
 import { flatTokenTopPx, placeStandee, standeeBaseDiameterPx } from "@/lib/pro/tableProjection";

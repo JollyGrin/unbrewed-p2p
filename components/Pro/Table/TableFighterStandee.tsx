@@ -120,9 +120,10 @@ export interface TableFighterStandeeProps {
    *  it slides clear of the token (see TableStandeeAnchor's `badges`). */
   frameW?: number;
   frameH?: number;
-  /** A real 3D model to stand here instead of `figure`'s sprite (#945,
-   *  `?minis3d=1`), drawn for the CSS camera `rig`. Falls back to the sprite
-   *  (or token) while it loads and whenever WebGL is unavailable or lost. */
+  /** A real 3D model to stand here instead of `figure`'s sprite (#945; the
+   *  "3D minis" figure style, #953), drawn for the CSS camera `rig`. Falls
+   *  back to the sprite (or token) while it loads and whenever WebGL is
+   *  unavailable or lost. */
   mini3d?: Mini3d | null;
   rig?: TableRig | null;
   /** Canvas pixel-ratio cap for the 3D mini (dev switch `?minis3dDpr=`). */

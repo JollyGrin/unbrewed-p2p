@@ -1,47 +1,12 @@
 /**
- * 3D minis — the React glue: the dev switch, the manifest, the shared
- * renderer's status and one model's load state.
+ * 3D minis — the React glue on the TABLE side: the shared renderer's status
+ * and one model's load state. (What the game page needs before the tabletop
+ * chunk — the manifest, the WebGL probe, the dev params — is in
+ * useMinis3dSource.ts, which stays clear of the renderer.)
  */
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { MINIS3D_MANIFEST_URL, parseMini3dManifest, readMinis3dSwitch, type Mini3dManifest, type Minis3dSwitch } from "./manifest";
 import { ensureMinis3d, getMinis3dStatus, subscribeMinis3d, type Minis3dStatus } from "./renderer";
 import { loadMiniModel, type MiniModel } from "./model";
-
-let cached: Promise<Mini3dManifest | null> | null = null;
-
-const loadManifest = () =>
-  (cached ??= Promise.resolve()
-    .then(() => fetch(MINIS3D_MANIFEST_URL))
-    .then((res) => (res.ok ? res.json() : null))
-    .then(parseMini3dManifest)
-    .catch(() => null));
-
-const OFF: Minis3dSwitch = { on: false, lod: null, maxPixelRatio: null };
-
-/** The URL switch, read after mount (SSR has no location). */
-export const useMinis3dSwitch = (): Minis3dSwitch => {
-  const [sw, setSw] = useState<Minis3dSwitch>(OFF);
-  useEffect(() => {
-    const next = readMinis3dSwitch(window.location.search);
-    if (next.on) setSw(next);
-  }, []);
-  return sw;
-};
-
-/** The manifest, fetched once and only while the switch is on. Any failure
- *  = no 3D minis. */
-export const useMinis3dManifest = (enabled: boolean): Mini3dManifest | null => {
-  const [manifest, setManifest] = useState<Mini3dManifest | null>(null);
-  useEffect(() => {
-    if (!enabled) return;
-    let alive = true;
-    loadManifest().then((m) => alive && setManifest(m));
-    return () => {
-      alive = false;
-    };
-  }, [enabled]);
-  return manifest;
-};
 
 /** The shared renderer's status; starts it the first time `enabled`. */
 export const useMinis3dStatus = (enabled: boolean): Minis3dStatus => {
