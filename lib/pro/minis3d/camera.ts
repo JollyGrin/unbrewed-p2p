@@ -41,6 +41,9 @@ export interface TableRig {
   yawDeg: number;
   /** `perspective` ÷ frameW (tableProjection PERSPECTIVE_RATIO). */
   perspectiveRatio: number;
+  /** The pan/zoom frame's live scale (useZoomPan `scale`; 1 = none). Never
+   *  changes the camera — only how many pixels the canvas needs on screen. */
+  screenScale?: number;
 }
 
 export interface MiniCameraInput {
@@ -58,6 +61,9 @@ export interface MiniCamera {
   rect: { left: number; top: number; width: number; height: number };
   /** How far the canvas plane stands in front of the feet, px (CSS z). */
   liftPx: number;
+  /** On-screen size of one canvas-plane px before the pan/zoom frame: the
+   *  CSS perspective's enlargement at the plane's depth, P / (P − z). */
+  planeScale: number;
   /** In three.js coordinates (x right, y UP, z toward the viewer = CSS with y
    *  flipped): the eye, and the off-axis frustum at `near` through the rect. */
   eye: Vec3;
@@ -190,6 +196,7 @@ export const miniCamera = ({ rig, pose, baseDiamPx, bounds }: MiniCameraInput): 
     screenLeanDeg,
     rect: { left: e.x0 - feet[0], top: e.y0 - feet[1], width: e.x1 - e.x0, height: e.y1 - e.y0 },
     liftPx: lift,
+    planeScale: P / dist,
     eye: flipY(eyeCss),
     frustum,
     model,
@@ -224,14 +231,20 @@ export const miniPlateBox = (cam: Pick<MiniCamera, "rect">, groundScale: number)
 };
 
 /**
- * The canvas's backing-store pixels per board px: the screen density —
- * `min(devicePixelRatio, cap)`, cap 2 by default — times however much the
- * fit/zoom transform scales the board on screen. So the cap is on what the
+ * The canvas's backing-store pixels per canvas-plane px: the screen density —
+ * `min(devicePixelRatio, cap)`, cap 2 by default — times `zoom`, the plane's
+ * on-screen scale (pan/zoom frame × perspective). So the cap is on what the
  * screen shows: a DPR-3 phone draws 2 px per CSS px however the board is
- * fitted (2.25× fewer pixels to render and copy than 3; see the #945 crops).
+ * fitted or zoomed (2.25× fewer pixels than 3; see the #945 crops).
+ *
+ * `zoom` is rounded UP to quarter-octave steps (2^(k/4), ≤ 19% apart): a
+ * pinch or the pick auto-focus tween redraws a mini a handful of times on the
+ * way in, never on every frame, and never leaves it under-sampled.
  */
 export const MINIS3D_MAX_PIXEL_RATIO = 2;
+export const densityBucket = (zoom: number): number =>
+  zoom > 0 && Number.isFinite(zoom) ? 2 ** (Math.ceil(Math.log2(zoom) * 4 - 1e-9) / 4) : 1;
 export const miniPixelRatio = (devicePixelRatio: number, zoom: number, cap = MINIS3D_MAX_PIXEL_RATIO): number => {
   const density = Math.min(cap, devicePixelRatio > 0 ? devicePixelRatio : 1);
-  return Math.max(0.25, density * (zoom > 0 && Number.isFinite(zoom) ? zoom : 1));
+  return Math.max(0.25, density * densityBucket(zoom));
 };

@@ -232,6 +232,49 @@ describe("drawing", () => {
   });
 });
 
+describe("board zoom (review item 1)", () => {
+  const view = (screenScale: number) => (
+    <ChakraProvider>
+      <TableFighterStandee
+        fighter={taranis}
+        x={0.3}
+        y={0.7}
+        tiltDeg={40}
+        diamPx={40}
+        playerColor="#E0A82E"
+        selected={false}
+        targetable={false}
+        friendly={false}
+        extendedReach={false}
+        figure={figure}
+        mini3d={mini}
+        rig={{ ...rig, screenScale }}
+      />
+    </ChakraProvider>
+  );
+  const canvas = (c: HTMLElement) => c.querySelector("[data-mini3d-canvas]") as HTMLCanvasElement;
+
+  test("zooming the board in redraws the canvas at the new screen density", async () => {
+    const { container, rerender } = render(view(1));
+    await flush();
+    expect(renderMini).toHaveBeenCalledTimes(1);
+    const w1 = canvas(container).width;
+    // The pick auto-focus zooms the frame ~4× (#831).
+    rerender(view(4));
+    await flush();
+    expect(renderMini).toHaveBeenCalledTimes(2);
+    expect(canvas(container).width / w1).toBeGreaterThan(3.3);
+  });
+
+  test("a zoom step inside one density bucket does not redraw", async () => {
+    const { rerender } = render(view(1.1));
+    await flush();
+    rerender(view(1.12));
+    await flush();
+    expect(renderMini).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("body taps (#873)", () => {
   test("a targetable body takes the tap through its hit ellipse", async () => {
     const onClick = jest.fn();

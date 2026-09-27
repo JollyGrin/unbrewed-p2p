@@ -604,7 +604,7 @@ export const TableBoard = ({
       regionOverlay={regionOverlay}
       regionFrameRef={frameRef}
     >
-      {({ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio }) => (
+      {({ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio, screenScale }) => (
         <>
           <TableBoardLines
             spaces={mainSpaces}
@@ -745,7 +745,7 @@ export const TableBoard = ({
                   frameH={frameH}
                   // A straddling LARGE figure keeps its sprite (for now).
                   mini3d={straddling ? null : mini3dOf(f)}
-                  rig={{ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio }}
+                  rig={{ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio, screenScale }}
                   mini3dMaxPixelRatio={minis3d.maxPixelRatio}
                   innerRef={registerFighterEl(f.id)}
                   {...common}
@@ -778,7 +778,7 @@ export const TableBoard = ({
                 frameH={frameH}
                 // Tokens unless `fighterMiniId` names a mini for this sidekick.
                 mini3d={mini3dOf(f)}
-                rig={{ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio }}
+                rig={{ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio, screenScale }}
               />
             );
           })}
@@ -788,7 +788,7 @@ export const TableBoard = ({
               <TableMini3dProbe
                 spaceById={spaceById}
                 spaceDiamPx={(diameterPct / 100) * Math.max(frameW, 1)}
-                rig={{ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio }}
+                rig={{ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio, screenScale }}
                 manifest={minis3dManifest}
                 lod={minis3d.lod}
                 maxPixelRatio={minis3d.maxPixelRatio}

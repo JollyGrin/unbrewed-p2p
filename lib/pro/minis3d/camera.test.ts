@@ -1,4 +1,4 @@
-import { miniCamera, miniPixelRatio, miniPlaneTransform, miniPlateBox, type TableRig } from "./camera";
+import { densityBucket, miniCamera, miniPixelRatio, miniPlaneTransform, miniPlateBox, type TableRig } from "./camera";
 import { standingPose, type MiniPose } from "./pose";
 
 const rig = (over: Partial<TableRig> = {}): TableRig => ({
@@ -106,14 +106,37 @@ describe("miniPlateBox — the badge plate from the model's projected bounds", (
   });
 });
 
-test("miniPixelRatio caps the SCREEN density at 2, then follows the board's zoom", () => {
+test("miniPixelRatio caps the SCREEN density at 2, times the plane's on-screen zoom", () => {
   expect(miniPixelRatio(3, 1)).toBe(2);
   expect(miniPixelRatio(1, 1)).toBe(1);
-  // A fitted-down board (the phone: ~0.72) keeps 2 px per CSS px on screen.
-  expect(miniPixelRatio(3, 0.72)).toBeCloseTo(1.44, 6);
-  expect(miniPixelRatio(2, 1.5)).toBe(3);
+  // A fitted-down board (the phone: ~0.72) → bucket 2^-0.25 ≈ 0.84.
+  expect(miniPixelRatio(3, 0.72)).toBeCloseTo(2 * 2 ** -0.25, 6);
+  // Zoomed 4× toward a pick: 8 backing px per plane px, i.e. still 2 per CSS px.
+  expect(miniPixelRatio(3, 4)).toBe(8);
   expect(miniPixelRatio(3, 1, 3)).toBe(3);
   expect(miniPixelRatio(0, NaN)).toBe(1);
+});
+
+test("densityBucket rounds the zoom UP to quarter-octave steps", () => {
+  expect(densityBucket(1)).toBe(1);
+  expect(densityBucket(2)).toBeCloseTo(2, 9);
+  expect(densityBucket(1.01)).toBeCloseTo(2 ** 0.25, 9);
+  expect(densityBucket(1.15)).toBeCloseTo(2 ** 0.25, 9);
+  expect(densityBucket(3.9)).toBeCloseTo(4, 9);
+  for (const z of [0.3, 0.72, 1.3, 2.7, 4.22]) {
+    expect(densityBucket(z)).toBeGreaterThanOrEqual(z - 1e-9);
+    expect(densityBucket(z)).toBeLessThan(z * 2 ** 0.25 + 1e-9);
+  }
+  expect(densityBucket(0)).toBe(1);
+});
+
+test("planeScale is the CSS perspective's enlargement at the canvas plane", () => {
+  const c = cam(0.5, 0.9);
+  const P = 800 * 1.1;
+  expect(c.planeScale).toBeGreaterThan(1);
+  // Nearer the eye (the near row stands higher in z) → bigger on screen.
+  expect(c.planeScale).toBeGreaterThan(cam(0.5, 0.1).planeScale);
+  expect(c.planeScale).toBeLessThan(P / (P - 400));
 });
 
 test("miniPlaneTransform undoes the depth scale and the stage rotation, then lifts", () => {

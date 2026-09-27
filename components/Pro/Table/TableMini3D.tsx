@@ -105,7 +105,8 @@ const pct = (v: string): number | null => {
   return m ? Number(m[1]) / 100 : null;
 };
 
-/** What a draw depends on, rounded: equal keys draw the same pixels. */
+/** What a draw depends on, rounded: equal keys draw the same pixels (the
+ *  backing size `w × h` carries the density bucket). */
 const camKey = (cam: MiniCamera, w: number, h: number, tint: string, url: string) =>
   [cam.rect.left, cam.rect.top, cam.liftPx, ...cam.model].map((v) => v.toFixed(3)).join(",") + `|${w}x${h}|${tint}|${url}`;
 
@@ -129,11 +130,12 @@ export const TableMini3D = ({
   const hitRef = useRef<HTMLDivElement | null>(null);
   // This mini's identity in the scheduler, and what it last drew.
   const key = useMemo(() => ({}), []);
-  const last = useRef({ key: "", zoom: 1 });
+  const last = useRef({ key: "" });
 
   const { frameW, frameH, tiltDeg, yawDeg, perspectiveRatio } = rig;
+  const screenScale = rig.screenScale ?? 1;
   /** Ask the scheduler for a redraw at `pose` — skipped when nothing changed. */
-  const place = (pose: MiniPose, measureZoom: boolean) => {
+  const place = (pose: MiniPose) => {
     if (!(frameW > 0)) return;
     const cam = miniCamera({
       rig: { frameW, frameH, tiltDeg, yawDeg, perspectiveRatio },
@@ -153,14 +155,12 @@ export const TableMini3D = ({
         el.style.width = `${cam.rect.width}px`;
         el.style.height = `${cam.rect.height}px`;
       }
-      // Backing store at the canvas's on-screen density: device pixels times
-      // however much the fit/zoom transform enlarges the board, capped. The
-      // zoom is measured at rest only; a tween reuses it (no layout reads).
-      if (measureZoom) {
-        const onScreen = canvas.getBoundingClientRect().width / Math.max(1, cam.rect.width);
-        if (onScreen > 0) last.current.zoom = onScreen;
-      }
-      const ratio = miniPixelRatio(window.devicePixelRatio || 1, last.current.zoom, maxPixelRatio ?? undefined);
+      // Backing store at the canvas's on-screen density: device pixels
+      // (capped) times the plane's on-screen scale — the pan/zoom frame's live
+      // scale times the perspective at the plane's depth. Computed, never
+      // measured: no layout reads, and it follows every zoom (the pick
+      // auto-focus, a pinch) through the density bucket in the camera key.
+      const ratio = miniPixelRatio(window.devicePixelRatio || 1, screenScale * cam.planeScale, maxPixelRatio ?? undefined);
       const w = Math.max(1, Math.round(cam.rect.width * ratio)), h = Math.max(1, Math.round(cam.rect.height * ratio));
       const k = camKey(cam, w, h, mini.tint, model.url);
       if (k === last.current.key) return;
@@ -180,8 +180,8 @@ export const TableMini3D = ({
   // reads — or of the hit area, which a placement sizes. The job itself
   // redraws only if the camera key changed.
   useLayoutEffect(() => {
-    if (!animating) placeRef.current(standingPose(x, y), true);
-  }, [animating, x, y, frameW, frameH, tiltDeg, yawDeg, perspectiveRatio, baseDiamPx, groundScale, model, mini.tint, mini.baseDiameter, maxPixelRatio, hitTarget]);
+    if (!animating) placeRef.current(standingPose(x, y));
+  }, [animating, x, y, frameW, frameH, tiltDeg, yawDeg, perspectiveRatio, screenScale, baseDiamPx, groundScale, model, mini.tint, mini.baseDiameter, maxPixelRatio, hitTarget]);
 
   // Tweening: follow the anchor's animated left/top, one sample a frame.
   useEffect(() => {
@@ -195,7 +195,7 @@ export const TableMini3D = ({
       const at = `${sx}|${sy}`;
       if (sx === null || sy === null || at === seen) return;
       seen = at;
-      placeRef.current(standingPose(sx, sy), false);
+      placeRef.current(standingPose(sx, sy));
     });
     return () => scheduler.untrack(key);
   }, [animating, key]);

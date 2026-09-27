@@ -18,6 +18,7 @@
  *   fail    --disable-webgl and WEBGL_lose_context: what the board shows.
  *   lod     the mini at each PROBE_LODS detail level, cropped at play size.
  *   dpr     the five reference crops at pixel-ratio cap 2 vs 3.
+ *   zoom    canvas density before/after zooming the board in mid-pick.
  *
  *   smoke   one screenshot + the renderer's stats.
  *

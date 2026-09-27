@@ -90,7 +90,7 @@ describe("TableStage", () => {
         </TableStage>
       );
       // The rig itself too (#931): a WebGL mini matches the CSS camera from it.
-      expect(seen).toEqual({ frameW: 800, frameH: 600, tiltDeg: DEFAULT_TILT_DEG, yawDeg: TABLE_YAW_DEG, perspectiveRatio: PERSPECTIVE_RATIO });
+      expect(seen).toEqual({ frameW: 800, frameH: 600, tiltDeg: DEFAULT_TILT_DEG, yawDeg: TABLE_YAW_DEG, perspectiveRatio: PERSPECTIVE_RATIO, screenScale: 1 });
     } finally {
       delete (HTMLElement.prototype as { offsetWidth?: number }).offsetWidth;
       delete (HTMLElement.prototype as { offsetHeight?: number }).offsetHeight;
