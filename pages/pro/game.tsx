@@ -108,12 +108,8 @@ import { GameLostScreen } from "@/components/Pro/GameLostScreen";
 import { actionFallbackLine, batchPhase, batchTurnTag, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
 import { MulliganChoice, isMulliganPrompt, mulliganChoiceOf } from "@/lib/pro/mulligan";
 import { RAIL_WIDTH_CSS, TAP_TARGET, boardFitInsetFor, handDecisionKeyFor } from "@/lib/pro/mobileLayout";
-import {
-  effectiveFigureStyle,
-  figureForStyle,
-  figureStyleOptions,
-  nextFigureStyle,
-} from "@/lib/pro/figures";
+import { effectiveFigureStyle, figureStyleOptions, pieceCredit, pieceForStyle } from "@/lib/pro/figures";
+import { useMinis3dSource } from "@/lib/pro/minis3d/useMinis3dSource";
 import { useFigureManifests } from "@/lib/pro/useFigureManifest";
 import { useFigureStyle } from "@/lib/pro/useFigureStyle";
 import { useElementHeight, useProLayout } from "@/lib/pro/useProLayout";
@@ -4768,20 +4764,28 @@ const LiveGame = ({
   // draws no figures (#877).
   const { private: privateFigures, open: openFigures } = useFigureManifests(boardView === "table");
   const figureManifests = useMemo(() => ({ private: privateFigures, open: openFigures }), [privateFigures, openFigures]);
-  // The viewer's figure style (#903): which set to draw, or tokens. Offered
-  // only as the choices that change something on THIS board — none at all
-  // when every hero here would be a token anyway.
+  // 3D minis (#945/#953): null — no "3D minis" option — until the tabletop is
+  // shown, and for good where WebGL is unavailable or the renderer failed.
+  // The manifest is fetched only then, so the first page load is unchanged.
+  const minis3dSource = useMinis3dSource(boardView === "table");
+  // The viewer's figure style (#903, #953): 3D minis, a sprite set, or
+  // tokens, picked from one dropdown. Offered only as the choices that change
+  // something on THIS board — none at all when every hero here would be a
+  // token anyway. Each hero then stands at its best available level under
+  // the style: 3D mini → sprite mini → token.
   const [preferredFigureStyle, chooseFigureStyle] = useFigureStyle();
   const figureStyles = useMemo(
     () =>
       figureStyleOptions(
         figureManifests,
-        Object.entries(ownerHeroIds).map(([seat, heroId]) => ({ heroId, seat }))
+        Object.entries(ownerHeroIds).map(([seat, heroId]) => ({ heroId, seat })),
+        minis3dSource
       ),
-    [figureManifests, ownerHeroIds]
+    [figureManifests, ownerHeroIds, minis3dSource]
   );
   const figureStyle = effectiveFigureStyle(preferredFigureStyle, figureStyles);
-  const heroFigure = (seat: string) => figureForStyle(figureManifests, figureStyle, ownerHeroIds[seat], seat);
+  const heroPiece = (seat: string) =>
+    pieceForStyle(figureManifests, minis3dSource, figureStyle, ownerHeroIds[seat], seat);
   // The tabletop HUD (lib/pro/tableHud): a landscape phone looking at the
   // tabletop board gets plates, a banner, a fanned hand and a hexagon instead
   // of the decision rail. The flat board keeps its rail, untouched.
@@ -6916,12 +6920,10 @@ const LiveGame = ({
     onToggleBoardView: toggleBoardView,
     boardViewLockedHint: boardViewLockedHint(mode),
     figureStyle: boardView === "table" && figureStyles.length > 0 ? figureStyle : undefined,
-    onCycleFigureStyle:
-      boardView === "table" && figureStyles.length > 0
-        ? () => chooseFigureStyle(nextFigureStyle(figureStyle, figureStyles))
-        : undefined,
+    figureStyles: boardView === "table" ? figureStyles : undefined,
+    onChooseFigureStyle: boardView === "table" && figureStyles.length > 0 ? chooseFigureStyle : undefined,
     // The credit for the miniature each seat's hero stands as on the table.
-    figureCreditFor: boardView === "table" ? (seat: string) => heroFigure(seat)?.credit ?? null : undefined,
+    figureCreditFor: boardView === "table" ? (seat: string) => pieceCredit(heroPiece(seat)) : undefined,
     turnReminderOn,
     onToggleTurnReminder: toggleTurnReminder,
     onReportBug: () => setReportBugOpen(true),
@@ -7223,8 +7225,8 @@ const LiveGame = ({
         {boardView === "table" && TableBoard ? (
           <TableBoard
             {...boardProps}
-            fighterFigure={(f) => (f.kind === "HERO" ? heroFigure(f.owner) : null)}
-            fighterMiniId={(f) => (f.kind === "HERO" ? ownerHeroIds[f.owner] : undefined)}
+            fighterFigure={(f) => (f.kind === "HERO" ? heroPiece(f.owner).figure : null)}
+            fighterMini3d={(f) => (f.kind === "HERO" ? heroPiece(f.owner).mini3d : null)}
             resetViewSpot={hud ? HUD_RESET_VIEW_SPOT : undefined}
           />
         ) : (

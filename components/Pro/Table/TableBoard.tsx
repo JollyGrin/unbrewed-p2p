@@ -83,8 +83,8 @@ import { TableFighterTail } from "./TableFighterTail";
 import { TableSidekickToken } from "./TableSidekickToken";
 import { TableBoardObject } from "./TableBoardObject";
 import { TableMoveGhost } from "./TableMoveGhost";
-import { mini3dFor } from "@/lib/pro/minis3d/manifest";
-import { useMinis3dManifest, useMinis3dSwitch } from "@/lib/pro/minis3d/useMinis3d";
+import type { Mini3d } from "@/lib/pro/minis3d/manifest";
+import { useMinis3dDevParams, useMinis3dManifest } from "@/lib/pro/minis3d/useMinis3dSource";
 
 // Dev-only measuring aid for scripts/visual-probe/tableMini3d (#931). The
 // NODE_ENV check is a build-time constant, so a production build drops the
@@ -124,11 +124,11 @@ export type TableBoardDeferredProp = "focusFighters" | "fighterTokenRim" | "toke
  */
 export type TableBoardProps = Omit<ProBoardProps, TableBoardDeferredProp> & {
   fighterFigure?: (fighter: ViewFighter) => Figure | null;
-  /** Which 3D mini a fighter stands as (#945): a hero's id today; any
-   *  fighter may have one (a sidekick needs only an answer here and a manifest
-   *  entry). Used only under the `?minis3d=1` dev switch, and only for ids in
-   *  public/minis3d/manifest.json. */
-  fighterMiniId?: (fighter: ViewFighter) => string | undefined;
+  /** The 3D mini a fighter stands as (#945), already resolved for the
+   *  viewer's figure style (#953, lib/pro/figures `pieceForStyle`): null for
+   *  its sprite or token. Heroes only today; any fighter may have one (a
+   *  sidekick needs only an answer here and a manifest entry). */
+  fighterMini3d?: (fighter: ViewFighter) => Mini3d | null;
   /** see TableStage — moved out from under the tabletop HUD's side buttons */
   resetViewSpot?: { left: string; bottom: string };
 };
@@ -180,7 +180,7 @@ export const TableBoard = ({
   rotated = false,
   fitInset,
   fighterFigure,
-  fighterMiniId,
+  fighterMini3d,
   resetViewSpot,
   // Whatever the caller spread in that this view deliberately doesn't draw
   // (TableBoardDeferredProp). Typed as the REST of TableBoardProps, so it is
@@ -200,11 +200,12 @@ export const TableBoard = ({
   const badgeProbe = useTableBadgeProbe();
   // Dev-only: where the figure probe stands the one-space miniatures (#926).
   const figureProbe = useTableFigureProbe();
-  // 3D minis (#945): only behind the dev switch `?minis3d=1` for now.
-  const minis3d = useMinis3dSwitch();
-  const minis3dManifest = useMinis3dManifest(minis3d.on);
-  const mini3dOf = (f: ViewFighter) =>
-    minis3d.on ? mini3dFor(minis3dManifest, fighterMiniId?.(f), f.owner, minis3d.lod) : null;
+  // 3D minis (#945): which fighter stands as one is the caller's answer
+  // (`fighterMini3d`, from the figure-style dropdown, #953). The URL carries
+  // only dev tooling: the canvas density cap and the measuring probe.
+  const minis3d = useMinis3dDevParams();
+  const probeManifest = useMinis3dManifest(!!TableMini3dProbe && minis3d.probe);
+  const mini3dOf = (f: ViewFighter) => fighterMini3d?.(f) ?? null;
 
   // A region's spaces are normalized to their OWN inset image, not the main
   // board (see the header comment) — excluded from `mainSpaces` here, then
@@ -776,7 +777,7 @@ export const TableBoard = ({
                 innerRef={registerFighterEl(f.id)}
                 frameW={frameW}
                 frameH={frameH}
-                // Tokens unless `fighterMiniId` names a mini for this sidekick.
+                // Tokens unless `fighterMini3d` names a mini for this sidekick.
                 mini3d={mini3dOf(f)}
                 rig={{ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio, screenScale }}
                 mini3dMaxPixelRatio={minis3d.maxPixelRatio}
@@ -785,13 +786,13 @@ export const TableBoard = ({
             );
           })}
 
-          {TableMini3dProbe && minis3d.on && (
+          {TableMini3dProbe && minis3d.probe && (
             <Suspense fallback={null}>
               <TableMini3dProbe
                 spaceById={spaceById}
                 spaceDiamPx={(diameterPct / 100) * Math.max(frameW, 1)}
                 rig={{ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio, screenScale }}
-                manifest={minis3dManifest}
+                manifest={probeManifest}
                 lod={minis3d.lod}
                 maxPixelRatio={minis3d.maxPixelRatio}
               />

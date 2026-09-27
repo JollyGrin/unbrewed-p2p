@@ -14,7 +14,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HeroPreviewModal } from "./HeroPreviewModal";
 import { SeatPlate } from "./ProHud";
 import { FigureCredits } from "./FigureCredits";
-import { ProMobileMenu } from "./ProMobileHud";
 import { FigureCredit } from "@/lib/pro/figures";
 import { resetFigureManifestCache } from "@/lib/pro/useFigureManifest";
 import { DEFAULT_PLATE_LAYOUT } from "@/lib/pro/useHudPlates";
@@ -197,31 +196,5 @@ describe("in-game seat info — credits for the figure on the table", () => {
     plate("plate", null);
     expect(screen.queryByTestId("figure-credits")).not.toBeInTheDocument();
     expect(screen.queryByTestId("plate-figure-credit")).not.toBeInTheDocument();
-  });
-});
-
-describe("phone Game menu — figure style item", () => {
-  const openMenu = (props: Partial<Parameters<typeof ProMobileMenu>[0]>) => {
-    render(
-      <ChakraProvider>
-        <ProMobileMenu status="open" roomId={null} boardView="table" onToggleBoardView={() => {}} {...props} />
-      </ChakraProvider>
-    );
-    act(() => {
-      fireEvent.click(screen.getByLabelText("Game menu"));
-    });
-    return screen.queryAllByRole("menuitem", { hidden: true }).find((el) => el.textContent?.startsWith("Heroes —"));
-  };
-
-  it("names the current style and cycles on tap", () => {
-    const onCycleFigureStyle = jest.fn();
-    const item = openMenu({ figureStyle: "open", onCycleFigureStyle });
-    expect(item?.textContent).toBe("Heroes — Open-licence minis");
-    fireEvent.click(item!);
-    expect(onCycleFigureStyle).toHaveBeenCalledTimes(1);
-  });
-
-  it("is absent when the board offers no choice", () => {
-    expect(openMenu({})).toBeUndefined();
   });
 });

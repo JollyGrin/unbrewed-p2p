@@ -18,8 +18,9 @@ import { loadMiniModel, type MiniModel, type Vec3 } from "./model";
 import { loadThreeKit, type ThreeKit } from "./threeKit";
 import { minis3dStats, recordRender } from "./stats";
 import { minis3dScheduler } from "./scheduler";
+import { getMinis3dStatus, setMinis3dStatus, type Minis3dStatus } from "./status";
 
-export type Minis3dStatus = "idle" | "loading" | "ready" | "failed" | "lost";
+export { getMinis3dStatus, subscribeMinis3d, type Minis3dStatus } from "./status";
 
 interface Gl {
   kit: ThreeKit;
@@ -36,20 +37,8 @@ interface Gl {
 }
 
 let gl: Gl | null = null;
-let status: Minis3dStatus = "idle";
-const listeners = new Set<() => void>();
 const setStatus = (s: Minis3dStatus) => {
-  if (s === status) return;
-  status = s;
-  minis3dStats.status = s;
-  listeners.forEach((l) => l());
-};
-export const getMinis3dStatus = (): Minis3dStatus => status;
-export const subscribeMinis3d = (fn: () => void): (() => void) => {
-  listeners.add(fn);
-  return () => {
-    listeners.delete(fn);
-  };
+  if (setMinis3dStatus(s)) minis3dStats.status = s;
 };
 
 let starting: Promise<boolean> | null = null;
@@ -67,7 +56,7 @@ export const MINIS3D_IMPORT_RETRY_MS = 5000;
  */
 export const ensureMinis3d = (): Promise<boolean> => {
   if (starting) return starting;
-  if (status === "failed" && Date.now() < retryAt) return Promise.resolve(false);
+  if (getMinis3dStatus() === "failed" && Date.now() < retryAt) return Promise.resolve(false);
   setStatus("loading");
   exposeDebug();
   starting = (async () => {
@@ -186,7 +175,7 @@ const boardDir = (cam: MiniCamera, d: Vec3): Vec3 => {
  */
 export const renderMini = (target: HTMLCanvasElement, model: MiniModel, cam: MiniCamera, tint: string): number | null => {
   const g = gl;
-  if (status !== "ready" || !g) return null;
+  if (getMinis3dStatus() !== "ready" || !g) return null;
   const t0 = performance.now();
   const w = target.width, h = target.height;
   if (w > g.bufW || h > g.bufH) {

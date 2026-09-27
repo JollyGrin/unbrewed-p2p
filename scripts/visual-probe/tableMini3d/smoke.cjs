@@ -7,7 +7,7 @@ module.exports = async () => {
     const t = String(f.payload);
     for (const m of t.matchAll(/"id":"p\d","heroId":"([^"]+)"/g)) heroIds.add(m[1]); const s = /"players":\[[^\]]{0,300}/.exec(t); if (s) heroIds.add(s[0].slice(0, 200));
   }));
-  await startGame(page, "minis3d=1");
+  await startGame(page, "minis3dProbe=1");
   await page.waitForTimeout(3000);
   const info = await page.evaluate(async () => {
     const gl = document.createElement("canvas").getContext("webgl");

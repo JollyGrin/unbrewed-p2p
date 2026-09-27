@@ -1,9 +1,11 @@
 /**
- * The viewer's figure-style preference for the tabletop (unbrewed-p2p-903):
- * which figure set to draw, or plain tokens. Per device, same shape as
- * `useBoardView` — read after mount, every storage access guarded — and
- * `null` until the viewer has chosen, so `effectiveFigureStyle` picks the
- * board's best option.
+ * The viewer's figure-style preference for the tabletop (unbrewed-p2p-903,
+ * #953): 3D minis, a sprite set, or plain tokens. The #903 toggle's values
+ * ("private" | "open" | "token") are still valid styles with the same
+ * meaning, so a stored choice carries over as is — no rewrite needed. Per
+ * device, same shape as `useBoardView` — read after mount, every storage
+ * access guarded — and `null` until the viewer has chosen, so
+ * `effectiveFigureStyle` picks the board's best option (3D where offered).
  */
 import { useCallback, useEffect, useState } from "react";
 import { FigureStyle, isFigureStyle } from "./figures";

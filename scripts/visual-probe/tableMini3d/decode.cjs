@@ -15,7 +15,7 @@ module.exports = async () => {
     const { browser, page } = await launch((process.env.PROBE_ARGS || "").split(" ").filter(Boolean));
     const cdp = await page.context().newCDPSession(page);
     await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
-    await startGame(page, `minis3d=1&minis3dLod=${v}`);
+    await startGame(page, `minis3dProbe=1&minis3dLod=${v}`);
     await page.waitForTimeout(3000);
     const r = await page.evaluate(async () => {
       const s = window.__minis3d.stats;

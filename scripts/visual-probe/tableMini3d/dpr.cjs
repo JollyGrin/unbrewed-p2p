@@ -12,7 +12,7 @@ module.exports = async () => {
   const out = {};
   for (const cap of [2, 3]) {
     const { browser, page } = await launch((process.env.PROBE_ARGS || "").split(" ").filter(Boolean));
-    await startGame(page, `minis3d=1&minis3dDpr=${cap}`);
+    await startGame(page, `minis3dProbe=1&minis3dDpr=${cap}`);
     await page.addStyleTag({ content: "[data-badge-owner^='probe'] [data-standee-badges]{display:none!important}" });
     const spaces = await referenceSpaces(page);
     for (const [label, space] of Object.entries(spaces).filter(([k]) => k !== "all")) {
