@@ -43,8 +43,11 @@ const TIER_ORDER: readonly ClientBotTier[] = ["easy", "medium", "hard", "expert"
 
 export interface BotTierChoice {
   id: BotDifficulty;
-  /** Long form, for the roomy seat cards ("Hard bot"). */
+  /** Long form, for the roomy seat cards ("Hard bot"). The everyday name. */
   label: string;
+  /** The exact, versioned name ("Prodigy 3") for a tier that has one — shown only
+   *  where a player looks closer (the chip's tooltip), never where space is tight. */
+  fullName?: string;
   /** Compact form, for the create screen's seat plates ("AI·H"). */
   chip: string;
   /** Tiny provenance badge rendered next to the label, when the tier has one. */
@@ -59,10 +62,19 @@ export interface BotTierChoice {
 }
 
 /**
+ * A tier named like a model family + exact version: `label` is the everyday name,
+ * `fullName` the versioned one, and the tooltip is derived from them.
+ */
+const versioned = (meta: BotTierChoice & { fullName: string }): BotTierChoice => ({
+  ...meta,
+  tooltip: meta.badge ? `${meta.fullName} · ${meta.badge}` : meta.fullName,
+});
+
+/**
  * Everything a player can read about a tier. Player-facing text must never reveal
  * the tech behind a tier (no internal ids, model or API names) — the wire id
- * `jevx3` stays internal. Its name is still being chosen: rename it by editing
- * the `jevx3` entry's label/chip/badge line below, nothing else.
+ * `jevx3` stays internal. Rename it, or bump its version, by editing the `jevx3`
+ * line below and nothing else.
  */
 const TIER_META: Record<ClientBotTier, BotTierChoice> = {
   easy: { id: "easy", label: "Easy bot", chip: "AI·E" },
@@ -75,14 +87,19 @@ const TIER_META: Record<ClientBotTier, BotTierChoice> = {
     badge: "alpha",
     tooltip: "experimental - beware",
   },
-  jevx3: {
-    id: "jevx3",
-    ...{ label: "Familiar 3", chip: "AI·F", badge: "preview" }, // ← the one-line rename
-    tooltip: "experimental - the strongest bot yet",
-  },
+  jevx3: versioned({ id: "jevx3", label: "Prodigy", fullName: "Prodigy 3", chip: "AI·P", badge: "preview" }),
 };
 
 export const botTierMeta = (tier: ClientBotTier): BotTierChoice => TIER_META[tier];
+
+/**
+ * A chip's tooltip. Unlocked: the tier's own tooltip. Locked: the unlock hint,
+ * then the full name on its own line (render with `whiteSpace="pre-line"`).
+ */
+export const tierTooltip = (
+  c: Pick<BotTierChoice, "tooltip" | "locked" | "lockHint" | "fullName">,
+): string | undefined =>
+  c.locked ? [c.lockHint, c.fullName].filter(Boolean).join("\n") || undefined : c.tooltip;
 
 /** Player-facing meta for any difficulty string, or null for one this client never shows. */
 export const knownBotTierMeta = (tier: string): BotTierChoice | null =>

@@ -536,7 +536,7 @@ describe("botTierLabel — never shows a raw wire id (#933)", () => {
   });
 
   it("names jevx3 by its display name and hides tiers the client doesn't show", () => {
-    expect(botTierLabel(row("jevx3"))).toBe("Familiar 3 bots");
+    expect(botTierLabel(row("jevx3"))).toBe("Prodigy bots");
     expect(botTierLabel(row("jev"))).toBe("Other bots");
     expect(botTierLabel(row("jevx3"))).not.toMatch(/jev/i);
   });
