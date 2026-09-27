@@ -30,19 +30,6 @@ export const BOARD_VIEW_LABEL: Record<BoardView, string> = {
 export const nextBoardView = (current: BoardView): BoardView =>
   current === "flat" ? "table" : "flat";
 
-/** The slice of a map the board view depends on (a `ProMapDef` fits). */
-export type BoardViewMap = { regions?: readonly unknown[] };
-
-/**
- * Whether the map has a region (today: only Baba Yaga's Hut). A region's
- * spaces are normalized to their OWN inset image, not the main board — the
- * tabletop view renders `mainSpaces` in 3D and floats the region as its own
- * 2D inset panel over that frame (unbrewed-p2p#922's hybrid), so a caller
- * that needs to tell region spaces apart from main-board ones (`TableBoard`)
- * still reaches for this.
- */
-export const mapHasRegions = (map: BoardViewMap | null | undefined): boolean => (map?.regions?.length ?? 0) > 0;
-
 /**
  * The view actually drawn, given the stored preference and the layout (#870).
  * The tabletop board is built for an unrotated frame — its tilt, standees and

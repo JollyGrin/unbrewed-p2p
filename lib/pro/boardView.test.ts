@@ -4,7 +4,6 @@ import {
   DEFAULT_BOARD_VIEW,
   isBoardView,
   nextBoardView,
-  mapHasRegions,
   resolveBoardView,
   TABLETOP_NEEDS_LANDSCAPE,
 } from "./boardView";
@@ -52,20 +51,11 @@ describe("boardView", () => {
 
   // #922 (hybrid): a region map (Baba Yaga's Hut) no longer falls back to the
   // flat board — TableBoard renders its main spaces in 3D and floats the
-  // region as its own 2D inset panel over that frame. `mapHasRegions` itself
-  // survives only as the "which spaces are main vs region" helper TableBoard
-  // uses to build its 3D space list; it no longer feeds `resolveBoardView`.
+  // region as its own 2D inset panel over that frame. `resolveBoardView`
+  // never distinguished region maps from any other, so there is nothing left
+  // here for it to special-case (see TableBoard.tsx's own `regionIds` for the
+  // "which spaces are main vs region" split it still needs).
   describe("maps with regions", () => {
-    const HUT_MAP = { regions: [{ id: "hut", label: "Baba Yaga's Hut" }] };
-
-    it("knows a map with a region from one without", () => {
-      expect(mapHasRegions(HUT_MAP)).toBe(true);
-      expect(mapHasRegions({ regions: [] })).toBe(false);
-      expect(mapHasRegions({})).toBe(false);
-      expect(mapHasRegions(null)).toBe(false);
-      expect(mapHasRegions(undefined)).toBe(false);
-    });
-
     it("resolves a region map to the tabletop view exactly like any other map", () => {
       expect(resolveBoardView("table", "desktop")).toBe("table");
       expect(resolveBoardView("table", "rail")).toBe("table");
