@@ -8,7 +8,7 @@ const entry = (over: Record<string, unknown> = {}) => ({
   license: "CC0-1.0",
   redistributable: true,
   officialHero: false,
-  modelName: "King Taranis (Meshy AI)",
+  modelName: "King Taranis",
   creator: "JollyGrin",
   sourceUrl: "https://unbrewed.xyz",
   ...over,
@@ -157,5 +157,11 @@ describe("the 3D minis manifest", () => {
     // Nothing but the manifest and the files it names (no stray variants).
     const named = new Set(Object.values(parsed!.minis).flatMap((e) => Object.values(e.files)));
     expect(fs.readdirSync(dir).filter((f) => f !== "manifest.json" && !named.has(f))).toEqual([]);
+  });
+
+  test("no committed entry's credit names the generation tool (unbrewed-p2p-975)", () => {
+    const dir = path.join(__dirname, "..", "..", "..", "public", "minis3d");
+    const raw = JSON.parse(fs.readFileSync(path.join(dir, "manifest.json"), "utf8"));
+    for (const e of Object.values(raw.minis as Record<string, { modelName?: string }>)) expect(e.modelName).not.toMatch(/meshy/i);
   });
 });
