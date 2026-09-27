@@ -61,6 +61,15 @@
  * Models may be STL, 3MF or glTF (.glb/.gltf). Optional per figure: "mesh"
  * (glTF only — render just the meshes whose name contains it), "rx" / "rz"
  * (stand a model up that was not published upright, degrees).
+ *
+ * `--only <heroId>` (unbrewed-p2p-965) renders just that one config entry —
+ * the source folder need not hold every other entry's model — and MERGES the
+ * result into the existing manifest.json instead of overwriting it: every
+ * other entry comes out byte-identical. If the entry is not cleared, its
+ * renders are removed and its key is dropped from the manifest, same as a
+ * whole-set run; nothing else in the manifest is touched either way. Used by
+ * `add-hero-mini.cjs`, which stages one bundle's sprite.glb as the entry's
+ * `model` in a temp folder and calls this with it.
  */
 const fs = require("fs");
 const { clearanceBlockers, openRenderBlockers } = require("./clearance.cjs");
@@ -76,8 +85,11 @@ if (!PW_PATH) {
 }
 const pw = require(PW_PATH);
 
-const OPEN = process.argv.includes("--open");
-const sourceArg = process.argv.slice(2).find((a) => !a.startsWith("--"));
+const argv = process.argv.slice(2);
+const OPEN = argv.includes("--open");
+const onlyIdx = argv.indexOf("--only");
+const ONLY = onlyIdx > -1 ? argv[onlyIdx + 1] : null;
+const sourceArg = argv.find((a, i) => !a.startsWith("--") && i !== onlyIdx + 1);
 if (OPEN && !sourceArg) {
   console.error("--open needs the folder holding the open models (they are not in the repo).");
   process.exit(2);
@@ -117,7 +129,12 @@ const readConfig = () => {
     process.exit(2);
   }
   const config = JSON.parse(fs.readFileSync(file, "utf8"));
-  const figures = Array.isArray(config.figures) ? config.figures : [];
+  const allFigures = Array.isArray(config.figures) ? config.figures : [];
+  const figures = ONLY ? allFigures.filter((f) => f.heroId === ONLY) : allFigures;
+  if (ONLY && figures.length === 0) {
+    console.error(`--only ${ONLY}: no such heroId in ${file}`);
+    process.exit(2);
+  }
   const cleared = [];
   for (const f of figures) {
     if (!/^[a-z0-9-]+$/.test(f.heroId ?? "")) throw new Error(`bad heroId: ${JSON.stringify(f.heroId)}`);
@@ -134,12 +151,28 @@ const readConfig = () => {
   return cleared;
 };
 
+const MANIFEST_FILE = path.join(OUT, "manifest.json");
+const readManifest = () =>
+  fs.existsSync(MANIFEST_FILE) ? JSON.parse(fs.readFileSync(MANIFEST_FILE, "utf8")) : { version: 1, figures: {} };
+const writeManifest = (m) => fs.writeFileSync(MANIFEST_FILE, `${JSON.stringify(m, null, 2)}\n`);
+
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
   const figures = readConfig();
   if (figures.length === 0) {
+    if (ONLY) {
+      // Not cleared (or gone from the config): drop just this key, leaving
+      // every other manifest entry byte-identical.
+      const existing = readManifest();
+      if (Object.prototype.hasOwnProperty.call(existing.figures, ONLY)) {
+        delete existing.figures[ONLY];
+        writeManifest(existing);
+      }
+      console.log(`${ONLY}: not cleared, left out of ${path.relative(REPO, MANIFEST_FILE)}`);
+      return;
+    }
     // Still overwrite the manifest, so no earlier entry outlives the gate.
-    fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify({ version: 1, figures: {} }, null, 2));
+    writeManifest({ version: 1, figures: {} });
     console.log(`no cleared figures: wrote an empty manifest to ${path.relative(REPO, OUT)}/`);
     return;
   }
@@ -172,7 +205,8 @@ const readConfig = () => {
   // The first frame of a fresh headless WebGL context comes back blank.
   if (figures[0]) await renderOne(figures[0], SEAT_TINTS.p1);
 
-  const manifest = { version: 1, figures: {} };
+  const manifest = ONLY ? readManifest() : { version: 1, figures: {} };
+  manifest.version = 1;
   for (const fig of figures) {
     const seats = {};
     let geometry = null;
@@ -192,7 +226,7 @@ const readConfig = () => {
     manifest.figures[fig.heroId] = { ...geometry, ...(bounds ? { bounds } : {}), seats, ...declared };
     console.log(`${fig.heroId}: footprint ${geometry.footprintMm.toFixed(1)}mm, anchor ${geometry.anchor.x.toFixed(3)}/${geometry.anchor.y.toFixed(3)}`);
   }
-  fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 2));
+  writeManifest(manifest);
   console.log(`wrote ${Object.keys(manifest.figures).length} figure(s) to ${path.relative(REPO, OUT)}/`);
   await browser.close();
 })().catch((e) => {
