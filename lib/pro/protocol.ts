@@ -48,6 +48,8 @@
  *
  * ## v5 (2026-07-05): public lobbies
  * Rooms carry a `public` flag (default false: invite-link rooms stay unlisted).
+ * NOTE: the default FLIPPED to true at matchmaking v1 (2026-08-23, engine #498) —
+ * see the additive-fields note below. The messages here are otherwise unchanged.
  * SET_VISIBILITY (from a ws bound to a seat in that room) toggles it and is acked
  * with VISIBILITY. LIST_LOBBIES returns the public, one-seat, game-not-started,
  * recently-active rooms as LobbyListing[] (client polls; no server push — a room
@@ -580,17 +582,6 @@
  * carry one. Purely additive, so no PROTOCOL_VERSION bump: with the field
  * absent not one message grows a key.
  *
- * ## Additive fields (2026-08-27, no version bump): up to three seat badges
- * Issue #718 (engine #517). A player may now wear THREE badges, ordered, so the
- * single `badge?` widens to `badges?: string[]` on the same seven shapes:
- * `CREATE_ROOM`, `JOIN_ROOM`, `RoomStatusSeat`, `RoomStatus.host`, `ViewSelf`,
- * `ViewOpponent`, `ViewPlayer`. Order is the player's, not the server's — slot 0
- * is the disc drawn in front — and the server preserves it verbatim, sanitizing
- * each id exactly as it sanitizes `badge` today and slicing to the first 3.
- * `badge?` stays populated as `badges[0]` for one release, so a client that
- * reads only the singular field keeps showing one badge. Purely additive, no
- * PROTOCOL_VERSION bump: with the field absent nothing changes.
- *
  * ## v29 (2026-08-12): per-fighter durable markers (engine #360)
  * The engine gained per-FIGHTER durable state — named, stacking, PUBLIC marks that
  * outlive the effect that applied them (Kenshiro's 708-Meridian mark, Inigo Montoya's
@@ -683,6 +674,73 @@
  * `MoveGraph` / `moveGraphs` / `moveGraph` are untouched and stay NORMAL+SMALL only,
  * and the tail is NEVER prompted for: it follows the head. Purely additive, so no
  * PROTOCOL_VERSION bump — with both fields absent not one message grows a key.
+ *
+ * ## Additive fields (2026-08-23, no version bump): matchmaking v1 (engine #498)
+ * Quick Match, shipped UNGATED (no unlock gate, no announce). Three purely additive
+ * changes plus one SERVER-SIDE DEFAULT flip; client ticket unbrewed-p2p#<quick-match>.
+ * - THE DEFAULT FLIP (no wire change, but a behaviour change every client sees):
+ *   a new room is now created `public: true`. Every pre-game single-seat room is
+ *   therefore listed in LIST_LOBBIES, INVITE-LINK ROOMS INCLUDED, unless its host
+ *   opts out. `SET_VISIBILITY {public:false}` is that opt-out ("make private"); the
+ *   message, its ack and the listing filter are all unchanged. Deliberate product
+ *   decision (epic #391) — a lobby nobody can see never matches.
+ * - `LobbyListing` gains `formatId?`, `turnTimerSeconds?` (absent when untimed) and
+ *   `host?: { displayName?, badge? }` (absent for an anonymous host), so the Quick
+ *   Match list can show what it is joining. Every field is already-public info from
+ *   the waiting seat; a `playerId` NEVER appears here.
+ * - `CREATE_ROOM.quickMatch?: boolean` tags a room created by the Quick Match
+ *   button. Server-side telemetry only — it changes NO rule, no seating, no
+ *   listing, and is never echoed back on any message.
+ * Purely additive to existing objects, so no PROTOCOL_VERSION bump; a client that
+ * reads none of the new fields sees only the visibility default change.
+ * CLIENT SURFACE (unbrewed-p2p): the room-create UI should surface "make private"
+ * now that rooms start public, and the lobby list may render format / timer / host.
+ *
+ * ## Additive field (2026-08-25, no version bump): `ProMapItem.text` (engine #500)
+ * A scheme item's player-facing effect text, e.g. "Recover 2 health." DISPLAY-ONLY:
+ * the engine never reads it, `ops` stays the only thing it resolves. It exists because
+ * `ops` is opaque on the wire, so a client rendering a scheme token has nothing to put
+ * in a tooltip. Written by the p2p map editor (unbrewed-p2p#693/#695), which shipped it
+ * on the client copy of this file FIRST — recorded here so the next verbatim re-sync
+ * does not delete it. Purely additive to a map definition: `validateMap` checks only
+ * id/kind/value/ops and passes the field through untouched, an older map without it
+ * loads exactly as before, and no message grows a key unless a map carries one.
+ *
+ * ## Additive fields (2026-08-27, no version bump): up to three worn badges
+ * Issue #517, widening `badge` (2026-08-06 above) from one id to an ORDERED list
+ * of up to three. Nothing about the trust model changes — still client-claimed,
+ * still UNVERIFIED, still sanitized per id exactly as before, still cosmetic-only
+ * and never telemetry. Every shape that carries `badge` today gains `badges?`
+ * beside it: `CREATE_ROOM`, `JOIN_ROOM`, `RoomStatusSeat`, `LobbyListing.host`,
+ * `ViewSelf`, `ViewOpponent`, `ViewPlayer`.
+ * - `badges?: string[]` (request) — the ids the seat wears, in RENDER ORDER. The
+ *   server sanitizes each id with the `badge` rules and SLICES to the first 3;
+ *   an over-long list is never rejected. The accounts API caps at 3 on write,
+ *   but the array reaches the game socket from the client, so the cap is
+ *   enforced here too rather than assumed.
+ * - `badges?: string[]` (outbound) — the sanitized list, absent when the seat
+ *   wears none. `badge?` stays populated as `badges[0]` FOR ONE RELEASE so a
+ *   client on the old build still shows one; read `badges` in new code.
+ * When a request sends only the legacy `badge`, the seat wears exactly that one.
+ * Purely additive: with neither field claimed not one message grows a key, so no
+ * PROTOCOL_VERSION bump and old clients are unaffected.
+ * CLIENT SURFACE (unbrewed-p2p#718): the nameplate badge shelf on both seats.
+ *
+ * ## Additive change (2026-08-28, no version bump): play a map without its items
+ * (engine #519, p2p#725). `CREATE_ROOM.itemsEnabled?` — a per-room opt-OUT from a
+ * map's battlefield items. ABSENT (or `true`) = items ON, today's behavior; `false`
+ * = the map's `items` never spawn for this game: no `itemTokens` on any view, no
+ * `USE_SCHEME_ITEM` in any legal-action enumeration, no combat-item `attachItem`
+ * variants — exactly the game the same map with its `items`/`space.item` stripped
+ * would play. Everything else about the board (spaces, zones, connections) is
+ * untouched, and the map is still VALIDATED as authored. Only a boolean (or absent)
+ * is accepted — anything else answers ERROR{BAD_MESSAGE}, room not created. Like
+ * the move timer and the badges above (and unlike the mulligan), this adds NO new
+ * wire types: a game with items off simply never emits the existing item
+ * vocabulary, which is why there is no PROTOCOL_VERSION bump. Older clients that
+ * never send the field get the same game a new one does. Not echoed back — the
+ * client that set it knows, and both seats see the (empty) item layer itself.
+ * CLIENT SURFACE (unbrewed-p2p#725): a "play without items" toggle on room create.
  *
  * ## v30 (2026-08-20): the opening-hand mulligan (engine #395)
  * After the opening hands are dealt and BEFORE the heroes are placed, each seat
@@ -822,47 +880,52 @@
  * arrives BEFORE `COMBAT_VALUE_BREAKDOWN` / `COMBAT_DAMAGE` for that combat.
  */
 /**
- * v34 unchanged (2026-08-23): matchmaking v1 (engine #391 ↔ unbrewed-p2p#687). Purely
- * additive OPTIONAL fields on two existing messages, so PROTOCOL_VERSION does not move
- * and a client built against this file still talks to a server that predates it (the
- * fields simply never arrive / are ignored).
+ * v35 (engine #607 — rematch offer/confirm). ADDITIVE: three new CLIENT messages, four new
+ * SERVER messages and one new `ErrorCode`. Nothing that already exists moves, and the server
+ * only ever sends the new messages to a socket whose room has a rematch negotiation open —
+ * which only a v35 client can start — so a client that never sends them sees nothing new.
  *
- * - `LobbyListing.formatId?` — the room's format ("duel", "ffa-3", "team-2v2"). ABSENT on
- *   an older server, where every listed room is a duel; read it as `formatId ?? "duel"`.
- * - `LobbyListing.turnTimerSeconds?` — the room's per-decision move timer, same value
- *   `CREATE_ROOM.turnTimerSeconds` set. Absent/0 = untimed.
- * - `LobbyListing.host?` — `{ displayName?, badge? }`, the host seat's claimed identity
- *   (issues #344/#347). COSMETIC and UNVERIFIED exactly like the seat fields it mirrors —
- *   never key anything off it, and render an unknown badge id as nothing.
- * - `CREATE_ROOM.quickMatch?` — this room was opened by the Quick Match flow rather than
- *   an explicit create. Server-side telemetry only (search_started/matched/abandoned);
- *   it changes NOTHING about the room the client can see. An older server ignores it,
- *   which is why the client also sends `SET_VISIBILITY { public: true }` right after —
- *   once the engine ships public-by-default rooms that toggle is a harmless no-op.
- * CLIENT SURFACE (unbrewed-p2p#687): the lobby strip renders whichever of the three
- * listing fields are present and looks exactly as it does today when they are absent.
+ * - `REMATCH_OFFER {roomId}` — a seated HUMAN in a FINISHED (GAME_OVER) room with at least
+ *   two human seats offers a rematch. The server pushes `REMATCH_OFFERED {from}` to every
+ *   OTHER human seat. The offer counts as the offerer's own acceptance, so two players
+ *   offering at once ("crossing offers") is an agreement, not a conflict.
+ * - `REMATCH_RESPOND {roomId, accept}` — a human seat answers. `accept: false` closes the
+ *   negotiation for everyone.
+ * - `REMATCH_CANCEL {roomId}` — the OFFERER withdraws.
+ * - When EVERY human seat has accepted, the server creates ONE new room with the finished
+ *   room's setup — same seat ids (so the same teams), heroes, bot seats, map, format, turn
+ *   timer, mulligan and items settings; a fresh game seed; never publicly listed — and sends
+ *   each human seat `REMATCH_READY {roomId, token}` carrying THAT seat's own token. The game
+ *   has already started: the client joins it with `RECONNECT {roomId, token}`.
+ * - `REMATCH_CLOSED {reason, player?}` goes to every human seat when the negotiation ends
+ *   without a room: `declined`/`cancelled`/`disconnected` name the seat that caused it in
+ *   `player`; `timeout` fires ~2 minutes after the offer; `unavailable` means the server
+ *   could not create the room (e.g. it is at capacity) or — with `player` — that seat
+ *   came back on a client too old to answer.
+ * - A seat that drops while a rematch is pending gets a short reconnect grace; on
+ *   reconnect it is sent `REMATCH_OFFERED` again (`from` may be itself — "your offer is
+ *   still waiting"). A seat that was away when the room was built is sent its
+ *   `REMATCH_READY` when it reconnects to the FINISHED room. A finished room is never
+ *   swept while its negotiation is open; a room may open at most 3 negotiations.
+ * - After `REMATCH_READY` the finished room sends nothing more to the old sockets. In a
+ *   multiplayer format each human seat of the new room starts on the ordinary
+ *   abandonment clock, which its RECONNECT cancels.
+ * - A seat whose socket bound with v34 or older is never sent a REMATCH_* message, and an
+ *   offer in a room with such a seat is refused.
+ * - Refusals answer `ERROR{REMATCH_UNAVAILABLE}`: game not over, not a PvP room, not a
+ *   human seat, another seat's client too old, nothing pending to answer/cancel, you
+ *   already offered, the room's offer limit reached, or this room already produced its
+ *   rematch.
+ *
+ * Detection: `PROTOCOL_VERSION >= 35`, or `rematch: true` in the `/healthz` JSON.
  */
 /**
- * v34 unchanged (2026-08-27): battlefield items opt-out (engine #519 ↔ unbrewed-p2p#725).
- * Community boards now print battlefield items ON the map (wedding crashers is the
- * first), and items are fun but can be disruptive — so the room creator may switch
- * them off for one game. ONE additive OPTIONAL field, so PROTOCOL_VERSION does not
- * move and no message grows a key for any room that doesn't ask:
- *
- * - `CREATE_ROOM.itemsEnabled?` — per-room opt-OUT, the same idiom as `mulligan`
- *   but with the polarity the map implies: items are PRINTED ON THE BOARD, so
- *   ABSENT (or `true`) = ON, which is every room today, and `false` = the map's
- *   items never spawn — no item tokens, no `USE_SCHEME_ITEM`, no combat-item
- *   attach — a game byte-identical to the same map authored with its `items`
- *   stripped. The board itself (spaces, zones, connections) is untouched, and the
- *   flag composes with `customMap` (today the only way a map with items is
- *   picked). Not echoed back: the client that set it knows, and both seats see the
- *   effect the moment the board renders without its item badges. Anything but a
- *   boolean (or absent) answers ERROR{BAD_MESSAGE}.
- * CLIENT SURFACE (unbrewed-p2p#725): a 🎁 ITEMS On/Off chip in the create lobby's
- * rules strip, rendered ONLY when the chosen board carries `items` — hidden means
- * the field is never sent, so creates on every item-less board (and the Random
- * tile, whose roll resolves at create time) stay byte-identical to today.
+ * CLIENT-ONLY PIN (p2p #880) — keep at 34 when re-syncing this file from the engine.
+ * The engine is at v35 (rematch, above), but this client does not speak REMATCH_* yet:
+ * the seat binds with `v`, and the server only sends REMATCH_* to a seat bound at 35+,
+ * so binding at 34 is what keeps a v35 server from starting a negotiation this client
+ * can't answer. The v35 types stay in this file for #880 to build on; bump the pin
+ * there, together with the client that handles them — never in a verbatim re-sync.
  */
 export const PROTOCOL_VERSION = 34;
 
@@ -870,8 +933,29 @@ export const PROTOCOL_VERSION = 34;
  * Scripted-AI strength preset (server-side budgets; client treats as opaque).
  * `expert` (v23) is offered per hero — see `HeroListing.botTiers` — and only
  * when the server's exposure switch is on.
+ *
+ * ## v36 (2026-09-27): the `jev` bot tier, behind a server flag
+ * `BotDifficulty` gains `"jev"` — the JEV API-powered bot, which calls the
+ * public JEV API (thejevai.com) for structured probabilistic decisions.
+ * Gated behind `EXPOSE_JEV=1` on the server (same dormancy pattern as
+ * `expert` in v23). The jev bot is NOT a search bot — it calls an external
+ * structured-decision API. The server offers it for every hero, same as
+ * expert since #283.
+ *
+ * ### Client skew rules
+ * - ABSENT `botTiers` (old server, or a dormant new one) → fall back to
+ *   the v22 set `easy|medium|hard`. Same rule as v23 — absence is the
+ *   normal case.
+ * - PRESENT `botTiers` is authoritative. The client must render any tier
+ *   the server lists without knowing what it does.
+ *
+ * ## jevx3 (client-only, unbrewed-p2p#933)
+ * `jevx3` is advertised only behind the engine's `EXPOSE_JEV=1` switch. It is a
+ * CLIENT-ONLY addition: purely additive, so the deliberate `PROTOCOL_VERSION = 34`
+ * pin above is unchanged. The client gates SELECTING it on the player's record vs
+ * Expert (or a build-time allowlist) — see lib/pro/tierUnlock.ts. `jev` is not gated.
  */
-export type BotDifficulty = "easy" | "medium" | "hard" | "expert";
+export type BotDifficulty = "easy" | "medium" | "hard" | "expert" | "jev" | "jevx3";
 
 export interface BotSeatFill {
   player: PlayerId;
@@ -1497,13 +1581,12 @@ export interface ViewSelf {
   // seat claimed none. Opaque — the server never interprets it; a client maps
   // it to art and renders nothing for an unknown id. Public, cosmetic,
   // UNVERIFIED, and never sent to telemetry.
+  // #517: LEGACY single slot, kept populated as `badges[0]` for one release —
+  // read `badges` below instead.
   badge?: string;
-  // #718 (engine #517): the seat's claimed badge ids, ordered — slot 0 is the
-  // disc that sits in front on the HUD shelf. Same treatment and same caveats
-  // as `badge` above: opaque, public, cosmetic, UNVERIFIED, never telemetry.
-  // Sanitized per id and sliced to 3 server-side; the client slices again,
-  // because the array reached the server from the other client. `badge` stays
-  // populated as `badges[0]` for one release, so an older client is unaffected.
+  // #517: this seat's worn badge ids in render order, sanitized per id and
+  // sliced to the first 3 server-side; absent when the seat wears none. Same
+  // opaque/public/cosmetic/UNVERIFIED/never-telemetry treatment as `badge`.
   badges?: string[];
   hand: CardInstanceId[];
   deckCount: number;
@@ -1552,13 +1635,12 @@ export interface ViewOpponent {
   // seat claimed none. Opaque — the server never interprets it; a client maps
   // it to art and renders nothing for an unknown id. Public, cosmetic,
   // UNVERIFIED, and never sent to telemetry.
+  // #517: LEGACY single slot, kept populated as `badges[0]` for one release —
+  // read `badges` below instead.
   badge?: string;
-  // #718 (engine #517): the seat's claimed badge ids, ordered — slot 0 is the
-  // disc that sits in front on the HUD shelf. Same treatment and same caveats
-  // as `badge` above: opaque, public, cosmetic, UNVERIFIED, never telemetry.
-  // Sanitized per id and sliced to 3 server-side; the client slices again,
-  // because the array reached the server from the other client. `badge` stays
-  // populated as `badges[0]` for one release, so an older client is unaffected.
+  // #517: this seat's worn badge ids in render order, sanitized per id and
+  // sliced to the first 3 server-side; absent when the seat wears none. Same
+  // opaque/public/cosmetic/UNVERIFIED/never-telemetry treatment as `badge`.
   badges?: string[];
   handCount: number;
   deckCount: number;
@@ -1586,13 +1668,12 @@ export interface ViewPlayer {
   // seat claimed none. Opaque — the server never interprets it; a client maps
   // it to art and renders nothing for an unknown id. Public, cosmetic,
   // UNVERIFIED, and never sent to telemetry.
+  // #517: LEGACY single slot, kept populated as `badges[0]` for one release —
+  // read `badges` below instead.
   badge?: string;
-  // #718 (engine #517): the seat's claimed badge ids, ordered — slot 0 is the
-  // disc that sits in front on the HUD shelf. Same treatment and same caveats
-  // as `badge` above: opaque, public, cosmetic, UNVERIFIED, never telemetry.
-  // Sanitized per id and sliced to 3 server-side; the client slices again,
-  // because the array reached the server from the other client. `badge` stays
-  // populated as `badges[0]` for one release, so an older client is unaffected.
+  // #517: this seat's worn badge ids in render order, sanitized per id and
+  // sliced to the first 3 server-side; absent when the seat wears none. Same
+  // opaque/public/cosmetic/UNVERIFIED/never-telemetry treatment as `badge`.
   badges?: string[];
   // #392: this seat's claimed cosmetics blob, echoed VERBATIM. Opaque — the
   // server never parses it, only caps it at 512 bytes on join; a client
@@ -1741,7 +1822,11 @@ export interface ReplayConfig {
   // mulligan window open, so its action log carries the window's own prompt
   // answers. Absent = the pre-v30 flow; every bundle from a mulligan-free game is
   // byte-identical to a pre-v30 one.
-  options?: { allowNonstandardDeck?: boolean; startingHandSize?: number; mulligan?: boolean };
+  // `itemsDisabled` (engine #519): the game was played with the map's battlefield
+  // items turned OFF, so startGame must not spawn them on re-expansion. Absent =
+  // items on; every bundle from an items-on game is byte-identical to a pre-#519
+  // one.
+  options?: { allowNonstandardDeck?: boolean; startingHandSize?: number; mulligan?: boolean; itemsDisabled?: boolean };
   players: { p1: ReplayPlayerSetup; p2: ReplayPlayerSetup } & Partial<Record<PlayerId, ReplayPlayerSetup>>;
   formatId?: string;
   map: ProMapDef;
@@ -1763,13 +1848,18 @@ export interface ReplayBundle {
   config: ReplayConfig;
   actionLog: Action[];
   meta: ReplayMeta;
-  // Per-turn digests of rules-visible state, hashed live by the server as the
-  // game was played (engine #509). They are what lets an OLD bundle be replayed
-  // on a NEWER engine: the server re-folds the log and compares its own digest
-  // at the end of every turn, so "this release didn't change this game" is
-  // VERIFIED rather than assumed. `v` stays 1 — both fields are optional and a
-  // bundle recorded before #509 simply has none (and keeps the hard
-  // VERSION_MISMATCH refusal across a version change).
+  // VERIFIED RE-SIMULATION (v34, engine #509). One digest per turn boundary the
+  // recording crossed, in order: a fast hash of the RULES-VISIBLE board (fighters,
+  // zones, counters, tokens, winner) taken at each turn edge and at game over. A
+  // server on a DIFFERENT engine version re-folds the action log, recomputes the
+  // same digests, and compares — so an old bundle whose game re-simulates
+  // identically (the common case: the release only added decks) plays back
+  // verified, and one that does not is truncated at the first turn that differs
+  // instead of silently rendering a wrong game. `digestVersion` names the
+  // projection the hashes were taken over; a server that does not know that
+  // version treats the bundle as digest-less. BOTH OPTIONAL and absent together on
+  // every pre-#509 bundle, which keeps `v: 1` honest — old clients and old servers
+  // read such a bundle exactly as they always did.
   digests?: string[];
   digestVersion?: number;
 }
@@ -1798,10 +1888,7 @@ export interface ReplayStep {
   activePlayer: PlayerId;
   actionsRemaining: number;
   turnPhase: "ACTION_SELECT" | "MANEUVER_MOVE" | "DISCARD_TO_LIMIT" | null;
-  // Replay frames carry `relocated` too: replay steps are redacted through the same
-  // view path as PlayerView (engine server/replay.ts godStep ← redactFor), so a
-  // recorded relocation rides the frame. Same ABSENT-WHEN-EMPTY ledger as above.
-  maneuver: { boostApplied: number; boosted: boolean; moved: FighterId[]; relocated?: FighterId[] } | null;
+  maneuver: { boostApplied: number; boosted: boolean; moved: FighterId[] } | null;
   fighters: ViewFighter[];
   tokens: ViewToken[];
   combat: ViewCombat | null;
@@ -1822,27 +1909,32 @@ export interface ReplayExpansion {
   catalog: Record<CardDefId, CardMeta>;
   heroes: Partial<Record<PlayerId, string>>;
   steps: ReplayStep[];
-  finalHash: string; // FNV-1a of the final state — pins the exact game
-  // How much of this expansion the server could VOUCH for (engine #509):
-  //  - "exact": the bundle was recorded on this same engine build;
-  //  - "digest-verified": recorded on a different build, and every per-turn
-  //    digest still matched — the game re-simulates identically;
-  //  - "diverged": digests matched up to `divergedAtTurn`, where this engine's
-  //    rules produce a different state. `steps` then STOPS at the end of the
-  //    previous turn; the server never returns unverified frames.
-  // ABSENT on a pre-#509 server — the client treats that as "exact", which is
-  // what it effectively was (the old server refused every version mismatch).
+  finalHash: string; // FNV-1a of the final state — pins the exact game (of the LAST VERIFIED state when verification === "diverged")
+  // HOW MUCH THE SERVER CAN VOUCH FOR (v34, engine #509):
+  //  - "exact": the bundle was recorded on THIS engine version. Frames are the
+  //    same game, by construction.
+  //  - "digest-verified": recorded on a different version, but every one of the
+  //    bundle's per-turn digests matched the re-simulation — the game replayed
+  //    the same way, turn for turn.
+  //  - "diverged": the re-simulation stopped agreeing with the recording.
+  //    `steps` covers turns 1..`divergedAtTurn`-1 ONLY; nothing past the
+  //    divergence is returned, because past it the frames are a different game.
+  // ABSENT = a pre-#509 server, which only ever answered same-version bundles:
+  // clients treat an absent field as "exact".
   verification?: ReplayVerification;
-  divergedAtTurn?: number; // only when verification === "diverged"
-  recordedEngine?: { schemaVersion: number; dslVersion: string }; // echo of bundle.engine
+  divergedAtTurn?: number; // present only when verification === "diverged"
+  // Echo of the bundle's own version block, so a viewer can say WHICH engine the
+  // game was recorded on next to the one that replayed it (`engine`, above).
+  recordedEngine?: { schemaVersion: number; dslVersion: string };
 }
 
+// CLIENT-ONLY named export (lib/pro/replayVerification.ts imports it) — keep on re-sync.
 export type ReplayVerification = "exact" | "digest-verified" | "diverged";
 
 export type ReplayErrorCode =
   | "BAD_BUNDLE" // malformed JSON / missing required fields
   | "TOO_LARGE" // actionLog exceeds the server cap
-  | "VERSION_MISMATCH" // version differs AND the bundle carries no digests to verify against (engine #509)
+  | "VERSION_MISMATCH" // recorded on another engine version AND carries no digests to verify against (#509)
   | "ILLEGAL_ACTION"; // the reducer rejected an action in the log
 
 export interface ReplayError {
@@ -1890,16 +1982,18 @@ export interface HeroListing {
 }
 
 // A public room waiting for a second player (LIST_LOBBIES result row).
+// The optional fields (#498) are additive and describe what the joiner is walking
+// into. Everything here is already-public info about the WAITING SEAT — a
+// `playerId` is telemetry-only and must never appear on this row.
 export interface LobbyListing {
   roomId: string;
   heroId: string;
   heroName: string;
   ageMs: number; // time the lobby has been waiting (now − room creation); NOT reset by a visibility toggle
-  // Matchmaking v1 (engine #391) — every field below is OPTIONAL and absent on a
-  // server that predates it. See the v34-unchanged note above.
-  formatId?: string; // absent ⇒ "duel"
-  turnTimerSeconds?: number; // absent/0 ⇒ untimed
-  host?: { displayName?: string; badge?: string; badges?: string[] }; // cosmetic + UNVERIFIED
+  formatId?: string; // the room's selected format (duel, ffa-3, team-2v2, …)
+  turnTimerSeconds?: number; // per-decision move clock; ABSENT when the room is untimed
+  // `badges` (#517) is the worn list; `badge` stays populated as `badges[0]`.
+  host?: { displayName?: string; badge?: string; badges?: string[] }; // absent entirely for an anonymous host
 }
 
 // One slot of a room's live fill state (ROOM_STATUS, issue #121). Public info
@@ -1917,13 +2011,9 @@ export interface RoomStatusSeat {
   displayName?: string;
   // #347: the seat's claimed badge id, same treatment and same caveats as
   // `displayName`. Opaque to the server; unknown ids render as nothing.
+  // #517: LEGACY single slot, kept populated as `badges[0]` for one release.
   badge?: string;
-  // #718 (engine #517): the seat's claimed badge ids, ordered — slot 0 is the
-  // disc that sits in front on the HUD shelf. Same treatment and same caveats
-  // as `badge` above: opaque, public, cosmetic, UNVERIFIED, never telemetry.
-  // Sanitized per id and sliced to 3 server-side; the client slices again,
-  // because the array reached the server from the other client. `badge` stays
-  // populated as `badges[0]` for one release, so an older client is unaffected.
+  // #517: the seat's worn badge ids in render order, sliced to the first 3.
   badges?: string[];
 }
 
@@ -1955,10 +2045,11 @@ export type ClientMsg =
   // the room creator opts OUT with `false`, and an older client that never sends the
   // field gets the same game a new one does. Anything but a boolean (or absent)
   // answers ERROR{BAD_MESSAGE}. See the v30 header note.
-  // `itemsEnabled` (engine #519): battlefield items for this room's map. ABSENT = ON —
-  // `false` strips the map's items for this game only (no item tokens spawn; the game
-  // is byte-identical to the same map authored without `items`). Anything but a
-  // boolean (or absent) answers ERROR{BAD_MESSAGE}. See the v34-unchanged note above.
+  // `itemsEnabled` (engine #519): the map's battlefield items for this room. ABSENT
+  // = ON — they are printed on the map, so only an explicit `false` turns them off,
+  // and an older client that never sends the field gets the same game a new one
+  // does. Anything but a boolean (or absent) answers ERROR{BAD_MESSAGE}. See the
+  // 2026-08-28 header note.
   // `pilot`: telemetry label for socket-driven seats. Omit/empty = human;
   // LLM agents should send llm:<model>.
   // `displayName`/`playerId` (issue #344): optional, client-claimed, UNVERIFIED
@@ -1967,12 +2058,16 @@ export type ClientMsg =
   // `badge` (issue #347): optional, client-claimed, UNVERIFIED opaque badge id
   // — sanitized + broadcast beside the name, never sent to telemetry. See the
   // 2026-08-06 header note.
+  // `badges` (issue #517): the same thing widened to an ORDERED list of up to
+  // three — each id sanitized by the `badge` rules, the list sliced to the first
+  // 3, never rejected. Supersedes `badge`, which is only read when `badges` is
+  // absent. See the 2026-08-27 header note.
   // `cosmetics` (issue #392): optional, client-claimed, UNVERIFIED OPAQUE blob
   // of cosmetic ids, max 512 BYTES — over the cap REJECTS the message with
   // BAD_MESSAGE (it is not truncated). Echoed verbatim into `ViewPlayer` and
   // frozen into replay bundles; never parsed, never logged, never sent to
   // telemetry, never visible to a bot. See the 2026-08-18 header note.
-  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; mulligan?: boolean; itemsEnabled?: boolean; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string; quickMatch?: boolean }
+  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; mulligan?: boolean; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string; quickMatch?: boolean; itemsEnabled?: boolean }
   | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string }
   | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }
@@ -1984,7 +2079,15 @@ export type ClientMsg =
   // accept/reject. Neither is an `Action` — undo never enters the replay log.
   | { v: number; type: "UNDO_REQUEST"; roomId: string }
   | { v: number; type: "UNDO_RESPONSE"; roomId: string; accept: boolean }
-  | { v: number; type: "ACTION"; roomId: string; action: Action };
+  | { v: number; type: "ACTION"; roomId: string; action: Action }
+  // v35: rematch negotiation in a FINISHED room (engine #607). Meta messages, never
+  // actions. See the v35 header note.
+  | { v: number; type: "REMATCH_OFFER"; roomId: string }
+  | { v: number; type: "REMATCH_RESPOND"; roomId: string; accept: boolean }
+  | { v: number; type: "REMATCH_CANCEL"; roomId: string };
+
+// v35: why a rematch negotiation ended without a room. See the v35 header note.
+export type RematchClosedReason = "declined" | "cancelled" | "disconnected" | "timeout" | "unavailable";
 
 export type ServerMsg =
   | { v: number; type: "HEROES"; heroes: HeroListing[] }
@@ -2041,6 +2144,13 @@ export type ServerMsg =
   | { v: number; type: "UNDO_REQUESTED"; requester: PlayerId; rewindActions: UndoActionSummary[] }
   // v11: pushed to the REQUESTER when their undo is declined, superseded, or stale.
   | { v: number; type: "UNDO_REJECTED" }
+  // v35 (engine #607): rematch negotiation. OFFERED goes to every other human seat (and
+  // is re-sent to a seat that reconnects mid-negotiation — `from` may then be itself).
+  // READY carries the NEW room and THIS seat's token for it — join with RECONNECT.
+  // CLOSED ends the negotiation; `player` names who declined/cancelled/dropped.
+  | { v: number; type: "REMATCH_OFFERED"; from: PlayerId }
+  | { v: number; type: "REMATCH_READY"; roomId: string; token: string }
+  | { v: number; type: "REMATCH_CLOSED"; reason: RematchClosedReason; player?: PlayerId }
   | { v: number; type: "ERROR"; code: ErrorCode; message: string };
 
 export type ErrorCode =
@@ -2061,6 +2171,7 @@ export type ErrorCode =
   // response: pushed proactively wherever RESUME_TOKEN normally would be.
   | "RESUME_TOO_LARGE"
   | "UNDO_UNAVAILABLE" // UNDO_REQUEST with nothing to undo, or one already pending
+  | "REMATCH_UNAVAILABLE" // v35: a REMATCH_* message the room/seat cannot take right now
   | "ROOM_LIMIT" // CREATE_ROOM refused — server is at its global room cap (PRO_MAX_ROOMS)
   | "RATE_LIMITED" // this connection is sending messages too fast (see server rate-limit env vars)
   | "SERVER_ERROR";

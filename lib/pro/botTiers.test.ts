@@ -7,7 +7,7 @@
  * new tier still switched off) must land on exactly today's easy/medium/hard,
  * and a server that does advertise is taken at its word, per hero.
  */
-import { availableBotTiers, botTierChoices, botTierMeta, coerceBotTier } from "./botTiers";
+import { availableBotTiers, botTierChoices, botTierMeta, ClientBotTier, coerceBotTier, tierTooltip } from "./botTiers";
 import type { BotDifficulty, HeroListing } from "./protocol";
 
 const listing = (heroId: string, botTiers?: BotDifficulty[]): HeroListing => ({
@@ -22,7 +22,7 @@ const listing = (heroId: string, botTiers?: BotDifficulty[]): HeroListing => ({
 });
 
 const EXPERT: BotDifficulty[] = ["easy", "medium", "hard", "expert"];
-const PLAIN: BotDifficulty[] = ["easy", "medium", "hard"];
+const PLAIN: ClientBotTier[] = ["easy", "medium", "hard"];
 
 describe("availableBotTiers — no advertisement (old server / tier dormant)", () => {
   it("falls back to easy|medium|hard when the listing omits botTiers", () => {
@@ -94,5 +94,49 @@ describe("coerceBotTier — an armed tier that stops being offered", () => {
   it("drops to the strongest tier that remains", () => {
     expect(coerceBotTier("expert", PLAIN)).toBe("hard");
     expect(coerceBotTier("hard", ["easy", "medium"])).toBe("medium");
+  });
+});
+
+describe("jev / jevx3 (#933)", () => {
+  const ALL: BotDifficulty[] = ["easy", "medium", "hard", "expert", "jev", "jevx3"];
+
+  it("a listing advertising jev never yields a jev choice — only jevx3 is new", () => {
+    const ids = botTierChoices([listing("king-kong", ALL)], ["king-kong"]).map((c) => c.id);
+    expect(ids).toEqual(["easy", "medium", "hard", "expert", "jevx3"]);
+    expect(ids).not.toContain("jev");
+  });
+
+  it("jevx3 renders under its everyday name, chip and badge; the full name is versioned", () => {
+    expect(botTierMeta("jevx3")).toMatchObject({
+      id: "jevx3",
+      label: "Prodigy",
+      fullName: "Prodigy 3",
+      chip: "AI·P",
+      badge: "preview",
+      tooltip: "Prodigy 3 · preview",
+    });
+  });
+
+  it("the chip is 'AI·P' with no digit, and its tooltip carries the full name 'Prodigy 3'", () => {
+    const meta = botTierMeta("jevx3");
+    expect(meta.chip).toBe("AI·P");
+    expect(meta.chip).not.toMatch(/\d/);
+    expect(meta.label).not.toMatch(/\d/);
+    expect(tierTooltip(meta)).toContain("Prodigy 3");
+  });
+
+  it("locked: the tooltip is the unlock hint, then the full name on its own line", () => {
+    const locked = { ...botTierMeta("jevx3"), locked: true, lockHint: "12/15 wins vs Expert to unlock" };
+    expect(tierTooltip(locked)).toBe("12/15 wins vs Expert to unlock\nProdigy 3");
+    // a tier without a full name shows just its hint
+    expect(tierTooltip({ ...botTierMeta("expert"), locked: true, lockHint: "hint" })).toBe("hint");
+    expect(tierTooltip(botTierMeta("hard"))).toBeUndefined();
+  });
+
+  it("no player-facing text reveals the tech behind a tier", () => {
+    const FORBIDDEN = /jev|llm|api|ismcts/i;
+    for (const c of botTierChoices([listing("king-kong", ALL)], ["king-kong"])) {
+      for (const text of [c.label, c.fullName, c.chip, c.badge, c.tooltip]) expect(text ?? "").not.toMatch(FORBIDDEN);
+    }
   });
 });

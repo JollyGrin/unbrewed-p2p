@@ -14,13 +14,15 @@
 import { CSSProperties, FocusEvent as ReactFocusEvent, Fragment, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { useRouter } from "next/router";
+import { LockIcon } from "@chakra-ui/icons";
 import { Box, Button, Flex, Grid, Input, InputGroup, InputLeftElement, Link, Menu, MenuButton, MenuItem, MenuList, NumberDecrementStepper, NumberIncrementStepper, NumberInput, NumberInputField, NumberInputStepper, Tag, Text, Textarea, Tooltip } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
 import { motion, useReducedMotion } from "framer-motion";
 import { MOVE_STEP_SECONDS, MoveHint, PendingMove, ProBoard } from "@/components/Pro/ProBoard";
 import { ProErrorBoundary } from "@/components/Pro/ProErrorBoundary";
 import { assignableSeats, BotSlotPlan, SlotOccupant } from "@/components/Pro/CreateSeats";
-import { availableBotTiers, botTierChoices, BotTierChoice, coerceBotTier } from "@/lib/pro/botTiers";
+import { availableBotTiers, botTierChoices, BotTierChoice, coerceBotTier, tierTooltip } from "@/lib/pro/botTiers";
+import { applyTierLocks, isAllowlisted, JEVX3_ALLOWLIST, lockedTiers, TierUnlockProgress, tierUnlockProgress } from "@/lib/pro/tierUnlock";
 import { OpponentChoice, useOpponentSeat } from "@/lib/pro/opponentSeat";
 import { stateHash } from "@/lib/pro/stateHash";
 import {
@@ -176,6 +178,7 @@ import { usePositionSwaps } from "@/lib/pro/usePositionSwaps";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
 import { useAccount } from "@/lib/account/useAccount";
+import { useAccountStats } from "@/lib/account/useAccountStats";
 import { InGameAccountChip } from "@/components/Account/AccountChip";
 import { ChipCluster } from "@/components/Game/Header/header.styles";
 import { formatChoice, PRO_FORMATS, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
@@ -2701,11 +2704,31 @@ function Segmented<T extends string>({
 
 /** One chip: "Hum" plus whichever bot tiers THIS SERVER offers for the picked
  *  heroes. The bot tiers are never hardcoded here — see lib/pro/botTiers.ts. */
-type SeatChip = { v: OpponentChoice; label: string; badge?: string; tooltip?: string };
+type SeatChip = {
+  v: OpponentChoice;
+  label: string;
+  badge?: string;
+  tooltip?: string;
+  /** Offered but not yet earned (#933) — rendered, never selectable. */
+  locked?: boolean;
+  lockHint?: string;
+  fullName?: string;
+};
 const seatChips = (tiers: BotTierChoice[]): SeatChip[] => [
   { v: "human", label: "Hum" },
-  ...tiers.map((t) => ({ v: t.id as OpponentChoice, label: t.chip, badge: t.badge, tooltip: t.tooltip })),
+  ...tiers.map((t) => ({
+    v: t.id as OpponentChoice,
+    label: t.chip,
+    badge: t.badge,
+    tooltip: t.tooltip,
+    locked: t.locked,
+    lockHint: t.lockHint,
+    fullName: t.fullName,
+  })),
 ];
+
+/** Fail-closed default when no unlock progress is passed down (#933). */
+const LOCKED_TIER_UNLOCK: TierUnlockProgress = tierUnlockProgress("loading", null);
 
 /** The pre-roster strip: the always-available tiers, never an empty picker. */
 const FALLBACK_SEAT_CHIPS = seatChips(botTierChoices(null, []));
@@ -2722,25 +2745,36 @@ const PlateChips = ({
   <Flex gap="0.25rem" mt="0.3rem" flexWrap="wrap">
     {chips.map((c) => {
       const active = value === c.v;
+      // A locked tier (#933) stays focusable and hoverable so its hint shows —
+      // aria-disabled + a no-op click, NOT isDisabled: Chakra tooltips never fire
+      // on a disabled button.
+      const locked = !!c.locked;
+      const tip = tierTooltip(c);
       const btn = (
         <Button
           key={c.v}
           type="button"
           size="xs"
           aria-pressed={active}
+          aria-disabled={locked || undefined}
+          aria-label={locked && tip ? `${c.label} (locked): ${tip.replace(/\n/g, " · ")}` : undefined}
+          data-locked={locked || undefined}
           data-testid={`seat-chip-${c.v}`}
           h="1.3rem"
           minW="auto"
           px="0.45rem"
           fontSize="0.62rem"
           fontFamily="SpaceGrotesk"
-          onClick={() => onChange(c.v)}
+          onClick={locked ? undefined : () => onChange(c.v)}
           bg={active ? "brand.accent" : "rgba(0,0,0,0.3)"}
           color={active ? "brand.surfaceDim" : "brand.parchment"}
           border="1px solid"
           borderColor={active ? "brand.accent" : "whiteAlpha.200"}
-          _hover={{ borderColor: active ? "brand.accentDeep" : "whiteAlpha.400" }}
+          opacity={locked ? 0.5 : undefined}
+          cursor={locked ? "not-allowed" : undefined}
+          _hover={{ borderColor: active ? "brand.accentDeep" : locked ? "whiteAlpha.200" : "whiteAlpha.400" }}
         >
+          {locked && <LockIcon boxSize="0.55rem" mr="0.25rem" aria-hidden />}
           {c.label}
           {c.badge && (
             <Text as="span" ml="0.25rem" fontSize="0.5rem" letterSpacing="0.05em" opacity={0.85} textTransform="uppercase">
@@ -2749,8 +2783,8 @@ const PlateChips = ({
           )}
         </Button>
       );
-      return c.tooltip ? (
-        <Tooltip key={c.v} label={c.tooltip} openDelay={200} fontSize="0.7rem">
+      return tip ? (
+        <Tooltip key={c.v} label={tip} openDelay={locked ? 0 : 200} fontSize="0.7rem" whiteSpace="pre-line">
           {btn}
         </Tooltip>
       ) : (
@@ -2899,6 +2933,7 @@ const HeroSelectLobby = ({
   mapError,
   recentRooms,
   onResumeRoom,
+  tierUnlock,
 }: {
   room: string | null;
   status: ProConnectionStatus;
@@ -2945,6 +2980,8 @@ const HeroSelectLobby = ({
   /** recent matches this browser was seated in — "rejoin" chips in the strip */
   recentRooms: RecentRoom[];
   onResumeRoom: (roomId: string) => void;
+  /** the player's progress toward gated bot tiers (#933); absent = everything locked */
+  tierUnlock?: TierUnlockProgress;
 }) => {
   // While the list is loading, a valid-looking `?hero=` stands in so the
   // creator isn't blocked; once the list arrives the real selection takes over.
@@ -3034,11 +3071,15 @@ const HeroSelectLobby = ({
   // unchanged easy/medium/hard set. See lib/pro/botTiers.ts.
   // A Random pick contributes no hero to the tier query (it isn't one yet), so
   // the strip falls back to the server's unnarrowed set until it resolves.
+  // Gated tiers (#933) still render, but locked until the player has earned them.
   const seatChipStrip = seatChips(
-    botTierChoices(heroes, [
-      randomPicked ? null : effective,
-      selectedFormat === "duel" ? aiHeroId : null,
-    ]),
+    applyTierLocks(
+      botTierChoices(heroes, [
+        randomPicked ? null : effective,
+        selectedFormat === "duel" ? aiHeroId : null,
+      ]),
+      tierUnlock ?? LOCKED_TIER_UNLOCK,
+    ),
   );
   // Splash shows the hover preview, else the locked pick. Hovering your own
   // locked tile keeps the "locked" wording (matches the mockup).
@@ -4187,7 +4228,17 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // `useProSocket` has already kicked off. Only the forfeit dialog reads it —
   // cosmetic points exist for signed-in players, so only they are told what
   // conceding costs (#636).
-  const { status: accountStatus } = useAccount();
+  const accountState = useAccount();
+  const { status: accountStatus } = accountState;
+  // The jevx3 unlock gate (#933) reads the record vs Expert. A guest makes no
+  // request (useAccountStats waits for "signed-in"); every non-ready state locks.
+  // A signed-in player on the build-time allowlist is unlocked outright.
+  const { status: statsStatus, stats: accountStats } = useAccountStats();
+  const tierUnlock = tierUnlockProgress(
+    statsStatus,
+    accountStats,
+    isAllowlisted(accountState, JEVX3_ALLOWLIST),
+  );
   const [joined, setJoined] = useState(false);
   // `selectedHeroId` holds a real hero id — or RANDOM_HERO_ID (#697), which is
   // resolved to one at the create/join click and written back here, so every
@@ -4223,10 +4274,14 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // the moment the offer changes, dropping to the strongest tier still offered.
   // Joined to a string so the effect re-runs on a CHANGE of offer, not on every
   // render's fresh array identity.
+  // A tier the player hasn't unlocked yet (#933) is pruned the same way.
+  const lockedTierSet = lockedTiers(tierUnlock);
   const armedTierKey = availableBotTiers(heroes, [
     selectedHeroId,
     selectedFormat === "duel" ? aiHeroId : null,
-  ]).join(",");
+  ])
+    .filter((t) => !lockedTierSet.includes(t))
+    .join(",");
   useEffect(() => {
     const offered = armedTierKey.split(",") as BotDifficulty[];
     reviseOpponent((prev) => (prev === "human" ? prev : coerceBotTier(prev, offered)));
@@ -5037,6 +5092,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
           heroes={heroes}
           heroParam={heroParam}
           recentRooms={recentRooms}
+          tierUnlock={tierUnlock}
           onResumeRoom={resumeRoom}
           selectedHeroId={selectedHeroId}
           opponent={opponent}
