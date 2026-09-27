@@ -155,48 +155,17 @@ and does not read `.vercelignore`, so delete `public/figures/` before a
 prebuilt deploy. The production site (GitHub Pages, built from a git
 checkout) never has the folder.
 
-## The models we use
+## Before cataloguing a model
 
-These rows are **ruled**, not unreviewed (Dean, 2026-09-26): every model
-here is published under MakerWorld's Standard Digital File License, which
-does not allow redistribution, and we respect it. These models and their
-renders are never committed, never shipped, and never cleared by the gate —
-their `figures.json` entries stay without `redistributable: true`, so
-`render.cjs` skips them and the app drops them. They are for the owner's
-local renders only.
+Check the model's licence for redistribution rights **before** downloading
+or converting it into this pipeline. A model that can't ship its renders
+doesn't belong in the repo's tooling at all — not even as a row in a table
+of "models we use" — gate or no gate (Dean, 2026-09-27; see LEARNINGS.md).
+This repo previously listed 25 MakerWorld models here, every one ruled
+`not redistributable` under MakerWorld's Standard Digital File License; they
+were deleted rather than kept as a to-do list of things we cannot ship.
 
-| Hero (`heroId`) | Model | Designer | Licence | Status | Notes |
-|---|---|---|---|---|---|
-| `appa` | [Appa Figure](https://makerworld.com/en/models/637934) | printasauruslv | MakerWorld Standard Digital File License | not redistributable | the plate holds three copies: `--item=1` |
-| `baba-yaga` | [Baba Yaga Slavic Witch Figure](https://makerworld.com/en/models/3214806) | Marcin | MakerWorld Standard Digital File License | not redistributable | |
-| `batman` | [The Dark Knight – Ultra Detailed Solid Edition](https://makerworld.com/en/models/2559226) | Clean Studio | MakerWorld Standard Digital File License | not redistributable | |
-| `boba-fett` | [Ultimate Boba Fett – High-Detail](https://makerworld.com/en/models/1941849) | TheMiniSmith3D | MakerWorld Standard Digital File License | not redistributable | |
-| `cairne-bloodhoof` | [Baine Bloodhoof – High Chieftain of the Tauren](https://makerworld.com/en/models/2564821) | Cadel | MakerWorld Standard Digital File License | not redistributable | Cairne's son; no full Cairne figure found |
-| `clone-troopers` | [Clone Trooper 2](https://makerworld.com/en/models/1509372) | ArMania3d | MakerWorld Standard Digital File License | not redistributable | |
-| `darth-maul` | [Darth Maul – High-Detail](https://makerworld.com/en/models/1941931) | TheMiniSmith3D | MakerWorld Standard Digital File License | not redistributable | |
-| `darth-vader` | [Darth Vader Miniature](https://makerworld.com/en/models/2142163) | Stache | MakerWorld Standard Digital File License | not redistributable | |
-| `doppelganger` | [Doppelganger – Monster Manual 2024](https://makerworld.com/en/models/3029744) | PixelPrint | MakerWorld Standard Digital File License | not redistributable | thematic stand-in |
-| `ellen-ripley` | [Miniature Alien Ripley](https://makerworld.com/en/models/1727592) | lagalerylab | MakerWorld Standard Digital File License | not redistributable | |
-| `general-grievous` | [General Grievous Inspired Figurine](https://makerworld.com/en/models/1498306) | ArMania3d | MakerWorld Standard Digital File License | not redistributable | first plate is the whole figure: `--item=0` |
-| `gerry-the-isopod` | [Articulated Isopod – Porcellio laevis](https://makerworld.com/en/models/1150591) | Insectium3D | MakerWorld Standard Digital File License | not redistributable | |
-| `gingerbread-man` | [Gingerbread Man with sword](https://makerworld.com/en/models/2026043) | RandoTheMagical | MakerWorld Standard Digital File License | not redistributable | |
-| `hollow-oak`, `hollow-oak-spice` | [Treant Warrior](https://makerworld.com/en/models/2283286) | GBilhalva | MakerWorld Standard Digital File License | not redistributable | thematic stand-in |
-| `jason-voorhees` | [New Jason Voorhees from Friday the 13th](https://makerworld.com/en/models/1429201) | Print3DPro.pl | MakerWorld Standard Digital File License | not redistributable | one piece (the "No AMS" versions are kits) |
-| `kenshiro` | [Kenshiro – Fist of the North Star](https://makerworld.com/en/models/2650091) | .LordPrintalot. | MakerWorld Standard Digital File License | not redistributable | |
-| `king-kong` | [King Kong Statue](https://makerworld.com/en/models/2687689) | neexus | MakerWorld Standard Digital File License | not redistributable | LARGE: drawn ×1.5 between its two spaces |
-| `leon-s-kennedy` | [Leon S. Kennedy Resin Figurine](https://makerworld.com/en/models/2641986) | Hex Studio | MakerWorld Standard Digital File License | not redistributable | |
-| `luke-skywalker` | [Luke Skywalker / Star Wars-inspired Miniature](https://makerworld.com/en/models/2259478) | Cadel | MakerWorld Standard Digital File License | not redistributable | |
-| `malfurion-stormrage` | [Malfurion Stormrage](https://makerworld.com/en/models/2903065) | Cadel | MakerWorld Standard Digital File License | not redistributable | |
-| `r2-d2` | [R2-D2 Miniature Statue](https://makerworld.com/en/models/2134928) | Stache | MakerWorld Standard Digital File License | not redistributable | |
-| `skull-kid` | [Skull Kid – Majora's Mask](https://makerworld.com/en/models/2686328) | Vinexsoto96 | MakerWorld Standard Digital File License | not redistributable | leaps off a branch by design |
-| `the-mandalorian` | [Mandalorian Figurine – no supports](https://makerworld.com/en/models/110973) | Encrust3d | MakerWorld Standard Digital File License | not redistributable | without Grogu, who is his sidekick |
-| `thrall` | [Thrall Figure – World of Warcraft](https://makerworld.com/en/models/2568449) | Betyna99 | MakerWorld Standard Digital File License | not redistributable | |
-| `triceratops` | [Sweet cute Cartoon triceratops Dinosaur](https://makerworld.com/en/models/2268092) | Nopse | MakerWorld Standard Digital File License | not redistributable | |
-
-No suitable model was found for Buster Keaton, Cecil Palmer, King Taranis,
-Nancy Drew, The Narrator, The Piper of the Underroads, Specter Knight and
-Thetis; they stay tokens.
-
-Avoid print kits whose parts lie scattered on the plate: the file does not
-say how they fit together (Bambu's assembly view was tried and leaves parts
-behind).
+Only models that clear the licence rule above belong in either set:
+`figures-open.json`/`public/figures-open/` (committed) if the licence
+allows redistribution, or the owner's local, git-ignored `figures.json`
+(see [Setup](#setup-private-set)) while a licence is still being confirmed.
