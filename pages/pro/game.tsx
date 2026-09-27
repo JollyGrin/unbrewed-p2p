@@ -21,7 +21,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { MOVE_STEP_SECONDS, MoveHint, PendingMove, ProBoard } from "@/components/Pro/ProBoard";
 import { ProErrorBoundary } from "@/components/Pro/ProErrorBoundary";
 import { assignableSeats, BotSlotPlan, SlotOccupant } from "@/components/Pro/CreateSeats";
-import { availableBotTiers, botTierChoices, BotTierChoice, coerceBotTier } from "@/lib/pro/botTiers";
+import { availableBotTiers, botTierChoices, BotTierChoice, coerceBotTier, tierTooltip } from "@/lib/pro/botTiers";
 import { applyTierLocks, isAllowlisted, JEVX3_ALLOWLIST, lockedTiers, TierUnlockProgress, tierUnlockProgress } from "@/lib/pro/tierUnlock";
 import { OpponentChoice, useOpponentSeat } from "@/lib/pro/opponentSeat";
 import { stateHash } from "@/lib/pro/stateHash";
@@ -2703,6 +2703,7 @@ type SeatChip = {
   /** Offered but not yet earned (#933) — rendered, never selectable. */
   locked?: boolean;
   lockHint?: string;
+  fullName?: string;
 };
 const seatChips = (tiers: BotTierChoice[]): SeatChip[] => [
   { v: "human", label: "Hum" },
@@ -2713,6 +2714,7 @@ const seatChips = (tiers: BotTierChoice[]): SeatChip[] => [
     tooltip: t.tooltip,
     locked: t.locked,
     lockHint: t.lockHint,
+    fullName: t.fullName,
   })),
 ];
 
@@ -2738,7 +2740,7 @@ const PlateChips = ({
       // aria-disabled + a no-op click, NOT isDisabled: Chakra tooltips never fire
       // on a disabled button.
       const locked = !!c.locked;
-      const tip = locked ? c.lockHint : c.tooltip;
+      const tip = tierTooltip(c);
       const btn = (
         <Button
           key={c.v}
@@ -2746,7 +2748,7 @@ const PlateChips = ({
           size="xs"
           aria-pressed={active}
           aria-disabled={locked || undefined}
-          aria-label={locked && c.lockHint ? `${c.label} (locked): ${c.lockHint}` : undefined}
+          aria-label={locked && tip ? `${c.label} (locked): ${tip.replace(/\n/g, " · ")}` : undefined}
           data-locked={locked || undefined}
           data-testid={`seat-chip-${c.v}`}
           h="1.3rem"
@@ -2773,7 +2775,7 @@ const PlateChips = ({
         </Button>
       );
       return tip ? (
-        <Tooltip key={c.v} label={tip} openDelay={locked ? 0 : 200} fontSize="0.7rem">
+        <Tooltip key={c.v} label={tip} openDelay={locked ? 0 : 200} fontSize="0.7rem" whiteSpace="pre-line">
           {btn}
         </Tooltip>
       ) : (

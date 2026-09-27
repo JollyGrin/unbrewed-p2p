@@ -204,7 +204,7 @@ describe("row labels", () => {
   it("names jevx3 by its display name and never prints a hidden tier's id (#933)", () => {
     expect(
       pilotLabel({ ...game.opponents[0], pilot: "bot:jevx3", botDifficulty: "jevx3" }),
-    ).toBe("Familiar 3");
+    ).toBe("Prodigy");
     expect(
       pilotLabel({ ...game.opponents[0], pilot: "bot:jev", botDifficulty: "jev" }),
     ).toBe("Bot");

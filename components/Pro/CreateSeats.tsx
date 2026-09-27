@@ -1,7 +1,7 @@
 import { LockIcon } from "@chakra-ui/icons";
 import { Button, Flex, Grid, Text, Tooltip } from "@chakra-ui/react";
 import { BotDifficulty, HeroListing, PlayerId } from "@/lib/pro/protocol";
-import { botTierChoices } from "@/lib/pro/botTiers";
+import { botTierChoices, tierTooltip } from "@/lib/pro/botTiers";
 import { applyTierLocks, TierUnlockProgress, tierUnlockProgress } from "@/lib/pro/tierUnlock";
 import { ProFormatId, TeamSeatSource, teamComposition } from "@/lib/pro/multiplayerPlaytest";
 
@@ -108,7 +108,7 @@ export const CreateSeats = ({
     // Locked (#933): focusable, aria-disabled, no-op — not isDisabled, which
     // would stop the hint tooltip from ever opening. Mirrors PlateChips.
     const locked = !!choice.locked;
-    const tip = locked ? choice.lockHint : choice.tooltip;
+    const tip = tierTooltip(choice);
     const btn = (
       <Button
         key={choice.id}
@@ -116,7 +116,7 @@ export const CreateSeats = ({
         size="xs"
         data-testid={`bot-tier-${choice.id}`}
         aria-disabled={locked || undefined}
-        aria-label={locked && choice.lockHint ? `${choice.label} (locked): ${choice.lockHint}` : undefined}
+        aria-label={locked && tip ? `${choice.label} (locked): ${tip.replace(/\n/g, " · ")}` : undefined}
         data-locked={locked || undefined}
         onClick={locked ? undefined : onPick}
         opacity={locked ? 0.5 : undefined}
@@ -132,7 +132,7 @@ export const CreateSeats = ({
       </Button>
     );
     return tip ? (
-      <Tooltip key={choice.id} label={tip} openDelay={locked ? 0 : 200} fontSize="0.7rem">
+      <Tooltip key={choice.id} label={tip} openDelay={locked ? 0 : 200} fontSize="0.7rem" whiteSpace="pre-line">
         {btn}
       </Tooltip>
     ) : (

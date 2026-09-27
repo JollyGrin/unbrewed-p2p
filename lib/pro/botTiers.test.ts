@@ -7,7 +7,7 @@
  * new tier still switched off) must land on exactly today's easy/medium/hard,
  * and a server that does advertise is taken at its word, per hero.
  */
-import { availableBotTiers, botTierChoices, botTierMeta, ClientBotTier, coerceBotTier } from "./botTiers";
+import { availableBotTiers, botTierChoices, botTierMeta, ClientBotTier, coerceBotTier, tierTooltip } from "./botTiers";
 import type { BotDifficulty, HeroListing } from "./protocol";
 
 const listing = (heroId: string, botTiers?: BotDifficulty[]): HeroListing => ({
@@ -106,14 +106,37 @@ describe("jev / jevx3 (#933)", () => {
     expect(ids).not.toContain("jev");
   });
 
-  it("jevx3 renders under its display name, chip and badge", () => {
-    expect(botTierMeta("jevx3")).toMatchObject({ id: "jevx3", label: "Familiar 3", chip: "AI·F", badge: "preview" });
+  it("jevx3 renders under its everyday name, chip and badge; the full name is versioned", () => {
+    expect(botTierMeta("jevx3")).toMatchObject({
+      id: "jevx3",
+      label: "Prodigy",
+      fullName: "Prodigy 3",
+      chip: "AI·P",
+      badge: "preview",
+      tooltip: "Prodigy 3 · preview",
+    });
+  });
+
+  it("the chip is 'AI·P' with no digit, and its tooltip carries the full name 'Prodigy 3'", () => {
+    const meta = botTierMeta("jevx3");
+    expect(meta.chip).toBe("AI·P");
+    expect(meta.chip).not.toMatch(/\d/);
+    expect(meta.label).not.toMatch(/\d/);
+    expect(tierTooltip(meta)).toContain("Prodigy 3");
+  });
+
+  it("locked: the tooltip is the unlock hint, then the full name on its own line", () => {
+    const locked = { ...botTierMeta("jevx3"), locked: true, lockHint: "12/15 wins vs Expert to unlock" };
+    expect(tierTooltip(locked)).toBe("12/15 wins vs Expert to unlock\nProdigy 3");
+    // a tier without a full name shows just its hint
+    expect(tierTooltip({ ...botTierMeta("expert"), locked: true, lockHint: "hint" })).toBe("hint");
+    expect(tierTooltip(botTierMeta("hard"))).toBeUndefined();
   });
 
   it("no player-facing text reveals the tech behind a tier", () => {
     const FORBIDDEN = /jev|llm|api|ismcts/i;
     for (const c of botTierChoices([listing("king-kong", ALL)], ["king-kong"])) {
-      for (const text of [c.label, c.chip, c.badge, c.tooltip]) expect(text ?? "").not.toMatch(FORBIDDEN);
+      for (const text of [c.label, c.fullName, c.chip, c.badge, c.tooltip]) expect(text ?? "").not.toMatch(FORBIDDEN);
     }
   });
 });

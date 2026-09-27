@@ -11,7 +11,7 @@
  * accounts API is a stubbed `fetch` (`/me` + `/me/stats`), re-probed per test.
  */
 import "@testing-library/jest-dom";
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterContext } from "next/dist/shared/lib/router-context";
@@ -152,7 +152,9 @@ describe("jevx3 unlock gate (#933)", () => {
     const locked = chip("jevx3");
     expect(locked).toHaveAttribute("aria-disabled", "true");
     expect(locked).not.toBeDisabled(); // still focusable so the tooltip can open
-    expect(locked).toHaveTextContent("AI·F");
+    expect(locked).toHaveTextContent(/^AI·P\s*preview$/i);
+    expect(locked.textContent).not.toMatch(/\d/); // the everyday name has no version
+    expect(locked).toHaveAccessibleName(/Prodigy 3/); // …the full name is in the hint
     // Nothing a player can read names the tech behind the tier.
     expect(`${locked.textContent} ${locked.getAttribute("aria-label")}`).not.toMatch(/jev|llm|api|ismcts/i);
     expect(locked).toHaveAccessibleName(/Sign in and win 15 vs Expert to unlock/);
@@ -185,6 +187,13 @@ describe("jevx3 unlock gate (#933)", () => {
 
     const open = chip("jevx3");
     expect(open).not.toHaveAttribute("aria-disabled");
+    // Looking closer (hover) shows the full, versioned name.
+    await act(async () => {
+      fireEvent.pointerEnter(open);
+      fireEvent.focus(open);
+      await new Promise((r) => setTimeout(r, 400));
+    });
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Prodigy 3 · preview");
     await click(open);
     expect(chip("jevx3")).toHaveAttribute("aria-pressed", "true");
 
