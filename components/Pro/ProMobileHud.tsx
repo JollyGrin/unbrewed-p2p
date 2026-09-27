@@ -54,6 +54,7 @@ import { defenseCueDue, turnStripFor, yourTurnCueDue } from "@/lib/pro/turnStrip
 import { RAIL_WIDTH_CSS, TAP_TARGET, chipSeatName } from "@/lib/pro/mobileLayout";
 import { paceOption } from "@/lib/pro/pace";
 import { BOARD_VIEW_LABEL } from "@/lib/pro/boardView";
+import { MENU_FIT_MODIFIERS, MENU_MAX_H_VAR } from "@/lib/pro/menuFit";
 import { FIGURE_STYLE_LABEL } from "@/lib/pro/figures";
 import { GiChessKnight } from "react-icons/gi";
 import type { PlayerId, ViewPlayer } from "@/lib/pro/protocol";
@@ -281,7 +282,11 @@ export const ProMobileMenu = ({
     minH: TAP_TARGET,
   };
   return (
-    <Menu placement={placement} isLazy>
+    // #917: the list is capped to the room on its side and scrolls inside it
+    // (a short landscape phone can't fit every row). Every call site already
+    // opens towards open space, so flip stays off — it would only ever swap the
+    // list to the cramped side on the first, not-yet-capped measurement.
+    <Menu placement={placement} isLazy flip={false} modifiers={MENU_FIT_MODIFIERS}>
       <MenuButton as={Flex} {...MOBILE_BTN} aria-label="Game menu" display="inline-flex">
         <TbDotsVertical size="1.1rem" />
       </MenuButton>
@@ -292,6 +297,9 @@ export const ProMobileMenu = ({
           color="brand.parchment"
           zIndex={210}
           minW="15rem"
+          maxH={`var(${MENU_MAX_H_VAR}, calc(100dvh - 1rem))`}
+          overflowY="auto"
+          sx={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}
         >
           <Flex alignItems="center" gap="0.4rem" px="0.8rem" py="0.4rem">
             <Box
