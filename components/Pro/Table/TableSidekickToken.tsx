@@ -13,6 +13,7 @@ import type { Mini3d } from "@/lib/pro/minis3d/manifest";
 import type { TableRig } from "@/lib/pro/minis3d/camera";
 import { standingPose } from "@/lib/pro/minis3d/pose";
 import { mini3dPlateSize, TableMini3D, useTableMini3d } from "./TableMini3D";
+import { plateFilter, targetPulse } from "./TableFighterStandee";
 import { TableAnchorAnim, TableStandeeAnchor, type TableStackDepth } from "./TableStandeeAnchor";
 import {
   fighterBadgesLowestPx,
@@ -59,6 +60,12 @@ export interface TableSidekickTokenProps {
    *  TableFighterStandee's. Falls back to the token. */
   mini3d?: Mini3d | null;
   rig?: TableRig | null;
+  /** Canvas pixel-ratio cap for the 3D mini (dev switch `?minis3dDpr=`). */
+  mini3dMaxPixelRatio?: number | null;
+  /** Some space on the board is a pick right now: a 3D mini's upright body
+   *  stands over the spaces behind it, so it passes taps through (#873) —
+   *  exactly as a hero's does (see TableFighterStandee). */
+  spacePicksLive?: boolean;
 }
 
 export const TableSidekickToken = ({
@@ -86,6 +93,8 @@ export const TableSidekickToken = ({
   frameH,
   mini3d = null,
   rig = null,
+  mini3dMaxPixelRatio = null,
+  spacePicksLive = false,
 }: TableSidekickTokenProps) => {
   const sizePx = standeeBaseDiameterPx(diamPx);
   const model3d = useTableMini3d(mini3d, rig);
@@ -123,7 +132,11 @@ export const TableSidekickToken = ({
             baseDiamPx={sizePx}
             groundScale={groundScale}
             animating={!!anim}
-            hitTarget={fighterClickable}
+            // The same highlight, pulse and #873 tap guard as a hero's mini.
+            filter={plateFilter(selected, friendly)}
+            animation={targetable && !selected ? `${targetPulse} 1.4s ease-in-out infinite` : undefined}
+            hitTarget={fighterClickable && !spacePicksLive}
+            maxPixelRatio={mini3dMaxPixelRatio}
             canvasAttrs={{ "data-fighter-id": fighter.id }}
           />
         ) : (

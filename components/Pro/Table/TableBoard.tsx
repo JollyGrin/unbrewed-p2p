@@ -779,6 +779,8 @@ export const TableBoard = ({
                 // Tokens unless `fighterMiniId` names a mini for this sidekick.
                 mini3d={mini3dOf(f)}
                 rig={{ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio, screenScale }}
+                mini3dMaxPixelRatio={minis3d.maxPixelRatio}
+                spacePicksLive={highlightSet.size > 0 || relocateSet.size > 0}
               />
             );
           })}

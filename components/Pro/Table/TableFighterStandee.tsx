@@ -64,14 +64,14 @@ export const heroPlateSize = (
  * Highlight for a miniature. It is a `filter`, not a `box-shadow`, so the
  * glow hugs the model's own outline rather than its image's rectangle.
  */
-const plateFilter = (selected: boolean, friendly: boolean): string => {
+export const plateFilter = (selected: boolean, friendly: boolean): string => {
   const depth = "drop-shadow(0 4px 8px rgba(0,0,0,0.65))";
   if (selected) return `drop-shadow(0 0 2px #fff) drop-shadow(0 0 5px #fff) ${depth}`;
   if (friendly) return `drop-shadow(0 0 2px #39B7A8) drop-shadow(0 0 5px #39B7A8) ${depth}`;
   return depth;
 };
 
-const targetPulse = keyframes`
+export const targetPulse = keyframes`
   0%, 100% { filter: drop-shadow(0 0 3px rgba(224,168,46,0.95)) drop-shadow(0 0 6px rgba(224,168,46,0.7)) drop-shadow(0 4px 8px rgba(0,0,0,0.65)); }
   50% { filter: drop-shadow(0 0 3px rgba(224,168,46,0.45)) drop-shadow(0 0 6px rgba(224,168,46,0.25)) drop-shadow(0 4px 8px rgba(0,0,0,0.65)); }
 `;

@@ -408,3 +408,55 @@ describe("the manifest's baseDiameter sizes the model to the disc", () => {
     expect(b / a).toBeCloseTo(1 / 0.9672, 9);
   });
 });
+
+describe("a sidekick's 3D mini (review item 2)", () => {
+  const sidekick = (extra: Partial<Parameters<typeof TableSidekickToken>[0]> = {}) =>
+    render(
+      <ChakraProvider>
+        <TableSidekickToken
+          fighter={{ ...taranis, id: "p1/sk", kind: "SIDEKICK" } as ViewFighter}
+          x={0.5}
+          y={0.5}
+          tiltDeg={40}
+          diamPx={40}
+          artUrl="/token/sk.png"
+          selected={false}
+          targetable={false}
+          friendly={false}
+          mini3d={mini}
+          rig={rig}
+          {...extra}
+        />
+      </ChakraProvider>
+    );
+
+  test("a targetable body takes the tap, like a hero's", async () => {
+    const onClick = jest.fn();
+    const { container } = sidekick({ targetable: true, onClick });
+    await flush();
+    fireEvent.click(q(container).hit!);
+    expect(onClick).toHaveBeenCalledWith("p1/sk");
+  });
+
+  test("#873: while a space pick is live the body passes taps through", async () => {
+    const { container } = sidekick({ targetable: true, onClick: jest.fn(), spacePicksLive: true });
+    await flush();
+    expect(q(container).canvas).not.toBeNull();
+    expect(q(container).hit).toBeNull();
+  });
+
+  test("the same glow and target pulse as a hero's mini", async () => {
+    const hero = standee({ targetable: true, onClick: jest.fn() });
+    await flush();
+    const heroCanvas = getComputedStyle(q(hero.container).canvas!);
+    hero.unmount();
+    const { container } = sidekick({ targetable: true, onClick: jest.fn() });
+    await flush();
+    const css = getComputedStyle(q(container).canvas!);
+    expect(css.animation).toMatch(/1\.4s/);
+    expect(css.animation).toBe(heroCanvas.animation);
+    const friendly = sidekick({ friendly: true });
+    await flush();
+    expect(getComputedStyle(q(friendly.container).canvas!).filter).toMatch(/#39B7A8/);
+  });
+});
