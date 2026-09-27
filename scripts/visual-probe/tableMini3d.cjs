@@ -54,15 +54,15 @@ const DEVICE =
 /** Tap on the phone, click on the desktop. */
 const press = (loc) => (DEVICE.hasTouch ? loc.tap() : loc.click());
 
-const launch = async (extraArgs = []) => {
+const launch = async (extraArgs = [], figureStyle = "3d") => {
   const browser = await pw.chromium.launch({ headless: !process.env.PROBE_HEADED, args: extraArgs });
   const ctx = await browser.newContext({ ...DEVICE, ...(process.env.PROBE_REDUCED ? { reducedMotion: "reduce" } : {}) });
-  await ctx.addInitScript(() => {
+  await ctx.addInitScript((style) => {
     try {
       localStorage.setItem("pro-board-view", "table");
-      localStorage.setItem("pro-figure-style", "3d");
+      localStorage.setItem("pro-figure-style", style);
     } catch {}
-  });
+  }, figureStyle);
   const page = await ctx.newPage();
   page.on("pageerror", (e) => console.error("[page error]", e.message));
   page.on("console", (m) => /minis3d/.test(m.text()) && console.error("[console]", m.text()));
