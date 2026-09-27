@@ -46,6 +46,7 @@ const os = require("os");
 const crypto = require("crypto");
 const { execFileSync } = require("child_process");
 const { openRenderBlockers, OPEN_LICENSE_DEEDS } = require("./clearance.cjs");
+const { stripToolCredit } = require("./model-name.cjs");
 
 const REPO = path.resolve(__dirname, "..", "..");
 const FIGURES_OPEN_CONFIG = path.join(__dirname, "figures-open.json");
@@ -86,6 +87,9 @@ if (!bundle.files || typeof bundle.files.play !== "string" || typeof bundle.file
   die("bundle.json: files.play / files.sprite missing");
 
 const credit = bundle.credit && typeof bundle.credit === "object" ? bundle.credit : {};
+// The bundle names its generation tool in modelName (STANDARD §2); that tool
+// is not part of the player-facing attribution and must never reach it.
+if (typeof credit.modelName === "string") credit.modelName = stripToolCredit(credit.modelName);
 // The SAME clearance code the app (isCleared) and render.cjs use, flattened
 // into the shape it checks — bundle.json nests license/attribution under
 // `credit` (STANDARD §2), clearance.cjs reads them at the top level.

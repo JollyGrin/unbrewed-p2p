@@ -8,6 +8,7 @@ const os = require("os");
 const path = require("path");
 const crypto = require("crypto");
 const { spawnSync } = require("child_process");
+const { stripToolCredit } = require("./model-name.cjs");
 
 const REPO = path.resolve(__dirname, "..", "..");
 const SCRIPT = path.join(__dirname, "add-hero-mini.cjs");
@@ -35,7 +36,7 @@ const writeBundle = (dir, overrides = {}) => {
     name: "Test Mini",
     baseDiameter: 1,
     credit: {
-      modelName: "Test Mini (Meshy AI)",
+      modelName: "Test Mini",
       creator: "JollyGrin",
       sourceUrl: "https://unbrewed.xyz",
       license: "CC0-1.0",
@@ -106,5 +107,16 @@ describe("add-hero-mini.cjs bundle gate", () => {
     expect(res.status).not.toBe(0);
     expect(res.stderr).toMatch(/sha256 mismatch/);
     expect(snapshot()).toEqual(before);
+  });
+});
+
+describe("stripToolCredit", () => {
+  test("strips a trailing tool-credit parenthetical", () => {
+    expect(stripToolCredit("King Taranis (Meshy AI)")).toBe("King Taranis");
+    expect(stripToolCredit("Hollow Oak (Meshy AI)")).toBe("Hollow Oak");
+  });
+
+  test("leaves a name without one untouched", () => {
+    expect(stripToolCredit("King Taranis")).toBe("King Taranis");
   });
 });

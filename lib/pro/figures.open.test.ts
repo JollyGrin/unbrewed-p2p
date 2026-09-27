@@ -177,6 +177,11 @@ describe("the committed open set", () => {
     expect(Object.keys(raw.figures).sort()).toEqual(heroes);
     for (const f of config.figures) expect(openRenderBlockers(f)).toEqual([]);
   });
+
+  test("no committed entry's credit names the generation tool (unbrewed-p2p-975)", () => {
+    for (const entry of Object.values(raw.figures) as { modelName?: string }[]) expect(entry.modelName).not.toMatch(/meshy/i);
+    for (const f of config.figures as { modelName?: string }[]) expect(f.modelName).not.toMatch(/meshy/i);
+  });
 });
 
 describe("figure style", () => {
