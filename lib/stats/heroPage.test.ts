@@ -1,5 +1,6 @@
 import {
   collapsedMatchups,
+  collapsedMatchupsView,
   crownLine,
   formatRate,
   gamesOnHero,
@@ -14,6 +15,8 @@ import {
   pilotGapLine,
   pilotRows,
   shareOfAllGames,
+  unratedMatchups,
+  unratedSummaryLine,
   windowFromQuery,
   winRate,
 } from "./heroPage";
@@ -263,6 +266,102 @@ describe("collapsed matchups (issue #944, both ends)", () => {
       "opponent-1",
       "opponent-0",
     ]);
+  });
+});
+
+describe("unrated matchups (issue #949: list every opponent)", () => {
+  it("keeps only opponents under 3 games, sorted by games desc then name", () => {
+    const rows = unratedMatchups([
+      { opponentHeroId: "king-kong", opponentHeroName: null, games: 22, wins: 15, draws: 0 },
+      { opponentHeroId: "zzz-new", opponentHeroName: "New Hero", games: 2, wins: 1, draws: 0 },
+      { opponentHeroId: "appa", opponentHeroName: null, games: 2, wins: 0, draws: 1 },
+      { opponentHeroId: "thrall", opponentHeroName: null, games: 1, wins: 1, draws: 0 },
+    ]);
+    expect(rows.map((r) => r.opponentHeroId)).toEqual(["appa", "zzz-new", "thrall"]);
+  });
+
+  it("formats the record W–L, adding –D only when draws > 0", () => {
+    const rows = unratedMatchups([
+      { opponentHeroId: "a", opponentHeroName: null, games: 1, wins: 1, draws: 0 },
+      { opponentHeroId: "b", opponentHeroName: null, games: 2, wins: 0, draws: 0 },
+      { opponentHeroId: "c", opponentHeroName: null, games: 2, wins: 1, draws: 1 },
+    ]);
+    expect(rows.find((r) => r.opponentHeroId === "a")).toMatchObject({
+      record: "1–0",
+      tip: "1–0 over 1 game (too few for a win rate)",
+    });
+    expect(rows.find((r) => r.opponentHeroId === "b")).toMatchObject({ record: "0–2" });
+    expect(rows.find((r) => r.opponentHeroId === "c")).toMatchObject({
+      record: "1–0–1",
+      tip: "1–0–1 over 2 games (too few for a win rate)",
+    });
+  });
+
+  it("summary line pluralises correctly", () => {
+    expect(unratedSummaryLine(1)).toBe("1 more hero faced once or twice");
+    expect(unratedSummaryLine(12)).toBe("12 more heroes faced once or twice");
+  });
+});
+
+describe("collapsed matchups view (issue #949: every opponent, rated group only collapses)", () => {
+  const opponents = (n: number, games: number): HeroMatchup[] =>
+    Array.from({ length: n }, (_, i) => ({
+      opponentHeroId: `rated-${i}`,
+      opponentHeroName: null,
+      games,
+      wins: i + 1,
+      draws: 0,
+    }));
+
+  const unrated = (n: number): HeroMatchup[] =>
+    Array.from({ length: n }, (_, i) => ({
+      opponentHeroId: `unrated-${i}`,
+      opponentHeroName: null,
+      games: 1,
+      wins: i % 2,
+      draws: 0,
+    }));
+
+  it("Cecil's month: 1 rated + 12 unrated — the rated row shows, everything else is one summary line", () => {
+    const rated = matchupBars(opponents(1, 3));
+    const rows = unratedMatchups(unrated(12));
+    const view = collapsedMatchupsView(rated, rows);
+    expect(view.top).toHaveLength(1);
+    expect(view.bottom).toHaveLength(0);
+    expect(view.shownUnrated).toHaveLength(0);
+    expect(view.summaryCount).toBe(12);
+    expect(view.total).toBe(13);
+    expect(view.hasMore).toBe(true);
+  });
+
+  it("0 rated, few unrated: every opponent shows directly, nothing to expand", () => {
+    const rows = unratedMatchups(unrated(5));
+    const view = collapsedMatchupsView([], rows);
+    expect(view.shownUnrated).toHaveLength(5);
+    expect(view.summaryCount).toBe(0);
+    expect(view.total).toBe(5);
+    expect(view.hasMore).toBe(false);
+  });
+
+  it("0 rated, more than 12 unrated: the first 12 show, the rest is summarised", () => {
+    const rows = unratedMatchups(unrated(14));
+    const view = collapsedMatchupsView([], rows);
+    expect(view.shownUnrated).toHaveLength(12);
+    expect(view.summaryCount).toBe(2);
+    expect(view.total).toBe(14);
+    expect(view.hasMore).toBe(true);
+  });
+
+  it("14 rated + 5 unrated: rated splits 6/6, unrated folds into one summary line", () => {
+    const rated = matchupBars(opponents(14, 100));
+    const rows = unratedMatchups(unrated(5));
+    const view = collapsedMatchupsView(rated, rows);
+    expect(view.top).toHaveLength(6);
+    expect(view.bottom).toHaveLength(6);
+    expect(view.shownUnrated).toHaveLength(0);
+    expect(view.summaryCount).toBe(5);
+    expect(view.total).toBe(19);
+    expect(view.hasMore).toBe(true);
   });
 });
 

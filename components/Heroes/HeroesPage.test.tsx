@@ -156,17 +156,23 @@ describe("/heroes?h=", () => {
     expect(pilots[0]).toHaveAttribute("href", "/stats?u=TinCanTom");
     expect(screen.getByTestId("pilot-gap")).toHaveTextContent("You are 4 wins behind Dunmore for 2nd.");
 
-    // 13 opponents with ≥3 games (baba-yaga's 2 dropped): the collapsed view
-    // is the 6 best + a divider + the 6 worst, still 12 rows, best first.
+    // 13 opponents with ≥3 games: the collapsed view is the 6 best + a
+    // divider + the 6 worst, still 12 rows, best first. baba-yaga's 2 games
+    // (issue #949: no longer dropped) fold into the muted summary line.
     let rows = screen.getAllByTestId("matchup-row");
     expect(rows).toHaveLength(12);
     expect(rows[0]).toHaveAttribute("title", "90% over 10 games");
     expect(screen.getByTestId("matchup-divider")).toBeInTheDocument();
+    expect(screen.getByTestId("matchup-unrated-summary")).toHaveTextContent("1 more hero faced once or twice");
     expect(screen.getByText(/Counts every game with The Mandalorian at the table, bot seats included\./)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Show all 13" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show all 14" }));
     rows = screen.getAllByTestId("matchup-row");
     expect(rows).toHaveLength(13);
     expect(screen.queryByTestId("matchup-divider")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("matchup-unrated-summary")).not.toBeInTheDocument();
+    const unratedRows = screen.getAllByTestId("matchup-row-unrated");
+    expect(unratedRows).toHaveLength(1);
+    expect(unratedRows[0]).toHaveTextContent("2–0");
 
     expect(screen.getByTestId("across-the-table")).toHaveTextContent("Who The Mandalorian was played against all time.");
     expect(screen.getByTestId("window-all")).toHaveAttribute("aria-current", "page");

@@ -254,6 +254,73 @@ export const collapsedMatchups = (bars: MatchupBar[]): MatchupSplit => {
   return { top: bars.slice(0, MATCHUPS_SHOWN_PER_END), bottom: bars.slice(-MATCHUPS_SHOWN_PER_END) };
 };
 
+// --- unrated matchups (issue #949: every opponent, not just ≥3-game ones) ----
+
+export interface MatchupRecordRow {
+  opponentHeroId: string;
+  name: string;
+  games: number;
+  /** "1–0" / "0–2"; "–D" appended only when draws > 0. */
+  record: string;
+  /** "1–0 over 1 game (too few for a win rate)". */
+  tip: string;
+}
+
+/** Opponents faced fewer than MIN_RATE_GAMES times, games desc then name. */
+export const unratedMatchups = (matchups: HeroMatchup[]): MatchupRecordRow[] =>
+  matchups
+    .filter((m) => m.games > 0 && m.games < MIN_RATE_GAMES)
+    .map((m) => {
+      const name = heroDisplayName(m.opponentHeroId, m.opponentHeroName);
+      const losses = m.games - m.wins - m.draws;
+      const record = `${m.wins}–${losses}${m.draws > 0 ? `–${m.draws}` : ""}`;
+      return {
+        opponentHeroId: m.opponentHeroId,
+        name,
+        games: m.games,
+        record,
+        tip: `${record} over ${plural(m.games, "game", "games")} (too few for a win rate)`,
+      };
+    })
+    .sort((a, b) => b.games - a.games || a.name.localeCompare(b.name));
+
+/** "1 more hero faced once or twice" / "N more heroes faced once or twice". */
+export const unratedSummaryLine = (count: number): string =>
+  plural(count, "more hero faced once or twice", "more heroes faced once or twice");
+
+export interface MatchupsView {
+  /** Rated rows shown in the collapsed view (both-ends split, or all when ≤ MATCHUPS_SHOWN). */
+  top: MatchupBar[];
+  bottom: MatchupBar[];
+  /** Unrated rows shown directly in the collapsed view — only when there are no rated rows. */
+  shownUnrated: MatchupRecordRow[];
+  /** Unrated rows folded into the muted summary line in the collapsed view; 0 hides the line. */
+  summaryCount: number;
+  /** rated.length + unrated.length, for "Show all N". */
+  total: number;
+  /** Whether the collapsed view hides anything (rated split, or any unrated at all). */
+  hasMore: boolean;
+}
+
+/**
+ * Combines the ≥3-game both-ends split with the <3-game rows (ruling for
+ * #949): the both-ends rule applies to the rated group only, and whenever
+ * there is at least one rated row, ALL unrated rows fold into one muted
+ * summary line while collapsed. Only when there are no rated rows at all do
+ * up to MATCHUPS_SHOWN unrated rows show directly, with any remainder
+ * summarised.
+ */
+export const collapsedMatchupsView = (rated: MatchupBar[], unrated: MatchupRecordRow[]): MatchupsView => {
+  const total = rated.length + unrated.length;
+  if (rated.length === 0) {
+    const shownUnrated = unrated.slice(0, MATCHUPS_SHOWN);
+    const summaryCount = Math.max(0, unrated.length - MATCHUPS_SHOWN);
+    return { top: [], bottom: [], shownUnrated, summaryCount, total, hasMore: summaryCount > 0 };
+  }
+  const { top, bottom } = collapsedMatchups(rated);
+  return { top, bottom, shownUnrated: [], summaryCount: unrated.length, total, hasMore: unrated.length > 0 || bottom.length > 0 };
+};
+
 // --- crown -------------------------------------------------------------------
 
 /** "71 wins in 118 games." */
