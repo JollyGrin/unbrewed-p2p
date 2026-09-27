@@ -22,7 +22,7 @@ import { MOVE_STEP_SECONDS, MoveHint, PendingMove, ProBoard } from "@/components
 import { ProErrorBoundary } from "@/components/Pro/ProErrorBoundary";
 import { assignableSeats, BotSlotPlan, SlotOccupant } from "@/components/Pro/CreateSeats";
 import { availableBotTiers, botTierChoices, BotTierChoice, coerceBotTier } from "@/lib/pro/botTiers";
-import { applyTierLocks, lockedTiers, TierUnlockProgress, tierUnlockProgress } from "@/lib/pro/tierUnlock";
+import { applyTierLocks, isAllowlisted, JEVX3_ALLOWLIST, lockedTiers, TierUnlockProgress, tierUnlockProgress } from "@/lib/pro/tierUnlock";
 import { OpponentChoice, useOpponentSeat } from "@/lib/pro/opponentSeat";
 import { stateHash } from "@/lib/pro/stateHash";
 import {
@@ -4217,11 +4217,17 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // `useProSocket` has already kicked off. Only the forfeit dialog reads it —
   // cosmetic points exist for signed-in players, so only they are told what
   // conceding costs (#636).
-  const { status: accountStatus } = useAccount();
+  const accountState = useAccount();
+  const { status: accountStatus } = accountState;
   // The jevx3 unlock gate (#933) reads the record vs Expert. A guest makes no
   // request (useAccountStats waits for "signed-in"); every non-ready state locks.
+  // A signed-in player on the build-time allowlist is unlocked outright.
   const { status: statsStatus, stats: accountStats } = useAccountStats();
-  const tierUnlock = tierUnlockProgress(statsStatus, accountStats);
+  const tierUnlock = tierUnlockProgress(
+    statsStatus,
+    accountStats,
+    isAllowlisted(accountState, JEVX3_ALLOWLIST),
+  );
   const [joined, setJoined] = useState(false);
   // `selectedHeroId` holds a real hero id — or RANDOM_HERO_ID (#697), which is
   // resolved to one at the create/join click and written back here, so every

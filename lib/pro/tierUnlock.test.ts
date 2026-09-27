@@ -3,10 +3,13 @@
  * every state short of a confirmed 15-win record must fail CLOSED.
  */
 import type { AccountStats, BotStat } from "../account/stats";
+import type { AccountState } from "../account/useAccount";
 import { botTierMeta, coerceBotTier } from "./botTiers";
 import {
   applyTierLocks,
   GUEST_HINT,
+  isAllowlisted,
+  parseAllowlist,
   LOADING_HINT,
   lockedTiers,
   TIER_UNLOCK,
@@ -130,5 +133,63 @@ describe("applyTierLocks / lockedTiers", () => {
     const locked = lockedTiers(tierUnlockProgress("ready", expertWins(15)));
     expect(locked).toEqual([]);
     expect(coerceBotTier("jevx3", CHOICES.map((c) => c.id))).toBe("jevx3");
+  });
+});
+
+describe("NEXT_PUBLIC_JEVX3_ALLOWLIST", () => {
+  const signedIn = (id: string, username: string): AccountState => ({
+    status: "signed-in",
+    account: { id, username, avatarUrl: null },
+  });
+  const GUEST: AccountState = { status: "guest", account: null };
+
+  it("unset or empty = nobody", () => {
+    expect(parseAllowlist(undefined)).toEqual([]);
+    expect(parseAllowlist(null)).toEqual([]);
+    expect(parseAllowlist("")).toEqual([]);
+    expect(parseAllowlist("  ,  , ")).toEqual([]);
+    expect(isAllowlisted(signedIn("u1", "Dean"), parseAllowlist(undefined))).toBe(false);
+  });
+
+  it("trims whitespace and ignores empty entries / trailing commas", () => {
+    expect(parseAllowlist(" 123 , Dean,, jolly ,")).toEqual(["123", "Dean", "jolly"]);
+  });
+
+  it("matches an account id exactly", () => {
+    const list = parseAllowlist("1234567890,someone");
+    expect(isAllowlisted(signedIn("1234567890", "Tester"), list)).toBe(true);
+    expect(isAllowlisted(signedIn("123456789", "Tester"), list)).toBe(false);
+  });
+
+  it("matches a username case-insensitively", () => {
+    expect(isAllowlisted(signedIn("u9", "JollyGrin"), parseAllowlist("jollygrin"))).toBe(true);
+    expect(isAllowlisted(signedIn("u9", "jollygrin"), parseAllowlist(" JOLLYGRIN ,"))).toBe(true);
+  });
+
+  it("a guest is never allowlisted, even with a matching name", () => {
+    expect(isAllowlisted(GUEST, parseAllowlist("guest,Tester"))).toBe(false);
+    expect(isAllowlisted({ status: "offline", account: null }, parseAllowlist("Tester"))).toBe(false);
+    expect(isAllowlisted({ status: "loading", account: null }, parseAllowlist("Tester"))).toBe(false);
+    // …and the progress function refuses it too, as a second guard.
+    expect(tierUnlockProgress("guest", null, true).unlocked).toBe(false);
+  });
+
+  it("an allowlisted player with 0 wins is unlocked", () => {
+    const allowed = isAllowlisted(signedIn("u1", "Tester"), parseAllowlist("tester"));
+    expect(tierUnlockProgress("ready", expertWins(0), allowed)).toEqual({ unlocked: true, wins: 0 });
+  });
+
+  it("an allowlisted player is unlocked without waiting on the stats fetch", () => {
+    expect(tierUnlockProgress("loading", null, true)).toEqual({ unlocked: true, wins: null });
+    expect(tierUnlockProgress("unavailable", null, true).unlocked).toBe(true);
+  });
+
+  it("a non-listed player with 14 wins stays locked", () => {
+    const allowed = isAllowlisted(signedIn("u2", "Other"), parseAllowlist("tester,u1"));
+    expect(allowed).toBe(false);
+    expect(tierUnlockProgress("ready", expertWins(14), allowed)).toMatchObject({
+      unlocked: false,
+      hint: "14/15 wins vs Expert to unlock",
+    });
   });
 });

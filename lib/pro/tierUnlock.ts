@@ -11,8 +11,15 @@
  * `byOpponentKind` all leave the chip locked. The server still decides whether
  * the chip appears at all (`HeroListing.botTiers`, see ./botTiers.ts); this
  * module only ever narrows what it offers.
+ *
+ * Second way in: the build-time `NEXT_PUBLIC_JEVX3_ALLOWLIST` (comma-separated
+ * account ids and/or usernames). A SIGNED-IN player on it is unlocked regardless
+ * of their record and without waiting on the stats request; guests never are.
+ * Unset/empty = nobody. It is baked into the public bundle — ids/usernames only,
+ * never secrets.
  */
 import type { AccountStats } from "../account/stats";
+import type { AccountState } from "../account/useAccount";
 import type { AccountStatsStatus } from "../account/useAccountStats";
 
 import type { BotTierChoice } from "./botTiers";
@@ -41,7 +48,46 @@ export const progressHint = (wins: number) => `${wins}/${TIER_UNLOCK.wins} wins 
 export const winsVsRequired = (stats: AccountStats | null): number =>
   stats?.byOpponentKind?.bots.find((b) => b.difficulty === TIER_UNLOCK.requires)?.wins ?? 0;
 
-export function tierUnlockProgress(status: AccountStatsStatus, stats: AccountStats | null): TierUnlockProgress {
+/**
+ * Parse the allowlist's raw value: comma-separated, entries trimmed, empty ones
+ * (blank value, stray/trailing commas) dropped. Takes the raw string so tests
+ * never touch `process.env`.
+ */
+export const parseAllowlist = (raw: string | null | undefined): string[] =>
+  (raw ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
+/**
+ * Is this account on the allowlist? Only a SIGNED-IN account can be: its id
+ * matches exactly, its username case-insensitively. Guests/offline/loading never.
+ */
+export function isAllowlisted(account: AccountState, allowlist: readonly string[]): boolean {
+  if (account.status !== "signed-in" || allowlist.length === 0) return false;
+  const { id, username } = account.account;
+  const name = username.toLowerCase();
+  return allowlist.some((entry) => entry === id || entry.toLowerCase() === name);
+}
+
+/**
+ * The one place the env var is read. Next inlines `NEXT_PUBLIC_*` at build time,
+ * so this is a constant of the bundle, not a runtime lookup.
+ */
+export const JEVX3_ALLOWLIST: readonly string[] = parseAllowlist(process.env.NEXT_PUBLIC_JEVX3_ALLOWLIST);
+
+/**
+ * Progress toward the gated tier. `allowlisted` (see `isAllowlisted`) unlocks
+ * outright — but never for a guest/offline status, as a second guard.
+ */
+export function tierUnlockProgress(
+  status: AccountStatsStatus,
+  stats: AccountStats | null,
+  allowlisted = false,
+): TierUnlockProgress {
+  if (allowlisted && status !== "guest" && status !== "offline") {
+    return { unlocked: true, wins: status === "ready" && stats ? winsVsRequired(stats) : null };
+  }
   switch (status) {
     case "guest":
     case "offline":
