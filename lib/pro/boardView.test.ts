@@ -40,4 +40,16 @@ describe("boardView", () => {
     expect(resolveBoardView("flat", "rail")).toBe("flat");
     expect(resolveBoardView("flat", "desktop")).toBe("flat");
   });
+
+  // #911: a map with a region (Baba Yaga's Hut) can't be placed in 3D yet
+  // (TableBoard.tsx), so it draws the flat board whatever the preference —
+  // same fallback shape as portrait, and just as silent.
+  it("draws the flat board for a map with a region whatever the stored preference", () => {
+    expect(resolveBoardView("table", "desktop", true)).toBe("flat");
+    expect(resolveBoardView("flat", "desktop", true)).toBe("flat");
+  });
+
+  it("returns the tabletop once the map has no region again", () => {
+    expect(resolveBoardView("table", "desktop", false)).toBe("table");
+  });
 });

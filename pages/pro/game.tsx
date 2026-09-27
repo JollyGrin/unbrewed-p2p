@@ -4749,9 +4749,14 @@ const LiveGame = ({
   // prerender of this page and fails the export — see lib/pro/useProLayout.
   const { mobile, rail, mode } = useProLayout();
   // A portrait phone always draws the flat board (#870): the tabletop has no
-  // counter-rotation for the 90°-turned portrait frame. The stored preference
-  // is untouched, so turning back to landscape returns to the tabletop.
-  const wantedBoardView = resolveBoardView(preferredBoardView, mode);
+  // counter-rotation for the 90°-turned portrait frame. A map with a region
+  // (Baba Yaga's Hut) does too (#911): a region's spaces are normalized to
+  // their own inset image, which the tabletop view can't place (see
+  // TableBoard.tsx). Both fall back silently and the stored preference is
+  // untouched, so leaving portrait or reaching a map without a region
+  // returns the tabletop on its own.
+  const hasRegionsMap = !!snapshot?.view.map.regions?.length;
+  const wantedBoardView = resolveBoardView(preferredBoardView, mode, hasRegionsMap);
   // The tabletop's code is its own chunk (#893): fetched the first time the
   // tabletop is wanted — at mount for a device that stored it, which is still
   // in the lobby — and the flat board stays up until it has arrived, so the

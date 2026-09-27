@@ -31,14 +31,18 @@ export const nextBoardView = (current: BoardView): BoardView =>
   current === "flat" ? "table" : "flat";
 
 /**
- * The view actually drawn, given the stored preference and the layout (#870).
- * The tabletop board is built for an unrotated frame — its tilt, standees and
- * badges have no counter-rotation — so a portrait phone, whose board frame is
- * turned 90°, always gets the flat board. The stored preference is left alone:
- * turning the phone back to landscape returns to the tabletop.
+ * The view actually drawn, given the stored preference, the layout (#870) and
+ * the current map (#911). The tabletop board is built for an unrotated frame
+ * — its tilt, standees and badges have no counter-rotation — so a portrait
+ * phone, whose board frame is turned 90°, always gets the flat board. A map
+ * with a region (Baba Yaga's Hut) falls back the same way: a region's spaces
+ * are normalized to their own inset image, which the tabletop view can't
+ * place (see TableBoard.tsx). Either way the stored preference is left
+ * alone — leaving portrait, or reaching a map without a region, returns the
+ * tabletop on its own.
  */
-export const resolveBoardView = (preferred: BoardView, layoutMode: string): BoardView =>
-  layoutMode === "portrait" ? "flat" : preferred;
+export const resolveBoardView = (preferred: BoardView, layoutMode: string, hasRegions = false): BoardView =>
+  layoutMode === "portrait" || hasRegions ? "flat" : preferred;
 
 /** Why the Board toggle is unavailable in portrait (#870). */
 export const TABLETOP_NEEDS_LANDSCAPE = "Tabletop needs landscape";
