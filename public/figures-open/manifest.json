@@ -4,11 +4,12 @@
     "triceratops": {
       "anchor": {
         "x": 0.5,
-        "y": 0.5559732312307593
+        "y": 0.54514292025858
       },
       "imageWidthMm": 6.127122802734375,
       "footprintMm": 2.825296849012375,
       "aspect": 1.5,
+      "elevDeg": 50,
       "seats": {
         "p1": "triceratops.p1.webp",
         "p2": "triceratops.p2.webp",
@@ -25,11 +26,12 @@
     "baba-yaga": {
       "anchor": {
         "x": 0.5,
-        "y": 0.7803631284083992
+        "y": 0.6996226438634416
       },
       "imageWidthMm": 27.01519256591797,
       "footprintMm": 25.248001098632812,
       "aspect": 1.5,
+      "elevDeg": 50,
       "seats": {
         "p1": "baba-yaga.p1.webp",
         "p2": "baba-yaga.p2.webp",
@@ -46,11 +48,12 @@
     "hollow-oak": {
       "anchor": {
         "x": 0.5,
-        "y": 0.7348895469938834
+        "y": 0.685609268028433
       },
       "imageWidthMm": 1.5767627716064454,
       "footprintMm": 1.2786030769348145,
       "aspect": 1.5,
+      "elevDeg": 50,
       "seats": {
         "p1": "hollow-oak.p1.webp",
         "p2": "hollow-oak.p2.webp",
@@ -67,11 +70,12 @@
     "hollow-oak-spice": {
       "anchor": {
         "x": 0.5,
-        "y": 0.7348895469938834
+        "y": 0.685609268028433
       },
       "imageWidthMm": 1.5767627716064454,
       "footprintMm": 1.2786030769348145,
       "aspect": 1.5,
+      "elevDeg": 50,
       "seats": {
         "p1": "hollow-oak-spice.p1.webp",
         "p2": "hollow-oak-spice.p2.webp",

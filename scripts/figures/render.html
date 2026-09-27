@@ -24,7 +24,10 @@ import { mergeBufferGeometries, mergeVertices } from "three/addons/utils/BufferG
 
 const q = new URLSearchParams(location.search);
 const file = q.get("model");
-const elev = +(q.get("elev") ?? 40);
+// Camera elevation above the ground, degrees. No default here: render.cjs
+// derives it from the board's tilt (camera.cjs) and always passes it.
+if (!q.has("elev")) throw new Error("elev is required (render.cjs passes 90 − DEFAULT_TILT_DEG)");
+const elev = +q.get("elev");
 const az = +(q.get("az") ?? 0);
 const tint = q.get("tint");
 const W = +(q.get("w") ?? 600), H = +(q.get("h") ?? 900);

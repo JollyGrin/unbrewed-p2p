@@ -359,7 +359,10 @@ export const TableStandeeAnchor = ({
           // Lifted with the ground layer on a shared space: otherwise a SMALL
           // miniature's base lies UNDER the flat NORMAL token it is ringed
           // onto, and that token's face swallows the taps meant for it.
-          style={{ transform: `translate(-50%, 50%)${stack?.liftPx ? ` translateZ(${stack.liftPx}px)` : ""}` }}
+          // Scaled about its own centre like the miniature standing on it
+          // (the billboard and the ground layer both carry this depth scale),
+          // so the disc stays the rim of the model's own base (#926).
+          style={{ transform: `translate(-50%, 50%)${stack?.liftPx ? ` translateZ(${stack.liftPx}px)` : ""} scale(${placement.scale})` }}
           borderRadius="50%"
           bg="radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.28) 0%, rgba(20,10,24,0.82) 65%, rgba(8,4,10,0.95) 100%)"
           border={`2.5px solid ${baseAccent}`}

@@ -25,15 +25,23 @@
  * figures.json:
  *   { "figures": [ { "heroId": "king-kong", "model": "models/king-kong.stl",
  *                    "license": "CC-BY-4.0", "redistributable": true, "officialHero": false } ] }
- * Optional per figure: "elev" (camera elevation, default 40°), "az" (turn the
+ * Optional per figure: "elev" (camera elevation, default 90° − the board's tilt), "az" (turn the
  * camera around the model, default 0 = its front), "footprintMm" (base width,
  * default measured from the model).
  *
- * WHY 40°. The board is tipped back 40°, so its spaces — and the seat-colored
- * base disc under a figure — are ellipses seen from 50° above. Rendered from
- * there the miniatures looked squat; from 30° their bases were so much flatter
- * than the disc that the disc's front half showed empty. 40° keeps the model's
- * base close to the disc's shape and the figure upright.
+ * WHY 90° − THE BOARD'S TILT (unbrewed-p2p-926). The board is tipped back
+ * DEFAULT_TILT_DEG (40°) from facing the camera, so its spaces — and the
+ * seat-colored base disc under a figure — are seen from 50° above the ground,
+ * as ellipses cos 40° ≈ 0.77 tall. `elev` is measured up from the ground, so
+ * only elev = 90 − tilt = 50° draws the model's own base as that same
+ * ellipse. The renders used to be taken from elev 40° (the tilt's number, the
+ * complementary angle): their bases came out sin 40° ≈ 0.64 tall, ~16%
+ * flatter than the disc they stand on. From 50° a model shows more of its top
+ * and reads a little shorter. That is the board's real camera; if it looks
+ * squat, lower the board's tilt — do not move this angle off it.
+ * The default comes from the constant itself (camera.cjs), and each
+ * manifest entry records the angle it was rendered from (`elevDeg`): the app
+ * lays the front of the base on the board by it (figureGroundSlice).
  *
  * THE OPEN SET (unbrewed-p2p-903). `--open` renders the second, committed
  * set instead: open-licence models (CC0 / CC-BY / CC-BY-SA) whose renders may
@@ -56,6 +64,7 @@
  */
 const fs = require("fs");
 const { clearanceBlockers, openRenderBlockers } = require("./clearance.cjs");
+const { defaultElevDeg } = require("./camera.cjs");
 const path = require("path");
 const os = require("os");
 
@@ -83,6 +92,9 @@ const DECLARED = OPEN
 // three.js is not a direct dependency; it arrives with another package. Fine
 // for a local tool — if it ever disappears, `yarn add -D three` restores it.
 const THREE_DIR = path.dirname(path.dirname(require.resolve("three", { paths: [REPO] })));
+
+/** Camera elevation above the ground, degrees: 90 − the board's tilt. */
+const DEFAULT_ELEV = defaultElevDeg();
 
 /**
  * A figure's tint per seat: the seat colors of TableBoard's PLAYER_COLOR
@@ -147,7 +159,7 @@ const readConfig = () => {
   });
 
   const renderOne = async (fig, tint) => {
-    const q = new URLSearchParams({ model: `/model/${fig.model}`, tint, elev: String(fig.elev ?? 40), az: String(fig.az ?? 0) });
+    const q = new URLSearchParams({ model: `/model/${fig.model}`, tint, elev: String(fig.elev ?? DEFAULT_ELEV), az: String(fig.az ?? 0) });
     if (fig.footprintMm) q.set("footprintMm", String(fig.footprintMm));
     if (fig.mesh) q.set("mesh", fig.mesh);
     for (const k of ["rx", "rz"]) if (fig[k]) q.set(k, String(fig[k]));
@@ -168,7 +180,7 @@ const readConfig = () => {
       const name = `${fig.heroId}.${seat}.webp`;
       fs.writeFileSync(path.join(OUT, name), Buffer.from(r.image.split(",")[1], "base64"));
       seats[seat] = name;
-      geometry = { anchor: r.anchor, imageWidthMm: r.imageWidthMm, footprintMm: r.footprintMm, aspect: r.aspect };
+      geometry = { anchor: r.anchor, imageWidthMm: r.imageWidthMm, footprintMm: r.footprintMm, aspect: r.aspect, elevDeg: fig.elev ?? DEFAULT_ELEV };
     }
     // Belt and braces: the app re-checks these fields and drops the entry
     // without them (lib/pro/figures.ts).

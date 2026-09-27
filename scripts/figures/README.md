@@ -57,9 +57,15 @@ ids; `officialHero` in the manifest is the only input.
    STL. It follows the production-extension object files three.js's
    3MFLoader cannot read, applies the plate transforms, and simplifies dense
    models (millions of triangles crash the headless renderer).
-2. `render.cjs` renders each model from the table camera's angle, once per
+2. `render.cjs` renders each model from the table camera's elevation
+   (90° − `DEFAULT_TILT_DEG`, read from `lib/pro/tableProjection.ts` by
+   `camera.cjs` — re-render both sets after retuning the tilt), once per
    seat colour, to `public/figures/<heroId>.<seat>.webp`, plus
    `public/figures/manifest.json`.
+   Each manifest entry records the elevation it was rendered from
+   (`elevDeg`); the app lays the front of the model's base on the board by
+   it. `scripts/visual-probe/tableFigureBase.cjs` measures a rendered base
+   against the board's own ellipse, live, at nine board points and two zooms.
 3. `public/figures/` is git-ignored and vercel-ignored: neither a git
    checkout nor a `vercel` upload carries it. The app reads the manifest at
    runtime (`lib/pro/useFigureManifest.ts`) and falls back to tokens when it
@@ -181,7 +187,7 @@ node scripts/figures/3mf-to-stl.cjs $FIG/models/raw/boba-fett.3mf $FIG/models/bo
 (This only illustrates the shape. It is not a ruling on that model.)
 
 Optional per figure: `"az"` (turn the camera around the model, degrees),
-`"elev"` (camera elevation, default 40°), `"footprintMm"` (base width,
+`"elev"` (camera elevation above the ground, default 90° − the board's tilt = 50°), `"footprintMm"` (base width,
 default measured).
 
 ```bash
