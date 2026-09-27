@@ -272,9 +272,10 @@ export const PlayerDashboard = ({ player, history, selfLink = null }: PlayerDash
         <Pair first={matchGrid} width="760px">
           <WhoTheyPlay player={player} />
         </Pair>
-        <Pair first={badges} width="560px">
-          <PlayerGames history={history} />
-        </Pair>
+        {/* Full width, one above the other (#948): the case is a 5-column
+            grid at desktop, like /account's, and Games reads as a list. */}
+        {badges}
+        <PlayerGames history={history} />
         <StatsCaveat />
       </Box>
     </Box>
