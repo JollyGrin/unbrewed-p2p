@@ -112,6 +112,47 @@ Games decks (Dean, 2026-09-26) — so every entry declares
 |---|---|---|---|---|---|---|
 | `triceratops` | Triceratops Horridus Marsh | Smithsonian Institution | CC0 Public Domain | [sketchfab.com](https://sketchfab.com/3d-models/triceratops-horridus-marsh-e9c507f179ed4455aac3b208c9e6c973) | 2026-09-26 | the same 150k-triangle scan, downloaded without an account from the Smithsonian's 3D API: `https://3d-api.si.edu/content/document/3d_package:d8c623be-4ebc-11ea-b77f-2e728ce88125/resources/Triceratops_horridus_Marsh_1889-150k-4096.glb` → `triceratops-horridus-marsh-150k.glb`. The fossil is mounted lying on its side, as found; `rz: 90` sets it on the ground. |
 | `baba-yaga` | Witch Minis (Witch 2) | mz4250 | CC BY-SA 4.0 (Thingiverse: "Creative Commons - Attribution - Share Alike", linked to creativecommons.org/licenses/by-sa/4.0/) | [thingiverse.com/thing:6694128](https://www.thingiverse.com/thing:6694128) | 2026-09-26 | `files/Witch_2.stl` (listed on the thing's Files tab) from its "Download all files" zip → `witch-minis-witch-2.stl`. ShareAlike: the renders are CC BY-SA too. The same model on Printables (model/941392) is labelled CC-BY; we follow the stricter Thingiverse licence. |
+| `hollow-oak`, `hollow-oak-spice` | Autumn Treant (Meshy AI, Hollow Oak) | JollyGrin | CC0 1.0 — Dean's own generated model of his own original hero | https://unbrewed.xyz (no external page; self-generated, see [Adding a self-generated model](#adding-a-self-generated-meshy--mini-pipeline-model) below) | 2026-09-27 | Generated via the local `mini-pipeline` tool (Meshy AI) from `~/git/unbrewed/mini-pipeline/out/hollow-oak-painted/`, file `Meshy_AI_Autumn_Treant_0927103643_texture.glb` → `hollow-oak-meshy.glb`. Both heroIds share the one model, same as the private set's precedent. |
+
+## Adding a self-generated (Meshy / mini-pipeline) model
+
+Hollow Oak is an Evergreen-original hero: Dean owns both the IP and the
+generated model, so there is no licence to check — it goes straight into the
+**open set** rather than the private one, and its render ships on every
+checkout.
+
+1. Generate the model locally with `mini-pipeline` (outside this repo). The
+   output lands at `~/git/unbrewed/mini-pipeline/out/<run>/*.glb`.
+2. Add an entry per heroId to `scripts/figures/figures-open.json` (reuse one
+   `model` filename across heroIds that share art, e.g. a hero and its
+   `-spice` variant):
+   ```json
+   { "heroId": "hollow-oak", "model": "hollow-oak-meshy.glb",
+     "license": "CC0-1.0", "redistributable": true, "officialHero": false,
+     "modelName": "Autumn Treant (Meshy AI, Hollow Oak)", "creator": "JollyGrin",
+     "sourceUrl": "https://unbrewed.xyz" }
+   ```
+   `officialHero` is `false` for any Evergreen original. There is no source
+   page for a self-generated model, so `sourceUrl` is `https://unbrewed.xyz`
+   unless Dean says otherwise on review.
+3. Copy (don't move) the `.glb` into a folder by itself — or alongside the
+   other open models if re-rendering the whole set — under the filename the
+   config references, then render just that hero:
+   ```bash
+   mkdir -p /tmp/open-models && cp ~/git/unbrewed/mini-pipeline/out/<run>/*.glb /tmp/open-models/hollow-oak-meshy.glb
+   PW_PATH=<a playwright install>/node_modules/playwright \
+     node scripts/figures/render.cjs --open /tmp/open-models
+   ```
+   `render.cjs` renders every entry in `figures-open.json`, so if the source
+   folder doesn't hold every other open model too, either render into an
+   isolated `figures-open.json` containing just the new entries (then merge
+   the produced `manifest.json` — a plain object merge, keyed by `heroId` —
+   into the committed one by hand) or gather all the open models into one
+   folder first.
+4. Add the row to [`CREDITS.md`](../../public/figures-open/CREDITS.md) and to
+   the table above.
+5. Raw `.glb` files are never committed, either set — only the rendered
+   `.webp`s and `manifest.json` are.
 
 ## Setup (private set)
 
