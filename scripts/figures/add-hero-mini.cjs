@@ -235,7 +235,7 @@ console.log(`${id}: placed (${aliases.length ? `aliases: ${aliases.join(", ")}` 
 // ---------------------------------------------------------------------
 if (VERIFY) {
   const verifyScript = path.join(REPO, "scripts", "visual-probe", "heroMiniVerify.cjs");
-  execFileSync(process.execPath, [verifyScript, id, aliases[0] ?? id, bundle.name ?? id], {
+  execFileSync(process.execPath, [verifyScript, id, aliases[0] ?? id], {
     stdio: "inherit",
     env: process.env,
   });

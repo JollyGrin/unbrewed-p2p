@@ -17,6 +17,13 @@ const entry = (over: Record<string, unknown> = {}) => ({
  * The mini pipeline's Stage D contract, read from the GLB's own JSON chunk:
  * Meshopt + quantized (no Draco), base on y = 0, footprint ~1 unit centred on
  * x/z = 0 — so the renderer draws it as authored (lib/pro/minis3d/model.ts).
+ *
+ * The pipeline (mini-002/mini-003) normalises the BASE footprint — the
+ * enclosing circle of the bottom slice — to 1.0, not the whole model's
+ * bounding box. A model may legitimately overhang its base (a wide tree
+ * canopy, spread wings, …), so the upper bound here is a sanity check
+ * against an un-normalised mesh, not a tight footprint check; the actual
+ * footprint is the manifest entry's own `baseDiameter`.
  */
 const expectPipelineNormalised = (glb: Buffer) => {
   expect(glb.readUInt32LE(0)).toBe(0x46546c67); // "glTF"
@@ -33,8 +40,8 @@ const expectPipelineNormalised = (glb: Buffer) => {
       expect(lo[1]).toBeCloseTo(0, 3); // base on the ground
       for (const k of [0, 2]) {
         expect(Math.abs(lo[k] + hi[k]) / 2).toBeLessThan(0.05); // centred on the footprint
-        expect(hi[k] - lo[k]).toBeGreaterThan(0.9); // ~1 unit wide
-        expect(hi[k] - lo[k]).toBeLessThan(1.1);
+        expect(hi[k] - lo[k]).toBeGreaterThan(0.9); // at least base-sized
+        expect(hi[k] - lo[k]).toBeLessThan(1.5); // sanity bound, not a footprint check — overhang beyond the base is allowed
       }
     }
   }

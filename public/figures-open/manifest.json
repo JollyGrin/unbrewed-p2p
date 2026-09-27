@@ -60,18 +60,18 @@
     "hollow-oak": {
       "anchor": {
         "x": 0.5,
-        "y": 0.685609268028433
+        "y": 0.6856153766231576
       },
-      "imageWidthMm": 1.5767627716064454,
-      "footprintMm": 1.2786030769348145,
+      "imageWidthMm": 1.5762146663665773,
+      "footprintMm": 1.2783962488174438,
       "aspect": 1.5,
+      "elevDeg": 50,
       "bounds": {
         "left": 0.0183,
         "top": 0.1078,
         "right": 0.9817,
         "bottom": 0.8922
       },
-      "elevDeg": 50,
       "seats": {
         "p1": "hollow-oak.p1.webp",
         "p2": "hollow-oak.p2.webp",
@@ -81,25 +81,25 @@
       "license": "CC0-1.0",
       "redistributable": true,
       "officialHero": false,
-      "modelName": "Autumn Treant (Meshy AI, Hollow Oak)",
+      "modelName": "Hollow Oak (Meshy AI)",
       "creator": "JollyGrin",
       "sourceUrl": "https://unbrewed.xyz"
     },
     "hollow-oak-spice": {
       "anchor": {
         "x": 0.5,
-        "y": 0.685609268028433
+        "y": 0.6856153766231576
       },
-      "imageWidthMm": 1.5767627716064454,
-      "footprintMm": 1.2786030769348145,
+      "imageWidthMm": 1.5762146663665773,
+      "footprintMm": 1.2783962488174438,
       "aspect": 1.5,
+      "elevDeg": 50,
       "bounds": {
         "left": 0.0183,
         "top": 0.1078,
         "right": 0.9817,
         "bottom": 0.8922
       },
-      "elevDeg": 50,
       "seats": {
         "p1": "hollow-oak.p1.webp",
         "p2": "hollow-oak.p2.webp",
@@ -109,7 +109,7 @@
       "license": "CC0-1.0",
       "redistributable": true,
       "officialHero": false,
-      "modelName": "Autumn Treant (Meshy AI, Hollow Oak)",
+      "modelName": "Hollow Oak (Meshy AI)",
       "creator": "JollyGrin",
       "sourceUrl": "https://unbrewed.xyz"
     },
