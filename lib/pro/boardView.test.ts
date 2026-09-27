@@ -1,9 +1,13 @@
 import {
+  boardViewLockedHint,
   BOARD_VIEW_LABEL,
   DEFAULT_BOARD_VIEW,
   isBoardView,
   nextBoardView,
+  mapHasRegions,
   resolveBoardView,
+  TABLETOP_CANNOT_SHOW_MAP,
+  TABLETOP_NEEDS_LANDSCAPE,
 } from "./boardView";
 
 describe("boardView", () => {
@@ -39,5 +43,40 @@ describe("boardView", () => {
     expect(resolveBoardView("table", "desktop")).toBe("table");
     expect(resolveBoardView("flat", "rail")).toBe("flat");
     expect(resolveBoardView("flat", "desktop")).toBe("flat");
+  });
+
+  // #914: a region's spaces sit on their own inset image, which the tabletop
+  // cannot place — such a map (Baba Yaga's Hut) draws the flat board.
+  describe("maps with regions", () => {
+    const HUT_MAP = { regions: [{ id: "hut", label: "Baba Yaga's Hut" }] };
+
+    it("knows a map with a region from one without", () => {
+      expect(mapHasRegions(HUT_MAP)).toBe(true);
+      expect(mapHasRegions({ regions: [] })).toBe(false);
+      expect(mapHasRegions({})).toBe(false);
+      expect(mapHasRegions(null)).toBe(false);
+      expect(mapHasRegions(undefined)).toBe(false);
+    });
+
+    it("draws the flat board for a region map whatever the stored preference", () => {
+      expect(resolveBoardView("table", "desktop", HUT_MAP)).toBe("flat");
+      expect(resolveBoardView("table", "rail", HUT_MAP)).toBe("flat");
+      expect(resolveBoardView("flat", "desktop", HUT_MAP)).toBe("flat");
+    });
+
+    it("leaves an ordinary map, or no map yet, on the stored preference", () => {
+      expect(resolveBoardView("table", "desktop", {})).toBe("table");
+      expect(resolveBoardView("table", "rail", { regions: [] })).toBe("table");
+      expect(resolveBoardView("table", "desktop", null)).toBe("table");
+    });
+
+    it("locks the Board toggle with the reason, the map before the layout", () => {
+      expect(boardViewLockedHint("desktop", HUT_MAP)).toBe(TABLETOP_CANNOT_SHOW_MAP);
+      expect(boardViewLockedHint("portrait", HUT_MAP)).toBe(TABLETOP_CANNOT_SHOW_MAP);
+      expect(boardViewLockedHint("portrait", {})).toBe(TABLETOP_NEEDS_LANDSCAPE);
+      expect(boardViewLockedHint("portrait")).toBe(TABLETOP_NEEDS_LANDSCAPE);
+      expect(boardViewLockedHint("desktop", {})).toBeUndefined();
+      expect(boardViewLockedHint("rail")).toBeUndefined();
+    });
   });
 });

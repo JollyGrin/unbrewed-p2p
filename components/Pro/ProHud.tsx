@@ -1575,9 +1575,9 @@ export interface ProHudProps {
    *  chip beside it. The chip is hidden when the handler is omitted. */
   boardView?: BoardView;
   onToggleBoardView?: () => void;
-  /** set when the board view cannot be switched on this layout (a portrait
-   *  phone always draws the flat board, #870): the toggle renders disabled
-   *  with this hint instead. */
+  /** set when the board view cannot be switched on this layout or map (a
+   *  portrait phone, #870, and a map with a region, #914, always draw the
+   *  flat board): the toggle renders disabled with this hint instead. */
   boardViewLockedHint?: string;
   /** Tabletop figure style (#903) — which miniature set the heroes stand as,
    *  or tokens — plus a one-tap cycle through the styles that change
@@ -1626,6 +1626,7 @@ export const ProHud = ({
   onCyclePace,
   boardView,
   onToggleBoardView,
+  boardViewLockedHint,
   figureStyle,
   onCycleFigureStyle,
   figureCreditFor,
@@ -1895,16 +1896,31 @@ export const ProHud = ({
         {onToggleBoardView && boardView && (
           // Same one-tap cycling gesture as the pace chip beside it — there are
           // only two board views, so a cycle needs no dropdown either.
-          <Tooltip label={`Board: ${BOARD_VIEW_LABEL[boardView]} — click to switch`} hasArrow>
+          <Tooltip
+            label={
+              boardViewLockedHint
+                ? `Board: ${BOARD_VIEW_LABEL[boardView]} — ${boardViewLockedHint}`
+                : `Board: ${BOARD_VIEW_LABEL[boardView]} — click to switch`
+            }
+            hasArrow
+          >
             <Flex
               {...chipStyles}
               as="button"
               type="button"
-              cursor="pointer"
-              _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+              // Locked (a region map, #914): a click would rewrite the stored
+              // preference with nothing changing on screen. aria-disabled, not
+              // disabled, so the tooltip that says why still opens on hover.
+              cursor={boardViewLockedHint ? "not-allowed" : "pointer"}
+              _hover={boardViewLockedHint ? undefined : { bg: "rgba(20, 8, 24, 0.85)" }}
               color="brand.highlight"
-              onClick={onToggleBoardView}
-              aria-label={`Board view: ${BOARD_VIEW_LABEL[boardView]}. Click to switch.`}
+              onClick={boardViewLockedHint ? undefined : onToggleBoardView}
+              aria-disabled={boardViewLockedHint ? true : undefined}
+              aria-label={
+                boardViewLockedHint
+                  ? `Board view: ${BOARD_VIEW_LABEL[boardView]}. ${boardViewLockedHint}.`
+                  : `Board view: ${BOARD_VIEW_LABEL[boardView]}. Click to switch.`
+              }
             >
               <TbPerspective size="0.85rem" />
               <Text
