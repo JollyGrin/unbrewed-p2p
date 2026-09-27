@@ -34,7 +34,7 @@ const { launch, startGame, referenceSpaces, probe, OUT: DEFAULT_OUT, BASE } = re
 const argv = process.argv.slice(2);
 const argOut = argv.indexOf("--out");
 const OUT = argOut > -1 ? argv[argOut + 1] : DEFAULT_OUT;
-const ids = argv.filter((a, i) => !a.startsWith("--") && i !== argOut + 1);
+const ids = argv.filter((a, i) => !a.startsWith("--") && (argOut === -1 || i !== argOut + 1));
 if (ids.length < 1) {
   console.error("usage: node scripts/visual-probe/heroMiniVerify.cjs <canonicalId> [aliasId ...] [--out dir]");
   process.exit(2);

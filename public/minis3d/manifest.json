@@ -26,6 +26,32 @@
       "modelName": "King Taranis (Meshy AI)",
       "creator": "JollyGrin",
       "sourceUrl": "https://unbrewed.xyz"
+    },
+    "hollow-oak": {
+      "files": {
+        "play": "hollow-oak.play.glb"
+      },
+      "defaultLod": "play",
+      "baseDiameter": 0.9457968038626845,
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "Hollow Oak (Meshy AI)",
+      "creator": "JollyGrin",
+      "sourceUrl": "https://unbrewed.xyz"
+    },
+    "hollow-oak-spice": {
+      "files": {
+        "play": "hollow-oak.play.glb"
+      },
+      "defaultLod": "play",
+      "baseDiameter": 0.9457968038626845,
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "Hollow Oak (Meshy AI)",
+      "creator": "JollyGrin",
+      "sourceUrl": "https://unbrewed.xyz"
     }
   }
 }
