@@ -410,3 +410,14 @@ module.exports = async () => {
     restore();
   }
 };
+
+// Shared with hires.cjs (#963 2026-09-28 follow-up): the same candidate
+// staging + material-override machinery, so a second probe mode doesn't
+// reimplement it.
+module.exports.MINI_ID = MINI_ID;
+module.exports.CANDIDATES_DIR = CANDIDATES_DIR;
+module.exports.MATERIAL_VARIANTS = MATERIAL_VARIANTS;
+module.exports.discoverCandidates = discoverCandidates;
+module.exports.stageManifest = stageManifest;
+module.exports.compareUrl = compareUrl;
+module.exports.label = label;
