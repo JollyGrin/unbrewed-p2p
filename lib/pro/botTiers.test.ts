@@ -7,7 +7,7 @@
  * new tier still switched off) must land on exactly today's easy/medium/hard,
  * and a server that does advertise is taken at its word, per hero.
  */
-import { availableBotTiers, botTierChoices, botTierMeta, coerceBotTier } from "./botTiers";
+import { availableBotTiers, botTierChoices, botTierMeta, ClientBotTier, coerceBotTier } from "./botTiers";
 import type { BotDifficulty, HeroListing } from "./protocol";
 
 const listing = (heroId: string, botTiers?: BotDifficulty[]): HeroListing => ({
@@ -22,7 +22,7 @@ const listing = (heroId: string, botTiers?: BotDifficulty[]): HeroListing => ({
 });
 
 const EXPERT: BotDifficulty[] = ["easy", "medium", "hard", "expert"];
-const PLAIN: BotDifficulty[] = ["easy", "medium", "hard"];
+const PLAIN: ClientBotTier[] = ["easy", "medium", "hard"];
 
 describe("availableBotTiers — no advertisement (old server / tier dormant)", () => {
   it("falls back to easy|medium|hard when the listing omits botTiers", () => {
@@ -94,5 +94,26 @@ describe("coerceBotTier — an armed tier that stops being offered", () => {
   it("drops to the strongest tier that remains", () => {
     expect(coerceBotTier("expert", PLAIN)).toBe("hard");
     expect(coerceBotTier("hard", ["easy", "medium"])).toBe("medium");
+  });
+});
+
+describe("jev / jevx3 (#933)", () => {
+  const ALL: BotDifficulty[] = ["easy", "medium", "hard", "expert", "jev", "jevx3"];
+
+  it("a listing advertising jev never yields a jev choice — only jevx3 is new", () => {
+    const ids = botTierChoices([listing("king-kong", ALL)], ["king-kong"]).map((c) => c.id);
+    expect(ids).toEqual(["easy", "medium", "hard", "expert", "jevx3"]);
+    expect(ids).not.toContain("jev");
+  });
+
+  it("jevx3 renders under its display name, chip and badge", () => {
+    expect(botTierMeta("jevx3")).toMatchObject({ id: "jevx3", label: "Familiar 3", chip: "AI·F", badge: "preview" });
+  });
+
+  it("no player-facing text reveals the tech behind a tier", () => {
+    const FORBIDDEN = /jev|llm|api|ismcts/i;
+    for (const c of botTierChoices([listing("king-kong", ALL)], ["king-kong"])) {
+      for (const text of [c.label, c.chip, c.badge, c.tooltip]) expect(text ?? "").not.toMatch(FORBIDDEN);
+    }
   });
 });

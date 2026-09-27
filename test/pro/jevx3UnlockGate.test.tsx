@@ -22,7 +22,7 @@ import { PROTOCOL_VERSION } from "@/lib/pro/protocol";
 import type { ClientMsg } from "@/lib/pro/protocol";
 import { FakeWebSocket, installFakeWebSocket, installPolyfills } from "@/scripts/renderFuzz/domEnv";
 
-const TIERS = ["easy", "medium", "hard", "expert", "jevx3"];
+const TIERS = ["easy", "medium", "hard", "expert", "jev", "jevx3"];
 const HEROES = [
   { heroId: "hero-a", name: "Ellen Ripley", hp: 12, move: 3, reach: "MELEE", botTiers: TIERS },
   { heroId: "hero-b", name: "King Kong", hp: 18, move: 2, reach: "MELEE", botTiers: TIERS },
@@ -146,9 +146,15 @@ describe("jevx3 unlock gate (#933)", () => {
     await setApi({ me: "guest" });
     await mountPicker();
 
+    // The server lists `jev` too, but the client never renders it (#933).
+    expect(screen.queryAllByTestId("seat-chip-jev")).toHaveLength(0);
+
     const locked = chip("jevx3");
     expect(locked).toHaveAttribute("aria-disabled", "true");
     expect(locked).not.toBeDisabled(); // still focusable so the tooltip can open
+    expect(locked).toHaveTextContent("AI·F");
+    // Nothing a player can read names the tech behind the tier.
+    expect(`${locked.textContent} ${locked.getAttribute("aria-label")}`).not.toMatch(/jev|llm|api|ismcts/i);
     expect(locked).toHaveAccessibleName(/Sign in and win 15 vs Expert to unlock/);
 
     await click(locked);

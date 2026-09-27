@@ -15,6 +15,8 @@
  * as an empty default — precisely so the UI can tell "the server didn't send
  * this section" (hide it) apart from "you have none of these yet" (a zero row).
  */
+import { knownBotTierMeta } from "../pro/botTiers";
+
 import { API_URL } from "./apiUrl";
 
 /** Games below which a win rate is noise rather than a statistic. */
@@ -351,14 +353,17 @@ export const monthLabel = (iso: string | null): string | null => {
 export const statHeroLabel = (row: HeroStat): string =>
   row.heroName ?? row.heroId ?? "Unknown hero";
 
-const capitalize = (word: string): string =>
-  `${word.charAt(0).toUpperCase()}${word.slice(1)}`;
-
-/** "Hard bots" — the lobby's tier wording, pluralised for a split label. */
-export const botTierLabel = (bot: BotStat): string =>
-  bot.difficulty === "unknown"
-    ? "Bots"
-    : `${capitalize(bot.difficulty)} bots`;
+/**
+ * "Hard bots" — the lobby's tier wording, pluralised for a split label. Named
+ * through the tier's player-facing meta, never the raw wire id (#933): a tier
+ * the client doesn't show reads as a generic "Other bots".
+ */
+export const botTierLabel = (bot: BotStat): string => {
+  if (bot.difficulty === "unknown") return "Bots";
+  const meta = knownBotTierMeta(bot.difficulty);
+  if (!meta) return "Other bots";
+  return meta.label.endsWith(" bot") ? `${meta.label}s` : `${meta.label} bots`;
+};
 
 // --- opposition tiers (issue #592) -------------------------------------------
 

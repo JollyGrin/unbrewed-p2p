@@ -28,11 +28,18 @@
  */
 import type { BotDifficulty, HeroListing } from "./protocol";
 
+/**
+ * The tiers THIS CLIENT will ever render. `BotDifficulty` mirrors the engine and
+ * so also names `jev`, but the client deliberately does not show it (#933): a
+ * tier missing here is dropped even when a server lists it.
+ */
+export type ClientBotTier = Exclude<BotDifficulty, "jev">;
+
 /** The v22 tier set — what a server that doesn't advertise `botTiers` serves. */
-export const FALLBACK_BOT_TIERS: readonly BotDifficulty[] = ["easy", "medium", "hard"];
+export const FALLBACK_BOT_TIERS: readonly ClientBotTier[] = ["easy", "medium", "hard"];
 
 /** Weakest → strongest. Drives render order regardless of the server's ordering. */
-const TIER_ORDER: readonly BotDifficulty[] = ["easy", "medium", "hard", "expert", "jev", "jevx3"];
+const TIER_ORDER: readonly ClientBotTier[] = ["easy", "medium", "hard", "expert", "jevx3"];
 
 export interface BotTierChoice {
   id: BotDifficulty;
@@ -51,7 +58,13 @@ export interface BotTierChoice {
   lockHint?: string;
 }
 
-const TIER_META: Record<BotDifficulty, BotTierChoice> = {
+/**
+ * Everything a player can read about a tier. Player-facing text must never reveal
+ * the tech behind a tier (no internal ids, model or API names) — the wire id
+ * `jevx3` stays internal. Its name is still being chosen: rename it by editing
+ * the `jevx3` entry's label/chip/badge line below, nothing else.
+ */
+const TIER_META: Record<ClientBotTier, BotTierChoice> = {
   easy: { id: "easy", label: "Easy bot", chip: "AI·E" },
   medium: { id: "medium", label: "Medium bot", chip: "AI·M" },
   hard: { id: "hard", label: "Hard bot", chip: "AI·H" },
@@ -62,23 +75,18 @@ const TIER_META: Record<BotDifficulty, BotTierChoice> = {
     badge: "alpha",
     tooltip: "experimental - beware",
   },
-  jev: {
-    id: "jev",
-    label: "JEV bot",
-    chip: "AI·J",
-    badge: "preview",
-    tooltip: "AI-driven experimental bot — may be slow or unavailable",
-  },
   jevx3: {
     id: "jevx3",
-    label: "JEV x3 bot",
-    chip: "AI·J3",
-    badge: "alpha",
+    ...{ label: "Familiar 3", chip: "AI·F", badge: "preview" }, // ← the one-line rename
     tooltip: "experimental - the strongest bot yet",
   },
 };
 
-export const botTierMeta = (tier: BotDifficulty): BotTierChoice => TIER_META[tier];
+export const botTierMeta = (tier: ClientBotTier): BotTierChoice => TIER_META[tier];
+
+/** Player-facing meta for any difficulty string, or null for one this client never shows. */
+export const knownBotTierMeta = (tier: string): BotTierChoice | null =>
+  Object.prototype.hasOwnProperty.call(TIER_META, tier) ? TIER_META[tier as ClientBotTier] : null;
 
 /**
  * The tiers this server will accept for a room involving `heroIds`.
@@ -91,7 +99,7 @@ export const botTierMeta = (tier: BotDifficulty): BotTierChoice => TIER_META[tie
 export function availableBotTiers(
   heroes: HeroListing[] | null | undefined,
   heroIds: ReadonlyArray<string | null | undefined>,
-): BotDifficulty[] {
+): ClientBotTier[] {
   const fallback = [...FALLBACK_BOT_TIERS];
   const named = [...new Set(heroIds.filter((id): id is string => typeof id === "string" && id.length > 0))];
   // No roster yet, or nothing picked yet: the v22 set is always safe to offer.
