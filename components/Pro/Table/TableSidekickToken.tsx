@@ -12,7 +12,7 @@ import { flatTokenTopPx, placeStandee, standeeBaseDiameterPx } from "@/lib/pro/t
 import type { Mini3d } from "@/lib/pro/minis3d/manifest";
 import type { TableRig } from "@/lib/pro/minis3d/camera";
 import { standingPose } from "@/lib/pro/minis3d/pose";
-import { mini3dPlateSize, mini3dWalk, TableMini3D, useTableMini3d, type MiniMotionCues } from "./TableMini3D";
+import { mini3dPlateSize, mini3dWalk, TableMini3D, usePlacementDrop, useTableMini3d, type MiniMotionCues } from "./TableMini3D";
 import { plateFilter, targetPulse } from "./TableFighterStandee";
 import { TableAnchorAnim, TableStandeeAnchor, type TableStackDepth } from "./TableStandeeAnchor";
 import {
@@ -101,6 +101,7 @@ export const TableSidekickToken = ({
 }: TableSidekickTokenProps) => {
   const sizePx = standeeBaseDiameterPx(diamPx);
   const model3d = useTableMini3d(mini3d, rig);
+  const motion3d = usePlacementDrop(mini3dMotion, !!model3d);
   const groundScale = placeStandee(stack ? stack.depthY : y, tiltDeg).scale;
   const plate = model3d
     ? mini3dPlateSize(model3d, mini3d!, rig!, standingPose(x, y), sizePx, groundScale, sizePx, sizePx * TOKEN_BADGE_PLATE_HEIGHT)
@@ -136,7 +137,7 @@ export const TableSidekickToken = ({
             groundScale={groundScale}
             animating={!!anim}
             walk={mini3dWalk(anim)}
-            motion={mini3dMotion}
+            motion={motion3d}
             // The same highlight, pulse and #873 tap guard as a hero's mini.
             filter={plateFilter(selected, friendly)}
             animation={targetable && !selected ? `${targetPulse} 1.4s ease-in-out infinite` : undefined}

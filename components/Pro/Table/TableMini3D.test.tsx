@@ -14,7 +14,7 @@ import { standingPose } from "@/lib/pro/minis3d/pose";
 import { placeStandee, standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
 import { TableFighterStandee, heroPlateSize } from "./TableFighterStandee";
 import { TableSidekickToken } from "./TableSidekickToken";
-import { mini3dPlateSize, miniBounds } from "./TableMini3D";
+import { DROP_WINDOW_MS, mini3dPlateSize, miniBounds } from "./TableMini3D";
 import { miniCamera } from "@/lib/pro/minis3d/camera";
 import { mini3dFor, parseMini3dManifest } from "@/lib/pro/minis3d/manifest";
 import { renderMini as renderMiniMocked } from "@/lib/pro/minis3d/renderer";
@@ -528,6 +528,38 @@ describe("motion (#962)", () => {
     await wait(200);
     expect(renderMini).toHaveBeenCalledTimes(before);
     expect(container.querySelector("[data-mini3d-canvas]")).not.toBeNull();
+  });
+
+  test("placement drop: plays on a real first placement", async () => {
+    standee({ mini3dMotion: { dropIn: true } });
+    await flush();
+    await wait(100);
+    // Mid-drop the sampler redraws every frame (a still mini draws once).
+    expect(renderMini.mock.calls.length).toBeGreaterThan(2);
+  });
+
+  test("placement drop: not replayed when the renderer comes back after a context loss", async () => {
+    const { container } = standee({ mini3dMotion: { dropIn: true } });
+    await flush();
+    await wait(500);
+    act(() => mockRenderer.set("lost"));
+    expect(q(container).canvas).toBeNull();
+    renderMini.mockClear();
+    act(() => mockRenderer.set("ready"));
+    await flush();
+    await wait(150);
+    expect(q(container).canvas).not.toBeNull();
+    expect(renderMini).toHaveBeenCalledTimes(1);
+  });
+
+  test("placement drop: not played when the model decodes late", async () => {
+    mockLoad.mockImplementation(() => new Promise((r) => setTimeout(() => r(model), DROP_WINDOW_MS + 100)));
+    const { container } = standee({ mini3dMotion: { dropIn: true } });
+    await wait(DROP_WINDOW_MS + 150);
+    await flush();
+    await wait(150);
+    expect(q(container).canvas).not.toBeNull();
+    expect(renderMini).toHaveBeenCalledTimes(1);
   });
 
   test("REDUCED MOTION: the same cues never move it — one draw, standing, idle", async () => {

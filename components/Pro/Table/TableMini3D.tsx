@@ -69,6 +69,32 @@ export const useTableMini3d = (mini: Mini3d | null, rig: TableRig | null): MiniM
   return status === "ready" ? model : null;
 };
 
+/** A mini that first draws later than this after its piece mounted was not
+ *  just placed — its model decoded late — so it does not drop in. */
+export const DROP_WINDOW_MS = 500;
+
+/**
+ * The placement drop only on a real first placement (#962 review): the cues
+ * a piece hands its TableMini3D, minus `dropIn` unless this is the first time
+ * the mini draws for this piece AND it draws within DROP_WINDOW_MS of the
+ * piece mounting. The piece outlives its TableMini3D, so a renderer restored
+ * after a context loss (the mini remounts) or a model that decodes late never
+ * replays the drop. Called by the piece, with whether it draws a mini now.
+ */
+export const usePlacementDrop = (motion: MiniMotionCues | null, drawing: boolean): MiniMotionCues | null => {
+  const s = useRef<{ mountedAt: number; phase: "never" | "first" | "done"; ok: boolean } | null>(null);
+  if (!s.current) s.current = { mountedAt: performance.now(), phase: "never", ok: false };
+  const st = s.current;
+  if (drawing && st.phase === "never") {
+    st.phase = "first";
+    st.ok = performance.now() - st.mountedAt <= DROP_WINDOW_MS;
+  } else if (!drawing && st.phase === "first") {
+    st.phase = "done";
+    st.ok = false;
+  }
+  return motion?.dropIn && !st.ok ? { ...motion, dropIn: false } : motion;
+};
+
 /**
  * The model's bounds as the camera sizes them: its base spans the disc by the
  * manifest's `baseDiameter` (the visible base, default 1.0), not by the
