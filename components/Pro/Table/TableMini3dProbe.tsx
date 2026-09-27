@@ -13,6 +13,11 @@
  * A piece with a `path` glides through it with the real anchor tween (send it
  * standing first, then again with the path: framer only tweens an update), then
  * rests on its last space. `pieces: []` clears the probe.
+ *
+ * `motion` (#962) hands the piece motion cues as the board would: `held`,
+ * `dropIn`, `faceSpace` (face that space), and the one-shot beats `lunge`,
+ * `recoil` ({ key, delayMs, durMs, strength? }), `flinch` and `topple`
+ * ({ key, delayMs? }). A beat plays once per key.
  */
 import { useEffect, useState } from "react";
 import type { ProMapSpace, ViewFighter } from "@/lib/pro/protocol";
@@ -21,6 +26,7 @@ import { useFigureManifest } from "@/lib/pro/useFigureManifest";
 import { mini3dFor, type Mini3dManifest } from "@/lib/pro/minis3d/manifest";
 import type { TableRig } from "@/lib/pro/minis3d/camera";
 import { TableFighterStandee } from "./TableFighterStandee";
+import type { MiniMotionCues } from "./TableMini3D";
 
 export interface Mini3dProbePiece {
   space: string;
@@ -31,6 +37,7 @@ export interface Mini3dProbePiece {
   lod?: string;
   path?: string[];
   durationSec?: number;
+  motion?: Omit<MiniMotionCues, "faceToward"> & { faceSpace?: string };
 }
 
 const SEAT_COLOR: Record<string, string> = { p1: "#E0A82E", p2: "#3B8BEB", p3: "#2F9E68", p4: "#C0449E" };
@@ -78,6 +85,8 @@ export const TableMini3dProbe = ({ spaceById, spaceDiamPx, rig, manifest, lod, m
           route.length > 1
             ? { xs: route.map((s) => s.x), ys: route.map((s) => s.y), durationSec: p.durationSec ?? 0.35 * (route.length - 1) }
             : null;
+        const { faceSpace, ...cues } = p.motion ?? {};
+        const face = faceSpace ? spaceById.get(faceSpace) : undefined;
         return (
           <TableFighterStandee
             key={`${i}-${p.mode}`}
@@ -95,6 +104,7 @@ export const TableMini3dProbe = ({ spaceById, spaceDiamPx, rig, manifest, lod, m
             mini3d={p.mode === "3d" ? mini3dFor(manifest, miniId, seat, p.lod ?? lod) : null}
             rig={rig}
             mini3dMaxPixelRatio={maxPixelRatio}
+            mini3dMotion={p.motion ? { ...cues, faceToward: face ? { x: face.x, y: face.y } : null } : null}
             anim={anim}
             onAnimComplete={() =>
               setPieces((all) => all.map((q, j) => (j === i ? { ...q, space: rest.id, path: undefined } : q)))

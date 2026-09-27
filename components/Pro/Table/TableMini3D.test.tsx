@@ -14,10 +14,11 @@ import { standingPose } from "@/lib/pro/minis3d/pose";
 import { placeStandee, standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
 import { TableFighterStandee, heroPlateSize } from "./TableFighterStandee";
 import { TableSidekickToken } from "./TableSidekickToken";
-import { mini3dPlateSize, miniBounds } from "./TableMini3D";
+import { DROP_WINDOW_MS, mini3dPlateSize, miniBounds } from "./TableMini3D";
 import { miniCamera } from "@/lib/pro/minis3d/camera";
 import { mini3dFor, parseMini3dManifest } from "@/lib/pro/minis3d/manifest";
 import { renderMini as renderMiniMocked } from "@/lib/pro/minis3d/renderer";
+import { minis3dScheduler } from "@/lib/pro/minis3d/scheduler";
 
 // jest cannot resolve "@/…" in jest.mock (see the repo's memory notes): relative paths.
 const mockRenderer = {
@@ -52,6 +53,13 @@ jest.mock("../../../lib/pro/minis3d/model", () => ({
 }));
 
 const renderMini = renderMiniMocked as jest.Mock;
+
+// prefers-reduced-motion, as framer-motion reports it (#962's gate).
+const mockReduced = { value: false };
+jest.mock("framer-motion", () => ({
+  ...jest.requireActual("framer-motion"),
+  useReducedMotion: () => mockReduced.value,
+}));
 
 const mini: Mini3d = {
   id: "kt@30k",
@@ -116,6 +124,7 @@ const q = (c: HTMLElement) => ({
 });
 
 beforeEach(() => {
+  mockReduced.value = false;
   mockRenderer.status = "ready";
   mockLoad.mockImplementation(() => Promise.resolve(model));
   renderMini.mockClear();
@@ -459,5 +468,144 @@ describe("a sidekick's 3D mini (review item 2)", () => {
     const friendly = sidekick({ friendly: true });
     await flush();
     expect(getComputedStyle(q(friendly.container).canvas!).filter).toMatch(/#39B7A8/);
+  });
+});
+
+describe("motion (#962)", () => {
+  const wait = (ms: number) => act(() => new Promise((r) => setTimeout(r, ms)));
+  const cues = {
+    dropIn: true,
+    held: true,
+    faceToward: { x: 0.6, y: 0.7 },
+    lunge: { key: "c1", delayMs: 0, durMs: 200 },
+    flinch: { key: "fx-1" },
+  };
+
+  test("cues animate the mini, then it goes idle: no frames requested at rest", async () => {
+    const { container } = standee({ mini3dMotion: cues });
+    await flush();
+    await wait(120);
+    const canvas = container.querySelector("[data-mini3d-canvas]") as HTMLElement;
+    // Mid-motion: lifted (held + drop/lunge) and turned toward +x (the foe).
+    expect(renderMini.mock.calls.length).toBeGreaterThan(2);
+    expect(Number(canvas.dataset.poseLift)).toBeGreaterThan(0);
+    await wait(600);
+    expect(minis3dScheduler().busy).toBe(false);
+    const settled = renderMini.mock.calls.length;
+    expect(Number(canvas.dataset.poseFacing)).toBeCloseTo(90, 0);
+    expect(Number(canvas.dataset.poseLean)).toBeCloseTo(0, 1);
+    await wait(200);
+    expect(renderMini).toHaveBeenCalledTimes(settled);
+  });
+
+  test("a beat plays once per key, not again on every re-render", async () => {
+    const { rerender, container } = standee({ mini3dMotion: { flinch: { key: "fx-9" } } });
+    await flush();
+    await wait(500);
+    const before = renderMini.mock.calls.length;
+    rerender(
+      <ChakraProvider>
+        <TableFighterStandee
+          fighter={taranis}
+          x={0.3}
+          y={0.7}
+          tiltDeg={40}
+          diamPx={40}
+          playerColor="#E0A82E"
+          selected={false}
+          targetable={false}
+          friendly={false}
+          extendedReach={false}
+          figure={figure}
+          mini3d={mini}
+          rig={rig}
+          frameW={rig.frameW}
+          frameH={rig.frameH}
+          mini3dMotion={{ flinch: { key: "fx-9" } }}
+        />
+      </ChakraProvider>
+    );
+    await wait(200);
+    expect(renderMini).toHaveBeenCalledTimes(before);
+    expect(container.querySelector("[data-mini3d-canvas]")).not.toBeNull();
+  });
+
+  test("placement drop: plays on a real first placement", async () => {
+    standee({ mini3dMotion: { dropIn: true } });
+    await flush();
+    await wait(100);
+    // Mid-drop the sampler redraws every frame (a still mini draws once).
+    expect(renderMini.mock.calls.length).toBeGreaterThan(2);
+  });
+
+  test("placement drop: not replayed when the renderer comes back after a context loss", async () => {
+    const { container } = standee({ mini3dMotion: { dropIn: true } });
+    await flush();
+    await wait(500);
+    act(() => mockRenderer.set("lost"));
+    expect(q(container).canvas).toBeNull();
+    renderMini.mockClear();
+    act(() => mockRenderer.set("ready"));
+    await flush();
+    await wait(150);
+    expect(q(container).canvas).not.toBeNull();
+    expect(renderMini).toHaveBeenCalledTimes(1);
+  });
+
+  test("placement drop: not played when the model decodes late", async () => {
+    mockLoad.mockImplementation(() => new Promise((r) => setTimeout(() => r(model), DROP_WINDOW_MS + 100)));
+    const { container } = standee({ mini3dMotion: { dropIn: true } });
+    await wait(DROP_WINDOW_MS + 150);
+    await flush();
+    await wait(150);
+    expect(q(container).canvas).not.toBeNull();
+    expect(renderMini).toHaveBeenCalledTimes(1);
+  });
+
+  test("REDUCED MOTION: the same cues never move it — one draw, standing, idle", async () => {
+    mockReduced.value = true;
+    const { container } = standee({ mini3dMotion: cues });
+    await flush();
+    await wait(150);
+    expect(renderMini).toHaveBeenCalledTimes(1);
+    expect(minis3dScheduler().busy).toBe(false);
+    const canvas = container.querySelector("[data-mini3d-canvas]") as HTMLElement;
+    expect(canvas.dataset.poseLift).toBe("0.000");
+    expect(canvas.dataset.poseLean).toBe("0.0");
+    expect(canvas.dataset.poseFacing).toBe("0.0");
+  });
+
+  test("REDUCED MOTION: a beat that arrived while reduced never plays later", async () => {
+    mockReduced.value = true;
+    const long = { lunge: { key: "c2", delayMs: 0, durMs: 3000 } };
+    const view = standee({ mini3dMotion: long });
+    await flush();
+    expect(renderMini).toHaveBeenCalledTimes(1);
+    mockReduced.value = false;
+    view.rerender(
+      <ChakraProvider>
+        <TableFighterStandee
+          fighter={taranis}
+          x={0.3}
+          y={0.7}
+          tiltDeg={40}
+          diamPx={40}
+          playerColor="#E0A82E"
+          selected={false}
+          targetable={false}
+          friendly={false}
+          extendedReach={false}
+          figure={figure}
+          mini3d={mini}
+          rig={rig}
+          frameW={rig.frameW}
+          frameH={rig.frameH}
+          mini3dMotion={long}
+        />
+      </ChakraProvider>
+    );
+    await wait(300);
+    expect(renderMini).toHaveBeenCalledTimes(1);
+    expect(minis3dScheduler().busy).toBe(false);
   });
 });

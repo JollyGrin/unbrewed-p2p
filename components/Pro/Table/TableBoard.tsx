@@ -85,6 +85,9 @@ import { TableBoardObject } from "./TableBoardObject";
 import { TableMoveGhost } from "./TableMoveGhost";
 import type { Mini3d } from "@/lib/pro/minis3d/manifest";
 import { useMinis3dDevParams, useMinis3dManifest } from "@/lib/pro/minis3d/useMinis3dSource";
+import { TableFallenMini } from "./TableFallenMini";
+import { toppleFor, useFallenMinis, type StandingMini } from "./useFallenMinis";
+import { miniCuesFor, type TableStrike } from "./tableMiniCues";
 
 // Dev-only measuring aid for scripts/visual-probe/tableMini3d (#931). The
 // NODE_ENV check is a build-time constant, so a production build drops the
@@ -131,6 +134,9 @@ export type TableBoardProps = Omit<ProBoardProps, TableBoardDeferredProp> & {
   fighterMini3d?: (fighter: ViewFighter) => Mini3d | null;
   /** see TableStage — moved out from under the tabletop HUD's side buttons */
   resetViewSpot?: { left: string; bottom: string };
+  /** The combat strike beat that is playing (#962): 3D minis lunge, recoil
+   *  and face each other on the combat panel's own clock. */
+  fighterStrike?: TableStrike | null;
 };
 
 export const TableBoard = ({
@@ -182,6 +188,7 @@ export const TableBoard = ({
   fighterFigure,
   fighterMini3d,
   resetViewSpot,
+  fighterStrike = null,
   // Whatever the caller spread in that this view deliberately doesn't draw
   // (TableBoardDeferredProp). Typed as the REST of TableBoardProps, so it is
   // `{}` exactly when every non-deferred prop is destructured above.
@@ -196,6 +203,7 @@ export const TableBoard = ({
   const zoneColor = (id: string) => zoneColorMap.get(id) ?? "#8878A0";
   const itemById = useMemo(() => new Map((map.items ?? []).map((it) => [it.id, it])), [map.items]);
   const reducedMotion = !!useReducedMotion();
+
   // Dev-only: every fighter wears every badge, for the occlusion probe.
   const badgeProbe = useTableBadgeProbe();
   // Dev-only: where the figure probe stands the one-space miniatures (#926).
@@ -243,6 +251,15 @@ export const TableBoard = ({
   // (currently unsupported) region.
   const boardFighters = fighters.filter((f): f is ViewFighter & { space: SpaceId } => !!f.space && mainSpaceIds.has(f.space));
   const boardTokens = tokens.filter((t) => mainSpaceIds.has(t.space));
+
+  // Defeat topple (#962): the ghosts of 3D minis that just left the board
+  // defeated (never under reduced motion).
+  const standingMinis = new Map<FighterId, StandingMini>();
+  for (const f of boardFighters) {
+    const m = !f.tailSpace || f.kind !== "HERO" ? mini3dOf(f) : null;
+    if (m) standingMinis.set(f.id, { fighter: f, mini: m });
+  }
+  const fallen = useFallenMinis({ fighters, standing: standingMinis, attack, strike: fighterStrike, reducedMotion });
 
   // Shared spaces (protocol v28: up to 4 smalls + 1 non-small; corpses and
   // totems stack too). Laid out by the SAME lib/pro/tokenStack.ts helpers the
@@ -537,6 +554,33 @@ export const TableBoard = ({
     return caps;
   };
 
+  // Where each on-board fighter stands (its head slot), per frame size — the
+  // 3D minis' combat facing reads it (#962).
+  const positionsBySize = new Map<string, Map<FighterId, { x: number; y: number }>>();
+  const fighterPositions = (frameW: number, frameH: number) => {
+    const key = `${frameW}x${frameH}`;
+    let m = positionsBySize.get(key);
+    if (!m) {
+      m = new Map();
+      for (const f of boardFighters) {
+        const sp = spaceById.get(f.space);
+        if (sp) m.set(f.id, fighterPlace(sp, f.id, 0, frameW, frameH));
+      }
+      positionsBySize.set(key, m);
+    }
+    return m;
+  };
+  const miniMotion = (f: ViewFighter & { space: SpaceId }, common: { selected: boolean; targetable: boolean }, frameW: number, frameH: number) =>
+    miniCuesFor({
+      fighter: f,
+      selected: common.selected,
+      targetable: common.targetable,
+      attack,
+      strike: fighterStrike,
+      positions: fighterPositions(frameW, frameH),
+      fx,
+    });
+
   const pickKey = `${highlightedSpaces.join(",")}|${relocateSpaces.join(",")}|${highlightedFighters.join(",")}`;
 
   // Baba Yaga's Hut, hybrid (unbrewed-p2p#922): a region's own spaces render
@@ -748,6 +792,7 @@ export const TableBoard = ({
                   mini3d={straddling ? null : mini3dOf(f)}
                   rig={{ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio, screenScale }}
                   mini3dMaxPixelRatio={minis3d.maxPixelRatio}
+                  mini3dMotion={miniMotion(f, common, frameW, frameH)}
                   innerRef={registerFighterEl(f.id)}
                   {...common}
                 />
@@ -781,7 +826,28 @@ export const TableBoard = ({
                 mini3d={mini3dOf(f)}
                 rig={{ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio, screenScale }}
                 mini3dMaxPixelRatio={minis3d.maxPixelRatio}
+                mini3dMotion={miniMotion(f, common, frameW, frameH)}
                 spacePicksLive={highlightSet.size > 0 || relocateSet.size > 0}
+              />
+            );
+          })}
+
+          {fallen.map((x) => {
+            const space = spaceById.get(x.fighter.space);
+            if (!space) return null;
+            const at = fighterPlace(space, x.fighter.id, (diameterPct / 100) * Math.max(frameW, 1), frameW, frameH);
+            return (
+              <TableFallenMini
+                key={x.key}
+                fighterId={x.fighter.id}
+                topple={toppleFor(x, fighterStrike)}
+                mini={x.mini}
+                rig={{ frameW, frameH, tiltDeg, yawDeg, perspectiveRatio, screenScale }}
+                x={at.x}
+                y={at.y}
+                diamPx={at.diamPx}
+                faceToward={x.foe ? (fighterPositions(frameW, frameH).get(x.foe) ?? null) : null}
+                maxPixelRatio={minis3d.maxPixelRatio}
               />
             );
           })}

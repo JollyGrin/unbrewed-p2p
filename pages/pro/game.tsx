@@ -182,6 +182,7 @@ import {
   comparePulseFor,
   CompareBeat,
   panelCombatFor,
+  combatForStrike,
 } from "@/lib/pro/combatStrike";
 import { combatOutcomeBannerText, isNoWinner } from "@/lib/pro/combatOutcome";
 import { useCombatValueFx, CombatValueFx, SlotValueFx } from "@/lib/pro/combatValueFx";
@@ -207,6 +208,7 @@ import { useSlowMode } from "@/lib/pro/useSlowMode";
 import { usePace } from "@/lib/pro/usePace";
 import { paceFactor } from "@/lib/pro/pace";
 import { scaledCombatAnimTiming, CombatAnimTiming } from "@/lib/pro/combatAnimTiming";
+import type { TableStrike } from "@/components/Pro/Table/tableMiniCues";
 import { batchActor } from "@/lib/pro/slowModeQueue";
 import { ActionSpotlight, ActionSpotlightBatch } from "@/components/Pro/ActionSpotlight";
 import {
@@ -4654,6 +4656,27 @@ const LiveGame = ({
   // `paceScale` stretches the strike's life and the panel's linger/hold together —
   // the #517 invariant holds at every pace (see scaledCombatTiming).
   const { strike, lingeringCombat, lingerHold } = useCombatStrike(snapshot, paceScale);
+  // The same beat for the tabletop's 3D minis (#962): who lunges at whom, and
+  // when, on the panel's own (paced) clock — the minis lunge and recoil with
+  // the cards. Presentation only.
+  const liveCombat = snapshot?.view.combat ?? null;
+  const tableStrike = useMemo((): TableStrike | null => {
+    // Only the combat the strike itself resolved — never a chained next one.
+    const pair = strike ? combatForStrike(strike, lingeringCombat, liveCombat) : null;
+    if (!strike || !pair) return null;
+    const t = scaledCombatAnimTiming(paceScale);
+    return {
+      key: strike.key,
+      attacker: pair.attacker,
+      target: pair.target,
+      variant: strike.variant,
+      damage: strike.damage,
+      lungeDelayMs: t.strikeDelay * 1000,
+      lungeMs: t.strikeLungeDur * 1000,
+      contactMs: t.strikeContactDelay * 1000,
+      reactMs: t.strikeReactDur * 1000,
+    };
+  }, [strike, lingeringCombat, liveCombat, paceScale]);
 
   // The math beat (issue #382): value modifiers fly in as chips onto the value
   // pill, which ticks toward the effective value; paced through the shared battle
@@ -7284,6 +7307,7 @@ const LiveGame = ({
             fighterFigure={(f) => (f.kind === "HERO" ? heroPiece(f.owner).figure : null)}
             fighterMini3d={(f) => (f.kind === "HERO" ? heroPiece(f.owner).mini3d : null)}
             resetViewSpot={hud ? HUD_RESET_VIEW_SPOT : undefined}
+            fighterStrike={tableStrike}
           />
         ) : (
           <ProBoard {...boardProps} />

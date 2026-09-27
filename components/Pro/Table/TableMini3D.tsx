@@ -17,6 +17,16 @@
  * framer-motion; a per-frame tracker reads them back and asks for a redraw
  * only when the piece actually moved. At rest nothing runs.
  *
+ * MOTION (#962). Whole-body motion — hops along a walk, turning to face,
+ * lunge, recoil, flinch, topple, the select lift and the placement drop —
+ * is the motion layer's (lib/pro/minis3d/pose): this component only keeps a
+ * `MiniMotion` timeline, feeds it the cues it is handed (`motion`), and while
+ * anything is in flight samples it once a frame through the same tracker a
+ * tween uses. The pose's feet are the anchor's own tweened left/top, so a
+ * hop never leaves the base disc. When nothing is in flight the tracker is
+ * dropped and no frame is requested; under prefers-reduced-motion every pose
+ * is the plain standing one.
+ *
  * TAPS. The canvas never takes pointer events (its transparent corners
  * reach over the neighbouring spaces). While the fighter is a target, an
  * ellipse inscribed in the model's projected box takes the tap instead, the
@@ -24,10 +34,25 @@
  */
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { Box } from "@chakra-ui/react";
+import { useReducedMotion } from "framer-motion";
 import { miniCamera, miniPixelRatio, miniPlaneTransform, miniPlateBox, type MiniCamera, type TableRig } from "@/lib/pro/minis3d/camera";
 import type { Mini3d } from "@/lib/pro/minis3d/manifest";
 import type { MiniModel, ModelBounds } from "@/lib/pro/minis3d/model";
-import { standingPose, type MiniPose } from "@/lib/pro/minis3d/pose";
+import {
+  addClip,
+  createMotion,
+  DROP_MS,
+  faceTo,
+  FLINCH_MS,
+  headingDeg,
+  holdLift,
+  REST_FACING_DEG,
+  sampleMotion,
+  setWalking,
+  TOPPLE_MS,
+  type MiniMotion,
+  type MiniPose,
+} from "@/lib/pro/minis3d/pose";
 import { renderMini } from "@/lib/pro/minis3d/renderer";
 import { minis3dScheduler } from "@/lib/pro/minis3d/scheduler";
 import { useMiniModel, useMinis3dStatus } from "@/lib/pro/minis3d/useMinis3d";
@@ -42,6 +67,32 @@ export const useTableMini3d = (mini: Mini3d | null, rig: TableRig | null): MiniM
   const status = useMinis3dStatus(wanted);
   const model = useMiniModel(wanted && status === "ready" ? mini!.url : null);
   return status === "ready" ? model : null;
+};
+
+/** A mini that first draws later than this after its piece mounted was not
+ *  just placed — its model decoded late — so it does not drop in. */
+export const DROP_WINDOW_MS = 500;
+
+/**
+ * The placement drop only on a real first placement (#962 review): the cues
+ * a piece hands its TableMini3D, minus `dropIn` unless this is the first time
+ * the mini draws for this piece AND it draws within DROP_WINDOW_MS of the
+ * piece mounting. The piece outlives its TableMini3D, so a renderer restored
+ * after a context loss (the mini remounts) or a model that decodes late never
+ * replays the drop. Called by the piece, with whether it draws a mini now.
+ */
+export const usePlacementDrop = (motion: MiniMotionCues | null, drawing: boolean): MiniMotionCues | null => {
+  const s = useRef<{ mountedAt: number; phase: "never" | "first" | "done"; ok: boolean } | null>(null);
+  if (!s.current) s.current = { mountedAt: performance.now(), phase: "never", ok: false };
+  const st = s.current;
+  if (drawing && st.phase === "never") {
+    st.phase = "first";
+    st.ok = performance.now() - st.mountedAt <= DROP_WINDOW_MS;
+  } else if (!drawing && st.phase === "first") {
+    st.phase = "done";
+    st.ok = false;
+  }
+  return motion?.dropIn && !st.ok ? { ...motion, dropIn: false } : motion;
 };
 
 /**
@@ -74,6 +125,42 @@ export const mini3dPlateSize = (
   return { widthPx: Math.max(minW, 2 * box.halfWidth), heightPx: Math.max(minH, box.height) };
 };
 
+/** A one-shot combat beat: played once per `key`, `delayMs` after it first
+ *  arrives, over `durMs` (the combat panel's own paced durations). */
+export interface MiniBeatCue {
+  key: string;
+  delayMs: number;
+  durMs: number;
+  /** Scales the swing (a harder hit knocks back further). Default 1. */
+  strength?: number;
+}
+
+/**
+ * What the board wants a mini to do right now (#962). Everything is optional;
+ * `{}` is a mini standing still. Fighter-agnostic: nothing here knows a hero.
+ */
+export interface MiniMotionCues {
+  /** Drop onto the base when the mini first appears. */
+  dropIn?: boolean;
+  /** Selected or targetable: float a little. */
+  held?: boolean;
+  /** Face this board point (the combat opponent); null = the resting facing. */
+  faceToward?: { x: number; y: number } | null;
+  /** Attacker's lunge toward whom it faces. */
+  lunge?: MiniBeatCue | null;
+  /** Defender tipping back away from the attacker. */
+  recoil?: MiniBeatCue | null;
+  /** HP dropped: a short shake (keyed by the damage beat). */
+  flinch?: { key: string } | null;
+  /** Defeated: tip over and fade (`delayMs` after it first arrives). */
+  topple?: { key: string; delayMs?: number } | null;
+}
+
+/** A tween's path when it is a walk — a swap's crossfade (it carries
+ *  opacity keyframes) is a teleport, and never hops. */
+export const mini3dWalk = (anim: { xs: number[]; ys: number[]; opacity?: number[] } | null | undefined) =>
+  anim && !anim.opacity && anim.xs.length > 1 ? { xs: anim.xs, ys: anim.ys } : null;
+
 export interface TableMini3DProps {
   mini: Mini3d;
   model: MiniModel;
@@ -87,6 +174,11 @@ export interface TableMini3DProps {
   groundScale: number;
   /** A move/swap tween is playing: follow the anchor frame by frame. */
   animating: boolean;
+  /** The tween's path when it is a WALK (not a swap's crossfade): the mini
+   *  hops once per segment and faces along it. */
+  walk?: { xs: number[]; ys: number[] } | null;
+  /** Motion cues (#962); absent = stand still. */
+  motion?: MiniMotionCues | null;
   /** The standee's highlight filter (selected / friendly glow). */
   filter?: string;
   /** A CSS animation for the canvas (the target pulse; Emotion keyframes
@@ -119,6 +211,8 @@ export const TableMini3D = ({
   baseDiamPx,
   groundScale,
   animating,
+  walk = null,
+  motion = null,
   filter,
   animation,
   hitTarget = false,
@@ -148,6 +242,8 @@ export const TableMini3D = ({
     minis3dScheduler().request(key, () => {
       const plane = planeRef.current, canvas = canvasRef.current, hit = hitRef.current;
       if (!plane || !canvas) return;
+      const opacity = pose.opacity === undefined || pose.opacity >= 1 ? "" : pose.opacity.toFixed(3);
+      if (canvas.style.opacity !== opacity) canvas.style.opacity = opacity;
       plane.style.transform = miniPlaneTransform({ tiltDeg, yawDeg }, groundScale, cam.liftPx);
       for (const el of hit ? [canvas, hit] : [canvas]) {
         el.style.left = `${cam.rect.left}px`;
@@ -171,35 +267,138 @@ export const TableMini3D = ({
       canvas.dataset.elevDeg = cam.elevationDeg.toFixed(1);
       canvas.dataset.azDeg = cam.azimuthDeg.toFixed(1);
       canvas.dataset.leanDeg = cam.screenLeanDeg.toFixed(2);
+      // The pose it drew (probes and tests read these).
+      canvas.dataset.poseLift = pose.lift.toFixed(3);
+      canvas.dataset.poseFacing = pose.facingDeg.toFixed(1);
+      canvas.dataset.poseLean = pose.leanDeg.toFixed(1);
     });
   };
   const placeRef = useRef(place);
   placeRef.current = place;
 
-  // At rest: one (scheduled) placement per change of anything the camera
-  // reads — or of the hit area, which a placement sizes. The job itself
-  // redraws only if the camera key changed.
-  useLayoutEffect(() => {
-    if (!animating) placeRef.current(standingPose(x, y));
-  }, [animating, x, y, frameW, frameH, tiltDeg, yawDeg, perspectiveRatio, screenScale, baseDiamPx, groundScale, model, mini.tint, mini.baseDiameter, maxPixelRatio, hitTarget]);
+  // ---- motion (#962): the timeline, its inputs, and the one sampler.
+  const reduced = !!useReducedMotion();
+  const motionRef = useRef<MiniMotion | null>(null);
+  // (Not `??=`: this repo's SWC build leaves a helper undeclared for it.)
+  if (!motionRef.current) motionRef.current = createMotion(performance.now());
+  const aspect = frameW > 0 && frameH > 0 ? frameW / frameH : 1;
+  const walkPath = animating && walk && walk.xs.length > 1 ? walk : null;
+  const input = useRef({ x, y, animating, walkPath, aspect, baseX: 0, baseY: 0, reduced });
+  input.current = {
+    x,
+    y,
+    animating,
+    walkPath,
+    aspect,
+    // One base diameter in board units: a clip's slide is measured in these.
+    baseX: frameW > 0 ? baseDiamPx / frameW : 0,
+    baseY: frameH > 0 ? baseDiamPx / frameH : 0,
+    reduced,
+  };
+  const tracking = useRef(false);
+  const seenAt = useRef<{ x: number; y: number } | null>(null);
 
-  // Tweening: follow the anchor's animated left/top, one sample a frame.
-  useEffect(() => {
-    if (!animating) return;
-    const root = planeRef.current?.closest<HTMLElement>("[data-standee-root]");
-    if (!root) return;
-    let seen = "";
+  /** Sample the timeline now and place that pose. Returns whether anything
+   *  is still in flight (a tween counts). */
+  const sampleNow = (): boolean => {
+    const inp = input.current;
+    let at = { x: inp.x, y: inp.y };
+    if (inp.animating) {
+      const root = planeRef.current?.closest<HTMLElement>("[data-standee-root]");
+      const sx = root ? pct(root.style.left) : null, sy = root ? pct(root.style.top) : null;
+      // Not tweened yet this frame: hold where it was drawn last.
+      if (sx === null || sy === null) {
+        if (seenAt.current) at = seenAt.current;
+      } else at = { x: sx, y: sy };
+    }
+    seenAt.current = at;
+    const frame = sampleMotion(motionRef.current!, performance.now(), {
+      at,
+      path: inp.walkPath,
+      aspect: inp.aspect,
+      base: { x: inp.baseX, y: inp.baseY },
+      reduced: inp.reduced,
+    });
+    motionRef.current = frame.next;
+    placeRef.current(frame.pose);
+    return frame.busy || inp.animating;
+  };
+  const sampleRef = useRef(sampleNow);
+  sampleRef.current = sampleNow;
+
+  /** Place the current pose, and keep sampling every frame while anything
+   *  moves. The tracker drops itself once all is still: at rest, no frames. */
+  const run = () => {
+    const busy = sampleRef.current();
+    if (!busy || tracking.current) return;
+    tracking.current = true;
     const scheduler = minis3dScheduler();
     scheduler.track(key, () => {
-      const sx = pct(root.style.left), sy = pct(root.style.top);
-      const at = `${sx}|${sy}`;
-      if (sx === null || sy === null || at === seen) return;
-      seen = at;
-      placeRef.current(standingPose(sx, sy));
+      if (sampleRef.current()) return;
+      scheduler.untrack(key);
+      tracking.current = false;
     });
-    return () => scheduler.untrack(key);
-  }, [animating, key]);
+  };
+  const runRef = useRef(run);
+  runRef.current = run;
 
+  // Feed the cues into the timeline. Runs every render but only touches the
+  // timeline (and starts sampling) when a cue actually changed; a beat's key
+  // plays once, even across re-renders.
+  const seenBeats = useRef(new Set<string>());
+  const dropped = useRef(false);
+  const primed = useRef(false);
+  const faceX = motion?.faceToward?.x, faceY = motion?.faceToward?.y;
+  useLayoutEffect(() => {
+    const before = motionRef.current!;
+    const now = performance.now();
+    let m = before;
+    const beats: [string, () => MiniMotion][] = [];
+    const beat = (cue: MiniBeatCue | null | undefined, kind: "lunge" | "recoil") =>
+      cue && beats.push([`${kind}:${cue.key}`, () => addClip(m, kind, now, cue.durMs, cue.delayMs, cue.strength ?? 1)]);
+    beat(motion?.lunge, "lunge");
+    beat(motion?.recoil, "recoil");
+    if (motion?.flinch) beats.push([`flinch:${motion.flinch.key}`, () => addClip(m, "flinch", now, FLINCH_MS)]);
+    if (motion?.topple) beats.push([`topple:${motion.topple.key}`, () => addClip(m, "topple", now, TOPPLE_MS, motion.topple!.delayMs ?? 0)]);
+    if (!dropped.current && motion?.dropIn) {
+      dropped.current = true;
+      if (!reduced) m = addClip(m, "drop", now, DROP_MS);
+    }
+    for (const [id, play] of beats) {
+      if (seenBeats.current.has(id)) continue;
+      seenBeats.current.add(id);
+      // Reduced motion: marked seen (never replayed later), never played.
+      if (!reduced) m = play();
+    }
+    const rest =
+      faceX === undefined || faceY === undefined ? REST_FACING_DEG : headingDeg(faceX - x, faceY - y, aspect);
+    m = setWalking(m, !!walkPath && !reduced, now, rest);
+    if (!primed.current) {
+      // A mini that appears already facing someone stands that way at once.
+      primed.current = true;
+      m = { ...m, turn: { from: rest, to: rest, start: now, dur: 0 } };
+    } else if (!m.walking) m = faceTo(m, rest, now);
+    m = holdLift(m, !!motion?.held, now);
+    if (m !== before) {
+      motionRef.current = m;
+      runRef.current();
+    }
+  });
+
+  // At rest: one (scheduled) placement per change of anything the camera
+  // reads — or of the hit area, which a placement sizes. The job itself
+  // redraws only if the camera key changed. A tween (or motion) keeps the
+  // sampler running until it settles.
+  useLayoutEffect(() => {
+    runRef.current();
+  }, [animating, x, y, frameW, frameH, tiltDeg, yawDeg, perspectiveRatio, screenScale, baseDiamPx, groundScale, model, mini.tint, mini.baseDiameter, maxPixelRatio, hitTarget, reduced]);
+
+  useEffect(
+    () => () => {
+      tracking.current = false;
+    },
+    []
+  );
   useEffect(() => () => minis3dScheduler().cancel(key), [key]);
 
   return (

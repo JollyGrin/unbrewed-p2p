@@ -60,8 +60,26 @@ export { LINGER_HOLD_MS, LINGER_TTL_MS, STRIKE_TTL_MS };
 
 /** The instances that identify one combat — used to build the strike key so a new
  *  combat (fresh card instances) can never collide with the one just resolved. */
-const combatKey = (attackerCard: string | null, defenderCard: string | null): string =>
+export const combatKey = (attackerCard: string | null, defenderCard: string | null): string =>
   `strike:${attackerCard ?? "none"}->${defenderCard ?? "none"}`;
+
+/**
+ * The combat a strike belongs to: the frozen or the live one, whichever carries the
+ * strike's own card instances — or null when neither does (#962 review). The strike
+ * outlives the linger (`dropLinger` clears the frozen combat while the strike runs
+ * out its TTL), so in a chained attack the live combat is a DIFFERENT one; pairing
+ * the two would hand combat 1's lunge to combat 2's fighters.
+ */
+export function combatForStrike(
+  strike: Pick<CombatStrike, "key">,
+  lingering: ViewCombat | null,
+  live: ViewCombat | null
+): ViewCombat | null {
+  for (const c of [lingering, live]) {
+    if (c && combatKey(c.attackerCard?.instance ?? null, c.defenderCard?.instance ?? null) === strike.key) return c;
+  }
+  return null;
+}
 
 /**
  * Has this LIVE combat got past its face-down commit stage — i.e. are its own cards
