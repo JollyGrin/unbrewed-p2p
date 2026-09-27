@@ -59,22 +59,33 @@ export const createRenderScheduler = ({
   const frame = () => {
     frameId = null;
     stats.frames++;
-    trackers.forEach((sample) => sample());
-    stats.peakQueue = Math.max(stats.peakQueue, queue.size);
-    let n = 0;
-    for (const [key, job] of queue) {
-      if (n >= budget) break;
-      queue.delete(key);
-      n++;
-      stats.jobs++;
-      try {
-        job();
-      } catch (e) {
-        console.warn("[minis3d] render job failed", e);
+    try {
+      // A throwing sampler or job must not freeze every other mini: each is
+      // guarded, and the next frame is scheduled whatever happens.
+      trackers.forEach((sample) => {
+        try {
+          sample();
+        } catch (e) {
+          console.warn("[minis3d] tween sampler failed", e);
+        }
+      });
+      stats.peakQueue = Math.max(stats.peakQueue, queue.size);
+      let n = 0;
+      for (const [key, job] of queue) {
+        if (n >= budget) break;
+        queue.delete(key);
+        n++;
+        stats.jobs++;
+        try {
+          job();
+        } catch (e) {
+          console.warn("[minis3d] render job failed", e);
+        }
       }
+      stats.deferred += queue.size;
+    } finally {
+      schedule();
     }
-    stats.deferred += queue.size;
-    schedule();
   };
 
   return {

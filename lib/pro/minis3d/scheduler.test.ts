@@ -115,4 +115,27 @@ describe("the minis render scheduler", () => {
     expect(ran).toBe(true);
     warn.mockRestore();
   });
+
+  test("a throwing sampler does not freeze the others, the queue or the loop", () => {
+    const { f, s } = setup();
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const bad = {}, good = {};
+    let goodSamples = 0, drawn = 0;
+    s.track(bad, () => {
+      throw new Error("detached anchor");
+    });
+    s.track(good, () => {
+      goodSamples++;
+      s.request(good, () => drawn++);
+    });
+    f.step();
+    expect(goodSamples).toBe(1);
+    expect(drawn).toBe(1);
+    // Still scheduled: the next frame runs too.
+    expect(f.pending).toBe(true);
+    f.step();
+    expect(goodSamples).toBe(2);
+    expect(drawn).toBe(2);
+    warn.mockRestore();
+  });
 });
