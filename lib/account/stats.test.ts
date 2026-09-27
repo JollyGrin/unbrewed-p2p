@@ -6,6 +6,7 @@
  * that a newer client renders from a field its API never sent.
  */
 import {
+  botTierLabel,
   casualGamesNote,
   countedRecord,
   fetchAccountStats,
@@ -522,5 +523,21 @@ describe("opposition ordering", () => {
     expect(bots.filter(isCasualBot).map((bot) => bot.difficulty)).toEqual([
       "easy",
     ]);
+  });
+});
+
+describe("botTierLabel — never shows a raw wire id (#933)", () => {
+  const row = (difficulty: string) => ({ difficulty, games: 1, wins: 0 });
+
+  it("keeps the established tier wording", () => {
+    expect(botTierLabel(row("hard"))).toBe("Hard bots");
+    expect(botTierLabel(row("expert"))).toBe("Expert bots");
+    expect(botTierLabel(row("unknown"))).toBe("Bots");
+  });
+
+  it("names jevx3 by its display name and hides tiers the client doesn't show", () => {
+    expect(botTierLabel(row("jevx3"))).toBe("Prodigy bots");
+    expect(botTierLabel(row("jev"))).toBe("Other bots");
+    expect(botTierLabel(row("jevx3"))).not.toMatch(/jev/i);
   });
 });

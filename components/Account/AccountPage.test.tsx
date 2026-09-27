@@ -142,6 +142,11 @@ describe("AccountPage — signed in", () => {
     expect(
       screen.getByRole("button", { name: "Sign out" }),
     ).toBeInTheDocument();
+    // #937: the owner's way to the public dashboard everybody else sees.
+    expect(screen.getByTestId("account-public-dashboard")).toHaveAttribute(
+      "href",
+      "/stats?u=JollyGrin",
+    );
   });
 
   it("falls back to a placeholder when the Discord avatar 404s", async () => {

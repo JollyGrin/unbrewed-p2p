@@ -28,25 +28,55 @@
  */
 import type { BotDifficulty, HeroListing } from "./protocol";
 
+/**
+ * The tiers THIS CLIENT will ever render. `BotDifficulty` mirrors the engine and
+ * so also names `jev`, but the client deliberately does not show it (#933): a
+ * tier missing here is dropped even when a server lists it.
+ */
+export type ClientBotTier = Exclude<BotDifficulty, "jev">;
+
 /** The v22 tier set — what a server that doesn't advertise `botTiers` serves. */
-export const FALLBACK_BOT_TIERS: readonly BotDifficulty[] = ["easy", "medium", "hard"];
+export const FALLBACK_BOT_TIERS: readonly ClientBotTier[] = ["easy", "medium", "hard"];
 
 /** Weakest → strongest. Drives render order regardless of the server's ordering. */
-const TIER_ORDER: readonly BotDifficulty[] = ["easy", "medium", "hard", "expert"];
+const TIER_ORDER: readonly ClientBotTier[] = ["easy", "medium", "hard", "expert", "jevx3"];
 
 export interface BotTierChoice {
   id: BotDifficulty;
-  /** Long form, for the roomy seat cards ("Hard bot"). */
+  /** Long form, for the roomy seat cards ("Hard bot"). The everyday name. */
   label: string;
+  /** The exact, versioned name ("Prodigy 3") for a tier that has one — shown only
+   *  where a player looks closer (the chip's tooltip), never where space is tight. */
+  fullName?: string;
   /** Compact form, for the create screen's seat plates ("AI·H"). */
   chip: string;
   /** Tiny provenance badge rendered next to the label, when the tier has one. */
   badge?: string;
   /** Hover copy for the badge. Player-facing and neutral — no internal names. */
   tooltip?: string;
+  /** Offered by the server but not yet earned by this player (#933): the chip
+   *  renders, but picking it is a no-op. Set by lib/pro/tierUnlock.ts. */
+  locked?: boolean;
+  /** Why it is locked / how far along the player is. Shown instead of `tooltip`. */
+  lockHint?: string;
 }
 
-const TIER_META: Record<BotDifficulty, BotTierChoice> = {
+/**
+ * A tier named like a model family + exact version: `label` is the everyday name,
+ * `fullName` the versioned one, and the tooltip is derived from them.
+ */
+const versioned = (meta: BotTierChoice & { fullName: string }): BotTierChoice => ({
+  ...meta,
+  tooltip: meta.badge ? `${meta.fullName} · ${meta.badge}` : meta.fullName,
+});
+
+/**
+ * Everything a player can read about a tier. Player-facing text must never reveal
+ * the tech behind a tier (no internal ids, model or API names) — the wire id
+ * `jevx3` stays internal. Rename it, or bump its version, by editing the `jevx3`
+ * line below and nothing else.
+ */
+const TIER_META: Record<ClientBotTier, BotTierChoice> = {
   easy: { id: "easy", label: "Easy bot", chip: "AI·E" },
   medium: { id: "medium", label: "Medium bot", chip: "AI·M" },
   hard: { id: "hard", label: "Hard bot", chip: "AI·H" },
@@ -57,9 +87,23 @@ const TIER_META: Record<BotDifficulty, BotTierChoice> = {
     badge: "alpha",
     tooltip: "experimental - beware",
   },
+  jevx3: versioned({ id: "jevx3", label: "Prodigy", fullName: "Prodigy 3", chip: "AI·P", badge: "preview" }),
 };
 
-export const botTierMeta = (tier: BotDifficulty): BotTierChoice => TIER_META[tier];
+export const botTierMeta = (tier: ClientBotTier): BotTierChoice => TIER_META[tier];
+
+/**
+ * A chip's tooltip. Unlocked: the tier's own tooltip. Locked: the unlock hint,
+ * then the full name on its own line (render with `whiteSpace="pre-line"`).
+ */
+export const tierTooltip = (
+  c: Pick<BotTierChoice, "tooltip" | "locked" | "lockHint" | "fullName">,
+): string | undefined =>
+  c.locked ? [c.lockHint, c.fullName].filter(Boolean).join("\n") || undefined : c.tooltip;
+
+/** Player-facing meta for any difficulty string, or null for one this client never shows. */
+export const knownBotTierMeta = (tier: string): BotTierChoice | null =>
+  Object.prototype.hasOwnProperty.call(TIER_META, tier) ? TIER_META[tier as ClientBotTier] : null;
 
 /**
  * The tiers this server will accept for a room involving `heroIds`.
@@ -72,7 +116,7 @@ export const botTierMeta = (tier: BotDifficulty): BotTierChoice => TIER_META[tie
 export function availableBotTiers(
   heroes: HeroListing[] | null | undefined,
   heroIds: ReadonlyArray<string | null | undefined>,
-): BotDifficulty[] {
+): ClientBotTier[] {
   const fallback = [...FALLBACK_BOT_TIERS];
   const named = [...new Set(heroIds.filter((id): id is string => typeof id === "string" && id.length > 0))];
   // No roster yet, or nothing picked yet: the v22 set is always safe to offer.
