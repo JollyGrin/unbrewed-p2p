@@ -2,7 +2,16 @@ import { act, renderHook } from "@testing-library/react";
 import type { AccountState } from "../account/useAccount";
 import type { HeroCosmetics } from "../account/cosmetics";
 import { decodeCosmetics, wireCardRim } from "./cosmeticsWire";
-import { ACTION_IN_FLIGHT_MS, ILLEGAL_ACTION_RESYNC_AFTER, RESYNC_COOLDOWN_MS, useProSocket } from "./useProSocket";
+import {
+  ACTION_IN_FLIGHT_MS,
+  ILLEGAL_ACTION_RESYNC_AFTER,
+  RESUME_DEADLINE_MS,
+  RESUME_REPLY_DEADLINE_MS,
+  RESUME_RESYNC_MIN_HIDDEN_MS,
+  RESYNC_COOLDOWN_MS,
+  useProSocket,
+} from "./useProSocket";
+import { resetEngineVersions } from "./wireVersion";
 
 // The hook reads the optional Discord account (issue #568) to decide whether to
 // claim a seat identity. Stubbed here so no test hits `/me`; the default is a
@@ -1730,5 +1739,711 @@ describe("useProSocket — slow mode pacing (issue #703)", () => {
 
     expect(seen).toEqual(["theirs"]);
     expect(hook.result.current.slowModeHeld).not.toBeNull(); // paced, not flushed
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reconnect-on-resume: an iPhone Safari tab backgrounded or locked mid-match
+// (the App Switcher, the lock button, a phone call). Chrome kills the socket
+// and freezes the page's own JS — `setTimeout`, `ws.onclose`'s exponential
+// backoff included — so nothing on the page can retry on its own no matter how
+// long the phone sits locked. The only reliable signal a suspended tab gets on
+// return is `visibilitychange`/`pageshow`, which is what these tests drive
+// instead of the fake clock (advancing the fake clock models time a running
+// page actually experienced — a frozen tab experiences none of it, which is the
+// whole bug). A hide moves only the WALL clock (`jest.setSystemTime`), never
+// the timers — the honest model of a suspended page.
+// ---------------------------------------------------------------------------
+
+describe("useProSocket — reconnect on resume (iOS Safari suspend/resume)", () => {
+  const realWS = global.WebSocket;
+
+  // jsdom's `document.hidden` is a read-only getter on the prototype; override
+  // it with a mutable backing value, same idiom as useLobbyMatchCue.test.tsx.
+  let hiddenFlag = false;
+  beforeAll(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => hiddenFlag });
+  });
+
+  beforeEach(() => {
+    // @ts-expect-error — swap in the fake for the test
+    global.WebSocket = FakeWebSocket;
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    hiddenFlag = false;
+    jest.useFakeTimers();
+  });
+  afterEach(() => {
+    global.WebSocket = realWS;
+    FakeWebSocket.last = null;
+    jest.useRealTimers();
+  });
+
+  /** Hide, let `hiddenMs` of wall clock pass with every timer frozen, return. */
+  const backgroundThenReturn = (hiddenMs = RESUME_RESYNC_MIN_HIDDEN_MS) => {
+    hiddenFlag = true;
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    jest.setSystemTime(Date.now() + hiddenMs);
+    hiddenFlag = false;
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+  };
+
+  const bootIntoGame = () => {
+    const hook = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    act(() => ws.emit(roomJoined()));
+    act(() => ws.emit(minimalState()));
+    return { hook, ws };
+  };
+
+  it("a dead socket reconnects the instant the tab returns — no waiting out the backoff timer", () => {
+    // Full jitter (issue #209): random=0.5 → a 500ms delay is scheduled. On a
+    // real phone that timer is exactly what a freeze can strand forever; here
+    // we simply never advance the fake clock through it, which is the honest
+    // model of "the page never got to run while the tab was suspended" —
+    // whether that suspension lasted 30 seconds or 20 minutes makes no
+    // difference to a timer that never fires at all.
+    jest.useFakeTimers();
+    const randSpy = jest.spyOn(Math, "random").mockReturnValue(0.5);
+    try {
+      const { ws } = bootIntoGame();
+      const before = FakeWebSocket.instances;
+      act(() => ws.close()); // the phone's OS tears the socket down while backgrounded
+
+      backgroundThenReturn();
+
+      // A fresh socket exists synchronously — the return itself was the retry,
+      // not the (never-advanced, possibly-frozen) 500ms backoff timer.
+      expect(FakeWebSocket.instances).toBe(before + 1);
+      const next = FakeWebSocket.last!;
+      expect(next).not.toBe(ws);
+
+      // …and the original backoff timer was actually cancelled, not merely
+      // raced: advancing well past its 500ms delay must not spawn a THIRD
+      // socket behind the one already open.
+      act(() => jest.advanceTimersByTime(2000));
+      expect(FakeWebSocket.instances).toBe(before + 1);
+    } finally {
+      randSpy.mockRestore();
+    }
+  });
+
+  it("covers a short (<1 min), a medium (~5 min) and a long (~20 min) absence identically", () => {
+    // The fix has no notion of "how long" — a frozen timer never fires
+    // regardless of duration, so the return path is the same whether the
+    // phone was locked for 45 seconds or 20 minutes. This just exercises the
+    // same recovery three times back to back to nail that down.
+    jest.useFakeTimers();
+    try {
+      let { hook, ws } = bootIntoGame();
+      for (const _absence of ["short", "medium", "long"]) {
+        const before = FakeWebSocket.instances;
+        act(() => ws.close());
+        backgroundThenReturn();
+        expect(FakeWebSocket.instances).toBe(before + 1);
+        ws = FakeWebSocket.last!;
+        act(() => ws.open());
+        act(() => ws.emit(roomJoined()));
+        act(() => ws.emit(minimalState()));
+        expect(hook.result.current.status).toBe("open");
+        expect(hook.result.current.gameLost).toBe(false);
+      }
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("a socket that LOOKS open on return is treated with suspicion: a fresh RECONNECT verifies it", () => {
+    // The other half of the fear: a phone that silently drops the transport
+    // without ever firing `close`, leaving `status` stuck reporting "open" for
+    // a connection that's actually dead. The fix can't tell the difference
+    // from inside the page, so it asks the server for a fresh STATE on return
+    // — the identical trick p2p #848 already uses for a stale view — which
+    // both fixes the silently-dead case and is a harmless no-op for a
+    // genuinely fine one.
+    const { hook, ws } = bootIntoGame();
+    expect(ws.sentTypes.filter((t) => t === "RECONNECT")).toHaveLength(0);
+    const before = FakeWebSocket.instances;
+
+    backgroundThenReturn();
+
+    expect(ws.sentTypes.filter((t) => t === "RECONNECT")).toHaveLength(1);
+    // Silent (p2p #869): a verify is not a known-stale board — no toast.
+    expect(hook.result.current.resyncing).toBe(false);
+    // No new transport — this is a resync on the SAME socket, not a reconnect.
+    expect(FakeWebSocket.instances).toBe(before);
+
+    // The server answers exactly as a live RECONNECT always does; the board
+    // never shows a loss for what was only a verification round-trip.
+    act(() => ws.emit(roomJoined()));
+    act(() => ws.emit(minimalState()));
+    expect(hook.result.current.resyncing).toBe(false);
+    expect(hook.result.current.gameLost).toBe(false);
+  });
+
+  it("never verifies an open socket before the game has actually started (nothing to resync yet)", () => {
+    // Pre-game / lobby wait: `hadStateRef` is still false, so a tab-return here
+    // must not fire a RECONNECT the server has no room-with-a-seat to answer.
+    const hook = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    act(() =>
+      ws.emit({ type: "ROOM_CREATED", roomId: "R1", token: "tok", you: "p1", formatId: "duel", seats: ["p1"], requiredPlayers: 2 })
+    );
+
+    backgroundThenReturn();
+
+    expect(ws.sentTypes.filter((t) => t === "RECONNECT")).toHaveLength(0);
+    expect(hook.result.current.resyncing).toBe(false);
+  });
+
+  it("does not spam RECONNECT for a rapid flurry of app-switches (shares #848's cooldown)", () => {
+    jest.useFakeTimers();
+    try {
+      const { ws } = bootIntoGame();
+      backgroundThenReturn();
+      expect(ws.sentTypes.filter((t) => t === "RECONNECT")).toHaveLength(1);
+
+      act(() => ws.emit(roomJoined())); // alive — the reply deadline is disarmed
+
+      // The player flicks away and back again, the second return landing
+      // 1ms inside the cooldown window.
+      act(() => jest.advanceTimersByTime(RESYNC_COOLDOWN_MS - 1 - RESUME_RESYNC_MIN_HIDDEN_MS));
+      backgroundThenReturn();
+      expect(ws.sentTypes.filter((t) => t === "RECONNECT")).toHaveLength(1);
+
+      // Once the cooldown has actually elapsed, a further return may verify again.
+      backgroundThenReturn();
+      expect(ws.sentTypes.filter((t) => t === "RECONNECT")).toHaveLength(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it.each(["pageshow"])(
+    "`%s` retries a dead socket just like `visibilitychange` (belt-and-braces)",
+    (eventName) => {
+      jest.useFakeTimers();
+      try {
+        const { ws } = bootIntoGame();
+        const before = FakeWebSocket.instances;
+        act(() => ws.close());
+        act(() => window.dispatchEvent(new Event(eventName)));
+        expect(FakeWebSocket.instances).toBe(before + 1);
+      } finally {
+        jest.useRealTimers();
+      }
+    }
+  );
+
+  it("two resume signals firing together (visibilitychange + pageshow) never open a second socket", () => {
+    jest.useFakeTimers();
+    try {
+      const { ws } = bootIntoGame();
+      const before = FakeWebSocket.instances;
+      act(() => ws.close());
+      act(() => {
+        hiddenFlag = false;
+        document.dispatchEvent(new Event("visibilitychange"));
+        window.dispatchEvent(new Event("pageshow"));
+      });
+      // The second signal finds the first socket already CONNECTING and backs off.
+      expect(FakeWebSocket.instances).toBe(before + 1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("re-arms a stale SERVER_RESTARTING resume deadline fresh on return — a long freeze must not eat the whole budget", () => {
+    // issue #133's RESUME_DEADLINE_MS is deliberately generous so a slow-but-ok
+    // resume never reads as a loss. But the countdown is a plain `setTimeout`
+    // armed the moment SERVER_RESTARTING is processed — if the tab freezes
+    // moments later, the ENTIRE budget elapses while the page cannot even
+    // attempt a reconnect, and whatever's left (nothing) is what the returning
+    // player actually gets. The fix re-arms a fresh RESUME_DEADLINE_MS the
+    // moment the player is actually back and able to retry.
+    jest.useFakeTimers();
+    try {
+      const { hook, ws } = bootIntoGame();
+      act(() => ws.emit({ type: "SERVER_RESTARTING" }));
+      expect(hook.result.current.serverRestarting).toBe(true);
+
+      // Most of the original deadline is already "spent" by the time the
+      // player returns (the freeze itself, standing in for the locked phone).
+      act(() => jest.advanceTimersByTime(RESUME_DEADLINE_MS - 100));
+      expect(hook.result.current.gameLost).toBe(false);
+
+      backgroundThenReturn(); // re-arms a fresh RESUME_DEADLINE_MS from here
+
+      // Advancing PAST where the ORIGINAL deadline would have fired (total
+      // elapsed since SERVER_RESTARTING is now over RESUME_DEADLINE_MS) must
+      // NOT declare the game lost — the stale timer was cancelled, not merely
+      // outraced.
+      act(() => jest.advanceTimersByTime(200));
+      expect(hook.result.current.gameLost).toBe(false);
+
+      // The fresh deadline still protects against a game that truly never
+      // comes back — advance it the rest of the way out.
+      act(() => jest.advanceTimersByTime(RESUME_DEADLINE_MS));
+      expect(hook.result.current.gameLost).toBe(true);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("a slow first STATE after a resume-triggered reconnect never trips the loss screen early", () => {
+    // The resume itself may take a beat (a fresh TCP/WS handshake, a server
+    // under load) — that is a slow resume, not a failed one, and #133's
+    // contract is explicit: only a fired deadline with nothing behind it is a
+    // loss. This nails down that the resume-on-visibility path honors the
+    // exact same contract as the ordinary redeploy path.
+    jest.useFakeTimers();
+    const randSpy = jest.spyOn(Math, "random").mockReturnValue(0.5);
+    try {
+      const { hook, ws } = bootIntoGame();
+      act(() => ws.emit({ type: "SERVER_RESTARTING" }));
+      act(() => ws.close());
+
+      backgroundThenReturn(); // reconnects immediately, re-arms the deadline
+
+      const next = FakeWebSocket.last!;
+      expect(next).not.toBe(ws);
+      // The new socket takes its time to actually open and answer — well
+      // inside the freshly re-armed deadline — and the player must see no
+      // loss screen for any of it.
+      act(() => jest.advanceTimersByTime(RESUME_DEADLINE_MS - 1000));
+      expect(hook.result.current.gameLost).toBe(false);
+
+      act(() => next.open());
+      act(() => next.emit(roomJoined()));
+      act(() => next.emit(minimalState()));
+      expect(hook.result.current.gameLost).toBe(false);
+      expect(hook.result.current.serverRestarting).toBe(false);
+      expect(hook.result.current.snapshot).not.toBeNull();
+    } finally {
+      randSpy.mockRestore();
+      jest.useRealTimers();
+    }
+  });
+
+  it("resets the backoff attempt counter on a resume reconnect — a returning player retries at full speed", () => {
+    // Without a reset, a phone that had already grown its backoff toward
+    // MAX_RETRY_DELAY_MS before being backgrounded would carry that inflated
+    // delay into every retry AFTER the resume-triggered one too, for no
+    // reason the player caused. Grow the backoff first, then confirm the
+    // reconnect a SECOND close schedules (post-resume) is back to the
+    // shortest delay.
+    jest.useFakeTimers();
+    const randSpy = jest.spyOn(Math, "random").mockReturnValue(1); // no jitter shrinkage — exact cap
+    try {
+      const { ws } = bootIntoGame();
+      // Grow the backoff: several closes in a row without ever reopening.
+      act(() => ws.close());
+      act(() => jest.advanceTimersByTime(1000)); // attempts: 0 → 1, delay was capped(1000·2^0)=1000
+      const second = FakeWebSocket.last!;
+      act(() => second.close());
+      act(() => jest.advanceTimersByTime(2000)); // attempts: 1 → 2, delay was capped(1000·2^1)=2000
+      const third = FakeWebSocket.last!;
+
+      const before = FakeWebSocket.instances;
+      act(() => third.close()); // attempts now 3 — next backoff would be capped(1000·2^2)=4000
+      backgroundThenReturn(); // resume reconnects immediately AND resets attempts to 0
+      expect(FakeWebSocket.instances).toBe(before + 1);
+      const fourth = FakeWebSocket.last!;
+
+      // Close the resumed socket: if attempts had carried over, the next
+      // scheduled delay would be capped(1000·2^3)=8000; reset, it's back to
+      // capped(1000·2^0)=1000 — advancing exactly 1000ms must reconnect.
+      act(() => fourth.close());
+      act(() => jest.advanceTimersByTime(999));
+      expect(FakeWebSocket.instances).toBe(before + 1);
+      act(() => jest.advanceTimersByTime(1));
+      expect(FakeWebSocket.instances).toBe(before + 2);
+    } finally {
+      randSpy.mockRestore();
+      jest.useRealTimers();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// p2p #869: the tab-return verify above must be a no-op for a desktop player.
+// Alt-tabbing back (a `focus`) or a quick tab switch never suspended anything,
+// and a RECONNECT on each one showed a false "Board out of date" toast, wiped
+// an open undo negotiation and flushed slow-mode pacing. The verify itself must
+// also actually DETECT a half-open socket (a reply deadline), settle on an
+// ERROR, and leave a decided game alone.
+// ---------------------------------------------------------------------------
+
+describe("useProSocket — tab-return verify only after a real absence (p2p #869)", () => {
+  const realWS = global.WebSocket;
+  let hiddenFlag = false;
+  beforeAll(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => hiddenFlag });
+  });
+  beforeEach(() => {
+    // @ts-expect-error — swap in the fake for the test
+    global.WebSocket = FakeWebSocket;
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    hiddenFlag = false;
+    jest.useFakeTimers();
+  });
+  afterEach(() => {
+    global.WebSocket = realWS;
+    FakeWebSocket.last = null;
+    jest.useRealTimers();
+  });
+
+  const hideFor = (ms: number) => {
+    hiddenFlag = true;
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    jest.setSystemTime(Date.now() + ms);
+    hiddenFlag = false;
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+  };
+  const reconnects = (ws: FakeWebSocket) => ws.sentTypes.filter((t) => t === "RECONNECT").length;
+
+  const state = (over: Record<string, unknown> = {}, events: unknown[] = []) => ({
+    type: "STATE",
+    view: { you: "p1", prompt: null, activePlayer: "p1", winner: null, tag: "live", ...over },
+    legalActions: [],
+    events,
+  });
+
+  const boot = (slowMode = false) => {
+    const hook = renderHook(() => useProSocket("ws://test", false, slowMode));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    act(() => ws.emit(roomJoined()));
+    act(() => ws.emit(state()));
+    // Well past any cooldown, so only the trigger under test decides.
+    act(() => jest.advanceTimersByTime(RESYNC_COOLDOWN_MS * 2));
+    return { hook, ws };
+  };
+
+  it("a bare window `focus` (desktop alt-tab back) sends nothing and shows nothing", () => {
+    const { hook, ws } = boot();
+    act(() => window.dispatchEvent(new Event("focus")));
+    expect(reconnects(ws)).toBe(0);
+    expect(hook.result.current.resyncing).toBe(false);
+  });
+
+  it("a tab switch shorter than the threshold sends nothing", () => {
+    const { hook, ws } = boot();
+    hideFor(RESUME_RESYNC_MIN_HIDDEN_MS - 1);
+    expect(reconnects(ws)).toBe(0);
+    expect(hook.result.current.resyncing).toBe(false);
+  });
+
+  it("a hide past the threshold verifies once, silently", () => {
+    const { hook, ws } = boot();
+    hideFor(RESUME_RESYNC_MIN_HIDDEN_MS);
+    expect(reconnects(ws)).toBe(1);
+    expect(hook.result.current.resyncing).toBe(false);
+  });
+
+  it("a bfcache restore (`pageshow` persisted) verifies whatever the hide length", () => {
+    const { ws } = boot();
+    act(() => window.dispatchEvent(Object.assign(new Event("pageshow"), { persisted: true })));
+    expect(reconnects(ws)).toBe(1);
+  });
+
+  it("a verify that gets no reply within the deadline closes the socket and reconnects", () => {
+    const randSpy = jest.spyOn(Math, "random").mockReturnValue(0);
+    try {
+      const { hook, ws } = boot();
+      const before = FakeWebSocket.instances;
+      hideFor(RESUME_RESYNC_MIN_HIDDEN_MS);
+      expect(reconnects(ws)).toBe(1);
+
+      act(() => jest.advanceTimersByTime(RESUME_REPLY_DEADLINE_MS - 1));
+      expect(ws.readyState).toBe(FakeWebSocket.OPEN); // still inside the budget
+
+      act(() => jest.advanceTimersByTime(1));
+      expect(ws.readyState).toBe(FakeWebSocket.CLOSED);
+      expect(hook.result.current.status).toBe("closed");
+      act(() => jest.advanceTimersByTime(1)); // the ordinary backoff (jitter 0) takes over
+      expect(FakeWebSocket.instances).toBe(before + 1);
+      const next = FakeWebSocket.last!;
+      act(() => next.open());
+      expect(next.sentTypes).toContain("RECONNECT");
+    } finally {
+      randSpy.mockRestore();
+    }
+  });
+
+  it("a verify that IS answered keeps the socket past the deadline", () => {
+    const { ws } = boot();
+    const before = FakeWebSocket.instances;
+    hideFor(RESUME_RESYNC_MIN_HIDDEN_MS);
+    act(() => ws.emit(roomJoined()));
+    act(() => ws.emit(state()));
+    act(() => jest.advanceTimersByTime(RESUME_REPLY_DEADLINE_MS * 3));
+    expect(ws.readyState).toBe(FakeWebSocket.OPEN);
+    expect(FakeWebSocket.instances).toBe(before);
+  });
+
+  it("an ERROR answering a #848 resync clears `resyncing`", () => {
+    const { hook, ws } = boot();
+    for (let i = 0; i < ILLEGAL_ACTION_RESYNC_AFTER; i++) {
+      act(() => hook.result.current.sendAction({ type: "MANEUVER", player: "p1" } as never));
+      act(() => ws.emit({ type: "ERROR", code: "ILLEGAL_ACTION", message: "not legal" }));
+    }
+    expect(hook.result.current.resyncing).toBe(true);
+    // The room is gone and there is no resume blob: the terminal path.
+    act(() => ws.emit({ type: "ERROR", code: "BAD_TOKEN", message: "nope" }));
+    expect(hook.result.current.resyncing).toBe(false);
+  });
+
+  it("never verifies a decided game — and a swept room never revives it or covers the result", () => {
+    const { hook, ws } = boot();
+    act(() => ws.emit({ type: "RESUME_TOKEN", roomId: "R1", token: "blob" })); // a revivable blob is held
+    act(() => ws.emit(state({ winner: "p1", phase: "GAME_OVER" })));
+
+    hideFor(RESUME_RESYNC_MIN_HIDDEN_MS * 200); // ~15 min on the result screen
+    expect(reconnects(ws)).toBe(0);
+
+    // The socket dropped meanwhile; the fresh one's RECONNECT finds the room swept.
+    act(() => ws.close());
+    act(() => jest.advanceTimersByTime(10_000)); // MAX_RETRY_DELAY_MS
+    const next = FakeWebSocket.last!;
+    act(() => next.open());
+    act(() => next.emit({ type: "ERROR", code: "ROOM_NOT_FOUND", message: "gone" }));
+    expect(next.sentTypes).not.toContain("RESUME_ROOM");
+    expect(hook.result.current.gameLost).toBe(false);
+    expect(hook.result.current.error).toBeNull();
+    expect(hook.result.current.snapshot?.view.winner).toBe("p1");
+  });
+
+  it("an incoming undo request survives a verify whose answer is the same view", () => {
+    const { hook, ws } = boot();
+    act(() => ws.emit({ type: "UNDO_REQUESTED", requester: "p2", rewindActions: [] }));
+    expect(hook.result.current.incomingUndo).not.toBeNull();
+
+    hideFor(RESUME_RESYNC_MIN_HIDDEN_MS);
+    act(() => ws.emit(roomJoined()));
+    act(() => ws.emit(state()));
+    expect(hook.result.current.incomingUndo).toEqual({ requester: "p2", rewindActions: [] });
+  });
+
+  it("our own pending undo survives a verify whose answer is the same view", () => {
+    const { hook, ws } = boot();
+    act(() => hook.result.current.requestUndo());
+    expect(hook.result.current.undoPending).toBe(true);
+
+    hideFor(RESUME_RESYNC_MIN_HIDDEN_MS);
+    act(() => ws.emit(roomJoined()));
+    act(() => ws.emit(state()));
+    expect(hook.result.current.undoPending).toBe(true);
+
+    // …while an answer that DID move (the rewind landed while we were away) still resolves it.
+    hideFor(RESUME_RESYNC_MIN_HIDDEN_MS * 3);
+    act(() => ws.emit(state({ tag: "rewound" })));
+    expect(hook.result.current.undoPending).toBe(false);
+  });
+
+  it("a verify whose answer is the same view does not flush slow-mode pacing", () => {
+    const { hook, ws } = boot(true);
+    const opp = (tag: string) =>
+      state({ activePlayer: "p2", tag }, [{ type: "ACTION_SPENT", player: "p2", action: "MANEUVER" }]);
+    act(() => ws.emit(opp("a")));
+    act(() => ws.emit(opp("b")));
+    expect(hook.result.current.slowModePending).toBe(1);
+    const held = hook.result.current.slowModeHeld;
+    expect(held).not.toBeNull();
+
+    hideFor(RESUME_RESYNC_MIN_HIDDEN_MS);
+    act(() => ws.emit(roomJoined()));
+    act(() => ws.emit({ ...opp("b"), events: [] })); // the server re-sends the view we hold
+    for (let i = 0; i < 5; i += 1) act(() => void jest.advanceTimersByTime(1));
+    expect(hook.result.current.slowModeHeld).toBe(held);
+    expect(hook.result.current.slowModePending).toBe(1);
+  });
+});
+
+// #876: which seats are AI only ever arrives on ROOM_STATUS, which a bot room
+// (started straight from CREATE_ROOM) and a mid-game RECONNECT never get — so
+// the hook records the bot seats it learned per room, and reads them back on
+// the next ROOM_JOINED, for the winner screen's Rematch link.
+describe("useProSocket — room bot seats survive a reload (#876)", () => {
+  const realWS = global.WebSocket;
+  beforeEach(() => {
+    // @ts-expect-error — swap in the fake for the test
+    global.WebSocket = FakeWebSocket;
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+  });
+  afterEach(() => {
+    global.WebSocket = realWS;
+    FakeWebSocket.last = null;
+  });
+
+  const boot = () => {
+    const hook = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    return { hook, ws };
+  };
+
+  it("a bot room with no ROOM_STATUS still knows its AI seat, then again after a reload", () => {
+    const first = boot();
+    act(() => first.hook.result.current.createRoom("hero-a", { difficulty: "medium" }));
+    act(() => first.ws.emit({ type: "ROOM_CREATED", roomId: "BOT1", token: "tok", you: "p1" }));
+    expect(first.hook.result.current.roomInfo?.bots).toEqual({ p2: "medium" });
+    first.hook.unmount();
+
+    // A fresh page: RECONNECT answers ROOM_JOINED and no ROOM_STATUS.
+    const second = boot();
+    act(() => second.hook.result.current.joinRoom("BOT1", ""));
+    act(() => second.ws.emit({ type: "ROOM_JOINED", roomId: "BOT1", token: "tok2", you: "p1" }));
+    expect(second.hook.result.current.roomInfo?.bots).toEqual({ p2: "medium" });
+  });
+
+  it("a human-only create records no bots, and never inherits another room's", () => {
+    const { hook, ws } = boot();
+    act(() => hook.result.current.createRoom("hero-a", { difficulty: "hard" }));
+    act(() => ws.emit({ type: "ROOM_CREATED", roomId: "BOT1", token: "t", you: "p1" }));
+    act(() => hook.result.current.createRoom("hero-a"));
+    act(() => ws.emit({ type: "ROOM_CREATED", roomId: "PVP1", token: "t", you: "p1" }));
+    expect(hook.result.current.roomInfo?.bots).toEqual({});
+  });
+
+  it("a joiner learns bot seats from ROOM_STATUS and keeps them across a reload", () => {
+    const first = boot();
+    act(() => first.hook.result.current.joinRoom("MP1", "hero-b"));
+    act(() => first.ws.emit({ type: "ROOM_JOINED", roomId: "MP1", token: "tok", you: "p2" }));
+    act(() =>
+      first.ws.emit({
+        type: "ROOM_STATUS",
+        roomId: "MP1",
+        formatId: "ffa3",
+        requiredPlayers: 3,
+        seats: [
+          { player: "p1", heroId: "A", connected: true, bot: null },
+          { player: "p2", heroId: "B", connected: true, bot: null },
+          { player: "p3", heroId: "C", connected: true, bot: "easy" },
+        ],
+      }),
+    );
+    expect(first.hook.result.current.roomInfo?.bots).toEqual({ p3: "easy" });
+    first.hook.unmount();
+
+    const second = boot();
+    act(() => second.hook.result.current.joinRoom("MP1", ""));
+    act(() => second.ws.emit({ type: "ROOM_JOINED", roomId: "MP1", token: "tok", you: "p2" }));
+    expect(second.hook.result.current.roomInfo?.bots).toEqual({ p3: "easy" });
+  });
+});
+
+// #894: the game-over re-bind at v35 (#880) arms the resync-reply flags for the
+// RECONNECT's reply — so they must be armed AFTER the winner STATE that triggers
+// it has been handled, or that STATE consumes them itself.
+describe("useProSocket — game-over re-bind at v35 (p2p #894)", () => {
+  const realWS = global.WebSocket;
+  beforeEach(() => {
+    // @ts-expect-error — swap in the fake for the test
+    global.WebSocket = FakeWebSocket;
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    jest.useFakeTimers();
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+    global.WebSocket = realWS;
+    FakeWebSocket.last = null;
+    resetEngineVersions();
+  });
+
+  /** A seat bound at 34 on an engine whose frames carry `engineV`. */
+  const boot = (engineV: number, slowMode = false) => {
+    let snapshots = 0;
+    let last: unknown = null;
+    const hook = renderHook(() => {
+      const r = useProSocket("ws://test", false, slowMode);
+      if (r.snapshot && r.snapshot !== last) { last = r.snapshot; snapshots += 1; }
+      return r;
+    });
+    const ws = FakeWebSocket.last!;
+    const emit = (msg: Record<string, unknown>) => act(() => ws.emit({ v: engineV, ...msg }));
+    act(() => ws.open());
+    emit({ type: "HEROES", heroes: [] });
+    emit(roomJoined());
+    emit({
+      type: "STATE",
+      view: { you: "p1", prompt: null, activePlayer: "p1", winner: null, tag: "live" },
+      legalActions: [],
+      events: [],
+    });
+    return { hook, ws, emit, snapshots: () => snapshots };
+  };
+  const winnerState = (events: unknown[]) => ({
+    type: "STATE",
+    view: { you: "p1", prompt: null, activePlayer: "p1", winner: "p1", phase: "GAME_OVER", tag: "over" },
+    legalActions: [],
+    events,
+  });
+  const sentOf = (ws: FakeWebSocket, type: string) =>
+    ws.sent.map((s) => JSON.parse(s)).filter((m) => m.type === type);
+
+  it("handles the winner STATE as a normal batch and absorbs the RECONNECT's reply as the resync reply", () => {
+    const { hook, ws, emit, snapshots } = boot(35, true);
+    // An opponent batch is on screen (paced) when our own winning blow goes out.
+    emit({
+      type: "STATE",
+      view: { you: "p1", prompt: null, activePlayer: "p2", winner: null, tag: "opp" },
+      legalActions: [],
+      events: [{ type: "ACTION_SPENT", player: "p2", action: "MANEUVER" }],
+    });
+    act(() => hook.result.current.sendAction({ type: "ATTACK", player: "p1" } as never));
+    emit(winnerState([{ type: "ACTION_SPENT", player: "p1", action: "ATTACK" }]));
+
+    expect(hook.result.current.snapshot?.view).toMatchObject({ tag: "over", winner: "p1" });
+    // The re-bind went out after the winner STATE, at 35, exactly once.
+    const reconnects = sentOf(ws, "RECONNECT");
+    expect(reconnects).toEqual([{ v: 35, type: "RECONNECT", roomId: "R1", token: "tok" }]);
+    expect(hook.result.current.rematchNegotiable).toBe(true);
+
+    // Something is open on the result screen when the reply lands.
+    act(() => hook.result.current.requestUndo());
+    expect(hook.result.current.undoPending).toBe(true);
+    const held = hook.result.current.snapshot;
+    const before = snapshots();
+
+    // The RECONNECT's reply: ROOM_JOINED + the view we already hold, re-sent.
+    emit(roomJoined());
+    emit(winnerState([]));
+    act(() => void jest.advanceTimersByTime(50));
+
+    expect(hook.result.current.undoPending).toBe(true); // no undo-UI reset
+    expect(hook.result.current.snapshot).toBe(held); // no extra batch applied
+    expect(snapshots()).toBe(before);
+    expect(sentOf(ws, "RECONNECT")).toHaveLength(1); // and no second re-bind
+  });
+
+  it("the three rematch actions do nothing on a seat bound at v34", () => {
+    const { hook, ws, emit } = boot(34);
+    emit(winnerState([]));
+    expect(sentOf(ws, "RECONNECT")).toHaveLength(0); // a v34 engine is never re-bound
+    expect(hook.result.current.rematchNegotiable).toBe(false);
+
+    act(() => hook.result.current.offerRematch());
+    expect(hook.result.current.rematchOffer.phase).toBe("idle");
+
+    // Even with the offer state forced by the wire, nothing goes out.
+    emit({ type: "REMATCH_OFFERED", from: "p1" });
+    expect(hook.result.current.rematchOffer.phase).toBe("offering");
+    act(() => hook.result.current.cancelRematch());
+    expect(hook.result.current.rematchOffer.phase).toBe("offering");
+
+    emit({ type: "REMATCH_CLOSED", reason: "cancelled" });
+    emit({ type: "REMATCH_OFFERED", from: "p2" });
+    expect(hook.result.current.rematchOffer.phase).toBe("incoming");
+    act(() => hook.result.current.respondToRematch(true));
+    act(() => hook.result.current.respondToRematch(false));
+    expect(hook.result.current.rematchOffer.phase).toBe("incoming");
+
+    expect(ws.sent.map((s) => JSON.parse(s)).filter((m) => String(m.type).startsWith("REMATCH_"))).toEqual([]);
   });
 });

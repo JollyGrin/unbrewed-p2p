@@ -15,6 +15,7 @@ import {
   RAIL_WIDTH,
   boardFitInsetFor,
   chipSeatName,
+  handDecisionKeyFor,
   handDrawerLayout,
 } from "./mobileLayout";
 import { proLayoutMode } from "./useProLayout";
@@ -146,5 +147,32 @@ describe("proLayoutMode", () => {
   it("is portrait on a narrow, tall viewport and a rail on a narrow, short one", () => {
     expect(proLayoutMode(true, false)).toBe("portrait");
     expect(proLayoutMode(true, true)).toBe("rail");
+  });
+});
+
+describe("handDecisionKeyFor", () => {
+  const discard = {
+    promptId: "pr-7",
+    mulligan: false,
+    optionInstances: ["c2", "c5"],
+    hand: ["c1", "c2", "c3"],
+  };
+
+  it("opens the drawer for a choose-a-hand-card prompt in portrait and the rail", () => {
+    expect(handDecisionKeyFor({ ...discard, shell: "portrait" })).toBe("pr-7");
+    expect(handDecisionKeyFor({ ...discard, shell: "rail" })).toBe("pr-7");
+  });
+
+  // #874: the HUD's hand drawer is page-level and stacks over the side sheet
+  // holding the question — and it can't answer it. The sheet shows the cards.
+  it("never opens the drawer in the tabletop HUD", () => {
+    expect(handDecisionKeyFor({ ...discard, shell: "hud" })).toBeNull();
+  });
+
+  it("stays shut on desktop, during the mulligan, and for prompts about other cards", () => {
+    expect(handDecisionKeyFor({ ...discard, shell: false })).toBeNull();
+    expect(handDecisionKeyFor({ ...discard, shell: "portrait", mulligan: true })).toBeNull();
+    expect(handDecisionKeyFor({ ...discard, shell: "portrait", optionInstances: ["c9"] })).toBeNull();
+    expect(handDecisionKeyFor({ ...discard, shell: "portrait", promptId: null })).toBeNull();
   });
 });

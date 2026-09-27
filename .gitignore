@@ -50,3 +50,9 @@ next-env.d.ts
 # down in public/pro/hero/ stay tracked — as do marketing/public/clips/*.mp4.
 public/pro/*.mp4
 
+
+# Hero miniatures rendered from the owner's local 3D models
+# (scripts/figures/render.cjs). They must never be committed anywhere, and
+# are vercel-ignored too (.vercelignore): see the licence gate in
+# scripts/figures/README.md (unbrewed-p2p-879).
+public/figures/

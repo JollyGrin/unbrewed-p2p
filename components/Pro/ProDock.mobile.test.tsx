@@ -398,6 +398,130 @@ describe("ProDock portrait board-pick bar (mobile step 1)", () => {
     });
   });
 
+  describe("minimizing a forced sheet (player feedback)", () => {
+    it("puts an after-combat question on the slim bar and opens it again", () => {
+      render(<ProDock {...props({ hasPrompt: true, promptPanel: <div>KING KONG&apos;S ABILITY</div> })} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /minimize/i }));
+
+      expect(screen.queryByText("KING KONG'S ABILITY")).toBeNull();
+      const bar = screen.getByTestId("pro-mobile-pickbar");
+      expect(bar).toHaveTextContent("A decision is waiting");
+
+      fireEvent.click(within(bar).getByRole("button", { name: /open/i }));
+
+      expect(screen.getByText("KING KONG'S ABILITY")).toBeInTheDocument();
+    });
+
+    it("keeps the combat panel reachable after minimizing it", () => {
+      render(<ProDock {...props({ combatPanel: <div>COMBAT</div> })} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /minimize/i }));
+      expect(screen.queryByText("COMBAT")).toBeNull();
+
+      fireEvent.click(within(screen.getByTestId("pro-mobile-pickbar")).getByRole("button", { name: /open/i }));
+      expect(screen.getByText("COMBAT")).toBeInTheDocument();
+    });
+
+    it("brings the sheet back for the next decision", () => {
+      const view1 = { ...view, prompt: { promptId: "p1" } } as unknown as PlayerView;
+      const view2 = { ...view, prompt: { promptId: "p2" } } as unknown as PlayerView;
+      const { rerender } = render(<ProDock {...props({ view: view1, hasPrompt: true })} />);
+      fireEvent.click(screen.getByRole("button", { name: /minimize/i }));
+      expect(screen.getByTestId("pro-mobile-pickbar")).toBeInTheDocument();
+
+      rerender(<ProDock {...props({ view: view2, hasPrompt: true })} />);
+
+      expect(screen.getByTestId("pro-mobile-sheet")).toBeInTheDocument();
+    });
+
+    // #874: a prompt-less combat / walk has a constant key ("combat",
+    // "stepping"), so one minimise used to collapse every later one.
+    it("opens the next combat in full after the last one was minimized", () => {
+      const { rerender } = render(<ProDock {...props({ combatPanel: <div>COMBAT 1</div> })} />);
+      fireEvent.click(screen.getByRole("button", { name: /minimize/i }));
+      expect(screen.queryByText("COMBAT 1")).toBeNull();
+
+      rerender(<ProDock {...props({ combatPanel: null })} />);
+      rerender(<ProDock {...props({ combatPanel: <div>COMBAT 2</div> })} />);
+
+      expect(screen.getByTestId("pro-mobile-sheet")).toBeInTheDocument();
+      expect(screen.getByText("COMBAT 2")).toBeInTheDocument();
+    });
+
+    it("opens the next walk's End/Cancel sheet in full after the last one was minimized", () => {
+      const walk = (fighterName: string) => ({
+        fighterName, movesLeft: 3, canEnd: true, onEnd: () => {}, onCancel: () => {},
+      });
+      const { rerender } = render(<ProDock {...props({ stepping: walk("King Kong") })} />);
+      fireEvent.click(screen.getByRole("button", { name: /minimize/i }));
+      expect(screen.queryByRole("button", { name: /end move here/i })).toBeNull();
+
+      rerender(<ProDock {...props({ stepping: null })} />);
+      rerender(<ProDock {...props({ stepping: walk("King Kong") })} />);
+
+      expect(screen.getByTestId("pro-mobile-sheet")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /end move here/i })).toBeInTheDocument();
+    });
+
+    // A chained attack (a second combat straight after the first, the frozen
+    // combat-1 panel held over combat 2's commit) never has an un-forced frame
+    // in between, so the reset alone can't catch it: the key itself must change.
+    it("opens a chained combat in full with no un-forced frame between the two", () => {
+      const combat = (attacker: string, stage: string, card: string | null) =>
+        ({ ...view, combat: { attackerPlayer: "p1", defenderPlayer: "p2", attacker, target: "p2/hero", stage,
+          attackerCard: card ? { instance: card } : null, defenderCard: null } }) as unknown as PlayerView;
+      const { rerender } = render(
+        <ProDock {...props({ view: combat("p1/hero", "COMMIT_DEFENSE", null), combatPanel: <div>COMBAT 1</div> })} />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: /minimize/i }));
+      rerender(<ProDock {...props({ view: combat("p1/hero", "AFTER", "c1#1"), combatPanel: <div>COMBAT 1</div> })} />);
+      expect(screen.queryByText("COMBAT 1")).toBeNull();
+
+      // Same attacker, same target, same turn — only the restarted stage says it's a new combat.
+      rerender(<ProDock {...props({ view: combat("p1/hero", "COMMIT_DEFENSE", null), combatPanel: <div>COMBAT 2</div> })} />);
+
+      expect(screen.getByText("COMBAT 2")).toBeInTheDocument();
+    });
+
+    it("keeps one combat minimized through its own reveal", () => {
+      const combat = (stage: string, card: string | null) =>
+        ({ ...view, combat: { attackerPlayer: "p1", defenderPlayer: "p2", attacker: "p1/hero", target: "p2/hero", stage,
+          attackerCard: card ? { instance: card } : null, defenderCard: null } }) as unknown as PlayerView;
+      const { rerender } = render(<ProDock {...props({ view: combat("COMMIT_DEFENSE", null), combatPanel: <div>COMBAT</div> })} />);
+      fireEvent.click(screen.getByRole("button", { name: /minimize/i }));
+
+      rerender(<ProDock {...props({ view: combat("DURING", "c1#1"), combatPanel: <div>COMBAT</div> })} />);
+      rerender(<ProDock {...props({ view: combat("DAMAGE", "c1#1"), combatPanel: <div>COMBAT</div> })} />);
+
+      expect(screen.queryByText("COMBAT")).toBeNull();
+      expect(screen.getByTestId("pro-mobile-pickbar")).toHaveTextContent("A decision is waiting");
+    });
+
+    it("opens the next walk in full when a new walk replaces the minimized one directly", () => {
+      const walk = (instanceKey: string) => ({
+        fighterName: "Kenshiro", movesLeft: 2, canEnd: true, onEnd: () => {}, onCancel: () => {}, instanceKey,
+      });
+      const { rerender } = render(<ProDock {...props({ stepping: walk("p1/hero@s1") })} />);
+      fireEvent.click(screen.getByRole("button", { name: /minimize/i }));
+
+      rerender(<ProDock {...props({ stepping: walk("p1/hero@s4") })} />);
+
+      expect(screen.getByRole("button", { name: /end move here/i })).toBeInTheDocument();
+    });
+
+    it("opens the next combat in full in the landscape HUD too", () => {
+      const { rerender } = render(<ProDock {...props({ mobile: "hud", combatPanel: <div>COMBAT 1</div> })} />);
+      fireEvent.click(screen.getByRole("button", { name: /minimize/i }));
+      expect(screen.queryByText("COMBAT 1")).toBeNull();
+
+      rerender(<ProDock {...props({ mobile: "hud", combatPanel: null })} />);
+      rerender(<ProDock {...props({ mobile: "hud", combatPanel: <div>COMBAT 2</div> })} />);
+
+      expect(screen.getByText("COMBAT 2")).toBeInTheDocument();
+    });
+  });
+
   describe("landscape rail (mobile polish)", () => {
     const BOOST = { type: "BOOST_MOVE", card: "c1" } as unknown as Action;
     const ATTACK_A = { type: "DECLARE_ATTACK", attacker: "f1", target: "f2" } as unknown as Action;
@@ -446,5 +570,26 @@ describe("ProDock portrait board-pick bar (mobile step 1)", () => {
     render(<ProDock {...props({ view: { ...view, actionsRemaining: 1 } as unknown as PlayerView, hasPrompt: true })} />);
 
     expect(screen.getByTestId("pro-mobile-sheet")).toHaveTextContent("1 action left");
+  });
+});
+
+// Phone-first (issue #TBD): the endgame sheet is force-open the moment
+// view.winner is set (see sheetForced above), so on a phone the Rematch
+// button is never behind a "tap to expand" step — it's on screen the instant
+// the game ends, same as VICTORY!/DEFEAT itself.
+describe("ProDock portrait — one-tap rematch", () => {
+  it("surfaces the Rematch button inside the force-open endgame sheet", () => {
+    render(
+      <ProDock
+        {...props({
+          view: { ...view, winner: "p1", phase: "GAME_OVER" } as unknown as PlayerView,
+          rematchHref: "/pro/game?rematch=1&hero=GINGERBREAD",
+        })}
+      />,
+    );
+
+    const sheet = screen.getByTestId("pro-mobile-sheet");
+    const link = within(sheet).getByRole("link", { name: /rematch/i });
+    expect(link).toHaveAttribute("href", "/pro/game?rematch=1&hero=GINGERBREAD");
   });
 });

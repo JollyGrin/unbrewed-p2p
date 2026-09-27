@@ -927,7 +927,16 @@
  * can't answer. The v35 types stay in this file for #880 to build on; bump the pin
  * there, together with the client that handles them — never in a verbatim re-sync.
  */
+/**
+ * CLIENT-ONLY DIVERGENCE (p2p #880): the engine's copy says `PROTOCOL_VERSION = 35`.
+ * This client keeps sending 34 by default, because prod engines that predate #607
+ * accept only {33, 34} and answer v35 with ERROR{VERSION}. It speaks v35
+ * (`REMATCH_PROTOCOL_VERSION`) only to an engine whose own frames carry `v >= 35`
+ * (every server message stamps its version) — see lib/pro/wireVersion.ts. Keep
+ * this pair when re-syncing the file.
+ */
 export const PROTOCOL_VERSION = 34;
+export const REMATCH_PROTOCOL_VERSION = 35;
 
 /**
  * Scripted-AI strength preset (server-side budgets; client treats as opaque).
@@ -1822,10 +1831,11 @@ export interface ReplayConfig {
   // mulligan window open, so its action log carries the window's own prompt
   // answers. Absent = the pre-v30 flow; every bundle from a mulligan-free game is
   // byte-identical to a pre-v30 one.
-  // `itemsDisabled` (engine #519): the game was played with the map's battlefield
-  // items turned OFF, so startGame must not spawn them on re-expansion. Absent =
-  // items on; every bundle from an items-on game is byte-identical to a pre-#519
-  // one.
+  // `itemsDisabled` (engine #519, server/replay.ts buildReplayBundle): the game was
+  // played with the map's battlefield items turned OFF, so startGame must not spawn
+  // them on re-expansion. Like `mulligan` it rides only on its non-default side:
+  // absent = items on; every bundle from an items-on game is byte-identical to a
+  // pre-#519 one.
   options?: { allowNonstandardDeck?: boolean; startingHandSize?: number; mulligan?: boolean; itemsDisabled?: boolean };
   players: { p1: ReplayPlayerSetup; p2: ReplayPlayerSetup } & Partial<Record<PlayerId, ReplayPlayerSetup>>;
   formatId?: string;

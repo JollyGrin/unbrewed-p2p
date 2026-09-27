@@ -24,7 +24,9 @@ import {
   MenuButton,
   MenuDivider,
   MenuItem,
+  MenuItemOption,
   MenuList,
+  MenuOptionGroup,
   Portal,
   Text,
 } from "@chakra-ui/react";
@@ -34,10 +36,14 @@ import {
   TbDotsVertical,
   TbFlag,
   TbEyeOff,
+  TbGauge,
   TbHourglass,
+  TbPerspective,
   TbSparkles,
   TbWand,
   TbWandOff,
+  TbBellRinging,
+  TbBellOff,
 } from "react-icons/tb";
 import { IoMdVolumeHigh, IoMdVolumeOff } from "react-icons/io";
 import toast from "react-hot-toast";
@@ -48,9 +54,15 @@ import { seatNameplate } from "@/lib/pro/playerIdentity";
 import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { defenseCueDue, turnStripFor, yourTurnCueDue } from "@/lib/pro/turnStrip";
 import { RAIL_WIDTH_CSS, TAP_TARGET, chipSeatName } from "@/lib/pro/mobileLayout";
+import { paceOption } from "@/lib/pro/pace";
+import { BOARD_VIEW_LABEL } from "@/lib/pro/boardView";
+import { MENU_FIT_MODIFIERS, MENU_MAX_H_VAR } from "@/lib/pro/menuFit";
+import { FIGURE_STYLE_LABEL, type FigureStyle } from "@/lib/pro/figures";
 import type { PlayerId, ViewPlayer } from "@/lib/pro/protocol";
 import type { ProLayoutMode } from "@/lib/pro/useProLayout";
 import { MoveTimerBar, ProHudProps, SeatPlate, hudSeats } from "@/components/Pro/ProHud";
+import { TableHudPlate } from "@/components/Pro/Table/Hud/TableHudPlate";
+import { SEAT_COLOR } from "@/lib/pro/seatColors";
 
 export const MOBILE_CHIPS_TEST_ID = "pro-mobile-chips";
 
@@ -223,6 +235,16 @@ export const ProMobileMenu = ({
   onToggleOpponentCosmetics,
   slowModeOn,
   onToggleSlowMode,
+  pace,
+  onCyclePace,
+  boardView,
+  onToggleBoardView,
+  boardViewLockedHint,
+  figureStyle,
+  figureStyles,
+  onChooseFigureStyle,
+  turnReminderOn,
+  onToggleTurnReminder,
   onReportBug,
   onForfeit,
   placement = "top-end",
@@ -238,9 +260,19 @@ export const ProMobileMenu = ({
   | "onToggleOpponentCosmetics"
   | "slowModeOn"
   | "onToggleSlowMode"
+  | "pace"
+  | "onCyclePace"
+  | "boardView"
+  | "onToggleBoardView"
+  | "boardViewLockedHint"
+  | "figureStyle"
+  | "figureStyles"
+  | "onChooseFigureStyle"
+  | "turnReminderOn"
+  | "onToggleTurnReminder"
   | "onReportBug"
 > & {
-  placement?: "top-end" | "bottom-end";
+  placement?: "top-end" | "bottom-end" | "right-start";
   /** mobile step 2: forfeit lives here, not next to the turn's actions; opens
    *  the page's confirmation dialog. Omit when the engine does not offer it. */
   onForfeit?: () => void;
@@ -253,7 +285,11 @@ export const ProMobileMenu = ({
     minH: TAP_TARGET,
   };
   return (
-    <Menu placement={placement} isLazy>
+    // #917: the list is capped to the room on its side and scrolls inside it
+    // (a short landscape phone can't fit every row). Every call site already
+    // opens towards open space, so flip stays off — it would only ever swap the
+    // list to the cramped side on the first, not-yet-capped measurement.
+    <Menu placement={placement} isLazy flip={false} modifiers={MENU_FIT_MODIFIERS}>
       <MenuButton as={Flex} {...MOBILE_BTN} aria-label="Game menu" display="inline-flex">
         <TbDotsVertical size="1.1rem" />
       </MenuButton>
@@ -264,6 +300,9 @@ export const ProMobileMenu = ({
           color="brand.parchment"
           zIndex={210}
           minW="15rem"
+          maxH={`var(${MENU_MAX_H_VAR}, calc(100dvh - 1rem))`}
+          overflowY="auto"
+          sx={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}
         >
           <Flex alignItems="center" gap="0.4rem" px="0.8rem" py="0.4rem">
             <Box
@@ -307,6 +346,15 @@ export const ProMobileMenu = ({
               Visual effects — {visualFxOn ? "on" : "off"}
             </MenuItem>
           )}
+          {onToggleTurnReminder && (
+            <MenuItem
+              {...item}
+              icon={turnReminderOn ? <TbBellRinging /> : <TbBellOff />}
+              onClick={onToggleTurnReminder}
+            >
+              Turn reminder — {turnReminderOn ? "on" : "off"}
+            </MenuItem>
+          )}
           {onToggleOpponentCosmetics && (
             <MenuItem
               {...item}
@@ -320,6 +368,50 @@ export const ProMobileMenu = ({
             <MenuItem {...item} icon={<TbHourglass />} onClick={onToggleSlowMode}>
               Slow mode — {slowModeOn ? "on" : "off"}
             </MenuItem>
+          )}
+          {onCyclePace && pace && (
+            // One tap steps to the next option — matches the desktop chip cluster's
+            // cycling gesture, keeping it a single compact control rather than a
+            // second menu nested in this one.
+            <MenuItem {...item} icon={<TbGauge />} onClick={onCyclePace}>
+              Combat pace — {paceOption(pace).label}
+            </MenuItem>
+          )}
+          {onToggleBoardView && boardView && (
+            <MenuItem
+              {...item}
+              icon={<TbPerspective />}
+              onClick={onToggleBoardView}
+              isDisabled={!!boardViewLockedHint}
+            >
+              Board — {BOARD_VIEW_LABEL[boardView]}
+              {boardViewLockedHint && (
+                <Text as="span" display="block" fontSize="0.65rem" opacity={0.75}>
+                  {boardViewLockedHint}
+                </Text>
+              )}
+            </MenuItem>
+          )}
+          {onChooseFigureStyle && figureStyle && figureStyles && figureStyles.length > 0 && (
+            // Right under the board item it belongs to: how the tabletop's
+            // heroes stand (#903, #953) — a titled radio group, not a menu
+            // nested in this menu (a focus-management trap, see below). Only
+            // the styles that change something on this board.
+            <MenuOptionGroup
+              type="radio"
+              title="Heroes"
+              value={figureStyle}
+              onChange={(v) => onChooseFigureStyle(v as FigureStyle)}
+              fontSize="0.7rem"
+              color="brand.highlight"
+              mx="0.8rem"
+            >
+              {figureStyles.map((s) => (
+                <MenuItemOption key={s} {...item} value={s} closeOnSelect={false}>
+                  {FIGURE_STYLE_LABEL[s]}
+                </MenuItemOption>
+              ))}
+            </MenuOptionGroup>
           )}
           {onForfeit && (
             <>
@@ -354,6 +446,14 @@ export interface ProMobileHudProps extends ProHudProps {
   layoutMode: ProLayoutMode;
   /** measured by the page so the board fit can clear the chips */
   chipsRef?: RefObject<HTMLDivElement>;
+  /**
+   * The tabletop HUD (lib/pro/tableHud): full player plates in the two top
+   * corners instead of the corner chips, with the clock inside the plate of
+   * the seat that is on it. Same data, same seat sheet on tap.
+   */
+  hud?: boolean;
+  /** the hero token art a plate's portrait shows; hud only */
+  portraitFor?: (seat: PlayerId) => string | null;
 }
 
 export const ProMobileHud = ({
@@ -367,6 +467,9 @@ export const ProMobileHud = ({
   labelFor,
   layoutMode,
   chipsRef,
+  hud = false,
+  portraitFor,
+  figureCreditFor,
 }: ProMobileHudProps) => {
   const [openSeat, setOpenSeat] = useState<PlayerId | null>(null);
   const { plates, hydrated, update } = useHudPlates();
@@ -411,8 +514,66 @@ export const ProMobileHud = ({
   // Your chip leads (top-left, parchment); everyone else trails to the right.
   const ordered = [...seats].sort((a, b) => Number(b.you) - Number(a.you));
 
+  const plateOf = (seat: ViewPlayer, side: "left" | "right") => {
+    const hero = heroOf(seat.id);
+    return (
+      <TableHudPlate
+        key={seat.id}
+        seat={seat.id}
+        name={hero?.name ?? seatLabel(seat)}
+        heroHp={hero ? hero.hp : null}
+        sidekickHps={sidekicksOf(seat.id).map((s) => ({ id: s.id, hp: s.hp, defeated: s.defeated }))}
+        portraitUrl={portraitFor?.(seat.id) ?? null}
+        seatColor={SEAT_COLOR[seat.id] ?? "#999"}
+        piles={{
+          deck: seat.deckCount,
+          discard: seat.discard.length,
+          hand: seat.you ? (seat.hand ?? view.self.hand).length : seat.handCount,
+        }}
+        local={seat.you}
+        active={showLiveTurnChrome(view) && view.activePlayer === seat.id}
+        offline={!!presenceOf(seat)}
+        side={side}
+        timer={timerOf(seat) ?? null}
+        onOpen={() => setOpenSeat(seat.id)}
+      />
+    );
+  };
+  const [own, ...others] = ordered;
+
   return (
     <>
+      {hud ? (
+        // Tabletop HUD: your plate top-left, everyone else stacked top-right.
+        // The measured box is only as tall as the taller corner, so the board
+        // fit clears the plates and nothing else.
+        <Flex
+          ref={chipsRef}
+          data-testid={MOBILE_CHIPS_TEST_ID}
+          data-table-hud-plates=""
+          position="fixed"
+          top={0}
+          left={0}
+          right={0}
+          zIndex={150}
+          pointerEvents="none"
+          alignItems="flex-start"
+          justifyContent="space-between"
+          gap="0.5rem"
+          px="0.6rem"
+          pt="0.5rem"
+          sx={{
+            paddingTop: "calc(0.5rem + env(safe-area-inset-top, 0px))",
+            paddingLeft: "calc(0.6rem + env(safe-area-inset-left, 0px))",
+            paddingRight: "calc(0.6rem + env(safe-area-inset-right, 0px))",
+          }}
+        >
+          {own && own.you ? plateOf(own, "left") : <Box />}
+          <Flex direction="column" alignItems="flex-end" gap="0.35rem" minW={0}>
+            {(own && own.you ? others : ordered).map((seat) => plateOf(seat, "right"))}
+          </Flex>
+        </Flex>
+      ) : (
       <Box
         ref={chipsRef}
         data-testid={MOBILE_CHIPS_TEST_ID}
@@ -490,6 +651,7 @@ export const ProMobileHud = ({
           </Box>
         )}
       </Box>
+      )}
 
       {/* Seat sheet. Hand-rolled (scrim + fixed panel) like the log and hand
           drawers rather than a Chakra Drawer: the page already stacks several
@@ -542,6 +704,7 @@ export const ProMobileHud = ({
               hero={resolveHero(sheetSeat.heroId)}
               ruleCards={resolveRuleCards?.(sheetSeat.heroId) ?? []}
               heroId={sheetSeat.heroId}
+              figureCredit={figureCreditFor?.(sheetSeat.id) ?? null}
               heroFighter={heroOf(sheetSeat.id)}
               sidekicks={sidekicksOf(sheetSeat.id)}
               flags={sheetSeat.flags}

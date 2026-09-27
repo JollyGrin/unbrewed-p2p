@@ -23,6 +23,7 @@ import {
   TbGripHorizontal,
   TbLink,
   TbPlus,
+  TbRepeat,
   TbSwords,
   TbWalk,
 } from "react-icons/tb";
@@ -30,14 +31,18 @@ import { ActionTile, TileKind, actionTilesFor, tileKindOf } from "@/lib/pro/acti
 import { cardChoiceGroups, isCardChoice } from "@/lib/pro/cardChoices";
 import { touchCopy } from "@/lib/pro/touchCopy";
 import { Action, CardInstanceId, FighterId, PlayerView } from "@/lib/pro/protocol";
-import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
+import { seatOwesDecision, showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { isViewerOnWinningTeam } from "@/lib/pro/teams";
 import { LARGE_FIGHTER_BLURB, LARGE_REACH_CHIP } from "@/lib/pro/largeReach";
 import { ItemGlyph } from "@/components/Pro/ItemBadge";
 import { tokenInitials } from "./FighterTokenPortrait";
 import { DockRow } from "@/lib/pro/actionDock";
 import { TAP_TARGET } from "@/lib/pro/mobileLayout";
+import { HexId, tableHudBanner, tableHudControls } from "@/lib/pro/tableHud";
+import { TableHudDock } from "@/components/Pro/Table/Hud/TableHudDock";
 import { useDockLayout } from "@/lib/pro/useDockLayout";
+import { isNewCombat } from "@/lib/pro/combatInstance";
+import { RematchNegotiation, RematchOfferPanel } from "@/components/Pro/RematchOfferPanel";
 
 /** Width of the dock's default right-edge slot. */
 const DOCK_WIDTH = "18.5rem";
@@ -147,6 +152,9 @@ export interface DockStepping {
    *  effect move ANSWERS a prompt with it ("Commit here"). Defaults to the
    *  maneuver wording so the #285 call site is untouched. */
   commitLabel?: string;
+  /** Which walk this is (fighter + start space), so minimising one walk's
+   *  sheet never carries into the next (#874). */
+  instanceKey?: string;
   onEnd: () => void;
   onCancel: () => void;
 }
@@ -217,6 +225,21 @@ export interface ProDockProps {
   iForfeited: boolean;
   multiplayerView: boolean;
   /** ----- endgame / controls ----- */
+  /**
+   * One-tap rematch (issue #TBD): a `/pro/game?rematch=1&...` link carrying the
+   * SAME heroes/map/format/timer/mulligan this game was played with (a fresh
+   * seed — it's a new game, not a replay). Null until the room/replay data the
+   * link is built from has landed, so the button simply doesn't render yet
+   * rather than firing a broken CREATE_ROOM. See lib/pro/rematch.ts for what
+   * does and doesn't carry over (battlefield items can't — see that file).
+   */
+  rematchHref?: string | null;
+  /**
+   * Rematch offer/confirm (p2p #880): set for a PvP room on a v35 engine, and
+   * then it REPLACES the one-tap link — pressing Rematch asks the other player
+   * instead of creating a room of our own. Null/absent: the link as before.
+   */
+  rematchNegotiation?: RematchNegotiation | null;
   /** Local deep-link into this browser's saved replay — labelled as such (#698). */
   replayHref: string | null;
   /** Upload this match and copy its public share link. Omitted when there is
@@ -241,10 +264,17 @@ export interface ProDockProps {
    *  - "rail": the landscape decision rail — always open, inline, positioned by
    *    the caller.
    *
+   *  - "hud": the tabletop HUD on a landscape phone (lib/pro/tableHud) — a
+   *    banner between the player plates and hexagons in the bottom-right
+   *    corner at rest, and the full body as a sheet along the right edge only
+   *    while a decision needs it. It follows the portrait sheet's rules for
+   *    WHEN the sheet shows, except that a walk in progress is finished from
+   *    the hexagons rather than forcing the sheet over the board it walks on.
+   *
    * Either way the drag handle, the fixed right-edge slot and the localStorage
    * offset drop away, and the action rows grow to a 44px tap target.
    */
-  mobile?: false | "portrait" | "rail";
+  mobile?: false | "portrait" | "rail" | "hud";
   /**
    * Portrait only: the hand drawer is open, so the sheet stands ON TOP of it
    * rather than behind it. This is the "a prompt is asking about a card in your
@@ -302,6 +332,8 @@ export const ProDock = ({
   iAmSpectating,
   iForfeited,
   multiplayerView,
+  rematchHref = null,
+  rematchNegotiation = null,
   replayHref,
   onCopyShareLink,
   shareLinkBusy = false,
@@ -527,7 +559,7 @@ export const ProDock = ({
   // A decided combat no longer holds the phone sheet (mobile polish): its result
   // rides on the pill row while the after-combat effects play out on the board.
   const combatOpen = !!combatPanel && !(mobile && combatSummary);
-  const sheetForced = hasPrompt || combatOpen || !!view.winner || !!stepping;
+  const sheetForced = hasPrompt || combatOpen || !!view.winner || (!!stepping && mobile !== "hud");
   const sheetShown = sheetForced || sheetOpen;
 
   // Mobile step 1: a forced prompt whose answer is a tap ON the board gets a slim
@@ -539,14 +571,55 @@ export const ProDock = ({
   // even when the server replaces prompt A with prompt B in a single update.
   const promptKey = view.prompt?.promptId ?? "prompt";
   const [expandedPrompt, setExpandedPrompt] = useState<string | null>(null);
-  const boardPickCompact = mobile === "portrait" && boardPickPrompt && expandedPrompt !== promptKey;
+  // The two shells whose sheet comes and goes (the rail and the desktop dock
+  // are always open) share its rules for when it shows.
+  const sheetShell = mobile === "portrait" || mobile === "hud";
+  // The narrow shells — the rail and the HUD's side sheet — size cards and
+  // tiles for a 230px column.
+  const narrow = mobile === "rail" || mobile === "hud";
+  const rematchLine = !!rematchNegotiation && (rematchNegotiation.state.phase !== "idle" || !!rematchNegotiation.state.notice);
+  const boardPickCompact = sheetShell && boardPickPrompt && expandedPrompt !== promptKey;
+  // A forced sheet can be put out of the way (player feedback: an after-combat
+  // question left the board unreachable with no way to close the sheet). It
+  // minimises to the same slim bar a board pick uses, and the bar opens it
+  // again — the decision is never lost, it just stops owning the screen.
+  //
+  // The key names ONE decision, so a minimise never outlives it (#874). A prompt
+  // has its own id; a prompt-less combat or walk gets a per-instance identity —
+  // the wire has no combat id, and a chained attack follows the first with no
+  // un-forced frame between them, so the combat's key counts combats as they
+  // start (`isNewCombat`). Idempotent across a double render: the second pass
+  // sees the combat it already counted.
+  const combatSerial = useRef({ prev: null as PlayerView["combat"], n: 0 });
+  if (combatSerial.current.prev !== view.combat) {
+    if (isNewCombat(combatSerial.current.prev, view.combat)) combatSerial.current.n += 1;
+    combatSerial.current.prev = view.combat;
+  }
+  const forcedKey =
+    view.prompt?.promptId ??
+    (combatOpen
+      ? `combat:${combatSerial.current.n}`
+      : view.winner
+        ? "winner"
+        : stepping
+          ? `stepping:${stepping.instanceKey ?? stepping.fighterName}`
+          : "sheet");
+  const [minimizedKey, setMinimizedKey] = useState<string | null>(null);
+  // A prompt-less combat or walk has a constant key, so the minimise lasts only
+  // while that sheet stays forced: once it lets go, the next combat / walk
+  // opens in full instead of inheriting a stale "A decision is waiting" (#874).
+  useEffect(() => {
+    if (!sheetForced) setMinimizedKey(null);
+  }, [sheetForced]);
+  const forcedMinimized = sheetShell && sheetForced && minimizedKey === forcedKey;
+  const compactBar = forcedMinimized || boardPickCompact;
   // An action picked from the optional sheet that lights the board (a maneuver's
   // gold spaces) gets the board back: the open sheet would hide the picks.
   const hadBoardPicks = useRef(boardPicks);
   useEffect(() => {
-    if (boardPicks && !hadBoardPicks.current && mobile === "portrait") setSheetOpen(false);
+    if (boardPicks && !hadBoardPicks.current && sheetShell) setSheetOpen(false);
     hadBoardPicks.current = boardPicks;
-  }, [boardPicks, mobile]);
+  }, [boardPicks, sheetShell]);
 
   // Mobile step 2: the optional portrait sheet leads with Maneuver / Scheme /
   // Attack tiles. A tile with several legal choices narrows the list to them.
@@ -609,7 +682,7 @@ export const ProDock = ({
                 aria-pressed={isPicked}
                 onClick={() => setPickedCard(isPicked ? null : choice.card)}
                 flex="0 0 auto"
-                w={mobile === "rail" ? "4.75rem" : "7.25rem"}
+                w={narrow ? "4.75rem" : "7.25rem"}
                 borderRadius="0.55rem"
                 outline={isPicked ? "3px solid" : "1px solid"}
                 outlineColor={isPicked ? "brand.accent" : "rgba(250, 235, 215, 0.2)"}
@@ -632,7 +705,7 @@ export const ProDock = ({
           direction="column"
           gap="0.35rem"
           // The short landscape rail has no room to pin it over the cards.
-          position={mobile === "rail" ? "static" : "sticky"}
+          position={narrow ? "static" : "sticky"}
           bottom={0}
           // Above the lifted (transformed) picked card, and opaque, so the card
           // scrolling under it never shows through the buttons.
@@ -704,7 +777,7 @@ export const ProDock = ({
     scheme: { label: "Scheme", icon: <TbCards size="1.5rem" /> },
     attack: { label: "Attack", icon: <TbSwords size="1.5rem" /> },
   };
-  const railTiles = mobile === "rail";
+  const railTiles = narrow;
   const tilesEl =
     tiles.length > 0 &&
     (tileFilter ? (
@@ -771,7 +844,9 @@ export const ProDock = ({
         })}
       </Flex>
     ));
-  const portraitSheetShown = mobile === "portrait" && sheetShown;
+  // The HUD's side sheet counts too: the page makes room for it (fit, fan).
+  const portraitSheetShown =
+    (mobile === "portrait" && sheetShown) || (mobile === "hud" && sheetShown && !compactBar);
   useEffect(() => {
     onMobileSheetShown?.(portraitSheetShown);
     // `onMobileSheetShown` is a fresh closure each render; the boolean is the
@@ -786,10 +861,9 @@ export const ProDock = ({
     <Flex
       as="button"
       type="button"
-      aria-label={sheetForced ? "A decision is waiting — sheet stays open" : "Close actions"}
+      aria-label={sheetForced ? "Minimize — the decision waits on a slim bar" : "Close actions"}
       aria-expanded
-      disabled={sheetForced}
-      onClick={() => !sheetForced && setSheetOpen(false)}
+      onClick={() => (sheetForced ? setMinimizedKey(forcedKey) : setSheetOpen(false))}
       alignItems="center"
       justifyContent="space-between"
       gap="0.5rem"
@@ -799,7 +873,7 @@ export const ProDock = ({
       py="0.4rem"
       textAlign="left"
       borderBottom="1px solid rgba(231, 204, 152, 0.14)"
-      cursor={sheetForced ? "default" : "pointer"}
+      cursor="pointer"
       sx={{ userSelect: "none" }}
     >
       <Box minW={0} flex="1">
@@ -822,10 +896,9 @@ export const ProDock = ({
         gap="0.3rem"
         flexShrink={0}
         color="rgba(231, 204, 152, 0.72)"
-        opacity={sheetForced ? 0.35 : 1}
       >
         <Text fontSize="0.68rem" fontWeight={700} letterSpacing="0.04em" whiteSpace="nowrap">
-          Close
+          {sheetForced ? "Minimize" : "Close"}
         </Text>
         <TbChevronDown size="0.9rem" />
       </Flex>
@@ -1050,7 +1123,7 @@ export const ProDock = ({
             </Fragment>
           );
         })}
-        {legalActionCount === 0 && !hasPrompt && liveChrome && (
+        {!seatOwesDecision(view, legalActionCount) && !hasPrompt && liveChrome && (
           <Text opacity={0.7} fontSize="0.9rem" color="brand.parchment">
             {iAmSpectating
               ? iForfeited
@@ -1066,13 +1139,44 @@ export const ProDock = ({
         <Flex direction="column" align="center" gap="0.15rem">
           <Text
             fontFamily="LeagueGothic"
-            fontSize="3rem"
+            // The landscape rail's dock is a short box: when the rematch panel
+            // adds a line ("… wants a rematch", "Waiting for …", a notice), the
+            // title gives up the room so Accept / Decline stay on screen (#880).
+            fontSize={narrow && rematchLine ? "1.9rem" : "3rem"}
             color="brand.accent"
             textShadow="0 2px 12px rgba(224,168,46,0.5)"
             lineHeight="1"
           >
             {isViewerOnWinningTeam(view) ? "VICTORY!" : "DEFEAT"}
           </Text>
+          {/* One-tap rematch (#TBD): the PRIMARY endgame action — a big, gold,
+              thumb-reachable button, because the whole point is cutting a
+              phone rematch down from "walk back through the lobby, pick
+              heroes, share a new link" to this one tap. It fires an ordinary
+              CREATE_ROOM (via the /pro/game?rematch=1 link's own page load —
+              see lib/pro/rematch.ts), so from here it behaves exactly like
+              starting any other room: the presser lands on the new room's
+              waiting screen with the invite link ready to hand off. */}
+          {rematchNegotiation ? (
+            <RematchOfferPanel negotiation={rematchNegotiation} compact={narrow} />
+          ) : rematchHref && (
+            <Button
+              as={Link}
+              href={rematchHref}
+              minH={TAP_TARGET}
+              px="1.4rem"
+              mt="0.3rem"
+              mb="0.15rem"
+              bg="brand.accent"
+              color="brand.surfaceDim"
+              fontWeight={700}
+              leftIcon={<TbRepeat size="1.1rem" />}
+              _hover={{ bg: "brand.accentDeep", textDecoration: "none" }}
+              _active={{ bg: "brand.accentDeep" }}
+            >
+              Rematch — same setup
+            </Button>
+          )}
           {/* Deep-link straight into this match's saved God-view replay
               (issue #240). /pro/replays?open=<id> auto-opens it, and the link
               only renders once the bundle is held, so it always resolves —
@@ -1175,18 +1279,77 @@ export const ProDock = ({
       </Flex>
     );
 
+  // The one action the pill row (portrait) or the big hexagon (hud) promotes:
+  // the spacebar's sole action when the engine offers exactly one, otherwise
+  // the first row in the dock's own order (maneuver leads that order, which is
+  // what a player reaches for).
+  const primary = soleAction ?? rows[0]?.action ?? null;
+  const extra = Math.max(rows.length - (primary ? 1 : 0), 0);
+
+  // ----- hud (tabletop, landscape): banner + hexagons, sheet only on demand ---
+  if (mobile === "hud") {
+    const hudSheetShown = sheetShown && !compactBar;
+    const controls = tableHudControls(
+      {
+        stepping: stepping ? { canEnd: stepping.canEnd, commitLabel: stepping.commitLabel } : null,
+        sheetShown: hudSheetShown,
+        compact: forcedMinimized ? "minimized" : boardPickCompact ? "board-pick" : null,
+        primary,
+        extra,
+        canUndo: view.phase === "PLAY" && !view.winner && !!view.canUndo,
+        undoPending,
+      },
+      describe
+    );
+    const onControl = (id: HexId) => {
+      if (id === "primary" && primary) tapOnce(primary);
+      else if (id === "more") setSheetOpen(true);
+      else if (id === "undo") onUndo();
+      else if (id === "end-move") stepping?.onEnd();
+      else if (id === "cancel-move") stepping?.onCancel();
+      else if (id === "open-sheet") {
+        setMinimizedKey(null);
+        setExpandedPrompt(promptKey);
+      }
+    };
+    const mine = myTurn && view.phase !== "SETUP";
+    const banner = tableHudBanner({
+      hint: boardPickHint ?? boardHint,
+      combatSummary,
+      stepping: stepping ? { fighterName: stepping.fighterName, movesLeft: stepping.movesLeft } : null,
+      turn: liveChrome
+        ? {
+            mine,
+            pips: mine ? Math.max(view.actionsRemaining, 0) : 0,
+            label: view.phase === "SETUP" ? "Setup" : mine ? "Your turn" : activeTurnLabel,
+          }
+        : null,
+    });
+    return (
+      <TableHudDock
+        banner={banner}
+        controls={controls}
+        primaryTitle={primary ? describe(primary) : undefined}
+        sheet={
+          hudSheetShown ? (
+            <>
+              {mobileBar}
+              {body}
+            </>
+          ) : null
+        }
+        onControl={onControl}
+      />
+    );
+  }
+
   // ----- portrait: pill row at rest, sheet over a scrim when it is needed ----
   if (mobile === "portrait") {
-    // The one action the pill row promotes: the spacebar's sole action when the
-    // engine offers exactly one, otherwise the first row in the dock's own
-    // order (maneuver leads that order, which is what a player reaches for).
-    const primary = soleAction ?? rows[0]?.action ?? null;
     // Ending a move is never the thing to reach for first (mobile step 2): it
     // stays on the pill row, but as an outline pill, not the gold one.
     const primaryIsFinish = primary?.type === "END_MANEUVER";
-    const extra = Math.max(rows.length - (primary ? 1 : 0), 0);
 
-    if (boardPickCompact)
+    if (compactBar)
       return (
         <Flex
           ref={mobileSheetRef}
@@ -1220,7 +1383,7 @@ export const ProDock = ({
             pointerEvents="auto"
           >
             <Text flex="1" minW={0} fontSize="0.85rem" fontWeight={600} color="brand.accent" noOfLines={2}>
-              {boardPickHint ?? boardHint ?? "Choose on the board"}
+              {boardPickHint ?? boardHint ?? (forcedMinimized ? "A decision is waiting" : "Choose on the board")}
             </Text>
             <Button
               minH={TAP_TARGET}
@@ -1233,9 +1396,12 @@ export const ProDock = ({
               fontSize="0.8rem"
               fontWeight={500}
               _hover={{ bg: "rgba(20, 8, 24, 0.95)" }}
-              onClick={() => setExpandedPrompt(promptKey)}
+              onClick={() => {
+                setMinimizedKey(null);
+                setExpandedPrompt(promptKey);
+              }}
             >
-              Options
+              {forcedMinimized ? "Open" : "Options"}
             </Button>
           </Flex>
         </Flex>

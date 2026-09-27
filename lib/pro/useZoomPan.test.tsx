@@ -198,11 +198,15 @@ type Box = { left: number; top: number; right: number; bottom: number };
 const FocusHarness = ({
   box,
   pick,
+  cap,
   next,
   liveFrame,
 }: {
   box: Box;
   pick: number;
+  /** phase-3: the optional, separate "how far to zoom" diameter — omitted
+   *  reproduces the pre-phase-3 (pick-only) behaviour exactly. */
+  cap?: number;
   next?: { box: Box; pick: number };
   /** where the frame's DOM rect reports itself (jsdom: 0×0 = "unmeasured") */
   liveFrame?: { left: number; top: number; width: number; height: number };
@@ -227,7 +231,7 @@ const FocusHarness = ({
         }}
         style={{ transform: zoom.transform, transformOrigin: zoom.transformOrigin, transition: zoom.transition }}
       />
-      <button onClick={() => zoom.focusOn(box, pick)}>focus</button>
+      <button onClick={() => zoom.focusOn(box, pick, cap)}>focus</button>
       {zoom.active && <button onClick={zoom.reset}>reset view</button>}
       {next && <button onClick={() => zoom.focusOn(next.box, next.pick)}>focus next</button>}
       <button onClick={zoom.releaseFocus}>release</button>
@@ -384,5 +388,46 @@ describe("useZoomPan auto-focus on board picks (mobile step 1)", () => {
     act(() => screen.getByText("focus").click());
 
     expect(readTransform().scale).toBeCloseTo(FOCUS_MAX_PICK_PX / 30, 3);
+  });
+
+  describe("capDiameterPx (phase-3 fault #2 — a depth-varying pick set over-zoomed)", () => {
+    // A wide pick box (600x600 — think "a few spaces spread across a tilted
+    // board"), with a tiny TRIGGER pick (15px, a far-rank space) but a big
+    // CAP (70px, a near-rank space on the SAME prompt). Without the split,
+    // the ceiling would be driven by the 15px pick alone.
+    const SPREAD_PICKS = { left: 200, top: 150, right: 800, bottom: 750 };
+
+    it("with no cap given, zooms based on the (smallest) trigger pick alone — unchanged, pre-phase-3 behaviour", () => {
+      render(<FocusHarness box={SPREAD_PICKS} pick={15} />);
+      act(() => screen.getByText("focus").click());
+      // maxScale = min(ZOOM_MAX, fitScale*FOCUS_MAX_PICK_PX/15) is generous
+      // enough here that the box's own "wanted" fit scale (<3) governs —
+      // i.e. it zooms in, well past the resting fit of 1.
+      expect(readTransform().scale).toBeGreaterThan(1.3);
+    });
+
+    it("a large cap diameter holds the zoom back to the resting fit even though the trigger pick is tiny", () => {
+      // Same box, same tiny trigger pick — but this time a 70px cap (a big,
+      // already-comfortable near pick on the same prompt) is present too.
+      // 70 > FOCUS_MAX_PICK_PX (64), so the ceiling this produces sits AT the
+      // resting fit: zooming any further would blow the near pick past
+      // comfortable, so the view should not zoom in at all.
+      render(<FocusHarness box={SPREAD_PICKS} pick={15} cap={70} />);
+      const fit = readTransform();
+
+      act(() => screen.getByText("focus").click());
+
+      const { scale } = readTransform();
+      expect(scale).toBeCloseTo(fit.scale, 3);
+    });
+
+    it("still TRIGGERS off the small pick even when the cap alone would already be comfortable", () => {
+      // A single small pick (15px, under the touch minimum) with itself as
+      // the cap must still zoom in — `capDiameterPx` changes how far, never
+      // whether, the trigger check fires.
+      render(<FocusHarness box={{ left: 185, top: 185, right: 215, bottom: 215 }} pick={15} cap={15} />);
+      act(() => screen.getByText("focus").click());
+      expect(readTransform().scale).toBeGreaterThan(1);
+    });
   });
 });
