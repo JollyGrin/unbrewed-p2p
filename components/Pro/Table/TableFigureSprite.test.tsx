@@ -2,7 +2,7 @@ import { render } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import type { ViewFighter } from "@/lib/pro/protocol";
 import type { Figure } from "@/lib/pro/figures";
-import { standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
+import { placeStandee, standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
 import { TableFigureGround, TableFigureSprite } from "./TableFigureSprite";
 import { figureGroundSlice, figureSpriteBox } from "@/lib/pro/figures";
 import { TableFighterStandee } from "./TableFighterStandee";
@@ -101,6 +101,17 @@ describe("TableFigureGround", () => {
     expect(parseFloat(strip.style.top) + parseFloat(img.style.top) + 0.75 * parseFloat(img.style.height)).toBeCloseTo(0);
   });
 
+  it("lays the strip out by the render's own camera elevation (#926)", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <TableFigureGround figure={{ ...figure, elevDeg: 30 }} baseDiamPx={60} tiltDeg={40} />
+      </ChakraProvider>
+    );
+    const box = figureSpriteBox(figure, 60);
+    const img = container.querySelector("img[data-table-figure-ground]") as HTMLImageElement;
+    expect(parseFloat(img.style.height)).toBeCloseTo(box.height / Math.sin((30 * Math.PI) / 180));
+  });
+
   it("draws nothing for a model with nothing below its feet", () => {
     const { container } = render(
       <ChakraProvider>
@@ -125,6 +136,17 @@ describe("TableFighterStandee with a figure", () => {
     const img = container.querySelector("img[data-table-figure]") as HTMLImageElement;
     const base = standeeBaseDiameterPx(40);
     expect(parseFloat(img.style.width)).toBeCloseTo(figure.imageWidthMm * (base / figure.footprintMm));
+  });
+
+  it("scales the base disc like the miniature standing on it (#926)", () => {
+    const { container } = standee({ figure, y: 0.25 });
+    const base = container.querySelector("[data-fighter-base]") as HTMLElement;
+    const upright = container.querySelector("[data-standee-upright]") as HTMLElement;
+    const ground = container.querySelector("[data-standee-ground]") as HTMLElement;
+    const scale = `scale(${placeStandee(0.25, 40).scale})`;
+    expect(base.style.transform).toBe(`translate(-50%, 50%) ${scale}`);
+    expect(ground.style.transform).toBe(scale);
+    expect(upright.style.transform).toContain(`scale(${placeStandee(0.25, 40).scale.toFixed(3)})`);
   });
 
   it("puts the model's base front on the board, in plane, not in the upright billboard", () => {

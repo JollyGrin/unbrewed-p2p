@@ -8,6 +8,12 @@ import {
   parseFigureManifest,
   straddleAnim,
 } from "./figures";
+import { DEFAULT_TILT_DEG } from "./tableProjection";
+const { boardTiltDeg, defaultElevDeg, elevForTilt } = require("../../scripts/figures/camera.cjs") as {
+  boardTiltDeg: (source?: string) => number;
+  defaultElevDeg: (source?: string) => number;
+  elevForTilt: (tiltDeg: number) => number;
+};
 const { clearanceBlockers } = require("../../scripts/figures/clearance.cjs") as {
   clearanceBlockers: (entry: unknown) => string[];
 };
@@ -144,6 +150,28 @@ describe("figureGroundSlice", () => {
     expect(slice.height).toBeCloseTo(30 * stretch);
   });
 
+  test("un-foreshortens the render's own ground plane: 1/sin of the render's elevation (#926)", () => {
+    // The renders are taken from 90° − tilt, where that is 1/cos(tilt)…
+    expect(figureGroundSlice(box, 40, 50)).toEqual(figureGroundSlice(box, 40));
+    // …and a render taken from elsewhere is laid out by ITS angle, not the board's.
+    const slice = figureGroundSlice(box, 40, 30)!;
+    expect(slice.height).toBeCloseTo(30 / Math.sin((30 * Math.PI) / 180));
+    expect(slice.imageTop + 0.75 * slice.imageHeight).toBeCloseTo(0);
+  });
+
+  test("a base of radius R, drawn R·sin(elev) below the anchor, lies R deep on the board", () => {
+    const tilt = 40;
+    const elev = 90 - tilt;
+    const R = 31.4;
+    const below = R * Math.sin((elev * Math.PI) / 180);
+    const slice = figureGroundSlice({ width: 80, height: 100 + below, left: -40, top: -100 }, tilt, elev)!;
+    expect(slice.height).toBeCloseTo(R);
+  });
+
+  test("ignores an elevation no render can have", () => {
+    for (const bad of [0, -20, 120, NaN]) expect(figureGroundSlice(box, 40, bad)).toEqual(figureGroundSlice(box, 40));
+  });
+
   test("is not needed when nothing of the model reaches below its feet", () => {
     expect(figureGroundSlice({ ...box, top: -120 }, 40)).toBeNull();
   });
@@ -168,5 +196,42 @@ describe("LARGE fighters' figures", () => {
     expect(straddleAnim(head, null)).toBeNull();
     expect(straddleAnim(head, { xs: [0.1], ys: [0.5], durationSec: 0 })).toBeNull();
     expect(straddleAnim(null, null)).toBeNull();
+  });
+});
+
+describe("the render camera (#926)", () => {
+  test("reads the board's tilt out of tableProjection.ts", () => {
+    expect(boardTiltDeg()).toBe(DEFAULT_TILT_DEG);
+    expect(boardTiltDeg("export const DEFAULT_TILT_DEG = 35;\n")).toBe(35);
+    expect(() => boardTiltDeg("const nothing = 1;")).toThrow(/DEFAULT_TILT_DEG/);
+  });
+
+  test("stands the complementary angle above the ground, so a model's base is the board's ellipse", () => {
+    expect(defaultElevDeg()).toBe(90 - DEFAULT_TILT_DEG);
+    const rad = (d: number) => (d * Math.PI) / 180;
+    for (const tilt of [25, 40, 55]) {
+      // A flat disc under rotateX(tilt) is cos(tilt) tall; a camera `elev`
+      // above the ground sees a disc on the ground sin(elev) tall.
+      expect(Math.sin(rad(elevForTilt(tilt)))).toBeCloseTo(Math.cos(rad(tilt)));
+    }
+  });
+});
+
+describe("a figure's render elevation (#926)", () => {
+  const withElev = (elevDeg: unknown) =>
+    figureFor(parseFigureManifest({ version: 1, figures: { "king-kong": { ...kong, elevDeg } } }, "private"), "king-kong", "p1", "private");
+
+  test("is carried from the manifest to the figure", () => {
+    expect(withElev(50)?.elevDeg).toBe(50);
+  });
+
+  test("is optional, and dropped when it is not a camera angle — the figure stays", () => {
+    const plain = figureFor(parseFigureManifest({ version: 1, figures: { "king-kong": kong } }, "private"), "king-kong", "p1", "private");
+    expect(plain).not.toBeNull();
+    expect(plain?.elevDeg).toBeUndefined();
+    for (const bad of ["50", 0, 400, null]) {
+      expect(withElev(bad)).not.toBeNull();
+      expect(withElev(bad)?.elevDeg).toBeUndefined();
+    }
   });
 });

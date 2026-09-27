@@ -78,6 +78,7 @@ import { TableFighterStandee } from "./TableFighterStandee";
 import { TOKEN_BADGE_PLATE_HEIGHT, TOKEN_THICKNESS } from "./TableFlatToken";
 import { heroBadgesDeepestPx } from "./TableFighterBadges";
 import { BADGE_PROBE_CHIP, BADGE_PROBE_FLAG, BADGE_PROBE_STATUS, useTableBadgeProbe } from "@/lib/pro/tableBadgeProbe";
+import { useTableFigureProbe } from "@/lib/pro/tableFigureProbe";
 import { TableFighterTail } from "./TableFighterTail";
 import { TableSidekickToken } from "./TableSidekickToken";
 import { TableBoardObject } from "./TableBoardObject";
@@ -180,6 +181,8 @@ export const TableBoard = ({
   const reducedMotion = !!useReducedMotion();
   // Dev-only: every fighter wears every badge, for the occlusion probe.
   const badgeProbe = useTableBadgeProbe();
+  // Dev-only: where the figure probe stands the one-space miniatures (#926).
+  const figureProbe = useTableFigureProbe();
 
   // A region's spaces are normalized to their OWN inset image, not the main
   // board (see the header comment) — excluded from `mainSpaces` here, then
@@ -658,7 +661,8 @@ export const TableBoard = ({
             const headAnim = animFor(f.id, "head", head, frameW, frameH);
             const straddling = straddles(f);
             const tailSpace = straddling ? spaceById.get(f.tailSpace as SpaceId)! : null;
-            const stand = tailSpace ? bandMidpoint(space, tailSpace) : head;
+            const probed = !tailSpace && f.kind === "HERO" && !!figureOf.get(f.id) ? figureProbe : null;
+            const stand = probed ?? (tailSpace ? bandMidpoint(space, tailSpace) : head);
             const standAnim = tailSpace
               ? straddleAnim(
                   headAnim,
@@ -703,7 +707,7 @@ export const TableBoard = ({
                   fighter={badgeProbe ? { ...f, statuses: [...(f.statuses ?? []), BADGE_PROBE_STATUS] } : f}
                   x={stand.x}
                   y={stand.y}
-                  stack={straddling ? undefined : head.stack}
+                  stack={straddling || probed ? undefined : head.stack}
                   tiltDeg={tiltDeg}
                   diamPx={head.diamPx}
                   playerColor={SEAT_COLOR[f.owner] ?? "#999"}

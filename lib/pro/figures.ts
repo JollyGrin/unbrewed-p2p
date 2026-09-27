@@ -92,6 +92,9 @@ export interface FigureEntry {
   footprintMm: number;
   /** Image height ÷ width. */
   aspect: number;
+  /** The camera elevation the render was taken from, degrees above the ground
+   *  (absent in manifests older than #926: 90° − the board's tilt is assumed). */
+  elevDeg?: number;
   /** Seat id → image file name inside FIGURES_BASE_URL. */
   seats: Record<string, string>;
   /** The model's licence: an SPDX id or a named licence. */
@@ -120,6 +123,9 @@ export interface Figure extends Omit<FigureEntry, "seats" | "license" | "redistr
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isPositive = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v > 0;
+/** A camera elevation a render can have been taken from: above the ground,
+ *  and not so low that the ground strip would stretch without end. */
+const isRenderElev = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 10 && v <= 90;
 const isFraction = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1;
 /** A bare file name: no slashes, no dot-dot. The manifest is a static file
  *  the owner generates, but it is still external data to the app. */
@@ -156,7 +162,7 @@ const parseEntry = (raw: unknown, set: FigureSet): FigureEntry | null => {
   // The committed set ships to everyone: its licences oblige the credit,
   // including a link to the licence itself.
   if (set === "open" && !credit?.licenseUrl) return null;
-  const { anchor, imageWidthMm, footprintMm, aspect, seats, license } = raw;
+  const { anchor, imageWidthMm, footprintMm, aspect, elevDeg, seats, license } = raw;
   if (!isFraction(anchor.x) || !isFraction(anchor.y)) return null;
   if (!isPositive(imageWidthMm) || !isPositive(footprintMm) || !isPositive(aspect)) return null;
   const goodSeats = Object.fromEntries(Object.entries(seats).filter(([, file]) => isFileName(file))) as Record<string, string>;
@@ -166,6 +172,7 @@ const parseEntry = (raw: unknown, set: FigureSet): FigureEntry | null => {
     imageWidthMm,
     footprintMm,
     aspect,
+    ...(isRenderElev(elevDeg) ? { elevDeg } : {}),
     seats: goodSeats,
     license,
     redistributable: true,
@@ -195,8 +202,8 @@ export const figureFor = (
   const entry = heroId ? manifest?.figures[heroId] : undefined;
   const file = entry?.seats[seat];
   if (!entry || !file) return null;
-  const { anchor, imageWidthMm, footprintMm, aspect } = entry;
-  return { anchor, imageWidthMm, footprintMm, aspect, url: `${FIGURE_SET_BASE_URL[set]}/${file}`, set, credit: entry.credit ?? null };
+  const { anchor, imageWidthMm, footprintMm, aspect, elevDeg } = entry;
+  return { anchor, imageWidthMm, footprintMm, aspect, ...(elevDeg !== undefined ? { elevDeg } : {}), url: `${FIGURE_SET_BASE_URL[set]}/${file}`, set, credit: entry.credit ?? null };
 };
 
 /**
@@ -308,15 +315,27 @@ export interface GroundSlice {
  * `preserve-3d` scene everything of it below the feet is behind the board's
  * surface: the owner saw every base sliced off flat at its centre line
  * (2026-09-23, again after the LARGE fix). That strip is therefore drawn
- * lying IN the board plane instead, starting at the feet line. The board
- * shows an in-plane length at cos(tilt) of its size, so the strip is laid out
- * 1/cos(tilt) deeper and looks, on screen, exactly like the image it
- * continues.
+ * lying IN the board plane instead, starting at the feet line.
+ *
+ * HOW DEEP (#926). The render is orthographic, from `elevDeg` above the
+ * ground: a point of the GROUND d in front of the model's centre is drawn
+ * d·sin(elev) below the anchor. So the strip is laid out 1/sin(elev) deeper
+ * than the image, which puts every ground pixel of the render — the outline
+ * of the model's base — back at its true place on the board. From there the
+ * browser foreshortens it like any flat disc, at every row, edge and zoom;
+ * the board's perspective needs no term of its own here. (Measured with
+ * scripts/visual-probe/tableFigureBase.cjs: a factor that also divided by the
+ * perspective magnification left the base 13–17% off the board's ellipse at
+ * the near and far rows; this one stays within the probe's resolution.)
+ *
+ * The renders are taken from 90° − the board's tilt, where this is the
+ * familiar 1/cos(tilt) — also the fallback for a manifest that does not say.
  */
-export const figureGroundSlice = (box: SpriteBox, tiltDeg: number): GroundSlice | null => {
+export const figureGroundSlice = (box: SpriteBox, tiltDeg: number, elevDeg?: number): GroundSlice | null => {
   const belowFeet = box.top + box.height;
   if (belowFeet <= 0) return null;
-  const stretch = 1 / Math.cos((clampTilt(tiltDeg) * Math.PI) / 180);
+  const elev = isRenderElev(elevDeg) ? elevDeg : 90 - clampTilt(tiltDeg);
+  const stretch = 1 / Math.sin((elev * Math.PI) / 180);
   return {
     left: box.left,
     width: box.width,

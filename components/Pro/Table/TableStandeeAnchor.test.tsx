@@ -87,7 +87,8 @@ describe("TableStandeeAnchor", () => {
     expect(computed.height).toBe("36px");
     // Centered on the anchor point: bottom:0 + translate(-50%, 50%), not an
     // arbitrary hand-tuned percentage offset.
-    expect(base.style.transform).toBe("translate(-50%, 50%)");
+    // The depth scale acts about the disc's own centre, so it stays centred.
+    expect(base.style.transform).toBe(`translate(-50%, 50%) scale(${placeStandee(1, 48).scale})`);
   });
 
   it("tags the base disc with data-fighter-base + data-space-id so the visual probe can measure seating", () => {

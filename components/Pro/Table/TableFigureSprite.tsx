@@ -9,9 +9,10 @@
  * feet. It overflows the plate freely: a miniature is taller and wider than
  * the token plate it replaces, and the plate's box still anchors the badges.
  *
- * The render already contains the base drawn at roughly the table camera's
- * angle (40°), so the in-plane base disc under it reads as the seat-colored
- * rim of the miniature's own base rather than a second, separate disc.
+ * The render already contains the base, seen from the table camera's own
+ * elevation (90° − the board's tilt — scripts/figures/camera.cjs), so the
+ * in-plane base disc under it reads as the seat-colored rim of the
+ * miniature's own base rather than a second, separate disc.
  *
  * TWO HALVES. Only the part of the image above the feet stands upright here;
  * the part below them (the front of the model's base) would stand below the
@@ -77,7 +78,8 @@ export interface TableFigureGroundProps {
   figure: Figure;
   /** Same as the sprite's: the in-plane base disc's diameter, px. */
   baseDiamPx: number;
-  /** The board's tilt — how much the flat strip must be stretched. */
+  /** The board's tilt — the render's camera angle, for a figure whose
+   *  manifest entry does not state its own (`figureGroundSlice`). */
   tiltDeg: number;
   /** The same highlight filter as the upright half, so both glow together. */
   filter?: string;
@@ -85,7 +87,7 @@ export interface TableFigureGroundProps {
 
 /** The front of the miniature's base, lying on the board (see file header). */
 export const TableFigureGround = ({ figure, baseDiamPx, tiltDeg, filter }: TableFigureGroundProps) => {
-  const slice = figureGroundSlice(figureSpriteBox(figure, baseDiamPx), tiltDeg);
+  const slice = figureGroundSlice(figureSpriteBox(figure, baseDiamPx), tiltDeg, figure.elevDeg);
   if (!slice) return null;
   return (
     <Box
