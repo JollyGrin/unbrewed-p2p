@@ -26,7 +26,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { Box } from "@chakra-ui/react";
 import { miniCamera, miniPixelRatio, miniPlaneTransform, miniPlateBox, type MiniCamera, type TableRig } from "@/lib/pro/minis3d/camera";
 import type { Mini3d } from "@/lib/pro/minis3d/manifest";
-import type { MiniModel } from "@/lib/pro/minis3d/model";
+import type { MiniModel, ModelBounds } from "@/lib/pro/minis3d/model";
 import { standingPose, type MiniPose } from "@/lib/pro/minis3d/pose";
 import { renderMini } from "@/lib/pro/minis3d/renderer";
 import { minis3dScheduler } from "@/lib/pro/minis3d/scheduler";
@@ -45,12 +45,23 @@ export const useTableMini3d = (mini: Mini3d | null, rig: TableRig | null): MiniM
 };
 
 /**
+ * The model's bounds as the camera sizes them: its base spans the disc by the
+ * manifest's `baseDiameter` (the visible base, default 1.0), not by the
+ * pipeline's enclosing-circle footprint.
+ */
+export const miniBounds = (model: MiniModel, mini: Pick<Mini3d, "baseDiameter">): ModelBounds => ({
+  ...model.bounds,
+  footprint: mini.baseDiameter,
+});
+
+/**
  * The upright plate a 3D mini's badges hang off, px in plate units: the
  * model's own projected box at rest (#929), never smaller than the flat
  * token's strip (`minW`, `minH`).
  */
 export const mini3dPlateSize = (
   model: MiniModel,
+  mini: Pick<Mini3d, "baseDiameter">,
   rig: TableRig,
   pose: MiniPose,
   baseDiamPx: number,
@@ -58,7 +69,7 @@ export const mini3dPlateSize = (
   minW: number,
   minH: number
 ): { widthPx: number; heightPx: number } => {
-  const cam = miniCamera({ rig, pose, baseDiamPx: baseDiamPx * groundScale, bounds: model.bounds });
+  const cam = miniCamera({ rig, pose, baseDiamPx: baseDiamPx * groundScale, bounds: miniBounds(model, mini) });
   const box = miniPlateBox(cam, groundScale);
   return { widthPx: Math.max(minW, 2 * box.halfWidth), heightPx: Math.max(minH, box.height) };
 };
@@ -130,7 +141,7 @@ export const TableMini3D = ({
       // The base disc carries the anchor's depth scale (#926), so the model's
       // base spans the disc AS DRAWN: its diameter times that same scale.
       baseDiamPx: baseDiamPx * groundScale,
-      bounds: model.bounds,
+      bounds: miniBounds(model, mini),
     });
     minis3dScheduler().request(key, () => {
       const plane = planeRef.current, canvas = canvasRef.current, hit = hitRef.current;
@@ -170,7 +181,7 @@ export const TableMini3D = ({
   // redraws only if the camera key changed.
   useLayoutEffect(() => {
     if (!animating) placeRef.current(standingPose(x, y), true);
-  }, [animating, x, y, frameW, frameH, tiltDeg, yawDeg, perspectiveRatio, baseDiamPx, groundScale, model, mini.tint, maxPixelRatio, hitTarget]);
+  }, [animating, x, y, frameW, frameH, tiltDeg, yawDeg, perspectiveRatio, baseDiamPx, groundScale, model, mini.tint, mini.baseDiameter, maxPixelRatio, hitTarget]);
 
   // Tweening: follow the anchor's animated left/top, one sample a frame.
   useEffect(() => {

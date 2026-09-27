@@ -14,6 +14,11 @@
  * the manifest (`EXT_meshopt_compression` + `KHR_mesh_quantization`). One
  * play-tier file per mini is committed; `defaultLod` picks it. `paint` is
  * reserved for a painted variant (same mesh + a texture); nothing reads it yet.
+ *
+ * `baseDiameter` (optional, model units, default 1.0): the width of the
+ * model's VISIBLE base. The pipeline normalises a mini so its base's enclosing
+ * circle is 1.0 across, which can be wider than the base itself; the renderer
+ * maps `baseDiameter` — not 1.0 — onto the base disc.
  */
 import { creditOf, isCleared, type FigureCredit } from "../figures";
 
@@ -24,6 +29,8 @@ export interface Mini3dEntry {
   files: Record<string, string>;
   /** The detail level used unless the dev switch names another. */
   defaultLod: string;
+  /** Model units spanning the base disc (default 1.0). */
+  baseDiameter: number;
   credit: FigureCredit;
 }
 
@@ -36,12 +43,19 @@ export interface Mini3dManifest {
 export interface Mini3d {
   id: string;
   url: string;
+  /** Model units spanning the base disc (the entry's `baseDiameter`). */
+  baseDiameter: number;
   /** sRGB hex. */
   tint: string;
   credit: FigureCredit;
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+/** The pipeline's base footprint: 1 model unit (see the header). */
+export const DEFAULT_BASE_DIAMETER = 1;
+const baseDiameterOf = (v: unknown): number =>
+  typeof v === "number" && Number.isFinite(v) && v > 0 && v <= 10 ? v : DEFAULT_BASE_DIAMETER;
+
 const isFileName = (v: unknown): v is string => typeof v === "string" && /^[A-Za-z0-9._-]+\.glb$/.test(v) && !v.includes("..");
 
 export const parseMini3dManifest = (raw: unknown): Mini3dManifest | null => {
@@ -55,7 +69,7 @@ export const parseMini3dManifest = (raw: unknown): Mini3dManifest | null => {
     const files = Object.fromEntries(Object.entries(entry.files).filter(([, f]) => isFileName(f))) as Record<string, string>;
     const defaultLod = typeof entry.defaultLod === "string" && files[entry.defaultLod] ? entry.defaultLod : Object.keys(files)[0];
     if (!defaultLod) continue;
-    minis[id] = { files, defaultLod, credit };
+    minis[id] = { files, defaultLod, baseDiameter: baseDiameterOf(entry.baseDiameter), credit };
   }
   return { version: 1, minis };
 };
@@ -76,6 +90,7 @@ export const mini3dFor = (
   return {
     id: `${miniId}@${key}`,
     url: `${MINIS3D_BASE_URL}/${entry.files[key]}`,
+    baseDiameter: entry.baseDiameter,
     tint: MINI3D_SEAT_TINTS[seat] ?? MINI3D_SEAT_TINTS.p1,
     credit: entry.credit,
   };

@@ -173,7 +173,7 @@ export const TableFighterStandee = ({
   // A 3D mini's badges hang off the model's own projected bounds (#929).
   const strip = heroPlateSize(null, tokenPx, figureBaseDiamPx);
   const { widthPx, heightPx } = use3d
-    ? mini3dPlateSize(model3d, rig!, standingPose(x, y), figureBaseDiamPx, groundScale, strip.widthPx, strip.heightPx)
+    ? mini3dPlateSize(model3d, mini3d!, rig!, standingPose(x, y), figureBaseDiamPx, groundScale, strip.widthPx, strip.heightPx)
     : heroPlateSize(figure, tokenPx, figureBaseDiamPx);
   const statusBadges = fighterStatusBadgesFor(fighter);
   const fighterClickable = targetable && !!onClick;

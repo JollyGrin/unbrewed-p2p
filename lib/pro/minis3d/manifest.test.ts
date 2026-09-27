@@ -57,6 +57,14 @@ describe("the 3D minis manifest", () => {
     expect(parse(entry(over))?.minis.kt).toBeUndefined();
   });
 
+  test("baseDiameter: 1.0 when absent or unusable, else the entry's own value", () => {
+    expect(parse(entry())?.minis.kt?.baseDiameter).toBe(1);
+    expect(mini3dFor(parse(entry()), "kt", "p1")?.baseDiameter).toBe(1);
+    expect(parse(entry({ baseDiameter: 0.9672 }))?.minis.kt?.baseDiameter).toBe(0.9672);
+    expect(mini3dFor(parse(entry({ baseDiameter: 0.9672 })), "kt", "p1")?.baseDiameter).toBe(0.9672);
+    for (const bad of [0, -1, "0.9", NaN, Infinity, 50]) expect(parse(entry({ baseDiameter: bad }))?.minis.kt?.baseDiameter).toBe(1);
+  });
+
   test("drops file names that are not bare .glb names", () => {
     const m = parse(entry({ files: { a: "../x.glb", b: "x.png", c: "ok.glb" }, defaultLod: "a" }));
     expect(m?.minis.kt?.files).toEqual({ c: "ok.glb" });

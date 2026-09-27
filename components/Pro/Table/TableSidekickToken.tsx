@@ -91,7 +91,7 @@ export const TableSidekickToken = ({
   const model3d = useTableMini3d(mini3d, rig);
   const groundScale = placeStandee(stack ? stack.depthY : y, tiltDeg).scale;
   const plate = model3d
-    ? mini3dPlateSize(model3d, rig!, standingPose(x, y), sizePx, groundScale, sizePx, sizePx * TOKEN_BADGE_PLATE_HEIGHT)
+    ? mini3dPlateSize(model3d, mini3d!, rig!, standingPose(x, y), sizePx, groundScale, sizePx, sizePx * TOKEN_BADGE_PLATE_HEIGHT)
     : { widthPx: sizePx, heightPx: sizePx * TOKEN_BADGE_PLATE_HEIGHT };
   const plateHeightPx = plate.heightPx;
   const fighterClickable = targetable && !!onClick;
