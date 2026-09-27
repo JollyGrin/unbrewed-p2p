@@ -54,6 +54,7 @@ import { tokenInitials } from "@/components/Pro/FighterTokenPortrait";
 import { SWAP_SECONDS, SWAP_TIMES } from "@/lib/pro/positionSwap";
 import { LARGE_FIGURE_SCALE, straddleAnim, type Figure } from "@/lib/pro/figures";
 import { boardObjectVisualFor } from "@/lib/pro/boardObjects";
+import { mapHasRegions } from "@/lib/pro/boardView";
 import { DEFAULT_SPACE_DIAMETER, SEAT_COLOR } from "@/lib/pro/seatColors";
 import {
   fighterStackBySpace,
@@ -185,7 +186,7 @@ export const TableBoard = ({
   // here with pieces missing. Phase 2 refuses the whole view instead — see
   // the early return after every hook, once `hasRegions` is known.
   const regionIds = useMemo(() => new Set((map.regions ?? []).map((r) => r.id)), [map.regions]);
-  const hasRegions = regionIds.size > 0;
+  const hasRegions = mapHasRegions(map);
   const mainSpaces = useMemo(
     () => (regionIds.size ? map.spaces.filter((s) => !s.region || !regionIds.has(s.region)) : map.spaces),
     [map.spaces, regionIds]
@@ -519,6 +520,11 @@ export const TableBoard = ({
   // the whole tabletop view for a map that has one, in plain English, pointed
   // at the view that DOES play it correctly. This runs after every hook
   // above so the hook order never changes between a normal map and this one.
+  //
+  // Unreachable from the game page since #914: `resolveBoardView` draws the
+  // flat board for such a map before this component is ever mounted. Kept as
+  // a guard for any other caller — a refusal beats a board with pieces
+  // missing.
   if (hasRegions) {
     return (
       <Flex direction="column" align="center" justify="center" h="100%" p="2rem" gap="0.75rem" textAlign="center">

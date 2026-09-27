@@ -20,7 +20,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { MOVE_STEP_SECONDS, MoveHint, PendingMove, ProBoard, ProBoardProps } from "@/components/Pro/ProBoard";
 import { useLazyTableBoard } from "@/lib/pro/useLazyTableBoard";
 import { useBoardView } from "@/lib/pro/useBoardView";
-import { resolveBoardView, TABLETOP_NEEDS_LANDSCAPE } from "@/lib/pro/boardView";
+import { boardViewLockedHint, resolveBoardView } from "@/lib/pro/boardView";
 import { ProErrorBoundary } from "@/components/Pro/ProErrorBoundary";
 import { assignableSeats, BotSlotPlan, SlotOccupant } from "@/components/Pro/CreateSeats";
 import { availableBotTiers, botTierChoices, BotTierChoice, coerceBotTier } from "@/lib/pro/botTiers";
@@ -4751,7 +4751,11 @@ const LiveGame = ({
   // A portrait phone always draws the flat board (#870): the tabletop has no
   // counter-rotation for the 90°-turned portrait frame. The stored preference
   // is untouched, so turning back to landscape returns to the tabletop.
-  const wantedBoardView = resolveBoardView(preferredBoardView, mode);
+  // A map with a region (Baba Yaga's Hut) draws the flat board too (#914):
+  // resolved HERE, not inside TableBoard, so the chrome around the board —
+  // HUD, figure chips, reset-view spot — is the flat board's as well.
+  const boardMap = snapshot?.view.map;
+  const wantedBoardView = resolveBoardView(preferredBoardView, mode, boardMap);
   // The tabletop's code is its own chunk (#893): fetched the first time the
   // tabletop is wanted — at mount for a device that stored it, which is still
   // in the lobby — and the flat board stays up until it has arrived, so the
@@ -6911,7 +6915,7 @@ const LiveGame = ({
     onCyclePace: cyclePace,
     boardView,
     onToggleBoardView: toggleBoardView,
-    boardViewLockedHint: mode === "portrait" ? TABLETOP_NEEDS_LANDSCAPE : undefined,
+    boardViewLockedHint: boardViewLockedHint(mode, boardMap),
     figureStyle: boardView === "table" && figureStyles.length > 0 ? figureStyle : undefined,
     onCycleFigureStyle:
       boardView === "table" && figureStyles.length > 0

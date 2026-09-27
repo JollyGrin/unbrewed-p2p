@@ -102,4 +102,29 @@ describe("ProHud board-view chip", () => {
     );
     expect(screen.getByLabelText(/Board view: Tabletop/)).toBeInTheDocument();
   });
+
+  // #914: on a map with a region the page draws the flat board whatever the
+  // stored preference, so a click must not rewrite that preference unseen.
+  it("says why and does not call the toggle while the view is locked", () => {
+    const onToggleBoardView = jest.fn();
+    render(
+      <ChakraProvider>
+        <ProHud
+          view={makeView("p1")}
+          status="open"
+          roomId="room-1"
+          resolveCard={() => null}
+          resolveHero={() => null}
+          labelFor={() => ""}
+          boardView="flat"
+          onToggleBoardView={onToggleBoardView}
+          boardViewLockedHint="Tabletop can't show this map"
+        />
+      </ChakraProvider>
+    );
+    const chip = screen.getByLabelText(/Board view: Flat board\. Tabletop can't show this map/);
+    expect(chip).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(chip);
+    expect(onToggleBoardView).not.toHaveBeenCalled();
+  });
 });
