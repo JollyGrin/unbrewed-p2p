@@ -65,7 +65,7 @@ const GhostButton = (props: React.ComponentProps<typeof Button>) => (
  * rather than inline so a narrow screen doesn't squeeze the username to
  * nothing.
  */
-const OwnerActions = () => {
+const OwnerActions = ({ username }: { username: string }) => {
   const [signingOut, setSigningOut] = useState(false);
 
   return (
@@ -75,6 +75,13 @@ const OwnerActions = () => {
       </GhostButton>
       <GhostButton as={NextLink} href="/leaderboard">
         Leaderboard
+      </GhostButton>
+      <GhostButton
+        as={NextLink}
+        href={`/stats?u=${encodeURIComponent(username)}`}
+        data-testid="account-public-dashboard"
+      >
+        View your public dashboard
       </GhostButton>
       <GhostButton
         isLoading={signingOut}
@@ -185,7 +192,7 @@ export const AccountPage = () => {
         badges={badges}
         stats={statsView}
         history={history}
-        headerAction={<OwnerActions />}
+        headerAction={<OwnerActions username={account.username} />}
       >
         <AccountDiscord />
       </ProfileView>
