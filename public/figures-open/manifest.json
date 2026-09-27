@@ -42,6 +42,48 @@
       "modelName": "Witch Minis (Witch 2)",
       "creator": "mz4250",
       "sourceUrl": "https://www.thingiverse.com/thing:6694128"
+    },
+    "hollow-oak": {
+      "anchor": {
+        "x": 0.5,
+        "y": 0.7348895469938834
+      },
+      "imageWidthMm": 1.5767627716064454,
+      "footprintMm": 1.2786030769348145,
+      "aspect": 1.5,
+      "seats": {
+        "p1": "hollow-oak.p1.webp",
+        "p2": "hollow-oak.p2.webp",
+        "p3": "hollow-oak.p3.webp",
+        "p4": "hollow-oak.p4.webp"
+      },
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "Autumn Treant (Meshy AI, Hollow Oak)",
+      "creator": "Dean Masley",
+      "sourceUrl": "https://unbrewed.xyz"
+    },
+    "hollow-oak-spice": {
+      "anchor": {
+        "x": 0.5,
+        "y": 0.7348895469938834
+      },
+      "imageWidthMm": 1.5767627716064454,
+      "footprintMm": 1.2786030769348145,
+      "aspect": 1.5,
+      "seats": {
+        "p1": "hollow-oak-spice.p1.webp",
+        "p2": "hollow-oak-spice.p2.webp",
+        "p3": "hollow-oak-spice.p3.webp",
+        "p4": "hollow-oak-spice.p4.webp"
+      },
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "Autumn Treant (Meshy AI, Hollow Oak)",
+      "creator": "Dean Masley",
+      "sourceUrl": "https://unbrewed.xyz"
     }
   }
 }
