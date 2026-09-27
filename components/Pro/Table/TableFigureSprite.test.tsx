@@ -4,8 +4,10 @@ import type { ViewFighter } from "@/lib/pro/protocol";
 import type { Figure } from "@/lib/pro/figures";
 import { placeStandee, standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
 import { TableFigureGround, TableFigureSprite } from "./TableFigureSprite";
-import { figureGroundSlice, figureSpriteBox } from "@/lib/pro/figures";
-import { TableFighterStandee } from "./TableFighterStandee";
+import { figureGroundSlice, figureSilhouetteBox, figureSpriteBox } from "@/lib/pro/figures";
+import { heroPlateSize, TableFighterStandee } from "./TableFighterStandee";
+import { BADGE_COLUMN, fighterBadgesLowestPx } from "./TableFighterBadges";
+import { TOKEN_BADGE_PLATE_HEIGHT } from "./TableFlatToken";
 
 const figure: Figure = {
   anchor: { x: 0.5, y: 0.75 },
@@ -170,5 +172,100 @@ describe("TableFighterStandee with a figure", () => {
     expect(bases).toHaveLength(1);
     expect((bases[0] as HTMLElement).style.borderColor.toLowerCase()).toBe("#e0a82e");
     expect(bases[0].getAttribute("data-space-id")).toBe("s1");
+  });
+});
+
+// unbrewed-p2p-928: the badges hang off the plate's corners, so the plate has
+// to be the box the model's own silhouette fills — not one generic shape.
+describe("a miniature's badge plate (#928)", () => {
+  // The committed open set's real numbers: an upright treant and a low, wide
+  // quadruped, both fitted into the same 2:3 render frame.
+  const treant: Figure = {
+    anchor: { x: 0.5, y: 0.7349 },
+    imageWidthMm: 1.5768,
+    footprintMm: 1.2786,
+    aspect: 1.5,
+    bounds: { left: 0.0183, top: 0.0911, right: 0.9817, bottom: 0.9089 },
+    url: "/figures-open/hollow-oak.p1.webp",
+  };
+  const quadruped: Figure = {
+    anchor: { x: 0.5, y: 0.556 },
+    imageWidthMm: 6.1271,
+    footprintMm: 2.8253,
+    aspect: 1.5,
+    bounds: { left: 0.0183, top: 0.3567, right: 0.9817, bottom: 0.6433 },
+    url: "/figures-open/triceratops.p1.webp",
+  };
+  const DIAM = 50;
+  const base = standeeBaseDiameterPx(DIAM);
+  const anchorOf = (container: HTMLElement) => container.querySelector("[data-badge-owner]") as HTMLElement;
+  const badgesOf = (container: HTMLElement) => container.querySelector("[data-standee-badges]") as HTMLElement;
+
+  it.each([
+    ["treant", treant],
+    ["quadruped", quadruped],
+  ])("is the box the %s's own silhouette fills above its feet", (_name, fig) => {
+    const { container } = standee({ figure: fig, diamPx: DIAM });
+    const box = figureSpriteBox(fig, base);
+    const anchor = anchorOf(container);
+    // Top edge = the silhouette's topmost pixel; side edges = its widest.
+    expect(parseFloat(getComputedStyle(anchor).height)).toBeCloseTo((fig.anchor.y - fig.bounds!.top) * box.height);
+    expect(parseFloat(getComputedStyle(anchor).width)).toBeCloseTo((fig.bounds!.right - fig.bounds!.left) * box.width);
+    // The badge layer fills that same box.
+    expect(getComputedStyle(badgesOf(container)).width).toBe("100%");
+    expect(getComputedStyle(badgesOf(container)).height).toBe("100%");
+  });
+
+  it("differs per model: the low quadruped's plate is lower and wider than the treant's", () => {
+    const t = heroPlateSize(treant, base, base);
+    const q = heroPlateSize(quadruped, base, base);
+    expect(q.heightPx).toBeLessThan(t.heightPx);
+    expect(q.widthPx).toBeGreaterThan(t.widthPx);
+    // Neither is the old generic plate (1.55 × 2.33 space diameters).
+    for (const p of [t, q]) expect(p.heightPx).toBeLessThan(DIAM * 1.55 * 1.5 * 0.6);
+  });
+
+  it("keeps the figure on the feet whatever the plate's size", () => {
+    const { container } = standee({ figure: quadruped, diamPx: DIAM });
+    const frame = (container.querySelector("img[data-table-figure]") as HTMLElement).parentElement as HTMLElement;
+    const plate = heroPlateSize(quadruped, base, base);
+    const box = figureSpriteBox(quadruped, base);
+    expect(parseFloat(frame.style.left)).toBeCloseTo(plate.widthPx / 2 + box.left);
+    expect(parseFloat(frame.style.top)).toBeCloseTo(plate.heightPx + box.top);
+  });
+
+  it("scales with a LARGE fighter's straddling figure", () => {
+    const one = heroPlateSize(treant, base, base);
+    const large = heroPlateSize(treant, base, base * 1.5);
+    expect(large.heightPx).toBeCloseTo(one.heightPx * 1.5);
+    expect(large.widthPx).toBeCloseTo(one.widthPx * 1.5);
+  });
+
+  it("measures a figure without bounds by its whole image", () => {
+    const box = figureSpriteBox(figure, base);
+    expect(figureSilhouetteBox(figure, base)).toEqual({ halfWidth: box.width / 2, height: -box.top });
+    expect(heroPlateSize(figure, base, base)).toEqual({ widthPx: box.width, heightPx: -box.top });
+  });
+
+  it("takes the wider side of an off-centre silhouette", () => {
+    const lopsided: Figure = { ...treant, bounds: { left: 0.4, top: 0.1, right: 1, bottom: 0.9 } };
+    expect(figureSilhouetteBox(lopsided, base).halfWidth).toBeCloseTo(0.5 * figureSpriteBox(lopsided, base).width);
+  });
+
+  it("is never lower or narrower than a flat token's badge strip", () => {
+    const flat: Figure = { ...treant, bounds: { left: 0.45, top: 0.73, right: 0.55, bottom: 0.9 } };
+    expect(heroPlateSize(flat, base, base)).toEqual({ widthPx: base, heightPx: base * TOKEN_BADGE_PLATE_HEIGHT });
+    expect(heroPlateSize(null, base, base)).toEqual({ widthPx: base, heightPx: base * TOKEN_BADGE_PLATE_HEIGHT });
+  });
+
+  it("tells the badge slide where the column really ends on a low model", () => {
+    // The column hangs from the plate's top; on the quadruped it now reaches
+    // below the feet, and the layer has to slide clear of the base (#902).
+    const plate = heroPlateSize(quadruped, base, base);
+    const c = BADGE_COLUMN.hero;
+    expect(fighterBadgesLowestPx(plate.heightPx, "hero")).toBeCloseTo(plate.heightPx + c.offset - (2 * c.cell + c.gap));
+    expect(fighterBadgesLowestPx(plate.heightPx, "hero")).toBeLessThan(0);
+    const { container } = standee({ figure: quadruped, diamPx: DIAM, frameW: 900, frameH: 600 });
+    expect(parseFloat(badgesOf(container).getAttribute("data-badge-forward")!)).toBeGreaterThan(0);
   });
 });

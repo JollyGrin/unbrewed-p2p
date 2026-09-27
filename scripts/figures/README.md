@@ -66,6 +66,11 @@ ids; `officialHero` in the manifest is the only input.
    (`elevDeg`); the app lays the front of the model's base on the board by
    it. `scripts/visual-probe/tableFigureBase.cjs` measures a rendered base
    against the board's own ellipse, live, at nine board points and two zooms.
+   Each manifest entry records `bounds`: where the model's visible pixels are
+   inside its 2:3 frame, measured off the render's alpha (`bounds.cjs`). The
+   tabletop hangs a miniature's HP/reach badges off that silhouette (#928).
+   To refresh them for renders already on disk, without re-rendering:
+   `node scripts/figures/bounds.cjs public/figures-open`.
 3. `public/figures/` is git-ignored and vercel-ignored: neither a git
    checkout nor a `vercel` upload carries it. The app reads the manifest at
    runtime (`lib/pro/useFigureManifest.ts`) and falls back to tokens when it

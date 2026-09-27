@@ -9,6 +9,12 @@
       "imageWidthMm": 6.127122802734375,
       "footprintMm": 2.825296849012375,
       "aspect": 1.5,
+      "bounds": {
+        "left": 0.0183,
+        "top": 0.3478,
+        "right": 0.9817,
+        "bottom": 0.6511
+      },
       "elevDeg": 50,
       "seats": {
         "p1": "triceratops.p1.webp",
@@ -31,6 +37,12 @@
       "imageWidthMm": 27.01519256591797,
       "footprintMm": 25.248001098632812,
       "aspect": 1.5,
+      "bounds": {
+        "left": 0.0183,
+        "top": 0.0611,
+        "right": 0.9817,
+        "bottom": 0.9389
+      },
       "elevDeg": 50,
       "seats": {
         "p1": "baba-yaga.p1.webp",
@@ -53,6 +65,12 @@
       "imageWidthMm": 1.5767627716064454,
       "footprintMm": 1.2786030769348145,
       "aspect": 1.5,
+      "bounds": {
+        "left": 0.0183,
+        "top": 0.1078,
+        "right": 0.9817,
+        "bottom": 0.8922
+      },
       "elevDeg": 50,
       "seats": {
         "p1": "hollow-oak.p1.webp",
@@ -75,6 +93,12 @@
       "imageWidthMm": 1.5767627716064454,
       "footprintMm": 1.2786030769348145,
       "aspect": 1.5,
+      "bounds": {
+        "left": 0.0183,
+        "top": 0.1078,
+        "right": 0.9817,
+        "bottom": 0.8922
+      },
       "elevDeg": 50,
       "seats": {
         "p1": "hollow-oak-spice.p1.webp",

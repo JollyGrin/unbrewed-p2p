@@ -65,6 +65,7 @@
 const fs = require("fs");
 const { clearanceBlockers, openRenderBlockers } = require("./clearance.cjs");
 const { defaultElevDeg } = require("./camera.cjs");
+const { figureBounds } = require("./bounds.cjs");
 const path = require("path");
 const os = require("os");
 
@@ -182,10 +183,13 @@ const readConfig = () => {
       seats[seat] = name;
       geometry = { anchor: r.anchor, imageWidthMm: r.imageWidthMm, footprintMm: r.footprintMm, aspect: r.aspect, elevDeg: fig.elev ?? DEFAULT_ELEV };
     }
+    // Where the model's visible pixels are in the frame — what the tabletop
+    // hangs its badges off (bounds.cjs).
+    const bounds = await figureBounds(Object.values(seats).map((name) => path.join(OUT, name)));
     // Belt and braces: the app re-checks these fields and drops the entry
     // without them (lib/pro/figures.ts).
     const declared = Object.fromEntries(DECLARED.filter((k) => fig[k] !== undefined).map((k) => [k, fig[k]]));
-    manifest.figures[fig.heroId] = { ...geometry, seats, ...declared };
+    manifest.figures[fig.heroId] = { ...geometry, ...(bounds ? { bounds } : {}), seats, ...declared };
     console.log(`${fig.heroId}: footprint ${geometry.footprintMm.toFixed(1)}mm, anchor ${geometry.anchor.x.toFixed(3)}/${geometry.anchor.y.toFixed(3)}`);
   }
   fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 2));
