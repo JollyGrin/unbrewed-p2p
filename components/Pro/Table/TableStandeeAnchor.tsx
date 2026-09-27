@@ -298,7 +298,7 @@ export const TableStandeeAnchor = ({
       onMouseLeave={onMouseLeave}
       data-pick={pick ? "" : undefined}
       // CLICK ROUTING (#873). The anchor's box is the billboarded plate's
-      // footprint — for a miniature 1.55 × 2.33 space diameters, so it
+      // footprint — for a miniature the box its silhouette fills, so it
       // reaches over the space BEHIND the figure. Letting it hit-test ate
       // taps meant for that space (or committed the figure's own space via
       // the fallback). Only the parts that sit ON this piece's own space

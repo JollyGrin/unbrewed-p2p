@@ -101,6 +101,24 @@ describe("open-set gate", () => {
 
   // The private set predates attribution: an entry there needs none, but
   // keeps it when it has one.
+  test("an entry keeps its silhouette bounds, and stands without them", () => {
+    const bounds = { left: 0.02, top: 0.36, right: 0.98, bottom: 0.64 };
+    const m = openManifest({ triceratops: { ...tri, bounds }, plain: tri });
+    expect(figureFor(m, "triceratops", "p1", "open")?.bounds).toEqual(bounds);
+    expect(figureFor(m, "plain", "p1", "open")).not.toBeNull();
+    expect(figureFor(m, "plain", "p1", "open")?.bounds).toBeUndefined();
+  });
+
+  test.each([
+    ["out of range", { left: -0.1, top: 0, right: 1, bottom: 1 }],
+    ["inside out", { left: 0.6, top: 0, right: 0.4, bottom: 1 }],
+    ["incomplete", { left: 0, top: 0, right: 1 }],
+  ])("ignores %s bounds rather than dropping the figure", (_why, bounds) => {
+    const fig = figureFor(openManifest({ triceratops: { ...tri, bounds } }), "triceratops", "p1", "open");
+    expect(fig).not.toBeNull();
+    expect(fig?.bounds).toBeUndefined();
+  });
+
   test("the private set does not require attribution", () => {
     const m = parseFigureManifest({ version: 1, figures: { triceratops: without("creator") } }, "private");
     expect(figureFor(m, "triceratops", "p1", "private")?.credit).toBeNull();
@@ -126,6 +144,19 @@ describe("the committed open set", () => {
   test("every seat render the manifest names is committed next to it", () => {
     for (const entry of Object.values(raw.figures) as { seats: Record<string, string> }[])
       for (const file of Object.values(entry.seats)) expect(fs.existsSync(path.join(dir, file))).toBe(true);
+  });
+
+  // unbrewed-p2p-928: the badges hang off these, so a re-render (or a merge)
+  // that leaves them stale or drops them has to fail here, not on the table.
+  test("every entry's silhouette bounds are the ones its renders really have", async () => {
+    const { figureBounds } = require("../../scripts/figures/bounds.cjs") as {
+      figureBounds: (files: string[]) => Promise<Record<string, number> | null>;
+    };
+    const parsed = parseFigureManifest(raw, "open")!;
+    for (const [heroId, entry] of Object.entries(parsed.figures)) {
+      const measured = await figureBounds(Object.values(entry.seats).map((f) => path.join(dir, f)));
+      expect({ heroId, bounds: entry.bounds }).toEqual({ heroId, bounds: measured });
+    }
   });
 
   test("the manifest matches its config (no hand-edited or stale entry)", () => {

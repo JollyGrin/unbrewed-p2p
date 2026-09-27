@@ -17,7 +17,7 @@ import type { FighterId, ViewFighter } from "@/lib/pro/protocol";
 import type { FlagTokenBadge } from "@/lib/pro/heroStateFlags";
 import { fighterStatusBadgesFor } from "@/lib/pro/fighterStatuses";
 import { flatTokenTopPx, standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
-import type { Figure } from "@/lib/pro/figures";
+import { figureSilhouetteBox, type Figure } from "@/lib/pro/figures";
 import { TableFigureGround, TableFigureSprite } from "./TableFigureSprite";
 import { TableAnchorAnim, TableStandeeAnchor, type TableStackDepth } from "./TableStandeeAnchor";
 import {
@@ -32,11 +32,29 @@ import {
 } from "./TableFighterBadges";
 import { TableFlatToken, TOKEN_BADGE_PLATE_HEIGHT } from "./TableFlatToken";
 
-/** A miniature's upright plate, which anchors its badges: taller than wide,
- *  like the figure standing in it (the figure itself overflows it freely). */
-const PLATE_ASPECT = 1.5;
-/** That plate's width as a multiple of the space's own printed diameter. */
-const PLATE_WIDTH_FACTOR = 1.55;
+/**
+ * The upright plate that anchors a hero's badges, px: its bottom centre is the
+ * feet, its top corners are where the HP/reach column and the flag hang.
+ *
+ * A miniature's plate is the box its OWN silhouette fills (#928) — one generic
+ * tall plate for every model left the badges floating far above a squat or
+ * wide one. It is never smaller than the flat token's low strip, so a model
+ * lower than its own base still carries its badges above the rim. A flat
+ * token's plate is that strip.
+ */
+export const heroPlateSize = (
+  figure: Figure | null,
+  tokenPx: number,
+  figureBaseDiamPx: number
+): { widthPx: number; heightPx: number } => {
+  const strip = { widthPx: tokenPx, heightPx: tokenPx * TOKEN_BADGE_PLATE_HEIGHT };
+  if (!figure) return strip;
+  const silhouette = figureSilhouetteBox(figure, figureBaseDiamPx);
+  return {
+    widthPx: Math.max(strip.widthPx, 2 * silhouette.halfWidth),
+    heightPx: Math.max(strip.heightPx, silhouette.height),
+  };
+};
 
 /**
  * Highlight for a miniature. It is a `filter`, not a `box-shadow`, so the
@@ -130,14 +148,11 @@ export const TableFighterStandee = ({
   frameH,
 }: TableFighterStandeeProps) => {
   const tokenPx = standeeBaseDiameterPx(diamPx);
-  // A miniature's plate is tall; a flat token's is a low strip that only
-  // lifts its badges above the token's rim.
-  const widthPx = figure ? diamPx * PLATE_WIDTH_FACTOR : tokenPx;
-  const heightPx = figure ? widthPx * PLATE_ASPECT : tokenPx * TOKEN_BADGE_PLATE_HEIGHT;
+  const figureBaseDiamPx = tokenPx * figureScale;
+  const { widthPx, heightPx } = heroPlateSize(figure, tokenPx, figureBaseDiamPx);
   const statusBadges = fighterStatusBadgesFor(fighter);
   const fighterClickable = targetable && !!onClick;
   const clickHandler = fighterClickable ? () => onClick!(fighter.id) : onSpaceFallbackClick;
-  const figureBaseDiamPx = tokenPx * figureScale;
   const badgeLowestPx = Math.min(
     fighterBadgesLowestPx(heightPx, "hero"),
     pickMarksLowestPx({ extendedReach, badgeNumber, chipText }),

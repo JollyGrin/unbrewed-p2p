@@ -82,6 +82,20 @@ export interface FigureCredit {
   modified: boolean;
 }
 
+/**
+ * Where the model's visible pixels are inside its render, as fractions of the
+ * image's width/height from its top-left corner. A render is a fixed 2:3 frame
+ * the model is fitted into, so a low, wide model (a quadruped) leaves most of
+ * the frame's height empty. Measured off the image's alpha channel by
+ * scripts/figures/bounds.cjs.
+ */
+export interface FigureBounds {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
 export interface FigureEntry {
   /** Where the ground point under the model's centre lands in the image, as
    *  fractions of its width/height. The standee's feet go there. */
@@ -95,6 +109,9 @@ export interface FigureEntry {
   /** The camera elevation the render was taken from, degrees above the ground
    *  (absent in manifests older than #926: 90° − the board's tilt is assumed). */
   elevDeg?: number;
+  /** The model's visible silhouette inside the image (`FigureBounds`). Absent
+   *  in a manifest rendered before unbrewed-p2p-928: the whole image stands in. */
+  bounds?: FigureBounds;
   /** Seat id → image file name inside FIGURES_BASE_URL. */
   seats: Record<string, string>;
   /** The model's licence: an SPDX id or a named licence. */
@@ -155,6 +172,16 @@ export const creditOf = (raw: Record<string, unknown>): FigureCredit | null => {
   };
 };
 
+/** An entry's silhouette bounds, or undefined when it declares none (or
+ *  nonsense): the figure still stands, measured by its whole image. */
+const boundsOf = (raw: unknown): FigureBounds | undefined => {
+  if (!isRecord(raw)) return undefined;
+  const { left, top, right, bottom } = raw;
+  if (!isFraction(left) || !isFraction(top) || !isFraction(right) || !isFraction(bottom)) return undefined;
+  if (right <= left || bottom <= top) return undefined;
+  return { left, top, right, bottom };
+};
+
 const parseEntry = (raw: unknown, set: FigureSet): FigureEntry | null => {
   if (!isRecord(raw) || !isRecord(raw.anchor) || !isRecord(raw.seats)) return null;
   if (!isCleared(raw)) return null;
@@ -167,12 +194,14 @@ const parseEntry = (raw: unknown, set: FigureSet): FigureEntry | null => {
   if (!isPositive(imageWidthMm) || !isPositive(footprintMm) || !isPositive(aspect)) return null;
   const goodSeats = Object.fromEntries(Object.entries(seats).filter(([, file]) => isFileName(file))) as Record<string, string>;
   if (Object.keys(goodSeats).length === 0) return null;
+  const bounds = boundsOf(raw.bounds);
   return {
     anchor: { x: anchor.x, y: anchor.y },
     imageWidthMm,
     footprintMm,
     aspect,
     ...(isRenderElev(elevDeg) ? { elevDeg } : {}),
+    ...(bounds ? { bounds } : {}),
     seats: goodSeats,
     license,
     redistributable: true,
@@ -202,8 +231,18 @@ export const figureFor = (
   const entry = heroId ? manifest?.figures[heroId] : undefined;
   const file = entry?.seats[seat];
   if (!entry || !file) return null;
-  const { anchor, imageWidthMm, footprintMm, aspect, elevDeg } = entry;
-  return { anchor, imageWidthMm, footprintMm, aspect, ...(elevDeg !== undefined ? { elevDeg } : {}), url: `${FIGURE_SET_BASE_URL[set]}/${file}`, set, credit: entry.credit ?? null };
+  const { anchor, imageWidthMm, footprintMm, aspect, elevDeg, bounds } = entry;
+  return {
+    anchor,
+    imageWidthMm,
+    footprintMm,
+    aspect,
+    ...(elevDeg !== undefined ? { elevDeg } : {}),
+    ...(bounds ? { bounds } : {}),
+    url: `${FIGURE_SET_BASE_URL[set]}/${file}`,
+    set,
+    credit: entry.credit ?? null,
+  };
 };
 
 /**
@@ -293,6 +332,34 @@ export const figureSpriteBox = (figure: Figure, baseDiamPx: number): SpriteBox =
   const width = figure.imageWidthMm * (baseDiamPx / figure.footprintMm);
   const height = width * figure.aspect;
   return { width, height, left: -figure.anchor.x * width, top: -figure.anchor.y * height };
+};
+
+/** The upright part of a figure as the eye sees it, px from its feet. */
+export interface SilhouetteBox {
+  /** How far the model's visible pixels reach to either side of the feet —
+   *  the wider side, so a box this wide centred on the feet holds both. */
+  halfWidth: number;
+  /** How high above the feet its topmost visible pixel stands. */
+  height: number;
+}
+
+/**
+ * The box the model's own visible silhouette fills above its feet, drawn at
+ * `baseDiamPx` — what its badges hang off (unbrewed-p2p-928). Every figure
+ * used to share one generic plate (1.55 × 2.33 space diameters), which no
+ * model actually fills: the badges floated a whole space above a treant's
+ * canopy, further still above a low quadruped. Never negative: a render with
+ * nothing above its feet gives an empty box.
+ */
+export const figureSilhouetteBox = (figure: Figure, baseDiamPx: number): SilhouetteBox => {
+  const box = figureSpriteBox(figure, baseDiamPx);
+  const b = figure.bounds ?? { left: 0, top: 0, right: 1, bottom: 1 };
+  const leftPx = (figure.anchor.x - b.left) * box.width;
+  const rightPx = (b.right - figure.anchor.x) * box.width;
+  return {
+    halfWidth: Math.max(0, leftPx, rightPx),
+    height: Math.max(0, (figure.anchor.y - b.top) * box.height),
+  };
 };
 
 /** The strip of a figure image that lies below its feet, laid in the board plane. */
