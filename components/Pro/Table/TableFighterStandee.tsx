@@ -21,7 +21,7 @@ import { figureSilhouetteBox, type Figure } from "@/lib/pro/figures";
 import type { Mini3d } from "@/lib/pro/minis3d/manifest";
 import type { TableRig } from "@/lib/pro/minis3d/camera";
 import { standingPose } from "@/lib/pro/minis3d/pose";
-import { mini3dPlateSize, TableMini3D, useTableMini3d } from "./TableMini3D";
+import { mini3dPlateSize, mini3dWalk, TableMini3D, useTableMini3d, type MiniMotionCues } from "./TableMini3D";
 import { TableFigureGround, TableFigureSprite } from "./TableFigureSprite";
 import { TableAnchorAnim, TableStandeeAnchor, type TableStackDepth } from "./TableStandeeAnchor";
 import {
@@ -128,6 +128,8 @@ export interface TableFighterStandeeProps {
   rig?: TableRig | null;
   /** Canvas pixel-ratio cap for the 3D mini (dev switch `?minis3dDpr=`). */
   mini3dMaxPixelRatio?: number | null;
+  /** What the 3D mini should be doing (#962): hops, facing, combat beats. */
+  mini3dMotion?: MiniMotionCues | null;
 }
 
 export const TableFighterStandee = ({
@@ -161,6 +163,7 @@ export const TableFighterStandee = ({
   mini3d = null,
   rig = null,
   mini3dMaxPixelRatio = null,
+  mini3dMotion = null,
 }: TableFighterStandeeProps) => {
   // A 3D mini only while the shared renderer is up and the model decoded;
   // otherwise exactly the sprite/token path below.
@@ -214,6 +217,8 @@ export const TableFighterStandee = ({
             baseDiamPx={figureBaseDiamPx}
             groundScale={groundScale}
             animating={!!anim}
+            walk={mini3dWalk(anim)}
+            motion={mini3dMotion}
             filter={plateFilter(selected, friendly)}
             animation={targetable && !selected ? `${targetPulse} 1.4s ease-in-out infinite` : undefined}
             hitTarget={fighterClickable && !spacePicksLive}
