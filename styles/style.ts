@@ -18,6 +18,13 @@ export const colors = {
   purple: {
     900: "#48284F",
   },
+  // Stats dashboard chart colours (#935), one per opponent kind. Win/loss use
+  // brand.positive / brand.danger.
+  stats: {
+    human: "#9A55B5",
+    hardExpert: "#A8720A",
+    casual: "#2C76AC",
+  },
 };
 
 export const fonts = {
