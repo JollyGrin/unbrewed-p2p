@@ -138,6 +138,30 @@ describe("TableBoard fighters", () => {
     }
   });
 
+  // unbrewed-p2p-918: an uncleared hero (no entry in EITHER figure set — the
+  // gate from #879 dropped it, or it was never catalogued at all) must still
+  // draw the deck's own token art, on every seat, never a blank standee.
+  it("draws the hero's token art when no figure is resolved for it (uncleared hero, both seats)", () => {
+    const { container } = renderBoard({
+      fighters: [
+        fighter({ id: "p1/hero", kind: "HERO", owner: "p1", space: "s1" }),
+        fighter({ id: "p2/hero", kind: "HERO", owner: "p2", space: "s2" }),
+      ],
+      // No `fighterFigure` prop at all — mirrors a deploy/checkout with no
+      // cleared figure for this hero in either set (figureOf falls back to
+      // null for every HERO, per TableBoard's own figureOf map).
+      fighterTokenArt: () => "/token-boba-fett.webp",
+    });
+    for (const id of ["p1/hero", "p2/hero"]) {
+      const standee = container.querySelector(`[data-fighter-id="${id}"]`)!;
+      expect(standee).toBeTruthy();
+      // Never nothing: the standee's face is a real <img>, not an empty circle.
+      const img = standee.querySelector("img");
+      expect(img).toBeTruthy();
+      expect(img!.getAttribute("src")).toBe("/token-boba-fett.webp");
+    }
+  });
+
   it("does not place a fighter whose space does not exist on the main board (e.g. a region space, unsupported in phase 1)", () => {
     renderBoard({ fighters: [fighter({ space: "nowhere" as never })] });
     expect(screen.queryByTitle(/The Mandalorian/)).toBeNull();
