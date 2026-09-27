@@ -1903,12 +1903,16 @@ export const ProHud = ({
               cursor="pointer"
               _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
               color="brand.highlight"
-              opacity={boardView === "flat" ? 0.55 : 1}
               onClick={onToggleBoardView}
               aria-label={`Board view: ${BOARD_VIEW_LABEL[boardView]}. Click to switch.`}
             >
               <TbPerspective size="0.85rem" />
-              <Text fontSize="0.65rem" fontFamily="SpaceGrotesk" whiteSpace="nowrap">
+              <Text
+                fontSize="0.65rem"
+                fontFamily="SpaceGrotesk"
+                whiteSpace="nowrap"
+                opacity={boardView === "flat" ? 0.55 : 1}
+              >
                 {BOARD_VIEW_LABEL[boardView]}
               </Text>
             </Flex>
