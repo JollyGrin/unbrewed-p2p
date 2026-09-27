@@ -8,7 +8,7 @@ const { launch, startGame, referenceSpaces, probe, OUT, LODS } = require("../tab
 
 module.exports = async () => {
   const { browser, page } = await launch((process.env.PROBE_ARGS || "").split(" ").filter(Boolean));
-  await startGame(page, "minis3d=1");
+  await startGame(page, "minis3dProbe=1");
   await page.addStyleTag({ content: "[data-badge-owner^='probe'] [data-standee-badges]{display:none!important}" });
   const { nearLeft } = await referenceSpaces(page);
   for (const lod of LODS) {

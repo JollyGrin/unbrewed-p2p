@@ -14,7 +14,6 @@ import {
   figureForStyle,
   figureStyleOptions,
   heroViewFigure,
-  nextFigureStyle,
   parseFigureManifest,
 } from "./figures";
 const { openRenderBlockers, OPEN_LICENSE_DEEDS } = require("../../scripts/figures/clearance.cjs") as {
@@ -203,12 +202,6 @@ describe("figure style", () => {
     expect(effectiveFigureStyle("private", ["open", "token"])).toBe("open");
     expect(effectiveFigureStyle(null, ["open", "token"])).toBe("open");
     expect(effectiveFigureStyle("open", [])).toBe("token");
-  });
-
-  test("the toggle cycles through the offered styles", () => {
-    expect(nextFigureStyle("open", ["open", "token"])).toBe("token");
-    expect(nextFigureStyle("token", ["open", "token"])).toBe("open");
-    expect(nextFigureStyle("private", ["private", "open", "token"])).toBe("open");
   });
 
   test("a hero view prefers the loaded private render, else the open one", () => {

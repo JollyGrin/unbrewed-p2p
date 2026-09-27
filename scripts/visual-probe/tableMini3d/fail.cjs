@@ -29,7 +29,7 @@ module.exports = async () => {
   const out = {};
   {
     const { browser, page } = await launch(["--disable-webgl"]);
-    await startGame(page, "minis3d=1");
+    await startGame(page, "minis3dProbe=1");
     await page.waitForTimeout(2000);
     out.disableWebgl = await snapshot(page);
     await page.screenshot({ path: path.join(OUT, "fail-disable-webgl.png") });
@@ -37,7 +37,7 @@ module.exports = async () => {
   }
   {
     const { browser, page } = await launch(["--use-angle=metal", "--enable-gpu", "--ignore-gpu-blocklist"]);
-    await startGame(page, "minis3d=1");
+    await startGame(page, "minis3dProbe=1");
     await page.waitForTimeout(2000);
     out.before = await snapshot(page);
     await page.screenshot({ path: path.join(OUT, "fail-before.png") });

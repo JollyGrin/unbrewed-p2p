@@ -1,6 +1,6 @@
 /**
  * 3D minis (#931 spike, kept as tooling by #945) — MEASURING script for the
- * 3D mini path behind `?minis3d=1`. Not a test; it prints JSON and writes
+ * 3D mini path (figure style "3D minis"; `?minis3dProbe=1` mounts the probe). Not a test; it prints JSON and writes
  * crops. Needs a DEV server: the probe pieces come from TableMini3dProbe,
  * which production builds leave out.
  *
@@ -49,7 +49,7 @@ const launch = async (extraArgs = []) => {
   await ctx.addInitScript(() => {
     try {
       localStorage.setItem("pro-board-view", "table");
-      localStorage.setItem("pro-figure-style", "open");
+      localStorage.setItem("pro-figure-style", "3d");
     } catch {}
   });
   const page = await ctx.newPage();
