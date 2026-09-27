@@ -138,4 +138,30 @@ describe("the minis render scheduler", () => {
     expect(drawn).toBe(2);
     warn.mockRestore();
   });
+
+  test("a job that re-requests itself waits for the next frame", () => {
+    const { f, s } = setup(3);
+    const k = {};
+    let runs = 0;
+    const job = () => {
+      runs++;
+      s.request(k, job);
+    };
+    s.request(k, job);
+    f.step();
+    expect(runs).toBe(1);
+    f.step();
+    expect(runs).toBe(2);
+    s.cancel(k);
+  });
+
+  test("a job that cancels a later mini in the same batch stops it drawing", () => {
+    const { f, s } = setup(3);
+    const a = {}, b = {};
+    let bRan = false;
+    s.request(a, () => s.cancel(b));
+    s.request(b, () => (bRan = true));
+    f.step();
+    expect(bRan).toBe(false);
+  });
 });

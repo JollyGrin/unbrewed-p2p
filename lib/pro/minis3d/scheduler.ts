@@ -70,11 +70,12 @@ export const createRenderScheduler = ({
         }
       });
       stats.peakQueue = Math.max(stats.peakQueue, queue.size);
-      let n = 0;
-      for (const [key, job] of queue) {
-        if (n >= budget) break;
+      // This frame's batch is fixed up front: a job that asks again (or asks
+      // for another mini) lands in the queue for the NEXT frame.
+      const batch = Array.from(queue).slice(0, budget);
+      for (const [key, job] of batch) {
+        if (queue.get(key) !== job) continue; // replaced or cancelled by an earlier job
         queue.delete(key);
-        n++;
         stats.jobs++;
         try {
           job();
