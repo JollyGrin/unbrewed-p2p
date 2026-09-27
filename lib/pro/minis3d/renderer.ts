@@ -53,15 +53,35 @@ export const subscribeMinis3d = (fn: () => void): (() => void) => {
 };
 
 let starting: Promise<boolean> | null = null;
+/** When a failed start may be tried again (ms, Date.now clock). */
+let retryAt = 0;
+/** A chunk fetch that failed (offline, a deploy swapped the chunks) may work
+ *  later; a later mount retries once this long after the failure. */
+export const MINIS3D_IMPORT_RETRY_MS = 5000;
 
-/** Bring the shared renderer up once. Resolves false when WebGL is unusable. */
+/**
+ * Bring the shared renderer up once. Resolves false when WebGL is unusable.
+ * Two ways to fail: no WebGL context (permanent — the GPU will not appear) or
+ * the three.js chunks failing to load (transient: a mount after
+ * MINIS3D_IMPORT_RETRY_MS starts over; threeKit forgets its failed import).
+ */
 export const ensureMinis3d = (): Promise<boolean> => {
   if (starting) return starting;
+  if (status === "failed" && Date.now() < retryAt) return Promise.resolve(false);
   setStatus("loading");
   exposeDebug();
   starting = (async () => {
+    let kit: ThreeKit;
     try {
-      const kit = await loadThreeKit();
+      kit = await loadThreeKit();
+    } catch (e) {
+      console.warn("[minis3d] three.js failed to load, keeping sprites/tokens (will retry):", e);
+      retryAt = Date.now() + MINIS3D_IMPORT_RETRY_MS;
+      starting = null;
+      setStatus("failed");
+      return false;
+    }
+    try {
       minis3dStats.importMs = kit.importMs;
       const { THREE } = kit;
       // Throws "Error creating WebGL context." where WebGL is off/blocked.
@@ -99,6 +119,7 @@ export const ensureMinis3d = (): Promise<boolean> => {
       return true;
     } catch (e) {
       console.warn("[minis3d] WebGL unavailable, keeping sprites/tokens:", e);
+      retryAt = Infinity;
       setStatus("failed");
       return false;
     }
