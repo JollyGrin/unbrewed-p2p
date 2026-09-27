@@ -1,9 +1,10 @@
-import { LeaderboardPage } from "@/components/Account/LeaderboardPage";
+import { LeaderboardDashboard } from "@/components/Stats/Leaderboard/LeaderboardDashboard";
 
 /**
- * `/leaderboard` — the public board. A FIXED route, like `/account`: the static
- * export emits a real `leaderboard.html` and no dynamic-route rescue applies.
+ * `/leaderboard` — the community dashboard (#936). A FIXED route, like
+ * `/account`: the static export emits a real `leaderboard.html` and no
+ * dynamic-route rescue applies; the window rides the query (`?window=all`).
  */
 export default function Leaderboard() {
-  return <LeaderboardPage />;
+  return <LeaderboardDashboard />;
 }
