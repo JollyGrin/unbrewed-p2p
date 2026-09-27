@@ -8,6 +8,7 @@ import {
   calendarSummary,
   calendarWeeks,
   CALENDAR_WEEKS,
+  GAMES_INITIAL_SHOWN,
   generalistToGo,
   mainHero,
   matchGridAxes,
@@ -15,6 +16,7 @@ import {
   nextUpCopy,
   opponentBars,
   playerTiles,
+  revealMoreGames,
   rosterEntries,
   shortMonth,
 } from "./playerDashboard";
@@ -315,5 +317,25 @@ describe("badgeChase", () => {
 
   it("is empty without progress (today's prod)", () => {
     expect(badgeChase(badges, null)).toEqual([]);
+  });
+});
+
+describe("games list cap (issue #944)", () => {
+  it("shows 8 rows before Older games reveals more", () => {
+    expect(GAMES_INITIAL_SHOWN).toBe(8);
+  });
+
+  it("reveals the rest of an already-loaded page without a fetch", () => {
+    // A 20-row page: the first click on Older games shows the other 12.
+    expect(revealMoreGames(GAMES_INITIAL_SHOWN, 20)).toBe(20);
+  });
+
+  it("is a no-op once every loaded row is already shown", () => {
+    // Everything loaded so far is visible; the caller fetches the next page.
+    expect(revealMoreGames(20, 20)).toBe(20);
+  });
+
+  it("never hides a row that was already revealed", () => {
+    expect(revealMoreGames(20, 8)).toBe(20);
   });
 });

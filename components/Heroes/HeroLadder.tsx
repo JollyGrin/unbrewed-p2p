@@ -17,6 +17,7 @@ import { GOLD, GOLD_DEEP, INK, INK_SOFT, RULE } from "@/components/Stats/tokens"
 import { profileHref } from "@/lib/account/publicProfile";
 import { useAccount } from "@/lib/account/useAccount";
 import {
+  collapsedMatchups,
   crownLine,
   formatRate,
   gamesOnHero,
@@ -339,11 +340,14 @@ const MatchupLine = ({ bar }: { bar: MatchupBar }) => (
   </Box>
 );
 
-const Matchups = ({ bars }: { bars: MatchupBar[] }) => {
+const Matchups = ({ bars, name }: { bars: MatchupBar[]; name: string }) => {
   const [expanded, setExpanded] = useState(false);
-  const shown = expanded ? bars : bars.slice(0, MATCHUPS_SHOWN);
+  const { top, bottom } = collapsedMatchups(bars);
   return (
-    <DashCard title="Matchups" subtitle="Win rate against each hero, measured from an even 50%">
+    <DashCard
+      title="Matchups"
+      subtitle={`Win rate against each hero, measured from an even 50%. Counts every game with ${name} at the table, bot seats included.`}
+    >
       <Box display="flex" gap="10px" aria-hidden="true">
         <Box w={{ base: "130px", md: "176px" }} flexShrink={0} />
         {/* A phone's bar area is too narrow for all three words: keep the 50% axis. */}
@@ -359,9 +363,19 @@ const Matchups = ({ bars }: { bars: MatchupBar[] }) => {
         <Box w={RATE_W} flexShrink={0} />
       </Box>
       <Box role="list" display="flex" flexDirection="column" gap="6px">
-        {shown.map((bar) => (
-          <MatchupLine key={bar.opponentHeroId} bar={bar} />
-        ))}
+        {expanded ? (
+          bars.map((bar) => <MatchupLine key={bar.opponentHeroId} bar={bar} />)
+        ) : (
+          <>
+            {top.map((bar) => (
+              <MatchupLine key={bar.opponentHeroId} bar={bar} />
+            ))}
+            {bottom.length > 0 && <Box data-testid="matchup-divider" role="separator" h="1px" my="2px" bg={RULE} />}
+            {bottom.map((bar) => (
+              <MatchupLine key={bar.opponentHeroId} bar={bar} />
+            ))}
+          </>
+        )}
       </Box>
       {bars.length > MATCHUPS_SHOWN && (
         <Button
@@ -475,6 +489,22 @@ export const HeroLadder = ({ heroId, window }: { heroId: string; window: StatsWi
               <Kicker>Hero ladder{mostPlayed ? " · most played this month" : ""}</Kicker>
               <BandTitle>{name}</BandTitle>
               {data && <HeaderTiles hero={data} />}
+              {data && window === "month" && data.games === 0 && (
+                <Box
+                  as={NextLink}
+                  href={heroesHref(heroId, "all")}
+                  data-testid="empty-month-nudge"
+                  fontSize="13px"
+                  color={BAND_SOFT}
+                  textDecoration="underline"
+                  alignSelf="flex-start"
+                  minH="44px"
+                  display="flex"
+                  alignItems="center"
+                >
+                  No one played {name} this month. See all time
+                </Box>
+              )}
               {hero.status === "unavailable" && (
                 <Box data-testid="hero-unavailable" fontSize="14px" color={BAND_SOFT}>
                   Hero numbers are unavailable right now. Try again later.
@@ -501,7 +531,7 @@ export const HeroLadder = ({ heroId, window }: { heroId: string; window: StatsWi
           )}
           {bars.length > 0 && (
             <Box flexGrow={1} minW={0}>
-              <Matchups key={`${heroId}:${window}`} bars={bars} />
+              <Matchups key={`${heroId}:${window}`} bars={bars} name={name} />
             </Box>
           )}
         </Box>

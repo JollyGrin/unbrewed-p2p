@@ -34,11 +34,13 @@ import {
   calendarFooter,
   calendarSummary,
   calendarWeeks,
+  GAMES_INITIAL_SHOWN,
   generalistToGo,
   mainHero,
   matchGridAxes,
   nemesis,
   opponentBars,
+  revealMoreGames,
   rosterEntries,
 } from "@/lib/stats/playerDashboard";
 import { heroDisplayName, ROSTER_SIZE } from "@/lib/stats/roster";
@@ -585,6 +587,29 @@ export const PlayerGames = ({ history }: { history: GameHistoryView }) => {
     setReplays(listReplays());
   }, [status, games.length]);
 
+  // Issue #944: show GAMES_INITIAL_SHOWN rows, then "Older games" reveals the
+  // rest of the loaded page before it fetches another one.
+  const [shown, setShown] = useState(GAMES_INITIAL_SHOWN);
+  useEffect(() => {
+    if (status === "loading") setShown(GAMES_INITIAL_SHOWN);
+  }, [status]);
+  const wasLoadingMore = useRef(false);
+  useEffect(() => {
+    if (wasLoadingMore.current && !loadingMore) {
+      // A fetch just landed from an "Older games" click: reveal that whole
+      // page too, rather than re-applying the 8-row cap to it.
+      setShown((current) => revealMoreGames(current, games.length));
+    }
+    wasLoadingMore.current = loadingMore;
+  }, [loadingMore, games.length]);
+
+  const visibleGames = games.slice(0, shown);
+  const showOlderGames = shown < games.length || hasMore;
+  const onOlderGames = () => {
+    if (shown < games.length) setShown(revealMoreGames(shown, games.length));
+    else loadMore();
+  };
+
   return (
     <DashCard title="Games" gap="8px">
       {status === "loading" ? <Note>Loading games…</Note> : null}
@@ -592,14 +617,14 @@ export const PlayerGames = ({ history }: { history: GameHistoryView }) => {
         <Note>Game history is unavailable right now. Nothing is lost — check back later.</Note>
       ) : null}
       {status === "ready" && games.length === 0 ? <Note>No finished Pro games on record yet.</Note> : null}
-      {games.length > 0 ? (
+      {visibleGames.length > 0 ? (
         <Box as="ul" listStyleType="none" m={0} p={0}>
-          {games.map((game) => (
+          {visibleGames.map((game) => (
             <PlayerGameRow key={game.id} game={game} replayId={localReplayIdForGame(game, replays)} />
           ))}
         </Box>
       ) : null}
-      {hasMore ? (
+      {showOlderGames ? (
         <Button
           variant="link"
           alignSelf="flex-start"
@@ -610,7 +635,7 @@ export const PlayerGames = ({ history }: { history: GameHistoryView }) => {
           textDecoration="underline"
           isLoading={loadingMore}
           loadingText="Loading…"
-          onClick={loadMore}
+          onClick={onOlderGames}
         >
           Older games
         </Button>

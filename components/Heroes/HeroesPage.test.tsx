@@ -156,13 +156,17 @@ describe("/heroes?h=", () => {
     expect(pilots[0]).toHaveAttribute("href", "/stats?u=TinCanTom");
     expect(screen.getByTestId("pilot-gap")).toHaveTextContent("You are 4 wins behind Dunmore for 2nd.");
 
-    // 13 opponents with ≥3 games (baba-yaga's 2 dropped), 12 shown, best first.
+    // 13 opponents with ≥3 games (baba-yaga's 2 dropped): the collapsed view
+    // is the 6 best + a divider + the 6 worst, still 12 rows, best first.
     let rows = screen.getAllByTestId("matchup-row");
     expect(rows).toHaveLength(12);
     expect(rows[0]).toHaveAttribute("title", "90% over 10 games");
+    expect(screen.getByTestId("matchup-divider")).toBeInTheDocument();
+    expect(screen.getByText(/Counts every game with The Mandalorian at the table, bot seats included\./)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Show all 13" }));
     rows = screen.getAllByTestId("matchup-row");
     expect(rows).toHaveLength(13);
+    expect(screen.queryByTestId("matchup-divider")).not.toBeInTheDocument();
 
     expect(screen.getByTestId("across-the-table")).toHaveTextContent("Who The Mandalorian was played against all time.");
     expect(screen.getByTestId("window-all")).toHaveAttribute("aria-current", "page");
@@ -196,6 +200,19 @@ describe("/heroes?h=", () => {
     expect(screen.queryByText("Matchups")).not.toBeInTheDocument();
     expect(screen.queryByTestId("across-the-table")).not.toBeInTheDocument();
     expect(screen.queryByText(/most played/)).not.toBeInTheDocument();
+    // #944: the month window nudge, linking to the all-time page.
+    expect(screen.getByTestId("empty-month-nudge")).toHaveTextContent(
+      "No one played Nancy Drew this month. See all time",
+    );
+    expect(screen.getByTestId("empty-month-nudge")).toHaveAttribute("href", "/heroes?h=nancy-drew&window=all");
+  });
+
+  it("has no empty-month nudge once the hero has games, or on the all-time window", async () => {
+    query = { h: "the-mandalorian", window: "all" };
+    routes = { "/heroes?": () => reply(200, { ...HERO, window: "all" }) };
+    renderPage();
+    await screen.findByTestId("crown-card");
+    expect(screen.queryByTestId("empty-month-nudge")).not.toBeInTheDocument();
   });
 });
 

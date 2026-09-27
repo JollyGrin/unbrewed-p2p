@@ -501,3 +501,21 @@ export const badgeChase = (
     .sort((a, b) => b.fraction - a.fraction || a.id.localeCompare(b.id))
     .slice(0, limit);
 };
+
+// --- Games list ----------------------------------------------------------------
+
+/**
+ * Rows shown before "Older games" reveals more (issue #944): with the full
+ * page size (20) the Games column ran ~3x taller than the Badge case beside
+ * it.
+ */
+export const GAMES_INITIAL_SHOWN = 8;
+
+/**
+ * What "Older games" reveals next: if the already-loaded page has rows past
+ * `shown`, reveal the rest of that page (no fetch); once `shown` has caught up
+ * to every loaded row, there is nothing left to reveal locally and the caller
+ * should fetch the next page instead.
+ */
+export const revealMoreGames = (shown: number, loadedCount: number): number =>
+  Math.max(shown, loadedCount);

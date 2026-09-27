@@ -20,6 +20,9 @@ export const MIN_RATE_GAMES = 3;
 /** How many matchup rows show before "Show all". */
 export const MATCHUPS_SHOWN = 12;
 
+/** Half of MATCHUPS_SHOWN: how many rows each end of the collapsed split gets. */
+const MATCHUPS_SHOWN_PER_END = MATCHUPS_SHOWN / 2;
+
 const first = (raw: string | string[] | undefined): string | undefined =>
   Array.isArray(raw) ? raw[0] : raw;
 
@@ -232,6 +235,24 @@ export const matchupBars = (matchups: HeroMatchup[]): MatchupBar[] =>
       };
     })
     .sort((a, b) => b.rate - a.rate || b.games - a.games || a.name.localeCompare(b.name));
+
+export interface MatchupSplit {
+  top: MatchupBar[];
+  /** The lowest win-rate rows, still in descending order; empty when nothing was cut. */
+  bottom: MatchupBar[];
+}
+
+/**
+ * The collapsed matchups view: at MATCHUPS_SHOWN or fewer, everything shows
+ * (`bottom` empty). Past that, showing only the best `MATCHUPS_SHOWN` hid every
+ * "Struggles" row — so the collapsed list becomes the best 6 and the worst 6
+ * (still descending, with a divider between the two groups in the UI), and
+ * "Show all N" is what reaches the middle.
+ */
+export const collapsedMatchups = (bars: MatchupBar[]): MatchupSplit => {
+  if (bars.length <= MATCHUPS_SHOWN) return { top: bars, bottom: [] };
+  return { top: bars.slice(0, MATCHUPS_SHOWN_PER_END), bottom: bars.slice(-MATCHUPS_SHOWN_PER_END) };
+};
 
 // --- crown -------------------------------------------------------------------
 

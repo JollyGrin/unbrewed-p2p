@@ -12,7 +12,7 @@
  *    and the page must not flash not-found while waiting for it.
  */
 import "@testing-library/jest-dom";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -228,6 +228,25 @@ describe("/stats?u= — the full contract payload", () => {
     const links = screen.getByTestId("roster-grid").querySelectorAll("a");
     expect(links).toHaveLength(33);
     expect(links[0].getAttribute("href")).toMatch(/^\/heroes\?h=/);
+  });
+
+  it("caps the games list at 8 rows until Older games reveals the rest (#944)", async () => {
+    const games = Array.from({ length: 10 }, (_, i) => ({ ...GAME, id: `g${i}` }));
+    install((url) => {
+      if (url.includes("/players/games")) return reply(200, { games, nextBefore: null });
+      if (url.includes("/players?u=")) return reply(200, FULL);
+      if (url.includes("/heroes?h=")) return reply(200, { heroId: "specter-knight", crown: null });
+      return undefined;
+    });
+
+    renderPage();
+    await screen.findByRole("heading", { level: 1, name: "lanternjaw" });
+
+    await waitFor(() => expect(screen.getAllByTestId("player-game-row")).toHaveLength(8));
+    fireEvent.click(screen.getByRole("button", { name: "Older games" }));
+    await waitFor(() => expect(screen.getAllByTestId("player-game-row")).toHaveLength(10));
+    // All 10 loaded rows are visible and there is no further page: no button.
+    expect(screen.queryByRole("button", { name: "Older games" })).toBeNull();
   });
 
   it("shows no crown line when somebody else holds it", async () => {
