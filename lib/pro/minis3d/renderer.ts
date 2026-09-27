@@ -128,6 +128,22 @@ export const ensureMinis3d = (): Promise<boolean> => {
   return starting;
 };
 
+/** A (possibly normalized-integer, possibly interleaved) attribute as a
+ *  plain float32 one. Reads through getX/Y/Z/W so an interleaved buffer's
+ *  stride is honoured (Meshopt files pad int16 xyz to 4 components). */
+const toFloat = (a: any) => {
+  if (a.array instanceof Float32Array && !a.normalized && !a.isInterleavedBufferAttribute) return a;
+  const arr = a.isInterleavedBufferAttribute ? a.data.array : a.array;
+  // glTF normalized ints: max(v / (2^(bits−1) − 1), −1) signed, v / (2^bits − 1) unsigned.
+  const div = !a.normalized
+    ? 1
+    : arr instanceof Int8Array ? 127 : arr instanceof Uint8Array ? 255 : arr instanceof Int16Array ? 32767 : arr instanceof Uint16Array ? 65535 : 1;
+  const get = [a.getX, a.getY, a.getZ, a.getW].slice(0, a.itemSize);
+  const out = new Float32Array(a.count * a.itemSize);
+  for (let i = 0; i < a.count; i++) for (let k = 0; k < a.itemSize; k++) out[i * a.itemSize + k] = Math.max(get[k].call(a, i) / div, -1);
+  return new THREE.BufferAttribute(out, a.itemSize, false);
+};
+
 const models = new Map<string, Promise<MiniModel | null>>();
 
 /** Fetch + decode a GLB once; its base is put on y = 0, centred. */
@@ -144,9 +160,16 @@ export const loadMiniModel = (url: string, codec: Mini3dCodec): Promise<MiniMode
       const gltf = await gltfLoader.parseAsync(buf, "");
       gltf.scene.updateMatrixWorld(true);
       const parts: unknown[] = [];
-      gltf.scene.traverse((o: { isMesh?: boolean; geometry: { clone: () => { applyMatrix4: (m: unknown) => void } }; matrixWorld: unknown }) => {
+      gltf.scene.traverse((o: { isMesh?: boolean; geometry: { clone: () => any }; matrixWorld: unknown }) => {
         if (!o.isMesh) return;
         const g = o.geometry.clone();
+        // KHR_mesh_quantization (every Meshopt file here): positions/normals
+        // arrive as normalized int16/int8 with the dequantizing scale in the
+        // node. three r143's getX/setX do NOT denormalize, so baking the node
+        // transform into them writes garbage — widen to float first. (A
+        // production loader would keep them quantized and render the node
+        // transform instead: half the GPU memory, no widening pass.)
+        for (const name of Object.keys(g.attributes)) g.setAttribute(name, toFloat(g.attributes[name]));
         g.applyMatrix4(o.matrixWorld);
         parts.push(g);
       });

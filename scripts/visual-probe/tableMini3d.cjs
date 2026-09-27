@@ -52,7 +52,7 @@ const launch = async (extraArgs = []) => {
 
 /** Lobby → King Taranis vs AI on one fixed map → tabletop, view reset. */
 const startGame = async (page, query) => {
-  await page.goto(`${BASE}/pro/game?${query}`);
+  await page.goto(`${BASE}/pro/game?${query}`, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForTimeout(5000);
   await page.getByRole("button", { name: "AI·E", exact: true }).tap();
   await page.getByRole("button", { name: /^King Taranis by/ }).first().tap();
