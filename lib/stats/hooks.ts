@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 
 import type { AccountGamesPage } from "@/lib/account/gameHistory";
+import { GameHistoryView, usePagedGames } from "@/lib/account/useGameHistory";
 
 import {
   fetchCommunity,
@@ -105,3 +106,23 @@ export const useStatsPlayerGames = (
   useStatsResource(username ? `games:${username}:${limit ?? ""}` : null, () =>
     fetchStatsPlayerGames(username as string, { limit }),
   );
+
+/**
+ * A player's whole game history for the dashboard's Games card: the same
+ * cursor walk `/account` uses (lib/account `usePagedGames`, "Older games"
+ * appends a page), but through the stats client so the fixture switch covers
+ * it too. Same statuses as `usePublicGameHistory`.
+ */
+export const useStatsPlayerGameHistory = (username: string | null): GameHistoryView => {
+  const { games, loadingMore, hasMore, loadMore, loaded, failed } = usePagedGames(
+    username,
+    async (before) => {
+      const result = await fetchStatsPlayerGames(username ?? "", { before });
+      return result.ok
+        ? result
+        : { ok: false, reason: result.reason === "rate_limited" ? "rate_limited" : "unavailable" };
+    },
+  );
+  const status: GameHistoryView["status"] = !username || !loaded ? "loading" : failed ? "unavailable" : "ready";
+  return { status, games, loadingMore, hasMore, loadMore };
+};

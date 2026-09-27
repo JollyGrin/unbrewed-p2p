@@ -55,11 +55,11 @@ export interface GameHistoryView {
 }
 
 /** Fetch one page of somebody's history, from an opaque cursor. */
-type PageLoader = (
+export type PageLoader = (
   before: string | null,
 ) => Promise<HistoryResult<AccountGamesPage>>;
 
-interface PagedGames {
+export interface PagedGames {
   games: AccountGame[];
   loadingMore: boolean;
   hasMore: boolean;
@@ -79,7 +79,7 @@ interface PagedGames {
  * games to another's. `load` is held in a ref so a caller can pass an inline
  * closure without re-firing the first page on every render.
  */
-const usePagedGames = (key: string | null, load: PageLoader): PagedGames => {
+export const usePagedGames = (key: string | null, load: PageLoader): PagedGames => {
   const [games, setGames] = useState<AccountGame[]>([]);
   const [before, setBefore] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);

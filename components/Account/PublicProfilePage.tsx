@@ -7,26 +7,26 @@
  * everything client-side, and this page does the same — one static `stats.html`
  * that asks the API who `?u=` is once the router hydrates.
  *
- * The body is `ProfileView` with `owner` off: the same header, record, badge
- * case and match history /account renders for you, minus the things only an
- * owner can do. Nothing here is a second implementation of a profile.
+ * The body is the stats dashboard (issue #937, components/Stats/PlayerDashboard):
+ * a public, read-only view built on the same record helpers /account uses
+ * (lib/account/stats), so the two pages never disagree about the numbers.
+ * `/account` itself keeps `ProfileView` and links here.
  *
  * Both empty states are deliberately calm, in the tone the guest and offline
  * states on /account already set: a username nobody has claimed is an ordinary
  * outcome of a typed URL, not an error.
  */
-import { Box, Text } from "@chakra-ui/react";
+import { Box, Flex, Text } from "@chakra-ui/react";
 import NextLink from "next/link";
 import { useRouter } from "next/router";
 
-import { ProfileView } from "@/components/Account/ProfileView";
+import { PageSeo } from "@/components/Helmet/Head";
+import { Navbar } from "@/components/Navbar";
 import { AccountShell, Panel } from "@/components/Account/Shell";
-import { AccountStatsView } from "@/lib/account/useAccountStats";
-import { BadgeCaseState } from "@/lib/account/useBadges";
+import { PlayerDashboard } from "@/components/Stats/PlayerDashboard";
+import { PAGE_BG } from "@/components/Stats/tokens";
 import { useAccount } from "@/lib/account/useAccount";
-import { usePublicGameHistory } from "@/lib/account/useGameHistory";
-import { usePublicProfile } from "@/lib/account/usePublicProfile";
-import { PublicProfile } from "@/lib/account/publicProfile";
+import { useStatsPlayer, useStatsPlayerGameHistory } from "@/lib/stats/hooks";
 
 /** `?u=` as a single trimmed username, or null while there isn't one. */
 export const usernameFromQuery = (
@@ -37,27 +37,34 @@ export const usernameFromQuery = (
   return trimmed.length > 0 ? trimmed : null;
 };
 
+const seoFor = (username: string | null) => ({
+  path: username ? `/stats?u=${encodeURIComponent(username)}` : "/stats",
+  title: username ? `${username} | Unbrewed` : "Player stats | Unbrewed",
+  description: username
+    ? `${username}'s Unbrewed record: level, badges and finished Pro games.`
+    : "Look up an Unbrewed player's record: level, badges and finished Pro games.",
+  // Profiles are public but not worth indexing: they are per-account pages
+  // behind a query string, and the leaderboard is the page worth finding.
+  noindex: true,
+});
+
 const Shell = ({
   username,
   children,
 }: {
   username: string | null;
   children: React.ReactNode;
-}) => (
-  <AccountShell
-    seo={{
-      path: username ? `/stats?u=${encodeURIComponent(username)}` : "/stats",
-      title: username ? `${username} | Unbrewed` : "Player stats | Unbrewed",
-      description: username
-        ? `${username}'s Unbrewed record: level, badges and finished Pro games.`
-        : "Look up an Unbrewed player's record: level, badges and finished Pro games.",
-      // Profiles are public but not worth indexing: they are per-account pages
-      // behind a query string, and the leaderboard is the page worth finding.
-      noindex: true,
-    }}
-  >
+}) => <AccountShell seo={seoFor(username)}>{children}</AccountShell>;
+
+/** The dashboard runs edge to edge: navbar, dark band, then its own columns. */
+const WideShell = ({ username, children }: { username: string; children: React.ReactNode }) => (
+  <Flex flexDir="column" bg={PAGE_BG} minH="100svh">
+    <PageSeo {...seoFor(username)} />
+    <Box color="brand.secondary">
+      <Navbar />
+    </Box>
     {children}
-  </AccountShell>
+  </Flex>
 );
 
 const ToLeaderboard = () => (
@@ -85,26 +92,6 @@ const Notice = ({ title, children }: { title: string; children: React.ReactNode 
   </Panel>
 );
 
-/**
- * The public payload in the shapes the shared sections already speak.
- *
- * A public profile arrives in ONE request, so both are "ready" the moment it
- * lands — there is no per-section loading state to model, and the badge case is
- * never busy because nothing on this page can write.
- */
-const asBadgeState = (profile: PublicProfile): BadgeCaseState => ({
-  status: "ready",
-  badges: profile.badges.badges,
-  selected: profile.badges.selected,
-  busy: false,
-  notice: null,
-});
-
-const asStatsView = (profile: PublicProfile): AccountStatsView => ({
-  status: "ready",
-  stats: profile.stats,
-});
-
 export const PublicProfilePage = () => {
   const router = useRouter();
   // `isReady` is false on the very first client render of a static export, when
@@ -114,11 +101,11 @@ export const PublicProfilePage = () => {
   const ready = router?.isReady !== false;
   const username = ready ? usernameFromQuery(router?.query?.u) : null;
 
-  const { status, profile } = usePublicProfile(username);
+  const { status, data: profile } = useStatsPlayer(username);
   // History waits for the profile rather than racing it: a typo'd username
   // should cost one 404, not two, and the list has nowhere to render until the
   // page knows the player exists.
-  const history = usePublicGameHistory(status === "ready" ? username : null);
+  const history = useStatsPlayerGameHistory(status === "ready" ? username : null);
   // Only to spot yourself; the probe is the navbar chip's, already in flight.
   const { account } = useAccount();
   const isSelf =
@@ -175,22 +162,18 @@ export const PublicProfilePage = () => {
   }
 
   return (
-    <Shell username={profile.username}>
-      <ProfileView
-        username={profile.username}
-        avatarUrl={profile.avatarUrl}
-        subtitle="Unbrewed player"
-        badges={asBadgeState(profile)}
-        stats={asStatsView(profile)}
+    <WideShell username={profile.username}>
+      <PlayerDashboard
+        player={profile}
         history={history}
-        headerAction={
+        selfLink={
           isSelf ? (
             <Text
               as={NextLink}
               href="/account"
               data-testid="stats-self-link"
-              flexShrink={0}
-              fontSize="0.8rem"
+              fontSize="14px"
+              color="rgba(250,235,215,0.8)"
               textDecoration="underline"
               _hover={{ opacity: 0.8 }}
             >
@@ -199,9 +182,6 @@ export const PublicProfilePage = () => {
           ) : null
         }
       />
-      <Box mt="0.9rem">
-        <ToLeaderboard />
-      </Box>
-    </Shell>
+    </WideShell>
   );
 };
