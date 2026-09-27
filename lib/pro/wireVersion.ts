@@ -1,0 +1,75 @@
+/**
+ * Which protocol version this tab speaks to an engine (p2p #880).
+ *
+ * The rematch offer/confirm messages (engine #607) need v35, but prod engines
+ * that predate it accept only {33, 34} and answer anything else with
+ * ERROR{VERSION}. And the v35 engine decides whether a seat can take REMATCH_*
+ * from the `v` of the message that BOUND the seat (CREATE/JOIN/RECONNECT/
+ * RESUME) — a seat bound at v34 is never offered a rematch, and one that comes
+ * back at v34 mid-offer closes it.
+ *
+ * `/healthz` would say `rematch: true`, but it sends no CORS header, so a page
+ * can't read it. Every server frame stamps its own `v` though, so the tab
+ * learns the engine's version from the first reply on a socket (the
+ * LIST_HEROES answer every open asks for) and remembers it per engine URL in
+ * sessionStorage: a refresh — including one mid-offer — binds at v35 straight
+ * away, and a first visit binds at v34 and is upgraded at game over (see
+ * useProSocket). Only 34 and 35 are ever sent.
+ */
+import { PROTOCOL_VERSION, REMATCH_PROTOCOL_VERSION } from "./protocol";
+
+const KEY_PREFIX = "unbrewed-pro-engine-v-";
+const memory = new Map<string, number>();
+
+function read(url: string): number | null {
+  if (memory.has(url)) return memory.get(url)!;
+  try {
+    const raw = typeof window !== "undefined" ? window.sessionStorage.getItem(KEY_PREFIX + url) : null;
+    const v = raw === null ? NaN : Number(raw);
+    return Number.isFinite(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The engine version this tab last saw on `url`, or null if it has seen none. */
+export function knownEngineVersion(url: string): number | null {
+  return read(url);
+}
+
+/** Record the `v` an engine frame carried. Non-numbers are ignored. */
+export function rememberEngineVersion(url: string, v: unknown): void {
+  if (typeof v !== "number" || !Number.isFinite(v) || read(url) === v) return;
+  memory.set(url, v);
+  try {
+    if (typeof window !== "undefined") window.sessionStorage.setItem(KEY_PREFIX + url, String(v));
+  } catch {
+    /* private mode: the in-memory copy still serves this page */
+  }
+}
+
+/** Drop what we learned (the engine answered ERROR{VERSION} — e.g. it was rolled back). */
+export function forgetEngineVersion(url: string): void {
+  memory.delete(url);
+  try {
+    if (typeof window !== "undefined") window.sessionStorage.removeItem(KEY_PREFIX + url);
+  } catch {
+    /* nothing stored */
+  }
+}
+
+/** True once `url` has shown it serves the rematch negotiation (v35+). */
+export function engineSpeaksRematch(url: string): boolean {
+  const v = read(url);
+  return v !== null && v >= REMATCH_PROTOCOL_VERSION;
+}
+
+/** The `v` to bind a seat with on `url`: 35 for an engine known to speak it, else 34. */
+export function wireVersionFor(url: string): number {
+  return engineSpeaksRematch(url) ? REMATCH_PROTOCOL_VERSION : PROTOCOL_VERSION;
+}
+
+/** Test hook: forget every URL. */
+export function resetEngineVersions(): void {
+  for (const url of Array.from(memory.keys())) forgetEngineVersion(url);
+}

@@ -1,0 +1,332 @@
+{
+  "gl": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Max, Unspecified Version)",
+  "gpuSyncedTiming": true,
+  "cpuThrottle": 4,
+  "device": "iPhone 14 landscape (emulated)",
+  "runs": [
+    {
+      "mode": "sprite",
+      "minis": 2,
+      "placeRenderMs": {
+        "n": 0,
+        "median": null,
+        "p95": null,
+        "max": null
+      },
+      "idleFrameMs": {
+        "n": 121,
+        "median": 8.4,
+        "p95": 9.2,
+        "max": 16.7
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 181,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 9.4
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 0,
+          "median": null,
+          "p95": null,
+          "max": null
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 180,
+          "median": 8.3,
+          "p95": 9.3,
+          "max": 16.7
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 0,
+          "median": null,
+          "p95": null,
+          "max": null
+        }
+      },
+      "rendererStatus": "ready",
+      "scheduler": {
+        "frames": 1,
+        "jobs": 1,
+        "deferred": 0,
+        "peakQueue": 1
+      },
+      "canvases": 0
+    },
+    {
+      "mode": "sprite",
+      "minis": 4,
+      "placeRenderMs": {
+        "n": 0,
+        "median": null,
+        "p95": null,
+        "max": null
+      },
+      "idleFrameMs": {
+        "n": 121,
+        "median": 8.3,
+        "p95": 9.3,
+        "max": 13.5
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 180,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 10.87
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 0,
+          "median": null,
+          "p95": null,
+          "max": null
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 179,
+          "median": 8.3,
+          "p95": 9.3,
+          "max": 24.6
+        },
+        "over20ms": 1,
+        "renderMs": {
+          "n": 0,
+          "median": null,
+          "p95": null,
+          "max": null
+        }
+      },
+      "rendererStatus": "ready",
+      "scheduler": {
+        "frames": 1,
+        "jobs": 1,
+        "deferred": 0,
+        "peakQueue": 1
+      },
+      "canvases": 0
+    },
+    {
+      "mode": "sprite",
+      "minis": 8,
+      "placeRenderMs": {
+        "n": 0,
+        "median": null,
+        "p95": null,
+        "max": null
+      },
+      "idleFrameMs": {
+        "n": 121,
+        "median": 8.3,
+        "p95": 9.2,
+        "max": 20.1
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 177,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 32.8
+        },
+        "over20ms": 1,
+        "renderMs": {
+          "n": 0,
+          "median": null,
+          "p95": null,
+          "max": null
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 179,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 16.8
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 0,
+          "median": null,
+          "p95": null,
+          "max": null
+        }
+      },
+      "rendererStatus": "ready",
+      "scheduler": {
+        "frames": 1,
+        "jobs": 1,
+        "deferred": 0,
+        "peakQueue": 1
+      },
+      "canvases": 0
+    },
+    {
+      "mode": "play",
+      "minis": 2,
+      "placeRenderMs": {
+        "n": 2,
+        "median": 4.9,
+        "p95": 4.9,
+        "max": 4.9
+      },
+      "idleFrameMs": {
+        "n": 122,
+        "median": 8.3,
+        "p95": 9.2,
+        "max": 9.4
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 179,
+          "median": 8.3,
+          "p95": 9.2,
+          "max": 25.4
+        },
+        "over20ms": 1,
+        "renderMs": {
+          "n": 143,
+          "median": 2.3,
+          "p95": 3.3,
+          "max": 11.2
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 169,
+          "median": 8.4,
+          "p95": 16.3,
+          "max": 24
+        },
+        "over20ms": 1,
+        "renderMs": {
+          "n": 270,
+          "median": 2.1,
+          "p95": 3.8,
+          "max": 5.4
+        }
+      },
+      "rendererStatus": "ready",
+      "scheduler": {
+        "frames": 287,
+        "jobs": 422,
+        "deferred": 0,
+        "peakQueue": 2
+      },
+      "canvases": 2
+    },
+    {
+      "mode": "play",
+      "minis": 4,
+      "placeRenderMs": {
+        "n": 4,
+        "median": 3.9,
+        "p95": 4.3,
+        "max": 4.3
+      },
+      "idleFrameMs": {
+        "n": 122,
+        "median": 8.3,
+        "p95": 9.2,
+        "max": 9.3
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 177,
+          "median": 8.3,
+          "p95": 9.3,
+          "max": 16.9
+        },
+        "over20ms": 0,
+        "renderMs": {
+          "n": 143,
+          "median": 2.2,
+          "p95": 2.9,
+          "max": 10.3
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 145,
+          "median": 8.4,
+          "p95": 17.1,
+          "max": 32.5
+        },
+        "over20ms": 1,
+        "renderMs": {
+          "n": 338,
+          "median": 1.9,
+          "p95": 3,
+          "max": 5.3
+        }
+      },
+      "rendererStatus": "ready",
+      "scheduler": {
+        "frames": 552,
+        "jobs": 917,
+        "deferred": 116,
+        "peakQueue": 4
+      },
+      "canvases": 4
+    },
+    {
+      "mode": "play",
+      "minis": 8,
+      "placeRenderMs": {
+        "n": 8,
+        "median": 2.2,
+        "p95": 2.5,
+        "max": 2.5
+      },
+      "idleFrameMs": {
+        "n": 121,
+        "median": 8.3,
+        "p95": 9.3,
+        "max": 11.8
+      },
+      "oneMoving": {
+        "frameMs": {
+          "n": 174,
+          "median": 8.3,
+          "p95": 9.3,
+          "max": 33.3
+        },
+        "over20ms": 2,
+        "renderMs": {
+          "n": 144,
+          "median": 2,
+          "p95": 5.6,
+          "max": 7.4
+        }
+      },
+      "allMoving": {
+        "frameMs": {
+          "n": 119,
+          "median": 9.3,
+          "p95": 17.5,
+          "max": 42.1
+        },
+        "over20ms": 3,
+        "renderMs": {
+          "n": 281,
+          "median": 2.1,
+          "p95": 4,
+          "max": 5.5
+        }
+      },
+      "rendererStatus": "ready",
+      "scheduler": {
+        "frames": 800,
+        "jobs": 1364,
+        "deferred": 599,
+        "peakQueue": 8
+      },
+      "canvases": 8
+    }
+  ]
+}

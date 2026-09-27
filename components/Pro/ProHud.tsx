@@ -9,6 +9,7 @@ import { animate, motion, useDragControls, useMotionValue } from "framer-motion"
 import { keyframes } from "@emotion/react";
 import {
   Box,
+  chakra,
   Flex,
   Modal,
   ModalBody,
@@ -26,6 +27,7 @@ import {
   Tag,
   Text,
   Tooltip,
+  VisuallyHidden,
 } from "@chakra-ui/react";
 import { toast } from "react-hot-toast";
 import { LinkIcon } from "@chakra-ui/icons";
@@ -44,8 +46,12 @@ import {
   TbFlask,
   TbBug,
   TbHourglass,
+  TbPerspective,
+  TbGauge,
+  TbBellRinging,
+  TbBellOff,
 } from "react-icons/tb";
-import { GiFootprint, GiHearts, GiHighTide, GiLowTide } from "react-icons/gi";
+import { GiChessKnight, GiFootprint, GiHearts, GiHighTide, GiLowTide } from "react-icons/gi";
 import { IoMdHand, IoMdVolumeHigh, IoMdVolumeOff } from "react-icons/io";
 import { IconType } from "react-icons";
 import {
@@ -91,6 +97,10 @@ import { DEFAULT_PLATE_LAYOUT, PlateLayout, PlateSeat, useHudPlates } from "@/li
 import { useCardPreview } from "./CardPreview";
 import { CardFace } from "./ProHand";
 import { ProConnectionStatus, SeatPresence, TurnTimer } from "@/lib/pro/useProSocket";
+import { Pace, paceOption } from "@/lib/pro/pace";
+import { BoardView, BOARD_VIEW_LABEL } from "@/lib/pro/boardView";
+import { FIGURE_STYLE_LABEL, type FigureCredit, type FigureStyle } from "@/lib/pro/figures";
+import { FigureCredits } from "./FigureCredits";
 import { FLAGS, useFlags } from "@/lib/flags";
 
 // Team-affiliation accent (issue #195). A teal that reads clearly as "friendly"
@@ -356,6 +366,57 @@ const BadgeShelf = ({
   );
 };
 
+/**
+ * The credit for the miniature this seat's hero stands as on the tabletop
+ * (#903). A click-to-open popover like the badge shelf's — the hero-rules
+ * TOOLTIP cannot hold a link anyone can reach — and, like it, portalled and
+ * swallowing the press so it never drags the plate. Absent when the hero is a
+ * token (no credit to give).
+ */
+const FigureCreditChip = ({ credit }: { credit: FigureCredit }) => (
+  <Popover placement="bottom-start" isLazy>
+    <PopoverTrigger>
+      <Flex
+        as="button"
+        type="button"
+        data-testid="plate-figure-credit"
+        aria-label={`Miniature credits: ${credit.modelName} by ${credit.creator}`}
+        align="center"
+        gap="0.2rem"
+        mt="4px"
+        fontSize="0.6rem"
+        color="brand.highlight"
+        opacity={0.8}
+        _hover={{ opacity: 1 }}
+        onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
+        onDoubleClick={(e: React.MouseEvent) => e.stopPropagation()}
+      >
+        <GiChessKnight size="0.7rem" />
+        <Text as="span">Mini credits</Text>
+      </Flex>
+    </PopoverTrigger>
+    <Portal>
+      {/* rootProps: Chakra's popper wrapper otherwise sits at z 10, UNDER
+          the HUD plates (150) it hangs from. */}
+      <PopoverContent
+        rootProps={{ zIndex: "popover" }}
+        w="auto"
+        maxW="18rem"
+        bg="brand.surfaceDim"
+        color="brand.parchment"
+        borderColor="rgba(231, 204, 152, 0.25)"
+        onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
+        _focusVisible={{ outline: "none" }}
+      >
+        <PopoverArrow bg="brand.surfaceDim" />
+        <PopoverBody p="0.5rem">
+          <FigureCredits credit={credit} />
+        </PopoverBody>
+      </PopoverContent>
+    </Portal>
+  </Popover>
+);
+
 /** Tiny ghost icon button for the plate's collapse / reset controls. Its
  *  pointerdown is swallowed so it never starts a plate drag. */
 const CtrlBtn = ({
@@ -589,6 +650,7 @@ export const SeatPlate = ({
   hydrated,
   onUpdate,
   variant = "plate",
+  figureCredit = null,
 }: {
   /** WHOSE plate this is — the pile's HOST, which is what a bare pile entry means
    *  (protocol v33). Needed to tell an own entry from a foreign one. */
@@ -672,6 +734,9 @@ export const SeatPlate = ({
    * hover.
    */
   variant?: "plate" | "sheet";
+  /** The credit for the miniature this hero stands as on the tabletop, or
+   *  null when it is a token (#903). */
+  figureCredit?: FigureCredit | null;
 }) => {
   const [discardOpen, setDiscardOpen] = useState(false);
   // Which set-aside pile this plate is inspecting (v25), by pile name; null =
@@ -824,6 +889,7 @@ export const SeatPlate = ({
         ids={shelfBadges}
         interactive={withAbility && variant !== "sheet"}
       />
+      {figureCredit && withAbility && variant !== "sheet" && <FigureCreditChip credit={figureCredit} />}
     </Box>
   );
 
@@ -1130,6 +1196,11 @@ export const SeatPlate = ({
             <BadgeReadout ids={shelfBadges} />
           </Box>
         ) : null}
+        {figureCredit && (
+          <Box mt="0.6rem" px="0.25rem">
+            <FigureCredits credit={figureCredit} />
+          </Box>
+        )}
       </Box>
     </Box>
   );
@@ -1272,7 +1343,11 @@ export const SeatPlate = ({
 // Top-right chips (mirrors the sandbox invite/connection cluster)
 // ---------------------------------------------------------------------------
 
-const STATUS_DISPLAY: Record<ProConnectionStatus, { color: string; label: string }> = {
+// Exported (not just local to the HUD) so the pre-game "waiting for game
+// state" screen in pages/pro/game.tsx can show the same friendly wording
+// instead of the raw `status` value — one vocabulary for "what's the
+// connection doing" everywhere the player might see it.
+export const STATUS_DISPLAY: Record<ProConnectionStatus, { color: string; label: string }> = {
   open: { color: "#2F9E68", label: "Connected" },
   connecting: { color: "#E7CC98", label: "Connecting…" },
   reconnecting: { color: "#E7CC98", label: "Reconnecting…" },
@@ -1490,11 +1565,43 @@ export interface ProHudProps {
    *  the player clicks OK. The chip is hidden when the handler is omitted. */
   slowModeOn?: boolean;
   onToggleSlowMode?: () => void;
+  /** Combat pace (player feedback: combat reads too fast) — the current option
+   *  plus a one-tap cycle to the next (Normal → Relaxed → Slow → Normal). The
+   *  chip is hidden when the handler is omitted. NOT the same setting as slow
+   *  mode: pace scales how long the client's own combat animations take, slow
+   *  mode paces how fast server batches apply. */
+  pace?: Pace;
+  onCyclePace?: () => void;
+  /** Board presentation — flat (default) or tabletop (issue: tabletop board
+   *  view phase 1). A one-tap cycle between the two, same gesture as the pace
+   *  chip beside it. The chip is hidden when the handler is omitted. */
+  boardView?: BoardView;
+  onToggleBoardView?: () => void;
+  /** set when the board view cannot be switched on this layout or map (a
+   *  portrait phone, #870, and a map with a region, #914, always draw the
+   *  flat board): the toggle renders disabled with this hint instead. */
+  boardViewLockedHint?: string;
+  /** Tabletop figure style (#903, #953) — 3D minis, a sprite set, or tokens —
+   *  shown as ONE dropdown of `figureStyles`, the styles that change
+   *  something on this board (lib/pro/figures `figureStyleOptions`). Set only
+   *  in the tabletop view and only when there is a choice; the control is
+   *  hidden otherwise. */
+  figureStyle?: FigureStyle;
+  figureStyles?: FigureStyle[];
+  onChooseFigureStyle?: (style: FigureStyle) => void;
+  /** The credit for the miniature a seat's hero is shown as on the table, or
+   *  null when it lies as its token (#903). Rendered with the hero's rules. */
+  figureCreditFor?: (seatId: PlayerId) => FigureCredit | null;
   /** true while a paced batch is held on screen. The spotlight's click-anywhere
    *  backdrop covers the whole viewport, which would otherwise bury the very chip
    *  that turns slow mode off — so the cluster floats above it for that window
    *  only. Omitted/false leaves ChipCluster's own z-index untouched. */
   slowModeHolding?: boolean;
+  /** Turn reminder (player request: nudge someone who forgot it's their move)
+   *  — the per-device setting (useTurnReminderSetting), default ON. The chip
+   *  is hidden when the handler is omitted. */
+  turnReminderOn?: boolean;
+  onToggleTurnReminder?: () => void;
   /** opens the ReportBugDialog (issue #125/#138) — chip hidden when omitted */
   onReportBug?: () => void;
 }
@@ -1519,6 +1626,17 @@ export const ProHud = ({
   slowModeOn,
   onToggleSlowMode,
   slowModeHolding,
+  pace,
+  onCyclePace,
+  boardView,
+  onToggleBoardView,
+  boardViewLockedHint,
+  figureStyle,
+  figureStyles,
+  onChooseFigureStyle,
+  figureCreditFor,
+  turnReminderOn,
+  onToggleTurnReminder,
   onReportBug,
 }: ProHudProps) => {
   const heroOf = (player: PlayerId) =>
@@ -1582,6 +1700,7 @@ export const ProHud = ({
             hero={resolveHero(seat.heroId)}
             ruleCards={resolveRuleCards?.(seat.heroId) ?? []}
             heroId={seat.heroId}
+            figureCredit={figureCreditFor?.(seat.id) ?? null}
             heroFighter={heroOf(seat.id)}
             sidekicks={sidekicksOf(seat.id)}
             flags={seat.flags}
@@ -1645,6 +1764,29 @@ export const ProHud = ({
               aria-label={visualFxOn ? "Hide visual effects" : "Show visual effects"}
             >
               {visualFxOn ? <TbWand size="0.85rem" /> : <TbWandOff size="0.85rem" />}
+            </Flex>
+          </Tooltip>
+        )}
+        {onToggleTurnReminder && (
+          <Tooltip
+            label={
+              turnReminderOn
+                ? "Turn reminder is ON — you'll be nudged if your turn sits idle"
+                : "Turn reminder is OFF"
+            }
+            hasArrow
+          >
+            <Flex
+              {...chipStyles}
+              as="button"
+              cursor="pointer"
+              _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+              color="brand.highlight"
+              opacity={turnReminderOn ? 1 : 0.55}
+              onClick={onToggleTurnReminder}
+              aria-label={turnReminderOn ? "Turn off turn reminders" : "Turn on turn reminders"}
+            >
+              {turnReminderOn ? <TbBellRinging size="0.85rem" /> : <TbBellOff size="0.85rem" />}
             </Flex>
           </Tooltip>
         )}
@@ -1732,6 +1874,106 @@ export const ProHud = ({
               />
             </Flex>
           </Tooltip>
+        )}
+        {onCyclePace && pace && (
+          // A one-tap cycling chip, not a dropdown (#382 pacing feedback: "keep it
+          // one compact control") — same gesture as the sound/visual icon chips,
+          // just naming the current option since there are three states, not two.
+          <Tooltip label={`Combat pace: ${paceOption(pace).label} — click to cycle`} hasArrow>
+            <Flex
+              {...chipStyles}
+              as="button"
+              type="button"
+              cursor="pointer"
+              _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+              color="brand.highlight"
+              opacity={pace === "normal" ? 0.55 : 1}
+              onClick={onCyclePace}
+              aria-label={`Combat pace: ${paceOption(pace).label}. Click to change.`}
+            >
+              <TbGauge size="0.85rem" />
+              <Text fontSize="0.65rem" fontFamily="SpaceGrotesk" whiteSpace="nowrap">
+                {paceOption(pace).label}
+              </Text>
+            </Flex>
+          </Tooltip>
+        )}
+        {onToggleBoardView && boardView && (
+          // Same one-tap cycling gesture as the pace chip beside it — there are
+          // only two board views, so a cycle needs no dropdown either.
+          <Tooltip
+            label={
+              boardViewLockedHint
+                ? `Board: ${BOARD_VIEW_LABEL[boardView]} — ${boardViewLockedHint}`
+                : `Board: ${BOARD_VIEW_LABEL[boardView]} — click to switch`
+            }
+            hasArrow
+          >
+            <Flex
+              {...chipStyles}
+              as="button"
+              type="button"
+              // Locked (a region map, #914): a click would rewrite the stored
+              // preference with nothing changing on screen. aria-disabled, not
+              // disabled, so the tooltip that says why still opens on hover.
+              cursor={boardViewLockedHint ? "not-allowed" : "pointer"}
+              _hover={boardViewLockedHint ? undefined : { bg: "rgba(20, 8, 24, 0.85)" }}
+              color="brand.highlight"
+              onClick={boardViewLockedHint ? undefined : onToggleBoardView}
+              aria-disabled={boardViewLockedHint ? true : undefined}
+              aria-label={
+                boardViewLockedHint
+                  ? `Board view: ${BOARD_VIEW_LABEL[boardView]}. ${boardViewLockedHint}.`
+                  : `Board view: ${BOARD_VIEW_LABEL[boardView]}. Click to switch.`
+              }
+            >
+              <TbPerspective size="0.85rem" />
+              <Text
+                fontSize="0.65rem"
+                fontFamily="SpaceGrotesk"
+                whiteSpace="nowrap"
+                opacity={boardView === "flat" ? 0.55 : 1}
+              >
+                {BOARD_VIEW_LABEL[boardView]}
+              </Text>
+            </Flex>
+          </Tooltip>
+        )}
+        {onChooseFigureStyle && figureStyle && figureStyles && figureStyles.length > 0 && (
+          // Beside the board chip it belongs to: one labelled native select
+          // (#953), so the keyboard and screen readers get the platform's own
+          // listbox. Only the styles that change something on this board.
+          <Flex
+            {...chipStyles}
+            as="label"
+            color="brand.highlight"
+            _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+            _focusWithin={{ boxShadow: "0 0 0 2px var(--chakra-colors-brand-highlight)" }}
+            opacity={figureStyle === "token" ? 0.7 : 1}
+            title="How the heroes stand on the table"
+          >
+            <GiChessKnight size="0.85rem" aria-hidden />
+            <VisuallyHidden>Heroes as</VisuallyHidden>
+            <chakra.select
+              data-testid="figure-style-select"
+              value={figureStyle}
+              onChange={(e) => onChooseFigureStyle(e.target.value as FigureStyle)}
+              bg="transparent"
+              color="inherit"
+              border="none"
+              outline="none"
+              cursor="pointer"
+              fontSize="0.65rem"
+              fontFamily="SpaceGrotesk"
+              sx={{ option: { bg: "brand.surfaceDim", color: "brand.parchment" } }}
+            >
+              {figureStyles.map((s) => (
+                <option key={s} value={s}>
+                  {FIGURE_STYLE_LABEL[s]}
+                </option>
+              ))}
+            </chakra.select>
+          </Flex>
         )}
         <BetaFeaturesChip />
         {roomId && (

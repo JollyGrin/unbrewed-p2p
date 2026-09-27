@@ -33,6 +33,11 @@
  * to unmatched.cards here. A served hero with no tile entry simply gets no credit
  * line, exactly as before.
  *
+ * Miniature (issue #903): a hero with a cleared tabletop figure shows its
+ * render here with the model's credit (FigureCredits — the same component the
+ * in-game seat info uses). The manifests are fetched only once the modal is
+ * open; a hero without a figure gets no section at all.
+ *
  * The loadout is strictly ADDITIVE and strictly late: `useHeroPreviewLoadout`
  * is gated on `isOpen`, never blocks a render, and answers null for a guest,
  * for a hero with nothing bought, and for an unreachable API — in all three the
@@ -71,6 +76,9 @@ import { useDeckStats } from "@/lib/pro/useDeckStats";
 import { LARGE_FIGHTER_BLURB } from "@/lib/pro/largeReach";
 import { hasFieldedSidekick } from "@/components/DeckPool/PoolFns";
 import { POPULAR_DECKS } from "@/lib/constants/top-decks";
+import { heroViewFigure } from "@/lib/pro/figures";
+import { useFigureManifests } from "@/lib/pro/useFigureManifest";
+import { HeroFigurine } from "./FigureCredits";
 
 /**
  * Client-side registry of two-space (LARGE) HEROES — no pre-match field exposes
@@ -242,6 +250,7 @@ export const HeroPreviewModal = ({
     if (isOpen) setShowUpgrades(true);
   }, [isOpen, heroId]);
   const worn = showUpgrades ? loadout : null;
+  const figure = heroViewFigure(useFigureManifests(isOpen), heroId);
   const stats = heroId ? statsFile?.[heroId] : undefined;
 
   const hp = deck?.hero.hp ?? quickStats?.hp;
@@ -412,6 +421,13 @@ export const HeroPreviewModal = ({
                 </Text>
               )}
             </Reveal>
+
+            {figure && (
+              <Reveal index={1}>
+                <SectionHeading>Tabletop miniature</SectionHeading>
+                <HeroFigurine figure={figure} heroName={deck?.hero.name ?? heroName} />
+              </Reveal>
+            )}
 
             {hasSidekick && (
               <Reveal index={1}>

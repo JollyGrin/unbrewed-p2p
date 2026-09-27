@@ -13,12 +13,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   forgetRoom,
   getResumeToken,
+  getRoomBots,
   getTabToken,
   getToken,
   rememberRoom,
   setResumeToken,
+  setRoomBots,
   setToken,
 } from "./recentRooms";
+import { botsFromCreateRoom, RoomBots } from "./rematch";
 import {
   Action,
   BotDifficulty,
@@ -31,6 +34,7 @@ import {
   PlayerId,
   ProMapDef,
   PROTOCOL_VERSION,
+  REMATCH_PROTOCOL_VERSION,
   ReplayBundle,
   RoomStatusSeat,
   ServerMsg,
@@ -48,6 +52,13 @@ import { useAccount } from "@/lib/account/useAccount";
 import { useBadges } from "@/lib/account/useBadges";
 import { useCosmetics } from "@/lib/account/useCosmetics";
 import { cosmeticsField, identityFields } from "./playerIdentity";
+import {
+  REMATCH_IDLE,
+  RematchOfferEvent,
+  RematchOfferState,
+  rematchOfferReducer,
+} from "./rematchOffer";
+import { engineSpeaksRematch, forgetEngineVersion, rememberEngineVersion, wireVersionFor } from "./wireVersion";
 
 /** An incoming undo request pushed to the opponent (protocol v11). */
 export interface IncomingUndo {
@@ -74,6 +85,12 @@ export interface ProRoomInfo {
    *  real heroes). null until the first ROOM_STATUS arrives — an older server, or
    *  the moment right after create/join — and the panel falls back to seat ids. */
   roster?: RoomStatusSeat[];
+  /** which seats are AI (seat → difficulty), as far as this browser knows: from
+   *  its own CREATE_ROOM or any ROOM_STATUS, persisted per room so it survives a
+   *  mid-game reload (#876 — a bot room never receives a ROOM_STATUS, and a
+   *  RECONNECT doesn't either). undefined = never learned. Feeds the winner
+   *  screen's Rematch link. */
+  bots?: RoomBots;
   /** per-decision move timer setting for this room (issue #223): the seconds each
    *  seat has to act, echoed by the server on ROOM_CREATED/JOINED/ROOM_STATUS.
    *  undefined = untimed room (the default; no TURN_TIMER is ever sent). Lets the
@@ -254,7 +271,9 @@ export interface UseProSocketReturn {
    * between, the hook re-sends RECONNECT on the live socket: the server rebinds
    * the same seat and answers with a fresh authoritative STATE (the existing
    * protocol already does this — no new message type). True from that send
-   * until the STATE lands, so the UI can show a "refreshing the board" notice.
+   * until the STATE (or an ERROR) lands, so the UI can show a "refreshing the
+   * board" notice. The tab-return verify (p2p #869) never sets it: that one is
+   * a silent liveness check, not a known-stale board.
    */
   resyncing: boolean;
   /** ask the server for the current public-lobby list (poll while browsing) */
@@ -277,6 +296,21 @@ export interface UseProSocketReturn {
    * apology instead of hanging on "waiting for game state".
    */
   gameLost: boolean;
+  /**
+   * Rematch offer/confirm (p2p #880, protocol v35). True once this seat is bound
+   * at v35 on an engine that serves the negotiation — only then may the winner
+   * screen offer a rematch through the server instead of the one-tap
+   * `?rematch=` link. Always false against a v34 engine.
+   */
+  rematchNegotiable: boolean;
+  /** where the negotiation stands — see lib/pro/rematchOffer.ts */
+  rematchOffer: RematchOfferState;
+  /** offer the other player(s) a rematch of this finished room */
+  offerRematch: () => void;
+  /** withdraw our own pending offer */
+  cancelRematch: () => void;
+  /** answer the other player's offer */
+  respondToRematch: (accept: boolean) => void;
   /**
    * Slow mode (issue #703). The batch currently held on screen awaiting the
    * player's OK, or null. The action spotlight renders off THIS identity, not off
@@ -333,7 +367,27 @@ export const RESYNC_COOLDOWN_MS = 10_000;
  * was only slow. A resume that succeeds clears the deadline the moment its STATE
  * (or revived ROOM_JOINED) arrives.
  */
-const RESUME_DEADLINE_MS = 45_000;
+export const RESUME_DEADLINE_MS = 45_000;
+
+/**
+ * Resume resync (p2p #869): how long the page must have been HIDDEN before
+ * coming back verifies an open socket with a RECONNECT. A desktop alt-tab or a
+ * quick tab switch is not a suspend — the socket kept running the whole time —
+ * and resyncing on every one of those re-sent the whole view, wiped a pending
+ * undo and flushed slow-mode pacing. A phone locked (or app-switched) for
+ * longer than this is the case the resync exists for. A bfcache restore
+ * (`pageshow` with `persisted`) always verifies, whatever the duration.
+ */
+export const RESUME_RESYNC_MIN_HIDDEN_MS = 5_000;
+
+/**
+ * Resume resync (p2p #869): how long the resume RECONNECT waits for ANY frame
+ * back on the socket before declaring it half-open. A suspended phone can
+ * leave a socket that reports OPEN but will never deliver again; without a
+ * deadline nothing notices until the OS errors it, which can take minutes.
+ * On expiry the socket is closed and the normal reconnect loop takes over.
+ */
+export const RESUME_REPLY_DEADLINE_MS = 5_000;
 
 export function useProSocket(
   wsUrl: string | undefined,
@@ -386,6 +440,19 @@ export function useProSocket(
   const seatRef = useRef<PlayerId | null>(null);
   // Message we replay when a fresh socket opens (join intent or reconnect).
   const pendingHelloRef = useRef<ClientMsg | null>(null);
+  // The `v` the current seat was bound with, and the bind message itself (p2p
+  // #880): the engine decides whether a seat can take REMATCH_* from the version
+  // of the message that bound it, so every bind goes through `sendBind`.
+  const boundVersionRef = useRef<number>(PROTOCOL_VERSION);
+  const lastBindRef = useRef<ClientMsg | null>(null);
+  const [rematchNegotiable, setRematchNegotiable] = useState(false);
+  const [rematchOffer, setRematchOffer] = useState<RematchOfferState>(REMATCH_IDLE);
+  const rematchOfferRef = useRef<RematchOfferState>(REMATCH_IDLE);
+  const stepRematch = useCallback((event: RematchOfferEvent) => {
+    const next = rematchOfferReducer(rematchOfferRef.current, event);
+    rematchOfferRef.current = next;
+    setRematchOffer(next);
+  }, []);
   // True while a RESUME_ROOM is in flight — so a resume that itself fails (bad
   // blob / diverged game) surfaces the error instead of looping back into resume.
   const resumingRef = useRef(false);
@@ -400,6 +467,9 @@ export function useProSocket(
   const [status, setStatus] = useState<ProConnectionStatus>("idle");
   const [roomId, setRoomId] = useState<string | null>(null);
   const [roomInfo, setRoomInfo] = useState<ProRoomInfo | null>(null);
+  // The bot seats of the CREATE_ROOM in flight, until its ROOM_CREATED names
+  // the room to record them against (#876).
+  const pendingCreateBotsRef = useRef<RoomBots | null>(null);
   const [snapshot, setSnapshot] = useState<ProGameSnapshot | null>(null);
   // --- Slow mode (issue #703) ------------------------------------------------
   // The pacing decision itself lives in `slowModeQueue` (pure, unit-tested); this
@@ -537,11 +607,49 @@ export function useProSocket(
   const illegalStreakRef = useRef(0);
   const lastResyncAtRef = useRef(0);
   const [resyncing, setResyncing] = useState(false);
+  // Armed by a same-socket RECONNECT (the #848 stale-view resync and the #869
+  // resume resync), disarmed by the STATE that answers it. That STATE is the
+  // server re-sending a view we may already hold: when it is identical to the
+  // last one, it is a no-op — it must not flush slow-mode pacing or drop an
+  // undo negotiation the server still has open (its RECONNECT handler leaves
+  // `pendingUndo` alone and never re-sends UNDO_REQUESTED).
+  const resyncReplyRef = useRef(false);
+  const lastViewRef = useRef<PlayerView | null>(null);
+  // The latest STATE decided the game (p2p #869). A finished room is swept by
+  // the server after a while; nothing about it is worth resyncing or reviving.
+  const gameOverRef = useRef(false);
+  // Resume resync (p2p #869): when the page last went hidden (null = visible
+  // since), and the half-open-socket deadline armed by the resume RECONNECT.
+  const hiddenAtRef = useRef<number | null>(null);
+  const resumeReplyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearResumeReplyDeadline = useCallback(() => {
+    if (resumeReplyTimerRef.current) {
+      clearTimeout(resumeReplyTimerRef.current);
+      resumeReplyTimerRef.current = null;
+    }
+  }, []);
 
   const send = useCallback((msg: ClientMsg) => {
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
   }, []);
+
+  // Every message that binds a seat (CREATE/JOIN/RECONNECT/RESUME) goes out at
+  // the version this tab knows the engine speaks (p2p #880, lib/pro/wireVersion):
+  // 35 for an engine whose frames said so, else 34 — so a v34 prod engine sees
+  // exactly the frames it always has.
+  const sendBind = useCallback(
+    (msg: ClientMsg, version?: number) => {
+      const v = version ?? (wsUrl ? wireVersionFor(wsUrl) : PROTOCOL_VERSION);
+      const out = { ...msg, v } as ClientMsg;
+      boundVersionRef.current = v;
+      lastBindRef.current = out;
+      setRematchNegotiable(v >= REMATCH_PROTOCOL_VERSION);
+      send(out);
+    },
+    [wsUrl, send]
+  );
 
   // Cancel the pending "game lost" deadline — a resume succeeded (or we're
   // starting fresh), so the terminal-failure timer must not fire.
@@ -551,6 +659,22 @@ export function useProSocket(
       resumeDeadlineRef.current = null;
     }
   }, []);
+
+  // Arms (replacing any existing one) the terminal-failure deadline: if no
+  // STATE/ROOM_JOINED lands within RESUME_DEADLINE_MS of THIS call, the game is
+  // declared lost (issue #133). Shared by the SERVER_RESTARTING handler (arms
+  // it the moment the warning lands) and the resume-on-visibility effect below
+  // (re-arms it fresh the moment the player actually returns — a deadline
+  // started before a suspend/freeze would otherwise count down against a clock
+  // the page was never running on).
+  const armResumeDeadline = useCallback(() => {
+    clearResumeDeadline();
+    resumeDeadlineRef.current = setTimeout(() => {
+      resumeDeadlineRef.current = null;
+      setServerRestarting(false); // drop the "reconnecting…" toast — it's over
+      setGameLost(true);
+    }, RESUME_DEADLINE_MS);
+  }, [clearResumeDeadline]);
 
   // Move timer (issue #223): a running own-clock has been superseded (a new
   // TURN_TIMER, or a STATE that resolved the decision). If the viewer never acted
@@ -585,20 +709,26 @@ export function useProSocket(
       const room = roomRef.current;
       const token = room ? getToken(room) : null;
       if (room && token) {
-        send({ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token });
+        sendBind({ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token });
       } else if (pendingHelloRef.current) {
-        send(pendingHelloRef.current);
+        sendBind(pendingHelloRef.current);
         pendingHelloRef.current = null;
       }
     };
 
     ws.onmessage = (e) => {
+      // Any frame at all proves the socket is alive (p2p #869): the resume
+      // RECONNECT's reply is on its way behind it, in order.
+      if (wsRef.current === ws) clearResumeReplyDeadline();
       let msg: ServerMsg;
       try {
         msg = JSON.parse(e.data);
       } catch {
         return;
       }
+      // Every frame stamps the engine's version — how the tab learns it may
+      // speak v35 (p2p #880; /healthz has no CORS header to read it from).
+      if (wsUrl) rememberEngineVersion(wsUrl, (msg as { v?: unknown }).v);
       switch (msg.type) {
         case "HEROES":
           setHeroes(msg.heroes);
@@ -616,12 +746,16 @@ export function useProSocket(
           // we learned on ROOM_CREATED/JOINED (ROOM_STATUS omits it). Destructure
           // first: msg is not narrowed inside the setState callback closure.
           const { formatId, requiredPlayers, seats, turnTimerSeconds } = msg;
+          const bots: RoomBots = {};
+          for (const seat of seats) if (seat.bot) bots[seat.player] = seat.bot;
+          setRoomBots(msg.roomId, bots);
           setRoomInfo((prev) => ({
             formatId,
             seats: seats.map((s) => s.player),
             requiredPlayers,
             you: prev?.you ?? seatRef.current ?? seats[0]?.player ?? ("p1" as PlayerId),
             roster: seats,
+            bots,
             turnTimerSeconds,
           }));
           break;
@@ -631,7 +765,14 @@ export function useProSocket(
           roomRef.current = msg.roomId;
           seatRef.current = msg.you;
           setRoomId(msg.roomId);
+          // The bot seats our own CREATE_ROOM asked for — recorded against the
+          // room it made, so a reload mid-game still knows who the AI is.
+          if (msg.type === "ROOM_CREATED" && pendingCreateBotsRef.current) {
+            setRoomBots(msg.roomId, pendingCreateBotsRef.current);
+            pendingCreateBotsRef.current = null;
+          }
           {
+            const bots = getRoomBots(msg.roomId) ?? undefined;
             // Destructure first: msg is not narrowed inside the setState callback.
             const { formatId, seats, requiredPlayers, you, turnTimerSeconds } = msg;
             setRoomInfo((prev) => ({
@@ -642,6 +783,7 @@ export function useProSocket(
               // keep any roster we already have (a ROOM_STATUS can race ahead of a
               // revive's ROOM_JOINED); the next ROOM_STATUS refreshes it anyway.
               roster: prev?.roster,
+              bots,
               turnTimerSeconds,
             }));
           }
@@ -660,6 +802,42 @@ export function useProSocket(
           actionsInFlightRef.current.clear(); // the server answered — the next tap may send (#840)
           illegalStreakRef.current = 0; // a fresh view: rejections start counting anew (#848)
           setResyncing(false); // …and if we asked for one, this is it
+          gameOverRef.current = !!view.winner;
+          // Rematch (p2p #880): a seat bound at v34 (a first visit, before this
+          // tab had seen the engine's version) can neither offer nor be offered.
+          // At game over, re-bind it at v35 on this same socket — the same
+          // in-socket RECONNECT the #848 resync uses. It is sent only once THIS
+          // STATE is fully handled (both exits below): the flags it arms belong
+          // to the RECONNECT's reply, which the resync-reply check then absorbs.
+          // Armed any earlier, the winner STATE itself would consume them — be
+          // taken for a resume, keep the own-action latch — and the real reply
+          // would land as a fresh batch that resets the undo UI (p2p #894).
+          const rebindForRematch = () => {
+            if (!view.winner || !wsUrl || !engineSpeaksRematch(wsUrl)) return;
+            if (boundVersionRef.current >= REMATCH_PROTOCOL_VERSION) return;
+            const room = roomRef.current;
+            const token = room ? getToken(room) : null;
+            if (!room || !token) return;
+            resumeExpectedRef.current = true;
+            resyncReplyRef.current = true;
+            sendBind({ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token }, REMATCH_PROTOCOL_VERSION);
+          };
+          {
+            // A resync's answer that says nothing new (p2p #869): the view we
+            // already hold, re-sent. Leave pacing and any undo negotiation be.
+            const resyncReply = resyncReplyRef.current;
+            resyncReplyRef.current = false;
+            const prevView = lastViewRef.current;
+            lastViewRef.current = view;
+            if (resyncReply && prevView && JSON.stringify(prevView) === JSON.stringify(view)) {
+              resumeExpectedRef.current = false;
+              setServerRestarting(false);
+              clearResumeDeadline();
+              setGameLost(false);
+              rebindForRematch();
+              break;
+            }
+          }
           // v15: when an auto-forfeit actually fires, the server injects a FORFEIT
           // and this STATE shows the seat eliminated (or the whole game over) — but
           // it does NOT send an all-clear (the player is still gone). Drop such a
@@ -717,6 +895,7 @@ export function useProSocket(
           // it. Either way, drop the pending/incoming undo UI.
           setUndoPending(false);
           setIncomingUndo(null);
+          rebindForRematch();
           break;
         }
         case "RESUME_TOKEN":
@@ -733,11 +912,7 @@ export function useProSocket(
           // within RESUME_DEADLINE_MS the game is declared lost (issue #133).
           // Only meaningful once we've actually been in a live game.
           if (hadStateRef.current && !resumeDeadlineRef.current) {
-            resumeDeadlineRef.current = setTimeout(() => {
-              resumeDeadlineRef.current = null;
-              setServerRestarting(false); // drop the "reconnecting…" toast — it's over
-              setGameLost(true);
-            }, RESUME_DEADLINE_MS);
+            armResumeDeadline();
           }
           break;
         case "REPLAY_BUNDLE":
@@ -789,16 +964,58 @@ export function useProSocket(
           setUndoPending(false);
           setUndoRejected(true);
           break;
+        // Rematch offer/confirm (p2p #880, protocol v35).
+        case "REMATCH_OFFERED":
+          stepRematch({ type: "OFFERED", from: msg.from, me: seatRef.current });
+          break;
+        case "REMATCH_READY": {
+          const from = roomRef.current;
+          const alreadyHere = from !== null && msg.roomId.toUpperCase() === from.toUpperCase();
+          if (!alreadyHere) {
+            // Seat ourselves in the new room before the page moves there: its
+            // RECONNECT reads this token, and the next Rematch reads the bots.
+            setToken(msg.roomId, msg.token);
+            const bots = from ? getRoomBots(from) : null;
+            if (bots) setRoomBots(msg.roomId, bots);
+          }
+          stepRematch({ type: "READY", roomId: msg.roomId, currentRoom: from });
+          break;
+        }
+        case "REMATCH_CLOSED":
+          stepRematch({
+            type: "CLOSED",
+            reason: msg.reason,
+            ...(msg.player !== undefined ? { player: msg.player } : {}),
+          });
+          break;
         case "ERROR": {
           // Whatever the code, our last action did NOT produce a STATE, so the
           // in-flight latch would otherwise stay armed and make the next
           // OPPONENT batch look like ours — flushing a spotlight mid-read.
           ownActionRef.current = false;
           actionsInFlightRef.current.clear(); // …and the in-flight guard (#840): a rejected action is answered
+          // Whatever we asked for, this ERROR is the answer: a resync (#848) that
+          // got ROOM_NOT_FOUND/BAD_TOKEN back is over, not "still refreshing"
+          // (p2p #869). An ILLEGAL_ACTION that starts a NEW resync re-sets it below.
+          setResyncing(false);
+          resyncReplyRef.current = false;
           // Undo couldn't be honored (nothing to undo, or one already pending) —
           // a benign race despite canUndo-gating (double-request, or the undo
           // boundary shifted under us). Clear our pending-undo UI and surface a
           // light "nothing to undo" notice, NOT the terminal error / loss path.
+          // A REMATCH_* the room can't take right now (p2p #880) — most often
+          // the other seat is on a client too old to answer. Not a game error.
+          if (msg.code === "REMATCH_UNAVAILABLE") {
+            stepRematch({ type: "REFUSED", message: msg.message });
+            break;
+          }
+          // The engine refused a v35 bind: this tab remembered a version the
+          // engine no longer speaks (a rollback). Forget it and bind at 34.
+          if (msg.code === "VERSION" && wsUrl && lastBindRef.current && lastBindRef.current.v > PROTOCOL_VERSION) {
+            forgetEngineVersion(wsUrl);
+            sendBind(lastBindRef.current, PROTOCOL_VERSION);
+            break;
+          }
           if (msg.code === "UNDO_UNAVAILABLE") {
             setUndoPending(false);
             setUndoUnavailable(true);
@@ -848,9 +1065,10 @@ export function useProSocket(
               illegalStreakRef.current = 0;
               lastResyncAtRef.current = now;
               resumeExpectedRef.current = true; // the answering STATE is a whole fresh view (#703)
+              resyncReplyRef.current = true;
               setIllegalAction(false); // the "refreshing" notice supersedes the per-rejection toast
               setResyncing(true);
-              send({ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token });
+              sendBind({ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token });
               break;
             }
             setIllegalAction(true);
@@ -861,11 +1079,19 @@ export function useProSocket(
           // longer matches). If we hold a resume blob for it, revive rather than
           // give up — unless the in-flight message WAS a resume (then it truly failed).
           const room = roomRef.current;
-          const blob = room ? getResumeToken(room) : null;
           const recoverable = msg.code === "ROOM_NOT_FOUND" || msg.code === "BAD_TOKEN";
+          // A finished game's room is swept by the server (p2p #869). A late
+          // RECONNECT (a reopened socket, a tab return) that finds it gone is
+          // not a lost game: never revive it, never cover the result screen.
+          if (recoverable && gameOverRef.current) {
+            resumingRef.current = false;
+            if (room) forgetRoom(room);
+            break;
+          }
+          const blob = room ? getResumeToken(room) : null;
           if (recoverable && blob && !resumingRef.current) {
             resumingRef.current = true;
-            send({ v: PROTOCOL_VERSION, type: "RESUME_ROOM", token: blob });
+            sendBind({ v: PROTOCOL_VERSION, type: "RESUME_ROOM", token: blob });
             break; // don't surface an error — a resume attempt is underway
           }
           // Resume genuinely failed, or nothing to resume: forget a dead room and show it.
@@ -890,6 +1116,8 @@ export function useProSocket(
       actionsInFlightRef.current.clear(); // whatever was in flight is gone with the socket (#840)
       illegalStreakRef.current = 0; // the next socket's open re-sends RECONNECT anyway (#848)
       setResyncing(false);
+      resyncReplyRef.current = false;
+      clearResumeReplyDeadline();
       // Exponential backoff with FULL JITTER (issue #209). A server that closed us
       // for RATE_LIMITED (or a redeploy that drops every socket at once) would be
       // hammered by a fleet of clients all reconnecting on the same doubling
@@ -904,7 +1132,7 @@ export function useProSocket(
     // `runSlowStep` is referentially stable (its whole dependency chain bottoms
     // out in a `[]` callback), so listing it here can never re-create `connect`
     // and drop a live socket.
-  }, [wsUrl, send, clearResumeDeadline, resolveOwnClock, runSlowStep]);
+  }, [wsUrl, send, sendBind, stepRematch, clearResumeDeadline, armResumeDeadline, resolveOwnClock, runSlowStep, clearResumeReplyDeadline]);
 
   useEffect(() => {
     if (!wsUrl) {
@@ -916,11 +1144,110 @@ export function useProSocket(
     return () => {
       if (retry.timer) clearTimeout(retry.timer);
       clearResumeDeadline();
+      clearResumeReplyDeadline();
       const ws = wsRef.current;
       wsRef.current = null; // marks onclose as superseded
       ws?.close();
     };
-  }, [wsUrl, connect, clearResumeDeadline]);
+  }, [wsUrl, connect, clearResumeDeadline, clearResumeReplyDeadline]);
+
+  // Reconnect-on-resume (an iPhone Safari tab, backgrounded or locked, gets its
+  // whole JS execution — including `setTimeout` — suspended, not just throttled).
+  // Two failure modes fall out of that: the backoff timer in `ws.onclose` above
+  // may never fire again once the page is frozen (the socket dies, nothing ever
+  // retries), and even where it does eventually fire it can be hopelessly stale
+  // — scheduled against a delay computed before the freeze, with no idea how long
+  // the phone sat locked. `visibilitychange` and `pageshow` (which covers a
+  // bfcache restore on iOS) are the signals a suspended tab is guaranteed to
+  // receive promptly on return, so coming back is treated as "assume the worst,
+  // verify" rather than trusting whatever `status` says.
+  //
+  // Deliberately NOT `focus` (p2p #869): a desktop window regains focus on every
+  // alt-tab without ever having been hidden, let alone suspended — and a verify
+  // on each one showed a false "Board out of date" toast every 10s, wiped a
+  // pending undo and flushed slow-mode pacing. An OPEN socket is only verified
+  // after a hide longer than RESUME_RESYNC_MIN_HIDDEN_MS (or a bfcache restore).
+  useEffect(() => {
+    if (!wsUrl) return;
+    const onResume = (e: Event) => {
+      if (typeof document !== "undefined" && document.hidden) {
+        // The hide edge: remember when, so the return can tell an alt-tab from
+        // a suspend. Keep the FIRST hide of a streak (a second hidden event
+        // must not shorten it).
+        if (hiddenAtRef.current === null) hiddenAtRef.current = Date.now();
+        return;
+      }
+      const now = Date.now();
+      const hiddenAt = hiddenAtRef.current;
+      hiddenAtRef.current = null;
+      const bfcacheRestore = e.type === "pageshow" && (e as PageTransitionEvent).persisted === true;
+      const longAbsence = bfcacheRestore || (hiddenAt !== null && now - hiddenAt >= RESUME_RESYNC_MIN_HIDDEN_MS);
+      // Re-arm a pending resume deadline FIRST, before anything below might
+      // short-circuit — whatever the socket happens to be doing at the moment
+      // of return (open, mid-reconnect, or dead), a deadline armed before the
+      // tab suspended was counting down against a clock the page was never
+      // actually running on, and the player deserves a full fresh budget from
+      // the moment they're actually back (issue #133).
+      if (resumeDeadlineRef.current) armResumeDeadline();
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        // The socket reports open, but a suspended phone can silently drop the
+        // underlying connection without ever firing `close` — the exact "looks
+        // connected, isn't" case players fear most. Ask the server for a fresh
+        // authoritative STATE on this same socket — the identical trick the
+        // stale-view resync (p2p #848) uses — and give it RESUME_REPLY_DEADLINE_MS
+        // to say anything at all before the socket is written off. Shares
+        // #848's cooldown so the two triggers can never pile RECONNECTs on
+        // each other. Silent (no `resyncing` toast): the board is only out of
+        // date if the answer says so, and then it simply updates.
+        const room = roomRef.current;
+        const token = room ? getToken(room) : null;
+        if (
+          longAbsence &&
+          room &&
+          token &&
+          hadStateRef.current &&
+          !gameOverRef.current && // a decided game has nothing to resync (its room may be swept)
+          now - lastResyncAtRef.current >= RESYNC_COOLDOWN_MS
+        ) {
+          lastResyncAtRef.current = now;
+          resumeExpectedRef.current = true; // the answering STATE is a whole fresh view (#703)
+          resyncReplyRef.current = true; // …unless it is the view we already hold (#869)
+          sendBind({ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token });
+          clearResumeReplyDeadline();
+          resumeReplyTimerRef.current = setTimeout(() => {
+            resumeReplyTimerRef.current = null;
+            if (wsRef.current !== ws) return; // already replaced
+            // Half-open: nothing came back. Close it and run the ordinary close
+            // path NOW — a dead transport's own `close` event can take minutes.
+            const onclose = ws.onclose;
+            ws.onclose = null;
+            ws.close();
+            onclose?.call(ws, new Event("close") as CloseEvent);
+          }, RESUME_REPLY_DEADLINE_MS);
+        }
+        return;
+      }
+      if (ws && ws.readyState === WebSocket.CONNECTING) return; // already retrying
+      // Not open: the backoff timer that would otherwise retry may itself be a
+      // suspended timer that never runs, or one that only fires now, absurdly
+      // overdue. Cancel it and retry at full speed — a returning player should
+      // not wait out a schedule computed for a socket that, as far as the page
+      // is concerned, has been dead for an indeterminate age.
+      if (retryRef.current.timer) {
+        clearTimeout(retryRef.current.timer);
+        retryRef.current.timer = 0;
+      }
+      retryRef.current.attempts = 0;
+      connect();
+    };
+    document.addEventListener("visibilitychange", onResume);
+    window.addEventListener("pageshow", onResume);
+    return () => {
+      document.removeEventListener("visibilitychange", onResume);
+      window.removeEventListener("pageshow", onResume);
+    };
+  }, [wsUrl, connect, sendBind, armResumeDeadline, clearResumeReplyDeadline]);
 
   const createRoom = useCallback(
     (
@@ -942,7 +1269,12 @@ export function useProSocket(
       setOwnTimerExpired(false);
       ownClockRef.current = null;
       hadStateRef.current = false;
+      gameOverRef.current = false;
+      lastViewRef.current = null;
       clearResumeDeadline();
+      pendingCreateBotsRef.current = botsFromCreateRoom(bot, botSeats);
+      rematchOfferRef.current = REMATCH_IDLE; // a new room has no rematch in flight
+      setRematchOffer(REMATCH_IDLE);
       const msg: ClientMsg = {
         v: PROTOCOL_VERSION,
         type: "CREATE_ROOM",
@@ -977,10 +1309,10 @@ export function useProSocket(
         // hero with nothing equipped, and an API that didn't answer.
         ...cosmeticsField(identityRef.current, cosmeticsRef.current, heroId),
       };
-      if (wsRef.current?.readyState === WebSocket.OPEN) send(msg);
+      if (wsRef.current?.readyState === WebSocket.OPEN) sendBind(msg);
       else pendingHelloRef.current = msg;
     },
-    [send, clearResumeDeadline]
+    [sendBind, clearResumeDeadline]
   );
 
   const joinRoom = useCallback(
@@ -988,9 +1320,13 @@ export function useProSocket(
       setError(null); // clear any prior room/hero error on a fresh attempt
       setGameLost(false); // fresh join/resume attempt — drop any prior lost state
       resumeExpectedRef.current = true; // the room's first STATE is authoritative
+      gameOverRef.current = false;
+      lastViewRef.current = null;
       clearResumeDeadline();
       roomRef.current = room;
       setRoomId(room);
+      rematchOfferRef.current = REMATCH_IDLE;
+      setRematchOffer(REMATCH_IDLE);
       // heroId === "" is an explicit resume (refresh flow / recent-rooms strip)
       // and may use any token this browser holds. A join WITH a hero only
       // reclaims THIS TAB's seat — never a token another tab wrote, or the
@@ -1012,10 +1348,10 @@ export function useProSocket(
             // the server kept the seat, and with it the blob it claimed on join.
             ...cosmeticsField(identityRef.current, cosmeticsRef.current, heroId),
           };
-      if (wsRef.current?.readyState === WebSocket.OPEN) send(msg);
+      if (wsRef.current?.readyState === WebSocket.OPEN) sendBind(msg);
       else pendingHelloRef.current = msg;
     },
-    [send, clearResumeDeadline]
+    [sendBind, clearResumeDeadline]
   );
 
   // In-flight guard (p2p #840, narrowed in #847): lets an ACTION through unless
@@ -1108,6 +1444,35 @@ export function useProSocket(
     [send]
   );
 
+  // Rematch offer/confirm (p2p #880). Meta messages like undo — never actions.
+  // Each is gated on the phase it belongs to, so a double tap sends one frame,
+  // and on the seat being bound at v35 (#894) — `rematchNegotiable`, read from
+  // the ref so no caller has to trust the panel's render gate: a v34 engine
+  // answers REMATCH_* with ERROR{VERSION}, and a v34-bound seat can't negotiate.
+  const offerRematch = useCallback(() => {
+    const room = roomRef.current;
+    if (!room || boundVersionRef.current < REMATCH_PROTOCOL_VERSION || rematchOfferRef.current.phase !== "idle") return;
+    stepRematch({ type: "OFFER" });
+    send({ v: REMATCH_PROTOCOL_VERSION, type: "REMATCH_OFFER", roomId: room });
+  }, [send, stepRematch]);
+
+  const cancelRematch = useCallback(() => {
+    const room = roomRef.current;
+    if (!room || boundVersionRef.current < REMATCH_PROTOCOL_VERSION || rematchOfferRef.current.phase !== "offering") return;
+    stepRematch({ type: "CANCEL" });
+    send({ v: REMATCH_PROTOCOL_VERSION, type: "REMATCH_CANCEL", roomId: room });
+  }, [send, stepRematch]);
+
+  const respondToRematch = useCallback(
+    (accept: boolean) => {
+      const room = roomRef.current;
+      if (!room || boundVersionRef.current < REMATCH_PROTOCOL_VERSION || rematchOfferRef.current.phase !== "incoming") return;
+      stepRematch({ type: accept ? "ACCEPT" : "DECLINE" });
+      send({ v: REMATCH_PROTOCOL_VERSION, type: "REMATCH_RESPOND", roomId: room, accept });
+    },
+    [send, stepRematch]
+  );
+
   const acknowledgeOwnTimerExpired = useCallback(() => setOwnTimerExpired(false), []);
   const acknowledgeUndoRejected = useCallback(() => setUndoRejected(false), []);
   const acknowledgeUndoUnavailable = useCallback(() => setUndoUnavailable(false), []);
@@ -1165,6 +1530,11 @@ export function useProSocket(
     setVisibility,
     serverRestarting,
     gameLost,
+    rematchNegotiable,
+    rematchOffer,
+    offerRematch,
+    cancelRematch,
+    respondToRematch,
     slowModeHeld,
     slowModePending,
     advanceSlowMode,

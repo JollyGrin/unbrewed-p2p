@@ -864,7 +864,55 @@
  * the field is never sent, so creates on every item-less board (and the Random
  * tile, whose roll resolves at create time) stay byte-identical to today.
  */
+/**
+ * v35 (engine #607 — rematch offer/confirm). ADDITIVE: three new CLIENT messages, four new
+ * SERVER messages and one new `ErrorCode`. Nothing that already exists moves, and the server
+ * only ever sends the new messages to a socket whose room has a rematch negotiation open —
+ * which only a v35 client can start — so a client that never sends them sees nothing new.
+ *
+ * - `REMATCH_OFFER {roomId}` — a seated HUMAN in a FINISHED (GAME_OVER) room with at least
+ *   two human seats offers a rematch. The server pushes `REMATCH_OFFERED {from}` to every
+ *   OTHER human seat. The offer counts as the offerer's own acceptance, so two players
+ *   offering at once ("crossing offers") is an agreement, not a conflict.
+ * - `REMATCH_RESPOND {roomId, accept}` — a human seat answers. `accept: false` closes the
+ *   negotiation for everyone.
+ * - `REMATCH_CANCEL {roomId}` — the OFFERER withdraws.
+ * - When EVERY human seat has accepted, the server creates ONE new room with the finished
+ *   room's setup — same seat ids (so the same teams), heroes, bot seats, map, format, turn
+ *   timer, mulligan and items settings; a fresh game seed; never publicly listed — and sends
+ *   each human seat `REMATCH_READY {roomId, token}` carrying THAT seat's own token. The game
+ *   has already started: the client joins it with `RECONNECT {roomId, token}`.
+ * - `REMATCH_CLOSED {reason, player?}` goes to every human seat when the negotiation ends
+ *   without a room: `declined`/`cancelled`/`disconnected` name the seat that caused it in
+ *   `player`; `timeout` fires ~2 minutes after the offer; `unavailable` means the server
+ *   could not create the room (e.g. it is at capacity) or — with `player` — that seat
+ *   came back on a client too old to answer.
+ * - A seat that drops while a rematch is pending gets a short reconnect grace; on
+ *   reconnect it is sent `REMATCH_OFFERED` again (`from` may be itself — "your offer is
+ *   still waiting"). A seat that was away when the room was built is sent its
+ *   `REMATCH_READY` when it reconnects to the FINISHED room. A finished room is never
+ *   swept while its negotiation is open; a room may open at most 3 negotiations.
+ * - After `REMATCH_READY` the finished room sends nothing more to the old sockets. In a
+ *   multiplayer format each human seat of the new room starts on the ordinary
+ *   abandonment clock, which its RECONNECT cancels.
+ * - A seat whose socket bound with v34 or older is never sent a REMATCH_* message, and an
+ *   offer in a room with such a seat is refused.
+ * - Refusals answer `ERROR{REMATCH_UNAVAILABLE}`: game not over, not a PvP room, not a
+ *   human seat, another seat's client too old, nothing pending to answer/cancel, you
+ *   already offered, the room's offer limit reached, or this room already produced its
+ *   rematch.
+ *
+ * Detection: `PROTOCOL_VERSION >= 35`, or `rematch: true` in the `/healthz` JSON.
+ *
+ * CLIENT-ONLY DIVERGENCE (p2p #880): the engine's copy says `PROTOCOL_VERSION = 35`.
+ * This client keeps sending 34 by default, because prod engines that predate #607
+ * accept only {33, 34} and answer v35 with ERROR{VERSION}. It speaks v35
+ * (`REMATCH_PROTOCOL_VERSION`) only to an engine whose own frames carry `v >= 35`
+ * (every server message stamps its version) — see lib/pro/wireVersion.ts. Keep
+ * this pair when re-syncing the file.
+ */
 export const PROTOCOL_VERSION = 34;
+export const REMATCH_PROTOCOL_VERSION = 35;
 
 /**
  * Scripted-AI strength preset (server-side budgets; client treats as opaque).
@@ -1740,8 +1788,10 @@ export interface ReplayConfig {
   // `mulligan` (v30, engine #395): the game was played with the opening-hand
   // mulligan window open, so its action log carries the window's own prompt
   // answers. Absent = the pre-v30 flow; every bundle from a mulligan-free game is
-  // byte-identical to a pre-v30 one.
-  options?: { allowNonstandardDeck?: boolean; startingHandSize?: number; mulligan?: boolean };
+  // byte-identical to a pre-v30 one. `itemsDisabled` (engine #519, server/replay.ts
+  // buildReplayBundle): the room opted OUT of its board's battlefield items; like
+  // `mulligan` it rides only on its non-default side.
+  options?: { allowNonstandardDeck?: boolean; startingHandSize?: number; mulligan?: boolean; itemsDisabled?: boolean };
   players: { p1: ReplayPlayerSetup; p2: ReplayPlayerSetup } & Partial<Record<PlayerId, ReplayPlayerSetup>>;
   formatId?: string;
   map: ProMapDef;
@@ -1984,7 +2034,15 @@ export type ClientMsg =
   // accept/reject. Neither is an `Action` — undo never enters the replay log.
   | { v: number; type: "UNDO_REQUEST"; roomId: string }
   | { v: number; type: "UNDO_RESPONSE"; roomId: string; accept: boolean }
-  | { v: number; type: "ACTION"; roomId: string; action: Action };
+  | { v: number; type: "ACTION"; roomId: string; action: Action }
+  // v35: rematch negotiation in a FINISHED room (engine #607). Meta messages, never
+  // actions. See the v35 header note.
+  | { v: number; type: "REMATCH_OFFER"; roomId: string }
+  | { v: number; type: "REMATCH_RESPOND"; roomId: string; accept: boolean }
+  | { v: number; type: "REMATCH_CANCEL"; roomId: string };
+
+// v35: why a rematch negotiation ended without a room. See the v35 header note.
+export type RematchClosedReason = "declined" | "cancelled" | "disconnected" | "timeout" | "unavailable";
 
 export type ServerMsg =
   | { v: number; type: "HEROES"; heroes: HeroListing[] }
@@ -2041,6 +2099,13 @@ export type ServerMsg =
   | { v: number; type: "UNDO_REQUESTED"; requester: PlayerId; rewindActions: UndoActionSummary[] }
   // v11: pushed to the REQUESTER when their undo is declined, superseded, or stale.
   | { v: number; type: "UNDO_REJECTED" }
+  // v35 (engine #607): rematch negotiation. OFFERED goes to every other human seat (and
+  // is re-sent to a seat that reconnects mid-negotiation — `from` may then be itself).
+  // READY carries the NEW room and THIS seat's token for it — join with RECONNECT.
+  // CLOSED ends the negotiation; `player` names who declined/cancelled/dropped.
+  | { v: number; type: "REMATCH_OFFERED"; from: PlayerId }
+  | { v: number; type: "REMATCH_READY"; roomId: string; token: string }
+  | { v: number; type: "REMATCH_CLOSED"; reason: RematchClosedReason; player?: PlayerId }
   | { v: number; type: "ERROR"; code: ErrorCode; message: string };
 
 export type ErrorCode =
@@ -2061,6 +2126,7 @@ export type ErrorCode =
   // response: pushed proactively wherever RESUME_TOKEN normally would be.
   | "RESUME_TOO_LARGE"
   | "UNDO_UNAVAILABLE" // UNDO_REQUEST with nothing to undo, or one already pending
+  | "REMATCH_UNAVAILABLE" // v35: a REMATCH_* message the room/seat cannot take right now
   | "ROOM_LIMIT" // CREATE_ROOM refused — server is at its global room cap (PRO_MAX_ROOMS)
   | "RATE_LIMITED" // this connection is sending messages too fast (see server rate-limit env vars)
   | "SERVER_ERROR";

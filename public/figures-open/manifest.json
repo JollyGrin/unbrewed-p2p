@@ -1,0 +1,173 @@
+{
+  "version": 1,
+  "figures": {
+    "triceratops": {
+      "anchor": {
+        "x": 0.5,
+        "y": 0.54514292025858
+      },
+      "imageWidthMm": 6.127122802734375,
+      "footprintMm": 2.825296849012375,
+      "aspect": 1.5,
+      "bounds": {
+        "left": 0.0183,
+        "top": 0.3478,
+        "right": 0.9817,
+        "bottom": 0.6511
+      },
+      "elevDeg": 50,
+      "seats": {
+        "p1": "triceratops.p1.webp",
+        "p2": "triceratops.p2.webp",
+        "p3": "triceratops.p3.webp",
+        "p4": "triceratops.p4.webp"
+      },
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "Triceratops Horridus Marsh",
+      "creator": "Smithsonian Institution",
+      "sourceUrl": "https://sketchfab.com/3d-models/triceratops-horridus-marsh-e9c507f179ed4455aac3b208c9e6c973"
+    },
+    "baba-yaga": {
+      "anchor": {
+        "x": 0.5,
+        "y": 0.6996226438634416
+      },
+      "imageWidthMm": 27.01519256591797,
+      "footprintMm": 25.248001098632812,
+      "aspect": 1.5,
+      "bounds": {
+        "left": 0.0183,
+        "top": 0.0611,
+        "right": 0.9817,
+        "bottom": 0.9389
+      },
+      "elevDeg": 50,
+      "seats": {
+        "p1": "baba-yaga.p1.webp",
+        "p2": "baba-yaga.p2.webp",
+        "p3": "baba-yaga.p3.webp",
+        "p4": "baba-yaga.p4.webp"
+      },
+      "license": "CC-BY-SA-4.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "Witch Minis (Witch 2)",
+      "creator": "mz4250",
+      "sourceUrl": "https://www.thingiverse.com/thing:6694128"
+    },
+    "hollow-oak": {
+      "anchor": {
+        "x": 0.5,
+        "y": 0.685609268028433
+      },
+      "imageWidthMm": 1.5767627716064454,
+      "footprintMm": 1.2786030769348145,
+      "aspect": 1.5,
+      "bounds": {
+        "left": 0.0183,
+        "top": 0.1078,
+        "right": 0.9817,
+        "bottom": 0.8922
+      },
+      "elevDeg": 50,
+      "seats": {
+        "p1": "hollow-oak.p1.webp",
+        "p2": "hollow-oak.p2.webp",
+        "p3": "hollow-oak.p3.webp",
+        "p4": "hollow-oak.p4.webp"
+      },
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "Autumn Treant (Meshy AI, Hollow Oak)",
+      "creator": "JollyGrin",
+      "sourceUrl": "https://unbrewed.xyz"
+    },
+    "hollow-oak-spice": {
+      "anchor": {
+        "x": 0.5,
+        "y": 0.685609268028433
+      },
+      "imageWidthMm": 1.5767627716064454,
+      "footprintMm": 1.2786030769348145,
+      "aspect": 1.5,
+      "bounds": {
+        "left": 0.0183,
+        "top": 0.1078,
+        "right": 0.9817,
+        "bottom": 0.8922
+      },
+      "elevDeg": 50,
+      "seats": {
+        "p1": "hollow-oak-spice.p1.webp",
+        "p2": "hollow-oak-spice.p2.webp",
+        "p3": "hollow-oak-spice.p3.webp",
+        "p4": "hollow-oak-spice.p4.webp"
+      },
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "Autumn Treant (Meshy AI, Hollow Oak)",
+      "creator": "JollyGrin",
+      "sourceUrl": "https://unbrewed.xyz"
+    },
+    "king-taranis": {
+      "anchor": {
+        "x": 0.5,
+        "y": 0.7037031078194541
+      },
+      "imageWidthMm": 1.3855545043945312,
+      "footprintMm": 1.3322639465332031,
+      "aspect": 1.5,
+      "elevDeg": 50,
+      "bounds": {
+        "left": 0.0183,
+        "top": 0.0522,
+        "right": 0.9817,
+        "bottom": 0.9478
+      },
+      "seats": {
+        "p1": "king-taranis.p1.webp",
+        "p2": "king-taranis.p2.webp",
+        "p3": "king-taranis.p3.webp",
+        "p4": "king-taranis.p4.webp"
+      },
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "King Taranis (Meshy AI)",
+      "creator": "JollyGrin",
+      "sourceUrl": "https://unbrewed.xyz"
+    },
+    "king-taranis-spice": {
+      "anchor": {
+        "x": 0.5,
+        "y": 0.7037031078194541
+      },
+      "imageWidthMm": 1.3855545043945312,
+      "footprintMm": 1.3322639465332031,
+      "aspect": 1.5,
+      "elevDeg": 50,
+      "bounds": {
+        "left": 0.0183,
+        "top": 0.0522,
+        "right": 0.9817,
+        "bottom": 0.9478
+      },
+      "seats": {
+        "p1": "king-taranis-spice.p1.webp",
+        "p2": "king-taranis-spice.p2.webp",
+        "p3": "king-taranis-spice.p3.webp",
+        "p4": "king-taranis-spice.p4.webp"
+      },
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "King Taranis (Meshy AI)",
+      "creator": "JollyGrin",
+      "sourceUrl": "https://unbrewed.xyz"
+    }
+  }
+}

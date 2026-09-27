@@ -8,7 +8,9 @@
  * pre-v28 board — is byte-for-byte centred as before.
  */
 import {
+  fighterStackBySpace,
   objectStackOffsets,
+  stackOffsetInBoardUnits,
   ringOffsets,
   RING_RADIUS_PCT,
   SCALE_BY_SIZE,
@@ -131,5 +133,26 @@ describe("objectStackOffsets", () => {
     expect(objectStackOffsets(1)).toEqual([{ dx: 0, dy: 0 }]);
     const four = objectStackOffsets(4);
     expect(new Set(four.map((o) => `${o.dx},${o.dy}`)).size).toBe(4);
+  });
+});
+
+describe("fighterStackBySpace (shared by the flat and tabletop boards, #872)", () => {
+  it("lays out every space a fighter's body covers, a LARGE tail included", () => {
+    const stack = fighterStackBySpace([
+      { id: "kong", size: "LARGE", space: "a", tailSpace: "b" },
+      { id: "larry", size: "SMALL", space: "b" },
+      { id: "off", size: "NORMAL", space: null },
+    ]);
+    expect([...stack.keys()]).toEqual(["a", "b"]);
+    expect(stack.get("b")).toEqual(stackLayout([{ key: "kong-tail", size: "LARGE" }, small("larry")]));
+    expect(stack.get("b")!.get("larry")).toMatchObject({ dx: 0, dy: -46 });
+  });
+});
+
+describe("stackOffsetInBoardUnits", () => {
+  it("scales dx by the token width and dy by the width re-expressed in board heights", () => {
+    // A 0.1-wide token on a 2:1 board: 50% right is 0.05 of the width; 50% down
+    // is 0.05 of the width = 0.1 of the (half-as-tall) height.
+    expect(stackOffsetInBoardUnits({ dx: 50, dy: 50 }, 0.1, 2)).toEqual({ x: 0.05, y: 0.1 });
   });
 });

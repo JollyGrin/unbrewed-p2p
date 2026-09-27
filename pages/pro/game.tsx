@@ -17,7 +17,10 @@ import { useRouter } from "next/router";
 import { Box, Button, Flex, Grid, Input, InputGroup, InputLeftElement, Link, Menu, MenuButton, MenuItem, MenuList, NumberDecrementStepper, NumberIncrementStepper, NumberInput, NumberInputField, NumberInputStepper, Tag, Text, Textarea, Tooltip } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
 import { motion, useReducedMotion } from "framer-motion";
-import { MOVE_STEP_SECONDS, MoveHint, PendingMove, ProBoard } from "@/components/Pro/ProBoard";
+import { MOVE_STEP_SECONDS, MoveHint, PendingMove, ProBoard, ProBoardProps } from "@/components/Pro/ProBoard";
+import { useLazyTableBoard } from "@/lib/pro/useLazyTableBoard";
+import { useBoardView } from "@/lib/pro/useBoardView";
+import { boardViewLockedHint, resolveBoardView } from "@/lib/pro/boardView";
 import { ProErrorBoundary } from "@/components/Pro/ProErrorBoundary";
 import { assignableSeats, BotSlotPlan, SlotOccupant } from "@/components/Pro/CreateSeats";
 import { availableBotTiers, botTierChoices, BotTierChoice, coerceBotTier } from "@/lib/pro/botTiers";
@@ -72,6 +75,7 @@ import {
   TbChevronDown,
   TbExternalLink,
   TbInfoCircle,
+  TbCards,
   TbList,
   TbSearch,
   TbSword,
@@ -80,16 +84,21 @@ import {
   TbZoomIn,
 } from "react-icons/tb";
 import { DeckAttribution } from "@/components/Pro/DeckAttribution";
+import { ProDiscardsSheet } from "@/components/Pro/ProDiscardsSheet";
 import { CardFace, ProHand } from "@/components/Pro/ProHand";
 import { cardChoiceGroups } from "@/lib/pro/cardChoices";
 import { CardPreviewProvider } from "@/components/Pro/CardPreview";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { MapPreviewModal } from "@/components/Pro/MapPreviewModal";
 import { ProDock } from "@/components/Pro/ProDock";
-import { ProHud, ProHudProps } from "@/components/Pro/ProHud";
+import { ProHud, ProHudProps, STATUS_DISPLAY } from "@/components/Pro/ProHud";
 import { MOBILE_BTN, ProMobileHud, ProMobileMenu } from "@/components/Pro/ProMobileHud";
 import { touchCopy } from "@/lib/pro/touchCopy";
 import { HandDecisionWatcher, ProMobileHand, RailHand } from "@/components/Pro/ProMobileHand";
+import { TableHudHand } from "@/components/Pro/Table/Hud/TableHudHand";
+import { TableHudSideButtons } from "@/components/Pro/Table/Hud/TableHudSideButtons";
+import { HUD_RESET_VIEW_SPOT, tableHudFitInset } from "@/lib/pro/tableHud";
+import { useSafeAreaInsets } from "@/lib/pro/useSafeAreaInsets";
 import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
 import { ReportBugDialog } from "@/components/Pro/ReportBugDialog";
 import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
@@ -98,8 +107,13 @@ import { MulliganDialog } from "@/components/Pro/MulliganDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
 import { actionFallbackLine, batchPhase, batchTurnTag, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
 import { MulliganChoice, isMulliganPrompt, mulliganChoiceOf } from "@/lib/pro/mulligan";
-import { RAIL_WIDTH_CSS, TAP_TARGET, boardFitInsetFor } from "@/lib/pro/mobileLayout";
+import { RAIL_WIDTH_CSS, TAP_TARGET, boardFitInsetFor, handDecisionKeyFor } from "@/lib/pro/mobileLayout";
+import { effectiveFigureStyle, figureStyleOptions, pieceCredit, pieceForStyle } from "@/lib/pro/figures";
+import { useMinis3dSource } from "@/lib/pro/minis3d/useMinis3dSource";
+import { useFigureManifests } from "@/lib/pro/useFigureManifest";
+import { useFigureStyle } from "@/lib/pro/useFigureStyle";
 import { useElementHeight, useProLayout } from "@/lib/pro/useProLayout";
+import { matchBoardOnScreen, usePageZoomGuard } from "@/lib/pro/usePageZoomGuard";
 import {
   EMPTY_SUB_ATTACK_CHAIN,
   SubAttackChainProgress,
@@ -187,6 +201,9 @@ import { CosmeticRimTier } from "@/lib/pro/cosmetics";
 import { seatCosmetics, tokenRimForSeat } from "@/lib/pro/seatCosmetics";
 import { useHideOpponentCosmetics } from "@/lib/pro/useHideOpponentCosmetics";
 import { useSlowMode } from "@/lib/pro/useSlowMode";
+import { usePace } from "@/lib/pro/usePace";
+import { paceFactor } from "@/lib/pro/pace";
+import { scaledCombatAnimTiming, CombatAnimTiming } from "@/lib/pro/combatAnimTiming";
 import { batchActor } from "@/lib/pro/slowModeQueue";
 import { ActionSpotlight, ActionSpotlightBatch } from "@/components/Pro/ActionSpotlight";
 import {
@@ -204,7 +221,19 @@ import {
 import type { MapCatalogEntry } from "@/lib/pro/mapCatalog";
 import { RANDOM_HERO_ID, resolveHeroPick } from "@/lib/pro/randomHero";
 import { parseVsParam } from "@/lib/pro/vsParam";
+import {
+  buildFinishedGameSetup,
+  ParsedRematch,
+  parseRematchQuery,
+  rematchCreateRoomArgs,
+  rematchQuery,
+  withoutRematchQuery,
+} from "@/lib/pro/rematch";
+import type { RematchNegotiation } from "@/components/Pro/RematchOfferPanel";
 import { useLobbyMatchCue } from "@/lib/pro/useLobbyMatchCue";
+import { useTurnReminder } from "@/lib/pro/useTurnReminder";
+import { useTurnReminderSetting } from "@/lib/pro/useTurnReminderSetting";
+import { TurnReminderCue } from "@/components/Pro/TurnReminderCue";
 import {
   advanceQuickMatch,
   botFallbackHref,
@@ -994,15 +1023,14 @@ const flipIn = keyframes`
 // by useCombatStrike so it plays exactly once. Wrapped in NO_MOTION at every use.
 // ---------------------------------------------------------------------------
 
-/** Wind-up before the lunge — 0.18s defender delay + 0.55s flip + a beat. */
-const STRIKE_DELAY = 0.85;
-/** The attack card's lunge/recoil. Lengthened (#382 pacing feedback: the beats
- *  felt rushed) so the slam reads with weight rather than snapping. */
-const STRIKE_LUNGE_DUR = 0.68;
-/** The defense reaction begins as the attack arrives (~55% through the lunge). */
-const STRIKE_CONTACT_DELAY = STRIKE_DELAY + STRIKE_LUNGE_DUR * 0.44;
-/** The defense card's knockback/brace/shove. Lengthened alongside the lunge. */
-const STRIKE_REACT_DUR = 0.68;
+// Durations/delays (STRIKE_DELAY, STRIKE_LUNGE_DUR, STRIKE_REACT_DUR, the derived
+// STRIKE_CONTACT_DELAY, the flip transition, the chip fly, the compare beat) used to
+// live here as fixed 1× constants — CSS animation-delay/duration sequenced off the
+// flip, but deaf to the player's Combat pace setting (only the JS-side linger/hold
+// in combatTiming.ts stretched, so a slower pace held the pose longer without the
+// motion itself taking any longer to play). They now live in combatAnimTiming.ts,
+// derived once per render via `scaledCombatAnimTiming(factor)` in CombatPanel and
+// threaded down as props — see CombatPanel/CombatSlot/StrikeRing below.
 
 // Attack card — win: lunge across into contact, follow through, settle back home.
 const strikeLungeWin = keyframes`
@@ -1096,10 +1124,10 @@ const strikeKnockVars = (damage: number): CSSProperties =>
 // the loser — sequenced by CSS delay off the strike's contact moment.
 // ---------------------------------------------------------------------------
 
-/** Chip on-screen lifetime — matches CHIP_TTL_MS in combatValueFx so the fly-in +
- *  fade covers exactly the window the hook keeps the chip mounted. */
-const CHIP_FLY_DUR = 0.9;
-/** A modifier chip flies in from up-right and settles onto the value pill. */
+/** A modifier chip flies in from up-right and settles onto the value pill. Its
+ *  duration is CHIP_FLY_DUR (combatAnimTiming.ts), which matches CHIP_TTL_MS in
+ *  combatValueFx.ts — both scaled by the SAME pace factor — so the fly-in + fade
+ *  still covers exactly the window the hook keeps the chip mounted at any pace. */
 const chipFly = keyframes`
   0%   { opacity: 0; transform: translate(1.5rem, -0.6rem) scale(0.7); }
   35%  { opacity: 1; transform: translate(0.45rem, -0.25rem) scale(1.08); }
@@ -1128,12 +1156,6 @@ const neutralPulse = keyframes`
   50%  { transform: scale(1.2); text-shadow: 0 0 12px rgba(240,230,210,0.75); }
   100% { transform: scale(1); }
 `;
-
-/** Comparison beat begins just after the (now-longer) strike lands. */
-const COMPARE_DELAY = STRIKE_CONTACT_DELAY + 0.15;
-/** Comparison pulse durations — lengthened with the rest of the sequence so the
- *  resolved values hold their pose rather than blinking. Keyed by CompareBeat. */
-const COMPARE_DUR = { gold: 1.1, dim: 1.0, neutral: 1.0 } as const;
 
 /**
  * Synthetic sub-attack combat card (issue #288 — engine batch D; extended to chains
@@ -1192,6 +1214,7 @@ const CombatSlot = ({
   subAttackFace,
   faceUp,
   width = "6.5rem",
+  anim,
 }: {
   label: string;
   card: ViewCombat["attackerCard"];
@@ -1225,6 +1248,11 @@ const CombatSlot = ({
   faceUp?: boolean;
   /** slot card width; the phone sheet shrinks it until the reveal (mobile step 3) */
   width?: string;
+  /** the combat sequence's CSS clock at the player's pace (combatAnimTiming.ts),
+   *  derived ONCE by CombatPanel and passed down — the flip transition, the chip
+   *  fly, the compare pulse and its delay all read from here instead of a fixed
+   *  1× literal, so a slower pace genuinely slows the motion, not just its dwell. */
+  anim: CombatAnimTiming;
 }) => (
   <Box textAlign="center">
     <Text opacity={0.6} fontSize="0.75rem" mb="0.25rem">
@@ -1264,7 +1292,7 @@ const CombatSlot = ({
             w="100%"
             h="100%"
             transform={card ? "rotateY(180deg)" : "rotateY(0deg)"}
-            transition={`transform 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.1) ${revealDelay}`}
+            transition={`transform ${anim.flipTransitionDur}s cubic-bezier(0.2, 0.9, 0.3, 1.1) ${revealDelay}`}
             sx={{
               transformStyle: "preserve-3d",
               "@media (prefers-reduced-motion: reduce)": { transition: "none !important" },
@@ -1371,7 +1399,7 @@ const CombatSlot = ({
             boxShadow="0 2px 8px rgba(0,0,0,0.6)"
             pointerEvents="none"
             zIndex={3}
-            animation={`${chipFly} ${CHIP_FLY_DUR}s cubic-bezier(0.2, 0.8, 0.3, 1) both`}
+            animation={`${chipFly} ${anim.chipFlyDur}s cubic-bezier(0.2, 0.8, 0.3, 1) both`}
             sx={NO_MOTION}
             title={chip.source ? cardLabel(catalog, chip.source) : undefined}
           >
@@ -1386,13 +1414,13 @@ const CombatSlot = ({
           color="brand.accent"
           animation={
             comparePulse === "gold"
-              ? `${snuffValuePulse} ${COMPARE_DUR.gold}s ease-out ${COMPARE_DELAY}s both`
+              ? `${snuffValuePulse} ${anim.compareDur.gold}s ease-out ${anim.compareDelay}s both`
               : comparePulse === "dim"
-                ? `${loserDim} ${COMPARE_DUR.dim}s ease-out ${COMPARE_DELAY}s both`
+                ? `${loserDim} ${anim.compareDur.dim}s ease-out ${anim.compareDelay}s both`
                 : comparePulse === "neutral"
-                  ? `${neutralPulse} ${COMPARE_DUR.neutral}s ease-out ${COMPARE_DELAY}s both`
+                  ? `${neutralPulse} ${anim.compareDur.neutral}s ease-out ${anim.compareDelay}s both`
                   : valueFx?.displayValue != null
-                    ? `${valueTick} 0.28s ease-out both`
+                    ? `${valueTick} ${anim.valueTickDur}s ease-out both`
                     : undefined
           }
           sx={comparePulse || valueFx?.displayValue != null ? NO_MOTION : undefined}
@@ -1411,14 +1439,17 @@ const CombatSlot = ({
 );
 
 /** A decorative ring flashed at the strike's contact point / on the blocked card.
- *  `pointerEvents="none"`; mounts with the strike so its 0.5s animation plays once. */
+ *  `pointerEvents="none"`; mounts with the strike so its animation plays once. */
 const StrikeRing = ({
   variant,
   delay,
+  dur,
   left,
 }: {
   variant: StrikeVariant;
   delay: number;
+  /** the ring's own animation duration (STRIKE_RING_DUR, scaled by pace). */
+  dur: number;
   left: string;
 }) => {
   const shield = variant === "blocked";
@@ -1435,7 +1466,7 @@ const StrikeRing = ({
       pointerEvents="none"
       zIndex={2}
       opacity={0}
-      animation={`${shield ? strikeShield : strikeImpact} 0.5s ease-out ${delay}s both`}
+      animation={`${shield ? strikeShield : strikeImpact} ${dur}s ease-out ${delay}s both`}
       sx={NO_MOTION}
     />
   );
@@ -1501,8 +1532,12 @@ const CombatStageTicker = ({ stage }: { stage: ViewCombat["stage"] }) => {
 /** The reveal beat + running combat math, straight from the server view. The
  *  strike beat (#381) rides on top: when `strike` is set, the attack card lunges
  *  and slams the defense card, the panel shakes, and a ring flashes — all sequenced
- *  by CSS delay off the flip and gated on the caller (visual-fx off ⇒ null). The
- *  stage ticker (#380) sits below the slots; the outcome line reads from combatOutcome.ts (incl. the no-winner case, #545). */
+ *  by CSS delay off the flip and gated on the caller (visual-fx off ⇒ null). Every
+ *  one of those durations/delays is derived ONCE from `factor` via
+ *  `scaledCombatAnimTiming` (combatAnimTiming.ts) and threaded down, so a slower
+ *  Combat pace genuinely slows the motion, not just how long the panel lingers
+ *  after it. The stage ticker (#380) sits below the slots; the outcome line reads
+ *  from combatOutcome.ts (incl. the no-winner case, #545). */
 const CombatPanel = ({
   combat,
   catalog,
@@ -1519,6 +1554,7 @@ const CombatPanel = ({
   defenderCallout,
   compact = false,
   fighterName,
+  factor = 1,
 }: {
   combat: ViewCombat;
   catalog: Record<string, CardMeta>;
@@ -1556,6 +1592,12 @@ const CombatPanel = ({
    *  picker under the panel still fits, plus a "who attacks whom" line. */
   compact?: boolean;
   fighterName?: (id: FighterId) => string;
+  /** Combat pace (lib/pro/pace.ts) as a plain multiplier — 1 = today's pace. The
+   *  ONE place the panel derives its CSS clock (combatAnimTiming.ts) from the
+   *  player's setting; every animation below reads from `anim` instead of a fixed
+   *  1× literal, so a slower pace stretches the motion itself, not just how long
+   *  the panel stays mounted (that's combatTiming.ts, a separate clock). */
+  factor?: number;
 }) => {
   const attackerCommitted = combat.stage !== "COMMIT_ATTACK";
   const pastReveal = !["COMMIT_ATTACK", "COMMIT_DEFENSE"].includes(combat.stage);
@@ -1563,18 +1605,20 @@ const CombatPanel = ({
   // public to everyone, with the defender still to choose. Inferred from the view's
   // shape — the wire carries no marker — by the one shared helper.
   const faceUpAttack = isFaceUpPreRevealAttack(combat);
+  const anim = scaledCombatAnimTiming(factor);
   const attackAnim = strike
-    ? `${STRIKE_ATTACK_KF[strike.variant]} ${STRIKE_LUNGE_DUR}s cubic-bezier(0.3, 0, 0.2, 1) ${STRIKE_DELAY}s both`
+    ? `${STRIKE_ATTACK_KF[strike.variant]} ${anim.strikeLungeDur}s cubic-bezier(0.3, 0, 0.2, 1) ${anim.strikeDelay}s both`
     : undefined;
   const defenseAnim = strike
-    ? `${STRIKE_DEFENSE_KF[strike.variant]} ${STRIKE_REACT_DUR}s cubic-bezier(0.2, 0.8, 0.3, 1) ${STRIKE_CONTACT_DELAY}s both`
+    ? `${STRIKE_DEFENSE_KF[strike.variant]} ${anim.strikeReactDur}s cubic-bezier(0.2, 0.8, 0.3, 1) ${anim.strikeContactDelay}s both`
     : undefined;
   // The panel shakes at the contact moment; the ring flashes there too. Blocked
   // flashes a shield on the defense card (right), win/tie an impact ring at the seam.
   const ring = strike ? (
     <StrikeRing
       variant={strike.variant}
-      delay={STRIKE_CONTACT_DELAY}
+      delay={anim.strikeContactDelay}
+      dur={anim.strikeRingDur}
       left={strike.variant === "blocked" ? "72%" : "50%"}
     />
   ) : null;
@@ -1586,7 +1630,9 @@ const CombatPanel = ({
       borderRadius="0.5rem"
       p="0.75rem"
       position="relative"
-      animation={strike ? `${strikeShake} 0.4s ease-in-out ${STRIKE_CONTACT_DELAY}s both` : undefined}
+      animation={
+        strike ? `${strikeShake} ${anim.strikeShakeDur}s ease-in-out ${anim.strikeContactDelay}s both` : undefined
+      }
       sx={strike ? NO_MOTION : undefined}
     >
       {/* The tag row wraps: a combat can wear several of these at once (chain +
@@ -1693,12 +1739,13 @@ const CombatPanel = ({
           strikeAnimation={attackAnim}
           valueFx={valueFx?.ATTACK}
           comparePulse={comparePulseFor(strike?.variant, "ATTACK")}
+          anim={anim}
         />
         <CombatSlot
           label="defense"
           width={compact && !pastReveal ? "5.25rem" : undefined}
           card={combat.defenderCard}
-          revealDelay="0.18s"
+          revealDelay={`${anim.defenseFlipDelay}s`}
           resolveCard={resolveCard}
           facedownInstance={
             !combat.defenderCard && combat.defenderPlayer === you && !pastReveal ? selfCommitted : null
@@ -1710,6 +1757,7 @@ const CombatPanel = ({
           strikeVars={strike?.variant === "win" ? strikeKnockVars(strike.damage) : undefined}
           valueFx={valueFx?.DEFENSE}
           comparePulse={comparePulseFor(strike?.variant, "DEFENSE")}
+          anim={anim}
         />
         {ring}
         {/* Clash point — the seam between the two cards. Zero-size marker whose
@@ -4168,12 +4216,40 @@ const HeroSelectLobby = ({
 // LIVE mode
 // ---------------------------------------------------------------------------
 
-const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string | null; heroParam: string | null; vsBot: BotDifficulty | null; debug: boolean; quickParam: boolean }) => {
+const LiveGame = ({
+  room,
+  heroParam,
+  vsBot,
+  debug,
+  quickParam,
+  rematch,
+}: {
+  room: string | null;
+  heroParam: string | null;
+  vsBot: BotDifficulty | null;
+  debug: boolean;
+  quickParam: boolean;
+  /** parsed `?rematch=1` payload (lib/pro/rematch.ts), or null on any normal load */
+  rematch: ParsedRematch | null;
+}) => {
   // Slow mode (issue #703) — read before the socket, because it is what the socket
   // paces STATE batches with. Persisted per browser; OFF leaves the socket's queue
   // layer completely inert.
   const [slowMode, toggleSlowMode] = useSlowMode();
-  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } =
+  // Combat pace (player feedback: combat reads too fast to follow) — a per-device
+  // multiplier applied to the VISUAL combat sequence (reveal, damage arc, damage
+  // beat, settle dwell, math-beat chips). Deliberately separate from slow mode:
+  // slow mode paces how fast SERVER batches apply (queuing), pace scales how long
+  // the client's own animations take once a batch has already landed — see the
+  // gotcha note in lib/pro/useProSocket.ts's drainApplyQueue.
+  const [pace, cyclePace] = usePace();
+  const paceScale = paceFactor(pace);
+  // Turn reminder (player request: "I play matches alongside other things and
+  // forget it's my move") — the per-device setting, default ON. The hook that
+  // actually times the wait and fires the nudge is wired up below, once `view`
+  // and `soundOn` (useGameFx) exist.
+  const [turnReminderOn, toggleTurnReminder] = useTurnReminderSetting();
+  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } =
     useProSocket(WS_URL, debug, slowMode);
   // Read through refs inside the log effect: adding either to that effect's deps
   // would re-run it without a new snapshot and append the last batch's lines
@@ -4189,6 +4265,11 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // conceding costs (#636).
   const { status: accountStatus } = useAccount();
   const [joined, setJoined] = useState(false);
+  // The board brings its own pinch-zoom; a pinch that lands beside it must not
+  // scale the whole page with the cards and the dock in it (player feedback).
+  // Only while a match board is actually on screen (#893): the lobby, hero
+  // picker and waiting room keep the browser's zoom, an accessibility tool.
+  usePageZoomGuard(matchBoardOnScreen({ joined, snapshot, gameLost, error }));
   // `selectedHeroId` holds a real hero id — or RANDOM_HERO_ID (#697), which is
   // resolved to one at the create/join click and written back here, so every
   // downstream reader (lobby label, bot tiers, "play a bot instead") only ever
@@ -4463,10 +4544,12 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   const clashRef = useRef<HTMLDivElement | null>(null);
 
   // Sounds + transient board visuals, derived by diffing snapshots (useGameFx). The
-  // refs let the damage-arc (#382) measure its endpoints at launch.
+  // refs let the damage-arc (#382) measure its endpoints at launch. `paceScale`
+  // stretches the arc's launch/flight and how long a board overlay stays legible.
   const { boardFx, arcs, hurtKey, soundOn, visualOn, toggleSound, toggleVisual } = useGameFx(
     snapshot,
-    { fighterEls: fighterElsRef, clashRef }
+    { fighterEls: fighterElsRef, clashRef },
+    paceScale
   );
 
   // Lobby "match found" cue (issue #689): the waiting host tabbed away, so the
@@ -4489,22 +4572,40 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     soundOn,
   });
 
+  // Turn reminder (player request: "I play matches alongside other things and
+  // forget it's my move") — nudges this seat once its turn, or a combat
+  // defense it owes, has sat untouched for a while. `soundOn` is the SAME
+  // setting the HUD's speaker chip flips; `turnReminderOn` is its own
+  // per-device toggle (default ON, surfaced in the HUD as a bell chip).
+  // `snapshot?.view ?? null` rather than destructuring — this hook has to run
+  // unconditionally, before the pre-game early return below ever narrows
+  // `snapshot`.
+  const { pulse: turnReminderPulse } = useTurnReminder({
+    view: snapshot?.view ?? null,
+    legalActionCount: snapshot?.legalActions.length ?? 0,
+    enabled: turnReminderOn,
+    soundOn,
+  });
+
   // Combat callouts (issue #162): full-screen turn/defend/reveal flourishes.
   // Decorative-only; a separate hook so the board-FX loop above stays
-  // byte-identical.
-  const combatCallouts = useCombatCallouts(snapshot);
+  // byte-identical. `paceScale` stretches the reveal stagger + each callout's
+  // on-screen life.
+  const combatCallouts = useCombatCallouts(snapshot, paceScale);
 
   // The strike beat (issue #381): after the flip settles, the attack card slams
   // the defense card and it reacts by outcome. `lingeringCombat` freezes a combat
   // that resolves+ends in one batch so the panel survives long enough to play it.
-  const { strike, lingeringCombat, lingerHold } = useCombatStrike(snapshot);
+  // `paceScale` stretches the strike's life and the panel's linger/hold together —
+  // the #517 invariant holds at every pace (see scaledCombatTiming).
+  const { strike, lingeringCombat, lingerHold } = useCombatStrike(snapshot, paceScale);
 
   // The math beat (issue #382): value modifiers fly in as chips onto the value
   // pill, which ticks toward the effective value; paced through the shared battle
   // timeline. Purely decorative — gated off (raw values shown) when visual-fx is
   // off OR reduced motion is requested (the count-up is motion too), exactly like
-  // the strike.
-  const combatValueFx = useCombatValueFx(snapshot);
+  // the strike. `paceScale` stretches the chip run and count-up cadence too.
+  const combatValueFx = useCombatValueFx(snapshot, paceScale);
   const reducedMotion = !!useReducedMotion();
 
   // Lively tokens (issue #320): per-fighter recoil/lunge/brace/topple gestures,
@@ -4560,17 +4661,137 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     else toast.error(`${res.title} — ${res.description}`, { duration: 7000 });
   }, [replayBundle]);
 
+  // One-tap rematch (issue #TBD): the winner screen's Rematch button target —
+  // a /pro/game?rematch=1&... link encoding this SAME game's setup (see
+  // lib/pro/rematch.ts for exactly what carries over). Built from the replay
+  // bundle every seat receives at GAME_OVER plus the room's recorded bot seats
+  // — NOT the ROOM_STATUS roster, which a bot room and a mid-game reload never
+  // get (#876) — so whoever presses it, winner or loser, vs AI or not, gets an
+  // equally faithful rematch. Null until the bundle lands, which the dock
+  // treats as "not ready yet" rather than rendering a broken link.
+  const finishedSetup = useMemo(() => {
+    if (!replayBundle || !roomInfo?.you) return null;
+    const { config } = replayBundle;
+    return buildFinishedGameSetup({
+      players: config.players,
+      bots: roomInfo.bots ?? {},
+      you: roomInfo.you,
+      formatId: config.formatId ?? roomInfo.formatId,
+      turnTimerSeconds: roomInfo.turnTimerSeconds,
+      mulliganWasOn: config.options?.mulligan === true,
+      itemsWereOff: config.options?.itemsDisabled === true,
+      mapId: config.mapId ?? null,
+    });
+  }, [replayBundle, roomInfo]);
+  const rematchHref = useMemo(
+    () => (finishedSetup ? `/pro/game?${new URLSearchParams(rematchQuery(finishedSetup)).toString()}` : null),
+    [finishedSetup]
+  );
+
+  // Rematch offer/confirm (p2p #880): with another HUMAN at the table and an
+  // engine that serves the negotiation (bound at v35 — see lib/pro/wireVersion),
+  // Rematch asks them instead of creating a room of our own; two separate
+  // one-tap rooms is what split players apart before. Vs AI there is nobody to
+  // ask, and a v34 engine can't carry the question, so both keep the link.
+  // Built from the view + the room's recorded bot seats, NOT the replay bundle:
+  // the server rebuilds the setup itself, and a reload into a finished room
+  // gets no second bundle — the requester who refreshes mid-offer must still
+  // see "Waiting…". Bot seats unknown (never recorded here) → the link.
+  const rematchView = snapshot?.view ?? null;
+  const rematchNegotiation = useMemo<RematchNegotiation | null>(() => {
+    const bots = roomInfo?.bots;
+    if (!rematchNegotiable || !rematchView?.winner || !bots) return null;
+    const humans = rematchView.players.filter((p) => p.id !== rematchView.you && !bots[p.id]);
+    if (humans.length === 0) return null;
+    const nameOf = (player: PlayerId) =>
+      seatNameplate(
+        { ...rematchView.players.find((p) => p.id === player), id: player, you: player === rematchView.you },
+        rematchView.players.length
+      );
+    return {
+      state: rematchOffer,
+      nameOf,
+      waitingFor: humans.length === 1 ? nameOf(humans[0].id) : "the other players",
+      onOffer: offerRematch,
+      onCancel: cancelRematch,
+      onRespond: respondToRematch,
+    };
+  }, [rematchNegotiable, roomInfo, rematchView, rematchOffer, offerRematch, cancelRematch, respondToRematch]);
+
+  // Everyone agreed: the server built the room and seated us (its token is
+  // stored). A full page load onto it RECONNECTs like any refresh does —
+  // nothing of this finished game's socket state follows us in.
+  const rematchReadyRoom = rematchOffer.phase === "ready" ? rematchOffer.roomId : null;
+  useEffect(() => {
+    if (!rematchReadyRoom) return;
+    const query = new URLSearchParams({ room: rematchReadyRoom });
+    if (debug) query.set("debug", "");
+    window.location.href = `/pro/game?${query.toString()}`;
+  }, [rematchReadyRoom, debug]);
+
   // Pinch/scroll zoom + drag pan on the board (issue #120), now the default
   // interaction: the board fills the whole stage and the fixed HUD/hand/dock
   // float over it (issue #450). Turning the flag off falls back to the old
   // boxed, padded board — no transform, no gestures.
   const [zoomMapOn] = useFlag("zoomMap");
+  // Board presentation (tabletop board view phase 1): flat (default) or
+  // tabletop, per device — same game, same socket, same handlers; only which
+  // board component renders below changes.
+  const [preferredBoardView, toggleBoardView] = useBoardView();
   // Which arrangement this viewport gets (issue #708). Desktop (>= 62em) is the
   // floating-overlay layout below, untouched; anything narrower mounts the
   // mobile arrangement of the same components. Read via matchMedia rather than
   // Chakra's useBreakpointValue, which touches `window` during the static
   // prerender of this page and fails the export — see lib/pro/useProLayout.
   const { mobile, rail, mode } = useProLayout();
+  // A portrait phone always draws the flat board (#870): the tabletop has no
+  // counter-rotation for the 90°-turned portrait frame. The stored preference
+  // is untouched, so turning back to landscape returns to the tabletop. A map
+  // with a region (Baba Yaga's Hut) no longer forces the flat board (#922):
+  // TableBoard renders its main spaces in 3D and floats the region as its own
+  // 2D inset panel.
+  const wantedBoardView = resolveBoardView(preferredBoardView, mode);
+  // The tabletop's code is its own chunk (#893): fetched the first time the
+  // tabletop is wanted — at mount for a device that stored it, which is still
+  // in the lobby — and the flat board stays up until it has arrived, so the
+  // switch never shows an empty stage.
+  const TableBoard = useLazyTableBoard(wantedBoardView === "table");
+  const boardView = wantedBoardView === "table" && !TableBoard ? "flat" : wantedBoardView;
+  // Pre-rendered miniatures for the tabletop view (lib/pro/figures): the
+  // owner's private set (git-ignored, absent on every deploy) and the
+  // committed open-licence set (#903). A hero without a figure keeps its
+  // token standee. Fetched only once the tabletop is shown: the flat board
+  // draws no figures (#877).
+  const { private: privateFigures, open: openFigures } = useFigureManifests(boardView === "table");
+  const figureManifests = useMemo(() => ({ private: privateFigures, open: openFigures }), [privateFigures, openFigures]);
+  // 3D minis (#945/#953): null — no "3D minis" option — until the tabletop is
+  // shown, and for good where WebGL is unavailable or the renderer failed.
+  // The manifest is fetched only then, so the first page load is unchanged.
+  const minis3dSource = useMinis3dSource(boardView === "table");
+  // The viewer's figure style (#903, #953): 3D minis, a sprite set, or
+  // tokens, picked from one dropdown. Offered only as the choices that change
+  // something on THIS board — none at all when every hero here would be a
+  // token anyway. Each hero then stands at its best available level under
+  // the style: 3D mini → sprite mini → token.
+  const [preferredFigureStyle, chooseFigureStyle] = useFigureStyle();
+  const figureStyles = useMemo(
+    () =>
+      figureStyleOptions(
+        figureManifests,
+        Object.entries(ownerHeroIds).map(([seat, heroId]) => ({ heroId, seat })),
+        minis3dSource
+      ),
+    [figureManifests, ownerHeroIds, minis3dSource]
+  );
+  const figureStyle = effectiveFigureStyle(preferredFigureStyle, figureStyles);
+  const heroPiece = (seat: string) =>
+    pieceForStyle(figureManifests, minis3dSource, figureStyle, ownerHeroIds[seat], seat);
+  // The tabletop HUD (lib/pro/tableHud): a landscape phone looking at the
+  // tabletop board gets plates, a banner, a fanned hand and a hexagon instead
+  // of the decision rail. The flat board keeps its rail, untouched.
+  const hud = rail && boardView === "table";
+  // The HUD's fit is arithmetic, so it needs the notch's width as a number.
+  const safeArea = useSafeAreaInsets(hud);
   // The PERSISTENT mobile chrome is measured, not assumed — the HP-chip row
   // grows a timer bar, the bottom controls grow with the fan-peek. The decision
   // sheet, hand drawer and log sheet are deliberately NOT measured: they are
@@ -4591,18 +4812,24 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // the non-zoom fallback below still uses.
   const boardFitInset = useMemo(
     () =>
-      boardFitInsetFor({
-        mode,
-        chipsH: mobileChipsH,
-        controlsH: mobileControlsH,
-        sheetH: mobileSheetH,
-      }),
-    [mode, mobileChipsH, mobileControlsH, mobileSheetH]
+      hud
+        ? tableHudFitInset({ sheetShown: mobileSheetShown, safe: safeArea })
+        : boardFitInsetFor({
+            mode,
+            chipsH: mobileChipsH,
+            controlsH: mobileControlsH,
+            sheetH: mobileSheetH,
+          }),
+    [hud, mode, mobileChipsH, mobileControlsH, mobileSheetH, mobileSheetShown, safeArea]
   );
   // The activity log floats permanently on desktop; on mobile it is a sheet the
   // Log button opens. The hand is a drawer on mobile portrait (direction B) —
   // closed at rest, so the board keeps the whole screen.
   const [logOpen, setLogOpen] = useState(false);
+  // "Which cards are gone?" is asked all game and decides whether an attack is
+  // safe. Both piles are public; on a phone they used to sit two taps deep in a
+  // seat sheet, so they get their own button next to the log (player feedback).
+  const [discardsOpen, setDiscardsOpen] = useState(false);
   const [handOpen, setHandOpen] = useState(false);
 
   // Choose-a-player card faces (issue #861 — The Narrator's Foreshadowing): the
@@ -4746,11 +4973,13 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // URL never had it, so a refresh dumped them to the lobby with no way back
   // (playtest feedback). With the id in the URL + the localStorage token, a
   // refresh reconnects either seat.
+  // A rematch link's own keys are dropped on the way (#876): left beside
+  // `room=`, a refresh would read them as a fresh rematch and CREATE_ROOM again.
   const router = useRouter();
   useEffect(() => {
     if (!roomId || router.query.room === roomId) return;
     router.replace(
-      { pathname: router.pathname, query: { ...router.query, room: roomId } },
+      { pathname: router.pathname, query: { ...withoutRematchQuery(router.query), room: roomId } },
       undefined,
       { shallow: true }
     );
@@ -4880,6 +5109,50 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       setSelectedHeroId(heroes[0].heroId);
     }
   }, [heroes, heroParam, selectedHeroId]);
+
+  // One-tap rematch (issue #TBD): fire the CREATE_ROOM a rematch link encoded,
+  // exactly once, the moment this page mounts with one. Mirrors what the
+  // create-lobby's own submit does alongside `createRoom` — `setSelectedHeroId`
+  // + `setJoined(true)` — so every `joined`-gated effect below (and the
+  // waiting room's own "playing on <board>" line) behaves as if the player
+  // had picked all of this by hand, and the picker never flashes on screen.
+  // `customMap` is resolved from `rematch.mapId` here (not in lib/pro/rematch,
+  // which stays protocol-only) via the same catalog helpers onConfirm uses; a
+  // pasted-custom board has no mapId and rematches onto the format's default.
+  // The link's params come straight off the URL the moment it fires (#876):
+  // the page's own `room=` takes over from there, so a refresh or a copied URL
+  // RECONNECTs to this room instead of minting another empty one. What the
+  // waiting room still needs from the link (`joinHero`) is kept in state.
+  const rematchFiredRef = useRef(false);
+  const [firedRematch, setFiredRematch] = useState<ParsedRematch | null>(null);
+  useEffect(() => {
+    if (!rematch || rematchFiredRef.current) return;
+    rematchFiredRef.current = true;
+    setFiredRematch(rematch);
+    router.replace(
+      { pathname: router.pathname, query: withoutRematchQuery(router.query) },
+      undefined,
+      { shallow: true }
+    );
+    const args = rematchCreateRoomArgs(rematch);
+    const mapEntry = rematch.mapId ? catalogEntry(rematch.mapId) : undefined;
+    createRoom(
+      args.heroId,
+      args.bot,
+      mapEntry ? customMapForEntry(mapEntry) : undefined,
+      args.formatId,
+      args.botSeats,
+      args.turnTimerSeconds,
+      args.mulligan,
+      undefined,
+      args.itemsEnabled,
+    );
+    setSelectedHeroId(args.heroId);
+    setSelectedFormat(rematch.formatId as ProFormatId);
+    if (rematch.mapId) setSelectedMapId(rematch.mapId);
+    if (args.itemsEnabled === false) setItemsEnabled(false);
+    setJoined(true);
+  }, [rematch, createRoom, router]);
 
   // UNKNOWN_HERO shouldn't happen when picking from the server list, but if the
   // server rejects the hero, drop back to the picker instead of a dead end.
@@ -5319,8 +5592,16 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       );
     }
     if (roomId) {
+      // A rematch link's `joinHero` (lib/pro/rematch.ts) pre-fills the invite
+      // we're about to hand the previous game's other seat, so joining this
+      // rematch is a hero-picker-free tap for them too — the same courtesy
+      // `?hero=` already does for any other invite link.
       const joinUrl =
-        typeof window !== "undefined" ? `${window.location.origin}/pro/game?room=${roomId}` : "";
+        typeof window !== "undefined"
+          ? `${window.location.origin}/pro/game?room=${roomId}${
+              firedRematch?.joinHeroId ? `&hero=${encodeURIComponent(firedRematch.joinHeroId)}` : ""
+            }`
+          : "";
       return (
         <Flex direction="column" alignItems="center" gap="1rem" pt="4rem" px="1rem">
           <Text fontFamily="LeagueGothic" fontSize="2.5rem" letterSpacing="0.05em">
@@ -5548,7 +5829,12 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     }
     return (
       <Text pt="4rem" textAlign="center" opacity={0.7}>
-        waiting for game state… ({status}
+        {/* Same "Connected"/"Reconnecting…" vocabulary as the in-match HUD chip
+            (issue #133 follow-up): a phone returning from the background before
+            ever seeing a STATE — e.g. a reconnect still climbing back onto the
+            room — reads the same status words here as it does in a live game,
+            instead of the raw internal status string. */}
+        waiting for game state… ({(STATUS_DISPLAY[status] ?? STATUS_DISPLAY.connecting).label}
         {roomId ? `, room ${roomId}` : ""})
       </Text>
     );
@@ -6592,13 +6878,14 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // leaves the hand playable too, and opening the drawer over the board for it
   // is exactly the wrong move. Never during the mulligan, which puts the
   // opening hand on screen itself.
-  const handDecision =
-    mobile &&
-    !!prompt &&
-    !mulliganPrompt &&
-    promptCardOptions.some((o) => view.self.hand.includes(o.instance))
-      ? prompt.promptId
-      : null;
+  // Not in the tabletop HUD, whose drawer would cover the question (#874).
+  const handDecision = handDecisionKeyFor({
+    shell: mobile ? (hud ? "hud" : rail ? "rail" : "portrait") : false,
+    promptId: prompt?.promptId ?? null,
+    mulligan: !!mulliganPrompt,
+    optionInstances: promptCardOptions.map((o) => o.instance),
+    hand: view.self.hand,
+  });
 
 
   // The HUD's data, built once and worn by whichever arrangement is mounted
@@ -6627,6 +6914,18 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
     slowModeOn: slowMode,
     onToggleSlowMode: toggleSlowMode,
     slowModeHolding: !!slowModeHeld,
+    pace,
+    onCyclePace: cyclePace,
+    boardView,
+    onToggleBoardView: toggleBoardView,
+    boardViewLockedHint: boardViewLockedHint(mode),
+    figureStyle: boardView === "table" && figureStyles.length > 0 ? figureStyle : undefined,
+    figureStyles: boardView === "table" ? figureStyles : undefined,
+    onChooseFigureStyle: boardView === "table" && figureStyles.length > 0 ? chooseFigureStyle : undefined,
+    // The credit for the miniature each seat's hero stands as on the table.
+    figureCreditFor: boardView === "table" ? (seat: string) => pieceCredit(heroPiece(seat)) : undefined,
+    turnReminderOn,
+    onToggleTurnReminder: toggleTurnReminder,
     onReportBug: () => setReportBugOpen(true),
   };
 
@@ -6655,6 +6954,60 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
   // hand strip under it would only squeeze the picker below the fold.
   const railPickerOpen = mobile && rail && cardChoiceGroups(dockActionRows.map((r) => r.action)).length > 0;
 
+  // The board's data, built once and worn by whichever presentation is mounted
+  // (tabletop board view phase 1): the flat board or the tabletop one. Kept as
+  // one object so the two stay wired identically — a prop added here reaches
+  // both without hunting down two call sites.
+  const boardProps: ProBoardProps = {
+    map: view.map,
+    fighters: view.fighters,
+    tokens: view.tokens,
+    highlightedSpaces: [...new Set(highlightedSpaces)],
+    relocateSpaces,
+    relocateArmed: relocateMode.armedTarget != null,
+    highlightedFighters: [...new Set(highlightedFighters)],
+    focusFighters: mobile && !rail && sheetCombat && !combatSummary ? [sheetCombat.attacker, sheetCombat.target] : undefined,
+    selectedFighter,
+    attack: view.combat ? { attacker: view.combat.attacker, target: view.combat.target } : null,
+    defenderStepIn: boardDefenderStepIn,
+    friendlyOwners,
+    fighterBadges: attackerBadge,
+    extendedReachTargets: [...extendedReachTargets],
+    boughtRangeTargets,
+    fighterTokenArt,
+    fighterTokenBadge: (f) => ownerTokenState[f.owner]?.badge ?? null,
+    fighterTokenRim,
+    boardObjectArt,
+    boardObjectOriginName,
+    fx: boardFx,
+    pendingMove: pendingMove ?? incomingMove,
+    swaps: positionSwaps,
+    // #654: the effect-move ghost rides the same preview channel as the
+    // maneuver one — only one of the two can be live at a time (a prompt
+    // owns the board while it is open).
+    previewMove: previewMove ?? promptPreviewMove,
+    onPendingMoveSettled: () => {
+      setPendingMove(null);
+      clearIncoming();
+    },
+    closedRegions: view.closedRegions,
+    itemTokens: view.itemTokens,
+    onSpaceClick,
+    onFighterClick,
+    onSpaceHover: setHoveredSpace,
+    onFighterHover: setHoveredFighter,
+    moveHint,
+    imgMaxH: zoomMapOn ? undefined : "calc(100svh - 16rem)",
+    zoomable: zoomMapOn,
+    // Portrait phones only (issue #708): stand the landscape map on end so it
+    // uses the screen's long axis. Landscape is already the map's own
+    // orientation, and desktop never rotates.
+    rotated: mode === "portrait",
+    fitInset: boardFitInset,
+    tokenLife: tokenLifeOn ? tokenGestures : null,
+    fighterEls: fighterElsRef,
+  };
+
   const dockEl = (
     <ProDock
       view={view}
@@ -6667,6 +7020,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
               fighterName: selectedFighter?.split("/")[1] ?? "",
               movesLeft: stepMovesLeft,
               canEnd: stepCanEnd,
+              instanceKey: `${selectedFighter}@${selectedOrigin}`,
               onEnd: () => stepState && commitStep(stepState),
               onCancel: () => {
                 setStep(null);
@@ -6742,6 +7096,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
             defenderCallout={combatDefenderTag}
             compact={mobile && !rail}
             fighterName={nameOf}
+            factor={paceScale}
           />
         ) : null
       }
@@ -6779,6 +7134,8 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       iAmSpectating={iAmSpectating}
       iForfeited={iForfeited}
       multiplayerView={multiplayerView}
+      rematchHref={rematchHref}
+      rematchNegotiation={rematchNegotiation}
       replayHref={replayBundle ? `/pro/replays?open=${replayId(replayBundle)}` : null}
       onCopyShareLink={
         replayBundle && accountStatus === "signed-in" ? () => void copyReplayShareLink() : undefined
@@ -6788,7 +7145,7 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
       onUndo={requestUndo}
       canForfeit={canForfeit}
       onForfeit={() => setForfeitOpen(true)}
-      mobile={mobile ? (rail ? "rail" : "portrait") : false}
+      mobile={mobile ? (hud ? "hud" : rail ? "rail" : "portrait") : false}
       mobileHandOpen={handOpen}
       mobileSheetRef={mobileSheetRef}
       onMobileSheetShown={setMobileSheetShown}
@@ -6862,55 +7219,19 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
         pb={zoomMapOn ? 0 : "8.5rem"}
         pr={zoomMapOn ? 0 : { base: "1rem", lg: "20rem" }}
       >
-        <ProBoard
-          map={view.map}
-          fighters={view.fighters}
-          tokens={view.tokens}
-          highlightedSpaces={[...new Set(highlightedSpaces)]}
-          relocateSpaces={relocateSpaces}
-          relocateArmed={relocateMode.armedTarget != null}
-          highlightedFighters={[...new Set(highlightedFighters)]}
-          focusFighters={mobile && !rail && sheetCombat && !combatSummary ? [sheetCombat.attacker, sheetCombat.target] : undefined}
-          selectedFighter={selectedFighter}
-          attack={view.combat ? { attacker: view.combat.attacker, target: view.combat.target } : null}
-          defenderStepIn={boardDefenderStepIn}
-          friendlyOwners={friendlyOwners}
-          fighterBadges={attackerBadge}
-          extendedReachTargets={[...extendedReachTargets]}
-          boughtRangeTargets={boughtRangeTargets}
-          fighterTokenArt={fighterTokenArt}
-          fighterTokenBadge={(f) => ownerTokenState[f.owner]?.badge ?? null}
-          fighterTokenRim={fighterTokenRim}
-          boardObjectArt={boardObjectArt}
-          boardObjectOriginName={boardObjectOriginName}
-          fx={boardFx}
-          pendingMove={pendingMove ?? incomingMove}
-          swaps={positionSwaps}
-          // #654: the effect-move ghost rides the same preview channel as the
-          // maneuver one — only one of the two can be live at a time (a prompt
-          // owns the board while it is open).
-          previewMove={previewMove ?? promptPreviewMove}
-          onPendingMoveSettled={() => {
-            setPendingMove(null);
-            clearIncoming();
-          }}
-          closedRegions={view.closedRegions}
-          itemTokens={view.itemTokens}
-          onSpaceClick={onSpaceClick}
-          onFighterClick={onFighterClick}
-          onSpaceHover={setHoveredSpace}
-          onFighterHover={setHoveredFighter}
-          moveHint={moveHint}
-          imgMaxH={zoomMapOn ? undefined : "calc(100svh - 16rem)"}
-          zoomable={zoomMapOn}
-          // Portrait phones only (issue #708): stand the landscape map on end
-          // so it uses the screen's long axis. Landscape is already the map's
-          // own orientation, and desktop never rotates.
-          rotated={mode === "portrait"}
-          fitInset={boardFitInset}
-          tokenLife={tokenLifeOn ? tokenGestures : null}
-          fighterEls={fighterElsRef}
-        />
+        {/* One prop object feeds whichever board component is mounted (tabletop
+            board view phase 1) — same game, same socket, same handlers; only
+            the presentation differs. See lib/pro/boardView.ts. */}
+        {boardView === "table" && TableBoard ? (
+          <TableBoard
+            {...boardProps}
+            fighterFigure={(f) => (f.kind === "HERO" ? heroPiece(f.owner).figure : null)}
+            fighterMini3d={(f) => (f.kind === "HERO" ? heroPiece(f.owner).mini3d : null)}
+            resetViewSpot={hud ? HUD_RESET_VIEW_SPOT : undefined}
+          />
+        ) : (
+          <ProBoard {...boardProps} />
+        )}
       </Flex>
 
       {/* red vignette flash when your hero takes damage (useGameFx) */}
@@ -6941,6 +7262,14 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
           <CombatCalloutOverlay key={item.key} item={item} view={view} resolveCard={resolveCard} />
         ))}
 
+      {/* Turn reminder's foreground cue (player request: nudge someone who
+          forgot it's their move) — a small, repeatable pulse, deliberately NOT
+          gated on pro-visual-fx like the callouts above: it is the on-screen
+          half of a three-channel nudge (vibration/sound/title carry the rest),
+          not decorative juice, so turning visual-fx off must not silence it
+          too. Its own dedicated toggle (turnReminderOn) is what turns it off. */}
+      <TurnReminderCue pulse={turnReminderPulse} />
+
       {/* floating player plates + room/connection chips (sandbox HUD DNA);
           report-bug chip (issue #125/#138) shares this row so it doesn't
           overlap the invite/connection chips — beta badge distinguishes it
@@ -6951,7 +7280,16 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
           per-element media query, so the static export's first paint is the
           desktop one and hydration stays quiet. */}
       {mobile ? (
-        <ProMobileHud {...hudProps} layoutMode={mode} chipsRef={mobileChipsRef} />
+        <ProMobileHud
+          {...hudProps}
+          layoutMode={mode}
+          chipsRef={mobileChipsRef}
+          hud={hud}
+          portraitFor={(seat) => {
+            const hero = view.fighters.find((f) => f.owner === seat && f.kind === "HERO");
+            return hero ? fighterTokenArt(hero) : null;
+          }}
+        />
       ) : (
         <ProHud {...hudProps} />
       )}
@@ -7032,6 +7370,19 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
 
       {/* activity feed — bottom-left parchment panel on desktop; on mobile the
           same panel as a sheet the match strip's log button opens (#708). */}
+      <ProDiscardsSheet
+        isOpen={discardsOpen}
+        onClose={() => setDiscardsOpen(false)}
+        seats={view.players.map((seat) => ({
+          id: seat.id,
+          name: view.fighters.find((f) => f.owner === seat.id && f.kind === "HERO")?.name ?? seat.id.toUpperCase(),
+          discard: seat.discard,
+          you: seat.id === view.you,
+        }))}
+        resolveCard={resolveCard}
+        labelFor={(c) => cardLabel(view.catalog, c)}
+      />
+
       <ProLog
         entries={logEntries}
         resolveCard={resolveCard}
@@ -7112,6 +7463,15 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
             >
               <TbList size="1rem" /> Log
             </Flex>
+            <Flex
+              {...MOBILE_BTN}
+              as="button"
+              aria-label="Discard piles"
+              pointerEvents="auto"
+              onClick={() => setDiscardsOpen(true)}
+            >
+              <TbCards size="1rem" /> Played
+            </Flex>
             <HandDecisionWatcher promptKey={handDecision} onOpen={() => setHandOpen(true)} />
             {!handPeekHidden && (
               <ProMobileHand
@@ -7134,8 +7494,41 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
         </Flex>
       )}
 
+      {/* Tabletop HUD (landscape, tabletop board): the dock renders its own
+          banner, hexagons and side sheet; the hand fans over the bottom edge
+          and the log / discards / menu stand in a column on the left. */}
+      {hud && (
+        <>
+          {dockEl}
+          <TableHudHand
+            besideSheet={mobileSheetShown}
+            hand={view.self.hand}
+            resolveCard={resolveCard}
+            labelFor={(c) => cardLabel(view.catalog, c)}
+            actionsFor={actionsForCard}
+            onAction={playFromHand}
+            deckCount={view.self.deckCount}
+            discardCount={view.self.discard.length}
+            isOpen={handOpen}
+            onOpen={() => setHandOpen(true)}
+            onClose={() => setHandOpen(false)}
+          />
+          <TableHudSideButtons
+            onOpenLog={() => setLogOpen(true)}
+            onOpenDiscards={() => setDiscardsOpen(true)}
+            menu={
+              <ProMobileMenu
+                {...hudProps}
+                placement="right-start"
+                onForfeit={canForfeit && view.phase === "PLAY" && !view.winner ? () => setForfeitOpen(true) : undefined}
+              />
+            }
+          />
+        </>
+      )}
+
       {/* Landscape rail: decision stack on top, compact hand strip below. */}
-      {mobile && rail && (
+      {mobile && rail && !hud && (
         <Flex
           data-testid="pro-mobile-rail"
           position="fixed"
@@ -7167,6 +7560,16 @@ const LiveGame = ({ room, heroParam, vsBot, debug, quickParam }: { room: string 
               onClick={() => setLogOpen(true)}
             >
               <TbList size="0.9rem" /> Log
+            </Flex>
+            <Flex
+              {...MOBILE_BTN}
+              as="button"
+              aria-label="Discard piles"
+              minH={TAP_TARGET}
+              px="0.6rem"
+              onClick={() => setDiscardsOpen(true)}
+            >
+              <TbCards size="0.9rem" /> Played
             </Flex>
             <Box flex={1} />
             <ProMobileMenu {...hudProps} placement="bottom-end" onForfeit={canForfeit && view.phase === "PLAY" && !view.winner ? () => setForfeitOpen(true) : undefined} />
@@ -7204,6 +7607,8 @@ const previewFighters = (map: ProMapDef): ViewFighter[] => {
 };
 
 const PreviewGame = () => {
+  // The demo is nothing but a board, so it is guarded whenever it is up.
+  usePageZoomGuard();
   const [fighters, setFighters] = useState<ViewFighter[]>(() => previewFighters(PREVIEW_MAP));
   const [selected, setSelected] = useState<FighterId | null>(null);
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
@@ -7265,6 +7670,11 @@ const ProGamePage = () => {
   const router = useRouter();
   const room = typeof router.query.room === "string" ? router.query.room : null;
   const heroParam = typeof router.query.hero === "string" ? router.query.hero : null;
+  // One-tap rematch (issue #TBD): `/pro/game?rematch=1&...` carries a whole
+  // CREATE_ROOM's worth of settings from a just-finished game's winner screen
+  // — see lib/pro/rematch.ts. Null on every ordinary page load (no `rematch`
+  // key), so this is a no-op for the entire rest of the app.
+  const rematch = parseRematchQuery(router.query);
   // `?vs=ai[-easy|-medium|-hard]` presets the duel opponent seat to a bot, so
   // the landing's "Play vs AI" CTA lands one click from a solo match (#460).
   // Independent of `?hero=` — both compose.
@@ -7281,7 +7691,14 @@ const ProGamePage = () => {
   return (
     <Box minH="100svh" bg={TABLE_BG} color="brand.parchment">
       {WS_URL ? (
-        <LiveGame room={room} heroParam={heroParam} vsBot={vsBot} debug={debug} quickParam={quickParam} />
+        <LiveGame
+          room={room}
+          heroParam={heroParam}
+          vsBot={vsBot}
+          debug={debug}
+          quickParam={quickParam}
+          rematch={rematch}
+        />
       ) : (
         <PreviewGame />
       )}

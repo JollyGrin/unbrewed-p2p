@@ -1,0 +1,307 @@
+/**
+ * Rematch offer/confirm through the REAL Pro game page (p2p #880, engine #607).
+ *
+ * The hook + winner screen wiring the pure reducer tests can't see: which `v`
+ * each bind goes out at (34 unless the engine's own frames said 35), the
+ * game-over re-bind at v35, the frames Rematch / Accept / Decline / Cancel
+ * send, the notices, the new room's token on REMATCH_READY — and that a v34
+ * engine or a vs-AI room keeps the one-tap link. Harness as rematchRefresh.
+ */
+import "@testing-library/jest-dom";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { ChakraProvider } from "@chakra-ui/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { RouterContext } from "next/dist/shared/lib/router-context";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { theme } from "@/styles/style";
+import ProGamePage from "@/pages/pro/game";
+import { PROTOCOL_VERSION } from "@/lib/pro/protocol";
+import type { PlayerView, ReplayBundle } from "@/lib/pro/protocol";
+import { setRoomBots } from "@/lib/pro/recentRooms";
+import { resetEngineVersions } from "@/lib/pro/wireVersion";
+import { PRO_WS_URL } from "@/lib/pro/wsUrl";
+import { FakeWebSocket, installFakeWebSocket, installPolyfills } from "@/scripts/renderFuzz/domEnv";
+
+const BASE_VIEW: PlayerView = JSON.parse(
+  readFileSync(
+    join(process.cwd(), "test", "replays", "smokebot", "sample", "sample-game-0001.views.jsonl"),
+    "utf8",
+  )
+    .trim()
+    .split("\n")[0],
+).view;
+
+type Query = Record<string, string>;
+
+let replaceCalls: { query: Query }[] = [];
+let SENT: Record<string, unknown>[] = [];
+
+const fakeRouter = (query: Query) =>
+  ({
+    route: "/pro/game",
+    pathname: "/pro/game",
+    query,
+    asPath: `/pro/game?${new URLSearchParams(query).toString()}`,
+    basePath: "",
+    isReady: true,
+    isFallback: false,
+    isPreview: false,
+    isLocaleDomain: false,
+    events: { on() {}, off() {}, emit() {} },
+    push: async () => true,
+    replace: async (url: { query: Query }) => {
+      replaceCalls.push(url);
+      return true;
+    },
+    reload() {},
+    back() {},
+    forward() {},
+    prefetch: async () => {},
+    beforePopState() {},
+  }) as never;
+
+// `v` is what the ENGINE stamps on its frames — 34 for today's prod, 35 for
+// an engine built from the paired #607 PR.
+let ENGINE_V = PROTOCOL_VERSION;
+const deliver = async (msg: Record<string, unknown>) => {
+  const socket = FakeWebSocket.latest();
+  if (!socket) throw new Error("the page never opened a socket");
+  await act(async () => {
+    socket.onmessage?.({ data: JSON.stringify({ v: ENGINE_V, ...msg }) });
+  });
+};
+
+const mount = async (query: Query) => {
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <RouterContext.Provider value={fakeRouter(query)}>
+        <ChakraProvider theme={theme}>
+          <ProGamePage />
+        </ChakraProvider>
+      </RouterContext.Provider>
+    </QueryClientProvider>,
+  );
+  const socket = FakeWebSocket.latest();
+  if (!socket) throw new Error("the page never opened a socket");
+  await act(async () => {
+    socket.readyState = FakeWebSocket.OPEN;
+    socket.onopen?.({});
+  });
+};
+
+const sentOfType = (type: string) => SENT.filter((m) => m.type === type);
+
+beforeAll(() => {
+  installPolyfills();
+  installFakeWebSocket();
+  FakeWebSocket.prototype.send = function send(data: string) {
+    SENT.push(JSON.parse(data));
+  } as unknown as FakeWebSocket["send"];
+});
+
+beforeEach(() => {
+  FakeWebSocket.reset();
+  SENT = [];
+  replaceCalls = [];
+});
+
+afterEach(() => {
+  cleanup();
+  resetEngineVersions();
+  ENGINE_V = PROTOCOL_VERSION;
+  window.sessionStorage.clear();
+  window.localStorage.clear();
+});
+
+
+const PVP_BUNDLE = (): ReplayBundle =>
+  ({
+    v: 1,
+    engine: { schemaVersion: 1, dslVersion: "0" },
+    config: {
+      seed: 7,
+      formatId: "duel",
+      options: { mulligan: true },
+      players: {
+        p1: { heroId: "king-kong", hero: {}, cards: [] },
+        p2: { heroId: "COUNT", hero: {}, cards: [] },
+      },
+      map: BASE_VIEW.map,
+    },
+    actionLog: [],
+    meta: { winner: "p1", heroes: { p1: "king-kong", p2: "COUNT" }, turns: 3, endedAt: 0, mapTitle: "x" },
+  }) as unknown as ReplayBundle;
+
+/**
+ * Mount seated in finished room OLD1 as `you`, and play the game-over frames.
+ * `bots` is what this browser recorded for the room — `{}` for PvP, as the
+ * ROOM_STATUS handler writes it when the other player joins.
+ */
+const finishGame = async (you: "p1" | "p2", opts: { bots?: Record<string, string> | null } = {}) => {
+  const bots = opts.bots === undefined ? {} : opts.bots;
+  if (bots) setRoomBots("OLD1", bots as never);
+  window.sessionStorage.setItem("unbrewed-pro-token-OLD1", `tok-${you}`);
+  await mount({ room: "OLD1" });
+  await deliver({ type: "HEROES", heroes: [] });
+  await deliver({ type: "ROOM_JOINED", roomId: "OLD1", token: `tok-${you}`, you });
+  await deliver({
+    type: "STATE",
+    view: { ...BASE_VIEW, you, phase: "GAME_OVER", winner: "p1", prompt: null },
+    legalActions: [],
+    events: [],
+  });
+  await deliver({ type: "REPLAY_BUNDLE", bundle: PVP_BUNDLE() });
+};
+
+const rematchButton = () => screen.getAllByRole("button", { name: /rematch — same setup/i, hidden: true })[0];
+const statusText = () => screen.getAllByRole("status", { hidden: true }).map((n) => n.textContent ?? "");
+
+describe("against today's v34 engine", () => {
+  it("binds at v34, never re-binds, and keeps the one-tap link — no REMATCH_* on the wire", async () => {
+    await finishGame("p1");
+    expect(sentOfType("RECONNECT")).toEqual([{ v: 34, type: "RECONNECT", roomId: "OLD1", token: "tok-p1" }]);
+    expect(screen.getAllByRole("link", { name: /rematch/i, hidden: true }).length).toBeGreaterThan(0);
+    expect(screen.queryAllByRole("button", { name: /rematch — same setup/i, hidden: true })).toHaveLength(0);
+    expect(SENT.filter((m) => String(m.type).startsWith("REMATCH_"))).toHaveLength(0);
+    expect(SENT.every((m) => m.v === 34)).toBe(true);
+  });
+});
+
+describe("against a v35 engine", () => {
+  beforeEach(() => {
+    ENGINE_V = 35;
+  });
+
+  it("a first visit binds at 34, then re-binds the finished seat at 35 at game over", async () => {
+    await finishGame("p1");
+    const reconnects = sentOfType("RECONNECT");
+    expect(reconnects[0]).toMatchObject({ v: 34, roomId: "OLD1" });
+    expect(reconnects[reconnects.length - 1]).toMatchObject({ v: 35, roomId: "OLD1", token: "tok-p1" });
+    expect(reconnects.filter((r) => r.v === 35)).toHaveLength(1);
+  });
+
+  it("a refresh mid-offer binds at 35 at once and shows the waiting offer again — no replay bundle needed", async () => {
+    window.sessionStorage.setItem("unbrewed-pro-engine-v-" + FakeWebSocketUrl(), "35");
+    window.sessionStorage.setItem("unbrewed-pro-token-OLD1", "tok-p1");
+    setRoomBots("OLD1", {});
+    await mount({ room: "OLD1" });
+    // A v34 return would make the engine close the open offer as `unavailable`.
+    expect(sentOfType("RECONNECT")).toEqual([{ v: 35, type: "RECONNECT", roomId: "OLD1", token: "tok-p1" }]);
+    await deliver({ type: "ROOM_JOINED", roomId: "OLD1", token: "tok-p1", you: "p1" });
+    await deliver({
+      type: "STATE",
+      view: { ...BASE_VIEW, you: "p1", phase: "GAME_OVER", winner: "p1", prompt: null },
+      legalActions: [],
+      events: [],
+    });
+    // The engine re-sends the open offer, `from` ourselves; it sends no second REPLAY_BUNDLE.
+    await deliver({ type: "REMATCH_OFFERED", from: "p1" });
+    expect(statusText().join(" ")).toMatch(/Waiting for Opponent to accept/);
+    fireEvent.click(screen.getAllByRole("button", { name: /^cancel$/i, hidden: true })[0]);
+    expect(sentOfType("REMATCH_CANCEL")).toHaveLength(1);
+  });
+
+  it("Rematch asks the opponent; Cancel withdraws", async () => {
+    await finishGame("p1");
+    expect(screen.queryAllByRole("link", { name: /rematch/i, hidden: true })).toHaveLength(0);
+    fireEvent.click(rematchButton());
+    expect(sentOfType("REMATCH_OFFER")).toEqual([{ v: 35, type: "REMATCH_OFFER", roomId: "OLD1" }]);
+    expect(statusText().join(" ")).toMatch(/Waiting for Opponent to accept/);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /^cancel$/i, hidden: true })[0]);
+    expect(sentOfType("REMATCH_CANCEL")).toEqual([{ v: 35, type: "REMATCH_CANCEL", roomId: "OLD1" }]);
+    expect(rematchButton()).toBeTruthy();
+  });
+
+  it("a double tap on Rematch sends one offer", async () => {
+    await finishGame("p1");
+    const button = rematchButton();
+    // Both taps land before React re-renders the button away.
+    await act(async () => {
+      button.click();
+      button.click();
+    });
+    expect(sentOfType("REMATCH_OFFER")).toHaveLength(1);
+  });
+
+  it("the requester sees a decline, and the button comes back", async () => {
+    await finishGame("p1");
+    fireEvent.click(rematchButton());
+    await deliver({ type: "REMATCH_CLOSED", reason: "declined", player: "p2" });
+    expect(statusText().join(" ")).toMatch(/Opponent declined the rematch/);
+    expect(rematchButton()).toBeTruthy();
+  });
+
+  it("the requester sees the opponent leave", async () => {
+    await finishGame("p1");
+    fireEvent.click(rematchButton());
+    await deliver({ type: "REMATCH_CLOSED", reason: "disconnected", player: "p2" });
+    expect(statusText().join(" ")).toMatch(/Opponent left/);
+  });
+
+  it("an offer refused because the opponent's client is too old says so — never the error screen", async () => {
+    await finishGame("p1");
+    fireEvent.click(rematchButton());
+    await deliver({ type: "ERROR", code: "REMATCH_UNAVAILABLE", message: "Another player's client cannot answer a rematch offer" });
+    expect(statusText().join(" ")).toMatch(/Your opponent needs to refresh to rematch/);
+    expect(rematchButton()).toBeTruthy();
+    expect(screen.getAllByText(/VICTORY!/).length).toBeGreaterThan(0);
+  });
+
+  it("the other player gets Accept / Decline; Accept answers yes and READY seats it in the new room", async () => {
+    await finishGame("p2");
+    await deliver({ type: "REMATCH_OFFERED", from: "p1" });
+    expect(statusText().join(" ")).toMatch(/Opponent wants a rematch, same setup/);
+    fireEvent.click(screen.getAllByRole("button", { name: /^accept$/i, hidden: true })[0]);
+    expect(sentOfType("REMATCH_RESPOND")).toEqual([{ v: 35, type: "REMATCH_RESPOND", roomId: "OLD1", accept: true }]);
+
+    await deliver({ type: "REMATCH_READY", roomId: "NEW1", token: "tok-new" });
+    expect(window.sessionStorage.getItem("unbrewed-pro-token-NEW1")).toBe("tok-new");
+    expect(statusText().join(" ")).toMatch(/Starting the rematch/);
+    // Never a ?rematch= CREATE_ROOM.
+    expect(sentOfType("CREATE_ROOM")).toHaveLength(0);
+  });
+
+  it("Decline answers no", async () => {
+    await finishGame("p2");
+    await deliver({ type: "REMATCH_OFFERED", from: "p1" });
+    fireEvent.click(screen.getAllByRole("button", { name: /^decline$/i, hidden: true })[0]);
+    expect(sentOfType("REMATCH_RESPOND")).toEqual([{ v: 35, type: "REMATCH_RESPOND", roomId: "OLD1", accept: false }]);
+    expect(rematchButton()).toBeTruthy();
+  });
+
+  it("a READY naming the room this tab already sits in is ignored", async () => {
+    await finishGame("p1");
+    fireEvent.click(rematchButton());
+    await deliver({ type: "REMATCH_READY", roomId: "OLD1", token: "other" });
+    expect(window.sessionStorage.getItem("unbrewed-pro-token-OLD1")).toBe("tok-p1");
+    expect(statusText().join(" ")).toMatch(/Waiting for Opponent/);
+  });
+
+  it("bot seats never recorded in this browser: the link, not a question the engine would refuse", async () => {
+    await finishGame("p1", { bots: null });
+    expect(screen.getAllByRole("link", { name: /rematch/i, hidden: true }).length).toBeGreaterThan(0);
+    expect(screen.queryAllByRole("button", { name: /rematch — same setup/i, hidden: true })).toHaveLength(0);
+  });
+
+  it("vs AI keeps the one-tap link (nobody to ask)", async () => {
+    await finishGame("p1", { bots: { p2: "hard" } });
+    expect(screen.getAllByRole("link", { name: /rematch/i, hidden: true }).length).toBeGreaterThan(0);
+    expect(screen.queryAllByRole("button", { name: /rematch — same setup/i, hidden: true })).toHaveLength(0);
+  });
+
+  it("an engine rolled back to v34 answers the v35 bind with VERSION — re-sent at 34", async () => {
+    window.sessionStorage.setItem("unbrewed-pro-engine-v-" + FakeWebSocketUrl(), "35");
+    window.sessionStorage.setItem("unbrewed-pro-token-OLD1", "tok-p1");
+    ENGINE_V = 34;
+    await mount({ room: "OLD1" });
+    await deliver({ type: "ERROR", code: "VERSION", message: "Protocol v34 required (got v35) — refresh the page" });
+    expect(sentOfType("RECONNECT").map((r) => r.v)).toEqual([35, 34]);
+    expect(screen.queryAllByText(/refresh the page/i)).toHaveLength(0);
+  });
+});
+
+function FakeWebSocketUrl(): string {
+  return PRO_WS_URL;
+}

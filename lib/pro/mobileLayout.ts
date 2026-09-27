@@ -149,3 +149,35 @@ export const boardFitInsetFor = ({
     right: MOBILE_GUTTER,
   };
 };
+
+/** Which mobile shell is mounted — the dock's `mobile` prop. */
+export type MobileShell = "portrait" | "rail" | "hud" | false;
+
+/**
+ * The prompt that should pop the mobile hand drawer open, or null. A prompt
+ * whose own options name cards in YOUR hand is a decision about the hand, so
+ * the drawer comes to meet it — except in the tabletop HUD (#874): its drawer
+ * is page-level and stacks OVER the side sheet holding the question, and the
+ * drawer's buttons can't answer a prompt anyway. The HUD sheet already shows
+ * those cards as its own face picker, so the drawer stays shut there.
+ * Never during the mulligan, which puts the opening hand on screen itself.
+ */
+export const handDecisionKeyFor = ({
+  shell,
+  promptId,
+  mulligan,
+  optionInstances,
+  hand,
+}: {
+  shell: MobileShell;
+  promptId: string | null;
+  mulligan: boolean;
+  optionInstances: readonly string[];
+  hand: readonly string[];
+}): string | null =>
+  (shell === "portrait" || shell === "rail") &&
+  promptId !== null &&
+  !mulligan &&
+  optionInstances.some((i) => hand.includes(i))
+    ? promptId
+    : null;

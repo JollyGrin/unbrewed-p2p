@@ -11,6 +11,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { GameEvent, PlayerView } from "./protocol";
+import { mustDefend } from "./defenseTurn";
 
 /** One derived flourish. `turn`/`defend` come from the view alone (work pre-v10);
  *  `reveal` needs the v10 `events` and carries the source card's instance id (or
@@ -92,8 +93,6 @@ const REVEAL_SLOTS = 4;
 /** The defender is on the clock: combat has reached its commit-defense stage and
  *  YOU are the one who must answer. Precise enough to never fire while you are the
  *  attacker committing an attack card (both share the COMMIT_COMBAT_CARD prompt). */
-const mustDefend = (v: PlayerView): boolean =>
-  v.combat?.stage === "COMMIT_DEFENSE" && v.combat.defenderPlayer === v.you;
 
 /**
  * Diff consecutive snapshots into decorative callouts. Pure and view-derived
@@ -192,9 +191,16 @@ export function diffCombatCallouts(
 /**
  * Manage the live set of combat callouts for the page. Each new flourish is
  * appended with a stable key and a per-kind timer removes it.
+ *
+ * `paceFactor` (lib/pro/pace.ts, 1 = today's pace) stretches every leg here —
+ * the stagger between reveals, the lead-drop cap and each kind's on-screen
+ * life — proportionally, exactly like the arc/panel timers in useGameFx.ts
+ * and combatStrike.ts. A mid-sequence pace change is read fresh each batch
+ * (via `paceRef`), so it takes effect on the NEXT callout, not mid-flight.
  */
 export function useCombatCallouts(
-  snapshot: { view: PlayerView; events: GameEvent[] } | null
+  snapshot: { view: PlayerView; events: GameEvent[] } | null,
+  paceFactor = 1
 ): CombatCalloutItem[] {
   const [items, setItems] = useState<CombatCalloutItem[]>([]);
   const prevViewRef = useRef<PlayerView | null>(null);
@@ -204,6 +210,8 @@ export function useCombatCallouts(
   // appear, and a monotonic cascade counter that resets once the queue has drained.
   const revealFreeAtRef = useRef(0);
   const revealCycleRef = useRef(0);
+  const paceRef = useRef(paceFactor);
+  paceRef.current = paceFactor;
 
   useEffect(() => {
     const timers = timersRef.current;
@@ -216,6 +224,11 @@ export function useCombatCallouts(
     prevViewRef.current = snapshot.view;
     const callouts = diffCombatCallouts(prev, snapshot.view, snapshot.events);
     if (callouts.length === 0) return;
+
+    const factor = paceRef.current;
+    const ttlFor = (kind: CombatCallout["kind"]) => Math.round(TTL_MS[kind] * factor);
+    const revealStaggerMs = Math.round(REVEAL_STAGGER_MS * factor);
+    const revealMaxLeadMs = Math.round(REVEAL_MAX_LEAD_MS * factor);
 
     const removeLater = (key: string, delay: number) =>
       timersRef.current.push(
@@ -232,20 +245,20 @@ export function useCombatCallouts(
       if (c.kind !== "reveal" && c.kind !== "effect") {
         // Turn / defend / cancel are view-derived beats — fire immediately, as before.
         setItems((cur) => [...cur, { ...c, key }]);
-        removeLater(key, TTL_MS[c.kind]);
+        removeLater(key, ttlFor(c.kind));
         continue;
       }
       // Reveal + effect ribbon share ONE stagger queue (issue #380): stagger the
       // entrance, cap the backlog, cascade the position so simultaneous callouts
       // deal out one at a time instead of stacking dead-center.
       const showAt = Math.max(now, revealFreeAtRef.current);
-      if (showAt - now > REVEAL_MAX_LEAD_MS) continue; // drop overflow
+      if (showAt - now > revealMaxLeadMs) continue; // drop overflow
       const delay = showAt - now;
       const slot = revealCycleRef.current++ % REVEAL_SLOTS;
-      revealFreeAtRef.current = showAt + REVEAL_STAGGER_MS;
+      revealFreeAtRef.current = showAt + revealStaggerMs;
       const item: CombatCalloutItem = { ...c, key, slot };
       timersRef.current.push(setTimeout(() => setItems((cur) => [...cur, item]), delay));
-      removeLater(key, delay + TTL_MS[c.kind]);
+      removeLater(key, delay + ttlFor(c.kind));
     }
   }, [snapshot]);
 

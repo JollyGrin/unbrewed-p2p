@@ -1,0 +1,152 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Figure render</title>
+<style>html,body{margin:0;background:transparent}canvas{display:block}</style>
+<script type="importmap">
+{ "imports": { "three": "/three/build/three.module.js", "three/addons/": "/three/examples/jsm/" } }
+</script>
+</head>
+<body>
+<!--
+  Driven by scripts/figures/render.cjs; see that file for the why. One page
+  load renders one model in one tint and publishes the result on
+  window.__result. Geometry decisions that the manifest depends on (anchor,
+  footprint, scale) are all computed here from the model itself.
+-->
+<script type="module">
+import * as THREE from "three";
+import { STLLoader } from "three/addons/loaders/STLLoader.js";
+import { ThreeMFLoader } from "three/addons/loaders/3MFLoader.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { mergeBufferGeometries, mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
+
+const q = new URLSearchParams(location.search);
+const file = q.get("model");
+// Camera elevation above the ground, degrees. No default here: render.cjs
+// derives it from the board's tilt (camera.cjs) and always passes it.
+if (!q.has("elev")) throw new Error("elev is required (render.cjs passes 90 − DEFAULT_TILT_DEG)");
+const elev = +q.get("elev");
+const az = +(q.get("az") ?? 0);
+const tint = q.get("tint");
+const W = +(q.get("w") ?? 600), H = +(q.get("h") ?? 900);
+const footprintOverride = q.get("footprintMm") ? +q.get("footprintMm") : null;
+// glTF only: keep just the meshes whose name contains this (a multi-character
+// pack such as a kit of zombies holds several figures in one file).
+const meshFilter = q.get("mesh");
+// Turns about the printed frame's X / Z axes, degrees, for a model that was
+// not published standing up (a museum scan in its own survey frame).
+const rx = +(q.get("rx") ?? 0), rz = +(q.get("rz") ?? 0);
+
+/** STL is one mesh; 3MF and glTF are scenes of meshes with their own
+ *  transforms. Either way the result is one position-only geometry, Z-up as
+ *  printed. */
+const loadGeometry = async () => {
+  if (/\.stl$/i.test(file)) return new STLLoader().loadAsync(file);
+  const isGltf = /\.(glb|gltf)$/i.test(file);
+  const group = isGltf ? (await new GLTFLoader().loadAsync(file)).scene : await new ThreeMFLoader().loadAsync(file);
+  group.updateMatrixWorld(true);
+  const parts = [];
+  group.traverse((o) => {
+    if (!o.isMesh) return;
+    if (meshFilter && !o.name.includes(meshFilter)) return;
+    const g = o.geometry.clone();
+    g.applyMatrix4(o.matrixWorld);
+    for (const name of Object.keys(g.attributes)) if (name !== "position") g.deleteAttribute(name);
+    parts.push(g.index ? g.toNonIndexed() : g);
+  });
+  // The 3MF loader already turns the file's Z-up into three's Y-up, and glTF
+  // is Y-up by definition; undo it so every format reaches the shared path
+  // below in the same, printed, frame.
+  if (parts.length === 0) throw new Error(`no mesh${meshFilter ? ` named like "${meshFilter}"` : ""} in ${file}`);
+  const merged = mergeBufferGeometries(parts);
+  merged.rotateX(Math.PI / 2);
+  return merged;
+};
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(W, H);
+renderer.outputEncoding = THREE.sRGBEncoding;
+document.body.appendChild(renderer.domElement);
+
+let geo = await loadGeometry();
+if (geo.attributes.normal) geo.deleteAttribute("normal");
+geo = mergeVertices(geo, 1e-4);
+geo.computeVertexNormals();
+if (rx) geo.rotateX((rx * Math.PI) / 180);
+if (rz) geo.rotateZ((rz * Math.PI) / 180);
+geo.rotateX(-Math.PI / 2); // printed Z-up -> three's Y-up
+geo.computeBoundingBox();
+{
+  const bb = geo.boundingBox;
+  geo.translate(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2);
+  geo.computeBoundingBox();
+}
+const height = geo.boundingBox.max.y;
+const pos = geo.attributes.position;
+const v = new THREE.Vector3();
+
+// The model's base: its widest horizontal extent within the bottom 2% of its
+// height. That is what must cover the standee's base disc on the board.
+let footprintMm = footprintOverride;
+if (!footprintMm) {
+  let fx0 = Infinity, fx1 = -Infinity, fz0 = Infinity, fz1 = -Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    if (v.y > height * 0.02) continue;
+    fx0 = Math.min(fx0, v.x); fx1 = Math.max(fx1, v.x); fz0 = Math.min(fz0, v.z); fz1 = Math.max(fz1, v.z);
+  }
+  footprintMm = Math.max(fx1 - fx0, fz1 - fz0);
+}
+
+const scene = new THREE.Scene();
+scene.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+  // three r143 reads hex as LINEAR unless told otherwise; the tint is an sRGB swatch.
+  color: new THREE.Color(tint).convertSRGBToLinear(),
+  roughness: 0.42,
+  metalness: 0.15,
+})));
+// Soft fill, a warm key from the front-left above, and a cool rim from
+// behind so a figure separates from a dark board.
+scene.add(new THREE.HemisphereLight(0xfff1dc, 0x1a1016, 0.22));
+const key = new THREE.DirectionalLight(0xfff0dc, 1.6);
+key.position.set(-1.2, 2.0, 1.6);
+scene.add(key);
+const rim = new THREE.DirectionalLight(0xbcd4ff, 0.9);
+rim.position.set(1.0, 1.4, -2.0);
+scene.add(rim);
+
+// Orthographic: the board applies its own perspective to the sprite.
+const rad = (d) => (d * Math.PI) / 180;
+const dir = new THREE.Vector3(Math.sin(rad(az)) * Math.cos(rad(elev)), Math.sin(rad(elev)), Math.cos(rad(az)) * Math.cos(rad(elev)));
+const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10000);
+cam.position.copy(dir.multiplyScalar(2000).add(new THREE.Vector3(0, height / 2, 0)));
+cam.lookAt(0, height / 2, 0);
+cam.updateMatrixWorld();
+
+let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+for (let i = 0; i < pos.count; i++) {
+  v.fromBufferAttribute(pos, i).applyMatrix4(cam.matrixWorldInverse);
+  x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y);
+}
+const MARGIN = 1.04;
+const halfW = Math.max((x1 - x0) / 2, ((y1 - y0) / 2) * (W / H)) * MARGIN;
+const halfH = halfW * (H / W);
+const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+Object.assign(cam, { left: cx - halfW, right: cx + halfW, top: cy + halfH, bottom: cy - halfH });
+cam.updateProjectionMatrix();
+renderer.render(scene, cam);
+
+const ground = new THREE.Vector3(0, 0, 0).applyMatrix4(cam.matrixWorldInverse);
+window.__result = {
+  image: renderer.domElement.toDataURL("image/webp", 0.9),
+  anchor: { x: (ground.x - cam.left) / (cam.right - cam.left), y: (cam.top - ground.y) / (cam.top - cam.bottom) },
+  imageWidthMm: 2 * halfW,
+  footprintMm,
+  aspect: H / W,
+};
+</script>
+</body>
+</html>
