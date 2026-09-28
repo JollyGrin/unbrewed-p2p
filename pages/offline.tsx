@@ -8,7 +8,7 @@ import { OfflineGameProvider } from "@/lib/contexts/OfflineGameProvider";
 import { useBagDecks } from "@/lib/bag/useBag";
 import { useDeckLink } from "@/lib/hooks/useDeckLink";
 import { deckMatchesLink } from "@/lib/deckLink";
-import { DeckLinkHold } from "@/components/DeckLink/DeckLinkHold";
+import { DeckLinkHold, DeckLinkNotice } from "@/components/DeckLink/DeckLinkHold";
 import { DeckRefreshOnTable } from "@/components/DeckLink/DeckRefreshOnTable";
 
 /**
@@ -58,6 +58,7 @@ const Offline = () => {
           <GameShell />
           <DeckRefreshOnTable refresh={link.refresh} />
           {link.held?.refresh && <DeckLinkHold link={link} />}
+          <DeckLinkNotice link={link} />
         </OfflineGameProvider>
       ) : (
         <Grid

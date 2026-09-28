@@ -97,6 +97,11 @@ export const fetchLabsSet = async (
       : fail("bad-input"));
   const row = await setBySlug(slug, fetchImpl);
   const characterId = input.kind === "character" ? input.characterId : undefined;
+  // An Adventures set (villain + minions): no hero to pick, whatever the link names.
+  const characters = row.document.set.characters ?? [];
+  if (characters.length > 0 && !characters.some((c) => c.role === "hero" || c.role === undefined)) {
+    fail("no-heroes");
+  }
   if (characterId && !row.document.set.characters?.some((c) => c.id === characterId)) {
     fail("character-not-found");
   }

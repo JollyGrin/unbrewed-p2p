@@ -22,6 +22,7 @@ import {
   LabsUnsupportedFeature,
   fail,
   fetchLabsImport,
+  LabsSkippedContent,
   isLabsDeckId,
   labsDeckId,
   parseLabsInput,
@@ -37,6 +38,8 @@ export type LinkedDeck = {
   deck: DeckImportType;
   /** Labs features the card template can't draw; empty for unmatched.cards */
   unsupported: LabsUnsupportedFeature[];
+  /** What a Labs set holds that the import leaves behind; never holds the link */
+  skipped: LabsSkippedContent;
 };
 
 /** `null` for a `labs:` link that doesn't name a character. */
@@ -67,17 +70,20 @@ export const deckMatchesLink = (
 };
 
 /** Fetch the linked deck from its source. Rejects on a refused or bad link. */
-export const fetchLinkedDeck = async (raw: string): Promise<LinkedDeck> => {
+export const fetchLinkedDeck = async (
+  raw: string,
+  fetchImpl?: typeof fetch,
+): Promise<LinkedDeck> => {
   const link = parseDeckLink(raw);
   if (!link) return fail("bad-input");
   if (link.source === "unmatched") {
-    return { deck: await fetchDeckById(link.id), unsupported: [] };
+    return { deck: await fetchDeckById(link.id), unsupported: [], skipped: [] };
   }
-  const { deck, unsupported } = await fetchLabsImport({
-    kind: "character",
-    characterId: link.characterId,
-  });
-  return { deck, unsupported };
+  const { deck, unsupported, skipped } = await fetchLabsImport(
+    { kind: "character", characterId: link.characterId },
+    fetchImpl,
+  );
+  return { deck, unsupported, skipped };
 };
 
 /**

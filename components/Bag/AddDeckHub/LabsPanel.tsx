@@ -12,6 +12,7 @@ import {
 import { toast } from "react-hot-toast";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { DeckCards } from "@/components/Bag/Deck/DeckCards";
+import { LabsSkippedSummary } from "./LabsSkipped";
 import { LabsTtsSteps, LabsUnsupportedWarning } from "./LabsUnsupported";
 import {
   LABS_ERROR_MESSAGES,
@@ -21,6 +22,7 @@ import {
   buildLabsImport,
   defaultLabsCharacter,
   fetchLabsSet,
+  labsImportedText,
   listLabsHeroes,
 } from "@/lib/labs";
 
@@ -206,6 +208,13 @@ export const LabsPanel = ({
             </Button>
           </HStack>
           <DeckCards decks={[result.deck]} selectedDeckId={result.deck.id} />
+          <Box mt="0.75rem" maxW="620px">
+            <LabsSkippedSummary
+              skipped={result.skipped}
+              imported={labsImportedText(result.deck)}
+              sourceUrl={result.deck.sourceUrl}
+            />
+          </Box>
         </Box>
       )}
 

@@ -7,6 +7,9 @@ import {
   ModalOverlay,
 } from "@chakra-ui/react";
 import Link from "next/link";
+import { CloseButton } from "@chakra-ui/react";
+
+import { LabsSkippedSummary } from "@/components/Bag/AddDeckHub/LabsSkipped";
 
 import { LabsUnsupportedWarning } from "@/components/Bag/AddDeckHub/LabsUnsupported";
 import { DeckLinkState } from "@/lib/hooks/useDeckLink";
@@ -48,5 +51,35 @@ export const DeckLinkHold = ({ link }: { link: DeckLinkState }) => {
         <ModalBody p={0}>{warning}</ModalBody>
       </ModalContent>
     </Modal>
+  );
+};
+
+/**
+ * What the Labs set holds that wasn't imported (#1000): a dismissible note
+ * over the table, shown once the deck has loaded. It never holds the table.
+ */
+export const DeckLinkNotice = ({ link }: { link: DeckLinkState }) => {
+  const { notice } = link;
+  if (!notice) return null;
+  return (
+    <HStack
+      role="status"
+      position="fixed"
+      bottom="12px"
+      left="12px"
+      right="12px"
+      maxW="520px"
+      mx="auto"
+      zIndex={1500}
+      align="flex-start"
+      p="0.75rem"
+      borderRadius="0.5rem"
+      bg="brand.parchment"
+      color="brand.secondary"
+      boxShadow="lg"
+    >
+      <LabsSkippedSummary skipped={notice.skipped} sourceUrl={notice.sourceUrl} />
+      <CloseButton aria-label="Dismiss" size="sm" onClick={link.dismissNotice} />
+    </HStack>
   );
 };

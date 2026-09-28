@@ -94,6 +94,20 @@ export type LabsCharacter = {
 
 export type LabsCustomSymbol = { id: string; name?: string; source?: string | null };
 
+export type LabsFigure = {
+  id: string;
+  /** "figure" | "dial" | "piece" | "token" */
+  kind: string;
+  name?: string;
+  /** an uploaded 3D model file */
+  model?: unknown;
+  /** character id, or null for a set-wide component */
+  characterId?: string | null;
+  reference?: { source?: string | null };
+};
+
+export type LabsMap = { spaces?: unknown[] };
+
 export type LabsSet = {
   id: string;
   name: string;
@@ -101,6 +115,12 @@ export type LabsSet = {
   decks: LabsDeck[];
   cards: LabsCard[];
   customSymbols?: LabsCustomSymbol[];
+  figures?: LabsFigure[];
+  /** older sets carry one map here, newer ones use `maps` */
+  map?: LabsMap | null;
+  maps?: LabsMap[] | null;
+  /** Adventures sets */
+  threat?: { enabled?: boolean } | null;
 };
 
 /** One row of `rpc/set_by_slug`. */
