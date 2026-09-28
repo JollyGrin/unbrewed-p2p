@@ -6,15 +6,13 @@ import {
   HStack,
   Input,
   Link,
-  ListItem,
-  OrderedList,
   Text,
-  UnorderedList,
   Wrap,
 } from "@chakra-ui/react";
 import { toast } from "react-hot-toast";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { DeckCards } from "@/components/Bag/Deck/DeckCards";
+import { LabsTtsSteps, LabsUnsupportedWarning } from "./LabsUnsupported";
 import {
   LABS_ERROR_MESSAGES,
   LabsImport,
@@ -184,7 +182,11 @@ export const LabsPanel = ({
       {result && (
         <Box mt="0.75rem">
           {result.unsupported.length > 0 && (
-            <UnsupportedWarning result={result} onOpenImages={onOpenImages} />
+            <LabsUnsupportedWarning
+              deckName={result.deck.name}
+              unsupported={result.unsupported}
+              onOpenImages={onOpenImages}
+            />
           )}
           <Text fontSize="0.85rem" opacity={0.8} mb="0.4rem">
             From “{result.setName}”{result.author ? ` by ${result.author}` : ""}
@@ -216,7 +218,7 @@ export const LabsPanel = ({
             Our card template draws standard cards only. For anything else,
             bring the deck in as full card art instead:
           </Text>
-          <TtsSteps onOpenImages={onOpenImages} />
+          <LabsTtsSteps onOpenImages={onOpenImages} />
         </Box>
       )}
     </Flex>
@@ -225,76 +227,3 @@ export const LabsPanel = ({
 
 const messageOf = (err: unknown) =>
   err instanceof LabsImportError ? err.message : LABS_ERROR_MESSAGES.network;
-
-/** The Labs TTS-export → card-image import path, for decks our template can't draw. */
-const TtsSteps = ({ onOpenImages }: { onOpenImages?: () => void }) => (
-  <OrderedList spacing="0.2rem" ml="1.25rem">
-    <ListItem>
-      On Unmatched Labs, open the set and choose{" "}
-      <b>Export Tabletop Simulator object</b>, with <b>Host assets online</b>{" "}
-      checked.
-    </ListItem>
-    <ListItem>Save the file it gives you (or copy its JSON).</ListItem>
-    <ListItem>
-      Upload or paste it in{" "}
-      {onOpenImages ? (
-        <Link as="button" textDecoration="underline" fontWeight={700} onClick={onOpenImages}>
-          Import from The Unmatched Club
-        </Link>
-      ) : (
-        <b>Import from The Unmatched Club</b>
-      )}{" "}
-      — that option takes any deck as card images, not just the Club&apos;s.
-    </ListItem>
-  </OrderedList>
-);
-
-const UnsupportedWarning = ({
-  result,
-  onOpenImages,
-}: {
-  result: LabsImport;
-  onOpenImages?: () => void;
-}) => (
-  <Box
-    role="alert"
-    mb="0.75rem"
-    p="0.85rem"
-    borderRadius="0.5rem"
-    bg="orange.50"
-    border="2px solid"
-    borderColor="orange.400"
-    color="gray.800"
-    fontSize="0.9rem"
-    maxW="680px"
-  >
-    <Text fontWeight={700} fontSize="1rem" mb="0.3rem">
-      ⚠ This deck won&apos;t look right with our card template
-    </Text>
-    <Text mb="0.3rem">
-      {result.deck.name} uses Unmatched Labs features we can&apos;t draw:
-    </Text>
-    <UnorderedList ml="1.25rem" mb="0.5rem" spacing="0.1rem">
-      {result.unsupported.map((feature) => (
-        <ListItem key={feature.id}>
-          {feature.label}
-          {feature.cards.length > 0 && (
-            <Text as="span" opacity={0.75}>
-              {" "}
-              — {feature.cards.join(", ")}
-            </Text>
-          )}
-        </ListItem>
-      ))}
-    </UnorderedList>
-    <Text fontWeight={700} mb="0.2rem">
-      To play it with its real card art:
-    </Text>
-    <TtsSteps onOpenImages={onOpenImages} />
-    {onOpenImages && (
-      <Button size="sm" mt="0.6rem" colorScheme="orange" onClick={onOpenImages}>
-        Open the card-image import
-      </Button>
-    )}
-  </Box>
-);
