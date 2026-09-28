@@ -14,6 +14,7 @@
     "maps:snapshot": "node scripts/snapshot-maps.mjs",
     "pro:decks:verify": "node scripts/deck-manifest.mjs verify",
     "pro:decks:bump-rules": "node scripts/deck-manifest.mjs bump-rules",
+    "tableplace:validate": "tsx scripts/tableplace/validate.mjs",
     "pro:render-fuzz": "tsx scripts/render-fuzz.mts",
     "pro:render-fuzz:fixtures": "tsx scripts/renderFuzz/writeSampleRun.mts"
   },
