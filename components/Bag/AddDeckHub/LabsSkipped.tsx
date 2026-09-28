@@ -10,11 +10,14 @@ export const LabsSkippedSummary = ({
   skipped,
   imported,
   sourceUrl,
+  mapInBag,
 }: {
   skipped: LabsSkippedContent;
   /** what the import did bring in, e.g. "Lucy, 15 cards, hero card" */
   imported?: string;
   sourceUrl?: string;
+  /** a link never adds the set's map; say where it can be added (#1002) */
+  mapInBag?: boolean;
 }) => {
   if (skipped.length === 0) return null;
   return (
@@ -32,6 +35,12 @@ export const LabsSkippedSummary = ({
         )}
         .
       </Text>
+      {mapInBag && skipped.some(({ kind }) => kind === "map") && (
+        <Text>
+          The set&apos;s map can be added from the bag: open Add a deck, choose
+          Unmatched Labs and paste the set link.
+        </Text>
+      )}
     </Box>
   );
 };

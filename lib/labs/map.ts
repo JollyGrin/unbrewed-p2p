@@ -17,6 +17,7 @@ import { LabsUnsupportedFeature, detectLabsUnsupported } from "./unsupported";
 import { labsPreviewUrl } from "./previews";
 import { seedHeroCardTokens } from "@/components/Positions/heroCardTokens";
 import { importedFigureIds, labsComponentTokens } from "./components";
+import { LabsMapOffer, labsMapOffer } from "./labsMap";
 
 export type LabsHeroOption = { id: string; name: string };
 
@@ -31,6 +32,11 @@ export type LabsImport = {
   skipped: LabsSkippedContent;
   setName: string;
   author?: string;
+  /**
+   * The set's map, when the hosted save holds a render of it (#1002). The
+   * Labs panel offers it as an opt-in checkbox; deep links never add it.
+   */
+  map?: LabsMapOffer;
 };
 
 const CARD_TYPES: Record<string, UnmatchedCardType> = {
@@ -362,11 +368,13 @@ export const buildLabsImport = (
     },
   };
 
+  const map = labsMapOffer(loaded, deck);
   return {
     deck,
     unsupported: detectLabsUnsupported(set, characterId, row),
     skipped: detectLabsSkipped(set, characterId, importedFigureIds(deck)),
     setName: row.name,
     author,
+    ...(map ? { map } : {}),
   };
 };

@@ -286,10 +286,17 @@ const warnFellBackToDevice = () =>
 const warnCloudWriteFailed = (reason: CloudFailure) =>
   toast.error(cloudFailureMessage(reason), { id: "bag-cloud-write" });
 
-const addLocal = <T,>(store: KindStore<T>, item: T): WriteOutcome =>
-  persistLocal(store, [...store.local, item])
+const addLocal = <T,>(store: KindStore<T>, item: T): WriteOutcome => {
+  // Same id → replace in place (#1002): adding one map or deck twice must not
+  // leave two rows, as it can't in the account.
+  const id = store.idOf(item);
+  const next = store.local.some((entry) => store.idOf(entry) === id)
+    ? store.local.map((entry) => (store.idOf(entry) === id ? item : entry))
+    : [...store.local, item];
+  return persistLocal(store, next)
     ? { ok: true, where: "device" }
     : { ok: false, reason: "device_full" };
+};
 
 /**
  * Add one item. Signed in and reachable → the account, and localStorage is not

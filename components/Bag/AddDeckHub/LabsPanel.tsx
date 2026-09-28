@@ -2,6 +2,7 @@ import { FormEvent, useMemo, useState } from "react";
 import {
   Box,
   Button,
+  Checkbox,
   Flex,
   HStack,
   Input,
@@ -11,6 +12,7 @@ import {
 } from "@chakra-ui/react";
 import { toast } from "react-hot-toast";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
+import { useBagMaps } from "@/lib/bag/useBag";
 import { DeckCards } from "@/components/Bag/Deck/DeckCards";
 import { LabsSkippedSummary } from "./LabsSkipped";
 import { LabsTtsSteps, LabsUnsupportedWarning } from "./LabsUnsupported";
@@ -24,6 +26,7 @@ import {
   fetchLabsSet,
   labsImportedText,
   listLabsHeroes,
+  withoutSkippedMap,
 } from "@/lib/labs";
 
 const LABS_URL = "https://www.unmatchedlabs.com";
@@ -50,6 +53,9 @@ export const LabsPanel = ({
   const [error, setError] = useState<string>();
   const [loaded, setLoaded] = useState<LabsLoadedSet>();
   const [characterId, setCharacterId] = useState<string>();
+  // Off by default; adds the set's map to the player's maps on save (#1002).
+  const [addMap, setAddMap] = useState(false);
+  const { add: pushMap } = useBagMaps();
 
   const heroes = useMemo(
     () => (loaded ? listLabsHeroes(loaded.row.document.set) : []),
@@ -70,6 +76,7 @@ export const LabsPanel = ({
     setLoaded(undefined);
     setCharacterId(undefined);
     setError(undefined);
+    setAddMap(false);
   };
 
   const fetchSet = async (e?: FormEvent) => {
@@ -93,6 +100,12 @@ export const LabsPanel = ({
     if (!(await pushDeck(deck))) return; // blocked author or storage full — already toasted
     setStar(deck.id);
     toast.success(`${deck.name} saved & ready to play`);
+    if (addMap && result.map) {
+      // The maps store keys on imgUrl, so a second import updates in place.
+      if (await pushMap(result.map.map)) {
+        toast.success(`${result.map.map.meta?.title ?? "Map"} added to your maps`);
+      }
+    }
     reset();
     setLink("");
     onAdded?.(deck.id);
@@ -208,10 +221,22 @@ export const LabsPanel = ({
             </Button>
           </HStack>
           <DeckCards decks={[result.deck]} selectedDeckId={result.deck.id} />
+          {result.map && (
+            <Checkbox
+              mt="0.75rem"
+              colorScheme="purple"
+              isChecked={addMap}
+              onChange={(e) => setAddMap(e.target.checked)}
+            >
+              <Text fontSize="0.9rem">
+                Also add this set&apos;s map ({result.map.name}) to my maps
+              </Text>
+            </Checkbox>
+          )}
           <Box mt="0.75rem" maxW="620px">
             <LabsSkippedSummary
-              skipped={result.skipped}
-              imported={labsImportedText(result.deck)}
+              skipped={addMap && result.map ? withoutSkippedMap(result.skipped) : result.skipped}
+              imported={labsImportedText(result.deck, addMap && !!result.map)}
               sourceUrl={result.deck.sourceUrl}
             />
           </Box>

@@ -1,7 +1,8 @@
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
-import { LabsLoadedSet, LabsSetRow, LabsTtsModel } from "./labs.type";
+import { LabsLoadedSet, LabsSetRow, LabsTtsMap, LabsTtsModel } from "./labs.type";
 import { hasLabsComponents, parseLabsTtsSave } from "./components";
 import { fail } from "./errors";
+import { hasLabsMap, parseLabsTtsMap } from "./labsMap";
 import { LabsInput, parseLabsInput } from "./parse";
 import { LabsImport, buildLabsImport, listLabsHeroes } from "./map";
 
@@ -84,16 +85,18 @@ const authorOf = async (ownerId: string, fetchImpl: Fetch) => {
   }
 };
 
+type TtsSave = { models: LabsTtsModel[]; map?: LabsTtsMap };
+
 /**
- * Best-effort (#1001): the component objects of the set's hosted Tabletop
- * Simulator save — one lookup, one download. Any failure (no save, network,
- * a file that isn't a save) is `undefined`, and the deck imports without
- * component tokens. Never throws.
+ * Best-effort (#1001, #1002): the component objects and the map render of the
+ * set's hosted Tabletop Simulator save — one lookup, one download. Any failure
+ * (no save, expired save, network, a file that isn't a save) is `undefined`,
+ * and the deck imports without component tokens or a map offer. Never throws.
  */
-const ttsModelsOf = async (
+const ttsSaveOf = async (
   row: LabsSetRow,
   fetchImpl: Fetch,
-): Promise<LabsTtsModel[] | undefined> => {
+): Promise<TtsSave | undefined> => {
   try {
     const rows = await labsRequest<{ save_path?: string }[]>(
       "rpc/published_tts_save",
@@ -106,8 +109,8 @@ const ttsModelsOf = async (
       `${LABS_TTS_ASSETS}/${path.split("/").map(encodeURIComponent).join("/")}`,
     );
     if (!res.ok) return undefined;
-    const models = parseLabsTtsSave(await res.json());
-    return models.length ? models : undefined;
+    const save = await res.json();
+    return { models: parseLabsTtsSave(save), map: parseLabsTtsMap(save) };
   } catch {
     return undefined;
   }
@@ -138,11 +141,19 @@ export const fetchLabsSet = async (
   if (characterId && !row.document.set.characters?.some((c) => c.id === characterId)) {
     fail("character-not-found");
   }
-  const [author, ttsModels] = await Promise.all([
+  const set = row.document.set;
+  const [author, save] = await Promise.all([
     authorOf(row.owner_id, fetchImpl),
-    hasLabsComponents(row.document.set) ? ttsModelsOf(row, fetchImpl) : undefined,
+    hasLabsComponents(set) || hasLabsMap(set) ? ttsSaveOf(row, fetchImpl) : undefined,
   ]);
-  return { row, characterId, author, ...(ttsModels ? { ttsModels } : {}) };
+  const ttsModels = save?.models.length ? save.models : undefined;
+  return {
+    row,
+    characterId,
+    author,
+    ...(ttsModels ? { ttsModels } : {}),
+    ...(save?.map ? { ttsMap: save.map } : {}),
+  };
 };
 
 /**
