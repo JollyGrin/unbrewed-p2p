@@ -7,8 +7,9 @@ import { AddImageDeck } from "@/components/Bag/ImageDeck";
 import { StarterDeckContainer } from "@/components/Bag/StarterDecks";
 import { AddJson } from "@/components/Bag/Deck/AddJson";
 import { CodePanel } from "./CodePanel";
+import { LabsPanel } from "./LabsPanel";
 
-type MethodId = "popular" | "code" | "images" | "json" | "starters";
+type MethodId = "popular" | "code" | "labs" | "images" | "json" | "starters";
 
 type Method = {
   id: MethodId;
@@ -31,6 +32,12 @@ const METHODS: Method[] = [
     icon: "🔑",
     title: "Import from unmatched.cards",
     blurb: "Have a deck code from unmatched.cards? Paste it here to pull the deck in.",
+  },
+  {
+    id: "labs",
+    icon: "🧪",
+    title: "Import from Unmatched Labs",
+    blurb: "Paste a share link from unmatchedlabs.com to bring in a fan-made hero.",
   },
   {
     id: "images",
@@ -108,6 +115,14 @@ export const AddDeckHub = ({
           )}
           {method === "code" && (
             <CodePanel pushDeck={pushDeck} setStar={setStar} onAdded={onDeckAdded} />
+          )}
+          {method === "labs" && (
+            <LabsPanel
+              pushDeck={pushDeck}
+              setStar={setStar}
+              onAdded={onDeckAdded}
+              onOpenImages={() => setMethod("images")}
+            />
           )}
           {method === "images" && <AddImageDeck onAdded={onDeckAdded} />}
           {method === "json" && <AddJson onAdded={onDeckAdded} />}
