@@ -99,7 +99,7 @@ const gesture = async () => {
   out.lobby = await p.evaluate(guard);
   await p.screenshot({ path: path.join(OUT, `${DEVICE.replace(/ /g, "_")}-lobby.png`) });
 
-  await p.getByRole("button", { name: "AI·E", exact: true }).tap();
+  await p.getByRole("button", { name: "Bot·E", exact: true }).tap();
   await p.getByRole("button", { name: /^King Kong by/ }).first().tap();
   out.heroPicked = await p.evaluate(guard);
   const stage = p.getByRole("button", { name: "Secluded Temple", exact: true });
@@ -108,7 +108,7 @@ const gesture = async () => {
     if (await more.count()) await more.first().tap();
   }
   await stage.first().tap();
-  await p.getByRole("button", { name: "PLAY VS AI" }).tap();
+  await p.getByRole("button", { name: "PLAY VS BOT" }).tap();
   await p.waitForTimeout(12000);
   const keep = p.getByRole("button", { name: /keep your opening hand/i });
   if (await keep.count()) await keep.tap();

@@ -13,11 +13,11 @@ await s.send("Emulation.setDeviceMetricsOverride", { width: 1456, height: 830, d
 await s.send("Page.addScriptToEvaluateOnNewDocument", { source: hook });
 await s.send("Page.navigate", { url: BASE + "/pro/game" });
 await sleep(6000);
-await click(s, "^\\s*AI·E\\s*$");
+await click(s, "^\\s*Bot·E\\s*$");
 await click(s, "^\\s*King Kong by");
 try { await click(s, "^\\s*Secluded Temple\\s*$", { timeout: 3000 }); }
 catch { await click(s, "^\\s*All \\d+ boards"); await click(s, "^\\s*Secluded Temple\\s*$"); }
-await click(s, "PLAY VS AI");
+await click(s, "PLAY VS BOT");
 await sleep(10000);
 try { await click(s, "keep your opening hand|^\\s*keep", { timeout: 8000 }); } catch { console.log("no mulligan prompt"); }
 await sleep(3000);

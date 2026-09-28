@@ -142,7 +142,7 @@ export const ProLanding = () => {
   // the create screen's `?vs=` preset; a human seat is just the normal create flow.
   const primaryHref =
     p2 === "human" ? withDebug("/pro/game") : withDebug(`/pro/game?vs=${vsParamFor(p2)}`);
-  const primaryLabel = p2 === "human" ? "Create a room →" : "Play vs AI →";
+  const primaryLabel = p2 === "human" ? "Create a room →" : "Play vs Bot →";
 
   // Announcer reacts to hover first (the live cursor), falling back to the pick.
   const spotlight = hovered ?? picked;
@@ -240,7 +240,7 @@ export const ProLanding = () => {
             Full rules enforcement for Unmatched, in your browser. A referee
             server allows only legal moves, does the combat math for you, and
             keeps hands truly hidden — so you can battle a friend, a stranger,{" "}
-            <b>or an AI, right now</b>. No account, no install: pick a fighter
+            <b>or a bot, right now</b>. No account, no install: pick a fighter
             and go.
           </Text>
           <Text
@@ -380,7 +380,7 @@ export const ProLanding = () => {
             </Flex>
             <SeatPlate
               tag="P2"
-              title={p2 === "human" ? "Open seat" : `AI · ${p2}`}
+              title={p2 === "human" ? "Open seat" : `Bot · ${p2}`}
               occupant={p2}
               onChange={setP2}
             />
@@ -661,10 +661,10 @@ export const ProLanding = () => {
           </Text>
         </Box>
 
-        {/* how the AI works — the deep dive, last on the page */}
+        {/* how the bots work — the deep dive, last on the page */}
         <Box as="section" mt="4rem" aria-labelledby="pro-ai-deep-dive">
           <SectionHead id="pro-ai-deep-dive" mb="0.4rem">
-            How the AI actually works
+            How the bots actually work
           </SectionHead>
           <Text
             fontFamily="ArchivoNarrow"
@@ -774,7 +774,7 @@ const MODES = [
 
 const WHATS_NEXT = [
   {
-    tag: "AI TRAINING",
+    tag: "BOT TRAINING",
     text: "Expert is live (alpha) and already tougher than Hard — but real duels expose real gaps: passive defense, missed schemes, deck-specific blind spots. We're closing them with real-game data, not more simulation.",
   },
   {
@@ -835,9 +835,9 @@ type SeatOccupant = "human" | BotDifficulty;
 
 const SEAT_CHIPS: { v: SeatOccupant; label: string }[] = [
   { v: "human", label: "Hum" },
-  { v: "easy", label: "AI·E" },
-  { v: "medium", label: "AI·M" },
-  { v: "hard", label: "AI·H" },
+  { v: "easy", label: "Bot·E" },
+  { v: "medium", label: "Bot·M" },
+  { v: "hard", label: "Bot·H" },
 ];
 
 /**

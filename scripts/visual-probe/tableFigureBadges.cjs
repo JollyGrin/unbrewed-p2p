@@ -4,7 +4,7 @@
  * the miniature is a separate image standing in it, so jsdom can only compare
  * numbers: this asks the real browser where both actually land.
  *
- * It starts a real game vs AI·E with the given hero, switches to the tabletop
+ * It starts a real game vs Bot·E with the given hero, switches to the tabletop
  * view, and for every hero standing as a miniature reports, in screen px:
  *
  *   silhouette   the model's visible box (the image's rect × the manifest's
@@ -117,7 +117,7 @@ const measure = async () => {
   try {
     await p.goto(`${BASE}/pro/game?debug`);
     await p.waitForTimeout(6000);
-    await p.getByRole("button", { name: "AI·E", exact: true }).click();
+    await p.getByRole("button", { name: "Bot·E", exact: true }).click();
     await p.getByRole("button", { name: new RegExp(`^(The )?${HERO}( ★)? by`, "i") }).first().click();
     const stage = p.getByRole("button", { name: PROBE_MAP, exact: true });
     if (!(await stage.count())) {
@@ -125,7 +125,7 @@ const measure = async () => {
       if (await more.count()) await more.first().click();
     }
     await stage.first().click();
-    await p.getByRole("button", { name: "PLAY VS AI" }).click();
+    await p.getByRole("button", { name: "PLAY VS BOT" }).click();
     await p.waitForTimeout(12000);
     const keep = p.getByRole("button", { name: /keep your opening hand/i });
     if (await keep.count()) await keep.click();

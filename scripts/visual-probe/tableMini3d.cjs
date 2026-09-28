@@ -69,11 +69,11 @@ const launch = async (extraArgs = [], figureStyle = "3d") => {
   return { browser, ctx, page };
 };
 
-/** Lobby → King Taranis vs AI on one fixed map → tabletop, view reset. */
+/** Lobby → King Taranis vs bot on one fixed map → tabletop, view reset. */
 const startGame = async (page, query) => {
   await page.goto(`${BASE}/pro/game?${query}`, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForTimeout(5000);
-  await press(page.getByRole("button", { name: "AI·E", exact: true }));
+  await press(page.getByRole("button", { name: "Bot·E", exact: true }));
   await press(page.getByRole("button", { name: /^King Taranis by/ }).first());
   const stage = page.getByRole("button", { name: MAP, exact: true });
   if (!(await stage.count())) {
@@ -81,7 +81,7 @@ const startGame = async (page, query) => {
     if (await more.count()) await press(more.first());
   }
   await press(stage.first());
-  await press(page.getByRole("button", { name: "PLAY VS AI" }));
+  await press(page.getByRole("button", { name: "PLAY VS BOT" }));
   await page.waitForSelector("[data-table-stage-plane]", { timeout: 60000 });
   await page.waitForTimeout(4000);
   const keep = page.getByRole("button", { name: /keep your opening hand/i });

@@ -17,10 +17,10 @@ const ProPage = () => {
     <>
       <Head>
         {/* single string child: next/head warns on a multi-child <title> */}
-        <title>{"Unbrewed Pro — rules-enforced Unmatched: play vs AI or friends in your browser"}</title>
+        <title>{"Unbrewed Pro — rules-enforced Unmatched: play vs bots or friends in your browser"}</title>
         <meta
           name="description"
-          content="Play Unmatched with full rules enforcement in your browser. A referee server allows only legal moves, does the combat math, and keeps hands hidden — battle an AI at three difficulties, a friend, or a stranger. No account, no install."
+          content="Play Unmatched with full rules enforcement in your browser. A referee server allows only legal moves, does the combat math, and keeps hands hidden — battle a bot at three difficulties, a friend, or a stranger. No account, no install."
         />
       </Head>
       <ProLanding />

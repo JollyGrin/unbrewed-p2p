@@ -77,17 +77,17 @@ const versioned = (meta: BotTierChoice & { fullName: string }): BotTierChoice =>
  * line below and nothing else.
  */
 const TIER_META: Record<ClientBotTier, BotTierChoice> = {
-  easy: { id: "easy", label: "Easy bot", chip: "AI·E" },
-  medium: { id: "medium", label: "Medium bot", chip: "AI·M" },
-  hard: { id: "hard", label: "Hard bot", chip: "AI·H" },
+  easy: { id: "easy", label: "Easy bot", chip: "Bot·E" },
+  medium: { id: "medium", label: "Medium bot", chip: "Bot·M" },
+  hard: { id: "hard", label: "Hard bot", chip: "Bot·H" },
   expert: {
     id: "expert",
     label: "Expert bot",
-    chip: "AI·X",
+    chip: "Bot·X",
     badge: "alpha",
     tooltip: "experimental - beware",
   },
-  jevx3: versioned({ id: "jevx3", label: "Prodigy", fullName: "Prodigy 3", chip: "AI·P", badge: "preview" }),
+  jevx3: versioned({ id: "jevx3", label: "Prodigy", fullName: "Prodigy 3", chip: "Bot·P", badge: "preview" }),
 };
 
 export const botTierMeta = (tier: ClientBotTier): BotTierChoice => TIER_META[tier];

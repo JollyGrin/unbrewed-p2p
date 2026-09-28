@@ -18,7 +18,7 @@ CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 "$CHROME" --remote-debugging-port=9870 --user-data-dir=/tmp/probe-b --no-first-run &   # pvp only
 
 cd scripts/visual-probe/socket-resume
-BASE=http://localhost:3869 OUT=/tmp/refocus node refocus.mjs   # vs AI·E, King Kong, Secluded Temple, Tabletop
+BASE=http://localhost:3869 OUT=/tmp/refocus node refocus.mjs   # vs Bot·E, King Kong, Secluded Temple, Tabletop
 BASE=http://localhost:3869 OUT=/tmp/pvp node pvp.mjs           # two players, one PvP room
 ```
 

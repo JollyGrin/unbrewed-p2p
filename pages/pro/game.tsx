@@ -3251,7 +3251,7 @@ const HeroSelectLobby = ({
         ? `Create ${format.label}`
         : opponent === "human"
           ? "Create"
-          : "Play vs AI";
+          : "Play vs Bot";
 
   const onTimerChip = (v: string) => {
     if (v === "custom") {
@@ -3375,11 +3375,11 @@ const HeroSelectLobby = ({
         isDisabled={heroes === null}
         title={
           aiHeroId
-            ? "the AI plays this hero — the game starts instantly"
-            : "the server picks the AI's deck at random — the game starts instantly"
+            ? "the bot plays this hero — the game starts instantly"
+            : "the server picks the bot's deck at random — the game starts instantly"
         }
       >
-        AI hero: {aiHeroId ? heroNameOf(heroes, aiHeroId) : "Random"}
+        Bot hero: {aiHeroId ? heroNameOf(heroes, aiHeroId) : "Random"}
       </MenuButton>
       <MenuList bg="brand.surface" borderColor="whiteAlpha.300" maxH="16rem" overflowY="auto">
         <MenuItem onClick={() => onSelectAiHero(null)} bg="transparent" _hover={{ bg: "whiteAlpha.100" }}>
