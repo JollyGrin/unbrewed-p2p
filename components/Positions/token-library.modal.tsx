@@ -42,11 +42,14 @@ import {
   clampLabel,
   shownSheet,
 } from "./position.type";
+import { clampToCounter } from "./tokenCounter";
 
 /** Current HUD health values, for labeling the linked-counter options. */
 export type LinkedHp = {
   hero?: number | null;
   sidekick?: number | null;
+  /** The owner's extra characters (#1004), in `pool.extraCharacters` order. */
+  extras?: { name: string; hp?: number | null }[];
 };
 
 const OVERLAY_DEFAULT_WIDTH = 400;
@@ -537,16 +540,39 @@ const TokenRow: FC<{
 
 /**
  * Health-counter controls for one token: off, a detached manual number, or
- * live-linked to the hero/sidekick HP shown in the HUD.
+ * live-linked to the hero/sidekick HP shown in the HUD or to an extra
+ * character's health. Detached and extra-character counters take optional
+ * min/max limits (#1004).
  */
 const CounterControls: FC<{
   counter?: TokenCounter;
   linkedHp: LinkedHp;
   onChange: (counter: TokenCounter | undefined) => void;
 }> = ({ counter, linkedHp, onChange }) => {
-  const mode = counter ? counter.link ?? "manual" : "off";
+  const mode = !counter
+    ? "off"
+    : counter.link === "extra"
+      ? `extra:${counter.extra ?? 0}`
+      : counter.link ?? "manual";
+  const limited = mode === "manual" || mode.startsWith("extra:");
+  const limits = { min: counter?.min, max: counter?.max };
+  const extras = linkedHp.extras ?? [];
+  // A saved link to a character this deck doesn't list still gets an option.
+  const extraIndex = counter?.link === "extra" ? counter.extra ?? 0 : -1;
+  const extraOptions = extras.map((c, i) => ({ i, name: c.name, hp: c.hp }));
+  if (extraIndex >= extras.length)
+    extraOptions.push({ i: extraIndex, name: `Character ${extraIndex + 1}`, hp: undefined });
 
   const fmtHp = (hp?: number | null) => (hp == null ? "no deck yet" : `now ${hp}`);
+  const bump = (delta: number) =>
+    onChange({
+      ...counter,
+      value: clampToCounter((counter?.value ?? 0) + delta, counter),
+    });
+  const setLimit = (key: "min" | "max", raw: string) => {
+    const n = raw.trim() === "" ? undefined : Math.round(Number(raw));
+    onChange({ ...counter, [key]: Number.isFinite(n) ? n : undefined });
+  };
 
   return (
     <HStack mt="0.35rem" gap="0.5rem" flexWrap="wrap">
@@ -562,7 +588,9 @@ const CounterControls: FC<{
           const v = e.target.value;
           if (v === "off") onChange(undefined);
           else if (v === "manual")
-            onChange({ value: counter?.value ?? 5 });
+            onChange({ value: counter?.value ?? 5, ...limits });
+          else if (v.startsWith("extra:"))
+            onChange({ link: "extra", extra: Number(v.slice(6)), ...limits });
           else onChange({ link: v as "hero" | "sidekick" });
         }}
       >
@@ -572,28 +600,40 @@ const CounterControls: FC<{
         <option value="sidekick">
           Linked: Sidekick HP ({fmtHp(linkedHp.sidekick)})
         </option>
+        {extraOptions.map(({ i, name, hp }) => (
+          <option key={i} value={`extra:${i}`}>
+            Linked: {name} HP ({fmtHp(hp)})
+          </option>
+        ))}
       </Select>
       {mode === "manual" && (
         <HStack gap="0.2rem">
-          <Button
-            size="xs"
-            onClick={() =>
-              onChange({ value: (counter?.value ?? 0) - 1 })
-            }
-          >
+          <Button size="xs" onClick={() => bump(-1)}>
             −
           </Button>
           <Text fontSize="0.85rem" fontWeight={700} minW="1.6rem" textAlign="center">
             {counter?.value ?? 0}
           </Text>
-          <Button
-            size="xs"
-            onClick={() =>
-              onChange({ value: (counter?.value ?? 0) + 1 })
-            }
-          >
+          <Button size="xs" onClick={() => bump(1)}>
             +
           </Button>
+        </HStack>
+      )}
+      {limited && (
+        <HStack gap="0.2rem">
+          {(["min", "max"] as const).map((key) => (
+            <Input
+              key={key}
+              size="xs"
+              w="3.6rem"
+              type="number"
+              aria-label={`Counter ${key === "min" ? "minimum" : "maximum"}`}
+              placeholder={key}
+              value={counter?.[key] ?? ""}
+              onChange={(e) => setLimit(key, e.target.value)}
+              bg="rgba(255,255,255,0.5)"
+            />
+          ))}
         </HStack>
       )}
       {mode === "hero" || mode === "sidekick" ? (

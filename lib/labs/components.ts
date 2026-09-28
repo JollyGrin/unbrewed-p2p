@@ -134,15 +134,22 @@ export type LabsComponentTokens = {
  * of a two-sided piece.
  *
  * Dials: the hero's own dial follows hero health, a dial that belongs to an
- * enabled sidekick follows sidekick health, and any other (a second fighter
- * such as Piper, or an unowned dial) is a free number starting at its max.
- * Labs does not say which fighter a dial is for, so "whose" is read off the
- * dial's range: the hero's dial is the one whose max is the hero's health.
+ * enabled sidekick follows sidekick health, a second fighter's dial (Piper,
+ * White Spy) follows that fighter's `extraCharacters` health (#1004), and
+ * any other is a free number starting at its max. Labs does not say which
+ * fighter a dial is for, so "whose" is read off the dial's range: the hero's
+ * dial is the one whose max is the hero's health. A second fighter's dial is
+ * the one naming them, else the one whose max is their health.
+ *
+ * `extras` are the hero's second fighters in the order the deck lists them
+ * as `extraCharacters`. Free and second-fighter dials stop at the printed
+ * `dialRange`; hero and sidekick health are never clamped.
  */
 export const labsComponentTokens = (
   set: LabsSet,
   hero: LabsCharacter,
   models: LabsTtsModel[],
+  extras: Pick<LabsCharacter, "name" | "health">[] = [],
 ): LabsComponentTokens => {
   const figures = set.figures ?? [];
   const matched = matchLabsFigures(figures, models);
@@ -170,6 +177,23 @@ export const labsComponentTokens = (
             (!!sidekickName && norm(f.name).includes(sidekickName))),
       )
     : undefined;
+  const extraDials = new Map<LabsFigure, number>();
+  const unclaimed = dials.filter((f) => f !== heroDial && f !== sidekickDial);
+  extras.forEach((extra, i) => {
+    const name = norm(extra.name);
+    const free = unclaimed.filter((f) => !extraDials.has(f));
+    const dial =
+      (name ? free.find((f) => norm(f.name).includes(name)) : undefined) ??
+      free.find((f) => max(f) === extra.health);
+    if (dial) extraDials.set(dial, i);
+  });
+  const limits = (f: LabsFigure) => {
+    const { min, max } = f.dialRange ?? {};
+    return {
+      ...(typeof min === "number" ? { min } : {}),
+      ...(typeof max === "number" ? { max } : {}),
+    };
+  };
 
   const tokens: SavedToken[] = [];
   const record: LabsComponentRecord[] = [];
@@ -194,7 +218,9 @@ export const labsComponentTokens = (
           ? { link: "hero" }
           : figure === sidekickDial
             ? { link: "sidekick" }
-            : { value: max(figure) ?? 0 };
+            : extraDials.has(figure)
+              ? { link: "extra", extra: extraDials.get(figure), ...limits(figure) }
+              : { value: max(figure) ?? 0, ...limits(figure) };
     }
     tokens.push(token);
     record.push({ key: figure.id, kind, url: imageUrl });
