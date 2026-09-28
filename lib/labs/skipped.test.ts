@@ -86,7 +86,8 @@ describe("what the import brings in", () => {
   it("says so in a line", () => {
     const { deck, skipped } = buildLabsImport({ row: LUCY }, LUCY_ID);
     expect(skipped).toHaveLength(4);
-    expect(labsImportedText(deck)).toMatch(/^Lucy, 30 cards, hero card, deck back$/);
+    // Piper's card is an extra character card (#999), not a rule card.
+    expect(labsImportedText(deck)).toBe("Lucy, 30 cards, hero card, 1 extra character card, deck back");
   });
 });
 

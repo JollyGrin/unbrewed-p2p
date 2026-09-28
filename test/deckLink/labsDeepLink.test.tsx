@@ -300,8 +300,9 @@ describe.each([
     ]);
     expect(localStorage.getItem(LS_KEY.STAR_DECK)).toBe(BAG_ID);
     expect(bagIds()).toEqual([BAG_ID]);
-    // one click, one Labs import: character, set, author
-    expect(labsCalls).toHaveLength(3);
+    // one click, one Labs import: character, set, author, and the hosted-save
+    // lookup (the set has game pieces, #1001; this network has no save)
+    expect(labsCalls).toHaveLength(4);
     if (_route === "/offline") {
       expect(await screen.findByTestId("table")).toHaveTextContent(/^Marouine$/);
     }
@@ -316,7 +317,7 @@ describe.each([
     renderPage(Page, `labs:${MAROUINE}`);
 
     expect(await screen.findByTestId("table")).toHaveTextContent("Bagged Marouine");
-    await waitFor(() => expect(labsCalls).toHaveLength(3), { timeout: 3000 });
+    await waitFor(() => expect(labsCalls).toHaveLength(4), { timeout: 3000 });
     await pastTheDebounce();
     expect(localStorage.getItem(LS_KEY.DECKS)).toBe(before);
     expect(bagDeck().name).toBe(saved.name);

@@ -16,6 +16,7 @@ import { labsDeckId, labsShareUrl } from "./parse";
 import { LabsUnsupportedFeature, detectLabsUnsupported } from "./unsupported";
 import { labsPreviewUrl } from "./previews";
 import { seedHeroCardTokens } from "@/components/Positions/heroCardTokens";
+import { importedFigureIds, labsComponentTokens } from "./components";
 
 export type LabsHeroOption = { id: string; name: string };
 
@@ -292,6 +293,14 @@ export const buildLabsImport = (
     };
   });
   const revision = String(row.revision ?? 1);
+  // Pieces, tokens and dials from the hosted save (#1001); none without one.
+  const components = loaded.ttsModels
+    ? labsComponentTokens(set, hero, loaded.ttsModels)
+    : undefined;
+  const savedTokens = [
+    ...(reference.length ? seedHeroCardTokens(reference) : []),
+    ...(components?.tokens ?? []),
+  ];
 
   const deck: DeckImportType = {
     id,
@@ -313,7 +322,8 @@ export const buildLabsImport = (
     liked: false,
     likes: 0,
     tags: ["unmatched-labs"],
-    ...(reference.length ? { savedTokens: seedHeroCardTokens(reference) } : {}),
+    ...(savedTokens.length ? { savedTokens } : {}),
+    ...(components ? { labsComponents: components.record } : {}),
     deck_data: {
       name,
       appearance: {
@@ -355,7 +365,7 @@ export const buildLabsImport = (
   return {
     deck,
     unsupported: detectLabsUnsupported(set, characterId, row),
-    skipped: detectLabsSkipped(set, characterId),
+    skipped: detectLabsSkipped(set, characterId, importedFigureIds(deck)),
     setName: row.name,
     author,
   };

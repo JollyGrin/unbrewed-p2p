@@ -43,12 +43,28 @@ export type DeckImportType = {
    * PositionBlob.color, which the relay carries untyped.
    */
   savedTokenColor?: string;
+  /**
+   * Unmatched Labs components (#1001) this import put into `savedTokens`, by
+   * the Labs figure id, with the image each one had. A refresh uses it to find
+   * those tokens again (the hosted image url changes on every republish, so
+   * the url alone can't) — to swap their images and to append new ones —
+   * without ever touching a token the player added.
+   */
+  labsComponents?: LabsComponentRecord[];
   tags: string[];
   updated_on: DateString;
   user: string;
   version_id: string;
   version_name: string;
   versions: DeckImportVersionType[];
+};
+
+export type LabsComponentRecord = {
+  /** the Labs figure id */
+  key: string;
+  kind: "dial" | "piece" | "token" | "figure";
+  /** the image url the token was given */
+  url: string;
 };
 
 export type DeckImportDataType = {

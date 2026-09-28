@@ -25,6 +25,7 @@ import {
   LabsSkippedContent,
   isLabsDeckId,
   labsDeckId,
+  mergeLabsComponentTokens,
   parseLabsInput,
 } from "@/lib/labs";
 
@@ -113,14 +114,21 @@ export const isSameDeckVersion = (
   fetched: DeckImportType,
 ): boolean =>
   saved.version_id === fetched.version_id &&
-  JSON.stringify(imageUrls(saved)) === JSON.stringify(imageUrls(fetched));
+  JSON.stringify(imageUrls(saved)) === JSON.stringify(imageUrls(fetched)) &&
+  // Labs components (#1001): a deck saved before they were imported, or a
+  // republished image. Only when the fetch could read the hosted save — a
+  // failed lookup is not a change.
+  (fetched.labsComponents === undefined ||
+    JSON.stringify(saved.labsComponents ?? []) ===
+      JSON.stringify(fetched.labsComponents));
 
 /**
  * The bag entry a refresh writes: the fetched deck, carrying over what the
  * player set on their saved copy. `null` when there is nothing to update.
  *
- * Kept from the saved copy: `savedTokens` (hero-card tokens pointed at the new
- * renders; a token the player removed stays removed) and `savedTokenColor`.
+ * Kept from the saved copy: `savedTokens` (hero-card and Labs component
+ * tokens pointed at the new images; a token the player removed stays removed;
+ * Labs components the deck didn't have yet are appended) and `savedTokenColor`.
  * The id is the same, so the star is too. Everything else is the fetched deck.
  */
 export const refreshedDeck = (
@@ -128,13 +136,25 @@ export const refreshedDeck = (
   fetched: DeckImportType,
 ): DeckImportType | null => {
   if (isSameDeckVersion(saved, fetched)) return null;
-  const { savedTokens: seeded, savedTokenColor: _, ...rest } = fetched;
+  const {
+    savedTokens: seeded,
+    savedTokenColor: _,
+    labsComponents: fetchedComponents,
+    ...rest
+  } = fetched;
   const savedTokens = saved.savedTokens
-    ? refreshSavedTokens(saved.savedTokens, { from: saved, to: fetched })
+    ? mergeLabsComponentTokens(
+        refreshSavedTokens(saved.savedTokens, { from: saved, to: fetched }),
+        saved.labsComponents,
+        fetched,
+      )
     : seeded;
+  // A fetch that couldn't read the hosted save keeps what the deck knew.
+  const labsComponents = fetchedComponents ?? saved.labsComponents;
   return {
     ...rest,
     ...(savedTokens ? { savedTokens } : {}),
+    ...(labsComponents ? { labsComponents } : {}),
     ...(saved.savedTokenColor !== undefined
       ? { savedTokenColor: saved.savedTokenColor }
       : {}),

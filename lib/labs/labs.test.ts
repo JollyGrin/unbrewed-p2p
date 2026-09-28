@@ -414,6 +414,8 @@ describe("fetchLabsSet / fetchLabsImport", () => {
       if (u.includes("gallery_characters")) return (overrides.gallery ?? (() => json(galleryCharacter)))();
       if (u.includes("rpc/set_by_slug")) return (overrides.set ?? (() => json(setBySlug)))();
       if (u.includes("profiles")) return (overrides.profile ?? (() => json([{ display_name: "TheNullProfessor" }])))();
+      // The Brigade has game pieces (#1001); no hosted save here.
+      if (u.includes("rpc/published_tts_save")) return json([]);
       throw new Error(`unexpected ${u}`);
     }) as unknown as typeof fetch;
     return { impl, calls };
@@ -428,6 +430,7 @@ describe("fetchLabsSet / fetchLabsImport", () => {
       "gallery_characters",
       "rpc/set_by_slug",
       "profiles",
+      "rpc/published_tts_save",
     ]);
   });
 

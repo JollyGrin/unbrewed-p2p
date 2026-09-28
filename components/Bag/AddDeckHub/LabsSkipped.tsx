@@ -22,7 +22,7 @@ export const LabsSkippedSummary = ({
       {imported && <Text>Imported: {imported}.</Text>}
       <Text>Not imported from this set: {labsSkippedText(skipped)}.</Text>
       <Text>
-        Unbrewed brings in decks only for now. The full set is on{" "}
+        Unbrewed can&apos;t bring these in yet. The full set is on{" "}
         {sourceUrl ? (
           <Link href={sourceUrl} isExternal textDecoration="underline">
             Unmatched Labs

@@ -1,5 +1,6 @@
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { LabsSet } from "./labs.type";
+import { isCountableFigure } from "./components";
 
 /**
  * What a Labs set holds that the import doesn't bring in (#1000). Kept apart
@@ -31,8 +32,6 @@ const NOUNS: Record<LabsSkippedKind, [string, string]> = {
   threat: ["threat track", "threat tracks"],
 };
 
-const has = (s: string | null | undefined) => !!s && s.trim() !== "";
-
 /**
  * Counts, per kind, of what `set` holds for `characterId` (plus what is tied
  * to no character) that the import leaves behind. Empty when nothing is.
@@ -40,6 +39,8 @@ const has = (s: string | null | undefined) => !!s && s.trim() !== "";
 export const detectLabsSkipped = (
   set: LabsSet,
   characterId: string,
+  /** figures the import brought in as tokens (#1001) */
+  imported: ReadonlySet<string> = new Set(),
 ): LabsSkippedContent => {
   const mine = (owner: string | null | undefined) => !owner || owner === characterId;
   const counts = new Map<LabsSkippedKind, number>();
@@ -48,10 +49,9 @@ export const detectLabsSkipped = (
   };
 
   for (const f of set.figures ?? []) {
-    if (!mine(f.characterId)) continue;
+    if (!mine(f.characterId) || imported.has(f.id)) continue;
     const kind = f.kind === "dial" || f.kind === "piece" || f.kind === "token" ? f.kind : "figure";
-    // Labs keeps blank placeholder figures; only a named / pictured / modelled one is real.
-    if (has(f.name) || has(f.reference?.source) || !!f.model) {
+    if (isCountableFigure(f)) {
       add(kind);
     }
   }
@@ -83,20 +83,43 @@ export const labsSkippedText = (skipped: LabsSkippedContent): string =>
     .map(({ kind, count }) => `${count} ${NOUNS[kind][count === 1 ? 0 : 1]}`)
     .join(", ");
 
-/** "Lucy, 15 cards, hero card, deck back" — what the built deck holds. */
+/** "2 health dials", "3 game pieces" — the Labs components the deck brought in (#1001). */
+const componentsText = (deck: DeckImportType): string[] => {
+  const counts = new Map<LabsSkippedKind, number>();
+  for (const { kind } of deck.labsComponents ?? []) {
+    counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  }
+  return (Object.keys(NOUNS) as LabsSkippedKind[])
+    .filter((kind) => counts.has(kind))
+    .map((kind) => {
+      const count = counts.get(kind)!;
+      return `${count} ${NOUNS[kind][count === 1 ? 0 : 1]}`;
+    });
+};
+
+/** "Lucy, 30 cards, hero card, 1 extra character card, deck back, 2 health dials" — what the built deck holds. */
 export const labsImportedText = (deck: DeckImportType): string => {
   const cards = deck.deck_data?.cards ?? [];
   const played = cards
     .filter((c) => !c.isCharacterCard)
     .reduce((n, c) => n + (c.quantity ?? 1), 0);
-  const heroCard = cards.some((c) => c.isCharacterCard && c.title === deck.name);
-  const rules = cards.filter((c) => c.isCharacterCard && c.title !== deck.name).length;
+  // Reference cards are the hero card, the extra character cards (#999: a
+  // second fighter such as Piper, titled with its name) and the rule cards.
+  const extraNames = new Set(
+    (deck.deck_data?.extraCharacters ?? []).map((c) => c.hero.name),
+  );
+  const reference = cards.filter((c) => c.isCharacterCard);
+  const heroCard = reference.some((c) => c.title === deck.name);
+  const extras = reference.filter((c) => c.title !== deck.name && extraNames.has(c.title)).length;
+  const rules = reference.filter((c) => c.title !== deck.name && !extraNames.has(c.title)).length;
   return [
     deck.name,
     `${played} ${played === 1 ? "card" : "cards"}`,
     heroCard && "hero card",
+    extras > 0 && `${extras} extra character ${extras === 1 ? "card" : "cards"}`,
     rules > 0 && `${rules} rule ${rules === 1 ? "card" : "cards"}`,
     deck.deck_data?.appearance?.cardbackUrl && "deck back",
+    ...componentsText(deck),
   ]
     .filter(Boolean)
     .join(", ");

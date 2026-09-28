@@ -10,12 +10,15 @@ export * from "./map";
 export * from "./unsupported";
 export * from "./skipped";
 export * from "./previews";
+export * from "./components";
 export type {
   LabsAdditionalCard,
   LabsCard,
   LabsCharacter,
   LabsDeck,
+  LabsFigure,
   LabsLoadedSet,
   LabsSet,
   LabsSetRow,
+  LabsTtsModel,
 } from "./labs.type";
