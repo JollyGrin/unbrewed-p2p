@@ -102,6 +102,21 @@ jobs:
         run: ${{ steps.detect-package-manager.outputs.runner }} node lib/buildTools/prefixFonts.js
       - name: Static HTML export with Next.js
         run: ${{ steps.detect-package-manager.outputs.runner }} next export
+      - name: Render table.place card faces
+        # Finished card images for the balanced decks (issue #1007), served at
+        # unbrewed.xyz/tableplace-faces/ for table.place. Generated here, never
+        # committed. Rendered in the runner's preinstalled Chrome through
+        # playwright-core, installed outside the project so the lockfile stays
+        # untouched. Non-fatal: without faces the /table page just refuses
+        # balanced decks; the rest of the site must still deploy.
+        continue-on-error: true
+        run: |
+          start=$(date +%s)
+          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright-core@1.63.0
+          PW_PATH="$RUNNER_TEMP/pw/node_modules/playwright-core" \
+          CHROME_PATH="$(command -v google-chrome)" \
+            node scripts/tableplace/render-faces.mjs --out out/tableplace-faces
+          echo "render-faces step: $(( $(date +%s) - start ))s"
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
