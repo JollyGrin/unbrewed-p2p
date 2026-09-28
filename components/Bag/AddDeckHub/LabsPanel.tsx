@@ -211,12 +211,16 @@ export const LabsPanel = ({
 
       {!result && (
         <Box mt="1.25rem" fontSize="0.85rem" opacity={0.85} maxW="620px">
+          <Text mb="0.25rem">
+            Cards come in as the finished art Unmatched Labs publishes. Any
+            card Labs hasn&apos;t rendered falls back to our card template,
+            which draws standard cards only.
+          </Text>
           <Text fontWeight={700} mb="0.25rem">
-            Deck uses custom symbols or card styles?
+            Some cards still missing their art?
           </Text>
           <Text mb="0.25rem">
-            Our card template draws standard cards only. For anything else,
-            bring the deck in as full card art instead:
+            Bring the deck in as full card art through Labs&apos; export:
           </Text>
           <LabsTtsSteps onOpenImages={onOpenImages} />
         </Box>

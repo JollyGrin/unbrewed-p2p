@@ -1,10 +1,15 @@
-import { LabsCard, LabsSet } from "./labs.type";
+import { LabsCard, LabsSet, LabsSetRow } from "./labs.type";
+import { labsPreviewUrl } from "./previews";
 
 /**
  * Labs card features our templated renderer can't draw. When any are present
  * the panel tells the player, before they save, to bring the deck in through
  * Labs' Tabletop Simulator export instead (full card art, same as the Club
  * path) — the deck is never misrendered silently.
+ *
+ * Only cards that fall back to the template can trip this: a card Labs
+ * published a finished render for is imported as that image (#994), which
+ * already shows every one of these features.
  *
  * The list is what the real payload carries (see fixtures/), not a guess.
  */
@@ -85,18 +90,25 @@ const CARD_CHECKS: [LabsUnsupportedFeatureId, (c: LabsCard) => boolean][] = [
 /**
  * Everything in `characterId`'s action deck (plus the hero itself) that our
  * template can't express, in a stable order. Empty means it renders faithfully.
+ * Pass the set's row to skip cards (and a hero card) that have a finished
+ * render; without it every card is checked as if templated.
  */
 export const detectLabsUnsupported = (
   set: LabsSet,
   characterId: string,
+  row?: Pick<LabsSetRow, "card_previews">,
 ): LabsUnsupportedFeature[] => {
+  const rendered = (kind: "card" | "character-card", id: string) =>
+    !!row && !!labsPreviewUrl(row, kind, id);
   const deckIds = new Set(
     (set.decks ?? [])
       .filter((d) => d.kind === "action" && d.ownerId === characterId)
       .map((d) => d.id),
   );
   // Every card in the deck, whatever its template, so an odd one isn't skipped.
-  const cards = (set.cards ?? []).filter((c) => deckIds.has(c.deckId));
+  const cards = (set.cards ?? []).filter(
+    (c) => deckIds.has(c.deckId) && !rendered("card", c.id),
+  );
   const hero = set.characters?.find((c) => c.id === characterId);
 
   const found = new Map<LabsUnsupportedFeatureId, string[]>();
@@ -109,7 +121,9 @@ export const detectLabsUnsupported = (
       found.set(id, titles);
     }
   }
-  if (hero && /custom:/.test(JSON.stringify(hero.abilities ?? [])) && !found.has("custom-symbols")) {
+  // A rendered hero card shows its own ability icons; the text version in our
+  // hero panel reads them as "[name]", which is fine next to the real card.
+  if (hero && !rendered("character-card", hero.id) && /custom:/.test(JSON.stringify(hero.abilities ?? [])) && !found.has("custom-symbols")) {
     found.set("custom-symbols", []);
   }
   if (hero && (hero.additionalCards ?? []).length > 0) {

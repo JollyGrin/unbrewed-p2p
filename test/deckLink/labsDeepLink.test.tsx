@@ -160,6 +160,8 @@ describe.each([
     const set = clone(setBySlug) as any;
     const flinch = set[0].document.set.cards.find((c: any) => c.title === "Flinch");
     flinch.split = true;
+    // no finished render from Labs, so Flinch falls back to our template
+    delete set[0].card_previews[`card:${flinch.id}:front`];
     network(set);
 
     renderPage(Page, `labs:${MAROUINE}`);
@@ -174,6 +176,25 @@ describe.each([
 
     fireEvent.click(screen.getByRole("button", { name: "Play anyway" }));
     expect(await screen.findByTestId("table")).toHaveTextContent("Marouine");
+  });
+
+  it("plays a fully rendered deck straight away, as Labs' finished card art (#994)", async () => {
+    const set = clone(setBySlug) as any;
+    // a feature our template can't draw, on a card Labs rendered: no hold
+    set[0].document.set.cards.find((c: any) => c.title === "Flinch").split = true;
+    network(set);
+
+    renderPage(Page, `labs:${MAROUINE}`);
+
+    expect(await screen.findByTestId("table", {}, { timeout: 3000 })).toHaveTextContent("Marouine");
+    expect(screen.queryByRole("button", { name: "Play anyway" })).not.toBeInTheDocument();
+    const saved = JSON.parse(localStorage.getItem(LS_KEY.DECKS) ?? "[]").find(
+      (d: { id: string }) => d.id === `labs-${MAROUINE}`,
+    );
+    const pointBlank = saved.deck_data.cards.find((c: any) => c.title === "Point Blank");
+    expect(pointBlank.cardImage.url).toBe(
+      set[0].card_previews["card:card_fdb8832c-a56e-4b08-8e6b-a23bba913976:front"],
+    );
   });
 
   it("shows the existing failure state for a Labs character that isn't published", async () => {
