@@ -9,10 +9,27 @@ describe("heroTokenSources", () => {
     expect(heroTokenSources({ hero: fighter({ tokenImageUrl: undefined }) })).toEqual([]);
   });
 
-  it("rejects non-https and relative art", () => {
-    expect(heroTokenSources({ hero: fighter({ tokenImageUrl: "http://x/a.png" }) })).toEqual([]);
-    expect(heroTokenSources({ hero: fighter({ tokenImageUrl: "/evergreen-decks/a.webp" }) })).toEqual([]);
-    expect(heroTokenSources({ hero: fighter({ tokenImageUrl: "javascript:alert(1)" }) })).toEqual([]);
+  it.each([
+    "https://cdn.example/a.webp",
+    "/evergreen-decks/art/appa/token-appa.webp",
+    "  /evergreen-decks/a.webp  ",
+  ])("accepts %j and keeps it as the deck has it", (url) => {
+    expect(heroTokenSources({ hero: fighter({ tokenImageUrl: url }) })).toEqual([
+      { kind: "hero", name: "Alice", imageUrl: url.trim() },
+    ]);
+  });
+
+  it.each([
+    "http://x/a.png",
+    "data:image/png;base64,AAAA",
+    "//evil.example/a.png",
+    "/\\evil.example/a.png",
+    "javascript:alert(1)",
+    "evergreen-decks/a.webp",
+    "   ",
+    "",
+  ])("refuses %j", (url) => {
+    expect(heroTokenSources({ hero: fighter({ tokenImageUrl: url }) })).toEqual([]);
   });
 
   it("offers the hero", () => {

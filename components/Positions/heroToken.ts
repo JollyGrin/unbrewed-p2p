@@ -10,10 +10,16 @@ export type HeroTokenSource = {
 
 type Fighter = { name?: string | null; tokenImageUrl?: string | null };
 
-/** Only `https` art is offered: relative and http paths won't load everywhere. */
+/**
+ * Absolute `https` art, or a site-relative path ("/evergreen-decks/...") to the
+ * app's own static files. Kept as the deck has it, never made absolute.
+ * Refuses http, data:, protocol-relative "//" and blank values.
+ */
 const usableImage = (url?: string | null): string | undefined => {
   const trimmed = url?.trim();
   if (!trimmed) return undefined;
+  if (trimmed.startsWith("/"))
+    return trimmed.startsWith("//") || trimmed.startsWith("/\\") ? undefined : trimmed;
   try {
     return new URL(trimmed).protocol === "https:" ? trimmed : undefined;
   } catch {
