@@ -154,6 +154,140 @@ describe("a guest", () => {
   });
 });
 
+/**
+ * #1033: since #1002 a guest's add replaces an entry with the same id instead
+ * of appending a second row. For maps that is the point; for decks the saved
+ * copy may carry the player's edits, so pushDeck asks (through the caller's
+ * in-page confirm) before losing them — and only then.
+ */
+describe("a guest re-adding something already in the bag", () => {
+  // The deck as the player left it: a token saved on it.
+  const edited = () => ({
+    ...deck("d1", "Bruce Lee"),
+    savedTokens: [{ imageUrl: "https://x/bruce.png", label: "Bruce" }],
+  });
+
+  const guestWith = async (decks: unknown[]) => {
+    localStorage.setItem(LS_KEY.DECKS, JSON.stringify(decks));
+    localStorage.setItem(LS_KEY.STAR_DECK, "d1");
+    install(() => reply(401, { user: null }));
+    const hook = renderHook(() => useBagDecks());
+    await waitFor(() => expect(hook.result.current.isLoading).toBe(false));
+    return hook.result;
+  };
+
+  it("keeps one row when the same map is added twice", async () => {
+    install(() => reply(401, { user: null }));
+    const { result } = renderHook(() => useBagMaps());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.add({ imgUrl: "a.png", meta: { title: "One" } } as any);
+      await result.current.add({ imgUrl: "a.png", meta: { title: "Two" } } as any);
+    });
+
+    expect(JSON.parse(localStorage.getItem(LS_KEY.MAP_LIST)!)).toEqual([
+      { imgUrl: "a.png", meta: { title: "Two" } },
+    ]);
+  });
+
+  it("asks before an edited deck is replaced, and keeps it on Keep mine", async () => {
+    const result = await guestWith([edited()]);
+    const confirmReplace = jest.fn(async () => false);
+
+    await act(async () => {
+      expect(
+        await result.current.pushDeck(deck("d1", "Bruce Lee"), { confirmReplace }),
+      ).toBe(false);
+    });
+
+    expect(confirmReplace).toHaveBeenCalledWith({
+      saved: edited(),
+      edits: ["saved tokens"],
+    });
+    expect(JSON.parse(localStorage.getItem(LS_KEY.DECKS)!)).toEqual([edited()]);
+    expect(localStorage.getItem(LS_KEY.STAR_DECK)).toBe("d1");
+    expect(toastPlain).toHaveBeenCalledWith("Kept your saved Bruce Lee", expect.anything());
+  });
+
+  it("replaces the edited deck in place on Replace: one row, star kept", async () => {
+    const result = await guestWith([deck("d0"), edited()]);
+    const confirmReplace = jest.fn(async () => true);
+
+    await act(async () => {
+      expect(
+        await result.current.pushDeck(deck("d1", "Bruce Lee"), { confirmReplace }),
+      ).toBe(true);
+    });
+
+    expect(JSON.parse(localStorage.getItem(LS_KEY.DECKS)!)).toEqual([
+      deck("d0"),
+      deck("d1", "Bruce Lee"),
+    ]);
+    expect(localStorage.getItem(LS_KEY.STAR_DECK)).toBe("d1");
+  });
+
+  it("keeps an edited deck when the caller has no way to ask", async () => {
+    const result = await guestWith([edited()]);
+
+    await act(async () => {
+      expect(await result.current.pushDeck(deck("d1", "Bruce Lee"))).toBe(false);
+    });
+
+    expect(JSON.parse(localStorage.getItem(LS_KEY.DECKS)!)).toEqual([edited()]);
+  });
+
+  it("re-adds an unedited deck with newer source data without asking", async () => {
+    const result = await guestWith([deck("d1", "Bruce Lee")]);
+    const confirmReplace = jest.fn(async () => false);
+    const newer = {
+      ...deck("d1", "Bruce Lee"),
+      version_id: "d1-v2",
+      updated_on: "2026-09-28",
+      likes: 12,
+    };
+
+    await act(async () => {
+      expect(await result.current.pushDeck(newer, { confirmReplace })).toBe(true);
+    });
+
+    expect(confirmReplace).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem(LS_KEY.DECKS)!)).toEqual([newer]);
+  });
+
+  it("re-adds an identical deck without asking, still one row", async () => {
+    const result = await guestWith([edited()]);
+    const confirmReplace = jest.fn(async () => false);
+
+    await act(async () => {
+      expect(await result.current.pushDeck(edited(), { confirmReplace })).toBe(true);
+    });
+
+    expect(confirmReplace).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem(LS_KEY.DECKS)!)).toEqual([edited()]);
+  });
+
+  it("asks a signed-in user too, whose account always replaced by id", async () => {
+    const server = signedInApi({
+      deckRows: [{ row: CLOUD_ROW("c1", "Bruce Lee"), data: edited() }],
+    });
+    const { result } = renderHook(() => useBagDecks());
+    await waitFor(() => expect(result.current.decks).toHaveLength(1));
+    const confirmReplace = jest.fn(async () => false);
+
+    await act(async () => {
+      expect(
+        await result.current.pushDeck(deck("d1", "Bruce Lee"), { confirmReplace }),
+      ).toBe(false);
+    });
+
+    expect(confirmReplace).toHaveBeenCalledTimes(1);
+    expect(server.created).toEqual([]);
+    expect(paths().filter((p) => p.startsWith("PUT"))).toEqual([]);
+    expect(result.current.decks).toEqual([edited()]);
+  });
+});
+
 describe("a signed-in user", () => {
   it("returns the account's decks in the same shape a guest's bag has", async () => {
     signedInApi({

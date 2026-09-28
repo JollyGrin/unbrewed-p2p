@@ -288,7 +288,8 @@ const warnCloudWriteFailed = (reason: CloudFailure) =>
 
 const addLocal = <T,>(store: KindStore<T>, item: T): WriteOutcome => {
   // Same id → replace in place (#1002): adding one map or deck twice must not
-  // leave two rows, as it can't in the account.
+  // leave two rows, as it can't in the account. `pushDeck` asks before an
+  // edited deck is replaced this way (#1033).
   const id = store.idOf(item);
   const next = store.local.some((entry) => store.idOf(entry) === id)
     ? store.local.map((entry) => (store.idOf(entry) === id ? item : entry))

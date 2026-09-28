@@ -11,8 +11,8 @@ import {
   Wrap,
 } from "@chakra-ui/react";
 import { toast } from "react-hot-toast";
-import { DeckImportType } from "@/components/DeckPool/deck-import.type";
-import { useBagMaps } from "@/lib/bag/useBag";
+import { BagDeckView, useBagMaps } from "@/lib/bag/useBag";
+import { useReplaceConfirm } from "@/components/Bag/ReplaceDeckConfirm";
 import { DeckCards } from "@/components/Bag/Deck/DeckCards";
 import { LabsSkippedSummary } from "./LabsSkipped";
 import { LabsTtsSteps, LabsUnsupportedWarning } from "./LabsUnsupported";
@@ -42,7 +42,7 @@ export const LabsPanel = ({
   onAdded,
   onOpenImages,
 }: {
-  pushDeck: (deck: DeckImportType) => Promise<boolean>;
+  pushDeck: BagDeckView["pushDeck"];
   setStar: (id: string) => void;
   onAdded?: (deckId: string) => void;
   /** switch the hub to the card-image import (the TTS-export fallback) */
@@ -56,6 +56,7 @@ export const LabsPanel = ({
   // Off by default; adds the set's map to the player's maps on save (#1002).
   const [addMap, setAddMap] = useState(false);
   const { add: pushMap } = useBagMaps();
+  const { confirmReplace, asking, prompt } = useReplaceConfirm();
 
   const heroes = useMemo(
     () => (loaded ? listLabsHeroes(loaded.row.document.set) : []),
@@ -97,7 +98,8 @@ export const LabsPanel = ({
   const save = async () => {
     if (!result) return;
     const { deck } = result;
-    if (!(await pushDeck(deck))) return; // blocked author or storage full — already toasted
+    // blocked author, storage full, or the player kept their edited copy — already toasted
+    if (!(await pushDeck(deck, { confirmReplace }))) return;
     setStar(deck.id);
     toast.success(`${deck.name} saved & ready to play`);
     if (addMap && result.map) {
@@ -211,6 +213,7 @@ export const LabsPanel = ({
               bg="brand.accent"
               color="brand.surfaceDim"
               _hover={{ bg: "brand.accentDeep" }}
+              isDisabled={asking}
               onClick={save}
             >
               ★ {result.unsupported.length ? "Save anyway" : "Save & use"} “
@@ -220,6 +223,7 @@ export const LabsPanel = ({
               Clear
             </Button>
           </HStack>
+          {prompt}
           <DeckCards decks={[result.deck]} selectedDeckId={result.deck.id} />
           {result.map && (
             <Checkbox

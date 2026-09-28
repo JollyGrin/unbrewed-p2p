@@ -12,6 +12,8 @@ import pink from "@/lib/labs/fixtures/set-by-slug.pink-panther.json";
 import pinkSave from "@/lib/labs/fixtures/tts-save.pink-panther.json";
 import { LABS_TTS_ASSETS, LabsSetRow } from "@/lib/labs";
 import { __resetBagStoresForTests, bagItems, stores } from "@/lib/bag/bagStore";
+import { useBagDecks } from "@/lib/bag/useBag";
+import { toast } from "react-hot-toast";
 import { LabsPanel } from "./LabsPanel";
 
 jest.mock("react-hot-toast", () => {
@@ -115,5 +117,80 @@ describe("LabsPanel map checkbox", () => {
     await save();
     expect(pushDeck).toHaveBeenCalledTimes(1);
     expect(maps()).toEqual([]);
+  });
+});
+
+/**
+ * #1033: re-importing a Labs deck the player has changed asks in the page,
+ * with the real pushDeck. Keep mine stores nothing and toasts no success.
+ */
+describe("LabsPanel re-import of an edited deck", () => {
+  const RealPanel = () => {
+    const { pushDeck } = useBagDecks();
+    return <LabsPanel pushDeck={pushDeck} setStar={() => {}} />;
+  };
+
+  const importLucy = async () => {
+    document.body.innerHTML = "";
+    render(
+      <ChakraProvider>
+        <RealPanel />
+      </ChakraProvider>,
+    );
+    fireEvent.change(screen.getByLabelText("Unmatched Labs link"), {
+      target: { value: `https://www.unmatchedlabs.com/shared/${LUCY.slug}` },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+    await screen.findByText(/^From “/);
+  };
+
+  const savedDecks = () => JSON.parse(localStorage.getItem("DECKS") ?? "[]");
+
+  it("asks inline; Keep mine keeps the edit, Replace takes the import", async () => {
+    mockLabs(LUCY, lucySave);
+    await importLucy();
+    await save();
+    expect(savedDecks()).toHaveLength(1);
+
+    // the player picks a token colour in /bag
+    localStorage.setItem(
+      "DECKS",
+      JSON.stringify([{ ...savedDecks()[0], savedTokenColor: "#ff0000" }]),
+    );
+    __resetBagStoresForTests();
+    (toast.success as jest.Mock).mockClear();
+
+    await importLucy();
+    fireEvent.click(screen.getByRole("button", { name: /Save & use/ }));
+    const prompt = await screen.findByTestId("replace-deck-confirm");
+    expect(prompt).toHaveTextContent(/with changes you made: token colour/);
+    expect(screen.getByRole("button", { name: /Save & use/ })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Keep mine" }));
+    await waitFor(() =>
+      expect(screen.queryByTestId("replace-deck-confirm")).not.toBeInTheDocument(),
+    );
+    expect(savedDecks()).toHaveLength(1);
+    expect(savedDecks()[0].savedTokenColor).toBe("#ff0000");
+    expect(toast.success).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /Save & use/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Replace" }));
+    await waitFor(() => expect(screen.queryByText(/^From “/)).not.toBeInTheDocument());
+    expect(savedDecks()).toHaveLength(1);
+    expect(savedDecks()[0].savedTokenColor).toBeUndefined();
+    expect(toast.success).toHaveBeenCalledWith(expect.stringMatching(/saved & ready to play/));
+  });
+
+  it("re-imports an unedited deck without asking", async () => {
+    mockLabs(LUCY, lucySave);
+    await importLucy();
+    await save();
+    __resetBagStoresForTests();
+
+    await importLucy();
+    await save();
+    expect(screen.queryByTestId("replace-deck-confirm")).not.toBeInTheDocument();
+    expect(savedDecks()).toHaveLength(1);
   });
 });
