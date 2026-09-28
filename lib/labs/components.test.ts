@@ -1,6 +1,7 @@
 import { describe, expect, it, jest } from "@jest/globals";
 import lucy from "./fixtures/set-by-slug.lucy-piper.json";
 import pink from "./fixtures/set-by-slug.pink-panther.json";
+import spyVsSpy from "./fixtures/set-by-slug.spy-vs-spy.json";
 import lucySave from "./fixtures/tts-save.lucy-piper.json";
 import pinkSave from "./fixtures/tts-save.pink-panther.json";
 import { refreshedDeck } from "@/lib/deckLink";
@@ -18,6 +19,7 @@ import {
   matchLabsFigures,
   parseLabsTtsSave,
 } from ".";
+import { labsComponentTokens } from "./components";
 
 // Real `rpc/set_by_slug` rows and their real hosted Tabletop Simulator saves,
 // fetched 2026-09-28 (#1001).
@@ -116,8 +118,12 @@ describe("Lucy & Piper, imported with its hosted save", () => {
     expect(lucyDial.altIndex).toBeUndefined();
     expect(lucyDial).toMatchObject({ counter: { link: "hero" }, sheet: { cols: 1, rows: 2, index: 0 } });
     expect(lucyDial.imageUrl).toMatch(/\/lucy-[0-9a-f]+\.png$/);
-    expect(piperDial).toMatchObject({ counter: { value: 10 }, sheet: { cols: 1, rows: 2, index: 0 } });
-    expect(piperDial.counter!.link).toBeUndefined();
+    // Hero health is never clamped (#1004): the hero's dial carries no limits.
+    expect(lucyDial.counter).toEqual({ link: "hero" });
+    // Piper's dial follows Piper's health, within her printed dial (#1004).
+    expect(piperDial).toMatchObject({ sheet: { cols: 1, rows: 2, index: 0 } });
+    expect(piperDial.counter).toEqual({ link: "extra", extra: 0, min: 0, max: 10 });
+    expect(deck.deck_data.extraCharacters![0].hero).toMatchObject({ name: "Piper", hp: 10 });
     expect(piperDial.imageUrl).toMatch(/\/piper-[0-9a-f]+\.png$/);
 
     // The hero card and Piper's character card (#999) still come first.
@@ -333,5 +339,29 @@ describe("relay payload", () => {
       const bytes = new TextEncoder().encode(JSON.stringify(blob)).length;
       expect(bytes).toBeLessThan(4 * 1024);
     }
+  });
+});
+
+// Spy vs Spy has no hosted-save fixture; its dials are matched against save
+// objects named after them, as Labs writes them.
+describe("second fighter's dial on the real Spy vs Spy set (#1004)", () => {
+  const SPY = (spyVsSpy as unknown as LabsSetRow[])[0];
+  const set = SPY.document.set;
+  const blackSpy = set.characters.find((c) => c.name === "Spy vs Spy")!;
+  const models: LabsTtsModel[] = (set.figures ?? [])
+    .filter((f) => f.kind === "dial")
+    .map((f) => ({ nickname: f.name ?? "", isDial: true, imageUrl: `https://example.test/${f.id}.png` }));
+
+  it("links White Spy's dial to White Spy, within its printed range", () => {
+    const { tokens } = labsComponentTokens(set, blackSpy, models, blackSpy.additionalCards);
+    expect(tokens.map((t) => [t.label, t.counter])).toEqual([
+      ["Black Spy health dial", { link: "hero" }],
+      ["White Spy health dial", { link: "extra", extra: 0, min: 0, max: 20 }],
+    ]);
+  });
+
+  it("without the extra characters, the dial is a free number with limits", () => {
+    const { tokens } = labsComponentTokens(set, blackSpy, models);
+    expect(tokens[1].counter).toEqual({ value: 20, min: 0, max: 20 });
   });
 });

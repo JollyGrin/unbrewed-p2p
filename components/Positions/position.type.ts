@@ -122,10 +122,24 @@ export type SheetCrop = {
 };
 
 export type TokenCounter = {
-  /** Live-link to the owner's HUD health. Absent = detached manual counter. */
-  link?: "hero" | "sidekick";
+  /**
+   * Live-link to the owner's health. Absent = detached manual counter.
+   * "extra" (#1004) follows `pool.extraCharacters[extra].hero.hp`; a client
+   * that predates it shows "–" and ignores clicks.
+   */
+  link?: "hero" | "sidekick" | "extra";
+  /** With link "extra": the index into the owner's `pool.extraCharacters`. */
+  extra?: number;
   /** The value of a detached counter (ignored while linked). */
   value?: number;
+  /**
+   * Optional limits (#1004) for a detached or "extra" counter; adjusting
+   * clamps to them. Missing = no limit: an old client's adjust rewrites the
+   * counter to `{value}` and drops them, which must stay harmless. Never
+   * applied to hero or sidekick links.
+   */
+  min?: number;
+  max?: number;
 };
 
 export type PositionBlob = {

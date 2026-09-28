@@ -301,7 +301,7 @@ export const buildLabsImport = (
   const revision = String(row.revision ?? 1);
   // Pieces, tokens and dials from the hosted save (#1001); none without one.
   const components = loaded.ttsModels
-    ? labsComponentTokens(set, hero, loaded.ttsModels)
+    ? labsComponentTokens(set, hero, loaded.ttsModels, extras)
     : undefined;
   const savedTokens = [
     ...(reference.length ? seedHeroCardTokens(reference) : []),

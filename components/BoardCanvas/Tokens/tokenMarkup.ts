@@ -89,7 +89,8 @@ export function tokenMarkup(
     inner += TokenMarkup.claimRing({ w, h });
   }
   if (d.counter) {
-    const linked = d.counter.link;
+    const linked =
+      d.counter.link === "extra" ? "character" : d.counter.link;
     inner += TokenMarkup.counterBadge({
       w,
       text: d.counterDisplay == null ? "–" : String(d.counterDisplay),

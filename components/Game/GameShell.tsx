@@ -32,8 +32,11 @@ import {
   addCardToDeckTop,
   addCardToDiscard,
   addCardToHand,
-  adjustHp,
 } from "@/components/DeckPool/PoolFns";
+import {
+  adjustTokenCounter,
+  counterDisplay,
+} from "@/components/Positions/tokenCounter";
 import { iconToSvg, useGameIcons } from "@/lib/icons/gameIcons";
 import { DEFAULT_MAP_URL } from "@/lib/maps/defaultMap";
 import { Box, Button, useDisclosure } from "@chakra-ui/react";
@@ -227,11 +230,7 @@ const BoardContainer = ({
           owner,
           color: blob.color,
           claimedBy: claimByTokenId[t.id],
-          counterDisplay: t.counter
-            ? t.counter.link
-              ? players?.[owner]?.pool?.[t.counter.link]?.hp ?? null
-              : t.counter.value ?? 0
-            : undefined,
+          counterDisplay: counterDisplay(t.counter, players?.[owner]?.pool),
         }));
       }),
     [blobs, players, claimByTokenId],
@@ -334,20 +333,14 @@ const BoardContainer = ({
   );
 
   // Badge click: linked counters adjust the same HP the HUD shows; detached
-  // ones just bump their own value.
+  // ones just bump their own value, within their limits (#1004).
   const adjustCounter = useCallback(
     (t: OwnedToken, delta: number) => {
       if (t.owner !== self) return;
-      const link = t.counter?.link;
-      if (link) {
-        const pool = players?.[self]?.pool;
-        if (!pool) return;
-        setPlayerState()({ pool: adjustHp(pool, link, delta) });
-        return;
-      }
-      patchToken(t.id, {
-        counter: { value: (t.counter?.value ?? 0) + delta },
-      });
+      const next = adjustTokenCounter(t.counter, players?.[self]?.pool, delta);
+      if (!next) return;
+      if ("pool" in next) setPlayerState()({ pool: next.pool });
+      else patchToken(t.id, { counter: next.counter });
     },
     [self, players, setPlayerState, patchToken],
   );
@@ -615,6 +608,10 @@ const BoardContainer = ({
         linkedHp={{
           hero: players?.[self]?.pool?.hero?.hp,
           sidekick: players?.[self]?.pool?.sidekick?.hp,
+          extras: players?.[self]?.pool?.extraCharacters?.map((c) => ({
+            name: c.hero.name,
+            hp: c.hero.hp,
+          })),
         }}
         onAdd={addToken}
         onPatch={patchToken}
