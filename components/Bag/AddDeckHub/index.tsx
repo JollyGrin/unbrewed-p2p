@@ -29,20 +29,20 @@ const METHODS: Method[] = [
   {
     id: "code",
     icon: "🔑",
-    title: "Deck code",
-    blurb: "Paste a code from unmatched.cards to pull in a deck.",
+    title: "Import from unmatched.cards",
+    blurb: "Have a deck code from unmatched.cards? Paste it here to pull the deck in.",
   },
   {
     id: "images",
     icon: "🖼️",
-    title: "Card images",
-    blurb: "Bring any deck from card images — a TTS export or a list of image URLs.",
+    title: "Import from The Unmatched Club",
+    blurb: "Also works for any deck you have as card images or a TTS export.",
   },
   {
     id: "json",
     icon: "📋",
     title: "Paste JSON",
-    blurb: "Already have a deck's raw JSON? Import it from text or a URL.",
+    blurb: "Raw deck JSON from any source — paste it in, or point us at a URL.",
   },
   {
     id: "starters",
