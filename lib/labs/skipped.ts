@@ -97,18 +97,26 @@ const componentsText = (deck: DeckImportType): string[] => {
     });
 };
 
-/** "Lucy, 15 cards, hero card, deck back, 2 health dials" — what the built deck holds. */
+/** "Lucy, 30 cards, hero card, 1 extra character card, deck back, 2 health dials" — what the built deck holds. */
 export const labsImportedText = (deck: DeckImportType): string => {
   const cards = deck.deck_data?.cards ?? [];
   const played = cards
     .filter((c) => !c.isCharacterCard)
     .reduce((n, c) => n + (c.quantity ?? 1), 0);
-  const heroCard = cards.some((c) => c.isCharacterCard && c.title === deck.name);
-  const rules = cards.filter((c) => c.isCharacterCard && c.title !== deck.name).length;
+  // Reference cards are the hero card, the extra character cards (#999: a
+  // second fighter such as Piper, titled with its name) and the rule cards.
+  const extraNames = new Set(
+    (deck.deck_data?.extraCharacters ?? []).map((c) => c.hero.name),
+  );
+  const reference = cards.filter((c) => c.isCharacterCard);
+  const heroCard = reference.some((c) => c.title === deck.name);
+  const extras = reference.filter((c) => c.title !== deck.name && extraNames.has(c.title)).length;
+  const rules = reference.filter((c) => c.title !== deck.name && !extraNames.has(c.title)).length;
   return [
     deck.name,
     `${played} ${played === 1 ? "card" : "cards"}`,
     heroCard && "hero card",
+    extras > 0 && `${extras} extra character ${extras === 1 ? "card" : "cards"}`,
     rules > 0 && `${rules} rule ${rules === 1 ? "card" : "cards"}`,
     deck.deck_data?.appearance?.cardbackUrl && "deck back",
     ...componentsText(deck),

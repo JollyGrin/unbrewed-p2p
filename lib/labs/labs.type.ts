@@ -119,8 +119,8 @@ export type LabsFigure = {
   reference?: { source?: string | null };
   /** health dials: the numbers printed on the dial */
   dialRange?: { min?: number; max?: number } | null;
-  /** the physical token's shape; `twoSided` pieces carry a back face */
-  token?: { twoSided?: boolean } | null;
+  /** the physical token: `shape` "circle" | "silhouette" | …; `twoSided` pieces carry a back face */
+  token?: { shape?: string; twoSided?: boolean } | null;
 };
 
 export type LabsMap = { spaces?: unknown[] };

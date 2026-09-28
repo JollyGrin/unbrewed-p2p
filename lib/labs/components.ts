@@ -12,7 +12,11 @@ import type {
   DeckImportType,
   LabsComponentRecord,
 } from "@/components/DeckPool/deck-import.type";
-import type { SavedToken, SheetCrop } from "@/components/Positions/position.type";
+import {
+  type SavedToken,
+  type SheetCrop,
+  clampLabel,
+} from "@/components/Positions/position.type";
 import { LabsCharacter, LabsFigure, LabsSet, LabsTtsModel } from "./labs.type";
 
 const COMPONENT_KINDS = ["dial", "piece", "token", "figure"] as const;
@@ -125,6 +129,10 @@ export type LabsComponentTokens = {
  * components tied to that hero or to no character, only ones the save has an
  * image for, never a figure with an uploaded model.
  *
+ * Round (`clip`) for dials and circle-shaped Labs tokens, labelled with the
+ * component's name when it has one, and flippable (`altIndex`) to the back
+ * of a two-sided piece.
+ *
  * Dials: the hero's own dial follows hero health, a dial that belongs to an
  * enabled sidekick follows sidekick health, and any other (a second fighter
  * such as Piper, or an unowned dial) is a free number starting at its max.
@@ -175,6 +183,11 @@ export const labsComponentTokens = (
           ? SHEETS.twoSided
           : SHEETS.oneSided;
     const token: SavedToken = { imageUrl, sheet: { ...sheet }, size: SIZES[kind] };
+    // Display fields (#1003): an old client ignores them and draws the image.
+    if (kind === "dial" || figure.token?.shape === "circle") token.clip = "circle";
+    const label = clampLabel(figure.name?.trim() ?? "").trim();
+    if (label) token.label = label;
+    if (sheet === SHEETS.twoSided) token.altIndex = 1;
     if (kind === "dial") {
       token.counter =
         figure === heroDial
