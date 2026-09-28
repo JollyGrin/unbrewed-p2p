@@ -79,6 +79,32 @@ const circleClip = ({
   <g clip-path="url(#${escapeAttr(id)})">${inner}</g>
 </svg>`;
 
+/**
+ * Stand-in for an image face whose image failed to load — an expired Labs
+ * hosted-save image (#1029), a dead pasted link. Keeps the token's box (round
+ * when the face was) so it stays visible and grabbable, and says why on hover.
+ */
+const missingImage = ({
+  w,
+  h,
+  round = false,
+}: {
+  w: number;
+  h: number;
+  round?: boolean;
+}) => {
+  const shape = round
+    ? `<circle cx="${w / 2}" cy="${h / 2}" r="${Math.min(w, h) / 2 - 1}"`
+    : `<rect x="1" y="1" width="${w - 2}" height="${h - 2}" rx="8"`;
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+  <title>Image unavailable — refresh the deck, or re-import it, to get a new one</title>
+  ${shape} fill="#2C1831" fill-opacity="0.55" stroke="#E7CC98" stroke-width="2" stroke-dasharray="6 4" />
+  <text x="${w / 2}" y="${h / 2}" text-anchor="middle" dominant-baseline="central" font-family="Verdana, sans-serif" font-size="${Math.round(
+    Math.min(w, h) * 0.4,
+  )}" font-weight="700" fill="#E7CC98">?</text>
+</svg>`;
+};
+
 /** Dashed halo drawn around the currently selected token. */
 const selectionRing = ({
   w,
@@ -140,6 +166,7 @@ export const TokenMarkup = {
   image,
   sheetCell,
   circleClip,
+  missingImage,
   selectionRing,
   labelPlate,
   claimRing,

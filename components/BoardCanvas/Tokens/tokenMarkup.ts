@@ -26,10 +26,18 @@ const safeId = (id: string) => id.replace(/[^a-zA-Z0-9_-]/g, "");
  * `sheet` cell) → `icon` → a plain colour disc. The display fields (#1003)
  * only decorate that choice: `clip` rounds an image face, `flipped` picks the
  * `altIndex` cell of a sheet, `label` hangs a name under any token.
+ *
+ * `brokenImage` says the board saw this token's image fail to load: the face
+ * becomes a placeholder, and the label, counter and rings still draw.
  */
 export function tokenMarkup(
   d: OwnedToken,
-  opts: { own: boolean; selected: boolean; iconSvg: IconSvg },
+  opts: {
+    own: boolean;
+    selected: boolean;
+    iconSvg: IconSvg;
+    brokenImage?: boolean;
+  },
 ): string {
   const w = d.size ?? DEFAULT_TOKEN_SIZE;
   const h = d.card
@@ -49,6 +57,8 @@ export function tokenMarkup(
       owner: d.owner,
       color: d.color,
     });
+  } else if (d.imageUrl && opts.brokenImage) {
+    inner = TokenMarkup.missingImage({ w, h, round });
   } else if (d.imageUrl) {
     const sheet = shownSheet(d);
     inner = !sheet

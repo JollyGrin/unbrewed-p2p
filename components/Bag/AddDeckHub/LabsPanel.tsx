@@ -26,6 +26,7 @@ import {
   fetchLabsSet,
   labsImportedText,
   listLabsHeroes,
+  supersededLabsMaps,
   withoutSkippedMap,
 } from "@/lib/labs";
 
@@ -55,7 +56,7 @@ export const LabsPanel = ({
   const [characterId, setCharacterId] = useState<string>();
   // Off by default; adds the set's map to the player's maps on save (#1002).
   const [addMap, setAddMap] = useState(false);
-  const { add: pushMap } = useBagMaps();
+  const { add: pushMap, data: bagMaps, remove: removeMap } = useBagMaps();
   const { confirmReplace, asking, prompt } = useReplaceConfirm();
 
   const heroes = useMemo(
@@ -104,7 +105,12 @@ export const LabsPanel = ({
     toast.success(`${deck.name} saved & ready to play`);
     if (addMap && result.map) {
       // The maps store keys on imgUrl, so a second import updates in place.
-      if (await pushMap(result.map.map)) {
+      const { map } = result.map;
+      const superseded = supersededLabsMaps(bagMaps, map);
+      const starred = superseded.some((m) => m.isStarred);
+      if (await pushMap(starred ? { ...map, isStarred: true } : map)) {
+        // A republished set's map has a new url; drop the older copy (#1029).
+        for (const old of superseded) await removeMap(old.imgUrl);
         toast.success(`${result.map.map.meta?.title ?? "Map"} added to your maps`);
       }
     }
