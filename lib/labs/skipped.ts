@@ -77,6 +77,10 @@ export const detectLabsSkipped = (
     .map((kind) => ({ kind, count: counts.get(kind)! }));
 };
 
+/** The summary once the player ticks "also add this set's map" (#1002): the map is no longer left behind. */
+export const withoutSkippedMap = (skipped: LabsSkippedContent): LabsSkippedContent =>
+  skipped.filter(({ kind }) => kind !== "map");
+
 /** "2 health dials, 3 game pieces, 1 map" */
 export const labsSkippedText = (skipped: LabsSkippedContent): string =>
   skipped
@@ -98,7 +102,11 @@ const componentsText = (deck: DeckImportType): string[] => {
 };
 
 /** "Lucy, 30 cards, hero card, 1 extra character card, deck back, 2 health dials" — what the built deck holds. */
-export const labsImportedText = (deck: DeckImportType): string => {
+export const labsImportedText = (
+  deck: DeckImportType,
+  /** the set's map was ticked and will be added to the bag's maps (#1002) */
+  withMap = false,
+): string => {
   const cards = deck.deck_data?.cards ?? [];
   const played = cards
     .filter((c) => !c.isCharacterCard)
@@ -120,6 +128,7 @@ export const labsImportedText = (deck: DeckImportType): string => {
     rules > 0 && `${rules} rule ${rules === 1 ? "card" : "cards"}`,
     deck.deck_data?.appearance?.cardbackUrl && "deck back",
     ...componentsText(deck),
+    withMap && "1 map",
   ]
     .filter(Boolean)
     .join(", ");

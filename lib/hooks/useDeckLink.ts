@@ -31,7 +31,9 @@ export type DeckLinkState = {
   /** The last refresh written to the bag, for a table already playing `from`. */
   refresh: DeckRefresh | undefined;
   /** What a loaded Labs set holds that wasn't imported (#1000). Never holds the table. */
-  notice: { skipped: LabsSkippedContent; sourceUrl?: string } | undefined;
+  notice:
+    | { skipped: LabsSkippedContent; sourceUrl?: string; mapInBag?: boolean }
+    | undefined;
   dismissNotice: () => void;
 };
 
@@ -137,7 +139,11 @@ export const useDeckLink = (
     refresh,
     notice:
       linked && linked.skipped.length > 0 && !held && !keptSaved && !noticeDismissed
-        ? { skipped: linked.skipped, sourceUrl: linked.deck.sourceUrl }
+        ? {
+            skipped: linked.skipped,
+            sourceUrl: linked.deck.sourceUrl,
+            ...(linked.mapInBag ? { mapInBag: true } : {}),
+          }
         : undefined,
     dismissNotice: () => setNoticeDismissed(true),
   };

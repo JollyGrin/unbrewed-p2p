@@ -78,7 +78,11 @@ export const DeckLinkNotice = ({ link }: { link: DeckLinkState }) => {
       color="brand.secondary"
       boxShadow="lg"
     >
-      <LabsSkippedSummary skipped={notice.skipped} sourceUrl={notice.sourceUrl} />
+      <LabsSkippedSummary
+        skipped={notice.skipped}
+        sourceUrl={notice.sourceUrl}
+        mapInBag={notice.mapInBag}
+      />
       <CloseButton aria-label="Dismiss" size="sm" onClick={link.dismissNotice} />
     </HStack>
   );

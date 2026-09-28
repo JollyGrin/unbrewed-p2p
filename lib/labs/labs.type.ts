@@ -123,7 +123,7 @@ export type LabsFigure = {
   token?: { shape?: string; twoSided?: boolean } | null;
 };
 
-export type LabsMap = { spaces?: unknown[] };
+export type LabsMap = { name?: string; enabled?: boolean; spaces?: unknown[] };
 
 export type LabsSet = {
   id: string;
@@ -177,6 +177,21 @@ export type LabsLoadedSet = {
    * not be read — the deck then imports without component tokens.
    */
   ttsModels?: LabsTtsModel[];
+  /**
+   * The finished map render of the hosted save (#1002), when the save holds a
+   * map with at least one space. Absent otherwise — nothing to offer.
+   */
+  ttsMap?: LabsTtsMap;
+};
+
+/** The map object of a hosted save: a `CardCustom` reading "N spaces, M paths." */
+export type LabsTtsMap = {
+  /** the part of the nickname after "<set name> — " */
+  name: string;
+  /** the rendered board (`FaceURL`): spaces, paths, zones and start slots drawn on */
+  imageUrl: string;
+  spaces: number;
+  paths: number;
 };
 
 /** One `Custom_Model` object of a hosted Tabletop Simulator save. */

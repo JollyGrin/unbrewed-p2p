@@ -149,9 +149,10 @@ describe("when the hosted save can't be read", () => {
     },
   );
 
-  it("doesn't look for a save when the set has no components", async () => {
+  it("doesn't look for a save when the set has no components or map", async () => {
     const bare = clone(LUCY);
     bare.document.set.figures = [];
+    bare.document.set.map = null; // a set with a map looks the save up for it (#1002)
     const calls: string[] = [];
     const impl = jest.fn(async (url: string | URL | Request) => {
       calls.push(String(url));

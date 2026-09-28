@@ -41,6 +41,8 @@ export type LinkedDeck = {
   unsupported: LabsUnsupportedFeature[];
   /** What a Labs set holds that the import leaves behind; never holds the link */
   skipped: LabsSkippedContent;
+  /** The set's map could be added from the bag (#1002); a link never adds it */
+  mapInBag?: boolean;
 };
 
 /** `null` for a `labs:` link that doesn't name a character. */
@@ -80,11 +82,11 @@ export const fetchLinkedDeck = async (
   if (link.source === "unmatched") {
     return { deck: await fetchDeckById(link.id), unsupported: [], skipped: [] };
   }
-  const { deck, unsupported, skipped } = await fetchLabsImport(
+  const { deck, unsupported, skipped, map } = await fetchLabsImport(
     { kind: "character", characterId: link.characterId },
     fetchImpl,
   );
-  return { deck, unsupported, skipped };
+  return { deck, unsupported, skipped, ...(map ? { mapInBag: true } : {}) };
 };
 
 /**

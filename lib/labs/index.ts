@@ -11,6 +11,7 @@ export * from "./unsupported";
 export * from "./skipped";
 export * from "./previews";
 export * from "./components";
+export * from "./labsMap";
 export type {
   LabsAdditionalCard,
   LabsCard,
@@ -20,5 +21,6 @@ export type {
   LabsLoadedSet,
   LabsSet,
   LabsSetRow,
+  LabsTtsMap,
   LabsTtsModel,
 } from "./labs.type";

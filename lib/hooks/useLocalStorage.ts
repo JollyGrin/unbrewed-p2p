@@ -121,6 +121,8 @@ export type MapData = {
   thumbUrl?: string;
   /** Provenance of a built-in snapshot: "legacy" | "official" | "community". */
   source?: string;
+  /** Unmatched Labs share slug of the set an imported map came from (#1002). */
+  labsSlug?: string;
   size?: string;
   minPlayers?: number;
   maxPlayers?: number;
