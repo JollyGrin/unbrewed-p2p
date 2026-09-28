@@ -2,6 +2,7 @@ import { describe, expect, it, jest } from "@jest/globals";
 import { makeDeck, newPool } from "@/components/DeckPool/PoolFns";
 import setBySlug from "./fixtures/set-by-slug.dumbass-brigade.json";
 import galleryCharacter from "./fixtures/gallery-character.marouine.json";
+import spyVsSpy from "./fixtures/set-by-slug.spy-vs-spy.json";
 import {
   LabsImportError,
   LabsLoadedSet,
@@ -270,6 +271,77 @@ describe("other heroes in the same real set", () => {
     expect(() => buildLabsImport(loaded(row), MAROUINE)).toThrow(
       expect.objectContaining({ code: "no-deck" }),
     );
+  });
+});
+
+// Real `rpc/set_by_slug` response for "Spy vs Spy" (slug
+// 1dbb5c55516a5dd081b6af70), fetched 2026-09-28 — #999. Black Spy has an
+// extra character card, White Spy, whose id is `hchar_…`.
+describe("extra character cards, on the real Spy vs Spy payload", () => {
+  const SPY_ROW = (spyVsSpy as unknown as LabsSetRow[])[0];
+  const BLACK_SPY = "char_8cda56e0-e3d2-4362-aa8e-18380ed39f7d";
+  const WHITE_SPY = "hchar_c623d665-3a1f-4acc-a8c7-e72ce6b7fd44";
+  const spyLoaded = (row: LabsSetRow = SPY_ROW): LabsLoadedSet => ({ row, characterId: BLACK_SPY });
+
+  it("imports with no warning", () => {
+    expect(buildLabsImport(spyLoaded(), BLACK_SPY).unsupported).toEqual([]);
+    expect(detectLabsUnsupported(SPY_ROW.document.set, BLACK_SPY, SPY_ROW)).toEqual([]);
+  });
+
+  it("brings White Spy in as a reference card with its hchar_ render", () => {
+    const { deck } = buildLabsImport(spyLoaded(), BLACK_SPY);
+    const whiteSpy = SPY_ROW.card_previews![`character-card:${WHITE_SPY}:front`];
+    expect(whiteSpy).toMatch(/^https:/);
+    const reference = deck.deck_data.cards.filter((c) => c.isCharacterCard);
+    expect(reference.map((c) => [c.title, c.cardImage?.url])).toEqual([
+      ["Black Spy", SPY_ROW.card_previews![`character-card:${BLACK_SPY}:front`]],
+      ["White Spy", whiteSpy],
+    ]);
+    // never shuffled in, on the table from turn one
+    const drawn = makeDeck(newPool(deck)).deck!;
+    expect(drawn.some((c) => c.isCharacterCard)).toBe(false);
+    expect(deck.savedTokens?.map((t) => t.imageUrl)).toEqual(reference.map((c) => c.cardImage!.url));
+    // every deck card is Labs' render too
+    const faces = deck.deck_data.cards.filter((c) => !c.isCharacterCard);
+    expect(faces).toHaveLength(13);
+    expect(faces.every((c) => c.cardImage?.url)).toBe(true);
+  });
+
+  it("carries White Spy's stats as an extra character", () => {
+    const { deck } = buildLabsImport(spyLoaded(), BLACK_SPY);
+    expect(deck.deck_data.extraCharacters).toEqual([
+      {
+        hero: {
+          name: "White Spy",
+          hp: 9,
+          move: 2,
+          isRanged: false,
+          specialAbility:
+            "White vs Black: When Black Spy takes damage from any source, White Spy recovers 1 health.",
+          quote: undefined,
+        },
+        sidekick: expect.objectContaining({ quantity: null }),
+      },
+    ]);
+    expect(newPool(deck).extraCharacters.map((c) => c.hero.name)).toEqual(["White Spy"]);
+  });
+
+  it("warns, naming the extra card, when its render is missing", () => {
+    const row = clone(SPY_ROW);
+    delete row.card_previews![`character-card:${WHITE_SPY}:front`];
+    const { deck, unsupported } = buildLabsImport(spyLoaded(row), BLACK_SPY);
+    expect(unsupported).toEqual([
+      { id: "additional-character-cards", label: "Extra character cards", cards: ["White Spy"] },
+    ]);
+    // the hero card is still there; White Spy's stats still are too
+    expect(deck.deck_data.cards.filter((c) => c.isCharacterCard).map((c) => c.title)).toEqual([
+      "Black Spy",
+    ]);
+    expect(deck.deck_data.extraCharacters).toHaveLength(1);
+  });
+
+  it("does not add extra characters to a hero without them", () => {
+    expect(buildLabsImport(loaded(), MAROUINE).deck.deck_data.extraCharacters).toBeUndefined();
   });
 });
 

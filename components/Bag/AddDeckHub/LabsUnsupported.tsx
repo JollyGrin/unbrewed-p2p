@@ -51,50 +51,74 @@ export const LabsUnsupportedWarning = ({
   unsupported: LabsUnsupportedFeature[];
   onOpenImages?: () => void;
   children?: ReactNode;
-}) => (
-  <Box
-    role="alert"
-    mb="0.75rem"
-    p="0.85rem"
-    borderRadius="0.5rem"
-    bg="orange.50"
-    border="2px solid"
-    borderColor="orange.400"
-    color="gray.800"
-    fontSize="0.9rem"
-    maxW="680px"
-    textAlign="left"
-  >
-    <Text fontWeight={700} fontSize="1rem" mb="0.3rem">
-      ⚠ This deck won&apos;t look right with our card template
-    </Text>
-    <Text mb="0.3rem">
-      Unmatched Labs hasn&apos;t published finished art for some of{" "}
-      {deckName}&apos;s cards, so our template draws them — and they use
-      features it can&apos;t draw:
-    </Text>
-    <UnorderedList ml="1.25rem" mb="0.5rem" spacing="0.1rem">
-      {unsupported.map((feature) => (
-        <ListItem key={feature.id}>
-          {feature.label}
-          {feature.cards.length > 0 && (
-            <Text as="span" opacity={0.75}>
-              {" "}
-              — {feature.cards.join(", ")}
-            </Text>
-          )}
-        </ListItem>
-      ))}
-    </UnorderedList>
-    <Text fontWeight={700} mb="0.2rem">
-      To play it with its real card art:
-    </Text>
-    <LabsTtsSteps onOpenImages={onOpenImages} />
-    {onOpenImages && (
-      <Button size="sm" mt="0.6rem" colorScheme="orange" onClick={onOpenImages}>
-        Open the card-image import
-      </Button>
-    )}
-    {children}
-  </Box>
-);
+}) => {
+  // Two different problems, worded apart: deck cards our template has to draw
+  // (and can't draw right), and extra character cards with no render, which
+  // the template can't draw at all. Each sentence shows only when it's true.
+  const templated = unsupported.filter((f) => f.id !== "additional-character-cards");
+  const extras =
+    unsupported.find((f) => f.id === "additional-character-cards")?.cards ?? [];
+  return (
+    <Box
+      role="alert"
+      mb="0.75rem"
+      p="0.85rem"
+      borderRadius="0.5rem"
+      bg="orange.50"
+      border="2px solid"
+      borderColor="orange.400"
+      color="gray.800"
+      fontSize="0.9rem"
+      maxW="680px"
+      textAlign="left"
+    >
+      <Text fontWeight={700} fontSize="1rem" mb="0.3rem">
+        {templated.length > 0
+          ? "⚠ This deck won't look right with our card template"
+          : "⚠ This deck is missing a character card"}
+      </Text>
+      {templated.length > 0 && (
+        <>
+          <Text mb="0.3rem">
+            Unmatched Labs hasn&apos;t published finished art for some of{" "}
+            {deckName}&apos;s cards, so our template draws them — and they use
+            features it can&apos;t draw:
+          </Text>
+          <UnorderedList ml="1.25rem" mb="0.5rem" spacing="0.1rem">
+            {templated.map((feature) => (
+              <ListItem key={feature.id}>
+                {feature.label}
+                {feature.cards.length > 0 && (
+                  <Text as="span" opacity={0.75}>
+                    {" "}
+                    — {feature.cards.join(", ")}
+                  </Text>
+                )}
+              </ListItem>
+            ))}
+          </UnorderedList>
+        </>
+      )}
+      {extras.length > 0 && (
+        <Text mb="0.5rem">
+          Unmatched Labs hasn&apos;t published finished art for {deckName}&apos;s
+          extra character {extras.length === 1 ? "card" : "cards"},{" "}
+          <b>{extras.join(", ")}</b>. Our template can&apos;t draw character
+          cards, so {extras.length === 1 ? "it" : "they"} won&apos;t be on the
+          table — only {extras.length === 1 ? "its" : "their"} stats in the
+          hero panel.
+        </Text>
+      )}
+      <Text fontWeight={700} mb="0.2rem">
+        To play it with its real card art:
+      </Text>
+      <LabsTtsSteps onOpenImages={onOpenImages} />
+      {onOpenImages && (
+        <Button size="sm" mt="0.6rem" colorScheme="orange" onClick={onOpenImages}>
+          Open the card-image import
+        </Button>
+      )}
+      {children}
+    </Box>
+  );
+};
