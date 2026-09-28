@@ -1,4 +1,4 @@
-import { Button, Grid, HStack, Spinner, Text, VStack } from "@chakra-ui/react";
+import { Button, Grid, Spinner, Text, VStack } from "@chakra-ui/react";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -11,9 +11,10 @@ import { isOfflineError, useIrlServiceWorker } from "@/components/Irl/irlOffline
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { OfflineGameProvider } from "@/lib/contexts/OfflineGameProvider";
 import { useBagDecks } from "@/lib/bag/useBag";
-import { useUnmatchedDeck } from "@/lib/hooks/useUnmatchedDeck";
+import { useDeckLink } from "@/lib/hooks/useDeckLink";
 import { deckMatchesLink } from "@/lib/deckLink";
-import { LabsUnsupportedWarning } from "@/components/Bag/AddDeckHub/LabsUnsupported";
+import { DeckLinkHold } from "@/components/DeckLink/DeckLinkHold";
+import { DeckRefreshOnTable } from "@/components/DeckLink/DeckRefreshOnTable";
 
 /**
  * IRL Mode (issue #798): playtest your deck in person before you print it.
@@ -23,18 +24,21 @@ import { LabsUnsupportedWarning } from "@/components/Bag/AddDeckHub/LabsUnsuppor
  * Bootstrapped exactly like /offline: a `?deckId=` (unmatched.cards id or
  * `labs:char_<uuid>`, see lib/deckLink.ts) stars that deck (from the bag, else
  * fetched); with none, the starred deck. Mounted under the unchanged
- * OfflineGameProvider — no websocket.
+ * OfflineGameProvider — no websocket. A Labs deck already in the bag plays at
+ * once and is refreshed behind it (#996).
  */
 const Irl = () => {
   const { query, isReady, replace } = useRouter();
   const deckId = query.deckId as string | undefined;
 
-  const { decks, starredDeck, isLoading, pushDeck, setStar } = useBagDecks();
-  const { data, unsupported, error, setDeckId } = useUnmatchedDeck();
-  const failed = !!error;
-  // A Labs deck our template can't draw waits for the player to choose (#979).
-  const [playAnyway, setPlayAnyway] = useState(false);
-  const held = !!data && unsupported.length > 0 && !playAnyway;
+  const { decks, starredDeck, isLoading } = useBagDecks();
+  // "Not in the bag" waits for the WHOLE bag (#825): a signed-in user's
+  // account half lands a beat after the device half, and a fetch fired before
+  // then can fail on its own and toast "Error fetching deck" over a deck that
+  // then loads.
+  const link = useDeckLink(deckId, { ready: isReady, waitForWholeBag: true });
+  const { failed, error } = link;
+  const held = !!link.held && !link.held.refresh;
   // No signal and a deck this phone has never opened (#801).
   const uncached = failed && isOfflineError(error);
 
@@ -52,35 +56,6 @@ const Irl = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReady, query.name]);
 
-  // Resolve the requested deck: star it if it's already in the bag, otherwise
-  // fetch it. A deck found on the device is starred straight away, but "not in
-  // the bag" waits for the WHOLE bag (#825): a signed-in user's account half
-  // lands a beat after the device half, and a fetch fired before then can fail
-  // on its own and toast "Error fetching deck" over a deck that then loads.
-  useEffect(() => {
-    if (!isReady || !deckId || !decks) return;
-    const local = decks.find((d) => deckMatchesLink(d, deckId));
-    if (local) {
-      setStar(local.id);
-      return;
-    }
-    if (isLoading) return;
-    setDeckId(deckId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isReady, deckId, decks, isLoading]);
-
-  // Fetched deck lands: add it to the bag and star it — then drop the query,
-  // which otherwise refetches (and re-toasts "Deck fetched!" over the header)
-  // every time the phone is unlocked and the window regains focus.
-  useEffect(() => {
-    if (!data || held) return;
-    void pushDeck(data).then((added) => {
-      if (added) setStar(data.id);
-      setDeckId(undefined);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, held]);
-
   // Wait until the starred deck matches the requested one, then hold on to
   // it: after an in-game "Change deck" the URL moves on and this hook
   // instance's starred deck can lag, which must not unmount the tray. Only
@@ -92,6 +67,13 @@ const Irl = () => {
   useEffect(() => {
     if (!deck && isReady && matches && starredDeck) setDeck(starredDeck);
   }, [deck, isReady, matches, starredDeck]);
+
+  // A newer version of the latched deck (#996) goes to the tray too.
+  const { refresh } = link;
+  useEffect(() => {
+    if (refresh && deck?.id === refresh.to.id) setDeck(refresh.to);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refresh]);
 
   const noDeck = isReady && !deckId && !isLoading && !!decks && !starredDeck;
 
@@ -114,6 +96,8 @@ const Irl = () => {
       {deck && query.name ? (
         <OfflineGameProvider>
           <IrlShell deck={deck} />
+          <DeckRefreshOnTable refresh={refresh} />
+          {link.held?.refresh && <DeckLinkHold link={link} />}
         </OfflineGameProvider>
       ) : (
         <Grid
@@ -124,23 +108,7 @@ const Irl = () => {
           placeItems="center"
         >
           {held ? (
-            <LabsUnsupportedWarning
-              deckName={data.name}
-              unsupported={unsupported}
-            >
-              <HStack mt="0.75rem" spacing="0.5rem" wrap="wrap">
-                <Button
-                  size="sm"
-                  colorScheme="orange"
-                  onClick={() => setPlayAnyway(true)}
-                >
-                  Play anyway
-                </Button>
-                <Button size="sm" as={Link} href="/bag" variant="outline">
-                  Open your bag
-                </Button>
-              </HStack>
-            </LabsUnsupportedWarning>
+            <DeckLinkHold link={link} />
           ) : (
             <VStack spacing="0.75rem" textAlign="center">
               {!noDeck && !failed && <Spinner size="xl" />}

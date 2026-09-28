@@ -1,14 +1,15 @@
 import "@testing-library/jest-dom";
 import { ChakraProvider } from "@chakra-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import toast from "react-hot-toast";
 import type { ComponentType } from "react";
 
 import { __resetAccountStoreForTests } from "@/lib/account/useAccount";
 import { __resetBagStoresForTests } from "@/lib/bag/bagStore";
 import { fetchDeckById } from "@/lib/evergreenDecks";
 import { LS_KEY } from "@/lib/hooks/useLocalStorage";
-import { LABS_API } from "@/lib/labs";
+import { LABS_API, fetchLabsImport } from "@/lib/labs";
 import setBySlug from "@/lib/labs/fixtures/set-by-slug.dumbass-brigade.json";
 import galleryCharacter from "@/lib/labs/fixtures/gallery-character.marouine.json";
 import Irl from "@/pages/irl";
@@ -65,6 +66,13 @@ jest.mock("../../lib/contexts/OfflineGameProvider", () => ({
 
 jest.mock("../../components/Helmet/Head", () => ({ PageSeo: () => null }));
 
+// Chakra's Modal focus trap uses a selector the pinned jsdom/nwsapi can't
+// parse (see test/pro/lobbySetupRail.test.tsx); the trap is a browser concern.
+jest.mock("@chakra-ui/focus-lock", () => ({
+  __esModule: true,
+  FocusLock: ({ children }: { children: unknown }) => children,
+}));
+
 const fetchDeck = fetchDeckById as jest.Mock;
 const MAROUINE = "char_ce316d14-8bc8-413d-9086-ad37b502d0fe";
 
@@ -75,12 +83,13 @@ const reply = (status: number, body: unknown) =>
   ({ ok: status >= 200 && status < 300, status, json: async () => body }) as Response;
 
 /** Signed out; Labs answers from the recorded Marouine fixtures. */
-const network = (set: unknown = setBySlug) => {
+const network = (set: unknown = setBySlug, gate?: Promise<void>) => {
   const labsCalls: string[] = [];
   global.fetch = jest.fn(async (url: string) => {
     const u = String(url);
     if (!u.startsWith(LABS_API)) return reply(401, { error: "unauthorized" });
     labsCalls.push(u);
+    await gate;
     if (u.includes("gallery_characters")) return reply(200, galleryCharacter);
     if (u.includes("rpc/set_by_slug")) return reply(200, set);
     if (u.includes("profiles")) return reply(200, [{ display_name: "TheNullProfessor" }]);
@@ -136,23 +145,6 @@ describe.each([
     expect(await screen.findByTestId("table", {}, { timeout: 3000 })).toHaveTextContent("Marouine");
     expect(bagIds()).toContain(`labs-${MAROUINE}`);
     expect(labsCalls.length).toBeGreaterThan(0);
-    expect(fetchDeck).not.toHaveBeenCalled();
-  });
-
-  it("stars a Labs deck already in the bag without fetching", async () => {
-    const { labsCalls } = network();
-    localStorage.setItem(
-      LS_KEY.DECKS,
-      JSON.stringify([
-        { id: `labs-${MAROUINE}`, name: "Bagged Marouine", deck_data: { cards: [] } },
-      ]),
-    );
-
-    renderPage(Page, `labs:${MAROUINE}`);
-
-    expect(await screen.findByTestId("table")).toHaveTextContent("Bagged Marouine");
-    await pastTheDebounce();
-    expect(labsCalls).toEqual([]);
     expect(fetchDeck).not.toHaveBeenCalled();
   });
 
@@ -220,7 +212,7 @@ describe.each([
   });
 
   it("still stars an unprefixed id already in the bag without fetching", async () => {
-    network();
+    const { labsCalls } = network();
     localStorage.setItem(
       LS_KEY.DECKS,
       JSON.stringify([{ id: "pk1x", name: "Bagged Bruce", version_id: "pk1x-v1", deck_data: { cards: [] } }]),
@@ -231,5 +223,160 @@ describe.each([
     expect(await screen.findByTestId("table")).toHaveTextContent("Bagged Bruce");
     await pastTheDebounce();
     expect(fetchDeck).not.toHaveBeenCalled();
+    expect(labsCalls).toEqual([]);
+    expect(toast.success).not.toHaveBeenCalledWith(expect.stringMatching(/Updated/));
+  });
+});
+
+/**
+ * #996: a Labs deck already in the bag plays straight away, and is refetched
+ * behind it so an edit on Labs shows on the next click.
+ */
+const BAG_ID = `labs-${MAROUINE}`;
+const POINT_BLANK = "card:card_fdb8832c-a56e-4b08-8e6b-a23bba913976:front";
+const HERO_CARD = `character-card:${MAROUINE}:front`;
+
+/** Revision B of the recorded set: one card and the hero card re-rendered. */
+const revisionB = () => {
+  const set = clone(setBySlug) as any;
+  set[0].revision = set[0].revision + 1;
+  set[0].card_previews[POINT_BLANK] = "https://labs.example/point-blank-b.png";
+  set[0].card_previews[HERO_CARD] = "https://labs.example/marouine-b.png";
+  return set;
+};
+
+const PLAYER_TOKEN = { imageUrl: "https://example.com/my-marker.png", size: 60 };
+
+/** Revision A (the recorded set) saved in the bag, with the player's own loadout. */
+const savedRevisionA = async () => {
+  network();
+  const { deck } = await fetchLabsImport({ kind: "character", characterId: MAROUINE });
+  const saved = {
+    ...deck,
+    name: "Bagged Marouine",
+    savedTokens: [...(deck.savedTokens ?? []), PLAYER_TOKEN],
+    savedTokenColor: "#123456",
+  };
+  localStorage.setItem(LS_KEY.DECKS, JSON.stringify([saved]));
+  localStorage.setItem(LS_KEY.STAR_DECK, BAG_ID);
+  jest.clearAllMocks();
+  return saved;
+};
+
+const bagDeck = () =>
+  (JSON.parse(localStorage.getItem(LS_KEY.DECKS) ?? "[]") as any[]).find((d) => d.id === BAG_ID);
+
+describe.each([
+  ["/offline", Offline],
+  ["/irl", Irl],
+] as const)("%s refreshes a Labs deck already in the bag (#996)", (_route, Page) => {
+  it("plays the saved copy at once, then replaces it with the newer revision", async () => {
+    const saved = await savedRevisionA();
+    let answer!: () => void;
+    const { labsCalls } = network(revisionB(), new Promise((resolve) => (answer = resolve)));
+
+    renderPage(Page, `labs:${MAROUINE}`);
+
+    // the table is up on the saved copy while Labs hasn't answered yet
+    expect(await screen.findByTestId("table")).toHaveTextContent("Bagged Marouine");
+    await pastTheDebounce();
+    expect(bagDeck().version_id).toBe(saved.version_id);
+    answer();
+
+    await waitFor(() => expect(bagDeck().version_id).not.toBe(saved.version_id), {
+      timeout: 3000,
+    });
+    const refreshed = bagDeck();
+    expect(refreshed.version_id).toBe(String(revisionB()[0].revision));
+    expect(refreshed.name).toBe("Marouine");
+    const pointBlank = refreshed.deck_data.cards.find((c: any) => c.title === "Point Blank");
+    expect(pointBlank.cardImage.url).toBe("https://labs.example/point-blank-b.png");
+    // the player's own loadout and colour survive; the hero-card token
+    // points at the new render instead of the old one
+    expect(refreshed.savedTokenColor).toBe("#123456");
+    expect(refreshed.savedTokens).toEqual([
+      expect.objectContaining({ imageUrl: "https://labs.example/marouine-b.png" }),
+      PLAYER_TOKEN,
+    ]);
+    expect(localStorage.getItem(LS_KEY.STAR_DECK)).toBe(BAG_ID);
+    expect(bagIds()).toEqual([BAG_ID]);
+    // one click, one Labs import: character, set, author
+    expect(labsCalls).toHaveLength(3);
+    if (_route === "/offline") {
+      expect(await screen.findByTestId("table")).toHaveTextContent(/^Marouine$/);
+    }
+    expect(toast.success).toHaveBeenCalledWith(expect.stringMatching(/latest version/));
+  });
+
+  it("leaves the bag alone when Labs has the same revision", async () => {
+    const saved = await savedRevisionA();
+    const before = localStorage.getItem(LS_KEY.DECKS);
+    const { labsCalls } = network();
+
+    renderPage(Page, `labs:${MAROUINE}`);
+
+    expect(await screen.findByTestId("table")).toHaveTextContent("Bagged Marouine");
+    await waitFor(() => expect(labsCalls).toHaveLength(3), { timeout: 3000 });
+    await pastTheDebounce();
+    expect(localStorage.getItem(LS_KEY.DECKS)).toBe(before);
+    expect(bagDeck().name).toBe(saved.name);
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("replaces a deck whose revision is the same but whose renders changed", async () => {
+    await savedRevisionA();
+    const set = clone(setBySlug) as any;
+    set[0].card_previews[POINT_BLANK] = "https://labs.example/point-blank-rerender.png";
+    network(set);
+
+    renderPage(Page, `labs:${MAROUINE}`);
+
+    await waitFor(
+      () =>
+        expect(
+          bagDeck().deck_data.cards.find((c: any) => c.title === "Point Blank").cardImage.url,
+        ).toBe("https://labs.example/point-blank-rerender.png"),
+      { timeout: 3000 },
+    );
+  });
+
+  it("keeps playing the saved copy when Labs can't be reached", async () => {
+    await savedRevisionA();
+    const before = localStorage.getItem(LS_KEY.DECKS);
+    global.fetch = jest.fn(async () => {
+      throw new TypeError("Failed to fetch");
+    }) as unknown as typeof fetch;
+
+    renderPage(Page, `labs:${MAROUINE}`);
+
+    expect(await screen.findByTestId("table")).toHaveTextContent("Bagged Marouine");
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.stringMatching(/saved copy/)), {
+      timeout: 3000,
+    });
+    expect(screen.getByTestId("table")).toHaveTextContent("Bagged Marouine");
+    expect(screen.queryByText("Couldn't load that deck")).not.toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(localStorage.getItem(LS_KEY.DECKS)).toBe(before);
+  });
+
+  it("shows the Labs guidance over the saved copy when the new revision trips it", async () => {
+    await savedRevisionA();
+    const set = revisionB();
+    const flinch = set[0].document.set.cards.find((c: any) => c.title === "Flinch");
+    flinch.split = true;
+    delete set[0].card_previews[`card:${flinch.id}:front`];
+    network(set);
+
+    renderPage(Page, `labs:${MAROUINE}`);
+
+    expect(await screen.findByTestId("table")).toHaveTextContent("Bagged Marouine");
+    expect(
+      await screen.findByText(/won't look right with our card template/, {}, { timeout: 3000 }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Split cards/)).toBeInTheDocument();
+    expect(bagDeck().name).toBe("Bagged Marouine");
+
+    fireEvent.click(screen.getByRole("button", { name: "Play anyway" }));
+    await waitFor(() => expect(bagDeck().name).toBe("Marouine"));
   });
 });

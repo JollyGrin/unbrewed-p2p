@@ -11,8 +11,12 @@
  * unmatched.cards never mints one. A Labs set slug is not: a set can hold
  * several heroes, and without a character the bag id isn't known before the
  * fetch, so "already in the bag, skip the fetch" couldn't hold.
+ *
+ * A Labs deck already in the bag is still refetched (#996), behind the saved
+ * copy: see {@link refreshedDeck} and `useDeckLink`.
  */
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
+import { refreshSavedTokens } from "@/lib/deckRefresh";
 import { fetchDeckById } from "@/lib/evergreenDecks";
 import {
   LabsUnsupportedFeature,
@@ -74,4 +78,59 @@ export const fetchLinkedDeck = async (raw: string): Promise<LinkedDeck> => {
     characterId: link.characterId,
   });
   return { deck, unsupported };
+};
+
+/**
+ * Is this a Labs link? Those are refetched even when the deck is in the bag
+ * (#996): Labs decks get edited, and the link should open the current one.
+ * An unmatched.cards link in the bag is played as saved, never refetched.
+ */
+export const isLabsLink = (raw: string): boolean =>
+  parseDeckLink(raw)?.source === "labs";
+
+const imageUrls = (deck: DeckImportType): string[] => {
+  const cards = deck.deck_data?.cards ?? [];
+  return [
+    deck.deck_data?.appearance?.cardbackUrl ?? "",
+    ...cards.map((c) => `${c.cardImage?.url ?? c.imageUrl ?? ""}|${c.cardBackUrl ?? ""}`),
+  ];
+};
+
+/**
+ * Same Labs revision and the same card images: nothing to update. The images
+ * are compared as well as the revision because Labs re-renders every card
+ * when it changes its renderer (`card_preview_version`), and that leaves the
+ * set's revision where it was.
+ */
+export const isSameDeckVersion = (
+  saved: DeckImportType,
+  fetched: DeckImportType,
+): boolean =>
+  saved.version_id === fetched.version_id &&
+  JSON.stringify(imageUrls(saved)) === JSON.stringify(imageUrls(fetched));
+
+/**
+ * The bag entry a refresh writes: the fetched deck, carrying over what the
+ * player set on their saved copy. `null` when there is nothing to update.
+ *
+ * Kept from the saved copy: `savedTokens` (hero-card tokens pointed at the new
+ * renders; a token the player removed stays removed) and `savedTokenColor`.
+ * The id is the same, so the star is too. Everything else is the fetched deck.
+ */
+export const refreshedDeck = (
+  saved: DeckImportType,
+  fetched: DeckImportType,
+): DeckImportType | null => {
+  if (isSameDeckVersion(saved, fetched)) return null;
+  const { savedTokens: seeded, savedTokenColor: _, ...rest } = fetched;
+  const savedTokens = saved.savedTokens
+    ? refreshSavedTokens(saved.savedTokens, { from: saved, to: fetched })
+    : seeded;
+  return {
+    ...rest,
+    ...(savedTokens ? { savedTokens } : {}),
+    ...(saved.savedTokenColor !== undefined
+      ? { savedTokenColor: saved.savedTokenColor }
+      : {}),
+  };
 };
