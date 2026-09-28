@@ -149,11 +149,11 @@ const IrlTray = () => {
   }, [deck.name]);
 
   // Here, not in pages/irl.tsx: "Change deck…" swaps the deck in place, and
-  // that deck must work offline too (#801). So must a refreshed version of
-  // it (#996): same id, new card images.
+  // that deck must work offline too (#801).
   useEffect(() => {
     warmIrlDeck(deck);
-  }, [deck]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deck.id]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

@@ -114,13 +114,6 @@ export const IrlGameProvider = ({
   const [deck, setDeck] = useState(initialDeck);
   const [fx] = useState(createIrlFxBus);
 
-  // A newer version of the same deck (#996, a Labs deep link refreshing the
-  // saved copy). The pool takes the new faces from DeckRefreshOnTable; a deck
-  // switched to in-game since is not replaced.
-  useEffect(() => {
-    setDeck((current) => (current.id === initialDeck.id ? initialDeck : current));
-  }, [initialDeck]);
-
   const players = game.gameState?.content?.players as
     | Record<string, { pool?: PoolType }>
     | undefined;
