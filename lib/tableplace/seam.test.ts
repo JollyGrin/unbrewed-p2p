@@ -53,7 +53,7 @@ describe("converter x face lookup seam", () => {
     for (const face of packFaces(r.pack!)) {
       // a card that carries its own finished image never goes through the index
       const own = JSON.stringify(deck).includes(
-        JSON.stringify(face).slice(1, -1),
+        JSON.stringify(face.replace(FACES_ORIGIN, "")).slice(1, -1),
       );
       expect(urls.has(face) || own).toBe(true);
     }

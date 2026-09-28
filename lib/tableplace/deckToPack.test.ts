@@ -93,8 +93,8 @@ describe("sidekick with quantity > 1 and extra characters", () => {
     const names = r.pieces.map((p) => p.piece.name);
     expect(names.filter((n) => /^Larry \d HP$/.test(n))).toHaveLength(4);
   });
-  it("puts extra characters in the rules slot", () => {
-    const titles = slot(r, "rules")!.cards.map((c) => c.name.toLowerCase());
+  it("puts extra characters in their own extras pile", () => {
+    const titles = slot(r, "extras")!.cards.map((c) => c.name.toLowerCase());
     expect(titles).toContain("larry");
   });
   it("omits slots that are empty", () => {
@@ -104,6 +104,29 @@ describe("sidekick with quantity > 1 and extra characters", () => {
     const s = deckToPlayerPack(solo, { faces });
     expect(slot(s, "sidekick")).toBeUndefined();
     expect(slot(s, "rules")).toBeUndefined();
+  });
+});
+
+describe("relative art", () => {
+  it("makes every face, back and image absolute", () => {
+    const { deck, faces } = FIXTURES["larry-extra-characters"];
+    const rel = JSON.parse(JSON.stringify(deck));
+    rel.deck_data.appearance.cardbackUrl =
+      "/evergreen-decks/art/5jGPM/cardback.webp";
+    rel.savedTokens = [{ imageUrl: "/tokens/a.png", size: 72 }];
+    const r = deckToPlayerPack(rel, {
+      faces: (c) => `/faces/${encodeURIComponent(c.title)}.webp`,
+    });
+    const refs = [
+      ...r.pack!.decks!.flatMap((d) => [d.back, ...d.cards.map((c) => c.face)]),
+      ...r.pieces.map((p) => p.piece.imageUrl),
+    ].filter((u): u is string => !!u);
+    expect(refs.length).toBeGreaterThan(10);
+    for (const u of refs) expect(u).toMatch(/^(https:\/\/|sheet:)/);
+    expect(r.pack!.decks![0].back).toBe(
+      "https://unbrewed.xyz/evergreen-decks/art/5jGPM/cardback.webp",
+    );
+    void faces;
   });
 });
 
@@ -152,13 +175,13 @@ describe("mapToTablePack", () => {
     expect(p.scope).toBe("table");
     expect(p.decks).toEqual([]);
     expect(p.overlays).toEqual([
-      { imageUrl: "https://x/m.webp", ratio: 4, scale: 8.5 },
+      { imageUrl: "https://x/m.webp", ratio: 4, scale: 6.5 },
     ]);
   });
-  it("caps a squarer map at 22 high, clear of the front strips", () => {
+  it("caps a squarer map at 16 high, clear of the front rows", () => {
     expect(
       mapToTablePack({ imageUrl: "u", width: 500, height: 1000 }).overlays![0]
         .scale,
-    ).toBe(22);
+    ).toBe(16);
   });
 });

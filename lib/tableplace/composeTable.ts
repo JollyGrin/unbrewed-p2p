@@ -13,6 +13,7 @@ import {
   type CardSlot,
   forSeat,
   FRONT_STRIP,
+  mapSize,
   OFF_BOARD_FIGHTER_RADIUS,
   PLACEMENT_CAP,
   SEAT_ROTATION,
@@ -52,7 +53,7 @@ export type ComposeTableResult = {
 };
 
 const DEFAULT_TTL_SECONDS = 3600;
-const FACE_UP_SLOTS = new Set(["hero", "sidekick", "rules"]);
+const FACE_UP_SLOTS = new Set(["hero", "sidekick", "rules", "extras"]);
 /** The printed start slot each seat's hero begins on. */
 const START_SLOT = [1, 2] as const;
 
@@ -107,9 +108,10 @@ const placeSeat = (
   pack: TbppPack,
   playerPieces: PlayerPiece[],
   board: BoardGeometry | null,
+  mapWidth: number,
   skipped: Skipped[],
 ) => {
-  const area = seatArea(seat);
+  const area = seatArea(seat, mapWidth);
   const rotation = SEAT_ROTATION[seat];
   const placements: CallerPlacement[] = [];
 
@@ -125,9 +127,8 @@ const placeSeat = (
     });
   }
 
-  const areaSpots = area.pieces();
-  const counterSpots = area.counters();
-  const nextCounter = () => counterSpots.next().value ?? areaSpots.next().value;
+  const column = area.column();
+  const nextSpot = () => column.next().value;
 
   const heroStart = board?.spaces.find((s) => s.start === START_SLOT[seat]);
   const onBoard: { position: XZ; radius: number }[] = [];
@@ -141,7 +142,7 @@ const placeSeat = (
       onBoard.push({ position, radius });
       return { position, radius };
     }
-    const position = areaSpots.next().value;
+    const position = nextSpot();
     return position ? { position, radius: OFF_BOARD_FIGHTER_RADIUS } : null;
   };
 
@@ -155,14 +156,14 @@ const placeSeat = (
     ),
   ];
   const pieces: PackPiece[] = [];
+  const droppedTokens = new Set<number>();
   for (const p of ordered) {
+    // a detached badge goes with its token
+    if (p.role === "token-counter" && droppedTokens.has(p.token)) continue;
     const spot =
-      p.role === "hp"
-        ? { position: nextCounter() }
-        : p.role === "fighter"
-          ? placeFighter(p)
-          : { position: areaSpots.next().value };
+      p.role === "fighter" ? placeFighter(p) : { position: nextSpot() };
     if (!spot?.position) {
+      if (p.role === "token") droppedTokens.add(p.token);
       skipped.push(`Seat ${seat}: "${p.piece.name}" left off (no room)`);
       continue;
     }
@@ -226,13 +227,21 @@ export const composeTable = ({
   );
   if (converted.some((c) => !c.pack)) return { body: null, skipped };
 
+  const ratio = map.width / map.height;
   const def = mapDef === undefined ? catalogMapDef(map.imageUrl) : mapDef;
-  const board = def ? boardGeometry(def, map.width / map.height) : null;
+  const board = def ? boardGeometry(def, ratio) : null;
 
   const sides = converted.map((c) => ({ pack: c.pack!, pieces: c.pieces }));
   fitPlacementCap(sides, skipped);
   const placed = sides.map((s, seat) =>
-    placeSeat(seat as Seat, s.pack, s.pieces, board, skipped),
+    placeSeat(
+      seat as Seat,
+      s.pack,
+      s.pieces,
+      board,
+      mapSize(ratio).width,
+      skipped,
+    ),
   );
 
   return {

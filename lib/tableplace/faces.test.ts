@@ -19,7 +19,10 @@ const indexFor = (...decks: [string, DeckImportType][]): FaceIndex => {
   const index: FaceIndex = { version: 1, decks: {} };
   for (const [dir, deck] of decks) {
     const entries = Object.fromEntries(
-      faceJobs(deck).map((j) => [j.key, { path: `${dir}/${j.key}.webp`, hash: j.hash }]),
+      faceJobs(deck).map((j) => [
+        j.key,
+        { path: `${dir}/${j.key}.webp`, hash: j.hash },
+      ]),
     );
     index.decks[deck.id] = entries;
     if (dir !== deck.id) index.decks[dir] = entries;
@@ -60,7 +63,13 @@ describe("faceJobs", () => {
 
   it("skips a stub sidekick", () => {
     const deck = clone(oak);
-    deck.deck_data.sidekick = { name: "Sidekick", quantity: 0, hp: null, isRanged: false, quote: "" };
+    deck.deck_data.sidekick = {
+      name: "Sidekick",
+      quantity: 0,
+      hp: null,
+      isRanged: false,
+      quote: "",
+    };
     expect(faceJobs(deck).map((j) => j.key)).not.toContain("sidekick");
   });
 });
@@ -69,8 +78,12 @@ describe("balancedFaces", () => {
   it("resolves every face of a balanced deck to an unbrewed.xyz url", () => {
     const faces = balancedFaces(index, oak);
     const foxfire = oak.deck_data.cards.find((c) => c.title === "Foxfire")!;
-    expect(faces(foxfire)).toBe(`${FACES_ORIGIN}/tableplace-faces/hollow-oak/card-foxfire.webp`);
-    expect(faces.hero()).toBe(`${FACES_ORIGIN}/tableplace-faces/hollow-oak/hero.webp`);
+    expect(faces(foxfire)).toBe(
+      `${FACES_ORIGIN}/tableplace-faces/hollow-oak/card-foxfire.webp`,
+    );
+    expect(faces.hero()).toBe(
+      `${FACES_ORIGIN}/tableplace-faces/hollow-oak/hero.webp`,
+    );
     expect(faces.sidekick()).toMatch(/hollow-oak\/sidekick\.webp$/);
     for (const card of oak.deck_data.cards) expect(faces(card)).not.toBeNull();
   });
@@ -83,14 +96,18 @@ describe("balancedFaces", () => {
   it("answers rule cards and extra characters", () => {
     const faces = balancedFaces(index, gerryDeck);
     expect(faces.rule(0)).toMatch(/5jGPM\/rule-1\.webp$/);
-    expect(faces.extraCharacter(0, "hero")).toMatch(/5jGPM\/extra-1-hero\.webp$/);
+    expect(faces.extraCharacter(0, "hero")).toMatch(
+      /5jGPM\/extra-1-hero\.webp$/,
+    );
     expect(faces.rule(9)).toBeNull();
   });
 
   it("finds a snapshot whose file name differs from its id", () => {
     const deck = narrator as unknown as DeckImportType;
     expect(deck.id).not.toBe("5jBEXsA55e");
-    expect(balancedFaces(index, deck).hero()).toMatch(/^https:\/\/unbrewed\.xyz\//);
+    expect(balancedFaces(index, deck).hero()).toMatch(
+      /^https:\/\/unbrewed\.xyz\//,
+    );
   });
 
   it("returns null for a deck that isn't balanced", () => {
@@ -120,11 +137,16 @@ describe("balancedFaces", () => {
 describe("loadFaceIndex", () => {
   it("returns the index, or null when it is missing or malformed", async () => {
     const ok = (body: unknown) =>
-      (async () => ({ ok: true, json: async () => body })) as unknown as typeof fetch;
+      (async () => ({
+        ok: true,
+        json: async () => body,
+      })) as unknown as typeof fetch;
     expect(await loadFaceIndex(ok(index))).toBe(index);
     expect(await loadFaceIndex(ok({ version: 2 }))).toBeNull();
     expect(
-      await loadFaceIndex((async () => ({ ok: false })) as unknown as typeof fetch),
+      await loadFaceIndex((async () => ({
+        ok: false,
+      })) as unknown as typeof fetch),
     ).toBeNull();
     expect(
       await loadFaceIndex((async () => {

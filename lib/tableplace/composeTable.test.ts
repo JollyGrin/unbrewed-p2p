@@ -10,8 +10,9 @@ import {
   composeTable,
   distance,
   faceJobs,
-  FELT_HALF_X,
-  FELT_HALF_Z,
+  CARD_X,
+  FRONT_ROW_Z,
+  VIEW,
   mapSize,
   PLACEMENT_CAP,
   SNAP_POINT_CAP,
@@ -77,11 +78,24 @@ describe.each([
     ]);
   });
 
-  it("keeps every placement and snap point on the felt, as [x, z]", () => {
+  it("keeps every placement and snap point inside the zoomed-out VIEW, as [x, z]", () => {
     for (const { position } of [...body.placements, ...body.snapPoints]) {
       expect(position).toHaveLength(2);
-      expect(Math.abs(position[0])).toBeLessThanOrEqual(FELT_HALF_X);
-      expect(Math.abs(position[1])).toBeLessThanOrEqual(FELT_HALF_Z);
+      expect(Math.abs(position[0])).toBeLessThanOrEqual(VIEW.halfX);
+      expect(Math.abs(position[1])).toBeLessThanOrEqual(VIEW.halfZ);
+    }
+    // a card's own footprint stays inside it too
+    for (const p of body.placements.filter((p) => p.kind === "deck")) {
+      expect(Math.abs(p.position[0]) + 0.7).toBeLessThanOrEqual(VIEW.halfX);
+      expect(Math.abs(p.position[1]) + 1).toBeLessThanOrEqual(12.4 + 1e-9);
+    }
+  });
+
+  it("keeps the front row at least 0.8 off the map's edge", () => {
+    for (const p of body.placements.filter((p) => p.kind === "deck")) {
+      expect(Math.abs(p.position[1]) - 1 - height / 2).toBeGreaterThanOrEqual(
+        0.8 - 1e-9,
+      );
     }
   });
 
@@ -147,20 +161,44 @@ describe("seat 1 mirrors seat 0", () => {
     });
     const strips = body.snapPoints.slice(0, 4);
     expect(strips.map((s) => s.position)).toEqual([
-      [-1.2, 13.2],
-      [1.2, 13.2],
-      [1.2, -13.2],
-      [-1.2, -13.2],
+      [-1.3, FRONT_ROW_Z],
+      [1.3, FRONT_ROW_Z],
+      [1.3, -FRONT_ROW_Z],
+      [-1.3, -FRONT_ROW_Z],
     ]);
   });
 
-  it("puts the seat 0 player area to seat 0's right (+x)", () => {
-    const { body } = compose(plain(1.54), [oak, oak]);
-    const deck0 = body.placements.find(
-      (p) => p.kind === "deck" && p.seat === 0 && p.slot === "deck",
-    )!;
-    expect(deck0.position[0]).toBeGreaterThan(17);
-    expect(deck0.position[1]).toBeGreaterThan(0);
+  it("lays seat 0's front row out deck-left, hero-right", () => {
+    const { body } = compose(DRUM, [larry, larry]);
+    const row = Object.fromEntries(
+      body.placements
+        .filter((p) => p.kind === "deck" && p.seat === 0)
+        .map((p) => [(p as { slot: string }).slot, p.position]),
+    );
+    expect(row).toEqual({
+      deck: [CARD_X.deck, FRONT_ROW_Z],
+      discard: [CARD_X.discard, FRONT_ROW_Z],
+      rules: [CARD_X.rules, FRONT_ROW_Z],
+      hero: [CARD_X.hero, FRONT_ROW_Z],
+      sidekick: [CARD_X.sidekick, FRONT_ROW_Z],
+      extras: [CARD_X.extras, FRONT_ROW_Z],
+    });
+  });
+
+  it("puts seat 0's side column to its right (+x), beside the map", () => {
+    const map = plain(1.54);
+    const { body } = compose(map, [larry, larry]);
+    const { width } = mapSize(map.width / map.height);
+    const column = body.placements.filter(
+      (p) => p.kind === "piece" && p.seat === 0,
+    );
+    expect(column.length).toBeGreaterThan(0);
+    for (const { position } of column) {
+      expect(position[0]).toBeGreaterThanOrEqual(width / 2 + 1 - 1e-9);
+      expect(position[0]).toBeLessThanOrEqual(19.5);
+      expect(position[1]).toBeGreaterThanOrEqual(0.5);
+      expect(position[1]).toBeLessThanOrEqual(8.5);
+    }
   });
 });
 
@@ -233,14 +271,17 @@ describe("a board with no ProMapDef", () => {
   it("has only the front-strip snap points", () => {
     expect(body.snapPoints).toHaveLength(4);
   });
-  it("stands the figures in their own player area", () => {
+  it("stands the figures in their own side column, off the map", () => {
+    const { width } = mapSize(1.54);
     const figures = body.placements.filter(
       (p) =>
-        p.kind === "piece" &&
-        packOf(body, p).pieces![p.piece].kind === "token" &&
-        Math.abs(p.position[0]) < 17,
+        p.kind === "piece" && packOf(body, p).pieces![p.piece].kind === "token",
     );
-    expect(figures).toEqual([]);
+    expect(figures.length).toBeGreaterThan(0);
+    for (const p of figures) {
+      expect(Math.abs(p.position[0])).toBeGreaterThan(width / 2);
+      expect(Math.sign(p.position[0])).toBe(p.seat === 0 ? 1 : -1);
+    }
   });
 });
 
@@ -290,7 +331,7 @@ describe("caps", () => {
     expect(body!.snapPoints.length).toBeLessThanOrEqual(SNAP_POINT_CAP);
   });
 
-  it("drops saved tokens from the end rather than sending a 413", () => {
+  it("drops saved tokens from the end when the column is full", () => {
     const hoard = tokenDeck();
     hoard.savedTokens = Array.from({ length: 60 }, (_, i) => ({
       imageUrl: `https://unbrewed.xyz/tokens/t${i}.png`,
@@ -301,9 +342,10 @@ describe("caps", () => {
       map: DRUM,
       faces: fakeFaces,
     });
-    expect(body!.placements).toHaveLength(PLACEMENT_CAP);
+    expect(body!.placements.length).toBeLessThanOrEqual(PLACEMENT_CAP);
     expect(skipped.length).toBeGreaterThan(0);
-    expect(skipped[0]).toMatch(/Token 60/);
+    expect(skipped.some((m) => /"Token 60" left off/.test(m))).toBe(true);
+    for (const m of skipped) expect(m).toMatch(/left off/);
     // every piece that stayed in a pack is still placed
     for (const pack of body!.packs.filter((p) => p.scope === "player")) {
       expect(

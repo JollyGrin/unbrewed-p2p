@@ -66,8 +66,20 @@ const codeAllocator = () => {
   };
 };
 
+/**
+ * Deck art paths are often site-relative (`/evergreen-decks/art/...`), which
+ * table.place would resolve against its own origin and 404. Every face, back
+ * and image goes through this; `sheet:` refs and absolute URLs pass as-is.
+ */
+export const absoluteUrl = (url: string): string =>
+  url.startsWith("//")
+    ? `https:${url}`
+    : url.startsWith("/")
+      ? `${FACES_ORIGIN}${url}`
+      : url;
+
 const sheetRef = (url: string, crop: SheetCrop, name?: string): string =>
-  `sheet:${JSON.stringify({ url, ...crop, ...(name ? { name } : {}) })}`;
+  `sheet:${JSON.stringify({ url: absoluteUrl(url), ...crop, ...(name ? { name } : {}) })}`;
 
 /** The finished face a card already carries, if any (Labs renders, TTS sheets). */
 const ownFace = (card: DeckImportCardType): string | null => {
@@ -128,13 +140,11 @@ export const tokenPiece = (
   };
 };
 
-/** Deck art paths are site-relative (`/evergreen-decks/art/...`). */
-const absoluteUrl = (url: string): string =>
-  url.startsWith("/") ? `${FACES_ORIGIN}${url}` : url;
-
 const tokenFace = (token: SavedToken): string | null => {
   if (!token.imageUrl) return null;
-  return token.sheet ? sheetRef(token.imageUrl, token.sheet) : token.imageUrl;
+  return token.sheet
+    ? sheetRef(token.imageUrl, token.sheet)
+    : absoluteUrl(token.imageUrl);
 };
 
 export const deckToPlayerPack = (
@@ -147,7 +157,7 @@ export const deckToPlayerPack = (
 
   const resolved = (title: string, found: string | null): string | null => {
     if (!found) skipped.push(`${title}: no finished face`);
-    return found;
+    return found && absoluteUrl(found);
   };
   const face = (card: DeckImportCardType): string | null =>
     resolved(card.title, ownFace(card) ?? faces(card));
@@ -221,13 +231,15 @@ export const deckToPlayerPack = (
       ),
     );
   });
+  // extra characters get their own face-up pile beside the sidekick
+  const extras: (PackCard | null)[] = [];
   (data.extraCharacters ?? []).forEach((extra, i) => {
     for (const [part, name, text, printed] of [
       ["hero", extra.hero.name, extra.hero.specialAbility, true],
       ["sidekick", extra.sidekick.name, "", hasSidekick(extra.sidekick)],
     ] as const) {
       if (!printed || !name) continue;
-      rules.push(
+      extras.push(
         single(
           name,
           ruleCodes(name),
@@ -259,9 +271,10 @@ export const deckToPlayerPack = (
 
   if (skipped.length) return { pack: null, pieces: [], skipped };
 
-  const back =
+  const rawBack =
     data.appearance.cardbackUrl ||
     data.cards.find((c) => c.cardBackUrl)?.cardBackUrl;
+  const back = rawBack && absoluteUrl(rawBack);
   const withBack = (d: Omit<PackDeck, "back">): PackDeck => ({
     ...d,
     ...(back ? { back } : {}),
@@ -282,6 +295,9 @@ export const deckToPlayerPack = (
       : []),
     ...(rules.length
       ? [withBack({ slot: "rules", name: "Rules", cards: compact(rules) })]
+      : []),
+    ...(extras.length
+      ? [withBack({ slot: "extras", name: "Extras", cards: compact(extras) })]
       : []),
   ];
 
