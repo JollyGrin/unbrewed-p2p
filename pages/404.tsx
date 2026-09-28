@@ -21,6 +21,14 @@ export const getStaticProps: GetStaticProps<Props> = () => {
   return { props: {} };
 };
 
+const safeDecode = (segment: string | undefined) => {
+  try {
+    return segment && decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+};
+
 export default function Custom404() {
   const router = useRouter();
 
@@ -42,7 +50,9 @@ export default function Custom404() {
       // /offline/<deckId> is a solo, local-only session — no lobby, no
       // websocket. Route straight to the offline board; it loads the deck
       // client-side. `name=offline` is what the board reads as `self`.
-      const deckId = lobby;
+      // Decoded so a Labs id survives a link that escaped its colon
+      // (`/offline/labs%3Achar_…`, #979) — unmatched.cards ids decode to themselves.
+      const deckId = safeDecode(lobby);
 
       router.push({
         pathname: "offline",
