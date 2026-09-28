@@ -32,7 +32,10 @@ export type LabsUnsupportedFeatureId =
 export type LabsUnsupportedFeature = {
   id: LabsUnsupportedFeatureId;
   label: string;
-  /** titles of the affected cards (empty for hero-level features) */
+  /**
+   * titles of the affected cards (names of the extra character cards for
+   * `additional-character-cards`; empty for the hero's own custom symbols)
+   */
   cards: string[];
 };
 
@@ -126,9 +129,13 @@ export const detectLabsUnsupported = (
   if (hero && !rendered("character-card", hero.id) && /custom:/.test(JSON.stringify(hero.abilities ?? [])) && !found.has("custom-symbols")) {
     found.set("custom-symbols", []);
   }
-  if (hero && (hero.additionalCards ?? []).length > 0) {
-    found.set("additional-character-cards", []);
-  }
+  // Extra character cards (Spy vs Spy's White Spy) come in as Labs' render,
+  // like the hero card; only one without a render is lost, since the template
+  // can't draw a character card at all.
+  const missing = (hero?.additionalCards ?? [])
+    .filter((extra) => !rendered("character-card", extra.id))
+    .map((extra) => extra.name?.trim() || "Untitled");
+  if (missing.length > 0) found.set("additional-character-cards", missing);
 
   return (Object.keys(LABELS) as LabsUnsupportedFeatureId[])
     .filter((id) => found.has(id))

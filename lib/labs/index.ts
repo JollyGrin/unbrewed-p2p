@@ -10,6 +10,7 @@ export * from "./map";
 export * from "./unsupported";
 export * from "./previews";
 export type {
+  LabsAdditionalCard,
   LabsCard,
   LabsCharacter,
   LabsDeck,

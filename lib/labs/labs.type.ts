@@ -89,7 +89,20 @@ export type LabsCharacter = {
     health?: number;
     attackType?: string;
   };
-  additionalCards?: unknown[];
+  additionalCards?: LabsAdditionalCard[];
+};
+
+/**
+ * An extra character card on a hero (Spy vs Spy's White Spy): a second
+ * fighter with its own stats. Its id starts with `hchar_`, not `char_`, and
+ * its finished render is keyed `character-card:<that id>:front`.
+ */
+export type LabsAdditionalCard = Pick<
+  LabsCharacter,
+  "name" | "health" | "move" | "attackType" | "quote" | "abilities" | "characterCard"
+> & {
+  id: string;
+  subtitle?: string;
 };
 
 export type LabsCustomSymbol = { id: string; name?: string; source?: string | null };
