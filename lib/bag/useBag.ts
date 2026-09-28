@@ -43,6 +43,7 @@ import {
   subscribeStar,
   updateItem,
 } from "./bagStore";
+import { DeckEdit, deckEditsLost } from "./deckEdits";
 
 /** Shared plumbing: subscribe, load the device copy, probe the account. */
 const useKindStore = <T,>(store: KindStore<T>): { isLoading: boolean } => {
@@ -87,21 +88,28 @@ export type BagDeckView = {
   /** The account row id, for a share link. Undefined for a device deck. */
   cloudIdOf: (id: string) => string | undefined;
   setStar: (id: string) => void;
-  /** False when nothing was stored: device full, or a blocked author (#790). */
-  pushDeck: (deck: DeckImportType) => Promise<boolean>;
+  /**
+   * False when nothing was stored: device full, a blocked author (#790), or
+   * the player kept their edited saved copy (#1033).
+   */
+  pushDeck: (deck: DeckImportType, options?: PushDeckOptions) => Promise<boolean>;
   removeDeckbyId: (id: string) => Promise<void>;
   updateDeck: (deck: DeckImportType) => Promise<void>;
   importDecks: (decks: DeckImportType[]) => Promise<number>;
   clearDecks: () => Promise<void>;
 };
 
-/** Same payload, so replacing one with the other loses nothing. */
-const sameDeck = (a: DeckImportType, b: DeckImportType) =>
-  JSON.stringify(a) === JSON.stringify(b);
+/** A re-add that would overwrite the player's changes (#1033). */
+export type ReplaceAsk = { saved: DeckImportType; edits: DeckEdit[] };
 
-export const replaceDeckPrompt = (saved: DeckImportType) =>
-  `"${saved.name}" is already in your bag. Replace it with this copy? ` +
-  "Any changes you made to it, like hero cards or saved tokens, will be lost.";
+export type PushDeckOptions = {
+  /**
+   * Asks the player whether to replace their edited copy; resolves true to
+   * replace. Without it the saved copy is kept: a caller with no UI to ask
+   * through (a deep link, an invite) never overwrites a player's changes.
+   */
+  confirmReplace?: (ask: ReplaceAsk) => Promise<boolean>;
+};
 
 export const useBagDecks = (): BagDeckView => {
   const store = stores.decks;
@@ -123,7 +131,7 @@ export const useBagDecks = (): BagDeckView => {
   const setStar = useCallback((id: string) => writeStar(id), []);
 
   const pushDeck = useCallback(
-    async (deck: DeckImportType) => {
+    async (deck: DeckImportType, options?: PushDeckOptions) => {
       // An author who asked not to be importable (#790) is refused before
       // anything is written, whichever add path the deck came through.
       if (isImportBlocked(deck)) {
@@ -131,14 +139,18 @@ export const useBagDecks = (): BagDeckView => {
         return false;
       }
       // Re-adding a deck already in the bag replaces it in place (#1002, and
-      // always so in the account), so ask before a copy the player may have
-      // edited (hero flags, saved tokens) is overwritten (#1033). An identical
-      // copy has nothing to lose and goes through quietly.
+      // always so in the account), so ask before the player's changes on the
+      // saved copy are overwritten (#1033). A re-add with nothing of theirs to
+      // lose — identical, or only newer source data — goes through quietly.
       loadLocal(store);
       const saved = bagItems(store).find((item) => item?.id === deck.id);
-      if (saved && !sameDeck(saved, deck) && !window.confirm(replaceDeckPrompt(saved))) {
-        toast(`Kept your saved ${saved.name}`, { id: "bag-deck-kept" });
-        return false;
+      const edits = saved ? deckEditsLost(saved, deck) : [];
+      if (saved && edits.length > 0) {
+        const replace = (await options?.confirmReplace?.({ saved, edits })) ?? false;
+        if (!replace) {
+          toast(`Kept your saved ${saved.name}`, { id: "bag-deck-kept" });
+          return false;
+        }
       }
       const outcome = await addItem(store, deck);
       // A refusal that still landed on the device is a success for the user;

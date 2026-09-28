@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Box, Button, Flex, Grid, Text } from "@chakra-ui/react";
 import { FaArrowLeft } from "react-icons/fa";
-import { DeckImportType } from "@/components/DeckPool/deck-import.type";
+import { BagDeckView } from "@/lib/bag/useBag";
 import { PopularDecks } from "@/components/Bag/PopularDecks";
 import { AddImageDeck } from "@/components/Bag/ImageDeck";
 import { StarterDeckContainer } from "@/components/Bag/StarterDecks";
@@ -66,7 +66,7 @@ export const AddDeckHub = ({
   deckIds,
   onDeckAdded,
 }: {
-  pushDeck: (deck: DeckImportType) => Promise<boolean>;
+  pushDeck: BagDeckView["pushDeck"];
   setStar: (id: string) => void;
   star?: string;
   deckIds?: string[];

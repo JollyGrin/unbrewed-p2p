@@ -157,16 +157,15 @@ describe("a guest", () => {
 /**
  * #1033: since #1002 a guest's add replaces an entry with the same id instead
  * of appending a second row. For maps that is the point; for decks the saved
- * copy may carry the player's edits, so pushDeck asks first.
+ * copy may carry the player's edits, so pushDeck asks (through the caller's
+ * in-page confirm) before losing them — and only then.
  */
 describe("a guest re-adding something already in the bag", () => {
-  // The deck as the player left it: a hero card flagged, a token saved.
+  // The deck as the player left it: a token saved on it.
   const edited = () => ({
     ...deck("d1", "Bruce Lee"),
-    deck_data: { cards: [{ title: "Bruce", isCharacterCard: true }] },
-    savedTokens: [{ id: "t1" }],
+    savedTokens: [{ imageUrl: "https://x/bruce.png", label: "Bruce" }],
   });
-  let confirmSpy: jest.SpyInstance;
 
   const guestWith = async (decks: unknown[]) => {
     localStorage.setItem(LS_KEY.DECKS, JSON.stringify(decks));
@@ -176,11 +175,6 @@ describe("a guest re-adding something already in the bag", () => {
     await waitFor(() => expect(hook.result.current.isLoading).toBe(false));
     return hook.result;
   };
-
-  beforeEach(() => {
-    confirmSpy = jest.spyOn(window, "confirm");
-  });
-  afterEach(() => confirmSpy.mockRestore());
 
   it("keeps one row when the same map is added twice", async () => {
     install(() => reply(401, { user: null }));
@@ -195,31 +189,35 @@ describe("a guest re-adding something already in the bag", () => {
     expect(JSON.parse(localStorage.getItem(LS_KEY.MAP_LIST)!)).toEqual([
       { imgUrl: "a.png", meta: { title: "Two" } },
     ]);
-    expect(confirmSpy).not.toHaveBeenCalled();
   });
 
-  it("asks before an edited deck is replaced, and keeps it on a no", async () => {
+  it("asks before an edited deck is replaced, and keeps it on Keep mine", async () => {
     const result = await guestWith([edited()]);
-    confirmSpy.mockReturnValue(false);
+    const confirmReplace = jest.fn(async () => false);
 
     await act(async () => {
-      expect(await result.current.pushDeck(deck("d1", "Bruce Lee"))).toBe(false);
+      expect(
+        await result.current.pushDeck(deck("d1", "Bruce Lee"), { confirmReplace }),
+      ).toBe(false);
     });
 
-    expect(confirmSpy).toHaveBeenCalledWith(
-      expect.stringContaining('"Bruce Lee" is already in your bag'),
-    );
+    expect(confirmReplace).toHaveBeenCalledWith({
+      saved: edited(),
+      edits: ["saved tokens"],
+    });
     expect(JSON.parse(localStorage.getItem(LS_KEY.DECKS)!)).toEqual([edited()]);
     expect(localStorage.getItem(LS_KEY.STAR_DECK)).toBe("d1");
     expect(toastPlain).toHaveBeenCalledWith("Kept your saved Bruce Lee", expect.anything());
   });
 
-  it("replaces the edited deck in place on a yes: one row, star kept", async () => {
+  it("replaces the edited deck in place on Replace: one row, star kept", async () => {
     const result = await guestWith([deck("d0"), edited()]);
-    confirmSpy.mockReturnValue(true);
+    const confirmReplace = jest.fn(async () => true);
 
     await act(async () => {
-      expect(await result.current.pushDeck(deck("d1", "Bruce Lee"))).toBe(true);
+      expect(
+        await result.current.pushDeck(deck("d1", "Bruce Lee"), { confirmReplace }),
+      ).toBe(true);
     });
 
     expect(JSON.parse(localStorage.getItem(LS_KEY.DECKS)!)).toEqual([
@@ -229,17 +227,44 @@ describe("a guest re-adding something already in the bag", () => {
     expect(localStorage.getItem(LS_KEY.STAR_DECK)).toBe("d1");
   });
 
-  it("re-adds an identical deck without asking, still one row", async () => {
-    const result = await guestWith([deck("d1", "Bruce Lee")]);
+  it("keeps an edited deck when the caller has no way to ask", async () => {
+    const result = await guestWith([edited()]);
 
     await act(async () => {
-      expect(await result.current.pushDeck(deck("d1", "Bruce Lee"))).toBe(true);
+      expect(await result.current.pushDeck(deck("d1", "Bruce Lee"))).toBe(false);
     });
 
-    expect(confirmSpy).not.toHaveBeenCalled();
-    expect(JSON.parse(localStorage.getItem(LS_KEY.DECKS)!)).toEqual([
-      deck("d1", "Bruce Lee"),
-    ]);
+    expect(JSON.parse(localStorage.getItem(LS_KEY.DECKS)!)).toEqual([edited()]);
+  });
+
+  it("re-adds an unedited deck with newer source data without asking", async () => {
+    const result = await guestWith([deck("d1", "Bruce Lee")]);
+    const confirmReplace = jest.fn(async () => false);
+    const newer = {
+      ...deck("d1", "Bruce Lee"),
+      version_id: "d1-v2",
+      updated_on: "2026-09-28",
+      likes: 12,
+    };
+
+    await act(async () => {
+      expect(await result.current.pushDeck(newer, { confirmReplace })).toBe(true);
+    });
+
+    expect(confirmReplace).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem(LS_KEY.DECKS)!)).toEqual([newer]);
+  });
+
+  it("re-adds an identical deck without asking, still one row", async () => {
+    const result = await guestWith([edited()]);
+    const confirmReplace = jest.fn(async () => false);
+
+    await act(async () => {
+      expect(await result.current.pushDeck(edited(), { confirmReplace })).toBe(true);
+    });
+
+    expect(confirmReplace).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem(LS_KEY.DECKS)!)).toEqual([edited()]);
   });
 
   it("asks a signed-in user too, whose account always replaced by id", async () => {
@@ -248,13 +273,15 @@ describe("a guest re-adding something already in the bag", () => {
     });
     const { result } = renderHook(() => useBagDecks());
     await waitFor(() => expect(result.current.decks).toHaveLength(1));
-    confirmSpy.mockReturnValue(false);
+    const confirmReplace = jest.fn(async () => false);
 
     await act(async () => {
-      expect(await result.current.pushDeck(deck("d1", "Bruce Lee"))).toBe(false);
+      expect(
+        await result.current.pushDeck(deck("d1", "Bruce Lee"), { confirmReplace }),
+      ).toBe(false);
     });
 
-    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(confirmReplace).toHaveBeenCalledTimes(1);
     expect(server.created).toEqual([]);
     expect(paths().filter((p) => p.startsWith("PUT"))).toEqual([]);
     expect(result.current.decks).toEqual([edited()]);
