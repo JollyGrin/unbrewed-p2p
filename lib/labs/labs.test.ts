@@ -6,6 +6,7 @@ import {
   LabsImportError,
   LabsLoadedSet,
   LabsSetRow,
+  actionCardsOf,
   buildLabsImport,
   detectLabsUnsupported,
   fetchLabsImport,
@@ -103,7 +104,7 @@ describe("buildLabsImport on the real Marouine payload", () => {
   });
 
   it("maps a playable 30-card deck", () => {
-    expect(deck.deck_data.cards).toHaveLength(14);
+    expect(deck.deck_data.cards.filter((c) => !c.isCharacterCard)).toHaveLength(14);
     const drawn = makeDeck(newPool(deck)).deck!;
     expect(drawn).toHaveLength(30);
   });
@@ -119,7 +120,10 @@ describe("buildLabsImport on the real Marouine payload", () => {
       immediateText: "Cancel all effects on your opponents card.",
       afterText: "Gain 1 action.",
     });
-    expect(byTitle("Flinch").imageUrl).toMatch(/^https:\/\/.*supabase\.co\//);
+    // the template's art is still the author's upload (used only as fallback)
+    expect(byTitle("Flinch").imageUrl).toBe(
+      ROW.document.set.cards.find((c) => c.title === "Flinch")!.artwork!.source,
+    );
     expect(byTitle("High Alert")).toMatchObject({ type: "defence", value: 3 });
     expect(byTitle("Hired Gun")).toMatchObject({ type: "versatile", value: 5 });
     expect(byTitle("Darkvision")).toMatchObject({
@@ -131,6 +135,88 @@ describe("buildLabsImport on the real Marouine payload", () => {
 
   it("renders faithfully, so nothing is flagged", () => {
     expect(unsupported).toEqual([]);
+  });
+
+  it("draws every card as its own finished Labs render", () => {
+    const previews = ROW.card_previews!;
+    const ids = actionCardsOf(ROW.document.set, MAROUINE).map((c) => c.id);
+    const faces = deck.deck_data.cards.filter((c) => !c.isCharacterCard);
+    expect(faces.map((c) => c.cardImage?.url)).toEqual(
+      ids.map((id) => previews[`card:${id}:front`]),
+    );
+    expect(new Set(faces.map((c) => c.cardImage?.url)).size).toBe(faces.length);
+    // the card from #994's bug report
+    expect(byTitle("Point Blank").cardImage).toEqual({
+      url: previews["card:card_fdb8832c-a56e-4b08-8e6b-a23bba913976:front"],
+    });
+  });
+
+  it("uses the finished hero card and deck back", () => {
+    const heroCard = deck.deck_data.cards.filter((c) => c.isCharacterCard);
+    expect(heroCard).toEqual([
+      expect.objectContaining({
+        title: "Marouine",
+        quantity: 1,
+        cardImage: { url: ROW.card_previews![`character-card:${MAROUINE}:front`] },
+      }),
+    ]);
+    const back = ROW.card_previews![`deck-back:${MAROUINE}:front`];
+    expect(deck.deck_data.appearance.cardbackUrl).toBe(back);
+    expect(deck.deck_data.cards.every((c) => c.cardBackUrl === back)).toBe(true);
+    // on the table from turn one, like a Club import
+    expect(deck.savedTokens).toEqual([
+      expect.objectContaining({ imageUrl: heroCard[0].cardImage!.url }),
+    ]);
+  });
+
+  // Pinned before #994: the full-art faces must not change what deck stats,
+  // search and the deck list read.
+  it("keeps the structured card data", () => {
+    expect(
+      deck.deck_data.cards
+        .filter((c) => !c.isCharacterCard)
+        .map(({ cardImage, cardBackUrl, ...fields }) => fields),
+    ).toMatchSnapshot();
+  });
+});
+
+describe("without a finished render", () => {
+  const POINT_BLANK = "card_fdb8832c-a56e-4b08-8e6b-a23bba913976";
+  const withoutPreview = (...keys: string[]): LabsSetRow => {
+    const row = clone(ROW);
+    for (const key of keys) delete row.card_previews![key];
+    return row;
+  };
+
+  it("falls back to the template for that card only", () => {
+    const { deck } = buildLabsImport(loaded(withoutPreview(`card:${POINT_BLANK}:front`)), MAROUINE);
+    const cards = deck.deck_data.cards.filter((c) => !c.isCharacterCard);
+    expect(cards.find((c) => c.title === "Point Blank")!.cardImage).toBeUndefined();
+    expect(cards.filter((c) => c.cardImage)).toHaveLength(cards.length - 1);
+  });
+
+  it("imports a set with no previews at all as before", () => {
+    const row = clone(ROW);
+    delete row.card_previews;
+    const { deck } = buildLabsImport(loaded(row), MAROUINE);
+    expect(deck.deck_data.cards).toHaveLength(14);
+    expect(deck.deck_data.cards.some((c) => c.cardImage)).toBe(false);
+    expect(deck.deck_data.appearance.cardbackUrl).toBe("");
+    expect(deck.savedTokens).toBeUndefined();
+  });
+
+  it("can still trip the detector", () => {
+    const row = withoutPreview(`card:${POINT_BLANK}:front`);
+    row.document.set.cards.find((c) => c.id === POINT_BLANK)!.split = true;
+    expect(buildLabsImport(loaded(row), MAROUINE).unsupported).toEqual([
+      { id: "split-card", label: "Split cards", cards: ["Point Blank"] },
+    ]);
+  });
+
+  it("does not trip on a rendered card with the same feature", () => {
+    const row = clone(ROW);
+    row.document.set.cards.find((c) => c.id === POINT_BLANK)!.split = true;
+    expect(buildLabsImport(loaded(row), MAROUINE).unsupported).toEqual([]);
   });
 });
 
@@ -156,13 +242,26 @@ describe("other heroes in the same real set", () => {
     expect(elliot.deck_data.cards.find((c) => c.title === "Tale of the Worlds Beyond")?.afterText).toMatch(/\nCHORUS: Draw 1 card/);
   });
 
-  it("flags the bonus-attack panel Aesa-Arannis uses", () => {
+  it("flags the bonus-attack panel Aesa-Arannis uses when it has to be templated", () => {
     expect(detectLabsUnsupported(ROW.document.set, AESA)).toEqual([
       { id: "bonus-attack", label: expect.any(String), cards: ["Follow Orders"] },
     ]);
     const follow = buildLabsImport(loaded(), AESA).deck.deck_data.cards.find((c) => c.title === "Follow Orders")!;
     expect(follow.afterText).toMatch(/^You may BONUS ATTACK/);
     expect(follow.afterText).toMatch(/\nBONUS ATTACK/);
+  });
+
+  it("does not warn for Aesa-Arannis once Labs has rendered her cards", () => {
+    const aesa = buildLabsImport(loaded(), AESA);
+    expect(aesa.unsupported).toEqual([]);
+    expect(aesa.deck.deck_data.cards.find((c) => c.title === "Follow Orders")!.cardImage?.url).toMatch(
+      /card-preview-.*\.webp$/,
+    );
+    // …but it does again if that card's render goes missing
+    const row = clone(ROW);
+    const follow = row.document.set.cards.find((c) => c.title === "Follow Orders")!;
+    delete row.card_previews![`card:${follow.id}:front`];
+    expect(buildLabsImport(loaded(row), AESA).unsupported.map((f) => f.id)).toEqual(["bonus-attack"]);
   });
 
   it("refuses a character without an action deck", () => {
@@ -183,6 +282,8 @@ describe("detectLabsUnsupported", () => {
     set.customSymbols = [{ id: "sym_1", name: "Reflex", source: "https://example.com/r.png" }];
     const flinch = set.cards.find((c) => c.title === "Flinch")!;
     flinch.ability!.afterCombat = "Gain 1 {{custom:sym_1}}.";
+    // …and no finished render, so it has to be drawn by our template
+    delete row.card_previews![`card:${flinch.id}:front`];
     return row;
   };
 

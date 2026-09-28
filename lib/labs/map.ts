@@ -13,12 +13,17 @@ import {
 import { fail } from "./errors";
 import { labsDeckId, labsShareUrl } from "./parse";
 import { LabsUnsupportedFeature, detectLabsUnsupported } from "./unsupported";
+import { labsPreviewUrl } from "./previews";
+import { seedHeroCardTokens } from "@/components/Positions/heroCardTokens";
 
 export type LabsHeroOption = { id: string; name: string };
 
 export type LabsImport = {
   deck: DeckImportType;
-  /** Labs features this deck uses that our card template can't draw */
+  /**
+   * Labs features our card template can't draw, on the cards that have to
+   * fall back to it (no finished render). Empty when every card has one.
+   */
   unsupported: LabsUnsupportedFeature[];
   setName: string;
   author?: string;
@@ -132,6 +137,8 @@ const mapCard = (
   card: LabsCard,
   hero: LabsCharacter,
   set: LabsSet,
+  /** Labs' finished render of this card, if it published one */
+  render: string | undefined,
 ): DeckImportCardType => {
   const subject = subjectOf(card, hero);
   const text = (raw?: string) => labsText(raw, { subject, set });
@@ -165,7 +172,12 @@ const mapCard = (
   }
 
   const type = CARD_TYPES[card.symbol ?? ""] ?? "versatile";
-  const replacement = card.useReplacement ? https(card.replacement?.source) : undefined;
+  // The face to draw as a whole image. Labs' finished render wins over the
+  // author's replacement: Labs renders the replacement too (so it is the same
+  // picture), but the render has the author's crop/zoom applied and a fixed
+  // 700x978 size, while `replacement.source` is the raw upload.
+  const face =
+    render ?? (card.useReplacement ? https(card.replacement?.source) : undefined);
 
   return {
     title: card.title?.trim() || card.name?.trim() || "Untitled",
@@ -175,9 +187,11 @@ const mapCard = (
     boost: card.boost ?? 0,
     characterName: subject,
     ...sections,
+    // Template art, drawn only when there is no face (or it fails to load).
     imageUrl: (https(card.artwork?.source) ?? "") as DeckImportCardType["imageUrl"],
-    // A card the author replaced with a finished image IS that image.
-    ...(replacement ? { cardImage: { url: replacement } } : {}),
+    // A card with a finished image IS that image; the fields above stay for
+    // deck stats, search and the fallback template.
+    ...(face ? { cardImage: { url: face } } : {}),
   };
 };
 
@@ -202,13 +216,42 @@ export const buildLabsImport = (
   const name = heroName(hero);
   const sidekick = hero.sidekick?.enabled ? hero.sidekick : undefined;
   const id = labsDeckId(characterId);
-  const cardbackUrl = hero.cardback?.useReplacement
-    ? https(hero.cardback.replacement?.source) ?? ""
-    : "";
-  const cards = actionCards.map((card) => {
-    const mapped = mapCard(card, hero, set);
-    return cardbackUrl ? { ...mapped, cardBackUrl: cardbackUrl } : mapped;
-  });
+  const cardbackUrl =
+    labsPreviewUrl(row, "deck-back", characterId) ??
+    (hero.cardback?.useReplacement ? https(hero.cardback.replacement?.source) : undefined) ??
+    "";
+  const rules = ruleCardsOf(set, characterId);
+  const reference: DeckImportCardType[] = [
+    // Hero card and rule cards ride along as full-art reference cards: never
+    // shuffled (makeDeck skips `isCharacterCard`), seeded onto the table as
+    // tokens like a Club/TTS import. Only where Labs rendered them — the
+    // template can't draw either.
+    ...[{ title: name, url: labsPreviewUrl(row, "character-card", characterId) }],
+    ...rules.map((card) => ({
+      title: labsText(card.heading, { subject: name, set }) || "Rules",
+      url: labsPreviewUrl(row, "card", card.id),
+    })),
+  ]
+    .filter((c): c is { title: string; url: string } => !!c.url)
+    .map(({ title, url }) => ({
+      title,
+      quantity: 1,
+      type: "versatile",
+      value: null,
+      boost: 0,
+      characterName: name,
+      basicText: "",
+      immediateText: "",
+      duringText: "",
+      afterText: "",
+      imageUrl: url as DeckImportCardType["imageUrl"],
+      cardImage: { url },
+      isCharacterCard: true,
+    }));
+  const cards = [
+    ...actionCards.map((card) => mapCard(card, hero, set, labsPreviewUrl(row, "card", card.id))),
+    ...reference,
+  ].map((card) => (cardbackUrl ? { ...card, cardBackUrl: cardbackUrl } : card));
   const specialAbility = (hero.abilities ?? [])
     .map((a) => {
       const body = labsText(a.text, { subject: name, set });
@@ -239,6 +282,7 @@ export const buildLabsImport = (
     liked: false,
     likes: 0,
     tags: ["unmatched-labs"],
+    ...(reference.length ? { savedTokens: seedHeroCardTokens(reference) } : {}),
     deck_data: {
       name,
       appearance: {
@@ -249,7 +293,7 @@ export const buildLabsImport = (
         patternName: "",
       },
       cards,
-      ruleCards: ruleCardsOf(set, characterId).map((card) => ({
+      ruleCards: rules.map((card) => ({
         title: labsText(card.heading, { subject: name, set }) || "Rules",
         content: labsText(card.body, { subject: name, set }),
       })),
@@ -278,7 +322,7 @@ export const buildLabsImport = (
 
   return {
     deck,
-    unsupported: detectLabsUnsupported(set, characterId),
+    unsupported: detectLabsUnsupported(set, characterId, row),
     setName: row.name,
     author,
   };

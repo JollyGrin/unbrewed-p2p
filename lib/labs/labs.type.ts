@@ -115,6 +115,16 @@ export type LabsSetRow = {
   created_at?: string;
   updated_at?: string;
   document: { set: LabsSet };
+  /**
+   * Finished card images Labs renders on publish, keyed
+   * `card:<id>:front` / `character-card:<id>:front` / `deck-back:<id>:front`.
+   * See `previews.ts`.
+   */
+  card_previews?: Record<string, string> | null;
+  /** bumped when Labs changes its renderer */
+  card_preview_version?: number | null;
+  /** per-key content fingerprint Labs uses to decide what to re-render */
+  card_preview_fingerprints?: Record<string, string> | null;
 };
 
 /** A fetched set, plus what the pasted link said about it. */

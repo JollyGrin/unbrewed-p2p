@@ -69,7 +69,9 @@ export const LabsUnsupportedWarning = ({
       ⚠ This deck won&apos;t look right with our card template
     </Text>
     <Text mb="0.3rem">
-      {deckName} uses Unmatched Labs features we can&apos;t draw:
+      Unmatched Labs hasn&apos;t published finished art for some of{" "}
+      {deckName}&apos;s cards, so our template draws them — and they use
+      features it can&apos;t draw:
     </Text>
     <UnorderedList ml="1.25rem" mb="0.5rem" spacing="0.1rem">
       {unsupported.map((feature) => (
