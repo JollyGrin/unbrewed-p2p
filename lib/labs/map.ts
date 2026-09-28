@@ -11,6 +11,7 @@ import {
   LabsSet,
 } from "./labs.type";
 import { fail } from "./errors";
+import { LabsSkippedContent, detectLabsSkipped } from "./skipped";
 import { labsDeckId, labsShareUrl } from "./parse";
 import { LabsUnsupportedFeature, detectLabsUnsupported } from "./unsupported";
 import { labsPreviewUrl } from "./previews";
@@ -25,6 +26,8 @@ export type LabsImport = {
    * fall back to it (no finished render). Empty when every card has one.
    */
   unsupported: LabsUnsupportedFeature[];
+  /** What the set holds that this import leaves behind. Information only. */
+  skipped: LabsSkippedContent;
   setName: string;
   author?: string;
 };
@@ -211,6 +214,8 @@ export const buildLabsImport = (
   const hero =
     set.characters?.find((c) => c.id === characterId) ?? fail("character-not-found");
   const actionCards = actionCardsOf(set, characterId);
+  // Adventures characters are not heroes: never import one as a hero deck.
+  if (hero.role === "villain" || hero.role === "minion") fail("no-heroes");
   if (actionCards.length === 0) fail("no-deck");
 
   const name = heroName(hero);
@@ -323,6 +328,7 @@ export const buildLabsImport = (
   return {
     deck,
     unsupported: detectLabsUnsupported(set, characterId, row),
+    skipped: detectLabsSkipped(set, characterId),
     setName: row.name,
     author,
   };
