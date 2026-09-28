@@ -1,0 +1,11 @@
+{
+  "id": "2026-09-27-tabletop-view",
+  "date": "2026-09-27",
+  "title": "Pull up a chair: the tabletop view is here",
+  "summary": "Pro games can now be played on a 3D table. Switch between sculpted minis, sprites and flat tokens from the figure menu at any point in a game.",
+  "tags": ["feature"],
+  "pro": true,
+  "highlight": true,
+  "video": { "slug": "tabletop" },
+  "cta": { "label": "Try it in a Pro game", "href": "/pro" }
+}

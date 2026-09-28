@@ -2,6 +2,11 @@
 
 const { execSync } = require("child_process");
 const pkg = require("./package.json");
+const { generateChangelogIndex } = require("./lib/buildTools/generateChangelogIndex");
+
+// Regenerate lib/changelog/generatedEntries.ts from content/changelog/*.json
+// before anything imports it (unbrewed-p2p-982) — see generateChangelogIndex.js.
+generateChangelogIndex();
 
 const pathPrefix = process.env.NODE_ENV === "production" ? "" : "";
 
