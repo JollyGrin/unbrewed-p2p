@@ -42,7 +42,7 @@ export const LabsPanel = ({
   pushDeck: (deck: DeckImportType) => Promise<boolean>;
   setStar: (id: string) => void;
   onAdded?: (deckId: string) => void;
-  /** switch the hub to the Card images panel (the TTS-export fallback) */
+  /** switch the hub to the card-image import (the TTS-export fallback) */
   onOpenImages?: () => void;
 }) => {
   const [link, setLink] = useState("");
@@ -226,7 +226,7 @@ export const LabsPanel = ({
 const messageOf = (err: unknown) =>
   err instanceof LabsImportError ? err.message : LABS_ERROR_MESSAGES.network;
 
-/** The Labs TTS-export → Card images path, for decks our template can't draw. */
+/** The Labs TTS-export → card-image import path, for decks our template can't draw. */
 const TtsSteps = ({ onOpenImages }: { onOpenImages?: () => void }) => (
   <OrderedList spacing="0.2rem" ml="1.25rem">
     <ListItem>
@@ -239,12 +239,12 @@ const TtsSteps = ({ onOpenImages }: { onOpenImages?: () => void }) => (
       Upload or paste it in{" "}
       {onOpenImages ? (
         <Link as="button" textDecoration="underline" fontWeight={700} onClick={onOpenImages}>
-          Card images
+          Import from The Unmatched Club
         </Link>
       ) : (
-        <b>Card images</b>
-      )}
-      .
+        <b>Import from The Unmatched Club</b>
+      )}{" "}
+      — that option takes any deck as card images, not just the Club&apos;s.
     </ListItem>
   </OrderedList>
 );
@@ -293,7 +293,7 @@ const UnsupportedWarning = ({
     <TtsSteps onOpenImages={onOpenImages} />
     {onOpenImages && (
       <Button size="sm" mt="0.6rem" colorScheme="orange" onClick={onOpenImages}>
-        Go to Card images
+        Open the card-image import
       </Button>
     )}
   </Box>
