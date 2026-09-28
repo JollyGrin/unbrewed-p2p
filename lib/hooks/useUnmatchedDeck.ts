@@ -6,28 +6,32 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useDebounce } from "use-debounce";
 import { useBagDecks } from "@/lib/bag/useBag";
-import { DEFAULT_DECK_API, fetchDeckById } from "@/lib/evergreenDecks";
+import { DEFAULT_DECK_API } from "@/lib/evergreenDecks";
+import { LinkedDeck, fetchLinkedDeck } from "@/lib/deckLink";
 
 const RELOADED_FOR_DECK_ID_KEY = "unbrewed:reloadedForDeckId";
+const NO_UNSUPPORTED: LinkedDeck["unsupported"] = [];
 
 export const useUnmatchedDeck = () => {
   const [deckId, setDeckId] = useState<string>();
   const [deckIdDebounced] = useDebounce(deckId, 300);
   const [apiUrl, setApiUrl] = useState<string>(DEFAULT_DECK_API);
 
-  const { data, isInitialLoading, error } = useQuery(
+  const { data: linked, isInitialLoading, error } = useQuery(
     ["deck", deckIdDebounced, apiUrl],
-    async () => {
+    async (): Promise<LinkedDeck> => {
       try {
-        // Default API → evergreen-aware fetch (Pro rule-enforced decks pin to
-        // the committed snapshot). A custom apiUrl bypasses it deliberately.
+        // Default API → the deep-link resolver: unmatched.cards through the
+        // evergreen-aware fetch (Pro rule-enforced decks pin to the committed
+        // snapshot), `labs:` ids through Unmatched Labs (#979). A custom
+        // apiUrl bypasses both deliberately.
         if (apiUrl === DEFAULT_DECK_API) {
-          return await fetchDeckById(deckIdDebounced!);
+          return await fetchLinkedDeck(deckIdDebounced!);
         }
         const result = await axios.get<DeckImportType>(
           apiUrl + deckIdDebounced,
         );
-        return result.data;
+        return { deck: result.data, unsupported: [] };
       } catch (err) {
         console.error(err);
         // rethrow so react-query marks the query as errored instead of
@@ -44,7 +48,9 @@ export const useUnmatchedDeck = () => {
   );
 
   return {
-    data,
+    data: linked?.deck,
+    /** Labs features the fetched deck uses that our card template can't draw */
+    unsupported: linked?.unsupported ?? NO_UNSUPPORTED,
     // `isLoading` (status === "loading") stays true forever for a disabled
     // query that never fetched — `isInitialLoading` (isLoading && isFetching)
     // is false once there's no fetch in flight, which is what callers here
