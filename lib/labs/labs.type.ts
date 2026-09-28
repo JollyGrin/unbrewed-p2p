@@ -117,6 +117,10 @@ export type LabsFigure = {
   /** character id, or null for a set-wide component */
   characterId?: string | null;
   reference?: { source?: string | null };
+  /** health dials: the numbers printed on the dial */
+  dialRange?: { min?: number; max?: number } | null;
+  /** the physical token's shape; `twoSided` pieces carry a back face */
+  token?: { twoSided?: boolean } | null;
 };
 
 export type LabsMap = { spaces?: unknown[] };
@@ -167,4 +171,19 @@ export type LabsLoadedSet = {
   author?: string;
   /** the character the pasted link pointed at, if it named one */
   characterId?: string;
+  /**
+   * The component objects of the set's hosted Tabletop Simulator save (#1001),
+   * in save order. Absent when the set has no components or the save could
+   * not be read — the deck then imports without component tokens.
+   */
+  ttsModels?: LabsTtsModel[];
+};
+
+/** One `Custom_Model` object of a hosted Tabletop Simulator save. */
+export type LabsTtsModel = {
+  nickname: string;
+  /** the finished face image (`CustomMesh.DiffuseURL`) */
+  imageUrl?: string;
+  /** Labs' shared health-dial mesh (and its Lua script) */
+  isDial: boolean;
 };

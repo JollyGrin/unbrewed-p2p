@@ -25,6 +25,7 @@ import { FC, ReactNode, useMemo, useState } from "react";
 //@ts-ignore
 import { CirclePicker } from "react-color";
 import { ImageFace } from "@/components/CardFactory/Card";
+import { TokenMarkup } from "@/components/BoardCanvas/Tokens";
 import { toast } from "react-hot-toast";
 import {
   GameIconSet,
@@ -36,6 +37,7 @@ import {
   BoardToken,
   DEFAULT_TOKEN_SIZE,
   TOKEN_LABEL_MAX,
+  cardTokenHeight,
   TokenCounter,
   clampLabel,
   shownSheet,
@@ -370,10 +372,29 @@ const TokenRow: FC<{
             borderRadius={isRound ? "100%" : undefined}
             overflow={isRound ? "hidden" : undefined}
           >
-            <ImageFace
-              image={{ url: token.imageUrl!, ...shownSheet(token)! }}
-              title={label}
-            />
+            {token.h && Math.abs(token.h - cardTokenHeight(size)) <= 1 ? (
+              <ImageFace
+                image={{ url: token.imageUrl!, ...shownSheet(token)! }}
+                title={label}
+              />
+            ) : (
+              // A square piece or dial (Labs, #1001): its own cell at its own
+              // aspect — ImageFace would stretch it into a 63x88 card.
+              <Box
+                role="img"
+                aria-label={label}
+                boxSize="100%"
+                sx={{ svg: { width: "100%", height: "100%" } }}
+                dangerouslySetInnerHTML={{
+                  __html: TokenMarkup.sheetCell({
+                    url: token.imageUrl!,
+                    w: size,
+                    h: token.h ?? size,
+                    ...shownSheet(token)!,
+                  }),
+                }}
+              />
+            )}
           </Box>
         ) : (
           <Image

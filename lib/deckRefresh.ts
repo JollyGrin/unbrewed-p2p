@@ -40,7 +40,7 @@ const cardRefacer = (to: DeckImportType) => {
   };
 };
 
-/** Old hero/rule card image url → the same card's new image url. */
+/** Old hero/rule card (or Labs component) image url → its new image url. */
 const imageRefacer = (from: DeckImportType, to: DeckImportType) => {
   const fresh = uniqueByTitle(to.deck_data?.cards ?? []);
   const swaps = new Map<string, string>();
@@ -49,6 +49,15 @@ const imageRefacer = (from: DeckImportType, to: DeckImportType) => {
     const next = fresh.get(card.title);
     const newUrl = next && cardImageUrl(next);
     if (oldUrl && newUrl && oldUrl !== newUrl) swaps.set(oldUrl, newUrl);
+  }
+  // Labs component tokens (#1001): matched by figure id, since the hosted
+  // image url changes whenever the author republishes.
+  const freshComponents = new Map(
+    (to.labsComponents ?? []).map((c) => [c.key, c.url] as const),
+  );
+  for (const component of from.labsComponents ?? []) {
+    const newUrl = freshComponents.get(component.key);
+    if (newUrl && newUrl !== component.url) swaps.set(component.url, newUrl);
   }
   return <T extends { imageUrl?: string }>(token: T): T => {
     const newUrl = token.imageUrl && swaps.get(token.imageUrl);
