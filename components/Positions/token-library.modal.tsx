@@ -43,6 +43,7 @@ import {
   shownSheet,
 } from "./position.type";
 import { clampToCounter } from "./tokenCounter";
+import { HeroTokenSource, heroToken } from "./heroToken";
 
 /** Current HUD health values, for labeling the linked-counter options. */
 export type LinkedHp = {
@@ -78,6 +79,8 @@ export const TokenLibraryModal: FC<{
   onAdd: (token: Omit<BoardToken, "id" | "x" | "y">) => void;
   onPatch: (id: string, patch: Partial<BoardToken>) => void;
   onDelete: (id: string) => void;
+  /** Deck fighters with usable art; each gets a one-press round image token. */
+  heroTokens?: HeroTokenSource[];
   /** Header text; defaults to the in-game wording. */
   title?: string;
   /** Blurb under the header — used to explain the deck-loadout context. */
@@ -99,6 +102,7 @@ export const TokenLibraryModal: FC<{
   onAdd,
   onPatch,
   onDelete,
+  heroTokens = [],
   title = "Your Board Tokens",
   intro,
   footer,
@@ -124,6 +128,11 @@ export const TokenLibraryModal: FC<{
   const addDisc = () => {
     onAdd({ size: DEFAULT_TOKEN_SIZE });
     toast.success("Added disc token");
+  };
+
+  const addHeroToken = (source: HeroTokenSource) => {
+    onAdd(heroToken(source));
+    toast.success(`Added ${source.name} token`);
   };
 
   const addImage = () => {
@@ -235,6 +244,28 @@ export const TokenLibraryModal: FC<{
               Add plain disc
             </Button>
           </HStack>
+          {heroTokens.length > 0 && (
+            <HStack mt="0.5rem" flexWrap="wrap">
+              {heroTokens.map((source, i) => (
+                <Button
+                  key={`${i}-${source.imageUrl}`}
+                  size="sm"
+                  leftIcon={
+                    <Image
+                      src={source.imageUrl}
+                      alt=""
+                      boxSize="1.4rem"
+                      borderRadius="100%"
+                      objectFit="cover"
+                    />
+                  }
+                  onClick={() => addHeroToken(source)}
+                >
+                  {source.kind === "hero" ? "Hero token" : "Sidekick token"}
+                </Button>
+              ))}
+            </HStack>
+          )}
           <Checkbox
             mt="0.4rem"
             isChecked={asCutout}
