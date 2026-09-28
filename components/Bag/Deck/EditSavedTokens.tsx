@@ -8,6 +8,7 @@ import {
   SavedToken,
   toSavedToken,
 } from "@/components/Positions/position.type";
+import { heroTokenSources } from "@/components/Positions/heroToken";
 import { TokenLibraryModal } from "@/components/Positions/token-library.modal";
 import { toPoolExtraCharacters } from "@/components/DeckPool/PoolFns";
 
@@ -104,6 +105,7 @@ export const EditSavedTokensModal = ({
           (c) => ({ name: c.hero.name }),
         ),
       }}
+      heroTokens={heroTokenSources(deck.deck_data)}
       onAdd={(token) => write([...saved, toSavedToken(token)])}
       onPatch={(id, patch) =>
         write(saved.map((t, i) => (i === rowIndex(id) ? { ...t, ...patch } : t)))

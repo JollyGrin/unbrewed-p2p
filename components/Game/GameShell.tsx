@@ -4,6 +4,7 @@ import { GameLayout } from "@/components/Game/game.layout";
 import { CommandMenu } from "@/components/Game/CommandMenu/command-menu";
 import { ActionLog } from "@/components/Game/ActionLog/action-log";
 import { ReportBugButton } from "@/components/Game/ReportBugButton";
+import { heroTokenSources } from "@/components/Positions/heroToken";
 import { TokenLibraryModal } from "@/components/Positions/token-library.modal";
 import { TokenEditPanel } from "@/components/Positions/token-edit.panel";
 import { CardTokenPanel } from "@/components/Positions/card-token.panel";
@@ -613,6 +614,7 @@ const BoardContainer = ({
             hp: c.hero.hp,
           })),
         }}
+        heroTokens={heroTokenSources(starredDeck?.deck_data)}
         onAdd={addToken}
         onPatch={patchToken}
         onDelete={deleteToken}
