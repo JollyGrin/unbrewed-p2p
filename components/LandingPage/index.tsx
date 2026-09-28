@@ -10,6 +10,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { Hero } from "./Hero";
+import { ChangelogUpdateCard } from "./ChangelogUpdateCard";
 import { FindMatch } from "@/components/Discord";
 import Link from "next/link";
 import { IconCards } from "../Icons/IconCards";
@@ -201,6 +202,8 @@ export const LandingPage = () => {
       <Disclaimer />
       <Box bg="brand.highlight" flexGrow="1" p="2.5rem 1.5rem">
         <Box maxW="880px" m="0 auto" id="get-started" scrollMarginTop="1rem">
+          <ChangelogUpdateCard />
+
           <Text
             fontFamily="ArchivoNarrow"
             letterSpacing="0.12em"
