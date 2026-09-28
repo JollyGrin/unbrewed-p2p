@@ -226,12 +226,17 @@ export const buildLabsImport = (
     (hero.cardback?.useReplacement ? https(hero.cardback.replacement?.source) : undefined) ??
     "";
   const rules = ruleCardsOf(set, characterId);
+  const extras = hero.additionalCards ?? [];
   const reference: DeckImportCardType[] = [
-    // Hero card and rule cards ride along as full-art reference cards: never
+    // Hero card, extra character cards and rule cards ride along as full-art reference cards: never
     // shuffled (makeDeck skips `isCharacterCard`), seeded onto the table as
     // tokens like a Club/TTS import. Only where Labs rendered them — the
     // template can't draw either.
     ...[{ title: name, url: labsPreviewUrl(row, "character-card", characterId) }],
+    ...extras.map((extra) => ({
+      title: extra.name?.trim() || "Character",
+      url: labsPreviewUrl(row, "character-card", extra.id),
+    })),
     ...rules.map((card) => ({
       title: labsText(card.heading, { subject: name, set }) || "Rules",
       url: labsPreviewUrl(row, "card", card.id),
@@ -257,14 +262,35 @@ export const buildLabsImport = (
     ...actionCards.map((card) => mapCard(card, hero, set, labsPreviewUrl(row, "card", card.id))),
     ...reference,
   ].map((card) => (cardbackUrl ? { ...card, cardBackUrl: cardbackUrl } : card));
-  const specialAbility = (hero.abilities ?? [])
-    .map((a) => {
-      const body = labsText(a.text, { subject: name, set });
-      const title = a.name?.trim();
-      return title ? `${title}: ${body}` : body;
-    })
-    .filter(Boolean)
-    .join("\n\n");
+  const abilitiesText = (
+    abilities: LabsCharacter["abilities"],
+    subject: string,
+  ) =>
+    (abilities ?? [])
+      .map((a) => {
+        const body = labsText(a.text, { subject, set });
+        const title = a.name?.trim();
+        return title ? `${title}: ${body}` : body;
+      })
+      .filter(Boolean)
+      .join("\n\n");
+  const specialAbility = abilitiesText(hero.abilities, name);
+  // Their stats, for the hero panel and IRL health trackers; the card itself
+  // is the reference card above.
+  const extraCharacters = extras.map((extra) => {
+    const extraName = extra.name?.trim() || "Character";
+    return {
+      hero: {
+        name: extraName,
+        hp: extra.health ?? 1,
+        move: extra.move ?? 2,
+        isRanged: extra.attackType === "ranged",
+        specialAbility: abilitiesText(extra.abilities, extraName),
+        quote: extra.quote?.text?.trim() || undefined,
+      },
+      sidekick: { name: "Sidekick", hp: null, quantity: null, isRanged: false, quote: "" },
+    };
+  });
   const revision = String(row.revision ?? 1);
 
   const deck: DeckImportType = {
@@ -322,6 +348,7 @@ export const buildLabsImport = (
             quote: "",
           }
         : { name: "Sidekick", hp: null, quantity: null, isRanged: false, quote: "" },
+      ...(extraCharacters.length ? { extraCharacters } : {}),
     },
   };
 

@@ -11,6 +11,7 @@ export * from "./unsupported";
 export * from "./skipped";
 export * from "./previews";
 export type {
+  LabsAdditionalCard,
   LabsCard,
   LabsCharacter,
   LabsDeck,
