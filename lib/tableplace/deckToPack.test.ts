@@ -10,15 +10,15 @@ const slot = (r: ReturnType<typeof convert>, s: string) =>
   r.pack!.decks!.find((d) => d.slot === s);
 
 describe("every fixture", () => {
-  it.each(Object.keys(FIXTURES))("%s: unique codes, placed pieces", (name) => {
+  it.each(Object.keys(FIXTURES))("%s: unique codes, no coordinates", (name) => {
     const r = convert(name);
     expect(r.skipped).toEqual([]);
     for (const d of r.pack!.decks!) {
       const codes = d.cards.map((c) => c.code);
       expect(new Set(codes).size).toBe(codes.length);
     }
-    const placedPieces = r.placements.filter((p) => p.kind === "piece");
-    expect(placedPieces).toHaveLength(r.pack!.pieces?.length ?? 0);
+    expect(r.pack!.pieces).toBeUndefined();
+    expect(JSON.stringify(r)).not.toContain('"position"');
     expect(r.pack!.tbpp).toBe(1);
     expect(r.pack!.scope).toBe("player");
   });
@@ -46,24 +46,21 @@ describe("balanced deck (hollow-oak)", () => {
     expect(slot(r, "hero")!.cards).toHaveLength(1);
     expect(slot(r, "sidekick")!.cards).toHaveLength(1);
   });
-  it("adds an HP counter per fighter", () => {
-    expect(r.pack!.pieces!.map((p) => [p.kind, p.name, p.maxValue])).toEqual([
-      ["counter", "The Hollow Oak HP", expect.any(Number)],
-      ["counter", "The Ember Fox HP", 6],
+  it("adds an HP counter and a figure per fighter", () => {
+    expect(
+      r.pieces.map((p) => [p.role, p.piece.kind, p.piece.name, p.value]),
+    ).toEqual([
+      ["hp", "counter", "The Hollow Oak HP", expect.any(Number)],
+      ["fighter", "token", "The Hollow Oak", undefined],
+      ["hp", "counter", "The Ember Fox HP", 6],
+      ["fighter", "token", "The Ember Fox", undefined],
     ]);
   });
-  it("places hero and sidekick for duel-2p, but not for unmatched-2p", () => {
-    expect(
-      r.placements.filter((p) => p.kind === "deck").map((p: any) => p.slot),
-    ).toEqual(["hero", "sidekick"]);
-    const { deck, faces } = FIXTURES["hollow-oak"];
-    const u = deckToPlayerPack(deck, { faces, layout: "unmatched-2p" });
-    expect(u.placements.every((p) => p.kind === "piece")).toBe(true);
-  });
-  it("mirrors seat 1 across the table", () => {
-    const p = convert("hollow-oak", 1).placements[0] as any;
-    expect(p.rotation).toBe(180);
-    expect(p.position[2]).toBeLessThan(0);
+  it("gives a figure its absolute token art", () => {
+    const hero = r.pieces.find((p) => p.role === "fighter")!;
+    expect(hero.piece.imageUrl).toMatch(
+      /^https:\/\/unbrewed\.xyz\/evergreen-decks\/art\//,
+    );
   });
   it("refuses the whole deck when a face is missing", () => {
     const { deck } = FIXTURES["hollow-oak"];
@@ -71,7 +68,7 @@ describe("balanced deck (hollow-oak)", () => {
       faces: (c) => (c.title === "Foxfire" ? null : fakeFaces(c)),
     });
     expect(bad.pack).toBeNull();
-    expect(bad.placements).toEqual([]);
+    expect(bad.pieces).toEqual([]);
     expect(bad.skipped).toEqual(["Foxfire: no finished face"]);
   });
 });
@@ -93,7 +90,7 @@ describe("Labs deck", () => {
 describe("sidekick with quantity > 1 and extra characters", () => {
   const r = convert("larry-extra-characters");
   it("gives one HP counter per fielded sidekick", () => {
-    const names = r.pack!.pieces!.map((p) => p.name);
+    const names = r.pieces.map((p) => p.piece.name);
     expect(names.filter((n) => /^Larry \d HP$/.test(n))).toHaveLength(4);
   });
   it("puts extra characters in the rules slot", () => {
@@ -112,7 +109,7 @@ describe("sidekick with quantity > 1 and extra characters", () => {
 
 describe("saved tokens", () => {
   const r = deckToPlayerPack(tokenDeck(), { faces: fakeFaces });
-  const pieces = r.pack!.pieces!;
+  const pieces = r.pieces.map((p) => p.piece);
   it("turns a sheet crop into a sheet: ref", () => {
     const t = pieces.find((p) => p.imageUrl?.startsWith("sheet:"))!;
     expect(JSON.parse(t.imageUrl!.slice(6))).toEqual({
@@ -128,18 +125,12 @@ describe("saved tokens", () => {
         (p) => p.imageUrl === "https://unbrewed.xyz/tokens/flame.png",
       ),
     ).toBe(true);
-    const badge = r.placements.find((p) => p.kind === "piece" && p.value === 3);
-    expect(badge).toBeDefined();
+    const badge = r.pieces.find((p) => p.role === "token-counter");
+    expect(badge?.value).toBe(3);
     // the hero-linked badge duplicates the fighter counter, so it adds none
     expect(pieces.filter((p) => p.name === "Skull Crack counter")).toHaveLength(
       0,
     );
-  });
-  it("keeps every piece on the felt", () => {
-    for (const p of r.placements.filter((p) => p.kind === "piece") as any[]) {
-      expect(Math.abs(p.position[0])).toBeLessThanOrEqual(30);
-      expect(Math.abs(p.position[1])).toBeLessThanOrEqual(15);
-    }
   });
   it("writes states with imageUrl mirroring states[0] for multi-face tokens", () => {
     expect(tokenPiece("Brazier", ["a", "b"])).toEqual({
@@ -161,13 +152,13 @@ describe("mapToTablePack", () => {
     expect(p.scope).toBe("table");
     expect(p.decks).toEqual([]);
     expect(p.overlays).toEqual([
-      { imageUrl: "https://x/m.webp", ratio: 4, scale: 15 },
+      { imageUrl: "https://x/m.webp", ratio: 4, scale: 8.5 },
     ]);
   });
-  it("fits a tall map to the felt height", () => {
+  it("caps a squarer map at 22 high, clear of the front strips", () => {
     expect(
       mapToTablePack({ imageUrl: "u", width: 500, height: 1000 }).overlays![0]
         .scale,
-    ).toBe(30);
+    ).toBe(22);
   });
 });

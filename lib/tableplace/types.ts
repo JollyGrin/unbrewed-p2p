@@ -29,6 +29,8 @@ export type PackPiece = {
   imageUrl?: string;
   states?: PieceState[];
   maxValue?: number;
+  /** Footprint radius in world units; table.place defaults a token to 0.75. */
+  radius?: number;
   position: [number, number];
 };
 
@@ -50,9 +52,11 @@ export type DeckPlacement = {
   pack: string;
   slot: string;
   seat: number;
-  position: [number, number, number];
+  /** `[x, z]`: the height is table.place's. `[x, 0, z]` sinks into the felt. */
+  position: [number, number];
+  /** Yaw in DEGREES, absolute: 0 faces like seat 0, 180 like seat 1. */
   rotation: number;
-  faceUp: boolean;
+  faceUp?: boolean;
 };
 
 export type PiecePlacement = {
@@ -66,6 +70,23 @@ export type PiecePlacement = {
 };
 
 export type CallerPlacement = DeckPlacement | PiecePlacement;
+
+/** api.table.place §4.6: a spot a dropped card or piece finishes on. */
+export type SnapPoint = {
+  position: [number, number];
+  rotation?: number;
+  radius?: number;
+};
+
+/** The whole `POST /v1/lobbies` body. */
+export type LobbyRequest = {
+  version: 1;
+  layout: "duel-2p";
+  packs: TbppPack[];
+  placements: CallerPlacement[];
+  snapPoints: SnapPoint[];
+  ttlSeconds: number;
+};
 
 /** One card that could not be turned into a finished face. */
 export type Skipped = string;

@@ -8,7 +8,6 @@ import type {
   SheetCrop,
 } from "@/components/Positions/position.type";
 import type {
-  CallerPlacement,
   FaceResolver,
   PackCard,
   PackDeck,
@@ -17,38 +16,36 @@ import type {
   Skipped,
   TbppPack,
 } from "./types";
-
-/**
- * `duel-2p` is what tableplace-api serves today: it knows `deck`/`discard`
- * only, so hero/sidekick/rules are placed by the caller. `unmatched-2p`
- * (tableplace-api#45) owns those slots itself.
- */
-export type TableLayout = "duel-2p" | "unmatched-2p";
+import { FACES_ORIGIN } from "./faces";
 
 export type DeckToPackOptions = {
   faces: FaceResolver;
   seat?: 0 | 1;
-  layout?: TableLayout;
+};
+
+/** What a pack piece is for, so the layout knows where it goes. */
+export type PieceRole =
+  | { role: "hp" }
+  | { role: "fighter"; fighter: "hero" | "sidekick" | "extra" }
+  | { role: "token"; token: number }
+  | { role: "token-counter"; token: number };
+
+/** One pack piece before it has a position, plus a counter's start value. */
+export type PlayerPiece = PieceRole & {
+  piece: Omit<PackPiece, "position">;
+  value?: number;
 };
 
 export type DeckToPackResult = {
-  /** null when any card has no finished face: decks are never partial. */
+  /**
+   * Decks only; null when any card has no finished face: decks are never
+   * partial. The pieces ride alongside, unplaced, for `composeTable`.
+   */
   pack: TbppPack | null;
-  placements: CallerPlacement[];
+  pieces: PlayerPiece[];
   /** Human-readable reasons, shown before anyone creates a table. */
   skipped: Skipped[];
 };
-
-// Geometry from GET /v1/layouts (duel-2p): seat 0 sits at +z facing 0°, seat 1
-// at -z turned 180°; the deck sits at x = 8.5, the discard at x = 11.
-const SEAT_Z = [4.5, -4.7] as const;
-const SEAT_ROTATION = [0, 180] as const;
-const DECK_Y = 0.4;
-const CARD_X = { hero: 13.5, sidekick: 16, rules: 18.5 } as const;
-const PIECE_ROW_X0 = 8.5;
-const PIECE_STEP = 1.8;
-const PIECE_ROW_OFFSET = 3.6;
-const PIECE_ROW_MAX_X = 28;
 
 const slugify = (text: string): string =>
   text
@@ -131,6 +128,10 @@ export const tokenPiece = (
   };
 };
 
+/** Deck art paths are site-relative (`/evergreen-decks/art/...`). */
+const absoluteUrl = (url: string): string =>
+  url.startsWith("/") ? `${FACES_ORIGIN}${url}` : url;
+
 const tokenFace = (token: SavedToken): string | null => {
   if (!token.imageUrl) return null;
   return token.sheet ? sheetRef(token.imageUrl, token.sheet) : token.imageUrl;
@@ -138,7 +139,7 @@ const tokenFace = (token: SavedToken): string | null => {
 
 export const deckToPlayerPack = (
   deck: DeckImportType,
-  { faces, seat = 0, layout = "duel-2p" }: DeckToPackOptions,
+  { faces, seat = 0 }: DeckToPackOptions,
 ): DeckToPackResult => {
   const data = deck.deck_data;
   const skipped: Skipped[] = [];
@@ -256,7 +257,7 @@ export const deckToPlayerPack = (
           printedCard(data.sidekick.name, "", data.sidekick.name),
         );
 
-  if (skipped.length) return { pack: null, placements: [], skipped };
+  if (skipped.length) return { pack: null, pieces: [], skipped };
 
   const back =
     data.appearance.cardbackUrl ||
@@ -284,91 +285,82 @@ export const deckToPlayerPack = (
       : []),
   ];
 
-  // pieces: fighter HP counters first, then the saved token loadout
+  // pieces: an HP counter and a figure per fighter, then the token loadout
   const packId = `unbrewed-${slugify(deck.id)}-seat${seat}`;
-  const pieces: (Omit<PackPiece, "position"> & { value?: number })[] = [];
-  const counter = (name: string, hp: number) =>
+  const pieces: PlayerPiece[] = [];
+  const tint = data.appearance?.highlightColour || deck.savedTokenColor;
+  const fighter = (
+    fighter: "hero" | "sidekick" | "extra",
+    name: string,
+    hp: number,
+    image?: string,
+  ) => {
     pieces.push({
-      kind: "counter",
-      name: `${name} HP`,
-      maxValue: hp,
+      role: "hp",
+      piece: { kind: "counter", name: `${name} HP`, maxValue: hp },
       value: hp,
     });
-  counter(data.hero.name, data.hero.hp);
+    pieces.push({
+      role: "fighter",
+      fighter,
+      piece: tokenPiece(
+        name,
+        image ? [absoluteUrl(image)] : [],
+        image ? undefined : tint,
+      ),
+    });
+  };
+  fighter("hero", data.hero.name, data.hero.hp, data.hero.tokenImageUrl);
   if (sidekickFielded) {
     const n = Math.max(1, data.sidekick.quantity ?? 1);
     for (let i = 1; i <= n; i++) {
-      counter(
+      fighter(
+        "sidekick",
         n > 1 ? `${data.sidekick.name || "Sidekick"} ${i}` : data.sidekick.name,
         data.sidekick.hp ?? 1,
+        data.sidekick.tokenImageUrl,
       );
     }
   }
   for (const extra of data.extraCharacters ?? []) {
-    if (extra.hero.name) counter(extra.hero.name, extra.hero.hp);
+    if (extra.hero.name) {
+      fighter(
+        "extra",
+        extra.hero.name,
+        extra.hero.hp,
+        extra.hero.tokenImageUrl,
+      );
+    }
     if (hasSidekick(extra.sidekick) && extra.sidekick.name) {
-      counter(extra.sidekick.name, extra.sidekick.hp ?? 1);
+      fighter(
+        "extra",
+        extra.sidekick.name,
+        extra.sidekick.hp ?? 1,
+        extra.sidekick.tokenImageUrl,
+      );
     }
   }
   (deck.savedTokens ?? []).forEach((token, i) => {
     const name = token.icon ? iconLabel(token.icon) : `Token ${i + 1}`;
     const f = tokenFace(token);
     // card tokens never ride in savedTokens; an icon-only disc keeps the tint
-    pieces.push(
-      tokenPiece(name, f ? [f] : [], f ? undefined : deck.savedTokenColor),
-    );
+    pieces.push({
+      role: "token",
+      token: i,
+      piece: tokenPiece(
+        name,
+        f ? [f] : [],
+        f ? undefined : deck.savedTokenColor,
+      ),
+    });
     if (token.counter && !token.counter.link) {
       pieces.push({
-        kind: "counter",
-        name: `${name} counter`,
-        maxValue: 99,
+        role: "token-counter",
+        token: i,
+        piece: { kind: "counter", name: `${name} counter`, maxValue: 99 },
         value: token.counter.value ?? 0,
       });
     }
-  });
-
-  const z = SEAT_Z[seat];
-  const dir = seat === 0 ? 1 : -1;
-  const rotation = SEAT_ROTATION[seat];
-  let x = PIECE_ROW_X0;
-  let row = 0;
-  const packPieces: PackPiece[] = [];
-  const placements: CallerPlacement[] = [];
-  if (layout === "duel-2p") {
-    const put = (slot: keyof typeof CARD_X) =>
-      placements.push({
-        kind: "deck",
-        pack: packId,
-        slot,
-        seat,
-        position: [CARD_X[slot], DECK_Y, z],
-        rotation,
-        faceUp: true,
-      });
-    put("hero");
-    if (sidekickCard) put("sidekick");
-    if (rules.length) put("rules");
-  }
-  pieces.forEach(({ value, ...piece }, index) => {
-    if (x > PIECE_ROW_MAX_X) {
-      x = PIECE_ROW_X0;
-      row += 1;
-    }
-    const position: [number, number] = [
-      x,
-      z + dir * (PIECE_ROW_OFFSET + row * PIECE_STEP),
-    ];
-    x += PIECE_STEP;
-    packPieces.push({ ...piece, position });
-    placements.push({
-      kind: "piece",
-      pack: packId,
-      piece: index,
-      seat,
-      position,
-      rotation,
-      ...(value !== undefined ? { value } : {}),
-    });
   });
 
   return {
@@ -379,9 +371,8 @@ export const deckToPlayerPack = (
       name: data.name || deck.name,
       scope: "player",
       decks,
-      ...(packPieces.length ? { pieces: packPieces } : {}),
     },
-    placements,
+    pieces,
     skipped,
   };
 };
