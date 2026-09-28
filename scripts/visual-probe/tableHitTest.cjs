@@ -17,7 +17,7 @@
  *           fallback, an item badge…).
  *
  * The game is a real one against the default engine: King Kong (a LARGE
- * fighter, so there is a tail on the board) vs AI·E. It measures two prompts:
+ * fighter, so there is a tail on the board) vs Bot·E. It measures two prompts:
  * Kong's setup "place the tail" CHOOSE SPACE, and then a Maneuver's move picks.
  *
  * Usage (a dev server must already be running):
@@ -137,7 +137,7 @@ const pickIds = (p) => p.$$eval("[data-table-stage-plane] [data-pick][data-space
 
   await p.goto(`${BASE}/pro/game`);
   await p.waitForTimeout(6000);
-  await press(p.getByRole("button", { name: "AI·E", exact: true }));
+  await press(p.getByRole("button", { name: "Bot·E", exact: true }));
   await press(p.getByRole("button", { name: /^King Kong by/ }).first());
   const stage = p.getByRole("button", { name: PROBE_MAP, exact: true });
   if (!(await stage.count())) {
@@ -145,7 +145,7 @@ const pickIds = (p) => p.$$eval("[data-table-stage-plane] [data-pick][data-space
     if (await more.count()) await press(more.first());
   }
   await press(stage.first());
-  await press(p.getByRole("button", { name: "PLAY VS AI" }));
+  await press(p.getByRole("button", { name: "PLAY VS BOT" }));
   await p.waitForTimeout(12000);
   const keep = p.getByRole("button", { name: /keep your opening hand/i });
   if (await keep.count()) await press(keep);

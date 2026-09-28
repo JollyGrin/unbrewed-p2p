@@ -45,9 +45,9 @@ describe("buildFinishedGameSetup", () => {
   });
 
   // #876: a bot room never receives ROOM_STATUS, so the roster used to be the
-  // gate that hid the Rematch button vs AI. The bundle + recorded bot seats is
+  // gate that hid the Rematch button vs bot. The bundle + recorded bot seats is
   // enough on its own.
-  it("vs AI: marks the recorded bot seat, with no ROOM_STATUS roster at all", () => {
+  it("vs bot: marks the recorded bot seat, with no ROOM_STATUS roster at all", () => {
     const setup = buildFinishedGameSetup(buildInput({ bots: { p2: "medium" } }));
     expect(setup?.otherSeats).toEqual([{ player: "p2", heroId: "COUNT", bot: "medium" }]);
     expect(rematchQuery(setup!)).toMatchObject({ bots: "p2:medium:COUNT" });

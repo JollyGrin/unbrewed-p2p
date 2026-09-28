@@ -285,7 +285,7 @@ describe("against a v35 engine", () => {
     expect(screen.queryAllByRole("button", { name: /rematch — same setup/i, hidden: true })).toHaveLength(0);
   });
 
-  it("vs AI keeps the one-tap link (nobody to ask)", async () => {
+  it("vs bot keeps the one-tap link (nobody to ask)", async () => {
     await finishGame("p1", { bots: { p2: "hard" } });
     expect(screen.getAllByRole("link", { name: /rematch/i, hidden: true }).length).toBeGreaterThan(0);
     expect(screen.queryAllByRole("button", { name: /rematch — same setup/i, hidden: true })).toHaveLength(0);

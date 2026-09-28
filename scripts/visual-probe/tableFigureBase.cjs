@@ -244,7 +244,7 @@ const measureAll = async (p, tag) => {
 
   await p.goto(`${BASE}/pro/game`);
   await p.waitForTimeout(6000);
-  await p.getByRole("button", { name: "AI·E", exact: true }).click();
+  await p.getByRole("button", { name: "Bot·E", exact: true }).click();
   await p
     .getByRole("button", { name: new RegExp(`^${HERO.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} by`) })
     .first()
@@ -255,7 +255,7 @@ const measureAll = async (p, tag) => {
     if (await more.count()) await more.first().click();
   }
   await stage.first().click();
-  await p.getByRole("button", { name: "PLAY VS AI" }).click();
+  await p.getByRole("button", { name: "PLAY VS BOT" }).click();
   await p.waitForTimeout(12000);
   const keep = p.getByRole("button", { name: /keep your opening hand/i });
   if (await keep.count()) await keep.click();

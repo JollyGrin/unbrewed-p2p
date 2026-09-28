@@ -107,16 +107,16 @@ describe("ProLanding — retired 'in development' framing", () => {
 describe("ProLanding — seat strip drives the Play-vs-AI CTA", () => {
   it("defaults to a medium bot", () => {
     renderLanding();
-    expect(primaryCta()).toHaveTextContent(/play vs ai/i);
+    expect(primaryCta()).toHaveTextContent(/play vs bot/i);
     expect(primaryCta()).toHaveAttribute("href", "/pro/game?vs=ai-medium");
   });
 
   it("re-targets the CTA when a difficulty chip is picked", () => {
     renderLanding();
-    fireEvent.click(screen.getByRole("button", { name: "AI·H" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bot·H" }));
     expect(primaryCta()).toHaveAttribute("href", "/pro/game?vs=ai-hard");
 
-    fireEvent.click(screen.getByRole("button", { name: "AI·E" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bot·E" }));
     expect(primaryCta()).toHaveAttribute("href", "/pro/game?vs=ai-easy");
   });
 
@@ -321,15 +321,15 @@ describe("ProLanding — the bot ladder as it actually ships", () => {
     const { container } = renderLanding();
     const copy = container.textContent ?? "";
     expect(screen.getByText(/challenge Expert, an alpha search bot/)).toBeInTheDocument();
-    expect(screen.getByText("AI TRAINING")).toBeInTheDocument();
+    expect(screen.getByText("BOT TRAINING")).toBeInTheDocument();
     expect(screen.getByText(/Expert is live \(alpha\)/)).toBeInTheDocument();
     expect(copy).not.toMatch(/gauntlet/i);
     expect(copy).not.toMatch(/next brain/i);
   });
 
-  it("closes the page with the six-beat 'how the AI works' deep dive", () => {
+  it("closes the page with the six-beat 'how the bots work' deep dive", () => {
     renderLanding();
-    const section = screen.getByRole("region", { name: "How the AI actually works" });
+    const section = screen.getByRole("region", { name: "How the bots actually work" });
     expect(within(section).getByText(/no LLM, no cloud model/i)).toBeInTheDocument();
     expect(within(section).getAllByRole("listitem")).toHaveLength(6);
     expect(within(section).getByText(/determinization/)).toBeInTheDocument();

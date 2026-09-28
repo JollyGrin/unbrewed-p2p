@@ -20,7 +20,7 @@
  * its LEFT and RIGHT end (the outer 30% of its box) — where a neighbouring
  * token cuts in — as the fraction of its own pixels the scene shows. The scene
  * is shot again last; a label whose box changed meanwhile (a piece mid-move on
- * the AI's turn) is reported `unstable`, not scored — and fails if it's a pill.
+ * the bot's turn) is reported `unstable`, not scored — and fails if it's a pill.
  *
  * It measures every LARGE name pill (`[data-band-label]`, the pass/fail check:
  * both ends ≥ PASS_FRACTION, and at least one pill found when the hero is
@@ -47,7 +47,7 @@
  * every fighter wears every badge — drop it with `--no-badge-probe`. Each
  * fighter's badges are cropped (token + badges, zoomed) per stage.
  *
- * The game is a real one against the default engine: King Kong vs AI·E. It
+ * The game is a real one against the default engine: King Kong vs Bot·E. It
  * measures after Kong's setup tail placement (`--tail <space>`, default the
  * first pick), then after a boosted Maneuver to `--walk <space>` (on Secluded
  * Temple, `--tail s6 --walk s14` leaves Kong on two adjacent spaces side by
@@ -260,7 +260,7 @@ const checkText = async (p, t) => {
     C = await raw(await p.screenshot({ clip, animations: "disabled" }));
   }
   await setStyle(p, paint);
-  // The scene again: if it changed while B and D were shot (the AI moving a
+  // The scene again: if it changed while B and D were shot (the bot moving a
   // piece, a damage number), the comparison is meaningless — say so.
   const A2 = await raw(await p.screenshot({ clip, animations: "disabled" }));
   await setStyle(p, "");
@@ -539,7 +539,7 @@ const measure = async (p, stage) => {
   for (const t of texts) {
     let r = await checkText(p, t);
     // A badge or pill that fails is looked at once more after the table
-    // settles again: the AI placing or moving a piece mid-measurement reads as
+    // settles again: the bot placing or moving a piece mid-measurement reads as
     // a cover for one shot, a real cover stays. Both readings are reported.
     if (r && (t.badge || t.owner === "band-label") && !(t.badge ? badgePasses(r) : passes(r))) {
       await settle(p);
@@ -548,7 +548,7 @@ const measure = async (p, stage) => {
     }
     if (r) results.push(r);
   }
-  // Every LARGE fighter's pill (the AI may draw one too), each with a crop.
+  // Every LARGE fighter's pill (the bot may draw one too), each with a crop.
   const pills = [];
   for (const box of texts.filter((t) => t.owner === "band-label")) {
     const r = results.find((x) => x.id === box.id);
@@ -655,7 +655,7 @@ const measure = async (p, stage) => {
 
   await p.goto(`${BASE}/pro/game${BADGE_PROBE ? "?badgeProbe" : ""}`);
   await p.waitForTimeout(6000);
-  await press(p.getByRole("button", { name: "AI·E", exact: true }));
+  await press(p.getByRole("button", { name: "Bot·E", exact: true }));
   await press(
     p
       .getByRole("button", {
@@ -669,7 +669,7 @@ const measure = async (p, stage) => {
     if (await more.count()) await press(more.first());
   }
   await press(stage.first());
-  await press(p.getByRole("button", { name: "PLAY VS AI" }));
+  await press(p.getByRole("button", { name: "PLAY VS BOT" }));
   await p.waitForTimeout(12000);
   const keep = p.getByRole("button", { name: /keep your opening hand/i });
   if (await keep.count()) await press(keep);

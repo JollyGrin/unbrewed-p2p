@@ -78,7 +78,7 @@ describe("availableBotTiers — the server advertises", () => {
 describe("botTierChoices — labels and the alpha badge", () => {
   it("labels expert with an alpha badge and neutral, player-facing hover copy", () => {
     const expert = botTierChoices([listing("king-kong", EXPERT)], ["king-kong"]).find((c) => c.id === "expert");
-    expect(expert).toMatchObject({ label: "Expert bot", chip: "AI·X", badge: "alpha", tooltip: "experimental - beware" });
+    expect(expert).toMatchObject({ label: "Expert bot", chip: "Bot·X", badge: "alpha", tooltip: "experimental - beware" });
   });
 
   it("gives the established tiers no badge", () => {
@@ -111,15 +111,15 @@ describe("jev / jevx3 (#933)", () => {
       id: "jevx3",
       label: "Prodigy",
       fullName: "Prodigy 3",
-      chip: "AI·P",
+      chip: "Bot·P",
       badge: "preview",
       tooltip: "Prodigy 3 · preview",
     });
   });
 
-  it("the chip is 'AI·P' with no digit, and its tooltip carries the full name 'Prodigy 3'", () => {
+  it("the chip is 'Bot·P' with no digit, and its tooltip carries the full name 'Prodigy 3'", () => {
     const meta = botTierMeta("jevx3");
-    expect(meta.chip).toBe("AI·P");
+    expect(meta.chip).toBe("Bot·P");
     expect(meta.chip).not.toMatch(/\d/);
     expect(meta.label).not.toMatch(/\d/);
     expect(tierTooltip(meta)).toContain("Prodigy 3");

@@ -267,7 +267,7 @@ describe("Random fighter tile", () => {
     await mountPicker();
     await click(screen.getByLabelText(/Ellen Ripley/));
     await click(screen.getByTestId("seat-chip-medium"));
-    await click(screen.getByRole("button", { name: "Play vs AI" }));
+    await click(screen.getByRole("button", { name: "Play vs Bot" }));
     const created = sent.filter((m) => m.type === "CREATE_ROOM") as (ClientMsg & {
       heroId: string;
       bot?: { difficulty: string; heroId?: string };

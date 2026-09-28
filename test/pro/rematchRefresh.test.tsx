@@ -6,7 +6,7 @@
  *     refresh read it as a fresh rematch and CREATE_ROOMed an empty new room;
  *     and a URL that already names a room must RECONNECT, never create;
  *  2. the Rematch button needs no ROOM_STATUS roster — a bot room never gets
- *     one, and neither does a mid-game RECONNECT, so vs AI it never showed;
+ *     one, and neither does a mid-game RECONNECT, so vs bot it never showed;
  *  3. an items-off game rematches items-off.
  *
  * Mount recipe is the shared render-fuzz one (fake WebSocket, fake router,
@@ -159,7 +159,7 @@ describe("a rematch link firing (#876 part 1 + 3)", () => {
   });
 });
 
-describe("the Rematch button vs AI after a mid-game reload (#876 part 2)", () => {
+describe("the Rematch button vs bot after a mid-game reload (#876 part 2)", () => {
   const bundle = (): ReplayBundle =>
     ({
       v: 1,

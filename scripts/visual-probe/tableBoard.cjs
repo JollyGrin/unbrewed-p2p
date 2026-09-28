@@ -216,7 +216,7 @@ const collect = () => {
 
   await p.goto(`${BASE}/pro/game`);
   await p.waitForTimeout(6000);
-  await p.getByRole("button", { name: "AI·E", exact: true }).tap();
+  await p.getByRole("button", { name: "Bot·E", exact: true }).tap();
   await p.getByRole("button", { name: /^King Kong by/ }).first().tap();
   // ONE fixed board. The lobby defaults to "Random", and every metric here is
   // a property of the map as much as of the renderer — the same build measured
@@ -233,7 +233,7 @@ const collect = () => {
     process.exit(1);
   }
   await stage.first().tap();
-  await p.getByRole("button", { name: "PLAY VS AI" }).tap();
+  await p.getByRole("button", { name: "PLAY VS BOT" }).tap();
   await p.waitForTimeout(12000);
   const keep = p.getByRole("button", { name: /keep your opening hand/i });
   if (await keep.count()) await keep.tap();

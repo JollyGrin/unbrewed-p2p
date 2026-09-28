@@ -152,7 +152,7 @@ describe("jevx3 unlock gate (#933)", () => {
     const locked = chip("jevx3");
     expect(locked).toHaveAttribute("aria-disabled", "true");
     expect(locked).not.toBeDisabled(); // still focusable so the tooltip can open
-    expect(locked).toHaveTextContent(/^AI·P\s*preview$/i);
+    expect(locked).toHaveTextContent(/^Bot·P\s*preview$/i);
     expect(locked.textContent).not.toMatch(/\d/); // the everyday name has no version
     expect(locked).toHaveAccessibleName(/Prodigy 3/); // …the full name is in the hint
     // Nothing a player can read names the tech behind the tier.
