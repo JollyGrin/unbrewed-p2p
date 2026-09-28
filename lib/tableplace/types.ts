@@ -1,3 +1,5 @@
+import type { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
+
 /**
  * The slice of table.place's tbpp pack format and tableplace-api's lobby
  * `placements` vocabulary this converter emits. Hand-written on purpose: the
@@ -67,3 +69,24 @@ export type CallerPlacement = DeckPlacement | PiecePlacement;
 
 /** One card that could not be turned into a finished face. */
 export type Skipped = string;
+
+/**
+ * Resolves a finished card face. Called with a card it answers that card's
+ * face; the optional members answer the face-up singles (hero, sidekick, rule
+ * cards, extra characters), which have no card object of their own. `rule`
+ * takes the ORIGINAL index into `deck_data.ruleCards`. A plain function still
+ * works: the converter falls back to it for those singles.
+ */
+type FaceMembers = {
+  hero: () => string | null;
+  sidekick: () => string | null;
+  rule: (index: number) => string | null;
+  extraCharacter: (index: number, part: "hero" | "sidekick") => string | null;
+};
+
+export type FaceResolver = ((card: DeckImportCardType) => string | null) &
+  Partial<FaceMembers>;
+
+/** A resolver that answers every face-up single, e.g. `balancedFaces`. */
+export type FullFaceResolver = ((card: DeckImportCardType) => string | null) &
+  FaceMembers;

@@ -19,6 +19,7 @@ import type {
   DeckImportSidekickType,
   DeckImportType,
 } from "@/components/DeckPool/deck-import.type";
+import type { FullFaceResolver } from "./types";
 
 /** Where the Pages deploy serves the faces. CORS-open, like the rest of the site. */
 export const FACES_ORIGIN = "https://unbrewed.xyz";
@@ -161,23 +162,10 @@ export const faceJobs = (deck: DeckImportType): FaceJob[] => {
   return jobs;
 };
 
-/**
- * The resolver the converter takes as `faces`. Called with an action card it
- * answers that card's face; the extra members answer the face-up singles.
- * Every answer is an absolute URL, or null when the face isn't pre-rendered —
- * a deck that isn't balanced, or a card whose content no longer matches.
- */
-export type FaceResolver = ((card: DeckImportCardType) => string | null) & {
-  hero: () => string | null;
-  sidekick: () => string | null;
-  rule: (index: number) => string | null;
-  extraCharacter: (index: number, part: "hero" | "sidekick") => string | null;
-};
-
 export const balancedFaces = (
   index: FaceIndex | null | undefined,
   deck: DeckImportType,
-): FaceResolver => {
+): FullFaceResolver => {
   const entries = index?.decks?.[deck.id];
   const data = deck.deck_data;
   const url = (key: string, kind: FaceKind, source: object | undefined) => {
@@ -196,7 +184,7 @@ export const balancedFaces = (
         ? keys[i]
         : keys[(data?.cards ?? []).findIndex((c) => c.title === card.title)];
     return key ? url(key, "card", card) : null;
-  }) as FaceResolver;
+  }) as unknown as FullFaceResolver;
   resolve.hero = () => url("hero", "hero", data?.hero);
   resolve.sidekick = () => url("sidekick", "sidekick", data?.sidekick);
   resolve.rule = (i) => url(ruleKey(i), "rule", data?.ruleCards?.[i]);

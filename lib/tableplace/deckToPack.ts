@@ -9,6 +9,7 @@ import type {
 } from "@/components/Positions/position.type";
 import type {
   CallerPlacement,
+  FaceResolver,
   PackCard,
   PackDeck,
   PackPiece,
@@ -16,9 +17,6 @@ import type {
   Skipped,
   TbppPack,
 } from "./types";
-
-/** Resolves a finished card face for a card that has none of its own. */
-export type FaceResolver = (card: DeckImportCardType) => string | null;
 
 /**
  * `duel-2p` is what tableplace-api serves today: it knows `deck`/`discard`
@@ -146,14 +144,28 @@ export const deckToPlayerPack = (
   const skipped: Skipped[] = [];
   const allocate = codeAllocator();
 
-  const face = (card: DeckImportCardType): string | null => {
-    const found = ownFace(card) ?? faces(card);
-    if (!found) skipped.push(`${card.title}: no finished face`);
+  const resolved = (title: string, found: string | null): string | null => {
+    if (!found) skipped.push(`${title}: no finished face`);
     return found;
   };
+  const face = (card: DeckImportCardType): string | null =>
+    resolved(card.title, ownFace(card) ?? faces(card));
   const toCard = (card: DeckImportCardType, code: string): PackCard | null => {
     const f = face(card);
     return f ? { code, name: card.title, face: f } : null;
+  };
+  /**
+   * A face-up single with no card object: the resolver's dedicated member when
+   * it has one, else the plain resolver on a synthetic printed card.
+   */
+  const single = (
+    name: string,
+    code: string,
+    lookup: (() => string | null) | undefined,
+    printed: DeckImportCardType,
+  ): PackCard | null => {
+    const f = resolved(name, lookup ? lookup() : faces(printed));
+    return f ? { code, name, face: f } : null;
   };
   const compact = (cards: (PackCard | null)[]): PackCard[] =>
     cards.filter((c): c is PackCard => !!c);
@@ -182,44 +194,67 @@ export const deckToPlayerPack = (
     const i = reference.findIndex((c) => sameName(c.title, name));
     return i < 0 ? undefined : reference.splice(i, 1)[0];
   };
-  const hero =
-    takeReference(data.hero.name) ??
-    reference.shift() ??
-    printedCard(data.hero.name, data.hero.specialAbility, data.hero.name);
+  const heroRef = takeReference(data.hero.name) ?? reference.shift();
   const sidekickFielded = hasSidekick(data.sidekick);
-  const sidekick = sidekickFielded
-    ? (takeReference(data.sidekick.name) ??
-      printedCard(data.sidekick.name, "", data.sidekick.name))
+  const sidekickRef = sidekickFielded
+    ? takeReference(data.sidekick.name)
     : undefined;
 
   const ruleCodes = codeAllocator();
   const rules: (PackCard | null)[] = reference.map((c) =>
     toCard(c, ruleCodes(c.title)),
   );
-  for (const rule of data.ruleCards ?? []) {
+  // `i` stays the ORIGINAL index into ruleCards: faceJobs keys rules by it
+  (data.ruleCards ?? []).forEach((rule, i) => {
+    if (!rule?.content?.trim()) return; // faceJobs renders no face for these
     if (
       data.cards.some((c) => c.isCharacterCard && sameName(c.title, rule.title))
     )
-      continue;
+      return;
     rules.push(
-      toCard(
-        printedCard(rule.title, rule.content, data.hero.name),
+      single(
+        rule.title,
         ruleCodes(rule.title),
+        faces.rule && (() => faces.rule!(i)),
+        printedCard(rule.title, rule.content, data.hero.name),
       ),
     );
-  }
-  for (const extra of data.extraCharacters ?? []) {
-    for (const [name, text, printed] of [
-      [extra.hero.name, extra.hero.specialAbility, true],
-      [extra.sidekick.name, "", hasSidekick(extra.sidekick)],
+  });
+  (data.extraCharacters ?? []).forEach((extra, i) => {
+    for (const [part, name, text, printed] of [
+      ["hero", extra.hero.name, extra.hero.specialAbility, true],
+      ["sidekick", extra.sidekick.name, "", hasSidekick(extra.sidekick)],
     ] as const) {
       if (!printed || !name) continue;
-      rules.push(toCard(printedCard(name, text, name), ruleCodes(name)));
+      rules.push(
+        single(
+          name,
+          ruleCodes(name),
+          faces.extraCharacter && (() => faces.extraCharacter!(i, part)),
+          printedCard(name, text, name),
+        ),
+      );
     }
-  }
+  });
 
-  const heroCard = toCard(hero, "hero");
-  const sidekickCard = sidekick ? toCard(sidekick, "sidekick") : null;
+  const heroCard = heroRef
+    ? toCard(heroRef, "hero")
+    : single(
+        data.hero.name,
+        "hero",
+        faces.hero,
+        printedCard(data.hero.name, data.hero.specialAbility, data.hero.name),
+      );
+  const sidekickCard = !sidekickFielded
+    ? null
+    : sidekickRef
+      ? toCard(sidekickRef, "sidekick")
+      : single(
+          data.sidekick.name,
+          "sidekick",
+          faces.sidekick,
+          printedCard(data.sidekick.name, "", data.sidekick.name),
+        );
 
   if (skipped.length) return { pack: null, placements: [], skipped };
 

@@ -6,7 +6,7 @@ import hollowOak from "../../../public/evergreen-decks/hollow-oak.json";
 import larry from "../../../public/evergreen-decks/5jGPM.json";
 import setBySlug from "../../labs/fixtures/set-by-slug.dumbass-brigade.json";
 import { buildLabsImport, type LabsSetRow } from "../../labs";
-import type { FaceResolver } from "../deckToPack";
+import type { FaceResolver } from "../types";
 
 const MAROUINE = "char_ce316d14-8bc8-413d-9086-ad37b502d0fe";
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
