@@ -14,14 +14,100 @@ const circle = ({ color, size }: { color?: string; size: number }) =>
   <circle cx="50" cy="50" r="48" />
 </svg>`;
 
-const image = ({ url, w, h }: { url: string; w: number; h: number }) =>
+/** `fit: "slice"` fills the box (a round clip then shows no letterbox). */
+const image = ({
+  url,
+  w,
+  h,
+  fit = "meet",
+}: {
+  url: string;
+  w: number;
+  h: number;
+  fit?: "meet" | "slice";
+}) =>
   `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
-  <image href="${escapeAttr(url)}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid meet" />
+  <image href="${escapeAttr(url)}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid ${fit}" />
+</svg>`;
+
+/**
+ * One cell of a sprite sheet stretched to fill the token's own w×h box —
+ * for pieces whose cells are not card-shaped (square discs, dials). Card-
+ * aspect sheet tokens keep the ImageFace path (sheetImageMarkup).
+ */
+const sheetCell = ({
+  url,
+  w,
+  h,
+  cols,
+  rows,
+  index,
+}: {
+  url: string;
+  w: number;
+  h: number;
+  cols: number;
+  rows: number;
+  index: number;
+}) =>
+  `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+  <image href="${escapeAttr(url)}" x="${-(index % cols) * w}" y="${
+    -Math.floor(index / cols) * h
+  }" width="${w * cols}" height="${h * rows}" preserveAspectRatio="none" />
+</svg>`;
+
+/**
+ * Clip a face (any of the svg strings above, or a sheet cell) to the largest
+ * circle centred in its box. `id` must be unique in the document — clip ids
+ * are global, like the cutout masks.
+ */
+const circleClip = ({
+  id,
+  w,
+  h,
+  inner,
+}: {
+  id: string;
+  w: number;
+  h: number;
+  inner: string;
+}) =>
+  `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+  <defs><clipPath id="${escapeAttr(id)}"><circle cx="${w / 2}" cy="${h / 2}" r="${
+    Math.min(w, h) / 2
+  }" /></clipPath></defs>
+  <g clip-path="url(#${escapeAttr(id)})">${inner}</g>
 </svg>`;
 
 /** Dashed halo drawn around the currently selected token. */
-const selectionRing = ({ w, h }: { w: number; h: number }) =>
-  `<rect x="-4" y="-4" width="${w + 8}" height="${h + 8}" rx="8" fill="none" stroke="#E7CC98" stroke-width="2" stroke-dasharray="7 5" pointer-events="none" />`;
+const selectionRing = ({
+  w,
+  h,
+  round = false,
+}: {
+  w: number;
+  h: number;
+  round?: boolean;
+}) =>
+  round
+    ? `<circle cx="${w / 2}" cy="${h / 2}" r="${
+        Math.min(w, h) / 2 + 4
+      }" fill="none" stroke="#E7CC98" stroke-width="2" stroke-dasharray="7 5" pointer-events="none" />`
+    : `<rect x="-4" y="-4" width="${w + 8}" height="${h + 8}" rx="8" fill="none" stroke="#E7CC98" stroke-width="2" stroke-dasharray="7 5" pointer-events="none" />`;
+
+/**
+ * Name pill hung under the token, centred. Token-pixel coords like the
+ * counter badge, so it follows every drag; inert so it never eats a grab.
+ */
+const labelPlate = ({ w, h, text }: { w: number; h: number; text: string }) => {
+  const lw = text.length * 6.2 + 14;
+  return `<g class="label" transform="translate(${w / 2}, ${h + 12})" pointer-events="none">
+  <rect x="${-lw / 2}" y="-9" width="${lw}" height="18" rx="9" fill="#2C1831" stroke="#E7CC98" stroke-width="1" opacity="0.9" />
+  <text text-anchor="middle" dominant-baseline="central" font-family="Verdana, sans-serif" font-size="10" font-weight="700" fill="#F7ECD7">${escapeAttr(
+    text,
+  )}</text>
+</g>`;
+};
 
 /** Pulsing halo on a card token another player has asked to pick up.
  * Visible to everyone so the owner sees the request too. */
@@ -52,7 +138,10 @@ const counterBadge = ({
 export const TokenMarkup = {
   circle,
   image,
+  sheetCell,
+  circleClip,
   selectionRing,
+  labelPlate,
   claimRing,
   counterBadge,
 };

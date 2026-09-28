@@ -35,7 +35,10 @@ import {
 import {
   BoardToken,
   DEFAULT_TOKEN_SIZE,
+  TOKEN_LABEL_MAX,
   TokenCounter,
+  clampLabel,
+  shownSheet,
 } from "./position.type";
 
 /** Current HUD health values, for labeling the linked-counter options. */
@@ -325,13 +328,16 @@ const TokenRow: FC<{
   onDelete: () => void;
 }> = ({ token, color, icons, linkedHp, offBoard, onPatch, onDelete }) => {
   const isImage = Boolean(token.imageUrl);
+  const isRound = isImage && token.clip === "circle";
   const Icon = token.icon ? icons?.[token.icon] : undefined;
   const size = token.size ?? DEFAULT_TOKEN_SIZE;
   // Overlays are sized by aspect-ratio probe and positioned on the table, so
   // they stay board-only; everything else is resizable wherever it is edited.
   const canResize = !isImage || (Boolean(offBoard) && !token.overlay);
 
-  const label = token.icon
+  const label = token.label
+    ? token.label
+    : token.icon
     ? iconLabel(token.icon)
     : isImage
       ? token.overlay
@@ -359,9 +365,13 @@ const TokenRow: FC<{
         token.sheet ? (
           // Sheet-cropped pieces (hero/rule cards from a TTS import) would
           // preview as the whole ~70-face sprite sheet through <Image>.
-          <Box boxSize="2.2rem">
+          <Box
+            boxSize="2.2rem"
+            borderRadius={isRound ? "100%" : undefined}
+            overflow={isRound ? "hidden" : undefined}
+          >
             <ImageFace
-              image={{ url: token.imageUrl!, ...token.sheet }}
+              image={{ url: token.imageUrl!, ...shownSheet(token)! }}
               title={label}
             />
           </Box>
@@ -370,7 +380,8 @@ const TokenRow: FC<{
             src={token.imageUrl}
             alt={label}
             boxSize="2.2rem"
-            objectFit="contain"
+            objectFit={isRound ? "cover" : "contain"}
+            borderRadius={isRound ? "100%" : undefined}
           />
         )
       ) : (
@@ -463,6 +474,35 @@ const TokenRow: FC<{
         />
       </HStack>
     </Grid>
+    {isImage && !token.overlay && (
+      <HStack mt="0.35rem" gap="0.5rem">
+        <Text fontSize="0.7rem" fontWeight={700} opacity={0.65} flexShrink={0}>
+          LABEL
+        </Text>
+        <Input
+          size="xs"
+          w="11.5rem"
+          aria-label={`Label for ${label}`}
+          placeholder="shown under the piece"
+          maxLength={TOKEN_LABEL_MAX}
+          value={token.label ?? ""}
+          onChange={(e) =>
+            onPatch({ label: clampLabel(e.target.value) || undefined })
+          }
+          bg="rgba(255,255,255,0.5)"
+        />
+        <Tooltip label={isRound ? "Show the whole image" : "Clip to a circle"}>
+          <Button
+            size="xs"
+            variant={isRound ? "solid" : "outline"}
+            aria-pressed={isRound}
+            onClick={() => onPatch({ clip: isRound ? undefined : "circle" })}
+          >
+            Round
+          </Button>
+        </Tooltip>
+      </HStack>
+    )}
     {!token.overlay && (
       <CounterControls
         counter={token.counter}

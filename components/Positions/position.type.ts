@@ -38,6 +38,22 @@ export type BoardToken = {
   /** Number badge pinned to the token's top-right corner. */
   counter?: TokenCounter;
   /**
+   * Display-only fields (#1003). All optional and additive: a token that sets
+   * them still carries its `imageUrl`, so a client that predates them draws
+   * the token as it always did (square, unlabelled, first face), and its
+   * move/edit paths spread the token so the fields survive a round trip.
+   */
+  /** Draw the image clipped to a circle (discs, dials, round pieces). */
+  clip?: "circle";
+  /** Short name drawn under the token. Kept here, never inside `counter`
+   * (an old client replaces the whole counter on a badge click). */
+  label?: string;
+  /** Tokens with a `sheet`: the cell of the second face. Set = flippable. */
+  altIndex?: number;
+  /** Showing the `altIndex` face. `sheet.index` itself never changes, so an
+   * old client keeps drawing the first face rather than a broken one. */
+  flipped?: boolean;
+  /**
    * A card played from the owner's hand onto the table. The whole card rides
    * in the token (URLs only, never base64) so it can return to hand/deck/
    * discard intact — a card token is the card while it sits on the board.
@@ -62,14 +78,36 @@ export type BoardToken = {
  */
 export type SavedToken = Omit<
   BoardToken,
-  "id" | "x" | "y" | "card" | "faceDown" | "fromReveal"
+  "id" | "x" | "y" | "card" | "faceDown" | "fromReveal" | "flipped"
 >;
 
-/** Drop the per-game fields so a board token can be stored on a deck. */
+/**
+ * Drop the per-game fields so a board token can be stored on a deck.
+ * `flipped` is per-game too: a loadout always spawns on its first face, and
+ * the /bag editor has no flip control to undo a face saved mid-game.
+ */
 export function toSavedToken(token: Partial<BoardToken>): SavedToken {
-  const { id, x, y, card, faceDown, fromReveal, ...saved } = token;
+  const { id, x, y, card, faceDown, fromReveal, flipped, ...saved } = token;
   return saved;
 }
+
+/** Longest `label` a token carries; longer input is cut at entry and draw. */
+export const TOKEN_LABEL_MAX = 24;
+
+export const clampLabel = (label: string): string =>
+  label.slice(0, TOKEN_LABEL_MAX);
+
+/** A sheet token with a second face can flip. */
+export const canFlip = (t: Pick<BoardToken, "sheet" | "altIndex">): boolean =>
+  Boolean(t.sheet) && typeof t.altIndex === "number";
+
+/** The sheet cell a token shows right now — its second face when flipped. */
+export const shownSheet = (
+  t: Pick<BoardToken, "sheet" | "altIndex" | "flipped">,
+): SheetCrop | undefined =>
+  t.sheet && t.flipped && canFlip(t)
+    ? { ...t.sheet, index: t.altIndex as number }
+    : t.sheet;
 
 /**
  * Which cell of a sprite sheet an image token shows. Mirrors the geometry
@@ -223,7 +261,10 @@ export function spawnSavedTokens(
       y += rowHeight + SPAWN_GAP;
       rowHeight = 0;
     }
-    const placed: BoardToken = { ...token, id: newTokenId(owner), x, y };
+    // A deck saved by a client that predates toSavedToken's `flipped` strip
+    // can still carry it; a loadout always lands on its first face.
+    const { flipped, ...face } = token as SavedToken & { flipped?: boolean };
+    const placed: BoardToken = { ...face, id: newTokenId(owner), x, y };
     x += w + SPAWN_GAP;
     rowHeight = Math.max(rowHeight, h);
     return placed;
