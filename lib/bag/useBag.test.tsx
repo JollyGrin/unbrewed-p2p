@@ -154,6 +154,113 @@ describe("a guest", () => {
   });
 });
 
+/**
+ * #1033: since #1002 a guest's add replaces an entry with the same id instead
+ * of appending a second row. For maps that is the point; for decks the saved
+ * copy may carry the player's edits, so pushDeck asks first.
+ */
+describe("a guest re-adding something already in the bag", () => {
+  // The deck as the player left it: a hero card flagged, a token saved.
+  const edited = () => ({
+    ...deck("d1", "Bruce Lee"),
+    deck_data: { cards: [{ title: "Bruce", isCharacterCard: true }] },
+    savedTokens: [{ id: "t1" }],
+  });
+  let confirmSpy: jest.SpyInstance;
+
+  const guestWith = async (decks: unknown[]) => {
+    localStorage.setItem(LS_KEY.DECKS, JSON.stringify(decks));
+    localStorage.setItem(LS_KEY.STAR_DECK, "d1");
+    install(() => reply(401, { user: null }));
+    const hook = renderHook(() => useBagDecks());
+    await waitFor(() => expect(hook.result.current.isLoading).toBe(false));
+    return hook.result;
+  };
+
+  beforeEach(() => {
+    confirmSpy = jest.spyOn(window, "confirm");
+  });
+  afterEach(() => confirmSpy.mockRestore());
+
+  it("keeps one row when the same map is added twice", async () => {
+    install(() => reply(401, { user: null }));
+    const { result } = renderHook(() => useBagMaps());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.add({ imgUrl: "a.png", meta: { title: "One" } } as any);
+      await result.current.add({ imgUrl: "a.png", meta: { title: "Two" } } as any);
+    });
+
+    expect(JSON.parse(localStorage.getItem(LS_KEY.MAP_LIST)!)).toEqual([
+      { imgUrl: "a.png", meta: { title: "Two" } },
+    ]);
+    expect(confirmSpy).not.toHaveBeenCalled();
+  });
+
+  it("asks before an edited deck is replaced, and keeps it on a no", async () => {
+    const result = await guestWith([edited()]);
+    confirmSpy.mockReturnValue(false);
+
+    await act(async () => {
+      expect(await result.current.pushDeck(deck("d1", "Bruce Lee"))).toBe(false);
+    });
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      expect.stringContaining('"Bruce Lee" is already in your bag'),
+    );
+    expect(JSON.parse(localStorage.getItem(LS_KEY.DECKS)!)).toEqual([edited()]);
+    expect(localStorage.getItem(LS_KEY.STAR_DECK)).toBe("d1");
+    expect(toastPlain).toHaveBeenCalledWith("Kept your saved Bruce Lee", expect.anything());
+  });
+
+  it("replaces the edited deck in place on a yes: one row, star kept", async () => {
+    const result = await guestWith([deck("d0"), edited()]);
+    confirmSpy.mockReturnValue(true);
+
+    await act(async () => {
+      expect(await result.current.pushDeck(deck("d1", "Bruce Lee"))).toBe(true);
+    });
+
+    expect(JSON.parse(localStorage.getItem(LS_KEY.DECKS)!)).toEqual([
+      deck("d0"),
+      deck("d1", "Bruce Lee"),
+    ]);
+    expect(localStorage.getItem(LS_KEY.STAR_DECK)).toBe("d1");
+  });
+
+  it("re-adds an identical deck without asking, still one row", async () => {
+    const result = await guestWith([deck("d1", "Bruce Lee")]);
+
+    await act(async () => {
+      expect(await result.current.pushDeck(deck("d1", "Bruce Lee"))).toBe(true);
+    });
+
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem(LS_KEY.DECKS)!)).toEqual([
+      deck("d1", "Bruce Lee"),
+    ]);
+  });
+
+  it("asks a signed-in user too, whose account always replaced by id", async () => {
+    const server = signedInApi({
+      deckRows: [{ row: CLOUD_ROW("c1", "Bruce Lee"), data: edited() }],
+    });
+    const { result } = renderHook(() => useBagDecks());
+    await waitFor(() => expect(result.current.decks).toHaveLength(1));
+    confirmSpy.mockReturnValue(false);
+
+    await act(async () => {
+      expect(await result.current.pushDeck(deck("d1", "Bruce Lee"))).toBe(false);
+    });
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(server.created).toEqual([]);
+    expect(paths().filter((p) => p.startsWith("PUT"))).toEqual([]);
+    expect(result.current.decks).toEqual([edited()]);
+  });
+});
+
 describe("a signed-in user", () => {
   it("returns the account's decks in the same shape a guest's bag has", async () => {
     signedInApi({

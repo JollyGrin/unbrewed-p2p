@@ -95,6 +95,14 @@ export type BagDeckView = {
   clearDecks: () => Promise<void>;
 };
 
+/** Same payload, so replacing one with the other loses nothing. */
+const sameDeck = (a: DeckImportType, b: DeckImportType) =>
+  JSON.stringify(a) === JSON.stringify(b);
+
+export const replaceDeckPrompt = (saved: DeckImportType) =>
+  `"${saved.name}" is already in your bag. Replace it with this copy? ` +
+  "Any changes you made to it, like hero cards or saved tokens, will be lost.";
+
 export const useBagDecks = (): BagDeckView => {
   const store = stores.decks;
   const { isLoading } = useKindStore(store);
@@ -120,6 +128,16 @@ export const useBagDecks = (): BagDeckView => {
       // anything is written, whichever add path the deck came through.
       if (isImportBlocked(deck)) {
         toast.error(blockedAuthorMessage(deck.user));
+        return false;
+      }
+      // Re-adding a deck already in the bag replaces it in place (#1002, and
+      // always so in the account), so ask before a copy the player may have
+      // edited (hero flags, saved tokens) is overwritten (#1033). An identical
+      // copy has nothing to lose and goes through quietly.
+      loadLocal(store);
+      const saved = bagItems(store).find((item) => item?.id === deck.id);
+      if (saved && !sameDeck(saved, deck) && !window.confirm(replaceDeckPrompt(saved))) {
+        toast(`Kept your saved ${saved.name}`, { id: "bag-deck-kept" });
         return false;
       }
       const outcome = await addItem(store, deck);
