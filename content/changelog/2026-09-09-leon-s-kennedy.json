@@ -1,0 +1,11 @@
+{
+  "id": "2026-09-09-leon-s-kennedy",
+  "date": "2026-09-09",
+  "title": "Leon S. Kennedy joins the lab",
+  "summary": "Win fights, bank Treasure, and spend it at the Merchant on bigger guns",
+  "tags": ["deck"],
+  "pro": true,
+  "highlight": false,
+  "video": { "slug": "leon-s-kennedy" },
+  "cta": { "label": "Play Leon in Pro", "href": "/pro" }
+}
