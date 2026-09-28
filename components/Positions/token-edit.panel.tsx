@@ -3,27 +3,43 @@ import {
   Button,
   Flex,
   IconButton,
+  Input,
   Slider,
   SliderFilledTrack,
   SliderThumb,
   SliderTrack,
   Text,
 } from "@chakra-ui/react";
-import { CloseIcon, DeleteIcon, LockIcon, UnlockIcon } from "@chakra-ui/icons";
+import {
+  CloseIcon,
+  DeleteIcon,
+  LockIcon,
+  RepeatIcon,
+  UnlockIcon,
+} from "@chakra-ui/icons";
 import { FC } from "react";
-import { BoardToken, DEFAULT_TOKEN_SIZE } from "./position.type";
+import {
+  BoardToken,
+  DEFAULT_TOKEN_SIZE,
+  TOKEN_LABEL_MAX,
+  canFlip,
+  clampLabel,
+} from "./position.type";
 
 /**
  * Floating controls for a selected image piece (picture token or map
- * overlay): resize, lock overlays in place, delete. Discs and icons are
- * managed from the token menu instead, so this never opens for them.
+ * overlay): resize, flip a two-faced piece, round clip and name a piece,
+ * lock overlays in place, delete. Discs and icons are managed from the token
+ * menu instead, so this never opens for them.
  */
 export const TokenEditPanel: FC<{
   token: BoardToken;
   onChange: (patch: Partial<BoardToken>) => void;
+  /** Two-faced pieces (a `sheet` with an `altIndex`) only. */
+  onFlip?: () => void;
   onDelete: () => void;
   onClose: () => void;
-}> = ({ token, onChange, onDelete, onClose }) => {
+}> = ({ token, onChange, onFlip, onDelete, onClose }) => {
   const isOverlay = Boolean(token.overlay);
   const size = token.size ?? DEFAULT_TOKEN_SIZE;
   const aspect = token.h ? token.h / (token.size || 1) : 1;
@@ -86,6 +102,48 @@ export const TokenEditPanel: FC<{
         </SliderTrack>
         <SliderThumb />
       </Slider>
+
+      {!isOverlay && (
+        <>
+          {onFlip && canFlip(token) && (
+            <Button
+              size="sm"
+              w="100%"
+              mb="0.5rem"
+              leftIcon={<RepeatIcon />}
+              onClick={onFlip}
+            >
+              {token.flipped ? "Flip to front" : "Flip to back"}
+            </Button>
+          )}
+          <Flex gap="0.5rem" mb="0.75rem">
+            <Input
+              size="sm"
+              aria-label="Piece label"
+              placeholder="Label"
+              maxLength={TOKEN_LABEL_MAX}
+              value={token.label ?? ""}
+              onChange={(e) =>
+                onChange({ label: clampLabel(e.target.value) || undefined })
+              }
+              bg="rgba(255,255,255,0.5)"
+            />
+            <Button
+              size="sm"
+              flexShrink={0}
+              variant={token.clip === "circle" ? "solid" : "outline"}
+              aria-pressed={token.clip === "circle"}
+              onClick={() =>
+                onChange({
+                  clip: token.clip === "circle" ? undefined : "circle",
+                })
+              }
+            >
+              Round
+            </Button>
+          </Flex>
+        </>
+      )}
 
       <Flex gap="0.5rem">
         {isOverlay && (

@@ -1,8 +1,21 @@
+/**
+ * FROZEN COPY of components/BoardCanvas/useCanvas.tsx at de9934c, the commit
+ * before the token display fields (#1003). Do not edit or import from app
+ * code: tokenCompat.test.tsx drives it to prove a blob carrying the new
+ * fields still draws on the renderer players' old bundles run. Only the
+ * import paths are changed (cardFace.tsx and boardTransform.ts were not
+ * touched by #1003; Tokens/index.tsx beside this file is frozen too).
+ */
 import * as d3 from "d3";
 import { MutableRefObject, RefObject, useEffect, useRef } from "react";
-import { OwnedToken } from "../Positions/position.type";
-import { IconSvg, tokenMarkup } from "./Tokens/tokenMarkup";
-import { publishBoardTransform, setBoardSvg } from "./boardTransform";
+import {
+  DEFAULT_TOKEN_SIZE,
+  OwnedToken,
+  cardTokenHeight,
+} from "../../../Positions/position.type";
+import { TokenMarkup } from "./Tokens";
+import { cardTokenMarkup, sheetImageMarkup } from "../../Tokens/cardFace";
+import { publishBoardTransform, setBoardSvg } from "../../boardTransform";
 
 type CanvasProps = {
   canvasRef: RefObject<SVGSVGElement>;
@@ -23,7 +36,10 @@ type CanvasProps = {
   /** Click on ANOTHER player's card token — opens the pickup panel. */
   onForeignCardClick?: (t: OwnedToken) => void;
   /** Resolve a bundled icon name to an SVG string; null until the set loads. */
-  iconSvg: IconSvg;
+  iconSvg: (
+    name: string,
+    opts: { color?: string; size: number; cutout?: boolean; maskId?: string },
+  ) => string | null;
   /** Filled with a fn returning the board coords at the viewport center. */
   centerRef?: MutableRefObject<() => { x: number; y: number }>;
   /** Filled with a fn converting client (screen) coords to board coords. */
@@ -84,8 +100,61 @@ export const useCanvas = ({
 
     const isOwn = (d: OwnedToken) => d.owner === self;
 
-    const markup = (d: OwnedToken): string =>
-      tokenMarkup(d, { own: isOwn(d), selected: d.id === selectedId, iconSvg });
+    const markup = (d: OwnedToken): string => {
+      const w = d.size ?? DEFAULT_TOKEN_SIZE;
+      const h = d.card
+        ? d.h ?? cardTokenHeight(w)
+        : d.imageUrl
+          ? d.h ?? w
+          : w;
+      let inner: string;
+      if (d.card) {
+        inner = cardTokenMarkup({
+          id: d.id,
+          card: d.card,
+          faceDown: d.faceDown,
+          w,
+          h,
+          owner: d.owner,
+          color: d.color,
+        });
+      } else if (d.imageUrl) {
+        inner = d.sheet
+          ? sheetImageMarkup({ id: d.id, url: d.imageUrl, sheet: d.sheet, w, h })
+          : TokenMarkup.image({ url: d.imageUrl, w, h });
+      } else if (d.icon) {
+        inner =
+          iconSvg(d.icon, {
+            color: d.color,
+            size: w,
+            cutout: d.cutout,
+            // Mask ids live in the shared document — keep them unique per
+            // token and free of characters that break url(#…) references.
+            maskId: `cut-${d.id.replace(/[^a-zA-Z0-9_-]/g, "")}`,
+          }) ?? TokenMarkup.circle({ color: d.color, size: w });
+      } else {
+        inner = TokenMarkup.circle({ color: d.color, size: w });
+      }
+      if (d.id === selectedId && isOwn(d)) {
+        inner += TokenMarkup.selectionRing({ w, h });
+      }
+      if (d.card && d.claimedBy) {
+        inner += TokenMarkup.claimRing({ w, h });
+      }
+      if (d.counter) {
+        const linked = d.counter.link;
+        inner += TokenMarkup.counterBadge({
+          w,
+          text: d.counterDisplay == null ? "–" : String(d.counterDisplay),
+          title: isOwn(d)
+            ? `${linked ? `${linked} HP` : "counter"} — click +1, right-click −1`
+            : linked
+              ? `${d.owner}'s ${linked} HP`
+              : `${d.owner}'s counter`,
+        });
+      }
+      return inner;
+    };
 
     const drag = d3
       .drag<SVGGElement, OwnedToken>()

@@ -408,6 +408,16 @@ const BoardContainer = ({
     [patchToken, logAction],
   );
 
+  // Two-faced pieces (#1003) flip by `flipped` alone — `sheet.index` stays
+  // on the front so a client that predates the field keeps drawing it.
+  const flipPiece = useCallback(
+    (t: BoardToken) => {
+      patchToken(t.id, { flipped: !t.flipped });
+      logAction(`Flipped ${t.label ? `“${t.label}”` : "a piece"} on the table`);
+    },
+    [patchToken, logAction],
+  );
+
   // Reveal hand (issue #426, item 3): lay every hand card face-up on the table
   // in a centered row. Both channels move at once — the cards leave the pool
   // (playerstate) and become tagged tokens (playerposition) — so this can only
@@ -589,6 +599,7 @@ const BoardContainer = ({
         <TokenEditPanel
           token={selected}
           onChange={(patch) => patchToken(selected.id, patch)}
+          onFlip={() => flipPiece(selected)}
           onDelete={() => deleteToken(selected.id)}
           onClose={() => setSelectedId(null)}
         />
