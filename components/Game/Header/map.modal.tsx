@@ -1,7 +1,8 @@
 import { MapCard } from "@/components/Bag/Map/MapCard";
 import DEFAULT_MAPS from "@/components/Bag/Map/MapModal/defaultMaps.json";
 import { MapData } from "@/lib/hooks";
-import { useBagMaps } from "@/lib/bag/useBag";
+import { useBagDecks, useBagMaps } from "@/lib/bag/useBag";
+import { DeckMapEntry } from "./deckMap.entry";
 import { DEFAULT_MAP_URL } from "@/lib/maps/defaultMap";
 import { ChevronDownIcon, ChevronRightIcon, SearchIcon } from "@chakra-ui/icons";
 import {
@@ -47,6 +48,7 @@ type MapEntry = { map: MapData; source: FilterKey };
 export const MapModal = (props: { isOpen: boolean; onClose: () => void }) => {
   const { query, push } = useRouter();
   const { data: localMaps } = useBagMaps();
+  const { starredDeck } = useBagDecks();
 
   const queryUrl = query?.mapUrl as string | undefined;
 
@@ -132,6 +134,11 @@ export const MapModal = (props: { isOpen: boolean; onClose: () => void }) => {
     props.onClose();
   };
 
+  const useDeckMap = (imgUrl: string) => {
+    push({ query: { ...query, mapUrl: imgUrl } });
+    props.onClose();
+  };
+
   const resetToDefault = () => {
     const { mapUrl, ...rest } = query;
     setSelectedUrl(DEFAULT_MAP_URL);
@@ -192,6 +199,7 @@ export const MapModal = (props: { isOpen: boolean; onClose: () => void }) => {
             alignItems="start"
           >
             <Box minW={0}>
+              <DeckMapEntry deck={starredDeck} onUse={useDeckMap} />
               {visible.length === 0 ? (
                 <Text opacity={0.7} py="2rem" textAlign="center">
                   No maps match that search.
