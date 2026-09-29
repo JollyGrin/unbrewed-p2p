@@ -1,0 +1,14 @@
+{
+  "id": "2026-08-25-pro-slow-mode",
+  "date": "2026-08-25",
+  "title": "Slow mode for opponent actions",
+  "summary": "Turn on slow mode and each opponent action is shown in a spotlight until you press OK, so you can read what a bot just did before the board moves on.",
+  "tags": [
+    "feature"
+  ],
+  "highlight": false,
+  "cta": {
+    "label": "Try it in a Pro game",
+    "href": "/pro"
+  }
+}

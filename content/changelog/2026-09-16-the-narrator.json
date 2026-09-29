@@ -1,0 +1,18 @@
+{
+  "id": "2026-09-16-the-narrator",
+  "date": "2026-09-16",
+  "title": "The Narrator joins the lab",
+  "summary": "Foreshadowing reveals the top card of every player's deck, and the prompt shows each seat's card so you can pick your target with the facts in front of you.",
+  "tags": [
+    "deck"
+  ],
+  "highlight": false,
+  "pro": true,
+  "video": {
+    "slug": "narrator"
+  },
+  "cta": {
+    "label": "Play The Narrator in Pro",
+    "href": "/pro"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "id": "2026-08-28-items-on-or-off",
+  "date": "2026-08-28",
+  "title": "Play maps with or without their items",
+  "summary": "Boards with items get an Items On/Off chip in the lobby. Items are now open information: tap one to see its effect on the board and in the map preview.",
+  "tags": [
+    "feature"
+  ],
+  "highlight": false,
+  "cta": {
+    "label": "Set up a game",
+    "href": "/pro"
+  }
+}
