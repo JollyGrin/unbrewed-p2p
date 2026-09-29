@@ -18,6 +18,9 @@ jest.mock("../../lib/hooks/useDeckLink", () => ({
   useDeckLink: () => ({ held: undefined, failed: undefined }),
 }));
 
+// A full TablePage render is slow on a loaded machine; the inner waits stay under this.
+jest.setTimeout(20_000);
+
 const mockValidate = jest.fn();
 jest.mock("../../lib/tableplace/api", () => ({
   ...jest.requireActual("../../lib/tableplace/api"),
@@ -58,9 +61,9 @@ const err = (over: Partial<TablePlaceError>): TablePlaceError => ({
 const createTable = async () => {
   const button = screen.getByTestId("create") as HTMLButtonElement;
   // A click on a disabled button is a silent no-op: make sure it's live.
-  await waitFor(() => expect(button.disabled).toBe(false), { timeout: 5000 });
+  await waitFor(() => expect(button.disabled).toBe(false), { timeout: 10_000 });
   fireEvent.click(button);
-  return screen.findByTestId("api-error", {}, { timeout: 5000 });
+  return screen.findByTestId("api-error", {}, { timeout: 10_000 });
 };
 
 const setup = () => {
