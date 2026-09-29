@@ -1,0 +1,18 @@
+{
+  "id": "2026-08-22-cecil-palmer",
+  "date": "2026-08-22",
+  "title": "Cecil Palmer joins the lab",
+  "summary": "Welcome to Night Vale in Pro: build up broadcast tokens and spend them across the fight.",
+  "tags": [
+    "deck"
+  ],
+  "highlight": false,
+  "pro": true,
+  "video": {
+    "slug": "cecil-palmer"
+  },
+  "cta": {
+    "label": "Play Cecil in Pro",
+    "href": "/pro"
+  }
+}

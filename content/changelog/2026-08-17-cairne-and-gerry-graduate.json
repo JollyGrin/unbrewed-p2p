@@ -1,0 +1,18 @@
+{
+  "id": "2026-08-17-cairne-and-gerry-graduate",
+  "date": "2026-08-17",
+  "title": "Cairne Bloodhoof and Gerry the Isopod leave the lab",
+  "summary": "Both decks finished playtesting and now sit with the community decks in Pro, ready for casual and matchmade games.",
+  "tags": [
+    "deck"
+  ],
+  "highlight": false,
+  "pro": true,
+  "video": {
+    "slug": "cairne"
+  },
+  "cta": {
+    "label": "Pick a fighter",
+    "href": "/pro"
+  }
+}

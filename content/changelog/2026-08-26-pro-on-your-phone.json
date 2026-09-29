@@ -1,0 +1,14 @@
+{
+  "id": "2026-08-26-pro-on-your-phone",
+  "date": "2026-08-26",
+  "title": "Pro games on your phone",
+  "summary": "The game page has a phone layout with a full-screen board and a hand drawer. The account menu is now the same everywhere, with your collection one tap away.",
+  "tags": [
+    "feature"
+  ],
+  "highlight": false,
+  "cta": {
+    "label": "Open Pro",
+    "href": "/pro"
+  }
+}

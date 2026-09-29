@@ -1,0 +1,10 @@
+{
+  "id": "2026-09-27-stats-dashboard",
+  "date": "2026-09-27",
+  "title": "Stats dashboard, leaderboard and hero ladder",
+  "summary": "See your own record, where you stand against other players, and how every hero fares in each matchup.",
+  "tags": ["feature"],
+  "highlight": false,
+  "video": { "slug": "stats" },
+  "cta": { "label": "Open the leaderboard", "href": "/leaderboard" }
+}
