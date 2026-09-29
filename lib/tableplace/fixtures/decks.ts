@@ -9,6 +9,7 @@ import { buildLabsImport, type LabsSetRow } from "../../labs";
 import type { FaceResolver, FullFaceResolver } from "../types";
 
 const MAROUINE = "char_ce316d14-8bc8-413d-9086-ad37b502d0fe";
+const ELLIOT = "char_0848bf26-989a-44f4-95c2-ce67373b146d";
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 
 /** Stand-in for a face renderer: every template card gets a fake finished face. */
@@ -32,6 +33,17 @@ export const labsDeck = (): DeckImportType =>
       characterId: MAROUINE,
     },
     MAROUINE,
+  ).deck;
+
+/** Elliot Becker: a Labs hero with five sidekicks and no sidekick card. */
+export const elliotDeck = (): DeckImportType =>
+  buildLabsImport(
+    {
+      row: (setBySlug as unknown as LabsSetRow[])[0],
+      author: "TheNullProfessor",
+      characterId: ELLIOT,
+    },
+    ELLIOT,
   ).deck;
 
 /** A TTS-style image deck with a sheet-cropped hero card and image tokens. */
@@ -58,6 +70,7 @@ export const FIXTURES: Record<
     faces: fakeFaces,
   },
   "labs-marouine": { deck: labsDeck(), faces: () => null },
+  "labs-elliot": { deck: elliotDeck(), faces: () => null },
   "larry-extra-characters": {
     deck: clone(larry) as unknown as DeckImportType,
     faces: fakeFaces,

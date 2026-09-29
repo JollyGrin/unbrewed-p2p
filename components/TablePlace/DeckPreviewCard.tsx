@@ -66,6 +66,13 @@ export const DeckPreviewCard = ({
         Can&apos;t go on the table: {preview.refused}
       </Text>
     )}
+    {preview.notes.length > 0 && (
+      <UnorderedList mt="0.25rem" fontSize="0.75rem" opacity={0.6}>
+        {preview.notes.map((n) => (
+          <ListItem key={n}>{n}</ListItem>
+        ))}
+      </UnorderedList>
+    )}
     {preview.skipped.length > 0 && (
       <UnorderedList mt="0.25rem" fontSize="0.8rem" opacity={0.8}>
         {preview.skipped.slice(0, 8).map((s) => (
