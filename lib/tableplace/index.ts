@@ -3,4 +3,3 @@ export * from "./mapToPack";
 export * from "./layout";
 export * from "./composeTable";
 export * from "./types";
-export * from "./faceJobs";

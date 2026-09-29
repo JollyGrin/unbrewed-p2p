@@ -27,7 +27,7 @@ export type DeckPreview = {
 
 const NO_FACE = /: no finished face$/;
 export const NO_TABLE_IMAGES =
-  "This deck's cards don't have table images yet. Unmatched Labs and the-unmatched.club decks work today.";
+  "This deck's cards don't have table images yet. Bring it in as a Tabletop Simulator export.";
 
 /** "Branch Out: no finished face" → "“Branch Out” has no card image yet". */
 export const plainSkipped = (s: Skipped): string => {
