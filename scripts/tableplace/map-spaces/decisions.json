@@ -1,0 +1,423 @@
+{
+ "_doc": "Review record for build_map_spaces.py. pro: boards with a Pro def (lib/pro/mapCatalog.ts), which wins. skip: boards left out, with why. cv: detector style per accepted board, rings rejected as board art (or the only rings kept), and start slots read off the printed diamonds.",
+ "pro": [
+  "community-city-docks-85",
+  "community-polus-96",
+  "legacy-counts-castle",
+  "legacy-island-of-despair",
+  "legacy-the-mended-drum",
+  "legacy-weathertop"
+ ],
+ "skip": {
+  "community-forrestofrandomtrashtotestthingsandotherstuff-5": "test upload, not in the /table picker",
+  "community-gigs-and-shittles-32": "test upload, not in the /table picker",
+  "community-untitled-battlefield-230": "the club page no longer serves its map data; the picker shows its twin, untitled-battlefield-223",
+  "legacy-aperature-labs": "isometric board with aperture-ring spaces: detector finds none",
+  "legacy-basra-port": "detector misses 3 printed spaces (640px board)",
+  "legacy-olympus": "detector misses 6 printed spaces (top right)",
+  "official-azuchi-castle": "detector misses 3 of 31 printed spaces (the dark-navy discs)",
+  "official-baskerville-manor": "detector misses 1 printed space (bottom right)",
+  "official-hanging-gardens": "detector misses 2 printed spaces",
+  "official-kaer-morhen": "detector misses 1 printed space (top row)",
+  "official-naglfar": "detector misses 1 printed space (ship deck, top)",
+  "official-soho": "detector misses 4 printed spaces"
+ },
+ "cv": {
+  "official-marmoreal": {
+   "style": "dark",
+   "reject": [],
+   "starts": {
+    "1": "c13",
+    "2": "c31",
+    "3": "c3",
+    "4": "c11"
+   }
+  },
+  "official-yukon": {
+   "style": "dark",
+   "reject": [],
+   "starts": {
+    "1": "c24",
+    "2": "c2"
+   }
+  },
+  "official-yukon-1900": {
+   "style": "dark",
+   "reject": [],
+   "starts": {
+    "1": "c24",
+    "2": "c2"
+   }
+  },
+  "official-fayrlund-forest": {
+   "style": "dark",
+   "reject": [],
+   "starts": {
+    "1": "c11",
+    "2": "c25",
+    "3": "c22",
+    "4": "c1"
+   }
+  },
+  "official-globe-theatre": {
+   "style": "dark",
+   "reject": [
+    "c12"
+   ],
+   "starts": {
+    "1": "c33",
+    "2": "c2",
+    "3": "c18",
+    "4": "c21"
+   }
+  },
+  "official-helicarrier": {
+   "style": "dark",
+   "reject": [],
+   "starts": {
+    "1": "c7",
+    "2": "c15",
+    "3": "c25",
+    "4": "c4"
+   }
+  },
+  "official-hells-kitchen": {
+   "style": "dark",
+   "reject": [
+    "c15",
+    "c22"
+   ],
+   "starts": {
+    "1": "c31",
+    "2": "c5",
+    "3": "c1",
+    "4": "c32"
+   }
+  },
+  "official-heorot": {
+   "style": "dark",
+   "reject": [],
+   "starts": {
+    "1": "c17",
+    "2": "c14"
+   }
+  },
+  "official-king-solomons-mine": {
+   "style": "dark",
+   "reject": [],
+   "starts": {
+    "1": "c17",
+    "2": "c7"
+   }
+  },
+  "official-mcminnville-or": {
+   "style": "dark",
+   "reject": [],
+   "starts": {
+    "1": "c2",
+    "2": "c41",
+    "3": "c32",
+    "4": "c6",
+    "5": "c23"
+   }
+  },
+  "official-navy-pier": {
+   "style": "dark",
+   "reject": [
+    "c7"
+   ],
+   "starts": {
+    "1": "c10",
+    "2": "c27",
+    "3": "c28",
+    "4": "c8"
+   }
+  },
+  "official-point-pleasant": {
+   "style": "dark",
+   "reject": [
+    "c12",
+    "c24",
+    "c25"
+   ],
+   "starts": {
+    "1": "c1",
+    "2": "c40",
+    "3": "c41",
+    "4": "c8",
+    "5": "c19"
+   }
+  },
+  "official-raptor-paddock": {
+   "style": "dark",
+   "reject": [
+    "c15",
+    "c23",
+    "c27"
+   ],
+   "starts": {
+    "1": "c7",
+    "2": "c20"
+   }
+  },
+  "official-sanctum-sanctorum": {
+   "style": "dark",
+   "reject": [
+    "c11",
+    "c12"
+   ],
+   "starts": {
+    "1": "c6",
+    "2": "c26",
+    "3": "c20",
+    "4": "c1"
+   }
+  },
+  "official-santas-workshop": {
+   "style": "dark",
+   "reject": [
+    "c18"
+   ],
+   "starts": {
+    "1": "c28",
+    "2": "c8",
+    "3": "c23",
+    "4": "c12"
+   }
+  },
+  "official-sarpedon": {
+   "style": "dark",
+   "reject": [],
+   "starts": {
+    "1": "c17",
+    "2": "c30",
+    "3": "c3",
+    "4": "c15"
+   }
+  },
+  "official-sherwood-forest": {
+   "style": "dark",
+   "reject": [],
+   "starts": {
+    "1": "c8",
+    "2": "c7"
+   }
+  },
+  "official-streets-of-novigrad": {
+   "style": "dark",
+   "reject": [],
+   "starts": {
+    "1": "c11",
+    "2": "c32",
+    "3": "c24",
+    "4": "c14"
+   }
+  },
+  "official-sunnydale-high": {
+   "style": "dark",
+   "reject": [],
+   "starts": {
+    "1": "c12",
+    "2": "c23",
+    "3": "c4",
+    "4": "c20"
+   }
+  },
+  "official-t-rex-paddock": {
+   "style": "dark",
+   "reject": [],
+   "starts": {
+    "1": "c7",
+    "2": "c16"
+   }
+  },
+  "official-the-bronze": {
+   "style": "dark",
+   "reject": [
+    "c23"
+   ],
+   "starts": {
+    "1": "c1",
+    "2": "c22",
+    "3": "c34",
+    "4": "c11"
+   }
+  },
+  "official-the-raft": {
+   "style": "dark",
+   "reject": [],
+   "starts": {
+    "1": "c25",
+    "2": "c10",
+    "3": "c1",
+    "4": "c31"
+   }
+  },
+  "official-venice": {
+   "style": "dark",
+   "reject": [
+    "c9",
+    "c17"
+   ],
+   "starts": {
+    "1": "c8",
+    "2": "c24",
+    "3": "c35",
+    "4": "c3"
+   }
+  },
+  "legacy-pharohs-tomb": {
+   "style": "legacy",
+   "reject": [],
+   "starts": {
+    "1": "c18",
+    "2": "c28",
+    "3": "c2",
+    "4": "c14"
+   }
+  },
+  "legacy-huntsmans-lodge": {
+   "style": "dark",
+   "reject": [
+    "c11"
+   ],
+   "starts": {
+    "1": "c12",
+    "2": "c9",
+    "3": "c32",
+    "4": "c29"
+   }
+  },
+  "legacy-rose-garden": {
+   "style": "dark",
+   "reject": [
+    "c1",
+    "c5",
+    "c9",
+    "c12",
+    "c21",
+    "c28",
+    "c33"
+   ],
+   "starts": {
+    "1": "c8",
+    "2": "c23",
+    "3": "c30",
+    "4": "c14"
+   }
+  },
+  "legacy-great-wall": {
+   "style": "dark",
+   "reject": [
+    "c10",
+    "c37",
+    "c56",
+    "c57"
+   ],
+   "starts": {
+    "1": "c59",
+    "2": "c8",
+    "3": "c52",
+    "4": "c24",
+    "5": "c70",
+    "6": "c21",
+    "7": "c55",
+    "8": "c26"
+   }
+  },
+  "legacy-opera-house": {
+   "style": "dark",
+   "reject": [
+    "c9",
+    "c10",
+    "c14",
+    "c18",
+    "c23",
+    "c25",
+    "c26",
+    "c28",
+    "c30",
+    "c31",
+    "c33",
+    "c35",
+    "c38",
+    "c41"
+   ],
+   "starts": {
+    "1": "c11",
+    "2": "c40"
+   }
+  },
+  "legacy-the-chalk": {
+   "style": "dark",
+   "reject": [
+    "c5",
+    "c8",
+    "c14",
+    "c29",
+    "c30"
+   ],
+   "starts": {
+    "1": "c36",
+    "2": "c2",
+    "3": "c9",
+    "4": "c31"
+   }
+  },
+  "legacy-turtle-sewers": {
+   "style": "dark",
+   "reject": [
+    "c6",
+    "c17",
+    "c31"
+   ],
+   "starts": {
+    "1": "c13",
+    "2": "c10",
+    "3": "c34",
+    "4": "c27"
+   }
+  },
+  "legacy-verde-jungle": {
+   "style": "dark",
+   "keep": [
+    "c2",
+    "c3",
+    "c4",
+    "c6",
+    "c7",
+    "c9",
+    "c10",
+    "c14",
+    "c16",
+    "c19",
+    "c20",
+    "c22",
+    "c24",
+    "c26",
+    "c28",
+    "c30",
+    "c31",
+    "c33",
+    "c37",
+    "c39",
+    "c41",
+    "c43",
+    "c45",
+    "c47",
+    "c48",
+    "c49",
+    "c50",
+    "c52",
+    "c54",
+    "c56"
+   ],
+   "starts": {
+    "1": "c10",
+    "2": "c43",
+    "3": "c37",
+    "4": "c6"
+   }
+  }
+ }
+}

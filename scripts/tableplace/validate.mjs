@@ -7,12 +7,15 @@
  * creates nothing and does not count against the per-hour lobby cap. Each case
  * is a `composeTable` body: two decks on a map. The map cases span the
  * measured board ratios (1.23, 1.54, 1.80, plus the Mended Drum, which has a
- * ProMapDef); the fixture cases put each converter fixture on both seats.
+ * ProMapDef, and boards whose spaces come from mapSpaces.json: a club map and
+ * a CV-detected legacy board); the fixture cases put each converter fixture on
+ * both seats.
  * Exits 1 on any non-2xx. The card `order` lists make the raw response long,
  * so they are elided unless you pass --full.
  *
  * --create POSTs the Mended Drum case to /v1/lobbies for real and prints the
- * seat URLs. That spends the service-wide lobby cap: once, deliberately.
+ * seat URLs; `--create <map name>` uses that MAPS entry instead. That spends
+ * the service-wide lobby cap: once, deliberately.
  */
 import { FIXTURES } from "../../lib/tableplace/fixtures/decks.ts";
 import { composeTable } from "../../lib/tableplace/composeTable.ts";
@@ -44,11 +47,25 @@ const MAPS = {
     width: 1280,
     height: 710,
   },
+  "cuartel-moncada (mapSpaces club)": {
+    imageUrl: "/maps/community-cuartel-moncada-161.webp",
+    width: 1024,
+    height: 663,
+  },
+  "pharohs-tomb (mapSpaces cv)": {
+    imageUrl: "/maps/legacy-pharohs-tomb.webp",
+    width: 1280,
+    height: 842,
+  },
 };
 const DRUM = MAPS["mended-drum 1.34 (ProMapDef)"];
 
 const FULL = process.argv.includes("--full");
 const CREATE = process.argv.includes("--create");
+const CREATE_ON = CREATE
+  ? (process.argv[process.argv.indexOf("--create") + 1] ?? "")
+  : "";
+const CREATE_MAP = MAPS[CREATE_ON] ? CREATE_ON : "mended-drum 1.34 (ProMapDef)";
 
 const duel = (a, b, map) =>
   composeTable({
@@ -59,10 +76,10 @@ const duel = (a, b, map) =>
 
 const cases = CREATE
   ? {
-      "hollow-oak vs larry on mended-drum": duel(
+      [`hollow-oak vs larry on ${CREATE_MAP}`]: duel(
         "hollow-oak",
         "larry-extra-characters",
-        DRUM,
+        MAPS[CREATE_MAP],
       ),
     }
   : {
