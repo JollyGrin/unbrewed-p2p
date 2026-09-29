@@ -1,0 +1,18 @@
+{
+  "id": "2026-08-22-skull-kid",
+  "date": "2026-08-22",
+  "title": "Skull Kid joins the lab",
+  "summary": "Majora's Mask arrives as a countdown deck: a TIME clock counts down on the board and shapes what Skull Kid can do.",
+  "tags": [
+    "deck"
+  ],
+  "highlight": false,
+  "pro": true,
+  "video": {
+    "slug": "skull-kid"
+  },
+  "cta": {
+    "label": "Play Skull Kid in Pro",
+    "href": "/pro"
+  }
+}

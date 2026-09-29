@@ -1,0 +1,24 @@
+[
+  {
+    "body": "## Summary\n- Strips the `(Meshy AI)` suffix from every `credit.modelName` shown to players.\n\nTask: unbrewed-p2p-975\nCloses #975\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)",
+    "files": [
+      { "path": "lib/pro/figures.open.test.ts", "additions": 5, "deletions": 0, "changeType": "MODIFIED" },
+      { "path": "public/figures-open/manifest.json", "additions": 4, "deletions": 4, "changeType": "MODIFIED" },
+      { "path": "scripts/figures/model-name.cjs", "additions": 13, "deletions": 0, "changeType": "ADDED" }
+    ],
+    "labels": [],
+    "mergedAt": "2026-09-27T23:54:16Z",
+    "number": 976,
+    "title": "unbrewed-p2p-975: remove \"Meshy AI\" from miniature credit titles"
+  },
+  {
+    "body": "Closes #973\n\n## What changed\nSwapped King Taranis's base shading.",
+    "files": [
+      { "path": "public/minis3d/manifest.json", "additions": 2, "deletions": 2, "changeType": "MODIFIED" }
+    ],
+    "labels": [{ "id": "L1", "name": "art", "color": "ededed" }],
+    "mergedAt": "2026-09-27T10:12:00Z",
+    "number": 974,
+    "title": "Hero mini: King Taranis — base shading fix (mini-005)"
+  }
+]

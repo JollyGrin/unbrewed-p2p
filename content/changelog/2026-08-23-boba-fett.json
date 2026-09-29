@@ -1,0 +1,18 @@
+{
+  "id": "2026-08-23-boba-fett",
+  "date": "2026-08-23",
+  "title": "Boba Fett joins the lab",
+  "summary": "Boba Fett is a bounty hunter: a bounty stack sits under your opponent's nameplate, grows as you hunt, and pays out through Slave I and the seismic charge.",
+  "tags": [
+    "deck"
+  ],
+  "highlight": false,
+  "pro": true,
+  "video": {
+    "slug": "boba-fett"
+  },
+  "cta": {
+    "label": "Play Boba Fett in Pro",
+    "href": "/pro"
+  }
+}

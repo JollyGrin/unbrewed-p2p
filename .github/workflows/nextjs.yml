@@ -91,10 +91,16 @@ jobs:
         # jevx3 bot tier without 15 wins vs Expert. Unset/empty = nobody, the
         # default. It is baked into the PUBLIC bundle — ids/usernames only,
         # never secrets. Read once, in lib/pro/tierUnlock.ts.
+        #
+        # NEXT_PUBLIC_CHANGELOG_MEDIA_URL (issue #1070): optional override
+        # of the changelog media CDN base. Unset/empty (the variable is passed
+        # through as an empty string) falls back to the default,
+        # https://cdn.unbrewed.xyz. See lib/changelog/media.ts.
         env:
           NEXT_PUBLIC_PRO_WS_URL: ${{ vars.NEXT_PUBLIC_PRO_WS_URL }}
           NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
           NEXT_PUBLIC_JEVX3_ALLOWLIST: ${{ vars.NEXT_PUBLIC_JEVX3_ALLOWLIST }}
+          NEXT_PUBLIC_CHANGELOG_MEDIA_URL: ${{ vars.NEXT_PUBLIC_CHANGELOG_MEDIA_URL }}
           # Short commit hash surfaced in in-game bug reports (issue #87).
           NEXT_PUBLIC_COMMIT_SHA: ${{ github.sha }}
         run: ${{ steps.detect-package-manager.outputs.runner }} next build

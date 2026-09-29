@@ -56,3 +56,7 @@ public/pro/*.mp4
 # are vercel-ignored too (.vercelignore): see the licence gate in
 # scripts/figures/README.md (unbrewed-p2p-879).
 public/figures/
+
+# scripts/changelog/poster.mjs output — local media, never uploaded from
+# here (the changelog CDN isn't set up yet).
+.changelog-media/

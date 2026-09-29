@@ -1,0 +1,14 @@
+{
+  "id": "2026-09-05-lobby-setup-rail",
+  "date": "2026-09-05",
+  "title": "A calmer Pro lobby",
+  "summary": "Your fighter, stage, seats and the Create button now stay in one column while the roster scrolls beside them, so the controls stop moving as the list grows.",
+  "tags": [
+    "feature"
+  ],
+  "highlight": false,
+  "cta": {
+    "label": "Open the lobby",
+    "href": "/pro"
+  }
+}

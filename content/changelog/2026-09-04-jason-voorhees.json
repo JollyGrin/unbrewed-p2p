@@ -1,0 +1,18 @@
+{
+  "id": "2026-09-04-jason-voorhees",
+  "date": "2026-09-04",
+  "title": "Jason Voorhees joins the lab",
+  "summary": "Hack, slash, repeat. Jason has no sidekick and 17 health, and his Trophy cards draw a card and heal him when he wins.",
+  "tags": [
+    "deck"
+  ],
+  "highlight": false,
+  "pro": true,
+  "video": {
+    "slug": "jason-voorhees"
+  },
+  "cta": {
+    "label": "Play Jason in Pro",
+    "href": "/pro"
+  }
+}

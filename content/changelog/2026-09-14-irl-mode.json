@@ -1,0 +1,9 @@
+{
+  "id": "2026-09-14-irl-mode",
+  "date": "2026-09-14",
+  "title": "IRL mode for playing at a real table",
+  "summary": "Track health and turns on your phone while you play with physical cards. Installable, and works offline.",
+  "tags": ["feature"],
+  "highlight": false,
+  "cta": { "label": "Open IRL mode", "href": "/irl" }
+}
