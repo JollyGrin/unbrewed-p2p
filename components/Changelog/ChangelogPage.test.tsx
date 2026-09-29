@@ -23,7 +23,7 @@ const entry = (id: string, date: string, overrides: Partial<ChangelogEntry> = {}
   ...overrides,
 });
 
-// 13 entries so "Older updates" has something to reveal (10 newest shown by
+// 13 entries so "Show more" has something to reveal (10 newest shown by
 // default), spread across a few different dates and tags.
 const mockEntries: ChangelogEntry[] = [
   entry("2026-09-27-c", "2026-09-27", { title: "Newest feature", tags: ["feature"] }),
@@ -100,16 +100,70 @@ describe("ChangelogPage", () => {
     ]);
   });
 
-  it("shows only the 10 newest entries until 'Older updates' is pressed", () => {
+  it("shows only the 10 newest entries, then 'Show 3 more (3 left)' reveals the rest", () => {
     renderPage();
 
     expect(screen.getByText("Newest feature")).toBeInTheDocument();
     expect(screen.queryByText("Oldest deck")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Older updates" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show 3 more (3 left)" }));
 
     expect(screen.getByText("Oldest deck")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Older updates" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /more \(/ })).not.toBeInTheDocument();
+  });
+
+  describe("Load more with 33 entries", () => {
+    const many = Array.from({ length: 33 }, (_, i) =>
+      entry(`2026-08-${i}-x`, `2026-08-${String(30 - Math.floor(i / 2)).padStart(2, "0")}`, {
+        title: `Entry ${i + 1}`,
+        tags: i % 2 === 0 ? ["feature"] : ["deck"],
+      }),
+    );
+    const articles = () => document.querySelectorAll("article");
+
+    beforeEach(() => {
+      mockActiveEntries = many;
+    });
+
+    it("reveals 10 more per press with the remaining count until the button disappears", () => {
+      renderPage();
+      expect(articles()).toHaveLength(10);
+
+      fireEvent.click(screen.getByRole("button", { name: "Show 10 more (23 left)" }));
+      expect(articles()).toHaveLength(20);
+      expect(screen.getByRole("status")).toHaveTextContent("Showing 20 of 33 updates");
+
+      fireEvent.click(screen.getByRole("button", { name: "Show 10 more (13 left)" }));
+      expect(articles()).toHaveLength(30);
+
+      fireEvent.click(screen.getByRole("button", { name: "Show 3 more (3 left)" }));
+      expect(articles()).toHaveLength(33);
+      expect(screen.queryByRole("button", { name: /more \(/ })).not.toBeInTheDocument();
+    });
+
+    it("keeps focus on the button while more remain, and moves it to the first new entry at the end", () => {
+      renderPage();
+      const button = screen.getByRole("button", { name: /Show 10 more/ });
+      button.focus();
+      fireEvent.click(button);
+      expect(button).toHaveFocus();
+
+      fireEvent.click(screen.getByRole("button", { name: /Show 10 more/ }));
+      fireEvent.click(screen.getByRole("button", { name: /Show 3 more/ }));
+      expect(screen.getByText("Entry 31")).toHaveFocus();
+    });
+
+    it("resets to the first 10 when the filter changes", () => {
+      renderPage();
+      fireEvent.click(screen.getByRole("button", { name: /Show 10 more/ }));
+      expect(articles()).toHaveLength(20);
+
+      fireEvent.click(screen.getByRole("button", { name: "Features" }));
+      // 17 feature entries: first page of 10, 7 left.
+      expect(articles()).toHaveLength(10);
+      expect(screen.getByRole("button", { name: "Show 7 more (7 left)" })).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent("");
+    });
   });
 
   it("filters entries by tag when a chip is pressed", () => {
@@ -123,9 +177,8 @@ describe("ChangelogPage", () => {
     expect(decksChip).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("Second newest deck")).toBeInTheDocument();
     expect(screen.queryByText("Newest feature")).not.toBeInTheDocument();
-    // All 13 entries have only 2 "deck" tagged, so no "Older updates" button
-    // and no date headings for feature/fix-only dates.
-    expect(screen.queryByRole("button", { name: "Older updates" })).not.toBeInTheDocument();
+    // Only 2 of the 13 entries are "deck" tagged, so no Load more button.
+    expect(screen.queryByRole("button", { name: /more \(/ })).not.toBeInTheDocument();
   });
 
   it("renders an empty-state line for a tag with zero matches, not a blank page", () => {

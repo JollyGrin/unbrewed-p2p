@@ -29,10 +29,10 @@ const baseEntry: ChangelogEntry = {
   cta: { label: "Try it in a Pro game", href: "/pro" },
 };
 
-const renderCard = (entry: ChangelogEntry, isNew = false) =>
+const renderCard = (entry: ChangelogEntry, isNew = false, priority = false) =>
   render(
     <ChakraProvider>
-      <ChangelogCard entry={entry} isNew={isNew} />
+      <ChangelogCard entry={entry} isNew={isNew} priority={priority} />
     </ChakraProvider>,
   );
 
@@ -81,6 +81,31 @@ describe("ChangelogCard", () => {
       "src",
       "https://example.invalid/changelog/tabletop.mp4",
     );
+  });
+
+  it("lazy-loads the poster with explicit dimensions by default", () => {
+    mockedPosterUrl.mockReturnValue("https://example.invalid/changelog/tabletop-poster.webp");
+    mockedVideoUrl.mockReturnValue("https://example.invalid/changelog/tabletop.mp4");
+
+    renderCard({ ...baseEntry, video: { slug: "tabletop" } });
+
+    const poster = document.querySelector("img") as HTMLImageElement;
+    expect(poster).toHaveAttribute("loading", "lazy");
+    expect(poster).toHaveAttribute("decoding", "async");
+    expect(poster).toHaveAttribute("width", "400");
+    expect(poster).toHaveAttribute("height", "225");
+    expect(poster).not.toHaveAttribute("fetchpriority");
+  });
+
+  it("loads the priority (first) card's poster eagerly with high fetch priority", () => {
+    mockedPosterUrl.mockReturnValue("https://example.invalid/changelog/tabletop-poster.webp");
+    mockedVideoUrl.mockReturnValue("https://example.invalid/changelog/tabletop.mp4");
+
+    renderCard({ ...baseEntry, video: { slug: "tabletop" } }, false, true);
+
+    const poster = document.querySelector("img") as HTMLImageElement;
+    expect(poster).toHaveAttribute("loading", "eager");
+    expect(poster).toHaveAttribute("fetchpriority", "high");
   });
 
   it("falls back to the text-only card when the poster fails to load", () => {

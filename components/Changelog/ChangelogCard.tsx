@@ -32,10 +32,12 @@ const MEDIA_SIZE = { w: { base: "100%", md: "400px" }, h: { base: "auto", md: "2
 const ChangelogCardMedia = ({
   slug,
   title,
+  priority,
   onError,
 }: {
   slug: string;
   title: string;
+  priority: boolean;
   onError: () => void;
 }) => {
   const [playing, setPlaying] = useState(false);
@@ -78,7 +80,20 @@ const ChangelogCardMedia = ({
       overflow="hidden"
       bg="brand.surfaceDim"
     >
-      <Box as="img" src={poster} alt="" onError={onError} w="100%" h="100%" objectFit="cover" display="block" />
+      {/* Plain <img>: Chakra would swallow width/height as style props, and the
+          intrinsic-size attributes are what reserve space before load. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={poster}
+        alt=""
+        width={400}
+        height={225}
+        loading={priority ? "eager" : "lazy"}
+        decoding="async"
+        {...(priority ? { fetchpriority: "high" } : {})}
+        onError={onError}
+        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+      />
       <Box
         as="button"
         type="button"
@@ -135,7 +150,15 @@ const ChangelogCardBody = ({
         {categoryLabel(entry)}
       </Box>
     </Flex>
-    <Box fontFamily="SpaceGrotesk" fontWeight={700} fontSize={{ base: "20px", md: "24px" }} lineHeight="1.2">
+    <Box
+      id={`changelog-entry-${entry.id}`}
+      tabIndex={-1}
+      _focus={{ outline: "none" }}
+      fontFamily="SpaceGrotesk"
+      fontWeight={700}
+      fontSize={{ base: "20px", md: "24px" }}
+      lineHeight="1.2"
+    >
       {entry.title}
     </Box>
     <Box fontSize="15px" lineHeight="1.55" opacity={0.88} sx={{ textWrap: "pretty" }}>
@@ -167,9 +190,11 @@ const ChangelogCardBody = ({
 interface ChangelogCardProps {
   entry: ChangelogEntry;
   isNew: boolean;
+  /** Above-the-fold card: poster loads eagerly with high fetch priority. */
+  priority?: boolean;
 }
 
-export const ChangelogCard = ({ entry, isNew }: ChangelogCardProps) => {
+export const ChangelogCard = ({ entry, isNew, priority = false }: ChangelogCardProps) => {
   const [mediaFailed, setMediaFailed] = useState(false);
   const slug = entry.video?.slug;
   const hasVideo = Boolean(slug) && !mediaFailed && posterUrl(slug ?? "") !== null && videoUrl(slug ?? "") !== null;
@@ -186,7 +211,7 @@ export const ChangelogCard = ({ entry, isNew }: ChangelogCardProps) => {
         p="1.25rem"
         boxShadow="card"
       >
-        <ChangelogCardMedia slug={slug} title={entry.title} onError={() => setMediaFailed(true)} />
+        <ChangelogCardMedia slug={slug} title={entry.title} priority={priority} onError={() => setMediaFailed(true)} />
         <ChangelogCardBody entry={entry} isNew={isNew} linkColor="brand.primary" />
       </Flex>
     );
