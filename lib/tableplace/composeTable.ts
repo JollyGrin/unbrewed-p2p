@@ -132,7 +132,11 @@ const placeSeat = (
   mapWidth: number,
   skipped: Skipped[],
 ) => {
-  const area = seatArea(seat, mapWidth);
+  const area = seatArea(
+    seat,
+    mapWidth,
+    (pack.decks ?? []).map((d) => d.slot),
+  );
   const rotation = SEAT_ROTATION[seat];
   const placements: CallerPlacement[] = [];
 
@@ -148,18 +152,20 @@ const placeSeat = (
     });
   }
 
-  const column = area.column();
-  const nextSpot = () => column.next().value;
+  const kit = area.kit();
+  const nextSpot = () => kit.next().value;
 
   const heroStart = board ? heroStartFor(board, seat) : undefined;
   const onBoard: { position: XZ; radius: number }[] = [];
+  const onBoardFighter = (p: PlayerPiece) =>
+    !!board && !!heroStart && p.role === "fighter" && p.fighter !== "extra";
   const placeFighter = (p: PlayerPiece & { role: "fighter" }) => {
-    if (board && heroStart && p.fighter !== "extra") {
-      const radius = board.fighterRadius;
+    if (onBoardFighter(p)) {
+      const radius = board!.fighterRadius;
       const position =
         p.fighter === "hero"
-          ? heroStart.position
-          : besideOnBoard(heroStart.position, radius, board, onBoard);
+          ? heroStart!.position
+          : besideOnBoard(heroStart!.position, radius, board!, onBoard);
       onBoard.push({ position, radius });
       return { position, radius };
     }
@@ -167,27 +173,13 @@ const placeSeat = (
     return position ? { position, radius: OFF_BOARD_FIGHTER_RADIUS } : null;
   };
 
-  // Each HP dial sits beside the off-board figure it tracks. A figure on the
-  // board leaves its dial alone: the hero's first, then a gap, then the rest.
-  const onBoardFighter = (p?: PlayerPiece) =>
-    !!board && !!heroStart && p?.role === "fighter" && p.fighter !== "extra";
-  const groups: PlayerPiece[][] = [];
-  for (const p of playerPieces) {
-    if (p.role === "hp" || !groups.length) groups.push([p]);
-    else if (p.role === "fighter") groups[groups.length - 1].push(p);
-  }
-  const fighterOf = (g: PlayerPiece[]) =>
-    g.find((p): p is PlayerPiece & { role: "fighter" } => p.role === "fighter");
-  const dialsOnly = (g: PlayerPiece[]) =>
-    onBoardFighter(fighterOf(g)) ? g.slice(0, 1) : g;
-  const heroGroup = groups.find((g) => fighterOf(g)?.fighter === "hero");
-  const heroOnBoard = !!heroGroup && onBoardFighter(fighterOf(heroGroup));
-  const rest = groups.filter((g) => g !== heroGroup);
-  const ordered: (PlayerPiece | "gap")[] = [
-    ...(heroGroup ? dialsOnly(heroGroup) : []),
-    ...(heroOnBoard && rest.length ? (["gap"] as const) : []),
-    ...rest.flatMap(dialsOnly),
-    ...playerPieces.filter((p) => p.role === "fighter" && onBoardFighter(p)),
+  // The dials in a row beside the hero card, in fighter order; a figure off
+  // the board stands right after its dial. Then the tokens.
+  const ordered: PlayerPiece[] = [
+    ...playerPieces.filter(
+      (p) => p.role === "hp" || (p.role === "fighter" && !onBoardFighter(p)),
+    ),
+    ...playerPieces.filter(onBoardFighter),
     ...playerPieces.filter(
       (p) => p.role === "token" || p.role === "token-counter",
     ),
@@ -195,10 +187,6 @@ const placeSeat = (
   const pieces: PackPiece[] = [];
   const droppedTokens = new Set<number>();
   for (const p of ordered) {
-    if (p === "gap") {
-      nextSpot();
-      continue;
-    }
     // a detached badge goes with its token
     if (p.role === "token-counter" && droppedTokens.has(p.token)) continue;
     const spot =
