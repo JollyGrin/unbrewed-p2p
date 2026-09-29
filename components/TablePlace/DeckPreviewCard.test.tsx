@@ -24,3 +24,23 @@ describe("DeckPreviewCard — how to bring a deck in (issue #1058)", () => {
     expect(screen.queryByTestId("tts-how")).toBeNull();
   });
 });
+
+describe("DeckPreviewCard — refusal (issue #1063)", () => {
+  it("announces a refusal as an alert", () => {
+    render(<DeckPreviewCard title="Your deck" preview={previewDeck(oak)} />);
+    expect(screen.getByRole("alert").textContent).toContain(
+      "Can't go on the table",
+    );
+  });
+
+  it("shows no alert for a deck that can go on the table", () => {
+    render(
+      <DeckPreviewCard
+        title="Your deck"
+        preview={previewDeck(oak, () => "about:")}
+      />,
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("Your deck")).toBeTruthy();
+  });
+});

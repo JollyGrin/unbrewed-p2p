@@ -1,3 +1,4 @@
+import { absoluteUrl } from "./deckToPack";
 import { mapSize } from "./layout";
 import type { PackOverlay, TbppPack } from "./types";
 
@@ -17,7 +18,7 @@ export const mapToTablePack = (
 ): TbppPack => {
   const ratio = map.width / map.height;
   const overlay: PackOverlay = {
-    imageUrl: map.imageUrl,
+    imageUrl: absoluteUrl(map.imageUrl),
     ratio,
     scale: Math.round(mapSize(ratio).height * 100) / 100,
   };
