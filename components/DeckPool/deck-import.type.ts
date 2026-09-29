@@ -65,6 +65,12 @@ export type LabsComponentRecord = {
   kind: "dial" | "piece" | "token" | "figure";
   /** the image url the token was given */
   url: string;
+  /**
+   * A `figure`/`token` component that is a fighter's own standee art: the
+   * hero, the sidekick, or an index into `deck_data.extraCharacters`. The
+   * saved token itself never says whose it is (the sandbox wire shape stays).
+   */
+  fighter?: "hero" | "sidekick" | number;
 };
 
 export type DeckImportDataType = {

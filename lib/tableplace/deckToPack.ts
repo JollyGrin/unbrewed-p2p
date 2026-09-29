@@ -336,36 +336,91 @@ export const deckToPlayerPack = (
       .map((c) => tokenKey(c.cardImage!.url, c.cardImage)),
   );
 
+  // Labs components (#1001) say what a saved token is for: a fighter's dial
+  // becomes that fighter's HP counter, a fighter's standee art its figure.
+  const labsRecord = new Map(
+    (deck.labsComponents ?? []).map((c) => [c.url, c] as const),
+  );
+  const recordOf = (token: SavedToken) =>
+    token.imageUrl ? labsRecord.get(token.imageUrl) : undefined;
+  const fighterKeys = new Set([
+    "hero",
+    ...(sidekickFielded ? ["sidekick"] : []),
+    ...(data.extraCharacters ?? []).flatMap((e, i) =>
+      e.hero.name ? [`extra:${i}`] : [],
+    ),
+  ]);
+  const hpDials = new Map<string, { face: string; label?: string }>();
+  const figureArt = new Map<string, string>();
+  const claimed = new Set<number>();
+  (deck.savedTokens ?? []).forEach((token, i) => {
+    const record = recordOf(token);
+    const f = tokenFace(token);
+    if (!record || !f) return;
+    const link = token.counter?.link;
+    const key =
+      record.kind === "dial" && link
+        ? link === "extra"
+          ? `extra:${token.counter?.extra ?? 0}`
+          : link
+        : record.kind !== "dial" && record.fighter !== undefined
+          ? typeof record.fighter === "number"
+            ? `extra:${record.fighter}`
+            : record.fighter
+          : undefined;
+    // a fighter not on the table leaves its dial or art a loose token
+    if (!key || !fighterKeys.has(key)) return;
+    const into = record.kind === "dial" ? hpDials : figureArt;
+    if (into.has(key)) return;
+    if (record.kind === "dial")
+      hpDials.set(key, { face: f, label: token.label });
+    else figureArt.set(key, f);
+    claimed.add(i);
+  });
+
   // pieces: an HP counter and a figure per fighter, then the token loadout
   const packId = `unbrewed-${slugify(deck.id)}-seat${seat}`;
   const pieces: PlayerPiece[] = [];
   const tint = data.appearance?.highlightColour || deck.savedTokenColor;
   const fighter = (
     fighter: "hero" | "sidekick" | "extra",
+    key: string,
     name: string,
     hp: number,
     image?: string,
   ) => {
+    const dial = hpDials.get(key);
+    const art = image ? absoluteUrl(image) : figureArt.get(key);
     pieces.push({
       role: "hp",
-      piece: { kind: "counter", name: `${name} HP`, maxValue: hp },
+      piece: dial
+        ? {
+            kind: "counter",
+            name: dial.label || name,
+            imageUrl: dial.face,
+            maxValue: hp,
+          }
+        : { kind: "counter", name: `${name} HP`, maxValue: hp },
       value: hp,
     });
     pieces.push({
       role: "fighter",
       fighter,
-      piece: tokenPiece(
-        name,
-        image ? [absoluteUrl(image)] : [],
-        image ? undefined : tint,
-      ),
+      piece: tokenPiece(name, art ? [art] : [], art ? undefined : tint),
     });
   };
-  fighter("hero", data.hero.name, data.hero.hp, data.hero.tokenImageUrl);
+  fighter(
+    "hero",
+    "hero",
+    data.hero.name,
+    data.hero.hp,
+    data.hero.tokenImageUrl,
+  );
   if (sidekickFielded) {
     const n = Math.max(1, data.sidekick.quantity ?? 1);
     for (let i = 1; i <= n; i++) {
       fighter(
+        "sidekick",
         "sidekick",
         n > 1 ? `${data.sidekick.name || "Sidekick"} ${i}` : data.sidekick.name,
         data.sidekick.hp ?? 1,
@@ -373,10 +428,11 @@ export const deckToPlayerPack = (
       );
     }
   }
-  for (const extra of data.extraCharacters ?? []) {
+  (data.extraCharacters ?? []).forEach((extra, i) => {
     if (extra.hero.name) {
       fighter(
         "extra",
+        `extra:${i}`,
         extra.hero.name,
         extra.hero.hp,
         extra.hero.tokenImageUrl,
@@ -385,33 +441,63 @@ export const deckToPlayerPack = (
     if (hasSidekick(extra.sidekick) && extra.sidekick.name) {
       fighter(
         "extra",
+        `extra-sidekick:${i}`,
         extra.sidekick.name,
         extra.sidekick.hp ?? 1,
         extra.sidekick.tokenImageUrl,
       );
     }
-  }
+  });
   (deck.savedTokens ?? []).forEach((token, i) => {
+    if (claimed.has(i)) return;
     if (token.imageUrl && pileFaces.has(tokenKey(token.imageUrl, token.sheet)))
       return;
-    const name = token.icon ? iconLabel(token.icon) : `Token ${i + 1}`;
+    const name =
+      token.label?.trim() ||
+      (token.icon ? iconLabel(token.icon) : `Token ${i + 1}`);
     const f = tokenFace(token);
+    const counter = token.counter;
+    // a free Labs dial is one counter showing the dial, not a token plus a badge
+    if (f && counter && !counter.link && recordOf(token)?.kind === "dial") {
+      if (counter.min !== undefined && counter.min !== 0) {
+        notes.push(
+          `${name}: table.place counters start at 0, not at the dial's ${counter.min}`,
+        );
+      }
+      pieces.push({
+        role: "token",
+        token: i,
+        piece: {
+          kind: "counter",
+          name,
+          imageUrl: f,
+          maxValue: counter.max ?? 99,
+        },
+        value: counter.value ?? counter.max ?? 0,
+      });
+      return;
+    }
+    // two-sided (`altIndex`): table.place cycles `states` with X
+    const back =
+      f && token.sheet && typeof token.altIndex === "number"
+        ? sheetRef(token.imageUrl!, { ...token.sheet, index: token.altIndex })
+        : null;
     // card tokens never ride in savedTokens; an icon-only disc keeps the tint
     pieces.push({
       role: "token",
       token: i,
       piece: tokenPiece(
         name,
-        f ? [f] : [],
+        f ? (back ? [f, back] : [f]) : [],
         f ? undefined : deck.savedTokenColor,
       ),
     });
-    if (token.counter && !token.counter.link) {
+    if (counter && !counter.link) {
       pieces.push({
         role: "token-counter",
         token: i,
         piece: { kind: "counter", name: `${name} counter`, maxValue: 99 },
-        value: token.counter.value ?? 0,
+        value: counter.value ?? 0,
       });
     }
   });
