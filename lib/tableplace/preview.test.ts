@@ -18,7 +18,7 @@ describe("previewDeck", () => {
   it("gives a deck with no table images one plain line, not a card list", () => {
     const p = previewDeck(oak());
     expect(p.refused).toBe(
-      "This deck's cards don't have table images yet. Unmatched Labs and the-unmatched.club decks work today.",
+      "This deck's cards don't have table images yet. Bring it in as a Tabletop Simulator export.",
     );
     expect(p.refused).toBe(NO_TABLE_IMAGES);
     expect(p.skipped).toEqual([]);
