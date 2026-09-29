@@ -10,12 +10,15 @@
     "postbuild": "node lib/buildTools/prefixFonts.js",
     "start": "next start",
     "lint": "next lint",
-    "test": "jest --coverage",
+    "test": "node scripts/changelog/validate.mjs && jest --coverage",
     "maps:snapshot": "node scripts/snapshot-maps.mjs",
     "pro:decks:verify": "node scripts/deck-manifest.mjs verify",
     "pro:decks:bump-rules": "node scripts/deck-manifest.mjs bump-rules",
     "pro:render-fuzz": "tsx scripts/render-fuzz.mts",
-    "pro:render-fuzz:fixtures": "tsx scripts/renderFuzz/writeSampleRun.mts"
+    "pro:render-fuzz:fixtures": "tsx scripts/renderFuzz/writeSampleRun.mts",
+    "changelog:collect": "node scripts/changelog/collect.mjs",
+    "changelog:validate": "node scripts/changelog/validate.mjs",
+    "changelog:poster": "node scripts/changelog/poster.mjs"
   },
   "dependencies": {
     "@3d-dice/dice-box-threejs": "^0.0.12",
