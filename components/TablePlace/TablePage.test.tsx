@@ -246,10 +246,19 @@ describe("TablePage — create flow, reasons and accessibility (issue #1063)", (
       "The Altar · spaces",
     ]);
     expect(labels).toContain("Pyramids · spaces");
-    const titles = labels.map((l) => l.replace(" · spaces", ""));
-    const sorted = [...titles].sort((a, b) =>
-      a.localeCompare(b, undefined, { sensitivity: "base" }),
-    );
-    expect(titles).toEqual(sorted);
+    const isSpaces = (l: string) => l.endsWith(" · spaces");
+    const first = labels.findIndex((l) => !isSpaces(l));
+    expect(labels.slice(first).some(isSpaces)).toBe(false);
+    for (const g of [labels.slice(0, first), labels.slice(first)]) {
+      const titles = g.map((l) => l.replace(" · spaces", ""));
+      const sorted = [...titles].sort((a, b) =>
+        a.localeCompare(b, undefined, { sensitivity: "base" }),
+      );
+      expect(titles).toEqual(sorted);
+    }
+    const groups = [
+      ...screen.getByTestId("map").querySelectorAll("optgroup"),
+    ].map((g) => g.label);
+    expect(groups).toEqual(["Snaps to spaces", "Other maps"]);
   });
 });
