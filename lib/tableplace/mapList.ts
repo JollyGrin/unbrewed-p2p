@@ -27,10 +27,19 @@ const pathOf = (url: string) => {
 
 const titleOf = (m: MapData) => (m.meta?.title ?? m.imgUrl).trim();
 
+/** The one place that decides which picker entries count as snapping boards. */
+export const isSpacesMap = (m: Pick<TableMapOption, "spaces">) => m.spaces;
+
+/** The picker's two groups, each in list order. */
+export const groupMapList = (maps: TableMapOption[]) => ({
+  spaces: maps.filter(isSpacesMap),
+  other: maps.filter((m) => !isSpacesMap(m)),
+});
+
 /**
  * The `/table` map picker: your bag's maps, then the built-ins minus the junk,
- * plus the catalog boards the shared list lacks. Sorted by title; boards that
- * snap figures to spaces are marked.
+ * plus the catalog boards the shared list lacks. Boards that snap figures to
+ * spaces (marked) come first; each group is sorted by title.
  */
 export const buildMapList = (bagMaps: MapData[] = []): TableMapOption[] => {
   const catalog = new Map(
@@ -51,7 +60,7 @@ export const buildMapList = (bagMaps: MapData[] = []): TableMapOption[] => {
   }));
 
   const seen = new Set<string>();
-  return [...bagMaps, ...builtIn, ...fromCatalog]
+  const list = [...bagMaps, ...builtIn, ...fromCatalog]
     .filter((m) => (seen.has(m.imgUrl) ? false : (seen.add(m.imgUrl), true)))
     .map((m) => {
       const spaces =
@@ -62,4 +71,6 @@ export const buildMapList = (bagMaps: MapData[] = []): TableMapOption[] => {
     .sort((a, b) =>
       titleOf(a).localeCompare(titleOf(b), undefined, { sensitivity: "base" }),
     );
+  const { spaces, other } = groupMapList(list);
+  return [...spaces, ...other];
 };

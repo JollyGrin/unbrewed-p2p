@@ -21,7 +21,7 @@ import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { useBagDecks, useBagMaps } from "@/lib/bag/useBag";
 import { useDeckLink } from "@/lib/hooks/useDeckLink";
 import { composeTable } from "@/lib/tableplace";
-import { buildMapList } from "@/lib/tableplace/mapList";
+import { buildMapList, groupMapList } from "@/lib/tableplace/mapList";
 import {
   createLobby,
   EMPTY_LOBBY_REAP_MINUTES,
@@ -77,6 +77,7 @@ export const TablePage = () => {
   const { data: bagMaps } = useBagMaps();
   const maps = useMemo(() => buildMapList(bagMaps), [bagMaps]);
   const [mapUrl, setMapUrl] = useState<string>("");
+  const mapGroups = useMemo(() => groupMapList(maps), [maps]);
   const map = maps.find((m) => m.imgUrl === mapUrl);
   const mapSize = useImageSize(map?.imgUrl);
 
@@ -258,11 +259,21 @@ export const TablePage = () => {
                 onChange={(e) => setMapUrl(e.target.value)}
                 data-testid="map"
               >
-                {maps.map((m) => (
-                  <option key={m.imgUrl} value={m.imgUrl}>
-                    {m.label}
-                  </option>
-                ))}
+                {[
+                  { label: "Snaps to spaces", group: mapGroups.spaces },
+                  { label: "Other maps", group: mapGroups.other },
+                ].map(
+                  ({ label, group }) =>
+                    group.length > 0 && (
+                      <optgroup key={label} label={label}>
+                        {group.map((m) => (
+                          <option key={m.imgUrl} value={m.imgUrl}>
+                            {m.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ),
+                )}
               </Select>
               {map && (
                 <Image
