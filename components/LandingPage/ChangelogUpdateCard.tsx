@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useReducedMotion } from "framer-motion";
 import { posterUrl } from "@/lib/changelog/media";
 import { useChangelogSeen } from "@/lib/changelog/useChangelogSeen";
+import { useUpdateDialogOpen } from "@/lib/changelog/updateDialogOpen";
 
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -23,8 +24,10 @@ const formatEntryDate = (isoDate: string): string => {
 export const ChangelogUpdateCard = () => {
   const { unseen, markAllSeen } = useChangelogSeen();
   const reducedMotion = !!useReducedMotion();
+  const dialogOpen = useUpdateDialogOpen();
 
-  if (unseen.length === 0) return null;
+  // The update dialog covers the same news; never show both at once.
+  if (unseen.length === 0 || dialogOpen) return null;
 
   const entry = unseen[0];
   const thumb = entry.video ? posterUrl(entry.video.slug) : null;
