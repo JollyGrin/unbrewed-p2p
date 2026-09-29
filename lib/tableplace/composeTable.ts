@@ -10,6 +10,7 @@ import {
 import {
   besideOnBoard,
   boardGeometry,
+  type BoardSpaces,
   type BoardGeometry,
   type CardSlot,
   forSeat,
@@ -23,6 +24,7 @@ import {
   SNAP_POINT_CAP,
   type XZ,
 } from "./layout";
+import { printedSpaces } from "./mapSpaces";
 import { mapToTablePack, type TableMap } from "./mapToPack";
 import type {
   CallerPlacement,
@@ -40,10 +42,10 @@ export type ComposeTableInput = {
   /** One resolver for both seats, or one per seat. */
   faces: FaceResolver | [FaceResolver, FaceResolver];
   /**
-   * The board's spaces. Omitted, it is looked up in the Pro map catalog by
-   * image URL; `null` means the board has none.
+   * The board's spaces. Omitted, it is looked up by image URL: the Pro map
+   * catalog first, then `mapSpaces.json`; `null` means the board has none.
    */
-  mapDef?: ProMapDef | null;
+  mapDef?: BoardSpaces | null;
   ttlSeconds?: number;
 };
 
@@ -274,7 +276,10 @@ export const composeTable = ({
   if (converted.some((c) => !c.pack)) return { body: null, skipped };
 
   const ratio = map.width / map.height;
-  const def = mapDef === undefined ? catalogMapDef(map.imageUrl) : mapDef;
+  const def =
+    mapDef === undefined
+      ? (catalogMapDef(map.imageUrl) ?? printedSpaces(map.imageUrl))
+      : mapDef;
   const board = def ? boardGeometry(def, ratio) : null;
 
   const sides = converted.map((c) => ({ pack: c.pack!, pieces: c.pieces }));

@@ -1,6 +1,7 @@
 import defaultMaps from "@/components/Bag/Map/MapModal/defaultMaps.json";
 import type { MapData } from "@/lib/hooks/useLocalStorage";
 import { MAP_CATALOG } from "@/lib/pro/mapCatalog";
+import { mapSpacesEntry } from "./mapSpaces";
 
 export type TableMapOption = MapData & {
   /** The label shown in the picker. */
@@ -53,7 +54,8 @@ export const buildMapList = (bagMaps: MapData[] = []): TableMapOption[] => {
   return [...bagMaps, ...builtIn, ...fromCatalog]
     .filter((m) => (seen.has(m.imgUrl) ? false : (seen.add(m.imgUrl), true)))
     .map((m) => {
-      const spaces = catalog.has(pathOf(m.imgUrl));
+      const spaces =
+        catalog.has(pathOf(m.imgUrl)) || !!mapSpacesEntry(m.imgUrl);
       const title = titleOf(m);
       return { ...m, label: spaces ? `${title} · spaces` : title, spaces };
     })

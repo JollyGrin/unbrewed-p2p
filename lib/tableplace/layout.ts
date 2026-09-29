@@ -32,8 +32,6 @@
  *   1 the card row past the last pile, 2 the corner beside the map, and
  *   ░ in front of the deck and discard.
  */
-import type { ProMapDef } from "@/lib/pro/protocol";
-
 export type Seat = 0 | 1;
 export type XZ = [number, number];
 
@@ -162,12 +160,21 @@ export type BoardGeometry = {
   fighterRadius: number;
 };
 
+/** A board's printed spaces: a ProMapDef, or a `mapSpaces.json` entry. */
+export type BoardSpaces = {
+  meta: { spaceDiameter?: number };
+  spaces: { id: string; x: number; y: number; start?: { slot: number } }[];
+};
+
 /**
- * Where a ProMapDef's spaces land on the felt. The image's top edge (y = 0)
+ * Where a board's spaces land on the felt. The image's top edge (y = 0)
  * faces seat 1 at -z; `x`/`y` are fractions of the image, and
  * `spaceDiameter` is a fraction of its WIDTH.
  */
-export const boardGeometry = (def: ProMapDef, ratio: number): BoardGeometry => {
+export const boardGeometry = (
+  def: BoardSpaces,
+  ratio: number,
+): BoardGeometry => {
   const { width, height } = mapSize(ratio);
   const diameter = (def.meta.spaceDiameter ?? 0.06) * width;
   return {
