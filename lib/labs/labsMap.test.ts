@@ -7,13 +7,16 @@ import pinkSave from "./fixtures/tts-save.pink-panther.json";
 import {
   LABS_TTS_ASSETS,
   LabsSetRow,
+  addLabsMap,
   buildLabsImport,
   fetchLabsImport,
   fetchLabsSet,
   labsMapOffer,
   parseLabsTtsMap,
+  supersededLabsMaps,
 } from ".";
 import { fetchLinkedDeck } from "@/lib/deckLink";
+import type { MapData } from "@/lib/hooks/useLocalStorage";
 
 // Real `rpc/set_by_slug` rows and hosted saves, fetched 2026-09-28 (#1002).
 const LUCY = (lucy as unknown as LabsSetRow[])[0];
@@ -133,5 +136,35 @@ describe("the map offer on a Labs import", () => {
 
   it("buildLabsImport without a fetched save has no map", () => {
     expect(buildLabsImport({ row: LUCY }, LUCY_ID).map).toBeUndefined();
+  });
+});
+
+describe("a republished set's map (#1029)", () => {
+  const OLD = { imgUrl: "https://x.test/map-old.jpg", isStarred: true, meta: { title: "yard" }, labsSlug: "lucy" };
+  const NEW = { imgUrl: "https://x.test/map-new.jpg", meta: { title: "yard" }, labsSlug: "lucy" };
+  const OTHER = { imgUrl: "https://x.test/other.jpg", meta: { title: "other" }, labsSlug: "oz" };
+  const PLAIN = { imgUrl: "https://x.test/plain.jpg", meta: { title: "plain" } };
+
+  it("supersedes only the same set's maps under another url", () => {
+    expect(supersededLabsMaps([OLD, NEW, OTHER, PLAIN], NEW)).toEqual([OLD]);
+    expect(supersededLabsMaps([OLD], PLAIN)).toEqual([]);
+  });
+
+  it("adds the new map starred, then drops the old one", async () => {
+    const calls: string[] = [];
+    const bag = {
+      data: [OLD, OTHER],
+      add: async (m: MapData) => (calls.push(`add ${m.imgUrl} ${!!m.isStarred}`), true),
+      remove: async (url: string) => void calls.push(`remove ${url}`),
+    };
+    expect(await addLabsMap(NEW, bag)).toBe(true);
+    expect(calls).toEqual([`add ${NEW.imgUrl} true`, `remove ${OLD.imgUrl}`]);
+  });
+
+  it("keeps the old map when the new one could not be stored", async () => {
+    const remove = jest.fn(async (_url: string) => {});
+    const bag = { data: [OLD], add: async () => false, remove };
+    expect(await addLabsMap(NEW, bag)).toBe(false);
+    expect(remove).not.toHaveBeenCalled();
   });
 });

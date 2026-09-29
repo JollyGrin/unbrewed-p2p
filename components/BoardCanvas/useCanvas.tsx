@@ -1,5 +1,5 @@
 import * as d3 from "d3";
-import { MutableRefObject, RefObject, useEffect, useRef } from "react";
+import { MutableRefObject, RefObject, useEffect, useRef, useState } from "react";
 import { OwnedToken } from "../Positions/position.type";
 import { IconSvg, tokenMarkup } from "./Tokens/tokenMarkup";
 import { publishBoardTransform, setBoardSvg } from "./boardTransform";
@@ -58,6 +58,12 @@ export const useCanvas = ({
   // re-renders must not snap it back to the (throttled, ≤50ms stale) wire
   // position mid-drag.
   const draggingIdRef = useRef<string | null>(null);
+  // Image urls that failed to load here (#1029: an expired Labs hosted-save
+  // image). Their tokens draw a placeholder until the url changes — a deck
+  // refresh swaps in the new image — or the page reloads.
+  const [brokenImages, setBrokenImages] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -85,7 +91,17 @@ export const useCanvas = ({
     const isOwn = (d: OwnedToken) => d.owner === self;
 
     const markup = (d: OwnedToken): string =>
-      tokenMarkup(d, { own: isOwn(d), selected: d.id === selectedId, iconSvg });
+      tokenMarkup(d, {
+        own: isOwn(d),
+        selected: d.id === selectedId,
+        iconSvg,
+        brokenImage: !!d.imageUrl && brokenImages.has(d.imageUrl),
+      });
+
+    const markBroken = (url: string) =>
+      setBrokenImages((prev) =>
+        prev.has(url) ? prev : new Set(prev).add(url),
+      );
 
     const drag = d3
       .drag<SVGGElement, OwnedToken>()
@@ -128,6 +144,15 @@ export const useCanvas = ({
         })
         .html(markup)
         .attr("opacity", (d) => (isOwn(d) ? 1 : 0.8));
+
+      // An image face that fails to load would otherwise draw nothing at all.
+      sel
+        .filter((d) => !d.card && Boolean(d.imageUrl))
+        .each(function (d) {
+          d3.select(this)
+            .selectAll("image")
+            .on("error", () => markBroken(d.imageUrl!));
+        });
 
       // Locked overlays and other players' tokens are inert to the pointer so
       // they never block grabbing what's on top of them. Exception: foreign
@@ -273,6 +298,7 @@ export const useCanvas = ({
     gRef,
     centerRef,
     screenToBoardRef,
+    brokenImages,
   ]);
 
   // Clear the shared svg reference when the board unmounts.

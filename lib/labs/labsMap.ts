@@ -11,6 +11,7 @@
  * The image is shown by link from Labs' storage; nothing is copied.
  */
 import type { MapData } from "@/lib/hooks/useLocalStorage";
+import type { BagMapView } from "@/lib/bag/useBag";
 import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { LabsLoadedSet, LabsMap, LabsSet, LabsTtsMap } from "./labs.type";
 
@@ -83,4 +84,31 @@ export const labsMapOffer = (
       labsSlug: row.slug,
     },
   };
+};
+
+/**
+ * The player's maps an import of `map` supersedes: earlier imports of the
+ * same Labs set under another image url (#1029). A republished set gets a new
+ * hosted save, the old save's map image expires about a week later, and the
+ * maps store keys on `imgUrl` — so without this a re-import would leave the
+ * old copy behind as a dead picture next to the new one.
+ */
+export const supersededLabsMaps = (maps: MapData[], map: MapData): MapData[] =>
+  map.labsSlug
+    ? maps.filter((m) => m.labsSlug === map.labsSlug && m.imgUrl !== map.imgUrl)
+    : [];
+
+/**
+ * Add a Labs map to the player's maps, dropping the copies it supersedes once
+ * it is stored and keeping their star. False when nothing was stored.
+ */
+export const addLabsMap = async (
+  map: MapData,
+  bag: Pick<BagMapView, "data" | "add" | "remove">,
+): Promise<boolean> => {
+  const superseded = supersededLabsMaps(bag.data, map);
+  const starred = superseded.some((m) => m.isStarred);
+  if (!(await bag.add(starred ? { ...map, isStarred: true } : map))) return false;
+  for (const old of superseded) await bag.remove(old.imgUrl);
+  return true;
 };

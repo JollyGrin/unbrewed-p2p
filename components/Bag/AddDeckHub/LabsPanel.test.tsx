@@ -11,7 +11,7 @@ import lucySave from "@/lib/labs/fixtures/tts-save.lucy-piper.json";
 import pink from "@/lib/labs/fixtures/set-by-slug.pink-panther.json";
 import pinkSave from "@/lib/labs/fixtures/tts-save.pink-panther.json";
 import { LABS_TTS_ASSETS, LabsSetRow } from "@/lib/labs";
-import { __resetBagStoresForTests, bagItems, stores } from "@/lib/bag/bagStore";
+import { __resetBagStoresForTests, addItem, bagItems, stores } from "@/lib/bag/bagStore";
 import { useBagDecks } from "@/lib/bag/useBag";
 import { toast } from "react-hot-toast";
 import { LabsPanel } from "./LabsPanel";
@@ -102,6 +102,32 @@ describe("LabsPanel map checkbox", () => {
       meta: { title: "the backyard", author: "Tombadil Bombadil" },
       labsSlug: LUCY.slug,
     });
+  });
+
+  it("a republished set's map replaces the older import of it, keeping its star (#1029)", async () => {
+    const OLD = `${LABS_TTS_ASSETS}/owner/set_old/map/lucy-piper-the-backyard-00000000.jpg`;
+    const other = { imgUrl: "https://example.test/other.jpg", meta: { title: "other" } };
+    await addItem(stores.maps, {
+      imgUrl: OLD,
+      isStarred: true,
+      meta: { title: "the backyard" },
+      labsSlug: LUCY.slug,
+    });
+    await addItem(stores.maps, other);
+    mockLabs(LUCY, lucySave);
+    await openSet(LUCY);
+    fireEvent.click(screen.getByRole("checkbox"));
+    await save();
+    await waitFor(() => expect(maps()).toHaveLength(2));
+    expect(maps().map((m) => m.imgUrl)).not.toContain(OLD);
+    expect(maps()).toContainEqual(other);
+    expect(maps()).toContainEqual(
+      expect.objectContaining({
+        imgUrl: expect.stringContaining("/map/lucy-piper-the-backyard-"),
+        isStarred: true,
+        labsSlug: LUCY.slug,
+      }),
+    );
   });
 
   it("Pink Panther: no checkbox", async () => {

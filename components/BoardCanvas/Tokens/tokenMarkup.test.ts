@@ -2,11 +2,17 @@ import { OwnedToken } from "@/components/Positions/position.type";
 import { tokenMarkup } from "./tokenMarkup";
 
 const iconSvg = () => `<svg data-icon="1"></svg>`;
-const draw = (t: Partial<OwnedToken>, own = true, selected = false) =>
+const draw = (
+  t: Partial<OwnedToken>,
+  own = true,
+  selected = false,
+  brokenImage = false,
+) =>
   tokenMarkup({ id: "me#1", x: 0, y: 0, owner: "me", ...t } as OwnedToken, {
     own,
     selected,
     iconSvg,
+    brokenImage,
   });
 
 const URL = "https://example.test/piece.png";
@@ -119,5 +125,44 @@ describe("tokenMarkup — second face", () => {
       flipped: true,
     });
     expect(svg).toContain('x="-252"');
+  });
+});
+
+describe("tokenMarkup — an image that failed to load (#1029)", () => {
+  it("draws a placeholder in the token's box instead of the image", () => {
+    const svg = draw({ imageUrl: URL, size: 72, h: 72 }, true, false, true);
+    expect(svg).not.toContain("<image");
+    expect(svg).toContain('<rect x="1" y="1" width="70" height="70"');
+    expect(svg).toContain("Image unavailable");
+  });
+
+  it("stays round for a round token, sheet or not", () => {
+    const svg = draw({ ...PIECE, clip: "circle" }, true, false, true);
+    expect(svg).not.toContain("<image");
+    expect(svg).toContain('<circle cx="40" cy="40" r="39"');
+  });
+
+  it("keeps the label, counter and selection ring", () => {
+    const svg = draw(
+      {
+        imageUrl: URL,
+        label: "Frisbee",
+        counter: { value: 3 },
+        counterDisplay: 3,
+      } as Partial<OwnedToken>,
+      true,
+      true,
+      true,
+    );
+    expect(svg).toContain('class="label"');
+    expect(svg).toContain('class="counter"');
+    expect(svg).toContain('stroke-dasharray="7 5"');
+  });
+
+  it("leaves cards, icons and discs alone", () => {
+    expect(draw({ icon: "GiFireShield" }, true, false, true)).toBe(
+      `<svg data-icon="1"></svg>`,
+    );
+    expect(draw({}, true, false, true)).not.toContain("Image unavailable");
   });
 });

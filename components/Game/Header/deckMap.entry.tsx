@@ -1,7 +1,7 @@
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { useBagMaps } from "@/lib/bag/useBag";
 import { fetchLabsSet } from "@/lib/labs/fetch";
-import { LabsMapOffer, labsMapOffer } from "@/lib/labs/labsMap";
+import { LabsMapOffer, addLabsMap, labsMapOffer } from "@/lib/labs/labsMap";
 import { isLabsDeckId, parseLabsInput } from "@/lib/labs/parse";
 import { Box, Button, Flex, Image, Text } from "@chakra-ui/react";
 import { useState } from "react";
@@ -26,7 +26,8 @@ export const DeckMapEntry = (props: {
   /** Sets the room's map, the same way every other entry does. */
   onUse: (imgUrl: string) => void;
 }) => {
-  const { data: localMaps, add } = useBagMaps();
+  const bagMaps = useBagMaps();
+  const localMaps = bagMaps.data;
   const [lookup, setLookup] = useState<Lookup>({ status: "idle" });
   const [open, setOpen] = useState(false);
   const source = labsSourceOf(props.deck);
@@ -91,7 +92,7 @@ export const DeckMapEntry = (props: {
           </Box>
           <Flex gap="0.5rem" ml="auto">
             {!saved && (
-              <Button size="sm" variant="outline" onClick={() => add(offer.map)}>
+              <Button size="sm" variant="outline" onClick={() => addLabsMap(offer.map, bagMaps)}>
                 Save to my maps
               </Button>
             )}
