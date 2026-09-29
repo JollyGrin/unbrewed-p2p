@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Flex } from "@chakra-ui/react";
 
 import { Navbar } from "@/components/Navbar";
@@ -45,13 +45,17 @@ export const ChangelogPage = () => {
   const entries = getChangelogEntries();
   const { unseen, markAllSeen } = useChangelogSeen();
   const [filter, setFilter] = useState<ChangelogFilter>("all");
-  const [showAll, setShowAll] = useState(false);
+  const [shown, setShown] = useState(PAGE_SIZE);
+  const [announcement, setAnnouncement] = useState("");
+  const focusEntryId = useRef<string | null>(null);
 
-  // Switching filters starts collapsed again — "10 newest" should mean the
-  // 10 newest *of the current filter*, not whatever was left expanded.
-  useEffect(() => {
-    setShowAll(false);
-  }, [filter]);
+  // Switching filters starts at the first page again — "10 newest" should
+  // mean the 10 newest *of the current filter*, not whatever was left revealed.
+  const changeFilter = (next: ChangelogFilter) => {
+    setFilter(next);
+    setShown(PAGE_SIZE);
+    setAnnouncement("");
+  };
 
   useEffect(() => {
     const timer = setTimeout(markAllSeen, MARK_SEEN_DELAY_MS);
@@ -68,8 +72,26 @@ export const ChangelogPage = () => {
     [entries, filter],
   );
 
-  const visible = showAll ? filtered : filtered.slice(0, PAGE_SIZE);
-  const hasMore = filtered.length > visible.length;
+  const visible = filtered.slice(0, shown);
+  const remaining = filtered.length - visible.length;
+  const hasMore = remaining > 0;
+  const firstId = visible[0]?.id;
+
+  const loadMore = () => {
+    const next = Math.min(shown + PAGE_SIZE, filtered.length);
+    // Focus stays on the button while it exists; once it unmounts (list
+    // exhausted) focus would drop to <body>, so hand it to the first new entry.
+    focusEntryId.current = next >= filtered.length ? filtered[shown].id : null;
+    setShown(next);
+    setAnnouncement(`Showing ${next} of ${filtered.length} updates`);
+  };
+
+  useEffect(() => {
+    const id = focusEntryId.current;
+    if (!id) return;
+    focusEntryId.current = null;
+    document.getElementById(`changelog-entry-${id}`)?.focus();
+  }, [shown]);
   const groups = useMemo(() => groupByDate(visible), [visible]);
 
   return (
@@ -99,7 +121,7 @@ export const ChangelogPage = () => {
 
       <Flex justify="center" px={{ base: "16px", md: "40px" }} pt="32px" pb="48px">
         <Flex direction="column" gap="32px" maxW="880px" w="100%">
-          <ChangelogFilters value={filter} onChange={setFilter} />
+          <ChangelogFilters value={filter} onChange={changeFilter} />
 
           {groups.length === 0 ? (
             <Box fontSize="15px" opacity={0.75}>
@@ -120,18 +142,22 @@ export const ChangelogPage = () => {
                   {formatChangelogDate(group.date)}
                 </Box>
                 {group.entries.map((entry) => (
-                  <ChangelogCard key={entry.id} entry={entry} isNew={unseenIds.has(entry.id)} />
+                  <ChangelogCard key={entry.id} entry={entry} isNew={unseenIds.has(entry.id)} priority={entry.id === firstId} />
                 ))}
               </Flex>
             ))
           )}
+
+          <Box role="status" aria-live="polite" position="absolute" w="1px" h="1px" overflow="hidden" sx={{ clip: "rect(0 0 0 0)" }}>
+            {announcement}
+          </Box>
 
           {hasMore && (
             <Flex justify="center" pt="8px">
               <Box
                 as="button"
                 type="button"
-                onClick={() => setShowAll(true)}
+                onClick={loadMore}
                 minH="48px"
                 px="28px"
                 border="2px solid"
@@ -143,7 +169,7 @@ export const ChangelogPage = () => {
                 fontWeight={700}
                 fontSize="15px"
               >
-                Older updates
+                Show {Math.min(PAGE_SIZE, remaining)} more ({remaining} left)
               </Box>
             </Flex>
           )}
