@@ -2,6 +2,7 @@ import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { MAP_CATALOG } from "@/lib/pro/mapCatalog";
 import type { ProMapDef } from "@/lib/pro/protocol";
 import {
+  absoluteUrl,
   deckToPlayerPack,
   type DeckToPackResult,
   type PlayerPiece,
@@ -72,8 +73,15 @@ const heroStartFor = (board: BoardGeometry, seat: Seat) => {
   return seat === 0 ? a : b;
 };
 
-export const catalogMapDef = (imageUrl: string): ProMapDef | null =>
-  MAP_CATALOG.find((e) => e.map.meta.imageUrl === imageUrl)?.map ?? null;
+/** Finds a board's def by image url, relative (`/maps/x.webp`) or absolute. */
+export const catalogMapDef = (imageUrl: string): ProMapDef | null => {
+  const url = absoluteUrl(imageUrl);
+  return (
+    MAP_CATALOG.find(
+      (e) => e.map.meta.imageUrl && absoluteUrl(e.map.meta.imageUrl) === url,
+    )?.map ?? null
+  );
+};
 
 const tokenIndices = (pieces: PlayerPiece[]) =>
   Array.from(
