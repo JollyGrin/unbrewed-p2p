@@ -1,10 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { FIXTURES } from "@/lib/tableplace/fixtures/decks";
+import { elliotDeck, labsDeck } from "@/lib/tableplace/fixtures/decks";
 import type { TablePlaceError } from "@/lib/tableplace/api";
 import { TablePage } from "./TablePage";
-
-const { deck: oak } = FIXTURES["labs-marouine"];
-const { deck: larry } = FIXTURES["labs-elliot"];
 
 jest.mock("next/router", () => ({
   useRouter: () => ({ query: {}, isReady: true }),
@@ -58,9 +55,18 @@ const err = (over: Partial<TablePlaceError>): TablePlaceError => ({
   ...over,
 });
 
+const createTable = async () => {
+  const button = screen.getByTestId("create") as HTMLButtonElement;
+  // A click on a disabled button is a silent no-op: make sure it's live.
+  await waitFor(() => expect(button.disabled).toBe(false), { timeout: 5000 });
+  fireEvent.click(button);
+  return screen.findByTestId("api-error", {}, { timeout: 5000 });
+};
+
 const setup = () => {
-  mockDecks.mine = oak;
-  mockDecks.theirs = larry;
+  // Fresh decks each test: nothing carries over from an earlier one.
+  mockDecks.mine = labsDeck();
+  mockDecks.theirs = elliotDeck();
   render(<TablePage />);
   fireEvent.change(screen.getByTestId("map"), {
     target: { value: "/m1.webp" },
@@ -73,8 +79,7 @@ describe("TablePage — create flow error box (issue #1061)", () => {
   it("a non-retryable 4xx shows friendly copy, the API message in <details>, and report links", async () => {
     mockValidate.mockResolvedValue({ ok: false, error: err({}) });
     setup();
-    fireEvent.click(screen.getByTestId("create"));
-    const box = await screen.findByTestId("api-error");
+    const box = await createTable();
     expect(box.textContent).toContain(
       "We couldn't lay out this table. That's a bug on our side.",
     );
@@ -100,8 +105,7 @@ describe("TablePage — create flow error box (issue #1061)", () => {
       }),
     });
     setup();
-    fireEvent.click(screen.getByTestId("create"));
-    const box = await screen.findByTestId("api-error");
+    const box = await createTable();
     expect(box.textContent).toContain("table.place didn't answer.");
     expect(box.textContent).toContain("Try again once you're back online.");
     expect(box.textContent).not.toContain("bug on our side");
@@ -110,8 +114,7 @@ describe("TablePage — create flow error box (issue #1061)", () => {
   it("clears the error when the composed table changes", async () => {
     mockValidate.mockResolvedValue({ ok: false, error: err({}) });
     setup();
-    fireEvent.click(screen.getByTestId("create"));
-    await screen.findByTestId("api-error");
+    await createTable();
     fireEvent.change(screen.getByTestId("map"), {
       target: { value: "/m2.webp" },
     });
