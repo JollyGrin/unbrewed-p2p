@@ -144,6 +144,13 @@ export const tokenPiece = (
   };
 };
 
+/** Identity of an image plus its sheet crop, to compare a token with a card face. */
+const tokenKey = (
+  url: string,
+  crop?: { cols?: number; rows?: number; index?: number },
+): string =>
+  `${absoluteUrl(url)}|${crop?.cols ?? ""}|${crop?.rows ?? ""}|${crop?.index ?? ""}`;
+
 const tokenFace = (token: SavedToken): string | null => {
   if (!token.imageUrl) return null;
   return token.sheet
@@ -222,6 +229,15 @@ export const deckToPlayerPack = (
     ? takeReference(data.sidekick.name)
     : undefined;
 
+  // an extra character's finished card rides in `cards` as a reference card
+  const extraRefs = new Map<string, DeckImportCardType>();
+  for (const extra of data.extraCharacters ?? []) {
+    for (const name of [extra.hero.name, extra.sidekick?.name]) {
+      const ref = name ? takeReference(name) : undefined;
+      if (ref && name) extraRefs.set(name, ref);
+    }
+  }
+
   const ruleCodes = codeAllocator();
   const rules: (PackCard | null)[] = reference.map((c) =>
     toCard(c, ruleCodes(c.title)),
@@ -251,6 +267,11 @@ export const deckToPlayerPack = (
       ["sidekick", extra.sidekick.name, "", hasSidekick(extra.sidekick)],
     ] as const) {
       if (!printed || !name) continue;
+      const ref = extraRefs.get(name);
+      if (ref) {
+        extras.push(toCard(ref, ruleCodes(name)));
+        continue;
+      }
       extras.push(
         single(
           name,
@@ -294,26 +315,26 @@ export const deckToPlayerPack = (
     ...(back ? { back } : {}),
   });
 
+  // a pile that holds no cards is not placed, except the discard
   const decks: PackDeck[] = [
     withBack({ slot: "deck", name: "Deck", cards: compact(deckCards) }),
     withBack({ slot: "discard", name: "Discard", cards: [] }),
     withBack({ slot: "hero", name: "Hero", cards: compact([heroCard]) }),
-    ...(sidekickCard
-      ? [
-          withBack({
-            slot: "sidekick",
-            name: "Sidekick",
-            cards: [sidekickCard],
-          }),
-        ]
-      : []),
-    ...(rules.length
-      ? [withBack({ slot: "rules", name: "Rules", cards: compact(rules) })]
-      : []),
-    ...(extras.length
-      ? [withBack({ slot: "extras", name: "Extras", cards: compact(extras) })]
-      : []),
-  ];
+    withBack({
+      slot: "sidekick",
+      name: "Sidekick",
+      cards: compact([sidekickCard]),
+    }),
+    withBack({ slot: "rules", name: "Rules", cards: compact(rules) }),
+    withBack({ slot: "extras", name: "Extras", cards: compact(extras) }),
+  ].filter((d) => d.cards.length || d.slot === "discard");
+
+  // card faces already in a pile: a loose token of the same art is a duplicate
+  const pileFaces = new Set(
+    data.cards
+      .filter((c) => c.isCharacterCard && c.cardImage?.url)
+      .map((c) => tokenKey(c.cardImage!.url, c.cardImage)),
+  );
 
   // pieces: an HP counter and a figure per fighter, then the token loadout
   const packId = `unbrewed-${slugify(deck.id)}-seat${seat}`;
@@ -371,6 +392,8 @@ export const deckToPlayerPack = (
     }
   }
   (deck.savedTokens ?? []).forEach((token, i) => {
+    if (token.imageUrl && pileFaces.has(tokenKey(token.imageUrl, token.sheet)))
+      return;
     const name = token.icon ? iconLabel(token.icon) : `Token ${i + 1}`;
     const f = tokenFace(token);
     // card tokens never ride in savedTokens; an icon-only disc keeps the tint
