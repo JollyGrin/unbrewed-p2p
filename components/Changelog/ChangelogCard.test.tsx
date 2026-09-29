@@ -50,7 +50,7 @@ describe("ChangelogCard", () => {
     expect(screen.queryByRole("button", { name: /play video/i })).not.toBeInTheDocument();
   });
 
-  it("renders a text-only card when the entry has a video but the media base is unset", () => {
+  it("renders a text-only card when the entry has a video but the media helpers return null", () => {
     mockedPosterUrl.mockReturnValue(null);
     mockedVideoUrl.mockReturnValue(null);
 

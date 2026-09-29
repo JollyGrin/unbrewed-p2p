@@ -79,10 +79,12 @@ ${NEXT_PUBLIC_CHANGELOG_MEDIA_URL}/changelog/<slug>.mp4
 ${NEXT_PUBLIC_CHANGELOG_MEDIA_URL}/changelog/<slug>-poster.webp
 ```
 
-The CDN is the public R2 bucket at `https://cdn.unbrewed.xyz`. Set
-`NEXT_PUBLIC_CHANGELOG_MEDIA_URL=https://cdn.unbrewed.xyz` in `.env.local` for
-local dev; CI reads it from the repo variable of the same name
-(`.github/workflows/nextjs.yml`).
+The CDN is the public R2 bucket at `https://cdn.unbrewed.xyz`, which is the
+default base. `NEXT_PUBLIC_CHANGELOG_MEDIA_URL` is an optional override (e.g. to
+point local dev at another bucket); unset or empty falls back to the default.
+CI passes the repo variable of the same name through
+(`.github/workflows/nextjs.yml`); an empty value also uses the default.
 
-With the env var unset, both helpers return `null` and the UI renders the
-entry as text only — never invent a default URL in code.
+Both helpers return `null` only for an empty slug, in which case the UI renders
+the entry as text only. If a poster or video fails to load, the card falls back
+to text only as well.

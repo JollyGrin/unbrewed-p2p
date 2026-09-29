@@ -251,7 +251,7 @@ function main() {
   writePoster(source, posterOut);
   const posterSize = statSync(posterOut).size;
 
-  const base = process.env.NEXT_PUBLIC_CHANGELOG_MEDIA_URL?.replace(/\/+$/, "") ?? "$NEXT_PUBLIC_CHANGELOG_MEDIA_URL";
+  const base = process.env.NEXT_PUBLIC_CHANGELOG_MEDIA_URL?.replace(/\/+$/, "") || "https://cdn.unbrewed.xyz"; // optional override, default is the CDN
 
   console.log(`source: ${source}`);
   console.log(`video:  ${videoOut} (${mb(video.size)}, re-encoded)`);

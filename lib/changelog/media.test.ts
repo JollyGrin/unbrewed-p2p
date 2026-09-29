@@ -10,12 +10,33 @@ afterEach(() => {
 });
 
 describe("changelog media helpers", () => {
-  it("return null for both helpers when the media var is unset", () => {
+  it("default to the CDN when the media var is unset", () => {
     delete process.env.NEXT_PUBLIC_CHANGELOG_MEDIA_URL;
     jest.isolateModules(() => {
       const { videoUrl, posterUrl } = require("./media");
-      expect(videoUrl("tabletop")).toBeNull();
-      expect(posterUrl("tabletop")).toBeNull();
+      expect(videoUrl("tabletop")).toBe("https://cdn.unbrewed.xyz/changelog/tabletop.mp4");
+      expect(posterUrl("tabletop")).toBe(
+        "https://cdn.unbrewed.xyz/changelog/tabletop-poster.webp",
+      );
+    });
+  });
+
+  it("default to the CDN when the media var is empty", () => {
+    process.env.NEXT_PUBLIC_CHANGELOG_MEDIA_URL = "";
+    jest.isolateModules(() => {
+      const { posterUrl } = require("./media");
+      expect(posterUrl("tabletop")).toBe(
+        "https://cdn.unbrewed.xyz/changelog/tabletop-poster.webp",
+      );
+    });
+  });
+
+  it("return null for an empty slug", () => {
+    delete process.env.NEXT_PUBLIC_CHANGELOG_MEDIA_URL;
+    jest.isolateModules(() => {
+      const { videoUrl, posterUrl } = require("./media");
+      expect(videoUrl("")).toBeNull();
+      expect(posterUrl("")).toBeNull();
     });
   });
 
