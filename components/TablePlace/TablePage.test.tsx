@@ -40,9 +40,12 @@ jest.mock("../../lib/bag/useBag", () => ({
 jest.mock("./useOpponentDeck", () => ({
   useOpponentDeck: () => ({ deck: mockDecks.theirs }),
 }));
+const mockSize = { width: 1000, height: 800 };
+const mockImageSize = { fresh: false };
 jest.mock("./useImageSize", () => ({
   useImageSize: () => ({
-    size: { width: 1000, height: 800 },
+    // `fresh`: an equal-but-new object every render, as a real hook may hand back.
+    size: mockImageSize.fresh ? { ...mockSize } : mockSize,
     isLoading: false,
     failed: false,
   }),
@@ -77,7 +80,10 @@ const setup = () => {
 };
 
 describe("TablePage — create flow error box (issue #1061)", () => {
-  afterEach(() => mockValidate.mockReset());
+  afterEach(() => {
+    mockValidate.mockReset();
+    mockImageSize.fresh = false;
+  });
 
   it("a non-retryable 4xx shows friendly copy, the API message in <details>, and report links", async () => {
     mockValidate.mockResolvedValue({ ok: false, error: err({}) });
@@ -122,5 +128,15 @@ describe("TablePage — create flow error box (issue #1061)", () => {
       target: { value: "/m2.webp" },
     });
     await waitFor(() => expect(screen.queryByTestId("api-error")).toBeNull());
+  });
+
+  it("keeps the error when a render hands back an equal-but-new map size", async () => {
+    mockImageSize.fresh = true;
+    mockValidate.mockResolvedValue({ ok: false, error: err({}) });
+    setup();
+    await createTable();
+    // Let any effect the error's own re-render triggers run.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByTestId("api-error")).not.toBeNull();
   });
 });

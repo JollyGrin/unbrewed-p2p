@@ -107,7 +107,16 @@ export const TablePage = () => {
   const [apiError, setApiError] = useState<TablePlaceError>();
   const [lobby, setLobby] = useState<LobbyCreated>();
   // A different table has different problems: don't leave the last one up.
-  useEffect(() => setApiError(undefined), [composed?.body]);
+  // Keyed on values, not on `composed.body`, whose identity can change on
+  // any render that hands us an equal-but-new object.
+  const tableKey = [
+    starredDeck?.id,
+    opponent.deck?.id,
+    map?.imgUrl,
+    mapSize.size?.width,
+    mapSize.size?.height,
+  ].join("|");
+  useEffect(() => setApiError(undefined), [tableKey]);
 
   const create = async () => {
     const body = composed?.body;
