@@ -69,7 +69,7 @@ const refusal = (
     return NOT_PUBLISHED;
   }
   const cards = missing === 1 ? "1 card has" : `${missing} cards have`;
-  return `${cards} no finished card image, and table.place needs one for every card. Decks imported from Unmatched Labs or with a card sheet (TTS) carry their own.`;
+  return `${cards} no finished card image. table.place shows cards as finished images, so every card, hero and sidekick needs one.`;
 };
 
 export const previewDeck = (

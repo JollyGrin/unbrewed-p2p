@@ -40,7 +40,10 @@ describe("previewDeck", () => {
     expect(p.skipped).toEqual([]);
     // still shows what it would put down
     expect(p.cards).toBeGreaterThan(0);
-    expect(p.dials).toEqual([{ name: "The Hollow Oak", value: 16 }]);
+    expect(p.dials).toEqual([
+      { name: "The Hollow Oak", value: 16 },
+      { name: "The Ember Fox", value: 6 },
+    ]);
   });
 
   it("takes a balanced deck once the face index lists it", () => {
