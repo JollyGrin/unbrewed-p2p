@@ -92,10 +92,10 @@ jobs:
         # default. It is baked into the PUBLIC bundle — ids/usernames only,
         # never secrets. Read once, in lib/pro/tierUnlock.ts.
         #
-        # NEXT_PUBLIC_CHANGELOG_MEDIA_URL (issue #1070): base URL of the
-        # changelog media CDN, i.e. https://cdn.unbrewed.xyz. Unset/empty = the
-        # /changelog page renders text-only (no default URL in code). See
-        # lib/changelog/media.ts.
+        # NEXT_PUBLIC_CHANGELOG_MEDIA_URL (issue #1070): optional override
+        # of the changelog media CDN base. Unset/empty (the variable is passed
+        # through as an empty string) falls back to the default,
+        # https://cdn.unbrewed.xyz. See lib/changelog/media.ts.
         env:
           NEXT_PUBLIC_PRO_WS_URL: ${{ vars.NEXT_PUBLIC_PRO_WS_URL }}
           NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
