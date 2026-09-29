@@ -58,7 +58,11 @@ export const Hero = () => {
           >
             an unofficial Unmatched homebrew simulator
           </Text>
-          <IconLogoTextmark height="7em" width="auto" />
+          <IconLogoTextmark
+            w="min(28.375em, calc(100vw - 2rem))"
+            h="auto"
+            sx={{ aspectRatio: "681 / 168" }}
+          />
           <Text maxW="34rem" textAlign="center" opacity={0.75} px="1rem">
             Grab a starter deck, open a lobby, and play head-to-head with a
             friend — free, right in your browser.
