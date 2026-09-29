@@ -1,5 +1,5 @@
 import { describe, expect, it, jest } from "@jest/globals";
-import { createLobby, retryCopy, validateLobby } from "./api";
+import { createLobby, isOurBug, retryCopy, validateLobby } from "./api";
 import type { LobbyRequest } from "./types";
 
 const BODY = { version: 1 } as LobbyRequest;
@@ -63,6 +63,7 @@ describe("table.place api", () => {
       retryable: false,
     });
     expect(retryCopy(r.error)).toBeNull();
+    expect(isOurBug(r.error)).toBe(true);
   });
 
   it("reads Retry-After on a 429", async () => {
@@ -81,19 +82,84 @@ describe("table.place api", () => {
     );
   });
 
-  it("falls back to the header, and to minutes for long waits", async () => {
+  it("ignores the Retry-After header (unreadable cross-origin) and uses minutes for long waits", async () => {
     const r = await createLobby(
       BODY,
       respond(
         429,
-        { error: "rate_limited", message: "Slow down." },
-        { "retry-after": "600" },
+        {
+          error: "rate_limited",
+          message: "Slow down.",
+          details: { retry_after_seconds: 600 },
+        },
+        { "retry-after": "5" },
       ),
     );
     if (r.ok) throw new Error("expected a failure");
     expect(retryCopy(r.error)).toBe(
       "table.place is busy. Try again in 10 minutes.",
     );
+    const bare = await createLobby(
+      BODY,
+      respond(429, { error: "rate_limited" }, { "retry-after": "600" }),
+    );
+    if (bare.ok) throw new Error("expected a failure");
+    expect(bare.error.retryAfterSeconds).toBeUndefined();
+  });
+
+  it("times out a request that never answers, as retryable", async () => {
+    jest.useFakeTimers();
+    try {
+      const f = jest.fn(
+        (_url: unknown, init?: RequestInit) =>
+          new Promise((_res, rej) =>
+            init?.signal?.addEventListener("abort", () =>
+              rej(new DOMException("aborted", "AbortError")),
+            ),
+          ),
+      ) as unknown as typeof fetch;
+      const p = validateLobby(BODY, f);
+      await jest.advanceTimersByTimeAsync(15_000);
+      const r = await p;
+      if (r.ok) throw new Error("expected a failure");
+      expect(r.error).toMatchObject({
+        status: 0,
+        code: "timeout",
+        message: "table.place didn't answer.",
+        retryable: true,
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it.each([
+    ["seats missing", { lobby: "a" }],
+    ["seats not an array", { seats: "x" }],
+    ["a seat without a url", { seats: [{ seat: 0 }] }],
+    ["null", null],
+  ])("a 201 with %s is a bad_response", async (_n, body) => {
+    const r = await createLobby(BODY, respond(201, body));
+    if (r.ok) throw new Error("expected a failure");
+    expect(r.error.code).toBe("bad_response");
+  });
+
+  it("a 200 validate without `valid` is a bad_response", async () => {
+    const r = await validateLobby(BODY, respond(200, { nope: 1 }));
+    if (r.ok) throw new Error("expected a failure");
+    expect(r.error.code).toBe("bad_response");
+  });
+
+  it("a 2xx that isn't JSON is a bad_response", async () => {
+    const f = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => JSON.parse("<html>"),
+    })) as unknown as typeof fetch;
+    const r = await createLobby(BODY, f);
+    if (r.ok) throw new Error("expected a failure");
+    expect(r.error.code).toBe("bad_response");
   });
 
   it("offers a retry on a 5xx, even without a JSON body", async () => {

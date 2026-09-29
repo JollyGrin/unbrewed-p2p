@@ -3,6 +3,7 @@ import {
   Button,
   Flex,
   Image,
+  Link,
   ListItem,
   Select,
   Text,
@@ -10,7 +11,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useRouter } from "next/router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Navbar } from "@/components/Navbar";
 import { SelectedDeckContainer } from "@/components/Connect/SelectedDeck";
@@ -24,6 +25,7 @@ import { absoluteUrl, composeTable } from "@/lib/tableplace";
 import {
   createLobby,
   EMPTY_LOBBY_REAP_MINUTES,
+  isOurBug,
   LOBBY_TTL_SECONDS,
   retryCopy,
   validateLobby,
@@ -104,6 +106,17 @@ export const TablePage = () => {
   const [status, setStatus] = useState<Status>("idle");
   const [apiError, setApiError] = useState<TablePlaceError>();
   const [lobby, setLobby] = useState<LobbyCreated>();
+  // A different table has different problems: don't leave the last one up.
+  // Keyed on values, not on `composed.body`, whose identity can change on
+  // any render that hands us an equal-but-new object.
+  const tableKey = [
+    starredDeck?.id,
+    opponent.deck?.id,
+    map?.imgUrl,
+    mapSize.size?.width,
+    mapSize.size?.height,
+  ].join("|");
+  useEffect(() => setApiError(undefined), [tableKey]);
 
   const create = async () => {
     const body = composed?.body;
@@ -274,7 +287,38 @@ export const TablePage = () => {
                   borderRadius="0.5rem"
                   data-testid="api-error"
                 >
-                  <Text fontWeight={600}>{apiError.message}</Text>
+                  {isOurBug(apiError) ? (
+                    <>
+                      <Text fontWeight={600}>
+                        We couldn&apos;t lay out this table. That&apos;s a bug
+                        on our side.
+                      </Text>
+                      <Box as="details" mt="0.25rem" fontSize="0.85rem">
+                        <summary>Details</summary>
+                        <Text>{apiError.message}</Text>
+                      </Box>
+                      <Text mt="0.25rem" fontSize="0.85rem">
+                        <Link
+                          href="https://github.com/JollyGrin/unbrewed-p2p/issues/new"
+                          isExternal
+                          textDecor="underline"
+                        >
+                          Report it on GitHub
+                        </Link>{" "}
+                        or on{" "}
+                        <Link
+                          href="https://discord.gg/qPxHFjwkNN"
+                          isExternal
+                          textDecor="underline"
+                        >
+                          Discord
+                        </Link>
+                        .
+                      </Text>
+                    </>
+                  ) : (
+                    <Text fontWeight={600}>{apiError.message}</Text>
+                  )}
                   {retryCopy(apiError) && (
                     <Text mt="0.25rem">{retryCopy(apiError)}</Text>
                   )}
