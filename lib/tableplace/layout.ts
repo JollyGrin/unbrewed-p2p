@@ -73,8 +73,9 @@ const round = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * Seat 0's front row: the combat spots in the middle, then the kit's card
- * piles to the player's right. Cards are 1.4 × 2, so a pile's footprint ends
- * 1 short of here: 0.4 inside VIEW, and 2.4 off a map at MAP_MAX_HEIGHT.
+ * piles to the player's right. Cards are 1.4 × 2, so a pile's footprint
+ * reaches 1 either side: z 12.4, inside VIEW, and 2.4 off a map at
+ * MAP_MAX_HEIGHT.
  */
 export const FRONT_ROW_Z = 11.4;
 /** Piles 1.8 apart: past CARD_STACK_RADIUS, with a 0.4 gap between cards. */
