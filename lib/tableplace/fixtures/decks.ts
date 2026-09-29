@@ -6,14 +6,23 @@ import hollowOak from "../../../public/evergreen-decks/hollow-oak.json";
 import larry from "../../../public/evergreen-decks/5jGPM.json";
 import setBySlug from "../../labs/fixtures/set-by-slug.dumbass-brigade.json";
 import { buildLabsImport, type LabsSetRow } from "../../labs";
-import type { FaceResolver } from "../types";
+import type { FaceResolver, FullFaceResolver } from "../types";
 
 const MAROUINE = "char_ce316d14-8bc8-413d-9086-ad37b502d0fe";
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 
-/** Stand-in for #1007's renderer: every template card gets a fake finished face. */
+/** Stand-in for a face renderer: every template card gets a fake finished face. */
 export const fakeFaces: FaceResolver = (card) =>
   `https://faces.example/${encodeURIComponent(card.title)}.webp`;
+
+/** A resolver that answers every face, for decks with no faces of their own. */
+export const fullFakeFaces: FullFaceResolver = Object.assign(fakeFaces, {
+  hero: () => "https://faces.example/hero.webp",
+  sidekick: () => "https://faces.example/sidekick.webp",
+  rule: (i: number) => `https://faces.example/rule-${i + 1}.webp`,
+  extraCharacter: (i: number, part: "hero" | "sidekick") =>
+    `https://faces.example/extra-${i + 1}-${part}.webp`,
+}) as FullFaceResolver;
 
 export const labsDeck = (): DeckImportType =>
   buildLabsImport(

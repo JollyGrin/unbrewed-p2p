@@ -4,12 +4,10 @@ import path from "path";
 import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 import {
-  balancedFaces,
   CARD_STACK_RADIUS,
   catalogMapDef,
   composeTable,
   distance,
-  faceJobs,
   CARD_X,
   FRONT_ROW_Z,
   VIEW,
@@ -17,10 +15,14 @@ import {
   PLACEMENT_CAP,
   SNAP_POINT_CAP,
   type CallerPlacement,
-  type FaceIndex,
   type LobbyRequest,
 } from ".";
-import { FIXTURES, fakeFaces, tokenDeck } from "./fixtures/decks";
+import {
+  FIXTURES,
+  fakeFaces,
+  fullFakeFaces,
+  tokenDeck,
+} from "./fixtures/decks";
 
 const DRUM = {
   imageUrl: "https://unbrewed.xyz/maps/legacy-the-mended-drum.webp",
@@ -296,25 +298,11 @@ describe("caps", () => {
           fs.readFileSync(path.join(DIR, f), "utf8"),
         ) as DeckImportType,
     );
-  const faces = (deck: DeckImportType) => {
-    const index: FaceIndex = {
-      version: 1,
-      decks: {
-        [deck.id]: Object.fromEntries(
-          faceJobs(deck).map((j) => [
-            j.key,
-            { path: `${deck.id}/${j.key}.webp`, hash: j.hash },
-          ]),
-        ),
-      },
-    };
-    return balancedFaces(index, deck);
-  };
   const size = (deck: DeckImportType) => {
     const { body } = composeTable({
       seats: [deck, deck],
       map: DRUM,
-      faces: faces(deck),
+      faces: fullFakeFaces,
     });
     return body!.placements.length;
   };
@@ -324,7 +312,7 @@ describe("caps", () => {
     const { body, skipped } = composeTable({
       seats: [largest, largest],
       map: DRUM,
-      faces: faces(largest),
+      faces: fullFakeFaces,
     });
     expect(skipped).toEqual([]);
     expect(body!.placements.length).toBeLessThanOrEqual(PLACEMENT_CAP);

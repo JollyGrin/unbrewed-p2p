@@ -4,7 +4,6 @@
  */
 import { parseDeckLink } from "@/lib/deckLink";
 import { parseLabsInput } from "@/lib/labs";
-import { EVERGREEN_MANIFEST } from "@/lib/pro/evergreenManifest";
 
 const UNMATCHED_CARDS = /unmatched\.cards\/decks\/([A-Za-z0-9]+)/i;
 
@@ -28,16 +27,3 @@ export const opponentDeckLink = (raw: string): string | null => {
   // a URL from anywhere else isn't a deck id
   return /^[A-Za-z0-9_-]+$/.test(input) ? input : null;
 };
-
-const titleCase = (heroId: string) =>
-  heroId
-    .split("-")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-
-/** The balanced decks, by hero name, for the opponent picker. */
-export const BALANCED_DECKS: { deckId: string; name: string }[] =
-  EVERGREEN_MANIFEST.map((e) => ({
-    deckId: e.deckId,
-    name: titleCase(e.heroId),
-  })).sort((a, b) => a.name.localeCompare(b.name));

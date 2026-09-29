@@ -1,18 +1,15 @@
 import {
   Box,
   Button,
-  ButtonGroup,
   Flex,
   Image,
   Input,
   ListItem,
   Select,
-  Spinner,
   Text,
   UnorderedList,
   VStack,
 } from "@chakra-ui/react";
-import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/router";
 import { useMemo, useState } from "react";
 
@@ -25,13 +22,7 @@ import type { MapData } from "@/lib/hooks/useLocalStorage";
 import { useBagDecks, useBagMaps } from "@/lib/bag/useBag";
 import { useDeckLink } from "@/lib/hooks/useDeckLink";
 import { fetchLinkedDeck } from "@/lib/deckLink";
-import { fetchDeckById } from "@/lib/evergreenDecks";
-import {
-  absoluteUrl,
-  composeTable,
-  loadFaceIndex,
-  type FaceIndex,
-} from "@/lib/tableplace";
+import { absoluteUrl, composeTable } from "@/lib/tableplace";
 import {
   createLobby,
   EMPTY_LOBBY_REAP_MINUTES,
@@ -41,13 +32,12 @@ import {
   type LobbyCreated,
   type TablePlaceError,
 } from "@/lib/tableplace/api";
-import { BALANCED_DECKS, opponentDeckLink } from "@/lib/tableplace/opponent";
-import { facesFor, plainSkipped, previewDeck } from "@/lib/tableplace/preview";
+import { opponentDeckLink } from "@/lib/tableplace/opponent";
+import { plainSkipped, previewDeck } from "@/lib/tableplace/preview";
 import { DeckPreviewCard } from "./DeckPreviewCard";
 import { InviteScreen } from "./InviteScreen";
 import { useImageSize } from "./useImageSize";
 
-type OpponentMode = "link" | "balanced" | "later";
 type Status = "idle" | "validating" | "creating";
 
 const Step = ({
@@ -68,9 +58,7 @@ const Step = ({
 );
 
 const useOpponentDeck = () => {
-  const [mode, setMode] = useState<OpponentMode>("link");
   const [pasted, setPasted] = useState("");
-  const [balancedId, setBalancedId] = useState("");
   const [deck, setDeck] = useState<DeckImportType>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
@@ -100,26 +88,10 @@ const useOpponentDeck = () => {
     load(() => fetchLinkedDeck(link).then((r) => r.deck));
   };
 
-  const pickBalanced = (deckId: string) => {
-    setBalancedId(deckId);
-    if (deckId) load(() => fetchDeckById(deckId));
-    else setDeck(undefined);
-  };
-
-  const switchMode = (next: OpponentMode) => {
-    setMode(next);
-    setDeck(undefined);
-    setError(undefined);
-  };
-
   return {
-    mode,
-    switchMode,
     pasted,
     setPasted,
     loadPasted,
-    balancedId,
-    pickBalanced,
     deck,
     loading,
     error,
@@ -147,20 +119,13 @@ export const TablePage = () => {
   const map = maps.find((m) => m.imgUrl === mapUrl);
   const mapSize = useImageSize(map?.imgUrl);
 
-  // Balanced decks' finished faces; null until the train reaches main.
-  const faceIndex = useQuery(["tableplace-face-index"], () => loadFaceIndex(), {
-    staleTime: Infinity,
-    retry: false,
-  });
-  const index: FaceIndex | null = faceIndex.data ?? null;
-
   const yours = useMemo(
-    () => (starredDeck ? previewDeck(starredDeck, index) : undefined),
-    [starredDeck, index],
+    () => (starredDeck ? previewDeck(starredDeck) : undefined),
+    [starredDeck],
   );
   const theirs = useMemo(
-    () => (opponent.deck ? previewDeck(opponent.deck, index) : undefined),
-    [opponent.deck, index],
+    () => (opponent.deck ? previewDeck(opponent.deck) : undefined),
+    [opponent.deck],
   );
 
   const composed = useMemo(() => {
@@ -168,11 +133,11 @@ export const TablePage = () => {
     if (yours?.refused || theirs?.refused) return;
     return composeTable({
       seats: [starredDeck, opponent.deck],
-      faces: [facesFor(starredDeck, index), facesFor(opponent.deck, index)],
+      faces: [() => null, () => null],
       map: { imageUrl: absoluteUrl(map.imgUrl), ...mapSize.size },
       ttlSeconds: LOBBY_TTL_SECONDS,
     });
-  }, [starredDeck, opponent.deck, map, mapSize.size, yours, theirs, index]);
+  }, [starredDeck, opponent.deck, map, mapSize.size, yours, theirs]);
   // What the layout left off, beyond each deck's own list above
   const layoutSkipped = (composed?.skipped ?? [])
     .filter((s) => !/no finished face$/.test(s))
@@ -261,72 +226,26 @@ export const TablePage = () => {
             </Step>
 
             <Step n={2} title="Their deck">
-              <ButtonGroup size="sm" isAttached flexWrap="wrap">
-                {(
-                  [
-                    ["link", "Paste their deck"],
-                    ["balanced", "A balanced deck"],
-                  ] as const
-                ).map(([m, label]) => (
-                  <Button
-                    key={m}
-                    variant={opponent.mode === m ? "solid" : "outline"}
-                    onClick={() => opponent.switchMode(m)}
-                  >
-                    {label}
-                  </Button>
-                ))}
-                <Button
-                  variant="outline"
-                  isDisabled
-                  title="Coming with open seats"
-                >
-                  Decide later
-                </Button>
-              </ButtonGroup>
-              <Text fontSize="0.8rem" opacity={0.7} mt="0.25rem">
-                &ldquo;Decide later&rdquo; is coming with open seats.
-              </Text>
-
-              {opponent.mode === "link" && (
-                <Flex mt="0.75rem" gap="0.5rem">
-                  <Input
-                    bg="white"
-                    placeholder="unmatched.cards or Unmatched Labs link, or a deck id"
-                    value={opponent.pasted}
-                    onChange={(e) => opponent.setPasted(e.target.value)}
-                    onKeyDown={(e) =>
-                      e.key === "Enter" && opponent.loadPasted()
-                    }
-                    data-testid="opponent-link"
-                  />
-                  <Button
-                    onClick={opponent.loadPasted}
-                    isLoading={opponent.loading}
-                  >
-                    Load
-                  </Button>
-                </Flex>
-              )}
-              {opponent.mode === "balanced" && (
-                <Select
-                  mt="0.75rem"
+              <Flex gap="0.5rem" alignItems="center" flexWrap="wrap">
+                <Input
                   bg="white"
-                  placeholder="Choose a balanced deck"
-                  value={opponent.balancedId}
-                  onChange={(e) => opponent.pickBalanced(e.target.value)}
-                  data-testid="opponent-balanced"
+                  maxW="32rem"
+                  placeholder="unmatched.cards or Unmatched Labs link, or a deck id"
+                  value={opponent.pasted}
+                  onChange={(e) => opponent.setPasted(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && opponent.loadPasted()}
+                  data-testid="opponent-link"
+                />
+                <Button
+                  onClick={opponent.loadPasted}
+                  isLoading={opponent.loading}
                 >
-                  {BALANCED_DECKS.map((d) => (
-                    <option key={d.deckId} value={d.deckId}>
-                      {d.name}
-                    </option>
-                  ))}
-                </Select>
-              )}
-              {opponent.mode === "balanced" && opponent.loading && (
-                <Spinner mt="0.5rem" />
-              )}
+                  Load
+                </Button>
+              </Flex>
+              <Text fontSize="0.8rem" opacity={0.7} mt="0.25rem">
+                Picking a seat for a friend to fill is coming with open seats.
+              </Text>
               {opponent.error && (
                 <Text mt="0.5rem" color="red.700">
                   {opponent.error}
