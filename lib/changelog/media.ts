@@ -1,6 +1,7 @@
 /**
- * Changelog media URLs. The CDN doesn't exist yet — with
- * `NEXT_PUBLIC_CHANGELOG_MEDIA_URL` unset both helpers return `null` and
+ * Changelog media URLs. Media lives on the public CDN
+ * (https://cdn.unbrewed.xyz) and is wired in via
+ * `NEXT_PUBLIC_CHANGELOG_MEDIA_URL`; with it unset both helpers return `null` and
  * consuming UI renders the entry as text only. Never invent a default URL.
  */
 const rawBase = process.env.NEXT_PUBLIC_CHANGELOG_MEDIA_URL;
