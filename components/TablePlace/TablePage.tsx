@@ -2,8 +2,9 @@ import {
   Box,
   Button,
   Flex,
+  FormLabel,
   Image,
-  Input,
+  Link,
   ListItem,
   Select,
   Text,
@@ -11,32 +12,32 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useRouter } from "next/router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Navbar } from "@/components/Navbar";
 import { SelectedDeckContainer } from "@/components/Connect/SelectedDeck";
 import { DeckLinkHold } from "@/components/DeckLink/DeckLinkHold";
-import defaultMaps from "@/components/Bag/Map/MapModal/defaultMaps.json";
 import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
-import type { MapData } from "@/lib/hooks/useLocalStorage";
 import { useBagDecks, useBagMaps } from "@/lib/bag/useBag";
 import { useDeckLink } from "@/lib/hooks/useDeckLink";
-import { fetchLinkedDeck } from "@/lib/deckLink";
-import { absoluteUrl, composeTable } from "@/lib/tableplace";
+import { composeTable } from "@/lib/tableplace";
+import { buildMapList } from "@/lib/tableplace/mapList";
 import {
   createLobby,
   EMPTY_LOBBY_REAP_MINUTES,
+  isOurBug,
   LOBBY_TTL_SECONDS,
   retryCopy,
   validateLobby,
   type LobbyCreated,
   type TablePlaceError,
 } from "@/lib/tableplace/api";
-import { opponentDeckLink } from "@/lib/tableplace/opponent";
 import { plainSkipped, previewDeck } from "@/lib/tableplace/preview";
 import { DeckPreviewCard } from "./DeckPreviewCard";
+import { OpponentPicker } from "./OpponentPicker";
 import { InviteScreen } from "./InviteScreen";
 import { useImageSize } from "./useImageSize";
+import { useOpponentDeck } from "./useOpponentDeck";
 
 type Status = "idle" | "validating" | "creating";
 
@@ -50,53 +51,18 @@ const Step = ({
   children: React.ReactNode;
 }) => (
   <Box w="100%">
-    <Text fontFamily="SpaceGrotesk" fontWeight={700} fontSize="1.15rem">
+    <Text
+      as="h2"
+      id={`step-${n}`}
+      fontFamily="SpaceGrotesk"
+      fontWeight={700}
+      fontSize="1.15rem"
+    >
       {n}. {title}
     </Text>
     <Box mt="0.5rem">{children}</Box>
   </Box>
 );
-
-const useOpponentDeck = () => {
-  const [pasted, setPasted] = useState("");
-  const [deck, setDeck] = useState<DeckImportType>();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>();
-
-  const load = async (fetcher: () => Promise<DeckImportType>) => {
-    setLoading(true);
-    setError(undefined);
-    setDeck(undefined);
-    try {
-      setDeck(await fetcher());
-    } catch {
-      setError("Couldn't load that deck. Check the link and try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadPasted = () => {
-    const link = opponentDeckLink(pasted);
-    if (!link) {
-      setDeck(undefined);
-      setError(
-        "That isn't a deck link. Paste an unmatched.cards or Unmatched Labs link, or a deck id.",
-      );
-      return;
-    }
-    load(() => fetchLinkedDeck(link).then((r) => r.deck));
-  };
-
-  return {
-    pasted,
-    setPasted,
-    loadPasted,
-    deck,
-    loading,
-    error,
-  };
-};
 
 export const TablePage = () => {
   const { query, isReady } = useRouter();
@@ -109,12 +75,7 @@ export const TablePage = () => {
   const opponent = useOpponentDeck();
 
   const { data: bagMaps } = useBagMaps();
-  const maps: MapData[] = useMemo(() => {
-    const seen = new Set<string>();
-    return [...(bagMaps ?? []), ...(defaultMaps as MapData[])].filter((m) =>
-      seen.has(m.imgUrl) ? false : (seen.add(m.imgUrl), true),
-    );
-  }, [bagMaps]);
+  const maps = useMemo(() => buildMapList(bagMaps), [bagMaps]);
   const [mapUrl, setMapUrl] = useState<string>("");
   const map = maps.find((m) => m.imgUrl === mapUrl);
   const mapSize = useImageSize(map?.imgUrl);
@@ -134,7 +95,7 @@ export const TablePage = () => {
     return composeTable({
       seats: [starredDeck, opponent.deck],
       faces: [() => null, () => null],
-      map: { imageUrl: absoluteUrl(map.imgUrl), ...mapSize.size },
+      map: { imageUrl: map.imgUrl, ...mapSize.size },
       ttlSeconds: LOBBY_TTL_SECONDS,
     });
   }, [starredDeck, opponent.deck, map, mapSize.size, yours, theirs]);
@@ -146,6 +107,20 @@ export const TablePage = () => {
   const [status, setStatus] = useState<Status>("idle");
   const [apiError, setApiError] = useState<TablePlaceError>();
   const [lobby, setLobby] = useState<LobbyCreated>();
+  // The last table's links outlive "Make another table": a friend may not have
+  // opened theirs yet.
+  const [lastLobby, setLastLobby] = useState<LobbyCreated>();
+  // A different table has different problems: don't leave the last one up.
+  // Keyed on values, not on `composed.body`, whose identity can change on
+  // any render that hands us an equal-but-new object.
+  const tableKey = [
+    starredDeck?.id,
+    opponent.deck?.id,
+    map?.imgUrl,
+    mapSize.size?.width,
+    mapSize.size?.height,
+  ].join("|");
+  useEffect(() => setApiError(undefined), [tableKey]);
 
   const create = async () => {
     const body = composed?.body;
@@ -166,6 +141,7 @@ export const TablePage = () => {
     setLobby(real.data);
   };
 
+  const refusedDeck = !!(yours?.refused || theirs?.refused);
   const missing = [
     !starredDeck && "your deck",
     !opponent.deck && "their deck",
@@ -195,14 +171,55 @@ export const TablePage = () => {
           <InviteScreen
             lobby={lobby}
             onReset={() => {
+              setLastLobby(lobby);
               setLobby(undefined);
               setApiError(undefined);
             }}
           />
         ) : (
           <>
+            {lastLobby && (
+              <Box
+                p="0.75rem"
+                bg="white"
+                borderRadius="0.5rem"
+                fontSize="0.9rem"
+                data-testid="last-table"
+              >
+                <Text as="h2" fontWeight={700}>
+                  Your last table
+                </Text>
+                <Text>
+                  Its seat links still work until it closes:{" "}
+                  {lastLobby.seats.map((s, i) => (
+                    <span key={s.seat}>
+                      {i > 0 && ", "}
+                      <Link href={s.url} isExternal textDecor="underline">
+                        seat {s.seat + 1}
+                      </Link>
+                    </span>
+                  ))}
+                  {lastLobby.seats.length === 0 && (
+                    <Link
+                      href={lastLobby.lobby_url}
+                      isExternal
+                      textDecor="underline"
+                    >
+                      open the lobby
+                    </Link>
+                  )}
+                  .
+                </Text>
+              </Box>
+            )}
+
             <Box>
-              <Text fontFamily="SpaceGrotesk" fontWeight={700} fontSize="2rem">
+              <Text
+                as="h1"
+                fontFamily="SpaceGrotesk"
+                fontWeight={700}
+                fontSize="2rem"
+              >
                 Set up a 3D table
               </Text>
               <Text opacity={0.8}>
@@ -226,35 +243,15 @@ export const TablePage = () => {
             </Step>
 
             <Step n={2} title="Their deck">
-              <Flex gap="0.5rem" alignItems="center" flexWrap="wrap">
-                <Input
-                  bg="white"
-                  maxW="32rem"
-                  placeholder="unmatched.cards or Unmatched Labs link, or a deck id"
-                  value={opponent.pasted}
-                  onChange={(e) => opponent.setPasted(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && opponent.loadPasted()}
-                  data-testid="opponent-link"
-                />
-                <Button
-                  onClick={opponent.loadPasted}
-                  isLoading={opponent.loading}
-                >
-                  Load
-                </Button>
-              </Flex>
-              <Text fontSize="0.8rem" opacity={0.7} mt="0.25rem">
-                Picking a seat for a friend to fill is coming with open seats.
-              </Text>
-              {opponent.error && (
-                <Text mt="0.5rem" color="red.700">
-                  {opponent.error}
-                </Text>
-              )}
+              <OpponentPicker decks={decks} opponent={opponent} />
             </Step>
 
             <Step n={3} title="Map">
+              <FormLabel htmlFor="table-map" srOnly>
+                Map
+              </FormLabel>
               <Select
+                id="table-map"
                 bg="white"
                 placeholder="Choose a map"
                 value={mapUrl}
@@ -263,7 +260,7 @@ export const TablePage = () => {
               >
                 {maps.map((m) => (
                   <option key={m.imgUrl} value={m.imgUrl}>
-                    {m.meta?.title ?? m.imgUrl}
+                    {m.label}
                   </option>
                 ))}
               </Select>
@@ -277,7 +274,7 @@ export const TablePage = () => {
                 />
               )}
               {mapSize.failed && (
-                <Text mt="0.5rem" color="red.700">
+                <Text mt="0.5rem" color="red.700" role="alert">
                   Couldn&apos;t load this map&apos;s image. Pick another.
                 </Text>
               )}
@@ -327,6 +324,15 @@ export const TablePage = () => {
                   Still needed: {missing.join(", ")}.
                 </Text>
               )}
+              {refusedDeck && (
+                <Text
+                  mt="0.5rem"
+                  fontSize="0.85rem"
+                  data-testid="refused-reason"
+                >
+                  One deck can&apos;t go on the table yet (see above).
+                </Text>
+              )}
               <Text mt="0.5rem" fontSize="0.85rem" opacity={0.7}>
                 Create it when you&apos;re both ready: a table nobody opens
                 closes after {EMPTY_LOBBY_REAP_MINUTES} minutes.
@@ -338,9 +344,41 @@ export const TablePage = () => {
                   bg="red.50"
                   color="red.800"
                   borderRadius="0.5rem"
+                  role="alert"
                   data-testid="api-error"
                 >
-                  <Text fontWeight={600}>{apiError.message}</Text>
+                  {isOurBug(apiError) ? (
+                    <>
+                      <Text fontWeight={600}>
+                        We couldn&apos;t lay out this table. That&apos;s a bug
+                        on our side.
+                      </Text>
+                      <Box as="details" mt="0.25rem" fontSize="0.85rem">
+                        <summary>Details</summary>
+                        <Text>{apiError.message}</Text>
+                      </Box>
+                      <Text mt="0.25rem" fontSize="0.85rem">
+                        <Link
+                          href="https://github.com/JollyGrin/unbrewed-p2p/issues/new"
+                          isExternal
+                          textDecor="underline"
+                        >
+                          Report it on GitHub
+                        </Link>{" "}
+                        or on{" "}
+                        <Link
+                          href="https://discord.gg/qPxHFjwkNN"
+                          isExternal
+                          textDecor="underline"
+                        >
+                          Discord
+                        </Link>
+                        .
+                      </Text>
+                    </>
+                  ) : (
+                    <Text fontWeight={600}>{apiError.message}</Text>
+                  )}
                   {retryCopy(apiError) && (
                     <Text mt="0.25rem">{retryCopy(apiError)}</Text>
                   )}

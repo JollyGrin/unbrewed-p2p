@@ -7,6 +7,7 @@ import type {
   SavedToken,
   SheetCrop,
 } from "@/components/Positions/position.type";
+import { slug } from "./faceJobs";
 import type {
   FaceResolver,
   PackCard,
@@ -51,12 +52,7 @@ export type DeckToPackResult = {
   notes: string[];
 };
 
-const slugify = (text: string): string =>
-  text
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "") || "card";
+const slugify = (text: string): string => slug(text, "card");
 
 /** Unique-within-a-deck card codes: `strike`, `strike-2`, `strike-3`. */
 const codeAllocator = () => {
@@ -201,7 +197,10 @@ export const deckToPlayerPack = (
 
   // action cards, one entry per copy
   const deckCards: (PackCard | null)[] = [];
-  for (const card of data.cards.filter((c) => !c.isCharacterCard)) {
+  // a card with quantity 0 has no copies, as in the sandbox's Array(quantity)
+  for (const card of data.cards.filter(
+    (c) => !c.isCharacterCard && (c.quantity ?? 1) > 0,
+  )) {
     const base = allocate(card.title);
     const f = face(card);
     for (let n = 1; n <= Math.max(1, card.quantity); n++) {
@@ -454,6 +453,7 @@ export const deckToPlayerPack = (
       return;
     const name =
       token.label?.trim() ||
+      (token as { name?: string }).name?.trim() ||
       (token.icon ? iconLabel(token.icon) : `Token ${i + 1}`);
     const f = tokenFace(token);
     const counter = token.counter;

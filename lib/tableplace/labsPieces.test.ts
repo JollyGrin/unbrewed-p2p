@@ -247,10 +247,11 @@ describe("Labs pieces on the real payloads", () => {
     const names = body!.packs
       .slice(0, 2)
       .map((p) => p.pieces!.map((x) => x.name));
+    // each dial beside its figure (#1062), one HP counter per fighter (#1054)
     expect(names[0]).toEqual([
       "Lucy",
-      "Piper",
       "Lucy",
+      "Piper",
       "Piper",
       "frisbee token",
       "ball token",
@@ -258,8 +259,8 @@ describe("Labs pieces on the real payloads", () => {
     ]);
     expect(names[1]).toEqual([
       "Pink Panther",
-      "Inspector clouseau",
       "Pink Panther",
+      "Inspector clouseau",
       "Inspector clouseau",
     ]);
   });

@@ -8,12 +8,14 @@ import {
   catalogMapDef,
   composeTable,
   distance,
-  CARD_X,
   FRONT_ROW_Z,
+  PIECE_ROW_Z,
+  pileX,
   VIEW,
   mapSize,
   PLACEMENT_CAP,
   SNAP_POINT_CAP,
+  TOKEN_RADIUS,
   type CallerPlacement,
   type LobbyRequest,
 } from ".";
@@ -65,6 +67,7 @@ describe.each([
   ["Mended Drum (ProMapDef)", DRUM],
   ["plain 1.23", plain(1.23)],
   ["plain 1.54", plain(1.54)],
+  ["plain 1.625", plain(1.625)],
   ["plain 1.80", plain(1.8)],
 ])("%s", (_, map) => {
   const { body, skipped } = compose(map);
@@ -90,6 +93,20 @@ describe.each([
     for (const p of body.placements.filter((p) => p.kind === "deck")) {
       expect(Math.abs(p.position[0]) + 0.7).toBeLessThanOrEqual(VIEW.halfX);
       expect(Math.abs(p.position[1]) + 1).toBeLessThanOrEqual(12.4 + 1e-9);
+    }
+  });
+
+  it("keeps every piece's whole footprint inside VIEW", () => {
+    for (const p of body.placements) {
+      if (p.kind !== "piece") continue;
+      const r = packOf(body, p).pieces![p.piece].radius ?? TOKEN_RADIUS;
+      expect(Math.abs(p.position[0]) + r).toBeLessThanOrEqual(VIEW.halfX);
+      expect(Math.abs(p.position[1]) + r).toBeLessThanOrEqual(VIEW.halfZ);
+    }
+    for (const s of body.snapPoints) {
+      const r = s.radius ?? 0;
+      expect(Math.abs(s.position[0]) + r).toBeLessThanOrEqual(VIEW.halfX);
+      expect(Math.abs(s.position[1]) + r).toBeLessThanOrEqual(VIEW.halfZ);
     }
   });
 
@@ -170,7 +187,7 @@ describe("seat 1 mirrors seat 0", () => {
     ]);
   });
 
-  it("lays seat 0's front row out deck-left, hero-right", () => {
+  it("lays seat 0's card piles out from the middle to its right", () => {
     const { body } = compose(DRUM, [larry, larry]);
     const row = Object.fromEntries(
       body.placements
@@ -178,28 +195,29 @@ describe("seat 1 mirrors seat 0", () => {
         .map((p) => [(p as { slot: string }).slot, p.position]),
     );
     expect(row).toEqual({
-      deck: [CARD_X.deck, FRONT_ROW_Z],
-      discard: [CARD_X.discard, FRONT_ROW_Z],
-      rules: [CARD_X.rules, FRONT_ROW_Z],
-      hero: [CARD_X.hero, FRONT_ROW_Z],
-      sidekick: [CARD_X.sidekick, FRONT_ROW_Z],
-      extras: [CARD_X.extras, FRONT_ROW_Z],
+      deck: [pileX(0), FRONT_ROW_Z],
+      discard: [pileX(1), FRONT_ROW_Z],
+      hero: [pileX(2), FRONT_ROW_Z],
+      sidekick: [pileX(3), FRONT_ROW_Z],
+      extras: [pileX(4), FRONT_ROW_Z],
+      rules: [pileX(5), FRONT_ROW_Z],
     });
   });
 
-  it("puts seat 0's side column to its right (+x), beside the map", () => {
+  it("keeps seat 0's pieces to its right (+x), off the map", () => {
     const map = plain(1.54);
     const { body } = compose(map, [larry, larry]);
-    const { width } = mapSize(map.width / map.height);
-    const column = body.placements.filter(
+    const { width, height } = mapSize(map.width / map.height);
+    const kit = body.placements.filter(
       (p) => p.kind === "piece" && p.seat === 0,
     );
-    expect(column.length).toBeGreaterThan(0);
-    for (const { position } of column) {
-      expect(position[0]).toBeGreaterThanOrEqual(width / 2 + 1 - 1e-9);
-      expect(position[0]).toBeLessThanOrEqual(19.5);
-      expect(position[1]).toBeGreaterThanOrEqual(0.5);
-      expect(position[1]).toBeLessThanOrEqual(8.5);
+    expect(kit.length).toBeGreaterThan(0);
+    for (const { position } of kit) {
+      expect(position[0]).toBeGreaterThan(0.85);
+      expect(position[0]).toBeLessThanOrEqual(VIEW.halfX - 0.85);
+      expect(
+        position[0] - 0.85 >= width / 2 || position[1] - 0.85 >= height / 2,
+      ).toBe(true);
     }
   });
 });
@@ -232,9 +250,12 @@ describe("Mended Drum", () => {
     const hero0 = figures[names.indexOf("The Hollow Oak")];
     const hero1 = figures[names.indexOf(larry.deck_data.hero.name)];
     expect(hero0.seat).toBe(0);
-    expect(hero0.position).toEqual(space(1).position);
+    // slot 2 is on the +z half (seat 0's), slot 1 on the -z half
+    expect(hero0.position).toEqual(space(2).position);
+    expect(hero0.position[1]).toBeGreaterThan(0);
     expect(hero1.seat).toBe(1);
-    expect(hero1.position).toEqual(space(2).position);
+    expect(hero1.position).toEqual(space(1).position);
+    expect(hero1.position[1]).toBeLessThan(0);
     expect(hero0.position).not.toEqual(hero1.position);
 
     // hollow-oak's fox and Larry's four larries are beside their hero
@@ -268,21 +289,81 @@ describe("Mended Drum", () => {
   });
 });
 
+describe("dials", () => {
+  const { deck: oakDeck } = FIXTURES["hollow-oak"];
+  const nameOf = (body: LobbyRequest, p: CallerPlacement) =>
+    p.kind === "piece" ? packOf(body, p).pieces![p.piece].name : "";
+
+  it("puts the dials in a row beside the hero card, in fighter order, when the figures are on the board", () => {
+    const { body } = compose(DRUM, [oakDeck, oakDeck]);
+    const dials = body.placements.filter(
+      (p) =>
+        p.seat === 0 &&
+        p.kind === "piece" &&
+        packOf(body, p).pieces![p.piece].kind === "counter",
+    );
+    expect(nameOf(body, dials[0])).toBe("The Hollow Oak HP");
+    expect(dials.length).toBeGreaterThan(1);
+    dials.forEach((d, i) =>
+      expect(d.position).toEqual([
+        Math.round((pileX(2) + 1.8 * i) * 100) / 100,
+        PIECE_ROW_Z,
+      ]),
+    );
+  });
+
+  it("puts each dial beside its figure when the figures are off the board", () => {
+    const { body } = compose(plain(1.54), [oakDeck, oakDeck]);
+    const seat0 = body.placements.filter(
+      (p) => p.seat === 0 && p.kind === "piece",
+    );
+    const names = seat0.map((p) => nameOf(body, p));
+    for (const p of seat0.filter((p) => nameOf(body, p).endsWith(" HP"))) {
+      const figure = names.indexOf(nameOf(body, p).slice(0, -3));
+      expect(figure).toBe(seat0.indexOf(p) + 1);
+      expect(distance(p.position, seat0[figure].position)).toBeLessThanOrEqual(
+        1.8 + 1e-6,
+      );
+    }
+  });
+});
+
+const nameOfPiece = (body: LobbyRequest, p: CallerPlacement) =>
+  p.kind === "piece" ? packOf(body, p).pieces![p.piece].name : "";
+
+describe("hero start slots", () => {
+  it("puts each hero on its own half, falling back to slots 1 and 2", () => {
+    const { body } = compose(DRUM);
+    const heroes = body.placements.filter(
+      (p) =>
+        p.kind === "piece" &&
+        [oak.deck_data.hero.name, larry.deck_data.hero.name].includes(
+          nameOfPiece(body, p),
+        ),
+    );
+    const z = (seat: number) =>
+      heroes.find((p) => p.seat === seat)!.position[1];
+    expect(z(0)).toBeGreaterThan(0);
+    expect(z(1)).toBeLessThan(0);
+  });
+});
+
 describe("a board with no ProMapDef", () => {
   const { body } = compose(plain(1.54));
   it("has only the front-strip snap points", () => {
     expect(body.snapPoints).toHaveLength(4);
   });
-  it("stands the figures in their own side column, off the map", () => {
-    const { width } = mapSize(1.54);
+  it("stands the figures in their player's kit, off the map", () => {
+    const { width, height } = mapSize(1.54);
     const figures = body.placements.filter(
       (p) =>
         p.kind === "piece" && packOf(body, p).pieces![p.piece].kind === "token",
     );
     expect(figures.length).toBeGreaterThan(0);
     for (const p of figures) {
-      expect(Math.abs(p.position[0])).toBeGreaterThan(width / 2);
-      expect(Math.sign(p.position[0])).toBe(p.seat === 0 ? 1 : -1);
+      const [x, z] = p.position;
+      expect(Math.abs(x) > width / 2 || Math.abs(z) > height / 2).toBe(true);
+      expect(Math.sign(x)).toBe(p.seat === 0 ? 1 : -1);
     }
   });
 });
@@ -319,7 +400,7 @@ describe("caps", () => {
     expect(body!.snapPoints.length).toBeLessThanOrEqual(SNAP_POINT_CAP);
   });
 
-  it("drops saved tokens from the end when the column is full", () => {
+  it("drops saved tokens from the end when the kit is full", () => {
     const hoard = tokenDeck();
     hoard.savedTokens = Array.from({ length: 60 }, (_, i) => ({
       imageUrl: `https://unbrewed.xyz/tokens/t${i}.png`,
@@ -343,6 +424,36 @@ describe("caps", () => {
       ).toHaveLength(pack.pieces!.length);
       expect(pack.pieces!.some((p) => p.name === "Token 1")).toBe(true);
     }
+  });
+
+  it("records trimmed snap points and refuses a table it cannot fit", () => {
+    const map = { ...DRUM, imageUrl: "https://x/many.webp" };
+    const def = {
+      ...catalogMapDef(DRUM.imageUrl)!,
+      spaces: Array.from({ length: 210 }, (_, i) => ({
+        ...mendedDrum.spaces[0],
+        id: `s${i}`,
+        start: undefined,
+      })),
+    } as never;
+    const r = composeTable({
+      seats: [oak, oak],
+      map,
+      faces: fakeFaces,
+      mapDef: def,
+    });
+    expect(r.body!.snapPoints).toHaveLength(SNAP_POINT_CAP);
+    expect(r.skipped.some((m) => /snap points left off/.test(m))).toBe(true);
+
+    const big = tokenDeck();
+    big.deck_data.sidekick.quantity = 60;
+    const refused = composeTable({
+      seats: [big, big],
+      map: DRUM,
+      faces: fakeFaces,
+    });
+    expect(refused.body).toBeNull();
+    expect(refused.skipped.join()).toMatch(/at most 100/);
   });
 
   it("refuses a deck with a missing face before composing anything", () => {

@@ -213,3 +213,35 @@ describe("mapToTablePack", () => {
     ).toBe(16);
   });
 });
+
+describe("quantity and token names", () => {
+  it("skips action cards with quantity 0 (and asks no face for them)", () => {
+    const { deck } = FIXTURES["hollow-oak"];
+    const copy = JSON.parse(JSON.stringify(deck)) as typeof deck;
+    const action = copy.deck_data.cards.filter((c) => !c.isCharacterCard);
+    const zero = action[0];
+    const before = action.reduce((n, c) => n + Math.max(1, c.quantity), 0);
+    const zeroCopies = Math.max(1, zero.quantity);
+    zero.quantity = 0;
+    const asked: string[] = [];
+    const r = deckToPlayerPack(copy, {
+      faces: (c) => {
+        asked.push(c.title);
+        return fakeFaces(c);
+      },
+    });
+    const cards = r.pack!.decks!.find((d) => d.slot === "deck")!.cards;
+    expect(cards).toHaveLength(before - zeroCopies);
+    expect(cards.some((c) => c.name === zero.title)).toBe(false);
+    expect(asked).not.toContain(zero.title);
+  });
+
+  it("uses a saved token's own name when it has one", () => {
+    const deck = tokenDeck();
+    deck.savedTokens = [
+      { imageUrl: "https://x/t.png", name: "Poison" } as never,
+    ];
+    const r = deckToPlayerPack(deck, { faces: fakeFaces });
+    expect(r.pieces.find((p) => p.role === "token")!.piece.name).toBe("Poison");
+  });
+});

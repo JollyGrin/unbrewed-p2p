@@ -49,15 +49,26 @@ export const InviteScreen = ({
 
   return (
     <VStack spacing="1.25rem" w="100%" align="stretch" data-testid="invite">
-      <Text fontFamily="SpaceGrotesk" fontWeight={700} fontSize="1.6rem">
+      <Text
+        as="h1"
+        fontFamily="SpaceGrotesk"
+        fontWeight={700}
+        fontSize="1.6rem"
+      >
         Your table is ready
       </Text>
 
       <Box>
-        <Text fontWeight={700}>1. Open your seat</Text>
+        <Text as="h2" fontWeight={700}>
+          1. Open your seat
+        </Text>
         <Text fontSize="0.9rem" opacity={0.8}>
           Open it now: a table nobody has joined closes after about{" "}
           {EMPTY_LOBBY_REAP_MINUTES} minutes.
+        </Text>
+        <Text fontSize="0.9rem" opacity={0.8} data-testid="camera-hint">
+          Scroll out to see the whole table: your cards are along the edge
+          nearest you.
         </Text>
         <Button
           as="a"
@@ -75,7 +86,9 @@ export const InviteScreen = ({
       </Box>
 
       <Box>
-        <Text fontWeight={700}>2. Invite your friend</Text>
+        <Text as="h2" fontWeight={700}>
+          2. Invite your friend
+        </Text>
         <Text fontSize="0.9rem" opacity={0.8}>
           Send them this link. It opens the other seat.
         </Text>
@@ -85,6 +98,7 @@ export const InviteScreen = ({
             value={theirs}
             bg="white"
             flex="1 1 16rem"
+            aria-label="Your friend's invite link"
             onFocus={(e) => e.target.select()}
             data-testid="seat-1"
           />
