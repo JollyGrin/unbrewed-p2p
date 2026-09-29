@@ -56,13 +56,18 @@ say "balanced decks" not "official decks", no emoji.
 - **`npm run changelog:validate`** — validates every entry's shape (same
   rules as the runtime loader in `lib/changelog/entries.ts`) plus the copy
   rules above. Exits 1 on any failure; runs first in `npm test`.
-- **`npm run changelog:poster -- <slug>`** — takes
-  `<promos>/<slug>-discord.mp4` (falling back to `<promos>/<slug>.mp4`) and
-  writes `<out>/<slug>.mp4` (copied, or re-encoded to 720p H.264 + faststart
-  if the source is over 8MB) and `<out>/<slug>-poster.webp` (a frame at 1s,
-  1280 wide) into a git-ignored `.changelog-media/changelog/` by default. It
-  does not upload anywhere — the changelog CDN isn't set up — it just prints
-  the two file paths and the URLs they'll have. Requires `ffmpeg`.
+- **`npm run changelog:poster -- <slug> [--upload] [--force]`** — reads the
+  master `<promos>/<slug>.mp4` (falling back to `<slug>-discord.mp4` only if
+  the master is missing) and always re-encodes it (720p max, libx264
+  `-preset slow -crf 26`, aac 96k, faststart) to `<out>/<slug>.mp4`, plus
+  `<out>/<slug>-poster.webp` (a frame at 1s, 1280 wide), into a git-ignored
+  `.changelog-media/changelog/` by default. Prints sizes and warns above 6MB.
+  With `--upload` it runs `aws --profile unbrewed-cdn s3 cp` for both files to
+  `s3://unbrewed-cdn/changelog/` (immutable cache headers), refuses to
+  overwrite an existing key unless `--force`, then curls the public URL and
+  reports status + content-length. Credentials live in the local aws profile
+  only — never in the repo, CI, or env files. Requires `ffmpeg` (and `aws`,
+  `curl` for `--upload`).
 
 ## Media URL convention
 
@@ -74,6 +79,10 @@ ${NEXT_PUBLIC_CHANGELOG_MEDIA_URL}/changelog/<slug>.mp4
 ${NEXT_PUBLIC_CHANGELOG_MEDIA_URL}/changelog/<slug>-poster.webp
 ```
 
+The CDN is the public R2 bucket at `https://cdn.unbrewed.xyz`. Set
+`NEXT_PUBLIC_CHANGELOG_MEDIA_URL=https://cdn.unbrewed.xyz` in `.env.local` for
+local dev; CI reads it from the repo variable of the same name
+(`.github/workflows/nextjs.yml`).
+
 With the env var unset, both helpers return `null` and the UI renders the
-entry as text only — never invent a default URL. Once the CDN exists, upload
-`poster.mjs`'s two output files there under those paths.
+entry as text only — never invent a default URL in code.
