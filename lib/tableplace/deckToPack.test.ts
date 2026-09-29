@@ -87,6 +87,34 @@ describe("Labs deck", () => {
   });
 });
 
+describe("Labs deck with a sidekick but no sidekick card", () => {
+  const r = convert("labs-elliot");
+  it("converts, noting the missing card instead of refusing", () => {
+    expect(r.skipped).toEqual([]);
+    expect(r.pack).not.toBeNull();
+    expect(slot(r, "sidekick")).toBeUndefined();
+    expect(r.notes).toEqual([
+      expect.stringMatching(/THE AUDIENCE has no separate card/),
+    ]);
+  });
+  it("keeps the sidekick HP counters and figures", () => {
+    const hp = r.pieces.filter((p) => p.role === "hp");
+    const figs = r.pieces.filter(
+      (p) => p.role === "fighter" && p.fighter === "sidekick",
+    );
+    expect(hp.filter((p) => /THE AUDIENCE/.test(p.piece.name))).toHaveLength(5);
+    expect(figs).toHaveLength(5);
+  });
+  it("still refuses when the hero face is missing", () => {
+    const { deck } = FIXTURES["hollow-oak"];
+    const bad = deckToPlayerPack(deck, {
+      faces: (c) => (c.isCharacterCard ? null : fakeFaces(c)),
+    });
+    expect(bad.pack).toBeNull();
+    expect(bad.skipped.length).toBeGreaterThan(0);
+  });
+});
+
 describe("sidekick with quantity > 1 and extra characters", () => {
   const r = convert("larry-extra-characters");
   it("gives one HP counter per fielded sidekick", () => {

@@ -21,6 +21,8 @@ export type DeckPreview = {
   refused: string | null;
   /** The converter's list, in plain words. */
   skipped: string[];
+  /** Quiet, informational: cards left off the table because they have no face. */
+  notes: string[];
 };
 
 const NO_FACE = /: no finished face$/;
@@ -52,7 +54,7 @@ export const previewDeck = (
   faces: FaceResolver = () => null,
 ): DeckPreview => {
   const data = deck.deck_data;
-  const { skipped } = deckToPlayerPack(deck, { faces });
+  const { skipped, notes } = deckToPlayerPack(deck, { faces });
   // The shape of the table doesn't depend on the faces: a stand-in face shows
   // what a refused deck WOULD put down, so its preview isn't empty.
   const { pack, pieces } = deckToPlayerPack(deck, { faces: () => "about:" });
@@ -85,5 +87,6 @@ export const previewDeck = (
     refused,
     // one line says it all; a card-by-card list is noise
     skipped: refused ? [] : skipped.map(plainSkipped),
+    notes: refused ? [] : notes,
   };
 };

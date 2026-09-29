@@ -47,6 +47,8 @@ export type DeckToPackResult = {
   pieces: PlayerPiece[];
   /** Human-readable reasons, shown before anyone creates a table. */
   skipped: Skipped[];
+  /** Informational only: synthesised reference cards left out for lack of a face. */
+  notes: string[];
 };
 
 const slugify = (text: string): string =>
@@ -155,6 +157,7 @@ export const deckToPlayerPack = (
 ): DeckToPackResult => {
   const data = deck.deck_data;
   const skipped: Skipped[] = [];
+  const notes: string[] = [];
   const allocate = codeAllocator();
 
   const resolved = (title: string, found: string | null): string | null => {
@@ -176,8 +179,14 @@ export const deckToPlayerPack = (
     code: string,
     lookup: (() => string | null) | undefined,
     printed: DeckImportCardType,
+    optional?: string,
   ): PackCard | null => {
-    const f = resolved(name, lookup ? lookup() : faces(printed));
+    const found = lookup ? lookup() : faces(printed);
+    if (!found && optional) {
+      notes.push(optional);
+      return null;
+    }
+    const f = resolved(name, found);
     return f ? { code, name, face: f } : null;
   };
   const compact = (cards: (PackCard | null)[]): PackCard[] =>
@@ -230,6 +239,7 @@ export const deckToPlayerPack = (
         ruleCodes(rule.title),
         faces.rule && (() => faces.rule!(i)),
         printedCard(rule.title, rule.content, data.hero.name),
+        `${rule.title} has no card face; omitted`,
       ),
     );
   });
@@ -247,6 +257,7 @@ export const deckToPlayerPack = (
           ruleCodes(name),
           faces.extraCharacter && (() => faces.extraCharacter!(i, part)),
           printedCard(name, text, name),
+          `${name} has no card face; omitted`,
         ),
       );
     }
@@ -269,9 +280,10 @@ export const deckToPlayerPack = (
           "sidekick",
           faces.sidekick,
           printedCard(data.sidekick.name, "", data.sidekick.name),
+          `${data.sidekick.name} has no separate card; its rules are on the hero card`,
         );
 
-  if (skipped.length) return { pack: null, pieces: [], skipped };
+  if (skipped.length) return { pack: null, pieces: [], skipped, notes: [] };
 
   const rawBack =
     data.appearance.cardbackUrl ||
@@ -392,5 +404,6 @@ export const deckToPlayerPack = (
     },
     pieces,
     skipped,
+    notes,
   };
 };
