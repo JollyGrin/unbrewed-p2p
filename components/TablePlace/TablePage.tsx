@@ -3,7 +3,6 @@ import {
   Button,
   Flex,
   Image,
-  Input,
   ListItem,
   Select,
   Text,
@@ -21,7 +20,6 @@ import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import type { MapData } from "@/lib/hooks/useLocalStorage";
 import { useBagDecks, useBagMaps } from "@/lib/bag/useBag";
 import { useDeckLink } from "@/lib/hooks/useDeckLink";
-import { fetchLinkedDeck } from "@/lib/deckLink";
 import { absoluteUrl, composeTable } from "@/lib/tableplace";
 import {
   createLobby,
@@ -32,11 +30,12 @@ import {
   type LobbyCreated,
   type TablePlaceError,
 } from "@/lib/tableplace/api";
-import { opponentDeckLink } from "@/lib/tableplace/opponent";
 import { plainSkipped, previewDeck } from "@/lib/tableplace/preview";
 import { DeckPreviewCard } from "./DeckPreviewCard";
+import { OpponentPicker } from "./OpponentPicker";
 import { InviteScreen } from "./InviteScreen";
 import { useImageSize } from "./useImageSize";
+import { useOpponentDeck } from "./useOpponentDeck";
 
 type Status = "idle" | "validating" | "creating";
 
@@ -56,47 +55,6 @@ const Step = ({
     <Box mt="0.5rem">{children}</Box>
   </Box>
 );
-
-const useOpponentDeck = () => {
-  const [pasted, setPasted] = useState("");
-  const [deck, setDeck] = useState<DeckImportType>();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>();
-
-  const load = async (fetcher: () => Promise<DeckImportType>) => {
-    setLoading(true);
-    setError(undefined);
-    setDeck(undefined);
-    try {
-      setDeck(await fetcher());
-    } catch {
-      setError("Couldn't load that deck. Check the link and try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadPasted = () => {
-    const link = opponentDeckLink(pasted);
-    if (!link) {
-      setDeck(undefined);
-      setError(
-        "That isn't a deck link. Paste an unmatched.cards or Unmatched Labs link, or a deck id.",
-      );
-      return;
-    }
-    load(() => fetchLinkedDeck(link).then((r) => r.deck));
-  };
-
-  return {
-    pasted,
-    setPasted,
-    loadPasted,
-    deck,
-    loading,
-    error,
-  };
-};
 
 export const TablePage = () => {
   const { query, isReady } = useRouter();
@@ -226,31 +184,7 @@ export const TablePage = () => {
             </Step>
 
             <Step n={2} title="Their deck">
-              <Flex gap="0.5rem" alignItems="center" flexWrap="wrap">
-                <Input
-                  bg="white"
-                  maxW="32rem"
-                  placeholder="unmatched.cards or Unmatched Labs link, or a deck id"
-                  value={opponent.pasted}
-                  onChange={(e) => opponent.setPasted(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && opponent.loadPasted()}
-                  data-testid="opponent-link"
-                />
-                <Button
-                  onClick={opponent.loadPasted}
-                  isLoading={opponent.loading}
-                >
-                  Load
-                </Button>
-              </Flex>
-              <Text fontSize="0.8rem" opacity={0.7} mt="0.25rem">
-                Picking a seat for a friend to fill is coming with open seats.
-              </Text>
-              {opponent.error && (
-                <Text mt="0.5rem" color="red.700">
-                  {opponent.error}
-                </Text>
-              )}
+              <OpponentPicker decks={decks} opponent={opponent} />
             </Step>
 
             <Step n={3} title="Map">

@@ -2,6 +2,7 @@
  * The opponent's deck on /table (issue #1008, challenge C2). v1 has no open
  * seats, so the host picks both decks before the lobby exists.
  */
+import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { parseDeckLink } from "@/lib/deckLink";
 import { parseLabsInput } from "@/lib/labs";
 
@@ -26,4 +27,16 @@ export const opponentDeckLink = (raw: string): string | null => {
   if (link.source === "labs") return `labs:${link.characterId}`;
   // a URL from anywhere else isn't a deck id
   return /^[A-Za-z0-9_-]+$/.test(input) ? input : null;
+};
+
+/**
+ * A bag deck's line in the opponent dropdown: its name, plus the hero when
+ * the name doesn't already say it.
+ */
+export const bagDeckLabel = (deck: DeckImportType): string => {
+  const hero = deck.deck_data?.hero?.name;
+  if (!hero || deck.name.toLowerCase().includes(hero.toLowerCase())) {
+    return deck.name;
+  }
+  return `${deck.name} (${hero})`;
 };
