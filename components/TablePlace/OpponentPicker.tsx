@@ -41,6 +41,7 @@ export const OpponentPicker = ({
       <Input
         bg="white"
         maxW="32rem"
+        aria-label="Their deck: a link or deck id"
         placeholder="unmatched.cards or Unmatched Labs link, or a deck id"
         value={opponent.pasted}
         onChange={(e) => opponent.setPasted(e.target.value)}
@@ -55,7 +56,7 @@ export const OpponentPicker = ({
       Picking a seat for a friend to fill is coming with open seats.
     </Text>
     {opponent.error && (
-      <Text mt="0.5rem" color="red.700">
+      <Text mt="0.5rem" color="red.700" role="alert">
         {opponent.error}
       </Text>
     )}

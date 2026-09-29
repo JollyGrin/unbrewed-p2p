@@ -71,7 +71,13 @@ export const DeckPreviewCard = ({
       <Row label="Tokens" value={preview.tokens.join(", ") || "none"} />
     </Box>
     {preview.refused && (
-      <Text mt="0.5rem" color="red.700" fontWeight={600} fontSize="0.9rem">
+      <Text
+        mt="0.5rem"
+        color="red.700"
+        fontWeight={600}
+        fontSize="0.9rem"
+        role="alert"
+      >
         Can&apos;t go on the table: {preview.refused}
       </Text>
     )}
