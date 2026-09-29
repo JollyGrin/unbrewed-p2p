@@ -1,0 +1,14 @@
+{
+  "id": "2026-08-23-quick-match",
+  "date": "2026-08-23",
+  "title": "Quick Match: one button finds you a game",
+  "summary": "Lock in a fighter and press Quick Match to join whoever has waited longest, or open a public lobby and wait for an opponent. Lobbies are now public by default, and a chime plays when someone joins.",
+  "tags": [
+    "feature"
+  ],
+  "highlight": true,
+  "cta": {
+    "label": "Try Quick Match",
+    "href": "/pro"
+  }
+}

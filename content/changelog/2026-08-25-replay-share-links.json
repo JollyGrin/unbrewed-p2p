@@ -1,0 +1,10 @@
+{
+  "id": "2026-08-25-replay-share-links",
+  "date": "2026-08-25",
+  "title": "Replay share links play back reliably",
+  "summary": "Share a finished game with a link. Replays are checked as they play, so older games still play back after rules changes, with a clear note if a game can no longer be followed to the end.",
+  "tags": [
+    "feature"
+  ],
+  "highlight": false
+}

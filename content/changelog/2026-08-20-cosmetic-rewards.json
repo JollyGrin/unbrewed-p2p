@@ -1,0 +1,17 @@
+{
+  "id": "2026-08-20-cosmetic-rewards",
+  "date": "2026-08-20",
+  "title": "Cosmetic rewards: earn rims for your cards and tokens",
+  "summary": "Win games with a hero to earn points toward bronze, silver, gold and iridescent rims. Wear them on that hero's token and card outlines, and choose which tier you show from your collection.",
+  "tags": [
+    "feature"
+  ],
+  "highlight": true,
+  "video": {
+    "slug": "cosmetics"
+  },
+  "cta": {
+    "label": "Open your collection",
+    "href": "/collection"
+  }
+}

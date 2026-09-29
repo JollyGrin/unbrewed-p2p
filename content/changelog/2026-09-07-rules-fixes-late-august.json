@@ -1,0 +1,10 @@
+{
+  "id": "2026-09-07-rules-fixes-late-august",
+  "date": "2026-09-07",
+  "title": "Rules accuracy fixes: end of August",
+  "summary": "Sidekicks now start in the right zones for large fighters, forced end-of-turn effects skip straight to cleanup, and off-board fighters ignore card damage. Kong's start-of-turn ability now sees sidekicks too.",
+  "tags": [
+    "fix"
+  ],
+  "highlight": false
+}

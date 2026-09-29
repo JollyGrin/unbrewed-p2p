@@ -1,0 +1,10 @@
+{
+  "id": "2026-08-21-step-by-step-movement",
+  "date": "2026-08-21",
+  "title": "Move cards now walk you space by space",
+  "summary": "When a card or scheme lets you move, you click each space along the path instead of jumping straight to the last one. It works for two-space fighters as well.",
+  "tags": [
+    "feature"
+  ],
+  "highlight": false
+}

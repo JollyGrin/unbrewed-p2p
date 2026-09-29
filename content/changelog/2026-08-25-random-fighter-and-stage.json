@@ -1,0 +1,14 @@
+{
+  "id": "2026-08-25-random-fighter-and-stage",
+  "date": "2026-08-25",
+  "title": "Random fighter and random stage tiles",
+  "summary": "Not sure what to play? Roll a random fighter from the roster you are looking at, or let the lobby pick the stage. Filters and search narrow the roll.",
+  "tags": [
+    "feature"
+  ],
+  "highlight": false,
+  "cta": {
+    "label": "Roll a fighter",
+    "href": "/pro"
+  }
+}

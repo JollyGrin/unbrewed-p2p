@@ -1,0 +1,18 @@
+{
+  "id": "2026-08-23-vader-maul-luke-graduate",
+  "date": "2026-08-23",
+  "title": "Darth Vader, Darth Maul and Luke Skywalker leave the lab",
+  "summary": "The three Star Wars decks finished playtesting and are now community decks in Pro.",
+  "tags": [
+    "deck"
+  ],
+  "highlight": false,
+  "pro": true,
+  "video": {
+    "slug": "darth-vader"
+  },
+  "cta": {
+    "label": "Pick a fighter",
+    "href": "/pro"
+  }
+}
