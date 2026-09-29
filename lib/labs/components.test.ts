@@ -365,3 +365,33 @@ describe("second fighter's dial on the real Spy vs Spy set (#1004)", () => {
     expect(tokens[1].counter).toEqual({ value: 20, min: 0, max: 20 });
   });
 });
+
+describe("whose standee a Labs figure / token is (fighter)", () => {
+  it("Pink Panther: the unnamed figure is the hero's, the Sidekick token the sidekick's", () => {
+    const deck = buildLabsImport({ row: PINK, ttsModels: parseLabsTtsSave(pinkSave) }, PINK_ID).deck;
+    expect(deck.labsComponents!.map((c) => [c.kind, c.fighter])).toEqual([
+      ["dial", undefined],
+      ["dial", undefined],
+      ["figure", "hero"],
+      ["token", "sidekick"],
+    ]);
+  });
+
+  it("Lucy & Piper: dials and pieces belong to no fighter", () => {
+    const deck = buildLabsImport({ row: LUCY, ttsModels: parseLabsTtsSave(lucySave) }, LUCY_ID).deck;
+    expect(deck.labsComponents!.every((c) => c.fighter === undefined)).toBe(true);
+  });
+
+  it("a token naming a second fighter points at that extra", () => {
+    const set = clone(LUCY.document.set);
+    const lucyHero = set.characters.find((c) => c.id === LUCY_ID)!;
+    const frisbee = set.figures!.find((f) => f.name === "frisbee token")!;
+    frisbee.kind = "token";
+    frisbee.name = "Piper standee";
+    const models = parseLabsTtsSave(lucySave).map((m) =>
+      m.nickname === "frisbee token" ? { ...m, nickname: "Piper standee" } : m,
+    );
+    const { record } = labsComponentTokens(set, lucyHero, models, [{ name: "Piper", health: 10 }]);
+    expect(record.find((c) => c.key === frisbee.id)?.fighter).toBe(0);
+  });
+});

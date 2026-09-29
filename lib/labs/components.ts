@@ -195,6 +195,24 @@ export const labsComponentTokens = (
     };
   };
 
+  // whose standee a figure / token component is, for the table's fighters
+  const fighterOf = (f: LabsFigure): LabsComponentRecord["fighter"] => {
+    if (f.kind === "dial" || f.kind === "piece") return undefined;
+    const name = norm(f.name);
+    if (f.characterId === hero.id && (!name || name === norm(hero.name)))
+      return "hero";
+    if (
+      sidekick &&
+      name &&
+      ((!!sidekickName && name.includes(sidekickName)) || name.includes("sidekick"))
+    )
+      return "sidekick";
+    const extra = name
+      ? extras.findIndex((e) => !!norm(e.name) && name.includes(norm(e.name)))
+      : -1;
+    return extra >= 0 ? extra : undefined;
+  };
+
   const tokens: SavedToken[] = [];
   const record: LabsComponentRecord[] = [];
   for (const figure of mine) {
@@ -223,7 +241,13 @@ export const labsComponentTokens = (
               : { value: max(figure) ?? 0, ...limits(figure) };
     }
     tokens.push(token);
-    record.push({ key: figure.id, kind, url: imageUrl });
+    const fighter = fighterOf(figure);
+    record.push({
+      key: figure.id,
+      kind,
+      url: imageUrl,
+      ...(fighter !== undefined ? { fighter } : {}),
+    });
   }
   return { tokens, record };
 };
