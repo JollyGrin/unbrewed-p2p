@@ -24,6 +24,11 @@ const MAPS = {
     width: 1145,
     height: 857,
   },
+  "city-docks (ProMapDef, relative picker url)": {
+    imageUrl: "/maps/community-city-docks-85.webp",
+    width: 1280,
+    height: 720,
+  },
   "commencement 1.23": {
     imageUrl: "https://unbrewed.xyz/maps/community-commencement-66.webp",
     width: 1024,

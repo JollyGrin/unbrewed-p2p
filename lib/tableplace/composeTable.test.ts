@@ -2,6 +2,8 @@ import { describe, expect, it } from "@jest/globals";
 import fs from "fs";
 import path from "path";
 import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
+import { MAP_CATALOG } from "@/lib/pro/mapCatalog";
+import { buildMapList } from "./mapList";
 import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 import {
   CARD_STACK_RADIUS,
@@ -464,5 +466,52 @@ describe("caps", () => {
     });
     expect(r.body).toBeNull();
     expect(r.skipped).toEqual(["Seat 1: Foxfire: no finished face"]);
+  });
+});
+
+describe("relative picker urls (regression #1078)", () => {
+  const RATIO = 1.34;
+  const relative = (abs: string) => new URL(abs).pathname;
+
+  it.each([
+    ["City Docks", "/maps/community-city-docks-85.webp"],
+    ["Mended Drum", "/maps/legacy-the-mended-drum.webp"],
+  ])("%s: a relative url still gets its spaces and start slots", (_n, url) => {
+    const def = catalogMapDef(url)!;
+    expect(def).not.toBeNull();
+    const map = {
+      imageUrl: url,
+      width: Math.round(1000 * RATIO),
+      height: 1000,
+    };
+    const { body } = compose(map as typeof DRUM);
+    expect(body.snapPoints).toHaveLength(def.spaces.length + 4);
+    const spaces = body.snapPoints.slice(4).map((s) => s.position);
+    const heroes = body.placements.filter(
+      (p) =>
+        p.kind === "piece" &&
+        packOf(body, p).pieces![p.piece].kind === "token" &&
+        spaces.some((s) => s[0] === p.position[0] && s[1] === p.position[1]),
+    );
+    expect(heroes.map((p) => p.seat).sort()).toEqual([0, 1]);
+  });
+
+  it("relative and absolute urls compose the same table", () => {
+    const abs = compose(DRUM).body;
+    const rel = compose({ ...DRUM, imageUrl: relative(DRUM.imageUrl) }).body;
+    expect(rel.snapPoints).toEqual(abs.snapPoints);
+  });
+
+  it.each(
+    MAP_CATALOG.filter((e) => !e.hidden && e.map.meta.imageUrl).map((e) => ({
+      title: e.title,
+      def: e.map,
+    })),
+  )("$title: its picker entry resolves to its def", ({ def }) => {
+    const entry = buildMapList().find(
+      (m) => m.spaces && catalogMapDef(m.imgUrl)?.id === def.id,
+    );
+    expect(entry).toBeDefined();
+    expect(catalogMapDef(relative(def.meta.imageUrl!))?.id).toBe(def.id);
   });
 });
