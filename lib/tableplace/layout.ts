@@ -32,7 +32,7 @@
  *   1 the card row past the last pile, 2 the corner beside the map, and
  *   ░ in front of the deck and discard.
  */
-import type { ProMapDef } from "@/lib/pro/protocol";
+import type { MapLayout } from "@/lib/hooks/useLocalStorage";
 
 export type Seat = 0 | 1;
 export type XZ = [number, number];
@@ -163,11 +163,11 @@ export type BoardGeometry = {
 };
 
 /**
- * Where a ProMapDef's spaces land on the felt. The image's top edge (y = 0)
- * faces seat 1 at -z; `x`/`y` are fractions of the image, and
- * `spaceDiameter` is a fraction of its WIDTH.
+ * Where a board's spaces (a `ProMapDef`, or a Labs map's `MapLayout`) land on
+ * the felt. The image's top edge (y = 0) faces seat 1 at -z; `x`/`y` are
+ * fractions of the image, and `spaceDiameter` is a fraction of its WIDTH.
  */
-export const boardGeometry = (def: ProMapDef, ratio: number): BoardGeometry => {
+export const boardGeometry = (def: MapLayout, ratio: number): BoardGeometry => {
   const { width, height } = mapSize(ratio);
   const diameter = (def.meta.spaceDiameter ?? 0.06) * width;
   return {

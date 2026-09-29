@@ -11,6 +11,8 @@ import {
   buildLabsImport,
   fetchLabsImport,
   fetchLabsSet,
+  labsMapLayout,
+  labsMapOfDeck,
   labsMapOffer,
   parseLabsTtsMap,
   supersededLabsMaps,
@@ -78,8 +80,10 @@ describe("the map offer on a Labs import", () => {
         imgUrl: BACKYARD,
         meta: { title: "the backyard", author: "Tombadil Bombadil" },
         labsSlug: LUCY.slug,
+        layout: labsMapLayout(LUCY.document.set.map!),
       },
     });
+    expect(map?.map.layout?.spaces).toHaveLength(34);
     expect(deck.user).toBe("Tombadil Bombadil");
   });
 
@@ -161,10 +165,83 @@ describe("a republished set's map (#1029)", () => {
     expect(calls).toEqual([`add ${NEW.imgUrl} true`, `remove ${OLD.imgUrl}`]);
   });
 
+  it("keeps the star of the copy a same-url re-import replaces", async () => {
+    const added: MapData[] = [];
+    const stored = { ...NEW, isStarred: true };
+    const bag = {
+      data: [stored],
+      add: async (m: MapData) => (added.push(m), true),
+      remove: async () => {},
+    };
+    expect(await addLabsMap({ ...NEW, layout: { meta: {}, spaces: [] } }, bag)).toBe(true);
+    expect(added[0]).toMatchObject({ isStarred: true, layout: { spaces: [] } });
+  });
+
   it("keeps the old map when the new one could not be stored", async () => {
     const remove = jest.fn(async (_url: string) => {});
     const bag = { data: [OLD], add: async () => false, remove };
     expect(await addLabsMap(NEW, bag)).toBe(false);
     expect(remove).not.toHaveBeenCalled();
+  });
+});
+
+describe("a Labs map's layout (#1056)", () => {
+  const BACKYARD_MAP = LUCY.document.set.map!;
+  const layout = labsMapLayout(BACKYARD_MAP)!;
+
+  it("keeps all 34 spaces, the space size and the four start slots", () => {
+    expect(layout.spaces).toHaveLength(34);
+    expect(layout.meta.spaceDiameter).toBe(0.0757);
+    expect(
+      layout.spaces.flatMap((s) => (s.start ? [s.start.slot] : [])).sort(),
+    ).toEqual([1, 2, 3, 4]);
+    for (const s of layout.spaces) {
+      expect(s.x).toBeGreaterThan(0);
+      expect(s.x).toBeLessThan(1);
+      expect(s.y).toBeGreaterThan(0);
+      expect(s.y).toBeLessThan(1);
+    }
+  });
+
+  it("turns Labs' width-fraction y into a fraction of the height", () => {
+    // Measured on the 3072×1705 render: start 1's circle is centred at
+    // (284, 1344) px, i.e. (0.0924, 0.788) of the image.
+    const one = layout.spaces.find((s) => s.start?.slot === 1)!;
+    expect(one.x).toBeCloseTo(284 / 3072, 3);
+    expect(one.y).toBeCloseTo(1344 / 1705, 2);
+    // the bottom row reaches the lower half; y as-is would stop at 0.5
+    expect(Math.max(...layout.spaces.map((s) => s.y))).toBeGreaterThan(0.85);
+  });
+
+  it("has no layout for a map with no spaces or no aspect", () => {
+    expect(labsMapLayout(PINK.document.set.map!)).toBeUndefined();
+    expect(labsMapLayout({ ...BACKYARD_MAP, aspect: undefined })).toBeUndefined();
+  });
+
+  it("leaves out start slots a board does not print", () => {
+    const noStarts = clone(BACKYARD_MAP);
+    noStarts.spaces!.forEach((s) => (s.start = null));
+    const bare = labsMapLayout(noStarts)!;
+    expect(bare.spaces).toHaveLength(34);
+    expect(bare.spaces.some((s) => s.start)).toBe(false);
+  });
+});
+
+describe("a Labs deck's own map in the bag", () => {
+  const deck = {
+    id: `labs-${LUCY_ID}`,
+    sourceUrl: `https://www.unmatchedlabs.com/shared/${LUCY.slug}?character=${LUCY_ID}`,
+  };
+  const yard = { imgUrl: BACKYARD, labsSlug: LUCY.slug };
+  const other = { imgUrl: "https://x.test/other.jpg", labsSlug: "oz" };
+
+  it("matches on the set's slug", () => {
+    expect(labsMapOfDeck(deck, [other, yard])).toBe(yard);
+  });
+
+  it("finds nothing for a non-Labs deck or a set with no map in the bag", () => {
+    expect(labsMapOfDeck(deck, [other])).toBeUndefined();
+    expect(labsMapOfDeck({ id: "pk1x", sourceUrl: deck.sourceUrl }, [yard])).toBeUndefined();
+    expect(labsMapOfDeck(undefined, [yard])).toBeUndefined();
   });
 });

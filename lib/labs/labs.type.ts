@@ -123,7 +123,27 @@ export type LabsFigure = {
   token?: { shape?: string; twoSided?: boolean } | null;
 };
 
-export type LabsMap = { name?: string; enabled?: boolean; spaces?: unknown[] };
+/**
+ * One printed space. `x` AND `y` are fractions of the map's WIDTH (measured on
+ * Lucy & Piper's render, #1056): `y` runs 0 to 1/aspect.
+ */
+export type LabsMapSpace = {
+  id?: string;
+  x?: number;
+  y?: number;
+  /** the start slot number, or null */
+  start?: number | null;
+};
+
+export type LabsMap = {
+  name?: string;
+  enabled?: boolean;
+  spaces?: LabsMapSpace[];
+  /** space diameter as a fraction of the map's width */
+  spaceDiameter?: number;
+  /** width / height */
+  aspect?: number;
+};
 
 export type LabsSet = {
   id: string;

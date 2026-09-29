@@ -1,4 +1,5 @@
 import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
+import type { MapLayout } from "@/lib/hooks/useLocalStorage";
 import { MAP_CATALOG } from "@/lib/pro/mapCatalog";
 import type { ProMapDef } from "@/lib/pro/protocol";
 import {
@@ -42,7 +43,7 @@ export type ComposeTableInput = {
    * The board's spaces. Omitted, it is looked up in the Pro map catalog by
    * image URL; `null` means the board has none.
    */
-  mapDef?: ProMapDef | null;
+  mapDef?: MapLayout | null;
   ttlSeconds?: number;
 };
 

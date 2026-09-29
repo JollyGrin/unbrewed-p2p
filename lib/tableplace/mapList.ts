@@ -53,7 +53,8 @@ export const buildMapList = (bagMaps: MapData[] = []): TableMapOption[] => {
   return [...bagMaps, ...builtIn, ...fromCatalog]
     .filter((m) => (seen.has(m.imgUrl) ? false : (seen.add(m.imgUrl), true)))
     .map((m) => {
-      const spaces = catalog.has(pathOf(m.imgUrl));
+      const spaces =
+        catalog.has(pathOf(m.imgUrl)) || !!m.layout?.spaces.length;
       const title = titleOf(m);
       return { ...m, label: spaces ? `${title} · spaces` : title, spaces };
     })

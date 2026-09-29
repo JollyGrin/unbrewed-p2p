@@ -20,6 +20,7 @@ import { DeckLinkHold } from "@/components/DeckLink/DeckLinkHold";
 import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { useBagDecks, useBagMaps } from "@/lib/bag/useBag";
 import { useDeckLink } from "@/lib/hooks/useDeckLink";
+import { labsMapOfDeck } from "@/lib/labs/labsMap";
 import { composeTable } from "@/lib/tableplace";
 import { buildMapList } from "@/lib/tableplace/mapList";
 import {
@@ -76,7 +77,13 @@ export const TablePage = () => {
 
   const { data: bagMaps } = useBagMaps();
   const maps = useMemo(() => buildMapList(bagMaps), [bagMaps]);
-  const [mapUrl, setMapUrl] = useState<string>("");
+  // Undefined until the player picks: until then, a Labs deck's own map.
+  const [pickedMapUrl, setMapUrl] = useState<string>();
+  const deckMap = useMemo(
+    () => labsMapOfDeck(starredDeck, maps),
+    [starredDeck, maps],
+  );
+  const mapUrl = pickedMapUrl ?? deckMap?.imgUrl ?? "";
   const map = maps.find((m) => m.imgUrl === mapUrl);
   const mapSize = useImageSize(map?.imgUrl);
 
@@ -96,6 +103,7 @@ export const TablePage = () => {
       seats: [starredDeck, opponent.deck],
       faces: [() => null, () => null],
       map: { imageUrl: map.imgUrl, ...mapSize.size },
+      ...(map.layout ? { mapDef: map.layout } : {}),
       ttlSeconds: LOBBY_TTL_SECONDS,
     });
   }, [starredDeck, opponent.deck, map, mapSize.size, yours, theirs]);
@@ -264,6 +272,22 @@ export const TablePage = () => {
                   </option>
                 ))}
               </Select>
+              {map && map === deckMap && (
+                <Text mt="0.25rem" fontSize="0.85rem" opacity={0.8}>
+                  This deck&apos;s map
+                </Text>
+              )}
+              {map?.labsSlug && !map.layout && (
+                <Text
+                  mt="0.25rem"
+                  fontSize="0.85rem"
+                  data-testid="map-no-layout"
+                >
+                  This map came from Unmatched Labs before we kept its spaces,
+                  so figures won&apos;t snap to them. Import the set again from
+                  Labs to get snapping spaces.
+                </Text>
+              )}
               {map && (
                 <Image
                   mt="0.5rem"
