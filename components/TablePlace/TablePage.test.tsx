@@ -275,11 +275,11 @@ describe("TablePage — a Labs deck's own map (issue #1056)", () => {
       "char_2dd4ea0c-a02c-4297-aeb1-5b761489e1c3",
     );
   const plainMaps = [...mockMaps];
-  const useMaps = (...maps: typeof mockMaps) =>
+  const setBagMaps = (...maps: typeof mockMaps) =>
     mockMaps.splice(0, mockMaps.length, ...maps);
 
   afterEach(() => {
-    useMaps(...plainMaps);
+    setBagMaps(...plainMaps);
     mockValidate.mockReset();
   });
 
@@ -287,7 +287,7 @@ describe("TablePage — a Labs deck's own map (issue #1056)", () => {
     const { deck, map } = lucyImport();
     const { layout, ...before } = map!.map;
     const yard = withLayout ? { ...before, layout } : before;
-    useMaps(plainMaps[0], yard);
+    setBagMaps(plainMaps[0], yard);
     mockDecks.mine = deck;
     mockDecks.theirs = lucyImport().deck;
     mockValidate.mockResolvedValue({ ok: false, error: err({}) });

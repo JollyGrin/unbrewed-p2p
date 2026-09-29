@@ -13,6 +13,7 @@ import lucySave from "@/lib/labs/fixtures/tts-save.lucy-piper.json";
 import pinkSave from "@/lib/labs/fixtures/tts-save.pink-panther.json";
 import { LABS_TTS_ASSETS, fetchLabsDeck } from "@/lib/labs/fetch";
 import { LabsSetRow } from "@/lib/labs/labs.type";
+import { labsMapLayout } from "@/lib/labs/labsMap";
 import { __resetBagStoresForTests } from "@/lib/bag/bagStore";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 
@@ -101,6 +102,8 @@ describe("DeckMapEntry", () => {
         imgUrl: BACKYARD,
         meta: { title: "the backyard", author: "Tombadil Bombadil" },
         labsSlug: LUCY.slug,
+        // the board's spaces, for /table (#1056)
+        layout: labsMapLayout(LUCY.document.set.map!),
       },
     ]);
   });
