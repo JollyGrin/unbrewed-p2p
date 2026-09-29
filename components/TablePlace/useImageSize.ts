@@ -8,6 +8,9 @@ export const useImageSize = (url: string | undefined) => {
   useEffect(() => {
     if (!url) return;
     const probe = new Image();
+    // Without it a host that sends no CORS headers loads here but can't be
+    // fetched by table.place; failing now gives the "couldn't load" message.
+    probe.crossOrigin = "anonymous";
     probe.onload = () =>
       setSize({
         url,

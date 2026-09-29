@@ -13,6 +13,7 @@ import type {
   DeckImportSidekickType,
   DeckImportType,
 } from "@/components/DeckPool/deck-import.type";
+import { hasSidekick } from "@/components/DeckPool/PoolFns";
 
 export type FaceKind = "card" | "hero" | "sidekick" | "rule";
 
@@ -27,14 +28,17 @@ export type FaceJob =
     }
   | { key: string; kind: "rule"; hash: string; rule: DeckImportRuleCardType };
 
-export const slug = (s: string | null | undefined): string =>
+export const slug = (
+  s: string | null | undefined,
+  fallback = "untitled",
+): string =>
   (s ?? "")
     .normalize("NFKD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 60) || "untitled";
+    .slice(0, 60) || fallback;
 
 /**
  * Stable 32-bit FNV-1a over exactly the fields a face draws. The resolver
@@ -72,9 +76,6 @@ export const faceFingerprint = (kind: FaceKind, source: object): string => {
   }
   return (h >>> 0).toString(16).padStart(8, "0");
 };
-
-const sidekickFielded = (s?: DeckImportSidekickType | null) =>
-  !!s && (s.quantity ?? 0) > 0 && (!!s.name?.trim() || s.hp != null);
 
 const heroFielded = (h?: DeckImportHeroType | null) =>
   !!h && (!!h.name?.trim() || !!h.specialAbility?.trim());
@@ -116,7 +117,7 @@ export const faceJobs = (deck: DeckImportType): FaceJob[] => {
     c: DeckImportHeroType | DeckImportSidekickType,
   ) => jobs.push({ key, kind, hash: faceFingerprint(kind, c), character: c });
   if (heroFielded(data.hero)) character("hero", "hero", data.hero);
-  if (sidekickFielded(data.sidekick))
+  if (hasSidekick(data.sidekick))
     character("sidekick", "sidekick", data.sidekick);
   (data.ruleCards ?? []).forEach((rule, i) => {
     if (!rule?.content?.trim()) return;
@@ -130,7 +131,7 @@ export const faceJobs = (deck: DeckImportType): FaceJob[] => {
   (data.extraCharacters ?? []).forEach((extra, i) => {
     if (heroFielded(extra?.hero))
       character(extraKey(i, "hero"), "hero", extra.hero);
-    if (sidekickFielded(extra?.sidekick))
+    if (hasSidekick(extra?.sidekick))
       character(extraKey(i, "sidekick"), "sidekick", extra.sidekick);
   });
   return jobs;

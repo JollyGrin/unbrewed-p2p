@@ -14,6 +14,7 @@ import {
   mapSize,
   PLACEMENT_CAP,
   SNAP_POINT_CAP,
+  TOKEN_RADIUS,
   type CallerPlacement,
   type LobbyRequest,
 } from ".";
@@ -65,6 +66,7 @@ describe.each([
   ["Mended Drum (ProMapDef)", DRUM],
   ["plain 1.23", plain(1.23)],
   ["plain 1.54", plain(1.54)],
+  ["plain 1.625", plain(1.625)],
   ["plain 1.80", plain(1.8)],
 ])("%s", (_, map) => {
   const { body, skipped } = compose(map);
@@ -90,6 +92,20 @@ describe.each([
     for (const p of body.placements.filter((p) => p.kind === "deck")) {
       expect(Math.abs(p.position[0]) + 0.7).toBeLessThanOrEqual(VIEW.halfX);
       expect(Math.abs(p.position[1]) + 1).toBeLessThanOrEqual(12.4 + 1e-9);
+    }
+  });
+
+  it("keeps every piece's whole footprint inside VIEW", () => {
+    for (const p of body.placements) {
+      if (p.kind !== "piece") continue;
+      const r = packOf(body, p).pieces![p.piece].radius ?? TOKEN_RADIUS;
+      expect(Math.abs(p.position[0]) + r).toBeLessThanOrEqual(VIEW.halfX);
+      expect(Math.abs(p.position[1]) + r).toBeLessThanOrEqual(VIEW.halfZ);
+    }
+    for (const s of body.snapPoints) {
+      const r = s.radius ?? 0;
+      expect(Math.abs(s.position[0]) + r).toBeLessThanOrEqual(VIEW.halfX);
+      expect(Math.abs(s.position[1]) + r).toBeLessThanOrEqual(VIEW.halfZ);
     }
   });
 
@@ -197,7 +213,7 @@ describe("seat 1 mirrors seat 0", () => {
     expect(column.length).toBeGreaterThan(0);
     for (const { position } of column) {
       expect(position[0]).toBeGreaterThanOrEqual(width / 2 + 1 - 1e-9);
-      expect(position[0]).toBeLessThanOrEqual(19.5);
+      expect(position[0]).toBeLessThanOrEqual(VIEW.halfX - 0.85);
       expect(position[1]).toBeGreaterThanOrEqual(0.5);
       expect(position[1]).toBeLessThanOrEqual(8.5);
     }
@@ -232,9 +248,12 @@ describe("Mended Drum", () => {
     const hero0 = figures[names.indexOf("The Hollow Oak")];
     const hero1 = figures[names.indexOf(larry.deck_data.hero.name)];
     expect(hero0.seat).toBe(0);
-    expect(hero0.position).toEqual(space(1).position);
+    // slot 2 is on the +z half (seat 0's), slot 1 on the -z half
+    expect(hero0.position).toEqual(space(2).position);
+    expect(hero0.position[1]).toBeGreaterThan(0);
     expect(hero1.seat).toBe(1);
-    expect(hero1.position).toEqual(space(2).position);
+    expect(hero1.position).toEqual(space(1).position);
+    expect(hero1.position[1]).toBeLessThan(0);
     expect(hero0.position).not.toEqual(hero1.position);
 
     // hollow-oak's fox and Larry's four larries are beside their hero
@@ -265,6 +284,62 @@ describe("Mended Drum", () => {
       Math.min(1.2, 0.45 * mendedDrum.meta.spaceDiameter * width),
       1,
     );
+  });
+});
+
+describe("dials", () => {
+  const { deck: oakDeck } = FIXTURES["hollow-oak"];
+  const nameOf = (body: LobbyRequest, p: CallerPlacement) =>
+    p.kind === "piece" ? packOf(body, p).pieces![p.piece].name : "";
+
+  it("puts the hero's dial first, apart from the sidekick dials, when the figure is on the board", () => {
+    const { body } = compose(DRUM, [oakDeck, oakDeck]);
+    const dials = body.placements.filter(
+      (p) =>
+        p.seat === 0 &&
+        p.kind === "piece" &&
+        packOf(body, p).pieces![p.piece].kind === "counter",
+    );
+    expect(nameOf(body, dials[0])).toBe("The Hollow Oak HP");
+    expect(dials.length).toBeGreaterThan(1);
+    expect(distance(dials[0].position, dials[1].position)).toBeGreaterThan(
+      1.8 + 1e-6,
+    );
+  });
+
+  it("puts each dial beside its figure when the figures are off the board", () => {
+    const { body } = compose(plain(1.54), [oakDeck, oakDeck]);
+    const seat0 = body.placements.filter(
+      (p) => p.seat === 0 && p.kind === "piece",
+    );
+    const names = seat0.map((p) => nameOf(body, p));
+    for (const p of seat0.filter((p) => nameOf(body, p).endsWith(" HP"))) {
+      const figure = names.indexOf(nameOf(body, p).slice(0, -3));
+      expect(figure).toBe(seat0.indexOf(p) + 1);
+      expect(distance(p.position, seat0[figure].position)).toBeLessThanOrEqual(
+        1.8 + 1e-6,
+      );
+    }
+  });
+});
+
+const nameOfPiece = (body: LobbyRequest, p: CallerPlacement) =>
+  p.kind === "piece" ? packOf(body, p).pieces![p.piece].name : "";
+
+describe("hero start slots", () => {
+  it("puts each hero on its own half, falling back to slots 1 and 2", () => {
+    const { body } = compose(DRUM);
+    const heroes = body.placements.filter(
+      (p) =>
+        p.kind === "piece" &&
+        [oak.deck_data.hero.name, larry.deck_data.hero.name].includes(
+          nameOfPiece(body, p),
+        ),
+    );
+    const z = (seat: number) =>
+      heroes.find((p) => p.seat === seat)!.position[1];
+    expect(z(0)).toBeGreaterThan(0);
+    expect(z(1)).toBeLessThan(0);
   });
 });
 
@@ -343,6 +418,36 @@ describe("caps", () => {
       ).toHaveLength(pack.pieces!.length);
       expect(pack.pieces!.some((p) => p.name === "Token 1")).toBe(true);
     }
+  });
+
+  it("records trimmed snap points and refuses a table it cannot fit", () => {
+    const map = { ...DRUM, imageUrl: "https://x/many.webp" };
+    const def = {
+      ...catalogMapDef(DRUM.imageUrl)!,
+      spaces: Array.from({ length: 210 }, (_, i) => ({
+        ...mendedDrum.spaces[0],
+        id: `s${i}`,
+        start: undefined,
+      })),
+    } as never;
+    const r = composeTable({
+      seats: [oak, oak],
+      map,
+      faces: fakeFaces,
+      mapDef: def,
+    });
+    expect(r.body!.snapPoints).toHaveLength(SNAP_POINT_CAP);
+    expect(r.skipped.some((m) => /snap points left off/.test(m))).toBe(true);
+
+    const big = tokenDeck();
+    big.deck_data.sidekick.quantity = 60;
+    const refused = composeTable({
+      seats: [big, big],
+      map: DRUM,
+      faces: fakeFaces,
+    });
+    expect(refused.body).toBeNull();
+    expect(refused.skipped.join()).toMatch(/at most 100/);
   });
 
   it("refuses a deck with a missing face before composing anything", () => {

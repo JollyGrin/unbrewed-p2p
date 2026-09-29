@@ -31,6 +31,8 @@ export const VIEW = { halfX: 20, halfZ: 12.5 } as const;
 /** table.place's own footprints: cards closer than this merge into one pile. */
 export const CARD_STACK_RADIUS = 1.7;
 export const TOKEN_RADIUS = 0.75;
+/** A fighter figure standing off the board. */
+export const OFF_BOARD_FIGHTER_RADIUS = 0.85;
 
 export const PLACEMENT_CAP = 100;
 export const SNAP_POINT_CAP = 200;
@@ -66,8 +68,11 @@ export const CARD_X = {
 } as const;
 export type CardSlot = keyof typeof CARD_X;
 
-/** Seat 0's side column, to its right beside the map, clear of the front row. */
-const COLUMN_X_MAX = 19.5;
+/**
+ * Seat 0's side column, to its right beside the map, clear of the front row.
+ * Its cells are piece CENTRES, so the outer edge leaves room for a footprint.
+ */
+const COLUMN_X_MAX = VIEW.halfX - OFF_BOARD_FIGHTER_RADIUS;
 const COLUMN_Z_TOP = 8.5;
 const COLUMN_Z_BOTTOM = 0.5;
 const PIECE_STEP = 1.8;
@@ -100,8 +105,6 @@ export const FRONT_STRIP: readonly { name: string; position: XZ }[] = [
   { name: "boost", position: [1.3, FRONT_ROW_Z] },
 ];
 
-/** A fighter figure standing off the board. */
-export const OFF_BOARD_FIGHTER_RADIUS = 0.85;
 export const MAX_FIGHTER_RADIUS = 1.2;
 
 export type BoardGeometry = {
