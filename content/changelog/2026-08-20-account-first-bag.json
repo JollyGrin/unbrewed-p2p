@@ -1,0 +1,14 @@
+{
+  "id": "2026-08-20-account-first-bag",
+  "date": "2026-08-20",
+  "title": "Your bag now lives in your account",
+  "summary": "Signed-in players no longer hit the browser storage limit: your decks and maps are saved to your account and follow you between devices. Guests keep the same local bag as before.",
+  "tags": [
+    "feature"
+  ],
+  "highlight": false,
+  "cta": {
+    "label": "Open your bag",
+    "href": "/bag"
+  }
+}

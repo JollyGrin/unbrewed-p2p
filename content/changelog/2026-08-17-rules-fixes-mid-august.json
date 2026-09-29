@@ -1,0 +1,10 @@
+{
+  "id": "2026-08-17-rules-fixes-mid-august",
+  "date": "2026-08-17",
+  "title": "Rules accuracy fixes: mid August",
+  "summary": "Cards with no printed boost can no longer be boosted, move up to N now allows moving zero, the combat winner is decided after damage prevention, and a cancelled attack ends the rest of its chain. Wins are checked once the action finishes.",
+  "tags": [
+    "fix"
+  ],
+  "highlight": false
+}

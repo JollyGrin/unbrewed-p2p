@@ -1,0 +1,14 @@
+{
+  "id": "2026-09-16-pro-touch-controls",
+  "date": "2026-09-16",
+  "title": "Touch controls for Pro on mobile",
+  "summary": "Larger tap targets on the board, a zoom that follows the action, a turn strip, action tiles, a card picker and a phone-sized combat panel make full games playable by touch.",
+  "tags": [
+    "feature"
+  ],
+  "highlight": true,
+  "cta": {
+    "label": "Open Pro",
+    "href": "/pro"
+  }
+}

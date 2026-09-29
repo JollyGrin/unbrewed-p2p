@@ -1,0 +1,14 @@
+{
+  "id": "2026-08-20-opening-hand-mulligan",
+  "date": "2026-08-20",
+  "title": "Opening-hand mulligan",
+  "summary": "At the start of a Pro game you get one chance to keep your opening hand or redraw it. The host can switch the mulligan off in the lobby.",
+  "tags": [
+    "feature"
+  ],
+  "highlight": false,
+  "cta": {
+    "label": "Start a Pro game",
+    "href": "/pro"
+  }
+}

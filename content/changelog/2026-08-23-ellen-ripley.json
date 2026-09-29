@@ -1,0 +1,18 @@
+{
+  "id": "2026-08-23-ellen-ripley",
+  "date": "2026-08-23",
+  "title": "Ellen Ripley joins the lab",
+  "summary": "Ripley reacts when a fighter dies and can step in to take the hit for an ally. Her M41A Pulse Rifle is hers alone.",
+  "tags": [
+    "deck"
+  ],
+  "highlight": false,
+  "pro": true,
+  "video": {
+    "slug": "ellen-ripley"
+  },
+  "cta": {
+    "label": "Play Ripley in Pro",
+    "href": "/pro"
+  }
+}
