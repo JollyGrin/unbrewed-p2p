@@ -42,39 +42,92 @@ export type TablePlaceError = {
 export type ApiResult<T> =
   { ok: true; data: T } | { ok: false; error: TablePlaceError };
 
-const retryAfter = (res: Response, details: unknown): number | undefined => {
+/** Give up on a request after this long. */
+export const REQUEST_TIMEOUT_MS = 15_000;
+
+/**
+ * Only `details.retry_after_seconds`: the `Retry-After` header isn't exposed
+ * to cross-origin scripts without Access-Control-Expose-Headers.
+ */
+const retryAfter = (details: unknown): number | undefined => {
   const fromDetails = (details as { retry_after_seconds?: unknown } | null)
     ?.retry_after_seconds;
-  if (typeof fromDetails === "number") return fromDetails;
-  const header = Number(res.headers.get("retry-after"));
-  return Number.isFinite(header) && header > 0 ? header : undefined;
+  return typeof fromDetails === "number" && fromDetails > 0
+    ? fromDetails
+    : undefined;
 };
+
+const failure = (
+  status: number,
+  code: string,
+  message: string,
+  retryable: boolean,
+): ApiResult<never> => ({
+  ok: false,
+  error: { status, code, message, retryable },
+});
+
+const isCreated = (j: unknown): boolean => {
+  const o = j as LobbyCreated | null;
+  return (
+    !!o &&
+    typeof o === "object" &&
+    Array.isArray(o.seats) &&
+    o.seats.every(
+      (s) => !!s && typeof s.seat === "number" && typeof s.url === "string",
+    )
+  );
+};
+
+const isValidated = (j: unknown): boolean =>
+  !!j &&
+  typeof j === "object" &&
+  typeof (j as LobbyValidated).valid === "boolean";
 
 const post = async <T>(
   path: string,
   body: unknown,
   fetchImpl: typeof fetch,
+  isShape: (json: unknown) => boolean,
 ): Promise<ApiResult<T>> => {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, REQUEST_TIMEOUT_MS);
   let res: Response;
+  let json: any = null;
   try {
     res = await fetchImpl(`${TABLEPLACE_API}${path}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
+    json = await res.json().catch(() => null);
   } catch {
-    return {
-      ok: false,
-      error: {
-        status: 0,
-        code: "network",
-        message: "Couldn't reach table.place. Check your connection.",
-        retryable: true,
-      },
-    };
+    return timedOut
+      ? failure(0, "timeout", "table.place didn't answer.", true)
+      : failure(
+          0,
+          "network",
+          "Couldn't reach table.place. Check your connection.",
+          true,
+        );
+  } finally {
+    clearTimeout(timer);
   }
-  const json = await res.json().catch(() => null);
-  if (res.ok) return { ok: true, data: json as T };
+  if (res.ok) {
+    return isShape(json)
+      ? { ok: true, data: json as T }
+      : failure(
+          res.status,
+          "bad_response",
+          "table.place sent back something we didn't understand.",
+          false,
+        );
+  }
   const retryable = res.status === 429 || res.status >= 500;
   return {
     ok: false,
@@ -87,7 +140,7 @@ const post = async <T>(
           : `table.place answered ${res.status}.`,
       retryable,
       ...(res.status === 429
-        ? { retryAfterSeconds: retryAfter(res, json?.details) }
+        ? { retryAfterSeconds: retryAfter(json?.details) }
         : {}),
     },
   };
@@ -95,10 +148,10 @@ const post = async <T>(
 
 /** The dry run: same validation, no lobby, nothing spent from the shared cap. */
 export const validateLobby = (body: LobbyRequest, fetchImpl = fetch) =>
-  post<LobbyValidated>("/v1/lobbies/validate", body, fetchImpl);
+  post<LobbyValidated>("/v1/lobbies/validate", body, fetchImpl, isValidated);
 
 export const createLobby = (body: LobbyRequest, fetchImpl = fetch) =>
-  post<LobbyCreated>("/v1/lobbies", body, fetchImpl);
+  post<LobbyCreated>("/v1/lobbies", body, fetchImpl, isCreated);
 
 /** What to tell a player after a failure they can retry. */
 export const retryCopy = (error: TablePlaceError): string | null => {
@@ -112,3 +165,7 @@ export const retryCopy = (error: TablePlaceError): string | null => {
   if (error.status === 0) return "Try again once you're back online.";
   return "table.place had a problem on its side. Try again in a moment.";
 };
+
+/** A 4xx we can't fix by retrying: our body was wrong, so it's our bug. */
+export const isOurBug = (error: TablePlaceError) =>
+  !error.retryable && error.code !== "bad_response";
