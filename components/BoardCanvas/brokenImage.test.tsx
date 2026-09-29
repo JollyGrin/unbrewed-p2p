@@ -26,12 +26,17 @@ const token = (imageUrl: string): OwnedToken =>
 const mount = () => {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   document.body.appendChild(svg);
+  // Refs made once, as a component's would be: a fresh gRef each render
+  // would draw a second board.
+  const canvasRef = { current: svg };
+  const gRef = { current: null };
+  const parentRef = { current: document.body };
   const hook = renderHook(
     ({ tokens }: { tokens: OwnedToken[] }) =>
       useCanvas({
-        canvasRef: { current: svg },
-        gRef: { current: null },
-        parentRef: { current: document.body },
+        canvasRef,
+        gRef,
+        parentRef,
         tokens,
         self: "me",
         size: { width: 1200, height: 1000 },
