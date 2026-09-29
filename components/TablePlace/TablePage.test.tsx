@@ -5,6 +5,15 @@ import {
   labsDeck,
 } from "@/lib/tableplace/fixtures/decks";
 import type { TablePlaceError } from "@/lib/tableplace/api";
+import lucySet from "@/lib/labs/fixtures/set-by-slug.lucy-piper.json";
+import lucySave from "@/lib/labs/fixtures/tts-save.lucy-piper.json";
+import {
+  buildLabsImport,
+  parseLabsTtsMap,
+  parseLabsTtsSave,
+  type LabsSetRow,
+} from "@/lib/labs";
+import type { MapData } from "@/lib/hooks/useLocalStorage";
 import { TablePage } from "./TablePage";
 
 jest.mock("next/router", () => ({
@@ -33,7 +42,7 @@ jest.mock("../../lib/tableplace/api", () => ({
   createLobby: (...a: unknown[]) => mockCreate(...a),
 }));
 
-const mockMaps = [{ imgUrl: "/m1.webp" }, { imgUrl: "/m2.webp" }];
+const mockMaps: MapData[] = [{ imgUrl: "/m1.webp" }, { imgUrl: "/m2.webp" }];
 jest.mock("../../lib/bag/useBag", () => ({
   useBagDecks: () => ({
     decks: [],
@@ -260,5 +269,69 @@ describe("TablePage — create flow, reasons and accessibility (issue #1063)", (
       ...screen.getByTestId("map").querySelectorAll("optgroup"),
     ].map((g) => g.label);
     expect(groups).toEqual(["Snaps to spaces", "Other maps"]);
+  });
+});
+
+describe("TablePage — a Labs deck's own map (issue #1056)", () => {
+  // Lucy & Piper and the backyard, as a Labs import brings them in today.
+  const lucyImport = () =>
+    buildLabsImport(
+      {
+        row: (lucySet as unknown as LabsSetRow[])[0],
+        ttsModels: parseLabsTtsSave(lucySave),
+        ttsMap: parseLabsTtsMap(lucySave),
+      },
+      "char_2dd4ea0c-a02c-4297-aeb1-5b761489e1c3",
+    );
+  const plainMaps = [...mockMaps];
+  const setBagMaps = (...maps: typeof mockMaps) =>
+    mockMaps.splice(0, mockMaps.length, ...maps);
+
+  afterEach(() => {
+    setBagMaps(...plainMaps);
+    mockValidate.mockReset();
+  });
+
+  const lucyTable = (withLayout: boolean) => {
+    const { deck, map } = lucyImport();
+    const { layout, ...before } = map!.map;
+    const yard = withLayout ? { ...before, layout } : before;
+    setBagMaps(plainMaps[0], yard);
+    mockDecks.mine = deck;
+    mockDecks.theirs = lucyImport().deck;
+    mockValidate.mockResolvedValue({ ok: false, error: err({}) });
+    render(<TablePage />);
+    return yard;
+  };
+
+  it("preselects the starred deck's map and snaps to its spaces", async () => {
+    const yard = lucyTable(true);
+    expect((screen.getByTestId("map") as HTMLSelectElement).value).toBe(
+      yard.imgUrl,
+    );
+    expect(screen.getByText("This deck's map")).toBeTruthy();
+    expect(screen.queryByTestId("map-no-layout")).toBeNull();
+    await createTable();
+    expect(mockValidate.mock.calls[0][0].snapPoints).toHaveLength(4 + 34);
+  });
+
+  it("the player's own pick wins over the deck's map", () => {
+    lucyTable(true);
+    fireEvent.change(screen.getByTestId("map"), {
+      target: { value: "/m1.webp" },
+    });
+    expect((screen.getByTestId("map") as HTMLSelectElement).value).toBe(
+      "/m1.webp",
+    );
+    expect(screen.queryByText("This deck's map")).toBeNull();
+  });
+
+  it("a map imported before its spaces were kept says to re-import, and snaps only the combat spots", async () => {
+    lucyTable(false);
+    expect(screen.getByTestId("map-no-layout").textContent).toContain(
+      "Import the set again",
+    );
+    await createTable();
+    expect(mockValidate.mock.calls[0][0].snapPoints).toHaveLength(4);
   });
 });

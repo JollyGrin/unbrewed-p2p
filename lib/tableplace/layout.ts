@@ -160,7 +160,10 @@ export type BoardGeometry = {
   fighterRadius: number;
 };
 
-/** A board's printed spaces: a ProMapDef, or a `mapSpaces.json` entry. */
+/**
+ * A board's printed spaces: a ProMapDef, a `mapSpaces.json` entry, or a Labs
+ * map's stored `layout` (#1056).
+ */
 export type BoardSpaces = {
   meta: { spaceDiameter?: number };
   spaces: { id: string; x: number; y: number; start?: { slot: number } }[];

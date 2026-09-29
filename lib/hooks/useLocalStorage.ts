@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import type { ProMapDef, ProMapSpace } from "@/lib/pro/protocol";
+
 /**
  * Keys, the gameserver list, and the shared `MapData` shape.
  *
@@ -114,6 +116,16 @@ export const useLocalServerStorage = () => {
   };
 };
 
+/**
+ * A board's printed spaces, as the subset of `ProMapDef` a table needs: `x`/`y`
+ * are fractions of the image's width/height and `spaceDiameter` a fraction of
+ * its width. A full `ProMapDef` is one.
+ */
+export type MapLayout = {
+  meta: Pick<ProMapDef["meta"], "spaceDiameter">;
+  spaces: Pick<ProMapSpace, "id" | "x" | "y" | "start">[];
+};
+
 export type MapData = {
   isStarred?: boolean;
   imgUrl: string;
@@ -123,6 +135,11 @@ export type MapData = {
   source?: string;
   /** Unmatched Labs share slug of the set an imported map came from (#1002). */
   labsSlug?: string;
+  /**
+   * The board's spaces, stored at Labs import (#1056) so `/table` can snap
+   * figures to them. Absent on other maps and on Labs maps imported before.
+   */
+  layout?: MapLayout;
   size?: string;
   minPlayers?: number;
   maxPlayers?: number;
