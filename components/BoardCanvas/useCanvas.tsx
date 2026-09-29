@@ -1,12 +1,7 @@
 import * as d3 from "d3";
-import { MutableRefObject, RefObject, useEffect, useRef } from "react";
-import {
-  DEFAULT_TOKEN_SIZE,
-  OwnedToken,
-  cardTokenHeight,
-} from "../Positions/position.type";
-import { TokenMarkup } from "./Tokens";
-import { cardTokenMarkup, sheetImageMarkup } from "./Tokens/cardFace";
+import { MutableRefObject, RefObject, useEffect, useRef, useState } from "react";
+import { OwnedToken } from "../Positions/position.type";
+import { IconSvg, tokenMarkup } from "./Tokens/tokenMarkup";
 import { publishBoardTransform, setBoardSvg } from "./boardTransform";
 
 type CanvasProps = {
@@ -28,10 +23,7 @@ type CanvasProps = {
   /** Click on ANOTHER player's card token — opens the pickup panel. */
   onForeignCardClick?: (t: OwnedToken) => void;
   /** Resolve a bundled icon name to an SVG string; null until the set loads. */
-  iconSvg: (
-    name: string,
-    opts: { color?: string; size: number; cutout?: boolean; maskId?: string },
-  ) => string | null;
+  iconSvg: IconSvg;
   /** Filled with a fn returning the board coords at the viewport center. */
   centerRef?: MutableRefObject<() => { x: number; y: number }>;
   /** Filled with a fn converting client (screen) coords to board coords. */
@@ -66,6 +58,12 @@ export const useCanvas = ({
   // re-renders must not snap it back to the (throttled, ≤50ms stale) wire
   // position mid-drag.
   const draggingIdRef = useRef<string | null>(null);
+  // Image urls that failed to load here (#1029: an expired Labs hosted-save
+  // image). Their tokens draw a placeholder until the url changes — a deck
+  // refresh swaps in the new image — or the page reloads.
+  const [brokenImages, setBrokenImages] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -92,61 +90,18 @@ export const useCanvas = ({
 
     const isOwn = (d: OwnedToken) => d.owner === self;
 
-    const markup = (d: OwnedToken): string => {
-      const w = d.size ?? DEFAULT_TOKEN_SIZE;
-      const h = d.card
-        ? d.h ?? cardTokenHeight(w)
-        : d.imageUrl
-          ? d.h ?? w
-          : w;
-      let inner: string;
-      if (d.card) {
-        inner = cardTokenMarkup({
-          id: d.id,
-          card: d.card,
-          faceDown: d.faceDown,
-          w,
-          h,
-          owner: d.owner,
-          color: d.color,
-        });
-      } else if (d.imageUrl) {
-        inner = d.sheet
-          ? sheetImageMarkup({ id: d.id, url: d.imageUrl, sheet: d.sheet, w, h })
-          : TokenMarkup.image({ url: d.imageUrl, w, h });
-      } else if (d.icon) {
-        inner =
-          iconSvg(d.icon, {
-            color: d.color,
-            size: w,
-            cutout: d.cutout,
-            // Mask ids live in the shared document — keep them unique per
-            // token and free of characters that break url(#…) references.
-            maskId: `cut-${d.id.replace(/[^a-zA-Z0-9_-]/g, "")}`,
-          }) ?? TokenMarkup.circle({ color: d.color, size: w });
-      } else {
-        inner = TokenMarkup.circle({ color: d.color, size: w });
-      }
-      if (d.id === selectedId && isOwn(d)) {
-        inner += TokenMarkup.selectionRing({ w, h });
-      }
-      if (d.card && d.claimedBy) {
-        inner += TokenMarkup.claimRing({ w, h });
-      }
-      if (d.counter) {
-        const linked = d.counter.link;
-        inner += TokenMarkup.counterBadge({
-          w,
-          text: d.counterDisplay == null ? "–" : String(d.counterDisplay),
-          title: isOwn(d)
-            ? `${linked ? `${linked} HP` : "counter"} — click +1, right-click −1`
-            : linked
-              ? `${d.owner}'s ${linked} HP`
-              : `${d.owner}'s counter`,
-        });
-      }
-      return inner;
-    };
+    const markup = (d: OwnedToken): string =>
+      tokenMarkup(d, {
+        own: isOwn(d),
+        selected: d.id === selectedId,
+        iconSvg,
+        brokenImage: !!d.imageUrl && brokenImages.has(d.imageUrl),
+      });
+
+    const markBroken = (url: string) =>
+      setBrokenImages((prev) =>
+        prev.has(url) ? prev : new Set(prev).add(url),
+      );
 
     const drag = d3
       .drag<SVGGElement, OwnedToken>()
@@ -189,6 +144,15 @@ export const useCanvas = ({
         })
         .html(markup)
         .attr("opacity", (d) => (isOwn(d) ? 1 : 0.8));
+
+      // An image face that fails to load would otherwise draw nothing at all.
+      sel
+        .filter((d) => !d.card && Boolean(d.imageUrl))
+        .each(function (d) {
+          d3.select(this)
+            .selectAll("image")
+            .on("error", () => markBroken(d.imageUrl!));
+        });
 
       // Locked overlays and other players' tokens are inert to the pointer so
       // they never block grabbing what's on top of them. Exception: foreign
@@ -334,6 +298,7 @@ export const useCanvas = ({
     gRef,
     centerRef,
     screenToBoardRef,
+    brokenImages,
   ]);
 
   // Clear the shared svg reference when the board unmounts.

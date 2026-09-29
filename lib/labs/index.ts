@@ -8,13 +8,19 @@ export * from "./errors";
 export * from "./fetch";
 export * from "./map";
 export * from "./unsupported";
+export * from "./skipped";
 export * from "./previews";
+export * from "./components";
+export * from "./labsMap";
 export type {
   LabsAdditionalCard,
   LabsCard,
   LabsCharacter,
   LabsDeck,
+  LabsFigure,
   LabsLoadedSet,
   LabsSet,
   LabsSetRow,
+  LabsTtsMap,
+  LabsTtsModel,
 } from "./labs.type";

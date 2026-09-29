@@ -107,6 +107,24 @@ export type LabsAdditionalCard = Pick<
 
 export type LabsCustomSymbol = { id: string; name?: string; source?: string | null };
 
+export type LabsFigure = {
+  id: string;
+  /** "figure" | "dial" | "piece" | "token" */
+  kind: string;
+  name?: string;
+  /** an uploaded 3D model file */
+  model?: unknown;
+  /** character id, or null for a set-wide component */
+  characterId?: string | null;
+  reference?: { source?: string | null };
+  /** health dials: the numbers printed on the dial */
+  dialRange?: { min?: number; max?: number } | null;
+  /** the physical token: `shape` "circle" | "silhouette" | …; `twoSided` pieces carry a back face */
+  token?: { shape?: string; twoSided?: boolean } | null;
+};
+
+export type LabsMap = { name?: string; enabled?: boolean; spaces?: unknown[] };
+
 export type LabsSet = {
   id: string;
   name: string;
@@ -114,6 +132,12 @@ export type LabsSet = {
   decks: LabsDeck[];
   cards: LabsCard[];
   customSymbols?: LabsCustomSymbol[];
+  figures?: LabsFigure[];
+  /** older sets carry one map here, newer ones use `maps` */
+  map?: LabsMap | null;
+  maps?: LabsMap[] | null;
+  /** Adventures sets */
+  threat?: { enabled?: boolean } | null;
 };
 
 /** One row of `rpc/set_by_slug`. */
@@ -147,4 +171,34 @@ export type LabsLoadedSet = {
   author?: string;
   /** the character the pasted link pointed at, if it named one */
   characterId?: string;
+  /**
+   * The component objects of the set's hosted Tabletop Simulator save (#1001),
+   * in save order. Absent when the set has no components or the save could
+   * not be read — the deck then imports without component tokens.
+   */
+  ttsModels?: LabsTtsModel[];
+  /**
+   * The finished map render of the hosted save (#1002), when the save holds a
+   * map with at least one space. Absent otherwise — nothing to offer.
+   */
+  ttsMap?: LabsTtsMap;
+};
+
+/** The map object of a hosted save: a `CardCustom` reading "N spaces, M paths." */
+export type LabsTtsMap = {
+  /** the part of the nickname after "<set name> — " */
+  name: string;
+  /** the rendered board (`FaceURL`): spaces, paths, zones and start slots drawn on */
+  imageUrl: string;
+  spaces: number;
+  paths: number;
+};
+
+/** One `Custom_Model` object of a hosted Tabletop Simulator save. */
+export type LabsTtsModel = {
+  nickname: string;
+  /** the finished face image (`CustomMesh.DiffuseURL`) */
+  imageUrl?: string;
+  /** Labs' shared health-dial mesh (and its Lua script) */
+  isDial: boolean;
 };

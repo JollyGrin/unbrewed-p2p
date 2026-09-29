@@ -4,6 +4,7 @@ export type LabsErrorCode =
   | "character-not-found"
   | "choose-character"
   | "no-deck"
+  | "no-heroes"
   | "network";
 
 export class LabsImportError extends Error {
@@ -28,6 +29,8 @@ export const LABS_ERROR_MESSAGES: Record<LabsErrorCode, string> = {
     "This set has more than one hero. Paste a link to the character you want.",
   "no-deck":
     "This character has no action cards to import. Pick a hero that has a deck.",
+  "no-heroes":
+    "This is an Unmatched Adventures set (a villain and minions, no heroes). Unbrewed can't import Adventures sets yet.",
   network:
     "Couldn't reach Unmatched Labs. Check your connection and try again in a moment.",
 };

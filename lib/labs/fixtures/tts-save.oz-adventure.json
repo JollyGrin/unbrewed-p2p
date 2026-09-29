@@ -1,0 +1,2947 @@
+{
+  "SaveName": "Oz Adventure",
+  "GameMode": "Oz Adventure",
+  "Date": "2026-09-28T14:37:58.468Z",
+  "VersionNumber": "",
+  "GameType": "Unmatched Adventures",
+  "GameComplexity": "",
+  "Gravity": 0.5,
+  "PlayArea": 0.5,
+  "Table": "",
+  "Sky": "",
+  "Note": "",
+  "Rules": "",
+  "TabStates": {},
+  "LuaScript": "",
+  "LuaScriptState": "",
+  "XmlUI": "",
+  "ObjectStates": [
+    {
+      "Name": "DeckCustom",
+      "Transform": {
+        "posX": 1.24,
+        "posY": 1,
+        "posZ": 0,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 180,
+        "scaleX": 1,
+        "scaleY": 1,
+        "scaleZ": 1
+      },
+      "Nickname": "Wicked Witch",
+      "Description": "",
+      "GMNotes": "",
+      "ColorDiffuse": {
+        "r": 0.713,
+        "g": 0.713,
+        "b": 0.713
+      },
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": true,
+      "Tooltip": true,
+      "GridProjection": false,
+      "HideWhenFaceDown": true,
+      "Hands": false,
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": "",
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "100": {
+          "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/wicked-witch-42da9100.jpg",
+          "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/wicked-witch-back-c4eb4917.jpg",
+          "NumWidth": 4,
+          "NumHeight": 3,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "DeckIDs": [
+        10000,
+        10001,
+        10002,
+        10003,
+        10004,
+        10005,
+        10006,
+        10007,
+        10008,
+        10009
+      ],
+      "ContainedObjects": [
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 1.24,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "All of Oz will be mine!",
+          "Description": "Attack 3 · Defense 2 · Boost 1",
+          "GMNotes": "{\"cardId\":\"card_1684fbd0-2e7a-4a91-9888-524f38811f8e\",\"cardType\":\"action\",\"characterId\":\"char_6edf73c1-e301-4623-9491-e069831c0316\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 10000,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "100": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/wicked-witch-42da9100.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/wicked-witch-back-c4eb4917.jpg",
+              "NumWidth": 4,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 1.24,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Eyes Everywhere",
+          "Description": "Attack 2 · Defense 3 · Boost 1",
+          "GMNotes": "{\"cardId\":\"card_bc34279d-1e60-47f6-b21c-09efcdf88251\",\"cardType\":\"action\",\"characterId\":\"char_6edf73c1-e301-4623-9491-e069831c0316\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 10001,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "100": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/wicked-witch-42da9100.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/wicked-witch-back-c4eb4917.jpg",
+              "NumWidth": 4,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 1.24,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Eyes Everywhere",
+          "Description": "Attack 2 · Defense 3 · Boost 1",
+          "GMNotes": "{\"cardId\":\"card_bc34279d-1e60-47f6-b21c-09efcdf88251\",\"cardType\":\"action\",\"characterId\":\"char_6edf73c1-e301-4623-9491-e069831c0316\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 10002,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "100": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/wicked-witch-42da9100.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/wicked-witch-back-c4eb4917.jpg",
+              "NumWidth": 4,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 1.24,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Fly, my pretties",
+          "Description": "Attack 2 · Defense 2 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_0057af0d-494e-4456-88cd-b918209ee32b\",\"cardType\":\"action\",\"characterId\":\"char_6edf73c1-e301-4623-9491-e069831c0316\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 10003,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "100": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/wicked-witch-42da9100.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/wicked-witch-back-c4eb4917.jpg",
+              "NumWidth": 4,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 1.24,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Fly, my pretties",
+          "Description": "Attack 2 · Defense 2 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_0057af0d-494e-4456-88cd-b918209ee32b\",\"cardType\":\"action\",\"characterId\":\"char_6edf73c1-e301-4623-9491-e069831c0316\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 10004,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "100": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/wicked-witch-42da9100.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/wicked-witch-back-c4eb4917.jpg",
+              "NumWidth": 4,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 1.24,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "I'll Send you back to kansas!",
+          "Description": "Attack 5 · Defense 1 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_300d4e43-f5de-46de-ace7-9597e758452c\",\"cardType\":\"action\",\"characterId\":\"char_6edf73c1-e301-4623-9491-e069831c0316\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 10005,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "100": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/wicked-witch-42da9100.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/wicked-witch-back-c4eb4917.jpg",
+              "NumWidth": 4,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 1.24,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "I'll Send you back to kansas!",
+          "Description": "Attack 5 · Defense 1 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_300d4e43-f5de-46de-ace7-9597e758452c\",\"cardType\":\"action\",\"characterId\":\"char_6edf73c1-e301-4623-9491-e069831c0316\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 10006,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "100": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/wicked-witch-42da9100.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/wicked-witch-back-c4eb4917.jpg",
+              "NumWidth": 4,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 1.24,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Surrender to me",
+          "Description": "Attack 5 · Defense 2 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_402a46ff-27ac-47e5-b444-3424c870a21c\",\"cardType\":\"action\",\"characterId\":\"char_6edf73c1-e301-4623-9491-e069831c0316\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 10007,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "100": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/wicked-witch-42da9100.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/wicked-witch-back-c4eb4917.jpg",
+              "NumWidth": 4,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 1.24,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Surrender to me",
+          "Description": "Attack 5 · Defense 2 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_402a46ff-27ac-47e5-b444-3424c870a21c\",\"cardType\":\"action\",\"characterId\":\"char_6edf73c1-e301-4623-9491-e069831c0316\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 10008,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "100": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/wicked-witch-42da9100.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/wicked-witch-back-c4eb4917.jpg",
+              "NumWidth": 4,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 1.24,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Deception",
+          "Description": "Attack 0 · Defense 0 · Boost 3\nWhenever this card is put into {{name}}’s discard pile, shuffle its discard pile back into its deck (including this card). This effect cannot be canceled.",
+          "GMNotes": "{\"cardId\":\"card_895ed5b4-c38c-429c-b720-99c2d4bee215\",\"cardType\":\"action\",\"characterId\":\"char_6edf73c1-e301-4623-9491-e069831c0316\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 10009,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "100": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/wicked-witch-42da9100.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/wicked-witch-back-c4eb4917.jpg",
+              "NumWidth": 4,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "Name": "DeckCustom",
+      "Transform": {
+        "posX": 4.72,
+        "posY": 1,
+        "posZ": 0,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 180,
+        "scaleX": 1,
+        "scaleY": 1,
+        "scaleZ": 1
+      },
+      "Nickname": "General Jinjur",
+      "Description": "",
+      "GMNotes": "",
+      "ColorDiffuse": {
+        "r": 0.713,
+        "g": 0.713,
+        "b": 0.713
+      },
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": true,
+      "Tooltip": true,
+      "GridProjection": false,
+      "HideWhenFaceDown": true,
+      "Hands": false,
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": "",
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "110": {
+          "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/general-jinjur-bb152930.jpg",
+          "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/general-jinjur-back-bf3dab96.jpg",
+          "NumWidth": 3,
+          "NumHeight": 3,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "DeckIDs": [
+        11000,
+        11001,
+        11002,
+        11003,
+        11004,
+        11005,
+        11006,
+        11007
+      ],
+      "ContainedObjects": [
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 4.72,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Army of a thousand needles",
+          "Description": "Attack 3 · Defense 2 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_3798ba7a-6dec-4578-b72d-0927dc352a7a\",\"cardType\":\"action\",\"characterId\":\"char_174674e7-92b7-4129-a3ae-feaa17d14f67\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 11000,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "110": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/general-jinjur-bb152930.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/general-jinjur-back-bf3dab96.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 4.72,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Army of a thousand needles",
+          "Description": "Attack 3 · Defense 2 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_3798ba7a-6dec-4578-b72d-0927dc352a7a\",\"cardType\":\"action\",\"characterId\":\"char_174674e7-92b7-4129-a3ae-feaa17d14f67\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 11001,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "110": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/general-jinjur-bb152930.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/general-jinjur-back-bf3dab96.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 4.72,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Conquer and press on",
+          "Description": "Attack 3 · Defense 1 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_92a9952d-d879-40dc-84d1-bd5e936d8504\",\"cardType\":\"action\",\"characterId\":\"char_174674e7-92b7-4129-a3ae-feaa17d14f67\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 11002,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "110": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/general-jinjur-bb152930.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/general-jinjur-back-bf3dab96.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 4.72,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Conquer and press on",
+          "Description": "Attack 3 · Defense 1 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_92a9952d-d879-40dc-84d1-bd5e936d8504\",\"cardType\":\"action\",\"characterId\":\"char_174674e7-92b7-4129-a3ae-feaa17d14f67\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 11003,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "110": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/general-jinjur-bb152930.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/general-jinjur-back-bf3dab96.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 4.72,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Volley of needles",
+          "Description": "Attack 2 · Defense 2 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_f666d597-005e-407f-b45d-624c535ef2a3\",\"cardType\":\"action\",\"characterId\":\"char_174674e7-92b7-4129-a3ae-feaa17d14f67\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 11004,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "110": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/general-jinjur-bb152930.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/general-jinjur-back-bf3dab96.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 4.72,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Volley of needles",
+          "Description": "Attack 2 · Defense 2 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_f666d597-005e-407f-b45d-624c535ef2a3\",\"cardType\":\"action\",\"characterId\":\"char_174674e7-92b7-4129-a3ae-feaa17d14f67\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 11005,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "110": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/general-jinjur-bb152930.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/general-jinjur-back-bf3dab96.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 4.72,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Deception",
+          "Description": "Attack 0 · Defense 0 · Boost 3\nWhenever this card is put into {{name}}’s discard pile, shuffle its discard pile back into its deck (including this card). This effect cannot be canceled.",
+          "GMNotes": "{\"cardId\":\"card_d65f2b36-c471-4bea-8e2b-b5bda240bc00\",\"cardType\":\"action\",\"characterId\":\"char_174674e7-92b7-4129-a3ae-feaa17d14f67\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 11006,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "110": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/general-jinjur-bb152930.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/general-jinjur-back-bf3dab96.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 4.72,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Untitled action",
+          "Description": "Attack 2 · Defense 2 · Boost 1",
+          "GMNotes": "{\"cardId\":\"card_c0b8af71-7f56-4835-b627-6e818f958b4f\",\"cardType\":\"action\",\"characterId\":\"char_174674e7-92b7-4129-a3ae-feaa17d14f67\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 11007,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "110": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/general-jinjur-bb152930.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/general-jinjur-back-bf3dab96.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "Name": "DeckCustom",
+      "Transform": {
+        "posX": 8.201,
+        "posY": 1,
+        "posZ": 0,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 180,
+        "scaleX": 1,
+        "scaleY": 1,
+        "scaleZ": 1
+      },
+      "Nickname": "Mombi",
+      "Description": "",
+      "GMNotes": "",
+      "ColorDiffuse": {
+        "r": 0.713,
+        "g": 0.713,
+        "b": 0.713
+      },
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": true,
+      "Tooltip": true,
+      "GridProjection": false,
+      "HideWhenFaceDown": true,
+      "Hands": false,
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": "",
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "120": {
+          "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/mombi-2a8c6439.jpg",
+          "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/mombi-back-2ae66144.jpg",
+          "NumWidth": 3,
+          "NumHeight": 3,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "DeckIDs": [
+        12000,
+        12001,
+        12002,
+        12003,
+        12004,
+        12005,
+        12006
+      ],
+      "ContainedObjects": [
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 8.201,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Banished by Magic",
+          "Description": "Attack 3 · Defense 2 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_a02ce17a-52cc-4dd0-b680-ab657baa21ab\",\"cardType\":\"action\",\"characterId\":\"char_ce0dbe4e-1b60-4f19-8017-545330360e21\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 12000,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "120": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/mombi-2a8c6439.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/mombi-back-2ae66144.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 8.201,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Banished by Magic",
+          "Description": "Attack 3 · Defense 2 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_a02ce17a-52cc-4dd0-b680-ab657baa21ab\",\"cardType\":\"action\",\"characterId\":\"char_ce0dbe4e-1b60-4f19-8017-545330360e21\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 12001,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "120": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/mombi-2a8c6439.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/mombi-back-2ae66144.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 8.201,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Old Witch's curse",
+          "Description": "Attack 1 · Defense 3 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_625c0f3b-35cc-4ccd-95e5-9021d549afd8\",\"cardType\":\"action\",\"characterId\":\"char_ce0dbe4e-1b60-4f19-8017-545330360e21\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 12002,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "120": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/mombi-2a8c6439.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/mombi-back-2ae66144.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 8.201,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Old Witch's curse",
+          "Description": "Attack 1 · Defense 3 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_625c0f3b-35cc-4ccd-95e5-9021d549afd8\",\"cardType\":\"action\",\"characterId\":\"char_ce0dbe4e-1b60-4f19-8017-545330360e21\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 12003,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "120": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/mombi-2a8c6439.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/mombi-back-2ae66144.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 8.201,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Many faces",
+          "Description": "Attack 2 · Defense 2 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_c7df1677-2697-412e-a585-ba90ff15c992\",\"cardType\":\"action\",\"characterId\":\"char_ce0dbe4e-1b60-4f19-8017-545330360e21\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 12004,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "120": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/mombi-2a8c6439.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/mombi-back-2ae66144.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 8.201,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Many faces",
+          "Description": "Attack 2 · Defense 2 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_c7df1677-2697-412e-a585-ba90ff15c992\",\"cardType\":\"action\",\"characterId\":\"char_ce0dbe4e-1b60-4f19-8017-545330360e21\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 12005,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "120": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/mombi-2a8c6439.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/mombi-back-2ae66144.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 8.201,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Deception",
+          "Description": "Attack 0 · Defense 0 · Boost 3\nWhenever this card is put into {{name}}’s discard pile, shuffle its discard pile back into its deck (including this card). This effect cannot be canceled.",
+          "GMNotes": "{\"cardId\":\"card_ccd1212c-63b9-4947-bab7-e89d47d8cd5d\",\"cardType\":\"action\",\"characterId\":\"char_ce0dbe4e-1b60-4f19-8017-545330360e21\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 12006,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "120": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/mombi-2a8c6439.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/mombi-back-2ae66144.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "Name": "DeckCustom",
+      "Transform": {
+        "posX": 11.681,
+        "posY": 1,
+        "posZ": 0,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 180,
+        "scaleX": 1,
+        "scaleY": 1,
+        "scaleZ": 1
+      },
+      "Nickname": "Nikko",
+      "Description": "",
+      "GMNotes": "",
+      "ColorDiffuse": {
+        "r": 0.713,
+        "g": 0.713,
+        "b": 0.713
+      },
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": true,
+      "Tooltip": true,
+      "GridProjection": false,
+      "HideWhenFaceDown": true,
+      "Hands": false,
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": "",
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "130": {
+          "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nikko-11904a99.jpg",
+          "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nikko-back-bbb061d7.jpg",
+          "NumWidth": 3,
+          "NumHeight": 3,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "DeckIDs": [
+        13000,
+        13001,
+        13002,
+        13003,
+        13004,
+        13005,
+        13006
+      ],
+      "ContainedObjects": [
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 11.681,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "By order of the cap",
+          "Description": "Attack 1 · Defense 1 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_25d60f24-9034-4d32-9857-45151926850e\",\"cardType\":\"action\",\"characterId\":\"char_99590a00-748e-431f-b3c6-4a7c2262bee1\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 13000,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "130": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nikko-11904a99.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nikko-back-bbb061d7.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 11.681,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "By order of the cap",
+          "Description": "Attack 1 · Defense 1 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_25d60f24-9034-4d32-9857-45151926850e\",\"cardType\":\"action\",\"characterId\":\"char_99590a00-748e-431f-b3c6-4a7c2262bee1\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 13001,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "130": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nikko-11904a99.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nikko-back-bbb061d7.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 11.681,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "swoop and strike",
+          "Description": "Attack 2 · Defense 2 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_b6b402ba-7dd5-4018-9a7f-0f9a72354cdc\",\"cardType\":\"action\",\"characterId\":\"char_99590a00-748e-431f-b3c6-4a7c2262bee1\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 13002,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "130": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nikko-11904a99.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nikko-back-bbb061d7.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 11.681,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "swoop and strike",
+          "Description": "Attack 2 · Defense 2 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_b6b402ba-7dd5-4018-9a7f-0f9a72354cdc\",\"cardType\":\"action\",\"characterId\":\"char_99590a00-748e-431f-b3c6-4a7c2262bee1\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 13003,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "130": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nikko-11904a99.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nikko-back-bbb061d7.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 11.681,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Wings over oz",
+          "Description": "Attack 3 · Defense 3 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_dbaa94e1-d317-4095-aa0a-f825330de143\",\"cardType\":\"action\",\"characterId\":\"char_99590a00-748e-431f-b3c6-4a7c2262bee1\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 13004,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "130": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nikko-11904a99.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nikko-back-bbb061d7.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 11.681,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Wings over oz",
+          "Description": "Attack 3 · Defense 3 · Boost 2",
+          "GMNotes": "{\"cardId\":\"card_dbaa94e1-d317-4095-aa0a-f825330de143\",\"cardType\":\"action\",\"characterId\":\"char_99590a00-748e-431f-b3c6-4a7c2262bee1\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 13005,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "130": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nikko-11904a99.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nikko-back-bbb061d7.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 11.681,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Deception",
+          "Description": "Attack 0 · Defense 0 · Boost 3\nWhenever this card is put into {{name}}’s discard pile, shuffle its discard pile back into its deck (including this card). This effect cannot be canceled.",
+          "GMNotes": "{\"cardId\":\"card_03139269-5c80-4207-b63a-75f6fa6b055f\",\"cardType\":\"action\",\"characterId\":\"char_99590a00-748e-431f-b3c6-4a7c2262bee1\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 13006,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "130": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nikko-11904a99.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nikko-back-bbb061d7.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "Name": "DeckCustom",
+      "Transform": {
+        "posX": 15.161,
+        "posY": 1,
+        "posZ": 0,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 180,
+        "scaleX": 1,
+        "scaleY": 1,
+        "scaleZ": 1
+      },
+      "Nickname": "Nome King",
+      "Description": "",
+      "GMNotes": "",
+      "ColorDiffuse": {
+        "r": 0.713,
+        "g": 0.713,
+        "b": 0.713
+      },
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": true,
+      "Tooltip": true,
+      "GridProjection": false,
+      "HideWhenFaceDown": true,
+      "Hands": false,
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": "",
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "140": {
+          "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nome-king-cc8f40b0.jpg",
+          "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nome-king-back-85d32431.jpg",
+          "NumWidth": 3,
+          "NumHeight": 3,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "DeckIDs": [
+        14000,
+        14001,
+        14002,
+        14003,
+        14004,
+        14005,
+        14006
+      ],
+      "ContainedObjects": [
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 15.161,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Depths of the Earth",
+          "Description": "Attack 2 · Defense 2 · Boost 1",
+          "GMNotes": "{\"cardId\":\"card_613cafc8-9033-4766-9626-79b2a8c75053\",\"cardType\":\"action\",\"characterId\":\"char_d2486eb2-8372-4d4b-bb2c-ee0de165b518\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 14000,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "140": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nome-king-cc8f40b0.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nome-king-back-85d32431.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 15.161,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Depths of the Earth",
+          "Description": "Attack 2 · Defense 2 · Boost 1",
+          "GMNotes": "{\"cardId\":\"card_613cafc8-9033-4766-9626-79b2a8c75053\",\"cardType\":\"action\",\"characterId\":\"char_d2486eb2-8372-4d4b-bb2c-ee0de165b518\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 14001,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "140": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nome-king-cc8f40b0.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nome-king-back-85d32431.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 15.161,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Iron fist of the underground",
+          "Description": "Attack 4 · Defense 2 · Boost 1",
+          "GMNotes": "{\"cardId\":\"card_546fa49f-9e7e-48f0-8e17-9e2dee90cfb9\",\"cardType\":\"action\",\"characterId\":\"char_d2486eb2-8372-4d4b-bb2c-ee0de165b518\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 14002,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "140": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nome-king-cc8f40b0.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nome-king-back-85d32431.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 15.161,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Iron fist of the underground",
+          "Description": "Attack 4 · Defense 2 · Boost 1",
+          "GMNotes": "{\"cardId\":\"card_546fa49f-9e7e-48f0-8e17-9e2dee90cfb9\",\"cardType\":\"action\",\"characterId\":\"char_d2486eb2-8372-4d4b-bb2c-ee0de165b518\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 14003,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "140": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nome-king-cc8f40b0.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nome-king-back-85d32431.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 15.161,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "The earth trembles",
+          "Description": "Attack 3 · Defense 3 · Boost 1",
+          "GMNotes": "{\"cardId\":\"card_fdc20275-6549-4f89-b2e1-5394e9af4404\",\"cardType\":\"action\",\"characterId\":\"char_d2486eb2-8372-4d4b-bb2c-ee0de165b518\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 14004,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "140": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nome-king-cc8f40b0.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nome-king-back-85d32431.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 15.161,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "The earth trembles",
+          "Description": "Attack 3 · Defense 3 · Boost 1",
+          "GMNotes": "{\"cardId\":\"card_fdc20275-6549-4f89-b2e1-5394e9af4404\",\"cardType\":\"action\",\"characterId\":\"char_d2486eb2-8372-4d4b-bb2c-ee0de165b518\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 14005,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "140": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nome-king-cc8f40b0.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nome-king-back-85d32431.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 15.161,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 1,
+            "scaleY": 1,
+            "scaleZ": 1
+          },
+          "Nickname": "Deception",
+          "Description": "Attack 0 · Defense 0 · Boost 3\nWhenever this card is put into {{name}}’s discard pile, shuffle its discard pile back into its deck (including this card). This effect cannot be canceled.",
+          "GMNotes": "{\"cardId\":\"card_79d7930a-9db1-4a3b-80a9-ea65cddb872d\",\"cardType\":\"action\",\"characterId\":\"char_d2486eb2-8372-4d4b-bb2c-ee0de165b518\"}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 14006,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "140": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nome-king-cc8f40b0.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/nome-king-back-85d32431.jpg",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "Name": "DeckCustom",
+      "Transform": {
+        "posX": 18.268,
+        "posY": 1,
+        "posZ": 0,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 180,
+        "scaleX": 0.7614,
+        "scaleY": 0.7614,
+        "scaleZ": 0.7614
+      },
+      "Nickname": "Initiative",
+      "Description": "",
+      "GMNotes": "",
+      "ColorDiffuse": {
+        "r": 0.713,
+        "g": 0.713,
+        "b": 0.713
+      },
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": true,
+      "Tooltip": true,
+      "GridProjection": false,
+      "HideWhenFaceDown": true,
+      "Hands": false,
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": "",
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "150": {
+          "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/initiative-47d4fdda.jpg",
+          "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/initiative-back-19eb64b5.png",
+          "NumWidth": 3,
+          "NumHeight": 3,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      },
+      "DeckIDs": [
+        15000,
+        15001,
+        15002,
+        15003,
+        15004,
+        15005,
+        15006,
+        15007
+      ],
+      "ContainedObjects": [
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 18.268,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 0.7614,
+            "scaleY": 0.7614,
+            "scaleZ": 0.7614
+          },
+          "Nickname": "Villain Effect",
+          "Description": "End of round: Deploy 1 Flying Monkey to the lowest numbered unenslaved country.",
+          "GMNotes": "{\"cardId\":\"card_0624bcd3-6e13-49f8-b84b-264eb7c12303\",\"cardType\":\"initiative\",\"characterId\":null}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 15000,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "150": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/initiative-47d4fdda.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/initiative-back-19eb64b5.png",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 18.268,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 0.7614,
+            "scaleY": 0.7614,
+            "scaleZ": 0.7614
+          },
+          "Nickname": "Villain Effect",
+          "Description": "End of round: Advance the threat marker by the number of enslaved countries.",
+          "GMNotes": "{\"cardId\":\"card_d5f83183-6ed3-4347-a77f-450913e50433\",\"cardType\":\"initiative\",\"characterId\":null}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 15001,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "150": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/initiative-47d4fdda.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/initiative-back-19eb64b5.png",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 18.268,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 0.7614,
+            "scaleY": 0.7614,
+            "scaleZ": 0.7614
+          },
+          "Nickname": "Villain Effect",
+          "Description": "End of round: Deal 1 damage to each Hero and Sidekick in an enslaved country.",
+          "GMNotes": "{\"cardId\":\"card_071b3393-d7f5-46e0-9e0a-d0c4b1e4a8f9\",\"cardType\":\"initiative\",\"characterId\":null}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 15002,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "150": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/initiative-47d4fdda.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/initiative-back-19eb64b5.png",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 18.268,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 0.7614,
+            "scaleY": 0.7614,
+            "scaleZ": 0.7614
+          },
+          "Nickname": "Villain",
+          "Description": "End of round: Advance the threat marker by 1 plus the number of Flying Monkeys in the lowest numbered unenslaved country.",
+          "GMNotes": "{\"cardId\":\"card_509de2eb-3910-4d89-a0b0-8b975da10514\",\"cardType\":\"initiative\",\"characterId\":null}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 15003,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "150": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/initiative-47d4fdda.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/initiative-back-19eb64b5.png",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 18.268,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 0.7614,
+            "scaleY": 0.7614,
+            "scaleZ": 0.7614
+          },
+          "Nickname": "Minion",
+          "Description": "Right now: General Jinjur attacks the opposing fighter in her zone with the lowest \nEnd of round: Move General Jinjur to the lowest numbered unensalved country.",
+          "GMNotes": "{\"cardId\":\"card_721fdde4-f821-4c99-a75d-1fd9c9aa11e3\",\"cardType\":\"initiative\",\"characterId\":null}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 15004,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "150": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/initiative-47d4fdda.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/initiative-back-19eb64b5.png",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 18.268,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 0.7614,
+            "scaleY": 0.7614,
+            "scaleZ": 0.7614
+          },
+          "Nickname": "Minion",
+          "Description": "End of round: All heroes in Mombi's zone discards 1 card.",
+          "GMNotes": "{\"cardId\":\"card_537625f3-3fdd-4169-a720-247c74635dfc\",\"cardType\":\"initiative\",\"characterId\":null}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 15005,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "150": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/initiative-47d4fdda.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/initiative-back-19eb64b5.png",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 18.268,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 0.7614,
+            "scaleY": 0.7614,
+            "scaleZ": 0.7614
+          },
+          "Nickname": "Minion",
+          "Description": "End of round: Deploy 1 Flying Monkey to Nikko's country. Move Nikko to the country with the most Flying Monkeys.",
+          "GMNotes": "{\"cardId\":\"card_227cd4ef-bdc3-4324-9f0c-d862dc481d46\",\"cardType\":\"initiative\",\"characterId\":null}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 15006,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "150": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/initiative-47d4fdda.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/initiative-back-19eb64b5.png",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        },
+        {
+          "Name": "Card",
+          "Transform": {
+            "posX": 18.268,
+            "posY": 1,
+            "posZ": 0,
+            "rotX": 0,
+            "rotY": 180,
+            "rotZ": 180,
+            "scaleX": 0.7614,
+            "scaleY": 0.7614,
+            "scaleZ": 0.7614
+          },
+          "Nickname": "Minion",
+          "Description": "End of round: Place a tunnel token in the lowest numbered empty starting space. Deal 1 damage to the nearest hero or sidekick.",
+          "GMNotes": "{\"cardId\":\"card_19524abf-b54e-4273-9781-ad9eb153af5d\",\"cardType\":\"initiative\",\"characterId\":null}",
+          "ColorDiffuse": {
+            "r": 0.713,
+            "g": 0.713,
+            "b": 0.713
+          },
+          "Locked": false,
+          "Grid": true,
+          "Snap": true,
+          "IgnoreFoW": false,
+          "MeasureMovement": false,
+          "DragSelectable": true,
+          "Autoraise": true,
+          "Sticky": true,
+          "Tooltip": true,
+          "GridProjection": false,
+          "HideWhenFaceDown": true,
+          "Hands": true,
+          "LuaScript": "",
+          "LuaScriptState": "",
+          "XmlUI": "",
+          "CardID": 15007,
+          "SidewaysCard": false,
+          "CustomDeck": {
+            "150": {
+              "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/initiative-47d4fdda.jpg",
+              "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/sheets/initiative-back-19eb64b5.png",
+              "NumWidth": 3,
+              "NumHeight": 3,
+              "BackIsHidden": true,
+              "UniqueBack": false,
+              "Type": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "Name": "CardCustom",
+      "Transform": {
+        "posX": 0,
+        "posY": 1,
+        "posZ": -6,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 180,
+        "scaleX": 0.7955,
+        "scaleY": 0.7955,
+        "scaleZ": 0.7955
+      },
+      "Nickname": "Oz Adventure — threat track",
+      "Description": "6 spaces, 19 threat in total.",
+      "GMNotes": "",
+      "ColorDiffuse": {
+        "r": 0.713,
+        "g": 0.713,
+        "b": 0.713
+      },
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": true,
+      "Tooltip": true,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": false,
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": "",
+      "CardID": 100,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1": {
+          "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/threat/oz-adventure-threat-track-a73468e8.jpg",
+          "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/threat/oz-adventure-threat-track-a73468e8.jpg",
+          "NumWidth": 1,
+          "NumHeight": 1,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      }
+    },
+    {
+      "Name": "CardCustom",
+      "Transform": {
+        "posX": 0,
+        "posY": 1,
+        "posZ": -14.124,
+        "rotX": 0,
+        "rotY": 180,
+        "rotZ": 180,
+        "scaleX": 3.8942,
+        "scaleY": 3.8942,
+        "scaleZ": 3.8942
+      },
+      "Nickname": "Oz Adventure — Map",
+      "Description": "0 spaces, 0 paths.",
+      "GMNotes": "",
+      "ColorDiffuse": {
+        "r": 0.713,
+        "g": 0.713,
+        "b": 0.713
+      },
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": true,
+      "Tooltip": true,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": false,
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": "",
+      "CardID": 100,
+      "SidewaysCard": false,
+      "CustomDeck": {
+        "1": {
+          "FaceURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/map/oz-adventure-map-864a8a32.jpg",
+          "BackURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/map/oz-adventure-map-864a8a32.jpg",
+          "NumWidth": 1,
+          "NumHeight": 1,
+          "BackIsHidden": true,
+          "UniqueBack": false,
+          "Type": 0
+        }
+      }
+    },
+    {
+      "Name": "Custom_Model",
+      "Transform": {
+        "posX": 0,
+        "posY": 1,
+        "posZ": 6,
+        "rotX": 0,
+        "rotY": 0,
+        "rotZ": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "scaleZ": 1
+      },
+      "Nickname": "Untitled game piece",
+      "Description": "",
+      "GMNotes": "",
+      "ColorDiffuse": {
+        "r": 0.713,
+        "g": 0.713,
+        "b": 0.713
+      },
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": true,
+      "Tooltip": true,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": false,
+      "LuaScript": "",
+      "LuaScriptState": "",
+      "XmlUI": "",
+      "CustomMesh": {
+        "MeshURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/models/untitled-game-piece-e9cd1f79.obj",
+        "DiffuseURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/models/untitled-game-piece-a6a28483.png",
+        "NormalURL": "",
+        "ColliderURL": "",
+        "Convex": true,
+        "MaterialIndex": 0,
+        "TypeIndex": 0,
+        "CastShadows": true
+      }
+    },
+    {
+      "GUID": "ad0001",
+      "Name": "Custom_Model",
+      "Transform": {
+        "posX": 2,
+        "posY": 1,
+        "posZ": 6,
+        "rotX": 0,
+        "rotY": 0,
+        "rotZ": 0,
+        "scaleX": 1,
+        "scaleY": 1,
+        "scaleZ": 1
+      },
+      "Nickname": "Untitled health dial",
+      "Description": "Click < or > to change the health. Click RESET, or alt-click either arrow, to return to full health.",
+      "GMNotes": "",
+      "AltLookAngle": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "ColorDiffuse": {
+        "r": 1,
+        "g": 1,
+        "b": 1
+      },
+      "LayoutGroupSortIndex": 0,
+      "Value": 0,
+      "Locked": false,
+      "Grid": true,
+      "Snap": true,
+      "IgnoreFoW": false,
+      "MeasureMovement": false,
+      "DragSelectable": true,
+      "Autoraise": true,
+      "Sticky": true,
+      "Tooltip": true,
+      "GridProjection": false,
+      "HideWhenFaceDown": false,
+      "Hands": false,
+      "CustomMesh": {
+        "MeshURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/models/health-dial-ae1977dd.obj",
+        "DiffuseURL": "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets/3acb4605-5d8f-4492-ac70-18e348fa8e19/set_138ff666-0600-4289-98e0-7a8ef3f7c320/models/untitled-health-dial-e10f9a4e.png",
+        "NormalURL": "",
+        "ColliderURL": "",
+        "Convex": true,
+        "MaterialIndex": 1,
+        "TypeIndex": 0,
+        "CustomShader": {
+          "SpecularColor": {
+            "r": 0.875,
+            "g": 0.812880337,
+            "b": 0.7463235
+          },
+          "SpecularIntensity": 0,
+          "SpecularSharpness": 4,
+          "FresnelStrength": 0.107142858
+        },
+        "CastShadows": true
+      },
+      "LuaScript": "--[[\n  Health dial — Unmatched Labs.\n\n  The fixed model has a portrait disc, a counter body, and a reset tab. The\n  value is the only scripted text. The side arrows and RESET belong to the\n  skin; separate transparent buttons make those illustrated panels clickable.\n\n  Two TTS behaviours are deliberately preserved here:\n\n  1. The working source object creates the value first, as button index 0,\n     with a 1.5x UI scale and zero-sized plate. Preserve that exact mechanism:\n     the later invisible controls must never take index 0 from the value.\n  2. Do not call self.clearButtons() inside createAll. Clearing and recreating in the\n     same frame can remove the newly-created controls along with the old ones.\n\n  The CONFIG table is rewritten by the exporter. Keep each entry a plain scalar\n  on its own line and keep the closing brace in the first column.\n]]\n\nCONFIG = {\n    MIN_VALUE = 0,\n    MAX_VALUE = 20,\n    VALUE = 20,\n    NUMBER_SIZE = 400,\n    INK = \"ffffff\",\n    PLATE = \"1a1a1a\",\n    SHOW_TOOLTIP = true,\n}\n\nlocal CONTROL_SCALE = { x = 1.5, y = 1.5, z = 1.5 }\n\nlocal VALUE_X = 0\nlocal VALUE_Z = -1.6\nlocal LOWER_Z = -1.7\nlocal RAISE_Z = -1.7\nlocal RESET_Z = -2.5\n\n-- The visible triggers sit on the model; their targets extend into open table\n-- space. The 0.45-wide centre gap keeps either target off the health value.\nlocal LOWER_TARGET_X = -0.95\nlocal RAISE_TARGET_X = 0.95\nlocal TRIGGER_TARGET_WIDTH = 450\nlocal TRIGGER_TARGET_HEIGHT = 560\nlocal RESET_TARGET_WIDTH = 520\nlocal RESET_TARGET_HEIGHT = 230\n\nlocal function clamp(value)\n    if value < CONFIG.MIN_VALUE then return CONFIG.MIN_VALUE end\n    if value > CONFIG.MAX_VALUE then return CONFIG.MAX_VALUE end\n    return value\nend\n\nlocal function colour(hex, alpha)\n    local digits = string.gsub(hex, \"#\", \"\")\n    return {\n        r = tonumber(string.sub(digits, 1, 2), 16) / 255,\n        g = tonumber(string.sub(digits, 3, 4), 16) / 255,\n        b = tonumber(string.sub(digits, 5, 6), 16) / 255,\n        a = alpha\n    }\nend\n\nlocal function caption()\n    if CONFIG.SHOW_TOOLTIP then\n        return tostring(CONFIG.VALUE) .. \" of \" .. tostring(CONFIG.MAX_VALUE)\n    end\n    return \"\"\nend\n\nlocal function transparent()\n    return { r = 0, g = 0, b = 0, a = 0 }\nend\n\nlocal function hitTarget(handler, x, z, width, height, tooltip, thickness)\n    self.createButton({\n        click_function = handler,\n        function_owner = self,\n        label = \"\",\n        tooltip = tooltip,\n        position = { x, thickness / 2, z },\n        scale = CONTROL_SCALE,\n        width = width,\n        height = height,\n        alignment = 3,\n        font_color = transparent(),\n        color = transparent()\n    })\nend\n\nlocal function createAll()\n    local thickness = self.getBoundsNormalized().size.y\n\n    -- The supplied working dial relies on this being button zero. TTS renders\n    -- zero-sized label text correctly when it carries the original 1.5x scale.\n    self.createButton({\n        click_function = \"ignore\",\n        function_owner = self,\n        label = tostring(CONFIG.VALUE),\n        tooltip = caption(),\n        position = { VALUE_X, thickness / 2, VALUE_Z },\n        scale = CONTROL_SCALE,\n        width = 0,\n        height = 0,\n        alignment = 3,\n        font_size = CONFIG.NUMBER_SIZE,\n        font_color = colour(CONFIG.INK, 1),\n        color = colour(CONFIG.PLATE, 1)\n    })\n\n    hitTarget(\"lower\", LOWER_TARGET_X, LOWER_Z,\n        TRIGGER_TARGET_WIDTH, TRIGGER_TARGET_HEIGHT, \"Lose one\", thickness)\n    hitTarget(\"raise\", RAISE_TARGET_X, RAISE_Z,\n        TRIGGER_TARGET_WIDTH, TRIGGER_TARGET_HEIGHT, \"Gain one\", thickness)\n    hitTarget(\"reset\", 0, RESET_Z,\n        RESET_TARGET_WIDTH, RESET_TARGET_HEIGHT, \"Reset to full\", thickness)\nend\n\nlocal function step(by, alt)\n    if alt then\n        CONFIG.VALUE = CONFIG.MAX_VALUE\n    else\n        CONFIG.VALUE = clamp(CONFIG.VALUE + by)\n    end\n    self.editButton({\n        index = 0,\n        label = tostring(CONFIG.VALUE),\n        tooltip = caption()\n    })\nend\n\nfunction onSave()\n    return JSON.encode({ value = CONFIG.VALUE })\nend\n\nfunction onLoad(state)\n    if state ~= nil and state ~= \"\" then\n        local ok, saved = pcall(function() return JSON.decode(state) end)\n        if ok and saved ~= nil and saved.value ~= nil then\n            CONFIG.VALUE = clamp(saved.value)\n        end\n    end\n    Wait.time(createAll, 1, 0)\nend\n\nfunction raise(_object, _colour, alt) step(1, alt) end\n\nfunction lower(_object, _colour, alt) step(-1, alt) end\n\nfunction reset() step(0, true) end\n\nfunction ignore() end\n\n",
+      "LuaScriptState": "",
+      "XmlUI": ""
+    }
+  ]
+}

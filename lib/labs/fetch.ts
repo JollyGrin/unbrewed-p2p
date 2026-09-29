@@ -1,6 +1,8 @@
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
-import { LabsLoadedSet, LabsSetRow } from "./labs.type";
+import { LabsLoadedSet, LabsSetRow, LabsTtsMap, LabsTtsModel } from "./labs.type";
+import { hasLabsComponents, parseLabsTtsSave } from "./components";
 import { fail } from "./errors";
+import { hasLabsMap, parseLabsTtsMap } from "./labsMap";
 import { LabsInput, parseLabsInput } from "./parse";
 import { LabsImport, buildLabsImport, listLabsHeroes } from "./map";
 
@@ -14,6 +16,9 @@ import { LabsImport, buildLabsImport, listLabsHeroes } from "./map";
  */
 export const LABS_API = "https://kyqcvbnxfmpnbwtikzxp.supabase.co/rest/v1";
 const LABS_KEY = "sb_publishable_g9vGj6W8XkWVosdPbLh1Ww_oa5Lrg1T";
+/** Labs' public bucket for hosted Tabletop Simulator saves (CORS open). */
+export const LABS_TTS_ASSETS =
+  "https://kyqcvbnxfmpnbwtikzxp.supabase.co/storage/v1/object/public/tts-assets";
 
 type Fetch = typeof fetch;
 
@@ -80,6 +85,37 @@ const authorOf = async (ownerId: string, fetchImpl: Fetch) => {
   }
 };
 
+type TtsSave = { models: LabsTtsModel[]; map?: LabsTtsMap };
+
+/**
+ * Best-effort (#1001, #1002): the component objects and the map render of the
+ * set's hosted Tabletop Simulator save — one lookup, one download. Any failure
+ * (no save, expired save, network, a file that isn't a save) is `undefined`,
+ * and the deck imports without component tokens or a map offer. Never throws.
+ */
+const ttsSaveOf = async (
+  row: LabsSetRow,
+  fetchImpl: Fetch,
+): Promise<TtsSave | undefined> => {
+  try {
+    const rows = await labsRequest<{ save_path?: string }[]>(
+      "rpc/published_tts_save",
+      { method: "POST", body: JSON.stringify({ p_set_id: row.id }) },
+      fetchImpl,
+    );
+    const path = Array.isArray(rows) ? rows[0]?.save_path : undefined;
+    if (typeof path !== "string" || !path) return undefined;
+    const res = await fetchImpl(
+      `${LABS_TTS_ASSETS}/${path.split("/").map(encodeURIComponent).join("/")}`,
+    );
+    if (!res.ok) return undefined;
+    const save = await res.json();
+    return { models: parseLabsTtsSave(save), map: parseLabsTtsMap(save) };
+  } catch {
+    return undefined;
+  }
+};
+
 /**
  * Fetch the set a pasted link / id points at. Throws `LabsImportError`.
  * `fetchImpl` is injectable for tests.
@@ -97,10 +133,27 @@ export const fetchLabsSet = async (
       : fail("bad-input"));
   const row = await setBySlug(slug, fetchImpl);
   const characterId = input.kind === "character" ? input.characterId : undefined;
+  // An Adventures set (villain + minions): no hero to pick, whatever the link names.
+  const characters = row.document.set.characters ?? [];
+  if (characters.length > 0 && !characters.some((c) => c.role === "hero" || c.role === undefined)) {
+    fail("no-heroes");
+  }
   if (characterId && !row.document.set.characters?.some((c) => c.id === characterId)) {
     fail("character-not-found");
   }
-  return { row, characterId, author: await authorOf(row.owner_id, fetchImpl) };
+  const set = row.document.set;
+  const [author, save] = await Promise.all([
+    authorOf(row.owner_id, fetchImpl),
+    hasLabsComponents(set) || hasLabsMap(set) ? ttsSaveOf(row, fetchImpl) : undefined,
+  ]);
+  const ttsModels = save?.models.length ? save.models : undefined;
+  return {
+    row,
+    characterId,
+    author,
+    ...(ttsModels ? { ttsModels } : {}),
+    ...(save?.map ? { ttsMap: save.map } : {}),
+  };
 };
 
 /**

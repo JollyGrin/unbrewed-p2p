@@ -2,6 +2,7 @@ import { FormEvent, useMemo, useState } from "react";
 import {
   Box,
   Button,
+  Checkbox,
   Flex,
   HStack,
   Input,
@@ -10,18 +11,23 @@ import {
   Wrap,
 } from "@chakra-ui/react";
 import { toast } from "react-hot-toast";
-import { DeckImportType } from "@/components/DeckPool/deck-import.type";
+import { BagDeckView, useBagMaps } from "@/lib/bag/useBag";
+import { useReplaceConfirm } from "@/components/Bag/ReplaceDeckConfirm";
 import { DeckCards } from "@/components/Bag/Deck/DeckCards";
+import { LabsSkippedSummary } from "./LabsSkipped";
 import { LabsTtsSteps, LabsUnsupportedWarning } from "./LabsUnsupported";
 import {
   LABS_ERROR_MESSAGES,
   LabsImport,
   LabsImportError,
   LabsLoadedSet,
+  addLabsMap,
   buildLabsImport,
   defaultLabsCharacter,
   fetchLabsSet,
+  labsImportedText,
   listLabsHeroes,
+  withoutSkippedMap,
 } from "@/lib/labs";
 
 const LABS_URL = "https://www.unmatchedlabs.com";
@@ -37,7 +43,7 @@ export const LabsPanel = ({
   onAdded,
   onOpenImages,
 }: {
-  pushDeck: (deck: DeckImportType) => Promise<boolean>;
+  pushDeck: BagDeckView["pushDeck"];
   setStar: (id: string) => void;
   onAdded?: (deckId: string) => void;
   /** switch the hub to the card-image import (the TTS-export fallback) */
@@ -48,6 +54,10 @@ export const LabsPanel = ({
   const [error, setError] = useState<string>();
   const [loaded, setLoaded] = useState<LabsLoadedSet>();
   const [characterId, setCharacterId] = useState<string>();
+  // Off by default; adds the set's map to the player's maps on save (#1002).
+  const [addMap, setAddMap] = useState(false);
+  const bagMaps = useBagMaps();
+  const { confirmReplace, asking, prompt } = useReplaceConfirm();
 
   const heroes = useMemo(
     () => (loaded ? listLabsHeroes(loaded.row.document.set) : []),
@@ -68,6 +78,7 @@ export const LabsPanel = ({
     setLoaded(undefined);
     setCharacterId(undefined);
     setError(undefined);
+    setAddMap(false);
   };
 
   const fetchSet = async (e?: FormEvent) => {
@@ -88,9 +99,16 @@ export const LabsPanel = ({
   const save = async () => {
     if (!result) return;
     const { deck } = result;
-    if (!(await pushDeck(deck))) return; // blocked author or storage full — already toasted
+    // blocked author, storage full, or the player kept their edited copy — already toasted
+    if (!(await pushDeck(deck, { confirmReplace }))) return;
     setStar(deck.id);
     toast.success(`${deck.name} saved & ready to play`);
+    if (addMap && result.map) {
+      // A republished set's map has a new url: replace the older copy (#1029).
+      if (await addLabsMap(result.map.map, bagMaps)) {
+        toast.success(`${result.map.map.meta?.title ?? "Map"} added to your maps`);
+      }
+    }
     reset();
     setLink("");
     onAdded?.(deck.id);
@@ -196,6 +214,7 @@ export const LabsPanel = ({
               bg="brand.accent"
               color="brand.surfaceDim"
               _hover={{ bg: "brand.accentDeep" }}
+              isDisabled={asking}
               onClick={save}
             >
               ★ {result.unsupported.length ? "Save anyway" : "Save & use"} “
@@ -205,7 +224,27 @@ export const LabsPanel = ({
               Clear
             </Button>
           </HStack>
+          {prompt}
           <DeckCards decks={[result.deck]} selectedDeckId={result.deck.id} />
+          {result.map && (
+            <Checkbox
+              mt="0.75rem"
+              colorScheme="purple"
+              isChecked={addMap}
+              onChange={(e) => setAddMap(e.target.checked)}
+            >
+              <Text fontSize="0.9rem">
+                Also add this set&apos;s map ({result.map.name}) to my maps
+              </Text>
+            </Checkbox>
+          )}
+          <Box mt="0.75rem" maxW="620px">
+            <LabsSkippedSummary
+              skipped={addMap && result.map ? withoutSkippedMap(result.skipped) : result.skipped}
+              imported={labsImportedText(result.deck, addMap && !!result.map)}
+              sourceUrl={result.deck.sourceUrl}
+            />
+          </Box>
         </Box>
       )}
 

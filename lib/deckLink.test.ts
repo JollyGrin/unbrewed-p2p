@@ -58,7 +58,7 @@ describe("fetchLinkedDeck", () => {
   it("sends unprefixed ids to fetchDeckById exactly as given", async () => {
     const result = await fetchLinkedDeck("pk1x");
     expect(fetchDeckById).toHaveBeenCalledWith("pk1x");
-    expect(result).toEqual({ deck: { id: "pk1x", name: "deck pk1x" }, unsupported: [] });
+    expect(result).toEqual({ deck: { id: "pk1x", name: "deck pk1x" }, unsupported: [], skipped: [] });
     expect(global.fetch).not.toHaveBeenCalled();
   });
 

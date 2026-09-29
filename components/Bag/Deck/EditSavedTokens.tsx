@@ -8,7 +8,9 @@ import {
   SavedToken,
   toSavedToken,
 } from "@/components/Positions/position.type";
+import { heroTokenSources } from "@/components/Positions/heroToken";
 import { TokenLibraryModal } from "@/components/Positions/token-library.modal";
+import { toPoolExtraCharacters } from "@/components/DeckPool/PoolFns";
 
 /**
  * Per-deck token loadout editor (issue #467).
@@ -96,8 +98,14 @@ export const EditSavedTokensModal = ({
       onColorChange={(hex) => write(saved, hex)}
       tokens={asRows(saved)}
       // No pool behind a bagged deck, so linked-HP counters have nothing to
-      // read here — they still resolve live once spawned in a game.
-      linkedHp={{}}
+      // read here — they still resolve live once spawned in a game. The
+      // extra characters are listed by name so a badge can link to one.
+      linkedHp={{
+        extras: toPoolExtraCharacters(deck.deck_data?.extraCharacters).map(
+          (c) => ({ name: c.hero.name }),
+        ),
+      }}
+      heroTokens={heroTokenSources(deck.deck_data)}
       onAdd={(token) => write([...saved, toSavedToken(token)])}
       onPatch={(id, patch) =>
         write(saved.map((t, i) => (i === rowIndex(id) ? { ...t, ...patch } : t)))

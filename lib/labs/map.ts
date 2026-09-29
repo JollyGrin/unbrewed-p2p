@@ -11,10 +11,13 @@ import {
   LabsSet,
 } from "./labs.type";
 import { fail } from "./errors";
+import { LabsSkippedContent, detectLabsSkipped } from "./skipped";
 import { labsDeckId, labsShareUrl } from "./parse";
 import { LabsUnsupportedFeature, detectLabsUnsupported } from "./unsupported";
 import { labsPreviewUrl } from "./previews";
 import { seedHeroCardTokens } from "@/components/Positions/heroCardTokens";
+import { importedFigureIds, labsComponentTokens } from "./components";
+import { LabsMapOffer, labsMapOffer } from "./labsMap";
 
 export type LabsHeroOption = { id: string; name: string };
 
@@ -25,8 +28,15 @@ export type LabsImport = {
    * fall back to it (no finished render). Empty when every card has one.
    */
   unsupported: LabsUnsupportedFeature[];
+  /** What the set holds that this import leaves behind. Information only. */
+  skipped: LabsSkippedContent;
   setName: string;
   author?: string;
+  /**
+   * The set's map, when the hosted save holds a render of it (#1002). The
+   * Labs panel offers it as an opt-in checkbox; deep links never add it.
+   */
+  map?: LabsMapOffer;
 };
 
 const CARD_TYPES: Record<string, UnmatchedCardType> = {
@@ -211,6 +221,8 @@ export const buildLabsImport = (
   const hero =
     set.characters?.find((c) => c.id === characterId) ?? fail("character-not-found");
   const actionCards = actionCardsOf(set, characterId);
+  // Adventures characters are not heroes: never import one as a hero deck.
+  if (hero.role === "villain" || hero.role === "minion") fail("no-heroes");
   if (actionCards.length === 0) fail("no-deck");
 
   const name = heroName(hero);
@@ -287,6 +299,14 @@ export const buildLabsImport = (
     };
   });
   const revision = String(row.revision ?? 1);
+  // Pieces, tokens and dials from the hosted save (#1001); none without one.
+  const components = loaded.ttsModels
+    ? labsComponentTokens(set, hero, loaded.ttsModels, extras)
+    : undefined;
+  const savedTokens = [
+    ...(reference.length ? seedHeroCardTokens(reference) : []),
+    ...(components?.tokens ?? []),
+  ];
 
   const deck: DeckImportType = {
     id,
@@ -308,7 +328,8 @@ export const buildLabsImport = (
     liked: false,
     likes: 0,
     tags: ["unmatched-labs"],
-    ...(reference.length ? { savedTokens: seedHeroCardTokens(reference) } : {}),
+    ...(savedTokens.length ? { savedTokens } : {}),
+    ...(components ? { labsComponents: components.record } : {}),
     deck_data: {
       name,
       appearance: {
@@ -347,10 +368,13 @@ export const buildLabsImport = (
     },
   };
 
+  const map = labsMapOffer(loaded, deck);
   return {
     deck,
     unsupported: detectLabsUnsupported(set, characterId, row),
+    skipped: detectLabsSkipped(set, characterId, importedFigureIds(deck)),
     setName: row.name,
     author,
+    ...(map ? { map } : {}),
   };
 };

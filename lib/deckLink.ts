@@ -22,8 +22,10 @@ import {
   LabsUnsupportedFeature,
   fail,
   fetchLabsImport,
+  LabsSkippedContent,
   isLabsDeckId,
   labsDeckId,
+  mergeLabsComponentTokens,
   parseLabsInput,
 } from "@/lib/labs";
 
@@ -37,6 +39,10 @@ export type LinkedDeck = {
   deck: DeckImportType;
   /** Labs features the card template can't draw; empty for unmatched.cards */
   unsupported: LabsUnsupportedFeature[];
+  /** What a Labs set holds that the import leaves behind; never holds the link */
+  skipped: LabsSkippedContent;
+  /** The set's map could be added from the bag (#1002); a link never adds it */
+  mapInBag?: boolean;
 };
 
 /** `null` for a `labs:` link that doesn't name a character. */
@@ -67,17 +73,20 @@ export const deckMatchesLink = (
 };
 
 /** Fetch the linked deck from its source. Rejects on a refused or bad link. */
-export const fetchLinkedDeck = async (raw: string): Promise<LinkedDeck> => {
+export const fetchLinkedDeck = async (
+  raw: string,
+  fetchImpl?: typeof fetch,
+): Promise<LinkedDeck> => {
   const link = parseDeckLink(raw);
   if (!link) return fail("bad-input");
   if (link.source === "unmatched") {
-    return { deck: await fetchDeckById(link.id), unsupported: [] };
+    return { deck: await fetchDeckById(link.id), unsupported: [], skipped: [] };
   }
-  const { deck, unsupported } = await fetchLabsImport({
-    kind: "character",
-    characterId: link.characterId,
-  });
-  return { deck, unsupported };
+  const { deck, unsupported, skipped, map } = await fetchLabsImport(
+    { kind: "character", characterId: link.characterId },
+    fetchImpl,
+  );
+  return { deck, unsupported, skipped, ...(map ? { mapInBag: true } : {}) };
 };
 
 /**
@@ -107,14 +116,21 @@ export const isSameDeckVersion = (
   fetched: DeckImportType,
 ): boolean =>
   saved.version_id === fetched.version_id &&
-  JSON.stringify(imageUrls(saved)) === JSON.stringify(imageUrls(fetched));
+  JSON.stringify(imageUrls(saved)) === JSON.stringify(imageUrls(fetched)) &&
+  // Labs components (#1001): a deck saved before they were imported, or a
+  // republished image. Only when the fetch could read the hosted save — a
+  // failed lookup is not a change.
+  (fetched.labsComponents === undefined ||
+    JSON.stringify(saved.labsComponents ?? []) ===
+      JSON.stringify(fetched.labsComponents));
 
 /**
  * The bag entry a refresh writes: the fetched deck, carrying over what the
  * player set on their saved copy. `null` when there is nothing to update.
  *
- * Kept from the saved copy: `savedTokens` (hero-card tokens pointed at the new
- * renders; a token the player removed stays removed) and `savedTokenColor`.
+ * Kept from the saved copy: `savedTokens` (hero-card and Labs component
+ * tokens pointed at the new images; a token the player removed stays removed;
+ * Labs components the deck didn't have yet are appended) and `savedTokenColor`.
  * The id is the same, so the star is too. Everything else is the fetched deck.
  */
 export const refreshedDeck = (
@@ -122,13 +138,25 @@ export const refreshedDeck = (
   fetched: DeckImportType,
 ): DeckImportType | null => {
   if (isSameDeckVersion(saved, fetched)) return null;
-  const { savedTokens: seeded, savedTokenColor: _, ...rest } = fetched;
+  const {
+    savedTokens: seeded,
+    savedTokenColor: _,
+    labsComponents: fetchedComponents,
+    ...rest
+  } = fetched;
   const savedTokens = saved.savedTokens
-    ? refreshSavedTokens(saved.savedTokens, { from: saved, to: fetched })
+    ? mergeLabsComponentTokens(
+        refreshSavedTokens(saved.savedTokens, { from: saved, to: fetched }),
+        saved.labsComponents,
+        fetched,
+      )
     : seeded;
+  // A fetch that couldn't read the hosted save keeps what the deck knew.
+  const labsComponents = fetchedComponents ?? saved.labsComponents;
   return {
     ...rest,
     ...(savedTokens ? { savedTokens } : {}),
+    ...(labsComponents ? { labsComponents } : {}),
     ...(saved.savedTokenColor !== undefined
       ? { savedTokenColor: saved.savedTokenColor }
       : {}),

@@ -12,6 +12,7 @@ import {
   refreshedDeck,
 } from "@/lib/deckLink";
 import { DeckRefresh } from "@/lib/deckRefresh";
+import { LabsSkippedContent } from "@/lib/labs";
 
 export type HeldDeck = LinkedDeck & {
   /** true when the bag's saved copy is already on the table */
@@ -29,6 +30,11 @@ export type DeckLinkState = {
   error: unknown;
   /** The last refresh written to the bag, for a table already playing `from`. */
   refresh: DeckRefresh | undefined;
+  /** What a loaded Labs set holds that wasn't imported (#1000). Never holds the table. */
+  notice:
+    | { skipped: LabsSkippedContent; sourceUrl?: string; mapInBag?: boolean }
+    | undefined;
+  dismissNotice: () => void;
 };
 
 type Request = { raw: string; saved?: DeckImportType };
@@ -58,6 +64,7 @@ export const useDeckLink = (
   const [playAnyway, setPlayAnyway] = useState(false);
   const [keptSaved, setKeptSaved] = useState(false);
   const [refresh, setRefresh] = useState<DeckRefresh>();
+  const [noticeDismissed, setNoticeDismissed] = useState(false);
   const requestedFor = useRef<string>();
 
   useEffect(() => {
@@ -130,5 +137,14 @@ export const useDeckLink = (
     failed: !!error && !isRefresh,
     error: isRefresh ? undefined : error,
     refresh,
+    notice:
+      linked && linked.skipped.length > 0 && !held && !keptSaved && !noticeDismissed
+        ? {
+            skipped: linked.skipped,
+            sourceUrl: linked.deck.sourceUrl,
+            ...(linked.mapInBag ? { mapInBag: true } : {}),
+          }
+        : undefined,
+    dismissNotice: () => setNoticeDismissed(true),
   };
 };

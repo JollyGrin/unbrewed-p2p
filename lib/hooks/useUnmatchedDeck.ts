@@ -31,7 +31,7 @@ export const useUnmatchedDeck = () => {
         const result = await axios.get<DeckImportType>(
           apiUrl + deckIdDebounced,
         );
-        return { deck: result.data, unsupported: [] };
+        return { deck: result.data, unsupported: [], skipped: [] };
       } catch (err) {
         console.error(err);
         // rethrow so react-query marks the query as errored instead of

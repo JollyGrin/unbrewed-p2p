@@ -3,6 +3,10 @@ import {
   DEFAULT_TOKEN_SIZE,
   SPAWN_ORIGIN,
   SavedToken,
+  TOKEN_LABEL_MAX,
+  canFlip,
+  clampLabel,
+  shownSheet,
   spawnSavedTokens,
   toSavedToken,
 } from "./position.type";
@@ -83,5 +87,75 @@ describe("spawnSavedTokens", () => {
 
   it("spawns nothing for a deck with no saved tokens", () => {
     expect(spawnSavedTokens([], "grin")).toEqual([]);
+  });
+});
+
+describe("display fields (#1003)", () => {
+  const piece: BoardToken = {
+    id: "me#piece",
+    x: 300,
+    y: 200,
+    imageUrl: "https://example.test/frisbee.png",
+    size: 80,
+    h: 80,
+    sheet: { cols: 2, rows: 1, index: 0 },
+    clip: "circle",
+    label: "Frisbee",
+    altIndex: 1,
+    flipped: true,
+    counter: { value: 2 },
+  };
+
+  it("round-trips clip, label and altIndex through toSavedToken and spawn", () => {
+    const saved = toSavedToken(piece);
+    expect(saved).toEqual({
+      imageUrl: "https://example.test/frisbee.png",
+      size: 80,
+      h: 80,
+      sheet: { cols: 2, rows: 1, index: 0 },
+      clip: "circle",
+      label: "Frisbee",
+      altIndex: 1,
+      counter: { value: 2 },
+    });
+    // through JSON, as a deck is stored in the bag
+    const [spawned] = spawnSavedTokens(JSON.parse(JSON.stringify([saved])), "me");
+    const { id, x, y, ...look } = spawned;
+    expect(look).toEqual(saved);
+  });
+
+  it("saves the piece on its front face — `flipped` is per-game", () => {
+    expect(toSavedToken(piece)).not.toHaveProperty("flipped");
+  });
+
+  it("spawns on the front face even when a deck carries `flipped`", () => {
+    // e.g. saved by a client older than the strip in toSavedToken
+    const stale = { ...toSavedToken(piece), flipped: true } as SavedToken;
+    expect(spawnSavedTokens([stale], "me")[0]).not.toHaveProperty("flipped");
+  });
+});
+
+describe("flip helpers", () => {
+  const sheet = { cols: 2, rows: 1, index: 0 };
+
+  it("only a sheet token with an altIndex can flip", () => {
+    expect(canFlip({ sheet, altIndex: 1 })).toBe(true);
+    expect(canFlip({ sheet, altIndex: 0 })).toBe(true);
+    expect(canFlip({ sheet })).toBe(false);
+    expect(canFlip({ altIndex: 1 })).toBe(false);
+  });
+
+  it("toggling flipped swaps the drawn cell and leaves sheet.index alone", () => {
+    const token = { sheet, altIndex: 1, flipped: false };
+    expect(shownSheet(token)).toEqual(sheet);
+    const flipped = { ...token, flipped: !token.flipped };
+    expect(shownSheet(flipped)).toEqual({ cols: 2, rows: 1, index: 1 });
+    expect(flipped.sheet.index).toBe(0);
+    expect(shownSheet({ ...flipped, flipped: !flipped.flipped })).toEqual(sheet);
+  });
+
+  it("clampLabel caps a label at TOKEN_LABEL_MAX", () => {
+    expect(clampLabel("x".repeat(40))).toHaveLength(TOKEN_LABEL_MAX);
+    expect(clampLabel("Dial")).toBe("Dial");
   });
 });

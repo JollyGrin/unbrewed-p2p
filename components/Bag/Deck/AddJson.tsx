@@ -15,6 +15,7 @@ import axios from "axios";
 import { toast } from "react-hot-toast";
 import { useJsonCheck } from "@/lib/hooks/useJsonCheck";
 import { SubToggle } from "@/components/Bag/AddDeckHub/SubToggle";
+import { useReplaceConfirm } from "@/components/Bag/ReplaceDeckConfirm";
 
 /**
  * Import a raw deck JSON, either pasted as text or fetched from a URL.
@@ -26,6 +27,7 @@ export const AddJson = ({
   onAdded?: (deckId: string) => void;
 }) => {
   const { pushDeck } = useBagDecks();
+  const { confirmReplace, asking, prompt } = useReplaceConfirm();
   const [mode, setMode] = useState<"text" | "url">("text");
 
   const [json, setJson] = useState<string>("");
@@ -45,7 +47,8 @@ export const AddJson = ({
         toast.error("That JSON isn't a deck (needs an id and deck_data)");
         return;
       }
-      if (!(await pushDeck(deck))) return; // storage full — already toasted
+      // storage full, or the player kept their edited copy — already toasted
+      if (!(await pushDeck(deck, { confirmReplace }))) return;
       toast.success(`${deck.name ?? "Deck"} added to your bag`);
       onAdded?.(deck.id);
     } catch {
@@ -70,6 +73,7 @@ export const AddJson = ({
       />
 
       <Box mt="0.75rem">
+        {prompt}
         {mode === "text" ? (
           <>
             <HStack mb="0.5rem" fontSize="0.85rem">
@@ -97,7 +101,7 @@ export const AddJson = ({
               bg="brand.accent"
               color="brand.surfaceDim"
               _hover={{ bg: "brand.accentDeep" }}
-              isDisabled={!isJsonValid}
+              isDisabled={!isJsonValid || asking}
               onClick={() => addDeck(json)}
             >
               Add deck
@@ -118,7 +122,7 @@ export const AddJson = ({
               color="brand.surfaceDim"
               _hover={{ bg: "brand.accentDeep" }}
               isLoading={isFetching}
-              isDisabled={!urlData?.data}
+              isDisabled={!urlData?.data || asking}
               onClick={() => addDeck(urlData?.data)}
             >
               Add deck from URL
