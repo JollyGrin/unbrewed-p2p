@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@jest/globals";
-import { BALANCED_DECKS, opponentDeckLink } from "./opponent";
+import { opponentDeckLink } from "./opponent";
 
 const CHAR = "char_ce316d14-8bc8-413d-9086-ad37b502d0fe";
 
@@ -18,12 +18,4 @@ describe("opponentDeckLink", () => {
     ["labs:66521662a3f5ff4e7a23b429", null],
     ["https://example.com/deck", null],
   ])("%s → %s", (raw, id) => expect(opponentDeckLink(raw)).toBe(id));
-});
-
-describe("BALANCED_DECKS", () => {
-  it("lists Hollow Oak by name", () =>
-    expect(BALANCED_DECKS).toContainEqual({
-      deckId: "hollow-oak",
-      name: "Hollow Oak",
-    }));
 });

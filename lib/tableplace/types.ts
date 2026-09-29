@@ -108,6 +108,6 @@ type FaceMembers = {
 export type FaceResolver = ((card: DeckImportCardType) => string | null) &
   Partial<FaceMembers>;
 
-/** A resolver that answers every face-up single, e.g. `balancedFaces`. */
+/** A resolver that answers every face-up single, e.g. a runtime face renderer. */
 export type FullFaceResolver = ((card: DeckImportCardType) => string | null) &
   FaceMembers;

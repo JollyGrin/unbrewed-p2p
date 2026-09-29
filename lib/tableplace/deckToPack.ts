@@ -16,7 +16,9 @@ import type {
   Skipped,
   TbppPack,
 } from "./types";
-import { FACES_ORIGIN } from "./faces";
+
+/** Where site-relative art paths resolve for table.place. */
+const SITE_ORIGIN = "https://unbrewed.xyz";
 
 export type DeckToPackOptions = {
   faces: FaceResolver;
@@ -75,7 +77,7 @@ export const absoluteUrl = (url: string): string =>
   url.startsWith("//")
     ? `https:${url}`
     : url.startsWith("/")
-      ? `${FACES_ORIGIN}${url}`
+      ? `${SITE_ORIGIN}${url}`
       : url;
 
 const sheetRef = (url: string, crop: SheetCrop, name?: string): string =>

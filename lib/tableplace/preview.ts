@@ -3,9 +3,7 @@
  * creating it (issue #1008). Pure: the /table page renders it, the tests pin it.
  */
 import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
-import { EVERGREEN_DECK_IDS } from "@/lib/evergreenDecks";
 import { deckToPlayerPack } from "./deckToPack";
-import { balancedFaces, type FaceIndex } from "./faces";
 import type { FaceResolver, Skipped } from "./types";
 
 export type DeckPreview = {
@@ -25,22 +23,9 @@ export type DeckPreview = {
   skipped: string[];
 };
 
-export const isBalancedDeck = (deck: DeckImportType) =>
-  EVERGREEN_DECK_IDS.has(deck.id);
-
-/**
- * The one face lookup for any deck. A card's own finished image (a Labs
- * render, a TTS sheet) always wins inside the converter; the balanced-deck
- * index answers the rest, and answers null for a deck it doesn't list.
- */
-export const facesFor = (
-  deck: DeckImportType,
-  index: FaceIndex | null,
-): FaceResolver => balancedFaces(index, deck);
-
 const NO_FACE = /: no finished face$/;
-const NOT_PUBLISHED =
-  "Card images for this deck aren't published yet. Balanced decks get theirs when this feature ships.";
+export const NO_TABLE_IMAGES =
+  "This deck's cards don't have table images yet. Unmatched Labs and the-unmatched.club decks work today.";
 
 /** "Branch Out: no finished face" → "“Branch Out” has no card image yet". */
 export const plainSkipped = (s: Skipped): string => {
@@ -58,26 +43,16 @@ export const plainSkipped = (s: Skipped): string => {
   return `${who}${rest}`;
 };
 
-const refusal = (
-  deck: DeckImportType,
-  skipped: Skipped[],
-  index: FaceIndex | null,
-): string | null => {
-  const missing = skipped.filter((s) => NO_FACE.test(s)).length;
-  if (!missing) return null;
-  if (isBalancedDeck(deck) && !index?.decks?.[deck.id]) {
-    return NOT_PUBLISHED;
-  }
-  const cards = missing === 1 ? "1 card has" : `${missing} cards have`;
-  return `${cards} no finished card image. table.place shows cards as finished images, so every card, hero and sidekick needs one.`;
-};
-
+/**
+ * `faces` answers the decks that have no finished faces of their own; a card's
+ * own image (a Labs render, a TTS sheet) always wins inside the converter.
+ */
 export const previewDeck = (
   deck: DeckImportType,
-  index: FaceIndex | null,
+  faces: FaceResolver = () => null,
 ): DeckPreview => {
   const data = deck.deck_data;
-  const { skipped } = deckToPlayerPack(deck, { faces: facesFor(deck, index) });
+  const { skipped } = deckToPlayerPack(deck, { faces });
   // The shape of the table doesn't depend on the faces: a stand-in face shows
   // what a refused deck WOULD put down, so its preview isn't empty.
   const { pack, pieces } = deckToPlayerPack(deck, { faces: () => "about:" });
@@ -86,7 +61,7 @@ export const previewDeck = (
   const sidekickCount = pieces.filter(
     (p) => p.role === "fighter" && p.fighter === "sidekick",
   ).length;
-  const refused = refusal(deck, skipped, index);
+  const refused = skipped.some((s) => NO_FACE.test(s)) ? NO_TABLE_IMAGES : null;
 
   return {
     deckName: data.name || deck.name,
@@ -108,7 +83,7 @@ export const previewDeck = (
       })),
     tokens: pieces.filter((p) => p.role === "token").map((p) => p.piece.name),
     refused,
-    // "not published yet" is the whole story; a card-by-card list is noise
-    skipped: refused === NOT_PUBLISHED ? [] : skipped.map(plainSkipped),
+    // one line says it all; a card-by-card list is noise
+    skipped: refused ? [] : skipped.map(plainSkipped),
   };
 };
