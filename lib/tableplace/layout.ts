@@ -1,5 +1,5 @@
 /**
- * Table layout v2: every coordinate the converter sends to table.place.
+ * Table layout v3: every coordinate the converter sends to table.place.
  *
  * World units, per api.table.place/llms.txt §4.5: the felt is x ∈ [-30, 30],
  * z ∈ [-15, 15]; seat 0 sits at +z looking toward -z (so +x is its right),
@@ -10,12 +10,27 @@
  * sees about 40 × 25 world units at full zoom-out on a 16:10 screen, so
  * anything past it is off-screen until someone pans.
  *
- *   ┌──────────────── seat 1 front row (cards) ────────────────┐
- *   │ seat 1  │                                        │        │
- *   │ column  │        map, centred, ≤ 26 × 16         │        │
- *   │         │                                        │ seat 0 │
- *   │         │                                        │ column │
- *   └─ deck discard rules ── combat ── hero sidekick extras ───┘
+ * Each player's kit sits together at their front-right, off the map, like
+ * the physical game: the card piles from the draw deck outward (a missing
+ * pile leaves no gap), the dials in a row in front of the hero card on, then
+ * tokens. The combat spots (a, b) stay in the middle of the front row. Seat 0
+ * is at the bottom; seat 1 is the same turned half a turn.
+ *
+ *   ┌───────────────────────────────────────────────────────┐
+ *   │ 1 1 1 R  X  S  H  D  K  b a                           │ seat 1
+ *   │ • • • •  •  •  •  ░  ░                                │
+ *   │ 2 2 2 ┌───────────────────────────────────┐           │
+ *   │ 2 2 2 │                                   │           │
+ *   │       │     map, centred, ≤ 26 × 16       │           │
+ *   │       │                                   │ 2 2 2     │
+ *   │       └───────────────────────────────────┘ 2 2 2     │
+ *   │                           ░  ░  •  •  •  •  • • •     │
+ *   │                     a b   K  D  H  S  X  R  1 1 1     │ seat 0
+ *   └───────────────────────────────────────────────────────┘
+ *   K deck  D discard  H hero  S sidekick  X extras  R rules
+ *   Piece cells fill in this order: • the row in front of the hero card on,
+ *   1 the card row past the last pile, 2 the corner beside the map, and
+ *   ░ in front of the deck and discard.
  */
 import type { ProMapDef } from "@/lib/pro/protocol";
 
@@ -39,7 +54,7 @@ export const SNAP_POINT_CAP = 200;
 
 export const SEAT_ROTATION = [0, 180] as const;
 
-/** The map box: leaves a front row per seat and a side column per side. */
+/** The map box: leaves a card row and a piece row per seat, and a corner per side. */
 export const MAP_MAX_HEIGHT = 16;
 export const MAP_MAX_WIDTH = 26;
 
@@ -56,45 +71,74 @@ export const forSeat = (seat: Seat, p: XZ): XZ => (seat === 0 ? p : mirror(p));
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
-/** Seat 0's front row: card piles at both ends, combat spots in the middle. */
-export const FRONT_ROW_Z = 10.6;
-export const CARD_X = {
-  deck: -18,
-  discard: -15.6,
-  rules: -13.2,
-  hero: 13.2,
-  sidekick: 15.6,
-  extras: 18,
-} as const;
-export type CardSlot = keyof typeof CARD_X;
+/**
+ * Seat 0's front row: the combat spots in the middle, then the kit's card
+ * piles to the player's right. Cards are 1.4 × 2, so a pile's footprint ends
+ * 1 short of here: 0.4 inside VIEW, and 2.4 off a map at MAP_MAX_HEIGHT.
+ */
+export const FRONT_ROW_Z = 11.4;
+/** Piles 1.8 apart: past CARD_STACK_RADIUS, with a 0.4 gap between cards. */
+const PILE_STEP = 1.8;
+export const CARD_ORDER = [
+  "deck",
+  "discard",
+  "hero",
+  "sidekick",
+  "extras",
+  "rules",
+] as const;
+export type CardSlot = (typeof CARD_ORDER)[number];
+/**
+ * The nth pile a seat has, in CARD_ORDER with no gaps: the draw deck nearest
+ * the player's centre-right, 0.5 clear of the boost card.
+ */
+export const pileX = (n: number) => round(3.4 + n * PILE_STEP);
 
 /**
- * Seat 0's side column, to its right beside the map, clear of the front row.
- * Its cells are piece CENTRES, so the outer edge leaves room for a footprint.
+ * Seat 0's piece row, between the card piles and the map: an off-board
+ * figure's footprint (0.85) clears both the map (z ≤ 8) and the cards
+ * (z ≥ 10.4). Cells are piece CENTRES, 1.8 apart.
  */
-const COLUMN_X_MAX = VIEW.halfX - OFF_BOARD_FIGHTER_RADIUS;
-const COLUMN_Z_TOP = 8.5;
-const COLUMN_Z_BOTTOM = 0.5;
+export const PIECE_ROW_Z = 9.2;
 const PIECE_STEP = 1.8;
+const PIECE_X_MAX = VIEW.halfX - OFF_BOARD_FIGHTER_RADIUS;
+/** The corner beside the map, on seat 0's own half: rows from here toward z 0. */
+const CORNER_Z_TOP = PIECE_ROW_Z - PIECE_STEP;
+const CORNER_Z_BOTTOM = 0.5;
 
 export type SeatArea = {
   card: (slot: CardSlot) => XZ;
-  /** HP counters, then off-board fighters, then saved tokens; ends when full. */
-  column: () => Generator<XZ, void>;
+  /**
+   * The kit's piece cells, nearest the hero card first: the row in front of
+   * the hero card on; the card row past the last pile; the corner beside the
+   * map; then in front of the deck and discard. Ends when full.
+   */
+  kit: () => Generator<XZ, void>;
 };
 
-/** Seat 0's coordinates, mirrored for seat 1. The column starts 1 off the map. */
-export const seatArea = (seat: Seat, mapWidth: number): SeatArea => {
+/** Seat 0's coordinates, mirrored for seat 1, for the piles in `slots`. */
+export const seatArea = (
+  seat: Seat,
+  mapWidth: number,
+  slots: readonly string[] = CARD_ORDER,
+): SeatArea => {
   const at = (p: XZ) => forSeat(seat, p);
-  const x0 = mapWidth / 2 + 1;
+  const along = function* (from: number, z: number, to = PIECE_X_MAX) {
+    for (let x = from; x <= to + 1e-9; x += PIECE_STEP) yield at([round(x), z]);
+  };
+  const piles = CARD_ORDER.filter((s) => slots.includes(s));
+  const drawPiles = piles.filter((s) => s === "deck" || s === "discard");
+  const heroX = pileX(drawPiles.length);
   return {
-    card: (slot) => at([CARD_X[slot], FRONT_ROW_Z]),
-    column: function* () {
-      for (let z = COLUMN_Z_TOP; z >= COLUMN_Z_BOTTOM - 1e-9; z -= PIECE_STEP) {
-        for (let x = x0; x <= COLUMN_X_MAX + 1e-9; x += PIECE_STEP) {
-          yield at([round(x), round(z)]);
-        }
+    card: (slot) => at([pileX(piles.indexOf(slot)), FRONT_ROW_Z]),
+    kit: function* () {
+      yield* along(heroX, PIECE_ROW_Z);
+      yield* along(pileX(piles.length), FRONT_ROW_Z);
+      const x0 = mapWidth / 2 + 1;
+      for (let z = CORNER_Z_TOP; z >= CORNER_Z_BOTTOM - 1e-9; z -= PIECE_STEP) {
+        yield* along(x0, round(z));
       }
+      yield* along(pileX(0), PIECE_ROW_Z, heroX - PIECE_STEP);
     },
   };
 };
