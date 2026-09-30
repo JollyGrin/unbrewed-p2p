@@ -70,7 +70,7 @@ import {
 } from "@/lib/pro/recentRooms";
 import { HERO_DECK_IDS, ResolveCard, heroIdsForArt, useProCardArt } from "@/lib/pro/useProCardArt";
 import { POPULAR_DECKS, PopularDeckMeta } from "@/lib/constants/top-decks";
-import { GiFootprint, GiHearts } from "react-icons/gi";
+import { GiFootprint, GiHearts } from "@/components/Icons/gi";
 import {
   TbArrowsSort,
   TbBow,

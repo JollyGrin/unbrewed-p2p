@@ -199,7 +199,6 @@ const BoardContainer = ({
     logAction,
     claimTableCard,
   } = useWebGame();
-  const icons = useGameIcons();
 
   const players = (gameState?.content as GameState | undefined)?.players;
 
@@ -236,6 +235,10 @@ const BoardContainer = ({
       }),
     [blobs, players, claimByTokenId],
   );
+
+  // Only fetch the 2.8 MB icon chunk when the board actually has an icon token.
+  const hasIconToken = useMemo(() => allTokens.some((t) => t.icon), [allTokens]);
+  const icons = useGameIcons(hasIconToken);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Foreign card token whose pickup panel is open (id only — the live token

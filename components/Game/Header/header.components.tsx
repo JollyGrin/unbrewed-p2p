@@ -31,7 +31,7 @@ import {
   GiFootprint as IconMove,
   GiHearts as IconHeart,
   GiRollingDices as IconDice,
-} from "react-icons/gi";
+} from "@/components/Icons/gi";
 import { IoPeople as IconSidekicks } from "react-icons/io5";
 import { IoMdHand as IconHand } from "react-icons/io";
 import { FaChessPawn as IconToken } from "react-icons/fa";

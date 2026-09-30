@@ -25,7 +25,7 @@ import { useCreateLobby } from "./useCreateLobby";
 import { generateRandomName } from "./randomName";
 import styled from "@emotion/styled";
 import { SettingsIcon } from "@chakra-ui/icons";
-import { GiRollingDices } from "react-icons/gi";
+import { GiRollingDices } from "@/components/Icons/gi";
 import { toast } from "react-hot-toast";
 import Link from "next/link";
 import { DiscordPresence } from "@/components/Discord";

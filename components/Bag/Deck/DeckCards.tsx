@@ -4,7 +4,7 @@ import { hasFieldedSidekick, toPoolExtraCharacters } from "@/components/DeckPool
 import { Flex, Box, Text, HStack, Tooltip } from "@chakra-ui/react";
 
 import { FaHeart } from "react-icons/fa";
-import { GiFootprint } from "react-icons/gi";
+import { GiFootprint } from "@/components/Icons/gi";
 import { LuSwords } from "react-icons/lu";
 import { TbArcheryArrow } from "react-icons/tb";
 import { MdSupervisorAccount as IconSidekick } from "react-icons/md";
