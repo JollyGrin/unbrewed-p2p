@@ -742,6 +742,15 @@
  * client that set it knows, and both seats see the (empty) item layer itself.
  * CLIENT SURFACE (unbrewed-p2p#725): a "play without items" toggle on room create.
  *
+ *
+ * ## Additive field (2026-09-15, no version bump): the adventure table size (engine #589)
+ * `CREATE_ROOM.humans?: number` — for a format with ENGINE-played seats only (adventure): how many
+ * HERO seats the table has, 1..4 (the format's `playerCount.min − engine seats` .. `max − engine
+ * seats`); absent = the minimum (1). The room auto-starts when that many hero seats are filled, by
+ * humans or planned bots — the same auto-start-when-full every room already has. Sent for any other
+ * format, or out of range, it answers ERROR{BAD_MESSAGE} and no room is created. Never echoed back:
+ * `ROOM_STATUS.requiredPlayers` already reports it. Purely additive — no PROTOCOL_VERSION bump. A true
+ * host-start flow (start with fewer than declared) would be a Wave-4 client decision.
  * ## v30 (2026-08-20): the opening-hand mulligan (engine #395)
  * After the opening hands are dealt and BEFORE the heroes are placed, each seat
  * gets a ONE-TIME keep-or-redraw choice: shuffle your whole hand back into your
@@ -1092,6 +1101,14 @@ export type GameEvent =
   | { type: "HERO_PLACED"; fighter: FighterId; space: SpaceId }
   | { type: "SIDEKICK_PLACED"; fighter: FighterId; space: SpaceId }
   | { type: "TURN_STARTED"; player: PlayerId; turnNumber: number }
+  // engine v0.82.0 (#587) — the Adventures initiative deck. Additive members: no duel / ffa /
+  // 2v2 / boss game emits them. A card id is public; a face-down card's title never rides
+  // an event (see ViewInitiative).
+  | { type: "ROUND_STARTED"; round: number }
+  | { type: "INITIATIVE_REVEALED"; card: string; entry: "SEAT" | "FIGHTER" | "EFFECT" }
+  | { type: "ROUND_ENDED"; round: number }
+  // engine v0.86.0 (#589) — an enemy activation resolved: which step won, and whom it attacks.
+  | { type: "ENEMY_ACTIVATION"; fighter: FighterId; outcome: "ADJACENT" | "CLOSEST" | "NO_TARGET"; target?: FighterId }
   | { type: "ACTION_SPENT"; player: PlayerId; action: "MANEUVER" | "SCHEME" | "ATTACK" | "SCHEME_ITEM" }
   | { type: "CARD_DRAWN"; player: PlayerId; card: CardInstanceId }
   | { type: "EXHAUSTION_DAMAGE"; player: PlayerId }
@@ -1124,7 +1141,7 @@ export type GameEvent =
   | { type: "COMBAT_RESOLVED"; outcome: CombatOutcome }
   | { type: "COMBAT_ENDED" }
   | { type: "TURN_ENDED"; player: PlayerId }
-  | { type: "GAME_ENDED"; winner: PlayerId; reason: "HERO_DEFEATED" | "SIMULTANEOUS" | "FORFEIT" }
+  | { type: "GAME_ENDED"; winner: PlayerId; reason: "HERO_DEFEATED" | "SIMULTANEOUS" | "FORFEIT" | "SCENARIO_VICTORY" | "SCENARIO_DEFEAT" }
   | { type: "PROMPT_OPENED"; player: PlayerId; kind: PromptKind; promptId: string }
   | { type: "PROMPT_RESOLVED"; player: PlayerId; promptId: string; optionId: string }
   | { type: "VALUE_MODIFIED"; role: "ATTACK" | "DEFENSE"; delta: number; newEffective: number }
@@ -1151,8 +1168,11 @@ export type GameEvent =
   | { type: "CARD_KEPT"; player: PlayerId; card: CardInstanceId }
   | { type: "ABILITY_BOOST_COMMITTED"; player: PlayerId }
   | { type: "DECK_TOP_REORDERED"; player: PlayerId; count: number }
-  | { type: "STAT_SET"; fighter: FighterId; stat: "MOVE"; to: number; expiresAtTurn: number; expiresAt: "START" | "END" }
-  | { type: "HP_FLOOR_SET"; fighter: FighterId; floor: number; expiresAtTurn: number; expiresAt: "START" | "END" }
+  // engine v0.82.0 (#587): a ROUND-scoped entry (`until: 'ROUND_END'`, Adventures only)
+  // reports null turn stamps plus `expiresAtRound` — the FIGHTER_MARKED shape. Every
+  // turn-stamped event is unchanged and never carries `expiresAtRound`.
+  | { type: "STAT_SET"; fighter: FighterId; stat: "MOVE"; to: number; expiresAtTurn: number | null; expiresAt: "START" | "END" | null; expiresAtRound?: number }
+  | { type: "HP_FLOOR_SET"; fighter: FighterId; floor: number; expiresAtTurn: number | null; expiresAt: "START" | "END" | null; expiresAtRound?: number }
   | { type: "HP_SET"; fighter: FighterId; to: number }
   | { type: "EFFECT_SCHEDULED"; source: string; fireAt: "START" | "END" | "COMBAT_END" }
   // v10: mirror of EFFECT_SCHEDULED emitted when a scheduled effect actually
@@ -1188,13 +1208,13 @@ export type GameEvent =
   | { type: "FIGHTER_REVIVED"; fighter: FighterId; space: SpaceId }
   // v27 — benign removal: the fighter left `space` ALIVE (removeFromBoard). Not a death.
   | { type: "FIGHTER_REMOVED"; fighter: FighterId; space: SpaceId }
-  | { type: "FIGHTER_PINNED"; fighter: FighterId; expiresAtTurn: number; expiresAt: "START" | "END" }
+  | { type: "FIGHTER_PINNED"; fighter: FighterId; expiresAtTurn: number | null; expiresAt: "START" | "END" | null; expiresAtRound?: number }
   // v29 — per-fighter durable markers (engine #360). `total` is the fighter's resulting
   // stack count for that name, so "Revenge x3" renders from the event alone; a null
   // expiry stamp means the mark is DURABLE (survives turn edges until cleared or the
   // fighter is defeated). Neither the turn-edge expiry sweep nor a defeat emits an
   // event — both are derivable from TURN_STARTED / FIGHTER_DEFEATED.
-  | { type: "FIGHTER_MARKED"; fighter: FighterId; name: string; count: number; total: number; expiresAtTurn: number | null; expiresAt: "START" | "END" | null }
+  | { type: "FIGHTER_MARKED"; fighter: FighterId; name: string; count: number; total: number; expiresAtTurn: number | null; expiresAt: "START" | "END" | null; expiresAtRound?: number }
   | { type: "FIGHTER_MARKS_CLEARED"; fighter: FighterId; name: string | null; removed: number }
   | { type: "FIGHTER_TAIL_PLACED"; fighter: FighterId; space: SpaceId }
   | { type: "FIGHTER_EJECTED"; fighter: FighterId; to: SpaceId }
@@ -1216,7 +1236,9 @@ export type GameEvent =
   // v0.54.0 (#463): `{op:'attackWith'}` opened a REAL combat from an effect, outside any
   // action — a named LINKED printed card (`card`) attacks `target`, no action spent. The
   // combat that follows is an ordinary one from COMMIT_DEFENSE onward.
-  | { type: "EFFECT_ATTACK_INITIATED"; attacker: FighterId; target: FighterId; card: CardDefId }
+  // engine v0.86.0 (#589): `card` OPTIONAL (additive) — an enemy's deck-top attack names the drawn
+  // card's def id, and omits it when the enemy's deck was empty (an undefended 0).
+  | { type: "EFFECT_ATTACK_INITIATED"; attacker: FighterId; target: FighterId; card?: CardDefId }
   // v0.45.0 (#378): a whole-card cancel (Feint) landed on a synthetic sub-attack card, so the
   // rest of that card's chain — `severed` still-queued links — never opens. `card` is the
   // parent card whose text queued them. Narration only: the canceled link's own combat has
@@ -1242,7 +1264,13 @@ export type GameEvent =
   // as they land; this is the reconciled total the outcome was decided on. `defense` is
   // empty when the defender declined (or when `ignoreDefense`), and holds two entries
   // when an additional defense card is in play.
-  | { type: "COMBAT_VALUE_BREAKDOWN"; attack: ValueBreakdown; defense: ValueBreakdown[]; effectiveAttack: number; effectiveDefense: number; ignoreDefense: boolean };
+  | { type: "COMBAT_VALUE_BREAKDOWN"; attack: ValueBreakdown; defense: ValueBreakdown[]; effectiveAttack: number; effectiveDefense: number; ignoreDefense: boolean }
+  // engine v0.85.0 (#590): the Adventures threat track. THREAT_CHANGED once per space the marker
+  // moves (and once for the reset after an overflow); THREAT_OVERFLOW when it passes the last
+  // numbered space — `objective` is the step that fires, `null` once the ladder is exhausted.
+  // Additive: no shipped format can emit either, so PROTOCOL_VERSION stays 34.
+  | { type: "THREAT_CHANGED"; position: number; level: number }
+  | { type: "THREAT_OVERFLOW"; overflows: number; objective: string | null };
 
 /**
  * The timing context an effect run belongs to (v24, #281) — reported by
@@ -1336,6 +1364,12 @@ export interface ViewPrompt {
    *  same seat, under the same `canStop` intersection; exactly one of `moveGraph` /
    *  `largeMoveGraph` is ever present. See LargeMoveGraph. */
   largeMoveGraph?: LargeMoveGraph;
+  /** engine v0.86.0 (#589) — a TEAM decision: the engine-played seat `forSeat` must choose, and
+   *  the players decide for it. `player` answers; every TEAMMATE of `player` receives the full
+   *  `options` read-only (their legalActions carry no RESPOND_PROMPT). Both absent on every
+   *  ordinary prompt. Additive: PROTOCOL_VERSION unchanged. */
+  onBehalfOf?: "TEAM";
+  forSeat?: PlayerId;
 }
 
 // ---------------------------------------------------------------------------
@@ -1455,6 +1489,12 @@ export interface ViewFighter {
   // small fighters legally SHARE a space (≤4 smalls + ≤1 non-small), so the board must
   // stack them, and same-space fighters are mutually adjacent for targeting.
   size: "NORMAL" | "LARGE" | "SMALL";
+  // v0.83.0 — the ENEMY projection (additive, absent for every player fighter, so a
+  // pre-adventure client's view is byte-identical). `kind` deliberately stays
+  // "HERO" | "SIDEKICK": the rules kind lives in the engine (engine/fighterKind.ts).
+  // Public to every viewer: `deckCount` is a count only; `discardTop` is the card instance
+  // id ('<cardDefId>#<n>') on top of the enemy's face-up discard, or null when it is empty.
+  enemy?: { role: "VILLAIN" | "MINION"; move: number; deckCount: number; discardTop: string | null };
   defeated: boolean;
   // Additive field (2026-07-16, no version bump): per-fighter status effects
   // (issue #204) — the fighter-scoped parallel to ViewSelf/ViewOpponent.flags
@@ -1477,6 +1517,11 @@ export interface FighterStatus {
   kind: string; // e.g. 'PINNED' — mechanical/engine-stable, not display text
   expiresAtTurn?: number | null;
   expiresAt?: "START" | "END" | null;
+  // engine v0.82.0 (#587): a ROUND-scoped status (`until: 'ROUND_END'`, Adventures only) carries
+  // null turn stamps AND this round — it lapses at that round's END OF ROUND step, which a bare
+  // null stamp could not tell apart from a durable one. Absent on every turn-stamped or durable
+  // status, so no existing view grows a key.
+  expiresAtRound?: number;
   // v29 — set on `kind: 'MARKED'` (per-fighter durable markers, engine #360): the
   // marker's engine-stable NAME (e.g. 'MERIDIAN', 'REVENGE') and how many stacks of it
   // the fighter carries. One status entry per distinct name, sorted by name. The client
@@ -1694,6 +1739,9 @@ export interface ViewPlayer {
   // Format-defined team id (duel/ffa: each seat is its own team). Public info —
   // identical for every viewer, never redacted (issue #98).
   team?: TeamId;
+  // engine v0.82.0 (#587): `'engine'` for a seat the ENGINE plays (the Adventures villain
+  // seat); ABSENT for every human seat, so no existing view grows a key. Public.
+  controller?: "engine";
   hand?: CardInstanceId[]; // present only for the receiving player's own seat
   handCount: number;
   deckCount: number;
@@ -1744,6 +1792,31 @@ export interface ViewCombat {
   attackDamageDealt: number | null;
 }
 
+/**
+ * engine v0.82.0 (#587) — the initiative deck as every seat sees it. `deckCount` is a COUNT:
+ * the face-down draw pile's order and identities are hidden. `row` is the face-up row, left
+ * to right. HIDDEN INFO: a face-down row card projects `{id, entry, faceDown: true}` only —
+ * `title` (and `seat` / `fighter`) OMITTED, because its identity is not public; ids and
+ * counts are. `seat` names a SEAT card's player (or a FIGHTER card's owner), `fighter` the
+ * fighter a FIGHTER card activates.
+ */
+export interface ViewInitiativeCard {
+  id: string;
+  title?: string;
+  entry: "SEAT" | "FIGHTER" | "EFFECT";
+  seat?: PlayerId;
+  fighter?: FighterId;
+  faceDown?: true;
+}
+
+export interface ViewInitiative {
+  round: number;
+  phase: "REVEAL" | "TURN" | "END_OF_ROUND";
+  deckCount: number;
+  current: string | null;
+  row: ViewInitiativeCard[];
+}
+
 export interface PlayerView {
   you: PlayerId;
   phase: "SETUP" | "PLAY" | "GAME_OVER";
@@ -1791,6 +1864,17 @@ export interface PlayerView {
   // maps with no items; an id disappears from here the instant its token is
   // consumed. The client renders/clears item badges from this map.
   itemTokens?: Record<SpaceId, string>;
+  // engine v0.82.0 (#587): the Adventures initiative deck — ABSENT for every game whose
+  // format has none (duel / ffa / 2v2 / boss), so their views are byte-identical.
+  initiative?: ViewInitiative;
+  // engine v0.85.0 (#590): the Adventures scenario — the threat track (`position` = the marker's
+  // space, `level` = the threat level it reads, `positions` = the printed numbers, public on the
+  // villain board) and one row per objective with the times it has fired. ABSENT for every game
+  // without a scenario, so their views are byte-identical.
+  scenario?: {
+    threat: { position: number; level: number; overflows: number; positions: number[] };
+    objectives: { id: string; label: string; fired: number }[];
+  };
   // v11: true iff THIS viewer has an eligible last discrete move to undo right now
   // (there is a clean cut boundary the server would rewind to). Recomputed on every
   // STATE broadcast per-viewer; the client gates its Undo button entirely on this.
@@ -2077,7 +2161,7 @@ export type ClientMsg =
   // BAD_MESSAGE (it is not truncated). Echoed verbatim into `ViewPlayer` and
   // frozen into replay bundles; never parsed, never logged, never sent to
   // telemetry, never visible to a bot. See the 2026-08-18 header note.
-  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; mulligan?: boolean; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string; quickMatch?: boolean; itemsEnabled?: boolean }
+  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; mulligan?: boolean; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string; quickMatch?: boolean; itemsEnabled?: boolean; humans?: number }
   | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string }
   | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }

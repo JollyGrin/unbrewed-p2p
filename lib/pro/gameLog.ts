@@ -1127,12 +1127,16 @@ export function enrichLines(
       // to "Seismic Charge (6/0)" exactly as an instance would; the catalog carries
       // linked cards because the engine registers them into GameContext.cards.
       case "EFFECT_ATTACK_INITIATED": {
+        // engine #589: an enemy's deck-top attack omits `card` when its deck was empty
+        // (an undefended 0), so there is no card to name.
         added.push({
-          text: `${ctx.fighter(e.attacker)} attacks ${ctx.fighter(e.target)} with ${ctx.label(
-            e.card
-          )} — no action spent`,
+          text: e.card
+            ? `${ctx.fighter(e.attacker)} attacks ${ctx.fighter(e.target)} with ${ctx.label(
+                e.card
+              )} — no action spent`
+            : `${ctx.fighter(e.attacker)} attacks ${ctx.fighter(e.target)} — no action spent`,
           who: "game",
-          cards: [e.card],
+          cards: e.card ? [e.card] : [],
         });
         break;
       }
