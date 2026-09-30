@@ -93,7 +93,7 @@ describe("enabled", () => {
       "adventure_verdict",
       "adventure_exit",
     ]);
-    expect(got[0].props).toEqual({ humans: 2, heroes: ["alice", "bigfoot"] });
+    expect(got[0].props).toEqual({ scenarioId: null, humans: 2, heroes: ["alice", "bigfoot"], villain: null, minions: [] });
     expect(got[3].props).toMatchObject({ verdict: "defeat", defeatKind: "overflow", overflows: 1, rounds: 1 });
     expect(got[4].props).toMatchObject({ exit: "leave", afterVerdict: true });
     expect(JSON.stringify(got)).not.toContain("Secret Name");

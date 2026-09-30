@@ -751,6 +751,55 @@
  * format, or out of range, it answers ERROR{BAD_MESSAGE} and no room is created. Never echoed back:
  * `ROOM_STATUS.requiredPlayers` already reports it. Purely additive — no PROTOCOL_VERSION bump. A true
  * host-start flow (start with fewer than declared) would be a Wave-4 client decision.
+ * ## Additive (2026-09-30, no version bump): scenario + roster selection (engine #664 / #665 / #667)
+ * Everything below is optional / additive — PROTOCOL_VERSION stays 34, and with every field absent
+ * not one duel / ffa / 2v2 / boss message grows a key.
+ * - `CREATE_ROOM.scenarioId?: string` — which scenario a scenario-verdict format (adventure) runs.
+ *   Absent = the server's default (its first registered scenario). Unknown, or sent for a format
+ *   that runs no scenario: ERROR{BAD_SCENARIO}, no room.
+ * - `CREATE_ROOM.roster?: RosterPicks` — the villain and the per-player minion picks. `null`, an
+ *   absent field, or a missing slot = RANDOM, resolved by the server at game start from the game
+ *   seed (same scenario + picks + table size + seed ⇒ the same roster). ONE minion per hero seat
+ *   (`CREATE_ROOM.humans`), no duplicates unless the scenario says so (`ScenarioListing.
+ *   duplicateMinions`). A pick outside the scenario's villains / pool, too many slots, a duplicate,
+ *   or any pick for a format without a scenario: ERROR{BAD_SCENARIO}, no room.
+ * - `LIST_SCENARIOS` → `SCENARIOS{scenarios: ScenarioListing[]}` — what the lobby may pick from.
+ *   EMPTY on a server with no scenario registered (every production server until Wave 3). A server
+ *   older than this note answers the unknown type with ERROR{BAD_MESSAGE}: treat that as `[]`.
+ * - `ROOM_STATUS.scenario?` — the room's scenario and roster as the table will face it: `null` =
+ *   still Random (before the game starts); once it has started every slot is the resolved enemy id.
+ *   `minions` = the scenario's fixed minions, then one slot per hero seat.
+ *   A scenario room's creator is sent one ROOM_STATUS right after ROOM_CREATED (no other room is).
+ * - `ViewFighter.enemy.enemyId?` and `PlayerView.scenario.id?` / `.label?` — which enemy a figure is
+ *   and which scenario the table is playing, so the client can label the villain and pick art.
+ *   Typed optional only because an older server omits them; this server always sends them.
+ * - MAP ELIGIBILITY (#667): a scenario names the one map it was written for (`ScenarioListing.mapId`).
+ *   A `customMap` with any other id answers ERROR{BAD_MAP}; with no `customMap` the server plays its
+ *   own registered copy of that map.
+ * ## Additive field (2026-09-30, no version bump): the replay bundle's scenario (engine #591)
+ * `ReplayConfig.scenario?` — the engine `ScenarioDef` an ADVENTURE game was played under, embedded
+ * for the same reason `map` is: a bundle must reproduce anywhere without a server-side content
+ * lookup, and a format that ends by a scenario verdict cannot even be initialised without one. Opaque
+ * `Json` to the client (store and forward verbatim, like `hero` / `cards`); only the server reads it.
+ * ABSENT for every game without a scenario — duel / ffa / 2v2 / boss bundles are byte-identical.
+ * Purely additive — no PROTOCOL_VERSION bump, bundle `v` stays 1.
+ * ## Additive fields + events (2026-09-30, no version bump): scenario markers (engine #650, DSL v0.89.0)
+ * ADVENTURE games only (a format that ends by a scenario verdict) — no duel / ffa / 2v2 / boss game
+ * can carry any of this, so their views and event streams are byte-identical.
+ * - `ViewTokenKind` gains `"marker"` — a scenario marker (an enclosure, a pack, the stampede, the
+ *   goat). Porous like every board object; it may share a space with fighters and other objects.
+ * - `ViewToken.identity?` — WHICH marker it is (a scenario-authored string; render its art/label).
+ *   `ViewToken.faceDown?: true` — the marker lies face down: render a back. **A face-down marker's
+ *   `identity` is NEVER sent, to any seat or spectator** — the key is absent, not masked, and no
+ *   event carries it; the server alone knows it until the marker flips.
+ * - `TOKEN_PLACED` gains `identity?` (a face-UP marker only) and `faceDown?: true`.
+ * - `TOKEN_MOVED { token, kind, owner, from, to }` — a marker changed space, SAME `token` id (no
+ *   destroy + re-place): animate it. It names no identity.
+ * - `TOKEN_FLIPPED { token, kind, owner, space, faceDown, identity? }` — `faceDown: false` is the
+ *   REVEAL and carries the identity (if the marker has one); `faceDown: true` carries none.
+ * A client that knows none of this still renders SOMETHING at `space` for an unknown kind (the
+ * v26 rule) and sees a moved / flipped marker in the next `PlayerView`. Purely additive — no
+ * PROTOCOL_VERSION bump.
  * ## v30 (2026-08-20): the opening-hand mulligan (engine #395)
  * After the opening hands are dealt and BEFORE the heroes are placed, each seat
  * gets a ONE-TIME keep-or-redraw choice: shuffle your whole hand back into your
@@ -1171,8 +1220,13 @@ export type GameEvent =
   // engine v0.82.0 (#587): a ROUND-scoped entry (`until: 'ROUND_END'`, Adventures only)
   // reports null turn stamps plus `expiresAtRound` — the FIGHTER_MARKED shape. Every
   // turn-stamped event is unchanged and never carries `expiresAtRound`.
-  | { type: "STAT_SET"; fighter: FighterId; stat: "MOVE"; to: number; expiresAtTurn: number | null; expiresAt: "START" | "END" | null; expiresAtRound?: number }
-  | { type: "HP_FLOOR_SET"; fighter: FighterId; floor: number; expiresAtTurn: number | null; expiresAt: "START" | "END" | null; expiresAtRound?: number }
+  // engine v0.88.0 (#594): an ACTIVATION-scoped entry (`NEXT_TURN_START` / `NEXT_TURN_END` in an
+  // initiative-deck game, Adventures only) reports null turn stamps plus `expiresAtActivationOf`
+  // and `edge` — "until the START / END of that seat's / that fighter's next activation". No
+  // turn number exists yet; the status re-reports with a plain turn stamp once that activation
+  // opens. Absent on every turn-stamped and round-stamped event. Additive: no version bump.
+  | { type: "STAT_SET"; fighter: FighterId; stat: "MOVE"; to: number; expiresAtTurn: number | null; expiresAt: "START" | "END" | null; expiresAtRound?: number; expiresAtActivationOf?: ActivationAnchor; edge?: "START" | "END" }
+  | { type: "HP_FLOOR_SET"; fighter: FighterId; floor: number; expiresAtTurn: number | null; expiresAt: "START" | "END" | null; expiresAtRound?: number; expiresAtActivationOf?: ActivationAnchor; edge?: "START" | "END" }
   | { type: "HP_SET"; fighter: FighterId; to: number }
   | { type: "EFFECT_SCHEDULED"; source: string; fireAt: "START" | "END" | "COMBAT_END" }
   // v10: mirror of EFFECT_SCHEDULED emitted when a scheduled effect actually
@@ -1203,18 +1257,22 @@ export type GameEvent =
   // DECK_SHUFFLED and CARD_DRAWN batch (card ids redacted for the other seat).
   | { type: "MULLIGAN_TAKEN"; player: PlayerId }
   | { type: "HAND_KEPT"; player: PlayerId }
-  | { type: "TOKEN_PLACED"; token: string; kind: ViewTokenKind; owner: PlayerId; space: SpaceId; origin?: string }
+  | { type: "TOKEN_PLACED"; token: string; kind: ViewTokenKind; owner: PlayerId; space: SpaceId; origin?: string; identity?: string; faceDown?: true }
+  // engine v0.89.0 (#650): scenario markers move and flip. `identity` rides TOKEN_PLACED only for a
+  // face-UP marker and TOKEN_FLIPPED only when it turns face up — a hidden identity is never sent.
+  | { type: "TOKEN_MOVED"; token: string; kind: ViewTokenKind; owner: PlayerId; from: SpaceId; to: SpaceId }
+  | { type: "TOKEN_FLIPPED"; token: string; kind: ViewTokenKind; owner: PlayerId; space: SpaceId; faceDown: boolean; identity?: string }
   | { type: "TOKEN_DESTROYED"; token: string; kind: ViewTokenKind; owner: PlayerId; space: SpaceId; reason: "EFFECT" | "ENTERED" | "REPLACED" | "OWNER_ELIMINATED" | "EXPIRED" }
   | { type: "FIGHTER_REVIVED"; fighter: FighterId; space: SpaceId }
   // v27 — benign removal: the fighter left `space` ALIVE (removeFromBoard). Not a death.
   | { type: "FIGHTER_REMOVED"; fighter: FighterId; space: SpaceId }
-  | { type: "FIGHTER_PINNED"; fighter: FighterId; expiresAtTurn: number | null; expiresAt: "START" | "END" | null; expiresAtRound?: number }
+  | { type: "FIGHTER_PINNED"; fighter: FighterId; expiresAtTurn: number | null; expiresAt: "START" | "END" | null; expiresAtRound?: number; expiresAtActivationOf?: ActivationAnchor; edge?: "START" | "END" }
   // v29 — per-fighter durable markers (engine #360). `total` is the fighter's resulting
   // stack count for that name, so "Revenge x3" renders from the event alone; a null
   // expiry stamp means the mark is DURABLE (survives turn edges until cleared or the
   // fighter is defeated). Neither the turn-edge expiry sweep nor a defeat emits an
   // event — both are derivable from TURN_STARTED / FIGHTER_DEFEATED.
-  | { type: "FIGHTER_MARKED"; fighter: FighterId; name: string; count: number; total: number; expiresAtTurn: number | null; expiresAt: "START" | "END" | null; expiresAtRound?: number }
+  | { type: "FIGHTER_MARKED"; fighter: FighterId; name: string; count: number; total: number; expiresAtTurn: number | null; expiresAt: "START" | "END" | null; expiresAtRound?: number; expiresAtActivationOf?: ActivationAnchor; edge?: "START" | "END" }
   | { type: "FIGHTER_MARKS_CLEARED"; fighter: FighterId; name: string | null; removed: number }
   | { type: "FIGHTER_TAIL_PLACED"; fighter: FighterId; space: SpaceId }
   | { type: "FIGHTER_EJECTED"; fighter: FighterId; to: SpaceId }
@@ -1498,7 +1556,8 @@ export interface ViewFighter {
   // "HERO" | "SIDEKICK": the rules kind lives in the engine (engine/fighterKind.ts).
   // Public to every viewer: `deckCount` is a count only; `discardTop` is the card instance
   // id ('<cardDefId>#<n>') on top of the enemy's face-up discard, or null when it is empty.
-  enemy?: { role: "VILLAIN" | "MINION"; move: number; deckCount: number; discardTop: string | null };
+  // `enemyId` (#664, additive): the `EnemyListing.id` this figure is — label + art key.
+  enemy?: { role: "VILLAIN" | "MINION"; enemyId?: string; move: number; deckCount: number; discardTop: string | null };
   defeated: boolean;
   // Additive field (2026-07-16, no version bump): per-fighter status effects
   // (issue #204) — the fighter-scoped parallel to ViewSelf/ViewOpponent.flags
@@ -1517,6 +1576,9 @@ export interface ViewFighter {
   statuses?: FighterStatus[];
 }
 
+/** engine v0.88.0 (#594): whose next activation a pending status is waiting on. */
+export type ActivationAnchor = { seat: PlayerId } | { fighter: FighterId };
+
 export interface FighterStatus {
   kind: string; // e.g. 'PINNED' — mechanical/engine-stable, not display text
   expiresAtTurn?: number | null;
@@ -1526,6 +1588,12 @@ export interface FighterStatus {
   // null stamp could not tell apart from a durable one. Absent on every turn-stamped or durable
   // status, so no existing view grows a key.
   expiresAtRound?: number;
+  // engine v0.88.0 (#594): a status waiting on an ACTIVATION (`NEXT_TURN_*` in an initiative-deck
+  // game) carries null turn stamps AND these two — it lapses at the START / END edge of that
+  // seat's / that fighter's next activation, whose turn number is not known yet. Once that
+  // activation opens the status carries a plain turn stamp and these are gone. Absent otherwise.
+  expiresAtActivationOf?: ActivationAnchor;
+  edge?: "START" | "END";
   // v29 — set on `kind: 'MARKED'` (per-fighter durable markers, engine #360): the
   // marker's engine-stable NAME (e.g. 'MERIDIAN', 'REVENGE') and how many stacks of it
   // the fighter carries. One status entry per distinct name, sorted by name. The client
@@ -1539,11 +1607,13 @@ export interface FighterStatus {
 // 'corpse' = a defeated fighter's body left on the board (Gerry the Isopod). A
 // client that does not know a kind should still render SOMETHING at `space` —
 // kinds are additive and this union will grow (walls, traps, decoys).
-export type ViewTokenKind = "totem" | "corpse";
+// 'marker' (engine #650) = a scenario marker (adventure games only) — see `identity` / `faceDown`.
+export type ViewTokenKind = "totem" | "corpse" | "marker";
 
-// Neutral board objects. Nothing about one is hidden — the full list is sent to
-// both players; the client renders a non-interactive sprite at `space` and diffs
-// appearances/disappearances (TOKEN_PLACED/TOKEN_DESTROYED).
+// Neutral board objects. The full list is sent to every player and nothing about one
+// is hidden EXCEPT a face-down marker's `identity` (engine #650, below); the client
+// renders a non-interactive sprite at `space` and diffs appearances/disappearances
+// (TOKEN_PLACED/TOKEN_DESTROYED) and, for markers, TOKEN_MOVED/TOKEN_FLIPPED.
 //
 // NO board object participates in occupancy: fighters enter, pass through, and end
 // on any object's space. Two objects CAN share a space (a corpse and a totem, or two
@@ -1564,6 +1634,12 @@ export interface ViewToken {
   // label a corpse with the fighter it came from (a greyed Larry, not a generic
   // marker). Absent for card-placed objects. The engine never reads it.
   origin?: string;
+  // Scenario markers (engine #650; `kind: "marker"` only, adventure games only). `identity` =
+  // which marker this is. `faceDown: true` = it lies face down — and then `identity` is ABSENT
+  // for every seat and spectator: the one hidden thing about a board object. Both absent on
+  // every totem / corpse.
+  identity?: string;
+  faceDown?: true;
 }
 
 // Incremental maneuver movement (issue #55). A per-fighter graph the client walks
@@ -1875,7 +1951,10 @@ export interface PlayerView {
   // space, `level` = the threat level it reads, `positions` = the printed numbers, public on the
   // villain board) and one row per objective with the times it has fired. ABSENT for every game
   // without a scenario, so their views are byte-identical.
+  // `id` / `label` (#664, additive): the `ScenarioListing` the table is playing.
   scenario?: {
+    id?: string;
+    label?: string;
     threat: { position: number; level: number; overflows: number; positions: number[] };
     objectives: { id: string; label: string; fired: number }[];
   };
@@ -1928,6 +2007,9 @@ export interface ReplayConfig {
   players: { p1: ReplayPlayerSetup; p2: ReplayPlayerSetup } & Partial<Record<PlayerId, ReplayPlayerSetup>>;
   formatId?: string;
   map: ProMapDef;
+  // engine #591: the adventure game's ScenarioDef — opaque to the client, like `hero` / `cards`.
+  // Absent for every game without a scenario, so their bundles are byte-identical.
+  scenario?: Json;
 }
 
 // Denormalized summary for the list UI + a Discord preview — readable without
@@ -2094,6 +2176,45 @@ export interface LobbyListing {
   host?: { displayName?: string; badge?: string; badges?: string[] }; // absent entirely for an anonymous host
 }
 
+// An enemy a scenario can field (engine #664) — public, printed-on-the-box data. `hp` is indexed
+// by hero-seat count (`hp[humans - 1]`, clamped to the last entry); a flat hp is a one-entry list.
+export interface EnemyListing {
+  id: string;
+  name: string;
+  role: "VILLAIN" | "MINION";
+  hp: number[];
+  move: number;
+  size: "NORMAL" | "LARGE";
+}
+
+// A scenario the lobby may pick (LIST_SCENARIOS result row, engine #664 / #665).
+export interface ScenarioListing {
+  id: string;
+  label: string;
+  formatIds: string[]; // the formats it runs under (today: ["adventure"])
+  mapId: string; // the one map it is played on (#667) — a customMap must carry this id
+  villain: string; // the default villain (a member of `villains`)
+  villains: EnemyListing[]; // what `RosterPicks.villain` may name
+  fixedMinions: EnemyListing[]; // fielded at every table size, in setup order (may repeat); not pickable
+  minionPool: EnemyListing[]; // what `RosterPicks.minions[i]` may name; [] = nothing to pick
+  minionsPerPlayer: number; // pool minions fielded per hero seat: 1, or 0 for a fixed roster
+  duplicateMinions: boolean; // may the same pool minion be picked twice (R5: false unless the scenario says so)
+}
+
+// The table's roster picks (CREATE_ROOM.roster, engine #664). null / absent / a missing slot = Random.
+export interface RosterPicks {
+  villain?: string | null;
+  minions?: (string | null)[]; // slot i = the i-th hero seat's minion; at most one per hero seat
+}
+
+// A room's scenario + roster (ROOM_STATUS.scenario). null = Random, not yet resolved.
+export interface RoomScenarioStatus {
+  id: string;
+  label: string;
+  villain: string | null;
+  minions: (string | null)[]; // the fixed minions, then one slot per hero seat
+}
+
 // One slot of a room's live fill state (ROOM_STATUS, issue #121). Public info
 // only: hero picks are public pre-game, bot-ness is public, connectedness is
 // public. Bot seats (materialized or still planned) always report
@@ -2128,6 +2249,8 @@ export type ClientMsg =
   // Absent/false = hidden. See the v15 and v18 notes above.
   | { v: number; type: "LIST_HEROES"; debug?: boolean }
   | { v: number; type: "LIST_LOBBIES" }
+  // engine #664: the scenarios (and their villain / minion rosters) the lobby may pick from.
+  | { v: number; type: "LIST_SCENARIOS" }
   // `customMap` (v4): playtest an unpublished board — the server validates it
   // and uses it for this room only. Composes with `bot`. Omit for the default map.
   // `seed` (dev-only): overrides the server-picked game seed so a whole match —
@@ -2165,7 +2288,7 @@ export type ClientMsg =
   // BAD_MESSAGE (it is not truncated). Echoed verbatim into `ViewPlayer` and
   // frozen into replay bundles; never parsed, never logged, never sent to
   // telemetry, never visible to a bot. See the 2026-08-18 header note.
-  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; mulligan?: boolean; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string; quickMatch?: boolean; itemsEnabled?: boolean; humans?: number }
+  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; mulligan?: boolean; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string; quickMatch?: boolean; itemsEnabled?: boolean; humans?: number; scenarioId?: string; roster?: RosterPicks }
   | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string }
   | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }
@@ -2190,6 +2313,7 @@ export type RematchClosedReason = "declined" | "cancelled" | "disconnected" | "t
 export type ServerMsg =
   | { v: number; type: "HEROES"; heroes: HeroListing[] }
   | { v: number; type: "LOBBIES"; lobbies: LobbyListing[] }
+  | { v: number; type: "SCENARIOS"; scenarios: ScenarioListing[] }
   // `turnTimerSeconds` (issue #122): the room's per-decision timer setting,
   // present only when the timer is on. Absent = untimed room.
   | { v: number; type: "ROOM_CREATED"; roomId: string; token: string; you: PlayerId; formatId?: string; seats?: PlayerId[]; requiredPlayers?: number; turnTimerSeconds?: number }
@@ -2215,7 +2339,7 @@ export type ServerMsg =
   // join, pre-game seat release, and reconnect/disconnect while waiting. The
   // one live channel for "who is in this room right now" — ROOM_CREATED/
   // ROOM_JOINED's `seats: PlayerId[]` stays a point-in-time snapshot.
-  | { v: number; type: "ROOM_STATUS"; roomId: string; formatId: string; requiredPlayers: number; seats: RoomStatusSeat[]; turnTimerSeconds?: number }
+  | { v: number; type: "ROOM_STATUS"; roomId: string; formatId: string; requiredPlayers: number; seats: RoomStatusSeat[]; turnTimerSeconds?: number; scenario?: RoomScenarioStatus }
   // Per-decision move timer (issue #122; timed rooms ONLY — an untimed room
   // never sends this). Broadcast on every clock change: `deadline` (epoch ms)
   // while the clock runs for `player`; `deadline: null` when `player` is on
@@ -2261,6 +2385,7 @@ export type ErrorCode =
   | "ILLEGAL_ACTION" // reducer rejected it (client bug or stale view)
   | "UNKNOWN_HERO"
   | "BAD_MAP" // CREATE_ROOM.customMap failed validation (message lists violations)
+  | "BAD_SCENARIO" // CREATE_ROOM.scenarioId / .roster refused (unknown scenario, or a pick it does not allow) — engine #664
   | "RESUME_FAILED" // RESUME_ROOM replay diverged / resume disabled (see message)
   // Pushed instead of RESUME_TOKEN (issue #114) when a game has grown long enough
   // that sealing its resume blob would exceed the ws inbound frame cap

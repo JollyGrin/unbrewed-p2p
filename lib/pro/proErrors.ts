@@ -28,6 +28,7 @@ const MESSAGES: Record<ErrorCode, string> = {
   // PR #103 additions — the two this ticket wires up with friendly handling.
   ROOM_LIMIT: "Server is full — try again in a few minutes.",
   RATE_LIMITED: "Slowing down — too many actions at once.",
+  BAD_SCENARIO: "That Adventure scenario or roster isn't available — pick again.",
   SERVER_ERROR: "The server couldn't process that action — try again or take a different action.",
 };
 

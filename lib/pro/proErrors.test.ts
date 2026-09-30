@@ -34,6 +34,7 @@ describe("proErrorMessage (issue #209)", () => {
       "UNDO_UNAVAILABLE",
       "ROOM_LIMIT",
       "RATE_LIMITED",
+      "BAD_SCENARIO",
       "SERVER_ERROR",
     ];
     for (const code of codes) {

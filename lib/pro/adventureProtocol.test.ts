@@ -1,4 +1,4 @@
-import type { ClientMsg, GameEvent, ViewFighter } from "./protocol";
+import type { ActivationAnchor, ClientMsg, GameEvent, ScenarioListing, ServerMsg, ViewFighter, ViewToken } from "./protocol";
 
 // Engine Wave 1 adventure additions (engine #587/#589/#590/#595) — additive optional wire fields.
 // These are compile-time checks: a drift from the engine's protocol.ts fails `tsc`, not just jest.
@@ -27,5 +27,38 @@ describe("adventure protocol additions", () => {
   it("ViewFighter.enemy is optional (absent on every player fighter)", () => {
     const enemy: NonNullable<ViewFighter["enemy"]> = { role: "VILLAIN", move: 3, deckCount: 4, discardTop: null };
     expect(enemy.role).toBe("VILLAIN");
+  });
+
+  it("engine 1.6: activation anchors on statuses are optional", () => {
+    const anchor: ActivationAnchor = { fighter: "p1/hero" };
+    const seat: ActivationAnchor = { seat: "p1" };
+    const events: GameEvent[] = [
+      { type: "FIGHTER_PINNED", fighter: "p1/hero", expiresAtTurn: null, expiresAt: null, expiresAtActivationOf: anchor, edge: "END" },
+      { type: "STAT_SET", fighter: "p1/hero", stat: "MOVE", to: 0, expiresAtTurn: null, expiresAt: null, expiresAtActivationOf: seat },
+      { type: "FIGHTER_PINNED", fighter: "p1/hero", expiresAtTurn: 3, expiresAt: "END" },
+    ];
+    expect(events).toHaveLength(3);
+  });
+
+  it("engine 2.3: scenario markers", () => {
+    const tok: ViewToken = { id: "m1", kind: "marker", owner: "p1", space: "s1", identity: "pack", faceDown: true } as ViewToken;
+    const events: GameEvent[] = [
+      { type: "TOKEN_PLACED", token: "m1", kind: "marker", owner: "p1", space: "s1", faceDown: true },
+      { type: "TOKEN_MOVED", token: "m1", kind: "marker", owner: "p1", from: "s1", to: "s2" },
+      { type: "TOKEN_FLIPPED", token: "m1", kind: "marker", owner: "p1", space: "s2", faceDown: false, identity: "pack" },
+    ];
+    expect(tok.kind).toBe("marker");
+    expect(events.map((e) => e.type)).toContain("TOKEN_FLIPPED");
+  });
+
+  it("engine #678: scenario roster on the wire", () => {
+    const create: ClientMsg = { v: 34, type: "CREATE_ROOM", heroId: "a", formatId: "adventure", scenarioId: "isla", roster: { villain: null, minions: ["raptor", null] } };
+    const listing: ScenarioListing = {
+      id: "isla", label: "Isla", formatIds: ["adventure"], mapId: "isla", villain: "rex",
+      villains: [], fixedMinions: [], minionPool: [], minionsPerPlayer: 1, duplicateMinions: false,
+    };
+    const reply: ServerMsg = { v: 34, type: "SCENARIOS", scenarios: [listing] };
+    expect((create as { scenarioId?: string }).scenarioId).toBe("isla");
+    expect(reply.type).toBe("SCENARIOS");
   });
 });

@@ -34,7 +34,7 @@ const VIEW = {
     fighter("e1/rex", "Rex", {
       hp: 7,
       maxHp: 20,
-      enemy: { role: "VILLAIN", move: 2, deckCount: 5, discardTop: null },
+      enemy: { role: "VILLAIN", enemyId: "indominus-rex", move: 2, deckCount: 5, discardTop: null },
     }),
   ],
   initiative: {
@@ -49,6 +49,8 @@ const VIEW = {
     ],
   },
   scenario: {
+    id: "isla-nublar",
+    label: "Isla Nublar",
     threat: {
       position: 3,
       level: 2,
@@ -93,6 +95,9 @@ describe("AdventureBoard", () => {
       "true",
     );
     expect(screen.getByTestId("adv-threat-level")).toHaveTextContent("2");
+    expect(screen.getByTestId("adv-scenario")).toHaveTextContent("ISLA NUBLAR");
+    expect(screen.getByTestId("adv-scenario")).toHaveAttribute("data-scenario-id", "isla-nublar");
+    expect(screen.getByTestId("adv-enemy-e1/rex")).toHaveAttribute("data-enemy-id", "indominus-rex");
     expect(screen.getByTestId("adv-enemy-hp-e1/rex")).toHaveTextContent("7/20");
     expect(screen.getByTestId("adv-enemy-deck-e1/rex")).toHaveTextContent(
       "DECK 5",

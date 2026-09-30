@@ -1,13 +1,12 @@
 /**
- * Adventure lobby setup (Wave 4.2, unbrewed-p2p#1094).
+ * Adventure lobby setup (Wave 4.2, unbrewed-p2p#1094; roster wired in #1107).
  *
  * Pure state + wire helpers behind `components/Pro/AdventureLobby.tsx`. The table
- * size is the only pick the engine takes today (`CREATE_ROOM.humans`, protocol
- * note 2026-09-15); the villain / minion picks are LOBBY state that has no wire
- * field yet — the bound scenario fixes them server-side until the engine
- * publishes a roster. Difficulty knobs are deliberately absent in v1.
+ * size rides as `CREATE_ROOM.humans`; the scenario / villain / minion picks ride
+ * as `CREATE_ROOM.scenarioId` / `.roster` (engine #664) and are validated against
+ * the server's `LIST_SCENARIOS` listing. Difficulty knobs are deliberately absent.
  */
-import type { PlayerId } from "./protocol";
+import type { EnemyListing, PlayerId, RosterPicks, ScenarioListing } from "./protocol";
 
 export const ADVENTURE_MIN_HUMANS = 1;
 export const ADVENTURE_MAX_HUMANS = 4;
@@ -18,18 +17,11 @@ export interface AdventureEnemyOption {
   name: string;
 }
 
-/**
- * The enemy roster the lobby offers. Client-side and provisional: the engine has
- * no roster message yet (Isla Nublar is the one scenario, villain Indominus Rex,
- * minions bound by the scenario), so the minion pool is empty and every minion
- * slot reads "Random". When the engine exposes a roster this becomes server data.
- */
-export const ADVENTURE_ROSTER: { villains: AdventureEnemyOption[]; minions: AdventureEnemyOption[] } = {
-  villains: [{ id: "indominus-rex", name: "Indominus Rex" }],
-  minions: [],
-};
+const optionOf = (e: EnemyListing): AdventureEnemyOption => ({ id: e.id, name: e.name });
 
 export interface AdventureSetup {
+  /** chosen scenario id, or null for the server's default (its first listing) */
+  scenarioId: string | null;
   /** hero seats at the table, 1..4 — rides as `CREATE_ROOM.humans` */
   humans: number;
   /** chosen villain id, or null for random */
@@ -41,22 +33,71 @@ export interface AdventureSetup {
 export const clampHumans = (n: number): number =>
   Math.min(ADVENTURE_MAX_HUMANS, Math.max(ADVENTURE_MIN_HUMANS, Math.round(Number.isFinite(n) ? n : ADVENTURE_MIN_HUMANS)));
 
-/** Minions scale with the table: one per hero (the v1 scenario's player-count minions). */
-export const minionSlotCount = (humans: number): number => clampHumans(humans);
+/** Pickable minion slots: `perPlayer` per hero seat (the engine's `minionsPerPlayer`; 1 unless a scenario fixes its roster). */
+export const minionSlotCount = (humans: number, perPlayer: number = 1): number => clampHumans(humans) * Math.max(0, perPlayer);
 
-const fitMinions = (minionIds: Array<string | null>, humans: number): Array<string | null> =>
-  Array.from({ length: minionSlotCount(humans) }, (_, i) => minionIds[i] ?? null);
+const fitMinions = (minionIds: Array<string | null>, humans: number, perPlayer: number = 1): Array<string | null> =>
+  Array.from({ length: minionSlotCount(humans, perPlayer) }, (_, i) => minionIds[i] ?? null);
 
 export const defaultAdventureSetup = (): AdventureSetup => ({
+  scenarioId: null,
   humans: ADVENTURE_MIN_HUMANS,
   villainId: null,
   minionIds: fitMinions([], ADVENTURE_MIN_HUMANS),
 });
 
-export const setHumans = (setup: AdventureSetup, humans: number): AdventureSetup => {
+export const setHumans = (setup: AdventureSetup, humans: number, perPlayer: number = 1): AdventureSetup => {
   const n = clampHumans(humans);
-  return { ...setup, humans: n, minionIds: fitMinions(setup.minionIds, n) };
+  return { ...setup, humans: n, minionIds: fitMinions(setup.minionIds, n, perPlayer) };
 };
+
+/** The listing a setup points at: the named scenario, else the server default (first), else none. */
+export const scenarioFor = (setup: AdventureSetup, scenarios: readonly ScenarioListing[]): ScenarioListing | null =>
+  scenarios.find((s) => s.id === setup.scenarioId) ?? scenarios[0] ?? null;
+
+/** Choose a scenario; the picks belong to the old roster, so they reset. */
+export const setScenario = (setup: AdventureSetup, scenario: ScenarioListing | null): AdventureSetup => ({
+  ...setup,
+  scenarioId: scenario?.id ?? null,
+  villainId: null,
+  minionIds: fitMinions([], setup.humans, scenario?.minionsPerPlayer ?? 1),
+});
+
+/** What the lobby may offer for a scenario (empty pools → Random only). */
+export const rosterOptions = (
+  scenario: ScenarioListing | null,
+): { villains: AdventureEnemyOption[]; minions: AdventureEnemyOption[] } => ({
+  villains: (scenario?.villains ?? []).map(optionOf),
+  minions: (scenario?.minionPool ?? []).map(optionOf),
+});
+
+/**
+ * The scenario-derived CREATE_ROOM fields, or the reason there is nothing to
+ * create (#1113: never fall back to a board the format doesn't support). Picks
+ * the scenario no longer offers are dropped rather than sent, and a fully
+ * random roster sends no `roster` at all.
+ */
+export const adventureCreateFields = (
+  setup: AdventureSetup,
+  scenarios: readonly ScenarioListing[],
+): { ok: true; scenarioId: string; roster?: RosterPicks } | { ok: false; reason: string } => {
+  const scenario = scenarioFor(setup, scenarios);
+  if (!scenario) return { ok: false, reason: NO_SCENARIO_REASON };
+  const opts = rosterOptions(scenario);
+  const villain = opts.villains.some((v) => v.id === setup.villainId) ? setup.villainId : null;
+  const slots = minionSlotCount(setup.humans, scenario.minionsPerPlayer);
+  const minions = Array.from({ length: slots }, (_, i) => {
+    const m = setup.minionIds[i] ?? null;
+    return m !== null && opts.minions.some((o) => o.id === m) ? m : null;
+  });
+  const roster: RosterPicks = {
+    ...(villain ? { villain } : {}),
+    ...(minions.some((m) => m !== null) ? { minions } : {}),
+  };
+  return { ok: true, scenarioId: scenario.id, ...(Object.keys(roster).length > 0 ? { roster } : {}) };
+};
+
+export const NO_SCENARIO_REASON = "This server has no Adventure scenario to play yet.";
 
 export const setVillain = (setup: AdventureSetup, villainId: string | null): AdventureSetup => ({ ...setup, villainId });
 
