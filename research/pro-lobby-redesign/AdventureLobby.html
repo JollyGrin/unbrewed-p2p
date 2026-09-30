@@ -1,0 +1,42 @@
+<!doctype html><meta charset="utf-8"><title>Adventure lobby — mockup</title>
+<style>
+body{margin:0;background:#16121c;color:#eadfc8;font:13px "Space Grotesk",system-ui,sans-serif;display:flex;gap:32px;padding:32px}
+.rail{width:320px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.2);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px}
+h4{margin:0;font:11px/1 sans-serif;letter-spacing:.16em;opacity:.75;font-weight:400}
+.row{display:flex;align-items:center;gap:6px}.row h4{width:68px;flex:none}
+.tabs,.count{display:flex;gap:5px}
+.chip{padding:3px 9px;border-radius:5px;background:rgba(0,0,0,.25);font-size:11px}
+.on{background:#e0a82e;color:#16121c;font-weight:700}
+.seats{display:flex;gap:8px}
+.plate{flex:1;border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(122,80,180,.14);padding:8px 10px;font-size:11px}
+.you{border-color:rgba(224,168,46,.35);background:rgba(224,168,46,.08)}
+.plate b{display:block;font-size:12px}
+.enemy{border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(180,60,60,.12);padding:7px 9px;display:flex;flex-direction:column;gap:6px}
+.enemy>h4{color:#e58b8b}
+.pick{flex:1;background:rgba(255,255,255,.12);border-radius:5px;padding:3px 8px;font-size:11px}
+.create{background:#e0a82e;color:#16121c;text-align:center;padding:8px;border-radius:6px;font-weight:700}
+small{opacity:.6;font-size:10px}
+</style>
+<div class="rail">
+  <div class="row"><h4>FORMAT</h4><div class="tabs"><span class="chip">Duel</span><span class="chip">3P FFA</span><span class="chip">2v2</span><span class="chip on">Adventure</span></div></div>
+  <div class="row"><h4>HEROES</h4><div class="count"><span class="chip">1</span><span class="chip">2</span><span class="chip on">3</span><span class="chip">4</span></div></div>
+  <div class="seats">
+    <div class="plate you"><small>P1</small><b>You</b>King Kong</div>
+    <div class="plate"><small>P2</small><b>Hero</b>Human · Bot</div>
+    <div class="plate"><small>P3</small><b>Hero</b>Human · Bot</div>
+  </div>
+  <div class="enemy"><h4>THE ENGINE PLAYS</h4>
+    <div class="row"><h4>VILLAIN</h4><div class="pick">Indominus Rex ▾</div></div>
+    <div class="row"><h4>MINION 1</h4><div class="pick">Random ▾</div></div>
+    <div class="row"><h4>MINION 2</h4><div class="pick">Random ▾</div></div>
+    <div class="row"><h4>MINION 3</h4><div class="pick">Random ▾</div></div>
+  </div>
+  <div class="create">Create room</div>
+  <small>Difficulty knobs: off in v1 · one minion per hero · no duplicate minions</small>
+</div>
+<div style="max-width:300px;opacity:.75;line-height:1.5">
+<h4 style="margin-bottom:8px">NOTES</h4>
+Same 20rem setup rail as the pro lobby (#768). Choosing the Adventure tab swaps the seat plates for this panel — mounted by format id, regular formats untouched.<br><br>
+Heroes count → <code>CREATE_ROOM.humans</code>. Hero picks reuse the roster (yours) and the join flow (others); bot seats roll a hero server-side.<br><br>
+Villain / minion picks are lobby state only for now — the engine has no roster field yet.
+</div>

@@ -42,6 +42,13 @@ const SLOT_LABELS: Partial<Record<ProFormatId, Array<{ player: PlayerId; label: 
     { player: "p2", label: "P2" },
     { player: "p3", label: "P3" },
   ],
+  // Adventure co-op: up to 3 more heroes beside you. The lobby narrows this to the
+  // chosen table size (lib/pro/adventureLobby `adventureSeats`).
+  adventure: [
+    { player: "p2", label: "P2" },
+    { player: "p3", label: "P3" },
+    { player: "p4", label: "P4" },
+  ],
 };
 
 /**

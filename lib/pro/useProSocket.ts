@@ -202,7 +202,13 @@ export interface UseProSocketReturn {
      * map's items for this game only, and `true`/undefined omits the field from
      * the wire entirely (byte-identical to today).
      */
-    itemsEnabled?: boolean
+    itemsEnabled?: boolean,
+    /**
+     * Adventure table size (engine #589): hero seats, 1..4. Adventure only — the
+     * caller passes it for that format alone, since any other format answers
+     * ERROR{BAD_MESSAGE}. Omitted otherwise.
+     */
+    humans?: number
   ) => void;
   joinRoom: (roomId: string, heroId: string) => void;
   /** Sends one ACTION; false when it did NOT go out (no room / socket closed /
@@ -1259,7 +1265,8 @@ export function useProSocket(
       turnTimerSeconds?: number,
       mulligan?: boolean,
       quickMatch?: boolean,
-      itemsEnabled?: boolean
+      itemsEnabled?: boolean,
+      humans?: number
     ) => {
       setError(null); // clear any prior room/hero error on a fresh attempt
       setGameLost(false); // starting a brand-new game — no lost game to mourn
@@ -1300,6 +1307,8 @@ export function useProSocket(
         // Quick Match (#687): additive optional flag, sent only when the room
         // came from that flow. An engine that predates it drops the key.
         ...(quickMatch ? { quickMatch: true } : {}),
+        // Adventure table size (engine #589, Wave 4.2): only for that format.
+        ...(formatId === "adventure" && humans ? { humans } : {}),
         // Signed-in seat identity (#568): the Discord name is broadcast to the
         // other seat, the account id goes to telemetry only. `{}` for a guest.
         // The worn badges (#577/#718) ride alongside the name, under the same gate.
