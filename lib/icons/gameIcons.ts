@@ -5,8 +5,8 @@ import type { IconType } from "react-icons";
 
 /**
  * Bundled token icon library: the full game-icons.net set (~4k icons) that
- * ships inside react-icons/gi. Loaded lazily so the game page doesn't pay for
- * the icon chunk until the board renders, and fully offline — no CORS, no CDN.
+ * ships inside react-icons/gi. Loaded lazily (only when a token needs it) so pages
+ * don't pay for the icon chunk, and fully offline — no CORS, no CDN.
  */
 export type GameIconSet = Record<string, IconType>;
 
@@ -21,15 +21,21 @@ export function loadGameIcons(): Promise<GameIconSet> {
   return iconsPromise;
 }
 
-export function useGameIcons(): GameIconSet | null {
+/**
+ * `enabled` gates the download: the 2.8 MB chunk is only fetched once a caller
+ * actually needs icons (an icon token on the board, or the picker opening).
+ * Once loaded it stays cached module-side.
+ */
+export function useGameIcons(enabled = true): GameIconSet | null {
   const [icons, setIcons] = useState<GameIconSet | null>(loadedIcons);
   useEffect(() => {
+    if (!enabled) return;
     let alive = true;
     loadGameIcons().then((set) => alive && setIcons(set));
     return () => {
       alive = false;
     };
-  }, []);
+  }, [enabled]);
   return icons;
 }
 

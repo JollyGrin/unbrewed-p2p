@@ -51,7 +51,7 @@ import {
   TbBellRinging,
   TbBellOff,
 } from "react-icons/tb";
-import { GiChessKnight, GiFootprint, GiHearts, GiHighTide, GiLowTide } from "react-icons/gi";
+import { GiChessKnight, GiFootprint, GiHearts, GiHighTide, GiLowTide } from "@/components/Icons/gi";
 import { IoMdHand, IoMdVolumeHigh, IoMdVolumeOff } from "react-icons/io";
 import { IconType } from "react-icons";
 import {

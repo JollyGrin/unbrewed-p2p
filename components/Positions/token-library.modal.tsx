@@ -108,7 +108,8 @@ export const TokenLibraryModal: FC<{
   footer,
   offBoard = false,
 }) => {
-  const icons = useGameIcons();
+  // Fetch the big icon chunk only when the picker opens or a token needs it.
+  const icons = useGameIcons(isOpen || tokens.some((t) => t.icon));
   const [query, setQuery] = useState("");
   const [asCutout, setAsCutout] = useState(false);
 

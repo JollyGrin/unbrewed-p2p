@@ -1,7 +1,7 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
 import { CloseIcon } from "@chakra-ui/icons";
 import styled from "@emotion/styled";
-import { GiHearts } from "react-icons/gi";
+import { GiHearts } from "@/components/Icons/gi";
 import { TbBow, TbSword } from "react-icons/tb";
 import { colors } from "@/styles/style";
 import {

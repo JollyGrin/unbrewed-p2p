@@ -15,7 +15,7 @@ import {
 } from "@chakra-ui/react";
 import { useRouter } from "next/router";
 import { useState } from "react";
-import { GiRollingDices } from "react-icons/gi";
+import { GiRollingDices } from "@/components/Icons/gi";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import { colors, fonts } from "@/styles/style";
 import { rollDice } from "@/components/Game/Dice/rollDice";

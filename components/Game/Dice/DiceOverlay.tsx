@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Box, Fade, HStack, Text } from "@chakra-ui/react";
-import { GiRollingDices } from "react-icons/gi";
+import { GiRollingDices } from "@/components/Icons/gi";
 import { IoClose } from "react-icons/io5";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import { DiceRoll } from "@/lib/gamesocket/message";
