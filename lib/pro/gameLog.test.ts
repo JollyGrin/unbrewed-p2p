@@ -346,7 +346,17 @@ describe("enrichLines", () => {
       ]);
     });
 
-    it("DEFENSE_IGNORED and DAMAGE_PREVENTED render fixed lines", () => {
+    it("SPACE_OPENED logs one line with the printed enclosure number", () => {
+    const withNumber = { ...ctx(), enclosure: (sp: string) => (sp === "e3" ? 5 : null) };
+    expect(enrichLines([], [{ type: "SPACE_OPENED", space: "e3" }], withNumber)).toEqual([
+      { text: "Enclosure 05 destroyed", who: "game" },
+    ]);
+    expect(enrichLines([], [{ type: "SPACE_OPENED", space: "zz" }], withNumber)).toEqual([
+      { text: "Space zz opened", who: "game" },
+    ]);
+  });
+
+  it("DEFENSE_IGNORED and DAMAGE_PREVENTED render fixed lines", () => {
       const out = enrichLines(
         [],
         [{ type: "DEFENSE_IGNORED" }, { type: "DAMAGE_PREVENTED", scope: "ALL" }],
@@ -775,13 +785,14 @@ describe("enrichLines", () => {
     });
   });
 
-  describe("SPACE_OPENED + PlayerView.blockedSpaces (engine #699, inert)", () => {
+  describe("SPACE_OPENED + PlayerView.blockedSpaces (engine #699)", () => {
     const opened: GameEvent = { type: "SPACE_OPENED", space: "s7" };
 
-    it("adds no log line and leaves existing lines untouched", () => {
+    it("appends exactly one line and leaves existing lines untouched", () => {
       const lines: ProLogLine[] = [{ text: "Turn 1 — your turn", who: "game" }];
-      expect(() => enrichLines(lines, [opened], ctx())).not.toThrow();
-      expect(enrichLines(lines, [opened], ctx())).toEqual(lines);
+      const out = enrichLines(lines, [opened], ctx());
+      expect(out).toHaveLength(2);
+      expect(out[0]).toMatchObject(lines[0]);
     });
 
     it("diffing views that gain/lose blockedSpaces does not throw or invent lines", () => {
