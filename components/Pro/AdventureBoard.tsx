@@ -2,11 +2,13 @@ import { Box, Flex, Text } from "@chakra-ui/react";
 import type { GameEvent, PlayerView } from "@/lib/pro/protocol";
 import {
   adventureBoardModel,
+  enemyCombatModel,
   moverIntent,
   teamDecisionModel,
 } from "@/lib/pro/adventureBoard";
 import type {
   AdventureBoardModel,
+  EnemyCombatSide,
   TeamDecisionModel,
 } from "@/lib/pro/adventureBoard";
 
@@ -178,6 +180,50 @@ export const TeamDecision = ({ model }: { model: TeamDecisionModel }) => (
   </Flex>
 );
 
+export const EnemyCombat = ({ sides }: { sides: EnemyCombatSide[] }) => (
+  <Flex
+    direction="column"
+    gap="0.2rem"
+    data-testid="adv-enemy-combat"
+    {...PANEL}
+  >
+    {sides.map((s) => (
+      <Flex
+        key={s.role}
+        data-testid={`adv-combat-${s.role.toLowerCase()}`}
+        gap="0.6rem"
+        align="baseline"
+      >
+        <Text {...LBL}>{s.role === "ATTACK" ? "ATTACK" : "DEFENSE"}</Text>
+        <Text fontSize="0.75rem" flex="1">
+          {s.title}{" "}
+          <Text
+            as="span"
+            opacity={0.7}
+            data-testid={`adv-combat-owner-${s.role.toLowerCase()}`}
+          >
+            · {s.enemyName} ({s.enemyRole === "VILLAIN" ? "Villain" : "Minion"})
+          </Text>
+        </Text>
+        {s.printed != null && s.printed !== s.effective && (
+          <Text
+            {...LBL}
+            data-testid={`adv-combat-printed-${s.role.toLowerCase()}`}
+          >
+            PRINTED {s.printed}
+          </Text>
+        )}
+        <Text
+          data-testid={`adv-combat-value-${s.role.toLowerCase()}`}
+          fontWeight="bold"
+        >
+          {s.effective}
+        </Text>
+      </Flex>
+    ))}
+  </Flex>
+);
+
 /** The whole Adventure overlay cluster. Renders nothing without adventure data. */
 export const AdventureBoard = ({
   view,
@@ -190,6 +236,7 @@ export const AdventureBoard = ({
   if (!model) return null;
   const decision = teamDecisionModel(view);
   const intent = moverIntent(events, view);
+  const combat = enemyCombatModel(view);
   return (
     <Flex
       data-testid="adventure-board"
@@ -208,6 +255,7 @@ export const AdventureBoard = ({
       )}
       {model.threat && <ThreatTrack threat={model.threat} />}
       {model.enemies.length > 0 && <EnemyDials enemies={model.enemies} />}
+      {combat && <EnemyCombat sides={combat} />}
       {decision && <TeamDecision model={decision} />}
       {intent && (
         <Text data-testid="adv-intent" {...PANEL} fontSize="0.75rem">

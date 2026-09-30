@@ -4,7 +4,13 @@
  * fixture-testable without an engine. Enemy hands never reach the client; we only
  * ever read `enemy.deckCount` (a count) and `initiative.deckCount`.
  */
-import type { FighterId, GameEvent, PlayerView, ViewInitiativeCard } from "@/lib/pro/protocol";
+import type {
+  FighterId,
+  GameEvent,
+  PlayerView,
+  ViewCombat,
+  ViewInitiativeCard,
+} from "@/lib/pro/protocol";
 
 export interface InitiativeRowEntry {
   card: ViewInitiativeCard;
@@ -40,13 +46,26 @@ export interface AdventureBoardModel {
   enemies: EnemyDial[];
 }
 
-const ENTRY_LABEL = { SEAT: "Seat", FIGHTER: "Enemy", EFFECT: "Event" } as const;
+const ENTRY_LABEL = {
+  SEAT: "Seat",
+  FIGHTER: "Enemy",
+  EFFECT: "Event",
+} as const;
 
-export const threatCells = (positions: number[], position: number): ThreatCell[] =>
-  positions.map((value, i) => ({ space: i + 1, value, marker: i + 1 === position }));
+export const threatCells = (
+  positions: number[],
+  position: number,
+): ThreatCell[] =>
+  positions.map((value, i) => ({
+    space: i + 1,
+    value,
+    marker: i + 1 === position,
+  }));
 
 /** null when the view carries no adventure data (every regular format). */
-export const adventureBoardModel = (view: PlayerView): AdventureBoardModel | null => {
+export const adventureBoardModel = (
+  view: PlayerView,
+): AdventureBoardModel | null => {
   const { initiative, scenario } = view;
   const enemies: EnemyDial[] = view.fighters
     .filter((f) => f.enemy)
@@ -67,11 +86,15 @@ export const adventureBoardModel = (view: PlayerView): AdventureBoardModel | nul
     row: (initiative?.row ?? []).map((card) => ({
       card,
       current: card.id === initiative?.current,
-      label: card.title ?? (card.faceDown ? "Face down" : ENTRY_LABEL[card.entry]),
+      label:
+        card.title ?? (card.faceDown ? "Face down" : ENTRY_LABEL[card.entry]),
     })),
     threat: scenario
       ? {
-          cells: threatCells(scenario.threat.positions, scenario.threat.position),
+          cells: threatCells(
+            scenario.threat.positions,
+            scenario.threat.position,
+          ),
           level: scenario.threat.level,
           overflows: scenario.threat.overflows,
         }
@@ -84,10 +107,16 @@ export const adventureBoardModel = (view: PlayerView): AdventureBoardModel | nul
  * One-line "what is the mover doing" text from the most recent ENEMY_ACTIVATION in a
  * STATE batch (null when the batch has none).
  */
-export const moverIntent = (events: readonly GameEvent[] | undefined, view: PlayerView): string | null => {
-  const ev = [...(events ?? [])].reverse().find((e) => e.type === "ENEMY_ACTIVATION");
+export const moverIntent = (
+  events: readonly GameEvent[] | undefined,
+  view: PlayerView,
+): string | null => {
+  const ev = [...(events ?? [])]
+    .reverse()
+    .find((e) => e.type === "ENEMY_ACTIVATION");
   if (!ev || ev.type !== "ENEMY_ACTIVATION") return null;
-  const name = (id: FighterId) => view.fighters.find((f) => f.id === id)?.name ?? id;
+  const name = (id: FighterId) =>
+    view.fighters.find((f) => f.id === id)?.name ?? id;
   const who = name(ev.fighter);
   if (ev.outcome === "NO_TARGET" || !ev.target) return `${who} has no target`;
   return ev.outcome === "ADJACENT"
@@ -111,7 +140,9 @@ export interface TeamDecisionModel {
  * The "players choose" decision (engine #589, R2): null unless the open prompt is a TEAM
  * decision. Every seat sees who is choosing and what; only the chooser answers.
  */
-export const teamDecisionModel = (view: PlayerView): TeamDecisionModel | null => {
+export const teamDecisionModel = (
+  view: PlayerView,
+): TeamDecisionModel | null => {
   const p = view.prompt;
   if (!p || p.onBehalfOf !== "TEAM") return null;
   const seatName = (id: string) => {
@@ -128,4 +159,57 @@ export const teamDecisionModel = (view: PlayerView): TeamDecisionModel | null =>
     description: p.description ?? null,
     options: youChoose ? [] : p.options.map(({ id, label }) => ({ id, label })),
   };
+};
+
+export interface EnemyCombatSide {
+  role: "ATTACK" | "DEFENSE";
+  fighterId: FighterId;
+  /** the owning enemy (box scoping: which villain/minion the card belongs to) */
+  enemyName: string;
+  enemyRole: "VILLAIN" | "MINION";
+  title: string;
+  /** printed value read in this role: attacker -> value, defender -> defense ?? value */
+  printed: number | null;
+  /** server-computed running value (printed ± effects + boosts) */
+  effective: number;
+  boosts: number;
+}
+
+/**
+ * The enemy's revealed combat card(s) (Wave 4.5): one side per enemy fighter that is the
+ * attacker or defender and has a PUBLIC card in the slot. Null when no enemy is in combat
+ * or nothing is revealed yet — regular formats never produce a model.
+ */
+export const enemyCombatModel = (
+  view: PlayerView,
+): EnemyCombatSide[] | null => {
+  const c = view.combat;
+  if (!c) return null;
+  const sides: EnemyCombatSide[] = [];
+  const add = (
+    fighterId: FighterId,
+    card: ViewCombat["attackerCard"],
+    role: "ATTACK" | "DEFENSE",
+  ) => {
+    const f = view.fighters.find((x) => x.id === fighterId);
+    if (!f?.enemy || !card) return;
+    const meta = view.catalog?.[card.instance.replace(/#\d+$/, "")];
+    const printed =
+      role === "DEFENSE"
+        ? (meta?.defense ?? meta?.value ?? null)
+        : (meta?.value ?? null);
+    sides.push({
+      role,
+      fighterId,
+      enemyName: f.name,
+      enemyRole: f.enemy.role,
+      title: meta?.title ?? card.instance,
+      printed,
+      effective: card.effectiveValue,
+      boosts: card.boosts.length,
+    });
+  };
+  add(c.attacker, c.attackerCard, "ATTACK");
+  add(c.target, c.defenderCard, "DEFENSE");
+  return sides.length ? sides : null;
 };

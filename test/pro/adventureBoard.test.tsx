@@ -6,7 +6,11 @@ import { render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { theme } from "@/styles/style";
 import { FormatOverlay } from "@/components/Pro/FormatOverlay";
-import { adventureBoardModel, moverIntent } from "@/lib/pro/adventureBoard";
+import {
+  adventureBoardModel,
+  enemyCombatModel,
+  moverIntent,
+} from "@/lib/pro/adventureBoard";
 import type { GameEvent, PlayerView } from "@/lib/pro/protocol";
 
 const fighter = (id: string, name: string, extra: object = {}) => ({
@@ -175,5 +179,78 @@ describe("team decision (players choose)", () => {
       prompt: { ...prompt("p1"), onBehalfOf: undefined },
     } as unknown as PlayerView);
     expect(screen.queryByTestId("adv-team-decision")).toBeNull();
+  });
+});
+
+describe("enemy combat reveal", () => {
+  const combatView = (over: object = {}) =>
+    ({
+      ...VIEW,
+      catalog: {
+        claw: { title: "Claw Swipe", type: "attack", value: 4, boost: null },
+        hide: {
+          title: "Thick Hide",
+          type: "versatile",
+          value: 2,
+          defense: 5,
+          boost: null,
+        },
+      },
+      combat: {
+        attacker: "e1/rex",
+        target: "p1/hero",
+        attackerCard: {
+          instance: "claw#2",
+          role: "ATTACK",
+          boosts: [],
+          effectiveValue: 4,
+        },
+        defenderCard: null,
+        additionalDefenseCard: null,
+        ...over,
+      },
+    }) as unknown as PlayerView;
+
+  it("shows the enemy attack with its owner", () => {
+    mount("adventure", combatView());
+    expect(screen.getByTestId("adv-combat-value-attack")).toHaveTextContent(
+      "4",
+    );
+    expect(screen.getByTestId("adv-combat-owner-attack")).toHaveTextContent(
+      "Rex (Villain)",
+    );
+    expect(screen.queryByTestId("adv-combat-printed-attack")).toBeNull();
+    expect(screen.queryByTestId("adv-combat-defense")).toBeNull();
+  });
+
+  it("reads defense ?? value when the enemy defends, showing printed vs effective", () => {
+    const v = combatView({
+      attacker: "p1/hero",
+      target: "e1/rex",
+      attackerCard: null,
+      defenderCard: {
+        instance: "hide#1",
+        role: "DEFENSE",
+        boosts: ["b#1"],
+        effectiveValue: 6,
+      },
+    });
+    expect(enemyCombatModel(v)?.[0]).toMatchObject({
+      role: "DEFENSE",
+      printed: 5,
+      effective: 6,
+      boosts: 1,
+    });
+    mount("adventure", v);
+    expect(screen.getByTestId("adv-combat-printed-defense")).toHaveTextContent(
+      "PRINTED 5",
+    );
+  });
+
+  it("is null for hero-vs-hero combat and no combat", () => {
+    expect(
+      enemyCombatModel(combatView({ attacker: "p1/hero", target: "p1/hero" })),
+    ).toBeNull();
+    expect(enemyCombatModel(VIEW)).toBeNull();
   });
 });
