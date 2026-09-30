@@ -4,9 +4,10 @@
 import "@testing-library/jest-dom";
 import { cleanup, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
+import { DOCK_RIGHT, DOCK_WIDTH } from "@/components/Pro/dockLayout";
 import { theme } from "@/styles/style";
 import { FormatOverlay } from "@/components/Pro/FormatOverlay";
-import { ENGINE_FAULT_FIXTURE } from "@/components/Pro/AdventureBoard";
+import { ADVENTURE_BOARD_RIGHT, ENGINE_FAULT_FIXTURE } from "@/components/Pro/AdventureBoard";
 import {
   adventureBoardModel,
   enemyCombatModel,
@@ -340,7 +341,37 @@ describe("overlay placement (#1114)", () => {
     cleanup();
     mount("adventure");
     const el = screen.getByTestId("adventure-board");
-    expect(el).toHaveStyle({ right: "0.7rem" });
+    expect(el).toHaveStyle({ right: ADVENTURE_BOARD_RIGHT });
     expect(el).not.toHaveStyle({ left: "50%" });
+  });
+});
+
+// #1128: the fixed Actions dock (z 140) fully covered the enemy dials (z 5).
+// jsdom has no layout, so the probe intersects the horizontal extents both
+// boxes are pinned to (rem -> px at 16px) at real viewport widths.
+type Span = [number, number];
+const rem = (v: string) => parseFloat(v) * 16;
+const overlaps = (a: Span, b: Span) => a[0] < b[1] && b[0] < a[1];
+const spans = (vw: number) => {
+  const dock: Span = [vw - rem(DOCK_RIGHT) - rem(DOCK_WIDTH), vw - rem(DOCK_RIGHT)];
+  // ADVENTURE_BOARD_RIGHT = calc(<DOCK_RIGHT> + <DOCK_WIDTH> + 0.75rem); board maxW 17rem
+  const right = rem(DOCK_RIGHT) + rem(DOCK_WIDTH) + rem("0.75rem");
+  const board: Span = [vw - right - rem("17rem"), vw - right];
+  return { dock, board };
+};
+
+describe("overlay vs Actions dock overlap probe (#1128)", () => {
+  it("probe detects a planted box over the dock", () => {
+    const { dock } = spans(1500);
+    expect(overlaps(dock, [dock[0] + 10, dock[1] - 10])).toBe(true);
+    // the pre-fix geometry (right 0.7rem) must be flagged
+    expect(overlaps(dock, [1500 - rem("0.7rem") - rem("17rem"), 1500 - rem("0.7rem")])).toBe(true);
+  });
+  it.each([1500, 1920])("board clears the dock at %ipx", (vw) => {
+    const { dock, board } = spans(vw);
+    expect(overlaps(dock, board)).toBe(false);
+  });
+  it("the constant matches the geometry the probe assumes", () => {
+    expect(ADVENTURE_BOARD_RIGHT).toBe(`calc(${DOCK_RIGHT} + ${DOCK_WIDTH} + 0.75rem)`);
   });
 });

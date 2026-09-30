@@ -1,3 +1,4 @@
+import { DOCK_RIGHT, DOCK_WIDTH } from "./dockLayout";
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import type { GameEvent, PlayerView } from "@/lib/pro/protocol";
 import { useAdventureAnalytics } from "@/lib/pro/useAdventureAnalytics";
@@ -115,6 +116,8 @@ export const ThreatTrack = ({
     </Flex>
   </Flex>
 );
+
+export const ADVENTURE_BOARD_RIGHT = `calc(${DOCK_RIGHT} + ${DOCK_WIDTH} + 0.75rem)`;
 
 export const EnemyDials = ({
   enemies,
@@ -329,7 +332,9 @@ export const AdventureBoard = ({
       // among them, reach the middle of the screen at ~1500px. They stop 8.5rem
       // short of the right edge, and five 15rem plates end well before this column.
       top="3.2rem"
-      right="0.7rem"
+      // ...and to the LEFT of the fixed Actions dock (z 140, right 0.75rem, 18.5rem
+      // wide, from 7.5rem down) which otherwise fully covers the dials (#1128).
+      right={ADVENTURE_BOARD_RIGHT}
       maxW="17rem"
       maxH="calc(100vh - 4rem)"
       overflowY="auto"
