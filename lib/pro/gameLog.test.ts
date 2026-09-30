@@ -283,6 +283,14 @@ describe("enrichLines", () => {
   });
 
   describe("new lines (mode 2) — allowlist only", () => {
+    it("EFFECT_ATTACK_INITIATED without a card (enemy deck-top, empty deck) names no card", () => {
+      const out = enrichLines([], [{ type: "EFFECT_ATTACK_INITIATED", attacker: "p1/hero", target: "p2/hero" }], ctx());
+      expect(out).toHaveLength(1);
+      expect(out[0].text).toMatch(/attacks .* — no action spent$/);
+      expect(out[0].text).not.toMatch(/ with /);
+      expect(out[0].cards).toEqual([]);
+    });
+
     it("VALUE_MODIFIED renders the before/after value and delta", () => {
       const out = enrichLines([], [{ type: "VALUE_MODIFIED", role: "ATTACK", delta: 2, newEffective: 5 }], ctx());
       expect(out).toEqual([{ text: "Attack value 3 → 5 (+2)", who: "game" }]);
