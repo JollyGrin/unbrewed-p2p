@@ -4,7 +4,7 @@ import { CardBack } from "../CardFactory/card.back";
 import { DeckImportCardType } from "../DeckPool/deck-import.type";
 import { PoolType } from "../DeckPool/PoolFns";
 
-import { GiUpgrade as IconBoost } from "react-icons/gi";
+import { GiUpgrade as IconBoost } from "@/components/Icons/gi";
 import { PopoverCardActions } from "./card-actions.popover";
 
 const TableButton = (props: React.ComponentProps<typeof Button>) => (

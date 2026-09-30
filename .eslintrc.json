@@ -1,3 +1,27 @@
 {
-  "extends": "next/core-web-vitals"
+  "extends": "next/core-web-vitals",
+  "rules": {
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "react-icons/gi",
+            "message": "Importing react-icons/gi ships all 4,040 icons (2.8 MB gz). Use @/components/Icons/gi, or the lazy loader in lib/icons/gameIcons.ts."
+          }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": [
+        "lib/icons/gameIcons.ts",
+        "components/Icons/gi.test.tsx"
+      ],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    }
+  ]
 }

@@ -59,7 +59,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
-import { GiFootprint, GiHearts } from "react-icons/gi";
+import { GiFootprint, GiHearts } from "@/components/Icons/gi";
 import { TbBow, TbSword } from "react-icons/tb";
 import { CardFace } from "./ProHand";
 import type { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
