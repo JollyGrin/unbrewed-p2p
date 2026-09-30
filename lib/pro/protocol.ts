@@ -819,7 +819,7 @@
  *   never as a numbered hero slot.
  * - `ProMapSpace.startsBlocked?: true` — the space is OUT OF PLAY at game start (an undestroyed
  *   enclosure): nobody may enter, rest on or path through it until a scenario effect opens it. The
- *   live "still blocked" set is not projected on `PlayerView` yet; legal actions are
+ *   live "still blocked" set is `PlayerView.blockedSpaces` (engine #689, below); legal actions are
  *   server-enumerated, so a client that draws nothing still plays correctly.
  * - `ProMapDef.scenario?: { markerTracks?, groups? }` — render data for the scenario layer.
  *   `markerTracks[]`: a named printed track (`threat`) and the normalized position of each of its
@@ -827,6 +827,23 @@
  *   positions are fractions of the track's OWN strip image, else of the board image. The marker's
  *   place is `PlayerView.scenario.threat.position`. `groups[]`: a named set of spaces that is not
  *   a zone (`enclosures`, `docks`), `order` parallel to `spaces` giving each its printed number.
+ * Purely additive — no PROTOCOL_VERSION bump.
+ * ## Additive field + event (2026-09-30, no version bump): blocked spaces (engine #689, DSL v0.95.0)
+ * ADVENTURE games on a board with `startsBlocked` spaces only (Isla Nublar's eight enclosures) —
+ * no other game carries either, so their views and event streams are byte-identical.
+ * - `PlayerView.blockedSpaces?: SpaceId[]` — the spaces STILL out of play right now, sorted: the
+ *   map's `startsBlocked` spaces minus every one opened since. Draw the fence / "closed" badge on
+ *   exactly these; a `startsBlocked` space that is NOT listed has been destroyed and is an ordinary
+ *   space. Public, the same list for every seat and spectator. ABSENT when none is left (and on
+ *   every board that never had one).
+ * - `SPACE_OPENED { space }` — fired when a still-blocked space opens (an enclosure is destroyed).
+ *   The same fact as `space` leaving `PlayerView.blockedSpaces` in the snapshot it rides with.
+ *   Names no token: a face-down marker on the space stays hidden until its own `TOKEN_FLIPPED`.
+ * - No new prompt kind: a tie for "the nearest enclosure" (or the players' free choice) is an
+ *   ordinary `CHOOSE_SPACE` whose option ids are the still-blocked spaces on offer — the ONE prompt
+ *   whose options are blocked spaces, so a client that dims blocked spaces must still let these be
+ *   picked. For an enemy effect it is a TEAM prompt (`onBehalfOf: "TEAM"`), like every other.
+ * A client that knows none of this still plays correctly: legal actions are server-enumerated.
  * Purely additive — no PROTOCOL_VERSION bump.
  * ## v30 (2026-08-20): the opening-hand mulligan (engine #395)
  * After the opening hands are dealt and BEFORE the heroes are placed, each seat
@@ -1318,6 +1335,9 @@ export type GameEvent =
   // list; `expiresAtRound` present = a temporary override was written, absent = it lapsed (the
   // listed zones are the printed ones again). The same data as `PlayerView.zoneOverrides`.
   | { type: "ZONES_CHANGED"; zones: Record<SpaceId, string[]>; expiresAtRound?: number }
+  // engine v0.95.0 (#689): a still-blocked space was opened (an enclosure destroyed). `space` is no
+  // longer in `PlayerView.blockedSpaces` and is an ordinary space from here on. Public.
+  | { type: "SPACE_OPENED"; space: SpaceId }
   | { type: "TOKEN_DESTROYED"; token: string; kind: ViewTokenKind; owner: PlayerId; space: SpaceId; reason: "EFFECT" | "ENTERED" | "REPLACED" | "OWNER_ELIMINATED" | "EXPIRED" }
   | { type: "FIGHTER_REVIVED"; fighter: FighterId; space: SpaceId }
   // v27 — benign removal: the fighter left `space` ALIVE (removeFromBoard). Not a death.
@@ -2027,6 +2047,11 @@ export interface PlayerView {
   // (no label / colour): "~<spaceId>" = that space is a zone of its own. Public. ABSENT when no
   // override stands, so every other game's view is byte-identical.
   zoneOverrides?: Record<SpaceId, { zones: string[]; expiresAtRound: number }>;
+  // engine v0.95.0 (#689): the spaces STILL BLOCKED (undestroyed enclosures), sorted — the map's
+  // `startsBlocked` spaces minus every one a SPACE_OPENED has named. Nobody may enter, rest on or
+  // path through a listed space. Public. ABSENT when none is left / the board never had one, so
+  // every other game's view is byte-identical.
+  blockedSpaces?: SpaceId[];
   // engine v0.82.0 (#587): the Adventures initiative deck — ABSENT for every game whose
   // format has none (duel / ffa / 2v2 / boss), so their views are byte-identical.
   initiative?: ViewInitiative;

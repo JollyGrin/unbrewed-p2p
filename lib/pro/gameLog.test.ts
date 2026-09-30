@@ -775,6 +775,26 @@ describe("enrichLines", () => {
     });
   });
 
+  describe("SPACE_OPENED + PlayerView.blockedSpaces (engine #699, inert)", () => {
+    const opened: GameEvent = { type: "SPACE_OPENED", space: "s7" };
+
+    it("adds no log line and leaves existing lines untouched", () => {
+      const lines: ProLogLine[] = [{ text: "Turn 1 — your turn", who: "game" }];
+      expect(() => enrichLines(lines, [opened], ctx())).not.toThrow();
+      expect(enrichLines(lines, [opened], ctx())).toEqual(lines);
+    });
+
+    it("diffing views that gain/lose blockedSpaces does not throw or invent lines", () => {
+      const before = view({ blockedSpaces: ["s7", "s9"] });
+      const after = view({ blockedSpaces: ["s9"] });
+      const label = (i: string) => i;
+      expect(() => diffViews(before, after, label, [opened])).not.toThrow();
+      expect(diffViews(before, after, label, [opened])).toEqual(diffViews(before, view({}), label, []));
+      expect(diffViews(after, view({}), label, [])).toEqual(diffViews(view({}), view({}), label, []));
+      expect(after.fighters).toEqual(before.fighters);
+    });
+  });
+
   describe("regression guard — non-allowlisted events create zero lines", () => {
     it("feeds every non-allowlisted GameEvent type through and asserts no new lines", () => {
       const nonAllowlisted = ALL_EVENTS.filter((e) => !ALLOWLIST.has(e.type));
