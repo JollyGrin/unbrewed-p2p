@@ -800,6 +800,34 @@
  * A client that knows none of this still renders SOMETHING at `space` for an unknown kind (the
  * v26 rule) and sees a moved / flipped marker in the next `PlayerView`. Purely additive — no
  * PROTOCOL_VERSION bump.
+ * ## Additive field + event (2026-09-30, no version bump): runtime zones (engine #649, DSL v0.92.0)
+ * ADVENTURE games only — no duel / ffa / 2v2 / boss game can carry either, so their views and event
+ * streams are byte-identical.
+ * - `PlayerView.zoneOverrides?: Record<SpaceId, { zones, expiresAtRound }>` — spaces whose zones are
+ *   TEMPORARILY not the printed ones (Tall Grass: "each space in the zone is its own zone"). Where a
+ *   space is listed, `zones` replaces `map.spaces[].zones` for it — for zone colouring and for any
+ *   client-side range hint. A zone id starting with `~` has no `map.zones` entry: `~<spaceId>` means
+ *   the space is alone in its zone (render it uncoloured / hatched; it shares a zone with nothing).
+ * - `ZONES_CHANGED { zones, expiresAtRound? }` — fired when overrides are written (`expiresAtRound`
+ *   present) and when they lapse at END OF ROUND (absent; `zones` are then the printed lists).
+ * A client that knows neither still plays correctly: legal actions are server-enumerated. Purely
+ * additive — no PROTOCOL_VERSION bump.
+ * ## Additive map fields (2026-09-30, no version bump): scenario boards (engine #653 / #648)
+ * ADVENTURE boards only (Isla Nublar is the first) — no duel / ffa / 2v2 map carries any of them.
+ * - `ProMapSpace.start.villain?: true` — the ONE start the board prints for the villain (a "V", not
+ *   a numeral). Only the engine-controlled seat binds its `slot`; render it as the villain's start,
+ *   never as a numbered hero slot.
+ * - `ProMapSpace.startsBlocked?: true` — the space is OUT OF PLAY at game start (an undestroyed
+ *   enclosure): nobody may enter, rest on or path through it until a scenario effect opens it. The
+ *   live "still blocked" set is not projected on `PlayerView` yet; legal actions are
+ *   server-enumerated, so a client that draws nothing still plays correctly.
+ * - `ProMapDef.scenario?: { markerTracks?, groups? }` — render data for the scenario layer.
+ *   `markerTracks[]`: a named printed track (`threat`) and the normalized position of each of its
+ *   spaces in order, the terminal "overflow" space included; with `imageWidth`/`imageHeight` the
+ *   positions are fractions of the track's OWN strip image, else of the board image. The marker's
+ *   place is `PlayerView.scenario.threat.position`. `groups[]`: a named set of spaces that is not
+ *   a zone (`enclosures`, `docks`), `order` parallel to `spaces` giving each its printed number.
+ * Purely additive — no PROTOCOL_VERSION bump.
  * ## v30 (2026-08-20): the opening-hand mulligan (engine #395)
  * After the opening hands are dealt and BEFORE the heroes are placed, each seat
  * gets a ONE-TIME keep-or-redraw choice: shuffle your whole hand back into your
@@ -1001,13 +1029,15 @@ export const REMATCH_PROTOCOL_VERSION = 35;
  * `expert` (v23) is offered per hero — see `HeroListing.botTiers` — and only
  * when the server's exposure switch is on.
  *
- * ## v36 (2026-09-27): the `jev` bot tier, behind a server flag
+ * ## v35 unchanged (2026-09-27): the `jev` bot tier, behind a server flag (#611)
  * `BotDifficulty` gains `"jev"` — the JEV API-powered bot, which calls the
  * public JEV API (thejevai.com) for structured probabilistic decisions.
  * Gated behind `EXPOSE_JEV=1` on the server (same dormancy pattern as
  * `expert` in v23). The jev bot is NOT a search bot — it calls an external
  * structured-decision API. The server offers it for every hero, same as
- * expert since #283.
+ * expert since #283. (`jev` itself is no longer listed in `botTiers` — see
+ * the `jevx3` note below, a #626 follow-up.) A purely additive string
+ * literal on an existing enum type — PROTOCOL_VERSION does not move.
  *
  * ### Client skew rules
  * - ABSENT `botTiers` (old server, or a dormant new one) → fall back to
@@ -1016,13 +1046,31 @@ export const REMATCH_PROTOCOL_VERSION = 35;
  * - PRESENT `botTiers` is authoritative. The client must render any tier
  *   the server lists without knowing what it does.
  *
- * ## jevx3 (client-only, unbrewed-p2p#933)
- * `jevx3` is advertised only behind the engine's `EXPOSE_JEV=1` switch. It is a
- * CLIENT-ONLY addition: purely additive, so the deliberate `PROTOCOL_VERSION = 34`
- * pin above is unchanged. The client gates SELECTING it on the player's record vs
- * Expert (or a build-time allowlist) — see lib/pro/tierUnlock.ts. `jev` is not gated.
+ * ## v35 unchanged (2026-09-27): the experimental `jevx` tier (#612)
+ * `BotDifficulty` gains `"jevx"` — the expert ISMCTS search with JEV as a
+ * narrow tie-breaker. Additive, behind the same `EXPOSE_JEV=1` switch as
+ * `jev`, and NEVER listed in `botTiers` (a client only gets it by naming it),
+ * so no client needs to know it exists.
+ *
+ * ## v35 unchanged (2026-09-27): `jevx2` (#614)
+ * `BotDifficulty` gains `"jevx2"` — `jevx` with the search's own value/visit
+ * read surfaced in the JEV prompt. Same exposure rules as `jevx`.
+ *
+ * ## v35 unchanged (2026-09-27): `jevx3` (#616)
+ * `BotDifficulty` gains `"jevx3"` — `jevx2` plus per-option facts (certain
+ * kill, deck tail, boost reach) in the JEV prompt. Same exposure rules as `jevx`.
+ *
+ * ## v35 unchanged (2026-09-27): `jevx3` is the only jev-family tier advertised (#626)
+ * Unlike `jev`/`jevx`/`jevx2` above, `jevx3` IS listed in `botTiers` once
+ * `EXPOSE_JEV=1` — it's the tier the p2p client's win-gated unlock (15 wins
+ * vs `expert`, enforced client-side only) targets. #626 first added it after
+ * `jev` in the listing; a follow-up dropped `jev` from the listing entirely,
+ * so `jevx3` is now the sole advertised member of the family. `jev`/`jevx`/
+ * `jevx2` stay requestable while exposed and refused while dormant, same as
+ * always — only what gets ADVERTISED changed. No type or shape change here:
+ * `jevx3` was already a `BotDifficulty` member.
  */
-export type BotDifficulty = "easy" | "medium" | "hard" | "expert" | "jev" | "jevx3";
+export type BotDifficulty = "easy" | "medium" | "hard" | "expert" | "jev" | "jevx" | "jevx2" | "jevx3";
 
 export interface BotSeatFill {
   player: PlayerId;
@@ -1158,10 +1206,9 @@ export type GameEvent =
   | { type: "ROUND_ENDED"; round: number }
   // engine v0.86.0 (#589) — an enemy activation resolved: which step won, and whom it attacks.
   | { type: "ENEMY_ACTIVATION"; fighter: FighterId; outcome: "ADJACENT" | "CLOSEST" | "NO_TARGET"; target?: FighterId }
-  // engine v0.90.0 (#651) / 2.4 — an effect spawned a NEW enemy fighter mid-game. It is off the
-  // board (`space: null`) until the FIGHTER_MOVED that follows its placement; `card` is its
-  // initiative card id (null when the enemy has none) — the card is somewhere in the face-down
-  // deck, position not public. A spawned enemy's row id is `<enemy card id>@<fighter>`.
+  // engine v0.90.0 (#651) — an effect spawned a NEW enemy fighter mid-game. It is off the board
+  // until the FIGHTER_MOVED that follows its placement; `card` is its initiative card id (null
+  // when the enemy has none) — the card is somewhere in the face-down deck, position not public.
   | { type: "ENEMY_SPAWNED"; fighter: FighterId; enemyId: string; card: string | null }
   | { type: "ACTION_SPENT"; player: PlayerId; action: "MANEUVER" | "SCHEME" | "ATTACK" | "SCHEME_ITEM" }
   | { type: "CARD_DRAWN"; player: PlayerId; card: CardInstanceId }
@@ -1267,6 +1314,10 @@ export type GameEvent =
   // face-UP marker and TOKEN_FLIPPED only when it turns face up — a hidden identity is never sent.
   | { type: "TOKEN_MOVED"; token: string; kind: ViewTokenKind; owner: PlayerId; from: SpaceId; to: SpaceId }
   | { type: "TOKEN_FLIPPED"; token: string; kind: ViewTokenKind; owner: PlayerId; space: SpaceId; faceDown: boolean; identity?: string }
+  // engine v0.92.0 (#649): spaces changed zone. `zones` = each changed space's whole NEW zone
+  // list; `expiresAtRound` present = a temporary override was written, absent = it lapsed (the
+  // listed zones are the printed ones again). The same data as `PlayerView.zoneOverrides`.
+  | { type: "ZONES_CHANGED"; zones: Record<SpaceId, string[]>; expiresAtRound?: number }
   | { type: "TOKEN_DESTROYED"; token: string; kind: ViewTokenKind; owner: PlayerId; space: SpaceId; reason: "EFFECT" | "ENTERED" | "REPLACED" | "OWNER_ELIMINATED" | "EXPIRED" }
   | { type: "FIGHTER_REVIVED"; fighter: FighterId; space: SpaceId }
   // v27 — benign removal: the fighter left `space` ALIVE (removeFromBoard). Not a death.
@@ -1463,9 +1514,29 @@ export interface ProMapSpace {
   adjacentTo: SpaceId[]; // undirected, stored symmetrically
   oneWayTo?: SpaceId[]; // directed MOVEMENT-ONLY edges (e.g. Drum stairs)
   region?: string; // region id (absent = main board) — v0.12.0
-  start?: { slot: number };
+  start?: { slot: number; villain?: true }; // villain: the printed villain start (engine #653)
   item?: string; // v17 — battlefield item id spawned here (ProMapItem.id)
   passage?: boolean; // v17 — secret-passage space marker rendered by the client
+  startsBlocked?: true; // out of play at game start — an undestroyed enclosure (engine #648)
+}
+
+// A named marker track printed on a scenario board (engine #653). `positions` are its spaces in
+// order, normalized to the track's own image when imageWidth/imageHeight are given, else to the
+// board image.
+export interface ProMapMarkerTrack {
+  id: string;
+  positions: { x: number; y: number }[];
+  imageUrl?: string;
+  imageWidth?: number;
+  imageHeight?: number;
+}
+
+// A named group of spaces that is not a zone (engine #653). `order` is parallel to `spaces`.
+export interface ProMapSpaceGroup {
+  id: string;
+  spaces: SpaceId[];
+  kind: "CONTAINS" | "BORDERS";
+  order?: number[];
 }
 
 // A battlefield item printed on the board (v17 — Teen Spirit). 'combat' items add a
@@ -1513,6 +1584,7 @@ export interface ProMapDef {
   zones: ProMapZone[];
   regions?: ProMapRegion[]; // v0.12.0 — board regions (absent on ordinary maps)
   items?: ProMapItem[]; // v17 — battlefield item definitions (absent on ordinary maps)
+  scenario?: { markerTracks?: ProMapMarkerTrack[]; groups?: ProMapSpaceGroup[] }; // engine #653 — scenario boards only
   spaces: ProMapSpace[];
 }
 
@@ -1528,9 +1600,9 @@ export interface CardMeta {
   type: "attack" | "defense" | "scheme" | "versatile";
   value: number | null;
   boost: number | null;
-  /** Adventures (`CardDef.defense?`, engine #588): an enemy card's printed DEFENSE value when it
-   *  differs from `value` (the attack). The engine reads `defense ?? value` in the defender role.
-   *  Absent on every regular card and on engines that do not send it yet. */
+  /** CLIENT-ONLY (kept on re-sync; the engine's copy at c82e963 does not carry it). Adventures
+   *  (`CardDef.defense?`, engine #588): an enemy card's printed DEFENSE value when it differs from
+   *  `value` (the attack). Absent on every regular card and on engines that do not send it yet. */
   defense?: number | null;
 }
 
@@ -1949,6 +2021,12 @@ export interface PlayerView {
   // maps with no items; an id disappears from here the instant its token is
   // consumed. The client renders/clears item badges from this map.
   itemTokens?: Record<SpaceId, string>;
+  // engine v0.92.0 (#649): RUNTIME ZONES (adventure games only — Tall Grass). Each listed space's
+  // zones are `zones` INSTEAD OF `map.spaces[].zones` until the END OF ROUND step of round
+  // `expiresAtRound`. A zone id starting with "~" is a runtime zone with no `map.zones` entry
+  // (no label / colour): "~<spaceId>" = that space is a zone of its own. Public. ABSENT when no
+  // override stands, so every other game's view is byte-identical.
+  zoneOverrides?: Record<SpaceId, { zones: string[]; expiresAtRound: number }>;
   // engine v0.82.0 (#587): the Adventures initiative deck — ABSENT for every game whose
   // format has none (duel / ffa / 2v2 / boss), so their views are byte-identical.
   initiative?: ViewInitiative;
@@ -2003,11 +2081,10 @@ export interface ReplayConfig {
   // mulligan window open, so its action log carries the window's own prompt
   // answers. Absent = the pre-v30 flow; every bundle from a mulligan-free game is
   // byte-identical to a pre-v30 one.
-  // `itemsDisabled` (engine #519, server/replay.ts buildReplayBundle): the game was
-  // played with the map's battlefield items turned OFF, so startGame must not spawn
-  // them on re-expansion. Like `mulligan` it rides only on its non-default side:
-  // absent = items on; every bundle from an items-on game is byte-identical to a
-  // pre-#519 one.
+  // `itemsDisabled` (engine #519): the game was played with the map's battlefield
+  // items turned OFF, so startGame must not spawn them on re-expansion. Absent =
+  // items on; every bundle from an items-on game is byte-identical to a pre-#519
+  // one.
   options?: { allowNonstandardDeck?: boolean; startingHandSize?: number; mulligan?: boolean; itemsDisabled?: boolean };
   players: { p1: ReplayPlayerSetup; p2: ReplayPlayerSetup } & Partial<Record<PlayerId, ReplayPlayerSetup>>;
   formatId?: string;
@@ -2402,8 +2479,19 @@ export type ErrorCode =
   | "REMATCH_UNAVAILABLE" // v35: a REMATCH_* message the room/seat cannot take right now
   | "ROOM_LIMIT" // CREATE_ROOM refused — server is at its global room cap (PRO_MAX_ROOMS)
   | "RATE_LIMITED" // this connection is sending messages too fast (see server rate-limit env vars)
-  // Engine-seat (adventure) rooms only — engine #666/#680. The engine threw, so the room STOPPED
-  // the game for every seat. Not a game over (no GAME_ENDED/winner); the last STATE stands.
-  // Re-sent after ROOM_CREATED/ROOM_JOINED and RECONNECT/RESUME_ROOM STATE, so idempotent.
+  // Engine #666 (additive — a client that does not know the code shows it like any
+  // other ERROR). PUSHED to every connected seat of an ENGINE-SEAT room (adventure)
+  // when the engine threw while starting the game or while resolving an action, a
+  // bot's move, a move-timer action or an injected forfeit: THE GAME IS STOPPED.
+  // It is not a GAME_OVER — the last STATE stands (no winner, no GAME_ENDED, no
+  // REPLAY_BUNDLE; after a game-start fault there is no STATE at all) and the room
+  // accepts nothing further: every later ACTION, and a JOIN_ROOM, is answered with
+  // this same code. It is sent again after ROOM_CREATED / ROOM_JOINED / the STATE
+  // of a RECONNECT or RESUME_ROOM, so a socket may see it more than once — treat
+  // it as idempotent. Render it as a table-level banner ("this game hit an engine
+  // fault and was stopped"), not a transient toast; `message` is the diagnostic
+  // (room id, what was running, the engine's own error text). Rooms without an
+  // engine seat never send it — there an engine throw is still SERVER_ERROR to
+  // the sender.
   | "ENGINE_FAULT"
   | "SERVER_ERROR";
