@@ -1,7 +1,8 @@
 import { Button, Flex, Menu, MenuButton, MenuItem, MenuList, Text } from "@chakra-ui/react";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { TbChevronDown } from "react-icons/tb";
 import type { PlayerId } from "@/lib/pro/protocol";
+import { trackFormatOpened, trackLobbyConfigured } from "@/lib/analytics/adventure";
 import {
   ADVENTURE_MAX_HUMANS,
   ADVENTURE_MIN_HUMANS,
@@ -100,6 +101,14 @@ export const AdventureLobby = ({
   renderSeat: (seat: PlayerId) => ReactNode;
 }) => {
   const seats = adventureSeats(setup.humans);
+  // Mounted only while the Adventure format is selected, so mount = tab opened.
+  useEffect(() => {
+    trackFormatOpened();
+  }, []);
+  const configure = (next: AdventureSetup) => {
+    trackLobbyConfigured(next);
+    onChange(next);
+  };
   return (
     <Flex direction="column" gap="0.6rem" flex="1" minW="0" data-testid="adventure-lobby">
       <Flex align="center" gap="0.4rem">
@@ -116,7 +125,7 @@ export const AdventureLobby = ({
                 size="xs"
                 data-testid={`adventure-humans-${n}`}
                 aria-pressed={active}
-                onClick={() => onChange(setHumans(setup, n))}
+                onClick={() => configure(setHumans(setup, n))}
                 fontFamily="SpaceGrotesk"
                 fontWeight={active ? "bold" : "normal"}
                 bg={active ? "brand.accent" : "rgba(0,0,0,0.25)"}
@@ -154,7 +163,7 @@ export const AdventureLobby = ({
           label="VILLAIN"
           value={setup.villainId}
           options={ADVENTURE_ROSTER.villains}
-          onPick={(id) => onChange(setVillain(setup, id))}
+          onPick={(id) => configure(setVillain(setup, id))}
         />
         {setup.minionIds.map((m, slot) => (
           <EnemyPick
@@ -164,7 +173,7 @@ export const AdventureLobby = ({
             value={m}
             options={ADVENTURE_ROSTER.minions}
             taken={setup.minionIds}
-            onPick={(id) => onChange(setMinion(setup, slot, id))}
+            onPick={(id) => configure(setMinion(setup, slot, id))}
           />
         ))}
       </Flex>
