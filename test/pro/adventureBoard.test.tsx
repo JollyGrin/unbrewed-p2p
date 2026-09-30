@@ -11,6 +11,7 @@ import {
   adventureBoardModel,
   enemyCombatModel,
   moverIntent,
+  parseInitiativeCardId,
 } from "@/lib/pro/adventureBoard";
 import type { GameEvent, PlayerView } from "@/lib/pro/protocol";
 
@@ -290,5 +291,56 @@ describe("engine fault banner", () => {
   it("is absent without a fault", () => {
     mount("adventure");
     expect(screen.queryByTestId("adv-engine-fault")).toBeNull();
+  });
+});
+
+describe("spawned enemies (engine 2.4)", () => {
+  it("splits an `<enemy card id>@<fighter>` initiative id; plain ids pass through", () => {
+    expect(parseInitiativeCardId("raptor@e1/raptor-2")).toEqual({
+      cardId: "raptor",
+      fighter: "e1/raptor-2",
+    });
+    expect(parseInitiativeCardId("c1")).toEqual({ cardId: "c1", fighter: null });
+  });
+
+  it("keys the row entry's art on the part before the @ and keeps the full id", () => {
+    const view = {
+      ...VIEW,
+      fighters: [
+        ...VIEW.fighters,
+        fighter("e1/raptor-2", "Raptor", {
+          space: null,
+          enemy: { role: "MINION", enemyId: "raptor", move: 2, deckCount: 0, discardTop: null },
+        }),
+      ],
+      initiative: {
+        ...VIEW.initiative,
+        row: [
+          ...VIEW.initiative!.row,
+          { id: "raptor@e1/raptor-2", title: "Raptor", entry: "FIGHTER", fighter: "e1/raptor-2" },
+        ],
+      },
+    } as unknown as PlayerView;
+    const model = adventureBoardModel(view)!;
+    const entry = model.row.find((r) => r.card.id === "raptor@e1/raptor-2")!;
+    expect(entry.artKey).toBe("raptor");
+    expect(entry.spawnedFighter).toBe("e1/raptor-2");
+    expect(model.enemies.map((e) => e.id)).toContain("e1/raptor-2");
+    cleanup();
+    mount("adventure", view);
+    expect(screen.getByTestId("adv-init-raptor@e1/raptor-2")).toHaveAttribute(
+      "data-card-art",
+      "raptor",
+    );
+  });
+});
+
+describe("overlay placement (#1114)", () => {
+  it("docks to the right edge, clear of the top-left seat-plate row", () => {
+    cleanup();
+    mount("adventure");
+    const el = screen.getByTestId("adventure-board");
+    expect(el).toHaveStyle({ right: "0.7rem" });
+    expect(el).not.toHaveStyle({ left: "50%" });
   });
 });

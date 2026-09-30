@@ -16,6 +16,8 @@ describe("adventure protocol additions", () => {
       { type: "INITIATIVE_REVEALED", card: "c", entry: "FIGHTER" },
       { type: "ENEMY_ACTIVATION", fighter: "e1/rex", outcome: "NO_TARGET" },
       { type: "ENEMY_ACTIVATION", fighter: "e1/rex", outcome: "CLOSEST", target: "p1/hero" },
+      { type: "ENEMY_SPAWNED", fighter: "e1/raptor-2", enemyId: "raptor", card: "raptor@e1/raptor-2" },
+      { type: "ENEMY_SPAWNED", fighter: "e1/wisp", enemyId: "wisp", card: null },
       { type: "THREAT_CHANGED", position: 2, level: 1 },
       { type: "THREAT_OVERFLOW", overflows: 1, objective: null },
       { type: "ROUND_ENDED", round: 1 },

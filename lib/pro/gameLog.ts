@@ -1141,6 +1141,13 @@ export function enrichLines(
         break;
       }
 
+      // engine 2.4 (#681): an effect spawned a new enemy. The fighter is a brand-new
+      // entry in the view (skipped by the snapshot diff) and sits off-board until its
+      // FIGHTER_MOVED, so this event is the only line that says it exists.
+      case "ENEMY_SPAWNED":
+        added.push({ text: `${ctx.fighter(e.fighter)} was spawned`, who: "game" });
+        break;
+
       // Opening-hand mulligan (issue #622 ↔ protocol v30). Both events land only
       // when the window CLOSES, one per seat, which is the moment each player's
       // choice becomes public — until then the answers are redacted and there is

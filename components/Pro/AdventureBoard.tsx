@@ -56,6 +56,8 @@ export const InitiativeRow = ({ model }: { model: AdventureBoardModel }) => (
         <Box
           key={e.card.id}
           data-testid={`adv-init-${e.card.id}`}
+          data-card-art={e.artKey}
+          data-spawned={e.spawnedFighter ? "true" : undefined}
           data-current={e.current ? "true" : undefined}
           data-face-down={e.card.faceDown ? "true" : undefined}
           px="0.4rem"
@@ -322,11 +324,17 @@ export const AdventureBoard = ({
     <Flex
       data-testid="adventure-board"
       position="fixed"
-      top="4.5rem"
-      left="50%"
-      transform="translateX(-50%)"
+      // Docked to the right edge under the chip cluster, NOT top-centre (#1114): the
+      // seat plates flow left-to-right from the top-left and, with an enemy seat
+      // among them, reach the middle of the screen at ~1500px. They stop 8.5rem
+      // short of the right edge, and five 15rem plates end well before this column.
+      top="3.2rem"
+      right="0.7rem"
+      maxW="17rem"
+      maxH="calc(100vh - 4rem)"
+      overflowY="auto"
       direction="column"
-      align="center"
+      align="flex-end"
       gap="0.4rem"
       zIndex={5}
       pointerEvents="none"

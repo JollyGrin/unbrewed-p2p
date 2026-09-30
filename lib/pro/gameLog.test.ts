@@ -743,6 +743,17 @@ describe("enrichLines", () => {
     });
   });
 
+  describe("ENEMY_SPAWNED (engine 2.4)", () => {
+    it("narrates the spawn with the fighter's display name", () => {
+      const out = enrichLines(
+        [],
+        [{ type: "ENEMY_SPAWNED", fighter: "e1/raptor-2", enemyId: "raptor", card: "raptor@e1/raptor-2" }],
+        ctx()
+      );
+      expect(out).toEqual([{ text: "raptor-2 was spawned", who: "game" }]);
+    });
+  });
+
   describe("regression guard — non-allowlisted events create zero lines", () => {
     it("feeds every non-allowlisted GameEvent type through and asserts no new lines", () => {
       const nonAllowlisted = ALL_EVENTS.filter((e) => !ALLOWLIST.has(e.type));
