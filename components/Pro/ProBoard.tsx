@@ -20,6 +20,7 @@ import { PendingSwap } from "@/lib/pro/positionSwap";
 import type { FlagTokenBadge } from "@/lib/pro/heroStateFlags";
 import type { CosmeticRimTier } from "@/lib/pro/cosmetics";
 import { DEFAULT_SPACE_DIAMETER } from "@/lib/pro/seatColors";
+import { mapImageSrc } from "@/lib/pro/mapImage";
 import {
   type PendingMove,
   type MoveHint,
@@ -457,7 +458,7 @@ export const ProBoard = ({
       >
       <Box
         as="img"
-        src={map.meta.imageUrl}
+        src={mapImageSrc(map.meta)}
         alt={map.meta.title}
         maxW="100%"
         maxH={imgMaxH}
