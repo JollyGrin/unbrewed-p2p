@@ -12,8 +12,26 @@ import type {
   ViewInitiativeCard,
 } from "@/lib/pro/protocol";
 
+/**
+ * A spawned enemy's initiative card id is `<enemy card id>@<fighter>` (engine 2.4):
+ * the part before the `@` is the card (key art / labels), the part after is the
+ * spawned fighter. Plain ids pass through with `fighter: null`.
+ */
+export const parseInitiativeCardId = (
+  id: string,
+): { cardId: string; fighter: FighterId | null } => {
+  const at = id.indexOf("@");
+  return at < 0
+    ? { cardId: id, fighter: null }
+    : { cardId: id.slice(0, at), fighter: id.slice(at + 1) };
+};
+
 export interface InitiativeRowEntry {
   card: ViewInitiativeCard;
+  /** the card id with any `@<fighter>` spawn suffix stripped — key art on this */
+  artKey: string;
+  /** the spawned fighter named by an `@` suffix, else null */
+  spawnedFighter: FighterId | null;
   current: boolean;
   /** face-down cards carry no title (hidden info) — the label falls back to the entry kind */
   label: string;
@@ -93,6 +111,8 @@ export const adventureBoardModel = (
     initiativeDeckCount: initiative?.deckCount ?? null,
     row: (initiative?.row ?? []).map((card) => ({
       card,
+      artKey: parseInitiativeCardId(card.id).cardId,
+      spawnedFighter: parseInitiativeCardId(card.id).fighter,
       current: card.id === initiative?.current,
       label:
         card.title ?? (card.faceDown ? "Face down" : ENTRY_LABEL[card.entry]),

@@ -56,6 +56,8 @@ export const InitiativeRow = ({ model }: { model: AdventureBoardModel }) => (
         <Box
           key={e.card.id}
           data-testid={`adv-init-${e.card.id}`}
+          data-card-art={e.artKey}
+          data-spawned={e.spawnedFighter ? "true" : undefined}
           data-current={e.current ? "true" : undefined}
           data-face-down={e.card.faceDown ? "true" : undefined}
           px="0.4rem"

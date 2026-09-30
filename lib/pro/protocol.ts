@@ -1158,6 +1158,11 @@ export type GameEvent =
   | { type: "ROUND_ENDED"; round: number }
   // engine v0.86.0 (#589) — an enemy activation resolved: which step won, and whom it attacks.
   | { type: "ENEMY_ACTIVATION"; fighter: FighterId; outcome: "ADJACENT" | "CLOSEST" | "NO_TARGET"; target?: FighterId }
+  // engine v0.90.0 (#651) / 2.4 — an effect spawned a NEW enemy fighter mid-game. It is off the
+  // board (`space: null`) until the FIGHTER_MOVED that follows its placement; `card` is its
+  // initiative card id (null when the enemy has none) — the card is somewhere in the face-down
+  // deck, position not public. A spawned enemy's row id is `<enemy card id>@<fighter>`.
+  | { type: "ENEMY_SPAWNED"; fighter: FighterId; enemyId: string; card: string | null }
   | { type: "ACTION_SPENT"; player: PlayerId; action: "MANEUVER" | "SCHEME" | "ATTACK" | "SCHEME_ITEM" }
   | { type: "CARD_DRAWN"; player: PlayerId; card: CardInstanceId }
   | { type: "EXHAUSTION_DAMAGE"; player: PlayerId }
