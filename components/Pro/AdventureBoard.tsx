@@ -35,6 +35,11 @@ export const InitiativeRow = ({ model }: { model: AdventureBoardModel }) => (
     data-testid="adv-initiative"
     {...PANEL}
   >
+    {model.scenarioLabel && (
+      <Text {...LBL} data-testid="adv-scenario" data-scenario-id={model.scenarioId ?? undefined}>
+        {model.scenarioLabel.toUpperCase()}
+      </Text>
+    )}
     <Flex gap="0.6rem" align="baseline">
       <Text {...LBL}>ROUND</Text>
       <Text data-testid="adv-round" fontWeight="bold">
@@ -119,6 +124,7 @@ export const EnemyDials = ({
       <Flex
         key={e.id}
         data-testid={`adv-enemy-${e.id}`}
+        data-enemy-id={e.enemyId ?? undefined}
         gap="0.6rem"
         align="baseline"
         opacity={e.defeated ? 0.45 : 1}

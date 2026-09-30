@@ -12,6 +12,8 @@ import {
   useProSocket,
 } from "./useProSocket";
 import { resetEngineVersions } from "./wireVersion";
+import { publishAdventureSetup, resetAdventureScenarios, setScenarios } from "./adventureScenarios";
+import { defaultAdventureSetup, setMinion, setVillain } from "./adventureLobby";
 
 // The hook reads the optional Discord account (issue #568) to decide whether to
 // claim a seat identity. Stubbed here so no test hits `/me`; the default is a
@@ -2445,5 +2447,79 @@ describe("useProSocket — game-over re-bind at v35 (p2p #894)", () => {
     expect(hook.result.current.rematchOffer.phase).toBe("incoming");
 
     expect(ws.sent.map((s) => JSON.parse(s)).filter((m) => String(m.type).startsWith("REMATCH_"))).toEqual([]);
+  });
+});
+
+describe("useProSocket — Adventure scenario roster (#1107, #1113)", () => {
+  const realWS = global.WebSocket;
+  const realFlag = process.env.NEXT_PUBLIC_ADVENTURE_LAB;
+  const SCEN = {
+    id: "isla", label: "Isla", formatIds: ["adventure"], mapId: "isla", villain: "rex",
+    villains: [{ id: "rex", name: "Rex", role: "VILLAIN", hp: [9], move: 3, size: "LARGE" }],
+    fixedMinions: [],
+    minionPool: [{ id: "raptor", name: "Raptor", role: "MINION", hp: [3], move: 4, size: "NORMAL" }],
+    minionsPerPlayer: 1,
+    duplicateMinions: false,
+  };
+  beforeEach(() => {
+    // @ts-expect-error — swap in the fake for the test
+    global.WebSocket = FakeWebSocket;
+    window.localStorage.clear();
+    process.env.NEXT_PUBLIC_ADVENTURE_LAB = "1";
+    resetAdventureScenarios();
+  });
+  afterEach(() => {
+    global.WebSocket = realWS;
+    FakeWebSocket.last = null;
+    if (realFlag === undefined) delete process.env.NEXT_PUBLIC_ADVENTURE_LAB;
+    else process.env.NEXT_PUBLIC_ADVENTURE_LAB = realFlag;
+    resetAdventureScenarios();
+  });
+  const boot = () => {
+    const hook = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    return { hook, ws };
+  };
+  const created = (ws: FakeWebSocket) => ws.sent.map((s) => JSON.parse(s)).find((m) => m.type === "CREATE_ROOM");
+  // an island-of-despair customMap, as the lobby's board pick would supply
+  const fallbackBoard = { schemaVersion: "1.0", id: "island-of-despair" } as never;
+
+  it("asks for LIST_SCENARIOS on open only behind the lab flag", () => {
+    expect(boot().ws.sentTypes).toContain("LIST_SCENARIOS");
+    delete process.env.NEXT_PUBLIC_ADVENTURE_LAB;
+    expect(boot().ws.sentTypes).not.toContain("LIST_SCENARIOS");
+  });
+
+  it("treats BAD_MESSAGE to LIST_SCENARIOS as an empty roster, not an error", () => {
+    const { hook, ws } = boot();
+    act(() => ws.emit({ type: "ERROR", code: "BAD_MESSAGE", message: "unknown type" }));
+    expect(hook.result.current.error).toBeNull();
+    // …and Create is refused with a reason rather than falling back to a board
+    act(() => hook.result.current.createRoom("hero-a", undefined, fallbackBoard, "adventure", [], 0, true, undefined, undefined, 1));
+    expect(created(ws)).toBeUndefined();
+    expect(hook.result.current.error?.code).toBe("BAD_SCENARIO");
+  });
+
+  it("sends scenarioId + roster and never the lobby's board for adventure", () => {
+    const { hook, ws } = boot();
+    act(() => ws.emit({ type: "SCENARIOS", scenarios: [SCEN] }));
+    publishAdventureSetup(setMinion(setVillain(defaultAdventureSetup(), "rex"), 0, "raptor"));
+    act(() => hook.result.current.createRoom("hero-a", undefined, fallbackBoard, "adventure", [], 0, true, undefined, undefined, 1));
+    const m = created(ws);
+    expect(m.scenarioId).toBe("isla");
+    expect(m.roster).toEqual({ villain: "rex", minions: ["raptor"] });
+    expect("customMap" in m).toBe(false);
+    expect(m.humans).toBe(1);
+  });
+
+  it("leaves other formats byte-identical (keeps their board, no scenario keys)", () => {
+    const { hook, ws } = boot();
+    act(() => ws.emit({ type: "SCENARIOS", scenarios: [SCEN] }));
+    act(() => hook.result.current.createRoom("hero-a", undefined, fallbackBoard, "ffa-3"));
+    const m = created(ws);
+    expect(m.customMap).toBeDefined();
+    expect("scenarioId" in m).toBe(false);
+    expect("roster" in m).toBe(false);
   });
 });

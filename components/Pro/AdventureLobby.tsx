@@ -2,16 +2,21 @@ import { Button, Flex, Menu, MenuButton, MenuItem, MenuList, Text } from "@chakr
 import { useEffect, type ReactNode } from "react";
 import { TbChevronDown } from "react-icons/tb";
 import type { PlayerId } from "@/lib/pro/protocol";
+import { publishAdventureSetup, useScenarios } from "@/lib/pro/adventureScenarios";
 import { trackFormatOpened, trackLobbyConfigured } from "@/lib/analytics/adventure";
 import {
   ADVENTURE_MAX_HUMANS,
   ADVENTURE_MIN_HUMANS,
-  ADVENTURE_ROSTER,
   AdventureEnemyOption,
   AdventureSetup,
+  NO_SCENARIO_REASON,
   adventureSeats,
+  minionSlotCount,
+  rosterOptions,
+  scenarioFor,
   setHumans,
   setMinion,
+  setScenario,
   setVillain,
 } from "@/lib/pro/adventureLobby";
 
@@ -24,6 +29,7 @@ const EnemyPick = ({
   value,
   options,
   taken = [],
+  allowRandom = true,
   onPick,
 }: {
   testId: string;
@@ -32,6 +38,8 @@ const EnemyPick = ({
   options: AdventureEnemyOption[];
   /** ids already held by another slot (no duplicate minions, R5) */
   taken?: Array<string | null>;
+  /** false for a pick that has no random (the scenario) */
+  allowRandom?: boolean;
   onPick: (id: string | null) => void;
 }) => {
   const current = options.find((o) => o.id === value);
@@ -57,12 +65,14 @@ const EnemyPick = ({
           _active={{ bg: "whiteAlpha.500" }}
           rightIcon={<TbChevronDown />}
         >
-          {current ? current.name : "Random"}
+          {current ? current.name : allowRandom ? "Random" : "—"}
         </MenuButton>
         <MenuList bg="brand.surface" borderColor="whiteAlpha.300" maxH="14rem" overflowY="auto">
-          <MenuItem onClick={() => onPick(null)} bg="transparent" _hover={{ bg: "whiteAlpha.100" }}>
-            Random
-          </MenuItem>
+          {allowRandom && (
+            <MenuItem onClick={() => onPick(null)} bg="transparent" _hover={{ bg: "whiteAlpha.100" }}>
+              Random
+            </MenuItem>
+          )}
           {options.map((o) => (
             <MenuItem
               key={o.id}
@@ -101,6 +111,17 @@ export const AdventureLobby = ({
   renderSeat: (seat: PlayerId) => ReactNode;
 }) => {
   const seats = adventureSeats(setup.humans);
+  const { scenarios, loaded } = useScenarios();
+  const scenario = scenarioFor(setup, scenarios);
+  const roster = rosterOptions(scenario);
+  const perPlayer = scenario?.minionsPerPlayer ?? 1;
+  // No scenario listed once the server has answered: Create is refused at the wire
+  // (never a fallback board, #1113) — say why here instead of failing on click.
+  const noScenario = loaded && !scenario;
+  // The socket builds CREATE_ROOM from this, not from page state.
+  useEffect(() => {
+    publishAdventureSetup(setup);
+  }, [setup]);
   // Mounted only while the Adventure format is selected, so mount = tab opened.
   useEffect(() => {
     trackFormatOpened();
@@ -125,7 +146,7 @@ export const AdventureLobby = ({
                 size="xs"
                 data-testid={`adventure-humans-${n}`}
                 aria-pressed={active}
-                onClick={() => configure(setHumans(setup, n))}
+                onClick={() => configure(setHumans(setup, n, perPlayer))}
                 fontFamily="SpaceGrotesk"
                 fontWeight={active ? "bold" : "normal"}
                 bg={active ? "brand.accent" : "rgba(0,0,0,0.25)"}
@@ -138,6 +159,21 @@ export const AdventureLobby = ({
           })}
         </Flex>
       </Flex>
+      {noScenario && (
+        <Text role="alert" data-testid="adventure-no-scenario" fontSize="0.7rem" color="#E58B8B">
+          {NO_SCENARIO_REASON}
+        </Text>
+      )}
+      {scenarios.length > 1 && (
+        <EnemyPick
+          testId="adventure-scenario"
+          label="SCENARIO"
+          value={scenario?.id ?? null}
+          options={scenarios.map((s) => ({ id: s.id, name: s.label }))}
+          allowRandom={false}
+          onPick={(id) => configure(setScenario(setup, scenarios.find((s) => s.id === id) ?? null))}
+        />
+      )}
       <Flex gap="8px" align="stretch" minW="0" flexWrap="wrap" data-testid="adventure-seats">
         {youSeat}
         {seats.map((seat) => (
@@ -162,16 +198,16 @@ export const AdventureLobby = ({
           testId="adventure-villain"
           label="VILLAIN"
           value={setup.villainId}
-          options={ADVENTURE_ROSTER.villains}
+          options={roster.villains}
           onPick={(id) => configure(setVillain(setup, id))}
         />
-        {setup.minionIds.map((m, slot) => (
+        {setup.minionIds.slice(0, minionSlotCount(setup.humans, perPlayer)).map((m, slot) => (
           <EnemyPick
             key={slot}
             testId={`adventure-minion-${slot + 1}`}
             label={`MINION ${slot + 1}`}
             value={m}
-            options={ADVENTURE_ROSTER.minions}
+            options={roster.minions}
             taken={setup.minionIds}
             onPick={(id) => configure(setMinion(setup, slot, id))}
           />

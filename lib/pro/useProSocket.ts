@@ -22,6 +22,9 @@ import {
   setToken,
 } from "./recentRooms";
 import { botsFromCreateRoom, RoomBots } from "./rematch";
+import { adventureLabEnabled } from "./adventureGate";
+import { adventureCreateFields, NO_SCENARIO_REASON } from "./adventureLobby";
+import { currentAdventureSetup, scenariosLoaded, getScenarios, setScenarios } from "./adventureScenarios";
 import {
   Action,
   BotDifficulty,
@@ -37,6 +40,7 @@ import {
   REMATCH_PROTOCOL_VERSION,
   ReplayBundle,
   RoomStatusSeat,
+  RosterPicks,
   ServerMsg,
   SpaceId,
   UndoActionSummary,
@@ -576,6 +580,9 @@ export function useProSocket(
   // acted (and the wall clock is past it), that's a genuine own-clock expiry.
   const ownClockRef = useRef<{ deadline: number; acted: boolean } | null>(null);
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
+  // A LIST_SCENARIOS is in flight: an ERROR{BAD_MESSAGE} answers it (a server that
+  // predates the message) and means "no scenarios", not a failure to surface.
+  const scenariosPendingRef = useRef(false);
   const [heroes, setHeroes] = useState<HeroListing[] | null>(null);
   const [lobbies, setLobbies] = useState<LobbyListing[] | null>(null);
   const [roomPublic, setRoomPublic] = useState(false);
@@ -712,6 +719,12 @@ export function useProSocket(
         type: "LIST_HEROES",
         ...(debugRef.current ? { debug: true } : {}),
       });
+      // The Adventure lobby's scenario roster (engine #664) — lab-gated so the
+      // regular lobby never asks a server that may not know the message.
+      if (adventureLabEnabled()) {
+        scenariosPendingRef.current = true;
+        send({ v: PROTOCOL_VERSION, type: "LIST_SCENARIOS" });
+      }
       const room = roomRef.current;
       const token = room ? getToken(room) : null;
       if (room && token) {
@@ -738,6 +751,10 @@ export function useProSocket(
       switch (msg.type) {
         case "HEROES":
           setHeroes(msg.heroes);
+          break;
+        case "SCENARIOS":
+          scenariosPendingRef.current = false;
+          setScenarios(msg.scenarios);
           break;
         case "LOBBIES":
           setLobbies(msg.lobbies);
@@ -995,6 +1012,11 @@ export function useProSocket(
           });
           break;
         case "ERROR": {
+          if (scenariosPendingRef.current && msg.code === "BAD_MESSAGE") {
+            scenariosPendingRef.current = false;
+            setScenarios([]);
+            break;
+          }
           // Whatever the code, our last action did NOT produce a STATE, so the
           // in-flight latch would otherwise stay armed and make the next
           // OPPONENT batch look like ours — flushing a spotlight mid-read.
@@ -1269,6 +1291,22 @@ export function useProSocket(
       humans?: number
     ) => {
       setError(null); // clear any prior room/hero error on a fresh attempt
+      // Adventure (#1107/#1113): the scenario names the one board it is played on,
+      // and a server with no `customMap` plays its own registered copy — so the
+      // lobby's board pick never rides, and Create never falls back to a board the
+      // format doesn't support. No scenario listed at all → refuse, no room.
+      let scenarioFields: { scenarioId?: string; roster?: RosterPicks } = {};
+      if (formatId === "adventure") {
+        customMap = undefined;
+        if (scenariosLoaded()) {
+          const f = adventureCreateFields({ ...currentAdventureSetup(), humans: humans ?? currentAdventureSetup().humans }, getScenarios());
+          if (!f.ok) {
+            setError({ code: "BAD_SCENARIO", message: f.reason || NO_SCENARIO_REASON });
+            return;
+          }
+          scenarioFields = { scenarioId: f.scenarioId, ...(f.roster ? { roster: f.roster } : {}) };
+        }
+      }
       setGameLost(false); // starting a brand-new game — no lost game to mourn
       resumeExpectedRef.current = true; // the room's first STATE is authoritative
       setSeatPresence({}); // drop any presence carried over from a prior game
@@ -1309,6 +1347,8 @@ export function useProSocket(
         ...(quickMatch ? { quickMatch: true } : {}),
         // Adventure table size (engine #589, Wave 4.2): only for that format.
         ...(formatId === "adventure" && humans ? { humans } : {}),
+        // Adventure scenario + roster (engine #664): absent = server default / all random.
+        ...scenarioFields,
         // Signed-in seat identity (#568): the Discord name is broadcast to the
         // other seat, the account id goes to telemetry only. `{}` for a guest.
         // The worn badges (#577/#718) ride alongside the name, under the same gate.

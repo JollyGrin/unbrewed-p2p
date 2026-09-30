@@ -29,6 +29,8 @@ export interface ThreatCell {
 
 export interface EnemyDial {
   id: FighterId;
+  /** engine enemy id (art / label key); null against an older server that omits it */
+  enemyId: string | null;
   name: string;
   role: "VILLAIN" | "MINION";
   hp: number;
@@ -38,6 +40,9 @@ export interface EnemyDial {
 }
 
 export interface AdventureBoardModel {
+  /** the scenario the table is playing (engine #664), null against an older server */
+  scenarioId: string | null;
+  scenarioLabel: string | null;
   round: number | null;
   phase: string | null;
   initiativeDeckCount: number | null;
@@ -71,6 +76,7 @@ export const adventureBoardModel = (
     .filter((f) => f.enemy)
     .map((f) => ({
       id: f.id,
+      enemyId: f.enemy!.enemyId ?? null,
       name: f.name,
       role: f.enemy!.role,
       hp: f.hp,
@@ -80,6 +86,8 @@ export const adventureBoardModel = (
     }));
   if (!initiative && !scenario && enemies.length === 0) return null;
   return {
+    scenarioId: scenario?.id ?? null,
+    scenarioLabel: scenario?.label ?? null,
     round: initiative?.round ?? null,
     phase: initiative?.phase ?? null,
     initiativeDeckCount: initiative?.deckCount ?? null,
