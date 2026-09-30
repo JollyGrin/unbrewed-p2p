@@ -41,11 +41,10 @@ import { TAP_TARGET } from "@/lib/pro/mobileLayout";
 import { HexId, tableHudBanner, tableHudControls } from "@/lib/pro/tableHud";
 import { TableHudDock } from "@/components/Pro/Table/Hud/TableHudDock";
 import { useDockLayout } from "@/lib/pro/useDockLayout";
+import { DOCK_RIGHT, DOCK_TOP, DOCK_WIDTH } from "./dockLayout";
 import { isNewCombat } from "@/lib/pro/combatInstance";
 import { RematchNegotiation, RematchOfferPanel } from "@/components/Pro/RematchOfferPanel";
 
-/** Width of the dock's default right-edge slot. */
-const DOCK_WIDTH = "18.5rem";
 /**
  * How long a one-tap target ignores a repeat tap with no new view in between
  * (p2p #840). Longer than any thumb-bounce double-tap, shorter than a player's
@@ -1593,8 +1592,8 @@ export const ProDock = ({
         x,
         y,
         position: "fixed",
-        right: "0.75rem",
-        top: "7.5rem",
+        right: DOCK_RIGHT,
+        top: DOCK_TOP,
         width: DOCK_WIDTH,
         maxHeight: "calc(100vh - 8.5rem)",
         display: "flex",
