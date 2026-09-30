@@ -200,6 +200,7 @@ import { ALL_FORMATS, formatChoice, PRO_FORMATS, ProFormatId, teamComposition } 
 import { adventureLabEnabled } from "@/lib/pro/adventureGate";
 import { AdventureSetup, adventureSeats, defaultAdventureSetup } from "@/lib/pro/adventureLobby";
 import { AdventureLobby } from "@/components/Pro/AdventureLobby";
+import { FormatOverlay } from "@/components/Pro/FormatOverlay";
 import { deriveTeams } from "@/lib/pro/teams";
 import { fighterTokenStateByOwner } from "@/lib/pro/heroStateFlags";
 import { clockTowerMitigationLine } from "@/lib/pro/clockTower";
@@ -7351,6 +7352,7 @@ const LiveGame = ({
           <ProBoard {...boardProps} />
         )}
       </Flex>
+      <FormatOverlay formatId={roomInfo?.formatId} view={view} events={snapshot?.events} />
 
       {/* red vignette flash when your hero takes damage (useGameFx) */}
       {visualOn && hurtKey > 0 && (
