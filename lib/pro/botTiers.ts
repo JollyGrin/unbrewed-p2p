@@ -33,7 +33,7 @@ import type { BotDifficulty, HeroListing } from "./protocol";
  * so also names `jev`, but the client deliberately does not show it (#933): a
  * tier missing here is dropped even when a server lists it.
  */
-export type ClientBotTier = Exclude<BotDifficulty, "jev">;
+export type ClientBotTier = Exclude<BotDifficulty, "jev" | "jevx" | "jevx2">;
 
 /** The v22 tier set — what a server that doesn't advertise `botTiers` serves. */
 export const FALLBACK_BOT_TIERS: readonly ClientBotTier[] = ["easy", "medium", "hard"];

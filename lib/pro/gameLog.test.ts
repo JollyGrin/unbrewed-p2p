@@ -754,6 +754,27 @@ describe("enrichLines", () => {
     });
   });
 
+  describe("ZONES_CHANGED + PlayerView.zoneOverrides (engine #649, inert)", () => {
+    const written: GameEvent = { type: "ZONES_CHANGED", zones: { s1: ["~s1"], s2: ["~s2"] }, expiresAtRound: 3 };
+    const lapsed: GameEvent = { type: "ZONES_CHANGED", zones: { s1: ["z1"], s2: ["z1"] } };
+    const overrides = { s1: { zones: ["~s1"], expiresAtRound: 3 }, s2: { zones: ["~s2"], expiresAtRound: 3 } };
+
+    it("adds no log line for either form and leaves existing lines untouched", () => {
+      const lines: ProLogLine[] = [{ text: "Turn 1 — your turn", who: "game" }];
+      expect(enrichLines(lines, [written, lapsed], ctx())).toEqual(lines);
+    });
+
+    it("diffing views that gain/lose zoneOverrides does not throw or invent lines", () => {
+      const before = view({});
+      const after = view({ zoneOverrides: overrides });
+      const label = (i: string) => i;
+      expect(() => diffViews(before, after, label, [written])).not.toThrow();
+      expect(diffViews(before, after, label, [written])).toEqual(diffViews(before, view({}), label, []));
+      expect(diffViews(after, before, label, [lapsed])).toEqual(diffViews(before, before, label, []));
+      expect(after.fighters).toEqual(before.fighters);
+    });
+  });
+
   describe("regression guard — non-allowlisted events create zero lines", () => {
     it("feeds every non-allowlisted GameEvent type through and asserts no new lines", () => {
       const nonAllowlisted = ALL_EVENTS.filter((e) => !ALLOWLIST.has(e.type));
