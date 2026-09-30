@@ -57,6 +57,7 @@ import { LARGE_FIGURE_SCALE, straddleAnim, type Figure } from "@/lib/pro/figures
 import { boardObjectVisualFor } from "@/lib/pro/boardObjects";
 import { useRegionPanels } from "@/components/Pro/RegionPanels";
 import { DEFAULT_SPACE_DIAMETER, SEAT_COLOR } from "@/lib/pro/seatColors";
+import { mapImageSrc } from "@/lib/pro/mapImage";
 import {
   fighterStackBySpace,
   OBJECT_SCALE_BY_SHAPE,
@@ -639,7 +640,7 @@ export const TableBoard = ({
 
   return (
     <TableStage
-      imageUrl={map.meta.imageUrl ?? ""}
+      imageUrl={mapImageSrc(map.meta)}
       imageAlt={map.meta.title}
       imgMaxH={imgMaxH}
       zoomable={zoomable}
