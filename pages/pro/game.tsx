@@ -198,6 +198,7 @@ import { InGameAccountChip } from "@/components/Account/AccountChip";
 import { ChipCluster } from "@/components/Game/Header/header.styles";
 import { ALL_FORMATS, formatChoice, PRO_FORMATS, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
 import { adventureLabEnabled } from "@/lib/pro/adventureGate";
+import { enclosureModel, enclosureNumbers } from "@/lib/pro/enclosures";
 import { AdventureSetup, adventureSeats, defaultAdventureSetup } from "@/lib/pro/adventureLobby";
 import { AdventureLobby } from "@/components/Pro/AdventureLobby";
 import { FormatOverlay } from "@/components/Pro/FormatOverlay";
@@ -5003,6 +5004,7 @@ const LiveGame = ({
             you: next.you,
             seat: (player) => seatLabel(next, player),
             fighter: (id) => badgedFighterName(next.fighters, logBadges, id),
+            enclosure: (space) => enclosureNumbers(next.map)[space],
             chain: (ordinal) =>
               subAttackChainProgress(chainTitle, before.hits + ordinal + 1)?.text ?? null,
           })
@@ -7120,6 +7122,7 @@ const LiveGame = ({
     },
     closedRegions: view.closedRegions,
     itemTokens: view.itemTokens,
+    enclosures: enclosureModel(view.map, view.blockedSpaces),
     onSpaceClick,
     onFighterClick,
     onSpaceHover: setHoveredSpace,

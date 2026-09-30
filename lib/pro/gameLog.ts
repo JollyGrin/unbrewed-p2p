@@ -731,6 +731,9 @@ export interface EnrichContext {
    *  cross-batch bookkeeping lives; omitted (older callers, tests of the
    *  single-hit shape) leaves the line exactly as it was. */
   chain?: (ordinalInBatch: number) => string | null;
+  /** Printed enclosure number for a space (adventure boards; `lib/pro/enclosures`), or
+   *  null/omitted when the map prints none — the SPACE_OPENED line then names the space. */
+  enclosure?: (space: string) => number | null | undefined;
 }
 
 /**
@@ -942,6 +945,14 @@ export function enrichLines(
       // exchange — the diff's move branch above deliberately stays quiet for both
       // fighters (see `swapped` in diffViews) and this is the line that replaces
       // them. Mode 2 (a new line) because nothing it overlaps survives.
+      // Adventure (engine #689): a still-blocked space opened — an enclosure destroyed.
+      // Mode 2: the diff sees no fighter/HP change for it, so this is its only record.
+      case "SPACE_OPENED": {
+        const n = ctx.enclosure?.(e.space);
+        added.push({ text: n != null ? `Enclosure ${String(n).padStart(2, "0")} destroyed` : `Space ${e.space} opened`, who: "game" });
+        break;
+      }
+
       case "POSITIONS_SWAPPED": {
         added.push({
           text: `${ctx.fighter(e.a)} and ${ctx.fighter(e.b)} swapped places`,

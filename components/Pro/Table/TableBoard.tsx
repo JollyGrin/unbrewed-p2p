@@ -33,7 +33,7 @@
  * superseded: `resolveBoardView` now resolves `"table"` for these maps too.
  */
 import { Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
-import { Flex } from "@chakra-ui/react";
+import { Box, Flex } from "@chakra-ui/react";
 import { useReducedMotion } from "framer-motion";
 import type { FighterId, ProMapSpace, SpaceId, ViewFighter } from "@/lib/pro/protocol";
 import {
@@ -74,6 +74,7 @@ import { TableStage } from "./TableStage";
 import { TableBoardFx } from "./TableBoardFx";
 import { TableBoardLines } from "./TableBoardLines";
 import { TableSpace, TableSpaceBadge } from "./TableSpace";
+import { EnclosureMark } from "@/components/Pro/EnclosureMark";
 import { TableFighterStandee } from "./TableFighterStandee";
 import { TOKEN_BADGE_PLATE_HEIGHT, TOKEN_THICKNESS } from "./TableFlatToken";
 import { heroBadgesDeepestPx } from "./TableFighterBadges";
@@ -167,6 +168,7 @@ export const TableBoard = ({
   fighterTokenBadge,
   closedRegions = [],
   itemTokens = {},
+  enclosures = null,
   pendingMove = null,
   onPendingMoveSettled,
   swaps = null,
@@ -679,6 +681,31 @@ export const TableBoard = ({
               onHoverChange={onSpaceHover}
             />
           ))}
+
+          {enclosures &&
+            mainSpaces.map((space: ProMapSpace) => {
+              const state = enclosures.blocked.has(space.id)
+                ? "closed"
+                : enclosures.destroyed.has(space.id)
+                  ? "destroyed"
+                  : null;
+              if (!state) return null;
+              const diamPx = (diameterPct / 100) * Math.max(frameW, 1);
+              return (
+                <Box
+                  key={`${space.id}-enclosure`}
+                  position="absolute"
+                  left={`${space.x * 100}%`}
+                  top={`${space.y * 100}%`}
+                  w={`${diamPx}px`}
+                  h={`${diamPx}px`}
+                  transform="translate(-50%, -50%)"
+                  pointerEvents="none"
+                >
+                  <EnclosureMark state={state} number={enclosures.numbers[space.id]} spaceId={space.id} />
+                </Box>
+              );
+            })}
 
           {/* Item / passage badges: their own layer, beside each disc, so a
               badge is inspectable without committing the space (#873).

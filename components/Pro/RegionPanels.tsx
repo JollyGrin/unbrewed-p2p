@@ -30,6 +30,8 @@
  * region calls today) and `TableBoard` omits the other two entirely (it
  * doesn't support them yet either, on its own 3D main board).
  */
+import type { EnclosureModel } from "@/lib/pro/enclosures";
+import { EnclosureMark } from "@/components/Pro/EnclosureMark";
 import { Box, Flex, Text, chakra, shouldForwardProp } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
 import { isValidMotionProp, motion, useReducedMotion } from "framer-motion";
@@ -367,6 +369,7 @@ export interface RegionPanelsProps {
    * panels grey out and stop taking clicks */
   closedRegions?: string[];
   itemTokens?: Record<SpaceId, string>;
+  enclosures?: EnclosureModel | null;
   onSpaceClick?: (id: SpaceId) => void;
   onFighterClick?: (id: FighterId) => void;
   onSpaceHover?: (id: SpaceId | null) => void;
@@ -444,6 +447,7 @@ export const useRegionPanels = ({
   previewMove = null,
   closedRegions = [],
   itemTokens = {},
+  enclosures = null,
   onSpaceClick,
   onFighterClick,
   onSpaceHover,
@@ -1559,6 +1563,28 @@ export const useRegionPanels = ({
           // the disc) legible instead of smearing them into one blob.
           const offsets = objectStackOffsets(here.length);
           return here.map((t, i) => boardObjectToken(t, s, offsets[i], diam));
+        })}
+
+      {/* adventure enclosures: closed fence badge / destroyed mark, click-through */}
+      {enclosures &&
+        spaces.map((s) => {
+          const state = enclosures.blocked.has(s.id) ? "closed" : enclosures.destroyed.has(s.id) ? "destroyed" : null;
+          if (!state) return null;
+          return (
+            <Box
+              key={`${s.id}-enclosure`}
+              position="absolute"
+              left={`${s.x * 100}%`}
+              top={`${s.y * 100}%`}
+              w={`${diam}%`}
+              sx={{ aspectRatio: "1" }}
+              transform={`translate(-50%, -50%)${uprightSuffix}`}
+              pointerEvents="none"
+              zIndex={4}
+            >
+              <EnclosureMark state={state} number={enclosures.numbers[s.id]} spaceId={s.id} />
+            </Box>
+          );
         })}
 
       {/* battlefield item tokens (v17) — a purple/versatile (combat) or
