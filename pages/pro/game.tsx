@@ -196,7 +196,10 @@ import { useAccount } from "@/lib/account/useAccount";
 import { useAccountStats } from "@/lib/account/useAccountStats";
 import { InGameAccountChip } from "@/components/Account/AccountChip";
 import { ChipCluster } from "@/components/Game/Header/header.styles";
-import { formatChoice, PRO_FORMATS, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
+import { ALL_FORMATS, formatChoice, PRO_FORMATS, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
+import { adventureLabEnabled } from "@/lib/pro/adventureGate";
+import { AdventureSetup, adventureSeats, defaultAdventureSetup } from "@/lib/pro/adventureLobby";
+import { AdventureLobby } from "@/components/Pro/AdventureLobby";
 import { deriveTeams } from "@/lib/pro/teams";
 import { fighterTokenStateByOwner } from "@/lib/pro/heroStateFlags";
 import { clockTowerMitigationLine } from "@/lib/pro/clockTower";
@@ -2961,6 +2964,8 @@ const HeroSelectLobby = ({
   opponent,
   selectedFormat,
   onSelectFormat,
+  adventureSetup,
+  onChangeAdventureSetup,
   onSelectOpponent,
   onSelectHero,
   aiHeroId,
@@ -2993,6 +2998,9 @@ const HeroSelectLobby = ({
   opponent: OpponentChoice;
   selectedFormat: ProFormatId;
   onSelectFormat: (format: ProFormatId) => void;
+  /** Adventure lobby state (Wave 4.2): table size + villain / minion picks */
+  adventureSetup: AdventureSetup;
+  onChangeAdventureSetup: (next: AdventureSetup) => void;
   onSelectOpponent: (o: OpponentChoice) => void;
   onSelectHero: (heroId: string) => void;
   /** the specific hero the AI should play, or null to let the server pick at random */
@@ -3414,6 +3422,24 @@ const HeroSelectLobby = ({
         </>
       );
     }
+    if (selectedFormat === "adventure") {
+      return (
+        <AdventureLobby
+          setup={adventureSetup}
+          onChange={onChangeAdventureSetup}
+          youSeat={<SeatPlate tag="P1" role="You" you heroName={lockedName} />}
+          renderSeat={(seat) => (
+            <SeatPlate
+              tag={seat.toUpperCase()}
+              role="Hero"
+              occupant={botSlotPlan[seat] ?? "human"}
+              onChange={(v) => onChangeBotSlot(seat, v)}
+              chips={seatChipStrip}
+            />
+          )}
+        />
+      );
+    }
     const comp = teamComposition(selectedFormat, catalogEntry(selectedMapId)?.map);
     if (comp) {
       const myTeam = comp.find((t) => t.seats.includes("p1"));
@@ -3509,7 +3535,7 @@ const HeroSelectLobby = ({
                 ariaLabel="Format"
                 value={selectedFormat}
                 onChange={onSelectFormat}
-                options={PRO_FORMATS.map((f) => ({ value: f.id, label: f.label }))}
+                options={(adventureLabEnabled() ? ALL_FORMATS : PRO_FORMATS).map((f) => ({ value: f.id, label: f.label }))}
               />
             </Flex>
             <Flex align="center" gap="0.5rem">
@@ -4342,6 +4368,7 @@ const LiveGame = ({
   // keys off. The stepping itself lives in lib/pro/quickMatch.ts.
   const [quickSearch, setQuickSearch] = useState<QuickMatchSearch | null>(null);
   const [botSlotPlan, setBotSlotPlan] = useState<BotSlotPlan>({});
+  const [adventureSetup, setAdventureSetup] = useState<AdventureSetup>(defaultAdventureSetup);
   // Chosen board in the create flow: a MAP_CATALOG id, CUSTOM_MAP_ID, or
   // RANDOM_MAP_ID. Starts on Random (#685) — it's eligible in every format, so
   // it survives format switches; a hand-picked board that the new format can't
@@ -5393,11 +5420,20 @@ const LiveGame = ({
           selectedHeroId={selectedHeroId}
           opponent={opponent}
           selectedFormat={selectedFormat}
+          adventureSetup={adventureSetup}
+          onChangeAdventureSetup={(next) => {
+            setAdventureSetup(next);
+            // a smaller table drops the bot plans of the seats that vanished
+            const allowed = new Set(adventureSeats(next.humans));
+            setBotSlotPlan((prev) =>
+              Object.fromEntries(Object.entries(prev).filter(([player]) => allowed.has(player as PlayerId))) as BotSlotPlan,
+            );
+          }}
           onSelectFormat={(format) => {
             setSelectedFormat(format);
             if (format !== "duel") reviseOpponent("human");
             setBotSlotPlan((prev) => {
-              const allowed = new Set(assignableSeats(format));
+              const allowed = new Set(format === "adventure" ? adventureSeats(adventureSetup.humans) : assignableSeats(format));
               return Object.fromEntries(Object.entries(prev).filter(([player]) => allowed.has(player as PlayerId))) as BotSlotPlan;
             });
             // Keep a still-eligible board (and a "Custom…" choice) selected;
@@ -5518,6 +5554,7 @@ const LiveGame = ({
               selectedFormat === "duel"
                 ? []
                 : Object.entries(botSlotPlan)
+                    .filter(([player]) => selectedFormat !== "adventure" || adventureSeats(adventureSetup.humans).includes(player as PlayerId))
                     .filter((entry): entry is [string, Exclude<SlotOccupant, "human">] => entry[1] !== "human")
                     .map(([player, difficulty]) => ({ player: player as PlayerId, difficulty }));
             // Clamp to the engine's 10–300 bound at the wire (a mid-edit custom
@@ -5538,6 +5575,7 @@ const LiveGame = ({
               mulligan,
               undefined,
               itemsOptOut ? false : undefined,
+              selectedFormat === "adventure" ? adventureSetup.humans : undefined,
             );
             setSelectedHeroId(heroId); // lock it for the lobby label
             setRolledHero(wasRolled);
