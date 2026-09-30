@@ -5,6 +5,7 @@ import {
   customMapForEntry,
   defaultMapIdForFormat,
   eligibleFormats,
+  FORMAT_BADGE,
   ineligibleReason,
   mapEligibleForFormat,
   mapHasItems,
@@ -1100,5 +1101,33 @@ describe("mapHasItems — the 🎁 ITEMS chip gate (#725)", () => {
 
   it("is false for an unknown board id (defensive — picker ids are catalog ids)", () => {
     expect(mapHasItems("no-such-board", "")).toBe(false);
+  });
+});
+
+describe("adventure format (Wave 4.1)", () => {
+  const base = MAP_CATALOG.find((e) => e.id === "island-of-despair")!.map;
+  const fixture = {
+    ...base,
+    supportedFormats: [{ formatId: "adventure" as const, seats: { H1: { startSlot: 1 }, H2: { startSlot: 2 } } }],
+  };
+
+  it("is eligible only for maps that author it, and badges only with the lab gate on", () => {
+    expect(mapEligibleForFormat(fixture, "adventure")).toBe(true);
+    expect(eligibleFormats(fixture, true)).toContain("adventure");
+    expect(eligibleFormats(fixture, false)).not.toContain("adventure");
+    expect(FORMAT_BADGE.adventure).toBe("ADV");
+  });
+
+  it("never makes a plain duel board adventure-eligible", () => {
+    const duelOnly = MAP_CATALOG.find((e) => !e.hidden && mapEligibleForFormat(e.map, "duel") && !e.map.supportedFormats?.length)!;
+    expect(mapEligibleForFormat(duelOnly.map, "adventure")).toBe(false);
+    expect(ineligibleReason(duelOnly.map, "adventure")).toBe("no adventure scenario");
+  });
+
+  it("leaves regular catalogs unchanged with the gate on", () => {
+    for (const e of MAP_CATALOG) {
+      expect(eligibleFormats(e.map, true).filter((f) => f !== "adventure")).toEqual(eligibleFormats(e.map, false));
+    }
+    expect(randomMapPool("duel").length).toBeGreaterThan(0);
   });
 });

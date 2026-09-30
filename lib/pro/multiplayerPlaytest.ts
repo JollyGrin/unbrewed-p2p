@@ -7,7 +7,7 @@
  */
 import type { PlayerId, ProMapDef } from "./protocol";
 
-export type ProFormatId = "duel" | "ffa-3" | "team-2v2";
+export type ProFormatId = "duel" | "ffa-3" | "team-2v2" | "adventure";
 
 export interface ProFormatChoice {
   id: ProFormatId;
@@ -22,8 +22,24 @@ export const PRO_FORMATS: ProFormatChoice[] = [
   { id: "team-2v2", label: "2v2", detail: "playtest teams", requiredPlayers: 4 },
 ];
 
+/**
+ * The Adventures co-op format (engine `adventure`). Deliberately NOT in
+ * `PRO_FORMATS`: that list is the regular-format picker and stays byte-identical.
+ * Adventure is surfaced only behind the lab gate (`lib/pro/adventureGate.ts`).
+ * `requiredPlayers` is the minimum hero table (CREATE_ROOM.humans defaults to 1).
+ */
+export const ADVENTURE_FORMAT: ProFormatChoice = {
+  id: "adventure",
+  label: "Adventure",
+  detail: "co-op vs the engine (lab)",
+  requiredPlayers: 1,
+};
+
+/** Every format id the client knows, regular formats first (canonical badge order). */
+export const ALL_FORMATS: ProFormatChoice[] = [...PRO_FORMATS, ADVENTURE_FORMAT];
+
 export const formatChoice = (id: string | null | undefined): ProFormatChoice =>
-  PRO_FORMATS.find((f) => f.id === id) ?? PRO_FORMATS[0]!;
+  ALL_FORMATS.find((f) => f.id === id) ?? PRO_FORMATS[0]!;
 
 /** One team's runtime seats in a team format (waiting-room preview, issue #195). */
 export interface FormatTeam {
@@ -44,6 +60,12 @@ export interface TeamSeatSource {
  * pasted custom map that carries no authored seat block.
  */
 const DEFAULT_TEAM_2V2_SEAT_ORDER = ["A1", "A2", "B1", "B2"];
+
+/** Formats that split into teams, with the seat order used when no map supplies one.
+ *  Adventure is co-op against the engine — no team split — so it is not listed. */
+const TEAM_FORMAT_DEFAULT_SEATS: Record<string, string[]> = {
+  "team-2v2": DEFAULT_TEAM_2V2_SEAT_ORDER,
+};
 
 /** The team a format seat belongs to: the seat id's leading letter (A1/A2 → A,
  *  B1/B2 → B), mirroring the engine format's `seat.team` convention. */
@@ -68,9 +90,10 @@ export function teamComposition(
   formatId: string | null | undefined,
   map?: TeamSeatSource | null,
 ): FormatTeam[] | null {
-  if (formatId !== "team-2v2") return null;
+  const defaultSeats = formatId ? TEAM_FORMAT_DEFAULT_SEATS[formatId] : undefined;
+  if (!defaultSeats) return null;
   const support = map?.supportedFormats?.find((f) => f.formatId === formatId);
-  const seatOrder = support ? Object.keys(support.seats) : DEFAULT_TEAM_2V2_SEAT_ORDER;
+  const seatOrder = support ? Object.keys(support.seats) : defaultSeats;
   const teams: FormatTeam[] = [];
   seatOrder.forEach((seatId, index) => {
     const player = `p${index + 1}` as PlayerId;

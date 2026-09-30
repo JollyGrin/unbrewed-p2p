@@ -54,6 +54,8 @@ describe("multiplayer playtest helpers", () => {
     ]);
     expect(teamComposition("duel")).toBeNull();
     expect(teamComposition("ffa-3")).toBeNull();
+    expect(teamComposition("adventure")).toBeNull();
+    expect(formatChoice("adventure").id).toBe("adventure");
     expect(teamComposition(undefined)).toBeNull();
   });
 
