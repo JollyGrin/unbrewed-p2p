@@ -94,3 +94,38 @@ export const moverIntent = (events: readonly GameEvent[] | undefined, view: Play
     ? `${who} attacks ${name(ev.target)}`
     : `${who} moves toward ${name(ev.target)}`;
 };
+
+export interface TeamDecisionModel {
+  promptId: string;
+  /** the human seat that answers (R2 chooser) */
+  chooser: string;
+  /** the engine seat whose decision this is, when named */
+  forName: string | null;
+  youChoose: boolean;
+  description: string | null;
+  /** read-only option labels for teammates; empty for the chooser (they use the normal prompt UI) */
+  options: { id: string; label: string }[];
+}
+
+/**
+ * The "players choose" decision (engine #589, R2): null unless the open prompt is a TEAM
+ * decision. Every seat sees who is choosing and what; only the chooser answers.
+ */
+export const teamDecisionModel = (view: PlayerView): TeamDecisionModel | null => {
+  const p = view.prompt;
+  if (!p || p.onBehalfOf !== "TEAM") return null;
+  const seatName = (id: string) => {
+    const pl = view.players.find((x) => x.id === id);
+    if (pl) return pl.displayName?.trim() || pl.heroId || id;
+    return view.fighters.find((f) => f.owner === id)?.name ?? id;
+  };
+  const youChoose = p.player === view.you;
+  return {
+    promptId: p.promptId,
+    chooser: youChoose ? "You" : seatName(p.player),
+    forName: p.forSeat ? seatName(p.forSeat) : null,
+    youChoose,
+    description: p.description ?? null,
+    options: youChoose ? [] : p.options.map(({ id, label }) => ({ id, label })),
+  };
+};

@@ -1,9 +1,21 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
 import type { GameEvent, PlayerView } from "@/lib/pro/protocol";
-import { adventureBoardModel, moverIntent } from "@/lib/pro/adventureBoard";
-import type { AdventureBoardModel } from "@/lib/pro/adventureBoard";
+import {
+  adventureBoardModel,
+  moverIntent,
+  teamDecisionModel,
+} from "@/lib/pro/adventureBoard";
+import type {
+  AdventureBoardModel,
+  TeamDecisionModel,
+} from "@/lib/pro/adventureBoard";
 
-const LBL = { fontFamily: "SpaceGrotesk", fontSize: "0.58rem", letterSpacing: "0.16em", opacity: 0.75 } as const;
+const LBL = {
+  fontFamily: "SpaceGrotesk",
+  fontSize: "0.58rem",
+  letterSpacing: "0.16em",
+  opacity: 0.75,
+} as const;
 const PANEL = {
   bg: "rgba(10,10,14,0.78)",
   color: "white",
@@ -14,7 +26,12 @@ const PANEL = {
 } as const;
 
 export const InitiativeRow = ({ model }: { model: AdventureBoardModel }) => (
-  <Flex direction="column" gap="0.25rem" data-testid="adv-initiative" {...PANEL}>
+  <Flex
+    direction="column"
+    gap="0.25rem"
+    data-testid="adv-initiative"
+    {...PANEL}
+  >
     <Flex gap="0.6rem" align="baseline">
       <Text {...LBL}>ROUND</Text>
       <Text data-testid="adv-round" fontWeight="bold">
@@ -38,7 +55,13 @@ export const InitiativeRow = ({ model }: { model: AdventureBoardModel }) => (
           borderRadius="sm"
           border="1px solid"
           borderColor={e.current ? "yellow.300" : "whiteAlpha.300"}
-          bg={e.current ? "yellow.600" : e.card.faceDown ? "whiteAlpha.100" : "whiteAlpha.200"}
+          bg={
+            e.current
+              ? "yellow.600"
+              : e.card.faceDown
+                ? "whiteAlpha.100"
+                : "whiteAlpha.200"
+          }
           fontSize="0.7rem"
         >
           {e.label}
@@ -48,7 +71,11 @@ export const InitiativeRow = ({ model }: { model: AdventureBoardModel }) => (
   </Flex>
 );
 
-export const ThreatTrack = ({ threat }: { threat: NonNullable<AdventureBoardModel["threat"]> }) => (
+export const ThreatTrack = ({
+  threat,
+}: {
+  threat: NonNullable<AdventureBoardModel["threat"]>;
+}) => (
   <Flex direction="column" gap="0.25rem" data-testid="adv-threat" {...PANEL}>
     <Flex gap="0.6rem" align="baseline">
       <Text {...LBL}>THREAT</Text>
@@ -79,14 +106,28 @@ export const ThreatTrack = ({ threat }: { threat: NonNullable<AdventureBoardMode
   </Flex>
 );
 
-export const EnemyDials = ({ enemies }: { enemies: AdventureBoardModel["enemies"] }) => (
+export const EnemyDials = ({
+  enemies,
+}: {
+  enemies: AdventureBoardModel["enemies"];
+}) => (
   <Flex direction="column" gap="0.2rem" data-testid="adv-enemies" {...PANEL}>
     {enemies.map((e) => (
-      <Flex key={e.id} data-testid={`adv-enemy-${e.id}`} gap="0.6rem" align="baseline" opacity={e.defeated ? 0.45 : 1}>
+      <Flex
+        key={e.id}
+        data-testid={`adv-enemy-${e.id}`}
+        gap="0.6rem"
+        align="baseline"
+        opacity={e.defeated ? 0.45 : 1}
+      >
         <Text fontSize="0.75rem" flex="1">
           {e.name}
         </Text>
-        <Text data-testid={`adv-enemy-hp-${e.id}`} fontWeight="bold" fontSize="0.8rem">
+        <Text
+          data-testid={`adv-enemy-hp-${e.id}`}
+          fontWeight="bold"
+          fontSize="0.8rem"
+        >
           {e.hp}/{e.maxHp}
         </Text>
         <Text {...LBL} data-testid={`adv-enemy-deck-${e.id}`}>
@@ -97,10 +138,57 @@ export const EnemyDials = ({ enemies }: { enemies: AdventureBoardModel["enemies"
   </Flex>
 );
 
+export const TeamDecision = ({ model }: { model: TeamDecisionModel }) => (
+  <Flex
+    direction="column"
+    gap="0.25rem"
+    data-testid="adv-team-decision"
+    data-you-choose={model.youChoose ? "true" : undefined}
+    {...PANEL}
+    borderWidth="1px"
+    borderColor="yellow.300"
+  >
+    <Text {...LBL}>PLAYERS CHOOSE</Text>
+    <Text data-testid="adv-team-decision-who" fontSize="0.8rem">
+      {model.youChoose ? "You choose" : `${model.chooser} is choosing`}
+      {model.forName ? ` for ${model.forName}` : ""}
+    </Text>
+    {model.description && (
+      <Text data-testid="adv-team-decision-what" fontSize="0.75rem">
+        {model.description}
+      </Text>
+    )}
+    {model.options.length > 0 && (
+      <Flex gap="0.25rem" wrap="wrap" justify="center">
+        {model.options.map((o) => (
+          <Box
+            key={o.id}
+            data-testid={`adv-team-option-${o.id}`}
+            px="0.4rem"
+            py="0.15rem"
+            borderRadius="sm"
+            bg="whiteAlpha.200"
+            fontSize="0.7rem"
+          >
+            {o.label}
+          </Box>
+        ))}
+      </Flex>
+    )}
+  </Flex>
+);
+
 /** The whole Adventure overlay cluster. Renders nothing without adventure data. */
-export const AdventureBoard = ({ view, events }: { view: PlayerView; events?: readonly GameEvent[] }) => {
+export const AdventureBoard = ({
+  view,
+  events,
+}: {
+  view: PlayerView;
+  events?: readonly GameEvent[];
+}) => {
   const model = adventureBoardModel(view);
   if (!model) return null;
+  const decision = teamDecisionModel(view);
   const intent = moverIntent(events, view);
   return (
     <Flex
@@ -115,9 +203,12 @@ export const AdventureBoard = ({ view, events }: { view: PlayerView; events?: re
       zIndex={5}
       pointerEvents="none"
     >
-      {(model.row.length > 0 || model.round != null) && <InitiativeRow model={model} />}
+      {(model.row.length > 0 || model.round != null) && (
+        <InitiativeRow model={model} />
+      )}
       {model.threat && <ThreatTrack threat={model.threat} />}
       {model.enemies.length > 0 && <EnemyDials enemies={model.enemies} />}
+      {decision && <TeamDecision model={decision} />}
       {intent && (
         <Text data-testid="adv-intent" {...PANEL} fontSize="0.75rem">
           {intent}
