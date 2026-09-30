@@ -35,7 +35,7 @@ import {
   FaStar,
   FaTrash,
 } from "react-icons/fa";
-import { GiPawn } from "react-icons/gi";
+import { GiPawn } from "@/components/Icons/gi";
 
 import { AddDeckHub } from "@/components/Bag/AddDeckHub";
 import { BagSourceChip, ShareItemButton } from "@/components/Bag/Account";

@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useChangelogSeen } from "@/lib/changelog/useChangelogSeen";
 
 import { FaDiscord } from "react-icons/fa";
-import { GiSwapBag } from "react-icons/gi";
+import { GiSwapBag } from "@/components/Icons/gi";
 import { FaGithub } from "react-icons/fa";
 import { FaYoutube } from "react-icons/fa";
 import { IconType } from "react-icons";

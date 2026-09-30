@@ -1,6 +1,6 @@
 import { Button, useDisclosure } from "@chakra-ui/react";
 import { toast } from "react-hot-toast";
-import { GiPawn } from "react-icons/gi";
+import { GiPawn } from "@/components/Icons/gi";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import {
   BoardToken,
