@@ -1,5 +1,6 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
 import type { GameEvent, PlayerView } from "@/lib/pro/protocol";
+import { useAdventureAnalytics } from "@/lib/pro/useAdventureAnalytics";
 import {
   adventureBoardModel,
   enemyCombatModel,
@@ -232,6 +233,7 @@ export const AdventureBoard = ({
   view: PlayerView;
   events?: readonly GameEvent[];
 }) => {
+  useAdventureAnalytics(view, events);
   const model = adventureBoardModel(view);
   if (!model) return null;
   const decision = teamDecisionModel(view);
