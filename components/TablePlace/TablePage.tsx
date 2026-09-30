@@ -2,27 +2,22 @@ import {
   Box,
   Button,
   Flex,
-  FormLabel,
-  Image,
   Link,
   ListItem,
-  Select,
   Text,
   UnorderedList,
   VStack,
 } from "@chakra-ui/react";
 import { useRouter } from "next/router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Navbar } from "@/components/Navbar";
-import { SelectedDeckContainer } from "@/components/Connect/SelectedDeck";
 import { DeckLinkHold } from "@/components/DeckLink/DeckLinkHold";
-import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { useBagDecks, useBagMaps } from "@/lib/bag/useBag";
 import { useDeckLink } from "@/lib/hooks/useDeckLink";
 import { labsMapOfDeck } from "@/lib/labs/labsMap";
 import { composeTable } from "@/lib/tableplace";
-import { buildMapList, groupMapList } from "@/lib/tableplace/mapList";
+import { buildMapList } from "@/lib/tableplace/mapList";
 import {
   createLobby,
   EMPTY_LOBBY_REAP_MINUTES,
@@ -33,37 +28,24 @@ import {
   type LobbyCreated,
   type TablePlaceError,
 } from "@/lib/tableplace/api";
-import { plainSkipped, previewDeck } from "@/lib/tableplace/preview";
+import { plainSkipped, previewOf } from "@/lib/tableplace/preview";
+import { DeckGallery } from "./DeckGallery";
 import { DeckPreviewCard } from "./DeckPreviewCard";
-import { OpponentPicker } from "./OpponentPicker";
+import { focusRing, SHORT_SCREEN, type TableTab } from "./galleryParts";
 import { InviteScreen } from "./InviteScreen";
+import { MapGallery } from "./MapGallery";
+import { OpponentPaste } from "./OpponentPaste";
+import { TableRail } from "./TableRail";
 import { useImageSize } from "./useImageSize";
 import { useOpponentDeck } from "./useOpponentDeck";
 
 type Status = "idle" | "validating" | "creating";
 
-const Step = ({
-  n,
-  title,
-  children,
-}: {
-  n: number;
-  title: string;
-  children: React.ReactNode;
-}) => (
-  <Box w="100%">
-    <Text
-      as="h2"
-      id={`step-${n}`}
-      fontFamily="SpaceGrotesk"
-      fontWeight={700}
-      fontSize="1.15rem"
-    >
-      {n}. {title}
-    </Text>
-    <Box mt="0.5rem">{children}</Box>
-  </Box>
-);
+const TABS: { id: TableTab; label: string }[] = [
+  { id: "you", label: "Your deck" },
+  { id: "them", label: "Their deck" },
+  { id: "map", label: "Map" },
+];
 
 export const TablePage = () => {
   const { query, isReady } = useRouter();
@@ -84,18 +66,17 @@ export const TablePage = () => {
     [starredDeck, maps],
   );
   const mapUrl = pickedMapUrl ?? deckMap?.imgUrl ?? "";
-  const mapGroups = useMemo(() => groupMapList(maps), [maps]);
   const map = maps.find((m) => m.imgUrl === mapUrl);
   const mapSize = useImageSize(map?.imgUrl);
 
-  const yours = useMemo(
-    () => (starredDeck ? previewDeck(starredDeck) : undefined),
-    [starredDeck],
+  // Which decks can go on a table. The bag hands back a new array on every
+  // render, so the work is kept per deck (`previewOf`), not per array.
+  const entries = useMemo(
+    () => decks?.map((deck) => ({ deck, preview: previewOf(deck) })),
+    [decks],
   );
-  const theirs = useMemo(
-    () => (opponent.deck ? previewDeck(opponent.deck) : undefined),
-    [opponent.deck],
-  );
+  const yours = starredDeck && previewOf(starredDeck);
+  const theirs = opponent.deck && previewOf(opponent.deck);
 
   const composed = useMemo(() => {
     if (!starredDeck || !opponent.deck || !map || !mapSize.size) return;
@@ -108,10 +89,41 @@ export const TablePage = () => {
       ttlSeconds: LOBBY_TTL_SECONDS,
     });
   }, [starredDeck, opponent.deck, map, mapSize.size, yours, theirs]);
-  // What the layout left off, beyond each deck's own list above
+  // What the layout left off, beyond each deck's own list
   const layoutSkipped = (composed?.skipped ?? [])
     .filter((s) => !/no finished face$/.test(s))
     .map(plainSkipped);
+  const leftOff =
+    (yours?.skipped.length ?? 0) +
+    (theirs?.skipped.length ?? 0) +
+    layoutSkipped.length;
+
+  // The gallery on show: the rail's slots and the tabs both pick it.
+  const [tab, setTab] = useState<TableTab>("you");
+  const stripRef = useRef<HTMLDivElement>(null);
+  const galleryRef = useRef<HTMLDivElement>(null);
+  const showTab = (next: TableTab) => {
+    if (next === tab) return;
+    setTab(next);
+    if (galleryRef.current) galleryRef.current.scrollTop = 0;
+  };
+  /** After a pick: on to the next empty slot, with its gallery's top in view. */
+  const advance = (next: TableTab) => {
+    if (next === tab) return;
+    showTab(next);
+    const strip = stripRef.current;
+    if (strip && strip.getBoundingClientRect().top < 0) {
+      strip.scrollIntoView?.({ block: "start" });
+    }
+  };
+  const pickYours = (id: string) => {
+    setStar(id);
+    advance(!opponent.deck ? "them" : !map ? "map" : "you");
+  };
+  const pickTheirs = (id: string) => {
+    opponent.pickBag(id, decks ?? []);
+    advance(!map ? "map" : "them");
+  };
 
   const [status, setStatus] = useState<Status>("idle");
   const [apiError, setApiError] = useState<TablePlaceError>();
@@ -156,27 +168,32 @@ export const TablePage = () => {
     !opponent.deck && "their deck",
     !map && "a map",
   ].filter(Boolean);
+  const picked: Record<TableTab, string | undefined> = {
+    you: yours?.deckName,
+    them: theirs?.deckName,
+    map: map?.label,
+  };
 
-  return (
-    <Flex
-      flexDir="column"
-      bg="brand.highlight"
-      color="brand.secondary"
-      minH="100svh"
-    >
-      <Box>
-        <Navbar />
-      </Box>
-      <VStack
-        spacing="1.5rem"
-        w="100%"
-        maxW="40rem"
-        mx="auto"
-        px="16px"
-        py="1.5rem"
-        align="stretch"
+  if (lobby) {
+    return (
+      <Flex
+        flexDir="column"
+        bg="brand.highlight"
+        color="brand.secondary"
+        minH="100svh"
       >
-        {lobby ? (
+        <Box>
+          <Navbar />
+        </Box>
+        <VStack
+          spacing="1.5rem"
+          w="100%"
+          maxW="40rem"
+          mx="auto"
+          px="16px"
+          py="1.5rem"
+          align="stretch"
+        >
           <InviteScreen
             lobby={lobby}
             onReset={() => {
@@ -185,8 +202,58 @@ export const TablePage = () => {
               setApiError(undefined);
             }}
           />
-        ) : (
-          <>
+        </VStack>
+      </Flex>
+    );
+  }
+
+  return (
+    <Flex
+      flexDir="column"
+      bg="brand.highlight"
+      color="brand.secondary"
+      fontFamily="SpaceGrotesk"
+      minH="100svh"
+      // From `lg` the page is one screen: the rail stays put, the gallery scrolls.
+      h={{ lg: "100svh" }}
+    >
+      <Box flexShrink={0}>
+        <Navbar />
+      </Box>
+      <Flex
+        flex="1"
+        minH={0}
+        w="100%"
+        maxW="1360px"
+        mx="auto"
+        flexDir={{ base: "column", lg: "row" }}
+        gap={{ base: "16px", lg: "28px" }}
+        px={{ base: "16px", lg: "32px" }}
+        // below `lg`, room for the pinned Create bar
+        pb={{ base: "140px", lg: "32px" }}
+        sx={{ [SHORT_SCREEN]: { paddingBottom: "16px" } }}
+      >
+        {/* The rail. Below `lg` its parts join the page's one column, so the
+            gallery can sit between the strip and the disclosure. */}
+        <Flex
+          display={{ base: "contents", lg: "flex" }}
+          flexDir="column"
+          gap="14px"
+          w="372px"
+          flexShrink={0}
+          minH={0}
+        >
+          <Flex
+            display={{ base: "contents", lg: "flex" }}
+            flexDir="column"
+            gap="14px"
+            flex="1"
+            minH={0}
+            overflowY="auto"
+            // room for focus rings the scroll box would clip
+            p="3px"
+            m="-3px"
+          >
             {lastLobby && (
               <Box
                 p="0.75rem"
@@ -222,104 +289,70 @@ export const TablePage = () => {
               </Box>
             )}
 
-            <Box>
+            <Flex flexDir="column" gap="6px">
               <Text
                 as="h1"
-                fontFamily="SpaceGrotesk"
                 fontWeight={700}
-                fontSize="2rem"
+                fontSize={{ base: "26px", lg: "30px" }}
+                lineHeight={1.1}
               >
                 Set up a 3D table
               </Text>
-              <Text opacity={0.8}>
+              {/* Below `lg` the first screen goes to the gallery's tiles. */}
+              <Text
+                display={{ base: "none", lg: "block" }}
+                fontSize="14px"
+                lineHeight={1.45}
+                data-testid="intro"
+              >
                 Pick both decks and a map, and we&apos;ll lay out a table on
                 table.place for you and a friend.
               </Text>
-            </Box>
+            </Flex>
 
-            <Step n={1} title="Your deck">
-              {link.held && !link.held.refresh ? (
-                <DeckLinkHold link={link} />
-              ) : (
-                <SelectedDeckContainer
-                  isLoading={isLoading}
-                  error={link.failed}
-                  starredDeck={starredDeck}
-                  decks={decks}
-                  setStar={setStar}
-                />
-              )}
-            </Step>
+            <TableRail
+              ref={stripRef}
+              flexShrink={0}
+              tab={tab}
+              onTab={showTab}
+              your={{
+                deck: starredDeck,
+                preview: yours,
+                state:
+                  starredDeck !== undefined
+                    ? undefined
+                    : isLoading
+                      ? "loading"
+                      : link.failed
+                        ? "failed"
+                        : undefined,
+              }}
+              their={{
+                deck: opponent.deck,
+                preview: theirs,
+                state: opponent.loading ? "loading" : undefined,
+              }}
+              map={map}
+              mapCount={maps.length}
+              mapFailed={mapSize.failed}
+            />
 
-            <Step n={2} title="Their deck">
-              <OpponentPicker decks={decks} opponent={opponent} />
-            </Step>
-
-            <Step n={3} title="Map">
-              <FormLabel htmlFor="table-map" srOnly>
-                Map
-              </FormLabel>
-              <Select
-                id="table-map"
-                bg="white"
-                placeholder="Choose a map"
-                value={mapUrl}
-                onChange={(e) => setMapUrl(e.target.value)}
-                data-testid="map"
-              >
-                {[
-                  { label: "Snaps to spaces", group: mapGroups.spaces },
-                  { label: "Other maps", group: mapGroups.other },
-                ].map(
-                  ({ label, group }) =>
-                    group.length > 0 && (
-                      <optgroup key={label} label={label}>
-                        {group.map((m) => (
-                          <option key={m.imgUrl} value={m.imgUrl}>
-                            {m.label}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ),
-                )}
-              </Select>
-              {map && map === deckMap && (
-                <Text mt="0.25rem" fontSize="0.85rem" opacity={0.8}>
-                  This deck&apos;s map
-                </Text>
-              )}
-              {map?.labsSlug && !map.layout && (
-                <Text
-                  mt="0.25rem"
-                  fontSize="0.85rem"
-                  data-testid="map-no-layout"
-                >
-                  This map came from Unmatched Labs before we kept its spaces,
-                  so figures won&apos;t snap to them. Import the set again from
-                  Labs to get snapping spaces.
-                </Text>
-              )}
-              {map && (
-                <Image
-                  mt="0.5rem"
-                  src={map.thumbUrl ?? map.imgUrl}
-                  alt={map.meta?.title ?? "map"}
-                  maxH="12rem"
-                  borderRadius="0.5rem"
-                />
-              )}
-              {mapSize.failed && (
-                <Text mt="0.5rem" color="red.700" role="alert">
-                  Couldn&apos;t load this map&apos;s image. Pick another.
-                </Text>
-              )}
-            </Step>
-
-            <Step n={4} title="What goes on the table">
+            <Box
+              as="details"
+              order={{ base: 2, lg: 0 }}
+              flexShrink={0}
+              fontSize="14px"
+              data-testid="table-contents"
+            >
+              <Text as="summary" cursor="pointer" fontWeight={600} py="12px">
+                What goes on the table
+                {leftOff > 0 &&
+                  ` · ${leftOff} ${leftOff === 1 ? "thing stays" : "things stay"} off the table`}
+              </Text>
               {!yours && !theirs ? (
-                <Text opacity={0.7}>Pick both decks to see them here.</Text>
+                <Text opacity={0.8}>Pick both decks to see them here.</Text>
               ) : (
-                <VStack spacing="0.75rem">
+                <VStack spacing="0.75rem" align="stretch">
                   {yours && (
                     <DeckPreviewCard title="Your deck" preview={yours} />
                   )}
@@ -327,7 +360,7 @@ export const TablePage = () => {
                     <DeckPreviewCard title="Their deck" preview={theirs} />
                   )}
                   {layoutSkipped.length > 0 && (
-                    <UnorderedList fontSize="0.85rem" alignSelf="stretch">
+                    <UnorderedList fontSize="0.85rem">
                       {layoutSkipped.map((s) => (
                         <ListItem key={s}>{s}</ListItem>
                       ))}
@@ -335,94 +368,247 @@ export const TablePage = () => {
                   )}
                 </VStack>
               )}
-            </Step>
-
-            <Box>
-              <Button
-                w="100%"
-                size="lg"
-                bg="brand.secondary"
-                color="brand.highlight"
-                _hover={{ opacity: 0.9 }}
-                isDisabled={!composed?.body || status !== "idle"}
-                isLoading={status !== "idle"}
-                loadingText={
-                  status === "validating" ? "Checking the table…" : "Creating…"
-                }
-                onClick={create}
-                data-testid="create"
-              >
-                Create table
-              </Button>
-              {missing.length > 0 && (
-                <Text mt="0.5rem" fontSize="0.85rem" opacity={0.7}>
-                  Still needed: {missing.join(", ")}.
-                </Text>
-              )}
-              {refusedDeck && (
-                <Text
-                  mt="0.5rem"
-                  fontSize="0.85rem"
-                  data-testid="refused-reason"
-                >
-                  One deck can&apos;t go on the table yet (see above).
-                </Text>
-              )}
-              <Text mt="0.5rem" fontSize="0.85rem" opacity={0.7}>
-                Create it when you&apos;re both ready: a table nobody opens
-                closes after {EMPTY_LOBBY_REAP_MINUTES} minutes.
-              </Text>
-              {apiError && (
-                <Box
-                  mt="0.75rem"
-                  p="0.75rem"
-                  bg="red.50"
-                  color="red.800"
-                  borderRadius="0.5rem"
-                  role="alert"
-                  data-testid="api-error"
-                >
-                  {isOurBug(apiError) ? (
-                    <>
-                      <Text fontWeight={600}>
-                        We couldn&apos;t lay out this table. That&apos;s a bug
-                        on our side.
-                      </Text>
-                      <Box as="details" mt="0.25rem" fontSize="0.85rem">
-                        <summary>Details</summary>
-                        <Text>{apiError.message}</Text>
-                      </Box>
-                      <Text mt="0.25rem" fontSize="0.85rem">
-                        <Link
-                          href="https://github.com/JollyGrin/unbrewed-p2p/issues/new"
-                          isExternal
-                          textDecor="underline"
-                        >
-                          Report it on GitHub
-                        </Link>{" "}
-                        or on{" "}
-                        <Link
-                          href="https://discord.gg/qPxHFjwkNN"
-                          isExternal
-                          textDecor="underline"
-                        >
-                          Discord
-                        </Link>
-                        .
-                      </Text>
-                    </>
-                  ) : (
-                    <Text fontWeight={600}>{apiError.message}</Text>
-                  )}
-                  {retryCopy(apiError) && (
-                    <Text mt="0.25rem">{retryCopy(apiError)}</Text>
-                  )}
-                </Box>
-              )}
             </Box>
-          </>
-        )}
-      </VStack>
+          </Flex>
+
+          {/* Below `lg` this is a bar pinned to the bottom of the screen,
+              with the status line above the button. */}
+          <Flex
+            flexDir="column"
+            gap="8px"
+            flexShrink={0}
+            position={{ base: "fixed", lg: "static" }}
+            bottom={0}
+            left={0}
+            right={0}
+            zIndex={{ base: 20, lg: "auto" }}
+            p={{
+              base: "12px 16px calc(12px + env(safe-area-inset-bottom))",
+              lg: 0,
+            }}
+            bg={{ base: "brand.surface", lg: "transparent" }}
+            color={{ base: "brand.highlight", lg: "inherit" }}
+            boxShadow={{ base: "0 -4px 16px rgba(44,24,49,0.35)", lg: "none" }}
+            data-testid="create-bar"
+          >
+            <Button
+              order={{ base: 2, lg: 0 }}
+              w="100%"
+              h="52px"
+              flexShrink={0}
+              borderRadius="10px"
+              bg="brand.accent"
+              color="brand.surfaceDim"
+              fontSize="17px"
+              fontWeight={700}
+              _hover={{
+                bg: "brand.accentDeep",
+                _disabled: { bg: "brand.accent" },
+              }}
+              _focusVisible={focusRing}
+              isDisabled={!composed?.body || status !== "idle"}
+              isLoading={status !== "idle"}
+              loadingText={
+                status === "validating" ? "Checking the table…" : "Creating…"
+              }
+              onClick={create}
+              data-testid="create"
+            >
+              Create table
+            </Button>
+            {missing.length > 0 ? (
+              <Text
+                order={{ base: 1, lg: 0 }}
+                fontSize="14px"
+                fontWeight={600}
+                data-testid="status"
+              >
+                Still needed: {missing.join(", ")}.
+              </Text>
+            ) : (
+              !refusedDeck &&
+              !mapSize.failed && (
+                <Text
+                  order={{ base: 1, lg: 0 }}
+                  fontSize="14px"
+                  fontWeight={600}
+                  data-testid="status"
+                >
+                  Ready: {picked.you} vs {picked.them} on {picked.map}.
+                </Text>
+              )
+            )}
+            {refusedDeck && (
+              <Text
+                order={{ base: 1, lg: 0 }}
+                fontSize="14px"
+                fontWeight={600}
+                data-testid="refused-reason"
+              >
+                One deck can&apos;t go on the table yet (see above).
+              </Text>
+            )}
+            {/* Not in the pinned bar: it holds the status and the button. */}
+            <Text
+              display={{ base: "none", lg: "block" }}
+              fontSize="13px"
+              lineHeight={1.4}
+              data-testid="closes-note"
+            >
+              Create it when you&apos;re both ready: a table nobody opens closes
+              after {EMPTY_LOBBY_REAP_MINUTES} minutes.
+            </Text>
+            {apiError && (
+              <Box
+                p="0.75rem"
+                bg="red.50"
+                color="red.800"
+                borderRadius="0.5rem"
+                maxH={{ base: "40svh", lg: "none" }}
+                overflowY="auto"
+                role="alert"
+                data-testid="api-error"
+              >
+                {isOurBug(apiError) ? (
+                  <>
+                    <Text fontWeight={600}>
+                      We couldn&apos;t lay out this table. That&apos;s a bug on
+                      our side.
+                    </Text>
+                    <Box as="details" mt="0.25rem" fontSize="0.85rem">
+                      <summary>Details</summary>
+                      <Text>{apiError.message}</Text>
+                    </Box>
+                    <Text mt="0.25rem" fontSize="0.85rem">
+                      <Link
+                        href="https://github.com/JollyGrin/unbrewed-p2p/issues/new"
+                        isExternal
+                        textDecor="underline"
+                      >
+                        Report it on GitHub
+                      </Link>{" "}
+                      or on{" "}
+                      <Link
+                        href="https://discord.gg/qPxHFjwkNN"
+                        isExternal
+                        textDecor="underline"
+                      >
+                        Discord
+                      </Link>
+                      .
+                    </Text>
+                  </>
+                ) : (
+                  <Text fontWeight={600}>{apiError.message}</Text>
+                )}
+                {retryCopy(apiError) && (
+                  <Text mt="0.25rem">{retryCopy(apiError)}</Text>
+                )}
+              </Box>
+            )}
+          </Flex>
+        </Flex>
+
+        <Flex
+          order={{ base: 1, lg: 0 }}
+          flex="1"
+          minW={0}
+          minH={0}
+          flexDir="column"
+          bg={{ lg: "brand.parchment" }}
+          border={{ lg: "1px solid" }}
+          borderColor={{ lg: "brand.primary" }}
+          borderRadius={{ lg: "18px" }}
+          overflow={{ lg: "hidden" }}
+        >
+          {/* Below `lg` the strip above is the tab control. */}
+          <Box
+            role="tablist"
+            aria-label="What to pick"
+            display={{ base: "none", lg: "grid" }}
+            gridTemplateColumns="repeat(3, minmax(0, 1fr))"
+            gap="8px"
+            p="10px"
+            flexShrink={0}
+            bg="brand.highlight"
+            borderBottom="1px solid"
+            borderColor="brand.primary"
+          >
+            {TABS.map(({ id, label }, i) => (
+              <Flex
+                key={id}
+                as="button"
+                type="button"
+                role="tab"
+                aria-selected={tab === id}
+                aria-controls="table-gallery"
+                onClick={() => showTab(id)}
+                align="center"
+                gap="12px"
+                minW={0}
+                minH="56px"
+                p="8px 14px"
+                borderRadius="10px"
+                textAlign="left"
+                bg={tab === id ? "brand.secondary" : "transparent"}
+                color={tab === id ? "brand.highlight" : "brand.secondary"}
+                _focusVisible={focusRing}
+                data-testid={`tab-${id}`}
+              >
+                <Box
+                  as="span"
+                  fontFamily="BebasNeueRegular"
+                  fontSize="32px"
+                  lineHeight={1}
+                >
+                  {i + 1}
+                </Box>
+                <Flex as="span" flexDir="column" minW={0}>
+                  <Box as="span" fontSize="15px" fontWeight={700}>
+                    {label}
+                  </Box>
+                  <Text as="span" fontSize="13px" noOfLines={1}>
+                    {picked[id] ?? "Not picked yet"}
+                  </Text>
+                </Flex>
+              </Flex>
+            ))}
+          </Box>
+
+          <Box
+            ref={galleryRef}
+            id="table-gallery"
+            role="tabpanel"
+            aria-label={TABS.find((t) => t.id === tab)?.label}
+            flex="1"
+            minH={0}
+            overflowY={{ lg: "auto" }}
+            p={{ lg: "18px 24px 24px" }}
+          >
+            {tab === "map" ? (
+              <MapGallery
+                maps={maps}
+                selectedUrl={mapUrl}
+                deckMapUrl={deckMap?.imgUrl}
+                onPick={setMapUrl}
+              />
+            ) : tab === "you" && link.held && !link.held.refresh ? (
+              <DeckLinkHold link={link} />
+            ) : (
+              <DeckGallery
+                seat={tab}
+                // an empty list while the account half loads isn't an empty bag
+                entries={isLoading && !entries?.length ? undefined : entries}
+                yourId={starredDeck?.id}
+                theirId={opponent.deck?.id}
+                onPick={tab === "you" ? pickYours : pickTheirs}
+              >
+                {tab === "them" && <OpponentPaste opponent={opponent} />}
+              </DeckGallery>
+            )}
+          </Box>
+        </Flex>
+      </Flex>
     </Flex>
   );
 };
