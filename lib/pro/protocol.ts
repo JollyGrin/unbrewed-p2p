@@ -1465,6 +1465,10 @@ export interface CardMeta {
   type: "attack" | "defense" | "scheme" | "versatile";
   value: number | null;
   boost: number | null;
+  /** Adventures (`CardDef.defense?`, engine #588): an enemy card's printed DEFENSE value when it
+   *  differs from `value` (the attack). The engine reads `defense ?? value` in the defender role.
+   *  Absent on every regular card and on engines that do not send it yet. */
+  defense?: number | null;
 }
 
 // ---------------------------------------------------------------------------
