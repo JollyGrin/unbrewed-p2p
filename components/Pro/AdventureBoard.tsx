@@ -1,4 +1,4 @@
-import { Box, Flex, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import type { GameEvent, PlayerView } from "@/lib/pro/protocol";
 import { useAdventureAnalytics } from "@/lib/pro/useAdventureAnalytics";
 import {
@@ -231,19 +231,92 @@ export const EnemyCombat = ({ sides }: { sides: EnemyCombatSide[] }) => (
   </Flex>
 );
 
+export const ENGINE_FAULT_FIXTURE =
+  "room ab12: resolving ENEMY_TURN — TypeError: cannot read properties of undefined (reading 'hp')";
+
+/**
+ * Table-level "game stopped" state (engine #666, A26): a persistent banner, not a toast.
+ * The board stays as last drawn; the only ways out are leave / new game.
+ */
+export const EngineFaultBanner = ({
+  message,
+  onLeave = () => {
+    window.location.href = "/pro/game";
+  },
+}: {
+  message: string;
+  onLeave?: () => void;
+}) => (
+  <Flex
+    role="alert"
+    data-testid="adv-engine-fault"
+    direction="column"
+    gap="0.4rem"
+    align="center"
+    maxW="32rem"
+    pointerEvents="auto"
+    {...PANEL}
+    borderWidth="1px"
+    borderColor="red.400"
+  >
+    <Text fontWeight="bold" fontSize="0.9rem" data-testid="adv-engine-fault-title">
+      This game hit an engine fault and was stopped
+    </Text>
+    <Text fontSize="0.7rem" opacity={0.8}>
+      Nobody won — the board is frozen as it was. Copy the details below when you report it.
+    </Text>
+    <Box
+      as="pre"
+      data-testid="adv-engine-fault-message"
+      w="100%"
+      p="0.4rem"
+      bg="blackAlpha.600"
+      borderRadius="sm"
+      fontSize="0.65rem"
+      whiteSpace="pre-wrap"
+      wordBreak="break-word"
+      userSelect="all"
+    >
+      {message}
+    </Box>
+    <Flex gap="0.4rem">
+      <Button
+        size="xs"
+        data-testid="adv-engine-fault-copy"
+        onClick={() => {
+          try {
+            void navigator.clipboard?.writeText(message);
+          } catch {
+            /* clipboard unavailable — the text is select-all */
+          }
+        }}
+      >
+        Copy diagnostic
+      </Button>
+      <Button size="xs" colorScheme="red" data-testid="adv-engine-fault-leave" onClick={onLeave}>
+        Leave / new game
+      </Button>
+    </Flex>
+  </Flex>
+);
+
 /** The whole Adventure overlay cluster. Renders nothing without adventure data. */
 export const AdventureBoard = ({
   view,
   events,
+  engineFault,
 }: {
   view: PlayerView;
   events?: readonly GameEvent[];
+  engineFault?: string | null;
 }) => {
   useAdventureAnalytics(view, events);
   const model = adventureBoardModel(view);
   if (!model) return null;
-  const decision = teamDecisionModel(view);
-  const intent = moverIntent(events, view);
+  const faulted = engineFault != null;
+  // A stopped table has no one "choosing" and no mover: clear those indicators.
+  const decision = faulted ? null : teamDecisionModel(view);
+  const intent = faulted ? null : moverIntent(events, view);
   const combat = enemyCombatModel(view);
   return (
     <Flex
@@ -264,6 +337,7 @@ export const AdventureBoard = ({
       {model.threat && <ThreatTrack threat={model.threat} />}
       {model.enemies.length > 0 && <EnemyDials enemies={model.enemies} />}
       {combat && <EnemyCombat sides={combat} />}
+      {faulted && <EngineFaultBanner message={engineFault} />}
       {decision && <TeamDecision model={decision} />}
       {intent && (
         <Text data-testid="adv-intent" {...PANEL} fontSize="0.75rem">

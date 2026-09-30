@@ -5,6 +5,8 @@ import { AdventureBoard } from "@/components/Pro/AdventureBoard";
 export interface FormatOverlayProps {
   view: PlayerView;
   events?: readonly GameEvent[];
+  /** Engine-fault diagnostic (ERROR{ENGINE_FAULT}); non-null = the table is stopped. */
+  engineFault?: string | null;
 }
 
 /** Format-specific board overlays, mounted by format id. Formats not listed render nothing. */

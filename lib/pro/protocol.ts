@@ -2397,4 +2397,8 @@ export type ErrorCode =
   | "REMATCH_UNAVAILABLE" // v35: a REMATCH_* message the room/seat cannot take right now
   | "ROOM_LIMIT" // CREATE_ROOM refused — server is at its global room cap (PRO_MAX_ROOMS)
   | "RATE_LIMITED" // this connection is sending messages too fast (see server rate-limit env vars)
+  // Engine-seat (adventure) rooms only — engine #666/#680. The engine threw, so the room STOPPED
+  // the game for every seat. Not a game over (no GAME_ENDED/winner); the last STATE stands.
+  // Re-sent after ROOM_CREATED/ROOM_JOINED and RECONNECT/RESUME_ROOM STATE, so idempotent.
+  | "ENGINE_FAULT"
   | "SERVER_ERROR";

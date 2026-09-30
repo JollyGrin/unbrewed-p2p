@@ -2,10 +2,11 @@
  * Adventure board overlays (Wave 4.3, unbrewed-p2p#1099) — fixture-driven, no engine.
  */
 import "@testing-library/jest-dom";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { theme } from "@/styles/style";
 import { FormatOverlay } from "@/components/Pro/FormatOverlay";
+import { ENGINE_FAULT_FIXTURE } from "@/components/Pro/AdventureBoard";
 import {
   adventureBoardModel,
   enemyCombatModel,
@@ -257,5 +258,37 @@ describe("enemy combat reveal", () => {
       enemyCombatModel(combatView({ attacker: "p1/hero", target: "p1/hero" })),
     ).toBeNull();
     expect(enemyCombatModel(VIEW)).toBeNull();
+  });
+});
+
+describe("engine fault banner", () => {
+  const faulted = () =>
+    render(
+      <ChakraProvider theme={theme}>
+        <FormatOverlay formatId="adventure" view={VIEW} events={EVENTS} engineFault={ENGINE_FAULT_FIXTURE} />
+      </ChakraProvider>,
+    );
+
+  it("shows a persistent banner with the diagnostic and keeps the board", () => {
+    faulted();
+    expect(screen.getByTestId("adv-engine-fault-title")).toHaveTextContent(
+      "This game hit an engine fault and was stopped",
+    );
+    expect(screen.getByTestId("adv-engine-fault-message")).toHaveTextContent(ENGINE_FAULT_FIXTURE);
+    expect(screen.getByTestId("adv-round")).toHaveTextContent("3");
+    expect(screen.getByTestId("adv-engine-fault-leave")).toBeInTheDocument();
+  });
+
+  it("clears the mover-intent indicator", () => {
+    mount("adventure");
+    expect(screen.getByTestId("adv-intent")).toBeInTheDocument();
+    cleanup();
+    faulted();
+    expect(screen.queryByTestId("adv-intent")).toBeNull();
+  });
+
+  it("is absent without a fault", () => {
+    mount("adventure");
+    expect(screen.queryByTestId("adv-engine-fault")).toBeNull();
   });
 });

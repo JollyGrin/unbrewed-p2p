@@ -251,6 +251,13 @@ export interface UseProSocketReturn {
    * This is emphatically NOT the disconnect/loss path (issue #178).
    */
   serverError: boolean;
+  /**
+   * Adventure engine fault (ERROR{ENGINE_FAULT}, engine #666): the room stopped the
+   * game. The server `message` (diagnostic), or null. Latched — it is re-sent on every
+   * reattach, never cleared by a later ROOM_JOINED/STATE; only starting/joining another
+   * room clears it. While set, `sendAction` refuses and the move timer is cleared.
+   */
+  engineFault: string | null;
   acknowledgeServerError: () => void;
   /**
    * Non-fatal: the server answered ERROR{ RATE_LIMITED } — we're sending too fast
@@ -601,6 +608,8 @@ export function useProSocket(
   // with ERROR{ SERVER_ERROR } but kept the socket open. Surface a light notice
   // and leave the board interactive — never the disconnect/loss path.
   const [serverError, setServerError] = useState(false);
+  const [engineFault, setEngineFault] = useState<string | null>(null);
+  const engineFaultRef = useRef(false);
   // Rate-limit latch (PR #103): the server answered ERROR{ RATE_LIMITED } but kept
   // the socket open. Surface a gentle "slow down" toast and leave the session
   // intact — never the disconnect/loss path. If the client keeps breaching, the
@@ -968,6 +977,7 @@ export function useProSocket(
           // on is a genuine timeout → toast), then re-arm if THIS broadcast is
           // the viewer's own running clock. The bar reads `turnTimer` and
           // resyncs to the fresh deadline on every broadcast (no drift).
+          if (engineFaultRef.current) break; // stopped table: no clock
           const { player, deadline } = msg;
           resolveOwnClock();
           const me = youRef.current ?? seatRef.current;
@@ -1012,6 +1022,19 @@ export function useProSocket(
           });
           break;
         case "ERROR": {
+          if (msg.code === "ENGINE_FAULT") {
+            // Idempotent: may arrive before ROOM_JOINED and again after it.
+            engineFaultRef.current = true;
+            ownClockRef.current = null;
+            ownActionRef.current = false;
+            actionsInFlightRef.current.clear();
+            setResyncing(false);
+            resyncReplyRef.current = false;
+            setTurnTimer(null);
+            setOwnTimerExpired(false);
+            setEngineFault(msg.message);
+            break;
+          }
           if (scenariosPendingRef.current && msg.code === "BAD_MESSAGE") {
             scenariosPendingRef.current = false;
             setScenarios([]);
@@ -1308,6 +1331,8 @@ export function useProSocket(
         }
       }
       setGameLost(false); // starting a brand-new game — no lost game to mourn
+      engineFaultRef.current = false;
+      setEngineFault(null);
       resumeExpectedRef.current = true; // the room's first STATE is authoritative
       setSeatPresence({}); // drop any presence carried over from a prior game
       setTurnTimer(null); // …and any move-timer bar from a prior game
@@ -1368,6 +1393,8 @@ export function useProSocket(
     (room: string, heroId: string) => {
       setError(null); // clear any prior room/hero error on a fresh attempt
       setGameLost(false); // fresh join/resume attempt — drop any prior lost state
+      engineFaultRef.current = false;
+      setEngineFault(null);
       resumeExpectedRef.current = true; // the room's first STATE is authoritative
       gameOverRef.current = false;
       lastViewRef.current = null;
@@ -1431,7 +1458,7 @@ export function useProSocket(
   // happened (#847).
   const sendAction = useCallback(
     (action: Action): boolean => {
-      if (!roomRef.current) return false;
+      if (!roomRef.current || engineFaultRef.current) return false;
       // A repeat tap before the first one's STATE would only ever be rejected
       // as ILLEGAL_ACTION — drop it here instead (#840). A DIFFERENT action
       // goes out behind it, in order (#847).
@@ -1569,6 +1596,7 @@ export function useProSocket(
     undoUnavailable,
     acknowledgeUndoUnavailable,
     serverError,
+    engineFault,
     acknowledgeServerError,
     rateLimited,
     acknowledgeRateLimited,

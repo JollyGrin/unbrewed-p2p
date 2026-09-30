@@ -201,6 +201,7 @@ import { adventureLabEnabled } from "@/lib/pro/adventureGate";
 import { AdventureSetup, adventureSeats, defaultAdventureSetup } from "@/lib/pro/adventureLobby";
 import { AdventureLobby } from "@/components/Pro/AdventureLobby";
 import { FormatOverlay } from "@/components/Pro/FormatOverlay";
+import { EngineFaultBanner } from "@/components/Pro/AdventureBoard";
 import { deriveTeams } from "@/lib/pro/teams";
 import { fighterTokenStateByOwner } from "@/lib/pro/heroStateFlags";
 import { clockTowerMitigationLine } from "@/lib/pro/clockTower";
@@ -4319,7 +4320,7 @@ const LiveGame = ({
   // actually times the wait and fires the nudge is wired up below, once `view`
   // and `soundOn` (useGameFx) exist.
   const [turnReminderOn, toggleTurnReminder] = useTurnReminderSetting();
-  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } =
+  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, engineFault, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } =
     useProSocket(WS_URL, debug, slowMode);
   // Read through refs inside the log effect: adding either to that effect's deps
   // would re-run it without a new snapshot and append the last batch's lines
@@ -5677,6 +5678,15 @@ const LiveGame = ({
       </Flex>
     );
   }
+
+  // A game-start engine fault leaves no STATE at all: the board never mounts, so
+  // the banner stands alone (with a STATE it rides the Adventure overlay instead).
+  if (engineFault != null && !snapshot)
+    return (
+      <Flex justify="center" pt="5rem" px="1rem">
+        <EngineFaultBanner message={engineFault} />
+      </Flex>
+    );
 
   if (error)
     return (
@@ -7352,7 +7362,7 @@ const LiveGame = ({
           <ProBoard {...boardProps} />
         )}
       </Flex>
-      <FormatOverlay formatId={roomInfo?.formatId} view={view} events={snapshot?.events} />
+      <FormatOverlay formatId={roomInfo?.formatId} view={view} events={snapshot?.events} engineFault={engineFault} />
 
       {/* red vignette flash when your hero takes damage (useGameFx) */}
       {visualOn && hurtKey > 0 && (
