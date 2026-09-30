@@ -1,6 +1,13 @@
 import { describe, expect, it } from "@jest/globals";
-import { deckToPlayerPack, mapToTablePack, tokenPiece } from ".";
-import { FIXTURES, fakeFaces, labsDeck, tokenDeck } from "./fixtures/decks";
+import { deckToPlayerPack, isRuleSlot, mapToTablePack, tokenPiece } from ".";
+import {
+  FIXTURES,
+  fakeFaces,
+  fullFakeFaces,
+  labsDeck,
+  ruleCardsDeck,
+  tokenDeck,
+} from "./fixtures/decks";
 
 const convert = (name: keyof typeof FIXTURES, seat: 0 | 1 = 0) => {
   const { deck, faces } = FIXTURES[name];
@@ -132,6 +139,94 @@ describe("sidekick with quantity > 1 and extra characters", () => {
     const s = deckToPlayerPack(solo, { faces });
     expect(slot(s, "sidekick")).toBeUndefined();
     expect(slot(s, "rules")).toBeUndefined();
+  });
+});
+
+describe("rule cards", () => {
+  const ruleDecks = (r: ReturnType<typeof convert>) =>
+    r.pack!.decks!.filter((d) => isRuleSlot(d.slot));
+
+  it("gives each rule card a one-card deck of its own, in order", () => {
+    const r = deckToPlayerPack(ruleCardsDeck(3), { faces: fullFakeFaces });
+    expect(ruleDecks(r).map((d) => [d.slot, d.cards])).toEqual([
+      [
+        "rules",
+        [
+          {
+            code: "rule-1",
+            name: "Rule 1",
+            face: "https://faces.example/rule-1.webp",
+          },
+        ],
+      ],
+      [
+        "rules-2",
+        [
+          {
+            code: "rule-2",
+            name: "Rule 2",
+            face: "https://faces.example/rule-2.webp",
+          },
+        ],
+      ],
+      [
+        "rules-3",
+        [
+          {
+            code: "rule-3",
+            name: "Rule 3",
+            face: "https://faces.example/rule-3.webp",
+          },
+        ],
+      ],
+    ]);
+    // every other pile is still one deck
+    expect(r.pack!.decks!.map((d) => d.slot)).toEqual([
+      "deck",
+      "discard",
+      "hero",
+      "sidekick",
+      "rules",
+      "rules-2",
+      "rules-3",
+      "extras",
+    ]);
+  });
+
+  it("keeps the codes, and faces keyed by the ORIGINAL ruleCards index", () => {
+    const deck = ruleCardsDeck(0);
+    // a leftover reference card comes first, then ruleCards; a blank is skipped
+    for (const title of [deck.deck_data.hero.name, "Setup"]) {
+      deck.deck_data.cards.push({
+        ...deck.deck_data.cards[0],
+        title,
+        isCharacterCard: true,
+      });
+    }
+    deck.deck_data.ruleCards = [
+      { title: "Setup", content: "already a reference card" },
+      { title: "Swarm", content: "one" },
+      { title: "Blank", content: "  " },
+      { title: "Swarm", content: "two" },
+    ];
+    const r = deckToPlayerPack(deck, { faces: fullFakeFaces });
+    expect(r.skipped).toEqual([]);
+    expect(
+      ruleDecks(r).map((d) => [
+        d.slot,
+        ...d.cards.map((c) => [c.code, c.face]),
+      ]),
+    ).toEqual([
+      ["rules", ["setup", "https://faces.example/Setup.webp"]],
+      ["rules-2", ["swarm", "https://faces.example/rule-2.webp"]],
+      ["rules-3", ["swarm-2", "https://faces.example/rule-4.webp"]],
+    ]);
+  });
+
+  it("emits no rules slot for a deck with no rule cards", () => {
+    const r = deckToPlayerPack(ruleCardsDeck(0), { faces: fullFakeFaces });
+    expect(ruleDecks(r)).toEqual([]);
+    expect(slot(r, "extras")).toBeDefined();
   });
 });
 

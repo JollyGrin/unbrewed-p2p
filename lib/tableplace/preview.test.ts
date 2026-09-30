@@ -2,7 +2,12 @@ import { describe, expect, it } from "@jest/globals";
 import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import hollowOak from "@/public/evergreen-decks/hollow-oak.json";
 import { composeTable } from "./composeTable";
-import { elliotDeck, fullFakeFaces, labsDeck } from "./fixtures/decks";
+import {
+  elliotDeck,
+  fullFakeFaces,
+  labsDeck,
+  ruleCardsDeck,
+} from "./fixtures/decks";
 import {
   deckMetaLine,
   NO_TABLE_IMAGES,
@@ -23,6 +28,19 @@ const MAP = {
 };
 
 describe("previewDeck", () => {
+  it("counts every rule card and extra character as a reference card", () => {
+    const extras = previewDeck(ruleCardsDeck(0), fullFakeFaces).referenceCards;
+    expect(extras).toBeGreaterThan(0);
+    expect(previewDeck(ruleCardsDeck(1), fullFakeFaces).referenceCards).toBe(
+      extras + 1,
+    );
+    expect(previewDeck(ruleCardsDeck(3), fullFakeFaces).referenceCards).toBe(
+      extras + 3,
+    );
+    // past what the card row holds, and with no resolver at all
+    expect(previewDeck(ruleCardsDeck(6)).referenceCards).toBe(extras + 6);
+  });
+
   it("gives a deck with no table images one plain line, not a card list", () => {
     const p = previewDeck(oak());
     expect(p.refused).toBe(

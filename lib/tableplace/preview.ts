@@ -4,6 +4,7 @@
  */
 import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { deckToPlayerPack } from "./deckToPack";
+import { isRuleSlot } from "./layout";
 import type { FaceResolver, Skipped } from "./types";
 
 export type DeckPreview = {
@@ -66,6 +67,7 @@ export const previewDeck = (
   const { pack, pieces } = deckToPlayerPack(deck, { faces: () => STAND_IN });
   const slot = (name: string) =>
     pack?.decks?.find((d) => d.slot === name)?.cards.length ?? 0;
+  const ruleCards = (pack?.decks ?? []).filter((d) => isRuleSlot(d.slot));
   const sidekickCount = pieces.filter(
     (p) => p.role === "fighter" && p.fighter === "sidekick",
   ).length;
@@ -87,7 +89,8 @@ export const previewDeck = (
         }
       : null,
     cards: slot("deck"),
-    referenceCards: slot("rules") + slot("extras"),
+    referenceCards:
+      ruleCards.reduce((n, d) => n + d.cards.length, 0) + slot("extras"),
     dials: pieces
       .filter((p) => p.role === "hp")
       .map((p) => ({

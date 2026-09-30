@@ -8,6 +8,7 @@ import type {
   SheetCrop,
 } from "@/components/Positions/position.type";
 import { slug } from "./faceJobs";
+import { ruleSlot } from "./layout";
 import type {
   FaceResolver,
   PackCard,
@@ -314,7 +315,8 @@ export const deckToPlayerPack = (
     ...(back ? { back } : {}),
   });
 
-  // a pile that holds no cards is not placed, except the discard
+  // a pile that holds no cards is not placed, except the discard; each rule
+  // card is a one-card deck of its own, so it can lie on the felt as a card
   const decks: PackDeck[] = [
     withBack({ slot: "deck", name: "Deck", cards: compact(deckCards) }),
     withBack({ slot: "discard", name: "Discard", cards: [] }),
@@ -324,7 +326,9 @@ export const deckToPlayerPack = (
       name: "Sidekick",
       cards: compact([sidekickCard]),
     }),
-    withBack({ slot: "rules", name: "Rules", cards: compact(rules) }),
+    ...compact(rules).map((card, n) =>
+      withBack({ slot: ruleSlot(n), name: "Rules", cards: [card] }),
+    ),
     withBack({ slot: "extras", name: "Extras", cards: compact(extras) }),
   ].filter((d) => d.cards.length || d.slot === "discard");
 

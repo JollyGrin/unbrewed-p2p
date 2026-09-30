@@ -65,16 +65,22 @@ describe("Labs piles on the real payloads", () => {
     expect(piles(r).extras).toEqual(["White Spy"]);
   });
 
-  it("a deck with real rule cards still gets its Rules pile", () => {
+  it("a deck with real rule cards still gets a Rules slot for each", () => {
     const deck = lucyDeck();
     deck.deck_data.cards.push({
       ...deck.deck_data.cards.find((c) => c.isCharacterCard)!,
       title: "Special Rule",
       cardImage: { url: "https://example.com/rule.png" },
     } as never);
+    deck.deck_data.cards.push({
+      ...deck.deck_data.cards.find((c) => c.isCharacterCard)!,
+      title: "Second Rule",
+      cardImage: { url: "https://example.com/rule-2.png" },
+    } as never);
     const r = deckToPlayerPack(deck, { faces: fakeFaces });
     const p = piles(r);
     expect(p.rules).toEqual(["Special Rule"]);
+    expect(p["rules-2"]).toEqual(["Second Rule"]);
     expect(p.extras).toEqual(["Piper"]);
   });
 });

@@ -9,15 +9,21 @@ import lucySave from "@/lib/labs/fixtures/tts-save.lucy-piper.json";
 import { buildLabsImport, parseLabsTtsSave, type LabsSetRow } from "@/lib/labs";
 import balanced from "../../public/evergreen-decks/hollow-oak.json";
 import { composeTable } from "./composeTable";
-import { FIXTURES, fakeFaces } from "./fixtures/decks";
+import { FIXTURES, fakeFaces, ruleCardsDeck } from "./fixtures/decks";
 import {
   CARD_STACK_RADIUS,
   CARD_ORDER,
+  CARD_ROW_CELLS,
   distance,
+  forSeat,
   FRONT_ROW_Z,
+  isRuleSlot,
   mapSize,
   PIECE_ROW_Z,
   pileX,
+  ruleCardSplit,
+  ruleSlot,
+  seatArea,
   TOKEN_RADIUS,
   VIEW,
   type XZ,
@@ -130,6 +136,16 @@ describe.each<[string, [Deck, Deck], typeof DRUM]>([
     ],
     plain(1.54),
   ],
+  [
+    "Three rule cards each, Mended Drum",
+    [() => ruleCardsDeck(3), () => ruleCardsDeck(3)],
+    DRUM,
+  ],
+  [
+    "More rule cards than the card row holds, widest map",
+    [() => ruleCardsDeck(6), () => ruleCardsDeck(6)],
+    plain(1.625),
+  ],
 ])("%s", (_, [a, b], map) => {
   const { body, skipped } = compose([a(), b()], map);
   const all = shapes(body, map);
@@ -240,6 +256,100 @@ describe("each seat's card piles", () => {
       }
       // clear of the boost spot at x 1.3
       expect(pileX(0) - 1.3).toBeGreaterThanOrEqual(CARD_STACK_RADIUS);
+    },
+  );
+});
+
+describe("rule cards in the card row", () => {
+  const PILES = ["deck", "discard", "hero", "sidekick", "extras"];
+  const slots = (rules: number) => [
+    ...PILES,
+    ...Array.from({ length: rules }, (_, n) => ruleSlot(n)),
+  ];
+  const width = mapSize(DRUM.width / DRUM.height).width;
+  /** The kit's piece cells that lie in the card row. */
+  const rowCells = (seat: 0 | 1, s: string[]) =>
+    Array.from(seatArea(seat, width, s).kit()).filter(
+      ([, z]) => Math.abs(z) === FRONT_ROW_Z,
+    );
+
+  it("holds nine cells, the last a whole card inside VIEW", () => {
+    expect(CARD_ROW_CELLS).toBe(9);
+    expect(pileX(CARD_ROW_CELLS - 1) + 0.7).toBeLessThanOrEqual(VIEW.halfX);
+    expect(pileX(CARD_ROW_CELLS) + 0.7).toBeGreaterThan(VIEW.halfX);
+  });
+
+  it.each([0, 1] as const)(
+    "seat %i: a cell each, 1.8 on from the last pile, then the piece cells",
+    (seat) => {
+      const area = seatArea(seat, width, slots(3));
+      const at = (n: number) => forSeat(seat, [pileX(n), FRONT_ROW_Z]);
+      expect(area.card("extras")).toEqual(at(4));
+      const cards = [0, 1, 2].map((n) => area.card(ruleSlot(n)));
+      expect(cards).toEqual([at(5), at(6), at(7)]);
+      expect(distance(cards[0], area.card("extras"))).toBeCloseTo(1.8, 9);
+      expect(distance(cards[1], cards[0])).toBeCloseTo(1.8, 9);
+      expect(distance(cards[2], cards[1])).toBeCloseTo(1.8, 9);
+      expect(1.8).toBeGreaterThan(CARD_STACK_RADIUS);
+      for (const [x, z] of cards) {
+        expect(Math.abs(x) + 0.7).toBeLessThanOrEqual(VIEW.halfX);
+        expect(Math.abs(z) + 1).toBeLessThanOrEqual(VIEW.halfZ);
+      }
+      // one cell is left past the last rule card
+      expect(rowCells(seat, slots(3))).toEqual([at(8)]);
+      // a missing pile leaves no gap before the rule cards either
+      const few = seatArea(seat, width, ["deck", "discard", "hero", "rules"]);
+      expect(few.card("rules")).toEqual(at(3));
+      expect(rowCells(seat, ["deck", "discard", "hero", "rules"])[0]).toEqual(
+        at(4),
+      );
+    },
+  );
+
+  it.each([0, 1] as const)(
+    "seat %i: the ones with no cell share the last one, and no piece does",
+    (seat) => {
+      expect(ruleCardSplit(5, 4)).toEqual({ loose: 4, piled: 0 });
+      expect(ruleCardSplit(5, 5)).toEqual({ loose: 3, piled: 2 });
+      expect(ruleCardSplit(5, 6)).toEqual({ loose: 3, piled: 3 });
+      expect(ruleCardSplit(3, 6)).toEqual({ loose: 6, piled: 0 });
+
+      const area = seatArea(seat, width, slots(6));
+      const at = (n: number) => forSeat(seat, [pileX(n), FRONT_ROW_Z]);
+      expect([0, 1, 2, 3, 4, 5].map((n) => area.card(ruleSlot(n)))).toEqual([
+        at(5),
+        at(6),
+        at(7),
+        at(8),
+        at(8),
+        at(8),
+      ]);
+      expect(rowCells(seat, slots(6))).toEqual([]);
+      expect(rowCells(seat, slots(4))).toEqual([]);
+    },
+  );
+
+  it.each<[number, number]>([
+    [1, 1],
+    [3, 3],
+    [6, 4],
+  ])(
+    "%i rule cards compose to %i placements in a row, both seats",
+    (count, placed) => {
+      const { body } = compose(
+        [ruleCardsDeck(count), ruleCardsDeck(count)],
+        DRUM,
+      );
+      for (const seat of [0, 1] as const) {
+        const row = body.placements.filter(
+          (p) => p.kind === "deck" && p.seat === seat && isRuleSlot(p.slot),
+        );
+        expect(row.map((p) => p.position)).toEqual(
+          Array.from({ length: placed }, (_, n) =>
+            forSeat(seat, [pileX(5 + n), FRONT_ROW_Z]),
+          ),
+        );
+      }
     },
   );
 });
