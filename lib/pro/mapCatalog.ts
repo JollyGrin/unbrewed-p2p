@@ -14,9 +14,10 @@
  * bounces with `BAD_MAP`.
  */
 import type { ProMapDef } from "./protocol";
-import { MULTIPLAYER_PLAYTEST_MAP, PRO_FORMATS, ProFormatId } from "./multiplayerPlaytest";
+import { ALL_FORMATS, MULTIPLAYER_PLAYTEST_MAP, ProFormatId } from "./multiplayerPlaytest";
 import { normalizeMap } from "./normalizeMap";
 import mendedDrumJson from "./fixtures/mended-drum.map.json";
+import { adventureLabEnabled } from "./adventureGate";
 import islandOfDespairJson from "./fixtures/island-of-despair.map.json";
 import cityDocksJson from "./fixtures/city-docks.map.json";
 import polusJson from "./fixtures/polus.map.json";
@@ -207,17 +208,23 @@ export function mapEligibleForFormat(map: CatalogMap, formatId: ProFormatId): bo
   return false;
 }
 
-const SLOTS_NEEDED: Record<ProFormatId, number> = { duel: 2, "ffa-3": 3, "team-2v2": 4 };
+const SLOTS_NEEDED: Record<Exclude<ProFormatId, "adventure">, number> = { duel: 2, "ffa-3": 3, "team-2v2": 4 };
 
 /** Human-readable reason a board can't host a format, or null if it can. */
 export function ineligibleReason(map: CatalogMap, formatId: ProFormatId): string | null {
   if (mapEligibleForFormat(map, formatId)) return null;
+  if (formatId === "adventure") return "no adventure scenario";
   return `needs ${SLOTS_NEEDED[formatId]} start slots`;
 }
 
-/** Formats this board can host, in canonical PRO_FORMATS order (for badges). */
-export function eligibleFormats(map: CatalogMap): ProFormatId[] {
-  return PRO_FORMATS.map((f) => f.id).filter((id) => mapEligibleForFormat(map, id));
+/**
+ * Formats this board can host, in canonical order (for badges). `adventure` is
+ * listed only when the lab gate is on, so regular catalogs are unchanged.
+ */
+export function eligibleFormats(map: CatalogMap, labEnabled: boolean = adventureLabEnabled()): ProFormatId[] {
+  return ALL_FORMATS.map((f) => f.id)
+    .filter((id) => id !== "adventure" || labEnabled)
+    .filter((id) => mapEligibleForFormat(map, id));
 }
 
 /** Short badge label per format shown on a board card. */
@@ -225,6 +232,7 @@ export const FORMAT_BADGE: Record<ProFormatId, string> = {
   duel: "1v1",
   "ffa-3": "3P",
   "team-2v2": "2v2",
+  adventure: "ADV",
 };
 
 export function catalogEntry(id: string): MapCatalogEntry | undefined {
