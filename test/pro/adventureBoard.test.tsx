@@ -334,3 +334,13 @@ describe("spawned enemies (engine 2.4)", () => {
     );
   });
 });
+
+describe("overlay placement (#1114)", () => {
+  it("docks to the right edge, clear of the top-left seat-plate row", () => {
+    cleanup();
+    mount("adventure");
+    const el = screen.getByTestId("adventure-board");
+    expect(el).toHaveStyle({ right: "0.7rem" });
+    expect(el).not.toHaveStyle({ left: "50%" });
+  });
+});
