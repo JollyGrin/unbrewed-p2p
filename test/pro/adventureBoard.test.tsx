@@ -4,7 +4,14 @@
 import "@testing-library/jest-dom";
 import { cleanup, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
-import { DOCK_RIGHT, DOCK_WIDTH } from "@/components/Pro/dockLayout";
+import {
+  ADVENTURE_BOARD_WIDTH,
+  ADVENTURE_PLATE_PAD_RIGHT,
+  DOCK_RIGHT,
+  DOCK_WIDTH,
+  HUD_OVERLAY_INSET,
+} from "@/components/Pro/dockLayout";
+import { ProHud } from "@/components/Pro/ProHud";
 import { theme } from "@/styles/style";
 import { FormatOverlay } from "@/components/Pro/FormatOverlay";
 import { ADVENTURE_BOARD_RIGHT, ENGINE_FAULT_FIXTURE } from "@/components/Pro/AdventureBoard";
@@ -373,5 +380,61 @@ describe("overlay vs Actions dock overlap probe (#1128)", () => {
   });
   it("the constant matches the geometry the probe assumes", () => {
     expect(ADVENTURE_BOARD_RIGHT).toBe(`calc(${DOCK_RIGHT} + ${DOCK_WIDTH} + 0.75rem)`);
+  });
+});
+
+// #1135: five plates (4 heroes + the engine seat) ran under the overlay at 1500px.
+// Geometry model of HudOverlay: a wrapping flex row of 15rem plates, 0.6rem gap,
+// inset 0.6rem each side, plus a right padding. Returns the rightmost plate edge.
+const plateRowRight = (vw: number, plates: number, padRight: number) => {
+  const plate = rem("15rem");
+  const gap = rem("0.6rem");
+  const left = rem(HUD_OVERLAY_INSET);
+  const avail = vw - 2 * left - padRight;
+  const perRow = Math.max(1, Math.floor((avail + gap) / (plate + gap)));
+  const inRow = Math.min(plates, perRow);
+  return left + inRow * plate + (inRow - 1) * gap;
+};
+const OLD_PAD = rem("8.5rem");
+const NEW_PAD =
+  rem(DOCK_RIGHT) + rem(DOCK_WIDTH) + rem("0.75rem") + rem(ADVENTURE_BOARD_WIDTH) + rem("0.75rem") - rem(HUD_OVERLAY_INSET);
+
+describe("seat-plate row vs overlay probe (#1135)", () => {
+  it("probe flags the pre-fix geometry (planted box): 5 plates at 1500 reach the overlay", () => {
+    const { board } = spans(1500);
+    expect(plateRowRight(1500, 5, OLD_PAD)).toBeGreaterThan(board[0]);
+    expect(overlaps([0, plateRowRight(1500, 5, OLD_PAD)], board)).toBe(true);
+  });
+  it("the padding constant matches the geometry the probe assumes", () => {
+    expect(ADVENTURE_PLATE_PAD_RIGHT).toBe(
+      `calc(${DOCK_RIGHT} + ${DOCK_WIDTH} + 0.75rem + ${ADVENTURE_BOARD_WIDTH} + 0.75rem - ${HUD_OVERLAY_INSET})`,
+    );
+  });
+  it.each([
+    [1500, 2],
+    [1500, 4],
+    [1920, 2],
+    [1920, 4],
+  ])("plates clear the overlay and dock at %ipx with %i heroes", (vw, heroes) => {
+    const { dock, board } = spans(vw);
+    const right = plateRowRight(vw, heroes + 1, NEW_PAD);
+    expect(overlaps([0, right], board)).toBe(false);
+    expect(overlaps([0, right], dock)).toBe(false);
+  });
+  it("ProHud pads the plate row only on an adventure view", () => {
+    const hud = (view: PlayerView) => (
+      <ChakraProvider theme={theme}>
+        <ProHud view={view} status="open" roomId="r" resolveCard={() => null} resolveHero={() => null} labelFor={() => ""} />
+      </ChakraProvider>
+    );
+    const base = { you: "p1", phase: "PLAY", catalog: {}, tokens: [], players: [], self: { id: "p1", hand: [], discard: [], counters: {}, flags: {} } };
+    const adv = { ...base, ...(VIEW as object) } as unknown as PlayerView;
+    const plain = { ...base, fighters: [] } as unknown as PlayerView;
+    cleanup();
+    const a = render(hud(adv));
+    expect(a.baseElement.querySelectorAll("[data-adventure]").length).toBe(1);
+    cleanup();
+    const b = render(hud(plain));
+    expect(b.baseElement.querySelectorAll("[data-adventure]").length).toBe(0);
   });
 });

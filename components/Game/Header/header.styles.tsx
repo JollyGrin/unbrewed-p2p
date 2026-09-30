@@ -1,6 +1,7 @@
 import { colors, fonts } from "@/styles/style";
 import { Box, Flex, Text } from "@chakra-ui/react";
 import styled from "@emotion/styled";
+import { ADVENTURE_PLATE_PAD_RIGHT } from "@/components/Pro/dockLayout";
 
 /**
  * Frosted floating player plate. It sits over the board as an overlay (no
@@ -191,6 +192,11 @@ export const HudOverlay = styled(Flex)`
 
   & > * {
     pointer-events: auto;
+  }
+
+  /* Adventure overlay present (#1135): wrap the plates short of it and the dock. */
+  &[data-adventure] {
+    padding-right: ${ADVENTURE_PLATE_PAD_RIGHT};
   }
 `;
 

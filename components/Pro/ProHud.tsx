@@ -69,6 +69,7 @@ import {
 } from "@/components/Game/Header/header.styles";
 import { InGameAccountChip } from "@/components/Account/AccountChip";
 import { SPOTLIGHT_Z } from "./ActionSpotlight";
+import { adventureBoardModel } from "@/lib/pro/adventureBoard";
 import { useAccount } from "@/lib/account/useAccount";
 import { faceUpCommitter } from "@/lib/pro/faceUpCommit";
 import { seatNameplate } from "@/lib/pro/playerIdentity";
@@ -1691,7 +1692,12 @@ export const ProHud = ({
 
   return (
     <>
-      <HudOverlay>
+      {/* #1135: with an Adventure overlay the plate row wraps short of it (and the
+          dock) rather than covering the threat track / enemy dials at ~1500px. Other
+          formats get no style prop at all. */}
+      <HudOverlay
+        {...(adventureBoardModel(view) ? { "data-adventure": "true" } : {})}
+      >
         {seats.map((seat) => (
           <SeatPlate
             key={seat.id}

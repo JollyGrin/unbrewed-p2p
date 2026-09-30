@@ -1,4 +1,4 @@
-import { DOCK_RIGHT, DOCK_WIDTH } from "./dockLayout";
+import { ADVENTURE_BOARD_WIDTH, DOCK_RIGHT, DOCK_WIDTH } from "./dockLayout";
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import type { GameEvent, PlayerView } from "@/lib/pro/protocol";
 import { useAdventureAnalytics } from "@/lib/pro/useAdventureAnalytics";
@@ -335,7 +335,7 @@ export const AdventureBoard = ({
       // ...and to the LEFT of the fixed Actions dock (z 140, right 0.75rem, 18.5rem
       // wide, from 7.5rem down) which otherwise fully covers the dials (#1128).
       right={ADVENTURE_BOARD_RIGHT}
-      maxW="17rem"
+      maxW={ADVENTURE_BOARD_WIDTH}
       maxH="calc(100vh - 4rem)"
       overflowY="auto"
       direction="column"
