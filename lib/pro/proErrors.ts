@@ -30,6 +30,7 @@ const MESSAGES: Record<ErrorCode, string> = {
   RATE_LIMITED: "Slowing down — too many actions at once.",
   BAD_SCENARIO: "That Adventure scenario or roster isn't available — pick again.",
   SERVER_ERROR: "The server couldn't process that action — try again or take a different action.",
+  ENGINE_FAULT: "This game hit an engine fault and was stopped.",
 };
 
 const GENERIC = "Something went wrong. Please try again.";
