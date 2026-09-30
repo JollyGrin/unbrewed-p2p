@@ -5,6 +5,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { ChakraProvider } from "@chakra-ui/react";
 import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import {
   FIXTURES,
@@ -22,6 +23,7 @@ import {
 } from "@/lib/labs";
 import type { MapData } from "@/lib/hooks/useLocalStorage";
 import { MAP_CATALOG } from "@/lib/pro/mapCatalog";
+import { theme } from "@/styles/style";
 import { TablePage } from "./TablePage";
 
 jest.mock("next/router", () => ({
@@ -129,6 +131,11 @@ const createTable = async () => {
   return screen.findByTestId("api-error", {}, { timeout: 10_000 });
 };
 
+/** The app's theme: without its breakpoints no responsive style resolves. */
+const Themed = ({ children }: { children: React.ReactNode }) => (
+  <ChakraProvider theme={theme}>{children}</ChakraProvider>
+);
+
 /** A bag of fresh decks (nothing carries over), the first one starred. */
 const bag = (decks: DeckImportType[], star = decks[0]?.id ?? "") => {
   mockBag.decks = decks;
@@ -136,10 +143,10 @@ const bag = (decks: DeckImportType[], star = decks[0]?.id ?? "") => {
 };
 
 /** Your deck starred, their deck picked from the bag, a map on the table. */
-const setup = () => {
+const setup = (themed = false) => {
   const [mine, theirs] = [labsDeck(), elliotDeck()];
   bag([mine, theirs]);
-  render(<TablePage />);
+  render(<TablePage />, themed ? { wrapper: Themed } : undefined);
   fireEvent.click(tab("them"));
   fireEvent.click(deckTile(theirs.id));
   pickMap("/m1.webp");
@@ -373,6 +380,78 @@ describe("TablePage — create flow, reasons and accessibility (issue #1063)", (
       "What goes on the table",
     );
     expect(within(contents).getAllByTestId("deck-preview")).toHaveLength(2);
+  });
+});
+
+describe("TablePage — the phone layout (PR #1121)", () => {
+  // Rendered with the theme, so the breakpoints resolve. jsdom matches no
+  // media query: what it computes is the layout below `lg`, and the `lg` rule
+  // is read off the stylesheet.
+  const display = (el: Element) => getComputedStyle(el).display;
+  const shownFromLg = (el: Element) => {
+    const rules = [...document.styleSheets].flatMap((sheet) => [
+      ...sheet.cssRules,
+    ]);
+    return rules.some(
+      (rule) =>
+        rule instanceof CSSMediaRule &&
+        /min-width:\s*62em/.test(rule.media.mediaText) &&
+        [...rule.cssRules].some(
+          (inner) =>
+            inner instanceof CSSStyleRule &&
+            el.matches(inner.selectorText) &&
+            inner.style.display === "block",
+        ),
+    );
+  };
+
+  it("hides the intro and the closes-after line on a phone, and only there", () => {
+    setup(true);
+    for (const id of ["intro", "closes-note"]) {
+      const el = screen.getByTestId(id);
+      expect(display(el)).toBe("none");
+      expect(shownFromLg(el)).toBe(true);
+    }
+    expect(screen.getByTestId("intro").textContent).toContain(
+      "Pick both decks and a map",
+    );
+    expect(screen.getByTestId("closes-note").textContent).toContain(
+      "closes after 15 minutes",
+    );
+    expect(display(screen.getByRole("heading", { level: 1 }))).not.toBe("none");
+    expect(display(screen.getByTestId("status"))).not.toBe("none");
+    expect(display(create())).not.toBe("none");
+    expect(
+      screen.getByTestId("create-bar").contains(screen.getByTestId("status")),
+    ).toBe(true);
+  });
+
+  it("keeps the API error box in the pinned bar", async () => {
+    mockValidate.mockResolvedValue({ ok: false, error: err({}) });
+    setup(true);
+    const box = await createTable();
+    expect(display(box)).not.toBe("none");
+    expect(screen.getByTestId("create-bar").contains(box)).toBe(true);
+  });
+
+  it("keeps the refused-deck line and the seat's reason", () => {
+    bag([oak(), elliotDeck()]);
+    render(<TablePage />, { wrapper: Themed });
+    fireEvent.click(tab("them"));
+    fireEvent.click(deckTile(mockBag.decks[1].id));
+    const line = screen.getByTestId("refused-reason");
+    expect(display(line)).not.toBe("none");
+    expect(screen.getByTestId("create-bar").contains(line)).toBe(true);
+    expect(display(screen.getByRole("alert"))).not.toBe("none");
+    expect(display(screen.getByTestId("tts-how"))).not.toBe("none");
+  });
+
+  it("keeps the map image alert", () => {
+    mockImageSize.failed = true;
+    setup(true);
+    const alert = screen.getByRole("alert");
+    expect(alert.textContent).toContain("Couldn't load this map's image");
+    expect(display(alert)).not.toBe("none");
   });
 });
 

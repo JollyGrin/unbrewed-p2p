@@ -230,7 +230,7 @@ export const TablePage = () => {
         gap={{ base: "16px", lg: "28px" }}
         px={{ base: "16px", lg: "32px" }}
         // below `lg`, room for the pinned Create bar
-        pb={{ base: "176px", lg: "32px" }}
+        pb={{ base: "140px", lg: "32px" }}
         sx={{ [SHORT_SCREEN]: { paddingBottom: "16px" } }}
       >
         {/* The rail. Below `lg` its parts join the page's one column, so the
@@ -298,7 +298,13 @@ export const TablePage = () => {
               >
                 Set up a 3D table
               </Text>
-              <Text fontSize="14px" lineHeight={1.45}>
+              {/* Below `lg` the first screen goes to the gallery's tiles. */}
+              <Text
+                display={{ base: "none", lg: "block" }}
+                fontSize="14px"
+                lineHeight={1.45}
+                data-testid="intro"
+              >
                 Pick both decks and a map, and we&apos;ll lay out a table on
                 table.place for you and a friend.
               </Text>
@@ -442,10 +448,12 @@ export const TablePage = () => {
                 One deck can&apos;t go on the table yet (see above).
               </Text>
             )}
+            {/* Not in the pinned bar: it holds the status and the button. */}
             <Text
-              order={{ base: 3, lg: 0 }}
-              fontSize={{ base: "12px", lg: "13px" }}
+              display={{ base: "none", lg: "block" }}
+              fontSize="13px"
               lineHeight={1.4}
+              data-testid="closes-note"
             >
               Create it when you&apos;re both ready: a table nobody opens closes
               after {EMPTY_LOBBY_REAP_MINUTES} minutes.
