@@ -5,42 +5,23 @@ import { DeckPreviewCard } from "./DeckPreviewCard";
 
 const { deck: oak } = FIXTURES["hollow-oak"];
 
-describe("DeckPreviewCard — how to bring a deck in (issue #1058)", () => {
-  it("walks a deck with no table images through the TTS export", () => {
-    render(<DeckPreviewCard title="Your deck" preview={previewDeck(oak)} />);
-    const how = screen.getByTestId("tts-how");
-    expect(how.textContent).toContain("TTS JSON");
-    expect(how.textContent).toContain("Import from The Unmatched Club");
-    expect(how.querySelector("a")?.getAttribute("href")).toBe("/bag");
-  });
-
-  it("stays quiet for a deck that can go on the table", () => {
+describe("DeckPreviewCard — what a deck puts on the table", () => {
+  it("lists the deck's pieces under its seat", () => {
     render(
       <DeckPreviewCard
         title="Your deck"
         preview={previewDeck(oak, () => "about:")}
       />,
     );
-    expect(screen.queryByTestId("tts-how")).toBeNull();
+    const card = screen.getByTestId("deck-preview");
+    expect(card.textContent).toContain("Your deck");
+    expect(card.textContent).toContain("The Hollow Oak (16 HP)");
+    expect(card.textContent).toContain("The Hollow Oak 16, The Ember Fox 6");
   });
-});
 
-describe("DeckPreviewCard — refusal (issue #1063)", () => {
-  it("announces a refusal as an alert", () => {
+  it("leaves the refusal to the rail", () => {
     render(<DeckPreviewCard title="Your deck" preview={previewDeck(oak)} />);
-    expect(screen.getByRole("alert").textContent).toContain(
-      "Can't go on the table",
-    );
-  });
-
-  it("shows no alert for a deck that can go on the table", () => {
-    render(
-      <DeckPreviewCard
-        title="Your deck"
-        preview={previewDeck(oak, () => "about:")}
-      />,
-    );
     expect(screen.queryByRole("alert")).toBeNull();
-    expect(screen.getByText("Your deck")).toBeTruthy();
+    expect(screen.queryByTestId("tts-how")).toBeNull();
   });
 });
