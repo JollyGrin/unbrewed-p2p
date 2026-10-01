@@ -83,9 +83,48 @@ export const UNKNOWN_OBJECT: BoardObjectVisual = {
   glyph: "?",
 };
 
+/**
+ * Adventure scenario markers (`kind: "marker"`, engine #650) — identity → name + short
+ * glyph. Enclosure identities are the dinosaur a pen reveals; no new art, just a label
+ * and an initial. An identity not listed here keeps the neutral diamond (never throws).
+ */
+export const MARKER_IDENTITIES: Record<string, { label: string; glyph: string }> = {
+  "gallimimus/stampede": { label: "Stampede", glyph: "≋" },
+  "dilophosaurus/venom": { label: "Venom", glyph: "☣" },
+  venom: { label: "Venom", glyph: "☣" },
+  ankylosaurus: { label: "Ankylosaurus", glyph: "An" },
+  apatosaurus: { label: "Apatosaurus", glyph: "Ap" },
+  carnotaurus: { label: "Carnotaurus", glyph: "Ca" },
+  dilophosaurus: { label: "Dilophosaurus", glyph: "Di" },
+  gallimimus: { label: "Gallimimus", glyph: "Ga" },
+  oviraptor: { label: "Oviraptor", glyph: "Ov" },
+  parasaurolophus: { label: "Parasaurolophus", glyph: "Pa" },
+  stygimoloch: { label: "Stygimoloch", glyph: "Sty" },
+  therizinosaurus: { label: "Therizinosaurus", glyph: "Th" },
+  triceratops: { label: "Triceratops", glyph: "Tri" },
+  tyrannosaurus: { label: "T. Rex", glyph: "Rex" },
+};
+
+/** Friendly name for a marker/mark identity, or null when this client does not know it. */
+export const markerIdentityLabel = (identity: string | null | undefined): string | null =>
+  (identity && MARKER_IDENTITIES[identity]?.label) || null;
+
 /** Never returns undefined — an unmapped kind still renders (see the file header). */
-export const boardObjectVisualFor = (token: Pick<ViewToken, "kind">): BoardObjectVisual =>
-  BOARD_OBJECT_VISUALS[token.kind] ?? UNKNOWN_OBJECT;
+export const boardObjectVisualFor = (
+  token: Pick<ViewToken, "kind"> & { identity?: string; faceDown?: boolean },
+): BoardObjectVisual => {
+  if (token.kind === "marker") {
+    const known = token.identity ? MARKER_IDENTITIES[token.identity] : undefined;
+    if (known) {
+      return { kind: "marker", label: known.label, noun: `${known.label.toLowerCase()} marker`, shape: "diamond", muted: false, glyph: known.glyph };
+    }
+    if (token.faceDown) {
+      return { kind: "marker", label: "Face-down marker", noun: "face-down marker", shape: "diamond", muted: false, glyph: "?" };
+    }
+    return { ...UNKNOWN_OBJECT, kind: "marker", label: "Marker", noun: "marker", glyph: "" };
+  }
+  return BOARD_OBJECT_VISUALS[token.kind] ?? UNKNOWN_OBJECT;
+};
 
 /** Countdown-lifecycle readout for one object. */
 export interface BoardObjectCountdown {
@@ -157,7 +196,7 @@ export const disambiguateLabels = <T extends { label: string }>(options: T[]): T
  * it came from, when the caller could resolve one.
  */
 export const boardObjectTitle = (
-  token: Pick<ViewToken, "kind" | "ownerTurnsRemaining" | "origin">,
+  token: Pick<ViewToken, "kind" | "ownerTurnsRemaining" | "origin"> & { identity?: string; faceDown?: boolean },
   ownerLabel: string,
   originName?: string | null
 ): string => {

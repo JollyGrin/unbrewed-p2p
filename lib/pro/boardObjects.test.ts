@@ -12,6 +12,7 @@ import {
   boardObjectTitle,
   boardObjectVisualFor,
   disambiguateLabels,
+  markerIdentityLabel,
 } from "./boardObjects";
 import type { ViewToken } from "./protocol";
 
@@ -147,5 +148,25 @@ describe("boardObjectTitle", () => {
 
   it("omits the countdown clause entirely for a permanent object", () => {
     expect(boardObjectTitle(token({ kind: "totem" }), "You")).toBe("Totem (You)");
+  });
+});
+
+describe("scenario markers (adventure)", () => {
+  it("labels shipped identities with a name + glyph", () => {
+    const v = boardObjectVisualFor({ kind: "marker", identity: "gallimimus/stampede" });
+    expect(v.label).toBe("Stampede");
+    expect(v.glyph).not.toBe("");
+    expect(boardObjectVisualFor({ kind: "marker", identity: "tyrannosaurus" }).label).toBe("T. Rex");
+  });
+  it("unknown identities keep the neutral diamond and never throw", () => {
+    const v = boardObjectVisualFor({ kind: "marker", identity: "zz-new" });
+    expect(v.shape).toBe("diamond");
+    expect(v.glyph).toBe("");
+    expect(boardObjectVisualFor({ kind: "marker" }).glyph).toBe("");
+    expect(boardObjectVisualFor({ kind: "marker", faceDown: true }).glyph).toBe("?");
+  });
+  it("friendly mark names resolve; unknown ones are null", () => {
+    expect(markerIdentityLabel("dilophosaurus/venom")).toBe("Venom");
+    expect(markerIdentityLabel("nope")).toBeNull();
   });
 });

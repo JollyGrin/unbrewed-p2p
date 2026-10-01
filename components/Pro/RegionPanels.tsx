@@ -1227,7 +1227,8 @@ export const useRegionPanels = ({
     t: ViewToken,
     s: ProMapSpace,
     offset: { dx: number; dy: number },
-    diam: number
+    diam: number,
+    covered = false
   ) => {
     const visual = boardObjectVisualFor(t);
     const color = SEAT_COLOR[t.owner] ?? "#999";
@@ -1238,6 +1239,34 @@ export const useRegionPanels = ({
     // Percent-of-own-width, like the fighter stack — scales with board and zoom.
     const tx = `calc(-50% + ${offset.dx}%)`;
     const ty = `calc(-50% + ${offset.dy}%)`;
+
+    if (visual.shape === "diamond" && covered && visual.glyph) {
+      // A fighter stands here and would hide the marker: show a small corner badge.
+      return (
+        <Box
+          key={t.id}
+          data-marker-badge={t.identity ?? "marker"}
+          position="absolute"
+          left={`${s.x * 100}%`}
+          top={`${s.y * 100}%`}
+          transform={`translate(calc(-50% + ${diam * 0.42}%), calc(-50% - ${diam * 0.42}%))${uprightSuffix}`}
+          px="0.2rem"
+          minW="0.9rem"
+          textAlign="center"
+          bg="brand.surfaceDim"
+          border={`1px solid ${color}`}
+          borderRadius="999px"
+          fontSize="0.55rem"
+          lineHeight="1.1"
+          color="brand.parchment"
+          sx={{ pointerEvents: "none" }}
+          zIndex={4}
+          title={title}
+        >
+          {visual.glyph}
+        </Box>
+      );
+    }
 
     if (visual.shape === "diamond") {
       return (
@@ -1255,7 +1284,24 @@ export const useRegionPanels = ({
           boxShadow="0 1px 4px rgba(0,0,0,0.5)"
           zIndex={2}
           title={title}
-        />
+          {...(visual.glyph ? { "data-marker": t.identity ?? "marker" } : {})}
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+        >
+          {visual.glyph && (
+            <Text
+              as="span"
+              transform="rotate(-45deg)"
+              fontSize="0.55rem"
+              fontWeight="bold"
+              lineHeight={1}
+              color="brand.parchment"
+            >
+              {visual.glyph}
+            </Text>
+          )}
+        </Box>
       );
     }
 
@@ -1562,7 +1608,7 @@ export const useRegionPanels = ({
           // Ringing them keeps each disc AND its countdown pips (which hang below
           // the disc) legible instead of smearing them into one blob.
           const offsets = objectStackOffsets(here.length);
-          return here.map((t, i) => boardObjectToken(t, s, offsets[i], diam));
+          return here.map((t, i) => boardObjectToken(t, s, offsets[i], diam, bySpace.has(s.id)));
         })}
 
       {/* adventure enclosures: closed fence badge / destroyed mark, click-through */}
