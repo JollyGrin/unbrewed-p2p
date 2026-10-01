@@ -4,7 +4,7 @@
   "deck_data": {
     "appearance": {
       "borderColour": "#294b66",
-      "cardbackUrl": "https://unbrewed.xyz/evergreen-decks/art/king-kong/cardback.webp",
+      "cardbackUrl": "/evergreen-decks/art/king-kong/cardback.webp",
       "highlightColour": "#973434",
       "isPNP": false,
       "patternName": "Skulls"
@@ -14,9 +14,12 @@
         "afterText": "Deal 3 damage to Kong. End the turn.",
         "basicText": "This card can only be played if you have not maneuvered this turn. \n",
         "boost": 4,
+        "cardImage": {
+          "url": "/evergreen-decks/art/king-kong/eighth-wonder-of-the-world.webp"
+        },
         "characterName": "KONG\n",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/king-kong/ka-01.webp",
+        "imageUrl": "/evergreen-decks/art/king-kong/eighth-wonder-of-the-world.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "eighth wonder of the world",
@@ -27,9 +30,12 @@
         "afterText": "",
         "basicText": "",
         "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/king-kong/irresistible-force.webp"
+        },
         "characterName": "KONG\n",
         "duringText": "Your opponent may BOOST their card. Then, you may BOOST this card.",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/king-kong/ka-02.webp",
+        "imageUrl": "/evergreen-decks/art/king-kong/irresistible-force.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "Irresistible force",
@@ -40,9 +46,12 @@
         "afterText": "If you won the combat, you may place the opposing fighter in any space adjacent to Kong. That fighter's movement is set to 0 for their next turn.\n",
         "basicText": "",
         "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/king-kong/smash-and-grab.webp"
+        },
         "characterName": "KONG\n",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/king-kong/ka-03.webp",
+        "imageUrl": "/evergreen-decks/art/king-kong/smash-and-grab.webp",
         "immediateText": "",
         "quantity": 4,
         "title": "Smash and grab",
@@ -53,9 +62,12 @@
         "afterText": "Choose one of the cards that you used to BOOST with and return it to your hand.",
         "basicText": "",
         "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/king-kong/a-king-nay-a-god.webp"
+        },
         "characterName": "KONG\n",
         "duringText": "BLIND BOOST this card twice. ",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/king-kong/ka-04.webp",
+        "imageUrl": "/evergreen-decks/art/king-kong/a-king-nay-a-god.webp",
         "immediateText": "",
         "quantity": 4,
         "title": "A king, nay - a god",
@@ -66,9 +78,12 @@
         "afterText": "Deal 3 damage to the opposing fighter. Then, take 3 damage.",
         "basicText": "",
         "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/king-kong/reckless-lunge.webp"
+        },
         "characterName": "KONG\n",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/king-kong/ka-05.webp",
+        "imageUrl": "/evergreen-decks/art/king-kong/reckless-lunge.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "reCKLESS LUNGE",
@@ -79,9 +94,12 @@
         "afterText": "If you won the combat, deal 1 damage to each opposing fighter in Kong's zone.",
         "basicText": "",
         "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/king-kong/clobber.webp"
+        },
         "characterName": "KONG\n",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/king-kong/ka-06.webp",
+        "imageUrl": "/evergreen-decks/art/king-kong/clobber.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "clobber",
@@ -92,9 +110,12 @@
         "afterText": "",
         "basicText": "",
         "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/king-kong/jaw-of-the-beast.webp"
+        },
         "characterName": "KONG\n",
         "duringText": "For each zone the opposing fighter is in, increase the value of this card by +1.",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/king-kong/ka-07.webp",
+        "imageUrl": "/evergreen-decks/art/king-kong/jaw-of-the-beast.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "Jaw of the Beast",
@@ -105,9 +126,12 @@
         "afterText": "Draw 1 card. If you won the combat, draw 2 cards instead.",
         "basicText": "",
         "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/king-kong/regroup.webp"
+        },
         "characterName": "KONG\n",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/king-kong/ka-08.webp",
+        "imageUrl": "/evergreen-decks/art/king-kong/regroup.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Regroup",
@@ -118,9 +142,12 @@
         "afterText": "You may move Kong up to the number of spaces equal to the damage received in this combat.",
         "basicText": "",
         "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/king-kong/pounce.webp"
+        },
         "characterName": "KONG\n",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/king-kong/ka-09.webp",
+        "imageUrl": "/evergreen-decks/art/king-kong/pounce.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "pounce",
@@ -131,9 +158,12 @@
         "afterText": "Draw 3 cards.",
         "basicText": "",
         "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/king-kong/immovable-object.webp"
+        },
         "characterName": "KONG\n",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/king-kong/ka-10.webp",
+        "imageUrl": "/evergreen-decks/art/king-kong/immovable-object.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Immovable object",
@@ -144,9 +174,12 @@
         "afterText": null,
         "basicText": "Deal 3 damage to Kong.\nGain 2 actions. \nYou may also discard a random card to gain 3 actions instead.\n",
         "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/king-kong/the-king-is-coming.webp"
+        },
         "characterName": "KONG\n",
         "duringText": null,
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/king-kong/ka-11.webp",
+        "imageUrl": "/evergreen-decks/art/king-kong/the-king-is-coming.webp",
         "immediateText": null,
         "quantity": 1,
         "title": "The King is coming!",
@@ -157,9 +190,12 @@
         "afterText": null,
         "basicText": "Move Kong up to 5 spaces. You may move Kong through spaces containing opposing fighters.\n",
         "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/king-kong/crash-through-the-trees.webp"
+        },
         "characterName": "KONG\n",
         "duringText": null,
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/king-kong/ka-12.webp",
+        "imageUrl": "/evergreen-decks/art/king-kong/crash-through-the-trees.webp",
         "immediateText": null,
         "quantity": 2,
         "title": "Crash through the Trees",
@@ -175,7 +211,7 @@
       "name": "King Kong",
       "specialAbility": "King Kong is a large fighter. \n\nAt the start of your turn, you may deal 1 damage to King Kong. If you do, choose an adjacent opponent to discard a card.\n",
       "quote": "The great ape at his terrible scale — a LARGE bruiser who trades his own blood for pressure, rattling cards out of enemy hands just by looming close.",
-      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/king-kong/token-king-kong.webp"
+      "tokenImageUrl": "/evergreen-decks/art/king-kong/token-king-kong.webp"
     },
     "name": "",
     "ruleCards": [],
