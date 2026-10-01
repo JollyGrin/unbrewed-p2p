@@ -1,7 +1,11 @@
 import { colors, fonts } from "@/styles/style";
 import { Box, Flex, Text } from "@chakra-ui/react";
 import styled from "@emotion/styled";
-import { ADVENTURE_PLATE_PAD_RIGHT } from "@/components/Pro/dockLayout";
+import {
+  ADVENTURE_PLATE_PAD_RIGHT,
+  COMPACT_PLATE_MAX_HEIGHT_REM,
+  COMPACT_PLATE_WIDTH_REM,
+} from "@/components/Pro/dockLayout";
 
 /**
  * Frosted floating player plate. It sits over the board as an overlay (no
@@ -9,11 +13,11 @@ import { ADVENTURE_PLATE_PAD_RIGHT } from "@/components/Pro/dockLayout";
  * opponents stay quiet.
  */
 export const StatContainer = styled(Box, {
-  shouldForwardProp: (prop) => prop !== "isLocal",
-})<{ isLocal?: boolean }>`
+  shouldForwardProp: (prop) => prop !== "isLocal" && prop !== "compact",
+})<{ isLocal?: boolean; compact?: boolean }>`
   user-select: none;
   position: relative;
-  width: 15rem;
+  width: ${({ compact }) => (compact ? `${COMPACT_PLATE_WIDTH_REM}rem` : "15rem")};
   border-radius: 0.85rem;
   overflow: hidden;
   background: linear-gradient(
@@ -48,6 +52,8 @@ export const StatContainer = styled(Box, {
     box-shadow: ${({ isLocal }) =>
       isLocal ? "0 0 12px rgba(224, 168, 46, 0.7)" : "none"};
   }
+
+  ${({ compact }) => (compact ? `& p { max-width: 5rem; } max-height: ${COMPACT_PLATE_MAX_HEIGHT_REM}rem;` : "")}
 
   &:hover {
     transform: translateY(-3px);
@@ -194,7 +200,9 @@ export const HudOverlay = styled(Flex)`
     pointer-events: auto;
   }
 
-  /* Adventure overlay present (#1135): wrap the plates short of it and the dock. */
+  /* Adventure overlay present (#1135): keep the plates short of it and the dock. They go
+     compact (ProHud, #1138) so 4 heroes + the enemy stay one row; the wrap is only the
+     fallback on windows too narrow for even compact plates. */
   &[data-adventure] {
     padding-right: ${ADVENTURE_PLATE_PAD_RIGHT};
   }
