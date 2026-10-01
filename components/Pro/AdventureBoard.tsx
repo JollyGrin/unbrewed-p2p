@@ -1,4 +1,10 @@
-import { ADVENTURE_BOARD_WIDTH, DOCK_RIGHT, DOCK_WIDTH } from "./dockLayout";
+import {
+  ADVENTURE_BOARD_MAX_HEIGHT,
+  ADVENTURE_BOARD_TOP,
+  ADVENTURE_BOARD_WIDTH,
+  DOCK_RIGHT,
+  DOCK_WIDTH,
+} from "./dockLayout";
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import { useState } from "react";
 import { AdventureBriefingModal, RulesButton } from "./AdventureBriefing";
@@ -705,19 +711,31 @@ export const AdventureBoard = ({
       // seat plates flow left-to-right from the top-left and, with an enemy seat
       // among them, reach the middle of the screen at ~1500px. They stop 8.5rem
       // short of the right edge, and five 15rem plates end well before this column.
-      top="3.2rem"
+      top={ADVENTURE_BOARD_TOP}
       // ...and to the LEFT of the fixed Actions dock (z 140, right 0.75rem, 18.5rem
       // wide, from 7.5rem down) which otherwise fully covers the dials (#1128).
       right={ADVENTURE_BOARD_RIGHT}
       maxW={ADVENTURE_BOARD_WIDTH}
-      maxH="calc(100vh - 4rem)"
-      overflowY="auto"
+      // Capped to end above the hand fan (#1178) so nothing is tucked under it; the
+      // static panels scroll inside, the live decision/narrator panels stay pinned.
+      maxH={ADVENTURE_BOARD_MAX_HEIGHT}
       direction="column"
       align="flex-end"
       gap="0.4rem"
       zIndex={5}
       pointerEvents="none"
     >
+      <Flex
+        data-testid="adventure-board-scroll"
+        direction="column"
+        align="flex-end"
+        gap="0.4rem"
+        flex="1 1 auto"
+        minH={0}
+        w="100%"
+        overflowY="auto"
+        sx={{ "& > *": { pointerEvents: "auto", flexShrink: 0 } }}
+      >
       {(model.row.length > 0 || model.round != null) && (
         <InitiativeRow model={model} fighterTokenArt={fighterTokenArt} />
       )}
@@ -737,9 +755,19 @@ export const AdventureBoard = ({
       )}
       {others.length > 0 && <EnemyDials enemies={others} />}
       {combat && <EnemyCombat sides={combat} />}
-      {faulted && <EngineFaultBanner message={engineFault} />}
-      {decision && <TeamDecision model={decision} />}
-      {enemyTurn && <EnemyTurnCard state={enemyTurn} />}
+      </Flex>
+      <Flex
+        data-testid="adventure-board-live"
+        direction="column"
+        align="flex-end"
+        gap="0.4rem"
+        flex="none"
+        w="100%"
+      >
+        {faulted && <EngineFaultBanner message={engineFault} />}
+        {decision && <TeamDecision model={decision} />}
+        {enemyTurn && <EnemyTurnCard state={enemyTurn} />}
+      </Flex>
     </Flex>
   );
 };

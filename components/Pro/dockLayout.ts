@@ -5,6 +5,15 @@ export const DOCK_TOP = "7.5rem";
 
 /** Width of the Adventure overlay column (AdventureBoard maxW), docked left of the dock. */
 export const ADVENTURE_BOARD_WIDTH = "17rem";
+/** Column top, under the chip cluster. */
+export const ADVENTURE_BOARD_TOP = "3.2rem";
+/**
+ * #1178: the desktop hand fan (game.tsx: 8.5rem cards, 63:88, bottom -0.75rem, hover lift
+ * 1.25rem) tops out ~15rem above the viewport bottom. The column ends above that, so the
+ * narrator and PLAYERS CHOOSE panels are never under the fan.
+ */
+export const HAND_FAN_RESERVE_REM = 15;
+export const ADVENTURE_BOARD_MAX_HEIGHT = `calc(100vh - ${ADVENTURE_BOARD_TOP} - ${HAND_FAN_RESERVE_REM}rem)`;
 /** HudOverlay's own right inset (header.styles). */
 export const HUD_OVERLAY_INSET = "0.6rem";
 /**
