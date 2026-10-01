@@ -25,4 +25,16 @@ export const ADVENTURE_PLATE_PAD_RIGHT = `calc(${DOCK_RIGHT} + ${DOCK_WIDTH} + 0
  * to the strip above the board.
  */
 export const COMPACT_PLATE_WIDTH_REM = 10;
-export const COMPACT_PLATE_MAX_HEIGHT_REM = 6.5;
+export const COMPACT_PLATE_MAX_HEIGHT_REM = 4.6;
+
+/**
+ * #1145: the top-right chip cluster (slow mode, format, flat board, room, connection, bug
+ * report) is ~46rem wide and runs left to x~745 at 1500px, under the fifth plate (4 heroes
+ * + enemy end at ~848px). Below this viewport width the Adventure plate row drops by
+ * ADVENTURE_PLATE_DROP, under the cluster, rather than running beneath it. The drop plus
+ * the shortened compact plate (4.6rem) still ends above DOCK_TOP, so no board space is
+ * covered. Five compact plates + the cluster only fit side by side from ~1600px.
+ */
+export const ADVENTURE_PLATE_DROP_BELOW_PX = 1650;
+export const ADVENTURE_PLATE_DROP = "2.2rem";
+export const CHIP_CLUSTER_WIDTH_REM = 48;

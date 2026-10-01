@@ -27,6 +27,10 @@ const PANEL = {
   px: "0.6rem",
   py: "0.4rem",
   backdropFilter: "blur(4px)",
+  // #1145: the column is align="flex-end" and clipped, so a panel wider than the column
+  // overflowed to its LEFT, out of reach. Panels never exceed the column; rows wrap.
+  minW: 0,
+  maxW: "100%",
 } as const;
 
 export const InitiativeRow = ({ model }: { model: AdventureBoardModel }) => (
@@ -52,7 +56,7 @@ export const InitiativeRow = ({ model }: { model: AdventureBoardModel }) => (
         </Text>
       )}
     </Flex>
-    <Flex gap="0.25rem">
+    <Flex gap="0.25rem" wrap="wrap" data-testid="adv-init-chips">
       {model.row.map((e) => (
         <Box
           key={e.card.id}
@@ -258,9 +262,9 @@ export const EngineFaultBanner = ({
     direction="column"
     gap="0.4rem"
     align="center"
-    maxW="32rem"
     pointerEvents="auto"
     {...PANEL}
+    maxW="32rem"
     borderWidth="1px"
     borderColor="red.400"
   >
