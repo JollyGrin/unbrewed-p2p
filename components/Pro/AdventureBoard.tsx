@@ -14,7 +14,9 @@ import {
 import type {
   AdventureBoardModel,
   EnemyCombatSide,
+  EnemyDial,
   TeamDecisionModel,
+  ThreatModel,
 } from "@/lib/pro/adventureBoard";
 
 const LBL = {
@@ -23,9 +25,11 @@ const LBL = {
   letterSpacing: "0.16em",
   opacity: 0.75,
 } as const;
+// Purple glass, the same family as the seat plates and the Actions dock.
 const PANEL = {
-  bg: "rgba(10,10,14,0.78)",
+  bg: "rgba(20,8,24,0.72)",
   color: "white",
+  border: "1px solid rgba(231,204,152,0.14)",
   borderRadius: "md",
   px: "0.6rem",
   py: "0.4rem",
@@ -89,19 +93,91 @@ export const InitiativeRow = ({ model }: { model: AdventureBoardModel }) => (
   </Flex>
 );
 
-export const ThreatTrack = ({
-  threat,
+const Token = ({ name, size = "1.5rem" }: { name: string; size?: string }) => (
+  <Flex
+    data-testid="adv-token"
+    flex="none"
+    boxSize={size}
+    align="center"
+    justify="center"
+    borderRadius="50%"
+    border="1px solid rgba(224,168,46,0.55)"
+    bg="radial-gradient(circle at 50% 30%, #3d2249 0%, #140818 80%)"
+    fontSize="0.7rem"
+    fontWeight="bold"
+  >
+    {name.slice(0, 1).toUpperCase()}
+  </Flex>
+);
+
+export const VillainHeader = ({
+  villain,
+  wants,
 }: {
-  threat: NonNullable<AdventureBoardModel["threat"]>;
-}) => (
-  <Flex direction="column" gap="0.25rem" data-testid="adv-threat" {...PANEL}>
-    <Flex gap="0.6rem" align="baseline">
-      <Text {...LBL}>THREAT</Text>
-      <Text data-testid="adv-threat-level" fontWeight="bold">
-        {threat.level}
+  villain: EnemyDial;
+  wants: string | null;
+}) => {
+  const pct = villain.maxHp > 0 ? Math.max(0, Math.min(1, villain.hp / villain.maxHp)) : 0;
+  return (
+    <Flex
+      direction="column"
+      gap="0.25rem"
+      data-testid="adv-villain"
+      data-enemy-id={villain.enemyId ?? undefined}
+      {...PANEL}
+    >
+      <Flex gap="0.5rem" align="center">
+        <Token name={villain.name} size="2.2rem" />
+        <Flex direction="column" minW={0} flex="1">
+          <Text {...LBL} data-testid="adv-villain-line">
+            {villain.role} · {villain.size} · MOVE {villain.move}
+          </Text>
+          <Text fontWeight="bold" fontSize="0.95rem" lineHeight="1.1" data-testid="adv-villain-name">
+            {villain.name}
+          </Text>
+        </Flex>
+      </Flex>
+      <Box h="6px" borderRadius="3px" bg="whiteAlpha.200" overflow="hidden">
+        <Box h="100%" w={`${pct * 100}%`} bg="red.400" data-testid="adv-villain-hpbar" />
+      </Box>
+      <Flex gap="0.6rem" align="baseline">
+        <Text data-testid={`adv-enemy-hp-${villain.id}`} fontWeight="bold" fontSize="0.8rem">
+          {villain.hp}/{villain.maxHp}
+          <Text as="span" {...LBL}>
+            {" "}
+            HP
+          </Text>
+        </Text>
+        <Text {...LBL} data-testid={`adv-enemy-deck-${villain.id}`}>
+          DECK {villain.deckCount}
+        </Text>
+      </Flex>
+      {villain.lastPlayed && (
+        <Text fontSize="0.7rem" opacity={0.85} data-testid="adv-villain-last-played">
+          Last played: {villain.lastPlayed}
+        </Text>
+      )}
+      {wants && (
+        <Text fontSize="0.7rem" opacity={0.85} data-testid="adv-villain-wants">
+          Wants: {wants}
+        </Text>
+      )}
+    </Flex>
+  );
+};
+
+export const ThreatTrack = ({ threat }: { threat: ThreatModel }) => (
+  <Flex direction="column" gap="0.3rem" data-testid="adv-threat" {...PANEL}>
+    <Flex gap="0.6rem" align="baseline" justify="space-between">
+      <Text {...LBL}>THREAT TRACK</Text>
+      <Text fontSize="0.7rem">
+        level{" "}
+        <Text as="span" data-testid="adv-threat-level" fontWeight="bold" fontSize="0.85rem">
+          {threat.level}
+        </Text>
       </Text>
     </Flex>
-    <Flex gap="0.2rem">
+    <Flex gap="0.2rem" wrap="wrap">
       {threat.cells.map((c) => (
         <Flex
           key={c.space}
@@ -113,16 +189,124 @@ export const ThreatTrack = ({
           justify="center"
           borderRadius="sm"
           border="1px solid"
-          borderColor={c.marker ? "red.300" : "whiteAlpha.300"}
-          bg={c.marker ? "red.600" : "whiteAlpha.100"}
+          borderColor={c.marker ? "yellow.300" : "whiteAlpha.300"}
+          bg={c.marker ? "yellow.600" : "whiteAlpha.100"}
           fontSize="0.75rem"
         >
           {c.value}
         </Flex>
       ))}
+      <Flex
+        data-testid="adv-threat-terminal"
+        data-marker={threat.terminal.marker ? "true" : undefined}
+        minW="3.6rem"
+        h="1.5rem"
+        px="0.25rem"
+        align="center"
+        justify="center"
+        borderRadius="sm"
+        border="1px solid"
+        borderColor="red.300"
+        bg="rgba(160,40,50,0.55)"
+        fontSize="0.5rem"
+        fontWeight="bold"
+        lineHeight="1"
+        textAlign="center"
+        letterSpacing="0.04em"
+      >
+        {threat.terminal.label
+          ? `${threat.terminal.label.toUpperCase()}`
+          : "BREAKOUT"}
+      </Flex>
     </Flex>
+    <Text fontSize="0.7rem" opacity={0.9} data-testid="adv-threat-steps">
+      <b>
+        {threat.stepsToBreakout} step{threat.stepsToBreakout === 1 ? "" : "s"}
+      </b>{" "}
+      to the next breakout
+      {threat.overflows > 0 && (
+        <Text as="span" data-testid="adv-threat-overflows">
+          {" "}
+          · {threat.overflows} breakout{threat.overflows === 1 ? "" : "s"} so far
+        </Text>
+      )}
+    </Text>
   </Flex>
 );
+
+export const EnclosuresLost = ({
+  objectives,
+  win,
+}: {
+  objectives: NonNullable<AdventureBoardModel["objectives"]>;
+  win: AdventureBoardModel["win"];
+}) => {
+  const n = objectives.slots.length;
+  return (
+    <Flex direction="column" gap="0.3rem" data-testid="adv-objectives" {...PANEL}>
+      <Flex align="baseline" justify="space-between" gap="0.4rem">
+        <Text {...LBL}>ENCLOSURES LOST</Text>
+        <Text fontSize="0.7rem" data-testid="adv-objectives-count">
+          <b>{objectives.lost}</b> of {n} · the {n}
+          {ordinal(n)} ends the game
+        </Text>
+      </Flex>
+      <Flex gap="0.2rem">
+        {objectives.slots.map((o, i) => (
+          <Flex
+            key={o.id}
+            data-testid={`adv-objective-${i + 1}`}
+            data-fired={o.fired ? "true" : undefined}
+            data-lose={o.lose ? "true" : undefined}
+            title={o.label}
+            flex="1"
+            minW={0}
+            h="1.9rem"
+            px="0.15rem"
+            align="center"
+            justify="center"
+            borderRadius="sm"
+            border="1px solid"
+            borderColor={o.fired ? "red.300" : o.lose ? "red.700" : "whiteAlpha.300"}
+            bg={o.fired ? "rgba(160,40,50,0.6)" : o.lose ? "rgba(120,30,40,0.25)" : "whiteAlpha.100"}
+            fontSize="0.5rem"
+            fontWeight="bold"
+            textAlign="center"
+            lineHeight="1.05"
+            overflow="hidden"
+          >
+            {o.fired ? o.label : o.lose ? "LOSE" : i + 1}
+          </Flex>
+        ))}
+      </Flex>
+      {win?.heroesDownSidekick && (
+        <Text fontSize="0.7rem" fontWeight="bold" color="red.200" data-testid="adv-heroes-down">
+          Your heroes are down — {win.heroesDownSidekick} is still standing
+        </Text>
+      )}
+      {win && (
+        <Text fontSize="0.7rem" opacity={0.9} data-testid="adv-win-line">
+          To win: {win.villain} to 0
+          {win.released.length > 0 && (
+            <>
+              {" "}
+              <b>and</b>{" "}
+              {win.released
+                .map((r) => `${r.name} (${r.hp}/${r.maxHp})`)
+                .join(", ")}{" "}
+              defeated
+            </>
+          )}
+        </Text>
+      )}
+    </Flex>
+  );
+};
+
+const ordinal = (n: number) =>
+  n % 100 >= 11 && n % 100 <= 13
+    ? "th"
+    : ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
 
 export const ADVENTURE_BOARD_RIGHT = `calc(${DOCK_RIGHT} + ${DOCK_WIDTH} + 0.75rem)`;
 
@@ -131,28 +315,47 @@ export const EnemyDials = ({
 }: {
   enemies: AdventureBoardModel["enemies"];
 }) => (
-  <Flex direction="column" gap="0.2rem" data-testid="adv-enemies" {...PANEL}>
+  <Flex direction="column" gap="0.3rem" data-testid="adv-enemies" {...PANEL}>
     {enemies.map((e) => (
       <Flex
         key={e.id}
         data-testid={`adv-enemy-${e.id}`}
         data-enemy-id={e.enemyId ?? undefined}
-        gap="0.6rem"
-        align="baseline"
+        gap="0.4rem"
+        align="center"
         opacity={e.defeated ? 0.45 : 1}
       >
-        <Text fontSize="0.75rem" flex="1">
-          {e.name}
-        </Text>
+        <Token name={e.name} />
+        <Flex direction="column" flex="1" minW={0}>
+          <Text fontSize="0.75rem" fontWeight="bold" noOfLines={1}>
+            {e.name}
+            {e.released === true && (
+              <Text
+                as="span"
+                {...LBL}
+                ml="0.3rem"
+                px="0.2rem"
+                bg="rgba(160,40,50,0.45)"
+                borderRadius="sm"
+                data-testid={`adv-enemy-released-${e.id}`}
+              >
+                RELEASED
+              </Text>
+            )}
+          </Text>
+          <Text {...LBL} data-testid={`adv-enemy-meta-${e.id}`}>
+            {e.size !== "NORMAL" ? `${e.size} · ` : ""}MOVE {e.move} · DECK{" "}
+            <span data-testid={`adv-enemy-deck-${e.id}`}>{e.deckCount}</span>
+          </Text>
+        </Flex>
+        {/* slot for the intent badge (p2p #1148) */}
+        <Box data-testid={`adv-enemy-intent-slot-${e.id}`} flex="none" />
         <Text
           data-testid={`adv-enemy-hp-${e.id}`}
           fontWeight="bold"
           fontSize="0.8rem"
         >
           {e.hp}/{e.maxHp}
-        </Text>
-        <Text {...LBL} data-testid={`adv-enemy-deck-${e.id}`}>
-          DECK {e.deckCount}
         </Text>
       </Flex>
     ))}
@@ -414,6 +617,7 @@ export const AdventureBoard = ({
   const decision = faulted ? null : teamDecisionModel(view);
   const enemyTurn = faulted ? null : turn;
   const combat = enemyCombatModel(view);
+  const others = model.enemies.filter((e) => e !== model.villain);
   return (
     <Flex
       data-testid="adventure-board"
@@ -438,8 +642,14 @@ export const AdventureBoard = ({
       {(model.row.length > 0 || model.round != null) && (
         <InitiativeRow model={model} />
       )}
+      {model.villain && (
+        <VillainHeader villain={model.villain} wants={model.wants} />
+      )}
       {model.threat && <ThreatTrack threat={model.threat} />}
-      {model.enemies.length > 0 && <EnemyDials enemies={model.enemies} />}
+      {model.objectives && model.objectives.slots.length > 0 && (
+        <EnclosuresLost objectives={model.objectives} win={model.win} />
+      )}
+      {others.length > 0 && <EnemyDials enemies={others} />}
       {combat && <EnemyCombat sides={combat} />}
       {faulted && <EngineFaultBanner message={engineFault} />}
       {decision && <TeamDecision model={decision} />}

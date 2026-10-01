@@ -55,6 +55,30 @@ export interface EnemyDial {
   maxHp: number;
   deckCount: number;
   defeated: boolean;
+  size: "NORMAL" | "LARGE" | "SMALL";
+  move: number;
+  /** printed title of the top of the enemy's face-up discard ("last played"), null when empty/unknown */
+  lastPlayed: string | null;
+  /** engine #735 part 4 `enemy.released`; null against a server that omits it */
+  released: boolean | null;
+}
+
+export interface ObjectiveSlot {
+  id: string;
+  label: string;
+  fired: boolean;
+  /** the last slot: when it fires the game is lost */
+  lose: boolean;
+}
+
+export interface ThreatModel {
+  cells: ThreatCell[];
+  level: number;
+  overflows: number;
+  /** the terminal cell after the last printed position: what the track does when it fills */
+  terminal: { label: string | null; marker: boolean };
+  /** steps the marker needs to reach the terminal cell (1 = breaks out on the next step) */
+  stepsToBreakout: number;
 }
 
 export interface AdventureBoardModel {
@@ -65,7 +89,19 @@ export interface AdventureBoardModel {
   phase: string | null;
   initiativeDeckCount: number | null;
   row: InitiativeRowEntry[];
-  threat: { cells: ThreatCell[]; level: number; overflows: number } | null;
+  threat: ThreatModel | null;
+  objectives: { slots: ObjectiveSlot[]; lost: number } | null;
+  /** the villain's dial (header), when one is on the board */
+  villain: EnemyDial | null;
+  /** engine #735 `scenario.briefing` (villain "wants" line); null when absent */
+  wants: string | null;
+  /** "To win" line parts: villain + the released minions still to defeat; null without a villain */
+  win: {
+    villain: string;
+    released: { name: string; hp: number; maxHp: number }[];
+    /** every hero is down but this sidekick still stands (the lose condition is heroes AND sidekicks) */
+    heroesDownSidekick: string | null;
+  } | null;
   enemies: EnemyDial[];
 }
 
@@ -85,6 +121,46 @@ export const threatCells = (
     marker: i + 1 === position,
   }));
 
+/** the standing sidekick's name when every (non-enemy) hero is defeated, else null. */
+export const standingSidekick = (view: PlayerView): string | null => {
+  const team = view.fighters.filter((f) => !f.enemy);
+  const heroes = team.filter((f) => f.kind === "HERO");
+  if (heroes.length === 0 || !heroes.every((f) => f.defeated)) return null;
+  return team.find((f) => f.kind === "SIDEKICK" && !f.defeated)?.name ?? null;
+};
+
+type ViewScenario = NonNullable<PlayerView["scenario"]>;
+
+/**
+ * The track plus its terminal cell. The marker sits on 1..N; one step past N is the
+ * breakout (the engine resets to 1 and counts an overflow), so steps-to-breakout is
+ * N - position + 1. The terminal cell is labelled by the first unfired objective.
+ */
+export const threatModel = (scenario: ViewScenario): ThreatModel => {
+  const { positions, position, level, overflows } = scenario.threat;
+  const next = scenario.objectives.find((o) => o.fired === 0);
+  return {
+    cells: threatCells(positions, position),
+    level,
+    overflows,
+    terminal: { label: next?.label ?? null, marker: position > positions.length },
+    stepsToBreakout: Math.max(1, positions.length - position + 1),
+  };
+};
+
+/** One slot per objective; the last one is the game-losing slot. */
+export const objectiveSlots = (
+  objectives: ViewScenario["objectives"],
+): { slots: ObjectiveSlot[]; lost: number } => {
+  const slots = objectives.map((o, i) => ({
+    id: o.id,
+    label: o.label,
+    fired: o.fired > 0,
+    lose: i === objectives.length - 1,
+  }));
+  return { slots, lost: slots.filter((s) => s.fired).length };
+};
+
 /** null when the view carries no adventure data (every regular format). */
 export const adventureBoardModel = (
   view: PlayerView,
@@ -101,8 +177,16 @@ export const adventureBoardModel = (
       maxHp: f.maxHp,
       deckCount: f.enemy!.deckCount,
       defeated: f.defeated,
+      size: f.size,
+      move: f.enemy!.move,
+      lastPlayed: f.enemy!.discardTop
+        ? (view.catalog?.[f.enemy!.discardTop.replace(/#\d+$/, "")]?.title ??
+          null)
+        : null,
+      released: (f.enemy as { released?: boolean }).released ?? null,
     }));
   if (!initiative && !scenario && enemies.length === 0) return null;
+  const villain = enemies.find((e) => e.role === "VILLAIN") ?? null;
   return {
     scenarioId: scenario?.id ?? null,
     scenarioLabel: scenario?.label ?? null,
@@ -117,14 +201,21 @@ export const adventureBoardModel = (
       label:
         card.title ?? (card.faceDown ? "Face down" : ENTRY_LABEL[card.entry]),
     })),
-    threat: scenario
+    threat: scenario ? threatModel(scenario) : null,
+    objectives: scenario ? objectiveSlots(scenario.objectives) : null,
+    villain,
+    wants:
+      typeof (scenario as { briefing?: unknown } | undefined)?.briefing ===
+      "string"
+        ? (scenario as unknown as { briefing: string }).briefing
+        : null,
+    win: villain
       ? {
-          cells: threatCells(
-            scenario.threat.positions,
-            scenario.threat.position,
-          ),
-          level: scenario.threat.level,
-          overflows: scenario.threat.overflows,
+          villain: villain.name,
+          released: enemies
+            .filter((e) => e.role === "MINION" && e.released === true)
+            .map((e) => ({ name: e.name, hp: e.hp, maxHp: e.maxHp })),
+          heroesDownSidekick: standingSidekick(view),
         }
       : null,
     enemies,
