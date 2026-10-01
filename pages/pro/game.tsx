@@ -217,6 +217,8 @@ import { scaledCombatAnimTiming, CombatAnimTiming } from "@/lib/pro/combatAnimTi
 import type { TableStrike } from "@/components/Pro/Table/tableMiniCues";
 import { batchActor } from "@/lib/pro/slowModeQueue";
 import { ActionSpotlight, ActionSpotlightBatch } from "@/components/Pro/ActionSpotlight";
+import { BreakoutMomentOverlay } from "@/components/Pro/BreakoutMoment";
+import { breakoutMoment, BreakoutMoment } from "@/lib/pro/breakoutMoment";
 import {
   CUSTOM_MAP_ID,
   MAP_CATALOG,
@@ -4967,6 +4969,9 @@ const LiveGame = ({
     for: unknown;
     batch: ActionSpotlightBatch;
   } | null>(null);
+  // Adventure breakout interstitial (#1158): once per batch carrying the overflow→open chain.
+  const [breakout, setBreakout] = useState<BreakoutMoment | null>(null);
+  const dismissBreakout = useCallback(() => setBreakout(null), []);
   const prevViewRef = useRef<PlayerView | null>(null);
   // Live sub-attack chain (issue #596): the ref is the running value the next batch
   // advances from; the state copy is what the combat panel renders.
@@ -5023,6 +5028,11 @@ const LiveGame = ({
     // BACKWARDS (undo rewind, resume/correction) files under the turn it
     // interrupted instead of minting an out-of-place TURN section (issue #522).
     const { turn, turnActor } = batchTurnTag(prevViewRef.current, next);
+    // prev === null is the first view after join/reconnect: nothing was witnessed, so no moment.
+    if (prevViewRef.current) {
+      const moment = breakoutMoment(snapshot.events, prevViewRef.current, next);
+      if (moment) setBreakout(moment);
+    }
     prevViewRef.current = next;
     const phase = batchPhase(snapshot.events);
     // Slow mode (issue #703): the action spotlight is rendered from THESE lines —
@@ -7427,6 +7437,12 @@ const LiveGame = ({
       ) : (
         <ProHud {...hudProps} />
       )}
+
+      <BreakoutMomentOverlay
+        moment={breakout}
+        compact={!!snapshot?.prompt && snapshot.prompt.player === view.you}
+        onDone={dismissBreakout}
+      />
 
       {/* Slow mode (issue #703): one opponent action at a time, held until the
           player clicks OK. Renders nothing at all when the socket isn't holding —
