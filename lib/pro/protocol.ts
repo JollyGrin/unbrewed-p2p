@@ -845,6 +845,13 @@
  *   picked. For an enemy effect it is a TEAM prompt (`onBehalfOf: "TEAM"`), like every other.
  * A client that knows none of this still plays correctly: legal actions are server-enumerated.
  * Purely additive — no PROTOCOL_VERSION bump.
+ * ## Additive event (2026-10-01, no version bump): refused effect damage (engine #729, DSL v0.99.2)
+ * - `DAMAGE_IGNORED { fighter, amount, source: "EFFECT" }` — an effect tried to deal `amount`
+ *   damage to `fighter`, who ignores non-combat damage this turn (Therizinosaurus' SCYTHE LIZARD):
+ *   nothing happened to its health. Fired where a `DAMAGE_APPLIED` would have been; no
+ *   `DAMAGE_APPLIED` accompanies it. Public. Only ADVENTURE games can carry it (the immunity is
+ *   enemy vocabulary), so every duel / FFA / 2v2 event stream is byte-identical. Log it as
+ *   "<fighter> ignored <amount> damage"; a client that does not know it simply skips it.
  * ## v30 (2026-08-20): the opening-hand mulligan (engine #395)
  * After the opening hands are dealt and BEFORE the heroes are placed, each seat
  * gets a ONE-TIME keep-or-redraw choice: shuffle your whole hand back into your
@@ -1231,6 +1238,8 @@ export type GameEvent =
   | { type: "CARD_DRAWN"; player: PlayerId; card: CardInstanceId }
   | { type: "EXHAUSTION_DAMAGE"; player: PlayerId }
   | { type: "DAMAGE_APPLIED"; fighter: FighterId; amount: number; source: "EXHAUSTION" | "EFFECT" | "ATTACK" }
+  // engine v0.99.2 (#729): effect damage at a fighter IMMUNE to it this turn was refused — no hp moved.
+  | { type: "DAMAGE_IGNORED"; fighter: FighterId; amount: number; source: "EFFECT" }
   | { type: "FIGHTER_DEFEATED"; fighter: FighterId }
   | { type: "MOVE_BOOSTED"; player: PlayerId; card: CardInstanceId; boost: number }
   | { type: "FIGHTER_MOVED"; fighter: FighterId; path: SpaceId[] }
