@@ -158,6 +158,8 @@ const placeSeat = (
       seat,
       position: area.card(deck.slot as CardSlot),
       rotation,
+      // the draw pile deals in a random order; every other pile is exact
+      ...(deck.slot === "deck" ? { shuffle: true } : {}),
       ...(FACE_UP_SLOTS.has(deck.slot) ? { faceUp: true } : {}),
     });
   }

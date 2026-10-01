@@ -515,3 +515,39 @@ describe("relative picker urls (regression #1078)", () => {
     expect(catalogMapDef(relative(def.meta.imageUrl!))?.id).toBe(def.id);
   });
 });
+
+describe("the draw pile arrives shuffled (#1151)", () => {
+  const { body } = compose(DRUM);
+  const decks = body.placements.filter(
+    (p): p is Extract<CallerPlacement, { kind: "deck" }> => p.kind === "deck",
+  );
+
+  it("asks for a shuffle on each seat's deck slot", () => {
+    expect(
+      decks
+        .filter((d) => d.slot === "deck")
+        .map((d) => [d.seat, d.shuffle]),
+    ).toEqual([
+      [0, true],
+      [1, true],
+    ]);
+  });
+
+  it("sets shuffle on no other placement", () => {
+    expect(
+      body.placements.filter(
+        (p) => !(p.kind === "deck" && p.slot === "deck") && "shuffle" in p,
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps the face-up reference piles face up, and deck/discard bare of it", () => {
+    for (const d of decks) {
+      if (d.slot === "deck" || d.slot === "discard") {
+        expect(d.faceUp).toBeUndefined();
+      } else {
+        expect(d.faceUp).toBe(true);
+      }
+    }
+  });
+});

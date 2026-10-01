@@ -57,6 +57,13 @@ export type DeckPlacement = {
   /** Yaw in DEGREES, absolute: 0 faces like seat 0, 180 like seat 1. */
   rotation: number;
   faceUp?: boolean;
+  /**
+   * Deal the pile in a random order at load — a facedown draw pile — instead
+   * of table.place's default of restoring the pack's authored order. The
+   * shuffle happens once, at lobby creation, so every joiner sees the same
+   * pile. Exclusive with `order`, which we never send.
+   */
+  shuffle?: boolean;
 };
 
 export type PiecePlacement = {
