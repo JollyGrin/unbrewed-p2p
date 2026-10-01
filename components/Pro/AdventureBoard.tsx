@@ -1,5 +1,7 @@
 import { ADVENTURE_BOARD_WIDTH, DOCK_RIGHT, DOCK_WIDTH } from "./dockLayout";
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
+import { useState } from "react";
+import { AdventureBriefingModal, RulesButton } from "./AdventureBriefing";
 import type { GameEvent, PlayerView, ViewFighter } from "@/lib/pro/protocol";
 import { useAdventureAnalytics } from "@/lib/pro/useAdventureAnalytics";
 import { useEnemyTurn } from "@/lib/pro/useEnemyTurn";
@@ -685,6 +687,7 @@ export const AdventureBoard = ({
   fighterTokenArt?: (f: ViewFighter) => string | null;
 }) => {
   useAdventureAnalytics(view, events);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const turn = useEnemyTurn(view, events);
   const model = adventureBoardModel(view);
   if (!model) return null;
@@ -721,6 +724,13 @@ export const AdventureBoard = ({
       {model.villain && (
         <VillainHeader villain={model.villain} wants={model.wants} />
       )}
+      <RulesButton onClick={() => setRulesOpen(true)} />
+      <AdventureBriefingModal
+        isOpen={rulesOpen}
+        onClose={() => setRulesOpen(false)}
+        label={view.scenario?.label ?? null}
+        briefing={view.scenario?.briefing}
+      />
       {model.threat && <ThreatTrack threat={model.threat} />}
       {model.objectives && model.objectives.slots.length > 0 && (
         <EnclosuresLost objectives={model.objectives} win={model.win} />

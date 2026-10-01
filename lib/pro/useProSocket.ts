@@ -39,6 +39,7 @@ import {
   PROTOCOL_VERSION,
   REMATCH_PROTOCOL_VERSION,
   ReplayBundle,
+  RoomScenarioStatus,
   RoomStatusSeat,
   RosterPicks,
   ServerMsg,
@@ -101,6 +102,9 @@ export interface ProRoomInfo {
    *  waiting room announce the rule before the game starts, and the draining bar
    *  size its window. */
   turnTimerSeconds?: number;
+  /** the room's scenario + roster from ROOM_STATUS (#1153): null = still Random, absent = no
+   *  scenario (or none learned yet). Feeds the Adventure waiting room. */
+  scenario?: RoomScenarioStatus | null;
 }
 
 /** A live move-timer snapshot from the server (issue #223, protocol TURN_TIMER).
@@ -777,7 +781,7 @@ export function useProSocket(
           // so the panel can name who has joined. `you` is preserved from the seat
           // we learned on ROOM_CREATED/JOINED (ROOM_STATUS omits it). Destructure
           // first: msg is not narrowed inside the setState callback closure.
-          const { formatId, requiredPlayers, seats, turnTimerSeconds } = msg;
+          const { formatId, requiredPlayers, seats, turnTimerSeconds, scenario } = msg;
           const bots: RoomBots = {};
           for (const seat of seats) if (seat.bot) bots[seat.player] = seat.bot;
           setRoomBots(msg.roomId, bots);
@@ -789,6 +793,8 @@ export function useProSocket(
             roster: seats,
             bots,
             turnTimerSeconds,
+            // ROOM_STATUS carries it only for scenario rooms; a later one without it keeps ours
+            scenario: scenario !== undefined ? scenario : prev?.scenario,
           }));
           break;
         }
@@ -817,6 +823,7 @@ export function useProSocket(
               roster: prev?.roster,
               bots,
               turnTimerSeconds,
+              scenario: prev?.scenario,
             }));
           }
           setRoomPublic(false); // fresh rooms are private until acked otherwise

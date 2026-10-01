@@ -7,6 +7,9 @@ import {
   adventureSeats,
   clampHumans,
   defaultAdventureSetup,
+  enemyHpAt,
+  enemySizeMove,
+  waitingRoster,
   minionSlotCount,
   setHumans,
   setMinion,
@@ -102,5 +105,37 @@ describe("adventure roster from LIST_SCENARIOS (#1107)", () => {
     const r = adventureCreateFields(defaultAdventureSetup(), []);
     expect(r.ok).toBe(false);
     expect(!r.ok && r.reason).toMatch(/no Adventure scenario/);
+  });
+});
+
+describe("enemy stats at the selected hero count (#1153)", () => {
+  const hp = { hp: [14, 16, 18, 20] };
+  it("indexes HP by hero count for 1–4 heroes", () => {
+    expect([1, 2, 3, 4].map((n) => enemyHpAt(hp, n))).toEqual([14, 16, 18, 20]);
+  });
+  it("clamps to the last entry; a flat hp is one entry", () => {
+    expect(enemyHpAt({ hp: [10] }, 4)).toBe(10);
+    expect(enemyHpAt({ hp: [10, 12] }, 4)).toBe(12);
+    expect(enemyHpAt({ hp: [] }, 2)).toBeNull();
+  });
+  it("formats size and MOVE", () => {
+    expect(enemySizeMove({ size: "LARGE", move: 2 })).toBe("LARGE · MOVE 2");
+  });
+});
+
+describe("waiting-room roster from ROOM_STATUS.scenario (#1153)", () => {
+  it("resolves ids against the listing and leaves null slots Random", () => {
+    const rows = waitingRoster({ id: "isla-nublar", label: "Isla Nublar", villain: "t-rex", minions: ["raptor", null] }, [ISLA]);
+    expect(rows.map((r) => [r.role, r.name])).toEqual([
+      ["VILLAIN", "t-rex"],
+      ["MINION", "raptor"],
+      ["MINION", "Random"],
+    ]);
+    expect(rows[0]!.enemy?.id).toBe("t-rex");
+    expect(rows[2]!.enemy).toBeNull();
+  });
+  it("keeps an id the client doesn't know", () => {
+    const rows = waitingRoster({ id: "x", label: "X", villain: "mystery", minions: [] }, []);
+    expect(rows).toEqual([{ role: "VILLAIN", id: "mystery", name: "mystery", enemy: null }]);
   });
 });

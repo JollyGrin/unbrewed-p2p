@@ -200,8 +200,11 @@ import { ChipCluster } from "@/components/Game/Header/header.styles";
 import { ALL_FORMATS, formatChoice, PRO_FORMATS, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
 import { adventureLabEnabled } from "@/lib/pro/adventureGate";
 import { enclosureModel, enclosureNumbers } from "@/lib/pro/enclosures";
-import { AdventureSetup, adventureSeats, defaultAdventureSetup } from "@/lib/pro/adventureLobby";
+import { AdventureSetup, adventureSeats, defaultAdventureSetup, scenarioFor } from "@/lib/pro/adventureLobby";
+import { useScenarios } from "@/lib/pro/adventureScenarios";
 import { AdventureLobby } from "@/components/Pro/AdventureLobby";
+import { LobbyBriefing } from "@/components/Pro/AdventureBriefing";
+import { AdventureWaitingRoom } from "@/components/Pro/AdventureWaitingRoom";
 import { FormatOverlay } from "@/components/Pro/FormatOverlay";
 import { enemyTurnArrow } from "@/lib/pro/enemyTurn";
 import { useEnemyTurn } from "@/lib/pro/useEnemyTurn";
@@ -3058,6 +3061,7 @@ const HeroSelectLobby = ({
   // creator isn't blocked; once the list arrives the real selection takes over.
   const effective = selectedHeroId ?? (heroes === null ? heroParam : null);
   const format = formatChoice(selectedFormat);
+  const adventureScenarios = useScenarios().scenarios;
   const multiplayer = selectedFormat !== "duel";
   const [previewHero, setPreviewHero] = useState<HeroListing>();
   const [previewMap, setPreviewMap] = useState<MapCatalogEntry | null>(null);
@@ -3248,8 +3252,11 @@ const HeroSelectLobby = ({
     selectedEntry && !railHead.includes(selectedEntry)
       ? [selectedEntry, ...railHead.slice(0, RAIL_STAGE_TILES - 1)]
       : railHead;
+  // Adventure never sends the board; the summary names the scenario instead (#1153).
   const stageName =
-    selectedMapId === CUSTOM_MAP_ID
+    selectedFormat === "adventure"
+      ? scenarioFor(adventureSetup, adventureScenarios)?.label ?? "Adventure"
+      : selectedMapId === CUSTOM_MAP_ID
       ? "Custom board"
       : selectedMapId === RANDOM_MAP_ID
         ? "Random board"
@@ -3550,6 +3557,11 @@ const HeroSelectLobby = ({
                 onChange={onSelectFormat}
                 options={(adventureLabEnabled() ? ALL_FORMATS : PRO_FORMATS).map((f) => ({ value: f.id, label: f.label }))}
               />
+              {selectedFormat === "adventure" && format.detail && (
+                <Text fontSize="0.72rem" opacity={0.7} fontFamily="SpaceGrotesk" data-testid="format-detail">
+                  {format.detail}
+                </Text>
+              )}
             </Flex>
             <Flex align="center" gap="0.5rem">
               <Text {...STRIP_LBL}>⏱ TIMER</Text>
@@ -3716,7 +3728,8 @@ const HeroSelectLobby = ({
 
         {/* ---------------- stage row ---------------- */}
         <Box gridArea="stage" minW="0">
-          {!room && (
+          {/* Adventure never sends the board (the scenario names its own map), so there is no stage to pick. */}
+          {!room && selectedFormat !== "adventure" && (
             <Box ref={stageRowRef}>
               <Flex align="center" justify="space-between" gap="0.5rem" mb="0.35rem">
                 <Text {...STRIP_LBL}>STAGE</Text>
@@ -3827,6 +3840,7 @@ const HeroSelectLobby = ({
           position="relative"
           onMouseEnter={clearStagePreview}
         >
+          {selectedFormat === "adventure" && !room && <LobbyBriefing setup={adventureSetup} />}
           <Flex align="center" justify="space-between" gap="0.75rem" flexWrap="wrap" flex="none">
             <Flex align="baseline" gap="0.5rem">
               <Text fontFamily="LeagueGothic" fontSize="1.25rem" letterSpacing="0.1em" color="brand.accent">
@@ -5796,6 +5810,9 @@ const LiveGame = ({
               </Text>
             </Flex>
           )}
+          {roomInfo?.formatId === "adventure" ? (
+            <AdventureWaitingRoom roomInfo={roomInfo} />
+          ) : (
           <Text opacity={0.8} textAlign="center">
             {(() => {
               const required = roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers;
@@ -5814,6 +5831,7 @@ const LiveGame = ({
               return `${waiting} · playing on ${boardTitle}.`;
             })()}
           </Text>
+          )}
 
           {/* Move timer setting (issue #223): echoed by the server on
               ROOM_CREATED/JOINED/ROOM_STATUS, so joiners know the room's rule
