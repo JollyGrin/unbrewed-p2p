@@ -152,7 +152,7 @@ type ViewScenario = NonNullable<PlayerView["scenario"]>;
  */
 export const threatModel = (scenario: ViewScenario): ThreatModel => {
   const { positions, position, level, overflows } = scenario.threat;
-  const next = scenario.objectives.find((o) => o.fired === 0);
+  const next = objectiveSlots(scenario.objectives).slots.find((s) => !s.fired);
   return {
     cells: threatCells(positions, position),
     level,
@@ -162,16 +162,28 @@ export const threatModel = (scenario: ViewScenario): ThreatModel => {
   };
 };
 
-/** One slot per objective; the last one is the game-losing slot. */
+/** How many times an objective can fire (engine `repeat`, absent = once). */
+export const objectiveRepeat = (o: { repeat?: number }): number =>
+  Math.max(Math.floor(o.repeat ?? 1), 1);
+
+/** Total objective fires in the scenario (Isla Nublar: 4); the last one loses the game. */
+export const objectiveTotal = (objectives: ViewScenario["objectives"]): number =>
+  objectives.reduce((n, o) => n + objectiveRepeat(o), 0);
+
+/**
+ * One slot per objective FIRE (a repeating objective expands to `repeat` slots, in order);
+ * the last slot is the game-losing one.
+ */
 export const objectiveSlots = (
   objectives: ViewScenario["objectives"],
 ): { slots: ObjectiveSlot[]; lost: number } => {
-  const slots = objectives.map((o, i) => ({
-    id: o.id,
-    label: o.label,
-    fired: o.fired > 0,
-    lose: i === objectives.length - 1,
-  }));
+  const total = objectiveTotal(objectives);
+  const slots: ObjectiveSlot[] = [];
+  for (const o of objectives) {
+    for (let k = 0; k < objectiveRepeat(o); k++) {
+      slots.push({ id: `${o.id}#${k + 1}`, label: o.label, fired: k < o.fired, lose: slots.length === total - 1 });
+    }
+  }
   return { slots, lost: slots.filter((s) => s.fired).length };
 };
 

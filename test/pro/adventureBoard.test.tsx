@@ -768,6 +768,28 @@ describe("villain board (#1154)", () => {
     expect(screen.queryByTestId("adv-enemy-e1/rex")).toBeNull();
   });
 
+  // #1176: Isla Nublar shape — enclosure-destroyed repeats 3x, then fourth-enclosure (4 fires, last loses).
+  const ISLA = (fired: [number, number]) => [
+    { id: "enclosure-destroyed", label: "ENCLOSURE DESTROYED!", fired: fired[0], repeat: 3 },
+    { id: "fourth-enclosure", label: "FOURTH ENCLOSURE DESTROYED", fired: fired[1] },
+  ];
+
+  it("Isla shape: a repeating objective expands to one slot per fire; the 4th loses", () => {
+    mount("adventure", withScenario({}, ISLA([0, 0])));
+    expect(screen.getByTestId("adv-objectives-count")).toHaveTextContent("0 of 4 · the 4th ends the game");
+    expect(screen.getByTestId("adv-objective-4")).toHaveTextContent("LOSE");
+    expect(screen.getByTestId("adv-threat-terminal")).toHaveTextContent("ENCLOSURE DESTROYED!");
+  });
+
+  it("Isla shape: terminal cell tracks the next unfired slot, not the next unfired objective", () => {
+    const model = (f: [number, number]) => adventureBoardModel(withScenario({}, ISLA(f)))!;
+    expect(model([1, 0]).threat!.terminal.label).toBe("ENCLOSURE DESTROYED!");
+    expect(model([1, 0]).objectives!.lost).toBe(1);
+    expect(model([2, 0]).objectives!.lost).toBe(2);
+    expect(model([3, 0]).threat!.terminal.label).toBe("FOURTH ENCLOSURE DESTROYED");
+    expect(model([3, 0]).objectives!.slots.map((x) => x.fired)).toEqual([true, true, true, false]);
+  });
+
   it("any objective count works, and missing optional fields just hide their bits", () => {
     mount("adventure", withScenario({}, OBJ.slice(0, 2), { discardTop: null }));
     expect(screen.getByTestId("adv-objectives-count")).toHaveTextContent("0 of 2 · the 2nd ends the game");
