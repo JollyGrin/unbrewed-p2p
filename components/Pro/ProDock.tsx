@@ -445,6 +445,11 @@ export const ProDock = ({
           <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
             turn {view.turnNumber}
           </Tag>
+          {view.initiative && (
+            <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment" data-testid="dock-round">
+              Round {view.initiative.round}
+            </Tag>
+          )}
           <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
             {view.actionsRemaining} action{view.actionsRemaining === 1 ? "" : "s"} left
           </Tag>
