@@ -122,9 +122,8 @@ describe("AdventureBoard", () => {
       "DECK 5",
     );
     expect(screen.queryByTestId("adv-enemy-p1/hero")).toBeNull();
-    expect(screen.getByTestId("adv-intent")).toHaveTextContent(
-      "Rex moves toward Hero",
-    );
+    expect(screen.getByTestId("adv-enemy-turn-title")).toHaveTextContent("REX'S TURN");
+    expect(screen.getByTestId("adv-enemy-turn-result")).toHaveTextContent("moves toward Hero");
   });
 
   it("renders nothing for other formats or a view without adventure data", () => {
@@ -183,7 +182,7 @@ describe("team decision (players choose)", () => {
   it("shows teammates who is choosing and the read-only options", () => {
     mount("adventure", withPrompt("p1", "p2"));
     expect(screen.getByTestId("adv-team-decision-who")).toHaveTextContent(
-      "Sam is choosing",
+      "Sam is choosing for",
     );
     expect(screen.getByTestId("adv-team-decision-what")).toHaveTextContent(
       "attacked",
@@ -193,8 +192,12 @@ describe("team decision (players choose)", () => {
   it("tells the chooser they choose, without duplicating options", () => {
     mount("adventure", withPrompt("p2", "p2"));
     expect(screen.getByTestId("adv-team-decision-who")).toHaveTextContent(
-      "You choose",
+      "You're choosing for",
     );
+    expect(screen.getByTestId("adv-team-decision-who")).toHaveTextContent(
+      "Choose a hero to be attacked",
+    );
+    expect(screen.getByTestId("adv-team-decision-guidance")).toBeInTheDocument();
     expect(screen.queryByTestId("adv-team-option-p1/hero")).toBeNull();
   });
   it("ordinary prompts show no banner", () => {
@@ -297,12 +300,12 @@ describe("engine fault banner", () => {
     expect(screen.getByTestId("adv-engine-fault-leave")).toBeInTheDocument();
   });
 
-  it("clears the mover-intent indicator", () => {
+  it("clears the enemy-turn card", () => {
     mount("adventure");
-    expect(screen.getByTestId("adv-intent")).toBeInTheDocument();
+    expect(screen.getByTestId("adv-enemy-turn")).toBeInTheDocument();
     cleanup();
     faulted();
-    expect(screen.queryByTestId("adv-intent")).toBeNull();
+    expect(screen.queryByTestId("adv-enemy-turn")).toBeNull();
   });
 
   it("is absent without a fault", () => {

@@ -2,10 +2,13 @@ import { ADVENTURE_BOARD_WIDTH, DOCK_RIGHT, DOCK_WIDTH } from "./dockLayout";
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import type { GameEvent, PlayerView } from "@/lib/pro/protocol";
 import { useAdventureAnalytics } from "@/lib/pro/useAdventureAnalytics";
+import { useEnemyTurn } from "@/lib/pro/useEnemyTurn";
+import { enemyTurnSummary } from "@/lib/pro/enemyTurn";
+import type { EnemyTurnState } from "@/lib/pro/enemyTurn";
+import { TEAM_GUIDANCE, teamChoosingTitle } from "@/lib/pro/adventureCopy";
 import {
   adventureBoardModel,
   enemyCombatModel,
-  moverIntent,
   teamDecisionModel,
 } from "@/lib/pro/adventureBoard";
 import type {
@@ -164,10 +167,19 @@ export const TeamDecision = ({ model }: { model: TeamDecisionModel }) => (
   >
     <Text {...LBL}>PLAYERS CHOOSE</Text>
     <Text data-testid="adv-team-decision-who" fontSize="0.8rem">
-      {model.youChoose ? "You choose" : `${model.chooser} is choosing`}
-      {model.forName ? ` for ${model.forName}` : ""}
+      {teamChoosingTitle(
+        model.youChoose,
+        model.chooser,
+        model.forName,
+        model.description,
+      )}
     </Text>
-    {model.description && (
+    {model.youChoose && (
+      <Text data-testid="adv-team-decision-guidance" fontSize="0.7rem" opacity={0.8}>
+        {TEAM_GUIDANCE}
+      </Text>
+    )}
+    {!model.youChoose && model.description && (
       <Text data-testid="adv-team-decision-what" fontSize="0.75rem">
         {model.description}
       </Text>
@@ -235,6 +247,80 @@ export const EnemyCombat = ({ sides }: { sides: EnemyCombatSide[] }) => (
     ))}
   </Flex>
 );
+
+export const EnemyTurnCard = ({ state }: { state: EnemyTurnState }) => {
+  const m = state.model;
+  if (state.collapsed)
+    return (
+      <Text data-testid="adv-enemy-turn-summary" {...PANEL} fontSize="0.7rem" opacity={0.8}>
+        {enemyTurnSummary(m)}
+      </Text>
+    );
+  return (
+    <Flex
+      direction="column"
+      gap="0.25rem"
+      data-testid="adv-enemy-turn"
+      data-outcome={m.outcome}
+      {...PANEL}
+      borderWidth="1px"
+      borderColor="red.400"
+    >
+      <Flex justify="space-between" align="baseline" gap="0.5rem">
+        <Text {...LBL} opacity={1} data-testid="adv-enemy-turn-title">
+          {m.enemyName.toUpperCase()}&apos;S TURN
+        </Text>
+        {m.moveLine && (
+          <Text {...LBL} data-testid="adv-enemy-turn-move">
+            {m.moveLine}
+          </Text>
+        )}
+      </Flex>
+      {m.steps.map((s) => (
+        <Flex
+          key={s.n}
+          data-testid={`adv-enemy-step-${s.n}`}
+          data-lit={s.lit ? "true" : "false"}
+          gap="0.4rem"
+          align="baseline"
+          opacity={s.lit ? 1 : 0.4}
+          fontWeight={s.lit ? "bold" : "normal"}
+          fontSize="0.72rem"
+        >
+          <Text as="span">{s.n}</Text>
+          <Text as="span" flex="1">
+            {s.label}
+          </Text>
+          <Text as="span" opacity={0.85}>
+            → {s.does}
+          </Text>
+        </Flex>
+      ))}
+      <Text data-testid="adv-enemy-turn-result" fontSize="0.75rem">
+        {m.consequence}
+      </Text>
+      {m.attack && (
+        <Flex data-testid="adv-enemy-turn-attack" gap="0.5rem" align="baseline">
+          <Text {...LBL}>ATTACK</Text>
+          <Text fontSize="0.75rem" flex="1">
+            {m.attack.title}
+            {m.attack.defender ? (
+              <Text as="span" opacity={0.7}>
+                {" "}
+                · vs {m.attack.defender}
+              </Text>
+            ) : null}
+          </Text>
+          {m.attack.value != null && (
+            <Text fontWeight="bold" data-testid="adv-enemy-turn-attack-value">
+              {m.attack.value}
+            </Text>
+          )}
+        </Flex>
+      )}
+    </Flex>
+  );
+};
 
 export const ENGINE_FAULT_FIXTURE =
   "room ab12: resolving ENEMY_TURN — TypeError: cannot read properties of undefined (reading 'hp')";
@@ -316,12 +402,13 @@ export const AdventureBoard = ({
   engineFault?: string | null;
 }) => {
   useAdventureAnalytics(view, events);
+  const turn = useEnemyTurn(view, events);
   const model = adventureBoardModel(view);
   if (!model) return null;
   const faulted = engineFault != null;
   // A stopped table has no one "choosing" and no mover: clear those indicators.
   const decision = faulted ? null : teamDecisionModel(view);
-  const intent = faulted ? null : moverIntent(events, view);
+  const enemyTurn = faulted ? null : turn;
   const combat = enemyCombatModel(view);
   return (
     <Flex
@@ -352,11 +439,7 @@ export const AdventureBoard = ({
       {combat && <EnemyCombat sides={combat} />}
       {faulted && <EngineFaultBanner message={engineFault} />}
       {decision && <TeamDecision model={decision} />}
-      {intent && (
-        <Text data-testid="adv-intent" {...PANEL} fontSize="0.75rem">
-          {intent}
-        </Text>
-      )}
+      {enemyTurn && <EnemyTurnCard state={enemyTurn} />}
     </Flex>
   );
 };
