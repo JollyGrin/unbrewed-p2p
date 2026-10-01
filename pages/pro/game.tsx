@@ -202,6 +202,8 @@ import { enclosureModel, enclosureNumbers } from "@/lib/pro/enclosures";
 import { AdventureSetup, adventureSeats, defaultAdventureSetup } from "@/lib/pro/adventureLobby";
 import { AdventureLobby } from "@/components/Pro/AdventureLobby";
 import { FormatOverlay } from "@/components/Pro/FormatOverlay";
+import { enemyTurnArrow } from "@/lib/pro/enemyTurn";
+import { useEnemyTurn } from "@/lib/pro/useEnemyTurn";
 import { EngineFaultBanner } from "@/components/Pro/AdventureBoard";
 import { deriveTeams } from "@/lib/pro/teams";
 import { fighterTokenStateByOwner } from "@/lib/pro/heroStateFlags";
@@ -4323,6 +4325,8 @@ const LiveGame = ({
   const [turnReminderOn, toggleTurnReminder] = useTurnReminderSetting();
   const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, engineFault, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } =
     useProSocket(WS_URL, debug, slowMode);
+  // Enemy-turn card state (#1156) — also feeds the board's enemy→target arrow.
+  const enemyTurn = useEnemyTurn(snapshot?.view, snapshot?.events, roomInfo?.formatId === "adventure");
   // Read through refs inside the log effect: adding either to that effect's deps
   // would re-run it without a new snapshot and append the last batch's lines
   // twice. `slowModeHeldRef` is what pins the spotlight to the batch the player
@@ -7107,7 +7111,7 @@ const LiveGame = ({
     highlightedFighters: [...new Set(highlightedFighters)],
     focusFighters: mobile && !rail && sheetCombat && !combatSummary ? [sheetCombat.attacker, sheetCombat.target] : undefined,
     selectedFighter,
-    attack: view.combat ? { attacker: view.combat.attacker, target: view.combat.target } : null,
+    attack: view.combat ? { attacker: view.combat.attacker, target: view.combat.target } : enemyTurnArrow(enemyTurn),
     defenderStepIn: boardDefenderStepIn,
     friendlyOwners,
     fighterBadges: attackerBadge,
