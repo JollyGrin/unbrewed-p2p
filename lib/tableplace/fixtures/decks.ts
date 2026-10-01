@@ -61,6 +61,17 @@ export const tokenDeck = (): DeckImportType => {
   return deck;
 };
 
+/** Larry's deck (every pile) with `count` rule cards of its own. */
+export const ruleCardsDeck = (count: number): DeckImportType => {
+  const deck = clone(larry) as unknown as DeckImportType;
+  deck.id = `rule-cards-${count}`;
+  deck.deck_data.ruleCards = Array.from({ length: count }, (_, i) => ({
+    title: `Rule ${i + 1}`,
+    content: `What rule ${i + 1} says.`,
+  }));
+  return deck;
+};
+
 export const FIXTURES: Record<
   string,
   { deck: DeckImportType; faces: FaceResolver }
@@ -76,6 +87,9 @@ export const FIXTURES: Record<
     faces: fakeFaces,
   },
   "tokens-sheet": { deck: tokenDeck(), faces: fakeFaces },
+  "rule-cards-3": { deck: ruleCardsDeck(3), faces: fakeFaces },
+  // more rule cards than the card row has cells for
+  "rule-cards-6": { deck: ruleCardsDeck(6), faces: fakeFaces },
 };
 
 export type { DeckImportCardType };

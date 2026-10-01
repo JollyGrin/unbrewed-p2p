@@ -9,13 +9,16 @@ import {
   CARD_STACK_RADIUS,
   catalogMapDef,
   composeTable,
+  deckToPlayerPack,
   distance,
   FRONT_ROW_Z,
+  isRuleSlot,
   PIECE_ROW_Z,
   pileX,
   VIEW,
   mapSize,
   PLACEMENT_CAP,
+  SEAT_ROTATION,
   SNAP_POINT_CAP,
   TOKEN_RADIUS,
   type CallerPlacement,
@@ -25,6 +28,7 @@ import {
   FIXTURES,
   fakeFaces,
   fullFakeFaces,
+  ruleCardsDeck,
   tokenDeck,
 } from "./fixtures/decks";
 
@@ -220,6 +224,75 @@ describe("seat 1 mirrors seat 0", () => {
       expect(
         position[0] - 0.85 >= width / 2 || position[1] - 0.85 >= height / 2,
       ).toBe(true);
+    }
+  });
+});
+
+describe("rule cards", () => {
+  type Deck = Extract<CallerPlacement, { kind: "deck" }>;
+  const decksOf = (body: LobbyRequest, seat: number) =>
+    body.placements.filter(
+      (p): p is Deck => p.kind === "deck" && p.seat === seat,
+    );
+
+  it.each([1, 3])(
+    "%i: each lies loose and face up, turned to its seat; no pile does",
+    (count) => {
+      const { body } = compose(DRUM, [
+        ruleCardsDeck(count),
+        ruleCardsDeck(count),
+      ]);
+      for (const seat of [0, 1] as const) {
+        const rules = decksOf(body, seat).filter((p) => isRuleSlot(p.slot));
+        expect(rules).toHaveLength(count);
+        for (const p of rules) {
+          expect(p).toMatchObject({
+            loose: true,
+            faceUp: true,
+            rotation: SEAT_ROTATION[seat],
+          });
+        }
+        expect(
+          decksOf(body, seat)
+            .filter((p) => !isRuleSlot(p.slot))
+            .map((p) => p.slot),
+        ).toEqual(["deck", "discard", "hero", "sidekick", "extras"]);
+      }
+      for (const p of body.placements) {
+        if (p.kind === "deck" && isRuleSlot(p.slot)) continue;
+        expect(p).not.toHaveProperty("loose");
+      }
+    },
+  );
+
+  it("piles the ones the card row has no cell for, in order, not loose", () => {
+    const { body, skipped } = compose(DRUM, [
+      ruleCardsDeck(6),
+      ruleCardsDeck(6),
+    ]);
+    expect(skipped).toEqual([]);
+    for (const seat of [0, 1] as const) {
+      const rules = decksOf(body, seat).filter((p) => isRuleSlot(p.slot));
+      expect(rules.map((p) => [p.slot, p.loose, p.faceUp])).toEqual([
+        ["rules", true, true],
+        ["rules-2", true, true],
+        ["rules-3", true, true],
+        ["rules-4", undefined, true],
+      ]);
+      const pack = packOf(body, rules[0]);
+      const names = (slot: string) =>
+        pack.decks!.find((d) => d.slot === slot)?.cards.map((c) => c.name);
+      expect(names("rules-3")).toEqual(["Rule 3"]);
+      expect(names("rules-4")).toEqual(["Rule 4", "Rule 5", "Rule 6"]);
+      // every deck in the pack is placed exactly once: no card is dropped
+      expect(
+        decksOf(body, seat)
+          .map((p) => p.slot)
+          .sort(),
+      ).toEqual(pack.decks!.map((d) => d.slot).sort());
+      expect(pack.decks!.flatMap((d) => d.cards).map((c) => c.name)).toEqual(
+        expect.arrayContaining([1, 2, 3, 4, 5, 6].map((n) => `Rule ${n}`)),
+      );
     }
   });
 });
@@ -424,6 +497,36 @@ describe("caps", () => {
           (p) => p.kind === "piece" && p.pack === pack.id,
         ),
       ).toHaveLength(pack.pieces!.length);
+      expect(pack.pieces!.some((p) => p.name === "Token 1")).toBe(true);
+    }
+  });
+
+  it("counts each rule card against the cap, dropping tokens from the end", () => {
+    const hoard = ruleCardsDeck(4);
+    hoard.savedTokens = Array.from({ length: 60 }, (_, i) => ({
+      imageUrl: `https://unbrewed.xyz/tokens/t${i}.png`,
+      size: 72,
+    }));
+    const { body, skipped } = composeTable({
+      seats: [hoard, hoard],
+      map: DRUM,
+      faces: fakeFaces,
+    });
+    expect(
+      body!.placements.filter((p) => p.kind === "deck" && isRuleSlot(p.slot)),
+    ).toHaveLength(8);
+    expect(body!.placements.length).toBeLessThanOrEqual(PLACEMENT_CAP);
+    // one token goes for every placement over the cap, rule cards included
+    const one = deckToPlayerPack(hoard, { faces: fakeFaces });
+    const wanted = 2 * (one.pack!.decks!.length + one.pieces.length);
+    expect(one.pack!.decks!.filter((d) => isRuleSlot(d.slot))).toHaveLength(4);
+    expect(wanted).toBeGreaterThan(PLACEMENT_CAP);
+    expect(skipped.filter((m) => /places at most/.test(m))).toHaveLength(
+      wanted - PLACEMENT_CAP,
+    );
+    expect(skipped.some((m) => /"Token 60" left off/.test(m))).toBe(true);
+    for (const m of skipped) expect(m).toMatch(/left off/);
+    for (const pack of body!.packs.filter((p) => p.scope === "player")) {
       expect(pack.pieces!.some((p) => p.name === "Token 1")).toBe(true);
     }
   });

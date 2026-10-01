@@ -64,6 +64,8 @@ export type DeckPlacement = {
    * pile. Exclusive with `order`, which we never send.
    */
   shuffle?: boolean;
+  /** The deck's cards arrive as single cards at `position`; no pile exists. */
+  loose?: boolean;
 };
 
 export type PiecePlacement = {
