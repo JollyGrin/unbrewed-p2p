@@ -1,5 +1,4 @@
 import { ADVENTURE_BOARD_WIDTH, DOCK_RIGHT, DOCK_WIDTH } from "./dockLayout";
-import { useState } from "react";
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import type { GameEvent, PlayerView } from "@/lib/pro/protocol";
 import { useAdventureAnalytics } from "@/lib/pro/useAdventureAnalytics";
@@ -38,11 +37,7 @@ export const InitiativeRow = ({ model }: { model: AdventureBoardModel }) => (
     {...PANEL}
   >
     {model.scenarioLabel && (
-      <Text
-        {...LBL}
-        data-testid="adv-scenario"
-        data-scenario-id={model.scenarioId ?? undefined}
-      >
+      <Text {...LBL} data-testid="adv-scenario" data-scenario-id={model.scenarioId ?? undefined}>
         {model.scenarioLabel.toUpperCase()}
       </Text>
     )}
@@ -269,16 +264,11 @@ export const EngineFaultBanner = ({
     borderWidth="1px"
     borderColor="red.400"
   >
-    <Text
-      fontWeight="bold"
-      fontSize="0.9rem"
-      data-testid="adv-engine-fault-title"
-    >
+    <Text fontWeight="bold" fontSize="0.9rem" data-testid="adv-engine-fault-title">
       This game hit an engine fault and was stopped
     </Text>
     <Text fontSize="0.7rem" opacity={0.8}>
-      Nobody won — the board is frozen as it was. Copy the details below when
-      you report it.
+      Nobody won — the board is frozen as it was. Copy the details below when you report it.
     </Text>
     <Box
       as="pre"
@@ -308,12 +298,7 @@ export const EngineFaultBanner = ({
       >
         Copy diagnostic
       </Button>
-      <Button
-        size="xs"
-        colorScheme="red"
-        data-testid="adv-engine-fault-leave"
-        onClick={onLeave}
-      >
+      <Button size="xs" colorScheme="red" data-testid="adv-engine-fault-leave" onClick={onLeave}>
         Leave / new game
       </Button>
     </Flex>
@@ -331,9 +316,6 @@ export const AdventureBoard = ({
   engineFault?: string | null;
 }) => {
   useAdventureAnalytics(view, events);
-  // The column grows to ~380px during play and hides printed enclosure badges (#1139):
-  // let the player fold everything but the toggle away.
-  const [collapsed, setCollapsed] = useState(false);
   const model = adventureBoardModel(view);
   if (!model) return null;
   const faulted = engineFault != null;
@@ -362,31 +344,18 @@ export const AdventureBoard = ({
       zIndex={5}
       pointerEvents="none"
     >
-      <Button
-        size="xs"
-        data-testid="adv-collapse"
-        aria-expanded={!collapsed}
-        pointerEvents="auto"
-        onClick={() => setCollapsed((c) => !c)}
-      >
-        {collapsed ? "Show turn panels" : "Hide turn panels"}
-      </Button>
-      {!collapsed && (
-        <>
-          {(model.row.length > 0 || model.round != null) && (
-            <InitiativeRow model={model} />
-          )}
-          {model.threat && <ThreatTrack threat={model.threat} />}
-          {model.enemies.length > 0 && <EnemyDials enemies={model.enemies} />}
-          {combat && <EnemyCombat sides={combat} />}
-          {faulted && <EngineFaultBanner message={engineFault} />}
-          {decision && <TeamDecision model={decision} />}
-          {intent && (
-            <Text data-testid="adv-intent" {...PANEL} fontSize="0.75rem">
-              {intent}
-            </Text>
-          )}
-        </>
+      {(model.row.length > 0 || model.round != null) && (
+        <InitiativeRow model={model} />
+      )}
+      {model.threat && <ThreatTrack threat={model.threat} />}
+      {model.enemies.length > 0 && <EnemyDials enemies={model.enemies} />}
+      {combat && <EnemyCombat sides={combat} />}
+      {faulted && <EngineFaultBanner message={engineFault} />}
+      {decision && <TeamDecision model={decision} />}
+      {intent && (
+        <Text data-testid="adv-intent" {...PANEL} fontSize="0.75rem">
+          {intent}
+        </Text>
       )}
     </Flex>
   );

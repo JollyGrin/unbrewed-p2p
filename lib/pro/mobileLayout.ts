@@ -21,6 +21,15 @@ import type { ZoomPanInset } from "./useZoomPan";
 /** Desktop insets — the fixed HUD band, hand fan and dock column. Unchanged. */
 export const DESKTOP_INSET = { top: 120, bottom: 136, side: 16, dockColumn: 320 } as const;
 
+/**
+ * Extra right inset (px) on desktop when a format mounts the Adventure overlay column
+ * (17rem wide + 0.75rem gap, left of the dock; see dockLayout.ts). The board fits
+ * clear of that column instead of running underneath it, so the turn-order row,
+ * threat track, dials and "players choose" panel can never hide a printed enclosure
+ * badge or a space (#1139).
+ */
+export const ADVENTURE_OVERLAY_INSET = 17.75 * 16;
+
 /** Breathing room between the board and the mobile chrome. */
 export const MOBILE_GUTTER = 8;
 
@@ -111,6 +120,8 @@ export interface BoardInsetArgs {
   sheetH?: number;
   /** measured width of the landscape rail (px) */
   railW?: number;
+  /** desktop only: the Adventure overlay column is mounted left of the dock */
+  adventureOverlay?: boolean;
 }
 
 /**
@@ -124,13 +135,14 @@ export const boardFitInsetFor = ({
   controlsH = 0,
   sheetH = 0,
   railW = 0,
+  adventureOverlay = false,
 }: BoardInsetArgs): Required<ZoomPanInset> => {
   if (mode === "desktop")
     return {
       top: DESKTOP_INSET.top,
       bottom: DESKTOP_INSET.bottom,
       left: DESKTOP_INSET.side,
-      right: DESKTOP_INSET.dockColumn,
+      right: DESKTOP_INSET.dockColumn + (adventureOverlay ? ADVENTURE_OVERLAY_INSET : 0),
     };
 
   const top = (chipsH || MOBILE_CHIPS_H) + MOBILE_GUTTER;
