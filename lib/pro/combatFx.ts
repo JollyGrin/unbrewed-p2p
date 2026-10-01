@@ -12,12 +12,15 @@
 import { useEffect, useRef, useState } from "react";
 import { GameEvent, PlayerView } from "./protocol";
 import { mustDefend } from "./defenseTurn";
+import { adventureTurnLabel, AdventureTurnLabel } from "./adventureBoard";
 
 /** One derived flourish. `turn`/`defend` come from the view alone (work pre-v10);
  *  `reveal` needs the v10 `events` and carries the source card's instance id (or
  *  the redacted `'(hidden)'` placeholder, rendered generically). */
 export type CombatCallout =
-  | { kind: "turn"; mine: boolean }
+  // `adv` (Adventure only, #1155): the named co-op label; absent everywhere else, so
+  // duel / ffa / 2v2 callouts are byte-identical.
+  | { kind: "turn"; mine: boolean; adv?: AdventureTurnLabel }
   | { kind: "defend" }
   | { kind: "reveal"; source: string }
   // A delayed During/After-Combat effect (`EFFECT_FIRED`, issue #380) resolving.
@@ -109,7 +112,14 @@ export function diffCombatCallouts(
   const out: CombatCallout[] = [];
 
   // 1. YOUR TURN — a banner on every turn flip (dimmer for the opponent's).
-  if (prev.activePlayer !== next.activePlayer) {
+  if (next.initiative) {
+    // Adventure: the mover is the current initiative card (an enemy activation never
+    // flips `activePlayer` to a human), and it is named — never "OPPONENT'S TURN".
+    const label = adventureTurnLabel(next);
+    if (label && prev.initiative?.current !== next.initiative.current) {
+      out.push({ kind: "turn", mine: label.tone === "self", adv: label });
+    }
+  } else if (prev.activePlayer !== next.activePlayer) {
     out.push({ kind: "turn", mine: next.activePlayer === next.you });
   }
 

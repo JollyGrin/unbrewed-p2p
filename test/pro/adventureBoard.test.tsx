@@ -110,7 +110,7 @@ describe("AdventureBoard", () => {
     expect(screen.getByTestId("adv-init-c1")).not.toHaveAttribute(
       "data-current",
     );
-    expect(screen.getByTestId("adv-init-c3")).toHaveTextContent("Face down");
+    expect(screen.getByTestId("adv-init-c3")).toHaveAttribute("data-face-down", "true");
     expect(screen.getAllByTestId(/^adv-threat-\d$/)).toHaveLength(9);
     expect(screen.getByTestId("adv-threat-3")).toHaveAttribute(
       "data-marker",
@@ -127,6 +127,35 @@ describe("AdventureBoard", () => {
     expect(screen.queryByTestId("adv-enemy-p1/hero")).toBeNull();
     expect(screen.getByTestId("adv-enemy-turn-title")).toHaveTextContent("REX'S TURN");
     expect(screen.getByTestId("adv-enemy-turn-result")).toHaveTextContent("moves toward Hero");
+  });
+
+  it("round strip: done / now / face-down states, NOW name, still-to-flip (#1155)", () => {
+    mount("adventure");
+    expect(screen.getByTestId("adv-init-c1")).toHaveAttribute("data-state", "done");
+    expect(screen.getByTestId("adv-init-c2")).toHaveAttribute("data-state", "now");
+    expect(screen.getByTestId("adv-init-c3")).toHaveAttribute("data-state", "down");
+    expect(screen.getByTestId("adv-now")).toHaveTextContent("NOW · REX");
+    expect(screen.getByTestId("adv-still-to-flip")).toHaveTextContent("5 STILL TO FLIP");
+  });
+
+  it("round strip: END_OF_ROUND says so; a reshuffled row resets every state", () => {
+    const eor = { ...VIEW, initiative: { ...VIEW.initiative!, phase: "END_OF_ROUND" } } as PlayerView;
+    const { unmount } = mount("adventure", eor);
+    expect(screen.getByTestId("adv-phase")).toHaveTextContent("END OF ROUND · REX");
+    unmount();
+    const reshuffled = {
+      ...VIEW,
+      initiative: {
+        round: 4,
+        phase: "REVEAL",
+        deckCount: 3,
+        current: null,
+        row: [{ id: "c1", entry: "SEAT", faceDown: true }],
+      },
+    } as unknown as PlayerView;
+    mount("adventure", reshuffled);
+    expect(screen.getByTestId("adv-init-c1")).toHaveAttribute("data-state", "down");
+    expect(screen.queryByTestId("adv-now")).toBeNull();
   });
 
   it("renders nothing for other formats or a view without adventure data", () => {

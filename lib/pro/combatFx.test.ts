@@ -353,3 +353,49 @@ describe("useCombatCallouts at a slower pace", () => {
     expect(result.current).toHaveLength(0);
   });
 });
+
+// #1155 — Adventure banner: names the mover, never "OPPONENT'S TURN"
+describe("diffCombatCallouts — Adventure turn banner", () => {
+  const advView = (current: string | null, over: Partial<PlayerView> = {}): PlayerView =>
+    view({
+      fighters: [
+        { id: "p1/hero", owner: "p1", kind: "HERO", name: "Kong" },
+        { id: "p2/hero", owner: "p2", kind: "HERO", name: "Baba" },
+        { id: "e/boss", owner: "enemy", kind: "HERO", name: "Dr. Wu", enemy: { role: "VILLAIN", enemyId: "wu", deckCount: 3, discardTop: null } },
+        { id: "e/raptor", owner: "enemy", kind: "HERO", name: "Raptor", enemy: { role: "MINION", enemyId: "raptor", deckCount: 3, discardTop: null } },
+      ] as unknown as PlayerView["fighters"],
+      initiative: {
+        round: 2,
+        phase: "TURN",
+        deckCount: 1,
+        current,
+        row: [
+          { id: "seat:p1", title: "Kong", entry: "SEAT", seat: "p1" },
+          { id: "seat:p2", title: "Baba", entry: "SEAT", seat: "p2" },
+          { id: "wu", title: "Dr. Wu", entry: "FIGHTER", fighter: "e/boss" },
+          { id: "raptor@e/raptor", title: "Raptor", entry: "FIGHTER" },
+        ],
+      },
+      ...over,
+    });
+  const label = (cur: string) => {
+    const out = diffCombatCallouts(advView(null), advView(cur), []);
+    return out[0] && out[0].kind === "turn" ? out[0].adv?.text : undefined;
+  };
+  it("names self, ally, villain and minion activations", () => {
+    expect(label("seat:p1")).toBe("YOUR TURN");
+    expect(label("seat:p2")).toBe("BABA'S TURN · ALLY");
+    expect(label("wu")).toBe("DR. WU'S TURN");
+    expect(label("raptor@e/raptor")).toBe("RAPTOR'S TURN");
+  });
+  it("tones: self / ally / enemy", () => {
+    const tone = (cur: string) => {
+      const o = diffCombatCallouts(advView(null), advView(cur), [])[0];
+      return o.kind === "turn" ? o.adv?.tone : undefined;
+    };
+    expect([tone("seat:p1"), tone("seat:p2"), tone("wu")]).toEqual(["self", "ally", "enemy"]);
+  });
+  it("is silent when the current card did not change", () => {
+    expect(diffCombatCallouts(advView("wu"), advView("wu"), [])).toEqual([]);
+  });
+});

@@ -9,6 +9,7 @@ import type {
   GameEvent,
   PlayerView,
   ViewCombat,
+  ViewFighter,
   ViewInitiativeCard,
 } from "@/lib/pro/protocol";
 
@@ -33,6 +34,15 @@ export interface InitiativeRowEntry {
   /** the spawned fighter named by an `@` suffix, else null */
   spawnedFighter: FighterId | null;
   current: boolean;
+  /** done = resolved this round (before the current card); now = the current card;
+   *  up = revealed, still to act; down = face-down (identity not public) */
+  state: "done" | "now" | "up" | "down";
+  /** the portrait fighter (hero for a SEAT card, the enemy for a FIGHTER card), if resolvable */
+  fighter: ViewFighter | null;
+  /** hero | enemy | event, null for a face-down card */
+  who: "hero" | "enemy" | "event" | null;
+  /** short display name; null for a face-down card (hidden info) */
+  name: string | null;
   /** face-down cards carry no title (hidden info) — the label falls back to the entry kind */
   label: string;
 }
@@ -102,6 +112,10 @@ export interface AdventureBoardModel {
     /** every hero is down but this sidekick still stands (the lose condition is heroes AND sidekicks) */
     heroesDownSidekick: string | null;
   } | null;
+  /** face-down cards in the row plus the draw pile: "k still to flip" */
+  stillToFlip: number;
+  /** who the `current` card belongs to, as the banner/NOW chip names them */
+  nowName: string | null;
   enemies: EnemyDial[];
 }
 
@@ -161,6 +175,61 @@ export const objectiveSlots = (
   return { slots, lost: slots.filter((s) => s.fired).length };
 };
 
+const seatName = (view: PlayerView, id: string): string => {
+  const pl = view.players?.find((x) => x.id === id);
+  return pl?.displayName?.trim() || pl?.heroId || id;
+};
+
+/** Resolve one initiative card to the fighter/seat it activates (null for face-down / events). */
+const resolveCardOwner = (
+  view: PlayerView,
+  card: ViewInitiativeCard,
+): { who: "hero" | "enemy" | "event" | null; fighter: ViewFighter | null; name: string | null; seat: string | null } => {
+  if (card.faceDown) return { who: null, fighter: null, name: null, seat: null };
+  const { cardId, fighter: spawned } = parseInitiativeCardId(card.id);
+  if (card.entry === "SEAT") {
+    const seat = card.seat ?? null;
+    const hero =
+      view.fighters.find((f) => f.owner === seat && f.kind === "HERO" && !f.enemy) ?? null;
+    return { who: "hero", fighter: hero, name: (seat && view.players?.find((x) => x.id === seat)?.displayName?.trim()) || hero?.name || (seat ? seatName(view, seat) : card.title ?? null), seat };
+  }
+  if (card.entry === "FIGHTER") {
+    const fid = card.fighter ?? spawned;
+    const f =
+      (fid ? view.fighters.find((x) => x.id === fid) : undefined) ??
+      view.fighters.find((x) => x.enemy?.enemyId === cardId) ??
+      null;
+    return { who: "enemy", fighter: f, name: f?.name ?? card.title ?? null, seat: null };
+  }
+  return { who: "event", fighter: null, name: card.title ?? null, seat: null };
+};
+
+export interface AdventureTurnLabel {
+  text: string;
+  tone: "self" | "ally" | "enemy";
+}
+
+/**
+ * The turn-banner text for an Adventure view (never "OPPONENT'S TURN" at a co-op table):
+ * YOUR TURN / "<P2>'S TURN · ALLY" / "<ENEMY>'S TURN". Null when no initiative card is
+ * current, so the caller falls back to `activePlayer`.
+ */
+export const adventureTurnLabel = (view: PlayerView): AdventureTurnLabel | null => {
+  const init = view.initiative;
+  if (!init) return null;
+  const card = init.current ? init.row.find((c) => c.id === init.current) : undefined;
+  if (!card) return null;
+  const o = resolveCardOwner(view, card);
+  if (o.who === "hero") {
+    if (o.seat === view.you) return { text: "YOUR TURN", tone: "self" };
+    return { text: `${(o.name ?? "ALLY").toUpperCase()}'S TURN · ALLY`, tone: "ally" };
+  }
+  if (o.who === "enemy") {
+    return { text: `${(o.name ?? "ENEMY").toUpperCase()}'S TURN`, tone: "enemy" };
+  }
+  return null;
+};
+
 /** null when the view carries no adventure data (every regular format). */
 export const adventureBoardModel = (
   view: PlayerView,
@@ -193,14 +262,38 @@ export const adventureBoardModel = (
     round: initiative?.round ?? null,
     phase: initiative?.phase ?? null,
     initiativeDeckCount: initiative?.deckCount ?? null,
-    row: (initiative?.row ?? []).map((card) => ({
-      card,
-      artKey: parseInitiativeCardId(card.id).cardId,
-      spawnedFighter: parseInitiativeCardId(card.id).fighter,
-      current: card.id === initiative?.current,
-      label:
-        card.title ?? (card.faceDown ? "Face down" : ENTRY_LABEL[card.entry]),
-    })),
+    ...(() => {
+      const cards = initiative?.row ?? [];
+      const curIdx = cards.findIndex((c) => c.id === initiative?.current);
+      const row = cards.map((card, i) => {
+        const o = resolveCardOwner(view, card);
+        return {
+          card,
+          artKey: parseInitiativeCardId(card.id).cardId,
+          spawnedFighter: parseInitiativeCardId(card.id).fighter,
+          current: i === curIdx,
+          state: (card.faceDown
+            ? "down"
+            : i === curIdx
+              ? "now"
+              : curIdx >= 0 && i < curIdx
+                ? "done"
+                : "up") as InitiativeRowEntry["state"],
+          fighter: o.fighter,
+          who: o.who,
+          name: o.name,
+          label:
+            card.title ?? (card.faceDown ? "Face down" : ENTRY_LABEL[card.entry]),
+        };
+      });
+      const now = row.find((r) => r.current);
+      return {
+        row,
+        stillToFlip:
+          cards.filter((c) => c.faceDown).length + (initiative?.deckCount ?? 0),
+        nowName: now?.name ?? null,
+      };
+    })(),
     threat: scenario ? threatModel(scenario) : null,
     objectives: scenario ? objectiveSlots(scenario.objectives) : null,
     villain,
@@ -265,7 +358,7 @@ export const teamDecisionModel = (
   const p = view.prompt;
   if (!p || p.onBehalfOf !== "TEAM") return null;
   const seatName = (id: string) => {
-    const pl = view.players.find((x) => x.id === id);
+    const pl = view.players?.find((x) => x.id === id);
     if (pl) return pl.displayName?.trim() || pl.heroId || id;
     return view.fighters.find((f) => f.owner === id)?.name ?? id;
   };

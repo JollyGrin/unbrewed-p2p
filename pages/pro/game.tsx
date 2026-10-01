@@ -799,6 +799,10 @@ const CombatCalloutOverlay = ({
 }) => {
   if (item.kind === "turn") {
     const mine = item.mine;
+    const adv = item.adv;
+    const enemy = adv?.tone === "enemy";
+    const ally = adv?.tone === "ally";
+    const tint = enemy ? "#E58B8B" : ally ? "#5FC9C0" : null;
     return (
       <Flex
         position="fixed"
@@ -816,7 +820,7 @@ const CombatCalloutOverlay = ({
           bg={mine ? "rgba(224,168,46,0.16)" : "rgba(0,0,0,0.35)"}
           borderTop="2px solid"
           borderBottom="2px solid"
-          borderColor={mine ? "brand.accent" : "whiteAlpha.300"}
+          borderColor={tint ?? (mine ? "brand.accent" : "whiteAlpha.300")}
           boxShadow={mine ? "0 0 32px 4px rgba(224,168,46,0.35)" : "none"}
         >
           <Text
@@ -825,11 +829,12 @@ const CombatCalloutOverlay = ({
             lineHeight="1"
             letterSpacing="0.12em"
             textAlign="center"
-            color={mine ? "brand.accent" : "brand.parchment"}
-            opacity={mine ? 1 : 0.72}
+            color={tint ?? (mine ? "brand.accent" : "brand.parchment")}
+            opacity={mine || adv ? 1 : 0.72}
             textShadow="0 2px 10px rgba(0,0,0,0.6)"
+            data-testid="turn-banner"
           >
-            {mine ? "YOUR TURN" : "OPPONENT'S TURN"}
+            {adv ? adv.text : mine ? "YOUR TURN" : "OPPONENT'S TURN"}
           </Text>
         </Box>
       </Flex>
@@ -7388,7 +7393,7 @@ const LiveGame = ({
           <ProBoard {...boardProps} />
         )}
       </Flex>
-      <FormatOverlay formatId={roomInfo?.formatId} view={view} events={snapshot?.events} engineFault={engineFault} />
+      <FormatOverlay formatId={roomInfo?.formatId} view={view} events={snapshot?.events} engineFault={engineFault} fighterTokenArt={fighterTokenArt} />
 
       {/* red vignette flash when your hero takes damage (useGameFx) */}
       {visualOn && hurtKey > 0 && (

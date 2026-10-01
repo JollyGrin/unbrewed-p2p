@@ -1,6 +1,6 @@
 import { ADVENTURE_BOARD_WIDTH, DOCK_RIGHT, DOCK_WIDTH } from "./dockLayout";
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
-import type { GameEvent, PlayerView } from "@/lib/pro/protocol";
+import type { GameEvent, PlayerView, ViewFighter } from "@/lib/pro/protocol";
 import { useAdventureAnalytics } from "@/lib/pro/useAdventureAnalytics";
 import { useEnemyTurn } from "@/lib/pro/useEnemyTurn";
 import { enemyTurnSummary } from "@/lib/pro/enemyTurn";
@@ -15,6 +15,7 @@ import type {
   AdventureBoardModel,
   EnemyCombatSide,
   EnemyDial,
+  InitiativeRowEntry,
   TeamDecisionModel,
   ThreatModel,
 } from "@/lib/pro/adventureBoard";
@@ -40,58 +41,131 @@ const PANEL = {
   maxW: "100%",
 } as const;
 
-export const InitiativeRow = ({ model }: { model: AdventureBoardModel }) => (
-  <Flex
-    direction="column"
-    gap="0.25rem"
-    data-testid="adv-initiative"
-    {...PANEL}
-  >
-    {model.scenarioLabel && (
-      <Text {...LBL} data-testid="adv-scenario" data-scenario-id={model.scenarioId ?? undefined}>
-        {model.scenarioLabel.toUpperCase()}
-      </Text>
-    )}
-    <Flex gap="0.6rem" align="baseline">
-      <Text {...LBL}>ROUND</Text>
-      <Text data-testid="adv-round" fontWeight="bold">
-        {model.round ?? "–"}
-      </Text>
-      {model.initiativeDeckCount != null && (
-        <Text {...LBL} data-testid="adv-initiative-deck">
-          DECK {model.initiativeDeckCount}
+const GOLD = "#E0A82E";
+const ENEMY_RED = "#E58B8B";
+
+const Portrait = ({ e, src }: { e: InitiativeRowEntry; src: string | null }) => {
+  const enemy = e.who === "enemy";
+  const initial = (e.name ?? e.label).trim().charAt(0).toUpperCase();
+  return (
+    <Flex
+      w="2rem"
+      h="2rem"
+      borderRadius="full"
+      overflow="hidden"
+      align="center"
+      justify="center"
+      flexShrink={0}
+      bg={enemy ? "rgba(229,139,139,0.22)" : "whiteAlpha.300"}
+      border="2px solid"
+      borderColor={e.state === "now" ? GOLD : enemy ? ENEMY_RED : "whiteAlpha.400"}
+      boxShadow={e.state === "now" ? `0 0 8px 1px ${GOLD}` : "none"}
+    >
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      ) : (
+        <Text fontFamily="LeagueGothic" fontSize="1rem" color={enemy ? ENEMY_RED : "white"}>
+          {initial}
         </Text>
       )}
     </Flex>
-    <Flex gap="0.25rem" wrap="wrap" data-testid="adv-init-chips">
-      {model.row.map((e) => (
-        <Box
-          key={e.card.id}
-          data-testid={`adv-init-${e.card.id}`}
-          data-card-art={e.artKey}
-          data-spawned={e.spawnedFighter ? "true" : undefined}
-          data-current={e.current ? "true" : undefined}
-          data-face-down={e.card.faceDown ? "true" : undefined}
-          px="0.4rem"
-          py="0.15rem"
-          borderRadius="sm"
-          border="1px solid"
-          borderColor={e.current ? "yellow.300" : "whiteAlpha.300"}
-          bg={
-            e.current
-              ? "yellow.600"
-              : e.card.faceDown
-                ? "whiteAlpha.100"
-                : "whiteAlpha.200"
-          }
-          fontSize="0.7rem"
-        >
-          {e.label}
-        </Box>
-      ))}
+  );
+};
+
+/** Round & turn strip: ROUND n, the revealed row as portrait chips (done / now / up), the
+ *  face-down remainder as card backs, and the END OF ROUND state. */
+export const InitiativeRow = ({
+  model,
+  fighterTokenArt,
+}: {
+  model: AdventureBoardModel;
+  fighterTokenArt?: (f: ViewFighter) => string | null;
+}) => {
+  const eor = model.phase === "END_OF_ROUND";
+  return (
+    <Flex direction="column" gap="0.3rem" data-testid="adv-initiative" data-phase={model.phase ?? undefined} {...PANEL}>
+      {model.scenarioLabel && (
+        <Text {...LBL} data-testid="adv-scenario" data-scenario-id={model.scenarioId ?? undefined}>
+          {model.scenarioLabel.toUpperCase()}
+        </Text>
+      )}
+      <Flex gap="0.6rem" align="baseline" wrap="wrap">
+        <Text fontFamily="LeagueGothic" fontSize="1.3rem" letterSpacing="0.1em" lineHeight="1">
+          ROUND{" "}
+          <Text as="span" data-testid="adv-round">
+            {model.round ?? "–"}
+          </Text>
+        </Text>
+        {eor ? (
+          <Text {...LBL} color={GOLD} opacity={1} data-testid="adv-phase">
+            END OF ROUND{model.nowName ? ` · ${model.nowName.toUpperCase()}` : ""}
+          </Text>
+        ) : model.nowName ? (
+          <Text {...LBL} color={GOLD} opacity={1} data-testid="adv-now">
+            NOW · {model.nowName.toUpperCase()}
+          </Text>
+        ) : null}
+        {model.initiativeDeckCount != null && (
+          <Text {...LBL} data-testid="adv-initiative-deck">
+            DECK {model.initiativeDeckCount}
+          </Text>
+        )}
+      </Flex>
+      <Flex gap="0.3rem" wrap="wrap" align="center" data-testid="adv-init-chips">
+        {model.row.map((e) => {
+          const down = e.state === "down";
+          const src = e.fighter && fighterTokenArt ? fighterTokenArt(e.fighter) : null;
+          return (
+            <Flex
+              key={e.card.id}
+              data-testid={`adv-init-${e.card.id}`}
+              data-card-art={e.artKey}
+              data-spawned={e.spawnedFighter ? "true" : undefined}
+              data-current={e.current ? "true" : undefined}
+              data-face-down={down ? "true" : undefined}
+              data-state={e.state}
+              position="relative"
+              direction="column"
+              align="center"
+              gap="0.1rem"
+              opacity={e.state === "done" ? 0.45 : 1}
+              title={e.name ?? e.label}
+            >
+              {down ? (
+                <Box
+                  w="1.5rem"
+                  h="2rem"
+                  borderRadius="sm"
+                  border="1px solid"
+                  borderColor="whiteAlpha.400"
+                  bg="repeating-linear-gradient(45deg, rgba(255,255,255,0.12) 0 3px, rgba(255,255,255,0.04) 3px 6px)"
+                />
+              ) : (
+                <Portrait e={e} src={src} />
+              )}
+              {e.state === "done" && (
+                <Text position="absolute" top="-0.2rem" right="-0.2rem" fontSize="0.6rem" color="green.300" lineHeight="1">
+                  ✓
+                </Text>
+              )}
+              {!down && (
+                <Text fontSize="0.55rem" maxW="3rem" noOfLines={1} color={e.state === "now" ? GOLD : "whiteAlpha.800"}>
+                  {e.name ?? e.label}
+                </Text>
+              )}
+            </Flex>
+          );
+        })}
+        {model.stillToFlip > 0 && (
+          <Text {...LBL} data-testid="adv-still-to-flip">
+            {model.stillToFlip} STILL TO FLIP
+          </Text>
+        )}
+      </Flex>
     </Flex>
-  </Flex>
-);
+  );
+};
 
 const Token = ({ name, size = "1.5rem" }: { name: string; size?: string }) => (
   <Flex
@@ -603,10 +677,12 @@ export const AdventureBoard = ({
   view,
   events,
   engineFault,
+  fighterTokenArt,
 }: {
   view: PlayerView;
   events?: readonly GameEvent[];
   engineFault?: string | null;
+  fighterTokenArt?: (f: ViewFighter) => string | null;
 }) => {
   useAdventureAnalytics(view, events);
   const turn = useEnemyTurn(view, events);
@@ -640,7 +716,7 @@ export const AdventureBoard = ({
       pointerEvents="none"
     >
       {(model.row.length > 0 || model.round != null) && (
-        <InitiativeRow model={model} />
+        <InitiativeRow model={model} fighterTokenArt={fighterTokenArt} />
       )}
       {model.villain && (
         <VillainHeader villain={model.villain} wants={model.wants} />

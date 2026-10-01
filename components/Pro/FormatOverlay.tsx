@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import type { GameEvent, PlayerView } from "@/lib/pro/protocol";
+import type { GameEvent, PlayerView, ViewFighter } from "@/lib/pro/protocol";
 import { AdventureBoard } from "@/components/Pro/AdventureBoard";
 
 export interface FormatOverlayProps {
@@ -7,6 +7,8 @@ export interface FormatOverlayProps {
   events?: readonly GameEvent[];
   /** Engine-fault diagnostic (ERROR{ENGINE_FAULT}); non-null = the table is stopped. */
   engineFault?: string | null;
+  /** board-token portrait for a fighter (deck `tokenImageUrl`), used by the Adventure round strip */
+  fighterTokenArt?: (f: ViewFighter) => string | null;
 }
 
 /** Format-specific board overlays, mounted by format id. Formats not listed render nothing. */
