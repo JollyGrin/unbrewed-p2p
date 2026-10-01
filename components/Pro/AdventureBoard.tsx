@@ -279,6 +279,11 @@ export const EnclosuresLost = ({
           </Flex>
         ))}
       </Flex>
+      {win?.heroesDownSidekick && (
+        <Text fontSize="0.7rem" fontWeight="bold" color="red.200" data-testid="adv-heroes-down">
+          Your heroes are down — {win.heroesDownSidekick} is still standing
+        </Text>
+      )}
       {win && (
         <Text fontSize="0.7rem" opacity={0.9} data-testid="adv-win-line">
           To win: {win.villain} to 0

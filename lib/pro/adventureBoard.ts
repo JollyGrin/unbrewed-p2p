@@ -96,7 +96,12 @@ export interface AdventureBoardModel {
   /** engine #735 `scenario.briefing` (villain "wants" line); null when absent */
   wants: string | null;
   /** "To win" line parts: villain + the released minions still to defeat; null without a villain */
-  win: { villain: string; released: { name: string; hp: number; maxHp: number }[] } | null;
+  win: {
+    villain: string;
+    released: { name: string; hp: number; maxHp: number }[];
+    /** every hero is down but this sidekick still stands (the lose condition is heroes AND sidekicks) */
+    heroesDownSidekick: string | null;
+  } | null;
   enemies: EnemyDial[];
 }
 
@@ -115,6 +120,14 @@ export const threatCells = (
     value,
     marker: i + 1 === position,
   }));
+
+/** the standing sidekick's name when every (non-enemy) hero is defeated, else null. */
+export const standingSidekick = (view: PlayerView): string | null => {
+  const team = view.fighters.filter((f) => !f.enemy);
+  const heroes = team.filter((f) => f.kind === "HERO");
+  if (heroes.length === 0 || !heroes.every((f) => f.defeated)) return null;
+  return team.find((f) => f.kind === "SIDEKICK" && !f.defeated)?.name ?? null;
+};
 
 type ViewScenario = NonNullable<PlayerView["scenario"]>;
 
@@ -202,6 +215,7 @@ export const adventureBoardModel = (
           released: enemies
             .filter((e) => e.role === "MINION" && e.released === true)
             .map((e) => ({ name: e.name, hp: e.hp, maxHp: e.maxHp })),
+          heroesDownSidekick: standingSidekick(view),
         }
       : null,
     enemies,

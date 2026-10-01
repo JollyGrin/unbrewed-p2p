@@ -680,6 +680,8 @@ describe("plates clear the top-right chip cluster (#1145)", () => {
     expect(mutual([...plates, clusterBox(vw)])).toEqual([]);
     expect(covered(plates, spaceCircles({ x: 78, y: rem(DOCK_TOP), w: BOARD_1500.w }))).toEqual([]);
     expect(Math.max(...plates.map((p) => p.y1))).toBeLessThanOrEqual(rem(DOCK_TOP));
+  });
+});
 
 // #1154: the villain board column.
 describe("villain board (#1154)", () => {
@@ -746,5 +748,27 @@ describe("villain board (#1154)", () => {
     mount("adventure", VIEW); // no objectives, no minions
     expect(screen.queryByTestId("adv-objectives")).toBeNull();
     expect(screen.getByTestId("adv-villain")).toBeInTheDocument();
+  });
+});
+
+describe("heroes down, sidekick standing (#1154)", () => {
+  const v = (heroDefeated: boolean, sideDefeated: boolean) =>
+    ({
+      ...VIEW,
+      fighters: [
+        fighter("p1/hero", "Hero", { defeated: heroDefeated }),
+        fighter("p1/side", "Sidekick", { kind: "SIDEKICK", defeated: sideDefeated }),
+        VIEW.fighters[1],
+      ],
+      scenario: { ...VIEW.scenario, objectives: [{ id: "o1", label: "Enclosure 01", fired: 0 }] },
+    }) as unknown as PlayerView;
+  it("says so only when every hero is down and a sidekick lives", () => {
+    expect(adventureBoardModel(v(true, false))!.win!.heroesDownSidekick).toBe("Sidekick");
+    expect(adventureBoardModel(v(false, false))!.win!.heroesDownSidekick).toBeNull();
+    expect(adventureBoardModel(v(true, true))!.win!.heroesDownSidekick).toBeNull();
+  });
+  it("renders the line", () => {
+    mount("adventure", v(true, false));
+    expect(screen.getByTestId("adv-heroes-down")).toHaveTextContent("Your heroes are down — Sidekick is still standing");
   });
 });
