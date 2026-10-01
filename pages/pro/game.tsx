@@ -224,7 +224,7 @@ import type { TableStrike } from "@/components/Pro/Table/tableMiniCues";
 import { batchActor } from "@/lib/pro/slowModeQueue";
 import { ActionSpotlight, ActionSpotlightBatch } from "@/components/Pro/ActionSpotlight";
 import { BreakoutMomentOverlay } from "@/components/Pro/BreakoutMoment";
-import { breakoutMoment, BreakoutMoment } from "@/lib/pro/breakoutMoment";
+import { breakoutMoment, BreakoutMoment, withLateSpawn } from "@/lib/pro/breakoutMoment";
 import {
   CUSTOM_MAP_ID,
   MAP_CATALOG,
@@ -4996,6 +4996,8 @@ const LiveGame = ({
   // Adventure breakout interstitial (#1158): once per batch carrying the overflow→open chain.
   const [breakout, setBreakout] = useState<BreakoutMoment | null>(null);
   const dismissBreakout = useCallback(() => setBreakout(null), []);
+  // A breakout whose ENEMY_SPAWNED hasn't landed yet (it arrives after a human places the token).
+  const awaitingSpawnRef = useRef<BreakoutMoment | null>(null);
   const prevViewRef = useRef<PlayerView | null>(null);
   // Live sub-attack chain (issue #596): the ref is the running value the next batch
   // advances from; the state copy is what the combat panel renders.
@@ -5066,7 +5068,16 @@ const LiveGame = ({
     // prev === null is the first view after join/reconnect: nothing was witnessed, so no moment.
     if (prevViewRef.current) {
       const moment = breakoutMoment(snapshot.events, prevViewRef.current, next);
-      if (moment) setBreakout(moment);
+      if (moment) {
+        setBreakout(moment);
+        awaitingSpawnRef.current = moment.enemy ? null : moment;
+      } else if (awaitingSpawnRef.current) {
+        const filled = withLateSpawn(awaitingSpawnRef.current, snapshot.events, next);
+        if (filled) {
+          awaitingSpawnRef.current = null;
+          setBreakout(filled);
+        }
+      }
     }
     prevViewRef.current = next;
     const phase = batchPhase(snapshot.events);

@@ -22,3 +22,8 @@ export const teamChoosingTitle = (
     : `${chooser} is choosing for ${villain ?? "the villain"}`;
   return youChoose && what ? `${base}: ${what}` : base;
 };
+
+/** Plain words for a `threat.bySource` key (#735); unknown keys fall back to a spaced guess. */
+export const threatSourceWords = (key: string): string =>
+  ({ roundEnd: "the round's end", noTarget: "a dinosaur with no target", effect: "a card effect" })[key] ??
+  key.replace(/[-_]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();

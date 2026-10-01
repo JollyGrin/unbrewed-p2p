@@ -10,6 +10,7 @@ import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import { useReducedMotion } from "framer-motion";
 import { useEffect } from "react";
 import { colors, fonts } from "@/styles/style";
+import { threatSourceWords } from "@/lib/pro/adventureCopy";
 import { BreakoutMoment as Moment } from "@/lib/pro/breakoutMoment";
 
 export const BREAKOUT_MS = 4000;
@@ -83,10 +84,14 @@ export const BreakoutMomentOverlay = ({
   }
 
   const tiles: { label: string; value: string; note?: string }[] = [
-    { label: "Enclosures lost", value: `${moment.lost} of ${moment.total}` },
+    {
+      label: "Enclosures lost",
+      value: `${moment.lost} of ${moment.total}`,
+      note: moment.lost < moment.total ? `${moment.total - moment.lost} more and the island falls` : undefined,
+    },
     { label: "Threat track", value: "Reset to start", note: "any extra steps are lost" },
   ];
-  if (moment.pushedBy) tiles.push({ label: "What pushed it over", value: title(moment.pushedBy) });
+  if (moment.pushedBy) tiles.push({ label: "What pushed it over", value: threatSourceWords(moment.pushedBy) });
 
   return (
     <Flex

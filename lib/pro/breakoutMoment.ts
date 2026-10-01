@@ -9,6 +9,7 @@
  * fence or spawns an enemy on its own) is NOT a breakout and returns null, as does an overflow
  * that opened nothing.
  */
+import { objectiveTotal } from "./adventureBoard";
 import { enclosureNumbers } from "./enclosures";
 import type { GameEvent, PlayerView, SpaceId, ViewFighter } from "./protocol";
 
@@ -90,11 +91,35 @@ export const breakoutMoment = (
     enclosure: enclosureNumbers(next.map)[chain.space] ?? null,
     space: chain.space,
     marker,
-    enemy: f
-      ? { name: f.name, hp: f.hp, maxHp: f.maxHp, size: f.size, move: f.enemy?.move ?? null, joinsDeck: chain.spawn!.card != null }
-      : null,
+    enemy: f ? enemyOf(f, chain.spawn!.card) : null,
     lost,
-    total: Math.max(starts, BREAKOUT_LIMIT),
+    // the loss limit (Isla: 4), not the map's enclosure count
+    total: objectiveTotal(next.scenario.objectives) || BREAKOUT_LIMIT,
     pushedBy: pushedOverBy(prev, next),
   };
+};
+
+const enemyOf = (f: ViewFighter, card: string | null): NonNullable<BreakoutMoment["enemy"]> => ({
+  name: f.name,
+  hp: f.hp,
+  maxHp: f.maxHp,
+  size: f.size,
+  move: f.enemy?.move ?? null,
+  joinsDeck: card != null,
+});
+
+/**
+ * The released enemy lands in a LATER batch than the overflow (a human places its token, engine
+ * #651/#741): fill an enemy-less moment from a bare ENEMY_SPAWNED. Null when this batch has none
+ * or the moment already names its enemy.
+ */
+export const withLateSpawn = (
+  moment: BreakoutMoment,
+  events: readonly GameEvent[],
+  next: PlayerView
+): BreakoutMoment | null => {
+  if (moment.enemy) return null;
+  const spawned = events.find((e): e is Extract<GameEvent, { type: "ENEMY_SPAWNED" }> => e.type === "ENEMY_SPAWNED");
+  const f = spawned && next.fighters.find((x) => x.id === spawned.fighter);
+  return spawned && f ? { ...moment, enemy: enemyOf(f, spawned.card) } : null;
 };
