@@ -2,7 +2,7 @@
  * Adventure board overlays (Wave 4.3, unbrewed-p2p#1099) — fixture-driven, no engine.
  */
 import "@testing-library/jest-dom";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import {
   ADVENTURE_BOARD_WIDTH,
@@ -17,7 +17,10 @@ import {
 import { ProHud } from "@/components/Pro/ProHud";
 import { theme } from "@/styles/style";
 import { FormatOverlay } from "@/components/Pro/FormatOverlay";
-import { ADVENTURE_BOARD_RIGHT, ENGINE_FAULT_FIXTURE } from "@/components/Pro/AdventureBoard";
+import {
+  ADVENTURE_BOARD_RIGHT,
+  ENGINE_FAULT_FIXTURE,
+} from "@/components/Pro/AdventureBoard";
 import {
   adventureBoardModel,
   enemyCombatModel,
@@ -52,7 +55,13 @@ const VIEW = {
     fighter("e1/rex", "Rex", {
       hp: 7,
       maxHp: 20,
-      enemy: { role: "VILLAIN", enemyId: "indominus-rex", move: 2, deckCount: 5, discardTop: null },
+      enemy: {
+        role: "VILLAIN",
+        enemyId: "indominus-rex",
+        move: 2,
+        deckCount: 5,
+        discardTop: null,
+      },
     }),
   ],
   initiative: {
@@ -114,8 +123,14 @@ describe("AdventureBoard", () => {
     );
     expect(screen.getByTestId("adv-threat-level")).toHaveTextContent("2");
     expect(screen.getByTestId("adv-scenario")).toHaveTextContent("ISLA NUBLAR");
-    expect(screen.getByTestId("adv-scenario")).toHaveAttribute("data-scenario-id", "isla-nublar");
-    expect(screen.getByTestId("adv-enemy-e1/rex")).toHaveAttribute("data-enemy-id", "indominus-rex");
+    expect(screen.getByTestId("adv-scenario")).toHaveAttribute(
+      "data-scenario-id",
+      "isla-nublar",
+    );
+    expect(screen.getByTestId("adv-enemy-e1/rex")).toHaveAttribute(
+      "data-enemy-id",
+      "indominus-rex",
+    );
     expect(screen.getByTestId("adv-enemy-hp-e1/rex")).toHaveTextContent("7/20");
     expect(screen.getByTestId("adv-enemy-deck-e1/rex")).toHaveTextContent(
       "DECK 5",
@@ -282,7 +297,12 @@ describe("engine fault banner", () => {
   const faulted = () =>
     render(
       <ChakraProvider theme={theme}>
-        <FormatOverlay formatId="adventure" view={VIEW} events={EVENTS} engineFault={ENGINE_FAULT_FIXTURE} />
+        <FormatOverlay
+          formatId="adventure"
+          view={VIEW}
+          events={EVENTS}
+          engineFault={ENGINE_FAULT_FIXTURE}
+        />
       </ChakraProvider>,
     );
 
@@ -291,7 +311,9 @@ describe("engine fault banner", () => {
     expect(screen.getByTestId("adv-engine-fault-title")).toHaveTextContent(
       "This game hit an engine fault and was stopped",
     );
-    expect(screen.getByTestId("adv-engine-fault-message")).toHaveTextContent(ENGINE_FAULT_FIXTURE);
+    expect(screen.getByTestId("adv-engine-fault-message")).toHaveTextContent(
+      ENGINE_FAULT_FIXTURE,
+    );
     expect(screen.getByTestId("adv-round")).toHaveTextContent("3");
     expect(screen.getByTestId("adv-engine-fault-leave")).toBeInTheDocument();
   });
@@ -316,7 +338,10 @@ describe("spawned enemies (engine 2.4)", () => {
       cardId: "raptor",
       fighter: "e1/raptor-2",
     });
-    expect(parseInitiativeCardId("c1")).toEqual({ cardId: "c1", fighter: null });
+    expect(parseInitiativeCardId("c1")).toEqual({
+      cardId: "c1",
+      fighter: null,
+    });
   });
 
   it("keys the row entry's art on the part before the @ and keeps the full id", () => {
@@ -326,14 +351,25 @@ describe("spawned enemies (engine 2.4)", () => {
         ...VIEW.fighters,
         fighter("e1/raptor-2", "Raptor", {
           space: null,
-          enemy: { role: "MINION", enemyId: "raptor", move: 2, deckCount: 0, discardTop: null },
+          enemy: {
+            role: "MINION",
+            enemyId: "raptor",
+            move: 2,
+            deckCount: 0,
+            discardTop: null,
+          },
         }),
       ],
       initiative: {
         ...VIEW.initiative,
         row: [
           ...VIEW.initiative!.row,
-          { id: "raptor@e1/raptor-2", title: "Raptor", entry: "FIGHTER", fighter: "e1/raptor-2" },
+          {
+            id: "raptor@e1/raptor-2",
+            title: "Raptor",
+            entry: "FIGHTER",
+            fighter: "e1/raptor-2",
+          },
         ],
       },
     } as unknown as PlayerView;
@@ -368,7 +404,10 @@ type Span = [number, number];
 const rem = (v: string) => parseFloat(v) * 16;
 const overlaps = (a: Span, b: Span) => a[0] < b[1] && b[0] < a[1];
 const spans = (vw: number) => {
-  const dock: Span = [vw - rem(DOCK_RIGHT) - rem(DOCK_WIDTH), vw - rem(DOCK_RIGHT)];
+  const dock: Span = [
+    vw - rem(DOCK_RIGHT) - rem(DOCK_WIDTH),
+    vw - rem(DOCK_RIGHT),
+  ];
   // ADVENTURE_BOARD_RIGHT = calc(<DOCK_RIGHT> + <DOCK_WIDTH> + 0.75rem); board maxW 17rem
   const right = rem(DOCK_RIGHT) + rem(DOCK_WIDTH) + rem("0.75rem");
   const board: Span = [vw - right - rem("17rem"), vw - right];
@@ -380,14 +419,21 @@ describe("overlay vs Actions dock overlap probe (#1128)", () => {
     const { dock } = spans(1500);
     expect(overlaps(dock, [dock[0] + 10, dock[1] - 10])).toBe(true);
     // the pre-fix geometry (right 0.7rem) must be flagged
-    expect(overlaps(dock, [1500 - rem("0.7rem") - rem("17rem"), 1500 - rem("0.7rem")])).toBe(true);
+    expect(
+      overlaps(dock, [
+        1500 - rem("0.7rem") - rem("17rem"),
+        1500 - rem("0.7rem"),
+      ]),
+    ).toBe(true);
   });
   it.each([1500, 1920])("board clears the dock at %ipx", (vw) => {
     const { dock, board } = spans(vw);
     expect(overlaps(dock, board)).toBe(false);
   });
   it("the constant matches the geometry the probe assumes", () => {
-    expect(ADVENTURE_BOARD_RIGHT).toBe(`calc(${DOCK_RIGHT} + ${DOCK_WIDTH} + 0.75rem)`);
+    expect(ADVENTURE_BOARD_RIGHT).toBe(
+      `calc(${DOCK_RIGHT} + ${DOCK_WIDTH} + 0.75rem)`,
+    );
   });
 });
 
@@ -405,7 +451,12 @@ const plateRowRight = (vw: number, plates: number, padRight: number) => {
 };
 const OLD_PAD = rem("8.5rem");
 const NEW_PAD =
-  rem(DOCK_RIGHT) + rem(DOCK_WIDTH) + rem("0.75rem") + rem(ADVENTURE_BOARD_WIDTH) + rem("0.75rem") - rem(HUD_OVERLAY_INSET);
+  rem(DOCK_RIGHT) +
+  rem(DOCK_WIDTH) +
+  rem("0.75rem") +
+  rem(ADVENTURE_BOARD_WIDTH) +
+  rem("0.75rem") -
+  rem(HUD_OVERLAY_INSET);
 
 describe("seat-plate row vs overlay probe (#1135)", () => {
   it("probe flags the pre-fix geometry (planted box): 5 plates at 1500 reach the overlay", () => {
@@ -423,19 +474,36 @@ describe("seat-plate row vs overlay probe (#1135)", () => {
     [1500, 4],
     [1920, 2],
     [1920, 4],
-  ])("plates clear the overlay and dock at %ipx with %i heroes", (vw, heroes) => {
-    const { dock, board } = spans(vw);
-    const right = plateRowRight(vw, heroes + 1, NEW_PAD);
-    expect(overlaps([0, right], board)).toBe(false);
-    expect(overlaps([0, right], dock)).toBe(false);
-  });
+  ])(
+    "plates clear the overlay and dock at %ipx with %i heroes",
+    (vw, heroes) => {
+      const { dock, board } = spans(vw);
+      const right = plateRowRight(vw, heroes + 1, NEW_PAD);
+      expect(overlaps([0, right], board)).toBe(false);
+      expect(overlaps([0, right], dock)).toBe(false);
+    },
+  );
   it("ProHud pads the plate row only on an adventure view", () => {
     const hud = (view: PlayerView) => (
       <ChakraProvider theme={theme}>
-        <ProHud view={view} status="open" roomId="r" resolveCard={() => null} resolveHero={() => null} labelFor={() => ""} />
+        <ProHud
+          view={view}
+          status="open"
+          roomId="r"
+          resolveCard={() => null}
+          resolveHero={() => null}
+          labelFor={() => ""}
+        />
       </ChakraProvider>
     );
-    const base = { you: "p1", phase: "PLAY", catalog: {}, tokens: [], players: [], self: { id: "p1", hand: [], discard: [], counters: {}, flags: {} } };
+    const base = {
+      you: "p1",
+      phase: "PLAY",
+      catalog: {},
+      tokens: [],
+      players: [],
+      self: { id: "p1", hand: [], discard: [], counters: {}, flags: {} },
+    };
     const adv = { ...base, ...(VIEW as object) } as unknown as PlayerView;
     const plain = { ...base, fighters: [] } as unknown as PlayerView;
     cleanup();
@@ -453,7 +521,8 @@ describe("seat-plate row vs overlay probe (#1135)", () => {
 // the CSS pins (compact plate max-height) or the values Checkpoint 4 measured in Chrome
 // for the legacy full plate (9.6rem tall; plate row starts 0.6rem down).
 type Box = { id: string; x0: number; y0: number; x1: number; y1: number };
-const boxHit = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+const boxHit = (a: Box, b: Box) =>
+  a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
 const ROW_TOP = rem(HUD_OVERLAY_INSET);
 const PLATE_WIDTH_REM = 15;
 const LEGACY_PLATE_H = rem("9.6rem");
@@ -461,11 +530,17 @@ const ASPECT = ISLA_NUBLAR_IMAGE.height / ISLA_NUBLAR_IMAGE.width;
 // Measured at 1500x950 by Checkpoint 4: the board image is 1040px wide at (78,120).
 const BOARD_1500 = { x: 78, y: 120, w: 1040 };
 
-const plateBoxes = (vw: number, heroes: number, compactMode: boolean | "legacy"): Box[] => {
+const plateBoxes = (
+  vw: number,
+  heroes: number,
+  compactMode: boolean | "legacy",
+): Box[] => {
   const n = heroes + 1;
   const compact = compactMode === true;
   const pw = rem(`${compact ? COMPACT_PLATE_WIDTH_REM : PLATE_WIDTH_REM}rem`);
-  const ph = compact ? rem(`${COMPACT_PLATE_MAX_HEIGHT_REM}rem`) : LEGACY_PLATE_H;
+  const ph = compact
+    ? rem(`${COMPACT_PLATE_MAX_HEIGHT_REM}rem`)
+    : LEGACY_PLATE_H;
   const gap = rem("0.6rem");
   const avail = vw - 2 * ROW_TOP - NEW_PAD;
   const perRow = Math.max(1, Math.floor((avail + gap) / (pw + gap)));
@@ -480,8 +555,20 @@ const plateBoxes = (vw: number, heroes: number, compactMode: boolean | "legacy")
 const fixedBoxes = (vw: number): Box[] => {
   const { dock, board } = spans(vw);
   return [
-    { id: "dock", x0: dock[0], y0: rem(DOCK_TOP), x1: dock[1], y1: rem(DOCK_TOP) + 400 },
-    { id: "overlay", x0: board[0], y0: rem(DOCK_TOP), x1: board[1], y1: rem(DOCK_TOP) + 380 },
+    {
+      id: "dock",
+      x0: dock[0],
+      y0: rem(DOCK_TOP),
+      x1: dock[1],
+      y1: rem(DOCK_TOP) + 400,
+    },
+    {
+      id: "overlay",
+      x0: board[0],
+      y0: rem(DOCK_TOP),
+      x1: board[1],
+      y1: rem(DOCK_TOP) + 380,
+    },
   ];
 };
 // Hit circles of the map's spaces. The board's top edge is the pt="7.5rem" strip; `w` is
@@ -494,53 +581,95 @@ const spaceCircles = (board: { x: number; y: number; w: number }): Box[] =>
     return { id: s.id, x0: cx - r, y0: cy - r, x1: cx + r, y1: cy + r };
   });
 const covered = (boxes: Box[], circles: Box[]) =>
-  boxes.flatMap((b) => circles.filter((c) => boxHit(b, c)).map((c) => `${b.id}x${c.id}`));
+  boxes.flatMap((b) =>
+    circles.filter((c) => boxHit(b, c)).map((c) => `${b.id}x${c.id}`),
+  );
 const mutual = (boxes: Box[]) =>
-  boxes.flatMap((a, i) => boxes.slice(i + 1).filter((b) => boxHit(a, b)).map((b) => `${a.id}x${b.id}`));
+  boxes.flatMap((a, i) =>
+    boxes
+      .slice(i + 1)
+      .filter((b) => boxHit(a, b))
+      .map((b) => `${a.id}x${b.id}`),
+  );
 
 describe("plates/overlay/dock never cover a board space (#1138)", () => {
   it("probe flags a planted box over a space", () => {
     const circles = spaceCircles(BOARD_1500);
     const s7 = circles.find((c) => c.id === "s7")!;
-    const planted: Box = { id: "planted", x0: s7.x0 + 2, y0: s7.y0 + 2, x1: s7.x1 - 2, y1: s7.y1 - 2 };
+    const planted: Box = {
+      id: "planted",
+      x0: s7.x0 + 2,
+      y0: s7.y0 + 2,
+      x1: s7.x1 - 2,
+      y1: s7.y1 - 2,
+    };
     expect(covered([planted], circles)).toContain("plantedxs7");
-    expect(mutual([planted, { ...planted, id: "other" }])).toEqual(["plantedxother"]);
+    expect(mutual([planted, { ...planted, id: "other" }])).toEqual([
+      "plantedxother",
+    ]);
   });
   it("FAILS on the #1137 geometry: 4 heroes at 1500 wrap full plates over s2, s3, s7 …", () => {
-    const hits = covered(plateBoxes(1500, 4, "legacy"), spaceCircles(BOARD_1500));
+    const hits = covered(
+      plateBoxes(1500, 4, "legacy"),
+      spaceCircles(BOARD_1500),
+    );
     expect(hits.length).toBeGreaterThan(0);
-    for (const s of ["s2", "s3", "s7"]) expect(hits.some((h) => h.endsWith(`x${s}`))).toBe(true);
+    for (const s of ["s2", "s3", "s7"])
+      expect(hits.some((h) => h.endsWith(`x${s}`))).toBe(true);
   });
   it.each([
     [1500, 2],
     [1500, 4],
     [1920, 2],
     [1920, 4],
-  ])("at %ipx with %i heroes: one plate row, no box overlaps another or any space", (vw, heroes) => {
-    const plates = plateBoxes(vw, heroes, true);
-    expect(new Set(plates.map((p) => p.y0)).size).toBe(1); // single row, never wrapped
-    const fixed = fixedBoxes(vw);
-    expect(mutual([...plates, ...fixed])).toEqual([]);
-    // the board is at most the viewport wide; a wider board only pushes spaces lower/right
-    for (const w of [BOARD_1500.w, vw - 2 * 78]) {
-      expect(covered(plates, spaceCircles({ x: 78, y: rem(DOCK_TOP), w }))).toEqual([]);
-    }
-  });
+  ])(
+    "at %ipx with %i heroes: one plate row, no box overlaps another or any space",
+    (vw, heroes) => {
+      const plates = plateBoxes(vw, heroes, true);
+      expect(new Set(plates.map((p) => p.y0)).size).toBe(1); // single row, never wrapped
+      const fixed = fixedBoxes(vw);
+      expect(mutual([...plates, ...fixed])).toEqual([]);
+      // the board is at most the viewport wide; a wider board only pushes spaces lower/right
+      for (const w of [BOARD_1500.w, vw - 2 * 78]) {
+        expect(
+          covered(plates, spaceCircles({ x: 78, y: rem(DOCK_TOP), w })),
+        ).toEqual([]);
+      }
+    },
+  );
   it("the compact plate fits the strip above the board", () => {
-    expect(ROW_TOP + rem(`${COMPACT_PLATE_MAX_HEIGHT_REM}rem`)).toBeLessThanOrEqual(rem(DOCK_TOP));
+    expect(
+      ROW_TOP + rem(`${COMPACT_PLATE_MAX_HEIGHT_REM}rem`),
+    ).toBeLessThanOrEqual(rem(DOCK_TOP));
   });
   it("ProHud: adventure plates are compact; other formats keep the 15rem plate", () => {
-    const base = { you: "p1", phase: "PLAY", catalog: {}, tokens: [], players: [], self: { id: "p1", hand: [], discard: [], counters: {}, flags: {} } };
+    const base = {
+      you: "p1",
+      phase: "PLAY",
+      catalog: {},
+      tokens: [],
+      players: [],
+      self: { id: "p1", hand: [], discard: [], counters: {}, flags: {} },
+    };
     const adv = { ...base, ...(VIEW as object) } as unknown as PlayerView;
     const plain = { ...base, fighters: [] } as unknown as PlayerView;
     const widths = (view: PlayerView) => {
       cleanup();
       const r = render(
         <ChakraProvider theme={theme}>
-          <ProHud view={view} status="open" roomId="r" resolveCard={() => null} resolveHero={() => null} labelFor={() => ""} />
+          <ProHud
+            view={view}
+            status="open"
+            roomId="r"
+            resolveCard={() => null}
+            resolveHero={() => null}
+            labelFor={() => ""}
+          />
         </ChakraProvider>,
       );
-      return Array.from(r.baseElement.querySelectorAll<HTMLElement>("[style*='width: ']"))
+      return Array.from(
+        r.baseElement.querySelectorAll<HTMLElement>("[style*='width: ']"),
+      )
         .map((e) => e.style.width)
         .filter((w) => w === "10rem" || w === "15rem");
     };
@@ -549,5 +678,20 @@ describe("plates/overlay/dock never cover a board space (#1138)", () => {
     expect(a.every((w) => w === "10rem")).toBe(true);
     const p = widths(plain);
     expect(p).not.toContain("10rem");
+  });
+});
+
+describe("collapsible overlay (#1139)", () => {
+  it("folds every panel away behind a clickable toggle", () => {
+    cleanup();
+    mount("adventure");
+    const toggle = screen.getByTestId("adv-collapse");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    const board = screen.getByTestId("adventure-board");
+    expect(board.children).toHaveLength(1);
+    fireEvent.click(toggle);
+    expect(board.children.length).toBeGreaterThan(1);
   });
 });
