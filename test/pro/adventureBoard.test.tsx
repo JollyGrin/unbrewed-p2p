@@ -119,7 +119,7 @@ describe("AdventureBoard", () => {
     expect(screen.getByTestId("adv-threat-level")).toHaveTextContent("2");
     expect(screen.getByTestId("adv-scenario")).toHaveTextContent("ISLA NUBLAR");
     expect(screen.getByTestId("adv-scenario")).toHaveAttribute("data-scenario-id", "isla-nublar");
-    expect(screen.getByTestId("adv-enemy-e1/rex")).toHaveAttribute("data-enemy-id", "indominus-rex");
+    expect(screen.getByTestId("adv-villain")).toHaveAttribute("data-enemy-id", "indominus-rex");
     expect(screen.getByTestId("adv-enemy-hp-e1/rex")).toHaveTextContent("7/20");
     expect(screen.getByTestId("adv-enemy-deck-e1/rex")).toHaveTextContent(
       "DECK 5",
@@ -680,5 +680,71 @@ describe("plates clear the top-right chip cluster (#1145)", () => {
     expect(mutual([...plates, clusterBox(vw)])).toEqual([]);
     expect(covered(plates, spaceCircles({ x: 78, y: rem(DOCK_TOP), w: BOARD_1500.w }))).toEqual([]);
     expect(Math.max(...plates.map((p) => p.y1))).toBeLessThanOrEqual(rem(DOCK_TOP));
+
+// #1154: the villain board column.
+describe("villain board (#1154)", () => {
+  const withScenario = (threat: object, objectives: object[], enemyExtra: object = {}) =>
+    ({
+      ...VIEW,
+      catalog: { "slam": { title: "Killing for Sport" } },
+      fighters: [
+        VIEW.fighters[0],
+        {
+          ...VIEW.fighters[1],
+          size: "LARGE",
+          enemy: { role: "VILLAIN", enemyId: "indominus-rex", move: 2, deckCount: 5, discardTop: "slam#1", ...enemyExtra },
+        },
+        fighter("e2/trex", "T. Rex", {
+          size: "LARGE",
+          hp: 6,
+          maxHp: 6,
+          enemy: { role: "MINION", move: 1, deckCount: 3, discardTop: null, released: true },
+        }),
+      ],
+      scenario: {
+        ...VIEW.scenario,
+        threat: { position: 4, level: 2, overflows: 0, positions: [1, 1, 2, 2, 2, 3, 3, 4], ...threat },
+        objectives,
+      },
+    }) as unknown as PlayerView;
+  const OBJ = [1, 2, 3, 4].map((n) => ({ id: `o${n}`, label: `Enclosure 0${n}`, fired: 0 }));
+
+  it("model: steps to breakout and terminal label are correct, also after an overflow reset", () => {
+    expect(adventureBoardModel(withScenario({}, OBJ))!.threat).toMatchObject({
+      stepsToBreakout: 5,
+      terminal: { label: "Enclosure 01", marker: false },
+    });
+    const reset = adventureBoardModel(
+      withScenario({ position: 1, overflows: 1 }, [{ ...OBJ[0], fired: 1 }, ...OBJ.slice(1)]),
+    )!.threat!;
+    expect(reset.stepsToBreakout).toBe(8);
+    expect(reset.overflows).toBe(1);
+    expect(reset.terminal.label).toBe("Enclosure 02");
+    expect(adventureBoardModel(withScenario({ position: 8 }, OBJ))!.threat!.stepsToBreakout).toBe(1);
+  });
+
+  it("renders all five blocks with live values", () => {
+    mount("adventure", withScenario({}, [{ ...OBJ[0], fired: 1 }, ...OBJ.slice(1)]));
+    expect(screen.getByTestId("adv-villain-line")).toHaveTextContent("VILLAIN · LARGE · MOVE 2");
+    expect(screen.getByTestId("adv-villain-last-played")).toHaveTextContent("Killing for Sport");
+    expect(screen.getByTestId("adv-threat-terminal")).toHaveTextContent("ENCLOSURE 02");
+    expect(screen.getByTestId("adv-threat-steps")).toHaveTextContent("5 steps");
+    expect(screen.getByTestId("adv-objectives-count")).toHaveTextContent("1 of 4 · the 4th ends the game");
+    expect(screen.getByTestId("adv-objective-1")).toHaveAttribute("data-fired", "true");
+    expect(screen.getByTestId("adv-objective-4")).toHaveTextContent("LOSE");
+    expect(screen.getByTestId("adv-win-line")).toHaveTextContent("To win: Rex to 0 and T. Rex (6/6) defeated");
+    expect(screen.getByTestId("adv-enemy-released-e2/trex")).toBeInTheDocument();
+    expect(screen.queryByTestId("adv-enemy-e1/rex")).toBeNull();
+  });
+
+  it("any objective count works, and missing optional fields just hide their bits", () => {
+    mount("adventure", withScenario({}, OBJ.slice(0, 2), { discardTop: null }));
+    expect(screen.getByTestId("adv-objectives-count")).toHaveTextContent("0 of 2 · the 2nd ends the game");
+    expect(screen.queryByTestId("adv-villain-last-played")).toBeNull();
+    expect(screen.queryByTestId("adv-villain-wants")).toBeNull();
+    cleanup();
+    mount("adventure", VIEW); // no objectives, no minions
+    expect(screen.queryByTestId("adv-objectives")).toBeNull();
+    expect(screen.getByTestId("adv-villain")).toBeInTheDocument();
   });
 });
