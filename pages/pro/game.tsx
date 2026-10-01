@@ -4927,8 +4927,9 @@ const LiveGame = ({
             chipsH: mobileChipsH,
             controlsH: mobileControlsH,
             sheetH: mobileSheetH,
+            adventureOverlay: roomInfo?.formatId === "adventure",
           }),
-    [hud, mode, mobileChipsH, mobileControlsH, mobileSheetH, mobileSheetShown, safeArea]
+    [hud, mode, mobileChipsH, mobileControlsH, mobileSheetH, mobileSheetShown, safeArea, roomInfo?.formatId]
   );
   // The activity log floats permanently on desktop; on mobile it is a sheet the
   // Log button opens. The hand is a drawer on mobile portrait (direction B) —

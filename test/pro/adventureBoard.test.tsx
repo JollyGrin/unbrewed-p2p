@@ -29,6 +29,7 @@ import {
   ISLA_NUBLAR_SPACES,
   ISLA_NUBLAR_SPACE_DIAMETER,
 } from "./fixtures/islaNublarSpaces";
+import { boardFitInsetFor } from "@/lib/pro/mobileLayout";
 import type { GameEvent, PlayerView } from "@/lib/pro/protocol";
 
 const fighter = (id: string, name: string, extra: object = {}) => ({
@@ -549,5 +550,55 @@ describe("plates/overlay/dock never cover a board space (#1138)", () => {
     expect(a.every((w) => w === "10rem")).toBe(true);
     const p = widths(plain);
     expect(p).not.toContain("10rem");
+  });
+});
+
+// #1139: the right-docked overlay column (turn-order row + "players choose" panel + threat
+// track + dials) is ~272x380+ and sat over the board's right side: enclosure 07 (= s10, the
+// third-from-last in the map's enclosures order) and s16 at 1500px. The board now FITS clear
+// of the column, via boardFitInsetFor({ adventureOverlay }), instead of running under it.
+const ENCLOSURE_SPACES = ["s19", "s18", "s24", "s42", "s41", "s11", "s10", "s49"]; // printed 01..08
+const boardRectFor = (vw: number, vh: number, adventureOverlay: boolean) => {
+  const inset = boardFitInsetFor({ mode: "desktop", adventureOverlay });
+  const aw = vw - inset.left - inset.right;
+  const ah = vh - inset.top - inset.bottom;
+  const w = Math.min(aw, ah / ASPECT);
+  return { x: inset.left + (aw - w) / 2, y: inset.top + (ah - w * ASPECT) / 2, w };
+};
+// The overlay's full footprint: docked at top 3.2rem, capped by maxH calc(100vh - 4rem).
+const overlayBox = (vw: number, vh: number): Box => {
+  const { board } = spans(vw);
+  return { id: "overlay", x0: board[0], y0: rem("3.2rem"), x1: board[1], y1: rem("3.2rem") + vh - 64 };
+};
+
+describe("overlay column never covers an enclosure badge or space (#1139)", () => {
+  it("probe flags a planted box over enclosure 07 (s10)", () => {
+    const circles = spaceCircles(boardRectFor(1500, 950, false));
+    const s10 = circles.find((c) => c.id === "s10")!;
+    const planted: Box = { id: "planted", x0: s10.x0 + 2, y0: s10.y0 + 2, x1: s10.x1 - 2, y1: s10.y1 - 2 };
+    expect(ENCLOSURE_SPACES.indexOf("s10") + 1).toBe(7);
+    expect(covered([planted], circles)).toContain("plantedxs10");
+  });
+  it("FAILS on the old geometry: at 1500x950 the column covers enclosure 07 (s10) and s16", () => {
+    const hits = covered([overlayBox(1500, 950)], spaceCircles(boardRectFor(1500, 950, false)));
+    expect(hits).toContain("overlayxs10");
+    expect(hits).toContain("overlayxs16");
+  });
+  it.each([
+    [1500, 950, 2],
+    [1500, 950, 4],
+    [1920, 1080, 2],
+    [1920, 1080, 4],
+  ])("at %ix%i with %i heroes: column, dock and plates clear every space", (vw, vh, heroes) => {
+    const circles = spaceCircles(boardRectFor(vw, vh, true));
+    const boxes = [overlayBox(vw, vh), ...fixedBoxes(vw).filter((b) => b.id === "dock"), ...plateBoxes(vw, heroes, true)];
+    expect(covered(boxes, circles)).toEqual([]);
+    expect(covered(boxes, circles.filter((c) => ENCLOSURE_SPACES.includes(c.id)))).toEqual([]);
+  });
+  it("only an adventure room reserves the column; the desktop inset is otherwise unchanged", () => {
+    const base = boardFitInsetFor({ mode: "desktop" });
+    expect(base.right).toBe(320);
+    expect(boardFitInsetFor({ mode: "desktop", adventureOverlay: true }).right).toBe(320 + 284);
+    expect(boardFitInsetFor({ mode: "portrait", adventureOverlay: true })).toEqual(boardFitInsetFor({ mode: "portrait" }));
   });
 });
