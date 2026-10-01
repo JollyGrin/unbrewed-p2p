@@ -29,6 +29,7 @@ import {
   Tooltip,
   VisuallyHidden,
 } from "@chakra-ui/react";
+import { COMPACT_PLATE_WIDTH_REM } from "@/components/Pro/dockLayout";
 import { toast } from "react-hot-toast";
 import { LinkIcon } from "@chakra-ui/icons";
 import {
@@ -652,6 +653,7 @@ export const SeatPlate = ({
   onUpdate,
   variant = "plate",
   figureCredit = null,
+  compact = false,
 }: {
   /** WHOSE plate this is — the pile's HOST, which is what a bare pile entry means
    *  (protocol v33). Needed to tell an own entry from a foreign one. */
@@ -738,6 +740,9 @@ export const SeatPlate = ({
   /** The credit for the miniature this hero stands as on the tabletop, or
    *  null when it is a token (#903). */
   figureCredit?: FigureCredit | null;
+  /** #1138: Adventure plate row — render the narrow collapsed title bar (name + HP)
+   *  so the row stays one line above the board. */
+  compact?: boolean;
 }) => {
   const [discardOpen, setDiscardOpen] = useState(false);
   // Which set-aside pile this plate is inspecting (v25), by pile name; null =
@@ -752,7 +757,9 @@ export const SeatPlate = ({
   const ranged = heroFighter ? heroFighter.reach === "RANGED" : hero?.isRanged;
   const heroHp = heroFighter ? `${heroFighter.hp}/${heroFighter.maxHp}` : "–";
   const isLargeHero = !!heroFighter && isLargeFighter(heroFighter);
-  const collapsed = layout.collapsed;
+  // #1138: a compact plate is always the collapsed title bar (name + HP, full detail in
+  // the hover peek) at a narrower width, so an Adventure row of 4 heroes + the enemy fits.
+  const collapsed = layout.collapsed || compact;
   const moved = layout.x !== 0 || layout.y !== 0;
 
   // Drag transform lives on this WRAPPER (motion values), never on
@@ -1245,7 +1252,7 @@ export const SeatPlate = ({
         dragListener={false}
         dragControls={dragControls}
         dragMomentum={false}
-        style={{ x, y, position: "relative", width: "15rem", zIndex: dragging ? 200 : 1 }}
+        style={{ x, y, position: "relative", width: compact ? `${COMPACT_PLATE_WIDTH_REM}rem` : "15rem", zIndex: dragging ? 200 : 1 }}
         onDragStart={() => setDragging(true)}
         onDragEnd={() => {
           setDragging(false);
@@ -1265,7 +1272,7 @@ export const SeatPlate = ({
             maxW="none"
             label={peekPlate}
           >
-            <StatContainer isLocal={isLocal}>
+            <StatContainer isLocal={isLocal} compact={compact}>
               <PlayerTitleBar {...titleBarDrag}>
                 {renderNameBlock(true)}
                 {/* Wraps rather than shrinks the name out of the plate
@@ -1650,6 +1657,9 @@ export const ProHud = ({
   // of which render the plate exactly as it does today.
   const { account } = useAccount();
   const seats: ViewPlayer[] = hudSeats(view);
+  // #1138: Adventure seat plates are always compact — one row left of the overlay + dock,
+  // never over the board. Other formats are untouched.
+  const compactPlates = !!adventureBoardModel(view);
 
   // Team affiliation (issue #195). Inactive (no ALLY chips) unless the view is a
   // real team format — duel/ffa/older-server views derive `active: false` and
@@ -1702,6 +1712,7 @@ export const ProHud = ({
           <SeatPlate
             key={seat.id}
             seatId={seat.id}
+            compact={compactPlates}
             label={seatLabel(seat)}
             hero={resolveHero(seat.heroId)}
             ruleCards={resolveRuleCards?.(seat.heroId) ?? []}

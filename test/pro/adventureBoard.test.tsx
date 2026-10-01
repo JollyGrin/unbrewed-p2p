@@ -7,7 +7,10 @@ import { ChakraProvider } from "@chakra-ui/react";
 import {
   ADVENTURE_BOARD_WIDTH,
   ADVENTURE_PLATE_PAD_RIGHT,
+  COMPACT_PLATE_MAX_HEIGHT_REM,
+  COMPACT_PLATE_WIDTH_REM,
   DOCK_RIGHT,
+  DOCK_TOP,
   DOCK_WIDTH,
   HUD_OVERLAY_INSET,
 } from "@/components/Pro/dockLayout";
@@ -21,6 +24,11 @@ import {
   moverIntent,
   parseInitiativeCardId,
 } from "@/lib/pro/adventureBoard";
+import {
+  ISLA_NUBLAR_IMAGE,
+  ISLA_NUBLAR_SPACES,
+  ISLA_NUBLAR_SPACE_DIAMETER,
+} from "./fixtures/islaNublarSpaces";
 import type { GameEvent, PlayerView } from "@/lib/pro/protocol";
 
 const fighter = (id: string, name: string, extra: object = {}) => ({
@@ -436,5 +444,110 @@ describe("seat-plate row vs overlay probe (#1135)", () => {
     cleanup();
     const b = render(hud(plain));
     expect(b.baseElement.querySelectorAll("[data-adventure]").length).toBe(0);
+  });
+});
+
+// #1138: the #1137 wrapped second plate row sat over the board and swallowed clicks.
+// Box model of everything fixed over the board (px, viewport coords), checked against
+// every Isla Nublar space's hit circle. jsdom has no layout, so heights are the bounds
+// the CSS pins (compact plate max-height) or the values Checkpoint 4 measured in Chrome
+// for the legacy full plate (9.6rem tall; plate row starts 0.6rem down).
+type Box = { id: string; x0: number; y0: number; x1: number; y1: number };
+const boxHit = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+const ROW_TOP = rem(HUD_OVERLAY_INSET);
+const PLATE_WIDTH_REM = 15;
+const LEGACY_PLATE_H = rem("9.6rem");
+const ASPECT = ISLA_NUBLAR_IMAGE.height / ISLA_NUBLAR_IMAGE.width;
+// Measured at 1500x950 by Checkpoint 4: the board image is 1040px wide at (78,120).
+const BOARD_1500 = { x: 78, y: 120, w: 1040 };
+
+const plateBoxes = (vw: number, heroes: number, compactMode: boolean | "legacy"): Box[] => {
+  const n = heroes + 1;
+  const compact = compactMode === true;
+  const pw = rem(`${compact ? COMPACT_PLATE_WIDTH_REM : PLATE_WIDTH_REM}rem`);
+  const ph = compact ? rem(`${COMPACT_PLATE_MAX_HEIGHT_REM}rem`) : LEGACY_PLATE_H;
+  const gap = rem("0.6rem");
+  const avail = vw - 2 * ROW_TOP - NEW_PAD;
+  const perRow = Math.max(1, Math.floor((avail + gap) / (pw + gap)));
+  return Array.from({ length: n }, (_, i) => {
+    const row = Math.floor(i / perRow);
+    const col = i % perRow;
+    const x0 = ROW_TOP + col * (pw + gap);
+    const y0 = ROW_TOP + row * (ph + gap);
+    return { id: `plate${i + 1}`, x0, y0, x1: x0 + pw, y1: y0 + ph };
+  });
+};
+const fixedBoxes = (vw: number): Box[] => {
+  const { dock, board } = spans(vw);
+  return [
+    { id: "dock", x0: dock[0], y0: rem(DOCK_TOP), x1: dock[1], y1: rem(DOCK_TOP) + 400 },
+    { id: "overlay", x0: board[0], y0: rem(DOCK_TOP), x1: board[1], y1: rem(DOCK_TOP) + 380 },
+  ];
+};
+// Hit circles of the map's spaces. The board's top edge is the pt="7.5rem" strip; `w` is
+// the board image width (a space can never sit above its board, so w only moves them down).
+const spaceCircles = (board: { x: number; y: number; w: number }): Box[] =>
+  ISLA_NUBLAR_SPACES.map((s) => {
+    const r = (ISLA_NUBLAR_SPACE_DIAMETER * board.w) / 2;
+    const cx = board.x + s.x * board.w;
+    const cy = board.y + s.y * ASPECT * board.w;
+    return { id: s.id, x0: cx - r, y0: cy - r, x1: cx + r, y1: cy + r };
+  });
+const covered = (boxes: Box[], circles: Box[]) =>
+  boxes.flatMap((b) => circles.filter((c) => boxHit(b, c)).map((c) => `${b.id}x${c.id}`));
+const mutual = (boxes: Box[]) =>
+  boxes.flatMap((a, i) => boxes.slice(i + 1).filter((b) => boxHit(a, b)).map((b) => `${a.id}x${b.id}`));
+
+describe("plates/overlay/dock never cover a board space (#1138)", () => {
+  it("probe flags a planted box over a space", () => {
+    const circles = spaceCircles(BOARD_1500);
+    const s7 = circles.find((c) => c.id === "s7")!;
+    const planted: Box = { id: "planted", x0: s7.x0 + 2, y0: s7.y0 + 2, x1: s7.x1 - 2, y1: s7.y1 - 2 };
+    expect(covered([planted], circles)).toContain("plantedxs7");
+    expect(mutual([planted, { ...planted, id: "other" }])).toEqual(["plantedxother"]);
+  });
+  it("FAILS on the #1137 geometry: 4 heroes at 1500 wrap full plates over s2, s3, s7 …", () => {
+    const hits = covered(plateBoxes(1500, 4, "legacy"), spaceCircles(BOARD_1500));
+    expect(hits.length).toBeGreaterThan(0);
+    for (const s of ["s2", "s3", "s7"]) expect(hits.some((h) => h.endsWith(`x${s}`))).toBe(true);
+  });
+  it.each([
+    [1500, 2],
+    [1500, 4],
+    [1920, 2],
+    [1920, 4],
+  ])("at %ipx with %i heroes: one plate row, no box overlaps another or any space", (vw, heroes) => {
+    const plates = plateBoxes(vw, heroes, true);
+    expect(new Set(plates.map((p) => p.y0)).size).toBe(1); // single row, never wrapped
+    const fixed = fixedBoxes(vw);
+    expect(mutual([...plates, ...fixed])).toEqual([]);
+    // the board is at most the viewport wide; a wider board only pushes spaces lower/right
+    for (const w of [BOARD_1500.w, vw - 2 * 78]) {
+      expect(covered(plates, spaceCircles({ x: 78, y: rem(DOCK_TOP), w }))).toEqual([]);
+    }
+  });
+  it("the compact plate fits the strip above the board", () => {
+    expect(ROW_TOP + rem(`${COMPACT_PLATE_MAX_HEIGHT_REM}rem`)).toBeLessThanOrEqual(rem(DOCK_TOP));
+  });
+  it("ProHud: adventure plates are compact; other formats keep the 15rem plate", () => {
+    const base = { you: "p1", phase: "PLAY", catalog: {}, tokens: [], players: [], self: { id: "p1", hand: [], discard: [], counters: {}, flags: {} } };
+    const adv = { ...base, ...(VIEW as object) } as unknown as PlayerView;
+    const plain = { ...base, fighters: [] } as unknown as PlayerView;
+    const widths = (view: PlayerView) => {
+      cleanup();
+      const r = render(
+        <ChakraProvider theme={theme}>
+          <ProHud view={view} status="open" roomId="r" resolveCard={() => null} resolveHero={() => null} labelFor={() => ""} />
+        </ChakraProvider>,
+      );
+      return Array.from(r.baseElement.querySelectorAll<HTMLElement>("[style*='width: ']"))
+        .map((e) => e.style.width)
+        .filter((w) => w === "10rem" || w === "15rem");
+    };
+    const a = widths(adv);
+    expect(a.length).toBeGreaterThan(0);
+    expect(a.every((w) => w === "10rem")).toBe(true);
+    const p = widths(plain);
+    expect(p).not.toContain("10rem");
   });
 });
