@@ -92,6 +92,7 @@ import { cardChoiceGroups } from "@/lib/pro/cardChoices";
 import { CardPreviewProvider } from "@/components/Pro/CardPreview";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { MapPreviewModal } from "@/components/Pro/MapPreviewModal";
+import { trackDefeatRounds } from "@/lib/pro/adventureVerdict";
 import { ProDock } from "@/components/Pro/ProDock";
 import { ProHud, ProHudProps, STATUS_DISPLAY } from "@/components/Pro/ProHud";
 import { MOBILE_BTN, ProMobileHud, ProMobileMenu } from "@/components/Pro/ProMobileHud";
@@ -4990,9 +4991,12 @@ const LiveGame = ({
   // One monotonic id per appended STATE batch (issue #298) — every line of a
   // batch shares it, so the log panel groups a single player action together.
   const logBatchRef = useRef(0);
+  // Adventure end screen (#1159): the round each fighter fell, for "defeated R6".
+  const [defeatRounds, setDefeatRounds] = useState<Readonly<Record<string, number>>>({});
   useEffect(() => {
     if (!snapshot) return;
     const next = snapshot.view;
+    if (next.scenario) setDefeatRounds((cur) => trackDefeatRounds(cur, snapshot.events, next.initiative?.round));
     const diff = diffViews(prevViewRef.current, next, (c) => cardLabel(next.catalog, c), snapshot.events);
     // Sub-attack CHAIN bookkeeping (issue #596 ↔ engine #359). Runs here because
     // this is the one effect that already sees BOTH views of a batch, and the
@@ -7294,6 +7298,7 @@ const LiveGame = ({
       iForfeited={iForfeited}
       multiplayerView={multiplayerView}
       rematchHref={rematchHref}
+      defeatRounds={defeatRounds}
       rematchNegotiation={rematchNegotiation}
       replayHref={replayBundle ? `/pro/replays?open=${replayId(replayBundle)}` : null}
       onCopyShareLink={

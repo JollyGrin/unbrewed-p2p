@@ -1,0 +1,93 @@
+import { adventureEndLogLine, adventureVerdictModel, trackDefeatRounds } from "./adventureVerdict";
+import type { PlayerView, ScenarioResult } from "./protocol";
+
+const fighter = (id: string, name: string, extra: Record<string, unknown> = {}) =>
+  ({ id, name, owner: id.split("/")[0], hp: 5, maxHp: 5, defeated: false, ...extra });
+
+const view = (result: ScenarioResult | undefined, over: Record<string, unknown> = {}): PlayerView =>
+  ({
+    you: "p1",
+    winner: result?.verdict === "VICTORY" ? "p1" : "e1",
+    players: [],
+    fighters: [
+      fighter("p1/hero", "Kong"),
+      fighter("e1/indominus", "Indominus Rex", { hp: 6, maxHp: 20, enemy: { role: "VILLAIN", move: 3, deckCount: 0, discardTop: null } }),
+      fighter("e1/trex", "T. Rex", { enemy: { role: "MINION", move: 3, deckCount: 0, discardTop: null, released: true } }),
+    ],
+    scenario: {
+      threat: { position: 1, level: 1, overflows: 4, positions: [1], bySource: { roundEnd: 19, noTarget: 9, effect: 4 } },
+      objectives: [],
+      releases: [
+        { round: 3, fighter: "e1/trex", enemyId: "trex", spaceLabel: "2" },
+        { round: 5, fighter: "e1/trex", enemyId: "trex" },
+      ],
+      result,
+      ...((over.scenario as object) ?? {}),
+    },
+  }) as unknown as PlayerView;
+
+const objective: ScenarioResult = { verdict: "DEFEAT", cause: { kind: "OBJECTIVE", objectiveId: "fourth-enclosure" }, round: 9 };
+
+describe("adventureVerdictModel", () => {
+  it("DEFEAT by OBJECTIVE: the island fell, villain hp, timeline with the final slot", () => {
+    const m = adventureVerdictModel(view(objective), { "e1/trex": 6 })!;
+    expect(m.headline).toBe("THE ISLAND FELL");
+    expect(m.kicker).toBe("DEFEAT · ROUND 9");
+    expect(m.lines[0]).toBe("Indominus Rex broke open her fourth enclosure. You had her down to 6 of 20 health.");
+    expect(m.releases.map((t) => [t.round, t.enclosure, t.defeatedRound, t.final])).toEqual([
+      [3, "2", 6, false],
+      [5, "2", 6, false],
+      [9, "4", null, true],
+    ]);
+    expect(m.facts[0].text).toContain("Round ends 19");
+  });
+
+  it("DEFEAT by WIPE", () => {
+    const m = adventureVerdictModel(view({ verdict: "DEFEAT", cause: { kind: "WIPE" }, round: 4 }))!;
+    expect(m.headline).toBe("THE HEROES FELL");
+    expect(m.lines[0]).toBe("Every hero and sidekick is down.");
+    expect(m.releases.some((t) => t.final)).toBe(false);
+  });
+
+  it("VICTORY says when the villain and the last released enemy fell", () => {
+    const m = adventureVerdictModel(view({ verdict: "VICTORY", cause: { kind: "VICTORY_CONDITION" }, round: 8 }), { "e1/indominus": 7, "e1/trex": 8 })!;
+    expect(m.headline).toBe("THE ISLAND IS SAFE");
+    expect(m.lines).toEqual(["Indominus Rex fell in round 7.", "The last loose enemy, T. Rex, fell in round 8."]);
+  });
+
+  it("DEFEAT_CONDITION: generic headline + the briefing's lose line", () => {
+    const m = adventureVerdictModel(
+      view({ verdict: "DEFEAT", cause: { kind: "DEFEAT_CONDITION" }, round: 5 }, {
+        scenario: { briefing: { tagline: "", objective: "", win: "", lose: "The vault was emptied." } },
+      }),
+    )!;
+    expect(m.headline).toBe("DEFEAT");
+    expect(m.lines[0]).toBe("The vault was emptied.");
+  });
+
+  it("missing result falls back (not explained); no scenario or no winner is null", () => {
+    expect(adventureVerdictModel(view(undefined))!.explained).toBe(false);
+    const plain = view(objective);
+    delete (plain as { scenario?: unknown }).scenario;
+    expect(adventureVerdictModel(plain)).toBeNull();
+    expect(adventureVerdictModel({ ...view(objective), winner: null } as PlayerView)).toBeNull();
+  });
+});
+
+describe("adventureEndLogLine", () => {
+  it("names the island, never a seat", () => {
+    expect(adventureEndLogLine(view(objective))).toBe("Defeat — the island wins (4th enclosure)");
+    expect(adventureEndLogLine(view({ verdict: "DEFEAT", cause: { kind: "WIPE" }, round: 2 }))).toBe("Defeat — the island wins");
+    expect(adventureEndLogLine(view({ verdict: "VICTORY", cause: { kind: "VICTORY_CONDITION" }, round: 2 }))).toBe("Victory — your team wins");
+    expect(adventureEndLogLine(view(undefined))).toBeNull();
+  });
+});
+
+describe("trackDefeatRounds", () => {
+  it("records first defeat only and keeps identity when nothing new", () => {
+    const a = trackDefeatRounds({}, [{ type: "FIGHTER_DEFEATED", fighter: "x" }], 3);
+    expect(a).toEqual({ x: 3 });
+    expect(trackDefeatRounds(a, [{ type: "FIGHTER_DEFEATED", fighter: "x" }], 5)).toBe(a);
+    expect(trackDefeatRounds(a, [{ type: "FIGHTER_DEFEATED", fighter: "y" }], null)).toBe(a);
+  });
+});
