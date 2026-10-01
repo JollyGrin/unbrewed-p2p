@@ -194,10 +194,10 @@ const Token = ({ name, size = "1.5rem" }: { name: string; size?: string }) => (
 
 export const VillainHeader = ({
   villain,
-  wants,
+  objective,
 }: {
   villain: EnemyDial;
-  wants: string | null;
+  objective: string | null;
 }) => {
   const pct = villain.maxHp > 0 ? Math.max(0, Math.min(1, villain.hp / villain.maxHp)) : 0;
   return (
@@ -239,9 +239,9 @@ export const VillainHeader = ({
           Last played: {villain.lastPlayed}
         </Text>
       )}
-      {wants && (
-        <Text fontSize="0.7rem" opacity={0.85} data-testid="adv-villain-wants">
-          Wants: {wants}
+      {objective && (
+        <Text fontSize="0.7rem" opacity={0.85} data-testid="adv-villain-objective">
+          Objective: {objective}
         </Text>
       )}
     </Flex>
@@ -740,7 +740,7 @@ export const AdventureBoard = ({
         <InitiativeRow model={model} fighterTokenArt={fighterTokenArt} />
       )}
       {model.villain && (
-        <VillainHeader villain={model.villain} wants={model.wants} />
+        <VillainHeader villain={model.villain} objective={model.objective} />
       )}
       <RulesButton onClick={() => setRulesOpen(true)} />
       <AdventureBriefingModal

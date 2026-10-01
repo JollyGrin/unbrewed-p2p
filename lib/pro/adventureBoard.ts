@@ -103,8 +103,8 @@ export interface AdventureBoardModel {
   objectives: { slots: ObjectiveSlot[]; lost: number } | null;
   /** the villain's dial (header), when one is on the board */
   villain: EnemyDial | null;
-  /** engine #735 `scenario.briefing` (villain "wants" line); null when absent */
-  wants: string | null;
+  /** engine v36 `scenario.briefing.objective` (header line); null when the scenario authors no briefing */
+  objective: string | null;
   /** "To win" line parts: villain + the released minions still to defeat; null without a villain */
   win: {
     villain: string;
@@ -261,7 +261,7 @@ export const adventureBoardModel = (
       size: f.size,
       move: f.enemy!.move,
       lastPlayed: f.enemy!.discardTop
-        ? (view.catalog?.[f.enemy!.discardTop.replace(/#\d+$/, "")]?.title ??
+        ? (view.catalog?.[f.enemy!.discardTop.split("#")[0]]?.title ??
           null)
         : null,
       released: (f.enemy as { released?: boolean }).released ?? null,
@@ -309,11 +309,7 @@ export const adventureBoardModel = (
     threat: scenario ? threatModel(scenario) : null,
     objectives: scenario ? objectiveSlots(scenario.objectives) : null,
     villain,
-    wants:
-      typeof (scenario as { briefing?: unknown } | undefined)?.briefing ===
-      "string"
-        ? (scenario as unknown as { briefing: string }).briefing
-        : null,
+    objective: scenario?.briefing?.objective ?? null,
     win: villain
       ? {
           villain: villain.name,
