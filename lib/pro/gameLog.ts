@@ -5,6 +5,7 @@
  * Heuristic and display-only: misses nothing rules-relevant that the view
  * doesn't also show, and never feeds anything back into play.
  */
+import { adventureEndLogLine } from "./adventureVerdict";
 import {
   CardInstanceId,
   FighterId,
@@ -596,11 +597,12 @@ export function diffViews(
     const viewerWon = isViewerOnWinningTeam(next);
     // In a real team format, phrase both the win and the loss around the team.
     const teamGame = deriveTeams(next.players, next.you).active;
-    const text = viewerWon
+    const text = adventureEndLogLine(next)
+      ?? (viewerWon
       ? teamGame
         ? "VICTORY — your team wins!"
         : "VICTORY — you win!"
-      : `Defeat — ${seat(next.winner)}${teamGame ? "'s team" : ""} wins`;
+      : `Defeat — ${seat(next.winner)}${teamGame ? "'s team" : ""} wins`);
     lines.push({ text, who: "game" });
   }
 

@@ -43,6 +43,8 @@ import { TableHudDock } from "@/components/Pro/Table/Hud/TableHudDock";
 import { useDockLayout } from "@/lib/pro/useDockLayout";
 import { DOCK_RIGHT, DOCK_TOP, DOCK_WIDTH } from "./dockLayout";
 import { isNewCombat } from "@/lib/pro/combatInstance";
+import { adventureVerdictModel } from "@/lib/pro/adventureVerdict";
+import { AdventureVerdictBody } from "@/components/Pro/AdventureVerdictBody";
 import { RematchNegotiation, RematchOfferPanel } from "@/components/Pro/RematchOfferPanel";
 
 /**
@@ -233,6 +235,8 @@ export interface ProDockProps {
    * does and doesn't carry over (battlefield items can't — see that file).
    */
   rematchHref?: string | null;
+  /** Adventure end screen (#1159): the round each fighter fell, for "defeated R6" lines. */
+  defeatRounds?: Readonly<Record<string, number>>;
   /**
    * Rematch offer/confirm (p2p #880): set for a PvP room on a v35 engine, and
    * then it REPLACES the one-tap link — pressing Rematch asks the other player
@@ -332,6 +336,7 @@ export const ProDock = ({
   iForfeited,
   multiplayerView,
   rematchHref = null,
+  defeatRounds,
   rematchNegotiation = null,
   replayHref,
   onCopyShareLink,
@@ -576,7 +581,9 @@ export const ProDock = ({
   // The narrow shells — the rail and the HUD's side sheet — size cards and
   // tiles for a 230px column.
   const narrow = mobile === "rail" || mobile === "hud";
-  const rematchLine = !!rematchNegotiation && (rematchNegotiation.state.phase !== "idle" || !!rematchNegotiation.state.notice);
+  // Adventure: the verdict-and-why block replaces the plain title, and rematch is out (below).
+  const adventureVerdict = adventureVerdictModel(view, defeatRounds);
+  const rematchLine = !adventureVerdict && !!rematchNegotiation && (rematchNegotiation.state.phase !== "idle" || !!rematchNegotiation.state.notice);
   const boardPickCompact = sheetShell && boardPickPrompt && expandedPrompt !== promptKey;
   // A forced sheet can be put out of the way (player feedback: an after-combat
   // question left the board unreachable with no way to close the sheet). It
@@ -1146,8 +1153,9 @@ export const ProDock = ({
             textShadow="0 2px 12px rgba(224,168,46,0.5)"
             lineHeight="1"
           >
-            {isViewerOnWinningTeam(view) ? "VICTORY!" : "DEFEAT"}
+            {adventureVerdict?.explained ? adventureVerdict.headline : isViewerOnWinningTeam(view) ? "VICTORY!" : "DEFEAT"}
           </Text>
+          {adventureVerdict?.explained && <AdventureVerdictBody model={adventureVerdict} narrow={narrow} />}
           {/* One-tap rematch (#TBD): the PRIMARY endgame action — a big, gold,
               thumb-reachable button, because the whole point is cutting a
               phone rematch down from "walk back through the lobby, pick
@@ -1156,7 +1164,10 @@ export const ProDock = ({
               see lib/pro/rematch.ts), so from here it behaves exactly like
               starting any other room: the presser lands on the new room's
               waiting screen with the invite link ready to hand off. */}
-          {rematchNegotiation ? (
+          {/* Adventure: NO rematch button and NO "Rematch unavailable" notice. The rematch
+              ruling refuses a rematch at co-op tables today, so offering "try again" would
+              dangle a dead button above a refusal (#1159). Re-add it here if the ruling changes. */}
+          {adventureVerdict ? null : rematchNegotiation ? (
             <RematchOfferPanel negotiation={rematchNegotiation} compact={narrow} />
           ) : rematchHref && (
             <Button
@@ -1194,7 +1205,7 @@ export const ProDock = ({
                 gap="0.3rem"
                 _hover={{ opacity: 1, color: "brand.accent", textDecoration: "none" }}
               >
-                View your replay <TbExternalLink size="0.85rem" />
+                {adventureVerdict ? "Watch the replay" : "View your replay"} <TbExternalLink size="0.85rem" />
               </Link>
             </Tooltip>
           )}
@@ -1231,7 +1242,7 @@ export const ProDock = ({
             gap="0.3rem"
             _hover={{ opacity: 1, color: "brand.accent", textDecoration: "none" }}
           >
-            <TbPlus size="0.85rem" /> New game
+            <TbPlus size="0.85rem" /> {adventureVerdict ? "Back to lobby" : "New game"}
           </Link>
         </Flex>
       )}
