@@ -742,6 +742,24 @@ describe("villain board (#1154)", () => {
     }) as unknown as PlayerView;
   const OBJ = [1, 2, 3, 4].map((n) => ({ id: `o${n}`, label: `Enclosure 0${n}`, fired: 0 }));
 
+  it("last played resolves the enemy card-id form (…#p5.enemy-1.1) and the plain #n form", () => {
+    for (const id of ["slam#p5.enemy-1.1", "slam#1"]) {
+      const m = adventureBoardModel(withScenario({}, OBJ, { discardTop: id }))!;
+      expect(m.villain!.lastPlayed).toBe("Killing for Sport");
+    }
+  });
+
+  it("header shows scenario.briefing.objective (v36 object), and omits it without a briefing", () => {
+    const briefing = { tagline: "t", objective: "Keep the park open", win: "w", lose: "l" };
+    const v = withScenario({}, OBJ);
+    const withBriefing = { ...v, scenario: { ...v.scenario, briefing } } as unknown as PlayerView;
+    expect(adventureBoardModel(withBriefing)!.objective).toBe("Keep the park open");
+    mount("adventure", withBriefing);
+    expect(screen.getByTestId("adv-villain-objective")).toHaveTextContent("Keep the park open");
+    cleanup();
+    expect(adventureBoardModel(v)!.objective).toBeNull();
+  });
+
   it("model: steps to breakout and terminal label are correct, also after an overflow reset", () => {
     expect(adventureBoardModel(withScenario({}, OBJ))!.threat).toMatchObject({
       stepsToBreakout: 5,
@@ -796,7 +814,7 @@ describe("villain board (#1154)", () => {
     mount("adventure", withScenario({}, OBJ.slice(0, 2), { discardTop: null }));
     expect(screen.getByTestId("adv-objectives-count")).toHaveTextContent("0 of 2 · the 2nd ends the game");
     expect(screen.queryByTestId("adv-villain-last-played")).toBeNull();
-    expect(screen.queryByTestId("adv-villain-wants")).toBeNull();
+    expect(screen.queryByTestId("adv-villain-objective")).toBeNull();
     cleanup();
     mount("adventure", VIEW); // no objectives, no minions
     expect(screen.queryByTestId("adv-objectives")).toBeNull();
