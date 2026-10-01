@@ -2,6 +2,8 @@ import { colors, fonts } from "@/styles/style";
 import { Box, Flex, Text } from "@chakra-ui/react";
 import styled from "@emotion/styled";
 import {
+  ADVENTURE_PLATE_DROP,
+  ADVENTURE_PLATE_DROP_BELOW_PX,
   ADVENTURE_PLATE_PAD_RIGHT,
   COMPACT_PLATE_MAX_HEIGHT_REM,
   COMPACT_PLATE_WIDTH_REM,
@@ -205,6 +207,14 @@ export const HudOverlay = styled(Flex)`
      fallback on windows too narrow for even compact plates. */
   &[data-adventure] {
     padding-right: ${ADVENTURE_PLATE_PAD_RIGHT};
+  }
+
+  /* #1145: too narrow for the plates and the chip cluster side by side: drop the row under
+     the cluster instead of letting the last plate (and its TURN chip) sit beneath it. */
+  @media (max-width: ${ADVENTURE_PLATE_DROP_BELOW_PX}px) {
+    &[data-adventure] {
+      padding-top: ${ADVENTURE_PLATE_DROP};
+    }
   }
 `;
 

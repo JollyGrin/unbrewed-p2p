@@ -6,7 +6,10 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import {
   ADVENTURE_BOARD_WIDTH,
+  ADVENTURE_PLATE_DROP,
+  ADVENTURE_PLATE_DROP_BELOW_PX,
   ADVENTURE_PLATE_PAD_RIGHT,
+  CHIP_CLUSTER_WIDTH_REM,
   COMPACT_PLATE_MAX_HEIGHT_REM,
   COMPACT_PLATE_WIDTH_REM,
   DOCK_RIGHT,
@@ -17,7 +20,7 @@ import {
 import { ProHud } from "@/components/Pro/ProHud";
 import { theme } from "@/styles/style";
 import { FormatOverlay } from "@/components/Pro/FormatOverlay";
-import { ADVENTURE_BOARD_RIGHT, ENGINE_FAULT_FIXTURE } from "@/components/Pro/AdventureBoard";
+import { ADVENTURE_BOARD_RIGHT, ENGINE_FAULT_FIXTURE, InitiativeRow } from "@/components/Pro/AdventureBoard";
 import {
   adventureBoardModel,
   enemyCombatModel,
@@ -462,19 +465,20 @@ const ASPECT = ISLA_NUBLAR_IMAGE.height / ISLA_NUBLAR_IMAGE.width;
 // Measured at 1500x950 by Checkpoint 4: the board image is 1040px wide at (78,120).
 const BOARD_1500 = { x: 78, y: 120, w: 1040 };
 
-const plateBoxes = (vw: number, heroes: number, compactMode: boolean | "legacy"): Box[] => {
+const plateBoxes = (vw: number, heroes: number, compactMode: boolean | "legacy", dropped = true): Box[] => {
   const n = heroes + 1;
   const compact = compactMode === true;
   const pw = rem(`${compact ? COMPACT_PLATE_WIDTH_REM : PLATE_WIDTH_REM}rem`);
   const ph = compact ? rem(`${COMPACT_PLATE_MAX_HEIGHT_REM}rem`) : LEGACY_PLATE_H;
   const gap = rem("0.6rem");
+  const top = ROW_TOP + (dropped && vw <= ADVENTURE_PLATE_DROP_BELOW_PX ? rem(ADVENTURE_PLATE_DROP) : 0);
   const avail = vw - 2 * ROW_TOP - NEW_PAD;
   const perRow = Math.max(1, Math.floor((avail + gap) / (pw + gap)));
   return Array.from({ length: n }, (_, i) => {
     const row = Math.floor(i / perRow);
     const col = i % perRow;
     const x0 = ROW_TOP + col * (pw + gap);
-    const y0 = ROW_TOP + row * (ph + gap);
+    const y0 = top + row * (ph + gap);
     return { id: `plate${i + 1}`, x0, y0, x1: x0 + pw, y1: y0 + ph };
   });
 };
@@ -527,8 +531,9 @@ describe("plates/overlay/dock never cover a board space (#1138)", () => {
       expect(covered(plates, spaceCircles({ x: 78, y: rem(DOCK_TOP), w }))).toEqual([]);
     }
   });
-  it("the compact plate fits the strip above the board", () => {
-    expect(ROW_TOP + rem(`${COMPACT_PLATE_MAX_HEIGHT_REM}rem`)).toBeLessThanOrEqual(rem(DOCK_TOP));
+  it("the compact plate fits the strip above the board, even dropped under the toolbar", () => {
+    const drop = rem(ADVENTURE_PLATE_DROP);
+    expect(ROW_TOP + drop + rem(`${COMPACT_PLATE_MAX_HEIGHT_REM}rem`)).toBeLessThanOrEqual(rem(DOCK_TOP));
   });
   it("ProHud: adventure plates are compact; other formats keep the 15rem plate", () => {
     const base = { you: "p1", phase: "PLAY", catalog: {}, tokens: [], players: [], self: { id: "p1", hand: [], discard: [], counters: {}, flags: {} } };
@@ -600,5 +605,77 @@ describe("overlay column never covers an enclosure badge or space (#1139)", () =
     expect(base.right).toBe(320);
     expect(boardFitInsetFor({ mode: "desktop", adventureOverlay: true }).right).toBe(320 + 284);
     expect(boardFitInsetFor({ mode: "portrait", adventureOverlay: true })).toEqual(boardFitInsetFor({ mode: "portrait" }));
+  });
+});
+
+// #1145 (1): the initiative row sat LEFT of its clipped column (align flex-end + a nowrap
+// chip row wider than the column), cutting the scenario header and the first chip.
+// Model: the panel is as wide as its content, capped at the column only when the chips wrap.
+const CHIP_W = (label: string) => label.length * rem("0.7rem") * 0.55 + 2 * rem("0.4rem") + 2;
+const PANEL_PAD = 2 * rem("0.6rem");
+const CHIP_LABELS = [
+  "Indominus Rex (defeated)", "Therizinosaurus", "Tyrannosaurus Rex", "Gallimimus", "Parasaurolophus", "Hero One", "Hero Two",
+];
+const initiativePanelBox = (vw: number, chips: string[], wraps: boolean): Box => {
+  const { board } = spans(vw);
+  const colW = rem(ADVENTURE_BOARD_WIDTH);
+  const content = chips.reduce((w, c) => w + CHIP_W(c), 0) + (chips.length - 1) * rem("0.25rem") + PANEL_PAD;
+  const w = wraps ? Math.min(content, colW) : content;
+  return { id: "initiative", x0: board[1] - w, y0: 0, x1: board[1], y1: 1 };
+};
+const chipsWrap = () => {
+  cleanup();
+  const model = adventureBoardModel(VIEW as unknown as PlayerView)!;
+  render(
+    <ChakraProvider theme={theme}>
+      <InitiativeRow model={model} />
+    </ChakraProvider>,
+  );
+  return getComputedStyle(screen.getByTestId("adv-init-chips")).flexWrap === "wrap";
+};
+
+describe("initiative row stays inside its overlay column (#1145)", () => {
+  it("probe flags a planted nowrap row left of the column", () => {
+    const { board } = spans(1500);
+    expect(initiativePanelBox(1500, CHIP_LABELS, false).x0).toBeLessThan(board[0]);
+  });
+  it("the chip row wraps (the rendered style the probe relies on)", () => {
+    expect(chipsWrap()).toBe(true);
+  });
+  it.each([
+    [1500, 2],
+    [1500, 4],
+    [1920, 2],
+    [1920, 4],
+  ])("at %ipx with %i heroes: 6+ chips never reach left of the column", (vw, heroes) => {
+    const { board } = spans(vw);
+    const chips = CHIP_LABELS.slice(0, 5 + heroes - 1);
+    expect(chips.length).toBeGreaterThanOrEqual(6);
+    expect(initiativePanelBox(vw, chips, chipsWrap()).x0).toBeGreaterThanOrEqual(board[0]);
+  });
+});
+
+// #1145 (2): at 1500px the fifth plate sat under the top-right chip cluster, hiding TURN.
+const clusterBox = (vw: number): Box => ({
+  id: "cluster",
+  x0: vw - rem("0.7rem") - rem(`${CHIP_CLUSTER_WIDTH_REM}rem`),
+  y0: rem("0.7rem"),
+  x1: vw - rem("0.7rem"),
+  y1: rem("2.4rem"),
+});
+describe("plates clear the top-right chip cluster (#1145)", () => {
+  it("probe: the undropped 4-hero row at 1500 runs under the cluster", () => {
+    expect(mutual([...plateBoxes(1500, 4, true, false), clusterBox(1500)])).toContain("plate5xcluster");
+  });
+  it.each([
+    [1500, 2],
+    [1500, 4],
+    [1920, 2],
+    [1920, 4],
+  ])("at %ipx with %i heroes: no plate under the cluster, none over a space", (vw, heroes) => {
+    const plates = plateBoxes(vw, heroes, true);
+    expect(mutual([...plates, clusterBox(vw)])).toEqual([]);
+    expect(covered(plates, spaceCircles({ x: 78, y: rem(DOCK_TOP), w: BOARD_1500.w }))).toEqual([]);
+    expect(Math.max(...plates.map((p) => p.y1))).toBeLessThanOrEqual(rem(DOCK_TOP));
   });
 });
