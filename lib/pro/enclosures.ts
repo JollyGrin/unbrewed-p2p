@@ -10,7 +10,8 @@
  * PRESENTATION ONLY. Returns null for any map without `startsBlocked` spaces, so duel / ffa /
  * 2v2 boards receive no prop and render byte-identically.
  */
-import type { ProMapDef, SpaceId } from "./protocol";
+import { enclosureStakes, type EnclosureStakes } from "./enclosureStakes";
+import type { PlayerView, ProMapDef, SpaceId } from "./protocol";
 
 export interface EnclosureModel {
   /** Spaces still closed right now. */
@@ -19,6 +20,8 @@ export interface EnclosureModel {
   destroyed: ReadonlySet<SpaceId>;
   /** Printed enclosure number by space, where the map declares one. */
   numbers: Readonly<Record<SpaceId, number>>;
+  /** #1160: villain contacts / next-to-open / released enemy per space; `{}` without `scenario`. */
+  stakes: EnclosureStakes;
 }
 
 export const enclosureNumbers = (map: Pick<ProMapDef, "scenario">): Record<SpaceId, number> => {
@@ -34,14 +37,14 @@ export const enclosureNumbers = (map: Pick<ProMapDef, "scenario">): Record<Space
 
 export const enclosureModel = (
   map: Pick<ProMapDef, "spaces" | "scenario">,
-  blockedSpaces: readonly SpaceId[] | undefined
+  blockedSpaces: readonly SpaceId[] | undefined,
+  scenario?: PlayerView["scenario"],
+  fighters: readonly { id: string; name: string }[] = []
 ): EnclosureModel | null => {
   const starts = map.spaces.filter((s) => s.startsBlocked).map((s) => s.id);
   if (!starts.length) return null;
   const blocked = new Set(blockedSpaces ?? []);
-  return {
-    blocked,
-    destroyed: new Set(starts.filter((id) => !blocked.has(id))),
-    numbers: enclosureNumbers(map),
-  };
+  const destroyed = new Set(starts.filter((id) => !blocked.has(id)));
+  const numbers = enclosureNumbers(map);
+  return { blocked, destroyed, numbers, stakes: enclosureStakes(scenario, fighters, blocked, destroyed, numbers) };
 };

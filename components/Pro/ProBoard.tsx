@@ -467,7 +467,7 @@ export const ProBoard = ({
         borderRadius="0.5rem"
       />
 
-      {spaceLayers(mainSpaces, diameter, framePx, touchHitSx)}
+      {spaceLayers(mainSpaces, diameter, framePx, touchHitSx, frameW, frameH)}
 
       {/* region inset panels (v9 — e.g. Baba Yaga's Hut) and the zone legend.
           Both are screen-oriented HTML, not board art — so when the frame takes

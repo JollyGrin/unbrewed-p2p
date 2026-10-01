@@ -7154,7 +7154,7 @@ const LiveGame = ({
     },
     closedRegions: view.closedRegions,
     itemTokens: view.itemTokens,
-    enclosures: enclosureModel(view.map, view.blockedSpaces),
+    enclosures: enclosureModel(view.map, view.blockedSpaces, view.scenario, view.fighters),
     onSpaceClick,
     onFighterClick,
     onSpaceHover: setHoveredSpace,

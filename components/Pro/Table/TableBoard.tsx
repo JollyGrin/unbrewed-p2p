@@ -75,7 +75,7 @@ import { TableStage } from "./TableStage";
 import { TableBoardFx } from "./TableBoardFx";
 import { TableBoardLines } from "./TableBoardLines";
 import { TableSpace, TableSpaceBadge } from "./TableSpace";
-import { EnclosureMark } from "@/components/Pro/EnclosureMark";
+import { EnclosureLayer } from "@/components/Pro/EnclosureLayer";
 import { TableFighterStandee } from "./TableFighterStandee";
 import { TOKEN_BADGE_PLATE_HEIGHT, TOKEN_THICKNESS } from "./TableFlatToken";
 import { heroBadgesDeepestPx } from "./TableFighterBadges";
@@ -683,30 +683,9 @@ export const TableBoard = ({
             />
           ))}
 
-          {enclosures &&
-            mainSpaces.map((space: ProMapSpace) => {
-              const state = enclosures.blocked.has(space.id)
-                ? "closed"
-                : enclosures.destroyed.has(space.id)
-                  ? "destroyed"
-                  : null;
-              if (!state) return null;
-              const diamPx = (diameterPct / 100) * Math.max(frameW, 1);
-              return (
-                <Box
-                  key={`${space.id}-enclosure`}
-                  position="absolute"
-                  left={`${space.x * 100}%`}
-                  top={`${space.y * 100}%`}
-                  w={`${diamPx}px`}
-                  h={`${diamPx}px`}
-                  transform="translate(-50%, -50%)"
-                  pointerEvents="none"
-                >
-                  <EnclosureMark state={state} number={enclosures.numbers[space.id]} spaceId={space.id} />
-                </Box>
-              );
-            })}
+          {enclosures && (
+            <EnclosureLayer enclosures={enclosures} spaces={mainSpaces} diam={diameterPct / 100} framePx={frameW} layoutH={frameH} />
+          )}
 
           {/* Item / passage badges: their own layer, beside each disc, so a
               badge is inspectable without committing the space (#873).

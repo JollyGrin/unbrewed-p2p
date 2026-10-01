@@ -31,7 +31,7 @@
  * doesn't support them yet either, on its own 3D main board).
  */
 import type { EnclosureModel } from "@/lib/pro/enclosures";
-import { EnclosureMark } from "@/components/Pro/EnclosureMark";
+import { EnclosureLayer } from "@/components/Pro/EnclosureLayer";
 import { Box, Flex, Text, chakra, shouldForwardProp } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
 import { isValidMotionProp, motion, useReducedMotion } from "framer-motion";
@@ -406,7 +406,11 @@ export interface RegionPanelsResult {
     spaces: ProMapSpace[],
     diam: number,
     layerPx: number,
-    hitCapSx?: (spaceId: SpaceId, renderedDiameterPx: number) => Record<string, unknown>
+    hitCapSx?: (spaceId: SpaceId, renderedDiameterPx: number) => Record<string, unknown>,
+    /** The frame's UNSCALED layout width and height (px) — lets the enclosure chips stay a fixed on-screen
+     *  size inside the zoom-scaled frame. Unknown (omitted / 0): enclosure rings only. */
+    layoutPx?: number,
+    layoutH?: number
   ) => ReactNode;
   /** Region inset panels + the zone-membership legend. Empty fragment when
    *  the map has no regions AND nothing is hovered for the legend. */
@@ -1459,7 +1463,9 @@ export const useRegionPanels = ({
     spaces: ProMapSpace[],
     diam: number,
     layerPx: number,
-    hitCapSx?: (spaceId: SpaceId, renderedDiameterPx: number) => Record<string, unknown>
+    hitCapSx?: (spaceId: SpaceId, renderedDiameterPx: number) => Record<string, unknown>,
+    layoutPx = 0,
+    layoutH = 0
   ) => {
     const uprightSuffix = upright ? " rotate(-90deg)" : "";
     const inFrame = new Set(spaces.map((s) => s.id));
@@ -1612,26 +1618,18 @@ export const useRegionPanels = ({
         })}
 
       {/* adventure enclosures: closed fence badge / destroyed mark, click-through */}
-      {enclosures &&
-        spaces.map((s) => {
-          const state = enclosures.blocked.has(s.id) ? "closed" : enclosures.destroyed.has(s.id) ? "destroyed" : null;
-          if (!state) return null;
-          return (
-            <Box
-              key={`${s.id}-enclosure`}
-              position="absolute"
-              left={`${s.x * 100}%`}
-              top={`${s.y * 100}%`}
-              w={`${diam}%`}
-              sx={{ aspectRatio: "1" }}
-              transform={`translate(-50%, -50%)${uprightSuffix}`}
-              pointerEvents="none"
-              zIndex={4}
-            >
-              <EnclosureMark state={state} number={enclosures.numbers[s.id]} spaceId={s.id} />
-            </Box>
-          );
-        })}
+      {enclosures && (
+        <EnclosureLayer
+          enclosures={enclosures}
+          spaces={spaces}
+          diam={diam / 100}
+          framePx={layerPx}
+          layoutPx={layoutPx}
+          layoutH={layoutH}
+          upright={upright}
+          zIndex={4}
+        />
+      )}
 
       {/* battlefield item tokens (v17) — a purple/versatile (combat) or
           yellow/lightning (scheme) square in the space's upper-right corner, and a
