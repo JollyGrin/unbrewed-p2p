@@ -5,6 +5,8 @@ import "@testing-library/jest-dom";
 import { cleanup, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import {
+  ADVENTURE_BOARD_MAX_HEIGHT,
+  ADVENTURE_BOARD_TOP,
   ADVENTURE_BOARD_WIDTH,
   ADVENTURE_PLATE_DROP,
   ADVENTURE_PLATE_DROP_BELOW_PX,
@@ -799,5 +801,40 @@ describe("heroes down, sidekick standing (#1154)", () => {
   it("renders the line", () => {
     mount("adventure", v(true, false));
     expect(screen.getByTestId("adv-heroes-down")).toHaveTextContent("Your heroes are down — Sidekick is still standing");
+  });
+});
+
+// #1178: at 1500x900 the column ran to calc(100vh - 4rem) from 3.2rem, under the desktop
+// hand fan (cards 8.5rem wide, 63:88, bottom -0.75rem, 1.25rem hover lift), and could not
+// scroll. Vertical probe: the column's bottom edge vs the fan's top edge.
+describe("adventure column vs hand fan probe (#1178)", () => {
+  const fanTop = (vh: number) => vh - (rem("8.5rem") * (88 / 63) - rem("0.75rem")) + 0 - rem("1.25rem");
+  const columnBottom = (vh: number, maxH: string) => {
+    const m = /calc\(100vh - ([\d.]+)rem(?: - ([\d.]+)rem)?\)/.exec(maxH)!;
+    return rem(ADVENTURE_BOARD_TOP) + vh - rem(m[1]) - (m[2] ? rem(m[2]) : 0);
+  };
+  const OLD_MAX_H = "calc(100vh - 4rem)";
+  it("probe flags the pre-fix cap at 1500x900", () => {
+    expect(columnBottom(900, OLD_MAX_H)).toBeGreaterThan(fanTop(900));
+  });
+  it.each([
+    [1500, 900, 2],
+    [1500, 900, 4],
+  ])("column ends above the fan at %ix%i with %i heroes", (_vw, vh) => {
+    expect(columnBottom(vh, ADVENTURE_BOARD_MAX_HEIGHT)).toBeLessThanOrEqual(fanTop(vh));
+  });
+  it("keeps the live panels outside the scrolling region and the roster inside it", () => {
+    mount("adventure", VIEW);
+    cleanup();
+    render(
+      <ChakraProvider theme={theme}>
+        <FormatOverlay formatId="adventure" view={VIEW} events={EVENTS} engineFault={ENGINE_FAULT_FIXTURE} />
+      </ChakraProvider>,
+    );
+    const col = screen.getByTestId("adventure-board");
+    expect(col).toHaveStyle({ "max-height": ADVENTURE_BOARD_MAX_HEIGHT });
+    expect(screen.getByTestId("adventure-board-scroll")).toHaveStyle({ "overflow-y": "auto" });
+    expect(screen.getByTestId("adventure-board-scroll")).toContainElement(screen.getByTestId("adv-villain"));
+    expect(screen.getByTestId("adventure-board-live")).toContainElement(screen.getByTestId("adv-engine-fault"));
   });
 });
