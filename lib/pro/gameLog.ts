@@ -31,6 +31,10 @@ export interface ProLogLine {
   who: "you" | "opp" | "game";
   /** card instances named in the line — the log panel shows them on hover */
   cards?: CardInstanceId[];
+  /** Adventure: this line is a round divider (`ROUND n`) — the log renders it as a header. */
+  round?: number;
+  /** Render at heavy weight even though `who` isn't "game" (enemy release lines). */
+  bold?: boolean;
 }
 
 /**
@@ -734,6 +738,12 @@ export interface EnrichContext {
   /** Printed enclosure number for a space (adventure boards; `lib/pro/enclosures`), or
    *  null/omitted when the map prints none — the SPACE_OPENED line then names the space. */
   enclosure?: (space: string) => number | null | undefined;
+  /** Adventure: display name for the initiative card an INITIATIVE_REVEALED flipped
+   *  ("You", "Opponent", a fighter or effect name), or null when the card is face-down /
+   *  unknown — the line then says "a hidden card". */
+  initiative?: (card: string) => string | null | undefined;
+  /** Adventure: the threat track's last numbered position (for "s/S"). */
+  threatSize?: number;
 }
 
 /**
@@ -758,6 +768,18 @@ export function enrichLines(
   // at a time (protocol v30). MULLIGAN_TAKEN already narrates that in one line, so
   // the per-card returns must not spam the feed (issue #741).
   const mulliganBatch = events.some((e) => e.type === "MULLIGAN_TAKEN");
+  // Adventure: why the threat track moved, when this batch makes the cause obvious.
+  const threatCause = events.some((e) => e.type === "ROUND_ENDED")
+    ? " — end of round"
+    : events.some((e) => e.type === "ENEMY_ACTIVATION" && e.outcome === "NO_TARGET")
+      ? " — no target"
+      : "";
+  let lastThreatPosition: number | null = null;
+  let threatReset = false;
+  const enclosureOf = (space: string) => {
+    const n = ctx.enclosure?.(space);
+    return n != null ? `enclosure ${String(n).padStart(2, "0")}` : null;
+  };
 
   // A card instance rendered on a NEW line so the panel can hover its face.
   const sourceCards = (source: string): CardInstanceId[] | undefined =>
@@ -957,10 +979,57 @@ export function enrichLines(
       // Adventure (engine #689): a still-blocked space opened — an enclosure destroyed.
       // Mode 2: the diff sees no fighter/HP change for it, so this is its only record.
       case "SPACE_OPENED": {
-        const n = ctx.enclosure?.(e.space);
-        added.push({ text: n != null ? `Enclosure ${String(n).padStart(2, "0")} destroyed` : `Space ${e.space} opened`, who: "game" });
+        const name = enclosureOf(e.space);
+        added.push({ text: name ? `${name[0].toUpperCase()}${name.slice(1)} destroyed` : "An enclosure was destroyed", who: "game" });
         break;
       }
+
+      // Adventure initiative round: the header, the flips, the close.
+      case "ROUND_STARTED":
+        added.push({ text: `ROUND ${e.round}`, who: "game", round: e.round });
+        break;
+      case "ROUND_ENDED":
+        added.push({ text: `End of round ${e.round}`, who: "game" });
+        break;
+      case "INITIATIVE_REVEALED": {
+        const name = e.card === "(hidden)" ? null : ctx.initiative?.(e.card);
+        added.push({
+          text: !name
+            ? "A hidden card flipped — their turn"
+            : name === "You"
+              ? "You flipped — your turn"
+              : `${name} flipped — their turn`,
+          who: "game",
+        });
+        break;
+      }
+      case "ENEMY_ACTIVATION": {
+        const enemy = ctx.fighter(e.fighter);
+        const target = e.target ? ctx.fighter(e.target) : null;
+        const text =
+          e.outcome === "NO_TARGET"
+            ? `${enemy}: no hero in reach → stays put, threat +1`
+            : e.outcome === "ADJACENT"
+              ? `${enemy} attacks ${target ?? "a hero"}`
+              : `${enemy} moves toward ${target ?? "a hero"}`;
+        added.push({ text, who: "opp" });
+        break;
+      }
+      case "THREAT_CHANGED": {
+        const reset = threatReset || (lastThreatPosition != null && e.position < lastThreatPosition);
+        const now = `now level ${e.level}${ctx.threatSize ? `, ${e.position}/${ctx.threatSize}` : ""}`;
+        added.push({
+          text: reset ? `Threat track reset (${now})` : `Threat +1 (${now})${threatCause}`,
+          who: "game",
+        });
+        lastThreatPosition = e.position;
+        threatReset = false;
+        break;
+      }
+      case "THREAT_OVERFLOW":
+        added.push({ text: "The threat track filled", who: "game", bold: true });
+        threatReset = true;
+        break;
 
       case "POSITIONS_SWAPPED": {
         added.push({
@@ -1164,9 +1233,16 @@ export function enrichLines(
       // engine 2.4 (#681): an effect spawned a new enemy. The fighter is a brand-new
       // entry in the view (skipped by the snapshot diff) and sits off-board until its
       // FIGHTER_MOVED, so this event is the only line that says it exists.
-      case "ENEMY_SPAWNED":
-        added.push({ text: `${ctx.fighter(e.fighter)} was spawned`, who: "game" });
+      case "ENEMY_SPAWNED": {
+        const opened = events.find((x) => x.type === "SPACE_OPENED");
+        const from = opened && opened.type === "SPACE_OPENED" ? enclosureOf(opened.space) : null;
+        added.push({
+          text: `${ctx.fighter(e.fighter)} released${from ? ` from ${from}` : ""}`,
+          who: "opp",
+          bold: true,
+        });
         break;
+      }
 
       // Opening-hand mulligan (issue #622 ↔ protocol v30). Both events land only
       // when the window CLOSES, one per seat, which is the moment each player's
