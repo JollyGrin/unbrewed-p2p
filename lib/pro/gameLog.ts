@@ -881,6 +881,15 @@ export function enrichLines(
         added.push({ text: "Defense ignored", who: "game" });
         break;
       }
+      case "DAMAGE_IGNORED": {
+        // Effect damage refused by an immune fighter (engine #729): no hp moved,
+        // so the view diff shows nothing — the event is the only record.
+        added.push({
+          text: `${ctx.fighter(e.fighter)} ignored ${e.amount} damage`,
+          who: "game",
+        });
+        break;
+      }
       case "DAMAGE_PREVENTED": {
         added.push({ text: "Damage prevented", who: "game" });
         break;

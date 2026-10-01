@@ -176,6 +176,7 @@ const ALLOWLIST = new Set([
   "EFFECT_CANCELED",
   "COMBAT_VALUE_BREAKDOWN",
   "DEFENSE_IGNORED",
+  "DAMAGE_IGNORED",
   "DAMAGE_PREVENTED",
   "EXHAUSTION_DAMAGE",
   "ACTIONS_GAINED",
@@ -366,6 +367,19 @@ describe("enrichLines", () => {
         { text: "Defense ignored", who: "game" },
         { text: "Damage prevented", who: "game" },
       ]);
+    });
+
+    it("DAMAGE_IGNORED renders one line and never throws on an unknown fighter", () => {
+      const ev = (fighter: string): GameEvent => ({ type: "DAMAGE_IGNORED", fighter, amount: 3, source: "EFFECT" });
+      const known = enrichLines([], [ev("p1/hero")], ctx());
+      expect(known).toHaveLength(1);
+      expect(known[0].text).toMatch(/ignored 3 damage$/);
+      expect(known[0].who).toBe("game");
+      expect(() => enrichLines([], [ev("nobody/ghost")], ctx())).not.toThrow();
+      const lines = [{ text: "x", who: "game" as const }];
+      const out = enrichLines(lines, [ev("p1/hero")], ctx());
+      expect(out[0]).toEqual(lines[0]);
+      expect(out).toHaveLength(2);
     });
 
     // issue #509: a fatal empty-deck draw showed only "took 1 damage". The
@@ -819,7 +833,7 @@ describe("enrichLines", () => {
       // A discard is an annotation-only type; add it so the roster is exhaustive.
       seen.add("CARD_DISCARDED");
       // Sanity: the allowlist is a subset of what the union offers.
-      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "COMBAT_VALUE_BREAKDOWN", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_SHUFFLED_INTO_DECK", "CARD_REVEALED", "CARD_TUCKED", "CARD_RETURNED_FROM_PILE", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED", "EFFECT_ATTACK_INITIATED", "FIGHTER_MARKED", "FIGHTER_MARKS_CLEARED", "MULLIGAN_TAKEN", "HAND_KEPT", "POSITIONS_SWAPPED", "COMBAT_DEFENDER_CHANGED"]).toContain(t);
+      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "COMBAT_VALUE_BREAKDOWN", "DEFENSE_IGNORED", "DAMAGE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_SHUFFLED_INTO_DECK", "CARD_REVEALED", "CARD_TUCKED", "CARD_RETURNED_FROM_PILE", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED", "EFFECT_ATTACK_INITIATED", "FIGHTER_MARKED", "FIGHTER_MARKS_CLEARED", "MULLIGAN_TAKEN", "HAND_KEPT", "POSITIONS_SWAPPED", "COMBAT_DEFENDER_CHANGED"]).toContain(t);
     });
   });
 
