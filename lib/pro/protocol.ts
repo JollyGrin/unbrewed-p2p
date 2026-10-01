@@ -2101,7 +2101,9 @@ export interface PlayerView {
     id?: string;
     label?: string;
     threat: { position: number; level: number; overflows: number; positions: number[]; bySource?: ScenarioThreatBySource };
-    objectives: { id: string; label: string; fired: number }[];
+    // `repeat` (engine #742, additive, PROTOCOL 36): the def's repeat — how many times it can fire;
+    // ABSENT when 1 (Isla Nublar: enclosure-destroyed 3, fourth-enclosure none → 4 fires, the last loses).
+    objectives: { id: string; label: string; fired: number; repeat?: number }[];
     releases?: ScenarioRelease[];
     contacts?: ScenarioContacts;
     result?: ScenarioResult;
