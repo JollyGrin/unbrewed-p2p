@@ -1,4 +1,4 @@
-import { breakoutInBatch, breakoutMoment, pushedOverBy } from "./breakoutMoment";
+import { breakoutInBatch, breakoutMoment, pushedOverBy, withLateSpawn } from "./breakoutMoment";
 import type { GameEvent, PlayerView } from "./protocol";
 
 const overflow = (n: number): GameEvent => ({ type: "THREAT_OVERFLOW", overflows: n, objective: null });
@@ -57,5 +57,28 @@ describe("breakoutMoment", () => {
     const t = (b: Record<string, number>) => view({ scenario: { threat: { bySource: b } } });
     expect(pushedOverBy(t({ raptor: 1 }), t({ raptor: 1, hunt: 3 }))).toBe("hunt");
     expect(pushedOverBy(t({}), view())).toBeNull();
+  });
+});
+
+describe("loss limit total", () => {
+  it("uses the objective fire count, not the enclosure count", () => {
+    const objectives = [
+      { id: "enclosure-destroyed", label: "x", fired: 1, repeat: 3 },
+      { id: "fourth", label: "y", fired: 0 },
+    ];
+    const v = view({ scenario: { threat: { overflows: 1 }, objectives } });
+    expect(breakoutMoment([overflow(1), opened], null, v)).toMatchObject({ lost: 1, total: 4 });
+  });
+});
+
+describe("split-batch breakout (spawn lands in a later batch)", () => {
+  it("overflow batch has no enemy, the later bare ENEMY_SPAWNED fills it", () => {
+    const m = breakoutMoment([overflow(1), opened], null, view())!;
+    expect(m.enemy).toBeNull();
+    const filled = withLateSpawn(m, [spawn], view())!;
+    expect(filled.enemy).toMatchObject({ name: "Raptor", hp: 5, joinsDeck: true });
+    expect(filled.space).toBe("s3");
+    expect(withLateSpawn(filled, [spawn], view())).toBeNull();
+    expect(withLateSpawn(m, [], view())).toBeNull();
   });
 });
