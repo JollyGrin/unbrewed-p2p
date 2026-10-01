@@ -183,6 +183,22 @@ export const ProLog = ({
     ) : null;
 
   const renderLine = (e: ProLogEntry) => {
+    if (e.round != null) {
+      return (
+        <Text
+          key={e.key}
+          fontFamily={fonts.SpaceGrotesk}
+          fontSize="0.66rem"
+          fontWeight={700}
+          letterSpacing="0.06em"
+          textTransform="uppercase"
+          color={colors.brand.secondary}
+          pt="0.2rem"
+        >
+          {e.text}
+        </Text>
+      );
+    }
     const hoverable = !!resolveCard && !!e.cards?.length;
     const line = (
       <Text
@@ -190,7 +206,7 @@ export const ProLog = ({
         fontSize="0.72rem"
         lineHeight="1.25"
         color={WHO_COLOR[e.who]}
-        fontWeight={e.who === "game" ? 700 : 400}
+        fontWeight={e.who === "game" || e.bold ? 700 : 400}
         textDecoration={hoverable ? "underline dotted" : undefined}
         textUnderlineOffset="2px"
         cursor={hoverable ? "help" : undefined}

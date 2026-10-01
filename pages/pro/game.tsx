@@ -5006,6 +5006,14 @@ const LiveGame = ({
             seat: (player) => seatLabel(next, player),
             fighter: (id) => badgedFighterName(next.fighters, logBadges, id),
             enclosure: (space) => enclosureNumbers(next.map)[space],
+            threatSize: next.scenario?.threat.positions.length,
+            initiative: (card) => {
+              const c = next.initiative?.row.find((r) => r.id === card);
+              if (!c || c.faceDown) return null;
+              if (c.entry === "SEAT" && c.seat) return seatLabel(next, c.seat);
+              if (c.entry === "FIGHTER" && c.fighter) return badgedFighterName(next.fighters, logBadges, c.fighter);
+              return c.title ?? null;
+            },
             chain: (ordinal) =>
               subAttackChainProgress(chainTitle, before.hits + ordinal + 1)?.text ?? null,
           })

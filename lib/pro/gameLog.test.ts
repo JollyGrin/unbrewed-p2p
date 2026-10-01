@@ -353,7 +353,7 @@ describe("enrichLines", () => {
       { text: "Enclosure 05 destroyed", who: "game" },
     ]);
     expect(enrichLines([], [{ type: "SPACE_OPENED", space: "zz" }], withNumber)).toEqual([
-      { text: "Space zz opened", who: "game" },
+      { text: "An enclosure was destroyed", who: "game" },
     ]);
   });
 
@@ -774,7 +774,80 @@ describe("enrichLines", () => {
         [{ type: "ENEMY_SPAWNED", fighter: "e1/raptor-2", enemyId: "raptor", card: "raptor@e1/raptor-2" }],
         ctx()
       );
-      expect(out).toEqual([{ text: "raptor-2 was spawned", who: "game" }]);
+      expect(out).toEqual([{ text: "raptor-2 released", who: "opp", bold: true }]);
+    });
+  });
+
+  describe("Adventure round / threat / release lines", () => {
+    const one = (e: GameEvent, c = ctx()) => enrichLines([], [e], c);
+    const ac = { ...ctx(), threatSize: 6 };
+
+    it("ROUND_STARTED is a header, ROUND_ENDED a closing line", () => {
+      expect(one({ type: "ROUND_STARTED", round: 2 })).toEqual([{ text: "ROUND 2", who: "game", round: 2 }]);
+      expect(one({ type: "ROUND_ENDED", round: 2 })).toEqual([{ text: "End of round 2", who: "game" }]);
+    });
+
+    it("INITIATIVE_REVEALED names public cards and hides the rest", () => {
+      const named = { ...ctx(), initiative: (c: string) => (c === "k" ? "Velociraptor" : c === "me" ? "You" : null) };
+      expect(one({ type: "INITIATIVE_REVEALED", card: "k", entry: "FIGHTER" }, named)).toEqual([
+        { text: "Velociraptor flipped — their turn", who: "game" },
+      ]);
+      expect(one({ type: "INITIATIVE_REVEALED", card: "me", entry: "SEAT" }, named)[0].text).toBe("You flipped — your turn");
+      expect(one({ type: "INITIATIVE_REVEALED", card: "x", entry: "EFFECT" }, named)[0].text).toBe("A hidden card flipped — their turn");
+      expect(one({ type: "INITIATIVE_REVEALED", card: "(hidden)", entry: "EFFECT" })[0].text).toBe("A hidden card flipped — their turn");
+    });
+
+    it("ENEMY_ACTIVATION covers each outcome, falling back without a target", () => {
+      const act = (outcome: "ADJACENT" | "CLOSEST" | "NO_TARGET", target?: string) =>
+        one({ type: "ENEMY_ACTIVATION", fighter: "e/raptor", outcome, target })[0];
+      expect(act("ADJACENT", "p1/hero")).toEqual({ text: "raptor attacks hero", who: "opp" });
+      expect(act("CLOSEST", "p1/hero").text).toBe("raptor moves toward hero");
+      expect(act("CLOSEST").text).toBe("raptor moves toward a hero");
+      expect(act("NO_TARGET").text).toBe("raptor: no hero in reach → stays put, threat +1");
+    });
+
+    it("THREAT_CHANGED reports level and attributes an obvious cause", () => {
+      const t: GameEvent = { type: "THREAT_CHANGED", position: 3, level: 2 };
+      expect(enrichLines([], [t], ac)).toEqual([{ text: "Threat +1 (now level 2, 3/6)", who: "game" }]);
+      expect(enrichLines([], [{ type: "ROUND_ENDED", round: 1 }, t], ac)[1].text).toBe(
+        "Threat +1 (now level 2, 3/6) — end of round"
+      );
+      expect(
+        enrichLines([], [{ type: "ENEMY_ACTIVATION", fighter: "e/raptor", outcome: "NO_TARGET" }, t], ac)[1].text
+      ).toBe("Threat +1 (now level 2, 3/6) — no target");
+      expect(one(t)[0].text).toBe("Threat +1 (now level 2)");
+    });
+
+    it("THREAT_OVERFLOW is a bold line and the following reset is not a +k", () => {
+      const out = enrichLines(
+        [],
+        [
+          { type: "THREAT_CHANGED", position: 6, level: 3 },
+          { type: "THREAT_OVERFLOW", overflows: 1, objective: null },
+          { type: "THREAT_CHANGED", position: 1, level: 1 },
+        ],
+        ac
+      );
+      expect(out.map((l) => l.text)).toEqual([
+        "Threat +1 (now level 3, 6/6)",
+        "The threat track filled",
+        "Threat track reset (now level 1, 1/6)",
+      ]);
+      expect(out[1].bold).toBe(true);
+    });
+
+    it("ENEMY_SPAWNED uses the enclosure opened in the same batch", () => {
+      const c = { ...ctx(), enclosure: (sp: string) => (sp === "e3" ? 3 : null) };
+      const out = enrichLines(
+        [],
+        [
+          { type: "SPACE_OPENED", space: "e3" },
+          { type: "ENEMY_SPAWNED", fighter: "e/raptor", enemyId: "raptor", card: null },
+        ],
+        c
+      );
+      expect(out.map((l) => l.text)).toEqual(["Enclosure 03 destroyed", "raptor released from enclosure 03"]);
+      expect(out[1]).toMatchObject({ who: "opp", bold: true });
     });
   });
 
