@@ -1030,6 +1030,34 @@
  * Detection: `PROTOCOL_VERSION >= 35`, or `rematch: true` in the `/healthz` JSON.
  */
 /**
+ * v36 (2026-10-01, engine #735): ADVENTURE LEGIBILITY — five additive view facts + the briefing.
+ * Every one is ABSENT when empty and only a scenario game can carry any of them, so a duel / ffa /
+ * 2v2 / boss view (and their LIST_SCENARIOS — empty on a server with no scenario) is byte-identical.
+ * The bump marks the one place a v35 client could misread a NEW shape (`result.cause.kind`); the
+ * server keeps accepting v34/v35 (`ACCEPTED_PROTOCOL_VERSIONS`).
+ *
+ * - `PlayerView.scenario.result?: ScenarioResult` — set once the scenario verdict ends the game:
+ *   `verdict`, `round`, and `cause` — `OBJECTIVE {objectiveId}` (the threat track's step that cost
+ *   the game, e.g. the 4th enclosure), `WIPE` (every hero and sidekick down — also when the same
+ *   action felled the villain: defeat is checked first), `VICTORY_CONDITION` (the players' win),
+ *   `DEFEAT_CONDITION` (any other scenario loss). Absent on a FORFEIT.
+ * - `PlayerView.scenario.releases?: ScenarioRelease[]` — one per enemy the scenario released
+ *   mid-game, in order (`round`, `fighter`, `enemyId`, `space?` / `spaceLabel?`).
+ * - `PlayerView.scenario.threat.bySource?: ScenarioThreatBySource` — cumulative spaces advanced by
+ *   source; the three sum to every space the marker has walked.
+ * - `ViewFighter.enemy.released?: true` — that enemy is one of `releases`.
+ * - `PlayerView.scenario.contacts?: ScenarioContacts` — a pure preview; absent when the villain is
+ *   off the board or no scenario space is still blocked.
+ * - `ScenarioListing.briefing?` and `PlayerView.scenario.briefing?: ScenarioBriefing` — the
+ *   scenario's rules in plain language, authored as data.
+ */
+/**
+ * CLIENT-ONLY (p2p #1159): the v36 types above are synced; the wire pin below deliberately stays
+ * 34/35. The v36 engine still accepts v34/v35 (ACCEPTED_PROTOCOL_VERSIONS) and stamps its own
+ * `v: 36` on every frame, which wireVersion.ts reads as "speaks >= 35". Every v36 field is additive
+ * on the view, so a client bound at 35 receives them; nothing needs the bind to say 36.
+ */
+/**
  * CLIENT-ONLY PIN (p2p #880) — keep at 34 when re-syncing this file from the engine.
  * The engine is at v35 (rematch, above), but this client does not speak REMATCH_* yet:
  * the seat binds with `v`, and the server only sends REMATCH_* to a seat bound at 35+,
@@ -1663,7 +1691,7 @@ export interface ViewFighter {
   // Public to every viewer: `deckCount` is a count only; `discardTop` is the card instance
   // id ('<cardDefId>#<n>') on top of the enemy's face-up discard, or null when it is empty.
   // `enemyId` (#664, additive): the `EnemyListing.id` this figure is — label + art key.
-  enemy?: { role: "VILLAIN" | "MINION"; enemyId?: string; move: number; deckCount: number; discardTop: string | null };
+  enemy?: { role: "VILLAIN" | "MINION"; enemyId?: string; move: number; deckCount: number; discardTop: string | null; released?: true };
   defeated: boolean;
   // Additive field (2026-07-16, no version bump): per-fighter status effects
   // (issue #204) — the fighter-scoped parallel to ViewSelf/ViewOpponent.flags
@@ -2072,8 +2100,12 @@ export interface PlayerView {
   scenario?: {
     id?: string;
     label?: string;
-    threat: { position: number; level: number; overflows: number; positions: number[] };
+    threat: { position: number; level: number; overflows: number; positions: number[]; bySource?: ScenarioThreatBySource };
     objectives: { id: string; label: string; fired: number }[];
+    releases?: ScenarioRelease[];
+    contacts?: ScenarioContacts;
+    result?: ScenarioResult;
+    briefing?: ScenarioBriefing;
   };
   // v11: true iff THIS viewer has an eligible last discrete move to undo right now
   // (there is a clean cut boundary the server would rewind to). Recomputed on every
@@ -2304,6 +2336,50 @@ export interface EnemyListing {
 }
 
 // A scenario the lobby may pick (LIST_SCENARIOS result row, engine #664 / #665).
+// v36 (#735): a scenario's rules briefing — plain-language display text, authored as scenario data.
+export interface ScenarioBriefing {
+  tagline: string;
+  objective: string;
+  win: string;
+  lose: string;
+  threat?: string;
+  special?: { title: string; text: string }[];
+}
+
+// v36 (#735): spaces the threat marker has walked, by where the advance came from — an END OF ROUND
+// box (`roundEnd`), an enemy that found no target (`noTarget`), anything else (`effect`).
+export interface ScenarioThreatBySource {
+  roundEnd: number;
+  noTarget: number;
+  effect: number;
+}
+
+// v36 (#735): one enemy the scenario released mid-game. `space` = where it was placed when that
+// was forced (one legal space); `spaceLabel` = that space's printed number in a numbered scenario
+// space group (`ProMapSpaceGroup.order` — the enclosure's fence number), as a string, when it has one.
+export interface ScenarioRelease {
+  round: number;
+  space?: SpaceId;
+  spaceLabel?: string;
+  fighter: FighterId;
+  enemyId: string;
+}
+
+// v36 (#735): a PREVIEW (nothing happens): the still-blocked scenario spaces the villain touches now
+// (what its round-end counts) and the one(s) the next overflow would open (>1 = a tie the players pick).
+export interface ScenarioContacts {
+  adjacent: SpaceId[];
+  nextToOpen: SpaceId[];
+}
+
+// v36 (#735): why a scenario game ended. `DEFEAT_CONDITION` = a scenario loss that is neither a
+// wipe nor the threat track's (no shipped scenario has one yet).
+export interface ScenarioResult {
+  verdict: "VICTORY" | "DEFEAT";
+  cause: { kind: "OBJECTIVE"; objectiveId: string } | { kind: "WIPE" } | { kind: "VICTORY_CONDITION" } | { kind: "DEFEAT_CONDITION" };
+  round: number;
+}
+
 export interface ScenarioListing {
   id: string;
   label: string;
@@ -2315,6 +2391,7 @@ export interface ScenarioListing {
   minionPool: EnemyListing[]; // what `RosterPicks.minions[i]` may name; [] = nothing to pick
   minionsPerPlayer: number; // pool minions fielded per hero seat: 1, or 0 for a fixed roster
   duplicateMinions: boolean; // may the same pool minion be picked twice (R5: false unless the scenario says so)
+  briefing?: ScenarioBriefing; // v36 (#735): absent when the scenario authors none
 }
 
 // The table's roster picks (CREATE_ROOM.roster, engine #664). null / absent / a missing slot = Random.
