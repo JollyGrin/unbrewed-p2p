@@ -7,7 +7,7 @@
  */
 import { Box } from "@chakra-ui/react";
 import type { ViewToken } from "@/lib/pro/protocol";
-import { BOARD_OBJECT_VISUALS, UNKNOWN_OBJECT } from "@/lib/pro/boardObjects";
+import { boardObjectVisualFor } from "@/lib/pro/boardObjects";
 import { TableStandeeAnchor, type TableStackDepth } from "./TableStandeeAnchor";
 
 /** A board object's footprint, smaller than even a sidekick's. */
@@ -37,7 +37,7 @@ export const TableBoardObject = ({
   artUrl,
   originName,
 }: TableBoardObjectProps) => {
-  const visual = BOARD_OBJECT_VISUALS[token.kind] ?? UNKNOWN_OBJECT;
+  const visual = boardObjectVisualFor(token);
   const sizePx = diamPx * OBJECT_WIDTH_FACTOR;
   const title = `${visual.label}${originName ? ` — ${originName}` : ""}`;
 

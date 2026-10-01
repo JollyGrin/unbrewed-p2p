@@ -221,7 +221,7 @@ export const enemyCombatModel = (
   ) => {
     const f = view.fighters.find((x) => x.id === fighterId);
     if (!f?.enemy || !card) return;
-    const meta = view.catalog?.[card.instance.replace(/#\d+$/, "")];
+    const meta = view.catalog?.[card.instance.split("#")[0]];
     const printed =
       role === "DEFENSE"
         ? (meta?.defense ?? meta?.value ?? null)
