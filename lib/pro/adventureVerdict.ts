@@ -150,9 +150,6 @@ export const adventureVerdictModel = (
     lines.push(scenario.briefing?.lose ?? "The scenario's defeat condition was met.");
     if (hpText) lines.push(`${villainName} was left at ${hpText} health.`);
   }
-  if (villain && !villain.defeated) {
-    facts.push({ label: "Villain health left", text: `${villainName} ${hpText}` });
-  }
   return { verdict, headline, explained: true, kicker, lines, releases: tiles, facts };
 };
 
