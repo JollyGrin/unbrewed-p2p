@@ -1,6 +1,8 @@
-import { Button, Flex, Menu, MenuButton, MenuItem, MenuList, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, Menu, MenuButton, MenuItem, MenuList, Text } from "@chakra-ui/react";
 import { useEffect, type ReactNode } from "react";
 import { TbChevronDown } from "react-icons/tb";
+import { EnemyToken } from "@/components/Pro/EnemyToken";
+import { ENEMY_BOX_TITLE } from "@/lib/pro/adventureRulesCopy";
 import type { PlayerId } from "@/lib/pro/protocol";
 import { publishAdventureSetup, useScenarios } from "@/lib/pro/adventureScenarios";
 import { trackFormatOpened, trackLobbyConfigured } from "@/lib/analytics/adventure";
@@ -11,6 +13,8 @@ import {
   AdventureSetup,
   NO_SCENARIO_REASON,
   adventureSeats,
+  enemyHpAt,
+  enemySizeMove,
   minionSlotCount,
   rosterOptions,
   scenarioFor,
@@ -30,6 +34,8 @@ const EnemyPick = ({
   options,
   taken = [],
   allowRandom = true,
+  humans,
+  villain = false,
   onPick,
 }: {
   testId: string;
@@ -40,14 +46,31 @@ const EnemyPick = ({
   taken?: Array<string | null>;
   /** false for a pick that has no random (the scenario) */
   allowRandom?: boolean;
+  /** hero count: when set, rows show the enemy's HP / size / MOVE at that table (enemy picks only) */
+  humans?: number;
+  villain?: boolean;
   onPick: (id: string | null) => void;
 }) => {
   const current = options.find((o) => o.id === value);
+  const showStats = humans !== undefined;
+  const stats = (o: AdventureEnemyOption | undefined) =>
+    o?.enemy ? (
+      <Box textAlign="right" fontSize="0.64rem" lineHeight={1.35} flexShrink={0} data-testid="enemy-stats">
+        <Text as="span" fontWeight="bold">{enemyHpAt(o.enemy, humans ?? 1) ?? "?"}</Text> HP
+        <Text opacity={0.7}>{enemySizeMove(o.enemy)}</Text>
+      </Box>
+    ) : null;
   return (
     <Flex align="center" gap="0.4rem">
-      <Text {...LBL} w="4.2rem" flexShrink={0}>
-        {label}
-      </Text>
+      {showStats ? (
+        <EnemyToken name={current?.name ?? "?"} villain={villain} size="1.7rem" />
+      ) : (
+        <Text {...LBL} w="4.2rem" flexShrink={0}>
+          {label}
+        </Text>
+      )}
+      <Flex direction="column" flex="1" minW="0" gap="0.1rem">
+      {showStats && <Text {...LBL} fontSize="0.52rem">{label}</Text>}
       <Menu placement="bottom-start">
         <MenuButton
           as={Button}
@@ -81,11 +104,16 @@ const EnemyPick = ({
               bg="transparent"
               _hover={{ bg: "whiteAlpha.100" }}
             >
-              {o.name}
+              <Flex justify="space-between" align="center" gap="0.8rem" w="100%">
+                <span>{o.name}</span>
+                {showStats && stats(o)}
+              </Flex>
             </MenuItem>
           ))}
         </MenuList>
       </Menu>
+      </Flex>
+      {showStats && stats(current)}
     </Flex>
   );
 };
@@ -164,6 +192,16 @@ export const AdventureLobby = ({
           {NO_SCENARIO_REASON}
         </Text>
       )}
+      {scenarios.length === 1 && scenario && (
+        <Flex align="center" gap="0.4rem" data-testid="adventure-scenario-name">
+          <Text {...LBL} w="4.2rem" flexShrink={0}>
+            SCENARIO
+          </Text>
+          <Text fontFamily="SpaceGrotesk" fontSize="0.74rem" fontWeight="bold" color="brand.primary">
+            {scenario.label}
+          </Text>
+        </Flex>
+      )}
       {scenarios.length > 1 && (
         <EnemyPick
           testId="adventure-scenario"
@@ -191,12 +229,21 @@ export const AdventureLobby = ({
         bg="rgba(180,60,60,0.12)"
         data-testid="adventure-enemy"
       >
-        <Text {...LBL} color="#E58B8B">
-          THE ENGINE PLAYS
-        </Text>
+        <Flex justify="space-between" align="baseline" gap="0.4rem">
+          <Text {...LBL} color="#E58B8B" fontWeight="bold">
+            {ENEMY_BOX_TITLE}
+          </Text>
+          {perPlayer > 0 && (
+            <Text fontFamily="SpaceGrotesk" fontSize="0.58rem" opacity={0.6}>
+              {perPlayer} minion{perPlayer === 1 ? "" : "s"} per hero
+            </Text>
+          )}
+        </Flex>
         <EnemyPick
           testId="adventure-villain"
           label="VILLAIN"
+          villain
+          humans={setup.humans}
           value={setup.villainId}
           options={roster.villains}
           onPick={(id) => configure(setVillain(setup, id))}
@@ -206,11 +253,29 @@ export const AdventureLobby = ({
             key={slot}
             testId={`adventure-minion-${slot + 1}`}
             label={`MINION ${slot + 1}`}
+            humans={setup.humans}
             value={m}
             options={roster.minions}
             taken={setup.minionIds}
             onPick={(id) => configure(setMinion(setup, slot, id))}
           />
+        ))}
+        {(scenario?.fixedMinions ?? []).map((e, i) => (
+          <Flex key={`fixed-${i}`} align="center" gap="0.4rem" data-testid="adventure-fixed-minion">
+            <EnemyToken name={e.name} size="1.7rem" />
+            <Box flex="1" minW="0">
+              <Text {...LBL} fontSize="0.52rem">
+                MINION
+              </Text>
+              <Text fontFamily="SpaceGrotesk" fontSize="0.66rem">
+                {e.name}
+              </Text>
+            </Box>
+            <Box textAlign="right" fontSize="0.64rem" lineHeight={1.35} data-testid="enemy-stats">
+              <Text as="span" fontWeight="bold">{enemyHpAt(e, setup.humans) ?? "?"}</Text> HP
+              <Text opacity={0.7}>{enemySizeMove(e)}</Text>
+            </Box>
+          </Flex>
         ))}
       </Flex>
     </Flex>

@@ -6,7 +6,7 @@
  * as `CREATE_ROOM.scenarioId` / `.roster` (engine #664) and are validated against
  * the server's `LIST_SCENARIOS` listing. Difficulty knobs are deliberately absent.
  */
-import type { EnemyListing, PlayerId, RosterPicks, ScenarioListing } from "./protocol";
+import type { EnemyListing, PlayerId, RoomScenarioStatus, RosterPicks, ScenarioListing } from "./protocol";
 
 export const ADVENTURE_MIN_HUMANS = 1;
 export const ADVENTURE_MAX_HUMANS = 4;
@@ -15,9 +15,21 @@ export const ADVENTURE_MAX_HUMANS = 4;
 export interface AdventureEnemyOption {
   id: string;
   name: string;
+  /** the listing behind it — HP / size / MOVE for the lobby rows (absent for non-enemy picks) */
+  enemy?: EnemyListing;
 }
 
-const optionOf = (e: EnemyListing): AdventureEnemyOption => ({ id: e.id, name: e.name });
+const optionOf = (e: EnemyListing): AdventureEnemyOption => ({ id: e.id, name: e.name, enemy: e });
+
+/** An enemy's HP at a table of `humans` heroes: `hp` is indexed by hero count, clamped to its last entry. null if the listing carries none. */
+export const enemyHpAt = (enemy: Pick<EnemyListing, "hp">, humans: number): number | null => {
+  if (enemy.hp.length === 0) return null;
+  const i = Math.min(clampHumans(humans), enemy.hp.length) - 1;
+  return enemy.hp[i] ?? null;
+};
+
+/** "LARGE · MOVE 2" — the size and MOVE half of an enemy row. */
+export const enemySizeMove = (enemy: Pick<EnemyListing, "size" | "move">): string => `${enemy.size} · MOVE ${enemy.move}`;
 
 export interface AdventureSetup {
   /** chosen scenario id, or null for the server's default (its first listing) */
@@ -112,3 +124,27 @@ export const setMinion = (setup: AdventureSetup, slot: number, minionId: string 
 /** The seats the creator can pre-fill with a bot at a table of `humans` heroes (p1 is theirs). */
 export const adventureSeats = (humans: number): PlayerId[] =>
   (["p2", "p3", "p4"] as PlayerId[]).slice(0, Math.max(0, clampHumans(humans) - 1));
+
+export interface WaitingEnemyRow {
+  role: "VILLAIN" | "MINION";
+  /** resolved enemy id, null = still Random */
+  id: string | null;
+  name: string;
+  /** listing data when the id is known to the client's scenario list */
+  enemy: EnemyListing | null;
+}
+
+/**
+ * The waiting room's roster from `ROOM_STATUS.scenario`: the villain, then each minion slot
+ * (fixed minions first, as the server orders them). A null slot is still Random; an id the
+ * listing doesn't know falls back to the raw id so nothing is hidden.
+ */
+export const waitingRoster = (status: RoomScenarioStatus, scenarios: readonly ScenarioListing[]): WaitingEnemyRow[] => {
+  const listing = scenarios.find((s) => s.id === status.id) ?? null;
+  const known = listing ? [...listing.villains, ...listing.fixedMinions, ...listing.minionPool] : [];
+  const row = (role: WaitingEnemyRow["role"], id: string | null): WaitingEnemyRow => {
+    const enemy = id === null ? null : (known.find((e) => e.id === id) ?? null);
+    return { role, id, name: id === null ? "Random" : (enemy?.name ?? id), enemy };
+  };
+  return [row("VILLAIN", status.villain), ...status.minions.map((m) => row("MINION", m))];
+};
