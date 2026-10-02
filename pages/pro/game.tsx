@@ -3385,7 +3385,7 @@ const HeroSelectLobby = ({
         <MenuItem onClick={() => onSelectAiHero(null)} bg="transparent" _hover={{ bg: "whiteAlpha.100" }}>
           Random
         </MenuItem>
-        {(heroes ?? []).map((h) => (
+        {[...(heroes ?? [])].sort(byName).map((h) => (
           <MenuItem key={h.heroId} onClick={() => onSelectAiHero(h.heroId)} bg="transparent" _hover={{ bg: "whiteAlpha.100" }}>
             {h.name}
           </MenuItem>
