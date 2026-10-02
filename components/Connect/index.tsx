@@ -116,7 +116,7 @@ export const ConnectPage = () => {
   const hasDeck = starredDeck !== undefined;
 
   return (
-    <Wrapper bgImage="background/choosefighter.png" bgBlendMode="multiply">
+    <Wrapper>
       <SettingsModal
         isOpen={disclosure.isOpen}
         onClose={disclosure.onClose}
@@ -125,7 +125,7 @@ export const ConnectPage = () => {
       <Box position="absolute" top="0" w="100%" color="brand.primary">
         <Navbar />
       </Box>
-      <ConnectContainer backdropFilter="blur(6px)">
+      <ConnectContainer>
         <VStack spacing={1} textAlign="center">
           <Text
             fontSize={"2.5rem"}
@@ -141,7 +141,16 @@ export const ConnectPage = () => {
           </Text>
         </VStack>
 
-        {/* Step 1 — deck */}
+        {/* Two columns on desktop so the whole card fits without scrolling;
+            stacks back to a single column on narrow screens. */}
+        <Flex
+          w="100%"
+          flexDir={{ base: "column", md: "row" }}
+          align="flex-start"
+          justify="center"
+          gap={{ base: "1.5rem", md: "2.5rem" }}
+        >
+        {/* Step 1 — deck (left column) */}
         <VStack w="100%" spacing={2}>
           <StepLabel number="1" label="Choose your deck" />
           <SelectedDeckContainer
@@ -155,7 +164,7 @@ export const ConnectPage = () => {
           />
         </VStack>
 
-        {/* Steps 2 & 3 — name + lobby */}
+        {/* Steps 2 & 3 — name + lobby (right column) */}
         <VStack w="100%" maxW="380px" spacing="1rem">
           <Box w="100%">
             <StepLabel number="2" label="Enter your name" />
@@ -265,6 +274,18 @@ export const ConnectPage = () => {
             Play Offline without Map
           </Button>
 
+          <Button
+            w="100%"
+            variant="outline"
+            color="brand.secondary"
+            borderColor="brand.secondary"
+            _hover={{ bg: "brand.secondary", color: "brand.primary" }}
+            as={Link}
+            href="/table"
+          >
+            Try the 3D Table (beta)
+          </Button>
+
           {/* No friend to invite? Point them to the live Discord to find one. */}
           <VStack w="100%" spacing="0.4rem" pt="0.25rem">
             <Text fontSize="0.8rem" color="brand.secondary" opacity={0.65}>
@@ -272,15 +293,16 @@ export const ConnectPage = () => {
             </Text>
             <DiscordPresence tone="dark" />
           </VStack>
-        </VStack>
 
-        {/* Optional — invite a friend with a one-click join link */}
-        <InviteLink
-          lobby={lobby}
-          decks={decks}
-          activeServer={activeServer}
-          gidRef={gidRef}
-        />
+          {/* Optional — invite a friend with a one-click join link */}
+          <InviteLink
+            lobby={lobby}
+            decks={decks}
+            activeServer={activeServer}
+            gidRef={gidRef}
+          />
+        </VStack>
+        </Flex>
       </ConnectContainer>
 
       <Flex
@@ -339,27 +361,23 @@ const StepLabel = (props: { number: string; label: string }) => (
   </HStack>
 );
 
+// Flat purple backdrop (issue #1192) — the AI-art photo background is gone,
+// so /connect and /join share the same theme-token surface.
 const Wrapper = styled(Flex)`
   height: 100svh;
-  background-color: slategray;
-  background-position: center;
-  background-size: cover;
+  background-color: var(--chakra-colors-brand-surface);
   justify-content: center;
   align-items: center;
-  position: center;
 `;
 
 const ConnectContainer = styled(Flex)`
   flex-direction: column;
   width: 95%;
-  max-width: 600px;
-  min-height: min(600px, calc(100svh - 4rem));
-  max-height: calc(100svh - 2rem);
-  overflow-y: auto;
-  background-color: rgba(241, 224, 193, 0.92);
+  max-width: 960px;
+  background-color: rgba(241, 224, 193, 0.96);
   border-radius: 1rem;
-  padding: 2rem;
-  gap: 1.5rem;
+  padding: 1.5rem 2rem;
+  gap: 1.25rem;
   justify-content: flex-start;
   align-items: center;
   box-shadow: 0 12px 40px rgba(44, 24, 49, 0.45);
