@@ -920,22 +920,29 @@
  * Detection: `PROTOCOL_VERSION >= 35`, or `rematch: true` in the `/healthz` JSON.
  */
 /**
- * CLIENT-ONLY PIN (p2p #880) — keep at 34 when re-syncing this file from the engine.
- * The engine is at v35 (rematch, above), but this client does not speak REMATCH_* yet:
- * the seat binds with `v`, and the server only sends REMATCH_* to a seat bound at 35+,
- * so binding at 34 is what keeps a v35 server from starting a negotiation this client
- * can't answer. The v35 types stay in this file for #880 to build on; bump the pin
- * there, together with the client that handles them — never in a verbatim re-sync.
+ * v36 (engine #752 — Appa *Hallucinations*). ONE ADDITIVE EVENT, the v34 shape mirrored:
+ *
+ * - `COMBAT_ATTACKER_CHANGED { from, to }` is emitted mid-combat when a card substitutes the
+ *   ATTACKING FIGHTER (`{op:'setCombatAttacker'}` — Hallucinations played as a defense,
+ *   "…instead of 1 of their friendly fighters", aimed at the attacking seat). The combat,
+ *   the attacking PLAYER and both revealed cards are unchanged; only which FIGHTER is
+ *   attacking moves.
+ * - Nothing else moves: no action, no prompt kind, no `LegalOption` shape, no view field.
+ *
+ * CLIENT SURFACE (unbrewed-p2p): a client rendering a live combat should re-point its
+ * attacker slot at `to` — every later DURING/AFTER effect of the attack card runs under it.
+ * The damage figure is unaffected (it lands on the defender). A client that ignores the event
+ * draws the attack arrow from the pre-substitution figure. It always arrives BEFORE
+ * `COMBAT_VALUE_BREAKDOWN` / `COMBAT_DAMAGE` for that combat.
  */
 /**
- * CLIENT-ONLY DIVERGENCE (p2p #880): the engine's copy says `PROTOCOL_VERSION = 35`.
- * This client keeps sending 34 by default, because prod engines that predate #607
- * accept only {33, 34} and answer v35 with ERROR{VERSION}. It speaks v35
- * (`REMATCH_PROTOCOL_VERSION`) only to an engine whose own frames carry `v >= 35`
- * (every server message stamps its version) — see lib/pro/wireVersion.ts. Keep
- * this pair when re-syncing the file.
+ * CLIENT-ONLY ADDITION (p2p #880, revised #1201): `REMATCH_PROTOCOL_VERSION` is the
+ * lowest version the rematch negotiation (v35, above) needs — the client's gate for
+ * offering it. Since engine #754 the server accepts only {35, 36}, so every bind is at
+ * `PROTOCOL_VERSION` and is rematch-capable; the old "bind at 34, upgrade to 35" dance in
+ * lib/pro/wireVersion.ts is gone. Keep this export when re-syncing the file.
  */
-export const PROTOCOL_VERSION = 34;
+export const PROTOCOL_VERSION = 36;
 export const REMATCH_PROTOCOL_VERSION = 35;
 
 /**
@@ -960,8 +967,8 @@ export const REMATCH_PROTOCOL_VERSION = 35;
  *
  * ## jevx3 (client-only, unbrewed-p2p#933)
  * `jevx3` is advertised only behind the engine's `EXPOSE_JEV=1` switch. It is a
- * CLIENT-ONLY addition: purely additive, so the deliberate `PROTOCOL_VERSION = 34`
- * pin above is unchanged. The client gates SELECTING it on the player's record vs
+ * CLIENT-ONLY addition: purely additive, so `PROTOCOL_VERSION` does not move
+ * for it. The client gates SELECTING it on the player's record vs
  * Expert (or a build-time allowlist) — see lib/pro/tierUnlock.ts. `jev` is not gated.
  */
 export type BotDifficulty = "easy" | "medium" | "hard" | "expert" | "jev" | "jevx3";
@@ -1120,6 +1127,11 @@ export type GameEvent =
   // A client showing the combat must re-point at `to` — it is the fighter that takes the
   // damage and the one every later DURING/AFTER effect and range check reads.
   | { type: "COMBAT_DEFENDER_CHANGED"; from: FighterId; to: FighterId }
+  // v36 (#752): the ATTACKING FIGHTER changed mid-combat (`setCombatAttacker` — Appa
+  // *Hallucinations* played as a defense: "…instead of 1 of their friendly fighters", aimed at
+  // the attacking seat). Same combat, same attacking player, same revealed cards: the attack
+  // now comes from `to`. A client showing the combat must re-point its attacker slot at `to`.
+  | { type: "COMBAT_ATTACKER_CHANGED"; from: FighterId; to: FighterId }
   | { type: "COMBAT_DAMAGE"; amount: number }
   | { type: "COMBAT_RESOLVED"; outcome: CombatOutcome }
   | { type: "COMBAT_ENDED" }

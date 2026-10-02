@@ -61,8 +61,8 @@ const fakeRouter = (query: Query) =>
     beforePopState() {},
   }) as never;
 
-// `v` is what the ENGINE stamps on its frames — 34 for today's prod, 35 for
-// an engine built from the paired #607 PR.
+// `v` is what the ENGINE stamps on its frames. Since engine #754 prod accepts only
+// {35, 36}, so this client always binds at PROTOCOL_VERSION (36) — #1201.
 let ENGINE_V = PROTOCOL_VERSION;
 const deliver = async (msg: Record<string, unknown>) => {
   const socket = FakeWebSocket.latest();
@@ -157,37 +157,20 @@ const finishGame = async (you: "p1" | "p2", opts: { bots?: Record<string, string
 const rematchButton = () => screen.getAllByRole("button", { name: /rematch — same setup/i, hidden: true })[0];
 const statusText = () => screen.getAllByRole("status", { hidden: true }).map((n) => n.textContent ?? "");
 
-describe("against today's v34 engine", () => {
-  it("binds at v34, never re-binds, and keeps the one-tap link — no REMATCH_* on the wire", async () => {
+describe("against a v36 engine", () => {
+
+  it("a first visit binds at 36 straight away and never re-binds at game over", async () => {
     await finishGame("p1");
-    expect(sentOfType("RECONNECT")).toEqual([{ v: 34, type: "RECONNECT", roomId: "OLD1", token: "tok-p1" }]);
-    expect(screen.getAllByRole("link", { name: /rematch/i, hidden: true }).length).toBeGreaterThan(0);
-    expect(screen.queryAllByRole("button", { name: /rematch — same setup/i, hidden: true })).toHaveLength(0);
-    expect(SENT.filter((m) => String(m.type).startsWith("REMATCH_"))).toHaveLength(0);
-    expect(SENT.every((m) => m.v === 34)).toBe(true);
-  });
-});
-
-describe("against a v35 engine", () => {
-  beforeEach(() => {
-    ENGINE_V = 35;
+    expect(sentOfType("RECONNECT")).toEqual([{ v: 36, type: "RECONNECT", roomId: "OLD1", token: "tok-p1" }]);
+    expect(SENT.every((m) => m.v === 36 || String(m.type).startsWith("REMATCH_"))).toBe(true);
   });
 
-  it("a first visit binds at 34, then re-binds the finished seat at 35 at game over", async () => {
-    await finishGame("p1");
-    const reconnects = sentOfType("RECONNECT");
-    expect(reconnects[0]).toMatchObject({ v: 34, roomId: "OLD1" });
-    expect(reconnects[reconnects.length - 1]).toMatchObject({ v: 35, roomId: "OLD1", token: "tok-p1" });
-    expect(reconnects.filter((r) => r.v === 35)).toHaveLength(1);
-  });
-
-  it("a refresh mid-offer binds at 35 at once and shows the waiting offer again — no replay bundle needed", async () => {
-    window.sessionStorage.setItem("unbrewed-pro-engine-v-" + FakeWebSocketUrl(), "35");
+  it("a refresh mid-offer binds at 36 at once and shows the waiting offer again — no replay bundle needed", async () => {
+    window.sessionStorage.setItem("unbrewed-pro-engine-v-" + FakeWebSocketUrl(), "36");
     window.sessionStorage.setItem("unbrewed-pro-token-OLD1", "tok-p1");
     setRoomBots("OLD1", {});
     await mount({ room: "OLD1" });
-    // A v34 return would make the engine close the open offer as `unavailable`.
-    expect(sentOfType("RECONNECT")).toEqual([{ v: 35, type: "RECONNECT", roomId: "OLD1", token: "tok-p1" }]);
+    expect(sentOfType("RECONNECT")).toEqual([{ v: 36, type: "RECONNECT", roomId: "OLD1", token: "tok-p1" }]);
     await deliver({ type: "ROOM_JOINED", roomId: "OLD1", token: "tok-p1", you: "p1" });
     await deliver({
       type: "STATE",
@@ -289,16 +272,6 @@ describe("against a v35 engine", () => {
     await finishGame("p1", { bots: { p2: "hard" } });
     expect(screen.getAllByRole("link", { name: /rematch/i, hidden: true }).length).toBeGreaterThan(0);
     expect(screen.queryAllByRole("button", { name: /rematch — same setup/i, hidden: true })).toHaveLength(0);
-  });
-
-  it("an engine rolled back to v34 answers the v35 bind with VERSION — re-sent at 34", async () => {
-    window.sessionStorage.setItem("unbrewed-pro-engine-v-" + FakeWebSocketUrl(), "35");
-    window.sessionStorage.setItem("unbrewed-pro-token-OLD1", "tok-p1");
-    ENGINE_V = 34;
-    await mount({ room: "OLD1" });
-    await deliver({ type: "ERROR", code: "VERSION", message: "Protocol v34 required (got v35) — refresh the page" });
-    expect(sentOfType("RECONNECT").map((r) => r.v)).toEqual([35, 34]);
-    expect(screen.queryAllByText(/refresh the page/i)).toHaveLength(0);
   });
 });
 

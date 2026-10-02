@@ -19,24 +19,23 @@ afterEach(() => {
 });
 
 describe("wireVersion", () => {
-  it("binds at 34 until the engine has shown it speaks 35", () => {
-    expect(wireVersionFor(URL_A)).toBe(34);
-    rememberEngineVersion(URL_A, 34);
-    expect(wireVersionFor(URL_A)).toBe(34);
-    expect(engineSpeaksRematch(URL_A)).toBe(false);
+  // #1201: prod engines accept only {35, 36} — every bind is at 36, whatever was learned.
+  it("always binds at PROTOCOL_VERSION (36), never the old v34 fallback", () => {
+    expect(wireVersionFor(URL_A)).toBe(36);
     rememberEngineVersion(URL_A, 35);
-    expect(wireVersionFor(URL_A)).toBe(35);
-    expect(engineSpeaksRematch(URL_A)).toBe(true);
-  });
-
-  it("never speaks higher than 35, even to a newer engine", () => {
+    expect(wireVersionFor(URL_A)).toBe(36);
     rememberEngineVersion(URL_A, 40);
-    expect(wireVersionFor(URL_A)).toBe(35);
+    expect(wireVersionFor(URL_A)).toBe(36);
+    expect(wireVersionFor(URL_B)).toBe(36);
   });
 
-  it("is per engine URL", () => {
-    rememberEngineVersion(URL_A, 35);
-    expect(wireVersionFor(URL_B)).toBe(34);
+  it("gates the rematch UI on an engine that has shown v35+", () => {
+    expect(engineSpeaksRematch(URL_A)).toBe(false);
+    rememberEngineVersion(URL_A, 34);
+    expect(engineSpeaksRematch(URL_A)).toBe(false);
+    rememberEngineVersion(URL_A, 36);
+    expect(engineSpeaksRematch(URL_A)).toBe(true);
+    expect(engineSpeaksRematch(URL_B)).toBe(false);
   });
 
   it("ignores frames without a numeric v", () => {
@@ -45,20 +44,17 @@ describe("wireVersion", () => {
     expect(knownEngineVersion(URL_A)).toBeNull();
   });
 
-  it("survives a reload through sessionStorage (a refresh mid-offer binds at 35 at once)", () => {
-    rememberEngineVersion(URL_A, 35);
+  it("survives a reload through sessionStorage", () => {
+    rememberEngineVersion(URL_A, 36);
     resetEngineVersions(); // drops the in-memory copy AND storage…
-    expect(wireVersionFor(URL_A)).toBe(34);
-    window.sessionStorage.setItem("unbrewed-pro-engine-v-" + URL_A, "35"); // …what a previous page load left
-    expect(wireVersionFor(URL_A)).toBe(35);
+    expect(engineSpeaksRematch(URL_A)).toBe(false);
+    window.sessionStorage.setItem("unbrewed-pro-engine-v-" + URL_A, "36"); // …what a previous page load left
+    expect(engineSpeaksRematch(URL_A)).toBe(true);
   });
 
-  it("an engine that went back to 34 is learned again", () => {
-    rememberEngineVersion(URL_A, 35);
-    rememberEngineVersion(URL_A, 34);
-    expect(wireVersionFor(URL_A)).toBe(34);
-    rememberEngineVersion(URL_A, 35);
+  it("forget drops what was learned", () => {
+    rememberEngineVersion(URL_A, 36);
     forgetEngineVersion(URL_A);
-    expect(wireVersionFor(URL_A)).toBe(34);
+    expect(knownEngineVersion(URL_A)).toBeNull();
   });
 });
