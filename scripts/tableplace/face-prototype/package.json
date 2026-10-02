@@ -1,0 +1,10 @@
+{
+  "name": "tableplace-face-prototype",
+  "private": true,
+  "description": "D1 spike (#1045): render one unmatched.cards card face server-side without Chromium, and compare it to the sandbox render.",
+  "type": "module",
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.80",
+    "@resvg/resvg-js": "^2.6.2"
+  }
+}
