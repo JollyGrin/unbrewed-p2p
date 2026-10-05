@@ -225,6 +225,23 @@ export const overrideMatch = (
     (b) => b,
   );
 
+/**
+ * Organizer: reject an unverified, finished game ("Not valid", api #75). The
+ * game row stays with `rejectedAt` set; nothing is decided. A verified game
+ * answers 409 already_verified (re-decide with override + replacesWinner).
+ */
+export const rejectGame = (
+  slug: string,
+  matchId: string,
+  gameIndex: number,
+  note?: string,
+) =>
+  call(
+    `${matchPath(slug, matchId)}/games/${gameIndex}/reject`,
+    { method: "POST", body: JSON.stringify(note?.trim() ? { note: note.trim() } : {}) },
+    (b) => ({ match: b.match as Match, deadline: b.deadline as unknown }),
+  );
+
 /** Organizer: set a match's matchup; `null` clears the override. */
 export const putMatchup = (
   slug: string,

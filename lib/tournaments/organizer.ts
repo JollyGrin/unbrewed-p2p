@@ -17,7 +17,7 @@ export type AttentionTone = "gold" | "ink" | "red";
 export type AttentionAction =
   | { type: "confirm"; gameIndex: number; label: string }
   | { type: "award"; entryId: string; label: string; note: string }
-  /** Reject an unverified game ("Not valid"). Today: opens the override form; see `rejectUnverified` in OrganizerTools. */
+  /** Reject an unverified game ("Not valid", api #75): one call, no override. */
   | { type: "reject"; gameIndex: number; label: string }
   | { type: "override"; label: string }
   | { type: "matchup"; label: string }
@@ -231,7 +231,10 @@ const ERRORS: Record<string, string> = {
   unsupported_matchup_mode: "That matchup mode isn't available yet.",
   invalid_matchup_rule: "That matchup isn't valid.",
   game_not_finished: "That game hasn't finished yet.",
-  already_verified: "That game is already confirmed.",
+  already_verified:
+    "That result is already confirmed. To change it, override the match instead.",
+  already_rejected: "That result was already rejected.",
+  game_rejected: "That result was rejected, so it can't be confirmed.",
   forbidden: "Only the organizer can do that.",
 };
 

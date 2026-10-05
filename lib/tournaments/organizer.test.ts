@@ -97,3 +97,28 @@ describe("misc", () => {
     ).toMatch(/next match/);
   });
 });
+
+describe("a rejected game (api #75) is never a result", () => {
+  const { cellState } = jest.requireActual("./bracket");
+  const { gameRows, score } = jest.requireActual("./matchPage");
+  const m = f.matches.find((x) => x.id === "m1-1")!;
+  const rejected = {
+    ...m,
+    games: m.games.map((g) => ({ ...g, rejectedAt: "2026-10-05T10:00:00Z" })),
+  };
+  it("is not the unverified cell state", () => {
+    expect(cellState(m)).toBe("unverified");
+    expect(cellState(rejected)).toBe("ready");
+  });
+  it("is listed as rejected and adds no score", () => {
+    const d = {
+      match: rejected,
+      players: { a: null, b: null },
+      tournament: {},
+      readyChecks: [],
+      liveRoom: null,
+    };
+    expect(gameRows(d)[0].state).toBe("rejected");
+    expect(score(d)).toEqual({ a: 0, b: 0 });
+  });
+});

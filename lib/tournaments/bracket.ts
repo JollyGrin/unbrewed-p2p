@@ -155,13 +155,13 @@ export const seedOrder = (size: number): number[] => {
 export const cellState = (m: Match): CellState => {
   if (m.status === "decided" || m.winner) return "decided";
   if (m.inPlay || m.status === "in_play") return "in_play";
-  if (m.games.some((g) => g.finishedAt && g.winnerEntry && !g.verified)) return "unverified";
+  if (m.games.some((g) => g.finishedAt && g.winnerEntry && !g.verified && !g.rejectedAt)) return "unverified";
   if (m.slotA && m.slotB) return "ready";
   return "waiting";
 };
 
 const wins = (m: Match, entryId: string | null): number =>
-  entryId ? m.games.filter((g) => g.finishedAt && g.winnerEntry === entryId).length : 0;
+  entryId ? m.games.filter((g) => g.finishedAt && !g.rejectedAt && g.winnerEntry === entryId).length : 0;
 
 const shortDay = (iso: string | null): string => {
   if (!iso) return "";
@@ -215,7 +215,7 @@ export const buildBracket = (
     const hero = side === "a" ? m.matchup.heroes.a : m.matchup.heroes.b;
     const decided = state === "decided";
     const won = decided && m.winner === id;
-    const playedGame = m.games.some((g) => g.finishedAt && g.winnerEntry);
+    const playedGame = m.games.some((g) => g.finishedAt && !g.rejectedAt && g.winnerEntry);
     let sub = hero ? heroDisplayName(hero) : "";
     if (decided && m.decidedBy === "bye") sub = "advances on a bye";
     else if (decided && !playedGame) sub = won ? "advances" : "no game played";
@@ -237,7 +237,7 @@ export const buildBracket = (
       case "decided":
         if (note?.rule) return note.rule;
         if (m.decidedBy === "bye") return "No opponent this round";
-        return `Decided ${shortDay(m.games.find((g) => g.finishedAt)?.finishedAt ?? null)}`.trim();
+        return `Decided ${shortDay(m.games.find((g) => g.finishedAt && !g.rejectedAt)?.finishedAt ?? null)}`.trim();
       case "in_play":
         return "In play now";
       case "unverified":
@@ -315,7 +315,7 @@ export const buildBracket = (
         matches.filter((m) => m.round === 1).flatMap((m) => [m.slotA, m.slotB]).filter(Boolean),
       ).size,
       currentRound: open ? open.round : rounds,
-      gamesPlayed: matches.reduce((n, m) => n + m.games.filter((g) => g.finishedAt).length, 0),
+      gamesPlayed: matches.reduce((n, m) => n + m.games.filter((g) => g.finishedAt && !g.rejectedAt).length, 0),
       inPlay: roundViews.reduce((n, rv) => n + rv.inPlay, 0),
     },
   };

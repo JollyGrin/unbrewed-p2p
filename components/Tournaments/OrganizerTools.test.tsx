@@ -122,9 +122,31 @@ it("set matchup puts a rule, never per-game fields", async () => {
   });
 });
 
-it("'Not valid…' (api #75 pending) opens the override form without calling the api", async () => {
+it("'Not valid…' rejects the game via the reject route, not an override", async () => {
   mount();
   fireEvent.click(await screen.findByText("Not valid…"));
-  expect(await screen.findByTestId("override-form")).toBeInTheDocument();
-  expect(calls.filter((c) => c.method !== "GET")).toEqual([]);
+  await waitFor(() =>
+    expect(calls.some((c) => c.method === "POST")).toBe(true),
+  );
+  const post = calls.find((c) => c.method === "POST")!;
+  expect(post.url).toMatch(/matches\/m1-1\/games\/0\/reject$/);
+  expect(calls.some((c) => c.url.endsWith("/override"))).toBe(false);
+  await waitFor(() => expect(reload).toHaveBeenCalled());
+});
+
+it("maps reject 409s to plain copy", async () => {
+  (global.fetch as jest.Mock).mockImplementation(
+    async (url: string, init?: RequestInit) =>
+      url.endsWith("/attention")
+        ? reply(200, { items: FIXTURE_ATTENTION["fixture-8"] })
+        : init?.method === "POST"
+          ? reply(409, { error: "already_verified" })
+          : reply(200, {}),
+  );
+  mount();
+  fireEvent.click(await screen.findByText("Not valid…"));
+  expect(await screen.findByTestId("organizer-error")).toHaveTextContent(
+    /already confirmed.*override/,
+  );
+  expect(reload).not.toHaveBeenCalled();
 });

@@ -10,7 +10,12 @@ import { useMemo, useState } from "react";
 
 import { useProLiveRosterState } from "@/lib/pro/useProLiveRoster";
 import { PRO_WS_URL } from "@/lib/pro/wsUrl";
-import { confirmGame, overrideMatch, putMatchup } from "@/lib/tournaments/api";
+import {
+  confirmGame,
+  overrideMatch,
+  putMatchup,
+  rejectGame,
+} from "@/lib/tournaments/api";
 import { matchHref, roundCount } from "@/lib/tournaments/bracket";
 import { useAttention } from "@/lib/tournaments/hooks";
 import { proDeckOptions, proMapOptions } from "@/lib/tournaments/options";
@@ -423,6 +428,7 @@ export const AttentionQueue = ({
   const [data, reloadQueue] = useAttention(t.slug, t.status === "running");
   const [openRow, setOpenRow] = useState<string | null>(null);
   const [form, setForm] = useState<"override" | "matchup" | null>(null);
+  const [errRow, setErrRow] = useState<string | null>(null);
   const [award, setAward] = useState<{
     key: string;
     entryId: string;
@@ -445,24 +451,14 @@ export const AttentionQueue = ({
   );
   if (data.status !== "ready" || rows.length === 0) return null;
 
-  /**
-   * "Not valid" on an unverified game. TODO(api #75): swap this body for
-   * `rejectGame(slug, matchId, gameIndex)` (POST …/games/:index/reject, 409 if
-   * verified/decided) then `refresh()` — the only line that changes. Until that
-   * route lands, rejecting = overriding the match (api docs).
-   */
-  const rejectUnverified = (
-    row: { key: string; matchId: string },
-    _gameIndex: number,
-  ) => {
-    setOpenRow(row.key);
-    setForm("override");
-    setAward(null);
-  };
+  /** "Not valid" on an unverified game: reject it (api #75); the match stays undecided. */
+  const rejectUnverified = (row: { matchId: string }, gameIndex: number) =>
+    void run(() => rejectGame(t.slug, row.matchId, gameIndex));
 
   const act = (row: (typeof rows)[number], a: AttentionAction) => {
     const match = matches.find((m) => m.id === row.matchId);
     if (!match) return;
+    setErrRow(row.key);
     if (a.type === "confirm")
       void run(() => confirmGame(t.slug, row.matchId, a.gameIndex));
     else if (a.type === "award") {
@@ -585,7 +581,7 @@ export const AttentionQueue = ({
                     onDone={refresh}
                   />
                 )}
-                {!isOpen && <ErrorLine text={error} />}
+                {!isOpen && errRow === row.key && <ErrorLine text={error} />}
               </Box>
             </Flex>
           </Box>

@@ -737,7 +737,7 @@ const GamesList = ({
         <GameLine
           key={r.game.gameIndex}
           // "In play now" shows no game number (settled rule 8).
-          gn={r.state === "in_play" ? "—" : r.state === "won" ? "✓" : String(r.n)}
+          gn={r.state === "in_play" ? "—" : r.state === "won" ? "✓" : r.state === "rejected" ? "✕" : String(r.n)}
           pending={r.state === "in_play"}
           meta={
             r.state === "in_play"
@@ -745,7 +745,7 @@ const GamesList = ({
               : [shortDate(r.game.finishedAt), gameLength(r.game), r.game.gameId ? `#${r.game.gameId}` : null].filter(Boolean).join(" · ")
           }
           trail={
-            r.game.replayAvailable ? (
+            r.state !== "rejected" && r.game.replayAvailable ? (
               <Box
                 as="button"
                 type="button"
@@ -772,6 +772,8 @@ const GamesList = ({
               <Text as="span" color={DANGER_INK} fontWeight={700}>● In play now</Text>
               {r.heroes ? ` · ${r.heroes}` : ""}
             </>
+          ) : r.state === "rejected" ? (
+            <>Result rejected by the organizer · not counted</>
           ) : (
             <>
               <Text as="span" fontWeight={700}>{r.winnerName ?? "Unknown"}</Text> won{r.heroes ? ` · ${r.heroes}` : ""}
