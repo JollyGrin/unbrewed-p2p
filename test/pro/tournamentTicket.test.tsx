@@ -512,4 +512,37 @@ describe("a raw ?room= link on a device without the seat (#1230)", () => {
     __resetAccountStoreForTests();
     __resetNextMatchForTests();
   });
+
+  it("a room of a match that ISN'T nextMatch is found by walking my running tournaments", async () => {
+    const now = new Date().toISOString();
+    const mine = fixtureMyTournaments("you_ready", now);
+    const other = fixtureMatch("you_ready", now);
+    const otherDetail = { ...other.detail, liveRoom: { ...other.detail.liveRoom!, roomId: "OTHER" } };
+    const running = { ...mine.tournaments[0], status: "running" as const };
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response;
+      if (url.endsWith("/me")) return ok({ user: { id: "u2", username: "hokuto_shin" } });
+      if (url.endsWith("/me/tournaments"))
+        return ok({ ...mine, tournaments: [running], nextMatch: { ...mine.nextMatch!, match: { ...mine.nextMatch!.match, id: "elsewhere" } } });
+      if (url.includes("/matches/elsewhere")) return ok({ ...other.detail, liveRoom: null, match: { ...other.detail.match, id: "elsewhere" } });
+      if (url.includes("/matches/m2-1")) return ok(otherDetail);
+      if (url.endsWith(`/tournaments/${running.slug}`))
+        return ok({ tournament: running, entries: other.entries, matches: other.matches, standings: null });
+      return { ok: false, status: 404, json: async () => ({}) } as Response;
+    }) as unknown as typeof fetch;
+    __resetAccountStoreForTests();
+    __resetNextMatchForTests();
+
+    await mount({ room: "OTHER" });
+    await deliver({ type: "HEROES", heroes: HEROES });
+    await flush(15);
+    expect(sentOfType("JOIN_ROOM")).toHaveLength(0);
+    expect(screen.getByText("Back to the match").closest("a")).toHaveAttribute(
+      "href",
+      `/tournaments?t=${running.slug}&m=m2-1`,
+    );
+    __resetAccountStoreForTests();
+    __resetNextMatchForTests();
+  });
 });

@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 
 import { useAccount } from "@/lib/account/useAccount";
 
-import { getMatch, getMyTournaments } from "./api";
+import { getMatch, getMyTournaments, getTournament } from "./api";
 import { nextMatchView, sizeOf, type NextMatchView } from "./nextMatch";
 import type { MatchDetail, MyTournaments, NextMatch } from "./types";
 
@@ -78,13 +78,43 @@ export const useNextMatch = (): NextMatchView | null => {
   return next ? nextMatchView(next.match, next.detail, next.size, now) : null;
 };
 
+type MatchRef = { slug: string; matchId: string };
+
 /** The match whose room this is, from the next-match load (its live room or a game's room). */
-export const matchOfRoom = (data: MyTournamentsData | null, roomId: string): { slug: string; matchId: string } | null => {
+export const matchOfRoom = (data: MyTournamentsData | null, roomId: string): MatchRef | null => {
   const next = data?.next;
   if (!next?.detail) return null;
   const d = next.detail;
   const hit = d.liveRoom?.roomId === roomId || d.match.games.some((g) => g.roomId === roomId);
   return hit ? { slug: d.tournament.slug, matchId: d.match.id } : null;
+};
+
+/**
+ * Which of MY matches owns this room. `nextMatch` is only the soonest one, so
+ * past it walk every running tournament I'm entered in: a started game names
+ * its room in the bracket, a room still waiting for its second seat only in
+ * the match detail (`liveRoom`).
+ */
+export const findMyMatchForRoom = async (userId: string, roomId: string): Promise<MatchRef | null> => {
+  const data = await loadMyTournaments(userId);
+  const fast = matchOfRoom(data, roomId);
+  if (fast || !data) return fast;
+  const mine = data.mine.tournaments.filter((t) => t.myEntryId && t.status === "running");
+  const hits = await Promise.all(
+    mine.map(async (t): Promise<MatchRef | null> => {
+      const r = await getTournament(t.slug);
+      if (!r.ok) return null;
+      const open = r.value.matches.filter(
+        (m) => (m.slotA === t.myEntryId || m.slotB === t.myEntryId) && (m.status === "open" || m.status === "in_play"),
+      );
+      const started = open.find((m) => m.games.some((g) => g.roomId === roomId));
+      if (started) return { slug: t.slug, matchId: started.id };
+      const details = await Promise.all(open.map((m) => getMatch(t.slug, m.id)));
+      const waiting = details.find((d) => d.ok && d.value.liveRoom?.roomId === roomId);
+      return waiting?.ok ? { slug: t.slug, matchId: waiting.value.match.id } : null;
+    }),
+  );
+  return hits.find(Boolean) ?? null;
 };
 
 /** How long a `?room=` link waits on the lookup before showing the picker anyway. */
@@ -99,10 +129,10 @@ export const TAGGED_ROOM_WAIT_MS = 3000;
 export const useTaggedRoomLookup = (
   roomId: string | null,
   enabled: boolean,
-): { pending: boolean; at: { slug: string; matchId: string } | null } => {
+): { pending: boolean; at: MatchRef | null } => {
   const { status, account } = useAccount();
   const userId = status === "signed-in" ? account.id : null;
-  const [res, setRes] = useState<{ key: string; at: { slug: string; matchId: string } | null } | null>(null);
+  const [res, setRes] = useState<{ key: string; at: MatchRef | null } | null>(null);
   const [waitOver, setWaitOver] = useState(false);
   const active = enabled && !!roomId;
   const key = `${userId ?? ""}:${roomId ?? ""}`;
@@ -115,7 +145,9 @@ export const useTaggedRoomLookup = (
   useEffect(() => {
     if (!active || !roomId || !userId) return;
     let alive = true;
-    void loadMyTournaments(userId).then((d) => alive && setRes({ key, at: matchOfRoom(d, roomId) }));
+    void findMyMatchForRoom(userId, roomId)
+      .catch(() => null)
+      .then((at) => alive && setRes({ key, at }));
     return () => {
       alive = false;
     };
