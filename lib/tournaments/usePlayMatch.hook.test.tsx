@@ -28,6 +28,7 @@ beforeEach(() => {
   ready.mockReset();
   ticket.mockReset();
   getMatch.mockReset().mockResolvedValue({ ok: false, reason: "unavailable" });
+  window.localStorage.clear();
 });
 
 describe("freshGrant", () => {
@@ -88,6 +89,50 @@ describe("freshGrant", () => {
 
   it("explains the held seat", () => {
     expect(playErrorMessage({ ok: false, reason: "conflict", code: "seat_held" })).toMatch(/another tab or device/);
+  });
+});
+
+describe("usePlayMatch stale-tab guard (#1248)", () => {
+  const NOW = Date.now();
+  const later = new Date(NOW + 10 * 60_000).toISOString();
+  const held = (roomId: string | null) => ({
+    ok: true,
+    value: { match: { slotA: "eA", slotB: "eB" }, readyChecks: [], liveRoom: { gameIndex: 0, roomId, readyEntryId: "eA", expiresAt: later } } as unknown as MatchDetail,
+  });
+
+  it("with my own live seat, Play never POSTs /ready — twice", async () => {
+    ticket.mockResolvedValue(grant({ action: "create", slot: "a" }));
+    getMatch.mockResolvedValue(held("MINE"));
+    const reload = jest.fn();
+    const { result } = renderHook(() => usePlayMatch("s", "m", reload));
+    await act(async () => result.current.play());
+    expect(result.current.phase).toEqual({ kind: "seat_held", roomId: "MINE" });
+    await act(async () => result.current.play());
+    expect(ready).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+    // The retry re-reads the match and unlocks Play.
+    reload.mockClear();
+    act(() => result.current.retry());
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(result.current.phase.kind).toBe("idle");
+  });
+
+  it("a live create check with no room id falls back to the remembered tournament room", async () => {
+    window.localStorage.setItem("unbrewed-pro-tournament-room-REMEM", JSON.stringify({ slug: "s", matchId: "m", ts: Date.now() }));
+    ticket.mockResolvedValue(grant({ action: "create", slot: "a" }));
+    getMatch.mockResolvedValue(held(null));
+    const { result } = renderHook(() => usePlayMatch("s", "m"));
+    await act(async () => result.current.play());
+    expect(result.current.phase).toEqual({ kind: "seat_held", roomId: "REMEM" });
+    expect(ready).not.toHaveBeenCalled();
+  });
+
+  it("the api's {decision:'seat_held', roomId} answer lands in the same phase", async () => {
+    ready.mockResolvedValue({ ok: false, reason: "conflict", code: "seat_held", roomId: "APIROOM" });
+    const { result } = renderHook(() => usePlayMatch("s", "m"));
+    await act(async () => result.current.play());
+    expect(result.current.phase).toEqual({ kind: "seat_held", roomId: "APIROOM" });
+    expect(push).not.toHaveBeenCalled();
   });
 });
 

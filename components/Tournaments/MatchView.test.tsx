@@ -328,4 +328,62 @@ describe("api #91", () => {
     expect(rows.at(-1)).toHaveTextContent("Finished after the organizer decided (not counted)");
     expect(within(rows.at(-1)!).getByTestId("replay-chip")).toBeInTheDocument();
   });
+
+  it("the long late-game note sits on its own line, never in the 'vs' caption (#1248 LV-2)", () => {
+    const d = fixtureMatch("decided_by_rule").detail;
+    const g = d.match.games[0];
+    const late = { ...g, gameIndex: 4, winnerEntry: d.match.slotB, recordedAfterDecision: true };
+    renderDetail({ ...d, match: { ...d.match, games: [late] } });
+    const score = screen.getByTestId("match-score");
+    expect(score).toHaveTextContent("Decided by organizer");
+    expect(score).not.toHaveTextContent("finished afterwards");
+    expect(screen.getByTestId("late-game-note")).toHaveTextContent(
+      "Decided by the organizer; a game that was in progress finished afterwards (not counted)",
+    );
+    expect(score.contains(screen.getByTestId("late-game-note"))).toBe(false);
+    // The player columns keep their flexible width: minmax(0, 1fr) auto minmax(0, 1fr).
+    const css = Array.from(document.querySelectorAll("style")).map((n) => n.textContent).join("");
+    expect(css).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)\s+auto\s+minmax\(0,\s*1fr\)/);
+  });
+
+  it("a cancelled match hides 'is ready now' and 'Final latest' (#1248)", () => {
+    const d = fixtureMatch("you_ready").detail;
+    expect(d.readyChecks.some((rc) => rc.outcome === "pending")).toBe(true);
+    const f = fixtureMatch("you_ready");
+    const render1 = (det: MatchDetail, status: "cancelled" | "running") =>
+      render(
+        <ChakraProvider>
+          <MatchBody
+            d={det}
+            t={{ ...f.tournament, status, latestPossibleFinal: "2026-10-30T00:00:00Z" }}
+            myUserId={FIXTURE_MATCH_YOU}
+            signedOut={false}
+            now={NOW}
+            phase={{ kind: "idle" }}
+            onPlay={() => {}}
+          />
+        </ChakraProvider>,
+      );
+    const live = render1(d, "running");
+    expect(screen.getByTestId("ready-checks")).toHaveTextContent("ready now");
+    live.unmount();
+    render1({ ...d, tournament: { ...d.tournament, status: "cancelled" } }, "cancelled");
+    expect(screen.getByTestId("ready-checks")).not.toHaveTextContent("ready now");
+    expect(document.body).not.toHaveTextContent("Final latest");
+  });
+
+  it("the seat-held phase renders 'Back to your room' and a retry, not a Play prompt (#1248 LV-1)", () => {
+    const f = fixtureMatch("waiting");
+    const onRetry = jest.fn();
+    render(
+      <ChakraProvider>
+        <MatchBody d={f.detail} t={f.tournament} myUserId={FIXTURE_MATCH_YOU} signedOut={false} now={NOW} phase={{ kind: "seat_held", roomId: "ABC123" }} onPlay={() => {}} onRetry={onRetry} />
+      </ChakraProvider>,
+    );
+    const note = within(screen.getByTestId("play-box")).getByTestId("seat-held-note");
+    expect(note).toHaveTextContent("Your seat is held in room ABC123");
+    expect(within(note).getByText("Back to your room").closest("a")).toHaveAttribute("href", "/pro/game?room=ABC123");
+    fireEvent.click(within(note).getByText("Check again"));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
 });

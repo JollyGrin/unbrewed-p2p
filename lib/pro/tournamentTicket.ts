@@ -181,6 +181,25 @@ export function tournamentRoomOf(roomId: string | null, now: number = Date.now()
   }
 }
 
+/** The newest live remembered room of this browser for a match, or null (stale-tab guard, #1248). */
+export function roomForMatch(at: TournamentRoom, now: number = Date.now()): string | null {
+  try {
+    let best: { room: string; ts: number } | null = null;
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const k = window.localStorage.key(i);
+      if (!k || !k.startsWith(ROOM_KEY)) continue;
+      const room = k.slice(ROOM_KEY.length);
+      const v = JSON.parse(window.localStorage.getItem(k) ?? "null");
+      if (!v || v.slug !== at.slug || v.matchId !== at.matchId || typeof v.ts !== "number") continue;
+      if (now - v.ts > TOURNAMENT_ROOM_MAX_AGE_MS) continue;
+      if (!best || v.ts > best.ts) best = { room, ts: v.ts };
+    }
+    return best?.room ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** The match page this room belongs to. */
 export const tournamentMatchHref = (at: TournamentRoom): string => matchHref(at.slug, at.matchId);
 

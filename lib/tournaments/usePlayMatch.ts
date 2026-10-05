@@ -8,7 +8,7 @@
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { ticketGameHref } from "@/lib/pro/tournamentTicket";
+import { roomForMatch, ticketGameHref } from "@/lib/pro/tournamentTicket";
 
 import { getMatch, getMatchTicket, readyForMatch, type Result } from "./api";
 import type { MatchDetail, TicketGrant } from "./types";
@@ -18,6 +18,8 @@ export type PlayPhase =
   | { kind: "busy" }
   /** Join, but the other room has no id yet. */
   | { kind: "opening" }
+  /** This player already holds a live seat for the match: never a second room. */
+  | { kind: "seat_held"; roomId: string | null }
   | { kind: "error"; message: string };
 
 /** Readable copy for a failed ready / ticket call. */
@@ -124,6 +126,11 @@ export const usePlayMatch = (slug: string, matchId: string, onSettled?: () => vo
     async (r: Result<TicketGrant>, polls: number): Promise<boolean> => {
       if (!alive.current) return false;
       if (!r.ok) {
+        if (r.code === "seat_held") {
+          setPhase({ kind: "seat_held", roomId: r.roomId ?? roomForMatch({ slug, matchId }) });
+          onSettled?.();
+          return false;
+        }
         setPhase({ kind: "error", message: playErrorMessage(r) });
         onSettled?.();
         return false;
@@ -151,13 +158,30 @@ export const usePlayMatch = (slug: string, matchId: string, onSettled?: () => vo
     inFlight.current = true;
     setPhase({ kind: "busy" });
     try {
+      // Converge a stale tab first: re-read the match, and never POST /ready while
+      // this player's own seat is live (that would open a second room, #1248).
+      const [d, t] = await Promise.all([getMatch(slug, matchId), getMatchTicket(slug, matchId)]);
+      if (alive.current && d.ok && t.ok && ownHoldLive(d.value, t.value.slot, Date.now())) {
+        const roomId = d.value.liveRoom?.roomId ?? d.value.readyChecks.find((c) => c.roomId)?.roomId ?? roomForMatch({ slug, matchId });
+        setPhase({ kind: "seat_held", roomId });
+        onSettled?.();
+        inFlight.current = false;
+        return;
+      }
       const navigating = await follow(await readyForMatch(slug, matchId), 0);
       // Navigating away: stay locked so a second tap can't mint a second ticket.
       if (!navigating) inFlight.current = false;
     } catch {
       inFlight.current = false;
     }
-  }, [follow, slug, matchId]);
+  }, [follow, slug, matchId, onSettled]);
 
-  return { phase, play };
+  /** "Check again" on the seat-held card: re-read the match and let Play be pressed afresh. */
+  const retry = useCallback(() => {
+    inFlight.current = false;
+    setPhase({ kind: "idle" });
+    onSettled?.();
+  }, [onSettled]);
+
+  return { phase, play, retry };
 };
