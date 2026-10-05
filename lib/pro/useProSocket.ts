@@ -1135,11 +1135,14 @@ export function useProSocket(
           // A RECONNECT with a ticket beside it (p2p #1250): BAD_TOKEN = the engine
           // released the seat. The stored token is dead — forget it — and take the
           // seat back with the ticket (a JOIN needs the hero; without one the page
-          // shows the ticket screen, whose retry lands on the picker).
+          // shows the ticket screen, whose retry lands on the picker). Never while
+          // a resume blob is held: then the room was revived after a redeploy
+          // (fresh seat tokens) and RESUME_ROOM below is the way back — forgetting
+          // the room would delete that blob, and a ticket JOIN can't take the seat.
           const room = roomRef.current;
           const fallback = ticketFallbackRef.current;
           ticketFallbackRef.current = null;
-          if (msg.code === "BAD_TOKEN" && fallback && fallback.room === room) {
+          if (msg.code === "BAD_TOKEN" && fallback && fallback.room === room && !getResumeToken(fallback.room)) {
             forgetRoom(fallback.room);
             if (fallback.heroId) {
               sendBind(joinRoomMsg(fallback.room, fallback.heroId, fallback.ticket));

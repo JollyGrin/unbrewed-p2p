@@ -34,6 +34,8 @@ export const SeatReplacedScreen = ({
   navigate?: (href: string) => void;
 }) => {
   const [busy, setBusy] = useState(false);
+  // Neither a seat token nor a known match: nothing to take the seat back with.
+  const canTakeBack = !!at || (!!roomId && getToken(roomId) !== null);
   const [note, setNote] = useState<string | null>(null);
   const takeBack = async () => {
     if (!at || (roomId && getToken(roomId))) return onTakeBack();
@@ -52,7 +54,7 @@ export const SeatReplacedScreen = ({
         This seat is open in another tab
       </Text>
       <Text opacity={0.85} maxW="30rem">
-        Your game carries on there. Use this tab instead to move it here — the other tab will stop.
+        Your game carries on there.{canTakeBack ? " Use this tab instead to move it here — the other tab will stop." : ""}
       </Text>
       {note && (
         <Text opacity={0.85} role="alert">
@@ -60,9 +62,15 @@ export const SeatReplacedScreen = ({
         </Text>
       )}
       <Flex gap="0.75rem" flexWrap="wrap" justifyContent="center">
-        <Button {...BTN_GOLD} isLoading={busy} onClick={() => void takeBack()}>
-          Use this tab instead
-        </Button>
+        {canTakeBack ? (
+          <Button {...BTN_GOLD} isLoading={busy} onClick={() => void takeBack()}>
+            Use this tab instead
+          </Button>
+        ) : (
+          <Button as={Link} href="/pro/game" {...BTN_GOLD} _hover={{ textDecoration: "none", bg: "brand.accentDeep" }}>
+            Play casual instead
+          </Button>
+        )}
         {at && (
           <Button as={Link} href={tournamentMatchHref(at)} variant="outline" color="brand.parchment" _hover={{ textDecoration: "none", opacity: 0.85 }}>
             Back to the match

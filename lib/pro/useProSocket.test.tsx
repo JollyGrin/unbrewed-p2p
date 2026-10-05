@@ -2559,3 +2559,43 @@ describe("useProSocket — a seat taken over by another tab stops this one (p2p 
     expect(FakeWebSocket.instances).toBe(before + 1);
   });
 });
+
+describe("useProSocket — the ticket fallback never eats a resume blob (p2p #1250 review)", () => {
+  const realWS = global.WebSocket;
+  beforeEach(() => {
+    // @ts-expect-error — swap in the fake for the test
+    global.WebSocket = FakeWebSocket;
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+  });
+  afterEach(() => {
+    global.WebSocket = realWS;
+    FakeWebSocket.last = null;
+  });
+
+  const frames = (ws: FakeWebSocket) => ws.sent.map((s) => JSON.parse(s));
+
+  it("ticket + dead token + a resume blob (room revived after a redeploy): RESUME_ROOM, the blob survives, the ticket is not spent", () => {
+    window.localStorage.setItem("unbrewed-pro-token-DQJ6", "dead");
+    window.localStorage.setItem("unbrewed-pro-resume-DQJ6", "blob");
+    const hook = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    act(() => hook.result.current.joinRoom("DQJ6", "alice", "tkt"));
+    act(() => ws.emit({ type: "ERROR", code: "BAD_TOKEN", message: "Reconnect token not recognized" }));
+    expect(frames(ws).at(-1)).toMatchObject({ type: "RESUME_ROOM", token: "blob" });
+    expect(ws.sentTypes).not.toContain("JOIN_ROOM");
+    expect(window.localStorage.getItem("unbrewed-pro-resume-DQJ6")).toBe("blob");
+    expect(hook.result.current.error).toBeNull();
+  });
+
+  it("ticket + dead token + no blob: the ticket JOIN, as before", () => {
+    window.localStorage.setItem("unbrewed-pro-token-DQJ6", "dead");
+    const hook = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    act(() => hook.result.current.joinRoom("DQJ6", "alice", "tkt"));
+    act(() => ws.emit({ type: "ERROR", code: "BAD_TOKEN", message: "Reconnect token not recognized" }));
+    expect(frames(ws).at(-1)).toMatchObject({ type: "JOIN_ROOM", roomId: "DQJ6", ticket: "tkt" });
+  });
+});
