@@ -251,6 +251,7 @@ import {
   withoutTicketQuery,
 } from "@/lib/pro/tournamentTicket";
 import type { TicketLaunch, TournamentRoom } from "@/lib/pro/tournamentTicket";
+import { MatchDecidedBanner } from "@/components/Pro/MatchDecidedBanner";
 import { SeatReplacedScreen } from "@/components/Pro/SeatReplacedScreen";
 import { TicketErrorScreen } from "@/components/Pro/TicketErrorScreen";
 import { useTaggedRoomLookup } from "@/lib/tournaments/useNextMatch";
@@ -6111,6 +6112,7 @@ const LiveGame = ({
               public toggle (the engine refuses SET_VISIBILITY on it). */}
           {tournamentRoom && (
             <Flex direction="column" alignItems="center" gap="0.5rem" data-testid="tournament-waiting">
+              <MatchDecidedBanner at={tournamentRoom} />
               <Tag px="0.75rem" py="0.4rem" fontFamily="SpaceGrotesk" letterSpacing="0.04em" bg="brand.accent" color="brand.surfaceDim">
                 🏆 Tournament match · your seat is held for 15 minutes
               </Tag>
@@ -7548,6 +7550,7 @@ const LiveGame = ({
     >
     <CardPreviewProvider>
     <Box h="100svh" overflow="hidden" bg={TABLE_BG} position="relative">
+      <MatchDecidedBanner at={tournamentRoom} />
       {/* Playtesting a custom board (this player created it): a near-invisible
           link to submit it to unbrewed. Covers the AI case, where the pre-game
           waiting screen — which also offers this — is never shown. */}

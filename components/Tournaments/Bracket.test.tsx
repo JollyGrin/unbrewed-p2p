@@ -156,7 +156,7 @@ describe("#1246 N2/N3/N5", () => {
     m.games = [{ ...(fixtureComplete4().matches[0].games[0]), recordedAfterDecision: true }];
     const view = buildBracket({ slug: "x", size: 4, status: "running" }, b.entries, b.matches);
     const cell = view.rounds[0].cells[0];
-    expect(`${cell.a.sub}|${cell.b.sub}`).toContain("a game that was in progress finished afterwards (not counted)");
+    expect(`${cell.a.sub}|${cell.b.sub}`).toContain("a game finished afterwards (not counted)");
     expect(`${cell.a.sub}|${cell.b.sub}`).not.toContain("no game played");
   });
 

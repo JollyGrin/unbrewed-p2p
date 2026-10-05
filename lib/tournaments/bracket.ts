@@ -163,9 +163,23 @@ export const seedOrder = (size: number): number[] => {
 /** A game that counts toward the score: finished, not rejected, not recorded after the organizer decided. */
 /** A game that was in play when the organizer decided the match and finished afterwards (api `recordedAfterDecision`). */
 export const hasLateGame = (m: Match): boolean => m.games.some((g) => !!g.recordedAfterDecision);
+/** The bracket cell's short form: its footer already says "Decided by the organizer". */
+export const LATE_GAME_CELL_NOTE = "a game finished afterwards (not counted)";
 export const LATE_GAME_NOTE = "Decided by the organizer; a game that was in progress finished afterwards (not counted)";
 
 export const countsGame = (g: Game): boolean => !!g.finishedAt && !g.rejectedAt && !g.recordedAfterDecision;
+
+/**
+ * A game that shows in a decided match's score. Nothing scores once the organizer
+ * decided (a correction leaves the old game behind), and an unverified game can
+ * never confirm on a decided match (#1256) unless that is how it was decided.
+ */
+export const scoredGame = (m: Match, g: Game): boolean => {
+  if (!countsGame(g)) return false;
+  if (m.decidedBy === "organizer") return false;
+  const decided = m.status === "decided" || !!m.winner;
+  return !decided || !!g.verified || m.decidedBy === "unverified_confirmed";
+};
 
 /** An undecided match of a cancelled tournament: never in play, never playable. */
 export const isCancelledMatch = (m: Match): boolean => !!m.cancelled && m.status !== "decided" && !m.winner;
@@ -180,7 +194,7 @@ export const cellState = (m: Match): CellState => {
 };
 
 const wins = (m: Match, entryId: string | null): number =>
-  entryId ? m.games.filter((g) => countsGame(g) && g.winnerEntry === entryId).length : 0;
+  entryId ? m.games.filter((g) => scoredGame(m, g) && g.winnerEntry === entryId).length : 0;
 
 const shortDay = (iso: string | null): string => {
   if (!iso) return "";
@@ -235,10 +249,10 @@ export const buildBracket = (
     const hero = side === "a" ? m.matchup.heroes.a : m.matchup.heroes.b;
     const decided = state === "decided";
     const won = decided && m.winner === id;
-    const playedGame = m.games.some((g) => countsGame(g) && g.winnerEntry);
+    const playedGame = m.games.some((g) => scoredGame(m, g) && g.winnerEntry);
     let sub = hero ? heroDisplayName(hero) : "";
     if (decided && m.decidedBy === "bye") sub = "advances on a bye";
-    else if (decided && !playedGame) sub = won ? (m.round === rounds ? "wins the tournament" : "advances") : hasLateGame(m) ? LATE_GAME_NOTE : "no game played";
+    else if (decided && !playedGame) sub = won ? (m.round === rounds ? "wins the tournament" : "advances") : hasLateGame(m) ? LATE_GAME_CELL_NOTE : m.decidedBy === "organizer" ? "" : "no game played";
     else if (entry.leftAt && !decided) sub = "left the tournament";
     return {
       entryId: id,

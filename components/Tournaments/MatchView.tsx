@@ -15,7 +15,7 @@ import { GOLD, INK, INK_DEEP, INK_MUTED, PARCHMENT, RULE, TRACK, WASH } from "@/
 import { signInUrl, useAccount } from "@/lib/account/useAccount";
 import { catalogEntry } from "@/lib/pro/mapCatalog";
 import { getToken } from "@/lib/pro/recentRooms";
-import { LATE_GAME_NOTE, countsGame, hasLateGame, matchHref } from "@/lib/tournaments/bracket";
+import { LATE_GAME_NOTE, hasLateGame, isCancelledMatch, scoredGame, matchHref } from "@/lib/tournaments/bracket";
 import { useMatchDetail, useNow, useTournament } from "@/lib/tournaments/hooks";
 import { isOrganizerOf } from "@/lib/tournaments/organizer";
 import {
@@ -34,6 +34,7 @@ import {
   deadlineReadyCheckText,
   gameLength,
   gameRows,
+  currentChecks,
   heldRoom,
   lastSeen,
   MATCH_STATE_NAME,
@@ -381,7 +382,7 @@ const Banner = ({
     case "deadline_hold": {
       const holder = deadlineHolder(d, now);
       const holderName = playerName(holder === m.slotA ? d.players.a : d.players.b);
-      const until = clock(heldRoom(d, now)?.expiresAt ?? d.readyChecks.find((c) => c.entryId === holder)?.expiresAt ?? null);
+      const until = clock(heldRoom(d, now)?.expiresAt ?? currentChecks(d).find((c) => c.entryId === holder)?.expiresAt ?? null);
       text = `Deadline passed. ${holderName} pressed Play and holds a seat${until ? ` until ${until}` : ""}; if they don't join, they ${group ? "win the match" : "advance"} (rule 1).`;
       small = "Rule 1 · unanswered ready-check";
       break;
@@ -532,7 +533,7 @@ const Versus = ({ d, state, side, now }: { d: MatchDetail; state: MatchPageState
           {decided ? (played ? `${s.a}–${s.b}` : "–") : <Text as="em" fontStyle="normal" color="rgba(72,40,79,0.55)">vs</Text>}
         </Text>
         <Text {...caption} fontSize="12px" letterSpacing="0.1em" mt="6px" color={state === "in_play" ? DANGER_INK : INK_MUTED}>
-          {state === "in_play" ? "● Live" : decided ? (played ? (state === "cancelled" ? "Score when cancelled" : "Final score") : hasLateGame(m) ? "Decided by organizer" : "No game played") : "One game"}
+          {state === "in_play" ? "● Live" : decided ? (played ? (state === "cancelled" ? "Score when cancelled" : "Final score") : hasLateGame(m) || m.decidedBy === "organizer" ? "Decided by organizer" : "No game played") : "One game"}
         </Text>
       </Box>
       <Side p={d.players.b} you={side === "b"} hero={mu.heroB} {...lb} />
@@ -750,9 +751,10 @@ const MatchupPanel = ({ d, t, side, onReplay }: { d: MatchDetail; t: Tournament 
         ? "Players choose"
         : "Event rule";
   // Once a game is recorded, only heroes the api names are shown; never "Player's choice".
-  const played = m.games.some(countsGame);
+  const played = m.games.some((g) => scoredGame(m, g));
   // D9: a decided match whose record names no heroes or board must not fall back to the "Random board" rule text.
   const decided = m.status === "decided" || !!m.winner;
+  const cancelled = isCancelledMatch(m);
   const unrecorded = decided && !isSet;
   const row = (seat: "A" | "B", p: MatchPlayer | null, hero: string | null, now: boolean) => (
     <Box as="tr" bg={now ? "rgba(224,168,46,0.12)" : undefined}>
@@ -780,7 +782,7 @@ const MatchupPanel = ({ d, t, side, onReplay }: { d: MatchDetail; t: Tournament 
         <Box w="86px" h="56px" borderRadius="8px" flexShrink={0} bg={TRACK} bgImage={thumb ? `url(${thumb})` : undefined} bgSize="cover" bgPos="center" boxShadow="inset 0 0 0 1px rgba(72,40,79,0.15)" />
         {unrecorded ? (
           <Box data-testid="matchup-unrecorded">
-            <Text fontWeight={700}>{played ? "Heroes and board: see the replay" : hasLateGame(m) ? LATE_GAME_NOTE : "No game was played"}</Text>
+            <Text fontWeight={700}>{played && onReplay ? "Heroes and board: see the replay" : hasLateGame(m) ? LATE_GAME_NOTE : "No game was played"}</Text>
             {played && onReplay && (
               <Box as="button" type="button" onClick={onReplay} fontSize="13px" fontWeight={700} textDecoration="underline" data-testid="matchup-replay-link">
                 ▶ Watch the replay
@@ -790,7 +792,7 @@ const MatchupPanel = ({ d, t, side, onReplay }: { d: MatchDetail; t: Tournament 
         ) : (
           <Box>
             <Text fontWeight={700}>{mu.map ?? "Random board"}</Text>
-            <Text fontSize="13px" color={INK_MUTED}>{mu.map ? "Set by the organizer" : "Dealt at random when the room opens"}</Text>
+            <Text fontSize="13px" color={INK_MUTED}>{cancelled ? "Cancelled" : mu.map ? "Set by the organizer" : "Dealt at random when the room opens"}</Text>
           </Box>
         )}
       </Flex>
@@ -905,7 +907,7 @@ const GamesList = ({
 };
 
 /** A game that finished after the organizer decided the match: shown, never counted. */
-const AFTER_DECISION_LABEL = "Finished after the organizer decided (not counted)";
+const AFTER_DECISION_LABEL = "Finished after the match was decided (not counted)";
 
 const GameLine = ({
   gn,
@@ -960,7 +962,7 @@ const DeadlineCard = ({ d, t, state, now }: { d: MatchDetail; t: Tournament | nu
       </Flex>
       <Flex justify="space-between" fontSize="12px" color={INK_MUTED} gap="8px">
         <Text>{state === "decided" && finished ? `Decided ${dateTime(finished)}` : `Opened ${shortDate(m.opensAt)}`}</Text>
-        <Text textAlign="right">{m.deadlineAt ? `${(decided && state !== "decided") || state === "deadline_passed" ? "Closed " : ""}${dateTime(m.deadlineAt)}` : ""}</Text>
+        <Text textAlign="right">{m.deadlineAt ? `${state === "cancelled" ? "" : (decided && state !== "decided") || state === "deadline_passed" ? "Closed " : ""}${state === "cancelled" ? "Cancelled" : dateTime(m.deadlineAt)}` : ""}</Text>
       </Flex>
       {t?.latestPossibleFinal && t.status !== "cancelled" && (
         <Text fontSize="12px" color={INK_MUTED} mt="12px" pt="10px" borderTop={RULE} data-testid="latest-final">
@@ -1002,7 +1004,7 @@ const RulesCard = ({ d, state, group = false }: { d: MatchDetail; state: MatchPa
 
 const ReadyChecksCard = ({ d, myUserId, hideReady = false }: { d: MatchDetail; myUserId: string | null; hideReady?: boolean }) => {
   // A cancelled match has nobody "ready now": drop the pending lines (#1248).
-  const checks = hideReady ? d.readyChecks.filter((rc) => rc.outcome !== "pending") : d.readyChecks;
+  const checks = hideReady ? currentChecks(d).filter((rc) => rc.outcome !== "pending") : currentChecks(d);
   return (
   <Card p="18px" data-testid="ready-checks">
     <Text {...caption} mb="8px">Ready-checks</Text>
