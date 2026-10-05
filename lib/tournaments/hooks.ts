@@ -52,11 +52,28 @@ export const useTournamentList = (signedIn: boolean) => {
   return { all, mine, reload: reloadAll };
 };
 
-export const useTournament = (slug: string | null) =>
-  useLoad<{ tournament: Tournament; entries: Entry[]; matches: Match[]; standings: Standing[] | null }>(
-    slug ? () => getTournament(slug) : null,
-    slug ?? "",
-  );
+type TournamentData = { tournament: Tournament; entries: Entry[]; matches: Match[]; standings: Standing[] | null };
+
+/**
+ * The event/bracket page's tournament, re-fetched every `pollMs` while it is
+ * running and the tab is visible (E2, #1236); a draft/signup/complete event
+ * stands still. A poll that fails keeps showing the last good data.
+ */
+export const useTournament = (slug: string | null, pollMs = 10_000) => {
+  const [loaded, reload] = useLoad<TournamentData>(slug ? () => getTournament(slug) : null, slug ?? "");
+  const last = useRef<Loaded<TournamentData> | null>(null);
+  if (loaded.status === "ready") last.current = loaded;
+  const state = loaded.status === "unavailable" && last.current ? last.current : loaded;
+  const running = state.status === "ready" && state.value.tournament.status === "running";
+  useEffect(() => {
+    if (!running || pollMs <= 0) return;
+    const id = window.setInterval(() => {
+      if (typeof document === "undefined" || document.visibilityState !== "hidden") reload();
+    }, pollMs);
+    return () => window.clearInterval(id);
+  }, [running, pollMs, reload]);
+  return [state, reload] as const;
+};
 
 /**
  * The match page's match (#1218), re-fetched every `pollMs` until it is decided —

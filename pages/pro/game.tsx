@@ -237,8 +237,11 @@ import {
 } from "@/lib/pro/rematch";
 import type { RematchNegotiation } from "@/components/Pro/RematchOfferPanel";
 import {
+  forgetPendingPick,
   forgetTournamentRoom,
   parseTicketQuery,
+  pendingPick,
+  rememberPendingPick,
   rememberTournamentRoom,
   ticketBoard,
   TICKET_ERROR_CODES,
@@ -5306,8 +5309,17 @@ const LiveGame = ({
       rememberTournamentRoom(ticket.room, { slug: ticket.slug, matchId: ticket.matchId });
       return;
     }
+    // Remember the launch for this tab BEFORE the URL loses it (E1): a refresh at
+    // the hero picker has no room yet and must not land in the casual lobby.
+    rememberPendingPick({ slug: ticket.slug, matchId: ticket.matchId });
     setFiredTicket(ticket);
   }, [ticket, router]);
+  // A refresh mid-launch: no ticket, no room, but this tab was launching a match.
+  // Read once on mount (client-only) so the static export hydrates cleanly.
+  const [pendingLaunch, setPendingLaunch] = useState<TournamentRoom | null>(null);
+  useEffect(() => {
+    if (!ticket && !room) setPendingLaunch(pendingPick());
+  }, [ticket, room]);
 
   // A ticket that sets the hero launches by itself — but only once the seat
   // identity has settled, or the CREATE_ROOM/JOIN_ROOM goes out with no
@@ -5334,6 +5346,7 @@ const LiveGame = ({
   const untaggedSeatRef = useRef(false);
   useEffect(() => {
     if (!roomId) return;
+    forgetPendingPick();
     if (firedTicket) rememberTournamentRoom(roomId, { slug: firedTicket.slug, matchId: firedTicket.matchId });
     else if (untaggedSeatRef.current) forgetTournamentRoom(roomId);
   }, [roomId, firedTicket]);
@@ -5486,6 +5499,18 @@ const LiveGame = ({
 
   // A tournament ticket whose board this client can't send (#1218).
   if (ticketProblem && tournamentRoom) return <TicketErrorScreen message={ticketProblem} at={tournamentRoom} />;
+
+  // Refreshed at the tournament hero picker (E1): the ticket was single use and
+  // no room exists yet — a fresh ticket, never the casual lobby.
+  if (!joined && !firedTicket && !ticket && !room && pendingLaunch) {
+    return (
+      <TicketErrorScreen
+        message="Your match game didn't open before the page reloaded. Get a fresh ticket to pick your hero again."
+        retry
+        at={pendingLaunch}
+      />
+    );
+  }
 
   // A tournament room this browser has no seat token for (#1218): a JOIN_ROOM
   // without a ticket would only earn TICKET_REQUIRED, so never show the picker —
@@ -5866,14 +5891,20 @@ const LiveGame = ({
               firedRematch?.joinHeroId ? `&hero=${encodeURIComponent(firedRematch.joinHeroId)}` : ""
             }`
           : "";
+      // After a refresh / "Back to your room" this page load never picked a hero
+      // or board (E7, #1236): the room's own roster still names our seat's hero,
+      // and the board is unknown — say nothing rather than the default's name.
+      const myWaitingHeroName =
+        heroNameOf(heroes, selectedHeroId ?? roomInfo?.roster?.find((r) => r.player === roomInfo.you)?.heroId ?? null);
+      const boardUnknown = reconnectedRef.current && !rolledMapId;
       return (
         <Flex direction="column" alignItems="center" gap="1rem" pt="4rem" px="1rem">
           <Text fontFamily="LeagueGothic" fontSize="2.5rem" letterSpacing="0.05em">
             ROOM {roomId}
           </Text>
-          {heroNameOf(heroes, selectedHeroId) && (
+          {myWaitingHeroName && (
             <Text fontFamily="BebasNeueRegular" fontSize="1.3rem" letterSpacing="0.05em" color="brand.accent">
-              You are {heroNameOf(heroes, selectedHeroId)}
+              You are {myWaitingHeroName}
               {rolledHero ? " 🎲" : ""}
             </Text>
           )}
@@ -5913,7 +5944,7 @@ const LiveGame = ({
                 required <= 2
                   ? "Waiting for an opponent — the game starts the moment they join."
                   : `Waiting for players — ${seated}/${required} seats joined. Share the same link with everyone.`;
-              return `${waiting} · playing on ${boardTitle}.`;
+              return boardUnknown ? waiting : `${waiting} · playing on ${boardTitle}.`;
             })()}
           </Text>
 

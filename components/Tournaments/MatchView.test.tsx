@@ -106,6 +106,7 @@ it("decided: the winner advances, the score, the replay chip", async () => {
   expect(banner()).toHaveTextContent("Decided. hokuto_shin advances to the Final.");
   expect(screen.getByTestId("match-score")).toHaveTextContent("1–0");
   expect(screen.queryByTestId("play-box")).not.toBeInTheDocument();
+  expect(screen.queryByText("If the deadline passes")).not.toBeInTheDocument(); // C5 (#1236)
   expect(screen.getAllByTestId("game-row")[0]).toHaveTextContent("hokuto_shin won · Kenshiro vs Boba Fett");
   fireEvent.click(screen.getByTestId("replay-chip"));
   // next/dynamic resolves the replay viewer asynchronously.
@@ -170,6 +171,7 @@ it("decided by deadline rule: names the rule and marks it applied", () => {
   renderState("decided_by_rule");
   expect(banner()).toHaveTextContent("Decided by the deadline rule. hokuto_shin advances.");
   expect(banner()).toHaveTextContent("Rule 1 · unanswered ready-check");
+  expect(screen.getByText("If the deadline passes")).toBeInTheDocument();
   expect(screen.getByText("Applied")).toBeInTheDocument();
   expect(screen.getByTestId("games-list")).toHaveTextContent("No game was played before");
   expect(screen.getByTestId("ready-checks")).toHaveTextContent("You pressed Play · no answer");

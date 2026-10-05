@@ -18,8 +18,8 @@ describe("full roster before the close time (#1231)", () => {
     expect(joinState(t({ signupClosesAt: "2026-10-05T11:00:00Z" }), mine, "u1").kind).toBe("locked_in");
     expect(joinState(t({ status: "running" }), mine, "u1").kind).toBe("locked_in");
   });
-  it("browse chip says Full · signup open, not Signup closed", () => {
-    expect(statusChip(t()).label).toBe("Full · signup open");
+  it("browse chip says Full · ready to start, not Signup closed", () => {
+    expect(statusChip(t()).label).toBe("Full · ready to start");
     expect(statusChip(t({ signupClosesAt: "2026-10-05T11:00:00Z" })).label).toBe("Signup closed");
     expect(statusChip(t({ signupOpen: true })).label).toBe("Signup open");
   });

@@ -610,3 +610,68 @@ describe("a raw ?room= link on a device without the seat (#1230)", () => {
     }, 10_000);
   });
 });
+
+describe("refresh at the tournament hero picker (E1, #1236)", () => {
+  it("remembers the launch for the tab, then a reload with no ticket and no room shows the ticket card, not the lobby", async () => {
+    await mount({ ...TICKET, lockMap: "catalog:counts-castle" });
+    await deliver({ type: "HEROES", heroes: HEROES });
+    expect(screen.getByText("TOURNAMENT · pick your hero")).toBeInTheDocument();
+    expect(window.sessionStorage.getItem("unbrewed-pro-tournament-pending")).toContain("m2-1");
+    cleanup();
+    FakeWebSocket.reset();
+    SENT = [];
+
+    await mount({}); // F5: the ticket was stripped from the URL
+    await deliver({ type: "HEROES", heroes: HEROES });
+    await flush();
+    expect(screen.getByTestId("ticket-error")).toBeInTheDocument();
+    expect(screen.getByText("Get a fresh ticket and retry")).toBeInTheDocument();
+    expect(screen.getByText("Back to the match")).toBeInTheDocument();
+    expect(screen.queryByText("CREATE A ROOM")).not.toBeInTheDocument();
+    expect(sentOfType("CREATE_ROOM")).toHaveLength(0); // the ticket is never reused
+  });
+
+  it("an ordinary reload with nothing remembered still shows the casual lobby", async () => {
+    await mount({});
+    await deliver({ type: "HEROES", heroes: HEROES });
+    await flush();
+    expect(screen.queryByTestId("ticket-error")).not.toBeInTheDocument();
+  });
+});
+
+describe("a tagged room whose match is decided (C3, #1236)", () => {
+  it("says the match is finished, with only 'Back to the match'", async () => {
+    rememberTournamentRoom("SF2ROOM", { slug: "autumn-skirmish", matchId: "m2-1" });
+    const decided = fixtureMatch("decided").detail;
+    global.fetch = jest.fn(async (url: RequestInfo | URL) =>
+      String(url).includes("/matches/")
+        ? ({ ok: true, status: 200, json: async () => decided } as Response)
+        : ({ ok: false, status: 404, json: async () => ({}) } as Response),
+    ) as unknown as typeof fetch;
+    await mount({ room: "SF2ROOM" });
+    await deliver({ type: "HEROES", heroes: HEROES });
+    await flush(8);
+    expect(screen.getByTestId("ticket-error")).toHaveTextContent("This match is finished");
+    expect(screen.queryByText("Get a fresh ticket and retry")).not.toBeInTheDocument();
+    expect(screen.getByText("Back to the match")).toBeInTheDocument();
+  });
+});
+
+describe("host's waiting room after a refresh (E7, #1236)", () => {
+  it("names the hero from the room's roster and does not claim a default board", async () => {
+    window.sessionStorage.setItem("unbrewed-pro-token-HOSTROOM", "tok");
+    await mount({ room: "HOSTROOM" });
+    await deliver({ type: "HEROES", heroes: HEROES });
+    await deliver({ type: "ROOM_JOINED", roomId: "HOSTROOM", you: "p1", seats: ["p1"], requiredPlayers: 2, formatId: "duel" });
+    await deliver({
+      type: "ROOM_STATUS",
+      roomId: "HOSTROOM",
+      formatId: "duel",
+      requiredPlayers: 2,
+      seats: [{ player: "p1", heroId: "kenshiro", connected: true, bot: null }],
+    });
+    await flush();
+    expect(screen.getByText(/You are Kenshiro/)).toBeInTheDocument();
+    expect(screen.getByText(/Waiting for an opponent/)).not.toHaveTextContent("playing on");
+  });
+});

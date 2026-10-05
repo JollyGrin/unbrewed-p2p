@@ -243,7 +243,8 @@ export const MatchBody = ({
             <MatchOrganizerPanel slug={d.tournament.slug} match={m} entries={organizer.entries} reload={organizer.reload} />
           )}
           <DeadlineCard d={d} t={t} state={state} now={now} />
-          <RulesCard d={d} state={state} group={group} />
+          {/* C5 (#1236): a match decided by a result has no deadline left to explain; a rule-decided one marks which rule applied. */}
+          {state !== "decided" && <RulesCard d={d} state={state} group={group} />}
           <ReadyChecksCard d={d} myUserId={myUserId} />
           {next && (
             <Card p="18px">

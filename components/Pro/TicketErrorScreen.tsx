@@ -6,7 +6,9 @@
  * reuse `GET …/ticket`, but a CREATE is always a recorded `POST …/ready`.
  */
 import { Button, Flex, Link, Text } from "@chakra-ui/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+import { getMatch } from "@/lib/tournaments/api";
 
 import { proErrorMessage } from "@/lib/pro/proErrors";
 import { ticketRetryable, tournamentMatchHref, type TournamentRoom } from "@/lib/pro/tournamentTicket";
@@ -39,7 +41,25 @@ export const TicketErrorScreen = ({
 }) => {
   const [busy, setBusy] = useState(false);
   const [retryNote, setRetryNote] = useState<string | null>(null);
-  const retryable = !!at && (forceRetry || (!!code && ticketRetryable(code)));
+  // C3 (#1236): once the match is decided no ticket helps — say so, and only link back.
+  const [finished, setFinished] = useState(false);
+  const atKey = at ? `${at.slug}/${at.matchId}` : null;
+  useEffect(() => {
+    if (!at) return;
+    let alive = true;
+    void getMatch(at.slug, at.matchId)
+      .then((r) => {
+        if (alive && r.ok && r.value.match.status === "decided") setFinished(true);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [atKey]);
+  // A game already in play is the answer, not a footnote: it becomes the headline.
+  const [headline, setHeadline] = useState<string | null>(null);
+  const retryable = !!at && !finished && (forceRetry || (!!code && ticketRetryable(code)));
 
   const retry = async () => {
     if (!at) return;
@@ -47,7 +67,11 @@ export const TicketErrorScreen = ({
     setRetryNote(null);
     const r = await freshGrant(at.slug, at.matchId);
     setBusy(false);
-    if (!r.ok) return setRetryNote(playErrorMessage(r));
+    if (!r.ok) {
+      const msg = playErrorMessage(r);
+      if (r.reason === "conflict" && r.code === "match_in_play") return setHeadline(msg);
+      return setRetryNote(msg);
+    }
     const href = grantHref(r.value, at.slug, at.matchId);
     if (!href) return setRetryNote("Your opponent's room is still opening. Try again in a moment.");
     navigate(href);
@@ -56,7 +80,9 @@ export const TicketErrorScreen = ({
   return (
     <Flex direction="column" alignItems="center" gap="1rem" pt="4rem" px="1rem" textAlign="center" data-testid="ticket-error" data-code={code ?? ""}>
       <Text fontFamily="LeagueGothic" fontSize="2rem" letterSpacing="0.05em" color="red.300" maxW="34rem">
-        {message ?? (code ? proErrorMessage(code) : "This match game couldn't start.")}
+        {finished
+          ? "This match is finished."
+          : headline ?? message ?? (code ? proErrorMessage(code) : "This match game couldn't start.")}
       </Text>
       {retryNote && (
         <Text opacity={0.85} role="alert">
