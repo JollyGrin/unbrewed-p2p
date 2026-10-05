@@ -257,7 +257,9 @@ describe("override refused with tickets_outstanding (api #101)", () => {
     const local = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
     expect(box).toHaveTextContent(`holds a join ticket for the next match until`);
     expect(box).toHaveTextContent(local);
-    expect(box).toHaveTextContent("Force the change: any room those players opened in that window will be ignored.");
+    expect(box).toHaveTextContent("(a player can't extend it by pressing Play). Wait: the change applies when it expires.");
+    expect(box).toHaveTextContent(`Force change: applies now, but the new finalists may not be able to start their game until`);
+    expect(box).not.toHaveTextContent("keep one alive");
     expect(box).not.toHaveTextContent("raw api text");
     expect(overrides()[0].body.force).toBeUndefined();
     fireEvent.click(screen.getByText("Force change"));

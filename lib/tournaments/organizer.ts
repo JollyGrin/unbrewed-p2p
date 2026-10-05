@@ -289,13 +289,17 @@ export const organizerErrorText = (
         ? "The server refused that change."
         : "Couldn't reach the server. Try again.");
 
-/** The organizer-facing text for `409 tickets_outstanding`: when the tickets expire, in the viewer's local time. */
-export const ticketsOutstandingText = (ticketsExpireAt: string): string => {
+/**
+ * The organizer-facing text for `409 tickets_outstanding`: when the tickets expire, in the viewer's local time.
+ * Force is not instant for the players: the new finalists may be unable to start until the ticket expires.
+ * The api names nobody, so the holder is "A player".
+ */
+export const ticketsOutstandingText = (ticketsExpireAt: string, holder = "A player"): string => {
   const d = new Date(ticketsExpireAt);
   const when = Number.isNaN(d.getTime())
     ? "a few minutes from now"
     : `${d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}, ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
-  return `A player holds a join ticket for the next match until ${when} (a player can keep one alive by pressing Play). You can wait, or Force the change: any room those players opened in that window will be ignored.`;
+  return `${holder} holds a join ticket for the next match until ${when} (a player can't extend it by pressing Play). Wait: the change applies when it expires. Force change: applies now, but the new finalists may not be able to start their game until ${when}.`;
 };
 
 /**
