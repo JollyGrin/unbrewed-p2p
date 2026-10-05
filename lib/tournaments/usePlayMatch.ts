@@ -78,7 +78,12 @@ export const usePlayMatch = (slug: string, matchId: string, onSettled?: () => vo
   const alive = useRef(true);
   // One press at a time: a double click must not record two ready-checks.
   const inFlight = useRef(false);
-  useEffect(() => () => void (alive.current = false), []);
+  // Set in the body too: StrictMode (dev) mounts, unmounts and remounts, so a
+  // cleanup-only effect would leave the flag false and never navigate (#1230).
+  useEffect(() => {
+    alive.current = true;
+    return () => void (alive.current = false);
+  }, []);
 
   const follow = useCallback(
     async (r: Result<TicketGrant>, polls: number): Promise<boolean> => {

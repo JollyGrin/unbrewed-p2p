@@ -30,6 +30,19 @@ describe("matchPageState", () => {
     expect(matchPageState(fixtureMatch("opponent_ready").detail, FIXTURE_MATCH_YOU, NOW + 16 * 60_000)).toBe("waiting");
   });
 
+  it("deadline passed with no game: the organizer is deciding, for players and spectators (#1230)", () => {
+    const d = fixtureMatch("waiting").detail;
+    const late = NOW + 27 * 3_600_000; // the fixture's deadline is 26h out
+    expect(matchPageState(d, FIXTURE_MATCH_YOU, late)).toBe("deadline_passed");
+    expect(matchPageState(d, null, late)).toBe("deadline_passed");
+    // A seat held past the deadline is no longer joinable.
+    expect(matchPageState(fixtureMatch("opponent_ready").detail, FIXTURE_MATCH_YOU, late)).toBe("deadline_passed");
+  });
+
+  it("a game that started before the deadline stays in play after it (settled rule 3)", () => {
+    expect(matchPageState(fixtureMatch("in_play").detail, FIXTURE_MATCH_YOU, NOW + 27 * 3_600_000)).toBe("in_play");
+  });
+
   it("only the deadline rules are 'decided by deadline rule'", () => {
     const d = fixtureMatch("decided").detail;
     for (const by of ["organizer", "bye", "unverified_confirmed", "result"] as const)

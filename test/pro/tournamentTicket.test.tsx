@@ -7,6 +7,7 @@
  *    picker with the setup fixed and still sends the ticket.
  *  - the engine's ticket codes read as copy with a retry and a way back.
  *  - untagged /pro/game is unchanged: no `ticket` key, the old error screen.
+ *  - a raw `?room=` into a tagged room on a seatless device is never a dead end (#1230).
  *
  * Mount recipe: the shared render-fuzz one (fake WebSocket + fake router), as in
  * rematchRefresh / randomHeroPick.
@@ -28,6 +29,8 @@ import { FakeWebSocket, installFakeWebSocket, installPolyfills } from "@/scripts
 import { __resetAccountStoreForTests } from "@/lib/account/useAccount";
 import { rememberTournamentRoom, tournamentRoomOf } from "@/lib/pro/tournamentTicket";
 import type { PlayerView, ReplayBundle } from "@/lib/pro/protocol";
+import { fixtureMatch, fixtureMyTournaments } from "@/lib/tournaments/fixtures";
+import { __resetNextMatchForTests } from "@/lib/tournaments/useNextMatch";
 
 const BASE_VIEW: PlayerView = JSON.parse(
   readFileSync(join(process.cwd(), "test", "replays", "smokebot", "sample", "sample-game-0001.views.jsonl"), "utf8")
@@ -463,5 +466,50 @@ describe("the tournament-room note doesn't leak into casual rooms (review #4)", 
     expect(screen.queryByTestId("tournament-waiting")).not.toBeInTheDocument();
     expect(screen.getByText("copy link")).toBeInTheDocument();
     expect(tournamentRoomOf("ABCD")).toBeNull();
+  });
+});
+
+describe("a raw ?room= link on a device without the seat (#1230)", () => {
+  it("TICKET_REQUIRED for a room we can't place reads as the ticket card, never 'create a new room'", async () => {
+    await mount({ room: "SF2ROOM", hero: "kenshiro" });
+    await deliver({ type: "HEROES", heroes: HEROES });
+    await flush();
+    await click(screen.getByRole("button", { name: "Join" }));
+    await deliver({ type: "ERROR", code: "TICKET_REQUIRED", message: "engine text" });
+    const card = screen.getByTestId("ticket-error");
+    expect(card).toHaveTextContent("This is a tournament room");
+    expect(card).not.toHaveTextContent("TICKET_REQUIRED");
+    expect(screen.getByText("My tournaments").closest("a")).toHaveAttribute("href", "/tournaments");
+    expect(screen.queryByText("Create a new room instead")).not.toBeInTheDocument();
+  });
+
+  it("one of MY match rooms (from GET /me/tournaments) skips the picker: back to the match, or a fresh ticket", async () => {
+    const now = new Date().toISOString();
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response;
+      if (url.endsWith("/me")) return ok({ user: { id: "u3", username: "bountyhuntr" } });
+      if (url.endsWith("/me/tournaments")) return ok(fixtureMyTournaments("you_ready", now));
+      if (url.includes("/matches/m2-1")) return ok(fixtureMatch("you_ready", now).detail);
+      return { ok: false, status: 404, json: async () => ({}) } as Response;
+    }) as unknown as typeof fetch;
+    __resetAccountStoreForTests();
+    __resetNextMatchForTests();
+
+    await mount({ room: "SF2ROOM" });
+    await deliver({ type: "HEROES", heroes: HEROES });
+    await flush(10);
+    expect(screen.queryByText("JOIN ROOM SF2ROOM")).not.toBeInTheDocument();
+    expect(sentOfType("JOIN_ROOM")).toHaveLength(0);
+    expect(screen.getByTestId("ticket-error")).toHaveTextContent("another tab or device");
+    expect(screen.getByText("Back to the match").closest("a")).toHaveAttribute(
+      "href",
+      "/tournaments?t=fixture-match-you-ready&m=m2-1",
+    );
+    expect(screen.getByText("Get a fresh ticket and retry")).toBeInTheDocument();
+    // …and a refresh knows without asking again.
+    expect(tournamentRoomOf("SF2ROOM")).toEqual({ slug: "fixture-match-you-ready", matchId: "m2-1" });
+    __resetAccountStoreForTests();
+    __resetNextMatchForTests();
   });
 });

@@ -4,7 +4,8 @@
  *
  * Six states, named as mockup v2 names them (Dean, 2026-10-05):
  * waiting for a game · opponent ready (join now) · you're ready (seat held) ·
- * in play now · decided · decided by deadline rule.
+ * in play now · decided · decided by deadline rule — plus deadline passed
+ * (organizer deciding, #1230): nothing to play, the api hasn't decided yet.
  *
  * A match is `firstTo` + an ordered `games[]` (never one game id); a game's
  * heroes/map are its own `assignment`, else the match's `matchup`.
@@ -20,6 +21,7 @@ export type MatchPageState =
   | "opponent_ready"
   | "you_ready"
   | "in_play"
+  | "deadline_passed"
   | "decided"
   | "decided_by_rule";
 
@@ -29,6 +31,7 @@ export const MATCH_STATE_NAME: Record<MatchPageState, string> = {
   opponent_ready: "opponent ready (join now)",
   you_ready: "you're ready (seat held)",
   in_play: "in play now",
+  deadline_passed: "deadline passed (organizer deciding)",
   decided: "decided",
   decided_by_rule: "decided by deadline rule",
 };
@@ -45,13 +48,26 @@ export const mySide = (d: MatchDetail, myUserId: string | null): "a" | "b" | nul
 export const heldRoom = (d: MatchDetail, now: number) =>
   d.liveRoom && Date.parse(d.liveRoom.expiresAt) > now ? d.liveRoom : null;
 
+/** True once the match deadline is behind `now` (no deadline = never). */
+export const deadlinePassed = (deadlineAt: string | null, now: number): boolean => {
+  const t = deadlineAt ? Date.parse(deadlineAt) : NaN;
+  return Number.isFinite(t) && t <= now;
+};
+
+/** The deadline-passed copy (#1230), shared by the match page, the /pro banner and the account menu. */
+export const DEADLINE_PASSED_TEXT = "The deadline has passed. The organizer is deciding this match.";
+export const deadlinePassedRule = (group = false): string =>
+  `If they don't decide within 24h, the higher seed ${group ? "takes the win" : "advances"}.`;
+
 export const matchPageState = (d: MatchDetail, myUserId: string | null, now: number): MatchPageState => {
   const m = d.match;
   if (m.status === "decided" || m.winner)
     return m.decidedBy === "deadline_ready_check" || m.decidedBy === "deadline_higher_seed"
       ? "decided_by_rule"
       : "decided";
+  // A game that started before the deadline finishes and counts (settled rule 3).
   if (m.inPlay || m.status === "in_play") return "in_play";
+  if (deadlinePassed(m.deadlineAt, now)) return "deadline_passed";
   const room = heldRoom(d, now);
   const side = mySide(d, myUserId);
   if (room && side) {

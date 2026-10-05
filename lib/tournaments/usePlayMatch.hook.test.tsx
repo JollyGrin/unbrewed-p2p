@@ -3,6 +3,7 @@
  * a CREATE is always a recorded `POST …/ready` (settled rule 6), and a poll
  * that gives up reloads the match.
  */
+import { StrictMode } from "react";
 import { act, renderHook } from "@testing-library/react";
 
 import { freshGrant, MAX_POLLS, POLL_MS, usePlayMatch } from "./usePlayMatch";
@@ -43,6 +44,15 @@ describe("freshGrant", () => {
 });
 
 describe("usePlayMatch", () => {
+  it("navigates under StrictMode's mount → unmount → remount (dev, #1230)", async () => {
+    ready.mockResolvedValue(grant({ action: "create", ticket: "strict" }));
+    const { result } = renderHook(() => usePlayMatch("s", "m"), { wrapper: StrictMode });
+    await act(async () => result.current.play());
+    expect(ready).toHaveBeenCalledTimes(1);
+    expect(push).toHaveBeenCalledWith(expect.stringContaining("ticket=strict"));
+    expect(result.current.phase.kind).toBe("busy"); // locked while navigating
+  });
+
   it("a double click records ONE ready-check", async () => {
     let resolve!: (v: unknown) => void;
     ready.mockReturnValue(new Promise((r) => (resolve = r)));

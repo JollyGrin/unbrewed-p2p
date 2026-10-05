@@ -104,6 +104,11 @@ const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => {
           <Text as="span" fontSize="0.8rem" opacity={0.75}>
             {[next.tournamentName, next.timeLeft].filter(Boolean).join(" · ")}
           </Text>
+          {next.notice && (
+            <Text as="span" fontSize="0.8rem" opacity={0.75} whiteSpace="normal" maxW="16rem" data-testid="menu-next-match-notice">
+              {next.notice}
+            </Text>
+          )}
         </MenuItem>
       )}
       {tournaments && (

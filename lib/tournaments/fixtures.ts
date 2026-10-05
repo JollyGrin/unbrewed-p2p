@@ -306,7 +306,7 @@ export const FIXTURE_MATCH_ID = "m2-1";
 export const FIXTURE_MATCH_YOU = "u2";
 
 /**
- * SF2 in each of the match page's six states, timed against `now` (so seat
+ * SF2 in each of the match page's states, timed against `now` (so seat
  * clocks tick in a dev server). Mockup v2's matchup: Kenshiro vs Boba Fett on
  * Count's Castle, set by the organizer.
  */
@@ -356,6 +356,11 @@ export const fixtureMatch = (
       b.decide(sf2, "a", "result");
       sf2.games[0] = { ...sf2.games[0], startedAt: at(-2.8), finishedAt: at(-2.4), gameId: "10571", replayAvailable: true };
       break;
+    case "deadline_passed":
+      // Closed an hour ago with no game: the organizer has 24h to decide (#1230).
+      sf2.opensAt = hoursFrom(now, -73);
+      sf2.deadlineAt = hoursFrom(now, -1);
+      break;
     case "decided_by_rule":
       sf2.opensAt = hoursFrom(now, -73);
       sf2.deadlineAt = hoursFrom(now, -1);
@@ -394,7 +399,7 @@ export const fixtureMatch = (
  * match, in one of the match page's open-match states (#1220).
  */
 export const fixtureMyTournaments = (
-  state: "waiting" | "opponent_ready" | "you_ready" | "in_play",
+  state: "waiting" | "opponent_ready" | "you_ready" | "in_play" | "deadline_passed",
   now: string = FIXTURE_NOW,
 ): MyTournaments => {
   const f = fixtureMatch(state, now);
@@ -415,6 +420,7 @@ export const MATCH_FIXTURE_STATES: MatchPageState[] = [
   "opponent_ready",
   "you_ready",
   "in_play",
+  "deadline_passed",
   "decided",
   "decided_by_rule",
 ];

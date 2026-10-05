@@ -67,6 +67,11 @@ export const NextMatchCard = ({ view, myName, myAvatar }: { view: NextMatchView;
             {view.opponentActive && <Text as="span">{view.opponentActive}</Text>}
             {view.timeLeft && <Text as="span">{view.timeLeft}</Text>}
           </Flex>
+          {view.notice && (
+            <Text fontSize="13px" color={PARCHMENT} mt="6px" data-testid="next-match-notice">
+              {view.notice}
+            </Text>
+          )}
           {play.phase.kind === "error" && (
             <Text role="alert" fontSize="13px" color="#FF8A73" mt="6px">
               {play.phase.message}

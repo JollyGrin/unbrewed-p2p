@@ -21,7 +21,9 @@ import { isOrganizerOf } from "@/lib/tournaments/organizer";
 import {
   clock,
   dateTime,
+  DEADLINE_PASSED_TEXT,
   deadlineParts,
+  deadlinePassedRule,
   gameLength,
   gameRows,
   heldRoom,
@@ -278,6 +280,7 @@ const BANNER_LOOK: Record<MatchPageState, { bg: string; color: string }> = {
   opponent_ready: { bg: GOLD, color: INK_DEEP },
   you_ready: { bg: INK_DEEP, color: PARCHMENT },
   in_play: { bg: DANGER, color: "white" },
+  deadline_passed: { bg: SURFACE, color: PARCHMENT },
   decided: { bg: POS, color: "white" },
   decided_by_rule: { bg: SURFACE, color: PARCHMENT },
 };
@@ -326,6 +329,10 @@ const Banner = ({
       small = "Live spectating isn't available yet";
       break;
     }
+    case "deadline_passed":
+      text = DEADLINE_PASSED_TEXT;
+      small = deadlinePassedRule(group);
+      break;
     case "decided":
       text = group
         ? `Decided. ${winnerName} wins the match.`
@@ -490,7 +497,7 @@ const PlayBox = ({
   roomId: string | null;
   code: string;
 }) => {
-  if (state === "decided" || state === "decided_by_rule") return null;
+  if (state === "decided" || state === "decided_by_rule" || state === "deadline_passed") return null;
   const busy = phase.kind === "busy" || phase.kind === "opening";
   const status =
     phase.kind === "opening" ? (
@@ -627,7 +634,7 @@ const StickyPlay = ({
   else if (side && state === "you_ready") btn = <Btn variant="gold" onClick={onPlay} disabled={busy}>Take your seat here · {seatHeld}</Btn>;
   else if (side && state === "in_play" && back) btn = <Btn variant="gold" href={back}>Back to game</Btn>;
   else if (state === "decided" && onReplay) btn = <Btn variant="ink" onClick={onReplay}>Watch the replay</Btn>;
-  else if (state === "decided" || state === "decided_by_rule") btn = <Btn variant="ghost" href={bracketHref}>{standings ? "See the standings" : "See the bracket"}</Btn>;
+  else if (state === "decided" || state === "decided_by_rule" || state === "deadline_passed") btn = <Btn variant="ghost" href={bracketHref}>{standings ? "See the standings" : "See the bracket"}</Btn>;
   if (!btn) return null;
   return (
     <Flex
@@ -855,7 +862,7 @@ const DeadlineCard = ({ d, t, state, now }: { d: MatchDetail; t: Tournament | nu
       </Flex>
       <Flex justify="space-between" fontSize="12px" color={INK_MUTED} gap="8px">
         <Text>{state === "decided" && finished ? `Decided ${dateTime(finished)}` : `Opened ${shortDate(m.opensAt)}`}</Text>
-        <Text textAlign="right">{m.deadlineAt ? `${decided && state !== "decided" ? "Closed " : ""}${dateTime(m.deadlineAt)}` : ""}</Text>
+        <Text textAlign="right">{m.deadlineAt ? `${(decided && state !== "decided") || state === "deadline_passed" ? "Closed " : ""}${dateTime(m.deadlineAt)}` : ""}</Text>
       </Flex>
       {t?.latestPossibleFinal && (
         <Text fontSize="12px" color={INK_MUTED} mt="12px" pt="10px" borderTop={RULE} data-testid="latest-final">
