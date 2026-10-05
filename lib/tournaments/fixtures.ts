@@ -17,6 +17,7 @@ import type {
   Match,
   MatchDetail,
   MatchupRule,
+  MyTournaments,
   ReadyCheck,
   Tournament,
 } from "./types";
@@ -381,6 +382,27 @@ export const fixtureMatch = (
       players: { a: player(sf2.slotA, -0.01), b: player(sf2.slotB, opponentSeen) },
       readyChecks,
       liveRoom,
+    },
+  };
+};
+
+/**
+ * `GET /me/tournaments` for hokuto_shin (u2, entry e2) with SF2 as the next
+ * match, in one of the match page's open-match states (#1220).
+ */
+export const fixtureMyTournaments = (
+  state: "waiting" | "opponent_ready" | "you_ready" | "in_play",
+  now: string = FIXTURE_NOW,
+): MyTournaments => {
+  const f = fixtureMatch(state, now);
+  const d = f.detail;
+  return {
+    tournaments: [{ ...f.tournament, isOrganizer: false, myEntryId: "e2" }],
+    nextMatch: {
+      tournament: { id: f.tournament.id, slug: f.tournament.slug, name: f.tournament.name, size: f.tournament.size },
+      match: d.match,
+      myEntryId: "e2",
+      opponent: d.players.b ? { ...d.players.b } : null,
     },
   };
 };

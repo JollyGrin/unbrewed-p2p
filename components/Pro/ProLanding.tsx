@@ -24,6 +24,7 @@ import { useProLiveRosterState } from "@/lib/pro/useProLiveRoster";
 import { PRO_WS_URL } from "@/lib/pro/wsUrl";
 import { useFlag } from "@/lib/flags";
 import { AccountChip } from "@/components/Account/AccountChip";
+import { NextMatchBanner } from "@/components/Tournaments/NextMatchBanner";
 import { DeckAttribution } from "@/components/Pro/DeckAttribution";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { ProHeroVideo } from "@/components/Pro/ProHeroVideo";
@@ -214,6 +215,11 @@ export const ProLanding = () => {
             <AccountChip />
           </Flex>
         </Flex>
+
+        {/* Tournaments (#1220): only for a signed-in entrant with an open match. */}
+        <Box mt="1.5rem">
+          <NextMatchBanner />
+        </Box>
 
         {/* title block */}
         <Box as="section" mt="2.5rem" mb="2rem">

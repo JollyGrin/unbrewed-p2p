@@ -14,6 +14,11 @@
  * `/attention` serves FIXTURE_ATTENTION (fixture-8) to the organizer; override / matchup /
  * confirm answer 200 and change nothing.
  *
+ * Next-match banner (#1220): `--as=u2 --next=<state>` answers `/me/tournaments`
+ * with SF2 as hokuto_shin's next match — waiting, opponent_ready, you_ready,
+ * in_play — or `--next=none` (no open match) / `--next=down` (a 500). The
+ * match-detail route for that tournament is served by the same fixture.
+ *
  * Match page (#1218): `/tournaments?t=fixture-match-<state>&m=m2-1`, one slug
  * per state — waiting, opponent-ready, you-ready, in-play, decided,
  * decided-by-rule. `POST …/ready` and `GET …/ticket` grant a dummy ticket
@@ -21,11 +26,13 @@
  */
 import { createServer } from "node:http";
 
-import { FIXTURES, FIXTURE_ATTENTION, FIXTURE_ORGANIZER, fixtureEntries, fixtureMatch, MATCH_FIXTURE_STATES } from "../../lib/tournaments/fixtures";
+import { FIXTURES, FIXTURE_ATTENTION, FIXTURE_ORGANIZER, fixtureEntries, fixtureMatch, fixtureMyTournaments, MATCH_FIXTURE_STATES } from "../../lib/tournaments/fixtures";
 
 const port = Number(process.argv.find((a) => /^\d+$/.test(a)) ?? 8799);
 const asUser = process.argv.find((a) => a.startsWith("--as="))?.slice(5) ?? (process.argv.includes("--signed-in") ? FIXTURE_ORGANIZER.userId : null);
 const me = asUser ? fixtureEntries(16, true).find((e) => e.userId === asUser) : null;
+
+const nextArg = process.argv.find((a) => a.startsWith("--next="))?.slice(7) ?? "none";
 
 const matchFixture = (slug: string) => {
   const st = MATCH_FIXTURE_STATES.find((s) => `fixture-match-${s.replace(/_/g, "-")}` === slug);
@@ -49,6 +56,12 @@ createServer((req, res) => {
     return me
       ? send(200, { user: { id: me.userId, username: me.username, avatarUrl: null } })
       : send(401, { error: "unauthorized" });
+  if (url.pathname === "/me/tournaments") {
+    if (!me) return send(401, { error: "unauthorized" });
+    if (nextArg === "down") return send(500, { error: "internal" });
+    if (nextArg === "none") return send(200, { tournaments: [], nextMatch: null });
+    return send(200, fixtureMyTournaments(nextArg as "waiting", new Date().toISOString()));
+  }
   if (url.pathname === "/tournaments")
     return send(200, { tournaments: Object.values(FIXTURES).map((f) => f().tournament) });
   const m = url.pathname.match(/^\/tournaments\/([^/]+)(\/.*)?$/);
