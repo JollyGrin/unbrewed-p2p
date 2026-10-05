@@ -36,7 +36,7 @@ export interface AttentionRow {
   actions: AttentionAction[];
 }
 
-const clockOf = (iso: string): string =>
+export const clockOf = (iso: string): string =>
   new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 
 const nameOf = (entries: readonly Entry[], id: string | null): string =>
@@ -301,3 +301,24 @@ export const isOrganizerOf = (
   t: { organizer?: { userId: string } } | null | undefined,
   userId: string | null,
 ): boolean => !!t?.organizer && !!userId && t.organizer.userId === userId;
+
+/**
+ * Matches whose ready-check hold started before the deadline and is still live, keyed by match id
+ * (organizer's attention queue, api #88). The bracket shows them instead of a bare "Deadline passed".
+ */
+export const liveHolds = (
+  items: readonly AttentionItem[],
+  entries: readonly Entry[],
+  now: number,
+): Record<string, { name: string; until: string }> => {
+  const out: Record<string, { name: string; until: string }> = {};
+  for (const item of items) {
+    if (item.kind !== "awaiting_organizer") continue;
+    const hold = item.readyChecks?.find((c) => c.outcome === "pending" && Date.parse(c.expiresAt) > now);
+    const holders = item.readyBy?.length ? item.readyBy : hold ? [hold.entryId] : [];
+    const until = item.holdUntil ?? hold?.expiresAt ?? null;
+    if (!holders.length || !until || Date.parse(until) <= now) continue;
+    out[item.matchId] = { name: holders.map((id) => nameOf(entries, id)).join(" and "), until };
+  }
+  return out;
+};

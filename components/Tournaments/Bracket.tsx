@@ -15,6 +15,7 @@ import {
   type RoundView,
   type SlotView,
 } from "@/lib/tournaments/bracket";
+import { clockOf } from "@/lib/tournaments/organizer";
 import { deadlinePassed } from "@/lib/tournaments/matchPage";
 import type { Entry } from "@/lib/tournaments/types";
 
@@ -138,7 +139,7 @@ const Tag = ({ c, late }: { c: CellView; late: boolean }) => {
         {c.note.tag}
       </Text>
     );
-  else if (c.state === "ready") right = <Text as="span">{late ? "Deadline passed" : "Ready to play"}</Text>;
+  else if (c.state === "ready") right = <Text as="span">{late ? deadlineLabel(c) : "Ready to play"}</Text>;
   return (
     <Caption as="div" display="flex" justifyContent="space-between" gap="8px" px="12px" pt="7px" color={c.state === "waiting" ? "rgba(250,235,215,0.45)" : SOFT}>
       <span>{c.code}</span>
@@ -146,6 +147,10 @@ const Tag = ({ c, late }: { c: CellView; late: boolean }) => {
     </Caption>
   );
 };
+
+/** "Deadline passed", plus who still holds a pre-deadline seat when someone does. */
+const deadlineLabel = (c: CellView): string =>
+  c.hold ? `Deadline passed · ${c.hold.name} is holding a seat until ${clockOf(c.hold.until)}` : "Deadline passed";
 
 const Mu = ({ children }: { children: React.ReactNode }) => (
   <Text as="span" fontSize="11px" fontWeight={600} px="8px" py="2px" borderRadius="999px" bg="rgba(224,168,46,0.2)" color={GOLD_INK} whiteSpace="nowrap">
@@ -212,7 +217,7 @@ export const MatchCell = ({ c, now }: { c: CellView; now: number }) => {
         color={tbd ? "rgba(250,235,215,0.55)" : c.state === "unverified" ? GOLD_INK : "rgba(72,40,79,0.72)"}
         fontWeight={c.state === "unverified" ? 600 : 400}
       >
-        <Text as="span">{late ? "Deadline passed" : c.foot}</Text>
+        <Text as="span">{late ? deadlineLabel(c) : c.foot}</Text>
         {left && (
           <Text as="span" fontWeight={700} color={GOLD_INK} whiteSpace="nowrap" sx={{ fontVariantNumeric: "tabular-nums" }}>
             {left} left
@@ -223,7 +228,7 @@ export const MatchCell = ({ c, now }: { c: CellView; now: number }) => {
   );
 };
 
-const Champion = ({ champion, final }: { champion: Entry | null; final?: CellView }) => (
+const Champion = ({ champion, final, cancelled = false }: { champion: Entry | null; final?: CellView; cancelled?: boolean }) => (
   <Box
     w="100%"
     textAlign="center"
@@ -242,6 +247,8 @@ const Champion = ({ champion, final }: { champion: Entry | null; final?: CellVie
         <Text fontFamily="LeagueGothic" fontSize="34px" lineHeight="1" mt="8px" color={GOLD}>{champion.username ?? "Champion"}</Text>
         <Text fontSize="12px" color={BAND_MUTED} mt="6px">Champion{final?.note?.tag ? ` · final ${final.note.tag.toLowerCase()}` : ""}</Text>
       </>
+    ) : cancelled ? (
+      <Text fontFamily="LeagueGothic" fontSize="30px" lineHeight="1" mt="6px" data-testid="champion-cancelled">Cancelled</Text>
     ) : (
       <>
         <Text fontFamily="LeagueGothic" fontSize="30px" lineHeight="1" mt="6px">To be crowned</Text>
@@ -318,11 +325,11 @@ const Tree = ({ view, now }: { view: BracketView; now: number }) => {
         <Box>
           <Box color={BAND_INK} mb="14px" minH="72px" pb="12px" borderBottom="1px solid rgba(250,235,215,0.12)">
             <Text fontFamily="LeagueGothic" fontSize="28px" lineHeight="0.95" color={GOLD}>Champion</Text>
-            <Text fontSize="12px" color={BAND_MUTED} mt="4px">Crowned on the final result</Text>
+            <Text fontSize="12px" color={BAND_MUTED} mt="4px">{view.cancelled ? "No champion" : "Crowned on the final result"}</Text>
           </Box>
           <Flex h={`${height}px`} align="center" position="relative"
             _before={{ ...line, left: `-${GAP / 2}px`, width: `${GAP / 2}px`, top: "50%", borderTop: `2px solid ${view.champion ? GOLD : LINE}` }}>
-            <Champion champion={view.champion} final={view.rounds[last]?.cells[0]} />
+            <Champion champion={view.champion} final={view.rounds[last]?.cells[0]} cancelled={view.cancelled} />
           </Flex>
         </Box>
       </Box>
@@ -378,7 +385,7 @@ export const RoundTabs = ({ view, now }: { view: BracketView; now: number }) => 
         >
           <Text fontSize="12px" color={BAND_MUTED}>Round {r.round} · {r.name} · {r.summary}</Text>
           {r.cells.map((c) => <MatchCell key={c.id} c={c} now={now} />)}
-          {sel === view.rounds.length - 1 && <Champion champion={view.champion} final={r.cells[0]} />}
+          {sel === view.rounds.length - 1 && <Champion champion={view.champion} final={r.cells[0]} cancelled={view.cancelled} />}
         </Flex>
       )}
       <Caption textAlign="center" color="rgba(250,235,215,0.45)" mt="12px">Swipe or tap a round</Caption>

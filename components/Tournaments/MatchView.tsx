@@ -15,7 +15,7 @@ import { GOLD, INK, INK_DEEP, INK_MUTED, PARCHMENT, RULE, TRACK, WASH } from "@/
 import { signInUrl, useAccount } from "@/lib/account/useAccount";
 import { catalogEntry } from "@/lib/pro/mapCatalog";
 import { getToken } from "@/lib/pro/recentRooms";
-import { countsGame, matchHref } from "@/lib/tournaments/bracket";
+import { LATE_GAME_NOTE, countsGame, hasLateGame, matchHref } from "@/lib/tournaments/bracket";
 import { useMatchDetail, useNow, useTournament } from "@/lib/tournaments/hooks";
 import { isOrganizerOf } from "@/lib/tournaments/organizer";
 import {
@@ -27,6 +27,7 @@ import {
   decisionLine,
   deadlineOutcome,
   deadlineParts,
+  deadlinePassed,
   deadlinePassedOrganizerRule,
   deadlinePassedRule,
   deadlineReadyCheckText,
@@ -251,7 +252,7 @@ export const MatchBody = ({
 
         <Flex flexDir="column" gap="16px">
           {organizer && state !== "cancelled" && (
-            <MatchOrganizerPanel slug={d.tournament.slug} match={m} entries={organizer.entries} reload={organizer.reload} deadlinePassed={state === "deadline_passed"} />
+            <MatchOrganizerPanel slug={d.tournament.slug} match={m} entries={organizer.entries} reload={organizer.reload} deadlinePassed={state === "deadline_passed" || deadlinePassed(m.deadlineAt, now)} />
           )}
           <DeadlineCard d={d} t={t} state={state} now={now} />
           {/* D6: no deadline left to explain once decided. A rule-decided match keeps one line naming the rule. */}
@@ -501,7 +502,7 @@ const Versus = ({ d, state, side, now }: { d: MatchDetail; state: MatchPageState
           {decided ? (played ? `${s.a}–${s.b}` : "–") : <Text as="em" fontStyle="normal" color="rgba(72,40,79,0.55)">vs</Text>}
         </Text>
         <Text {...caption} fontSize="12px" letterSpacing="0.1em" mt="6px" color={state === "in_play" ? DANGER_INK : INK_MUTED}>
-          {state === "in_play" ? "● Live" : decided ? (played ? (state === "cancelled" ? "Score when cancelled" : "Final score") : "No game played") : "One game"}
+          {state === "in_play" ? "● Live" : decided ? (played ? (state === "cancelled" ? "Score when cancelled" : "Final score") : hasLateGame(m) ? LATE_GAME_NOTE : "No game played") : "One game"}
         </Text>
       </Box>
       <Side p={d.players.b} you={side === "b"} hero={mu.heroB} {...lb} />
@@ -738,7 +739,7 @@ const MatchupPanel = ({ d, t, side, onReplay }: { d: MatchDetail; t: Tournament 
         <Box w="86px" h="56px" borderRadius="8px" flexShrink={0} bg={TRACK} bgImage={thumb ? `url(${thumb})` : undefined} bgSize="cover" bgPos="center" boxShadow="inset 0 0 0 1px rgba(72,40,79,0.15)" />
         {unrecorded ? (
           <Box data-testid="matchup-unrecorded">
-            <Text fontWeight={700}>{played ? "Heroes and board: see the replay" : "No game was played"}</Text>
+            <Text fontWeight={700}>{played ? "Heroes and board: see the replay" : hasLateGame(m) ? LATE_GAME_NOTE : "No game was played"}</Text>
             {played && onReplay && (
               <Box as="button" type="button" onClick={onReplay} fontSize="13px" fontWeight={700} textDecoration="underline" data-testid="matchup-replay-link">
                 ▶ Watch the replay
@@ -920,7 +921,7 @@ const DeadlineCard = ({ d, t, state, now }: { d: MatchDetail; t: Tournament | nu
         <Text>{state === "decided" && finished ? `Decided ${dateTime(finished)}` : `Opened ${shortDate(m.opensAt)}`}</Text>
         <Text textAlign="right">{m.deadlineAt ? `${(decided && state !== "decided") || state === "deadline_passed" ? "Closed " : ""}${dateTime(m.deadlineAt)}` : ""}</Text>
       </Flex>
-      {t?.latestPossibleFinal && (
+      {t?.latestPossibleFinal && t.status !== "cancelled" && (
         <Text fontSize="12px" color={INK_MUTED} mt="12px" pt="10px" borderTop={RULE} data-testid="latest-final">
           Latest possible final: <b>{dateTime(t.latestPossibleFinal)}</b>
         </Text>

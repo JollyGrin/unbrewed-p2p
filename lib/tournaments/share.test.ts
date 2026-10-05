@@ -20,7 +20,7 @@ describe("discordPost summary", () => {
 describe("escapeDiscord", () => {
   const { escapeDiscord } = jest.requireActual("./share");
   it("defuses a masked link", () => {
-    expect(escapeDiscord("[x](https://phish)")).toBe("\\[x\\]\\(https://phish\\)");
+    expect(escapeDiscord("[x](https://phish)")).toBe("\\[x\\]\\(https:\u200b/\u200b/\u200bphish\\)");
   });
   it("escapes emphasis, code, spoilers, quotes, and strikethrough", () => {
     expect(escapeDiscord("*a* _b_ ~c~ `d` ||e|| >f")).toBe("\\*a\\* \\_b\\_ \\~c\\~ \\`d\\` \\|\\|e\\|\\| \\>f");
@@ -37,7 +37,23 @@ describe("escapeDiscord", () => {
   it("escapes the tournament name in the post", () => {
     const t = fixtureRoundRobin4().tournament;
     const post = discordPost({ ...t, name: "[x](https://phish) @everyone **hi**" });
-    expect(post.split("\n")[0]).toContain("\\[x\\]\\(https://phish\\) @​everyone \\*\\*hi\\*\\*");
+    expect(post.split("\n")[0]).toContain("\\[x\\]\\(https:\u200b/\u200b/\u200bphish\\) @​everyone \\*\\*hi\\*\\*");
     expect(post).not.toContain("](");
+  });
+});
+
+describe("escapeDiscord URL defanging (#1246)", () => {
+  const { escapeDiscord } = jest.requireActual("./share");
+  it("breaks the autolink in a raw URL from the tournament name", () => {
+    const out = escapeDiscord("https://example.com/phish");
+    expect(out).not.toContain("https://");
+    expect(out.replace(/\u200b/g, "")).toBe("https://example.com/phish");
+  });
+  it("defangs the hostile name in the Discord post", () => {
+    const t = fixtureRoundRobin4().tournament;
+    const post = discordPost({ ...t, name: "Free packs https://example.com/phish http://evil.test" });
+    const name = post.split("\n")[0];
+    expect(name).not.toMatch(/https?:\/\//);
+    expect(name.replace(/\u200b/g, "")).toContain("https://example.com/phish");
   });
 });

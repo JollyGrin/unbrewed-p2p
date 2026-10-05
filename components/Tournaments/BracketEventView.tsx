@@ -8,6 +8,8 @@ import { useMemo } from "react";
 
 import { BAND_MUTED, GOLD, PARCHMENT } from "@/components/Stats/tokens";
 import { buildBracket, entrantRows } from "@/lib/tournaments/bracket";
+import { useAttention } from "@/lib/tournaments/hooks";
+import { liveHolds } from "@/lib/tournaments/organizer";
 import { describeRule } from "@/lib/tournaments/matchup";
 import { mapTitle } from "@/lib/tournaments/options";
 import { WINDOW_LABEL, formatLabel, formatWhen, tournamentPath } from "@/lib/tournaments/share";
@@ -41,10 +43,16 @@ export const BracketEventView = ({
   isOrganizer?: boolean;
   reload?: () => void;
 }) => {
-  const view = useMemo(() => buildBracket(t, entries, matches), [t, entries, matches]);
-  const rows = useMemo(() => entrantRows(t.size, entries, matches), [t.size, entries, matches]);
-  const complete = t.status === "complete";
+  // Organizer only: the attention queue is the one place that says a pre-deadline seat hold is still live.
+  const [attention] = useAttention(t.slug, isOrganizer && t.status === "running");
+  const holds = useMemo(
+    () => (attention.status === "ready" ? liveHolds(attention.value, entries, Date.now()) : {}),
+    [attention, entries],
+  );
+  const view = useMemo(() => buildBracket(t, entries, matches, holds), [t, entries, matches, holds]);
   const cancelled = t.status === "cancelled";
+  const rows = useMemo(() => entrantRows(t.size, entries, matches, cancelled), [t.size, entries, matches, cancelled]);
+  const complete = t.status === "complete";
   const rule =
     t.settings?.matchupSetBy === "organizer" ? "Matchups set by organizer" : describeRule(t.matchupRule, mapTitle);
 
@@ -70,7 +78,7 @@ export const BracketEventView = ({
               <Text as="span" color={GOLD}>♛</Text> Champion: <Text as="b" color={PARCHMENT}>{view.champion.username}</Text>
             </Text>
           ) : (
-            t.latestPossibleFinal && (
+            !cancelled && t.latestPossibleFinal && (
               <Text mt="12px" fontSize="13px">
                 <Text as="span" color={GOLD}>♛</Text> Latest possible final: <Text as="b" color={PARCHMENT}>{formatWhen(t.latestPossibleFinal)}</Text> · if every match runs to its deadline
               </Text>
