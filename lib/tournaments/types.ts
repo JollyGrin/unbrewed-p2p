@@ -181,12 +181,25 @@ export interface LiveRoom {
   expiresAt: string;
 }
 
+/**
+ * Who settled a decided match without a plain result (api PR #82): the organizer
+ * (override / confirm, with their `note`), or the rules (deadline rule, 24h
+ * auto-confirm — never a note). Null for a match decided by a game.
+ */
+export interface Decision {
+  by: "organizer" | "rules";
+  note: string | null;
+  at: string | null;
+}
+
 /** `GET /tournaments/:slug/matches/:id`. */
 export interface MatchDetail {
   match: Match;
   tournament: Pick<Tournament, "id" | "slug" | "name" | "status"> &
     Partial<Pick<Tournament, "size" | "latestPossibleFinal" | "organizer">>;
   players: { a: MatchPlayer | null; b: MatchPlayer | null };
+  /** Absent on older api builds = null. */
+  decision?: Decision | null;
   readyChecks: ReadyCheck[];
   liveRoom: LiveRoom | null;
 }

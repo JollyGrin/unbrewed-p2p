@@ -3,10 +3,12 @@ import "@testing-library/jest-dom";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 
+import { MatchCell } from "./Bracket";
+import { buildBracket } from "@/lib/tournaments/bracket";
 import { BracketEventView } from "./BracketEventView";
 import { SeedingPanel } from "./SeedingPanel";
 import { API_URL } from "@/lib/account/apiUrl";
-import { fixtureComplete4, fixtureRunning16, fixtureRunning8, fixtureSignup8 } from "@/lib/tournaments/fixtures";
+import { fixtureBracket, fixtureComplete4, fixtureRunning16, fixtureRunning8, fixtureSignup8 } from "@/lib/tournaments/fixtures";
 
 jest.mock("next/router", () => ({ useRouter: () => ({ query: {}, isReady: true, push: jest.fn() }) }));
 jest.mock("../Navbar", () => ({ Navbar: () => <nav /> }));
@@ -96,5 +98,29 @@ describe("SeedingPanel", () => {
     );
     expect(screen.getByTestId("start-bracket")).toBeDisabled();
     expect(screen.getByText(/more than half the seats/)).toBeInTheDocument();
+  });
+});
+
+describe("D4: deadline passed on an open match (#1239)", () => {
+  it("reads 'Deadline passed' instead of 'Ready to play' / 'Waiting for a game'", () => {
+    const b = fixtureBracket(4, 4);
+    b.at(1, 0).deadlineAt = "2026-10-05T10:00:00Z";
+    const view = buildBracket({ slug: "x", size: 4, status: "running" }, b.entries, b.matches);
+    const cell = view.rounds[0].cells[0];
+    expect(cell.state).toBe("ready");
+    const draw = (now: number) =>
+      render(
+        <ChakraProvider>
+          <MatchCell c={cell} now={now} />
+        </ChakraProvider>,
+      );
+    const before = draw(Date.parse(cell.deadlineAt!) - 3_600_000);
+    expect(screen.getByTestId("match-cell")).toHaveTextContent("Ready to play");
+    expect(screen.getByTestId("match-cell")).toHaveTextContent("Waiting for a game");
+    before.unmount();
+    draw(Date.parse(cell.deadlineAt!) + 3_600_000);
+    expect(screen.getByTestId("match-cell")).toHaveTextContent("Deadline passed");
+    expect(screen.getByTestId("match-cell")).not.toHaveTextContent("Ready to play");
+    expect(screen.getByTestId("match-cell")).not.toHaveTextContent("Waiting for a game");
   });
 });

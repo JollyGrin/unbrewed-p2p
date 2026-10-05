@@ -36,13 +36,16 @@ export interface AttentionRow {
   actions: AttentionAction[];
 }
 
+const clockOf = (iso: string): string =>
+  new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+
 const nameOf = (entries: readonly Entry[], id: string | null): string =>
   entries.find((e) => e.id === id)?.username ?? "a player";
 
 /** Round-robin group matches and the top-2 final have no "next round": the winner just wins the match. */
 const RULE_COPY = (verb: string): Record<string, string> => ({
   deadline_ready_check: `Rule 1 applied: one player pressed Play and the other never answered, so the ready player ${verb}.`,
-  deadline_higher_seed: `No game was played and neither player was ready, so the higher seed ${verb}.`,
+  deadline_higher_seed: `Rule 2 applied: no game was played and the organizer did not decide in 24h, so the higher seed ${verb}.`,
 });
 
 /** Rows for the queue, most urgent first (the api's order is a tie-break). */
@@ -51,6 +54,7 @@ export const attentionRows = (
   entries: readonly Entry[],
   matches: readonly Match[],
   rounds: number,
+  now: number = Date.now(),
 ): AttentionRow[] => {
   const rows = items.flatMap((item, i): AttentionRow[] => {
     const m = matches.find((x) => x.id === item.matchId);
@@ -63,19 +67,24 @@ export const attentionRows = (
     const a = nameOf(entries, m?.slotA ?? null);
     const b = nameOf(entries, m?.slotB ?? null);
     const vs = `${a} vs ${b}`;
-    const verb = m?.stage === "group" || m?.stage === "final" ? "wins the match" : "advances";
+    const verb = m?.stage === "group" ? "wins the match" : m?.stage === "final" ? "wins the tournament" : "advances";
     const key = `${item.kind}:${item.matchId}:${i}`;
     const open: AttentionAction = { type: "open", label: "Open match →" };
     const base = { key, matchId: item.matchId, due: null, dueLabel: "" };
     switch (item.kind) {
-      case "awaiting_organizer":
+      case "awaiting_organizer": {
+        // D3: the api's item doesn't carry ready-checks yet, so the copy stays generic unless it does.
+        const hold = item.readyChecks?.find((c) => c.outcome === "pending" && Date.parse(c.expiresAt) > now);
+        const lead = hold
+          ? `No game yet. ${nameOf(entries, hold.entryId)} pressed Play and holds a seat until ${clockOf(hold.expiresAt)}; the rules decide after that.`
+          : "No game was played. If a player is holding a seat, the rules decide when the hold ends; otherwise it's your call.";
         return [
           {
             ...base,
             tone: "red",
             title: `Your call · ${vs}`,
             context: `${code} · deadline passed`,
-            body: `No game, and neither player pressed Play, so no rule applies. You have until the grace period ends; then the higher seed ${verb}.`,
+            body: `${lead} You have until the grace period ends; then the higher seed ${verb}.`,
             due: item.until,
             dueLabel: "left",
             actions: [
@@ -103,6 +112,7 @@ export const attentionRows = (
             ],
           },
         ];
+      }
       case "deadline_passed":
         return [
           {
@@ -110,7 +120,7 @@ export const attentionRows = (
             tone: "ink",
             title: `Deadline passed · ${code} decided by rule`,
             context: `${vs}`,
-            body: `${(item.decidedBy && RULE_COPY(verb)[item.decidedBy]) || "The deadline rule has decided this match."}${item.winner ? ` ${nameOf(entries, item.winner)} ${verb === "advances" ? "advances" : "wins the match"}.` : ""} Nothing to do unless you want to override.`,
+            body: `${(item.decidedBy && RULE_COPY(verb)[item.decidedBy]) || "The deadline rule has decided this match."}${item.winner ? ` ${nameOf(entries, item.winner)} ${verb}.` : ""} Nothing to do unless you want to override.`,
             actions: [{ type: "override", label: "Override…" }, open],
           },
         ];

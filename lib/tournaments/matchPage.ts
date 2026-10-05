@@ -93,19 +93,38 @@ export const DEADLINE_PASSED_TEXT = "The deadline has passed. The organizer is d
  * The organizer's fallback. A round-robin top-2 final goes to the better
  * standings rank (slot A, #1), not the original seed.
  */
-export const deadlinePassedRule = (stage?: Match["stage"]): string =>
-  stage === "group"
-    ? "If they don't decide within 24h, the higher seed wins the match."
+export const deadlinePassedRule = (stage?: Match["stage"], cutoff?: string | null): string => {
+  const when = cutoff ? `by ${dateTime(cutoff)}` : "within 24h";
+  return stage === "group"
+    ? `If they don't decide ${when}, the higher seed wins the match.`
     : stage === "final"
-      ? "If they don't decide within 24h, the player ranked higher in the standings wins."
-      : "If they don't decide within 24h, the higher seed advances.";
+      ? `If they don't decide ${when}, the player ranked higher in the standings wins the tournament.`
+      : `If they don't decide ${when}, the higher seed advances.`;
+};
+
+/** The organizer's own view (D5): they are the one deciding, with the cutoff spelled out. */
+export const DEADLINE_PASSED_ORGANIZER_TEXT = "The deadline has passed. You are deciding this match.";
+export const deadlinePassedOrganizerRule = (stage?: Match["stage"], cutoff?: string | null): string => {
+  const when = cutoff ? `by ${dateTime(cutoff)}` : "within 24h";
+  const after =
+    stage === "group"
+      ? "the higher seed wins the match"
+      : stage === "final"
+        ? "the player ranked higher in the standings wins the tournament"
+        : "the higher seed advances";
+  return `Decide ${when}, or ${after}.`;
+};
 
 /** Rule 1 waiting on the loop: "The deadline has passed. bob was ready and carol never joined, so bob advances." */
 export const deadlineReadyCheckText = (d: MatchDetail, winner: string, myEntry: string | null): string => {
   const won = winner === d.match.slotA ? d.players.a : d.players.b;
   const lost = winner === d.match.slotA ? d.players.b : d.players.a;
   const [verb, youVerb] =
-    d.match.stage === "group" ? ["wins the match", "win the match"] : d.match.stage === "final" ? ["wins", "win"] : ["advances", "advance"];
+    d.match.stage === "group"
+      ? ["wins the match", "win the match"]
+      : d.match.stage === "final"
+        ? ["wins the tournament", "win the tournament"]
+        : ["advances", "advance"];
   const lead = "The deadline has passed.";
   if (myEntry === winner) return `${lead} You were ready and ${playerName(lost)} never joined, so you ${youVerb}.`;
   if (myEntry) return `${lead} ${playerName(won)} was ready and you never joined, so ${playerName(won)} ${verb}.`;
@@ -237,6 +256,33 @@ export const windowSpent = (opensAt: string | null, deadlineAt: string | null, n
 export const decidedRule = (d: MatchDetail): string | null =>
   d.match.decidedBy ? DECIDED_NOTE[d.match.decidedBy].rule : null;
 
+/**
+ * The decision line under the banner (D2): the organizer's override / confirm
+ * with their note, or the 24h auto-confirm. A deadline rule has its own
+ * one-liner in the rules card, so it adds nothing here. Null = nothing to say.
+ */
+export const decisionLine = (d: MatchDetail): string | null => {
+  const dec = d.decision;
+  if (!dec || d.match.status !== "decided") return null;
+  if (dec.by === "organizer") return dec.note ? `Decided by the organizer: ${dec.note}` : "Decided by the organizer.";
+  if (d.match.decidedBy === "unverified_confirmed") return "Result confirmed automatically, 24h after it was found.";
+  return null;
+};
+
+/** The one rule line a rule-decided match keeps (D6): "Decided by Rule 1 · unanswered ready-check". */
+export const decidedByRuleLine = (d: MatchDetail): string | null =>
+  d.match.decidedBy === "deadline_ready_check"
+    ? "Decided by Rule 1 · unanswered ready-check."
+    : d.match.decidedBy === "deadline_higher_seed"
+      ? `Decided by Rule 2 · ${d.match.stage === "final" ? "the organizer did not decide in 24h, so the better standings rank won" : "the organizer did not decide in 24h, so the higher seed won"}.`
+      : null;
+
+/** The organizer's cutoff after a missed deadline: deadline + 24h (settled rule 2); null without a deadline. */
+export const organizerCutoff = (deadlineAt: string | null): string | null => {
+  const t = deadlineAt ? Date.parse(deadlineAt) : NaN;
+  return Number.isFinite(t) ? new Date(t + 24 * 3_600_000).toISOString() : null;
+};
+
 export interface GameRow {
   game: Game;
   /** 1-based, as players count. */
@@ -292,4 +338,34 @@ export const readyCheckLine = (
         ? `${who} ${you ? "are" : "is"} ready now`
         : `${who} ${verb}`;
   return { text, at: `${shortDate(rc.createdAt)} ${clock(rc.createdAt)}`, missed: rc.outcome === "unanswered" };
+};
+
+/**
+ * Seat names for a replay watched by someone who played neither side (D12):
+ * "YOU"/"OPPONENT" means nothing to them, so both seats read as the players.
+ * Which runtime seat is which entry comes from the game's winner, else from
+ * the assigned heroes when they differ; null when neither pins it down (a
+ * mirror with no winner), so the HUD keeps its neutral labels.
+ */
+export const replaySeatNames = (
+  d: MatchDetail,
+  game: Game,
+  meta: { winner: string | null; heroes: Partial<Record<string, string>> },
+): Record<string, string> | null => {
+  const { slotA, slotB } = d.match;
+  const names = { a: playerName(d.players.a), b: playerName(d.players.b) };
+  const seats = Object.keys(meta.heroes);
+  if (seats.length !== 2) return null;
+  const other = (s: string) => seats.find((x) => x !== s)!;
+  let seatA: string | null = null;
+  if (meta.winner && seats.includes(meta.winner) && game.winnerEntry) {
+    if (game.winnerEntry === slotA) seatA = meta.winner;
+    else if (game.winnerEntry === slotB) seatA = other(meta.winner);
+  }
+  const { a, b } = game.assignment.heroes;
+  if (!seatA && a && b && a !== b) {
+    seatA = seats.find((s) => meta.heroes[s] === a) ?? null;
+    if (seatA && meta.heroes[other(seatA)] !== b) seatA = null;
+  }
+  return seatA ? { [seatA]: names.a, [other(seatA)]: names.b } : null;
 };

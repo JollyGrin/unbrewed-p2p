@@ -83,11 +83,19 @@ describe("create form → api payload", () => {
     expect(validateForm(base({ format: "round_robin", size: 8 }), NOW).map((p) => p.field)).toEqual(["format"]);
   });
 
-  it("round robin's latest finish is one window, plus a grace day and a window for the final", () => {
-    const f = base({ format: "round_robin", size: 6, matchWindowHours: 168, signupCloses: "2026-10-10T18:00" });
-    const closes = new Date(f.signupCloses).getTime();
-    expect(latestFinal(f)!.getTime() - closes).toBe(168 * 3_600_000);
-    expect(latestFinal({ ...f, top2Final: true })!.getTime() - closes).toBe((168 + 24 + 168) * 3_600_000);
+  it.each([
+    // [format, size, window, top2Final, expected hours] — api latestPossibleFinal: rounds x (window + 24h)
+    ["round_robin", 4, 24, false, 48],
+    ["round_robin", 4, 24, true, 96],
+    ["round_robin", 6, 168, false, 192],
+    ["round_robin", 6, 168, true, 384],
+    ["round_robin", 3, 48, true, 144],
+    ["single_elim", 4, 24, false, 96],
+    ["single_elim", 8, 72, false, 288],
+    ["single_elim", 16, 48, false, 288],
+  ] as const)("latest final matches the api: %s size %i, %ih window, final %s -> %ih", (format, size, matchWindowHours, top2Final, hours) => {
+    const f = base({ format, size, matchWindowHours, top2Final, signupCloses: "2026-10-10T18:00" });
+    expect(latestFinal(f)!.getTime() - new Date(f.signupCloses).getTime()).toBe(hours * 3_600_000);
   });
 
   it("single elim's latest final is rounds x (window + 24h), final's own grace day included (rule 7)", () => {
