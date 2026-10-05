@@ -6,7 +6,7 @@
  */
 import { Box, Flex, Text } from "@chakra-ui/react";
 import NextLink from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { useProLiveRosterState } from "@/lib/pro/useProLiveRoster";
 import { PRO_WS_URL } from "@/lib/pro/wsUrl";
@@ -81,6 +81,10 @@ const ErrorLine = ({ text }: { text: string | null }) =>
     </Text>
   ) : null;
 
+export const IN_PLAY_WARNING =
+  "A game is in progress. Overriding decides the match now; the game's result will be recorded but won't change this decision.";
+const IN_PLAY_RESULT_NOTE = "A game was still in play: its result will be recorded but won't change this decision.";
+
 /** Override a match result, with a note. Re-deciding sends `replacesWinner`. */
 export const OverrideForm = ({
   slug,
@@ -100,7 +104,26 @@ export const OverrideForm = ({
   const seats = [match.slotA, match.slotB].filter((x): x is string => !!x);
   const [winner, setWinner] = useState<string | null>(initialWinner ?? null);
   const [note, setNote] = useState(initialNote);
-  const { busy, error, run } = useRun(onDone);
+  // A game is in play: warn first and make the organizer confirm (#1242).
+  const inPlay = match.inPlay || match.status === "in_play";
+  const [confirming, setConfirming] = useState(false);
+  const [gameInPlay, setGameInPlay] = useState(false);
+  // If the api reports the game was still running, keep the form up so it is seen.
+  const { busy, error, run } = useRun(() => {
+    if (!gameInPlayRef.current) onDone();
+  });
+  const gameInPlayRef = useRef(false);
+  const apply = async (w: string) => {
+    await run(async () => {
+      const r = await overrideMatch(slug, match.id, overrideBody(match, w, note));
+      // The api may say the match had a live game when it was decided (not always sent).
+      if (r.ok && (r.value as any)?.gameInPlay) {
+        gameInPlayRef.current = true;
+        setGameInPlay(true);
+      }
+      return r;
+    });
+  };
   const blocked =
     match.decidedBy === "bye"
       ? "A bye can't be overridden."
@@ -164,23 +187,41 @@ export const OverrideForm = ({
             value={note}
             onChange={(e: any) => setNote(e.target.value)}
           />
+          {inPlay && (
+            <Box mt="8px" p="10px 12px" borderRadius="8px" bg="rgba(224,168,46,0.18)" fontSize="14px" role="alert" data-testid="override-in-play-warning">
+              {IN_PLAY_WARNING}
+            </Box>
+          )}
+          {gameInPlay && (
+            <Box mt="8px" p="10px 12px" borderRadius="8px" bg="rgba(72,40,79,0.08)" fontSize="14px" data-testid="override-game-in-play">
+              Done. {IN_PLAY_RESULT_NOTE}
+              <Box mt="6px"><Btn variant="ghost" px="14px" onClick={onDone}>Close</Btn></Box>
+            </Box>
+          )}
           <Flex gap="8px" mt="8px" flexWrap="wrap">
-            <Btn
-              variant="gold"
-              disabled={!winner || busy}
-              onClick={() =>
-                winner &&
-                run(() =>
-                  overrideMatch(
-                    slug,
-                    match.id,
-                    overrideBody(match, winner, note),
-                  ),
-                )
-              }
-            >
-              {busy ? "Applying…" : "Apply override"}
-            </Btn>
+            {inPlay && confirming && !gameInPlay ? (
+              <>
+                <Btn
+                  variant="gold"
+                  disabled={!winner || busy}
+                  data-testid="confirm-override-in-play"
+                  onClick={() => winner && void apply(winner)}
+                >
+                  {busy ? "Applying…" : "Yes, decide the match now"}
+                </Btn>
+                <Btn variant="ghost" disabled={busy} onClick={() => setConfirming(false)}>Wait for the game</Btn>
+              </>
+            ) : (
+              !gameInPlay && (
+                <Btn
+                  variant="gold"
+                  disabled={!winner || busy}
+                  onClick={() => (inPlay ? setConfirming(true) : winner && void apply(winner))}
+                >
+                  {busy ? "Applying…" : "Apply override"}
+                </Btn>
+              )
+            )}
           </Flex>
           <ErrorLine text={error} />
         </>

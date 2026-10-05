@@ -18,8 +18,10 @@ import {
 } from "@/lib/tournaments/share";
 import type { Entry, Tournament } from "@/lib/tournaments/types";
 import { statusChip } from "@/lib/tournaments/browse";
+import { signupCloseText } from "@/lib/tournaments/lifecycle";
 import { BracketEventView } from "./BracketEventView";
 import { RoundRobinEventView } from "./RoundRobinEventView";
+import { LifecyclePanel } from "./LifecyclePanel";
 import { SeedingPanel } from "./SeedingPanel";
 import { Btn, Card, Chip, Notice, Page } from "./ui";
 
@@ -67,6 +69,7 @@ export const JoinPanel = ({
   const { status, account } = useAccount();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState(false);
   const userId = status === "signed-in" && account ? account.id : null;
   const state = joinState(t, entries, userId);
 
@@ -113,22 +116,31 @@ export const JoinPanel = ({
               <Text fontSize="14px" opacity={0.8}>
                 {t.status === "running"
                   ? `The ${t.format === "round_robin" ? "standings are" : "bracket is"} live. We'll ping you on Discord when your match is ready.`
-                  : `Signup closes${t.signupClosesAt ? ` ${formatWhen(t.signupClosesAt)}` : ""}; then the organizer starts the ${t.format === "round_robin" ? "tournament" : "bracket"}. We'll ping you on Discord when your match is ready.`}
+                  : `Signup ${signupCloseText(t) || "closes soon"}; then the organizer starts the ${t.format === "round_robin" ? "tournament" : "bracket"}. We'll ping you on Discord when your match is ready.`}
               </Text>
             </Box>
           </Flex>
           {state.kind === "joined" && (
             <Flex justify="space-between" align="center" gap="12px" flexWrap="wrap" fontSize="14px">
               <Text opacity={0.8}>Plans changed? You can leave until signup closes{t.signupClosesAt ? ` ${formatWhen(t.signupClosesAt)}` : ""}.</Text>
-              <Btn variant="ghost" disabled={busy} onClick={() => run(() => leaveTournament(t.slug))}>Leave tournament</Btn>
+              {!leaving && <Btn variant="ghost" disabled={busy} onClick={() => setLeaving(true)}>Leave tournament</Btn>}
             </Flex>
+          )}
+          {state.kind === "joined" && leaving && (
+            <Box border="1px solid rgba(179,38,30,0.35)" bg="rgba(179,38,30,0.06)" borderRadius="10px" p="10px 12px" fontSize="14px" data-testid="leave-confirm">
+              <Text>Leave this tournament? You can rejoin while signup is open.</Text>
+              <Flex gap="8px" mt="8px" flexWrap="wrap">
+                <Btn variant="gold" disabled={busy} onClick={() => run(() => leaveTournament(t.slug)).then(() => setLeaving(false))}>Yes, leave</Btn>
+                <Btn variant="ghost" disabled={busy} onClick={() => setLeaving(false)}>Stay in</Btn>
+              </Flex>
+            </Box>
           )}
         </>
       )}
       {state.kind === "full" && <Text fontWeight={600}>All seats are taken.</Text>}
       {state.kind === "closed" && (
         <Text fontWeight={600}>
-          {t.status === "signup" ? "Signup has closed." : t.status === "running" ? "This bracket is underway." : "This tournament is over."}
+          {t.status === "signup" ? "Signup has closed." : t.status === "running" ? "This bracket is underway." : t.status === "cancelled" ? "This tournament was cancelled." : "This tournament is over."}
         </Text>
       )}
       {error && <Text role="alert" color="#B3361F" fontSize="14px">{error}</Text>}
@@ -197,11 +209,22 @@ export const EventView = ({ slug, justCreated }: { slug: string; justCreated: bo
 
   const { tournament: t, entries, matches, standings } = data.value;
   const isOrganizer = status === "signed-in" && account?.id === t.organizer.userId;
+  // A draft is private: anyone but its organizer gets the normal "no tournament here" page.
+  if (t.status === "draft" && !isOrganizer)
+    return (
+      <Page title="Tournament" path={tournamentPath(slug)} heading="Tournament">
+        <Notice title="No tournament here">That link doesn&apos;t match a tournament. It may have been cancelled.</Notice>
+        <Flex mt="16px" gap="10px" flexWrap="wrap">
+          <Btn href="/tournaments" variant="ghost">All tournaments</Btn>
+        </Flex>
+      </Page>
+    );
   if ((t.status === "running" || t.status === "complete") && t.format === "round_robin")
     return <RoundRobinEventView t={t} entries={entries} matches={matches} standings={standings} isOrganizer={isOrganizer} reload={reload} />;
   if (t.status === "running" || t.status === "complete")
     return <BracketEventView t={t} entries={entries} matches={matches} isOrganizer={isOrganizer} reload={reload} />;
-  const seeding = isOrganizer && (t.status === "signup" || t.status === "draft");
+  const seeding = isOrganizer && t.status === "signup";
+  const draft = t.status === "draft";
   const sharing = justCreated && isOrganizer && t.status === "signup";
   const chip = statusChip(t);
   const mapName = (r: Parameters<typeof mapTitle>[0]) => mapTitle(r);
@@ -212,25 +235,26 @@ export const EventView = ({ slug, justCreated }: { slug: string; justCreated: bo
       path={tournamentPath(t.slug)}
       eyebrow={sharing ? "✓ Signup is open" : <><NextLink href="/tournaments">Tournaments</NextLink> / {t.name}</>}
       heading={sharing ? "Now get people in." : t.name}
-      lede={sharing && t.signupClosesAt ? `Signup closes ${formatWhen(t.signupClosesAt)}, or as soon as all ${t.size} seats fill.` : undefined}
+      lede={draft ? "Draft: not public yet." : sharing && t.signupClosesAt ? `Signup closes ${formatWhen(t.signupClosesAt)}, or as soon as all ${t.size} seats fill.` : undefined}
     >
       {sharing && <SharePanel t={t} />}
-      <Box display="grid" gridTemplateColumns={{ base: "1fr", md: "3fr 2fr" }} gap="16px" alignItems="start">
+      {isOrganizer && (draft || t.status === "signup") && <LifecyclePanel t={t} entries={entries} reload={reload} />}
+      <Box display="grid" gridTemplateColumns={{ base: "minmax(0, 1fr)", md: "minmax(0, 3fr) minmax(0, 2fr)" }} gap="16px" alignItems="start">
         <Card p="20px">
           <Flex gap="8px" align="center" flexWrap="wrap" mb="6px">
             <Chip tone={chip.tone}>{chip.label}</Chip>
-            {t.signupClosesAt && t.status === "signup" && <Text fontSize="12px" opacity={0.7}>closes {formatWhen(t.signupClosesAt)}</Text>}
+            {t.signupClosesAt && t.status === "signup" && <Text fontSize="12px" opacity={0.7}>{signupCloseText(t)}</Text>}
           </Flex>
-          <Text fontSize="14px" opacity={0.8} mb="16px">
+          <Text fontSize="14px" opacity={0.8} mb="16px" overflowWrap="anywhere">
             {formatLabel(t)} · {t.size} players · one game per match · {WINDOW_LABEL[t.matchWindowHours] ?? `${t.matchWindowHours}h`} per match
             {t.organizer.username ? ` · by ${t.organizer.username}` : ""}
           </Text>
           <Flex flexDir="column" gap="16px">
             <Seats t={t} entries={entries} />
-            <JoinPanel t={t} entries={entries} reload={reload} />
+            {!draft && <JoinPanel t={t} entries={entries} reload={reload} />}
             <Flex as="dl" gap="24px" flexWrap="wrap" fontSize="14px" borderTop="1px solid rgba(72,40,79,0.15)" pt="12px">
               <Box><Text as="dt" opacity={0.6} fontSize="12px">Heroes &amp; map</Text><Text as="dd">{describeTournamentRule(t, mapName)}</Text></Box>
-              <Box><Text as="dt" opacity={0.6} fontSize="12px">Host</Text><Text as="dd">{t.organizer.username ?? "—"}</Text></Box>
+              <Box><Text as="dt" opacity={0.6} fontSize="12px">Host</Text><Text as="dd" overflowWrap="anywhere">{t.organizer.username ?? "—"}</Text></Box>
             </Flex>
           </Flex>
         </Card>

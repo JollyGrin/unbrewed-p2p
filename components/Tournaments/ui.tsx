@@ -46,14 +46,14 @@ export const Page = ({
       <Navbar />
     </Box>
     <Box bg={INK_DEEP} color={PARCHMENT} px={{ base: "16px", md: "32px" }} py={{ base: "28px", md: "44px" }}>
-      <Flex maxW={wide ? "90rem" : "64rem"} mx="auto" gap="20px" justify="space-between" align="flex-end" flexWrap="wrap">
-        <Box maxW="40rem">
+      <Flex maxW={wide ? "90rem" : "64rem"} mx="auto" gap="20px" minW={0} justify="space-between" align="flex-end" flexWrap="wrap">
+        <Box maxW="40rem" minW={0}>
           {eyebrow && (
             <Text fontFamily="ArchivoNarrow" textTransform="uppercase" letterSpacing="0.08em" fontSize="12px" color={BAND_MUTED} mb="6px">
               {eyebrow}
             </Text>
           )}
-          <Text as="h1" fontFamily="LeagueGothic" fontSize={{ base: "44px", md: "68px" }} lineHeight="0.98">
+          <Text as="h1" fontFamily="LeagueGothic" fontSize={{ base: "44px", md: "68px" }} lineHeight="0.98" overflowWrap="anywhere" wordBreak="break-word">
             {heading}
           </Text>
           {lede && (

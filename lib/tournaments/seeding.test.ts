@@ -69,3 +69,11 @@ describe("round-1 pairings", () => {
     expect(opponentOfSeed(6, 8, 6)).toBe(3);
   });
 });
+
+describe("byeCopy", () => {
+  const { byeCopy } = jest.requireActual("./seeding");
+  it("pluralizes", () => {
+    expect(byeCopy(1)).toBe("1 empty seat becomes a bye");
+    expect(byeCopy(3)).toBe("3 empty seats become byes");
+  });
+});

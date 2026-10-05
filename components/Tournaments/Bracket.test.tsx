@@ -99,6 +99,29 @@ describe("SeedingPanel", () => {
     expect(screen.getByTestId("start-bracket")).toBeDisabled();
     expect(screen.getByText(/more than half the seats/)).toBeInTheDocument();
   });
+
+  it("signup closed and under-filled: no dead Start, says what to do (#1242)", () => {
+    const p = fixtureSignup8();
+    render(
+      <ChakraProvider>
+        <SeedingPanel t={{ ...p.tournament, signupClosesAt: "2020-01-01T00:00:00Z", signupOpen: false }} entries={p.entries.slice(0, 4)} reload={jest.fn()} />
+      </ChakraProvider>,
+    );
+    expect(screen.queryByTestId("start-bracket")).toBeNull();
+    expect(screen.getByText("Not enough players to start. Extend signup, or cancel.")).toBeInTheDocument();
+  });
+
+  it("pluralizes the bye line", () => {
+    const p = fixtureSignup8();
+    const draw = (n: number) =>
+      render(
+        <ChakraProvider>
+          <SeedingPanel t={{ ...p.tournament, size: 8 }} entries={p.entries.slice(0, n)} reload={jest.fn()} />
+        </ChakraProvider>,
+      );
+    draw(6);
+    expect(screen.getByText(/2 empty seats become byes for the top seeds\./)).toBeInTheDocument();
+  });
 });
 
 describe("D4: deadline passed on an open match (#1239)", () => {

@@ -177,7 +177,7 @@ it("decided by deadline rule: names the rule and marks it applied", () => {
   expect(screen.queryByText("If the deadline passes")).not.toBeInTheDocument();
   expect(screen.getByTestId("decided-by-rule")).toHaveTextContent("Decided by Rule 1 · unanswered ready-check.");
   expect(screen.getByTestId("games-list")).toHaveTextContent("No game was played before");
-  expect(screen.getByTestId("ready-checks")).toHaveTextContent("You pressed Play · no answer");
+  expect(screen.getByTestId("ready-checks")).toHaveTextContent("Your opponent didn't join");
 });
 
 it("a spectator gets no Play button; a signed-out visitor is asked to sign in", () => {

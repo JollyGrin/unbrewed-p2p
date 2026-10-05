@@ -23,6 +23,7 @@ import type { Entry, Match, Standing, Tournament } from "@/lib/tournaments/types
 
 import { Avatar, timeLeft } from "./Bracket";
 import { useNow } from "@/lib/tournaments/hooks";
+import { LifecyclePanel } from "./LifecyclePanel";
 import { AttentionQueue } from "./OrganizerTools";
 import { Card, Chip, Page } from "./ui";
 
@@ -130,7 +131,7 @@ const Standings = ({ view, t }: { view: ReturnType<typeof buildRoundRobin>; t: T
                   <Flex align="center" gap="10px" minW={0}>
                     <Avatar name={r.entry.username ?? "?"} url={r.entry.avatarUrl} size={32} />
                     <Box minW={0}>
-                      <Text fontWeight={700} whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis" maxW={{ base: "9rem", md: "16rem" }}>{r.entry.username ?? "Player"}</Text>
+                      <Text fontWeight={700} whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis" maxW={{ base: "9rem", md: "16rem" }} title={r.entry.username ?? undefined}>{r.entry.username ?? "Player"}</Text>
                       <Text fontSize="12px" opacity={0.65} title={r.tiebreak ? `Level on wins: ${r.tiebreak}` : undefined}>
                         Seed {r.entry.seed ?? "–"}{r.dropped ? " · dropped" : ""}{r.tiebreak ? ` · ${r.tiebreak}` : ""}
                       </Text>
@@ -303,7 +304,7 @@ export const RoundRobinEventView = ({
         {view.rounds.length === 0 ? (
           <Text opacity={0.7} fontSize="14px">No matches yet.</Text>
         ) : (
-          <Box display="grid" gridTemplateColumns={{ base: "1fr", xl: "1fr 1fr" }} columnGap="32px" rowGap="18px">
+          <Box display="grid" gridTemplateColumns={{ base: "minmax(0, 1fr)", xl: "repeat(2, minmax(0, 1fr))" }} columnGap="32px" rowGap="18px">
             {view.rounds.map((r) => (
               <Box key={r.round} data-testid="rr-round">
                 <Flex justify="space-between" align="baseline" borderBottom="1px solid rgba(72,40,79,0.15)" pb="4px">
@@ -316,6 +317,11 @@ export const RoundRobinEventView = ({
           </Box>
         )}
       </Card>
+      {isOrganizer && t.status === "running" && (
+        <Box mt="20px">
+          <LifecyclePanel t={t} entries={entries} reload={reload} />
+        </Box>
+      )}
     </Page>
   );
 };

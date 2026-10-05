@@ -73,11 +73,14 @@ export const attentionRows = (
     const base = { key, matchId: item.matchId, due: null, dueLabel: "" };
     switch (item.kind) {
       case "awaiting_organizer": {
-        // D3: the api's item doesn't carry ready-checks yet, so the copy stays generic unless it does.
+        // api #88: `reason: ready_hold_pending` + `holdUntil` + `readyBy`; older builds sent `readyChecks` (or nothing).
         const hold = item.readyChecks?.find((c) => c.outcome === "pending" && Date.parse(c.expiresAt) > now);
-        const lead = hold
-          ? `No game yet. ${nameOf(entries, hold.entryId)} pressed Play and holds a seat until ${clockOf(hold.expiresAt)}; the rules decide after that.`
-          : "No game was played. If a player is holding a seat, the rules decide when the hold ends; otherwise it's your call.";
+        const holders = item.readyBy?.length ? item.readyBy : hold ? [hold.entryId] : [];
+        const until = item.holdUntil ?? hold?.expiresAt ?? null;
+        const lead =
+          (item.reason === "ready_hold_pending" || hold) && holders.length && until
+            ? `No game yet. ${holders.map((id) => nameOf(entries, id)).join(" and ")} pressed Play and ${holders.length > 1 ? "hold seats" : "holds a seat"} until ${clockOf(until)}; the rules decide after that.`
+            : "No game was played. If a player is holding a seat, the rules decide when the hold ends; otherwise it's your call.";
         return [
           {
             ...base,
@@ -251,18 +254,31 @@ const ERRORS: Record<string, string> = {
   already_rejected: "That result was already rejected.",
   game_rejected: "That result was rejected, so it can't be confirmed.",
   forbidden: "Only the organizer can do that.",
+  already_started: "The tournament has already started, so it can't be edited.",
+  size_below_entries: "More players have already joined than that size allows.",
+  invalid_status_transition: "The tournament can't be changed that way from its current state.",
+  invalid_signupClosesAt: "Pick a signup close time in the future.",
+  invalid_name: "Give it a valid name.",
+  invalid_size: "That size isn't available.",
+  invalid_match_window: "That match window isn't available.",
+  immutable_field: "That setting can't be changed.",
 };
 
 export const organizerErrorText = (r: {
   reason: TournamentFailure;
   code?: string;
+  message?: string;
 }): string =>
   (r.code && ERRORS[r.code]) ||
+  // A refusal we have no copy for (e.g. cancel-running before api #91): show the api's own words.
+  (r.message && (r.reason === "conflict" || r.reason === "invalid") ? r.message : null) ||
   (r.reason === "unauthorized"
     ? "Your session ended. Sign in with Discord again."
     : r.reason === "rate_limited"
       ? "Slow down a moment, then try again."
-      : "Couldn't reach the server. Try again.");
+      : r.reason === "conflict" || r.reason === "invalid"
+        ? "The server refused that change."
+        : "Couldn't reach the server. Try again.");
 
 /**
  * The override body. Re-deciding a decided match must carry `replacesWinner` =

@@ -10,7 +10,9 @@ import { useEffect, useState } from "react";
 
 import { putSeeds, startTournament, type Result } from "@/lib/tournaments/api";
 import { activeEntries } from "@/lib/tournaments/joinState";
+import { UNDER_FILLED_COPY, canStartWith, underFilledClosed } from "@/lib/tournaments/lifecycle";
 import {
+  byeCopy,
   hasSavedSeeds,
   initialSeedOrder,
   moveSeed,
@@ -65,7 +67,9 @@ export const SeedingPanel = ({
   const byId = new Map(entries.map((e) => [e.id, e]));
   const n = order.length;
   const rr = t.format === "round_robin";
-  const canStart = n * 2 > t.size && (!rr || n >= 4);
+  const canStart = canStartWith(t, n);
+  // Signup is over and it never filled: no dead Start, say what to do (#1242).
+  const stuck = underFilledClosed(t, n);
   const reorder = (next: string[]) => {
     setOrder(next);
     setDirty(true);
@@ -116,7 +120,7 @@ export const SeedingPanel = ({
           ? "No one has joined yet."
           : rr
             ? "Drag to reorder, or use the arrows. Seeds only break ties and decide who takes slot A; everyone plays everyone."
-            : `Drag to reorder, or use the arrows. ${n < t.size ? `${t.size - n} empty seat${t.size - n === 1 ? "" : "s"} become byes for the top seeds.` : `Seed 1 meets seed ${t.size}.`}`}
+            : `Drag to reorder, or use the arrows. ${n < t.size ? `${byeCopy(t.size - n)} for the top seeds.` : `Seed 1 meets seed ${t.size}.`}`}
       </Text>
       <Box as="ol" listStyleType="none" m="10px 0 0" p={0} display="flex" flexDir="column" gap="6px" data-testid="seed-list">
         {order.map((id, i) => {
@@ -174,7 +178,7 @@ export const SeedingPanel = ({
         })}
       </Box>
       <Flex gap="10px" mt="14px" flexWrap="wrap" align="center">
-        {!confirming ? (
+        {stuck ? null : !confirming ? (
           <Btn variant="gold" disabled={busy || !canStart} onClick={() => setConfirming(true)} data-testid="start-bracket">
             {rr ? "Start round robin" : "Start bracket"}
           </Btn>
@@ -190,7 +194,9 @@ export const SeedingPanel = ({
           <Btn variant="ghost" disabled={busy} onClick={() => run(false)} data-testid="save-seeds">Save order</Btn>
         )}
         <Text fontSize="13px" opacity={0.7}>
-          {!canStart
+          {stuck
+            ? UNDER_FILLED_COPY
+            : !canStart
             ? rr
               ? `Start needs at least ${Math.max(4, Math.floor(t.size / 2) + 1)} players (${t.size} seats).`
               : `Start needs more than half the seats filled (${Math.floor(t.size / 2) + 1} of ${t.size}).`

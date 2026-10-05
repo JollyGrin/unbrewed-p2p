@@ -39,10 +39,22 @@ export const formatWhen = (iso: string | null): string => {
       });
 };
 
+/**
+ * Escape Discord Markdown in a user-supplied string so a hostile name like
+ * `[x](https://phish)` posts as plain text, not a masked link or a mention.
+ * Backslash-escapes `\ * _ ~ \` | > [ ] ( )`, a leading `#` / `-` / `>`, and
+ * defuses `@` (everyone/here/user mentions) with a zero-width space.
+ */
+export const escapeDiscord = (raw: string): string =>
+  raw
+    .replace(/[\\*_~`|>\[\]()]/g, "\\$&")
+    .replace(/^(\s*)([#-])/gm, "$1\\$2")
+    .replace(/@/g, "@\u200b");
+
 export const discordPost = (t: Tournament, origin?: string): string =>
   [
-    `**${t.name}** · ${t.size} seats · ${formatLabel(t)} · one game per match${hasTop2Final(t) ? ", then the top 2 play a final" : ""}`,
-    `${describeTournamentRule(t, mapTitle)}.`,
+    `**${escapeDiscord(t.name)}** · ${t.size} seats · ${formatLabel(t)} · one game per match${hasTop2Final(t) ? ", then the top 2 play a final" : ""}`,
+    `${escapeDiscord(describeTournamentRule(t, mapTitle))}.`,
     t.signupClosesAt
       ? `Signup closes **${formatWhen(t.signupClosesAt)}**. Each match gets ${WINDOW_LABEL[t.matchWindowHours] ?? `${t.matchWindowHours}h`}; we'll ping you on Discord when yours opens.`
       : `Each match gets ${WINDOW_LABEL[t.matchWindowHours] ?? `${t.matchWindowHours}h`}.`,

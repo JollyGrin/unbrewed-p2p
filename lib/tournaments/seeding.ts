@@ -83,3 +83,7 @@ export const opponentOfSeed = (seed: number, size: number, entrants: number): nu
   }
   return null;
 };
+
+/** "1 empty seat becomes a bye" / "3 empty seats become byes". */
+export const byeCopy = (empty: number): string =>
+  empty === 1 ? "1 empty seat becomes a bye" : `${empty} empty seats become byes`;

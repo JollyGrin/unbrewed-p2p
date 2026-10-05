@@ -193,12 +193,12 @@ export const matchupLine = (a: Assignment): MatchupLine => ({
 
 export const playerName = (p: MatchPlayer | null): string => p?.username ?? (p ? "Player" : "TBD");
 
-/** "Online now" within 5 minutes, else "Last seen in this match 12 min ago" (api `lastSeenAt` = latest ready-check press in this match); null when never. */
+/** "Online now" only within the last 60s, else "Last seen in this match 12 min ago" (api `lastSeenAt` = latest ready-check press in this match); null when never. */
 export const lastSeen = (iso: string | null | undefined, now: number): { online: boolean; text: string } | null => {
   if (!iso) return null;
   const ms = now - Date.parse(iso);
   if (!Number.isFinite(ms)) return null;
-  if (ms < 5 * 60_000) return { online: true, text: "Online now" };
+  if (ms < 60_000) return { online: true, text: "Online now" };
   const min = Math.floor(ms / 60_000);
   if (min < 60) return { online: false, text: `Last seen in this match ${min} min ago` };
   if (min < 24 * 60) return { online: false, text: `Last seen in this match ${Math.floor(min / 60)}h ago` };
@@ -331,9 +331,15 @@ export const readyCheckLine = (
   const you = !!p && p.userId === myUserId;
   const who = you ? "You" : playerName(p);
   const verb = rc.role === "join" ? "joined" : "pressed Play";
+  // The viewer is the OTHER player of the pair: they are the one who never answered.
+  const viewerIsOther = !you && !!myUserId && [d.players.a, d.players.b].some((q) => q?.userId === myUserId);
   const text =
     rc.outcome === "unanswered"
-      ? `${who} ${verb} · no answer`
+      ? you
+        ? "Your opponent didn't join"
+        : viewerIsOther
+          ? "You didn't join"
+          : `${who} ${verb} · no answer`
       : rc.outcome === "pending"
         ? `${who} ${you ? "are" : "is"} ready now`
         : `${who} ${verb}`;
