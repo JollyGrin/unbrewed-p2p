@@ -32,15 +32,17 @@ export const TicketErrorScreen = ({
   message?: string;
   /** Offer the retry even with no code (a seat this browser can't resume). */
   retry?: boolean;
-  at: TournamentRoom;
+  /** The match this room belongs to; null = a tagged room we can't place (#1230). */
+  at: TournamentRoom | null;
   /** Test seam: where a fresh ticket's link goes. */
   navigate?: (href: string) => void;
 }) => {
   const [busy, setBusy] = useState(false);
   const [retryNote, setRetryNote] = useState<string | null>(null);
-  const retryable = forceRetry || (!!code && ticketRetryable(code));
+  const retryable = !!at && (forceRetry || (!!code && ticketRetryable(code)));
 
   const retry = async () => {
+    if (!at) return;
     setBusy(true);
     setRetryNote(null);
     const r = await freshGrant(at.slug, at.matchId);
@@ -67,8 +69,8 @@ export const TicketErrorScreen = ({
             Get a fresh ticket and retry
           </Button>
         )}
-        <Button as={Link} href={tournamentMatchHref(at)} variant="outline" color="brand.parchment" _hover={{ textDecoration: "none", opacity: 0.85 }}>
-          Back to the match
+        <Button as={Link} href={at ? tournamentMatchHref(at) : "/tournaments"} variant="outline" color="brand.parchment" _hover={{ textDecoration: "none", opacity: 0.85 }}>
+          {at ? "Back to the match" : "My tournaments"}
         </Button>
       </Flex>
     </Flex>

@@ -248,6 +248,7 @@ import {
 } from "@/lib/pro/tournamentTicket";
 import type { TicketLaunch, TournamentRoom } from "@/lib/pro/tournamentTicket";
 import { TicketErrorScreen } from "@/components/Pro/TicketErrorScreen";
+import { useTaggedRoomLookup } from "@/lib/tournaments/useNextMatch";
 import { useLobbyMatchCue } from "@/lib/pro/useLobbyMatchCue";
 import { useTurnReminder } from "@/lib/pro/useTurnReminder";
 import { useTurnReminderSetting } from "@/lib/pro/useTurnReminderSetting";
@@ -5341,6 +5342,13 @@ const LiveGame = ({
     : untaggedSeatRef.current
       ? null
       : tournamentRoomOf(roomId ?? room);
+  // A raw ?room= link on a device without the seat (#1230): no note here, so
+  // ask the api whether it's one of this player's match rooms before the picker.
+  const taggedLookup = useTaggedRoomLookup(room, !!room && !firedTicket && !ticket && !tournamentRoom && !untaggedSeatRef.current);
+  useEffect(() => {
+    if (room && taggedLookup.at) rememberTournamentRoom(room, taggedLookup.at);
+  }, [room, taggedLookup.at]);
+  const taggedRoom = tournamentRoom ?? taggedLookup.at;
 
   // UNKNOWN_HERO shouldn't happen when picking from the server list, but if the
   // server rejects the hero, drop back to the picker instead of a dead end.
@@ -5482,13 +5490,25 @@ const LiveGame = ({
   // A tournament room this browser has no seat token for (#1218): a JOIN_ROOM
   // without a ticket would only earn TICKET_REQUIRED, so never show the picker —
   // get a ticket the match page's way (a recorded ready, or a join ticket).
-  if (!joined && !firedTicket && !ticket && room && tournamentRoom && !getToken(room)) {
+  if (!joined && !firedTicket && !ticket && room && taggedRoom && !getToken(room)) {
     return (
       <TicketErrorScreen
         message="This tournament game is open in another tab or device. Get a fresh ticket to take your seat here."
         retry
-        at={tournamentRoom}
+        at={taggedRoom}
       />
+    );
+  }
+
+  // Still asking the api whether this ?room= is a tournament room (#1230): hold
+  // the picker — a JOIN into a tagged room without a ticket is a dead end.
+  if (!joined && room && taggedLookup.pending && !getToken(room)) {
+    return (
+      <Flex direction="column" alignItems="center" gap="0.75rem" pt="6rem" px="1rem" textAlign="center" data-testid="room-lookup">
+        <Text fontFamily="LeagueGothic" fontSize="2.5rem" letterSpacing="0.05em">
+          OPENING ROOM…
+        </Text>
+      </Flex>
     );
   }
 
@@ -5772,12 +5792,17 @@ const LiveGame = ({
   // never "create a new room", which would be an untagged game.
   if (
     error &&
-    tournamentRoom &&
+    taggedRoom &&
     ((TICKET_ERROR_CODES as readonly string[]).includes(error.code) ||
       error.code === "ROOM_NOT_FOUND" ||
       error.code === "ROOM_FULL")
   ) {
-    return <TicketErrorScreen code={error.code} at={tournamentRoom} />;
+    return <TicketErrorScreen code={error.code} at={taggedRoom} />;
+  }
+  // A tagged room we can't place (#1230: a forwarded link, not your match): the
+  // engine's answer still reads as the ticket card, pointing at your tournaments.
+  if (error && (TICKET_ERROR_CODES as readonly string[]).includes(error.code)) {
+    return <TicketErrorScreen code={error.code} at={null} />;
   }
 
   // Room-level errors surface on a friendly screen with a create-new fallback.

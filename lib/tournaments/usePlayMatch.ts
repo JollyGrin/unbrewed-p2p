@@ -10,8 +10,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ticketGameHref } from "@/lib/pro/tournamentTicket";
 
-import { getMatchTicket, readyForMatch, type Result } from "./api";
-import type { TicketGrant } from "./types";
+import { getMatch, getMatchTicket, readyForMatch, type Result } from "./api";
+import type { MatchDetail, TicketGrant } from "./types";
 
 export type PlayPhase =
   | { kind: "idle" }
@@ -33,6 +33,8 @@ export const playErrorMessage = (r: Extract<Result<unknown>, { ok: false }>): st
       return "Too many tries at once. Wait a moment, then try again.";
     case "conflict":
       if (r.code === "match_in_play") return "A game for this match is already in play.";
+      if (r.code === "seat_held")
+        return "Your seat is held in this match's room on another tab or device. Carry on there, or try again here once the 15-minute hold runs out.";
       if (r.code === "not_running") return "This tournament isn't running.";
       return r.message ? `This match isn't open: ${r.message}.` : "This match isn't open to play.";
     default:
@@ -60,12 +62,35 @@ export const grantHref = (g: TicketGrant, slug: string, matchId: string): string
  * good for a JOIN (the other room is recorded already). Whenever the answer is
  * — or turns into — `create`, ask again with `POST …/ready`, which records the
  * ready-check the new room is filed under: otherwise the room is invisible to
- * the api and the opponent can open a second one (settled rule 6).
+ * the api and the opponent can open a second one (settled rule 6). And never
+ * while the caller's own room is live: that would be a second room (#1233 review).
  */
-export const freshGrant = async (slug: string, matchId: string): Promise<Result<TicketGrant>> => {
+export const freshGrant = async (
+  slug: string,
+  matchId: string,
+  now: () => number = Date.now,
+): Promise<Result<TicketGrant>> => {
   const t = await getMatchTicket(slug, matchId);
   if (!t.ok || t.value.action === "join") return t;
+  // A `create` while the caller's OWN seat hold is live (an opponent's would
+  // have been a `join`): that room is open on another tab or device. A new
+  // ready-check would open a second room for the same match — never record
+  // one. (Taking that seat over here needs the engine: a ticket JOIN from an
+  // already-seated player is TICKET_MISMATCH, and only the first tab holds the
+  // reconnect token.)
+  const d = await getMatch(slug, matchId);
+  if (d.ok && ownHoldLive(d.value, t.value.slot, now())) return { ok: false, reason: "conflict", code: "seat_held" };
   return readyForMatch(slug, matchId);
+};
+
+/** The caller (`slot`) has a live `create` ready-check — a room of theirs is open or opening. */
+export const ownHoldLive = (d: MatchDetail, slot: "a" | "b", now: number): boolean => {
+  const mine = slot === "a" ? d.match?.slotA : d.match?.slotB;
+  if (!mine) return false;
+  if (d.liveRoom && d.liveRoom.readyEntryId === mine && Date.parse(d.liveRoom.expiresAt) > now) return true;
+  return d.readyChecks.some(
+    (c) => c.entryId === mine && c.role === "create" && c.outcome === "pending" && Date.parse(c.expiresAt) > now,
+  );
 };
 
 export const POLL_MS = 3000;
@@ -78,7 +103,12 @@ export const usePlayMatch = (slug: string, matchId: string, onSettled?: () => vo
   const alive = useRef(true);
   // One press at a time: a double click must not record two ready-checks.
   const inFlight = useRef(false);
-  useEffect(() => () => void (alive.current = false), []);
+  // Set in the body too: StrictMode (dev) mounts, unmounts and remounts, so a
+  // cleanup-only effect would leave the flag false and never navigate (#1230).
+  useEffect(() => {
+    alive.current = true;
+    return () => void (alive.current = false);
+  }, []);
 
   const follow = useCallback(
     async (r: Result<TicketGrant>, polls: number): Promise<boolean> => {

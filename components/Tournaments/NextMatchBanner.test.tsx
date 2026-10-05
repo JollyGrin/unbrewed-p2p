@@ -4,6 +4,7 @@
  * api failure.
  */
 import "@testing-library/jest-dom";
+import { StrictMode } from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 
@@ -24,7 +25,7 @@ const USER = { id: "u2", username: "hokuto_shin", avatarUrl: null };
 const reply = (status: number, body: unknown) =>
   ({ ok: status >= 200 && status < 300, status, json: async () => body }) as Response;
 
-type State = "waiting" | "opponent_ready" | "you_ready" | "in_play";
+type State = "waiting" | "opponent_ready" | "you_ready" | "in_play" | "deadline_passed";
 
 /** Routes the account probe, /me/tournaments and the match detail. */
 const serve = (opts: { me?: "user" | "guest"; mine?: "none" | "down" | State }) => {
@@ -70,6 +71,31 @@ describe("NextMatchBanner", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "I'm ready to play" }));
     await waitFor(() => expect(push).toHaveBeenCalled());
+  });
+
+  it("I'm ready navigates under StrictMode too (dev double mount, #1230)", async () => {
+    serve({ mine: "waiting" });
+    render(
+      <StrictMode>
+        <ChakraProvider>
+          <NextMatchBanner />
+        </ChakraProvider>
+      </StrictMode>,
+    );
+    await screen.findByTestId("next-match-banner");
+    fireEvent.click(screen.getByRole("button", { name: "I'm ready to play" }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith(expect.stringContaining("/pro/game?ticket=t")));
+  });
+
+  it("deadline passed → the organizer is deciding, no ready button (#1230)", async () => {
+    serve({ mine: "deadline_passed" });
+    wrap(<NextMatchBanner />);
+    const b = await screen.findByTestId("next-match-banner");
+    expect(b).toHaveAttribute("data-state", "deadline_passed");
+    expect(b).toHaveTextContent("The deadline has passed. The organizer is deciding this match.");
+    expect(b).toHaveTextContent("within 24h, the higher seed advances");
+    expect(screen.queryByRole("button", { name: "I'm ready to play" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View match" })).toBeInTheDocument();
   });
 
   it("opponent ready → Join now with the seat clock", async () => {
@@ -123,6 +149,15 @@ describe("AccountChip menu", () => {
     expect(next).toHaveTextContent("Semifinal 2 is waiting for you");
     expect(next).toHaveAttribute("href", "/tournaments?t=fixture-match-opponent-ready&m=m2-1");
     expect(screen.getByText("My tournaments")).toHaveAttribute("href", "/tournaments");
+  });
+
+  it("deadline passed: the card says the organizer is deciding (#1230)", async () => {
+    serve({ mine: "deadline_passed" });
+    wrap(<AccountChip />);
+    fireEvent.click(await screen.findByLabelText("Account: hokuto_shin"));
+    const next = await screen.findByTestId("menu-next-match");
+    expect(next).toHaveTextContent("The deadline has passed. The organizer is deciding this match.");
+    expect(next).not.toHaveTextContent("left");
   });
 
   it("shows no tournament items when the api is down", async () => {

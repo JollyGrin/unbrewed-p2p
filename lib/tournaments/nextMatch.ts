@@ -3,11 +3,17 @@
  * Pure — the api's `nextMatch` (+ the match detail when we have it) in, the
  * lines both surfaces draw out. States follow mockup v2's banner: it is your
  * turn to play, your opponent is ready (join now), you're ready (seat held),
- * or the game is in play now.
+ * or the game is in play now — and, once the deadline is behind us with no
+ * game started, the organizer is deciding (#1230): nothing to press.
  */
 import { matchHref } from "./bracket";
 import {
+  DEADLINE_PASSED_TEXT,
+  deadlineOutcome,
   deadlineParts,
+  deadlinePassed,
+  deadlinePassedRule,
+  deadlineReadyCheckText,
   heldRoom,
   lastActive,
   matchTitle,
@@ -16,7 +22,7 @@ import {
 } from "./matchPage";
 import type { MatchDetail, NextMatch } from "./types";
 
-export type NextMatchState = "open" | "opponent_ready" | "you_ready" | "in_play";
+export type NextMatchState = "open" | "opponent_ready" | "you_ready" | "in_play" | "deadline_passed";
 
 export interface NextMatchView {
   state: NextMatchState;
@@ -36,11 +42,20 @@ export interface NextMatchView {
   opponentActive: string | null;
   /** "1d 17h left" / "5h 12m left" / "42m left". */
   timeLeft: string | null;
+  /** Deadline passed: "The deadline has passed. The organizer is deciding…" + the 24h rule. */
+  notice: string | null;
   href: string;
   /** What the main button does. */
   primary: "ready" | "join" | "view";
   primaryLabel: string;
 }
+
+const deadlineNotice = (detail: MatchDetail | null, myEntry: string, stage: NextMatch["match"]["stage"], now: number) => {
+  const out = detail ? deadlineOutcome(detail, now) : null;
+  return out?.kind === "ready_check" && detail
+    ? deadlineReadyCheckText(detail, out.winner, myEntry)
+    : `${DEADLINE_PASSED_TEXT} ${deadlinePassedRule(stage)}`;
+};
 
 export const timeLeftText = (deadlineAt: string | null, now: number): string | null => {
   const p = deadlineParts(deadlineAt, now);
@@ -69,7 +84,11 @@ export const nextMatchView = (
   const state: NextMatchState =
     m.inPlay || m.status === "in_play"
       ? "in_play"
-      : room
+      : // Past the deadline: playable only while a pre-deadline seat hold is live
+        // (needs the detail's ready-checks; without it, assume the organizer).
+        deadlinePassed(m.deadlineAt, now) && (!detail || deadlineOutcome(detail, now).kind !== "hold")
+        ? "deadline_passed"
+        : room
         ? room.readyEntryId === n.myEntryId
           ? "you_ready"
           : "opponent_ready"
@@ -89,7 +108,9 @@ export const nextMatchView = (
         ? `You're ready · seat held ${seat}`
         : state === "in_play"
           ? "In play now"
-          : `Your next match · ${n.tournament.name}`;
+          : state === "deadline_passed"
+            ? `Deadline passed · ${n.tournament.name}`
+            : `Your next match · ${n.tournament.name}`;
 
   return {
     state,
@@ -104,6 +125,7 @@ export const nextMatchView = (
     map: mu.map,
     opponentActive: active ? (active.online ? `${opponent} online now` : active.text.replace("Last signed in", `${opponent} signed in`)) : null,
     timeLeft,
+    notice: state === "deadline_passed" ? deadlineNotice(detail, n.myEntryId, m.stage, now) : null,
     href: matchHref(n.tournament.slug, m.id),
     primary: state === "open" ? "ready" : state === "opponent_ready" ? "join" : "view",
     primaryLabel: state === "open" ? "I'm ready to play" : state === "opponent_ready" ? "Join now" : "View match",

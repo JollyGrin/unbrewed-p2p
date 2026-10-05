@@ -21,7 +21,11 @@ import { isOrganizerOf } from "@/lib/tournaments/organizer";
 import {
   clock,
   dateTime,
+  DEADLINE_PASSED_TEXT,
+  deadlineOutcome,
   deadlineParts,
+  deadlinePassedRule,
+  deadlineReadyCheckText,
   gameLength,
   gameRows,
   heldRoom,
@@ -278,6 +282,7 @@ const BANNER_LOOK: Record<MatchPageState, { bg: string; color: string }> = {
   opponent_ready: { bg: GOLD, color: INK_DEEP },
   you_ready: { bg: INK_DEEP, color: PARCHMENT },
   in_play: { bg: DANGER, color: "white" },
+  deadline_passed: { bg: SURFACE, color: PARCHMENT },
   decided: { bg: POS, color: "white" },
   decided_by_rule: { bg: SURFACE, color: PARCHMENT },
 };
@@ -324,6 +329,18 @@ const Banner = ({
       const started = m.games.find((g) => g.startedAt && !g.finishedAt)?.startedAt ?? null;
       text = started ? `In play now. Started ${clock(started)}.` : "In play now.";
       small = "Live spectating isn't available yet";
+      break;
+    }
+    case "deadline_passed": {
+      const out = deadlineOutcome(d, now);
+      if (out.kind === "ready_check") {
+        const mine = side === "a" ? m.slotA : side === "b" ? m.slotB : null;
+        text = deadlineReadyCheckText(d, out.winner, mine);
+        small = "Rule 1 · unanswered ready-check";
+      } else {
+        text = DEADLINE_PASSED_TEXT;
+        small = deadlinePassedRule(m.stage);
+      }
       break;
     }
     case "decided":
@@ -490,7 +507,7 @@ const PlayBox = ({
   roomId: string | null;
   code: string;
 }) => {
-  if (state === "decided" || state === "decided_by_rule") return null;
+  if (state === "decided" || state === "decided_by_rule" || state === "deadline_passed") return null;
   const busy = phase.kind === "busy" || phase.kind === "opening";
   const status =
     phase.kind === "opening" ? (
@@ -627,7 +644,7 @@ const StickyPlay = ({
   else if (side && state === "you_ready") btn = <Btn variant="gold" onClick={onPlay} disabled={busy}>Take your seat here · {seatHeld}</Btn>;
   else if (side && state === "in_play" && back) btn = <Btn variant="gold" href={back}>Back to game</Btn>;
   else if (state === "decided" && onReplay) btn = <Btn variant="ink" onClick={onReplay}>Watch the replay</Btn>;
-  else if (state === "decided" || state === "decided_by_rule") btn = <Btn variant="ghost" href={bracketHref}>{standings ? "See the standings" : "See the bracket"}</Btn>;
+  else if (state === "decided" || state === "decided_by_rule" || state === "deadline_passed") btn = <Btn variant="ghost" href={bracketHref}>{standings ? "See the standings" : "See the bracket"}</Btn>;
   if (!btn) return null;
   return (
     <Flex
@@ -855,7 +872,7 @@ const DeadlineCard = ({ d, t, state, now }: { d: MatchDetail; t: Tournament | nu
       </Flex>
       <Flex justify="space-between" fontSize="12px" color={INK_MUTED} gap="8px">
         <Text>{state === "decided" && finished ? `Decided ${dateTime(finished)}` : `Opened ${shortDate(m.opensAt)}`}</Text>
-        <Text textAlign="right">{m.deadlineAt ? `${decided && state !== "decided" ? "Closed " : ""}${dateTime(m.deadlineAt)}` : ""}</Text>
+        <Text textAlign="right">{m.deadlineAt ? `${(decided && state !== "decided") || state === "deadline_passed" ? "Closed " : ""}${dateTime(m.deadlineAt)}` : ""}</Text>
       </Flex>
       {t?.latestPossibleFinal && (
         <Text fontSize="12px" color={INK_MUTED} mt="12px" pt="10px" borderTop={RULE} data-testid="latest-final">
@@ -868,7 +885,10 @@ const DeadlineCard = ({ d, t, state, now }: { d: MatchDetail; t: Tournament | nu
 
 const RulesCard = ({ d, state, group = false }: { d: MatchDetail; state: MatchPageState; group?: boolean }) => {
   const hit = state === "decided_by_rule" ? d.match.decidedBy : null;
+  const rrFinal = d.match.stage === "final";
   const higher = (() => {
+    // A round-robin top-2 final goes to the better standings rank: slot A (#1).
+    if (rrFinal) return d.players.a;
     const a = d.players.a;
     const b = d.players.b;
     if (!a?.seed || !b?.seed) return null;
@@ -885,7 +905,7 @@ const RulesCard = ({ d, state, group = false }: { d: MatchDetail; state: MatchPa
       <Text {...caption} mb="8px">If the deadline passes</Text>
       <Box as="ol" m={0} p={0} display="flex" flexDir="column" gap="4px">
         {li(hit === "deadline_ready_check", <><b>Unanswered ready-check.</b> If one player pressed Play and the other never joined, the player who was ready {group ? "wins the match" : "advances"}.</>)}
-        {li(hit === "deadline_higher_seed", <><b>Otherwise the organizer decides</b> within 24h. If they don&apos;t, the higher seed{higher ? <> (<b>{playerName(higher)}</b>)</> : ""} {group ? "wins the match" : "advances"}.</>)}
+        {li(hit === "deadline_higher_seed", <><b>Otherwise the organizer decides</b> within 24h. If they don&apos;t, {rrFinal ? "the player ranked higher in the standings" : "the higher seed"}{higher ? <> (<b>{playerName(higher)}</b>)</> : ""} {group ? "wins the match" : rrFinal ? "wins" : "advances"}.</>)}
       </Box>
       <Text fontSize="12px" color={INK_MUTED} mt="8px">A game that started before the deadline finishes and counts.</Text>
     </Card>
