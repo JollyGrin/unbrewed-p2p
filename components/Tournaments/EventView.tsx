@@ -194,7 +194,7 @@ export const EventView = ({ slug, justCreated }: { slug: string; justCreated: bo
   const { tournament: t, entries, matches } = data.value;
   const isOrganizer = status === "signed-in" && account?.id === t.organizer.userId;
   if (t.status === "running" || t.status === "complete")
-    return <BracketEventView t={t} entries={entries} matches={matches} />;
+    return <BracketEventView t={t} entries={entries} matches={matches} isOrganizer={isOrganizer} reload={reload} />;
   const seeding = isOrganizer && (t.status === "signup" || t.status === "draft");
   const sharing = justCreated && isOrganizer && t.status === "signup";
   const chip = statusChip(t);

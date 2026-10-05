@@ -7,6 +7,7 @@
  * fixture-api.mts` serves these over HTTP for a local dev server.
  */
 import { roundCount, seedOrder } from "./bracket";
+import type { AttentionItem } from "./api";
 import { assignment } from "./matchup";
 import type { MatchPageState } from "./matchPage";
 import type {
@@ -21,16 +22,32 @@ import type {
 } from "./types";
 
 const NAMES = [
-  "RavenDefeatsAll", "hokuto_shin", "bountyhuntr", "xenoqueen",
-  "crystal_lake_jay", "tofu.knight", "sky_bison_fan", "maple_syrup",
-  "mulan_main", "cecil.fm", "leon_s", "momo_steals",
-  "skullkid64", "squatchwatch", "lab_rat_7", "baba_fan",
+  "RavenDefeatsAll",
+  "hokuto_shin",
+  "bountyhuntr",
+  "xenoqueen",
+  "crystal_lake_jay",
+  "tofu.knight",
+  "sky_bison_fan",
+  "maple_syrup",
+  "mulan_main",
+  "cecil.fm",
+  "leon_s",
+  "momo_steals",
+  "skullkid64",
+  "squatchwatch",
+  "lab_rat_7",
+  "baba_fan",
 ];
 
-
-export const FIXTURE_ORGANIZER = { userId: "u-org", username: "RavenDefeatsAll", avatarUrl: "" };
+export const FIXTURE_ORGANIZER = {
+  userId: "u-org",
+  username: "RavenDefeatsAll",
+  avatarUrl: "",
+};
 export const FIXTURE_NOW = "2026-10-05T12:00:00Z";
-const hoursFrom = (iso: string, h: number) => new Date(Date.parse(iso) + h * 3_600_000).toISOString();
+const hoursFrom = (iso: string, h: number) =>
+  new Date(Date.parse(iso) + h * 3_600_000).toISOString();
 
 export const fixtureEntries = (n: number, seeded: boolean): Entry[] =>
   Array.from({ length: n }, (_, i) => ({
@@ -43,7 +60,9 @@ export const fixtureEntries = (n: number, seeded: boolean): Entry[] =>
     leftAt: null,
   }));
 
-export const fixtureTournament = (over: Partial<Tournament> = {}): Tournament => ({
+export const fixtureTournament = (
+  over: Partial<Tournament> = {},
+): Tournament => ({
   id: "t-fixture",
   slug: "autumn-skirmish",
   name: "Autumn Skirmish #3",
@@ -65,7 +84,11 @@ export const fixtureTournament = (over: Partial<Tournament> = {}): Tournament =>
   ...over,
 });
 
-const game = (m: Match, winnerEntry: string | null, opts: Partial<Game> = {}): Game => ({
+const game = (
+  m: Match,
+  winnerEntry: string | null,
+  opts: Partial<Game> = {},
+): Game => ({
   gameIndex: m.games.length,
   roomId: `room-${m.id}-${m.games.length}`,
   gameId: winnerEntry ? `${10500 + m.round * 10 + m.position}` : null,
@@ -109,7 +132,8 @@ export const fixtureBracket = (
         matchup: assignment(rule, 0),
         games: [],
       });
-  const at = (r: number, p: number) => matches.find((m) => m.round === r && m.position === p)!;
+  const at = (r: number, p: number) =>
+    matches.find((m) => m.round === r && m.position === p)!;
   const open = (m: Match) => {
     if (m.slotA && m.slotB && m.status === "pending") {
       m.status = "open";
@@ -129,7 +153,8 @@ export const fixtureBracket = (
     m.status = "decided";
     m.decidedBy = by;
     m.inPlay = false;
-    if (by === "result" || by === "unverified_confirmed") m.games.push(game(m, m.winner));
+    if (by === "result" || by === "unverified_confirmed")
+      m.games.push(game(m, m.winner));
     advance(m);
   };
 
@@ -142,7 +167,8 @@ export const fixtureBracket = (
     open(m);
   }
   for (const m of matches.filter((x) => x.round === 1))
-    if (!(m.slotA && m.slotB) && (m.slotA || m.slotB)) decide(m, m.slotA ? "a" : "b", "bye");
+    if (!(m.slotA && m.slotB) && (m.slotA || m.slotB))
+      decide(m, m.slotA ? "a" : "b", "bye");
 
   return {
     entries,
@@ -157,7 +183,12 @@ export const fixtureBracket = (
     },
     /** A finished game played outside the match's room, not yet confirmed. */
     unverified: (m: Match, side: "a" | "b") => {
-      m.games.push(game(m, side === "a" ? m.slotA : m.slotB, { source: "untagged", verified: false }));
+      m.games.push(
+        game(m, side === "a" ? m.slotA : m.slotB, {
+          source: "untagged",
+          verified: false,
+        }),
+      );
     },
     setMatchup: (m: Match, r: MatchupRule) => {
       m.matchupRule = r;
@@ -180,7 +211,13 @@ export const fixtureComplete4 = (): FixturePayload => {
   b.decide(b.at(1, 1), "b", "deadline_higher_seed");
   b.decide(b.at(2, 0), "a", "result");
   return {
-    tournament: fixtureTournament({ slug: "fixture-4", name: "Tuesday Quickfire", size: 4, entryCount: 4, status: "complete" }),
+    tournament: fixtureTournament({
+      slug: "fixture-4",
+      name: "Tuesday Quickfire",
+      size: 4,
+      entryCount: 4,
+      status: "complete",
+    }),
     entries: b.entries,
     matches: b.matches,
   };
@@ -191,15 +228,27 @@ export const fixtureComplete4 = (): FixturePayload => {
  * deadline rule 1, unverified, played result, in play now, ready, waiting.
  */
 export const fixtureRunning8 = (): FixturePayload => {
-  const rule: MatchupRule = { mode: "map", map: { kind: "catalog", id: "weathertop" } };
+  const rule: MatchupRule = {
+    mode: "map",
+    map: { kind: "catalog", id: "weathertop" },
+  };
   const b = fixtureBracket(8, 6, rule);
   // QF1 (1 v bye) and QF3 (2 v bye) are byes.
   b.unverified(b.at(1, 1), "b"); // QF2 4 v 5
-  b.setMatchup(b.at(1, 3), { mode: "fixed", heroes: { a: "kenshiro", b: "boba-fett" }, map: { kind: "catalog", id: "weathertop" } });
+  b.setMatchup(b.at(1, 3), {
+    mode: "fixed",
+    heroes: { a: "kenshiro", b: "boba-fett" },
+    map: { kind: "catalog", id: "weathertop" },
+  });
   b.decide(b.at(1, 3), "a", "result"); // QF4 3 v 6
   b.play(b.at(2, 1)); // SF2 2 v 3
   return {
-    tournament: fixtureTournament({ slug: "fixture-8", entryCount: 6, matchupRule: rule, settings: { matchupSetBy: "organizer" } }),
+    tournament: fixtureTournament({
+      slug: "fixture-8",
+      entryCount: 6,
+      matchupRule: rule,
+      settings: { matchupSetBy: "organizer" },
+    }),
     entries: b.entries,
     matches: b.matches,
   };
@@ -210,14 +259,22 @@ export const fixtureRunning16 = (): FixturePayload => {
   const b = fixtureBracket(16, 13);
   const r1 = (p: number) => b.at(1, p);
   // positions with two players: those whose pair has seeds ≤ 11.
-  const real = [0, 1, 2, 3, 4, 5, 6, 7].filter((p) => r1(p).decidedBy !== "bye");
+  const real = [0, 1, 2, 3, 4, 5, 6, 7].filter(
+    (p) => r1(p).decidedBy !== "bye",
+  );
   b.decide(r1(real[0]), "a", "deadline_ready_check");
   b.decide(r1(real[1]), "b", "result");
   b.play(r1(real[2]));
   b.decide(r1(real[3]), "a", "organizer");
   b.decide(b.at(2, 0), "a", "result");
   return {
-    tournament: fixtureTournament({ slug: "fixture-16", name: "Serious Bracket", size: 16, entryCount: 13, matchWindowHours: 168 }),
+    tournament: fixtureTournament({
+      slug: "fixture-16",
+      name: "Serious Bracket",
+      size: 16,
+      entryCount: 13,
+      matchWindowHours: 168,
+    }),
     entries: b.entries,
     matches: b.matches,
   };
@@ -336,6 +393,45 @@ export const MATCH_FIXTURE_STATES: MatchPageState[] = [
   "decided",
   "decided_by_rule",
 ];
+
+/** Every queue item type, against `fixture-8` (screenshots + tests). */
+export const FIXTURE_ATTENTION: Record<string, AttentionItem[]> = {
+  "fixture-8": [
+    {
+      kind: "unverified_game",
+      matchId: "m1-1",
+      round: 1,
+      position: 1,
+      gameIndex: 0,
+      winnerEntry: "e5",
+    },
+    {
+      kind: "awaiting_organizer",
+      matchId: "m1-1",
+      round: 1,
+      position: 1,
+      deadlineAt: "2026-10-04T18:00:00Z",
+      until: "2026-10-06T06:00:00Z",
+    },
+    {
+      kind: "deadline_passed",
+      matchId: "m1-3",
+      round: 1,
+      position: 3,
+      deadlineAt: "2026-10-05T09:00:00Z",
+      winner: "e3",
+      decidedBy: "deadline_ready_check",
+    },
+    {
+      kind: "entrant_left",
+      matchId: "m2-1",
+      round: 2,
+      position: 1,
+      entryId: "e3",
+    },
+    { kind: "no_matchup", matchId: "m2-1", round: 2, position: 1 },
+  ],
+};
 
 export const FIXTURES: Record<string, () => FixturePayload> = {
   "fixture-4": fixtureComplete4,
