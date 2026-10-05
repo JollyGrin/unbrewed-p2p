@@ -4,7 +4,7 @@
   "deck_data": {
     "appearance": {
       "borderColour": "#2e3d26",
-      "cardbackUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/cardback.webp",
+      "cardbackUrl": "/evergreen-decks/art/piper-spice/cardback.webp",
       "highlightColour": "#b06f2e",
       "isPNP": false,
       "patternName": "Topography"
@@ -16,12 +16,15 @@
         "boost": 4,
         "characterName": "PIPER",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/rh-01.webp",
+        "imageUrl": "/evergreen-decks/art/piper-spice/a-killing-note.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "A Killing Note",
         "type": "attack",
-        "value": 5
+        "value": 5,
+        "cardImage": {
+          "url": "/evergreen-decks/art/piper-spice/a-killing-note.webp"
+        }
       },
       {
         "afterText": "Draw 1 card for each damage dealt to the opposing fighter. If you won the combat, deal 1 damage to each opposing fighter adjacent to your fighter.",
@@ -29,12 +32,15 @@
         "boost": 3,
         "characterName": "PIPER",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/rh-02.webp",
+        "imageUrl": "/evergreen-decks/art/piper-spice/swarm-the-fallen.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "Swarm the Fallen",
         "type": "attack",
-        "value": 4
+        "value": 4,
+        "cardImage": {
+          "url": "/evergreen-decks/art/piper-spice/swarm-the-fallen.webp"
+        }
       },
       {
         "afterText": "Draw 2 cards. If you won the combat and the opposing fighter is within your range, deal 1 damage to it.",
@@ -42,12 +48,15 @@
         "boost": 3,
         "characterName": "PIPER",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/rh-03.webp",
+        "imageUrl": "/evergreen-decks/art/piper-spice/a-piercing-reprise.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "A Piercing Reprise",
         "type": "attack",
-        "value": 2
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/piper-spice/a-piercing-reprise.webp"
+        }
       },
       {
         "afterText": "",
@@ -55,12 +64,15 @@
         "boost": 3,
         "characterName": "ANY",
         "duringText": "Your opponent discards 1 random card. Add that card's BOOST value to this card's value.",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/rh-04.webp",
+        "imageUrl": "/evergreen-decks/art/piper-spice/out-of-the-culverts.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "Out of the Culverts",
         "type": "attack",
-        "value": 2
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/piper-spice/out-of-the-culverts.webp"
+        }
       },
       {
         "afterText": "",
@@ -68,12 +80,15 @@
         "boost": 3,
         "characterName": "PIPER",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/rh-05.webp",
+        "imageUrl": "/evergreen-decks/art/piper-spice/tribute-of-teeth.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Tribute of Teeth",
         "type": "scheme",
-        "value": null
+        "value": null,
+        "cardImage": {
+          "url": "/evergreen-decks/art/piper-spice/tribute-of-teeth.webp"
+        }
       },
       {
         "afterText": "Draw 2 cards. Return a defeated Vermin Chorus rat (if any) to any space in the Piper's zone. If you won the combat, deal 1 damage to each opposing fighter adjacent to your fighter.",
@@ -81,12 +96,15 @@
         "boost": 2,
         "characterName": "ANY",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/rh-06.webp",
+        "imageUrl": "/evergreen-decks/art/piper-spice/gnawed-to-the-bone.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "Gnawed to the Bone",
         "type": "defence",
-        "value": 3
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/piper-spice/gnawed-to-the-bone.webp"
+        }
       },
       {
         "afterText": "",
@@ -94,12 +112,15 @@
         "boost": 2,
         "characterName": "VERMIN",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/rh-07.webp",
+        "imageUrl": "/evergreen-decks/art/piper-spice/a-thousand-teeth.webp",
         "immediateText": "Cancel all effects on your opponent's card and ignore its defense value.",
         "quantity": 4,
         "title": "A Thousand Teeth",
         "type": "attack",
-        "value": 2
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/piper-spice/a-thousand-teeth.webp"
+        }
       },
       {
         "afterText": "If your fighter is adjacent to the opposing fighter, draw 1 card.",
@@ -107,12 +128,15 @@
         "boost": 1,
         "characterName": "ANY",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/rh-08.webp",
+        "imageUrl": "/evergreen-decks/art/piper-spice/snark.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Snark",
         "type": "versatile",
-        "value": 3
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/piper-spice/snark.webp"
+        }
       },
       {
         "afterText": "Deal 1 damage to each opposing fighter adjacent to your fighter.",
@@ -120,12 +144,15 @@
         "boost": 1,
         "characterName": "ANY",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/rh-09.webp",
+        "imageUrl": "/evergreen-decks/art/piper-spice/wily-fighting.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Wily Fighting",
         "type": "versatile",
-        "value": 3
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/piper-spice/wily-fighting.webp"
+        }
       },
       {
         "afterText": "",
@@ -133,12 +160,15 @@
         "boost": 2,
         "characterName": "ANY",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/rh-10.webp",
+        "imageUrl": "/evergreen-decks/art/piper-spice/feint.webp",
         "immediateText": "Cancel all effects on your opponent's card.",
         "quantity": 3,
         "title": "Feint",
         "type": "versatile",
-        "value": 2
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/piper-spice/feint.webp"
+        }
       },
       {
         "afterText": "Draw 1 card. If you won the combat, draw 2 cards instead.",
@@ -146,12 +176,15 @@
         "boost": 2,
         "characterName": "ANY",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/rh-11.webp",
+        "imageUrl": "/evergreen-decks/art/piper-spice/regroup.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Regroup",
         "type": "versatile",
-        "value": 1
+        "value": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/piper-spice/regroup.webp"
+        }
       }
     ],
     "extraCharacters": [],
@@ -162,7 +195,7 @@
       "name": "The Piper of the Underroads",
       "specialAbility": "INTO THE UNDERROADS\nAfter you attack, you may move your attacking fighter up to 2 spaces.",
       "quote": "A sly piper of the flooded ways beneath the city, striking from the dark and slipping back into the pipes while his rat chorus screens him — hit, steal, and vanish.",
-      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/token-piper.webp"
+      "tokenImageUrl": "/evergreen-decks/art/piper/token-piper.webp"
     },
     "name": "The Piper of the Underroads",
     "ruleCards": [],
@@ -172,7 +205,7 @@
       "name": "The Vermin Chorus",
       "quantity": 4,
       "quote": "A swarm of sewer rats that moves as one body — expendable, endless, and always coming back.",
-      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/piper/token-chorus.webp"
+      "tokenImageUrl": "/evergreen-decks/art/piper/token-chorus.webp"
     }
   },
   "deck_first_published_on": null,

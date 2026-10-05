@@ -468,15 +468,15 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
   },
   {
     // Spice remix of The Piper of the Underroads (display name shared) — server
-    // hero piper-of-the-underroads-spice. Reuses Piper's cardback and per-card
-    // art until dedicated spice art lands.
+    // hero piper-of-the-underroads-spice. Dedicated full-card art + cardback live
+    // under art/piper-spice/.
     id: "piper-spice",
     name: "The Piper of the Underroads",
     hero: "The Piper of the Underroads",
     author: "unbrewed",
     likes: 0,
     highlightColour: "#b06f2e",
-    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/piper/cardback.webp",
+    cardbackUrl: "/evergreen-decks/art/piper-spice/cardback.webp",
     original: true,
   },
   {
