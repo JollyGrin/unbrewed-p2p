@@ -52,6 +52,14 @@ export const cancelConsequence = (kind: CancelKind, players: number): string =>
       ? `Cancel this tournament? Signup closes for good${players > 0 ? ` and the ${players} player${players === 1 ? "" : "s"} who joined lose their seat` : ""}. This can't be undone.`
       : "Cancel this running tournament? Matches still to play are called off and no champion is named. This can't be undone.";
 
+/**
+ * Slugs whose draft this browser session just deleted (L2-5). The api exposes nothing that tells a
+ * deleted draft from a cancelled signup event, so "draft deleted" is only said right after the click.
+ */
+const deletedDrafts = new Set<string>();
+export const markDraftDeleted = (slug: string): void => void deletedDrafts.add(slug);
+export const wasDraftDeleted = (slug: string): boolean => deletedDrafts.has(slug);
+
 export const cancelLabel = (kind: CancelKind): string => (kind === "draft" ? "Delete draft" : "Cancel tournament");
 
 export interface EditFormState {

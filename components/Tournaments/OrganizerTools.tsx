@@ -217,7 +217,7 @@ export const OverrideForm = ({
                   </>
                 ) : (
                   <>
-                    <Btn variant="gold" onClick={() => { setTickets(null); onDone(); }}>Wait</Btn>
+                    <Btn variant="gold" onClick={() => { setTickets(null); onDone(); }}>Wait and retry later</Btn>
                     <Btn variant="ghost" onClick={() => setForcing(true)}>Force change</Btn>
                   </>
                 )}

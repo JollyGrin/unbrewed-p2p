@@ -20,6 +20,7 @@ import {
   editFormOf,
   editWithShape,
   editPatch,
+  markDraftDeleted,
   signupCloseText,
   toLocalInput,
   underFilledClosed,
@@ -219,7 +220,7 @@ export const LifecyclePanel = ({
         <Box mt="14px" p="12px" borderRadius="8px" bg="rgba(179,38,30,0.08)" data-testid="cancel-confirm">
           <Text fontSize="14px">{cancelConsequence(kind, players)}</Text>
           <Flex gap="8px" mt="8px" flexWrap="wrap">
-            <Btn variant="gold" disabled={busy} onClick={() => void send({ status: "cancelled" }, onCancelled)}>
+            <Btn variant="gold" disabled={busy} onClick={() => void send({ status: "cancelled" }, () => { if (kind === "draft") markDraftDeleted(t.slug); onCancelled?.(); })}>
               {busy ? "Working…" : kind === "draft" ? "Yes, delete it" : "Yes, cancel it"}
             </Btn>
             <Btn variant="ghost" disabled={busy} onClick={() => setPanel(null)}>Keep it</Btn>

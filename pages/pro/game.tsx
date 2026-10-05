@@ -6112,13 +6112,14 @@ const LiveGame = ({
               public toggle (the engine refuses SET_VISIBILITY on it). */}
           {tournamentRoom && (
             <Flex direction="column" alignItems="center" gap="0.5rem" data-testid="tournament-waiting">
-              <MatchDecidedBanner at={tournamentRoom} />
-              <Tag px="0.75rem" py="0.4rem" fontFamily="SpaceGrotesk" letterSpacing="0.04em" bg="brand.accent" color="brand.surfaceDim">
-                🏆 Tournament match · your seat is held for 15 minutes
-              </Tag>
-              <Text opacity={0.8} textAlign="center" maxW="30rem">
-                Your opponent joins from the match page. Keep this tab open.
-              </Text>
+              <MatchDecidedBanner at={tournamentRoom}>
+                <Tag px="0.75rem" py="0.4rem" fontFamily="SpaceGrotesk" letterSpacing="0.04em" bg="brand.accent" color="brand.surfaceDim">
+                  🏆 Tournament match · your seat is held for 15 minutes
+                </Tag>
+                <Text opacity={0.8} textAlign="center" maxW="30rem">
+                  Your opponent joins from the match page. Keep this tab open.
+                </Text>
+              </MatchDecidedBanner>
               <Link href={tournamentMatchHref(tournamentRoom)} color="brand.accent">
                 Back to the match page
               </Link>
@@ -7549,8 +7550,8 @@ const LiveGame = ({
       }}
     >
     <CardPreviewProvider>
-    <Box h="100svh" overflow="hidden" bg={TABLE_BG} position="relative">
-      <MatchDecidedBanner at={tournamentRoom} />
+    <MatchDecidedBanner at={tournamentRoom} strip />
+    <Box h="calc(100svh - var(--match-banner-h, 0px))" overflow="hidden" bg={TABLE_BG} position="relative">
       {/* Playtesting a custom board (this player created it): a near-invisible
           link to submit it to unbrewed. Covers the AI case, where the pre-game
           waiting screen — which also offers this — is never shown. */}

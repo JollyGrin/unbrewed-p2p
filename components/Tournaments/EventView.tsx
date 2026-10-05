@@ -18,7 +18,7 @@ import {
 } from "@/lib/tournaments/share";
 import type { Entry, Tournament } from "@/lib/tournaments/types";
 import { statusChip } from "@/lib/tournaments/browse";
-import { signupCloseText } from "@/lib/tournaments/lifecycle";
+import { signupCloseText, wasDraftDeleted } from "@/lib/tournaments/lifecycle";
 import { BracketEventView } from "./BracketEventView";
 import { RoundRobinEventView } from "./RoundRobinEventView";
 import { LifecyclePanel } from "./LifecyclePanel";
@@ -231,7 +231,7 @@ export const EventView = ({ slug, justCreated }: { slug: string; justCreated: bo
   const seeding = isOrganizer && t.status === "signup";
   const draft = t.status === "draft";
   const cancelled = t.status === "cancelled";
-  const deletedDraft = cancelled && entries.length === 0 && matches.length === 0;
+  const deletedDraft = cancelled && entries.length === 0 && matches.length === 0 && wasDraftDeleted(t.slug);
   const sharing = justCreated && isOrganizer && t.status === "signup";
   const chip = deletedDraft ? { tone: "plain" as const, label: "Draft deleted" } : statusChip(t);
   const mapName = (r: Parameters<typeof mapTitle>[0]) => mapTitle(r);

@@ -44,6 +44,7 @@ import {
   mySide,
   nextMatchTitle,
   organizerCutoff,
+  overriddenGame,
   playerName,
   readyCheckLine,
   score,
@@ -210,7 +211,7 @@ export const MatchBody = ({
         <>
           One game decides it
           {m.opensAt ? ` · window opened ${dateTime(m.opensAt)}` : ""}
-          {m.deadlineAt ? ` · closes ${dateTime(m.deadlineAt)}` : ""}
+          {cancelled ? " · Cancelled" : m.deadlineAt ? ` · closes ${dateTime(m.deadlineAt)}` : ""}
         </>
       }
     >
@@ -252,7 +253,7 @@ export const MatchBody = ({
             </Flex>
           )}
           <MatchupPanel d={d} t={t} side={side} onReplay={replayGame ? () => setWatching(replayGame) : null} />
-          <GamesList d={d} rows={rows} state={state} onReplay={setWatching} />
+          {state !== "cancelled" && <GamesList d={d} rows={rows} state={state} onReplay={setWatching} />}
           {lateNote && (
             <Text px={{ base: "14px", md: "22px" }} pb="16px" fontSize="13px" color={INK_MUTED} overflowWrap="anywhere" data-testid="late-game-note">
               {LATE_GAME_NOTE}
@@ -282,7 +283,7 @@ export const MatchBody = ({
             state !== "decided" && state !== "cancelled" && <RulesCard d={d} state={state} group={group} />
           )}
           <ReadyChecksCard d={d} myUserId={myUserId} hideReady={cancelled} />
-          {next && (
+          {next && state !== "cancelled" && (
             <Card p="18px">
               <Text fontWeight={700} fontSize="15px" mb="8px">Winner goes to</Text>
               <Flex gap="8px" align="center" fontSize="14px" flexWrap="wrap">
@@ -768,7 +769,7 @@ const MatchupPanel = ({ d, t, side, onReplay }: { d: MatchDetail; t: Tournament 
         </Flex>
       </Box>
       <Box as="td" px={{ base: "10px", md: "16px" }} py="10px" borderTop={RULE} fontWeight={hero ? 700 : 400} color={hero ? INK : INK_MUTED} fontSize="14px">
-        {hero ?? (unrecorded ? "—" : played ? "" : "Player's choice")}
+        {hero ?? (unrecorded || cancelled ? "—" : played ? "" : "Player's choice")}
       </Box>
     </Box>
   );
@@ -782,7 +783,7 @@ const MatchupPanel = ({ d, t, side, onReplay }: { d: MatchDetail; t: Tournament 
         <Box w="86px" h="56px" borderRadius="8px" flexShrink={0} bg={TRACK} bgImage={thumb ? `url(${thumb})` : undefined} bgSize="cover" bgPos="center" boxShadow="inset 0 0 0 1px rgba(72,40,79,0.15)" />
         {unrecorded ? (
           <Box data-testid="matchup-unrecorded">
-            <Text fontWeight={700}>{played && onReplay ? "Heroes and board: see the replay" : hasLateGame(m) ? LATE_GAME_NOTE : "No game was played"}</Text>
+            <Text fontWeight={700}>{played && onReplay ? "Heroes and board: see the replay" : hasLateGame(m) ? LATE_GAME_NOTE : m.games.some((g) => overriddenGame(m, g)) ? "Decided by the organizer (the game's result was overridden)" : "No game was played"}</Text>
             {played && onReplay && (
               <Box as="button" type="button" onClick={onReplay} fontSize="13px" fontWeight={700} textDecoration="underline" data-testid="matchup-replay-link">
                 ▶ Watch the replay
@@ -855,7 +856,7 @@ const GamesList = ({
         <GameLine
           key={r.game.gameIndex}
           // "In play now" shows no game number (settled rule 8).
-          gn={r.state === "in_play" ? "—" : r.state === "won" ? "✓" : r.state === "rejected" || r.state === "after_decision" ? "✕" : String(r.n)}
+          gn={r.state === "in_play" ? "—" : r.state === "won" ? "✓" : r.state === "rejected" || r.state === "after_decision" || r.state === "overridden" ? "✕" : String(r.n)}
           pending={r.state === "in_play"}
           meta={
             r.state === "in_play"
@@ -896,7 +897,7 @@ const GamesList = ({
             <>Result rejected by the organizer · not counted</>
           ) : (
             <>
-              <Text as="span" fontWeight={700}>{r.winnerName ?? "Unknown"}</Text> won{r.heroes ? ` · ${r.heroes}` : ""}
+              <Text as="span" fontWeight={700}>{r.winnerName ?? "Unknown"}</Text> won{r.state === "overridden" ? " (not counted: overridden)" : ""}{r.heroes ? ` · ${r.heroes}` : ""}
               {r.game.source === "untagged" ? " · played outside the match room" : ""}
             </>
           )}
@@ -944,7 +945,8 @@ const DeadlineCard = ({ d, t, state, now }: { d: MatchDetail; t: Tournament | nu
   const m = d.match;
   const parts = deadlineParts(m.deadlineAt, now);
   const decided = state === "decided" || state === "decided_by_rule" || state === "cancelled";
-  const finished = m.games.at(-1)?.finishedAt ?? null;
+  // An organizer decision is dated by the decision itself, not by the last game (L2-3).
+  const finished = (m.decidedBy === "organizer" ? d.decision?.at : null) ?? m.games.at(-1)?.finishedAt ?? null;
   const unit = (n: number, u: string) => (
     <>
       {n}
