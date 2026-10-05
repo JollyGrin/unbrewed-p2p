@@ -14,6 +14,7 @@ import { WINDOW_LABEL, formatLabel, formatWhen, tournamentPath } from "@/lib/tou
 import type { Entry, Match, Tournament } from "@/lib/tournaments/types";
 
 import { Avatar, Bracket } from "./Bracket";
+import { AttentionQueue } from "./OrganizerTools";
 import { Card, Chip, Page } from "./ui";
 
 const Stat = ({ value, of, label, live }: { value: number; of?: number; label: string; live?: boolean }) => (
@@ -30,10 +31,14 @@ export const BracketEventView = ({
   t,
   entries,
   matches,
+  isOrganizer = false,
+  reload = () => {},
 }: {
   t: Tournament;
   entries: Entry[];
   matches: Match[];
+  isOrganizer?: boolean;
+  reload?: () => void;
 }) => {
   const view = useMemo(() => buildBracket(t, entries, matches), [t, entries, matches]);
   const rows = useMemo(() => entrantRows(t.size, entries, matches), [t.size, entries, matches]);
@@ -80,6 +85,7 @@ export const BracketEventView = ({
         </Flex>
       }
     >
+      {isOrganizer && <AttentionQueue t={t} entries={entries} matches={matches} reload={reload} />}
       <Bracket view={view} />
       <Card p="20px" mt="20px" data-testid="entrants">
         <Text fontWeight={700} mb="10px">Entrants</Text>

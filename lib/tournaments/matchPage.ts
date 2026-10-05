@@ -162,7 +162,7 @@ export interface GameRow {
   game: Game;
   /** 1-based, as players count. */
   n: number;
-  state: "in_play" | "won" | "unverified";
+  state: "in_play" | "won" | "unverified" | "rejected";
   winnerName: string | null;
   heroes: string | null;
 }
@@ -176,7 +176,7 @@ export const gameRows = (d: MatchDetail): GameRow[] =>
     return {
       game: g,
       n: g.gameIndex + 1,
-      state: !g.finishedAt ? "in_play" : g.verified ? "won" : "unverified",
+      state: g.rejectedAt ? "rejected" : !g.finishedAt ? "in_play" : g.verified ? "won" : "unverified",
       winnerName: winner ? playerName(winner) : null,
       heroes: mu.heroA && mu.heroB ? `${mu.heroA} vs ${mu.heroB}` : null,
     };
@@ -192,7 +192,7 @@ export const gameLength = (g: Game): string | null => {
 /** Games won per side — the score a decided match shows ("1–0"). */
 export const score = (d: MatchDetail): { a: number; b: number } => {
   const won = (entry: string | null) =>
-    entry ? d.match.games.filter((g) => g.finishedAt && g.winnerEntry === entry).length : 0;
+    entry ? d.match.games.filter((g) => g.finishedAt && !g.rejectedAt && g.winnerEntry === entry).length : 0;
   return { a: won(d.match.slotA), b: won(d.match.slotB) };
 };
 

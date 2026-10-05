@@ -17,6 +17,7 @@ import { catalogEntry } from "@/lib/pro/mapCatalog";
 import { getToken } from "@/lib/pro/recentRooms";
 import { matchHref } from "@/lib/tournaments/bracket";
 import { useMatchDetail, useNow, useTournament } from "@/lib/tournaments/hooks";
+import { isOrganizerOf } from "@/lib/tournaments/organizer";
 import {
   clock,
   dateTime,
@@ -41,10 +42,11 @@ import {
   type MatchPageState,
 } from "@/lib/tournaments/matchPage";
 import { tournamentPath } from "@/lib/tournaments/share";
-import type { Game, MatchDetail, MatchPlayer, Tournament } from "@/lib/tournaments/types";
+import type { Entry, Game, MatchDetail, MatchPlayer, Tournament } from "@/lib/tournaments/types";
 import { usePlayMatch, type PlayPhase } from "@/lib/tournaments/usePlayMatch";
 
 import { Avatar } from "./Bracket";
+import { MatchOrganizerPanel } from "./OrganizerTools";
 import { Btn, Card, Chip, Notice, Page } from "./ui";
 
 const MatchReplay = dynamic(() => import("./MatchReplay").then((m) => m.MatchReplay), { ssr: false });
@@ -78,7 +80,7 @@ export const seatHref = (roomId: string | null): string | null =>
 export const MatchView = ({ slug, matchId }: { slug: string; matchId: string }) => {
   const { status, account } = useAccount();
   const [detail, reload] = useMatchDetail(slug, matchId);
-  const [event] = useTournament(slug);
+  const [event, reloadEvent] = useTournament(slug);
   const now = useNow();
   const play = usePlayMatch(slug, matchId, reload);
   const myUserId = status === "signed-in" && account ? account.id : null;
@@ -113,6 +115,17 @@ export const MatchView = ({ slug, matchId }: { slug: string; matchId: string }) 
       phase={play.phase}
       onPlay={play.play}
       crumbs={crumbs}
+      organizer={
+        event.status === "ready" && isOrganizerOf(event.value.tournament, myUserId)
+          ? {
+              entries: event.value.entries,
+              reload: () => {
+                reload();
+                reloadEvent();
+              },
+            }
+          : undefined
+      }
     />
   );
 };
@@ -129,6 +142,7 @@ export const MatchBody = ({
   phase,
   onPlay,
   crumbs,
+  organizer,
 }: {
   d: MatchDetail;
   /** The full tournament (size, organizer, latest possible final), once loaded. */
@@ -139,6 +153,8 @@ export const MatchBody = ({
   phase: PlayPhase;
   onPlay: () => void;
   crumbs?: (here: string) => React.ReactNode;
+  /** Only passed for the tournament's organizer (MatchView gates it): set matchup / override (#1219). */
+  organizer?: { entries: Entry[]; reload: () => void };
 }) => {
   const [watching, setWatching] = useState<Game | null>(null);
   const m = d.match;
@@ -217,6 +233,9 @@ export const MatchBody = ({
         </Card>
 
         <Flex flexDir="column" gap="16px">
+          {organizer && (
+            <MatchOrganizerPanel slug={d.tournament.slug} match={m} entries={organizer.entries} reload={organizer.reload} />
+          )}
           <DeadlineCard d={d} t={t} state={state} now={now} />
           <RulesCard d={d} state={state} />
           <ReadyChecksCard d={d} myUserId={myUserId} />
@@ -718,7 +737,7 @@ const GamesList = ({
         <GameLine
           key={r.game.gameIndex}
           // "In play now" shows no game number (settled rule 8).
-          gn={r.state === "in_play" ? "—" : r.state === "won" ? "✓" : String(r.n)}
+          gn={r.state === "in_play" ? "—" : r.state === "won" ? "✓" : r.state === "rejected" ? "✕" : String(r.n)}
           pending={r.state === "in_play"}
           meta={
             r.state === "in_play"
@@ -726,7 +745,7 @@ const GamesList = ({
               : [shortDate(r.game.finishedAt), gameLength(r.game), r.game.gameId ? `#${r.game.gameId}` : null].filter(Boolean).join(" · ")
           }
           trail={
-            r.game.replayAvailable ? (
+            r.state !== "rejected" && r.game.replayAvailable ? (
               <Box
                 as="button"
                 type="button"
@@ -753,6 +772,8 @@ const GamesList = ({
               <Text as="span" color={DANGER_INK} fontWeight={700}>● In play now</Text>
               {r.heroes ? ` · ${r.heroes}` : ""}
             </>
+          ) : r.state === "rejected" ? (
+            <>Result rejected by the organizer · not counted</>
           ) : (
             <>
               <Text as="span" fontWeight={700}>{r.winnerName ?? "Unknown"}</Text> won{r.heroes ? ` · ${r.heroes}` : ""}

@@ -94,6 +94,8 @@ export interface Game {
   winnerEntry: string | null;
   source: "tagged" | "untagged";
   verified: boolean;
+  /** Set when the organizer rejected this unverified result: never a win, never a result. */
+  rejectedAt?: string | null;
   assignment: Assignment;
   /**
    * The api's replay route lands at the end of the epic (#1196): until it says

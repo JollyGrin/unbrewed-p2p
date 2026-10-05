@@ -11,6 +11,9 @@
  * `--as=u2` answers as that fixture user instead (u2 = hokuto_shin, the match
  * page's "you"). Writes (seeds, start) answer 200 and change nothing.
  *
+ * `/attention` serves FIXTURE_ATTENTION (fixture-8) to the organizer; override / matchup /
+ * confirm answer 200 and change nothing.
+ *
  * Match page (#1218): `/tournaments?t=fixture-match-<state>&m=m2-1`, one slug
  * per state — waiting, opponent-ready, you-ready, in-play, decided,
  * decided-by-rule. `POST …/ready` and `GET …/ticket` grant a dummy ticket
@@ -18,7 +21,7 @@
  */
 import { createServer } from "node:http";
 
-import { FIXTURES, FIXTURE_ORGANIZER, fixtureEntries, fixtureMatch, MATCH_FIXTURE_STATES } from "../../lib/tournaments/fixtures";
+import { FIXTURES, FIXTURE_ATTENTION, FIXTURE_ORGANIZER, fixtureEntries, fixtureMatch, MATCH_FIXTURE_STATES } from "../../lib/tournaments/fixtures";
 
 const port = Number(process.argv.find((a) => /^\d+$/.test(a)) ?? 8799);
 const asUser = process.argv.find((a) => a.startsWith("--as="))?.slice(5) ?? (process.argv.includes("--signed-in") ? FIXTURE_ORGANIZER.userId : null);
@@ -52,6 +55,11 @@ createServer((req, res) => {
   const slug = m ? decodeURIComponent(m[1]) : "";
   const fixture = m && FIXTURES[slug];
   if (!fixture) return send(404, { error: "not_found" });
+  const rest0 = m![2] ?? "";
+  if (rest0 === "/attention")
+    return me?.userId === FIXTURE_ORGANIZER.userId
+      ? send(200, { items: FIXTURE_ATTENTION[slug] ?? [] })
+      : send(me ? 403 : 401, { error: me ? "forbidden" : "unauthorized" });
   const payload = matchFixture(slug) ?? fixture();
   const rest = m[2] ?? "";
   const mm = rest.match(/^\/matches\/([^/]+)(\/ready|\/ticket)?$/);

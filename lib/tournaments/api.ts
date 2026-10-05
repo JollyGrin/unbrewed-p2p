@@ -11,6 +11,7 @@ import type {
   Match,
   MatchDetail,
   TicketGrant,
+  MatchupRule,
   Tournament,
 } from "./types";
 
@@ -176,3 +177,79 @@ export const getMatchTicket = (slug: string, matchId: string) =>
  */
 export const getGameReplay = (slug: string, matchId: string, gameIndex: number) =>
   call(`${matchPath(slug, matchId)}/games/${gameIndex}/replay`, undefined, (b) => (b?.bundle ?? b?.replay?.bundle ?? null) as unknown);
+/** Organizer: one item of the "Needs your attention" queue (`GET …/attention`). */
+export type AttentionItem = {
+  matchId: string;
+  round: number;
+  position: number;
+} & (
+  | { kind: "awaiting_organizer"; deadlineAt: string; until: string }
+  | {
+      kind: "deadline_passed";
+      deadlineAt: string;
+      winner: string | null;
+      decidedBy: string | null;
+    }
+  | { kind: "unverified_game"; gameIndex: number; winnerEntry: string | null }
+  | { kind: "entrant_left"; entryId: string }
+  | { kind: "no_matchup" }
+);
+
+export const getAttention = (slug: string) =>
+  call(
+    `/tournaments/${encodeURIComponent(slug)}/attention`,
+    undefined,
+    (b) => list(b?.items) as AttentionItem[],
+  );
+
+/** Organizer: confirm an unverified, finished game (one click). */
+export const confirmGame = (slug: string, matchId: string, gameIndex: number) =>
+  call(
+    `${matchPath(slug, matchId)}/games/${gameIndex}/confirm`,
+    { method: "POST" },
+    (b) => b,
+  );
+
+/**
+ * Organizer: decide a match. To re-decide an already-decided match pass
+ * `replacesWinner` = the current winner (api #73), else 409 match_already_decided.
+ */
+export const overrideMatch = (
+  slug: string,
+  matchId: string,
+  body: { winnerEntry: string; note?: string; replacesWinner?: string },
+) =>
+  call(
+    `${matchPath(slug, matchId)}/override`,
+    { method: "POST", body: JSON.stringify(body) },
+    (b) => b,
+  );
+
+/**
+ * Organizer: reject an unverified, finished game ("Not valid", api #75). The
+ * game row stays with `rejectedAt` set; nothing is decided. A verified game
+ * answers 409 already_verified (re-decide with override + replacesWinner).
+ */
+export const rejectGame = (
+  slug: string,
+  matchId: string,
+  gameIndex: number,
+  note?: string,
+) =>
+  call(
+    `${matchPath(slug, matchId)}/games/${gameIndex}/reject`,
+    { method: "POST", body: JSON.stringify(note?.trim() ? { note: note.trim() } : {}) },
+    (b) => ({ match: b.match as Match, deadline: b.deadline as unknown }),
+  );
+
+/** Organizer: set a match's matchup; `null` clears the override. */
+export const putMatchup = (
+  slug: string,
+  matchId: string,
+  matchupRule: MatchupRule | null,
+) =>
+  call(
+    `${matchPath(slug, matchId)}/matchup`,
+    { method: "PUT", body: JSON.stringify({ matchupRule }) },
+    (b) => b.match as Match,
+  );

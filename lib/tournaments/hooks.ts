@@ -3,7 +3,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   getMatch,
+  getAttention,
   getTournament,
+  type AttentionItem,
   listTournaments,
   type Result,
 } from "./api";
@@ -84,3 +86,9 @@ export const useNow = (ms = 1000): number => {
   }, [ms]);
   return now;
 };
+/** Organizer-only queue; pass `enabled=false` for everyone else (no request). */
+export const useAttention = (slug: string, enabled: boolean) =>
+  useLoad<AttentionItem[]>(
+    enabled ? () => getAttention(slug) : null,
+    enabled ? `attention:${slug}` : "off",
+  );
