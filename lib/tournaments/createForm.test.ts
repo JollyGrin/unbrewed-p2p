@@ -170,3 +170,11 @@ describe("assignment(matchupRule, gameIndex)", () => {
     expect(unsupportedModeMessage("fixed")).toBeNull();
   });
 });
+
+describe("League night preset copy", () => {
+  it("says per match, like the chip", () => {
+    const league = PRESETS.find((x) => x.id === "league")!;
+    expect(league.bullets.join(" ")).toMatch(/1 week per match/);
+    expect(league.bullets.join(" ")).not.toMatch(/per round/);
+  });
+});

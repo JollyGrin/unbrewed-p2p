@@ -29,7 +29,7 @@ import {
   gameLength,
   gameRows,
   heldRoom,
-  lastActive,
+  lastSeen,
   MATCH_STATE_NAME,
   matchPageState,
   matchTitle,
@@ -460,7 +460,7 @@ const Versus = ({ d, state, side, now }: { d: MatchDetail; state: MatchPageState
       };
     if (state === "in_play" || room?.readyEntryId === entry) return { line: "Online now", online: true };
     // Your own last sign-in is just "now": never show it to yourself.
-    const seen = mine ? null : lastActive(p.lastActiveAt, now);
+    const seen = mine ? null : lastSeen(p.lastSeenAt, now);
     return { line: seen?.text ?? (p.seed ? `Seed ${p.seed}` : null), online: !!seen?.online };
   };
   const la = line(d.players.a, m.slotA, side === "a");

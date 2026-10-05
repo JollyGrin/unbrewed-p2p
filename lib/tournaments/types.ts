@@ -159,7 +159,7 @@ export interface Match {
 }
 
 /** A match side on the single-match route: the entry plus when they were last seen. */
-export type MatchPlayer = Entry & { lastActiveAt: string | null };
+export type MatchPlayer = Entry & { lastActiveAt: string | null; lastSeenAt?: string | null };
 
 /** One press of "I'm ready" (15-minute seat hold). */
 export interface ReadyCheck {

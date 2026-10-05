@@ -107,11 +107,45 @@ describe("buildRoundRobin", () => {
     expect(v.standings.every((r) => r.wins === 0 && r.losses === 0)).toBe(true);
   });
 
-  it("notes a tiebreak when a row is level on wins with the one above", () => {
-    const v = view(fixtureRoundRobin6());
-    for (let i = 1; i < v.standings.length; i++) {
-      const same = v.standings[i - 1].wins === v.standings[i].wins;
-      if (!same) expect(v.standings[i].tiebreak).toBeNull();
-    }
+  const withStandings = (p: ReturnType<typeof fixtureRoundRobin4>, rows: Array<[number, number, number, "wins" | "head_to_head" | "seed"]>) =>
+    buildRoundRobin(
+      p.tournament,
+      p.entries,
+      p.matches,
+      rows.map(([seedIdx, wins, played, rankedBy], i) => ({
+        rank: i + 1,
+        entryId: p.entries[seedIdx].id,
+        seed: p.entries[seedIdx].seed,
+        played,
+        wins,
+        losses: played - wins,
+        headToHeadWins: 0,
+        rankedBy,
+      })),
+    );
+
+  it("puts the tiebreak note on the higher row of a tied pair, never on a row that is not tied with the one below", () => {
+    const p = fixtureRoundRobin(4, { slug: "x", name: "x", decidedRounds: 1 });
+    const v = withStandings(p, [[0, 3, 3, "wins"], [1, 2, 3, "head_to_head"], [2, 2, 3, "head_to_head"], [3, 0, 3, "wins"]]);
+    expect(v.standings.map((r) => r.tiebreak)).toEqual([null, "ahead on head-to-head", null, null]);
+  });
+
+  it("3-way cycle tie: the top two rows carry the seed note, the last one nothing", () => {
+    const p = fixtureRoundRobin(4, { slug: "x", name: "x", decidedRounds: 1 });
+    const v = withStandings(p, [[0, 3, 3, "wins"], [1, 1, 3, "seed"], [2, 1, 3, "seed"], [3, 1, 3, "seed"]]);
+    expect(v.standings.map((r) => r.tiebreak)).toEqual([null, "ahead on seed", "ahead on seed", null]);
+  });
+
+  it("a 0–0 table has no tiebreak notes", () => {
+    const p = fixtureRoundRobin(4, { slug: "x", name: "x", decidedRounds: 0 });
+    const v = buildRoundRobin(p.tournament, p.entries, p.matches, null);
+    expect(v.standings.every((r) => r.tiebreak === null)).toBe(true);
+  });
+
+  it("once the final is decided: Champion + Runner-up (not 'In the final')", () => {
+    const p = fixtureRoundRobin6Complete();
+    const v = view(p);
+    expect(v.standings.slice(0, 2).map((r) => r.fate).sort()).toEqual(["Runner-up", "♛ Champion"]);
+    expect(v.standings.some((r) => r.fate === "In the final")).toBe(false);
   });
 });

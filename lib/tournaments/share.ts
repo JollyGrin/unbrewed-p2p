@@ -1,6 +1,7 @@
 /** Share-step text: the event link and the "Copy Discord post" body (#1216). */
 import { describeRule } from "./matchup";
 import { mapTitle } from "./options";
+import { hasTop2Final } from "./roundRobin";
 import type { Tournament } from "./types";
 
 export const WINDOW_LABEL: Record<number, string> = {
@@ -40,7 +41,7 @@ export const formatWhen = (iso: string | null): string => {
 
 export const discordPost = (t: Tournament, origin?: string): string =>
   [
-    `**${t.name}** · ${t.size} seats · ${formatLabel(t)} · one game per match`,
+    `**${t.name}** · ${t.size} seats · ${formatLabel(t)} · one game per match${hasTop2Final(t) ? ", then the top 2 play a final" : ""}`,
     `${describeRule(t.matchupRule, mapTitle)}.`,
     t.signupClosesAt
       ? `Signup closes **${formatWhen(t.signupClosesAt)}**. Each match gets ${WINDOW_LABEL[t.matchWindowHours] ?? `${t.matchWindowHours}h`}; we'll ping you on Discord when yours opens.`

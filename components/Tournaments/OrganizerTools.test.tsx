@@ -125,6 +125,9 @@ it("set matchup puts a rule, never per-game fields", async () => {
 it("'Not valid…' rejects the game via the reject route, not an override", async () => {
   mount();
   fireEvent.click(await screen.findByText("Not valid…"));
+  expect(await screen.findByTestId("reject-confirm")).toHaveTextContent(/will not count/);
+  expect(calls.some((c) => c.method === "POST")).toBe(false);
+  fireEvent.click(screen.getByText("Yes, reject game"));
   await waitFor(() =>
     expect(calls.some((c) => c.method === "POST")).toBe(true),
   );
@@ -145,8 +148,17 @@ it("maps reject 409s to plain copy", async () => {
   );
   mount();
   fireEvent.click(await screen.findByText("Not valid…"));
+  fireEvent.click(await screen.findByText("Yes, reject game"));
   expect(await screen.findByTestId("organizer-error")).toHaveTextContent(
     /already confirmed.*override/,
   );
   expect(reload).not.toHaveBeenCalled();
+});
+
+it("'Keep it' cancels the reject without calling the api", async () => {
+  mount();
+  fireEvent.click(await screen.findByText("Not valid…"));
+  fireEvent.click(await screen.findByText("Keep it"));
+  expect(screen.queryByTestId("reject-confirm")).toBeNull();
+  expect(calls.some((c) => c.method === "POST")).toBe(false);
 });

@@ -148,3 +148,16 @@ it("ready-checks read from the viewer's side", () => {
   expect(line).toMatchObject({ text: "You pressed Play · no answer", missed: true });
   expect(readyCheckLine(d, d.readyChecks[0], null).text).toBe("hokuto_shin pressed Play · no answer");
 });
+
+describe("lastSeen", () => {
+  const now = Date.parse("2026-10-05T12:00:00Z");
+  const { lastSeen } = jest.requireActual("./matchPage");
+  it("is null when never seen in the match", () => {
+    expect(lastSeen(null, now)).toBeNull();
+    expect(lastSeen(undefined, now)).toBeNull();
+  });
+  it("labels honestly", () => {
+    expect(lastSeen("2026-10-05T11:27:00Z", now)?.text).toBe("Last seen in this match 33 min ago");
+    expect(lastSeen("2026-10-05T11:58:00Z", now)).toEqual({ online: true, text: "Online now" });
+  });
+});
