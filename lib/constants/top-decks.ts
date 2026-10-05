@@ -439,15 +439,14 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
   },
   {
     // Spice remix of Thetis (display name "Thetis") — server hero thetis-spice.
-    // This is the deck shown on the default roster; reuses Thetis's cardback and
-    // per-card art until dedicated spice art lands.
+    // This is the deck shown on the default roster; dedicated full-card spice art.
     id: "thetis-spice",
     name: "Thetis",
     hero: "Thetis",
     author: "unbrewed",
     likes: 0,
     highlightColour: "#2ec4b6",
-    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/thetis/cardback.webp",
+    cardbackUrl: "/evergreen-decks/art/thetis-spice/cardback.webp",
     original: true,
   },
   {
