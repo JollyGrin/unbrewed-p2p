@@ -39,12 +39,11 @@ export interface AttentionRow {
 const nameOf = (entries: readonly Entry[], id: string | null): string =>
   entries.find((e) => e.id === id)?.username ?? "a player";
 
-const RULE_COPY: Record<string, string> = {
-  deadline_ready_check:
-    "Rule 1 applied: one player pressed Play and the other never answered, so the ready player advances.",
-  deadline_higher_seed:
-    "No game was played and neither player was ready, so the higher seed advances.",
-};
+/** Round-robin group matches and the top-2 final have no "next round": the winner just wins the match. */
+const RULE_COPY = (verb: string): Record<string, string> => ({
+  deadline_ready_check: `Rule 1 applied: one player pressed Play and the other never answered, so the ready player ${verb}.`,
+  deadline_higher_seed: `No game was played and neither player was ready, so the higher seed ${verb}.`,
+});
 
 /** Rows for the queue, most urgent first (the api's order is a tie-break). */
 export const attentionRows = (
@@ -64,6 +63,7 @@ export const attentionRows = (
     const a = nameOf(entries, m?.slotA ?? null);
     const b = nameOf(entries, m?.slotB ?? null);
     const vs = `${a} vs ${b}`;
+    const verb = m?.stage === "group" || m?.stage === "final" ? "wins the match" : "advances";
     const key = `${item.kind}:${item.matchId}:${i}`;
     const open: AttentionAction = { type: "open", label: "Open match →" };
     const base = { key, matchId: item.matchId, due: null, dueLabel: "" };
@@ -75,7 +75,7 @@ export const attentionRows = (
             tone: "red",
             title: `Your call · ${vs}`,
             context: `${code} · deadline passed`,
-            body: `No game, and neither player pressed Play, so no rule applies. You have until the grace period ends; then the higher seed advances.`,
+            body: `No game, and neither player pressed Play, so no rule applies. You have until the grace period ends; then the higher seed ${verb}.`,
             due: item.until,
             dueLabel: "left",
             actions: [
@@ -110,7 +110,7 @@ export const attentionRows = (
             tone: "ink",
             title: `Deadline passed · ${code} decided by rule`,
             context: `${vs}`,
-            body: `${(item.decidedBy && RULE_COPY[item.decidedBy]) || "The deadline rule has decided this match."}${item.winner ? ` ${nameOf(entries, item.winner)} advances.` : ""} Nothing to do unless you want to override.`,
+            body: `${(item.decidedBy && RULE_COPY(verb)[item.decidedBy]) || "The deadline rule has decided this match."}${item.winner ? ` ${nameOf(entries, item.winner)} ${verb === "advances" ? "advances" : "wins the match"}.` : ""} Nothing to do unless you want to override.`,
             actions: [{ type: "override", label: "Override…" }, open],
           },
         ];

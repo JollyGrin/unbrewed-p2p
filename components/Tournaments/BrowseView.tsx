@@ -28,7 +28,7 @@ const TournamentCard = ({ t, mine }: { t: Tournament; mine: boolean }) => {
           <Chip tone={chip.tone} onDark>{chip.label}</Chip>
           {mine && <Chip onDark>You&apos;re in</Chip>}
           {t.status === "signup" && t.signupClosesAt && (
-            <Text fontSize="12px" opacity={0.7}>closes {formatWhen(t.signupClosesAt)}</Text>
+            <Text fontSize="12px" opacity={0.7}>{t.signupOpen ? "closes" : "until"} {formatWhen(t.signupClosesAt)}</Text>
           )}
         </Flex>
         <Text as="h3" fontFamily="LeagueGothic" fontSize="28px" lineHeight="1.05" mt="8px">{t.name}</Text>

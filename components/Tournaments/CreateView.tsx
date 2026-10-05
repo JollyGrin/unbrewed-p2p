@@ -90,8 +90,8 @@ const MapChips = ({
 );
 
 const MODES: { id: MatchupChoice; title: string; body: string }[] = [
-  { id: "free", title: "Players choose", body: "Each player picks a hero and they agree on a map in the room. The default." },
-  { id: "map", title: "Same map for everyone", body: "Players still pick heroes. You pick the map." },
+  { id: "free", title: "Players choose", body: "Each player picks a hero in the room. The board is random. The default." },
+  { id: "map", title: "Same map for everyone", body: "Players still pick heroes. You set the board." },
   { id: "organizer", title: "Organizer sets each match", body: "You choose a hero for each seat and the map, on each match as it opens." },
 ];
 
@@ -107,7 +107,7 @@ const Preview = ({ f }: { f: CreateFormState }) => {
       <Box p="16px" fontSize="14px">
         <Text fontSize="12px" opacity={0.65} mb="8px" textTransform="uppercase" fontFamily="ArchivoNarrow" letterSpacing="0.08em">{f.format === "round_robin" ? "With 4 or more players" : `If all ${f.size} seats fill`}</Text>
         <Box as="ol" pl="18px" display="flex" flexDir="column" gap="8px">
-          <li><b>{f.format === "round_robin" ? "Signup closes · every match opens" : "Signup closes · round 1 opens"}</b><br />{formatWhen(new Date(f.signupCloses || Date.now()).toISOString())}</li>
+          <li><b>{f.format === "round_robin" ? "Signup closes · organizer starts the tournament" : "Signup closes · organizer starts the bracket"}</b><br />{formatWhen(new Date(f.signupCloses || Date.now()).toISOString())}</li>
           <li><b>Each match gets {WINDOWS.find((w) => w.hours === f.matchWindowHours)?.label}</b><br />{f.format === "round_robin" ? "from the moment the event starts" : "from the moment both players are known"}</li>
           {final && <li><b>{f.format === "round_robin" && !f.top2Final ? "Latest possible finish" : "Latest possible final"}</b><br />{formatWhen(final.toISOString())}</li>}
         </Box>

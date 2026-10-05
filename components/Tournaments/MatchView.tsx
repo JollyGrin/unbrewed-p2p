@@ -434,7 +434,7 @@ const Versus = ({ d, state, side, now }: { d: MatchDetail; state: MatchPageState
   const s = score(d);
   const decided = state === "decided" || state === "decided_by_rule";
   const room = heldRoom(d, now);
-  const line = (p: MatchPlayer | null, entry: string | null) => {
+  const line = (p: MatchPlayer | null, entry: string | null, mine: boolean) => {
     if (!p) return { line: null, online: false };
     if (decided)
       return {
@@ -442,11 +442,12 @@ const Versus = ({ d, state, side, now }: { d: MatchDetail; state: MatchPageState
         online: false,
       };
     if (state === "in_play" || room?.readyEntryId === entry) return { line: "Online now", online: true };
-    const seen = lastActive(p.lastActiveAt, now);
+    // Your own last sign-in is just "now": never show it to yourself.
+    const seen = mine ? null : lastActive(p.lastActiveAt, now);
     return { line: seen?.text ?? (p.seed ? `Seed ${p.seed}` : null), online: !!seen?.online };
   };
-  const la = line(d.players.a, m.slotA);
-  const lb = line(d.players.b, m.slotB);
+  const la = line(d.players.a, m.slotA, side === "a");
+  const lb = line(d.players.b, m.slotB, side === "b");
   const played = s.a + s.b > 0;
   return (
     <Grid templateColumns="1fr auto 1fr" alignItems="center" gap={{ base: "6px", md: "20px" }} px={{ base: "12px", md: "32px" }} pt={{ base: "20px", md: "32px" }} pb={{ base: "16px", md: "28px" }}>
@@ -655,12 +656,15 @@ const MatchupPanel = ({ d, t, side }: { d: MatchDetail; t: Tournament | null; si
   const m = d.match;
   const mu = matchupLine(m.matchup);
   const thumb = m.matchup.map ? catalogEntry(m.matchup.map.id)?.thumbnailUrl : undefined;
+  const isSet = !!(mu.map || mu.heroA || mu.heroB);
   const setBy =
-    m.matchupOverride || t?.settings?.matchupSetBy === "organizer"
+    isSet && (m.matchupOverride || t?.settings?.matchupSetBy === "organizer")
       ? `Set by ${t?.organizer.username ?? "the organizer"}`
-      : m.matchupRule.mode === "free"
+      : m.matchupRule.mode === "free" || !isSet
         ? "Players choose"
         : "Event rule";
+  // Once a game is recorded, only heroes the api names are shown; never "Player's choice".
+  const played = m.games.some((g) => g.finishedAt);
   const row = (seat: "A" | "B", p: MatchPlayer | null, hero: string | null, now: boolean) => (
     <Box as="tr" bg={now ? "rgba(224,168,46,0.12)" : undefined}>
       <Box as="td" fontFamily="LeagueGothic" fontSize="24px" color="rgba(72,40,79,0.55)" w={{ base: "40px", md: "56px" }} px={{ base: "10px", md: "16px" }} py="10px" borderTop={RULE}>
@@ -673,7 +677,7 @@ const MatchupPanel = ({ d, t, side }: { d: MatchDetail; t: Tournament | null; si
         </Flex>
       </Box>
       <Box as="td" px={{ base: "10px", md: "16px" }} py="10px" borderTop={RULE} fontWeight={hero ? 700 : 400} color={hero ? INK : INK_MUTED} fontSize="14px">
-        {hero ?? "Player's choice"}
+        {hero ?? (played ? "" : "Player's choice")}
       </Box>
     </Box>
   );
@@ -686,8 +690,8 @@ const MatchupPanel = ({ d, t, side }: { d: MatchDetail; t: Tournament | null; si
       <Flex gap="14px" align="center" px="16px" py="14px" borderBottom={RULE}>
         <Box w="86px" h="56px" borderRadius="8px" flexShrink={0} bg={TRACK} bgImage={thumb ? `url(${thumb})` : undefined} bgSize="cover" bgPos="center" boxShadow="inset 0 0 0 1px rgba(72,40,79,0.15)" />
         <Box>
-          <Text fontWeight={700}>{mu.map ?? "Map: room creator's choice"}</Text>
-          <Text fontSize="13px" color={INK_MUTED}>{mu.map ? "Map for this match" : "No map is set for this match"}</Text>
+          <Text fontWeight={700}>{mu.map ?? "Random board"}</Text>
+          <Text fontSize="13px" color={INK_MUTED}>{mu.map ? "Set by the organizer" : "Dealt at random when the room opens"}</Text>
         </Box>
       </Flex>
       <Box as="table" w="100%" sx={{ borderCollapse: "collapse" }}>
@@ -754,7 +758,7 @@ const GamesList = ({
           meta={
             r.state === "in_play"
               ? `started ${clock(r.game.startedAt)}`
-              : [shortDate(r.game.finishedAt), gameLength(r.game), r.game.gameId ? `#${r.game.gameId}` : null].filter(Boolean).join(" · ")
+              : [shortDate(r.game.finishedAt), gameLength(r.game), r.game.gameId ? `#${r.game.gameId.slice(-6)}` : null].filter(Boolean).join(" · ")
           }
           trail={
             r.state !== "rejected" && r.game.replayAvailable ? (
@@ -844,7 +848,7 @@ const DeadlineCard = ({ d, t, state, now }: { d: MatchDetail; t: Tournament | nu
     <Card p="22px" data-testid="deadline-card">
       <Text {...caption} mb="6px">Match deadline</Text>
       <Text fontFamily="LeagueGothic" fontSize={decided ? "44px" : "64px"} lineHeight="0.9" sx={{ fontVariantNumeric: "tabular-nums" }} color={state === "decided" ? POS_INK : INK}>
-        {state === "decided" ? "Done early" : decided || !parts ? "Closed" : <>{unit(parts.d, "d")}{unit(parts.h, "h")}{unit(parts.m, "m")}</>}
+        {state === "decided" ? (m.decidedBy === "organizer" ? "Decided by the organizer" : "Done early") : decided || !parts ? "Closed" : <>{unit(parts.d, "d")}{unit(parts.h, "h")}{unit(parts.m, "m")}</>}
       </Text>
       <Flex h="8px" borderRadius="999px" bg={TRACK} overflow="hidden" mt="14px" mb="8px">
         <Box bg={state === "decided" ? POS : decided ? INK : GOLD} w={`${decided ? (state === "decided" ? windowSpent(m.opensAt, m.deadlineAt, Date.parse(finished ?? "") || now) : 100) : windowSpent(m.opensAt, m.deadlineAt, now)}%`} />
@@ -880,8 +884,8 @@ const RulesCard = ({ d, state, group = false }: { d: MatchDetail; state: MatchPa
     <Card p="18px">
       <Text {...caption} mb="8px">If the deadline passes</Text>
       <Box as="ol" m={0} p={0} display="flex" flexDir="column" gap="4px">
-        {li(hit === "deadline_ready_check", <><b>Unanswered ready-check.</b> If one player pressed Play and the other never joined, the player who was ready {group ? "takes the win" : "advances"}.</>)}
-        {li(hit === "deadline_higher_seed", <><b>Otherwise the organizer decides</b> within 24h. If they don&apos;t, the higher seed{higher ? <> (<b>{playerName(higher)}</b>)</> : ""} {group ? "takes the win" : "advances"}.</>)}
+        {li(hit === "deadline_ready_check", <><b>Unanswered ready-check.</b> If one player pressed Play and the other never joined, the player who was ready {group ? "wins the match" : "advances"}.</>)}
+        {li(hit === "deadline_higher_seed", <><b>Otherwise the organizer decides</b> within 24h. If they don&apos;t, the higher seed{higher ? <> (<b>{playerName(higher)}</b>)</> : ""} {group ? "wins the match" : "advances"}.</>)}
       </Box>
       <Text fontSize="12px" color={INK_MUTED} mt="8px">A game that started before the deadline finishes and counts.</Text>
     </Card>

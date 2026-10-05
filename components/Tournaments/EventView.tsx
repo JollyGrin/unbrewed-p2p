@@ -113,7 +113,7 @@ export const JoinPanel = ({
               <Text fontSize="14px" opacity={0.8}>
                 {t.status === "running"
                   ? `The ${t.format === "round_robin" ? "standings are" : "bracket is"} live. We'll ping you on Discord when your match is ready.`
-                  : `${t.format === "round_robin" ? "Every match opens" : "Round 1 opens"} when signup closes${t.signupClosesAt ? ` (${formatWhen(t.signupClosesAt)})` : ""}. We'll ping you on Discord when your match is ready.`}
+                  : `Signup closes${t.signupClosesAt ? ` ${formatWhen(t.signupClosesAt)}` : ""}; then the organizer starts the ${t.format === "round_robin" ? "tournament" : "bracket"}. We'll ping you on Discord when your match is ready.`}
               </Text>
             </Box>
           </Flex>

@@ -32,7 +32,7 @@ export interface NextMatchView {
   /** "You play Kenshiro" — null when the matchup leaves heroes open. */
   youPlay: string | null;
   map: string | null;
-  /** "Online now" / "Last active 12 min ago"; null when unknown. */
+  /** "Online now" / "Last signed in 12 min ago"; null when unknown. */
   opponentActive: string | null;
   /** "1d 17h left" / "5h 12m left" / "42m left". */
   timeLeft: string | null;
@@ -102,7 +102,7 @@ export const nextMatchView = (
     caption,
     youPlay: mine ? `You play ${mine}` : null,
     map: mu.map,
-    opponentActive: active ? (active.online ? `${opponent} online now` : active.text.replace("Last active", `${opponent} active`)) : null,
+    opponentActive: active ? (active.online ? `${opponent} online now` : active.text.replace("Last signed in", `${opponent} signed in`)) : null,
     timeLeft,
     href: matchHref(n.tournament.slug, m.id),
     primary: state === "open" ? "ready" : state === "opponent_ready" ? "join" : "view",

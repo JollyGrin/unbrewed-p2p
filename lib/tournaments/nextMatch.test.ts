@@ -19,7 +19,7 @@ describe("nextMatchView", () => {
     expect(v.primaryLabel).toBe("I'm ready to play");
     expect(v.youPlay).toBe("You play Kenshiro");
     expect(v.map).toBeTruthy();
-    expect(v.opponentActive).toMatch(/bountyhuntr active \d+ min ago/);
+    expect(v.opponentActive).toMatch(/bountyhuntr signed in \d+ min ago/);
     expect(v.timeLeft).toBe("1d 2h left");
     expect(v.href).toBe("/tournaments?t=fixture-match-waiting&m=m2-1");
   });
