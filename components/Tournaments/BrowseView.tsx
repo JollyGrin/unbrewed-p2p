@@ -4,35 +4,35 @@ import { useState } from "react";
 import { useAccount } from "@/lib/account/useAccount";
 import {
   FILTERS,
-  browsable,
+  withMyDrafts,
   matchesFilter,
   statusChip,
   type BrowseFilter,
 } from "@/lib/tournaments/browse";
+import { signupCloseText } from "@/lib/tournaments/lifecycle";
 import { useTournamentList } from "@/lib/tournaments/hooks";
 import {
   WINDOW_LABEL,
   formatLabel,
-  formatWhen,
   tournamentPath,
 } from "@/lib/tournaments/share";
 import type { Tournament } from "@/lib/tournaments/types";
 import { Btn, Card, Chip, Notice, Page } from "./ui";
 
-const TournamentCard = ({ t, mine }: { t: Tournament; mine: boolean }) => {
+const TournamentCard = ({ t, mine, yours }: { t: Tournament; mine: boolean; yours: boolean }) => {
   const chip = statusChip(t);
   return (
-    <Card as="article" data-testid="tournament-card" overflow="hidden" display="flex" flexDir="column">
-      <Box bg="#2C1831" color="#FAEBD7" p="14px 16px">
+    <Card as="article" data-testid="tournament-card" overflow="hidden" display="flex" flexDir="column" minW={0}>
+      <Box bg="#2C1831" color="#FAEBD7" p="14px 16px" minW={0}>
         <Flex gap="8px" align="center" flexWrap="wrap">
           <Chip tone={chip.tone} onDark>{chip.label}</Chip>
-          {mine && <Chip onDark>You&apos;re in</Chip>}
+          {mine && <Chip onDark>{yours ? "Yours" : "You're in"}</Chip>}
           {t.status === "signup" && t.signupClosesAt && (
-            <Text fontSize="12px" opacity={0.7}>{t.signupOpen ? "closes" : "until"} {formatWhen(t.signupClosesAt)}</Text>
+            <Text fontSize="12px" opacity={0.7}>{signupCloseText(t)}</Text>
           )}
         </Flex>
-        <Text as="h3" fontFamily="LeagueGothic" fontSize="28px" lineHeight="1.05" mt="8px">{t.name}</Text>
-        <Text fontSize="13px" opacity={0.75}>
+        <Text as="h3" fontFamily="LeagueGothic" fontSize="28px" lineHeight="1.05" mt="8px" overflowWrap="anywhere" data-testid="card-title">{t.name}</Text>
+        <Text fontSize="13px" opacity={0.75} overflowWrap="anywhere">
           {formatLabel(t)} · {t.size} players · first to {t.firstTo} · {WINDOW_LABEL[t.matchWindowHours] ?? `${t.matchWindowHours}h`} per match
           {t.organizer.username ? ` · by ${t.organizer.username}` : ""}
         </Text>
@@ -43,7 +43,7 @@ const TournamentCard = ({ t, mine }: { t: Tournament; mine: boolean }) => {
           <Text as="span" opacity={0.7}> / {t.size} seats</Text>
         </Text>
         <Btn href={tournamentPath(t.slug)} variant={t.signupOpen && !mine ? "gold" : "ink"}>
-          {t.signupOpen && !mine ? "Join" : t.status === "running" ? "View bracket" : "View"}
+          {t.status === "draft" ? "Open draft" : t.signupOpen && !mine ? "Join" : t.status === "running" ? "View bracket" : "View"}
         </Btn>
       </Flex>
     </Card>
@@ -59,9 +59,9 @@ export const BrowseView = () => {
   const mineIds = new Set(
     mine.status === "ready" ? mine.value.map((t) => t.id) : [],
   );
-  // The "I'm in" filter only exists for a signed-in visitor.
+  // The "My tournaments" filter only exists for a signed-in visitor.
   const filters = FILTERS.filter((f) => f.id !== "mine" || signedIn);
-  const rows = all.status === "ready" ? browsable(all.value) : [];
+  const rows = all.status === "ready" ? withMyDrafts(all.value, mine.status === "ready" ? mine.value : []) : [];
   const shown = rows.filter((t) => matchesFilter(t, filter, mineIds));
   const count = (f: BrowseFilter) => rows.filter((t) => matchesFilter(t, f, mineIds)).length;
 
@@ -102,12 +102,12 @@ export const BrowseView = () => {
           </Flex>
           {shown.length === 0 ? (
             <Notice title={filter === "mine" ? "Nothing yet" : "No brackets here"}>
-              {filter === "mine" ? "You haven't joined a tournament." : "Nothing matches this filter. Create the first one."}
+              {filter === "mine" ? "You haven't joined or organized a tournament." : "Nothing matches this filter. Create the first one."}
             </Notice>
           ) : (
-            <Box display="grid" gridTemplateColumns={{ base: "1fr", md: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" }} gap="16px">
+            <Box display="grid" gridTemplateColumns={{ base: "minmax(0, 1fr)", md: "repeat(2, minmax(0, 1fr))", lg: "repeat(3, minmax(0, 1fr))" }} gap="16px">
               {shown.map((t) => (
-                <TournamentCard key={t.id} t={t} mine={mineIds.has(t.id)} />
+                <TournamentCard key={t.id} t={t} mine={mineIds.has(t.id)} yours={!!account && t.organizer.userId === account.id} />
               ))}
             </Box>
           )}

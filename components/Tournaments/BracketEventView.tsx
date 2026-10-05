@@ -14,6 +14,7 @@ import { WINDOW_LABEL, formatLabel, formatWhen, tournamentPath } from "@/lib/tou
 import type { Entry, Match, Tournament } from "@/lib/tournaments/types";
 
 import { Avatar, Bracket } from "./Bracket";
+import { LifecyclePanel } from "./LifecyclePanel";
 import { AttentionQueue } from "./OrganizerTools";
 import { Card, Chip, Page } from "./ui";
 
@@ -89,17 +90,22 @@ export const BracketEventView = ({
       <Bracket view={view} />
       <Card p="20px" mt="20px" data-testid="entrants">
         <Text fontWeight={700} mb="10px">Entrants</Text>
-        <Box display="grid" gridTemplateColumns={{ base: "1fr", md: "1fr 1fr" }} columnGap="24px">
+        <Box display="grid" gridTemplateColumns={{ base: "minmax(0, 1fr)", md: "repeat(2, minmax(0, 1fr))" }} columnGap="24px">
           {rows.map(({ entry, status, tone }) => (
-            <Flex key={entry.id} align="center" gap="10px" py="8px" borderBottom="1px solid rgba(72,40,79,0.1)" opacity={tone === "done" ? 0.65 : 1}>
+            <Flex key={entry.id} align="center" gap="10px" py="8px" minW={0} data-testid="entrant-row" borderBottom="1px solid rgba(72,40,79,0.1)" opacity={tone === "done" ? 0.65 : 1}>
               <Text fontFamily="LeagueGothic" fontSize="22px" w="24px" textAlign="center" opacity={0.6}>{entry.seed ?? "–"}</Text>
               <Avatar name={entry.username ?? "?"} url={entry.avatarUrl} size={30} />
-              <Text flex="1" minW={0} fontWeight={600} whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">{entry.username ?? "Player"}</Text>
-              <Chip tone={tone}>{status}</Chip>
+              <Text flex="1" minW={0} fontWeight={600} whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis" title={entry.username ?? undefined}>{entry.username ?? "Player"}</Text>
+              <Box flexShrink={0}><Chip tone={tone}>{status}</Chip></Box>
             </Flex>
           ))}
         </Box>
       </Card>
+      {isOrganizer && t.status === "running" && (
+        <Box mt="20px">
+          <LifecyclePanel t={t} entries={entries} reload={reload} />
+        </Box>
+      )}
     </Page>
   );
 };

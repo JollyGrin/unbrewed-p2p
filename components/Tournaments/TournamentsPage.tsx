@@ -21,7 +21,8 @@ export const TournamentsPage = () => {
   useEffect(() => setMounted(true), []);
   const ready = mounted && router?.isReady !== false;
   if (!ready) return null;
-  const slug = first(router?.query?.t);
+  // Slugs are lowercase; `?t=TOURNAMENT` still finds `tournament` (#1242).
+  const slug = first(router?.query?.t)?.toLowerCase() ?? null;
   const matchId = first(router?.query?.m);
   if (slug && matchId) return <MatchView slug={slug} matchId={matchId} />;
   if (slug)

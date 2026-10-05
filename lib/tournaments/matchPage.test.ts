@@ -149,7 +149,10 @@ describe("games list", () => {
 it("ready-checks read from the viewer's side", () => {
   const d = fixtureMatch("decided_by_rule").detail;
   const line = readyCheckLine(d, d.readyChecks[0], FIXTURE_MATCH_YOU);
-  expect(line).toMatchObject({ text: "You pressed Play · no answer", missed: true });
+  expect(line).toMatchObject({ text: "Your opponent didn't join", missed: true });
+  // The player who never answered is told so; a spectator keeps the neutral line.
+  const other = [d.players.a, d.players.b].find((p) => p && p.userId !== FIXTURE_MATCH_YOU)!;
+  expect(readyCheckLine(d, d.readyChecks[0], other.userId).text).toBe("You didn't join");
   expect(readyCheckLine(d, d.readyChecks[0], null).text).toBe("hokuto_shin pressed Play · no answer");
 });
 
@@ -162,7 +165,9 @@ describe("lastSeen", () => {
   });
   it("labels honestly", () => {
     expect(lastSeen("2026-10-05T11:27:00Z", now)?.text).toBe("Last seen in this match 33 min ago");
-    expect(lastSeen("2026-10-05T11:58:00Z", now)).toEqual({ online: true, text: "Online now" });
+    expect(lastSeen("2026-10-05T11:59:30Z", now)).toEqual({ online: true, text: "Online now" });
+    // Two minutes ago is no longer "Online now" (#1242).
+    expect(lastSeen("2026-10-05T11:58:00Z", now)).toEqual({ online: false, text: "Last seen in this match 2 min ago" });
   });
 });
 

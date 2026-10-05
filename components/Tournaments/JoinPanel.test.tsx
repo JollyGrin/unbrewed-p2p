@@ -71,8 +71,27 @@ describe("JoinPanel", () => {
     mount({ ...T, entryCount: 6 }, [...FIVE, entry("hok", 6)]);
     expect(await screen.findByText(/you're seat 6 of 8/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /leave tournament/i }));
+    // Leave needs a second, explicit step (#1242): nothing is sent yet.
+    expect(screen.getByTestId("leave-confirm")).toHaveTextContent("Leave this tournament? You can rejoin while signup is open.");
+    expect(calls.some((c) => c.method === "DELETE")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: /yes, leave/i }));
     await waitFor(() => expect(reload).toHaveBeenCalled());
     expect(calls).toContainEqual({ url: `${API_URL}/tournaments/lab-rats-open/entries/me`, method: "DELETE" });
+  });
+
+  it("'Stay in' backs out of Leave without calling the api", async () => {
+    me = "me";
+    mount({ ...T, entryCount: 6 }, [...FIVE, entry("hok", 6)]);
+    fireEvent.click(await screen.findByRole("button", { name: /leave tournament/i }));
+    fireEvent.click(screen.getByRole("button", { name: /stay in/i }));
+    expect(screen.queryByTestId("leave-confirm")).toBeNull();
+    expect(calls.some((c) => c.method === "DELETE")).toBe(false);
+  });
+
+  it("a cancelled tournament says so", async () => {
+    me = "me";
+    mount({ ...T, status: "cancelled", signupOpen: false }, FIVE);
+    expect(await screen.findByText("This tournament was cancelled.")).toBeInTheDocument();
   });
 
   it("after signup closes there is no Leave", async () => {

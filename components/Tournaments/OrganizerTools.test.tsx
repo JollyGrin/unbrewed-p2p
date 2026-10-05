@@ -80,6 +80,8 @@ it("award opens the override form with a note and posts it", async () => {
   mount();
   fireEvent.click(await screen.findByText("Forfeit to hokuto_shin"));
   fireEvent.click(await screen.findByText("Apply override"));
+  // m2-1 has a game in play: the organizer confirms first (#1242).
+  fireEvent.click(await screen.findByTestId("confirm-override-in-play"));
   await waitFor(() =>
     expect(calls.some((c) => c.url.endsWith("/override"))).toBe(true),
   );
@@ -161,4 +163,68 @@ it("'Keep it' cancels the reject without calling the api", async () => {
   fireEvent.click(await screen.findByText("Keep it"));
   expect(screen.queryByTestId("reject-confirm")).toBeNull();
   expect(calls.some((c) => c.method === "POST")).toBe(false);
+});
+
+describe("override while a game is in play (#1242)", () => {
+  const live = { ...f.matches.find((m) => m.id === "m1-3")!, winner: null, status: "in_play" as const, inPlay: true, decidedBy: null };
+  const renderIt = (onDone = jest.fn()) =>
+    render(
+      <ChakraProvider>
+        <OverrideForm slug="fixture-8" match={live} entries={f.entries} onDone={onDone} />
+      </ChakraProvider>,
+    );
+
+  it("warns up front and needs a confirm before anything is sent", async () => {
+    renderIt();
+    expect(screen.getByTestId("override-in-play-warning")).toHaveTextContent(
+      "A game is in progress. Overriding decides the match now; the game's result will be recorded but won't change this decision.",
+    );
+    fireEvent.click(screen.getAllByRole("radio")[0]);
+    fireEvent.click(screen.getByText("Apply override"));
+    expect(calls.some((c) => c.url.endsWith("/override"))).toBe(false);
+    fireEvent.click(screen.getByTestId("confirm-override-in-play"));
+    await waitFor(() => expect(calls.some((c) => c.url.endsWith("/override"))).toBe(true));
+  });
+
+  it("no warning when no game is in play", () => {
+    render(
+      <ChakraProvider>
+        <OverrideForm slug="fixture-8" match={{ ...live, inPlay: false, status: "open" }} entries={f.entries} onDone={jest.fn()} />
+      </ChakraProvider>,
+    );
+    expect(screen.queryByTestId("override-in-play-warning")).toBeNull();
+  });
+
+  it("shows the api's gameInPlay answer and holds the form open", async () => {
+    global.fetch = jest.fn(async () => reply(200, { match: {}, gameInPlay: true })) as any;
+    const onDone = jest.fn();
+    renderIt(onDone);
+    fireEvent.click(screen.getAllByRole("radio")[0]);
+    fireEvent.click(screen.getByText("Apply override"));
+    fireEvent.click(screen.getByTestId("confirm-override-in-play"));
+    expect(await screen.findByTestId("override-game-in-play")).toBeInTheDocument();
+    expect(onDone).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("Close"));
+    expect(onDone).toHaveBeenCalled();
+  });
+});
+
+it("awaiting_organizer names who holds a seat when the api sends reason/holdUntil/readyBy (D3, api #88)", async () => {
+  const { attentionRows } = jest.requireActual("../../lib/tournaments/organizer");
+  const m = f.matches.find((x) => x.id === "m2-1")!;
+  const item = {
+    kind: "awaiting_organizer",
+    matchId: m.id,
+    round: m.round,
+    position: m.position,
+    deadlineAt: "2026-10-05T10:00:00Z",
+    until: "2026-10-06T10:00:00Z",
+    reason: "ready_hold_pending",
+    holdUntil: "2026-10-05T12:30:00Z",
+    readyBy: [m.slotA],
+  };
+  const [row] = attentionRows([item], f.entries, f.matches, 3, Date.parse("2026-10-05T12:00:00Z"));
+  expect(row.body).toMatch(/pressed Play and holds a seat until \d\d:\d\d; the rules decide after that\./);
+  const [generic] = attentionRows([{ ...item, reason: "no_ready_check", holdUntil: null, readyBy: [] }], f.entries, f.matches, 3, Date.parse("2026-10-05T12:00:00Z"));
+  expect(generic.body).toMatch(/No game was played\. If a player is holding a seat/);
 });

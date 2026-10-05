@@ -114,6 +114,24 @@ export const getTournament = (slug: string) =>
     standings: Array.isArray(b.standings) ? (b.standings as Standing[]) : null,
   }));
 
+/**
+ * Organizer: edit a draft/signup tournament, open signup (`status: 'signup'`),
+ * cancel (`status: 'cancelled'`) or move `signupClosesAt` (extend signup).
+ * Cancelling a running event and extending past a passed close time depend on
+ * unbrewed-api #91: until then the api answers 409/400 and the caller shows
+ * its message.
+ */
+export type TournamentPatch = Partial<
+  Pick<CreateTournamentBody, "name" | "size" | "matchWindowHours" | "matchupRule" | "roundMaps" | "signupClosesAt" | "settings">
+> & { status?: "signup" | "cancelled" };
+
+export const patchTournament = (slug: string, body: TournamentPatch) =>
+  call(
+    `/tournaments/${encodeURIComponent(slug)}`,
+    { method: "PATCH", body: JSON.stringify(body) },
+    (b) => b.tournament as Tournament,
+  );
+
 export const createTournament = (body: CreateTournamentBody) =>
   call(
     "/tournaments",
@@ -205,7 +223,12 @@ export type AttentionItem = {
       kind: "awaiting_organizer";
       deadlineAt: string;
       until: string;
-      /** NOT sent by the api yet (D3): when it is, a live hold names who holds the seat. */
+      /** api #88: `ready_hold_pending` = a player pressed Play and the seat hold is still live; else `no_ready_check`. */
+      reason?: "ready_hold_pending" | "no_ready_check";
+      /** When the latest hold expires (null without one). */
+      holdUntil?: string | null;
+      /** Entry ids that pressed Play and hold a seat. */
+      readyBy?: string[];
       readyChecks?: { entryId: string; expiresAt: string; outcome: "pending" | "answered" | "unanswered" }[];
     }
   | {

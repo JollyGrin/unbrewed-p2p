@@ -459,7 +459,7 @@ const Side = ({
       </Text>
     )}
     {line && (
-      <Text fontSize="12px" color={INK_MUTED} display="inline-flex" alignItems="center" gap="6px">
+      <Text fontSize="12px" color={INK_MUTED} display="inline-flex" alignItems="center" gap="6px" overflowWrap="anywhere" minW={0}>
         <Box as="i" w="8px" h="8px" borderRadius="50%" bg={online ? POS : "rgba(72,40,79,0.55)"} />
         {line}
       </Text>
@@ -489,7 +489,7 @@ const Versus = ({ d, state, side, now }: { d: MatchDetail; state: MatchPageState
   const lb = line(d.players.b, m.slotB, side === "b");
   const played = s.a + s.b > 0;
   return (
-    <Grid templateColumns="1fr auto 1fr" alignItems="center" gap={{ base: "6px", md: "20px" }} px={{ base: "12px", md: "32px" }} pt={{ base: "20px", md: "32px" }} pb={{ base: "16px", md: "28px" }}>
+    <Grid templateColumns="minmax(0, 1fr) auto minmax(0, 1fr)" alignItems="center" gap={{ base: "6px", md: "20px" }} px={{ base: "12px", md: "32px" }} pt={{ base: "20px", md: "32px" }} pb={{ base: "16px", md: "28px" }}>
       <Side p={d.players.a} you={side === "a"} hero={mu.heroA} {...la} />
       <Box textAlign="center" data-testid="match-score">
         <Text fontFamily="LeagueGothic" fontSize={{ base: "64px", md: "120px" }} lineHeight="0.85" letterSpacing="0.04em">
