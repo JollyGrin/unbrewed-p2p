@@ -34,7 +34,16 @@ export type TournamentFailure =
 
 export type Result<T> =
   | { ok: true; value: T }
-  | { ok: false; reason: TournamentFailure; code?: string; message?: string; roomId?: string | null };
+  | {
+      ok: false;
+      reason: TournamentFailure;
+      code?: string;
+      message?: string;
+      roomId?: string | null;
+      /** `409 tickets_outstanding` (api #101): when the blocking join tickets run out, and whether `force` is allowed. */
+      ticketsExpireAt?: string;
+      canForce?: boolean;
+    };
 
 const call = async <T>(
   path: string,
@@ -84,7 +93,11 @@ const call = async <T>(
                 : res.status === 409
                   ? "conflict"
                   : "unavailable";
-    return { ok: false, reason, code, message, ...(roomId ? { roomId } : {}) };
+    const extra =
+      code === "tickets_outstanding" && typeof body?.ticketsExpireAt === "string"
+        ? { ticketsExpireAt: body.ticketsExpireAt as string, canForce: body.canForce === true }
+        : {};
+    return { ok: false, reason, code, message, ...(roomId ? { roomId } : {}), ...extra };
   } catch {
     return { ok: false, reason: "unavailable" };
   }
@@ -270,7 +283,7 @@ export const confirmGame = (slug: string, matchId: string, gameIndex: number) =>
 export const overrideMatch = (
   slug: string,
   matchId: string,
-  body: { winnerEntry: string; note?: string; replacesWinner?: string },
+  body: { winnerEntry: string; note?: string; replacesWinner?: string; force?: boolean },
 ) =>
   call(
     `${matchPath(slug, matchId)}/override`,

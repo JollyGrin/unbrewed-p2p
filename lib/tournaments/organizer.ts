@@ -289,6 +289,15 @@ export const organizerErrorText = (
         ? "The server refused that change."
         : "Couldn't reach the server. Try again.");
 
+/** The organizer-facing text for `409 tickets_outstanding`: when the tickets expire, in the viewer's local time. */
+export const ticketsOutstandingText = (ticketsExpireAt: string): string => {
+  const d = new Date(ticketsExpireAt);
+  const when = Number.isNaN(d.getTime())
+    ? "a few minutes from now"
+    : `${d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}, ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+  return `A player holds a join ticket for the next match until ${when} (a player can keep one alive by pressing Play). You can wait, or Force the change: any room those players opened in that window will be ignored.`;
+};
+
 /**
  * The override body. Re-deciding a decided match must carry `replacesWinner` =
  * the current winner (api #73).
@@ -297,10 +306,12 @@ export const overrideBody = (
   m: Pick<Match, "winner">,
   winnerEntry: string,
   note: string,
+  force = false,
 ) => ({
   winnerEntry,
   ...(note.trim() ? { note: note.trim() } : {}),
   ...(m.winner ? { replacesWinner: m.winner } : {}),
+  ...(force ? { force: true } : {}),
 });
 
 /** True when `userId` is the tournament's organizer — the only viewer organizer tools render for. */
