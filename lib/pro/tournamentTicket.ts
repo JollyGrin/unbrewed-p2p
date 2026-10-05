@@ -224,3 +224,15 @@ export function pendingPick(now: number = Date.now()): TournamentRoom | null {
     return null;
   }
 }
+
+/**
+ * Whether a routeChangeStart `url` (basePath-prefixed, may carry a query or
+ * hash) stays on `pathname` — e.g. the shallow replace that strips the ticket
+ * keys. Only a change to another page ends the remembered launch (#1238).
+ */
+export function samePagePath(url: string, basePath: string, pathname: string): boolean {
+  let path = url.split(/[?#]/)[0];
+  if (basePath && path.startsWith(basePath)) path = path.slice(basePath.length);
+  const trim = (p: string) => (p.length > 1 ? p.replace(/\/+$/, "") : p) || "/";
+  return trim(path) === trim(pathname);
+}

@@ -243,6 +243,7 @@ import {
   pendingPick,
   rememberPendingPick,
   rememberTournamentRoom,
+  samePagePath,
   ticketBoard,
   TICKET_ERROR_CODES,
   tournamentMatchHref,
@@ -5321,9 +5322,14 @@ const LiveGame = ({
     if (!ticket && !room && !quickParam) setPendingLaunch(pendingPick());
   }, [ticket, room, quickParam]);
   // Leaving the page, any engine error (ticket codes, ROOM_NOT_FOUND), a board
-  // this client can't open, or signing out ends the remembered launch.
+  // this client can't open, or signing out ends the remembered launch. A route
+  // change to this same page is NOT leaving it: the ticket-strip replace above
+  // fires routeChangeStart right after the note is written (#1238).
   useEffect(() => {
-    const done = () => forgetPendingPick();
+    const done = (url: string) => {
+      if (samePagePath(url, router.basePath, router.pathname)) return;
+      forgetPendingPick();
+    };
     router.events?.on("routeChangeStart", done);
     return () => router.events?.off("routeChangeStart", done);
   }, [router]);
