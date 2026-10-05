@@ -15,7 +15,7 @@ import {
   deadlinePassedRule,
   deadlineReadyCheckText,
   heldRoom,
-  lastActive,
+  lastSeen,
   matchTitle,
   matchupLine,
   seatClock,
@@ -38,7 +38,7 @@ export interface NextMatchView {
   /** "You play Kenshiro" — null when the matchup leaves heroes open. */
   youPlay: string | null;
   map: string | null;
-  /** "Online now" / "Last signed in 12 min ago"; null when unknown. */
+  /** "Online now" / "Last seen in this match 12 min ago"; null when unknown. */
   opponentActive: string | null;
   /** "1d 17h left" / "5h 12m left" / "42m left". */
   timeLeft: string | null;
@@ -98,7 +98,7 @@ export const nextMatchView = (
   const mine = mineIsA ? mu.heroA : mu.heroB;
   const timeLeft = timeLeftText(m.deadlineAt, now);
   const seat = room ? seatClock(room.expiresAt, now) : "";
-  const active = lastActive(oppSide?.lastActiveAt ?? null, now);
+  const active = lastSeen(oppSide?.lastSeenAt, now);
   const title = size ? matchTitle(m.round, m.position, size, m.stage) : `Round ${m.round}`;
 
   const caption =
@@ -123,7 +123,7 @@ export const nextMatchView = (
     caption,
     youPlay: mine ? `You play ${mine}` : null,
     map: mu.map,
-    opponentActive: active ? (active.online ? `${opponent} online now` : active.text.replace("Last signed in", `${opponent} signed in`)) : null,
+    opponentActive: active ? (active.online ? `${opponent} online now` : active.text.replace("Last seen", `${opponent} last seen`)) : null,
     timeLeft,
     notice: state === "deadline_passed" ? deadlineNotice(detail, n.myEntryId, m.stage, now) : null,
     href: matchHref(n.tournament.slug, m.id),

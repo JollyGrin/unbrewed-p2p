@@ -1,5 +1,5 @@
 import { assignment } from "./matchup";
-import { FIXTURE_ATTENTION, fixtureRunning8 } from "./fixtures";
+import { FIXTURE_ATTENTION, fixtureRoundRobin6, fixtureRunning8 } from "./fixtures";
 import {
   attentionRows,
   buildMatchupRule,
@@ -120,5 +120,23 @@ describe("a rejected game (api #75) is never a result", () => {
     };
     expect(gameRows(d)[0].state).toBe("rejected");
     expect(score(d)).toEqual({ a: 0, b: 0 });
+  });
+});
+
+describe("round-robin unverified copy (K1)", () => {
+  it("group matches say nobody gets the win, never 'advances'", () => {
+    const rr = fixtureRoundRobin6();
+    const g = rr.matches.find((m) => m.stage === "group")!;
+    const out = attentionRows(
+      [{ kind: "unverified_game", matchId: g.id, round: g.round, position: g.position, gameIndex: 0, winnerEntry: g.slotA }],
+      rr.entries,
+      rr.matches,
+      3,
+    );
+    expect(out[0].body).toMatch(/Nobody gets the win until it's confirmed/);
+    expect(out[0].body).not.toMatch(/advances/);
+  });
+  it("knockout keeps 'Nobody advances'", () => {
+    expect(rows.find((x) => x.key.startsWith("unverified_game"))!.body).toMatch(/Nobody advances/);
   });
 });

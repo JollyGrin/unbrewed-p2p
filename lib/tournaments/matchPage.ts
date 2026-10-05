@@ -174,16 +174,16 @@ export const matchupLine = (a: Assignment): MatchupLine => ({
 
 export const playerName = (p: MatchPlayer | null): string => p?.username ?? (p ? "Player" : "TBD");
 
-/** "Online now" within 5 minutes, else "Last signed in 12 min ago" (the api only has the last login time) / "… Mon 5 Oct". */
-export const lastActive = (iso: string | null, now: number): { online: boolean; text: string } | null => {
+/** "Online now" within 5 minutes, else "Last seen in this match 12 min ago" (api `lastSeenAt` = latest ready-check press in this match); null when never. */
+export const lastSeen = (iso: string | null | undefined, now: number): { online: boolean; text: string } | null => {
   if (!iso) return null;
   const ms = now - Date.parse(iso);
   if (!Number.isFinite(ms)) return null;
   if (ms < 5 * 60_000) return { online: true, text: "Online now" };
   const min = Math.floor(ms / 60_000);
-  if (min < 60) return { online: false, text: `Last signed in ${min} min ago` };
-  if (min < 24 * 60) return { online: false, text: `Last signed in ${Math.floor(min / 60)}h ago` };
-  return { online: false, text: `Last signed in ${shortDate(iso)}` };
+  if (min < 60) return { online: false, text: `Last seen in this match ${min} min ago` };
+  if (min < 24 * 60) return { online: false, text: `Last seen in this match ${Math.floor(min / 60)}h ago` };
+  return { online: false, text: `Last seen in this match ${shortDate(iso)}` };
 };
 
 /** "Mon 5 Oct". */

@@ -80,7 +80,7 @@ export const PRESETS: Preset[] = [
     blurb: "Everyone plays everyone.",
     bullets: [
       "4–6 players · round robin",
-      "First to 1 · 1 week per round",
+      "First to 1 · 1 week per match",
       "Same map for everyone",
     ],
     patch: {

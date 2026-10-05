@@ -428,6 +428,7 @@ export const AttentionQueue = ({
   const [data, reloadQueue] = useAttention(t.slug, t.status === "running");
   const [openRow, setOpenRow] = useState<string | null>(null);
   const [form, setForm] = useState<"override" | "matchup" | null>(null);
+  const [rejecting, setRejecting] = useState<{ key: string; gameIndex: number } | null>(null);
   const [errRow, setErrRow] = useState<string | null>(null);
   const [award, setAward] = useState<{
     key: string;
@@ -438,6 +439,7 @@ export const AttentionQueue = ({
     setOpenRow(null);
     setForm(null);
     setAward(null);
+    setRejecting(null);
     reload();
     reloadQueue();
   };
@@ -466,7 +468,7 @@ export const AttentionQueue = ({
       setForm("override");
       setAward({ key: row.key, entryId: a.entryId, note: a.note });
     } else if (a.type === "reject") {
-      rejectUnverified(row, a.gameIndex);
+      setRejecting({ key: row.key, gameIndex: a.gameIndex });
     } else if (a.type === "override" || a.type === "matchup") {
       setOpenRow(row.key);
       setForm(a.type);
@@ -562,6 +564,19 @@ export const AttentionQueue = ({
                     ),
                   )}
                 </Flex>
+                {rejecting?.key === row.key && (
+                  <Box mt="10px" p="12px" borderRadius="8px" bg="rgba(179,38,30,0.08)" data-testid="reject-confirm">
+                    <Text fontSize="14px">Reject this game? It will not count and can&apos;t be undone. The match stays undecided.</Text>
+                    <Flex gap="8px" mt="8px" flexWrap="wrap">
+                      <Btn variant="gold" px="14px" disabled={busy} onClick={() => rejectUnverified(row, rejecting.gameIndex)}>
+                        Yes, reject game
+                      </Btn>
+                      <Btn variant="ghost" px="14px" disabled={busy} onClick={() => setRejecting(null)}>
+                        Keep it
+                      </Btn>
+                    </Flex>
+                  </Box>
+                )}
                 {isOpen && match && form === "override" && (
                   <OverrideForm
                     key={award?.entryId ?? "o"}

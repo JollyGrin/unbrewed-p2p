@@ -43,6 +43,14 @@ describe("RoundRobinEventView", () => {
     expect(live.textContent).not.toMatch(/game\s*\d/i);
   });
 
+  it("summary line mentions the top-2 final only when there is one", () => {
+    const { unmount } = page(fixtureRoundRobin6());
+    expect(screen.getByTestId("standings")).toHaveTextContent("then the top 2 play a final");
+    unmount();
+    page(fixtureRoundRobin4());
+    expect(screen.getByTestId("standings")).not.toHaveTextContent("play a final");
+  });
+
   it("final open: shows the final card above the match list", () => {
     page(fixtureRoundRobin6Final());
     const final = screen.getByTestId("rr-final");

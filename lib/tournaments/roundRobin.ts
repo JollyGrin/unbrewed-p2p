@@ -151,6 +151,9 @@ export const buildRoundRobin = (
     } else if (dropped) {
       fate = "Dropped out";
       tone = "out";
+    } else if (withFinal && finalMatch && s.rank <= 2 && finalWinner) {
+      fate = "Runner-up";
+      tone = "out";
     } else if (withFinal && finalMatch && s.rank <= 2) {
       fate = "In the final";
       tone = "clinched";
@@ -171,7 +174,7 @@ export const buildRoundRobin = (
       tone = "alive";
     }
 
-    const prev = rows[i - 1];
+    const next = rows[i + 1];
     return [
       {
         rank: s.rank,
@@ -186,7 +189,9 @@ export const buildRoundRobin = (
         inCut: s.rank <= cut,
         cutLine: s.rank === cut,
         dropped,
-        tiebreak: prev && prev.wins === s.wins ? TIEBREAK[s.rankedBy] : null,
+        // The note explains why THIS row is above the next one, so it sits on the
+        // higher row of a tied pair; nothing to explain before anyone has played.
+        tiebreak: next && next.wins === s.wins && (s.played > 0 || next.played > 0) ? TIEBREAK[s.rankedBy] : null,
       },
     ];
   });

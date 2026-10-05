@@ -87,7 +87,7 @@ const Standings = ({ view, t }: { view: ReturnType<typeof buildRoundRobin>; t: T
         <Box>
           <Text as="h2" fontFamily="LeagueGothic" fontSize="26px" lineHeight="1.05">Standings</Text>
           <Text fontSize="13px" opacity={0.72} mt="2px">
-            {view.stats.players} players · everyone plays everyone · one game per match
+            {view.stats.players} players · everyone plays everyone{withFinal ? ", then the top 2 play a final" : ""} · one game per match
             {!view.groupComplete && view.rounds.length > 0 ? ` · round ${view.stats.currentRound} of ${view.stats.totalRounds}` : ""}
           </Text>
         </Box>

@@ -371,7 +371,7 @@ export const fixtureMatch = (
   const entries = b.entries;
   const player = (id: string | null, lastActiveH: number) => {
     const e = entries.find((x) => x.id === id);
-    return e ? { ...e, lastActiveAt: at(lastActiveH) } : null;
+    return e ? { ...e, lastActiveAt: at(lastActiveH), lastSeenAt: lastActiveH > -0.5 && lastActiveH < 0 ? at(lastActiveH) : null } : null;
   };
   const opponentSeen = state === "opponent_ready" || state === "in_play" ? -0.01 : state === "decided_by_rule" ? -30 : -0.2;
   const tournament = fixtureTournament({

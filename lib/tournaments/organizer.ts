@@ -122,7 +122,7 @@ export const attentionRows = (
             tone: "gold",
             title: `Unverified result · ${code} ${vs}`,
             context: `${code} · played in a normal room, not from the match`,
-            body: `${w} won, but the game wasn't started from the match. Nobody advances until it's confirmed. If you do nothing it auto-confirms 24h after it was detected.`,
+            body: `${w} won, but the game wasn't started from the match. ${verb === "advances" ? "Nobody advances" : "Nobody gets the win"} until it's confirmed. If you do nothing it auto-confirms 24h after it was detected.`,
             actions: [
               ...(item.winnerEntry
                 ? [
