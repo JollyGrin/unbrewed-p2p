@@ -38,6 +38,8 @@ export const joinState = (
   entries: readonly Entry[],
   userId: string | null,
 ): JoinState => {
+  // A cancelled event says so to everyone, entrants included.
+  if (t.status === "cancelled") return { kind: "closed" };
   const seat = userId ? seatOf(entries, userId) : null;
   if (seat !== null)
     return signupWindowOpen(t)

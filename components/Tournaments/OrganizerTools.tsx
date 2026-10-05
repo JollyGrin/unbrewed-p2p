@@ -26,6 +26,7 @@ import {
   dueText,
   organizerErrorText,
   overrideBody,
+  ticketsOutstandingText,
   type AttentionAction,
 } from "@/lib/tournaments/organizer";
 import type { Entry, MapRef, Match, Tournament } from "@/lib/tournaments/types";
@@ -58,6 +59,7 @@ const useRun = (onDone: () => void) => {
     setError(null);
     const r = await call();
     setBusy(false);
+    if (r.handled) return false;
     if (r.ok) {
       onDone();
       return true;
@@ -113,9 +115,19 @@ export const OverrideForm = ({
     if (!gameInPlayRef.current) onDone();
   });
   const gameInPlayRef = useRef(false);
-  const apply = async (w: string) => {
+  // 409 tickets_outstanding (api #101): wait it out, or force it (inline confirm).
+  const [tickets, setTickets] = useState<string | null>(null);
+  const [forcing, setForcing] = useState(false);
+  const apply = async (w: string, force = false) => {
+    setTickets(null);
     await run(async () => {
-      const r = await overrideMatch(slug, match.id, overrideBody(match, w, note));
+      const r = await overrideMatch(slug, match.id, overrideBody(match, w, note, force));
+      if (!r.ok && r.code === "tickets_outstanding" && r.canForce && r.ticketsExpireAt) {
+        setTickets(r.ticketsExpireAt);
+        setForcing(false);
+        // handled below as its own notice, not the generic error line
+        return { ok: false, handled: true };
+      }
       // The api may say the match had a live game when it was decided (not always sent).
       if (r.ok && (r.value as any)?.gameInPlay) {
         gameInPlayRef.current = true;
@@ -190,6 +202,26 @@ export const OverrideForm = ({
           {inPlay && (
             <Box mt="8px" p="10px 12px" borderRadius="8px" bg="rgba(224,168,46,0.18)" fontSize="14px" role="alert" data-testid="override-in-play-warning">
               {IN_PLAY_WARNING}
+            </Box>
+          )}
+          {tickets && (
+            <Box mt="8px" p="10px 12px" borderRadius="8px" bg="rgba(224,168,46,0.18)" fontSize="14px" role="alert" data-testid="override-tickets-outstanding">
+              <Text>{ticketsOutstandingText(tickets)}</Text>
+              <Flex gap="8px" mt="8px" flexWrap="wrap">
+                {forcing ? (
+                  <>
+                    <Btn variant="gold" disabled={!winner || busy} data-testid="confirm-force" onClick={() => winner && void apply(winner, true)}>
+                      {busy ? "Applying…" : "Yes, force it"}
+                    </Btn>
+                    <Btn variant="ghost" disabled={busy} onClick={() => setForcing(false)}>Back</Btn>
+                  </>
+                ) : (
+                  <>
+                    <Btn variant="ghost" onClick={() => { setTickets(null); onDone(); }}>Wait</Btn>
+                    <Btn variant="gold" onClick={() => setForcing(true)}>Force change</Btn>
+                  </>
+                )}
+              </Flex>
             </Box>
           )}
           {gameInPlay && (

@@ -228,3 +228,59 @@ it("awaiting_organizer names who holds a seat when the api sends reason/holdUnti
   const [generic] = attentionRows([{ ...item, reason: "no_ready_check", holdUntil: null, readyBy: [] }], f.entries, f.matches, 3, Date.parse("2026-10-05T12:00:00Z"));
   expect(generic.body).toMatch(/No game was played\. If a player is holding a seat/);
 });
+
+describe("override refused with tickets_outstanding (api #101)", () => {
+  const m = { ...f.matches.find((x) => x.id === "m1-3")!, inPlay: false, status: "open" as const, winner: null, decidedBy: null };
+  const EXPIRES = "2026-10-05T14:30:00Z";
+  const overrides = () => calls.filter((c) => c.url.endsWith("/override"));
+  const go = (onDone = jest.fn()) => {
+    render(
+      <ChakraProvider>
+        <OverrideForm slug="fixture-8" match={m} entries={f.entries} onDone={onDone} />
+      </ChakraProvider>,
+    );
+    fireEvent.click(screen.getAllByRole("radio")[0]);
+    fireEvent.click(screen.getByText("Apply override"));
+    return onDone;
+  };
+  const refuse = (body: unknown) =>
+    ((global.fetch as jest.Mock).mockImplementation(async (url: string, init?: RequestInit) => {
+      calls.push({ url, method: init?.method ?? "GET", body: init?.body ? JSON.parse(init.body as string) : null });
+      return body && !calls.some((c) => c.body?.force) ? reply(409, body) : reply(200, { match: {} });
+    }));
+
+  it("shows the expiry in local time, then Force change confirms inline and resends with force:true", async () => {
+    refuse({ error: "tickets_outstanding", message: "raw api text", ticketsExpireAt: EXPIRES, canForce: true });
+    const onDone = go();
+    const box = await screen.findByTestId("override-tickets-outstanding");
+    const d = new Date(EXPIRES);
+    const local = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    expect(box).toHaveTextContent(`holds a join ticket for the next match until`);
+    expect(box).toHaveTextContent(local);
+    expect(box).toHaveTextContent("Force the change: any room those players opened in that window will be ignored.");
+    expect(box).not.toHaveTextContent("raw api text");
+    expect(overrides()[0].body.force).toBeUndefined();
+    fireEvent.click(screen.getByText("Force change"));
+    expect(overrides()).toHaveLength(1); // inline confirm first
+    fireEvent.click(screen.getByTestId("confirm-force"));
+    await waitFor(() => expect(overrides()).toHaveLength(2));
+    expect(overrides()[1].body.force).toBe(true);
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+  });
+
+  it("Wait closes the form without forcing", async () => {
+    refuse({ error: "tickets_outstanding", ticketsExpireAt: EXPIRES, canForce: true });
+    const onDone = go();
+    await screen.findByTestId("override-tickets-outstanding");
+    fireEvent.click(screen.getByText("Wait"));
+    expect(onDone).toHaveBeenCalled();
+    expect(overrides()).toHaveLength(1);
+  });
+
+  it("a plain 409 without canForce keeps the generic copy and no Force button", async () => {
+    refuse({ error: "match_changed" });
+    go();
+    expect(await screen.findByTestId("organizer-error")).toHaveTextContent("This match changed while you were looking");
+    expect(screen.queryByText("Force change")).toBeNull();
+  });
+});

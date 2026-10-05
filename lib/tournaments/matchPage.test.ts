@@ -55,11 +55,11 @@ describe("matchPageState", () => {
     const d = { ...base, match: { ...base.match, deadlineAt: new Date(deadline).toISOString() } };
     const afterDeadline = deadline + 1 * MIN; // hold still live
 
-    it("A ready 5 min before the deadline: B arriving after it can still join", () => {
+    it("A ready 5 min before the deadline: B arriving after it cannot join (p2p #1253)", () => {
       expect(deadlineOutcome(d, afterDeadline)).toEqual({ kind: "hold" });
-      expect(matchPageState(d, FIXTURE_MATCH_YOU, afterDeadline)).toBe("opponent_ready"); // B: Join now
+      expect(matchPageState(d, FIXTURE_MATCH_YOU, afterDeadline)).toBe("deadline_hold"); // B: no join CTA
       expect(matchPageState(d, "u3", afterDeadline)).toBe("you_ready"); // A: seat held
-      expect(matchPageState(d, null, afterDeadline)).toBe("waiting"); // spectator: "A is ready and waiting"
+      expect(matchPageState(d, null, afterDeadline)).toBe("deadline_hold"); // spectator: sees the hold
     });
 
     it("…B's own post-deadline press doesn't count against them", () => {
@@ -70,7 +70,7 @@ describe("matchPageState", () => {
           { ...d.readyChecks[0], id: "rc-b", entryId: "e2", role: "join" as const, createdAt: new Date(afterDeadline).toISOString(), expiresAt: new Date(afterDeadline + 15 * MIN).toISOString() },
         ],
       };
-      expect(matchPageState(joined, FIXTURE_MATCH_YOU, afterDeadline)).toBe("opponent_ready");
+      expect(matchPageState(joined, FIXTURE_MATCH_YOU, afterDeadline)).toBe("deadline_hold");
     });
 
     it("A's hold runs out unanswered (the loop hasn't swept it yet): A wins by ready-check, no organizer copy", () => {

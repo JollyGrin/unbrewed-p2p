@@ -45,10 +45,15 @@ export const assignment = (
 
 /** `describeRule`, but "Organizer sets each match" when the tournament says so (settings.matchupSetBy; the rule itself stays `free`). */
 export const describeTournamentRule = (
-  t: { matchupRule: MatchupRule; settings?: Record<string, unknown> | null },
+  t: { matchupRule: MatchupRule; settings?: Record<string, unknown> | null; roundMaps?: Record<string, MapRef> | null },
   mapName?: (ref: MapRef) => string,
-): string =>
-  t.settings?.matchupSetBy === "organizer" ? "Organizer sets each match" : describeRule(t.matchupRule, mapName);
+): string => {
+  if (t.settings?.matchupSetBy === "organizer") return "Organizer sets each match";
+  const keys = Object.keys(t.roundMaps ?? {}).sort((a, b) => (a === "final" ? 1 : b === "final" ? -1 : Number(a) - Number(b)));
+  if (t.roundMaps && keys.length)
+    return `Players pick heroes · Map set per round: ${keys.map((k) => mapName?.(t.roundMaps![k]) ?? t.roundMaps![k].id).join(", ")}`;
+  return describeRule(t.matchupRule, mapName);
+};
 
 /** One-line description for cards and the join page ("Players choose", …). */
 export const describeRule = (

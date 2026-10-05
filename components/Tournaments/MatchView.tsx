@@ -25,6 +25,7 @@ import {
   DEADLINE_PASSED_TEXT,
   decidedByRuleLine,
   decisionLine,
+  deadlineHolder,
   deadlineOutcome,
   deadlineParts,
   deadlinePassed,
@@ -320,6 +321,7 @@ const BANNER_LOOK: Record<MatchPageState, { bg: string; color: string }> = {
   you_ready: { bg: INK_DEEP, color: PARCHMENT },
   in_play: { bg: DANGER, color: "white" },
   deadline_passed: { bg: SURFACE, color: PARCHMENT },
+  deadline_hold: { bg: SURFACE, color: PARCHMENT },
   decided: { bg: POS, color: "white" },
   decided_by_rule: { bg: SURFACE, color: PARCHMENT },
   cancelled: { bg: SURFACE, color: PARCHMENT },
@@ -376,6 +378,14 @@ const Banner = ({
       text = "Cancelled. The organizer cancelled this tournament before this match was decided.";
       small = "No result · nothing more to play";
       break;
+    case "deadline_hold": {
+      const holder = deadlineHolder(d, now);
+      const holderName = playerName(holder === m.slotA ? d.players.a : d.players.b);
+      const until = clock(heldRoom(d, now)?.expiresAt ?? d.readyChecks.find((c) => c.entryId === holder)?.expiresAt ?? null);
+      text = `Deadline passed. ${holderName} pressed Play and holds a seat${until ? ` until ${until}` : ""}; if they don't join, they ${group ? "win the match" : "advance"} (rule 1).`;
+      small = "Rule 1 · unanswered ready-check";
+      break;
+    }
     case "deadline_passed": {
       const out = deadlineOutcome(d, now);
       if (out.kind === "ready_check") {
@@ -559,7 +569,7 @@ const PlayBox = ({
   roomId: string | null;
   code: string;
 }) => {
-  if (state === "decided" || state === "decided_by_rule" || state === "deadline_passed" || state === "cancelled") return null;
+  if (state === "decided" || state === "decided_by_rule" || state === "deadline_passed" || state === "deadline_hold" || state === "cancelled") return null;
   const busy = phase.kind === "busy" || phase.kind === "opening";
   const status =
     phase.kind === "opening" ? (
@@ -703,7 +713,7 @@ const StickyPlay = ({
   else if (side && state === "you_ready") btn = <Btn variant="gold" onClick={onPlay} disabled={busy}>Take your seat here · {seatHeld}</Btn>;
   else if (side && state === "in_play" && back) btn = <Btn variant="gold" href={back}>Back to game</Btn>;
   else if (state === "decided" && onReplay) btn = <Btn variant="ink" onClick={onReplay}>Watch the replay</Btn>;
-  else if (state === "decided" || state === "decided_by_rule" || state === "deadline_passed" || state === "cancelled") btn = <Btn variant="ghost" href={bracketHref}>{standings ? "See the standings" : "See the bracket"}</Btn>;
+  else if (state === "decided" || state === "decided_by_rule" || state === "deadline_passed" || state === "deadline_hold" || state === "cancelled") btn = <Btn variant="ghost" href={bracketHref}>{standings ? "See the standings" : "See the bracket"}</Btn>;
   if (!btn) return null;
   return (
     <Flex

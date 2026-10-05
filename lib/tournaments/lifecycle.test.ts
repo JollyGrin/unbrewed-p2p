@@ -8,6 +8,7 @@ import {
   closeProblem,
   editFormOf,
   editPatch,
+  editWithShape,
   signupCloseText,
   toLocalInput,
   underFilledClosed,
@@ -87,5 +88,44 @@ describe("browse drafts", () => {
     expect(matchesFilter(draft, "all", mine)).toBe(false);
     expect(matchesFilter(draft, "signup", mine)).toBe(false);
     expect(matchesFilter(draft, "mine", mine)).toBe(true);
+  });
+});
+
+describe("edit with per-round maps (p2p #1253)", () => {
+  const M = (id: string) => ({ kind: "catalog" as const, id });
+  const seed = (t: Tournament, f: ReturnType<typeof editFormOf>) => editPatch(t, f, 0, NOW);
+
+  it("single-elim 8 -> 4 keeps Semifinals and Final, re-keyed 1-2", () => {
+    const t = T({ roundMaps: { "1": M("qf"), "2": M("sf"), "3": M("fin") } });
+    const f = editWithShape(t, editFormOf(t), { size: 4 });
+    expect(f.roundMaps).toEqual({ "1": M("sf"), "2": M("fin") });
+    expect(seed(t, f).patch).toEqual({ size: 4, roundMaps: { "1": M("sf"), "2": M("fin") } });
+  });
+  it("single-elim 4 -> 8 keeps the Final as the Final and asks for the new round", () => {
+    const t = T({ size: 4, roundMaps: { "1": M("sf"), "2": M("fin") } });
+    const f = editWithShape(t, editFormOf(t), { size: 8 });
+    expect(f.roundMaps).toEqual({ "2": M("sf"), "3": M("fin") });
+    expect(seed(t, f).problems).toEqual(["Pick a map for every round."]);
+    const filled = { ...f, roundMaps: { ...f.roundMaps, "1": M("qf") } };
+    expect(seed(t, filled).patch.roundMaps).toEqual({ "1": M("qf"), "2": M("sf"), "3": M("fin") });
+  });
+  it("round robin 6 -> 4 drops the rounds that no longer exist", () => {
+    const t = T({ format: "round_robin", size: 6, settings: {}, roundMaps: { "1": M("a"), "2": M("b"), "3": M("c"), "4": M("d"), "5": M("e") } });
+    const f = editWithShape(t, editFormOf(t), { size: 4 });
+    expect(f.roundMaps).toEqual({ "1": M("a"), "2": M("b"), "3": M("c") });
+    expect(seed(t, f).patch).toEqual({ size: 4, roundMaps: { "1": M("a"), "2": M("b"), "3": M("c") } });
+  });
+  it("round robin top-2 off drops the final key", () => {
+    const t = T({ format: "round_robin", size: 4, settings: { top2Final: true }, roundMaps: { "1": M("a"), "2": M("b"), "3": M("c"), final: M("z") } });
+    const f = editWithShape(t, editFormOf(t), { top2Final: false });
+    expect(f.roundMaps).toEqual({ "1": M("a"), "2": M("b"), "3": M("c") });
+    const { patch } = seed(t, f);
+    expect(patch.settings).toEqual({ top2Final: false });
+    expect(patch.roundMaps).toEqual({ "1": M("a"), "2": M("b"), "3": M("c") });
+  });
+  it("sends no roundMaps for an event without any", () => {
+    const t = T();
+    expect(editWithShape(t, editFormOf(t), { size: 4 }).roundMaps).toBeNull();
+    expect(seed(t, editWithShape(t, editFormOf(t), { size: 4 })).patch).toEqual({ size: 4 });
   });
 });

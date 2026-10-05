@@ -166,3 +166,34 @@ describe("event page", () => {
     query = {};
   });
 });
+
+describe("edit with per-round maps and stale tabs (p2p #1253)", () => {
+  const M = (id: string) => ({ kind: "catalog" as const, id });
+
+  it("shows the per-round map editor and sends re-keyed maps with the new size", async () => {
+    mount(T({ roundMaps: { "1": M("qf"), "2": M("sf"), "3": M("fin") } }));
+    fireEvent.click(screen.getByTestId("edit-toggle"));
+    expect(screen.getByTestId("edit-round-maps")).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "Map for Quarterfinals" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Seats"), { target: { value: "4" } });
+    expect(screen.queryByRole("radiogroup", { name: "Map for Quarterfinals" })).toBeNull();
+    fireEvent.click(screen.getByText("Save changes"));
+    await waitFor(() => expect(patches()).toHaveLength(1));
+    expect(patches()[0].body).toEqual({ size: 4, roundMaps: { "1": M("sf"), "2": M("fin") } });
+  });
+
+  it("a 409 re-reads the tournament and says cancelled when it was cancelled elsewhere", async () => {
+    patchReply = reply(409, { error: "already_started" });
+    (global.fetch as jest.Mock).mockImplementation(async (url: string, init?: RequestInit) => {
+      calls.push({ url, method: init?.method ?? "GET", body: init?.body ? JSON.parse(init.body as string) : null });
+      if (init?.method === "PATCH") return patchReply;
+      return reply(200, { tournament: { ...T(), status: "cancelled" }, entries: [], matches: [] });
+    });
+    mount(T());
+    fireEvent.click(screen.getByTestId("edit-toggle"));
+    fireEvent.change(screen.getByLabelText("Tournament name"), { target: { value: "Renamed" } });
+    fireEvent.click(screen.getByText("Save changes"));
+    expect(await screen.findByTestId("organizer-error")).toHaveTextContent("This tournament was cancelled.");
+    expect(reload).toHaveBeenCalled();
+  });
+});

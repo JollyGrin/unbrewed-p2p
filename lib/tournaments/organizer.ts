@@ -236,6 +236,8 @@ export const buildMatchupRule = (pick: {
 
 export const NOTE_MAX = 500;
 
+const ROUND_MAPS_COPY = "The per-round maps don't fit that size. Pick a map for every round, then save.";
+
 const ERRORS: Record<string, string> = {
   match_already_decided:
     "This match was decided while you were looking. Reload to see the result.",
@@ -262,16 +264,21 @@ const ERRORS: Record<string, string> = {
   invalid_signupClosesAt: "Pick a signup close time in the future.",
   invalid_name: "Give it a valid name.",
   invalid_size: "That size isn't available.",
+  invalid_roundMaps: ROUND_MAPS_COPY,
+  invalid_round_maps: ROUND_MAPS_COPY,
   invalid_match_window: "That match window isn't available.",
   immutable_field: "That setting can't be changed.",
 };
 
-export const organizerErrorText = (r: {
-  reason: TournamentFailure;
-  code?: string;
-  message?: string;
-}): string =>
+export const organizerErrorText = (
+  r: { reason: TournamentFailure; code?: string; message?: string },
+  /** The tournament's status after a re-fetch, when known. */
+  status?: string,
+): string =>
+  (r.code === "already_started" && status === "cancelled" ? "This tournament was cancelled." : null) ||
   (r.code && ERRORS[r.code]) ||
+  // round-map refusals arrive as raw api sentences; say them in our own words
+  (r.reason === "invalid" && r.message && /round keys|'final' key|roundMaps|round maps/i.test(r.message) ? ROUND_MAPS_COPY : null) ||
   // A refusal we have no copy for (e.g. cancel-running before api #91): show the api's own words.
   (r.message && (r.reason === "conflict" || r.reason === "invalid") ? r.message : null) ||
   (r.reason === "unauthorized"
@@ -282,6 +289,15 @@ export const organizerErrorText = (r: {
         ? "The server refused that change."
         : "Couldn't reach the server. Try again.");
 
+/** The organizer-facing text for `409 tickets_outstanding`: when the tickets expire, in the viewer's local time. */
+export const ticketsOutstandingText = (ticketsExpireAt: string): string => {
+  const d = new Date(ticketsExpireAt);
+  const when = Number.isNaN(d.getTime())
+    ? "a few minutes from now"
+    : `${d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}, ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+  return `A player holds a join ticket for the next match until ${when} (a player can keep one alive by pressing Play). You can wait, or Force the change: any room those players opened in that window will be ignored.`;
+};
+
 /**
  * The override body. Re-deciding a decided match must carry `replacesWinner` =
  * the current winner (api #73).
@@ -290,10 +306,12 @@ export const overrideBody = (
   m: Pick<Match, "winner">,
   winnerEntry: string,
   note: string,
+  force = false,
 ) => ({
   winnerEntry,
   ...(note.trim() ? { note: note.trim() } : {}),
   ...(m.winner ? { replacesWinner: m.winner } : {}),
+  ...(force ? { force: true } : {}),
 });
 
 /** True when `userId` is the tournament's organizer — the only viewer organizer tools render for. */
