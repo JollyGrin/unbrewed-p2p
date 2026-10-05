@@ -217,8 +217,8 @@ export const OverrideForm = ({
                   </>
                 ) : (
                   <>
-                    <Btn variant="ghost" onClick={() => { setTickets(null); onDone(); }}>Wait</Btn>
-                    <Btn variant="gold" onClick={() => setForcing(true)}>Force change</Btn>
+                    <Btn variant="gold" onClick={() => { setTickets(null); onDone(); }}>Wait</Btn>
+                    <Btn variant="ghost" onClick={() => setForcing(true)}>Force change</Btn>
                   </>
                 )}
               </Flex>

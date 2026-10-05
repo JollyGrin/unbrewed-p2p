@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { roomForMatch, ticketGameHref } from "@/lib/pro/tournamentTicket";
 
 import { getMatch, getMatchTicket, readyForMatch, type Result } from "./api";
+import { currentChecks } from "./matchPage";
 import type { MatchDetail, TicketGrant } from "./types";
 
 export type PlayPhase =
@@ -94,7 +95,7 @@ export const readyDecision = (d: MatchDetail, slot: "a" | "b", gameIndex: number
   const self = (slot === "a" ? d.match?.slotA : d.match?.slotB) ?? null;
   const opponent = (slot === "a" ? d.match?.slotB : d.match?.slotA) ?? null;
   const newestLiveCreate = (entryId: string | null) =>
-    d.readyChecks
+    currentChecks(d)
       .filter(
         (c) =>
           (entryId === null || c.entryId === entryId) &&

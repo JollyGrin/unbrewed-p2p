@@ -61,9 +61,12 @@ export const JoinPanel = ({
   t,
   entries,
   reload,
+  deletedDraft = false,
 }: {
   t: Tournament;
   entries: Entry[];
+  /** A cancelled event that never had entrants or matches: the organizer deleted a draft (#1256). */
+  deletedDraft?: boolean;
   reload: () => void;
 }) => {
   const { status, account } = useAccount();
@@ -140,7 +143,7 @@ export const JoinPanel = ({
       {state.kind === "full" && <Text fontWeight={600}>All seats are taken.</Text>}
       {state.kind === "closed" && (
         <Text fontWeight={600}>
-          {t.status === "signup" ? "Signup has closed." : t.status === "running" ? "This bracket is underway." : t.status === "cancelled" ? "This tournament was cancelled." : "This tournament is over."}
+          {t.status === "signup" ? "Signup has closed." : t.status === "running" ? "This bracket is underway." : t.status === "cancelled" ? (deletedDraft ? "This draft was deleted." : "This tournament was cancelled.") : "This tournament is over."}
         </Text>
       )}
       {error && <Text role="alert" color="#B3361F" fontSize="14px">{error}</Text>}
@@ -227,8 +230,10 @@ export const EventView = ({ slug, justCreated }: { slug: string; justCreated: bo
     return <BracketEventView t={t} entries={entries} matches={matches} isOrganizer={isOrganizer} reload={reload} />;
   const seeding = isOrganizer && t.status === "signup";
   const draft = t.status === "draft";
+  const cancelled = t.status === "cancelled";
+  const deletedDraft = cancelled && entries.length === 0 && matches.length === 0;
   const sharing = justCreated && isOrganizer && t.status === "signup";
-  const chip = statusChip(t);
+  const chip = deletedDraft ? { tone: "plain" as const, label: "Draft deleted" } : statusChip(t);
   const mapName = (r: Parameters<typeof mapTitle>[0]) => mapTitle(r);
 
   return (
@@ -253,13 +258,14 @@ export const EventView = ({ slug, justCreated }: { slug: string; justCreated: bo
           </Text>
           <Flex flexDir="column" gap="16px">
             <Seats t={t} entries={entries} />
-            {!draft && <JoinPanel t={t} entries={entries} reload={reload} />}
+            {!draft && <JoinPanel t={t} entries={entries} reload={reload} deletedDraft={deletedDraft} />}
             <Flex as="dl" gap="24px" flexWrap="wrap" fontSize="14px" borderTop="1px solid rgba(72,40,79,0.15)" pt="12px">
               <Box><Text as="dt" opacity={0.6} fontSize="12px">Heroes &amp; map</Text><Text as="dd">{describeTournamentRule(t, mapName)}</Text></Box>
               <Box><Text as="dt" opacity={0.6} fontSize="12px">Host</Text><Text as="dd" overflowWrap="anywhere">{t.organizer.username ?? "—"}</Text></Box>
             </Flex>
           </Flex>
         </Card>
+        {!cancelled && (
         <Card p="20px">
           <Text fontWeight={700} mb="10px">How a match works</Text>
           <Box as="ol" pl="18px" fontSize="14px" display="flex" flexDir="column" gap="10px">
@@ -268,6 +274,7 @@ export const EventView = ({ slug, justCreated }: { slug: string; justCreated: bo
             <li><b>Play.</b> The result and replay land on the {t.format === "round_robin" ? "standings" : "bracket"} by themselves.</li>
           </Box>
         </Card>
+        )}
       </Box>
       {seeding && (
         <Box mt="16px">

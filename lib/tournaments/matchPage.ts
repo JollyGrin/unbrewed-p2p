@@ -12,7 +12,7 @@
  */
 import { heroDisplayName } from "@/lib/stats/roster";
 
-import { DECIDED_NOTE, countsGame, roundCount, roundName } from "./bracket";
+import { DECIDED_NOTE, countsGame, scoredGame, roundCount, roundName } from "./bracket";
 import { mapTitle } from "./options";
 import type { Assignment, Game, Match, MatchDetail, MatchPlayer } from "./types";
 
@@ -48,9 +48,20 @@ export const mySide = (d: MatchDetail, myUserId: string | null): "a" | "b" | nul
   return null;
 };
 
-/** The live room still holding a seat (its 15 minutes not yet up), or null. */
+/**
+ * Ready-checks of the match's CURRENT slot entries. An organizer re-seat can
+ * leave a displaced player's check behind; it is nobody's in this match (#1256).
+ */
+export const currentChecks = (d: MatchDetail): MatchDetail["readyChecks"] =>
+  d.readyChecks.filter((c) => c.entryId === d.match.slotA || c.entryId === d.match.slotB);
+
+/** The live room still holding a seat (its 15 minutes not yet up) and made by a current slot entry, or null. */
 export const heldRoom = (d: MatchDetail, now: number) =>
-  d.liveRoom && Date.parse(d.liveRoom.expiresAt) > now ? d.liveRoom : null;
+  d.liveRoom &&
+  Date.parse(d.liveRoom.expiresAt) > now &&
+  (d.liveRoom.readyEntryId === d.match.slotA || d.liveRoom.readyEntryId === d.match.slotB)
+    ? d.liveRoom
+    : null;
 
 /** True once the match deadline is behind `now` (no deadline = never). */
 export const deadlinePassed = (deadlineAt: string | null, now: number): boolean => {
@@ -81,7 +92,7 @@ export const deadlineOutcome = (d: MatchDetail, now: number): DeadlineOutcome =>
   if (m.cancelled || m.inPlay || m.status === "in_play" || !m.slotA || !m.slotB || !deadlinePassed(m.deadlineAt, now))
     return { kind: "open" };
   const deadline = Date.parse(m.deadlineAt!);
-  const before = d.readyChecks.filter((c) => Date.parse(c.createdAt) <= deadline);
+  const before = currentChecks(d).filter((c) => Date.parse(c.createdAt) <= deadline);
   const expired = (c: MatchDetail["readyChecks"][number]) => Date.parse(c.expiresAt) <= now;
   const unanswered = [m.slotA, m.slotB].filter((e) =>
     before.some((c) => c.entryId === e && (c.outcome === "unanswered" || (c.outcome === "pending" && expired(c)))),
@@ -138,7 +149,7 @@ export const deadlineReadyCheckText = (d: MatchDetail, winner: string, myEntry: 
 /** Entry of the player whose pre-deadline seat hold is still live (past the deadline), or null. */
 export const deadlineHolder = (d: MatchDetail, now: number): string | null => {
   const deadline = d.match.deadlineAt ? Date.parse(d.match.deadlineAt) : NaN;
-  const c = d.readyChecks.find(
+  const c = currentChecks(d).find(
     (x) => x.outcome === "pending" && Date.parse(x.createdAt) <= deadline && Date.parse(x.expiresAt) > now,
   );
   return c?.entryId ?? null;
@@ -315,19 +326,22 @@ export interface GameRow {
 }
 
 /** The games list, oldest first. Unstarted games aren't rows. */
-export const gameRows = (d: MatchDetail): GameRow[] =>
-  d.match.games.map((g) => {
+export const gameRows = (d: MatchDetail): GameRow[] => {
+  // An unverified game can never confirm once the match is decided: it reads not counted (#1256).
+  const decided = d.match.status === "decided" || !!d.match.winner;
+  return d.match.games.map((g) => {
     const mu = matchupLine(gameAssignment(d, g));
     const winner =
       g.winnerEntry === d.match.slotA ? d.players.a : g.winnerEntry === d.match.slotB ? d.players.b : null;
     return {
       game: g,
       n: g.gameIndex + 1,
-      state: g.rejectedAt ? "rejected" : g.recordedAfterDecision && g.finishedAt ? "after_decision" : !g.finishedAt ? "in_play" : g.verified ? "won" : "unverified",
+      state: g.rejectedAt ? "rejected" : (g.recordedAfterDecision || (decided && !g.verified && d.match.decidedBy !== "unverified_confirmed")) && g.finishedAt ? "after_decision" : !g.finishedAt ? "in_play" : g.verified ? "won" : "unverified",
       winnerName: winner ? playerName(winner) : null,
       heroes: mu.heroA && mu.heroB ? `${mu.heroA} vs ${mu.heroB}` : null,
     };
   });
+};
 
 /** "24 min" between a game's start and finish. */
 export const gameLength = (g: Game): string | null => {
@@ -339,7 +353,7 @@ export const gameLength = (g: Game): string | null => {
 /** Games won per side — the score a decided match shows ("1–0"). */
 export const score = (d: MatchDetail): { a: number; b: number } => {
   const won = (entry: string | null) =>
-    entry ? d.match.games.filter((g) => countsGame(g) && g.winnerEntry === entry).length : 0;
+    entry ? d.match.games.filter((g) => scoredGame(d.match, g) && g.winnerEntry === entry).length : 0;
   return { a: won(d.match.slotA), b: won(d.match.slotB) };
 };
 

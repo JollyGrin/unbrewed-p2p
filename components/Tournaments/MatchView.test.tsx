@@ -340,7 +340,7 @@ describe("api #91", () => {
     const late = { ...g, gameIndex: 4, winnerEntry: d.match.slotB, recordedAfterDecision: true, replayAvailable: true };
     renderDetail({ ...d, match: { ...d.match, games: [...d.match.games, late] } });
     const rows = screen.getAllByTestId("game-row");
-    expect(rows.at(-1)).toHaveTextContent("Finished after the organizer decided (not counted)");
+    expect(rows.at(-1)).toHaveTextContent("Finished after the match was decided (not counted)");
     expect(within(rows.at(-1)!).getByTestId("replay-chip")).toBeInTheDocument();
   });
 
