@@ -334,6 +334,32 @@ describe("api #91", () => {
     expect(screen.queryByTestId("play-button")).toBeNull();
   });
 
+  it("L2-4: a cancelled match hides the closing time, the games list and the winner-goes-to card", () => {
+    const d = fixtureMatch("in_play").detail;
+    renderDetail({ ...d, match: { ...d.match, cancelled: true, inPlay: false, deadlineAt: "2099-10-07T00:56:00Z" } });
+    const page = screen.getByTestId("match-page");
+    expect(page).not.toHaveTextContent(/closes /);
+    expect(page).toHaveTextContent("Cancelled");
+    expect(page).not.toHaveTextContent("Player's choice");
+    expect(page).not.toHaveTextContent("Not played yet");
+    expect(screen.queryByTestId("games-list")).toBeNull();
+    expect(page).not.toHaveTextContent("Winner goes to");
+  });
+
+  it("L2-2/3: an organizer-decided match overriding a recorded game says so, dated by the decision", () => {
+    const d = fixtureMatch("decided").detail;
+    const g = d.match.games[0];
+    const other = g.winnerEntry === d.match.slotA ? d.match.slotB : d.match.slotA;
+    renderDetail({
+      ...d,
+      decision: { by: "organizer", note: null, at: "2026-10-05T12:34:00Z" },
+      match: { ...d.match, matchup: { heroes: { a: null, b: null }, map: null }, matchupRule: { mode: "free" }, decidedBy: "organizer", winner: other, games: [{ ...g, verified: true, assignment: { heroes: { a: null, b: null }, map: null } }] },
+    });
+    expect(screen.getByTestId("matchup-unrecorded")).toHaveTextContent("Decided by the organizer (the game's result was overridden)");
+    expect(screen.getAllByTestId("game-row")[0]).toHaveTextContent("won (not counted: overridden)");
+    expect(screen.getByTestId("deadline-card")).toHaveTextContent(/Decided \w{3} 5 Oct/);
+  });
+
   it("a game recorded after the decision is labelled and not counted", () => {
     const d = fixtureMatch("decided").detail;
     const g = d.match.games[0];

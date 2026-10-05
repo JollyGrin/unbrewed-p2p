@@ -320,10 +320,17 @@ export interface GameRow {
   game: Game;
   /** 1-based, as players count. */
   n: number;
-  state: "in_play" | "won" | "unverified" | "rejected" | "after_decision";
+  state: "in_play" | "won" | "unverified" | "rejected" | "after_decision" | "overridden";
   winnerName: string | null;
   heroes: string | null;
 }
+
+/**
+ * A finished game whose winner the organizer overrode (L2-2): the match was decided by the organizer
+ * for the other entry, so the game stays on record but does not count.
+ */
+export const overriddenGame = (m: Match, g: Game): boolean =>
+  m.decidedBy === "organizer" && !!g.finishedAt && !g.rejectedAt && !g.recordedAfterDecision && !!g.winnerEntry && !!m.winner && g.winnerEntry !== m.winner;
 
 /** The games list, oldest first. Unstarted games aren't rows. */
 export const gameRows = (d: MatchDetail): GameRow[] => {
@@ -336,7 +343,7 @@ export const gameRows = (d: MatchDetail): GameRow[] => {
     return {
       game: g,
       n: g.gameIndex + 1,
-      state: g.rejectedAt ? "rejected" : (g.recordedAfterDecision || (decided && !g.verified && d.match.decidedBy !== "unverified_confirmed")) && g.finishedAt ? "after_decision" : !g.finishedAt ? "in_play" : g.verified ? "won" : "unverified",
+      state: g.rejectedAt ? "rejected" : (g.recordedAfterDecision || (decided && !g.verified && d.match.decidedBy !== "unverified_confirmed")) && g.finishedAt ? "after_decision" : !g.finishedAt ? "in_play" : g.verified ? (overriddenGame(d.match, g) ? "overridden" : "won") : "unverified",
       winnerName: winner ? playerName(winner) : null,
       heroes: mu.heroA && mu.heroB ? `${mu.heroA} vs ${mu.heroB}` : null,
     };

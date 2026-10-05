@@ -129,3 +129,12 @@ describe("edit with per-round maps (p2p #1253)", () => {
     expect(seed(t, editWithShape(t, editFormOf(t), { size: 4 })).patch).toEqual({ size: 4 });
   });
 });
+
+describe("draft deletion memory (L2-5)", () => {
+  it("only a draft deleted in this session reads as deleted", () => {
+    const { markDraftDeleted, wasDraftDeleted } = require("./lifecycle");
+    expect(wasDraftDeleted("never")).toBe(false);
+    markDraftDeleted("gone");
+    expect(wasDraftDeleted("gone")).toBe(true);
+  });
+});
