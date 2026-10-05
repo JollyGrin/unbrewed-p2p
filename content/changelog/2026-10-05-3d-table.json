@@ -1,0 +1,10 @@
+{
+  "id": "2026-10-05-3d-table",
+  "date": "2026-10-05",
+  "title": "Set up a 3D table for you and a friend",
+  "summary": "Pick both decks and a map, and we'll lay out a table on table.place. Walk around the board, then send your friend the link.",
+  "tags": ["feature"],
+  "highlight": true,
+  "video": { "slug": "table-v2" },
+  "cta": { "label": "Set up a table", "href": "/table" }
+}
