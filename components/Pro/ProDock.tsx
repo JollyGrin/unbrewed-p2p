@@ -242,6 +242,11 @@ export interface ProDockProps {
   rematchNegotiation?: RematchNegotiation | null;
   /** Local deep-link into this browser's saved replay — labelled as such (#698). */
   replayHref: string | null;
+  /**
+   * A tournament game's match page (#1218). When set it is the primary endgame
+   * action, in Rematch's place: the result lands on the match and bracket.
+   */
+  matchPageHref?: string | null;
   /** Upload this match and copy its public share link. Omitted when there is
    *  nothing to upload or nobody to upload as (signed out, bundle not held). */
   onCopyShareLink?: () => void;
@@ -335,6 +340,7 @@ export const ProDock = ({
   rematchHref = null,
   rematchNegotiation = null,
   replayHref,
+  matchPageHref = null,
   onCopyShareLink,
   shareLinkBusy = false,
   undoPending,
@@ -1157,7 +1163,24 @@ export const ProDock = ({
               see lib/pro/rematch.ts), so from here it behaves exactly like
               starting any other room: the presser lands on the new room's
               waiting screen with the invite link ready to hand off. */}
-          {rematchNegotiation ? (
+          {matchPageHref ? (
+            <Button
+              as={Link}
+              href={matchPageHref}
+              minH={TAP_TARGET}
+              px="1.4rem"
+              mt="0.3rem"
+              mb="0.15rem"
+              bg="brand.accent"
+              color="brand.surfaceDim"
+              fontWeight={700}
+              data-testid="back-to-match"
+              _hover={{ bg: "brand.accentDeep", textDecoration: "none" }}
+              _active={{ bg: "brand.accentDeep" }}
+            >
+              Back to the match
+            </Button>
+          ) : rematchNegotiation ? (
             <RematchOfferPanel negotiation={rematchNegotiation} compact={narrow} />
           ) : rematchHref && (
             <Button

@@ -29,6 +29,14 @@ const MESSAGES: Record<ErrorCode, string> = {
   ROOM_LIMIT: "Server is full — try again in a few minutes.",
   RATE_LIMITED: "Slowing down — too many actions at once.",
   SERVER_ERROR: "The server couldn't process that action — try again or take a different action.",
+  // v37 (engine #755): tournament tickets. Each one is answered from the match page,
+  // which mints a fresh ticket — see lib/pro/tournamentTicket.ts.
+  TICKET_INVALID: "This match link isn't valid any more.",
+  TICKET_EXPIRED: "Your seat ticket ran out (they last 15 minutes).",
+  TICKET_MISMATCH: "This ticket doesn't fit this room — it may be for another game, or your seat is already taken.",
+  TICKET_REQUIRED: "This is a tournament room — join it from the match page.",
+  MATCHUP_LOCKED: "The organizer set this match's heroes and map, and this pick doesn't match them.",
+  TOURNAMENTS_DISABLED: "Tournament games aren't available on this server right now.",
 };
 
 const GENERIC = "Something went wrong. Please try again.";

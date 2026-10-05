@@ -1,12 +1,13 @@
 /** Small load-once hooks over ./api (component state; no shared store needed). */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  getMatch,
   getTournament,
   listTournaments,
   type Result,
 } from "./api";
-import type { Entry, Match, Tournament } from "./types";
+import type { Entry, Match, MatchDetail, Tournament } from "./types";
 
 export type Loaded<T> =
   | { status: "loading" }
@@ -54,3 +55,32 @@ export const useTournament = (slug: string | null) =>
     slug ? () => getTournament(slug) : null,
     slug ?? "",
   );
+
+/**
+ * The match page's match (#1218), re-fetched every `pollMs` until it is decided —
+ * an opponent's "I'm ready" or a finished game shows up without a refresh.
+ */
+export const useMatchDetail = (slug: string, matchId: string, pollMs = 10_000) => {
+  const [loaded, reload] = useLoad<MatchDetail>(() => getMatch(slug, matchId), `${slug}/${matchId}`);
+  // A poll that fails (or is still in flight) keeps showing the last good match.
+  const last = useRef<Loaded<MatchDetail> | null>(null);
+  if (loaded.status === "ready") last.current = loaded;
+  const state = loaded.status !== "ready" && last.current ? last.current : loaded;
+  const decided = state.status === "ready" && state.value.match.status === "decided";
+  useEffect(() => {
+    if (decided || pollMs <= 0) return;
+    const id = window.setInterval(reload, pollMs);
+    return () => window.clearInterval(id);
+  }, [decided, pollMs, reload]);
+  return [state, reload] as const;
+};
+
+/** `Date.now()`, re-read every `ms` — for countdowns. */
+export const useNow = (ms = 1000): number => {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), ms);
+    return () => window.clearInterval(id);
+  }, [ms]);
+  return now;
+};

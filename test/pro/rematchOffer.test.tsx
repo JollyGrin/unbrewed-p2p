@@ -61,8 +61,8 @@ const fakeRouter = (query: Query) =>
     beforePopState() {},
   }) as never;
 
-// `v` is what the ENGINE stamps on its frames. Since engine #754 prod accepts only
-// {35, 36}, so this client always binds at PROTOCOL_VERSION (36) — #1201.
+// `v` is what the ENGINE stamps on its frames. Since engine #754 an engine accepts only
+// the accepted window ({36, 37} since engine #755), so this client always binds at PROTOCOL_VERSION — #1201.
 let ENGINE_V = PROTOCOL_VERSION;
 const deliver = async (msg: Record<string, unknown>) => {
   const socket = FakeWebSocket.latest();
@@ -157,20 +157,20 @@ const finishGame = async (you: "p1" | "p2", opts: { bots?: Record<string, string
 const rematchButton = () => screen.getAllByRole("button", { name: /rematch — same setup/i, hidden: true })[0];
 const statusText = () => screen.getAllByRole("status", { hidden: true }).map((n) => n.textContent ?? "");
 
-describe("against a v36 engine", () => {
+describe("against an engine at the current PROTOCOL_VERSION", () => {
 
-  it("a first visit binds at 36 straight away and never re-binds at game over", async () => {
+  it("a first visit binds at PROTOCOL_VERSION straight away and never re-binds at game over", async () => {
     await finishGame("p1");
-    expect(sentOfType("RECONNECT")).toEqual([{ v: 36, type: "RECONNECT", roomId: "OLD1", token: "tok-p1" }]);
-    expect(SENT.every((m) => m.v === 36 || String(m.type).startsWith("REMATCH_"))).toBe(true);
+    expect(sentOfType("RECONNECT")).toEqual([{ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: "OLD1", token: "tok-p1" }]);
+    expect(SENT.every((m) => m.v === PROTOCOL_VERSION || String(m.type).startsWith("REMATCH_"))).toBe(true);
   });
 
-  it("a refresh mid-offer binds at 36 at once and shows the waiting offer again — no replay bundle needed", async () => {
+  it("a refresh mid-offer binds at PROTOCOL_VERSION at once and shows the waiting offer again — no replay bundle needed", async () => {
     window.sessionStorage.setItem("unbrewed-pro-engine-v-" + FakeWebSocketUrl(), "36");
     window.sessionStorage.setItem("unbrewed-pro-token-OLD1", "tok-p1");
     setRoomBots("OLD1", {});
     await mount({ room: "OLD1" });
-    expect(sentOfType("RECONNECT")).toEqual([{ v: 36, type: "RECONNECT", roomId: "OLD1", token: "tok-p1" }]);
+    expect(sentOfType("RECONNECT")).toEqual([{ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: "OLD1", token: "tok-p1" }]);
     await deliver({ type: "ROOM_JOINED", roomId: "OLD1", token: "tok-p1", you: "p1" });
     await deliver({
       type: "STATE",
