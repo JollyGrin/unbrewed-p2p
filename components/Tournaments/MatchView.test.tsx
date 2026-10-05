@@ -299,3 +299,33 @@ describe("final smoke fixes (#1239)", () => {
     expect(screen.queryByText("Random board")).not.toBeInTheDocument();
   });
 });
+
+describe("api #91", () => {
+  const renderDetail = (d: MatchDetail, as: string | null = FIXTURE_MATCH_YOU) => {
+    const f = fixtureMatch("in_play");
+    return render(
+      <ChakraProvider>
+        <MatchBody d={d} t={f.tournament} myUserId={as} signedOut={false} now={NOW} phase={{ kind: "idle" }} onPlay={() => {}} />
+      </ChakraProvider>,
+    );
+  };
+
+  it("a cancelled match reads Cancelled: no live banner, no Play, no organizer tools", () => {
+    const d = fixtureMatch("in_play").detail;
+    renderDetail({ ...d, match: { ...d.match, cancelled: true, inPlay: false } });
+    expect(screen.getByTestId("match-page")).toHaveAttribute("data-state", "cancelled");
+    expect(banner()).toHaveTextContent("Cancelled");
+    expect(banner()).not.toHaveTextContent("In play now");
+    expect(screen.queryByTestId("play-button")).toBeNull();
+  });
+
+  it("a game recorded after the decision is labelled and not counted", () => {
+    const d = fixtureMatch("decided").detail;
+    const g = d.match.games[0];
+    const late = { ...g, gameIndex: 4, winnerEntry: d.match.slotB, recordedAfterDecision: true, replayAvailable: true };
+    renderDetail({ ...d, match: { ...d.match, games: [...d.match.games, late] } });
+    const rows = screen.getAllByTestId("game-row");
+    expect(rows.at(-1)).toHaveTextContent("Finished after the organizer decided (not counted)");
+    expect(within(rows.at(-1)!).getByTestId("replay-chip")).toBeInTheDocument();
+  });
+});

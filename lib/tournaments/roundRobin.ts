@@ -4,7 +4,7 @@
  * round. Standings themselves come from the api (`Standing[]`), never computed
  * here; this only lays them out. Mockup v2, "Same page, round-robin format".
  */
-import { DECIDED_NOTE, cellState, type CellState } from "./bracket";
+import { DECIDED_NOTE, cellState, countsGame, type CellState } from "./bracket";
 import type { Entry, Match, Standing, Tournament } from "./types";
 
 export const isRoundRobin = (t: Pick<Tournament, "format">): boolean => t.format === "round_robin";
@@ -207,7 +207,7 @@ export const buildRoundRobin = (
   };
   const scoreOf = (m: Match) => {
     const w = (id: string | null) =>
-      id ? m.games.filter((g) => g.finishedAt && !g.rejectedAt && g.winnerEntry === id).length : 0;
+      id ? m.games.filter((g) => countsGame(g) && g.winnerEntry === id).length : 0;
     return `${w(m.slotA)}–${w(m.slotB)}`;
   };
   const rowOf = (m: Match): RrMatchRow => {
@@ -221,7 +221,9 @@ export const buildRoundRobin = (
       state,
       note:
         state === "decided"
-          ? (tag ?? (m.games.some((g) => g.finishedAt) ? scoreOf(m) : null))
+          ? (tag ?? (m.games.some(countsGame) ? scoreOf(m) : null))
+          : state === "cancelled"
+            ? "Cancelled"
           : state === "in_play"
             ? "In play now"
             : state === "unverified"
@@ -251,8 +253,8 @@ export const buildRoundRobin = (
       players: standingRows.filter((r) => !r.dropped).length,
       currentRound: openRound?.round ?? rounds.length,
       totalRounds: rounds.length,
-      gamesPlayed: matches.reduce((n, m) => n + m.games.filter((g) => g.finishedAt && !g.rejectedAt).length, 0),
-      inPlay: matches.filter((m) => !decidedOf(m) && (m.inPlay || m.status === "in_play")).length,
+      gamesPlayed: matches.reduce((n, m) => n + m.games.filter(countsGame).length, 0),
+      inPlay: matches.filter((m) => !decidedOf(m) && cellState(m) === "in_play").length,
     },
   };
 };

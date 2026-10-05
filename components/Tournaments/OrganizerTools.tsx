@@ -105,7 +105,7 @@ export const OverrideForm = ({
   const [winner, setWinner] = useState<string | null>(initialWinner ?? null);
   const [note, setNote] = useState(initialNote);
   // A game is in play: warn first and make the organizer confirm (#1242).
-  const inPlay = match.inPlay || match.status === "in_play";
+  const inPlay = !match.cancelled && (match.inPlay || match.status === "in_play");
   const [confirming, setConfirming] = useState(false);
   const [gameInPlay, setGameInPlay] = useState(false);
   // If the api reports the game was still running, keep the form up so it is seen.

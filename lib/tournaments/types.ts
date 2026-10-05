@@ -117,6 +117,11 @@ export interface Game {
    * `true` the match page shows no Replay chip. Absent = false.
    */
   replayAvailable?: boolean;
+  /**
+   * The game finished after the organizer already decided the match (api #91):
+   * it never counts toward the score or the winner. Absent on an older api = false.
+   */
+  recordedAfterDecision?: boolean;
 }
 
 export type MatchStatus = "pending" | "open" | "in_play" | "decided";
@@ -146,6 +151,8 @@ export interface Match {
   status: MatchStatus;
   decidedBy: DecidedBy | null;
   inPlay: boolean;
+  /** An undecided match of a cancelled tournament (api #91); its `status` stays raw. Absent = false. */
+  cancelled?: boolean;
   opensAt: string | null;
   deadlineAt: string | null;
   nextMatchId: string | null;

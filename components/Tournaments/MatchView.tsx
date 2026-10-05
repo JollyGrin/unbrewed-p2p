@@ -15,7 +15,7 @@ import { GOLD, INK, INK_DEEP, INK_MUTED, PARCHMENT, RULE, TRACK, WASH } from "@/
 import { signInUrl, useAccount } from "@/lib/account/useAccount";
 import { catalogEntry } from "@/lib/pro/mapCatalog";
 import { getToken } from "@/lib/pro/recentRooms";
-import { matchHref } from "@/lib/tournaments/bracket";
+import { countsGame, matchHref } from "@/lib/tournaments/bracket";
 import { useMatchDetail, useNow, useTournament } from "@/lib/tournaments/hooks";
 import { isOrganizerOf } from "@/lib/tournaments/organizer";
 import {
@@ -250,7 +250,7 @@ export const MatchBody = ({
         </Card>
 
         <Flex flexDir="column" gap="16px">
-          {organizer && (
+          {organizer && state !== "cancelled" && (
             <MatchOrganizerPanel slug={d.tournament.slug} match={m} entries={organizer.entries} reload={organizer.reload} deadlinePassed={state === "deadline_passed"} />
           )}
           <DeadlineCard d={d} t={t} state={state} now={now} />
@@ -258,7 +258,7 @@ export const MatchBody = ({
           {state === "decided_by_rule" ? (
             <Text fontSize="13px" fontWeight={600} px="4px" data-testid="decided-by-rule">{decidedByRuleLine(d)}</Text>
           ) : (
-            state !== "decided" && <RulesCard d={d} state={state} group={group} />
+            state !== "decided" && state !== "cancelled" && <RulesCard d={d} state={state} group={group} />
           )}
           <ReadyChecksCard d={d} myUserId={myUserId} />
           {next && (
@@ -301,6 +301,7 @@ const BANNER_LOOK: Record<MatchPageState, { bg: string; color: string }> = {
   deadline_passed: { bg: SURFACE, color: PARCHMENT },
   decided: { bg: POS, color: "white" },
   decided_by_rule: { bg: SURFACE, color: PARCHMENT },
+  cancelled: { bg: SURFACE, color: PARCHMENT },
 };
 
 const Banner = ({
@@ -350,6 +351,10 @@ const Banner = ({
       small = "Live spectating isn't available yet";
       break;
     }
+    case "cancelled":
+      text = "Cancelled. The organizer cancelled this tournament before this match was decided.";
+      small = "No result · nothing more to play";
+      break;
     case "deadline_passed": {
       const out = deadlineOutcome(d, now);
       if (out.kind === "ready_check") {
@@ -471,7 +476,7 @@ const Versus = ({ d, state, side, now }: { d: MatchDetail; state: MatchPageState
   const m = d.match;
   const mu = matchupLine(m.matchup);
   const s = score(d);
-  const decided = state === "decided" || state === "decided_by_rule";
+  const decided = state === "decided" || state === "decided_by_rule" || state === "cancelled";
   const room = heldRoom(d, now);
   const line = (p: MatchPlayer | null, entry: string | null, mine: boolean) => {
     if (!p) return { line: null, online: false };
@@ -496,7 +501,7 @@ const Versus = ({ d, state, side, now }: { d: MatchDetail; state: MatchPageState
           {decided ? (played ? `${s.a}–${s.b}` : "–") : <Text as="em" fontStyle="normal" color="rgba(72,40,79,0.55)">vs</Text>}
         </Text>
         <Text {...caption} fontSize="12px" letterSpacing="0.1em" mt="6px" color={state === "in_play" ? DANGER_INK : INK_MUTED}>
-          {state === "in_play" ? "● Live" : decided ? (played ? "Final score" : "No game played") : "One game"}
+          {state === "in_play" ? "● Live" : decided ? (played ? (state === "cancelled" ? "Score when cancelled" : "Final score") : "No game played") : "One game"}
         </Text>
       </Box>
       <Side p={d.players.b} you={side === "b"} hero={mu.heroB} {...lb} />
@@ -529,7 +534,7 @@ const PlayBox = ({
   roomId: string | null;
   code: string;
 }) => {
-  if (state === "decided" || state === "decided_by_rule" || state === "deadline_passed") return null;
+  if (state === "decided" || state === "decided_by_rule" || state === "deadline_passed" || state === "cancelled") return null;
   const busy = phase.kind === "busy" || phase.kind === "opening";
   const status =
     phase.kind === "opening" ? (
@@ -666,7 +671,7 @@ const StickyPlay = ({
   else if (side && state === "you_ready") btn = <Btn variant="gold" onClick={onPlay} disabled={busy}>Take your seat here · {seatHeld}</Btn>;
   else if (side && state === "in_play" && back) btn = <Btn variant="gold" href={back}>Back to game</Btn>;
   else if (state === "decided" && onReplay) btn = <Btn variant="ink" onClick={onReplay}>Watch the replay</Btn>;
-  else if (state === "decided" || state === "decided_by_rule" || state === "deadline_passed") btn = <Btn variant="ghost" href={bracketHref}>{standings ? "See the standings" : "See the bracket"}</Btn>;
+  else if (state === "decided" || state === "decided_by_rule" || state === "deadline_passed" || state === "cancelled") btn = <Btn variant="ghost" href={bracketHref}>{standings ? "See the standings" : "See the bracket"}</Btn>;
   if (!btn) return null;
   return (
     <Flex
@@ -703,7 +708,7 @@ const MatchupPanel = ({ d, t, side, onReplay }: { d: MatchDetail; t: Tournament 
         ? "Players choose"
         : "Event rule";
   // Once a game is recorded, only heroes the api names are shown; never "Player's choice".
-  const played = m.games.some((g) => g.finishedAt);
+  const played = m.games.some(countsGame);
   // D9: a decided match whose record names no heroes or board must not fall back to the "Random board" rule text.
   const decided = m.status === "decided" || !!m.winner;
   const unrecorded = decided && !isSet;
@@ -806,7 +811,7 @@ const GamesList = ({
         <GameLine
           key={r.game.gameIndex}
           // "In play now" shows no game number (settled rule 8).
-          gn={r.state === "in_play" ? "—" : r.state === "won" ? "✓" : r.state === "rejected" ? "✕" : String(r.n)}
+          gn={r.state === "in_play" ? "—" : r.state === "won" ? "✓" : r.state === "rejected" || r.state === "after_decision" ? "✕" : String(r.n)}
           pending={r.state === "in_play"}
           meta={
             r.state === "in_play"
@@ -841,6 +846,8 @@ const GamesList = ({
               <Text as="span" color={DANGER_INK} fontWeight={700}>● In play now</Text>
               {r.heroes ? ` · ${r.heroes}` : ""}
             </>
+          ) : r.state === "after_decision" ? (
+            <>{AFTER_DECISION_LABEL}</>
           ) : r.state === "rejected" ? (
             <>Result rejected by the organizer · not counted</>
           ) : (
@@ -854,6 +861,9 @@ const GamesList = ({
     </Box>
   );
 };
+
+/** A game that finished after the organizer decided the match: shown, never counted. */
+const AFTER_DECISION_LABEL = "Finished after the organizer decided (not counted)";
 
 const GameLine = ({
   gn,
@@ -889,7 +899,7 @@ const GameLine = ({
 const DeadlineCard = ({ d, t, state, now }: { d: MatchDetail; t: Tournament | null; state: MatchPageState; now: number }) => {
   const m = d.match;
   const parts = deadlineParts(m.deadlineAt, now);
-  const decided = state === "decided" || state === "decided_by_rule";
+  const decided = state === "decided" || state === "decided_by_rule" || state === "cancelled";
   const finished = m.games.at(-1)?.finishedAt ?? null;
   const unit = (n: number, u: string) => (
     <>
@@ -901,7 +911,7 @@ const DeadlineCard = ({ d, t, state, now }: { d: MatchDetail; t: Tournament | nu
     <Card p="22px" data-testid="deadline-card">
       <Text {...caption} mb="6px">Match deadline</Text>
       <Text fontFamily="LeagueGothic" fontSize={decided ? "44px" : "64px"} lineHeight="0.9" sx={{ fontVariantNumeric: "tabular-nums" }} color={state === "decided" ? POS_INK : INK}>
-        {state === "decided" ? (m.decidedBy === "organizer" ? "Decided by the organizer" : "Done early") : decided || !parts ? "Closed" : <>{unit(parts.d, "d")}{unit(parts.h, "h")}{unit(parts.m, "m")}</>}
+        {state === "cancelled" ? "Cancelled" : state === "decided" ? (m.decidedBy === "organizer" ? "Decided by the organizer" : "Done early") : decided || !parts ? "Closed" : <>{unit(parts.d, "d")}{unit(parts.h, "h")}{unit(parts.m, "m")}</>}
       </Text>
       <Flex h="8px" borderRadius="999px" bg={TRACK} overflow="hidden" mt="14px" mb="8px">
         <Box bg={state === "decided" ? POS : decided ? INK : GOLD} w={`${decided ? (state === "decided" ? windowSpent(m.opensAt, m.deadlineAt, Date.parse(finished ?? "") || now) : 100) : windowSpent(m.opensAt, m.deadlineAt, now)}%`} />

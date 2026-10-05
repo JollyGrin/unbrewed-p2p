@@ -25,7 +25,7 @@ import { Avatar, timeLeft } from "./Bracket";
 import { useNow } from "@/lib/tournaments/hooks";
 import { LifecyclePanel } from "./LifecyclePanel";
 import { AttentionQueue } from "./OrganizerTools";
-import { Card, Chip, Page } from "./ui";
+import { Card, Chip, Notice, Page } from "./ui";
 
 const Stat = ({ value, of, label, live }: { value: number; of?: number; label: string; live?: boolean }) => (
   <Box>
@@ -170,6 +170,7 @@ const Standings = ({ view, t }: { view: ReturnType<typeof buildRoundRobin>; t: T
 
 const stateChip = (m: RrMatchRow): { tone: "plain" | "live" | "soon" | "done"; label: string } => {
   if (m.state === "decided") return { tone: "done", label: m.note ?? "Decided" };
+  if (m.state === "cancelled") return { tone: "plain", label: "Cancelled" };
   if (m.state === "in_play") return { tone: "live", label: "In play now" };
   if (m.state === "unverified") return { tone: "soon", label: "Awaiting confirmation" };
   return { tone: "plain", label: "Open" };
@@ -241,6 +242,7 @@ export const RoundRobinEventView = ({
   const view = useMemo(() => buildRoundRobin(t, entries, matches, standings), [t, entries, matches, standings]);
   const now = useNow(30_000);
   const complete = t.status === "complete";
+  const cancelled = t.status === "cancelled";
   const rule =
     t.settings?.matchupSetBy === "organizer" ? "Matchups set by organizer" : describeRule(t.matchupRule, mapTitle);
 
@@ -254,7 +256,7 @@ export const RoundRobinEventView = ({
       lede={
         <>
           <Flex gap="8px" flexWrap="wrap" mt="6px">
-            <Chip tone={complete ? "done" : "live"} onDark>{complete ? "Completed" : "Live"}</Chip>
+            <Chip tone={complete || cancelled ? "done" : "live"} onDark>{cancelled ? "Cancelled" : complete ? "Completed" : "Live"}</Chip>
             <Chip onDark>{formatLabel(t).replace(/^./, (c) => c.toUpperCase())}</Chip>
             <Chip onDark>One game per match</Chip>
             <Chip onDark>{WINDOW_LABEL[t.matchWindowHours] ?? `${t.matchWindowHours}h`} per match</Chip>
@@ -279,11 +281,16 @@ export const RoundRobinEventView = ({
           <Stat value={view.stats.players} label="players" />
           <Stat value={view.stats.currentRound} of={view.stats.totalRounds} label="round" />
           <Stat value={view.stats.gamesPlayed} label="games played" />
-          {!complete && <Stat value={view.stats.inPlay} label="in play now" live />}
+          {!complete && !cancelled && <Stat value={view.stats.inPlay} label="in play now" live />}
         </Flex>
       }
     >
-      {isOrganizer && <AttentionQueue t={t} entries={entries} matches={matches} reload={reload} />}
+      {cancelled && (
+        <Box mb="16px" data-testid="cancelled-notice">
+          <Notice title="This tournament was cancelled">The organizer cancelled it. Results so far are kept below; unfinished matches are cancelled.</Notice>
+        </Box>
+      )}
+      {isOrganizer && !cancelled && <AttentionQueue t={t} entries={entries} matches={matches} reload={reload} />}
       <Standings view={view} t={t} />
 
       {view.final && (

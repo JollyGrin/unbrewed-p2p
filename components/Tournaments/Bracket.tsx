@@ -120,6 +120,12 @@ const Tag = ({ c, late }: { c: CellView; late: boolean }) => {
         In play now
       </Flex>
     );
+  else if (c.state === "cancelled")
+    right = (
+      <Text as="span" fontWeight={700}>
+        Cancelled
+      </Text>
+    );
   else if (c.state === "unverified")
     right = (
       <Box as="span" bg="rgba(224,168,46,0.25)" color={GOLD_INK} borderRadius="999px" px="9px" fontWeight={700} letterSpacing="0.02em">
