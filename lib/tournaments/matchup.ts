@@ -43,6 +43,13 @@ export const assignment = (
   }
 };
 
+/** `describeRule`, but "Organizer sets each match" when the tournament says so (settings.matchupSetBy; the rule itself stays `free`). */
+export const describeTournamentRule = (
+  t: { matchupRule: MatchupRule; settings?: Record<string, unknown> | null },
+  mapName?: (ref: MapRef) => string,
+): string =>
+  t.settings?.matchupSetBy === "organizer" ? "Organizer sets each match" : describeRule(t.matchupRule, mapName);
+
 /** One-line description for cards and the join page ("Players choose", …). */
 export const describeRule = (
   rule: MatchupRule,

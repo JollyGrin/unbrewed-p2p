@@ -43,8 +43,9 @@ export const statusChip = (
       return { tone: "live", label: "Live" };
     case "signup":
       if (t.signupOpen) return { tone: "soon", label: "Signup open" };
-      // Full roster before the close time: still open (people can leave), just no free seats.
-      if (signupWindowOpen(t)) return { tone: "soon", label: "Full · signup open" };
+      // Full roster before the close time: signup closes the moment seats fill,
+      // so all that is left is the organizer starting it.
+      if (signupWindowOpen(t)) return { tone: "soon", label: "Full · ready to start" };
       return { tone: "plain", label: "Signup closed" };
     case "complete":
       return { tone: "done", label: "Completed" };

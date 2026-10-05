@@ -8,4 +8,11 @@ describe("discordPost summary", () => {
   it("does not without one", () => {
     expect(discordPost(fixtureRoundRobin4().tournament)).not.toMatch(/play a final/);
   });
+  it("follows the real matchup setting (C1, #1236)", () => {
+    const t = fixtureRoundRobin4().tournament;
+    expect(discordPost({ ...t, matchupRule: { mode: "free" }, settings: {} })).toMatch(/Players choose\./);
+    const set = discordPost({ ...t, matchupRule: { mode: "free" }, settings: { matchupSetBy: "organizer" } });
+    expect(set).toMatch(/Organizer sets each match\./);
+    expect(set).not.toMatch(/Players choose/);
+  });
 });

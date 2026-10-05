@@ -4,6 +4,8 @@
  * and reflavored variants are not balanced evergreen decks either.
  */
 import { MAP_CATALOG } from "@/lib/pro/mapCatalog";
+import { POPULAR_DECKS } from "@/lib/constants/top-decks";
+import { HERO_DECK_IDS } from "@/lib/pro/useProCardArt";
 import type { HeroListing } from "@/lib/pro/protocol";
 
 import type { MapRef } from "./types";
@@ -28,12 +30,21 @@ export interface DeckOption {
   section: "balanced" | "community";
 }
 
+/**
+ * The hero picker's own lab rule (pages/pro/game.tsx `isLabHero`): the server's
+ * tier when it sends `lab`, else the client deck table's `lab` flag.
+ */
+const isLab = (h: HeroListing): boolean =>
+  h.tier === "lab" || !!POPULAR_DECKS.find((d) => d.id === HERO_DECK_IDS[h.heroId])?.lab;
+
+/**
+ * Same roster as the player picker's balanced + community sections (E6, #1236):
+ * spice decks ARE in it (they are the roster's balanced pick for that hero), lab
+ * and the hidden reflavored baselines are not.
+ */
 export const proDeckOptions = (heroes: readonly HeroListing[]): DeckOption[] =>
   heroes
-    .filter(
-      (h) =>
-        h.tier !== "lab" && h.tier !== "spice" && h.tier !== "reflavored",
-    )
+    .filter((h) => !isLab(h) && h.tier !== "reflavored")
     .map((h): DeckOption => ({
       heroId: h.heroId,
       name: h.name.trim(),

@@ -183,3 +183,44 @@ export function tournamentRoomOf(roomId: string | null, now: number = Date.now()
 
 /** The match page this room belongs to. */
 export const tournamentMatchHref = (at: TournamentRoom): string => matchHref(at.slug, at.matchId);
+
+// --- a ticket fired but no room exists yet (E1, #1236) ------------------------
+// The ticket leaves the URL the moment it fires (single use), but a player who
+// presses F5 at the hero picker has no room to RECONNECT to. sessionStorage is
+// per tab, so this note is exactly "this tab was mid-launch for this match".
+// It is dropped as soon as a room exists (the room note takes over). The ticket
+// itself is never stored: a refresh asks for a fresh one.
+
+const PENDING_KEY = "unbrewed-pro-tournament-pending";
+export const PENDING_PICK_MAX_AGE_MS = 30 * 60 * 1000;
+
+export function rememberPendingPick(at: TournamentRoom, now: number = Date.now()): void {
+  try {
+    window.sessionStorage.setItem(PENDING_KEY, JSON.stringify({ slug: at.slug, matchId: at.matchId, ts: now }));
+  } catch {
+    /* storage blocked: a refresh falls back to the lobby */
+  }
+}
+
+export function forgetPendingPick(): void {
+  try {
+    window.sessionStorage.removeItem(PENDING_KEY);
+  } catch {
+    /* nothing stored */
+  }
+}
+
+export function pendingPick(now: number = Date.now()): TournamentRoom | null {
+  try {
+    const raw = window.sessionStorage.getItem(PENDING_KEY);
+    const v = raw ? JSON.parse(raw) : null;
+    if (!v || typeof v.slug !== "string" || typeof v.matchId !== "string") return null;
+    if (typeof v.ts !== "number" || now - v.ts > PENDING_PICK_MAX_AGE_MS) {
+      forgetPendingPick();
+      return null;
+    }
+    return { slug: v.slug, matchId: v.matchId };
+  } catch {
+    return null;
+  }
+}

@@ -28,18 +28,21 @@ function useLoad<T>(
   load: (() => Promise<Result<T>>) | null,
   key: string,
 ): [Loaded<T>, () => void] {
-  const [state, setState] = useState<Loaded<T>>({ status: "loading" });
+  // The result remembers which key it answered: a different key is a different
+  // thing, and never shows the previous one's data (not even for one render).
+  const [res, setRes] = useState<{ key: string; state: Loaded<T> } | null>(null);
   const [n, setN] = useState(0);
   useEffect(() => {
     if (!load) return;
     let alive = true;
-    void load().then((r) => alive && setState(toLoaded(r)));
+    void load().then((r) => alive && setRes({ key, state: toLoaded(r) }));
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, n]);
   const reload = useCallback(() => setN((v) => v + 1), []);
+  const state: Loaded<T> = res && res.key === key ? res.state : { status: "loading" };
   return [state, reload];
 }
 
@@ -52,11 +55,36 @@ export const useTournamentList = (signedIn: boolean) => {
   return { all, mine, reload: reloadAll };
 };
 
-export const useTournament = (slug: string | null) =>
-  useLoad<{ tournament: Tournament; entries: Entry[]; matches: Match[]; standings: Standing[] | null }>(
-    slug ? () => getTournament(slug) : null,
-    slug ?? "",
-  );
+type TournamentData = { tournament: Tournament; entries: Entry[]; matches: Match[]; standings: Standing[] | null };
+
+/**
+ * The event/bracket page's tournament, re-fetched every `pollMs` while it is
+ * running and the tab is visible (E2, #1236); a draft/signup/complete event
+ * stands still. A poll that fails keeps showing the last good data.
+ */
+export const useTournament = (slug: string | null, pollMs = 10_000) => {
+  const [loaded, reload] = useLoad<TournamentData>(slug ? () => getTournament(slug) : null, slug ?? "");
+  const last = useRef<{ slug: string | null; loaded: Loaded<TournamentData> } | null>(null);
+  if (loaded.status === "ready") last.current = { slug, loaded };
+  const state =
+    loaded.status === "unavailable" && last.current?.slug === slug ? last.current.loaded : loaded;
+  const running = state.status === "ready" && state.value.tournament.status === "running";
+  useEffect(() => {
+    if (!running || pollMs <= 0) return;
+    const id = window.setInterval(() => {
+      if (typeof document === "undefined" || document.visibilityState !== "hidden") reload();
+    }, pollMs);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") reload();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [running, pollMs, reload]);
+  return [state, reload] as const;
+};
 
 /**
  * The match page's match (#1218), re-fetched every `pollMs` until it is decided —

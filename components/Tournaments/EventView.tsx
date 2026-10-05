@@ -6,7 +6,7 @@ import { signInUrl, useAccount } from "@/lib/account/useAccount";
 import { joinTournament, leaveTournament, type TournamentFailure } from "@/lib/tournaments/api";
 import { useTournament } from "@/lib/tournaments/hooks";
 import { joinState, activeEntries } from "@/lib/tournaments/joinState";
-import { describeRule } from "@/lib/tournaments/matchup";
+import { describeTournamentRule } from "@/lib/tournaments/matchup";
 import { mapTitle } from "@/lib/tournaments/options";
 import {
   WINDOW_LABEL,
@@ -229,7 +229,7 @@ export const EventView = ({ slug, justCreated }: { slug: string; justCreated: bo
             <Seats t={t} entries={entries} />
             <JoinPanel t={t} entries={entries} reload={reload} />
             <Flex as="dl" gap="24px" flexWrap="wrap" fontSize="14px" borderTop="1px solid rgba(72,40,79,0.15)" pt="12px">
-              <Box><Text as="dt" opacity={0.6} fontSize="12px">Heroes &amp; map</Text><Text as="dd">{t.settings?.matchupSetBy === "organizer" ? "Organizer sets each match" : describeRule(t.matchupRule, mapName)}</Text></Box>
+              <Box><Text as="dt" opacity={0.6} fontSize="12px">Heroes &amp; map</Text><Text as="dd">{describeTournamentRule(t, mapName)}</Text></Box>
               <Box><Text as="dt" opacity={0.6} fontSize="12px">Host</Text><Text as="dd">{t.organizer.username ?? "—"}</Text></Box>
             </Flex>
           </Flex>
@@ -237,7 +237,7 @@ export const EventView = ({ slug, justCreated }: { slug: string; justCreated: bo
         <Card p="20px">
           <Text fontWeight={700} mb="10px">How a match works</Text>
           <Box as="ol" pl="18px" fontSize="14px" display="flex" flexDir="column" gap="10px">
-            <li><b>Your match opens.</b> {t.format === "round_robin" ? `Every match opens when the event starts, each with ${WINDOW_LABEL[t.matchWindowHours] ?? `${t.matchWindowHours}h`}. Play them in any order.` : `${WINDOW_LABEL[t.matchWindowHours] ?? `${t.matchWindowHours}h`} from when both of you are known. We ping you both.`} We ping you both.</li>
+            <li><b>Your match opens.</b> {t.format === "round_robin" ? `Every match opens when the event starts, each with ${WINDOW_LABEL[t.matchWindowHours] ?? `${t.matchWindowHours}h`}. Play them in any order.` : `${WINDOW_LABEL[t.matchWindowHours] ?? `${t.matchWindowHours}h`} from when both of you are known. We ping you both.`}</li>
             <li><b>Press &ldquo;I&apos;m ready to play&rdquo;.</b> We hold a private room and ping your opponent.</li>
             <li><b>Play.</b> The result and replay land on the {t.format === "round_robin" ? "standings" : "bracket"} by themselves.</li>
           </Box>

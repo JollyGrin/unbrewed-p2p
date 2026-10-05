@@ -69,6 +69,23 @@ describe("freshGrant", () => {
     expect(await freshGrant("s", "m", () => NOW)).toEqual(grant({ action: "create", ticket: "recorded" }));
   });
 
+  it("a reload at the hero picker (liveRoomOnly): my pending check with no room is no held seat; a live room still is", async () => {
+    const NOW = Date.parse("2026-10-05T12:00:00Z");
+    const later = new Date(NOW + 10 * 60_000).toISOString();
+    ticket.mockResolvedValue(grant({ action: "create", slot: "a" }));
+    ready.mockResolvedValue(grant({ action: "create", ticket: "recorded" }));
+    const detail = (over: Partial<MatchDetail>): { ok: true; value: MatchDetail } => ({
+      ok: true,
+      value: { match: { slotA: "eA", slotB: "eB" }, readyChecks: [], liveRoom: null, ...over } as unknown as MatchDetail,
+    });
+    getMatch.mockResolvedValueOnce(
+      detail({ readyChecks: [{ id: "rc", gameIndex: 0, entryId: "eA", createdAt: "", expiresAt: later, roomId: null, outcome: "pending", role: "create" }] }),
+    );
+    expect(await freshGrant("s", "m", () => NOW, { liveRoomOnly: true })).toEqual(grant({ action: "create", ticket: "recorded" }));
+    getMatch.mockResolvedValueOnce(detail({ liveRoom: { gameIndex: 0, roomId: "MINE", readyEntryId: "eA", expiresAt: later } }));
+    expect(await freshGrant("s", "m", () => NOW, { liveRoomOnly: true })).toMatchObject({ ok: false, code: "seat_held" });
+  });
+
   it("explains the held seat", () => {
     expect(playErrorMessage({ ok: false, reason: "conflict", code: "seat_held" })).toMatch(/another tab or device/);
   });

@@ -69,6 +69,11 @@ export const freshGrant = async (
   slug: string,
   matchId: string,
   now: () => number = Date.now,
+  /**
+   * A refresh at the hero picker (E1): the player's own pending ready-check has
+   * no room yet, so there is no seat held anywhere — only a LIVE room counts.
+   */
+  opts: { liveRoomOnly?: boolean } = {},
 ): Promise<Result<TicketGrant>> => {
   const t = await getMatchTicket(slug, matchId);
   if (!t.ok || t.value.action === "join") return t;
@@ -79,7 +84,12 @@ export const freshGrant = async (
   // already-seated player is TICKET_MISMATCH, and only the first tab holds the
   // reconnect token.)
   const d = await getMatch(slug, matchId);
-  if (d.ok && ownHoldLive(d.value, t.value.slot, now())) return { ok: false, reason: "conflict", code: "seat_held" };
+  if (d.ok && opts.liveRoomOnly) {
+    const mine = t.value.slot === "a" ? d.value.match?.slotA : d.value.match?.slotB;
+    const live = d.value.liveRoom;
+    if (live?.roomId && live.readyEntryId === mine && Date.parse(live.expiresAt) > now())
+      return { ok: false, reason: "conflict", code: "seat_held" };
+  } else if (d.ok && ownHoldLive(d.value, t.value.slot, now())) return { ok: false, reason: "conflict", code: "seat_held" };
   return readyForMatch(slug, matchId);
 };
 
