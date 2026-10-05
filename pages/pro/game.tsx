@@ -5318,8 +5318,24 @@ const LiveGame = ({
   // Read once on mount (client-only) so the static export hydrates cleanly.
   const [pendingLaunch, setPendingLaunch] = useState<TournamentRoom | null>(null);
   useEffect(() => {
-    if (!ticket && !room) setPendingLaunch(pendingPick());
-  }, [ticket, room]);
+    if (!ticket && !room && !quickParam) setPendingLaunch(pendingPick());
+  }, [ticket, room, quickParam]);
+  // Leaving the page, any engine error (ticket codes, ROOM_NOT_FOUND), a board
+  // this client can't open, or signing out ends the remembered launch.
+  useEffect(() => {
+    const done = () => forgetPendingPick();
+    router.events?.on("routeChangeStart", done);
+    return () => router.events?.off("routeChangeStart", done);
+  }, [router]);
+  const wasSignedInRef = useRef(false);
+  useEffect(() => {
+    const signedOut = wasSignedInRef.current && accountState.status !== "signed-in";
+    wasSignedInRef.current = accountState.status === "signed-in";
+    if (error || ticketProblem || signedOut) {
+      forgetPendingPick();
+      setPendingLaunch(null);
+    }
+  }, [error, ticketProblem, accountState.status]);
 
   // A ticket that sets the hero launches by itself — but only once the seat
   // identity has settled, or the CREATE_ROOM/JOIN_ROOM goes out with no
@@ -5502,11 +5518,12 @@ const LiveGame = ({
 
   // Refreshed at the tournament hero picker (E1): the ticket was single use and
   // no room exists yet — a fresh ticket, never the casual lobby.
-  if (!joined && !firedTicket && !ticket && !room && pendingLaunch) {
+  if (!joined && !firedTicket && !ticket && !room && !quickParam && pendingLaunch) {
     return (
       <TicketErrorScreen
         message="Your match game didn't open before the page reloaded. Get a fresh ticket to pick your hero again."
         retry
+        pendingLaunch
         at={pendingLaunch}
       />
     );

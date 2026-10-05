@@ -20,10 +20,11 @@ describe("tournament pickers", () => {
       ["d-spice", "balanced", "d-spice"],
     ]);
   });
-  it("drops a hero the client deck table marks lab, even when the server tier says otherwise", () => {
-    const labId = POPULAR_DECKS.find((d) => d.lab)?.id;
-    expect(labId).toBeDefined();
-    expect(proDeckOptions([hero(labId as string, "community", "recommended")])).toEqual([]);
+  it("drops the heroes the player picker treats as lab, spice decks stay", () => {
+    const labs = ["batman", "clone-troopers", "doppelganger", "appa", "the-narrator"];
+    const spice = ["king-taranis-spice", "piper-of-the-underroads-spice", "the-hollow-oak-spice", "thetis-spice"];
+    const out = proDeckOptions([...labs, ...spice, "kenshiro"].map((id) => hero(id, "community", "recommended")));
+    expect(out.map((d) => d.heroId).sort()).toEqual([...spice, "kenshiro"].sort());
   });
   it("lists Pro catalog maps only, never the hidden arena", () => {
     const maps = proMapOptions();

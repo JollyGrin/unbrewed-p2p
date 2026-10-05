@@ -639,6 +639,36 @@ describe("refresh at the tournament hero picker (E1, #1236)", () => {
   });
 });
 
+describe("the remembered launch never blocks the casual lobby (review #2, #1236)", () => {
+  it("a ticket error clears it: /pro/game?quick=1 in the same tab shows the lobby", async () => {
+    await mount(LOCKED);
+    expect(window.sessionStorage.getItem("unbrewed-pro-tournament-pending")).not.toBeNull();
+    await deliver({ type: "ERROR", code: "TICKET_EXPIRED", message: "x" });
+    expect(screen.getByTestId("ticket-error")).toBeInTheDocument();
+    expect(window.sessionStorage.getItem("unbrewed-pro-tournament-pending")).toBeNull();
+    cleanup();
+    FakeWebSocket.reset();
+    await mount({ quick: "1" });
+    await deliver({ type: "HEROES", heroes: HEROES });
+    await flush();
+    expect(screen.queryByTestId("ticket-error")).not.toBeInTheDocument();
+  });
+
+  it("'Play casual instead' on the reload card clears the note", async () => {
+    await mount({ ...TICKET });
+    await deliver({ type: "HEROES", heroes: HEROES });
+    cleanup();
+    FakeWebSocket.reset();
+    await mount({});
+    await deliver({ type: "HEROES", heroes: HEROES });
+    await flush();
+    const link = screen.getByText("Play casual instead");
+    expect(link.closest("a")).toHaveAttribute("href", "/pro/game");
+    await click(link);
+    expect(window.sessionStorage.getItem("unbrewed-pro-tournament-pending")).toBeNull();
+  });
+});
+
 describe("a tagged room whose match is decided (C3, #1236)", () => {
   it("says the match is finished, with only 'Back to the match'", async () => {
     rememberTournamentRoom("SF2ROOM", { slug: "autumn-skirmish", matchId: "m2-1" });

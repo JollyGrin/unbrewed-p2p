@@ -53,3 +53,19 @@ it("does not poll a signup event, nor while the tab is hidden; a failed poll kee
   expect(get).toHaveBeenCalledTimes(2);
   expect(result.current[0].status).toBe("ready");
 });
+
+it("refreshes at once when the tab becomes visible again; the last-good fallback is per slug", async () => {
+  get.mockResolvedValue(data("running"));
+  const { result, rerender } = renderHook(({ s }) => useTournament(s), { initialProps: { s: "a" } });
+  await tick(0);
+  expect(get).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  expect(get).toHaveBeenCalledTimes(2);
+  get.mockResolvedValue({ ok: false, reason: "unavailable" });
+  rerender({ s: "b" });
+  await tick(0);
+  await tick(0);
+  expect(result.current[0].status).toBe("unavailable"); // not slug a's data
+});

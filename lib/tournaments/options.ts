@@ -5,6 +5,7 @@
  */
 import { MAP_CATALOG } from "@/lib/pro/mapCatalog";
 import { POPULAR_DECKS } from "@/lib/constants/top-decks";
+import { HERO_DECK_IDS } from "@/lib/pro/useProCardArt";
 import type { HeroListing } from "@/lib/pro/protocol";
 
 import type { MapRef } from "./types";
@@ -34,7 +35,7 @@ export interface DeckOption {
  * tier when it sends `lab`, else the client deck table's `lab` flag.
  */
 const isLab = (h: HeroListing): boolean =>
-  h.tier === "lab" || !!POPULAR_DECKS.find((d) => d.id === h.heroId)?.lab;
+  h.tier === "lab" || !!POPULAR_DECKS.find((d) => d.id === HERO_DECK_IDS[h.heroId])?.lab;
 
 /**
  * Same roster as the player picker's balanced + community sections (E6, #1236):
