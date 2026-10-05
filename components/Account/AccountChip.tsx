@@ -20,6 +20,8 @@ import {
   signOut,
   useAccount,
 } from "@/lib/account/useAccount";
+import { nextMatchView } from "@/lib/tournaments/nextMatch";
+import { useMyTournaments } from "@/lib/tournaments/useNextMatch";
 
 /**
  * The canonical account menu, in canonical order (#712).
@@ -62,6 +64,14 @@ const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => {
     ? { target: "_blank", rel: "noopener noreferrer" }
     : {};
 
+  // Tournaments (#1220): nothing here for a guest or an api failure.
+  // Not on the in-game chip (`newTab`): a live game has no business with it.
+  const tournaments = useMyTournaments(!newTab);
+  const next = tournaments?.next
+    ? nextMatchView(tournaments.next.match, tournaments.next.detail, tournaments.next.size, Date.now())
+    : null;
+  const myCount = tournaments?.mine.tournaments.filter((t) => t.myEntryId || t.isOrganizer).length ?? 0;
+
   return (
     <MenuList
       bg="brand.surfaceDim"
@@ -73,6 +83,39 @@ const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => {
       // under the board furniture on /pro.
       zIndex={210}
     >
+      {next && (
+        <MenuItem
+          as={NextLink}
+          href={next.href}
+          {...linkProps}
+          {...menuItemStyles}
+          data-testid="menu-next-match"
+          flexDir="column"
+          alignItems="flex-start"
+          gap="0.1rem"
+          borderBottom="1px solid"
+          borderColor="whiteAlpha.300"
+          pb="0.5rem"
+        >
+          <Text as="span" fontSize="0.7rem" letterSpacing="0.08em" textTransform="uppercase" color="brand.accent">
+            Your next match
+          </Text>
+          <Text as="span" fontWeight={700}>{next.title}</Text>
+          <Text as="span" fontSize="0.8rem" opacity={0.75}>
+            {[next.tournamentName, next.timeLeft].filter(Boolean).join(" · ")}
+          </Text>
+        </MenuItem>
+      )}
+      {tournaments && (
+        <MenuItem as={NextLink} href="/tournaments" {...linkProps} {...menuItemStyles}>
+          My tournaments
+          {myCount > 0 && (
+            <Text as="span" ml="auto" pl="0.6rem" opacity={0.7}>
+              {myCount}
+            </Text>
+          )}
+        </MenuItem>
+      )}
       {ACCOUNT_MENU_LINKS.map((link) => (
         <Fragment key={link.href}>
           {link.dividerBefore && <MenuDivider borderColor="whiteAlpha.300" />}

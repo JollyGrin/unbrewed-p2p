@@ -189,3 +189,20 @@ export interface TicketGrant {
   ticketExpiresAt: string;
   roomId: string | null;
 }
+
+/**
+ * `GET /me/tournaments` → `nextMatch`: the caller's open (or in-play) match with
+ * the soonest deadline, for the /pro banner. `null` = nothing to play.
+ */
+export interface NextMatch {
+  tournament: Pick<Tournament, "id" | "slug" | "name"> &
+    Partial<Pick<Tournament, "size">>;
+  match: Match;
+  myEntryId: string;
+  opponent: Entry | null;
+}
+
+export interface MyTournaments {
+  tournaments: Tournament[];
+  nextMatch: NextMatch | null;
+}

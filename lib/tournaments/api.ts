@@ -10,6 +10,8 @@ import type {
   Entry,
   Match,
   MatchDetail,
+  MyTournaments,
+  NextMatch,
   TicketGrant,
   MatchupRule,
   Tournament,
@@ -88,6 +90,20 @@ export const listTournaments = (opts: { mine?: boolean } = {}) =>
   call(`/tournaments${opts.mine ? "?mine=1" : ""}`, undefined, (b) =>
     list(b?.tournaments) as Tournament[],
   );
+
+/** The signed-in player's tournaments plus their next open match (#1220). */
+export const getMyTournaments = () =>
+  call("/me/tournaments", undefined, (b): MyTournaments => {
+    // Not the documented shape (a stub, a proxy page) = the api is unavailable.
+    if (!Array.isArray(b?.tournaments)) throw new Error("bad /me/tournaments body");
+    return {
+      tournaments: b.tournaments as Tournament[],
+      nextMatch:
+        b.nextMatch?.match && b.nextMatch.tournament?.slug
+          ? (b.nextMatch as NextMatch)
+          : null,
+    };
+  });
 
 export const getTournament = (slug: string) =>
   call(`/tournaments/${encodeURIComponent(slug)}`, undefined, (b) => ({
