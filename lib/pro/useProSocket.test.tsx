@@ -12,6 +12,7 @@ import {
   useProSocket,
 } from "./useProSocket";
 import { resetEngineVersions } from "./wireVersion";
+import { PROTOCOL_VERSION } from "./protocol";
 
 // The hook reads the optional Discord account (issue #568) to decide whether to
 // claim a seat identity. Stubbed here so no test hits `/me`; the default is a
@@ -2337,7 +2338,7 @@ describe("useProSocket — room bot seats survive a reload (#876)", () => {
   });
 });
 
-describe("useProSocket — protocol 36 binding (p2p #1201)", () => {
+describe("useProSocket — PROTOCOL_VERSION binding (p2p #1201)", () => {
   const realWS = global.WebSocket;
   beforeEach(() => {
     // @ts-expect-error — swap in the fake for the test
@@ -2384,12 +2385,12 @@ describe("useProSocket — protocol 36 binding (p2p #1201)", () => {
   const sentOf = (ws: FakeWebSocket, type: string) =>
     ws.sent.map((s) => JSON.parse(s)).filter((m) => m.type === type);
 
-  // #1201: prod engines accept only {35, 36}, so every seat binds at 36 — already
+  // #1201: an engine accepts a two-version window, so every seat binds at PROTOCOL_VERSION — already
   // rematch-capable — and the #880/#894 game-over re-bind at 35 can no longer fire.
-  it("a seat bound at 36 is never re-bound at game over and can offer a rematch at once", () => {
+  it("a seat bound at PROTOCOL_VERSION is never re-bound at game over and can offer a rematch at once", () => {
     const { hook, ws, emit } = boot(36);
     act(() => hook.result.current.createRoom("hero-a"));
-    expect(sentOf(ws, "CREATE_ROOM")).toMatchObject([{ v: 37 }]);
+    expect(sentOf(ws, "CREATE_ROOM")).toMatchObject([{ v: PROTOCOL_VERSION }]);
     emit(roomJoined());
     emit(winnerState([]));
     expect(sentOf(ws, "RECONNECT")).toHaveLength(0);

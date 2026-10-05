@@ -2,15 +2,15 @@
  * A tournament game that couldn't start (#1218): the engine's ticket codes
  * (TICKET_EXPIRED, MATCHUP_LOCKED, …, protocol v37) as readable copy, with a
  * retry that asks the api for a fresh ticket and reloads /pro/game with it, and
- * a way back to the match page.
+ * a way back to the match page. The retry goes through `freshGrant`: a JOIN may
+ * reuse `GET …/ticket`, but a CREATE is always a recorded `POST …/ready`.
  */
 import { Button, Flex, Link, Text } from "@chakra-ui/react";
 import { useState } from "react";
 
 import { proErrorMessage } from "@/lib/pro/proErrors";
 import { ticketRetryable, tournamentMatchHref, type TournamentRoom } from "@/lib/pro/tournamentTicket";
-import { getMatchTicket } from "@/lib/tournaments/api";
-import { grantHref, playErrorMessage } from "@/lib/tournaments/usePlayMatch";
+import { freshGrant, grantHref, playErrorMessage } from "@/lib/tournaments/usePlayMatch";
 
 const BTN_GOLD = {
   bg: "brand.accent",
@@ -23,24 +23,27 @@ export const TicketErrorScreen = ({
   code,
   message,
   at,
+  retry: forceRetry = false,
   navigate = (href: string) => window.location.assign(href),
 }: {
   /** The engine's ERROR code; absent for a problem found before sending. */
   code?: string;
   /** Overrides the code's copy. */
   message?: string;
+  /** Offer the retry even with no code (a seat this browser can't resume). */
+  retry?: boolean;
   at: TournamentRoom;
   /** Test seam: where a fresh ticket's link goes. */
   navigate?: (href: string) => void;
 }) => {
   const [busy, setBusy] = useState(false);
   const [retryNote, setRetryNote] = useState<string | null>(null);
-  const retryable = !!code && ticketRetryable(code);
+  const retryable = forceRetry || (!!code && ticketRetryable(code));
 
   const retry = async () => {
     setBusy(true);
     setRetryNote(null);
-    const r = await getMatchTicket(at.slug, at.matchId);
+    const r = await freshGrant(at.slug, at.matchId);
     setBusy(false);
     if (!r.ok) return setRetryNote(playErrorMessage(r));
     const href = grantHref(r.value, at.slug, at.matchId);

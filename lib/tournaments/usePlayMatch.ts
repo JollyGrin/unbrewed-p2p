@@ -55,42 +55,68 @@ export const grantHref = (g: TicketGrant, slug: string, matchId: string): string
         map: g.map,
       });
 
-const POLL_MS = 3000;
-const MAX_POLLS = 40;
+/**
+ * A ticket for a retry or a poll. `GET …/ticket` records nothing, so it is only
+ * good for a JOIN (the other room is recorded already). Whenever the answer is
+ * — or turns into — `create`, ask again with `POST …/ready`, which records the
+ * ready-check the new room is filed under: otherwise the room is invisible to
+ * the api and the opponent can open a second one (settled rule 6).
+ */
+export const freshGrant = async (slug: string, matchId: string): Promise<Result<TicketGrant>> => {
+  const t = await getMatchTicket(slug, matchId);
+  if (!t.ok || t.value.action === "join") return t;
+  return readyForMatch(slug, matchId);
+};
+
+export const POLL_MS = 3000;
+/** 40 × 3s = 2 minutes: past the api's 90s grace for an opening room. */
+export const MAX_POLLS = 40;
 
 export const usePlayMatch = (slug: string, matchId: string, onSettled?: () => void) => {
   const router = useRouter();
   const [phase, setPhase] = useState<PlayPhase>({ kind: "idle" });
   const alive = useRef(true);
+  // One press at a time: a double click must not record two ready-checks.
+  const inFlight = useRef(false);
   useEffect(() => () => void (alive.current = false), []);
 
   const follow = useCallback(
-    async (r: Result<TicketGrant>, polls: number): Promise<void> => {
-      if (!alive.current) return;
+    async (r: Result<TicketGrant>, polls: number): Promise<boolean> => {
+      if (!alive.current) return false;
       if (!r.ok) {
         setPhase({ kind: "error", message: playErrorMessage(r) });
         onSettled?.();
-        return;
+        return false;
       }
       const href = grantHref(r.value, slug, matchId);
       if (href) {
         void router.push(href);
-        return;
+        return true;
       }
       if (polls >= MAX_POLLS) {
         setPhase({ kind: "error", message: "The other room didn't open. Try again." });
-        return;
+        onSettled?.(); // the match has moved on meanwhile: show what it is now
+        return false;
       }
       setPhase({ kind: "opening" });
       await new Promise((ok) => setTimeout(ok, POLL_MS));
-      if (alive.current) await follow(await getMatchTicket(slug, matchId), polls + 1);
+      if (!alive.current) return false;
+      return follow(await freshGrant(slug, matchId), polls + 1);
     },
     [router, slug, matchId, onSettled],
   );
 
   const play = useCallback(async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setPhase({ kind: "busy" });
-    await follow(await readyForMatch(slug, matchId), 0);
+    try {
+      const navigating = await follow(await readyForMatch(slug, matchId), 0);
+      // Navigating away: stay locked so a second tap can't mint a second ticket.
+      if (!navigating) inFlight.current = false;
+    } catch {
+      inFlight.current = false;
+    }
   }, [follow, slug, matchId]);
 
   return { phase, play };

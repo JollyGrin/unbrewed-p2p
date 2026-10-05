@@ -14,6 +14,7 @@ import { useState } from "react";
 import { GOLD, INK, INK_DEEP, INK_MUTED, PARCHMENT, RULE, TRACK, WASH } from "@/components/Stats/tokens";
 import { signInUrl, useAccount } from "@/lib/account/useAccount";
 import { catalogEntry } from "@/lib/pro/mapCatalog";
+import { getToken } from "@/lib/pro/recentRooms";
 import { matchHref } from "@/lib/tournaments/bracket";
 import { useMatchDetail, useNow, useTournament } from "@/lib/tournaments/hooks";
 import {
@@ -62,6 +63,15 @@ const caption = {
   fontSize: "11px",
   color: INK_MUTED,
 };
+
+/**
+ * `/pro/game?room=` only when this browser holds a seat token for the room: the
+ * game page resumes a tournament room with it (any tab's). Without one, a
+ * `?room=` link would send a ticketless JOIN_ROOM (TICKET_REQUIRED), so the
+ * player goes through the ready/ticket flow instead.
+ */
+export const seatHref = (roomId: string | null): string | null =>
+  roomId && getToken(roomId) ? `/pro/game?room=${encodeURIComponent(roomId)}` : null;
 
 // ---------------------------------------------------------------------------
 
@@ -462,7 +472,7 @@ const PlayBox = ({
         {phase.message}
       </Text>
     ) : null;
-  const backHref = roomId ? `/pro/game?room=${encodeURIComponent(roomId)}` : null;
+  const backHref = seatHref(roomId);
 
   let look: Record<string, unknown> = { bg: WASH };
   let body: React.ReactNode;
@@ -500,14 +510,21 @@ const PlayBox = ({
       );
       action = backHref ? (
         <Btn variant="gold" href={backHref}>Back to your room</Btn>
-      ) : null;
+      ) : (
+        // Seat held from another tab or device: take it here via a fresh ticket.
+        <Btn variant="gold" onClick={onPlay} disabled={busy} data-testid="play-button">Take your seat here</Btn>
+      );
       break;
     case "in_play":
       look = { bg: "rgba(255,99,71,0.1)", boxShadow: "inset 0 0 0 1.5px rgba(255,99,71,0.5)" };
       body = (
         <>
           <Text as="h4" fontSize="17px" fontWeight={700} mb="4px">Your game is running</Text>
-          <Text fontSize="13px" color={INK_MUTED}>Lost the tab? Rejoin the same room. The result and replay land here when the game ends.</Text>
+          <Text fontSize="13px" color={INK_MUTED}>
+            {backHref
+              ? "Lost the tab? Rejoin the same room. The result and replay land here when the game ends."
+              : "It's open in the tab or device you started it on — carry on there. The result and replay land here when the game ends."}
+          </Text>
         </>
       );
       action = backHref ? <Btn variant="gold" minH="54px" fontSize="17px" px="26px" href={backHref}>Back to game</Btn> : null;
@@ -570,11 +587,12 @@ const StickyPlay = ({
   onReplay: (() => void) | null;
 }) => {
   const busy = phase.kind === "busy" || phase.kind === "opening";
-  const back = roomId ? `/pro/game?room=${encodeURIComponent(roomId)}` : null;
+  const back = seatHref(roomId);
   let btn: React.ReactNode = null;
   if (side && state === "waiting") btn = <Btn variant="gold" onClick={onPlay} disabled={busy}>I&apos;m ready to play</Btn>;
   else if (side && state === "opponent_ready") btn = <Btn variant="gold" onClick={onPlay} disabled={busy}>Join now{seatHeld ? ` · ${seatHeld}` : ""}</Btn>;
   else if (side && state === "you_ready" && back) btn = <Btn variant="ink" href={back}>Seat held {seatHeld} · Back to room</Btn>;
+  else if (side && state === "you_ready") btn = <Btn variant="gold" onClick={onPlay} disabled={busy}>Take your seat here · {seatHeld}</Btn>;
   else if (side && state === "in_play" && back) btn = <Btn variant="gold" href={back}>Back to game</Btn>;
   else if (state === "decided" && onReplay) btn = <Btn variant="ink" onClick={onReplay}>Watch the replay</Btn>;
   else if (state === "decided" || state === "decided_by_rule") btn = <Btn variant="ghost" href={bracketHref}>See the bracket</Btn>;

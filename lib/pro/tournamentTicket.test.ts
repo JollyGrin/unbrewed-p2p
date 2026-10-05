@@ -5,8 +5,10 @@ import {
   ticketBoard,
   ticketGameHref,
   ticketRetryable,
+  forgetTournamentRoom,
   tournamentRoomOf,
   rememberTournamentRoom,
+  TOURNAMENT_ROOM_MAX_AGE_MS,
   withoutTicketQuery,
   type TicketLaunch,
 } from "./tournamentTicket";
@@ -88,4 +90,28 @@ it("remembers which rooms are tournament rooms", () => {
   rememberTournamentRoom("ROOM1", { slug: "s", matchId: "m" });
   expect(tournamentRoomOf("ROOM1")).toEqual({ slug: "s", matchId: "m" });
   expect(tournamentRoomOf(null)).toBeNull();
+});
+
+describe("the tournament-room note expires (room codes get reused)", () => {
+  afterEach(() => window.localStorage.clear());
+
+  it("lasts 24h, then is gone", () => {
+    const t0 = Date.parse("2026-10-05T12:00:00Z");
+    rememberTournamentRoom("ROOM2", { slug: "s", matchId: "m" }, t0);
+    expect(tournamentRoomOf("ROOM2", t0 + TOURNAMENT_ROOM_MAX_AGE_MS - 1)).toEqual({ slug: "s", matchId: "m" });
+    expect(tournamentRoomOf("ROOM2", t0 + TOURNAMENT_ROOM_MAX_AGE_MS + 1)).toBeNull();
+    // …and the expired note is removed, not just ignored
+    expect(window.localStorage.getItem("unbrewed-pro-tournament-room-ROOM2")).toBeNull();
+  });
+
+  it("a note with no timestamp (written before expiry existed) counts as expired", () => {
+    window.localStorage.setItem("unbrewed-pro-tournament-room-OLD", JSON.stringify({ slug: "s", matchId: "m" }));
+    expect(tournamentRoomOf("OLD")).toBeNull();
+  });
+
+  it("can be forgotten", () => {
+    rememberTournamentRoom("ROOM3", { slug: "s", matchId: "m" });
+    forgetTournamentRoom("ROOM3");
+    expect(tournamentRoomOf("ROOM3")).toBeNull();
+  });
 });

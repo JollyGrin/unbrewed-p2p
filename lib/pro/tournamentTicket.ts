@@ -136,31 +136,46 @@ export const ticketRetryable = (code: string): boolean =>
 // --- which rooms are tournament rooms ---------------------------------------
 // The engine never says (ROOM_JOINED/STATE carry no match id), so the tab that
 // opened or joined the room remembers it — a refresh, or the game-over screen,
-// still knows to hide Rematch and link back to the match page.
+// still knows to hide Rematch and link back to the match page. Room codes are
+// reused, so the note expires with the room (24h, like the recent-rooms list)
+// and is dropped when this browser seats itself in an untagged room of that code.
 
 const ROOM_KEY = "unbrewed-pro-tournament-room-";
+export const TOURNAMENT_ROOM_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 export interface TournamentRoom {
   slug: string;
   matchId: string;
 }
 
-export function rememberTournamentRoom(roomId: string, at: TournamentRoom): void {
+export function rememberTournamentRoom(roomId: string, at: TournamentRoom, now: number = Date.now()): void {
   try {
-    window.localStorage.setItem(ROOM_KEY + roomId, JSON.stringify(at));
+    window.localStorage.setItem(ROOM_KEY + roomId, JSON.stringify({ ...at, ts: now }));
   } catch {
     /* storage blocked: this page load still has it in state */
   }
 }
 
-export function tournamentRoomOf(roomId: string | null): TournamentRoom | null {
+/** Drop the note: this browser is seated in an untagged room with this code. */
+export function forgetTournamentRoom(roomId: string): void {
+  try {
+    window.localStorage.removeItem(ROOM_KEY + roomId);
+  } catch {
+    /* nothing stored */
+  }
+}
+
+export function tournamentRoomOf(roomId: string | null, now: number = Date.now()): TournamentRoom | null {
   if (!roomId) return null;
   try {
     const raw = window.localStorage.getItem(ROOM_KEY + roomId);
     const v = raw ? JSON.parse(raw) : null;
-    return v && typeof v.slug === "string" && typeof v.matchId === "string"
-      ? { slug: v.slug, matchId: v.matchId }
-      : null;
+    if (!v || typeof v.slug !== "string" || typeof v.matchId !== "string") return null;
+    if (typeof v.ts !== "number" || now - v.ts > TOURNAMENT_ROOM_MAX_AGE_MS) {
+      forgetTournamentRoom(roomId);
+      return null;
+    }
+    return { slug: v.slug, matchId: v.matchId };
   } catch {
     return null;
   }

@@ -130,6 +130,14 @@ export interface ProGameSnapshot {
 
 export interface UseProSocketReturn {
   status: ProConnectionStatus;
+  /**
+   * The seat identity a CREATE_ROOM/JOIN_ROOM would carry has settled: the
+   * account probe answered, and for a signed-in player the worn badges and the
+   * cosmetic loadout have loaded too (or failed). A frame sent before this goes
+   * out with no displayName/badges/cosmetics. Pickers never need to wait (a
+   * human click comes later); an auto-fired create does (tournament tickets, #1218).
+   */
+  identitySettled: boolean;
   roomId: string | null;
   roomInfo: ProRoomInfo | null;
   snapshot: ProGameSnapshot | null;
@@ -438,6 +446,9 @@ export function useProSocket(
   const cosmetics = useCosmetics();
   const cosmeticsRef = useRef(cosmetics.heroes);
   cosmeticsRef.current = cosmetics.heroes;
+  const identitySettled =
+    account.status !== "loading" &&
+    (account.status !== "signed-in" || (badges.status !== "loading" && cosmetics.status !== "loading"));
   const retryRef = useRef({ attempts: 0, timer: 0 as unknown as ReturnType<typeof setTimeout> | 0 });
   const roomRef = useRef<string | null>(null);
   const youRef = useRef<PlayerView["you"] | null>(null);
@@ -1504,6 +1515,7 @@ export function useProSocket(
   );
 
   return {
+    identitySettled,
     status,
     roomId,
     roomInfo,

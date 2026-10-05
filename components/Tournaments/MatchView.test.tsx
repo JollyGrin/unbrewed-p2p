@@ -60,14 +60,27 @@ it("opponent ready (join now): the seat clock and Join now", () => {
   expect(within(box).getByTestId("play-button")).toHaveTextContent("Join now");
 });
 
-it("you're ready (seat held): countdown and a way back to the room", () => {
+afterEach(() => window.localStorage.clear());
+
+it("you're ready (seat held): countdown and a way back to the room this browser holds", () => {
+  window.localStorage.setItem("unbrewed-pro-token-SF2ROOM", "tok"); // seated from another tab
   renderState("you_ready");
   expect(banner()).toHaveTextContent("You're ready.");
   expect(screen.getByTestId("seat-clock")).toHaveTextContent("14:32");
   expect(screen.getAllByText("Back to your room")[0].closest("a")).toHaveAttribute("href", "/pro/game?room=SF2ROOM");
 });
 
+it("you're ready on a device with no seat token: a fresh ticket, never a ticketless ?room= link", () => {
+  const onPlay = jest.fn();
+  renderState("you_ready", { onPlay });
+  expect(screen.queryByText("Back to your room")).not.toBeInTheDocument();
+  expect(document.querySelector('a[href^="/pro/game"]')).toBeNull();
+  fireEvent.click(within(screen.getByTestId("play-box")).getByText("Take your seat here"));
+  expect(onPlay).toHaveBeenCalledTimes(1);
+});
+
 it("in play now: no game number, back to the game", () => {
+  window.localStorage.setItem("unbrewed-pro-token-room-m2-1-0", "tok");
   renderState("in_play");
   expect(banner()).toHaveTextContent("In play now. Started");
   const rows = screen.getAllByTestId("game-row");
@@ -77,6 +90,15 @@ it("in play now: no game number, back to the game", () => {
   expect(rows[0]).not.toHaveTextContent(/Game 1|^1/);
   expect(screen.getAllByText("Back to game")[0].closest("a")).toHaveAttribute("href", "/pro/game?room=room-m2-1-0");
   expect(screen.getByText(/Watching live is coming later/)).toBeInTheDocument();
+  expect(screen.getByTestId("play-box")).toHaveTextContent("Lost the tab? Rejoin the same room.");
+});
+
+it("in play now on another device: no rejoin promise it can't keep", () => {
+  renderState("in_play");
+  expect(screen.queryByText("Back to game")).not.toBeInTheDocument();
+  expect(document.querySelector('a[href^="/pro/game"]')).toBeNull();
+  expect(screen.getByTestId("play-box")).not.toHaveTextContent("Lost the tab?");
+  expect(screen.getByTestId("play-box")).toHaveTextContent("open in the tab or device you started it on");
 });
 
 it("decided: the winner advances, the score, the replay chip", async () => {
