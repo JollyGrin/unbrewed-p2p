@@ -137,6 +137,35 @@ it("deadline passed, organizer deciding: no Play button, the 24h rule, deadline 
   expect(screen.getByTestId("deadline-card")).toHaveTextContent("Closed");
 });
 
+it("past the deadline with a live pre-deadline hold: still Join now, no organizer copy (#1233 review)", () => {
+  const f = fixtureMatch("opponent_ready");
+  const pressedAt = Date.parse(f.detail.readyChecks[0].createdAt);
+  const d = { ...f.detail, match: { ...f.detail.match, deadlineAt: new Date(pressedAt + 5 * 60_000).toISOString() } };
+  render(
+    <ChakraProvider>
+      <MatchBody d={d} t={f.tournament} myUserId={FIXTURE_MATCH_YOU} signedOut={false} now={pressedAt + 6 * 60_000} phase={{ kind: "idle" }} onPlay={() => {}} />
+    </ChakraProvider>,
+  );
+  expect(screen.getByTestId("match-page")).toHaveAttribute("data-state", "opponent_ready");
+  expect(within(screen.getByTestId("play-box")).getByTestId("play-button")).toHaveTextContent("Join now");
+  expect(banner()).not.toHaveTextContent("organizer");
+});
+
+it("past the deadline, an unanswered pre-deadline check: rule 1 copy, no Play (#1233 review)", () => {
+  const f = fixtureMatch("opponent_ready");
+  const pressedAt = Date.parse(f.detail.readyChecks[0].createdAt);
+  const d = { ...f.detail, match: { ...f.detail.match, deadlineAt: new Date(pressedAt + 5 * 60_000).toISOString() } };
+  render(
+    <ChakraProvider>
+      <MatchBody d={d} t={f.tournament} myUserId={FIXTURE_MATCH_YOU} signedOut={false} now={pressedAt + 16 * 60_000} phase={{ kind: "idle" }} onPlay={() => {}} />
+    </ChakraProvider>,
+  );
+  expect(screen.getByTestId("match-page")).toHaveAttribute("data-state", "deadline_passed");
+  expect(banner()).toHaveTextContent("bountyhuntr was ready and you never joined, so bountyhuntr advances.");
+  expect(banner()).toHaveTextContent("Rule 1 · unanswered ready-check");
+  expect(screen.queryByTestId("play-button")).not.toBeInTheDocument();
+});
+
 it("decided by deadline rule: names the rule and marks it applied", () => {
   renderState("decided_by_rule");
   expect(banner()).toHaveTextContent("Decided by the deadline rule. hokuto_shin advances.");

@@ -22,8 +22,10 @@ import {
   clock,
   dateTime,
   DEADLINE_PASSED_TEXT,
+  deadlineOutcome,
   deadlineParts,
   deadlinePassedRule,
+  deadlineReadyCheckText,
   gameLength,
   gameRows,
   heldRoom,
@@ -329,10 +331,18 @@ const Banner = ({
       small = "Live spectating isn't available yet";
       break;
     }
-    case "deadline_passed":
-      text = DEADLINE_PASSED_TEXT;
-      small = deadlinePassedRule(group);
+    case "deadline_passed": {
+      const out = deadlineOutcome(d, now);
+      if (out.kind === "ready_check") {
+        const mine = side === "a" ? m.slotA : side === "b" ? m.slotB : null;
+        text = deadlineReadyCheckText(d, out.winner, mine);
+        small = "Rule 1 · unanswered ready-check";
+      } else {
+        text = DEADLINE_PASSED_TEXT;
+        small = deadlinePassedRule(m.stage);
+      }
       break;
+    }
     case "decided":
       text = group
         ? `Decided. ${winnerName} wins the match.`
@@ -875,7 +885,10 @@ const DeadlineCard = ({ d, t, state, now }: { d: MatchDetail; t: Tournament | nu
 
 const RulesCard = ({ d, state, group = false }: { d: MatchDetail; state: MatchPageState; group?: boolean }) => {
   const hit = state === "decided_by_rule" ? d.match.decidedBy : null;
+  const rrFinal = d.match.stage === "final";
   const higher = (() => {
+    // A round-robin top-2 final goes to the better standings rank: slot A (#1).
+    if (rrFinal) return d.players.a;
     const a = d.players.a;
     const b = d.players.b;
     if (!a?.seed || !b?.seed) return null;
@@ -892,7 +905,7 @@ const RulesCard = ({ d, state, group = false }: { d: MatchDetail; state: MatchPa
       <Text {...caption} mb="8px">If the deadline passes</Text>
       <Box as="ol" m={0} p={0} display="flex" flexDir="column" gap="4px">
         {li(hit === "deadline_ready_check", <><b>Unanswered ready-check.</b> If one player pressed Play and the other never joined, the player who was ready {group ? "wins the match" : "advances"}.</>)}
-        {li(hit === "deadline_higher_seed", <><b>Otherwise the organizer decides</b> within 24h. If they don&apos;t, the higher seed{higher ? <> (<b>{playerName(higher)}</b>)</> : ""} {group ? "wins the match" : "advances"}.</>)}
+        {li(hit === "deadline_higher_seed", <><b>Otherwise the organizer decides</b> within 24h. If they don&apos;t, {rrFinal ? "the player ranked higher in the standings" : "the higher seed"}{higher ? <> (<b>{playerName(higher)}</b>)</> : ""} {group ? "wins the match" : rrFinal ? "wins" : "advances"}.</>)}
       </Box>
       <Text fontSize="12px" color={INK_MUTED} mt="8px">A game that started before the deadline finishes and counts.</Text>
     </Card>

@@ -6,16 +6,17 @@
 import { StrictMode } from "react";
 import { act, renderHook } from "@testing-library/react";
 
-import { freshGrant, MAX_POLLS, POLL_MS, usePlayMatch } from "./usePlayMatch";
-import type { TicketGrant } from "./types";
+import { freshGrant, MAX_POLLS, playErrorMessage, POLL_MS, usePlayMatch } from "./usePlayMatch";
+import type { MatchDetail, TicketGrant } from "./types";
 import * as api from "./api";
 
 const push = jest.fn(async () => true);
 jest.mock("next/router", () => ({ useRouter: () => ({ push }) }));
-jest.mock("./api", () => ({ getMatchTicket: jest.fn(), readyForMatch: jest.fn() }));
+jest.mock("./api", () => ({ getMatchTicket: jest.fn(), readyForMatch: jest.fn(), getMatch: jest.fn() }));
 
 const ready = api.readyForMatch as jest.Mock;
 const ticket = api.getMatchTicket as jest.Mock;
+const getMatch = api.getMatch as jest.Mock;
 
 const grant = (over: Partial<TicketGrant>): { ok: true; value: TicketGrant } => ({
   ok: true,
@@ -26,6 +27,7 @@ beforeEach(() => {
   push.mockClear();
   ready.mockReset();
   ticket.mockReset();
+  getMatch.mockReset().mockResolvedValue({ ok: false, reason: "unavailable" });
 });
 
 describe("freshGrant", () => {
@@ -40,6 +42,35 @@ describe("freshGrant", () => {
     ready.mockResolvedValue(grant({ action: "create", ticket: "recorded" }));
     expect(await freshGrant("s", "m")).toEqual(grant({ action: "create", ticket: "recorded" }));
     expect(ready).toHaveBeenCalledTimes(1);
+  });
+
+  it("never records a second ready-check while MY room for the match is live (#1233 review)", async () => {
+    const NOW = Date.parse("2026-10-05T12:00:00Z");
+    const later = new Date(NOW + 10 * 60_000).toISOString();
+    ticket.mockResolvedValue(grant({ action: "create", slot: "a" }));
+    const detail = (over: Partial<MatchDetail>): { ok: true; value: MatchDetail } => ({
+      ok: true,
+      value: { match: { slotA: "eA", slotB: "eB" }, readyChecks: [], liveRoom: null, ...over } as unknown as MatchDetail,
+    });
+    // The room is open (liveRoom) …
+    getMatch.mockResolvedValueOnce(detail({ liveRoom: { gameIndex: 0, roomId: "MINE", readyEntryId: "eA", expiresAt: later } }));
+    expect(await freshGrant("s", "m", () => NOW)).toEqual({ ok: false, reason: "conflict", code: "seat_held" });
+    // … or still opening (a live create check, no room id yet).
+    getMatch.mockResolvedValueOnce(
+      detail({ readyChecks: [{ id: "rc", gameIndex: 0, entryId: "eA", createdAt: "", expiresAt: later, roomId: null, outcome: "pending", role: "create" }] }),
+    );
+    expect(await freshGrant("s", "m", () => NOW)).toMatchObject({ ok: false, code: "seat_held" });
+    expect(ready).not.toHaveBeenCalled();
+    // The opponent's stale opening room (grace ran out) is no hold of mine: create.
+    ready.mockResolvedValue(grant({ action: "create", ticket: "recorded" }));
+    getMatch.mockResolvedValueOnce(
+      detail({ readyChecks: [{ id: "rc", gameIndex: 0, entryId: "eB", createdAt: "", expiresAt: later, roomId: null, outcome: "pending", role: "create" }] }),
+    );
+    expect(await freshGrant("s", "m", () => NOW)).toEqual(grant({ action: "create", ticket: "recorded" }));
+  });
+
+  it("explains the held seat", () => {
+    expect(playErrorMessage({ ok: false, reason: "conflict", code: "seat_held" })).toMatch(/another tab or device/);
   });
 });
 

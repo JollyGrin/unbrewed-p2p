@@ -58,6 +58,21 @@ describe("nextMatchView", () => {
     expect(v.caption).not.toMatch(/open|next match/i);
   });
 
+  it("past the deadline, a live pre-deadline hold keeps Join now; once it runs out, rule 1 copy (#1233 review)", () => {
+    const my = fixtureMyTournaments("opponent_ready", new Date(NOW).toISOString());
+    const detail = fixtureMatch("opponent_ready", new Date(NOW).toISOString()).detail;
+    const pressedAt = Date.parse(detail.readyChecks[0].createdAt);
+    const deadlineAt = new Date(pressedAt + 5 * 60_000).toISOString();
+    const n = { ...my.nextMatch!, match: { ...my.nextMatch!.match, deadlineAt } };
+    const d = { ...detail, match: { ...detail.match, deadlineAt } };
+    const live = nextMatchView(n, d, 8, pressedAt + 6 * 60_000);
+    expect(live.state).toBe("opponent_ready");
+    expect(live.primary).toBe("join");
+    const gone = nextMatchView(n, d, 8, pressedAt + 16 * 60_000);
+    expect(gone.state).toBe("deadline_passed");
+    expect(gone.notice).toBe("The deadline has passed. bountyhuntr was ready and you never joined, so bountyhuntr advances.");
+  });
+
   it("a game started before the deadline is still in play after it", () => {
     const my = fixtureMyTournaments("in_play", new Date(NOW).toISOString());
     const late = NOW + 27 * 3_600_000;

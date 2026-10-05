@@ -9,9 +9,11 @@
 import { matchHref } from "./bracket";
 import {
   DEADLINE_PASSED_TEXT,
+  deadlineOutcome,
   deadlineParts,
   deadlinePassed,
   deadlinePassedRule,
+  deadlineReadyCheckText,
   heldRoom,
   lastActive,
   matchTitle,
@@ -48,6 +50,13 @@ export interface NextMatchView {
   primaryLabel: string;
 }
 
+const deadlineNotice = (detail: MatchDetail | null, myEntry: string, stage: NextMatch["match"]["stage"], now: number) => {
+  const out = detail ? deadlineOutcome(detail, now) : null;
+  return out?.kind === "ready_check" && detail
+    ? deadlineReadyCheckText(detail, out.winner, myEntry)
+    : `${DEADLINE_PASSED_TEXT} ${deadlinePassedRule(stage)}`;
+};
+
 export const timeLeftText = (deadlineAt: string | null, now: number): string | null => {
   const p = deadlineParts(deadlineAt, now);
   if (!p) return null;
@@ -75,7 +84,9 @@ export const nextMatchView = (
   const state: NextMatchState =
     m.inPlay || m.status === "in_play"
       ? "in_play"
-      : deadlinePassed(m.deadlineAt, now)
+      : // Past the deadline: playable only while a pre-deadline seat hold is live
+        // (needs the detail's ready-checks; without it, assume the organizer).
+        deadlinePassed(m.deadlineAt, now) && (!detail || deadlineOutcome(detail, now).kind !== "hold")
         ? "deadline_passed"
         : room
         ? room.readyEntryId === n.myEntryId
@@ -114,7 +125,7 @@ export const nextMatchView = (
     map: mu.map,
     opponentActive: active ? (active.online ? `${opponent} online now` : active.text.replace("Last signed in", `${opponent} signed in`)) : null,
     timeLeft,
-    notice: state === "deadline_passed" ? `${DEADLINE_PASSED_TEXT} ${deadlinePassedRule(m.stage === "group")}` : null,
+    notice: state === "deadline_passed" ? deadlineNotice(detail, n.myEntryId, m.stage, now) : null,
     href: matchHref(n.tournament.slug, m.id),
     primary: state === "open" ? "ready" : state === "opponent_ready" ? "join" : "view",
     primaryLabel: state === "open" ? "I'm ready to play" : state === "opponent_ready" ? "Join now" : "View match",

@@ -97,9 +97,11 @@ export const matchOfRoom = (data: MyTournamentsData | null, roomId: string): Mat
  */
 export const findMyMatchForRoom = async (userId: string, roomId: string): Promise<MatchRef | null> => {
   const data = await loadMyTournaments(userId);
+  // No running tournament of mine (every casual player): stop at the one call.
+  const mine = data?.mine.tournaments.filter((t) => t.myEntryId && t.status === "running") ?? [];
+  if (mine.length === 0) return null;
   const fast = matchOfRoom(data, roomId);
-  if (fast || !data) return fast;
-  const mine = data.mine.tournaments.filter((t) => t.myEntryId && t.status === "running");
+  if (fast) return fast;
   const hits = await Promise.all(
     mine.map(async (t): Promise<MatchRef | null> => {
       const r = await getTournament(t.slug);

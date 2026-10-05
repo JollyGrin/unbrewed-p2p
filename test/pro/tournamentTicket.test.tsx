@@ -545,4 +545,68 @@ describe("a raw ?room= link on a device without the seat (#1230)", () => {
     __resetAccountStoreForTests();
     __resetNextMatchForTests();
   });
+
+  describe("useTaggedRoomLookup never strands a casual ?room= link (#1233 review)", () => {
+    const signedIn = (mine: unknown | Promise<never>) => {
+      const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response;
+        if (url.endsWith("/me")) return ok({ user: { id: "u9", username: "casual" } });
+        if (url.endsWith("/me/tournaments")) return mine instanceof Promise ? mine : ok(mine);
+        if (url.includes("/matches/m2-1")) return ok(fixtureMatch("you_ready").detail);
+        if (url.includes("/tournaments/")) {
+          const f = fixtureMatch("you_ready");
+          return ok({ tournament: f.tournament, entries: f.entries, matches: f.matches, standings: null });
+        }
+        return { ok: false, status: 404, json: async () => ({}) } as Response;
+      });
+      global.fetch = fetchMock as unknown as typeof fetch;
+      __resetAccountStoreForTests();
+      __resetNextMatchForTests();
+      return fetchMock;
+    };
+    afterEach(() => {
+      __resetAccountStoreForTests();
+      __resetNextMatchForTests();
+    });
+
+    it("no running tournaments: one /me/tournaments call, then the picker — no per-tournament walk", async () => {
+      const fetchMock = signedIn({ tournaments: [], nextMatch: null });
+      await mount({ room: "CASUAL", hero: "kenshiro" });
+      await deliver({ type: "HEROES", heroes: HEROES });
+      await flush(10);
+      expect(screen.getByText("JOIN ROOM CASUAL")).toBeInTheDocument();
+      expect(screen.queryByTestId("room-lookup")).not.toBeInTheDocument();
+      const urls = fetchMock.mock.calls.map(([u]) => String(u));
+      expect(urls.filter((u) => u.endsWith("/me/tournaments"))).toHaveLength(1);
+      expect(urls.some((u) => /\/tournaments\/[^/]+(\/matches\/|$)/.test(u.replace(/\/me\/tournaments$/, "")))).toBe(false);
+      await click(screen.getByRole("button", { name: "Join" }));
+      expect(sentOfType("JOIN_ROOM")).toEqual([expect.objectContaining({ roomId: "CASUAL" })]);
+    });
+
+    it("a miss (none of my matches has this room) goes to the hero picker", async () => {
+      const now = new Date().toISOString();
+      signedIn(fixtureMyTournaments("you_ready", now)); // my live room is SF2ROOM, not NOTMINE
+      await mount({ room: "NOTMINE", hero: "kenshiro" });
+      await deliver({ type: "HEROES", heroes: HEROES });
+      await flush(15);
+      expect(screen.getByText("JOIN ROOM NOTMINE")).toBeInTheDocument();
+      expect(screen.queryByTestId("ticket-error")).not.toBeInTheDocument();
+      expect(tournamentRoomOf("NOTMINE")).toBeNull();
+    });
+
+    it("an api that never answers holds the picker for 3s at most, then shows it", async () => {
+      signedIn(new Promise<never>(() => {}));
+      await mount({ room: "SLOW", hero: "kenshiro" });
+      await deliver({ type: "HEROES", heroes: HEROES });
+      await flush(5);
+      expect(screen.getByTestId("room-lookup")).toBeInTheDocument();
+      expect(screen.queryByText("JOIN ROOM SLOW")).not.toBeInTheDocument();
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 3100));
+      });
+      expect(screen.queryByTestId("room-lookup")).not.toBeInTheDocument();
+      expect(screen.getByText("JOIN ROOM SLOW")).toBeInTheDocument();
+    }, 10_000);
+  });
 });

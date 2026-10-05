@@ -54,10 +54,63 @@ export const deadlinePassed = (deadlineAt: string | null, now: number): boolean 
   return Number.isFinite(t) && t <= now;
 };
 
+/**
+ * Past the deadline with no game in play, what the api's `resolveDeadline`
+ * (unbrewed-api src/tournaments/deadline.ts) will do — only ready-checks made
+ * at or before the deadline count:
+ *  - `ready_check`: exactly one player has an unanswered check (marked so, or
+ *    pending with its hold run out — the 60s loop hasn't swept it yet) → that
+ *    player wins by rule 1, on the loop's next tick.
+ *  - `hold`: otherwise, a pre-deadline seat hold is still live → the opponent
+ *    can still join it; keep the ready / join states.
+ *  - `organizer`: neither or both → the organizer has 24h, then the higher seed.
+ * `open` = the deadline hasn't passed (or a game is in play).
+ */
+export type DeadlineOutcome =
+  | { kind: "open" }
+  | { kind: "hold" }
+  | { kind: "ready_check"; winner: string }
+  | { kind: "organizer" };
+
+export const deadlineOutcome = (d: MatchDetail, now: number): DeadlineOutcome => {
+  const m = d.match;
+  if (m.inPlay || m.status === "in_play" || !m.slotA || !m.slotB || !deadlinePassed(m.deadlineAt, now))
+    return { kind: "open" };
+  const deadline = Date.parse(m.deadlineAt!);
+  const before = d.readyChecks.filter((c) => Date.parse(c.createdAt) <= deadline);
+  const expired = (c: MatchDetail["readyChecks"][number]) => Date.parse(c.expiresAt) <= now;
+  const unanswered = [m.slotA, m.slotB].filter((e) =>
+    before.some((c) => c.entryId === e && (c.outcome === "unanswered" || (c.outcome === "pending" && expired(c)))),
+  );
+  if (unanswered.length === 1) return { kind: "ready_check", winner: unanswered[0] };
+  if (before.some((c) => c.outcome === "pending" && !expired(c))) return { kind: "hold" };
+  return { kind: "organizer" };
+};
+
 /** The deadline-passed copy (#1230), shared by the match page, the /pro banner and the account menu. */
 export const DEADLINE_PASSED_TEXT = "The deadline has passed. The organizer is deciding this match.";
-export const deadlinePassedRule = (group = false): string =>
-  `If they don't decide within 24h, the higher seed ${group ? "takes the win" : "advances"}.`;
+/**
+ * The organizer's fallback. A round-robin top-2 final goes to the better
+ * standings rank (slot A, #1), not the original seed.
+ */
+export const deadlinePassedRule = (stage?: Match["stage"]): string =>
+  stage === "group"
+    ? "If they don't decide within 24h, the higher seed wins the match."
+    : stage === "final"
+      ? "If they don't decide within 24h, the player ranked higher in the standings wins."
+      : "If they don't decide within 24h, the higher seed advances.";
+
+/** Rule 1 waiting on the loop: "The deadline has passed. bob was ready and carol never joined, so bob advances." */
+export const deadlineReadyCheckText = (d: MatchDetail, winner: string, myEntry: string | null): string => {
+  const won = winner === d.match.slotA ? d.players.a : d.players.b;
+  const lost = winner === d.match.slotA ? d.players.b : d.players.a;
+  const [verb, youVerb] =
+    d.match.stage === "group" ? ["wins the match", "win the match"] : d.match.stage === "final" ? ["wins", "win"] : ["advances", "advance"];
+  const lead = "The deadline has passed.";
+  if (myEntry === winner) return `${lead} You were ready and ${playerName(lost)} never joined, so you ${youVerb}.`;
+  if (myEntry) return `${lead} ${playerName(won)} was ready and you never joined, so ${playerName(won)} ${verb}.`;
+  return `${lead} ${playerName(won)} was ready and ${playerName(lost)} never joined, so ${playerName(won)} ${verb}.`;
+};
 
 export const matchPageState = (d: MatchDetail, myUserId: string | null, now: number): MatchPageState => {
   const m = d.match;
@@ -67,7 +120,9 @@ export const matchPageState = (d: MatchDetail, myUserId: string | null, now: num
       : "decided";
   // A game that started before the deadline finishes and counts (settled rule 3).
   if (m.inPlay || m.status === "in_play") return "in_play";
-  if (deadlinePassed(m.deadlineAt, now)) return "deadline_passed";
+  // Past the deadline only a live pre-deadline seat hold keeps the match playable.
+  const outcome = deadlineOutcome(d, now).kind;
+  if (outcome === "ready_check" || outcome === "organizer") return "deadline_passed";
   const room = heldRoom(d, now);
   const side = mySide(d, myUserId);
   if (room && side) {
