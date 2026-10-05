@@ -1,4 +1,5 @@
 /** Browse-page filtering and card labels (#1216). */
+import { signupWindowOpen } from "./joinState";
 import type { Tournament } from "./types";
 
 export type BrowseFilter = "all" | "live" | "signup" | "done" | "mine";
@@ -41,9 +42,10 @@ export const statusChip = (
     case "running":
       return { tone: "live", label: "Live" };
     case "signup":
-      return t.signupOpen
-        ? { tone: "soon", label: "Signup open" }
-        : { tone: "plain", label: "Signup closed" };
+      if (t.signupOpen) return { tone: "soon", label: "Signup open" };
+      // Full roster before the close time: still open (people can leave), just no free seats.
+      if (signupWindowOpen(t)) return { tone: "soon", label: "Full · signup open" };
+      return { tone: "plain", label: "Signup closed" };
     case "complete":
       return { tone: "done", label: "Completed" };
     case "cancelled":

@@ -34,8 +34,9 @@ export const proDeckOptions = (heroes: readonly HeroListing[]): DeckOption[] =>
       (h) =>
         h.tier !== "lab" && h.tier !== "spice" && h.tier !== "reflavored",
     )
-    .map((h) => ({
+    .map((h): DeckOption => ({
       heroId: h.heroId,
       name: h.name.trim(),
       section: h.deckSection === "recommended" ? "balanced" : "community",
-    }));
+    }))
+    .sort((x, y) => x.name.localeCompare(y.name));

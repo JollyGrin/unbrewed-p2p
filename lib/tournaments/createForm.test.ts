@@ -90,6 +90,12 @@ describe("create form → api payload", () => {
     expect(latestFinal({ ...f, top2Final: true })!.getTime() - closes).toBe((168 + 24 + 168) * 3_600_000);
   });
 
+  it("single elim's latest final is rounds x (window + 24h), final's own grace day included (rule 7)", () => {
+    const f = base({ format: "single_elim", size: 8, matchWindowHours: 72, signupCloses: "2026-10-10T18:00" });
+    const closes = new Date(f.signupCloses).getTime();
+    expect(latestFinal(f)!.getTime() - closes).toBe(3 * (72 + 24) * 3_600_000);
+  });
+
   it("players choose → {mode:'free'} with no heroes or map", () => {
     expect(matchupToWire(base({ matchup: "free" }))).toEqual({
       matchupRule: { mode: "free" },

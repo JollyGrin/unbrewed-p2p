@@ -29,6 +29,10 @@ export const seatOf = (entries: readonly Entry[], userId: string): number | null
   return i < 0 ? null : i + 1;
 };
 
+/** The api's leave rule: status `signup` and before `signupClosesAt`; a full roster does NOT lock it. */
+export const signupWindowOpen = (t: Tournament, now: number = Date.now()): boolean =>
+  t.status === "signup" && (!t.signupClosesAt || now < new Date(t.signupClosesAt).getTime());
+
 export const joinState = (
   t: Tournament,
   entries: readonly Entry[],
@@ -36,7 +40,7 @@ export const joinState = (
 ): JoinState => {
   const seat = userId ? seatOf(entries, userId) : null;
   if (seat !== null)
-    return t.signupOpen
+    return signupWindowOpen(t)
       ? { kind: "joined", seat, of: t.size }
       : { kind: "locked_in", seat, of: t.size };
   if (t.signupOpen) return userId ? { kind: "can_join" } : { kind: "signed_out" };
