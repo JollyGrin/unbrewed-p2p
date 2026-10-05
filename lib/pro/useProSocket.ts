@@ -312,6 +312,14 @@ export interface UseProSocketReturn {
    */
   gameLost: boolean;
   /**
+   * Another connection took this seat over (p2p #1250 ↔ engine #761: close code
+   * SEAT_REPLACED_CLOSE_CODE / reason "seat_replaced", tournament rooms). The
+   * hook does NOT reconnect by itself — two tabs would kick each other forever.
+   */
+  seatReplaced: boolean;
+  /** "Use this tab instead": reconnect deliberately (RECONNECTs with the stored token). */
+  takeSeatBack: () => void;
+  /**
    * Rematch offer/confirm (p2p #880, protocol v35). True once this seat is bound
    * at v35 on an engine that serves the negotiation — only then may the winner
    * screen offer a rematch through the server instead of the one-tap
@@ -404,6 +412,15 @@ export const RESUME_RESYNC_MIN_HIDDEN_MS = 5_000;
  */
 export const RESUME_REPLY_DEADLINE_MS = 5_000;
 
+
+/**
+ * The engine closes the OLD socket of a seat another connection took over
+ * (engine #761, tournament rooms) with this code and reason "seat_replaced".
+ */
+export const SEAT_REPLACED_CLOSE_CODE = 4001;
+export const isSeatReplacedClose = (e?: { code?: number; reason?: string } | null): boolean =>
+  !!e && (e.code === SEAT_REPLACED_CLOSE_CODE || e.reason === "seat_replaced");
+
 export function useProSocket(
   wsUrl: string | undefined,
   debug = false,
@@ -458,6 +475,10 @@ export function useProSocket(
   const seatRef = useRef<PlayerId | null>(null);
   // Message we replay when a fresh socket opens (join intent or reconnect).
   const pendingHelloRef = useRef<ClientMsg | null>(null);
+  // A tournament ticket that rode beside a stored seat token (p2p #1250): the
+  // RECONNECT goes first (a seat the engine still holds refuses a ticket JOIN);
+  // when it answers BAD_TOKEN (the seat was released) the ticket JOIN follows.
+  const ticketFallbackRef = useRef<{ room: string; heroId: string; ticket: string } | null>(null);
   // The `v` the current seat was bound with, and the bind message itself (p2p
   // #880): the engine decides whether a seat can take REMATCH_* from the version
   // of the message that bound it, so every bind goes through `sendBind`.
@@ -594,6 +615,8 @@ export function useProSocket(
   const [serverRestarting, setServerRestarting] = useState(false);
   const [replayBundle, setReplayBundle] = useState<ReplayBundle | null>(null);
   const [gameLost, setGameLost] = useState(false);
+  const [seatReplaced, setSeatReplaced] = useState(false);
+  const seatReplacedRef = useRef(false);
   // Undo (v11): the request pushed to US (opponent prompt), our own request's
   // pending flag, and a latch for "opponent declined". Any STATE clears the first
   // two — an accept arrives as a rewind STATE, and the requester acting again
@@ -703,6 +726,23 @@ export function useProSocket(
     ownClockRef.current = null;
   }, []);
 
+  // A JOIN_ROOM for this seat's identity — plain, or with a tournament ticket.
+  const joinRoomMsg = useCallback(
+    (room: string, heroId: string, ticket?: string): ClientMsg => ({
+      v: PROTOCOL_VERSION,
+      type: "JOIN_ROOM",
+      roomId: room,
+      heroId,
+      ...identityFields(identityRef.current, badgeRef.current),
+      // Same gate as CREATE_ROOM. RECONNECT deliberately carries none:
+      // the server kept the seat, and with it the blob it claimed on join.
+      ...cosmeticsField(identityRef.current, cosmeticsRef.current, heroId),
+      // A tournament room (v37) seats only a ticket for its other slot.
+      ...(ticket ? { ticket } : {}),
+    }),
+    []
+  );
+
   const connect = useCallback(() => {
     if (!wsUrl) return;
     setStatus((s) => (s === "idle" || s === "connecting" ? "connecting" : "reconnecting"));
@@ -807,6 +847,7 @@ export function useProSocket(
           setRoomPublic(false); // fresh rooms are private until acked otherwise
           setToken(msg.roomId, msg.token); // fresh reconnect token (revive rotates it)
           rememberRoom(msg.roomId);
+          ticketFallbackRef.current = null; // seated: the ticket isn't needed
           resumingRef.current = false; // a revive that reached ROOM_JOINED succeeded
           setServerRestarting(false);
           clearResumeDeadline(); // a revive that reached ROOM_JOINED beat the deadline
@@ -1091,11 +1132,27 @@ export function useProSocket(
             setIllegalAction(true);
             break;
           }
+          // A RECONNECT with a ticket beside it (p2p #1250): BAD_TOKEN = the engine
+          // released the seat. The stored token is dead — forget it — and take the
+          // seat back with the ticket (a JOIN needs the hero; without one the page
+          // shows the ticket screen, whose retry lands on the picker). Never while
+          // a resume blob is held: then the room was revived after a redeploy
+          // (fresh seat tokens) and RESUME_ROOM below is the way back — forgetting
+          // the room would delete that blob, and a ticket JOIN can't take the seat.
+          const room = roomRef.current;
+          const fallback = ticketFallbackRef.current;
+          ticketFallbackRef.current = null;
+          if (msg.code === "BAD_TOKEN" && fallback && fallback.room === room && !getResumeToken(fallback.room)) {
+            forgetRoom(fallback.room);
+            if (fallback.heroId) {
+              sendBind(joinRoomMsg(fallback.room, fallback.heroId, fallback.ticket));
+              break;
+            }
+          }
           // A room lost to a redeploy answers ROOM_NOT_FOUND (room gone) or
           // BAD_TOKEN (already revived by the other client, our old seat token no
           // longer matches). If we hold a resume blob for it, revive rather than
           // give up — unless the in-flight message WAS a resume (then it truly failed).
-          const room = roomRef.current;
           const recoverable = msg.code === "ROOM_NOT_FOUND" || msg.code === "BAD_TOKEN";
           // A finished game's room is swept by the server (p2p #869). A late
           // RECONNECT (a reopened socket, a tab return) that finds it gone is
@@ -1115,7 +1172,9 @@ export function useProSocket(
           resumingRef.current = false;
           setServerRestarting(false);
           clearResumeDeadline();
-          if ((msg.code === "ROOM_NOT_FOUND" || msg.code === "RESUME_FAILED") && room) forgetRoom(room);
+          // A dead seat token stays dead (p2p #1250): forget it, or every later
+          // visit RECONNECTs with it again instead of taking a fresh ticket.
+          if ((msg.code === "ROOM_NOT_FOUND" || msg.code === "RESUME_FAILED" || msg.code === "BAD_TOKEN") && room) forgetRoom(room);
           setError({ code: msg.code, message: msg.message });
           // If this terminal failure struck a game we were actually playing, it's
           // a genuine loss (resume rejected / room gone / seat token dead) — show
@@ -1127,7 +1186,7 @@ export function useProSocket(
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (e?: CloseEvent) => {
       if (wsRef.current !== ws) return; // superseded by a newer socket
       setStatus("closed");
       actionsInFlightRef.current.clear(); // whatever was in flight is gone with the socket (#840)
@@ -1135,6 +1194,13 @@ export function useProSocket(
       setResyncing(false);
       resyncReplyRef.current = false;
       clearResumeReplyDeadline();
+      // Another tab or device took the seat (engine #761): stay closed. An
+      // automatic reconnect would take it back, and that tab would do the same.
+      if (isSeatReplacedClose(e)) {
+        seatReplacedRef.current = true;
+        setSeatReplaced(true);
+        return;
+      }
       // Exponential backoff with FULL JITTER (issue #209). A server that closed us
       // for RATE_LIMITED (or a redeploy that drops every socket at once) would be
       // hammered by a fleet of clients all reconnecting on the same doubling
@@ -1149,7 +1215,7 @@ export function useProSocket(
     // `runSlowStep` is referentially stable (its whole dependency chain bottoms
     // out in a `[]` callback), so listing it here can never re-create `connect`
     // and drop a live socket.
-  }, [wsUrl, send, sendBind, stepRematch, clearResumeDeadline, armResumeDeadline, resolveOwnClock, runSlowStep, clearResumeReplyDeadline]);
+  }, [wsUrl, send, sendBind, stepRematch, clearResumeDeadline, armResumeDeadline, resolveOwnClock, runSlowStep, clearResumeReplyDeadline, joinRoomMsg]);
 
   useEffect(() => {
     if (!wsUrl) {
@@ -1246,6 +1312,7 @@ export function useProSocket(
         return;
       }
       if (ws && ws.readyState === WebSocket.CONNECTING) return; // already retrying
+      if (seatReplacedRef.current) return; // only "Use this tab instead" reconnects (#1250)
       // Not open: the backoff timer that would otherwise retry may itself be a
       // suspended timer that never runs, or one that only fires now, absurdly
       // overdue. Cancel it and retry at full speed — a returning player should
@@ -1350,30 +1417,23 @@ export function useProSocket(
       // heroId === "" is an explicit resume (refresh flow / recent-rooms strip)
       // and may use any token this browser holds. A join WITH a hero only
       // reclaims THIS TAB's seat — never a token another tab wrote, or the
-      // second tab of a two-tab solo test would steal the host's seat.
-      const token = heroId === "" ? getToken(room) : getTabToken(room);
+      // second tab of a two-tab solo test would steal the host's seat. A
+      // tournament ticket's room is the exception: both its seats are never this
+      // browser's, so any token held for it is the player's own seat.
+      const token = heroId === "" || ticket ? getToken(room) : getTabToken(room);
       // RECONNECT carries no identity: the server kept the SEAT (and with it the
       // name and badge it claimed on join), so re-sending would only be a chance
       // to disagree with it. That is also what makes a mid-game refresh keep the
       // nameplate — both come back on the resumed seat's view, not from us.
+      // A ticket beside the token is the way back in if that seat was released.
+      ticketFallbackRef.current = token && ticket ? { room, heroId, ticket } : null;
       const msg: ClientMsg = token
         ? { v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token }
-        : {
-            v: PROTOCOL_VERSION,
-            type: "JOIN_ROOM",
-            roomId: room,
-            heroId,
-            ...identityFields(identityRef.current, badgeRef.current),
-            // Same gate as CREATE_ROOM. RECONNECT deliberately carries none:
-            // the server kept the seat, and with it the blob it claimed on join.
-            ...cosmeticsField(identityRef.current, cosmeticsRef.current, heroId),
-            // A tournament room (v37) seats only a ticket for its other slot.
-            ...(ticket ? { ticket } : {}),
-          };
+        : joinRoomMsg(room, heroId, ticket);
       if (wsRef.current?.readyState === WebSocket.OPEN) sendBind(msg);
       else pendingHelloRef.current = msg;
     },
-    [sendBind, clearResumeDeadline]
+    [sendBind, clearResumeDeadline, joinRoomMsg]
   );
 
   // In-flight guard (p2p #840, narrowed in #847): lets an ACTION through unless
@@ -1514,6 +1574,14 @@ export function useProSocket(
     [send]
   );
 
+  const takeSeatBack = useCallback(() => {
+    if (!seatReplacedRef.current) return;
+    seatReplacedRef.current = false;
+    setSeatReplaced(false);
+    retryRef.current.attempts = 0;
+    connect(); // its open RECONNECTs with the stored token — taking the seat here
+  }, [connect]);
+
   return {
     identitySettled,
     status,
@@ -1553,6 +1621,8 @@ export function useProSocket(
     setVisibility,
     serverRestarting,
     gameLost,
+    seatReplaced,
+    takeSeatBack,
     rematchNegotiable,
     rematchOffer,
     offerRematch,

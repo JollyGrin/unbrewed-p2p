@@ -251,6 +251,7 @@ import {
   withoutTicketQuery,
 } from "@/lib/pro/tournamentTicket";
 import type { TicketLaunch, TournamentRoom } from "@/lib/pro/tournamentTicket";
+import { SeatReplacedScreen } from "@/components/Pro/SeatReplacedScreen";
 import { TicketErrorScreen } from "@/components/Pro/TicketErrorScreen";
 import { useTaggedRoomLookup } from "@/lib/tournaments/useNextMatch";
 import { useLobbyMatchCue } from "@/lib/pro/useLobbyMatchCue";
@@ -4323,7 +4324,7 @@ const LiveGame = ({
   // actually times the wait and fires the nudge is wired up below, once `view`
   // and `soundOn` (useGameFx) exist.
   const [turnReminderOn, toggleTurnReminder] = useTurnReminderSetting();
-  const { status, identitySettled, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } =
+  const { status, identitySettled, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, seatReplaced, takeSeatBack, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } =
     useProSocket(WS_URL, debug, slowMode);
   // Read through refs inside the log effect: adding either to that effect's deps
   // would re-run it without a new snapshot and append the last batch's lines
@@ -5066,17 +5067,24 @@ const LiveGame = ({
   // hero picker entirely and RECONNECT straight into the same seat (joinRoom
   // replays the token when one exists). Runs once when a `?room=` has a token.
   const reconnectedRef = useRef(false);
+  // A ticket launch owns the seat for this page load (p2p #1250): its effect
+  // below RECONNECTs with any stored token itself, the ticket riding along —
+  // this effect must not race it with a bare RECONNECT once the URL is cleaned.
+  const ticketFiredRef = useRef(false);
+  // After a ticket JOIN the room's board is the ticket's, or unknown (LV-5).
+  const boardUnknownRef = useRef(false);
   const hasTicket = ticket !== null;
   useEffect(() => {
-    if (joined || !room || reconnectedRef.current || typeof window === "undefined") return;
+    if (joined || !room || hasTicket || reconnectedRef.current || ticketFiredRef.current || typeof window === "undefined") return;
     // Only THIS TAB's own seat auto-reconnects (refresh). A fresh tab with a
     // ?room= link goes to the picker and JOINs — even if another tab of this
     // browser is the host — or resumes explicitly via the recent-rooms strip.
     // A tournament room (#1218) is the exception: a JOIN_ROOM into it needs a
     // ticket, and both of its seats are never this browser's, so any token it
     // holds for the room ("Back to game" from the match page in a new tab) is
-    // the player's own seat — resume it. A ticket link decides for itself.
-    if (getTabToken(room) || (!hasTicket && tournamentRoomOf(room) && getToken(room))) {
+    // the player's own seat — resume it. A ticket link decides for itself
+    // (the ticket effect below), so a ticket load never reaches here.
+    if (getTabToken(room) || (tournamentRoomOf(room) && getToken(room))) {
       reconnectedRef.current = true;
       joinRoom(room, ""); // heroId ignored on the RECONNECT path
       setJoined(true);
@@ -5281,6 +5289,10 @@ const LiveGame = ({
   const launchTicket = (launch: TicketLaunch, heroId: string) => {
     setSelectedHeroId(heroId);
     if (launch.room) {
+      // The joiner sends no board; name the ticket's, or none (LV-5, p2p #1250).
+      const entry = launch.map?.kind === "catalog" ? catalogEntry(launch.map.id) : undefined;
+      if (entry) setSelectedMapId(entry.id);
+      else boardUnknownRef.current = true;
       joinRoom(launch.room, heroId, launch.ticket);
       setJoined(true);
       return;
@@ -5295,7 +5307,6 @@ const LiveGame = ({
     createRoom(heroId, undefined, board.customMap, "duel", [], 0, undefined, undefined, undefined, launch.ticket);
     setJoined(true);
   };
-  const ticketFiredRef = useRef(false);
   useEffect(() => {
     if (!ticket || ticketFiredRef.current) return;
     ticketFiredRef.current = true;
@@ -5304,17 +5315,25 @@ const LiveGame = ({
       undefined,
       { shallow: true }
     );
-    // This tab already holds the seat (a refresh before the URL was cleaned):
-    // the reconnect effect above takes it back with the token.
-    if (ticket.room && getTabToken(ticket.room)) {
+    // This browser holds a seat token for the room (a refresh before the URL was
+    // cleaned, "Back to your room"): RECONNECT with it first — a seat the engine
+    // still holds refuses a ticket JOIN — and fall back to the ticket JOIN if the
+    // engine released it (BAD_TOKEN, p2p #1250). A ticket that sets the hero does
+    // that through the launch below; one that doesn't reconnects here.
+    if (ticket.room && getToken(ticket.room)) {
       rememberTournamentRoom(ticket.room, { slug: ticket.slug, matchId: ticket.matchId });
-      return;
+      if (!ticket.heroId) {
+        reconnectedRef.current = true;
+        joinRoom(ticket.room, "", ticket.ticket);
+        setJoined(true);
+        return;
+      }
     }
     // Remember the launch for this tab BEFORE the URL loses it (E1): a refresh at
     // the hero picker has no room yet and must not land in the casual lobby.
     rememberPendingPick({ slug: ticket.slug, matchId: ticket.matchId });
     setFiredTicket(ticket);
-  }, [ticket, router]);
+  }, [ticket, router, joinRoom]);
   // A refresh mid-launch: no ticket, no room, but this tab was launching a match.
   // Read once on mount (client-only) so the static export hydrates cleanly.
   const [pendingLaunch, setPendingLaunch] = useState<TournamentRoom | null>(null);
@@ -5818,6 +5837,11 @@ const LiveGame = ({
     );
   }
 
+  // Another tab or device took this seat (p2p #1250 ↔ engine #761): this tab
+  // stops rather than freezing as a silent zombie, and only takes the seat back
+  // when the player says so.
+  if (seatReplaced) return <SeatReplacedScreen roomId={roomId ?? room} at={taggedRoom} onTakeBack={takeSeatBack} />;
+
   // Terminal resume failure (issue #133): a live game we couldn't restore after
   // a server update. Takes priority over the raw error/waiting screens — those
   // dead-ended on a freeze; this apologizes, shows the activity log, and offers a
@@ -5835,15 +5859,17 @@ const LiveGame = ({
     );
   }
 
-  // A tournament game refused (#1218): the ticket codes (v37), or the match's
-  // room gone/full, read as copy with a fresh-ticket retry and a way back —
+  // A tournament game refused (#1218): the ticket codes (v37), the match's
+  // room gone/full, or a seat token the engine no longer knows (released seat,
+  // p2p #1250), read as copy with a fresh-ticket retry and a way back —
   // never "create a new room", which would be an untagged game.
   if (
     error &&
     taggedRoom &&
     ((TICKET_ERROR_CODES as readonly string[]).includes(error.code) ||
       error.code === "ROOM_NOT_FOUND" ||
-      error.code === "ROOM_FULL")
+      error.code === "ROOM_FULL" ||
+      error.code === "BAD_TOKEN")
   ) {
     return <TicketErrorScreen code={error.code} at={taggedRoom} />;
   }
@@ -5919,7 +5945,7 @@ const LiveGame = ({
       // and the board is unknown — say nothing rather than the default's name.
       const myWaitingHeroName =
         heroNameOf(heroes, selectedHeroId ?? roomInfo?.roster?.find((r) => r.player === roomInfo.you)?.heroId ?? null);
-      const boardUnknown = reconnectedRef.current && !rolledMapId;
+      const boardUnknown = (reconnectedRef.current || boardUnknownRef.current) && !rolledMapId;
       return (
         <Flex direction="column" alignItems="center" gap="1rem" pt="4rem" px="1rem">
           <Text fontFamily="LeagueGothic" fontSize="2.5rem" letterSpacing="0.05em">

@@ -45,46 +45,13 @@ describe("freshGrant", () => {
     expect(ready).toHaveBeenCalledTimes(1);
   });
 
-  it("never records a second ready-check while MY room for the match is live (#1233 review)", async () => {
-    const NOW = Date.parse("2026-10-05T12:00:00Z");
-    const later = new Date(NOW + 10 * 60_000).toISOString();
-    ticket.mockResolvedValue(grant({ action: "create", slot: "a" }));
-    const detail = (over: Partial<MatchDetail>): { ok: true; value: MatchDetail } => ({
-      ok: true,
-      value: { match: { slotA: "eA", slotB: "eB" }, readyChecks: [], liveRoom: null, ...over } as unknown as MatchDetail,
-    });
-    // The room is open (liveRoom) …
-    getMatch.mockResolvedValueOnce(detail({ liveRoom: { gameIndex: 0, roomId: "MINE", readyEntryId: "eA", expiresAt: later } }));
-    expect(await freshGrant("s", "m", () => NOW)).toEqual({ ok: false, reason: "conflict", code: "seat_held" });
-    // … or still opening (a live create check, no room id yet).
-    getMatch.mockResolvedValueOnce(
-      detail({ readyChecks: [{ id: "rc", gameIndex: 0, entryId: "eA", createdAt: "", expiresAt: later, roomId: null, outcome: "pending", role: "create" }] }),
-    );
-    expect(await freshGrant("s", "m", () => NOW)).toMatchObject({ ok: false, code: "seat_held" });
+  it("the api's seat_held is its own answer — a join back into my room, or my opening room's create ticket — nothing recorded (p2p #1250)", async () => {
+    ticket.mockResolvedValueOnce(grant({ action: "join", decision: "seat_held", roomId: "MINE", ticket: "back" }));
+    expect(await freshGrant("s", "m")).toEqual(grant({ action: "join", decision: "seat_held", roomId: "MINE", ticket: "back" }));
+    ticket.mockResolvedValueOnce(grant({ action: "create", decision: "seat_held", roomId: null, ticket: "finish" }));
+    expect(await freshGrant("s", "m")).toEqual(grant({ action: "create", decision: "seat_held", roomId: null, ticket: "finish" }));
     expect(ready).not.toHaveBeenCalled();
-    // The opponent's stale opening room (grace ran out) is no hold of mine: create.
-    ready.mockResolvedValue(grant({ action: "create", ticket: "recorded" }));
-    getMatch.mockResolvedValueOnce(
-      detail({ readyChecks: [{ id: "rc", gameIndex: 0, entryId: "eB", createdAt: "", expiresAt: later, roomId: null, outcome: "pending", role: "create" }] }),
-    );
-    expect(await freshGrant("s", "m", () => NOW)).toEqual(grant({ action: "create", ticket: "recorded" }));
-  });
-
-  it("a reload at the hero picker (liveRoomOnly): my pending check with no room is no held seat; a live room still is", async () => {
-    const NOW = Date.parse("2026-10-05T12:00:00Z");
-    const later = new Date(NOW + 10 * 60_000).toISOString();
-    ticket.mockResolvedValue(grant({ action: "create", slot: "a" }));
-    ready.mockResolvedValue(grant({ action: "create", ticket: "recorded" }));
-    const detail = (over: Partial<MatchDetail>): { ok: true; value: MatchDetail } => ({
-      ok: true,
-      value: { match: { slotA: "eA", slotB: "eB" }, readyChecks: [], liveRoom: null, ...over } as unknown as MatchDetail,
-    });
-    getMatch.mockResolvedValueOnce(
-      detail({ readyChecks: [{ id: "rc", gameIndex: 0, entryId: "eA", createdAt: "", expiresAt: later, roomId: null, outcome: "pending", role: "create" }] }),
-    );
-    expect(await freshGrant("s", "m", () => NOW, { liveRoomOnly: true })).toEqual(grant({ action: "create", ticket: "recorded" }));
-    getMatch.mockResolvedValueOnce(detail({ liveRoom: { gameIndex: 0, roomId: "MINE", readyEntryId: "eA", expiresAt: later } }));
-    expect(await freshGrant("s", "m", () => NOW, { liveRoomOnly: true })).toMatchObject({ ok: false, code: "seat_held" });
+    expect(getMatch).not.toHaveBeenCalled(); // the api decides, not a client guess
   });
 
   it("explains the held seat", () => {
@@ -92,17 +59,27 @@ describe("freshGrant", () => {
   });
 });
 
-describe("usePlayMatch stale-tab guard (#1248)", () => {
+describe("usePlayMatch stale-tab guard (#1248, rule = the api's decideReady since p2p #1250)", () => {
   const NOW = Date.now();
   const later = new Date(NOW + 10 * 60_000).toISOString();
-  const held = (roomId: string | null) => ({
+  const check = (entryId: string, roomId: string | null, ageMs: number) => ({
+    id: `${entryId}-${ageMs}`,
+    gameIndex: 0,
+    entryId,
+    createdAt: new Date(NOW - ageMs).toISOString(),
+    expiresAt: later,
+    roomId,
+    outcome: "pending",
+    role: "create",
+  });
+  const detail = (readyChecks: unknown[]) => ({
     ok: true,
-    value: { match: { slotA: "eA", slotB: "eB" }, readyChecks: [], liveRoom: { gameIndex: 0, roomId, readyEntryId: "eA", expiresAt: later } } as unknown as MatchDetail,
+    value: { match: { slotA: "eA", slotB: "eB" }, readyChecks, liveRoom: null } as unknown as MatchDetail,
   });
 
-  it("with my own live seat, Play never POSTs /ready — twice", async () => {
-    ticket.mockResolvedValue(grant({ action: "create", slot: "a" }));
-    getMatch.mockResolvedValue(held("MINE"));
+  it("with my own room open (newest live create, the api agrees), Play never POSTs /ready — twice", async () => {
+    ticket.mockResolvedValue(grant({ action: "join", decision: "seat_held", slot: "a", roomId: "MINE" }));
+    getMatch.mockResolvedValue(detail([check("eA", "MINE", 1000)]));
     const reload = jest.fn();
     const { result } = renderHook(() => usePlayMatch("s", "m", reload));
     await act(async () => result.current.play());
@@ -117,22 +94,66 @@ describe("usePlayMatch stale-tab guard (#1248)", () => {
     expect(result.current.phase.kind).toBe("idle");
   });
 
-  it("a live create check with no room id falls back to the remembered tournament room", async () => {
-    window.localStorage.setItem("unbrewed-pro-tournament-room-REMEM", JSON.stringify({ slug: "s", matchId: "m", ts: Date.now() }));
+  it("an older api (no decision) still short-circuits on the client rule", async () => {
     ticket.mockResolvedValue(grant({ action: "create", slot: "a" }));
-    getMatch.mockResolvedValue(held(null));
+    getMatch.mockResolvedValue(detail([check("eA", "MINE", 1000)]));
     const { result } = renderHook(() => usePlayMatch("s", "m"));
     await act(async () => result.current.play());
-    expect(result.current.phase).toEqual({ kind: "seat_held", roomId: "REMEM" });
+    expect(result.current.phase).toEqual({ kind: "seat_held", roomId: "MINE" });
     expect(ready).not.toHaveBeenCalled();
   });
 
-  it("the api's {decision:'seat_held', roomId} answer lands in the same phase", async () => {
-    ready.mockResolvedValue({ ok: false, reason: "conflict", code: "seat_held", roomId: "APIROOM" });
+  it("the client rule and the api disagree → the api decides via POST /ready", async () => {
+    ticket.mockResolvedValue(grant({ action: "join", decision: "join", slot: "a", roomId: "THEIRS" }));
+    getMatch.mockResolvedValue(detail([check("eA", "MINE", 1000)])); // a stale page
+    ready.mockResolvedValue(grant({ action: "join", decision: "join", roomId: "THEIRS", ticket: "j" }));
+    const { result } = renderHook(() => usePlayMatch("s", "m"));
+    await act(async () => result.current.play());
+    expect(ready).toHaveBeenCalledTimes(1);
+    expect(push).toHaveBeenCalledWith(expect.stringContaining("room=THEIRS"));
+  });
+
+  it("my own create still opening (no room) opens it from the UI with the api's create ticket", async () => {
+    ticket.mockResolvedValue(grant({ action: "create", decision: "seat_held", slot: "a", roomId: null, ticket: "finish" }));
+    getMatch.mockResolvedValue(detail([check("eA", null, 5 * 60_000)]));
+    ready.mockResolvedValue(grant({ action: "create", decision: "seat_held", roomId: null, ticket: "finish" }));
+    const { result } = renderHook(() => usePlayMatch("s", "m"));
+    await act(async () => result.current.play());
+    expect(push).toHaveBeenCalledWith(expect.stringContaining("ticket=finish"));
+    expect(push).not.toHaveBeenCalledWith(expect.stringContaining("room="));
+  });
+
+  it("the api's 200 {decision:'seat_held', roomId} from POST /ready lands in the seat-held phase", async () => {
+    ready.mockResolvedValue(grant({ action: "join", decision: "seat_held", roomId: "APIROOM" }));
     const { result } = renderHook(() => usePlayMatch("s", "m"));
     await act(async () => result.current.play());
     expect(result.current.phase).toEqual({ kind: "seat_held", roomId: "APIROOM" });
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it("a 409 seat_held (older api) still lands there too", async () => {
+    ready.mockResolvedValue({ ok: false, reason: "conflict", code: "seat_held", roomId: "APIROOM" });
+    const { result } = renderHook(() => usePlayMatch("s", "m"));
+    await act(async () => result.current.play());
+    expect(result.current.phase).toEqual({ kind: "seat_held", roomId: "APIROOM" });
+  });
+
+  it("Back to your room carries a fresh join ticket (p2p #1250 LV-3)", async () => {
+    ticket.mockResolvedValue(grant({ action: "join", decision: "seat_held", roomId: "DQJ6", ticket: "fresh", heroId: "alice" }));
+    const { result } = renderHook(() => usePlayMatch("s", "m"));
+    await act(async () => result.current.backToRoom("DQJ6"));
+    const q = new URL(String((push.mock.calls as unknown[][])[0][0]), "http://x").searchParams;
+    expect(q.get("room")).toBe("DQJ6");
+    expect(q.get("ticket")).toBe("fresh");
+    expect(q.get("lockHero")).toBe("alice");
+    expect(ready).not.toHaveBeenCalled();
+  });
+
+  it("Back to your room with no ticket to be had falls back to the plain room link", async () => {
+    ticket.mockResolvedValue({ ok: false, reason: "unavailable" });
+    const { result } = renderHook(() => usePlayMatch("s", "m"));
+    await act(async () => result.current.backToRoom("DQJ6"));
+    expect(push).toHaveBeenCalledWith("/pro/game?room=DQJ6");
   });
 });
 

@@ -38,8 +38,8 @@ export const TicketErrorScreen = ({
   /** The match this room belongs to; null = a tagged room we can't place (#1230). */
   at: TournamentRoom | null;
   /**
-   * The page was reloaded mid-launch (E1): no room exists yet, so the retry is a
-   * plain ready (no seat-held check) and the launch note stays until it ends.
+   * The page was reloaded mid-launch (E1): no room exists yet (the api hands the
+   * pending create's ticket back), and the launch note stays until it ends.
    */
   pendingLaunch?: boolean;
   /** Test seam: where a fresh ticket's link goes. */
@@ -76,7 +76,7 @@ export const TicketErrorScreen = ({
     if (!at) return;
     setBusy(true);
     setRetryNote(null);
-    const r = await freshGrant(at.slug, at.matchId, Date.now, { liveRoomOnly: pendingLaunch });
+    const r = await freshGrant(at.slug, at.matchId);
     setBusy(false);
     if (!r.ok) {
       const msg = playErrorMessage(r);

@@ -56,10 +56,12 @@ const call = async <T>(
     } catch {
       /* no body */
     }
-    // The api's "your seat is already held" answer (#1248), as a 200 or a 409.
+    // The api's "your seat is already held" answer (#1248) as a 409. As a 200 it
+    // is a grant like any other (p2p #1250): its ticket goes back into the
+    // caller's own room, or finishes opening it — `decision` says which.
     const roomId: string | null = typeof body?.roomId === "string" ? body.roomId : null;
-    if (body?.decision === "seat_held") return { ok: false, reason: "conflict", code: "seat_held", roomId };
     if (res.ok) return { ok: true, value: pick(body) };
+    if (body?.decision === "seat_held") return { ok: false, reason: "conflict", code: "seat_held", roomId };
     const code: string | undefined =
       typeof body?.error === "string" ? body.error : undefined;
     const message: string | undefined =
@@ -198,6 +200,7 @@ const grant = (b: any): TicketGrant => ({
   map: b.map ?? null,
   ticketExpiresAt: String(b.ticketExpiresAt ?? ""),
   roomId: typeof b.roomId === "string" ? b.roomId : null,
+  ...(b.decision === "create" || b.decision === "join" || b.decision === "seat_held" ? { decision: b.decision } : {}),
 });
 
 /** "I'm ready" / "Join now": records a ready-check and grants a ticket. */

@@ -61,49 +61,63 @@ export const grantHref = (g: TicketGrant, slug: string, matchId: string): string
 
 /**
  * A ticket for a retry or a poll. `GET …/ticket` records nothing, so it is only
- * good for a JOIN (the other room is recorded already). Whenever the answer is
- * — or turns into — `create`, ask again with `POST …/ready`, which records the
- * ready-check the new room is filed under: otherwise the room is invisible to
- * the api and the opponent can open a second one (settled rule 6). And never
- * while the caller's own room is live: that would be a second room (#1233 review).
+ * good for a JOIN (the other room is recorded already) or for the caller's own
+ * create that is still opening (`seat_held`, nothing new to record). Whenever
+ * the answer is — or turns into — a plain `create`, ask again with `POST
+ * …/ready`, which records the ready-check the new room is filed under:
+ * otherwise the room is invisible to the api and the opponent can open a second
+ * one (settled rule 6). The api never records a second create while the
+ * caller's own is the newest live one: that answers `seat_held` (p2p #1250).
  */
-export const freshGrant = async (
-  slug: string,
-  matchId: string,
-  now: () => number = Date.now,
-  /**
-   * A refresh at the hero picker (E1): the player's own pending ready-check has
-   * no room yet, so there is no seat held anywhere — only a LIVE room counts.
-   */
-  opts: { liveRoomOnly?: boolean } = {},
-): Promise<Result<TicketGrant>> => {
+export const freshGrant = async (slug: string, matchId: string): Promise<Result<TicketGrant>> => {
   const t = await getMatchTicket(slug, matchId);
-  if (!t.ok || t.value.action === "join") return t;
-  // A `create` while the caller's OWN seat hold is live (an opponent's would
-  // have been a `join`): that room is open on another tab or device. A new
-  // ready-check would open a second room for the same match — never record
-  // one. (Taking that seat over here needs the engine: a ticket JOIN from an
-  // already-seated player is TICKET_MISMATCH, and only the first tab holds the
-  // reconnect token.)
-  const d = await getMatch(slug, matchId);
-  if (d.ok && opts.liveRoomOnly) {
-    const mine = t.value.slot === "a" ? d.value.match?.slotA : d.value.match?.slotB;
-    const live = d.value.liveRoom;
-    if (live?.roomId && live.readyEntryId === mine && Date.parse(live.expiresAt) > now())
-      return { ok: false, reason: "conflict", code: "seat_held" };
-  } else if (d.ok && ownHoldLive(d.value, t.value.slot, now())) return { ok: false, reason: "conflict", code: "seat_held" };
+  if (!t.ok || t.value.action === "join" || t.value.decision === "seat_held") return t;
   return readyForMatch(slug, matchId);
 };
 
-/** The caller (`slot`) has a live `create` ready-check — a room of theirs is open or opening. */
-export const ownHoldLive = (d: MatchDetail, slot: "a" | "b", now: number): boolean => {
-  const mine = slot === "a" ? d.match?.slotA : d.match?.slotB;
-  if (!mine) return false;
-  if (d.liveRoom && d.liveRoom.readyEntryId === mine && Date.parse(d.liveRoom.expiresAt) > now) return true;
-  return d.readyChecks.some(
-    (c) => c.entryId === mine && c.role === "create" && c.outcome === "pending" && Date.parse(c.expiresAt) > now,
-  );
+/** The api's 90s wait for an opponent's room to open (ROOM_OPEN_GRACE_MS). */
+export const ROOM_OPEN_GRACE_MS = 90 * 1000;
+
+export type ReadyDecision =
+  | { kind: "create" }
+  | { kind: "join"; roomId: string | null }
+  | { kind: "seat_held"; roomId: string | null };
+
+/**
+ * The api's `decideReady` (feature/tournaments-api src/tournaments/readyCheck.ts)
+ * on the match page's ready-checks, rule for rule: the caller's seat is held
+ * only when the caller's OWN create is the newest live create for the game —
+ * an older one of the caller's (room_opened stamps every live check with the
+ * room) is no hold, and the caller joins the opponent's room like anyone else.
+ */
+export const readyDecision = (d: MatchDetail, slot: "a" | "b", gameIndex: number, now: number): ReadyDecision => {
+  const self = (slot === "a" ? d.match?.slotA : d.match?.slotB) ?? null;
+  const opponent = (slot === "a" ? d.match?.slotB : d.match?.slotA) ?? null;
+  const newestLiveCreate = (entryId: string | null) =>
+    d.readyChecks
+      .filter(
+        (c) =>
+          (entryId === null || c.entryId === entryId) &&
+          c.gameIndex === gameIndex &&
+          c.role === "create" &&
+          c.outcome === "pending" &&
+          Date.parse(c.expiresAt) > now,
+      )
+      .sort((x, y) => Date.parse(y.createdAt) - Date.parse(x.createdAt))[0];
+  const newest = newestLiveCreate(null);
+  const own = self !== null && newest?.entryId === self ? newest : undefined;
+  if (own && own.roomId !== null) return { kind: "seat_held", roomId: own.roomId };
+  const theirs = opponent !== null ? newestLiveCreate(opponent) : undefined;
+  const fromOpponent: ReadyDecision =
+    !theirs || (theirs.roomId === null && now - Date.parse(theirs.createdAt) >= ROOM_OPEN_GRACE_MS)
+      ? { kind: "create" }
+      : { kind: "join", roomId: theirs.roomId };
+  if (own && fromOpponent.kind === "create") return { kind: "seat_held", roomId: null };
+  return fromOpponent;
 };
+
+/** The api's answer that the caller's own room is open: hold, never a second seat. */
+const heldRoom = (g: TicketGrant): string | null => (g.decision === "seat_held" ? g.roomId : null);
 
 export const POLL_MS = 3000;
 /** 40 × 3s = 2 minutes: past the api's 90s grace for an opening room. */
@@ -135,6 +149,13 @@ export const usePlayMatch = (slug: string, matchId: string, onSettled?: () => vo
         onSettled?.();
         return false;
       }
+      // The caller's own room is open (p2p #1250): say so, with the way back.
+      const held = heldRoom(r.value);
+      if (held) {
+        setPhase({ kind: "seat_held", roomId: held });
+        onSettled?.();
+        return false;
+      }
       const href = grantHref(r.value, slug, matchId);
       if (href) {
         void router.push(href);
@@ -158,15 +179,24 @@ export const usePlayMatch = (slug: string, matchId: string, onSettled?: () => vo
     inFlight.current = true;
     setPhase({ kind: "busy" });
     try {
-      // Converge a stale tab first: re-read the match, and never POST /ready while
-      // this player's own seat is live (that would open a second room, #1248).
+      // Converge a stale tab first (#1248): when this player's own room is open
+      // by the api's rule AND the api's `/ticket` answer agrees, show the held
+      // seat without a POST. Anything else is the api's to decide (p2p #1250):
+      // `POST /ready` answers join (the opponent's newer room), create, or
+      // seat_held — never a second room.
       const [d, t] = await Promise.all([getMatch(slug, matchId), getMatchTicket(slug, matchId)]);
-      if (alive.current && d.ok && t.ok && ownHoldLive(d.value, t.value.slot, Date.now())) {
-        const roomId = d.value.liveRoom?.roomId ?? d.value.readyChecks.find((c) => c.roomId)?.roomId ?? roomForMatch({ slug, matchId });
-        setPhase({ kind: "seat_held", roomId });
-        onSettled?.();
-        inFlight.current = false;
-        return;
+      if (alive.current && d.ok && t.ok) {
+        const mine = readyDecision(d.value, t.value.slot, t.value.gameIndex, Date.now());
+        if (
+          mine.kind === "seat_held" &&
+          mine.roomId &&
+          (t.value.decision === undefined || heldRoom(t.value) === mine.roomId)
+        ) {
+          setPhase({ kind: "seat_held", roomId: mine.roomId });
+          onSettled?.();
+          inFlight.current = false;
+          return;
+        }
       }
       const navigating = await follow(await readyForMatch(slug, matchId), 0);
       // Navigating away: stay locked so a second tap can't mint a second ticket.
@@ -183,5 +213,21 @@ export const usePlayMatch = (slug: string, matchId: string, onSettled?: () => vo
     onSettled?.();
   }, [onSettled]);
 
-  return { phase, play, retry };
+  /**
+   * "Back to your room" (p2p #1250): carry a fresh join ticket, so a seat the
+   * engine released (a dead stored token) is taken back instead of a bare
+   * BAD_TOKEN. The game page RECONNECTs with any stored token first and only
+   * spends the ticket when the engine no longer knows it.
+   */
+  const backToRoom = useCallback(
+    async (roomId: string) => {
+      const t = await getMatchTicket(slug, matchId);
+      if (!alive.current) return;
+      const href = t.ok && t.value.action === "join" && t.value.roomId === roomId ? grantHref(t.value, slug, matchId) : null;
+      void router.push(href ?? `/pro/game?room=${encodeURIComponent(roomId)}`);
+    },
+    [router, slug, matchId],
+  );
+
+  return { phase, play, retry, backToRoom };
 };
