@@ -4324,7 +4324,7 @@ const LiveGame = ({
   // actually times the wait and fires the nudge is wired up below, once `view`
   // and `soundOn` (useGameFx) exist.
   const [turnReminderOn, toggleTurnReminder] = useTurnReminderSetting();
-  const { status, identitySettled, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, seatReplaced, takeSeatBack, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } =
+  const { status, identitySettled, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, seatReplaced, seatReleasedRoom, takeSeatBack, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } =
     useProSocket(WS_URL, debug, slowMode);
   // Read through refs inside the log effect: adding either to that effect's deps
   // would re-run it without a new snapshot and append the last batch's lines
@@ -5325,6 +5325,9 @@ const LiveGame = ({
       if (!ticket.heroId) {
         reconnectedRef.current = true;
         joinRoom(ticket.room, "", ticket.ticket);
+        // Kept in memory: if the engine released the seat, the hero picker
+        // below finishes the launch with this ticket (p2p #1252).
+        setFiredTicket(ticket);
         setJoined(true);
         return;
       }
@@ -5334,6 +5337,13 @@ const LiveGame = ({
     rememberPendingPick({ slug: ticket.slug, matchId: ticket.matchId });
     setFiredTicket(ticket);
   }, [ticket, router, joinRoom]);
+  // The seat was released while we were away (p2p #1252): back to the same hero
+  // picker the first visit saw, ticket still in memory; the pick sends the JOIN.
+  useEffect(() => {
+    if (!seatReleasedRoom || !firedTicket || firedTicket.room !== seatReleasedRoom) return;
+    reconnectedRef.current = false;
+    setJoined(false);
+  }, [seatReleasedRoom, firedTicket]);
   // A refresh mid-launch: no ticket, no room, but this tab was launching a match.
   // Read once on mount (client-only) so the static export hydrates cleanly.
   const [pendingLaunch, setPendingLaunch] = useState<TournamentRoom | null>(null);

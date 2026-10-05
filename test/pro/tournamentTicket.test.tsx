@@ -724,6 +724,8 @@ describe("a seat the engine released (LV-3, #1250)", () => {
 
     const card = screen.getByTestId("ticket-error");
     expect(card).not.toHaveTextContent("BAD_TOKEN");
+    expect(card).toHaveTextContent("Your seat was released while you were away. We'll get you back in.");
+    expect(card).not.toHaveTextContent(/expired/i);
     expect(screen.getByText("Get a fresh ticket and retry")).toBeInTheDocument();
     expect(screen.getByText("Back to the match")).toBeInTheDocument();
     expect(screen.getByText("Play casual instead")).toBeInTheDocument();
@@ -763,14 +765,23 @@ describe("a seat the engine released (LV-3, #1250)", () => {
     expect(sentOfType("JOIN_ROOM")).toHaveLength(0);
   });
 
-  it("a ticket that leaves the hero open + a dead token: BAD_TOKEN lands on the ticket card, never a bare error", async () => {
+  it("a ticket that leaves the hero open + a dead token: BAD_TOKEN goes straight to the hero picker (no error card), the pick sends the ticket JOIN (#1252)", async () => {
+    jest.spyOn(Math, "random").mockReturnValue(0);
     window.localStorage.setItem("unbrewed-pro-token-DQJ6", "dead");
     await mount({ ...TICKET, room: "DQJ6" });
     await flush();
     expect(sentOfType("RECONNECT")).toHaveLength(1);
     await deliver({ type: "ERROR", code: "BAD_TOKEN", message: "Reconnect token not recognized" });
-    expect(screen.getByTestId("ticket-error")).toBeInTheDocument();
-    expect(screen.getByText("Get a fresh ticket and retry")).toBeInTheDocument();
+    await deliver({ type: "HEROES", heroes: HEROES });
+    expect(screen.queryByTestId("ticket-error")).not.toBeInTheDocument();
+    expect(screen.queryByText(/expired/i)).not.toBeInTheDocument();
+    expect(screen.getByText("TOURNAMENT · pick your hero")).toBeInTheDocument();
+    expect(window.localStorage.getItem("unbrewed-pro-token-DQJ6")).toBeNull();
+    expect(sentOfType("JOIN_ROOM")).toHaveLength(0);
+
+    await click(screen.getByLabelText(/^Random fighter/));
+    await click(screen.getByRole("button", { name: "Play" }));
+    expect(sentOfType("JOIN_ROOM")).toEqual([expect.objectContaining({ roomId: "DQJ6", heroId: "kenshiro", ticket: "payload.sig" })]);
   });
 
   it("(control) a casual room's BAD_TOKEN keeps the old screen", async () => {

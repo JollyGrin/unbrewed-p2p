@@ -317,6 +317,12 @@ export interface UseProSocketReturn {
    * hook does NOT reconnect by itself — two tabs would kick each other forever.
    */
   seatReplaced: boolean;
+  /**
+   * The room whose seat the engine released while a heroless tournament ticket
+   * was riding on the RECONNECT (p2p #1252): the dead token is forgotten and the
+   * page owes the player the hero picker, not an error card. Null otherwise.
+   */
+  seatReleasedRoom: string | null;
   /** "Use this tab instead": reconnect deliberately (RECONNECTs with the stored token). */
   takeSeatBack: () => void;
   /**
@@ -617,6 +623,7 @@ export function useProSocket(
   const [gameLost, setGameLost] = useState(false);
   const [seatReplaced, setSeatReplaced] = useState(false);
   const seatReplacedRef = useRef(false);
+  const [seatReleasedRoom, setSeatReleasedRoom] = useState<string | null>(null);
   // Undo (v11): the request pushed to US (opponent prompt), our own request's
   // pending flag, and a latch for "opponent declined". Any STATE clears the first
   // two — an accept arrives as a rewind STATE, and the requester acting again
@@ -1148,6 +1155,13 @@ export function useProSocket(
               sendBind(joinRoomMsg(fallback.room, fallback.heroId, fallback.ticket));
               break;
             }
+            // No hero known (free-hero match, p2p #1252): the player picks one
+            // again — the page keeps the ticket in memory and joins after the pick.
+            resumingRef.current = false;
+            setServerRestarting(false);
+            clearResumeDeadline();
+            setSeatReleasedRoom(fallback.room);
+            break;
           }
           // A room lost to a redeploy answers ROOM_NOT_FOUND (room gone) or
           // BAD_TOKEN (already revived by the other client, our old seat token no
@@ -1405,6 +1419,7 @@ export function useProSocket(
   const joinRoom = useCallback(
     (room: string, heroId: string, ticket?: string) => {
       setError(null); // clear any prior room/hero error on a fresh attempt
+      setSeatReleasedRoom(null);
       setGameLost(false); // fresh join/resume attempt — drop any prior lost state
       resumeExpectedRef.current = true; // the room's first STATE is authoritative
       gameOverRef.current = false;
@@ -1622,6 +1637,7 @@ export function useProSocket(
     serverRestarting,
     gameLost,
     seatReplaced,
+    seatReleasedRoom,
     takeSeatBack,
     rematchNegotiable,
     rematchOffer,

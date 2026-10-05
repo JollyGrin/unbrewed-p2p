@@ -2445,13 +2445,14 @@ describe("useProSocket — a dead seat token never strands a tournament seat (p2
     expect(ws.sentTypes).not.toContain("JOIN_ROOM");
   });
 
-  it("no hero to JOIN with: BAD_TOKEN still forgets the token and surfaces for the ticket screen", () => {
+  it("no hero to JOIN with (p2p #1252): BAD_TOKEN forgets the token, raises no error, and signals the page to show the picker", () => {
     window.localStorage.setItem("unbrewed-pro-token-DQJ6", "dead");
     const { hook, ws } = boot();
     act(() => hook.result.current.joinRoom("DQJ6", "", "tkt"));
     act(() => ws.emit({ type: "ERROR", code: "BAD_TOKEN", message: "Reconnect token not recognized" }));
     expect(ws.sentTypes).not.toContain("JOIN_ROOM");
-    expect(hook.result.current.error?.code).toBe("BAD_TOKEN");
+    expect(hook.result.current.error).toBeNull();
+    expect(hook.result.current.seatReleasedRoom).toBe("DQJ6");
     expect(window.localStorage.getItem("unbrewed-pro-token-DQJ6")).toBeNull();
   });
 
