@@ -22,6 +22,7 @@ export type MatchPageState =
   | "you_ready"
   | "in_play"
   | "deadline_passed"
+  | "deadline_hold"
   | "decided"
   | "decided_by_rule"
   | "cancelled";
@@ -33,6 +34,7 @@ export const MATCH_STATE_NAME: Record<MatchPageState, string> = {
   you_ready: "you're ready (seat held)",
   in_play: "in play now",
   deadline_passed: "deadline passed (organizer deciding)",
+  deadline_hold: "deadline passed (pre-deadline seat hold live)",
   decided: "decided",
   decided_by_rule: "decided by deadline rule",
   cancelled: "cancelled",
@@ -133,6 +135,15 @@ export const deadlineReadyCheckText = (d: MatchDetail, winner: string, myEntry: 
   return `${lead} ${playerName(won)} was ready and ${playerName(lost)} never joined, so ${playerName(won)} ${verb}.`;
 };
 
+/** Entry of the player whose pre-deadline seat hold is still live (past the deadline), or null. */
+export const deadlineHolder = (d: MatchDetail, now: number): string | null => {
+  const deadline = d.match.deadlineAt ? Date.parse(d.match.deadlineAt) : NaN;
+  const c = d.readyChecks.find(
+    (x) => x.outcome === "pending" && Date.parse(x.createdAt) <= deadline && Date.parse(x.expiresAt) > now,
+  );
+  return c?.entryId ?? null;
+};
+
 export const matchPageState = (d: MatchDetail, myUserId: string | null, now: number): MatchPageState => {
   const m = d.match;
   if (m.status === "decided" || m.winner)
@@ -148,6 +159,13 @@ export const matchPageState = (d: MatchDetail, myUserId: string | null, now: num
   if (outcome === "ready_check" || outcome === "organizer") return "deadline_passed";
   const room = heldRoom(d, now);
   const side = mySide(d, myUserId);
+  // Past the deadline the holder still has their seat, but the other player can't
+  // join it: the holder wins by rule 1 if they never show (p2p #1253).
+  if (outcome === "hold") {
+    const holder = deadlineHolder(d, now);
+    const mine = side === "a" ? m.slotA : side === "b" ? m.slotB : null;
+    if (!mine || mine !== holder) return "deadline_hold";
+  }
   if (room && side) {
     const mine = side === "a" ? m.slotA : m.slotB;
     return room.readyEntryId === mine ? "you_ready" : "opponent_ready";

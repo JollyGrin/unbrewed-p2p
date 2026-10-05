@@ -8,8 +8,8 @@
 import { Box, Flex, Input, Text } from "@chakra-ui/react";
 import { useState } from "react";
 
-import { patchTournament, type TournamentPatch } from "@/lib/tournaments/api";
-import { WINDOWS, sizesFor } from "@/lib/tournaments/createForm";
+import { getTournament, patchTournament, type TournamentPatch } from "@/lib/tournaments/api";
+import { WINDOWS, mapSlots, sizesFor } from "@/lib/tournaments/createForm";
 import { activeEntries, signupWindowOpen } from "@/lib/tournaments/joinState";
 import {
   UNDER_FILLED_COPY,
@@ -18,6 +18,7 @@ import {
   cancelLabel,
   closeProblem,
   editFormOf,
+  editWithShape,
   editPatch,
   signupCloseText,
   toLocalInput,
@@ -27,6 +28,7 @@ import {
 import { organizerErrorText } from "@/lib/tournaments/organizer";
 import type { Entry, Tournament } from "@/lib/tournaments/types";
 
+import { MapChips } from "./MapChips";
 import { Btn, Card } from "./ui";
 
 const FIELD = { w: "100%", minH: "44px", px: "10px", borderRadius: "8px", border: "1px solid rgba(72,40,79,0.3)", bg: "white", fontSize: "15px" } as const;
@@ -78,7 +80,14 @@ export const LifecyclePanel = ({
     const r = await patchTournament(t.slug, body);
     setBusy(false);
     if (!r.ok) {
-      setError(organizerErrorText(r));
+      // A 409 means our view is stale (cancelled/started elsewhere): re-read it and re-render.
+      let status: string | undefined;
+      if (r.reason === "conflict") {
+        const fresh = await getTournament(t.slug);
+        if (fresh.ok) status = fresh.value.tournament.status;
+        reload();
+      }
+      setError(organizerErrorText(r, status));
       return;
     }
     setPanel(null);
@@ -151,7 +160,7 @@ export const LifecyclePanel = ({
           </Box>
           <Box>
             <Label>Seats</Label>
-            <Box as="select" {...FIELD} aria-label="Seats" value={form.size} onChange={(e: any) => setForm({ ...form, size: Number(e.target.value) })}>
+            <Box as="select" {...FIELD} aria-label="Seats" value={form.size} onChange={(e: any) => setForm(editWithShape(t, form, { size: Number(e.target.value) }))}>
               {sizesFor(t.format).map((s) => (
                 <option key={s} value={s} disabled={s < players}>{s}{s < players ? " (fewer than joined)" : ""}</option>
               ))}
@@ -169,9 +178,22 @@ export const LifecyclePanel = ({
           </Box>
           {t.format === "round_robin" && (
             <Flex as="label" align="center" gap="8px" minH="44px">
-              <input type="checkbox" checked={form.top2Final} onChange={(e) => setForm({ ...form, top2Final: e.target.checked })} />
+              <input type="checkbox" checked={form.top2Final} onChange={(e) => setForm(editWithShape(t, form, { top2Final: e.target.checked }))} />
               Top 2 play a final
             </Flex>
+          )}
+          {form.roundMaps && (
+            <Box data-testid="edit-round-maps">
+              <Label>Map for each round</Label>
+              <Flex flexDir="column" gap="10px">
+                {mapSlots({ format: t.format, size: form.size, top2Final: t.format === "round_robin" && form.top2Final }).map(({ key, label }) => (
+                  <Box key={key}>
+                    <Text fontSize="13px" fontWeight={700} mb="4px">{label}</Text>
+                    <MapChips label={`Map for ${label}`} value={form.roundMaps?.[key] ?? null} onPick={(m) => setForm({ ...form, roundMaps: { ...form.roundMaps, [key]: m } })} />
+                  </Box>
+                ))}
+              </Flex>
+            </Box>
           )}
           <Flex gap="8px" flexWrap="wrap">
             <Btn variant="gold" type="submit" disabled={busy}>{busy ? "Saving…" : "Save changes"}</Btn>

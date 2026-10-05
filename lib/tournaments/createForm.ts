@@ -136,13 +136,35 @@ export const withFormat = (f: CreateFormState, format: CreateFormState["format"]
 export const rrRounds = (players: number): number => (players % 2 === 0 ? players - 1 : players);
 
 /** The map slots a per-round map picker needs: bracket rounds, or round-robin rounds (+ the final). */
-export const mapSlots = (f: CreateFormState): { key: string; label: string }[] => {
+export const mapSlots = (f: Pick<CreateFormState, "format" | "size" | "top2Final">): { key: string; label: string }[] => {
   if (f.format === "round_robin") {
     const slots = Array.from({ length: rrRounds(f.size) }, (_, i) => ({ key: String(i + 1), label: `Round ${i + 1}` }));
     return f.top2Final ? [...slots, { key: "final", label: "Final" }] : slots;
   }
   const rounds = roundCount(f.size);
   return Array.from({ length: rounds }, (_, i) => ({ key: String(i + 1), label: roundName(i + 1, rounds) }));
+};
+
+type SlotShape = Pick<CreateFormState, "format" | "size" | "top2Final">;
+
+/**
+ * Carry per-round maps across a size / top-2 change: re-key the rounds, drop
+ * "final" when top 2 is off, and keep the map of the round with the same name
+ * (so a bracket's Final stays the Final when it grows or shrinks). Rounds that
+ * did not exist before are left empty for the organizer to pick.
+ */
+export const rekeyRoundMaps = (
+  maps: Record<string, MapRef>,
+  from: SlotShape,
+  to: SlotShape,
+): Record<string, MapRef> => {
+  const byName = new Map(mapSlots(from).map((s) => [s.label, maps[s.key]]));
+  const out: Record<string, MapRef> = {};
+  for (const slot of mapSlots(to)) {
+    const m = from.format === "round_robin" ? maps[slot.key] : byName.get(slot.label);
+    if (m) out[slot.key] = m;
+  }
+  return out;
 };
 
 export const roundCount = (size: number): number =>

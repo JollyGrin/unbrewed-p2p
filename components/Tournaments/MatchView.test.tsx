@@ -152,7 +152,7 @@ it("deadline passed, organizer deciding: no Play button, the 24h rule, deadline 
   expect(screen.getByTestId("deadline-card")).toHaveTextContent("Closed");
 });
 
-it("past the deadline with a live pre-deadline hold: still Join now, no organizer copy (#1233 review)", () => {
+it("past the deadline with a live pre-deadline hold: no join CTA, names the holder (#1253)", () => {
   const f = fixtureMatch("opponent_ready");
   const pressedAt = Date.parse(f.detail.readyChecks[0].createdAt);
   const d = { ...f.detail, match: { ...f.detail.match, deadlineAt: new Date(pressedAt + 5 * 60_000).toISOString() } };
@@ -161,8 +161,11 @@ it("past the deadline with a live pre-deadline hold: still Join now, no organize
       <MatchBody d={d} t={f.tournament} myUserId={FIXTURE_MATCH_YOU} signedOut={false} now={pressedAt + 6 * 60_000} phase={{ kind: "idle" }} onPlay={() => {}} />
     </ChakraProvider>,
   );
-  expect(screen.getByTestId("match-page")).toHaveAttribute("data-state", "opponent_ready");
-  expect(within(screen.getByTestId("play-box")).getByTestId("play-button")).toHaveTextContent("Join now");
+  expect(screen.getByTestId("match-page")).toHaveAttribute("data-state", "deadline_hold");
+  expect(screen.queryByTestId("play-button")).not.toBeInTheDocument();
+  expect(screen.queryByText("Join now")).not.toBeInTheDocument();
+  expect(banner()).toHaveTextContent(/Deadline passed\. .+ pressed Play and holds a seat until .+; if they don't join, they advance \(rule 1\)\./);
+  expect(banner()).not.toHaveTextContent("Play any time");
   expect(banner()).not.toHaveTextContent("organizer");
 });
 

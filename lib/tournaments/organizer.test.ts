@@ -163,3 +163,14 @@ describe("D3: awaiting_organizer copy (#1239)", () => {
     expect(row({ readyChecks: [{ entryId: m.slotA, expiresAt: "2026-10-05T10:20:00Z", outcome: "pending" }] }).body).toMatch(/If a player is holding a seat/);
   });
 });
+
+describe("organizerErrorText for edit refusals (p2p #1253)", () => {
+  it("never shows the api's round-map sentences", () => {
+    for (const message of ["round keys must be integers 1-3", "the 'final' key needs a round robin with settings.top2Final"])
+      expect(organizerErrorText({ reason: "invalid", message })).toMatch(/^The per-round maps don't fit/);
+  });
+  it("already_started on a cancelled tournament says cancelled", () => {
+    expect(organizerErrorText({ reason: "conflict", code: "already_started" }, "cancelled")).toBe("This tournament was cancelled.");
+    expect(organizerErrorText({ reason: "conflict", code: "already_started" }, "running")).toMatch(/already started/);
+  });
+});

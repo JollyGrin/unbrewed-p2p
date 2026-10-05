@@ -116,7 +116,7 @@ export const JoinPanel = ({
               <Text fontSize="14px" opacity={0.8}>
                 {t.status === "running"
                   ? `The ${t.format === "round_robin" ? "standings are" : "bracket is"} live. We'll ping you on Discord when your match is ready.`
-                  : `Signup ${signupCloseText(t) || "closes soon"}; then the organizer starts the ${t.format === "round_robin" ? "tournament" : "bracket"}. We'll ping you on Discord when your match is ready.`}
+                  : `${signupCloseText(t) ? `Signup ${signupCloseText(t)}; then the` : "The"} organizer starts the ${t.format === "round_robin" ? "tournament" : "bracket"}${signupCloseText(t) ? "" : " when enough players have joined"}. We'll ping you on Discord when your match is ready.`}
               </Text>
             </Box>
           </Flex>

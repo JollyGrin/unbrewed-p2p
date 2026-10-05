@@ -24,3 +24,10 @@ describe("full roster before the close time (#1231)", () => {
     expect(statusChip(t({ signupOpen: true })).label).toBe("Signup open");
   });
 });
+
+describe("cancelled during signup (p2p #1253)", () => {
+  it("reads closed for an entrant as for everyone", () => {
+    expect(joinState(t({ status: "cancelled" }), mine, "u1").kind).toBe("closed");
+    expect(joinState(t({ status: "cancelled" }), [], "u2").kind).toBe("closed");
+  });
+});

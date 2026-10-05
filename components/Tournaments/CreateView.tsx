@@ -9,6 +9,7 @@ import {
   PRESETS,
   sizesFor,
   mapSlots,
+  rekeyRoundMaps,
   withFormat,
   formatName,
   WINDOWS,
@@ -21,9 +22,8 @@ import {
   type MatchupChoice,
   type PresetId,
 } from "@/lib/tournaments/createForm";
-import { proMapOptions } from "@/lib/tournaments/options";
 import { formatWhen, tournamentPath } from "@/lib/tournaments/share";
-import type { MapRef } from "@/lib/tournaments/types";
+import { MapChips } from "./MapChips";
 import { Btn, Card, Chip, Notice, Page } from "./ui";
 
 const Label = ({ children }: { children: React.ReactNode }) => (
@@ -65,27 +65,6 @@ const Seg = <T extends string | number | boolean>({
         {o.label}
       </Box>
     ))}
-  </Flex>
-);
-
-const MapChips = ({
-  value,
-  onPick,
-  label,
-}: {
-  value: MapRef | null;
-  onPick: (m: MapRef) => void;
-  label: string;
-}) => (
-  <Flex gap="6px" flexWrap="wrap" role="radiogroup" aria-label={label}>
-    {proMapOptions().map((m) => {
-      const sel = value?.id === m.ref.id;
-      return (
-        <Box as="button" type="button" key={m.ref.id} role="radio" aria-checked={sel} onClick={() => onPick(m.ref)} px="12px" minH="36px" borderRadius="999px" fontSize="13px" fontWeight={600} bg={sel ? "#E0A82E" : "rgba(72,40,79,0.08)"} color="#2C1831">
-          {m.title}
-        </Box>
-      );
-    })}
   </Flex>
 );
 
@@ -230,12 +209,12 @@ export const CreateView = () => {
                 </Box>
                 <Box>
                   <Label>Capacity</Label>
-                  <Seg label="Capacity" value={form.size} onChange={(v) => set({ size: v, roundMaps: {} })} options={sizesFor(form.format).map((s) => ({ id: s, label: String(s) }))} />
+                  <Seg label="Capacity" value={form.size} onChange={(v) => setForm((f) => ({ ...f, size: v, roundMaps: rekeyRoundMaps(f.roundMaps, f, { ...f, size: v }) }))} options={sizesFor(form.format).map((s) => ({ id: s, label: String(s) }))} />
                 </Box>
                 {form.format === "round_robin" && (
                   <Box>
                     <Label>Final</Label>
-                    <Seg label="Final" value={form.top2Final} onChange={(v) => set({ top2Final: v, roundMaps: {} })} options={[
+                    <Seg label="Final" value={form.top2Final} onChange={(v) => setForm((f) => ({ ...f, top2Final: v, roundMaps: rekeyRoundMaps(f.roundMaps, f, { ...f, top2Final: v }) }))} options={[
                       { id: false, label: "Standings decide it" },
                       { id: true, label: "Top 2 play a final" },
                     ]} />
