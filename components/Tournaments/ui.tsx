@@ -22,6 +22,7 @@ export const Page = ({
   heading,
   lede,
   action,
+  wide = false,
   children,
 }: {
   title: string;
@@ -30,6 +31,8 @@ export const Page = ({
   heading: React.ReactNode;
   lede?: React.ReactNode;
   action?: React.ReactNode;
+  /** The bracket page: room for a 16-player tree plus the champion. */
+  wide?: boolean;
   children: React.ReactNode;
 }) => (
   <Flex flexDir="column" bg={PAGE_BG} minH="100svh" color={INK}>
@@ -43,7 +46,7 @@ export const Page = ({
       <Navbar />
     </Box>
     <Box bg={INK_DEEP} color={PARCHMENT} px={{ base: "16px", md: "32px" }} py={{ base: "28px", md: "44px" }}>
-      <Flex maxW="64rem" mx="auto" gap="20px" justify="space-between" align="flex-end" flexWrap="wrap">
+      <Flex maxW={wide ? "90rem" : "64rem"} mx="auto" gap="20px" justify="space-between" align="flex-end" flexWrap="wrap">
         <Box maxW="40rem">
           {eyebrow && (
             <Text fontFamily="ArchivoNarrow" textTransform="uppercase" letterSpacing="0.08em" fontSize="12px" color={BAND_MUTED} mb="6px">
@@ -54,7 +57,7 @@ export const Page = ({
             {heading}
           </Text>
           {lede && (
-            <Text mt="10px" fontSize="15px" color={BAND_MUTED}>
+            <Text as="div" mt="10px" fontSize="15px" color={BAND_MUTED}>
               {lede}
             </Text>
           )}
@@ -62,7 +65,7 @@ export const Page = ({
         {action}
       </Flex>
     </Box>
-    <Box flex="1" w="100%" maxW="64rem" mx="auto" px={{ base: "16px", md: "32px" }} py={{ base: "20px", md: "32px" }}>
+    <Box flex="1" w="100%" maxW={wide ? "90rem" : "64rem"} mx="auto" px={{ base: "16px", md: "32px" }} py={{ base: "20px", md: "32px" }}>
       {children}
     </Box>
   </Flex>

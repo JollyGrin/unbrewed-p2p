@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { BrowseView } from "./BrowseView";
 import { CreateView } from "./CreateView";
 import { EventView } from "./EventView";
+import { MatchStub } from "./MatchStub";
 
 const first = (raw: string | string[] | undefined): string | null => {
   const v = Array.isArray(raw) ? raw[0] : raw;
@@ -21,6 +22,8 @@ export const TournamentsPage = () => {
   const ready = mounted && router?.isReady !== false;
   if (!ready) return null;
   const slug = first(router?.query?.t);
+  const matchId = first(router?.query?.m);
+  if (slug && matchId) return <MatchStub slug={slug} matchId={matchId} />;
   if (slug)
     return (
       <EventView

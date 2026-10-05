@@ -7,12 +7,9 @@
  * later changes to `assignment()` ONLY — the form, the payload and the UI all
  * speak in rules and call this for what a game looks like.
  */
-import type { MapRef, MatchupMode, MatchupRule } from "./types";
+import type { Assignment, MapRef, MatchupMode, MatchupRule } from "./types";
 
-export interface Assignment {
-  heroes: { a: string | null; b: string | null };
-  map: MapRef | null;
-}
+export type { Assignment };
 
 export const SUPPORTED_MODES: readonly MatchupMode[] = ["free", "fixed", "map"];
 

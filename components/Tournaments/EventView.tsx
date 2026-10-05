@@ -18,6 +18,8 @@ import {
 } from "@/lib/tournaments/share";
 import type { Entry, Tournament } from "@/lib/tournaments/types";
 import { statusChip } from "@/lib/tournaments/browse";
+import { BracketEventView } from "./BracketEventView";
+import { SeedingPanel } from "./SeedingPanel";
 import { Btn, Card, Chip, Notice, Page } from "./ui";
 
 const JOIN_ERRORS: Partial<Record<TournamentFailure, string>> = {
@@ -189,8 +191,11 @@ export const EventView = ({ slug, justCreated }: { slug: string; justCreated: bo
       </Page>
     );
 
-  const { tournament: t, entries } = data.value;
+  const { tournament: t, entries, matches } = data.value;
   const isOrganizer = status === "signed-in" && account?.id === t.organizer.userId;
+  if (t.status === "running" || t.status === "complete")
+    return <BracketEventView t={t} entries={entries} matches={matches} />;
+  const seeding = isOrganizer && (t.status === "signup" || t.status === "draft");
   const sharing = justCreated && isOrganizer && t.status === "signup";
   const chip = statusChip(t);
   const mapName = (r: Parameters<typeof mapTitle>[0]) => mapTitle(r);
@@ -232,6 +237,11 @@ export const EventView = ({ slug, justCreated }: { slug: string; justCreated: bo
           </Box>
         </Card>
       </Box>
+      {seeding && (
+        <Box mt="16px">
+          <SeedingPanel t={t} entries={entries} reload={reload} />
+        </Box>
+      )}
     </Page>
   );
 };

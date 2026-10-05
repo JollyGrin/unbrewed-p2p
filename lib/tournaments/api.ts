@@ -8,6 +8,7 @@ import { API_URL } from "@/lib/account/apiUrl";
 import type {
   CreateTournamentBody,
   Entry,
+  Match,
   Tournament,
 } from "./types";
 
@@ -81,6 +82,7 @@ export const getTournament = (slug: string) =>
   call(`/tournaments/${encodeURIComponent(slug)}`, undefined, (b) => ({
     tournament: b.tournament as Tournament,
     entries: list(b.entries) as Entry[],
+    matches: list(b.matches) as Match[],
   }));
 
 export const createTournament = (body: CreateTournamentBody) =>
@@ -102,4 +104,24 @@ export const leaveTournament = (slug: string) =>
     `/tournaments/${encodeURIComponent(slug)}/entries/me`,
     { method: "DELETE" },
     () => true,
+  );
+
+/** Organizer, before start: `order` is every active entry id, best seed first. */
+export const putSeeds = (slug: string, order: readonly string[]) =>
+  call(
+    `/tournaments/${encodeURIComponent(slug)}/seeds`,
+    { method: "PUT", body: JSON.stringify({ order }) },
+    (b) => list(b?.entries) as Entry[],
+  );
+
+/** Organizer: build the bracket and open round 1. */
+export const startTournament = (slug: string) =>
+  call(
+    `/tournaments/${encodeURIComponent(slug)}/start`,
+    { method: "POST" },
+    (b) => ({
+      tournament: b.tournament as Tournament,
+      entries: list(b.entries) as Entry[],
+      matches: list(b.matches) as Match[],
+    }),
   );

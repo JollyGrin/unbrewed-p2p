@@ -1,0 +1,100 @@
+/** The bracket page and the organizer's seeding panel (#1217), against fixtures. */
+import "@testing-library/jest-dom";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { ChakraProvider } from "@chakra-ui/react";
+
+import { BracketEventView } from "./BracketEventView";
+import { SeedingPanel } from "./SeedingPanel";
+import { API_URL } from "@/lib/account/apiUrl";
+import { fixtureComplete4, fixtureRunning16, fixtureRunning8, fixtureSignup8 } from "@/lib/tournaments/fixtures";
+
+jest.mock("next/router", () => ({ useRouter: () => ({ query: {}, isReady: true, push: jest.fn() }) }));
+jest.mock("../Navbar", () => ({ Navbar: () => <nav /> }));
+
+const page = (p: ReturnType<typeof fixtureRunning8>) =>
+  render(
+    <ChakraProvider>
+      <BracketEventView t={p.tournament} entries={p.entries} matches={p.matches} />
+    </ChakraProvider>,
+  );
+
+describe("BracketEventView", () => {
+  it.each([
+    ["fixture-4", fixtureComplete4, 3],
+    ["fixture-8", fixtureRunning8, 7],
+    ["fixture-16", fixtureRunning16, 15],
+  ])("%s draws every match in the tree and the phone tabs", (_, make, matches) => {
+    page(make());
+    const tree = screen.getByTestId("bracket-tree");
+    expect(within(tree).getAllByTestId("match-cell")).toHaveLength(matches);
+    // jsdom resolves Chakra's base breakpoint: the phone panel shows one round.
+    expect(screen.getByTestId("round-tabs")).toBeInTheDocument();
+  });
+
+  it("marks in play now without a game number, and links it to the match page", () => {
+    page(fixtureRunning8());
+    const tree = screen.getByTestId("bracket-tree");
+    const live = within(tree).getAllByTestId("match-cell").find((c) => c.dataset.state === "in_play")!;
+    expect(live).toHaveAttribute("href", "/tournaments?t=fixture-8&m=m2-1");
+    expect(live).toHaveTextContent("In play now");
+    expect(live.textContent).not.toMatch(/game\s*\d/i);
+  });
+
+  it("opens the phone view on the live round and swaps rounds by tab", () => {
+    page(fixtureRunning8());
+    const tabs = within(screen.getByTestId("round-tabs"));
+    expect(tabs.getByRole("tab", { selected: true })).toHaveTextContent("Semis");
+    fireEvent.click(tabs.getByRole("tab", { name: /Quarters/ }));
+    expect(tabs.getAllByTestId("match-cell")).toHaveLength(4);
+  });
+
+  it("crowns the champion when complete", () => {
+    page(fixtureComplete4());
+    expect(screen.getByTestId("champion-line")).toHaveTextContent("Champion: RavenDefeatsAll");
+    expect(within(screen.getByTestId("bracket-tree")).getByTestId("champion")).toHaveTextContent("RavenDefeatsAll");
+  });
+});
+
+describe("SeedingPanel", () => {
+  let calls: { url: string; method: string; body: unknown }[];
+  beforeEach(() => {
+    calls = [];
+    global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ url, method: init?.method ?? "GET", body: init?.body ? JSON.parse(String(init.body)) : null });
+      return { ok: true, status: 200, json: async () => ({ entries: [], matches: [] }) } as Response;
+    }) as unknown as typeof fetch;
+  });
+
+  it("saves the dragged order, then starts", async () => {
+    const p = fixtureSignup8();
+    const saved = p.entries.map((e, i) => ({ ...e, seed: i + 1 }));
+    const reload = jest.fn();
+    render(
+      <ChakraProvider>
+        <SeedingPanel t={p.tournament} entries={saved} reload={reload} />
+      </ChakraProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Move crystal_lake_jay up" }));
+    fireEvent.click(screen.getByTestId("start-bracket"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("confirm-start"));
+    });
+    expect(calls.map((c) => `${c.method} ${c.url.replace(API_URL, "")}`)).toEqual([
+      "PUT /tournaments/fixture-signup/seeds",
+      "POST /tournaments/fixture-signup/start",
+    ]);
+    expect(calls[0].body).toEqual({ order: ["e1", "e2", "e3", "e5", "e4", "e6"] });
+    expect(reload).toHaveBeenCalled();
+  });
+
+  it("won't start under half full", () => {
+    const p = fixtureSignup8();
+    render(
+      <ChakraProvider>
+        <SeedingPanel t={p.tournament} entries={p.entries.slice(0, 4)} reload={jest.fn()} />
+      </ChakraProvider>,
+    );
+    expect(screen.getByTestId("start-bracket")).toBeDisabled();
+    expect(screen.getByText(/more than half the seats/)).toBeInTheDocument();
+  });
+});

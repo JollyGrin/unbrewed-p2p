@@ -6,7 +6,7 @@ import {
   listTournaments,
   type Result,
 } from "./api";
-import type { Entry, Tournament } from "./types";
+import type { Entry, Match, Tournament } from "./types";
 
 export type Loaded<T> =
   | { status: "loading" }
@@ -50,7 +50,7 @@ export const useTournamentList = (signedIn: boolean) => {
 };
 
 export const useTournament = (slug: string | null) =>
-  useLoad<{ tournament: Tournament; entries: Entry[] }>(
+  useLoad<{ tournament: Tournament; entries: Entry[]; matches: Match[] }>(
     slug ? () => getTournament(slug) : null,
     slug ?? "",
   );
