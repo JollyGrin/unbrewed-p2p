@@ -705,3 +705,133 @@ describe("host's waiting room after a refresh (E7, #1236)", () => {
     expect(screen.getByText(/Waiting for an opponent/)).not.toHaveTextContent("playing on");
   });
 });
+
+// p2p #1250: the ready path's dead ends on the game page.
+const grantJson = (over: Record<string, unknown>) => ({
+  ok: true,
+  status: 200,
+  json: async () => ({ action: "join", ticket: "fresh.sig", gameIndex: 0, slot: "a", heroId: "kenshiro", map: null, ticketExpiresAt: "x", roomId: "DQJ6", ...over }),
+});
+
+describe("a seat the engine released (LV-3, #1250)", () => {
+  it("'Back to your room' with a dead stored token: BAD_TOKEN forgets it and shows the ticket card, whose retry carries a join ticket back in", async () => {
+    rememberTournamentRoom("DQJ6", { slug: "autumn-skirmish", matchId: "m2-1" });
+    window.localStorage.setItem("unbrewed-pro-token-DQJ6", "dead");
+    await mount({ room: "DQJ6" });
+    await flush();
+    expect(sentOfType("RECONNECT")).toEqual([expect.objectContaining({ roomId: "DQJ6", token: "dead" })]);
+    await deliver({ type: "ERROR", code: "BAD_TOKEN", message: "Reconnect token not recognized" });
+
+    const card = screen.getByTestId("ticket-error");
+    expect(card).not.toHaveTextContent("BAD_TOKEN");
+    expect(screen.getByText("Get a fresh ticket and retry")).toBeInTheDocument();
+    expect(screen.getByText("Back to the match")).toBeInTheDocument();
+    expect(screen.getByText("Play casual instead")).toBeInTheDocument();
+    expect(window.localStorage.getItem("unbrewed-pro-token-DQJ6")).toBeNull();
+
+    // The api answers seat_held: a join ticket back into the caller's own room.
+    const fetchMock = jest.fn(async () => grantJson({ decision: "seat_held" }));
+    global.fetch = fetchMock as never;
+    const assign = jest.fn();
+    Object.defineProperty(window, "location", { configurable: true, value: { ...window.location, assign } });
+    await click(screen.getByText("Get a fresh ticket and retry"));
+    await flush();
+    expect(assign).toHaveBeenCalledWith(expect.stringMatching(/ticket=fresh\.sig.*room=DQJ6|room=DQJ6.*ticket=fresh\.sig/));
+  });
+
+  it("arriving WITH a fresh ticket and a dead stored token: no bare RECONNECT race; BAD_TOKEN → the ticket JOIN re-seats", async () => {
+    rememberTournamentRoom("DQJ6", { slug: "autumn-skirmish", matchId: "m2-1" });
+    window.localStorage.setItem("unbrewed-pro-token-DQJ6", "dead");
+    await mount({ ...LOCKED, room: "DQJ6" });
+    await flush();
+    // One RECONNECT (the ticket's own launch), never a second ticketless one after the URL strip.
+    expect(sentOfType("RECONNECT")).toEqual([expect.objectContaining({ roomId: "DQJ6", token: "dead" })]);
+    expect(sentOfType("JOIN_ROOM")).toHaveLength(0);
+    await deliver({ type: "ERROR", code: "BAD_TOKEN", message: "Reconnect token not recognized" });
+    expect(sentOfType("JOIN_ROOM")).toEqual([expect.objectContaining({ roomId: "DQJ6", heroId: "kenshiro", ticket: "payload.sig" })]);
+    expect(screen.queryByTestId("ticket-error")).not.toBeInTheDocument();
+    expect(screen.queryByText(/BAD_TOKEN/)).not.toBeInTheDocument();
+    await deliver({ type: "ROOM_JOINED", roomId: "DQJ6", token: "fresh", you: "p2", seats: ["p1", "p2"], requiredPlayers: 2, formatId: "duel" });
+    expect(window.localStorage.getItem("unbrewed-pro-token-DQJ6")).toBe("fresh");
+  });
+
+  it("…the seat still held: the RECONNECT takes it and the ticket is never spent", async () => {
+    window.localStorage.setItem("unbrewed-pro-token-DQJ6", "live");
+    await mount({ ...LOCKED, room: "DQJ6" });
+    await flush();
+    await deliver({ type: "ROOM_JOINED", roomId: "DQJ6", token: "live", you: "p1", seats: ["p1"], requiredPlayers: 2, formatId: "duel" });
+    expect(sentOfType("JOIN_ROOM")).toHaveLength(0);
+  });
+
+  it("a ticket that leaves the hero open + a dead token: BAD_TOKEN lands on the ticket card, never a bare error", async () => {
+    window.localStorage.setItem("unbrewed-pro-token-DQJ6", "dead");
+    await mount({ ...TICKET, room: "DQJ6" });
+    await flush();
+    expect(sentOfType("RECONNECT")).toHaveLength(1);
+    await deliver({ type: "ERROR", code: "BAD_TOKEN", message: "Reconnect token not recognized" });
+    expect(screen.getByTestId("ticket-error")).toBeInTheDocument();
+    expect(screen.getByText("Get a fresh ticket and retry")).toBeInTheDocument();
+  });
+
+  it("(control) a casual room's BAD_TOKEN keeps the old screen", async () => {
+    window.sessionStorage.setItem("unbrewed-pro-token-CASUAL", "dead");
+    await mount({ room: "CASUAL" });
+    await flush();
+    await deliver({ type: "ERROR", code: "BAD_TOKEN", message: "Reconnect token not recognized" });
+    expect(screen.queryByTestId("ticket-error")).not.toBeInTheDocument();
+    expect(screen.getByText(/BAD_TOKEN/)).toBeInTheDocument();
+  });
+});
+
+describe("a seat taken over by another tab (LV-4, #1250 ↔ engine #761)", () => {
+  it("close 4001 shows 'This seat is open in another tab', never reconnects by itself, and 'Use this tab instead' does", async () => {
+    rememberTournamentRoom("T1", { slug: "autumn-skirmish", matchId: "m2-1" });
+    window.sessionStorage.setItem("unbrewed-pro-token-T1", "tok");
+    await mount({ room: "T1" });
+    await deliver({ type: "ROOM_JOINED", roomId: "T1", token: "tok", you: "p1", seats: ["p1"], requiredPlayers: 2, formatId: "duel" });
+    const sockets = FakeWebSocket.instances.length;
+    const socket = FakeWebSocket.latest()!;
+    await act(async () => {
+      socket.readyState = FakeWebSocket.CLOSED;
+      socket.onclose?.({ code: 4001, reason: "seat_replaced" });
+    });
+    const panel = screen.getByTestId("seat-replaced");
+    expect(panel).toHaveTextContent("This seat is open in another tab");
+    expect(screen.getByText("Back to the match").closest("a")).toHaveAttribute("href", "/tournaments?t=autumn-skirmish&m=m2-1");
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 1500)); // past the first backoff step
+    });
+    expect(FakeWebSocket.instances.length).toBe(sockets);
+
+    await click(screen.getByText("Use this tab instead"));
+    expect(FakeWebSocket.instances.length).toBe(sockets + 1);
+    SENT = [];
+    const next = FakeWebSocket.latest()!;
+    await act(async () => {
+      next.readyState = FakeWebSocket.OPEN;
+      next.onopen?.({});
+    });
+    expect(sentOfType("RECONNECT")).toEqual([expect.objectContaining({ roomId: "T1", token: "tok" })]);
+    expect(screen.queryByTestId("seat-replaced")).not.toBeInTheDocument();
+  });
+});
+
+describe("the joiner's waiting room names the dealt board (LV-5, #1250)", () => {
+  it("a ticket JOIN with a board names it", async () => {
+    await mount({ ...LOCKED, room: "SF2ROOM" });
+    await flush();
+    await deliver({ type: "ROOM_JOINED", roomId: "SF2ROOM", token: "t", you: "p2", seats: ["p1", "p2"], requiredPlayers: 3, formatId: "duel" });
+    await flush();
+    expect(screen.getByText(/playing on/)).toHaveTextContent(catalogEntry("counts-castle")!.title);
+    expect(screen.queryByText(/default board/)).not.toBeInTheDocument();
+  });
+
+  it("a ticket JOIN without one says nothing rather than 'the default board'", async () => {
+    await mount({ ...TICKET, lockHero: "kenshiro", room: "SF2ROOM" });
+    await flush();
+    await deliver({ type: "ROOM_JOINED", roomId: "SF2ROOM", token: "t", you: "p2", seats: ["p1", "p2"], requiredPlayers: 3, formatId: "duel" });
+    await flush();
+    expect(screen.queryByText(/default board/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/playing on/)).not.toBeInTheDocument();
+  });
+});

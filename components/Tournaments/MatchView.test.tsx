@@ -17,7 +17,7 @@ const NOW = Date.parse(FIXTURE_NOW);
 
 const renderState = (
   state: MatchPageState,
-  opts: { as?: string | null; phase?: PlayPhase; onPlay?: () => void; signedOut?: boolean } = {},
+  opts: { as?: string | null; phase?: PlayPhase; onPlay?: () => void; onBack?: (roomId: string) => void; signedOut?: boolean } = {},
 ) => {
   const f = fixtureMatch(state);
   return render(
@@ -30,6 +30,7 @@ const renderState = (
         now={NOW}
         phase={opts.phase ?? { kind: "idle" }}
         onPlay={opts.onPlay ?? (() => {})}
+        onBack={opts.onBack}
       />
     </ChakraProvider>,
   );
@@ -69,6 +70,17 @@ it("you're ready (seat held): countdown and a way back to the room this browser 
   expect(banner()).toHaveTextContent("You're ready.");
   expect(screen.getByTestId("seat-clock")).toHaveTextContent("14:32");
   expect(screen.getAllByText("Back to your room")[0].closest("a")).toHaveAttribute("href", "/pro/game?room=SF2ROOM");
+});
+
+it("'Back to your room' goes through the fresh-ticket handler (a stored token may be dead, #1250 LV-3)", () => {
+  window.localStorage.setItem("unbrewed-pro-token-SF2ROOM", "dead");
+  const onBack = jest.fn();
+  renderState("you_ready", { onBack });
+  const links = screen.getAllByText(/Back to (your )?room/);
+  expect(links.length).toBeGreaterThan(0);
+  for (const link of links) fireEvent.click(link);
+  expect(onBack).toHaveBeenCalledTimes(links.length);
+  expect(onBack).toHaveBeenCalledWith("SF2ROOM");
 });
 
 it("you're ready on a device with no seat token: a fresh ticket, never a ticketless ?room= link", () => {
@@ -385,5 +397,17 @@ describe("api #91", () => {
     expect(within(note).getByText("Back to your room").closest("a")).toHaveAttribute("href", "/pro/game?room=ABC123");
     fireEvent.click(within(note).getByText("Check again"));
     expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("the seat-held card's 'Back to your room' asks for a fresh ticket (#1250 LV-3)", () => {
+    const f = fixtureMatch("waiting");
+    const onBack = jest.fn();
+    render(
+      <ChakraProvider>
+        <MatchBody d={f.detail} t={f.tournament} myUserId={FIXTURE_MATCH_YOU} signedOut={false} now={NOW} phase={{ kind: "seat_held", roomId: "ABC123" }} onPlay={() => {}} onBack={onBack} />
+      </ChakraProvider>,
+    );
+    fireEvent.click(within(within(screen.getByTestId("play-box")).getByTestId("seat-held-note")).getByText("Back to your room"));
+    expect(onBack).toHaveBeenCalledWith("ABC123");
   });
 });

@@ -225,6 +225,13 @@ export interface TicketGrant {
   map: MapRef | null;
   ticketExpiresAt: string;
   roomId: string | null;
+  /**
+   * The api's ready decision (feature/tournaments-api decideReady). `seat_held`
+   * = the caller's own create is the newest live one for this game: `join` back
+   * into its open room (`roomId`), or `create` to finish opening it (`roomId`
+   * null). Absent from an older api.
+   */
+  decision?: "create" | "join" | "seat_held";
 }
 
 /**

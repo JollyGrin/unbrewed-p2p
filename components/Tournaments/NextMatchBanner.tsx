@@ -73,7 +73,7 @@ export const NextMatchCard = ({ view, myName, myAvatar }: { view: NextMatchView;
               {view.notice}
             </Text>
           )}
-          {play.phase.kind === "seat_held" && <SeatHeldNote dark roomId={play.phase.roomId} onRetry={play.retry} />}
+          {play.phase.kind === "seat_held" && <SeatHeldNote dark roomId={play.phase.roomId} onRetry={play.retry} onBack={play.backToRoom} />}
           {play.phase.kind === "error" && (
             <Text role="alert" fontSize="13px" color="#FF8A73" mt="6px">
               {play.phase.message}

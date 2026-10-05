@@ -53,7 +53,7 @@ import {
 } from "@/lib/tournaments/matchPage";
 import { tournamentPath } from "@/lib/tournaments/share";
 import type { Entry, Game, MatchDetail, MatchPlayer, Tournament } from "@/lib/tournaments/types";
-import { SeatHeldNote } from "./SeatHeldNote";
+import { backTo, SeatHeldNote } from "./SeatHeldNote";
 import { usePlayMatch, type PlayPhase } from "@/lib/tournaments/usePlayMatch";
 
 import { Avatar } from "./Bracket";
@@ -126,6 +126,7 @@ export const MatchView = ({ slug, matchId }: { slug: string; matchId: string }) 
       phase={play.phase}
       onPlay={play.play}
       onRetry={play.retry}
+      onBack={play.backToRoom}
       crumbs={crumbs}
       organizer={
         event.status === "ready" && isOrganizerOf(event.value.tournament, myUserId)
@@ -154,6 +155,7 @@ export const MatchBody = ({
   phase,
   onPlay,
   onRetry,
+  onBack,
   crumbs,
   organizer,
 }: {
@@ -167,6 +169,8 @@ export const MatchBody = ({
   onPlay: () => void;
   /** "Check again" on the seat-held card: re-read the match. */
   onRetry?: () => void;
+  /** "Back to your room": go back with a fresh join ticket (p2p #1250). */
+  onBack?: (roomId: string) => void;
   crumbs?: (here: string) => React.ReactNode;
   /** Only passed for the tournament's organizer (MatchView gates it): set matchup / override (#1219). */
   organizer?: { entries: Entry[]; reload: () => void };
@@ -229,6 +233,7 @@ export const MatchBody = ({
               phase={phase}
               onPlay={onPlay}
               onRetry={onRetry}
+              onBack={onBack}
               oppName={oppName}
               myHero={myHero}
               mapName={mu.map}
@@ -293,6 +298,7 @@ export const MatchBody = ({
         phase={phase}
         onPlay={onPlay}
         onRetry={onRetry}
+        onBack={onBack}
         seatHeld={room ? seatClock(room.expiresAt, now) : null}
         roomId={room?.roomId ?? liveGame?.roomId ?? null}
         bracketHref={tournamentPath(d.tournament.slug)}
@@ -531,6 +537,7 @@ const PlayBox = ({
   phase,
   onPlay,
   onRetry,
+  onBack,
   oppName,
   myHero,
   mapName,
@@ -543,6 +550,7 @@ const PlayBox = ({
   phase: PlayPhase;
   onPlay: () => void;
   onRetry?: () => void;
+  onBack?: (roomId: string) => void;
   oppName: string;
   myHero: string | null;
   mapName: string | null;
@@ -559,7 +567,7 @@ const PlayBox = ({
         Opening {oppName}&apos;s room…
       </Text>
     ) : phase.kind === "seat_held" ? (
-      <SeatHeldNote roomId={phase.roomId} onRetry={onRetry} />
+      <SeatHeldNote roomId={phase.roomId} onRetry={onRetry} onBack={onBack} />
     ) : phase.kind === "error" ? (
       <Text fontSize="13px" mt="8px" color={DANGER_INK} fontWeight={600} role="alert" data-testid="play-error">
         {phase.message}
@@ -602,7 +610,7 @@ const PlayBox = ({
         </>
       );
       action = backHref ? (
-        <Btn variant="gold" href={backHref}>Back to your room</Btn>
+        <Btn variant="gold" href={backHref} onClick={backTo(roomId, onBack)}>Back to your room</Btn>
       ) : (
         // Seat held from another tab or device: take it here via a fresh ticket.
         <Btn variant="gold" onClick={onPlay} disabled={busy} data-testid="play-button">Take your seat here</Btn>
@@ -666,6 +674,7 @@ const StickyPlay = ({
   phase,
   onPlay,
   onRetry,
+  onBack,
   seatHeld,
   roomId,
   bracketHref,
@@ -678,6 +687,7 @@ const StickyPlay = ({
   phase: PlayPhase;
   onPlay: () => void;
   onRetry?: () => void;
+  onBack?: (roomId: string) => void;
   seatHeld: string | null;
   roomId: string | null;
   bracketHref: string;
@@ -686,10 +696,10 @@ const StickyPlay = ({
   const busy = phase.kind === "busy" || phase.kind === "opening";
   const back = seatHref(roomId);
   let btn: React.ReactNode = null;
-  if (side && phase.kind === "seat_held") btn = <SeatHeldNote roomId={phase.roomId} onRetry={onRetry} />;
+  if (side && phase.kind === "seat_held") btn = <SeatHeldNote roomId={phase.roomId} onRetry={onRetry} onBack={onBack} />;
   else if (side && state === "waiting") btn = <Btn variant="gold" onClick={onPlay} disabled={busy}>I&apos;m ready to play</Btn>;
   else if (side && state === "opponent_ready") btn = <Btn variant="gold" onClick={onPlay} disabled={busy}>Join now{seatHeld ? ` · ${seatHeld}` : ""}</Btn>;
-  else if (side && state === "you_ready" && back) btn = <Btn variant="ink" href={back}>Seat held {seatHeld} · Back to room</Btn>;
+  else if (side && state === "you_ready" && back) btn = <Btn variant="ink" href={back} onClick={backTo(roomId, onBack)}>Seat held {seatHeld} · Back to room</Btn>;
   else if (side && state === "you_ready") btn = <Btn variant="gold" onClick={onPlay} disabled={busy}>Take your seat here · {seatHeld}</Btn>;
   else if (side && state === "in_play" && back) btn = <Btn variant="gold" href={back}>Back to game</Btn>;
   else if (state === "decided" && onReplay) btn = <Btn variant="ink" onClick={onReplay}>Watch the replay</Btn>;
