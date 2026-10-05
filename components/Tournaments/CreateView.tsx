@@ -1,0 +1,295 @@
+import { Box, Flex, Input, Text } from "@chakra-ui/react";
+import NextLink from "next/link";
+import { useRouter } from "next/router";
+import { useState } from "react";
+
+import { signInUrl, useAccount } from "@/lib/account/useAccount";
+import { createTournament } from "@/lib/tournaments/api";
+import {
+  PRESETS,
+  SIZES,
+  WINDOWS,
+  initialForm,
+  latestFinal,
+  matchupSummary,
+  roundCount,
+  roundName,
+  toCreateBody,
+  validateForm,
+  type CreateFormState,
+  type MatchupChoice,
+  type PresetId,
+} from "@/lib/tournaments/createForm";
+import { proMapOptions } from "@/lib/tournaments/options";
+import { formatWhen, tournamentPath } from "@/lib/tournaments/share";
+import type { MapRef } from "@/lib/tournaments/types";
+import { Btn, Card, Chip, Notice, Page } from "./ui";
+
+const Label = ({ children }: { children: React.ReactNode }) => (
+  <Text as="label" display="block" fontSize="12px" fontFamily="ArchivoNarrow" textTransform="uppercase" letterSpacing="0.08em" opacity={0.7} mb="6px">
+    {children}
+  </Text>
+);
+
+const Seg = <T extends string | number>({
+  value,
+  options,
+  onChange,
+  label,
+}: {
+  value: T;
+  options: { id: T; label: string; disabled?: boolean }[];
+  onChange: (v: T) => void;
+  label: string;
+}) => (
+  <Flex role="radiogroup" aria-label={label} gap="6px" flexWrap="wrap">
+    {options.map((o) => (
+      <Box
+        as="button"
+        type="button"
+        key={String(o.id)}
+        role="radio"
+        aria-checked={value === o.id}
+        disabled={o.disabled}
+        onClick={() => onChange(o.id)}
+        px="14px"
+        minH="40px"
+        borderRadius="8px"
+        fontWeight={600}
+        fontSize="14px"
+        bg={value === o.id ? "#48284F" : "rgba(72,40,79,0.08)"}
+        color={value === o.id ? "#FAEBD7" : "#48284F"}
+        opacity={o.disabled ? 0.45 : 1}
+      >
+        {o.label}
+      </Box>
+    ))}
+  </Flex>
+);
+
+const MapChips = ({
+  value,
+  onPick,
+  label,
+}: {
+  value: MapRef | null;
+  onPick: (m: MapRef) => void;
+  label: string;
+}) => (
+  <Flex gap="6px" flexWrap="wrap" role="radiogroup" aria-label={label}>
+    {proMapOptions().map((m) => {
+      const sel = value?.id === m.ref.id;
+      return (
+        <Box as="button" type="button" key={m.ref.id} role="radio" aria-checked={sel} onClick={() => onPick(m.ref)} px="12px" minH="36px" borderRadius="999px" fontSize="13px" fontWeight={600} bg={sel ? "#E0A82E" : "rgba(72,40,79,0.08)"} color="#2C1831">
+          {m.title}
+        </Box>
+      );
+    })}
+  </Flex>
+);
+
+const MODES: { id: MatchupChoice; title: string; body: string }[] = [
+  { id: "free", title: "Players choose", body: "Each player picks a hero and they agree on a map in the room. The default." },
+  { id: "map", title: "Same map for everyone", body: "Players still pick heroes. You pick the map." },
+  { id: "organizer", title: "Organizer sets each match", body: "You choose a hero for each seat and the map, on each match as it opens." },
+];
+
+const Preview = ({ f }: { f: CreateFormState }) => {
+  const final = latestFinal(f);
+  return (
+    <Card overflow="hidden" alignSelf="start">
+      <Box bg="#2C1831" color="#FAEBD7" p="16px">
+        <Chip tone="gold">Preview · signup open</Chip>
+        <Text fontFamily="LeagueGothic" fontSize="30px" mt="6px">{f.name.trim() || "Your tournament"}</Text>
+        <Text fontSize="13px" opacity={0.75}>Single elimination · {f.size} players · first to 1</Text>
+      </Box>
+      <Box p="16px" fontSize="14px">
+        <Text fontSize="12px" opacity={0.65} mb="8px" textTransform="uppercase" fontFamily="ArchivoNarrow" letterSpacing="0.08em">If all {f.size} seats fill</Text>
+        <Box as="ol" pl="18px" display="flex" flexDir="column" gap="8px">
+          <li><b>Signup closes · round 1 opens</b><br />{formatWhen(new Date(f.signupCloses || Date.now()).toISOString())}</li>
+          <li><b>Each match gets {WINDOWS.find((w) => w.hours === f.matchWindowHours)?.label}</b><br />from the moment both players are known</li>
+          {final && <li><b>Latest possible final</b><br />{formatWhen(final.toISOString())}</li>}
+        </Box>
+        <Text mt="12px" fontSize="13px" opacity={0.7}>Usually much sooner: a match opens the moment both its players are known.</Text>
+      </Box>
+    </Card>
+  );
+};
+
+export const CreateView = () => {
+  const router = useRouter();
+  const { status } = useAccount();
+  const [preset, setPreset] = useState<PresetId>("weekend");
+  const [form, setForm] = useState<CreateFormState>(() => initialForm());
+  const [problems, setProblems] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const set = (p: Partial<CreateFormState>) => setForm((f) => ({ ...f, ...p }));
+
+  const choosePreset = (id: PresetId) => {
+    const p = PRESETS.find((x) => x.id === id);
+    if (!p || p.disabled) return;
+    setPreset(id);
+    set(p.patch);
+  };
+
+  const submit = async (kind: "draft" | "signup") => {
+    const found = validateForm(form);
+    setProblems(found.map((p) => p.message));
+    if (found.length) return;
+    setBusy(true);
+    const r = await createTournament(toCreateBody(form, kind));
+    setBusy(false);
+    if (r.ok) {
+      void router.push(`${tournamentPath(r.value.slug)}${kind === "signup" ? "&share=1" : ""}`);
+      return;
+    }
+    setProblems([
+      r.reason === "unauthorized"
+        ? "Sign in with Discord to create a tournament."
+        : r.message ?? "Couldn't create the tournament. Check the settings and try again.",
+    ]);
+  };
+
+  const heading = <>Create a tournament</>;
+  const base = { title: "New tournament", path: "/tournaments?new=1", heading, eyebrow: <><NextLink href="/tournaments">Tournaments</NextLink> / New</> };
+
+  if (status === "guest" || status === "offline")
+    return (
+      <Page {...base} lede="Pick a starting point. You'll be the organizer.">
+        <Notice title="Sign in to create">Tournaments are organized from a Discord account, so we can ping your players.</Notice>
+        <Box mt="16px">
+          <Btn variant="discord" href={signInUrl("/tournaments?new=1")}>Sign in with Discord</Btn>
+        </Box>
+      </Page>
+    );
+
+  const custom = preset === "custom";
+  const rounds = roundCount(form.size);
+
+  return (
+    <Page {...base} lede="Pick a starting point. You'll be the organizer and can edit everything until signup closes.">
+      <Box display="grid" gridTemplateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }} gap="12px" mb="20px" role="radiogroup" aria-label="Preset">
+        {PRESETS.map((p) => (
+          <Box
+            as="button"
+            type="button"
+            key={p.id}
+            role="radio"
+            aria-checked={preset === p.id}
+            disabled={!!p.disabled}
+            onClick={() => choosePreset(p.id)}
+            textAlign="left"
+            p="14px 16px"
+            borderRadius="12px"
+            border={preset === p.id ? "2px solid #E0A82E" : "1px solid rgba(72,40,79,0.2)"}
+            bg="#FAEBD7"
+            opacity={p.disabled ? 0.55 : 1}
+          >
+            <Text fontFamily="LeagueGothic" fontSize="26px" lineHeight="1.05">{p.title}</Text>
+            <Text fontSize="13px" opacity={0.75}>{p.disabled ?? p.blurb}</Text>
+            <Box as="ul" mt="8px" pl="16px" fontSize="13px">
+              {p.bullets.map((b) => <li key={b}>{b}</li>)}
+            </Box>
+          </Box>
+        ))}
+      </Box>
+
+      <Box display="grid" gridTemplateColumns={{ base: "1fr", lg: "3fr 2fr" }} gap="16px" alignItems="start">
+        <Card p="20px" as="form" onSubmit={(e: React.FormEvent) => { e.preventDefault(); void submit("signup"); }}>
+          <Flex flexDir="column" gap="18px">
+            {!custom && (
+              <Flex gap="6px" flexWrap="wrap">
+                <Chip>Single elimination</Chip>
+                <Chip>{form.size} players</Chip>
+                <Chip>First to 1</Chip>
+                <Chip>{WINDOWS.find((w) => w.hours === form.matchWindowHours)?.label} per match</Chip>
+                <Chip>{matchupSummary(form)}</Chip>
+              </Flex>
+            )}
+            <Box>
+              <Label>Tournament name</Label>
+              <Input aria-label="Tournament name" value={form.name} maxLength={80} placeholder="Autumn Skirmish" onChange={(e) => set({ name: e.target.value })} bg="white" />
+            </Box>
+            <Box>
+              <Label>Signup closes</Label>
+              <Input aria-label="Signup closes" type="datetime-local" value={form.signupCloses} onChange={(e) => set({ signupCloses: e.target.value })} bg="white" />
+              <Text fontSize="12px" opacity={0.65} mt="4px">Shown to players in their local time.</Text>
+            </Box>
+
+            {custom && (
+              <>
+                <Box>
+                  <Label>Format</Label>
+                  <Seg label="Format" value={form.format} onChange={(v) => set({ format: v })} options={[
+                    { id: "single_elim", label: "Single elimination" },
+                    { id: "round_robin", label: "Round robin · soon", disabled: true },
+                  ]} />
+                </Box>
+                <Box>
+                  <Label>Capacity</Label>
+                  <Seg label="Capacity" value={form.size} onChange={(v) => set({ size: v, roundMaps: {} })} options={SIZES.map((s) => ({ id: s, label: String(s) }))} />
+                </Box>
+                <Box>
+                  <Label>Time per match</Label>
+                  <Seg label="Time per match" value={form.matchWindowHours} onChange={(v) => set({ matchWindowHours: v })} options={WINDOWS.map((w) => ({ id: w.hours, label: w.label }))} />
+                  <Text fontSize="12px" opacity={0.65} mt="4px">Each match is first to 1 — one game decides it. Best-of-3 and best-of-5 are coming later.</Text>
+                </Box>
+                <Box>
+                  <Label>Matchups</Label>
+                  <Flex flexDir="column" gap="8px" role="radiogroup" aria-label="Matchups">
+                    {MODES.map((m) => (
+                      <Box as="button" type="button" key={m.id} role="radio" aria-checked={form.matchup === m.id} onClick={() => set({ matchup: m.id })} textAlign="left" p="10px 12px" borderRadius="10px" border={form.matchup === m.id ? "2px solid #E0A82E" : "1px solid rgba(72,40,79,0.2)"}>
+                        <Text fontWeight={700}>{m.title}</Text>
+                        <Text fontSize="13px" opacity={0.75}>{m.body}</Text>
+                      </Box>
+                    ))}
+                    <Box p="10px 12px" borderRadius="10px" border="1px dashed rgba(72,40,79,0.25)" opacity={0.5}>
+                      <Text fontWeight={700}>Hero pool / pick &amp; ban draft <em>Coming later</em></Text>
+                    </Box>
+                  </Flex>
+                  {form.matchup === "map" && (
+                    <Flex flexDir="column" gap="10px" mt="12px">
+                      <Seg label="Map scope" value={form.mapScope} onChange={(v) => set({ mapScope: v })} options={[{ id: "event", label: "Whole event" }, { id: "round", label: "Per round" }]} />
+                      {form.mapScope === "event" ? (
+                        <MapChips label="Map" value={form.map} onPick={(map) => set({ map })} />
+                      ) : (
+                        Array.from({ length: rounds }, (_, i) => i + 1).map((r) => (
+                          <Box key={r}>
+                            <Text fontSize="13px" fontWeight={700} mb="4px">{roundName(r, rounds)}</Text>
+                            <MapChips label={`Map for ${roundName(r, rounds)}`} value={form.roundMaps[String(r)] ?? null} onPick={(m) => set({ roundMaps: { ...form.roundMaps, [String(r)]: m } })} />
+                          </Box>
+                        ))
+                      )}
+                    </Flex>
+                  )}
+                  {form.matchup === "organizer" && (
+                    <Text fontSize="13px" opacity={0.75} mt="8px">Matches you haven&apos;t set when they open fall back to Players choose.</Text>
+                  )}
+                </Box>
+              </>
+            )}
+
+            <Text fontSize="13px" opacity={0.75}>
+              The unbrewed bot posts the signup in #tournaments, then a thread per match that pings both players. Nothing to set up.
+            </Text>
+
+            {problems.length > 0 && (
+              <Box role="alert" color="#B3361F" fontSize="14px">
+                {problems.map((p) => <Text key={p}>{p}</Text>)}
+              </Box>
+            )}
+            <Flex gap="10px" justify="space-between" flexWrap="wrap">
+              {custom ? (
+                <Btn variant="ghost" disabled={busy} onClick={() => void submit("draft")}>Save draft</Btn>
+              ) : (
+                <Btn variant="ghost" onClick={() => choosePreset("custom")}>Customize every setting</Btn>
+              )}
+              <Btn variant="gold" type="submit" disabled={busy}>{busy ? "Opening…" : "Open signup"}</Btn>
+            </Flex>
+          </Flex>
+        </Card>
+        <Preview f={form} />
+      </Box>
+    </Page>
+  );
+};
