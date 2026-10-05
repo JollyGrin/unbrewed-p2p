@@ -497,15 +497,15 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
   },
   {
     // Spice remix of The Hollow Oak (display name shared) — server hero
-    // hollow-oak-spice. Reuses Hollow Oak's cardback and per-card art until
-    // dedicated spice art lands.
+    // hollow-oak-spice. Full-card renders (full-bleed cardImage) and its own
+    // cardback live under art/hollow-oak-spice (#1206).
     id: "hollow-oak-spice",
     name: "The Hollow Oak",
     hero: "The Hollow Oak",
     author: "unbrewed",
     likes: 0,
     highlightColour: "#5f7d3b",
-    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/cardback.webp",
+    cardbackUrl: "/evergreen-decks/art/hollow-oak-spice/cardback.webp",
     original: true,
   },
   {
