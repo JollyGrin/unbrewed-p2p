@@ -529,7 +529,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
   },
   {
     // Evergreen original: Malfurion Stormrage — server hero malfurion-stormrage.
-    // Self-hosted generated art lives in public/evergreen-decks/art/malfurion-stormrage.
+    // Full-card renders (full-bleed cardImage) + card back live in public/evergreen-decks/art/malfurion-stormrage.
     id: "malfurion-stormrage",
     name: "Malfurion Stormrage",
     hero: "Malfurion Stormrage",
