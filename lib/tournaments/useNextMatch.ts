@@ -28,7 +28,8 @@ const load = async (): Promise<MyTournamentsData | null> => {
   const r = await getMyTournaments();
   if (!r.ok) return null;
   const match = r.value.nextMatch;
-  if (!match) return { mine: r.value, next: null };
+  // A cancelled tournament's open match is nothing to play: no banner, no menu card.
+  if (!match || match.match.cancelled) return { mine: r.value, next: null };
   const d = await getMatch(match.tournament.slug, match.match.id);
   return {
     mine: r.value,
@@ -107,7 +108,7 @@ export const findMyMatchForRoom = async (userId: string, roomId: string): Promis
       const r = await getTournament(t.slug);
       if (!r.ok) return null;
       const open = r.value.matches.filter(
-        (m) => (m.slotA === t.myEntryId || m.slotB === t.myEntryId) && (m.status === "open" || m.status === "in_play"),
+        (m) => (m.slotA === t.myEntryId || m.slotB === t.myEntryId) && !m.cancelled && (m.status === "open" || m.status === "in_play"),
       );
       const started = open.find((m) => m.games.some((g) => g.roomId === roomId));
       if (started) return { slug: t.slug, matchId: started.id };

@@ -65,3 +65,18 @@ describe("RoundRobinEventView", () => {
     expect(screen.getAllByTestId("standing-row")[0]).toHaveTextContent("♛ Champion");
   });
 });
+
+describe("a cancelled tournament (api #91)", () => {
+  it("says so, keeps the results visible and shows no match in play", () => {
+    const p = fixtureRoundRobin4();
+    const matches = p.matches.map((m) => (m.status === "decided" ? m : { ...m, cancelled: true, inPlay: false }));
+    render(
+      <ChakraProvider>
+        <RoundRobinEventView t={{ ...p.tournament, status: "cancelled" }} entries={p.entries} matches={matches} standings={p.standings ?? null} />
+      </ChakraProvider>,
+    );
+    expect(screen.getByTestId("cancelled-notice")).toHaveTextContent("This tournament was cancelled");
+    expect(screen.queryByText("in play now")).toBeNull();
+    expect(screen.queryAllByText("In play now")).toHaveLength(0);
+  });
+});

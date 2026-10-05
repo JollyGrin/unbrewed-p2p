@@ -219,9 +219,11 @@ export const EventView = ({ slug, justCreated }: { slug: string; justCreated: bo
         </Flex>
       </Page>
     );
-  if ((t.status === "running" || t.status === "complete") && t.format === "round_robin")
+  // A cancelled tournament that had started keeps its results visible (api #91).
+  const started = t.status === "running" || t.status === "complete" || (t.status === "cancelled" && matches.length > 0);
+  if (started && t.format === "round_robin")
     return <RoundRobinEventView t={t} entries={entries} matches={matches} standings={standings} isOrganizer={isOrganizer} reload={reload} />;
-  if (t.status === "running" || t.status === "complete")
+  if (started)
     return <BracketEventView t={t} entries={entries} matches={matches} isOrganizer={isOrganizer} reload={reload} />;
   const seeding = isOrganizer && t.status === "signup";
   const draft = t.status === "draft";

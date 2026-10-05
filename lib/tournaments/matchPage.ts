@@ -12,7 +12,7 @@
  */
 import { heroDisplayName } from "@/lib/stats/roster";
 
-import { DECIDED_NOTE, roundCount, roundName } from "./bracket";
+import { DECIDED_NOTE, countsGame, roundCount, roundName } from "./bracket";
 import { mapTitle } from "./options";
 import type { Assignment, Game, Match, MatchDetail, MatchPlayer } from "./types";
 
@@ -23,7 +23,8 @@ export type MatchPageState =
   | "in_play"
   | "deadline_passed"
   | "decided"
-  | "decided_by_rule";
+  | "decided_by_rule"
+  | "cancelled";
 
 /** The names the mockup and the ticket use. */
 export const MATCH_STATE_NAME: Record<MatchPageState, string> = {
@@ -34,6 +35,7 @@ export const MATCH_STATE_NAME: Record<MatchPageState, string> = {
   deadline_passed: "deadline passed (organizer deciding)",
   decided: "decided",
   decided_by_rule: "decided by deadline rule",
+  cancelled: "cancelled",
 };
 
 /** Which side of the match the viewer is, or null for a spectator. */
@@ -74,7 +76,7 @@ export type DeadlineOutcome =
 
 export const deadlineOutcome = (d: MatchDetail, now: number): DeadlineOutcome => {
   const m = d.match;
-  if (m.inPlay || m.status === "in_play" || !m.slotA || !m.slotB || !deadlinePassed(m.deadlineAt, now))
+  if (m.cancelled || m.inPlay || m.status === "in_play" || !m.slotA || !m.slotB || !deadlinePassed(m.deadlineAt, now))
     return { kind: "open" };
   const deadline = Date.parse(m.deadlineAt!);
   const before = d.readyChecks.filter((c) => Date.parse(c.createdAt) <= deadline);
@@ -137,6 +139,8 @@ export const matchPageState = (d: MatchDetail, myUserId: string | null, now: num
     return m.decidedBy === "deadline_ready_check" || m.decidedBy === "deadline_higher_seed"
       ? "decided_by_rule"
       : "decided";
+  // An undecided match of a cancelled tournament reads cancelled whatever its raw status says.
+  if (m.cancelled) return "cancelled";
   // A game that started before the deadline finishes and counts (settled rule 3).
   if (m.inPlay || m.status === "in_play") return "in_play";
   // Past the deadline only a live pre-deadline seat hold keeps the match playable.
@@ -287,7 +291,7 @@ export interface GameRow {
   game: Game;
   /** 1-based, as players count. */
   n: number;
-  state: "in_play" | "won" | "unverified" | "rejected";
+  state: "in_play" | "won" | "unverified" | "rejected" | "after_decision";
   winnerName: string | null;
   heroes: string | null;
 }
@@ -301,7 +305,7 @@ export const gameRows = (d: MatchDetail): GameRow[] =>
     return {
       game: g,
       n: g.gameIndex + 1,
-      state: g.rejectedAt ? "rejected" : !g.finishedAt ? "in_play" : g.verified ? "won" : "unverified",
+      state: g.rejectedAt ? "rejected" : g.recordedAfterDecision && g.finishedAt ? "after_decision" : !g.finishedAt ? "in_play" : g.verified ? "won" : "unverified",
       winnerName: winner ? playerName(winner) : null,
       heroes: mu.heroA && mu.heroB ? `${mu.heroA} vs ${mu.heroB}` : null,
     };
@@ -317,7 +321,7 @@ export const gameLength = (g: Game): string | null => {
 /** Games won per side — the score a decided match shows ("1–0"). */
 export const score = (d: MatchDetail): { a: number; b: number } => {
   const won = (entry: string | null) =>
-    entry ? d.match.games.filter((g) => g.finishedAt && !g.rejectedAt && g.winnerEntry === entry).length : 0;
+    entry ? d.match.games.filter((g) => countsGame(g) && g.winnerEntry === entry).length : 0;
   return { a: won(d.match.slotA), b: won(d.match.slotB) };
 };
 

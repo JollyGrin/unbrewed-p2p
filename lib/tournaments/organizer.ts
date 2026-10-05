@@ -58,6 +58,8 @@ export const attentionRows = (
 ): AttentionRow[] => {
   const rows = items.flatMap((item, i): AttentionRow[] => {
     const m = matches.find((x) => x.id === item.matchId);
+    // A cancelled tournament's open matches need nobody's decision.
+    if (m?.cancelled) return [];
     const code =
       m?.stage === "final"
         ? "Final"

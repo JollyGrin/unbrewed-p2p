@@ -82,7 +82,7 @@ export const nextMatchView = (
 
   const room = detail ? heldRoom(detail, now) : null;
   const state: NextMatchState =
-    m.inPlay || m.status === "in_play"
+    !m.cancelled && (m.inPlay || m.status === "in_play")
       ? "in_play"
       : // Past the deadline: playable only while a pre-deadline seat hold is live
         // (needs the detail's ready-checks; without it, assume the organizer).
