@@ -235,6 +235,17 @@ import {
   withoutRematchQuery,
 } from "@/lib/pro/rematch";
 import type { RematchNegotiation } from "@/components/Pro/RematchOfferPanel";
+import {
+  parseTicketQuery,
+  rememberTournamentRoom,
+  ticketBoard,
+  TICKET_ERROR_CODES,
+  tournamentMatchHref,
+  tournamentRoomOf,
+  withoutTicketQuery,
+} from "@/lib/pro/tournamentTicket";
+import type { TicketLaunch, TournamentRoom } from "@/lib/pro/tournamentTicket";
+import { TicketErrorScreen } from "@/components/Pro/TicketErrorScreen";
 import { useLobbyMatchCue } from "@/lib/pro/useLobbyMatchCue";
 import { useTurnReminder } from "@/lib/pro/useTurnReminder";
 import { useTurnReminderSetting } from "@/lib/pro/useTurnReminderSetting";
@@ -2984,8 +2995,15 @@ const HeroSelectLobby = ({
   recentRooms,
   onResumeRoom,
   tierUnlock,
+  tournament = null,
 }: {
   room: string | null;
+  /**
+   * A tournament game whose hero is the player's choice (#1218): the room's
+   * setup (board, format, no bots) comes from the match's ticket, so the lobby
+   * shows the hero pick only — like a `?room=` join.
+   */
+  tournament?: { label: string } | null;
   status: ProConnectionStatus;
   heroes: HeroListing[] | null;
   heroParam: string | null;
@@ -3033,6 +3051,9 @@ const HeroSelectLobby = ({
   /** the player's progress toward gated bot tiers (#933); absent = everything locked */
   tierUnlock?: TierUnlockProgress;
 }) => {
+  // A `?room=` join and a tournament game both arrive with the room's setup
+  // decided elsewhere: only the fighter is picked here.
+  const fixedSetup = room !== null || tournament !== null;
   // While the list is loading, a valid-looking `?hero=` stands in so the
   // creator isn't blocked; once the list arrives the real selection takes over.
   const effective = selectedHeroId ?? (heroes === null ? heroParam : null);
@@ -3245,8 +3266,8 @@ const HeroSelectLobby = ({
 
   const createLabel = !effective
     ? "Pick a fighter"
-    : room
-      ? "Join"
+    : fixedSetup
+      ? tournament ? "Play" : "Join"
       : multiplayer
         ? `Create ${format.label}`
         : opponent === "human"
@@ -3317,7 +3338,7 @@ const HeroSelectLobby = ({
   // screen (board, timer, format) is deliberately ignored by it, so the room the
   // next searcher joins is always a standard duel.
   const quickMatchButton = (testId: string) =>
-    !onQuickMatch || room ? null : (
+    !onQuickMatch || fixedSetup ? null : (
       <Button
         type="button"
         data-testid={testId}
@@ -3395,7 +3416,7 @@ const HeroSelectLobby = ({
   );
 
   const renderPlates = () => {
-    if (room) {
+    if (fixedSetup) {
       return <SeatPlate tag="P1" role="You" you heroName={lockedName} />;
     }
     if (selectedFormat === "duel") {
@@ -3499,9 +3520,9 @@ const HeroSelectLobby = ({
         borderColor="whiteAlpha.200"
       >
         <Text fontFamily="LeagueGothic" fontSize="1.35rem" letterSpacing="0.08em">
-          {room ? `JOIN ROOM ${room}` : "CREATE A ROOM"}
+          {tournament ? `TOURNAMENT · ${tournament.label}` : room ? `JOIN ROOM ${room}` : "CREATE A ROOM"}
         </Text>
-        {!room && (
+        {!fixedSetup && (
           <>
             <Flex align="center" gap="0.5rem">
               <Text {...STRIP_LBL}>FORMAT</Text>
@@ -3598,7 +3619,7 @@ const HeroSelectLobby = ({
           </>
         )}
         <Box flex="1" minW="0" />
-        {!room && recentRooms.length > 0 && (
+        {!fixedSetup && recentRooms.length > 0 && (
           <Flex align="center" gap="0.4rem" fontSize="0.75rem" color="whiteAlpha.600">
             <Text {...STRIP_LBL}>REJOIN</Text>
             {recentRooms.slice(0, 3).map((r, i) => (
@@ -3677,7 +3698,7 @@ const HeroSelectLobby = ({
 
         {/* ---------------- stage row ---------------- */}
         <Box gridArea="stage" minW="0">
-          {!room && (
+          {!fixedSetup && (
             <Box ref={stageRowRef}>
               <Flex align="center" justify="space-between" gap="0.5rem" mb="0.35rem">
                 <Text {...STRIP_LBL}>STAGE</Text>
@@ -3767,7 +3788,7 @@ const HeroSelectLobby = ({
               {summary}
             </Text>
           </Flex>
-          {!room && multiplayer && (
+          {!fixedSetup && multiplayer && (
             <Text fontSize="0.66rem" opacity={0.6} textAlign="center" fontFamily="SpaceGrotesk">
               Bot seats are filled by the server · human seats join with the room link.
             </Text>
@@ -4064,7 +4085,7 @@ const HeroSelectLobby = ({
                 wrap, and the rail is 20rem wide. Scrim closes; so does Escape and
                 picking a board. Custom… is the one choice that leaves it open —
                 its JSON box lives inside. */}
-            {!room && stagePickerOpen && (
+            {!fixedSetup && stagePickerOpen && (
               <Box ref={boardPickerRef} position="absolute" inset="0" zIndex={20}>
                 {/* Scrim: the roster behind reads as parked, and a click anywhere
                     off the panel closes — the popover has no OK/Cancel. */}
@@ -4266,6 +4287,7 @@ const LiveGame = ({
   debug,
   quickParam,
   rematch,
+  ticket = null,
 }: {
   room: string | null;
   heroParam: string | null;
@@ -4274,6 +4296,8 @@ const LiveGame = ({
   quickParam: boolean;
   /** parsed `?rematch=1` payload (lib/pro/rematch.ts), or null on any normal load */
   rematch: ParsedRematch | null;
+  /** parsed tournament `?ticket=` (lib/pro/tournamentTicket.ts), or null */
+  ticket?: TicketLaunch | null;
 }) => {
   // Slow mode (issue #703) — read before the socket, because it is what the socket
   // paces STATE batches with. Persisted per browser; OFF leaves the socket's queue
@@ -5057,7 +5081,7 @@ const LiveGame = ({
   useEffect(() => {
     if (!roomId || router.query.room === roomId) return;
     router.replace(
-      { pathname: router.pathname, query: { ...withoutRematchQuery(router.query), room: roomId } },
+      { pathname: router.pathname, query: { ...withoutTicketQuery(withoutRematchQuery(router.query)), room: roomId } },
       undefined,
       { shallow: true }
     );
@@ -5232,6 +5256,65 @@ const LiveGame = ({
     setJoined(true);
   }, [rematch, createRoom, router]);
 
+  // Tournament ticket (#1218, engine #755): the match page's "I'm ready" / "Join
+  // now" lands here with a signed ticket. Like a rematch link it fires ONCE and
+  // its keys leave the URL at once, so a refresh RECONNECTs with the seat token
+  // instead of spending the ticket again. A ticket that sets the hero skips the
+  // picker; one that doesn't shows the picker with the room's setup fixed. The
+  // board is the ticket's (engine map-identity rule — see tournamentTicket.ts);
+  // the joiner sends none, the room already has one.
+  const [firedTicket, setFiredTicket] = useState<TicketLaunch | null>(null);
+  const [ticketProblem, setTicketProblem] = useState<string | null>(null);
+  const launchTicket = (launch: TicketLaunch, heroId: string) => {
+    setSelectedHeroId(heroId);
+    if (launch.room) {
+      joinRoom(launch.room, heroId, launch.ticket);
+      setJoined(true);
+      return;
+    }
+    const board = ticketBoard(launch.map);
+    if (!board.ok) {
+      setTicketProblem(board.message);
+      return;
+    }
+    setSelectedFormat("duel");
+    setSelectedMapId(board.mapId);
+    createRoom(heroId, undefined, board.customMap, "duel", [], 0, undefined, undefined, undefined, launch.ticket);
+    setJoined(true);
+  };
+  const ticketFiredRef = useRef(false);
+  useEffect(() => {
+    if (!ticket || ticketFiredRef.current) return;
+    ticketFiredRef.current = true;
+    router.replace(
+      { pathname: router.pathname, query: withoutTicketQuery(router.query) },
+      undefined,
+      { shallow: true }
+    );
+    // This tab already holds the seat (a refresh before the URL was cleaned):
+    // the reconnect effect above takes it back with the token.
+    if (ticket.room && getTabToken(ticket.room)) {
+      rememberTournamentRoom(ticket.room, { slug: ticket.slug, matchId: ticket.matchId });
+      return;
+    }
+    setFiredTicket(ticket);
+    if (ticket.heroId) launchTicket(ticket, ticket.heroId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticket, router]);
+
+  // The engine never says a room is a tournament room, so the tab remembers it:
+  // a refresh or the game-over screen still hides Rematch and links back.
+  useEffect(() => {
+    if (roomId && firedTicket) rememberTournamentRoom(roomId, { slug: firedTicket.slug, matchId: firedTicket.matchId });
+  }, [roomId, firedTicket]);
+  const tournamentRoom = useMemo<TournamentRoom | null>(
+    () =>
+      firedTicket
+        ? { slug: firedTicket.slug, matchId: firedTicket.matchId }
+        : tournamentRoomOf(roomId ?? room),
+    [firedTicket, roomId, room]
+  );
+
   // UNKNOWN_HERO shouldn't happen when picking from the server list, but if the
   // server rejects the hero, drop back to the picker instead of a dead end.
   // BAD_MAP similarly bounces back to the lobby (hero kept) with the server's
@@ -5366,6 +5449,9 @@ const LiveGame = ({
     acknowledgeOwnTimerExpired();
   }, [ownTimerExpired, acknowledgeOwnTimerExpired]);
 
+  // A tournament ticket whose board this client can't send (#1218).
+  if (ticketProblem && tournamentRoom) return <TicketErrorScreen message={ticketProblem} at={tournamentRoom} />;
+
   if (!joined) {
     const effectiveHeroId = selectedHeroId ?? (heroes === null ? heroParam : null);
     // Recent rooms now surface as "rejoin" chips inside the lobby's rules strip.
@@ -5384,6 +5470,7 @@ const LiveGame = ({
         </ChipCluster>
         <HeroSelectLobby
           room={room}
+          tournament={firedTicket ? { label: "pick your hero" } : null}
           status={status}
           heroes={heroes}
           heroParam={heroParam}
@@ -5467,6 +5554,12 @@ const LiveGame = ({
             // purely cosmetic — nothing here touches the frame we're about to
             // send, and the id is already concrete (a Random pick is resolved).
             rememberHero(heroId);
+            // A tournament game (#1218): the ticket decides room, board, format.
+            if (firedTicket) {
+              setRolledHero(wasRolled);
+              launchTicket(firedTicket, heroId);
+              return;
+            }
             if (room) {
               joinRoom(room, heroId);
               setSelectedHeroId(heroId);
@@ -5618,6 +5711,19 @@ const LiveGame = ({
         labelFor={snapshot ? (c) => cardLabel(snapshot.view.catalog, c) : undefined}
       />
     );
+  }
+
+  // A tournament game refused (#1218): the ticket codes (v37), or the match's
+  // room gone/full, read as copy with a fresh-ticket retry and a way back —
+  // never "create a new room", which would be an untagged game.
+  if (
+    error &&
+    tournamentRoom &&
+    ((TICKET_ERROR_CODES as readonly string[]).includes(error.code) ||
+      error.code === "ROOM_NOT_FOUND" ||
+      error.code === "ROOM_FULL")
+  ) {
+    return <TicketErrorScreen code={error.code} at={tournamentRoom} />;
   }
 
   // Room-level errors surface on a friendly screen with a create-new fallback.
@@ -5831,27 +5937,47 @@ const LiveGame = ({
             );
           })()}
 
+          {/* A tournament room (#1218) is private and seats only the match's
+              other player, who joins from the match page — no invite link, no
+              public toggle (the engine refuses SET_VISIBILITY on it). */}
+          {tournamentRoom && (
+            <Flex direction="column" alignItems="center" gap="0.5rem" data-testid="tournament-waiting">
+              <Tag px="0.75rem" py="0.4rem" fontFamily="SpaceGrotesk" letterSpacing="0.04em" bg="brand.accent" color="brand.surfaceDim">
+                🏆 Tournament match · your seat is held for 15 minutes
+              </Tag>
+              <Text opacity={0.8} textAlign="center" maxW="30rem">
+                Your opponent joins from the match page. Keep this tab open.
+              </Text>
+              <Link href={tournamentMatchHref(tournamentRoom)} color="brand.accent">
+                Back to the match page
+              </Link>
+            </Flex>
+          )}
           {/* discoverability: invite privately or list publicly */}
-          {quickSearch && (
+          {!tournamentRoom && quickSearch && (
             <Text fontFamily="BebasNeueRegular" fontSize="1.05rem" letterSpacing="0.08em" opacity={0.8}>
               Waiting? Invite a friend directly
             </Text>
           )}
+          {!tournamentRoom && (
+            <Flex gap="0.5rem" alignItems="center" flexWrap="wrap" justifyContent="center">
+              <Tag fontFamily="mono" px="0.75rem" py="0.4rem">
+                {joinUrl}
+              </Tag>
+              <Button {...BTN_GOLD} onClick={() => navigator.clipboard?.writeText(joinUrl)}>
+                copy link
+              </Button>
+            </Flex>
+          )}
           <Flex gap="0.5rem" alignItems="center" flexWrap="wrap" justifyContent="center">
-            <Tag fontFamily="mono" px="0.75rem" py="0.4rem">
-              {joinUrl}
-            </Tag>
-            <Button {...BTN_GOLD} onClick={() => navigator.clipboard?.writeText(joinUrl)}>
-              copy link
-            </Button>
-          </Flex>
-          <Flex gap="0.5rem" alignItems="center" flexWrap="wrap" justifyContent="center">
-            <Button
-              {...(roomPublic ? BTN_GOLD : BTN)}
-              onClick={() => setVisibility(!roomPublic)}
-            >
-              {roomPublic ? "✓ public — listed in the lobby browser" : "make lobby public"}
-            </Button>
+            {!tournamentRoom && (
+              <Button
+                {...(roomPublic ? BTN_GOLD : BTN)}
+                onClick={() => setVisibility(!roomPublic)}
+              >
+                {roomPublic ? "✓ public — listed in the lobby browser" : "make lobby public"}
+              </Button>
+            )}
             {/* Match-found chime (#689). Same `pro-sound-fx` setting the in-match
                 HUD chip flips — this is just where you reach for it, since this
                 is the screen you leave before tabbing away. Muting silences the
@@ -5875,7 +6001,7 @@ const LiveGame = ({
           <Text fontSize="0.8rem" opacity={0.6} textAlign="center">
             Go do something else — this tab chimes and renames itself the moment the game starts.
           </Text>
-          <Text fontSize="0.8rem" opacity={0.5}>
+          <Text fontSize="0.8rem" opacity={0.5} display={tournamentRoom ? "none" : undefined}>
             {(roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers) > 2 ? "(testing solo? open that link in more browser tabs)" : "(testing solo? open that link in a second browser tab)"}
           </Text>
           {mapSubmit && (
@@ -7213,8 +7339,11 @@ const LiveGame = ({
       iAmSpectating={iAmSpectating}
       iForfeited={iForfeited}
       multiplayerView={multiplayerView}
-      rematchHref={rematchHref}
-      rematchNegotiation={rematchNegotiation}
+      // A tournament game never rematches (the engine refuses it, v37): the
+      // next game of the match is a new ticket from the match page.
+      rematchHref={tournamentRoom ? null : rematchHref}
+      rematchNegotiation={tournamentRoom ? null : rematchNegotiation}
+      matchPageHref={tournamentRoom ? tournamentMatchHref(tournamentRoom) : null}
       replayHref={replayBundle ? `/pro/replays?open=${replayId(replayBundle)}` : null}
       onCopyShareLink={
         replayBundle && accountStatus === "signed-in" ? () => void copyReplayShareLink() : undefined
@@ -7767,6 +7896,10 @@ const ProGamePage = () => {
   // CTA arriving: it highlights the Quick Match button on the picker. It never
   // auto-fires — the fighter pick is the one choice we can't make for them.
   const quickParam = router.query.quick !== undefined;
+  // `?ticket=…&tour=…&match=…` is a tournament match's "I'm ready" arriving
+  // (#1218, lib/pro/tournamentTicket.ts): one tagged CREATE_ROOM, or JOIN_ROOM
+  // into `?room=`. Null on every ordinary load.
+  const ticket = parseTicketQuery(router.query);
 
   return (
     <Box minH="100svh" bg={TABLE_BG} color="brand.parchment">
@@ -7778,6 +7911,7 @@ const ProGamePage = () => {
           debug={debug}
           quickParam={quickParam}
           rematch={rematch}
+          ticket={ticket}
         />
       ) : (
         <PreviewGame />

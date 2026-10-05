@@ -9,6 +9,8 @@ import type {
   CreateTournamentBody,
   Entry,
   Match,
+  MatchDetail,
+  TicketGrant,
   Tournament,
 } from "./types";
 
@@ -20,6 +22,10 @@ export type TournamentFailure =
   | "already_joined"
   | "rate_limited"
   | "invalid"
+  /** 403: e.g. `not_in_match` — only the match's two players may play it. */
+  | "forbidden"
+  /** 409: `match_not_open`, `match_in_play`, `not_running` (see `code`). */
+  | "conflict"
   | "unavailable";
 
 export type Result<T> =
@@ -58,13 +64,17 @@ const call = async <T>(
           ? "not_found"
           : res.status === 429
             ? "rate_limited"
+            : res.status === 403
+              ? "forbidden"
             : res.status === 400
               ? "invalid"
               : code === "signup_closed" ||
                   code === "full" ||
                   code === "already_joined"
                 ? code
-                : "unavailable";
+                : res.status === 409
+                  ? "conflict"
+                  : "unavailable";
     return { ok: false, reason, code, message };
   } catch {
     return { ok: false, reason: "unavailable" };
@@ -125,3 +135,44 @@ export const startTournament = (slug: string) =>
       matches: list(b.matches) as Match[],
     }),
   );
+
+const matchPath = (slug: string, matchId: string) =>
+  `/tournaments/${encodeURIComponent(slug)}/matches/${encodeURIComponent(matchId)}`;
+
+/** Public: one match with its players, ready-checks and live room. */
+export const getMatch = (slug: string, matchId: string) =>
+  call(matchPath(slug, matchId), undefined, (b) => ({
+    match: b.match as Match,
+    tournament: b.tournament as MatchDetail["tournament"],
+    players: { a: b.players?.a ?? null, b: b.players?.b ?? null },
+    readyChecks: list(b.readyChecks) as MatchDetail["readyChecks"],
+    liveRoom: (b.liveRoom ?? null) as MatchDetail["liveRoom"],
+  }));
+
+const grant = (b: any): TicketGrant => ({
+  action: b.action === "join" ? "join" : "create",
+  ticket: String(b.ticket ?? ""),
+  gameIndex: Number(b.gameIndex ?? 0),
+  slot: b.slot === "b" ? "b" : "a",
+  heroId: typeof b.heroId === "string" ? b.heroId : null,
+  map: b.map ?? null,
+  ticketExpiresAt: String(b.ticketExpiresAt ?? ""),
+  roomId: typeof b.roomId === "string" ? b.roomId : null,
+});
+
+/** "I'm ready" / "Join now": records a ready-check and grants a ticket. */
+export const readyForMatch = (slug: string, matchId: string) =>
+  call(`${matchPath(slug, matchId)}/ready`, { method: "POST" }, grant);
+
+/** A fresh ticket, recording nothing (a retry, or waiting on the other room's id). */
+export const getMatchTicket = (slug: string, matchId: string) =>
+  call(`${matchPath(slug, matchId)}/ticket`, undefined, grant);
+
+/**
+ * A game's replay bundle. ASSUMED route: the api's replay route lands at the end
+ * of the epic (#1196) and isn't documented yet — the match page only calls this
+ * for a game the api marks `replayAvailable`, so nothing reaches it until then.
+ * Accepts `{bundle}` or the share route's `{replay: {bundle}}`.
+ */
+export const getGameReplay = (slug: string, matchId: string, gameIndex: number) =>
+  call(`${matchPath(slug, matchId)}/games/${gameIndex}/replay`, undefined, (b) => (b?.bundle ?? b?.replay?.bundle ?? null) as unknown);

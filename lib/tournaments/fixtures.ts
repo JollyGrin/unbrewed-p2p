@@ -8,12 +8,15 @@
  */
 import { roundCount, seedOrder } from "./bracket";
 import { assignment } from "./matchup";
+import type { MatchPageState } from "./matchPage";
 import type {
   DecidedBy,
   Entry,
   Game,
   Match,
+  MatchDetail,
   MatchupRule,
+  ReadyCheck,
   Tournament,
 } from "./types";
 
@@ -236,9 +239,110 @@ export const fixtureSignup8 = (): FixturePayload => ({
   matches: [],
 });
 
+/** The match page's fixture match: SF2 of an 8-seat bracket, seed 2 v seed 3. */
+export const FIXTURE_MATCH_ID = "m2-1";
+/** Seed 2 (hokuto_shin) — the match page's "you" in screenshots (`--as=u2`). */
+export const FIXTURE_MATCH_YOU = "u2";
+
+/**
+ * SF2 in each of the match page's six states, timed against `now` (so seat
+ * clocks tick in a dev server). Mockup v2's matchup: Kenshiro vs Boba Fett on
+ * Count's Castle, set by the organizer.
+ */
+export const fixtureMatch = (
+  state: MatchPageState,
+  now: string = FIXTURE_NOW,
+): FixturePayload & { detail: MatchDetail } => {
+  const rule: MatchupRule = { mode: "map", map: { kind: "catalog", id: "counts-castle" } };
+  const b = fixtureBracket(8, 6, rule);
+  b.decide(b.at(1, 1), "b", "unverified_confirmed");
+  b.decide(b.at(1, 3), "a", "result");
+  const sf2 = b.at(2, 1);
+  b.setMatchup(sf2, { mode: "fixed", heroes: { a: "kenshiro", b: "boba-fett" }, map: { kind: "catalog", id: "counts-castle" } });
+  sf2.opensAt = hoursFrom(now, -46);
+  sf2.deadlineAt = hoursFrom(now, 26);
+  const at = (h: number) => hoursFrom(now, h);
+  const check = (entryId: string, h: number, outcome: ReadyCheck["outcome"], role: ReadyCheck["role"] = "create"): ReadyCheck => ({
+    id: `rc-${entryId}-${h}`,
+    gameIndex: 0,
+    entryId,
+    createdAt: at(h),
+    expiresAt: at(h + 0.25),
+    roomId: "SF2ROOM",
+    outcome,
+    role,
+  });
+  let readyChecks: ReadyCheck[] = [];
+  let liveRoom: MatchDetail["liveRoom"] = null;
+  // Hours ago that a seat-held clock started: 3m12s → 11:48 left of 15:00.
+  const pressed = -(3 * 60 + 12) / 3600;
+  switch (state) {
+    case "opponent_ready":
+      readyChecks = [check("e3", pressed, "pending")];
+      liveRoom = { gameIndex: 0, roomId: "SF2ROOM", readyEntryId: "e3", expiresAt: at(pressed + 0.25) };
+      break;
+    case "you_ready":
+      readyChecks = [check("e2", -28 / 3600, "pending")];
+      liveRoom = { gameIndex: 0, roomId: "SF2ROOM", readyEntryId: "e2", expiresAt: at(-28 / 3600 + 0.25) };
+      break;
+    case "in_play":
+      b.play(sf2);
+      sf2.games[0].startedAt = at(-0.4);
+      readyChecks = [check("e2", -0.45, "answered"), check("e3", -0.4, "answered", "join")];
+      break;
+    case "decided":
+      readyChecks = [check("e3", -3, "answered"), check("e2", -2.9, "answered", "join")];
+      b.decide(sf2, "a", "result");
+      sf2.games[0] = { ...sf2.games[0], startedAt: at(-2.8), finishedAt: at(-2.4), gameId: "10571", replayAvailable: true };
+      break;
+    case "decided_by_rule":
+      sf2.opensAt = hoursFrom(now, -73);
+      sf2.deadlineAt = hoursFrom(now, -1);
+      readyChecks = [check("e2", -42, "unanswered"), check("e2", -18, "unanswered")];
+      b.decide(sf2, "a", "deadline_ready_check");
+      break;
+  }
+  const entries = b.entries;
+  const player = (id: string | null, lastActiveH: number) => {
+    const e = entries.find((x) => x.id === id);
+    return e ? { ...e, lastActiveAt: at(lastActiveH) } : null;
+  };
+  const opponentSeen = state === "opponent_ready" || state === "in_play" ? -0.01 : state === "decided_by_rule" ? -30 : -0.2;
+  const tournament = fixtureTournament({
+    slug: `fixture-match-${state.replace(/_/g, "-")}`,
+    entryCount: 6,
+    matchupRule: rule,
+    settings: { matchupSetBy: "organizer" },
+  });
+  return {
+    tournament,
+    entries,
+    matches: b.matches,
+    detail: {
+      match: sf2,
+      tournament: { id: tournament.id, slug: tournament.slug, name: tournament.name, status: tournament.status },
+      players: { a: player(sf2.slotA, -0.01), b: player(sf2.slotB, opponentSeen) },
+      readyChecks,
+      liveRoom,
+    },
+  };
+};
+
+export const MATCH_FIXTURE_STATES: MatchPageState[] = [
+  "waiting",
+  "opponent_ready",
+  "you_ready",
+  "in_play",
+  "decided",
+  "decided_by_rule",
+];
+
 export const FIXTURES: Record<string, () => FixturePayload> = {
   "fixture-4": fixtureComplete4,
   "fixture-8": fixtureRunning8,
   "fixture-16": fixtureRunning16,
   "fixture-signup": fixtureSignup8,
+  ...Object.fromEntries(
+    MATCH_FIXTURE_STATES.map((st) => [`fixture-match-${st.replace(/_/g, "-")}`, () => fixtureMatch(st)]),
+  ),
 };

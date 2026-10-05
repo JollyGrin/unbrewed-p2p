@@ -95,6 +95,11 @@ export interface Game {
   source: "tagged" | "untagged";
   verified: boolean;
   assignment: Assignment;
+  /**
+   * The api's replay route lands at the end of the epic (#1196): until it says
+   * `true` the match page shows no Replay chip. Absent = false.
+   */
+  replayAvailable?: boolean;
 }
 
 export type MatchStatus = "pending" | "open" | "in_play" | "decided";
@@ -132,4 +137,53 @@ export interface Match {
   matchupOverride: boolean;
   matchup: Assignment;
   games: Game[];
+}
+
+/** A match side on the single-match route: the entry plus when they were last seen. */
+export type MatchPlayer = Entry & { lastActiveAt: string | null };
+
+/** One press of "I'm ready" (15-minute seat hold). */
+export interface ReadyCheck {
+  id: string;
+  gameIndex: number;
+  entryId: string;
+  createdAt: string;
+  expiresAt: string;
+  roomId: string | null;
+  outcome: "pending" | "answered" | "unanswered";
+  role: "create" | "join";
+}
+
+/** A player's tagged room, open and waiting for the other seat. */
+export interface LiveRoom {
+  gameIndex: number;
+  roomId: string | null;
+  readyEntryId: string;
+  expiresAt: string;
+}
+
+/** `GET /tournaments/:slug/matches/:id`. */
+export interface MatchDetail {
+  match: Match;
+  tournament: Pick<Tournament, "id" | "slug" | "name" | "status"> &
+    Partial<Pick<Tournament, "size" | "latestPossibleFinal" | "organizer">>;
+  players: { a: MatchPlayer | null; b: MatchPlayer | null };
+  readyChecks: ReadyCheck[];
+  liveRoom: LiveRoom | null;
+}
+
+/**
+ * `POST …/ready` and `GET …/ticket`: a signed, opaque join ticket (15 min) and
+ * what to do with it. `join` with `roomId: null` = the other room is still
+ * opening; poll `…/ticket` until it has an id.
+ */
+export interface TicketGrant {
+  action: "create" | "join";
+  ticket: string;
+  gameIndex: number;
+  slot: "a" | "b";
+  heroId: string | null;
+  map: MapRef | null;
+  ticketExpiresAt: string;
+  roomId: string | null;
 }

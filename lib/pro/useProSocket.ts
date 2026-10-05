@@ -202,9 +202,16 @@ export interface UseProSocketReturn {
      * map's items for this game only, and `true`/undefined omits the field from
      * the wire entirely (byte-identical to today).
      */
-    itemsEnabled?: boolean
+    itemsEnabled?: boolean,
+    /**
+     * Tournament join ticket (v37, engine #755): opens a TAGGED room for one
+     * match game. Opaque — minted by the tournaments api, never parsed here.
+     * Omitted from the wire when absent, so untagged rooms are byte-identical.
+     */
+    ticket?: string
   ) => void;
-  joinRoom: (roomId: string, heroId: string) => void;
+  /** `ticket` (v37): join a tournament room — required by the engine for one. */
+  joinRoom: (roomId: string, heroId: string, ticket?: string) => void;
   /** Sends one ACTION; false when it did NOT go out (no room / socket closed /
    *  the same action is already in flight — #840, #847). */
   sendAction: (action: Action) => boolean;
@@ -1258,7 +1265,8 @@ export function useProSocket(
       turnTimerSeconds?: number,
       mulligan?: boolean,
       quickMatch?: boolean,
-      itemsEnabled?: boolean
+      itemsEnabled?: boolean,
+      ticket?: string
     ) => {
       setError(null); // clear any prior room/hero error on a fresh attempt
       setGameLost(false); // starting a brand-new game — no lost game to mourn
@@ -1299,6 +1307,8 @@ export function useProSocket(
         // Quick Match (#687): additive optional flag, sent only when the room
         // came from that flow. An engine that predates it drops the key.
         ...(quickMatch ? { quickMatch: true } : {}),
+        // Tournament ticket (v37, engine #755): tags the room to one match game.
+        ...(ticket ? { ticket } : {}),
         // Signed-in seat identity (#568): the Discord name is broadcast to the
         // other seat, the account id goes to telemetry only. `{}` for a guest.
         // The worn badges (#577/#718) ride alongside the name, under the same gate.
@@ -1315,7 +1325,7 @@ export function useProSocket(
   );
 
   const joinRoom = useCallback(
-    (room: string, heroId: string) => {
+    (room: string, heroId: string, ticket?: string) => {
       setError(null); // clear any prior room/hero error on a fresh attempt
       setGameLost(false); // fresh join/resume attempt — drop any prior lost state
       resumeExpectedRef.current = true; // the room's first STATE is authoritative
@@ -1346,6 +1356,8 @@ export function useProSocket(
             // Same gate as CREATE_ROOM. RECONNECT deliberately carries none:
             // the server kept the seat, and with it the blob it claimed on join.
             ...cosmeticsField(identityRef.current, cosmeticsRef.current, heroId),
+            // A tournament room (v37) seats only a ticket for its other slot.
+            ...(ticket ? { ticket } : {}),
           };
       if (wsRef.current?.readyState === WebSocket.OPEN) sendBind(msg);
       else pendingHelloRef.current = msg;

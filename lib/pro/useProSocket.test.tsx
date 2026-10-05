@@ -2389,7 +2389,7 @@ describe("useProSocket — protocol 36 binding (p2p #1201)", () => {
   it("a seat bound at 36 is never re-bound at game over and can offer a rematch at once", () => {
     const { hook, ws, emit } = boot(36);
     act(() => hook.result.current.createRoom("hero-a"));
-    expect(sentOf(ws, "CREATE_ROOM")).toMatchObject([{ v: 36 }]);
+    expect(sentOf(ws, "CREATE_ROOM")).toMatchObject([{ v: 37 }]);
     emit(roomJoined());
     emit(winnerState([]));
     expect(sentOf(ws, "RECONNECT")).toHaveLength(0);

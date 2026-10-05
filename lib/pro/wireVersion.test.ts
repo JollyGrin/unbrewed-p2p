@@ -19,14 +19,14 @@ afterEach(() => {
 });
 
 describe("wireVersion", () => {
-  // #1201: prod engines accept only {35, 36} — every bind is at 36, whatever was learned.
-  it("always binds at PROTOCOL_VERSION (36), never the old v34 fallback", () => {
-    expect(wireVersionFor(URL_A)).toBe(36);
+  // #1201: prod engines accept only {35, 36} — every bind is at PROTOCOL_VERSION (37 since #755, which accepts {36, 37}), whatever was learned.
+  it("always binds at PROTOCOL_VERSION (37 since engine #755), never the old v34 fallback", () => {
+    expect(wireVersionFor(URL_A)).toBe(37);
     rememberEngineVersion(URL_A, 35);
-    expect(wireVersionFor(URL_A)).toBe(36);
+    expect(wireVersionFor(URL_A)).toBe(37);
     rememberEngineVersion(URL_A, 40);
-    expect(wireVersionFor(URL_A)).toBe(36);
-    expect(wireVersionFor(URL_B)).toBe(36);
+    expect(wireVersionFor(URL_A)).toBe(37);
+    expect(wireVersionFor(URL_B)).toBe(37);
   });
 
   it("gates the rematch UI on an engine that has shown v35+", () => {

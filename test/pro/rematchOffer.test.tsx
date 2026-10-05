@@ -159,18 +159,18 @@ const statusText = () => screen.getAllByRole("status", { hidden: true }).map((n)
 
 describe("against a v36 engine", () => {
 
-  it("a first visit binds at 36 straight away and never re-binds at game over", async () => {
+  it("a first visit binds at PROTOCOL_VERSION straight away and never re-binds at game over", async () => {
     await finishGame("p1");
-    expect(sentOfType("RECONNECT")).toEqual([{ v: 36, type: "RECONNECT", roomId: "OLD1", token: "tok-p1" }]);
-    expect(SENT.every((m) => m.v === 36 || String(m.type).startsWith("REMATCH_"))).toBe(true);
+    expect(sentOfType("RECONNECT")).toEqual([{ v: 37, type: "RECONNECT", roomId: "OLD1", token: "tok-p1" }]);
+    expect(SENT.every((m) => m.v === 37 || String(m.type).startsWith("REMATCH_"))).toBe(true);
   });
 
-  it("a refresh mid-offer binds at 36 at once and shows the waiting offer again — no replay bundle needed", async () => {
+  it("a refresh mid-offer binds at PROTOCOL_VERSION at once and shows the waiting offer again — no replay bundle needed", async () => {
     window.sessionStorage.setItem("unbrewed-pro-engine-v-" + FakeWebSocketUrl(), "36");
     window.sessionStorage.setItem("unbrewed-pro-token-OLD1", "tok-p1");
     setRoomBots("OLD1", {});
     await mount({ room: "OLD1" });
-    expect(sentOfType("RECONNECT")).toEqual([{ v: 36, type: "RECONNECT", roomId: "OLD1", token: "tok-p1" }]);
+    expect(sentOfType("RECONNECT")).toEqual([{ v: 37, type: "RECONNECT", roomId: "OLD1", token: "tok-p1" }]);
     await deliver({ type: "ROOM_JOINED", roomId: "OLD1", token: "tok-p1", you: "p1" });
     await deliver({
       type: "STATE",
