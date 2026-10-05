@@ -77,3 +77,59 @@ export interface CreateTournamentBody {
   status: "draft" | "signup";
   settings?: Record<string, unknown>;
 }
+
+/** `assignment(matchupRule, gameIndex)`'s output (see ./matchup). */
+export interface Assignment {
+  heroes: { a: string | null; b: string | null };
+  map: MapRef | null;
+}
+
+export interface Game {
+  gameIndex: number;
+  roomId: string | null;
+  /** Telemetry id, null until the game finishes. */
+  gameId: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  winnerEntry: string | null;
+  source: "tagged" | "untagged";
+  verified: boolean;
+  assignment: Assignment;
+}
+
+export type MatchStatus = "pending" | "open" | "in_play" | "decided";
+
+export type DecidedBy =
+  | "result"
+  | "deadline_ready_check"
+  | "deadline_higher_seed"
+  | "organizer"
+  | "bye"
+  | "unverified_confirmed";
+
+/**
+ * One bracket match. Slots and `winner` are ENTRY ids. `games[]` is ordered and
+ * always an array — there is never a single game-id field on a match.
+ */
+export interface Match {
+  id: string;
+  /** 1-based; the final is round log2(size). */
+  round: number;
+  /** 0-based, top to bottom within the round. */
+  position: number;
+  slotA: string | null;
+  slotB: string | null;
+  winner: string | null;
+  firstTo: number;
+  status: MatchStatus;
+  decidedBy: DecidedBy | null;
+  inPlay: boolean;
+  opensAt: string | null;
+  deadlineAt: string | null;
+  nextMatchId: string | null;
+  nextSlot: "a" | "b" | null;
+  matchupRule: MatchupRule;
+  matchupOverride: boolean;
+  matchup: Assignment;
+  games: Game[];
+}
