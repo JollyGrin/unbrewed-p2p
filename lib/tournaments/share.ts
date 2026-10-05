@@ -44,13 +44,17 @@ export const formatWhen = (iso: string | null): string => {
  * `[x](https://phish)` posts as plain text, not a masked link or a mention.
  * Backslash-escapes `\ * _ ~ \` | > [ ] ( )`, a leading `#` / `-` / `>`, and
  * defuses `@` (everyone/here/user mentions) with a zero-width space, and
- * defangs raw URLs (`https://x` → `https:\u200b/\u200b/x`) so Discord doesn't autolink them.
+ * collapses newlines, breaks bare domains, escapes a leading `1.` / `1)` list marker, and defangs raw URLs (`https://x` → `https:\u200b/\u200b/x`) so Discord doesn't autolink them.
  */
 export const escapeDiscord = (raw: string): string =>
   raw
+    // Single-line slots: a newline would let a name start its own Markdown line.
+    .replace(/[\r\n\u2028\u2029\u0085]+/g, " ")
     .replace(/\b([a-z][a-z0-9+.-]*:)(\/{1,2})/gi, (_m, scheme: string, slashes: string) => `${scheme}\u200b${slashes.split("").join("\u200b")}\u200b`)
+    // Bare domains (`discord.gg/abc`, `example.com/x`): break after the dot, as the api bot does.
+    .replace(/\b(www|[a-z0-9-]+)\.(?=[a-z]{2,})/gi, (m) => `${m}\u200b`)
     .replace(/[\\*_~`|>\[\]()]/g, "\\$&")
-    .replace(/^(\s*)([#-])/gm, "$1\\$2")
+    .replace(/^(\s*)([#+-]|\d+(?=[.)]))/gm, "$1\\$2")
     .replace(/@/g, "@\u200b");
 
 export const discordPost = (t: Tournament, origin?: string): string =>

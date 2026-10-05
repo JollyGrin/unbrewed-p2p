@@ -39,6 +39,9 @@ const MESSAGES: Record<ErrorCode, string> = {
   TOURNAMENTS_DISABLED: "Tournament games aren't available on this server right now.",
 };
 
+/** A tournament room's dead seat: it is released, not lost, and the way back is one click (p2p #1252). */
+export const TOURNAMENT_SEAT_RELEASED = "Your seat was released while you were away. We'll get you back in.";
+
 const GENERIC = "Something went wrong. Please try again.";
 
 /** Friendly copy for a server ERROR code (accepts any string for forward-compat). */

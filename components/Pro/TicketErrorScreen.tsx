@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 
 import { getMatch } from "@/lib/tournaments/api";
 
-import { proErrorMessage } from "@/lib/pro/proErrors";
+import { proErrorMessage, TOURNAMENT_SEAT_RELEASED } from "@/lib/pro/proErrors";
 import { forgetPendingPick, ticketRetryable, tournamentMatchHref, type TournamentRoom } from "@/lib/pro/tournamentTicket";
 import { freshGrant, grantHref, playErrorMessage } from "@/lib/tournaments/usePlayMatch";
 
@@ -93,7 +93,7 @@ export const TicketErrorScreen = ({
       <Text fontFamily="LeagueGothic" fontSize="2rem" letterSpacing="0.05em" color="red.300" maxW="34rem">
         {finished
           ? "This match is finished."
-          : headline ?? message ?? (code ? proErrorMessage(code) : "This match game couldn't start.")}
+          : headline ?? message ?? (code ? (code === "BAD_TOKEN" ? TOURNAMENT_SEAT_RELEASED : proErrorMessage(code)) : "This match game couldn't start.")}
       </Text>
       {retryNote && (
         <Text opacity={0.85} role="alert">
