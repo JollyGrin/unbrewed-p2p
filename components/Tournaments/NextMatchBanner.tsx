@@ -12,6 +12,7 @@ import type { NextMatchView } from "@/lib/tournaments/nextMatch";
 import { BAND_MUTED, GOLD, INK_DEEP, PARCHMENT } from "@/components/Stats/tokens";
 
 import { Avatar } from "./Bracket";
+import { SeatHeldNote } from "./SeatHeldNote";
 import { Btn } from "./ui";
 
 const Pill = ({ children }: { children: React.ReactNode }) => (
@@ -72,6 +73,7 @@ export const NextMatchCard = ({ view, myName, myAvatar }: { view: NextMatchView;
               {view.notice}
             </Text>
           )}
+          {play.phase.kind === "seat_held" && <SeatHeldNote dark roomId={play.phase.roomId} onRetry={play.retry} />}
           {play.phase.kind === "error" && (
             <Text role="alert" fontSize="13px" color="#FF8A73" mt="6px">
               {play.phase.message}

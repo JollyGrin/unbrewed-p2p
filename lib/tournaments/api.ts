@@ -34,7 +34,7 @@ export type TournamentFailure =
 
 export type Result<T> =
   | { ok: true; value: T }
-  | { ok: false; reason: TournamentFailure; code?: string; message?: string };
+  | { ok: false; reason: TournamentFailure; code?: string; message?: string; roomId?: string | null };
 
 const call = async <T>(
   path: string,
@@ -56,6 +56,9 @@ const call = async <T>(
     } catch {
       /* no body */
     }
+    // The api's "your seat is already held" answer (#1248), as a 200 or a 409.
+    const roomId: string | null = typeof body?.roomId === "string" ? body.roomId : null;
+    if (body?.decision === "seat_held") return { ok: false, reason: "conflict", code: "seat_held", roomId };
     if (res.ok) return { ok: true, value: pick(body) };
     const code: string | undefined =
       typeof body?.error === "string" ? body.error : undefined;
@@ -79,7 +82,7 @@ const call = async <T>(
                 : res.status === 409
                   ? "conflict"
                   : "unavailable";
-    return { ok: false, reason, code, message };
+    return { ok: false, reason, code, message, ...(roomId ? { roomId } : {}) };
   } catch {
     return { ok: false, reason: "unavailable" };
   }

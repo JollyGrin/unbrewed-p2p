@@ -53,6 +53,7 @@ import {
 } from "@/lib/tournaments/matchPage";
 import { tournamentPath } from "@/lib/tournaments/share";
 import type { Entry, Game, MatchDetail, MatchPlayer, Tournament } from "@/lib/tournaments/types";
+import { SeatHeldNote } from "./SeatHeldNote";
 import { usePlayMatch, type PlayPhase } from "@/lib/tournaments/usePlayMatch";
 
 import { Avatar } from "./Bracket";
@@ -124,6 +125,7 @@ export const MatchView = ({ slug, matchId }: { slug: string; matchId: string }) 
       now={now}
       phase={play.phase}
       onPlay={play.play}
+      onRetry={play.retry}
       crumbs={crumbs}
       organizer={
         event.status === "ready" && isOrganizerOf(event.value.tournament, myUserId)
@@ -151,6 +153,7 @@ export const MatchBody = ({
   now,
   phase,
   onPlay,
+  onRetry,
   crumbs,
   organizer,
 }: {
@@ -162,6 +165,8 @@ export const MatchBody = ({
   now: number;
   phase: PlayPhase;
   onPlay: () => void;
+  /** "Check again" on the seat-held card: re-read the match. */
+  onRetry?: () => void;
   crumbs?: (here: string) => React.ReactNode;
   /** Only passed for the tournament's organizer (MatchView gates it): set matchup / override (#1219). */
   organizer?: { entries: Entry[]; reload: () => void };
@@ -185,6 +190,8 @@ export const MatchBody = ({
   const liveGame = m.games.find((g) => g.startedAt && !g.finishedAt) ?? null;
   const replayGame = [...m.games].reverse().find((g) => g.replayAvailable) ?? null;
   const decisionText = decisionLine(d);
+  const cancelled = state === "cancelled" || d.tournament.status === "cancelled" || !!m.cancelled;
+  const lateNote = (state === "decided" || state === "decided_by_rule") && score(d).a + score(d).b === 0 && hasLateGame(m);
   const unverified = rows.some((r) => r.state === "unverified");
 
   return (
@@ -221,6 +228,7 @@ export const MatchBody = ({
               state={state}
               phase={phase}
               onPlay={onPlay}
+              onRetry={onRetry}
               oppName={oppName}
               myHero={myHero}
               mapName={mu.map}
@@ -238,6 +246,11 @@ export const MatchBody = ({
           )}
           <MatchupPanel d={d} t={t} side={side} onReplay={replayGame ? () => setWatching(replayGame) : null} />
           <GamesList d={d} rows={rows} state={state} onReplay={setWatching} />
+          {lateNote && (
+            <Text px={{ base: "14px", md: "22px" }} pb="16px" fontSize="13px" color={INK_MUTED} overflowWrap="anywhere" data-testid="late-game-note">
+              {LATE_GAME_NOTE}
+            </Text>
+          )}
           {state === "in_play" && (
             <Text fontSize="12px" color={INK_MUTED} textAlign="center" px="16px" pb="24px">
               Watching live is coming later. The replay appears here when the game ends.
@@ -261,13 +274,13 @@ export const MatchBody = ({
           ) : (
             state !== "decided" && state !== "cancelled" && <RulesCard d={d} state={state} group={group} />
           )}
-          <ReadyChecksCard d={d} myUserId={myUserId} />
+          <ReadyChecksCard d={d} myUserId={myUserId} hideReady={cancelled} />
           {next && (
             <Card p="18px">
               <Text fontWeight={700} fontSize="15px" mb="8px">Winner goes to</Text>
               <Flex gap="8px" align="center" fontSize="14px" flexWrap="wrap">
                 <Chip tone="gold">{next}</Chip>
-                {t?.latestPossibleFinal && <Text color={INK_MUTED}>Final latest {shortDate(t.latestPossibleFinal)}</Text>}
+                {t?.latestPossibleFinal && !cancelled && <Text color={INK_MUTED}>Final latest {shortDate(t.latestPossibleFinal)}</Text>}
               </Flex>
             </Card>
           )}
@@ -279,6 +292,7 @@ export const MatchBody = ({
         side={side}
         phase={phase}
         onPlay={onPlay}
+        onRetry={onRetry}
         seatHeld={room ? seatClock(room.expiresAt, now) : null}
         roomId={room?.roomId ?? liveGame?.roomId ?? null}
         bracketHref={tournamentPath(d.tournament.slug)}
@@ -502,7 +516,7 @@ const Versus = ({ d, state, side, now }: { d: MatchDetail; state: MatchPageState
           {decided ? (played ? `${s.a}–${s.b}` : "–") : <Text as="em" fontStyle="normal" color="rgba(72,40,79,0.55)">vs</Text>}
         </Text>
         <Text {...caption} fontSize="12px" letterSpacing="0.1em" mt="6px" color={state === "in_play" ? DANGER_INK : INK_MUTED}>
-          {state === "in_play" ? "● Live" : decided ? (played ? (state === "cancelled" ? "Score when cancelled" : "Final score") : hasLateGame(m) ? LATE_GAME_NOTE : "No game played") : "One game"}
+          {state === "in_play" ? "● Live" : decided ? (played ? (state === "cancelled" ? "Score when cancelled" : "Final score") : hasLateGame(m) ? "Decided by organizer" : "No game played") : "One game"}
         </Text>
       </Box>
       <Side p={d.players.b} you={side === "b"} hero={mu.heroB} {...lb} />
@@ -516,6 +530,7 @@ const PlayBox = ({
   state,
   phase,
   onPlay,
+  onRetry,
   oppName,
   myHero,
   mapName,
@@ -527,6 +542,7 @@ const PlayBox = ({
   state: MatchPageState;
   phase: PlayPhase;
   onPlay: () => void;
+  onRetry?: () => void;
   oppName: string;
   myHero: string | null;
   mapName: string | null;
@@ -542,6 +558,8 @@ const PlayBox = ({
       <Text fontSize="13px" mt="8px" fontWeight={600} data-testid="play-opening">
         Opening {oppName}&apos;s room…
       </Text>
+    ) : phase.kind === "seat_held" ? (
+      <SeatHeldNote roomId={phase.roomId} onRetry={onRetry} />
     ) : phase.kind === "error" ? (
       <Text fontSize="13px" mt="8px" color={DANGER_INK} fontWeight={600} role="alert" data-testid="play-error">
         {phase.message}
@@ -647,6 +665,7 @@ const StickyPlay = ({
   side,
   phase,
   onPlay,
+  onRetry,
   seatHeld,
   roomId,
   bracketHref,
@@ -658,6 +677,7 @@ const StickyPlay = ({
   side: "a" | "b" | null;
   phase: PlayPhase;
   onPlay: () => void;
+  onRetry?: () => void;
   seatHeld: string | null;
   roomId: string | null;
   bracketHref: string;
@@ -666,7 +686,8 @@ const StickyPlay = ({
   const busy = phase.kind === "busy" || phase.kind === "opening";
   const back = seatHref(roomId);
   let btn: React.ReactNode = null;
-  if (side && state === "waiting") btn = <Btn variant="gold" onClick={onPlay} disabled={busy}>I&apos;m ready to play</Btn>;
+  if (side && phase.kind === "seat_held") btn = <SeatHeldNote roomId={phase.roomId} onRetry={onRetry} />;
+  else if (side && state === "waiting") btn = <Btn variant="gold" onClick={onPlay} disabled={busy}>I&apos;m ready to play</Btn>;
   else if (side && state === "opponent_ready") btn = <Btn variant="gold" onClick={onPlay} disabled={busy}>Join now{seatHeld ? ` · ${seatHeld}` : ""}</Btn>;
   else if (side && state === "you_ready" && back) btn = <Btn variant="ink" href={back}>Seat held {seatHeld} · Back to room</Btn>;
   else if (side && state === "you_ready") btn = <Btn variant="gold" onClick={onPlay} disabled={busy}>Take your seat here · {seatHeld}</Btn>;
@@ -959,14 +980,17 @@ const RulesCard = ({ d, state, group = false }: { d: MatchDetail; state: MatchPa
   );
 };
 
-const ReadyChecksCard = ({ d, myUserId }: { d: MatchDetail; myUserId: string | null }) => (
+const ReadyChecksCard = ({ d, myUserId, hideReady = false }: { d: MatchDetail; myUserId: string | null; hideReady?: boolean }) => {
+  // A cancelled match has nobody "ready now": drop the pending lines (#1248).
+  const checks = hideReady ? d.readyChecks.filter((rc) => rc.outcome !== "pending") : d.readyChecks;
+  return (
   <Card p="18px" data-testid="ready-checks">
     <Text {...caption} mb="8px">Ready-checks</Text>
-    {d.readyChecks.length === 0 ? (
+    {checks.length === 0 ? (
       <Text fontSize="13px" color={INK_MUTED}>None yet</Text>
     ) : (
       <Flex as="ul" flexDir="column" gap="6px" listStyleType="none" m={0} p={0}>
-        {d.readyChecks.map((rc) => {
+        {checks.map((rc) => {
           const l = readyCheckLine(d, rc, myUserId);
           return (
             <Flex as="li" key={rc.id} align="center" gap="8px" fontSize="13px">
@@ -979,4 +1003,5 @@ const ReadyChecksCard = ({ d, myUserId }: { d: MatchDetail; myUserId: string | n
       </Flex>
     )}
   </Card>
-);
+  );
+};
