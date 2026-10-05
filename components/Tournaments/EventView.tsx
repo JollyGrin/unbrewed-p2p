@@ -19,6 +19,7 @@ import {
 import type { Entry, Tournament } from "@/lib/tournaments/types";
 import { statusChip } from "@/lib/tournaments/browse";
 import { BracketEventView } from "./BracketEventView";
+import { RoundRobinEventView } from "./RoundRobinEventView";
 import { SeedingPanel } from "./SeedingPanel";
 import { Btn, Card, Chip, Notice, Page } from "./ui";
 
@@ -111,8 +112,8 @@ export const JoinPanel = ({
               <Text fontWeight={700}>You&apos;re seat {state.seat} of {state.of}.</Text>
               <Text fontSize="14px" opacity={0.8}>
                 {t.status === "running"
-                  ? "The bracket is live. We'll ping you on Discord when your match is ready."
-                  : `Round 1 opens when signup closes${t.signupClosesAt ? ` (${formatWhen(t.signupClosesAt)})` : ""}. We'll ping you on Discord when your match is ready.`}
+                  ? `The ${t.format === "round_robin" ? "standings are" : "bracket is"} live. We'll ping you on Discord when your match is ready.`
+                  : `${t.format === "round_robin" ? "Every match opens" : "Round 1 opens"} when signup closes${t.signupClosesAt ? ` (${formatWhen(t.signupClosesAt)})` : ""}. We'll ping you on Discord when your match is ready.`}
               </Text>
             </Box>
           </Flex>
@@ -187,12 +188,17 @@ export const EventView = ({ slug, justCreated }: { slug: string; justCreated: bo
         <Notice title={data.status === "not_found" ? "No tournament here" : "Tournaments unavailable"}>
           {data.status === "not_found" ? "That link doesn't match a tournament. It may have been cancelled." : "Tournaments are unavailable right now. Try again later."}
         </Notice>
-        <Box mt="16px"><Btn href="/tournaments" variant="ghost">All tournaments</Btn></Box>
+        <Flex mt="16px" gap="10px" flexWrap="wrap">
+          {data.status === "unavailable" && <Btn variant="gold" onClick={reload}>Try again</Btn>}
+          <Btn href="/tournaments" variant="ghost">All tournaments</Btn>
+        </Flex>
       </Page>
     );
 
-  const { tournament: t, entries, matches } = data.value;
+  const { tournament: t, entries, matches, standings } = data.value;
   const isOrganizer = status === "signed-in" && account?.id === t.organizer.userId;
+  if ((t.status === "running" || t.status === "complete") && t.format === "round_robin")
+    return <RoundRobinEventView t={t} entries={entries} matches={matches} standings={standings} isOrganizer={isOrganizer} reload={reload} />;
   if (t.status === "running" || t.status === "complete")
     return <BracketEventView t={t} entries={entries} matches={matches} isOrganizer={isOrganizer} reload={reload} />;
   const seeding = isOrganizer && (t.status === "signup" || t.status === "draft");
@@ -231,9 +237,9 @@ export const EventView = ({ slug, justCreated }: { slug: string; justCreated: bo
         <Card p="20px">
           <Text fontWeight={700} mb="10px">How a match works</Text>
           <Box as="ol" pl="18px" fontSize="14px" display="flex" flexDir="column" gap="10px">
-            <li><b>Your match opens.</b> {WINDOW_LABEL[t.matchWindowHours] ?? `${t.matchWindowHours}h`} from when both of you are known. We ping you both.</li>
+            <li><b>Your match opens.</b> {t.format === "round_robin" ? `Every match opens when the event starts, each with ${WINDOW_LABEL[t.matchWindowHours] ?? `${t.matchWindowHours}h`}. Play them in any order.` : `${WINDOW_LABEL[t.matchWindowHours] ?? `${t.matchWindowHours}h`} from when both of you are known. We ping you both.`} We ping you both.</li>
             <li><b>Press &ldquo;I&apos;m ready to play&rdquo;.</b> We hold a private room and ping your opponent.</li>
-            <li><b>Play.</b> The result and replay land on the bracket by themselves.</li>
+            <li><b>Play.</b> The result and replay land on the {t.format === "round_robin" ? "standings" : "bracket"} by themselves.</li>
           </Box>
         </Card>
       </Box>

@@ -19,6 +19,9 @@
  * in_play — or `--next=none` (no open match) / `--next=down` (a 500). The
  * match-detail route for that tournament is served by the same fixture.
  *
+ * Round robin (#1221): fixture-rr-4, fixture-rr-5, fixture-rr-6 (top-2 final, one dropped),
+ * fixture-rr-final (final open), fixture-rr-complete.
+ *
  * Match page (#1218): `/tournaments?t=fixture-match-<state>&m=m2-1`, one slug
  * per state — waiting, opponent-ready, you-ready, in-play, decided,
  * decided-by-rule. `POST …/ready` and `GET …/ticket` grant a dummy ticket

@@ -19,6 +19,10 @@ export type MapScope = "event" | "round";
 export type PresetId = "weekend" | "league" | "custom";
 
 export const SIZES = [4, 8, 16] as const;
+/** Round robin takes 4–6 players (unbrewed-api#65). */
+export const RR_SIZES = [4, 5, 6] as const;
+export const sizesFor = (format: CreateFormState["format"]): readonly number[] =>
+  format === "round_robin" ? RR_SIZES : SIZES;
 export const WINDOWS: { hours: number; label: string }[] = [
   { hours: 24, label: "24 hours" },
   { hours: 48, label: "48 hours" },
@@ -39,6 +43,8 @@ export interface CreateFormState {
   map: MapRef | null;
   /** Per-round maps, keyed by round number (1-based). */
   roundMaps: Record<string, MapRef>;
+  /** Round robin only: the top two of the standings play a one-game final. */
+  top2Final: boolean;
   /** Informational: the deck pool entrants draw from (not sent as a rule). */
   deckPool: "balanced";
 }
@@ -48,8 +54,6 @@ export interface Preset {
   title: string;
   blurb: string;
   bullets: string[];
-  /** Round robin isn't creatable yet (unbrewed-api#65). */
-  disabled?: string;
   patch: Partial<CreateFormState>;
 }
 
@@ -79,13 +83,13 @@ export const PRESETS: Preset[] = [
       "First to 1 · 1 week per round",
       "Same map for everyone",
     ],
-    disabled: "Round robin is coming soon",
     patch: {
       format: "round_robin",
-      size: 4,
+      size: 6,
       matchWindowHours: 168,
       matchup: "map",
       mapScope: "event",
+      top2Final: true,
     },
   },
   {
@@ -115,8 +119,31 @@ export const initialForm = (from?: Date): CreateFormState => ({
   mapScope: "event",
   map: null,
   roundMaps: {},
+  top2Final: false,
   deckPool: "balanced",
 });
+
+/** Switching format keeps the form valid: a size the format takes, no stale per-round maps. */
+export const withFormat = (f: CreateFormState, format: CreateFormState["format"]): CreateFormState => ({
+  ...f,
+  format,
+  size: sizesFor(format).includes(f.size) ? f.size : format === "round_robin" ? 6 : 8,
+  roundMaps: {},
+  top2Final: format === "round_robin" ? f.top2Final : false,
+});
+
+/** Group rounds a round robin of `players` plays (n − 1, or n when odd). */
+export const rrRounds = (players: number): number => (players % 2 === 0 ? players - 1 : players);
+
+/** The map slots a per-round map picker needs: bracket rounds, or round-robin rounds (+ the final). */
+export const mapSlots = (f: CreateFormState): { key: string; label: string }[] => {
+  if (f.format === "round_robin") {
+    const slots = Array.from({ length: rrRounds(f.size) }, (_, i) => ({ key: String(i + 1), label: `Round ${i + 1}` }));
+    return f.top2Final ? [...slots, { key: "final", label: "Final" }] : slots;
+  }
+  const rounds = roundCount(f.size);
+  return Array.from({ length: rounds }, (_, i) => ({ key: String(i + 1), label: roundName(i + 1, rounds) }));
+};
 
 export const roundCount = (size: number): number =>
   Math.max(1, Math.round(Math.log2(size)));
@@ -140,8 +167,8 @@ export const validateForm = (
   const out: FormProblem[] = [];
   if (f.name.trim().length === 0)
     out.push({ field: "name", message: "Give it a name." });
-  if (f.format !== "single_elim")
-    out.push({ field: "format", message: "Round robin is coming soon." });
+  if (!sizesFor(f.format).includes(f.size))
+    out.push({ field: "format", message: f.format === "round_robin" ? "Round robin takes 4 to 6 players." : "Pick 4, 8 or 16 players." });
   const closes = new Date(f.signupCloses);
   if (!f.signupCloses || Number.isNaN(closes.getTime()) || closes <= now)
     out.push({ field: "signupCloses", message: "Pick a time in the future." });
@@ -149,9 +176,8 @@ export const validateForm = (
     if (f.mapScope === "event" && !f.map)
       out.push({ field: "map", message: "Pick a map." });
     if (f.mapScope === "round") {
-      const rounds = roundCount(f.size);
-      for (let r = 1; r <= rounds; r++)
-        if (!f.roundMaps[String(r)])
+      for (const slot of mapSlots(f))
+        if (!f.roundMaps[slot.key])
           out.push({ field: "map", message: "Pick a map for every round." });
     }
   }
@@ -174,11 +200,10 @@ export const matchupToWire = (
   if (f.matchup === "map" && f.mapScope === "event" && f.map)
     return { matchupRule: { mode: "map", map: f.map } };
   if (f.matchup === "map" && f.mapScope === "round") {
-    const rounds = roundCount(f.size);
     const roundMaps: Record<string, MapRef> = {};
-    for (let r = 1; r <= rounds; r++) {
-      const m = f.roundMaps[String(r)];
-      if (m) roundMaps[String(r)] = m;
+    for (const { key } of mapSlots(f)) {
+      const m = f.roundMaps[key];
+      if (m) roundMaps[key] = m;
     }
     return { matchupRule: FREE_RULE, roundMaps };
   }
@@ -191,21 +216,27 @@ export const toCreateBody = (
   status: "draft" | "signup" = "signup",
 ): CreateTournamentBody => ({
   name: f.name.trim(),
-  format: "single_elim",
+  format: f.format,
   size: f.size,
   matchWindowHours: f.matchWindowHours,
   signupClosesAt: new Date(f.signupCloses).toISOString(),
   status,
-  ...matchupToWire(f),
+  ...withRoundRobinSettings(f, matchupToWire(f)),
 });
+
+/** `settings.top2Final` rides along for round robin only (the api rejects it elsewhere). */
+const withRoundRobinSettings = <T extends { settings?: Record<string, unknown> }>(f: CreateFormState, w: T): T =>
+  f.format === "round_robin" && f.top2Final ? { ...w, settings: { ...w.settings, top2Final: true } } : w;
 
 /** Latest the final can land: each round may use its full window plus a 24h decide grace. */
 export const latestFinal = (f: CreateFormState): Date | null => {
   const closes = new Date(f.signupCloses);
   if (Number.isNaN(closes.getTime())) return null;
-  return new Date(
-    closes.getTime() + roundCount(f.size) * (f.matchWindowHours + 24) * 3_600_000,
-  );
+  const hours =
+    f.format === "round_robin"
+      ? f.matchWindowHours + (f.top2Final ? 24 + f.matchWindowHours : 0)
+      : roundCount(f.size) * (f.matchWindowHours + 24);
+  return new Date(closes.getTime() + hours * 3_600_000);
 };
 
 export const matchupSummary = (f: CreateFormState): string =>
@@ -216,3 +247,6 @@ export const matchupSummary = (f: CreateFormState): string =>
       : f.mapScope === "round"
         ? "A map per round"
         : "Same map for everyone";
+
+export const formatName = (f: Pick<CreateFormState, "format">): string =>
+  f.format === "round_robin" ? "Round robin" : "Single elimination";

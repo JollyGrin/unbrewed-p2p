@@ -13,7 +13,7 @@ import { heroDisplayName } from "@/lib/stats/roster";
 
 import { DECIDED_NOTE, roundCount, roundName } from "./bracket";
 import { mapTitle } from "./options";
-import type { Assignment, Game, MatchDetail, MatchPlayer } from "./types";
+import type { Assignment, Game, Match, MatchDetail, MatchPlayer } from "./types";
 
 export type MatchPageState =
   | "waiting"
@@ -62,7 +62,15 @@ export const matchPageState = (d: MatchDetail, myUserId: string | null, now: num
 };
 
 /** "Semifinal 2", "Quarterfinal 3", "Final", "Round of 16 · Match 4". */
-export const matchTitle = (round: number, position: number, size: number): string => {
+export const matchTitle = (
+  round: number,
+  position: number,
+  size: number,
+  stage?: Match["stage"],
+): string => {
+  // Round robin (#1221): rounds are only a display grouping, there are no semifinals.
+  if (stage === "final") return "Final";
+  if (stage === "group") return `Round ${round} · Match ${position + 1}`;
   const rounds = roundCount(size);
   const name = roundName(round, rounds);
   if (name === "Final") return "Final";

@@ -9,6 +9,7 @@ import type {
   CreateTournamentBody,
   Entry,
   Match,
+  Standing,
   MatchDetail,
   MyTournaments,
   NextMatch,
@@ -110,6 +111,7 @@ export const getTournament = (slug: string) =>
     tournament: b.tournament as Tournament,
     entries: list(b.entries) as Entry[],
     matches: list(b.matches) as Match[],
+    standings: Array.isArray(b.standings) ? (b.standings as Standing[]) : null,
   }));
 
 export const createTournament = (body: CreateTournamentBody) =>

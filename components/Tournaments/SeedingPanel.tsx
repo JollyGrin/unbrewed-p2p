@@ -64,7 +64,8 @@ export const SeedingPanel = ({
 
   const byId = new Map(entries.map((e) => [e.id, e]));
   const n = order.length;
-  const canStart = n * 2 > t.size;
+  const rr = t.format === "round_robin";
+  const canStart = n * 2 > t.size && (!rr || n >= 4);
   const reorder = (next: string[]) => {
     setOrder(next);
     setDirty(true);
@@ -104,7 +105,7 @@ export const SeedingPanel = ({
       <Flex justify="space-between" align="baseline" gap="12px" flexWrap="wrap">
         <Box>
           <Text fontWeight={700}>Seeding</Text>
-          <Text fontSize="13px" opacity={0.75}>Who meets whom in round 1. Seeds lock when the bracket starts.</Text>
+          <Text fontSize="13px" opacity={0.75}>{rr ? "Seed order breaks ties. Seeds lock when the event starts." : "Who meets whom in round 1. Seeds lock when the bracket starts."}</Text>
         </Box>
         <Btn variant="ghost" minH="36px" px="14px" fontSize="14px" disabled={busy || n < 2} onClick={() => reorder(shuffleSeeds(order))}>
           Shuffle
@@ -113,12 +114,14 @@ export const SeedingPanel = ({
       <Text fontSize="13px" opacity={0.75} mt="8px">
         {n === 0
           ? "No one has joined yet."
-          : `Drag to reorder, or use the arrows. ${n < t.size ? `${t.size - n} empty seat${t.size - n === 1 ? "" : "s"} become byes for the top seeds.` : `Seed 1 meets seed ${t.size}.`}`}
+          : rr
+            ? "Drag to reorder, or use the arrows. Seeds only break ties and decide who takes slot A; everyone plays everyone."
+            : `Drag to reorder, or use the arrows. ${n < t.size ? `${t.size - n} empty seat${t.size - n === 1 ? "" : "s"} become byes for the top seeds.` : `Seed 1 meets seed ${t.size}.`}`}
       </Text>
       <Box as="ol" listStyleType="none" m="10px 0 0" p={0} display="flex" flexDir="column" gap="6px" data-testid="seed-list">
         {order.map((id, i) => {
           const e = byId.get(id);
-          const opp = opponentOfSeed(i + 1, t.size, n);
+          const opp = rr ? null : opponentOfSeed(i + 1, t.size, n);
           return (
             <Flex
               as="li"
@@ -161,7 +164,7 @@ export const SeedingPanel = ({
               <Text flex="1" minW={0} whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis" fontWeight={600}>
                 {e?.username ?? "Player"}
               </Text>
-              <Text fontSize="12px" opacity={0.65} whiteSpace="nowrap">{opp ? `vs ${opp}` : "bye"}</Text>
+              <Text fontSize="12px" opacity={0.65} whiteSpace="nowrap">{rr ? "" : opp ? `vs ${opp}` : "bye"}</Text>
               <Flex gap="2px">
                 <Box as="button" type="button" aria-label={`Move ${e?.username ?? "player"} up`} disabled={i === 0 || busy} onClick={() => reorder(moveSeed(order, i, i - 1))} w="32px" h="32px" borderRadius="6px" _disabled={{ opacity: 0.25 }} _hover={{ bg: "rgba(72,40,79,0.08)" }}>↑</Box>
                 <Box as="button" type="button" aria-label={`Move ${e?.username ?? "player"} down`} disabled={i === n - 1 || busy} onClick={() => reorder(moveSeed(order, i, i + 1))} w="32px" h="32px" borderRadius="6px" _disabled={{ opacity: 0.25 }} _hover={{ bg: "rgba(72,40,79,0.08)" }}>↓</Box>
@@ -173,7 +176,7 @@ export const SeedingPanel = ({
       <Flex gap="10px" mt="14px" flexWrap="wrap" align="center">
         {!confirming ? (
           <Btn variant="gold" disabled={busy || !canStart} onClick={() => setConfirming(true)} data-testid="start-bracket">
-            Start bracket
+            {rr ? "Start round robin" : "Start bracket"}
           </Btn>
         ) : (
           <>
@@ -188,9 +191,11 @@ export const SeedingPanel = ({
         )}
         <Text fontSize="13px" opacity={0.7}>
           {!canStart
-            ? `Start needs more than half the seats filled (${Math.floor(t.size / 2) + 1} of ${t.size}).`
+            ? rr
+              ? `Start needs at least ${Math.max(4, Math.floor(t.size / 2) + 1)} players (${t.size} seats).`
+              : `Start needs more than half the seats filled (${Math.floor(t.size / 2) + 1} of ${t.size}).`
             : confirming
-              ? "Signup closes and round 1 opens for everyone."
+              ? rr ? "Signup closes and every match opens for everyone." : "Signup closes and round 1 opens for everyone."
               : dirty
                 ? "Not saved yet. Start saves this order."
                 : "Order saved."}

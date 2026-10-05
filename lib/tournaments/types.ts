@@ -55,6 +55,21 @@ export interface Tournament {
   myEntryId?: string | null;
 }
 
+/** Round robin only: one row of `standings` (unbrewed-api `Standing`). */
+export interface Standing {
+  /** 1-based, unique. */
+  rank: number;
+  entryId: string;
+  seed: number | null;
+  /** Decided group matches; the top-2 final is not counted. */
+  played: number;
+  wins: number;
+  losses: number;
+  headToHeadWins: number;
+  /** What separated this row from the rows level with it. */
+  rankedBy: "wins" | "head_to_head" | "seed";
+}
+
 export interface Entry {
   id: string;
   userId: string;
@@ -68,7 +83,7 @@ export interface Entry {
 /** The body `POST /tournaments` takes. Presets are a client concern. */
 export interface CreateTournamentBody {
   name: string;
-  format: "single_elim";
+  format: "single_elim" | "round_robin";
   size: number;
   matchWindowHours: number;
   matchupRule: MatchupRule;
@@ -135,6 +150,8 @@ export interface Match {
   deadlineAt: string | null;
   nextMatchId: string | null;
   nextSlot: "a" | "b" | null;
+  /** Absent on older api builds = `bracket`. Round robin: `group`, or the top-2 `final`. */
+  stage?: "bracket" | "group" | "final";
   matchupRule: MatchupRule;
   matchupOverride: boolean;
   matchup: Assignment;

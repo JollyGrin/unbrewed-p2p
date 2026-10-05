@@ -19,6 +19,7 @@ import type {
   MatchupRule,
   MyTournaments,
   ReadyCheck,
+  Standing,
   Tournament,
 } from "./types";
 
@@ -203,6 +204,8 @@ export interface FixturePayload {
   tournament: Tournament;
   entries: Entry[];
   matches: Match[];
+  /** Round robin only (`GET /tournaments/:slug` → `standings`). */
+  standings?: Standing[] | null;
 }
 
 /** 4 seats, 4 players, played out: champion state. */
@@ -455,7 +458,167 @@ export const FIXTURE_ATTENTION: Record<string, AttentionItem[]> = {
   ],
 };
 
+// ---------------------------------------------------------------------------
+// Round robin (#1221). Mirrors unbrewed-api `roundRobin.ts`: circle-method rounds
+// (seed 1 fixed), better seed in slot A, standings by wins → head-to-head among
+// the players level on wins → seed.
+
+export const rrRoundCount = (n: number): number => (n % 2 === 0 ? n - 1 : n);
+
+/** Same ordering as the api's `computeStandings`, for fixtures only. */
+export const fixtureStandings = (entries: Entry[], matches: Match[]): Standing[] => {
+  const active = entries.filter((e) => !e.leftAt || matches.some((m) => m.slotA === e.id || m.slotB === e.id));
+  const done = matches.filter((m) => m.stage !== "final" && m.status === "decided" && m.winner);
+  const wins = (id: string) => done.filter((m) => m.winner === id).length;
+  const played = (id: string) => done.filter((m) => m.slotA === id || m.slotB === id).length;
+  const h2h = (id: string) => {
+    const level = active.filter((e) => wins(e.id) === wins(id)).map((e) => e.id);
+    return done.filter((m) => m.winner === id && level.includes(m.slotA === id ? m.slotB! : m.slotA!)).length;
+  };
+  const rows = active.map((e) => ({ e, w: wins(e.id), h: h2h(e.id) }));
+  rows.sort((x, y) => y.w - x.w || y.h - x.h || (x.e.seed ?? 99) - (y.e.seed ?? 99));
+  return rows.map(({ e, w, h }, i) => {
+    const sameWins = rows.filter((r) => r.w === w);
+    const sameBoth = sameWins.filter((r) => r.h === h);
+    return {
+      rank: i + 1,
+      entryId: e.id,
+      seed: e.seed,
+      played: played(e.id),
+      wins: w,
+      losses: played(e.id) - w,
+      headToHeadWins: h,
+      rankedBy: sameWins.length === 1 ? "wins" : sameBoth.length === 1 ? "head_to_head" : "seed",
+    };
+  });
+};
+
+/**
+ * `n` players, round-robin group matches all open; the first `decidedRounds`
+ * rounds are decided (the better seed wins unless the seeds sum to a multiple of
+ * 3 — a few upsets), plus `partial` matches of the next round. One round-1
+ * match is decided by the deadline rule. `final`: add the top-2 final.
+ */
+export const fixtureRoundRobin = (
+  n: number,
+  opts: {
+    slug: string;
+    name: string;
+    decidedRounds: number;
+    partial?: number;
+    top2Final?: boolean;
+    final?: "open" | "decided";
+    /** Seed that left the event (their remaining matches stay open). */
+    dropped?: number;
+    status?: Tournament["status"];
+  },
+): FixturePayload => {
+  const entries = fixtureEntries(n, true);
+  if (opts.dropped) entries[opts.dropped - 1].leftAt = hoursFrom(FIXTURE_NOW, -60);
+  const rule: MatchupRule = { mode: "map", map: { kind: "catalog", id: "weathertop" } };
+  const start = hoursFrom(FIXTURE_NOW, -24 * 4);
+  const seats: (number | null)[] = Array.from({ length: n }, (_, i) => i + 1);
+  if (seats.length % 2) seats.push(null);
+  const half = seats.length / 2;
+  const matches: Match[] = [];
+  const mk = (id: string, round: number, position: number, a: string | null, b: string | null, stage: "group" | "final"): Match => ({
+    id,
+    round,
+    position,
+    slotA: a,
+    slotB: b,
+    winner: null,
+    firstTo: 1,
+    status: "open",
+    decidedBy: null,
+    inPlay: false,
+    opensAt: start,
+    deadlineAt: hoursFrom(start, 168),
+    nextMatchId: null,
+    nextSlot: null,
+    stage,
+    matchupRule: rule,
+    matchupOverride: false,
+    matchup: assignment(rule, 0),
+    games: [],
+  });
+  for (let round = 1; round <= rrRoundCount(n); round++) {
+    let pos = 0;
+    for (let i = 0; i < half; i++) {
+      const x = seats[i];
+      const y = seats[seats.length - 1 - i];
+      if (x === null || y === null) continue;
+      const [lo, hi] = x < y ? [x, y] : [y, x];
+      matches.push(mk(`g${round}-${pos}`, round, pos++, `e${lo}`, `e${hi}`, "group"));
+    }
+    seats.splice(1, 0, seats.pop()!);
+  }
+  const decide = (m: Match, by: DecidedBy = "result", winnerSide?: "a" | "b") => {
+    const seedA = Number(m.slotA!.slice(1));
+    const seedB = Number(m.slotB!.slice(1));
+    const upset = (seedA + seedB) % 3 === 0;
+    const side = winnerSide ?? ((seedA < seedB) !== upset ? "a" : "b");
+    m.winner = side === "a" ? m.slotA : m.slotB;
+    m.status = "decided";
+    m.decidedBy = by;
+    if (by === "result") m.games.push(game(m, m.winner));
+  };
+  const toDecide = matches.filter((m) => m.round <= opts.decidedRounds);
+  const next = matches.filter((m) => m.round === opts.decidedRounds + 1);
+  for (const m of toDecide) decide(m, m.id === "g1-0" ? "deadline_higher_seed" : "result", m.id === "g1-0" ? "a" : undefined);
+  for (const m of next.slice(0, opts.partial ?? 0)) decide(m);
+  const live = next[opts.partial ?? 0];
+  if (live) {
+    live.status = "in_play";
+    live.inPlay = true;
+    live.games.push(game(live, null, { startedAt: hoursFrom(FIXTURE_NOW, -1) }));
+  }
+  if (opts.final) {
+    const [first, second] = fixtureStandings(entries, matches);
+    const f = mk("final", rrRoundCount(n) + 1, 0, first.entryId, second.entryId, "final");
+    f.opensAt = hoursFrom(FIXTURE_NOW, -20);
+    f.deadlineAt = hoursFrom(FIXTURE_NOW, 148);
+    if (opts.final === "decided") decide(f, "result", "a");
+    matches.push(f);
+  }
+  return {
+    tournament: fixtureTournament({
+      slug: opts.slug,
+      name: opts.name,
+      format: "round_robin",
+      size: n,
+      entryCount: entries.filter((e) => !e.leftAt).length,
+      matchWindowHours: 168,
+      matchupRule: rule,
+      status: opts.status ?? "running",
+      settings: opts.top2Final ? { top2Final: true } : {},
+      startsAt: start,
+      latestPossibleFinal: hoursFrom(start, opts.top2Final ? 168 + 24 + 168 : 168),
+    }),
+    entries,
+    matches,
+    standings: fixtureStandings(entries, matches),
+  };
+};
+
+export const fixtureRoundRobin4 = () =>
+  fixtureRoundRobin(4, { slug: "fixture-rr-4", name: "Quick League", decidedRounds: 1, partial: 1 });
+export const fixtureRoundRobin5 = () =>
+  fixtureRoundRobin(5, { slug: "fixture-rr-5", name: "Five-Way League", decidedRounds: 2 });
+/** 6 players, round 5 of 5 under way, top-2 final, one player dropped (the mockup's league). */
+export const fixtureRoundRobin6 = () =>
+  fixtureRoundRobin(6, { slug: "fixture-rr-6", name: "Tuesday Labs League", decidedRounds: 4, top2Final: true, dropped: 6 });
+export const fixtureRoundRobin6Final = () =>
+  fixtureRoundRobin(6, { slug: "fixture-rr-final", name: "Tuesday Labs League", decidedRounds: 5, top2Final: true, final: "open" });
+export const fixtureRoundRobin6Complete = () =>
+  fixtureRoundRobin(6, { slug: "fixture-rr-complete", name: "Tuesday Labs League", decidedRounds: 5, top2Final: true, final: "decided", status: "complete" });
+
 export const FIXTURES: Record<string, () => FixturePayload> = {
+  "fixture-rr-4": fixtureRoundRobin4,
+  "fixture-rr-5": fixtureRoundRobin5,
+  "fixture-rr-6": fixtureRoundRobin6,
+  "fixture-rr-final": fixtureRoundRobin6Final,
+  "fixture-rr-complete": fixtureRoundRobin6Complete,
   "fixture-4": fixtureComplete4,
   "fixture-8": fixtureRunning8,
   "fixture-16": fixtureRunning16,

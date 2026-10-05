@@ -7,13 +7,14 @@ import { signInUrl, useAccount } from "@/lib/account/useAccount";
 import { createTournament } from "@/lib/tournaments/api";
 import {
   PRESETS,
-  SIZES,
+  sizesFor,
+  mapSlots,
+  withFormat,
+  formatName,
   WINDOWS,
   initialForm,
   latestFinal,
   matchupSummary,
-  roundCount,
-  roundName,
   toCreateBody,
   validateForm,
   type CreateFormState,
@@ -31,7 +32,7 @@ const Label = ({ children }: { children: React.ReactNode }) => (
   </Text>
 );
 
-const Seg = <T extends string | number>({
+const Seg = <T extends string | number | boolean>({
   value,
   options,
   onChange,
@@ -101,16 +102,16 @@ const Preview = ({ f }: { f: CreateFormState }) => {
       <Box bg="#2C1831" color="#FAEBD7" p="16px">
         <Chip tone="gold">Preview · signup open</Chip>
         <Text fontFamily="LeagueGothic" fontSize="30px" mt="6px">{f.name.trim() || "Your tournament"}</Text>
-        <Text fontSize="13px" opacity={0.75}>Single elimination · {f.size} players · first to 1</Text>
+        <Text fontSize="13px" opacity={0.75}>{formatName(f)} · {f.size} players · first to 1</Text>
       </Box>
       <Box p="16px" fontSize="14px">
-        <Text fontSize="12px" opacity={0.65} mb="8px" textTransform="uppercase" fontFamily="ArchivoNarrow" letterSpacing="0.08em">If all {f.size} seats fill</Text>
+        <Text fontSize="12px" opacity={0.65} mb="8px" textTransform="uppercase" fontFamily="ArchivoNarrow" letterSpacing="0.08em">{f.format === "round_robin" ? "With 4 or more players" : `If all ${f.size} seats fill`}</Text>
         <Box as="ol" pl="18px" display="flex" flexDir="column" gap="8px">
-          <li><b>Signup closes · round 1 opens</b><br />{formatWhen(new Date(f.signupCloses || Date.now()).toISOString())}</li>
-          <li><b>Each match gets {WINDOWS.find((w) => w.hours === f.matchWindowHours)?.label}</b><br />from the moment both players are known</li>
-          {final && <li><b>Latest possible final</b><br />{formatWhen(final.toISOString())}</li>}
+          <li><b>{f.format === "round_robin" ? "Signup closes · every match opens" : "Signup closes · round 1 opens"}</b><br />{formatWhen(new Date(f.signupCloses || Date.now()).toISOString())}</li>
+          <li><b>Each match gets {WINDOWS.find((w) => w.hours === f.matchWindowHours)?.label}</b><br />{f.format === "round_robin" ? "from the moment the event starts" : "from the moment both players are known"}</li>
+          {final && <li><b>{f.format === "round_robin" && !f.top2Final ? "Latest possible finish" : "Latest possible final"}</b><br />{formatWhen(final.toISOString())}</li>}
         </Box>
-        <Text mt="12px" fontSize="13px" opacity={0.7}>Usually much sooner: a match opens the moment both its players are known.</Text>
+        <Text mt="12px" fontSize="13px" opacity={0.7}>{f.format === "round_robin" ? "Usually sooner: players can play their matches in any order, as soon as the event starts." : "Usually much sooner: a match opens the moment both its players are known."}</Text>
       </Box>
     </Card>
   );
@@ -127,7 +128,7 @@ export const CreateView = () => {
 
   const choosePreset = (id: PresetId) => {
     const p = PRESETS.find((x) => x.id === id);
-    if (!p || p.disabled) return;
+    if (!p) return;
     setPreset(id);
     set(p.patch);
   };
@@ -164,7 +165,7 @@ export const CreateView = () => {
     );
 
   const custom = preset === "custom";
-  const rounds = roundCount(form.size);
+  const slots = mapSlots(form);
 
   return (
     <Page {...base} lede="Pick a starting point. You'll be the organizer and can edit everything until signup closes.">
@@ -176,17 +177,15 @@ export const CreateView = () => {
             key={p.id}
             role="radio"
             aria-checked={preset === p.id}
-            disabled={!!p.disabled}
             onClick={() => choosePreset(p.id)}
             textAlign="left"
             p="14px 16px"
             borderRadius="12px"
             border={preset === p.id ? "2px solid #E0A82E" : "1px solid rgba(72,40,79,0.2)"}
             bg="#FAEBD7"
-            opacity={p.disabled ? 0.55 : 1}
           >
             <Text fontFamily="LeagueGothic" fontSize="26px" lineHeight="1.05">{p.title}</Text>
-            <Text fontSize="13px" opacity={0.75}>{p.disabled ?? p.blurb}</Text>
+            <Text fontSize="13px" opacity={0.75}>{p.blurb}</Text>
             <Box as="ul" mt="8px" pl="16px" fontSize="13px">
               {p.bullets.map((b) => <li key={b}>{b}</li>)}
             </Box>
@@ -199,7 +198,8 @@ export const CreateView = () => {
           <Flex flexDir="column" gap="18px">
             {!custom && (
               <Flex gap="6px" flexWrap="wrap">
-                <Chip>Single elimination</Chip>
+                <Chip>{formatName(form)}</Chip>
+                {form.format === "round_robin" && form.top2Final && <Chip>Top 2 play a final</Chip>}
                 <Chip>{form.size} players</Chip>
                 <Chip>First to 1</Chip>
                 <Chip>{WINDOWS.find((w) => w.hours === form.matchWindowHours)?.label} per match</Chip>
@@ -220,15 +220,28 @@ export const CreateView = () => {
               <>
                 <Box>
                   <Label>Format</Label>
-                  <Seg label="Format" value={form.format} onChange={(v) => set({ format: v })} options={[
+                  <Seg label="Format" value={form.format} onChange={(v) => setForm((f) => withFormat(f, v))} options={[
                     { id: "single_elim", label: "Single elimination" },
-                    { id: "round_robin", label: "Round robin · soon", disabled: true },
+                    { id: "round_robin", label: "Round robin" },
                   ]} />
+                  <Text fontSize="12px" opacity={0.65} mt="4px">
+                    {form.format === "round_robin" ? "Everyone plays everyone, 4 to 6 players. Most wins takes the event." : "Lose once and you're out. 4, 8 or 16 players."}
+                  </Text>
                 </Box>
                 <Box>
                   <Label>Capacity</Label>
-                  <Seg label="Capacity" value={form.size} onChange={(v) => set({ size: v, roundMaps: {} })} options={SIZES.map((s) => ({ id: s, label: String(s) }))} />
+                  <Seg label="Capacity" value={form.size} onChange={(v) => set({ size: v, roundMaps: {} })} options={sizesFor(form.format).map((s) => ({ id: s, label: String(s) }))} />
                 </Box>
+                {form.format === "round_robin" && (
+                  <Box>
+                    <Label>Final</Label>
+                    <Seg label="Final" value={form.top2Final} onChange={(v) => set({ top2Final: v, roundMaps: {} })} options={[
+                      { id: false, label: "Standings decide it" },
+                      { id: true, label: "Top 2 play a final" },
+                    ]} />
+                    <Text fontSize="12px" opacity={0.65} mt="4px">The final is one game, opened once every group match is decided.</Text>
+                  </Box>
+                )}
                 <Box>
                   <Label>Time per match</Label>
                   <Seg label="Time per match" value={form.matchWindowHours} onChange={(v) => set({ matchWindowHours: v })} options={WINDOWS.map((w) => ({ id: w.hours, label: w.label }))} />
@@ -253,10 +266,10 @@ export const CreateView = () => {
                       {form.mapScope === "event" ? (
                         <MapChips label="Map" value={form.map} onPick={(map) => set({ map })} />
                       ) : (
-                        Array.from({ length: rounds }, (_, i) => i + 1).map((r) => (
-                          <Box key={r}>
-                            <Text fontSize="13px" fontWeight={700} mb="4px">{roundName(r, rounds)}</Text>
-                            <MapChips label={`Map for ${roundName(r, rounds)}`} value={form.roundMaps[String(r)] ?? null} onPick={(m) => set({ roundMaps: { ...form.roundMaps, [String(r)]: m } })} />
+                        slots.map(({ key, label }) => (
+                          <Box key={key}>
+                            <Text fontSize="13px" fontWeight={700} mb="4px">{label}</Text>
+                            <MapChips label={`Map for ${label}`} value={form.roundMaps[key] ?? null} onPick={(m) => set({ roundMaps: { ...form.roundMaps, [key]: m } })} />
                           </Box>
                         ))
                       )}

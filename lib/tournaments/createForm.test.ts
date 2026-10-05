@@ -1,8 +1,11 @@
 import {
   PRESETS,
   initialForm,
+  latestFinal,
+  mapSlots,
   matchupToWire,
   toCreateBody,
+  withFormat,
   validateForm,
   type CreateFormState,
 } from "./createForm";
@@ -35,8 +38,56 @@ describe("create form → api payload", () => {
     expect(new Date(body.signupClosesAt).toString()).not.toBe("Invalid Date");
   });
 
-  it("league night is disabled until round robin lands", () => {
-    expect(PRESETS.find((p) => p.id === "league")!.disabled).toBeTruthy();
+  it("league night is a round robin with a top-2 final", () => {
+    const league = PRESETS.find((p) => p.id === "league")!;
+    expect(league.patch).toMatchObject({ format: "round_robin", size: 6, top2Final: true });
+    const f = { ...initialForm(NOW), ...league.patch, name: "Labs League", map: MAP };
+    expect(validateForm(f, NOW)).toEqual([]);
+    expect(toCreateBody(f)).toMatchObject({
+      format: "round_robin",
+      size: 6,
+      settings: { top2Final: true },
+    });
+  });
+
+  it("switching format keeps the size valid and clears per-round maps", () => {
+    const rr = withFormat(base({ size: 16, roundMaps: { "1": MAP } }), "round_robin");
+    expect(rr).toMatchObject({ format: "round_robin", size: 6, roundMaps: {} });
+    expect(withFormat(rr, "single_elim")).toMatchObject({ size: 8, top2Final: false });
+    expect(withFormat(base({ format: "round_robin", size: 5 }), "round_robin").size).toBe(5);
+  });
+
+  it("round robin map slots: n−1 rounds (n when odd) plus the final", () => {
+    const keys = (over: Partial<CreateFormState>) => mapSlots(base(over)).map((s) => s.key);
+    expect(keys({ format: "round_robin", size: 4 })).toEqual(["1", "2", "3"]);
+    expect(keys({ format: "round_robin", size: 5, top2Final: true })).toEqual(["1", "2", "3", "4", "5", "final"]);
+    expect(keys({ size: 8 })).toEqual(["1", "2", "3"]);
+  });
+
+  it("round robin per-round maps go out as roundMaps incl. final", () => {
+    const f = base({
+      format: "round_robin",
+      size: 4,
+      top2Final: true,
+      matchup: "map",
+      mapScope: "round",
+      roundMaps: { "1": MAP, "2": MAP, "3": MAP, final: MAP },
+    });
+    expect(validateForm(f, NOW)).toEqual([]);
+    expect(toCreateBody(f).roundMaps).toEqual({ "1": MAP, "2": MAP, "3": MAP, final: MAP });
+    expect(validateForm({ ...f, roundMaps: { "1": MAP } }, NOW).map((p) => p.field)).toEqual(["map"]);
+  });
+
+  it("only round robin sends top2Final, and rejects sizes it doesn't take", () => {
+    expect(toCreateBody(base({ top2Final: true })).settings).toBeUndefined();
+    expect(validateForm(base({ format: "round_robin", size: 8 }), NOW).map((p) => p.field)).toEqual(["format"]);
+  });
+
+  it("round robin's latest finish is one window, plus a grace day and a window for the final", () => {
+    const f = base({ format: "round_robin", size: 6, matchWindowHours: 168, signupCloses: "2026-10-10T18:00" });
+    const closes = new Date(f.signupCloses).getTime();
+    expect(latestFinal(f)!.getTime() - closes).toBe(168 * 3_600_000);
+    expect(latestFinal({ ...f, top2Final: true })!.getTime() - closes).toBe((168 + 24 + 168) * 3_600_000);
   });
 
   it("players choose → {mode:'free'} with no heroes or map", () => {

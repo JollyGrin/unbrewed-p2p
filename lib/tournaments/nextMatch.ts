@@ -80,7 +80,7 @@ export const nextMatchView = (
   const timeLeft = timeLeftText(m.deadlineAt, now);
   const seat = room ? seatClock(room.expiresAt, now) : "";
   const active = lastActive(oppSide?.lastActiveAt ?? null, now);
-  const title = size ? matchTitle(m.round, m.position, size) : `Round ${m.round}`;
+  const title = size ? matchTitle(m.round, m.position, size, m.stage) : `Round ${m.round}`;
 
   const caption =
     state === "opponent_ready"
