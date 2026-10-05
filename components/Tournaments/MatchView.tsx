@@ -21,9 +21,13 @@ import { isOrganizerOf } from "@/lib/tournaments/organizer";
 import {
   clock,
   dateTime,
+  DEADLINE_PASSED_ORGANIZER_TEXT,
   DEADLINE_PASSED_TEXT,
+  decidedByRuleLine,
+  decisionLine,
   deadlineOutcome,
   deadlineParts,
+  deadlinePassedOrganizerRule,
   deadlinePassedRule,
   deadlineReadyCheckText,
   gameLength,
@@ -36,6 +40,7 @@ import {
   matchupLine,
   mySide,
   nextMatchTitle,
+  organizerCutoff,
   playerName,
   readyCheckLine,
   score,
@@ -178,6 +183,7 @@ export const MatchBody = ({
   const rows = gameRows(d);
   const liveGame = m.games.find((g) => g.startedAt && !g.finishedAt) ?? null;
   const replayGame = [...m.games].reverse().find((g) => g.replayAvailable) ?? null;
+  const decisionText = decisionLine(d);
   const unverified = rows.some((r) => r.state === "unverified");
 
   return (
@@ -202,7 +208,12 @@ export const MatchBody = ({
         data-state={state}
       >
         <Card overflow="hidden" p={0}>
-          <Banner state={state} d={d} title={title} next={next} group={group} oppName={oppName} side={side} now={now} unverified={unverified} winnerName={playerName(winner)} />
+          <Banner state={state} d={d} title={title} next={next} group={group} oppName={oppName} side={side} now={now} unverified={unverified} winnerName={playerName(winner)} isOrganizer={!!organizer} />
+          {decisionText && (
+            <Text px={{ base: "14px", md: "22px" }} py="10px" fontSize="14px" fontWeight={600} bg={WASH} data-testid="decision-note" overflowWrap="anywhere">
+              {decisionText}
+            </Text>
+          )}
           <Versus d={d} state={state} side={side} now={now} />
           {side && (
             <PlayBox
@@ -224,7 +235,7 @@ export const MatchBody = ({
               <Btn variant="discord" href={signInUrl(matchHref(d.tournament.slug, m.id))}>Sign in with Discord</Btn>
             </Flex>
           )}
-          <MatchupPanel d={d} t={t} side={side} />
+          <MatchupPanel d={d} t={t} side={side} onReplay={replayGame ? () => setWatching(replayGame) : null} />
           <GamesList d={d} rows={rows} state={state} onReplay={setWatching} />
           {state === "in_play" && (
             <Text fontSize="12px" color={INK_MUTED} textAlign="center" px="16px" pb="24px">
@@ -240,11 +251,15 @@ export const MatchBody = ({
 
         <Flex flexDir="column" gap="16px">
           {organizer && (
-            <MatchOrganizerPanel slug={d.tournament.slug} match={m} entries={organizer.entries} reload={organizer.reload} />
+            <MatchOrganizerPanel slug={d.tournament.slug} match={m} entries={organizer.entries} reload={organizer.reload} deadlinePassed={state === "deadline_passed"} />
           )}
           <DeadlineCard d={d} t={t} state={state} now={now} />
-          {/* C5 (#1236): a match decided by a result has no deadline left to explain; a rule-decided one marks which rule applied. */}
-          {state !== "decided" && <RulesCard d={d} state={state} group={group} />}
+          {/* D6: no deadline left to explain once decided. A rule-decided match keeps one line naming the rule. */}
+          {state === "decided_by_rule" ? (
+            <Text fontSize="13px" fontWeight={600} px="4px" data-testid="decided-by-rule">{decidedByRuleLine(d)}</Text>
+          ) : (
+            state !== "decided" && <RulesCard d={d} state={state} group={group} />
+          )}
           <ReadyChecksCard d={d} myUserId={myUserId} />
           {next && (
             <Card p="18px">
@@ -270,7 +285,7 @@ export const MatchBody = ({
         onReplay={replayGame ? () => setWatching(replayGame) : null}
       />
       {watching && (
-        <MatchReplay slug={d.tournament.slug} matchId={m.id} game={watching} onExit={() => setWatching(null)} />
+        <MatchReplay slug={d.tournament.slug} matchId={m.id} game={watching} detail={side ? undefined : d} onExit={() => setWatching(null)} />
       )}
     </Page>
   );
@@ -299,6 +314,7 @@ const Banner = ({
   now,
   unverified,
   winnerName,
+  isOrganizer,
 }: {
   /** Round-robin group match: nobody "advances", the winner takes the match. */
   group: boolean;
@@ -311,6 +327,8 @@ const Banner = ({
   now: number;
   unverified: boolean;
   winnerName: string;
+  /** The viewer is the tournament's organizer. */
+  isOrganizer: boolean;
 }) => {
   const m = d.match;
   const room = heldRoom(d, now);
@@ -339,8 +357,9 @@ const Banner = ({
         text = deadlineReadyCheckText(d, out.winner, mine);
         small = "Rule 1 · unanswered ready-check";
       } else {
-        text = DEADLINE_PASSED_TEXT;
-        small = deadlinePassedRule(m.stage);
+        const cutoff = organizerCutoff(m.deadlineAt);
+        text = isOrganizer ? DEADLINE_PASSED_ORGANIZER_TEXT : DEADLINE_PASSED_TEXT;
+        small = isOrganizer ? deadlinePassedOrganizerRule(m.stage, cutoff) : deadlinePassedRule(m.stage, cutoff);
       }
       break;
     }
@@ -362,11 +381,13 @@ const Banner = ({
     case "decided_by_rule":
       text = group
         ? `Decided by the deadline rule. ${winnerName} takes the win.`
-        : `Decided by the deadline rule. ${winnerName} advances.`;
+        : !next || m.stage === "final"
+          ? `Decided by the deadline rule. ${winnerName} wins the tournament.`
+          : `Decided by the deadline rule. ${winnerName} advances.`;
       small =
         m.decidedBy === "deadline_ready_check"
           ? "Rule 1 · unanswered ready-check"
-          : "Rule 2 · no result, higher seed";
+          : "Rule 2 · organizer did not decide in 24h";
       break;
     default:
       if (!m.slotA || !m.slotB) {
@@ -670,7 +691,7 @@ const StickyPlay = ({
 
 // ---------------------------------------------------------------------------
 
-const MatchupPanel = ({ d, t, side }: { d: MatchDetail; t: Tournament | null; side: "a" | "b" | null }) => {
+const MatchupPanel = ({ d, t, side, onReplay }: { d: MatchDetail; t: Tournament | null; side: "a" | "b" | null; onReplay: (() => void) | null }) => {
   const m = d.match;
   const mu = matchupLine(m.matchup);
   const thumb = m.matchup.map ? catalogEntry(m.matchup.map.id)?.thumbnailUrl : undefined;
@@ -683,6 +704,9 @@ const MatchupPanel = ({ d, t, side }: { d: MatchDetail; t: Tournament | null; si
         : "Event rule";
   // Once a game is recorded, only heroes the api names are shown; never "Player's choice".
   const played = m.games.some((g) => g.finishedAt);
+  // D9: a decided match whose record names no heroes or board must not fall back to the "Random board" rule text.
+  const decided = m.status === "decided" || !!m.winner;
+  const unrecorded = decided && !isSet;
   const row = (seat: "A" | "B", p: MatchPlayer | null, hero: string | null, now: boolean) => (
     <Box as="tr" bg={now ? "rgba(224,168,46,0.12)" : undefined}>
       <Box as="td" fontFamily="LeagueGothic" fontSize="24px" color="rgba(72,40,79,0.55)" w={{ base: "40px", md: "56px" }} px={{ base: "10px", md: "16px" }} py="10px" borderTop={RULE}>
@@ -695,7 +719,7 @@ const MatchupPanel = ({ d, t, side }: { d: MatchDetail; t: Tournament | null; si
         </Flex>
       </Box>
       <Box as="td" px={{ base: "10px", md: "16px" }} py="10px" borderTop={RULE} fontWeight={hero ? 700 : 400} color={hero ? INK : INK_MUTED} fontSize="14px">
-        {hero ?? (played ? "" : "Player's choice")}
+        {hero ?? (unrecorded ? "—" : played ? "" : "Player's choice")}
       </Box>
     </Box>
   );
@@ -707,10 +731,21 @@ const MatchupPanel = ({ d, t, side }: { d: MatchDetail; t: Tournament | null; si
       </Flex>
       <Flex gap="14px" align="center" px="16px" py="14px" borderBottom={RULE}>
         <Box w="86px" h="56px" borderRadius="8px" flexShrink={0} bg={TRACK} bgImage={thumb ? `url(${thumb})` : undefined} bgSize="cover" bgPos="center" boxShadow="inset 0 0 0 1px rgba(72,40,79,0.15)" />
-        <Box>
-          <Text fontWeight={700}>{mu.map ?? "Random board"}</Text>
-          <Text fontSize="13px" color={INK_MUTED}>{mu.map ? "Set by the organizer" : "Dealt at random when the room opens"}</Text>
-        </Box>
+        {unrecorded ? (
+          <Box data-testid="matchup-unrecorded">
+            <Text fontWeight={700}>{played ? "Heroes and board: see the replay" : "No game was played"}</Text>
+            {played && onReplay && (
+              <Box as="button" type="button" onClick={onReplay} fontSize="13px" fontWeight={700} textDecoration="underline" data-testid="matchup-replay-link">
+                ▶ Watch the replay
+              </Box>
+            )}
+          </Box>
+        ) : (
+          <Box>
+            <Text fontWeight={700}>{mu.map ?? "Random board"}</Text>
+            <Text fontSize="13px" color={INK_MUTED}>{mu.map ? "Set by the organizer" : "Dealt at random when the room opens"}</Text>
+          </Box>
+        )}
       </Flex>
       <Box as="table" w="100%" sx={{ borderCollapse: "collapse" }}>
         <Box as="thead">
@@ -905,8 +940,8 @@ const RulesCard = ({ d, state, group = false }: { d: MatchDetail; state: MatchPa
     <Card p="18px">
       <Text {...caption} mb="8px">If the deadline passes</Text>
       <Box as="ol" m={0} p={0} display="flex" flexDir="column" gap="4px">
-        {li(hit === "deadline_ready_check", <><b>Unanswered ready-check.</b> If one player pressed Play and the other never joined, the player who was ready {group ? "wins the match" : "advances"}.</>)}
-        {li(hit === "deadline_higher_seed", <><b>Otherwise the organizer decides</b> within 24h. If they don&apos;t, {rrFinal ? "the player ranked higher in the standings" : "the higher seed"}{higher ? <> (<b>{playerName(higher)}</b>)</> : ""} {group ? "wins the match" : rrFinal ? "wins" : "advances"}.</>)}
+        {li(hit === "deadline_ready_check", <><b>Rule 1 · unanswered ready-check.</b> If one player pressed Play and the other never joined, the player who was ready {group ? "wins the match" : "advances"}.</>)}
+        {li(hit === "deadline_higher_seed", <><b>Rule 2 · otherwise the organizer decides</b> within 24h. If they don&apos;t, {rrFinal ? "the player ranked higher in the standings" : "the higher seed"}{higher ? <> (<b>{playerName(higher)}</b>)</> : ""} {group ? "wins the match" : rrFinal ? "wins the tournament" : "advances"}.</>)}
       </Box>
       <Text fontSize="12px" color={INK_MUTED} mt="8px">A game that started before the deadline finishes and counts.</Text>
     </Card>

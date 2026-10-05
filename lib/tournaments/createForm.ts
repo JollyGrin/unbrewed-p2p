@@ -232,10 +232,9 @@ const withRoundRobinSettings = <T extends { settings?: Record<string, unknown> }
 export const latestFinal = (f: CreateFormState): Date | null => {
   const closes = new Date(f.signupCloses);
   if (Number.isNaN(closes.getTime())) return null;
-  const hours =
-    f.format === "round_robin"
-      ? f.matchWindowHours + (f.top2Final ? 24 + f.matchWindowHours : 0)
-      : roundCount(f.size) * (f.matchWindowHours + 24);
+  // Mirrors the api's latestPossibleFinal: rounds × (window + 24h), the group is one round, the top-2 final a second.
+  const rounds = f.format === "round_robin" ? (f.top2Final ? 2 : 1) : roundCount(f.size);
+  const hours = rounds * (f.matchWindowHours + 24);
   return new Date(closes.getTime() + hours * 3_600_000);
 };
 

@@ -140,3 +140,26 @@ describe("round-robin unverified copy (K1)", () => {
     expect(rows.find((x) => x.key.startsWith("unverified_game"))!.body).toMatch(/Nobody advances/);
   });
 });
+
+describe("D3: awaiting_organizer copy (#1239)", () => {
+  const item = { matchId: f.matches[0].id, round: 1, position: 0, kind: "awaiting_organizer" as const, deadlineAt: "2026-10-05T10:00:00Z", until: "2026-10-06T10:00:00Z" };
+  const row = (extra: object, now = Date.parse("2026-10-05T11:00:00Z")) =>
+    attentionRows([{ ...item, ...extra }], f.entries, f.matches, 3, now)[0];
+
+  it("stays generic while the api sends no ready-checks, and never claims nobody pressed Play", () => {
+    const body = row({}).body;
+    expect(body).toMatch(/a player is holding a seat, the rules decide when the hold ends/);
+    expect(body).not.toMatch(/neither player pressed Play/);
+  });
+
+  it("names the player holding a live seat when ready-checks are present", () => {
+    const m = f.matches[0];
+    const body = row({ readyChecks: [{ entryId: m.slotA, expiresAt: "2026-10-05T11:10:00Z", outcome: "pending" }] }).body;
+    expect(body).toMatch(/pressed Play and holds a seat until \d\d:\d\d; the rules decide after that/);
+  });
+
+  it("an expired hold falls back to the generic copy", () => {
+    const m = f.matches[0];
+    expect(row({ readyChecks: [{ entryId: m.slotA, expiresAt: "2026-10-05T10:20:00Z", outcome: "pending" }] }).body).toMatch(/If a player is holding a seat/);
+  });
+});

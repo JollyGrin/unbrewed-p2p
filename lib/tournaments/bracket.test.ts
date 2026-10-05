@@ -159,3 +159,24 @@ describe("cellState", () => {
     expect(cellState(m)).toBe("decided");
   });
 });
+
+describe("final smoke fixes (#1239)", () => {
+  it("D7: a final decided without a game says the winner wins the tournament, never 'advances'", () => {
+    const b = fixtureBracket(4, 4);
+    b.decide(b.at(1, 0), "a", "result");
+    b.decide(b.at(1, 1), "b", "result");
+    b.decide(b.at(2, 0), "a", "deadline_higher_seed");
+    const view = buildBracket({ slug: "x", size: 4, status: "complete" }, b.entries, b.matches);
+    const final = view.rounds[1].cells[0];
+    expect(final.a.sub).toBe("wins the tournament");
+    expect(final.b.sub).toBe("no game played");
+    expect(final.note?.rule).toBe("Rule 2 · no result, and the organizer did not decide in 24h. The higher seed wins the tournament.");
+    // a semifinal decided the same way still advances
+    expect(view.rounds[0].cells[0].note?.rule).toBeNull();
+    const semi = fixtureBracket(4, 4);
+    semi.decide(semi.at(1, 0), "a", "deadline_higher_seed");
+    const sv = buildBracket({ slug: "x", size: 4, status: "running" }, semi.entries, semi.matches);
+    expect(sv.rounds[0].cells[0].a.sub).toBe("advances");
+    expect(sv.rounds[0].cells[0].note?.rule).toMatch(/higher seed advances\.$/);
+  });
+});

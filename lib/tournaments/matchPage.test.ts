@@ -1,6 +1,10 @@
 /** The match page's model (#1218): the six states and their lines, from fixtures. */
 import { FIXTURE_MATCH_YOU, FIXTURE_NOW, fixtureMatch, MATCH_FIXTURE_STATES } from "./fixtures";
 import {
+  decidedByRuleLine,
+  decisionLine,
+  organizerCutoff,
+  replaySeatNames,
   deadlineOutcome,
   deadlinePassedRule,
   deadlineReadyCheckText,
@@ -96,7 +100,7 @@ describe("matchPageState", () => {
   it("the organizer fallback names the right player: higher seed, or the round-robin final's better rank", () => {
     expect(deadlinePassedRule()).toBe("If they don't decide within 24h, the higher seed advances.");
     expect(deadlinePassedRule("group")).toBe("If they don't decide within 24h, the higher seed wins the match.");
-    expect(deadlinePassedRule("final")).toBe("If they don't decide within 24h, the player ranked higher in the standings wins.");
+    expect(deadlinePassedRule("final")).toBe("If they don't decide within 24h, the player ranked higher in the standings wins the tournament.");
   });
 
   it("a game that started before the deadline stays in play after it (settled rule 3)", () => {
@@ -159,5 +163,37 @@ describe("lastSeen", () => {
   it("labels honestly", () => {
     expect(lastSeen("2026-10-05T11:27:00Z", now)?.text).toBe("Last seen in this match 33 min ago");
     expect(lastSeen("2026-10-05T11:58:00Z", now)).toEqual({ online: true, text: "Online now" });
+  });
+});
+
+describe("final smoke fixes (#1239)", () => {
+  it("D2: decisionLine carries the organizer's note; rules and played results add nothing", () => {
+    const d = fixtureMatch("decided").detail;
+    expect(decisionLine(d)).toBeNull();
+    expect(decisionLine({ ...d, decision: { by: "organizer", note: "No-show", at: null } })).toBe("Decided by the organizer: No-show");
+    expect(decisionLine({ ...d, decision: { by: "organizer", note: null, at: null } })).toBe("Decided by the organizer.");
+    const rule = fixtureMatch("decided_by_rule").detail;
+    expect(decisionLine({ ...rule, decision: { by: "rules", note: null, at: null } })).toBeNull();
+    expect(decidedByRuleLine(rule)).toBe("Decided by Rule 1 · unanswered ready-check.");
+  });
+
+  it("D5: the cutoff is the deadline plus 24h", () => {
+    expect(organizerCutoff("2026-10-05T10:00:00.000Z")).toBe("2026-10-06T10:00:00.000Z");
+    expect(organizerCutoff(null)).toBeNull();
+  });
+
+  describe("D12: replaySeatNames", () => {
+    const d = fixtureMatch("decided").detail;
+    const game = { ...d.match.games[0], winnerEntry: d.match.slotB };
+    const [a, b] = [d.players.a!.username, d.players.b!.username];
+    it("maps seats by the game's winner", () => {
+      expect(replaySeatNames(d, game, { winner: "p2", heroes: { p1: "x", p2: "x" } })).toEqual({ p2: b, p1: a });
+      expect(replaySeatNames(d, { ...game, winnerEntry: d.match.slotA }, { winner: "p2", heroes: { p1: "x", p2: "x" } })).toEqual({ p2: a, p1: b });
+    });
+    it("falls back to the assigned heroes, and gives up on an unresolvable mirror", () => {
+      const noWinner = { ...game, winnerEntry: null, assignment: { heroes: { a: "kenshiro", b: "boba-fett" }, map: null } };
+      expect(replaySeatNames(d, noWinner, { winner: null, heroes: { p1: "boba-fett", p2: "kenshiro" } })).toEqual({ p2: a, p1: b });
+      expect(replaySeatNames(d, { ...noWinner, assignment: { heroes: { a: "k", b: "k" }, map: null } }, { winner: null, heroes: { p1: "k", p2: "k" } })).toBeNull();
+    });
   });
 });

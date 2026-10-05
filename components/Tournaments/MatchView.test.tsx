@@ -6,6 +6,7 @@ import { ChakraProvider } from "@chakra-ui/react";
 import { MatchBody } from "./MatchView";
 import { FIXTURE_MATCH_YOU, FIXTURE_NOW, fixtureMatch } from "@/lib/tournaments/fixtures";
 import type { MatchPageState } from "@/lib/tournaments/matchPage";
+import type { MatchDetail } from "@/lib/tournaments/types";
 import type { PlayPhase } from "@/lib/tournaments/usePlayMatch";
 
 jest.mock("next/router", () => ({ useRouter: () => ({ query: {}, isReady: true, push: jest.fn() }) }));
@@ -129,7 +130,8 @@ it("deadline passed, organizer deciding: no Play button, the 24h rule, deadline 
   renderState("deadline_passed");
   expect(screen.getByTestId("match-page")).toHaveAttribute("data-state", "deadline_passed");
   expect(banner()).toHaveTextContent("The deadline has passed. The organizer is deciding this match.");
-  expect(banner()).toHaveTextContent("If they don't decide within 24h, the higher seed advances.");
+  // deadline = now - 1h, so the organizer's cutoff is now + 23h (D5).
+  expect(banner()).toHaveTextContent("If they don't decide by Tue 6 Oct, 13:00, the higher seed advances.");
   expect(banner()).not.toHaveTextContent("Play any time");
   expect(screen.queryByTestId("play-box")).not.toBeInTheDocument();
   expect(screen.queryByTestId("play-button")).not.toBeInTheDocument();
@@ -171,8 +173,9 @@ it("decided by deadline rule: names the rule and marks it applied", () => {
   renderState("decided_by_rule");
   expect(banner()).toHaveTextContent("Decided by the deadline rule. hokuto_shin advances.");
   expect(banner()).toHaveTextContent("Rule 1 · unanswered ready-check");
-  expect(screen.getByText("If the deadline passes")).toBeInTheDocument();
-  expect(screen.getByText("Applied")).toBeInTheDocument();
+  // D6: the full rules card is gone; one line names the rule.
+  expect(screen.queryByText("If the deadline passes")).not.toBeInTheDocument();
+  expect(screen.getByTestId("decided-by-rule")).toHaveTextContent("Decided by Rule 1 · unanswered ready-check.");
   expect(screen.getByTestId("games-list")).toHaveTextContent("No game was played before");
   expect(screen.getByTestId("ready-checks")).toHaveTextContent("You pressed Play · no answer");
 });
@@ -194,4 +197,105 @@ it("shows why a ready failed, and the room-opening wait", () => {
 it("shows the latest possible final", () => {
   renderState("waiting");
   expect(screen.getByTestId("latest-final")).toHaveTextContent("Latest possible final");
+});
+
+describe("final smoke fixes (#1239)", () => {
+  const draw = (d: MatchDetail, extra: Partial<Parameters<typeof MatchBody>[0]> = {}) => {
+    const f = fixtureMatch("waiting");
+    return render(
+      <ChakraProvider>
+        <MatchBody d={d} t={f.tournament} myUserId={null} signedOut={false} now={NOW} phase={{ kind: "idle" }} onPlay={() => {}} {...extra} />
+      </ChakraProvider>,
+    );
+  };
+
+  it("D2: shows the organizer's override note on the match page, for a guest too", () => {
+    const d = fixtureMatch("decided").detail;
+    d.match.decidedBy = "organizer";
+    d.decision = { by: "organizer", note: "Opponent no-showed twice", at: null };
+    draw(d);
+    expect(screen.getByTestId("decision-note")).toHaveTextContent("Decided by the organizer: Opponent no-showed twice");
+  });
+
+  it("D2: an organizer decision without a note, and a played result, say nothing extra", () => {
+    const d = fixtureMatch("decided").detail;
+    d.decision = { by: "organizer", note: null, at: null };
+    const { unmount } = draw(d);
+    expect(screen.getByTestId("decision-note")).toHaveTextContent("Decided by the organizer.");
+    unmount();
+    draw({ ...d, decision: null });
+    expect(screen.queryByTestId("decision-note")).not.toBeInTheDocument();
+  });
+
+  it("D5: the organizer's own view says 'You are deciding', shows the cutoff and offers no Set matchup", () => {
+    const f = fixtureMatch("deadline_passed");
+    render(
+      <ChakraProvider>
+        <MatchBody d={f.detail} t={f.tournament} myUserId="u1" signedOut={false} now={NOW} phase={{ kind: "idle" }} onPlay={() => {}} organizer={{ entries: f.entries, reload: () => {} }} />
+      </ChakraProvider>,
+    );
+    expect(banner()).toHaveTextContent("The deadline has passed. You are deciding this match.");
+    expect(banner()).not.toHaveTextContent("The organizer is deciding");
+    expect(banner()).toHaveTextContent("Decide by Tue 6 Oct, 13:00, or the higher seed advances.");
+    expect(screen.getByTestId("organizer-panel")).toHaveTextContent("Override result");
+    expect(screen.getByTestId("organizer-panel")).not.toHaveTextContent("Set matchup");
+  });
+
+  it("D5: an open match still offers Set matchup to the organizer", () => {
+    const f = fixtureMatch("waiting");
+    render(
+      <ChakraProvider>
+        <MatchBody d={f.detail} t={f.tournament} myUserId="u1" signedOut={false} now={NOW} phase={{ kind: "idle" }} onPlay={() => {}} organizer={{ entries: f.entries, reload: () => {} }} />
+      </ChakraProvider>,
+    );
+    expect(screen.getByTestId("organizer-panel")).toHaveTextContent("Set matchup");
+  });
+
+  it("D6: a result-decided match hides the rules card", () => {
+    renderState("decided");
+    expect(screen.queryByText("If the deadline passes")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("decided-by-rule")).not.toBeInTheDocument();
+  });
+
+  it("D6: one numbering — Rule 1 / Rule 2 — in the card and the banner", () => {
+    const { unmount } = renderState("waiting");
+    const card = screen.getByText("If the deadline passes").parentElement!;
+    expect(card).toHaveTextContent("Rule 1 · unanswered ready-check");
+    expect(card).toHaveTextContent("Rule 2 · otherwise the organizer decides within 24h");
+    unmount();
+    const d = fixtureMatch("decided_by_rule").detail;
+    d.match.decidedBy = "deadline_higher_seed";
+    draw(d);
+    expect(banner()).toHaveTextContent("Rule 2 · organizer did not decide in 24h");
+  });
+
+  it("D7: a final decided by a rule says the winner wins the tournament", () => {
+    const f = fixtureMatch("decided_by_rule");
+    const m = { ...f.detail.match, round: 3, position: 0, nextMatchId: null, nextSlot: null, decidedBy: "deadline_higher_seed" as const };
+    draw({ ...f.detail, match: m });
+    expect(banner()).toHaveTextContent("hokuto_shin wins the tournament.");
+    expect(banner()).not.toHaveTextContent("advances");
+  });
+
+  it("D9: a decided players-choose match with no recorded heroes or board points at the replay", () => {
+    const f = fixtureMatch("decided");
+    const d: MatchDetail = {
+      ...f.detail,
+      match: { ...f.detail.match, matchup: { heroes: { a: null, b: null }, map: null }, matchupRule: { mode: "free" }, games: f.detail.match.games.map((g) => ({ ...g, assignment: { heroes: { a: null, b: null }, map: null } })) },
+    };
+    draw(d);
+    expect(screen.queryByText("Random board")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Dealt at random/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("matchup-unrecorded")).toHaveTextContent("Heroes and board: see the replay");
+    fireEvent.click(screen.getByTestId("matchup-replay-link"));
+    expect(screen.getByTestId("replay-open")).toBeInTheDocument();
+  });
+
+  it("D9: a decided match with no game says so instead of describing a random board", () => {
+    const f = fixtureMatch("decided_by_rule");
+    const d: MatchDetail = { ...f.detail, match: { ...f.detail.match, matchup: { heroes: { a: null, b: null }, map: null }, matchupRule: { mode: "free" } } };
+    draw(d);
+    expect(screen.getByTestId("matchup-unrecorded")).toHaveTextContent("No game was played");
+    expect(screen.queryByText("Random board")).not.toBeInTheDocument();
+  });
 });

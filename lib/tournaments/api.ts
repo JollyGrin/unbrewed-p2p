@@ -201,7 +201,13 @@ export type AttentionItem = {
   round: number;
   position: number;
 } & (
-  | { kind: "awaiting_organizer"; deadlineAt: string; until: string }
+  | {
+      kind: "awaiting_organizer";
+      deadlineAt: string;
+      until: string;
+      /** NOT sent by the api yet (D3): when it is, a live hold names who holds the seat. */
+      readyChecks?: { entryId: string; expiresAt: string; outcome: "pending" | "answered" | "unanswered" }[];
+    }
   | {
       kind: "deadline_passed";
       deadlineAt: string;

@@ -31,6 +31,7 @@ import {
   CardMeta,
   FighterId,
   PlayerId,
+  PlayerView,
   ReplayExpansion,
   ViewFighter,
   ViewToken,
@@ -166,6 +167,12 @@ interface ScrubberProps {
   cosmetics?: Record<string, string>;
   onExit?: () => void;
   exitLabel?: string;
+  /**
+   * Nameplate text per runtime seat id. For a viewer who played neither side
+   * (a signed-out guest, a spectator) "You"/"Opponent" is meaningless, so the
+   * tournament match page names both seats. Absent = the usual labels.
+   */
+  seatNames?: Partial<Record<PlayerId, string>>;
 }
 
 /**
@@ -205,11 +212,20 @@ export const ReplayScrubber = (props: ScrubberProps) => {
   return <ScrubberBody {...props} notice={notice} />;
 };
 
+/** Stamp claimed names onto a replay view's seats so the HUD plates read them instead of You/Opponent. */
+const withSeatNames = (v: PlayerView, names: Partial<Record<PlayerId, string>>): PlayerView => ({
+  ...v,
+  players: v.players.map((p) => (names[p.id] ? { ...p, displayName: names[p.id] } : p)),
+  self: names[v.self.id] ? { ...v.self, displayName: names[v.self.id] } : v.self,
+  opponent: v.opponent && names[v.opponent.id] ? { ...v.opponent, displayName: names[v.opponent.id] } : v.opponent,
+});
+
 const ScrubberBody = ({
   expansion,
   cosmetics: cosmeticBlobs,
   onExit,
   exitLabel = "← back to replays",
+  seatNames,
   notice,
 }: ScrubberProps & { notice: ReplayVerificationNotice }) => {
   const { steps, catalog, map, meta } = expansion;
@@ -261,7 +277,10 @@ const ScrubberBody = ({
     cosmetics,
   );
 
-  const view = useMemo(() => toPlayerView(step, { map, catalog }, focus), [step, map, catalog, focus]);
+  const view = useMemo(() => {
+    const v = toPlayerView(step, { map, catalog }, focus);
+    return seatNames ? withSeatNames(v, seatNames) : v;
+  }, [step, map, catalog, focus, seatNames]);
   // owner seat -> heroId, so the board resolves each fighter's token art by hero
   // (ViewFighter carries owner + kind, not heroId). Mirrors pages/pro/game.tsx.
   const ownerHeroIds = useMemo(() => {

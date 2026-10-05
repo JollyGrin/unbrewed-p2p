@@ -15,6 +15,7 @@ import {
   type RoundView,
   type SlotView,
 } from "@/lib/tournaments/bracket";
+import { deadlinePassed } from "@/lib/tournaments/matchPage";
 import type { Entry } from "@/lib/tournaments/types";
 
 const SURFACE = "#3A2140";
@@ -110,7 +111,7 @@ const Player = ({ s, tbd }: { s: SlotView; tbd: boolean }) => (
   </Flex>
 );
 
-const Tag = ({ c }: { c: CellView }) => {
+const Tag = ({ c, late }: { c: CellView; late: boolean }) => {
   let right: React.ReactNode = null;
   if (c.state === "in_play")
     right = (
@@ -131,7 +132,7 @@ const Tag = ({ c }: { c: CellView }) => {
         {c.note.tag}
       </Text>
     );
-  else if (c.state === "ready") right = <Text as="span">Ready to play</Text>;
+  else if (c.state === "ready") right = <Text as="span">{late ? "Deadline passed" : "Ready to play"}</Text>;
   return (
     <Caption as="div" display="flex" justifyContent="space-between" gap="8px" px="12px" pt="7px" color={c.state === "waiting" ? "rgba(250,235,215,0.45)" : SOFT}>
       <span>{c.code}</span>
@@ -150,6 +151,8 @@ export const MatchCell = ({ c, now }: { c: CellView; now: number }) => {
   const tbd = c.state === "waiting";
   const left = c.state === "ready" || c.state === "in_play" ? timeLeft(c.deadlineAt, now) : null;
   const rule = c.state === "decided" && !!c.note?.rule;
+  // D4: an open match past its deadline is no longer "waiting for a game" (same state as the match page's deadline_passed).
+  const late = c.state === "ready" && deadlinePassed(c.deadlineAt, now);
   const ring =
     c.state === "in_play"
       ? `0 0 0 2px ${DANGER}, `
@@ -179,7 +182,7 @@ export const MatchCell = ({ c, now }: { c: CellView; now: number }) => {
       _hover={linked ? { transform: "translateY(-2px) rotate(-.3deg)" } : undefined}
       sx={{ "@media (prefers-reduced-motion: reduce)": { transition: "none", _hover: { transform: "none" } } }}
     >
-      <Tag c={c} />
+      <Tag c={c} late={late} />
       {(c.matchup.heroes || c.matchup.map) && !tbd && c.decidedBy !== "bye" && (
         <Flex gap="6px" flexWrap="wrap" px="12px" pt="6px" pb="2px">
           {c.matchup.heroes && <Mu>{c.matchup.heroes}</Mu>}
@@ -203,7 +206,7 @@ export const MatchCell = ({ c, now }: { c: CellView; now: number }) => {
         color={tbd ? "rgba(250,235,215,0.55)" : c.state === "unverified" ? GOLD_INK : "rgba(72,40,79,0.72)"}
         fontWeight={c.state === "unverified" ? 600 : 400}
       >
-        <Text as="span">{c.foot}</Text>
+        <Text as="span">{late ? "Deadline passed" : c.foot}</Text>
         {left && (
           <Text as="span" fontWeight={700} color={GOLD_INK} whiteSpace="nowrap" sx={{ fontVariantNumeric: "tabular-nums" }}>
             {left} left

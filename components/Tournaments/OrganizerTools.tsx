@@ -347,11 +347,14 @@ export const MatchOrganizerPanel = ({
   match,
   entries,
   reload,
+  deadlinePassed = false,
 }: {
   slug: string;
   match: Match;
   entries: Entry[];
   reload: () => void;
+  /** Past the deadline nobody plays any more, so a matchup is moot (D5). */
+  deadlinePassed?: boolean;
 }) => {
   const [open, setOpen] = useState<"override" | "matchup" | null>(null);
   const done = () => {
@@ -370,7 +373,7 @@ export const MatchOrganizerPanel = ({
         Organizer only
       </Text>
       <Flex gap="8px" mt="8px" flexWrap="wrap">
-        {match.status !== "decided" && (
+        {match.status !== "decided" && !deadlinePassed && (
           <Btn
             variant="ghost"
             onClick={() => setOpen(open === "matchup" ? null : "matchup")}
@@ -447,7 +450,7 @@ export const AttentionQueue = ({
   const rows = useMemo(
     () =>
       data.status === "ready"
-        ? attentionRows(data.value, entries, matches, roundCount(t.size))
+        ? attentionRows(data.value, entries, matches, roundCount(t.size), now)
         : [],
     [data, entries, matches, t.size],
   );

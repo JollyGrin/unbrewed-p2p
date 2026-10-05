@@ -66,10 +66,14 @@ export const DECIDED_NOTE: Record<DecidedBy, DecidedNote> = {
   },
   deadline_higher_seed: {
     tag: "By deadline rule",
-    rule: "Rule 2 · no result by the deadline. The higher seed advances.",
+    rule: "Rule 2 · no result, and the organizer did not decide in 24h. The higher seed advances.",
   },
   bye: { tag: "Bye", rule: null },
 };
+
+/** The final has no next round: whoever it names wins the tournament, not "advances". */
+export const finalWording = (text: string | null, isFinal: boolean): string | null =>
+  text && isFinal ? text.replace(/ advances\.$/, " wins the tournament.") : text;
 
 export interface SlotView {
   /** Entry id when the player is known. */
@@ -218,7 +222,7 @@ export const buildBracket = (
     const playedGame = m.games.some((g) => g.finishedAt && !g.rejectedAt && g.winnerEntry);
     let sub = hero ? heroDisplayName(hero) : "";
     if (decided && m.decidedBy === "bye") sub = "advances on a bye";
-    else if (decided && !playedGame) sub = won ? "advances" : "no game played";
+    else if (decided && !playedGame) sub = won ? (m.round === rounds ? "wins the tournament" : "advances") : "no game played";
     else if (entry.leftAt && !decided) sub = "left the tournament";
     return {
       entryId: id,
@@ -259,7 +263,8 @@ export const buildBracket = (
       const m = byPos.get(`${r}:${p}`);
       if (!m) continue;
       const state = cellState(m);
-      const note = state === "decided" && m.decidedBy ? DECIDED_NOTE[m.decidedBy] : null;
+      const base = state === "decided" && m.decidedBy ? DECIDED_NOTE[m.decidedBy] : null;
+      const note = base && { ...base, rule: finalWording(base.rule, r === rounds) };
       const heroes =
         m.matchup.heroes.a && m.matchup.heroes.b
           ? `${heroDisplayName(m.matchup.heroes.a)} vs ${heroDisplayName(m.matchup.heroes.b)}`
