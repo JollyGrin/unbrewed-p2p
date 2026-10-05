@@ -147,3 +147,52 @@ describe("D4: deadline passed on an open match (#1239)", () => {
     expect(screen.getByTestId("match-cell")).not.toHaveTextContent("Waiting for a game");
   });
 });
+
+describe("#1246 N2/N3/N5", () => {
+  it("N2: a decided match with only a late-recorded game says so in the bracket cell", () => {
+    const b = fixtureBracket(4, 4);
+    b.decide(b.at(1, 0), "a", "organizer");
+    const m = b.at(1, 0);
+    m.games = [{ ...(fixtureComplete4().matches[0].games[0]), recordedAfterDecision: true }];
+    const view = buildBracket({ slug: "x", size: 4, status: "running" }, b.entries, b.matches);
+    const cell = view.rounds[0].cells[0];
+    expect(`${cell.a.sub}|${cell.b.sub}`).toContain("a game that was in progress finished afterwards (not counted)");
+    expect(`${cell.a.sub}|${cell.b.sub}`).not.toContain("no game played");
+  });
+
+  it("N3: a cancelled tournament has no crown line, no open rounds, nobody still in", () => {
+    const p = fixtureRunning8();
+    const t = { ...p.tournament, status: "cancelled" as const };
+    render(
+      <ChakraProvider>
+        <BracketEventView t={t} entries={p.entries} matches={p.matches.map((m) => ({ ...m, cancelled: m.status !== "decided" }))} />
+      </ChakraProvider>,
+    );
+    expect(document.body).not.toHaveTextContent("Latest possible final");
+    expect(document.body).not.toHaveTextContent("Crowned automatically");
+    expect(document.body).not.toHaveTextContent("To be crowned");
+    expect(document.body).not.toHaveTextContent("Still in");
+    expect(screen.getAllByTestId("champion-cancelled").length).toBeGreaterThan(0);
+  });
+
+  it("N3: an untouched open round reads Cancelled", () => {
+    const b = fixtureBracket(4, 4);
+    const run = buildBracket({ slug: "x", size: 4, status: "running" }, b.entries, b.matches);
+    expect(run.rounds[0].summary).toBe("open");
+    const dead = buildBracket({ slug: "x", size: 4, status: "cancelled" }, b.entries, b.matches);
+    expect(dead.rounds[0].summary).toBe("Cancelled");
+  });
+
+  it("N5: past the deadline with a live pre-deadline hold names the holder", () => {
+    const b = fixtureBracket(4, 4);
+    b.at(1, 0).deadlineAt = "2026-10-05T10:00:00Z";
+    const until = "2026-10-05T12:30:00Z";
+    const view = buildBracket({ slug: "x", size: 4, status: "running" }, b.entries, b.matches, { "m1-0": { name: "hokuto", until } });
+    render(
+      <ChakraProvider>
+        <MatchCell c={view.rounds[0].cells[0]} now={Date.parse("2026-10-05T12:00:00Z")} />
+      </ChakraProvider>,
+    );
+    expect(screen.getByTestId("match-cell")).toHaveTextContent(/Deadline passed · hokuto is holding a seat until \d\d:\d\d/);
+  });
+});

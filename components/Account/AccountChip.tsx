@@ -78,6 +78,8 @@ const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => {
       borderColor="brand.accent"
       color="brand.parchment"
       minW="9rem"
+      // Bounded to the viewport: a long next-match title must wrap, not widen the page (#1246).
+      maxW="min(20rem, calc(100vw - 1rem))"
       py="0.25rem"
       // Above the HUD's own chip/overlay ladder, so the menu isn't painted
       // under the board furniture on /pro.
@@ -93,6 +95,9 @@ const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => {
           flexDir="column"
           alignItems="flex-start"
           gap="0.1rem"
+          minW={0}
+          maxW="100%"
+          whiteSpace="normal"
           borderBottom="1px solid"
           borderColor="whiteAlpha.300"
           pb="0.5rem"
@@ -100,12 +105,12 @@ const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => {
           <Text as="span" fontSize="0.7rem" letterSpacing="0.08em" textTransform="uppercase" color="brand.accent">
             Your next match
           </Text>
-          <Text as="span" fontWeight={700}>{next.title}</Text>
-          <Text as="span" fontSize="0.8rem" opacity={0.75}>
+          <Text as="span" fontWeight={700} maxW="100%" wordBreak="break-word" overflowWrap="anywhere">{next.title}</Text>
+          <Text as="span" fontSize="0.8rem" opacity={0.75} maxW="100%" wordBreak="break-word" overflowWrap="anywhere">
             {[next.tournamentName, next.timeLeft].filter(Boolean).join(" · ")}
           </Text>
           {next.notice && (
-            <Text as="span" fontSize="0.8rem" opacity={0.75} whiteSpace="normal" maxW="16rem" data-testid="menu-next-match-notice">
+            <Text as="span" fontSize="0.8rem" opacity={0.75} whiteSpace="normal" maxW="100%" wordBreak="break-word" overflowWrap="anywhere" data-testid="menu-next-match-notice">
               {next.notice}
             </Text>
           )}

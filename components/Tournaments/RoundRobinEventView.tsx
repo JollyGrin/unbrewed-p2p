@@ -268,7 +268,7 @@ export const RoundRobinEventView = ({
               <Text as="span" color={GOLD}>♛</Text> Champion: <Text as="b" color={PARCHMENT}>{view.champion.username}</Text>
             </Text>
           ) : (
-            t.latestPossibleFinal && (
+            t.status !== "cancelled" && t.latestPossibleFinal && (
               <Text mt="12px" fontSize="13px">
                 <Text as="span" color={GOLD}>♛</Text> {hasTop2Final(t) ? "Latest possible final" : "Latest possible finish"}: <Text as="b" color={PARCHMENT}>{formatWhen(t.latestPossibleFinal)}</Text> · if every match runs to its deadline
               </Text>

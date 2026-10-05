@@ -43,10 +43,12 @@ export const formatWhen = (iso: string | null): string => {
  * Escape Discord Markdown in a user-supplied string so a hostile name like
  * `[x](https://phish)` posts as plain text, not a masked link or a mention.
  * Backslash-escapes `\ * _ ~ \` | > [ ] ( )`, a leading `#` / `-` / `>`, and
- * defuses `@` (everyone/here/user mentions) with a zero-width space.
+ * defuses `@` (everyone/here/user mentions) with a zero-width space, and
+ * defangs raw URLs (`https://x` → `https:\u200b/\u200b/x`) so Discord doesn't autolink them.
  */
 export const escapeDiscord = (raw: string): string =>
   raw
+    .replace(/\b([a-z][a-z0-9+.-]*:)(\/{1,2})/gi, (_m, scheme: string, slashes: string) => `${scheme}\u200b${slashes.split("").join("\u200b")}\u200b`)
     .replace(/[\\*_~`|>\[\]()]/g, "\\$&")
     .replace(/^(\s*)([#-])/gm, "$1\\$2")
     .replace(/@/g, "@\u200b");

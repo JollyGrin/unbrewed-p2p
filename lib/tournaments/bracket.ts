@@ -107,6 +107,8 @@ export interface CellView {
   /** Footer text. */
   foot: string;
   deadlineAt: string | null;
+  /** A live ready-check hold that started before the deadline (organizer view only; the list carries none). */
+  hold: { name: string; until: string } | null;
   /** The match page link; null for cells with nothing to open (waiting, bye). */
   href: string | null;
   /** The winner's line to the next round draws gold. */
@@ -128,6 +130,8 @@ export interface BracketView {
   rounds: RoundView[];
   /** Champion entry once the final is decided. */
   champion: Entry | null;
+  /** The tournament was cancelled: no crown, no "open" rounds. */
+  cancelled: boolean;
   stats: {
     players: number;
     /** The earliest round with an undecided match (rounds.length when done). */
@@ -157,6 +161,10 @@ export const seedOrder = (size: number): number[] => {
 };
 
 /** A game that counts toward the score: finished, not rejected, not recorded after the organizer decided. */
+/** A game that was in play when the organizer decided the match and finished afterwards (api `recordedAfterDecision`). */
+export const hasLateGame = (m: Match): boolean => m.games.some((g) => !!g.recordedAfterDecision);
+export const LATE_GAME_NOTE = "Decided by the organizer; a game that was in progress finished afterwards (not counted)";
+
 export const countsGame = (g: Game): boolean => !!g.finishedAt && !g.rejectedAt && !g.recordedAfterDecision;
 
 /** An undecided match of a cancelled tournament: never in play, never playable. */
@@ -186,6 +194,7 @@ export const buildBracket = (
   t: Pick<Tournament, "slug" | "size" | "status">,
   entries: readonly Entry[],
   matches: readonly Match[],
+  holds: Readonly<Record<string, { name: string; until: string }>> = {},
 ): BracketView => {
   const rounds = roundCount(t.size);
   const byId = new Map(entries.map((e) => [e.id, e]));
@@ -229,7 +238,7 @@ export const buildBracket = (
     const playedGame = m.games.some((g) => countsGame(g) && g.winnerEntry);
     let sub = hero ? heroDisplayName(hero) : "";
     if (decided && m.decidedBy === "bye") sub = "advances on a bye";
-    else if (decided && !playedGame) sub = won ? (m.round === rounds ? "wins the tournament" : "advances") : "no game played";
+    else if (decided && !playedGame) sub = won ? (m.round === rounds ? "wins the tournament" : "advances") : hasLateGame(m) ? LATE_GAME_NOTE : "no game played";
     else if (entry.leftAt && !decided) sub = "left the tournament";
     return {
       entryId: id,
@@ -292,6 +301,7 @@ export const buildBracket = (
         override: m.matchupOverride,
         foot: foot(m, state, note),
         deadlineAt: m.deadlineAt,
+        hold: holds[m.id] ?? null,
         href: state === "waiting" || m.decidedBy === "bye" ? null : matchHref(t.slug, m.id),
         feedsWinner: state === "decided" && !!m.winner && r < rounds,
       });
@@ -311,7 +321,9 @@ export const buildBracket = (
           : decided > 0
             ? `${decided}/${cells.length} decided`
             : cells.some((c) => c.state !== "waiting")
-              ? "open"
+              ? t.status === "cancelled"
+                ? "Cancelled"
+                : "open"
               : "waiting",
     });
   }
@@ -323,6 +335,7 @@ export const buildBracket = (
   return {
     rounds: roundViews,
     champion,
+    cancelled: t.status === "cancelled",
     stats: {
       // Everyone placed in round 1, including anyone who has since left.
       players: new Set(
@@ -355,6 +368,7 @@ export const entrantRows = (
   size: number,
   entries: readonly Entry[],
   matches: readonly Match[],
+  cancelled = false,
 ): EntrantRow[] => {
   const rounds = roundCount(size);
   const placed = new Set(
@@ -372,6 +386,8 @@ export const entrantRows = (
       );
       if (lost) return { entry, status: `Out in ${matchCode(lost.round, lost.position, rounds)}`, tone: "done" as const };
       if (entry.leftAt) return { entry, status: "Left", tone: "done" as const };
+      // A cancelled event has nobody still in it (#1246).
+      if (cancelled) return { entry, status: "Out", tone: "done" as const };
       const playing = matches.some(
         (m) => (m.slotA === entry.id || m.slotB === entry.id) && cellState(m) === "in_play",
       );
