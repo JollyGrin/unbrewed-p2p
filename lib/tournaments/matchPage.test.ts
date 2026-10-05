@@ -43,6 +43,9 @@ it("titles matches by round", () => {
   expect(matchTitle(1, 0, 8)).toBe("Quarterfinal 1");
   expect(matchTitle(3, 0, 8)).toBe("Final");
   expect(matchTitle(1, 3, 16)).toBe("Round of 16 · Match 4");
+  // Round robin: rounds only group the list, there are no semifinals (#1221).
+  expect(matchTitle(2, 1, 4, "group")).toBe("Round 2 · Match 2");
+  expect(matchTitle(4, 0, 4, "final")).toBe("Final");
 });
 
 it("counts a seat hold down as M:SS", () => {

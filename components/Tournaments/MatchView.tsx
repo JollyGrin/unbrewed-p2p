@@ -87,7 +87,7 @@ export const MatchView = ({ slug, matchId }: { slug: string; matchId: string }) 
   const crumbs = (here: string) => (
     <>
       <NextLink href="/tournaments">Tournaments</NextLink> / <NextLink href={tournamentPath(slug)}>
-        {event.status === "ready" ? event.value.tournament.name : "Bracket"}
+        {event.status === "ready" ? event.value.tournament.name : "Tournament"}
       </NextLink> / {here}
     </>
   );
@@ -161,7 +161,9 @@ export const MatchBody = ({
   const state = matchPageState(d, myUserId, now);
   const side = mySide(d, myUserId);
   const size = t?.size ?? 2 ** Math.max(m.round, 1);
-  const title = matchTitle(m.round, m.position, size);
+  const title = matchTitle(m.round, m.position, size, m.stage);
+  const group = m.stage === "group";
+  const roundRobin = group || m.stage === "final";
   const next = nextMatchTitle(d, size);
   const opp = side === "a" ? d.players.b : side === "b" ? d.players.a : null;
   const oppName = playerName(opp);
@@ -196,7 +198,7 @@ export const MatchBody = ({
         data-state={state}
       >
         <Card overflow="hidden" p={0}>
-          <Banner state={state} d={d} title={title} next={next} oppName={oppName} side={side} now={now} unverified={unverified} winnerName={playerName(winner)} />
+          <Banner state={state} d={d} title={title} next={next} group={group} oppName={oppName} side={side} now={now} unverified={unverified} winnerName={playerName(winner)} />
           <Versus d={d} state={state} side={side} now={now} />
           {side && (
             <PlayBox
@@ -237,7 +239,7 @@ export const MatchBody = ({
             <MatchOrganizerPanel slug={d.tournament.slug} match={m} entries={organizer.entries} reload={organizer.reload} />
           )}
           <DeadlineCard d={d} t={t} state={state} now={now} />
-          <RulesCard d={d} state={state} />
+          <RulesCard d={d} state={state} group={group} />
           <ReadyChecksCard d={d} myUserId={myUserId} />
           {next && (
             <Card p="18px">
@@ -259,6 +261,7 @@ export const MatchBody = ({
         seatHeld={room ? seatClock(room.expiresAt, now) : null}
         roomId={room?.roomId ?? liveGame?.roomId ?? null}
         bracketHref={tournamentPath(d.tournament.slug)}
+        standings={roundRobin}
         onReplay={replayGame ? () => setWatching(replayGame) : null}
       />
       {watching && (
@@ -284,12 +287,15 @@ const Banner = ({
   d,
   title,
   next,
+  group,
   oppName,
   side,
   now,
   unverified,
   winnerName,
 }: {
+  /** Round-robin group match: nobody "advances", the winner takes the match. */
+  group: boolean;
   state: MatchPageState;
   d: MatchDetail;
   title: string;
@@ -321,7 +327,9 @@ const Banner = ({
       break;
     }
     case "decided":
-      text = !next
+      text = group
+        ? `Decided. ${winnerName} wins the match.`
+        : !next
         ? `Decided. ${winnerName} wins the tournament.`
         : `Decided. ${winnerName} advances to the ${next}.`;
       small =
@@ -334,7 +342,9 @@ const Banner = ({
               : `${title} · ${shortDate(m.games.at(-1)?.finishedAt ?? null)}`;
       break;
     case "decided_by_rule":
-      text = `Decided by the deadline rule. ${winnerName} advances.`;
+      text = group
+        ? `Decided by the deadline rule. ${winnerName} takes the win.`
+        : `Decided by the deadline rule. ${winnerName} advances.`;
       small =
         m.decidedBy === "deadline_ready_check"
           ? "Rule 1 · unanswered ready-check"
@@ -428,7 +438,7 @@ const Versus = ({ d, state, side, now }: { d: MatchDetail; state: MatchPageState
     if (!p) return { line: null, online: false };
     if (decided)
       return {
-        line: m.winner && m.winner !== entry ? `Seed ${p.seed ?? "–"} · eliminated` : `Seed ${p.seed ?? "–"}`,
+        line: m.winner && m.winner !== entry && !m.stage?.match(/^(group|final)$/) ? `Seed ${p.seed ?? "–"} · eliminated` : `Seed ${p.seed ?? "–"}`,
         online: false,
       };
     if (state === "in_play" || room?.readyEntryId === entry) return { line: "Online now", online: true };
@@ -594,8 +604,10 @@ const StickyPlay = ({
   seatHeld,
   roomId,
   bracketHref,
+  standings = false,
   onReplay,
 }: {
+  standings?: boolean;
   state: MatchPageState;
   side: "a" | "b" | null;
   phase: PlayPhase;
@@ -614,7 +626,7 @@ const StickyPlay = ({
   else if (side && state === "you_ready") btn = <Btn variant="gold" onClick={onPlay} disabled={busy}>Take your seat here · {seatHeld}</Btn>;
   else if (side && state === "in_play" && back) btn = <Btn variant="gold" href={back}>Back to game</Btn>;
   else if (state === "decided" && onReplay) btn = <Btn variant="ink" onClick={onReplay}>Watch the replay</Btn>;
-  else if (state === "decided" || state === "decided_by_rule") btn = <Btn variant="ghost" href={bracketHref}>See the bracket</Btn>;
+  else if (state === "decided" || state === "decided_by_rule") btn = <Btn variant="ghost" href={bracketHref}>{standings ? "See the standings" : "See the bracket"}</Btn>;
   if (!btn) return null;
   return (
     <Flex
@@ -850,7 +862,7 @@ const DeadlineCard = ({ d, t, state, now }: { d: MatchDetail; t: Tournament | nu
   );
 };
 
-const RulesCard = ({ d, state }: { d: MatchDetail; state: MatchPageState }) => {
+const RulesCard = ({ d, state, group = false }: { d: MatchDetail; state: MatchPageState; group?: boolean }) => {
   const hit = state === "decided_by_rule" ? d.match.decidedBy : null;
   const higher = (() => {
     const a = d.players.a;
@@ -868,8 +880,8 @@ const RulesCard = ({ d, state }: { d: MatchDetail; state: MatchPageState }) => {
     <Card p="18px">
       <Text {...caption} mb="8px">If the deadline passes</Text>
       <Box as="ol" m={0} p={0} display="flex" flexDir="column" gap="4px">
-        {li(hit === "deadline_ready_check", <><b>Unanswered ready-check.</b> If one player pressed Play and the other never joined, the player who was ready advances.</>)}
-        {li(hit === "deadline_higher_seed", <><b>Otherwise the organizer decides</b> within 24h. If they don&apos;t, the higher seed{higher ? <> (<b>{playerName(higher)}</b>)</> : ""} advances.</>)}
+        {li(hit === "deadline_ready_check", <><b>Unanswered ready-check.</b> If one player pressed Play and the other never joined, the player who was ready {group ? "takes the win" : "advances"}.</>)}
+        {li(hit === "deadline_higher_seed", <><b>Otherwise the organizer decides</b> within 24h. If they don&apos;t, the higher seed{higher ? <> (<b>{playerName(higher)}</b>)</> : ""} {group ? "takes the win" : "advances"}.</>)}
       </Box>
       <Text fontSize="12px" color={INK_MUTED} mt="8px">A game that started before the deadline finishes and counts.</Text>
     </Card>

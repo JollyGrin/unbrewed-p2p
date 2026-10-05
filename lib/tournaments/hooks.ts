@@ -9,7 +9,7 @@ import {
   listTournaments,
   type Result,
 } from "./api";
-import type { Entry, Match, MatchDetail, Tournament } from "./types";
+import type { Entry, Match, MatchDetail, Standing, Tournament } from "./types";
 
 export type Loaded<T> =
   | { status: "loading" }
@@ -53,7 +53,7 @@ export const useTournamentList = (signedIn: boolean) => {
 };
 
 export const useTournament = (slug: string | null) =>
-  useLoad<{ tournament: Tournament; entries: Entry[]; matches: Match[] }>(
+  useLoad<{ tournament: Tournament; entries: Entry[]; matches: Match[]; standings: Standing[] | null }>(
     slug ? () => getTournament(slug) : null,
     slug ?? "",
   );

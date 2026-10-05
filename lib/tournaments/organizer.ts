@@ -55,7 +55,12 @@ export const attentionRows = (
 ): AttentionRow[] => {
   const rows = items.flatMap((item, i): AttentionRow[] => {
     const m = matches.find((x) => x.id === item.matchId);
-    const code = matchCode(item.round, item.position, rounds);
+    const code =
+      m?.stage === "final"
+        ? "Final"
+        : m?.stage === "group"
+          ? `R${item.round} · ${item.position + 1}`
+          : matchCode(item.round, item.position, rounds);
     const a = nameOf(entries, m?.slotA ?? null);
     const b = nameOf(entries, m?.slotB ?? null);
     const vs = `${a} vs ${b}`;
