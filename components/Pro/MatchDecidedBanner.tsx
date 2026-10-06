@@ -10,9 +10,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { useAccount } from "@/lib/account/useAccount";
 import { tournamentMatchHref, type TournamentRoom } from "@/lib/pro/tournamentTicket";
-import { tournamentPath } from "@/lib/tournaments/share";
+import { tournamentPath } from "@/lib/tournaments/links";
 import { getMatch } from "@/lib/tournaments/api";
-import { startPoll } from "@/lib/tournaments/poll";
+import { NOT_FOUND_LIMIT, startPoll } from "@/lib/tournaments/poll";
 
 export const DECIDED_POLL_MS = 15_000;
 
@@ -35,9 +35,17 @@ export const MatchDecidedBanner = ({ at, strip = false, children }: { at: Tourna
   useEffect(() => {
     setNotice(null);
     if (!slug || !matchId) return;
-    return startPoll(DECIDED_POLL_MS, async () => {
+    let current = true; // this room/match is still the one on screen
+    let notFound = 0;
+    const cancel = startPoll(DECIDED_POLL_MS, async () => {
       const r = await getMatch(slug, matchId);
-      if (!r.ok) return r.reason === "not_found" ? "stop" : "fail";
+      if (!current) return "stop";
+      if (!r.ok) {
+        if (r.reason !== "not_found") return "fail";
+        notFound += 1;
+        return notFound >= NOT_FOUND_LIMIT ? "stop" : "ok";
+      }
+      notFound = 0;
       const { match, players, tournament } = r.value;
       if (match.decidedBy === "organizer" && (match.status === "decided" || !!match.winner)) {
         setNotice("decided");
@@ -51,6 +59,10 @@ export const MatchDecidedBanner = ({ at, strip = false, children }: { at: Tourna
       }
       return "ok";
     });
+    return () => {
+      current = false;
+      cancel();
+    };
   }, [slug, matchId, myUserId]);
 
   const ref = useRef<HTMLDivElement>(null);

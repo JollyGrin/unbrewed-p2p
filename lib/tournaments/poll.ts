@@ -60,12 +60,20 @@ export const startPoll = (baseMs: number, tick: () => Promise<PollVerdict>): (()
 export const usePoll = (enabled: boolean, baseMs: number, failures: number, reload: () => void) => {
   useEffect(() => {
     if (!enabled || baseMs <= 0) return;
-    const id = window.setInterval(() => {
-      if (!tabHidden()) reload();
-    }, pollDelay(baseMs, failures));
-    const onVisible = () => {
-      if (!tabHidden()) reload();
+    const delay = pollDelay(baseMs, failures);
+    let id: number | undefined;
+    const start = () => {
+      window.clearInterval(id);
+      id = window.setInterval(() => {
+        if (!tabHidden()) reload();
+      }, delay);
     };
+    const onVisible = () => {
+      if (tabHidden()) return;
+      reload();
+      start(); // restart the clock so a second fetch doesn't follow within moments
+    };
+    start();
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       window.clearInterval(id);
@@ -74,14 +82,22 @@ export const usePoll = (enabled: boolean, baseMs: number, failures: number, relo
   }, [enabled, baseMs, failures, reload]);
 };
 
-/** Consecutive failed loads of `loaded` ("unavailable"), reset by a success. */
-export const useFailureCount = (status: string, identity: unknown): number => {
+/** A 404 is final only the second time in a row (one can be a deploy or replication blip). */
+export const NOT_FOUND_LIMIT = 2;
+
+/**
+ * Consecutive failed ("unavailable") and not-found loads of `loaded`; a success
+ * resets both. Counted once per distinct result (`identity`).
+ */
+export const useFailureCount = (status: string, identity: unknown): { failures: number; notFound: number } => {
   const seen = useRef<unknown>(null);
-  const count = useRef(0);
+  const count = useRef({ failures: 0, notFound: 0 });
   if (seen.current !== identity) {
     seen.current = identity;
-    if (status === "unavailable") count.current += 1;
-    else if (status === "ready") count.current = 0;
+    const c = count.current;
+    if (status === "unavailable") count.current = { failures: c.failures + 1, notFound: 0 };
+    else if (status === "not_found") count.current = { failures: c.failures, notFound: c.notFound + 1 };
+    else if (status === "ready") count.current = { failures: 0, notFound: 0 };
   }
   return count.current;
 };

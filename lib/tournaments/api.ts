@@ -45,16 +45,24 @@ export type Result<T> =
       canForce?: boolean;
     };
 
-/** A call that has not answered in this long is a network failure (#1265). */
+/** A GET that has not answered in this long is a network failure (#1265). */
 export const REQUEST_TIMEOUT_MS = 10_000;
+/** Large GET bodies (a replay bundle) on a slow mobile link. */
+export const LARGE_GET_TIMEOUT_MS = 30_000;
 
 const call = async <T>(
   path: string,
   init: RequestInit | undefined,
   pick: (body: any) => T,
+  timeoutMs?: number,
 ): Promise<Result<T>> => {
   const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), REQUEST_TIMEOUT_MS);
+  // Only GETs time out: a write (create, ready, join, override, cancel, start) can
+  // legitimately outlast any limit (the api waits on Discord) and has already
+  // happened server-side by then — aborting it invites a duplicate on retry.
+  const isGet = !init?.method || init.method.toUpperCase() === "GET";
+  const limit = timeoutMs ?? (isGet ? REQUEST_TIMEOUT_MS : null);
+  const timer = limit === null ? undefined : setTimeout(() => ctl.abort(), limit);
   try {
     const res = await fetch(`${API_URL}${path}`, {
       credentials: "include",
@@ -107,7 +115,7 @@ const call = async <T>(
   } catch {
     return { ok: false, reason: "unavailable" };
   } finally {
-    clearTimeout(timer);
+    if (timer !== undefined) clearTimeout(timer);
   }
 };
 
@@ -240,7 +248,12 @@ export const getMatchTicket = (slug: string, matchId: string) =>
  * Accepts `{bundle}` or the share route's `{replay: {bundle}}`.
  */
 export const getGameReplay = (slug: string, matchId: string, gameIndex: number) =>
-  call(`${matchPath(slug, matchId)}/games/${gameIndex}/replay`, undefined, (b) => (b?.bundle ?? b?.replay?.bundle ?? null) as unknown);
+  call(
+    `${matchPath(slug, matchId)}/games/${gameIndex}/replay`,
+    undefined,
+    (b) => (b?.bundle ?? b?.replay?.bundle ?? null) as unknown,
+    LARGE_GET_TIMEOUT_MS,
+  );
 /** Organizer: one item of the "Needs your attention" queue (`GET …/attention`). */
 export type AttentionItem = {
   matchId: string;

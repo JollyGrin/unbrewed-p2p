@@ -9,7 +9,7 @@ import {
   listTournaments,
   type Result,
 } from "./api";
-import { useFailureCount, usePoll } from "./poll";
+import { NOT_FOUND_LIMIT, useFailureCount, usePoll } from "./poll";
 import type { Entry, Match, MatchDetail, Standing, Tournament } from "./types";
 
 export type Loaded<T> =
@@ -70,7 +70,8 @@ export const useTournament = (slug: string | null, pollMs = 10_000) => {
   const state =
     loaded.status === "unavailable" && last.current?.slug === slug ? last.current.loaded : loaded;
   const running = state.status === "ready" && state.value.tournament.status === "running";
-  usePoll(running, pollMs, useFailureCount(loaded.status, loaded), reload);
+  const streak = useFailureCount(loaded.status, loaded);
+  usePoll(running && streak.notFound < NOT_FOUND_LIMIT, pollMs, streak.failures, reload);
   return [state, reload] as const;
 };
 
@@ -84,14 +85,15 @@ export const useMatchDetail = (slug: string, matchId: string, pollMs = 10_000) =
   const last = useRef<Loaded<MatchDetail> | null>(null);
   if (loaded.status === "ready") last.current = loaded;
   const state = loaded.status !== "ready" && last.current ? last.current : loaded;
-  // Decided, cancelled (the match or its tournament) and a 404 are all final: stop asking.
+  const streak = useFailureCount(loaded.status, loaded);
+  // Decided, cancelled (the match or its tournament) and two 404s in a row are final: stop asking.
   const done =
-    loaded.status === "not_found" ||
+    streak.notFound >= NOT_FOUND_LIMIT ||
     (state.status === "ready" &&
       (state.value.match.status === "decided" ||
         !!state.value.match.cancelled ||
         state.value.tournament.status === "cancelled"));
-  usePoll(!done, pollMs, useFailureCount(loaded.status, loaded), reload);
+  usePoll(!done, pollMs, streak.failures, reload);
   return [state, reload] as const;
 };
 

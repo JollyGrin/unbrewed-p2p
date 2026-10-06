@@ -253,12 +253,15 @@ import {
 } from "@/lib/pro/tournamentTicket";
 import type { TicketLaunch, TournamentRoom } from "@/lib/pro/tournamentTicket";
 import { MatchDecidedBanner } from "@/components/Pro/MatchDecidedBanner";
+import { LazyScreenFallback } from "@/components/Pro/LazyScreenFallback";
 // Rare tournament screens, loaded on demand so their match helpers stay out of the first load (#1265).
 const SeatReplacedScreen = dynamic(() => import("@/components/Pro/SeatReplacedScreen").then((m) => m.SeatReplacedScreen), {
   ssr: false,
+  loading: LazyScreenFallback,
 });
 const TicketErrorScreen = dynamic(() => import("@/components/Pro/TicketErrorScreen").then((m) => m.TicketErrorScreen), {
   ssr: false,
+  loading: LazyScreenFallback,
 });
 import { useTaggedRoomLookup } from "@/lib/tournaments/useNextMatch";
 import { useLobbyMatchCue } from "@/lib/pro/useLobbyMatchCue";

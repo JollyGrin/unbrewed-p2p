@@ -71,7 +71,7 @@ const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => {
   const [viewMod, setViewMod] = useState<typeof import("@/lib/tournaments/nextMatch") | null>(null);
   const hasNext = !!tournaments?.next;
   useEffect(() => {
-    if (hasNext) void import("@/lib/tournaments/nextMatch").then(setViewMod);
+    if (hasNext) import("@/lib/tournaments/nextMatch").then(setViewMod, () => {}); // a failed chunk load just skips the card
   }, [hasNext]);
   const next =
     tournaments?.next && viewMod

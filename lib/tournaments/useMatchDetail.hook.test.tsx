@@ -42,13 +42,41 @@ it("does not fetch while the tab is hidden, and fetches once when it becomes vis
   expect(get).toHaveBeenCalledTimes(2);
 });
 
-it("a 404 stops the polling", async () => {
+it("two 404s in a row stop the polling; the first one alone does not", async () => {
   get.mockResolvedValue({ ok: false, reason: "not_found" });
   const { result } = renderHook(() => useMatchDetail("s", "m"));
   await tick(0);
   expect(result.current[0].status).toBe("not_found");
+  await tick(10_000); // second 404
+  expect(get).toHaveBeenCalledTimes(2);
   await tick(120_000);
-  expect(get).toHaveBeenCalledTimes(1);
+  expect(get).toHaveBeenCalledTimes(2);
+});
+
+it("a transient 404 followed by success keeps polling", async () => {
+  get.mockResolvedValueOnce({ ok: false, reason: "not_found" }).mockResolvedValue(detail());
+  renderHook(() => useMatchDetail("s", "m"));
+  await tick(0);
+  await tick(10_000);
+  expect(get).toHaveBeenCalledTimes(2);
+  await tick(10_000);
+  await tick(10_000);
+  expect(get).toHaveBeenCalledTimes(4);
+});
+
+it("becoming visible refetches and restarts the clock (no second fetch moments later)", async () => {
+  get.mockResolvedValue(detail());
+  renderHook(() => useMatchDetail("s", "m"));
+  await tick(0);
+  await tick(9_000);
+  await act(async () => {
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  expect(get).toHaveBeenCalledTimes(2);
+  await tick(2_000); // the old interval would have fired at 10s
+  expect(get).toHaveBeenCalledTimes(2);
+  await tick(8_000);
+  expect(get).toHaveBeenCalledTimes(3);
 });
 
 it("a cancelled match, or a cancelled tournament, stops the polling", async () => {

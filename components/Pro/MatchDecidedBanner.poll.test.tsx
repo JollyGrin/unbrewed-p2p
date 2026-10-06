@@ -48,14 +48,25 @@ it("pauses while hidden and fetches once on becoming visible", async () => {
   expect(get).toHaveBeenCalledTimes(2);
 });
 
-it("stops after a 404 and after a cancelled tournament", async () => {
+it("stops after two 404s in a row, but a transient 404 keeps polling", async () => {
   get.mockResolvedValue({ ok: false, reason: "not_found" });
   mount();
   await tick(0);
+  await tick(15_000);
+  expect(get).toHaveBeenCalledTimes(2);
   await tick(120_000);
-  expect(get).toHaveBeenCalledTimes(1);
+  expect(get).toHaveBeenCalledTimes(2);
 
-  get.mockReset().mockResolvedValue({ ok: true, value: { ...open.value, tournament: { status: "cancelled" } } });
+  get.mockReset().mockResolvedValueOnce({ ok: false, reason: "not_found" }).mockResolvedValue(open);
+  mount();
+  await tick(0);
+  await tick(15_000);
+  await tick(15_000);
+  expect(get).toHaveBeenCalledTimes(3);
+});
+
+it("stops after a cancelled tournament", async () => {
+  get.mockResolvedValue({ ok: true, value: { ...open.value, tournament: { status: "cancelled" } } });
   mount();
   await tick(0);
   await tick(120_000);

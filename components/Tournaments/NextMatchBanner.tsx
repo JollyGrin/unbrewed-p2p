@@ -110,7 +110,7 @@ export const NextMatchBanner = () => {
   const [, setTitlesLoaded] = useState(false);
   const hasMatch = !!view;
   useEffect(() => {
-    if (hasMatch) void loadMapTitles().then(() => setTitlesLoaded(true));
+    if (hasMatch) loadMapTitles().then(() => setTitlesLoaded(true), () => {}); // titles fall back to ids
   }, [hasMatch]);
   if (!view || !account) return null;
   return <NextMatchCard view={view} myName={account.username} myAvatar={account.avatarUrl ?? undefined} />;

@@ -4,6 +4,9 @@ import type { NextMatch } from "./types";
 export const matchHref = (slug: string, matchId: string): string =>
   `/tournaments?t=${encodeURIComponent(slug)}&m=${encodeURIComponent(matchId)}`;
 
+export const tournamentPath = (slug: string): string =>
+  `/tournaments?t=${encodeURIComponent(slug)}`;
+
 /** The bracket size, from the row's own field or the player's tournament list. */
 export const sizeOf = (n: NextMatch, listed: readonly { id: string; size: number }[] = []) =>
   n.tournament.size ?? listed.find((t) => t.id === n.tournament.id)?.size ?? null;
