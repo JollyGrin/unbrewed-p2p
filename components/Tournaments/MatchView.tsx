@@ -406,6 +406,8 @@ const Banner = ({
         ? `Decided. ${winnerName} wins the match.`
         : !next
         ? `Decided. ${winnerName} wins the tournament.`
+        : d.tournament.status === "cancelled"
+        ? `Decided. ${winnerName} won the match.`
         : `Decided. ${winnerName} advances to the ${next}.`;
       small =
         m.decidedBy === "organizer"
