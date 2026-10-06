@@ -13,7 +13,7 @@
 import { heroDisplayName } from "@/lib/stats/roster";
 
 import { DECIDED_NOTE, countsGame, scoredGame, roundCount, roundName } from "./bracket";
-import { mapTitle } from "./options";
+import { mapTitle } from "./mapTitle";
 import type { Assignment, Game, Match, MatchDetail, MatchPlayer } from "./types";
 
 export type MatchPageState =

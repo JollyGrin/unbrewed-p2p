@@ -1,6 +1,7 @@
 /** Share-step text: the event link and the "Copy Discord post" body (#1216). */
+import { tournamentPath } from "./links";
 import { describeTournamentRule } from "./matchup";
-import { mapTitle } from "./options";
+import { mapTitle } from "./mapTitle";
 import { hasTop2Final } from "./roundRobin";
 import type { Tournament } from "./types";
 
@@ -11,8 +12,7 @@ export const WINDOW_LABEL: Record<number, string> = {
   168: "1 week",
 };
 
-export const tournamentPath = (slug: string): string =>
-  `/tournaments?t=${encodeURIComponent(slug)}`;
+export { tournamentPath };
 
 export const tournamentUrl = (slug: string, origin = "https://unbrewed.xyz"): string =>
   `${origin}${tournamentPath(slug)}`;

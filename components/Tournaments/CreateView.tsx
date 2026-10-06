@@ -262,7 +262,7 @@ export const CreateView = () => {
             )}
 
             <Text fontSize="13px" opacity={0.75}>
-              The unbrewed bot posts the signup in #tournaments, then a thread per match that pings both players. Nothing to set up.
+              When the unbrewed Discord bot is switched on, it posts the signup and each match in Discord. Nothing to set up here.
             </Text>
 
             {problems.length > 0 && (

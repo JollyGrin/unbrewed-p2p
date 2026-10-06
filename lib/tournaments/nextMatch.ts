@@ -6,7 +6,7 @@
  * or the game is in play now — and, once the deadline is behind us with no
  * game started, the organizer is deciding (#1230): nothing to press.
  */
-import { matchHref } from "./bracket";
+import { matchHref, sizeOf } from "./links";
 import {
   DEADLINE_PASSED_TEXT,
   deadlineOutcome,
@@ -65,9 +65,7 @@ export const timeLeftText = (deadlineAt: string | null, now: number): string | n
   return `${Math.max(1, p.m)}m left`;
 };
 
-/** The bracket size, from the row's own field or the player's tournament list. */
-export const sizeOf = (n: NextMatch, listed: readonly { id: string; size: number }[] = []) =>
-  n.tournament.size ?? listed.find((t) => t.id === n.tournament.id)?.size ?? null;
+export { sizeOf };
 
 export const nextMatchView = (
   n: NextMatch,

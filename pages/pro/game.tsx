@@ -11,6 +11,7 @@
  *   verified without the backend. Clicking a fighter shows its movement
  *   out-edges (adjacentTo ∪ oneWayTo) — reading MAP data for display, not rules.
  */
+import dynamic from "next/dynamic";
 import { CSSProperties, FocusEvent as ReactFocusEvent, Fragment, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { useRouter } from "next/router";
@@ -252,8 +253,16 @@ import {
 } from "@/lib/pro/tournamentTicket";
 import type { TicketLaunch, TournamentRoom } from "@/lib/pro/tournamentTicket";
 import { MatchDecidedBanner } from "@/components/Pro/MatchDecidedBanner";
-import { SeatReplacedScreen } from "@/components/Pro/SeatReplacedScreen";
-import { TicketErrorScreen } from "@/components/Pro/TicketErrorScreen";
+import { LazyScreenFallback } from "@/components/Pro/LazyScreenFallback";
+// Rare tournament screens, loaded on demand so their match helpers stay out of the first load (#1265).
+const SeatReplacedScreen = dynamic(() => import("@/components/Pro/SeatReplacedScreen").then((m) => m.SeatReplacedScreen), {
+  ssr: false,
+  loading: LazyScreenFallback,
+});
+const TicketErrorScreen = dynamic(() => import("@/components/Pro/TicketErrorScreen").then((m) => m.TicketErrorScreen), {
+  ssr: false,
+  loading: LazyScreenFallback,
+});
 import { useTaggedRoomLookup } from "@/lib/tournaments/useNextMatch";
 import { useLobbyMatchCue } from "@/lib/pro/useLobbyMatchCue";
 import { useTurnReminder } from "@/lib/pro/useTurnReminder";
@@ -8050,7 +8059,8 @@ const PreviewGame = () => {
 
 const ProGamePage = () => {
   const router = useRouter();
-  const room = typeof router.query.room === "string" ? router.query.room : null;
+  // An empty `?room=` is no room (it would open the join picker with default settings).
+  const room = typeof router.query.room === "string" && router.query.room !== "" ? router.query.room : null;
   const heroParam = typeof router.query.hero === "string" ? router.query.hero : null;
   // One-tap rematch (issue #TBD): `/pro/game?rematch=1&...` carries a whole
   // CREATE_ROOM's worth of settings from a just-finished game's winner screen

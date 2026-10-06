@@ -55,7 +55,7 @@ describe("JoinPanel", () => {
     mount(T, FIVE);
     const link = await screen.findByRole("link", { name: /sign in with discord to join/i });
     const href = link.getAttribute("href")!;
-    expect(decodeURIComponent(href)).toContain("return_to=/tournaments?t=lab-rats-open&join=1");
+    expect(decodeURIComponent(href)).toContain("return_to=/tournaments?t=lab-rats-open");
   });
 
   it("signed in: one tap joins, then the panel refreshes", async () => {

@@ -9,6 +9,7 @@ import {
   listTournaments,
   type Result,
 } from "./api";
+import { NOT_FOUND_LIMIT, useFailureCount, usePoll } from "./poll";
 import type { Entry, Match, MatchDetail, Standing, Tournament } from "./types";
 
 export type Loaded<T> =
@@ -69,25 +70,13 @@ export const useTournament = (slug: string | null, pollMs = 10_000) => {
   const state =
     loaded.status === "unavailable" && last.current?.slug === slug ? last.current.loaded : loaded;
   const running = state.status === "ready" && state.value.tournament.status === "running";
-  useEffect(() => {
-    if (!running || pollMs <= 0) return;
-    const id = window.setInterval(() => {
-      if (typeof document === "undefined" || document.visibilityState !== "hidden") reload();
-    }, pollMs);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") reload();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      window.clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [running, pollMs, reload]);
+  const streak = useFailureCount(loaded.status, loaded);
+  usePoll(running && streak.notFound < NOT_FOUND_LIMIT, pollMs, streak.failures, reload);
   return [state, reload] as const;
 };
 
 /**
- * The match page's match (#1218), re-fetched every `pollMs` until it is decided —
+ * The match page's match (#1218), re-fetched every `pollMs` (paused while the tab is hidden, backed off on errors) until it is decided or cancelled —
  * an opponent's "I'm ready" or a finished game shows up without a refresh.
  */
 export const useMatchDetail = (slug: string, matchId: string, pollMs = 10_000) => {
@@ -96,12 +85,15 @@ export const useMatchDetail = (slug: string, matchId: string, pollMs = 10_000) =
   const last = useRef<Loaded<MatchDetail> | null>(null);
   if (loaded.status === "ready") last.current = loaded;
   const state = loaded.status !== "ready" && last.current ? last.current : loaded;
-  const decided = state.status === "ready" && state.value.match.status === "decided";
-  useEffect(() => {
-    if (decided || pollMs <= 0) return;
-    const id = window.setInterval(reload, pollMs);
-    return () => window.clearInterval(id);
-  }, [decided, pollMs, reload]);
+  const streak = useFailureCount(loaded.status, loaded);
+  // Decided, cancelled (the match or its tournament) and two 404s in a row are final: stop asking.
+  const done =
+    streak.notFound >= NOT_FOUND_LIMIT ||
+    (state.status === "ready" &&
+      (state.value.match.status === "decided" ||
+        !!state.value.match.cancelled ||
+        state.value.tournament.status === "cancelled"));
+  usePoll(!done, pollMs, streak.failures, reload);
   return [state, reload] as const;
 };
 

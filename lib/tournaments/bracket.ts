@@ -10,7 +10,8 @@
  */
 import { heroDisplayName } from "@/lib/stats/roster";
 
-import { mapTitle } from "./options";
+import { matchHref } from "./links";
+import { mapTitle } from "./mapTitle";
 import type { DecidedBy, Entry, Game, Match, Tournament } from "./types";
 
 /** "Final", "Semifinals", "Quarterfinals", "Round of 16". */
@@ -141,8 +142,7 @@ export interface BracketView {
   };
 }
 
-export const matchHref = (slug: string, matchId: string): string =>
-  `/tournaments?t=${encodeURIComponent(slug)}&m=${encodeURIComponent(matchId)}`;
+export { matchHref };
 
 /** The api's round count for a single-elimination bracket of `size`. */
 export const roundCount = (size: number): number => Math.round(Math.log2(size));

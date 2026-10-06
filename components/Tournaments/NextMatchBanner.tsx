@@ -3,11 +3,13 @@
  * gold ring, both avatars, the match and its lines, and one main action.
  * Renders nothing for guests, a player with no open match, or an api failure.
  */
+import { useEffect, useState } from "react";
 import { Box, Flex, Text } from "@chakra-ui/react";
 
 import { useAccount } from "@/lib/account/useAccount";
+import { loadMapTitles } from "@/lib/tournaments/mapTitle";
 import { usePlayMatch } from "@/lib/tournaments/usePlayMatch";
-import { useNextMatch } from "@/lib/tournaments/useNextMatch";
+import { useNextMatch } from "@/lib/tournaments/useNextMatchView";
 import type { NextMatchView } from "@/lib/tournaments/nextMatch";
 import { BAND_MUTED, GOLD, INK_DEEP, PARCHMENT } from "@/components/Stats/tokens";
 
@@ -104,6 +106,12 @@ export const NextMatchCard = ({ view, myName, myAvatar }: { view: NextMatchView;
 export const NextMatchBanner = () => {
   const { account } = useAccount();
   const view = useNextMatch();
+  // The map catalog is not in the shared bundle (#1265): fetch it once there is a match to title.
+  const [, setTitlesLoaded] = useState(false);
+  const hasMatch = !!view;
+  useEffect(() => {
+    if (hasMatch) loadMapTitles().then(() => setTitlesLoaded(true), () => {}); // titles fall back to ids
+  }, [hasMatch]);
   if (!view || !account) return null;
   return <NextMatchCard view={view} myName={account.username} myAvatar={account.avatarUrl ?? undefined} />;
 };

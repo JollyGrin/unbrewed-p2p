@@ -10,8 +10,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { useAccount } from "@/lib/account/useAccount";
 import { tournamentMatchHref, type TournamentRoom } from "@/lib/pro/tournamentTicket";
-import { tournamentPath } from "@/lib/tournaments/share";
+import { tournamentPath } from "@/lib/tournaments/links";
 import { getMatch } from "@/lib/tournaments/api";
+import { NOT_FOUND_LIMIT, startPoll } from "@/lib/tournaments/poll";
 
 export const DECIDED_POLL_MS = 15_000;
 
@@ -34,29 +35,33 @@ export const MatchDecidedBanner = ({ at, strip = false, children }: { at: Tourna
   useEffect(() => {
     setNotice(null);
     if (!slug || !matchId) return;
-    let alive = true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const tick = async () => {
+    let current = true; // this room/match is still the one on screen
+    let notFound = 0;
+    const cancel = startPoll(DECIDED_POLL_MS, async () => {
       const r = await getMatch(slug, matchId);
-      if (!alive) return;
-      if (r.ok) {
-        const { match, players } = r.value;
-        if (match.decidedBy === "organizer" && (match.status === "decided" || !!match.winner)) {
-          setNotice("decided");
-          return;
-        }
-        const sides = [players?.a, players?.b].filter(Boolean) as { userId: string }[];
-        if (myUserId && sides.length > 0 && !sides.some((p) => p.userId === myUserId)) {
-          setNotice("removed");
-          return;
-        }
+      if (!current) return "stop";
+      if (!r.ok) {
+        if (r.reason !== "not_found") return "fail";
+        notFound += 1;
+        return notFound >= NOT_FOUND_LIMIT ? "stop" : "ok";
       }
-      timer = setTimeout(tick, DECIDED_POLL_MS);
-    };
-    void tick();
+      notFound = 0;
+      const { match, players, tournament } = r.value;
+      if (match.decidedBy === "organizer" && (match.status === "decided" || !!match.winner)) {
+        setNotice("decided");
+        return "stop";
+      }
+      if (match.cancelled || tournament?.status === "cancelled") return "stop";
+      const sides = [players?.a, players?.b].filter(Boolean) as { userId: string }[];
+      if (myUserId && sides.length > 0 && !sides.some((p) => p.userId === myUserId)) {
+        setNotice("removed");
+        return "stop";
+      }
+      return "ok";
+    });
     return () => {
-      alive = false;
-      if (timer) clearTimeout(timer);
+      current = false;
+      cancel();
     };
   }, [slug, matchId, myUserId]);
 
