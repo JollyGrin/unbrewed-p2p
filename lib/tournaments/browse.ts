@@ -66,3 +66,10 @@ export const statusChip = (
       return { tone: "plain", label: "Draft" };
   }
 };
+
+/**
+ * The account-menu count: what the browse "My tournaments" filter lists. The
+ * public list never carries cancelled tournaments, so they don't count here either.
+ */
+export const myTournamentCount = (rows: readonly Tournament[]): number =>
+  rows.filter((t) => (t.myEntryId || t.isOrganizer) && t.status !== "cancelled").length;

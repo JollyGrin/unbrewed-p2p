@@ -200,6 +200,7 @@ export const getMatch = (slug: string, matchId: string) =>
     match: b.match as Match,
     tournament: b.tournament as MatchDetail["tournament"],
     players: { a: b.players?.a ?? null, b: b.players?.b ?? null },
+    decision: (b.decision ?? null) as MatchDetail["decision"],
     readyChecks: list(b.readyChecks) as MatchDetail["readyChecks"],
     liveRoom: (b.liveRoom ?? null) as MatchDetail["liveRoom"],
   }));

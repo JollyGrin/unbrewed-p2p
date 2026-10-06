@@ -20,6 +20,7 @@ import {
   signOut,
   useAccount,
 } from "@/lib/account/useAccount";
+import { myTournamentCount } from "@/lib/tournaments/browse";
 import { nextMatchView } from "@/lib/tournaments/nextMatch";
 import { useMyTournaments } from "@/lib/tournaments/useNextMatch";
 
@@ -70,7 +71,7 @@ const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => {
   const next = tournaments?.next
     ? nextMatchView(tournaments.next.match, tournaments.next.detail, tournaments.next.size, Date.now())
     : null;
-  const myCount = tournaments?.mine.tournaments.filter((t) => t.myEntryId || t.isOrganizer).length ?? 0;
+  const myCount = tournaments ? myTournamentCount(tournaments.mine.tournaments) : 0;
 
   return (
     <MenuList
