@@ -9,6 +9,7 @@ import {
   listTournaments,
   type Result,
 } from "./api";
+import { useFailureCount, usePoll } from "./poll";
 import type { Entry, Match, MatchDetail, Standing, Tournament } from "./types";
 
 export type Loaded<T> =
@@ -69,25 +70,12 @@ export const useTournament = (slug: string | null, pollMs = 10_000) => {
   const state =
     loaded.status === "unavailable" && last.current?.slug === slug ? last.current.loaded : loaded;
   const running = state.status === "ready" && state.value.tournament.status === "running";
-  useEffect(() => {
-    if (!running || pollMs <= 0) return;
-    const id = window.setInterval(() => {
-      if (typeof document === "undefined" || document.visibilityState !== "hidden") reload();
-    }, pollMs);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") reload();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      window.clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [running, pollMs, reload]);
+  usePoll(running, pollMs, useFailureCount(loaded.status, loaded), reload);
   return [state, reload] as const;
 };
 
 /**
- * The match page's match (#1218), re-fetched every `pollMs` until it is decided —
+ * The match page's match (#1218), re-fetched every `pollMs` (paused while the tab is hidden, backed off on errors) until it is decided or cancelled —
  * an opponent's "I'm ready" or a finished game shows up without a refresh.
  */
 export const useMatchDetail = (slug: string, matchId: string, pollMs = 10_000) => {
@@ -96,12 +84,14 @@ export const useMatchDetail = (slug: string, matchId: string, pollMs = 10_000) =
   const last = useRef<Loaded<MatchDetail> | null>(null);
   if (loaded.status === "ready") last.current = loaded;
   const state = loaded.status !== "ready" && last.current ? last.current : loaded;
-  const decided = state.status === "ready" && state.value.match.status === "decided";
-  useEffect(() => {
-    if (decided || pollMs <= 0) return;
-    const id = window.setInterval(reload, pollMs);
-    return () => window.clearInterval(id);
-  }, [decided, pollMs, reload]);
+  // Decided, cancelled (the match or its tournament) and a 404 are all final: stop asking.
+  const done =
+    loaded.status === "not_found" ||
+    (state.status === "ready" &&
+      (state.value.match.status === "decided" ||
+        !!state.value.match.cancelled ||
+        state.value.tournament.status === "cancelled"));
+  usePoll(!done, pollMs, useFailureCount(loaded.status, loaded), reload);
   return [state, reload] as const;
 };
 

@@ -8,6 +8,7 @@ import { POPULAR_DECKS } from "@/lib/constants/top-decks";
 import { HERO_DECK_IDS } from "@/lib/pro/useProCardArt";
 import type { HeroListing } from "@/lib/pro/protocol";
 
+import { registerMapTitles } from "./mapTitle";
 import type { MapRef } from "./types";
 
 export interface MapOption {
@@ -23,6 +24,8 @@ export const proMapOptions = (): MapOption[] =>
 
 export const mapTitle = (ref: MapRef): string =>
   MAP_CATALOG.find((entry) => entry.id === ref.id)?.title ?? ref.id;
+
+registerMapTitles(mapTitle);
 
 export interface DeckOption {
   heroId: string;

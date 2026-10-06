@@ -1,6 +1,6 @@
 /** Share-step text: the event link and the "Copy Discord post" body (#1216). */
 import { describeTournamentRule } from "./matchup";
-import { mapTitle } from "./options";
+import { mapTitle } from "./mapTitle";
 import { hasTop2Final } from "./roundRobin";
 import type { Tournament } from "./types";
 

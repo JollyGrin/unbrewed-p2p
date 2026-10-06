@@ -21,7 +21,6 @@ import {
   useAccount,
 } from "@/lib/account/useAccount";
 import { myTournamentCount } from "@/lib/tournaments/browse";
-import { nextMatchView } from "@/lib/tournaments/nextMatch";
 import { useMyTournaments } from "@/lib/tournaments/useNextMatch";
 
 /**
@@ -68,9 +67,16 @@ const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => {
   // Tournaments (#1220): nothing here for a guest or an api failure.
   // Not on the in-game chip (`newTab`): a live game has no business with it.
   const tournaments = useMyTournaments(!newTab);
-  const next = tournaments?.next
-    ? nextMatchView(tournaments.next.match, tournaments.next.detail, tournaments.next.size, Date.now())
-    : null;
+  // The view builder (bracket/match helpers) loads on demand, not with every page (#1265).
+  const [viewMod, setViewMod] = useState<typeof import("@/lib/tournaments/nextMatch") | null>(null);
+  const hasNext = !!tournaments?.next;
+  useEffect(() => {
+    if (hasNext) void import("@/lib/tournaments/nextMatch").then(setViewMod);
+  }, [hasNext]);
+  const next =
+    tournaments?.next && viewMod
+      ? viewMod.nextMatchView(tournaments.next.match, tournaments.next.detail, tournaments.next.size, Date.now())
+      : null;
   const myCount = tournaments ? myTournamentCount(tournaments.mine.tournaments) : 0;
 
   return (

@@ -12,7 +12,7 @@ import { useEffect, useState } from "react";
 import { useAccount } from "@/lib/account/useAccount";
 
 import { getMatch, getMyTournaments, getTournament } from "./api";
-import { nextMatchView, sizeOf, type NextMatchView } from "./nextMatch";
+import { sizeOf } from "./links";
 import type { MatchDetail, MyTournaments, NextMatch } from "./types";
 
 export interface MyTournamentsData {
@@ -63,20 +63,6 @@ export const useMyTournaments = (enabled = true): MyTournamentsData | null => {
     };
   }, [userId]);
   return data;
-};
-
-/** The view, re-derived each second so the seat-hold and deadline clocks tick. */
-export const useNextMatch = (): NextMatchView | null => {
-  const data = useMyTournaments();
-  const [now, setNow] = useState(() => Date.now());
-  const next = data?.next ?? null;
-  useEffect(() => {
-    if (!next) return;
-    setNow(Date.now());
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, [next]);
-  return next ? nextMatchView(next.match, next.detail, next.size, now) : null;
 };
 
 type MatchRef = { slug: string; matchId: string };

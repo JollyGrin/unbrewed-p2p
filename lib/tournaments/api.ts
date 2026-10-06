@@ -45,15 +45,21 @@ export type Result<T> =
       canForce?: boolean;
     };
 
+/** A call that has not answered in this long is a network failure (#1265). */
+export const REQUEST_TIMEOUT_MS = 10_000;
+
 const call = async <T>(
   path: string,
   init: RequestInit | undefined,
   pick: (body: any) => T,
 ): Promise<Result<T>> => {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), REQUEST_TIMEOUT_MS);
   try {
     const res = await fetch(`${API_URL}${path}`, {
       credentials: "include",
       ...init,
+      signal: ctl.signal,
       headers: {
         Accept: "application/json",
         ...(init?.body ? { "Content-Type": "application/json" } : {}),
@@ -100,6 +106,8 @@ const call = async <T>(
     return { ok: false, reason, code, message, ...(roomId ? { roomId } : {}), ...extra };
   } catch {
     return { ok: false, reason: "unavailable" };
+  } finally {
+    clearTimeout(timer);
   }
 };
 

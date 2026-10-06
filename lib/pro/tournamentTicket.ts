@@ -18,7 +18,7 @@
  * The ticket itself is never parsed here: hero and map ride beside it.
  */
 import type { ErrorCode, ProMapDef } from "./protocol";
-import { matchHref } from "@/lib/tournaments/bracket";
+import { matchHref } from "@/lib/tournaments/links";
 
 import { catalogEntry, customMapForEntry, rollRandomMap } from "./mapCatalog";
 

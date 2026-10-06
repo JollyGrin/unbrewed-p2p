@@ -1,3 +1,4 @@
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import {
   Box,
@@ -24,7 +25,10 @@ import { useProLiveRosterState } from "@/lib/pro/useProLiveRoster";
 import { PRO_WS_URL } from "@/lib/pro/wsUrl";
 import { useFlag } from "@/lib/flags";
 import { AccountChip } from "@/components/Account/AccountChip";
-import { NextMatchBanner } from "@/components/Tournaments/NextMatchBanner";
+// Loaded on demand: its bracket/match helpers stay out of the /pro first load (#1265).
+const NextMatchBanner = dynamic(() => import("@/components/Tournaments/NextMatchBanner").then((m) => m.NextMatchBanner), {
+  ssr: false,
+});
 import { DeckAttribution } from "@/components/Pro/DeckAttribution";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { ProHeroVideo } from "@/components/Pro/ProHeroVideo";

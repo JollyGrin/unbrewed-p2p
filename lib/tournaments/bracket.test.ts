@@ -1,4 +1,5 @@
 /** The bracket layout model (#1217) over 4/8/16 fixtures, byes included. */
+import "./options"; // registers the real map titles (#1265)
 import {
   buildBracket,
   cellState,

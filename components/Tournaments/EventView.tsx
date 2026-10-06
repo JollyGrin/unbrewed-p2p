@@ -91,7 +91,7 @@ export const JoinPanel = ({
     <Flex flexDir="column" gap="14px" data-testid="join-panel" data-state={state.kind}>
       {state.kind === "signed_out" && (
         <>
-          <Btn variant="discord" href={signInUrl(`${tournamentPath(t.slug)}&join=1`)} w="100%">
+          <Btn variant="discord" href={signInUrl(tournamentPath(t.slug))} w="100%">
             Sign in with Discord to join
           </Btn>
           <Text fontSize="13px" textAlign="center" opacity={0.7}>
